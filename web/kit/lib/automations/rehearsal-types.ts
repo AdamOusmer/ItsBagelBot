@@ -38,7 +38,6 @@ export type ScenarioField = {
   key: keyof RehearsalScenario;
   kind: 'text' | 'number' | 'role' | 'select' | 'toggle';
   default: ScenarioValue;
-  more?: boolean;
   options?: readonly string[];
 };
 

@@ -1,6 +1,7 @@
 {
   "label": "Start countdown",
   "summary": "Start or restart a named countdown",
+  "line": "Start {name} for {seconds}",
   "field": {
     "name": {
       "label": "Name",

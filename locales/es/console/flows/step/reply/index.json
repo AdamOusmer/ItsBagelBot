@@ -152,6 +152,7 @@
   "cooldownAdd": {
     "label": "Añadir tiempo a un enfriamiento",
     "summary": "Extender un temporizador con nombre mientras se ejecuta",
+    "line": "Añadir {seconds} a {name}",
     "field": {
       "name": {
         "label": "Temporizador"
@@ -169,6 +170,7 @@
   "countdownAdd": {
     "label": "Añadir tiempo a la cuenta atrás",
     "summary": "Ampliar una cuenta atrás activa",
+    "line": "Añadir {seconds} a {name}",
     "field": {
       "name": {
         "label": "Cuenta atrás"
@@ -186,6 +188,7 @@
   "poll": {
     "label": "Iniciar una encuesta",
     "summary": "Deja que los espectadores voten una pregunta",
+    "line": "Encuesta: {title}",
     "field": {
       "title": {
         "label": "Título"
@@ -201,6 +204,10 @@
   "pollEnd": {
     "label": "Finalizar una encuesta",
     "summary": "Detén la votación o archiva los resultados",
+    "line": {
+      "terminate": "Cerrar la encuesta y mostrar los resultados",
+      "archive": "Archivar la encuesta"
+    },
     "field": {
       "status": {
         "label": "Acción",
@@ -214,6 +221,7 @@
   "prediction": {
     "label": "Iniciar una predicción",
     "summary": "Deja que apuesten puntos por un resultado",
+    "line": "Predicción: {title}",
     "field": {
       "title": {
         "label": "Título"
@@ -229,6 +237,11 @@
   "predictionEnd": {
     "label": "Finalizar una predicción",
     "summary": "Cierra apuestas, devuelve puntos o elige ganador",
+    "line": {
+      "lock": "Cerrar las apuestas",
+      "cancel": "Cancelar y devolver los puntos",
+      "resolve": "Resultado ganador: {winner}"
+    },
     "field": {
       "status": {
         "label": "Acción",
@@ -246,6 +259,7 @@
   "raidStart": {
     "label": "Iniciar una incursión",
     "summary": "Envía a tus espectadores a otro canal",
+    "line": "Iniciar una incursión a {target}",
     "field": {
       "target": {
         "label": "Nombre de canal o espectador"
@@ -259,6 +273,10 @@
   "mod": {
     "label": "Cambiar el rol de moderador",
     "summary": "Da o quita permisos de moderador",
+    "line": {
+      "on": "Dar el rol de moderador a {target}",
+      "off": "Quitar el rol de moderador a {target}"
+    },
     "field": {
       "target": {
         "label": "Nombre de canal o espectador"
@@ -271,6 +289,10 @@
   "vip": {
     "label": "Cambiar el rol VIP",
     "summary": "Da o quita la insignia VIP de un espectador",
+    "line": {
+      "on": "Dar el rol VIP a {target}",
+      "off": "Quitar el rol VIP a {target}"
+    },
     "field": {
       "target": {
         "label": "Nombre de canal o espectador"
@@ -291,6 +313,7 @@
   "whisper": {
     "label": "Enviar un susurro",
     "summary": "Envía un mensaje privado a un espectador",
+    "line": "Susurro a {target}: {text}",
     "field": {
       "target": {
         "label": "Nombre de canal o espectador"

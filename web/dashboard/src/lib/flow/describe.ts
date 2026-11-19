@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey } from '@bagel/kit';
+import { compactDuration } from '@bagel/kit/automations';
 import { optionText, outputLabel, stepSummary } from './copy';
 import type { Translate } from './messages';
 import { LINKED_REWARD_CHOICE, specFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
@@ -238,6 +239,38 @@ function lineFor(t: Translate, node: FlowNode, spec: NodeSpec): string {
   return spec.kind === 'condition' ? conditionLine(t, node) : replyLine(t, node, spec);
 }
 
+type ConfigValue = FlowNode['config'][string] | undefined;
+
+export function durationFormatter(t: Translate): (seconds: number) => string {
+  const units = [t('flows.test.duration.day'), t('flows.test.duration.hour'), t('flows.test.duration.minute'), t('flows.test.duration.second')];
+  return (seconds) => compactDuration(seconds, units);
+}
+
+function lineVariant(value: ConfigValue): string {
+  if (typeof value === 'boolean') return value ? 'on' : 'off';
+  return String(value ?? '').trim();
+}
+
+function lineValue(t: Translate, node: FlowNode, spec: NodeSpec, key: string): string {
+  if (!text(node, key)) return '';
+  const field = spec.fields.find((entry) => entry.key === key);
+  if (field?.type === 'duration') return given(num(node, key), durationFormatter(t));
+  return optionLabel(t, spec, node, key);
+}
+
+function specLine(t: Translate, node: FlowNode, spec: NodeSpec): string | undefined {
+  const suffix = spec.lineBy ? `.${lineVariant(node.config[spec.lineBy])}` : '';
+  const template = t(`flows.step.${spec.kind}.${spec.slug}.line${suffix}` as MessageKey);
+  if (template === `flows.step.${spec.kind}.${spec.slug}.line${suffix}`) return undefined;
+  let missing = false;
+  const line = template.replace(/\{(\w+)\}/g, (_, key: string) => {
+    const value = lineValue(t, node, spec, key);
+    if (!value) missing = true;
+    return value;
+  });
+  return missing ? '' : line;
+}
+
 export function portLabel(t: Translate, node: FlowNode, id: string): string {
   const percent = node.type === 'cond.chance' ? num(node, 'percent') : 0;
   if (percent) return id === 'yes' ? t('flows.line.chanceYes', { percent }) : t('flows.line.chanceNo');
@@ -249,5 +282,5 @@ export function describe(t: Translate, node: FlowNode): string {
   const spec = specFor(node.type);
   if (!spec) return '';
   if (awaitingSetup(node)) return t('flows.setup.line');
-  return lineFor(t, node, spec) || stepSummary(t, spec);
+  return (specLine(t, node, spec) ?? lineFor(t, node, spec)) || stepSummary(t, spec);
 }

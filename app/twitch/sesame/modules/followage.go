@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
@@ -117,7 +118,7 @@ func parseLookupTarget(args string, c *module.Context) lookupTarget {
 		return lookupTarget{login: c.Env.ChatterUserLogin, name: c.Env.ChatterName(), id: c.Env.ChatterUserID}
 	}
 	target := lookupTarget{login: login, name: tmpl.ValueEscaper.Replace(login)}
-	if id := mentionedViewerID(c.Env.Mentions, login); id != 0 {
+	if id := scope.MentionedViewerID(c.Env.Mentions, login); id != 0 {
 		target.id = strconv.FormatUint(id, 10)
 	}
 	return target

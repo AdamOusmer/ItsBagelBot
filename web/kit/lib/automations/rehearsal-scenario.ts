@@ -8,20 +8,20 @@ import type { RehearsalScenario, ScenarioField, TriggerMatch } from './rehearsal
 
 const VIEWER: readonly ScenarioField[] = [
   { key: 'user', kind: 'text', default: 'PrincessBarney' },
-  { key: 'userId', kind: 'text', default: '40000001', more: true }
+  { key: 'userId', kind: 'text', default: '40000001' }
 ];
-const ROLE: ScenarioField = { key: 'role', kind: 'role', default: 'viewer', options: ['viewer', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'], more: true };
-const LIVE: ScenarioField = { key: 'live', kind: 'toggle', default: true, more: true };
+const ROLE: ScenarioField = { key: 'role', kind: 'role', default: 'viewer', options: ['viewer', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'] };
+const LIVE: ScenarioField = { key: 'live', kind: 'toggle', default: true };
 const TIER: ScenarioField = { key: 'tier', kind: 'select', default: '1000', options: ['1000', '2000', '3000'] };
 
 export const SCENARIO_FIELDS: Readonly<Record<string, readonly ScenarioField[]>> = {
   'twitch.chat.command': [...VIEWER, ROLE, { key: 'message', kind: 'text', default: '' }, LIVE],
   'twitch.chat.word': [...VIEWER, ROLE, { key: 'message', kind: 'text', default: '' }, LIVE],
   'twitch.follow': [...VIEWER, LIVE],
-  'twitch.sub.new': [...VIEWER, TIER, { key: 'isGift', kind: 'toggle', default: false, more: true }, LIVE],
+  'twitch.sub.new': [...VIEWER, TIER, { key: 'isGift', kind: 'toggle', default: false }, LIVE],
   'twitch.sub.resub': [...VIEWER, TIER, { key: 'months', kind: 'number', default: 14 }, LIVE],
   'twitch.sub.gift': [...VIEWER, TIER, { key: 'giftCount', kind: 'number', default: 5 }, { key: 'anonymous', kind: 'toggle', default: false }, LIVE],
-  'twitch.cheer': [...VIEWER, { key: 'bits', kind: 'number', default: 500 }, { key: 'anonymous', kind: 'toggle', default: false, more: true }, LIVE],
+  'twitch.cheer': [...VIEWER, { key: 'bits', kind: 'number', default: 500 }, { key: 'anonymous', kind: 'toggle', default: false }, LIVE],
   'twitch.raid': [...VIEWER, { key: 'viewers', kind: 'number', default: 42 }, LIVE],
   'twitch.reward': [...VIEWER, { key: 'input', kind: 'text', default: 'lofi beats' }, LIVE],
   'twitch.unban_request': [...VIEWER, { key: 'requestText', kind: 'text', default: 'please unban me' }, LIVE],
@@ -146,6 +146,7 @@ function matchEvent(params: Params, scenario: RehearsalScenario): TriggerMatch {
 }
 
 function matchCommand(params: Params, scenario: RehearsalScenario): TriggerMatch {
+  if (!String(params.name ?? '').trim()) return { starts: false, reason: 'no_name', values: {} };
   if (commandMatch(params, scenario.message ?? '')) return { starts: true };
   return { starts: false, reason: 'trigger_message', values: { expected: String(params.name), actual: scenario.message ?? '' } };
 }

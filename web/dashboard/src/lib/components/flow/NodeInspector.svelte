@@ -20,10 +20,10 @@
   import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import DurationField from '#lib/components/shared/DurationField.svelte';
-  import { durationOutside, durationRange, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, roleWarning, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
+  import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, stepLabel, stepRequirementFor, stepSummary, targetOptions, variableLabel } from '#lib/flow/copy';
   import { defaultComparison } from '#lib/flow/comparison';
-  import { fieldVisible, NODE_SPECS, outputsFor, specFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
-  import { duplicateNode } from '#lib/flow/ops';
+  import { fieldMounted, fieldVisible, NODE_SPECS, outputsFor, specFor, targetFieldFor, targetModesFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
+  import { duplicateNode, hasCheckBefore, insertCheckBefore } from '#lib/flow/ops';
   import { descendants, graphIndex, portKey } from '#lib/flow/graph-index';
   import { awaitingSetup, configText } from '#lib/flow/setup';
   import { SETUP_URL } from '@bagel/kit/automations';
@@ -43,9 +43,11 @@
     focusToken = 0,
     focusField,
     issues = [],
+    permissionRank = -1,
     onclose,
-    onremove
-  }: { flow: Flow; selectedId?: string | null; fallbackId?: string; active?: boolean; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; onclose?: () => void; onremove: (id: string, keepYes?: boolean) => void } = $props();
+    onremove,
+    oncheck
+  }: { flow: Flow; selectedId?: string | null; fallbackId?: string; active?: boolean; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; permissionRank?: number; onclose?: () => void; onremove: (id: string, keepYes?: boolean) => void; oncheck?: () => void } = $props();
 
   const { t } = getI18n();
   type FieldKey = FieldSpec['key'];
@@ -61,9 +63,10 @@
     if (!root) return;
     const key = focusField;
     void tick().then(() => {
-      const field = key ? fieldElements[key] : undefined;
+      const target = key ? fieldElements[key] : undefined;
+      const field = target?.inert ? undefined : target;
       const control = field?.querySelector<HTMLElement>('input, textarea, select, button');
-      const fields = Array.from(root.querySelectorAll<HTMLElement>('.scroll :is(input, textarea, select, button):not([disabled], [tabindex="-1"])'));
+      const fields = Array.from(root.querySelectorAll<HTMLElement>('.scroll :is(input, textarea, select, button):not(:disabled, [tabindex="-1"], [inert] *)'));
       (control ?? field ?? fields.find((el) => el.getClientRects().length > 0) ?? root).focus();
     });
   });
@@ -76,7 +79,6 @@
 
   const node = $derived(flow.nodes.find((n) => n.id === (selectedId ?? fallbackId)));
   const spec = $derived(node ? specFor(node.type) : undefined);
-  const targetMissing = $derived(['reply.shoutout', 'reply.timeout'].includes(node?.type ?? '') && !String(node?.config.target ?? '').trim());
 
   const compareExample = $derived.by(() => {
     if (node?.type !== 'cond.compare') return null;
@@ -88,7 +90,14 @@
   const caret = new Map<string, number>();
   const textOf = (key: FieldKey) => (node ? configText(node, key) : '');
   const awaiting = $derived(node ? awaitingSetup(node) : false);
-  const roleNote = $derived(roleWarning(t, flow, node));
+  const requirement = $derived(spec && stepRequirementFor(spec, { ...requirementTrigger(flow), perm: permissionRank }));
+  const roleLevel = $derived(requirement?.kind === 'role' ? requirement.level : undefined);
+  const incoming = $derived(node ? graphIndex(flow).incoming.get(node.id) ?? [] : []);
+  const addedCheck = $derived(roleLevel ? hasCheckBefore(flow, node?.id ?? '', roleLevel) : false);
+  const removeCheck = $derived(roleWarning(t, flow, node));
+  const roleNote = $derived(requirement ? requirementText(t, requirement, addedCheck ? 'start' : 'note') : removeCheck);
+  const canAddCheck = $derived(roleLevel ? incoming.length > 0 && !addedCheck : false);
+  const checkAction = $derived(canAddCheck || Boolean(removeCheck));
   const automaticComparisons = new Map<FlowNode['id'], boolean>();
 
   function setSelect(key: FieldKey, value: string) {
@@ -115,12 +124,8 @@
     }
   });
 
-  $effect(() => {
-    if (!node || spec?.type !== 'cond.cooldown') return;
-    if (node.config.perUser && node.config.name) delete node.config.name;
-  });
-
-  const templateFields = $derived(node && spec ? spec.fields.filter((f) => f.type === 'template' && fieldVisible(spec, node, f)) : []);
+  const templateFields = $derived(spec?.fields.filter((field) => field.type === 'template') ?? []);
+  const activeTemplates = $derived(node && spec ? templateFields.filter((field) => fieldVisible(spec, node, field)) : []);
 
   let focusedKey = $state<string>();
   type TextControl = HTMLInputElement | HTMLTextAreaElement;
@@ -144,7 +149,7 @@
     query = '';
     completion = null;
   });
-  const insertKey = $derived(templateFields.find((f) => f.key === focusedKey)?.key ?? templateFields[0]?.key);
+  const insertKey = $derived(activeTemplates.find((field) => field.key === focusedKey)?.key ?? activeTemplates[0]?.key);
   const tokens = $derived(node ? [
     ...variablesFor(flow, node.id).filter((v) => !(node.type === 'reply.countdown_start' && insertKey === 'leftReply' && v.token === '{countdown:left}')),
     ...(node.type === 'reply.countdown_start' && insertKey === 'leftReply' ? [{ token: '{countdown:left}', name: 'countdownLeft', sample: '2d 3h' }] : [])
@@ -249,11 +254,6 @@
     count === 0 ? t('flows.board.branchNone') : count === 1 ? t('flows.board.branchOne') : t('flows.board.branchMany', { count });
   const hintTitle = (token: Token, hint: Hint) => (hint ? t('flows.board.variableTitle', { token, hint }) : token);
 
-  const RESERVE_SPACE = new Set(['cond.cooldown:name']);
-  function renderVisible(s: NodeSpec, n: FlowNode, field: FieldSpec): boolean {
-    return RESERVE_SPACE.has(`${s.type}:${field.key}`) || fieldVisible(s, n, field);
-  }
-
   function duplicate() {
     if (!node) return;
     const copy = duplicateNode(flow, node.id);
@@ -263,6 +263,23 @@
   function remove() {
     if (!node) return;
     onremove(node.id);
+  }
+
+  function blankRequiredTarget(key: FieldKey, required: boolean): boolean {
+    if (key !== 'target' || !required) return false;
+    return !textOf(key).trim();
+  }
+
+  function changeCheck() {
+    if (!node) return;
+    if (removeCheck) {
+      onremove(node.id, true);
+      return;
+    }
+    if (roleLevel) {
+      insertCheckBefore(flow, node.id, roleLevel);
+      oncheck?.();
+    }
   }
 </script>
 
@@ -285,27 +302,25 @@
       {#if awaiting}
         <p class="note">{t('flows.setup.stepNote')}</p>
       {/if}
-      {#if roleNote}
-        <div class="role-note">
-          <p class="note role-warning bb-fit-box" role="status"><bb-fit mode="block">{roleNote}</bb-fit></p>
-          <Button variant="ghost" onclick={() => onremove(node.id, true)}>{t('flows.step.condition.role.remove')}</Button>
+      <div class="role-note" class:faded={!roleNote}>
+        <p class="note role-warning bb-fit-box" role="status"><bb-fit mode="block">{roleNote ?? ''}</bb-fit></p>
+        <div class="check-action" class:faded={!checkAction} inert={!checkAction}>
+          <Button variant="ghost" onclick={changeCheck}><bb-fit>{t(removeCheck ? 'flows.step.condition.role.remove' : 'flows.step.requirement.addCheck')}</bb-fit></Button>
         </div>
-      {/if}
+      </div>
       {#if spec.fields.length}
         <div class="fields">
-          {#each spec.fields.filter((f) => renderVisible(spec, node, f)) as field (field.key)}
-            {@const label = fieldLabel(t, spec, field)}
+          {#each spec.fields.filter((field) => fieldMounted(spec, node, field)) as field (field.key)}
+            {@const disabled = !fieldVisible(spec, node, field)}
+            {@const label = fieldLabel(t, spec, field, node)}
+            {@const hint = fieldHint(t, spec, field)}
             {@const issue = issues.find((issue) => issue.nodeId === node.id && issue.fieldKey === field.key)}
             {@const error = issue ? fieldIssueMessage(t, issue, node) : undefined}
-            {@const tag = fieldRequired(node, field.key) ? t('flows.clarity.required') : undefined}
-            {@const placeholder = node.config[field.key] === SETUP_URL ? t('flows.setup.addUrl') : fieldPlaceholder(t, spec, field)}
-            <div class="field" bind:this={fieldElements[field.key]} role="group" aria-label={label} tabindex="-1">
-            {#if spec.type === 'cond.cooldown' && field.key === 'name'}
-              {@const perViewer = Boolean(node.config.perUser)}
-              <Field {label} {tag} {error} for="{uid}-{field.key}" hint={t('flows.step.condition.cooldown.field.name.hint')}>
-                <Input id="{uid}-{field.key}" {placeholder} value={perViewer ? '' : textOf(field.key)} disabled={perViewer} oninput={(e) => (node.config[field.key] = e.currentTarget.value)} />
-              </Field>
-            {:else if field.type === 'color'}
+            {@const required = fieldRequired(node, field.key)}
+            {@const tag = required ? t('flows.clarity.required') : undefined}
+            {@const placeholder = node.config[field.key] === SETUP_URL ? t('flows.setup.addUrl') : fieldPlaceholder(t, spec, field, node)}
+            <fieldset class="field" class:inactive={disabled} {disabled} inert={disabled} data-field={field.key} bind:this={fieldElements[field.key]} aria-label={label} tabindex="-1">
+            {#if field.type === 'color'}
               <Field {label} {tag} {error} for="{uid}-{field.key}">
                 <ColorPicker
                   id="{uid}-{field.key}"
@@ -318,7 +333,7 @@
                 <span class="toggle-label">{label}</span>
                 <Switch
                   {label}
-                  checked={node.config[field.key] === undefined ? field.defaultOn === true : Boolean(node.config[field.key])}
+                  checked={Boolean(node.config[field.key] ?? (field.key === 'liveOnly' && field.initial))}
                   onCheckedChange={(v) => (node.config[field.key] = v)}
                 />
               </div>
@@ -332,7 +347,7 @@
                 />
               </Field>
             {:else if field.type === 'number'}
-              <Field {label} {tag} {error} for="{uid}-{field.key}" hint={spec.type === 'reply.cooldown_add' && field.key === 'per' ? t('flows.step.reply.cooldownAdd.field.per.hint') : spec.type === 'reply.countdown_add' && field.key === 'per' ? t('flows.step.reply.countdownAdd.field.per.hint') : undefined}>
+              <Field {label} {tag} {error} for="{uid}-{field.key}">
                 <Input
                   id="{uid}-{field.key}"
                   type="number"
@@ -371,12 +386,13 @@
                 {/key}
               </Field>
             {:else if field.type === 'template' && field.singleLine}
-              {@const needsTarget = targetMissing && field.key === 'target'}
-              {@const shown = error ?? (needsTarget ? t('flows.test.noTarget') : undefined)}
-              <Field {label} {tag} error={shown} for="{uid}-{field.key}" errorId="{uid}-{field.key}-error">
+              {@const targetInput = field.key === 'target'}
+              {@const missingTarget = blankRequiredTarget(field.key, required)}
+              {@const shown = disabled ? undefined : error ?? (missingTarget ? t('flows.test.noTarget') : undefined)}
+              <Field {label} tag={targetFieldFor(spec) ? undefined : tag} error={targetInput ? undefined : shown} for="{uid}-{field.key}" errorId="{uid}-{field.key}-error">
                 <Input
                   id="{uid}-{field.key}"
-                  required={field.key === 'target'}
+                  required={targetInput && required}
                   aria-invalid={shown ? true : undefined}
                   aria-describedby={shown ? `${uid}-${field.key}-error` : undefined}
                   {placeholder}
@@ -391,6 +407,9 @@
                   aria-controls={completion?.key === field.key ? `${uid}-suggestions` : undefined}
                   aria-activedescendant={completion?.key === field.key ? `${uid}-suggestion-${activeSuggestion}` : undefined}
                 />
+                {#if targetInput}
+                  <small class="bb-field__error bb-fit-box target-error" class:faded={!shown} id="{uid}-{field.key}-error" role="alert"><bb-fit mode="block">{shown ?? ''}</bb-fit></small>
+                {/if}
               </Field>
             {:else if field.type === 'template'}
               <Field {label} {tag} {error} for="{uid}-{field.key}">
@@ -412,13 +431,15 @@
               </Field>
             {:else if field.type === 'choice'}
               <ChoiceField {node} {field} {label} {tag} {error} draft={flow.nodes} id="{uid}-{field.key}" />
+            {:else if field.type === 'target'}
+              <ChoiceField {node} {field} {label} {error} options={targetOptions(t, targetModesFor(flow, node))} id="{uid}-{field.key}" />
             {:else if field.type === 'reward'}
               <RewardField {node} {label} {tag} {error} id="{uid}-{field.key}" />
             {:else if field.type === 'goveeLight'}
               <GoveeLightField {node} {tag} fieldError={error} id="{uid}-{field.key}" onConfig={(config) => (node.config = config)} />
             {:else if field.type === 'login'}
               {#key node.id}
-                <UserField {node} id="{uid}-{field.key}" {label} {placeholder} {tag} {error} />
+                <UserField {node} id="{uid}-{field.key}" {label} {placeholder} tag={targetFieldFor(spec) ? undefined : tag} error={disabled ? undefined : error} fixedStatus={targetFieldFor(spec)} />
               {/key}
             {:else}
               <Field {label} {tag} {error} for="{uid}-{field.key}">
@@ -430,7 +451,10 @@
                 />
               </Field>
             {/if}
-            </div>
+            {#if hint}
+              <small class="bb-field__hint bb-fit-box field-hint"><bb-fit mode="block">{hint}</bb-fit></small>
+            {/if}
+            </fieldset>
           {/each}
         </div>
       {/if}
@@ -456,15 +480,15 @@
         </section>
       {/if}
 
-      {#if insertKey}
-        <section class="group">
+      {#if templateFields.length}
+        <section class="group variable-group" class:inactive={!insertKey} inert={!insertKey}>
           <h3 class="group-title">{t('flows.board.variables')}</h3>
           <SearchInput fill bind:value={query} placeholder={t('flows.board.searchVariables')} />
           {#if flowVars.length}
             <h4 class="subgroup-title">{t('flows.board.variablesFlow')}</h4>
             <ul class="vars">
               {#each flowVars as v (v.token)}
-                <li><VarCard stacked token={v.label} hint={v.hint} title={hintTitle(v.token, v.hint)} onclick={() => insertToken(insertKey, v.token)} /></li>
+                <li><VarCard stacked token={v.label} hint={v.hint} title={hintTitle(v.token, v.hint)} onclick={() => insertKey && insertToken(insertKey, v.token)} /></li>
               {/each}
             </ul>
           {:else if !tokens.length && !needle}
@@ -474,7 +498,7 @@
             <h4 class="subgroup-title">{needle ? t('flows.board.variablesAll') : t('flows.board.variablesPopular')}</h4>
             <ul class="vars">
               {#each channelVars as v (v.token)}
-                <li><VarCard stacked token={v.label} hint={v.hint} title={hintTitle(v.token, v.hint)} onclick={() => insertToken(insertKey, v.token)} /></li>
+                <li><VarCard stacked token={v.label} hint={v.hint} title={hintTitle(v.token, v.hint)} onclick={() => insertKey && insertToken(insertKey, v.token)} /></li>
               {/each}
             </ul>
           {/if}
@@ -486,8 +510,24 @@
     </div>
 
     <footer class="foot">
-      <Button variant="ghost" onclick={duplicate}>{t('flows.board.duplicate')}</Button>
-      <Button tone="danger" onclick={remove}>{t('flows.board.removeStep')}</Button>
+      <div class="run-step">
+        <Switch
+          label={t('flows.board.runStep')}
+          checked={spec.kind !== 'reply' || node.config.disabled !== true}
+          disabled={spec.kind !== 'reply' || awaiting}
+          describedby={spec.kind !== 'reply' ? `${uid}-always-runs` : undefined}
+          onCheckedChange={(checked) => {
+            if (checked) delete node.config.disabled;
+            else node.config.disabled = true;
+          }}
+        />
+        <span class="run-label bb-fit-box"><bb-fit data-fit mode="block">{t('flows.board.runStep')}</bb-fit></span>
+        <span id="{uid}-always-runs" class="run-note bb-fit-box" class:faded={spec.kind === 'reply'} aria-hidden={spec.kind === 'reply'}>
+          <bb-fit data-fit mode="block">{t('flows.board.checksAlwaysRun')}</bb-fit>
+        </span>
+      </div>
+      <Button variant="ghost" onclick={duplicate}><bb-fit data-fit>{t('flows.board.duplicate')}</bb-fit></Button>
+      <Button tone="danger" onclick={remove}><bb-fit data-fit>{t('flows.board.removeStep')}</bb-fit></Button>
     </footer>
   </aside>
 {/if}
@@ -557,6 +597,23 @@
     --field-mb: 0;
     --field-gap: 8px;
   }
+  .field {
+    margin: 0;
+    padding: 0;
+    min-inline-size: 0;
+    border: 0;
+  }
+  .field,
+  .variable-group,
+  .target-error { transition: opacity 0.15s ease; }
+  .inactive { opacity: 0.45; }
+  @media (prefers-reduced-motion: reduce) {
+    .field,
+    .variable-group,
+    .target-error { transition: none; }
+  }
+  .target-error { height: 28px; }
+  .field-hint { height: 52px; margin-top: var(--field-gap); }
   .unit {
     font-size: 14px;
     color: rgba(var(--bb-white-rgb), 0.92);
@@ -623,8 +680,21 @@
     flex-direction: column;
     gap: 6px;
   }
-  .role-note { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-  .role-warning { width: 100%; height: 84px; }
+  .role-note {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) 44px;
+    gap: 4px;
+    height: 84px;
+  }
+  .role-note,
+  .check-action { transition: opacity 0.15s ease; }
+  .check-action {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+  .role-warning { min-width: 0; }
+  .faded { opacity: 0; }
   .note {
     margin: 0;
     font-size: 14px;
@@ -632,13 +702,45 @@
     color: rgba(var(--bb-white-rgb), 0.92);
   }
   .foot {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.75fr) minmax(0, 0.85fr);
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
     flex: none;
     padding: 12px 16px;
     background: var(--bb-bg-1);
     box-shadow: 0 -8px 16px rgba(var(--bb-shadow-rgb), 0.3);
+    --btn-pad: 0 6px;
+    --btn-justify: center;
+  }
+  .run-step {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: 28px 24px;
+    align-items: center;
+    column-gap: 6px;
+    font-family: var(--bb-font-body);
+  }
+  .run-label,
+  .run-note {
+    display: grid;
+    align-items: center;
+    height: 100%;
+  }
+  .run-label {
+    color: var(--bb-white);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.07;
+  }
+  .run-note {
+    grid-column: 1 / -1;
+    color: var(--bb-muted);
+    font-size: 11.5px;
+    line-height: 1.04;
+    transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .run-note { transition: none; }
   }
 </style>

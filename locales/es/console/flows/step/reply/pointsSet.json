@@ -1,0 +1,11 @@
+{
+  "label": "Fijar puntos de lealtad",
+  "summary": "Fijar el saldo de puntos de lealtad de un espectador",
+  "keywords": "puntos lealtad saldo fijar",
+  "field": {
+    "amount": {
+      "label": "Cantidad",
+      "unit": "puntos"
+    }
+  }
+}

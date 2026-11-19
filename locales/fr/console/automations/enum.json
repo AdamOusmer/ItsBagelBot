@@ -1,4 +1,10 @@
 {
+  "who": {
+    "viewer": "La personne qui a déclenché la recette",
+    "mention": "Personne mentionnée",
+    "user": "Personne choisie",
+    "login": "Pseudo du spectateur"
+  },
   "match": {
     "start": "Commence par",
     "exact": "Exact",

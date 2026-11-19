@@ -1,0 +1,10 @@
+{
+  "label": "Ban",
+  "summary": "Ban a viewer from chat",
+  "keywords": "ban block viewer moderation",
+  "field": {
+    "reason": {
+      "label": "Reason (optional)"
+    }
+  }
+}

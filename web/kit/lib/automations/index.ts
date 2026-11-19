@@ -11,3 +11,4 @@ export * from './flow-graph';
 export * from './flow-layer';
 export * from './flow-share';
 export * from './rehearsal';
+export { permRank, stepRequirement, type RequirementTrigger, type StepRequirement, type StepRole } from './engine';

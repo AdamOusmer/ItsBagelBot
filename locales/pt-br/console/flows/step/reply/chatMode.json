@@ -1,6 +1,10 @@
 {
   "label": "Alterar modo do chat",
   "summary": "Mude quem pode falar e com que frequência",
+  "line": {
+    "on": "Ativar modo do chat: {mode}",
+    "off": "Desativar modo do chat: {mode}"
+  },
   "field": {
     "mode": {
       "label": "Modo do chat",

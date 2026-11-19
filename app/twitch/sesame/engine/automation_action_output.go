@@ -19,6 +19,7 @@ const (
 	maxTitleRunes  = 140
 	maxGameRunes   = 100
 	maxTagsRunes   = 500
+	maxReasonRunes = 500
 	rewardQueued   = "queued"
 )
 
@@ -52,25 +53,29 @@ func (x *actionExec) viewerName() string {
 }
 
 func (x *actionExec) timeout(_ step, p automation.TimeoutAction) error {
-	return x.moderate(outgress.TypeTimeout, p.Login, p.Reason, float64(p.Seconds))
+	return x.moderate(outgress.TypeTimeout, p.TargetAction, p.Reason, float64(p.Seconds))
 }
 
 func (x *actionExec) ban(_ step, p automation.BanAction) error {
-	return x.moderate(outgress.TypeBan, p.Login, p.Reason, 0)
+	return x.moderate(outgress.TypeBan, p.TargetAction, p.Reason, 0)
 }
 
 func (x *actionExec) warn(_ step, p automation.WarnAction) error {
-	return x.moderate(outgress.TypeWarn, p.Login, p.Reason, 0)
+	return x.moderate(outgress.TypeWarn, automation.TargetAction{Login: p.Login}, p.Reason, 0)
 }
 
-func (x *actionExec) moderate(typ, login, reason string, seconds float64) error {
-	t, err := x.target(login, false)
+func (x *actionExec) moderate(typ string, target automation.TargetAction, reason string, seconds float64) error {
+	t, err := x.target(target, false)
 	if err != nil {
 		return err
 	}
+	reason = utils.TruncateRunes(x.expand(reason), maxReasonRunes)
+	if typ == outgress.TypeWarn && strings.TrimSpace(reason) == "" {
+		return failure("empty_reason")
+	}
 	o := x.out(typ)
 	o.TargetUserID = strconv.FormatUint(t.id, 10)
-	o.Duration, o.Reason = seconds, x.expand(reason)
+	o.Duration, o.Reason = seconds, reason
 	return x.queue(o)
 }
 

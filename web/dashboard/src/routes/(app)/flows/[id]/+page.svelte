@@ -19,6 +19,7 @@
   import type { LibraryMode } from '#lib/components/flow/StepLibrary.svelte';
   import { postAction } from '#lib/client-actions.svelte';
   import { FlowHistory } from '#lib/flow/history';
+  import { requirementTrigger, stepLabel } from '#lib/flow/copy';
   import { tidy } from '#lib/flow/layout';
   import { allowed, resolveShortcut, type Scopes, type Shortcut } from '#lib/flow/keyboard';
   import { isStale, issueMessage, saveMessage, stepOf, toggleMessage, upgradeNotes, warningMessages } from '#lib/flow/messages';
@@ -30,7 +31,7 @@
   import { newFlow, specFor, type Flow } from '#lib/flow/model';
   import { prepareRehearsal, rehearseDraft } from '#lib/flow/rehearse';
   import { rehearsalTrace } from '#lib/flow/rehearsal-view';
-  import { scenarioPatches } from '@bagel/kit/automations';
+  import { permRank, scenarioPatches } from '@bagel/kit/automations';
   import type { RehearsalScenario } from '#lib/flow/rehearse';
   import { flowRouteId, legacyEditorHref, parseFlowRouteId } from '#lib/flow/ref';
   import type { SaveReply, ToggleReply } from '#lib/flow/replies';
@@ -102,11 +103,18 @@
     return untrack(() => prepareRehearsal({ ...flow, ...graph, queue }));
   });
   const rehearsal = $derived(rehearseDraft(rehearsalDraft, t, { scenario, overrides }));
+  const permissionRank = $derived(rehearsalDraft.compiled.ok ? permRank(rehearsalDraft.compiled.value.definition.conditions ?? []) : -1);
   const runTrace = $derived(rehearsalTrace(rehearsalDraft.flow, rehearsal.steps));
   const trace = $derived<FlowTrace | null>(testRunOpen ? { ...runTrace, current: selectedId } : null);
   let autoTidy = $state(true);
   let canvas = $state<FlowCanvasApi>();
   let libMode = $state<LibraryMode | null>(untrack(() => (flow.nodes.length === 0 ? 'trigger' : null)));
+  const libraryLabel = $derived.by(() => {
+    const selected = flow.nodes.find((node) => node.id === selectedId);
+    const spec = selected && specFor(selected.type);
+    return spec ? stepLabel(t, spec) : undefined;
+  });
+  const requirementsTrigger = $derived(requirementTrigger(flow));
   let editorEl = $state<HTMLDivElement>();
   let barEl = $state<HTMLElement>();
   let railEl = $state<HTMLElement>();
@@ -739,9 +747,7 @@
 
 {#snippet leftPanel()}
   {#await loadLibrary() then { default: StepLibrary }}
-    {#key libMode}
-      <StepLibrary mode={libMode ?? 'trigger'} focusToken={libFocus} {onAdd} onClose={() => closeLibrary(true)} />
-    {/key}
+    <StepLibrary mode={libMode ?? 'trigger'} trigger={requirementsTrigger} selectedLabel={libraryLabel} focusToken={libFocus} onModeChange={(mode) => (libMode = mode)} {onAdd} onClose={() => closeLibrary(true)} />
   {/await}
 {/snippet}
 
@@ -749,7 +755,7 @@
   <div class="panels">
     <div class="panel-slot inspector-slot" class:parked={!inspectorVisible} inert={!inspectorVisible}>
     {#await loadInspector() then { default: NodeInspector }}
-      <NodeInspector bind:flow bind:selectedId fallbackId={initialInspectorId} active={inspectorVisible} {rehearsal} {issues} focusField={inspectField} focusToken={inspectFocus} onclose={closeInspector} onremove={(id, keepYes) => canvas?.removeStep(id, keepYes)} />
+      <NodeInspector bind:flow bind:selectedId fallbackId={initialInspectorId} active={inspectorVisible} {rehearsal} {issues} {permissionRank} focusField={inspectField} focusToken={inspectFocus} onclose={closeInspector} onremove={(id, keepYes) => canvas?.removeStep(id, keepYes)} oncheck={() => { if (autoTidy) queueMicrotask(() => canvas?.tidyNow()); }} />
     {/await}
     </div>
   {#if testRunOpen}

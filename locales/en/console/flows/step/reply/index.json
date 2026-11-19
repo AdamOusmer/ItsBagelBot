@@ -152,6 +152,7 @@
   "cooldownAdd": {
     "label": "Add time to a cooldown",
     "summary": "Extend a named timer while it runs",
+    "line": "Add {seconds} to {name}",
     "field": {
       "name": {
         "label": "Timer"
@@ -169,6 +170,7 @@
   "countdownAdd": {
     "label": "Add time to countdown",
     "summary": "Extend a running countdown",
+    "line": "Add {seconds} to {name}",
     "field": {
       "name": {
         "label": "Countdown"
@@ -186,6 +188,7 @@
   "poll": {
     "label": "Start a poll",
     "summary": "Let viewers vote on a question",
+    "line": "Poll: {title}",
     "field": {
       "title": {
         "label": "Title"
@@ -201,6 +204,10 @@
   "pollEnd": {
     "label": "End a poll",
     "summary": "Stop voting or archive the results",
+    "line": {
+      "terminate": "End the poll and show results",
+      "archive": "Archive the poll"
+    },
     "field": {
       "status": {
         "label": "Action",
@@ -214,6 +221,7 @@
   "prediction": {
     "label": "Start a prediction",
     "summary": "Let viewers bet points on an outcome",
+    "line": "Prediction: {title}",
     "field": {
       "title": {
         "label": "Title"
@@ -229,6 +237,11 @@
   "predictionEnd": {
     "label": "End a prediction",
     "summary": "Lock bets, refund points or pick a winner",
+    "line": {
+      "lock": "Lock bets",
+      "cancel": "Cancel and refund points",
+      "resolve": "Winning outcome: {winner}"
+    },
     "field": {
       "status": {
         "label": "Action",
@@ -246,6 +259,7 @@
   "raidStart": {
     "label": "Start a raid",
     "summary": "Send your viewers to another channel",
+    "line": "Raid {target}",
     "field": {
       "target": {
         "label": "Channel or viewer login"
@@ -259,6 +273,10 @@
   "mod": {
     "label": "Set moderator role",
     "summary": "Give or remove moderator access",
+    "line": {
+      "on": "Make {target} a mod",
+      "off": "Remove mod from {target}"
+    },
     "field": {
       "target": {
         "label": "Channel or viewer login"
@@ -271,6 +289,10 @@
   "vip": {
     "label": "Set VIP role",
     "summary": "Give or remove a viewer's VIP badge",
+    "line": {
+      "on": "Make {target} a VIP",
+      "off": "Remove VIP from {target}"
+    },
     "field": {
       "target": {
         "label": "Channel or viewer login"
@@ -291,6 +313,7 @@
   "whisper": {
     "label": "Send a whisper",
     "summary": "Send a private message to one viewer",
+    "line": "Whisper to {target}: {text}",
     "field": {
       "target": {
         "label": "Channel or viewer login"

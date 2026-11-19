@@ -25,8 +25,8 @@ type PredictionEndAction struct {
 }
 
 type LoginToggleAction struct {
-	Login string `json:"login"`
-	On    bool   `json:"on"`
+	TargetAction
+	On bool `json:"on"`
 }
 
 type UnbanResolveAction struct {
@@ -79,7 +79,7 @@ func checkPredictionEnd(c chk, p PredictionEndAction) {
 	inRange(c, "winner", p.Winner, between(1, 10))
 }
 
-func checkLoginToggle(c chk, p LoginToggleAction) { c.text("login", p.Login, loginRequired) }
+func checkTargetToggle(c chk, p LoginToggleAction) { c.target(p.TargetAction, loginRequired) }
 
 func checkUnbanResolve(c chk, p UnbanResolveAction) {
 	c.oneOf("status", p.Status, enum{"approve", "deny"})

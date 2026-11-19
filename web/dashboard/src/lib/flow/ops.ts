@@ -1,7 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { specFor, type FieldSpec, type Flow, type FlowEdge, type FlowNode } from './model';
+import type { StepRole } from '@bagel/kit/automations';
+import { COLUMN_GAP, NODE_W, ROW_GAP, specFor, targetFieldFor, targetHasViewer, triggerProvidesViewer, type FieldSpec, type Flow, type FlowEdge, type FlowNode } from './model';
 import { cycleExclusions, graphIndex, linkKey } from './graph-index';
+import { nodeHeight } from './layout';
 
 export type EdgeEnds = Pick<FlowEdge, 'from' | 'port' | 'to'>;
 
@@ -14,13 +16,6 @@ export type InsertRequest = { type: string; at: { x: number; y: number }; placem
 type NodeType = FlowNode['type'];
 type NodeId = FlowNode['id'];
 
-const NODE_PREFILLS: Record<NodeType, FlowNode['config']> = {
-  'reply.timeout': { seconds: 60 },
-  'reply.wait': { seconds: 5 },
-  'cond.cooldown': { seconds: 30 },
-  'cond.chance': { percent: 50 }
-};
-
 function uniqueId(prefix: 'n' | 'e', existing: { id: string }[]): string {
   const tail = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
   const base = `${prefix}${tail}`;
@@ -31,34 +26,35 @@ function uniqueId(prefix: 'n' | 'e', existing: { id: string }[]): string {
   return id;
 }
 
-function fieldDefaults(field: FieldSpec): [string, string | boolean][] {
-  if (field.type === 'select') return [[field.key, field.options[0]]];
-  if (field.type === 'toggle' && field.defaultOn) return [[field.key, true]];
-  return [];
-}
-
-function hasViewer(trigger: NodeType | undefined): boolean {
-  const spec = specFor(trigger ?? '');
-  return spec?.provides?.some((variable) => variable.token === '{user}') ?? false;
+function fieldDefaults(field: FieldSpec): [FieldSpec['key'], FlowNode['config'][string]][] {
+  const value = field.initial ?? (field.type === 'select' ? field.options[0] : undefined);
+  return value === undefined ? [] : [[field.key, value]];
 }
 
 function triggerDefaults(trigger: NodeType | undefined, request: Pick<InsertRequest, 'chatMessage' | 'plainMessage'>): Record<NodeType, FlowNode['config']> {
-  const viewer = hasViewer(trigger);
+  const viewer = triggerProvidesViewer(trigger);
   const target = trigger === 'twitch.chat.command' ? '{touser}' : viewer ? '{user}' : '';
   const plain = request.plainMessage ?? 'Thanks!';
-  const message = viewer ? request.chatMessage ?? '{user}' : plain;
+  const message = viewer ? request.chatMessage : plain;
   return {
-    'reply.shoutout': { target }, 'reply.timeout': { target },
-    'reply.announce': { text: message }, 'reply.reply': { text: plain },
-    'reply.chat': { message: viewer ? request.chatMessage ?? '' : '' }
+    'reply.shoutout': { target },
+    'reply.announce': { text: message ?? '{user}' }, 'reply.reply': { text: plain },
+    'reply.chat': { message: trigger ? message ?? '' : '' }
   };
+}
+
+function targetDefaults(trigger: NodeType | undefined): FlowNode['config'] {
+  if (trigger === 'twitch.chat.command') return { who: 'mention' };
+  return { who: targetHasViewer(trigger) ? 'viewer' : 'user' };
 }
 
 function defaultConfig(flow: Flow, request: Pick<InsertRequest, 'type' | 'chatMessage' | 'plainMessage'>): FlowNode['config'] {
   const { type } = request;
-  const defaults = specFor(type)?.fields.flatMap(fieldDefaults) ?? [];
+  const spec = specFor(type);
+  const defaults = Object.fromEntries(spec?.fields.flatMap(fieldDefaults) ?? []);
   const trigger = flow.nodes.find(isTrigger)?.type;
-  return { ...Object.fromEntries(defaults), ...NODE_PREFILLS[type], ...triggerDefaults(trigger, request)[type] };
+  const contextual = targetFieldFor(spec) ? targetDefaults(trigger) : triggerDefaults(trigger, request)[type];
+  return { ...defaults, ...contextual };
 }
 
 function createNode(flow: Flow, request: Pick<InsertRequest, 'type' | 'at' | 'chatMessage' | 'plainMessage'>): FlowNode {
@@ -109,20 +105,43 @@ function insertAtPort(flow: Flow, node: FlowNode, placement: Extract<Placement, 
   for (const child of children) connect(flow, { from: node.id, port: continuationPort(node), to: child.to });
 }
 
-function insertAtEdge(flow: Flow, node: FlowNode, edgeId: FlowEdge['id']): void {
-  const edge = flow.edges.find((edge) => edge.id === edgeId);
-  if (!edge) return;
-  const to = edge.to;
-  flow.edges = flow.edges.map((candidate) => candidate === edge ? { ...edge, to: node.id } : candidate);
-  connect(flow, { from: node.id, port: continuationPort(node), to });
+function insertAtEdge(flow: Flow, node: FlowNode, edges: readonly FlowEdge[]): void {
+  if (edges.length === 0) return;
+  const inserted = new Set(edges);
+  const targets = new Set(edges.map((edge) => edge.to));
+  flow.edges = flow.edges.map((edge) => inserted.has(edge) ? { ...edge, to: node.id } : edge);
+  for (const to of targets) connect(flow, { from: node.id, port: continuationPort(node), to });
 }
 
 export function insertNode(flow: Flow, request: InsertRequest): FlowNode {
   if (specFor(request.type)?.kind === 'trigger') throw new Error('Use replaceTrigger to add a trigger');
   const node = createNode(flow, request);
   if (request.placement.kind === 'port') insertAtPort(flow, node, request.placement);
-  if (request.placement.kind === 'edge') insertAtEdge(flow, node, request.placement.edgeId);
+  if (request.placement.kind === 'edge') {
+    const { edgeId } = request.placement;
+    insertAtEdge(flow, node, flow.edges.filter((edge) => edge.id === edgeId));
+  }
   return node;
+}
+
+const isRoleCheck = (node: FlowNode | undefined, level: StepRole): boolean => node?.type === 'cond.role' && node.config.level === level;
+
+export function hasCheckBefore(flow: Flow, nodeId: NodeId, level: StepRole): boolean {
+  const { nodes, incoming } = graphIndex(flow);
+  const edges = incoming.get(nodeId) ?? [];
+  const fromCheck = (edge: FlowEdge): boolean => edge.port === 'yes' && isRoleCheck(nodes.get(edge.from), level);
+  return edges.length > 0 && edges.every(fromCheck);
+}
+
+export function insertCheckBefore(flow: Flow, nodeId: NodeId, level: StepRole): void {
+  const { nodes, incoming } = graphIndex(flow);
+  const target = nodes.get(nodeId);
+  const edges = incoming.get(nodeId) ?? [];
+  if (!target || edges.length === 0) return;
+  const at = { x: target.x - NODE_W - COLUMN_GAP, y: target.y - nodeHeight(specFor('cond.role')) - ROW_GAP };
+  const check = createNode(flow, { type: 'cond.role', at });
+  check.config.level = level;
+  insertAtEdge(flow, check, edges);
 }
 
 export function replaceTrigger(flow: Flow, type: NodeType): FlowNode {

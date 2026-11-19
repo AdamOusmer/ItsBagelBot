@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { streamActionReaders, streamActionWriters } from './stream-flow';
+import { streamActionReaders, streamActionWriters, streamTargetNodes, usesLegacyTarget } from './stream-flow';
 import { COMPARE_OPS } from './compare';
 import { SETUP_LOGIN, SETUP_REWARD_ID } from './flow-setup';
 import { CODE, MAX_DELAY_MS, VERSION } from './limits';
@@ -158,18 +158,19 @@ const TEMPLATE_FIELDS: Record<string, string[]> = {
   'reply.announce': ['text'],
   'reply.reply': ['text'],
   'reply.timeout': ['target', 'reason'],
+  'reply.ban': ['target', 'reason'],
   'reply.poll': ['title', 'choices'],
   'reply.prediction': ['title', 'outcomes'],
   'reply.raid': ['target'],
   'reply.mod': ['target'],
   'reply.vip': ['target'],
+  'reply.points': ['target'],
+  'reply.points_set': ['target'],
   'reply.whisper': ['target', 'text'],
   'reply.unban_resolve': ['resolution'],
   'reply.chat': ['message'],
   'cond.compare': ['left', 'right'],
-  'cond.var': ['value'],
   'reply.var_set': ['value'],
-  'reply.text': ['input', 'find', 'replaceWith', 'start', 'count', 'separator', 'pick', 'needle'],
   'reply.math': ['expression'],
   'reply.loop': ['times'],
   'reply.http_get': ['url'],
@@ -187,8 +188,23 @@ export const TEXT_ARG_FIELDS = new Map<string, readonly string[]>([
   ['contains', ['needle']]
 ]);
 
+export const VAR_OPS_WITH_VALUE: readonly string[] = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains'];
+
+const textOp = (config: FlowConfig) => str(config.op) || 'upper';
+const varConditionOp = (config: FlowConfig) => str(config.op) || 'eq';
+
+function templateFields(node: FlowNode): readonly string[] {
+  if (node.type === 'reply.text') return ['input', ...TEXT_ARG_FIELDS.get(textOp(node.config)) ?? []];
+  if (node.type === 'cond.var') return VAR_OPS_WITH_VALUE.includes(varConditionOp(node.config)) ? ['value'] : [];
+  const fields = TEMPLATE_FIELDS[node.type] ?? [];
+  if (!streamTargetNodes.has(node.type)) return fields;
+  const legacy = usesLegacyTarget(node.config.who);
+  const active = (field: string): boolean => field !== 'target' || legacy;
+  return fields.filter((field) => node.config[field] !== undefined && active(field));
+}
+
 function textAction(config: FlowConfig): Action {
-  const op = str(config.op) || 'upper';
+  const op = textOp(config);
   const [first, second] = TEXT_ARG_FIELDS.get(op) ?? [];
   const arg = (key: string | undefined) => (key ? str(config[key]) : '');
   return { type: 'text', params: { op, input: str(config.input), arg1: arg(first), arg2: arg(second), save_as: recipeName(config.saveAs) } };
@@ -280,8 +296,8 @@ const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
   'cond.role': (config) => ({ type: 'perm', params: { level: str(config.level) } }),
   'cond.chance': (config) => ({ type: 'chance', params: { percent: num(config.percent) } }),
   'cond.var': (config) => {
-    const op = str(config.op) || 'eq';
-    return { type: 'var', params: { ...varIdentity(config), op, value: op === 'exists' ? '' : str(config.value) } };
+    const op = varConditionOp(config);
+    return { type: 'var', params: { ...varIdentity(config), op, value: VAR_OPS_WITH_VALUE.includes(op) ? str(config.value) : '' } };
   },
   'cond.user': (config) => ({ type: 'users', params: awaitingUser(config) ? { allow: [SETUP_LOGIN] } : { allow_ids: [str(config.userId)] } }),
   'cond.cooldown': cooldownConditionAction
@@ -298,7 +314,6 @@ const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   ...streamActionWriters,
   'reply.chat': (config) => ({ type: 'chat', params: { text: str(config.message) } }),
   'reply.lights': lightsAction,
-  'reply.points': (config) => ({ type: 'points_add', params: { amount: num(config.amount) } }),
   'reply.counter': (config) => ({ type: 'counter_add', params: { name: str(config.counter), amount: 1 } }),
   'reply.wait': (config) => ({ type: 'delay', params: { ms: num(config.seconds) * 1000 } }),
   'reply.var_set': (config) => ({ type: 'var_set', params: { ...varIdentity(config), value: str(config.value) } }),
@@ -426,7 +441,7 @@ function lowerTemplate(ctx: Lowering, node: FlowNode, field: string): string {
 
 function loweredConfig(ctx: Lowering, node: FlowNode): FlowConfig {
   const lowered: FlowConfig = { ...node.config };
-  for (const field of TEMPLATE_FIELDS[node.type] ?? []) lowered[field] = lowerTemplate(ctx, node, field);
+  for (const field of templateFields(node)) lowered[field] = lowerTemplate(ctx, node, field);
   return lowered;
 }
 
@@ -928,7 +943,6 @@ const ACTION_READERS: Record<string, (params: Params) => { type: string; config:
   ...streamActionReaders,
   chat: (params) => ({ type: 'reply.chat', config: { message: str(params.text) } }),
   lights: lightsNode,
-  points_add: (params) => (params.login ? null : { type: 'reply.points', config: { amount: num(params.amount) } }),
   counter_add: (params) => (num(params.amount) === 1 ? { type: 'reply.counter', config: { counter: str(params.name) } } : null),
   delay: (params) => ({ type: 'reply.wait', config: { seconds: num(params.ms) / 1000 } }),
   var_set: (params) => ({ type: 'reply.var_set', config: { ...varConfig(params), value: str(params.value) } }),
@@ -1032,7 +1046,7 @@ function raiseMessages(b: Building, kind: string): void {
   const flow = { nodes: b.nodes, edges: b.edges } as Flow;
   const scan: CounterScan = { kind, counters: priorCounters({ byId: new Map(b.nodes.map((node) => [node.id, node])), outs: outgoing(flow) }) };
   for (const node of b.nodes) {
-    for (const field of TEMPLATE_FIELDS[node.type] ?? []) {
+    for (const field of templateFields(node)) {
       node.config = { ...node.config, [field]: raiseTemplate(scan, node, field) };
     }
   }

@@ -1,88 +1,98 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { FieldSpec, NodeSpec } from './model';
+import type { FieldSpec, StepDefinition } from './model';
 
-const target: FieldSpec = { key: 'target', type: 'template', singleLine: true };
+const target: FieldSpec = { key: 'target', type: 'template', singleLine: true, required: true };
+export const TARGET_FIELDS = [
+  { key: 'who', type: 'target' },
+  { key: 'login', type: 'login', when: { key: 'who', value: 'user' } },
+  { key: 'target', type: 'template', singleLine: true, when: { key: 'who', value: 'login' } }
+] as const satisfies readonly FieldSpec[];
+
 const title: FieldSpec = { key: 'title', type: 'template', singleLine: true };
-const toggle: FieldSpec = { key: 'on', type: 'toggle' };
+const on: FieldSpec = { key: 'on', type: 'toggle', initial: true };
 
-export const STREAM_STEPS: readonly NodeSpec[] = [
+export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
   {
-    type: 'twitch.stream.offline', slug: 'streamOffline', kind: 'trigger', group: 'twitch', icon: 'radio', fields: []
+    type: 'twitch.stream.offline', slug: 'streamOffline', icon: 'radio', fields: []
   },
   {
-    type: 'reply.shoutout', slug: 'shoutout', kind: 'reply', group: 'twitch', icon: 'send', fields: [target]
+    type: 'reply.shoutout', slug: 'shoutout', icon: 'send', fields: [target]
   },
   {
-    type: 'reply.announce', slug: 'announce', kind: 'reply', group: 'twitch', icon: 'messageSquare',
+    type: 'reply.announce', slug: 'announce', icon: 'messageSquare',
     fields: [{ key: 'text', type: 'template' }, { key: 'color', type: 'select', options: ['primary', 'blue', 'green', 'orange', 'purple', ''] }]
   },
   {
-    type: 'reply.reply', slug: 'reply', kind: 'reply', group: 'twitch', icon: 'messageSquare',
+    type: 'reply.reply', slug: 'reply', icon: 'messageSquare',
     fields: [{ key: 'text', type: 'template' }]
   },
   {
-    type: 'reply.timeout', slug: 'timeout', kind: 'reply', group: 'twitch', icon: 'moderation',
-    fields: [target, { key: 'seconds', type: 'duration', min: 1, max: 1209600 }, { key: 'reason', type: 'template' }]
+    type: 'reply.timeout', slug: 'timeout', icon: 'moderation',
+    fields: [...TARGET_FIELDS, { key: 'seconds', type: 'duration', min: 1, max: 1209600, initial: 600 }, { key: 'reason', type: 'template' }]
   },
   {
-    type: 'twitch.unban_request', slug: 'unbanRequest', kind: 'trigger', group: 'twitch', icon: 'moderation', fields: []
+    type: 'reply.ban', slug: 'ban', icon: 'moderation',
+    fields: [...TARGET_FIELDS, { key: 'reason', type: 'template' }]
   },
   {
-    type: 'reply.poll', slug: 'poll', kind: 'reply', group: 'twitch', icon: 'messageSquare',
-    fields: [title, { key: 'choices', type: 'template' }, { key: 'seconds', type: 'number', min: 15, max: 1800 }]
+    type: 'twitch.unban_request', slug: 'unbanRequest', icon: 'moderation', fields: []
   },
   {
-    type: 'reply.poll_end', slug: 'pollEnd', kind: 'reply', group: 'twitch', icon: 'messageSquare',
+    type: 'reply.poll', slug: 'poll', icon: 'messageSquare',
+    fields: [title, { key: 'choices', type: 'template' }, { key: 'seconds', type: 'number', min: 15, max: 1800, initial: 60 }]
+  },
+  {
+    type: 'reply.poll_end', slug: 'pollEnd', icon: 'messageSquare', lineBy: 'status',
     fields: [{ key: 'status', type: 'select', options: ['terminate', 'archive'] }]
   },
   {
-    type: 'reply.prediction', slug: 'prediction', kind: 'reply', group: 'twitch', icon: 'gem',
-    fields: [title, { key: 'outcomes', type: 'template' }, { key: 'seconds', type: 'number', min: 30, max: 1800 }]
+    type: 'reply.prediction', slug: 'prediction', icon: 'gem',
+    fields: [title, { key: 'outcomes', type: 'template' }, { key: 'seconds', type: 'number', min: 30, max: 1800, initial: 120 }]
   },
   {
-    type: 'reply.prediction_end', slug: 'predictionEnd', kind: 'reply', group: 'twitch', icon: 'gem',
+    type: 'reply.prediction_end', slug: 'predictionEnd', icon: 'gem', lineBy: 'status',
     fields: [
       { key: 'status', type: 'select', options: ['lock', 'cancel', 'resolve'] },
       { key: 'winner', type: 'number', min: 1, max: 10, when: { key: 'status', value: 'resolve' } }
     ]
   },
   {
-    type: 'reply.raid', slug: 'raidStart', kind: 'reply', group: 'twitch', icon: 'swords', fields: [target]
+    type: 'reply.raid', slug: 'raidStart', icon: 'swords', fields: [target]
   },
   {
-    type: 'reply.raid_cancel', slug: 'raidCancel', kind: 'reply', group: 'twitch', icon: 'swords', fields: []
+    type: 'reply.raid_cancel', slug: 'raidCancel', icon: 'swords', fields: []
   },
   {
-    type: 'reply.mod', slug: 'mod', kind: 'reply', group: 'twitch', icon: 'moderation', fields: [target, toggle]
+    type: 'reply.mod', slug: 'mod', icon: 'moderation', fields: [...TARGET_FIELDS, on], lineBy: 'on'
   },
   {
-    type: 'reply.vip', slug: 'vip', kind: 'reply', group: 'twitch', icon: 'star', fields: [target, toggle]
+    type: 'reply.vip', slug: 'vip', icon: 'star', fields: [...TARGET_FIELDS, on], lineBy: 'on'
   },
   {
-    type: 'reply.chat_mode', slug: 'chatMode', kind: 'reply', group: 'twitch', icon: 'messageSquare',
+    type: 'reply.chat_mode', slug: 'chatMode', icon: 'messageSquare', lineBy: 'on',
     fields: [
-      { key: 'mode', type: 'select', options: ['emote_only', 'followers', 'slow', 'subscribers', 'unique'] },
-      toggle,
+      { key: 'mode', type: 'select', options: ['emote_only', 'followers', 'slow', 'subscribers', 'unique'], initial: 'slow' },
+      on,
       { key: 'value', type: 'number', min: 0, max: 86400, when: { key: 'mode', value: ['followers', 'slow'] } }
     ]
   },
   {
-    type: 'reply.clear_chat', slug: 'clearChat', kind: 'reply', group: 'twitch', icon: 'messageSquare', fields: []
+    type: 'reply.clear_chat', slug: 'clearChat', icon: 'messageSquare', fields: []
   },
   {
-    type: 'reply.ad_snooze', slug: 'adSnooze', kind: 'reply', group: 'twitch', icon: 'timer', fields: []
+    type: 'reply.ad_snooze', slug: 'adSnooze', icon: 'timer', fields: []
   },
   {
-    type: 'reply.whisper', slug: 'whisper', kind: 'reply', group: 'twitch', icon: 'send',
+    type: 'reply.whisper', slug: 'whisper', icon: 'send',
     fields: [target, { key: 'text', type: 'template' }]
   },
   {
-    type: 'reply.unban_resolve', slug: 'unbanResolve', kind: 'reply', group: 'twitch', icon: 'moderation',
-    fields: [{ key: 'status', type: 'select', options: ['approve', 'deny'] }, { key: 'resolution', type: 'template' }]
+    type: 'reply.unban_resolve', slug: 'unbanResolve', icon: 'moderation',
+    fields: [{ key: 'status', type: 'select', options: ['approve', 'deny'], initial: 'deny' }, { key: 'resolution', type: 'template' }]
   },
   {
-    type: 'reply.branded_content', slug: 'brandedContent', kind: 'reply', group: 'twitch', icon: 'radio', fields: [toggle]
+    type: 'reply.branded_content', slug: 'brandedContent', icon: 'radio', fields: [{ key: 'on', type: 'toggle' }]
   }
 ];

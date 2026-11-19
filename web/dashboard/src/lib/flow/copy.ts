@@ -1,13 +1,52 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey } from '@bagel/kit';
-import { MAX_WAIT_SECONDS, specFor, type FieldSpec, type Flow, type FlowNode, type NodeSpec, type StepGroup, type VariableSpec } from './model';
+import { stepRequirement, type RequirementTrigger, type StepRequirement, type StepRole } from '@bagel/kit/automations';
+import { MAX_WAIT_SECONDS, specFor, targetFieldFor, type FieldSpec, type Flow, type FlowNode, type NodeSpec, type StepGroup, type VariableSpec } from './model';
 import type { FieldIssue } from './issues';
 import { issueMessage, type Translate } from './messages';
 
 export const stepLabel = (t: Translate, spec: NodeSpec): string => t(`flows.step.${spec.kind}.${spec.slug}.label` as MessageKey);
 
 export const stepSummary = (t: Translate, spec: NodeSpec): string => t(`flows.step.${spec.kind}.${spec.slug}.summary` as MessageKey);
+
+const REQUIREMENT_TRIGGERS: Record<string, RequirementTrigger> = {
+  'twitch.chat.command': { type: 'command' },
+  'twitch.chat.word': { type: 'command' },
+  'twitch.reward': { type: 'reward' },
+  'twitch.unban_request': { type: 'event', kind: 'channel.unban_request.create' }
+};
+
+const TRIGGER_LABELS: Record<Extract<StepRequirement, { kind: 'trigger' }>['trigger'], MessageKey> = {
+  command: 'flows.step.trigger.chatCommand.label',
+  reward: 'flows.step.trigger.reward.label',
+  unban_request: 'flows.step.trigger.unbanRequest.label'
+};
+
+const ROLE_LABELS: Record<StepRole, MessageKey> = {
+  mod: 'perm.badge.mod',
+  lead_mod: 'modules.permLeadMods',
+  broadcaster: 'flows.test.role.broadcaster'
+};
+
+export function requirementTrigger(flow: Flow): RequirementTrigger {
+  const trigger = flow.nodes.find((node) => specFor(node.type)?.kind === 'trigger');
+  return REQUIREMENT_TRIGGERS[trigger?.type ?? ''] ?? { type: '' };
+}
+
+export function stepRequirementFor(spec: NodeSpec, trigger: RequirementTrigger): StepRequirement | null {
+  return spec.kind === 'reply' ? stepRequirement(spec.type.slice('reply.'.length), trigger) : null;
+}
+
+export function requirementText(t: Translate, requirement: StepRequirement, variant: 'tag' | 'note' | 'start' = 'tag'): string {
+  if (requirement.kind === 'trigger') {
+    const trigger = t(TRIGGER_LABELS[requirement.trigger]);
+    return t(variant === 'tag' ? 'flows.step.requirement.triggerTag' : 'flows.step.requirement.triggerNote', { trigger });
+  }
+  const role = t(ROLE_LABELS[requirement.level]);
+  if (variant === 'tag') return role;
+  return t(variant === 'start' ? 'flows.step.requirement.startNote' : 'flows.step.requirement.roleNote', { role });
+}
 
 export function roleWarning(t: Translate, flow: Flow, node: FlowNode | undefined): string | undefined {
   if (node?.type !== 'cond.role') return undefined;
@@ -16,28 +55,57 @@ export function roleWarning(t: Translate, flow: Flow, node: FlowNode | undefined
   return knowsRole ? undefined : t('flows.step.condition.role.warning');
 }
 
-export function stepKeywords(t: Translate, spec: NodeSpec): string {
-  const key = `flows.step.${spec.kind}.${spec.slug}.keywords` as MessageKey;
-  const translated = t(key);
-  return translated === key ? '' : translated;
+const known = (key: string, text: string): string => (text === key ? '' : text);
+
+export const stepKeywords = (t: Translate, spec: NodeSpec): string =>
+  known(`flows.step.${spec.kind}.${spec.slug}.keywords`, t(`flows.step.${spec.kind}.${spec.slug}.keywords` as MessageKey));
+
+export const groupLabel = (t: Translate, group: StepGroup): string => t(`flows.board.group.${group}`);
+
+type FieldCopy = { spec: NodeSpec; field: FieldSpec; node?: Pick<FlowNode, 'config'> };
+
+function fieldVariant({ spec, field, node }: FieldCopy): string | undefined {
+  if (!field.labelBy || !node) return undefined;
+  const select = spec.fields.find((entry) => entry.key === field.labelBy);
+  if (select?.type !== 'select') return undefined;
+  return String(node.config[select.key] ?? select.options[0] ?? '') || undefined;
 }
 
-export const groupLabel = (t: Translate, group: StepGroup): string => t(`flows.board.group.${group}` as MessageKey);
+const fieldCopyPrefix = (spec: NodeSpec, field: FieldSpec) => `flows.step.${spec.kind}.${spec.slug}.field.${field.key}`;
 
-export const fieldLabel = (t: Translate, spec: NodeSpec, field: FieldSpec): string =>
-  t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.label` as MessageKey);
+function variantCopy(t: Translate, source: FieldCopy, part: 'label' | 'placeholder'): string | undefined {
+  const variant = fieldVariant(source);
+  if (!variant) return undefined;
+  const prefix = fieldCopyPrefix(source.spec, source.field);
+  return known(`${prefix}.${variant}.${part}`, t(`${prefix}.${variant}.${part}` as MessageKey)) || undefined;
+}
+
+export function fieldLabel(t: Translate, spec: NodeSpec, field: FieldSpec, node?: FieldCopy['node']): string {
+  if (field.type === 'target') return t('flows.step.target.label');
+  if (field.key === 'login' && targetFieldFor(spec)) return t('flows.step.target.viewerLabel');
+  if (field.key === 'target' && targetFieldFor(spec)) return t('flows.step.target.loginLabel');
+  return variantCopy(t, { spec, field, node }, 'label') ?? t(`${fieldCopyPrefix(spec, field)}.label` as MessageKey);
+}
+
+export const targetOptions = (t: Translate, modes: readonly string[]): { value: string; label: string }[] =>
+  modes.map((value) => ({ value, label: t(`flows.step.target.option.${value}` as MessageKey) }));
+
+export const fieldHint = (t: Translate, spec: NodeSpec, field: FieldSpec): string | undefined =>
+  known(`${fieldCopyPrefix(spec, field)}.hint`, t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.hint` as MessageKey)) || undefined;
 
 export function fieldIssueMessage(t: Translate, issue: FieldIssue, node: FlowNode | undefined): string {
   if (issue.code !== 'required') return issueMessage(t, issue);
   const spec = node ? specFor(node.type) : undefined;
   const field = spec?.fields.find((field) => field.key === issue.fieldKey);
   if (!spec || !field) return issueMessage(t, issue);
-  return t('flows.issue.requiredField', { field: fieldLabel(t, spec, field) });
+  return t('flows.issue.requiredField', { field: fieldLabel(t, spec, field, node) });
 }
 
-export function fieldPlaceholder(t: Translate, spec: NodeSpec, field: FieldSpec): string | undefined {
+export function fieldPlaceholder(t: Translate, spec: NodeSpec, field: FieldSpec, node?: FieldCopy['node']): string | undefined {
+  const variant = variantCopy(t, { spec, field, node }, 'placeholder');
+  if (variant) return variant;
   if (!('placeholder' in field) || !field.placeholder) return undefined;
-  return t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.placeholder` as MessageKey);
+  return t(`${fieldCopyPrefix(spec, field)}.placeholder` as MessageKey);
 }
 
 export function fieldUnit(t: Translate, spec: NodeSpec, field: FieldSpec): string | undefined {
@@ -61,6 +129,17 @@ export const optionText = (t: Translate, spec: NodeSpec, field: FieldSpec, value
 export function fieldOptions(t: Translate, spec: NodeSpec, field: FieldSpec): { value: string; label: string }[] {
   if (field.type !== 'select') return [];
   return field.options.map((value) => ({ value, label: optionText(t, spec, field, value) }));
+}
+
+export function fieldSearchText(t: Translate, spec: NodeSpec): string {
+  return spec.fields.flatMap((field) => {
+    const prefix = fieldCopyPrefix(spec, field);
+    const options = field.type === 'select' ? field.options : [];
+    return [
+      known(`${prefix}.label`, t(`${prefix}.label` as MessageKey)),
+      ...options.map((value) => known(`${prefix}.option.${value}`, t(`${prefix}.option.${value}` as MessageKey)))
+    ];
+  }).filter(Boolean).join(' ');
 }
 
 export const outputLabel = (t: Translate, spec: NodeSpec, id: string): string =>

@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { STREAM_STEPS } from './stream-steps';
+import { STREAM_STEP_DEFINITIONS, TARGET_FIELDS } from './stream-steps';
 import { graphIndex, portKey } from './graph-index';
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
+import { TEXT_ARG_FIELDS, VAR_OPS_WITH_VALUE } from '@bagel/kit/automations';
 import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
@@ -11,19 +12,80 @@ export const MAX_WAIT_SECONDS = MAX_DELAY_MS / 1000;
 
 export type FlowKind = 'trigger' | 'condition' | 'reply';
 
-export type StepGroup = 'twitch' | 'modules' | 'basics';
+export const STEP_GROUPS = ['chat', 'community', 'moderation', 'stream', 'loyalty', 'timers', 'lights', 'logic'] as const;
+export type StepGroup = (typeof STEP_GROUPS)[number];
+
+export const STEP_PLACEMENT = {
+  'twitch.chat.command': { kind: 'trigger', group: 'chat' },
+  'twitch.chat.word': { kind: 'trigger', group: 'chat' },
+  'reply.chat': { kind: 'reply', group: 'chat' },
+  'reply.shoutout': { kind: 'reply', group: 'chat' },
+  'reply.announce': { kind: 'reply', group: 'chat' },
+  'reply.reply': { kind: 'reply', group: 'chat' },
+  'reply.poll': { kind: 'reply', group: 'chat' },
+  'reply.poll_end': { kind: 'reply', group: 'chat' },
+  'reply.prediction': { kind: 'reply', group: 'chat' },
+  'reply.prediction_end': { kind: 'reply', group: 'chat' },
+  'reply.chat_mode': { kind: 'reply', group: 'chat' },
+  'reply.clear_chat': { kind: 'reply', group: 'chat' },
+  'reply.whisper': { kind: 'reply', group: 'chat' },
+  'twitch.follow': { kind: 'trigger', group: 'community' },
+  'twitch.sub': { kind: 'trigger', group: 'community' },
+  'twitch.cheer': { kind: 'trigger', group: 'community' },
+  'twitch.raid': { kind: 'trigger', group: 'community' },
+  'twitch.unban_request': { kind: 'trigger', group: 'moderation' },
+  'cond.role': { kind: 'condition', group: 'moderation' },
+  'cond.user': { kind: 'condition', group: 'moderation' },
+  'reply.timeout': { kind: 'reply', group: 'moderation' },
+  'reply.ban': { kind: 'reply', group: 'moderation' },
+  'reply.mod': { kind: 'reply', group: 'moderation' },
+  'reply.vip': { kind: 'reply', group: 'moderation' },
+  'reply.unban_resolve': { kind: 'reply', group: 'moderation' },
+  'twitch.stream.online': { kind: 'trigger', group: 'stream' },
+  'twitch.stream.offline': { kind: 'trigger', group: 'stream' },
+  'reply.raid': { kind: 'reply', group: 'stream' },
+  'reply.raid_cancel': { kind: 'reply', group: 'stream' },
+  'reply.ad_snooze': { kind: 'reply', group: 'stream' },
+  'reply.branded_content': { kind: 'reply', group: 'stream' },
+  'twitch.reward': { kind: 'trigger', group: 'loyalty' },
+  'reply.points': { kind: 'reply', group: 'loyalty' },
+  'reply.points_set': { kind: 'reply', group: 'loyalty' },
+  'reply.counter': { kind: 'reply', group: 'loyalty' },
+  'reply.reward_update': { kind: 'reply', group: 'loyalty' },
+  'countdown.finished': { kind: 'trigger', group: 'timers' },
+  'cond.cooldown': { kind: 'condition', group: 'timers' },
+  'reply.countdown_start': { kind: 'reply', group: 'timers' },
+  'reply.countdown_add': { kind: 'reply', group: 'timers' },
+  'reply.cooldown_add': { kind: 'reply', group: 'timers' },
+  'reply.lights': { kind: 'reply', group: 'lights' },
+  'cond.compare': { kind: 'condition', group: 'logic' },
+  'cond.chance': { kind: 'condition', group: 'logic' },
+  'cond.var': { kind: 'condition', group: 'logic' },
+  'reply.wait': { kind: 'reply', group: 'logic' },
+  'reply.loop': { kind: 'reply', group: 'logic' },
+  'reply.var_set': { kind: 'reply', group: 'logic' },
+  'reply.var_add': { kind: 'reply', group: 'logic' },
+  'reply.var_delete': { kind: 'reply', group: 'logic' },
+  'reply.text': { kind: 'reply', group: 'logic' },
+  'reply.math': { kind: 'reply', group: 'logic' },
+  'reply.http_get': { kind: 'reply', group: 'logic' },
+  'reply.http_post': { kind: 'reply', group: 'logic' }
+} as const satisfies Record<string, { kind: FlowKind; group: StepGroup }>;
 
 type Typed = { key: string; placeholder?: true };
 
-export type FieldSpec = { when?: { key: string; value: string | readonly string[] | boolean } } & (
+type FieldGate = { key: string; value: string | readonly string[] | boolean };
+
+export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; labelBy?: string; initial?: string | number | boolean; required?: true } & (
   | (Typed & { type: 'text' })
   | (Typed & { type: 'template'; singleLine?: boolean })
   | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
   | { key: string; type: 'duration'; min: number; max: number }
   | { key: string; type: 'select'; options: readonly string[] }
-  | { key: string; type: 'toggle'; defaultOn?: true }
+  | { key: string; type: 'toggle' }
   | { key: string; type: 'color' }
   | (Typed & { type: 'login' })
+  | { key: 'who'; type: 'target' }
   | { key: string; type: 'goveeLight' }
   | { key: string; type: 'choice'; source: ChoiceSource; nameKey?: string }
   | { key: string; type: 'reward' }
@@ -42,10 +104,13 @@ export type NodeSpec = {
   group: StepGroup;
   icon: IconName;
   fields: readonly FieldSpec[];
+  lineBy?: string;
   provides?: readonly VariableSpec[];
   providesFor?(config: FlowNode['config']): readonly VariableSpec[];
   outputs?: readonly OutputSpec[];
 };
+
+export type StepDefinition = Omit<NodeSpec, 'kind' | 'group' | 'type'> & { type: keyof typeof STEP_PLACEMENT };
 
 export type FlowNode = {
   id: string;
@@ -91,20 +156,22 @@ const loopPorts: OutputSpec[] = [
 const varScope: FieldSpec = { key: 'scope', type: 'select', options: ['channel', 'viewer'] };
 const varName: FieldSpec = { key: 'name', type: 'text', placeholder: true };
 const saveAs: FieldSpec = { key: 'saveAs', type: 'text', placeholder: true };
-const VAR_OPS_WITH_VALUE = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains'] as const;
+const textOperands: FieldSpec[] = Array.from(TEXT_ARG_FIELDS).flatMap(([op, keys]) => keys.map((key) => ({
+  key, type: 'template', singleLine: true, placeholder: key === 'pick' ? true : undefined, when: { key: 'op', value: op }
+})));
 
 export const newFlow = (name: string): Flow => ({ id: 'new', name, enabled: true, nodes: [], edges: [] });
 
-export const NODE_SPECS: readonly NodeSpec[] = [
+const STEP_DEFINITIONS: readonly StepDefinition[] = [
   {
-    type: 'countdown.finished', slug: 'countdownFinished', kind: 'trigger', group: 'basics', icon: 'timer',
+    type: 'countdown.finished', slug: 'countdownFinished', icon: 'timer',
     fields: [{ key: 'name', type: 'choice', source: 'namedCountdowns' }]
   },
   {
-    type: 'reply.countdown_start', slug: 'countdownStart', kind: 'reply', group: 'basics', icon: 'timer',
+    type: 'reply.countdown_start', slug: 'countdownStart', icon: 'timer',
     fields: [
       { key: 'name', type: 'text', placeholder: true },
-      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
+      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS, initial: 3_600 },
       { key: 'leftCommand', type: 'text', placeholder: true },
       { key: 'leftReply', type: 'template', placeholder: true, singleLine: true },
       { key: 'readyReply', type: 'template', placeholder: true, singleLine: true }
@@ -112,10 +179,10 @@ export const NODE_SPECS: readonly NodeSpec[] = [
     provides: [{ token: '{countdown:left}', name: 'countdownLeft', sample: '2d 3h' }]
   },
   {
-    type: 'reply.countdown_add', slug: 'countdownAdd', kind: 'reply', group: 'basics', icon: 'timer',
+    type: 'reply.countdown_add', slug: 'countdownAdd', icon: 'timer',
     fields: [
       { key: 'name', type: 'choice', source: 'namedCountdowns' },
-      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
+      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS, initial: 60 },
       { key: 'per', type: 'number', min: 0 }
     ],
     provides: [{ token: '{countdown:left}', name: 'countdownLeft', sample: '2d 3h' }]
@@ -123,8 +190,6 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'twitch.chat.command',
     slug: 'chatCommand',
-    kind: 'trigger',
-    group: 'twitch',
     icon: 'commands',
     fields: [{ key: 'trigger', type: 'text', placeholder: true }],
     provides: [...user, { token: '{args}', name: 'args', sample: ARGS_SAMPLE }, { token: '{touser}', name: 'touser', sample: TOUSER_SAMPLE }]
@@ -132,8 +197,6 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'twitch.chat.word',
     slug: 'chatWord',
-    kind: 'trigger',
-    group: 'twitch',
     icon: 'messageSquare',
     fields: [{ key: 'word', type: 'text', placeholder: true }],
     provides: user
@@ -141,8 +204,6 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'twitch.follow',
     slug: 'follow',
-    kind: 'trigger',
-    group: 'twitch',
     icon: 'heart',
     fields: [],
     provides: user
@@ -150,8 +211,6 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'twitch.sub',
     slug: 'sub',
-    kind: 'trigger',
-    group: 'twitch',
     icon: 'star',
     fields: [{ key: 'variant', type: 'select', options: ['any', 'new', 'resub', 'gift'] }],
     provides: [...subViewer, ...subVariables.resub],
@@ -160,8 +219,6 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'twitch.cheer',
     slug: 'cheer',
-    kind: 'trigger',
-    group: 'twitch',
     icon: 'gem',
     fields: [{ key: 'minBits', type: 'number', min: 1, unit: true }],
     provides: [...user, { token: '{bits}', name: 'bits', sample: '500' }]
@@ -169,8 +226,6 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'twitch.raid',
     slug: 'raid',
-    kind: 'trigger',
-    group: 'twitch',
     icon: 'swords',
     fields: [{ key: 'minViewers', type: 'number', min: 1, unit: true }],
     provides: [...user, { token: '{viewers}', name: 'viewers', sample: '42' }]
@@ -178,8 +233,6 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'twitch.reward',
     slug: 'reward',
-    kind: 'trigger',
-    group: 'modules',
     icon: 'ticket',
     fields: [{ key: 'reward', type: 'reward' }],
     provides: [...user, { token: '{input}', name: 'input', sample: 'lofi beats' }]
@@ -187,8 +240,6 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'twitch.stream.online',
     slug: 'streamOnline',
-    kind: 'trigger',
-    group: 'twitch',
     icon: 'radio',
     fields: [],
     provides: [{ token: '{title}', name: 'title', sample: TITLE_SAMPLE }, { token: '{game}', name: 'game', sample: GAME_SAMPLE }]
@@ -196,17 +247,13 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'cond.role',
     slug: 'role',
-    kind: 'condition',
-    group: 'basics',
     icon: 'moderation',
-    fields: [{ key: 'level', type: 'select', options: ['everyone', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'] }],
+    fields: [{ key: 'level', type: 'select', options: ['everyone', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'], initial: 'mod' }],
     outputs: yesNo
   },
   {
     type: 'cond.user',
     slug: 'user',
-    kind: 'condition',
-    group: 'basics',
     icon: 'users',
     fields: [{ key: 'login', type: 'login', placeholder: true }],
     outputs: yesNo
@@ -214,11 +261,9 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'cond.cooldown',
     slug: 'cooldown',
-    kind: 'condition',
-    group: 'basics',
     icon: 'hourglass',
     fields: [
-      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
+      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS, initial: 30 },
       { key: 'perUser', type: 'toggle' },
       { key: 'name', type: 'text', placeholder: true, when: { key: 'perUser', value: false } },
       { key: 'leftCommand', type: 'text', placeholder: true },
@@ -230,8 +275,6 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'cond.compare',
     slug: 'compare',
-    kind: 'condition',
-    group: 'basics',
     icon: 'scale',
     fields: [
       { key: 'left', type: 'template', placeholder: true, singleLine: true },
@@ -243,22 +286,18 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'cond.chance',
     slug: 'chance',
-    kind: 'condition',
-    group: 'basics',
     icon: 'dice',
-    fields: [{ key: 'percent', type: 'number', min: 1, max: 100, unit: true }],
+    fields: [{ key: 'percent', type: 'number', min: 1, max: 100, unit: true, initial: 50 }],
     outputs: yesNo
   },
   {
     type: 'cond.var',
     slug: 'var',
-    kind: 'condition',
-    group: 'basics',
     icon: 'braces',
     fields: [
       varScope,
       varName,
-      { key: 'op', type: 'select', options: [...VAR_OPS_WITH_VALUE, 'exists'] },
+      { key: 'op', type: 'select', options: [...VAR_OPS_WITH_VALUE, 'exists'], initial: 'exists' },
       { key: 'value', type: 'template', placeholder: true, singleLine: true, when: { key: 'op', value: VAR_OPS_WITH_VALUE } }
     ],
     outputs: yesNo
@@ -266,24 +305,24 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'reply.chat',
     slug: 'chat',
-    kind: 'reply',
-    group: 'twitch',
     icon: 'send',
     fields: [{ key: 'message', type: 'template', placeholder: true }]
   },
   {
     type: 'reply.points',
     slug: 'points',
-    kind: 'reply',
-    group: 'modules',
     icon: 'coins',
-    fields: [{ key: 'amount', type: 'number', unit: true }]
+    fields: [{ key: 'amount', type: 'number', unit: true, initial: 10 }, ...TARGET_FIELDS]
+  },
+  {
+    type: 'reply.points_set',
+    slug: 'pointsSet',
+    icon: 'coins',
+    fields: [{ key: 'amount', type: 'number', unit: true, initial: 10 }, ...TARGET_FIELDS]
   },
   {
     type: 'reply.counter',
     slug: 'counter',
-    kind: 'reply',
-    group: 'modules',
     icon: 'hash',
     fields: [{ key: 'counter', type: 'choice', source: 'counters' }],
     provides: [{ token: '{count}', name: 'count', sample: '17' }]
@@ -291,39 +330,31 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'reply.lights',
     slug: 'lights',
-    kind: 'reply',
-    group: 'modules',
     icon: 'bulb',
     fields: [
       { key: 'device', type: 'goveeLight' },
       { key: 'mode', type: 'select', options: ['color', 'scene'] },
       { key: 'color', type: 'color', when: { key: 'mode', value: 'color' } },
       { key: 'scene', type: 'choice', source: 'scenes', nameKey: 'sceneName', when: { key: 'mode', value: 'scene' } },
-      { key: 'liveOnly', type: 'toggle', defaultOn: true }
+      { key: 'liveOnly', type: 'toggle', initial: true }
     ]
   },
   {
     type: 'reply.wait',
     slug: 'wait',
-    kind: 'reply',
-    group: 'basics',
     icon: 'timer',
-    fields: [{ key: 'seconds', type: 'number', min: 1, max: MAX_WAIT_SECONDS, unit: true }]
+    fields: [{ key: 'seconds', type: 'number', min: 1, max: MAX_WAIT_SECONDS, unit: true, initial: 5 }]
   },
   {
     type: 'reply.loop',
     slug: 'loop',
-    kind: 'reply',
-    group: 'basics',
     icon: 'repeat',
-    fields: [{ key: 'times', type: 'template', placeholder: true, singleLine: true }],
+    fields: [{ key: 'times', type: 'template', placeholder: true, singleLine: true, initial: '3' }],
     outputs: loopPorts
   },
   {
     type: 'reply.var_set',
     slug: 'varSet',
-    kind: 'reply',
-    group: 'basics',
     icon: 'braces',
     fields: [varScope, varName, { key: 'value', type: 'template', placeholder: true, singleLine: true }],
     providesFor: storedVariable
@@ -331,52 +362,36 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'reply.var_add',
     slug: 'varAdd',
-    kind: 'reply',
-    group: 'basics',
     icon: 'braces',
-    fields: [varScope, varName, { key: 'amount', type: 'number' }],
+    fields: [varScope, varName, { key: 'amount', type: 'number', initial: 1 }],
     providesFor: storedVariable
   },
   {
     type: 'reply.var_delete',
     slug: 'varDelete',
-    kind: 'reply',
-    group: 'basics',
     icon: 'braces',
     fields: [varScope, varName]
   },
   {
     type: 'reply.text',
     slug: 'text',
-    kind: 'reply',
-    group: 'basics',
     icon: 'letters',
     fields: [
       { key: 'op', type: 'select', options: ['upper', 'lower', 'trim', 'length', 'replace', 'substring', 'split_pick', 'contains', 'url_encode'] },
       { key: 'input', type: 'template', placeholder: true, singleLine: true },
-      { key: 'find', type: 'template', singleLine: true, when: { key: 'op', value: 'replace' } },
-      { key: 'replaceWith', type: 'template', singleLine: true, when: { key: 'op', value: 'replace' } },
-      { key: 'start', type: 'template', singleLine: true, when: { key: 'op', value: 'substring' } },
-      { key: 'count', type: 'template', singleLine: true, when: { key: 'op', value: 'substring' } },
-      { key: 'separator', type: 'template', singleLine: true, when: { key: 'op', value: 'split_pick' } },
-      { key: 'pick', type: 'template', placeholder: true, singleLine: true, when: { key: 'op', value: 'split_pick' } },
-      { key: 'needle', type: 'template', singleLine: true, when: { key: 'op', value: 'contains' } },
+      ...textOperands,
       saveAs
     ]
   },
   {
     type: 'reply.math',
     slug: 'math',
-    kind: 'reply',
-    group: 'basics',
     icon: 'calculator',
     fields: [{ key: 'expression', type: 'template', placeholder: true, singleLine: true }, saveAs]
   },
   {
     type: 'reply.http_get',
     slug: 'httpGet',
-    kind: 'reply',
-    group: 'basics',
     icon: 'globe',
     fields: [
       { key: 'url', type: 'template', placeholder: true, singleLine: true },
@@ -388,8 +403,6 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'reply.http_post',
     slug: 'httpPost',
-    kind: 'reply',
-    group: 'basics',
     icon: 'globe',
     fields: [{ key: 'url', type: 'template', placeholder: true, singleLine: true }, { key: 'body', type: 'template', placeholder: true }, saveAs],
     outputs: apiPorts
@@ -397,12 +410,10 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'reply.reward_update',
     slug: 'rewardUpdate',
-    kind: 'reply',
-    group: 'modules',
     icon: 'ticket',
     fields: [
       { key: 'reward', type: 'choice', source: 'manageableRewards', nameKey: 'rewardTitle' },
-      { key: 'setEnabled', type: 'select', options: ['keep', 'on', 'off'] },
+      { key: 'setEnabled', type: 'select', options: ['keep', 'on', 'off'], initial: 'on' },
       { key: 'cost', type: 'number', min: 1, max: MAX_REWARD_COST, unit: true },
       { key: 'reset', type: 'toggle' }
     ]
@@ -410,31 +421,72 @@ export const NODE_SPECS: readonly NodeSpec[] = [
   {
     type: 'reply.cooldown_add',
     slug: 'cooldownAdd',
-    kind: 'reply',
-    group: 'basics',
     icon: 'timer',
     fields: [
       { key: 'name', type: 'choice', source: 'namedCooldowns' },
-      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS },
+      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS, initial: 60 },
       { key: 'per', type: 'number', min: 0 }
     ]
   },
-  ...STREAM_STEPS
+  ...STREAM_STEP_DEFINITIONS
 ];
 
-function gateMatches(wanted: string | readonly string[] | boolean, value: unknown): boolean {
+export const NODE_SPECS: readonly NodeSpec[] = STEP_DEFINITIONS.map((spec) => ({ ...spec, ...STEP_PLACEMENT[spec.type] }));
+
+function matchesValue(wanted: FieldGate['value'], value: unknown): boolean {
   if (typeof wanted === 'boolean') return Boolean(value) === wanted;
   return typeof wanted === 'string' ? value === wanted : wanted.includes(String(value));
 }
 
+function gateMatches(spec: NodeSpec, config: FlowNode['config'], { key, value }: FieldGate): boolean {
+  const gate = spec.fields.find((field) => field.key === key);
+  if (gate?.type === 'target') return matchesValue(value, targetMode(config));
+  const fallback = gate?.type === 'select' ? gate.options[0] : gate?.initial;
+  return matchesValue(value, config[key] ?? fallback);
+}
+
 export function fieldVisible(spec: NodeSpec, node: Pick<FlowNode, 'config'>, field: FieldSpec): boolean {
   if (!field.when) return true;
-  const gate = spec.fields.find((f) => f.key === field.when?.key);
-  const fallback = gate?.type === 'select' ? gate.options[0] : undefined;
-  return gateMatches(field.when.value, node.config[field.when.key] ?? fallback);
+  const gates = 'key' in field.when ? [field.when] : field.when;
+  return gates.every((gate) => gateMatches(spec, node.config, gate));
 }
 
 export const specFor = (type: string): NodeSpec | undefined => NODE_SPECS.find((s) => s.type === type);
+
+export const targetFieldFor = (spec: NodeSpec | undefined): boolean =>
+  spec?.fields.some((field) => field.type === 'target') ?? false;
+
+export const hasLegacyTarget = (config: FlowNode['config']): boolean => typeof config.target === 'string';
+
+const pickerOwnsTarget = (spec: NodeSpec, node: FlowNode): boolean => targetFieldFor(spec) && !hasLegacyTarget(node.config);
+
+export const fieldMounted = (spec: NodeSpec, node: FlowNode, field: FieldSpec): boolean =>
+  field.key !== 'target' || !pickerOwnsTarget(spec, node);
+
+export const triggerProvidesViewer = (type: FlowNode['type'] | undefined): boolean =>
+  Boolean(specFor(type ?? '')?.provides?.some((variable) => variable.token === '{user}'));
+
+export const targetHasViewer = (type: FlowNode['type'] | undefined): boolean =>
+  type === 'twitch.unban_request' || triggerProvidesViewer(type);
+
+const PICKED_TARGETS = new Set(['user', 'mention', 'viewer']);
+
+export function targetMode(config: FlowNode['config']): string {
+  if (PICKED_TARGETS.has(String(config.who))) return String(config.who);
+  return hasLegacyTarget(config) ? 'login' : 'viewer';
+}
+
+export function targetModesFor(flow: Flow, node: FlowNode): string[] {
+  const trigger = flow.nodes.find((entry) => specFor(entry.type)?.kind === 'trigger')?.type;
+  const selected = targetMode(node.config);
+  const options = [
+    ['viewer', targetHasViewer(trigger)],
+    ['mention', trigger === 'twitch.chat.command' || trigger === 'twitch.chat.word'],
+    ['user', true],
+    ['login', hasLegacyTarget(node.config)]
+  ] as const;
+  return options.filter(([mode, allowed]) => allowed || mode === selected).map(([mode]) => mode);
+}
 
 export const outputsFor = (spec: NodeSpec): readonly OutputSpec[] => spec.outputs ?? [{ id: 'next' }];
 

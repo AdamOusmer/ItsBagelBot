@@ -1,0 +1,10 @@
+{
+  "label": "Sperren",
+  "summary": "Einen Zuschauer aus dem Chat ausschließen",
+  "keywords": "sperren bannen zuschauer moderation",
+  "field": {
+    "reason": {
+      "label": "Grund (optional)"
+    }
+  }
+}

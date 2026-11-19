@@ -55,6 +55,7 @@
     "countdownFinished": {
     "label": "Countdown finished",
     "summary": "A named countdown reaches zero",
+    "line": "When {name} reaches zero",
     "field": {
       "name": {
         "label": "Countdown"

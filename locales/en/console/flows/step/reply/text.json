@@ -10,10 +10,10 @@
         "trim": "Trim spaces",
         "length": "Count characters",
         "replace": "Replace",
-        "substring": "Take a part",
+        "substring": "Take a substring",
         "split_pick": "Split and pick one",
         "contains": "Check if it contains",
-        "url_encode": "Make safe for a link"
+        "url_encode": "URL encode"
       }
     },
     "input": {

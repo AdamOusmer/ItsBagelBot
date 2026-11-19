@@ -1,9 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { expect, test } from 'bun:test';
-import { flowToDefinition, locateIssues, validateDefinition } from '@bagel/kit/automations';
-import { NODE_SPECS, newFlow, outputsFor, type FieldSpec, type NodeSpec } from './model';
-import { insertNode } from './ops';
+import { flowToDefinition, validateDefinition } from '@bagel/kit/automations';
+import { NODE_SPECS, STEP_PLACEMENT, newFlow, outputsFor, type FlowNode } from './model';
 import { addNode } from './ops.testing';
 import { addStep } from './editor';
 import en from '../../../../../locales/en/console/flows/board.json';
@@ -14,95 +13,134 @@ import pt from '../../../../../locales/pt-br/console/flows/board.json';
 import ru from '../../../../../locales/ru/console/flows/board.json';
 
 const at = { x: 0, y: 0 };
-
-const prefills = {
+const placement = { kind: 'canvas' } as const;
+const defaults = {
+  'twitch.chat.command': {},
+  'twitch.chat.word': {},
+  'twitch.follow': {},
+  'twitch.sub': { variant: 'any' },
+  'twitch.cheer': {},
+  'twitch.raid': {},
+  'twitch.unban_request': {},
+  'twitch.stream.online': {},
+  'twitch.stream.offline': {},
+  'twitch.reward': {},
+  'countdown.finished': {},
+  'cond.role': { level: 'mod' },
+  'cond.user': {},
+  'cond.cooldown': { seconds: 30 },
+  'cond.compare': { op: 'gte' },
+  'cond.chance': { percent: 50 },
+  'cond.var': { scope: 'channel', op: 'exists' },
+  'reply.chat': { message: 'Thanks {user}!' },
   'reply.shoutout': { target: '{user}' },
   'reply.announce': { text: 'Thanks {user}!', color: 'primary' },
   'reply.reply': { text: 'Thanks!' },
-  'reply.timeout': { target: '{user}', seconds: 60 },
+  'reply.timeout': { who: 'viewer', seconds: 600 },
+  'reply.ban': { who: 'viewer' },
+  'reply.mod': { who: 'viewer', on: true },
+  'reply.vip': { who: 'viewer', on: true },
+  'reply.raid': {},
+  'reply.raid_cancel': {},
+  'reply.whisper': {},
+  'reply.unban_resolve': { status: 'deny' },
+  'reply.ad_snooze': {},
+  'reply.branded_content': {},
+  'reply.chat_mode': { mode: 'slow', on: true },
+  'reply.clear_chat': {},
+  'reply.poll': { seconds: 60 },
+  'reply.poll_end': { status: 'terminate' },
+  'reply.prediction': { seconds: 120 },
+  'reply.prediction_end': { status: 'lock' },
+  'reply.points': { amount: 10, who: 'viewer' },
+  'reply.points_set': { amount: 10, who: 'viewer' },
+  'reply.counter': {},
+  'reply.reward_update': { setEnabled: 'on' },
+  'reply.countdown_start': { seconds: 3_600 },
+  'reply.countdown_add': { seconds: 60 },
+  'reply.cooldown_add': { seconds: 60 },
+  'reply.lights': { mode: 'color', liveOnly: true },
   'reply.wait': { seconds: 5 },
-  'cond.cooldown': { seconds: 30 },
-  'reply.chat': { message: 'Thanks {user}!' },
-  'cond.chance': { percent: 50 }
+  'reply.loop': { times: '3' },
+  'reply.var_set': { scope: 'channel' },
+  'reply.var_add': { scope: 'channel', amount: 1 },
+  'reply.var_delete': { scope: 'channel' },
+  'reply.text': { op: 'upper' },
+  'reply.math': {},
+  'reply.http_get': {},
+  'reply.http_post': {}
+} satisfies Record<keyof typeof STEP_PLACEMENT, FlowNode['config']>;
+
+test.each(NODE_SPECS)('$type gets its expected config when added', (spec) => {
+  const flow = newFlow('Defaults');
+  if (spec.kind !== 'trigger') addNode(flow, 'twitch.follow', at);
+  const { node } = addStep(flow, { type: spec.type, at, placement, chatMessage: en.defaultChatMessage });
+  expect(node.config).toEqual(defaults[spec.type as keyof typeof defaults]);
+});
+
+const invalidDefaults = new Set(['out_of_range', 'invalid_enum', 'too_short']);
+const requiredSetup: Record<string, FlowNode['config']> = {
+  'cond.user': { userId: '42' },
+  'reply.poll': { choices: 'First\nSecond' },
+  'reply.prediction': { outcomes: 'First\nSecond' }
 };
 
-const paramNames: Record<string, string> = { message: 'text', setEnabled: 'enabled', variant: 'kind' };
+test.each(NODE_SPECS)('$type lowers and validates its defaults with a broadcaster check', (spec) => {
+  const flow = newFlow('Validate defaults');
+  const isTrigger = spec.kind === 'trigger';
+  const trigger = addNode(flow, isTrigger ? spec.type : 'twitch.follow', at);
+  const gate = addNode(flow, 'cond.role', at, { from: trigger.id, port: 'next' });
+  gate.config.level = 'broadcaster';
+  const node = isTrigger ? gate : addNode(flow, spec.type, at, { from: gate.id, port: 'yes' });
+  Object.assign(node.config, requiredSetup[spec.type]);
+  const port = isTrigger ? 'yes' : outputsFor(spec)[0].id;
+  addNode(flow, 'reply.chat', at, { from: node.id, port }).config.message = 'Saved';
 
-function defaultFields(spec: NodeSpec): string[] {
-  return spec.fields.filter((field) => field.type === 'select' || field.type === 'toggle').map((field) => paramNames[field.key] ?? field.key);
-}
-
-function displayedDefault(field: FieldSpec): [string, string | boolean][] {
-  if (field.type === 'select') return [[field.key, field.options[0]]];
-  if (field.type === 'toggle' && field.defaultOn) return [[field.key, true]];
-  return [];
-}
-
-test.each(NODE_SPECS)('$type saves its displayed defaults without edits', (spec) => {
-  const flow = newFlow('Defaults');
-  const root = spec.kind === 'trigger' ? null : addNode(flow, 'twitch.follow', at);
-  const placement = root ? { kind: 'port' as const, from: root.id, port: 'next', mode: 'insert' as const } : { kind: 'canvas' as const };
-  const { node } = addStep(flow, { type: spec.type, at, placement, chatMessage: en.defaultChatMessage });
-  const expected = { ...Object.fromEntries(spec.fields.flatMap(displayedDefault)), ...prefills[spec.type as keyof typeof prefills] };
-  expect(node.config).toEqual(expected);
-  addNode(flow, 'reply.chat', at, { from: node.id, port: outputsFor(spec)[0].id }).config.message = 'Saved';
-  const result = flowToDefinition(flow);
-  if (!result.ok) {
-    expect({ type: spec.type, fields: defaultFields(spec), codes: result.issues.map((issue) => issue.code) }).toEqual({ type: 'cond.user', fields: [], codes: ['user_not_resolved'] });
-    return;
-  }
-  const missing = locateIssues(flow, validateDefinition(result.value)).filter((issue) => issue.code === 'required');
-  const fields = defaultFields(spec);
-  const missingDefaults = missing.filter((issue) => issue.path.startsWith(`nodes.${node.id}`) && fields.includes(issue.path.split('.').at(-1)!));
-  const requiredChange = spec.type === 'reply.reward_update' ? [{ path: `nodes.${node.id}.params.enabled`, code: 'required' }] : [];
-  expect(missingDefaults).toEqual(requiredChange);
+  const lowered = flowToDefinition(flow);
+  if (!lowered.ok) throw new Error(JSON.stringify(lowered.issues));
+  expect(validateDefinition(lowered.value).filter((issue) => invalidDefaults.has(issue.code))).toEqual([]);
 });
 
-test.each(Object.entries(prefills))('%s prefill passes definition validation', (type) => {
-  const flow = newFlow('Prefills');
-  const root = addNode(flow, 'twitch.follow', at);
-  const node = insertNode(flow, { type, at, placement: { kind: 'port', from: root.id, port: 'next', mode: 'insert' }, chatMessage: en.defaultChatMessage });
-  const result = flowToDefinition(flow);
-  if (!result.ok) throw new Error(JSON.stringify(result.issues));
-  expect({ config: node.config, issues: validateDefinition(result.value) }).toEqual({ config: prefills[type as keyof typeof prefills], issues: [] });
+test.each([
+  { trigger: 'twitch.chat.command', who: 'mention', target: '{touser}', message: en.defaultChatMessage },
+  { trigger: 'twitch.chat.word', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
+  { trigger: 'twitch.raid', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
+  { trigger: 'twitch.follow', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
+  { trigger: 'twitch.sub', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
+  { trigger: 'twitch.cheer', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
+  { trigger: 'twitch.reward', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
+  { trigger: 'twitch.unban_request', who: 'viewer', target: '', message: en.defaultPlainMessage },
+  { trigger: 'twitch.stream.online', who: 'user', target: '', message: en.defaultPlainMessage },
+  { trigger: 'twitch.stream.offline', who: 'user', target: '', message: en.defaultPlainMessage },
+  { trigger: 'countdown.finished', who: 'user', target: '', message: en.defaultPlainMessage },
+  { trigger: null, who: 'user', target: '', message: '' }
+])('contextual defaults follow $trigger', ({ trigger, who, target, message }) => {
+  const flow = newFlow('Contextual defaults');
+  if (trigger) addNode(flow, trigger, at);
+  const config = (type: FlowNode['type']) => addStep(flow, { type, at, placement, chatMessage: en.defaultChatMessage }).node.config;
+  const targets = ['reply.timeout', 'reply.ban', 'reply.mod', 'reply.vip', 'reply.points', 'reply.points_set'];
+  expect({
+    targetModes: targets.map((type) => config(type).who),
+    shoutout: config('reply.shoutout'),
+    announce: config('reply.announce'),
+    reply: config('reply.reply'),
+    chat: config('reply.chat')
+  }).toEqual({
+    targetModes: targets.map(() => who),
+    shoutout: { target },
+    announce: { ...defaults['reply.announce'], text: message || en.defaultPlainMessage },
+    reply: defaults['reply.reply'],
+    chat: { message }
+  });
 });
 
-test.each(['twitch.follow', 'twitch.sub', 'twitch.reward', 'twitch.stream.online', 'countdown.finished', null])(
-  'chat uses viewer tokens only with viewer trigger %s',
-  (type) => {
-    const flow = newFlow('Message');
-    if (type) addNode(flow, type, at);
-    const chat = insertNode(flow, { type: 'reply.chat', at, placement: { kind: 'canvas' }, chatMessage: en.defaultChatMessage });
-    const viewer = ['twitch.follow', 'twitch.sub', 'twitch.reward'].includes(type ?? '');
-    expect(chat.config.message).toBe(viewer ? 'Thanks {user}!' : '');
-  }
-);
-
-test.each(Object.entries({ en, de, es, fr, 'pt-br': pt, ru }))('editor uses the %s chat prefill', (_locale, catalog) => {
-  const flow = newFlow('Translated');
-  addNode(flow, 'twitch.follow', at);
-  const { node } = addStep(flow, { type: 'reply.chat', at, placement: { kind: 'canvas' }, chatMessage: catalog.defaultChatMessage });
-  expect(node.config.message).toBe(catalog.defaultChatMessage);
-});
-
-test.each(['twitch.chat.command', 'twitch.chat.word', 'twitch.raid', 'twitch.stream.online', 'twitch.stream.offline', 'countdown.finished'])(
-  'new action defaults follow the %s trigger', (type) => {
-    const flow = newFlow('Targets');
-    addNode(flow, type, at);
-    const viewer = ['twitch.chat.command', 'twitch.chat.word', 'twitch.raid'].includes(type);
-    const target = type === 'twitch.chat.command' ? '{touser}' : viewer ? '{user}' : '';
-    const configs = ['reply.shoutout', 'reply.timeout', 'reply.announce', 'reply.reply'].map((type) => addStep(flow, {
-      type, at, placement: { kind: 'canvas' }, chatMessage: en.defaultChatMessage, plainMessage: en.defaultPlainMessage
-    }).node.config);
-    expect(configs).toEqual([{ target }, { target, seconds: 60 }, { text: viewer ? en.defaultChatMessage : en.defaultPlainMessage, color: 'primary' }, { text: en.defaultPlainMessage }]);
-  }
-);
-
-test.each(Object.entries({ en, de, es, fr, 'pt-br': pt, ru }))('plain action defaults use %s', (_locale, catalog) => {
-  const flow = newFlow('Plain');
-  addNode(flow, 'twitch.stream.offline', at);
-  const messages = ['reply.announce', 'reply.reply'].map((type) => addStep(flow, {
-    type, at, placement: { kind: 'canvas' }, chatMessage: catalog.defaultChatMessage, plainMessage: catalog.defaultPlainMessage
-  }).node.config.text);
-  expect(messages).toEqual([catalog.defaultPlainMessage, catalog.defaultPlainMessage]);
+test.each(Object.entries({ en, de, es, fr, 'pt-br': pt, ru }))('chat defaults use the %s translation for each trigger', (_locale, catalog) => {
+  const messages = ['twitch.follow', 'twitch.stream.offline'].map((trigger) => {
+    const flow = newFlow('Localized defaults');
+    addNode(flow, trigger, at);
+    return addStep(flow, {
+      type: 'reply.chat', at, placement, chatMessage: catalog.defaultChatMessage, plainMessage: catalog.defaultPlainMessage
+    }).node.config.message;
+  });
+  expect(messages).toEqual([catalog.defaultChatMessage, catalog.defaultPlainMessage]);
 });

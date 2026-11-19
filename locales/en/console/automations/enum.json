@@ -1,4 +1,10 @@
 {
+  "who": {
+    "viewer": "The viewer",
+    "mention": "Who they @mention",
+    "user": "A set viewer",
+    "login": "Viewer login"
+  },
   "match": {
     "start": "Starts with",
     "exact": "Exact",

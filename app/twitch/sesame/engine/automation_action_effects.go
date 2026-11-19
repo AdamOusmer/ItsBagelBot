@@ -29,15 +29,54 @@ type actionTarget struct {
 	login string
 }
 
-func (x *actionExec) target(template string, selfWhenEmpty bool) (actionTarget, error) {
+func usesLegacyLogin(p automation.TargetAction) bool {
+	return p.Who == "" || p.Who == "login"
+}
+
+func (x *actionExec) target(p automation.TargetAction, selfWhenEmpty bool) (actionTarget, error) {
+	switch p.Who {
+	case "viewer":
+		return x.viewerTarget()
+	case "mention":
+		return x.mentionTarget()
+	case "user":
+		id, err := strconv.ParseUint(p.UserID, 10, 64)
+		if err != nil || id == 0 {
+			return actionTarget{}, failure("no_target")
+		}
+		return actionTarget{id: id, login: scope.NormalizeLogin(p.Login)}, nil
+	case "", "login":
+		return x.loginTarget(p.Login, selfWhenEmpty)
+	default:
+		return actionTarget{}, failure("no_target")
+	}
+}
+
+func (x *actionExec) viewerTarget() (actionTarget, error) {
+	viewer := x.run.Viewer
+	if viewer.ID == 0 {
+		return actionTarget{}, failure("no_viewer")
+	}
+	return actionTarget{id: viewer.ID, login: scope.NormalizeLogin(viewer.Login)}, nil
+}
+
+func (x *actionExec) mentionTarget() (actionTarget, error) {
+	if x.run.Env == nil {
+		return actionTarget{}, failure("no_target")
+	}
+	mentions := x.run.Env.Mentions
+	id := scope.MentionedViewerID(mentions, "")
+	if id == 0 {
+		return actionTarget{}, failure("no_target")
+	}
+	return actionTarget{id: id, login: scope.NormalizeLogin(mentions[0].UserLogin)}, nil
+}
+
+func (x *actionExec) loginTarget(template string, selfWhenEmpty bool) (actionTarget, error) {
 	login := scope.NormalizeLogin(x.expand(template))
 	viewer := x.run.Viewer
 	if login == "" && selfWhenEmpty {
-		login = scope.NormalizeLogin(viewer.Login)
-		if viewer.ID == 0 {
-			return actionTarget{}, failure("no_viewer")
-		}
-		return actionTarget{id: viewer.ID, login: login}, nil
+		return x.viewerTarget()
 	}
 	if login == "" {
 		return actionTarget{}, failure("empty_login")
@@ -110,20 +149,23 @@ func storeResult(err error, found bool) error {
 }
 
 func (x *actionExec) pointsAdd(s step, p automation.PointsAddAction) error {
-	return x.adjustPoints(s, p.Login, p.Amount, false)
+	return x.adjustPoints(s, p.TargetAction, p.Amount, false)
 }
 
 func (x *actionExec) pointsSet(s step, p automation.PointsSetAction) error {
-	return x.adjustPoints(s, p.Login, p.Amount, true)
+	return x.adjustPoints(s, p.TargetAction, p.Amount, true)
 }
 
-func (x *actionExec) adjustPoints(s step, login string, amount int64, absolute bool) error {
+func (x *actionExec) adjustPoints(s step, target automation.TargetAction, amount int64, absolute bool) error {
 	if x.p.loyalty == nil {
 		return failure("no_loyalty")
 	}
-	t, err := x.target(login, true)
+	t, err := x.target(target, true)
 	if err != nil {
 		return err
+	}
+	if target.Who == "user" && t.login == "" {
+		return failure("empty_login")
 	}
 	return x.once(s, func() error {
 		_, found, err := x.p.loyalty.BalanceAdjustViewer(x.ctx, BalanceAdjustment{

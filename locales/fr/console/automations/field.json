@@ -1,4 +1,6 @@
 {
+  "who": "Qui",
+  "user_id": "ID utilisateur Twitch",
   "aliases": "Alias",
   "allow": "Autorisés",
   "amount": "Montant",

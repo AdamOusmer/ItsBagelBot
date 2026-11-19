@@ -1,4 +1,11 @@
 {
+  "requirement": {
+    "addCheck": "Ajouter une vérification",
+    "triggerTag": "« {trigger} » uniquement",
+    "triggerNote": "S’exécute uniquement avec le déclencheur « {trigger} »",
+    "roleNote": "Nécessite de vérifier le rôle « {role} » au préalable",
+    "startNote": "Cette recette doit vérifier le rôle « {role} » au début."
+  },
   "trigger.countdownFinished.keywords": "minuteur compte rebours fini fin zéro timer countdown",
   "trigger.chatCommand.keywords": "commande chat déclencher préfixe taper command",
   "trigger.chatWord.keywords": "mot chat contient correspond texte clé",

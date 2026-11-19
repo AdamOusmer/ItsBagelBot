@@ -1,4 +1,10 @@
 {
+  "who": {
+    "viewer": "Der auslösende Zuschauer",
+    "mention": "Erwähnter Zuschauer",
+    "user": "Ausgewählter Zuschauer",
+    "login": "Zuschauer-Login"
+  },
   "match": {
     "start": "Beginnt mit",
     "exact": "Exakt",

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "trigger": { "type": "command", "params": { "name": "!target" } },
+  "conditions": [{ "type": "perm", "params": { "level": "lead_mod" } }],
+  "actions": [
+    { "type": "timeout", "params": { "who": "viewer", "seconds": 60 } },
+    { "type": "ban", "params": { "who": "mention" } },
+    { "type": "mod", "params": { "who": "user", "user_id": "123", "on": true } },
+    { "type": "vip", "params": { "who": "login", "login": "{touser}", "on": true } },
+    { "type": "points_add", "params": { "who": "user", "user_id": "123", "amount": 10 } },
+    { "type": "points_set", "params": { "who": "viewer", "amount": 0 } },
+    { "type": "points_add", "params": { "amount": 10 } },
+    { "type": "points_add", "params": { "who": "login", "login": "", "amount": 10 } },
+    { "type": "points_set", "params": { "amount": 0 } },
+    { "type": "points_set", "params": { "who": "login", "amount": 0 } }
+  ]
+}

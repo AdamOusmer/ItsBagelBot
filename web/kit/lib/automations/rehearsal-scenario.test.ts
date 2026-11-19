@@ -35,9 +35,17 @@ test.each<DefaultCase>([
   const def = lowered(type, config);
   const scenario = defaultScenario(def);
   expect({ scenario, match: matchTrigger(def, scenario) }).toMatchObject({ scenario: values, match: { starts: true } });
-  expect(SCENARIO_FIELDS[scenarioKind(def)]).toContainEqual({ key: 'live', kind: 'toggle', default: true, more: true });
+  expect(SCENARIO_FIELDS[scenarioKind(def)]).toContainEqual({ key: 'live', kind: 'toggle', default: true });
   const chat = type === 'twitch.chat.command' || type === 'twitch.chat.word';
   expect(SCENARIO_FIELDS[scenarioKind(def)]?.some((field) => field.key === 'role')).toBe(chat);
+});
+
+test.each([
+  { kind: 'twitch.chat.command', keys: ['user', 'userId', 'role', 'message', 'live'] },
+  { kind: 'twitch.sub.new', keys: ['user', 'userId', 'tier', 'isGift', 'live'] },
+  { kind: 'twitch.cheer', keys: ['user', 'userId', 'bits', 'anonymous', 'live'] }
+])('scenario inputs for $kind are in grid order', ({ kind, keys }) => {
+  expect(SCENARIO_FIELDS[kind]?.map((field) => field.key)).toEqual(keys);
 });
 
 test.each(['twitch.stream.offline', 'twitch.stream.online', 'countdown.finished'])('changing trigger removes unavailable patches for %s', (kind) => {
@@ -74,6 +82,8 @@ test.each<MatchCase>([
   { trigger: { type: 'event', params: { kind: 'channel.raid', filters: { viewers: '100' } } }, scenario: { viewers: 42 }, reason: 'trigger_filter' },
   { trigger: { type: 'event', params: { kind: 'channel.subscribe', filters: { is_gift: 'false' } } }, scenario: { isGift: true }, reason: 'trigger_filter' },
   { trigger: { type: 'command', params: { name: '!hello' } }, scenario: { message: '!other' }, reason: 'trigger_message' },
+  { trigger: { type: 'command', params: { name: '' } }, scenario: { message: '' }, reason: 'no_name' },
+  { trigger: { type: 'command', params: { name: '', match: 'regex' } }, scenario: { message: 'anything' }, reason: 'no_name' },
   { trigger: { type: 'reward', params: { reward_id: 'r' } }, scenario: { rewardId: 'other' }, reason: 'trigger_filter' },
   { trigger: { type: 'countdown', params: { name: 'timer' } }, scenario: { name: 'other' }, reason: 'trigger_filter' }
 ])('failed trigger $trigger', ({ trigger, scenario, reason }) => {

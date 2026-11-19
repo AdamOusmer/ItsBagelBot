@@ -1,4 +1,5 @@
 {
+  "addsAfter": "É adicionado após {step}",
   "defaultChatMessage": "Valeu {user}!",
   "defaultPlainMessage": "Valeu!",
   "boardLabel": "Quadro do fluxo",
@@ -38,9 +39,14 @@
   "closeLibrary": "Fechar biblioteca",
   "noStepsMatchSearch": "Nenhuma etapa corresponde a essa busca.",
   "group": {
-    "twitch": "Twitch",
-    "modules": "Módulos",
-    "basics": "Básicos"
+    "chat": "Chat",
+    "community": "Comunidade",
+    "moderation": "Moderação",
+    "stream": "Transmissão",
+    "loyalty": "Fidelidade",
+    "timers": "Temporizadores",
+    "lights": "Luzes",
+    "logic": "Fluxo e dados"
   },
   "kind": {
     "trigger": "Gatilho",
@@ -67,6 +73,9 @@
   "variableSample": "Por exemplo {sample}",
   "variableTitle": "{token}: {hint}",
   "duplicate": "Duplicar",
+  "runStep": "Executar esta etapa",
+  "checksAlwaysRun": "As verificações sempre são executadas",
+  "stepOff": "Inativa",
   "removeStep": "Remover etapa",
   "testRun": "Execução de teste",
   "whatHappens": "O que acontece",

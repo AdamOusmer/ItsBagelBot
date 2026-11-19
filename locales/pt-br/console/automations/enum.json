@@ -1,4 +1,10 @@
 {
+  "who": {
+    "viewer": "O espectador que acionou a receita",
+    "mention": "Espectador mencionado",
+    "user": "Espectador escolhido",
+    "login": "Login do espectador"
+  },
   "match": {
     "start": "Começa com",
     "exact": "Exato",

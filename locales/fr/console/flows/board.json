@@ -1,4 +1,5 @@
 {
+  "addsAfter": "S’ajoute après {step}",
   "defaultChatMessage": "Merci {user} !",
   "defaultPlainMessage": "Merci !",
   "boardLabel": "Tableau de flux",
@@ -38,9 +39,14 @@
   "closeLibrary": "Fermer la bibliothèque",
   "noStepsMatchSearch": "Aucune étape ne correspond à cette recherche.",
   "group": {
-    "twitch": "Twitch",
-    "modules": "Modules",
-    "basics": "Bases"
+    "chat": "Chat",
+    "community": "Communauté",
+    "moderation": "Modération",
+    "stream": "Diffusion",
+    "loyalty": "Fidélité",
+    "timers": "Minuteurs",
+    "lights": "Éclairage",
+    "logic": "Flux et données"
   },
   "kind": {
     "trigger": "Déclencheur",
@@ -67,6 +73,9 @@
   "variableSample": "Par exemple {sample}",
   "variableTitle": "{token} : {hint}",
   "duplicate": "Dupliquer",
+  "runStep": "Exécuter cette étape",
+  "checksAlwaysRun": "Les vérifications s’exécutent toujours",
+  "stepOff": "Inactif",
   "removeStep": "Supprimer l’étape",
   "testRun": "Test d’exécution",
   "whatHappens": "Ce qui se passe",

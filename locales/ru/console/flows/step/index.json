@@ -1,4 +1,11 @@
 {
+  "requirement": {
+    "addCheck": "Добавить проверку",
+    "triggerTag": "Только «{trigger}»",
+    "triggerNote": "Запускается только по триггеру «{trigger}»",
+    "roleNote": "Перед этим шагом нужна проверка роли «{role}»",
+    "startNote": "В начале этого сценария нужна проверка роли «{role}»."
+  },
   "trigger.countdownFinished.keywords": "таймер отсчёт завершён конец ноль timer countdown",
   "trigger.chatCommand.keywords": "команда чат запуск префикс ввод command",
   "trigger.chatWord.keywords": "слово чат содержит совпадение текст ключ",

@@ -3,7 +3,8 @@
 
 import { COMPARE_OPS } from './compare';
 import { eventKinds } from './event-kinds';
-import { MAX_COOLDOWN_SECONDS, MAX_TEMPLATE_LENGTH } from './limits';
+import { MAX_COOLDOWN_SECONDS, MAX_LOGIN_TEMPLATE, MAX_TEMPLATE_LENGTH } from './limits';
+import { TARGET_MODES } from './types';
 import { CMP_OPS, PERM_LEVELS } from './values';
 
 export type FieldKind = 'text' | 'template' | 'login' | 'int' | 'bool' | 'enum' | 'list' | 'actions' | 'condition' | 'branches' | 'map';
@@ -54,7 +55,11 @@ const action = (type: TypeName, fields?: FieldDef[]) => def('action', type, fiel
 const counterName = f('name', 'text', { required: true, min: 1, max: 64 });
 const reasonOpt = f('reason', 'template', { max: 500 });
 const loginReq = f('login', 'login', { required: true, min: 1, max: 100 });
-const loginOpt = f('login', 'login', { min: 0, max: 100 });
+const targetFields = [
+  f('who', 'enum', { values: TARGET_MODES }),
+  f('user_id', 'text'),
+  f('login', 'login', { max: MAX_LOGIN_TEMPLATE }),
+];
 const textReq = f('text', 'template', { required: true, min: 1, max: 500 });
 const op = f('op', 'enum', { required: true, values: CMP_OPS });
 const listLogin = (name: FieldName) => f(name, 'list', { max: 100 });
@@ -136,8 +141,8 @@ export const ACTION_TYPES: TypeDef[] = [
   ]),
   action('raid', [loginReq]),
   action('raid_cancel'),
-  action('mod', [loginReq, f('on', 'bool')]),
-  action('vip', [loginReq, f('on', 'bool')]),
+  action('mod', [...targetFields, f('on', 'bool')]),
+  action('vip', [...targetFields, f('on', 'bool')]),
   action('chat_mode', [
     f('mode', 'enum', { required: true, values: ['emote_only', 'followers', 'slow', 'subscribers', 'unique'] }),
     f('on', 'bool'),
@@ -155,8 +160,8 @@ export const ACTION_TYPES: TypeDef[] = [
   action('chat', [textReq]),
   action('announce', [textReq, f('color', 'enum', { values: ['', 'primary', 'blue', 'green', 'orange', 'purple'] })]),
   action('reply', [textReq]),
-  action('timeout', [loginReq, f('seconds', 'int', { required: true, min: 1, max: 1209600 }), reasonOpt]),
-  action('ban', [loginReq, reasonOpt]),
+  action('timeout', [...targetFields, f('seconds', 'int', { required: true, min: 1, max: 1209600 }), reasonOpt]),
+  action('ban', [...targetFields, reasonOpt]),
   action('delete_message'),
   action('warn', [loginReq, f('reason', 'template', { required: true, min: 1, max: 500 })]),
   action('shield', [f('on', 'bool')]),
@@ -167,8 +172,8 @@ export const ACTION_TYPES: TypeDef[] = [
   action('set_game', [f('game', 'template', { required: true, min: 1, max: 100 })]),
   action('set_tags', [f('tags', 'template', { required: true, min: 1, max: 500 })]),
   action('commercial', [f('seconds', 'enum', { required: true, values: ['30', '60', '90', '120', '150', '180'] })]),
-  action('points_add', [loginOpt, f('amount', 'int', { required: true, min: -1000000, max: 1000000 })]),
-  action('points_set', [loginOpt, f('amount', 'int', { required: true, min: 0, max: 1000000000 })]),
+  action('points_add', [...targetFields, f('amount', 'int', { required: true, min: -1000000, max: 1000000 })]),
+  action('points_set', [...targetFields, f('amount', 'int', { required: true, min: 0, max: 1000000000 })]),
   action('counter_add', [counterName, f('amount', 'int', { required: true, min: -1000000, max: 1000000 })]),
   action('counter_set', [counterName, f('value', 'int', { required: true })]),
   action('redemption', [f('status', 'enum', { required: true, values: ['fulfill', 'cancel'] })]),

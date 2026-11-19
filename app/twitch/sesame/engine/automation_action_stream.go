@@ -4,10 +4,12 @@
 package engine
 
 import (
+	"strconv"
+	"strings"
+
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
-	"strings"
 )
 
 var (
@@ -88,8 +90,21 @@ func toggleAction(name string) func(*actionExec, step, automation.LoginToggleAct
 		if p.On {
 			typ = types[1]
 		}
-		return x.loginOut(typ, p.Login, nil)
+		return x.roleOut(typ, p.TargetAction)
 	}
+}
+
+func (x *actionExec) roleOut(typ string, target automation.TargetAction) error {
+	if usesLegacyLogin(target) {
+		return x.loginOut(typ, target.Login, nil)
+	}
+	resolved, err := x.target(target, false)
+	if err != nil {
+		return err
+	}
+	o := x.out(typ)
+	o.TargetUserID = strconv.FormatUint(resolved.id, 10)
+	return x.queue(o)
 }
 
 func (x *actionExec) poll(_ step, p automation.PollAction) error {

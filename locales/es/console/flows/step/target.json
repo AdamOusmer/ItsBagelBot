@@ -1,0 +1,11 @@
+{
+  "label": "Quién",
+  "viewerLabel": "Espectador",
+  "loginLabel": "Plantilla del nombre de usuario",
+  "option": {
+    "viewer": "Quien activó la receta",
+    "mention": "A quien mencione con @",
+    "user": "Un espectador concreto",
+    "login": "Plantilla de usuario"
+  }
+}

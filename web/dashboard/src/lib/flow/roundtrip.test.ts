@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
-import { definitionToFlow, flowToDefinition, validateDefinition, type FlowConfig } from '@bagel/kit/automations';
+import { definitionToFlow, flowToDefinition, validateDefinition, type FlowConfig, type FlowResult } from '@bagel/kit/automations';
 import type { ChoiceSource } from './choices';
 import { NODE_SPECS, fieldVisible, outputsFor, type FieldSpec, type Flow, type FlowNode, type NodeSpec } from './model';
 
@@ -32,6 +32,7 @@ const TEXT: Record<string, string> = {
   right: '1000',
   color: '#f5a524',
   times: '3',
+  who: 'viewer',
   url: 'https://api.example.com/data',
   content: 'https://cdn.example.com/a.png',
   jsonPath: 'data.value'
@@ -118,20 +119,31 @@ function drawn(spec: NodeSpec, config: Config): Flow {
 const saved = (config: FlowConfig): Config =>
   Object.fromEntries(Object.entries(config).filter(([key, value]) => value !== '' && !SHOWN_NOT_SAVED.has(key)));
 
+function unwrap<T>(result: FlowResult<T>): T {
+  if (!result.ok) throw new Error(JSON.stringify(result.issues));
+  return result.value;
+}
+
 describe('every builder step survives a save and reload', () => {
-  for (const spec of NODE_SPECS) {
-    test.each(configsFor(spec).map((config) => [JSON.stringify(config), config] as const))(`${spec.type} %s`, (_label, config) => {
-      const flow = drawn(spec, config);
-      const lowered = flowToDefinition(flow);
-      if (!lowered.ok) throw new Error(`${spec.type} was refused: ${JSON.stringify(lowered.issues)}`);
-      expect(validateDefinition(lowered.value)).toEqual([]);
+  const cases = NODE_SPECS.flatMap((spec) => {
+    const configs = configsFor(spec);
+    if (spec.kind === 'reply') configs.push({ ...configs[0], disabled: true });
+    return configs.map((config) => ({ type: spec.type, variant: JSON.stringify(config), spec, config }));
+  });
 
-      const reopened = definitionToFlow(lowered.value, { id: 'f', name: 'f', enabled: true });
-      if (!reopened.ok) throw new Error(`${spec.type} did not reopen: ${JSON.stringify(reopened.issues)}`);
-      const back = reopened.value.nodes.find((n) => n.type === spec.type);
+  test.each(cases)('$type $variant', ({ spec, config }) => {
+    const lowered = unwrap(flowToDefinition(drawn(spec, config)));
+    expect(validateDefinition(lowered)).toEqual([]);
 
-      expect(back).toBeDefined();
-      expect(saved(back!.config)).toEqual(saved(config));
+    const reopened = unwrap(definitionToFlow(lowered, { id: 'f', name: 'f', enabled: true }));
+    const back = reopened.nodes.find((n) => n.type === spec.type);
+
+    expect({
+      enabled: lowered.actions?.[0]?.enabled,
+      config: back && saved(back.config)
+    }).toEqual({
+      enabled: config.disabled ? false : undefined,
+      config: saved(config)
     });
-  }
+  });
 });

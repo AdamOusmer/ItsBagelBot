@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { Chk } from './check';
+import { TARGET_DEFAULTS, TARGET_SCHEMA, type Chk } from './check';
 import { register, type Table, type Wide } from './engine';
 import { CODE } from './limits';
 import type * as T from './stream-types';
@@ -45,7 +45,7 @@ function checkWhisper(c: Chk, p: Wide<T.WhisperAction>): void {
 const noop = () => {};
 const login = register<{ login: string }>({ login: 'string' }, (c, p) => void c.login('login', p.login, 1));
 const empty = register<Record<string, never>>({}, noop);
-const loginToggle = register<Wide<T.LoginToggleAction>>({ login: 'string', on: 'bool' }, (c, p) => void c.login('login', p.login, 1));
+const targetToggle = register<Wide<T.LoginToggleAction>>({ ...TARGET_SCHEMA, on: 'bool' }, (c, p) => c.target(p, 1), TARGET_DEFAULTS);
 
 export const STREAM_ACTIONS: Table = {
   whisper: register<Wide<T.WhisperAction>>({ login: 'string', text: 'string' }, checkWhisper),
@@ -55,8 +55,8 @@ export const STREAM_ACTIONS: Table = {
   prediction_end: register<Wide<T.PredictionEndAction>>({ status: 'string', winner: 'int' }, checkPredictionEnd),
   raid: login,
   raid_cancel: empty,
-  mod: loginToggle,
-  vip: loginToggle,
+  mod: targetToggle,
+  vip: targetToggle,
   clear_chat: empty,
   ad_snooze: empty,
   chat_mode: register<Wide<T.ChatModeAction>>({ mode: 'string', on: 'bool', value: 'int' }, checkChatMode),

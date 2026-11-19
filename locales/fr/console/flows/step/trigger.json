@@ -74,6 +74,7 @@
     "countdownFinished": {
     "label": "Compte à rebours terminé",
     "summary": "Un compte à rebours atteint zéro",
+    "line": "Quand {name} atteint zéro",
     "field": {
       "name": {
         "label": "Compte à rebours"

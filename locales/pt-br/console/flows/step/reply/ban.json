@@ -1,0 +1,10 @@
+{
+  "label": "Banir",
+  "summary": "Banir um espectador do chat",
+  "keywords": "banir bloquear espectador moderação",
+  "field": {
+    "reason": {
+      "label": "Motivo (opcional)"
+    }
+  }
+}

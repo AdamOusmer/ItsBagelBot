@@ -63,6 +63,8 @@ test.each([
   ['reply.http_get', 'saveAs', false], ['reply.text', 'input', false], ['reply.text', 'saveAs', true],
   ['cond.user', 'login', true], ['cond.cooldown', 'seconds', true], ['cond.cooldown', 'name', false],
   ['twitch.chat.command', 'trigger', true], ['twitch.reward', 'reward', true], ['reply.shoutout', 'target', true],
+  ['reply.raid', 'target', true], ['reply.mod', 'target', false], ['reply.vip', 'target', false],
+  ['reply.whisper', 'target', true], ['reply.timeout', 'target', false],
   ['reply.countdown_start', 'name', true], ['reply.countdown_start', 'seconds', true], ['reply.countdown_start', 'leftReply', false]
 ] as const)('%s marks %s required: %s', (type, key, expected) => {
   expect(fieldRequired(nodeOf(type), key)).toBe(expected);
@@ -78,6 +80,20 @@ test.each(['reply.chat', 'reply.wait', 'reply.math'])('%s attaches real validati
   expect(issues.map(({ nodeId, fieldKey }) => ({ nodeId, fieldKey }))).toEqual(
     (type === 'reply.math' ? ['expression', 'saveAs'] : [type === 'reply.chat' ? 'message' : 'seconds']).map((fieldKey) => ({ nodeId: 'step', fieldKey }))
   );
+});
+
+test.each(['reply.timeout', 'reply.ban', 'reply.mod', 'reply.vip', 'reply.points', 'reply.points_set'])('%s requires the ID of a set viewer', (type) => {
+  const flow = newFlow('Missing set viewer');
+  const step = nodeOf(type, { who: 'user', login: 'bagel', seconds: 600, amount: 10, on: true });
+  flow.nodes = [{ ...nodeOf('twitch.follow'), id: 'trigger' }, step];
+  flow.edges = [{ id: 'edge', from: 'trigger', port: 'next', to: 'step' }];
+  const lowered = flowToDefinition(flow);
+  if (!lowered.ok) throw new Error(JSON.stringify(lowered.issues));
+  const issues = fieldIssues(locateIssues(flow, validateDefinition(lowered.value)), flow.nodes);
+  expect({ issues, missing: missingField(step) }).toEqual({
+    issues: [{ path: 'nodes.step.params.user_id', code: 'required', nodeId: 'step', fieldKey: 'login' }],
+    missing: 'login'
+  });
 });
 
 test.each<{ type: FlowNode['type']; key: string; config: FlowNode['config']; expected: boolean }>([

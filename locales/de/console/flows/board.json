@@ -1,4 +1,5 @@
 {
+  "addsAfter": "Wird nach {step} eingefügt",
   "defaultChatMessage": "Danke {user}!",
   "defaultPlainMessage": "Danke!",
   "boardLabel": "Flow-Board",
@@ -38,9 +39,14 @@
   "closeLibrary": "Bibliothek schließen",
   "noStepsMatchSearch": "Keine Schritte passen zu dieser Suche.",
   "group": {
-    "twitch": "Twitch",
-    "modules": "Module",
-    "basics": "Grundlagen"
+    "chat": "Chat",
+    "community": "Community",
+    "moderation": "Moderation",
+    "stream": "Stream",
+    "loyalty": "Treueprogramm",
+    "timers": "Timer",
+    "lights": "Beleuchtung",
+    "logic": "Ablauf und Daten"
   },
   "kind": {
     "trigger": "Auslöser",
@@ -67,6 +73,9 @@
   "variableSample": "Zum Beispiel {sample}",
   "variableTitle": "{token}: {hint}",
   "duplicate": "Duplizieren",
+  "runStep": "Diesen Schritt ausführen",
+  "checksAlwaysRun": "Prüfungen laufen immer",
+  "stepOff": "Aus",
   "removeStep": "Schritt entfernen",
   "testRun": "Testlauf",
   "whatHappens": "Was passiert",

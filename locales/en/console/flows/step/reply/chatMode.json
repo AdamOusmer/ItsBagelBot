@@ -1,6 +1,10 @@
 {
   "label": "Set chat mode",
   "summary": "Change who can chat and how often",
+  "line": {
+    "on": "{mode} on",
+    "off": "{mode} off"
+  },
   "field": {
     "mode": {
       "label": "Chat mode",

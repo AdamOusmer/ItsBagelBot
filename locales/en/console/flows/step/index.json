@@ -1,4 +1,11 @@
 {
+  "requirement": {
+    "addCheck": "Add check",
+    "triggerTag": "{trigger} only",
+    "triggerNote": "Runs only after {trigger}",
+    "roleNote": "Needs a {role} check before it",
+    "startNote": "This recipe needs a {role} check at the start."
+  },
   "trigger.countdownFinished.keywords": "timer countdown done finished end zero",
   "trigger.chatCommand.keywords": "command chat trigger prefix type",
   "trigger.chatWord.keywords": "word chat contains match text keyword",

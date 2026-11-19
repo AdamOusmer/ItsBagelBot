@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES, TEXT_ARG_FIELDS, type Issue } from '@bagel/kit/automations';
-import { specFor, type FlowNode } from './model';
+import { specFor, targetFieldFor, targetMode, type FlowNode } from './model';
 import { configText } from './setup';
 
 type FieldKey = string;
@@ -16,7 +16,7 @@ const PARAM_FIELDS: Record<string, string> = {
   reward_id: 'reward', cooldown_s: 'cooldown', on_redeem: 'onRedeem', input_required: 'userInput',
   device_name: 'device', sku: 'device', extra_lights: 'device', any_time: 'liveOnly',
   scene_id: 'scene', scene_name: 'scene', scene_type: 'scene', scene_instance: 'scene', scene_value: 'scene',
-  global_s: 'seconds', user_s: 'seconds', ms: 'seconds', allow: 'login', allow_ids: 'login', userId: 'login',
+  global_s: 'seconds', user_s: 'seconds', ms: 'seconds', allow: 'login', allow_ids: 'login', userId: 'login', user_id: 'login',
   enabled: 'setEnabled', reset_on_stream_end: 'reset'
 };
 
@@ -43,8 +43,13 @@ function parameterField(node: FlowNode, param: FieldKey): FieldKey | undefined {
   if (isTextArgument(node, param)) return TEXT_ARG_FIELDS.get(String(node.config.op))?.[Number(param.slice(-1)) - 1];
   const override = NODE_FIELDS[node.type]?.[param];
   if (override) return override;
-  if (param === 'login' && specFor(node.type)?.fields.some((field) => field.key === 'target')) return 'target';
+  if (param === 'login') return loginField(node);
   return PARAM_FIELDS[param] ?? param;
+}
+
+function loginField(node: FlowNode): FieldKey {
+  if (node.config.who === 'user') return 'login';
+  return specFor(node.type)?.fields.some((field) => field.key === 'target') ? 'target' : 'login';
 }
 
 function isTextArgument(node: FlowNode, param: FieldKey): boolean {
@@ -87,6 +92,17 @@ const REQUIRED_IF: Record<string, (config: FlowNode['config']) => boolean> = {
   'reply.lights:scene': (config) => config.mode === 'scene'
 };
 
+const POINTS_NODES = new Set(['reply.points', 'reply.points_set']);
+const TARGET_REQUIRED = new Map<FieldKey, (node: FlowNode) => boolean>([
+  ['login', (node) => targetMode(node.config) === 'user'],
+  ['target', (node) => targetMode(node.config) === 'login' && !POINTS_NODES.has(node.type)]
+]);
+
+function targetRequired(node: FlowNode, key: FieldKey): boolean | undefined {
+  if (!targetFieldFor(specFor(node.type))) return undefined;
+  return TARGET_REQUIRED.get(key)?.(node);
+}
+
 function builderRule(node: FlowNode, key: FieldKey): boolean | undefined {
   const required = REQUIRED[node.type];
   return required ? required.includes(key) : REQUIRED_IF[`${node.type}:${key}`]?.(node.config);
@@ -99,9 +115,14 @@ function catalogRequires(node: FlowNode, key: FieldKey): boolean {
 }
 
 export function fieldRequired(node: FlowNode, key: FieldKey): boolean {
-  return builderRule(node, key) ?? catalogRequires(node, key);
+  const field = specFor(node.type)?.fields.find((entry) => entry.key === key);
+  return field?.required ?? targetRequired(node, key) ?? builderRule(node, key) ?? catalogRequires(node, key);
 }
 
 export function missingField(node: FlowNode): string | undefined {
-  return specFor(node.type)?.fields.find((field) => fieldRequired(node, field.key) && !configText(node, field.key).trim())?.key;
+  const spec = specFor(node.type);
+  return spec?.fields.find(({ key }) => {
+    const stored = key === 'login' && targetFieldFor(spec) ? 'userId' : key;
+    return fieldRequired(node, key) && !configText(node, stored).trim();
+  })?.key;
 }

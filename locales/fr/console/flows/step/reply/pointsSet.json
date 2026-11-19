@@ -1,0 +1,11 @@
+{
+  "label": "Fixer les points de fidélité",
+  "summary": "Fixer le solde de points de fidélité d’un spectateur",
+  "keywords": "points fidélité solde fixer",
+  "field": {
+    "amount": {
+      "label": "Quantité",
+      "unit": "points"
+    }
+  }
+}

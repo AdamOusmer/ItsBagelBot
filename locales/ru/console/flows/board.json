@@ -1,4 +1,5 @@
 {
+  "addsAfter": "Добавляется после шага «{step}»",
   "defaultChatMessage": "Спасибо, {user}!",
   "defaultPlainMessage": "Спасибо!",
   "boardLabel": "Доска потока",
@@ -38,9 +39,14 @@
   "closeLibrary": "Закрыть библиотеку",
   "noStepsMatchSearch": "По этому запросу шагов не найдено.",
   "group": {
-    "twitch": "Twitch",
-    "modules": "Модули",
-    "basics": "Базовые"
+    "chat": "Чат",
+    "community": "Сообщество",
+    "moderation": "Модерация",
+    "stream": "Трансляция",
+    "loyalty": "Лояльность",
+    "timers": "Таймеры",
+    "lights": "Освещение",
+    "logic": "Логика и данные"
   },
   "kind": {
     "trigger": "Триггер",
@@ -67,6 +73,9 @@
   "variableSample": "Например, {sample}",
   "variableTitle": "{token}: {hint}",
   "duplicate": "Дублировать",
+  "runStep": "Выполнять этот шаг",
+  "checksAlwaysRun": "Проверки выполняются всегда",
+  "stepOff": "Выкл.",
   "removeStep": "Удалить шаг",
   "testRun": "Тестовый запуск",
   "whatHappens": "Что произойдёт",

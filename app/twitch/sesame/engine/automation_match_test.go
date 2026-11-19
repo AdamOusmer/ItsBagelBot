@@ -95,6 +95,8 @@ type autoRig struct {
 	cooldown    CooldownStore
 	long        LongCooldownStore
 	loyalty     LoyaltyStore
+	accounts    TwitchAccountLookup
+	accountAge  AccountAgeLookup
 	stream      StreamInfoLookup
 	intN        int
 	pub         *fakePublisher
@@ -132,13 +134,15 @@ func (r autoRig) pipeline() (*Pipeline, *recordingRunLog) {
 		cooldown = NoopCooldown{}
 	}
 	d := Deps{
-		Proj:       fakeReader{modules: modules, cmd: r.cmd, cmdFound: r.cmdFound},
-		Live:       liveAlways{},
-		Cooldown:   cooldown,
-		Pub:        pub,
-		Loyalty:    r.loyalty,
-		StreamInfo: r.stream,
-		Log:        zap.NewNop(),
+		Proj:           fakeReader{modules: modules, cmd: r.cmd, cmdFound: r.cmdFound},
+		Live:           liveAlways{},
+		Cooldown:       cooldown,
+		Pub:            pub,
+		Loyalty:        r.loyalty,
+		TwitchAccounts: r.accounts,
+		AccountAge:     r.accountAge,
+		StreamInfo:     r.stream,
+		Log:            zap.NewNop(),
 		Automations: AutomationDeps{
 			Runs:          runs,
 			LongCooldowns: r.long,

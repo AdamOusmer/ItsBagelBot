@@ -10,10 +10,10 @@
         "trim": "Recortar espacios",
         "length": "Contar caracteres",
         "replace": "Reemplazar",
-        "substring": "Extraer una parte",
+        "substring": "Extraer una subcadena",
         "split_pick": "Dividir y elegir uno",
         "contains": "Comprobar si contiene",
-        "url_encode": "Hacer seguro para un enlace"
+        "url_encode": "Codificar para URL"
       }
     },
     "input": {

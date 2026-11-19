@@ -1,0 +1,10 @@
+{
+  "label": "Bannir",
+  "summary": "Bannir un spectateur du chat",
+  "keywords": "bannir bloquer spectateur modération",
+  "field": {
+    "reason": {
+      "label": "Motif (facultatif)"
+    }
+  }
+}

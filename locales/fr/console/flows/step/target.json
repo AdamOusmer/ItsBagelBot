@@ -1,0 +1,11 @@
+{
+  "label": "Qui",
+  "viewerLabel": "Spectateur",
+  "loginLabel": "Modèle de nom d’utilisateur",
+  "option": {
+    "viewer": "Le spectateur",
+    "mention": "La personne @mentionnée",
+    "user": "Un spectateur précis",
+    "login": "Modèle de connexion"
+  }
+}

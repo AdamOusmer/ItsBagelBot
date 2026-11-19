@@ -1,6 +1,10 @@
 {
   "label": "Modifier le mode du chat",
   "summary": "Choisir qui peut parler et à quelle fréquence",
+  "line": {
+    "on": "Activer le mode de chat : {mode}",
+    "off": "Désactiver le mode de chat : {mode}"
+  },
   "field": {
     "mode": {
       "label": "Mode du chat",
