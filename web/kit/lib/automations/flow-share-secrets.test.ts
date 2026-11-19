@@ -398,7 +398,10 @@ describe('recipes v2 external targets never leave, at any depth', () => {
   const inIf = (inner: unknown[]) => ({ type: 'if', params: { condition: { type: 'live', params: { state: 'live' } }, then: inner } });
   const inFork = (inner: unknown[]) => ({ type: 'parallel', params: { branches: [{ weight: 1, actions: inner }, { weight: 1, actions: [chat('b')] }] } });
 
-  const wrappers = { loop: inLoop, on_ok: inOk, on_failure: inFailure, if: inIf, parallel: inFork };
+  const wrappers = {
+    loop: inLoop, on_ok: inOk, on_failure: inFailure, if: inIf, parallel: inFork,
+    points_spend: (inner: unknown[]) => ({ type: 'points_spend', params: { amount: 10, on_ok: inner, on_failure: inner } })
+  };
 
   function nested(depth: number): unknown[] {
     const chain = [inLoop, inOk, inFailure, inIf, inFork];

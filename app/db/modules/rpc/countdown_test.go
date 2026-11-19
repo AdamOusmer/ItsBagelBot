@@ -25,6 +25,13 @@ func TestCountdownRPC(t *testing.T) {
 	h.call(t, "countdown.claim", modulesrpc.CountdownDeliveryRequest{}, &none)
 	require.False(t, none.Found)
 	require.Empty(t, none.Error)
+
+	var stopped modulesrpc.CountdownReply
+	h.call(t, "countdown.stop", modulesrpc.CountdownRequest{UserID: "2", Name: "timer", OperationID: "stop"}, &stopped)
+	require.True(t, stopped.Found)
+	peek = modulesrpc.CountdownReply{}
+	h.call(t, "countdown.peek", modulesrpc.CountdownRequest{UserID: "2", Name: "timer"}, &peek)
+	require.False(t, peek.Found)
 }
 
 func TestCountdownProgressRPCRejectsInvalidLease(t *testing.T) {

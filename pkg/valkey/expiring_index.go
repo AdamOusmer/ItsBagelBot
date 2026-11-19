@@ -90,6 +90,28 @@ func (e IndexErase) Run(ctx context.Context, client valkey_go.Client) error {
 	return ctx.Err()
 }
 
+func (e IndexErase) UnlinkMatching(ctx context.Context, client valkey_go.Client, pattern string) error {
+	var cursor uint64
+	for {
+		cmd := client.B().Zscan().Key(e.Index).Cursor(cursor).Match(pattern).Count(int64(e.Batch)).Build()
+		page, err := client.Do(ctx, cmd).AsScanEntry()
+		if err != nil {
+			return err
+		}
+		keys := make([]string, 0, len(page.Elements)/2)
+		for i := 0; i < len(page.Elements); i += 2 {
+			keys = append(keys, e.KeyOf(page.Elements[i]))
+		}
+		if err := UnlinkAll(ctx, client, keys); err != nil {
+			return err
+		}
+		cursor = page.Cursor
+		if cursor == 0 {
+			return nil
+		}
+	}
+}
+
 func (e IndexErase) eraseBatch(ctx context.Context, client valkey_go.Client, members []string) error {
 	keys := make([]string, len(members))
 	for i, member := range members {

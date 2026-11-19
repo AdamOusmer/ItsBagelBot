@@ -82,6 +82,40 @@ func TestCountdownLeaseRecovery(t *testing.T) {
 	require.True(t, ok)
 }
 
+func TestCountdownStopRemovesTheRowAndDeduplicatesAfterRestart(t *testing.T) {
+	repo, raw := sqliteStateRepo(t)
+	ctx := t.Context()
+	start := repository.CountdownWriteRequest{UserID: 5, Name: "Timer", Verb: "start", Seconds: 60, OperationID: "start"}
+	stop := repository.CountdownWriteRequest{UserID: 5, Name: "timer", Verb: "stop", OperationID: "stop"}
+	_, err := repo.CountdownWrite(ctx, start)
+	require.NoError(t, err)
+	stopped, err := repo.CountdownWrite(ctx, stop)
+	require.NoError(t, err)
+	require.True(t, stopped.Found)
+	peek, err := repo.CountdownPeek(ctx, 5, "timer")
+	require.NoError(t, err)
+	require.False(t, peek.Found)
+
+	_, err = raw.Exec("UPDATE countdowns SET expires_at_ms=1")
+	require.NoError(t, err)
+	_, found, err := repo.CountdownClaim(ctx)
+	require.NoError(t, err)
+	require.False(t, found)
+	missing, err := repo.CountdownWrite(ctx, repository.CountdownWriteRequest{UserID: 5, Name: "timer", Verb: "stop", OperationID: "other-stop"})
+	require.NoError(t, err)
+	require.False(t, missing.Found)
+
+	start.OperationID = "restart"
+	restarted, err := repo.CountdownWrite(ctx, start)
+	require.NoError(t, err)
+	replayed, err := repo.CountdownWrite(ctx, stop)
+	require.NoError(t, err)
+	require.Equal(t, stopped, replayed)
+	peek, err = repo.CountdownPeek(ctx, 5, "timer")
+	require.NoError(t, err)
+	require.Equal(t, restarted, peek)
+}
+
 func TestCountdownRestartBeforePromotionAndCap(t *testing.T) {
 	repo, raw := sqliteStateRepo(t)
 	ctx := context.Background()

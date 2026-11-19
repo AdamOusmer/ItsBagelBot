@@ -113,3 +113,33 @@ func TestArmListsTheWindowInTheChannelIndex(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, live, "erasure finds the window through the index")
 }
+
+func TestClearNamedOnlyUnlinksTheNamedWindowAndItsViewers(t *testing.T) {
+	store := cooldownmarker.New(valkeytest.Real(t))
+	ctx := t.Context()
+	channel := uint64(time.Now().UnixNano())
+	window := automation.LongCooldownNamedKey(channel, "raffle")
+	expiry := time.Now().Add(time.Hour).UnixMilli()
+	cases := []struct {
+		channel uint64
+		window  string
+		live    bool
+	}{
+		{channel, window, false},
+		{channel, window + ":42", false},
+		{channel, window + "2:42", true},
+		{channel + 1, window, true},
+	}
+
+	for _, tc := range cases {
+		armed, err := store.Arm(ctx, cooldownmarker.Marker{Channel: tc.channel, Window: tc.window, ExpiresAtMS: expiry})
+		require.NoError(t, err)
+		require.True(t, armed)
+	}
+	require.NoError(t, store.ClearNamed(ctx, channel, "raffle"))
+	for _, tc := range cases {
+		_, live, err := store.Expiry(ctx, tc.channel, tc.window)
+		require.NoError(t, err)
+		assert.Equal(t, tc.live, live, "channel %d window %s", tc.channel, tc.window)
+	}
+}

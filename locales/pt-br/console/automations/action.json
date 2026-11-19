@@ -51,5 +51,8 @@
   "ad_snooze": "Adiar o próximo anúncio",
   "whisper": "Enviar um sussurro",
   "unban_resolve": "Resolver pedido de desbanimento",
-  "branded_content": "Definir conteúdo de marca"
+  "branded_content": "Definir conteúdo de marca",
+  "points_spend": "Gastar pontos",
+  "countdown_stop": "Parar a contagem regressiva",
+  "cooldown_reset": "Redefinir o intervalo de uso"
 }

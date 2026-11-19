@@ -25,7 +25,12 @@ test.each([
   { type: 'delete_message', trigger: follow, expected: { kind: 'trigger', trigger: 'command' } },
   { type: 'delete_message', trigger: command, expected: { kind: 'role', level: 'mod' } },
   { type: 'redemption', trigger: command, expected: { kind: 'trigger', trigger: 'reward' } },
-  { type: 'redemption', trigger: reward, expected: null }
+  { type: 'redemption', trigger: reward, expected: null },
+  { type: 'points_spend', trigger: command, expected: null },
+  { type: 'countdown_stop', trigger: command, expected: { kind: 'role', level: 'mod' } },
+  { type: 'countdown_stop', trigger: mod, expected: null },
+  { type: 'cooldown_reset', trigger: command, expected: { kind: 'role', level: 'mod' } },
+  { type: 'cooldown_reset', trigger: mod, expected: null }
 ] satisfies Array<{ type: string; trigger: RequirementTrigger; expected: StepRequirement | null }>)(
   '$type with $trigger needs $expected', ({ type, trigger, expected }) => {
     expect(stepRequirement(type, trigger)).toEqual(expected);

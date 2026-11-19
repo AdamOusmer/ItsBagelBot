@@ -42,6 +42,9 @@ func (s *fakeCountdown) StartCountdown(_ context.Context, mutation CountdownMuta
 func (s *fakeCountdown) AddCountdown(ctx context.Context, mutation CountdownMutation) (CountdownResult, error) {
 	return s.StartCountdown(ctx, mutation)
 }
+func (s *fakeCountdown) StopCountdown(ctx context.Context, mutation CountdownMutation) (CountdownResult, error) {
+	return s.StartCountdown(ctx, mutation)
+}
 func (s *fakeCountdown) PeekCountdown(context.Context, CountdownRef) (CountdownResult, error) {
 	return s.result, nil
 }
@@ -106,20 +109,32 @@ func TestCountdownCompletionMatchesNameAndModule(t *testing.T) {
 	assert.Zero(t, off.chatCount())
 }
 
-func TestCountdownDeliveryAcknowledgesViewerlessPoints(t *testing.T) {
-	a := testAutomation("finish", "countdown", obj{"name": "subathon"})
-	a.Definition.Actions = []automation.Action{act("points_add", obj{"amount": 5})}
-	fx := newAutoFixture(a)
-	fx.p.proj = fakeReader{user: projection.User{IsActive: true}, modules: automationOn()}
-	store := &fakeCountdown{}
-	fx.p.automations.Countdowns = store
+func TestCountdownDeliveryAcknowledgesActionRefusals(t *testing.T) {
+	for _, tc := range []struct {
+		action string
+		params obj
+		detail string
+	}{
+		{"points_add", obj{"amount": 5}, "no_viewer"},
+		{"points_spend", obj{"amount": 5}, "no_viewer"},
+		{"countdown_stop", obj{"name": "subathon"}, "not_running"},
+	} {
+		t.Run(tc.action, func(t *testing.T) {
+			a := testAutomation("finish", "countdown", obj{"name": "subathon"})
+			a.Definition.Actions = []automation.Action{act(tc.action, tc.params)}
+			fx := newAutoFixture(a)
+			fx.p.proj = fakeReader{user: projection.User{IsActive: true}, modules: automationOn()}
+			store := &fakeCountdown{}
+			fx.p.automations.Countdowns = store
 
-	err := fx.p.deliverCountdown(t.Context(), CountdownDue{BroadcasterID: 1, Name: "subathon", Generation: "g1"})
-	require.NoError(t, err)
-	records := fx.runs.records()
-	require.Len(t, records, 1)
-	assert.Equal(t, []string{"0:points_add:failed:no_viewer"}, statuses(records[0]))
-	assert.Equal(t, [2]int{1, 0}, [2]int{store.acks, fx.loyalty.adjustCount()})
+			err := fx.p.deliverCountdown(t.Context(), CountdownDue{BroadcasterID: 1, Name: "subathon", Generation: "g1"})
+			require.NoError(t, err)
+			records := fx.runs.records()
+			require.Len(t, records, 1)
+			assert.Equal(t, []string{"0:" + tc.action + ":failed:" + tc.detail}, statuses(records[0]))
+			assert.Equal(t, [2]int{1, 0}, [2]int{store.acks, fx.loyalty.adjustCount()})
+		})
+	}
 }
 
 func TestCountdownAndCooldownTemplateStateAreIndependent(t *testing.T) {

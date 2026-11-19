@@ -1,0 +1,26 @@
+[
+  {
+    "path": "actions[0].type",
+    "code": "perm_required"
+  },
+  {
+    "path": "actions[1].type",
+    "code": "perm_required"
+  },
+  {
+    "path": "actions[2].params.name",
+    "code": "simple_word"
+  },
+  {
+    "path": "actions[2].type",
+    "code": "perm_required"
+  },
+  {
+    "path": "actions[3].params.name",
+    "code": "required"
+  },
+  {
+    "path": "actions[3].type",
+    "code": "perm_required"
+  }
+]

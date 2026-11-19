@@ -62,6 +62,7 @@ type AutomationRun struct {
 	Started                   time.Time
 	Record                    automationrpc.RunRecord
 	Locals                    map[string]string
+	points                    string
 	CooldownEndMS             int64
 	CountdownEndMS            int64
 	CountdownAdmission        *countdownAdmission

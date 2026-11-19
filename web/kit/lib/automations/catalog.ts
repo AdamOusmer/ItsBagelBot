@@ -3,7 +3,7 @@
 
 import { COMPARE_OPS } from './compare';
 import { eventKinds } from './event-kinds';
-import { MAX_COOLDOWN_SECONDS, MAX_LOGIN_TEMPLATE, MAX_TEMPLATE_LENGTH } from './limits';
+import { MAX_COOLDOWN_SECONDS, MAX_LOGIN_TEMPLATE, MAX_POINTS_AMOUNT, MAX_TEMPLATE_LENGTH } from './limits';
 import { TARGET_MODES } from './types';
 import { CMP_OPS, PERM_LEVELS } from './values';
 
@@ -172,7 +172,7 @@ export const ACTION_TYPES: TypeDef[] = [
   action('set_game', [f('game', 'template', { required: true, min: 1, max: 100 })]),
   action('set_tags', [f('tags', 'template', { required: true, min: 1, max: 500 })]),
   action('commercial', [f('seconds', 'enum', { required: true, values: ['30', '60', '90', '120', '150', '180'] })]),
-  action('points_add', [...targetFields, f('amount', 'int', { required: true, min: -1000000, max: 1000000 })]),
+  action('points_add', [...targetFields, f('amount', 'int', { required: true, min: -MAX_POINTS_AMOUNT, max: MAX_POINTS_AMOUNT })]),
   action('points_set', [...targetFields, f('amount', 'int', { required: true, min: 0, max: 1000000000 })]),
   action('counter_add', [counterName, f('amount', 'int', { required: true, min: -1000000, max: 1000000 })]),
   action('counter_set', [counterName, f('value', 'int', { required: true })]),
@@ -240,4 +240,11 @@ export const ACTION_TYPES: TypeDef[] = [
     f('seconds', 'int', { required: true, min: 1, max: MAX_COOLDOWN_SECONDS }),
     f('per', 'int', { min: 0 }),
   ]),
+  action('points_spend', [
+    f('amount', 'int', { required: true, min: 1, max: MAX_POINTS_AMOUNT }),
+    f('on_ok', 'actions'),
+    f('on_failure', 'actions'),
+  ]),
+  action('countdown_stop', [varName]),
+  action('cooldown_reset', [varName]),
 ];

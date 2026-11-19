@@ -28,6 +28,7 @@ const (
 	MaxListEntries    = 100
 	MaxExtraLights    = 31
 	MaxPatternLength  = 200
+	MaxPointsAmount   = 1000000
 )
 
 const (

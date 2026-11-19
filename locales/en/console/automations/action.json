@@ -51,5 +51,8 @@
   "ad_snooze": "Snooze the next ad",
   "whisper": "Send a whisper",
   "unban_resolve": "Resolve the unban request",
-  "branded_content": "Set branded content"
+  "branded_content": "Set branded content",
+  "points_spend": "Spend points",
+  "countdown_stop": "Stop countdown",
+  "cooldown_reset": "Reset cooldown"
 }

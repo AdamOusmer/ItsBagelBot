@@ -53,3 +53,20 @@ func (x *actionExec) extendNamedCooldown(key string, seconds int64) error {
 	}
 	return succeeded(strconv.FormatInt(seconds, 10) + "s")
 }
+
+func (x *actionExec) cooldownReset(s step, p automation.NamedTimerAction) error {
+	name, ok := automation.VariableName(p.Name)
+	store := x.p.automations.LongCooldowns
+	switch {
+	case !ok:
+		return failure("bad_name")
+	case store == nil:
+		return failure("no_long_cooldowns")
+	}
+	return x.once(s, func() error {
+		if err := store.ResetLongCooldown(x.ctx, NamedCooldownRef{BroadcasterID: x.run.BroadcasterID, Name: name}); err != nil {
+			return failure("store_error")
+		}
+		return succeeded(name)
+	})
+}

@@ -90,7 +90,10 @@ func effectActions(b *actionTableBuilder) *actionTableBuilder {
 		Step("math", typed((*actionExec).mathStep)).
 		Step("cooldown_add", typed((*actionExec).cooldownAdd)).
 		Step("countdown_start", typed((*actionExec).countdownStart)).
-		Step("countdown_add", typed((*actionExec).countdownAdd))
+		Step("countdown_add", typed((*actionExec).countdownAdd)).
+		Step("points_spend", typed((*actionExec).pointsSpend)).
+		Step("countdown_stop", typed((*actionExec).countdownStop)).
+		Step("cooldown_reset", typed((*actionExec).cooldownReset))
 }
 
 func flowActions(b *actionTableBuilder) *actionTableBuilder {

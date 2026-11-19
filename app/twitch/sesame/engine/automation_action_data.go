@@ -162,10 +162,14 @@ func (x *actionExec) settleFetch(s step, saveAs string, result fetchResult) erro
 		return nil
 	}
 	x.setLocal(localError, result.failure)
+	return x.failBranch(s, result.failure)
+}
+
+func (x *actionExec) failBranch(s step, reason string) error {
 	first := len(x.run.Record.Actions)
 	x.execList(s.Branches[1])
 	x.noteHandled(x.run.Record.Actions[first:])
-	return failure(result.failure)
+	return failure(reason)
 }
 
 func (x *actionExec) noteHandled(path []automationrpc.ActionRecord) {

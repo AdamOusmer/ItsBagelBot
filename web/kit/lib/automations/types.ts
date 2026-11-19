@@ -275,6 +275,16 @@ export interface HTTPGetAction {
   on_failure?: Action[];
 }
 
+export interface PointsSpendAction {
+  amount: number;
+  on_ok?: Action[];
+  on_failure?: Action[];
+}
+
+export interface NamedTimerAction {
+  name: string;
+}
+
 export type VarScope = 'channel' | 'viewer';
 export type VarOp = CompareOp | 'contains' | 'exists';
 

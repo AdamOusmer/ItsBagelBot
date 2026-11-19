@@ -51,5 +51,8 @@
   "ad_snooze": "Nächste Werbung verschieben",
   "whisper": "Flüsternachricht senden",
   "unban_resolve": "Entbannungsantrag bearbeiten",
-  "branded_content": "Markeninhalte kennzeichnen"
+  "branded_content": "Markeninhalte kennzeichnen",
+  "points_spend": "Punkte ausgeben",
+  "countdown_stop": "Countdown stoppen",
+  "cooldown_reset": "Cooldown zurücksetzen"
 }

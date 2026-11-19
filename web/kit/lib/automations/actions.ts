@@ -5,7 +5,7 @@ import { STREAM_ACTIONS } from './stream-actions';
 import { TARGET_DEFAULTS, TARGET_SCHEMA, type Chk } from './check';
 import { JSON_PATH_MAX_DEPTH, PATH_SEGMENT_RE, validateFetchDef } from '../engine/fetch-validate';
 import { checkVarIdentity, counterName } from './conditions';
-import { POINTS_ACTION_SCHEMA, register, type Table, type Wide } from './engine';
+import { actions, POINTS_ACTION_SCHEMA, POINTS_SPEND_SCHEMA, register, registerNested, type ActionNode, type Table, type Wide } from './engine';
 import {
   CODE,
   MAX_COOLDOWN_SECONDS,
@@ -13,6 +13,7 @@ import {
   MAX_DELAY_MS,
   MAX_EXTRA_LIGHTS,
   MAX_FETCH_URL_LENGTH,
+  MAX_POINTS_AMOUNT,
   MAX_REWARD_COST,
   MAX_TEMPLATE_LENGTH,
   MAX_VARIABLE_AMOUNT,
@@ -59,8 +60,16 @@ function checkCommercial(c: Chk, p: Wide<T.CommercialAction>): void {
 
 function checkPointsAdd(c: Chk, p: Wide<T.PointsAddAction>): void {
   c.target(p, 0);
-  c.inRange('amount', p.amount, -MAX_AMOUNT, MAX_AMOUNT);
+  c.inRange('amount', p.amount, -MAX_POINTS_AMOUNT, MAX_POINTS_AMOUNT);
   c.nonZero('amount', p.amount);
+}
+
+type PointsSpendParams = Pick<T.PointsSpendAction, 'amount'> & { on_ok: ActionNode[]; on_failure: ActionNode[] };
+
+function checkPointsSpend(c: Chk, p: PointsSpendParams): void {
+  c.inRange('amount', p.amount, 1, MAX_POINTS_AMOUNT);
+  actions(c.sub('on_ok').nest(), p.on_ok);
+  actions(c.sub('on_failure').nest(), p.on_failure);
 }
 
 function checkPointsSet(c: Chk, p: Wide<T.PointsSetAction>): void {
@@ -170,6 +179,8 @@ const login = register<Wide<T.LoginAction>>({ login: 'string' }, (c, p) => void 
 const empty = register<Record<string, never>>({}, noop);
 const text = register<Wide<T.TextAction>>({ text: 'string' }, checkText);
 
+const namedTimer = register<T.NamedTimerAction>({ name: 'string' }, (c, p) => c.simpleWord('name', p.name, RECIPE_NAME_PATTERN));
+
 export const SIMPLE_ACTIONS: Table = {
   ...STREAM_ACTIONS,
   chat: text,
@@ -238,5 +249,11 @@ export const SIMPLE_ACTIONS: Table = {
   }),
   countdown_add: register<Wide<T.CooldownAddAction>>({ name: 'string', seconds: 'int', per: 'int' }, checkCooldownAdd),
   cooldown_add: register<Wide<T.CooldownAddAction>>({ name: 'string', seconds: 'int', per: 'int' }, checkCooldownAdd),
+  points_spend: {
+    ...registerNested<PointsSpendParams>(POINTS_SPEND_SCHEMA, checkPointsSpend, (p) => [p.on_ok, p.on_failure]),
+    effect: true,
+  },
+  countdown_stop: namedTimer,
+  cooldown_reset: namedTimer,
 };
 

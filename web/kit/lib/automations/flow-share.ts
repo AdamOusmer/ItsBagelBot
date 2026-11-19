@@ -188,6 +188,7 @@ const PRIVILEGED_ACTIONS = new Set([
   'chat_mode',
   'unban_resolve',
   'branded_content',
+  'points_spend',
 ]);
 // Types whose params are rewritten by a rule below. Any type in neither list has its params dropped on the way through.
 export const SHARE_REWRITTEN = {
@@ -248,6 +249,9 @@ export const SHARE_REVIEWED = {
     'chat_mode',
     'unban_resolve',
     'branded_content',
+    'points_spend',
+    'countdown_stop',
+    'cooldown_reset',
   ]
 } as const;
 const SHAREABLE: Record<keyof typeof SHARE_REVIEWED, ReadonlySet<string>> = {
@@ -295,7 +299,8 @@ const NAMED_ARMS = new Map<string, readonly string[]>([
   ['if', ['then', 'else']],
   ['loop', ['actions']],
   ['http_get', API_ARMS],
-  ['http_post', API_ARMS]
+  ['http_post', API_ARMS],
+  ['points_spend', API_ARMS]
 ]);
 
 function mapNested(action: Action, path: string, visit: ActionVisit): Action {
@@ -840,15 +845,21 @@ function ownedNamesAcross(entries: readonly FlowImportEntry[], countdown = false
 
 type TimerOwners = { cooldowns: Set<string>; countdowns: Set<string> };
 
+const TIMER_OWNER_GROUPS = new Map<string, keyof TimerOwners>([
+  ['cooldown_add', 'cooldowns'],
+  ['countdown_add', 'countdowns'],
+  ['countdown_stop', 'countdowns'],
+  ['cooldown_reset', 'cooldowns']
+]);
+
 function unownedTimerNote(action: Action, path: string, owners: TimerOwners): SetupNote | undefined {
-  const names = action.type === 'cooldown_add' ? owners.cooldowns : action.type === 'countdown_add' ? owners.countdowns : undefined;
-  if (!names) return undefined;
+  const group = TIMER_OWNER_GROUPS.get(action.type);
+  if (!group) return undefined;
   const name = str(action.params?.name);
-  if (!name || names.has(name.toLowerCase())) return undefined;
+  if (!name || owners[group].has(name.toLowerCase())) return undefined;
   return { code: 'timer_unowned', path, detail: name };
 }
 
-// An add step with no owner still saves; the note tells the importer about the missing timer.
 function noteUnownedTimers(entry: FlowImportEntry, owners: TimerOwners): FlowImportEntry {
   if (entry.status !== 'ready') return entry;
   const notes: Notes = [];
