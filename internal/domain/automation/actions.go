@@ -42,6 +42,10 @@ type BanAction struct {
 	Reason string `json:"reason"`
 }
 
+type UnbanAction struct {
+	TargetAction
+}
+
 type LoginAction struct {
 	Login string `json:"login"`
 }
@@ -186,6 +190,8 @@ func checkBan(c chk, p BanAction) {
 	c.target(p.TargetAction, loginRequired)
 	c.text("reason", p.Reason, reasonOptions)
 }
+
+func checkUnban(c chk, p UnbanAction) { c.target(p.TargetAction, loginRequired) }
 
 func checkWarn(c chk, p WarnAction) {
 	c.text("login", p.Login, loginRequired)

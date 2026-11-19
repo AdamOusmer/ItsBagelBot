@@ -37,9 +37,9 @@ test('opening an option containing a newline refuses a lossy conversion', () => 
   if (!result.ok) expect(result.issues).toContainEqual({ path: 'actions[0]', code: 'unsupported_action' });
 });
 
-test.each(['raid', 'mod', 'vip', 'whisper'])('sharing %s removes a literal account and disables the action', (type) => {
+test.each(['raid', 'mod', 'vip', 'whisper', 'unban'])('sharing %s removes a literal account and disables the action', (type) => {
   const extra = type === 'whisper' ? { text: 'Hello' } : { on: true };
-  const params = type === 'raid' ? { login: 'specificviewer' } : { login: 'specificviewer', ...extra };
+  const params = type === 'raid' || type === 'unban' ? { login: 'specificviewer' } : { login: 'specificviewer', ...extra };
   const exported = exportFlows([{ id: 'one', name: 'one', definition: manual([{ type, params }]) }]);
   const serialized = JSON.stringify(exported.file);
   expect(serialized).not.toContain('specificviewer');

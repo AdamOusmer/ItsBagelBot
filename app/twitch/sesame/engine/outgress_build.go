@@ -105,6 +105,7 @@ var outgressBuilders = map[string]func(*module.Output) (outgress.Message, error)
 	outgress.TypeStreamMarker:     streamMarkerOutgress,
 	outgress.TypeCommercial:       commercialOutgress,
 	outgress.TypeBan:              banOutgress,
+	outgress.TypeUnban:            unbanOutgress,
 	outgress.TypeTimeout:          banOutgress,
 	outgress.TypeShieldMode:       shieldOutgress,
 	outgress.TypeDelete:           deleteOutgress,
@@ -195,6 +196,10 @@ func banOutgress(o *module.Output) (outgress.Message, error) {
 	return payloadMessage(o.Type, o.BroadcasterID, &struct {
 		Data banData `json:"data"`
 	}{banData{UserID: o.TargetUserID, Duration: int(o.Duration), Reason: o.Reason}})
+}
+
+func unbanOutgress(o *module.Output) (outgress.Message, error) {
+	return outgress.Message{Type: outgress.TypeUnban, BroadcasterID: o.BroadcasterID, TargetUserID: o.TargetUserID}, nil
 }
 
 const shieldStatusOff = "off"

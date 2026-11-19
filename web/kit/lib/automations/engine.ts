@@ -70,6 +70,7 @@ const ACTION_ROLE: Partial<Record<StepType, StepRole>> = {
   clip: 'lead_mod',
   timeout: 'mod',
   ban: 'mod',
+  unban: 'mod',
   warn: 'mod',
   shield: 'mod',
   delete_message: 'mod',
@@ -77,6 +78,12 @@ const ACTION_ROLE: Partial<Record<StepType, StepRole>> = {
   countdown_start: 'mod',
   countdown_add: 'mod',
 };
+
+const SELF_TARGET_EXEMPT = new Map<StepType, (params: unknown) => boolean>([
+  ['timeout', whoIsViewer],
+  ['ban', whoIsViewer],
+  ['delete_message', () => true],
+]);
 
 export function paramsCode(err: DecodeError): string {
   return err === 'unknown_field' ? CODE.unknownField : CODE.invalidFormat;
@@ -146,16 +153,21 @@ function viewerlessPoints(a: ActionNode, trigger: RequirementTrigger): boolean {
   return !err && targetsViewer(value);
 }
 
-function missingRole(type: StepType, trigger: RequirementTrigger): StepRole | undefined {
+function whoIsViewer(params: unknown): boolean {
+  return (params as { who?: unknown } | null)?.who === 'viewer';
+}
+
+function missingRole(type: StepType, trigger: RequirementTrigger, params: unknown): StepRole | undefined {
   if (trigger.type !== 'command' || !Object.hasOwn(ACTION_ROLE, type)) return undefined;
+  if (params !== undefined && SELF_TARGET_EXEMPT.get(type)?.(params)) return undefined;
   const level = ACTION_ROLE[type]!;
   return (trigger.perm ?? -1) < PERM_LEVELS.indexOf(level) ? level : undefined;
 }
 
-export function stepRequirement(type: StepType, trigger: RequirementTrigger): StepRequirement | null {
+export function stepRequirement(type: StepType, trigger: RequirementTrigger, params?: unknown): StepRequirement | null {
   const required = missingTrigger(type, trigger);
   if (required) return { kind: 'trigger', trigger: required };
-  const level = missingRole(type, trigger);
+  const level = missingRole(type, trigger, params);
   return level ? { kind: 'role', level } : null;
 }
 
@@ -172,7 +184,7 @@ export function permRank(list: readonly { type: StepType; params?: unknown }[]):
 function action(at: Chk, a: ActionNode): void {
   const trigger = { type: at.trigger, kind: at.kind, perm: at.perm };
   if (missingTrigger(a.type, trigger) || viewerlessPoints(a, trigger)) at.add('type', CODE.triggerMismatch);
-  if (missingRole(a.type, trigger)) at.add('type', CODE.permRequired);
+  if (missingRole(a.type, trigger, a.params ?? null)) at.add('type', CODE.permRequired);
   typed(at, actionRegistry, a);
 }
 

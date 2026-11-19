@@ -60,6 +60,7 @@ func outputActions(b *actionTableBuilder) *actionTableBuilder {
 		Step("reply", typed((*actionExec).reply)).
 		Step("timeout", typed((*actionExec).timeout)).
 		Step("ban", typed((*actionExec).ban)).
+		Step("unban", typed((*actionExec).unban)).
 		Step("warn", typed((*actionExec).warn)).
 		Step("delete_message", typed((*actionExec).deleteMessage)).
 		Step("shield", typed((*actionExec).shield)).

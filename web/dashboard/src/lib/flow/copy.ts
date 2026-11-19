@@ -34,8 +34,8 @@ export function requirementTrigger(flow: Flow): RequirementTrigger {
   return REQUIREMENT_TRIGGERS[trigger?.type ?? ''] ?? { type: '' };
 }
 
-export function stepRequirementFor(spec: NodeSpec, trigger: RequirementTrigger): StepRequirement | null {
-  return spec.kind === 'reply' ? stepRequirement(spec.type.slice('reply.'.length), trigger) : null;
+export function stepRequirementFor(spec: NodeSpec, trigger: RequirementTrigger, params?: Pick<FlowNode['config'], 'who'>): StepRequirement | null {
+  return spec.kind === 'reply' ? stepRequirement(spec.type.slice('reply.'.length), trigger, params) : null;
 }
 
 export function requirementText(t: Translate, requirement: StepRequirement, variant: 'tag' | 'note' | 'start' = 'tag'): string {

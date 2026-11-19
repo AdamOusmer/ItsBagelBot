@@ -77,17 +77,18 @@ test.each([1, 1209600])('timeout accepts boundary %s', (seconds) => {
 });
 
 test.each([
-  { type: 'twitch.chat.command', gated: false, codes: ['perm_required'] },
-  { type: 'twitch.chat.command', gated: true, codes: [] },
-  { type: 'twitch.chat.word', gated: false, codes: ['perm_required'] },
-  { type: 'twitch.chat.word', gated: true, codes: [] }
-])('timeout on $type needs a leading role check: $gated', ({ type, gated, codes }) => {
+  { type: 'twitch.chat.command', step: 'reply.timeout', gated: false, codes: ['perm_required'] },
+  { type: 'twitch.chat.command', step: 'reply.timeout', gated: true, codes: [] },
+  { type: 'twitch.chat.word', step: 'reply.timeout', gated: false, codes: [] },
+  { type: 'twitch.chat.word', step: 'reply.timeout', gated: true, codes: [] },
+  { type: 'twitch.chat.word', step: 'reply.mod', gated: false, codes: ['perm_required'] }
+])('$step on $type with a leading role check: $gated', ({ type, step, gated, codes }) => {
   const flow = newFlow('Permission');
   const root = addNode(flow, type, { x: 0, y: 0 });
   root.config = type === 'twitch.chat.command' ? { trigger: '!timeout' } : { word: 'timeout' };
   const gate = addNode(flow, 'cond.role', { x: 0, y: 0 }, { from: root.id, port: 'next' });
   gate.config.level = gated ? 'mod' : 'everyone';
-  addNode(flow, 'reply.timeout', { x: 0, y: 0 }, { from: gate.id, port: 'yes' });
+  addNode(flow, step, { x: 0, y: 0 }, { from: gate.id, port: 'yes' });
   expect(validateDefinition(valueOf(flowToDefinition(flow))).map((issue) => issue.code)).toEqual([...codes]);
 });
 

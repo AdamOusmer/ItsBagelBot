@@ -8,7 +8,7 @@ import { comparePasses } from './compare';
 import { eventKinds } from './event-kinds';
 import { compilesAsRe2 } from './regex';
 import { MAX_DEFINITION_BYTES } from './limits';
-import type { Action, PermLevel } from './types';
+import type { Action, PermLevel, Trigger } from './types';
 import { parseDefinition, validateDefinition, validateName } from './validate';
 
 const TESTDATA = join(import.meta.dir, '../../../../internal/domain/automation/testdata');
@@ -54,6 +54,17 @@ describe('stream action roles', () => {
         })).toEqual(want);
       });
     }
+  }
+});
+
+describe('self-target action roles', () => {
+  const cases: { trigger: Trigger; action: Action; wantPermRequired: boolean }[] =
+    JSON.parse(read('self_target_roles.json'));
+  for (const { trigger, action, wantPermRequired } of cases) {
+    test(`${action.type}/${JSON.stringify(action.params)}`, () => {
+      const want = wantPermRequired ? [{ path: 'actions[0].type', code: 'perm_required' }] : [];
+      expect(validateDefinition({ version: 1, trigger, actions: [action] })).toEqual(want);
+    });
   }
 });
 
