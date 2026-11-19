@@ -119,6 +119,7 @@ export function scenarioEvent(scenario: RehearsalScenario, kind: string): Record
   };
   if (kind === 'channel.cheer') fields.amount = scenario.bits;
   if (kind === 'channel.subscription.gift') fields.amount = scenario.giftCount;
+  if (kind === 'channel.unban_request.create') fields.id = 'unban-request-1';
   const allowed = new Set(lookupEventKind(kind)?.fields.map((field) => field.name) ?? []);
   const supplied = Object.entries(fields).filter(([key, value]) => allowed.has(key) && value !== undefined);
   return Object.fromEntries(supplied.map(([key, value]) => [key, String(value)]));

@@ -37,7 +37,7 @@ const targetCases: OutcomeCase[] = [
 
 const lights = { device: 'desk', sku: 'H6008' };
 test.each([
-  ...['shoutout', 'timeout'].flatMap((type) => targetCases.map((row) => ({ ...row, type, params: { seconds: 60, ...row.params } }))),
+  ...['shoutout', 'timeout', 'ban', 'unban', 'mod', 'vip'].flatMap((type) => targetCases.map((row) => ({ ...row, type, params: { ...(type === 'timeout' ? { seconds: 60 } : {}), ...row.params } }))),
   { name: 'offline trigger defaults to offline', type: 'lights', params: lights, trigger: { type: 'event', params: { kind: 'stream.offline' } }, expected: { status: 'skipped', detail: { code: 'offline', ...lights } } },
   { name: 'any time', type: 'lights', params: { ...lights, any_time: true }, scenario: { live: false }, expected: { status: 'ok', detail: lights } },
   { name: 'missing device before live gate', type: 'lights', params: { sku: lights.sku }, scenario: { live: false }, expected: { status: 'failed', detail: { code: 'no_device' } } },
@@ -47,6 +47,7 @@ test.each([
   { name: 'chat leaves bare message unset', type: 'chat', params: { text: 'Args=[{args}] Message=[{message}]' }, expected: { status: 'ok', lines: ['Args=[@Lotti good luck] Message=[]'], detail: { missing: 'message' } } },
   { name: 'expanded title and choices', type: 'poll', params: { title: 'Hi {user}', choices: ['To {touser}', 'Everyone'] }, expected: { status: 'ok', detail: { title: 'Hi PrincessBarney', choices: 'To Lotti\nEveryone' } } },
   { name: 'expanded reason and duration', type: 'timeout', params: { login: '{user}', reason: 'Stop {user}', seconds: 60 }, expected: { status: 'ok', detail: { login: 'PrincessBarney', seconds: '60', reason: 'Stop PrincessBarney' } } },
+  { name: 'unban request event ID', type: 'unban_resolve', params: { status: 'approve', resolution: 'Appeal {event.id}' }, trigger: { type: 'event', params: { kind: 'channel.unban_request.create' } }, expected: { status: 'ok', detail: { resolution: 'Appeal unban-request-1' } } },
   { name: 'transformed text', type: 'text', params: { op: 'upper', input: '{user}', save_as: 'result' }, expected: { status: 'ok', detail: { input: 'PrincessBarney', value: 'PRINCESSBARNEY' } } },
   { name: 'text length', type: 'text', params: { op: 'length', input: '{touser}', save_as: 'result' }, expected: { status: 'ok', detail: { value: '5' } } },
   { name: 'expanded variable value', type: 'var_set', params: { name: 'name', value: '{user}' }, expected: { status: 'ok', detail: { value: 'PrincessBarney' } } }

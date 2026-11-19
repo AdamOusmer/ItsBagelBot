@@ -1,7 +1,8 @@
 {
   "label": "Timeout",
-  "summary": "Stummschalten; Chat-Auslöser brauchen zuerst eine Moderator-Prüfung",
+  "summary": "Einen Zuschauer kurz stummschalten",
   "keywords": "timeout stummschalten moderation mod dauer grund",
+  "line": "{who} für {seconds} stummschalten",
   "field": {
     "target": { "label": "Zuschauername" },
     "seconds": { "label": "Dauer", "range": "1 Sekunde bis {days} Tage." },

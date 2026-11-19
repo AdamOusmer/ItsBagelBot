@@ -4,6 +4,7 @@
   "reply": "Reply to the viewer",
   "timeout": "Time out a viewer",
   "ban": "Ban a viewer",
+  "unban": "Lift timeout or ban",
   "delete_message": "Delete the triggering message",
   "warn": "Warn a viewer",
   "shield": "Set shield mode",

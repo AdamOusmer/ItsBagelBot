@@ -32,8 +32,10 @@ describe('target picker round-trip', () => {
   const actions = [
     { type: 'timeout', nodeType: 'reply.timeout', params: { seconds: 600 } },
     { type: 'ban', nodeType: 'reply.ban', params: { reason: '{user} broke a rule' } },
-    { type: 'mod', nodeType: 'reply.mod', params: { on: true } },
-    { type: 'vip', nodeType: 'reply.vip', params: { on: false } },
+    { type: 'unban', nodeType: 'reply.unban', params: {} },
+    { type: 'mod', nodeType: 'reply.mod', params: { on: true }, fields: { change: 'add' } },
+    { type: 'mod', nodeType: 'reply.mod', params: {} },
+    { type: 'vip', nodeType: 'reply.vip', params: { on: false }, fields: { change: 'remove' } },
     { type: 'points_add', nodeType: 'reply.points', params: { amount: -10 } },
     { type: 'points_set', nodeType: 'reply.points_set', params: { amount: 0 } }
   ];
@@ -47,7 +49,7 @@ describe('target picker round-trip', () => {
 
   test.each(actions.flatMap((entry) => targets.map((target) => ({ ...entry, ...target }))))(
     '$type preserves $mode when reopened and resaved',
-    ({ type, nodeType, params, wire, config }) => {
+    ({ type, nodeType, params, fields = params, wire, config }) => {
       const definition: Definition = {
         version: 1,
         trigger: { type: 'command', params: { name: '!test' } },
@@ -55,7 +57,7 @@ describe('target picker round-trip', () => {
       };
       const reopened = rebuilt(definition);
       const step = reopened.nodes.find((node) => node.type === nodeType);
-      expect({ config: step?.config, definition: lowered(reopened) }).toEqual({ config: { ...params, ...config }, definition });
+      expect({ config: step?.config, definition: lowered(reopened) }).toEqual({ config: { ...fields, ...config }, definition });
     }
   );
 

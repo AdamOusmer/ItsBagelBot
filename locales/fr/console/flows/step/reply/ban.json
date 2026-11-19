@@ -1,7 +1,8 @@
 {
   "label": "Bannir",
-  "summary": "Bannir un spectateur du chat",
+  "summary": "Exclure définitivement un spectateur",
   "keywords": "bannir bloquer spectateur modération",
+  "line": "Bannir {who}",
   "field": {
     "reason": {
       "label": "Motif (facultatif)"

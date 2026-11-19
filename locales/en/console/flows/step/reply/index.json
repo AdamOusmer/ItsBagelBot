@@ -271,34 +271,30 @@
     "summary": "Stop the raid before viewers leave"
   },
   "mod": {
-    "label": "Set moderator role",
-    "summary": "Give or remove moderator access",
+    "label": "Moderator role",
+    "summary": "Add or remove a moderator",
     "line": {
-      "on": "Make {target} a mod",
-      "off": "Remove mod from {target}"
+      "add": "Make {who} a moderator",
+      "remove": "Remove {who} as moderator"
     },
     "field": {
-      "target": {
-        "label": "Channel or viewer login"
-      },
-      "on": {
-        "label": "Enabled"
+      "change": {
+        "label": "Change",
+        "option": { "add": "Add", "remove": "Remove" }
       }
     }
   },
   "vip": {
-    "label": "Set VIP role",
-    "summary": "Give or remove a viewer's VIP badge",
+    "label": "VIP role",
+    "summary": "Add or remove a VIP",
     "line": {
-      "on": "Make {target} a VIP",
-      "off": "Remove VIP from {target}"
+      "add": "Make {who} a VIP",
+      "remove": "Remove {who} as VIP"
     },
     "field": {
-      "target": {
-        "label": "Channel or viewer login"
-      },
-      "on": {
-        "label": "Enabled"
+      "change": {
+        "label": "Change",
+        "option": { "add": "Add", "remove": "Remove" }
       }
     }
   },
@@ -324,18 +320,22 @@
     }
   },
   "unbanResolve": {
-    "label": "Resolve the unban request",
-    "summary": "Approve or deny a viewer's appeal",
+    "label": "Answer unban request",
+    "summary": "Approve or deny an appeal",
+    "line": {
+      "approve": "Approve the unban request",
+      "deny": "Deny the unban request"
+    },
     "field": {
       "status": {
-        "label": "Action",
+        "label": "Answer",
         "option": {
           "approve": "Approve",
           "deny": "Deny"
         }
       },
       "resolution": {
-        "label": "Resolution message (optional)"
+        "label": "Message to the viewer (optional)"
       }
     }
   },

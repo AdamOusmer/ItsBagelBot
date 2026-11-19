@@ -1,7 +1,8 @@
 {
   "label": "Sperren",
-  "summary": "Einen Zuschauer aus dem Chat ausschließen",
+  "summary": "Einen Zuschauer dauerhaft sperren",
   "keywords": "sperren bannen zuschauer moderation",
+  "line": "{who} sperren",
   "field": {
     "reason": {
       "label": "Grund (optional)"

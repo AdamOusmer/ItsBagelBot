@@ -344,7 +344,7 @@
                 <Select
                   id="{uid}-{field.key}"
                   options={fieldOptions(t, spec, field)}
-                  value={String(node.config[field.key] ?? field.options[0] ?? '')}
+                  value={String(node.config[field.key] ?? field.fallback ?? field.options[0] ?? '')}
                   onchange={(e) => setSelect(field.key, e.currentTarget.value)}
                 />
               </Field>

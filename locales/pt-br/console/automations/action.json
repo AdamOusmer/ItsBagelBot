@@ -4,6 +4,7 @@
   "reply": "Responder ao espectador",
   "timeout": "Dar timeout em um espectador",
   "ban": "Banir um espectador",
+  "unban": "Revogar timeout ou banimento",
   "delete_message": "Apagar a mensagem que disparou",
   "warn": "Advertir um espectador",
   "shield": "Ativar o modo escudo",

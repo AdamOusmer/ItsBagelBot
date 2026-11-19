@@ -524,6 +524,7 @@ function targetStep(): ActionHandler {
 const ACTIONS: Readonly<Record<string, ActionHandler>> = {
   reply: replyStep,
   shoutout: targetStep(), timeout: targetStep(),
+  ban: targetStep(), unban: targetStep(), mod: targetStep(), vip: targetStep(),
   var_set: (params, context) => writeVariable(params, context, 'set'),
   var_add: (params, context) => writeVariable(params, context, 'add'),
   var_delete: (params, context) => writeVariable(params, context, 'delete'),

@@ -1,7 +1,8 @@
 {
   "label": "Suspensión temporal",
-  "summary": "Silencia; los inicios por chat necesitan primero una condición de Moderador",
+  "summary": "Silencia a un espectador por un tiempo",
   "keywords": "timeout silenciar suspensión moderación mod duración motivo",
+  "line": "Suspender por {seconds}: {who}",
   "field": {
     "target": { "label": "Nombre de usuario del espectador" },
     "seconds": { "label": "Duración", "range": "De 1 segundo a {days} días." },

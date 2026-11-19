@@ -12,6 +12,7 @@ export const TARGET_FIELDS = [
 
 const title: FieldSpec = { key: 'title', type: 'template', singleLine: true };
 const on: FieldSpec = { key: 'on', type: 'toggle', initial: true };
+const change: FieldSpec = { key: 'change', type: 'select', options: ['add', 'remove'], initial: 'add', fallback: 'remove' };
 
 export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
   {
@@ -31,6 +32,9 @@ export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
   {
     type: 'reply.timeout', slug: 'timeout', icon: 'moderation',
     fields: [...TARGET_FIELDS, { key: 'seconds', type: 'duration', min: 1, max: 1209600, initial: 600 }, { key: 'reason', type: 'template' }]
+  },
+  {
+    type: 'reply.unban', slug: 'unban', icon: 'moderation', fields: [...TARGET_FIELDS]
   },
   {
     type: 'reply.ban', slug: 'ban', icon: 'moderation',
@@ -65,10 +69,10 @@ export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'reply.raid_cancel', slug: 'raidCancel', icon: 'swords', fields: []
   },
   {
-    type: 'reply.mod', slug: 'mod', icon: 'moderation', fields: [...TARGET_FIELDS, on], lineBy: 'on'
+    type: 'reply.mod', slug: 'mod', icon: 'moderation', fields: [...TARGET_FIELDS, change], lineBy: 'change'
   },
   {
-    type: 'reply.vip', slug: 'vip', icon: 'star', fields: [...TARGET_FIELDS, on], lineBy: 'on'
+    type: 'reply.vip', slug: 'vip', icon: 'star', fields: [...TARGET_FIELDS, change], lineBy: 'change'
   },
   {
     type: 'reply.chat_mode', slug: 'chatMode', icon: 'messageSquare', lineBy: 'on',
@@ -89,7 +93,7 @@ export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
     fields: [target, { key: 'text', type: 'template' }]
   },
   {
-    type: 'reply.unban_resolve', slug: 'unbanResolve', icon: 'moderation',
+    type: 'reply.unban_resolve', slug: 'unbanResolve', icon: 'moderation', lineBy: 'status',
     fields: [{ key: 'status', type: 'select', options: ['approve', 'deny'], initial: 'deny' }, { key: 'resolution', type: 'template' }]
   },
   {

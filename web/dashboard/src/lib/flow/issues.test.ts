@@ -32,6 +32,7 @@ const mappings = [
   ['reply.shoutout', 'params.login', 'target'], ['reply.timeout', 'params.login', 'target'],
   ['reply.whisper', 'params.login', 'target'], ['reply.raid', 'params.login', 'target'],
   ['reply.mod', 'params.login', 'target'], ['reply.vip', 'params.login', 'target'],
+  ['reply.unban', 'params.login', 'target'],
   ['reply.poll', 'params.choices[1]', 'choices'], ['reply.prediction', 'params.outcomes[0]', 'outcomes'],
   ['reply.chat', 'message.bits', 'message'], ['reply.math', 'config.expression', 'expression']
 ];
@@ -82,9 +83,9 @@ test.each(['reply.chat', 'reply.wait', 'reply.math'])('%s attaches real validati
   );
 });
 
-test.each(['reply.timeout', 'reply.ban', 'reply.mod', 'reply.vip', 'reply.points', 'reply.points_set'])('%s requires the ID of a set viewer', (type) => {
+test.each(['reply.timeout', 'reply.ban', 'reply.unban', 'reply.mod', 'reply.vip', 'reply.points', 'reply.points_set'])('%s requires the ID of a set viewer', (type) => {
   const flow = newFlow('Missing set viewer');
-  const step = nodeOf(type, { who: 'user', login: 'bagel', seconds: 600, amount: 10, on: true });
+  const step = nodeOf(type, { who: 'user', login: 'bagel', seconds: 600, amount: 10, change: 'add' });
   flow.nodes = [{ ...nodeOf('twitch.follow'), id: 'trigger' }, step];
   flow.edges = [{ id: 'edge', from: 'trigger', port: 'next', to: 'step' }];
   const lowered = flowToDefinition(flow);

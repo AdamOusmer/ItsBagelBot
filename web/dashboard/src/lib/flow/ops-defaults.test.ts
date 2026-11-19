@@ -38,8 +38,9 @@ const defaults = {
   'reply.reply': { text: 'Thanks!' },
   'reply.timeout': { who: 'viewer', seconds: 600 },
   'reply.ban': { who: 'viewer' },
-  'reply.mod': { who: 'viewer', on: true },
-  'reply.vip': { who: 'viewer', on: true },
+  'reply.unban': { who: 'viewer' },
+  'reply.mod': { who: 'viewer', change: 'add' },
+  'reply.vip': { who: 'viewer', change: 'add' },
   'reply.raid': {},
   'reply.raid_cancel': {},
   'reply.whisper': {},
@@ -118,7 +119,7 @@ test.each([
   const flow = newFlow('Contextual defaults');
   if (trigger) addNode(flow, trigger, at);
   const config = (type: FlowNode['type']) => addStep(flow, { type, at, placement, chatMessage: en.defaultChatMessage }).node.config;
-  const targets = ['reply.timeout', 'reply.ban', 'reply.mod', 'reply.vip', 'reply.points', 'reply.points_set'];
+  const targets = ['reply.timeout', 'reply.ban', 'reply.unban', 'reply.mod', 'reply.vip', 'reply.points', 'reply.points_set'];
   expect({
     targetModes: targets.map((type) => config(type).who),
     shoutout: config('reply.shoutout'),

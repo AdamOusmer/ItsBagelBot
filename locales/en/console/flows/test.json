@@ -47,6 +47,8 @@
   "offline": "Skipped while the stream is offline",
   "noViewer": "No viewer is set",
   "noTarget": "Set a channel name first",
+  "noMention": "No viewer was @mentioned",
+  "emptyLogin": "The name came out empty",
   "inputBits": "Bits",
   "inputViewers": "Viewers",
   "duration": { "day": "d", "hour": "h", "minute": "m", "second": "s" },
