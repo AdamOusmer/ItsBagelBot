@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"strings"
@@ -90,17 +91,21 @@ type creditOperation struct {
 	keyHash, payloadHash [sha256.Size]byte
 }
 
+func (c BalanceCredit) payloadHash() [sha256.Size]byte {
+	var body [24]byte
+	binary.BigEndian.PutUint64(body[0:8], c.ViewerID)
+	binary.BigEndian.PutUint64(body[8:16], uint64(c.Value))
+	binary.BigEndian.PutUint64(body[16:24], uint64(c.AccountCreatedAt))
+	return sha256.Sum256(body[:])
+}
+
 func (r *Loyalty) BalanceCredit(ctx context.Context, credit BalanceCredit) (CreditResult, error) {
 	if err := credit.validate(); err != nil {
 		return CreditResult{}, err
 	}
-	body, err := codec.Marshal(credit)
-	if err != nil {
-		return CreditResult{}, err
-	}
-	op := creditOperation{BalanceCredit: credit, keyHash: sha256.Sum256([]byte(credit.Key)), payloadHash: sha256.Sum256(body)}
+	op := creditOperation{BalanceCredit: credit, keyHash: sha256.Sum256([]byte(credit.Key)), payloadHash: credit.payloadHash()}
 	result, err := r.commitCredit(ctx, op)
-	if err != nil || result.Replayed {
+	if err != nil {
 		return result, err
 	}
 	r.publishBalanceChange(credit.UserID, credit.ViewerID)
@@ -143,7 +148,7 @@ func (r *Loyalty) applyCredit(ctx context.Context, tx *sql.Tx, op creditOperatio
 	if account.deleted {
 		return CreditResult{}, ErrCreditAccountRetired
 	}
-	if op.AccountCreatedAt != 0 && op.AccountCreatedAt != account.instance {
+	if op.AccountCreatedAt != account.instance {
 		return CreditResult{}, ErrCreditAccountMismatch
 	}
 	receipt := creditReceipt{op: op, account: account.instance}
@@ -153,7 +158,11 @@ func (r *Loyalty) applyCredit(ctx context.Context, tx *sql.Tx, op creditOperatio
 	}
 	client := ent.NewClient(ent.Driver(db.EntTransactionDriver(r.dialect, tx)))
 	adjustment := BalanceAdjustment{UserID: op.UserID, ViewerID: op.ViewerID, ViewerLogin: validate.NormalizeLogin(op.ViewerLogin), Value: op.Value}
-	row, err := r.applyBalanceAdjustment(ctx, client, adjustment)
+	row, update, err := r.prepareBalanceAdjustment(ctx, client, adjustment)
+	if err != nil {
+		return CreditResult{}, err
+	}
+	row, err = update.SetViewerLogin(displayUpdate(row.ViewerLogin, adjustment.ViewerLogin)).Save(ctx)
 	if err != nil {
 		return CreditResult{}, err
 	}

@@ -173,8 +173,8 @@ func TestConsumerBacklogHealth(t *testing.T) {
 			}
 			status, err := consumer.Status(t.Context())
 			require.NoError(t, err)
-			assert.Equal(t, tc.healthy, status.Healthy)
-			assert.WithinDuration(t, time.Time{}.Add(tc.age), time.Time{}.Add(status.OldestPendingAge), time.Second)
+			status.OldestPendingAge = status.OldestPendingAge.Round(time.Second)
+			assert.Equal(t, watchtime.BacklogStatus{OldestPendingAge: tc.age, Healthy: tc.healthy}, status)
 			assert.Equal(t, tc.healthy, consumer.Check(t.Context()) == nil)
 		})
 	}

@@ -4,6 +4,7 @@
 package repository_test
 
 import (
+	"crypto/sha256"
 	"math"
 	"testing"
 	"time"
@@ -21,7 +22,7 @@ func TestBalanceCreditReplaysOriginalStanding(t *testing.T) {
 		{name: "same payload", change: func(*loyaltyrepo.BalanceCredit) {}},
 		{name: "different value", change: func(c *loyaltyrepo.BalanceCredit) { c.Value++ }, wantErr: loyaltyrepo.ErrCreditKeyMismatch},
 		{name: "different viewer", change: func(c *loyaltyrepo.BalanceCredit) { c.ViewerID++ }, wantErr: loyaltyrepo.ErrCreditKeyMismatch},
-		{name: "different display login", change: func(c *loyaltyrepo.BalanceCredit) { c.ViewerLogin = "newlogin" }, wantErr: loyaltyrepo.ErrCreditKeyMismatch},
+		{name: "different display login", change: func(c *loyaltyrepo.BalanceCredit) { c.ViewerLogin = "newlogin" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r, _ := sqliteRetentionRepo(t)
@@ -39,9 +40,7 @@ func TestBalanceCreditReplaysOriginalStanding(t *testing.T) {
 			result, err := r.BalanceCredit(ctx, credit)
 			require.ErrorIs(t, err, tc.wantErr)
 			if tc.wantErr == nil {
-				require.True(t, result.Replayed)
-				require.Equal(t, first.Balance.Points, result.Balance.Points)
-				require.Equal(t, first.Balance.ViewerLogin, result.Balance.ViewerLogin)
+				require.Equal(t, loyaltyrepo.CreditResult{Balance: first.Balance, Replayed: true}, result)
 			}
 			row, _, err := r.BalanceGet(ctx, 42, 7)
 			require.NoError(t, err)
@@ -52,23 +51,23 @@ func TestBalanceCreditReplaysOriginalStanding(t *testing.T) {
 
 func TestBalanceCreditFencesAccountInstances(t *testing.T) {
 	for _, tc := range []struct {
-		name                string
+		name, key           string
 		expected, recreated int64
 		retire              bool
 		wantErr             error
 	}{
-		{name: "current instance", expected: 10},
-		{name: "future instance", expected: 11, wantErr: loyaltyrepo.ErrCreditAccountMismatch},
-		{name: "retired account", retire: true, wantErr: loyaltyrepo.ErrCreditAccountRetired},
-		{name: "old instance", expected: 10, retire: true, recreated: 11, wantErr: loyaltyrepo.ErrCreditAccountMismatch},
-		{name: "implicit old instance replay", retire: true, recreated: 11, wantErr: loyaltyrepo.ErrCreditAccountMismatch},
+		{name: "current instance", key: "raffle:one:2", expected: 10},
+		{name: "future instance", key: "raffle:one:2", expected: 11, wantErr: loyaltyrepo.ErrCreditAccountMismatch},
+		{name: "retired account", key: "raffle:one:1", expected: 10, retire: true, wantErr: loyaltyrepo.ErrCreditAccountRetired},
+		{name: "old instance replay", key: "raffle:one:1", expected: 10, retire: true, recreated: 11, wantErr: loyaltyrepo.ErrCreditAccountMismatch},
+		{name: "zero instance with unused key", key: "raffle:one:2", retire: true, recreated: 11, wantErr: loyaltyrepo.ErrCreditAccountMismatch},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r, _ := sqliteRetentionRepo(t)
 			ctx := t.Context()
 			require.NoError(t, r.EnsureBalanceCreditSchema(ctx))
 			require.NoError(t, r.RestoreUser(ctx, 42, 10))
-			credit := loyaltyrepo.BalanceCredit{UserID: 42, ViewerID: 7, Value: 10, Key: "raffle:one:1"}
+			credit := loyaltyrepo.BalanceCredit{UserID: 42, ViewerID: 7, Value: 10, Key: "raffle:one:1", AccountCreatedAt: 10}
 			_, err := r.BalanceCredit(ctx, credit)
 			require.NoError(t, err)
 
@@ -79,9 +78,7 @@ func TestBalanceCreditFencesAccountInstances(t *testing.T) {
 				require.NoError(t, r.RestoreUser(ctx, 42, tc.recreated))
 			}
 			credit.AccountCreatedAt = tc.expected
-			if tc.expected != 0 {
-				credit.Key = "raffle:one:2"
-			}
+			credit.Key = tc.key
 			_, err = r.BalanceCredit(ctx, credit)
 			require.ErrorIs(t, err, tc.wantErr)
 			_, found, err := r.BalanceGet(ctx, 42, 7)
@@ -98,10 +95,14 @@ func TestBalanceCreditPrunesOnlyExpiredMarkers(t *testing.T) {
 	credit := loyaltyrepo.BalanceCredit{UserID: 42, ViewerID: 7, Value: 10, Key: "raffle:one:1"}
 	_, err := r.BalanceCredit(ctx, credit)
 	require.NoError(t, err)
-	_, err = raw.ExecContext(ctx, "UPDATE loyalty_balance_credits SET created_at=?", time.Now().Add(-24*time.Hour-time.Minute).UnixMilli())
+	_, err = raw.ExecContext(ctx, "UPDATE loyalty_balance_credits SET created_at=?", time.Now().Add(-25*time.Hour-time.Minute).UnixMilli())
 	require.NoError(t, err)
 	credit.Key = "raffle:one:2"
 	_, err = r.BalanceCredit(ctx, credit)
+	require.NoError(t, err)
+	keyHash := sha256.Sum256([]byte(credit.Key))
+	_, err = raw.ExecContext(ctx, "UPDATE loyalty_balance_credits SET created_at=? WHERE key_hash=?",
+		time.Now().Add(-24*time.Hour-30*time.Minute).UnixMilli(), keyHash[:])
 	require.NoError(t, err)
 
 	require.NoError(t, r.PruneBalanceCredits(ctx))
@@ -113,8 +114,8 @@ func TestBalanceCreditPrunesOnlyExpiredMarkers(t *testing.T) {
 		credit.Key = tc.key
 		got, err := r.BalanceCredit(ctx, credit)
 		require.NoError(t, err)
-		require.Equal(t, tc.points, got.Balance.Points)
 		require.Equal(t, tc.replayed, got.Replayed)
+		require.Equal(t, tc.points, got.Balance.Points)
 	}
 }
 

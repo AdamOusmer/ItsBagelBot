@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const balanceCreditRetention = 24 * time.Hour
+const balanceCreditRetention = 25 * time.Hour
 
 func (r *Loyalty) PruneCounterReceipts(ctx context.Context) error {
 	if !r.counterReady.Load() {

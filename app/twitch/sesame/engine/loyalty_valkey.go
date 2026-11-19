@@ -94,7 +94,7 @@ func (s *ValkeyLoyaltyStore) Earn(e PointEarning) {
 func (s *ValkeyLoyaltyStore) scope(ctx context.Context, broadcasterID uint64, name string) (counterScope, error) {
 	key := counterRef{broadcasterID, name}.scopeKey()
 	return s.scopes.GetOrLoad(ctx, key, func(ctx context.Context) (counterScope, error) {
-		c, found, err := s.rpc.CounterGet(ctx, broadcasterID, name, 0, "")
+		c, found, err := s.rpc.CounterGet(ctx, CounterTarget{BroadcasterID: broadcasterID, Name: name})
 		if err != nil {
 			return "", err
 		}
@@ -204,7 +204,7 @@ func (s *ValkeyLoyaltyStore) bumpChannel(ctx context.Context, broadcasterID uint
 	key := counterRef{broadcasterID, name}.channelKey()
 	counter := pkg_valkey.SeededCounter{Key: key, TTL: counterTTL}
 	return counter.Bump(ctx, s.client, delta, func() int64 {
-		if c, found, loadErr := s.rpc.CounterGet(ctx, broadcasterID, name, 0, ""); loadErr == nil && found {
+		if c, found, loadErr := s.rpc.CounterGet(ctx, CounterTarget{BroadcasterID: broadcasterID, Name: name}); loadErr == nil && found {
 			return c.Value
 		}
 		return 0
@@ -217,7 +217,7 @@ func (s *ValkeyLoyaltyStore) bumpEntry(ctx context.Context, b CounterBump, name 
 	key := counterRef{broadcasterID, name}.viewerKey()
 	counter := pkg_valkey.SeededCounter{Key: key, Field: field, TTL: counterTTL}
 	return counter.Bump(ctx, s.client, delta, func() int64 {
-		if c, found, loadErr := s.rpc.CounterGet(ctx, broadcasterID, name, viewerID, command); loadErr == nil && found {
+		if c, found, loadErr := s.rpc.CounterGet(ctx, CounterTarget{BroadcasterID: broadcasterID, Name: name, ViewerID: viewerID, Command: command}); loadErr == nil && found {
 			return c.Value
 		}
 		return 0
@@ -225,21 +225,20 @@ func (s *ValkeyLoyaltyStore) bumpEntry(ctx context.Context, b CounterBump, name 
 }
 
 func (s *ValkeyLoyaltyStore) CounterPeek(ctx context.Context, target CounterTarget) (loyaltyrpc.Counter, bool, error) {
-	name := NormalizeCounterName(target.Name)
-	if name == "" {
+	target.Name = NormalizeCounterName(target.Name)
+	if target.Name == "" {
 		return loyaltyrpc.Counter{}, false, nil
 	}
-	broadcasterID, viewerID := target.BroadcasterID, target.ViewerID
-	command := NormalizeCounterName(target.Command)
-	scope, err := s.scope(ctx, broadcasterID, name)
+	target.Command = NormalizeCounterName(target.Command)
+	scope, err := s.scope(ctx, target.BroadcasterID, target.Name)
 	if err != nil {
-		return s.rpc.CounterGet(ctx, broadcasterID, name, viewerID, command)
+		return s.rpc.CounterGet(ctx, target)
 	}
 
-	if v, ok := s.peekView(ctx, CounterTarget{BroadcasterID: broadcasterID, ViewerID: viewerID, Name: name, Command: command}, scope); ok {
-		return loyaltyrpc.Counter{Name: name, Scope: string(scope), Value: v}, true, nil
+	if v, ok := s.peekView(ctx, target, scope); ok {
+		return loyaltyrpc.Counter{Name: target.Name, Scope: string(scope), Value: v}, true, nil
 	}
-	return s.rpc.CounterGet(ctx, broadcasterID, name, viewerID, command)
+	return s.rpc.CounterGet(ctx, target)
 }
 
 func (s *ValkeyLoyaltyStore) peekView(ctx context.Context, target CounterTarget, scope counterScope) (int64, bool) {
@@ -315,10 +314,14 @@ func decodeBalance(raw string) (points int64, watch uint64, ok bool) {
 
 func (s *ValkeyLoyaltyStore) BalanceCredit(ctx context.Context, credit PointCredit) (CreditOutcome, error) {
 	out, err := s.rpc.BalanceCredit(ctx, credit)
-	if err == nil && !out.Replayed {
-		s.invalidateTop(cache.Event{ID: credit.BroadcasterID})
+	if err != nil {
+		return out, err
 	}
-	return out, err
+	if err := pkg_valkey.DelKeys(ctx, s.client, balanceKey(credit.BroadcasterID, credit.ViewerID)); err != nil {
+		s.log.Warn("loyalty: failed to invalidate balance view", module.BIDField(credit.BroadcasterID), zap.Error(err))
+	}
+	s.invalidateTop(cache.Event{ID: credit.BroadcasterID})
+	return out, nil
 }
 
 func (s *ValkeyLoyaltyStore) BalanceSnapshot(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.BalanceSnapshot, error) {
@@ -348,7 +351,7 @@ func (s *ValkeyLoyaltyStore) BalanceSpend(ctx context.Context, spend PointSpend)
 }
 
 func (s *ValkeyLoyaltyStore) BalanceTransfer(ctx context.Context, t PointTransfer) (bal loyaltyrpc.Balance, found, moved bool, err error) {
-	bal, _, found, moved, err = s.rpc.BalanceTransfer(ctx, t.BroadcasterID, t.FromViewerID, t.TargetViewerID, t.TargetLogin, t.Amount)
+	bal, _, found, moved, err = s.rpc.BalanceTransfer(ctx, t)
 	if err != nil || !found {
 		return bal, found, moved, err
 	}
@@ -368,7 +371,7 @@ func (s *ValkeyLoyaltyStore) Top(ctx context.Context, broadcasterID uint64, limi
 }
 
 func (s *ValkeyLoyaltyStore) CounterCreate(ctx context.Context, broadcasterID uint64, name, scope string) (loyaltyrpc.Counter, error) {
-	c, err := s.rpc.CounterCreate(ctx, broadcasterID, name, scope)
+	c, err := s.rpc.CounterCreate(ctx, counterRef{broadcasterID, name}, counterScope(scope))
 	if err != nil {
 		return loyaltyrpc.Counter{}, err
 	}
@@ -386,7 +389,7 @@ func (s *ValkeyLoyaltyStore) CounterSet(ctx context.Context, set CounterAssignme
 }
 
 func (s *ValkeyLoyaltyStore) CounterDelete(ctx context.Context, broadcasterID uint64, name string) error {
-	if err := s.rpc.CounterDelete(ctx, broadcasterID, name); err != nil {
+	if err := s.rpc.CounterDelete(ctx, counterRef{broadcasterID, name}); err != nil {
 		return err
 	}
 	s.CounterInvalidate(ctx, broadcasterID, name)
