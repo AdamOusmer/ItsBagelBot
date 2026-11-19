@@ -12,10 +12,8 @@ import (
 )
 
 type compareCase struct {
-	Left  string `json:"left"`
-	Op    string `json:"op"`
-	Right string `json:"right"`
-	Want  bool   `json:"want"`
+	automation.CompareCondition
+	Want bool `json:"want"`
 }
 
 func TestComparePassesMatchesSharedTable(t *testing.T) {
@@ -24,8 +22,8 @@ func TestComparePassesMatchesSharedTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range cases {
-		t.Run(fmt.Sprintf("%q %s %q", tc.Left, tc.Op, tc.Right), func(t *testing.T) {
-			if got := automation.ComparePasses(tc.Op, tc.Left, tc.Right); got != tc.Want {
+		t.Run(fmt.Sprintf("%q %s %q ignore_case=%t", tc.Left, tc.Op, tc.Right, tc.IgnoreCase), func(t *testing.T) {
+			if got := automation.ComparePasses(tc.Op, tc.Left, tc.Right, tc.IgnoreCase); got != tc.Want {
 				t.Fatalf("ComparePasses = %v, want %v", got, tc.Want)
 			}
 		})

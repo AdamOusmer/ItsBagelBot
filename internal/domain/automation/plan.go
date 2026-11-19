@@ -41,17 +41,18 @@ type Step struct {
 }
 
 type planner struct {
-	id        string
-	count     int
-	templates map[string][]tmpl.Token
+	id              string
+	count           int
+	cooldownOrdinal int
+	templates       map[string][]tmpl.Token
 
 	showsCooldownLeft bool
 }
 
 func NewPlan(a Automation) *Plan {
 	pl := &planner{id: a.ID}
-	steps := pl.steps(a.Definition.Actions, "", -1)
 	conditions := pl.conditions(a.Definition.Conditions)
+	steps := pl.steps(a.Definition.Actions, "", -1)
 	return &Plan{
 		Automation: a,
 		Conditions: conditions,
@@ -95,7 +96,18 @@ func (pl *planner) condition(c Condition) PlannedCondition {
 		pl.lexTemplate(p.Left)
 		pl.lexTemplate(p.Right)
 	}
+	pl.assignCooldownOrdinal(&planned)
 	return planned
+}
+
+func (pl *planner) assignCooldownOrdinal(c *PlannedCondition) {
+	cooldown, ok := c.Params.(CooldownCondition)
+	if !ok || cooldown.Name != "" {
+		return
+	}
+	cooldown.Ordinal = pl.cooldownOrdinal
+	c.Params = cooldown
+	pl.cooldownOrdinal++
 }
 
 func (pl *planner) steps(list []Action, prefix string, top int) []Step {
@@ -181,12 +193,12 @@ func (pl *planner) lexTemplate(text string) {
 }
 
 func (pl *planner) nest(s *Step, path string, n nesting) {
-	s.Branches = make([][]Step, len(n.lists))
-	for k, list := range n.lists {
-		s.Branches[k] = pl.steps(list, path+"."+n.labels[k]+".", s.Index)
-	}
 	if n.condition != nil {
 		c := pl.condition(*n.condition)
 		s.Condition = &c
+	}
+	s.Branches = make([][]Step, len(n.lists))
+	for k, list := range n.lists {
+		s.Branches[k] = pl.steps(list, path+"."+n.labels[k]+".", s.Index)
 	}
 }

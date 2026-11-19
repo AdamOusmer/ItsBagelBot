@@ -221,19 +221,7 @@ func init() {
 		"manual":    register(checkEmpty),
 		"countdown": register(checkCountdownTrigger),
 	}
-	conditionRegistry = map[string]entry{
-		"perm":      register(checkPerm),
-		"users":     register(checkUsers),
-		"live":      register(checkLive),
-		"cooldown":  register(checkCooldown),
-		"chance":    register(checkChance),
-		"counter":   register(checkCounterCond),
-		"points":    register(checkPointsCond),
-		"arg_regex": register(checkArgRegex),
-		"category":  register(checkCategory),
-		"compare":   register(checkCompare),
-		"var":       register(checkVarCondition),
-	}
+	registerConditions()
 	actionRegistry = map[string]entry{
 		"poll":            register(checkPoll),
 		"poll_end":        register(checkPollEnd),
@@ -289,6 +277,24 @@ func init() {
 		"cooldown_add":    register(checkCooldownAdd),
 		"countdown_start": register(checkCountdownStart),
 		"countdown_add":   register(checkCountdownAdd),
+	}
+}
+
+func registerConditions() {
+	conditionRegistry = map[string]entry{
+		"perm":        register(checkPerm),
+		"users":       register(checkUsers),
+		"live":        register(checkLive),
+		"cooldown":    register(checkCooldown),
+		"chance":      register(checkChance),
+		"counter":     register(checkCounterCond),
+		"points":      register(checkPointsCond),
+		"arg_regex":   register(checkArgRegex),
+		"category":    register(checkCategory),
+		"compare":     register(checkCompare),
+		"var":         register(checkVarCondition),
+		"follow":      register(checkFollow),
+		"account_age": register(checkAccountAge),
 	}
 }
 

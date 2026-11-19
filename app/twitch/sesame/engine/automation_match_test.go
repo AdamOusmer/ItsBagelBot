@@ -95,6 +95,7 @@ type autoRig struct {
 	long        LongCooldownStore
 	loyalty     LoyaltyStore
 	accounts    TwitchAccountLookup
+	followage   FollowageLookup
 	accountAge  AccountAgeLookup
 	dedup       *EventDedup
 	stream      StreamInfoLookup
@@ -140,6 +141,7 @@ func (r autoRig) pipeline() (*Pipeline, *recordingRunLog) {
 		Pub:            pub,
 		Loyalty:        r.loyalty,
 		TwitchAccounts: r.accounts,
+		Followage:      r.followage,
 		AccountAge:     r.accountAge,
 		Dedup:          r.dedup,
 		StreamInfo:     r.stream,
@@ -387,6 +389,49 @@ func TestProcessAutomationConditions(t *testing.T) {
 			tc.rig.automations = []automation.Automation{testAutomation("t", "command", map[string]any{"name": "!t"}, tc.cond)}
 			p, runs := tc.rig.pipeline()
 			process(t, p, chatEnv("!t", tc.badge))
+			assert.Equal(t, []string{tc.want}, runs.summary())
+		})
+	}
+}
+
+func TestProcessAutomationAgeConditions(t *testing.T) {
+	now := time.Now()
+	old := now.Add(-25 * time.Hour)
+	recent := now.Add(-23 * time.Hour)
+	followOld := &stubFollowage{result: FollowageResult{UserFound: true, Following: true, FollowedAt: old}}
+	followNew := &stubFollowage{result: FollowageResult{UserFound: true, Following: true, FollowedAt: recent}}
+	accountOld := &stubAccountAge{result: AccountAgeResult{UserFound: true, CreatedAt: old}}
+	accountNew := &stubAccountAge{result: AccountAgeResult{UserFound: true, CreatedAt: recent}}
+	cases := []struct {
+		name     string
+		typ      string
+		min      int
+		rig      autoRig
+		noViewer bool
+		want     string
+	}{
+		{"following long enough", "follow", 1, autoRig{followage: followOld}, false, "t:ok"},
+		{"following less than a day", "follow", 1, autoRig{followage: followNew}, false, "t:skipped:condition:0:follow"},
+		{"any follower", "follow", 0, autoRig{followage: followNew}, false, "t:ok"},
+		{"not following even at zero days", "follow", 0, autoRig{followage: &stubFollowage{result: FollowageResult{UserFound: true}}}, false, "t:skipped:condition:0:follow"},
+		{"follow without a viewer", "follow", 0, autoRig{followage: followOld}, true, "t:skipped:condition:0:follow"},
+		{"follow without lookup", "follow", 0, autoRig{}, false, "t:skipped:condition:0:follow"},
+		{"account old enough", "account_age", 1, autoRig{accountAge: accountOld}, false, "t:ok"},
+		{"account less than a day old", "account_age", 1, autoRig{accountAge: accountNew}, false, "t:skipped:condition:0:account_age"},
+		{"account was not found", "account_age", 1, autoRig{accountAge: &stubAccountAge{}}, false, "t:skipped:condition:0:account_age"},
+		{"account age without a viewer", "account_age", 1, autoRig{accountAge: accountOld}, true, "t:skipped:condition:0:account_age"},
+		{"account age without lookup", "account_age", 1, autoRig{}, false, "t:skipped:condition:0:account_age"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			check := cond(tc.typ, map[string]any{"min_days": tc.min})
+			tc.rig.automations = []automation.Automation{command("t", map[string]any{"name": "!t"}, check)}
+			p, runs := tc.rig.pipeline()
+			env := chatEnv("!t", "")
+			if tc.noViewer {
+				env.ChatterUserID = ""
+			}
+			process(t, p, env)
 			assert.Equal(t, []string{tc.want}, runs.summary())
 		})
 	}

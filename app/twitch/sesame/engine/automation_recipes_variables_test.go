@@ -93,8 +93,12 @@ func TestVarCondition(t *testing.T) {
 		{name: "ne", stored: "a", op: "ne", value: "b", passes: true},
 		{name: "contains", stored: "hello", op: "contains", value: "ell", passes: true},
 		{name: "contains empty", stored: "hello", op: "contains", value: "", passes: false},
+		{name: "starts", stored: "hello", op: "starts", value: "hel", passes: true},
+		{name: "contains without starting", stored: "hello", op: "starts", value: "ell", passes: false},
 		{name: "exists", stored: "", op: "exists", passes: true},
 		{name: "missing exists", missing: true, op: "exists", passes: false},
+		{name: "stored empty still exists", stored: "", op: "not_exists", passes: false},
+		{name: "missing does not exist", missing: true, op: "not_exists", passes: true},
 		{name: "missing is empty", missing: true, op: "eq", value: "", passes: true},
 	}
 	for _, tc := range cases {

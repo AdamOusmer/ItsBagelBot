@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual" },
+  "conditions": [
+    { "type": "compare", "params": { "left": "{user}", "op": "starts", "right": "" } },
+    { "type": "var", "params": { "scope": "channel", "name": "mode", "op": "contains", "value": "" } },
+    { "type": "var", "params": { "scope": "channel", "name": "mode", "op": "starts", "value": "" } },
+    { "type": "follow", "params": { "min_days": -1 } },
+    { "type": "follow", "params": { "min_days": 3651 } },
+    { "type": "account_age", "params": { "min_days": 0 } },
+    { "type": "account_age", "params": { "min_days": 3651 } }
+  ]
+}

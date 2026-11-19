@@ -93,7 +93,7 @@ func applySimpleText(op string, in TextOperands) (string, error) {
 	case TextOpReplace:
 		return replaceAll(in), nil
 	case TextOpContains:
-		return strconv.FormatBool(ComparePasses(CompareContains, in.Input, in.Arg1)), nil
+		return strconv.FormatBool(ComparePasses(CompareContains, in.Input, in.Arg1, false)), nil
 	case TextOpURLEncode:
 		return url.QueryEscape(in.Input), nil
 	}
