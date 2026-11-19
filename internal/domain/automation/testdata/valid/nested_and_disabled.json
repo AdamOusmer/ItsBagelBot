@@ -6,7 +6,7 @@
       "name": "!hi"
     }
   },
-  "conditions": [],
+  "conditions": [{ "type": "perm", "params": { "level": "lead_mod" } }],
   "actions": [
     {
       "type": "if",

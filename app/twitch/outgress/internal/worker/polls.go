@@ -6,6 +6,7 @@ package worker
 import (
 	"context"
 	"slices"
+	"strconv"
 	"strings"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
@@ -28,7 +29,7 @@ type createLimits struct {
 
 var (
 	pollLimits       = createLimits{60, 25, 2, 5, 15, 1800, 60}
-	predictionLimits = createLimits{45, 25, 2, 10, 30, 1800, 120}
+	predictionLimits = createLimits{45, 25, 2, 10, 1, 1800, 120}
 )
 
 var predictionEndFrom = map[string][]string{
@@ -90,7 +91,9 @@ func createContest[T any](w *Worker, ctx context.Context, payload *outgress.Mess
 }
 
 func pollOptions(in outgress.PollCreate) twitch.CreateOptions {
-	return twitch.CreateOptions{Title: in.Title, Items: in.Choices, Seconds: in.Duration}
+	return twitch.CreateOptions{
+		Title: in.Title, Items: in.Choices, Seconds: in.Duration, ChannelPointsPerVote: in.ChannelPointsPerVote,
+	}
 }
 
 func predictionOptions(in outgress.PredictionCreate) twitch.CreateOptions {
@@ -108,7 +111,7 @@ func (w *Worker) runCreate(ctx context.Context, payload *outgress.Message, job c
 		w.dropTyped(payload, "needs a title and at least two options")
 		return nil
 	}
-	options = twitch.CreateOptions{Title: title, Items: items, Seconds: limits.seconds(options.Seconds)}
+	options.Title, options.Items, options.Seconds = title, items, limits.seconds(options.Seconds)
 	return w.runTyped(ctx, payload, typedJob{as: outgress.AsBroadcaster, call: func(ctx context.Context) error {
 		return job.create(ctx, twitch.ContestCreation{Channel: twitch.ContestChannel{BroadcasterID: payload.BroadcasterID}, Options: options})
 	}})
@@ -172,15 +175,30 @@ func (w *Worker) processPredictionCreate(ctx context.Context, payload *outgress.
 	return createContest(w, ctx, payload, contestCreation[outgress.PredictionCreate]{predictionLimits, predictionOptions, w.twitch.CreatePrediction})
 }
 
-func winningOutcomeID(p twitch.Prediction, status string, winner int) (string, bool) {
-	if status != outgress.PredictionResolved {
+func winningOutcomeID(p twitch.Prediction, in outgress.PredictionEnd) (string, bool) {
+	if in.Status != outgress.PredictionResolved {
 		return "", true
 	}
-	if winner < 1 || winner > len(p.Outcomes) {
+	winner := in.Winner
+	if outcome := strings.TrimSpace(in.Outcome); outcome != "" {
+		winner = outcomePosition(p.Outcomes, outcome)
+	}
+	if !validOutcomePosition(winner, len(p.Outcomes)) {
 		return "", false
 	}
 	return p.Outcomes[winner-1].ID, true
 }
+
+func outcomePosition(outcomes []twitch.PredictionOutcome, name string) int {
+	if n, err := strconv.Atoi(name); err == nil && validOutcomePosition(n, len(outcomes)) {
+		return n
+	}
+	return slices.IndexFunc(outcomes, func(outcome twitch.PredictionOutcome) bool {
+		return strings.EqualFold(strings.TrimSpace(outcome.Title), name)
+	}) + 1
+}
+
+func validOutcomePosition(position, count int) bool { return position >= 1 && position <= count }
 
 func normalizePredictionEnd(in outgress.PredictionEnd) (outgress.PredictionEnd, bool) {
 	in.Status = strings.ToUpper(strings.TrimSpace(in.Status))
@@ -205,7 +223,7 @@ func (w *Worker) endLatestPrediction(ctx context.Context, payload *outgress.Mess
 }
 
 func (w *Worker) resolvePrediction(ctx context.Context, payload *outgress.Message, prediction twitch.Prediction, in outgress.PredictionEnd) error {
-	winnerID, ok := winningOutcomeID(prediction, in.Status, in.Winner)
+	winnerID, ok := winningOutcomeID(prediction, in)
 	if !ok {
 		w.skipTyped(payload, "winner outcome out of range")
 		return nil

@@ -1,6 +1,11 @@
 {
   "label": "Cambiar el modo del chat",
-  "summary": "Cambiar el modo del chat",
+  "summary": "Cambia quién puede chatear y con qué frecuencia",
+  "line": {
+    "on": "Activar modo del chat: {mode}",
+    "off": "Desactivar modo del chat: {mode}",
+    "slow": "Activar modo del chat: {mode}, {wait}"
+  },
   "field": {
     "mode": {
       "label": "Modo del chat",
@@ -9,14 +14,28 @@
         "followers": "Solo seguidores",
         "slow": "Modo lento",
         "subscribers": "Solo suscriptores",
-        "unique": "Mensajes únicos"
+        "unique": "Mensajes únicos",
+        "chat_delay": "Retraso del chat"
       }
     },
     "on": {
       "label": "Activado"
     },
-    "value": {
-      "label": "Segundos en modo lento; minutos en modo solo seguidores"
+    "wait": {
+      "label": "Tiempo entre mensajes",
+      "range": "Introduce de 3 a 120 segundos."
+    },
+    "followAge": {
+      "label": "Tiempo mínimo como seguidor",
+      "unit": "minutos"
+    },
+    "delay": {
+      "label": "Retraso",
+      "option": {
+        "2": "2 segundos",
+        "4": "4 segundos",
+        "6": "6 segundos"
+      }
     }
   }
 }

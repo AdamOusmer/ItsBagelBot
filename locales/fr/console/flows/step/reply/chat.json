@@ -1,0 +1,13 @@
+{
+  "field": {
+    "reply": {
+      "label": "Réponse",
+      "option": {
+        "off": "Désactivée",
+        "mention": "Mentionner la personne",
+        "thread": "Répondre dans le fil"
+      },
+      "hint": "Pour répondre dans le fil, il faut un déclencheur de chat."
+    }
+  }
+}

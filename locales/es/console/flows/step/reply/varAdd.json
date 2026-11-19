@@ -1,0 +1,20 @@
+{
+  "label": "Sumar a una variable",
+  "summary": "Sumar o restar",
+  "field": {
+    "scope": {
+      "label": "Guardado para",
+      "option": {
+        "channel": "El canal",
+        "viewer": "Este espectador"
+      }
+    },
+    "name": {
+      "label": "Nombre",
+      "placeholder": "muertes"
+    },
+    "amount": {
+      "label": "Cantidad"
+    }
+  }
+}

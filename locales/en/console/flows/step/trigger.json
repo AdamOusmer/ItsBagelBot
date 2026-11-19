@@ -1,16 +1,39 @@
 {
   "chatCommand": {
+    "line": {
+      "start": "Someone types {trigger} in chat",
+      "aliasOne": "Someone types {trigger} or 1 other name in chat",
+      "aliasMany": "Someone types {trigger} or {count} other names in chat"
+    },
     "label": "Chat command",
     "summary": "Someone types a command in chat",
     "field": {
-      "trigger": { "label": "Command", "placeholder": "!hug" }
+      "trigger": { "label": "Command", "placeholder": "!hug" },
+      "aliases": { "label": "Other names", "placeholder": "!cuddle, !squeeze" },
+      "match": {
+        "label": "Match",
+        "option": { "start": "Starts the message", "exact": "Whole message" }
+      },
+      "caseSensitive": { "label": "Match case" },
+      "subMessages": { "label": "Also in resub messages" }
     }
   },
   "chatWord": {
+    "line": "Someone says {word} in chat",
     "label": "Chat word",
     "summary": "Someone says a word in chat",
     "field": {
-      "word": { "label": "Word", "placeholder": "bagel" }
+      "word": {
+        "label": "Word",
+        "placeholder": "bagel",
+        "pattern": { "label": "Pattern", "placeholder": "\\bbagel(s)?\\b" }
+      },
+      "match": {
+        "label": "Match",
+        "option": { "word": "Whole word", "anywhere": "Anywhere", "pattern": "Pattern" }
+      },
+      "caseSensitive": { "label": "Match case" },
+      "subMessages": { "label": "Also in resub messages" }
     }
   },
   "follow": {
@@ -19,22 +42,58 @@
   },
   "sub": {
     "label": "Subscription",
-    "summary": "New sub, resub or gift",
+    "summary": "Someone subscribes or resubscribes",
+    "line": {
+      "any": "Someone gets a new or gifted sub",
+      "new": "Someone subscribes for the first time",
+      "gifted": "Someone receives a gifted sub",
+      "resub": "Someone resubscribes",
+      "gift": "Someone gifts a subscription"
+    },
+    "withTier": "{line} at {tier}",
     "field": {
       "variant": {
         "label": "Kind",
-        "option": { "any": "Any", "new": "New", "resub": "Resub", "gift": "Gift" }
+        "option": { "any": "New or gifted", "new": "New, paid", "resub": "Resub", "gifted": "Gifted to them" }
+      },
+      "tier": {
+        "label": "Tier",
+        "option": { "1000": "Tier 1", "2000": "Tier 2", "3000": "Tier 3", "any": "Any tier" }
+      },
+      "minMonths": { "label": "Minimum months", "unit": "months" },
+      "minStreak": { "label": "Minimum streak", "unit": "months" }
+    }
+  },
+  "subGift": {
+    "line": "Someone gifts {minGifts}+ subs",
+    "label": "Gift subs",
+    "summary": "Someone gifts subs to the community",
+    "field": {
+      "minGifts": { "label": "Minimum gifts", "unit": "subs" },
+      "tier": {
+        "label": "Tier",
+        "option": { "1000": "Tier 1", "2000": "Tier 2", "3000": "Tier 3", "any": "Any tier" }
+      },
+      "gifter": {
+        "label": "Gifter",
+        "option": { "anyone": "Anyone", "named": "Named only", "anonymous": "Anonymous only" }
       }
     }
   },
   "cheer": {
+    "line": "Someone cheers {minBits} bits or more",
     "label": "Cheer",
     "summary": "Bits are cheered",
     "field": {
-      "minBits": { "label": "Minimum bits", "unit": "bits" }
+      "minBits": { "label": "Minimum bits", "unit": "bits" },
+      "cheerer": {
+        "label": "Cheerer",
+        "option": { "anyone": "Anyone", "named": "Named only", "anonymous": "Anonymous only" }
+      }
     }
   },
   "raid": {
+    "line": "Raid with {minViewers}+ viewers",
     "label": "Raid",
     "summary": "Another channel raids you",
     "field": {
@@ -55,11 +114,50 @@
     "countdownFinished": {
     "label": "Countdown finished",
     "summary": "A named countdown reaches zero",
+    "line": "When {name} reaches zero",
     "field": {
       "name": {
         "label": "Countdown"
       }
     }
+  },
+  "adBreak": {
+    "line": {
+      "start": "An ad break starts",
+      "minimum": "An ad break of {length}+ starts"
+    },
+    "label": "Ad break starts",
+    "summary": "An ad break begins on your stream",
+    "field": {
+      "startedBy": {
+        "label": "Started by",
+        "option": { "any": "Any", "automatic": "Automatic", "manual": "Manual" }
+      },
+      "minLength": { "label": "Minimum length", "range": "Use 30 seconds to 3 minutes." }
+    }
+  },
+  "channelUpdate": {
+    "line": "Category changes to {category}",
+    "label": "Title or category changes",
+    "summary": "Your stream title or category changes",
+    "field": {
+      "category": { "label": "Category", "placeholder": "Just Chatting", "hint": "Leave blank to match any category." }
+    }
+  },
+  "timer": {
+    "line": "Every {amount}",
+    "label": "Every few minutes",
+    "summary": "Runs on a repeating timer",
+    "field": {
+      "every": { "label": "Every", "range": "Use 1 minute to 24 hours." },
+      "jitter": { "label": "Random extra", "range": "Use 0 seconds to 1 hour." },
+      "chatLines": { "label": "Chat lines since last run", "hint": "Use 0 to run regardless of chat activity." },
+      "offline": { "label": "Also while offline" }
+    }
+  },
+  "manual": {
+    "label": "Run by hand",
+    "summary": "Runs from the Run now button or another tool by this recipe's name"
   },
   "unbanRequest": {
     "label": "Unban request",

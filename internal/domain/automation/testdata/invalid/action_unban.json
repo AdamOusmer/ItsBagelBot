@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "trigger": { "type": "command", "params": { "name": "!unban" } },
+  "conditions": [{ "type": "perm", "params": { "level": "mod" } }],
+  "actions": [
+    { "type": "unban", "params": { "who": "user" } }
+  ]
+}

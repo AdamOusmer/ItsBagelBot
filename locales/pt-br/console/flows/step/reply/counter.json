@@ -1,0 +1,28 @@
+{
+  "label": "Alterar contador",
+  "summary": "Aumente, diminua ou defina um contador com nome",
+  "field": {
+    "counter": {
+      "label": "Contador"
+    },
+    "change": {
+      "label": "Alteração",
+      "option": {
+        "add": "Adicionar",
+        "set": "Definir"
+      }
+    },
+    "amount": {
+      "label": "Quantidade",
+      "hint": "Use um número negativo para subtrair"
+    },
+    "value": {
+      "label": "Valor"
+    }
+  },
+  "line": {
+    "add": "Adicionar {amount} a {counter}",
+    "take": "Tirar {amount} de {counter}",
+    "set": "Definir {counter} como {value}"
+  }
+}

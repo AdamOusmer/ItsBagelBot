@@ -8,7 +8,8 @@
     },
     "jsonPath": {
       "label": "JSON-Pfad",
-      "placeholder": "data.value"
+      "placeholder": "data.items.0.name",
+      "hint": "Trenne Schlüssel mit Punkten. Eckige Klammern gehen auch."
     },
     "saveAs": {
       "label": "Speichern als",
@@ -18,5 +19,11 @@
   "out": {
     "ok": "Geklappt",
     "failure": "Fehlgeschlagen"
+  },
+  "tryIt": {
+    "label": "Ausprobieren",
+    "fixedAddress": "Ausprobieren ist nur mit einer festen Adresse möglich.",
+    "loading": "Beispiel wird abgerufen…",
+    "error": "Kein JSON-Beispiel abrufbar. Prüfe die Adresse und versuche es erneut."
   }
 }

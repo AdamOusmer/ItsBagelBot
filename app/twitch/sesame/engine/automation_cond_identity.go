@@ -6,7 +6,9 @@ package engine
 import (
 	"context"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/automation"
@@ -73,4 +75,34 @@ func (p *Pipeline) conditionLive(ctx context.Context, run *AutomationRun, c auto
 		return false, err
 	}
 	return live == (c.State == "live"), nil
+}
+
+func (p *Pipeline) conditionFollow(ctx context.Context, run *AutomationRun, c automation.FollowCondition) (bool, error) {
+	if run.Viewer.ID == 0 || p.followage == nil {
+		return false, nil
+	}
+	result, err := p.followage.Lookup(ctx, FollowageQuery{
+		BroadcasterID: strconv.FormatUint(run.BroadcasterID, 10),
+		TargetID:      strconv.FormatUint(run.Viewer.ID, 10),
+		Trial:         run.Env != nil && run.Env.Origin == "trial",
+	})
+	if err != nil {
+		return false, err
+	}
+	return result.Following && meetsAgeDays(result.FollowedAt, c.MinDays), nil
+}
+
+func (p *Pipeline) conditionAccountAge(ctx context.Context, run *AutomationRun, c automation.AccountAgeCondition) (bool, error) {
+	if run.Viewer.ID == 0 || p.accountAge == nil {
+		return false, nil
+	}
+	result, err := p.accountAge.Lookup(ctx, strconv.FormatUint(run.Viewer.ID, 10), "")
+	if err != nil {
+		return false, err
+	}
+	return result.UserFound && meetsAgeDays(result.CreatedAt, c.MinDays), nil
+}
+
+func meetsAgeDays(at time.Time, days int) bool {
+	return !at.IsZero() && time.Since(at) >= time.Duration(days)*24*time.Hour
 }

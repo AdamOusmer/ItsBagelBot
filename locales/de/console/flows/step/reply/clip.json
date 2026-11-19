@@ -1,0 +1,21 @@
+{
+  "label": "Clip erstellen",
+  "summary": "Erstelle einen Clip aus den letzten Momenten des Streams",
+  "line": "Clip: {title}",
+  "field": {
+    "title": {
+      "label": "Titel"
+    },
+    "seconds": {
+      "label": "Länge",
+      "unit": "Sekunden"
+    },
+    "reply": {
+      "label": "Chatnachricht",
+      "hint": "{clip:url} enthält den Link zum neuen Clip"
+    },
+    "confirm": {
+      "label": "Im Chat bestätigen"
+    }
+  }
+}

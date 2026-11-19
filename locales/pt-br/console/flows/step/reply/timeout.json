@@ -1,0 +1,11 @@
+{
+  "label": "Timeout",
+  "summary": "Silencie um espectador por um tempo",
+  "keywords": "timeout silenciar moderação mod duração motivo",
+  "line": "Silenciar {who} por {seconds}",
+  "field": {
+    "target": { "label": "Login do espectador" },
+    "seconds": { "label": "Duração", "range": "De 1 segundo a {days} dias." },
+    "reason": { "label": "Motivo (opcional)" }
+  }
+}

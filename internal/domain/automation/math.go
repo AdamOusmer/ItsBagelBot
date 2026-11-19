@@ -19,7 +19,7 @@ type MathAction struct {
 }
 
 func checkMath(c chk, p MathAction) {
-	c.template("expression", p.Expression)
+	c.text("expression", p.Expression, nonEmpty(MaxMathExpressionRunes))
 	c.variableName("save_as", p.SaveAs)
 }
 

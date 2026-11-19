@@ -6,23 +6,13 @@ package modules
 import (
 	"context"
 	"strconv"
-	"strings"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/internal/domain/event/lane"
 
 	"go.uber.org/zap"
 )
-
-func mentionedViewerID(mentions []lane.Mention, login string) uint64 {
-	for _, m := range mentions {
-		if strings.EqualFold(m.UserLogin, login) {
-			id, _ := strconv.ParseUint(m.UserID, 10, 64)
-			return id
-		}
-	}
-	return 0
-}
 
 type viewerTarget struct {
 	login      string
@@ -35,7 +25,7 @@ type viewerResolver struct {
 }
 
 func (r viewerResolver) resolve(ctx context.Context, mentions []lane.Mention, target viewerTarget) uint64 {
-	if id := mentionedViewerID(mentions, target.login); id != 0 {
+	if id := scope.MentionedViewerID(mentions, target.login); id != 0 {
 		return id
 	}
 	if target.atPrefixed {

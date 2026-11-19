@@ -45,6 +45,28 @@ func TestLeftCommandsOfADisabledRecipeAreSilent(t *testing.T) {
 	assert.Empty(t, index.Command("top"))
 }
 
+func TestPlanAssignsUnnamedCooldownOrdinals(t *testing.T) {
+	raw := `{"version":1,"trigger":{"type":"manual","params":{}},
+	"conditions":[{"type":"cooldown","params":{"global_s":30}},{"type":"chance","params":{"percent":50}},{"type":"cooldown","params":{"name":"shared","global_s":5}}],
+	"actions":[{"type":"if","params":{"condition":{"type":"cooldown","params":{"global_s":5}},
+	  "then":[{"type":"if","params":{"condition":{"type":"cooldown","params":{"user_s":5}},"then":[{"type":"chat","params":{"text":"yes"}}]}}],
+	  "else":[{"type":"if","params":{"condition":{"type":"cooldown","params":{"global_s":5}},"then":[{"type":"chat","params":{"text":"yes"}}]}}]}}]}`
+	a := leftRecipe(t, raw, true)
+	plan := automation.NewPlan(a)
+	step := plan.Steps[0]
+	checks := []automation.PlannedCondition{plan.Conditions[0], plan.Conditions[1], plan.Conditions[2], *step.Condition, *step.Branches[0][0].Condition, *step.Branches[1][0].Condition}
+	type ordinal struct {
+		kind  string
+		value int
+	}
+	var got []ordinal
+	for _, check := range checks {
+		cooldown, _ := check.Params.(automation.CooldownCondition)
+		got = append(got, ordinal{check.Type, cooldown.Ordinal})
+	}
+	assert.Equal(t, []ordinal{{"chance", 0}, {"cooldown", 0}, {"cooldown", 0}, {"cooldown", 1}, {"cooldown", 2}, {"cooldown", 3}}, got)
+}
+
 func TestLeftCommandWithoutABangGoesThroughTheChatScan(t *testing.T) {
 	raw := `{"version":1,"trigger":{"type":"manual","params":{}},"conditions":[{"type":"cooldown","params":{"global_s":60,"left_command":"timeleft"}}],"actions":[]}`
 	index := automation.CompileIndex([]automation.Automation{leftRecipe(t, raw, true)})

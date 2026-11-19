@@ -30,6 +30,16 @@ export function runeCount(s: Text): number {
   return n;
 }
 
+function lowerRune(rune: Char): Char {
+  if (rune === 'İ') return 'i';
+  const changed = rune.toLowerCase();
+  return [...changed].length === 1 ? changed : rune;
+}
+
+export function simpleLower(s: Text): Text {
+  return [...s].map(lowerRune).join('');
+}
+
 function isGoSpace(ch: Char): boolean {
   const code = ch.codePointAt(0) ?? 0;
   return SPACE_RANGES.some(([lo, hi]) => code >= lo && code <= hi);

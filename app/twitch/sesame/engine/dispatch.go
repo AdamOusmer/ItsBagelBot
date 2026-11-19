@@ -27,10 +27,11 @@ import (
 func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views map[string]projection.ModuleView, emit module.Emit) error {
 	before := c.Emitted
 	defer func() { c.CommandAnswered = c.Emitted > before }()
-	name, args, ok := parseCommand(c.Env.Text)
+	input, ok := parseCommand(c.Env.Text)
 	if !ok {
 		return nil
 	}
+	name := strings.ToLower(input.name)
 	owners, num := p.registry.resolveOwners(name)
 	if c.Env.Origin == "trial" && !trialCommand(owners, name) {
 		return nil
@@ -39,17 +40,17 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	c.ModuleLookup = p.moduleLookup(views, c)
 	if bc, ok := p.claimOwner(ctx, owners, views, c); ok {
 		emittedBefore := c.Emitted
-		err := p.runBaked(ctx, c, bc.Cmd, num, args, emit)
+		err := p.runBaked(ctx, c, bc.Cmd, num, input.args, emit)
 		return p.finishBaked(ctx, c, bakedRun{bc: bc, emittedBefore: emittedBefore, err: err})
 	}
 	if c.Env.Origin == "trial" {
 		return nil
 	}
-	claimed, err := p.runCustom(ctx, c, name, args, emit)
+	claimed, err := p.runCustom(ctx, c, name, input.args, emit)
 	if claimed || err != nil {
 		return err
 	}
-	p.runAutomationCommand(ctx, c, views, name, args, emit)
+	p.runAutomationCommand(ctx, c, recipeCommand{input: input, views: views}, emit)
 	return nil
 }
 
@@ -360,6 +361,7 @@ func (p *Pipeline) chatLines(o *module.Output) []module.Output {
 }
 
 func (p *Pipeline) appendChatLines(dst []module.Output, o *module.Output) []module.Output {
+	parentID := o.MsgID
 	lines := 0
 	for line := range strings.SplitSeq(o.Text, "\n") {
 		if blankLine(line) {
@@ -373,8 +375,10 @@ func (p *Pipeline) appendChatLines(dst []module.Output, o *module.Output) []modu
 		out.Type = outgress.TypeChat
 		out.BroadcasterID = o.BroadcasterID
 		out.Text = line
+		out.MsgID = parentID
 		if p.prepareCommand(out) {
 			dst = append(dst, *out)
+			parentID = ""
 		}
 		PutOutput(out)
 	}

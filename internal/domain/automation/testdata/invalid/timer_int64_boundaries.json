@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "timer",
+    "params": {
+      "interval_s": 60,
+      "random_jitter_s": 9223372036854775807,
+      "min_chat_lines": -9223372036854775808
+    }
+  }
+}

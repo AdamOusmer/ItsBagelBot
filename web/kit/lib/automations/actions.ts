@@ -2,10 +2,11 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { STREAM_ACTIONS } from './stream-actions';
-import type { Chk } from './check';
+import { TARGET_DEFAULTS, TARGET_SCHEMA, type Chk } from './check';
 import { JSON_PATH_MAX_DEPTH, PATH_SEGMENT_RE, validateFetchDef } from '../engine/fetch-validate';
+import { lex } from '../engine/tmpl';
 import { checkVarIdentity, counterName } from './conditions';
-import { register, type Table, type Wide } from './engine';
+import { actions, POINTS_ACTION_SCHEMA, POINTS_SPEND_SCHEMA, register, registerNested, type ActionNode, type Table, type Wide } from './engine';
 import {
   CODE,
   MAX_COOLDOWN_SECONDS,
@@ -13,17 +14,25 @@ import {
   MAX_DELAY_MS,
   MAX_EXTRA_LIGHTS,
   MAX_FETCH_URL_LENGTH,
+  MAX_LIGHTS_BRIGHTNESS,
+  MAX_LIGHTS_HOLD_S,
+  MAX_LIGHTS_KELVIN,
+  MAX_POINTS_AMOUNT,
+  MAX_REWARD_COOLDOWN,
   MAX_REWARD_COST,
   MAX_TEMPLATE_LENGTH,
+  MAX_MATH_EXPRESSION_RUNES,
   MAX_VARIABLE_AMOUNT,
+  MIN_LIGHTS_BRIGHTNESS,
+  MIN_LIGHTS_KELVIN,
   RECIPE_NAME_PATTERN,
 } from './limits';
-import type * as T from './types';
+import { trimSpace } from './text';
+import * as T from './types';
 import { commandName } from './triggers';
 
 const ANNOUNCE_COLORS = ['', 'primary', 'blue', 'green', 'orange', 'purple'];
 const COMMERCIAL_LENGTHS = [30, 60, 90, 120, 150, 180];
-const LIGHTS_MODES = ['color', 'scene'];
 const LIGHTS_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 const LIGHT_REF_PATTERN = /^[^/]{1,64}\/[^/]{1,32}$/;
 const MAX_AMOUNT =1000000;
@@ -38,14 +47,18 @@ function checkAnnounce(c: Chk, p: Wide<T.AnnounceAction>): void {
 }
 
 function checkTimeout(c: Chk, p: Wide<T.TimeoutAction>): void {
-  c.login('login', p.login, 1);
+  c.target(p, 1);
   c.inRange('seconds', p.seconds, 1, MAX_TIMEOUT_SECONDS);
   c.reason('reason', p.reason, 0);
 }
 
 function checkBan(c: Chk, p: Wide<T.BanAction>): void {
-  c.login('login', p.login, 1);
+  c.target(p, 1);
   c.reason('reason', p.reason, 0);
+}
+
+function checkUnban(c: Chk, p: Wide<T.UnbanAction>): void {
+  c.target(p, 1);
 }
 
 function checkWarn(c: Chk, p: Wide<T.WarnAction>): void {
@@ -57,14 +70,28 @@ function checkCommercial(c: Chk, p: Wide<T.CommercialAction>): void {
   if (!COMMERCIAL_LENGTHS.includes(p.seconds)) c.add('seconds', CODE.invalidEnum);
 }
 
+function checkClip(c: Chk, p: Wide<T.ClipAction>): void {
+  c.text('title', p.title, 0, 100);
+  if (p.seconds !== 0) c.inRange('seconds', p.seconds, 5, 60);
+  c.text('reply', p.reply, 0, MAX_TEMPLATE_LENGTH);
+}
+
 function checkPointsAdd(c: Chk, p: Wide<T.PointsAddAction>): void {
-  c.login('login', p.login, 0);
-  c.inRange('amount', p.amount, -MAX_AMOUNT, MAX_AMOUNT);
+  c.target(p, 0);
+  c.inRange('amount', p.amount, -MAX_POINTS_AMOUNT, MAX_POINTS_AMOUNT);
   c.nonZero('amount', p.amount);
 }
 
+type PointsSpendParams = Pick<T.PointsSpendAction, 'amount'> & { on_ok: ActionNode[]; on_failure: ActionNode[] };
+
+function checkPointsSpend(c: Chk, p: PointsSpendParams): void {
+  c.inRange('amount', p.amount, 1, MAX_POINTS_AMOUNT);
+  actions(c.sub('on_ok').nest(), p.on_ok);
+  actions(c.sub('on_failure').nest(), p.on_failure);
+}
+
 function checkPointsSet(c: Chk, p: Wide<T.PointsSetAction>): void {
-  c.login('login', p.login, 0);
+  c.target(p, 0);
   c.inRange('amount', p.amount, 0, MAX_SET_AMOUNT);
 }
 
@@ -83,7 +110,7 @@ export function checkSaveAs(c: Chk, name: string): void {
 }
 
 export function checkHttpPostFields(c: Chk, p: { url: string; body: string; save_as: string }): void {
-  if (c.text('url', p.url, 1, MAX_FETCH_URL_LENGTH) && fetchUrlRejected(p.url)) c.add('url', CODE.invalidFormat);
+  if (c.text('url', p.url, 1, MAX_FETCH_URL_LENGTH) && fetchTemplateRejected(p.url)) c.add('url', CODE.invalidFormat);
   c.text('body', p.body, 0, 2000);
   checkSaveAs(c, p.save_as);
 }
@@ -92,12 +119,10 @@ function jsonPathRejected(path: string[]): boolean {
   return path.length > JSON_PATH_MAX_DEPTH || !path.every((segment) => PATH_SEGMENT_RE.test(segment));
 }
 
-function httpsTemplateRejected(template: string): boolean {
-  return !template.startsWith('{') && !template.startsWith('https://');
-}
-
 function fetchTemplateRejected(url: string): boolean {
-  return url.includes('{') ? httpsTemplateRejected(url) : fetchUrlRejected(url);
+  const tokens = lex(url);
+  if (!tokens.some((token) => token.kind === 'var')) return fetchUrlRejected(url);
+  return tokens[0]?.kind !== 'var' && !url.startsWith('https://');
 }
 
 export function checkHttpGetFields(c: Chk, p: { url: string; json_path: string[]; save_as: string }): void {
@@ -106,47 +131,76 @@ export function checkHttpGetFields(c: Chk, p: { url: string; json_path: string[]
   checkSaveAs(c, p.save_as);
 }
 
-const TEXT_OPS = ['upper', 'lower', 'trim', 'length', 'replace', 'substring', 'split_pick', 'contains', 'url_encode'];
-
 function checkTextStep(c: Chk, p: Wide<T.TextStepAction>): void {
-  c.oneOf('op', p.op, TEXT_OPS);
+  c.oneOf('op', p.op, T.TEXT_OPS);
   c.text('input', p.input, 0, MAX_TEMPLATE_LENGTH);
-  c.text('arg1', p.arg1, 0, MAX_TEMPLATE_LENGTH);
+  c.text('arg1', p.arg1, p.op === 'replace' ? 1 : 0, MAX_TEMPLATE_LENGTH);
   c.text('arg2', p.arg2, 0, MAX_TEMPLATE_LENGTH);
+  if (p.op === 'split_pick' && trimSpace(p.arg2) === '') c.add('arg2', CODE.required);
   c.simpleWord('save_as', p.save_as, RECIPE_NAME_PATTERN);
 }
 
 function checkMath(c: Chk, p: Wide<T.MathAction>): void {
-  c.template('expression', p.expression);
+  c.text('expression', p.expression, 1, MAX_MATH_EXPRESSION_RUNES);
   c.simpleWord('save_as', p.save_as, RECIPE_NAME_PATTERN);
 }
 
 const REWARD_ID_PATTERN = /^[A-Za-z0-9-]+$/;
 
-type RewardUpdateFields = { reward_id: string; enabled: boolean | null; cost: number | null };
-
-function checkRewardUpdate(c: Chk, p: RewardUpdateFields): void {
+function checkRewardUpdate(c: Chk, p: Wide<T.RewardUpdateAction>): void {
   if (c.text('reward_id', p.reward_id, 1, 64) && !REWARD_ID_PATTERN.test(p.reward_id)) c.add('reward_id', CODE.invalidFormat);
-  if (p.enabled === null && p.cost === null) c.add('enabled', CODE.required);
+  if ([p.enabled, p.cost, p.paused, p.cooldown_s].every((change) => change === null)) c.add('enabled', CODE.required);
   if (p.cost !== null) c.inRange('cost', p.cost, 1, MAX_REWARD_COST);
+  if (p.cooldown_s !== null) c.inRange('cooldown_s', p.cooldown_s, 0, MAX_REWARD_COOLDOWN);
 }
 
-function jsonParses(text: string): boolean {
+type LightsParams = Wide<T.LightsAction>;
+
+const SCENE_INTEGER = /^(?:0|[1-9][0-9]*)$/;
+
+function validSceneID(value: unknown): boolean {
+  return typeof value === 'number' && value >= 0 && Number.isSafeInteger(value);
+}
+
+function parsedScene(text: string): unknown {
   try {
-    JSON.parse(text);
-    return true;
+    return JSON.parse(text);
   } catch {
-    return false;
+    return undefined;
   }
 }
 
-function checkLightsScene(c: Chk, p: Wide<T.LightsAction>): void {
+function validScenePair(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const pair = value as { paramId?: unknown; id?: unknown };
+  return validSceneID(pair.paramId) && validSceneID(pair.id);
+}
+
+function validSceneValue(text: string): boolean {
+  const raw = text.trim();
+  if (SCENE_INTEGER.test(raw)) return validSceneID(Number(raw));
+  return validScenePair(parsedScene(raw));
+}
+
+function checkLightsScene(c: Chk, p: LightsParams): void {
   c.text('scene_id', p.scene_id, 0, 100);
   c.text('scene_name', p.scene_name, 0, 100);
   c.text('scene_type', p.scene_type, 1, 64);
   c.text('scene_instance', p.scene_instance, 1, 64);
-  if (c.text('scene_value', p.scene_value, 1, 200) && !jsonParses(p.scene_value)) c.add('scene_value', CODE.invalidFormat);
+  if (c.text('scene_value', p.scene_value, 1, 200) && !validSceneValue(p.scene_value)) c.add('scene_value', CODE.invalidFormat);
 }
+
+function checkLightsWhite(c: Chk, p: LightsParams): void {
+  if (p.kelvin === 0) c.add('kelvin', CODE.required);
+  else c.inRange('kelvin', p.kelvin, MIN_LIGHTS_KELVIN, MAX_LIGHTS_KELVIN);
+}
+
+const lightsModeChecks = new Map<string, (c: Chk, p: LightsParams) => void>([
+  ['color', (c, p) => c.format('color', p.color, LIGHTS_COLOR_PATTERN)],
+  ['scene', checkLightsScene],
+  ['white', checkLightsWhite],
+  ['off', (c, p) => c.inRange('brightness', p.brightness, 0, 0)],
+]);
 
 function checkCooldownAdd(c: Chk, p: Wide<T.CooldownAddAction>): void {
   c.simpleWord('name', p.name, RECIPE_NAME_PATTERN);
@@ -155,14 +209,17 @@ function checkCooldownAdd(c: Chk, p: Wide<T.CooldownAddAction>): void {
   if (p.per > 0 && !c.eventAmount) c.add('per', CODE.triggerMismatch);
 }
 
-function checkLights(c: Chk, p: Wide<T.LightsAction>): void {
+function checkLights(c: Chk, p: LightsParams): void {
   c.text('device', p.device, 1, 64);
   c.text('sku', p.sku, 1, 32);
   c.text('device_name', p.device_name, 0, 100);
   c.stringList('extra_lights', p.extra_lights, MAX_EXTRA_LIGHTS, (f, s) => c.format(f, s, LIGHT_REF_PATTERN));
-  c.oneOf('mode', p.mode, LIGHTS_MODES);
-  if (p.mode === 'scene') checkLightsScene(c, p);
-  else c.format('color', p.color, LIGHTS_COLOR_PATTERN);
+  c.oneOf('mode', p.mode, T.LIGHTS_MODES);
+  if (p.mode !== 'off' && p.brightness !== 0) {
+    c.inRange('brightness', p.brightness, MIN_LIGHTS_BRIGHTNESS, MAX_LIGHTS_BRIGHTNESS);
+  }
+  c.inRange('hold_s', p.hold_s, 0, MAX_LIGHTS_HOLD_S);
+  lightsModeChecks.get(p.mode)?.(c, p);
 }
 
 const noop = () => {};
@@ -170,25 +227,29 @@ const login = register<Wide<T.LoginAction>>({ login: 'string' }, (c, p) => void 
 const empty = register<Record<string, never>>({}, noop);
 const text = register<Wide<T.TextAction>>({ text: 'string' }, checkText);
 
+const namedTimer = register<T.NamedTimerAction>({ name: 'string' }, (c, p) => c.simpleWord('name', p.name, RECIPE_NAME_PATTERN));
+
 export const SIMPLE_ACTIONS: Table = {
   ...STREAM_ACTIONS,
   chat: text,
+  pin: text,
   announce: register<Wide<T.AnnounceAction>>({ text: 'string', color: 'string' }, checkAnnounce),
-  reply: text,
-  timeout: register<Wide<T.TimeoutAction>>({ login: 'string', seconds: 'int', reason: 'string' }, checkTimeout),
-  ban: register<Wide<T.BanAction>>({ login: 'string', reason: 'string' }, checkBan),
+  reply: register<Wide<T.ReplyAction>>({ text: 'string', thread: 'bool' }, checkText),
+  timeout: register<Wide<T.TimeoutAction>>({ ...TARGET_SCHEMA, seconds: 'int', reason: 'string' }, checkTimeout, TARGET_DEFAULTS),
+  ban: register<Wide<T.BanAction>>({ ...TARGET_SCHEMA, reason: 'string' }, checkBan, TARGET_DEFAULTS),
+  unban: register<Wide<T.UnbanAction>>(TARGET_SCHEMA, checkUnban, TARGET_DEFAULTS),
   delete_message: empty,
   warn: register<Wide<T.WarnAction>>({ login: 'string', reason: 'string' }, checkWarn),
   shield: register<Wide<T.ShieldAction>>({ on: 'bool' }, noop),
   shoutout: login,
-  clip: empty,
-  marker: register<Wide<T.MarkerAction>>({ description: 'string' }, (c, p) => void c.text('description', p.description, 0, 140)),
+  clip: register<Wide<T.ClipAction>>({ title: 'string', seconds: 'number', reply: 'string', quiet: 'bool' }, checkClip),
+  marker: register<Wide<T.MarkerAction>>({ description: 'string', quiet: 'bool' }, (c, p) => void c.text('description', p.description, 0, 140)),
   set_title: register<Wide<T.SetTitleAction>>({ title: 'string' }, (c, p) => void c.text('title', p.title, 1, 140)),
   set_game: register<Wide<T.SetGameAction>>({ game: 'string' }, (c, p) => void c.text('game', p.game, 1, 100)),
   set_tags: register<Wide<T.SetTagsAction>>({ tags: 'string' }, (c, p) => void c.template('tags', p.tags)),
-  commercial: register<Wide<T.CommercialAction>>({ seconds: 'int' }, checkCommercial),
-  points_add: register<Wide<T.PointsAddAction>>({ login: 'string', amount: 'int' }, checkPointsAdd),
-  points_set: register<Wide<T.PointsSetAction>>({ login: 'string', amount: 'int' }, checkPointsSet),
+  commercial: register<Wide<T.CommercialAction>>({ seconds: 'int', quiet: 'bool' }, checkCommercial),
+  points_add: register<Wide<T.PointsAddAction>>(POINTS_ACTION_SCHEMA, checkPointsAdd, TARGET_DEFAULTS),
+  points_set: register<Wide<T.PointsSetAction>>(POINTS_ACTION_SCHEMA, checkPointsSet, TARGET_DEFAULTS),
   counter_add: register<Wide<T.CounterAddAction>>({ name: 'string', amount: 'int' }, checkCounterAdd),
   counter_set: register<Wide<T.CounterSetAction>>({ name: 'string', value: 'int' }, (c, p) => counterName(c, 'name', p.name)),
   redemption: register<Wide<T.RedemptionAction>>({ status: 'string' }, (c, p) => c.oneOf('status', p.status, ['fulfill', 'cancel'])),
@@ -206,8 +267,8 @@ export const SIMPLE_ACTIONS: Table = {
   var_delete: register<Wide<T.VarDeleteAction>>({ scope: 'string', name: 'string' }, checkVarIdentity),
   text: register<Wide<T.TextStepAction>>({ op: 'string', input: 'string', arg1: 'string', arg2: 'string', save_as: 'string' }, checkTextStep),
   math: register<Wide<T.MathAction>>({ expression: 'string', save_as: 'string' }, checkMath),
-  reward_update: register<RewardUpdateFields>(
-    { reward_id: 'string', enabled: 'ptrbool', cost: 'ptrint', reset_on_stream_end: 'bool' },
+  reward_update: register<Wide<T.RewardUpdateAction>>(
+    { reward_id: 'string', enabled: 'ptrbool', cost: 'ptrint', reset_on_stream_end: 'bool', paused: 'ptrbool', cooldown_s: 'ptrint' },
     checkRewardUpdate,
   ),
   lights: register<Wide<T.LightsAction>>(
@@ -224,6 +285,9 @@ export const SIMPLE_ACTIONS: Table = {
       scene_instance: 'string',
       scene_value: 'string',
       any_time: 'bool',
+      kelvin: 'int',
+      brightness: 'int',
+      hold_s: 'int',
     },
     checkLights,
     { mode: 'color' },
@@ -238,5 +302,11 @@ export const SIMPLE_ACTIONS: Table = {
   }),
   countdown_add: register<Wide<T.CooldownAddAction>>({ name: 'string', seconds: 'int', per: 'int' }, checkCooldownAdd),
   cooldown_add: register<Wide<T.CooldownAddAction>>({ name: 'string', seconds: 'int', per: 'int' }, checkCooldownAdd),
+  points_spend: {
+    ...registerNested<PointsSpendParams>(POINTS_SPEND_SCHEMA, checkPointsSpend, (p) => [p.on_ok, p.on_failure]),
+    effect: true,
+  },
+  countdown_stop: namedTimer,
+  cooldown_reset: namedTimer,
 };
 

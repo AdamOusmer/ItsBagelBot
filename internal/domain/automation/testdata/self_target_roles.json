@@ -1,0 +1,47 @@
+[
+  {
+    "trigger": { "type": "command", "params": { "name": "!x" } },
+    "action": { "type": "timeout", "params": { "who": "viewer", "seconds": 60 } },
+    "wantPermRequired": false
+  },
+  {
+    "trigger": { "type": "command", "params": { "name": "!x" } },
+    "action": { "type": "timeout", "params": { "who": "mention", "seconds": 60 } },
+    "wantPermRequired": true
+  },
+  {
+    "trigger": { "type": "command", "params": { "name": "!x" } },
+    "action": { "type": "timeout", "params": { "login": "{user}", "seconds": 60 } },
+    "wantPermRequired": true
+  },
+  {
+    "trigger": { "type": "command", "params": { "name": "!x" } },
+    "action": { "type": "ban", "params": { "who": "viewer" } },
+    "wantPermRequired": false
+  },
+  {
+    "trigger": { "type": "command", "params": { "name": "!x" } },
+    "action": { "type": "ban", "params": { "who": "user", "user_id": "42" } },
+    "wantPermRequired": true
+  },
+  {
+    "trigger": { "type": "command", "params": { "name": "!x" } },
+    "action": { "type": "mod", "params": { "who": "viewer", "on": true } },
+    "wantPermRequired": true
+  },
+  {
+    "trigger": { "type": "command", "params": { "name": "!x" } },
+    "action": { "type": "vip", "params": { "who": "viewer" } },
+    "wantPermRequired": true
+  },
+  {
+    "trigger": { "type": "command", "params": { "name": "!x" } },
+    "action": { "type": "unban", "params": { "who": "viewer" } },
+    "wantPermRequired": true
+  },
+  {
+    "trigger": { "type": "command", "params": { "name": "!x" } },
+    "action": { "type": "delete_message", "params": {} },
+    "wantPermRequired": false
+  }
+]

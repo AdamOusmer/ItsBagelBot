@@ -1,4 +1,8 @@
 {
+  "ignore_case": "Ignore case",
+  "min_days": "Minimum days",
+  "who": "Who",
+  "user_id": "Twitch user ID",
   "aliases": "Aliases",
   "allow": "Allowed",
   "amount": "Amount",
@@ -80,5 +84,15 @@
   "choices": "Choices (one per line)",
   "outcomes": "Outcomes (one per line)",
   "winner": "Winning outcome number",
-  "resolution": "Resolution message (optional)"
+  "resolution": "Resolution message (optional)",
+  "reply": "Chat reply",
+  "quiet": "Skip chat message",
+  "points_per_vote": "Channel Points per vote",
+  "outcome": "Winning outcome",
+  "thread": "Reply in thread",
+  "kelvin": "Warmth",
+  "brightness": "Brightness",
+  "hold_s": "Go back after",
+  "paused": "Paused",
+  "cooldown_s": "Global cooldown (s)"
 }

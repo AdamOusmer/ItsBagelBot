@@ -38,6 +38,15 @@
         padding-inline: 4px;
     }
 
+    .bb-tabs--plain > .bb-tab {
+        min-height: calc(var(--bb-space-6) + var(--bb-space-2));
+        font: 500 var(--bb-text-sm)/1 var(--bb-font-body);
+        letter-spacing: normal;
+        text-transform: none;
+    }
+
+    .bb-tabs--plain > .bb-tab::before { content: none; }
+
     .bb-tab {
         position: relative;
         display: inline-flex;

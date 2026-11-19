@@ -1,23 +1,10 @@
 {
   "lockedChip": "Beta Premium",
   "introTitle": "Te damos la bienvenida a {name}",
-  "introLead": "Diseñado para usuarios avanzados que quieren control total. Conecta disparadores, condiciones y acciones en un solo sistema y prueba cada ruta antes de que llegue al chat.",
-  "introCta": "Empieza a crear",
+  "introLead": "Elige una receta y hazla tuya. Los pasos están listos para editar.",
+  "introCta": "Empezar de cero",
+  "clarity": {"liveNow":"Cambia al instante","required":"Obligatorio","liveOnSave":"Activa al guardar","staysOff":"Queda apagada","browse":"Ver mis recetas"},
   "introDocs": "Lee la guía",
-  "introStart": "Inicio",
-  "introWhenLabel": "Cuando",
-  "introWhen": "Alguien hace un cheer de 1000 bits",
-  "introIfLabel": "Solo si",
-  "introIf": "El stream está en directo",
-  "introDoLabel": "Hacer",
-  "introDo": "Da las gracias y cambia las luces",
-  "introEasierTitle": "Más fácil y rápido de crear",
-  "introCommands": "Comandos",
-  "introCommandsBody": "Responde cuando alguien escribe !socials",
-  "introAlerts": "Alertas de chat",
-  "introAlertsBody": "Agradece los follows, subs, cheers y raids",
-  "introTimers": "Temporizadores",
-  "introTimersBody": "Repite un mensaje mientras estés en directo",
   "connectExisting": "Conectar a un paso del tablero",
   "connectHint": "Toca un paso para conectar",
   "connectCancel": "Cancelar",
@@ -25,7 +12,6 @@
   "linkedRemove": "Conectado. Selecciona para eliminar.",
   "noteConnected": "Pasos conectados.",
   "noteDisconnected": "Conexión eliminada.",
-  "noteRemoved": "Paso eliminado.",
   "noteDuplicated": "Paso duplicado.",
   "noteUndo": "Deshecho.",
   "noteRedo": "Rehecho.",
@@ -86,18 +72,21 @@
   "warnAlertOff": "Guardado, pero la alerta integrada sigue activada, por lo que los espectadores podrían ver ambas.",
   "warnAlertsOn": "El módulo de alertas de chat estaba desactivado y ahora está activado.",
   "unsupportedTitle": "Esta receta no se puede abrir aquí todavía",
-  "unsupportedBody": "Usa un paso que el creador no puede dibujar. Sigue ejecutándose y puedes editarla en Automatizaciones.",
-  "unsupportedCta": "Abrir Automatizaciones",
+  "unsupportedBody": "Abre esta receta en su editor original para cambiarla.",
+  "unsupportedCta": "Abrir editor original",
   "issue": {
+    "permRequired": "Este comando necesita un nivel de usuario más alto para este paso. Añade antes una comprobación de nivel de usuario.",
     "noTrigger": "Añade un paso Cuando para iniciar esta receta.",
     "multipleTriggers": "Una receta solo puede empezar de una forma. Elimina el paso Cuando adicional.",
     "cycle": "Este paso crea un bucle sobre sí mismo. Elimina una de las conexiones.",
     "unconnectedNode": "Este paso no está conectado al inicio. Conéctalo o elimínalo.",
-    "unstructuredMerge": "Dos rutas se unen aquí de una forma que no se puede guardar. Asigna a cada ruta sus propios pasos.",
+    "unknownPort": "Una conexión sale de un puerto que este paso no tiene. Vuelve a conectarla.",
+    "unstructuredMerge": "Una ruta con Esperar no puede unirse a otra ruta. Mueve Esperar después de la unión o dale a cada ruta sus propios pasos.",
     "unsupportedNode": "Este paso no se puede guardar todavía.",
     "unsupportedTrigger": "Este inicio no se puede guardar todavía.",
     "unsupportedCondition": "Esta comprobación no se puede guardar todavía.",
     "unsupportedAction": "Esta acción no se puede guardar todavía.",
+    "unsupportedDisabledControlFlow": "Una comprobación o grupo desactivado no se puede abrir aquí. Edítalo en Automatizaciones.",
     "waitTooLong": "Esta espera es más larga de lo que una receta puede pausarse.",
     "unmappableToken": "{token} no está disponible con este inicio. Elimínalo o cambia el inicio.",
     "userNotResolved": "Elige un usuario de Twitch. Escribe un nombre y sal del campo para que se pueda comprobar.",
@@ -107,6 +96,7 @@
     "duplicate": "Ya existe una receta como esta.",
     "tooMany": "Has alcanzado el límite de recetas.",
     "required": "Falta un valor.",
+    "requiredField": "Falta {field}.",
     "tooLong": "Un valor es demasiado largo.",
     "tooShort": "Un valor es demasiado corto.",
     "outOfRange": "Un número está fuera del rango permitido.",
@@ -117,7 +107,9 @@
     "nesting": "Las comprobaciones están anidadas a demasiada profundidad.",
     "delayBudget": "Las esperas suman más de lo que una receta puede pausarse.",
     "name": "Asigna a la receta un nombre usando letras, números y espacios, de hasta 64 caracteres.",
-    "generic": "Algo en esta receta no se puede guardar ({code})."
+    "generic": "Revisa los ajustes de este paso e intenta guardar de nuevo.",
+    "nothingToChange": "Cambia al menos un campo.",
+    "invalidTags": "Usa hasta 10 etiquetas de un máximo de 25 letras o dígitos cada una."
   },
   "choose": {
     "reward": "Elige una recompensa",
@@ -125,15 +117,17 @@
     "scene": "Elige una escena",
     "light": "Elige primero una luz",
     "namedCooldown": "Elige un temporizador",
-    "namedCountdown": "Elige una cuenta atrás"
+    "namedCountdown": "Elige una cuenta atrás",
+    "recipe": "Elige una receta"
   },
   "choiceEmpty": {
     "rewards": "Aún no hay recompensas de puntos del canal. Crea una en Puntos del canal.",
     "manageableRewards": "Twitch solo nos permite cambiar recompensas creadas aquí. Crea una en Puntos del canal.",
     "counters": "Aún no hay contadores. Crea uno en Contadores.",
     "scenes": "Esta luz no tiene escenas.",
-    "namedCooldowns": "Ninguna receta nombra un temporizador todavía. Dale un nombre en su enfriamiento.",
-    "namedCountdowns": "Aún no se ha iniciado una cuenta atrás en una receta."
+    "namedCooldowns": "Añade primero un paso de enfriamiento y dale un nombre.",
+    "namedCountdowns": "Añade primero un paso para iniciar una cuenta atrás.",
+    "recipes": "Crea otra receta para poder elegirla aquí."
   },
   "choiceProblem": {
     "rewards": "No se pudieron cargar tus recompensas.",
@@ -141,17 +135,19 @@
     "scenes": "No se pudieron cargar las escenas de esta luz.",
     "keyRejected": "Govee no aceptó tu clave de API.",
     "namedCooldowns": "No se pudieron cargar los temporizadores de tus recetas.",
-    "namedCountdowns": "No se pudieron cargar las cuentas atrás."
+    "namedCountdowns": "No se pudieron cargar las cuentas atrás.",
+    "recipes": "No se pudieron cargar tus recetas."
   },
   "choiceMissing": "\"{name}\" ya no está en la lista.",
   "choiceUnowned": "Ninguna receta es dueña de \"{name}\" todavía. Esto no hará nada hasta que una lo sea.",
-  "choiceRetry": "Reintentar",
+  "choiceRetry": "Actualizar",
   "choiceLoading": "Cargando",
   "setup": {
     "line": "Desactivado hasta configurar",
     "stepNote": "Este paso sigue desactivado hasta que lo completes.",
     "pickReward": "Elige una recompensa",
     "addUrl": "Añade una URL",
-    "refused": "Completa los pasos que necesitan configuración, guarda y luego activa esto."
+    "refused": "Completa los pasos que necesitan configuración, guarda y luego activa esto.",
+    "pickRecipe": "Elige una receta para el paso «Ejecutar otra receta»."
   }
 }

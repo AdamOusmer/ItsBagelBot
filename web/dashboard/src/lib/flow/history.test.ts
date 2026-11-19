@@ -3,7 +3,8 @@
 import { describe, expect, test } from 'bun:test';
 import { COALESCE_MS, FlowHistory } from './history';
 import type { Flow } from './model';
-import { addNode, connect, duplicateNode, removeEdge, removeNode } from './ops';
+import { connect, deleteNode, duplicateNode, removeEdge } from './ops';
+import { addNode } from './ops.testing';
 
 const fresh = (): Flow => ({
   id: 'f',
@@ -16,6 +17,17 @@ const fresh = (): Flow => ({
 const ids = (f: Flow) => f.nodes.map((n) => n.id);
 
 describe('FlowHistory', () => {
+  test.each(['undo', 'redo'] as const)('publishes a detached draft snapshot after %s', (way) => {
+    const flow = fresh();
+    const history = new FlowHistory(flow);
+    const before = history.snapshot;
+    flow.nodes[0].config.trigger = '!new';
+    history.sync(flow);
+    history.undo(flow);
+    if (way === 'redo') history.redo(flow);
+    expect([before.nodes[0].config.trigger, history.snapshot.nodes[0].config.trigger, history.snapshot.nodes === flow.nodes]).toEqual(['!hug', way === 'redo' ? '!new' : '!hug', false]);
+  });
+
   test('undo and redo walk back through add, connect, disconnect, duplicate and remove', () => {
     const flow = fresh();
     const h = new FlowHistory(flow);
@@ -30,7 +42,7 @@ describe('FlowHistory', () => {
     step(() => void connect(flow, { from: 't', port: 'next', to: reply.id }));
     step(() => removeEdge(flow, flow.edges[0].id));
     step(() => void duplicateNode(flow, reply.id));
-    step(() => removeNode(flow, reply.id));
+    step(() => void deleteNode(flow, reply.id));
 
     expect(ids(flow)).toHaveLength(2);
     h.undo(flow);
@@ -149,7 +161,7 @@ describe('FlowHistory', () => {
 
     const reply = addNode(flow, 'reply.chat', { x: 368, y: 24 });
     h.sync(flow, 5000);
-    removeNode(flow, reply.id);
+    deleteNode(flow, reply.id);
     h.sync(flow, 9000);
     h.undo(flow);
     expect(flow.nodes.find((n) => n.id === reply.id)).toMatchObject({ x: 368, y: 24 });

@@ -1,0 +1,30 @@
+[
+  {
+    "path": "actions[0].params.scene_value",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[1].params.scene_value",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[2].params.scene_value",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[3].params.scene_value",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[4].params.scene_value",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[5].params.scene_value",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[6].params.scene_value",
+    "code": "invalid_format"
+  }
+]

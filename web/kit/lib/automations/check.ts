@@ -2,8 +2,16 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { CODE, MAX_LOGIN_TEMPLATE, MAX_TEMPLATE_LENGTH } from './limits';
+import { lex } from '../engine/tmpl';
 import { allChars, runeCount, type CharTest, type Text } from './text';
-import type { Issue } from './types';
+import { TARGET_MODES, type Issue, type TargetAction } from './types';
+
+export const TARGET_SCHEMA = { who: 'string', user_id: 'string', login: 'string' } as const;
+export const TARGET_DEFAULTS = { who: 'login' };
+
+const targetModes: readonly Text[] = TARGET_MODES;
+const TARGET_USER_ID_PATTERN = /^[0-9]+$/;
+const ACTION_LOGIN_PATTERN = /^[a-z0-9_]{4,25}$/i;
 
 type Field = string;
 type Count = number;
@@ -14,6 +22,8 @@ interface Bounds {
   hi: Limit;
   over: Text;
 }
+
+export type TargetParams = Record<keyof TargetAction, Text>;
 
 export class Chk {
   kind = '';
@@ -44,8 +54,8 @@ export class Chk {
     return this.withKind(new Chk(this.out, `${this.path}[${i}]`, this.trigger, this.depth, this.perm, this.eventAmount));
   }
 
-  nest(): Chk {
-    return this.withKind(new Chk(this.out, this.path, this.trigger, this.depth + 1, this.perm, this.eventAmount));
+  nest(perm = this.perm): Chk {
+    return this.withKind(new Chk(this.out, this.path, this.trigger, this.depth + 1, perm, this.eventAmount));
   }
 
   bound(field: Field, n: Count, { lo, hi, over }: Bounds): boolean {
@@ -73,7 +83,20 @@ export class Chk {
   }
 
   login(field: Field, s: Text, lo: Limit): boolean {
-    return this.text(field, s, lo, MAX_LOGIN_TEMPLATE);
+    if (!this.text(field, s, lo, MAX_LOGIN_TEMPLATE)) return false;
+    if (s === '' || lex(s).some((token) => token.kind === 'var')) return true;
+    if (ACTION_LOGIN_PATTERN.test(s.replace(/^@/, ''))) return true;
+    this.add(field, CODE.invalidFormat);
+    return false;
+  }
+
+  target({ who, login, user_id }: TargetParams, legacyLoginMin: Limit): void {
+    if (!targetModes.includes(who)) {
+      this.add('who', CODE.invalidEnum);
+      return;
+    }
+    this.login('login', login, who === 'login' ? legacyLoginMin : 0);
+    if (who === 'user' || user_id !== '') this.format('user_id', user_id, TARGET_USER_ID_PATTERN);
   }
 
   inRange(field: Field, n: Count, lo: Limit, hi: Limit): void {

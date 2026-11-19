@@ -1,0 +1,9 @@
+{
+  "label": "Announcement",
+  "summary": "Post a highlighted message in chat",
+  "keywords": "announce announcement broadcast message color",
+  "field": {
+    "text": { "label": "Message" },
+    "color": { "label": "Color", "option": { "primary": "Channel color", "blue": "Blue", "green": "Green", "orange": "Orange", "purple": "Purple" } }
+  }
+}

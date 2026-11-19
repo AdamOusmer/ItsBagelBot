@@ -1,0 +1,8 @@
+{
+  "viewer": "Viewer",
+  "sub": "Subscriber",
+  "vip": "VIP",
+  "mod": "Moderator",
+  "lead_mod": "Lead moderator",
+  "broadcaster": "Streamer"
+}

@@ -1,0 +1,11 @@
+{
+  "label": "Vetar",
+  "summary": "Expulsa a un espectador de forma permanente",
+  "keywords": "vetar banear bloquear espectador moderación",
+  "line": "Vetar: {who}",
+  "field": {
+    "reason": {
+      "label": "Motivo (opcional)"
+    }
+  }
+}

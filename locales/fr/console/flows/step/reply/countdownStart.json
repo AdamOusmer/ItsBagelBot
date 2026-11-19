@@ -1,6 +1,7 @@
 {
   "label": "Démarrer un compte à rebours",
   "summary": "Démarrer ou relancer un compte à rebours",
+  "line": "Démarrer {name} pour {seconds}",
   "field": {
     "name": {
       "label": "Nom",

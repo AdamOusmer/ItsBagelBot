@@ -21,6 +21,9 @@
     "reward_id": "ID de la récompense",
     "cost": "Coût de la récompense",
     "input": "Texte saisi par le spectateur",
+    "title": "Titre du stream",
+    "category": "Nom de la catégorie",
+    "category_id": "Identifiant de la catégorie",
     "type": "Type de stream",
     "id": "Identifiant de la demande de déban",
     "text": "Texte de la demande de déban"

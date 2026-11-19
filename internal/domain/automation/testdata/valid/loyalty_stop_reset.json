@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "trigger": { "type": "command", "params": { "name": "!reset" } },
+  "conditions": [{ "type": "perm", "params": { "level": "mod" } }],
+  "actions": [
+    { "type": "countdown_stop", "params": { "name": "Clock2" } },
+    { "type": "cooldown_reset", "params": { "name": "raffle" } }
+  ]
+}

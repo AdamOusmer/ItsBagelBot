@@ -38,6 +38,7 @@ FROM docker.io/oven/bun:1.4.4-distroless@sha256:153a951ae40106e125898103e6e990ee
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV BODY_SIZE_LIMIT=34M
 COPY --from=build /src/web/dashboard/build ./build
 COPY --from=build /runtime/node_modules ./node_modules
 COPY web/serve-node.js ./serve-node.js

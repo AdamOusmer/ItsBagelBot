@@ -1,0 +1,90 @@
+[
+  { "name": "POST with variable and arguments in the path",
+    "action": {"type":"http_post","params":{"url":"https://hooks.example.com/{var:hook}/{args}"}}
+  },
+  { "name": "POST with the full URL from arguments",
+    "action": {"type":"http_post","params":{"url":"{args}"}}
+  },
+  { "name": "POST template with an insecure prefix",
+    "action": {"type":"http_post","params":{"url":"http://hooks.example.com/{args}"}},
+    "issues": [{"path":"actions[0].params.url","code":"invalid_format"}]
+  },
+  { "name": "three waits exceed the delay budget",
+    "action": {"type":"loop","params":{"times":"3","actions":[{"type":"delay","params":{"ms":30000}}]}},
+    "issues": [{"path":"actions","code":"delay_budget"}]
+  },
+  { "name": "two waits fit in the delay budget",
+    "action": {"type":"loop","params":{"times":"2","actions":[{"type":"delay","params":{"ms":25000}}]}}
+  },
+  { "name": "nested repeat counts multiply",
+    "action": {"type":"loop","params":{"times":"3","actions":[{"type":"loop","params":{"times":"2","actions":[{"type":"delay","params":{"ms":11000}}]}}]}},
+    "issues": [{"path":"actions","code":"delay_budget"}]
+  },
+  { "name": "deep repeat costs cannot overflow the budget",
+    "action": {"type":"loop","params":{"times":"100","actions":[{"type":"loop","params":{"times":"100","actions":[{"type":"loop","params":{"times":"100","actions":[{"type":"loop","params":{"times":"100","actions":[{"type":"loop","params":{"times":"100","actions":[{"type":"loop","params":{"times":"100","actions":[{"type":"loop","params":{"times":"100","actions":[{"type":"loop","params":{"times":"100","actions":[{"type":"loop","params":{"times":"100","actions":[{"type":"loop","params":{"times":"100","actions":[{"type":"delay","params":{"ms":1000}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}},
+    "issues": [{"path":"actions","code":"delay_budget"}]
+  },
+  { "name": "zero repeats cost no delay budget",
+    "action": {"type":"loop","params":{"times":"0","actions":[{"type":"loop","params":{"times":"3","actions":[{"type":"delay","params":{"ms":30000}}]}}]}}
+  },
+  { "name": "template times count as one repeat",
+    "action": {"type":"loop","params":{"times":"{args}","actions":[{"type":"delay","params":{"ms":60000}}]}}
+  },
+  { "name": "static loops still count inside template loops",
+    "action": {"type":"loop","params":{"times":"{args}","actions":[{"type":"loop","params":{"times":"3","actions":[{"type":"delay","params":{"ms":30000}}]}}]}},
+    "issues": [{"path":"actions","code":"delay_budget"}]
+  },
+  { "name": "the maximum repeat count is allowed",
+    "action": {"type":"loop","params":{"times":"100","actions":[{"type":"delay","params":{"ms":600}}]}}
+  },
+  { "name": "too many repeats",
+    "action": {"type":"loop","params":{"times":"500","actions":[]}},
+    "issues": [{"path":"actions[0].params.times","code":"out_of_range"}]
+  },
+  { "name": "negative repeats",
+    "action": {"type":"loop","params":{"times":"-2","actions":[]}},
+    "issues": [{"path":"actions[0].params.times","code":"out_of_range"}]
+  },
+  { "name": "repeat count above integer range",
+    "action": {"type":"loop","params":{"times":"999999999999999999999999999","actions":[]}},
+    "issues": [{"path":"actions[0].params.times","code":"out_of_range"}]
+  },
+  { "name": "a bare brace is not a template",
+    "action": {"type":"loop","params":{"times":"2{","actions":[]}},
+    "issues": [{"path":"actions[0].params.times","code":"invalid_format"}]
+  },
+  { "name": "math expression at the rune limit",
+    "action": {"type":"math","params":{"expression":"éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé{args}","save_as":"answer"}}
+  },
+  { "name": "math expression above the rune limit",
+    "action": {"type":"math","params":{"expression":"ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé{args}","save_as":"answer"}},
+    "issues": [{"path":"actions[0].params.expression","code":"too_long"}]
+  },
+  { "name": "split pick requires a position",
+    "action": {"type":"text","params":{"op":"split_pick","input":"a,b","arg1":",","save_as":"answer"}},
+    "issues": [{"path":"actions[0].params.arg2","code":"required"}]
+  },
+  { "name": "split pick rejects a blank position",
+    "action": {"type":"text","params":{"op":"split_pick","input":"a,b","arg1":",","arg2":"  ","save_as":"answer"}},
+    "issues": [{"path":"actions[0].params.arg2","code":"required"}]
+  },
+  { "name": "split pick accepts a template position",
+    "action": {"type":"text","params":{"op":"split_pick","input":"a,b","arg1":",","arg2":"{args}","save_as":"answer"}}
+  },
+  { "name": "split pick accepts the last position",
+    "action": {"type":"text","params":{"op":"split_pick","input":"a,b","arg1":",","arg2":"-1","save_as":"answer"}}
+  },
+  { "name": "replace requires a find value",
+    "action": {"type":"text","params":{"op":"replace","input":"a,b","arg2":"x","save_as":"answer"}},
+    "issues": [{"path":"actions[0].params.arg1","code":"required"}]
+  },
+  { "name": "replace accepts a space as the find value",
+    "action": {"type":"text","params":{"op":"replace","input":"a,b","arg1":" ","save_as":"answer"}}
+  },
+  { "name": "replace accepts a template find value",
+    "action": {"type":"text","params":{"op":"replace","input":"a,b","arg1":"{args}","save_as":"answer"}}
+  },
+  { "name": "count accepts an empty separator",
+    "action": {"type":"text","params":{"op":"count","input":"a,b","save_as":"answer"}}
+  }
+]

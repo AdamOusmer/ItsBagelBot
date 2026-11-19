@@ -1,0 +1,28 @@
+{
+  "label": "Modifier un compteur",
+  "summary": "Augmenter, diminuer ou fixer un compteur nommé",
+  "field": {
+    "counter": {
+      "label": "Compteur"
+    },
+    "change": {
+      "label": "Modification",
+      "option": {
+        "add": "Ajouter",
+        "set": "Fixer"
+      }
+    },
+    "amount": {
+      "label": "Montant",
+      "hint": "Saisissez un nombre négatif pour soustraire"
+    },
+    "value": {
+      "label": "Valeur"
+    }
+  },
+  "line": {
+    "add": "Ajouter {amount} à {counter}",
+    "take": "Retirer {amount} de {counter}",
+    "set": "Fixer {counter} à {value}"
+  }
+}

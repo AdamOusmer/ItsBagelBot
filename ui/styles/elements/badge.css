@@ -20,6 +20,17 @@
         background: var(--badge-bg, var(--tone-bg, transparent));
     }
 
+    .bb-badge--status {
+        gap: var(--bb-space-1);
+        padding: var(--bb-space-1) var(--bb-space-2);
+        border: 0;
+        border-radius: var(--bb-radius-sm);
+        background: var(--badge-bg, var(--tone-bg, transparent));
+        font: 500 var(--bb-text-xs)/var(--bb-space-4) var(--bb-font-body);
+        letter-spacing: normal;
+        text-transform: none;
+    }
+
     .bb-badge.bb-badge--solid.bb-tag {
         color: var(--bb-black);
         border-color: var(--tone, var(--bb-tan));

@@ -27,6 +27,7 @@ type Message struct {
 	As                  string           `json:"as,omitempty"`
 	Color               string           `json:"color,omitempty"`
 	To                  string           `json:"to,omitempty"`
+	TargetUserID        string           `json:"target_user_id,omitempty"`
 	MsgID               string           `json:"msg_id,omitempty"`
 	RewardID            string           `json:"reward_id,omitempty"`
 	RedemptionID        string           `json:"redemption_id,omitempty"`

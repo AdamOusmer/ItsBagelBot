@@ -1,0 +1,18 @@
+{
+  "label": "Add time to countdown",
+  "summary": "Extend a running countdown",
+  "line": "Add {seconds} to {name}",
+  "field": {
+    "name": {
+      "label": "Countdown"
+    },
+    "seconds": {
+      "label": "Add",
+      "range": "Use 1 second to {days} days."
+    },
+    "per": {
+      "label": "For every",
+      "hint": "Only on cheer and gift sub triggers. Leave empty to add time once."
+    }
+  }
+}

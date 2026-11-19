@@ -4,10 +4,6 @@
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
 @layer bb.elements {
-  /* A full-bleed canvas page: floating top bar, optional floating tool rail, a
-     dot-backed board, and up to two floating side panels that become bottom
-     sheets on touch/narrow widths. Consumers own the canvas content and any
-     domain behavior (pan/zoom, drag-to-dismiss); this contract owns chrome. */
   .bb-editor-stage {
     position: relative;
     display: flex;
@@ -49,9 +45,12 @@
   }
 
   .bb-editor-stage__bar-start {
+    flex: 1;
     gap: 12px;
     padding-inline-end: 14px;
   }
+  .bb-editor-stage__bar-end { flex: none; }
+  .bb-editor-stage__bar-start > * { min-width: 0; }
 
   .bb-editor-stage--slim-bar .bb-editor-stage__bar {
     top: var(--stage-top, 0px);
@@ -110,6 +109,7 @@
     top: calc(var(--stage-top, 0px) + 80px);
     bottom: 16px;
     min-height: 0;
+    max-height: var(--stage-sheet-limit, none);
   }
 
   .bb-editor-stage__panel--left {
@@ -132,8 +132,33 @@
     width: var(--editor-panel-right, 360px);
   }
 
+  .bb-editor-stage__panel--hidden {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
   .bb-editor-stage__grip {
     display: none;
+  }
+
+  @media (min-width: 761px) and (max-width: 1279px) {
+    .bb-editor-stage--compact-panels .bb-editor-stage__panel {
+      position: fixed;
+      top: auto;
+      right: 0;
+      bottom: var(--stage-kb, 0px);
+      left: var(--stage-board-left, 0px);
+      z-index: 70;
+      width: auto;
+      height: min(var(--stage-sheet-h, 56dvh), calc(var(--stage-vvh, 100dvh) - 64px));
+      border-radius: var(--bb-radius-md) var(--bb-radius-md) 0 0;
+      background: var(--bb-bg-1);
+      box-shadow: 0 -16px 48px rgba(var(--bb-shadow-rgb), 0.65);
+      overflow: hidden;
+    }
+    .bb-editor-stage--compact-panels.bb-editor-stage--has-rail .bb-editor-stage__panel--left {
+      left: var(--stage-board-left, 0px);
+    }
   }
 
   /* Must stay the exact complement of the bottom-sheet media query below, or both match at once and fight over top. */
@@ -167,6 +192,18 @@
   }
 
   @media (max-width: 760px), (pointer: coarse) and (max-height: 520px) {
+    .bb-editor-stage--stack-bar .bb-editor-stage__bar {
+      flex-wrap: wrap;
+    }
+
+    .bb-editor-stage--stack-bar .bb-editor-stage__bar-start {
+      flex-basis: 100%;
+    }
+
+    .bb-editor-stage--stack-bar .bb-editor-stage__bar-end {
+      margin-inline-start: auto;
+    }
+
     body:has(.bb-editor-stage) .bb-popover--bottom {
       display: none;
     }
@@ -233,7 +270,7 @@
     }
 
     .bb-editor-stage__panel--left {
-      height: min(calc(var(--stage-sheet-h, 56dvh) * 1.25), calc(var(--stage-vvh, 100dvh) - 64px));
+      height: min(var(--stage-sheet-drag, calc(var(--stage-sheet-h, 56dvh) * 1.25)), calc(var(--stage-vvh, 100dvh) - 64px));
     }
 
     .bb-editor-stage__grip {
@@ -297,6 +334,30 @@
   @media (prefers-reduced-motion: reduce) {
     .bb-editor-stage__panel {
       animation: none;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    body:has(.bb-editor-stage__panel) .bb-toast-stack {
+      top: calc((var(--bb-topbar-height) - 48px) / 2 + 8px);
+      right: auto;
+      bottom: auto;
+      left: 50%;
+      translate: -50% 0;
+    }
+  }
+
+  @media (min-width: 761px) and (max-width: 1279px) {
+    body:has(.bb-editor-stage__panel) .bb-toast-stack {
+      top: calc(var(--bb-topbar-height) + 84px);
+      bottom: auto;
+    }
+  }
+
+  @media (max-width: 760px), (pointer: coarse) and (max-width: 1023px) {
+    body:has(.bb-editor-stage__panel) .bb-toast-stack {
+      top: calc(var(--bb-topbar-height) + 140px);
+      bottom: auto;
     }
   }
 }

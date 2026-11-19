@@ -1,0 +1,21 @@
+{
+  "label": "Exibir um anúncio",
+  "summary": "Inicie agora um intervalo comercial",
+  "line": "Exibir um anúncio de {seconds}",
+  "field": {
+    "seconds": {
+      "label": "Duração",
+      "option": {
+        "30": "30 segundos",
+        "60": "1 minuto",
+        "90": "1 minuto e 30 segundos",
+        "120": "2 minutos",
+        "150": "2 minutos e 30 segundos",
+        "180": "3 minutos"
+      }
+    },
+    "confirm": {
+      "label": "Confirmar no chat"
+    }
+  }
+}

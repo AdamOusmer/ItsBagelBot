@@ -1,0 +1,46 @@
+{
+  "label": "Régler les lumières",
+  "summary": "Couleur, scène, blanc, allumage ou extinction des lumières Govee",
+  "field": {
+    "device": {
+      "label": "Lumière"
+    },
+    "mode": {
+      "label": "Définir",
+      "option": {
+        "color": "Couleur",
+        "scene": "Scène",
+        "white": "Blanc",
+        "on": "Allumer",
+        "off": "Éteindre"
+      }
+    },
+    "color": {
+      "label": "Couleur"
+    },
+    "scene": {
+      "label": "Scène",
+      "hint": "Utilise la liste de scènes de la première lumière."
+    },
+    "liveOnly": {
+      "label": "Seulement en direct"
+    },
+    "kelvin": {
+      "label": "Température du blanc"
+    },
+    "brightness": {
+      "label": "Luminosité",
+      "placeholder": "Conserver",
+      "unit": "%"
+    },
+    "holdS": {
+      "label": "Rétablir après",
+      "hint": "Les lumières retrouvent leur état précédent. Si une scène était active, sa dernière couleur est rétablie.",
+      "range": "Utilisez une durée de 0 à {max} secondes."
+    }
+  },
+  "noColors": "Cette lumière ne propose pas de couleurs",
+  "noWarmth": "Le blanc de cette lumière n’est pas réglable",
+  "noLights": "Aucune lumière Govee contrôlable n’a été trouvée.",
+  "noLightsBody": "Ajoutez une lumière à votre compte depuis l’application Govee."
+}

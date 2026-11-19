@@ -1,0 +1,46 @@
+[
+  {
+    "path": "actions[0].params",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[10].params.mode",
+    "code": "invalid_enum"
+  },
+  {
+    "path": "actions[1].params.text",
+    "code": "required"
+  },
+  {
+    "path": "actions[2].params.value",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[3].params.value",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[4].params.value",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[5].params.value",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[6].params.points_per_vote",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[7].params.points_per_vote",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[8].params.login",
+    "code": "required"
+  },
+  {
+    "path": "actions[9].params.winner",
+    "code": "required"
+  }
+]

@@ -1,4 +1,10 @@
 {
+  "who": {
+    "viewer": "The viewer",
+    "mention": "Who they @mention",
+    "user": "A set viewer",
+    "login": "Viewer login"
+  },
   "match": {
     "start": "Starts with",
     "exact": "Exact",
@@ -30,6 +36,8 @@
     "offline": "Offline"
   },
   "op": {
+    "starts": "starts with",
+    "not_exists": "is not set",
     "contains": "contains",
     "eq": "equals",
     "ne": "is not",
@@ -45,7 +53,8 @@
     "replace": "Replace",
     "substring": "Take a part",
     "split_pick": "Split and pick one",
-    "url_encode": "Make safe for a link"
+    "url_encode": "Make safe for a link",
+    "count": "Count items"
   },
   "scope": {
     "channel": "The channel",
@@ -73,7 +82,11 @@
     "followers": "Followers only",
     "slow": "Slow mode",
     "subscribers": "Subscribers only",
-    "unique": "Unique messages"
+    "unique": "Unique messages",
+    "chat_delay": "Chat delay",
+    "white": "White",
+    "on": "On",
+    "off": "Off"
   },
   "kind": {
     "text": "Text",
@@ -88,6 +101,7 @@
       },
       "cheer": "Cheer",
       "raid": "Incoming raid",
+      "update": "Title or category changes",
       "ad_break": {
         "begin": "Ad break begins"
       },

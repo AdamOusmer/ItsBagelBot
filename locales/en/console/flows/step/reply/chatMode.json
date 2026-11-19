@@ -1,6 +1,11 @@
 {
   "label": "Set chat mode",
-  "summary": "Set chat mode",
+  "summary": "Change who can chat and how often",
+  "line": {
+    "on": "{mode} on",
+    "off": "{mode} off",
+    "slow": "{mode} on, {wait}"
+  },
   "field": {
     "mode": {
       "label": "Chat mode",
@@ -9,14 +14,28 @@
         "followers": "Followers only",
         "slow": "Slow mode",
         "subscribers": "Subscribers only",
-        "unique": "Unique messages"
+        "unique": "Unique messages",
+        "chat_delay": "Chat delay"
       }
     },
     "on": {
       "label": "Enabled"
     },
-    "value": {
-      "label": "Seconds in slow mode; minutes in follower-only mode"
+    "wait": {
+      "label": "Time between messages",
+      "range": "Use 3 to 120 seconds."
+    },
+    "followAge": {
+      "label": "Minimum time following",
+      "unit": "minutes"
+    },
+    "delay": {
+      "label": "Delay",
+      "option": {
+        "2": "2 seconds",
+        "4": "4 seconds",
+        "6": "6 seconds"
+      }
     }
   }
 }

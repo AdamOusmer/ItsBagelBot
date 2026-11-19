@@ -65,6 +65,13 @@ func (m *MarkedLongCooldowns) ReleaseLongCooldowns(ctx context.Context, hold Lon
 	return err
 }
 
+func (m *MarkedLongCooldowns) ResetLongCooldown(ctx context.Context, ref NamedCooldownRef) error {
+	if err := m.store.ResetLongCooldown(ctx, ref); err != nil {
+		return err
+	}
+	return m.markers.ClearNamed(ctx, ref.BroadcasterID, ref.Name)
+}
+
 // PeekLongCooldowns reads each marker's stored expiry, which outlasts a marker capped at a day, and only asks the store for windows with no marker.
 func (m *MarkedLongCooldowns) PeekLongCooldowns(ctx context.Context, claim LongCooldownClaim) ([]modulesrpc.CooldownWindow, error) {
 	live := make([]modulesrpc.CooldownWindow, 0, len(claim.Windows))

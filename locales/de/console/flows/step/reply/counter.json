@@ -1,0 +1,28 @@
+{
+  "label": "Zähler ändern",
+  "summary": "Einen benannten Zähler erhöhen, verringern oder setzen",
+  "field": {
+    "counter": {
+      "label": "Zähler"
+    },
+    "change": {
+      "label": "Änderung",
+      "option": {
+        "add": "Hinzufügen",
+        "set": "Setzen"
+      }
+    },
+    "amount": {
+      "label": "Menge",
+      "hint": "Gib zum Abziehen eine negative Zahl ein"
+    },
+    "value": {
+      "label": "Wert"
+    }
+  },
+  "line": {
+    "add": "{counter} um {amount} erhöhen",
+    "take": "{counter} um {amount} verringern",
+    "set": "{counter} auf {value} setzen"
+  }
+}

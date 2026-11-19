@@ -31,7 +31,6 @@
   const { t } = getI18n();
 
   let introDismissed = $state(false);
-  const showIntro = $derived(!data.introSeen && !introDismissed);
 
   let changes = $state<Record<string, { enabled: boolean; revision: string }>>({});
   let gone = $state<string[]>([]);
@@ -49,6 +48,7 @@
   const cards = $derived(
     data.flows.filter((flow) => !gone.includes(flow.id)).map((flow) => ({ ...flow, ...changes[flow.id] }))
   );
+  const showIntro = $derived(cards.length === 0 || (!data.introSeen && !introDismissed));
 
   let query = $state('');
   const needle = $derived(query.trim().toLowerCase());
@@ -74,6 +74,10 @@
     if (runsOpen) void loadRuns();
   }
 
+  function needsRefresh(reply: ToggleReply | DeleteReply | null, reasons: readonly string[]): boolean {
+    return reply?.ok === false && reasons.includes(reply.reason);
+  }
+
   async function toggle(flow: FlowCard, next: boolean) {
     const before = { enabled: flow.enabled, revision: flow.revision };
     changes[flow.id] = { enabled: next, revision: flow.revision };
@@ -89,7 +93,7 @@
     }
     changes[flow.id] = before;
     toast('danger', reply ? toggleMessage(t, reply) : t('flows.toggleFailed'));
-    if (reply && !reply.ok && reply.reason !== 'failed') await invalidateAll();
+    if (needsRefresh(reply, ['conflict', 'not_found', 'denied', 'needs_setup'])) await invalidateAll();
   }
 
   async function remove() {
@@ -107,7 +111,7 @@
       return;
     }
     toast('danger', reply ? deleteMessage(t, reply) : t('flows.deleteFailed'));
-    if (reply && !reply.ok && reply.reason === 'not_found') await invalidateAll();
+    if (needsRefresh(reply, ['not_found'])) await invalidateAll();
   }
 </script>
 
@@ -118,7 +122,7 @@
 {#if data.locked}
   <PremiumGate />
 {:else if showIntro}
-  <FlowsIntro name={data.navLabels['nav.flows']} ondismiss={() => (introDismissed = true)} />
+  <FlowsIntro name={data.navLabels['nav.flows']} canDismiss={cards.length > 0} ondismiss={() => (introDismissed = true)} />
 {:else}
 <div class="landing" data-sveltekit-preload-code="eager">
   <PageHead

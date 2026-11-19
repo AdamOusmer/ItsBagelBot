@@ -37,23 +37,26 @@ func TestChannelInfo(t *testing.T) {
 }
 
 func TestSearchCategory(t *testing.T) {
+	const categories = `{"data":[{"id":"1","name":"Fortnite Festival"},{"id":"2","name":"Fortnite"}]}`
 	tests := []struct {
-		name   string
-		body   string
-		wantOK bool
-		want   Category
+		name  string
+		query string
+		body  string
+		want  Category
 	}{
-		{"returns the first hit", `{"data":[{"id":"33214","name":"Fortnite"}]}`, true, Category{ID: "33214", Name: "Fortnite"}},
-		{"reports a miss", `{"data":[]}`, false, Category{}},
+		{"prefers the exact match", "fortnite", categories, Category{ID: "2", Name: "Fortnite"}},
+		{"falls back to the first hit", "fort", categories, Category{ID: "1", Name: "Fortnite Festival"}},
+		{"ignores empty IDs", "fort", `{"data":[{"name":"Fort"},{"id":"2","name":"Fortnite"}]}`, Category{ID: "2", Name: "Fortnite"}},
+		{"reports a miss", "fort", `{"data":[]}`, Category{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := channelClient(respondWith(http.StatusOK, tt.body))
 
-			cat, ok, err := c.SearchCategory(context.Background(), "fort")
+			cat, ok, err := c.SearchCategory(context.Background(), tt.query)
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.want.ID != "", ok)
 			assert.Equal(t, tt.want, cat)
 		})
 	}

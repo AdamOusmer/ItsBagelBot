@@ -1,0 +1,218 @@
+{
+  "op": {
+    "eq": "is equal to",
+    "ne": "is not equal to",
+    "gt": "is more than",
+    "gte": "is at least",
+    "lt": "is less than",
+    "lte": "is at most",
+    "contains": "contains",
+    "starts": "starts with",
+    "exists": "is set to anything",
+    "not_exists": "is not set"
+  },
+  "role": {
+    "label": "User level",
+    "summary": "Check the viewer's role",
+    "warning": "Roles are known only for chat triggers and countdowns. On this trigger everyone counts as a viewer.",
+    "remove": "Remove check, keep Allowed steps",
+    "everyoneNote": "Everyone passes, so this check never blocks.",
+    "field": {
+      "level": {
+        "label": "At least",
+        "option": {
+          "everyone": "Everyone",
+          "sub": "Subscriber",
+          "vip": "VIP",
+          "mod": "Moderator",
+          "lead_mod": "Lead moderator",
+          "broadcaster": "Broadcaster"
+        }
+      }
+    },
+    "out": {
+      "yes": "Allowed",
+      "no": "Blocked"
+    }
+  },
+  "user": {
+    "label": "Viewer list",
+    "summary": "Allow or block selected viewers",
+    "repick": "Re-pick to save by id",
+    "removeViewer": "Remove {name}",
+    "field": {
+      "mode": {
+        "label": "Mode",
+        "option": {
+          "only": "Only these viewers",
+          "except": "Everyone except these"
+        }
+      },
+      "users": {
+        "label": "Viewers",
+        "placeholder": "itsbagelbot"
+      }
+    },
+    "out": {
+      "yes": "Passes",
+      "no": "Blocked"
+    }
+  },
+  "compare": {
+    "label": "Compare value",
+    "summary": "Compare two numbers or bits of text",
+    "field": {
+      "left": {
+        "label": "Value",
+        "placeholder": "{bits}"
+      },
+      "op": {
+        "label": "Is",
+        "option": {
+          "gte": "at least",
+          "lt": "less than",
+          "eq": "equal to",
+          "contains": "contains"
+        }
+      },
+      "right": {
+        "label": "This value",
+        "placeholder": "1000"
+      },
+      "matchCase": {
+        "label": "Match case"
+      }
+    },
+    "out": {
+      "yes": "Yes",
+      "no": "No"
+    }
+  },
+  "chance": {
+    "alwaysNote": "Always passes.",
+    "label": "Random chance",
+    "summary": "Pass some of the time",
+    "field": {
+      "percent": {
+        "label": "Chance",
+        "unit": "%"
+      }
+    },
+    "out": {
+      "yes": "Hit",
+      "no": "Miss"
+    }
+  },
+  "live": {
+    "label": "Live or offline",
+    "summary": "Check whether your stream is live",
+    "field": {
+      "state": {
+        "label": "Stream is",
+        "option": {
+          "live": "Live",
+          "offline": "Offline"
+        }
+      }
+    },
+    "line": {
+      "live": "Stream is live",
+      "offline": "Stream is offline"
+    },
+    "out": {
+      "yes": "Live",
+      "no": "Offline"
+    }
+  },
+  "category": {
+    "label": "Game category",
+    "summary": "Check the category set on your channel",
+    "field": {
+      "mode": {
+        "label": "Mode",
+        "option": {
+          "allow": "Is one of",
+          "deny": "Is not one of"
+        }
+      },
+      "games": {
+        "label": "Games",
+        "hint": "Uses the category set on your channel, even when offline."
+      }
+    },
+    "line": {
+      "allow": "Game is {games}",
+      "deny": "Game is not {games}"
+    },
+    "out": {
+      "yes": "Matches",
+      "no": "Other game"
+    }
+  },
+  "pattern": {
+    "label": "Command text matches",
+    "summary": "Match the words after a chat command",
+    "field": {
+      "pattern": {
+        "label": "Pattern",
+        "hint": "A pattern for the words after the command, for example ^[0-9]+$."
+      }
+    },
+    "line": "Command text matches {pattern}",
+    "out": {
+      "yes": "Matches",
+      "no": "No match"
+    }
+  },
+  "follow": {
+    "label": "Follows you",
+    "summary": "Check how long the viewer has followed you",
+    "field": {
+      "minDays": {
+        "label": "For at least",
+        "unit": "days"
+      }
+    },
+    "line": "Follows you for {minDays} days or more",
+    "lineAny": "Follows you",
+    "viewerNote": "Only knows viewers that start this recipe.",
+    "out": {
+      "yes": "Following",
+      "no": "Not following"
+    }
+  },
+  "accountAge": {
+    "label": "Account age",
+    "summary": "Check how old the viewer’s Twitch account is",
+    "field": {
+      "minDays": {
+        "label": "At least",
+        "unit": "days"
+      }
+    },
+    "line": "Account is {minDays} days old or more",
+    "out": {
+      "yes": "Old enough",
+      "no": "Too new"
+    }
+  },
+  "counter": {
+    "label": "Counter value",
+    "summary": "Check the current value of a named counter",
+    "field": {
+      "counter": {
+        "label": "Counter"
+      },
+      "op": {
+        "label": "Is"
+      },
+      "value": {
+        "label": "Value"
+      }
+    },
+    "out": {
+      "yes": "Yes",
+      "no": "No"
+    }
+  }
+}

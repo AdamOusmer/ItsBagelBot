@@ -61,6 +61,7 @@ const (
 	signalNone signal = iota
 	signalStop
 	signalDelay
+	signalRetry
 )
 
 // iter is the loop iteration path the frame resumes under; it scopes effect dedup.
@@ -149,10 +150,19 @@ func (x *actionExec) execList(list []automation.Step) {
 		if x.signal == signalNone {
 			continue
 		}
-		if x.signal == signalDelay && i+1 < len(list) {
-			x.rest = append(x.rest, resume{steps: list[i+1:], iter: x.iter})
-		}
+		x.pauseList(list, i)
 		return
+	}
+}
+
+func (x *actionExec) pauseList(list []automation.Step, index int) {
+	if x.signal == signalRetry {
+		x.signal = signalDelay
+		x.rest = append(x.rest, resume{steps: list[index:], iter: x.iter})
+		return
+	}
+	if x.signal == signalDelay && index+1 < len(list) {
+		x.rest = append(x.rest, resume{steps: list[index+1:], iter: x.iter})
 	}
 }
 
@@ -168,14 +178,19 @@ func (x *actionExec) yieldIfSlow() {
 }
 
 func (x *actionExec) step(s step) {
-	if x.run.Tree.visits.Add(1) > automation.MaxStepVisitsPerRun {
+	if !s.Internal && x.run.Tree.visits.Add(1) > automation.MaxStepVisitsPerRun {
 		x.recordLimited(s, "max_steps")
 		x.signal = signalStop
 		return
 	}
 	x.run.Record.Actions = append(x.run.Record.Actions, automationrpc.ActionRecord{Index: s.Index, Type: s.Type, Status: automationrpc.StatusOK})
 	slot := len(x.run.Record.Actions) - 1
-	status, detail := classify(x.dispatch(s))
+	err := x.dispatch(s)
+	if x.signal == signalRetry {
+		x.run.Record.Actions = x.run.Record.Actions[:slot]
+		return
+	}
+	status, detail := classify(err)
 	x.run.Record.Actions[slot].Status, x.run.Record.Actions[slot].Detail = status, detail
 }
 
@@ -187,7 +202,7 @@ func (x *actionExec) dispatch(s step) error {
 	if !known {
 		return failure("unknown_type")
 	}
-	if automation.IsBranching(s.Type) {
+	if s.Internal || automation.IsBranching(s.Type) {
 		return handler(x, s)
 	}
 	if x.run.Tree.executed.Add(1) > automation.MaxActions {
@@ -233,16 +248,22 @@ func (x *actionExec) queue(o module.Output) error {
 		return skipped("empty")
 	}
 	x.pending = append(x.pending, o)
-	return nil
+	if o.Type == outgress.TypeChat {
+		return nil
+	}
+	if o.ActionSlot != "" {
+		x.run.Record.Actions[len(x.run.Record.Actions)-1].Slot = o.ActionSlot
+		return statusError{automationrpc.StatusSent, rewardQueued}
+	}
+	return statusError{status: automationrpc.StatusSent}
 }
 
 func (x *actionExec) queueText(o module.Output) error {
-	start := len(x.pending)
-	if o.Type == outgress.TypeChat {
-		x.pending = x.p.appendChatLines(x.pending, &o)
-	} else if x.p.prepareCommand(&o) {
-		x.pending = append(x.pending, o)
+	if o.Type != outgress.TypeChat {
+		return x.queue(o)
 	}
+	start := len(x.pending)
+	x.pending = x.p.appendChatLines(x.pending, &o)
 	if len(x.pending) == start {
 		return skipped("empty")
 	}

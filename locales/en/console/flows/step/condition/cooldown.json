@@ -1,0 +1,35 @@
+{
+  "label": "Cooldown",
+  "summary": "Let it run once every few seconds",
+  "field": {
+    "channelSeconds": {
+      "label": "Channel wait",
+      "range": "Use 0 seconds to {days} days."
+    },
+    "viewerSeconds": {
+      "label": "Viewer wait",
+      "range": "Use 0 seconds to {days} days."
+    },
+    "name": {
+      "label": "Name",
+      "placeholder": "subathon",
+      "hint": "A named cooldown can be extended by Add time steps in any recipe. Channel wait only."
+    },
+    "leftCommand": {
+      "label": "Time left command",
+      "placeholder": "!timeleft"
+    },
+    "leftReply": {
+      "label": "Reply while waiting",
+      "placeholder": "{user}, {cooldown:left} left before you can use this again."
+    },
+    "readyReply": {
+      "label": "Reply when ready",
+      "placeholder": "{user}, this is ready to use."
+    }
+  },
+  "out": {
+    "yes": "Ready",
+    "no": "Cooling down"
+  }
+}

@@ -40,12 +40,14 @@ const (
 	ChatModeEmote      = "emote"
 	ChatModeSubscriber = "subscriber"
 	ChatModeUnique     = "unique"
+	ChatModeDelay      = "delay"
 )
 
 type PollCreate struct {
-	Title    string   `json:"title"`
-	Choices  []string `json:"choices"`
-	Duration int      `json:"duration"`
+	Title                string   `json:"title"`
+	Choices              []string `json:"choices"`
+	Duration             int      `json:"duration"`
+	ChannelPointsPerVote int      `json:"channel_points_per_vote,omitempty"`
 }
 
 type PollEnd struct {
@@ -59,8 +61,9 @@ type PredictionCreate struct {
 }
 
 type PredictionEnd struct {
-	Status string `json:"status"`
-	Winner int    `json:"winner,omitempty"`
+	Status  string `json:"status"`
+	Winner  int    `json:"winner,omitempty"`
+	Outcome string `json:"outcome,omitempty"`
 }
 
 type ChatSettings struct {

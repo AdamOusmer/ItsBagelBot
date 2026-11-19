@@ -9,7 +9,7 @@
   import type { BadgeTone } from '../lib/tone';
 
   type Own = {
-    shape?: 'tag' | 'pill';
+    shape?: 'tag' | 'pill' | 'status';
     tone?: BadgeTone;
     mark?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';
     sweep?: boolean;
@@ -40,7 +40,7 @@
   const classes = $derived(
     [
       'bb-tag bb-badge',
-      shape === 'pill' ? 'bb-badge--pill' : null,
+      shape === 'tag' ? null : `bb-badge--${shape}`,
       tone ? `bb-tag--${tone}` : null,
       dashed ? 'bb-badge--dashed' : null,
       solid ? 'bb-badge--solid' : null,

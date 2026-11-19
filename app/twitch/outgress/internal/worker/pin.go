@@ -86,12 +86,9 @@ func (w *Worker) sendPinChat(ctx context.Context, payload *outgress.Message, mod
 }
 
 func (w *Worker) pinMessageID(ctx context.Context, payload, chat *outgress.Message, res *http.Response) (string, error) {
-	status := res.StatusCode
-	if err := w.helixResult(ctx, chat, res); err != nil {
+	outcome, err := w.helixResult(ctx, chat, res)
+	if err != nil || outcome == helixRejected {
 		return "", err
-	}
-	if status >= http.StatusBadRequest {
-		return "", nil
 	}
 
 	messageID, sent, decodeErr := sentChatMessageID(res.Body)

@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "trigger": { "type": "event", "params": { "kind": "channel.update" } },
+  "actions": [{ "type": "points_set", "params": { "amount": 10 } }]
+}

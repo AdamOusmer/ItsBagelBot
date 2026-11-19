@@ -1,0 +1,7 @@
+{
+  "label": "Supprimer le message",
+  "summary": "Supprimer le message qui a déclenché cette recette",
+  "line": "Supprimer le message déclencheur",
+  "note": "Fonctionne uniquement avec une commande du chat comme déclencheur",
+  "keywords": "supprimer effacer chat commande message"
+}

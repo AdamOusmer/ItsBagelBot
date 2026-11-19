@@ -2,7 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
 import type { Flow } from './model';
-import { allowed, neighbor, neighborAfterRemove, readingOrder, resolveShortcut, stepDelta, stepIndex, type KeyLike, type Scopes, type Target } from './keyboard';
+import { allowed, neighbor, readingOrder, resolveShortcut, stepDelta, stepIndex, type KeyLike, type Scopes, type Target } from './keyboard';
+import { english } from './english.testing';
+import { stepSections } from './search';
 
 const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({ key: k, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...mods });
 
@@ -143,15 +145,6 @@ describe('neighbor', () => {
   });
 });
 
-describe('neighborAfterRemove', () => {
-  test('prefers what came next, then the source, then anything left', () => {
-    expect(neighborAfterRemove(flow, 'c')).toBe('yes');
-    expect(neighborAfterRemove(flow, 'no')).toBe('c');
-    expect(neighborAfterRemove(flow, 'lone')).toBe('t');
-    expect(neighborAfterRemove({ ...flow, nodes: [flow.nodes[0]], edges: [] }, 't')).toBeNull();
-  });
-});
-
 describe('readingOrder, stepDelta, stepIndex', () => {
   test('reading order runs by column then row', () => {
     expect(readingOrder(flow).map((n) => n.id)).toEqual(['t', 'c', 'yes', 'no', 'lone']);
@@ -170,4 +163,17 @@ describe('readingOrder, stepDelta, stepIndex', () => {
     expect(stepIndex(1, 3, 'End')).toBe(2);
     expect(stepIndex(0, 0, 'ArrowDown')).toBe(-1);
   });
+});
+
+test('picker navigation crosses group and kind headings in section order', () => {
+  const sections = stepSections(english, '', ['reply', 'condition']);
+  const flat = sections.flatMap(({ specs }) => specs);
+  const firstGroupEnd = sections[0]!.specs.length - 1;
+  const lastReply = flat.findLastIndex((spec) => spec.kind === 'reply');
+  const next = (index: number) => flat[stepIndex(index, flat.length, 'ArrowDown')]?.type;
+  expect([next(firstGroupEnd), next(lastReply), next(flat.length - 1)]).toEqual([
+    sections[1]!.specs[0]!.type,
+    sections.find((section) => section.kind === 'condition')!.specs[0]!.type,
+    sections[0]!.specs[0]!.type
+  ]);
 });

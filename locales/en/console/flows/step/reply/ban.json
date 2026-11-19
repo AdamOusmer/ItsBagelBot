@@ -1,0 +1,11 @@
+{
+  "label": "Ban",
+  "summary": "Remove a viewer for good",
+  "keywords": "ban block viewer moderation",
+  "line": "Ban {who}",
+  "field": {
+    "reason": {
+      "label": "Reason (optional)"
+    }
+  }
+}

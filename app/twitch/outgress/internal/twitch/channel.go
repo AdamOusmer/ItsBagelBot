@@ -20,8 +20,8 @@ type ChannelInfo struct {
 }
 
 type Category struct {
-	ID   string
-	Name string
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 func (c *Client) ChannelInfo(ctx context.Context, broadcasterID string) (ChannelInfo, error) {
@@ -41,7 +41,8 @@ func (c *Client) ChannelInfo(ctx context.Context, broadcasterID string) (Channel
 }
 
 func (c *Client) SearchCategory(ctx context.Context, query string) (Category, bool, error) {
-	res, err := c.request(ctx, c.app, getCall("/helix/search/categories?first=1&query="+url.QueryEscape(query)))
+	query = strings.TrimSpace(query)
+	res, err := c.request(ctx, c.app, getCall("/helix/search/categories?first=10&query="+url.QueryEscape(query)))
 	if err != nil {
 		return Category{}, false, err
 	}
@@ -52,18 +53,29 @@ func (c *Client) SearchCategory(ctx context.Context, query string) (Category, bo
 	}
 
 	var payload struct {
-		Data []struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"data"`
+		Data []Category `json:"data"`
 	}
 	if err := codec.NewDecoder(res.Body).Decode(&payload); err != nil {
 		return Category{}, false, err
 	}
-	if len(payload.Data) == 0 || payload.Data[0].ID == "" {
-		return Category{}, false, nil
+	pick := pickCategory(payload.Data, query)
+	return pick, pick.ID != "", nil
+}
+
+func pickCategory(categories []Category, query string) Category {
+	var first Category
+	for _, category := range categories {
+		if category.ID == "" {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(category.Name), query) {
+			return category
+		}
+		if first.ID == "" {
+			first = category
+		}
 	}
-	return Category{ID: payload.Data[0].ID, Name: payload.Data[0].Name}, true, nil
+	return first
 }
 
 type ChannelPatch struct {

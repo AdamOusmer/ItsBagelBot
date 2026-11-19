@@ -257,10 +257,11 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/nav", budget: 3640 }, // 3511 B: tonal depth on the field trigger and locale menu (2026-10-28)
   { name: "elements/footer", budget: 2460 }, // 2284 B: full-height frame with built-in aurora sky, grain tile and peeking bolota crew; footer no longer loads light-field.css; ~7% room (2026-10-29)
   { name: "elements/shell", budget: 3500 }, // 3200 -> 3500: collapsible rail fold behind an opt-in attribute (2026-11-07)
-  { name: "elements/badge", budget: 320 },
+  { name: "elements/badge", budget: 580 }, // 390 B: status shape for test run outcomes (2026-11-19)
   { name: "elements/chip", budget: 1230 }, // 1114 B: tonal surface fill, lift and focus ring for plain chips (2026-10-29)
   { name: "elements/empty-state", budget: 500 },
   { name: "elements/field", budget: 760 },
+  { name: "elements/field-sheet", budget: 1100 }, // 871 B: label and value rows for step settings, stacked on phones (2026-11-19)
   { name: "elements/search-input", budget: 520 },
   { name: "elements/skeleton", budget: 700 },
   { name: "elements/stat-tile", budget: 980 },
@@ -327,7 +328,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/profile-menu", budget: 2300 }, // 2010 -> 2300: rail footer folds with a collapsible rail (2026-11-07)
   { name: "elements/nav-progress", budget: 510 }, // 310 B: nav progress bar (2026-09-29)
   { name: "elements/dot-canvas", budget: 230 }, // 176 B: shared pannable/static dot backdrop (2026-11-06)
-  { name: "elements/editor-stage", budget: 1450 }, // 1422 B: +slimBar opt-in (one attached top bar instead of three floating pills), still under budget (2026-11-06)
+  { name: "elements/editor-stage", budget: 1800 }, // 1621 B: +tablet compact panels, toast placement beside open panels, grip-resized sheet height (2026-11-17)
 ];
 
 let failed = false;

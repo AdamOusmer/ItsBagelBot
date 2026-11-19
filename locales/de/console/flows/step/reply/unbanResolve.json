@@ -1,0 +1,20 @@
+{
+  "label": "Entsperrantrag beantworten",
+  "summary": "Einen Einspruch annehmen oder ablehnen",
+  "line": {
+    "approve": "Den Entsperrantrag genehmigen",
+    "deny": "Den Entsperrantrag ablehnen"
+  },
+  "field": {
+    "status": {
+      "label": "Antwort",
+      "option": {
+        "approve": "Genehmigen",
+        "deny": "Ablehnen"
+      }
+    },
+    "resolution": {
+      "label": "Nachricht an den Zuschauer (optional)"
+    }
+  }
+}

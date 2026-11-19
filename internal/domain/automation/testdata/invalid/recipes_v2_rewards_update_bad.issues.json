@@ -18,5 +18,17 @@
   {
     "path": "actions[4].params.cost",
     "code": "out_of_range"
+  },
+  {
+    "path": "actions[5].params.cooldown_s",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[6].params.cooldown_s",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[7].params",
+    "code": "invalid_format"
   }
 ]

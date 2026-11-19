@@ -9,10 +9,25 @@
     showLabel = false,
     touch = false,
     onclick
-  }: { label: string; tabindex?: number; showLabel?: boolean; touch?: boolean; onclick: (event: MouseEvent & { currentTarget: HTMLButtonElement }) => void } = $props();
+  }: { label: string; tabindex?: number; showLabel?: boolean; touch?: boolean; onclick: (event: (MouseEvent | PointerEvent) & { currentTarget: HTMLButtonElement }) => void } = $props();
+
+  let pressed = false;
+
+  function pointerDown(event: PointerEvent & { currentTarget: HTMLButtonElement }) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    pressed = true;
+    onclick(event);
+  }
+
+  function click(event: MouseEvent & { currentTarget: HTMLButtonElement }) {
+    if (!pressed || event.detail === 0) onclick(event);
+    pressed = false;
+  }
 </script>
 
-<button class="add" class:labelled={showLabel} class:touch type="button" aria-label={label} title={label} {tabindex} {onclick}>
+<button class="add" class:labelled={showLabel} class:touch type="button" aria-label={label} title={label} {tabindex} onpointerdown={pointerDown} ontouchend={(event) => event.preventDefault()} onclick={click}>
   <Icon name="plus" size={14} strokeWidth={2} />
   {#if showLabel}<span>{label}</span>{/if}
 </button>

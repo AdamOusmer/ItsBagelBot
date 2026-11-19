@@ -1,0 +1,25 @@
+{
+  "label": "Punkte des Zuschauers",
+  "summary": "Den Punktestand des auslösenden Zuschauers prüfen",
+  "field": {
+    "op": {
+      "label": "Ist"
+    },
+    "value": {
+      "label": "Punkte",
+      "unit": "Punkte"
+    }
+  },
+  "out": {
+    "yes": "Ja",
+    "no": "Nein"
+  },
+  "line": {
+    "eq": "Der Zuschauer hat genau {value} Punkte",
+    "ne": "Der Zuschauer hat eine andere Punktzahl als {value}",
+    "gt": "Der Zuschauer hat mehr als {value} Punkte",
+    "gte": "Der Zuschauer hat mindestens {value} Punkte",
+    "lt": "Der Zuschauer hat weniger als {value} Punkte",
+    "lte": "Der Zuschauer hat höchstens {value} Punkte"
+  }
+}

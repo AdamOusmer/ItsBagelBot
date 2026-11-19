@@ -1,0 +1,23 @@
+{
+  "label": "Terminer une prédiction",
+  "summary": "Fermer les paris, rembourser ou choisir un gagnant",
+  "line": {
+    "lock": "Fermer les paris",
+    "cancel": "Annuler et rembourser",
+    "resolve": "Gagnant : {outcome}"
+  },
+  "field": {
+    "status": {
+      "label": "Action",
+      "option": {
+        "lock": "Fermer les paris",
+        "cancel": "Annuler et rembourser",
+        "resolve": "Choisir un gagnant"
+      }
+    },
+    "outcome": {
+      "label": "Résultat gagnant",
+      "hint": "Un numéro ou le nom du résultat"
+    }
+  }
+}

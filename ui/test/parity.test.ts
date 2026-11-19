@@ -427,6 +427,14 @@ const PAIRS: {
       '<i class="bb-mark" aria-hidden="true"></i>Live</span>',
   },
   {
+    name: 'Badge status',
+    svelte: SvelteBadge,
+    astro: AstroBadge,
+    props: { shape: 'status', tone: 'skipped' },
+    slot: 'Skipped',
+    html: '<span class="bb-tag bb-badge bb-badge--status bb-tag--skipped">Skipped</span>',
+  },
+  {
     name: 'Chip',
     svelte: SvelteChip,
     astro: AstroChip,
@@ -455,6 +463,17 @@ const PAIRS: {
       '<label class="bb-field"><span class="bb-field__label">Cooldown' +
       '<small class="bb-tag bb-tag--quiet bb-field__tag">default: 5</small></span>' +
       ' control <small class="bb-field__hint" id="h1">Seconds.</small></label>',
+  },
+  {
+    name: 'Field fit',
+    svelte: SvelteField,
+    astro: AstroField,
+    props: { label: 'Cooldown', tag: 'Optional', fit: true },
+    slot: 'control',
+    html:
+      '<label class="bb-field"><span class="bb-field__label"><span class="bb-field__text bb-fit-box">' +
+      '<bb-fit mode="block">Cooldown</bb-fit></span><small class="bb-tag bb-tag--quiet bb-field__tag">Optional</small></span>' +
+      ' control </label>',
   },
   {
     name: 'SearchInput',

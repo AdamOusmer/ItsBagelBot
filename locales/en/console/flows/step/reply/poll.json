@@ -1,0 +1,22 @@
+{
+  "label": "Start a poll",
+  "summary": "Let viewers vote on a question",
+  "line": "Poll: {title}",
+  "field": {
+    "title": {
+      "label": "Title"
+    },
+    "choices": {
+      "label": "Choices (one per line)"
+    },
+    "seconds": {
+      "label": "Duration (seconds)"
+    },
+    "extraVotes": {
+      "label": "Extra votes with Channel Points"
+    },
+    "pointsPerVote": {
+      "label": "Points per vote"
+    }
+  }
+}

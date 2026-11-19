@@ -1,0 +1,38 @@
+{
+  "label": "Elegir una ruta al azar",
+  "summary": "Elige una ruta según las probabilidades configuradas",
+  "keywords": "dados azar mezclar ponderado",
+  "path": "Ruta {path}",
+  "pathPercent": "{label} ({percent} %)",
+  "field": {
+    "paths": {
+      "label": "Rutas",
+      "option": {
+        "2": "2",
+        "3": "3",
+        "4": "4",
+        "5": "5"
+      }
+    },
+    "weight1": {
+      "label": "Probabilidad de la ruta 1",
+      "unit": "partes"
+    },
+    "weight2": {
+      "label": "Probabilidad de la ruta 2",
+      "unit": "partes"
+    },
+    "weight3": {
+      "label": "Probabilidad de la ruta 3",
+      "unit": "partes"
+    },
+    "weight4": {
+      "label": "Probabilidad de la ruta 4",
+      "unit": "partes"
+    },
+    "weight5": {
+      "label": "Probabilidad de la ruta 5",
+      "unit": "partes"
+    }
+  }
+}

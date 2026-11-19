@@ -66,6 +66,7 @@ var eventKinds = []EventKind{
 	kind("channel.channel_points_custom_reward_redemption.add", viewer(
 		text("reward", "reward.title"), text("reward_id", "reward.id"), num("cost", "reward.cost"),
 		text("input", "user_input"))...),
+	kind("channel.update", text("title", "title"), text("category", "category_name"), text("category_id", "category_id")),
 	kind("stream.online", text("type", "type")),
 	kind("stream.offline"),
 }

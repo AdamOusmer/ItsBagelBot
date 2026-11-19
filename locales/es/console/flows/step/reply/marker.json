@@ -1,0 +1,13 @@
+{
+  "label": "Añadir un marcador",
+  "summary": "Marca este momento en la grabación",
+  "line": "Marcador: {description}",
+  "field": {
+    "description": {
+      "label": "Descripción"
+    },
+    "confirm": {
+      "label": "Confirmar en el chat"
+    }
+  }
+}

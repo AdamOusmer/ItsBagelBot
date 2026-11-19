@@ -14,10 +14,11 @@ import (
 )
 
 var (
-	announceColors   = []string{"", "primary", "blue", "green", "orange", "purple"}
-	commercialLength = []int{30, 60, 90, 120, 150, 180}
+	announceColors     = []string{"", "primary", "blue", "green", "orange", "purple"}
+	commercialLength   = []int{30, 60, 90, 120, 150, 180}
+	actionLoginPattern = regexp.MustCompile(`^[a-zA-Z0-9_]{4,25}$`)
 
-	lightsModes        = enum{LightsModeColor, LightsModeScene}
+	lightsModes        = enum{LightsModeColor, LightsModeScene, LightsModeWhite, LightsModeOn, LightsModeOff}
 	lightsColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 	lightRefPattern    = regexp.MustCompile(`^[^/]{1,64}/[^/]{1,32}$`)
 )
@@ -26,20 +27,29 @@ type TextAction struct {
 	Text string `json:"text"`
 }
 
+type ReplyAction struct {
+	Text   string `json:"text"`
+	Thread bool   `json:"thread,omitempty"`
+}
+
 type AnnounceAction struct {
 	Text  string `json:"text"`
 	Color string `json:"color"`
 }
 
 type TimeoutAction struct {
-	Login   string `json:"login"`
+	TargetAction
 	Seconds int    `json:"seconds"`
 	Reason  string `json:"reason"`
 }
 
 type BanAction struct {
-	Login  string `json:"login"`
+	TargetAction
 	Reason string `json:"reason"`
+}
+
+type UnbanAction struct {
+	TargetAction
 }
 
 type LoginAction struct {
@@ -55,8 +65,18 @@ type ShieldAction struct {
 	On bool `json:"on"`
 }
 
+const MaxClipTitleRunes = 100
+
+type ClipAction struct {
+	Title   string  `json:"title"`
+	Seconds float64 `json:"seconds"`
+	Reply   string  `json:"reply"`
+	Quiet   bool    `json:"quiet,omitempty"`
+}
+
 type MarkerAction struct {
 	Description string `json:"description"`
+	Quiet       bool   `json:"quiet,omitempty"`
 }
 
 type SetTitleAction struct {
@@ -72,17 +92,33 @@ type SetTagsAction struct {
 }
 
 type CommercialAction struct {
-	Seconds int `json:"seconds"`
+	Seconds int  `json:"seconds"`
+	Quiet   bool `json:"quiet,omitempty"`
 }
 
 type PointsAddAction struct {
-	Login  string `json:"login"`
-	Amount int64  `json:"amount"`
+	TargetAction
+	Amount int64 `json:"amount"`
 }
 
-type PointsSetAction struct {
-	Login  string `json:"login"`
-	Amount int64  `json:"amount"`
+type PointsSetAction PointsAddAction
+
+type PointsSpendAction struct {
+	Amount    int64    `json:"amount"`
+	OnOK      []Action `json:"on_ok,omitempty"`
+	OnFailure []Action `json:"on_failure,omitempty"`
+}
+
+type NamedTimerAction struct {
+	Name string `json:"name"`
+}
+
+func loyaltyActions() map[string]entry {
+	return map[string]entry{
+		"points_spend":   registerNestedEffect(checkPointsSpend, pointsSpendBranches),
+		"countdown_stop": register(checkNamedTimer),
+		"cooldown_reset": register(checkNamedTimer),
+	}
 }
 
 type CounterAddAction struct {
@@ -137,7 +173,19 @@ type HTTPPostAction struct {
 const (
 	LightsModeColor = "color"
 	LightsModeScene = "scene"
+	LightsModeWhite = "white"
+	LightsModeOn    = "on"
+	LightsModeOff   = "off"
+	maxSafeSceneID  = 1<<53 - 1
 )
+
+const LightsRestoreType = "lights_restore"
+
+type LightsRestoreAction struct {
+	Device      string   `json:"device"`
+	SKU         string   `json:"sku"`
+	ExtraLights []string `json:"extra_lights,omitempty"`
+}
 
 type LightsAction struct {
 	Device        string   `json:"device"`
@@ -152,6 +200,9 @@ type LightsAction struct {
 	SceneInstance string   `json:"scene_instance"`
 	SceneValue    string   `json:"scene_value"`
 	AnyTime       bool     `json:"any_time,omitempty"`
+	Kelvin        int      `json:"kelvin,omitempty"`
+	Brightness    int      `json:"brightness,omitempty"`
+	HoldS         int      `json:"hold_s,omitempty"`
 	RGB           int      `json:"-"`
 }
 
@@ -160,6 +211,19 @@ func (a *LightsAction) setDefaults() { a.Mode = LightsModeColor }
 func (a *LightsAction) prepare() {
 	if v, err := strconv.ParseUint(strings.TrimPrefix(a.Color, "#"), 16, 24); err == nil {
 		a.RGB = int(v)
+	}
+}
+
+func lightsHoldBranch(p LightsAction) nesting {
+	if p.HoldS <= 0 || p.HoldS > MaxLightsHoldS {
+		return nesting{}
+	}
+	delay, _ := codec.Marshal(DelayAction{Ms: p.HoldS * 1000})
+	restore, _ := codec.Marshal(LightsRestoreAction{Device: p.Device, SKU: p.SKU, ExtraLights: p.ExtraLights})
+	return nesting{
+		lists:    [][]Action{{{Type: "delay", Params: delay}, {Type: LightsRestoreType, Params: restore}}},
+		labels:   []string{"hold"},
+		internal: true,
 	}
 }
 
@@ -172,6 +236,8 @@ var (
 
 func checkText(c chk, p TextAction) { c.template("text", p.Text) }
 
+func checkReply(c chk, p ReplyAction) { checkText(c, TextAction{Text: p.Text}) }
+
 func checkAnnounce(c chk, p AnnounceAction) {
 	c.template("text", p.Text)
 	if !slices.Contains(announceColors, p.Color) {
@@ -180,24 +246,46 @@ func checkAnnounce(c chk, p AnnounceAction) {
 }
 
 func checkTimeout(c chk, p TimeoutAction) {
-	c.text("login", p.Login, loginRequired)
+	c.target(p.TargetAction, loginRequired)
 	inRange(c, "seconds", p.Seconds, between(1, 1209600))
 	c.text("reason", p.Reason, reasonOptions)
 }
 
 func checkBan(c chk, p BanAction) {
-	c.text("login", p.Login, loginRequired)
+	c.target(p.TargetAction, loginRequired)
 	c.text("reason", p.Reason, reasonOptions)
 }
 
+func checkUnban(c chk, p UnbanAction) { c.target(p.TargetAction, loginRequired) }
+
 func checkWarn(c chk, p WarnAction) {
-	c.text("login", p.Login, loginRequired)
+	c.login(p.Login, loginRequired)
 	c.text("reason", p.Reason, reasonNeeded)
 }
 
-func checkLogin(c chk, p LoginAction) { c.text("login", p.Login, loginRequired) }
+func checkLogin(c chk, p LoginAction) { c.login(p.Login, loginRequired) }
+
+func (c chk) login(login string, bounds span) {
+	if !c.text("login", login, bounds) {
+		return
+	}
+	if login == "" || !isStaticText(login) {
+		return
+	}
+	if !actionLoginPattern.MatchString(strings.TrimPrefix(login, "@")) {
+		c.add("login", CodeInvalidFormat)
+	}
+}
 
 func checkShield(chk, ShieldAction) {}
+
+func checkClip(c chk, p ClipAction) {
+	c.text("title", p.Title, upTo(MaxClipTitleRunes))
+	if p.Seconds != 0 {
+		inRange(c, "seconds", p.Seconds, between(5, 60))
+	}
+	c.text("reply", p.Reply, upTo(MaxTemplateLength))
+}
 
 func checkMarker(c chk, p MarkerAction) { c.text("description", p.Description, upTo(140)) }
 
@@ -214,13 +302,22 @@ func checkCommercial(c chk, p CommercialAction) {
 }
 
 func checkPointsAdd(c chk, p PointsAddAction) {
-	c.text("login", p.Login, loginOptional)
-	inRange(c, "amount", p.Amount, between(-1000000, 1000000))
+	c.target(p.TargetAction, loginOptional)
+	inRange(c, "amount", p.Amount, between(-MaxPointsAmount, MaxPointsAmount))
 	nonZero(c, "amount", p.Amount)
 }
 
+func checkPointsSpend(c chk, p PointsSpendAction) {
+	inRange(c, "amount", p.Amount, between(1, MaxPointsAmount))
+	c.fetchPaths(p.OnOK, p.OnFailure)
+}
+
+func pointsSpendBranches(p PointsSpendAction) nesting { return fetchNesting(p.OnOK, p.OnFailure) }
+
+func checkNamedTimer(c chk, p NamedTimerAction) { c.variableName("name", p.Name) }
+
 func checkPointsSet(c chk, p PointsSetAction) {
-	c.text("login", p.Login, loginOptional)
+	c.target(p.TargetAction, loginOptional)
 	inRange(c, "amount", p.Amount, between(0, 1000000000))
 }
 
@@ -241,12 +338,19 @@ func checkDelay(c chk, p DelayAction) { inRange(c, "ms", p.Ms, between(1, MaxDel
 func checkRun(c chk, p RunAction) { c.text("automation_id", p.AutomationID, nonEmpty(64)) }
 
 func checkHTTPPost(c chk, p HTTPPostAction) {
-	if c.text("url", p.URL, nonEmpty(validate.MaxFetchURLLength)) && validate.FetchURL(p.URL) != nil {
+	if c.text("url", p.URL, nonEmpty(validate.MaxFetchURLLength)) && !plausibleFetchTemplate(p.URL) {
 		c.add("url", CodeInvalidFormat)
 	}
 	c.text("body", p.Body, upTo(2000))
 	c.optionalVariableName("save_as", p.SaveAs)
 	c.fetchPaths(p.OnOK, p.OnFailure)
+}
+
+var lightsModeChecks = map[string]func(chk, LightsAction){
+	LightsModeColor: func(c chk, p LightsAction) { c.format("color", p.Color, lightsColorPattern) },
+	LightsModeScene: checkLightsScene,
+	LightsModeWhite: checkLightsWhite,
+	LightsModeOff:   func(c chk, p LightsAction) { inRange(c, "brightness", p.Brightness, between(0, 0)) },
 }
 
 func checkLights(c chk, p LightsAction) {
@@ -255,11 +359,13 @@ func checkLights(c chk, p LightsAction) {
 	c.text("device_name", p.DeviceName, upTo(100))
 	c.stringList("extra_lights", p.ExtraLights, MaxExtraLights, c.eachFormat(lightRefPattern))
 	c.oneOf("mode", p.Mode, lightsModes)
-	if p.Mode == LightsModeScene {
-		checkLightsScene(c, p)
-		return
+	if p.Mode != LightsModeOff && p.Brightness != 0 {
+		inRange(c, "brightness", p.Brightness, between(MinLightsBrightness, MaxLightsBrightness))
 	}
-	c.format("color", p.Color, lightsColorPattern)
+	inRange(c, "hold_s", p.HoldS, upTo(MaxLightsHoldS))
+	if check := lightsModeChecks[p.Mode]; check != nil {
+		check(c, p)
+	}
 }
 
 func checkLightsScene(c chk, p LightsAction) {
@@ -267,9 +373,34 @@ func checkLightsScene(c chk, p LightsAction) {
 	c.text("scene_name", p.SceneName, upTo(100))
 	c.text("scene_type", p.SceneType, nonEmpty(64))
 	c.text("scene_instance", p.SceneInstance, nonEmpty(64))
-	if c.text("scene_value", p.SceneValue, nonEmpty(200)) && !codec.Valid([]byte(p.SceneValue)) {
+	if c.text("scene_value", p.SceneValue, nonEmpty(200)) && !p.validSceneValue() {
 		c.add("scene_value", CodeInvalidFormat)
 	}
+}
+
+func (p LightsAction) validSceneValue() bool {
+	var number *int64
+	if err := codec.UnmarshalFromString(p.SceneValue, &number); err == nil {
+		return validSceneID(number)
+	}
+	var pair struct {
+		ParamID *int64 `json:"paramId"`
+		ID      *int64 `json:"id"`
+	}
+	err := codec.UnmarshalFromString(p.SceneValue, &pair)
+	return err == nil && validSceneID(pair.ParamID) && validSceneID(pair.ID)
+}
+
+func validSceneID(id *int64) bool {
+	return id != nil && *id >= 0 && *id <= maxSafeSceneID
+}
+
+func checkLightsWhite(c chk, p LightsAction) {
+	if p.Kelvin == 0 {
+		c.add("kelvin", CodeRequired)
+		return
+	}
+	inRange(c, "kelvin", p.Kelvin, between(MinLightsKelvin, MaxLightsKelvin))
 }
 
 func checkRandomPick(c chk, p RandomPickAction) {
@@ -306,7 +437,9 @@ func parallelBranches(p ParallelAction) nesting {
 
 func checkIf(c chk, p IfAction) {
 	c.sub("condition").typed(conditionRegistry, typedParams(p.Condition))
-	c.sub("then").nest().actions(p.Then)
+	then := c.sub("then").nest()
+	then.perm = max(c.perm, permRank([]Condition{p.Condition}))
+	then.actions(p.Then)
 	c.sub("else").nest().actions(p.Else)
 }
 

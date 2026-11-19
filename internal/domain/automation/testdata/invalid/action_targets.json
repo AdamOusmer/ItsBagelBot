@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "trigger": { "type": "command", "params": { "name": "!target" } },
+  "conditions": [{ "type": "perm", "params": { "level": "lead_mod" } }],
+  "actions": [
+    { "type": "timeout", "params": { "who": "user", "seconds": 60 } },
+    { "type": "ban", "params": { "who": "user", "user_id": "abc" } },
+    { "type": "mod", "params": { "who": "login", "on": true } },
+    { "type": "vip", "params": { "who": "sender", "on": false } },
+    { "type": "points_add", "params": { "who": "user", "user_id": 123, "amount": 10 } },
+    { "type": "timeout", "params": { "who": "login", "login": "", "seconds": 60 } },
+    { "type": "ban", "params": { "who": "" } },
+    { "type": "ban", "params": {} }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "trigger": { "type": "countdown", "params": { "name": "break" } },
+  "actions": [
+    { "type": "points_add", "params": { "login": "alice", "amount": 10 } },
+    { "type": "points_set", "params": { "login": "bobby", "amount": 20 } }
+  ]
+}

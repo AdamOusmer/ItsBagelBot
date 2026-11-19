@@ -3,8 +3,8 @@
 
 import { ownedCooldownNames, ownedCountdownNames, type Definition } from '@bagel/kit/automations';
 import { logger } from '@bagel/kit/server/logger';
-import { unavailable, type ChoiceList, type ChoiceSource } from '#lib/flow/choices';
-import { LINKED_REWARD_CHOICE, specFor } from '#lib/flow/model';
+import { recipeOptions, unavailable, type ChoiceList, type ChoiceSource } from '#lib/flow/choices';
+import { LINKED_REWARD_CHOICE, specFor, type Flow } from '#lib/flow/model';
 import { readRewards } from './channelpoints-store';
 import { listAutomations } from './automations-store';
 import { goveeStore, type GoveeTarget } from './govee-store';
@@ -37,6 +37,9 @@ export const manageableRewardChoices = (userId: BroadcasterId) =>
 
 export const counterChoices = (userId: BroadcasterId) =>
   settled('counters', async () => ({ options: (await listCounters(userId)).map((counter) => ({ value: counter.name, label: counter.name })) }));
+
+export const recipeChoices = (userId: BroadcasterId, current?: Flow['id']) =>
+  settled('recipes', async () => ({ options: recipeOptions(await listAutomations(userId), current) }));
 
 type NameCollector = (definition: Definition) => string[];
 
@@ -80,7 +83,8 @@ type Lookup = { node: Named; value: string; nameKey: string };
 
 const NAMED_SOURCES: Partial<Record<ChoiceSource, (userId: BroadcasterId) => Promise<ChoiceList>>> = {
   rewards: rewardChoices,
-  manageableRewards: manageableRewardChoices
+  manageableRewards: manageableRewardChoices,
+  recipes: recipeChoices
 };
 
 function lookupsFor(node: Named): [ChoiceSource, Lookup][] {

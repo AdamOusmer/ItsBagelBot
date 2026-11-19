@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/i18n"
 )
 
@@ -133,6 +134,20 @@ func NormalizeLogin(payload string) string {
 		return ""
 	}
 	return login
+}
+
+func MentionedViewerID(mentions []lane.Mention, login string) uint64 {
+	for _, mention := range mentions {
+		if login != "" && !strings.EqualFold(mention.UserLogin, login) {
+			continue
+		}
+		id, err := strconv.ParseUint(mention.UserID, 10, 64)
+		if err != nil {
+			return 0
+		}
+		return id
+	}
+	return 0
 }
 
 type viewerValues struct {

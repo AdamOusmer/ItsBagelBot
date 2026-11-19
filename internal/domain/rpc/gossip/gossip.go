@@ -13,10 +13,15 @@ type Request struct {
 	Code        string `json:"code,omitempty"`
 	RedirectURI string `json:"redirect_uri,omitempty"`
 
-	Device   string `json:"device,omitempty"`
-	SKU      string `json:"sku,omitempty"`
-	ColorRGB int    `json:"color_rgb,omitempty"`
-	PowerOff bool   `json:"power_off,omitempty"`
+	Device     string `json:"device,omitempty"`
+	SKU        string `json:"sku,omitempty"`
+	ColorRGB   int    `json:"color_rgb,omitempty"`
+	PowerOff   bool   `json:"power_off,omitempty"`
+	Brightness int    `json:"brightness,omitempty"`
+	Kelvin     int    `json:"kelvin,omitempty"`
+	KeepLook   bool   `json:"keep_look,omitempty"`
+	HoldS      int    `json:"hold_s,omitempty"`
+	HoldID     string `json:"hold_id,omitempty"`
 
 	Scene *GoveeScene `json:"scene,omitempty"`
 
@@ -194,10 +199,14 @@ type FortniteSessionReply struct {
 }
 
 type GoveeDevice struct {
-	Device string `json:"device"`
-	SKU    string `json:"sku"`
-	Name   string `json:"name"`
-	Color  bool   `json:"color"`
+	Device     string `json:"device"`
+	SKU        string `json:"sku"`
+	Name       string `json:"name"`
+	Color      bool   `json:"color"`
+	Power      bool   `json:"power,omitempty"`
+	Brightness bool   `json:"brightness,omitempty"`
+	KelvinMin  int    `json:"kelvin_min,omitempty"`
+	KelvinMax  int    `json:"kelvin_max,omitempty"`
 }
 
 type GoveeLight struct {
@@ -229,6 +238,22 @@ type GoveeControlReply struct {
 	OK           bool   `json:"ok"`
 	Error        string `json:"error,omitempty"`
 	SceneApplied bool   `json:"scene_applied,omitempty"`
+}
+
+type GoveeLightState struct {
+	Online     bool `json:"online"`
+	Power      bool `json:"power"`
+	Brightness int  `json:"brightness,omitempty"`
+	ColorRGB   int  `json:"color_rgb,omitempty"`
+	Kelvin     int  `json:"kelvin,omitempty"`
+}
+
+type GoveeRestoreReply struct {
+	OK           bool   `json:"ok"`
+	Error        string `json:"error,omitempty"`
+	RateLimited  bool   `json:"rate_limited,omitempty"`
+	RetryAfterMS int64  `json:"retry_after_ms,omitempty"`
+	Restored     int    `json:"restored,omitempty"`
 }
 
 type SpotifyTrack struct {

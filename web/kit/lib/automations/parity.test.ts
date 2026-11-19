@@ -7,7 +7,9 @@ import { join } from 'node:path';
 import { comparePasses } from './compare';
 import { eventKinds } from './event-kinds';
 import { compilesAsRe2 } from './regex';
-import { parseDefinition, validateName } from './validate';
+import { MAX_DEFINITION_BYTES } from './limits';
+import type { Action, Issue, PermLevel, Trigger } from './types';
+import { parseDefinition, validateDefinition, validateName } from './validate';
 
 const TESTDATA = join(import.meta.dir, '../../../../internal/domain/automation/testdata');
 
@@ -22,7 +24,8 @@ const read = (...parts: string[]) => readFileSync(join(TESTDATA, ...parts), 'utf
 describe('valid fixtures', () => {
   for (const file of fixtures('valid')) {
     test(file, () => {
-      expect(parseDefinition(read('valid', file)).issues).toEqual([]);
+      const raw = read('valid', file);
+      expect(parseDefinition(raw)).toEqual({ definition: JSON.parse(raw), issues: [] });
     });
   }
 });
@@ -36,11 +39,51 @@ describe('invalid fixtures', () => {
   }
 });
 
+describe('logic validation', () => {
+  const cases: { name: string; action: Action; issues?: Issue[] }[] = JSON.parse(read('logic_validation_cases.json'));
+  test.each(cases)('$name', ({ action, issues = [] }) => {
+    expect(validateDefinition({
+      version: 1,
+      trigger: { type: 'manual' },
+      actions: [action],
+    })).toEqual(issues);
+  });
+});
+
+describe('stream action roles', () => {
+  const policy: { actions: Action[]; callers: { level: PermLevel; permRequired: boolean }[] } =
+    JSON.parse(read('stream_action_roles.json'));
+  for (const { level, permRequired } of policy.callers) {
+    const want = permRequired ? [{ path: 'actions[0].type', code: 'perm_required' }] : [];
+    for (const action of policy.actions) {
+      test(`${level}/${action.type}`, () => {
+        expect(validateDefinition({
+          version: 1,
+          trigger: { type: 'command', params: { name: '!run' } },
+          conditions: [{ type: 'perm', params: { level } }],
+          actions: [action],
+        })).toEqual(want);
+      });
+    }
+  }
+});
+
+describe('self-target action roles', () => {
+  const cases: { trigger: Trigger; action: Action; wantPermRequired: boolean }[] =
+    JSON.parse(read('self_target_roles.json'));
+  for (const { trigger, action, wantPermRequired } of cases) {
+    test(`${action.type}/${JSON.stringify(action.params)}`, () => {
+      const want = wantPermRequired ? [{ path: 'actions[0].type', code: 'perm_required' }] : [];
+      expect(validateDefinition({ version: 1, trigger, actions: [action] })).toEqual(want);
+    });
+  }
+});
+
 describe('comparePasses', () => {
-  const cases: { left: string; op: string; right: string; want: boolean }[] = JSON.parse(read('compare_cases.json'));
-  for (const { left, op, right, want } of cases) {
-    test(`${JSON.stringify(left)} ${op} ${JSON.stringify(right)}`, () => {
-      expect(comparePasses(op, left, right)).toBe(want);
+  const cases: { left: string; op: string; right: string; ignore_case?: boolean; want: boolean }[] = JSON.parse(read('compare_cases.json'));
+  for (const { left, op, right, ignore_case, want } of cases) {
+    test(`${JSON.stringify(left)} ${op} ${JSON.stringify(right)} ignore_case=${ignore_case ?? false}`, () => {
+      expect(comparePasses(op, left, right, ignore_case)).toBe(want);
     });
   }
 });
@@ -52,6 +95,12 @@ describe('compilesAsRe2', () => {
       expect(compilesAsRe2(pattern)).toBe(want);
     });
   }
+
+  test('scans unclosed unicode classes in linear time', () => {
+    const started = performance.now();
+    expect(compilesAsRe2('\\P{{' + '\\P{{|'.repeat(50_000))).toBe(false);
+    expect(performance.now() - started).toBeLessThan(250);
+  });
 });
 
 describe('parseDefinition', () => {
@@ -67,7 +116,7 @@ describe('parseDefinition', () => {
   });
 
   test('rejects oversized input', () => {
-    expect(parseDefinition(' '.repeat(32769)).issues).toEqual([{ path: '', code: 'too_long' }]);
+    expect(parseDefinition(' '.repeat(MAX_DEFINITION_BYTES + 1)).issues).toEqual([{ path: '', code: 'too_long' }]);
   });
 
   test('rejects regexes RE2 cannot compile', () => {

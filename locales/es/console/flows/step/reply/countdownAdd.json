@@ -1,0 +1,18 @@
+{
+  "label": "Añadir tiempo a la cuenta atrás",
+  "summary": "Ampliar una cuenta atrás activa",
+  "line": "Añadir {seconds} a {name}",
+  "field": {
+    "name": {
+      "label": "Cuenta atrás"
+    },
+    "seconds": {
+      "label": "Añadir",
+      "range": "Usa entre 1 segundo y {days} días."
+    },
+    "per": {
+      "label": "Por cada",
+      "hint": "Solo con Cheers y suscripciones regaladas. Déjalo vacío para añadir tiempo una vez."
+    }
+  }
+}

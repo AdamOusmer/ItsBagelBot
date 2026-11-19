@@ -1,0 +1,7 @@
+{
+  "label": "Nachricht löschen",
+  "summary": "Die Nachricht löschen, die dieses Rezept ausgelöst hat",
+  "line": "Auslösende Nachricht löschen",
+  "note": "Funktioniert nur mit Chatbefehlen als Auslöser",
+  "keywords": "löschen entfernen chat befehl nachricht"
+}

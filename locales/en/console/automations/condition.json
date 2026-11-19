@@ -1,4 +1,6 @@
 {
+  "follow": "Follows your channel",
+  "account_age": "Account age",
   "perm": "Viewer role",
   "users": "Specific viewers",
   "live": "Stream state",

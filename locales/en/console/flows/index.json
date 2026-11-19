@@ -1,23 +1,10 @@
 {
   "lockedChip": "Premium beta",
   "introTitle": "Welcome to {name}",
-  "introLead": "Built for advanced users who want full control. Connect triggers, conditions and actions into one system, then test every path before it reaches chat.",
-  "introCta": "Start building",
+  "introLead": "Pick a recipe and make it yours. The steps are ready to edit.",
+  "introCta": "Start from scratch",
+  "clarity": {"liveNow":"Changes live now","required":"Required","liveOnSave":"Live when saved","staysOff":"Off when saved","browse":"View my recipes"},
   "introDocs": "Read the guide",
-  "introStart": "Start",
-  "introWhenLabel": "When",
-  "introWhen": "Someone cheers 1000 bits",
-  "introIfLabel": "Only if",
-  "introIf": "The stream is live",
-  "introDoLabel": "Do",
-  "introDo": "Thank them and change the lights",
-  "introEasierTitle": "Easier and faster to build",
-  "introCommands": "Commands",
-  "introCommandsBody": "Reply when someone types !socials",
-  "introAlerts": "Chat Alerts",
-  "introAlertsBody": "Thank follows, subs, cheers and raids",
-  "introTimers": "Timers",
-  "introTimersBody": "Repeat a message while you're live",
   "connectExisting": "Connect to a step on the board",
   "connectHint": "Tap a step to connect",
   "connectCancel": "Cancel",
@@ -25,7 +12,6 @@
   "linkedRemove": "Connected. Select to remove.",
   "noteConnected": "Steps connected.",
   "noteDisconnected": "Connection removed.",
-  "noteRemoved": "Step removed.",
   "noteDuplicated": "Step duplicated.",
   "noteUndo": "Undone.",
   "noteRedo": "Redone.",
@@ -86,18 +72,21 @@
   "warnAlertOff": "Saved, but the built-in alert is still on, so viewers may see both.",
   "warnAlertsOn": "The Chat alerts module was off and is now on.",
   "unsupportedTitle": "This recipe can't open here yet",
-  "unsupportedBody": "It uses a step the builder cannot draw. It keeps running, and you can edit it in Automations.",
-  "unsupportedCta": "Open Automations",
+  "unsupportedBody": "Open this recipe in its original editor to change it.",
+  "unsupportedCta": "Open original editor",
   "issue": {
+    "permRequired": "This command needs a higher user level for this step. Add a User level check before it.",
     "noTrigger": "Add a When step to start this recipe.",
     "multipleTriggers": "A recipe can only start one way. Remove the extra When step.",
     "cycle": "This step loops back on itself. Remove one of the connections.",
     "unconnectedNode": "This step is not connected to the start. Connect it or remove it.",
-    "unstructuredMerge": "Two paths join here in a way that cannot be saved. Give each path its own steps.",
+    "unknownPort": "A connection leaves this step from a port it does not have. Reconnect it.",
+    "unstructuredMerge": "A path with a Wait cannot join back into another path. Move the Wait after the join or give each path its own steps.",
     "unsupportedNode": "This step cannot be saved yet.",
     "unsupportedTrigger": "This start cannot be saved yet.",
     "unsupportedCondition": "This check cannot be saved yet.",
     "unsupportedAction": "This action cannot be saved yet.",
+    "unsupportedDisabledControlFlow": "A turned off check or group cannot open here. Edit it in Automations.",
     "waitTooLong": "This wait is longer than a recipe can pause.",
     "unmappableToken": "{token} is not available with this start. Remove it or change the start.",
     "userNotResolved": "Pick a Twitch user. Type a name and leave the field so it can be checked.",
@@ -107,6 +96,7 @@
     "duplicate": "A recipe like this already exists.",
     "tooMany": "You have reached the recipe limit.",
     "required": "A value is missing.",
+    "requiredField": "{field} is missing.",
     "tooLong": "A value is too long.",
     "tooShort": "A value is too short.",
     "outOfRange": "A number is outside the allowed range.",
@@ -117,7 +107,9 @@
     "nesting": "Checks are nested too deeply.",
     "delayBudget": "The waits add up to more than a recipe can pause.",
     "name": "Give the recipe a name using letters, numbers and spaces, up to 64 characters.",
-    "generic": "Something in this recipe cannot be saved ({code})."
+    "generic": "Check this step's settings and try saving again.",
+    "nothingToChange": "Change at least one field.",
+    "invalidTags": "Use up to 10 tags of 25 letters or digits each."
   },
   "choose": {
     "reward": "Choose a reward",
@@ -125,15 +117,17 @@
     "scene": "Choose a scene",
     "light": "Choose a light first",
     "namedCooldown": "Choose a timer",
-    "namedCountdown": "Choose a countdown"
+    "namedCountdown": "Choose a countdown",
+    "recipe": "Choose a recipe"
   },
   "choiceEmpty": {
     "rewards": "No channel point rewards yet. Create one in Channel points.",
     "manageableRewards": "Twitch only lets us change rewards made here. Create one in Channel points.",
     "counters": "No counters yet. Create one in Counters.",
     "scenes": "This light has no scenes.",
-    "namedCooldowns": "No recipe names a timer yet. Give one a name under its cooldown.",
-    "namedCountdowns": "No countdown has been started in a recipe yet."
+    "namedCooldowns": "Add a Cooldown step and give it a name first.",
+    "namedCountdowns": "Add a Start countdown step first.",
+    "recipes": "Create another recipe to select it here."
   },
   "choiceProblem": {
     "rewards": "Could not load your rewards.",
@@ -141,17 +135,19 @@
     "scenes": "Could not load the scenes for this light.",
     "keyRejected": "Govee did not accept your API key.",
     "namedCooldowns": "Could not load your recipes' timers.",
-    "namedCountdowns": "Could not load your countdowns."
+    "namedCountdowns": "Could not load your countdowns.",
+    "recipes": "Could not load your recipes."
   },
   "choiceMissing": "\"{name}\" is no longer in the list.",
   "choiceUnowned": "No recipe currently owns \"{name}\". This will do nothing until one does.",
-  "choiceRetry": "Try again",
+  "choiceRetry": "Refresh",
   "choiceLoading": "Loading",
   "setup": {
     "line": "Off until set up",
     "stepNote": "This step stays off until you fill it in.",
     "pickReward": "Pick a reward",
     "addUrl": "Add a URL",
-    "refused": "Fill in the steps that need setup and save, then turn this on."
+    "refused": "Fill in the steps that need setup and save, then turn this on.",
+    "pickRecipe": "Choose a recipe for the Run another recipe step."
   }
 }

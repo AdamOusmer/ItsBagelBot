@@ -19,16 +19,24 @@ func (req *CountdownWriteRequest) validate() error {
 		return err
 	}
 	req.Name = name
-	if req.Verb != "start" && req.Verb != "add" {
-		return fmt.Errorf("%w: countdown operation", ErrInvalidInput)
-	}
-	if req.Seconds <= 0 || req.Seconds > int64(automation.MaxCooldownSeconds) {
+	if !req.validMutation() {
 		return fmt.Errorf("%w: countdown operation", ErrInvalidInput)
 	}
 	if len(req.OperationID) == 0 || len(req.OperationID) > 256 {
 		return fmt.Errorf("%w: countdown operation", ErrInvalidInput)
 	}
 	return nil
+}
+
+func (req CountdownWriteRequest) validMutation() bool {
+	switch req.Verb {
+	case "start", "add":
+		return req.Seconds > 0 && req.Seconds <= int64(automation.MaxCooldownSeconds)
+	case "stop":
+		return req.Seconds == 0
+	default:
+		return false
+	}
 }
 
 // CountdownWrite serializes names and deduplicates effects per channel and operation ID.
@@ -94,13 +102,26 @@ func applyCountdownWrite(ctx context.Context, tx *ent.Tx, state countdownMutatio
 	if err != nil && !ent.IsNotFound(err) {
 		return CountdownResult{}, err
 	}
-	if req.Verb == "start" {
-		state.row = row
-		return startCountdown(ctx, tx, state)
-	}
 	state.row = row
-	return addCountdown(ctx, tx, state)
+	switch req.Verb {
+	case "start":
+		return startCountdown(ctx, tx, state)
+	case "stop":
+		return stopCountdown(ctx, tx, state)
+	default:
+		return addCountdown(ctx, tx, state)
+	}
 }
+
+func stopCountdown(ctx context.Context, tx *ent.Tx, state countdownMutation) (CountdownResult, error) {
+	row := state.row
+	if row == nil || row.ExpiresAtMs <= state.now {
+		return CountdownResult{}, nil
+	}
+	err := tx.Countdown.DeleteOneID(row.ID).Exec(ctx)
+	return CountdownResult{Found: true, ExpiresAtMS: row.ExpiresAtMs}, err
+}
+
 func startCountdown(ctx context.Context, tx *ent.Tx, state countdownMutation) (CountdownResult, error) {
 	req, row := state.request, state.row
 	deadline := state.now + req.Seconds*1000

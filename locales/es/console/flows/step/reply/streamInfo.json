@@ -1,0 +1,33 @@
+{
+  "label": "Editar información del directo",
+  "summary": "Cambia el título, la categoría, las etiquetas o el contenido de marca",
+  "line": {
+    "title": "Título: {title}",
+    "game": "Categoría: {game}",
+    "tags": "Etiquetas: {tags}",
+    "brandedOn": "Contenido de marca activado",
+    "brandedOff": "Contenido de marca desactivado",
+    "more": "{line} +{count} más"
+  },
+  "field": {
+    "title": {
+      "label": "Título"
+    },
+    "game": {
+      "label": "Categoría",
+      "hint": "Primero se busca una coincidencia exacta con el nombre"
+    },
+    "tags": {
+      "label": "Etiquetas",
+      "hint": "Hasta 10 etiquetas separadas por comas"
+    },
+    "branded": {
+      "label": "Contenido de marca",
+      "option": {
+        "keep": "Mantener como está",
+        "on": "Activado",
+        "off": "Desactivado"
+      }
+    }
+  }
+}

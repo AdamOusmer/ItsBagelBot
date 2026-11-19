@@ -105,6 +105,7 @@ var outgressBuilders = map[string]func(*module.Output) (outgress.Message, error)
 	outgress.TypeStreamMarker:     streamMarkerOutgress,
 	outgress.TypeCommercial:       commercialOutgress,
 	outgress.TypeBan:              banOutgress,
+	outgress.TypeUnban:            unbanOutgress,
 	outgress.TypeTimeout:          banOutgress,
 	outgress.TypeShieldMode:       shieldOutgress,
 	outgress.TypeDelete:           deleteOutgress,
@@ -134,10 +135,15 @@ func pinOutgress(o *module.Output) (outgress.Message, error) {
 }
 
 func textOutgress(msgType string, o *module.Output) (outgress.Message, error) {
+	var parentID string
+	if msgType == outgress.TypeChat {
+		parentID = o.MsgID
+	}
 	return payloadMessage(msgType, o.BroadcasterID, &struct {
-		BroadcasterID string `json:"broadcaster_id"`
-		Message       string `json:"message"`
-	}{o.BroadcasterID, o.Text})
+		BroadcasterID        string `json:"broadcaster_id"`
+		Message              string `json:"message"`
+		ReplyParentMessageID string `json:"reply_parent_message_id,omitempty"`
+	}{o.BroadcasterID, o.Text, parentID})
 }
 
 func announceOutgress(o *module.Output) (outgress.Message, error) {
@@ -163,7 +169,8 @@ func clipOutgress(o *module.Output) (outgress.Message, error) {
 		Clipper  string  `json:"clipper,omitempty"`
 		Duration float64 `json:"duration,omitempty"`
 		Reply    string  `json:"reply,omitempty"`
-	}{o.Text, o.To, o.Duration, o.Template})
+		Quiet    bool    `json:"quiet,omitempty"`
+	}{o.Text, o.To, o.Duration, o.Template, o.Quiet})
 }
 
 func channelUpdateOutgress(o *module.Output) (outgress.Message, error) {
@@ -180,7 +187,8 @@ func streamMarkerOutgress(o *module.Output) (outgress.Message, error) {
 		Description string `json:"description,omitempty"`
 		Locale      string `json:"locale,omitempty"`
 		User        string `json:"user,omitempty"`
-	}{o.Text, o.Template, o.To})
+		Quiet       bool   `json:"quiet,omitempty"`
+	}{o.Text, o.Template, o.To, o.Quiet})
 }
 
 func commercialOutgress(o *module.Output) (outgress.Message, error) {
@@ -188,13 +196,18 @@ func commercialOutgress(o *module.Output) (outgress.Message, error) {
 		Length int    `json:"length"`
 		Locale string `json:"locale,omitempty"`
 		User   string `json:"user,omitempty"`
-	}{int(o.Duration), o.Template, o.To})
+		Quiet  bool   `json:"quiet,omitempty"`
+	}{int(o.Duration), o.Template, o.To, o.Quiet})
 }
 
 func banOutgress(o *module.Output) (outgress.Message, error) {
 	return payloadMessage(o.Type, o.BroadcasterID, &struct {
 		Data banData `json:"data"`
 	}{banData{UserID: o.TargetUserID, Duration: int(o.Duration), Reason: o.Reason}})
+}
+
+func unbanOutgress(o *module.Output) (outgress.Message, error) {
+	return outgress.Message{Type: outgress.TypeUnban, BroadcasterID: o.BroadcasterID, TargetUserID: o.TargetUserID}, nil
 }
 
 const shieldStatusOff = "off"
@@ -247,6 +260,6 @@ func streamActionOutgress(o *module.Output) (outgress.Message, error) {
 		payload = struct{}{}
 	}
 	msg, err := payloadMessage(o.Type, o.BroadcasterID, payload)
-	msg.To = o.To
+	msg.To, msg.TargetUserID = o.To, o.TargetUserID
 	return msg, err
 }

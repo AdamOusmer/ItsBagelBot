@@ -3,6 +3,7 @@
 import type { MessageKey } from '@bagel/kit';
 import type { Issue } from '@bagel/kit/automations';
 import type { FlowWarning, UpgradeReport } from '#lib/server/flow-store';
+import { specFor } from './model';
 import type { DeleteReply, SaveReply, ToggleReply } from './replies';
 
 export type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
@@ -20,15 +21,18 @@ function issueTexts(t: Translate, issue: Issue): Record<string, string> {
     unsupported_trigger: t('flows.issue.unsupportedTrigger'),
     unsupported_condition: t('flows.issue.unsupportedCondition'),
     unsupported_action: t('flows.issue.unsupportedAction'),
+    unsupported_disabled_control_flow: t('flows.issue.unsupportedDisabledControlFlow'),
     wait_too_long: t('flows.issue.waitTooLong'),
     unmappable_token: t('flows.issue.unmappableToken', { token: `{${lastSegment(issue.path)}}` }),
     user_not_resolved: t('flows.issue.userNotResolved'),
+    unknown_port: t('flows.issue.unknownPort'),
     uses_token: t('flows.issue.usesToken', { count: '{count}', uses: '{uses}' }),
     command_exists: t('flows.issue.commandExists'),
     alert_exists: t('flows.issue.alertExists'),
     duplicate: t('flows.issue.duplicate'),
     too_many: t('flows.issue.tooMany'),
     required: t('flows.issue.required'),
+    perm_required: t('flows.issue.permRequired'),
     too_long: t('flows.issue.tooLong'),
     too_short: t('flows.issue.tooShort'),
     out_of_range: t('flows.issue.outOfRange'),
@@ -37,21 +41,24 @@ function issueTexts(t: Translate, issue: Issue): Record<string, string> {
     simple_word: t('flows.issue.simpleWord'),
     invalid_regex: t('flows.issue.invalidRegex'),
     delay_budget: t('flows.issue.delayBudget'),
-    setup_required: t('flows.setup.refused')
+    setup_required: t('flows.setup.refused'),
+    nothing_to_change: t('flows.issue.nothingToChange'),
+    invalid_tags: t('flows.issue.invalidTags')
   };
 }
 
 export function issueMessage(t: Translate, issue: Issue): string {
   if (issue.path === 'name') return t('flows.issue.name');
+  if (issue.code === 'required' && issue.path.endsWith('.params.enabled')) return t('flows.step.reply.rewardUpdate.pickChange');
   const texts = issueTexts(t, issue);
-  return Object.hasOwn(texts, issue.code) ? texts[issue.code]! : t('flows.issue.generic', { code: issue.code });
+  return Object.hasOwn(texts, issue.code) ? texts[issue.code]! : t('flows.issue.generic');
 }
 
 const nodeIdIn = (path: string) => /^nodes\.([^.]+)/.exec(path)?.[1];
 
 export function stepOf(issues: readonly Issue[], nodes: readonly { id: string; type: string }[]): string | null {
   const known = new Set(nodes.map((node) => node.id));
-  const trigger = nodes.find((node) => (node.type.startsWith('twitch.') || node.type === 'countdown.finished'))?.id;
+  const trigger = nodes.find((node) => specFor(node.type)?.kind === 'trigger')?.id;
   for (const issue of issues) {
     const id = nodeIdIn(issue.path) ?? (issue.path.startsWith('trigger') ? trigger : undefined);
     if (id && known.has(id)) return id;

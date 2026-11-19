@@ -1,0 +1,11 @@
+{
+  "label": "Fijar mensaje",
+  "summary": "Publica un mensaje y fíjalo",
+  "line": "Fijar: {text}",
+  "keywords": "fijar anclar destacar chat mensaje",
+  "field": {
+    "text": {
+      "label": "Mensaje"
+    }
+  }
+}

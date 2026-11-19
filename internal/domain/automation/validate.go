@@ -62,15 +62,26 @@ func countEffects(flat []Action) int {
 func pathDelayMS(actions []Action) int {
 	total := 0
 	for _, a := range actions {
-		total += actionDelayMS(a)
+		total = min(total+actionDelayMS(a), MaxDelayMS+1)
 	}
 	return total
 }
 
 func actionDelayMS(a Action) int {
-	if a.Type == "delay" {
-		p, _ := DecodeParams[DelayAction](a.Params)
-		return p.Ms
+	switch a.Type {
+	case "delay":
+		p, err := DecodeParams[DelayAction](a.Params)
+		if err != nil {
+			return 0
+		}
+		return min(max(p.Ms, 0), MaxDelayMS+1)
+	case "loop":
+		p, err := DecodeParams[LoopAction](a.Params)
+		if err != nil {
+			return 0
+		}
+		times, _ := staticLoopTimes(p.Times)
+		return times * pathDelayMS(p.Actions)
 	}
 	longest := 0
 	for _, branch := range a.Nested() {

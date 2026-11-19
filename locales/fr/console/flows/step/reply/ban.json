@@ -1,0 +1,11 @@
+{
+  "label": "Bannir",
+  "summary": "Exclure définitivement un spectateur",
+  "keywords": "bannir bloquer spectateur modération",
+  "line": "Bannir {who}",
+  "field": {
+    "reason": {
+      "label": "Motif (facultatif)"
+    }
+  }
+}

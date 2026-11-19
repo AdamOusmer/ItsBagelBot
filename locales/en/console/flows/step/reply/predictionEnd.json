@@ -1,0 +1,23 @@
+{
+  "label": "End a prediction",
+  "summary": "Lock bets, refund points or pick a winner",
+  "line": {
+    "lock": "Lock bets",
+    "cancel": "Cancel and refund",
+    "resolve": "Winner: {outcome}"
+  },
+  "field": {
+    "status": {
+      "label": "Action",
+      "option": {
+        "lock": "Lock bets",
+        "cancel": "Cancel and refund",
+        "resolve": "Pick a winner"
+      }
+    },
+    "outcome": {
+      "label": "Winning outcome",
+      "hint": "A number or the outcome name"
+    }
+  }
+}

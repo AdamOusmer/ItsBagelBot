@@ -72,6 +72,9 @@ func FetchURL(raw string) error {
 	if err := FetchHostAllowed(parsed.Hostname()); err != nil {
 		return err
 	}
+	if port := parsed.Port(); port != "" && port != "443" {
+		return ErrFetchURL
+	}
 	return FloorClean(raw)
 }
 

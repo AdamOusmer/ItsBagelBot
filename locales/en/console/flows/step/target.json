@@ -1,0 +1,11 @@
+{
+  "label": "Who",
+  "viewerLabel": "Viewer",
+  "loginLabel": "Viewer login template",
+  "option": {
+    "viewer": "The viewer",
+    "mention": "Who they @mention",
+    "user": "A set viewer",
+    "login": "Login template"
+  }
+}

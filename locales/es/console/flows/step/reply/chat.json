@@ -1,0 +1,13 @@
+{
+  "field": {
+    "reply": {
+      "label": "Respuesta",
+      "option": {
+        "off": "Desactivada",
+        "mention": "Mencionar al espectador",
+        "thread": "Responder en el hilo"
+      },
+      "hint": "Para responder en el hilo hace falta un activador de chat."
+    }
+  }
+}

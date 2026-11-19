@@ -72,9 +72,9 @@ func automationRefusal(err error) domainrpc.Refusal {
 	)
 }
 
-func (a *automationsRPC) handleList(ctx context.Context, _ automationrpc.ListRequest, id uint64) (automationrpc.ListReply, error) {
-	items, err := a.repo.List(ctx, id)
-	return automationrpc.ListReply{Automations: items, Refusal: automationRefusal(err)}, nil
+func (a *automationsRPC) handleList(ctx context.Context, req automationrpc.ListRequest, id uint64) (automationrpc.ListReply, error) {
+	items, next, err := a.repo.ListPage(ctx, id, req.Page)
+	return automationrpc.ListReply{Automations: items, NextPage: next, Refusal: automationRefusal(err)}, nil
 }
 
 func (a *automationsRPC) handleSummaries(ctx context.Context, _ automationrpc.ListRequest, id uint64) (automationrpc.SummariesReply, error) {
@@ -93,9 +93,9 @@ func savedReply(saved automation.Automation, err error) automationrpc.UpsertRepl
 	return automationrpc.UpsertReply{Automation: &saved}
 }
 
-func (a *automationsRPC) handleProjection(ctx context.Context, _ automationrpc.ProjectionRequest, id uint64) (automationrpc.AutomationsProjectionReply, error) {
-	items, err := a.repo.List(ctx, id)
-	return automationrpc.AutomationsProjectionReply{Automations: items, Refusal: automationRefusal(err)}, nil
+func (a *automationsRPC) handleProjection(ctx context.Context, req automationrpc.ProjectionRequest, id uint64) (automationrpc.AutomationsProjectionReply, error) {
+	reply, err := a.handleList(ctx, automationrpc.ListRequest{Page: req.Page}, id)
+	return automationrpc.AutomationsProjectionReply(reply), err
 }
 
 func (a *automationsRPC) handleGet(ctx context.Context, req automationrpc.GetRequest, id uint64) (automationrpc.GetReply, error) {

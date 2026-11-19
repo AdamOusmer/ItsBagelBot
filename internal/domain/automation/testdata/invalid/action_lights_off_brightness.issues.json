@@ -1,0 +1,6 @@
+[
+  {
+    "path": "actions[0].params.brightness",
+    "code": "out_of_range"
+  }
+]

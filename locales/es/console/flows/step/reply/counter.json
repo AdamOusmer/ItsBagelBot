@@ -1,0 +1,28 @@
+{
+  "label": "Cambiar contador",
+  "summary": "Aumentar, reducir o fijar un contador con nombre",
+  "field": {
+    "counter": {
+      "label": "Contador"
+    },
+    "change": {
+      "label": "Cambio",
+      "option": {
+        "add": "Añadir",
+        "set": "Fijar"
+      }
+    },
+    "amount": {
+      "label": "Cantidad",
+      "hint": "Usa un número negativo para restar"
+    },
+    "value": {
+      "label": "Valor"
+    }
+  },
+  "line": {
+    "add": "Añadir {amount} a {counter}",
+    "take": "Quitar {amount} de {counter}",
+    "set": "Fijar {counter} en {value}"
+  }
+}

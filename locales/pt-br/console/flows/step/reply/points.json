@@ -1,0 +1,21 @@
+{
+  "label": "Alterar pontos",
+  "summary": "Adicionar ou remover pontos",
+  "field": {
+    "amount": {
+      "label": "Quantidade",
+      "unit": "pontos"
+    },
+    "change": {
+      "label": "Alteração",
+      "option": {
+        "add": "Adicionar",
+        "take": "Retirar"
+      }
+    }
+  },
+  "line": {
+    "add": "Dar {amount}",
+    "take": "Tirar {amount}"
+  }
+}

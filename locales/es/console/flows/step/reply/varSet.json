@@ -1,0 +1,21 @@
+{
+  "label": "Fijar una variable",
+  "summary": "Guardar un valor para después",
+  "field": {
+    "scope": {
+      "label": "Guardado para",
+      "option": {
+        "channel": "El canal",
+        "viewer": "Este espectador"
+      }
+    },
+    "name": {
+      "label": "Nombre",
+      "placeholder": "muertes"
+    },
+    "value": {
+      "label": "Valor",
+      "placeholder": "{user}"
+    }
+  }
+}

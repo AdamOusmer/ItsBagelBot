@@ -1,0 +1,21 @@
+{
+  "label": "Criar um clipe",
+  "summary": "Crie um clipe com os últimos momentos da transmissão",
+  "line": "Clipe: {title}",
+  "field": {
+    "title": {
+      "label": "Título"
+    },
+    "seconds": {
+      "label": "Duração",
+      "unit": "segundos"
+    },
+    "reply": {
+      "label": "Mensagem do chat",
+      "hint": "{clip:url} é o link do novo clipe"
+    },
+    "confirm": {
+      "label": "Confirmar no chat"
+    }
+  }
+}

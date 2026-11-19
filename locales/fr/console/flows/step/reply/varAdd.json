@@ -1,0 +1,20 @@
+{
+  "label": "Ajouter à une variable",
+  "summary": "Augmenter ou diminuer",
+  "field": {
+    "scope": {
+      "label": "Conservé pour",
+      "option": {
+        "channel": "La chaîne",
+        "viewer": "Ce viewer"
+      }
+    },
+    "name": {
+      "label": "Nom",
+      "placeholder": "morts"
+    },
+    "amount": {
+      "label": "Montant"
+    }
+  }
+}

@@ -22,7 +22,7 @@
         "path": "actions[2]"
       },
       {
-        "code": "run_removed",
+        "code": "run_target",
         "path": "actions[4]"
       }
     ],

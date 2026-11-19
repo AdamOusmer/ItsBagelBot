@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { COLUMN_GAP, GRID, NODE_W, ROW_GAP, outputsFor, specFor, type Flow, type FlowEdge, type FlowNode, type NodeSpec } from './model';
+import { descendants, graphIndex, portKey } from './graph-index';
 
 export const HEADER_H = 84;
 export const ROW_H = 32;
@@ -8,16 +9,16 @@ export const FOOT_H = 6;
 
 const snap = (v: number) => Math.round(v / GRID) * GRID;
 
-export function nodeHeight(spec: NodeSpec | undefined): number {
-  const ports = spec?.outputs ? spec.outputs.length : 0;
-  return HEADER_H + (ports ? ports * ROW_H + FOOT_H : 0);
+export function nodeHeight(spec: NodeSpec | undefined, node?: FlowNode): number {
+  const ports = outputsFor(spec, node).length;
+  return HEADER_H + (ports > 1 ? ports * ROW_H + FOOT_H : 0);
 }
 
 export const inputY = HEADER_H / 2;
 
-export function portY(spec: NodeSpec | undefined, port: string): number {
-  const outs = spec ? outputsFor(spec) : [];
-  if (!spec?.outputs) return HEADER_H / 2;
+export function portY(spec: NodeSpec | undefined, port: FlowEdge['port'], node?: FlowNode): number {
+  const outs = outputsFor(spec, node);
+  if (outs.length < 2) return inputY;
   const index = Math.max(0, outs.findIndex((o) => o.id === port));
   return HEADER_H + index * ROW_H + ROW_H / 2;
 }
@@ -26,36 +27,34 @@ const isTriggerType = (type: string) => specFor(type)?.kind === 'trigger';
 
 const LOOP_TYPE = 'reply.loop';
 
-function reachFrom(flow: Flow, starts: string[]): Set<string> {
-  const seen = new Set<string>();
-  const walk = (ids: string[]) => {
-    for (const id of ids) {
-      if (seen.has(id)) continue;
-      seen.add(id);
-      walk(flow.edges.filter((e) => e.from === id).map((e) => e.to));
-    }
-  };
-  walk(starts);
-  return seen;
-}
-
-const portTargets = (flow: Flow, from: string, port: string) => flow.edges.filter((e) => e.from === from && e.port === port).map((e) => e.to);
+const portTargets = (flow: Flow, from: string, port: string) => (graphIndex(flow).ports.get(portKey({ from, port })) ?? []).map((edge) => edge.to);
+const tailsByGraph = new WeakMap<ReturnType<typeof graphIndex>, { loop: string; tail: string }[]>();
 
 export function loopTails(flow: Flow): { loop: string; tail: string }[] {
-  return flow.nodes
+  const index = graphIndex(flow);
+  const cached = tailsByGraph.get(index);
+  if (cached) return cached;
+  const pairs = flow.nodes
     .filter((node) => node.type === LOOP_TYPE)
     .flatMap((node) => {
-      const after = reachFrom(flow, portTargets(flow, node.id, 'done'));
-      const body = [...reachFrom(flow, portTargets(flow, node.id, 'body'))];
-      const ends = body.filter((id) => !after.has(id) && !flow.edges.some((e) => e.from === id));
+      const after = descendants(flow, portTargets(flow, node.id, 'done'));
+      const body = [...descendants(flow, portTargets(flow, node.id, 'body'))];
+      const ends = body.filter((id) => canReturnFromLoop(index, after, id));
       return ends.map((tail) => ({ loop: node.id, tail }));
     });
+  tailsByGraph.set(index, pairs);
+  return pairs;
+}
+
+function canReturnFromLoop(index: ReturnType<typeof graphIndex>, after: Set<string>, id: FlowNode['id']): boolean {
+  const node = index.nodes.get(id);
+  return !after.has(id) && !index.outgoing.has(id) && node?.type !== 'reply.stop';
 }
 
 function relax(flow: Flow, col: Map<string, number>, edge: FlowEdge): boolean {
   const from = col.get(edge.from);
   if (from === undefined) return false;
-  const target = flow.nodes.find((n) => n.id === edge.to);
+  const target = graphIndex(flow).nodes.get(edge.to);
   if (!target || isTriggerType(target.type)) return false;
   if ((col.get(edge.to) ?? -1) >= from + 1) return false;
   col.set(edge.to, from + 1);
@@ -70,13 +69,22 @@ function settleColumns(flow: Flow, col: Map<string, number>): Map<string, number
 }
 
 function columns(flow: Flow): Map<string, number> {
+  const index = graphIndex(flow);
   const col = new Map<string, number>();
   for (const n of flow.nodes) if (isTriggerType(n.type)) col.set(n.id, 0);
-  for (let pass = 0; pass < flow.nodes.length; pass++) {
-    const changed = flow.edges.map((e) => relax(flow, col, e)).some(Boolean);
-    if (!changed) break;
+  const remaining = new Map(flow.nodes.map((node) => [node.id, index.incoming.get(node.id)?.length ?? 0]));
+  const pending = flow.nodes.filter((node) => remaining.get(node.id) === 0).map((node) => node.id);
+  for (const id of pending) {
+    for (const edge of index.outgoing.get(id) ?? []) advanceColumn({ flow, col, remaining, pending }, edge);
   }
   return settleColumns(flow, col);
+}
+
+function advanceColumn(state: { flow: Flow; col: Map<string, number>; remaining: Map<string, number>; pending: string[] }, edge: FlowEdge): void {
+  relax(state.flow, state.col, edge);
+  const count = state.remaining.get(edge.to)! - 1;
+  state.remaining.set(edge.to, count);
+  if (count === 0) state.pending.push(edge.to);
 }
 
 type Pos = { x: number; y: number };
@@ -85,11 +93,14 @@ type Board = { flow: Flow; byId: Map<string, FlowNode>; centerY: Map<string, num
 type Layer = { ids: string[]; column: number };
 
 const specOf = (node: FlowNode | undefined) => specFor(node?.type ?? '');
-const heightOf = (board: Board, id: string) => nodeHeight(specOf(board.byId.get(id)));
+function heightOf(board: Board, id: FlowNode['id']): number {
+  const node = board.byId.get(id);
+  return nodeHeight(specOf(node), node);
+}
 
 function portIndex(board: Board, edge: FlowEdge): number {
-  const spec = specOf(board.byId.get(edge.from));
-  const ports = spec ? outputsFor(spec) : [];
+  const node = board.byId.get(edge.from);
+  const ports = outputsFor(specOf(node), node);
   return Math.max(0, ports.findIndex((p) => p.id === edge.port));
 }
 
@@ -102,7 +113,7 @@ function layersOf(flow: Flow, col: Map<string, number>): Layer[] {
 
 function orderKey(board: Board, layer: Layer, index: number): number {
   const id = layer.ids[index];
-  const incoming = board.flow.edges.filter((e) => e.to === id && board.centerY.has(e.from));
+  const incoming = (graphIndex(board.flow).incoming.get(id) ?? []).filter((edge) => board.centerY.has(edge.from));
   if (layer.column === 0 || incoming.length === 0) return index;
   const total = incoming.reduce((sum, e) => sum + (board.centerY.get(e.from) as number) + portIndex(board, e) * 0.001, 0);
   return total / incoming.length;
@@ -114,9 +125,11 @@ function sortLayer(board: Board, layer: Layer): void {
 }
 
 function feedsInto(board: Board, layer: Layer): number[] {
-  return board.flow.edges.flatMap((e) => {
+  const incoming = graphIndex(board.flow).incoming;
+  return layer.ids.flatMap((id) => incoming.get(id) ?? []).flatMap((e) => {
     const from = board.result.get(e.from);
-    return from && layer.ids.includes(e.to) ? [from.y + portY(specOf(board.byId.get(e.from)), e.port)] : [];
+    const node = board.byId.get(e.from);
+    return from ? [from.y + portY(specOf(node), e.port, node)] : [];
   });
 }
 

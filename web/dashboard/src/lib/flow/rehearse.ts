@@ -1,269 +1,574 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import type { FlowIconName as IconName } from './icons';
-import { comparePasses as compare } from '@bagel/kit/automations/compare';
-import { COMMAND_SAMPLES, rehearseAutomation, type ModuleFlags, type RehearsedLine, type Samples, type Seg } from '@bagel/kit/engine/rehearsal';
-import { stepLabel } from './copy';
-import { describe, optionLabel, portLabel } from './describe';
-import type { Translate } from './messages';
-import { outputsFor, specFor, type Flow, type FlowNode, type NodeSpec } from './model';
-import { configText } from './setup';
+import type { MessageKey, RehearsedLine } from '@bagel/kit';
+import { comparePasses, compileFlow, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, SETUP_LOGIN, scenarioArgs, scenarioIdentity, scenarioKind, validateDefinition, viewerIdKey, viewerList } from '@bagel/kit/automations';
+import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioInputField } from '@bagel/kit/automations';
+export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioInputField, ScenarioValue } from '@bagel/kit/automations';
+import { fieldIssueMessage, fieldLabel, randomPathLabel, roleWarning, stepLabel, variableLabel } from './copy';
+import { describe, durationFormatter, lightGroupLabel, optionLabel, viewerNames } from './describe';
+import { issueMessage, stepOf, type Translate } from './messages';
+import { NODE_SPECS, outputsFor, specFor, type Flow, type FlowNode } from './model';
+import { fieldIssues, fieldRequired, type FieldIssue } from './issues';
+import { inputLabel, rehearsalInputs, resultText, scenarioFieldLabel, STREAM_INFO_SCENARIOS } from './rehearse-effects';
 
-export type Decisions = Readonly<Record<string, string>>;
-
-export type BranchChoice = { id: string; label: string };
-
-type StepBody =
-  | { kind: 'viewer'; name: string; text: string }
-  | { kind: 'event'; segments: Seg[] }
-  | { kind: 'check'; segments: Seg[]; passes: boolean }
-  | { kind: 'bot'; lines: RehearsedLine[] }
-  | { kind: 'effect'; segments: Seg[] };
-
-export type RehearsalStep = { id: string; icon: IconName; label: string; via?: string } & (
-  | Exclude<StepBody, { kind: 'check' }>
-  | { kind: 'check'; segments: Seg[]; taken: string; choices: BranchChoice[] }
-);
-
-export type StepWords = {
-  label: string;
-  line: string;
-  event: string;
-  lightsLiveOnly: string;
-  lightsAnyTime: string;
-  fallback: string;
-  choices: BranchChoice[];
+type Text = string;
+type ScenarioPatch = Partial<RehearsalScenario>;
+type Compiled = Extract<ReturnType<typeof compileFlow>, { ok: true }>['value'];
+export type RehearsalStep = RehearsalEvent & {
+  id: Text | null;
+  label: Text;
+  text: Text;
+  chatLines: RehearsedLine[];
+  missing: Text[];
+  sample: boolean;
+  note?: Text;
+  secondary?: Text;
+  node?: FlowNode;
+  repair?: ScenarioPatch;
+  issues?: readonly FieldIssue[];
 };
-
-export type StepContext = {
-  node: FlowNode;
-  spec: NodeSpec;
-  words: StepWords;
-  samples: Record<string, string>;
-  segments: (template: string) => Seg[];
-  value: (template: string) => string;
-  lines: (template: string) => RehearsedLine[];
+export type RehearsalView = {
+  steps: RehearsalStep[];
+  scenario: RehearsalScenario;
+  fields: readonly ScenarioInputField[];
+  summary: Text;
+  starts: boolean;
+  state: 'not_started' | 'started' | 'stopped';
+  stoppedAt?: Text;
+  blocked?: Text;
+  startPatch?: ScenarioPatch;
+  verifyRepair?: (patch: ScenarioPatch, path?: Text) => boolean;
+  issue?: { text: Text; node: Text | null; fieldKey?: Text };
+  definitionNotice?: Text;
 };
+export type RehearsalOptions = { scenario?: ScenarioPatch; overrides?: RehearsalOverrides };
 
-type Rehearser = (ctx: StepContext) => StepBody;
-
-const sampleOf = (ctx: StepContext, key: string) => ctx.samples[key] ?? COMMAND_SAMPLES[key] ?? '';
-
-const event: Rehearser = (ctx) => ({ kind: 'event', segments: ctx.segments(ctx.words.event) });
-
-const atLeast = (key: string, config: string): Rehearser => (ctx) => {
-  const floor = Number(ctx.node.config[config]);
-  if (floor > Number(ctx.samples[key])) ctx.samples[key] = String(floor);
-  return event(ctx);
+const ROLE_LABELS: Readonly<Record<Text, MessageKey>> = {
+  viewer: 'flows.test.role.viewer', everyone: 'flows.test.role.viewer', sub: 'flows.test.role.sub', vip: 'flows.test.role.vip',
+  mod: 'flows.test.role.mod', lead_mod: 'flows.test.role.lead_mod', broadcaster: 'flows.test.role.broadcaster'
 };
+export const scenarioInputLabel = (t: Translate, field: ScenarioInputField): Text => inputLabel(t, field);
+export const scenarioRoleLabel = (t: Translate, key: Text): Text => t(ROLE_LABELS[key] ?? 'flows.test.role.viewer');
 
-function subEvent(t: Translate, node: FlowNode): string {
-  const variant = String(node.config.variant);
-  if (variant === 'resub') return t('flows.line.eventResub');
-  return variant === 'gift' ? t('flows.line.eventGift') : t('flows.line.eventSub');
+function repairDraft(flow: Flow, issues: Issue[]): Flow {
+  const loose = new Set(issues.filter((issue) => issue.code === 'unconnected_node').map((issue) => stepOf([issue], flow.nodes)));
+  const nodes = flow.nodes.filter((node) => !loose.has(node.id)).map((node) => ({ ...node, config: { ...node.config } }));
+  for (const issue of issues) repairField(nodes, issue);
+  const known = new Set(nodes.map((node) => node.id));
+  return { ...flow, nodes, edges: flow.edges.filter((edge) => known.has(edge.from) && known.has(edge.to)) };
 }
 
-function managedRewardEvent(t: Translate, title: string, node: FlowNode): string {
-  const cost = Number(node.config.cost);
-  const priced = cost === 1 ? t('flows.line.eventRewardCostOne', { reward: title, cost }) : t('flows.line.eventRewardCost', { reward: title, cost });
-  const base = Number.isFinite(cost) ? priced : t('flows.line.eventRewardNamed', { reward: title });
-  return node.config.userInput === true ? `${base} ${t('flows.line.eventRewardInput')}` : base;
+function repairField(nodes: FlowNode[], issue: Issue): void {
+  const node = nodes.find((node) => node.id === stepOf([issue], nodes));
+  if (!node) return;
+  if (issue.code === 'user_not_resolved') {
+    delete node.config.users;
+    node.config.login = SETUP_LOGIN;
+  }
+  if (issue.code !== 'unmappable_token') return;
+  const [, , field, token] = issue.path.split('.');
+  node.config[field!] = String(node.config[field!] ?? '').replaceAll(`{${token}}`, `{unset:${token}}`);
 }
 
-function rewardEvent(t: Translate, spec: NodeSpec, node: FlowNode): string {
-  const title = configText(node, 'title');
-  if (title) return managedRewardEvent(t, title, node);
-  const reward = optionLabel(t, spec, node, 'reward');
-  return reward ? t('flows.line.eventRewardNamed', { reward }) : t('flows.line.eventReward');
+function compileDraft(flow: Flow): { compiled: ReturnType<typeof compileFlow>; warnings?: DefinitionWarnings } {
+  const compiled = compileFlow(flow);
+  if (compiled.ok) return { compiled, warnings: definitionWarnings(flow, compiled.value.definition) };
+  const tolerated = new Set(['unconnected_node', 'user_not_resolved', 'unmappable_token']);
+  if (!compiled.issues.every((issue) => tolerated.has(issue.code))) return { compiled };
+  return compileDraft(repairDraft(flow, compiled.issues));
 }
 
-function eventLine(t: Translate, spec: NodeSpec, node: FlowNode): string {
-  switch (node.type) {
-    case 'twitch.follow':
-      return t('flows.line.eventFollow');
-    case 'twitch.sub':
-      return subEvent(t, node);
-    case 'twitch.cheer':
-      return t('flows.line.eventCheer');
-    case 'twitch.raid':
-      return t('flows.line.eventRaid');
-    case 'twitch.reward':
-      return rewardEvent(t, spec, node);
-    case 'twitch.stream.online':
-      return t('flows.line.eventLive');
-    default:
-      return '';
+function executorOverrides(compiled: Compiled, overrides: RehearsalOverrides): RehearsalOverrides {
+  const entries = [...compiled.nodeByPath].flatMap(([path, id]) => {
+    const key = path.endsWith('.params.condition') ? path.slice(0, -17) : path;
+    return ['', '.response', '.error', '.path'].filter((suffix) => overrides[`${id}${suffix}`] !== undefined)
+      .map((suffix) => [`${key}${suffix}`, overrides[`${id}${suffix}`]!] as const);
+  });
+  return Object.fromEntries(entries);
+}
+
+const FILTER_FIELDS: Readonly<Record<Text, ScenarioField['key']>> = {
+  amount: 'bits', viewers: 'viewers', reward_id: 'rewardId', name: 'name', is_gift: 'isGift', tier: 'tier', anonymous: 'anonymous',
+  months: 'months', streak: 'streak', total: 'total', message: 'message', input: 'input', reward: 'reward', cost: 'cost',
+  title: 'title', category: 'category', seconds: 'seconds', automatic: 'automatic', text: 'requestText', user: 'user', user_id: 'userId'
+};
+
+function eventFilterField(field: Text, kind: Text): ScenarioField['key'] | undefined {
+  return field === 'amount' && kind === 'twitch.sub.gift' ? 'giftCount' : FILTER_FIELDS[field];
+}
+
+function scenarioFieldKind(kind: Text, key: ScenarioField['key']): ScenarioField['kind'] | undefined {
+  return SCENARIO_FIELDS[kind]?.find((field) => field.key === key)?.kind;
+}
+
+function scenarioFieldValue(kind: Text, field: ScenarioField['key'], value: Text): string | number | boolean {
+  const input = scenarioFieldKind(kind, field);
+  if (input === 'number') return Number(value);
+  if (input === 'toggle') return value.toLowerCase() === 'true';
+  return value;
+}
+
+function startPatch(reason: { reason: Text; values: Record<Text, Text> }, definition: Definition): ScenarioPatch | undefined {
+  if (reason.reason === 'trigger_message') return { message: defaultScenario(definition).message };
+  if (reason.reason === 'trigger_offline') return { live: true };
+  if (reason.reason !== 'trigger_filter') return undefined;
+  const kind = scenarioKind(definition);
+  const field = eventFilterField(reason.values.field ?? '', kind);
+  if (!field) return undefined;
+  return { [field]: scenarioFieldValue(kind, field, reason.values.expected ?? '') };
+}
+
+const BLOCKED_LABELS: Readonly<Record<Text, MessageKey>> = {
+  condition_failed: 'flows.test.checkStopped',
+  trigger_message: 'flows.test.messageMismatch',
+  trigger_offline: 'flows.test.offline',
+  no_name: 'flows.test.noName'
+};
+
+function blockedText(t: Translate, reason: { reason: Text; values: Record<Text, Text> }, definition: Definition): Text {
+  const label = BLOCKED_LABELS[reason.reason];
+  if (label) return t(label, reason.values);
+  const kind = scenarioKind(definition);
+  const field = eventFilterField(reason.values.field ?? '', kind) ?? '';
+  const numeric = field && scenarioFieldKind(kind, field) === 'number';
+  return t(numeric ? 'flows.test.below' : 'flows.test.filterMismatch', { ...reason.values, field: scenarioFieldLabel(t, field) });
+}
+
+function counted(t: Translate, one: MessageKey, many: MessageKey, params: Record<Text, Text | number> & { count: Text | number }): Text {
+  return t(Number(params.count) === 1 ? one : many, params);
+}
+
+function withMessage(t: Translate, summary: Text, message: Text | undefined): Text {
+  return message ? t('flows.test.summaryWithMessage', { summary, message }) : summary;
+}
+
+function summaryViewer(t: Translate, sample: RehearsalScenario): Text {
+  if (sample.anonymous) return t('flows.test.anonymousViewer');
+  return sample.user || t('flows.test.notSet');
+}
+
+function scenarioSummary(t: Translate, sample: RehearsalScenario, kind: Text): Text {
+  if (STREAM_INFO_SCENARIOS.has(kind)) return streamSummary(t, sample, kind);
+  const user = summaryViewer(t, sample);
+  const summaryKind = kind.startsWith('twitch.chat.') ? 'twitch.chat' : kind;
+  const summaries: Readonly<Record<Text, () => Text>> = {
+    'twitch.chat': () => t('flows.test.summaryChat', { user, role: scenarioRoleLabel(t, sample.role ?? 'viewer'), message: sample.message ?? '' }),
+    'twitch.follow': () => t('flows.test.summaryFollow', { user }),
+    'twitch.cheer': () => withMessage(t,
+      counted(t, 'flows.test.summaryCheerOne', 'flows.test.summaryCheerMany', { user, count: sample.bits ?? 0 }), sample.message),
+    'twitch.raid': () => counted(t, 'flows.test.summaryRaidOne', 'flows.test.summaryRaidMany', { user, count: sample.viewers ?? 0 }),
+    'twitch.sub.new': () => t('flows.test.summarySub', { user, tier: Number(sample.tier ?? 1000) / 1000 }),
+    'twitch.sub.resub': () => {
+      const summary = counted(t, 'flows.test.summaryResubOne', 'flows.test.summaryResubMany', { user, count: sample.months ?? 0 });
+      return withMessage(t, t('flows.test.summaryResubStreak', { summary, streak: sample.streak ?? 0 }), sample.message);
+    },
+    'twitch.sub.gift': () => {
+      const summary = counted(t, 'flows.test.summaryGiftOne', 'flows.test.summaryGiftMany', { user, count: sample.giftCount ?? 0 });
+      return t('flows.test.summaryGiftTotal', { summary, total: sample.total ?? 0 });
+    },
+    'twitch.reward': () => withMessage(t,
+      t('flows.test.summaryReward', { user, reward: sample.reward ?? '', cost: sample.cost ?? 0 }), sample.input),
+    'twitch.unban_request': () => t('flows.test.summaryUnban', { user, text: sample.requestText ?? '' }),
+    'twitch.stream.offline': () => t('flows.line.eventOffline'),
+    'twitch.ad_break': () => {
+      const length = durationFormatter(t)(sample.seconds ?? 0) || `0${t('flows.test.duration.second')}`;
+      return t(sample.automatic ? 'flows.test.summaryAdAutomatic' : 'flows.test.summaryAdManual', { length });
+    },
+    'schedule.timer': () => t(sample.live ? 'flows.test.summaryTimerLive' : 'flows.test.summaryTimerOffline'),
+    'schedule.manual': () => withMessage(t, t('flows.test.summaryManual'), sample.args),
+    'countdown.finished': () => t('flows.test.summaryCountdown', { name: sample.name ?? '' })
+  };
+  if (Object.hasOwn(summaries, summaryKind)) return summaries[summaryKind]();
+  return t('flows.test.summaryEvent', { user });
+}
+
+function streamSummary(t: Translate, { title = '', category = '' }: RehearsalScenario, kind: Text): Text {
+  return t(kind === 'twitch.stream.online' ? 'flows.test.summaryLive' : 'flows.test.summaryChannelUpdate', { title, category });
+}
+
+const INPUT_TOKENS: Readonly<Record<Text, ScenarioField['key']>> = {
+  user: 'user', 'user.id': 'userId', userid: 'userId', bits: 'bits', viewers: 'viewers', tier: 'tier', months: 'months',
+  count: 'giftCount', streak: 'streak', total: 'total', message: 'message', input: 'input', reward: 'reward', cost: 'cost',
+  title: 'title', game: 'category', seconds: 'seconds', text: 'requestText', args: 'args'
+};
+const TOKEN_LABELS = new Map(NODE_SPECS.flatMap((spec) => [...(spec.provides ?? []), ...outputsFor(spec).flatMap((port) => port.provides ?? [])]).map((variable) => [variable.token, variable]));
+
+function inputTokenField(token: Text, kind: Text): ScenarioField['key'] | undefined {
+  if (token === 'message' && kind.startsWith('twitch.chat.')) return undefined;
+  if (token === 'args' && kind !== 'schedule.manual') return undefined;
+  return token.startsWith('event.') ? eventFilterField(token.slice(6), kind) : INPUT_TOKENS[token];
+}
+
+function passingValue(op: Text, right: Text): Text {
+  switch (op) {
+    case 'gt': return String(Math.floor(Number(right)) + 1);
+    case 'lt': return String(Math.ceil(Number(right)) - 1);
+    case 'ne': return right === '1' ? '2' : '1';
+    default: return right;
   }
 }
 
-function fallbackText(t: Translate, node: FlowNode): string {
-  if (node.type === 'twitch.chat.command') return t('flows.line.sampleCommand');
-  return node.type === 'twitch.chat.word' ? t('flows.line.sampleWord') : '';
+function compareRepair(node: FlowNode, kind: Text): ScenarioPatch | undefined {
+  const token = /^\{([^}]+)\}$/.exec(String(node.config.left));
+  const field = inputTokenField(token?.[1] ?? '', kind);
+  if (!field) return undefined;
+  const right = String(node.config.right ?? '');
+  if (right.includes('{')) return undefined;
+  const op = String(node.config.op ?? 'gte');
+  const value = scenarioFieldValue(kind, field, passingValue(op, right));
+  return comparePasses(op, String(value), right, node.config.matchCase === false) ? { [field]: value } : undefined;
 }
 
-function wordsFor(t: Translate, spec: NodeSpec, node: FlowNode): StepWords {
+function viewerRepair(node: FlowNode, scenario: RehearsalScenario): ScenarioPatch | undefined {
+  const viewers = viewerList(node.config);
+  if (node.config.mode !== 'except') {
+    const first = viewers[0];
+    return first?.id ? { userId: first.id, user: first.login } : undefined;
+  }
+  const current = viewerIdKey(scenario.userId ?? '');
+  const excluded = viewers.some(({ id }) => id && viewerIdKey(id) === current);
+  return excluded ? { userId: '', user: '' } : undefined;
+}
+
+const REPAIR_CHECKS = new Map<Text, (node: FlowNode, context: RunContext) => ScenarioPatch | undefined>([
+  ['cond.user', (node, context) => viewerRepair(node, context.scenario)],
+  ['cond.live', (node) => ({ live: node.config.state !== 'offline' })],
+  ['cond.compare', (node, context) => compareRepair(node, context.kind)]
+]);
+
+function checkRepair(node: FlowNode, event: RehearsalEvent, context: RunContext): ScenarioPatch | undefined {
+  if (event.status !== 'no') return undefined;
+  const { kind } = context;
+  const fields = SCENARIO_FIELDS[kind] ?? [];
+  if (node.type === 'cond.role') return fields.some((field) => field.key === 'role') ? { role: node.config.level as RehearsalScenario['role'] } : undefined;
+  const patch = REPAIR_CHECKS.get(node.type)?.(node, context);
+  return possiblePatch(context, fields, patch);
+}
+
+function possiblePatch(context: RunContext, fields: readonly ScenarioField[], patch: ScenarioPatch | undefined): ScenarioPatch | undefined {
+  if (!patch) return undefined;
+  if (!Object.keys(patch).every((key) => fields.some((field) => field.key === key))) return undefined;
+  if (!matchTrigger(context.compiled.definition, { ...context.scenario, ...patch }).starts) return undefined;
+  return patch;
+}
+
+type ScenarioInputs = { scenario: RehearsalScenario; kind: Text };
+
+function viewerCheck(t: Translate, node: FlowNode, scenario: RehearsalScenario): Text {
+  const actual = scenario.userId || t('flows.test.notSet');
+  const expected = viewerNames(node).join(', ') || t('flows.test.notSet');
+  return t(node.config.mode === 'except' ? 'flows.test.userExceptCheck' : 'flows.test.userCheck', { actual, expected });
+}
+
+function liveCheck(t: Translate, node: FlowNode, scenario: RehearsalScenario): Text {
+  const actual = t(scenario.live ? 'flows.step.condition.live.field.state.option.live' : 'flows.step.condition.live.field.state.option.offline');
+  const expected = t(node.config.state === 'offline' ? 'flows.step.condition.live.field.state.option.offline' : 'flows.step.condition.live.field.state.option.live');
+  return t('flows.test.liveCheck', { actual, expected });
+}
+
+function compareCheck(t: Translate, node: FlowNode, inputs: ScenarioInputs): Text {
+  return describe(t, { ...node, config: { ...node.config, left: displayInput(node.config.left, inputs) || t('flows.test.emptyValue'), right: displayInput(node.config.right, inputs) } });
+}
+
+function patternCheck(t: Translate, scenario: RehearsalScenario, event: RehearsalEvent): Text {
+  return t(event.status === 'yes' ? 'flows.test.patternMatch' : 'flows.test.patternMiss', { args: scenario.args || t('flows.test.emptyValue') });
+}
+
+function checkText(t: Translate, node: FlowNode, inputs: ScenarioInputs, event: RehearsalEvent): Text {
+  const { scenario } = inputs;
+  switch (node.type) {
+    case 'cond.role': return t('flows.test.roleCheck', {
+      actual: scenarioRoleLabel(t, scenario.role ?? 'viewer'), expected: scenarioRoleLabel(t, String(node.config.level ?? 'viewer'))
+    });
+    case 'cond.user': return viewerCheck(t, node, scenario);
+    case 'cond.live': return liveCheck(t, node, scenario);
+    case 'cond.pattern': return patternCheck(t, scenario, event);
+    case 'cond.compare': return compareCheck(t, node, inputs);
+    default: return describe(t, node);
+  }
+}
+
+function displayInput(value: FlowNode['config'][Text] | undefined, inputs: ScenarioInputs): Text {
+  return String(value ?? '').replace(/\{([^}]+)\}/g, (token, key: Text) => {
+    const field = inputTokenField(key, inputs.kind);
+    return field ? String(inputs.scenario[field] ?? token) : token;
+  });
+}
+
+function loopText(t: Translate, event: RehearsalEvent): Text {
+  return event.port === 'done' ? t('flows.test.loopDone') : counted(t, 'flows.test.loopOne', 'flows.test.loopMany', { count: event.detail?.times ?? '' });
+}
+
+function triggerText(node: FlowNode | undefined, scenario: RehearsalScenario, line: Text, t: Translate): Text {
+  if (node?.type === 'twitch.stream.offline') return t('flows.line.eventOffline');
+  return node?.type.startsWith('twitch.chat.') ? scenario.message ?? line : line;
+}
+
+function effectText(t: Translate, detail: Record<Text, Text>, node: FlowNode | undefined): Text {
+  if (!node) return t('flows.test.effect');
+  return resultText(t, detail, node);
+}
+
+function lightsRestoreText(t: Translate, detail: Record<Text, Text>): Text {
+  const count = Number(detail.count) - 1;
+  const name = detail.device_name?.trim();
+  const light = lightGroupLabel(t, name || t('flows.test.lightsRestoreFallback'), count);
+  const single = name && !(count > 0);
+  return t(single ? 'flows.test.lightsRestore' : 'flows.test.lightsRestoreMany', { light });
+}
+
+function eventText(t: Translate, event: RehearsalEvent, node: FlowNode | undefined, inputs: ScenarioInputs): Text {
+  const detail = event.detail ?? {};
+  if (event.kind === 'effect') return rehearsalEffectText(t, detail, node);
+  if (detail.code) return reasonText(t, detail.code);
+  if (event.kind === 'lights_restore') return lightsRestoreText(t, detail);
+  const line = effectText(t, detail, node);
+  const texts = {
+    trigger: triggerText(node, inputs.scenario, line, t), parallel: '', loop: loopText(t, event),
+    wait: t('flows.test.wait', { seconds: Number(detail.ms) / 1000 }),
+    check: node ? checkText(t, node, inputs, event) : line, effect: line, say: '', skip: line
+  };
+  return texts[event.kind];
+}
+
+function rehearsalEffectText(t: Translate, detail: Record<Text, Text>, node: FlowNode | undefined): Text {
+  if (node?.type === 'reply.random' && detail.path) return randomPathLabel(t, detail.path);
+  if (node?.type === 'reply.run') {
+    const name = optionLabel(t, specFor(node.type)!, node, 'automationId');
+    return t('flows.test.runsRecipe', { name });
+  }
+  const reason = failureReason(detail);
+  return reason ? reasonText(t, reason) : effectText(t, detail, node);
+}
+
+function failureReason(detail: Record<Text, Text>): Text | undefined {
+  return detail.code === 'insufficient_points' ? undefined : detail.code;
+}
+
+function chatLines(event: RehearsalEvent): RehearsedLine[] {
+  return (event.lines ?? []).map((text, index) => ({
+    mode: 'chat', ...event.lineStyles?.[index], segments: [{ text, kind: 'plain' }]
+  }));
+}
+
+function reasonText(t: Translate, code: Text): Text {
+  const reasons: Record<Text, Text> = {
+    disabled: t('flows.test.disabled'), empty: t('flows.board.nothingToSend'), offline: t('flows.test.offline'),
+    no_viewer: t('flows.test.noViewer'), bad_times: t('flows.test.badTimes'), delay_budget: t('flows.issue.delayBudget'),
+    max_steps: t('flows.test.limit'), max_actions: t('flows.test.limit'), upstream_error: t('flows.test.apiFailed'),
+    not_running: t('flows.test.notRunning'), below_rate: t('flows.test.belowRate'), var_limit: t('flows.test.varLimit'),
+    text_error: t('flows.test.textError'), math_error: t('flows.test.mathError'), bad_def: t('flows.test.badDef'),
+    empty_login: t('flows.test.emptyLogin'), no_target: t('flows.test.noMention'),
+    no_device: t('flows.choose.light'), perm_required: t('flows.issue.permRequired'),
+    too_few_choices: t('flows.test.tooFewChoices'), nothing_running: t('flows.test.nothingRunning'), no_message: t('flows.test.noMessage'),
+    stopped: t('flows.test.stoppedHere'), no_redemption: t('flows.test.noRedemption'), nothing_to_change: t('flows.test.noRewardChanges')
+  };
+  return reasons[code] ?? t('flows.test.failed');
+}
+
+type RunContext = {
+  compiled: Compiled; nodes: Map<Text, FlowNode>; scenario: RehearsalScenario; overrides: RehearsalOverrides;
+  flow: Flow; kind: Text; formatDuration: (seconds: number) => Text;
+};
+
+function unsetFields(t: Translate, node: FlowNode | undefined): Text[] {
+  const spec = node ? specFor(node.type) : undefined;
+  if (!node || !spec) return [];
+  return spec.fields.filter((field) => fieldRequired(node, field.key)).filter((field) => !String(node.config[field.key] ?? '').trim())
+    .map((field) => fieldLabel(t, spec, field));
+}
+
+function verifyRepair(context: RunContext, repair: ScenarioPatch, path?: Text): boolean {
+  const result = rehearseDefinition(context.compiled.definition, { ...context.scenario, ...repair }, context.overrides, context.formatDuration);
+  return path ? result.events.some((candidate) => candidate.path === path && candidate.status === 'yes') : result.starts || result.reason?.reason === 'condition_failed';
+}
+
+function mappedStep(t: Translate, event: RehearsalEvent, context: RunContext): RehearsalStep {
+  const { compiled, nodes, scenario } = context;
+  const id = compiled.nodeByPath.get(`${event.path}.params.condition`) ?? compiled.nodeByPath.get(event.path) ?? null;
+  const node = nodes.get(id ?? '');
+  const inputs = { scenario: scenarioIdentity(compiled.definition, scenario), kind: context.kind };
+  return { ...event, ...stepValues(t, event, node), id, node, chatLines: chatLines(event),
+    ...stepDetails(t, node, event), repair: node ? checkRepair(node, event, context) : undefined,
+    note: roleWarning(t, context.flow, node) ?? stepNote(t, node, { event, inputs }),
+    text: eventText(t, event, node, inputs) };
+}
+
+function stepDetails(t: Translate, node: FlowNode | undefined, event: RehearsalEvent): Pick<RehearsalStep, 'label' | 'secondary'> {
+  const spec = node ? specFor(node.type) : undefined;
   return {
-    label: stepLabel(t, spec),
-    line: describe(t, node),
-    event: eventLine(t, spec, node),
-    lightsLiveOnly: t('flows.line.lightsLiveOnly'),
-    lightsAnyTime: t('flows.line.lightsAnyTime'),
-    fallback: fallbackText(t, node),
-    choices: outputsFor(spec).map((o) => ({ id: o.id, label: portLabel(t, node, o.id) }))
+    label: spec ? stepLabel(t, spec) : t('flows.board.atSameTime'),
+    secondary: node?.type === 'reply.math' ? String(node.config.expression ?? '') : choiceList(event) ?? failedRequestUrl(event),
   };
 }
 
-function comparePasses(ctx: StepContext): boolean {
-  const left = ctx.value(String(ctx.node.config.left ?? ''));
-  const right = ctx.value(String(ctx.node.config.right ?? ''));
-  return compare(String(ctx.node.config.op ?? 'gte'), left, right);
+function choiceList(event: RehearsalEvent): Text | undefined {
+  return (event.detail?.choices ?? event.detail?.outcomes)?.split('\n').join(', ');
 }
 
-const REHEARSERS: Readonly<Record<string, Rehearser>> = {
-  'twitch.chat.command': (ctx) => ({
-    kind: 'viewer',
-    name: sampleOf(ctx, 'user'),
-    text: `${String(ctx.node.config.trigger ?? '') || ctx.words.fallback} ${sampleOf(ctx, 'args')}`
-  }),
-  'twitch.chat.word': (ctx) => ({
-    kind: 'viewer',
-    name: sampleOf(ctx, 'user'),
-    text: String(ctx.node.config.word ?? '') || ctx.words.fallback
-  }),
-  'twitch.follow': event,
-  'twitch.sub': event,
-  'twitch.cheer': atLeast('bits', 'minBits'),
-  'twitch.raid': atLeast('viewers', 'minViewers'),
-  'twitch.reward': event,
-  'twitch.stream.online': event,
-  'cond.compare': (ctx) => ({ kind: 'check', segments: ctx.segments(ctx.words.line), passes: comparePasses(ctx) }),
-  'reply.lights': (ctx) => {
-    const when = ctx.node.config.liveOnly === false ? ctx.words.lightsAnyTime : ctx.words.lightsLiveOnly;
-    return { kind: 'event', segments: ctx.segments([ctx.words.line, when].filter(Boolean).join(', ')) };
-  },
-  'reply.chat': (ctx) => ({ kind: 'bot', lines: ctx.lines(configText(ctx.node, 'message')) }),
-  'reply.http_get': (ctx) => ({ kind: 'check', segments: ctx.segments(ctx.words.line), passes: true }),
-  'reply.http_post': (ctx) => ({ kind: 'check', segments: ctx.segments(ctx.words.line), passes: true })
-};
-
-const BY_KIND: Readonly<Record<NodeSpec['kind'], Rehearser>> = {
-  trigger: (ctx) => ({ kind: 'event', segments: ctx.segments(ctx.words.line) }),
-  condition: (ctx) => ({ kind: 'check', segments: ctx.segments(ctx.words.line), passes: true }),
-  reply: (ctx) => ({ kind: 'effect', segments: ctx.segments(ctx.words.line) })
-};
-
-type StepIdentity = Pick<StepContext, 'node' | 'spec' | 'words'>;
-
-function contextFor({ node, spec, words }: StepIdentity, samples: Record<string, string>, modules: ModuleFlags): StepContext {
-  const lines = (template: string) => rehearseAutomation(template, samples as Samples, modules);
-  const segments = (template: string) => lines(template)[0]?.segments ?? [];
-  const value = (template: string) => segments(template).map((seg) => seg.text).join('');
-  return { node, spec, words, samples, segments, value, lines };
+function failedRequestUrl(event: RehearsalEvent): Text | undefined {
+  if (event.kind !== 'effect' || event.status !== 'failed') return undefined;
+  return event.detail?.url;
 }
 
-function provide(spec: NodeSpec, samples: Record<string, string>) {
-  const viaPorts = (spec.outputs ?? []).flatMap((output) => output.provides ?? []);
-  for (const v of [...(spec.provides ?? []), ...viaPorts]) samples[v.token.slice(1, -1)] = v.sample;
+function emptyResponse(node: FlowNode | undefined, event: RehearsalEvent): boolean {
+  return Boolean(node?.type.startsWith('reply.http_') && event.detail?.response === '');
 }
 
-function toStep(ctx: StepContext, chosen: string | undefined, via: string | undefined): RehearsalStep {
-  const body = (REHEARSERS[ctx.node.type] ?? BY_KIND[ctx.spec.kind])(ctx);
-  const base = { id: ctx.node.id, icon: ctx.spec.icon, label: ctx.words.label, via };
-  if (body.kind !== 'check') return { ...base, ...body };
-  const choices = ctx.words.choices;
-  const fallback = body.passes ? choices[0]?.id : choices[1]?.id;
-  return { ...base, kind: 'check', segments: body.segments, taken: chosen ?? fallback ?? '', choices };
+const FAILED_COMPARISONS: Readonly<Record<Text, MessageKey>> = Object.freeze({
+  eq: 'flows.test.compareNotEq',
+  ne: 'flows.test.compareNotNe',
+  gt: 'flows.test.compareNotGt',
+  gte: 'flows.test.compareNotGte',
+  lt: 'flows.test.compareNotLt',
+  lte: 'flows.test.compareNotLte',
+  contains: 'flows.test.compareNotContains',
+  starts: 'flows.test.compareNotStarts'
+});
+
+function stepNote(t: Translate, node: FlowNode | undefined, context: { event: RehearsalEvent; inputs: ScenarioInputs }): Text | undefined {
+  if (!node) return undefined;
+  const { event, inputs } = context;
+  if (node.type === 'reply.run' && event.kind === 'effect') return t('flows.test.recipeSimulation');
+  if (emptyResponse(node, event)) return t('flows.test.emptyResponse');
+  if (node.type === 'cond.compare' && event.status === 'no') return compareNote(t, node, inputs);
 }
 
-function traceBack(flow: Flow, target: string): { root: string; forced: Record<string, string> } {
-  const forced: Record<string, string> = {};
-  const seen = new Set([target]);
-  let root = target;
-  for (;;) {
-    const edge = flow.edges.find((e) => e.to === root && !seen.has(e.from));
-    if (!edge) return { root, forced };
-    forced[edge.from] = edge.port;
-    seen.add(edge.from);
-    root = edge.from;
+function compareNote(t: Translate, node: FlowNode, inputs: ScenarioInputs): Text {
+  const op = String(node.config.op ?? 'gte');
+  return t(Object.hasOwn(FAILED_COMPARISONS, op) ? FAILED_COMPARISONS[op]! : 'flows.test.compareNotEq', {
+    left: displayInput(node.config.left, inputs) || t('flows.test.emptyValue'),
+    right: displayInput(node.config.right, inputs) || t('flows.test.emptyValue')
+  });
+}
+
+function stepValues(t: Translate, event: RehearsalEvent, node: FlowNode | undefined): Pick<RehearsalStep, 'missing' | 'sample'> {
+  const tokens = (event.detail?.missing ?? '').split(',').filter(Boolean).map((token) => token.replace(/^unset:/, ''));
+  const missing = [...new Set([...tokens.map((token) => missingLabel(t, token)), ...unsetFields(t, node)])];
+  const sample = event.detail?.random === '1' || Object.values(node?.config ?? {}).some((value) => /\{(?:random[}:|]|choice:)/i.test(String(value)));
+  return { missing, sample };
+}
+
+function missingLabel(t: Translate, token: Text): Text {
+  const variable = TOKEN_LABELS.get(`{${token}}`);
+  if (variable) return variableLabel(t, variable);
+  const name = token.split(':').at(-1) ?? '';
+  const label = scenarioFieldLabel(t, FILTER_FIELDS[token] ?? token);
+  return label !== t('flows.test.notSet') ? label : name;
+}
+
+type DefinitionWarnings = { byNode: Map<Text, FieldIssue[]>; recipe: Issue[] };
+
+function definitionWarnings(flow: Flow, definition: Definition): DefinitionWarnings {
+  const byNode = new Map<Text, FieldIssue[]>();
+  const issues = validateDefinition(definition);
+  const located = issues.length ? locateIssues(flow, issues) : [];
+  const fields = fieldIssues(located, flow.nodes);
+  for (const field of fields) {
+    byNode.set(field.nodeId, [...(byNode.get(field.nodeId) ?? []), field]);
   }
+  const owned = new Set(fields.map((field) => field.path));
+  return { byNode, recipe: located.filter((issue) => !owned.has(issue.path)) };
 }
 
-function firstTrigger(flow: Flow): string | undefined {
-  return flow.nodes.find((n) => specFor(n.type)?.kind === 'trigger')?.id;
-}
-
-function nextPorts(step: RehearsalStep, spec: NodeSpec): string[] {
-  return step.kind === 'check' ? [step.taken] : outputsFor(spec).map((output) => output.id);
-}
-
-export type RehearsalOptions = {
-  decisions?: Decisions;
-  until?: string;
-  modules?: ModuleFlags;
+const WARNING_LABELS: Readonly<Record<Text, MessageKey>> = {
+  'trigger_mismatch:reply.unban_resolve:type': 'flows.test.requiresUnbanRequest',
+  'trigger_mismatch:reply.delete_message:type': 'flows.test.noMessage',
+  trigger_mismatch: 'automations.issue.trigger_mismatch',
+  'too_short:reply.poll:choices': 'flows.test.pollChoices',
+  'required:reply.poll:choices': 'flows.test.pollChoices'
 };
 
-type Walk = {
-  flow: Flow;
-  decisions: Decisions;
-  forced: Record<string, string>;
-  until?: string;
-  modules: ModuleFlags;
-  samples: Record<string, string>;
-  steps: RehearsalStep[];
-  seen: Set<string>;
-  done: boolean;
-};
-
-function unvisited(walk: Walk, id: string): { node: FlowNode; spec: NodeSpec } | undefined {
-  if (walk.done || walk.seen.has(id)) return undefined;
-  const node = walk.flow.nodes.find((n) => n.id === id);
-  const spec = node && specFor(node.type);
-  return node && spec ? { node, spec } : undefined;
+function warningText(t: Translate, issue: FieldIssue, node: FlowNode | undefined): Text {
+  const place = issue.path.split('.').at(-1);
+  const key = WARNING_LABELS[`${issue.code}:${node?.type}:${place}`] ?? WARNING_LABELS[issue.code];
+  return key ? t(key) : fieldIssueMessage(t, issue, node);
 }
 
-function visit(t: Translate, walk: Walk, id: string, via?: string): void {
-  const found = unvisited(walk, id);
-  if (!found) return;
-  const { node, spec } = found;
-  walk.seen.add(id);
-  provide(spec, walk.samples);
-  const context = contextFor({ node, spec, words: wordsFor(t, spec, node) }, walk.samples, walk.modules);
-  const step = toStep(context, walk.forced[id] ?? walk.decisions[id], via);
-  walk.steps.push(step);
-  walk.done = id === walk.until;
-  for (const port of nextPorts(step, spec)) {
-    for (const e of walk.flow.edges) if (e.from === id && e.port === port) visit(t, walk, e.to, e.id);
+function markInvalid(t: Translate, step: RehearsalStep, issues: FieldIssue[] | undefined): RehearsalStep {
+  if (!issues) return step;
+  const text = [...new Set(issues.map((issue) => warningText(t, issue, step.node)))].join(' ');
+  return { ...step, issues, text, status: 'failed', detail: { ...step.detail, code: issues[0]!.code },
+    chatLines: [], lines: undefined, missing: [], sample: false, note: undefined, secondary: undefined, repair: undefined };
+}
+
+function missingWarnings(steps: RehearsalStep[], context: RunContext, warnings: DefinitionWarnings): Map<number, RehearsalEvent[]> {
+  const { nodeByPath } = context.compiled;
+  const seen = new Set(steps.map((step) => step.id));
+  const paths = [...nodeByPath].filter(([path]) => path !== 'trigger');
+  const order = new Map(paths.map(([path], rank) => [path, rank]));
+  const positions = steps.map((step) => order.get(`${step.path}.params.condition`) ?? order.get(step.path) ?? -1);
+  const insertions = new Map<number, RehearsalEvent[]>();
+  for (const [rank, [path, id]] of paths.entries()) {
+    if (seen.has(id) || !warnings.byNode.has(id)) continue;
+    seen.add(id);
+    const next = positions.findIndex((position) => position > rank);
+    const index = next < 0 ? steps.length : next;
+    const atMs = steps[Math.min(index, steps.length - 1)]?.atMs ?? 0;
+    const rows = insertions.get(index) ?? [];
+    rows.push({ key: `warning:${path}`, path, lane: [], iteration: [], atMs, kind: 'skip', status: 'failed' });
+    insertions.set(index, rows);
   }
+  return insertions;
 }
 
-function redeemOutcome(t: Translate, node: FlowNode): string {
-  switch (configText(node, 'onRedeem')) {
-    case 'cancel':
-      return t('flows.line.outcomeCancel');
-    case 'leave':
-      return t('flows.line.outcomeLeave');
-    default:
-      return t('flows.line.outcomeFulfill');
+function rehearsalSteps(t: Translate, result: ReturnType<typeof rehearseDefinition>, context: RunContext, warnings: DefinitionWarnings | undefined): RehearsalStep[] {
+  const steps = result.events.map((event) => mappedStep(t, event, context));
+  if (!warnings?.byNode.size) return steps;
+  if (!steps.length && result.reason) {
+    const trigger: RehearsalEvent = { key: 'trigger:blocked', path: 'trigger', lane: [], iteration: [], atMs: 0, kind: 'trigger', status: 'skipped' };
+    steps.push({ ...mappedStep(t, trigger, context), text: blockedText(t, result.reason, context.compiled.definition) });
   }
+  const insertions = missingWarnings(steps, context, warnings);
+  const fallback = (index: number) => (insertions.get(index) ?? []).map((event) => mappedStep(t, event, context));
+  return [...steps.flatMap((step, index) => [...fallback(index), step]), ...fallback(steps.length)]
+    .map((step) => markInvalid(t, step, warnings.byNode.get(step.id ?? '')));
 }
 
-const isManagedReward = (node: FlowNode) => node.type === 'twitch.reward' && configText(node, 'title') !== '';
-
-function outcomeStep(t: Translate, walk: Walk, rootId: string): RehearsalStep | undefined {
-  const node = walk.flow.nodes.find((n) => n.id === rootId);
-  const spec = node && specFor(node.type);
-  if (!node || !spec) return undefined;
-  if (!isManagedReward(node)) return undefined;
-  const segments = rehearseAutomation(redeemOutcome(t, node), walk.samples as Samples, walk.modules)[0]?.segments ?? [];
-  return { id: `${node.id}:after`, icon: spec.icon, label: t('flows.reward.afterTitle'), kind: 'event', segments };
+export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions = {}): RehearsalView {
+  return rehearseDraft(prepareRehearsal(flow), t, options);
 }
 
-export function rehearseFlow(flow: Flow, t: Translate, options: RehearsalOptions = {}): RehearsalStep[] {
-  const { decisions = {}, until, modules = {} } = options;
-  const traced = until ? traceBack(flow, until) : { root: firstTrigger(flow), forced: {} as Record<string, string> };
-  const walk: Walk = { flow, decisions, forced: traced.forced, until, modules, samples: {}, steps: [], seen: new Set(), done: false };
-  if (!traced.root) return walk.steps;
-  visit(t, walk, traced.root);
-  const after = until ? undefined : outcomeStep(t, walk, traced.root);
-  return after ? [...walk.steps, after] : walk.steps;
+export function prepareRehearsal(flow: Flow) {
+  return { flow, ...compileDraft(flow) };
+}
+
+export function rehearseDraft(draft: ReturnType<typeof prepareRehearsal>, t: Translate, options: RehearsalOptions = {}): RehearsalView {
+  const { flow, compiled, warnings } = draft;
+  const empty: RehearsalView = { steps: [], fields: [], scenario: { live: true, ...options.scenario }, summary: '', starts: false, state: 'not_started' };
+  if (!compiled.ok) return { ...empty, issue: rehearsalIssue(t, compiled.issues, flow) };
+  const { definition } = compiled.value;
+  const { kind, fields, scenario } = rehearsalInputs(definition, options.scenario, t);
+  scenario.args = scenarioArgs(definition, scenario);
+  const overrides = executorOverrides(compiled.value, options.overrides ?? {});
+  const formatDuration = durationFormatter(t);
+  const result = rehearseDefinition(definition, scenario, overrides, formatDuration);
+  const context: RunContext = { flow, kind, compiled: compiled.value, nodes: new Map(flow.nodes.map((node) => [node.id, node])), scenario, overrides, formatDuration };
+  return { scenario, fields, summary: scenarioSummary(t, scenario, kind), ...runOutcome(result, context, t),
+    steps: rehearsalSteps(t, result, context, warnings),
+    definitionNotice: warnings?.recipe.map((issue) => issueMessage(t, issue)).join(' ') || undefined,
+    verifyRepair: (patch, path) => verifyRepair(context, patch, path) };
+}
+
+function runOutcome(result: ReturnType<typeof rehearseDefinition>, context: RunContext, t: Translate): Pick<RehearsalView, 'starts' | 'state' | 'stoppedAt' | 'blocked' | 'startPatch'> {
+  const stopped = result.reason?.reason === 'condition_failed';
+  return { starts: result.starts || stopped,
+    state: stopped ? 'stopped' : result.starts ? 'started' : 'not_started',
+    stoppedAt: stopped ? context.compiled.nodeByPath.get(result.reason!.values.path!) : undefined,
+    blocked: result.reason ? blockedText(t, result.reason, context.compiled.definition) : undefined,
+    startPatch: result.reason ? startPatch(result.reason, context.compiled.definition) : undefined };
+}
+
+function rehearsalIssue(t: Translate, issues: Issue[], flow: Flow): RehearsalView['issue'] {
+  const first = issues[0]!;
+  const mapped = fieldIssues([first], flow.nodes)[0];
+  const node = flow.nodes.find((node) => node.id === mapped?.nodeId);
+  const text = mapped ? fieldIssueMessage(t, mapped, node) : issueMessage(t, first);
+  return { text, node: stepOf([first], flow.nodes), fieldKey: mapped?.fieldKey };
+}
+
+export function setStoredValue(scenario: ScenarioPatch, node: FlowNode, value: Text): ScenarioPatch {
+  const key = node.config.scope === 'viewer' ? 'viewerVars' : 'channelVars';
+  const name = String(node.config.name ?? '').toLowerCase();
+  return { state: { ...scenario.state, [key]: { ...scenario.state?.[key], [name]: value } } };
 }

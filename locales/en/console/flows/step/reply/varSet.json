@@ -1,0 +1,21 @@
+{
+  "label": "Set a variable",
+  "summary": "Keep a value for later",
+  "field": {
+    "scope": {
+      "label": "Kept for",
+      "option": {
+        "channel": "The channel",
+        "viewer": "This viewer"
+      }
+    },
+    "name": {
+      "label": "Name",
+      "placeholder": "deaths"
+    },
+    "value": {
+      "label": "Value",
+      "placeholder": "{user}"
+    }
+  }
+}

@@ -6,13 +6,17 @@ package engine
 import (
 	"context"
 	"errors"
+	"maps"
 	"strings"
 	"testing"
+	"time"
 
 	"ItsBagelBot/internal/domain/automation"
+	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/event/lane"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
@@ -21,7 +25,7 @@ import (
 )
 
 func TestAutomationSideEffectsAreDeduplicated(t *testing.T) {
-	fx := newAutoFixture(manual("main", act("points_add", obj{"login": "", "amount": 5})))
+	fx := newAutoFixture(manual("main", act("points_add", obj{"login": "target", "amount": 5})))
 	first := fx.run(t, "main", "req-points", nil)
 	second := fx.run(t, "main", "req-points", nil)
 	assert.Equal(t, []string{"0:points_add:ok:"}, statuses(first))
@@ -30,7 +34,7 @@ func TestAutomationSideEffectsAreDeduplicated(t *testing.T) {
 
 	fx.run(t, "main", "req-points-other", nil)
 	assert.Equal(t, 2, fx.loyalty.adjustCount())
-	assert.Equal(t, BalanceAdjustment{BroadcasterID: 1, ViewerID: 1, Value: 5}, fx.loyalty.adjusts[0])
+	assert.Equal(t, BalanceAdjustment{BroadcasterID: 1, ViewerID: 99, ViewerLogin: "target", Value: 5}, fx.loyalty.adjusts[0])
 }
 
 func TestAutomationStoreActions(t *testing.T) {
@@ -42,8 +46,97 @@ func TestAutomationStoreActions(t *testing.T) {
 	rec := fx.run(t, "main", "req-store", nil)
 	assert.Equal(t, automationrpc.OutcomeOK, rec.Outcome, statuses(rec))
 	assert.Equal(t, BalanceAdjustment{BroadcasterID: 1, ViewerID: 99, ViewerLogin: "target", Value: 40, Absolute: true}, fx.loyalty.adjusts[0])
-	assert.Equal(t, CounterBump{BroadcasterID: 1, Name: "wins", Viewer: Viewer{ID: 1}, Delta: 2}, fx.loyalty.bumps[0])
+	assert.Equal(t, CounterBump{BroadcasterID: 1, Name: "wins", Viewer: Viewer{ID: 1}, Command: "main", Delta: 2}, fx.loyalty.bumps[0])
 	assert.Equal(t, []string{"wins/1/9"}, fx.loyalty.sets)
+}
+
+type scopedRecipeCounter struct {
+	autoLoyalty
+	scope   counterScope
+	entries map[resolvedBump]int64
+}
+
+func (l *scopedRecipeCounter) bucket(viewer uint64, command string) resolvedBump {
+	scope, id, cmd := bumpTarget(l.scope, viewer, command)
+	return resolvedBump{scope: scope, viewerID: id, command: cmd}
+}
+
+func (l *scopedRecipeCounter) CounterBump(_ context.Context, b CounterBump) (int64, error) {
+	key := l.bucket(b.Viewer.ID, b.Command)
+	l.entries[key] += b.Delta
+	return l.entries[key], nil
+}
+
+func (l *scopedRecipeCounter) CounterSet(_ context.Context, set CounterAssignment) (bool, error) {
+	key := l.bucket(set.ViewerID, set.Command)
+	if key.scope == l.scope {
+		l.entries[key] = set.Value
+		return true, nil
+	}
+	if set.RequireTarget {
+		return false, bus.RPCReplyError{Message: loyaltyrpc.CounterTargetRequired}
+	}
+	clear(l.entries)
+	return true, nil
+}
+
+func (l *scopedRecipeCounter) CounterPeek(_ context.Context, target CounterTarget) (loyaltyrpc.Counter, bool, error) {
+	value := l.entries[l.bucket(target.ViewerID, target.Command)]
+	return loyaltyrpc.Counter{Value: value, Scope: string(l.scope)}, true, nil
+}
+
+func TestProcessRecipeCounterWritesRespectScope(t *testing.T) {
+	viewer := resolvedBump{scope: data.CounterScopeViewer, viewerID: 7}
+	commandBucket := resolvedBump{scope: data.CounterScopeCommand, command: "id-counter"}
+	cases := []struct {
+		name    string
+		scope   counterScope
+		actions []automation.Action
+		seed    map[resolvedBump]int64
+		entries map[resolvedBump]int64
+		steps   []string
+		output  []string
+	}{
+		{
+			name: "add reads back from recipe command", scope: data.CounterScopeCommand,
+			actions: []automation.Action{act("counter_add", obj{"name": "x", "amount": 7}), chat("{counter:x}")},
+			seed:    map[resolvedBump]int64{}, entries: map[resolvedBump]int64{commandBucket: 7},
+			steps: []string{"0:counter_add:ok:", "1:chat:ok:"}, output: []string{`chat {"broadcaster_id":"123","message":"7"}`},
+		},
+		{
+			name: "set writes the recipe command", scope: data.CounterScopeCommand,
+			actions: []automation.Action{act("counter_set", obj{"name": "x", "value": 12})},
+			seed:    map[resolvedBump]int64{commandBucket: 7}, entries: map[resolvedBump]int64{commandBucket: 12},
+			steps: []string{"0:counter_set:ok:"},
+		},
+		{
+			name: "viewerless set preserves viewer entries", scope: data.CounterScopeViewer,
+			actions: []automation.Action{act("counter_set", obj{"name": "x", "value": 12})},
+			seed:    map[resolvedBump]int64{viewer: 5}, entries: map[resolvedBump]int64{viewer: 5},
+			steps: []string{"0:counter_set:failed:no_viewer"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := command("counter", obj{"name": "!counter"})
+			a.Definition.Actions = tc.actions
+			loyalty := &scopedRecipeCounter{scope: tc.scope, entries: tc.seed}
+			pub := &fakePublisher{}
+			dedup := NewEventDedup(newRecordingStore(), "counter:", time.Minute, nil)
+			p, runs := autoRig{automations: []automation.Automation{a}, loyalty: loyalty, pub: pub, dedup: dedup}.pipeline()
+			t.Cleanup(p.Close)
+			env := chatEnv("!counter", "")
+			env.ChatterUserID, env.ChatterUserLogin = "", ""
+			env.MsgID = "counter-message"
+			msg := bus.NewMessage("counter-test", rawJSON(env))
+			require.NoError(t, p.Process(msg))
+			awaitCompletion(t, msg, true)
+			require.Len(t, runs.recs, 1)
+			got := [2][]string{statuses(runs.recs[0]), (&autoFixture{pub: pub}).described(t)}
+			assert.Equal(t, [2][]string{tc.steps, tc.output}, got)
+			assert.Equal(t, tc.entries, loyalty.entries)
+		})
+	}
 }
 
 func TestAutomationHTTPPost(t *testing.T) {
@@ -69,29 +162,42 @@ func lightsParams() obj {
 	return obj{"device": "AA:BB", "sku": "H6008", "color": "#f5a524"}
 }
 
-func TestAutomationLightsWithoutGoveeModule(t *testing.T) {
-	fx := newAutoFixture(manual("main", act("lights", lightsParams())))
-	rec := fx.run(t, "main", "req-lights", nil)
-	assert.Equal(t, []string{"0:lights:ok:"}, statuses(rec))
-	assert.Equal(t, GossipRoute{Provider: "govee", Endpoint: "control"}, fx.gossip.route)
-	assert.Equal(t, gossiprpc.Request{ChannelID: "1", Device: "AA:BB", SKU: "H6008", ColorRGB: 0xf5a524}, fx.gossip.req)
-}
-
-func TestAutomationLightsGroupSendsEveryLight(t *testing.T) {
-	params := lightsParams()
-	params["extra_lights"] = []string{"CC:DD/H6159", "EE:FF/H6008"}
-	fx := newAutoFixture(manual("main", act("lights", params)))
-	rec := fx.run(t, "main", "req-lights-group", nil)
-	assert.Equal(t, []string{"0:lights:ok:"}, statuses(rec))
-	assert.Equal(t, []gossiprpc.GoveeLight{{Device: "AA:BB", SKU: "H6008"}, {Device: "CC:DD", SKU: "H6159"}, {Device: "EE:FF", SKU: "H6008"}}, fx.gossip.req.Lights)
-}
-
-func TestAutomationLightsGroupSkipsMalformedRefs(t *testing.T) {
-	params := lightsParams()
-	params["extra_lights"] = []string{"no-sku", "CC:DD/H6159"}
-	fx := newAutoFixture(manual("main", act("lights", params)))
-	fx.run(t, "main", "req-lights-malformed", nil)
-	assert.Equal(t, []gossiprpc.GoveeLight{{Device: "AA:BB", SKU: "H6008"}, {Device: "CC:DD", SKU: "H6159"}}, fx.gossip.req.Lights)
+func TestAutomationLightsRequests(t *testing.T) {
+	cases := []struct {
+		name   string
+		params obj
+		want   gossiprpc.Request
+	}{
+		{"default color", nil, gossiprpc.Request{ColorRGB: 0xf5a524}},
+		{"color and brightness", obj{"mode": "color", "brightness": 35}, gossiprpc.Request{ColorRGB: 0xf5a524, Brightness: 35}},
+		{"scene", obj{
+			"mode": "scene", "brightness": 80, "scene_id": "snapshot:4:9", "scene_name": "Sunset",
+			"scene_type": "devices.capabilities.dynamic_scene", "scene_instance": "snapshot", "scene_value": `{"paramId":4,"id":9}`,
+		}, gossiprpc.Request{Brightness: 80, Scene: &gossiprpc.GoveeScene{
+			ID: "snapshot:4:9", Name: "Sunset", Type: "devices.capabilities.dynamic_scene",
+			Instance: "snapshot", Value: codec.RawMessage(`{"paramId":4,"id":9}`),
+		}}},
+		{"white", obj{"mode": "white", "kelvin": 3200, "brightness": 20}, gossiprpc.Request{Kelvin: 3200, Brightness: 20}},
+		{"on", obj{"mode": "on", "brightness": 45}, gossiprpc.Request{KeepLook: true, Brightness: 45}},
+		{"off", obj{"mode": "off", "brightness": 90}, gossiprpc.Request{PowerOff: true}},
+		{"groups in order", obj{"extra_lights": []string{"AA:BB/H0000", "no-sku", "CC:DD/H6159", "CC:DD/H0000", "EE:FF/H6008"}},
+			gossiprpc.Request{ColorRGB: 0xf5a524, Lights: []gossiprpc.GoveeLight{
+				{Device: "AA:BB", SKU: "H6008"}, {Device: "CC:DD", SKU: "H6159"}, {Device: "EE:FF", SKU: "H6008"},
+			}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			params := lightsParams()
+			maps.Copy(params, tc.params)
+			fx := newAutoFixture(manual("main", act("lights", params)))
+			rec := fx.run(t, "main", "req-lights", nil)
+			want := tc.want
+			want.ChannelID, want.Device, want.SKU = "1", "AA:BB", "H6008"
+			assert.Equal(t, []string{"0:lights:ok:"}, statuses(rec))
+			assert.Equal(t, GossipRoute{Provider: "govee", Endpoint: "control"}, fx.gossip.route)
+			assert.Equal(t, want, fx.gossip.req)
+		})
+	}
 }
 
 func TestAutomationLightsSceneFailsAgainstAnOutdatedGossip(t *testing.T) {
@@ -112,23 +218,6 @@ func TestAutomationLightsSceneFailsAgainstAnOutdatedGossip(t *testing.T) {
 			assert.Equal(t, []string{tc.want}, statuses(rec))
 		})
 	}
-}
-
-func TestAutomationLightsSceneCarriesTheStoredScene(t *testing.T) {
-	fx := newAutoFixture(manual("main", act("lights", obj{
-		"device": "AA:BB", "sku": "H6008", "mode": "scene", "scene_id": "snapshot:4:9", "scene_name": "Sunset",
-		"scene_type": "devices.capabilities.dynamic_scene", "scene_instance": "snapshot", "scene_value": `{"paramId":4,"id":9}`,
-	})))
-	rec := fx.run(t, "main", "req-lights-scene-ok", nil)
-	assert.Equal(t, []string{"0:lights:ok:"}, statuses(rec))
-	assert.Equal(t, GossipRoute{Provider: "govee", Endpoint: "control"}, fx.gossip.route)
-	assert.Equal(t, gossiprpc.Request{
-		ChannelID: "1", Device: "AA:BB", SKU: "H6008",
-		Scene: &gossiprpc.GoveeScene{
-			ID: "snapshot:4:9", Name: "Sunset", Type: "devices.capabilities.dynamic_scene",
-			Instance: "snapshot", Value: codec.RawMessage(`{"paramId":4,"id":9}`),
-		},
-	}, fx.gossip.req)
 }
 
 func TestAutomationLightsFailuresDoNotStopFlow(t *testing.T) {

@@ -1,0 +1,20 @@
+{
+  "label": "Answer unban request",
+  "summary": "Approve or deny an appeal",
+  "line": {
+    "approve": "Approve the unban request",
+    "deny": "Deny the unban request"
+  },
+  "field": {
+    "status": {
+      "label": "Answer",
+      "option": {
+        "approve": "Approve",
+        "deny": "Deny"
+      }
+    },
+    "resolution": {
+      "label": "Message to the viewer (optional)"
+    }
+  }
+}

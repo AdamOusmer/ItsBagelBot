@@ -8,7 +8,8 @@
     },
     "jsonPath": {
       "label": "Chemin JSON",
-      "placeholder": "data.value"
+      "placeholder": "data.items.0.name",
+      "hint": "Séparez les clés par des points. Les crochets fonctionnent aussi."
     },
     "saveAs": {
       "label": "Enregistrer sous",
@@ -18,5 +19,11 @@
   "out": {
     "ok": "Succès",
     "failure": "Échec"
+  },
+  "tryIt": {
+    "label": "Essayer",
+    "fixedAddress": "L’essai fonctionne avec une adresse fixe.",
+    "loading": "Récupération d’un exemple…",
+    "error": "Impossible de récupérer un exemple JSON. Vérifiez l’adresse, puis réessayez."
   }
 }

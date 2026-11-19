@@ -5,7 +5,9 @@ package engine
 
 import (
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/codec"
 )
 
 const RedemptionAddType = "channel.channel_points_custom_reward_redemption.add"
@@ -32,5 +34,47 @@ func (e RedemptionEvent) Resolve(status string) *module.Output {
 		RewardID:      e.Reward.ID,
 		RedemptionID:  e.ID,
 		Status:        status,
+	}
+}
+
+type redemptionSettlement struct {
+	Event    RedemptionEvent `json:"event"`
+	OnRedeem string          `json:"on_redeem,omitempty"`
+}
+
+var redeemOutcomeStatuses = map[string]string{
+	"fulfill": outgress.RedemptionFulfilled,
+	"cancel":  outgress.RedemptionCanceled,
+}
+
+func matchedRedemption(t *automation.CompiledTrigger, raw codec.RawMessage) *redemptionSettlement {
+	if t.Plan.Automation.Definition.Trigger.Type != "reward" {
+		return nil
+	}
+	var ev RedemptionEvent
+	if err := codec.Unmarshal(raw, &ev); err != nil || ev.ID == "" {
+		return nil
+	}
+	return &redemptionSettlement{Event: ev, OnRedeem: t.OnRedeem}
+}
+
+func (run *AutomationRun) settleRedemption(admitted bool, emit module.Emit) {
+	redemption := run.redemption
+	run.redemption = nil
+	if redemption == nil {
+		return
+	}
+	status := outgress.RedemptionCanceled
+	if admitted {
+		status = redeemOutcomeStatuses[redemption.OnRedeem]
+	}
+	if status != "" {
+		emit(redemption.Event.Resolve(status))
+	}
+}
+
+func (run *AutomationRun) refundIfRefused(emit module.Emit) {
+	if run.Record.Outcome != outcomeDeferred {
+		run.settleRedemption(false, emit)
 	}
 }

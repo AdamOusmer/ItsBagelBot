@@ -1,9 +1,11 @@
 {
   "chat": "Envoyer un message dans le chat",
+  "pin": "Épingler un message",
   "announce": "Envoyer une annonce",
   "reply": "Répondre au spectateur",
   "timeout": "Exclure temporairement un spectateur",
   "ban": "Bannir un spectateur",
+  "unban": "Lever une exclusion ou un ban",
   "delete_message": "Supprimer le message déclencheur",
   "warn": "Avertir un spectateur",
   "shield": "Régler le mode bouclier",
@@ -51,5 +53,8 @@
   "ad_snooze": "Reporter la prochaine publicité",
   "whisper": "Envoyer un message privé",
   "unban_resolve": "Traiter la demande de déban",
-  "branded_content": "Définir le contenu sponsorisé"
+  "branded_content": "Définir le contenu sponsorisé",
+  "points_spend": "Dépenser des points",
+  "countdown_stop": "Arrêter le compte à rebours",
+  "cooldown_reset": "Réinitialiser le délai de récupération"
 }

@@ -1,0 +1,11 @@
+{
+  "label": "Wer",
+  "viewerLabel": "Zuschauer",
+  "loginLabel": "Vorlage für den Benutzernamen",
+  "option": {
+    "viewer": "Auslösender Zuschauer",
+    "mention": "Per @ erwähnte Person",
+    "user": "Bestimmter Zuschauer",
+    "login": "Namensvorlage"
+  }
+}

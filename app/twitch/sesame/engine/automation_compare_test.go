@@ -19,10 +19,8 @@ import (
 const compareCasesPath = "../../../../internal/domain/automation/testdata/compare_cases.json"
 
 type compareCase struct {
-	Left  string `json:"left"`
-	Op    string `json:"op"`
-	Right string `json:"right"`
-	Want  bool   `json:"want"`
+	automation.CompareCondition
+	Want bool `json:"want"`
 }
 
 func loadCompareCases(t *testing.T) []compareCase {
@@ -34,17 +32,13 @@ func loadCompareCases(t *testing.T) []compareCase {
 	return cases
 }
 
-func compareCondition(left, op, right string) automation.Condition {
-	raw, err := codec.Marshal(obj{"left": left, "op": op, "right": right})
-	if err != nil {
-		panic(err)
-	}
-	return automation.Condition{Type: "compare", Params: raw}
+func compareCondition(params automation.CompareCondition) automation.Condition {
+	return automation.Condition{Type: "compare", Params: rawJSON(params)}
 }
 
-func compareIf(left, op, right string) automation.Action {
+func compareIf(params automation.CompareCondition) automation.Action {
 	return act("if", obj{
-		"condition": obj{"type": "compare", "params": obj{"left": left, "op": op, "right": right}},
+		"condition": compareCondition(params),
 		"then":      []automation.Action{act("chat", obj{"text": "yes"})},
 		"else":      []automation.Action{act("chat", obj{"text": "no"})},
 	})
@@ -52,8 +46,8 @@ func compareIf(left, op, right string) automation.Action {
 
 func TestAutomationCompareInsideIfMatchesSharedTable(t *testing.T) {
 	for _, tc := range loadCompareCases(t) {
-		t.Run(fmt.Sprintf("%q %s %q", tc.Left, tc.Op, tc.Right), func(t *testing.T) {
-			fx := newAutoFixture(manual("main", compareIf(tc.Left, tc.Op, tc.Right)))
+		t.Run(fmt.Sprintf("%q %s %q ignore_case=%t", tc.Left, tc.Op, tc.Right, tc.IgnoreCase), func(t *testing.T) {
+			fx := newAutoFixture(manual("main", compareIf(tc.CompareCondition)))
 			rec := fx.run(t, "main", "req-compare", nil)
 			want := "no"
 			if tc.Want {
@@ -67,7 +61,7 @@ func TestAutomationCompareInsideIfMatchesSharedTable(t *testing.T) {
 
 func TestAutomationCompareResolvesTemplatesAtRunTime(t *testing.T) {
 	auto := manual("main", act("chat", obj{"text": "big"}))
-	auto.Definition.Conditions = []automation.Condition{compareCondition("{arg:n}", "gte", "{arg:floor}")}
+	auto.Definition.Conditions = []automation.Condition{compareCondition(automation.CompareCondition{Left: "{arg:n}", Op: "gte", Right: "{arg:floor}"})}
 	cases := []struct {
 		name    string
 		args    map[string]string

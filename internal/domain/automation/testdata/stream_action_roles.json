@@ -1,0 +1,19 @@
+{
+  "actions": [
+    { "type": "raid", "params": { "login": "bobby" } },
+    { "type": "mod", "params": { "login": "bobby" } },
+    { "type": "vip", "params": { "login": "bobby" } },
+    { "type": "set_title", "params": { "title": "Community night" } },
+    { "type": "set_game", "params": { "game": "Chess" } },
+    { "type": "set_tags", "params": { "tags": "English" } },
+    { "type": "commercial", "params": { "seconds": 60 } },
+    { "type": "marker", "params": { "description": "Highlights" } },
+    { "type": "clip", "params": {} },
+    { "type": "branded_content", "params": { "on": true } }
+  ],
+  "callers": [
+    { "level": "everyone", "permRequired": true },
+    { "level": "mod", "permRequired": true },
+    { "level": "lead_mod", "permRequired": false }
+  ]
+}

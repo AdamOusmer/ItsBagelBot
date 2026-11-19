@@ -25,6 +25,7 @@ type wireMessage struct {
 	As                  string                 `json:"as,omitempty"`
 	Color               string                 `json:"color,omitempty"`
 	To                  string                 `json:"to,omitempty"`
+	TargetUserID        string                 `json:"target_user_id,omitempty"`
 	MsgID               string                 `json:"msg_id,omitempty"`
 	RewardID            string                 `json:"reward_id,omitempty"`
 	RedemptionID        string                 `json:"redemption_id,omitempty"`
@@ -54,7 +55,7 @@ func decodeMessage(data []byte, destination *outgress.Message) error {
 		AccountCreatedAt: wire.AccountCreatedAt, AdmissionGeneration: wire.AdmissionGeneration,
 		Type: wire.Type, BroadcasterID: wire.BroadcasterID, Locale: wire.Locale, SenderID: wire.SenderID,
 		Endpoint: wire.Endpoint, Method: wire.Method, Payload: codec.RawMessage(wire.Payload),
-		As: wire.As, Color: wire.Color, To: wire.To, MsgID: wire.MsgID,
+		As: wire.As, Color: wire.Color, To: wire.To, TargetUserID: wire.TargetUserID, MsgID: wire.MsgID,
 		RewardID: wire.RewardID, RedemptionID: wire.RedemptionID, Status: wire.Status,
 		Origin: wire.Origin, TrialGeneration: wire.TrialGeneration,
 		RunID: wire.RunID, ActionSlot: wire.ActionSlot,

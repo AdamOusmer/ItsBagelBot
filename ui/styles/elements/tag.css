@@ -39,8 +39,9 @@
     .bb-tag--success                           { --tone: var(--bb-green-light);   --tone-bg: var(--bb-tier-free-bg);     --tone-rule: rgba(var(--bb-green-glow-rgb), 0.30); }
     .bb-tag--warning                           { --tone: var(--bb-status-warning); --tone-bg: var(--bb-status-warning-bg); --tone-rule: var(--bb-status-warning-border); }
     .bb-tag--info                              { --tone: var(--bb-status-info);   --tone-bg: var(--bb-status-info-bg);   --tone-rule: var(--bb-status-info-border); }
+    .bb-tag--skipped                           { --tone: var(--bb-status-skipped); --tone-bg: var(--bb-status-skipped-bg); --tone-rule: var(--bb-status-skipped-border); }
 
-    .bb-tag:is(.bb-tag--free, .bb-tag--paid, .bb-tag--vip, .bb-tag--banned, .bb-tag--inactive, .bb-tag--neutral, .bb-tag--success, .bb-tag--warning, .bb-tag--info) {
+    .bb-tag:is(.bb-tag--free, .bb-tag--paid, .bb-tag--vip, .bb-tag--banned, .bb-tag--inactive, .bb-tag--neutral, .bb-tag--success, .bb-tag--warning, .bb-tag--info, .bb-tag--skipped) {
         color: var(--tone);
         border-bottom-color: var(--tone-rule);
     }

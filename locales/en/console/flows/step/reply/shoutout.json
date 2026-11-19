@@ -1,0 +1,6 @@
+{
+  "label": "Shoutout",
+  "summary": "Promote a channel on Twitch",
+  "keywords": "shoutout so promote channel raid",
+  "field": { "target": { "label": "Channel login" } }
+}

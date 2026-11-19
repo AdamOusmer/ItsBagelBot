@@ -12,7 +12,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/event/lane"
-	"ItsBagelBot/internal/domain/outgress"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	automationsrpc "ItsBagelBot/internal/domain/rpc/automations"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
@@ -95,6 +94,10 @@ type autoRig struct {
 	cooldown    CooldownStore
 	long        LongCooldownStore
 	loyalty     LoyaltyStore
+	accounts    TwitchAccountLookup
+	followage   FollowageLookup
+	accountAge  AccountAgeLookup
+	dedup       *EventDedup
 	stream      StreamInfoLookup
 	intN        int
 	pub         *fakePublisher
@@ -132,13 +135,17 @@ func (r autoRig) pipeline() (*Pipeline, *recordingRunLog) {
 		cooldown = NoopCooldown{}
 	}
 	d := Deps{
-		Proj:       fakeReader{modules: modules, cmd: r.cmd, cmdFound: r.cmdFound},
-		Live:       liveAlways{},
-		Cooldown:   cooldown,
-		Pub:        pub,
-		Loyalty:    r.loyalty,
-		StreamInfo: r.stream,
-		Log:        zap.NewNop(),
+		Proj:           fakeReader{modules: modules, cmd: r.cmd, cmdFound: r.cmdFound},
+		Live:           liveAlways{},
+		Cooldown:       cooldown,
+		Pub:            pub,
+		Loyalty:        r.loyalty,
+		TwitchAccounts: r.accounts,
+		Followage:      r.followage,
+		AccountAge:     r.accountAge,
+		Dedup:          r.dedup,
+		StreamInfo:     r.stream,
+		Log:            zap.NewNop(),
 		Automations: AutomationDeps{
 			Runs:          runs,
 			LongCooldowns: r.long,
@@ -214,6 +221,11 @@ func TestProcessAutomationCommandRouting(t *testing.T) {
 		{"exact accepts bare name", autoRig{automations: []automation.Automation{hi(map[string]any{"match": "exact"})}}, "!hi", []string{"!hi:ok"}},
 		{"alias", autoRig{automations: []automation.Automation{hi(map[string]any{"aliases": []string{"!hello"}})}}, "!hello", []string{"!hi:ok"}},
 		{"case insensitive", autoRig{automations: []automation.Automation{hi(map[string]any{})}}, "!HI", []string{"!hi:ok"}},
+		{"case sensitive matches typed name", autoRig{automations: []automation.Automation{command("!Hug", obj{"case_sensitive": true})}}, "!Hug", []string{"!Hug:ok"}},
+		{"case sensitive rejects different case", autoRig{automations: []automation.Automation{command("!Hug", obj{"case_sensitive": true})}}, "!hug", nil},
+		{"case insensitive accepts different case", autoRig{automations: []automation.Automation{command("!Hug", obj{})}}, "!hug", []string{"!Hug:ok"}},
+		{"case sensitive alias matches", autoRig{automations: []automation.Automation{command("!Hug", obj{"case_sensitive": true, "aliases": []string{"!Embrace"}})}}, "!Embrace", []string{"!Hug:ok"}},
+		{"case sensitive alias rejects different case", autoRig{automations: []automation.Automation{command("!Hug", obj{"case_sensitive": true, "aliases": []string{"!Embrace"}})}}, "!embrace", nil},
 		{"other name", autoRig{automations: []automation.Automation{hi(map[string]any{})}}, "!bye", nil},
 		{"args reach conditions", autoRig{automations: []automation.Automation{hi(map[string]any{}, cond("arg_regex", map[string]any{"pattern": "^abc$"}))}}, "!hi abc", []string{"!hi:ok"}},
 		{"args fail conditions", autoRig{automations: []automation.Automation{hi(map[string]any{}, cond("arg_regex", map[string]any{"pattern": "^abc$"}))}}, "!hi xyz", []string{"!hi:skipped:condition:0:arg_regex"}},
@@ -286,32 +298,40 @@ func TestProcessAutomationSubMessageSource(t *testing.T) {
 func TestProcessAutomationEventTriggers(t *testing.T) {
 	cheer := `{"user_id":"7","user_login":"bob","user_name":"Bob","bits":150,"message":"hello"}`
 	redeem := `{"user_id":"7","user_login":"bob","user_name":"Bob","reward":{"id":"r-1","title":"Hydrate","cost":100}}`
+	update := `{"broadcaster_user_id":"123","title":"Cozy stream","category_name":"Just Chatting","category_id":"509658","language":"en"}`
 	cases := []struct {
-		name  string
-		typ   string
-		event string
-		trig  string
-		param map[string]any
-		want  []string
+		name    string
+		typ     string
+		event   string
+		trig    string
+		param   map[string]any
+		actions []automation.Action
+		want    []string
 	}{
-		{"kind match", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer"}, []string{"t:ok"}},
-		{"other kind", "channel.follow", cheer, "event", map[string]any{"kind": "channel.cheer"}, nil},
-		{"numeric filter met", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"amount": "100"}}, []string{"t:ok"}},
-		{"numeric filter exact", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"amount": "150"}}, []string{"t:ok"}},
-		{"numeric filter unmet", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"amount": "151"}}, nil},
-		{"string filter folds case", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"login": "BOB"}}, []string{"t:ok"}},
-		{"string filter unmet", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"login": "alice"}}, nil},
-		{"reward id", "channel.channel_points_custom_reward_redemption.add", redeem, "reward", map[string]any{"reward_id": "r-1"}, []string{"t:ok"}},
-		{"reward other id", "channel.channel_points_custom_reward_redemption.add", redeem, "reward", map[string]any{"reward_id": "r-2"}, nil},
-		{"reward ignores other events", "channel.cheer", cheer, "reward", map[string]any{"reward_id": "r-1"}, nil},
-		{"timer never matches", "channel.cheer", cheer, "timer", map[string]any{"interval_s": 60}, nil},
-		{"manual never matches", "channel.cheer", cheer, "manual", map[string]any{}, nil},
+		{"kind match", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer"}, nil, []string{"t:ok"}},
+		{"other kind", "channel.follow", cheer, "event", map[string]any{"kind": "channel.cheer"}, nil, nil},
+		{"numeric filter met", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"amount": "100"}}, nil, []string{"t:ok"}},
+		{"numeric filter exact", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"amount": "150"}}, nil, []string{"t:ok"}},
+		{"numeric filter unmet", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"amount": "151"}}, nil, nil},
+		{"string filter folds case", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"login": "BOB"}}, nil, []string{"t:ok"}},
+		{"string filter unmet", "channel.cheer", cheer, "event", map[string]any{"kind": "channel.cheer", "filters": map[string]string{"login": "alice"}}, nil, nil},
+		{"channel update fields", "channel.update", update, "event", map[string]any{"kind": "channel.update", "filters": map[string]string{"category": "Just Chatting"}},
+			[]automation.Action{act("chat", obj{"text": "{event.title} in {event.category}"})},
+			[]string{"t:ok", `chat {"broadcaster_id":"123","message":"Cozy stream in Just Chatting"}`}},
+		{"reward id", "channel.channel_points_custom_reward_redemption.add", redeem, "reward", map[string]any{"reward_id": "r-1"}, nil, []string{"t:ok"}},
+		{"reward other id", "channel.channel_points_custom_reward_redemption.add", redeem, "reward", map[string]any{"reward_id": "r-2"}, nil, nil},
+		{"reward ignores other events", "channel.cheer", cheer, "reward", map[string]any{"reward_id": "r-1"}, nil, nil},
+		{"timer never matches", "channel.cheer", cheer, "timer", map[string]any{"interval_s": 60}, nil, nil},
+		{"manual never matches", "channel.cheer", cheer, "manual", map[string]any{}, nil, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			p, runs := autoRig{automations: []automation.Automation{testAutomation("t", tc.trig, tc.param)}}.pipeline()
+			a := testAutomation("t", tc.trig, tc.param)
+			a.Definition.Actions = tc.actions
+			fx := &autoFixture{pub: &fakePublisher{}}
+			p, runs := autoRig{automations: []automation.Automation{a}, pub: fx.pub}.pipeline()
 			process(t, p, eventEnv(tc.typ, tc.event))
-			assert.Equal(t, tc.want, runs.summary())
+			assert.Equal(t, tc.want, append(runs.summary(), fx.described(t)...))
 		})
 	}
 }
@@ -377,6 +397,49 @@ func TestProcessAutomationConditions(t *testing.T) {
 			tc.rig.automations = []automation.Automation{testAutomation("t", "command", map[string]any{"name": "!t"}, tc.cond)}
 			p, runs := tc.rig.pipeline()
 			process(t, p, chatEnv("!t", tc.badge))
+			assert.Equal(t, []string{tc.want}, runs.summary())
+		})
+	}
+}
+
+func TestProcessAutomationAgeConditions(t *testing.T) {
+	now := time.Now()
+	old := now.Add(-25 * time.Hour)
+	recent := now.Add(-23 * time.Hour)
+	followOld := &stubFollowage{result: FollowageResult{UserFound: true, Following: true, FollowedAt: old}}
+	followNew := &stubFollowage{result: FollowageResult{UserFound: true, Following: true, FollowedAt: recent}}
+	accountOld := &stubAccountAge{result: AccountAgeResult{UserFound: true, CreatedAt: old}}
+	accountNew := &stubAccountAge{result: AccountAgeResult{UserFound: true, CreatedAt: recent}}
+	cases := []struct {
+		name     string
+		typ      string
+		min      int
+		rig      autoRig
+		noViewer bool
+		want     string
+	}{
+		{"following long enough", "follow", 1, autoRig{followage: followOld}, false, "t:ok"},
+		{"following less than a day", "follow", 1, autoRig{followage: followNew}, false, "t:skipped:condition:0:follow"},
+		{"any follower", "follow", 0, autoRig{followage: followNew}, false, "t:ok"},
+		{"not following even at zero days", "follow", 0, autoRig{followage: &stubFollowage{result: FollowageResult{UserFound: true}}}, false, "t:skipped:condition:0:follow"},
+		{"follow without a viewer", "follow", 0, autoRig{followage: followOld}, true, "t:skipped:condition:0:follow"},
+		{"follow without lookup", "follow", 0, autoRig{}, false, "t:skipped:condition:0:follow"},
+		{"account old enough", "account_age", 1, autoRig{accountAge: accountOld}, false, "t:ok"},
+		{"account less than a day old", "account_age", 1, autoRig{accountAge: accountNew}, false, "t:skipped:condition:0:account_age"},
+		{"account was not found", "account_age", 1, autoRig{accountAge: &stubAccountAge{}}, false, "t:skipped:condition:0:account_age"},
+		{"account age without a viewer", "account_age", 1, autoRig{accountAge: accountOld}, true, "t:skipped:condition:0:account_age"},
+		{"account age without lookup", "account_age", 1, autoRig{}, false, "t:skipped:condition:0:account_age"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			check := cond(tc.typ, map[string]any{"min_days": tc.min})
+			tc.rig.automations = []automation.Automation{command("t", map[string]any{"name": "!t"}, check)}
+			p, runs := tc.rig.pipeline()
+			env := chatEnv("!t", "")
+			if tc.noViewer {
+				env.ChatterUserID = ""
+			}
+			process(t, p, env)
 			assert.Equal(t, []string{tc.want}, runs.summary())
 		})
 	}
@@ -478,38 +541,6 @@ func TestRunNamedCountsRPCViewerAsBroadcaster(t *testing.T) {
 			reply := p.RunNamed(context.Background(), automationsrpc.RunRequest{BroadcasterID: "123", Name: "t", Source: "api", RequestID: "req-1"})
 			require.True(t, reply.Accepted)
 			assert.Equal(t, []string{tc.want}, runs.summary())
-		})
-	}
-}
-
-func TestProcessRewardRedemptionOutcome(t *testing.T) {
-	redeem := `{"id":"red-1","user_id":"7","user_login":"bob","user_name":"Bob","reward":{"id":"r-1","title":"Hydrate","cost":100}}`
-	cases := []struct {
-		name     string
-		onRedeem string
-		other    string
-		want     []string
-	}{
-		{"fulfill", "fulfill", "r-1", []string{outgress.RedemptionFulfilled}},
-		{"cancel", "cancel", "r-1", []string{outgress.RedemptionCanceled}},
-		{"leave in queue", "leave", "r-1", nil},
-		{"unset keeps the old behaviour", "", "r-1", nil},
-		{"another reward is never resolved", "fulfill", "r-2", nil},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			pub := &fakePublisher{}
-			a := testAutomation("t", "reward", map[string]any{"reward_id": tc.other, "on_redeem": tc.onRedeem})
-			p, _ := autoRig{automations: []automation.Automation{a}, pub: pub}.pipeline()
-			process(t, p, eventEnv("channel.channel_points_custom_reward_redemption.add", redeem))
-			var got []string
-			for _, c := range pub.snapshot() {
-				if c.msg.Type == outgress.TypeRedemptionUpdate {
-					assert.Equal(t, "red-1", c.msg.RedemptionID)
-					got = append(got, c.msg.Status)
-				}
-			}
-			assert.Equal(t, tc.want, got)
 		})
 	}
 }

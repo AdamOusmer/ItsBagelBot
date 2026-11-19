@@ -14,7 +14,7 @@ import (
 func SubscribeCountdown(w bus.RPCWiring, repo *repository.RecipeState, prefix string) error {
 	s := &recipeStateRPC{repo: repo, log: w.Log}
 	subject := prefix + ".countdown"
-	if err := bus.ServeVerbs(w, subject, s.countdownVerb("start"), s.countdownVerb("add"), s.countdownVerb("peek")); err != nil {
+	if err := bus.ServeVerbs(w, subject, s.countdownVerb("start"), s.countdownVerb("add"), s.countdownVerb("peek"), s.countdownVerb("stop")); err != nil {
 		return err
 	}
 	if err := bus.ServeVerbs(w, subject, bus.At("claim", s.countdownClaim), bus.At("ack", s.countdownAck)); err != nil {

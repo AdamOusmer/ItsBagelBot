@@ -8,7 +8,8 @@
     },
     "jsonPath": {
       "label": "JSON path",
-      "placeholder": "data.value"
+      "placeholder": "data.items.0.name",
+      "hint": "Dots between keys; brackets work too."
     },
     "saveAs": {
       "label": "Save as",
@@ -18,5 +19,11 @@
   "out": {
     "ok": "Worked",
     "failure": "Failed"
+  },
+  "tryIt": {
+    "label": "Try it",
+    "fixedAddress": "Try it works on a fixed address.",
+    "loading": "Fetching a sample…",
+    "error": "Could not fetch a JSON sample. Check the address and try again."
   }
 }

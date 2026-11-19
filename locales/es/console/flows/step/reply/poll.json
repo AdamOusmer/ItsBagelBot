@@ -1,0 +1,22 @@
+{
+  "label": "Iniciar una encuesta",
+  "summary": "Deja que los espectadores voten una pregunta",
+  "line": "Encuesta: {title}",
+  "field": {
+    "title": {
+      "label": "Título"
+    },
+    "choices": {
+      "label": "Opciones (una por línea)"
+    },
+    "seconds": {
+      "label": "Duración (segundos)"
+    },
+    "extraVotes": {
+      "label": "Votos extra con Puntos del canal"
+    },
+    "pointsPerVote": {
+      "label": "Puntos por voto"
+    }
+  }
+}

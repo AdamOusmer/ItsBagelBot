@@ -1,22 +1,42 @@
 {
   "chatCommand": {
+    "line": {
+      "start": "Quelqu’un saisit {trigger} dans le chat",
+      "aliasOne": "Quelqu’un saisit {trigger} ou un autre nom dans le chat",
+      "aliasMany": "Quelqu’un saisit {trigger} ou l’un des {count} autres noms dans le chat"
+    },
     "label": "Commande de chat",
     "summary": "Quelqu’un écrit une commande dans le chat",
     "field": {
       "trigger": {
         "label": "Commande",
         "placeholder": "!hug"
-      }
+      },
+      "aliases": { "label": "Autres noms", "placeholder": "!cuddle, !squeeze" },
+      "match": {
+        "label": "Correspondance",
+        "option": { "start": "Au début du message", "exact": "Message entier" }
+      },
+      "caseSensitive": { "label": "Respecter la casse" },
+      "subMessages": { "label": "Aussi dans les messages de réabonnement" }
     }
   },
   "chatWord": {
+    "line": "Quelqu’un dit {word} dans le chat",
     "label": "Mot dans le chat",
     "summary": "Quelqu’un écrit un mot dans le chat",
     "field": {
       "word": {
         "label": "Mot",
-        "placeholder": "bagel"
-      }
+        "placeholder": "bagel",
+        "pattern": { "label": "Motif", "placeholder": "\\bbagel(s)?\\b" }
+      },
+      "match": {
+        "label": "Correspondance",
+        "option": { "word": "Mot entier", "anywhere": "N’importe où", "pattern": "Motif" }
+      },
+      "caseSensitive": { "label": "Respecter la casse" },
+      "subMessages": { "label": "Aussi dans les messages de réabonnement" }
     }
   },
   "follow": {
@@ -25,30 +45,66 @@
   },
   "sub": {
     "label": "Abonnement",
-    "summary": "Nouveau sub, resub ou sub offert",
+    "summary": "Quelqu’un s’abonne ou se réabonne",
+    "line": {
+      "any": "Quelqu’un obtient un nouvel abonnement ou en reçoit un en cadeau",
+      "new": "Quelqu’un s’abonne pour la première fois",
+      "gifted": "Quelqu’un reçoit un abonnement en cadeau",
+      "resub": "Quelqu’un se réabonne",
+      "gift": "Quelqu’un offre un abonnement"
+    },
+    "withTier": "{line} ({tier})",
     "field": {
       "variant": {
         "label": "Type",
         "option": {
-          "any": "Tous",
-          "new": "Nouveau",
-          "resub": "Resub",
-          "gift": "Offert"
+          "any": "Nouveau ou offert",
+          "new": "Nouveau, payé",
+          "resub": "Réabonnement",
+          "gifted": "Reçu en cadeau"
         }
+      },
+      "tier": {
+        "label": "Niveau",
+        "option": { "1000": "Niveau 1", "2000": "Niveau 2", "3000": "Niveau 3", "any": "Tous les niveaux" }
+      },
+      "minMonths": { "label": "Nombre minimum de mois", "unit": "mois" },
+      "minStreak": { "label": "Minimum de mois consécutifs", "unit": "mois" }
+    }
+  },
+  "subGift": {
+    "line": "Quelqu’un offre {minGifts}+ abonnements",
+    "label": "Cadeaux d’abonnements",
+    "summary": "Quelqu’un offre des abonnements à la communauté",
+    "field": {
+      "minGifts": { "label": "Nombre minimum d’abonnements offerts", "unit": "abonnements" },
+      "tier": {
+        "label": "Niveau",
+        "option": { "1000": "Niveau 1", "2000": "Niveau 2", "3000": "Niveau 3", "any": "Tous les niveaux" }
+      },
+      "gifter": {
+        "label": "Qui offre",
+        "option": { "anyone": "Tout le monde", "named": "Identifiés uniquement", "anonymous": "Anonymes uniquement" }
       }
     }
   },
   "cheer": {
+    "line": "Quelqu’un envoie un cheer de {minBits} bits ou plus",
     "label": "Cheer",
     "summary": "Des bits sont cheerés",
     "field": {
       "minBits": {
         "label": "Bits minimum",
         "unit": "bits"
+      },
+      "cheerer": {
+        "label": "Qui envoie des bits",
+        "option": { "anyone": "Tout le monde", "named": "Identifiés uniquement", "anonymous": "Anonymes uniquement" }
       }
     }
   },
   "raid": {
+    "line": "Raid avec {minViewers}+ spectateurs",
     "label": "Raid",
     "summary": "Une autre chaîne vous lance un raid",
     "field": {
@@ -74,11 +130,50 @@
     "countdownFinished": {
     "label": "Compte à rebours terminé",
     "summary": "Un compte à rebours atteint zéro",
+    "line": "Quand {name} atteint zéro",
     "field": {
       "name": {
         "label": "Compte à rebours"
       }
     }
+  },
+  "adBreak": {
+    "line": {
+      "start": "Une coupure publicitaire commence",
+      "minimum": "Une coupure publicitaire d’au moins {length} commence"
+    },
+    "label": "Une coupure publicitaire commence",
+    "summary": "Une coupure publicitaire commence sur ton stream",
+    "field": {
+      "startedBy": {
+        "label": "Déclenchement",
+        "option": { "any": "Tous", "automatic": "Automatique", "manual": "Manuel" }
+      },
+      "minLength": { "label": "Durée minimale", "range": "Choisis une durée de 30 secondes à 3 minutes." }
+    }
+  },
+  "channelUpdate": {
+    "line": "La catégorie devient {category}",
+    "label": "Le titre ou la catégorie change",
+    "summary": "Le titre ou la catégorie de ton stream change",
+    "field": {
+      "category": { "label": "Catégorie", "placeholder": "Just Chatting", "hint": "Laisse vide pour accepter toutes les catégories." }
+    }
+  },
+  "timer": {
+    "line": "Intervalle de {amount}",
+    "label": "Toutes les quelques minutes",
+    "summary": "S’exécute à intervalles réguliers",
+    "field": {
+      "every": { "label": "Toutes les", "range": "Choisis un intervalle de 1 minute à 24 heures." },
+      "jitter": { "label": "Délai aléatoire supplémentaire", "range": "Choisis une durée de 0 seconde à 1 heure." },
+      "chatLines": { "label": "Messages du chat depuis la dernière exécution", "hint": "Indique 0 pour exécuter la recette quelle que soit l’activité du chat." },
+      "offline": { "label": "Aussi hors ligne" }
+    }
+  },
+  "manual": {
+    "label": "Lancer à la main",
+    "summary": "Se lance avec le bouton Exécuter maintenant ou depuis un autre outil en utilisant le nom de cette recette"
   },
   "unbanRequest": {
     "label": "Demande de déban",

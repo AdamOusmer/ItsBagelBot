@@ -1,6 +1,6 @@
 [
   {
-    "path": "actions[0].type",
+    "path": "actions[1].type",
     "code": "perm_required"
   }
 ]

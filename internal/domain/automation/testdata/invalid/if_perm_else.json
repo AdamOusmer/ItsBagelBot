@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "trigger": { "type": "command", "params": { "name": "!run" } },
+  "actions": [
+    {
+      "type": "if",
+      "params": {
+        "condition": { "type": "perm", "params": { "level": "mod" } },
+        "then": [{ "type": "chat", "params": { "text": "Moderator only" } }],
+        "else": [{ "type": "timeout", "params": { "login": "alice", "seconds": 30 } }]
+      }
+    }
+  ]
+}

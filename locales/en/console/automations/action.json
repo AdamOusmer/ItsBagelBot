@@ -1,9 +1,11 @@
 {
   "chat": "Send chat message",
+  "pin": "Pin message",
   "announce": "Send announcement",
   "reply": "Reply to the viewer",
   "timeout": "Time out a viewer",
   "ban": "Ban a viewer",
+  "unban": "Lift timeout or ban",
   "delete_message": "Delete the triggering message",
   "warn": "Warn a viewer",
   "shield": "Set shield mode",
@@ -51,5 +53,8 @@
   "ad_snooze": "Snooze the next ad",
   "whisper": "Send a whisper",
   "unban_resolve": "Resolve the unban request",
-  "branded_content": "Set branded content"
+  "branded_content": "Set branded content",
+  "points_spend": "Spend points",
+  "countdown_stop": "Stop countdown",
+  "cooldown_reset": "Reset cooldown"
 }

@@ -28,7 +28,7 @@ describe('automations list load', () => {
     fake.replies[`${MOD}.list`] = { automations: [stored] };
     const data = (await load({ locals: { session } } as never)) as { enabled: boolean; automations: unknown[] };
     expect(data).toEqual({ enabled: true, automations: [stored] });
-    expect(fake.calls[0].body).toEqual({ user_id: '7' });
+    expect(fake.calls[0].body).toEqual({ user_id: '7', page: 1 });
   });
 
   test('a disabled module is reported so the page can offer the switch', async () => {

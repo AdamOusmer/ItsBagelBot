@@ -1,4 +1,10 @@
 {
+  "who": {
+    "viewer": "La personne qui a déclenché la recette",
+    "mention": "Personne mentionnée",
+    "user": "Personne choisie",
+    "login": "Pseudo du spectateur"
+  },
   "match": {
     "start": "Commence par",
     "exact": "Exact",
@@ -30,6 +36,8 @@
     "offline": "Hors ligne"
   },
   "op": {
+    "starts": "commence par",
+    "not_exists": "n’est pas défini",
     "contains": "contient",
     "eq": "égal à",
     "ne": "différent de",
@@ -45,7 +53,8 @@
     "replace": "Remplacer",
     "substring": "Extraire une partie",
     "split_pick": "Séparer et en choisir un",
-    "url_encode": "Adapter pour un lien"
+    "url_encode": "Adapter pour un lien",
+    "count": "Compter les éléments"
   },
   "scope": {
     "channel": "La chaîne",
@@ -73,7 +82,11 @@
     "followers": "Personnes qui suivent la chaîne",
     "slow": "Mode lent",
     "subscribers": "Abonnés uniquement",
-    "unique": "Messages uniques"
+    "unique": "Messages uniques",
+    "chat_delay": "Délai du chat",
+    "white": "Blanc",
+    "on": "Allumer",
+    "off": "Éteindre"
   },
   "kind": {
     "text": "Texte",
@@ -88,6 +101,7 @@
       },
       "cheer": "Cheer",
       "raid": "Raid entrant",
+      "update": "Changement de titre ou de catégorie",
       "ad_break": {
         "begin": "Début d’une coupure pub"
       },
