@@ -31,5 +31,6 @@
   "donateCta": "Donate on Ko-fi",
   "donateNote": "Any amount. No perks attached.",
   "supportBotTitle": "Support your streamer’s bot.",
-  "supportBotCta": "Support on Ko-fi"
+  "supportBotCta": "Support on Ko-fi",
+  "frozen": "Leaderboard paused at {time}. Points and watch time are still counting."
 }

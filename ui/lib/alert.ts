@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-export type AlertTone = 'neutral' | 'warm' | 'success' | 'warning' | 'danger';
+export type AlertTone = 'neutral' | 'warm' | 'success' | 'warning' | 'danger' | 'info';
 export type AlertVariant = 'banner' | 'callout';
 export type AlertPlacement = 'inline' | 'top';
 

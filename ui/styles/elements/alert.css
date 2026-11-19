@@ -36,6 +36,12 @@
     --alert-accent: var(--bb-green-glow);
   }
 
+  .bb-alert--info {
+    --alert-fg: var(--bb-status-info-fg);
+    --alert-accent: var(--bb-status-info);
+    --alert-bg: var(--bb-status-info-bg);
+  }
+
   .bb-alert--callout {
     --alert-bg: rgba(var(--alert-rgb), 0.06);
     --alert-border: rgba(var(--alert-rgb), 0.18);

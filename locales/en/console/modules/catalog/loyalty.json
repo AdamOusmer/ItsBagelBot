@@ -9,6 +9,8 @@
     "points_set_user_500": "Set a viewer's balance.",
     "points_add_user_500": "Grant points to a viewer.",
     "points_remove_user_500": "Remove points from a viewer.",
+    "freeze": "Pause the leaderboard for up to 30 minutes.",
+    "unfreeze": "Resume live standings.",
     "counter": "Manage counters (also on the Counters page)."
   }
 }

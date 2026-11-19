@@ -54,9 +54,14 @@ const SILENT_SCOPES: ReadonlySet<string> = new Set(['live', 'fetches']);
 type RenameHandler = (userId: string, logins: string[]) => void;
 
 const renameHandlers: RenameHandler[] = [];
+const loyaltyFreezeHandlers: ((userId: string) => void)[] = [];
 
 export function onRename(handler: RenameHandler): void {
   renameHandlers.push(handler);
+}
+
+export function onLoyaltyFreeze(handler: (userId: string) => void): void {
+  loyaltyFreezeHandlers.push(handler);
 }
 
 function announceRename({ id, keys }: { id: string; keys: readonly string[] }): void {
@@ -70,6 +75,9 @@ export const fabric = createCacheFabric({
   capacity: dashboardL1CacheCapacity(process.env),
   onInvalidation: (event) => {
     if (event.scope === 'rename') announceRename(event);
+    if (event.scope === 'loyalty' && event.keys.includes('freeze')) {
+      for (const handler of loyaltyFreezeHandlers) handler(event.id);
+    }
     if (event.prefixes.length && !SILENT_SCOPES.has(event.scope)) liveHub.publish(event.id, event.scope);
   }
 });

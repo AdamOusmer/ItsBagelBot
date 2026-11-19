@@ -9,6 +9,8 @@
     "points_set_user_500": "Fixer le solde d'un viewer.",
     "points_add_user_500": "Accorder des points à un viewer.",
     "points_remove_user_500": "Retirer des points à un viewer.",
+    "freeze": "Met le classement en pause pendant 30 minutes au maximum.",
+    "unfreeze": "Rétablit le classement en direct.",
     "counter": "Gérer les compteurs (aussi sur la page Compteurs)."
   }
 }
