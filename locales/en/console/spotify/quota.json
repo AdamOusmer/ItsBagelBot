@@ -8,5 +8,7 @@
   "saveFailed": "Could not save the limits.",
   "saved": "Limits saved.",
   "title": "Per-viewer limits",
-  "unlimited": "No limit"
+  "unlimited": "No limit",
+  "queueLength": "Whole queue",
+  "queueLengthHint": "Most songs waiting at once. Leave blank for no limit."
 }

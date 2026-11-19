@@ -8,5 +8,7 @@
   "saveFailed": "No se pudieron guardar los límites.",
   "saved": "Límites guardados.",
   "title": "Límites por espectador",
-  "unlimited": "Sin límite"
+  "unlimited": "Sin límite",
+  "queueLength": "Cola completa",
+  "queueLengthHint": "Máximo de canciones esperando a la vez. Déjalo vacío para no tener límite."
 }

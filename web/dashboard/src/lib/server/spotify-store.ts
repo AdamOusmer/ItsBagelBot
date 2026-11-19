@@ -34,6 +34,12 @@ export interface SpotifyView {
   sr: SpotifySrConfig;
   redeem: SpotifyRedeemConfig;
   quotas: SpotifyQuotas;
+  maxDepth: number | null;
+}
+
+export interface SpotifyLimits {
+  quotas: SpotifyQuotas;
+  maxDepth: number | null;
 }
 
 export interface SpotifyGrant {
@@ -122,12 +128,16 @@ function readRedeem(
   return redeem;
 }
 
+export function positiveCount(raw: unknown): number | null {
+  const n = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : raw;
+  return typeof n === 'number' && Number.isFinite(n) && n >= 1 ? Math.floor(n) : null;
+}
+
 function readQuotas(raw: Partial<SpotifyQuotas> | undefined): SpotifyQuotas {
   const q = blankSpotifyQuotas();
   if (!isObject(raw)) return q;
   for (const tier of ['everyone', 'sub', 'vip', 'mod'] as const) {
-    const v = raw[tier];
-    q[tier] = typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : null;
+    q[tier] = positiveCount(raw[tier]);
   }
   return q;
 }
@@ -137,8 +147,15 @@ function readView(configs: unknown): SpotifyView {
     sr?: Partial<SpotifySrConfig>;
     redeem?: Partial<SpotifyRedeemConfig> & { reward?: Partial<SpotifyReward> | null };
     quotas?: Partial<SpotifyQuotas>;
+    maxDepth?: unknown;
   };
-  return { enabled: false, sr: readSr(c.sr), redeem: readRedeem(c.redeem), quotas: readQuotas(c.quotas) };
+  return {
+    enabled: false,
+    sr: readSr(c.sr),
+    redeem: readRedeem(c.redeem),
+    quotas: readQuotas(c.quotas),
+    maxDepth: positiveCount(c.maxDepth)
+  };
 }
 
 export interface SpotifyApp {
@@ -154,7 +171,7 @@ export interface SpotifyStore {
   clearApp(): Promise<SpotifyResult>;
   setEnabled(enabled: boolean): Promise<SpotifyResult>;
   saveSr(sr: SpotifySrConfig): Promise<SpotifyResult>;
-  saveQuotas(quotas: SpotifyQuotas): Promise<SpotifyResult>;
+  saveLimits(limits: SpotifyLimits): Promise<SpotifyResult>;
   setRedeemPath(path: { enabled: boolean; allowOffline: boolean }): Promise<SpotifyResult>;
   saveReward(draft: RewardDraft): Promise<SpotifyResult>;
   deleteReward(): Promise<SpotifyResult>;
@@ -222,11 +239,12 @@ export function spotifyStore(userId: string): SpotifyStore {
   }
 
   async function write(view: SpotifyView): Promise<void> {
-    const { enabled, sr, redeem, quotas } = view;
+    const { enabled, sr, redeem, quotas, maxDepth } = view;
     const base = await rawConfigs();
     await upsertModule(userId, SONGQUEUE_MODULE, enabled, {
       ...base,
       quotas,
+      maxDepth: maxDepth ?? 0,
       sr: { enabled: sr.enabled, perm: sr.perm, allowOffline: sr.allowOffline },
       redeem: {
         enabled: redeem.enabled,
@@ -246,7 +264,7 @@ export function spotifyStore(userId: string): SpotifyStore {
   }
 
   const setEnabled = (enabled: boolean) => patch(() => ({ enabled }));
-  const saveQuotas = (quotas: SpotifyQuotas) => patch(() => ({ quotas }));
+  const saveLimits = (limits: SpotifyLimits) => patch(() => limits);
   const saveSr = (sr: SpotifySrConfig) => patch(() => ({ sr }));
   const setRedeemPath = (path: { enabled: boolean; allowOffline: boolean }) =>
     patch((cur) => ({ redeem: { ...cur.redeem, ...path } }));
@@ -293,7 +311,7 @@ export function spotifyStore(userId: string): SpotifyStore {
     clearApp,
     setEnabled,
     saveSr,
-    saveQuotas,
+    saveLimits,
     setRedeemPath,
     saveReward,
     deleteReward,
