@@ -5,7 +5,6 @@
   "compareNotContains": "{left} não contém {right}.",
   "emptyValue": "um valor vazio",
   "repairBlocked": "Esta mudança não passa na condição. Tente outro valor.",
-  "more": "Mais",
   "pretend": "Nada é enviado ou salvo. Estes são resultados de teste.",
   "notSet": "Não definido",
   "notReached": "Não alcançado neste teste",

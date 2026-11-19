@@ -4,9 +4,8 @@
   import { getI18n } from '@bagel/kit';
   import type { RehearsalScenario, ScenarioField, ScenarioValue } from '#lib/flow/rehearse';
   import { scenarioInputLabel, scenarioRoleLabel } from '#lib/flow/rehearse';
-  import Disclosure from '@bagel/ui/svelte/Disclosure.svelte';
-  import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
 
@@ -18,39 +17,33 @@
   const options = (field: ScenarioField) => (field.options ?? []).map((value) => ({ value, label: field.kind === 'role' ? scenarioRoleLabel(t, value) : value.replace('000', '') }));
 </script>
 
-{#snippet inputs(list: readonly ScenarioField[])}
-  <div class="inputs">
-    {#each list as field (field.key)}
-      <div class="input" class:wide={field.kind === 'text' && !['user', 'userId'].includes(field.key)}>
-        <Field label={label(field.key)} for="{uid}-{field.key}">
-          {#if field.kind === 'toggle'}
-            <div class="toggle">
-              <Switch id="{uid}-{field.key}" label={label(field.key)} checked={Boolean(scenario[field.key])} onCheckedChange={(value) => update(field, value)} />
-              <span>{field.key === 'live' ? t(scenario.live ? 'flows.test.live' : 'flows.test.streamOffline') : t(scenario[field.key] ? 'flows.test.yes' : 'flows.test.no')}</span>
-            </div>
-          {:else if field.options}
-            <Select id="{uid}-{field.key}" fill label={label(field.key)} value={String(scenario[field.key] ?? field.default)} options={options(field)} onchange={(event) => update(field, event.currentTarget.value)} />
-          {:else}
-            <Input id="{uid}-{field.key}" fill type={field.kind === 'number' ? 'number' : 'text'} min={field.kind === 'number' ? 0 : undefined} value={String(scenario[field.key] ?? '')} oninput={(event) => update(field, field.kind === 'number' ? Number(event.currentTarget.value) : event.currentTarget.value)} />
-          {/if}
-        </Field>
-      </div>
-    {/each}
-  </div>
-{/snippet}
-
-{@render inputs(fields.filter((field) => !field.more))}
-<div class="more" class:invisible={!fields.some((field) => field.more)} inert={!fields.some((field) => field.more)}>
-  <Disclosure summary={t('flows.test.more')} size="sm">
-    {@render inputs(fields.filter((field) => field.more))}
-  </Disclosure>
+<div class="inputs">
+  {#each fields as field (field.key)}
+    {@const id = `${uid}-${field.key}`}
+    {@const fieldLabel = label(field.key)}
+    <div class="input">
+      <Label htmlFor={id} class="bb-fit-box"><bb-fit>{fieldLabel}</bb-fit></Label>
+      {#if field.kind === 'toggle'}
+        <div class="toggle">
+          <Switch {id} label={fieldLabel} checked={Boolean(scenario[field.key])} onCheckedChange={(value) => update(field, value)} />
+          <span class="toggle-status bb-fit-box"><bb-fit>{field.key === 'live' ? t(scenario.live ? 'flows.test.live' : 'flows.test.streamOffline') : t(scenario[field.key] ? 'flows.test.yes' : 'flows.test.no')}</bb-fit></span>
+        </div>
+      {:else if field.options}
+        <Select {id} fill label={fieldLabel} value={String(scenario[field.key] ?? field.default)} options={options(field)} onchange={(event) => update(field, event.currentTarget.value)} />
+      {:else}
+        <Input {id} fill type={field.kind === 'number' ? 'number' : 'text'} min={field.kind === 'number' ? 0 : undefined} value={String(scenario[field.key] ?? '')} oninput={(event) => update(field, field.kind === 'number' ? Number(event.currentTarget.value) : event.currentTarget.value)} />
+      {/if}
+    </div>
+  {/each}
 </div>
 
 <style>
-  .inputs { display: flex; flex: none; flex-wrap: wrap; gap: 12px; }
-  .input { flex: 1 1 120px; min-width: 0; }
-  .input.wide { flex-basis: 100%; }
-  .toggle { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 14px; }
-  .more { flex: none; min-height: 32px; }
-  .invisible { visibility: hidden; }
+  .inputs { display: grid; flex: none; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .input { display: grid; grid-template-rows: 20px 44px; gap: 4px; min-width: 0; }
+  .toggle { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; font-size: 14px; }
+  .toggle-status { overflow: hidden; }
+
+  @media (max-width: 760px), (pointer: coarse) and (max-height: 520px) {
+    .inputs { grid-template-columns: minmax(0, 1fr); }
+  }
 </style>

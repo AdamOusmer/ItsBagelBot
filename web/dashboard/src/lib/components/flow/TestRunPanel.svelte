@@ -69,7 +69,7 @@
   .panel { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; border-radius: var(--bb-radius-md); background: var(--bb-bg-1); box-shadow: 0 16px 48px rgba(var(--bb-shadow-rgb), 0.65); }
   .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: none; padding: 12px 12px 8px 16px; }
   .name { flex: 1; height: 24px; margin: 0; min-width: 0; font-size: 17px; font-weight: 600; color: var(--bb-white); }
-  .scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 20px; }
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 20px; }
   .summary { flex: none; margin: 0; height: 48px; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
   .note { flex: none; height: 40px; margin: 0; font-size: 13px; line-height: 20px; color: var(--bb-muted-light); }
   .notice { flex: none; min-height: 64px; font-size: 14px; line-height: 1.4; }
