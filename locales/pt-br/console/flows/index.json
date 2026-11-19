@@ -80,6 +80,7 @@
     "multipleTriggers": "Uma receita só pode iniciar de uma forma. Remova a etapa Quando extra.",
     "cycle": "Esta etapa retorna para si mesma. Remova uma das conexões.",
     "unconnectedNode": "Esta etapa não está conectada ao início. Conecte-a ou remova-a.",
+    "unknownPort": "Uma conexão sai de uma porta que esta etapa não tem. Conecte-a novamente.",
     "unstructuredMerge": "Um caminho com Esperar não pode se juntar a outro caminho. Mova Esperar para depois da união ou dê a cada caminho suas próprias etapas.",
     "unsupportedNode": "Esta etapa ainda não pode ser salva.",
     "unsupportedTrigger": "Este início ainda não pode ser salvo.",

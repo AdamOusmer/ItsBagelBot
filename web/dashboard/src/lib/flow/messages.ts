@@ -24,6 +24,7 @@ function issueTexts(t: Translate, issue: Issue): Record<string, string> {
     wait_too_long: t('flows.issue.waitTooLong'),
     unmappable_token: t('flows.issue.unmappableToken', { token: `{${lastSegment(issue.path)}}` }),
     user_not_resolved: t('flows.issue.userNotResolved'),
+    unknown_port: t('flows.issue.unknownPort'),
     uses_token: t('flows.issue.usesToken', { count: '{count}', uses: '{uses}' }),
     command_exists: t('flows.issue.commandExists'),
     alert_exists: t('flows.issue.alertExists'),

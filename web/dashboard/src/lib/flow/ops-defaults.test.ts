@@ -28,7 +28,7 @@ const defaults = {
   'countdown.finished': {},
   'cond.role': { level: 'mod' },
   'cond.user': {},
-  'cond.cooldown': { seconds: 30 },
+  'cond.cooldown': { channelSeconds: 30, viewerSeconds: 0 },
   'cond.compare': { op: 'gte', matchCase: false },
   'cond.chance': { percent: 50 },
   'cond.var': { scope: 'channel', op: 'exists' },

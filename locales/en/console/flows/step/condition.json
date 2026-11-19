@@ -15,7 +15,8 @@
     "label": "User level",
     "summary": "Check the viewer's role",
     "warning": "Roles are known only for chat triggers and countdowns. On this trigger everyone counts as a viewer.",
-    "remove": "Remove this check",
+    "remove": "Remove check, keep Allowed steps",
+    "everyoneNote": "Everyone passes, so this check never blocks.",
     "field": {
       "level": {
         "label": "At least",
@@ -43,9 +44,9 @@
     "label": "Cooldown",
     "summary": "Let it run once every few seconds",
     "field": {
-      "seconds": { "label": "Cooldown", "range": "Use 1 second to {days} days." },
-      "perUser": { "label": "Per viewer" },
-      "name": { "label": "Name", "placeholder": "subathon", "hint": "Naming this restarts it if it is running. Add time steps in any recipe can then extend it. Not available per viewer." },
+      "channelSeconds": { "label": "Channel wait", "range": "Use 0 seconds to {days} days." },
+      "viewerSeconds": { "label": "Viewer wait", "range": "Use 0 seconds to {days} days." },
+      "name": { "label": "Name", "placeholder": "subathon", "hint": "A named cooldown can be extended by Add time steps in any recipe. Channel wait only." },
       "leftCommand": { "label": "Time left command", "placeholder": "!timeleft" },
       "leftReply": { "label": "Reply while waiting", "placeholder": "{user}, {cooldown:left} left before you can use this again." },
       "readyReply": { "label": "Reply when ready", "placeholder": "{user}, this is ready to use." }
@@ -67,6 +68,7 @@
     "out": { "yes": "Yes", "no": "No" }
   },
   "chance": {
+    "alwaysNote": "Always passes.",
     "label": "Random chance",
     "summary": "Pass some of the time",
     "field": {

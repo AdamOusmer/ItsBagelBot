@@ -31,7 +31,8 @@ export const FLOW_ISSUE = {
   unsupportedDisabledControlFlow: 'unsupported_disabled_control_flow',
   waitTooLong: 'wait_too_long',
   unmappableToken: 'unmappable_token',
-  userNotResolved: 'user_not_resolved'
+  userNotResolved: 'user_not_resolved',
+  unknownPort: 'unknown_port'
 } as const;
 
 const REWARD_KIND = 'channel.channel_points_custom_reward_redemption.add';
@@ -87,6 +88,18 @@ const isConditionType = (type: string) => type.startsWith('cond.');
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v) || 0);
+
+type CooldownWindows = { channelSeconds: number; viewerSeconds: number };
+
+export function cooldownWindows(config: FlowConfig): CooldownWindows {
+  if (config.channelSeconds !== undefined || config.viewerSeconds !== undefined) {
+    return { channelSeconds: num(config.channelSeconds), viewerSeconds: num(config.viewerSeconds) };
+  }
+  const seconds = num(config.seconds);
+  return config.perUser ? { channelSeconds: 0, viewerSeconds: seconds } : { channelSeconds: seconds, viewerSeconds: 0 };
+}
+
+export const canNameCooldown = ({ channelSeconds, viewerSeconds }: CooldownWindows): boolean => viewerSeconds === 0 && channelSeconds > 0;
 
 function eventTrigger(kind: string, filters?: Record<string, string>): Trigger {
   return { type: 'event', params: filters ? { kind, filters } : { kind } };
@@ -177,7 +190,8 @@ const TEMPLATE_FIELDS: Record<string, string[]> = {
   'reply.math': ['expression'],
   'reply.loop': ['times'],
   'reply.http_get': ['url'],
-  'reply.http_post': ['url', 'body']
+  'reply.http_post': ['url', 'body'],
+  'cond.cooldown': ['leftReply', 'readyReply']
 };
 
 const recipeName = (v: unknown) => str(v).trim().toLowerCase();
@@ -198,6 +212,7 @@ function templateFields(node: FlowNode): readonly string[] {
   if (node.type === 'reply.text') return ['input', ...TEXT_ARG_FIELDS.get(textOp(node.config)) ?? []];
   if (node.type === 'cond.var') return VAR_OPS_WITH_VALUE.includes(varConditionOp(node.config)) ? ['value'] : [];
   const fields = TEMPLATE_FIELDS[node.type] ?? [];
+  if (node.type === 'cond.cooldown') return fields.filter((field) => node.config[field] !== undefined);
   if (!streamTargetNodes.has(node.type)) return fields;
   const legacy = usesLegacyTarget(node.config.who);
   const active = (field: string): boolean => field !== 'target' || legacy;
@@ -249,6 +264,13 @@ const API_WRITERS: Record<string, (config: FlowConfig) => Action> = {
 const API_PORTS = ['ok', 'failure'] as const;
 const LOOP_TYPE = 'reply.loop';
 const LOOP_PORTS = ['body', 'done'] as const;
+const CHECK_PORTS = ['yes', 'no'] as const;
+
+function outputPorts(node: FlowNode): readonly string[] {
+  if (isConditionType(node.type)) return CHECK_PORTS;
+  if (node.type === LOOP_TYPE) return LOOP_PORTS;
+  return Object.hasOwn(API_WRITERS, node.type) ? API_PORTS : ['next'];
+}
 
 const DEFAULT_LIGHT_COLOR = '#ffffff';
 
@@ -277,19 +299,18 @@ function lightsAction(config: FlowConfig): Action {
 
 const awaitingUser = (config: FlowConfig) => config.login === SETUP_LOGIN;
 
-const COOLDOWN_PASSTHROUGH_FIELDS = [
-  ['name', 'name'],
+const TIME_LEFT_PARAMS = [
   ['leftCommand', 'left_command'],
   ['leftReply', 'left_reply'],
   ['readyReply', 'ready_reply']
 ] as const;
 
 function timeLeftParams(config: FlowConfig): Params {
-  return Object.fromEntries(COOLDOWN_PASSTHROUGH_FIELDS.filter(([key]) => str(config[key]).trim() !== '').map(([key, param]) => [param, str(config[key]).trim()]));
+  return Object.fromEntries(TIME_LEFT_PARAMS.filter(([key]) => str(config[key]).trim() !== '').map(([key, param]) => [param, str(config[key]).trim()]));
 }
 
 function timeLeftConfig(params: Params): FlowConfig {
-  return Object.fromEntries(COOLDOWN_PASSTHROUGH_FIELDS.filter(([, param]) => str(params[param]) !== '').map(([key, param]) => [key, str(params[param])]));
+  return Object.fromEntries(TIME_LEFT_PARAMS.filter(([, param]) => str(params[param]) !== '').map(([key, param]) => [key, str(params[param])]));
 }
 
 const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
@@ -300,7 +321,7 @@ const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
       ...(config.matchCase === false ? { ignore_case: true } : {})
     }
   }),
-  'cond.role': (config) => ({ type: 'perm', params: { level: str(config.level) } }),
+  'cond.role': (config) => ({ type: 'perm', params: { level: str(config.level) || 'everyone' } }),
   'cond.chance': (config) => ({ type: 'chance', params: { percent: num(config.percent) } }),
   'cond.var': (config) => {
     const op = varConditionOp(config);
@@ -313,9 +334,10 @@ const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
 };
 
 function cooldownConditionAction(config: FlowConfig): Condition {
-  const perUser = Boolean(config.perUser);
-  const params: Params = { [perUser ? 'user_s' : 'global_s']: num(config.seconds), ...timeLeftParams(config) };
-  if (perUser) delete params.name;
+  const windows = cooldownWindows(config);
+  const { channelSeconds, viewerSeconds } = windows;
+  const name = canNameCooldown(windows) ? str(config.name).trim() : '';
+  const params = withOptional(timeLeftParams(config), { global_s: channelSeconds, user_s: viewerSeconds, name });
   return { type: 'cooldown', params };
 }
 
@@ -463,7 +485,18 @@ function triggerNode(flow: Flow): FlowResult<FlowNode> {
   return { ok: true, value: triggers[0]! };
 }
 
+function unknownPortIssues(flow: Flow, byId: Lowering['byId']): Issue[] {
+  const sources = new Set<string>();
+  for (const edge of flow.edges) {
+    const source = byId.get(edge.from);
+    if (source && !outputPorts(source).includes(edge.port)) sources.add(source.id);
+  }
+  return [...sources].map((id) => ({ path: nodePath(id), code: FLOW_ISSUE.unknownPort }));
+}
+
 function shapeIssues(flow: Flow, trigger: FlowNode, ctx: Lowering): Issue[] {
+  const ports = unknownPortIssues(flow, ctx.byId);
+  if (ports.length > 0) return ports;
   const cycle = findCycleNode(ctx.outs, trigger.id);
   if (cycle) return [{ path: nodePath(cycle), code: FLOW_ISSUE.cycle }];
   const attached = reachable(ctx.outs, trigger.id);
@@ -613,7 +646,7 @@ function lowerArms(ctx: Lowering, node: FlowNode, ports: readonly [string, strin
 
 function lowerBranch(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
   const params: Params = { condition: writeCondition(ctx, node) };
-  const { first, second, rest } = lowerArms(ctx, node, ['yes', 'no'], stop);
+  const { first, second, rest } = lowerArms(ctx, node, CHECK_PORTS, stop);
   if (first.length > 0) params.then = first;
   if (second.length > 0) params.else = second;
   return [owned(ctx, node, { type: 'if', params }), ...rest];
@@ -863,11 +896,10 @@ function triggerToNode(trigger: Trigger): { type: string; config: FlowConfig } |
   return null;
 }
 
-function cooldownNode(params: Params): { type: string; config: FlowConfig } | null {
-  const global = num(params.global_s);
-  const user = num(params.user_s);
-  if (global > 0 && user > 0) return null;
-  return { type: 'cond.cooldown', config: { seconds: global || user, perUser: user > 0, ...timeLeftConfig(params) } };
+function cooldownNode(params: Params): { type: string; config: FlowConfig } {
+  const config = { channelSeconds: num(params.global_s), viewerSeconds: num(params.user_s), ...timeLeftConfig(params) };
+  const name = str(params.name);
+  return { type: 'cond.cooldown', config: name ? { ...config, name } : config };
 }
 
 function userNode(params: Params): { type: string; config: FlowConfig } | null {

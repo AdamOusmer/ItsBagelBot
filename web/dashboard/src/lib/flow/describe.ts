@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey } from '@bagel/kit';
-import { compactDuration } from '@bagel/kit/automations';
+import { compactDuration, cooldownWindows } from '@bagel/kit/automations';
 import { optionText, outputLabel, stepSummary } from './copy';
 import type { Translate } from './messages';
 import { LINKED_REWARD_CHOICE, specFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
@@ -122,9 +122,12 @@ function cooldownAmount(t: Translate, total: number): string {
 }
 
 function cooldownLine(t: Translate, n: FlowNode): string {
-  return given(num(n, 'seconds'), (count) =>
-    t(n.config.perUser ? 'flows.line.cooldownViewer' : 'flows.line.cooldown', { amount: cooldownAmount(t, count) })
-  );
+  const { channelSeconds, viewerSeconds } = cooldownWindows(n.config);
+  const channel = channelSeconds > 0 ? cooldownAmount(t, channelSeconds) : '';
+  const viewer = viewerSeconds > 0 ? cooldownAmount(t, viewerSeconds) : '';
+  if (channel && viewer) return t('flows.line.cooldownBoth', { channel, viewer });
+  if (viewer) return t('flows.line.cooldownViewer', { amount: viewer });
+  return channel ? t('flows.line.cooldown', { amount: channel }) : '';
 }
 
 function varCheckLine(t: Translate, n: FlowNode): string {
@@ -143,7 +146,7 @@ function conditionLine(t: Translate, n: FlowNode): string {
     case 'cond.var':
       return varCheckLine(t, n);
     case 'cond.role':
-      return roleLine(t, text(n, 'level'));
+      return roleLine(t, text(n, 'level') || 'everyone');
     case 'cond.user':
       return given(text(n, 'login') || text(n, 'userId'), (user) => t('flows.line.userOnly', { user }));
     case 'cond.cooldown':

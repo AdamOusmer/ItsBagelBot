@@ -55,6 +55,15 @@ export function roleWarning(t: Translate, flow: Flow, node: FlowNode | undefined
   return knowsRole ? undefined : t('flows.step.condition.role.warning');
 }
 
+const neverBlocks = (node: FlowNode): boolean => (node.config.level || 'everyone') === 'everyone';
+const alwaysPasses = (node: FlowNode): boolean => Number(node.config.percent) >= 100;
+
+export function checkNote(t: Translate, node: FlowNode | undefined): string | null {
+  if (node?.type === 'cond.role') return neverBlocks(node) ? t('flows.step.condition.role.everyoneNote') : null;
+  if (node?.type === 'cond.chance') return alwaysPasses(node) ? t('flows.step.condition.chance.alwaysNote') : null;
+  return null;
+}
+
 const known = (key: string, text: string): string => (text === key ? '' : text);
 
 export const stepKeywords = (t: Translate, spec: NodeSpec): string =>

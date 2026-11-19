@@ -6,7 +6,7 @@ import { definitionToFlow, flowStepRefs, flowToDefinition, locateIssues, type Fl
 import { classifyFlow } from './flow-layer';
 import { SETUP_REWARD_ID } from './flow-setup';
 import { validateDefinition } from './validate';
-import type { Action, Definition } from './types';
+import type { Action, Definition, Params } from './types';
 
 const node = (id: FlowNode['id'], type: FlowNode['type'], config: FlowConfig = {}): FlowNode => ({ id, type, x: 0, y: 0, config });
 const edge = (from: FlowEdge['from'], port: FlowEdge['port'], to: FlowEdge['to']): FlowEdge => ({ id: `${from}-${port}-${to}`, from, port, to });
@@ -27,6 +27,45 @@ function rebuilt(definition: Definition): Flow {
   if (!result.ok) throw new Error(JSON.stringify(result.issues));
   return result.value;
 }
+
+function cooldownFlow(trigger: FlowNode, config: FlowConfig): Flow {
+  const gate = node('g', 'cond.cooldown', config);
+  const reply = node('a', 'reply.chat', { message: 'x' });
+  return flow([trigger, gate, reply], [edge(trigger.id, 'next', 'g'), edge('g', 'yes', 'a')]);
+}
+
+describe('cooldown windows', () => {
+  test.each<{ name: string; config: FlowConfig; params: Params; opened: FlowConfig }>([
+    { name: 'legacy channel', config: { seconds: 30, perUser: false }, params: { global_s: 30 }, opened: { channelSeconds: 30, viewerSeconds: 0 } },
+    { name: 'legacy viewer', config: { seconds: 120, perUser: true }, params: { user_s: 120 }, opened: { channelSeconds: 0, viewerSeconds: 120 } },
+    { name: 'channel only', config: { channelSeconds: 30, viewerSeconds: 0 }, params: { global_s: 30 }, opened: { channelSeconds: 30, viewerSeconds: 0 } },
+    { name: 'viewer only', config: { channelSeconds: 0, viewerSeconds: 120 }, params: { user_s: 120 }, opened: { channelSeconds: 0, viewerSeconds: 120 } },
+    {
+      name: 'both windows ignore the name', config: { channelSeconds: 30, viewerSeconds: 120, name: 'break' },
+      params: { global_s: 30, user_s: 120 }, opened: { channelSeconds: 30, viewerSeconds: 120 }
+    },
+    {
+      name: 'channel with a name', config: { channelSeconds: 30, viewerSeconds: 0, name: 'break' },
+      params: { global_s: 30, name: 'break' }, opened: { channelSeconds: 30, viewerSeconds: 0, name: 'break' }
+    },
+    { name: 'no windows ignore the name', config: { channelSeconds: 0, viewerSeconds: 0, name: 'break' }, params: {}, opened: { channelSeconds: 0, viewerSeconds: 0 } },
+    {
+      name: 'time-left replies', config: { channelSeconds: 30, leftCommand: '!timeleft', leftReply: '{bits}', readyReply: 'Ready {bits}' },
+      params: { global_s: 30, left_command: '!timeleft', left_reply: '{event.amount}', ready_reply: 'Ready {event.amount}' },
+      opened: { channelSeconds: 30, viewerSeconds: 0, leftCommand: '!timeleft', leftReply: '{bits}', readyReply: 'Ready {bits}' }
+    }
+  ])('$name survives lowering and reopening', ({ config, params, opened }) => {
+    const saved = lowered(cooldownFlow(node('t', 'twitch.cheer'), config));
+    const board = rebuilt(saved);
+    expect({ params: saved.conditions?.[0]?.params, reopened: board.nodes[1]?.config, resaved: lowered(board) })
+      .toEqual({ params, reopened: opened, resaved: saved });
+  });
+
+  test.each(['leftReply', 'readyReply'])('a cooldown %s rejects an event token the trigger lacks', (field) => {
+    const drawn = cooldownFlow(node('t', 'twitch.follow'), { channelSeconds: 30, leftCommand: '!timeleft', [field]: '{bits}' });
+    expect(flowToDefinition(drawn)).toEqual({ ok: false, issues: [{ path: `nodes.g.${field}.bits`, code: 'unmappable_token' }] });
+  });
+});
 
 describe('target picker round-trip', () => {
   const actions = [
@@ -154,6 +193,13 @@ describe('lowering rules', () => {
     const definition = lowered(flow([trigger, role, node('a', 'reply.chat', { message: 'x' })], [edge('t', 'next', 'g'), edge('g', 'yes', 'a')]));
     expect(definition.conditions).toEqual([{ type: 'perm', params: { level: 'mod' } }]);
     expect(definition.actions).toEqual([chat('x')]);
+  });
+
+  test('an empty role level lowers to everyone', () => {
+    const gate = node('g', 'cond.role', { level: '' });
+    const reply = node('a', 'reply.chat', { message: 'x' });
+    const definition = lowered(flow([trigger, gate, reply], [edge('t', 'next', 'g'), edge('g', 'yes', 'a')]));
+    expect(definition.conditions).toEqual([{ type: 'perm', params: { level: 'everyone' } }]);
   });
 
   test('a gate with a blocked edge becomes if', () => {
@@ -342,6 +388,30 @@ describe('refusals', () => {
 
   test('edge to a missing node', () => {
     expect(issueCodes(flow([node('t', 'twitch.follow')], [edge('t', 'next', 'ghost')]))).toEqual(['unconnected_node']);
+  });
+
+  test.each([
+    { port: 'No', issues: [{ path: 'nodes.g', code: 'unknown_port' }] },
+    { port: 'no', issues: [] }
+  ])('validates the $port port on a chance check', ({ port, issues }) => {
+    const nodes = [node('t', 'twitch.follow'), node('g', 'cond.chance', { percent: 50 }), chatNode('a'), chatNode('b')];
+    const edges = [edge('t', 'next', 'g'), edge('g', 'yes', 'a'), edge('g', port, 'b')];
+    const result = flowToDefinition(flow(nodes, edges));
+    expect(result.ok ? validateDefinition(result.value) : result.issues).toEqual(issues);
+  });
+
+  test.each([
+    { type: 'twitch.follow', port: 'yes' },
+    { type: 'reply.chat', port: 'failure' },
+    { type: 'reply.loop', port: 'next' },
+    { type: 'reply.http_get', port: 'no' }
+  ])('$type rejects the $port output port', ({ type, port }) => {
+    const source = node('s', type);
+    const target = chatNode('a');
+    const input = type === 'twitch.follow'
+      ? flow([source, target], [edge('s', port, 'a')])
+      : flow([node('t', 'twitch.follow'), source, target], [edge('t', 'next', 's'), edge('s', port, 'a')]);
+    expect(flowToDefinition(input)).toEqual({ ok: false, issues: [{ path: 'nodes.s', code: 'unknown_port' }] });
   });
 
   test('a merge that only some branches share is unstructured', () => {

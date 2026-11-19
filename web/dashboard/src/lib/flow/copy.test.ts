@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
-import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, roleWarning, stepLabel, stepSummary, variableLabel } from './copy';
+import { checkNote, durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, roleWarning, stepLabel, stepSummary, variableLabel } from './copy';
 import { describe as describeNode } from './describe';
 import { english } from './english.testing';
 import { newFlow, NODE_SPECS, specFor, type FlowNode } from './model';
-import type { Translate } from './messages';
+import { issueMessage, type Translate } from './messages';
 
 const missing = (text: string | undefined) => text === undefined || text.startsWith('flows.');
 
@@ -23,7 +23,7 @@ test.each([
 
 describe('step copy', () => {
   test.each([
-    { type: 'cond.cooldown', key: 'name', hint: 'Naming this restarts it if it is running. Add time steps in any recipe can then extend it. Not available per viewer.' },
+    { type: 'cond.cooldown', key: 'name', hint: 'A named cooldown can be extended by Add time steps in any recipe. Channel wait only.' },
     { type: 'reply.cooldown_add', key: 'per', hint: 'Adds the time above for each full amount. Put 100 on a bits recipe to count every 100 bits. Leave empty to add it once per event.' },
     { type: 'reply.countdown_add', key: 'per', hint: 'Add this time for each full amount. Leave empty to add it once per event.' },
     { type: 'reply.countdown_add', key: 'name', hint: undefined }
@@ -91,19 +91,38 @@ describe('step copy', () => {
     const cooldown = NODE_SPECS.find((spec) => spec.type === 'cond.cooldown')!;
     const field = cooldown.fields[0];
     if (field.type !== 'duration') throw new Error('cooldown is not a duration field');
-    expect(durationRange(english, cooldown, field)).toBe('Use 1 second to 30 days.');
-    expect([undefined, 1, 2_592_000].map((seconds) => durationOutside(field, seconds))).toEqual([false, false, false]);
-    expect([0, 2_592_001].map((seconds) => durationOutside(field, seconds))).toEqual([true, true]);
+    expect(durationRange(english, cooldown, field)).toBe('Use 0 seconds to 30 days.');
+    expect([undefined, 0, 2_592_000].map((seconds) => durationOutside(field, seconds))).toEqual([false, false, false]);
+    expect([-1, 2_592_001].map((seconds) => durationOutside(field, seconds))).toEqual([true, true]);
   });
 
-  test.each([
-    [59, 'Wait 59 seconds between runs'],
-    [60, 'Wait 1 minute between runs'],
-    [7200, 'Wait 2 hours between runs'],
-    [86_400, 'Wait 1 day between runs'],
-    [604_800, 'Wait 7 days between runs']
-  ])('a %d second cooldown reads %s', (seconds, line) => {
-    expect(describeNode(english, { id: 'c', type: 'cond.cooldown', x: 0, y: 0, config: { seconds } })).toBe(line);
+  test.each<{ config: FlowNode['config']; line: string }>([
+    { config: { channelSeconds: 30, viewerSeconds: 0 }, line: 'Once every 30 seconds' },
+    { config: { channelSeconds: 0, viewerSeconds: 30 }, line: 'Once every 30 seconds per viewer' },
+    { config: { channelSeconds: 30, viewerSeconds: 120 }, line: 'Once every 30 seconds, and every 2 minutes per viewer' },
+    { config: { channelSeconds: 60 }, line: 'Once every 1 minute' },
+    { config: { channelSeconds: 7200 }, line: 'Once every 2 hours' },
+    { config: { channelSeconds: 86_400 }, line: 'Once every 1 day' },
+    { config: { channelSeconds: 604_800 }, line: 'Once every 7 days' }
+  ])('cooldown $config reads $line', ({ config, line }) => {
+    expect(describeNode(english, { id: 'c', type: 'cond.cooldown', x: 0, y: 0, config })).toBe(line);
+  });
+
+  test.each<{ type: string; config: FlowNode['config']; note: string | null }>([
+    { type: 'cond.role', config: { level: 'everyone' }, note: 'Everyone passes, so this check never blocks.' },
+    { type: 'cond.role', config: { level: '' }, note: 'Everyone passes, so this check never blocks.' },
+    { type: 'cond.role', config: { level: 'mod' }, note: null },
+    { type: 'cond.chance', config: { percent: 99 }, note: null },
+    { type: 'cond.chance', config: { percent: 100 }, note: 'Always passes.' },
+    { type: 'cond.chance', config: { percent: '100' }, note: 'Always passes.' },
+    { type: 'cond.chance', config: { percent: 101 }, note: 'Always passes.' }
+  ])('$type with $config shows $note', ({ type, config, note }) => {
+    expect(checkNote(english, { id: 'n', type, x: 0, y: 0, config })).toBe(note);
+  });
+
+  test('unknown ports ask to reconnect the connection', () => {
+    expect(issueMessage(english, { path: 'nodes.c', code: 'unknown_port' }))
+      .toBe('A connection leaves this step from a port it does not have. Reconnect it.');
   });
 
   test('the wait unit names the longest wait', () => {

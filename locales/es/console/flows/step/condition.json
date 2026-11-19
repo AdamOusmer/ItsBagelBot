@@ -15,7 +15,8 @@
     "label": "Nivel de usuario",
     "summary": "Comprobar el rol del espectador",
     "warning": "Los roles solo se conocen con activadores de chat y cuentas atrás. Con este activador todos cuentan como espectadores.",
-    "remove": "Quitar esta comprobación",
+    "remove": "Quitar la comprobación y conservar los pasos permitidos",
+    "everyoneNote": "Todo el mundo pasa, así que esta comprobación nunca bloquea la ejecución.",
     "field": {
       "level": {
         "label": "Al menos",
@@ -52,17 +53,18 @@
     "label": "Tiempo de espera",
     "summary": "Permite una ejecución cada pocos segundos",
     "field": {
-      "seconds": {
-        "label": "Tiempo de espera",
-        "range": "Usa de 1 segundo a {days} días."
+      "channelSeconds": {
+        "label": "Espera del canal",
+        "range": "Usa de 0 segundos a {days} días."
       },
-      "perUser": {
-        "label": "Por espectador"
+      "viewerSeconds": {
+        "label": "Espera por espectador",
+        "range": "Usa de 0 segundos a {days} días."
       },
       "name": {
         "label": "Nombre",
         "placeholder": "subathon",
-        "hint": "Nombrarlo lo reinicia si está en curso. Los pasos para añadir tiempo de cualquier receta podrán extenderlo. No disponible por espectador."
+        "hint": "Los pasos para añadir tiempo de cualquier receta pueden prolongar una espera con nombre. Solo se aplica a la espera del canal."
       },
       "leftCommand": {
         "label": "Comando de tiempo restante",
@@ -111,6 +113,7 @@
     }
   },
   "chance": {
+    "alwaysNote": "Siempre pasa.",
     "label": "Probabilidad aleatoria",
     "summary": "Pasa algunas veces",
     "field": {

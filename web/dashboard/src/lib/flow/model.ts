@@ -4,7 +4,7 @@ import { STREAM_STEP_DEFINITIONS, TARGET_FIELDS } from './stream-steps';
 import { graphIndex, portKey } from './graph-index';
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
-import { COMPARE_OPS, TEXT_ARG_FIELDS, TEXT_COMPARE_OPS, VAR_OPS, VAR_OPS_WITH_VALUE } from '@bagel/kit/automations';
+import { COMPARE_OPS, TEXT_ARG_FIELDS, TEXT_COMPARE_OPS, VAR_OPS, VAR_OPS_WITH_VALUE, cooldownWindows } from '@bagel/kit/automations';
 import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
@@ -74,12 +74,13 @@ export const STEP_PLACEMENT = {
 
 type Typed = { key: string; placeholder?: true };
 
-type FieldGate = { key: string; value: string | readonly string[] | boolean };
+type GateValue = string | readonly string[] | boolean | number;
+type FieldGate = { key: string } & ({ value: GateValue } | { filled: true });
 
 export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; labelBy?: string; initial?: string | number | boolean; required?: true } & (
   | (Typed & { type: 'text' })
   | (Typed & { type: 'template'; singleLine?: boolean })
-  | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
+  | { key: string; type: 'number'; min?: number; max?: number; step?: number; unit?: true }
   | { key: string; type: 'duration'; min: number; max: number }
   | { key: string; type: 'select'; options: readonly string[]; optionGroup?: 'checkOps' }
   | { key: string; type: 'toggle' }
@@ -263,12 +264,12 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     slug: 'cooldown',
     icon: 'hourglass',
     fields: [
-      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS, initial: 30 },
-      { key: 'perUser', type: 'toggle' },
-      { key: 'name', type: 'text', placeholder: true, when: { key: 'perUser', value: false } },
+      { key: 'channelSeconds', type: 'duration', min: 0, max: MAX_COOLDOWN_SECONDS, initial: 30 },
+      { key: 'viewerSeconds', type: 'duration', min: 0, max: MAX_COOLDOWN_SECONDS, initial: 0 },
+      { key: 'name', type: 'text', placeholder: true, when: { key: 'viewerSeconds', value: 0 } },
       { key: 'leftCommand', type: 'text', placeholder: true },
-      { key: 'leftReply', type: 'template', placeholder: true, singleLine: true },
-      { key: 'readyReply', type: 'template', placeholder: true, singleLine: true }
+      { key: 'leftReply', type: 'template', placeholder: true, singleLine: true, when: { key: 'leftCommand', filled: true } },
+      { key: 'readyReply', type: 'template', placeholder: true, singleLine: true, when: { key: 'leftCommand', filled: true } }
     ],
     outputs: [{ id: 'yes' }, { id: 'no', provides: [{ token: '{cooldown:left}', name: 'cooldownLeft', sample: '2d 3h' }] }]
   },
@@ -288,7 +289,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'cond.chance',
     slug: 'chance',
     icon: 'dice',
-    fields: [{ key: 'percent', type: 'number', min: 1, max: 100, unit: true, initial: 50 }],
+    fields: [{ key: 'percent', type: 'number', min: 1, max: 100, step: 1, unit: true, initial: 50 }],
     outputs: yesNo
   },
   {
@@ -434,22 +435,30 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
 
 export const NODE_SPECS: readonly NodeSpec[] = STEP_DEFINITIONS.map((spec) => ({ ...spec, ...STEP_PLACEMENT[spec.type] }));
 
-function matchesValue(wanted: FieldGate['value'], value: unknown): boolean {
+export function migrateCooldownConfig(config: FlowNode['config']): FlowNode['config'] {
+  if (!('seconds' in config) && !('perUser' in config)) return config;
+  const { seconds, perUser, ...rest } = config;
+  return { ...rest, ...cooldownWindows(config) };
+}
+
+function matchesValue(wanted: GateValue, value: unknown): boolean {
   if (typeof wanted === 'boolean') return Boolean(value) === wanted;
+  if (typeof wanted === 'number') return Number(value ?? '') === wanted;
   return typeof wanted === 'string' ? value === wanted : wanted.includes(String(value));
 }
 
-function gateMatches(spec: NodeSpec, config: FlowNode['config'], { key, value }: FieldGate): boolean {
-  const gate = spec.fields.find((field) => field.key === key);
-  if (gate?.type === 'target') return matchesValue(value, targetMode(config));
+function gateMatches(spec: NodeSpec, config: FlowNode['config'], rule: FieldGate): boolean {
+  const gate = spec.fields.find((field) => field.key === rule.key);
   const fallback = gate?.type === 'select' ? gate.options[0] : gate?.initial;
-  return matchesValue(value, config[key] ?? fallback);
+  const value = gate?.type === 'target' ? targetMode(config) : config[rule.key] ?? fallback;
+  return 'filled' in rule ? String(value ?? '').trim() !== '' : matchesValue(rule.value, value);
 }
 
 export function fieldVisible(spec: NodeSpec, node: Pick<FlowNode, 'config'>, field: FieldSpec): boolean {
   if (!field.when) return true;
   const gates = 'key' in field.when ? [field.when] : field.when;
-  return gates.every((gate) => gateMatches(spec, node.config, gate));
+  const config = spec.type === 'cond.cooldown' ? migrateCooldownConfig(node.config) : node.config;
+  return gates.every((gate) => gateMatches(spec, config, gate));
 }
 
 export const specFor = (type: string): NodeSpec | undefined => NODE_SPECS.find((s) => s.type === type);

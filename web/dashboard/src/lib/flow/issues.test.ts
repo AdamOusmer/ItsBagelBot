@@ -11,7 +11,7 @@ const mappings = [
   ['reply.chat', 'params.text', 'message'], ['reply.wait', 'params.ms', 'seconds'],
   ['reply.math', 'params.save_as', 'saveAs'], ['reply.http_get', 'params.json_path[0]', 'jsonPath'],
   ['reply.http_post', 'params.save_as', 'saveAs'], ['reply.counter', 'params.name', 'counter'],
-  ['cond.cooldown', 'params.global_s', 'seconds'], ['cond.cooldown', 'params.user_s', 'seconds'],
+  ['cond.cooldown', 'params.global_s', 'channelSeconds'], ['cond.cooldown', 'params.user_s', 'viewerSeconds'],
   ['cond.cooldown', 'params.left_command', 'leftCommand'], ['cond.cooldown', 'params.left_reply', 'leftReply'],
   ['reply.countdown_start', 'params.ready_reply', 'readyReply'],
   ['cond.user', 'params.allow_ids[0]', 'login'], ['cond.user', 'params.allow[0]', 'login'], ['cond.user', 'userId', 'login'],
@@ -21,7 +21,7 @@ const mappings = [
   ['twitch.reward', 'params.title', 'reward'], ['twitch.reward', 'params.cost', 'reward'],
   ['twitch.reward', 'params.color', 'reward'], ['twitch.reward', 'params.cooldown_s', 'reward'],
   ['twitch.reward', 'params.on_redeem', 'reward'], ['twitch.reward', 'params.input_required', 'reward'],
-  ['cond.cooldown', 'params', 'seconds'], ['cond.user', 'params', 'login'],
+  ['cond.cooldown', 'params', 'channelSeconds'], ['cond.user', 'params', 'login'],
   ['reply.lights', 'params.sku', 'device'], ['reply.lights', 'params.extra_lights[0]', 'device'],
   ['reply.lights', 'params.device_name', 'device'], ['reply.lights', 'params.scene_value', 'scene'],
   ['reply.lights', 'params.scene_type', 'scene'], ['reply.lights', 'params.scene_instance', 'scene'],
@@ -61,7 +61,7 @@ test.each([
 test.each([
   ['reply.chat', 'message', true], ['reply.wait', 'seconds', true], ['reply.math', 'saveAs', true],
   ['reply.http_get', 'saveAs', false], ['reply.text', 'input', false], ['reply.text', 'saveAs', true],
-  ['cond.user', 'login', true], ['cond.cooldown', 'seconds', true], ['cond.cooldown', 'name', false],
+  ['cond.user', 'login', true], ['cond.cooldown', 'channelSeconds', true], ['cond.cooldown', 'name', false],
   ['twitch.chat.command', 'trigger', true], ['twitch.reward', 'reward', true], ['reply.shoutout', 'target', true],
   ['reply.raid', 'target', true], ['reply.mod', 'target', false], ['reply.vip', 'target', false],
   ['reply.whisper', 'target', true], ['reply.timeout', 'target', false],
@@ -112,7 +112,21 @@ test.each<{ type: FlowNode['type']; key: string; config: FlowNode['config']; exp
 });
 
 test.each([
+  { percent: 50.5, fields: [{ fieldKey: 'percent', code: 'invalid_format' }] },
+  { percent: 50, fields: [] }
+])('chance at $percent reports $fields', ({ percent, fields }) => {
+  const flow = newFlow('Chance');
+  flow.nodes = [{ ...nodeOf('twitch.follow'), id: 'trigger' }, nodeOf('cond.chance', { percent })];
+  flow.edges = [{ id: 'edge', from: 'trigger', port: 'next', to: 'step' }];
+  const lowered = flowToDefinition(flow);
+  if (!lowered.ok) throw new Error(JSON.stringify(lowered.issues));
+  const issues = fieldIssues(locateIssues(flow, validateDefinition(lowered.value)), flow.nodes);
+  expect(issues.map(({ fieldKey, code }) => ({ fieldKey, code }))).toEqual(fields);
+});
+
+test.each([
   { code: 'user_not_resolved', type: 'cond.user', key: 'login' },
+  { code: 'unknown_port', type: 'cond.cooldown', key: undefined },
   { code: 'wait_too_long', type: 'reply.wait', key: 'seconds' },
   { code: 'delay_budget', type: 'reply.wait', key: 'seconds' },
   { code: 'constructor', type: 'reply.wait', key: undefined },
@@ -125,7 +139,9 @@ test.each<{ type: FlowNode['type']; config: FlowNode['config']; missing: string 
   { type: 'twitch.follow', config: {}, missing: undefined },
   { type: 'twitch.chat.command', config: {}, missing: 'trigger' },
   { type: 'twitch.reward', config: { reward: 'setup-required' }, missing: 'reward' },
-  { type: 'cond.cooldown', config: { seconds: 30 }, missing: undefined },
+  { type: 'cond.cooldown', config: { channelSeconds: 30, viewerSeconds: 0 }, missing: undefined },
+  { type: 'cond.cooldown', config: { channelSeconds: 0, viewerSeconds: 30 }, missing: undefined },
+  { type: 'cond.cooldown', config: { channelSeconds: 0, viewerSeconds: 0 }, missing: 'channelSeconds' },
   { type: 'cond.compare', config: { op: 'gte' }, missing: 'left' },
   { type: 'reply.chat', config: { message: ' ' }, missing: 'message' },
   { type: 'reply.chat', config: { message: 'Thanks {user}!' }, missing: undefined },

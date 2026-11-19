@@ -20,13 +20,13 @@
   import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import DurationField from '#lib/components/shared/DurationField.svelte';
-  import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, stepLabel, stepRequirementFor, stepSummary, targetOptions, variableLabel } from '#lib/flow/copy';
+  import { checkNote, durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, stepLabel, stepRequirementFor, stepSummary, targetOptions, variableLabel } from '#lib/flow/copy';
   import { defaultComparison } from '#lib/flow/comparison';
-  import { fieldMounted, fieldVisible, NODE_SPECS, outputsFor, specFor, targetFieldFor, targetModesFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
+  import { fieldMounted, fieldVisible, migrateCooldownConfig, NODE_SPECS, outputsFor, specFor, targetFieldFor, targetModesFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
   import { duplicateNode, hasCheckBefore, insertCheckBefore } from '#lib/flow/ops';
   import { descendants, graphIndex, portKey } from '#lib/flow/graph-index';
   import { awaitingSetup, configText } from '#lib/flow/setup';
-  import { SETUP_URL } from '@bagel/kit/automations';
+  import { SETUP_URL, canNameCooldown, cooldownWindows } from '@bagel/kit/automations';
   import ChoiceField from './ChoiceField.svelte';
   import FlowRehearsal from './FlowRehearsal.svelte';
   import GoveeLightField from './GoveeLightField.svelte';
@@ -79,6 +79,8 @@
 
   const node = $derived(flow.nodes.find((n) => n.id === (selectedId ?? fallbackId)));
   const spec = $derived(node ? specFor(node.type) : undefined);
+  const durationConfig = $derived(node?.type === 'cond.cooldown' ? migrateCooldownConfig(node.config) : node?.config);
+  const namedCooldownDrafts = $derived(flow.nodes.filter((entry) => entry.type === 'cond.cooldown' && canNameCooldown(cooldownWindows(entry.config))));
 
   const compareExample = $derived.by(() => {
     if (node?.type !== 'cond.compare') return null;
@@ -96,6 +98,7 @@
   const addedCheck = $derived(roleLevel ? hasCheckBefore(flow, node?.id ?? '', roleLevel) : false);
   const removeCheck = $derived(roleWarning(t, flow, node));
   const roleNote = $derived(requirement ? requirementText(t, requirement, addedCheck ? 'start' : 'note') : removeCheck);
+  const passingNote = $derived(checkNote(t, node));
   const canAddCheck = $derived(roleLevel ? incoming.length > 0 && !addedCheck : false);
   const checkAction = $derived(canAddCheck || Boolean(removeCheck));
   const automaticComparisons = new Map<FlowNode['id'], boolean>();
@@ -104,6 +107,13 @@
     if (!node) return;
     node.config[key] = value;
     if (node.type === 'cond.compare') automaticComparisons.set(node.id, false);
+  }
+
+  function setDuration(node: FlowNode, key: FieldKey, seconds: number) {
+    const config = node.type === 'cond.cooldown' ? migrateCooldownConfig(node.config) : node.config;
+    if (Number.isFinite(seconds)) config[key] = seconds;
+    else delete config[key];
+    if (config !== node.config) node.config = config;
   }
 
   function setTemplate(key: FieldKey, value: string) {
@@ -308,6 +318,9 @@
           <Button variant="ghost" onclick={changeCheck}><bb-fit>{t(removeCheck ? 'flows.step.condition.role.remove' : 'flows.step.requirement.addCheck')}</bb-fit></Button>
         </div>
       </div>
+      {#if node.type === 'cond.role' || node.type === 'cond.chance'}
+        <p class="note check-note bb-fit-box" class:faded={!passingNote} role="status"><bb-fit data-fit mode="block">{passingNote ?? ''}</bb-fit></p>
+      {/if}
       {#if spec.fields.length}
         <div class="fields">
           {#each spec.fields.filter((field) => fieldMounted(spec, node, field)) as field (field.key)}
@@ -353,6 +366,7 @@
                   type="number"
                   min={field.min}
                   max={field.max}
+                  step={field.step}
                   value={node.config[field.key] === undefined ? '' : Number(node.config[field.key])}
                   oninput={(e) => {
                     const raw = e.currentTarget.value;
@@ -364,7 +378,8 @@
                 </Input>
               </Field>
             {:else if field.type === 'duration'}
-              {@const outside = durationOutside(field, node.config[field.key])}
+              {@const value = durationConfig?.[field.key]}
+              {@const outside = durationOutside(field, value)}
               {@const range = durationRange(t, spec, field)}
               <Field {label} {tag} hint={outside ? undefined : range} error={error ?? (outside ? range : undefined)} errorId="{uid}-{field.key}-error">
                 {#key node.id}
@@ -376,11 +391,8 @@
                     invalid={outside || Boolean(error)}
                     describedby={outside || error ? `${uid}-${field.key}-error` : undefined}
                     bind:value={
-                      () => (node.config[field.key] === undefined ? Number.NaN : Number(node.config[field.key])),
-                      (seconds) => {
-                        if (Number.isFinite(seconds)) node.config[field.key] = seconds;
-                        else delete node.config[field.key];
-                      }
+                      () => (value === undefined ? Number.NaN : Number(value)),
+                      (seconds) => setDuration(node, field.key, seconds)
                     }
                   />
                 {/key}
@@ -430,7 +442,7 @@
                 />
               </Field>
             {:else if field.type === 'choice'}
-              <ChoiceField {node} {field} {label} {tag} {error} draft={flow.nodes} id="{uid}-{field.key}" />
+              <ChoiceField {node} {field} {label} {tag} {error} draft={field.source === 'namedCooldowns' ? namedCooldownDrafts : flow.nodes} id="{uid}-{field.key}" />
             {:else if field.type === 'target'}
               <ChoiceField {node} {field} {label} {error} options={targetOptions(t, targetModesFor(flow, node))} id="{uid}-{field.key}" />
             {:else if field.type === 'reward'}
@@ -687,7 +699,9 @@
     height: 84px;
   }
   .role-note,
+  .check-note,
   .check-action { transition: opacity 0.15s ease; }
+  .check-note { height: 40px; }
   .check-action {
     display: flex;
     align-items: center;
@@ -741,6 +755,7 @@
     transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
   }
   @media (prefers-reduced-motion: reduce) {
+    .check-note,
     .run-note { transition: none; }
   }
 </style>

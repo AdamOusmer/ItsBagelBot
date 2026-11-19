@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES, TEXT_ARG_FIELDS, needsSearchValue, type Issue } from '@bagel/kit/automations';
+import { ACTION_TYPES, CONDITION_TYPES, FLOW_ISSUE, TRIGGER_TYPES, TEXT_ARG_FIELDS, cooldownWindows, needsSearchValue, type Issue } from '@bagel/kit/automations';
 import { specFor, targetFieldFor, targetMode, type FlowNode } from './model';
 import { configText } from './setup';
 
@@ -16,7 +16,7 @@ const PARAM_FIELDS: Record<string, string> = {
   reward_id: 'reward', cooldown_s: 'cooldown', on_redeem: 'onRedeem', input_required: 'userInput',
   device_name: 'device', sku: 'device', extra_lights: 'device', any_time: 'liveOnly',
   scene_id: 'scene', scene_name: 'scene', scene_type: 'scene', scene_instance: 'scene', scene_value: 'scene',
-  global_s: 'seconds', user_s: 'seconds', ms: 'seconds', allow: 'login', allow_ids: 'login', userId: 'login', user_id: 'login',
+  global_s: 'channelSeconds', user_s: 'viewerSeconds', ms: 'seconds', allow: 'login', allow_ids: 'login', userId: 'login', user_id: 'login',
   enabled: 'setEnabled', reset_on_stream_end: 'reset'
 };
 
@@ -31,7 +31,7 @@ const NODE_FIELDS: Record<string, Record<string, string>> = {
   'reply.counter': { name: 'counter' }
 };
 
-const WHOLE_NODE_FIELDS: Record<string, string> = { 'cond.cooldown': 'seconds', 'cond.user': 'login' };
+const WHOLE_NODE_FIELDS: Record<string, string> = { 'cond.cooldown': 'channelSeconds', 'cond.user': 'login', 'cond.chance': 'percent' };
 
 function fieldKeyFor(node: FlowNode, path: IssuePath): FieldKey | undefined {
   const param = path.replace(/^(?:params|config)(?:\.|$)/, '').split(/[.\[]/)[0];
@@ -77,7 +77,8 @@ function locateFieldIssue(issue: Issue, nodes: readonly FlowNode[], trigger: Flo
   const target = issueTarget(issue, nodes, trigger);
   if (!target) return [];
   const path = target.path || (CODE_FIELDS.get(issue.code) ?? '');
-  return [{ ...issue, nodeId: target.node.id, fieldKey: fieldKeyFor(target.node, path) }];
+  const fieldKey = issue.code === FLOW_ISSUE.unknownPort ? undefined : fieldKeyFor(target.node, path);
+  return [{ ...issue, nodeId: target.node.id, fieldKey }];
 }
 
 const TYPES: Record<string, string> = {
@@ -85,7 +86,7 @@ const TYPES: Record<string, string> = {
   'cond.role': 'perm', 'cond.user': 'users', 'reply.points': 'points_add', 'reply.counter': 'counter_add', 'reply.wait': 'delay'
 };
 
-const REQUIRED: Record<string, readonly string[]> = { 'cond.user': ['login'], 'cond.cooldown': ['seconds'] };
+const REQUIRED: Record<string, readonly string[]> = { 'cond.user': ['login'], 'cond.cooldown': ['channelSeconds'] };
 const searchValueRequired = (config: FlowNode['config']) => needsSearchValue(config.op);
 
 const REQUIRED_IF: Record<string, (config: FlowNode['config']) => boolean> = {
@@ -123,6 +124,10 @@ export function fieldRequired(node: FlowNode, key: FieldKey): boolean {
 }
 
 export function missingField(node: FlowNode): string | undefined {
+  if (node.type === 'cond.cooldown') {
+    const { channelSeconds, viewerSeconds } = cooldownWindows(node.config);
+    return channelSeconds > 0 || viewerSeconds > 0 ? undefined : 'channelSeconds';
+  }
   const spec = specFor(node.type);
   return spec?.fields.find(({ key }) => {
     const stored = key === 'login' && targetFieldFor(spec) ? 'userId' : key;

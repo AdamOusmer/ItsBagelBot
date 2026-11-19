@@ -15,7 +15,8 @@
     "label": "Nutzerlevel",
     "summary": "Rolle des Zuschauers prüfen",
     "warning": "Rollen sind nur bei Chat-Auslösern und Countdowns bekannt. Bei diesem Auslöser zählt jeder als Zuschauer.",
-    "remove": "Diese Prüfung entfernen",
+    "remove": "Prüfung entfernen, erlaubte Schritte behalten",
+    "everyoneNote": "Alle bestehen diese Prüfung, deshalb blockiert sie nie.",
     "field": {
       "level": {
         "label": "Mindestens",
@@ -52,17 +53,18 @@
     "label": "Abklingzeit",
     "summary": "Nur alle paar Sekunden ausführen",
     "field": {
-      "seconds": {
-        "label": "Abklingzeit",
-        "range": "Verwende 1 Sekunde bis {days} Tage."
+      "channelSeconds": {
+        "label": "Wartezeit für den Kanal",
+        "range": "Verwende 0 Sekunden bis {days} Tage."
       },
-      "perUser": {
-        "label": "Pro Zuschauer"
+      "viewerSeconds": {
+        "label": "Wartezeit pro Zuschauer",
+        "range": "Verwende 0 Sekunden bis {days} Tage."
       },
       "name": {
         "label": "Name",
         "placeholder": "subathon",
-        "hint": "Eine Benennung startet ihn neu, falls er läuft. Schritte zum Hinzufügen von Zeit können ihn danach in jedem Rezept verlängern. Nicht verfügbar pro Zuschauer."
+        "hint": "Schritte zum Hinzufügen von Zeit in jedem Rezept können eine benannte Abklingzeit verlängern. Gilt nur für die Kanalwartezeit."
       },
       "leftCommand": {
         "label": "Befehl für verbleibende Zeit",
@@ -111,6 +113,7 @@
     }
   },
   "chance": {
+    "alwaysNote": "Besteht immer.",
     "label": "Zufallschance",
     "summary": "Nur manchmal durchlassen",
     "field": {

@@ -15,7 +15,8 @@
     "label": "Niveau utilisateur",
     "summary": "Vérifier le rôle du viewer",
     "warning": "Les rôles sont connus seulement pour le chat et les comptes à rebours. Ici, tout le monde compte comme viewer.",
-    "remove": "Retirer cette condition",
+    "remove": "Retirer la condition et garder les étapes autorisées",
+    "everyoneNote": "Tout le monde satisfait à cette condition, donc elle ne bloque jamais l’exécution.",
     "field": {
       "level": {
         "label": "Au moins",
@@ -52,17 +53,18 @@
     "label": "Délai de recharge",
     "summary": "Lancer une fois toutes les quelques secondes",
     "field": {
-      "seconds": {
-        "label": "Délai de recharge",
-        "range": "Utilisez de 1 seconde à {days} jours."
+      "channelSeconds": {
+        "label": "Délai pour la chaîne",
+        "range": "Utilisez de 0 seconde à {days} jours."
       },
-      "perUser": {
-        "label": "Par viewer"
+      "viewerSeconds": {
+        "label": "Délai par viewer",
+        "range": "Utilisez de 0 seconde à {days} jours."
       },
       "name": {
         "label": "Nom",
         "placeholder": "subathon",
-        "hint": "Lui donner un nom le redémarre s’il est en cours. Les étapes d’ajout de temps de n’importe quelle recette peuvent ensuite le prolonger. Non disponible par viewer."
+        "hint": "Les étapes d’ajout de temps de n’importe quelle recette peuvent prolonger un délai nommé. S’applique uniquement au délai de la chaîne."
       },
       "leftCommand": {
         "label": "Commande de temps restant",
@@ -111,6 +113,7 @@
     }
   },
   "chance": {
+    "alwaysNote": "La condition est toujours remplie.",
     "label": "Chance aléatoire",
     "summary": "Passe une partie du temps",
     "field": {

@@ -15,7 +15,8 @@
     "label": "Nível de usuário",
     "summary": "Verificar o cargo do espectador",
     "warning": "Os cargos só são conhecidos em gatilhos de chat e contagens regressivas. Neste gatilho, todos contam como espectadores.",
-    "remove": "Remover esta verificação",
+    "remove": "Remover a verificação e manter as etapas permitidas",
+    "everyoneNote": "Todos passam, então esta verificação nunca bloqueia a execução.",
     "field": {
       "level": {
         "label": "No mínimo",
@@ -52,17 +53,18 @@
     "label": "Intervalo de espera",
     "summary": "Permite executar uma vez a cada poucos segundos",
     "field": {
-      "seconds": {
-        "label": "Intervalo de espera",
-        "range": "Use de 1 segundo a {days} dias."
+      "channelSeconds": {
+        "label": "Espera do canal",
+        "range": "Use de 0 segundos a {days} dias."
       },
-      "perUser": {
-        "label": "Por espectador"
+      "viewerSeconds": {
+        "label": "Espera por espectador",
+        "range": "Use de 0 segundos a {days} dias."
       },
       "name": {
         "label": "Nome",
         "placeholder": "subathon",
-        "hint": "Dar um nome o reinicia se estiver em andamento. Etapas de adicionar tempo em qualquer receita poderão estendê-lo. Não disponível por espectador."
+        "hint": "As etapas de adicionar tempo de qualquer receita podem estender uma espera com nome. Vale apenas para a espera do canal."
       },
       "leftCommand": {
         "label": "Comando de tempo restante",
@@ -111,6 +113,7 @@
     }
   },
   "chance": {
+    "alwaysNote": "Sempre passa.",
     "label": "Chance aleatória",
     "summary": "Passar às vezes",
     "field": {
