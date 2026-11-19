@@ -5,7 +5,7 @@ import { expandSegments } from '../engine/rehearsal';
 import { queryEscape, resolveComputedUtil } from '../engine/pure';
 import type { VarToken } from '../engine/tmpl';
 import { comparePasses } from './compare';
-import { MAX_COOLDOWN_SECONDS, MAX_TEMPLATE_LENGTH } from './limits';
+import { MAX_COOLDOWN_SECONDS, MAX_MATH_EXPRESSION_RUNES, MAX_TEMPLATE_LENGTH } from './limits';
 import { compareBytes, trimSpace } from './text';
 import { extractJson } from './rehearsal-json';
 import type { Action, Condition, Params } from './types';
@@ -274,12 +274,17 @@ function caseRune(rune: Text, mode: 'upper' | 'lower'): Text {
   return [...changed].length === 1 ? changed : rune;
 }
 
+function splitParts({ input, arg1 }: Operands): Text[] {
+  return arg1 === '' ? [...input] : input.split(arg1);
+}
+
 const TEXT_OPS: Readonly<Record<string, (operands: Operands) => Text>> = {
   upper: ({ input }) => simpleCase(input, 'upper'), lower: ({ input }) => simpleCase(input, 'lower'),
   trim: ({ input }) => trimSpace(input),
   replace: ({ input, arg1, arg2 }) => arg1 === '' ? input : input.split(arg1).join(arg2),
   contains: ({ input, arg1 }) => String(comparePasses('contains', input, arg1)),
-  url_encode: ({ input }) => queryEscape(input)
+  url_encode: ({ input }) => queryEscape(input),
+  count: (operands) => String(splitParts(operands).length),
 };
 
 function optionalInteger(value: Text, fallback: number): number | null {
@@ -298,12 +303,13 @@ function substring({ input, arg1, arg2 }: Operands): Text | null {
   return runes.slice(from, from + Math.max(length, 0)).join('');
 }
 
-function splitPick({ input, arg1, arg2 }: Operands): Text | null {
-  const parts = arg1 === '' ? [...input] : input.split(arg1);
-  if (trimSpace(arg2).toLowerCase() === 'random') return parts[0] ?? '';
-  const position = optionalInteger(arg2, NaN);
+function splitPick(operands: Operands): Text | null {
+  const parts = splitParts(operands);
+  if (trimSpace(operands.arg2).toLowerCase() === 'random') return parts[0] ?? '';
+  const position = optionalInteger(operands.arg2, NaN);
   if (position === null || Number.isNaN(position)) return null;
-  return parts[position - 1] ?? '';
+  const index = position < 0 ? parts.length + position : position - 1;
+  return parts[index] ?? '';
 }
 
 const COMPLEX_TEXT_OPS: Readonly<Record<Text, (operands: Operands) => Text | null>> = { substring, split_pick: splitPick };
@@ -424,7 +430,7 @@ function fixedNumber(value: number): Text {
 
 function mathStep(params: Params, context: Context): ActionOutcome {
   const expression = expand(params.expression, context);
-  if ([...expression].length > 200) return failed('math_error');
+  if ([...expression].length > MAX_MATH_EXPRESSION_RUNES) return failed('math_error');
   const parser = new MathParser(expression);
   const value = parser.sum();
   const invalid = parser.failed || !Number.isFinite(value) || parser.peek() !== '';

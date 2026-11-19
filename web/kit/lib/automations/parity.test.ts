@@ -8,7 +8,7 @@ import { comparePasses } from './compare';
 import { eventKinds } from './event-kinds';
 import { compilesAsRe2 } from './regex';
 import { MAX_DEFINITION_BYTES } from './limits';
-import type { Action, PermLevel } from './types';
+import type { Action, Issue, PermLevel } from './types';
 import { parseDefinition, validateDefinition, validateName } from './validate';
 
 const TESTDATA = join(import.meta.dir, '../../../../internal/domain/automation/testdata');
@@ -37,6 +37,17 @@ describe('invalid fixtures', () => {
       expect(parseDefinition(read('invalid', file)).issues).toEqual(golden);
     });
   }
+});
+
+describe('logic validation', () => {
+  const cases: { name: string; action: Action; issues?: Issue[] }[] = JSON.parse(read('logic_validation_cases.json'));
+  test.each(cases)('$name', ({ action, issues = [] }) => {
+    expect(validateDefinition({
+      version: 1,
+      trigger: { type: 'manual' },
+      actions: [action],
+    })).toEqual(issues);
+  });
 });
 
 describe('stream action roles', () => {

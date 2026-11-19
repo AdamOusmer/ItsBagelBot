@@ -118,6 +118,16 @@ describe('fetch-def validation parity table', () => {
     expect(validateFetchDef({ ...validDef, url: 'not a url' }).url).toBeDefined();
   });
 
+  test.each([
+    { port: '', accepted: true },
+    { port: ':443', accepted: true },
+    { port: ':8443', accepted: false },
+    { port: ':0443', accepted: false },
+  ])('allows only the HTTPS port ($port)', ({ port, accepted }) => {
+    const url = 'https://a.example.com' + port + '/x';
+    expect(validateFetchDef({ ...validDef, url }).url === undefined).toBe(accepted);
+  });
+
   test('path depth <=8, segment grammar, plain takes no path', () => {
     expect(validateFetchDef({ ...validDef, path: [] }).path).toBeUndefined();
     expect(

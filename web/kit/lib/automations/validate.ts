@@ -17,7 +17,7 @@ import {
 } from './engine';
 import { lookupEventKind } from './event-kinds';
 import { CODE, MAX_ACTIONS, MAX_DEFINITION_BYTES, MAX_DELAY_MS, MAX_NAME_LENGTH, QUEUE_NAME_PATTERN, RECIPE_NAME_PATTERN, VERSION } from './limits';
-import { fillRegistries } from './registry';
+import { fillRegistries, LOOP_SCHEMA, staticLoopTimes, type LoopParams } from './registry';
 import { byteLength, compareBytes, isNameChar, trimSpace } from './text';
 import type { Definition, Issue } from './types';
 
@@ -44,10 +44,27 @@ function flatten(list: ActionNode[]): ActionNode[] {
 }
 
 function pathDelayMs(list: ActionNode[]): number {
-  return list.reduce((sum, a) => {
-    if (a.type === 'delay') return sum + decodeParams<{ ms: number }>({ ms: 'int' }, {}, a.params).value.ms;
-    return sum + Math.max(0, ...nestedActions(a).map(pathDelayMs));
-  }, 0);
+  return list.reduce((sum, a) => Math.min(sum + actionDelayMs(a), MAX_DELAY_MS + 1), 0);
+}
+
+function actionDelayMs(a: ActionNode): number {
+  switch (a.type) {
+    case 'delay': {
+      const { value, err } = decodeParams<{ ms: number }>({ ms: 'int' }, {}, a.params);
+      return err ? 0 : Math.min(Math.max(value.ms, 0), MAX_DELAY_MS + 1);
+    }
+    case 'loop':
+      return loopDelayMs(a.params);
+    default:
+      return Math.max(0, ...nestedActions(a).map(pathDelayMs));
+  }
+}
+
+function loopDelayMs(raw: ActionNode['params']): number {
+  const { value, err } = decodeParams<LoopParams>(LOOP_SCHEMA, {}, raw);
+  if (err) return 0;
+  const times = staticLoopTimes(value.times);
+  return (typeof times === 'number' ? times : 1) * pathDelayMs(value.actions);
 }
 
 function checkBudgets(c: Chk, list: ActionNode[]): void {

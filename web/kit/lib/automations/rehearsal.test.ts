@@ -7,7 +7,7 @@ import mathCases from './testdata/math_cases.json';
 import textCases from './testdata/text_cases.json';
 import { compileFlow, flowToDefinition, type Flow, type FlowNode } from './flow-graph';
 import { compactDuration, defaultScenario, rehearseDefinition } from './rehearsal';
-import { MAX_ACTIONS, MAX_DEFINITION_BYTES, MAX_LOOP_TIMES } from './limits';
+import { MAX_ACTIONS, MAX_DEFINITION_BYTES, MAX_LOOP_TIMES, MAX_MATH_EXPRESSION_RUNES } from './limits';
 import type { Action, Condition, Definition, Params } from './types';
 import type { RehearsalOverrides, RehearsalScenario } from './rehearsal-types';
 
@@ -245,6 +245,7 @@ test.each([
 
 test.each([
   { name: 'MaxLoopTimes', value: MAX_LOOP_TIMES, want: 100 },
+  { name: 'MaxMathExpressionRunes', value: MAX_MATH_EXPRESSION_RUNES, want: 200 },
   { name: 'MaxActions', value: MAX_ACTIONS, want: 1000 },
   { name: 'MaxDefinitionBytes', value: MAX_DEFINITION_BYTES, want: 262144 }
 ])('mirrored Go limit $name', ({ name, value, want }) => {

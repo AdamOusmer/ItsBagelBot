@@ -51,7 +51,8 @@
     "replace": "Reemplazar",
     "substring": "Extraer una parte",
     "split_pick": "Dividir y elegir uno",
-    "url_encode": "Hacer seguro para un enlace"
+    "url_encode": "Hacer seguro para un enlace",
+    "count": "Contar elementos"
   },
   "scope": {
     "channel": "El canal",

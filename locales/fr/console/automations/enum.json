@@ -51,7 +51,8 @@
     "replace": "Remplacer",
     "substring": "Extraire une partie",
     "split_pick": "Séparer et en choisir un",
-    "url_encode": "Adapter pour un lien"
+    "url_encode": "Adapter pour un lien",
+    "count": "Compter les éléments"
   },
   "scope": {
     "channel": "La chaîne",

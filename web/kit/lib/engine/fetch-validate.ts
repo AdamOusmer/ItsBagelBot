@@ -34,6 +34,7 @@ function hostIsDenied(host: string): boolean {
 const DENIED_HOSTS = new Set(['localhost']);
 const DENIED_SUFFIXES = ['.local', '.internal'];
 const IPV4_LITERAL_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
+const FETCH_PORT_RE = /^https:\/\/[^/?#\\]*:(\d+)(?=[/?#\\]|$)/i;
 
 function deniedName(bare: string): boolean {
   if (DENIED_HOSTS.has(bare)) return true;
@@ -64,12 +65,17 @@ function parsedHttpsUrl(url: string): URL | null {
   return parsed;
 }
 
+function fetchPortRejected(raw: string, parsed: URL): boolean {
+  const port = FETCH_PORT_RE.exec(raw)?.[1] ?? parsed.port;
+  return port !== '' && port !== '443';
+}
+
 function fetchUrlProblem(f: FetchDefFields): string | undefined {
   if (!f.url) return 'URL is required.';
   if (f.url.length > FETCH_URL_MAX) return `URL must be at most ${FETCH_URL_MAX} characters.`;
   const parsed = parsedHttpsUrl(f.url);
   if (!parsed) return 'URL must start with https://';
-  if (hostIsDenied(parsed.hostname)) return 'URL must point at a public https host.';
+  if (hostIsDenied(parsed.hostname) || fetchPortRejected(f.url, parsed)) return 'URL must point at a public https host.';
   return undefined;
 }
 

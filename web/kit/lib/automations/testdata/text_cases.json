@@ -21,5 +21,16 @@
   { "op": "split_pick", "input": "a,b", "arg1": ",", "arg2": "x", "want": "", "error": "text_error" },
   { "op": "contains", "input": "hello", "arg1": "ell", "want": "true", "error": "" },
   { "op": "contains", "input": "hello", "arg1": "", "want": "false", "error": "" },
-  { "op": "url_encode", "input": "hi !", "want": "hi+%21", "error": "" }
+  { "op": "url_encode", "input": "hi !", "want": "hi+%21", "error": "" },
+  { "op": "split_pick", "input": "a,b,c", "arg1": ",", "arg2": "-1", "want": "c", "error": "" },
+  { "op": "split_pick", "input": "a,b,c", "arg1": ",", "arg2": "-3", "want": "a", "error": "" },
+  { "op": "split_pick", "input": "a,b,c", "arg1": ",", "arg2": "-4", "want": "", "error": "" },
+  { "op": "split_pick", "input": "a,b,c", "arg1": ",", "arg2": "0", "want": "", "error": "" },
+  { "op": "split_pick", "input": "é🍩", "arg2": "-1", "want": "🍩", "error": "" },
+  { "op": "count", "input": "a,b,,c,", "arg1": ",", "want": "5", "error": "" },
+  { "op": "count", "input": "a::b::c", "arg1": "::", "want": "3", "error": "" },
+  { "op": "count", "input": "abc", "arg1": ",", "want": "1", "error": "" },
+  { "op": "count", "input": "é🍩", "arg1": "", "want": "2", "error": "" },
+  { "op": "count", "input": "", "arg1": ",", "want": "1", "error": "" },
+  { "op": "count", "input": "", "arg1": "", "want": "0", "error": "" }
 ]

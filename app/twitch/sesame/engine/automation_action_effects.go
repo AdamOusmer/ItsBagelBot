@@ -308,10 +308,14 @@ func gossipFailure(err error) error {
 }
 
 func (x *actionExec) httpPost(s step, p automation.HTTPPostAction) error {
+	target := x.expand(p.URL)
+	if validate.FetchURL(target) != nil {
+		return x.settleFetch(s, p.SaveAs, fetchResult{failure: string(gossiprpc.FetchBadDef)})
+	}
 	if x.p.gossip == nil {
 		return x.settleFetch(s, p.SaveAs, fetchResult{failure: "no_gossip"})
 	}
-	req := gossiprpc.Request{Account: x.bid, ChannelID: x.bid, IsPremium: x.run.Regress.IsPremium(), Def: &gossiprpc.FetchDef{URL: p.URL}, Body: x.expand(p.Body), CaptureBody: p.SaveAs != ""}
+	req := gossiprpc.Request{Account: x.bid, ChannelID: x.bid, IsPremium: x.run.Regress.IsPremium(), Def: &gossiprpc.FetchDef{URL: target}, Body: x.expand(p.Body), CaptureBody: p.SaveAs != ""}
 	var result fetchResult
 	err := x.once(s, func() error {
 		result = x.callFetch(customPostEndpoint, req)

@@ -3,8 +3,8 @@
 
 import { COMPARE_OPS } from './compare';
 import { eventKinds } from './event-kinds';
-import { MAX_COOLDOWN_SECONDS, MAX_LOGIN_TEMPLATE, MAX_TEMPLATE_LENGTH } from './limits';
-import { TARGET_MODES } from './types';
+import { MAX_COOLDOWN_SECONDS, MAX_LOGIN_TEMPLATE, MAX_MATH_EXPRESSION_RUNES, MAX_TEMPLATE_LENGTH } from './limits';
+import { TARGET_MODES, TEXT_OPS } from './types';
 import { CMP_OPS, PERM_LEVELS } from './values';
 
 export type FieldKind = 'text' | 'template' | 'login' | 'int' | 'bool' | 'enum' | 'list' | 'actions' | 'condition' | 'branches' | 'map';
@@ -187,7 +187,7 @@ export const ACTION_TYPES: TypeDef[] = [
     f('else', 'actions'),
   ]),
   action('http_post', [
-    f('url', 'text', { required: true, min: 1, max: 512 }),
+    f('url', 'template', { required: true, min: 1, max: 512 }),
     f('body', 'template', { max: 2000 }),
     saveAsOpt,
     f('on_ok', 'actions'),
@@ -204,13 +204,13 @@ export const ACTION_TYPES: TypeDef[] = [
   action('var_add', [varScope, varName, f('amount', 'int', { required: true })]),
   action('var_delete', [varScope, varName]),
   action('text', [
-    f('op', 'enum', { required: true, values: ['upper', 'lower', 'trim', 'length', 'replace', 'substring', 'split_pick', 'contains', 'url_encode'] }),
+    f('op', 'enum', { required: true, values: TEXT_OPS }),
     f('input', 'template', { max: 500 }),
     f('arg1', 'template', { max: 500 }),
     f('arg2', 'template', { max: 500 }),
     saveAsReq,
   ]),
-  action('math', [f('expression', 'template', { required: true, min: 1, max: 500 }), saveAsReq]),
+  action('math', [f('expression', 'template', { required: true, min: 1, max: MAX_MATH_EXPRESSION_RUNES }), saveAsReq]),
   action('loop', [f('times', 'template', { required: true, min: 1, max: 500 }), f('actions', 'actions')]),
   action('reward_update', [
     f('reward_id', 'text', { required: true, min: 1, max: 64 }),

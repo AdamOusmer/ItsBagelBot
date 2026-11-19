@@ -316,7 +316,8 @@ export interface CooldownAddAction {
   per?: number;
 }
 
-export type TextOp = 'upper' | 'lower' | 'trim' | 'length' | 'replace' | 'substring' | 'split_pick' | 'contains' | 'url_encode';
+export const TEXT_OPS = ['upper', 'lower', 'trim', 'length', 'replace', 'substring', 'split_pick', 'contains', 'url_encode', 'count'] as const;
+export type TextOp = (typeof TEXT_OPS)[number];
 
 export interface TextStepAction {
   op: TextOp;
