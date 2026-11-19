@@ -3,7 +3,8 @@
 
 import { invalidLiteralTags, streamActionReaders, streamActionWriters, streamInfoActions, streamInfoRun, streamTargetNodes, usesLegacyTarget } from './stream-flow';
 import { COMPARE_OPS } from './compare';
-import { SETUP_LOGIN, SETUP_REWARD_ID } from './flow-setup';
+import { ACTION_TYPES } from './catalog';
+import { SETUP_LOGIN, SETUP_REWARD_ID, SETUP_RUN_TARGET } from './flow-setup';
 import { CODE, MAX_DELAY_MS, VERSION } from './limits';
 import type { Action, Condition, Definition, Issue, Params, Trigger } from './types';
 
@@ -174,7 +175,8 @@ const TEMPLATE_FIELDS: Record<string, string[]> = {
   'reply.chat': ['message'],
   'reply.pin': ['text'],
   'cond.compare': ['left', 'right'],
-  'reply.var_set': ['value'],
+  'reply.var': ['value'],
+  'reply.text': ['input', 'arg1', 'arg2'],
   'reply.math': ['expression'],
   'reply.loop': ['times'],
   'reply.http_get': ['url'],
@@ -188,26 +190,41 @@ const recipeName = (v: unknown) => str(v).trim().toLowerCase();
 
 const varIdentity = (config: FlowConfig): Params => ({ scope: str(config.scope) || 'channel', name: recipeName(config.name) });
 
-export const TEXT_ARG_FIELDS = new Map<string, readonly string[]>([
-  ['replace', ['find', 'replaceWith']],
-  ['substring', ['start', 'count']],
-  ['split_pick', ['separator', 'pick']],
-  ['contains', ['needle']]
-]);
+export const TEXT_OPERAND_OPS = {
+  arg1: ['replace', 'substring', 'split_pick', 'contains', 'count'],
+  arg2: ['replace', 'substring', 'split_pick']
+} satisfies Record<string, readonly string[]>;
+
+function textFieldUsed(field: string, op: string): boolean {
+  const operands: Partial<Record<string, readonly string[]>> = TEXT_OPERAND_OPS;
+  return operands[field]?.includes(op) ?? true;
+}
 
 export const VAR_OPS_WITH_VALUE: readonly string[] = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains'];
 
 const textOp = (config: FlowConfig) => str(config.op) || 'upper';
 const varConditionOp = (config: FlowConfig) => str(config.op) || 'eq';
 
-const TEMPLATE_FIELD_OVERRIDES = new Map<string, (config: FlowConfig) => readonly string[]>([
-  ['reply.text', (config) => ['input', ...TEXT_ARG_FIELDS.get(textOp(config)) ?? []]],
+const VARIABLE_ACTION_TYPES = new Map([
+  ['set', 'var_set'], ['add', 'var_add'], ['subtract', 'var_add'], ['forget', 'var_delete']
+]);
+
+export const variableActionType = (config: FlowConfig) => VARIABLE_ACTION_TYPES.get(str(config.do)) ?? 'var_set';
+
+const TEMPLATE_FIELD_OVERRIDES = new Map<string, (config: FlowConfig, fields: readonly string[]) => readonly string[]>([
+  ['reply.text', (config, fields) => fields.filter((field) => textFieldUsed(field, textOp(config)))],
+  ['reply.var', (config, fields) => variableActionType(config) === 'var_set' ? fields : []],
   ['cond.var', (config) => VAR_OPS_WITH_VALUE.includes(varConditionOp(config)) ? ['value'] : []],
   ['reply.prediction_end', (config) => config.status === 'resolve' ? ['outcome'] : []]
 ]);
 
 function templateFields(node: FlowNode): readonly string[] {
-  const fields = TEMPLATE_FIELD_OVERRIDES.get(node.type)?.(node.config) ?? TEMPLATE_FIELDS[node.type] ?? [];
+  const fields = TEMPLATE_FIELDS[node.type] ?? [];
+  const override = TEMPLATE_FIELD_OVERRIDES.get(node.type);
+  return override ? override(node.config, fields) : targetTemplateFields(node, fields);
+}
+
+function targetTemplateFields(node: FlowNode, fields: readonly string[]): readonly string[] {
   if (!streamTargetNodes.has(node.type)) return fields;
   const legacy = usesLegacyTarget(node.config.who);
   const active = (field: string): boolean => field !== 'target' || legacy;
@@ -216,9 +233,17 @@ function templateFields(node: FlowNode): readonly string[] {
 
 function textAction(config: FlowConfig): Action {
   const op = textOp(config);
-  const [first, second] = TEXT_ARG_FIELDS.get(op) ?? [];
-  const arg = (key: string | undefined) => (key ? str(config[key]) : '');
-  return { type: 'text', params: { op, input: str(config.input), arg1: arg(first), arg2: arg(second), save_as: recipeName(config.saveAs) } };
+  const operand = (key: keyof typeof TEXT_OPERAND_OPS) => (textFieldUsed(key, op) ? str(config[key]) : '');
+  return { type: 'text', params: { op, input: str(config.input), arg1: operand('arg1'), arg2: operand('arg2'), save_as: recipeName(config.saveAs) } };
+}
+
+function variableAction(config: FlowConfig): Action {
+  const params = varIdentity(config);
+  const type = variableActionType(config);
+  if (type === 'var_delete') return { type, params };
+  if (type === 'var_set') return { type, params: { ...params, value: str(config.value) } };
+  const amount = num(config.amount) * (config.do === 'subtract' ? -1 : 1);
+  return { type, params: { ...params, amount } };
 }
 
 const REWARD_ENABLED = new Map<string, boolean | null>([
@@ -239,9 +264,12 @@ function withOptional(params: Params, optional: Params): Params {
 }
 
 const JSON_PATH_SEPARATOR = '.';
+const JSON_PATH_BRACKET = /\[(\d+|"[A-Za-z0-9_-]+"|'[A-Za-z0-9_-]+')\](?=\.|\[|$)/g;
 
 function jsonPathOf(config: FlowConfig): string[] | undefined {
-  const segments = str(config.jsonPath).trim().split(JSON_PATH_SEPARATOR).filter(Boolean);
+  const path = str(config.jsonPath).trim().replace(JSON_PATH_BRACKET, (_, segment: string) =>
+    `${JSON_PATH_SEPARATOR}${segment.replace(/['"]/g, '')}`);
+  const segments = path.split(JSON_PATH_SEPARATOR).filter(Boolean);
   return segments.length > 0 ? segments : undefined;
 }
 
@@ -259,6 +287,16 @@ const API_WRITERS: Record<string, (config: FlowConfig) => Action> = {
 const API_PORTS = ['ok', 'failure'] as const;
 const LOOP_TYPE = 'reply.loop';
 const LOOP_PORTS = ['body', 'done'] as const;
+const RANDOM_TYPE = 'reply.random';
+const randomBranchCount = ACTION_TYPES.find((entry) => entry.type === 'random_pick')!.fields.find((field) => field.name === 'branches')!;
+export const RANDOM_PATHS = Array.from({ length: randomBranchCount.max! }, (_, i) => ({
+  id: `p${i + 1}`, path: i + 1, weightKey: `weight${i + 1}`
+}));
+export const RANDOM_PATH_COUNTS = RANDOM_PATHS.slice(randomBranchCount.min! - 1).map(({ path }) => String(path));
+export const RANDOM_PATH_DEFAULT_WEIGHT = 1;
+export const activeRandomPaths = (config: FlowConfig) =>
+  RANDOM_PATHS.slice(0, Number(RANDOM_PATH_COUNTS.find((paths) => paths === String(config.paths)) ?? RANDOM_PATH_COUNTS[0]));
+export const randomPathWeight = (config: FlowConfig, key: keyof FlowConfig) => num(config[key] ?? RANDOM_PATH_DEFAULT_WEIGHT);
 
 const DEFAULT_LIGHT_COLOR = '#ffffff';
 const DEFAULT_LIGHT_KELVIN = 4000;
@@ -302,6 +340,16 @@ function lightsAction(config: FlowConfig): Action {
 }
 
 const awaitingUser = (config: FlowConfig) => config.login === SETUP_LOGIN;
+
+const SETUP_RUN_TEXT = '[setup-required:run]';
+export const setupRunPlaceholder = (): Action => ({ type: 'chat', enabled: false, params: { text: SETUP_RUN_TEXT } });
+export const isSetupRunPlaceholder = (action: Action): boolean =>
+  action.type === 'chat' && action.enabled === false && action.params?.text === SETUP_RUN_TEXT;
+
+function runAction(config: FlowConfig): Action {
+  const id = str(config.automationId);
+  return id === SETUP_RUN_TARGET ? setupRunPlaceholder() : { type: 'run', params: { automation_id: id } };
+}
 
 const COOLDOWN_PASSTHROUGH_FIELDS = [
   ['name', 'name'],
@@ -349,17 +397,17 @@ const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action | Action[]> 
   'reply.reply': (config) => ({ type: 'reply', params: { text: str(config.text) } }),
   'reply.lights': lightsAction,
   'reply.counter': (config) => ({ type: 'counter_add', params: { name: str(config.counter), amount: 1 } }),
-  'reply.wait': (config) => ({ type: 'delay', params: { ms: num(config.seconds) * 1000 } }),
-  'reply.var_set': (config) => ({ type: 'var_set', params: { ...varIdentity(config), value: str(config.value) } }),
-  'reply.var_add': (config) => ({ type: 'var_add', params: { ...varIdentity(config), amount: num(config.amount) } }),
-  'reply.var_delete': (config) => ({ type: 'var_delete', params: varIdentity(config) }),
+  'reply.wait': (config) => ({ type: 'delay', params: { ms: Math.round(num(config.seconds) * 1000) } }),
+  'reply.var': variableAction,
   'reply.text': textAction,
   'reply.math': (config) => ({ type: 'math', params: { expression: str(config.expression), save_as: recipeName(config.saveAs) } }),
   'reply.reward_update': rewardUpdateAction,
   'reply.countdown_start': (config) => ({ type: 'countdown_start', params: { ...timeLeftParams(config), name: recipeName(config.name), seconds: num(config.seconds) } }),
   'reply.countdown_add': (config) => ({ ...cooldownAddAction(config), type: 'countdown_add' }),
   'reply.cooldown_add': cooldownAddAction,
-  'reply.stream_info': streamInfoActions
+  'reply.stream_info': streamInfoActions,
+  'reply.stop': () => ({ type: 'stop' }),
+  'reply.run': runAction
 };
 
 function cooldownAddAction(config: FlowConfig): Action {
@@ -594,9 +642,11 @@ const waits = (list: Action[]): boolean => list.some((a) => a.type === 'delay' |
 
 const forkPauses = (paths: Action[][]) => paths.length > 1 && paths.some(waits);
 
-function fork(paths: Action[][]): Action[] {
+function fork(ctx: Lowering, paths: Action[][], source: FlowNode['id'] | undefined): Action[] {
   if (paths.length < 2) return paths[0] ?? [];
-  return [{ type: 'parallel', params: { branches: paths.map((actions) => ({ weight: 1, actions })) } }];
+  const branches = paths.map((actions) => ({ weight: 1, actions }));
+  if (source !== undefined) ctx.owners.set(branches, source);
+  return [{ type: 'parallel', params: { branches } }];
 }
 
 function lowerRest(ctx: Lowering, joins: string[], stop: Stops): Action[] {
@@ -604,7 +654,7 @@ function lowerRest(ctx: Lowering, joins: string[], stop: Stops): Action[] {
   return open.length > 0 ? lowerEntries(ctx, open, stop) : [];
 }
 
-function lowerEntries(ctx: Lowering, entries: string[], stop: Stops): Action[] {
+function lowerEntries(ctx: Lowering, entries: string[], stop: Stops, source?: FlowNode['id']): Action[] {
   entries = entries.filter((id) => !stop.has(id));
   if (entries.length === 1) return lowerFrom(ctx, entries[0]!, stop);
   const joins = commonJoins(ctx, entries);
@@ -612,12 +662,13 @@ function lowerEntries(ctx: Lowering, entries: string[], stop: Stops): Action[] {
   const paths = entries.map((id) => lowerFrom(ctx, id, bound)).filter((path) => path.length > 0);
   const anchor = joins[0] ?? [...stop][0];
   if (anchor && forkPauses(paths)) ctx.issues.push({ path: nodePath(anchor), code: FLOW_ISSUE.unstructuredMerge });
-  return [...fork(paths), ...lowerRest(ctx, joins, stop)];
+  return [...fork(ctx, paths, source), ...lowerRest(ctx, joins, stop)];
 }
 
 function lowerFrom(ctx: Lowering, id: string, stop: Stops): Action[] {
   const actions: Action[] = [];
   let entries = [id];
+  let source = id;
   while (entries.length === 1) {
     const current = entries[0]!;
     if (stop.has(current) || !visit(ctx, current)) return actions;
@@ -625,14 +676,20 @@ function lowerFrom(ctx: Lowering, id: string, stop: Stops): Action[] {
     const control = controlActions(ctx, node, stop);
     if (control) return actions.concat(control);
     actions.push(...writeAction(ctx, node));
+    source = current;
     entries = targets(ctx, current, 'next');
   }
-  return actions.concat(lowerEntries(ctx, entries, stop));
+  return actions.concat(lowerEntries(ctx, entries, stop, source));
 }
+
+const CONTROL_WRITERS: Readonly<Record<string, typeof lowerLoop>> = {
+  [LOOP_TYPE]: lowerLoop,
+  [RANDOM_TYPE]: lowerRandom
+};
 
 function controlActions(ctx: Lowering, node: FlowNode, stop: Stops): Action[] | null {
   if (isConditionType(node.type)) return lowerBranch(ctx, node, stop);
-  if (node.type === LOOP_TYPE) return lowerLoop(ctx, node, stop);
+  if (Object.hasOwn(CONTROL_WRITERS, node.type)) return CONTROL_WRITERS[node.type]!(ctx, node, stop);
   return Object.hasOwn(API_WRITERS, node.type) ? lowerApi(ctx, node, stop) : null;
 }
 
@@ -643,7 +700,7 @@ function lowerArms(ctx: Lowering, node: FlowNode, ports: readonly [string, strin
   const second = targets(ctx, node.id, ports[1]);
   const joins = armJoins(ctx, first, second);
   const bound = extended(stop, joins);
-  return { first: lowerEntries(ctx, first, bound), second: lowerEntries(ctx, second, bound), rest: lowerRest(ctx, joins, stop) };
+  return { first: lowerEntries(ctx, first, bound, node.id), second: lowerEntries(ctx, second, bound, node.id), rest: lowerRest(ctx, joins, stop) };
 }
 
 function lowerBranch(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
@@ -655,6 +712,23 @@ function lowerBranch(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
 }
 
 const withEnabled = (node: FlowNode, action: Action): Action => (node.config.disabled === true ? { ...action, enabled: false } : action);
+
+function randomJoins(ctx: Lowering, paths: string[][]): string[] {
+  if (paths.some((path) => path.length === 0)) return [];
+  const reached = paths.flat().map((id) => reachOf(ctx, id));
+  return earliest(ctx, [...reached[0]!].filter((id) => reached.every((set) => set.has(id))));
+}
+
+function lowerRandom(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
+  const ports = activeRandomPaths(node.config);
+  const paths = ports.map(({ id }) => targets(ctx, node.id, id));
+  const joins = randomJoins(ctx, paths);
+  const bound = extended(stop, joins);
+  const branches = ports.map(({ weightKey }, i) => ({
+    weight: randomPathWeight(node.config, weightKey), actions: lowerEntries(ctx, paths[i]!, bound, node.id)
+  }));
+  return [owned(ctx, node, withEnabled(node, { type: 'random_pick', params: { branches } })), ...lowerRest(ctx, joins, stop)];
+}
 
 function lowerLoop(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
   const times = str(loweredConfig(ctx, node).times);
@@ -681,13 +755,15 @@ function leadingGate(ctx: Lowering, entries: string[]): FlowNode | null {
 
 function lowerRoot(ctx: Lowering, trigger: FlowNode): { conditions: Condition[]; actions: Action[] } {
   const conditions: Condition[] = [];
+  let source = trigger.id;
   let entries = targets(ctx, trigger.id, 'next');
   for (let gate = leadingGate(ctx, entries); gate; gate = leadingGate(ctx, entries)) {
     visit(ctx, gate.id);
     conditions.push(writeCondition(ctx, gate));
+    source = gate.id;
     entries = targets(ctx, gate.id, 'yes');
   }
-  return { conditions, actions: lowerEntries(ctx, entries, NO_STOPS) };
+  return { conditions, actions: lowerEntries(ctx, entries, NO_STOPS, source) };
 }
 
 function assembled(flow: Flow, trigger: Trigger, conditions: Condition[], actions: Action[]): Definition {
@@ -738,16 +814,27 @@ export function compileFlow(flow: Flow): FlowResult<{ definition: Definition; no
   return { ok: true, value: { definition: result.value, nodeByPath } };
 }
 
-type StepPaths = { byPath: Map<string, string>; lastDelay: string | null };
+type StepPaths = { byPath: Map<string, string>; forks: Map<string, string>; lastDelay: string | null };
+
+const NESTED_OWNERS = [
+  { param: 'condition', map: 'byPath' },
+  { param: 'branches', map: 'forks' }
+] as const;
+
+function recordStep(owners: Map<object, string>, action: Action, path: string, into: StepPaths): void {
+  const id = owners.get(action);
+  if (id) into.byPath.set(path, id);
+  if (id && action.type === 'delay') into.lastDelay = id;
+  for (const { param, map } of NESTED_OWNERS) {
+    const owner = owners.get(action.params?.[param] as object);
+    if (owner) into[map].set(`${path}.params.${param}`, owner);
+  }
+}
 
 function walkSteps(owners: Map<object, string>, list: Action[], base: string, into: StepPaths): void {
   list.forEach((action, i) => {
     const path = `${base}[${i}]`;
-    const id = owners.get(action);
-    if (id) into.byPath.set(path, id);
-    if (id && action.type === 'delay') into.lastDelay = id;
-    const gate = action.type === 'if' ? owners.get(action.params?.condition as object) : undefined;
-    if (gate) into.byPath.set(`${path}.params.condition`, gate);
+    recordStep(owners, action, path, into);
     for (const arm of armsOf(action)) walkSteps(owners, arm.list, `${path}.params.${arm.key}`, into);
   });
 }
@@ -774,7 +861,7 @@ export function flowStepRefs(flow: Flow): FlowStepRef[] {
 }
 
 function stepPaths(definition: Definition, owners: Map<object, string>): StepPaths {
-  const into: StepPaths = { byPath: new Map(), lastDelay: null };
+  const into: StepPaths = { byPath: new Map(), forks: new Map(), lastDelay: null };
   (definition.conditions ?? []).forEach((condition, i) => {
     const id = owners.get(condition);
     if (id) into.byPath.set(`conditions[${i}]`, id);
@@ -792,6 +879,8 @@ function deepestStep(path: string, found: StepPaths): string {
 function locateIssue(issue: Issue, found: StepPaths): Issue {
   const budget = issue.path === 'actions' && issue.code === CODE.delayBudget;
   if (budget && found.lastDelay) return { path: nodePath(found.lastDelay), code: issue.code };
+  const source = issue.code === CODE.tooMany ? found.forks.get(issue.path) : undefined;
+  if (source) return { path: nodePath(source), code: issue.code };
   const key = deepestStep(issue.path, found);
   if (!key) return issue;
   return { path: `${nodePath(found.byPath.get(key)!)}${issue.path.slice(key.length)}`, code: issue.code };
@@ -991,12 +1080,17 @@ function lightsNode(params: Params): { type: string; config: FlowConfig } | null
 }
 
 function textNode(params: Params): { type: string; config: FlowConfig } {
-  const op = str(params.op);
-  const config: FlowConfig = { op, input: str(params.input), saveAs: str(params.save_as) };
-  const [first, second] = TEXT_ARG_FIELDS.get(op) ?? [];
-  if (first) config[first] = str(params.arg1);
-  if (second) config[second] = str(params.arg2);
-  return { type: 'reply.text', config };
+  return { type: 'reply.text', config: {
+    op: str(params.op), input: str(params.input), arg1: str(params.arg1), arg2: str(params.arg2), saveAs: str(params.save_as)
+  } };
+}
+
+function variableNode(params: Params, change: 'set' | 'add' | 'forget'): { type: string; config: FlowConfig } {
+  const config = { ...varConfig(params), do: change, amount: 1 };
+  if (change === 'set') return { type: 'reply.var', config: { ...config, value: str(params.value) } };
+  if (change === 'forget') return { type: 'reply.var', config };
+  const amount = num(params.amount);
+  return { type: 'reply.var', config: { ...config, do: amount < 0 ? 'subtract' : 'add', amount: Math.abs(amount) } };
 }
 
 function rewardEnabledChoice(enabled: unknown): string {
@@ -1017,22 +1111,26 @@ const API_READERS: Record<string, (params: Params) => { type: string; config: Fl
   http_post: (params) => ({ type: 'reply.http_post', config: { url: str(params.url), body: str(params.body), saveAs: str(params.save_as) } })
 };
 
-const ACTION_READERS: Record<string, (params: Params) => { type: string; config: FlowConfig } | null> = {
+const ACTION_READERS: Record<string, (params: Params, action: Action) => { type: string; config: FlowConfig } | null> = {
   ...streamActionReaders,
-  chat: (params) => ({ type: 'reply.chat', config: { message: str(params.text), reply: 'off' } }),
+  chat: (params, action) => isSetupRunPlaceholder(action)
+    ? { type: 'reply.run', config: { automationId: SETUP_RUN_TARGET } }
+    : { type: 'reply.chat', config: { message: str(params.text), reply: 'off' } },
   reply: (params) => ({ type: 'reply.chat', config: { message: str(params.text), reply: params.thread === true ? 'thread' : 'mention' } }),
   lights: lightsNode,
   counter_add: (params) => (num(params.amount) === 1 ? { type: 'reply.counter', config: { counter: str(params.name) } } : null),
   delay: (params) => ({ type: 'reply.wait', config: { seconds: num(params.ms) / 1000 } }),
-  var_set: (params) => ({ type: 'reply.var_set', config: { ...varConfig(params), value: str(params.value) } }),
-  var_add: (params) => ({ type: 'reply.var_add', config: { ...varConfig(params), amount: num(params.amount) } }),
-  var_delete: (params) => ({ type: 'reply.var_delete', config: varConfig(params) }),
+  var_set: (params) => variableNode(params, 'set'),
+  var_add: (params) => variableNode(params, 'add'),
+  var_delete: (params) => variableNode(params, 'forget'),
   text: textNode,
   math: (params) => ({ type: 'reply.math', config: { expression: str(params.expression), saveAs: str(params.save_as) } }),
   reward_update: rewardUpdateNode,
   countdown_start: (params) => ({ type: 'reply.countdown_start', config: { ...timeLeftConfig(params), name: str(params.name), seconds: num(params.seconds) } }),
   countdown_add: (params) => ({ ...cooldownAddNode(params), type: 'reply.countdown_add' }),
-  cooldown_add: cooldownAddNode
+  cooldown_add: cooldownAddNode,
+  stop: () => ({ type: 'reply.stop', config: {} }),
+  run: (params) => ({ type: 'reply.run', config: { automationId: str(params.automation_id) } })
 };
 
 function cooldownAddNode(params: Params): { type: string; config: FlowConfig } {
@@ -1080,16 +1178,24 @@ function placeApi(b: Building, action: Action, path: string, tails: Tail[]): Tai
   return [...worked, ...failed];
 }
 
+function placeRandom(b: Building, action: Action, path: string, tails: Tail[]): Tail[] {
+  const branches = (action.params?.branches ?? []) as { weight: number; actions?: Action[] }[];
+  const ports = RANDOM_PATHS.slice(0, branches.length);
+  const config = Object.fromEntries(ports.map(({ weightKey }, i) => [weightKey, branches[i]!.weight] as const));
+  const id = addNode(b, RANDOM_TYPE, placedConfig(action, { ...config, paths: String(branches.length) }), tails);
+  return ports.flatMap(({ id: port }, i) => placeActions(b, branches[i]!.actions ?? [], `${path}.params.branches[${i}].actions`, [{ from: id, port }]));
+}
+
+const CONTROL_READERS = { if: placeIf, parallel: placeParallel, loop: placeLoop, random_pick: placeRandom } as const;
+
 function placeAction(b: Building, action: Action, path: string, tails: Tail[]): Tail[] {
   if (disabledControlFlow(action)) {
     b.issues.push({ path, code: FLOW_ISSUE.unsupportedDisabledControlFlow });
     return tails;
   }
-  if (action.type === 'if') return placeIf(b, action, path, tails);
-  if (action.type === 'parallel') return placeParallel(b, action, path, tails);
-  if (action.type === 'loop') return placeLoop(b, action, path, tails);
+  if (Object.hasOwn(CONTROL_READERS, action.type)) return CONTROL_READERS[action.type as keyof typeof CONTROL_READERS](b, action, path, tails);
   if (Object.hasOwn(API_READERS, action.type)) return placeApi(b, action, path, tails);
-  const node = Object.hasOwn(ACTION_READERS, action.type) ? ACTION_READERS[action.type]!(action.params ?? {}) : null;
+  const node = Object.hasOwn(ACTION_READERS, action.type) ? ACTION_READERS[action.type]!(action.params ?? {}, action) : null;
   if (!node) {
     b.issues.push({ path, code: FLOW_ISSUE.unsupportedAction });
     return tails;

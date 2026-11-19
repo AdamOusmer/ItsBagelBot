@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import { expect, test } from 'bun:test';
 import { flowToDefinition, validateDefinition } from '@bagel/kit/automations';
-import { NODE_SPECS, STEP_PLACEMENT, newFlow, outputsFor, type FlowNode } from './model';
+import { NODE_SPECS, STEP_PLACEMENT, newFlow, outputsFor, specFor, type FlowNode } from './model';
 import { addNode } from './ops.testing';
 import { addStep } from './editor';
 import en from '../../../../../locales/en/console/flows/board.json';
@@ -65,16 +65,17 @@ const defaults = {
   'reply.lights': { mode: 'color', kelvin: 4000, liveOnly: true },
   'reply.wait': { seconds: 5 },
   'reply.loop': { times: '3' },
-  'reply.var_set': { scope: 'channel' },
-  'reply.var_add': { scope: 'channel', amount: 1 },
-  'reply.var_delete': { scope: 'channel' },
+  'reply.var': { do: 'set', scope: 'channel', amount: 1 },
   'reply.text': { op: 'upper' },
   'reply.math': {},
   'reply.http_get': {},
   'reply.http_post': {},
   'reply.commercial': { seconds: '30', confirm: true },
   'reply.marker': { confirm: true },
-  'reply.clip': { seconds: 30, reply: '{user} clipped it: {clip:url}', confirm: true }
+  'reply.clip': { seconds: 30, reply: '{user} clipped it: {clip:url}', confirm: true },
+  'reply.stop': {},
+  'reply.random': { paths: '2', weight1: 1, weight2: 1, weight3: 1, weight4: 1, weight5: 1 },
+  'reply.run': {}
 } satisfies Record<keyof typeof STEP_PLACEMENT, FlowNode['config']>;
 
 test.each(NODE_SPECS)('$type gets its expected config when added', (spec) => {
@@ -84,12 +85,20 @@ test.each(NODE_SPECS)('$type gets its expected config when added', (spec) => {
   expect(node.config).toEqual(defaults[spec.type as keyof typeof defaults]);
 });
 
+test.each([
+  ['reply.wait', 'seconds', { min: 0.1, max: 60, step: 0.1 }],
+  ['reply.var', 'amount', { min: 1, step: 1 }]
+] as const)('%s uses the configured numeric bounds and step for %s', (type, key, bounds) => {
+  expect(specFor(type)?.fields.find((field) => field.key === key)).toMatchObject({ type: 'number', ...bounds });
+});
+
 const invalidDefaults = new Set(['out_of_range', 'invalid_enum', 'too_short']);
 const requiredSetup: Record<string, FlowNode['config']> = {
   'cond.user': { userId: '42' },
   'reply.poll': { choices: 'First\nSecond' },
   'reply.prediction': { outcomes: 'First\nSecond' },
-  'reply.stream_info': { title: 'New title' }
+  'reply.stream_info': { title: 'New title' },
+  'reply.run': { automationId: 'helper' }
 };
 
 test.each(NODE_SPECS)('$type lowers and validates its defaults with a broadcaster check', (spec) => {
@@ -100,8 +109,8 @@ test.each(NODE_SPECS)('$type lowers and validates its defaults with a broadcaste
   gate.config.level = 'broadcaster';
   const node = isTrigger ? gate : addNode(flow, spec.type, at, { from: gate.id, port: 'yes' });
   Object.assign(node.config, requiredSetup[spec.type]);
-  const port = isTrigger ? 'yes' : outputsFor(spec)[0].id;
-  addNode(flow, 'reply.chat', at, { from: node.id, port }).config.message = 'Saved';
+  const port = isTrigger ? 'yes' : outputsFor(spec, node)[0]?.id;
+  if (port) addNode(flow, 'reply.chat', at, { from: node.id, port }).config.message = 'Saved';
 
   const lowered = flowToDefinition(flow);
   if (!lowered.ok) throw new Error(JSON.stringify(lowered.issues));

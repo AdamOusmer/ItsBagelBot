@@ -1,0 +1,42 @@
+{
+  "label": "Modifier une variable",
+  "summary": "Enregistrer, modifier ou effacer une valeur",
+  "keywords": "stocker sauvegarder retenir compteur définir ajouter supprimer oublier",
+  "scopeWarning": "Ce déclencheur n’a pas de spectateur. Choisissez La chaîne pour modifier une variable ici.",
+  "line": {
+    "set": "Définir {name} sur {value}",
+    "add": "Ajouter {amount} à {name}",
+    "subtract": "Soustraire {amount} de {name}",
+    "forget": "Oublier {name}"
+  },
+  "field": {
+    "do": {
+      "label": "Action",
+      "option": {
+        "set": "Définir sur",
+        "add": "Ajouter",
+        "subtract": "Soustraire",
+        "forget": "Oublier"
+      }
+    },
+    "scope": {
+      "label": "Enregistrée pour",
+      "option": {
+        "channel": "La chaîne",
+        "viewer": "Ce spectateur"
+      }
+    },
+    "name": {
+      "label": "Nom",
+      "placeholder": "deaths",
+      "hint": "Un seul mot en minuscules. Les chiffres sont aussi autorisés."
+    },
+    "value": {
+      "label": "Valeur",
+      "placeholder": "{user}"
+    },
+    "amount": {
+      "label": "Quantité"
+    }
+  }
+}

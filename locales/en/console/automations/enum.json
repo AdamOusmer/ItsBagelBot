@@ -51,7 +51,8 @@
     "replace": "Replace",
     "substring": "Take a part",
     "split_pick": "Split and pick one",
-    "url_encode": "Make safe for a link"
+    "url_encode": "Make safe for a link",
+    "count": "Count items"
   },
   "scope": {
     "channel": "The channel",

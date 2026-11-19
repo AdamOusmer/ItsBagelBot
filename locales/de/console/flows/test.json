@@ -116,5 +116,9 @@
   },
   "lightsRestore": "{light} kehrt zum vorherigen Zustand zurück",
   "lightsRestoreMany": "{light} kehren zum vorherigen Zustand zurück",
-  "lightsRestoreFallback": "Die Lichter"
+  "lightsRestoreFallback": "Die Lichter",
+  "stoppedHere": "Hier beendet",
+  "runsRecipe": "Führt {name} aus",
+  "recipeSimulation": "Der Testlauf öffnet das andere Rezept nicht",
+  "recipeFailed": "Fehlgeschlagen"
 }

@@ -41,6 +41,7 @@
     if (source === 'counters') return t('flows.choose.counter');
     if (source === 'namedCooldowns') return t('flows.choose.namedCooldown');
     if (source === 'namedCountdowns') return t('flows.choose.namedCountdown');
+    if (source === 'recipes') return t('flows.choose.recipe');
     return t('flows.choose.scene');
   };
 
@@ -50,6 +51,7 @@
     if (source === 'counters') return t('flows.choiceEmpty.counters');
     if (source === 'namedCooldowns') return t('flows.choiceEmpty.namedCooldowns');
     if (source === 'namedCountdowns') return t('flows.choiceEmpty.namedCountdowns');
+    if (source === 'recipes') return t('flows.choiceEmpty.recipes');
     return t('flows.choiceEmpty.scenes');
   };
 
@@ -58,6 +60,7 @@
     if (source === 'counters') return t('flows.choiceProblem.counters');
     if (source === 'namedCooldowns') return t('flows.choiceProblem.namedCooldowns');
     if (source === 'namedCountdowns') return t('flows.choiceProblem.namedCountdowns');
+    if (source === 'recipes') return t('flows.choiceProblem.recipes');
     return t('flows.choiceProblem.scenes');
   };
 

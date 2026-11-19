@@ -4,6 +4,7 @@
 export const MAX_ACTIONS = 1000;
 export const MAX_LOOP_TIMES = 100;
 export const MAX_DELAY_MS = 60000;
+export const MAX_MATH_EXPRESSION_RUNES = 200;
 export const MAX_RECURSION_DEPTH = 2;
 export const MAX_NAME_LENGTH = 64;
 export const MAX_AUTOMATIONS_PER_CHANNEL = 100;

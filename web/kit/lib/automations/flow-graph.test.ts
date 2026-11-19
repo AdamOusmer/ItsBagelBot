@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { definitionToFlow, flowStepRefs, flowToDefinition, locateIssues, type Flow, type FlowConfig, type FlowEdge, type FlowNode } from './flow-graph';
 import { classifyFlow } from './flow-layer';
 import { SETUP_REWARD_ID } from './flow-setup';
@@ -27,6 +28,36 @@ function rebuilt(definition: Definition): Flow {
   if (!result.ok) throw new Error(JSON.stringify(result.issues));
   return result.value;
 }
+
+const sharedNested = JSON.parse(readFileSync(new URL('../../../../internal/domain/automation/testdata/valid/nested_and_disabled.json', import.meta.url), 'utf8')) as Definition;
+
+const controlRoundtrips: { name: Label; type: FlowNode['type']; actions: Action[]; config: FlowConfig; ports: FlowEdge['port'][] }[] = [
+  { name: 'terminal stop', type: 'reply.stop', actions: [chat('before'), { type: 'stop' }], config: {}, ports: [] },
+  {
+    name: 'random with an empty path and a shared continuation', type: 'reply.random', config: { paths: '3', weight1: 1, weight2: 2, weight3: 7 },
+    actions: [{ type: 'random_pick', params: { branches: [{ weight: 1, actions: [chat('a')] }, { weight: 2, actions: [] }, { weight: 7, actions: [chat('c')] }] } }, chat('after')],
+    ports: ['p1', 'p2', 'p3']
+  },
+  { name: 'recipe call', type: 'reply.run', actions: [{ type: 'run', params: { automation_id: 'helper' } }], config: { automationId: 'helper' }, ports: [] }
+];
+
+test.each(controlRoundtrips)('$name roundtrips through the graph', ({ type, actions, config, ports }) => {
+  const definition: Definition = { version: 1, trigger: { type: 'command', params: { name: '!test' } }, actions };
+  const reopened = rebuilt(definition);
+  const node = reopened.nodes.find((entry) => entry.type === type);
+  const edges = reopened.edges.filter((edge) => edge.from === node?.id).map((edge) => edge.port).sort();
+  expect({ config: node?.config, ports: edges, definition: lowered(reopened), issues: validateDefinition(definition) })
+    .toEqual({ config, ports, definition, issues: [] });
+});
+
+test('imports the shared random and stop fixture without unsupported actions', () => {
+  const reopened = rebuilt({ ...sharedNested, actions: [sharedNested.actions![1]!] });
+  expect(reopened.nodes.slice(2).map(({ type, config }) => ({ type, config }))).toEqual([
+    { type: 'reply.random', config: { paths: '2', weight1: 1, weight2: 3 } },
+    { type: 'reply.chat', config: { message: 'hello {user}' } },
+    { type: 'reply.stop', config: {} }
+  ]);
+});
 
 describe('target picker round-trip', () => {
   const actions = [
@@ -907,10 +938,8 @@ describe('containers keep their drawn shape through save and reload', () => {
 
   test('every new step lowers to its contract shape and validates', () => {
     const steps: [FlowNode, unknown][] = [
-      [node('s', 'reply.var_set', { scope: 'viewer', name: 'Score', value: '{user}' }), { type: 'var_set', params: { scope: 'viewer', name: 'score', value: '{user}' } }],
-      [node('s', 'reply.var_add', { name: 'score', amount: 2 }), { type: 'var_add', params: { scope: 'channel', name: 'score', amount: 2 } }],
-      [node('s', 'reply.var_delete', { name: 'score' }), { type: 'var_delete', params: { scope: 'channel', name: 'score' } }],
-      [node('s', 'reply.text', { op: 'replace', input: '{user}', find: 'a', replaceWith: 'b', saveAs: 'out' }), { type: 'text', params: { op: 'replace', input: '{user}', arg1: 'a', arg2: 'b', save_as: 'out' } }],
+      [node('s', 'reply.wait', { seconds: 0.5 }), { type: 'delay', params: { ms: 500 } }],
+      [node('s', 'reply.wait', { seconds: 1.001 }), { type: 'delay', params: { ms: 1001 } }],
       [node('s', 'reply.math', { expression: '1+1', saveAs: 'sum' }), { type: 'math', params: { expression: '1+1', save_as: 'sum' } }],
       [node('s', 'reply.reward_update', { reward: 'r1', setEnabled: 'off', reset: true }), { type: 'reward_update', params: { reward_id: 'r1', enabled: false, cost: null, reset_on_stream_end: true } }]
     ];
@@ -918,6 +947,54 @@ describe('containers keep their drawn shape through save and reload', () => {
       const saved = expectStable(flow([trigger(), step], [edge('t', 'next', 's')]));
       expect(saved.actions).toEqual([want as NonNullable<Definition['actions']>[number]]);
     }
+  });
+
+  test.each([
+    { change: 'set', type: 'var_set', operand: { value: '{user}' }, config: { value: '{user}', amount: 1 } },
+    { change: 'add', type: 'var_add', operand: { amount: 2 }, config: { amount: 2 } },
+    { change: 'subtract', type: 'var_add', operand: { amount: -2 }, config: { amount: 2 } },
+    { change: 'forget', type: 'var_delete', operand: {}, config: { amount: 1 } }
+  ])('saved variable action opens as $change and round-trips', ({ change, type, operand, config }) => {
+    const identity = { scope: 'viewer', name: 'round2' };
+    const definition: Definition = {
+      version: 1, trigger: { type: 'event', params: { kind: 'channel.follow' } },
+      actions: [{ type, params: { ...identity, ...operand } }]
+    };
+    const reopened = rebuilt(definition);
+    const step = reopened.nodes[1];
+    expect({ type: step.type, config: step.config, actions: lowered(reopened).actions, issues: validateDefinition(definition) })
+      .toEqual({ type: 'reply.var', config: { ...identity, do: change, ...config }, actions: definition.actions, issues: [] });
+  });
+
+  test.each([
+    ['upper', '', ''], ['lower', '', ''], ['trim', '', ''], ['length', '', ''],
+    ['replace', 'a', '2'], ['substring', '1', '2'], ['split_pick', ',', '2'],
+    ['contains', 'a', ''], ['url_encode', '', ''], ['count', ',', '']
+  ])('saved %s arguments reopen as generic operands and lower only when used', (op, first, second) => {
+    const arg1 = first || 'unused';
+    const arg2 = second || 'unused';
+    const definition: Definition = {
+      version: 1, trigger: { type: 'event', params: { kind: 'channel.follow' } },
+      actions: [{ type: 'text', params: { op, input: '{user}', arg1, arg2, save_as: 'out' } }]
+    };
+    const reopened = rebuilt(definition);
+    const step = reopened.nodes[1];
+    expect({ type: step.type, config: step.config, actions: lowered(reopened).actions }).toEqual({
+      type: 'reply.text', config: { op, input: '{user}', arg1, arg2, saveAs: 'out' },
+      actions: [{ type: 'text', params: { op, input: '{user}', arg1: first, arg2: second, save_as: 'out' } }]
+    });
+  });
+
+  test.each([
+    { path: 'a.0.b', segments: ['a', '0', 'b'] },
+    { path: ' a[0].b ', segments: ['a', '0', 'b'] },
+    { path: 'a["key-1"][2][\'b\']', segments: ['a', 'key-1', '2', 'b'] },
+    { path: '[0].name', segments: ['0', 'name'] },
+    { path: '   ', segments: undefined },
+    { path: 'a[0]b', segments: ['a[0]b'] }
+  ])('web read lowers JSON path "$path"', ({ path, segments }) => {
+    const step = node('g', 'reply.http_get', { url: 'https://example.com/data', jsonPath: path });
+    expect(lowered(flow([trigger(), step], [edge('t', 'next', 'g')])).actions?.[0]?.params?.json_path).toEqual(segments);
   });
 
   test.each(['', '{bits}'])('a var exists gate ignores its inactive value %s and reopens', (value) => {
@@ -928,10 +1005,12 @@ describe('containers keep their drawn shape through save and reload', () => {
   });
 
   test.each([
-    { op: 'upper', issues: [], args: ['', ''] },
-    { op: 'replace', issues: [{ path: 'nodes.s.find.bits', code: 'unmappable_token' }], args: undefined }
-  ])('a Follow trigger token-checks only the operands used by $op', ({ op, issues, args }) => {
-    const step = node('s', 'reply.text', { op, input: '{user}', find: '{bits}', saveAs: 'out' });
+    { op: 'upper', field: 'arg1', issues: [], args: ['', ''] },
+    { op: 'contains', field: 'arg2', issues: [], args: ['', ''] },
+    { op: 'replace', field: 'arg1', issues: [{ path: 'nodes.s.arg1.bits', code: 'unmappable_token' }], args: undefined },
+    { op: 'split_pick', field: 'arg2', issues: [{ path: 'nodes.s.arg2.bits', code: 'unmappable_token' }], args: undefined }
+  ])('a Follow trigger token-checks $field only if $op uses it', ({ op, field, issues, args }) => {
+    const step = node('s', 'reply.text', { op, input: '{user}', [field]: '{bits}', saveAs: 'out' });
     const result = flowToDefinition(flow([trigger(), step], [edge('t', 'next', 's')]));
     const outcome = result.ok
       ? { issues: [], args: [result.value.actions?.[0]?.params?.arg1, result.value.actions?.[0]?.params?.arg2] }
@@ -968,12 +1047,26 @@ describe('containers keep their drawn shape through save and reload', () => {
 
   test('a validator issue deep in a loop or API path lands on the drawn step', () => {
     const drawn = flow(
-      [trigger(), loop('l'), get('g'), node('bad', 'reply.var_set', { name: 'no spaces' })],
+      [trigger(), loop('l'), get('g'), node('bad', 'reply.var', { do: 'set', name: 'no spaces' })],
       [edge('t', 'next', 'l'), edge('l', 'body', 'g'), edge('g', 'failure', 'bad')]
     );
     const issues = validateDefinition(lowered(drawn));
     expect(issues).toEqual([{ path: 'actions[0].params.actions[0].params.on_failure[0].params.name', code: 'simple_word' }]);
     expect(locateIssues(drawn, issues)).toEqual([{ path: 'nodes.bad.params.name', code: 'simple_word' }]);
+  });
+
+  test.each([
+    { source: trigger(), port: 'next' },
+    { source: node('c', 'cond.chance', { percent: 50 }), port: 'yes' },
+    { source: say('s'), port: 'next' },
+    { source: loop('l'), port: 'body' }
+  ])('an oversized fork on $source.type $port belongs to the source node', ({ source, port }) => {
+    const branches = Array.from({ length: 11 }, (_, i) => say(`branch-${i}`));
+    const prefix = source.id === 't' ? [] : [trigger()];
+    const incoming = prefix.map((root) => edge(root.id, 'next', source.id));
+    const drawn = flow([...prefix, source, ...branches], [...incoming, ...branches.map((branch) => edge(source.id, port, branch.id))]);
+    const issues = validateDefinition(lowered(drawn)).filter((issue) => issue.code === 'too_many');
+    expect(locateIssues(drawn, issues)).toEqual([{ path: `nodes.${source.id}`, code: 'too_many' }]);
   });
 
   test('step refs link a run record index back to each nested step', () => {

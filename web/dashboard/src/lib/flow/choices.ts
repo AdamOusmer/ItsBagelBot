@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { FlowNode } from './model';
 
-export const CHOICE_SOURCES = ['rewards', 'manageableRewards', 'counters', 'scenes', 'namedCooldowns', 'namedCountdowns'] as const;
+export const CHOICE_SOURCES = ['rewards', 'manageableRewards', 'counters', 'scenes', 'namedCooldowns', 'namedCountdowns', 'recipes'] as const;
 
 export type ChoiceSource = (typeof CHOICE_SOURCES)[number];
 
@@ -15,6 +15,12 @@ export type ChoiceList = { options: ChoiceOption[]; problem?: ChoiceProblem };
 export const isChoiceSource = (value: unknown): value is ChoiceSource => CHOICE_SOURCES.some((source) => source === value);
 
 export const unavailable = (problem: ChoiceProblem = 'unavailable'): ChoiceList => ({ options: [], problem });
+
+type RecipeChoice = { id: FlowNode['id']; name: string };
+
+export function recipeOptions(recipes: readonly RecipeChoice[], current?: RecipeChoice['id']): ChoiceOption[] {
+  return recipes.filter(({ id }) => id !== current).map(({ id, name }) => ({ value: id, label: name }));
+}
 
 export function withSaved(list: ChoiceList, value: string, name: string): ChoiceOption[] {
   if (!value || list.options.some((option) => option.value === value)) return list.options;

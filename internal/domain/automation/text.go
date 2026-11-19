@@ -23,6 +23,7 @@ const (
 	TextOpSplitPick = "split_pick"
 	TextOpContains  = "contains"
 	TextOpURLEncode = "url_encode"
+	TextOpCount     = "count"
 
 	splitPickRandom = "random"
 )
@@ -32,7 +33,7 @@ var (
 
 	textOps = enum{
 		TextOpUpper, TextOpLower, TextOpTrim, TextOpLength, TextOpReplace,
-		TextOpSubstring, TextOpSplitPick, TextOpContains, TextOpURLEncode,
+		TextOpSubstring, TextOpSplitPick, TextOpContains, TextOpURLEncode, TextOpCount,
 	}
 )
 
@@ -49,6 +50,12 @@ func checkTextStep(c chk, p TextStepAction) {
 	c.text("input", p.Input, upTo(MaxTemplateLength))
 	c.text("arg1", p.Arg1, upTo(MaxTemplateLength))
 	c.text("arg2", p.Arg2, upTo(MaxTemplateLength))
+	if p.Op == TextOpReplace && p.Arg1 == "" {
+		c.add("arg1", CodeRequired)
+	}
+	if p.Op == TextOpSplitPick && strings.TrimSpace(p.Arg2) == "" {
+		c.add("arg2", CodeRequired)
+	}
 	c.variableName("save_as", p.SaveAs)
 }
 
@@ -96,6 +103,8 @@ func applySimpleText(op string, in TextOperands) (string, error) {
 		return strconv.FormatBool(ComparePasses(CompareContains, in.Input, in.Arg1)), nil
 	case TextOpURLEncode:
 		return url.QueryEscape(in.Input), nil
+	case TextOpCount:
+		return strconv.Itoa(len(strings.Split(in.Input, in.Arg1))), nil
 	}
 	return "", ErrTextArgument
 }
@@ -148,5 +157,8 @@ func pickPosition(raw string, parts int, intN func(int) int) (int64, bool) {
 		return int64(intN(parts)), true
 	}
 	position, err := strconv.ParseInt(trimmed, 10, 64)
+	if position < 0 {
+		return int64(parts) + position, err == nil
+	}
 	return position - 1, err == nil
 }

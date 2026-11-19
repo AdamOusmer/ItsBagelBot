@@ -116,5 +116,9 @@
   },
   "lightsRestore": "{light} volta ao estado anterior",
   "lightsRestoreMany": "{light} voltam ao estado anterior",
-  "lightsRestoreFallback": "As luzes"
+  "lightsRestoreFallback": "As luzes",
+  "stoppedHere": "Parou aqui",
+  "runsRecipe": "Executa {name}",
+  "recipeSimulation": "O teste não abre a outra receita",
+  "recipeFailed": "Falhou"
 }

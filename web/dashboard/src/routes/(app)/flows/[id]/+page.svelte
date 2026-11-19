@@ -152,6 +152,10 @@
     scenario = { ...scenario, ...patch };
   }
 
+  function changeOverride(key: keyof typeof overrides, value: string) {
+    overrides = { ...overrides, [key]: value };
+  }
+
   const triggerKind = $derived.by(() => {
     const trigger = rehearsalDraft.flow.nodes.find((node) => specFor(node.type)?.kind === 'trigger');
     return `${trigger?.type}:${trigger?.config.variant ?? ''}`;
@@ -755,13 +759,13 @@
   <div class="panels">
     <div class="panel-slot inspector-slot" class:parked={!inspectorVisible} inert={!inspectorVisible}>
     {#await loadInspector() then { default: NodeInspector }}
-      <NodeInspector bind:flow bind:selectedId fallbackId={initialInspectorId} active={inspectorVisible} {rehearsal} {issues} {permissionRank} focusField={inspectField} focusToken={inspectFocus} onclose={closeInspector} onremove={(id, keepYes) => canvas?.removeStep(id, keepYes)} oncheck={() => { if (autoTidy) queueMicrotask(() => canvas?.tidyNow()); }} />
+      <NodeInspector bind:flow bind:selectedId fallbackId={initialInspectorId} active={inspectorVisible} {rehearsal} {issues} {permissionRank} focusField={inspectField} focusToken={inspectFocus} onclose={closeInspector} onremove={(id, keepYes) => canvas?.removeStep(id, keepYes)} oncheck={() => { if (autoTidy) queueMicrotask(() => canvas?.tidyNow()); }} onResponseSample={(id, sample) => changeOverride(`${id}.response`, sample)} />
     {/await}
     </div>
   {#if testRunOpen}
     <div class="panel-slot">
     {#await loadTestRun() then { default: TestRunPanel }}
-      <TestRunPanel view={rehearsal} {overrides} onScenario={changeScenario} onOverride={(key, value) => (overrides = { ...overrides, [key]: value })} onSelect={(id, fieldKey) => { inspectField = fieldKey; openSettings(id); }} onClose={closeTestRun} />
+      <TestRunPanel view={rehearsal} {overrides} onScenario={changeScenario} onOverride={changeOverride} onSelect={(id, fieldKey) => { inspectField = fieldKey; openSettings(id); }} onClose={closeTestRun} />
     {/await}
     </div>
   {:else if recipeOpen}

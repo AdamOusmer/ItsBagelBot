@@ -116,7 +116,8 @@
     "scene": "Escolha uma cena",
     "light": "Escolha uma luz primeiro",
     "namedCooldown": "Escolha um temporizador",
-    "namedCountdown": "Escolha uma contagem regressiva"
+    "namedCountdown": "Escolha uma contagem regressiva",
+    "recipe": "Escolha uma receita"
   },
   "choiceEmpty": {
     "rewards": "Ainda não há recompensas de pontos do canal. Crie uma em Pontos do canal.",
@@ -124,7 +125,8 @@
     "counters": "Ainda não há contadores. Crie um em Contadores.",
     "scenes": "Esta luz não tem cenas.",
     "namedCooldowns": "Adicione uma etapa de intervalo de uso e dê um nome a ela primeiro.",
-    "namedCountdowns": "Adicione uma etapa para iniciar uma contagem regressiva primeiro."
+    "namedCountdowns": "Adicione uma etapa para iniciar uma contagem regressiva primeiro.",
+    "recipes": "Crie outra receita para selecioná-la aqui."
   },
   "choiceProblem": {
     "rewards": "Não foi possível carregar suas recompensas.",
@@ -132,7 +134,8 @@
     "scenes": "Não foi possível carregar as cenas desta luz.",
     "keyRejected": "A Govee não aceitou sua chave de API.",
     "namedCooldowns": "Não foi possível carregar os temporizadores das suas receitas.",
-    "namedCountdowns": "Não foi possível carregar as contagens regressivas."
+    "namedCountdowns": "Não foi possível carregar as contagens regressivas.",
+    "recipes": "Não foi possível carregar suas receitas."
   },
   "choiceMissing": "\"{name}\" não está mais na lista.",
   "choiceUnowned": "Nenhuma receita é dona de \"{name}\" ainda. Isso não fará nada até que uma seja.",
@@ -143,6 +146,7 @@
     "stepNote": "Esta etapa fica desativada até você preenchê-la.",
     "pickReward": "Escolha uma recompensa",
     "addUrl": "Adicione uma URL",
-    "refused": "Preencha as etapas que precisam de configuração, salve e depois ative isto."
+    "refused": "Preencha as etapas que precisam de configuração, salve e depois ative isto.",
+    "pickRecipe": "Escolha uma receita para a etapa “Executar outra receita”."
   }
 }

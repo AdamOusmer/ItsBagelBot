@@ -79,8 +79,9 @@
     "summary": "Pause before the next step",
     "field": {
       "seconds": {
-        "label": "Delay",
-        "unit": "seconds, max {max}"
+        "label": "Wait for",
+        "unit": "seconds, max {max}",
+        "hint": "All waits in one run add up to 60 seconds at most."
       }
     }
   },
@@ -90,7 +91,8 @@
     "field": {
       "times": {
         "label": "How many times",
-        "placeholder": "3"
+        "placeholder": "3",
+        "hint": "1 to 100. A variable works too, like {args}."
       }
     },
     "out": {
@@ -162,7 +164,8 @@
     "field": {
       "expression": {
         "label": "Expression",
-        "placeholder": "({bits} / 100) + 1"
+        "placeholder": "random(1, 6) * 10",
+        "hint": "Use + - * / % ^ and round, floor, ceil, abs, min, max, random(a, b)."
       },
       "saveAs": {
         "label": "Save as",
@@ -367,6 +370,64 @@
       },
       "resolution": {
         "label": "Message to the viewer (optional)"
+      }
+    }
+  },
+  "stop": {
+    "label": "Stop here",
+    "summary": "End the run here",
+    "keywords": "end exit quit",
+    "line": "End the run here",
+    "note": "Inside parallel paths it ends only that path."
+  },
+  "random": {
+    "label": "Pick a random path",
+    "summary": "Choose a path using the chances you set",
+    "keywords": "dice chance shuffle weighted",
+    "path": "Path {path}",
+    "pathPercent": "{label} ({percent}%)",
+    "field": {
+      "paths": {
+        "label": "Paths",
+        "option": {
+          "2": "2",
+          "3": "3",
+          "4": "4",
+          "5": "5"
+        }
+      },
+      "weight1": {
+        "label": "Path 1 chance",
+        "unit": "parts"
+      },
+      "weight2": {
+        "label": "Path 2 chance",
+        "unit": "parts"
+      },
+      "weight3": {
+        "label": "Path 3 chance",
+        "unit": "parts"
+      },
+      "weight4": {
+        "label": "Path 4 chance",
+        "unit": "parts"
+      },
+      "weight5": {
+        "label": "Path 5 chance",
+        "unit": "parts"
+      }
+    }
+  },
+  "run": {
+    "label": "Run another recipe",
+    "summary": "Start another recipe in this channel",
+    "keywords": "call trigger chain",
+    "line": "Run {name}",
+    "note": "A recipe can call at most 2 levels deep.",
+    "field": {
+      "automationId": {
+        "label": "Recipe",
+        "hint": "Its own checks still apply. It starts with this recipe's values; its changes stay with it."
       }
     }
   }

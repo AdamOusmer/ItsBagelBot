@@ -4,10 +4,10 @@ import type { MessageKey, RehearsedLine } from '@bagel/kit';
 import { chatModeValueField, compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, streamTargetNodes, validateDefinition } from '@bagel/kit/automations';
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
-import { fieldIssueMessage, fieldLabel, roleWarning, stepLabel, variableLabel } from './copy';
-import { describe, durationFormatter, lightGroupLabel } from './describe';
+import { fieldIssueMessage, fieldLabel, randomPathLabel, roleWarning, stepLabel, variableLabel } from './copy';
+import { describe, durationFormatter, lightGroupLabel, optionLabel } from './describe';
 import { issueMessage, stepOf, type Translate } from './messages';
-import { NODE_SPECS, specFor, type Flow, type FlowNode } from './model';
+import { NODE_SPECS, outputsFor, specFor, type Flow, type FlowNode } from './model';
 import { fieldIssues, fieldRequired, type FieldIssue } from './issues';
 
 type Text = string;
@@ -96,7 +96,7 @@ function initialScenario(definition: Definition): RehearsalScenario {
 function executorOverrides(compiled: Compiled, overrides: RehearsalOverrides): RehearsalOverrides {
   const entries = [...compiled.nodeByPath].flatMap(([path, id]) => {
     const key = path.endsWith('.params.condition') ? path.slice(0, -17) : path;
-    return ['', '.response', '.error'].filter((suffix) => overrides[`${id}${suffix}`] !== undefined)
+    return ['', '.response', '.error', '.path'].filter((suffix) => overrides[`${id}${suffix}`] !== undefined)
       .map((suffix) => [`${key}${suffix}`, overrides[`${id}${suffix}`]!] as const);
   });
   return Object.fromEntries(entries);
@@ -153,7 +153,7 @@ function scenarioSummary(t: Translate, scenario: RehearsalScenario, kind: Text):
 }
 
 const INPUT_TOKENS: Readonly<Record<Text, keyof RehearsalScenario>> = { user: 'user', 'user.id': 'userId', userid: 'userId', bits: 'bits', 'event.amount': 'bits', viewers: 'viewers', 'event.viewers': 'viewers', 'event.months': 'months', months: 'months', 'event.input': 'input', input: 'input' };
-const TOKEN_LABELS = new Map(NODE_SPECS.flatMap((spec) => [...(spec.provides ?? []), ...(spec.outputs ?? []).flatMap((port) => port.provides ?? [])]).map((variable) => [variable.token, variable]));
+const TOKEN_LABELS = new Map(NODE_SPECS.flatMap((spec) => [...(spec.provides ?? []), ...outputsFor(spec).flatMap((port) => port.provides ?? [])]).map((variable) => [variable.token, variable]));
 
 function compareRepair(node: FlowNode): ScenarioPatch | undefined {
   const token = /^\{([^}]+)\}$/.exec(String(node.config.left));
@@ -203,7 +203,7 @@ function triggerText(node: FlowNode | undefined, scenario: RehearsalScenario, li
   return node?.type.startsWith('twitch.chat.') ? scenario.message ?? line : line;
 }
 
-const COMPUTED_VALUE_NODES = new Set(['reply.math', 'reply.text']);
+const COMPUTED_VALUE_NODES = new Set(['reply.math', 'reply.text', 'reply.var']);
 
 function rehearsedTarget(node: FlowNode, login: Text | undefined): FlowNode['config'] {
   if (!login || !streamTargetNodes.has(node.type)) return {};
@@ -239,6 +239,7 @@ function lightsRestoreText(t: Translate, detail: Record<Text, Text>): Text {
 
 function eventText(t: Translate, event: RehearsalEvent, node: FlowNode | undefined, scenario: RehearsalScenario): Text {
   const detail = event.detail ?? {};
+  if (event.kind === 'effect') return rehearsalEffectText(t, detail, node);
   if (detail.code) return reasonText(t, detail.code);
   if (event.kind === 'lights_restore') return lightsRestoreText(t, detail);
   const line = effectText(t, detail, node);
@@ -248,6 +249,15 @@ function eventText(t: Translate, event: RehearsalEvent, node: FlowNode | undefin
     check: node ? checkText(t, node, scenario) : line, effect: line, say: '', skip: line
   };
   return texts[event.kind];
+}
+
+function rehearsalEffectText(t: Translate, detail: Record<Text, Text>, node: FlowNode | undefined): Text {
+  if (node?.type === 'reply.random' && detail.path) return randomPathLabel(t, detail.path);
+  if (node?.type === 'reply.run') {
+    const name = optionLabel(t, specFor(node.type)!, node, 'automationId');
+    return t('flows.test.runsRecipe', { name });
+  }
+  return detail.code ? reasonText(t, detail.code) : effectText(t, detail, node);
 }
 
 function chatLines(event: RehearsalEvent): RehearsedLine[] {
@@ -265,7 +275,8 @@ function reasonText(t: Translate, code: Text): Text {
     text_error: t('flows.test.textError'), math_error: t('flows.test.mathError'), bad_def: t('flows.test.badDef'),
     empty_login: t('flows.test.emptyLogin'), no_target: t('flows.test.noMention'),
     no_device: t('flows.choose.light'), perm_required: t('flows.issue.permRequired'),
-    too_few_choices: t('flows.test.tooFewChoices'), nothing_running: t('flows.test.nothingRunning'), no_message: t('flows.test.noMessage')
+    too_few_choices: t('flows.test.tooFewChoices'), nothing_running: t('flows.test.nothingRunning'), no_message: t('flows.test.noMessage'),
+    stopped: t('flows.test.stoppedHere')
   };
   return reasons[code] ?? t('flows.test.failed');
 }
@@ -292,18 +303,26 @@ function mappedStep(t: Translate, event: RehearsalEvent, context: RunContext): R
   const id = compiled.nodeByPath.get(`${event.path}.params.condition`) ?? compiled.nodeByPath.get(event.path) ?? null;
   const node = nodes.get(id ?? '');
   return { ...event, ...stepValues(t, event, node), id, node, chatLines: chatLines(event),
-    ...stepDetails(t, node, event.detail), repair: node ? checkRepair(node, event, context) : undefined,
+    ...stepDetails(t, node, event), repair: node ? checkRepair(node, event, context) : undefined,
     note: roleWarning(t, context.flow, node) ?? stepNote(t, node, { event, scenario }),
     text: eventText(t, event, node, scenarioIdentity(compiled.definition, scenario)) };
 }
 
-function stepDetails(t: Translate, node: FlowNode | undefined, detail?: RehearsalEvent['detail']): Pick<RehearsalStep, 'label' | 'secondary'> {
+function stepDetails(t: Translate, node: FlowNode | undefined, event: RehearsalEvent): Pick<RehearsalStep, 'label' | 'secondary'> {
   const spec = node ? specFor(node.type) : undefined;
-  const choices = detail?.choices ?? detail?.outcomes;
   return {
     label: spec ? stepLabel(t, spec) : t('flows.board.atSameTime'),
-    secondary: node?.type === 'reply.math' ? String(node.config.expression ?? '') : choices?.split('\n').join(', '),
+    secondary: node?.type === 'reply.math' ? String(node.config.expression ?? '') : choiceList(event) ?? failedRequestUrl(event),
   };
+}
+
+function choiceList(event: RehearsalEvent): Text | undefined {
+  return (event.detail?.choices ?? event.detail?.outcomes)?.split('\n').join(', ');
+}
+
+function failedRequestUrl(event: RehearsalEvent): Text | undefined {
+  if (event.kind !== 'effect' || event.status !== 'failed') return undefined;
+  return event.detail?.url;
 }
 
 function emptyResponse(node: FlowNode | undefined, event: RehearsalEvent): boolean {
@@ -311,6 +330,7 @@ function emptyResponse(node: FlowNode | undefined, event: RehearsalEvent): boole
 }
 
 function stepNote(t: Translate, node: FlowNode | undefined, context: { event: RehearsalEvent; scenario: RehearsalScenario }): Text | undefined {
+  if (node?.type === 'reply.run' && context.event.kind === 'effect') return t('flows.test.recipeSimulation');
   if (emptyResponse(node, context.event)) return t('flows.test.emptyResponse');
   if (node?.type !== 'cond.compare') return undefined;
   if (context.event.status !== 'no') return undefined;
@@ -324,7 +344,7 @@ function stepNote(t: Translate, node: FlowNode | undefined, context: { event: Re
 function stepValues(t: Translate, event: RehearsalEvent, node: FlowNode | undefined): Pick<RehearsalStep, 'missing' | 'sample'> {
   const tokens = (event.detail?.missing ?? '').split(',').filter(Boolean).map((token) => token.replace(/^unset:/, ''));
   const missing = [...new Set([...tokens.map((token) => missingLabel(t, token)), ...unsetFields(t, node)])];
-  const sample = event.detail?.random === '1' || Object.values(node?.config ?? {}).some((value) => /\{(?:random|choice)[}:]/.test(String(value)));
+  const sample = event.detail?.random === '1' || Object.values(node?.config ?? {}).some((value) => /\{(?:random[}:|]|choice:)/i.test(String(value)));
   return { missing, sample };
 }
 

@@ -3,7 +3,7 @@
 import { describe, expect, test } from 'bun:test';
 import { flowToDefinition, validateDefinition } from '@bagel/kit/automations';
 import { newFlow, type Flow, type FlowEdge } from './model';
-import { connect, deleteNode, insertNode, replaceTrigger, type EdgeEnds, type Placement } from './ops';
+import { connect, deleteNode, insertNode, replaceTrigger, updateNodeConfig, type EdgeEnds, type Placement } from './ops';
 
 type NodeRow = [id: string, type: string];
 type EdgeRow = [from: string, port: string, to: string];
@@ -50,6 +50,10 @@ const insertions: { name: string; type: string; placement: Placement; edges: Edg
   {
     name: 'loop edge continuation', type: 'reply.loop', placement: { kind: 'edge', edgeId: 'e0' },
     edges: [['t', 'next', 'a']], expected: [['t', 'next', 'new'], ['new', 'done', 'a']]
+  },
+  {
+    name: 'terminal edge insertion', type: 'reply.stop', placement: { kind: 'edge', edgeId: 'e0' },
+    edges: [['t', 'next', 'a']], expected: [['t', 'next', 'new']]
   },
   {
     name: 'other ports stay intact', type: 'reply.wait', placement: { kind: 'port', from: 'g', port: 'yes', mode: 'insert' },
@@ -156,6 +160,21 @@ const connections: { name: string; ends: EdgeEnds; edges: EdgeRow[]; accepted: b
   { name: 'trigger target', ends: { from: 'a', port: 'next', to: 't' }, edges: [], accepted: false },
   { name: 'shared child', ends: { from: 'a', port: 'no', to: 'c' }, edges: [['a', 'yes', 'b'], ['b', 'next', 'c']], accepted: true }
 ];
+
+test.each([
+  { prior: '3', next: '2', kept: ['p1', 'p2'] },
+  { prior: '3', next: '5', kept: ['p1', 'p2', 'p3'] }
+])('changing random paths from $prior to $next keeps $kept', ({ prior, next, kept }) => {
+  const flow = graph(
+    [['t', 'twitch.follow'], ['r', 'reply.random'], ['a', 'reply.chat'], ['b', 'reply.chat'], ['c', 'reply.chat']],
+    [['t', 'next', 'r'], ['r', 'p1', 'a'], ['r', 'p2', 'b'], ['r', 'p3', 'c']]
+  );
+  const node = flow.nodes[1]!;
+  node.config = { paths: prior, weight3: 9 };
+  updateNodeConfig(flow, node, { paths: next });
+  expect({ config: node.config, ports: flow.edges.map(({ port }) => port), nodes: flow.nodes.map(({ id }) => id) })
+    .toEqual({ config: { paths: next, weight3: 9 }, ports: ['next', ...kept], nodes: ['t', 'r', 'a', 'b', 'c'] });
+});
 
 test.each(connections)('connect $name', ({ ends, edges, accepted }) => {
   const flow = graph([['t', 'twitch.follow'], ['a', 'cond.chance'], ['b', 'reply.chat'], ['c', 'reply.chat']], edges);

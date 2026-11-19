@@ -21,10 +21,10 @@
   import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import DurationField from '#lib/components/shared/DurationField.svelte';
-  import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, stepLabel, stepRequirementFor, stepSummary, targetOptions, variableLabel } from '#lib/flow/copy';
+  import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, scopeWarning, stepLabel, stepNote, stepRequirementFor, stepSummary, targetOptions, variableLabel } from '#lib/flow/copy';
   import { defaultComparison } from '#lib/flow/comparison';
-  import { fieldMounted, fieldVisible, NODE_SPECS, outputsFor, specFor, targetFieldFor, targetModesFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
-  import { duplicateNode, hasCheckBefore, insertCheckBefore } from '#lib/flow/ops';
+  import { fieldMounted, fieldVisible, NODE_SPECS, outputsFor, specFor, storedVariable, targetFieldFor, targetModesFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
+  import { duplicateNode, hasCheckBefore, insertCheckBefore, updateNodeConfig } from '#lib/flow/ops';
   import { descendants, graphIndex, portKey } from '#lib/flow/graph-index';
   import { awaitingSetup, configText } from '#lib/flow/setup';
   import { SETUP_URL } from '@bagel/kit/automations';
@@ -34,6 +34,7 @@
   import RewardField from './RewardField.svelte';
   import UserField from './UserField.svelte';
   import TokenSuggestions from './TokenSuggestions.svelte';
+  import WebReadTryIt from './WebReadTryIt.svelte';
 
   let {
     flow = $bindable(),
@@ -47,8 +48,9 @@
     permissionRank = -1,
     onclose,
     onremove,
-    oncheck
-  }: { flow: Flow; selectedId?: string | null; fallbackId?: string; active?: boolean; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; permissionRank?: number; onclose?: () => void; onremove: (id: string, keepYes?: boolean) => void; oncheck?: () => void } = $props();
+    oncheck,
+    onResponseSample
+  }: { flow: Flow; selectedId?: string | null; fallbackId?: string; active?: boolean; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; permissionRank?: number; onclose?: () => void; onremove: (id: string, keepYes?: boolean) => void; oncheck?: () => void; onResponseSample?: (nodeId: FlowNode['id'], sample: string) => void } = $props();
 
   const { t } = getI18n();
   type FieldKey = FieldSpec['key'];
@@ -98,7 +100,8 @@
   const incoming = $derived(node ? graphIndex(flow).incoming.get(node.id) ?? [] : []);
   const addedCheck = $derived(roleLevel ? hasCheckBefore(flow, node?.id ?? '', roleLevel) : false);
   const removeCheck = $derived(roleWarning(t, flow, node));
-  const roleNote = $derived(requirement ? requirementText(t, requirement, addedCheck ? 'start' : 'note', spec) : removeCheck);
+  const roleNote = $derived(requirement ? requirementText(t, requirement, addedCheck ? 'start' : 'note', spec) : removeCheck ?? scopeWarning(t, flow, node));
+  const variableToken = $derived(node?.type === 'reply.var' ? storedVariable(node.config)[0]?.token : undefined);
   const canAddCheck = $derived(roleLevel ? incoming.length > 0 && !addedCheck : false);
   const checkAction = $derived(canAddCheck || Boolean(removeCheck));
   const automaticComparisons = new Map<FlowNode['id'], boolean>();
@@ -106,7 +109,7 @@
   function setOption(key: FieldKey, value: string | boolean) {
     if (!node || !spec) return;
     const prior = { config: { ...node.config } };
-    node.config[key] = value;
+    updateNodeConfig(flow, node, { [key]: value });
     const withDefaults = spec.fields.filter((field) => field.initial !== undefined);
     const newlyVisible = withDefaults.filter((field) => !fieldVisible(spec, prior, field) && fieldVisible(spec, node, field));
     for (const field of newlyVisible) node.config[field.key] ??= field.initial!;
@@ -138,7 +141,7 @@
   type TextControl = HTMLInputElement | HTMLTextAreaElement;
   let completion = $state<{ key: FieldKey; start: number; end: number; query: string; anchor: TextControl } | null>(null);
   let activeSuggestion = $state(0);
-  const contextualTokens = new Set(NODE_SPECS.flatMap((entry) => [...entry.provides ?? [], ...entry.outputs?.flatMap((output) => output.provides ?? []) ?? []]).map((v) => v.token));
+  const contextualTokens = new Set(NODE_SPECS.flatMap((entry) => [...entry.provides ?? [], ...outputsFor(entry).flatMap((output) => output.provides ?? [])]).map((v) => v.token));
   const channelChips = sheetFor('custom').filter((v) => !contextualTokens.has(v.token) && Boolean(chipHint(t, v)));
   const suggestions = $derived.by(() => {
     const search = completion?.query.toLowerCase() ?? '';
@@ -251,11 +254,12 @@
     return descendants(flow, starts).size;
   }
 
-  const branches = $derived(
-    node && spec?.outputs
-      ? outputsFor(spec).map((o) => ({ ...o, label: portLabel(t, node, o.id), count: reach(node.id, o.id) }))
-      : []
-  );
+  const branches = $derived.by(() => {
+    const ports = outputsFor(spec, node);
+    if (!node || ports.length < 2) return [];
+    return ports.map((out) => ({ ...out, label: portLabel(t, node, out.id), count: reach(node.id, out.id) }));
+  });
+  const staticNote = $derived(spec ? stepNote(t, spec) : undefined);
 
   const countText = (count: number) =>
     count === 0 ? t('flows.board.branchNone') : count === 1 ? t('flows.board.branchOne') : t('flows.board.branchMany', { count });
@@ -306,6 +310,9 @@
     </header>
 
     <div class="scroll">
+      {#if staticNote}
+        <p class="note static-note bb-fit-box"><bb-fit mode="block">{staticNote}</bb-fit></p>
+      {/if}
       {#if awaiting}
         <p class="note">{t('flows.setup.stepNote')}</p>
       {/if}
@@ -380,6 +387,7 @@
                   min={field.min}
                   max={field.max}
                   {placeholder}
+                  step={field.step}
                   value={node.config[field.key] === undefined ? '' : Number(node.config[field.key])}
                   oninput={(e) => {
                     const raw = e.currentTarget.value;
@@ -481,6 +489,20 @@
             {/if}
             {#if hint}
               <small class="bb-field__hint bb-fit-box field-hint"><bb-fit mode="block">{hint}</bb-fit></small>
+            {/if}
+            {#if node.type === 'reply.http_get' && field.key === 'url'}
+              {@const url = textOf(field.key).trim()}
+              {#key JSON.stringify([node.id, url])}
+                <WebReadTryIt {url} onPick={({ path, sample }) => {
+                  node.config.jsonPath = path;
+                  onResponseSample?.(node.id, sample);
+                }} />
+              {/key}
+            {/if}
+            {#if node.type === 'reply.var' && field.key === 'name'}
+              <div class="variable-preview" class:faded={!variableToken} aria-hidden={!variableToken}>
+                <VarCard token={variableToken ?? '\u00a0'} title={variableToken} />
+              </div>
             {/if}
             </fieldset>
           {/each}
@@ -726,6 +748,7 @@
     height: 84px;
   }
   .role-note,
+  .variable-preview,
   .check-action { transition: opacity 0.15s ease; }
   .check-action {
     display: flex;
@@ -733,6 +756,7 @@
     min-width: 0;
   }
   .role-warning { min-width: 0; }
+  .static-note { height: 48px; }
   .faded { opacity: 0; }
   .note {
     margin: 0;

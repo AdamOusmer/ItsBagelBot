@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey } from '@bagel/kit';
-import { compactDuration } from '@bagel/kit/automations';
-import { optionText, outputLabel, stepSummary } from './copy';
+import { activeRandomPaths, compactDuration, randomPathWeight } from '@bagel/kit/automations';
+import { optionText, outputLabel, randomPathLabel, stepSummary } from './copy';
 import type { Translate } from './messages';
 import { INITIAL_LIGHT_KELVIN, LINKED_REWARD_CHOICE, specFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
 import { awaitingSetup, configText } from './setup';
@@ -185,27 +185,6 @@ function lightsSuffix(t: Translate, n: FlowNode, { line, mode }: { line: string;
   return seconds ? t('flows.line.lightsHold', { line: bright, seconds }) : bright;
 }
 
-function varAddLine(t: Translate, n: FlowNode): string {
-  const name = text(n, 'name');
-  const amount = Number(n.config.amount) || 0;
-  if (!name || amount === 0) return '';
-  return amount > 0 ? t('flows.line.varAdd', { name, amount }) : t('flows.line.varTake', { name, amount: -amount });
-}
-
-function varLine(t: Translate, n: FlowNode): string {
-  const name = text(n, 'name');
-  switch (n.type) {
-    case 'reply.var_set':
-      return given(name, (shown) => t('flows.line.varSet', { name: shown, value: text(n, 'value') }));
-    case 'reply.var_add':
-      return varAddLine(t, n);
-    case 'reply.var_delete':
-      return given(name, (shown) => t('flows.line.varDelete', { name: shown }));
-    default:
-      return '';
-  }
-}
-
 function dataLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   switch (n.type) {
     case 'reply.text':
@@ -218,7 +197,7 @@ function dataLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
     case 'reply.http_post':
       return text(n, 'url');
     default:
-      return varLine(t, n);
+      return '';
   }
 }
 
@@ -306,11 +285,12 @@ function whoLabel(t: Translate, node: FlowNode): string {
 
 function lineValue(t: Translate, node: FlowNode, spec: NodeSpec, key: string): string {
   if (key === 'who') return whoLabel(t, node);
-  if (!text(node, key)) return '';
-  const field = spec.fields.find((entry) => entry.key === key);
+  const field = spec.fields.find((entry) => entry.key === key || (entry.type === 'choice' && entry.nameKey === key));
+  const configKey = field?.key ?? key;
+  if (!text(node, configKey)) return '';
   if (node.type === 'reply.chat_mode' && key === 'wait') return `${num(node, key)} ${t('flows.test.duration.second')}`;
   if (field?.type === 'duration') return given(num(node, key), durationFormatter(t));
-  return optionLabel(t, spec, node, key);
+  return optionLabel(t, spec, node, configKey);
 }
 
 function lineSuffix(node: FlowNode, spec: NodeSpec): string {
@@ -336,10 +316,21 @@ function specLine(t: Translate, node: FlowNode, spec: NodeSpec): string | undefi
 }
 
 export function portLabel(t: Translate, node: FlowNode, id: string): string {
+  if (node.type === 'reply.random') return randomPortLabel(t, node, id);
   const percent = node.type === 'cond.chance' ? num(node, 'percent') : 0;
   if (percent) return id === 'yes' ? t('flows.line.chanceYes', { percent }) : t('flows.line.chanceNo');
   const spec = specFor(node.type);
   return spec ? outputLabel(t, spec, id) : '';
+}
+
+function randomPortLabel(t: Translate, node: FlowNode, id: FlowNode['id']): string {
+  const paths = activeRandomPaths(node.config);
+  const selected = paths.find((path) => path.id === id);
+  if (!selected) return '';
+  const weight = (key: keyof FlowNode['config']) => Math.max(0, randomPathWeight(node.config, key));
+  const total = paths.reduce((sum, path) => sum + weight(path.weightKey), 0);
+  const percent = total ? Math.round(100 * weight(selected.weightKey) / total) : 0;
+  return t('flows.step.reply.random.pathPercent', { label: randomPathLabel(t, selected.path), percent });
 }
 
 export function describe(t: Translate, node: FlowNode): string {

@@ -38,6 +38,38 @@ test.each(chatTimeline)(
 );
 
 test.each([
+  { overrides: undefined, text: 'Path 1', lines: ['A'] },
+  { overrides: { 'r.path': '2' }, text: 'Path 2', lines: ['B'] },
+  { overrides: { 'r.path': '3' }, text: 'Path 1', lines: ['A'] }
+])('random rehearsal shows $text as a sample', ({ overrides, text, lines }) => {
+  const random = n('r', 'reply.random', { paths: '2', weight1: 3, weight2: 1 });
+  const flow = flowOf([trigger, random, left, right], [e('t', 'next', 'r'), e('r', 'p1', 'a'), e('r', 'p2', 'b')]);
+  const steps = run(flow, { overrides }).steps;
+  const choice = steps.find((step) => step.id === 'r');
+  expect({ text: choice?.text, sample: choice?.sample, lines: steps.flatMap((step) => step.lines ?? []) }).toEqual({ text, sample: true, lines });
+});
+
+test.each([
+  { outcome: 'ok', status: 'ok', code: undefined },
+  { outcome: 'failure', status: 'failed', code: 'child_failed' }
+])('recipe call rehearsal pretends $outcome', ({ outcome, status, code }) => {
+  const call = n('r', 'reply.run', { automationId: 'helper', name: 'Helper' });
+  const flow = flowOf([trigger, call, left], [e('t', 'next', 'r'), e('r', 'next', 'a')]);
+  const steps = run(flow, { overrides: { r: outcome } }).steps;
+  const effect = steps.find((step) => step.id === 'r');
+  expect({ text: effect?.text, note: effect?.note, status: effect?.status, code: effect?.detail?.code, next: steps.at(-1)?.lines })
+    .toEqual({ text: 'Runs Helper', note: 'Test run does not open the other recipe', status, code, next: ['A'] });
+});
+
+test('stop shows its skip row and ends the rehearsal path', () => {
+  const stop = n('stop', 'reply.stop');
+  const flow = flowOf([trigger, stop], [e('t', 'next', 'stop')]);
+  const row = run(flow).steps.at(-1);
+  expect({ id: row?.id, status: row?.status, text: row?.text })
+    .toEqual({ id: 'stop', status: 'skipped', text: 'Stopped here' });
+});
+
+test.each([
   { name: 'parallel lanes', flow: flowOf([trigger, left, right], fork), expected: [['a', 0, [0], [], ['A']], ['b', 0, [1], [], ['B']]] },
   { name: 'paused parallel lane', flow: flowOf([trigger, wait, left, right], [e('t', 'next', 'w'), e('t', 'next', 'b'), e('w', 'next', 'a')]), expected: [['b', 0, [1], [], ['B']], ['a', 5000, [0], [], ['A']]] },
   { name: 'diamond continuation once after both arms', flow: flowOf([trigger, left, right, join], [...fork, e('a', 'next', 'j'), e('b', 'next', 'j')]), expected: [['a', 0, [0], [], ['A']], ['b', 0, [1], [], ['B']], ['j', 0, [], [], ['JOIN']]] },
@@ -186,22 +218,27 @@ test('a changed event trigger does not reuse the prior chat message', () => {
 });
 
 test.each([
-  { node: n('s', 'reply.chat', { message: '{random:1-10} {choice:a;b}' }), text: '', lines: ['1 a'], secondary: undefined },
+  { node: n('s', 'reply.chat', { message: '{random}' }), text: '', lines: ['1'], secondary: undefined },
+  { node: n('s', 'reply.chat', { message: '{random:1-10} {choice:a;b}' }), text: '', lines: ['1 a;b'], secondary: undefined },
   { node: n('s', 'reply.math', { expression: 'random(1,9)', saveAs: 'score' }), text: '1', lines: undefined, secondary: 'random(1,9)' }
 ])('samples and computed math values for $node.type', ({ node, text, lines, secondary }) => {
   const step = run(flowOf([trigger, node], [e('t', 'next', 's')])).steps.at(-1);
   expect<unknown>([step?.sample, step?.text, step?.lines, step?.secondary, step?.missing]).toEqual([true, text, lines, secondary, []]);
 });
 
-test.each([
+test.each<{ node: FlowNode; text: string; message?: string; secondary?: string }>([
   { node: n('s', 'reply.shoutout', { target: '{touser}' }), text: 'Shoutout to Sender' },
-  { node: n('s', 'reply.text', { op: 'upper', input: '{user}', saveAs: 'result' }), text: 'SENDER' },
-  { node: n('s', 'reply.var_set', { name: 'name', scope: 'channel', value: 'Hi {user}' }), text: 'Set name to Hi Sender' },
-  { node: n('s', 'reply.http_get', { url: 'https://example.com/{user}', saveAs: 'result' }), text: 'https://example.com/Sender' }
-])('effect descriptions show rehearsal values for $node.type', ({ node, text }) => {
+  { node: n('s', 'reply.text', { op: 'upper', input: 'hi', saveAs: 'result' }), text: 'HI' },
+  { node: n('s', 'reply.var', { do: 'set', name: 'name', scope: 'channel', value: '{user}' }), text: 'Sender' },
+  { node: n('s', 'reply.var', { do: 'add', name: 'score', scope: 'channel', amount: 3 }), text: '10' },
+  { node: n('s', 'reply.var', { do: 'add', name: 'unset', scope: 'channel', amount: 3 }), text: '3' },
+  { node: n('s', 'reply.http_get', { url: 'https://example.com/{user}', saveAs: 'result' }), text: 'https://example.com/Sender' },
+  { node: n('s', 'reply.http_post', { url: 'https://example.com/{user}', body: 'Hello {user}' }), text: 'https://example.com/Sender' },
+  { node: n('s', 'reply.http_get', { url: '{args}' }), message: '!test not a url', text: 'Set up this step first', secondary: 'not a url' }
+])('effect descriptions show rehearsal values for $node.type', ({ node, text, message = '!test', secondary }) => {
   const flow = flowOf([trigger, node], [e('t', 'next', 's')]);
-  const step = run(flow, { scenario: { message: '!test', user: 'Sender' } }).steps.at(-1);
-  expect(step?.text).toBe(text);
+  const step = run(flow, { scenario: { message, user: 'Sender', state: { channelVars: { score: '7' } } } }).steps.at(-1);
+  expect([step?.text, step?.secondary]).toEqual([text, secondary]);
 });
 
 test.each([
@@ -251,7 +288,7 @@ test.each([
     ids: ['t', 's'], found: ['s', 'failed', 'Add at least two poll choices.', [['too_short', 'choices']]] },
   { name: 'lights without a device', flow: afterTrigger(trigger, n('s', 'reply.lights', { mode: 'color' })),
     ids: ['t', 's'], found: ['s', 'failed', 'Light is missing.', [['required', 'device'], ['required', 'device']]] },
-  { name: 'variable with a blank amount', flow: afterTrigger(trigger, n('s', 'reply.var_add', { name: 'score', scope: 'channel', amount: '' })),
+  { name: 'variable with a blank amount', flow: afterTrigger(trigger, n('s', 'reply.var', { do: 'add', name: 'score', scope: 'channel', amount: '' })),
     ids: ['t', 's'], found: ['s', 'failed', 'A number is outside the allowed range.', [['out_of_range', 'amount']]] },
   { name: 'total delay exceeds the save limit',
     flow: flowOf([trigger, n('w', 'reply.wait', { seconds: 40 }), n('s', 'reply.wait', { seconds: 40 })], [e('t', 'next', 'w'), e('w', 'next', 's')]),

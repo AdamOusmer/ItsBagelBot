@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { lex } from '../engine/tmpl';
+import { isSetupRunPlaceholder, setupRunPlaceholder } from './flow-graph';
 import { classifyFlow, type AlertKey, type SimpleCommand } from './flow-layer';
 import { CODE, MAX_AUTOMATIONS_PER_CHANNEL, MAX_DEFINITION_BYTES, MAX_FLOWS_PER_FILE, MAX_FLOW_FILE_BYTES, MAX_NAME_LENGTH } from './limits';
 import { byteLength, trimSpace } from './text';
@@ -47,7 +48,8 @@ export type SetupCode =
   | 'fetch'
   | 'command_in_use'
   | 'privileged_action'
-  | 'timer_unowned';
+  | 'timer_unowned'
+  | 'run_target';
 
 const REVIEW_ONLY: ReadonlySet<SetupCode> = new Set([
   'run_linked',
@@ -581,10 +583,13 @@ function exportRow(row: FlowExportRow, ref: string, refs: Map<string, string>): 
   const run: RunRule = (action, path, notes) => {
     const target = refs.get(str(action.params?.automation_id));
     if (target) return { ...action, params: { automation_id: target } };
-    notes.push({ code: 'run_removed', path });
+    notes.push({ code: 'run_target', path });
     return disabled(action, { automation_id: SETUP_RUN_TARGET });
   };
-  const neutral = neutralDefinition(restrictedDefinition(row), run);
+  const source = mapDefinitionActions(restrictedDefinition(row), (action) => isSetupRunPlaceholder(action)
+    ? { type: 'run', params: { automation_id: SETUP_RUN_TARGET }, enabled: false }
+    : action);
+  const neutral = neutralDefinition(source, run);
   const { definition, scrubbed } = scrubDefinition(neutral.definition, neutral.setup);
   const nameAt: ScrubAt = { type: 'name', found: [] };
   const name = trimSpace(scrubString(row.name, 'name', nameAt));
@@ -606,7 +611,7 @@ function conditionGaps(definition: Definition): Issue[] {
 function actionGaps(definition: Definition): Issue[] {
   const gaps: Issue[] = [];
   mapDefinitionActions(definition, (action, path) => {
-    if (Object.values(action.params ?? {}).some(isSetupValue)) gaps.push({ path, code: 'setup_required' });
+    if (isSetupRunPlaceholder(action) || Object.values(action.params ?? {}).some(isSetupValue)) gaps.push({ path, code: 'setup_required' });
     return action;
   });
   return gaps;
@@ -818,10 +823,18 @@ function deadRunCode(action: Action, landedByRef: Map<string, FlowImportEntry>):
   return target?.status === 'ready' ? 'run_target_simple' : 'run_removed';
 }
 
+function runNeedsSetup(action: Action): boolean {
+  return action.type === 'run' && action.enabled === false && action.params?.automation_id === SETUP_RUN_TARGET;
+}
+
 function dropDeadRuns(entry: FlowImportEntry, landedByRef: Map<string, FlowImportEntry>): FlowImportEntry {
   if (entry.status !== 'ready') return entry;
   const notes: Notes = [];
   const definition = mapDefinitionActions(entry.definition!, (action, path) => {
+    if (runNeedsSetup(action)) {
+      notes.push({ code: 'run_target', path });
+      return action;
+    }
     const code = action.type === 'run' ? deadRunCode(action, landedByRef) : null;
     if (!code) return action;
     notes.push({ code, path });
@@ -838,7 +851,7 @@ function noteLinks(entry: FlowImportEntry, landedByRef: Map<string, FlowImportEn
   if (entry.status !== 'ready') return entry;
   const notes: Notes = [];
   mapDefinitionActions(entry.definition!, (action, path) => {
-    if (action.type === 'run') notes.push({ code: 'run_linked', path, detail: landedByRef.get(str(action.params?.automation_id))?.name });
+    if (action.type === 'run' && !runNeedsSetup(action)) notes.push({ code: 'run_linked', path, detail: landedByRef.get(str(action.params?.automation_id))?.name });
     return action;
   });
   return { ...entry, setup: [...entry.setup, ...notes] };
@@ -916,13 +929,16 @@ export function flowResultView(result: FlowImportResult): FlowImportResultView {
 
 // Holds each run's place: with the run simply gone, `command + chat + run` would classify as a plain command and land in the wrong layer.
 function firstPassDefinition(definition: Definition): Definition {
-  return mapDefinitionActions(definition, (action) => (action.type === 'run' ? { type: 'stop', enabled: false } : action));
+  return mapDefinitionActions(definition, (action) => {
+    if (runNeedsSetup(action)) return setupRunPlaceholder();
+    return action.type === 'run' ? { type: 'stop', enabled: false } : action;
+  });
 }
 
 function hasRuns(definition: Definition): boolean {
   let found = false;
   mapDefinitionActions(definition, (action) => {
-    found ||= action.type === 'run';
+    found ||= action.type === 'run' && !runNeedsSetup(action);
     return action;
   });
   return found;
@@ -932,6 +948,7 @@ function linkedDefinition(definition: Definition, ids: Map<string, string>): Def
   return compactDefinition(
     mapDefinitionActions(definition, (action) => {
       if (action.type !== 'run') return action;
+      if (runNeedsSetup(action)) return setupRunPlaceholder();
       const id = ids.get(str(action.params?.automation_id));
       return id ? { ...action, params: { automation_id: id } } : null;
     })
@@ -996,7 +1013,8 @@ async function linkEntry(created: Created, ids: Map<string, string>, deps: FlowC
 function droppedLinkNotes(entry: FlowImportEntry, ids: Map<string, string>): FlowImportEntry {
   const notes: Notes = [];
   mapDefinitionActions(entry.definition!, (action, path) => {
-    if (action.type === 'run' && !ids.has(str(action.params?.automation_id))) notes.push({ code: 'run_removed', path });
+    if (action.type !== 'run' || runNeedsSetup(action)) return action;
+    if (!ids.has(str(action.params?.automation_id))) notes.push({ code: 'run_removed', path });
     return action;
   });
   const dropped = new Set(notes.map((note) => note.path));

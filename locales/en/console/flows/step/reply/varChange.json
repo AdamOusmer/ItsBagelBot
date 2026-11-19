@@ -1,0 +1,42 @@
+{
+  "label": "Change a variable",
+  "summary": "Store, update, or clear a value",
+  "keywords": "store save remember counter set add delete forget",
+  "scopeWarning": "This trigger has no viewer. Choose The channel to change a variable here.",
+  "line": {
+    "set": "Set {name} to {value}",
+    "add": "Add {amount} to {name}",
+    "subtract": "Subtract {amount} from {name}",
+    "forget": "Forget {name}"
+  },
+  "field": {
+    "do": {
+      "label": "Do",
+      "option": {
+        "set": "Set to",
+        "add": "Add",
+        "subtract": "Subtract",
+        "forget": "Forget"
+      }
+    },
+    "scope": {
+      "label": "Kept for",
+      "option": {
+        "channel": "The channel",
+        "viewer": "This viewer"
+      }
+    },
+    "name": {
+      "label": "Name",
+      "placeholder": "deaths",
+      "hint": "One lowercase word. Letters and digits."
+    },
+    "value": {
+      "label": "Value",
+      "placeholder": "{user}"
+    },
+    "amount": {
+      "label": "Amount"
+    }
+  }
+}

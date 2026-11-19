@@ -116,5 +116,9 @@
   },
   "lightsRestore": "{light} возвращается в прежнее состояние",
   "lightsRestoreMany": "{light} возвращаются в прежнее состояние",
-  "lightsRestoreFallback": "Светильники"
+  "lightsRestoreFallback": "Светильники",
+  "stoppedHere": "Остановлено здесь",
+  "runsRecipe": "Запускает {name}",
+  "recipeSimulation": "Пробный запуск не открывает другой рецепт",
+  "recipeFailed": "Ошибка"
 }

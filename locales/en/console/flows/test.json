@@ -116,5 +116,9 @@
   },
   "lightsRestore": "{light} goes back",
   "lightsRestoreMany": "{light} go back",
-  "lightsRestoreFallback": "The lights"
+  "lightsRestoreFallback": "The lights",
+  "stoppedHere": "Stopped here",
+  "runsRecipe": "Runs {name}",
+  "recipeSimulation": "Test run does not open the other recipe",
+  "recipeFailed": "Failed"
 }

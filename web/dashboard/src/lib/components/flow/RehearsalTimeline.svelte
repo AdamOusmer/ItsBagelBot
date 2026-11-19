@@ -2,6 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { getI18n } from '@bagel/kit';
+  import { activeRandomPaths } from '@bagel/kit/automations';
   import type { RehearsalOverrides, RehearsalScenario } from '#lib/flow/rehearse';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
@@ -10,6 +11,7 @@
   import RehearsedLineRow from '#lib/components/commands/RehearsedLineRow.svelte';
   import '@bagel/ui/styles/elements/chat-preview.css';
   import { setStoredValue, type RehearsalStep } from '#lib/flow/rehearse';
+  import { randomPathLabel } from '#lib/flow/copy';
   import { rehearsalTimeline } from '#lib/flow/rehearsal-view';
 
   let { steps, scenario, overrides, verifyRepair, onScenario, onOverride, onSelect }: {
@@ -46,10 +48,15 @@
     'cond.chance': [{ value: 'yes', label: t('flows.test.yes') }, { value: 'no', label: t('flows.test.no') }],
     'cond.cooldown': [{ value: 'ready', label: t('flows.test.ready') }, { value: 'cooling', label: t('flows.test.cooling') }],
     'reply.http_get': [{ value: 'ok', label: t('flows.test.worked') }, { value: 'failure', label: t('flows.test.apiFailed') }],
-    'reply.http_post': [{ value: 'ok', label: t('flows.test.worked') }, { value: 'failure', label: t('flows.test.apiFailed') }]
+    'reply.http_post': [{ value: 'ok', label: t('flows.test.worked') }, { value: 'failure', label: t('flows.test.apiFailed') }],
+    'reply.run': [{ value: 'ok', label: t('flows.test.worked') }, { value: 'failure', label: t('flows.test.recipeFailed') }]
   } as Record<string, { value: string; label: string }[]>);
   const defaults: Record<string, Record<string, string>> = { 'cond.chance': { yes: 'yes', no: 'no' }, 'cond.cooldown': { yes: 'ready', no: 'cooling' } };
-  const initial = (step: RehearsalStep) => defaults[step.node?.type ?? '']?.[step.port ?? ''] ?? step.port ?? 'ok';
+  const initial = (step: RehearsalStep) => {
+    const type = step.node?.type ?? '';
+    if (type.startsWith('reply.http_')) return 'ok';
+    return defaults[type]?.[step.port ?? ''] ?? step.port ?? 'ok';
+  };
 
   function blockedChance(step: RehearsalStep, choice: string): boolean {
     if (step.node?.type !== 'cond.chance') return false;
@@ -61,14 +68,29 @@
     ...option, attrs: blockedChance(step, option.value) ? { disabled: '' } : undefined
   }));
   const pretendValue = (step: RehearsalStep) => {
+    if (step.node?.type === 'reply.random') return step.detail?.path ?? '1';
     const value = overrides[step.id ?? ''] ?? initial(step);
     return blockedChance(step, value) ? initial(step) : value;
   };
+  function choicesFor(step: RehearsalStep) {
+    if (step.node?.type === 'reply.random') {
+      return activeRandomPaths(step.node.config).map(({ path }) => ({ value: String(path), label: randomPathLabel(t, path) }));
+    }
+    return choices[step.node?.type ?? ''];
+  }
+  function choose(step: RehearsalStep, value: string) {
+    if (!step.id) return;
+    const key = step.node?.type === 'reply.random' ? `${step.id}.path` : step.id;
+    onOverride(key, value);
+  }
   const stored = (step: RehearsalStep) => {
     const key = step.node?.config.scope === 'viewer' ? 'viewerVars' : 'channelVars';
     return scenario.state?.[key]?.[String(step.node?.config.name ?? '').toLowerCase()] ?? '';
   };
-  const status = (step: RehearsalStep) => t(step.status === 'yes' ? 'flows.test.passed' : 'flows.test.failed');
+  const status = (step: RehearsalStep) => {
+    if (step.detail?.code === 'child_failed') return t('flows.test.recipeFailed');
+    return t(step.status === 'yes' ? 'flows.test.passed' : 'flows.test.failed');
+  };
 </script>
 
 <ol class="timeline" aria-label={t('flows.test.timeline')}>
@@ -78,9 +100,10 @@
       <div class="rows">
         {#each group.rows as row (row.step.key)}
           {@const step = row.step}
-          {@const pretend = choices[step.node?.type ?? '']}
+          {@const pretend = choicesFor(step)}
           {@const api = step.node?.type.startsWith('reply.http_')}
           {@const roleNote = step.node?.type === 'cond.role' ? step.note : undefined}
+          {@const showResult = step.kind === 'check' || step.issues || step.detail?.code === 'child_failed'}
           <article class="row" class:muted={step.status === 'skipped'} style:margin-inline-start="{laneOffset(step)}px">
             {#if step.lane.length}
               <span class="context">{t('flows.test.lane', { lane: step.lane.map((value) => value + 1).join('.') })}</span>
@@ -105,7 +128,7 @@
                 {/each}
               </div>
             {/if}
-            {#if step.kind === 'check' || step.issues}<span class="result">{status(step)}</span>{/if}
+            {#if showResult}<span class="result">{status(step)}</span>{/if}
             {#if step.sample}<span class="context">{t('flows.test.sample')}</span>{/if}
             {#if roleNote}<span class="missing role-note bb-fit-box"><bb-fit mode="block">{roleNote}</bb-fit></span>{/if}
             {#if step.note && !roleNote}<span class="missing">{step.note}</span>{/if}
@@ -113,11 +136,11 @@
             {#if pretend && step.id}
               <div class="pretend">
                 <span class="context">{t('flows.test.pretendStep')}</span>
-                <SegmentedControl label={t('flows.test.pretendStep')} options={pretendOptions(step, pretend)} value={pretendValue(step)} onValueChange={(value) => step.id && onOverride(step.id, value)} />
+                <SegmentedControl label={t('flows.test.pretendStep')} options={pretendOptions(step, pretend)} value={pretendValue(step)} onValueChange={(value) => choose(step, value)} />
               </div>
             {/if}
             {#if api && step.id}
-              {@const failed = step.status === 'failed' && !step.issues}
+              {@const failed = pretendValue(step) === 'failure'}
               {@const key = `${step.id}.${failed ? 'error' : 'response'}`}
               <Field label={t(failed ? 'flows.test.errorCode' : 'flows.test.response')} for="{uid}-{step.key}-response">
                 <Input id="{uid}-{step.key}-response" fill placeholder={t('flows.test.notSet')} value={overrides[key] ?? (failed ? 'upstream_error' : '')} oninput={(event) => onOverride(key, event.currentTarget.value)} />

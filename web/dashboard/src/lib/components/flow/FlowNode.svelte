@@ -42,9 +42,9 @@
   }
 
   const spec = $derived(specFor(node.type));
-  const outputs = $derived(spec ? outputsFor(spec) : []);
+  const outputs = $derived(outputsFor(spec, node));
   const isTrigger = $derived(spec?.kind === 'trigger');
-  const branching = $derived(Boolean(spec?.outputs));
+  const branching = $derived(outputs.length > 1);
   const { t } = getI18n();
   const line = $derived(describe(t, node));
   const title = $derived(spec ? stepLabel(t, spec) : '');
@@ -83,7 +83,7 @@
     class={cardClass}
     background
     {selected}
-    style="width: {NODE_W}px; height: {nodeHeight(spec)}px;"
+    style="width: {NODE_W}px; height: {nodeHeight(spec, node)}px;"
     role="button"
     tabindex={tabbable ? 0 : -1}
     aria-pressed={selected}
@@ -114,16 +114,16 @@
     {#if branching}
       <div class="rows" style:top="{HEADER_H}px">
         {#each outputs as out, i (out.id)}
-          <div class="row" class:tone-yes={i === 0} style:height="{ROW_H}px">
+          <div class="row" class:tone-yes={i !== 1} style:height="{ROW_H}px">
             <span class="row-label">{portLabel(t, node, out.id)}</span>
           </div>
         {/each}
       </div>
       {#each outputs as out, i (out.id)}
-        {@render outPort(out.id, t('flows.board.addAfter', { label: portLabel(t, node, out.id) }), portY(spec, out.id), i === 0 ? 'yes' : 'no')}
+        {@render outPort(out.id, t('flows.board.addAfter', { label: portLabel(t, node, out.id) }), portY(spec, out.id, node), i === 1 ? 'no' : 'yes')}
       {/each}
-    {:else}
-      {@render outPort(outputs[0]?.id ?? 'next', t('flows.board.addAfterThis'), HEADER_H / 2, 'yes')}
+    {:else if outputs[0]}
+      {@render outPort(outputs[0].id, t('flows.board.addAfterThis'), HEADER_H / 2, 'yes')}
     {/if}
   </CanvasCard>
 {/if}

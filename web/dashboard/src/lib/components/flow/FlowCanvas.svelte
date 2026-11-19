@@ -811,8 +811,9 @@
     const n = selectedId ? nodeById(selectedId) : undefined;
     const spec = n && specFor(n.type);
     if (!n || !spec) return false;
-    const outs = outputsFor(spec);
-    const port = outs[other ? outs.length - 1 : 0].id;
+    const outs = outputsFor(spec, n);
+    const port = outs[other ? outs.length - 1 : 0]?.id;
+    if (!port) return false;
     const anchor = cards[n.id]?.addButton(port);
     if (!anchor) return false;
     menuByKey = true;
@@ -875,6 +876,17 @@
   const requirementsTrigger = $derived(requirementTrigger(flow));
   const occupied = $derived(portOccupied(flow, menu?.link));
   const activeResultId = $derived(results[activeResult] ? `${pickerId}-${results[activeResult].type}` : undefined);
+
+  let priorPortCounts = new Map<NodeId, number>();
+  $effect(() => {
+    const counts = new Map(flow.nodes.flatMap((node) => {
+      const spec = specFor(node.type);
+      return spec?.outputsFor ? [[node.id, outputsFor(spec, node).length] as const] : [];
+    }));
+    const resized = [...counts].some(([id, count]) => priorPortCounts.has(id) && priorPortCounts.get(id) !== count);
+    priorPortCounts = counts;
+    if (resized && autoTidy) untrack(() => runTidy(true));
+  });
 
   $effect(() => {
     menuSearch?.focus({ preventScroll: true });

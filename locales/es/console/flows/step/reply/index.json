@@ -79,8 +79,9 @@
     "summary": "Pausar antes del siguiente paso",
     "field": {
       "seconds": {
-        "label": "Retardo",
-        "unit": "segundos, máximo {max}"
+        "label": "Esperar durante",
+        "unit": "segundos, máximo {max}",
+        "hint": "En cada ejecución, todas las esperas suman como máximo 60 segundos."
       }
     }
   },
@@ -90,7 +91,8 @@
     "field": {
       "times": {
         "label": "Cuántas veces",
-        "placeholder": "3"
+        "placeholder": "3",
+        "hint": "De 1 a 100. También puedes usar una variable, como {args}."
       }
     },
     "out": {
@@ -162,7 +164,8 @@
     "field": {
       "expression": {
         "label": "Expresión",
-        "placeholder": "({bits} / 100) + 1"
+        "placeholder": "random(1, 6) * 10",
+        "hint": "Usa + - * / % ^ y las funciones round, floor, ceil, abs, min, max y random(a, b)."
       },
       "saveAs": {
         "label": "Guardar como",
@@ -367,6 +370,64 @@
       },
       "resolution": {
         "label": "Mensaje al espectador (opcional)"
+      }
+    }
+  },
+  "stop": {
+    "label": "Detener aquí",
+    "summary": "Termina la ejecución aquí",
+    "keywords": "fin terminar salir detener",
+    "line": "Termina la ejecución aquí",
+    "note": "En rutas paralelas, solo termina esa ruta."
+  },
+  "random": {
+    "label": "Elegir una ruta al azar",
+    "summary": "Elige una ruta según las probabilidades configuradas",
+    "keywords": "dados azar mezclar ponderado",
+    "path": "Ruta {path}",
+    "pathPercent": "{label} ({percent} %)",
+    "field": {
+      "paths": {
+        "label": "Rutas",
+        "option": {
+          "2": "2",
+          "3": "3",
+          "4": "4",
+          "5": "5"
+        }
+      },
+      "weight1": {
+        "label": "Probabilidad de la ruta 1",
+        "unit": "partes"
+      },
+      "weight2": {
+        "label": "Probabilidad de la ruta 2",
+        "unit": "partes"
+      },
+      "weight3": {
+        "label": "Probabilidad de la ruta 3",
+        "unit": "partes"
+      },
+      "weight4": {
+        "label": "Probabilidad de la ruta 4",
+        "unit": "partes"
+      },
+      "weight5": {
+        "label": "Probabilidad de la ruta 5",
+        "unit": "partes"
+      }
+    }
+  },
+  "run": {
+    "label": "Ejecutar otra receta",
+    "summary": "Inicia otra receta de este canal",
+    "keywords": "llamar activar encadenar",
+    "line": "Ejecutar {name}",
+    "note": "Una receta puede llamar a otras con hasta 2 niveles de profundidad.",
+    "field": {
+      "automationId": {
+        "label": "Receta",
+        "hint": "Se siguen aplicando sus propias comprobaciones. Empieza con los valores de esta receta y conserva sus cambios por separado."
       }
     }
   }

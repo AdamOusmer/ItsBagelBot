@@ -116,7 +116,8 @@
     "scene": "Choisir une scène",
     "light": "Choisir d’abord une lumière",
     "namedCooldown": "Choisir un minuteur",
-    "namedCountdown": "Choisir un compte à rebours"
+    "namedCountdown": "Choisir un compte à rebours",
+    "recipe": "Choisir une recette"
   },
   "choiceEmpty": {
     "rewards": "Aucune récompense de points de chaîne pour le moment. Créez-en une dans Points de chaîne.",
@@ -124,7 +125,8 @@
     "counters": "Aucun compteur pour le moment. Créez-en un dans Compteurs.",
     "scenes": "Cette lumière n’a aucune scène.",
     "namedCooldowns": "Ajoute d’abord un délai de récupération et donne-lui un nom.",
-    "namedCountdowns": "Ajoute d’abord une étape pour démarrer un compte à rebours."
+    "namedCountdowns": "Ajoute d’abord une étape pour démarrer un compte à rebours.",
+    "recipes": "Crée une autre recette pour pouvoir la sélectionner ici."
   },
   "choiceProblem": {
     "rewards": "Impossible de charger vos récompenses.",
@@ -132,7 +134,8 @@
     "scenes": "Impossible de charger les scènes de cette lumière.",
     "keyRejected": "Govee n’a pas accepté votre clé API.",
     "namedCooldowns": "Impossible de charger les minuteurs de vos recettes.",
-    "namedCountdowns": "Impossible de charger les comptes à rebours."
+    "namedCountdowns": "Impossible de charger les comptes à rebours.",
+    "recipes": "Impossible de charger tes recettes."
   },
   "choiceMissing": "\"{name}\" n’est plus dans la liste.",
   "choiceUnowned": "Aucune recette ne possède encore \"{name}\". Cela ne fera rien jusqu’à ce qu’une le fasse.",
@@ -143,6 +146,7 @@
     "stepNote": "Cette étape reste désactivée tant que tu ne l'as pas remplie.",
     "pickReward": "Choisis une récompense",
     "addUrl": "Ajoute une URL",
-    "refused": "Remplis les étapes à configurer, enregistre, puis active ceci."
+    "refused": "Remplis les étapes à configurer, enregistre, puis active ceci.",
+    "pickRecipe": "Choisis une recette pour l’étape « Exécuter une autre recette »."
   }
 }

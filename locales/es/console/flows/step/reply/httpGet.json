@@ -8,7 +8,8 @@
     },
     "jsonPath": {
       "label": "Ruta JSON",
-      "placeholder": "data.value"
+      "placeholder": "data.items.0.name",
+      "hint": "Separa las claves con puntos. También puedes usar corchetes."
     },
     "saveAs": {
       "label": "Guardar como",
@@ -18,5 +19,11 @@
   "out": {
     "ok": "Funcionó",
     "failure": "Falló"
+  },
+  "tryIt": {
+    "label": "Probar",
+    "fixedAddress": "Esta prueba solo funciona con una dirección fija.",
+    "loading": "Obteniendo una muestra…",
+    "error": "No se pudo obtener una muestra JSON. Comprueba la dirección y vuelve a intentarlo."
   }
 }

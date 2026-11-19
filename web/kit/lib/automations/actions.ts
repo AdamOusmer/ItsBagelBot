@@ -4,6 +4,7 @@
 import { STREAM_ACTIONS } from './stream-actions';
 import { TARGET_DEFAULTS, TARGET_SCHEMA, type Chk } from './check';
 import { JSON_PATH_MAX_DEPTH, PATH_SEGMENT_RE, validateFetchDef } from '../engine/fetch-validate';
+import { lex } from '../engine/tmpl';
 import { checkVarIdentity, counterName } from './conditions';
 import { POINTS_ACTION_SCHEMA, register, type Table, type Wide } from './engine';
 import {
@@ -18,13 +19,14 @@ import {
   MAX_LIGHTS_KELVIN,
   MAX_REWARD_COST,
   MAX_TEMPLATE_LENGTH,
+  MAX_MATH_EXPRESSION_RUNES,
   MAX_VARIABLE_AMOUNT,
   MIN_LIGHTS_BRIGHTNESS,
   MIN_LIGHTS_KELVIN,
   RECIPE_NAME_PATTERN,
 } from './limits';
-import { LIGHTS_MODES } from './types';
-import type * as T from './types';
+import { trimSpace } from './text';
+import * as T from './types';
 import { commandName } from './triggers';
 
 const ANNOUNCE_COLORS = ['', 'primary', 'blue', 'green', 'orange', 'purple'];
@@ -98,7 +100,7 @@ export function checkSaveAs(c: Chk, name: string): void {
 }
 
 export function checkHttpPostFields(c: Chk, p: { url: string; body: string; save_as: string }): void {
-  if (c.text('url', p.url, 1, MAX_FETCH_URL_LENGTH) && fetchUrlRejected(p.url)) c.add('url', CODE.invalidFormat);
+  if (c.text('url', p.url, 1, MAX_FETCH_URL_LENGTH) && fetchTemplateRejected(p.url)) c.add('url', CODE.invalidFormat);
   c.text('body', p.body, 0, 2000);
   checkSaveAs(c, p.save_as);
 }
@@ -107,12 +109,10 @@ function jsonPathRejected(path: string[]): boolean {
   return path.length > JSON_PATH_MAX_DEPTH || !path.every((segment) => PATH_SEGMENT_RE.test(segment));
 }
 
-function httpsTemplateRejected(template: string): boolean {
-  return !template.startsWith('{') && !template.startsWith('https://');
-}
-
 function fetchTemplateRejected(url: string): boolean {
-  return url.includes('{') ? httpsTemplateRejected(url) : fetchUrlRejected(url);
+  const tokens = lex(url);
+  if (!tokens.some((token) => token.kind === 'var')) return fetchUrlRejected(url);
+  return tokens[0]?.kind !== 'var' && !url.startsWith('https://');
 }
 
 export function checkHttpGetFields(c: Chk, p: { url: string; json_path: string[]; save_as: string }): void {
@@ -121,18 +121,17 @@ export function checkHttpGetFields(c: Chk, p: { url: string; json_path: string[]
   checkSaveAs(c, p.save_as);
 }
 
-const TEXT_OPS = ['upper', 'lower', 'trim', 'length', 'replace', 'substring', 'split_pick', 'contains', 'url_encode'];
-
 function checkTextStep(c: Chk, p: Wide<T.TextStepAction>): void {
-  c.oneOf('op', p.op, TEXT_OPS);
+  c.oneOf('op', p.op, T.TEXT_OPS);
   c.text('input', p.input, 0, MAX_TEMPLATE_LENGTH);
-  c.text('arg1', p.arg1, 0, MAX_TEMPLATE_LENGTH);
+  c.text('arg1', p.arg1, p.op === 'replace' ? 1 : 0, MAX_TEMPLATE_LENGTH);
   c.text('arg2', p.arg2, 0, MAX_TEMPLATE_LENGTH);
+  if (p.op === 'split_pick' && trimSpace(p.arg2) === '') c.add('arg2', CODE.required);
   c.simpleWord('save_as', p.save_as, RECIPE_NAME_PATTERN);
 }
 
 function checkMath(c: Chk, p: Wide<T.MathAction>): void {
-  c.template('expression', p.expression);
+  c.text('expression', p.expression, 1, MAX_MATH_EXPRESSION_RUNES);
   c.simpleWord('save_as', p.save_as, RECIPE_NAME_PATTERN);
 }
 
@@ -206,7 +205,7 @@ function checkLights(c: Chk, p: LightsParams): void {
   c.text('sku', p.sku, 1, 32);
   c.text('device_name', p.device_name, 0, 100);
   c.stringList('extra_lights', p.extra_lights, MAX_EXTRA_LIGHTS, (f, s) => c.format(f, s, LIGHT_REF_PATTERN));
-  c.oneOf('mode', p.mode, LIGHTS_MODES);
+  c.oneOf('mode', p.mode, T.LIGHTS_MODES);
   if (p.mode !== 'off' && p.brightness !== 0) {
     c.inRange('brightness', p.brightness, MIN_LIGHTS_BRIGHTNESS, MAX_LIGHTS_BRIGHTNESS);
   }

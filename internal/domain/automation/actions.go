@@ -311,7 +311,7 @@ func checkDelay(c chk, p DelayAction) { inRange(c, "ms", p.Ms, between(1, MaxDel
 func checkRun(c chk, p RunAction) { c.text("automation_id", p.AutomationID, nonEmpty(64)) }
 
 func checkHTTPPost(c chk, p HTTPPostAction) {
-	if c.text("url", p.URL, nonEmpty(validate.MaxFetchURLLength)) && validate.FetchURL(p.URL) != nil {
+	if c.text("url", p.URL, nonEmpty(validate.MaxFetchURLLength)) && !plausibleFetchTemplate(p.URL) {
 		c.add("url", CodeInvalidFormat)
 	}
 	c.text("body", p.Body, upTo(2000))
