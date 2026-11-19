@@ -7,8 +7,8 @@ Status: Proposed. Design only; nothing here is implemented. Open decisions are i
 
 Three separate tools on one reliable engine:
 
-- **Giveaway**: a real prize (a game key, a headset). Free to enter, explicit winner count, participation rules, presence check, per-slot reroll, durable receipt. Never pays points.
-- **Raffle**: a points prize. Lives under Loyalty next to Gamble and Duels. Explicit or predictable winner count, exactly-once payout.
+- **Giveaway**: a real prize (a game key, a headset). Free to enter, explicit winner count, participation rules, presence check, per-slot reroll, stored winners. Never pays points.
+- **Raffle**: a points prize. Lives under Loyalty next to Gamble and Duels. Explicit or predictable winner count, exactly-once payout. Nothing is stored once it finishes; the balance change is the only trace.
 - **Loyalty**: the bank. Earns, stores and spends points and watch time, reports whether accrual is healthy, and can **freeze** its public standings and eligibility snapshot for up to 30 minutes while live balances keep counting.
 
 A streamer runs any of them from one page or one chat line, and no round ever mixes an item with points.
@@ -51,7 +51,7 @@ Missing
 | Entry | One viewer id admitted to a round, with its weight and the result of the join-time rules. |
 | Slot | One winner position. Carries a generation number and a state (section 5). |
 | Rule set | Participation rules in the round's terms. |
-| Receipt | The finished round's terms, entrant count, pool digest and slot history. |
+| Winner record | One stored row per giveaway winner: round id, prize, time, viewer id, login, claim and delivery state. Nothing else about a round is stored. Raffles store nothing. |
 | Freeze | A channel-wide copy of standings, at most 30 minutes, read by public standings and eligibility while live balances keep changing. |
 | Accrual health | Whether this channel's watch accrual is running now. |
 
@@ -59,7 +59,7 @@ Model rules
 - One **joinable** round per channel across both kinds, so `!join` always has one meaning. Rounds that are drawing, claiming or paying coexist with a new joinable round. Opening while another round is joinable is refused: "A giveaway is already open. Draw or cancel it first."
 - A giveaway never pays points; a raffle never carries item text.
 - Admission sticks: rules checked at `!join` are not checked again. Rules that run at draw are checked once per drawn viewer.
-- Terms change only by an explicit mod action, and each change is recorded in the receipt: Close now, Add 1 minute (moves `closes_at`, never past the freeze end when the rules read the freeze), `!raffle draw N` (resolves the winner count), and D5's skip-rule decision. `auto` is stored as a policy and resolved to a count at close.
+- Terms change only by an explicit mod action, and each change is recorded on the round while it runs: Close now, Add 1 minute (moves `closes_at`, never past the freeze end when the rules read the freeze), `!raffle draw N` (resolves the winner count), and D5's skip-rule decision. `auto` is stored as a policy and resolved to a count at close.
 
 ## 4. Boundaries and ownership
 
@@ -70,8 +70,8 @@ Model rules
 | Giveaway mod commands and settings | Sesame `modules/giveaway.go`, new module `giveaway` (Play) |
 | Raffle mod commands and settings | Sesame `modules/raffle.go`, re-parented to Loyalty |
 | Participation rules | Sesame `engine/eligibility` (new package) |
-| Giveaway receipts and win history | Modules service (`bagel_modules`), like quote books (D1) |
-| Raffle payout idempotency | Loyalty service (`bagel_loyalty`) |
+| Giveaway winner records | Modules service (`bagel_modules`), like quote books (D1) |
+| Raffle payout dedup markers (short-lived) | Loyalty service (`bagel_loyalty`) |
 | Freeze state and snapshot | Loyalty service (`bagel_loyalty`) |
 | Followage and account-age lookups | Outgress, charged to its existing Helix buckets |
 | Settings | Modules service module rows (`giveaway` new, `raffle` kept) |
@@ -111,7 +111,7 @@ pending -> verifying -> won -> claimed            (giveaway with claim window)
 - Verify: draw-time rules run outside the script (RPC). A pass moves `verifying -> won` by compare-and-set on slot and generation; a fail records the reason and returns the slot to `pending`; a lookup error leaves it in `verifying` with a due retry (bounded by D5).
 - Announce: giveaway winners are announced when their slots reach `won`; raffle winners after their slots reach `paid`. Slots finishing in the same step share one line. If verification or payout is still running after 10 seconds, one "verifying winners" line is posted so chat is never silent.
 - Weighted selection is sequential: each pick is proportional to the remaining eligible weight. For one winner this is exactly weight over total eligible weight.
-- The due zset is the recovery path for every phase: a crashed close, a slot stuck in `verifying`, an expired claim window and an unpaid slot are all due actions retried until the phase completes. Each due action carries the round id and the slot generation it expects. The receipt is persisted to Modules first; the due entry is removed after that write, at `done` or `cancelled`.
+- The due zset is the recovery path for every phase: a crashed close, a slot stuck in `verifying`, an expired claim window and an unpaid slot are all due actions retried until the phase completes. Each due action carries the round id and the slot generation it expects. For a giveaway, the winner rows are written to Modules first and the due entry is removed after that write. At `done` or `cancelled` every `draw:*` key of the round is deleted, for both kinds.
 - Rounds keep settling if their module is turned off or the stream goes offline mid-round. Turning a module off only stops new rounds.
 
 Why verify only drawn viewers
@@ -123,12 +123,12 @@ Winner count
 
 Presence check and reroll (giveaway)
 - Claim window: off, or 30 seconds to 15 minutes; default 2 minutes. Slots announced in the same line share one deadline; a rerolled slot gets a fresh window. With the window off, `won` is final.
-- `!claim` resolves the viewer through `draw:claimable` and claims every open slot that viewer holds, checking deadline, slot and generation in one script. `!reroll` targets the newest settling giveaway; `!winner` shows the newest round that has winners.
+- `!claim` resolves the viewer through `draw:claimable` and claims every open slot that viewer holds, checking deadline, slot and generation in one script. `!reroll` targets the newest settling giveaway; `!winner` shows the newest round still settling, otherwise the last stored giveaway winners.
 - At the deadline the unclaimed slots of that line become `no_show` together. With "reroll no-shows" on, they return to `pending` together and the replacements share one line; otherwise the panel shows Reroll, and `!reroll` rerolls every no-show (`!reroll 2` for one slot).
 - A round is `done` when every slot is `claimed`, `paid`, `unpaid`, `unfilled`, ended by a mod, or `won` with the claim window off.
 
 Fairness record
-- The receipt stores the pool digest (sorted viewer ids with weights), entrant count, and per slot every candidate with its generation and rejection reason. Selection uses `crypto/rand` as today (`engine/raffle_mechanics.go:48-81`). A seed commit-reveal scheme was considered and dropped: the server would still hold the seed and controls eligibility, so it would add ceremony without a real guarantee.
+- While a round runs, each slot keeps every candidate with its generation and rejection reason, shown on the live panel. None of it is stored after the round ends. Selection uses `crypto/rand` as today (`engine/raffle_mechanics.go:48-81`). A seed commit-reveal scheme was considered and dropped: the server would still hold the seed and controls eligibility, so it would add ceremony without a real guarantee.
 
 ## 6. Giveaway
 
@@ -136,7 +136,7 @@ Settings (`giveaway` module row)
 - Default prize name (floor-checked at save and at open), winners, entry window, claim window, reroll no-shows.
 - Rule presets, for example "Regulars" (7 day follow, 2 h watch time) or "Subs only". A round copies its preset at open.
 - Subscriber luck: optional multiplier 1x to 3x (default off, D2). Stored on each entry.
-- Skip recent winners: exclude anyone who won a giveaway in this channel within N days (default off). Checked at draw against Modules history.
+- Skip recent winners: exclude anyone who won a giveaway in this channel within N days (default off). Checked at draw against the stored winner rows.
 - Freeze standings while open: default on when the preset has a points or watch time rule (section 11).
 - Rejection line: when `!join` fails a join-time rule, reply once per viewer per round with the reason (default on). Successful joins stay silent.
 
@@ -157,9 +157,9 @@ Dashboard live panel
 - After close: one row per slot with winner, claim countdown, state, rejection reasons of replaced candidates, Reroll, and Mark delivered. Prize keys are never stored.
 - A banner when the freeze ends before the draw has started (a delayed close).
 
-Receipt and history
-- Persisted in Modules when the round reaches `done` or `cancelled`; delivery marks update a field on the stored receipt.
-- Public receipt on the channel's public page: prize, time, entrant count, winners and slot history. No entrant list.
+Winner history
+- Only winners are stored, one Modules row each, written when the round reaches `done`. Mark delivered updates that row. Entrants, rejected candidates and rules are not stored.
+- The channel's public page lists past giveaway winners: prize, time, winner.
 
 ## 7. Raffle (points, under Loyalty)
 
@@ -172,8 +172,8 @@ Chat stays compatible: `!raffle [amount] [seconds]`, `!sraffle`, `!mraffle [amou
   - The loyalty service stores the key with a payload hash and the original reply in the credit transaction, under the account fence. A replay with the same payload returns the stored reply; a different payload is refused.
   - Transient errors leave the slot `won` with a due retry. Permanent errors (invalid input, overflow, retired account) move it to `unpaid`.
   - The winner line is posted after payout and states the paid amount: "@a, @b and @c each won 1,666 points".
-  - `!winner` and the dashboard list unpaid slots by name.
-  - A slot stops retrying 24 hours after the draw and becomes `unpaid`. Idempotency rows are kept 7 days, longer than any retry, then pruned with the existing retention pattern (`repo/counter_retention.go:31`).
+  - While the raffle is settling, `!winner` and the dashboard list unpaid slots by name. Once every slot is `paid` or `unpaid` the round's keys are deleted and nothing remains.
+  - A slot stops retrying 24 hours after the draw and becomes `unpaid`. The dedup marker is only the key and payload hash, written in the credit transaction so a retry cannot pay twice. It is deleted 24 hours after the draw, once no retry can arrive, with the existing retention pattern (`repo/counter_retention.go:31`). It is not a raffle record.
   - The round records the winner's account instance when the slot is drawn; a credit for a different instance (deleted and recreated account) is a permanent error.
   - Keyed credits use a new verb `balance.credit` that requires the key, so an old loyalty pod can never accept a keyed credit without deduplicating it. Loyalty ships first.
 
@@ -187,7 +187,7 @@ Chat stays compatible: `!raffle [amount] [seconds]`, `!sraffle`, `!mraffle [amou
 | Minimum watch time (lifetime in channel) | Same read | At `!join` |
 | Followers only, minimum follow age | `followage.get` (`engine/followage_rpc.go:15-21`) | At draw |
 | Minimum account age | `accountage.get` (`engine/accountage_rpc.go:17-21`) | At draw |
-| Skip recent winners | Modules giveaway history | At draw |
+| Skip recent winners | Modules giveaway winner rows | At draw |
 
 - Join-time rules run in this order and stop at the first failure. The result is stored on the entry.
 - Draw-time rules run per candidate (section 5). `!check` runs them for the asking viewer behind its cooldown.
@@ -250,14 +250,14 @@ Public page copy: "Leaderboard paused at 20:14. Points and watch time are still 
 
 Dashboard
 - **Loyalty**: Status (accrual health, freeze control), Earning (rates), Standings (top list, reset), **Games** with Raffle, Gamble and Duels settings inline. The gamble, duel and raffle module pages redirect there.
-- **Giveaways** (Play): live panel, presets, history with receipts.
+- **Giveaways** (Play): live panel, presets, past winners.
 
 Item giveaway
 1. Giveaways: preset "Regulars", prize "Elden Ring key", 3 winners, 3 minutes, Start. Or `!giveaway start regulars Elden Ring key`.
 2. One opening line with prize and requirements. Viewers `!join`; a viewer under 2h watch time gets one reply saying so.
 3. At close, candidates are verified; one line names the winners and the claim window.
 4. Winners `!claim`. A no-show is rerolled with a fresh window. Mark delivered per row. The freeze ended at close.
-5. The receipt appears in history and on the public page.
+5. The winners appear in past winners and on the public page.
 
 Points raffle
 1. `!mraffle 5k 60 3`. One opening line.
@@ -277,7 +277,7 @@ Viewer
 
 - The `raffle` row keeps `prizePoints`, `durationSeconds` and its line toggles. `claimEnabled` and `claimPrize` seed the new `giveaway` row (claim window, default prize) and are no longer read by raffles.
 - Rollout needs a mutual gate before the new engine opens anything. First a release where the legacy `Open` also refuses while `draw:joinable:<id>` exists (today it checks only its own deadline, `engine/raffle_valkey.go:154-174`). Then the release where new `Open` refuses while a legacy `raffle:state:<id>` exists and the shared `!join` routes to the legacy store while one is open. The legacy store keeps its due sweep until `raffle:due` is empty, then is removed.
-- `!claim` and `!winner` read legacy receipts until they expire (24 hours).
+- `!claim` and `!winner` read legacy results until they expire (24 hours). Legacy raffle results are not migrated.
 - Recipe tokens: `{raffle:*}` keeps its names; giveaways add `{giveaway:prize}`, `{giveaway:count}`, `{giveaway:left}`.
 
 ## 14. Later
@@ -286,7 +286,7 @@ Custom entry keyword, giveaway overlay events on the desktop overlay lane, entry
 
 ## 15. Open decisions
 
-- D1: giveaway history in Modules (`bagel_modules`). Recommended, alongside quote books.
+- D1: giveaway winner rows in Modules (`bagel_modules`). Recommended, alongside quote books.
 - D2: subscriber luck in v1. Recommended, capped at 3x.
 - D3: raffle ticket pots (points spent to enter). Recommended later: a debit in SQL plus an entry in Valkey needs its own replay-safe join, which v1 does not need.
 - D4: `!check` and join refusals in chat (one line, deduplicated) or by whisper. Recommended chat; whispers need an extra scope and Twitch limits them hard.
@@ -326,7 +326,7 @@ One PR each; main stays shippable after every step.
 5. Raffle on `engine/draw`: explicit winners, `auto`, exact payout, re-parent under Loyalty, Games tab.
 6. Freeze: tables, verbs, frozen `top.get`, public banner, purge consumer, dashboard control, `!freeze`.
 7. `engine/eligibility`, `!check`, join refusals.
-8. Giveaway module, live panel, presets, Modules history, public receipt.
+8. Giveaway module, live panel, presets, Modules winner rows, public past winners.
 9. Amount grammar and gamble id cooldown.
 10. Remove the legacy `raffle:*` store after drain.
 
