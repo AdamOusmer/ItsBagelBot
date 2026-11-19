@@ -8,7 +8,8 @@ import { comparePasses } from './compare';
 import { eventKinds } from './event-kinds';
 import { compilesAsRe2 } from './regex';
 import { MAX_DEFINITION_BYTES } from './limits';
-import { parseDefinition, validateName } from './validate';
+import type { Action, PermLevel } from './types';
+import { parseDefinition, validateDefinition, validateName } from './validate';
 
 const TESTDATA = join(import.meta.dir, '../../../../internal/domain/automation/testdata');
 
@@ -34,6 +35,24 @@ describe('invalid fixtures', () => {
       const golden = JSON.parse(read('invalid', file.replace(/\.json$/, '.issues.json')));
       expect(parseDefinition(read('invalid', file)).issues).toEqual(golden);
     });
+  }
+});
+
+describe('stream action roles', () => {
+  const policy: { actions: Action[]; callers: { level: PermLevel; permRequired: boolean }[] } =
+    JSON.parse(read('stream_action_roles.json'));
+  for (const { level, permRequired } of policy.callers) {
+    const want = permRequired ? [{ path: 'actions[0].type', code: 'perm_required' }] : [];
+    for (const action of policy.actions) {
+      test(`${level}/${action.type}`, () => {
+        expect(validateDefinition({
+          version: 1,
+          trigger: { type: 'command', params: { name: '!run' } },
+          conditions: [{ type: 'perm', params: { level } }],
+          actions: [action],
+        })).toEqual(want);
+      });
+    }
   }
 });
 

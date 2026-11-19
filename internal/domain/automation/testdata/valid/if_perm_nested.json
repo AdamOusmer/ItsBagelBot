@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "trigger": { "type": "command", "params": { "name": "!run" } },
+  "actions": [
+    {
+      "type": "if",
+      "params": {
+        "condition": { "type": "perm", "params": { "level": "mod" } },
+        "then": [
+          {
+            "type": "if",
+            "params": {
+              "condition": { "type": "perm", "params": { "level": "vip" } },
+              "then": [{ "type": "timeout", "params": { "login": "alice", "seconds": 30 } }]
+            }
+          },
+          {
+            "type": "if",
+            "params": {
+              "condition": { "type": "perm", "params": { "level": "lead_mod" } },
+              "then": [{ "type": "clip" }],
+              "else": [{ "type": "timeout", "params": { "login": "alice", "seconds": 30 } }]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

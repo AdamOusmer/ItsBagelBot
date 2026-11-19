@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "trigger": { "type": "timer", "params": { "interval_s": 60 } },
+  "actions": [{ "type": "points_set", "params": { "login": "", "amount": 10 } }]
+}

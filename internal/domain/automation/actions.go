@@ -80,10 +80,7 @@ type PointsAddAction struct {
 	Amount int64  `json:"amount"`
 }
 
-type PointsSetAction struct {
-	Login  string `json:"login"`
-	Amount int64  `json:"amount"`
-}
+type PointsSetAction PointsAddAction
 
 type CounterAddAction struct {
 	Name   string `json:"name"`
@@ -306,7 +303,9 @@ func parallelBranches(p ParallelAction) nesting {
 
 func checkIf(c chk, p IfAction) {
 	c.sub("condition").typed(conditionRegistry, typedParams(p.Condition))
-	c.sub("then").nest().actions(p.Then)
+	then := c.sub("then").nest()
+	then.perm = max(c.perm, permRank([]Condition{p.Condition}))
+	then.actions(p.Then)
 	c.sub("else").nest().actions(p.Else)
 }
 

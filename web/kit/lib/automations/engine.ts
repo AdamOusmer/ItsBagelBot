@@ -4,6 +4,7 @@
 import { decodeStrict, type DecodeError, type Schema } from './decode';
 import { Chk } from './check';
 import { CODE } from './limits';
+import { trimSpace } from './text';
 import { PERM_LEVELS } from './values';
 
 export type Widen<V> = V extends string ? string : V extends (infer U)[] ? Widen<U>[] : V;
@@ -38,6 +39,9 @@ const REQUIRED_TRIGGER: Record<string, string> = {
   redemption: 'reward',
 };
 
+const VIEWERLESS_TRIGGERS = new Set(['countdown:', 'timer:', 'event:stream.online', 'event:stream.offline']);
+export const POINTS_ACTION_SCHEMA: Schema = { login: 'string', amount: 'int' };
+
 const ACTION_ROLE: Record<string, number> = {
   poll: ROLE_MODERATOR,
   poll_end: ROLE_MODERATOR,
@@ -52,7 +56,13 @@ const ACTION_ROLE: Record<string, number> = {
   ad_snooze: ROLE_LEAD_MODERATOR,
   whisper: ROLE_MODERATOR,
   unban_resolve: ROLE_MODERATOR,
-  branded_content: ROLE_MODERATOR,
+  branded_content: ROLE_LEAD_MODERATOR,
+  set_title: ROLE_LEAD_MODERATOR,
+  set_game: ROLE_LEAD_MODERATOR,
+  set_tags: ROLE_LEAD_MODERATOR,
+  commercial: ROLE_LEAD_MODERATOR,
+  marker: ROLE_LEAD_MODERATOR,
+  clip: ROLE_LEAD_MODERATOR,
   timeout: ROLE_MODERATOR,
   ban: ROLE_MODERATOR,
   warn: ROLE_MODERATOR,
@@ -111,9 +121,17 @@ export function actions(c: Chk, list: ActionNode[]): void {
   list.forEach((a, i) => action(c.elem(i), a));
 }
 
-function triggerMismatch(at: Chk, type: string): boolean {
-  if (type === 'unban_resolve') return at.trigger !== 'event' || at.kind !== 'channel.unban_request.create';
-  const want = REQUIRED_TRIGGER[type];
+function pointsTargetViewer(raw: unknown): boolean {
+  const { value, err } = decodeParams<{ login: string }>(POINTS_ACTION_SCHEMA, {}, raw);
+  return !err && trimSpace(value.login) === '';
+}
+
+function triggerMismatch(at: Chk, a: ActionNode): boolean {
+  if (a.type === 'unban_resolve') return at.trigger !== 'event' || at.kind !== 'channel.unban_request.create';
+  if (a.type === 'points_add' || a.type === 'points_set') {
+    return VIEWERLESS_TRIGGERS.has(`${at.trigger}:${at.kind}`) && pointsTargetViewer(a.params);
+  }
+  const want = REQUIRED_TRIGGER[a.type];
   return want !== undefined && at.trigger !== want;
 }
 
@@ -133,7 +151,7 @@ export function permRank(list: TypedNode[]): number {
 }
 
 function action(at: Chk, a: ActionNode): void {
-  if (triggerMismatch(at, a.type)) at.add('type', CODE.triggerMismatch);
+  if (triggerMismatch(at, a)) at.add('type', CODE.triggerMismatch);
   if (permMissing(at, a.type)) at.add('type', CODE.permRequired);
   typed(at, actionRegistry, a);
 }

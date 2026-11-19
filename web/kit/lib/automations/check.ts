@@ -44,8 +44,8 @@ export class Chk {
     return this.withKind(new Chk(this.out, `${this.path}[${i}]`, this.trigger, this.depth, this.perm, this.eventAmount));
   }
 
-  nest(): Chk {
-    return this.withKind(new Chk(this.out, this.path, this.trigger, this.depth + 1, this.perm, this.eventAmount));
+  nest(perm = this.perm): Chk {
+    return this.withKind(new Chk(this.out, this.path, this.trigger, this.depth + 1, perm, this.eventAmount));
   }
 
   bound(field: Field, n: Count, { lo, hi, over }: Bounds): boolean {

@@ -5,6 +5,7 @@ package automation
 
 import (
 	"slices"
+	"strings"
 
 	"ItsBagelBot/pkg/codec"
 )
@@ -37,6 +38,15 @@ var requiredTrigger = map[string]string{
 	"redemption":     "reward",
 }
 
+type triggerShape struct{ typ, kind string }
+
+var viewerlessTriggers = map[triggerShape]struct{}{
+	{typ: "countdown"}:                     {},
+	{typ: "timer"}:                         {},
+	{typ: "event", kind: "stream.online"}:  {},
+	{typ: "event", kind: "stream.offline"}: {},
+}
+
 var actionRole = map[string]int{
 	"poll":            roleModerator,
 	"poll_end":        roleModerator,
@@ -51,7 +61,13 @@ var actionRole = map[string]int{
 	"ad_snooze":       roleLeadModerator,
 	"whisper":         roleModerator,
 	"unban_resolve":   roleModerator,
-	"branded_content": roleModerator,
+	"branded_content": roleLeadModerator,
+	"set_title":       roleLeadModerator,
+	"set_game":        roleLeadModerator,
+	"set_tags":        roleLeadModerator,
+	"commercial":      roleLeadModerator,
+	"marker":          roleLeadModerator,
+	"clip":            roleLeadModerator,
 
 	"timeout": roleModerator, "ban": roleModerator, "warn": roleModerator, "shield": roleModerator,
 	"delete_message": roleModerator, "cooldown_add": roleModerator,
@@ -135,7 +151,7 @@ func (c chk) actions(list []Action) {
 
 func (c chk) action(i index, a Action) {
 	at := c.elem(i)
-	if c.triggerMismatch(a.Type) {
+	if c.triggerMismatch(a) {
 		at.add("type", CodeTriggerMismatch)
 	}
 	if c.permMissing(a.Type) {
@@ -150,12 +166,24 @@ func IsBranching(typ string) bool {
 	return e.nested != nil && !e.effect
 }
 
-func (c chk) triggerMismatch(typ string) bool {
-	want, ok := requiredTrigger[typ]
-	if typ == "unban_resolve" {
+func (c chk) triggerMismatch(a Action) bool {
+	switch a.Type {
+	case "unban_resolve":
 		return c.trigger != "event" || c.kind != "channel.unban_request.create"
+	case "points_add", "points_set":
+		_, viewerless := viewerlessTriggers[triggerShape{typ: c.trigger, kind: c.kind}]
+		return viewerless && pointsTargetViewer(a.Params)
 	}
+	want, ok := requiredTrigger[a.Type]
 	return ok && c.trigger != want
+}
+
+func pointsTargetViewer(raw codec.RawMessage) bool {
+	p, err := DecodeParams[PointsAddAction](raw)
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(p.Login) == ""
 }
 
 func (c chk) permMissing(typ string) bool {
