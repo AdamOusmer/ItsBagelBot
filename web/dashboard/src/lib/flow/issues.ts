@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { ACTION_TYPES, CONDITION_TYPES, RANDOM_PATHS, TRIGGER_TYPES, chatModeValueField, variableActionType, type Issue } from '@bagel/kit/automations';
+import { ACTION_TYPES, CONDITION_TYPES, FLOW_ISSUE, RANDOM_PATHS, TRIGGER_TYPES, chatModeValueField, cooldownWindows, needsSearchValue, variableActionType, viewerList, type Issue } from '@bagel/kit/automations';
 import { specFor, targetFieldFor, targetMode, type FlowNode } from './model';
 import { configText } from './setup';
 
@@ -16,7 +16,7 @@ const PARAM_FIELDS: Record<string, string> = {
   reward_id: 'reward', cooldown_s: 'cooldown', on_redeem: 'onRedeem', input_required: 'userInput',
   device_name: 'device', sku: 'device', extra_lights: 'device', any_time: 'liveOnly',
   scene_id: 'scene', scene_name: 'scene', scene_type: 'scene', scene_instance: 'scene', scene_value: 'scene',
-  global_s: 'seconds', user_s: 'seconds', ms: 'seconds', allow: 'login', allow_ids: 'login', userId: 'login', user_id: 'login',
+  global_s: 'channelSeconds', user_s: 'viewerSeconds', ms: 'seconds', allow: 'login', allow_ids: 'login', userId: 'login', user_id: 'login',
   enabled: 'setEnabled', reset_on_stream_end: 'reset', automation_id: 'automationId',
   kelvin: 'kelvin', brightness: 'brightness', hold_s: 'holdS', case_sensitive: 'caseSensitive', sources: 'subMessages'
 };
@@ -35,10 +35,14 @@ const NODE_FIELDS: Record<string, Record<string, string>> = {
   'reply.chat': { text: 'message', thread: 'reply' },
   'reply.poll': { points_per_vote: 'pointsPerVote' },
   'reply.prediction_end': { winner: 'outcome' },
-  'reply.counter': { name: 'counter' }
+  'reply.counter': { name: 'counter' },
+  'cond.user': { allow: 'users', deny: 'users', allow_ids: 'users', deny_ids: 'users', userId: 'users', user_id: 'users', login: 'users' },
+  'cond.category': { allow: 'games', deny: 'games' },
+  'cond.follow': { min_days: 'minDays' },
+  'cond.accountAge': { min_days: 'minDays' }
 };
 
-const WHOLE_NODE_FIELDS: Record<string, string> = { 'cond.cooldown': 'seconds', 'cond.user': 'login' };
+const WHOLE_NODE_FIELDS: Record<string, string> = { 'cond.cooldown': 'channelSeconds', 'cond.user': 'users', 'cond.chance': 'percent', 'cond.category': 'games' };
 
 function fieldKeyFor(node: FlowNode, path: IssuePath): FieldKey | undefined {
   const configPath = path.replace(/^(?:params|config)(?:\.|$)/, '');
@@ -89,7 +93,8 @@ function locateFieldIssue(issue: Issue, nodes: readonly FlowNode[], trigger: Flo
   const target = issueTarget(issue, nodes, trigger);
   if (!target) return [];
   const path = target.path || (CODE_FIELDS.get(issue.code) ?? '');
-  return [{ ...issue, nodeId: target.node.id, fieldKey: fieldKeyFor(target.node, path) }];
+  const fieldKey = issue.code === FLOW_ISSUE.unknownPort ? undefined : fieldKeyFor(target.node, path);
+  return [{ ...issue, nodeId: target.node.id, fieldKey }];
 }
 
 const TYPES: Record<string, string> = {
@@ -98,9 +103,12 @@ const TYPES: Record<string, string> = {
   'cond.role': 'perm', 'cond.user': 'users', 'reply.points': 'points_add', 'reply.counter': 'counter_add', 'reply.wait': 'delay'
 };
 
-const REQUIRED: Record<string, readonly string[]> = { 'cond.user': ['login'], 'cond.cooldown': ['seconds'] };
+const REQUIRED: Record<string, readonly string[]> = { 'cond.user': ['users'], 'cond.cooldown': ['channelSeconds'] };
+const searchValueRequired = (config: FlowNode['config']) => needsSearchValue(config.op);
+
 const REQUIRED_IF: Record<string, (config: FlowNode['config']) => boolean> = {
-  'cond.compare:right': (config) => config.op === 'contains',
+  'cond.compare:right': searchValueRequired,
+  'cond.var:value': searchValueRequired,
   'reply.prediction_end:outcome': (config) => config.status === 'resolve',
   'reply.lights:scene': (config) => config.mode === 'scene'
 };
@@ -133,6 +141,11 @@ export function fieldRequired(node: FlowNode, key: FieldKey): boolean {
 }
 
 export function missingField(node: FlowNode): string | undefined {
+  if (node.type === 'cond.user') return viewerList(node.config).length ? undefined : 'users';
+  if (node.type === 'cond.cooldown') {
+    const { channelSeconds, viewerSeconds } = cooldownWindows(node.config);
+    return channelSeconds > 0 || viewerSeconds > 0 ? undefined : 'channelSeconds';
+  }
   const spec = specFor(node.type);
   return spec?.fields.find(({ key }) => {
     const stored = key === 'login' && targetFieldFor(spec) ? 'userId' : key;

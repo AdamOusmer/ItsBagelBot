@@ -80,6 +80,7 @@
     "multipleTriggers": "Une recette ne peut démarrer que d’une seule façon. Supprimez l’étape Quand supplémentaire.",
     "cycle": "Cette étape boucle sur elle-même. Supprimez l’une des connexions.",
     "unconnectedNode": "Cette étape n’est pas connectée au début. Connectez-la ou supprimez-la.",
+    "unknownPort": "Une connexion part d’une sortie que cette étape ne possède pas. Reconnectez-la.",
     "unstructuredMerge": "Un chemin avec Attendre ne peut pas rejoindre un autre chemin. Déplacez Attendre après la jonction ou donnez à chaque chemin ses propres étapes.",
     "unsupportedNode": "Cette étape ne peut pas encore être enregistrée.",
     "unsupportedTrigger": "Ce début ne peut pas encore être enregistré.",

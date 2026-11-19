@@ -1,4 +1,6 @@
 {
+  "ignore_case": "Ignorer la casse",
+  "min_days": "Nombre minimal de jours",
   "who": "Qui",
   "user_id": "ID utilisateur Twitch",
   "aliases": "Alias",

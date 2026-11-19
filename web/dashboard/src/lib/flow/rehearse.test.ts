@@ -120,7 +120,12 @@ test('gift subs starts with a matching scenario and resolves the gift tokens', (
 test.each([
   { name: 'role', config: n('c', 'cond.role', { level: 'mod' }), patch: { role: 'mod' } },
   { name: 'viewer ID', config: n('c', 'cond.user', { userId: '42', login: 'Lotti' }), patch: { userId: '42', user: 'Lotti' } },
+  { name: 'first listed viewer', config: n('c', 'cond.user', { users: '42:lotti,53:bagel' }), patch: { userId: '42', user: 'lotti' } },
+  { name: 'excluded viewer', config: n('c', 'cond.user', { mode: 'except', users: '040000001:barney,43:bagel' }), patch: { userId: '', user: '' } },
+  { name: 'stream state', config: n('c', 'cond.live', { state: 'offline' }), patch: { live: false } },
   { name: 'compare input', config: n('c', 'cond.compare', { left: '{user.id}', op: 'eq', right: '42' }), patch: { userId: '42' } },
+  { name: 'input must be greater', config: n('c', 'cond.compare', { left: '{user.id}', op: 'gt', right: '40000001' }), patch: { userId: '40000002' } },
+  { name: 'input must differ', config: n('c', 'cond.compare', { left: '{user.id}', op: 'ne', right: '40000001' }), patch: { userId: '1' } },
   { name: 'gift amount', root: n('t', 'twitch.sub_gift', { minGifts: 3 }),
     config: n('c', 'cond.compare', { left: '{event.amount}', op: 'gte', right: '8' }), patch: { giftCount: 8 } }
 ])('make it pass changes the $name input', ({ root = trigger, config, patch }) => {
@@ -135,10 +140,23 @@ test.each([
 test.each([
   { name: 'chance', node: n('c', 'cond.chance', { percent: 50 }), overrides: { c: 'no' }, port: 'no' },
   { name: 'cooldown', node: n('c', 'cond.cooldown', { seconds: 30 }), overrides: { c: 'cooling' }, port: 'no' },
-  { name: 'API', node: n('c', 'reply.http_get', { url: 'https://example.com' }), overrides: { c: 'failure' }, port: 'failure' }
+  { name: 'API', node: n('c', 'reply.http_get', { url: 'https://example.com' }), overrides: { c: 'failure' }, port: 'failure' },
+  { name: 'category', node: n('c', 'cond.category', { games: 'Minecraft' }), overrides: { c: 'no' }, port: 'no' },
+  { name: 'follow', node: n('c', 'cond.follow', { minDays: 30 }), overrides: { c: 'no' }, port: 'no' },
+  { name: 'account age', node: n('c', 'cond.accountAge', { minDays: 7 }), overrides: { c: 'no' }, port: 'no' }
 ])('per-step pretend $name uses the compiled path', ({ node, overrides, port }) => {
   const result = run(flowOf([trigger, node], [e('t', 'next', 'c')]), { overrides });
   expect(result.steps.find((step) => step.id === 'c')?.port).toBe(port);
+});
+
+test.each([
+  ['!test 42', 'yes', 'Matches: 42'],
+  ['!test hello', 'no', 'Does not match: hello']
+])('command pattern shows the tested text for %s', (message, status, text) => {
+  const check = n('c', 'cond.pattern', { pattern: '^[0-9]+$' });
+  const flow = flowOf([trigger, check, say], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
+  const step = run(flow, { scenario: { message } }).steps.find((entry) => entry.id === 'c');
+  expect([step?.status, step?.text]).toEqual([status, text]);
 });
 
 test.each([
@@ -211,7 +229,11 @@ test.each([
   { op: 'eq', right: '', missing: [], reason: 'does not match' }, { op: 'gte', right: '', missing: [], reason: 'is not at least' },
   { op: 'lt', right: '', missing: [], reason: 'is not less than' },
   { op: 'eq', right: '6', missing: [], reason: 'does not match' }, { op: 'gte', right: '10', missing: [], reason: 'is not at least' },
-  { op: 'lt', right: '3', missing: [], reason: 'is not less than' }, { op: 'contains', right: '6', missing: [], reason: 'does not contain' }
+  { op: 'lt', right: '3', missing: [], reason: 'is not less than' }, { op: 'contains', right: '6', missing: [], reason: 'does not contain' },
+  { op: 'ne', right: '5', missing: [], reason: 'is equal to' },
+  { op: 'gt', right: '5', missing: [], reason: 'is not more than' },
+  { op: 'lte', right: '3', missing: [], reason: 'is not at most' },
+  { op: 'starts', right: '6', missing: [], reason: 'does not start with' }
 ])('a failed $op check explains comparing with "$right"', ({ op, right, missing, reason }) => {
   const check = n('c', 'cond.compare', { left: '5', op, right });
   const step = run(flowOf([trigger, check], [e('t', 'next', 'c')])).steps.find((entry) => entry.id === 'c');

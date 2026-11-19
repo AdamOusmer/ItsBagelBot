@@ -7,7 +7,7 @@ import * as svelte from 'svelte';
 import { render } from 'svelte/server';
 import { flowToDefinition } from '@bagel/kit/automations';
 import { english } from '../../flow/english.testing';
-import { fieldMounted, fieldVisible, newFlow, NODE_SPECS, type Flow, type FlowNode } from '../../flow/model';
+import { fieldMounted, fieldVisible, newFlow, NODE_SPECS, type FieldSpec, type Flow, type FlowNode } from '../../flow/model';
 import { addNode } from '../../flow/ops.testing';
 import { rehearseFlow } from '../../flow/rehearse';
 
@@ -30,13 +30,19 @@ function inspect(flow: Flow, node: FlowNode): string {
   }).body;
 }
 
+const gateValues: Partial<Record<FieldSpec['type'], readonly FlowNode['config'][string][]>> = {
+  target: ['viewer', 'mention', 'user'],
+  duration: [0, 30],
+  text: ['', '!timeleft']
+};
+
 const gateCases = NODE_SPECS.flatMap((spec) => {
   const gatedKeys = new Set(spec.fields.flatMap(({ when }) => {
     if (!when) return [];
     return 'key' in when ? [when.key] : when.map(({ key }) => key);
   }));
   return spec.fields.filter(({ key }) => gatedKeys.has(key)).flatMap((gate) => {
-    const options = gate.type === 'select' ? gate.options : gate.type === 'target' ? ['viewer', 'mention', 'user'] : [false, true];
+    const options = gate.type === 'select' ? gate.options : gateValues[gate.type] ?? [false, true];
     return options.map((value) => ({ type: spec.type, spec, key: gate.key, value }));
   });
 });
@@ -73,20 +79,23 @@ test.each([
   expect(buttons).toEqual(modes.map((mode) => ({ mode, checked: mode === checked })));
 });
 
-test('the cooldown name is retained when per viewer is toggled and only lowers for a channel cooldown', () => {
+test.each<{ config: FlowNode['config']; waits: Record<string, number>; params: FlowNode['config'] }>([
+  { config: { channelSeconds: 45, viewerSeconds: 0 }, waits: { channelSeconds: 45, viewerSeconds: 0 }, params: { global_s: 45, name: 'break' } },
+  { config: { channelSeconds: 45, viewerSeconds: 15 }, waits: { channelSeconds: 45, viewerSeconds: 15 }, params: { global_s: 45, user_s: 15 } },
+  { config: { seconds: 45, perUser: false }, waits: { channelSeconds: 45, viewerSeconds: 0 }, params: { global_s: 45, name: 'break' } },
+  { config: { seconds: 45, perUser: true }, waits: { channelSeconds: 0, viewerSeconds: 45 }, params: { user_s: 45 } }
+])('cooldown $config shows both waits and keeps the name mounted', ({ config, waits, params }) => {
   const flow = newFlow('Inspector');
   const trigger = addNode(flow, 'twitch.follow', { x: 0, y: 0 });
   const gate = addNode(flow, 'cond.cooldown', { x: 368, y: 0 }, { from: trigger.id, port: 'next' });
-  gate.config.name = 'break';
-  const states = [false, true, false].map((perUser) => {
-    gate.config.perUser = perUser;
-    const saved = flowToDefinition(flow);
-    if (!saved.ok) throw new Error(JSON.stringify(saved.issues));
-    return { draft: gate.config.name, shown: /value="break"/.test(inspect(flow, gate)), params: saved.value.conditions?.[0]?.params };
-  });
-  expect(states).toEqual([
-    { draft: 'break', shown: true, params: { global_s: 30, name: 'break' } },
-    { draft: 'break', shown: true, params: { user_s: 30 } },
-    { draft: 'break', shown: true, params: { global_s: 30, name: 'break' } }
-  ]);
+  gate.config = { ...config, name: 'break' };
+  const html = inspect(flow, gate);
+  const inputs = html.matchAll(/<input\b(?=[^>]*\bid="[^"]*-(channelSeconds|viewerSeconds)")(?=[^>]*\bvalue="(\d+)")[^>]*>/g);
+  const saved = flowToDefinition(flow);
+  if (!saved.ok) throw new Error(JSON.stringify(saved.issues));
+  expect({
+    waits: Object.fromEntries(Array.from(inputs, ([, key, value]) => [key, Number(value)])),
+    nameMounted: /value="break"/.test(html),
+    params: saved.value.conditions?.[0]?.params
+  }).toEqual({ waits, nameMounted: true, params });
 });

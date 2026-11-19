@@ -36,6 +36,8 @@
     "offline": "Hors ligne"
   },
   "op": {
+    "starts": "commence par",
+    "not_exists": "n’est pas défini",
     "contains": "contient",
     "eq": "égal à",
     "ne": "différent de",

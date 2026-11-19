@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/event/lane"
@@ -22,6 +23,29 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestAutomationUsesSeparateUnnamedCooldownWindows(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		field string
+		key   string
+	}{
+		{"channel windows", "global_s", globalWindowKey},
+		{"viewer windows", "user_s", viewerWindowKey},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			first := cond("cooldown", obj{tc.field: 30})
+			second := cond("cooldown", obj{tc.field: 5})
+			recipe := testAutomation("t", "command", obj{"name": "!t"}, first, second)
+			store := newWindowStore()
+			p, runs := autoRig{automations: []automation.Automation{recipe}, cooldown: store}.pipeline()
+			process(t, p, chatEnv("!t", ""))
+			process(t, p, chatEnv("!t", ""))
+			assert.Equal(t, []string{"t:ok", "t:skipped:condition:0:cooldown"}, runs.summary())
+			assert.Equal(t, map[string]time.Duration{tc.key: 30 * time.Second, tc.key + ":1": 5 * time.Second}, store.open)
+		})
+	}
+}
 
 func TestAutomationOutputActions(t *testing.T) {
 	args := map[string]string{"a": "hello", "k": "v"}

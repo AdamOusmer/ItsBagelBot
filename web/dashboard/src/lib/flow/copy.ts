@@ -46,6 +46,7 @@ export function requirementTrigger(flow: Flow): RequirementTrigger {
 }
 
 export function stepRequirementFor(spec: NodeSpec, trigger: RequirementTrigger, params?: Pick<FlowNode['config'], 'who'>): StepRequirement | null {
+  if (spec.type === 'cond.pattern') return stepRequirement('arg_regex', trigger);
   if (spec.kind !== 'reply') return null;
   const action = spec.type === 'reply.stream_info' ? 'set_title' : spec.type.slice('reply.'.length);
   return stepRequirement(action, trigger, params);
@@ -80,6 +81,36 @@ const viewerlessTrigger = (flow: Flow): boolean =>
 
 export function scopeWarning(t: Translate, flow: Flow, node: FlowNode | undefined): string | undefined {
   return viewerScoped(node) && viewerlessTrigger(flow) ? t('flows.step.reply.varChange.scopeWarning') : undefined;
+}
+
+const neverBlocks = (node: FlowNode): boolean => (node.config.level || 'everyone') === 'everyone';
+const alwaysPasses = (node: FlowNode): boolean => Number(node.config.percent) >= 100;
+
+function lacksViewer(flow: Flow | undefined): boolean {
+  const trigger = flow?.nodes.map((entry) => specFor(entry.type)).find((spec) => spec?.kind === 'trigger');
+  if (trigger?.type === 'countdown.finished') return false;
+  return !trigger?.provides?.some((variable) => variable.token === '{user.id}');
+}
+
+const CHECK_NOTE_RULES: Readonly<Record<FlowNode['type'], (node: FlowNode, flow?: Flow) => boolean>> = Object.freeze({
+  'cond.role': (node: FlowNode) => neverBlocks(node),
+  'cond.chance': (node: FlowNode) => alwaysPasses(node),
+  'cond.follow': (_node: FlowNode, flow?: Flow) => lacksViewer(flow)
+});
+
+const CHECK_NOTE_KEYS: Readonly<Record<FlowNode['type'], MessageKey>> = Object.freeze({
+  'cond.role': 'flows.step.condition.role.everyoneNote',
+  'cond.chance': 'flows.step.condition.chance.alwaysNote',
+  'cond.follow': 'flows.step.condition.follow.viewerNote'
+});
+
+export const hasCheckNote = (node: FlowNode): boolean => Object.hasOwn(CHECK_NOTE_RULES, node.type);
+
+const showsCheckNote = (node: FlowNode, flow?: Flow): boolean => hasCheckNote(node) && CHECK_NOTE_RULES[node.type]!(node, flow);
+
+export function checkNote(t: Translate, node: FlowNode | undefined, flow?: Flow): string | null {
+  if (!node || !showsCheckNote(node, flow)) return null;
+  return t(CHECK_NOTE_KEYS[node.type]!);
 }
 
 const known = (key: string, text: string): string => (text === key ? '' : text);
@@ -150,8 +181,13 @@ export function durationOutside(field: DurationSpec, seconds: string | number | 
   return Number(seconds) < field.min || Number(seconds) > field.max;
 }
 
+const sharesCheckOps = (field: FieldSpec): boolean => field.type === 'select' && field.optionGroup === 'checkOps';
+
+const optionKey = (spec: NodeSpec, field: FieldSpec, value: string): string =>
+  sharesCheckOps(field) ? `flows.step.condition.op.${value}` : `${fieldCopyPrefix(spec, field)}.option.${value}`;
+
 export const optionText = (t: Translate, spec: NodeSpec, field: FieldSpec, value: string): string =>
-  t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.option.${value}` as MessageKey);
+  sharesCheckOps(field) ? t(`flows.step.condition.op.${value}` as MessageKey) : t(`${fieldCopyPrefix(spec, field)}.option.${value}` as MessageKey);
 
 export function fieldOptions(t: Translate, spec: NodeSpec, field: FieldSpec): { value: string; label: string }[] {
   if (field.type !== 'select') return [];
@@ -171,7 +207,7 @@ export function fieldSearchText(t: Translate, spec: NodeSpec): string {
     return [
       known(`${prefix}.label`, t(`${prefix}.label` as MessageKey)),
       ...variantLabels(t, spec, field),
-      ...options.map((value) => known(`${prefix}.option.${value}`, t(`${prefix}.option.${value}` as MessageKey)))
+      ...options.map((value) => known(optionKey(spec, field, value), optionText(t, spec, field, value)))
     ];
   }).filter(Boolean).join(' ');
 }

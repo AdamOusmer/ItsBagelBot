@@ -4,6 +4,7 @@
 import { COMPARE_OPS } from './compare';
 import { eventKinds } from './event-kinds';
 import {
+  MAX_AGE_DAYS,
   MAX_COOLDOWN_SECONDS,
   MAX_LIGHTS_BRIGHTNESS,
   MAX_LIGHTS_HOLD_S,
@@ -16,7 +17,7 @@ import {
 } from './limits';
 import { CHAT_MODE_NAMES } from './stream-types';
 import { LIGHTS_MODES, TARGET_MODES, TEXT_OPS } from './types';
-import { CMP_OPS, PERM_LEVELS } from './values';
+import { CMP_OPS, PERM_LEVELS, VAR_OPS } from './values';
 
 export type FieldKind = 'text' | 'template' | 'login' | 'int' | 'number' | 'bool' | 'enum' | 'list' | 'actions' | 'condition' | 'branches' | 'map';
 
@@ -126,13 +127,16 @@ export const CONDITION_TYPES: TypeDef[] = [
     f('left', 'template', { required: true, min: 1, max: 500 }),
     f('op', 'enum', { required: true, values: COMPARE_OPS }),
     f('right', 'template', { max: 500 }),
+    f('ignore_case', 'bool'),
   ]),
   condition('var', [
     varScope,
     varName,
-    f('op', 'enum', { required: true, values: [...CMP_OPS, 'contains', 'exists'] }),
+    f('op', 'enum', { required: true, values: VAR_OPS }),
     f('value', 'template', { max: 500 }),
   ]),
+  condition('follow', [f('min_days', 'int', { min: 0, max: MAX_AGE_DAYS })]),
+  condition('account_age', [f('min_days', 'int', { required: true, min: 1, max: MAX_AGE_DAYS })]),
 ];
 
 export const ACTION_TYPES: TypeDef[] = [

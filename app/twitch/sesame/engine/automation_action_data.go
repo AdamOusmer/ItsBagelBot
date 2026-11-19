@@ -107,8 +107,10 @@ func (x *actionExec) conditionVar(c automation.VarCondition) (bool, error) {
 	comparison := automation.VarComparison{
 		Op:      c.Op,
 		Current: automation.VariableValue(current),
-		Value:   automation.VariableValue(x.expand(c.Value)),
 		Exists:  exists,
+	}
+	if c.UsesValue() {
+		comparison.Value = automation.VariableValue(x.expand(c.Value))
 	}
 	return comparison.Passes(), nil
 }

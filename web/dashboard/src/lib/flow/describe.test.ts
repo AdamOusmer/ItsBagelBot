@@ -79,7 +79,20 @@ test.each<{ type: FlowNode['type']; config: FlowNode['config']; line: string }>(
   { type: 'reply.countdown_start', config: { name: 'subathon', seconds: '' }, line: 'Start or restart a named countdown' },
   { type: 'reply.countdown_add', config: { name: 'subathon', seconds: 90 }, line: 'Add 1m 30s to subathon' },
   { type: 'reply.cooldown_add', config: { name: 'raffle', seconds: 60 }, line: 'Add 1m to raffle' },
-  { type: 'reply.shoutout', config: { target: 'lotti' }, line: 'Shoutout to lotti' }
+  { type: 'reply.shoutout', config: { target: 'lotti' }, line: 'Shoutout to lotti' },
+  { type: 'cond.user', config: { userId: '1', login: 'a' }, line: 'Only @a' },
+  { type: 'cond.user', config: { users: '1:a,2:b' }, line: 'Only @a and @b' },
+  { type: 'cond.user', config: { users: '1:a,2:b,3:c' }, line: 'Only @a, @b and 1 more' },
+  { type: 'cond.user', config: { mode: 'except', users: '1:a' }, line: 'Everyone except @a' },
+  { type: 'cond.user', config: { mode: 'except', users: '1:a,2:,3:c,4:d' }, line: 'Everyone except @a, 2 and 2 more' },
+  { type: 'cond.live', config: {}, line: 'Stream is live' },
+  { type: 'cond.live', config: { state: 'offline' }, line: 'Stream is offline' },
+  { type: 'cond.category', config: { games: 'Just Chatting,Minecraft' }, line: 'Game is Just Chatting or Minecraft' },
+  { type: 'cond.category', config: { mode: 'deny', games: 'Minecraft' }, line: 'Game is not Minecraft' },
+  { type: 'cond.pattern', config: { pattern: '^[0-9]+$' }, line: 'Command text matches ^[0-9]+$' },
+  { type: 'cond.follow', config: { minDays: 0 }, line: 'Follows you' },
+  { type: 'cond.follow', config: { minDays: 30 }, line: 'Follows you for 30 days or more' },
+  { type: 'cond.accountAge', config: { minDays: 7 }, line: 'Account is 7 days old or more' }
 ])('$type renders "$line" from $config', ({ type, config, line }) => {
   expect(describe(english, { id: 'step', type, x: 0, y: 0, config })).toBe(line);
 });

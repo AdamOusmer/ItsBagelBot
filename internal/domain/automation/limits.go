@@ -17,6 +17,7 @@ const (
 const (
 	MaxCooldownSeconds       = 2_592_000
 	MaxValkeyCooldownSeconds = 86_400
+	MaxAgeDays               = 3650
 )
 
 const (

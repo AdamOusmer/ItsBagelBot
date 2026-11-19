@@ -5,13 +5,15 @@ import { expandSegments } from '../engine/rehearsal';
 import { validateFetchDef } from '../engine/fetch-validate';
 import { queryEscape, resolveComputedUtil } from '../engine/pure';
 import type { VarToken } from '../engine/tmpl';
-import { comparePasses } from './compare';
+import { comparePasses, needsSearchValue } from './compare';
+import { SETUP_LOGIN } from './flow-setup';
 import { MAX_COOLDOWN_SECONDS, MAX_MATH_EXPRESSION_RUNES, MAX_TEMPLATE_LENGTH } from './limits';
+import { compilesAsRe2 } from './regex';
 import { compareBytes, trimSpace } from './text';
 import { extractJson } from './rehearsal-json';
 import { CHAT_MODE_VALUES, type ChatModeValueRange } from './stream-types';
 import type { Action, Condition, Params } from './types';
-import type { RehearsalContext, RehearsalScenario, RehearsalState } from './rehearsal-types';
+import type { ConditionOutcome, RehearsalContext, RehearsalScenario, RehearsalState } from './rehearsal-types';
 
 type Text = string;
 type Context = RehearsalContext;
@@ -20,7 +22,7 @@ type ExpandedLists = Record<Text, Text[]>;
 type ActionOutcome = { status: 'ok' | 'failed' | 'skipped'; detail?: ExpandedParams };
 type ScalarHandler = (params: Params, context: Context, expanded: ExpandedParams) => ActionOutcome;
 type ActionHandler = (params: Params, context: Context, expanded: ExpandedParams, lists: ExpandedLists) => ActionOutcome;
-type ConditionHandler = (params: Params, context: Context) => boolean;
+type ConditionHandler = (params: Params, context: Context) => boolean | ConditionOutcome;
 
 const text = (value: unknown): Text => String(value ?? '');
 const number = (value: unknown): number => Number(value) || 0;
@@ -44,7 +46,8 @@ export function messageTarget(args: Text, sender: Text): Text {
 export function createState(scenario: RehearsalScenario): RehearsalState {
   const seed = scenario.state;
   return {
-    channelVars: { ...seed?.channelVars }, viewerVars: { ...seed?.viewerVars },
+    channelVars: Object.assign(Object.create(null), seed?.channelVars),
+    viewerVars: Object.assign(Object.create(null), seed?.viewerVars),
     counters: { ...seed?.counters }, points: seed?.points ?? 0,
     cooldowns: {}, countdowns: { ...seed?.countdowns }, running: { poll: false, prediction: false }
   };
@@ -157,30 +160,84 @@ function decimal(value: Text): number | null {
 
 function variableComparison(params: Params, context: Context): boolean {
   if (params.scope === 'viewer' && !hasViewer(context)) return false;
-  const store = variableStore(params, context);
-  const current = store[nameOf(params)];
+  const current = variableStore(params, context)[nameOf(params)];
   if (params.op === 'exists') return current !== undefined;
-  const right = expand(params.value, context);
-  if (params.op === 'contains') return comparePasses('contains', current ?? '', right);
-  const leftNumber = decimal(current ?? '');
+  if (params.op === 'not_exists') return current === undefined;
+  return variableValueComparison(text(params.op), current ?? '', expand(params.value, context));
+}
+
+function variableValueComparison(op: Text, current: Text, right: Text): boolean {
+  if (needsSearchValue(op)) return comparePasses(op, current, right);
+  const leftNumber = decimal(current);
   const rightNumber = decimal(right);
   const numeric = leftNumber !== null && rightNumber !== null;
-  const order = numeric ? Math.sign(leftNumber! - rightNumber!) : compareBytes(current ?? '', right);
-  return ORDER[text(params.op)]?.(order) ?? false;
+  const order = numeric ? Math.sign(leftNumber! - rightNumber!) : compareBytes(current, right);
+  return ORDER[op]?.(order) ?? false;
 }
 
-function userComparison(params: Params, context: Context): boolean {
-  const denied = (params.deny_ids ?? []) as string[];
-  const allowed = (params.allow_ids ?? []) as string[];
-  if (denied.includes(context.scenario.userId ?? '')) return false;
-  return allowed.length === 0 || allowed.includes(context.scenario.userId ?? '');
+type UserList = { logins: Text[]; ids: Text[] };
+type ListMode = 'allow' | 'deny';
+
+function userList(params: Params, mode: ListMode): UserList {
+  return { logins: (params[mode] ?? []) as Text[], ids: (params[`${mode}_ids`] ?? []) as Text[] };
 }
+
+function containsFold(list: Text[], value: Text): boolean {
+  const folded = value.toLowerCase();
+  return list.some((entry) => entry.toLowerCase() === folded);
+}
+
+function userID(value: Text): bigint | null {
+  if (!/^\d+$/.test(value)) return null;
+  const id = BigInt(value);
+  return id > 0n && id <= 0xffffffffffffffffn ? id : null;
+}
+
+function userListed({ logins, ids }: UserList, scenario: RehearsalScenario): boolean {
+  if (containsFold(logins, scenario.user ?? '')) return true;
+  const id = userID(scenario.userId ?? '');
+  return id !== null && ids.some((entry) => userID(entry) === id);
+}
+
+function userComparison(params: Params, context: Context): boolean | ConditionOutcome {
+  const deny = userList(params, 'deny');
+  const allow = userList(params, 'allow');
+  if (containsFold([...deny.logins, ...allow.logins], SETUP_LOGIN)) return { passes: false, code: 'setup_required' };
+  if (userListed(deny, context.scenario)) return false;
+  return (allow.logins.length === 0 && allow.ids.length === 0) || userListed(allow, context.scenario);
+}
+
+function categoryComparison(params: Params, context: Context): boolean {
+  const game = context.scenario.game;
+  if (game === undefined) return context.overrides[context.path] !== 'no';
+  const { logins: allow } = userList(params, 'allow');
+  const { logins: deny } = userList(params, 'deny');
+  if (containsFold(deny, game)) return false;
+  return allow.length === 0 || containsFold(allow, game);
+}
+
+function argRegexComparison(params: Params, context: Context): boolean {
+  const pattern = text(params.pattern);
+  if (!compilesAsRe2(pattern)) return false;
+  const leading = /^\(\?([ims]+)\)/.exec(pattern);
+  const flags = leading ? [...new Set(leading[1])].join('') : '';
+  const source = pattern.slice(leading?.[0].length ?? 0).replace(/\(\?P</g, '(?<');
+  try {
+    return new RegExp(source, flags).test(context.scenario.args ?? '');
+  } catch {
+    return false;
+  }
+}
+
+const namedCooldownKey = (name: Text): Text => `named:${name}`;
 
 function cooldownKeys(params: Params, context: Context): Text[] {
-  if (params.name) return [nameOf(params)];
+  if (params.name) return [namedCooldownKey(nameOf(params))];
+  const ordinal = context.cooldownOrdinals.get(context.path) ?? 0;
+  const suffix = ordinal > 0 ? `:${ordinal}` : '';
   const keys: Text[] = [];
-  if (number(params.global_s) > 0) keys.push('global');
-  if (number(params.user_s) > 0) keys.push(`viewer:${context.scenario.userId}`);
+  if (number(params.global_s) > 0) keys.push(`global${suffix}`);
+  if (number(params.user_s) > 0) keys.push(`viewer:${userID(context.scenario.userId ?? '') ?? 0n}${suffix}`);
   return keys;
 }
 
@@ -201,8 +258,15 @@ function cooldownComparison(params: Params, context: Context): boolean {
 }
 
 function cooldownWindow(key: Text, context: Context): number {
-  const seed = context.overrides[context.path] === 'ready' ? 0 : context.scenario.state?.cooldowns?.[key];
-  return context.state.cooldowns[key] ?? seed ?? 0;
+  const seeded = context.overrides[context.path] === 'ready' ? 0 : cooldownSeed(key, context.scenario.state?.cooldowns);
+  return context.state.cooldowns[key] ?? seeded;
+}
+
+function cooldownSeed(key: Text, seeds: RehearsalState['cooldowns'] = {}): number {
+  if (Object.hasOwn(seeds, key)) return seeds[key]!;
+  if (!key.startsWith('named:')) return 0;
+  const name = key.slice('named:'.length);
+  return name !== 'global' && Object.hasOwn(seeds, name) ? seeds[name]! : 0;
 }
 
 function noteCooldown(windows: number[], context: Context): void {
@@ -221,18 +285,27 @@ function chanceComparison(params: Params, context: Context): boolean {
   return percent > 0 && context.overrides[context.path] !== 'no';
 }
 
+function viewerComparison(_params: Params, context: Context): boolean {
+  return hasViewer(context) && context.overrides[context.path] !== 'no';
+}
+
 const CONDITIONS: Readonly<Record<string, ConditionHandler>> = {
   perm: (params, context) => ROLE_RANK[context.scenario.role ?? 'viewer']! >= (ROLE_RANK[text(params.level)] ?? 0),
   users: userComparison,
-  compare: (params, context) => comparePasses(text(params.op), expand(params.left, context), expand(params.right, context)),
+  compare: (params, context) => comparePasses(text(params.op), expand(params.left, context), expand(params.right, context), params.ignore_case === true),
   var: variableComparison,
   chance: chanceComparison,
   cooldown: cooldownComparison,
-  live: (params, context) => context.scenario.live === (params.state === 'live')
+  live: (params, context) => context.scenario.live === (params.state === 'live'),
+  category: categoryComparison,
+  arg_regex: argRegexComparison,
+  follow: viewerComparison,
+  account_age: viewerComparison
 };
 
-export function evaluateCondition(condition: Condition, context: Context): boolean {
-  return CONDITIONS[condition.type]?.(condition.params ?? {}, context) ?? false;
+export function evaluateCondition(condition: Condition, context: Context): ConditionOutcome {
+  const outcome = CONDITIONS[condition.type]?.(condition.params ?? {}, context) ?? false;
+  return typeof outcome === 'boolean' ? { passes: outcome } : outcome;
 }
 
 function saveLocal(params: Params, value: Text, context: Context): void {
@@ -483,19 +556,26 @@ function timerAdded(params: Params, context: Context): number {
   return Math.min(MAX_COOLDOWN_SECONDS, number(params.seconds) * multiples) * 1000;
 }
 
+function timerSlot(name: Text, context: Context, mode: Text) {
+  if (mode === 'cooldown_add') {
+    const key = namedCooldownKey(name);
+    return { key, store: context.state.cooldowns, until: cooldownWindow(key, context), token: 'cooldown:end' };
+  }
+  const store = context.state.countdowns;
+  return { key: name, store, until: store[name] ?? 0, token: 'countdown:end' };
+}
+
 function timerStep(params: Params, context: Context, mode: Text): ActionOutcome {
-  const store = mode === 'cooldown_add' ? context.state.cooldowns : context.state.countdowns;
   const name = nameOf(params);
-  const until = mode === 'cooldown_add' ? cooldownWindow(name, context) : store[name] ?? 0;
+  const { key, store, until, token } = timerSlot(name, context, mode);
   const running = until > context.atMs;
   if (mode !== 'countdown_start' && !running) return { status: 'skipped', detail: { code: 'not_running' } };
   const added = timerAdded(params, context);
   if (added <= 0) return { status: 'skipped', detail: { code: 'below_rate' } };
   const base = mode === 'countdown_start' ? context.atMs : Math.max(context.atMs, until);
-  store[name] = Math.min(context.atMs + MAX_COOLDOWN_SECONDS * 1000, base + added);
-  const token = mode === 'cooldown_add' ? 'cooldown:end' : 'countdown:end';
-  context.locals[token] = String(store[name]);
-  return { status: 'ok', detail: { name, left: timerLeft(store[name], context)! } };
+  store[key] = Math.min(context.atMs + MAX_COOLDOWN_SECONDS * 1000, base + added);
+  context.locals[token] = String(store[key]);
+  return { status: 'ok', detail: { name, left: timerLeft(store[key], context)! } };
 }
 
 function replyStep(params: Params, context: Context, expanded: ExpandedParams): ActionOutcome {

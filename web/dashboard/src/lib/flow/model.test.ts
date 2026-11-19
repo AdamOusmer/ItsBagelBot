@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import { expect, test } from 'bun:test';
 import { flowToDefinition, validateDefinition } from '@bagel/kit/automations';
-import { fieldVisible, newFlow, variablesFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
+import { fieldVisible, newFlow, specFor, variablesFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
 import { addNode } from './ops.testing';
 
 const gatedField: FieldSpec = {
@@ -27,6 +27,20 @@ test.each<{ config: FlowNode['config']; visible: boolean }>([
   { config: { mode: 'emote', on: false }, visible: false }
 ])('gates $config match all conditions: $visible', ({ config, visible }) => {
   expect(fieldVisible(gateSpec, { config }, gatedField)).toBe(visible);
+});
+
+test.each<{ config: FlowNode['config']; visible: string[] }>([
+  { config: {}, visible: ['name'] },
+  { config: { viewerSeconds: 0, leftCommand: '!timeleft' }, visible: ['name', 'leftReply', 'readyReply'] },
+  { config: { viewerSeconds: '0', leftCommand: '' }, visible: ['name'] },
+  { config: { viewerSeconds: '', leftCommand: '  ' }, visible: ['name'] },
+  { config: { viewerSeconds: 30, leftCommand: '!timeleft' }, visible: ['leftReply', 'readyReply'] },
+  { config: { seconds: 30, perUser: true }, visible: [] },
+  { config: { seconds: 30, perUser: false }, visible: ['name'] }
+])('cooldown $config shows optional fields $visible', ({ config, visible }) => {
+  const spec = specFor('cond.cooldown')!;
+  const active = spec.fields.filter((field) => field.when && fieldVisible(spec, { config }, field));
+  expect(active.map((field) => field.key)).toEqual(visible);
 });
 
 const subscriptions = [

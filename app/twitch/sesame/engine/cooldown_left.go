@@ -44,14 +44,23 @@ func (s cooldownSubject) windows(c automation.CooldownCondition) []CooldownWindo
 		key := automation.LongCooldownNamedKey(s.broadcasterID, c.Name)
 		return append(windows, CooldownWindow{Key: key, TTL: time.Duration(c.GlobalS) * time.Second})
 	}
+	suffix := ordinalSuffix(c.Ordinal)
 	if c.GlobalS > 0 {
-		windows = append(windows, CooldownWindow{Key: "cooldown:auto:" + bid + ":" + s.automationID, TTL: time.Duration(c.GlobalS) * time.Second})
+		windows = append(windows, CooldownWindow{Key: "cooldown:auto:" + bid + ":" + s.automationID + suffix, TTL: time.Duration(c.GlobalS) * time.Second})
 	}
 	if c.UserS > 0 {
-		key := "cooldown:autouser:" + bid + ":" + strconv.FormatUint(s.viewerID, 10) + ":" + s.automationID
+		key := "cooldown:autouser:" + bid + ":" + strconv.FormatUint(s.viewerID, 10) + ":" + s.automationID + suffix
 		windows = append(windows, CooldownWindow{Key: key, TTL: time.Duration(c.UserS) * time.Second})
 	}
 	return windows
+}
+
+// The first unnamed cooldown keeps the unsuffixed key so windows armed before ordinals existed stay live.
+func ordinalSuffix(ordinal int) string {
+	if ordinal == 0 {
+		return ""
+	}
+	return ":" + strconv.Itoa(ordinal)
 }
 
 // windowsLeft reports the time left of each running window in claim order, so the first entry is the window a claim would have been refused by. It never spends anything.

@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey, RehearsedLine } from '@bagel/kit';
-import { chatModeValueField, compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, streamTargetNodes, validateDefinition } from '@bagel/kit/automations';
+import { chatModeValueField, comparePasses, compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, SETUP_LOGIN, scenarioArgs, scenarioIdentity, scenarioKind, scenarioPatches, streamTargetNodes, validateDefinition, viewerIdKey, viewerList } from '@bagel/kit/automations';
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
 import { fieldIssueMessage, fieldLabel, randomPathLabel, roleWarning, stepLabel, variableLabel } from './copy';
-import { describe, durationFormatter, lightGroupLabel, optionLabel } from './describe';
+import { describe, durationFormatter, lightGroupLabel, optionLabel, viewerNames } from './describe';
 import { issueMessage, stepOf, type Translate } from './messages';
 import { NODE_SPECS, outputsFor, specFor, type Flow, type FlowNode } from './model';
 import { fieldIssues, fieldRequired, type FieldIssue } from './issues';
@@ -76,7 +76,10 @@ function repairDraft(flow: Flow, issues: Issue[]): Flow {
 function repairField(nodes: FlowNode[], issue: Issue): void {
   const node = nodes.find((node) => node.id === stepOf([issue], nodes));
   if (!node) return;
-  if (issue.code === 'user_not_resolved') node.config.userId = '0';
+  if (issue.code === 'user_not_resolved') {
+    delete node.config.users;
+    node.config.login = SETUP_LOGIN;
+  }
   if (issue.code !== 'unmappable_token') return;
   const [, , field, token] = issue.path.split('.');
   node.config[field!] = String(node.config[field!] ?? '').replaceAll(`{${token}}`, `{unset:${token}}`);
@@ -215,23 +218,49 @@ function inputTokenField(token: Text, kind: Text): ScenarioField['key'] | undefi
   return token.startsWith('event.') ? eventFilterField(token.slice(6), kind) : INPUT_TOKENS[token];
 }
 
+function passingValue(op: Text, right: Text): Text {
+  switch (op) {
+    case 'gt': return String(Math.floor(Number(right)) + 1);
+    case 'lt': return String(Math.ceil(Number(right)) - 1);
+    case 'ne': return right === '1' ? '2' : '1';
+    default: return right;
+  }
+}
+
 function compareRepair(node: FlowNode, kind: Text): ScenarioPatch | undefined {
   const token = /^\{([^}]+)\}$/.exec(String(node.config.left));
   const field = inputTokenField(token?.[1] ?? '', kind);
   if (!field) return undefined;
   const right = String(node.config.right ?? '');
   if (right.includes('{')) return undefined;
-  const value = node.config.op === 'lt' ? String(Number(right) - 1) : right;
-  return { [field]: scenarioFieldValue(kind, field, value) };
+  const op = String(node.config.op ?? 'gte');
+  const value = scenarioFieldValue(kind, field, passingValue(op, right));
+  return comparePasses(op, String(value), right, node.config.matchCase === false) ? { [field]: value } : undefined;
 }
+
+function viewerRepair(node: FlowNode, scenario: RehearsalScenario): ScenarioPatch | undefined {
+  const viewers = viewerList(node.config);
+  if (node.config.mode !== 'except') {
+    const first = viewers[0];
+    return first?.id ? { userId: first.id, user: first.login } : undefined;
+  }
+  const current = viewerIdKey(scenario.userId ?? '');
+  const excluded = viewers.some(({ id }) => id && viewerIdKey(id) === current);
+  return excluded ? { userId: '', user: '' } : undefined;
+}
+
+const REPAIR_CHECKS = new Map<Text, (node: FlowNode, context: RunContext) => ScenarioPatch | undefined>([
+  ['cond.user', (node, context) => viewerRepair(node, context.scenario)],
+  ['cond.live', (node) => ({ live: node.config.state !== 'offline' })],
+  ['cond.compare', (node, context) => compareRepair(node, context.kind)]
+]);
 
 function checkRepair(node: FlowNode, event: RehearsalEvent, context: RunContext): ScenarioPatch | undefined {
   if (event.status !== 'no') return undefined;
   const { kind } = context;
   const fields = SCENARIO_FIELDS[kind] ?? [];
   if (node.type === 'cond.role') return fields.some((field) => field.key === 'role') ? { role: node.config.level as RehearsalScenario['role'] } : undefined;
-  if (node.type === 'cond.user') return node.config.userId ? { userId: String(node.config.userId), user: String(node.config.login) } : undefined;
-  const patch = node.type === 'cond.compare' ? compareRepair(node, kind) : undefined;
+  const patch = REPAIR_CHECKS.get(node.type)?.(node, context);
   return possiblePatch(context, fields, patch);
 }
 
@@ -244,11 +273,26 @@ function possiblePatch(context: RunContext, fields: readonly ScenarioField[], pa
 
 type ScenarioInputs = { scenario: RehearsalScenario; kind: Text };
 
-function checkText(t: Translate, node: FlowNode, inputs: ScenarioInputs): Text {
+function viewerCheck(t: Translate, node: FlowNode, scenario: RehearsalScenario): Text {
+  const actual = scenario.userId || t('flows.test.notSet');
+  const expected = viewerNames(node).join(', ') || t('flows.test.notSet');
+  return t(node.config.mode === 'except' ? 'flows.test.userExceptCheck' : 'flows.test.userCheck', { actual, expected });
+}
+
+function liveCheck(t: Translate, node: FlowNode, scenario: RehearsalScenario): Text {
+  const actual = t(scenario.live ? 'flows.step.condition.live.field.state.option.live' : 'flows.step.condition.live.field.state.option.offline');
+  const expected = t(node.config.state === 'offline' ? 'flows.step.condition.live.field.state.option.offline' : 'flows.step.condition.live.field.state.option.live');
+  return t('flows.test.liveCheck', { actual, expected });
+}
+
+function checkText(t: Translate, node: FlowNode, inputs: ScenarioInputs, event: RehearsalEvent): Text {
   const { scenario } = inputs;
   if (node.type === 'cond.role') return t('flows.test.roleCheck', { actual: scenarioRoleLabel(t, scenario.role ?? 'viewer'), expected: scenarioRoleLabel(t, String(node.config.level ?? 'viewer')) });
-  if (node.type === 'cond.user') return t('flows.test.userCheck', { actual: scenario.userId ?? t('flows.test.notSet'), expected: String(node.config.userId || t('flows.test.notSet')) });
-  return describe(t, { ...node, config: { ...node.config, left: displayInput(node.config.left, inputs) || t('flows.test.emptyValue'), right: displayInput(node.config.right, inputs) || t('flows.test.emptyValue') } });
+  if (node.type === 'cond.user') return viewerCheck(t, node, scenario);
+  if (node.type === 'cond.live') return liveCheck(t, node, scenario);
+  if (node.type === 'cond.pattern') return t(event.status === 'yes' ? 'flows.test.patternMatch' : 'flows.test.patternMiss', { args: scenario.args || t('flows.test.emptyValue') });
+  if (node.type !== 'cond.compare') return describe(t, node);
+  return describe(t, { ...node, config: { ...node.config, left: displayInput(node.config.left, inputs) || t('flows.test.emptyValue'), right: displayInput(node.config.right, inputs) } });
 }
 
 function displayInput(value: FlowNode['config'][Text] | undefined, inputs: ScenarioInputs): Text {
@@ -310,7 +354,7 @@ function eventText(t: Translate, event: RehearsalEvent, node: FlowNode | undefin
   const texts = {
     trigger: triggerText(node, inputs.scenario, line, t), parallel: '', loop: loopText(t, event),
     wait: t('flows.test.wait', { seconds: Number(detail.ms) / 1000 }),
-    check: node ? checkText(t, node, inputs) : line, effect: line, say: '', skip: line
+    check: node ? checkText(t, node, inputs, event) : line, effect: line, say: '', skip: line
   };
   return texts[event.kind];
 }
@@ -394,13 +438,24 @@ function emptyResponse(node: FlowNode | undefined, event: RehearsalEvent): boole
   return Boolean(node?.type.startsWith('reply.http_') && event.detail?.response === '');
 }
 
+const FAILED_COMPARISONS: Readonly<Record<Text, MessageKey>> = Object.freeze({
+  eq: 'flows.test.compareNotEq',
+  ne: 'flows.test.compareNotNe',
+  gt: 'flows.test.compareNotGt',
+  gte: 'flows.test.compareNotGte',
+  lt: 'flows.test.compareNotLt',
+  lte: 'flows.test.compareNotLte',
+  contains: 'flows.test.compareNotContains',
+  starts: 'flows.test.compareNotStarts'
+});
+
 function stepNote(t: Translate, node: FlowNode | undefined, context: { event: RehearsalEvent; inputs: ScenarioInputs }): Text | undefined {
   if (node?.type === 'reply.run' && context.event.kind === 'effect') return t('flows.test.recipeSimulation');
   if (emptyResponse(node, context.event)) return t('flows.test.emptyResponse');
   if (node?.type !== 'cond.compare') return undefined;
   if (context.event.status !== 'no') return undefined;
-  const keys: Record<Text, MessageKey> = { gte: 'flows.test.compareNotGte', lt: 'flows.test.compareNotLt', eq: 'flows.test.compareNotEq', contains: 'flows.test.compareNotContains' };
-  return t(keys[String(node.config.op ?? 'gte')] ?? 'flows.test.compareNotEq', {
+  const op = String(node.config.op ?? 'gte');
+  return t(Object.hasOwn(FAILED_COMPARISONS, op) ? FAILED_COMPARISONS[op]! : 'flows.test.compareNotEq', {
     left: displayInput(node.config.left, context.inputs) || t('flows.test.emptyValue'),
     right: displayInput(node.config.right, context.inputs) || t('flows.test.emptyValue')
   });
@@ -505,6 +560,7 @@ export function rehearseDraft(draft: ReturnType<typeof prepareRehearsal>, t: Tra
   const kind = scenarioKind(definition);
   const fields = SCENARIO_FIELDS[kind] ?? [];
   const scenario = { ...initialScenario(definition, t), ...scenarioPatches(fields, options.scenario ?? {}) };
+  scenario.args = scenarioArgs(definition, scenario);
   const overrides = executorOverrides(compiled.value, options.overrides ?? {});
   const formatDuration = durationFormatter(t);
   const result = rehearseDefinition(definition, scenario, overrides, formatDuration);

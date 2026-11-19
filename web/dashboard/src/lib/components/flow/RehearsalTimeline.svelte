@@ -44,16 +44,22 @@
       return { ...group, rows };
     }).filter((group) => group.rows.length > 0);
   });
+  const yesNo = $derived([{ value: 'yes', label: t('flows.test.yes') }, { value: 'no', label: t('flows.test.no') }]);
   const choices = $derived({
-    'cond.chance': [{ value: 'yes', label: t('flows.test.yes') }, { value: 'no', label: t('flows.test.no') }],
+    'cond.chance': yesNo,
     'cond.cooldown': [{ value: 'ready', label: t('flows.test.ready') }, { value: 'cooling', label: t('flows.test.cooling') }],
     'reply.http_get': [{ value: 'ok', label: t('flows.test.worked') }, { value: 'failure', label: t('flows.test.apiFailed') }],
     'reply.http_post': [{ value: 'ok', label: t('flows.test.worked') }, { value: 'failure', label: t('flows.test.apiFailed') }],
-    'reply.run': [{ value: 'ok', label: t('flows.test.worked') }, { value: 'failure', label: t('flows.test.recipeFailed') }]
+    'reply.run': [{ value: 'ok', label: t('flows.test.worked') }, { value: 'failure', label: t('flows.test.recipeFailed') }],
+    'cond.category': yesNo,
+    'cond.follow': yesNo,
+    'cond.accountAge': yesNo
   } as Record<string, { value: string; label: string }[]>);
   const defaults: Record<string, Record<string, string>> = { 'cond.chance': { yes: 'yes', no: 'no' }, 'cond.cooldown': { yes: 'ready', no: 'cooling' } };
+  const pretendYes = new Set(['cond.category', 'cond.follow', 'cond.accountAge']);
   const initial = (step: RehearsalStep) => {
     const type = step.node?.type ?? '';
+    if (pretendYes.has(type)) return 'yes';
     if (type.startsWith('reply.http_')) return 'ok';
     return defaults[type]?.[step.port ?? ''] ?? step.port ?? 'ok';
   };

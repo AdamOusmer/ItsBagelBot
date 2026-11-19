@@ -7,6 +7,7 @@ export * from './event-kinds';
 export * from './validate';
 export * from './catalog';
 export * from './compare';
+export { VAR_OPS } from './values';
 export * from './flow-graph';
 export * from './flow-layer';
 export * from './flow-share';

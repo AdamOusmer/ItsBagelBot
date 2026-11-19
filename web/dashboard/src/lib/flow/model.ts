@@ -4,8 +4,8 @@ import { STREAM_STEP_DEFINITIONS, TARGET_FIELDS } from './stream-steps';
 import { graphIndex, portKey } from './graph-index';
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
-import { activeRandomPaths, RANDOM_PATH_COUNTS, RANDOM_PATH_DEFAULT_WEIGHT, RANDOM_PATHS, TEXT_OPERAND_OPS, TEXT_OPS, VAR_OPS_WITH_VALUE } from '@bagel/kit/automations';
-import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_LIGHTS_BRIGHTNESS, MAX_LIGHTS_HOLD_S, MAX_LIGHTS_KELVIN, MAX_REWARD_COST, MIN_LIGHTS_BRIGHTNESS, MIN_LIGHTS_KELVIN } from '@bagel/kit/automations/limits';
+import { activeRandomPaths, COMPARE_OPS, cooldownWindows, RANDOM_PATH_COUNTS, RANDOM_PATH_DEFAULT_WEIGHT, RANDOM_PATHS, TEXT_COMPARE_OPS, TEXT_OPERAND_OPS, TEXT_OPS, VAR_OPS, VAR_OPS_WITH_VALUE } from '@bagel/kit/automations';
+import { MAX_AGE_DAYS, MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_LIGHTS_BRIGHTNESS, MAX_LIGHTS_HOLD_S, MAX_LIGHTS_KELVIN, MAX_REWARD_COST, MIN_LIGHTS_BRIGHTNESS, MIN_LIGHTS_KELVIN } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
 export const MAX_WAIT_SECONDS = MAX_DELAY_MS / 1000;
@@ -82,12 +82,18 @@ export const STEP_PLACEMENT = {
   'reply.clip': { kind: 'reply', group: 'stream' },
   'reply.stop': { kind: 'reply', group: 'logic' },
   'reply.random': { kind: 'reply', group: 'logic' },
-  'reply.run': { kind: 'reply', group: 'logic' }
+  'reply.run': { kind: 'reply', group: 'logic' },
+  'cond.live': { kind: 'condition', group: 'stream' },
+  'cond.category': { kind: 'condition', group: 'stream' },
+  'cond.pattern': { kind: 'condition', group: 'chat' },
+  'cond.follow': { kind: 'condition', group: 'community' },
+  'cond.accountAge': { kind: 'condition', group: 'community' }
 } as const satisfies Record<string, { kind: FlowKind; group: StepGroup }>;
 
 type Typed = { key: string; placeholder?: true };
 
-type FieldGate = { key: string; value: string | readonly string[] | boolean };
+type GateValue = string | readonly string[] | boolean | number;
+type FieldGate = { key: string } & ({ value: GateValue } | { filled: true });
 
 export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; labelBy?: string; initial?: string | number | boolean; required?: true } & (
   | (Typed & { type: 'text' })
@@ -95,7 +101,7 @@ export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; labelBy?: str
   | (Typed & { type: 'number'; min?: number; max?: number; step?: number; unit?: true })
   | { key: string; type: 'slider'; min: number; max: number; step: number; unit?: string }
   | { key: string; type: 'duration'; min: number; max: number }
-  | { key: string; type: 'select'; options: readonly string[]; fallback?: string }
+  | { key: string; type: 'select'; options: readonly string[]; fallback?: string; optionGroup?: 'checkOps' }
   | { key: string; type: 'toggle' }
   | { key: string; type: 'color' }
   | (Typed & { type: 'login' })
@@ -351,7 +357,10 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'cond.user',
     slug: 'user',
     icon: 'users',
-    fields: [{ key: 'login', type: 'login', placeholder: true }],
+    fields: [
+      { key: 'mode', type: 'select', options: ['only', 'except'], initial: 'only' },
+      { key: 'users', type: 'login', placeholder: true }
+    ],
     outputs: yesNo
   },
   {
@@ -359,12 +368,12 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     slug: 'cooldown',
     icon: 'hourglass',
     fields: [
-      { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS, initial: 30 },
-      { key: 'perUser', type: 'toggle' },
-      { key: 'name', type: 'text', placeholder: true, when: { key: 'perUser', value: false } },
+      { key: 'channelSeconds', type: 'duration', min: 0, max: MAX_COOLDOWN_SECONDS, initial: 30 },
+      { key: 'viewerSeconds', type: 'duration', min: 0, max: MAX_COOLDOWN_SECONDS, initial: 0 },
+      { key: 'name', type: 'text', placeholder: true, when: { key: 'viewerSeconds', value: 0 } },
       { key: 'leftCommand', type: 'text', placeholder: true },
-      { key: 'leftReply', type: 'template', placeholder: true, singleLine: true },
-      { key: 'readyReply', type: 'template', placeholder: true, singleLine: true }
+      { key: 'leftReply', type: 'template', placeholder: true, singleLine: true, when: { key: 'leftCommand', filled: true } },
+      { key: 'readyReply', type: 'template', placeholder: true, singleLine: true, when: { key: 'leftCommand', filled: true } }
     ],
     outputs: [{ id: 'yes' }, { id: 'no', provides: [{ token: '{cooldown:left}', name: 'cooldownLeft', sample: '2d 3h' }] }]
   },
@@ -374,8 +383,9 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     icon: 'scale',
     fields: [
       { key: 'left', type: 'template', placeholder: true, singleLine: true },
-      { key: 'op', type: 'select', options: ['gte', 'lt', 'eq', 'contains'] },
-      { key: 'right', type: 'template', placeholder: true, singleLine: true }
+      { key: 'op', type: 'select', options: COMPARE_OPS, optionGroup: 'checkOps', initial: 'gte' },
+      { key: 'right', type: 'template', placeholder: true, singleLine: true },
+      { key: 'matchCase', type: 'toggle', initial: false, when: { key: 'op', value: TEXT_COMPARE_OPS } }
     ],
     outputs: yesNo
   },
@@ -383,7 +393,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'cond.chance',
     slug: 'chance',
     icon: 'dice',
-    fields: [{ key: 'percent', type: 'number', min: 1, max: 100, unit: true, initial: 50 }],
+    fields: [{ key: 'percent', type: 'number', min: 1, max: 100, step: 1, unit: true, initial: 50 }],
     outputs: yesNo
   },
   {
@@ -393,7 +403,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     fields: [
       varScope,
       varName,
-      { key: 'op', type: 'select', options: [...VAR_OPS_WITH_VALUE, 'exists'], initial: 'exists' },
+      { key: 'op', type: 'select', options: VAR_OPS, optionGroup: 'checkOps', initial: 'exists' },
       { key: 'value', type: 'template', placeholder: true, singleLine: true, when: { key: 'op', value: VAR_OPS_WITH_VALUE } }
     ],
     outputs: yesNo
@@ -550,28 +560,76 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     slug: 'run',
     icon: 'play',
     fields: [{ key: 'automationId', type: 'choice', source: 'recipes', nameKey: 'name' }]
+  },
+  {
+    type: 'cond.live',
+    slug: 'live',
+    icon: 'radio',
+    fields: [{ key: 'state', type: 'select', options: ['live', 'offline'], initial: 'live' }],
+    lineBy: 'state',
+    outputs: yesNo
+  },
+  {
+    type: 'cond.category',
+    slug: 'category',
+    icon: 'gamepad',
+    fields: [
+      { key: 'mode', type: 'select', options: ['allow', 'deny'], initial: 'allow' },
+      { key: 'games', type: 'text', required: true }
+    ],
+    lineBy: 'mode',
+    outputs: yesNo
+  },
+  {
+    type: 'cond.pattern',
+    slug: 'pattern',
+    icon: 'braces',
+    fields: [{ key: 'pattern', type: 'text', required: true }],
+    outputs: yesNo
+  },
+  {
+    type: 'cond.follow',
+    slug: 'follow',
+    icon: 'heart',
+    fields: [{ key: 'minDays', type: 'number', min: 0, max: MAX_AGE_DAYS, step: 1, unit: true, initial: 0 }],
+    outputs: yesNo
+  },
+  {
+    type: 'cond.accountAge',
+    slug: 'accountAge',
+    icon: 'hourglass',
+    fields: [{ key: 'minDays', type: 'number', min: 1, max: MAX_AGE_DAYS, step: 1, unit: true, initial: 7 }],
+    outputs: yesNo
   }
 ];
 
 export const NODE_SPECS: readonly NodeSpec[] = STEP_DEFINITIONS.map((spec) => ({ ...spec, ...STEP_PLACEMENT[spec.type] }));
 export const LIBRARY_SPECS = NODE_SPECS.filter((spec) => !spec.hidden);
 
-function matchesValue(wanted: FieldGate['value'], value: unknown): boolean {
+export function migrateCooldownConfig(config: FlowNode['config']): FlowNode['config'] {
+  if (!('seconds' in config) && !('perUser' in config)) return config;
+  const { seconds, perUser, ...rest } = config;
+  return { ...rest, ...cooldownWindows(config) };
+}
+
+function matchesValue(wanted: GateValue, value: unknown): boolean {
   if (typeof wanted === 'boolean') return Boolean(value) === wanted;
+  if (typeof wanted === 'number') return Number(value ?? '') === wanted;
   return typeof wanted === 'string' ? value === wanted : wanted.includes(String(value));
 }
 
-function gateMatches(spec: NodeSpec, config: FlowNode['config'], { key, value }: FieldGate): boolean {
-  const gate = spec.fields.find((field) => field.key === key);
-  if (gate?.type === 'target') return matchesValue(value, targetMode(config));
+function gateMatches(spec: NodeSpec, config: FlowNode['config'], rule: FieldGate): boolean {
+  const gate = spec.fields.find((field) => field.key === rule.key);
   const fallback = gate?.type === 'select' ? gate.options[0] : gate?.initial;
-  return matchesValue(value, config[key] ?? fallback);
+  const value = gate?.type === 'target' ? targetMode(config) : config[rule.key] ?? fallback;
+  return 'filled' in rule ? String(value ?? '').trim() !== '' : matchesValue(rule.value, value);
 }
 
 export function fieldVisible(spec: NodeSpec, node: Pick<FlowNode, 'config'>, field: FieldSpec): boolean {
   if (!field.when) return true;
   const gates = 'key' in field.when ? [field.when] : field.when;
-  return gates.every((gate) => gateMatches(spec, node.config, gate));
+  const config = spec.type === 'cond.cooldown' ? migrateCooldownConfig(node.config) : node.config;
+  return gates.every((gate) => gateMatches(spec, config, gate));
 }
 
 export const specFor = (type: string): NodeSpec | undefined => NODE_SPECS.find((s) => s.type === type);

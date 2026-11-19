@@ -4,23 +4,29 @@
 package automation
 
 import (
+	"cmp"
 	"strconv"
 	"strings"
 )
 
 const (
+	CompareEQ       = "eq"
+	CompareNE       = "ne"
+	CompareGT       = "gt"
 	CompareGTE      = "gte"
 	CompareLT       = "lt"
-	CompareEQ       = "eq"
+	CompareLTE      = "lte"
 	CompareContains = "contains"
+	CompareStarts   = "starts"
 )
 
-var compareTemplateOps = enum{CompareGTE, CompareLT, CompareEQ, CompareContains}
+var compareTemplateOps = enum{CompareEQ, CompareNE, CompareGT, CompareGTE, CompareLT, CompareLTE, CompareContains, CompareStarts}
 
 type CompareCondition struct {
-	Left  string `json:"left"`
-	Op    string `json:"op"`
-	Right string `json:"right"`
+	Left       string `json:"left"`
+	Op         string `json:"op"`
+	Right      string `json:"right"`
+	IgnoreCase bool   `json:"ignore_case,omitempty"`
 }
 
 func checkCompare(c chk, p CompareCondition) {
@@ -30,35 +36,37 @@ func checkCompare(c chk, p CompareCondition) {
 }
 
 func compareRight(op string) span {
-	if op == CompareContains {
+	if op == CompareContains || op == CompareStarts {
 		return nonEmpty(MaxTemplateLength)
 	}
 	return upTo(MaxTemplateLength)
 }
 
 // ComparePasses must agree with comparePasses in web/kit/lib/automations/compare.ts; testdata/compare_cases.json pins both.
-func ComparePasses(op, left, right string) bool {
+func ComparePasses(op, left, right string, ignoreCase bool) bool {
+	if ignoreCase {
+		left, right = strings.ToLower(left), strings.ToLower(right)
+	}
 	switch op {
 	case CompareEQ:
 		return left == right
+	case CompareNE:
+		return left != right
 	case CompareContains:
 		return right != "" && strings.Contains(left, right)
-	case CompareGTE, CompareLT:
-		return orderedPasses(op, left, right)
+	case CompareStarts:
+		return right != "" && strings.HasPrefix(left, right)
 	}
-	return false
+	return orderedPasses(orderOp(op), left, right)
 }
 
-func orderedPasses(op, left, right string) bool {
+func orderedPasses(op orderOp, left, right string) bool {
 	a, okLeft := decimalValue(left)
 	b, okRight := decimalValue(right)
 	if !okLeft || !okRight {
 		return false
 	}
-	if op == CompareLT {
-		return a < b
-	}
-	return a >= b
+	return op.holds(cmp.Compare(a, b))
 }
 
 func decimalValue(s string) (float64, bool) {

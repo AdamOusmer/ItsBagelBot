@@ -47,6 +47,8 @@ var conditionChecks = map[string]conditionCheck{
 	"category":        checkWith((*Pipeline).conditionCategory),
 	"compare":         checkParams((*actionExec).conditionCompare),
 	"var":             checkParams((*actionExec).conditionVar),
+	"follow":          checkWith((*Pipeline).conditionFollow),
+	"account_age":     checkWith((*Pipeline).conditionAccountAge),
 }
 
 func (x *actionExec) conditionsPass() (bool, string, error) {
@@ -69,5 +71,5 @@ func (x *actionExec) condition(cond *automation.PlannedCondition) (bool, error) 
 }
 
 func (x *actionExec) conditionCompare(c automation.CompareCondition) (bool, error) {
-	return automation.ComparePasses(c.Op, x.expand(c.Left), x.expand(c.Right)), nil
+	return automation.ComparePasses(c.Op, x.expand(c.Left), x.expand(c.Right), c.IgnoreCase), nil
 }

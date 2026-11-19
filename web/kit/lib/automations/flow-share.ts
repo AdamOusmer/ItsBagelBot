@@ -201,7 +201,7 @@ export const SHARE_REWRITTEN = {
 // Types reviewed as carrying only the user's own text, numbers and names. A new type is not shareable until it is added here.
 export const SHARE_REVIEWED = {
   trigger: ['command', 'timer', 'manual', 'countdown'],
-  condition: ['perm', 'live', 'cooldown', 'chance', 'counter', 'points', 'arg_regex', 'category', 'compare', 'var'],
+  condition: ['perm', 'live', 'cooldown', 'chance', 'counter', 'points', 'arg_regex', 'category', 'compare', 'var', 'follow', 'account_age'],
   action: [
     'chat',
     'pin',

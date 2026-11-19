@@ -1,9 +1,22 @@
 {
+  "op": {
+    "eq": "es igual a",
+    "ne": "no es igual a",
+    "gt": "es mayor que",
+    "gte": "es como mínimo",
+    "lt": "es menor que",
+    "lte": "es como máximo",
+    "contains": "contiene",
+    "starts": "empieza por",
+    "exists": "tiene algún valor",
+    "not_exists": "no está definida"
+  },
   "role": {
     "label": "Nivel de usuario",
     "summary": "Comprobar el rol del espectador",
     "warning": "Los roles solo se conocen con activadores de chat y cuentas atrás. Con este activador todos cuentan como espectadores.",
-    "remove": "Quitar esta comprobación",
+    "remove": "Quitar la comprobación y conservar los pasos permitidos",
+    "everyoneNote": "Todo el mundo pasa, así que esta comprobación nunca bloquea la ejecución.",
     "field": {
       "level": {
         "label": "Al menos",
@@ -23,34 +36,32 @@
     }
   },
   "user": {
-    "label": "Usuario específico",
-    "summary": "Solo pasa este espectador",
+    "label": "Lista de espectadores",
+    "summary": "Permite o bloquea a los espectadores elegidos",
+    "repick": "Vuelve a seleccionarlo para guardar su ID",
+    "removeViewer": "Quitar a {name}",
     "field": {
-      "login": {
-        "label": "Nombre de usuario",
-        "placeholder": "itsbagelbot"
-      }
+      "mode": { "label": "Modo", "option": { "only": "Solo estos espectadores", "except": "Todos excepto estos" } },
+      "users": { "label": "Espectadores", "placeholder": "itsbagelbot" }
     },
-    "out": {
-      "yes": "Este usuario",
-      "no": "Cualquier otro"
-    }
+    "out": { "yes": "Permitido", "no": "Bloqueado" }
   },
   "cooldown": {
     "label": "Tiempo de espera",
     "summary": "Permite una ejecución cada pocos segundos",
     "field": {
-      "seconds": {
-        "label": "Tiempo de espera",
-        "range": "Usa de 1 segundo a {days} días."
+      "channelSeconds": {
+        "label": "Espera del canal",
+        "range": "Usa de 0 segundos a {days} días."
       },
-      "perUser": {
-        "label": "Por espectador"
+      "viewerSeconds": {
+        "label": "Espera por espectador",
+        "range": "Usa de 0 segundos a {days} días."
       },
       "name": {
         "label": "Nombre",
         "placeholder": "subathon",
-        "hint": "Nombrarlo lo reinicia si está en curso. Los pasos para añadir tiempo de cualquier receta podrán extenderlo. No disponible por espectador."
+        "hint": "Los pasos para añadir tiempo de cualquier receta pueden prolongar una espera con nombre. Solo se aplica a la espera del canal."
       },
       "leftCommand": {
         "label": "Comando de tiempo restante",
@@ -90,7 +101,8 @@
       "right": {
         "label": "Este valor",
         "placeholder": "1000"
-      }
+      },
+      "matchCase": { "label": "Distinguir mayúsculas y minúsculas" }
     },
     "out": {
       "yes": "Sí",
@@ -98,6 +110,7 @@
     }
   },
   "chance": {
+    "alwaysNote": "Siempre pasa.",
     "label": "Probabilidad aleatoria",
     "summary": "Pasa algunas veces",
     "field": {
@@ -133,5 +146,45 @@
       "value": { "label": "Valor", "placeholder": "10" }
     },
     "out": { "yes": "Sí", "no": "No" }
+  },
+  "live": {
+    "label": "En directo o sin conexión",
+    "summary": "Comprueba si estás transmitiendo en directo",
+    "field": { "state": { "label": "El canal está", "option": { "live": "En directo", "offline": "Sin conexión" } } },
+    "line": { "live": "El canal está en directo", "offline": "El canal está sin conexión" },
+    "out": { "yes": "En directo", "no": "Sin conexión" }
+  },
+  "category": {
+    "label": "Categoría del juego",
+    "summary": "Comprueba la categoría configurada en tu canal",
+    "field": {
+      "mode": { "label": "Modo", "option": { "allow": "Es una de estas", "deny": "No es ninguna de estas" } },
+      "games": { "label": "Juegos", "hint": "Usa la categoría configurada en tu canal, incluso cuando no estás en directo." }
+    },
+    "line": { "allow": "El juego es {games}", "deny": "El juego no es {games}" },
+    "out": { "yes": "Coincide", "no": "Otro juego" }
+  },
+  "pattern": {
+    "label": "El texto del comando coincide",
+    "summary": "Comprueba las palabras que siguen a un comando del chat",
+    "field": { "pattern": { "label": "Patrón", "hint": "Un patrón para las palabras que siguen al comando, por ejemplo ^[0-9]+$." } },
+    "line": "El texto del comando coincide con {pattern}",
+    "out": { "yes": "Coincide", "no": "No coincide" }
+  },
+  "follow": {
+    "label": "Te sigue",
+    "summary": "Comprueba desde hace cuánto te sigue el espectador",
+    "field": { "minDays": { "label": "Desde hace al menos", "unit": "días" } },
+    "line": "Te sigue desde hace al menos {minDays} días",
+    "lineAny": "Te sigue",
+    "viewerNote": "Solo reconoce a los espectadores que inician esta receta.",
+    "out": { "yes": "Te sigue", "no": "No te sigue" }
+  },
+  "accountAge": {
+    "label": "Antigüedad de la cuenta",
+    "summary": "Comprueba la antigüedad de la cuenta de Twitch del espectador",
+    "field": { "minDays": { "label": "Al menos", "unit": "días" } },
+    "line": "La cuenta tiene al menos {minDays} días",
+    "out": { "yes": "Cumple la antigüedad", "no": "Demasiado reciente" }
   }
 }

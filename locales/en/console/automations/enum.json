@@ -36,6 +36,8 @@
     "offline": "Offline"
   },
   "op": {
+    "starts": "starts with",
+    "not_exists": "is not set",
     "contains": "contains",
     "eq": "equals",
     "ne": "is not",

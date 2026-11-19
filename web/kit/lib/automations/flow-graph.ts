@@ -7,6 +7,9 @@ import { ACTION_TYPES } from './catalog';
 import { SETUP_LOGIN, SETUP_REWARD_ID, SETUP_RUN_TARGET } from './flow-setup';
 import { CODE, MAX_DELAY_MS, VERSION } from './limits';
 import type { Action, Condition, Definition, Issue, Params, Trigger } from './types';
+import { VAR_OPS_WITH_VALUE } from './values';
+
+export { VAR_OPS_WITH_VALUE } from './values';
 
 export type FlowConfig = Record<string, string | number | boolean>;
 export type FlowNode = { id: string; type: string; x: number; y: number; config: FlowConfig };
@@ -31,7 +34,8 @@ export const FLOW_ISSUE = {
   unmappableToken: 'unmappable_token',
   userNotResolved: 'user_not_resolved',
   nothingToChange: 'nothing_to_change',
-  invalidTags: 'invalid_tags'
+  invalidTags: 'invalid_tags',
+  unknownPort: 'unknown_port'
 } as const;
 
 const REWARD_KIND = 'channel.channel_points_custom_reward_redemption.add';
@@ -108,6 +112,18 @@ const isConditionType = (type: string) => type.startsWith('cond.');
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v) || 0);
+
+type CooldownWindows = { channelSeconds: number; viewerSeconds: number };
+
+export function cooldownWindows(config: FlowConfig): CooldownWindows {
+  if (config.channelSeconds !== undefined || config.viewerSeconds !== undefined) {
+    return { channelSeconds: num(config.channelSeconds), viewerSeconds: num(config.viewerSeconds) };
+  }
+  const seconds = num(config.seconds);
+  return config.perUser ? { channelSeconds: 0, viewerSeconds: seconds } : { channelSeconds: seconds, viewerSeconds: 0 };
+}
+
+export const canNameCooldown = ({ channelSeconds, viewerSeconds }: CooldownWindows): boolean => viewerSeconds === 0 && channelSeconds > 0;
 
 function eventTrigger(kind: string, filters?: Record<string, string>): Trigger {
   return { type: 'event', params: filters ? { kind, filters } : { kind } };
@@ -282,7 +298,8 @@ const TEMPLATE_FIELDS: Record<string, string[]> = {
   'reply.http_post': ['url', 'body'],
   'reply.stream_info': ['title', 'game', 'tags'],
   'reply.marker': ['description'],
-  'reply.clip': ['title', 'reply']
+  'reply.clip': ['title', 'reply'],
+  'cond.cooldown': ['leftReply', 'readyReply']
 };
 
 const recipeName = (v: unknown) => str(v).trim().toLowerCase();
@@ -299,8 +316,6 @@ function textFieldUsed(field: string, op: string): boolean {
   return operands[field]?.includes(op) ?? true;
 }
 
-export const VAR_OPS_WITH_VALUE: readonly string[] = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains'];
-
 const textOp = (config: FlowConfig) => str(config.op) || 'upper';
 const varConditionOp = (config: FlowConfig) => str(config.op) || 'eq';
 
@@ -314,7 +329,8 @@ const TEMPLATE_FIELD_OVERRIDES = new Map<string, (config: FlowConfig, fields: re
   ['reply.text', (config, fields) => fields.filter((field) => textFieldUsed(field, textOp(config)))],
   ['reply.var', (config, fields) => variableActionType(config) === 'var_set' ? fields : []],
   ['cond.var', (config) => VAR_OPS_WITH_VALUE.includes(varConditionOp(config)) ? ['value'] : []],
-  ['reply.prediction_end', (config) => config.status === 'resolve' ? ['outcome'] : []]
+  ['reply.prediction_end', (config) => config.status === 'resolve' ? ['outcome'] : []],
+  ['cond.cooldown', (config, fields) => fields.filter((field) => config[field] !== undefined)]
 ]);
 
 function templateFields(node: FlowNode): readonly string[] {
@@ -396,6 +412,13 @@ export const RANDOM_PATH_DEFAULT_WEIGHT = 1;
 export const activeRandomPaths = (config: FlowConfig) =>
   RANDOM_PATHS.slice(0, Number(RANDOM_PATH_COUNTS.find((paths) => paths === String(config.paths)) ?? RANDOM_PATH_COUNTS[0]));
 export const randomPathWeight = (config: FlowConfig, key: keyof FlowConfig) => num(config[key] ?? RANDOM_PATH_DEFAULT_WEIGHT);
+const CHECK_PORTS = ['yes', 'no'] as const;
+
+function outputPorts(node: FlowNode): readonly string[] {
+  if (isConditionType(node.type)) return CHECK_PORTS;
+  if (node.type === LOOP_TYPE) return LOOP_PORTS;
+  return Object.hasOwn(API_WRITERS, node.type) ? API_PORTS : ['next'];
+}
 
 const DEFAULT_LIGHT_COLOR = '#ffffff';
 const DEFAULT_LIGHT_KELVIN = 4000;
@@ -438,7 +461,7 @@ function lightsAction(config: FlowConfig): Action {
   return { type: 'lights', params: withOptional(params, { brightness: useBrightness && brightness, hold_s: hold > 0 && hold }) };
 }
 
-const awaitingUser = (config: FlowConfig) => config.login === SETUP_LOGIN;
+const awaitingUser = (config: FlowConfig) => config.users === undefined && config.login === SETUP_LOGIN;
 
 const SETUP_RUN_TEXT = '[setup-required:run]';
 export const setupRunPlaceholder = (): Action => ({ type: 'chat', enabled: false, params: { text: SETUP_RUN_TEXT } });
@@ -450,37 +473,70 @@ function runAction(config: FlowConfig): Action {
   return id === SETUP_RUN_TARGET ? setupRunPlaceholder() : { type: 'run', params: { automation_id: id } };
 }
 
-const COOLDOWN_PASSTHROUGH_FIELDS = [
-  ['name', 'name'],
+export const flowList = (value: FlowConfig[string] | undefined): string[] => str(value).split(',').map((entry) => entry.trim()).filter(Boolean);
+
+type ViewerEntry = { id: string; login: string };
+
+export const viewerIdKey = (id: ViewerEntry['id']): string => id.replace(/^0+(?=\d)/, '');
+
+export function viewerList(config: FlowConfig): ViewerEntry[] {
+  if (awaitingUser(config)) return [];
+  return flowList(config.users ?? `${String(config.userId ?? '')}:${str(config.login)}`).filter((entry) => entry !== ':').map((entry) => {
+    const [id = '', login = ''] = entry.split(':', 2);
+    return { id, login };
+  });
+}
+
+function userCondition(config: FlowConfig): Condition {
+  if (awaitingUser(config)) return { type: 'users', params: { allow: [SETUP_LOGIN] } };
+  const ids = viewerList(config).map(({ id }) => id);
+  return { type: 'users', params: { [config.mode === 'except' ? 'deny_ids' : 'allow_ids']: ids } };
+}
+
+const TIME_LEFT_PARAMS = [
   ['leftCommand', 'left_command'],
   ['leftReply', 'left_reply'],
   ['readyReply', 'ready_reply']
 ] as const;
 
 function timeLeftParams(config: FlowConfig): Params {
-  return Object.fromEntries(COOLDOWN_PASSTHROUGH_FIELDS.filter(([key]) => str(config[key]).trim() !== '').map(([key, param]) => [param, str(config[key]).trim()]));
+  return Object.fromEntries(TIME_LEFT_PARAMS.filter(([key]) => str(config[key]).trim() !== '').map(([key, param]) => [param, str(config[key]).trim()]));
 }
 
 function timeLeftConfig(params: Params): FlowConfig {
-  return Object.fromEntries(COOLDOWN_PASSTHROUGH_FIELDS.filter(([, param]) => str(params[param]) !== '').map(([key, param]) => [key, str(params[param])]));
+  return Object.fromEntries(TIME_LEFT_PARAMS.filter(([, param]) => str(params[param]) !== '').map(([key, param]) => [key, str(params[param])]));
 }
 
 const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
-  'cond.compare': (config) => ({ type: 'compare', params: { left: str(config.left), op: str(config.op) || 'gte', right: str(config.right) } }),
-  'cond.role': (config) => ({ type: 'perm', params: { level: str(config.level) } }),
+  'cond.compare': (config) => ({
+    type: 'compare',
+    params: {
+      left: str(config.left), op: str(config.op) || 'gte', right: str(config.right),
+      ...(config.matchCase === false ? { ignore_case: true } : {})
+    }
+  }),
+  'cond.role': (config) => ({ type: 'perm', params: { level: str(config.level) || 'everyone' } }),
   'cond.chance': (config) => ({ type: 'chance', params: { percent: num(config.percent) } }),
   'cond.var': (config) => {
     const op = varConditionOp(config);
-    return { type: 'var', params: { ...varIdentity(config), op, value: VAR_OPS_WITH_VALUE.includes(op) ? str(config.value) : '' } };
+    const params: Params = { ...varIdentity(config), op };
+    if (VAR_OPS_WITH_VALUE.includes(op)) params.value = str(config.value);
+    return { type: 'var', params };
   },
-  'cond.user': (config) => ({ type: 'users', params: awaitingUser(config) ? { allow: [SETUP_LOGIN] } : { allow_ids: [str(config.userId)] } }),
-  'cond.cooldown': cooldownConditionAction
+  'cond.user': userCondition,
+  'cond.cooldown': cooldownConditionAction,
+  'cond.live': (config) => ({ type: 'live', params: { state: str(config.state) || 'live' } }),
+  'cond.category': (config) => ({ type: 'category', params: { [config.mode === 'deny' ? 'deny' : 'allow']: flowList(config.games) } }),
+  'cond.pattern': (config) => ({ type: 'arg_regex', params: { pattern: str(config.pattern) } }),
+  'cond.follow': (config) => ({ type: 'follow', params: { min_days: num(config.minDays) } }),
+  'cond.accountAge': (config) => ({ type: 'account_age', params: { min_days: num(config.minDays ?? 7) } })
 };
 
 function cooldownConditionAction(config: FlowConfig): Condition {
-  const perUser = Boolean(config.perUser);
-  const params: Params = { [perUser ? 'user_s' : 'global_s']: num(config.seconds), ...timeLeftParams(config) };
-  if (perUser) delete params.name;
+  const windows = cooldownWindows(config);
+  const { channelSeconds, viewerSeconds } = windows;
+  const name = canNameCooldown(windows) ? str(config.name).trim() : '';
+  const params = withOptional(timeLeftParams(config), { global_s: channelSeconds, user_s: viewerSeconds, name });
   return { type: 'cooldown', params };
 }
 
@@ -636,7 +692,18 @@ function triggerNode(flow: Flow): FlowResult<FlowNode> {
   return { ok: true, value: triggers[0]! };
 }
 
+function unknownPortIssues(flow: Flow, byId: Lowering['byId']): Issue[] {
+  const sources = new Set<string>();
+  for (const edge of flow.edges) {
+    const source = byId.get(edge.from);
+    if (source && !outputPorts(source).includes(edge.port)) sources.add(source.id);
+  }
+  return [...sources].map((id) => ({ path: nodePath(id), code: FLOW_ISSUE.unknownPort }));
+}
+
 function shapeIssues(flow: Flow, trigger: FlowNode, ctx: Lowering): Issue[] {
+  const ports = unknownPortIssues(flow, ctx.byId);
+  if (ports.length > 0) return ports;
   const cycle = findCycleNode(ctx.outs, trigger.id);
   if (cycle) return [{ path: nodePath(cycle), code: FLOW_ISSUE.cycle }];
   const attached = reachable(ctx.outs, trigger.id);
@@ -684,15 +751,21 @@ function visit(ctx: Lowering, id: string): boolean {
   return false;
 }
 
+function userListResolved(config: FlowConfig): boolean {
+  if (awaitingUser(config)) return true;
+  const viewers = viewerList(config);
+  return viewers.length > 0 && viewers.every(({ id }) => id !== '');
+}
+
 function writeCondition(ctx: Lowering, node: FlowNode): Condition {
   const write = CONDITION_WRITERS[node.type];
   if (!write) {
     ctx.issues.push({ path: nodePath(node.id), code: FLOW_ISSUE.unsupportedNode });
     return { type: node.type };
   }
-  const resolved = str(node.config.userId) !== '' || awaitingUser(node.config);
-  if (node.type === 'cond.user' && !resolved) {
+  if (node.type === 'cond.user' && !userListResolved(node.config)) {
     ctx.issues.push({ path: nodePath(node.id), code: FLOW_ISSUE.userNotResolved });
+    return { type: 'users' };
   }
   return owned(ctx, node, write(loweredConfig(ctx, node)));
 }
@@ -804,7 +877,7 @@ function lowerArms(ctx: Lowering, node: FlowNode, ports: readonly [string, strin
 
 function lowerBranch(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
   const params: Params = { condition: writeCondition(ctx, node) };
-  const { first, second, rest } = lowerArms(ctx, node, ['yes', 'no'], stop);
+  const { first, second, rest } = lowerArms(ctx, node, CHECK_PORTS, stop);
   if (first.length > 0) params.then = first;
   if (second.length > 0) params.else = second;
   return [owned(ctx, node, { type: 'if', params }), ...rest];
@@ -1155,24 +1228,42 @@ function triggerToNode(trigger: Trigger): Pick<FlowNode, 'type' | 'config'> | nu
   return TRIGGER_READERS.get(trigger.type)?.(trigger.params ?? {}) ?? null;
 }
 
-function cooldownNode(params: Params): { type: string; config: FlowConfig } | null {
-  const global = num(params.global_s);
-  const user = num(params.user_s);
-  if (global > 0 && user > 0) return null;
-  return { type: 'cond.cooldown', config: { seconds: global || user, perUser: user > 0, ...timeLeftConfig(params) } };
+function cooldownNode(params: Params): { type: string; config: FlowConfig } {
+  const config = { channelSeconds: num(params.global_s), viewerSeconds: num(params.user_s), ...timeLeftConfig(params) };
+  const name = str(params.name);
+  return { type: 'cond.cooldown', config: name ? { ...config, name } : config };
 }
 
-function userNode(params: Params): { type: string; config: FlowConfig } | null {
-  const ids = (params.allow_ids ?? []) as string[];
-  const others = [params.allow, params.deny, params.deny_ids].flatMap((list) => (list ?? []) as string[]);
-  const everyone = [...ids, ...others];
-  if (everyone.length === 1 && (params.allow as string[] | undefined)?.[0] === SETUP_LOGIN) return { type: 'cond.user', config: { login: SETUP_LOGIN } };
-  return ids.length === 1 && others.length === 0 ? { type: 'cond.user', config: { userId: ids[0]! } } : null;
+type ConditionNode = { type: string; config: FlowConfig };
+
+function userEntries(params: Params, mode: 'allow' | 'deny'): string[] {
+  const ids = (params[`${mode}_ids`] ?? []) as string[];
+  const logins = (params[mode] ?? []) as string[];
+  return [...ids.map((id) => `${id}:`), ...logins.map((login) => `:${login}`)];
+}
+
+function userNode(params: Params): ConditionNode | null {
+  const allowed = userEntries(params, 'allow');
+  const denied = userEntries(params, 'deny');
+  if (allowed.length && denied.length) return null;
+  if (allowed.length === 1 && allowed[0] === `:${SETUP_LOGIN}`) return { type: 'cond.user', config: { login: SETUP_LOGIN, mode: 'only' } };
+  const users = (denied.length ? denied : allowed).join(',');
+  return users ? { type: 'cond.user', config: { mode: denied.length ? 'except' : 'only', users } } : null;
+}
+
+function categoryNode(params: Params): ConditionNode | null {
+  const allow = (params.allow ?? []) as string[];
+  const deny = (params.deny ?? []) as string[];
+  if (allow.length && deny.length) return null;
+  const games = deny.length ? deny : allow;
+  if (games.some((game) => game.includes(','))) return null;
+  return { type: 'cond.category', config: { mode: deny.length ? 'deny' : 'allow', games: games.join(', ') } };
 }
 
 function compareNode(params: Params): { type: string; config: FlowConfig } | null {
-  if (!COMPARE_OPS.includes(str(params.op))) return null;
-  return { type: 'cond.compare', config: { left: str(params.left), op: str(params.op), right: str(params.right) } };
+  const op = str(params.op);
+  if (!COMPARE_OPS.includes(op)) return null;
+  return { type: 'cond.compare', config: { left: str(params.left), op, right: str(params.right), matchCase: params.ignore_case !== true } };
 }
 
 const varConfig = (params: Params): FlowConfig => ({ scope: str(params.scope), name: str(params.name) });
@@ -1180,10 +1271,19 @@ const varConfig = (params: Params): FlowConfig => ({ scope: str(params.scope), n
 function varConditionNode(params: Params): { type: string; config: FlowConfig } {
   const op = str(params.op);
   const config: FlowConfig = { ...varConfig(params), op };
-  return { type: 'cond.var', config: op === 'exists' ? config : { ...config, value: str(params.value) } };
+  if (VAR_OPS_WITH_VALUE.includes(op)) config.value = str(params.value);
+  return { type: 'cond.var', config };
 }
 
-function conditionToNode(condition: Condition): { type: string; config: FlowConfig } | null {
+const CONDITION_READERS: Readonly<Record<string, (params: Params) => ConditionNode | null>> = {
+  live: (params) => ({ type: 'cond.live', config: { state: str(params.state) } }),
+  category: categoryNode,
+  arg_regex: (params) => ({ type: 'cond.pattern', config: { pattern: str(params.pattern) } }),
+  follow: (params) => ({ type: 'cond.follow', config: { minDays: num(params.min_days) } }),
+  account_age: (params) => ({ type: 'cond.accountAge', config: { minDays: num(params.min_days) } })
+};
+
+function conditionToNode(condition: Condition): ConditionNode | null {
   const params = condition.params ?? {};
   if (condition.type === 'var') return varConditionNode(params);
   if (condition.type === 'compare') return compareNode(params);
@@ -1191,7 +1291,7 @@ function conditionToNode(condition: Condition): { type: string; config: FlowConf
   if (condition.type === 'perm') return { type: 'cond.role', config: { level: str(params.level) } };
   if (condition.type === 'chance') return { type: 'cond.chance', config: { percent: num(params.percent) } };
   if (condition.type === 'cooldown') return cooldownNode(params);
-  return null;
+  return Object.hasOwn(CONDITION_READERS, condition.type) ? CONDITION_READERS[condition.type]!(params) : null;
 }
 
 function lightConfig(params: Params): FlowConfig {

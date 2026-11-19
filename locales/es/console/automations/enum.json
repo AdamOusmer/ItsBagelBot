@@ -36,6 +36,8 @@
     "offline": "Desconectado"
   },
   "op": {
+    "starts": "empieza por",
+    "not_exists": "no está definida",
     "contains": "contiene",
     "eq": "es igual a",
     "ne": "no es",

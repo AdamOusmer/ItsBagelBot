@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey } from '@bagel/kit';
-import { activeRandomPaths, compactDuration, randomPathWeight } from '@bagel/kit/automations';
+import { activeRandomPaths, compactDuration, cooldownWindows, flowList, randomPathWeight, viewerList } from '@bagel/kit/automations';
 import { optionText, outputLabel, randomPathLabel, stepSummary } from './copy';
 import type { Translate } from './messages';
 import { INITIAL_LIGHT_KELVIN, LINKED_REWARD_CHOICE, specFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
@@ -11,7 +11,16 @@ const COMPARISONS: Readonly<Record<string, MessageKey>> = Object.freeze({
   gte: 'flows.line.compareGte',
   lt: 'flows.line.compareLt',
   eq: 'flows.line.compareEq',
-  contains: 'flows.line.compareContains'
+  contains: 'flows.line.compareContains',
+  ne: 'flows.line.compareNe',
+  gt: 'flows.line.compareGt',
+  lte: 'flows.line.compareLte',
+  starts: 'flows.line.compareStarts'
+});
+
+const EMPTY_COMPARISONS: Readonly<Record<string, MessageKey>> = Object.freeze({
+  eq: 'flows.line.compareEmpty',
+  ne: 'flows.line.compareNotEmpty'
 });
 
 const ROLES: Readonly<Record<string, MessageKey>> = Object.freeze({
@@ -98,9 +107,10 @@ function triggerLine(t: Translate, node: FlowNode, spec: NodeSpec): string {
 
 function compareLine(t: Translate, n: FlowNode): string {
   const left = text(n, 'left');
-  const right = text(n, 'right');
-  if (!left || !right) return '';
+  const right = configText(n, 'right');
+  if (!left) return '';
   const op = text(n, 'op') || 'gte';
+  if (right === '') return Object.hasOwn(EMPTY_COMPARISONS, op) ? t(EMPTY_COMPARISONS[op]!, { left, right }) : '';
   return Object.hasOwn(COMPARISONS, op) ? t(COMPARISONS[op]!, { left, right }) : t('flows.line.compareIs', { left, right });
 }
 
@@ -118,17 +128,35 @@ function cooldownAmount(t: Translate, total: number): string {
 }
 
 function cooldownLine(t: Translate, n: FlowNode): string {
-  return given(num(n, 'seconds'), (count) =>
-    t(n.config.perUser ? 'flows.line.cooldownViewer' : 'flows.line.cooldown', { amount: cooldownAmount(t, count) })
-  );
+  const { channelSeconds, viewerSeconds } = cooldownWindows(n.config);
+  const channel = channelSeconds > 0 ? cooldownAmount(t, channelSeconds) : '';
+  const viewer = viewerSeconds > 0 ? cooldownAmount(t, viewerSeconds) : '';
+  if (channel && viewer) return t('flows.line.cooldownBoth', { channel, viewer });
+  if (viewer) return t('flows.line.cooldownViewer', { amount: viewer });
+  return channel ? t('flows.line.cooldown', { amount: channel }) : '';
 }
 
 function varCheckLine(t: Translate, n: FlowNode): string {
   const spec = specFor(n.type)!;
-  const name = text(n, 'name');
-  if (!name) return '';
-  if (text(n, 'op') === 'exists') return t('flows.line.varExists', { name });
+  const key = text(n, 'name');
+  if (!key) return '';
+  const name = t(n.config.scope === 'viewer' ? 'flows.line.varViewer' : 'flows.line.varChannel', { name: key });
+  const op = text(n, 'op');
+  if (op === 'exists') return t('flows.line.varExists', { name });
+  if (op === 'not_exists') return t('flows.line.varNotExists', { name });
   return t('flows.line.varCheck', { name, op: optionLabel(t, spec, n, 'op'), value: text(n, 'value') });
+}
+
+export function viewerNames(node: FlowNode): string[] {
+  return viewerList(node.config).map(({ id, login }) => login ? `@${login}` : id);
+}
+
+function viewerLine(t: Translate, n: FlowNode): string {
+  const [first, second, ...remaining] = viewerNames(n);
+  if (!first) return '';
+  const pair = second ? t('flows.line.userPair', { first, second }) : first;
+  const user = remaining.length ? t('flows.line.userMore', { first, second: second!, count: remaining.length }) : pair;
+  return t(n.config.mode === 'except' ? 'flows.line.userExcept' : 'flows.line.userOnly', { user });
 }
 
 function conditionLine(t: Translate, n: FlowNode): string {
@@ -136,9 +164,9 @@ function conditionLine(t: Translate, n: FlowNode): string {
     case 'cond.var':
       return varCheckLine(t, n);
     case 'cond.role':
-      return roleLine(t, text(n, 'level'));
+      return roleLine(t, text(n, 'level') || 'everyone');
     case 'cond.user':
-      return given(text(n, 'login') || text(n, 'userId'), (user) => t('flows.line.userOnly', { user }));
+      return viewerLine(t, n);
     case 'cond.cooldown':
       return cooldownLine(t, n);
     case 'cond.compare':
@@ -291,6 +319,8 @@ function whoLabel(t: Translate, node: FlowNode): string {
 
 function lineValue(t: Translate, node: FlowNode, spec: NodeSpec, key: string): string {
   if (key === 'who') return whoLabel(t, node);
+  const special = SPECIAL_LINE_VALUES[`${node.type}:${key}`];
+  if (special) return special(t, node);
   const field = spec.fields.find((entry) => entry.key === key || (entry.type === 'choice' && entry.nameKey === key));
   const configKey = field?.key ?? key;
   if (!text(node, configKey)) return '';
@@ -303,13 +333,29 @@ function lineValue(t: Translate, node: FlowNode, spec: NodeSpec, key: string): s
 function lineSuffix(node: FlowNode, spec: NodeSpec): string {
   if (!spec.lineBy) return '';
   const field = spec.fields.find((entry) => entry.key === spec.lineBy);
-  const fallback = field?.type === 'select' ? field.fallback : undefined;
-  const variant = lineVariant(node.config[spec.lineBy] ?? fallback);
+  const variant = lineVariant(node.config[spec.lineBy] ?? lineFallback(spec, field));
   const showWait = node.type === 'reply.chat_mode' && node.config.mode === 'slow' && Boolean(node.config.wait);
   return variant === 'on' && showWait ? '.slow' : `.${variant}`;
 }
 
+function gamesLine(t: Translate, node: FlowNode): string {
+  const games = flowList(node.config.games);
+  if (games.length < 2) return games[0] ?? '';
+  return t('flows.line.gameAlternatives', { first: games.slice(0, -1).join(', '), last: games.at(-1)! });
+}
+
+function lineFallback(spec: NodeSpec, field: FieldSpec | undefined): ConfigValue {
+  if (field?.type === 'select' && field.fallback !== undefined) return field.fallback;
+  return spec.kind === 'condition' ? field?.initial : undefined;
+}
+
+const SPECIAL_LINE_VALUES: Readonly<Record<string, (t: Translate, node: FlowNode) => string>> = {
+  'cond.category:games': gamesLine,
+  'cond.accountAge:minDays': (_t, node) => String(node.config.minDays ?? 7)
+};
+
 function specLine(t: Translate, node: FlowNode, spec: NodeSpec): string | undefined {
+  if (node.type === 'cond.follow' && !num(node, 'minDays')) return t('flows.step.condition.follow.lineAny');
   const suffix = lineSuffix(node, spec);
   const template = t(`flows.step.${spec.kind}.${spec.slug}.line${suffix}` as MessageKey);
   if (template === `flows.step.${spec.kind}.${spec.slug}.line${suffix}`) return undefined;
@@ -326,6 +372,7 @@ export function portLabel(t: Translate, node: FlowNode, id: string): string {
   if (node.type === 'reply.random') return randomPortLabel(t, node, id);
   const percent = node.type === 'cond.chance' ? num(node, 'percent') : 0;
   if (percent) return id === 'yes' ? t('flows.line.chanceYes', { percent }) : t('flows.line.chanceNo');
+  if (node.type === 'cond.live' && node.config.state === 'offline') id = id === 'yes' ? 'no' : 'yes';
   const spec = specFor(node.type);
   return spec ? outputLabel(t, spec, id) : '';
 }

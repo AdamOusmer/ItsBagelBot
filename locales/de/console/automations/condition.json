@@ -1,4 +1,6 @@
 {
+  "follow": "Folgt deinem Kanal",
+  "account_age": "Kontoalter",
   "perm": "Rolle des Zuschauers",
   "users": "Bestimmte Zuschauer",
   "live": "Stream-Status",

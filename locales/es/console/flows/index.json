@@ -80,6 +80,7 @@
     "multipleTriggers": "Una receta solo puede empezar de una forma. Elimina el paso Cuando adicional.",
     "cycle": "Este paso crea un bucle sobre sí mismo. Elimina una de las conexiones.",
     "unconnectedNode": "Este paso no está conectado al inicio. Conéctalo o elimínalo.",
+    "unknownPort": "Una conexión sale de un puerto que este paso no tiene. Vuelve a conectarla.",
     "unstructuredMerge": "Una ruta con Esperar no puede unirse a otra ruta. Mueve Esperar después de la unión o dale a cada ruta sus propios pasos.",
     "unsupportedNode": "Este paso no se puede guardar todavía.",
     "unsupportedTrigger": "Este inicio no se puede guardar todavía.",

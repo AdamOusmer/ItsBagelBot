@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"math"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -16,12 +17,13 @@ const (
 	VariableScopeChannel = "channel"
 	VariableScopeViewer  = "viewer"
 
-	varOpExists = "exists"
+	varOpExists    = "exists"
+	varOpNotExists = "not_exists"
 )
 
 var (
 	variableScopes      = enum{VariableScopeChannel, VariableScopeViewer}
-	varConditionOps     = enum{"eq", "ne", "gt", "gte", "lt", "lte", CompareContains, varOpExists}
+	varConditionOps     = enum{CompareEQ, CompareNE, CompareGT, CompareGTE, CompareLT, CompareLTE, CompareContains, CompareStarts, varOpExists, varOpNotExists}
 	variableNamePattern = regexp.MustCompile(`^[a-z0-9]{1,32}$`)
 )
 
@@ -49,6 +51,10 @@ type VarCondition struct {
 	VarRef
 	Op    string `json:"op"`
 	Value string `json:"value"`
+}
+
+func (p VarCondition) UsesValue() bool {
+	return slices.Contains(compareTemplateOps, p.Op)
 }
 
 // VariableName lowercases a variable or run local name and reports whether it is well formed.
@@ -96,7 +102,9 @@ func checkVarDelete(c chk, p VarDeleteAction) {
 func checkVarCondition(c chk, p VarCondition) {
 	c.varRef(p.VarRef)
 	c.oneOf("op", p.Op, varConditionOps)
-	c.text("value", p.Value, upTo(MaxTemplateLength))
+	if p.UsesValue() {
+		c.text("value", p.Value, compareRight(p.Op))
+	}
 }
 
 // VariableValue is the text a variable stores.
@@ -115,10 +123,12 @@ func (v VarComparison) Passes() bool {
 	switch v.Op {
 	case varOpExists:
 		return v.Exists
-	case CompareContains:
-		return v.Value != "" && strings.Contains(string(v.Current), string(v.Value))
+	case varOpNotExists:
+		return !v.Exists
+	case CompareContains, CompareStarts:
+		return ComparePasses(v.Op, string(v.Current), string(v.Value), false)
 	}
-	return varOrderOp(v.Op).holds(v.Current.compare(v.Value))
+	return orderOp(v.Op).holds(v.Current.compare(v.Value))
 }
 
 func (v VariableValue) compare(other VariableValue) int {
@@ -130,21 +140,21 @@ func (v VariableValue) compare(other VariableValue) int {
 	return strings.Compare(string(v), string(other))
 }
 
-type varOrderOp string
+type orderOp string
 
-func (op varOrderOp) holds(order int) bool {
+func (op orderOp) holds(order int) bool {
 	switch op {
-	case "eq":
+	case CompareEQ:
 		return order == 0
-	case "ne":
+	case CompareNE:
 		return order != 0
-	case "gt":
+	case CompareGT:
 		return order > 0
-	case "gte":
+	case CompareGTE:
 		return order >= 0
-	case "lt":
+	case CompareLT:
 		return order < 0
-	case "lte":
+	case CompareLTE:
 		return order <= 0
 	}
 	return false

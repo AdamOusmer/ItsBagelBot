@@ -8,7 +8,7 @@
       "type": "compare",
       "params": {
         "left": "",
-        "op": "gt",
+        "op": "unknown",
         "right": "1"
       }
     },

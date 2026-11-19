@@ -3,18 +3,20 @@
 
 import type { Chk } from './check';
 import { register, type Table, type Wide } from './engine';
-import { COMPARE_OPS } from './compare';
-import { CODE, MAX_COOLDOWN_SECONDS, MAX_LIST_ENTRIES, MAX_PATTERN_LENGTH, MAX_TEMPLATE_LENGTH, RECIPE_NAME_PATTERN } from './limits';
+import { COMPARE_OPS, needsSearchValue } from './compare';
+import { CODE, MAX_AGE_DAYS, MAX_COOLDOWN_SECONDS, MAX_LIST_ENTRIES, MAX_PATTERN_LENGTH, MAX_TEMPLATE_LENGTH, RECIPE_NAME_PATTERN } from './limits';
 import { isCounterChar } from './text';
-import { CMP_OPS, PERM_LEVELS } from './values';
+import { CMP_OPS, PERM_LEVELS, VAR_OPS, VAR_OPS_WITH_VALUE } from './values';
 import { checkRegex, commandName } from './triggers';
 import type {
+  AccountAgeCondition,
   ArgRegexCondition,
   CategoryCondition,
   ChanceCondition,
   CompareCondition,
   CooldownCondition,
   CounterCondition,
+  FollowCondition,
   LiveCondition,
   PermCondition,
   PointsCondition,
@@ -74,11 +76,10 @@ function checkCounter(c: Chk, p: Wide<CounterCondition>): void {
 function checkCompare(c: Chk, p: Wide<CompareCondition>): void {
   c.template('left', p.left);
   c.oneOf('op', p.op, COMPARE_OPS);
-  c.text('right', p.right, p.op === 'contains' ? 1 : 0, MAX_TEMPLATE_LENGTH);
+  c.text('right', p.right, needsSearchValue(p.op) ? 1 : 0, MAX_TEMPLATE_LENGTH);
 }
 
 export const VAR_SCOPES = ['channel', 'viewer'];
-const VAR_OPS = [...CMP_OPS, 'contains', 'exists'];
 
 export function checkVarIdentity(c: Chk, p: { scope: string; name: string }): void {
   c.oneOf('scope', p.scope, VAR_SCOPES);
@@ -88,7 +89,7 @@ export function checkVarIdentity(c: Chk, p: { scope: string; name: string }): vo
 function checkVar(c: Chk, p: Wide<VarCondition>): void {
   checkVarIdentity(c, p);
   c.oneOf('op', p.op, VAR_OPS);
-  c.text('value', p.value, 0, MAX_TEMPLATE_LENGTH);
+  if (VAR_OPS_WITH_VALUE.includes(p.op)) c.text('value', p.value, needsSearchValue(p.op) ? 1 : 0, MAX_TEMPLATE_LENGTH);
 }
 
 export const CONDITIONS: Table = {
@@ -106,6 +107,8 @@ export const CONDITIONS: Table = {
     checkRegex(c, 'pattern', p.pattern, MAX_PATTERN_LENGTH),
   ),
   category: register<Wide<CategoryCondition>>({ allow: 'strings', deny: 'strings' }, checkCategory),
-  compare: register<Wide<CompareCondition>>({ left: 'string', op: 'string', right: 'string' }, checkCompare),
+  compare: register<Wide<CompareCondition>>({ left: 'string', op: 'string', right: 'string', ignore_case: 'bool' }, checkCompare),
   var: register<Wide<VarCondition>>({ scope: 'string', name: 'string', op: 'string', value: 'string' }, checkVar),
+  follow: register<Wide<FollowCondition>>({ min_days: 'int' }, (c, p) => c.inRange('min_days', p.min_days, 0, MAX_AGE_DAYS)),
+  account_age: register<Wide<AccountAgeCondition>>({ min_days: 'int' }, (c, p) => c.inRange('min_days', p.min_days, 1, MAX_AGE_DAYS)),
 };

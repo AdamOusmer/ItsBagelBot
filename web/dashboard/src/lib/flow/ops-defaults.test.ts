@@ -32,9 +32,9 @@ const defaults = {
   'schedule.timer': { every: 900, jitter: 0, chatLines: 5, offline: false },
   'schedule.manual': {},
   'cond.role': { level: 'mod' },
-  'cond.user': {},
-  'cond.cooldown': { seconds: 30 },
-  'cond.compare': { op: 'gte' },
+  'cond.user': { mode: 'only' },
+  'cond.cooldown': { channelSeconds: 30, viewerSeconds: 0 },
+  'cond.compare': { op: 'gte', matchCase: false },
   'cond.chance': { percent: 50 },
   'cond.var': { scope: 'channel', op: 'exists' },
   'reply.chat': { message: 'Thanks {user}!', reply: 'off' },
@@ -80,7 +80,12 @@ const defaults = {
   'reply.clip': { seconds: 30, reply: '{user} clipped it: {clip:url}', confirm: true },
   'reply.stop': {},
   'reply.random': { paths: '2', weight1: 1, weight2: 1, weight3: 1, weight4: 1, weight5: 1 },
-  'reply.run': {}
+  'reply.run': {},
+  'cond.live': { state: 'live' },
+  'cond.category': { mode: 'allow' },
+  'cond.pattern': {},
+  'cond.follow': { minDays: 0 },
+  'cond.accountAge': { minDays: 7 }
 } satisfies Record<keyof typeof STEP_PLACEMENT, FlowNode['config']>;
 
 test.each(NODE_SPECS)('$type gets its expected config when added', (spec) => {
@@ -99,7 +104,9 @@ test.each([
 
 const invalidDefaults = new Set(['out_of_range', 'invalid_enum', 'too_short']);
 const requiredSetup: Record<string, FlowNode['config']> = {
-  'cond.user': { userId: '42' },
+  'cond.user': { users: '42:' },
+  'cond.category': { games: 'Minecraft' },
+  'cond.pattern': { pattern: '^[0-9]+$' },
   'reply.poll': { choices: 'First\nSecond' },
   'reply.prediction': { outcomes: 'First\nSecond' },
   'reply.stream_info': { title: 'New title' },
@@ -109,7 +116,9 @@ const requiredSetup: Record<string, FlowNode['config']> = {
 test.each(NODE_SPECS)('$type lowers and validates its defaults with a broadcaster check', (spec) => {
   const flow = newFlow('Validate defaults');
   const isTrigger = spec.kind === 'trigger';
-  const trigger = addNode(flow, isTrigger ? spec.type : 'twitch.follow', at);
+  const triggerType = spec.type === 'cond.pattern' ? 'twitch.chat.command' : 'twitch.follow';
+  const trigger = addNode(flow, isTrigger ? spec.type : triggerType, at);
+  if (spec.type === 'cond.pattern') trigger.config.trigger = '!check';
   const gate = addNode(flow, 'cond.role', at, { from: trigger.id, port: 'next' });
   gate.config.level = 'broadcaster';
   const node = isTrigger ? gate : addNode(flow, spec.type, at, { from: gate.id, port: 'yes' });
