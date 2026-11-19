@@ -44,7 +44,7 @@ func TestFollowageFailureLogLevel(t *testing.T) {
 				return &http.Response{StatusCode: tc.status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(tc.body))}, nil
 			}))
 			core, logs := observer.New(zapcore.DebugLevel)
-			m := &Manage{twitch: api, log: zap.New(core)}
+			m := &Manage{twitch: api, log: zap.New(core), limiter: &chatterFakeLimiter{allow: true}}
 
 			reply := m.handleFollowage(t.Context(), outgressrpc.FollowageRequest{BroadcasterID: "channel", TargetID: "viewer", Trial: tc.trial})
 

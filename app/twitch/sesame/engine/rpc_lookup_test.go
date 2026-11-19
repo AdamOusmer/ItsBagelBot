@@ -16,18 +16,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRPCLookupsAreServedFromSesameCacheOnRepeat(t *testing.T) {
+func TestRPCLookupsCacheSuccessfulReplies(t *testing.T) {
+	retryAt := time.Now().Add(time.Minute).Truncate(time.Millisecond)
 	cases := []struct {
-		name   string
-		lookup func(calls *atomic.Int32) (func(context.Context) (bool, error), func())
+		name      string
+		throttled bool
+		lookup    func(calls *atomic.Int32) (func(context.Context) (bool, error), func())
 	}{
 		{
-			name: "followage",
+			name: "followage", throttled: true,
 			lookup: func(calls *atomic.Int32) (func(context.Context) (bool, error), func()) {
 				results := cache.New[FollowageResult](100, time.Minute)
 				f := &FollowageRPC{rpc: newCachedRPC(results,
 					func(_ context.Context, req outgressrpc.FollowageRequest) (outgressrpc.FollowageReply, error) {
-						calls.Add(1)
+						if calls.Add(1) == 1 {
+							return outgressrpc.FollowageReply{Error: "lookup failed", RetryAtUnixMilli: retryAt.UnixMilli()}, nil
+						}
 						return outgressrpc.FollowageReply{TargetID: req.TargetID, UserFound: true, Following: true}, nil
 					}, decodeFollowage)}
 				return func(ctx context.Context) (bool, error) {
@@ -37,12 +41,14 @@ func TestRPCLookupsAreServedFromSesameCacheOnRepeat(t *testing.T) {
 			},
 		},
 		{
-			name: "account age",
+			name: "account age", throttled: true,
 			lookup: func(calls *atomic.Int32) (func(context.Context) (bool, error), func()) {
 				results := cache.New[AccountAgeResult](100, time.Minute)
 				a := &AccountAgeRPC{rpc: newCachedRPC(results,
 					func(_ context.Context, req outgressrpc.AccountAgeRequest) (outgressrpc.AccountAgeReply, error) {
-						calls.Add(1)
+						if calls.Add(1) == 1 {
+							return outgressrpc.AccountAgeReply{Error: "lookup failed", RetryAtUnixMilli: retryAt.UnixMilli()}, nil
+						}
 						return outgressrpc.AccountAgeReply{TargetID: req.TargetID, UserFound: true}, nil
 					}, decodeAccountAge)}
 				return func(ctx context.Context) (bool, error) {
@@ -73,15 +79,31 @@ func TestRPCLookupsAreServedFromSesameCacheOnRepeat(t *testing.T) {
 			lookup, closeCache := tc.lookup(&calls)
 			defer closeCache()
 
+			var wantCalls int32 = 1
+			if tc.throttled {
+				requireLookupRetry(t, lookup, retryAt)
+				wantCalls++
+			}
 			for range 2 {
 				found, err := lookup(context.Background())
 				require.NoError(t, err)
 				assert.True(t, found)
 			}
 
-			assert.Equal(t, int32(1), calls.Load(), "the second command lookup must be served by Sesame's cache")
+			assert.Equal(t, wantCalls, calls.Load(), "only successful lookups should be cached")
 		})
 	}
+}
+
+func requireLookupRetry(t *testing.T, lookup func(context.Context) (bool, error), retryAt time.Time) {
+	t.Helper()
+	before := time.Until(retryAt)
+	_, err := lookup(t.Context())
+	after := time.Until(retryAt)
+	var retry *ErrRetryAfter
+	require.ErrorAs(t, err, &retry)
+	require.GreaterOrEqual(t, retry.After, after)
+	require.LessOrEqual(t, retry.After, before)
 }
 
 func TestUptimeLookupSurfacesRPCError(t *testing.T) {

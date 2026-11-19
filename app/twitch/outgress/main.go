@@ -144,6 +144,7 @@ func main() {
 		Prefix:    cfg.RPCPrefix,
 		Runtime:   channelruntime.NewClient(projection.NewStore(pkg_valkey.Primary(valkeyClient)), nc, ""),
 		Verify:    system.VerifyChannel,
+		Limiter:   limiter,
 	}
 	svcboot.FatalIf(log, rpc.SubscribeManage(rpcConfig, registry, tw),
 		"failed to subscribe management rpc")
