@@ -1,0 +1,10 @@
+[
+  {
+    "path": "trigger.params.min_chat_lines",
+    "code": "out_of_range"
+  },
+  {
+    "path": "trigger.params.random_jitter_s",
+    "code": "out_of_range"
+  }
+]

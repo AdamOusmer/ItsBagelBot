@@ -21,6 +21,9 @@
     "reward_id": "ID de la recompensa",
     "cost": "Coste de la recompensa",
     "input": "Texto que escribió el espectador",
+    "title": "Título del stream",
+    "category": "Nombre de la categoría",
+    "category_id": "ID de la categoría",
     "type": "Tipo de stream",
     "id": "ID de la solicitud de desbloqueo",
     "text": "Texto de la solicitud de desbloqueo"
