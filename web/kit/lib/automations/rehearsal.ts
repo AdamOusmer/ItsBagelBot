@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { MAX_RESPONSE_LINES } from '../importer/validate';
+import { apiPorts } from './flow-graph';
 import { MAX_ACTIONS, MAX_DELAY_MS, MAX_LOOP_TIMES } from './limits';
 import { applyAction, createState, evaluateCondition, expandTemplate, messageTarget } from './rehearsal-state';
 import { matchTrigger, scenarioArgs, scenarioEvent, scenarioIdentity } from './rehearsal-scenario';
@@ -144,10 +145,15 @@ function* iterations(cursor: { step: Step; times: number }, run: Execution, fram
   }
 }
 
-function* http(step: Step, run: Execution, frame: Frame): Generator<number, void> {
+function* branchingEffect(step: Step, run: Execution, frame: Frame): Generator<number, void> {
   const outcome = applyAction(step.action, frame.context);
+  if (step.action.type === 'points_spend' && outcome.detail.code === 'no_viewer') {
+    emit(run, frame, { kind: 'effect', ...outcome });
+    return;
+  }
   const success = outcome.status === 'ok';
-  const port = success ? 'ok' : 'failure';
+  const [okPort, failurePort] = apiPorts(step.action.type);
+  const port = success ? okPort : failurePort;
   const key = success ? 'on_ok' : 'on_failure';
   emit(run, frame, { kind: 'effect', ...outcome, port });
   yield* list((step.action.params?.[key] ?? []) as Action[], `${step.path}.params.${key}`, run, frame);
@@ -175,7 +181,7 @@ function say(step: Step, run: Execution, frame: Frame): void {
 
 type Handler = (step: Step, run: Execution, frame: Frame) => Generator<number, void>;
 const CONTROL: Readonly<Record<string, Handler>> = { if: branch, loop };
-const EFFECTS: Readonly<Record<string, Handler>> = { delay: wait, http_get: http, http_post: http };
+const EFFECTS: Readonly<Record<string, Handler>> = { delay: wait, http_get: branchingEffect, http_post: branchingEffect, points_spend: branchingEffect };
 
 function* execute(step: Step, run: Execution, frame: Frame): Generator<number, void> {
   if (step.action.enabled === false) {

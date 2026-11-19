@@ -188,7 +188,7 @@ test.each([
   expect(step?.text).toBe(text);
 });
 
-test.each<{ node: FlowNode; text: string; state?: NonNullable<RehearsalOptions['scenario']>['state'] }>([
+test.each<{ node: FlowNode; text: string; state?: NonNullable<RehearsalOptions['scenario']>['state']; status?: 'ok' | 'failed' }>([
   { node: n('s', 'reply.poll', { title: 'What should {user} play?', choices: 'Chess\nCheckers', seconds: 60 }), text: 'Poll: What should Sender play?' },
   { node: n('s', 'reply.whisper', { target: '{user}', text: 'Thanks, {user}!' }), text: 'Whisper to Sender: Thanks, Sender!' },
   { node: n('s', 'reply.chat_mode', { mode: 'followers', on: false }), text: 'Followers only off' },
@@ -199,12 +199,19 @@ test.each<{ node: FlowNode; text: string; state?: NonNullable<RehearsalOptions['
   { node: n('s', 'reply.countdown_add', { name: 'subathon', seconds: 300 }), state: { countdowns: { subathon: 3_600_000 } }, text: 'subathon: 1h 5m left' },
   { node: n('s', 'reply.cooldown_add', { name: 'break', seconds: 30 }), state: { cooldowns: { break: 60_000 } }, text: 'break: 1m 30s left' },
   { node: n('s', 'reply.reward_update', { reward: 'hydrate', rewardTitle: 'Hydrate', setEnabled: 'off', reset: true }), text: 'Hydrate: turned off until the stream ends' },
-  { node: n('s', 'reply.reward_update', { reward: 'hydrate', rewardTitle: 'Hydrate', setEnabled: 'on', cost: 500 }), text: 'Hydrate: turned on, cost set to 500' }
-])('renders the $node.type effect', ({ node, text, state }) => {
+  { node: n('s', 'reply.reward_update', { reward: 'hydrate', rewardTitle: 'Hydrate', setEnabled: 'on', cost: 500 }), text: 'Hydrate: turned on, cost set to 500' },
+  { node: n('s', 'reply.reward_update', { reward: 'hydrate', rewardTitle: 'Hydrate', paused: 'pause', cooldown: 300 }), text: 'Hydrate: paused, cooldown 5m' },
+  { node: n('s', 'reply.reward_update', { reward: 'hydrate', rewardTitle: 'Hydrate', paused: 'resume', cooldown: 0 }), text: 'Hydrate: resumed, cooldown off' },
+  { node: n('s', 'reply.points_spend', { amount: 100 }), state: { points: 250 }, text: 'Spend 100 points (now 150)' },
+  { node: n('s', 'reply.points_spend', { amount: 100 }), state: { points: 40 }, status: 'failed', text: 'Not enough points (balance: 40)' },
+  { node: n('s', 'reply.countdown_stop', { name: 'subathon' }), state: { countdowns: { subathon: 60_000 } }, text: 'Stop subathon' },
+  { node: n('s', 'reply.countdown_stop', { name: 'subathon' }), status: 'failed', text: 'Timer is not running' },
+  { node: n('s', 'reply.cooldown_reset', { name: 'raffle' }), text: 'Reset raffle' }
+])('renders the $node.type effect', ({ node, text, state, status = 'ok' }) => {
   const gate = n('c', 'cond.role', { level: 'broadcaster' });
   const flow = flowOf([trigger, gate, node], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
   const step = run(flow, { scenario: { user: 'Sender', role: 'broadcaster', state } }).steps.at(-1);
-  expect([step?.id, step?.kind, step?.status, step?.text]).toEqual(['s', 'effect', 'ok', text]);
+  expect([step?.id, step?.kind, step?.status, step?.text]).toEqual(['s', 'effect', status, text]);
 });
 
 test.each(['twitch.stream.online', 'twitch.stream.offline', 'countdown.finished'])('stale viewer patches cannot affect %s', (type) => {
@@ -268,6 +275,8 @@ test.each([
     ids: ['t', 's'], found: ['s', 'failed', 'Message is missing.', [['required', 'text']]] },
   { name: 'reply requires a message', flow: afterTrigger(trigger, n('s', 'reply.reply', { text: '' })),
     ids: ['t', 's'], found: ['s', 'failed', 'Message is missing.', [['required', 'text']]] },
+  { name: 'reward update requires a change', flow: afterTrigger(follow, n('s', 'reply.reward_update', { reward: 'hydrate', setEnabled: 'keep', paused: 'keep', cooldown: '', reset: true })),
+    ids: ['t', 's'], found: ['s', 'failed', 'Pick at least one change', [['required', 'setEnabled']]] },
   { name: 'empty command', flow: afterTrigger(n('t', 'twitch.chat.command'), say), ids: ['t'], blocked: 'Set a command name first',
     found: ['t', 'failed', 'Command is missing.', [['required', 'trigger']]] },
   { name: 'empty chat word', flow: afterTrigger(n('t', 'twitch.chat.word'), say), ids: ['t'], blocked: 'Set a command name first',

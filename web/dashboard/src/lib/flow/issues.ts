@@ -136,8 +136,16 @@ function inlineNumberCode(node: FlowNode, field: Extract<FieldSpec, { type: 'num
   if (amount < (field.min ?? -Infinity) || amount > (field.max ?? Infinity)) return CODE.outOfRange;
 }
 
+function missingRewardChange(node: FlowNode, field: FieldKey): boolean {
+  if (node.type !== 'reply.reward_update' || field !== 'setEnabled') return false;
+  const { setEnabled, paused } = node.config;
+  const togglesKept = !['on', 'off'].includes(String(setEnabled)) && !['pause', 'resume'].includes(String(paused));
+  return togglesKept && !['cost', 'cooldown'].some((key) => configText(node, key).trim());
+}
+
 function inlineCode(node: FlowNode, field: FieldSpec): Issue['code'] | undefined {
   if (field.type === 'number') return inlineNumberCode(node, field);
+  if (missingRewardChange(node, field.key)) return CODE.required;
   if (node.type !== 'reply.countdown_start' || field.key !== 'name') return undefined;
   const value = configText(node, field.key).trim();
   if (value && !RECIPE_NAME_PATTERN.test(value)) return CODE.simpleWord;

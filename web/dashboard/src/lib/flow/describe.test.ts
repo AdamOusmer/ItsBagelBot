@@ -46,7 +46,14 @@ test.each<{ type: FlowNode['type']; config: FlowNode['config']; line: string; tr
   { type: 'reply.countdown_start', config: { name: 'subathon', seconds: 3600 }, line: 'Start subathon for 1h' },
   { type: 'reply.countdown_add', config: { name: 'subathon', seconds: 60 }, line: 'Add 1m to subathon' },
   { type: 'reply.countdown_add', config: { name: 'subathon', seconds: 60, per: 100 }, trigger: { type: 'twitch.cheer', config: {} }, line: 'Add 1m to subathon for every 100 bits' },
-  { type: 'reply.cooldown_add', config: { name: 'break2', seconds: 60, per: 2 }, trigger: { type: 'twitch.sub', config: { variant: 'gift' } }, line: 'Add 1m to break2 for every 2 gifted subs' }
+  { type: 'reply.cooldown_add', config: { name: 'break2', seconds: 60, per: 2 }, trigger: { type: 'twitch.sub', config: { variant: 'gift' } }, line: 'Add 1m to break2 for every 2 gifted subs' },
+  { type: 'reply.points_spend', config: { amount: 100 }, line: 'Spend 100 points' },
+  { type: 'reply.points_spend', config: { amount: 1 }, line: 'Spend 1 point' },
+  { type: 'reply.reward_update', config: { rewardTitle: 'Hydrate', setEnabled: 'off', paused: 'pause', cost: 500, cooldown: 300, reset: true }, line: 'Turn off Hydrate, Pause Hydrate, Set Hydrate to 500 points, Set Hydrate cooldown to 5m until the stream ends' },
+  { type: 'reply.reward_update', config: { rewardTitle: 'Hydrate', paused: 'resume' }, line: 'Resume Hydrate' },
+  { type: 'reply.reward_update', config: { rewardTitle: 'Hydrate', paused: 'keep', cooldown: 0 }, line: 'Turn off Hydrate cooldown' },
+  { type: 'reply.countdown_stop', config: { name: 'subathon' }, line: 'Stop subathon' },
+  { type: 'reply.cooldown_reset', config: { name: 'raffle' }, line: 'Reset raffle' }
 ])('$type renders "$line" from $config', ({ type, config, line, trigger }) => {
   expect(describe(english, { id: 'step', type, x: 0, y: 0, config }, trigger)).toBe(line);
 });

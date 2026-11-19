@@ -123,5 +123,10 @@
   "rewardUntilEnd": "{changes} bis zum Stream-Ende",
   "rewardResult": "{name}: {changes}",
   "noRedemption": "Dieser Schritt erfordert das Einlösen einer Belohnung.",
-  "noRewardChanges": "Wähle zuerst eine Änderung für die Belohnung."
+  "noRewardChanges": "Wähle zuerst eine Änderung für die Belohnung.",
+  "pointsInsufficient": "Nicht genug Punkte (Guthaben: {value})",
+  "rewardPaused": "pausiert",
+  "rewardResumed": "fortgesetzt",
+  "rewardCooldown": "Cooldown {cooldown}",
+  "rewardCooldownOff": "Cooldown aus"
 }

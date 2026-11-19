@@ -123,5 +123,10 @@
   "rewardUntilEnd": "{changes} até o fim da transmissão",
   "rewardResult": "{name}: {changes}",
   "noRedemption": "Esta etapa requer o resgate de uma recompensa.",
-  "noRewardChanges": "Escolha primeiro o que mudar na recompensa."
+  "noRewardChanges": "Escolha primeiro o que mudar na recompensa.",
+  "pointsInsufficient": "Pontos insuficientes (saldo: {value})",
+  "rewardPaused": "pausada",
+  "rewardResumed": "retomada",
+  "rewardCooldown": "intervalo de {cooldown}",
+  "rewardCooldownOff": "intervalo desativado"
 }

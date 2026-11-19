@@ -123,5 +123,10 @@
   "rewardUntilEnd": "{changes} до конца трансляции",
   "rewardResult": "{name}: {changes}",
   "noRedemption": "Для этого шага нужно получить награду за баллы.",
-  "noRewardChanges": "Сначала выберите, что изменить в награде."
+  "noRewardChanges": "Сначала выберите, что изменить в награде.",
+  "pointsInsufficient": "Недостаточно баллов (баланс: {value})",
+  "rewardPaused": "приостановлена",
+  "rewardResumed": "возобновлена",
+  "rewardCooldown": "время ожидания: {cooldown}",
+  "rewardCooldownOff": "время ожидания отключено"
 }

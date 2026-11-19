@@ -69,8 +69,9 @@ test.each<InputCase>([
     kind: 'twitch.chat.command',
     definition: { conditions: [{ type: 'cooldown', params: { name: 'break' } }], actions: [
       { type: 'countdown_start', params: { name: 'unseeded' } }, { type: 'countdown_add', params: { name: 'subathon' } },
-      { type: 'countdown_stop', params: { name: 'subathon' } }, { type: 'cooldown_reset', params: { name: 'rest' } }
-    ] }, keys: [...commandKeys, 'state:countdowns:subathon', 'state:countdowns:subathon:left',
+      { type: 'countdown_stop', params: { name: 'clock' } }, { type: 'cooldown_reset', params: { name: 'rest' } },
+      { type: 'points_spend', params: { amount: 100 } }
+    ] }, keys: [...commandKeys, 'state:points', 'state:countdowns:subathon', 'state:countdowns:subathon:left', 'state:countdowns:clock', 'state:countdowns:clock:left',
       'state:cooldowns:break', 'state:cooldowns:break:left', 'state:cooldowns:rest', 'state:cooldowns:rest:left']
   }
 ])('scenario inputs for $kind $definition are in grid order', ({ kind, definition, keys }) => {

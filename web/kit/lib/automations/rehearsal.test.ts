@@ -18,6 +18,7 @@ const condition = (type: Text, params: Params): Condition => ({ type, params });
 const choose = (condition: Condition): Action => action('if', { condition, then: [chat('yes')], else: [chat('no')] });
 const definition = (actions: Action[]): Definition => ({ version: 1, trigger: { type: 'command', params: { name: '!hello' } }, actions });
 const parallel = (branches: Action[][]): Action => action('parallel', { branches: branches.map((actions) => ({ weight: 1, actions })) });
+const spend = action('points_spend', { amount: 100, on_ok: [chat('Enough: {points}')], on_failure: [chat('Not enough: {points}')] });
 
 type Options = { scenario?: Partial<RehearsalScenario>; overrides?: RehearsalOverrides; trigger?: Trigger };
 function execute(actions: Action[], options: Options = {}) {
@@ -26,7 +27,7 @@ function execute(actions: Action[], options: Options = {}) {
   return rehearseDefinition(def, { ...defaultScenario(def), ...options.scenario }, options.overrides);
 }
 
-type RunCase = { name: Text; actions: Action[]; options?: Options; lines: Text[]; times?: number[]; effects?: Pick<RehearsalEvent, 'status' | 'detail'>[] };
+type RunCase = { name: Text; actions: Action[]; options?: Options; lines: Text[]; times?: number[]; effects?: Pick<RehearsalEvent, 'status' | 'detail' | 'port'>[] };
 const runs: RunCase[] = [
   { name: 'parallel pause starts the sibling and continuation immediately', actions: [parallel([[action('delay', { ms: 5000 }), chat('A')], [chat('B')]]), chat('join')], lines: ['B', 'join', 'A'], times: [0, 0, 5000] },
   { name: 'resumed branches update shared state in time order', actions: [parallel([[action('delay', { ms: 5000 }), chat('{var:score}')], [action('var_set', { scope: 'channel', name: 'score', value: '9' })]])], lines: ['9'] },
@@ -116,6 +117,55 @@ const runs: RunCase[] = [
     actions: [action('countdown_add', { name: 'timer', seconds: 10, per: 100 }), action('cooldown_add', { name: 'timer', seconds: 10, per: 100 })],
     options: { trigger: { type: 'event', params: { kind: 'channel.cheer' } }, scenario: { bits: 5 } },
     lines: [], effects: [{ status: 'skipped', detail: { code: 'below_rate' } }, { status: 'skipped', detail: { code: 'below_rate' } }]
+  },
+  {
+    name: 'spend points deducts the amount before taking Enough', actions: [spend],
+    options: { scenario: { state: { points: 250 } } }, lines: ['Enough: 150'],
+    effects: [{ status: 'ok', port: 'enough', detail: { value: '150' } }]
+  },
+  {
+    name: 'spend points can spend the entire balance', actions: [spend],
+    options: { scenario: { state: { points: 100 } } }, lines: ['Enough: 0'],
+    effects: [{ status: 'ok', port: 'enough', detail: { value: '0' } }]
+  },
+  {
+    name: 'spend points preserves the balance on Not enough', actions: [spend],
+    options: { scenario: { state: { points: 75 } } }, lines: ['Not enough: 75'],
+    effects: [{ status: 'failed', port: 'notEnough', detail: { code: 'insufficient_points', value: '75' } }]
+  },
+  {
+    name: 'spend points fails before branching when no viewer is present', actions: [spend, chat('Balance: {points}')],
+    options: { scenario: { userId: '', state: { points: 250 } } }, lines: ['Balance: 250'],
+    effects: [{ status: 'failed', detail: { code: 'no_viewer' } }]
+  },
+  {
+    name: 'reward changes include pause, resume and zero cooldown',
+    actions: [action('reward_update', { reward_id: 'hydrate', paused: true }),
+      action('reward_update', { reward_id: 'hydrate', paused: false, cooldown_s: 300 }),
+      action('reward_update', { reward_id: 'hydrate', cooldown_s: 0 })],
+    lines: [], effects: [{ status: 'ok', detail: { paused: 'true' } },
+      { status: 'ok', detail: { paused: 'false', cooldown_s: '300' } }, { status: 'ok', detail: { cooldown_s: '0' } }]
+  },
+  {
+    name: 'stop countdown removes a running timer and fails when repeated',
+    actions: [action('countdown_stop', { name: 'subathon' }), action('countdown_stop', { name: 'subathon' })],
+    options: { scenario: { state: { countdowns: { subathon: 60_000 } } } }, lines: [],
+    effects: [{ status: 'ok', detail: { value: 'subathon' } }, { status: 'failed', detail: { code: 'not_running' } }]
+  },
+  {
+    name: 'reset cooldown clears the seeded window and succeeds when repeated',
+    actions: [choose(condition('cooldown', { name: 'raffle', global_s: 60 })),
+      action('cooldown_reset', { name: 'raffle' }), action('cooldown_reset', { name: 'raffle' }),
+      choose(condition('cooldown', { name: 'raffle', global_s: 60 })), choose(condition('cooldown', { user_s: 60 }))],
+    options: { scenario: { state: { cooldowns: { raffle: 60_000, 'viewer:40000001': 60_000 } } } }, lines: ['no', 'yes', 'no'],
+    effects: [{ status: 'ok', detail: { value: 'raffle' } }, { status: 'ok', detail: { value: 'raffle' } }]
+  },
+  {
+    name: 'reset preserves unnamed cooldowns with names that could collide',
+    actions: [choose(condition('cooldown', { global_s: 60, user_s: 60 })),
+      action('cooldown_reset', { name: 'global' }), action('cooldown_reset', { name: 'viewer' }),
+      choose(condition('cooldown', { global_s: 60 })), choose(condition('cooldown', { user_s: 60 }))],
+    lines: ['yes', 'no', 'no']
   }
 ];
 

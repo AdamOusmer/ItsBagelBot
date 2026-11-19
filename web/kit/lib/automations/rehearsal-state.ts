@@ -174,11 +174,14 @@ function userComparison(params: Params, context: Context): boolean {
   return allowed.length === 0 || allowed.includes(context.scenario.userId ?? '');
 }
 
+const AUTO_COOLDOWN_PREFIX = ':auto:';
+const VIEWER_COOLDOWN_PREFIX = `${AUTO_COOLDOWN_PREFIX}viewer:`;
+
 function cooldownKeys(params: Params, context: Context): Text[] {
   if (params.name) return [nameOf(params)];
   const keys: Text[] = [];
-  if (number(params.global_s) > 0) keys.push('global');
-  if (number(params.user_s) > 0) keys.push(`viewer:${context.scenario.userId}`);
+  if (number(params.global_s) > 0) keys.push(`${AUTO_COOLDOWN_PREFIX}global`);
+  if (number(params.user_s) > 0) keys.push(`${VIEWER_COOLDOWN_PREFIX}${context.scenario.userId}`);
   return keys;
 }
 
@@ -199,7 +202,8 @@ function cooldownComparison(params: Params, context: Context): boolean {
 }
 
 function cooldownWindow(key: Text, context: Context): number {
-  const seed = context.overrides[context.path] === 'ready' ? 0 : context.scenario.state?.cooldowns?.[key];
+  const seedKey = key.startsWith(AUTO_COOLDOWN_PREFIX) ? key.slice(AUTO_COOLDOWN_PREFIX.length) : key;
+  const seed = context.overrides[context.path] === 'ready' ? 0 : context.scenario.state?.cooldowns?.[seedKey];
   return context.state.cooldowns[key] ?? seed ?? 0;
 }
 
@@ -209,7 +213,7 @@ function noteCooldown(windows: number[], context: Context): void {
 }
 
 function armCooldown(key: Text, params: Params, context: Context): void {
-  const seconds = key.startsWith('viewer:') ? number(params.user_s) : number(params.global_s);
+  const seconds = key.startsWith(VIEWER_COOLDOWN_PREFIX) ? number(params.user_s) : number(params.global_s);
   context.state.cooldowns[key] = context.atMs + seconds * 1000;
 }
 
@@ -486,6 +490,27 @@ function timerStep(params: Params, context: Context, mode: Text): ActionOutcome 
   return { status: 'ok', detail: { name, left: timerLeft(store[name], context)! } };
 }
 
+function countdownStopStep(params: Params, context: Context): ActionOutcome {
+  const name = nameOf(params);
+  const countdowns = context.state.countdowns;
+  const until = countdowns[name];
+  if (!(until > context.atMs)) return failed('not_running');
+  delete countdowns[name];
+  if (context.locals['countdown:end'] === text(until)) delete context.locals['countdown:end'];
+  return { status: 'ok', detail: { value: name } };
+}
+
+function cooldownResetStep(params: Params, context: Context): ActionOutcome {
+  const name = nameOf(params);
+  const windows = context.state.cooldowns;
+  const seeds = context.scenario.state?.cooldowns ?? {};
+  const keys = new Set([...Object.keys(seeds), ...Object.keys(windows)]);
+  for (const key of keys) {
+    if (key === name || key.startsWith(`${name}:`)) windows[key] = 0;
+  }
+  return { status: 'ok', detail: { value: name } };
+}
+
 function replyStep(_params: Params, context: Context, expanded: ExpandedParams): ActionOutcome {
   const message = expanded.text ?? '';
   const viewer = context.scenario.user?.replace(/^@/, '') ?? '';
@@ -562,6 +587,15 @@ function pointsStep(set: boolean): ActionHandler {
   };
 }
 
+function pointsSpendStep(params: Params, context: Context): ActionOutcome {
+  if (!hasViewer(context) || !loginText(context.scenario.user)) return failed('no_viewer');
+  const amount = number(params.amount);
+  const balance = context.state.points;
+  if (balance < amount) return { status: 'failed', detail: { code: 'insufficient_points', value: text(balance) } };
+  context.state.points -= amount;
+  return { status: 'ok', detail: { value: text(context.state.points) } };
+}
+
 function counterStep(set: boolean): ActionHandler {
   return (params, context) => {
     const name = stateName(params.name);
@@ -577,12 +611,13 @@ function redemptionStep(params: Params, context: Context): ActionOutcome {
   return ['fulfill', 'cancel'].includes(value) ? { status: 'ok', detail: { value } } : failed('no_redemption');
 }
 
+const REWARD_CHANGE_TYPES = { enabled: 'boolean', cost: 'number', paused: 'boolean', cooldown_s: 'number' } as const;
+
 function rewardUpdateStep(params: Params): ActionOutcome {
-  const changes: ExpandedParams = {};
-  if (typeof params.enabled === 'boolean') changes.enabled = text(params.enabled);
-  if (typeof params.cost === 'number') changes.cost = text(params.cost);
-  if (!Object.keys(changes).length) return failed('nothing_to_change');
-  return { status: 'ok', detail: { ...changes, reset_on_stream_end: text(params.reset_on_stream_end === true) } };
+  const changes = Object.entries(REWARD_CHANGE_TYPES).flatMap(([key, type]) =>
+    typeof params[key] === type ? [[key, text(params[key])] as const] : []);
+  if (!changes.length) return failed('nothing_to_change');
+  return { status: 'ok', detail: { ...Object.fromEntries(changes), reset_on_stream_end: text(params.reset_on_stream_end === true) } };
 }
 
 const ACTIONS: Readonly<Record<string, ActionHandler>> = {
@@ -601,7 +636,10 @@ const ACTIONS: Readonly<Record<string, ActionHandler>> = {
   counter_set: counterStep(true),
   points_set: pointsStep(true),
   redemption: redemptionStep,
-  reward_update: rewardUpdateStep
+  reward_update: rewardUpdateStep,
+  points_spend: pointsSpendStep,
+  countdown_stop: countdownStopStep,
+  cooldown_reset: cooldownResetStep
 };
 
 function expandParam(value: unknown, context: Context): ReturnType<typeof expandTemplate> {

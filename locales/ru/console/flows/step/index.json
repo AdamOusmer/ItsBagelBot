@@ -37,7 +37,7 @@
   "reply.math.keywords": "математика вычислить формула выражение число сумма умножить разделить",
   "reply.httpGet.keywords": "api web url запрос получить webhook json get fetch",
   "reply.httpPost.keywords": "api web url запрос отправить webhook json post fetch",
-  "reply.rewardUpdate.keywords": "награда обмен стоимость цена включить выключить сбросить баллы",
+  "reply.rewardUpdate.keywords": "награда обмен стоимость цена включить выключить сбросить баллы пауза приостановить возобновить ожидание перезарядка",
   "reply.cooldownAdd.keywords": "кулдаун cooldown таймер добавить продлить время секунды",
   "reply.poll.keywords": "опрос голосовать голосование варианты вопрос начать poll",
   "reply.pollEnd.keywords": "опрос голосование остановить завершить архив закрыть poll",
@@ -70,9 +70,13 @@
     "loopIndex": "Номер текущего повтора",
     "apiError": "Причина ошибки",
     "cooldownLeft": "Оставшееся время перезарядки",
-    "countdownLeft": "Оставшееся время отсчёта"
+    "countdownLeft": "Оставшееся время отсчёта",
+    "points": "Баланс баллов"
   },
   "condition.points.keywords": "если баллы баланс лояльность зритель проверить сравнить",
   "condition.counter.keywords": "если счётчик значение победы смерти проверить сравнить",
-  "reply.redemption.keywords": "награда получение подтвердить вернуть отменить баллы"
+  "reply.redemption.keywords": "награда получение подтвердить вернуть отменить баллы",
+  "reply.pointsSpend.keywords": "потратить тратить купить стоимость цена баллы баланс",
+  "reply.countdownStop.keywords": "остановить прервать отменить отсчёт таймер",
+  "reply.cooldownReset.keywords": "сбросить очистить перезарядка ожидание интервал таймер"
 }

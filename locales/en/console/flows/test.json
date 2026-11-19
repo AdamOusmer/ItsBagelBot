@@ -123,5 +123,10 @@
   "rewardUntilEnd": "{changes} until the stream ends",
   "rewardResult": "{name}: {changes}",
   "noRedemption": "This step requires a reward redemption.",
-  "noRewardChanges": "Choose a reward change first."
+  "noRewardChanges": "Choose a reward change first.",
+  "pointsInsufficient": "Not enough points (balance: {value})",
+  "rewardPaused": "paused",
+  "rewardResumed": "resumed",
+  "rewardCooldown": "cooldown {cooldown}",
+  "rewardCooldownOff": "cooldown off"
 }

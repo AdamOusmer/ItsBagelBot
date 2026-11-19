@@ -366,5 +366,40 @@
       "fulfill": "Mark fulfilled",
       "cancel": "Refund the points"
     }
+  },
+  "pointsSpend": {
+    "label": "Spend points",
+    "summary": "Deduct points when the viewer has enough",
+    "line": "Spend {amount}",
+    "field": {
+      "amount": {
+        "label": "Amount",
+        "unit": "points"
+      }
+    },
+    "out": {
+      "enough": "Enough",
+      "notEnough": "Not enough"
+    }
+  },
+  "countdownStop": {
+    "label": "Stop countdown",
+    "summary": "End a running countdown early",
+    "line": "Stop {name}",
+    "field": {
+      "name": {
+        "label": "Countdown"
+      }
+    }
+  },
+  "cooldownReset": {
+    "label": "Reset cooldown",
+    "summary": "Clear a named cooldown",
+    "line": "Reset {name}",
+    "field": {
+      "name": {
+        "label": "Cooldown"
+      }
+    }
   }
 }

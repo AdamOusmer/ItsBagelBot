@@ -1,6 +1,6 @@
 {
   "label": "Alterar uma recompensa",
-  "summary": "Ativar ou desativar uma recompensa, ou definir seu custo",
+  "summary": "Altere a disponibilidade, o custo ou o intervalo de uma recompensa",
   "field": {
     "reward": {
       "label": "Recompensa"
@@ -19,6 +19,29 @@
     },
     "reset": {
       "label": "Restaurar quando a live terminar"
+    },
+    "paused": {
+      "label": "Pausada",
+      "option": {
+        "keep": "Manter como está",
+        "pause": "Pausar",
+        "resume": "Retomar"
+      }
+    },
+    "cooldown": {
+      "label": "Intervalo",
+      "range": "Deixe em branco para manter o intervalo. Use 0 para desativá-lo. Máximo de {days} dias."
     }
+  },
+  "pickChange": "Escolha pelo menos uma alteração",
+  "line": {
+    "on": "Ativar {reward}",
+    "off": "Desativar {reward}",
+    "pause": "Pausar {reward}",
+    "resume": "Retomar {reward}",
+    "cost": "Definir o custo de {reward} como {cost}",
+    "cooldown": "Definir o intervalo de {reward} como {cooldown}",
+    "cooldownOff": "Desativar o intervalo de {reward}",
+    "untilEnd": "{changes} até o fim da transmissão"
   }
 }

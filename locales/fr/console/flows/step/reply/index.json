@@ -366,5 +366,40 @@
       "fulfill": "Marquer comme honorée",
       "cancel": "Rembourser les points"
     }
+  },
+  "pointsSpend": {
+    "label": "Dépenser des points",
+    "summary": "Déduis des points si le spectateur en a assez",
+    "line": "Dépenser {amount}",
+    "field": {
+      "amount": {
+        "label": "Montant",
+        "unit": "points"
+      }
+    },
+    "out": {
+      "enough": "Assez",
+      "notEnough": "Pas assez"
+    }
+  },
+  "countdownStop": {
+    "label": "Arrêter le compte à rebours",
+    "summary": "Mets fin plus tôt à un compte à rebours en cours",
+    "line": "Arrêter {name}",
+    "field": {
+      "name": {
+        "label": "Compte à rebours"
+      }
+    }
+  },
+  "cooldownReset": {
+    "label": "Réinitialiser le délai",
+    "summary": "Annule l’attente pour un délai nommé",
+    "line": "Réinitialiser {name}",
+    "field": {
+      "name": {
+        "label": "Délai"
+      }
+    }
   }
 }

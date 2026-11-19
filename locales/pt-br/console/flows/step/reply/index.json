@@ -366,5 +366,40 @@
       "fulfill": "Marcar como atendida",
       "cancel": "Devolver os pontos"
     }
+  },
+  "pointsSpend": {
+    "label": "Gastar pontos",
+    "summary": "Desconte pontos quando o espectador tiver saldo suficiente",
+    "line": "Gastar {amount}",
+    "field": {
+      "amount": {
+        "label": "Quantidade",
+        "unit": "pontos"
+      }
+    },
+    "out": {
+      "enough": "Suficientes",
+      "notEnough": "Insuficientes"
+    }
+  },
+  "countdownStop": {
+    "label": "Parar a contagem regressiva",
+    "summary": "Encerre antes da hora uma contagem regressiva em andamento",
+    "line": "Parar {name}",
+    "field": {
+      "name": {
+        "label": "Contagem regressiva"
+      }
+    }
+  },
+  "cooldownReset": {
+    "label": "Zerar o intervalo",
+    "summary": "Encerre a espera de um intervalo com nome",
+    "line": "Zerar {name}",
+    "field": {
+      "name": {
+        "label": "Intervalo"
+      }
+    }
   }
 }

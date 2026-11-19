@@ -842,16 +842,17 @@ describe('containers keep their drawn shape through save and reload', () => {
     expect(saved.actions).toEqual([{ type: 'http_get', params: { url: 'https://api.example.com/g', save_as: 'g', on_ok: [chat('worked')] } }, chat('join')]);
   });
 
-  test('two paths with no join at all end where they are drawn', () => {
+  test.each([
+    { step: get('g'), ok: 'ok', failure: 'failure', type: 'http_get', params: { url: 'https://api.example.com/g', save_as: 'g' } },
+    { step: node('g', 'reply.points_spend', { amount: 100 }), ok: 'enough', failure: 'notEnough', type: 'points_spend', params: { amount: 100 } }
+  ])('$type paths with no join end where they are drawn', ({ step, ok, failure, type, params }) => {
     const saved = expectStable(
       flow(
-        [trigger(), get('g'), say('worked'), say('failed')],
-        [edge('t', 'next', 'g'), edge('g', 'ok', 'worked'), edge('g', 'failure', 'failed')]
+        [trigger(), step, say('worked'), say('failed')],
+        [edge('t', 'next', 'g'), edge('g', ok, 'worked'), edge('g', failure, 'failed')]
       )
     );
-    expect(saved.actions).toEqual([
-      { type: 'http_get', params: { url: 'https://api.example.com/g', save_as: 'g', on_ok: [chat('worked')], on_failure: [chat('failed')] } }
-    ]);
+    expect(saved.actions).toEqual([{ type, params: { ...params, on_ok: [chat('worked')], on_failure: [chat('failed')] } }]);
   });
 
   test('a step after an API node with no paths takes both ports and saves as the next step', () => {
@@ -920,7 +921,16 @@ describe('containers keep their drawn shape through save and reload', () => {
       [node('s', 'reply.var_delete', { name: 'score' }), { type: 'var_delete', params: { scope: 'channel', name: 'score' } }],
       [node('s', 'reply.text', { op: 'replace', input: '{user}', find: 'a', replaceWith: 'b', saveAs: 'out' }), { type: 'text', params: { op: 'replace', input: '{user}', arg1: 'a', arg2: 'b', save_as: 'out' } }],
       [node('s', 'reply.math', { expression: '1+1', saveAs: 'sum' }), { type: 'math', params: { expression: '1+1', save_as: 'sum' } }],
-      [node('s', 'reply.reward_update', { reward: 'r1', setEnabled: 'off', reset: true }), { type: 'reward_update', params: { reward_id: 'r1', enabled: false, cost: null, reset_on_stream_end: true } }]
+      [node('s', 'reply.reward_update', { reward: 'r1', setEnabled: 'off', reset: true, paused: 'keep', cooldown: '' }),
+        { type: 'reward_update', params: { reward_id: 'r1', enabled: false, cost: null, reset_on_stream_end: true } }],
+      [node('s', 'reply.reward_update', { reward: 'r1', setEnabled: 'keep', paused: 'pause', cooldown: 300 }),
+        { type: 'reward_update', params: { reward_id: 'r1', enabled: null, cost: null, reset_on_stream_end: false, paused: true, cooldown_s: 300 } }],
+      [node('s', 'reply.reward_update', { reward: 'r1', setEnabled: 'keep', paused: 'resume' }),
+        { type: 'reward_update', params: { reward_id: 'r1', enabled: null, cost: null, reset_on_stream_end: false, paused: false } }],
+      [node('s', 'reply.reward_update', { reward: 'r1', setEnabled: 'keep', paused: 'keep', cooldown: 0 }),
+        { type: 'reward_update', params: { reward_id: 'r1', enabled: null, cost: null, reset_on_stream_end: false, cooldown_s: 0 } }],
+      [node('s', 'reply.countdown_stop', { name: ' Subathon2 ' }), { type: 'countdown_stop', params: { name: 'subathon2' } }],
+      [node('s', 'reply.cooldown_reset', { name: ' Raffle2 ' }), { type: 'cooldown_reset', params: { name: 'raffle2' } }]
     ];
     for (const [step, want] of steps) {
       const saved = expectStable(flow([trigger(), step], [edge('t', 'next', 's')]));

@@ -227,10 +227,16 @@ const REWARD_ENABLED = new Map<string, boolean | null>([
   ['off', false]
 ]);
 
+const REWARD_PAUSED = new Map<string, boolean>([['pause', true], ['resume', false]]);
+
 function rewardUpdateAction(config: FlowConfig): Action {
-  const cost = config.cost === undefined || config.cost === '' ? null : num(config.cost);
+  const cost = String(config.cost ?? '').trim() === '' ? null : num(config.cost);
   const enabled = REWARD_ENABLED.get(str(config.setEnabled)) ?? null;
-  return { type: 'reward_update', params: { reward_id: str(config.reward), enabled, cost, reset_on_stream_end: config.reset === true } };
+  const params: Params = { reward_id: str(config.reward), enabled, cost, reset_on_stream_end: config.reset === true };
+  const paused = REWARD_PAUSED.get(str(config.paused));
+  if (paused !== undefined) params.paused = paused;
+  if (String(config.cooldown ?? '').trim() !== '') params.cooldown_s = num(config.cooldown);
+  return { type: 'reward_update', params };
 }
 
 function withOptional(params: Params, optional: Params): Params {
@@ -253,10 +259,18 @@ const API_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   'reply.http_post': (config) => ({
     type: 'http_post',
     params: withOptional({ url: str(config.url) }, { body: str(config.body), save_as: recipeName(config.saveAs) })
-  })
+  }),
+  'reply.points_spend': (config) => ({ type: 'points_spend', params: { amount: num(config.amount) } })
 };
 
-const API_PORTS = ['ok', 'failure'] as const;
+const API_PORTS: Readonly<Record<string, readonly [string, string]>> = {
+  http_get: ['ok', 'failure'],
+  http_post: ['ok', 'failure'],
+  points_spend: ['enough', 'notEnough']
+};
+
+export const apiPorts = (type: Action['type']): readonly [string, string] => API_PORTS[type]!;
+
 const LOOP_TYPE = 'reply.loop';
 const LOOP_PORTS = ['body', 'done'] as const;
 
@@ -342,8 +356,16 @@ const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   'reply.countdown_start': (config) => ({ type: 'countdown_start', params: { ...timeLeftParams(config), name: recipeName(config.name), seconds: num(config.seconds) } }),
   'reply.countdown_add': (config) => ({ ...cooldownAddAction(config), type: 'countdown_add' }),
   'reply.cooldown_add': cooldownAddAction,
-  'reply.redemption': (config) => ({ type: 'redemption', params: { status: str(config.result) || 'fulfill' } })
+  'reply.redemption': (config) => ({ type: 'redemption', params: { status: str(config.result) || 'fulfill' } }),
+  'reply.countdown_stop': (config) => namedTimerAction('countdown_stop', config),
+  'reply.cooldown_reset': (config) => namedTimerAction('cooldown_reset', config)
 };
+
+type NamedTimerActionType = 'countdown_stop' | 'cooldown_reset';
+
+function namedTimerAction(type: NamedTimerActionType, config: FlowConfig): Action {
+  return { type, params: { name: recipeName(config.name) } };
+}
 
 function counterAction(config: FlowConfig): Action {
   const name = str(config.counter);
@@ -680,7 +702,7 @@ function lowerLoop(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
 
 function lowerApi(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
   const action = API_WRITERS[node.type]!(loweredConfig(ctx, node));
-  const { first, second, rest } = lowerArms(ctx, node, API_PORTS, stop);
+  const { first, second, rest } = lowerArms(ctx, node, apiPorts(action.type), stop);
   const params = { ...action.params };
   if (first.length > 0) params.on_ok = first;
   if (second.length > 0) params.on_failure = second;
@@ -992,14 +1014,19 @@ function textNode(params: Params): { type: string; config: FlowConfig } {
   return { type: 'reply.text', config };
 }
 
-function rewardEnabledChoice(enabled: unknown): string {
-  if (enabled === true) return 'on';
-  return enabled === false ? 'off' : 'keep';
+function rewardChoice(value: unknown, choices: ReadonlyMap<string, boolean | null>): string {
+  if (typeof value !== 'boolean') return 'keep';
+  return [...choices].find(([, option]) => option === value)?.[0] ?? 'keep';
 }
 
 function rewardUpdateNode(params: Params): { type: string; config: FlowConfig } {
-  const config: FlowConfig = { reward: str(params.reward_id), setEnabled: rewardEnabledChoice(params.enabled), reset: params.reset_on_stream_end === true };
-  return { type: 'reply.reward_update', config: typeof params.cost === 'number' ? { ...config, cost: params.cost } : config };
+  const config: FlowConfig = {
+    reward: str(params.reward_id), setEnabled: rewardChoice(params.enabled, REWARD_ENABLED), reset: params.reset_on_stream_end === true,
+    paused: rewardChoice(params.paused, REWARD_PAUSED)
+  };
+  if (typeof params.cost === 'number') config.cost = params.cost;
+  if (typeof params.cooldown_s === 'number') config.cooldown = params.cooldown_s;
+  return { type: 'reply.reward_update', config };
 }
 
 const API_READERS: Record<string, (params: Params) => { type: string; config: FlowConfig }> = {
@@ -1007,7 +1034,8 @@ const API_READERS: Record<string, (params: Params) => { type: string; config: Fl
     type: 'reply.http_get',
     config: { url: str(params.url), jsonPath: ((params.json_path ?? []) as string[]).join(JSON_PATH_SEPARATOR), saveAs: str(params.save_as) }
   }),
-  http_post: (params) => ({ type: 'reply.http_post', config: { url: str(params.url), body: str(params.body), saveAs: str(params.save_as) } })
+  http_post: (params) => ({ type: 'reply.http_post', config: { url: str(params.url), body: str(params.body), saveAs: str(params.save_as) } }),
+  points_spend: (params) => ({ type: 'reply.points_spend', config: { amount: num(params.amount) } })
 };
 
 const ACTION_READERS: Record<string, (params: Params) => { type: string; config: FlowConfig } | null> = {
@@ -1026,8 +1054,14 @@ const ACTION_READERS: Record<string, (params: Params) => { type: string; config:
   countdown_add: (params) => ({ ...cooldownAddNode(params), type: 'reply.countdown_add' }),
   cooldown_add: cooldownAddNode,
   counter_set: (params) => counterNode(params, 'set'),
-  redemption: (params) => ({ type: 'reply.redemption', config: { result: str(params.status) } })
+  redemption: (params) => ({ type: 'reply.redemption', config: { result: str(params.status) } }),
+  countdown_stop: (params) => namedTimerNode('countdown_stop', params),
+  cooldown_reset: (params) => namedTimerNode('cooldown_reset', params)
 };
+
+function namedTimerNode(type: NamedTimerActionType, params: Params): { type: string; config: FlowConfig } {
+  return { type: `reply.${type}`, config: { name: str(params.name) } };
+}
 
 function counterNode(params: Params, change: 'add' | 'set'): { type: string; config: FlowConfig } | null {
   const field = change === 'add' ? 'amount' : 'value';
@@ -1076,8 +1110,9 @@ function placeApi(b: Building, action: Action, path: string, tails: Tail[]): Tai
   const params = action.params ?? {};
   const node = API_READERS[action.type]!(params);
   const id = addNode(b, node.type, placedConfig(action, node.config), tails);
-  const worked = placeActions(b, (params.on_ok ?? []) as Action[], `${path}.params.on_ok`, [{ from: id, port: 'ok' }]);
-  const failed = placeActions(b, (params.on_failure ?? []) as Action[], `${path}.params.on_failure`, [{ from: id, port: 'failure' }]);
+  const [okPort, failurePort] = apiPorts(action.type);
+  const worked = placeActions(b, (params.on_ok ?? []) as Action[], `${path}.params.on_ok`, [{ from: id, port: okPort }]);
+  const failed = placeActions(b, (params.on_failure ?? []) as Action[], `${path}.params.on_failure`, [{ from: id, port: failurePort }]);
   return [...worked, ...failed];
 }
 

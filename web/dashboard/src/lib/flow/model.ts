@@ -4,8 +4,8 @@ import { STREAM_STEP_DEFINITIONS, TARGET_FIELDS } from './stream-steps';
 import { graphIndex, portKey } from './graph-index';
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
-import { CMP_OPS, TEXT_ARG_FIELDS, VAR_OPS_WITH_VALUE, triggerAmountUnit } from '@bagel/kit/automations';
-import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_POINTS_AMOUNT, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
+import { apiPorts as actionPorts, CMP_OPS, TEXT_ARG_FIELDS, VAR_OPS_WITH_VALUE, triggerAmountUnit } from '@bagel/kit/automations';
+import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_POINTS_AMOUNT, MAX_REWARD_COOLDOWN, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
 export const MAX_WAIT_SECONDS = MAX_DELAY_MS / 1000;
@@ -72,7 +72,10 @@ export const STEP_PLACEMENT = {
   'reply.http_post': { kind: 'reply', group: 'logic' },
   'cond.points': { kind: 'condition', group: 'loyalty' },
   'cond.counter': { kind: 'condition', group: 'loyalty' },
-  'reply.redemption': { kind: 'reply', group: 'loyalty' }
+  'reply.redemption': { kind: 'reply', group: 'loyalty' },
+  'reply.points_spend': { kind: 'reply', group: 'loyalty' },
+  'reply.countdown_stop': { kind: 'reply', group: 'timers' },
+  'reply.cooldown_reset': { kind: 'reply', group: 'timers' }
 } as const satisfies Record<string, { kind: FlowKind; group: StepGroup }>;
 
 type Typed = { key: string; placeholder?: true };
@@ -147,6 +150,7 @@ const subViewer: readonly VariableSpec[] = [...user, { token: '{tier}', name: 't
 const yesNo: OutputSpec[] = [{ id: 'yes' }, { id: 'no' }];
 const countdownLeft: VariableSpec = { token: '{countdown:left}', name: 'countdownLeft', sample: '2d 3h' };
 const cooldownLeft: VariableSpec = { token: '{cooldown:left}', name: 'cooldownLeft', sample: '2d 3h' };
+const pointsBalance: VariableSpec = { token: '{points}', name: 'points', sample: '250' };
 const commandArgs: VariableSpec = { token: '{args}', name: 'args', sample: ARGS_SAMPLE };
 const commandTarget: VariableSpec = { token: '{touser}', name: 'touser', sample: TOUSER_SAMPLE };
 const countdownReplyTokens = [countdownLeft, user[0]!, commandTarget, commandArgs];
@@ -437,7 +441,9 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
       { key: 'reward', type: 'choice', source: 'manageableRewards', nameKey: 'rewardTitle' },
       { key: 'setEnabled', type: 'select', options: ['keep', 'on', 'off'], initial: 'on' },
       { key: 'cost', type: 'number', min: 1, max: MAX_REWARD_COST, unit: true },
-      { key: 'reset', type: 'toggle' }
+      { key: 'reset', type: 'toggle' },
+      { key: 'paused', type: 'select', options: ['keep', 'pause', 'resume'], initial: 'keep' },
+      { key: 'cooldown', type: 'duration', min: 0, max: MAX_REWARD_COOLDOWN }
     ]
   },
   {
@@ -466,6 +472,19 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
       key: 'result', type: 'select', options: ['fulfill', 'cancel'], initial: 'fulfill',
       optionKey: { fulfill: 'flows.reward.afterFulfill', cancel: 'flows.reward.afterCancel' }
     }]
+  },
+  {
+    type: 'reply.points_spend', slug: 'pointsSpend', icon: 'coins',
+    fields: [{ key: 'amount', type: 'number', min: 1, max: MAX_POINTS_AMOUNT, unit: true, initial: 100 }],
+    outputs: actionPorts('points_spend').map((id) => ({ id, provides: [pointsBalance] }))
+  },
+  {
+    type: 'reply.countdown_stop', slug: 'countdownStop', icon: 'timer',
+    fields: [{ key: 'name', type: 'choice', source: 'namedCountdowns' }]
+  },
+  {
+    type: 'reply.cooldown_reset', slug: 'cooldownReset', icon: 'timer',
+    fields: [{ key: 'name', type: 'choice', source: 'namedCooldowns' }]
   }
 ];
 

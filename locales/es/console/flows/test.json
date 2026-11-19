@@ -123,5 +123,10 @@
   "rewardUntilEnd": "{changes} hasta que termine el directo",
   "rewardResult": "{name}: {changes}",
   "noRedemption": "Este paso requiere que se canjee una recompensa.",
-  "noRewardChanges": "Elige primero qué cambiar en la recompensa."
+  "noRewardChanges": "Elige primero qué cambiar en la recompensa.",
+  "pointsInsufficient": "Puntos insuficientes (saldo: {value})",
+  "rewardPaused": "en pausa",
+  "rewardResumed": "reanudada",
+  "rewardCooldown": "espera de {cooldown}",
+  "rewardCooldownOff": "espera desactivada"
 }

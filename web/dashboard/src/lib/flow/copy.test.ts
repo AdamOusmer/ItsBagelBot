@@ -59,7 +59,8 @@ describe('step copy', () => {
     { type: 'reply.chat', fieldKey: 'message', code: 'required', expected: 'Message is missing.' },
     { type: 'twitch.chat.command', fieldKey: 'trigger', code: 'required', expected: 'Command is missing.' },
     { type: 'reply.chat', fieldKey: 'unknown', code: 'required', expected: 'A value is missing.' },
-    { type: 'reply.chat', fieldKey: 'message', code: 'too_long', expected: 'A value is too long.' }
+    { type: 'reply.chat', fieldKey: 'message', code: 'too_long', expected: 'A value is too long.' },
+    { type: 'reply.reward_update', fieldKey: 'setEnabled', code: 'required', expected: 'Pick at least one change' }
   ])('$type $fieldKey $code names the missing field when mapped', ({ type, fieldKey, code, expected }) => {
     const node: FlowNode = { id: 'n', type, x: 0, y: 0, config: {} };
     expect(fieldIssueMessage(english, { nodeId: node.id, fieldKey, code, path: 'nodes.n.config' }, node)).toBe(expected);
@@ -114,10 +115,14 @@ describe('step copy', () => {
 });
 
 test.each([
-  { trigger: 'command', requirement: { kind: 'trigger', trigger: 'reward' } },
-  { trigger: 'reward', requirement: null }
-])('Complete redemption uses the engine requirement on $trigger', ({ trigger, requirement }) => {
-  expect(stepRequirementFor(specFor('reply.redemption')!, { type: trigger })).toEqual(requirement);
+  { type: 'reply.redemption', trigger: 'command', requirement: { kind: 'trigger', trigger: 'reward' } },
+  { type: 'reply.redemption', trigger: 'reward', requirement: null },
+  { type: 'reply.countdown_stop', trigger: 'command', requirement: { kind: 'role', level: 'mod' } },
+  { type: 'reply.countdown_stop', trigger: 'event', requirement: null },
+  { type: 'reply.cooldown_reset', trigger: 'command', requirement: { kind: 'role', level: 'mod' } },
+  { type: 'reply.cooldown_reset', trigger: 'event', requirement: null }
+])('$type uses the engine requirement on $trigger', ({ type, trigger, requirement }) => {
+  expect(stepRequirementFor(specFor(type)!, { type: trigger })).toEqual(requirement);
 });
 
 describe('describe', () => {

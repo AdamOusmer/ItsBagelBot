@@ -38,17 +38,24 @@ export function inputLabel(t: Translate, field: ScenarioInputField): string {
 
 function pointsResult(t: Translate, detail: Detail, node: FlowNode): string | undefined {
   if (detail.value === undefined) return undefined;
+  if (detail.code === 'insufficient_points') return t('flows.test.pointsInsufficient', { value: detail.value });
   if (detail.type === 'points_set') return t('flows.test.pointsSetResult', { value: detail.value });
   return t('flows.test.pointsResult', { action: describe(t, node), value: detail.value });
 }
 
+function rewardCooldownResult(t: Translate, seconds: string): string {
+  const value = Number(seconds);
+  return value ? t('flows.test.rewardCooldown', { cooldown: durationFormatter(t)(value) }) : t('flows.test.rewardCooldownOff');
+}
+
 function rewardResult(t: Translate, detail: Detail, node: FlowNode): string {
-  const enabled: Readonly<Record<string, string>> = { true: t('flows.test.rewardOn'), false: t('flows.test.rewardOff') };
-  const lines = { enabled: enabled[detail.enabled], cost: t('flows.test.rewardCost', { cost: detail.cost ?? '' }) };
-  const changes = Object.entries(lines)
-    .map(([field, line]) => detail[field] && line)
-    .filter(Boolean)
-    .join(', ');
+  const lines: Readonly<Record<string, (value: string) => string>> = {
+    enabled: (value) => t(value === 'true' ? 'flows.test.rewardOn' : 'flows.test.rewardOff'),
+    cost: (cost) => t('flows.test.rewardCost', { cost }),
+    paused: (value) => t(value === 'true' ? 'flows.test.rewardPaused' : 'flows.test.rewardResumed'),
+    cooldown_s: (value) => rewardCooldownResult(t, value)
+  };
+  const changes = Object.entries(lines).flatMap(([field, line]) => detail[field] ? [line(detail[field])] : []).join(', ');
   const result = detail.reset_on_stream_end === 'true' ? t('flows.test.rewardUntilEnd', { changes }) : changes;
   return t('flows.test.rewardResult', { name: String(node.config.rewardTitle || detail.reward_id || ''), changes: result });
 }
@@ -57,7 +64,8 @@ const EFFECT_LINES: Readonly<Record<string, 'points' | 'counter' | 'timer' | 're
   points_add: 'points', points_set: 'points',
   counter_add: 'counter', counter_set: 'counter',
   countdown_add: 'timer', cooldown_add: 'timer',
-  reward_update: 'reward'
+  reward_update: 'reward',
+  points_spend: 'points'
 };
 
 function effectLine(t: Translate, detail: Detail, node: FlowNode): string {

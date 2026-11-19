@@ -37,7 +37,7 @@
   "reply.math.keywords": "math calculate formula expression number sum multiply divide",
   "reply.httpGet.keywords": "api web url request fetch webhook json get",
   "reply.httpPost.keywords": "api web url request fetch webhook json post send",
-  "reply.rewardUpdate.keywords": "reward redeem cost price enable disable reset points",
+  "reply.rewardUpdate.keywords": "reward redeem cost price enable disable reset points pause resume cooldown",
   "reply.cooldownAdd.keywords": "cooldown timer add extend time seconds",
   "reply.poll.keywords": "poll vote voting choices question start",
   "reply.pollEnd.keywords": "poll vote stop end archive close",
@@ -70,9 +70,13 @@
     "loopIndex": "Which time this is",
     "apiError": "Why it failed",
     "cooldownLeft": "Time left on the cooldown",
-    "countdownLeft": "Time left on the countdown"
+    "countdownLeft": "Time left on the countdown",
+    "points": "Viewer points"
   },
   "condition.points.keywords": "if points balance loyalty viewer check compare",
   "condition.counter.keywords": "if counter value wins deaths check compare",
-  "reply.redemption.keywords": "redemption reward fulfill refund cancel points"
+  "reply.redemption.keywords": "redemption reward fulfill refund cancel points",
+  "reply.pointsSpend.keywords": "spend buy cost points purchase balance",
+  "reply.countdownStop.keywords": "stop cancel countdown timer clock",
+  "reply.cooldownReset.keywords": "reset clear cooldown timer"
 }

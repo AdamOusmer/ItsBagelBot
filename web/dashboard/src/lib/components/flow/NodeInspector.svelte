@@ -400,7 +400,7 @@
                     invalid={outside || Boolean(error)}
                     describedby={outside || error ? `${uid}-${field.key}-error` : undefined}
                     bind:value={
-                      () => (node.config[field.key] === undefined ? Number.NaN : Number(node.config[field.key])),
+                      () => (textOf(field.key).trim() === '' ? Number.NaN : Number(node.config[field.key])),
                       (seconds) => {
                         if (Number.isFinite(seconds)) node.config[field.key] = seconds;
                         else delete node.config[field.key];

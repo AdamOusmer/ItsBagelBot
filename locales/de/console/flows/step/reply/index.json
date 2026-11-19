@@ -366,5 +366,40 @@
       "fulfill": "Als erfüllt markieren",
       "cancel": "Punkte zurückgeben"
     }
+  },
+  "pointsSpend": {
+    "label": "Punkte ausgeben",
+    "summary": "Ziehe Punkte ab, wenn der Zuschauer genug hat",
+    "line": "{amount} ausgeben",
+    "field": {
+      "amount": {
+        "label": "Menge",
+        "unit": "Punkte"
+      }
+    },
+    "out": {
+      "enough": "Genug",
+      "notEnough": "Nicht genug"
+    }
+  },
+  "countdownStop": {
+    "label": "Countdown stoppen",
+    "summary": "Beende einen laufenden Countdown vorzeitig",
+    "line": "{name} stoppen",
+    "field": {
+      "name": {
+        "label": "Countdown"
+      }
+    }
+  },
+  "cooldownReset": {
+    "label": "Cooldown zurücksetzen",
+    "summary": "Hebe die Wartezeit für einen benannten Cooldown auf",
+    "line": "{name} zurücksetzen",
+    "field": {
+      "name": {
+        "label": "Cooldown"
+      }
+    }
   }
 }

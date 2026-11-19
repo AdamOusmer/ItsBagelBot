@@ -119,7 +119,10 @@ test.each([
   { node: nodeOf('reply.points', { change: 'take', amount: 0 }), key: 'amount', code: 'out_of_range' },
   { node: nodeOf('reply.points', { amount: -10 }), key: 'amount', code: undefined },
   { node: nodeOf('reply.counter', { change: 'add', amount: 0 }), key: 'amount', code: 'out_of_range' },
-  { node: nodeOf('reply.countdown_add', { per: 0 }), key: 'per', code: 'out_of_range' }
+  { node: nodeOf('reply.countdown_add', { per: 0 }), key: 'per', code: 'out_of_range' },
+  { node: nodeOf('reply.reward_update', { setEnabled: 'keep', paused: 'keep', cooldown: '', reset: true }), key: 'setEnabled', code: 'required' },
+  { node: nodeOf('reply.reward_update', { setEnabled: 'keep', paused: 'resume' }), key: 'setEnabled', code: undefined },
+  { node: nodeOf('reply.reward_update', { setEnabled: 'keep', paused: 'keep', cooldown: 0 }), key: 'setEnabled', code: undefined }
 ])('reports $code on $node.type $key while editing', ({ node, key, code }) => {
   const field = specFor(node.type)!.fields.find((field) => field.key === key)!;
   expect(inlineFieldIssue(node, field)?.code).toBe(code);

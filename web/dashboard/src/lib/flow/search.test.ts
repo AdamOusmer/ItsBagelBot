@@ -27,6 +27,10 @@ test.each([
   ['say', 'reply.chat'],
   ['loop', 'reply.loop'],
   ['add points', 'reply.points'],
+  ['spend', 'reply.points_spend'],
+  ['buy', 'reply.points_spend'],
+  ['stop countdown', 'reply.countdown_stop'],
+  ['reset cooldown', 'reply.cooldown_reset'],
   ['ligth', 'reply.lights'],
   ['  SEND, méssage! ', 'reply.chat']
 ])('%s ranks %s first', (query, type) => {

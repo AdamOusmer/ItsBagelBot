@@ -31,7 +31,9 @@ const cases: ScopeCase[] = [
   { name: 'disconnected producer', steps: [['a', 'reply.math', { saveAs: 'points' }], ['b', 'reply.chat']], links: [['a', 'next', 'b']], target: 'b', tokens: [] },
   { name: 'disabled producer', steps: [base, ['a', 'reply.math', { saveAs: 'points', disabled: true }], ['b', 'reply.chat']], links: [['root', 'next', 'a'], ['a', 'next', 'b']], target: 'b', tokens: viewer },
   { name: 'trigger itself', steps: [base], links: [], target: 'root', tokens: [] },
-  { name: 'cooldown extension', steps: [base, ['a', 'reply.cooldown_add', { name: 'break', seconds: 60 }], ['b', 'reply.chat']], links: [['root', 'next', 'a'], ['a', 'next', 'b']], target: 'b', tokens: [...viewer, '{cooldown:left}'] }
+  { name: 'cooldown extension', steps: [base, ['a', 'reply.cooldown_add', { name: 'break', seconds: 60 }], ['b', 'reply.chat']], links: [['root', 'next', 'a'], ['a', 'next', 'b']], target: 'b', tokens: [...viewer, '{cooldown:left}'] },
+  { name: 'enough points', steps: [base, ['a', 'reply.points_spend'], ['b', 'reply.chat']], links: [['root', 'next', 'a'], ['a', 'enough', 'b']], target: 'b', tokens: [...viewer, '{points}'] },
+  { name: 'not enough points', steps: [base, ['a', 'reply.points_spend'], ['b', 'reply.chat']], links: [['root', 'next', 'a'], ['a', 'notEnough', 'b']], target: 'b', tokens: [...viewer, '{points}'] }
 ];
 
 const mixedSteps: Step[] = [base, ['chance', 'cond.chance'], ['math', 'reply.math', { saveAs: 'points' }], ['a', 'reply.chat'], ['b', 'reply.chat'], ['join', 'reply.chat']];

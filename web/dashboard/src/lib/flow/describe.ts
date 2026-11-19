@@ -206,9 +206,31 @@ function dataLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   }
 }
 
+const REWARD_TOGGLE_LINES: Readonly<Record<string, Readonly<Record<string, MessageKey>>>> = {
+  setEnabled: { on: 'flows.step.reply.rewardUpdate.line.on', off: 'flows.step.reply.rewardUpdate.line.off' },
+  paused: { pause: 'flows.step.reply.rewardUpdate.line.pause', resume: 'flows.step.reply.rewardUpdate.line.resume' }
+};
+
 function rewardUpdateLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   const reward = optionLabel(t, spec, n, 'reward');
-  return given(reward, (name) => (n.config.reset === true ? t('flows.line.rewardUpdateBack', { reward: name }) : t('flows.line.rewardUpdate', { reward: name })));
+  if (!reward) return '';
+  const lines = Object.entries(REWARD_TOGGLE_LINES).flatMap(([field, choices]) => {
+    const key = choices[text(n, field)];
+    return key ? [t(key, { reward })] : [];
+  });
+  const cost = num(n, 'cost');
+  if (cost) lines.push(t('flows.step.reply.rewardUpdate.line.cost', { reward, cost: points(t, cost) }));
+  const cooldown = rewardCooldownLine(t, n, reward);
+  if (cooldown) lines.push(cooldown);
+  const changes = lines.join(', ') || t('flows.line.rewardUpdate', { reward });
+  return n.config.reset === true ? t('flows.step.reply.rewardUpdate.line.untilEnd', { changes }) : changes;
+}
+
+function rewardCooldownLine(t: Translate, node: FlowNode, reward: string): string {
+  const stored = text(node, 'cooldown');
+  if (!stored) return '';
+  if (Number(stored) === 0) return t('flows.step.reply.rewardUpdate.line.cooldownOff', { reward });
+  return given(num(node, 'cooldown'), (seconds) => t('flows.step.reply.rewardUpdate.line.cooldown', { reward, cooldown: durationFormatter(t)(seconds) }));
 }
 
 function moduleLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
@@ -264,7 +286,10 @@ function lineVariant(value: ConfigValue): string {
 
 function lineValue(t: Translate, node: FlowNode, spec: NodeSpec, key: string): string {
   if (!text(node, key)) return '';
-  if (node.type === 'reply.points' && key === 'amount') return given(Math.abs(Number(node.config.amount)), (amount) => points(t, amount));
+  if (key === 'amount' && ['reply.points', 'reply.points_spend'].includes(node.type)) {
+    const amount = node.type === 'reply.points' ? Math.abs(Number(node.config.amount)) : num(node, key);
+    return given(amount, (count) => points(t, count));
+  }
   const field = spec.fields.find((entry) => entry.key === key);
   if (field?.type === 'duration') return given(num(node, key), durationFormatter(t));
   return optionLabel(t, spec, node, key);

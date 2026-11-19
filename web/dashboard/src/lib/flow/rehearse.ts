@@ -193,7 +193,7 @@ function effectText(t: Translate, detail: Record<Text, Text>, node: FlowNode | u
 
 function eventText(t: Translate, event: RehearsalEvent, node: FlowNode | undefined, scenario: RehearsalScenario): Text {
   const detail = event.detail ?? {};
-  if (detail.code) return reasonText(t, detail.code);
+  if (detail.code && detail.code !== 'insufficient_points') return reasonText(t, detail.code);
   const line = effectText(t, detail, node);
   const texts = {
     trigger: triggerText(node, scenario, line, t), parallel: '', loop: loopText(t, event),

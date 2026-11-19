@@ -95,6 +95,7 @@ export const fieldHint = (t: Translate, spec: NodeSpec, field: FieldSpec): strin
 
 export function fieldIssueMessage(t: Translate, issue: FieldIssue, node: FlowNode | undefined): string {
   if (issue.code !== 'required') return issueMessage(t, issue);
+  if (node?.type === 'reply.reward_update' && issue.fieldKey === 'setEnabled') return t('flows.step.reply.rewardUpdate.pickChange');
   const spec = node ? specFor(node.type) : undefined;
   const field = spec?.fields.find((field) => field.key === issue.fieldKey);
   if (!spec || !field) return issueMessage(t, issue);

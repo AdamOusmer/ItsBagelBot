@@ -55,7 +55,7 @@ const defaults = {
   'reply.points': { change: 'add', amount: 10, who: 'viewer' },
   'reply.points_set': { amount: 10, who: 'viewer' },
   'reply.counter': { change: 'add', amount: 1, value: 0 },
-  'reply.reward_update': { setEnabled: 'on' },
+  'reply.reward_update': { setEnabled: 'on', paused: 'keep' },
   'reply.countdown_start': { seconds: 3_600 },
   'reply.countdown_add': { seconds: 60 },
   'reply.cooldown_add': { seconds: 60 },
@@ -71,7 +71,10 @@ const defaults = {
   'reply.http_post': {},
   'cond.points': { op: 'gte', value: 100 },
   'cond.counter': { op: 'gte', value: 1 },
-  'reply.redemption': { result: 'fulfill' }
+  'reply.redemption': { result: 'fulfill' },
+  'reply.points_spend': { amount: 100 },
+  'reply.countdown_stop': {},
+  'reply.cooldown_reset': {}
 } satisfies Record<keyof typeof STEP_PLACEMENT, FlowNode['config']>;
 
 test.each(NODE_SPECS)('$type gets its expected config when added', (spec) => {
