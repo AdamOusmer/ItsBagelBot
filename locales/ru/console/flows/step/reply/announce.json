@@ -4,6 +4,6 @@
   "keywords": "объявление announce announcement сообщение цвет",
   "field": {
     "text": { "label": "Сообщение" },
-    "color": { "label": "Цвет", "option": { "primary": "Цвет канала", "blue": "Синий", "green": "Зелёный", "orange": "Оранжевый", "purple": "Фиолетовый", "": "По умолчанию" } }
+    "color": { "label": "Цвет", "option": { "primary": "Цвет канала", "blue": "Синий", "green": "Зелёный", "orange": "Оранжевый", "purple": "Фиолетовый" } }
   }
 }

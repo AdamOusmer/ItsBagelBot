@@ -79,7 +79,8 @@
     "followers": "Nur Follower",
     "slow": "Langsamer Modus",
     "subscribers": "Nur Abonnenten",
-    "unique": "Einzigartige Nachrichten"
+    "unique": "Einzigartige Nachrichten",
+    "chat_delay": "Chatverzögerung"
   },
   "kind": {
     "text": "Text",

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES, TEXT_ARG_FIELDS, type Issue } from '@bagel/kit/automations';
+import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES, TEXT_ARG_FIELDS, chatModeValueField, type Issue } from '@bagel/kit/automations';
 import { specFor, targetFieldFor, targetMode, type FlowNode } from './model';
 import { configText } from './setup';
 
@@ -27,7 +27,9 @@ const NODE_FIELDS: Record<string, Record<string, string>> = {
   'twitch.cheer': { filters: 'minBits' },
   'twitch.raid': { filters: 'minViewers' },
   'twitch.reward': { title: 'reward', cost: 'reward', color: 'reward', cooldown_s: 'reward', on_redeem: 'reward', input_required: 'reward' },
-  'reply.chat': { text: 'message' },
+  'reply.chat': { text: 'message', thread: 'reply' },
+  'reply.poll': { points_per_vote: 'pointsPerVote' },
+  'reply.prediction_end': { winner: 'outcome' },
   'reply.counter': { name: 'counter' }
 };
 
@@ -41,6 +43,7 @@ function fieldKeyFor(node: FlowNode, path: IssuePath): FieldKey | undefined {
 
 function parameterField(node: FlowNode, param: FieldKey): FieldKey | undefined {
   if (isTextArgument(node, param)) return TEXT_ARG_FIELDS.get(String(node.config.op))?.[Number(param.slice(-1)) - 1];
+  if (node.type === 'reply.chat_mode' && param === 'value') return chatModeValueField(node.config.mode);
   const override = NODE_FIELDS[node.type]?.[param];
   if (override) return override;
   if (param === 'login') return loginField(node);
@@ -88,7 +91,7 @@ const TYPES: Record<string, string> = {
 const REQUIRED: Record<string, readonly string[]> = { 'cond.user': ['login'], 'cond.cooldown': ['seconds'] };
 const REQUIRED_IF: Record<string, (config: FlowNode['config']) => boolean> = {
   'cond.compare:right': (config) => config.op === 'contains',
-  'reply.prediction_end:winner': (config) => config.status === 'resolve',
+  'reply.prediction_end:outcome': (config) => config.status === 'resolve',
   'reply.lights:scene': (config) => config.mode === 'scene'
 };
 

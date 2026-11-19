@@ -166,7 +166,7 @@
   .context { font-size: 12px; line-height: 1.4; color: var(--bb-muted-light); }
   .result { font-weight: 600; }
   .muted { opacity: 0.6; }
-  .bubble { min-width: 0; }
+  .bubble { min-width: 0; white-space: pre-line; }
   .missing { color: var(--bb-tan); }
   .role-note { flex: none; height: 100px; }
   .pretend { display: flex; flex-direction: column; gap: 4px; }

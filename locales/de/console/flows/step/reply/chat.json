@@ -1,0 +1,13 @@
+{
+  "field": {
+    "reply": {
+      "label": "Antwort",
+      "option": {
+        "off": "Aus",
+        "mention": "Zuschauer erwähnen",
+        "thread": "Im Thread antworten"
+      },
+      "hint": "Für eine Antwort im Thread braucht es einen Chat-Auslöser."
+    }
+  }
+}

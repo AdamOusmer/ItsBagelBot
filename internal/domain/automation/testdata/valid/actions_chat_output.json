@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "trigger": { "type": "command", "params": { "name": "!rules" } },
+  "actions": [
+    { "type": "reply", "params": { "text": "Here are the rules", "thread": true } },
+    { "type": "pin", "params": { "text": "Be kind in chat" } }
+  ]
+}

@@ -4,7 +4,7 @@ import { expect, spyOn, test } from 'bun:test';
 import * as automations from '@bagel/kit/automations';
 import { english } from './english.testing';
 import type { Flow, FlowNode } from './model';
-import { prepareRehearsal, rehearseDraft, rehearseFlow, setStoredValue, type RehearsalOptions } from './rehearse';
+import { prepareRehearsal, rehearseDraft, rehearseFlow, setStoredValue, type RehearsalOptions, type RehearsalStep } from './rehearse';
 
 type Id = FlowNode['id'];
 type Kind = FlowNode['type'];
@@ -20,6 +20,22 @@ const join = n('j', 'reply.chat', { message: 'JOIN' });
 const wait = n('w', 'reply.wait', { seconds: 5 });
 const fork = [e('t', 'next', 'a'), e('t', 'next', 'b')];
 const loop = flowOf([trigger, n('l', 'reply.loop', { times: '3' }), n('s', 'reply.chat', { message: 'Pass {local:index}' }), join], [e('t', 'next', 'l'), e('l', 'body', 's'), e('l', 'done', 'j')]);
+
+const chatTimeline: { type: Kind; config: FlowNode['config']; text: string; secondary?: string; status: RehearsalStep['status'] }[] = [
+  { type: 'reply.poll', config: { title: 'Pick', seconds: 60, choices: ' One \n{var:absent}\n{user}\n' }, text: 'Poll: Pick', secondary: 'One, PrincessBarney', status: 'ok' },
+  { type: 'reply.poll', config: { title: 'Pick', seconds: 60, choices: 'One\n{var:absent}' }, text: 'Needs at least 2 choices after tokens fill in', secondary: 'One', status: 'failed' },
+  { type: 'reply.poll_end', config: { status: 'archive' }, text: 'Nothing running to end in this test', status: 'skipped' },
+  { type: 'reply.delete_message', config: {}, text: 'Only works on a chat command', status: 'failed' },
+  { type: 'reply.chat_mode', config: { mode: 'slow', on: true, wait: 0 }, text: 'Slow mode on, 30 s', status: 'ok' }
+];
+
+test.each(chatTimeline)(
+  '$type shows $text in the timeline', ({ type, config, text, secondary, status }) => {
+    const step = n('s', type, config);
+    const result = run(flowOf([n('t', 'twitch.follow'), step], [e('t', 'next', 's')])).steps.at(-1);
+    expect({ text: result?.text, secondary: result?.secondary, status: result?.status }).toEqual({ text, secondary, status });
+  }
+);
 
 test.each([
   { name: 'parallel lanes', flow: flowOf([trigger, left, right], fork), expected: [['a', 0, [0], [], ['A']], ['b', 0, [1], [], ['B']]] },
@@ -190,7 +206,7 @@ test.each([
 
 test.each([
   { node: n('s', 'reply.poll', { title: 'What should {user} play?', choices: 'Chess\nCheckers', seconds: 60 }), text: 'Poll: What should Sender play?' },
-  { node: n('s', 'reply.whisper', { target: '{user}', text: 'Thanks, {user}!' }), text: 'Whisper to Sender: Thanks, Sender!' },
+  { node: n('s', 'reply.whisper', { target: '{user}', text: 'Thanks, {user}!' }), text: 'Whisper Sender: Thanks, Sender!' },
   { node: n('s', 'reply.chat_mode', { mode: 'followers', on: false }), text: 'Followers only off' },
   { node: n('s', 'reply.countdown_start', { name: 'subathon', seconds: 3600 }), text: 'Start subathon for 1h' }
 ])('reuses the card template for the $node.type effect', ({ node, text }) => {
@@ -209,8 +225,8 @@ test.each(['twitch.stream.online', 'twitch.stream.offline', 'countdown.finished'
 
 const modCheck = n('c', 'cond.role', { level: 'mod' });
 const timeout = n('s', 'reply.timeout', { target: '{touser}', seconds: 60 });
-const blankChoice = n('s', 'reply.poll', { title: 'Play?', choices: 'Yes\nNo\n', seconds: 60 });
-const choiceIssue = 'Choices (one per line) is missing.';
+const blankChoice = n('s', 'reply.poll', { title: 'Play?', choices: '\n \n', seconds: 60 });
+const choiceIssue = 'Add at least two poll choices.';
 const permissionIssue = 'This command needs a higher user level for this step. Add a User level check before it.';
 const follow = n('t', 'twitch.follow');
 const afterTrigger = (root: FlowNode, step: FlowNode) => flowOf([root, step], [e(root.id, 'next', step.id)]);
@@ -218,7 +234,7 @@ const afterTrigger = (root: FlowNode, step: FlowNode) => flowOf([root, step], [e
 test.each([
   { name: 'unban step after Follow', flow: afterTrigger(follow, n('s', 'reply.unban_resolve', { status: 'deny' })),
     ids: ['t', 's'], found: ['s', 'failed', 'This step requires an Unban request trigger.', [['trigger_mismatch', undefined]]] },
-  { name: 'poll with a blank choice', flow: afterTrigger(follow, blankChoice),
+  { name: 'poll with only blank choices', flow: afterTrigger(follow, blankChoice),
     ids: ['t', 's'], found: ['s', 'failed', choiceIssue, [['required', 'choices']]] },
   { name: 'poll with only one choice', flow: afterTrigger(follow, n('s', 'reply.poll', { title: 'Play?', choices: 'Yes', seconds: 60 })),
     ids: ['t', 's'], found: ['s', 'failed', 'Add at least two poll choices.', [['too_short', 'choices']]] },

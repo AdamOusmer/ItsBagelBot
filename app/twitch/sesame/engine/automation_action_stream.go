@@ -32,6 +32,7 @@ var (
 		"slow":        outgress.ChatModeSlow,
 		"subscribers": outgress.ChatModeSubscriber,
 		"unique":      outgress.ChatModeUnique,
+		"chat_delay":  outgress.ChatModeDelay,
 	}
 	toggleTypes = map[string][2]string{
 		"mod": {outgress.TypeModRemove, outgress.TypeModAdd},
@@ -71,12 +72,17 @@ func (x *actionExec) loginOut(typ, template string, payload any) error {
 	return x.typedOut(typ, login, payload)
 }
 
-func (x *actionExec) expandAll(list []string) []string {
-	out := make([]string, len(list))
-	for i, s := range list {
-		out[i] = x.expand(s)
+func (x *actionExec) expandChoices(list []string) ([]string, error) {
+	out := make([]string, 0, len(list))
+	for _, s := range list {
+		if choice := strings.TrimSpace(x.expand(s)); choice != "" {
+			out = append(out, choice)
+		}
 	}
-	return out
+	if len(out) < 2 {
+		return nil, failure("too_few_choices")
+	}
+	return out, nil
 }
 
 func bareAction(typ string) func(*actionExec, step, automation.EmptyParams) error {
@@ -108,8 +114,12 @@ func (x *actionExec) roleOut(typ string, target automation.TargetAction) error {
 }
 
 func (x *actionExec) poll(_ step, p automation.PollAction) error {
+	choices, err := x.expandChoices(p.Choices)
+	if err != nil {
+		return err
+	}
 	return x.typedOut(outgress.TypePollCreate, "", outgress.PollCreate{
-		Title: x.expand(p.Title), Choices: x.expandAll(p.Choices), Duration: p.Seconds,
+		Title: x.expand(p.Title), Choices: choices, Duration: p.Seconds, ChannelPointsPerVote: p.PointsPerVote,
 	})
 }
 
@@ -118,8 +128,12 @@ func (x *actionExec) pollEnd(_ step, p automation.PollEndAction) error {
 }
 
 func (x *actionExec) prediction(_ step, p automation.PredictionAction) error {
+	outcomes, err := x.expandChoices(p.Outcomes)
+	if err != nil {
+		return err
+	}
 	return x.typedOut(outgress.TypePredictionCreate, "", outgress.PredictionCreate{
-		Title: x.expand(p.Title), Outcomes: x.expandAll(p.Outcomes), Window: p.Seconds,
+		Title: x.expand(p.Title), Outcomes: outcomes, Window: p.Seconds,
 	})
 }
 
@@ -127,6 +141,7 @@ func (x *actionExec) predictionEnd(_ step, p automation.PredictionEndAction) err
 	end := outgress.PredictionEnd{Status: predictionStatuses[p.Status]}
 	if end.Status == outgress.PredictionResolved {
 		end.Winner = p.Winner
+		end.Outcome = strings.TrimSpace(x.expand(p.Outcome))
 	}
 	return x.typedOut(outgress.TypePredictionEnd, "", end)
 }
@@ -154,9 +169,20 @@ func (x *actionExec) adSnooze(_ step, _ automation.EmptyParams) error {
 func (x *actionExec) chatMode(_ step, p automation.ChatModeAction) error {
 	settings := outgress.ChatSettings{Mode: chatModeNames[p.Mode], Enabled: p.On}
 	if p.On {
-		settings.Duration = p.Value
+		settings.Duration = chatModeDuration(settings.Mode, p.Value)
 	}
 	return x.typedOut(outgress.TypeChatSettings, "", settings)
+}
+
+func chatModeDuration(mode string, value int) int {
+	switch {
+	case mode == outgress.ChatModeSlow && value == 0:
+		return 30
+	case mode == outgress.ChatModeSlow, mode == outgress.ChatModeFollower, mode == outgress.ChatModeDelay:
+		return value
+	default:
+		return 0
+	}
 }
 
 func (x *actionExec) whisper(_ step, p automation.WhisperAction) error {

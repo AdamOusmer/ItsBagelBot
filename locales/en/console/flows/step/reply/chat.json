@@ -1,0 +1,13 @@
+{
+  "field": {
+    "reply": {
+      "label": "Reply",
+      "option": {
+        "off": "Off",
+        "mention": "Mention the viewer",
+        "thread": "Reply in thread"
+      },
+      "hint": "Reply in thread needs a chat trigger."
+    }
+  }
+}

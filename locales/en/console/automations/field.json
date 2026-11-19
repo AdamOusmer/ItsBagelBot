@@ -84,5 +84,8 @@
   "winner": "Winning outcome number",
   "resolution": "Resolution message (optional)",
   "reply": "Chat reply",
-  "quiet": "Skip chat message"
+  "quiet": "Skip chat message",
+  "points_per_vote": "Channel Points per vote",
+  "outcome": "Winning outcome",
+  "thread": "Reply in thread"
 }

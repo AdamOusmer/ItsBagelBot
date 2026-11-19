@@ -4,6 +4,7 @@
 import { expect, test } from 'bun:test';
 import { definitionToFlow, flowToDefinition, validateDefinition, type FlowResult, type Params } from '@bagel/kit/automations';
 import { describe } from './describe';
+import { addStep } from './editor';
 import { english } from './english.testing';
 import { fieldIssues } from './issues';
 import { issueMessage } from './messages';
@@ -17,7 +18,7 @@ type StepCase = { type: string; config: FlowNode['config']; line: string; effect
 const steps: StepCase[] = [
   { type: 'reply.shoutout', config: { target: '{user}' }, line: 'Shoutout to {user}', effect: 'Shoutout to PrincessBarney', kind: 'effect' },
   { type: 'reply.announce', config: { text: 'Welcome {user} and {viewers} viewers!', color: 'orange' }, line: 'Announce: Welcome {user} and {viewers} viewers!', kind: 'say', mode: 'announce', color: 'orange', message: 'Welcome PrincessBarney and 42 viewers!' },
-  { type: 'reply.reply', config: { text: 'Welcome {viewers} viewers!' }, line: 'Reply to viewer: Welcome {viewers} viewers!', kind: 'say', mode: 'chat', message: '@PrincessBarney Welcome 42 viewers!' },
+  { type: 'reply.chat', config: { message: 'Welcome {viewers} viewers!', reply: 'mention' }, line: 'Welcome {viewers} viewers!', kind: 'say', mode: 'chat', message: '@PrincessBarney Welcome 42 viewers!' },
   { type: 'reply.timeout', config: { target: '{user}', seconds: 60, reason: 'Please stop, {viewers} viewers are watching' }, line: 'Timeout {user} for 1m', effect: 'Timeout PrincessBarney for 1m', kind: 'effect' },
   { type: 'reply.commercial', config: { seconds: '60', confirm: true }, line: 'Run an ad for 1 minute', effect: 'Run an ad for 1 minute', kind: 'effect' },
   { type: 'reply.marker', config: { description: 'Raid by {user}', confirm: true }, line: 'Marker: Raid by {user}', effect: 'Marker: Raid by PrincessBarney', kind: 'effect' },
@@ -68,7 +69,10 @@ const configuredSteps = new Set(['reply.stream_info', 'reply.raid']);
 test.each(steps.filter(({ type }) => !configuredSteps.has(type)))('$type validates immediately after adding', ({ type, trigger }) => {
   const flow = newFlow('Defaults');
   const root = addNode(flow, trigger === 'twitch.unban_request' ? trigger : 'twitch.raid', { x: 0, y: 0 });
-  addNode(flow, type, { x: 0, y: 0 }, { from: root.id, port: 'next' });
+  addStep(flow, {
+    type, at: { x: 0, y: 0 }, placement: { kind: 'port', from: root.id, port: 'next', mode: 'parallel' },
+    chatMessage: english('flows.board.defaultChatMessage')
+  });
   expect(validateDefinition(valueOf(flowToDefinition(flow)))).toEqual([]);
 });
 
@@ -121,7 +125,7 @@ test.each<{ params: Params; config: FlowNode['config'] }>([
 
 test.each([
   ['shoutout', 'reply.shoutout'], ['so', 'reply.shoutout'], ['announce', 'reply.announce'],
-  ['timeout', 'reply.timeout'], ['reply', 'reply.reply'], ['stream ends', 'twitch.stream.offline'], ['offline', 'twitch.stream.offline'],
+  ['timeout', 'reply.timeout'], ['reply', 'reply.chat'], ['stream ends', 'twitch.stream.offline'], ['offline', 'twitch.stream.offline'],
   ['ban', 'reply.ban'], ['lift timeout', 'reply.unban'], ['moderator', 'reply.mod'],
   ['unban request', 'twitch.unban_request']
 ])('%s finds %s first', (query, type) => {

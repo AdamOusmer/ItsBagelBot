@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import { fieldSearchText, groupLabel, stepKeywords, stepLabel, stepSummary } from './copy';
 import type { Translate } from './messages';
-import { NODE_SPECS, STEP_GROUPS, type FlowKind, type NodeSpec, type StepGroup } from './model';
+import { LIBRARY_SPECS, STEP_GROUPS, type FlowKind, type NodeSpec, type StepGroup } from './model';
 
 type SearchText = string;
 
@@ -43,7 +43,7 @@ function score(t: Translate, spec: NodeSpec, query: readonly SearchText[]): numb
 }
 
 function rankedSteps(t: Translate, tokens: readonly SearchText[], kinds: readonly FlowKind[]): NodeSpec[] {
-  const pool = NODE_SPECS.filter((spec) => kinds.includes(spec.kind));
+  const pool = LIBRARY_SPECS.filter((spec) => kinds.includes(spec.kind));
   return pool.map((spec) => ({ spec, score: score(t, spec, tokens) }))
     .filter((result) => result.score > 0)
     .sort((left, right) => right.score - left.score)
@@ -57,7 +57,7 @@ export function stepSections(t: Translate, query: SearchText, kinds: readonly Fl
       kind,
       group,
       label: groupLabel(t, group),
-      specs: NODE_SPECS.filter((spec) => spec.kind === kind && spec.group === group)
+      specs: LIBRARY_SPECS.filter((spec) => spec.kind === kind && spec.group === group)
     }))).filter((section) => section.specs.length > 0);
   }
   const tokens = words(query);

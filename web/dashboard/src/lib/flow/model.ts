@@ -28,6 +28,8 @@ export const STEP_PLACEMENT = {
   'reply.prediction_end': { kind: 'reply', group: 'chat' },
   'reply.chat_mode': { kind: 'reply', group: 'chat' },
   'reply.clear_chat': { kind: 'reply', group: 'chat' },
+  'reply.delete_message': { kind: 'reply', group: 'chat' },
+  'reply.pin': { kind: 'reply', group: 'chat' },
   'reply.whisper': { kind: 'reply', group: 'chat' },
   'twitch.follow': { kind: 'trigger', group: 'community' },
   'twitch.sub': { kind: 'trigger', group: 'community' },
@@ -82,7 +84,7 @@ type FieldGate = { key: string; value: string | readonly string[] | boolean };
 
 export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; labelBy?: string; initial?: string | number | boolean; required?: true } & (
   | (Typed & { type: 'text' })
-  | (Typed & { type: 'template'; singleLine?: boolean })
+  | (Typed & { type: 'template'; singleLine?: boolean; max?: number })
   | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
   | { key: string; type: 'duration'; min: number; max: number }
   | { key: string; type: 'select'; options: readonly string[]; fallback?: string }
@@ -108,6 +110,7 @@ export type NodeSpec = {
   group: StepGroup;
   icon: IconName;
   fields: readonly FieldSpec[];
+  hidden?: true;
   lineBy?: string;
   provides?: readonly VariableSpec[];
   providesFor?(config: FlowNode['config']): readonly VariableSpec[];
@@ -310,7 +313,10 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'reply.chat',
     slug: 'chat',
     icon: 'send',
-    fields: [{ key: 'message', type: 'template', placeholder: true }]
+    fields: [
+      { key: 'message', type: 'template', placeholder: true },
+      { key: 'reply', type: 'select', options: ['off', 'mention', 'thread'], initial: 'off' }
+    ]
   },
   {
     type: 'reply.points',
@@ -436,6 +442,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
 ];
 
 export const NODE_SPECS: readonly NodeSpec[] = STEP_DEFINITIONS.map((spec) => ({ ...spec, ...STEP_PLACEMENT[spec.type] }));
+export const LIBRARY_SPECS = NODE_SPECS.filter((spec) => !spec.hidden);
 
 function matchesValue(wanted: FieldGate['value'], value: unknown): boolean {
   if (typeof wanted === 'boolean') return Boolean(value) === wanted;

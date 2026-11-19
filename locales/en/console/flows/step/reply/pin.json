@@ -1,0 +1,11 @@
+{
+  "label": "Pin message",
+  "summary": "Post a message and pin it",
+  "line": "Pin: {text}",
+  "keywords": "pin pinned highlight chat message",
+  "field": {
+    "text": {
+      "label": "Message"
+    }
+  }
+}

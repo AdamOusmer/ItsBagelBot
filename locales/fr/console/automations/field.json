@@ -84,5 +84,8 @@
   "winner": "Numéro du résultat gagnant",
   "resolution": "Message de décision (facultatif)",
   "reply": "Réponse dans le chat",
-  "quiet": "Ignorer le message dans le chat"
+  "quiet": "Ignorer le message dans le chat",
+  "points_per_vote": "Points de chaîne par vote",
+  "outcome": "Résultat gagnant",
+  "thread": "Répondre dans le fil"
 }

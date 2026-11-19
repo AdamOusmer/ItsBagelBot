@@ -13,9 +13,11 @@
 </script>
 
 <ChatPreview title={title ?? t('chatPreview.rehearsal')}>
-  {#each lines as line, index (index)}
-    <RehearsedLineRow {line} {index} seed="ItsBagelBot" />
-  {/each}
+  <div class="chat-lines">
+    {#each lines as line, index (index)}
+      <RehearsedLineRow {line} {index} seed="ItsBagelBot" />
+    {/each}
+  </div>
   {#each visible.filter((step) => step.missing.length) as step (step.key)}
     <p class="missing">{t('flows.test.missing', { names: step.missing.join(', ') })}</p>
   {/each}
@@ -30,6 +32,7 @@
 </ChatPreview>
 
 <style>
+  .chat-lines { display: contents; white-space: pre-line; }
   .note, .missing { margin: 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
   .missing { color: var(--bb-tan); }
 </style>

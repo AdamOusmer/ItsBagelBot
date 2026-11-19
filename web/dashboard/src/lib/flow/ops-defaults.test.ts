@@ -32,7 +32,7 @@ const defaults = {
   'cond.compare': { op: 'gte' },
   'cond.chance': { percent: 50 },
   'cond.var': { scope: 'channel', op: 'exists' },
-  'reply.chat': { message: 'Thanks {user}!' },
+  'reply.chat': { message: 'Thanks {user}!', reply: 'off' },
   'reply.shoutout': { target: '{user}' },
   'reply.announce': { text: 'Thanks {user}!', color: 'primary' },
   'reply.reply': { text: 'Thanks!' },
@@ -43,13 +43,15 @@ const defaults = {
   'reply.vip': { who: 'viewer', change: 'add' },
   'reply.raid': {},
   'reply.raid_cancel': {},
-  'reply.whisper': {},
+  'reply.whisper': { target: '{user}' },
   'reply.unban_resolve': { status: 'deny' },
   'reply.ad_snooze': {},
   'reply.stream_info': { branded: 'keep' },
-  'reply.chat_mode': { mode: 'slow', on: true },
+  'reply.chat_mode': { mode: 'slow', on: true, wait: 30, followAge: 10, delay: '2' },
   'reply.clear_chat': {},
-  'reply.poll': { seconds: 60 },
+  'reply.delete_message': {},
+  'reply.pin': {},
+  'reply.poll': { seconds: 60, extraVotes: false, pointsPerVote: 100 },
   'reply.poll_end': { status: 'terminate' },
   'reply.prediction': { seconds: 120 },
   'reply.prediction_end': { status: 'lock' },
@@ -127,15 +129,17 @@ test.each([
   expect({
     targetModes: targets.map((type) => config(type).who),
     shoutout: config('reply.shoutout'),
+    whisper: config('reply.whisper'),
     announce: config('reply.announce'),
     reply: config('reply.reply'),
     chat: config('reply.chat')
   }).toEqual({
     targetModes: targets.map(() => who),
     shoutout: { target },
+    whisper: { target },
     announce: { ...defaults['reply.announce'], text: message || en.defaultPlainMessage },
     reply: defaults['reply.reply'],
-    chat: { message }
+    chat: { message, reply: 'off' }
   });
 });
 

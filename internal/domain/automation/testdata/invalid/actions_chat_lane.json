@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual" },
+  "actions": [
+    { "type": "reply", "params": { "text": "hi", "thread": "true" } },
+    { "type": "pin", "params": {} },
+    { "type": "chat_mode", "params": { "mode": "slow", "on": true, "value": 2 } },
+    { "type": "chat_mode", "params": { "mode": "slow", "on": true, "value": 121 } },
+    { "type": "chat_mode", "params": { "mode": "followers", "on": true, "value": 129601 } },
+    { "type": "chat_mode", "params": { "mode": "chat_delay", "on": true, "value": 5 } },
+    { "type": "poll", "params": { "title": "Best?", "choices": ["a", "b"], "seconds": 60, "points_per_vote": 1000001 } },
+    { "type": "poll", "params": { "title": "Best?", "choices": ["a", "b"], "seconds": 60, "points_per_vote": -1 } },
+    { "type": "whisper", "params": { "login": "@", "text": "hi" } },
+    { "type": "prediction_end", "params": { "status": "resolve", "outcome": " " } },
+    { "type": "chat_mode", "params": { "mode": "unknown", "on": true } }
+  ]
+}

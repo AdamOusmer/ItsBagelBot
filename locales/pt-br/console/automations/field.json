@@ -84,5 +84,8 @@
   "winner": "Número do resultado vencedor",
   "resolution": "Mensagem da decisão (opcional)",
   "reply": "Resposta no chat",
-  "quiet": "Omitir mensagem no chat"
+  "quiet": "Omitir mensagem no chat",
+  "points_per_vote": "Pontos do canal por voto",
+  "outcome": "Resultado vencedor",
+  "thread": "Responder em thread"
 }

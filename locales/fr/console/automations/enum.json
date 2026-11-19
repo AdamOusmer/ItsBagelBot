@@ -79,7 +79,8 @@
     "followers": "Personnes qui suivent la chaîne",
     "slow": "Mode lent",
     "subscribers": "Abonnés uniquement",
-    "unique": "Messages uniques"
+    "unique": "Messages uniques",
+    "chat_delay": "Délai du chat"
   },
   "kind": {
     "text": "Texte",

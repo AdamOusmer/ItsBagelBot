@@ -3,7 +3,8 @@
   "summary": "Choisir qui peut parler et à quelle fréquence",
   "line": {
     "on": "Activer le mode de chat : {mode}",
-    "off": "Désactiver le mode de chat : {mode}"
+    "off": "Désactiver le mode de chat : {mode}",
+    "slow": "Activer le mode de chat : {mode}, {wait}"
   },
   "field": {
     "mode": {
@@ -13,14 +14,28 @@
         "followers": "Personnes qui suivent la chaîne",
         "slow": "Mode lent",
         "subscribers": "Abonnés uniquement",
-        "unique": "Messages uniques"
+        "unique": "Messages uniques",
+        "chat_delay": "Délai du chat"
       }
     },
     "on": {
       "label": "Activé"
     },
-    "value": {
-      "label": "Secondes en mode lent; minutes en mode followers"
+    "wait": {
+      "label": "Temps entre les messages",
+      "range": "Saisissez une valeur de 3 à 120 secondes."
+    },
+    "followAge": {
+      "label": "Durée minimale de suivi",
+      "unit": "minutes"
+    },
+    "delay": {
+      "label": "Délai",
+      "option": {
+        "2": "2 secondes",
+        "4": "4 secondes",
+        "6": "6 secondes"
+      }
     }
   }
 }

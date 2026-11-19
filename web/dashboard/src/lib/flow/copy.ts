@@ -40,11 +40,16 @@ export function stepRequirementFor(spec: NodeSpec, trigger: RequirementTrigger, 
   return stepRequirement(action, trigger, params);
 }
 
-export function requirementText(t: Translate, requirement: StepRequirement, variant: 'tag' | 'note' | 'start' = 'tag'): string {
-  if (requirement.kind === 'trigger') {
-    const trigger = t(TRIGGER_LABELS[requirement.trigger]);
-    return t(variant === 'tag' ? 'flows.step.requirement.triggerTag' : 'flows.step.requirement.triggerNote', { trigger });
-  }
+function triggerRequirementText(t: Translate, requirement: Extract<StepRequirement, { kind: 'trigger' }>, tag: boolean, spec?: NodeSpec): string {
+  const trigger = t(TRIGGER_LABELS[requirement.trigger]);
+  if (tag) return t('flows.step.requirement.triggerTag', { trigger });
+  const key = `flows.step.reply.${spec?.slug}.note` as MessageKey;
+  const note = spec ? known(key, t(key)) : '';
+  return note || t('flows.step.requirement.triggerNote', { trigger });
+}
+
+export function requirementText(t: Translate, requirement: StepRequirement, variant: 'tag' | 'note' | 'start' = 'tag', spec?: NodeSpec): string {
+  if (requirement.kind === 'trigger') return triggerRequirementText(t, requirement, variant === 'tag', spec);
   const role = t(ROLE_LABELS[requirement.level]);
   if (variant === 'tag') return role;
   return t(variant === 'start' ? 'flows.step.requirement.startNote' : 'flows.step.requirement.roleNote', { role });

@@ -6,7 +6,7 @@ import { groupLabel, stepKeywords, stepLabel, stepSummary } from './copy';
 import { describe } from './describe';
 import { english } from './english.testing';
 import type { Translate } from './messages';
-import { NODE_SPECS, STEP_GROUPS, STEP_PLACEMENT, specFor, type FlowKind, type FlowNode, type StepGroup } from './model';
+import { LIBRARY_SPECS, NODE_SPECS, STEP_GROUPS, STEP_PLACEMENT, specFor, type FlowKind, type FlowNode, type StepGroup } from './model';
 import { searchSteps, stepSections } from './search';
 import { STREAM_STEP_DEFINITIONS } from './stream-steps';
 
@@ -45,7 +45,7 @@ test.each([
   ['zzzz', []],
   ['send zzzz', []],
   ['wa', ['reply.wait', 'cond.cooldown']],
-  ['wi', ['reply.counter', 'reply.prediction_end', 'reply.text']],
+  ['wi', ['reply.counter', 'reply.prediction_end', 'reply.text', 'reply.poll']],
   ['waaitt', []],
   ['?!', []]
 ])('%s returns only the matching steps in relevance order', (query, expected) => {
@@ -60,7 +60,7 @@ test.each([
 ] satisfies FlowKind[][])('an empty query follows kind, group and source order: %j', (...kinds) => {
   const sections = stepSections(english, '  ', kinds);
   const ordered = kinds.flatMap((kind) => STEP_GROUPS.flatMap((group) =>
-    NODE_SPECS.filter((spec) => spec.kind === kind && spec.group === group)));
+    LIBRARY_SPECS.filter((spec) => spec.kind === kind && spec.group === group)));
   const groups = new Map(ordered.map(({ kind, group }) => [`${kind}.${group}`, group]));
   expect({
     specs: sections.flatMap((section) => section.specs),
@@ -71,6 +71,12 @@ test.each([
     keys: [...groups.keys()],
     labels: [...groups.values()].map((group) => groupLabel(english, group))
   });
+});
+
+test('the old reply type remains readable and is absent from the step library', () => {
+  const search = types('reply');
+  expect({ known: specFor('reply.reply')?.type, listed: types('').includes('reply.reply'), found: search.includes('reply.reply'), first: search[0] })
+    .toEqual({ known: 'reply.reply', listed: false, found: false, first: 'reply.chat' });
 });
 
 test.each([

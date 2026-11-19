@@ -24,10 +24,10 @@ export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
   },
   {
     type: 'reply.announce', slug: 'announce', icon: 'messageSquare',
-    fields: [{ key: 'text', type: 'template' }, { key: 'color', type: 'select', options: ['primary', 'blue', 'green', 'orange', 'purple', ''] }]
+    fields: [{ key: 'text', type: 'template' }, { key: 'color', type: 'select', options: ['primary', 'blue', 'green', 'orange', 'purple'] }]
   },
   {
-    type: 'reply.reply', slug: 'reply', icon: 'messageSquare',
+    type: 'reply.reply', slug: 'reply', icon: 'messageSquare', hidden: true,
     fields: [{ key: 'text', type: 'template' }]
   },
   {
@@ -46,7 +46,11 @@ export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
   },
   {
     type: 'reply.poll', slug: 'poll', icon: 'messageSquare',
-    fields: [title, { key: 'choices', type: 'template' }, { key: 'seconds', type: 'number', min: 15, max: 1800, initial: 60 }]
+    fields: [
+      title, { key: 'choices', type: 'template' }, { key: 'seconds', type: 'number', min: 15, max: 1800, initial: 60 },
+      { key: 'extraVotes', type: 'toggle', initial: false },
+      { key: 'pointsPerVote', type: 'number', min: 1, max: 1000000, initial: 100, when: { key: 'extraVotes', value: true } }
+    ]
   },
   {
     type: 'reply.poll_end', slug: 'pollEnd', icon: 'messageSquare', lineBy: 'status',
@@ -54,13 +58,13 @@ export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
   },
   {
     type: 'reply.prediction', slug: 'prediction', icon: 'gem',
-    fields: [title, { key: 'outcomes', type: 'template' }, { key: 'seconds', type: 'number', min: 30, max: 1800, initial: 120 }]
+    fields: [title, { key: 'outcomes', type: 'template' }, { key: 'seconds', type: 'number', min: 1, max: 1800, initial: 120 }]
   },
   {
     type: 'reply.prediction_end', slug: 'predictionEnd', icon: 'gem', lineBy: 'status',
     fields: [
       { key: 'status', type: 'select', options: ['lock', 'cancel', 'resolve'] },
-      { key: 'winner', type: 'number', min: 1, max: 10, when: { key: 'status', value: 'resolve' } }
+      { key: 'outcome', type: 'template', singleLine: true, when: { key: 'status', value: 'resolve' } }
     ]
   },
   {
@@ -78,13 +82,21 @@ export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
   {
     type: 'reply.chat_mode', slug: 'chatMode', icon: 'messageSquare', lineBy: 'on',
     fields: [
-      { key: 'mode', type: 'select', options: ['emote_only', 'followers', 'slow', 'subscribers', 'unique'], initial: 'slow' },
+      { key: 'mode', type: 'select', options: ['slow', 'followers', 'subscribers', 'emote_only', 'unique', 'chat_delay'], initial: 'slow' },
       on,
-      { key: 'value', type: 'number', min: 0, max: 86400, when: { key: 'mode', value: ['followers', 'slow'] } }
+      { key: 'wait', type: 'duration', min: 3, max: 120, initial: 30, when: [{ key: 'mode', value: 'slow' }, { key: 'on', value: true }] },
+      { key: 'followAge', type: 'number', min: 0, max: 129600, unit: true, initial: 10, when: [{ key: 'mode', value: 'followers' }, { key: 'on', value: true }] },
+      { key: 'delay', type: 'select', options: ['2', '4', '6'], initial: '2', when: [{ key: 'mode', value: 'chat_delay' }, { key: 'on', value: true }] }
     ]
   },
   {
     type: 'reply.clear_chat', slug: 'clearChat', icon: 'messageSquare', fields: []
+  },
+  {
+    type: 'reply.delete_message', slug: 'deleteMessage', icon: 'messageSquare', fields: []
+  },
+  {
+    type: 'reply.pin', slug: 'pin', icon: 'messageSquare', fields: [{ key: 'text', type: 'template', singleLine: true, max: 500 }]
   },
   {
     type: 'reply.ad_snooze', slug: 'adSnooze', icon: 'timer', fields: []

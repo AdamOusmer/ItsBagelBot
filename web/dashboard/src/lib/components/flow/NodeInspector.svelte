@@ -97,14 +97,18 @@
   const incoming = $derived(node ? graphIndex(flow).incoming.get(node.id) ?? [] : []);
   const addedCheck = $derived(roleLevel ? hasCheckBefore(flow, node?.id ?? '', roleLevel) : false);
   const removeCheck = $derived(roleWarning(t, flow, node));
-  const roleNote = $derived(requirement ? requirementText(t, requirement, addedCheck ? 'start' : 'note') : removeCheck);
+  const roleNote = $derived(requirement ? requirementText(t, requirement, addedCheck ? 'start' : 'note', spec) : removeCheck);
   const canAddCheck = $derived(roleLevel ? incoming.length > 0 && !addedCheck : false);
   const checkAction = $derived(canAddCheck || Boolean(removeCheck));
   const automaticComparisons = new Map<FlowNode['id'], boolean>();
 
-  function setSelect(key: FieldKey, value: string) {
-    if (!node) return;
+  function setOption(key: FieldKey, value: string | boolean) {
+    if (!node || !spec) return;
+    const prior = { config: { ...node.config } };
     node.config[key] = value;
+    const withDefaults = spec.fields.filter((field) => field.initial !== undefined);
+    const newlyVisible = withDefaults.filter((field) => !fieldVisible(spec, prior, field) && fieldVisible(spec, node, field));
+    for (const field of newlyVisible) node.config[field.key] ??= field.initial!;
     if (node.type === 'cond.compare') automaticComparisons.set(node.id, false);
   }
 
@@ -336,7 +340,7 @@
                 <Switch
                   {label}
                   checked={Boolean(node.config[field.key] ?? (field.key === 'liveOnly' && field.initial))}
-                  onCheckedChange={(v) => (node.config[field.key] = v)}
+                  onCheckedChange={(v) => setOption(field.key, v)}
                 />
               </div>
             {:else if field.type === 'select'}
@@ -345,7 +349,7 @@
                   id="{uid}-{field.key}"
                   options={fieldOptions(t, spec, field)}
                   value={String(node.config[field.key] ?? field.fallback ?? field.options[0] ?? '')}
-                  onchange={(e) => setSelect(field.key, e.currentTarget.value)}
+                  onchange={(e) => setOption(field.key, e.currentTarget.value)}
                 />
               </Field>
             {:else if field.type === 'number'}
@@ -397,6 +401,7 @@
                   required={targetInput && required}
                   aria-invalid={shown ? true : undefined}
                   aria-describedby={shown ? `${uid}-${field.key}-error` : undefined}
+                  maxlength={field.max}
                   {placeholder}
                   value={textOf(field.key)}
                   oninput={(e) => updateTemplate(field.key, e.currentTarget)}

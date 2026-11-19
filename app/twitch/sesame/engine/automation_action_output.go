@@ -24,7 +24,15 @@ const (
 )
 
 func (x *actionExec) chat(_ step, p automation.TextAction) error {
-	o := x.out(outgress.TypeChat)
+	return x.chatText(outgress.TypeChat, p)
+}
+
+func (x *actionExec) pin(_ step, p automation.TextAction) error {
+	return x.chatText(outgress.TypePin, p)
+}
+
+func (x *actionExec) chatText(typ string, p automation.TextAction) error {
+	o := x.out(typ)
 	o.Text = x.expand(p.Text)
 	return x.queueText(o)
 }
@@ -35,13 +43,35 @@ func (x *actionExec) announce(_ step, p automation.AnnounceAction) error {
 	return x.queueText(o)
 }
 
-func (x *actionExec) reply(_ step, p automation.TextAction) error {
+func (x *actionExec) reply(_ step, p automation.ReplyAction) error {
 	o := x.out(outgress.TypeChat)
 	o.Text = x.expand(p.Text)
+	if o.MsgID = x.replyParentID(p.Thread); o.MsgID != "" {
+		return x.queueText(o)
+	}
 	if name := x.viewerName(); name != "" && strings.TrimSpace(o.Text) != "" {
 		o.Text = "@" + name + " " + o.Text
 	}
 	return x.queueText(o)
+}
+
+func (x *actionExec) replyParentID(thread bool) string {
+	if !thread {
+		return ""
+	}
+	return x.chatMessageID()
+}
+
+func (x *actionExec) chatMessageID() string {
+	env := x.run.Env
+	switch {
+	case env == nil:
+		return ""
+	case env.ChatMessageID != "":
+		return env.ChatMessageID
+	default:
+		return env.MsgID
+	}
 }
 
 func (x *actionExec) viewerName() string {
@@ -84,11 +114,12 @@ func (x *actionExec) moderate(typ string, target automation.TargetAction, reason
 }
 
 func (x *actionExec) deleteMessage(_ step, _ automation.EmptyParams) error {
-	if x.run.Env == nil || x.run.Env.MsgID == "" {
+	id := x.chatMessageID()
+	if id == "" {
 		return failure("no_message")
 	}
 	o := x.out(outgress.TypeDelete)
-	o.MsgID = x.run.Env.MsgID
+	o.MsgID = id
 	return x.queue(o)
 }
 

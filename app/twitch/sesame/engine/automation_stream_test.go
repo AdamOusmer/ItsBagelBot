@@ -21,13 +21,14 @@ func TestAutomationStreamControlActions(t *testing.T) {
 		action automation.Action
 		want   string
 	}{
-		{"poll", act("poll", obj{"title": "Best {arg:a}", "choices": []string{"x", "y"}, "seconds": 60}), `poll_create {"title":"Best Target","choices":["x","y"],"duration":60}`},
+		{"poll", act("poll", obj{"title": "Best {arg:a}", "choices": []string{"x", "y"}, "seconds": 60, "points_per_vote": 100}), `poll_create {"title":"Best Target","choices":["x","y"],"duration":60,"channel_points_per_vote":100}`},
 		{"poll end terminate", act("poll_end", obj{"status": "terminate"}), `poll_end {"status":"TERMINATED"}`},
 		{"poll end archive", act("poll_end", obj{"status": "archive"}), `poll_end {"status":"ARCHIVED"}`},
 		{"prediction", act("prediction", obj{"title": "Win?", "outcomes": []string{"yes", "no"}, "seconds": 120}), `prediction_create {"title":"Win?","outcomes":["yes","no"],"window":120}`},
 		{"prediction lock", act("prediction_end", obj{"status": "lock"}), `prediction_end {"status":"LOCKED"}`},
 		{"prediction cancel", act("prediction_end", obj{"status": "cancel", "winner": 3}), `prediction_end {"status":"CANCELED"}`},
 		{"prediction resolve", act("prediction_end", obj{"status": "resolve", "winner": 2}), `prediction_end {"status":"RESOLVED","winner":2}`},
+		{"prediction resolve by name", act("prediction_end", obj{"status": "resolve", "outcome": " {arg:a} "}), `prediction_end {"status":"RESOLVED","outcome":"Target"}`},
 		{"raid", act("raid", obj{"login": "@{arg:a}"}), `raid_start to=target target_user_id=99 {}`},
 		{"raid cancel", act("raid_cancel", obj{}), `raid_cancel {}`},
 		{"mod add", act("mod", obj{"login": "Target", "on": true}), `mod_add to=target {}`},
@@ -35,10 +36,13 @@ func TestAutomationStreamControlActions(t *testing.T) {
 		{"vip add", act("vip", obj{"login": "target", "on": true}), `vip_add to=target {}`},
 		{"vip remove", act("vip", obj{"login": "target", "on": false}), `vip_remove to=target {}`},
 		{"slow on", act("chat_mode", obj{"mode": "slow", "on": true, "value": 30}), `chat_settings {"mode":"slow","enabled":true,"duration":30}`},
+		{"slow on with a legacy default", act("chat_mode", obj{"mode": "slow", "on": true, "value": 0}), `chat_settings {"mode":"slow","enabled":true,"duration":30}`},
 		{"followers on", act("chat_mode", obj{"mode": "followers", "on": true, "value": 10}), `chat_settings {"mode":"follower","enabled":true,"duration":10}`},
 		{"emote off", act("chat_mode", obj{"mode": "emote_only", "on": false, "value": 5}), `chat_settings {"mode":"emote","enabled":false}`},
 		{"subscribers on", act("chat_mode", obj{"mode": "subscribers", "on": true}), `chat_settings {"mode":"subscriber","enabled":true}`},
 		{"unique on", act("chat_mode", obj{"mode": "unique", "on": true}), `chat_settings {"mode":"unique","enabled":true}`},
+		{"chat delay on", act("chat_mode", obj{"mode": "chat_delay", "on": true, "value": 4}), `chat_settings {"mode":"delay","enabled":true,"duration":4}`},
+		{"chat delay off", act("chat_mode", obj{"mode": "chat_delay", "on": false, "value": 5}), `chat_settings {"mode":"delay","enabled":false}`},
 		{"clear chat", act("clear_chat", obj{}), `clear_chat {}`},
 		{"ad snooze", act("ad_snooze", obj{}), `ad_snooze {}`},
 		{"whisper", act("whisper", obj{"login": "Target", "text": "hi {arg:a}"}), `whisper to=target {"message":"hi Target"}`},
@@ -110,6 +114,42 @@ func TestProcessAutomationRaidTriggerStreamActions(t *testing.T) {
 			require.Len(t, runs.recs, 1)
 			assert.Equal(t, []string{"0:" + tc.detail}, statuses(runs.recs[0]))
 			assert.Equal(t, tc.message, fx.described(t))
+		})
+	}
+}
+
+func TestAutomationExpandsContestChoices(t *testing.T) {
+	cases := []struct {
+		name    string
+		action  automation.Action
+		outcome string
+		status  string
+		want    []string
+	}{
+		{
+			"poll loses a required choice", act("poll", obj{"title": "Best?", "choices": []string{"{args}", "no"}, "seconds": 60}),
+			automationrpc.OutcomeFailed, "poll:failed:too_few_choices", nil,
+		},
+		{
+			"poll trims and drops blank choices", act("poll", obj{"title": "Best?", "choices": []string{" a ", "b", ""}, "seconds": 60}),
+			automationrpc.OutcomeOK, "poll:sent:", []string{`poll_create {"title":"Best?","choices":["a","b"],"duration":60}`},
+		},
+		{
+			"prediction loses a required outcome", act("prediction", obj{"title": "Win?", "outcomes": []string{"{args}", "no"}, "seconds": 1}),
+			automationrpc.OutcomeFailed, "prediction:failed:too_few_choices", nil,
+		},
+		{
+			"prediction trims and drops blank outcomes", act("prediction", obj{"title": "Win?", "outcomes": []string{" a ", "b", ""}, "seconds": 1}),
+			automationrpc.OutcomeOK, "prediction:sent:", []string{`prediction_create {"title":"Win?","outcomes":["a","b"],"window":1}`},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fx := newAutoFixture(manual("main", tc.action))
+			rec := fx.run(t, "main", "req-"+tc.name, nil)
+			assert.Equal(t, tc.outcome, rec.Outcome)
+			assert.Equal(t, tc.status, statusDetail(rec, 0))
+			assert.Equal(t, tc.want, fx.described(t))
 		})
 	}
 }

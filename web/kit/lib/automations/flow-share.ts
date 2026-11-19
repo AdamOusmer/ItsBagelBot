@@ -202,6 +202,7 @@ export const SHARE_REVIEWED = {
   condition: ['perm', 'live', 'cooldown', 'chance', 'counter', 'points', 'arg_regex', 'category', 'compare', 'var'],
   action: [
     'chat',
+    'pin',
     'announce',
     'reply',
     'timeout',

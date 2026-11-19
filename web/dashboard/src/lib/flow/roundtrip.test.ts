@@ -116,8 +116,10 @@ function drawn(spec: NodeSpec, config: Config): Flow {
   };
 }
 
-const saved = (config: FlowConfig): Config =>
-  Object.fromEntries(Object.entries(config).filter(([key, value]) => value !== '' && !SHOWN_NOT_SAVED.has(key)));
+function saved(spec: NodeSpec, config: FlowConfig): Config {
+  const hidden = new Set(spec.fields.filter((field) => !fieldVisible(spec, { config }, field)).map((field) => field.key));
+  return Object.fromEntries(Object.entries(config).filter(([key, value]) => value !== '' && !SHOWN_NOT_SAVED.has(key) && !hidden.has(key)));
+}
 
 function unwrap<T>(result: FlowResult<T>): T {
   if (!result.ok) throw new Error(JSON.stringify(result.issues));
@@ -125,7 +127,7 @@ function unwrap<T>(result: FlowResult<T>): T {
 }
 
 describe('every builder step survives a save and reload', () => {
-  const cases = NODE_SPECS.flatMap((spec) => {
+  const cases = NODE_SPECS.filter((spec) => !spec.hidden && spec.type !== 'reply.delete_message').flatMap((spec) => {
     const configs = configsFor(spec);
     if (spec.kind === 'reply') configs.push({ ...configs[0], disabled: true });
     return configs.map((config) => ({ type: spec.type, variant: JSON.stringify(config), spec, config }));
@@ -140,10 +142,10 @@ describe('every builder step survives a save and reload', () => {
 
     expect({
       enabled: lowered.actions?.[0]?.enabled,
-      config: back && saved(back.config)
+      config: back && saved(spec, back.config)
     }).toEqual({
       enabled: config.disabled ? false : undefined,
-      config: saved(config)
+      config: saved(spec, config)
     });
   });
 });

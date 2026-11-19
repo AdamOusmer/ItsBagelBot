@@ -4,6 +4,6 @@
   "keywords": "anuncio announce announcement mensaje color",
   "field": {
     "text": { "label": "Mensaje" },
-    "color": { "label": "Color", "option": { "primary": "Color del canal", "blue": "Azul", "green": "Verde", "orange": "Naranja", "purple": "Morado", "": "Predeterminado" } }
+    "color": { "label": "Color", "option": { "primary": "Color del canal", "blue": "Azul", "green": "Verde", "orange": "Naranja", "purple": "Morado" } }
   }
 }

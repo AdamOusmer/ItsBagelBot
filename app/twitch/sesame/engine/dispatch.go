@@ -361,6 +361,7 @@ func (p *Pipeline) chatLines(o *module.Output) []module.Output {
 }
 
 func (p *Pipeline) appendChatLines(dst []module.Output, o *module.Output) []module.Output {
+	parentID := o.MsgID
 	lines := 0
 	for line := range strings.SplitSeq(o.Text, "\n") {
 		if blankLine(line) {
@@ -374,8 +375,10 @@ func (p *Pipeline) appendChatLines(dst []module.Output, o *module.Output) []modu
 		out.Type = outgress.TypeChat
 		out.BroadcasterID = o.BroadcasterID
 		out.Text = line
+		out.MsgID = parentID
 		if p.prepareCommand(out) {
 			dst = append(dst, *out)
+			parentID = ""
 		}
 		PutOutput(out)
 	}

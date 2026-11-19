@@ -79,7 +79,8 @@
     "followers": "Solo seguidores",
     "slow": "Modo lento",
     "subscribers": "Solo suscriptores",
-    "unique": "Mensajes únicos"
+    "unique": "Mensajes únicos",
+    "chat_delay": "Retraso del chat"
   },
   "kind": {
     "text": "Texto",

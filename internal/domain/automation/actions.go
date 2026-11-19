@@ -27,6 +27,11 @@ type TextAction struct {
 	Text string `json:"text"`
 }
 
+type ReplyAction struct {
+	Text   string `json:"text"`
+	Thread bool   `json:"thread,omitempty"`
+}
+
 type AnnounceAction struct {
 	Text  string `json:"text"`
 	Color string `json:"color"`
@@ -184,6 +189,8 @@ var (
 )
 
 func checkText(c chk, p TextAction) { c.template("text", p.Text) }
+
+func checkReply(c chk, p ReplyAction) { checkText(c, TextAction{Text: p.Text}) }
 
 func checkAnnounce(c chk, p AnnounceAction) {
 	c.template("text", p.Text)

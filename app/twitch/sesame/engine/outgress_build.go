@@ -135,10 +135,15 @@ func pinOutgress(o *module.Output) (outgress.Message, error) {
 }
 
 func textOutgress(msgType string, o *module.Output) (outgress.Message, error) {
+	var parentID string
+	if msgType == outgress.TypeChat {
+		parentID = o.MsgID
+	}
 	return payloadMessage(msgType, o.BroadcasterID, &struct {
-		BroadcasterID string `json:"broadcaster_id"`
-		Message       string `json:"message"`
-	}{o.BroadcasterID, o.Text})
+		BroadcasterID        string `json:"broadcaster_id"`
+		Message              string `json:"message"`
+		ReplyParentMessageID string `json:"reply_parent_message_id,omitempty"`
+	}{o.BroadcasterID, o.Text, parentID})
 }
 
 func announceOutgress(o *module.Output) (outgress.Message, error) {

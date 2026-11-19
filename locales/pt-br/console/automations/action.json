@@ -1,5 +1,6 @@
 {
   "chat": "Enviar mensagem no chat",
+  "pin": "Fixar mensagem",
   "announce": "Enviar anúncio",
   "reply": "Responder ao espectador",
   "timeout": "Dar timeout em um espectador",

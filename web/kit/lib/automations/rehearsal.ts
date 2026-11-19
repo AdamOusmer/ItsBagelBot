@@ -7,12 +7,12 @@ import { applyAction, createState, evaluateCondition, expandTemplate, messageTar
 import { matchTrigger, scenarioArgs, scenarioEvent, scenarioIdentity } from './rehearsal-scenario';
 import { trimSpace } from './text';
 import type { Action, Condition, Definition } from './types';
-import type { RehearsalContext, RehearsalEvent, RehearsalOverrides, RehearsalResult, RehearsalScenario } from './rehearsal-types';
+import type { RehearsalContext, RehearsalEvent, RehearsalLineStyle, RehearsalOverrides, RehearsalResult, RehearsalScenario } from './rehearsal-types';
 
 export type * from './rehearsal-types';
 export { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioIdentity, scenarioKind, scenarioPatches } from './rehearsal-scenario';
 export { compactDuration } from './rehearsal-state';
-export { configKey, streamTargetNodes } from './stream-flow';
+export { chatModeValueField, configKey, streamTargetNodes } from './stream-flow';
 
 type Path = string;
 type Frame = { context: RehearsalContext; lane: number[]; iteration: number[]; delayMs: number; stopped: boolean };
@@ -40,7 +40,10 @@ function contextFor(definition: Definition, scenario: RehearsalScenario, overrid
     ...scenario.values
   };
   addViewerValues(values, scenario, args);
-  return { scenario: { ...scenario, args, values }, state: createState(scenario), overrides, locals: {}, path: 'trigger', atMs: 0, formatDuration };
+  return {
+    scenario: { ...scenario, args, values }, hasChatMessage: definition.trigger.type === 'command',
+    state: createState(scenario), overrides, locals: {}, path: 'trigger', atMs: 0, formatDuration
+  };
 }
 
 function addViewerValues(values: Record<string, string>, scenario: RehearsalScenario, args: Path): void {
@@ -164,13 +167,51 @@ function* wait(step: Step, run: Execution, frame: Frame): Generator<number, void
   yield ms;
 }
 
+type Bubble = { text: string; style: RehearsalLineStyle };
+
+const SLASH_COMMANDS = new Map<string, RehearsalLineStyle>([
+  ['/announceblue', { mode: 'announce', color: 'blue' }],
+  ['/announcegreen', { mode: 'announce', color: 'green' }],
+  ['/announceorange', { mode: 'announce', color: 'orange' }],
+  ['/announcepurple', { mode: 'announce', color: 'purple' }],
+  ['/announce', { mode: 'announce', color: 'primary' }],
+  ['/shoutout', { mode: 'shoutout' }],
+  ['/pin', { mode: 'pin' }]
+]);
+
+function shoutoutBubble(rest: Path): Bubble {
+  const [login = '', ...words] = rest.replace(/^ +/, '').split(' ');
+  return { text: words.join(' ').replace(/^ +/, ''), style: { mode: 'shoutout', target: login.replace(/^@/, '') } };
+}
+
+function chatBubble(line: Path): Bubble {
+  const space = line.indexOf(' ');
+  const verb = space < 0 ? line : line.slice(0, space);
+  const style = SLASH_COMMANDS.get(verb);
+  if (!style) return { text: line, style: { mode: 'chat' } };
+  const rest = space < 0 ? '' : line.slice(space + 1);
+  return style.mode === 'shoutout' ? shoutoutBubble(rest) : { text: rest, style };
+}
+
+function messageBubbles(action: Action, message: Path): Bubble[] {
+  if (action.type === 'announce') {
+    return [{ text: message, style: { mode: 'announce', color: String(action.params?.color || 'primary') } }];
+  }
+  if (action.type === 'pin') return [{ text: message, style: { mode: 'pin' } }];
+  return message.split('\n').filter((line) => trimSpace(line) !== '').slice(0, MAX_RESPONSE_LINES).map(chatBubble);
+}
+
+function hasBubbleContent({ style, text }: Bubble): boolean {
+  return style.mode === 'shoutout' ? Boolean(style.target) : trimSpace(text) !== '';
+}
+
 function say(step: Step, run: Execution, frame: Frame): void {
-  const { detail: outcome } = applyAction(step.action, frame.context);
-  const message = outcome.text ?? '';
-  const lines = message.split('\n').filter((line) => trimSpace(line) !== '').slice(0, MAX_RESPONSE_LINES);
-  const style: Record<string, string> = step.action.type === 'announce' ? { mode: 'announce', color: String(step.action.params?.color || 'primary') } : {};
-  const detail = { ...style, missing: outcome.missing, ...(lines.length === 0 ? { code: 'empty' } : {}) };
-  emit(run, frame, { kind: 'say', status: lines.length > 0 ? 'ok' : 'skipped', lines, detail });
+  const { status, detail: outcome } = applyAction(step.action, frame.context);
+  const bubbles = status === 'ok' ? messageBubbles(step.action, outcome.text ?? '').filter(hasBubbleContent) : [];
+  const lines = bubbles.map((bubble) => bubble.text);
+  const lineStyles = bubbles.map((bubble) => bubble.style);
+  const detail = { ...lineStyles[0], missing: outcome.missing, ...(!lines.length ? { code: outcome.code ?? 'empty' } : {}) };
+  emit(run, frame, { kind: 'say', status: status === 'ok' && !lines.length ? 'skipped' : status, lines, lineStyles, detail });
 }
 
 type Handler = (step: Step, run: Execution, frame: Frame) => Generator<number, void>;
@@ -188,7 +229,7 @@ function* execute(step: Step, run: Execution, frame: Frame): Generator<number, v
   if (limited('effects', run, frame)) return;
   const handler = EFFECTS[step.action.type];
   if (handler) return yield* handler(step, run, frame);
-  if (['chat', 'announce', 'reply'].includes(step.action.type)) return say(step, run, frame);
+  if (['chat', 'announce', 'reply', 'pin'].includes(step.action.type)) return say(step, run, frame);
   emit(run, frame, { kind: 'effect', ...applyAction(step.action, frame.context) });
 }
 

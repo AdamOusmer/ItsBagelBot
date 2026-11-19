@@ -1,10 +1,24 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
-import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, roleWarning, stepLabel, stepSummary, variableLabel } from './copy';
+import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, requirementText, roleWarning, stepLabel, stepRequirementFor, stepSummary, variableLabel } from './copy';
 import { describe as describeNode } from './describe';
 import { english } from './english.testing';
 import { newFlow, NODE_SPECS, specFor, type FlowNode } from './model';
+
+test('delete message exposes the trigger requirement chip, inspector note and moderator role', () => {
+  const spec = specFor('reply.delete_message')!;
+  const requirement = stepRequirementFor(spec, { type: 'event', kind: 'channel.follow' })!;
+  expect({
+    chip: requirementText(english, requirement),
+    note: requirementText(english, requirement, 'note', spec),
+    command: stepRequirementFor(spec, { type: 'command' })
+  }).toEqual({
+    chip: 'Chat command only',
+    note: 'Only works on chat command triggers',
+    command: { kind: 'role', level: 'mod' }
+  });
+});
 import type { Translate } from './messages';
 
 const missing = (text: string | undefined) => text === undefined || text.startsWith('flows.');

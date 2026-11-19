@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { FlowConfig } from './flow-graph';
+import { trimSpace } from './text';
 import type { Action, Params } from './types';
 
 type ValueKind = 'text' | 'number' | 'toggle' | 'lines' | 'numberOption' | 'confirmation' | 'change';
@@ -15,22 +16,23 @@ const TARGET_FIELDS = { who: 'text', user_id: 'text', login: 'text' } as const s
 const STREAM_FIELDS: Record<string, Fields> = {
   shoutout: { login: 'text' },
   announce: { text: 'text', color: 'text' },
-  reply: { text: 'text' },
   timeout: { ...TARGET_FIELDS, seconds: 'number', reason: 'text' },
   ban: { ...TARGET_FIELDS, reason: 'text' },
   unban: { ...TARGET_FIELDS },
   poll: { title: 'text', choices: 'lines', seconds: 'number' },
   poll_end: { status: 'text' },
   prediction: { title: 'text', outcomes: 'lines', seconds: 'number' },
-  prediction_end: { status: 'text', winner: 'number' },
+  prediction_end: { status: 'text' },
   raid: { login: 'text' },
   raid_cancel: {},
   mod: { ...TARGET_FIELDS, on: 'change' },
   vip: { ...TARGET_FIELDS, on: 'change' },
   points_add: { ...TARGET_FIELDS, amount: 'number' },
   points_set: { ...TARGET_FIELDS, amount: 'number' },
-  chat_mode: { mode: 'text', on: 'toggle', value: 'number' },
+  chat_mode: { mode: 'text', on: 'toggle' },
   clear_chat: {},
+  delete_message: {},
+  pin: { text: 'text' },
   ad_snooze: {},
   whisper: { login: 'text', text: 'text' },
   unban_resolve: { status: 'text', resolution: 'text' },
@@ -43,6 +45,54 @@ const STREAM_INFO_FIELDS = { set_title: 'title', set_game: 'game', set_tags: 'ta
 const BRANDED_CONTENT = 'branded_content';
 
 const nodeType = (type: string): string => (type === 'points_add' ? 'reply.points' : `reply.${type}`);
+
+const CHAT_MODE_VALUE_FIELDS = new Map([
+  ['slow', 'wait'], ['followers', 'followAge'], ['chat_delay', 'delay']
+]);
+
+export const chatModeValueField = (mode: unknown): string | undefined => CHAT_MODE_VALUE_FIELDS.get(String(mode));
+
+type Adapter = {
+  write?(config: FlowConfig): Params;
+  read(params: Params): FlowConfig;
+};
+
+const STREAM_ADAPTERS: Record<string, Adapter> = {
+  announce: { read: (params) => ({ color: text(params.color) || 'primary' }) },
+  poll: {
+    write: (config) => config.extraVotes === true ? { points_per_vote: Number(config.pointsPerVote ?? 100) } : {},
+    read: (params): FlowConfig => {
+      const points = Number(params.points_per_vote);
+      return points > 0 ? { extraVotes: true, pointsPerVote: points } : { extraVotes: false };
+    }
+  },
+  prediction_end: {
+    write: (config) => config.status === 'resolve' ? { outcome: text(config.outcome) } : {},
+    read: (params): FlowConfig => params.status === 'resolve'
+      ? { outcome: text(params.outcome) || String(params.winner ?? '') }
+      : {}
+  },
+  chat_mode: { write: chatModeParams, read: chatModeConfig }
+};
+
+function chatModeValue(config: FlowConfig): unknown {
+  const key = chatModeValueField(config.mode);
+  return key && config.on === true ? config[key] : undefined;
+}
+
+function chatModeParams(config: FlowConfig): Params {
+  const value = chatModeValue(config);
+  return value === undefined ? {} : { value: Number(value) };
+}
+
+function chatModeConfig(params: Params): FlowConfig {
+  if (params.on !== true) return { on: false };
+  const key = chatModeValueField(params.mode);
+  if (!key) return {};
+  const value = Number(params.value ?? 0);
+  if (key === 'wait') return { wait: value || 30 };
+  return { [key]: key === 'delay' ? String(value || 2) : value };
+}
 
 export const streamTargetNodes = new Set(Object.keys(STREAM_FIELDS).filter((type) => STREAM_FIELDS[type]!.who).map(nodeType));
 
@@ -75,7 +125,7 @@ const VALUE_CODECS: Record<ValueKind, ValueCodec> = {
   text: { write: text, read: text },
   number: { write: number, read: number },
   toggle: { write: toggle, read: toggle },
-  lines: { write: (value) => text(value).split(/\r?\n/), read: (value) => Array.isArray(value) ? value.join('\n') : '' },
+  lines: { write: (value) => text(value).split(/\r?\n/).filter((line) => trimSpace(line) !== ''), read: (value) => Array.isArray(value) ? value.join('\n') : '' },
   numberOption: { write: number, read: (value) => String(number(value)) },
   confirmation: { write: (value) => value === false, read: (value) => value !== true },
   change: { write: (value) => value === 'add', read: (value) => value === true ? 'add' : 'remove' }
@@ -85,7 +135,7 @@ function streamAction(type: string, config: FlowConfig): Action {
   const fields = activeFields(STREAM_FIELDS[type]!, config.who);
   const values = fields.map(([key, kind]) => ({ key, kind, value: config[fieldConfigKey(key, kind, config.who)] }));
   const params = Object.fromEntries(values.filter(({ value }) => value !== undefined).map(({ key, kind, value }) => [key, VALUE_CODECS[kind].write(value)]));
-  return { type, params };
+  return { type, params: { ...params, ...STREAM_ADAPTERS[type]?.write?.(config) } };
 }
 
 function streamNode(type: string, params: Params): StreamNode | null {
@@ -94,7 +144,7 @@ function streamNode(type: string, params: Params): StreamNode | null {
   if (lists.some(([key]) => hasMultilineOption(params[key]))) return null;
   const supplied = activeFields(fields, params.who).filter(([key, kind]) => params[key] !== undefined || kind === 'confirmation');
   const config = Object.fromEntries(supplied.map(([key, kind]) => [fieldConfigKey(key, kind, params.who), VALUE_CODECS[kind].read(params[key])]));
-  return { type: nodeType(type), config };
+  return { type: nodeType(type), config: { ...config, ...STREAM_ADAPTERS[type]?.read(params) } };
 }
 
 function hasMultilineOption(value: unknown): boolean {

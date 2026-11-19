@@ -183,8 +183,9 @@ const text = register<Wide<T.TextAction>>({ text: 'string' }, checkText);
 export const SIMPLE_ACTIONS: Table = {
   ...STREAM_ACTIONS,
   chat: text,
+  pin: text,
   announce: register<Wide<T.AnnounceAction>>({ text: 'string', color: 'string' }, checkAnnounce),
-  reply: text,
+  reply: register<Wide<T.ReplyAction>>({ text: 'string', thread: 'bool' }, checkText),
   timeout: register<Wide<T.TimeoutAction>>({ ...TARGET_SCHEMA, seconds: 'int', reason: 'string' }, checkTimeout, TARGET_DEFAULTS),
   ban: register<Wide<T.BanAction>>({ ...TARGET_SCHEMA, reason: 'string' }, checkBan, TARGET_DEFAULTS),
   unban: register<Wide<T.UnbanAction>>(TARGET_SCHEMA, checkUnban, TARGET_DEFAULTS),

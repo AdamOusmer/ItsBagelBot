@@ -1,7 +1,7 @@
 {
   "chat": {
-    "label": "Send chat message",
-    "summary": "Bot replies in chat",
+    "label": "Send message",
+    "summary": "Post a message in chat",
     "field": {
       "message": {
         "label": "Message",
@@ -198,6 +198,12 @@
       },
       "seconds": {
         "label": "Duration (seconds)"
+      },
+      "extraVotes": {
+        "label": "Extra votes with Channel Points"
+      },
+      "pointsPerVote": {
+        "label": "Points per vote"
       }
     }
   },
@@ -205,15 +211,15 @@
     "label": "End a poll",
     "summary": "Stop voting or archive the results",
     "line": {
-      "terminate": "End the poll and show results",
-      "archive": "Archive the poll"
+      "terminate": "End poll and show results",
+      "archive": "End poll and hide results"
     },
     "field": {
       "status": {
         "label": "Action",
         "option": {
-          "terminate": "Stop voting",
-          "archive": "Archive"
+          "terminate": "End and show results",
+          "archive": "End and hide results"
         }
       }
     }
@@ -239,20 +245,21 @@
     "summary": "Lock bets, refund points or pick a winner",
     "line": {
       "lock": "Lock bets",
-      "cancel": "Cancel and refund points",
-      "resolve": "Winning outcome: {winner}"
+      "cancel": "Cancel and refund",
+      "resolve": "Winner: {outcome}"
     },
     "field": {
       "status": {
         "label": "Action",
         "option": {
-          "lock": "Lock voting",
+          "lock": "Lock bets",
           "cancel": "Cancel and refund",
-          "resolve": "Choose a winner"
+          "resolve": "Pick a winner"
         }
       },
-      "winner": {
-        "label": "Winning outcome number"
+      "outcome": {
+        "label": "Winning outcome",
+        "hint": "A number or the outcome name"
       }
     }
   },
@@ -301,7 +308,8 @@
   },
   "clearChat": {
     "label": "Clear chat",
-    "summary": "Remove all messages from chat"
+    "summary": "Remove all messages from chat",
+    "line": "Clear all chat"
   },
   "adSnooze": {
     "label": "Snooze the next ad",
@@ -310,13 +318,14 @@
   "whisper": {
     "label": "Send a whisper",
     "summary": "Send a private message to one viewer",
-    "line": "Whisper to {target}: {text}",
+    "line": "Whisper {target}: {text}",
     "field": {
       "target": {
         "label": "Channel or viewer login"
       },
       "text": {
-        "label": "Message"
+        "label": "Message",
+        "hint": "Sent from the bot account."
       }
     }
   },

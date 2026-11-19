@@ -1,7 +1,7 @@
 {
   "chat": {
-    "label": "Chatnachricht senden",
-    "summary": "Bot antwortet im Chat",
+    "label": "Nachricht senden",
+    "summary": "Eine Nachricht im Chat posten",
     "field": {
       "message": {
         "label": "Nachricht",
@@ -198,6 +198,12 @@
       },
       "seconds": {
         "label": "Dauer (Sekunden)"
+      },
+      "extraVotes": {
+        "label": "Zusatzstimmen mit Kanalpunkten"
+      },
+      "pointsPerVote": {
+        "label": "Punkte pro Stimme"
       }
     }
   },
@@ -206,14 +212,14 @@
     "summary": "Abstimmung stoppen oder Ergebnisse archivieren",
     "line": {
       "terminate": "Umfrage beenden und Ergebnisse anzeigen",
-      "archive": "Umfrage archivieren"
+      "archive": "Umfrage beenden und Ergebnisse ausblenden"
     },
     "field": {
       "status": {
         "label": "Aktion",
         "option": {
-          "terminate": "Abstimmung stoppen",
-          "archive": "Archivieren"
+          "terminate": "Beenden und Ergebnisse anzeigen",
+          "archive": "Beenden und Ergebnisse ausblenden"
         }
       }
     }
@@ -238,21 +244,22 @@
     "label": "Vorhersage beenden",
     "summary": "Wetten sperren, Punkte erstatten oder Gewinner wählen",
     "line": {
-      "lock": "Wetten sperren",
+      "lock": "Wetten schließen",
       "cancel": "Abbrechen und Punkte erstatten",
-      "resolve": "Gewinnergebnis: {winner}"
+      "resolve": "Gewinner: {outcome}"
     },
     "field": {
       "status": {
         "label": "Aktion",
         "option": {
-          "lock": "Abstimmung sperren",
-          "cancel": "Abbrechen und erstatten",
-          "resolve": "Gewinner wählen"
+          "lock": "Wetten schließen",
+          "cancel": "Abbrechen und Punkte erstatten",
+          "resolve": "Gewinner auswählen"
         }
       },
-      "winner": {
-        "label": "Nummer des Gewinnergebnisses"
+      "outcome": {
+        "label": "Gewinnergebnis",
+        "hint": "Eine Zahl oder der Name des Ergebnisses"
       }
     }
   },
@@ -301,7 +308,8 @@
   },
   "clearChat": {
     "label": "Chat leeren",
-    "summary": "Alle Nachrichten aus dem Chat entfernen"
+    "summary": "Alle Nachrichten aus dem Chat entfernen",
+    "line": "Gesamten Chat leeren"
   },
   "adSnooze": {
     "label": "Nächste Werbung verschieben",
@@ -310,13 +318,14 @@
   "whisper": {
     "label": "Flüsternachricht senden",
     "summary": "Einem Zuschauer eine private Nachricht schicken",
-    "line": "An {target} flüstern: {text}",
+    "line": "Flüstern an {target}: {text}",
     "field": {
       "target": {
         "label": "Kanal- oder Zuschauername"
       },
       "text": {
-        "label": "Nachricht"
+        "label": "Nachricht",
+        "hint": "Wird vom Bot-Konto gesendet."
       }
     }
   },

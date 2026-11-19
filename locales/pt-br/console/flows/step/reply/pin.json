@@ -1,0 +1,11 @@
+{
+  "label": "Fixar mensagem",
+  "summary": "Publique e fixe uma mensagem",
+  "line": "Fixar: {text}",
+  "keywords": "fixar destacar chat mensagem",
+  "field": {
+    "text": {
+      "label": "Mensagem"
+    }
+  }
+}

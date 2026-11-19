@@ -1,7 +1,7 @@
 {
   "chat": {
-    "label": "Enviar mensaje de chat",
-    "summary": "El bot responde en el chat",
+    "label": "Enviar mensaje",
+    "summary": "Publica un mensaje en el chat",
     "field": {
       "message": {
         "label": "Mensaje",
@@ -198,6 +198,12 @@
       },
       "seconds": {
         "label": "Duración (segundos)"
+      },
+      "extraVotes": {
+        "label": "Votos extra con Puntos del canal"
+      },
+      "pointsPerVote": {
+        "label": "Puntos por voto"
       }
     }
   },
@@ -205,15 +211,15 @@
     "label": "Finalizar una encuesta",
     "summary": "Detén la votación o archiva los resultados",
     "line": {
-      "terminate": "Cerrar la encuesta y mostrar los resultados",
-      "archive": "Archivar la encuesta"
+      "terminate": "Finalizar encuesta y mostrar resultados",
+      "archive": "Finalizar encuesta y ocultar resultados"
     },
     "field": {
       "status": {
         "label": "Acción",
         "option": {
-          "terminate": "Detener la votación",
-          "archive": "Archivar"
+          "terminate": "Finalizar y mostrar resultados",
+          "archive": "Finalizar y ocultar resultados"
         }
       }
     }
@@ -240,19 +246,20 @@
     "line": {
       "lock": "Cerrar las apuestas",
       "cancel": "Cancelar y devolver los puntos",
-      "resolve": "Resultado ganador: {winner}"
+      "resolve": "Ganador: {outcome}"
     },
     "field": {
       "status": {
         "label": "Acción",
         "option": {
-          "lock": "Bloquear la votación",
-          "cancel": "Cancelar y reembolsar",
+          "lock": "Cerrar las apuestas",
+          "cancel": "Cancelar y devolver los puntos",
           "resolve": "Elegir un ganador"
         }
       },
-      "winner": {
-        "label": "Número del resultado ganador"
+      "outcome": {
+        "label": "Resultado ganador",
+        "hint": "Un número o el nombre del resultado"
       }
     }
   },
@@ -301,7 +308,8 @@
   },
   "clearChat": {
     "label": "Borrar el chat",
-    "summary": "Elimina todos los mensajes del chat"
+    "summary": "Elimina todos los mensajes del chat",
+    "line": "Limpiar todo el chat"
   },
   "adSnooze": {
     "label": "Posponer el próximo anuncio",
@@ -316,7 +324,8 @@
         "label": "Nombre de canal o espectador"
       },
       "text": {
-        "label": "Mensaje"
+        "label": "Mensaje",
+        "hint": "Se envía desde la cuenta del bot."
       }
     }
   },

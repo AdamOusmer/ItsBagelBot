@@ -38,6 +38,7 @@ function triggerDefaults(trigger: NodeType | undefined, request: Pick<InsertRequ
   const message = viewer ? request.chatMessage : plain;
   return {
     'reply.shoutout': { target },
+    'reply.whisper': { target },
     'reply.announce': { text: message ?? '{user}' }, 'reply.reply': { text: plain },
     'reply.chat': { message: trigger ? message ?? '' : '' }
   };

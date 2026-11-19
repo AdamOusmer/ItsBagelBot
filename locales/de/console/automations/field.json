@@ -84,5 +84,8 @@
   "winner": "Nummer des Gewinnergebnisses",
   "resolution": "Entscheidungsnachricht (optional)",
   "reply": "Chatantwort",
-  "quiet": "Ohne Chatnachricht"
+  "quiet": "Ohne Chatnachricht",
+  "points_per_vote": "Kanalpunkte pro Stimme",
+  "outcome": "Gewinnergebnis",
+  "thread": "Im Thread antworten"
 }
