@@ -6381,6 +6381,8 @@ export type KnownMessageKey =
   | 'spotify.quota.everyone'
   | 'spotify.quota.help'
   | 'spotify.quota.mod'
+  | 'spotify.quota.queueLength'
+  | 'spotify.quota.queueLengthHint'
   | 'spotify.quota.save'
   | 'spotify.quota.saveFailed'
   | 'spotify.quota.saved'

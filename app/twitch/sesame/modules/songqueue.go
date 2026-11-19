@@ -39,7 +39,7 @@ const spotifyWarnWindow = time.Minute
 const spotifyWarnCapacity int64 = 2048
 
 type songqueueConfig struct {
-	MaxDepth       int              `json:"maxDepth"`
+	MaxDepth       settingInt       `json:"maxDepth"`
 	AddMessage     string           `json:"addMessage"`
 	PlayingMessage string           `json:"playingMessage"`
 	RetractMessage string           `json:"retractMessage"`
@@ -130,7 +130,7 @@ func newSongQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger, warn *ca
 	}
 	qc = songQueueCmd{chatReplier: newChatReplier(c), deps: d, store: d.SongQueue, gossip: d.Gossip, live: d.Live, log: log, warn: warn}
 	_ = c.Decode(&qc.cfg)
-	qc.maxDepth = qc.cfg.MaxDepth
+	qc.maxDepth = int(qc.cfg.MaxDepth)
 	return qc, true
 }
 

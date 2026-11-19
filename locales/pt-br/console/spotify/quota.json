@@ -8,5 +8,7 @@
   "saveFailed": "Não foi possível salvar os limites.",
   "saved": "Limites salvos.",
   "title": "Limites por espectador",
-  "unlimited": "Sem limite"
+  "unlimited": "Sem limite",
+  "queueLength": "Fila inteira",
+  "queueLengthHint": "Máximo de músicas esperando ao mesmo tempo. Deixe em branco para não ter limite."
 }
