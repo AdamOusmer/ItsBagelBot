@@ -9,7 +9,9 @@
   import type { FlowNode } from '#lib/flow/model';
   import { configText } from '#lib/flow/setup';
 
-  let { node, id, label, placeholder, tag, error }: { node: FlowNode; id: string; label: string; placeholder?: string; tag?: string; error?: string } = $props();
+  let { node, id, label, placeholder, tag, error, fixedStatus = false }: {
+    node: FlowNode; id: string; label: string; placeholder?: string; tag?: string; error?: string; fixedStatus?: boolean;
+  } = $props();
 
   type Resolved = { ok: boolean; userId?: string; login?: string; code?: string };
 
@@ -44,6 +46,7 @@
     if (login !== asked) return;
     if (reply?.ok && reply.userId) {
       node.config.userId = reply.userId;
+      node.config.login = reply.login ?? asked;
       problem = '';
     } else {
       problem = reply?.code === 'missing' ? 'missing' : 'failed';
@@ -51,7 +54,7 @@
   }
 </script>
 
-<Field {label} {tag} {error} errorId="{id}-error" for={id}>
+<Field {label} {tag} error={fixedStatus ? undefined : error} errorId="{id}-error" for={id}>
   <Input
     {id}
     {placeholder}
@@ -67,8 +70,10 @@
     }}
   />
 </Field>
-<div class="status" aria-live="polite">
-  {#if problem === 'missing'}
+<div class="status" class:fixed={fixedStatus} aria-live="polite">
+  {#if fixedStatus && error}
+    <Text size="sm" tone="danger" id="{id}-error"><bb-fit mode="block">{error}</bb-fit></Text>
+  {:else if problem === 'missing'}
     <Text size="sm" tone="danger">{t('flows.userMissing')}</Text>
   {:else if problem === 'failed'}
     <Text size="sm" tone="danger">{t('flows.userFailed')}</Text>
@@ -86,4 +91,5 @@
     min-height: 20px;
     margin-top: -8px;
   }
+  .fixed { height: 28px; }
 </style>

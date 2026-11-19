@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { STREAM_STEP_DEFINITIONS } from './stream-steps';
+import { STREAM_STEP_DEFINITIONS, TARGET_FIELDS } from './stream-steps';
 import { graphIndex, portKey } from './graph-index';
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
@@ -37,6 +37,7 @@ export const STEP_PLACEMENT = {
   'cond.role': { kind: 'condition', group: 'moderation' },
   'cond.user': { kind: 'condition', group: 'moderation' },
   'reply.timeout': { kind: 'reply', group: 'moderation' },
+  'reply.ban': { kind: 'reply', group: 'moderation' },
   'reply.mod': { kind: 'reply', group: 'moderation' },
   'reply.vip': { kind: 'reply', group: 'moderation' },
   'reply.unban_resolve': { kind: 'reply', group: 'moderation' },
@@ -48,6 +49,7 @@ export const STEP_PLACEMENT = {
   'reply.branded_content': { kind: 'reply', group: 'stream' },
   'twitch.reward': { kind: 'trigger', group: 'loyalty' },
   'reply.points': { kind: 'reply', group: 'loyalty' },
+  'reply.points_set': { kind: 'reply', group: 'loyalty' },
   'reply.counter': { kind: 'reply', group: 'loyalty' },
   'reply.reward_update': { kind: 'reply', group: 'loyalty' },
   'countdown.finished': { kind: 'trigger', group: 'timers' },
@@ -83,6 +85,7 @@ export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; labelBy?: str
   | { key: string; type: 'toggle' }
   | { key: string; type: 'color' }
   | (Typed & { type: 'login' })
+  | { key: 'who'; type: 'target' }
   | { key: string; type: 'goveeLight' }
   | { key: string; type: 'choice'; source: ChoiceSource; nameKey?: string }
   | { key: string; type: 'reward' }
@@ -309,7 +312,13 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'reply.points',
     slug: 'points',
     icon: 'coins',
-    fields: [{ key: 'amount', type: 'number', unit: true, initial: 10 }]
+    fields: [{ key: 'amount', type: 'number', unit: true, initial: 10 }, ...TARGET_FIELDS]
+  },
+  {
+    type: 'reply.points_set',
+    slug: 'pointsSet',
+    icon: 'coins',
+    fields: [{ key: 'amount', type: 'number', unit: true, initial: 10 }, ...TARGET_FIELDS]
   },
   {
     type: 'reply.counter',
@@ -431,6 +440,7 @@ function matchesValue(wanted: FieldGate['value'], value: unknown): boolean {
 
 function gateMatches(spec: NodeSpec, config: FlowNode['config'], { key, value }: FieldGate): boolean {
   const gate = spec.fields.find((field) => field.key === key);
+  if (gate?.type === 'target') return matchesValue(value, targetMode(config));
   const fallback = gate?.type === 'select' ? gate.options[0] : gate?.initial;
   return matchesValue(value, config[key] ?? fallback);
 }
@@ -442,6 +452,41 @@ export function fieldVisible(spec: NodeSpec, node: Pick<FlowNode, 'config'>, fie
 }
 
 export const specFor = (type: string): NodeSpec | undefined => NODE_SPECS.find((s) => s.type === type);
+
+export const targetFieldFor = (spec: NodeSpec | undefined): boolean =>
+  spec?.fields.some((field) => field.type === 'target') ?? false;
+
+export const hasLegacyTarget = (config: FlowNode['config']): boolean => typeof config.target === 'string';
+
+const pickerOwnsTarget = (spec: NodeSpec, node: FlowNode): boolean => targetFieldFor(spec) && !hasLegacyTarget(node.config);
+
+export const fieldMounted = (spec: NodeSpec, node: FlowNode, field: FieldSpec): boolean =>
+  field.key !== 'target' || !pickerOwnsTarget(spec, node);
+
+export const triggerProvidesViewer = (type: FlowNode['type'] | undefined): boolean =>
+  Boolean(specFor(type ?? '')?.provides?.some((variable) => variable.token === '{user}'));
+
+export const targetHasViewer = (type: FlowNode['type'] | undefined): boolean =>
+  type === 'twitch.unban_request' || triggerProvidesViewer(type);
+
+const PICKED_TARGETS = new Set(['user', 'mention', 'viewer']);
+
+export function targetMode(config: FlowNode['config']): string {
+  if (PICKED_TARGETS.has(String(config.who))) return String(config.who);
+  return hasLegacyTarget(config) ? 'login' : 'viewer';
+}
+
+export function targetModesFor(flow: Flow, node: FlowNode): string[] {
+  const trigger = flow.nodes.find((entry) => specFor(entry.type)?.kind === 'trigger')?.type;
+  const selected = targetMode(node.config);
+  const options = [
+    ['viewer', targetHasViewer(trigger)],
+    ['mention', trigger === 'twitch.chat.command' || trigger === 'twitch.chat.word'],
+    ['user', true],
+    ['login', hasLegacyTarget(node.config)]
+  ] as const;
+  return options.filter(([mode, allowed]) => allowed || mode === selected).map(([mode]) => mode);
+}
 
 export const outputsFor = (spec: NodeSpec): readonly OutputSpec[] => spec.outputs ?? [{ id: 'next' }];
 

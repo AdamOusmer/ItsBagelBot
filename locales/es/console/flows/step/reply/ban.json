@@ -1,0 +1,10 @@
+{
+  "label": "Vetar",
+  "summary": "Vetar a un espectador del chat",
+  "keywords": "vetar banear bloquear espectador moderación",
+  "field": {
+    "reason": {
+      "label": "Motivo (opcional)"
+    }
+  }
+}

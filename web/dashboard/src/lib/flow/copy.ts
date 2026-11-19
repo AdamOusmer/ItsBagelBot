@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey } from '@bagel/kit';
 import { stepRequirement, type RequirementTrigger, type StepRequirement, type StepRole } from '@bagel/kit/automations';
-import { MAX_WAIT_SECONDS, specFor, type FieldSpec, type Flow, type FlowNode, type NodeSpec, type StepGroup, type VariableSpec } from './model';
+import { MAX_WAIT_SECONDS, specFor, targetFieldFor, type FieldSpec, type Flow, type FlowNode, type NodeSpec, type StepGroup, type VariableSpec } from './model';
 import type { FieldIssue } from './issues';
 import { issueMessage, type Translate } from './messages';
 
@@ -80,8 +80,15 @@ function variantCopy(t: Translate, source: FieldCopy, part: 'label' | 'placehold
   return known(`${prefix}.${variant}.${part}`, t(`${prefix}.${variant}.${part}` as MessageKey)) || undefined;
 }
 
-export const fieldLabel = (t: Translate, spec: NodeSpec, field: FieldSpec, node?: FieldCopy['node']): string =>
-  variantCopy(t, { spec, field, node }, 'label') ?? t(`${fieldCopyPrefix(spec, field)}.label` as MessageKey);
+export function fieldLabel(t: Translate, spec: NodeSpec, field: FieldSpec, node?: FieldCopy['node']): string {
+  if (field.type === 'target') return t('flows.step.target.label');
+  if (field.key === 'login' && targetFieldFor(spec)) return t('flows.step.target.viewerLabel');
+  if (field.key === 'target' && targetFieldFor(spec)) return t('flows.step.target.loginLabel');
+  return variantCopy(t, { spec, field, node }, 'label') ?? t(`${fieldCopyPrefix(spec, field)}.label` as MessageKey);
+}
+
+export const targetOptions = (t: Translate, modes: readonly string[]): { value: string; label: string }[] =>
+  modes.map((value) => ({ value, label: t(`flows.step.target.option.${value}` as MessageKey) }));
 
 export const fieldHint = (t: Translate, spec: NodeSpec, field: FieldSpec): string | undefined =>
   known(`${fieldCopyPrefix(spec, field)}.hint`, t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.hint` as MessageKey)) || undefined;

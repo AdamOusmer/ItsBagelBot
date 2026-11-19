@@ -6,15 +6,19 @@
   import { page } from '$app/state';
   import { actionPayload, getI18n } from '@bagel/kit';
   import Field from '@bagel/ui/svelte/Field.svelte';
+  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Spinner from '@bagel/ui/svelte/Spinner.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { unavailable, withDraftNames, withSaved, type ChoiceList, type ChoiceOption, type ChoiceProblem, type ChoiceSource } from '#lib/flow/choices';
-  import type { FieldSpec, FlowNode } from '#lib/flow/model';
+  import { targetMode, type FieldSpec, type FlowNode } from '#lib/flow/model';
   import { configText } from '#lib/flow/setup';
   import { isSetupValue } from '@bagel/kit/automations';
 
-  let { node, field, id, label, tag, error, draft = [] }: { node: FlowNode; field: Extract<FieldSpec, { type: 'choice' }>; id: string; label: string; tag?: string; error?: string; draft?: FlowNode[] } = $props();
+  let { node, field, id, label, tag, error, draft = [], options = [] }: {
+    node: FlowNode; field: Extract<FieldSpec, { type: 'choice' | 'target' }>; id: string; label: string;
+    tag?: string; error?: string; draft?: FlowNode[]; options?: { value: string; label: string }[];
+  } = $props();
 
   const { t } = getI18n();
 
@@ -23,7 +27,9 @@
 
   const value = $derived(configText(node, field.key));
   const awaiting = $derived(isSetupValue(node.config[field.key]));
-  const savedName = $derived(field.nameKey ? configText(node, field.nameKey) : '');
+  const nameKey = $derived(field.type === 'choice' ? field.nameKey : undefined);
+  const savedName = $derived(nameKey ? configText(node, nameKey) : '');
+  const source = $derived(field.type === 'choice' ? field.source : undefined);
   const device = $derived(configText(node, 'device'));
   const sku = $derived(configText(node, 'sku'));
 
@@ -77,14 +83,15 @@
 
   const list = $derived.by((): Promise<ChoiceList> | null => {
     void attempt;
-    if (field.source !== 'scenes') return page.data[field.source] as Promise<ChoiceList>;
+    if (!source) return null;
+    if (source !== 'scenes') return page.data[source] as Promise<ChoiceList>;
     return device && sku ? fetchScenes(device, sku) : null;
   });
 
   async function retry() {
     refreshing = true;
     try {
-      if (field.source === 'scenes') attempt++;
+      if (source === 'scenes') attempt++;
       else await invalidate('flows:choices');
     } finally {
       refreshing = false;
@@ -94,11 +101,18 @@
   function choose(options: ChoiceOption[], next: string) {
     const picked = options.find((option) => option.value === next);
     node.config[field.key] = next;
-    if (field.nameKey) node.config[field.nameKey] = picked?.label ?? '';
+    if (nameKey) node.config[nameKey] = picked?.label ?? '';
     Object.assign(node.config, picked?.meta);
   }
 </script>
 
+{#if field.type === 'target'}
+  <Field {label} {error} errorId="{id}-error">
+    <SegmentedControl {id} {label} {options} class="bb-tabs--even" value={targetMode(node.config)}
+      aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined}
+      onValueChange={(next) => (node.config.who = next)} />
+  </Field>
+{:else}
 <div class="choice-field">
 <Field {label} {tag} {error} errorId="{id}-error" for={id}>
   <div class="choice-content">
@@ -135,6 +149,7 @@
   {/await}
 {/if}
 </div>
+{/if}
 
 <style>
   .choice-field { min-height: 114px; }

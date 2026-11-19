@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { StepRole } from '@bagel/kit/automations';
-import { COLUMN_GAP, NODE_W, ROW_GAP, specFor, type FieldSpec, type Flow, type FlowEdge, type FlowNode } from './model';
+import { COLUMN_GAP, NODE_W, ROW_GAP, specFor, targetFieldFor, targetHasViewer, triggerProvidesViewer, type FieldSpec, type Flow, type FlowEdge, type FlowNode } from './model';
 import { cycleExclusions, graphIndex, linkKey } from './graph-index';
 import { nodeHeight } from './layout';
 
@@ -31,28 +31,30 @@ function fieldDefaults(field: FieldSpec): [FieldSpec['key'], FlowNode['config'][
   return value === undefined ? [] : [[field.key, value]];
 }
 
-function hasViewer(trigger: NodeType | undefined): boolean {
-  const spec = specFor(trigger ?? '');
-  return spec?.provides?.some((variable) => variable.token === '{user}') ?? false;
-}
-
 function triggerDefaults(trigger: NodeType | undefined, request: Pick<InsertRequest, 'chatMessage' | 'plainMessage'>): Record<NodeType, FlowNode['config']> {
-  const viewer = hasViewer(trigger);
+  const viewer = triggerProvidesViewer(trigger);
   const target = trigger === 'twitch.chat.command' ? '{touser}' : viewer ? '{user}' : '';
   const plain = request.plainMessage ?? 'Thanks!';
   const message = viewer ? request.chatMessage : plain;
   return {
-    'reply.shoutout': { target }, 'reply.timeout': { target },
+    'reply.shoutout': { target },
     'reply.announce': { text: message ?? '{user}' }, 'reply.reply': { text: plain },
     'reply.chat': { message: trigger ? message ?? '' : '' }
   };
 }
 
+function targetDefaults(trigger: NodeType | undefined): FlowNode['config'] {
+  if (trigger === 'twitch.chat.command') return { who: 'mention' };
+  return { who: targetHasViewer(trigger) ? 'viewer' : 'user' };
+}
+
 function defaultConfig(flow: Flow, request: Pick<InsertRequest, 'type' | 'chatMessage' | 'plainMessage'>): FlowNode['config'] {
   const { type } = request;
-  const defaults = specFor(type)?.fields.flatMap(fieldDefaults) ?? [];
+  const spec = specFor(type);
+  const defaults = Object.fromEntries(spec?.fields.flatMap(fieldDefaults) ?? []);
   const trigger = flow.nodes.find(isTrigger)?.type;
-  return { ...Object.fromEntries(defaults), ...triggerDefaults(trigger, request)[type] };
+  const contextual = targetFieldFor(spec) ? targetDefaults(trigger) : triggerDefaults(trigger, request)[type];
+  return { ...defaults, ...contextual };
 }
 
 function createNode(flow: Flow, request: Pick<InsertRequest, 'type' | 'at' | 'chatMessage' | 'plainMessage'>): FlowNode {

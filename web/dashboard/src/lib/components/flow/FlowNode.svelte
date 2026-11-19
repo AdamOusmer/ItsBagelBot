@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import Icon from './FlowIcon.svelte';
   import CanvasCard from '@bagel/ui/svelte/CanvasCard.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
   import IconTile from '@bagel/ui/svelte/IconTile.svelte';
   import FlowAddButton from './FlowAddButton.svelte';
   import { NODE_W, outputsFor, specFor, type FlowNode } from '../../flow/model';
@@ -48,6 +49,9 @@
   const line = $derived(describe(t, node));
   const title = $derived(spec ? stepLabel(t, spec) : '');
   const kindLabel = $derived(spec ? t(`flows.board.kind.${spec.kind}` as MessageKey) : '');
+  const off = $derived(spec?.kind === 'reply' && node.config.disabled === true);
+  const offLabel = $derived(t('flows.board.stepOff'));
+  const nodeLabel = $derived(t('flows.board.nodeLabel', { label: title, kind: kindLabel, line }));
   const cardClass = $derived(['node', spec && `kind-${spec.kind}`, touch && 'touch', connecting && 'connecting'].filter(Boolean).join(' '));
 </script>
 
@@ -83,7 +87,7 @@
     role="button"
     tabindex={tabbable ? 0 : -1}
     aria-pressed={selected}
-    aria-label={t('flows.board.nodeLabel', { label: title, kind: kindLabel, line })}
+    aria-label={off ? `${nodeLabel}, ${offLabel}` : nodeLabel}
   >
     {#if !isTrigger}
       <span class="port port--in" style:top="{inputY}px"></span>
@@ -100,6 +104,12 @@
         <span class="line">{line}</span>
       </div>
     </div>
+
+    <span class="off-tag" class:off aria-hidden="true">
+      <Chip as="span" tone="muted" class="bb-fit-box" style="min-width: 0; justify-content: center; padding: 2px 4px">
+        <bb-fit data-fit>{offLabel}</bb-fit>
+      </Chip>
+    </span>
 
     {#if branching}
       <div class="rows" style:top="{HEADER_H}px">
@@ -183,6 +193,18 @@
     line-height: 18px;
     color: rgba(var(--bb-white-rgb), 0.92);
   }
+  .off-tag {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: grid;
+    width: 44px;
+    height: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+  .off-tag.off { opacity: 1; }
   .rows {
     position: absolute;
     left: 0;
@@ -332,6 +354,7 @@
   @media (prefers-reduced-motion: reduce) {
     :global(.node),
     .add,
+    .off-tag,
     .port {
       transition: none;
     }

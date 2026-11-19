@@ -20,9 +20,9 @@
   import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import DurationField from '#lib/components/shared/DurationField.svelte';
-  import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, stepLabel, stepRequirementFor, stepSummary, variableLabel } from '#lib/flow/copy';
+  import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, stepLabel, stepRequirementFor, stepSummary, targetOptions, variableLabel } from '#lib/flow/copy';
   import { defaultComparison } from '#lib/flow/comparison';
-  import { fieldVisible, NODE_SPECS, outputsFor, specFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
+  import { fieldMounted, fieldVisible, NODE_SPECS, outputsFor, specFor, targetFieldFor, targetModesFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
   import { duplicateNode, hasCheckBefore, insertCheckBefore } from '#lib/flow/ops';
   import { descendants, graphIndex, portKey } from '#lib/flow/graph-index';
   import { awaitingSetup, configText } from '#lib/flow/setup';
@@ -265,6 +265,11 @@
     onremove(node.id);
   }
 
+  function blankRequiredTarget(key: FieldKey, required: boolean): boolean {
+    if (key !== 'target' || !required) return false;
+    return !textOf(key).trim();
+  }
+
   function changeCheck() {
     if (!node) return;
     if (removeCheck) {
@@ -305,7 +310,7 @@
       </div>
       {#if spec.fields.length}
         <div class="fields">
-          {#each spec.fields as field (field.key)}
+          {#each spec.fields.filter((field) => fieldMounted(spec, node, field)) as field (field.key)}
             {@const disabled = !fieldVisible(spec, node, field)}
             {@const label = fieldLabel(t, spec, field, node)}
             {@const hint = fieldHint(t, spec, field)}
@@ -381,12 +386,13 @@
                 {/key}
               </Field>
             {:else if field.type === 'template' && field.singleLine}
-              {@const requiredTarget = field.key === 'target' && required}
-              {@const shown = error ?? (requiredTarget && !textOf(field.key).trim() ? t('flows.test.noTarget') : undefined)}
-              <Field {label} {tag} error={requiredTarget ? undefined : shown} for="{uid}-{field.key}" errorId="{uid}-{field.key}-error">
+              {@const targetInput = field.key === 'target'}
+              {@const missingTarget = blankRequiredTarget(field.key, required)}
+              {@const shown = disabled ? undefined : error ?? (missingTarget ? t('flows.test.noTarget') : undefined)}
+              <Field {label} tag={targetFieldFor(spec) ? undefined : tag} error={targetInput ? undefined : shown} for="{uid}-{field.key}" errorId="{uid}-{field.key}-error">
                 <Input
                   id="{uid}-{field.key}"
-                  required={requiredTarget}
+                  required={targetInput && required}
                   aria-invalid={shown ? true : undefined}
                   aria-describedby={shown ? `${uid}-${field.key}-error` : undefined}
                   {placeholder}
@@ -401,7 +407,7 @@
                   aria-controls={completion?.key === field.key ? `${uid}-suggestions` : undefined}
                   aria-activedescendant={completion?.key === field.key ? `${uid}-suggestion-${activeSuggestion}` : undefined}
                 />
-                {#if requiredTarget}
+                {#if targetInput}
                   <small class="bb-field__error bb-fit-box target-error" class:faded={!shown} id="{uid}-{field.key}-error" role="alert"><bb-fit mode="block">{shown ?? ''}</bb-fit></small>
                 {/if}
               </Field>
@@ -425,13 +431,15 @@
               </Field>
             {:else if field.type === 'choice'}
               <ChoiceField {node} {field} {label} {tag} {error} draft={flow.nodes} id="{uid}-{field.key}" />
+            {:else if field.type === 'target'}
+              <ChoiceField {node} {field} {label} {error} options={targetOptions(t, targetModesFor(flow, node))} id="{uid}-{field.key}" />
             {:else if field.type === 'reward'}
               <RewardField {node} {label} {tag} {error} id="{uid}-{field.key}" />
             {:else if field.type === 'goveeLight'}
               <GoveeLightField {node} {tag} fieldError={error} id="{uid}-{field.key}" onConfig={(config) => (node.config = config)} />
             {:else if field.type === 'login'}
               {#key node.id}
-                <UserField {node} id="{uid}-{field.key}" {label} {placeholder} {tag} {error} />
+                <UserField {node} id="{uid}-{field.key}" {label} {placeholder} tag={targetFieldFor(spec) ? undefined : tag} error={disabled ? undefined : error} fixedStatus={targetFieldFor(spec)} />
               {/key}
             {:else}
               <Field {label} {tag} {error} for="{uid}-{field.key}">
@@ -502,8 +510,24 @@
     </div>
 
     <footer class="foot">
-      <Button variant="ghost" onclick={duplicate}>{t('flows.board.duplicate')}</Button>
-      <Button tone="danger" onclick={remove}>{t('flows.board.removeStep')}</Button>
+      <div class="run-step">
+        <Switch
+          label={t('flows.board.runStep')}
+          checked={spec.kind !== 'reply' || node.config.disabled !== true}
+          disabled={spec.kind !== 'reply' || awaiting}
+          describedby={spec.kind !== 'reply' ? `${uid}-always-runs` : undefined}
+          onCheckedChange={(checked) => {
+            if (checked) delete node.config.disabled;
+            else node.config.disabled = true;
+          }}
+        />
+        <span class="run-label bb-fit-box"><bb-fit data-fit mode="block">{t('flows.board.runStep')}</bb-fit></span>
+        <span id="{uid}-always-runs" class="run-note bb-fit-box" class:faded={spec.kind === 'reply'} aria-hidden={spec.kind === 'reply'}>
+          <bb-fit data-fit mode="block">{t('flows.board.checksAlwaysRun')}</bb-fit>
+        </span>
+      </div>
+      <Button variant="ghost" onclick={duplicate}><bb-fit data-fit>{t('flows.board.duplicate')}</bb-fit></Button>
+      <Button tone="danger" onclick={remove}><bb-fit data-fit>{t('flows.board.removeStep')}</bb-fit></Button>
     </footer>
   </aside>
 {/if}
@@ -678,13 +702,45 @@
     color: rgba(var(--bb-white-rgb), 0.92);
   }
   .foot {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.75fr) minmax(0, 0.85fr);
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
     flex: none;
     padding: 12px 16px;
     background: var(--bb-bg-1);
     box-shadow: 0 -8px 16px rgba(var(--bb-shadow-rgb), 0.3);
+    --btn-pad: 0 6px;
+    --btn-justify: center;
+  }
+  .run-step {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: 28px 24px;
+    align-items: center;
+    column-gap: 6px;
+    font-family: var(--bb-font-body);
+  }
+  .run-label,
+  .run-note {
+    display: grid;
+    align-items: center;
+    height: 100%;
+  }
+  .run-label {
+    color: var(--bb-white);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.07;
+  }
+  .run-note {
+    grid-column: 1 / -1;
+    color: var(--bb-muted);
+    font-size: 11.5px;
+    line-height: 1.04;
+    transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .run-note { transition: none; }
   }
 </style>

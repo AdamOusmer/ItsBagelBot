@@ -28,6 +28,46 @@ function rebuilt(definition: Definition): Flow {
   return result.value;
 }
 
+describe('target picker round-trip', () => {
+  const actions = [
+    { type: 'timeout', nodeType: 'reply.timeout', params: { seconds: 600 } },
+    { type: 'ban', nodeType: 'reply.ban', params: { reason: '{user} broke a rule' } },
+    { type: 'mod', nodeType: 'reply.mod', params: { on: true } },
+    { type: 'vip', nodeType: 'reply.vip', params: { on: false } },
+    { type: 'points_add', nodeType: 'reply.points', params: { amount: -10 } },
+    { type: 'points_set', nodeType: 'reply.points_set', params: { amount: 0 } }
+  ];
+  const targets = [
+    { mode: 'implicit login', wire: { login: '{touser}' }, config: { target: '{touser}' } },
+    { mode: 'explicit login', wire: { who: 'login', login: 'bagel' }, config: { who: 'login', target: 'bagel' } },
+    { mode: 'viewer', wire: { who: 'viewer' }, config: { who: 'viewer' } },
+    { mode: 'mention', wire: { who: 'mention' }, config: { who: 'mention' } },
+    { mode: 'set viewer', wire: { who: 'user', user_id: '1234567', login: 'bagel' }, config: { who: 'user', userId: '1234567', login: 'bagel' } }
+  ];
+
+  test.each(actions.flatMap((entry) => targets.map((target) => ({ ...entry, ...target }))))(
+    '$type preserves $mode when reopened and resaved',
+    ({ type, nodeType, params, wire, config }) => {
+      const definition: Definition = {
+        version: 1,
+        trigger: { type: 'command', params: { name: '!test' } },
+        actions: [{ type, params: { ...params, ...wire } }]
+      };
+      const reopened = rebuilt(definition);
+      const step = reopened.nodes.find((node) => node.type === nodeType);
+      expect({ config: step?.config, definition: lowered(reopened) }).toEqual({ config: { ...params, ...config }, definition });
+    }
+  );
+
+  test('switching away from a set viewer leaves its draft selection out of the saved action', () => {
+    const trigger = node('t', 'twitch.chat.command', { trigger: '!test' });
+    const step = node('r', 'reply.points', { amount: 10, who: 'mention', userId: '1234567', login: 'bagel', target: '{bits}' });
+    expect(lowered(flow([trigger, step], [edge('t', 'next', 'r')])).actions).toEqual([
+      { type: 'points_add', params: { amount: 10, who: 'mention' } }
+    ]);
+  });
+});
+
 const issueCodes = (input: Flow) => {
   const result = flowToDefinition(input);
   return result.ok ? [] : result.issues.map((i) => i.code);

@@ -36,9 +36,10 @@ const defaults = {
   'reply.shoutout': { target: '{user}' },
   'reply.announce': { text: 'Thanks {user}!', color: 'primary' },
   'reply.reply': { text: 'Thanks!' },
-  'reply.timeout': { target: '{user}', seconds: 600 },
-  'reply.mod': { on: true },
-  'reply.vip': { on: true },
+  'reply.timeout': { who: 'viewer', seconds: 600 },
+  'reply.ban': { who: 'viewer' },
+  'reply.mod': { who: 'viewer', on: true },
+  'reply.vip': { who: 'viewer', on: true },
   'reply.raid': {},
   'reply.raid_cancel': {},
   'reply.whisper': {},
@@ -51,7 +52,8 @@ const defaults = {
   'reply.poll_end': { status: 'terminate' },
   'reply.prediction': { seconds: 120 },
   'reply.prediction_end': { status: 'lock' },
-  'reply.points': { amount: 10 },
+  'reply.points': { amount: 10, who: 'viewer' },
+  'reply.points_set': { amount: 10, who: 'viewer' },
   'reply.counter': {},
   'reply.reward_update': { setEnabled: 'on' },
   'reply.countdown_start': { seconds: 3_600 },
@@ -100,28 +102,36 @@ test.each(NODE_SPECS)('$type lowers and validates its defaults with a broadcaste
 });
 
 test.each([
-  { trigger: 'twitch.chat.command', target: '{touser}', message: en.defaultChatMessage },
-  { trigger: 'twitch.chat.word', target: '{user}', message: en.defaultChatMessage },
-  { trigger: 'twitch.raid', target: '{user}', message: en.defaultChatMessage },
-  { trigger: 'twitch.follow', target: '{user}', message: en.defaultChatMessage },
-  { trigger: 'twitch.sub', target: '{user}', message: en.defaultChatMessage },
-  { trigger: 'twitch.reward', target: '{user}', message: en.defaultChatMessage },
-  { trigger: 'twitch.stream.online', target: '', message: en.defaultPlainMessage },
-  { trigger: 'twitch.stream.offline', target: '', message: en.defaultPlainMessage },
-  { trigger: 'countdown.finished', target: '', message: en.defaultPlainMessage },
-  { trigger: null, target: '', message: '' }
-])('contextual defaults follow $trigger', ({ trigger, target, message }) => {
+  { trigger: 'twitch.chat.command', who: 'mention', target: '{touser}', message: en.defaultChatMessage },
+  { trigger: 'twitch.chat.word', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
+  { trigger: 'twitch.raid', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
+  { trigger: 'twitch.follow', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
+  { trigger: 'twitch.sub', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
+  { trigger: 'twitch.cheer', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
+  { trigger: 'twitch.reward', who: 'viewer', target: '{user}', message: en.defaultChatMessage },
+  { trigger: 'twitch.unban_request', who: 'viewer', target: '', message: en.defaultPlainMessage },
+  { trigger: 'twitch.stream.online', who: 'user', target: '', message: en.defaultPlainMessage },
+  { trigger: 'twitch.stream.offline', who: 'user', target: '', message: en.defaultPlainMessage },
+  { trigger: 'countdown.finished', who: 'user', target: '', message: en.defaultPlainMessage },
+  { trigger: null, who: 'user', target: '', message: '' }
+])('contextual defaults follow $trigger', ({ trigger, who, target, message }) => {
   const flow = newFlow('Contextual defaults');
   if (trigger) addNode(flow, trigger, at);
-  const types = ['reply.shoutout', 'reply.timeout', 'reply.announce', 'reply.reply', 'reply.chat'];
-  const configs = types.map((type) => addStep(flow, { type, at, placement, chatMessage: en.defaultChatMessage }).node.config);
-  expect(configs).toEqual([
-    { target },
-    { ...defaults['reply.timeout'], target },
-    { ...defaults['reply.announce'], text: message || en.defaultPlainMessage },
-    defaults['reply.reply'],
-    { message }
-  ]);
+  const config = (type: FlowNode['type']) => addStep(flow, { type, at, placement, chatMessage: en.defaultChatMessage }).node.config;
+  const targets = ['reply.timeout', 'reply.ban', 'reply.mod', 'reply.vip', 'reply.points', 'reply.points_set'];
+  expect({
+    targetModes: targets.map((type) => config(type).who),
+    shoutout: config('reply.shoutout'),
+    announce: config('reply.announce'),
+    reply: config('reply.reply'),
+    chat: config('reply.chat')
+  }).toEqual({
+    targetModes: targets.map(() => who),
+    shoutout: { target },
+    announce: { ...defaults['reply.announce'], text: message || en.defaultPlainMessage },
+    reply: defaults['reply.reply'],
+    chat: { message }
+  });
 });
 
 test.each(Object.entries({ en, de, es, fr, 'pt-br': pt, ru }))('chat defaults use the %s translation for each trigger', (_locale, catalog) => {

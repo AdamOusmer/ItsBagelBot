@@ -75,11 +75,20 @@ test.each([
 
 test.each([
   { name: 'disconnected step', nodes: [trigger, say, left], edges: [e('t', 'next', 's')], expected: ['t', 's'] },
-  { name: 'unset viewer check', nodes: [trigger, n('c', 'cond.user'), say], edges: [e('t', 'next', 'c'), e('c', 'yes', 's')], expected: ['t', 'c'] },
-  { name: 'disabled action', nodes: [trigger, n('s', 'reply.chat', { message: 'hidden', disabled: true })], edges: [e('t', 'next', 's')], expected: ['t', 's'] }
+  { name: 'unset viewer check', nodes: [trigger, n('c', 'cond.user'), say], edges: [e('t', 'next', 'c'), e('c', 'yes', 's')], expected: ['t', 'c'] }
 ])('mid-build rehearsal tolerates $name', ({ nodes, edges, expected }) => {
   const result = run(flowOf(nodes, edges));
   expect<unknown>([result.issue, result.steps.map((step) => step.id)]).toEqual([undefined, expected]);
+});
+
+test('a disabled step is shown as skipped and rehearsal continues', () => {
+  const disabled = n('s', 'reply.chat', { message: 'hidden', disabled: true });
+  const result = run(flowOf([trigger, disabled, join], [e('t', 'next', 's'), e('s', 'next', 'j')]));
+  const rows = result.steps.slice(1).map(({ id, kind, status, text, lines }) => ({ id, kind, status, text, lines }));
+  expect(rows).toEqual([
+    { id: 's', kind: 'skip', status: 'skipped', text: 'Step is off', lines: undefined },
+    { id: 'j', kind: 'say', status: 'ok', text: '', lines: ['JOIN'] }
+  ]);
 });
 
 test('missing values stay marked and disconnected previews stay unreachable', () => {

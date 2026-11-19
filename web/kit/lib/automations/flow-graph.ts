@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { streamActionReaders, streamActionWriters } from './stream-flow';
+import { streamActionReaders, streamActionWriters, streamTargetNodes, usesLegacyTarget } from './stream-flow';
 import { COMPARE_OPS } from './compare';
 import { SETUP_LOGIN, SETUP_REWARD_ID } from './flow-setup';
 import { CODE, MAX_DELAY_MS, VERSION } from './limits';
@@ -158,11 +158,14 @@ const TEMPLATE_FIELDS: Record<string, string[]> = {
   'reply.announce': ['text'],
   'reply.reply': ['text'],
   'reply.timeout': ['target', 'reason'],
+  'reply.ban': ['target', 'reason'],
   'reply.poll': ['title', 'choices'],
   'reply.prediction': ['title', 'outcomes'],
   'reply.raid': ['target'],
   'reply.mod': ['target'],
   'reply.vip': ['target'],
+  'reply.points': ['target'],
+  'reply.points_set': ['target'],
   'reply.whisper': ['target', 'text'],
   'reply.unban_resolve': ['resolution'],
   'reply.chat': ['message'],
@@ -193,7 +196,11 @@ const varConditionOp = (config: FlowConfig) => str(config.op) || 'eq';
 function templateFields(node: FlowNode): readonly string[] {
   if (node.type === 'reply.text') return ['input', ...TEXT_ARG_FIELDS.get(textOp(node.config)) ?? []];
   if (node.type === 'cond.var') return VAR_OPS_WITH_VALUE.includes(varConditionOp(node.config)) ? ['value'] : [];
-  return TEMPLATE_FIELDS[node.type] ?? [];
+  const fields = TEMPLATE_FIELDS[node.type] ?? [];
+  if (!streamTargetNodes.has(node.type)) return fields;
+  const legacy = usesLegacyTarget(node.config.who);
+  const active = (field: string): boolean => field !== 'target' || legacy;
+  return fields.filter((field) => node.config[field] !== undefined && active(field));
 }
 
 function textAction(config: FlowConfig): Action {
@@ -307,7 +314,6 @@ const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   ...streamActionWriters,
   'reply.chat': (config) => ({ type: 'chat', params: { text: str(config.message) } }),
   'reply.lights': lightsAction,
-  'reply.points': (config) => ({ type: 'points_add', params: { amount: num(config.amount) } }),
   'reply.counter': (config) => ({ type: 'counter_add', params: { name: str(config.counter), amount: 1 } }),
   'reply.wait': (config) => ({ type: 'delay', params: { ms: num(config.seconds) * 1000 } }),
   'reply.var_set': (config) => ({ type: 'var_set', params: { ...varIdentity(config), value: str(config.value) } }),
@@ -937,7 +943,6 @@ const ACTION_READERS: Record<string, (params: Params) => { type: string; config:
   ...streamActionReaders,
   chat: (params) => ({ type: 'reply.chat', config: { message: str(params.text) } }),
   lights: lightsNode,
-  points_add: (params) => (params.login ? null : { type: 'reply.points', config: { amount: num(params.amount) } }),
   counter_add: (params) => (num(params.amount) === 1 ? { type: 'reply.counter', config: { counter: str(params.name) } } : null),
   delay: (params) => ({ type: 'reply.wait', config: { seconds: num(params.ms) / 1000 } }),
   var_set: (params) => ({ type: 'reply.var_set', config: { ...varConfig(params), value: str(params.value) } }),

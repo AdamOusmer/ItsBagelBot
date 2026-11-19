@@ -4,6 +4,12 @@
 import type { FieldSpec, StepDefinition } from './model';
 
 const target: FieldSpec = { key: 'target', type: 'template', singleLine: true, required: true };
+export const TARGET_FIELDS = [
+  { key: 'who', type: 'target' },
+  { key: 'login', type: 'login', when: { key: 'who', value: 'user' } },
+  { key: 'target', type: 'template', singleLine: true, when: { key: 'who', value: 'login' } }
+] as const satisfies readonly FieldSpec[];
+
 const title: FieldSpec = { key: 'title', type: 'template', singleLine: true };
 const on: FieldSpec = { key: 'on', type: 'toggle', initial: true };
 
@@ -24,7 +30,11 @@ export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
   },
   {
     type: 'reply.timeout', slug: 'timeout', icon: 'moderation',
-    fields: [target, { key: 'seconds', type: 'duration', min: 1, max: 1209600, initial: 600 }, { key: 'reason', type: 'template' }]
+    fields: [...TARGET_FIELDS, { key: 'seconds', type: 'duration', min: 1, max: 1209600, initial: 600 }, { key: 'reason', type: 'template' }]
+  },
+  {
+    type: 'reply.ban', slug: 'ban', icon: 'moderation',
+    fields: [...TARGET_FIELDS, { key: 'reason', type: 'template' }]
   },
   {
     type: 'twitch.unban_request', slug: 'unbanRequest', icon: 'moderation', fields: []
@@ -55,10 +65,10 @@ export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'reply.raid_cancel', slug: 'raidCancel', icon: 'swords', fields: []
   },
   {
-    type: 'reply.mod', slug: 'mod', icon: 'moderation', fields: [target, on], lineBy: 'on'
+    type: 'reply.mod', slug: 'mod', icon: 'moderation', fields: [...TARGET_FIELDS, on], lineBy: 'on'
   },
   {
-    type: 'reply.vip', slug: 'vip', icon: 'star', fields: [target, on], lineBy: 'on'
+    type: 'reply.vip', slug: 'vip', icon: 'star', fields: [...TARGET_FIELDS, on], lineBy: 'on'
   },
   {
     type: 'reply.chat_mode', slug: 'chatMode', icon: 'messageSquare', lineBy: 'on',
