@@ -58,8 +58,9 @@
     "summary": "Pausar antes del siguiente paso",
     "field": {
       "seconds": {
-        "label": "Retardo",
-        "unit": "segundos, máximo {max}"
+        "label": "Esperar durante",
+        "unit": "segundos, máximo {max}",
+        "hint": "En cada ejecución, todas las esperas suman como máximo 60 segundos."
       }
     }
   },
@@ -69,7 +70,8 @@
     "field": {
       "times": {
         "label": "Cuántas veces",
-        "placeholder": "3"
+        "placeholder": "3",
+        "hint": "De 1 a 100. También puedes usar una variable, como {args}."
       }
     },
     "out": {
@@ -141,7 +143,8 @@
     "field": {
       "expression": {
         "label": "Expresión",
-        "placeholder": "({bits} / 100) + 1"
+        "placeholder": "random(1, 6) * 10",
+        "hint": "Usa + - * / % ^ y las funciones round, floor, ceil, abs, min, max y random(a, b)."
       },
       "saveAs": {
         "label": "Guardar como",

@@ -4,7 +4,7 @@ import { STREAM_STEP_DEFINITIONS, TARGET_FIELDS } from './stream-steps';
 import { graphIndex, portKey } from './graph-index';
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
-import { TEXT_ARG_FIELDS, VAR_OPS_WITH_VALUE } from '@bagel/kit/automations';
+import { TEXT_OPERAND_OPS, TEXT_OPS, VAR_OPS_WITH_VALUE } from '@bagel/kit/automations';
 import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
@@ -63,9 +63,7 @@ export const STEP_PLACEMENT = {
   'cond.var': { kind: 'condition', group: 'logic' },
   'reply.wait': { kind: 'reply', group: 'logic' },
   'reply.loop': { kind: 'reply', group: 'logic' },
-  'reply.var_set': { kind: 'reply', group: 'logic' },
-  'reply.var_add': { kind: 'reply', group: 'logic' },
-  'reply.var_delete': { kind: 'reply', group: 'logic' },
+  'reply.var': { kind: 'reply', group: 'logic' },
   'reply.text': { kind: 'reply', group: 'logic' },
   'reply.math': { kind: 'reply', group: 'logic' },
   'reply.http_get': { kind: 'reply', group: 'logic' },
@@ -79,7 +77,7 @@ type FieldGate = { key: string; value: string | readonly string[] | boolean };
 export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; labelBy?: string; initial?: string | number | boolean; required?: true } & (
   | (Typed & { type: 'text' })
   | (Typed & { type: 'template'; singleLine?: boolean })
-  | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
+  | { key: string; type: 'number'; min?: number; max?: number; step?: number; unit?: true }
   | { key: string; type: 'duration'; min: number; max: number }
   | { key: string; type: 'select'; options: readonly string[] }
   | { key: string; type: 'toggle' }
@@ -156,9 +154,9 @@ const loopPorts: OutputSpec[] = [
 const varScope: FieldSpec = { key: 'scope', type: 'select', options: ['channel', 'viewer'] };
 const varName: FieldSpec = { key: 'name', type: 'text', placeholder: true };
 const saveAs: FieldSpec = { key: 'saveAs', type: 'text', placeholder: true };
-const textOperands: FieldSpec[] = Array.from(TEXT_ARG_FIELDS).flatMap(([op, keys]) => keys.map((key) => ({
-  key, type: 'template', singleLine: true, placeholder: key === 'pick' ? true : undefined, when: { key: 'op', value: op }
-})));
+const textOperands: FieldSpec[] = Object.entries(TEXT_OPERAND_OPS).map(([key, ops]) => ({
+  key, type: 'template', singleLine: true, labelBy: 'op', when: { key: 'op', value: ops }
+}));
 
 export const newFlow = (name: string): Flow => ({ id: 'new', name, enabled: true, nodes: [], edges: [] });
 
@@ -343,7 +341,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'reply.wait',
     slug: 'wait',
     icon: 'timer',
-    fields: [{ key: 'seconds', type: 'number', min: 1, max: MAX_WAIT_SECONDS, unit: true, initial: 5 }]
+    fields: [{ key: 'seconds', type: 'number', min: 0.1, max: MAX_WAIT_SECONDS, step: 0.1, unit: true, initial: 5 }]
   },
   {
     type: 'reply.loop',
@@ -353,31 +351,25 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     outputs: loopPorts
   },
   {
-    type: 'reply.var_set',
-    slug: 'varSet',
+    type: 'reply.var',
+    slug: 'varChange',
     icon: 'braces',
-    fields: [varScope, varName, { key: 'value', type: 'template', placeholder: true, singleLine: true }],
-    providesFor: storedVariable
-  },
-  {
-    type: 'reply.var_add',
-    slug: 'varAdd',
-    icon: 'braces',
-    fields: [varScope, varName, { key: 'amount', type: 'number', initial: 1 }],
-    providesFor: storedVariable
-  },
-  {
-    type: 'reply.var_delete',
-    slug: 'varDelete',
-    icon: 'braces',
-    fields: [varScope, varName]
+    lineBy: 'do',
+    fields: [
+      { key: 'do', type: 'select', options: ['set', 'add', 'subtract', 'forget'], initial: 'set' },
+      { ...varScope, initial: 'channel' },
+      varName,
+      { key: 'value', type: 'template', placeholder: true, singleLine: true, when: { key: 'do', value: 'set' } },
+      { key: 'amount', type: 'number', min: 1, step: 1, initial: 1, when: { key: 'do', value: ['add', 'subtract'] } }
+    ],
+    providesFor: changedVariable
   },
   {
     type: 'reply.text',
     slug: 'text',
     icon: 'letters',
     fields: [
-      { key: 'op', type: 'select', options: ['upper', 'lower', 'trim', 'length', 'replace', 'substring', 'split_pick', 'contains', 'url_encode'] },
+      { key: 'op', type: 'select', options: TEXT_OPS },
       { key: 'input', type: 'template', placeholder: true, singleLine: true },
       ...textOperands,
       saveAs
@@ -492,11 +484,16 @@ export const outputsFor = (spec: NodeSpec): readonly OutputSpec[] => spec.output
 
 export const isSecondPort = (spec: NodeSpec | undefined, port: string): boolean => spec?.outputs?.[1]?.id === port;
 
-function storedVariable(config: FlowNode['config']): VariableSpec[] {
+export function storedVariable(config: FlowNode['config']): VariableSpec[] {
   const name = String(config.name ?? '').trim().toLowerCase();
-  if (!/^[a-z]+$/.test(name)) return [];
+  if (!/^[a-z0-9]{1,32}$/.test(name)) return [];
   const scope = config.scope === 'viewer' ? 'viewervar' : 'var';
-  return [{ token: `{${scope}:${name}}`, name, literalName: true, sample: String(config.value ?? config.amount ?? '0') }];
+  const sample = config.do === 'add' || config.do === 'subtract' ? config.amount : config.value;
+  return [{ token: `{${scope}:${name}}`, name, literalName: true, sample: String(sample ?? '0') }];
+}
+
+function changedVariable(config: FlowNode['config']): VariableSpec[] {
+  return config.do === 'forget' ? [] : storedVariable(config);
 }
 
 function savedLocal(parent: FlowNode, spec: NodeSpec): VariableSpec[] {
@@ -539,7 +536,7 @@ export function variablesFor(flow: Flow, nodeId: string): VariableSpec[] {
 }
 
 function persistentVariables(flow: Flow): VariableSpec[] {
-  return flow.nodes.filter((node) => ['reply.var_set', 'reply.var_add'].includes(node.type)).flatMap((node) => storedVariable(node.config));
+  return flow.nodes.filter((node) => node.type === 'reply.var').flatMap((node) => changedVariable(node.config));
 }
 
 type ForkScope = { branch: string; outer: Scope };

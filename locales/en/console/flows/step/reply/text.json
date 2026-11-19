@@ -13,7 +13,8 @@
         "substring": "Take a substring",
         "split_pick": "Split and pick one",
         "contains": "Check if it contains",
-        "url_encode": "URL encode"
+        "url_encode": "URL encode",
+        "count": "Count items"
       }
     },
     "input": {
@@ -45,6 +46,37 @@
     "saveAs": {
       "label": "Save as",
       "placeholder": "cleaned"
+    },
+    "arg1": {
+      "label": "First value",
+      "replace": {
+        "label": "Find"
+      },
+      "substring": {
+        "label": "Skip"
+      },
+      "split_pick": {
+        "label": "Split on"
+      },
+      "contains": {
+        "label": "Look for"
+      },
+      "count": {
+        "label": "Split on"
+      }
+    },
+    "arg2": {
+      "label": "Second value",
+      "replace": {
+        "label": "Replace with"
+      },
+      "substring": {
+        "label": "Keep"
+      },
+      "split_pick": {
+        "label": "Pick",
+        "placeholder": "1, -1 for last, or random"
+      }
     }
   }
 }

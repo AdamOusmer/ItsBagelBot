@@ -8,7 +8,8 @@
     },
     "jsonPath": {
       "label": "Ruta JSON",
-      "placeholder": "data.value"
+      "placeholder": "data.items.0.name",
+      "hint": "Separa las claves con puntos. También puedes usar corchetes."
     },
     "saveAs": {
       "label": "Guardar como",

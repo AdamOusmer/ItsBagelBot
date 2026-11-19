@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
-import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, roleWarning, stepLabel, stepSummary, variableLabel } from './copy';
+import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, roleWarning, scopeWarning, stepLabel, stepSummary, variableLabel } from './copy';
 import { describe as describeNode } from './describe';
 import { english } from './english.testing';
-import { newFlow, NODE_SPECS, specFor, type FlowNode } from './model';
+import { fieldVisible, newFlow, NODE_SPECS, specFor, type FlowNode } from './model';
 import type { Translate } from './messages';
 
 const missing = (text: string | undefined) => text === undefined || text.startsWith('flows.');
@@ -26,11 +26,34 @@ describe('step copy', () => {
     { type: 'cond.cooldown', key: 'name', hint: 'Naming this restarts it if it is running. Add time steps in any recipe can then extend it. Not available per viewer.' },
     { type: 'reply.cooldown_add', key: 'per', hint: 'Adds the time above for each full amount. Put 100 on a bits recipe to count every 100 bits. Leave empty to add it once per event.' },
     { type: 'reply.countdown_add', key: 'per', hint: 'Add this time for each full amount. Leave empty to add it once per event.' },
-    { type: 'reply.countdown_add', key: 'name', hint: undefined }
+    { type: 'reply.countdown_add', key: 'name', hint: undefined },
+    { type: 'reply.wait', key: 'seconds', hint: 'All waits in one run add up to 60 seconds at most.' },
+    { type: 'reply.loop', key: 'times', hint: '1 to 100. A variable works too, like {args}.' },
+    { type: 'reply.math', key: 'expression', hint: 'Use + - * / % ^ and round, floor, ceil, abs, min, max, random(a, b).' },
+    { type: 'reply.http_get', key: 'jsonPath', hint: 'Dots between keys; brackets work too.' }
   ])('$type $key shows a hint only when translated', ({ type, key, hint }) => {
     const spec = specFor(type)!;
     const field = spec.fields.find((field) => field.key === key)!;
     expect(fieldHint(english, spec, field)).toBe(hint);
+  });
+
+  test.each([
+    { op: 'upper', labels: [] },
+    { op: 'replace', labels: ['Find', 'Replace with'] },
+    { op: 'substring', labels: ['Skip', 'Keep'] },
+    { op: 'split_pick', labels: ['Split on', 'Pick'], placeholder: '1, -1 for last, or random' },
+    { op: 'contains', labels: ['Look for'] },
+    { op: 'count', labels: ['Split on'] }
+  ])('text $op shows only its operands', ({ op, labels, placeholder }) => {
+    const spec = specFor('reply.text')!;
+    const node = { config: { op } };
+    const operands = spec.fields.filter((field) => field.labelBy === 'op');
+    const shown = operands.filter((field) => fieldVisible(spec, node, field));
+    expect({
+      keys: operands.map((field) => field.key),
+      labels: shown.map((field) => fieldLabel(english, spec, field, node)),
+      placeholder: fieldPlaceholder(english, spec, operands[1], node)
+    }).toEqual({ keys: ['arg1', 'arg2'], labels: [...labels], placeholder });
   });
 
   test.each([
@@ -119,6 +142,15 @@ describe('describe', () => {
     expect(describeNode(english, node('twitch.cheer'))).toBe('Bits are cheered');
   });
 
+  test.each<{ config: FlowNode['config']; line: string }>([
+    { config: { do: 'set', name: 'round2', value: '1' }, line: 'Set round2 to 1' },
+    { config: { do: 'add', name: 'round2', amount: 2 }, line: 'Add 2 to round2' },
+    { config: { do: 'subtract', name: 'round2', amount: 2 }, line: 'Subtract 2 from round2' },
+    { config: { do: 'forget', name: 'round2' }, line: 'Forget round2' }
+  ])('describes the variable $config.do action', ({ config, line }) => {
+    expect(describeNode(english, node('reply.var', config))).toBe(line);
+  });
+
   test('counts take the singular only at one', () => {
     expect(describeNode(english, node('reply.wait', { seconds: 1 }))).toBe('Pause 1 second');
     expect(describeNode(english, node('reply.wait', { seconds: 5 }))).toBe('Pause 5 seconds');
@@ -132,4 +164,15 @@ describe('describe', () => {
   test('a compare with an unknown operator still reads', () => {
     expect(describeNode(english, node('cond.compare', { left: 'a', right: 'b', op: 'nope' }))).toBe('a is b');
   });
+});
+
+test.each([
+  ['twitch.stream.online', 'viewer', true], ['twitch.stream.offline', 'viewer', true],
+  ['countdown.finished', 'viewer', true], ['twitch.follow', 'viewer', false],
+  ['twitch.unban_request', 'viewer', false], ['twitch.stream.online', 'channel', false]
+])('%s shows the variable scope warning for %s: %s', (type, scope, warns) => {
+  const flow = newFlow('Variables');
+  flow.nodes = [{ id: 't', type, config: {}, x: 0, y: 0 }];
+  const action: FlowNode = { id: 'v', type: 'reply.var', config: { scope }, x: 368, y: 0 };
+  expect(Boolean(scopeWarning(english, flow, action))).toBe(warns);
 });

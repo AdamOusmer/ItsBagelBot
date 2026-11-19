@@ -58,8 +58,9 @@
     "summary": "Pause before the next step",
     "field": {
       "seconds": {
-        "label": "Delay",
-        "unit": "seconds, max {max}"
+        "label": "Wait for",
+        "unit": "seconds, max {max}",
+        "hint": "All waits in one run add up to 60 seconds at most."
       }
     }
   },
@@ -69,7 +70,8 @@
     "field": {
       "times": {
         "label": "How many times",
-        "placeholder": "3"
+        "placeholder": "3",
+        "hint": "1 to 100. A variable works too, like {args}."
       }
     },
     "out": {
@@ -141,7 +143,8 @@
     "field": {
       "expression": {
         "label": "Expression",
-        "placeholder": "({bits} / 100) + 1"
+        "placeholder": "random(1, 6) * 10",
+        "hint": "Use + - * / % ^ and round, floor, ceil, abs, min, max, random(a, b)."
       },
       "saveAs": {
         "label": "Save as",

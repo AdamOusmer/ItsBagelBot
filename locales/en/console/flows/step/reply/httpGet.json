@@ -8,7 +8,8 @@
     },
     "jsonPath": {
       "label": "JSON path",
-      "placeholder": "data.value"
+      "placeholder": "data.items.0.name",
+      "hint": "Dots between keys; brackets work too."
     },
     "saveAs": {
       "label": "Save as",

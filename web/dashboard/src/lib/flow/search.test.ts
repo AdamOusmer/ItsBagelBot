@@ -71,6 +71,7 @@ test.each([
 
 test.each([
   ['substring', 'reply.text', 'logic'],
+  ['replace with', 'reply.text', 'logic'],
   ['slow mode', 'reply.chat_mode', 'chat'],
   ['url encode', 'reply.text', 'logic']
 ] satisfies [string, string, StepGroup][])('%s ranks %s first in a flat section with topic tags', (query, type, group) => {

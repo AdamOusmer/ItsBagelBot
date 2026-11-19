@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import { expect, test } from 'bun:test';
 import { flowToDefinition, validateDefinition } from '@bagel/kit/automations';
-import { NODE_SPECS, STEP_PLACEMENT, newFlow, outputsFor, type FlowNode } from './model';
+import { NODE_SPECS, STEP_PLACEMENT, newFlow, outputsFor, specFor, type FlowNode } from './model';
 import { addNode } from './ops.testing';
 import { addStep } from './editor';
 import en from '../../../../../locales/en/console/flows/board.json';
@@ -62,9 +62,7 @@ const defaults = {
   'reply.lights': { mode: 'color', liveOnly: true },
   'reply.wait': { seconds: 5 },
   'reply.loop': { times: '3' },
-  'reply.var_set': { scope: 'channel' },
-  'reply.var_add': { scope: 'channel', amount: 1 },
-  'reply.var_delete': { scope: 'channel' },
+  'reply.var': { do: 'set', scope: 'channel', amount: 1 },
   'reply.text': { op: 'upper' },
   'reply.math': {},
   'reply.http_get': {},
@@ -76,6 +74,13 @@ test.each(NODE_SPECS)('$type gets its expected config when added', (spec) => {
   if (spec.kind !== 'trigger') addNode(flow, 'twitch.follow', at);
   const { node } = addStep(flow, { type: spec.type, at, placement, chatMessage: en.defaultChatMessage });
   expect(node.config).toEqual(defaults[spec.type as keyof typeof defaults]);
+});
+
+test.each([
+  ['reply.wait', 'seconds', { min: 0.1, max: 60, step: 0.1 }],
+  ['reply.var', 'amount', { min: 1, step: 1 }]
+] as const)('%s uses the configured numeric bounds and step for %s', (type, key, bounds) => {
+  expect(specFor(type)?.fields.find((field) => field.key === key)).toMatchObject({ type: 'number', ...bounds });
 });
 
 const invalidDefaults = new Set(['out_of_range', 'invalid_enum', 'too_short']);

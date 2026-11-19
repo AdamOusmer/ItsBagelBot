@@ -8,7 +8,8 @@
     },
     "jsonPath": {
       "label": "Путь JSON",
-      "placeholder": "data.value"
+      "placeholder": "data.items.0.name",
+      "hint": "Разделяйте ключи точками. Можно использовать квадратные скобки."
     },
     "saveAs": {
       "label": "Сохранить как",

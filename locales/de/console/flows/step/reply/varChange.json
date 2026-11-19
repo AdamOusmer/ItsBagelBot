@@ -1,0 +1,42 @@
+{
+  "label": "Variable ändern",
+  "summary": "Einen Wert speichern, ändern oder löschen",
+  "keywords": "speichern merken zähler setzen addieren löschen vergessen",
+  "scopeWarning": "Dieser Auslöser hat keinen Zuschauer. Wähle Der Kanal, um hier eine Variable zu ändern.",
+  "line": {
+    "set": "{name} auf {value} setzen",
+    "add": "{amount} zu {name} addieren",
+    "subtract": "{amount} von {name} abziehen",
+    "forget": "{name} löschen"
+  },
+  "field": {
+    "do": {
+      "label": "Aktion",
+      "option": {
+        "set": "Setzen auf",
+        "add": "Addieren",
+        "subtract": "Subtrahieren",
+        "forget": "Löschen"
+      }
+    },
+    "scope": {
+      "label": "Gespeichert für",
+      "option": {
+        "channel": "Der Kanal",
+        "viewer": "Dieser Zuschauer"
+      }
+    },
+    "name": {
+      "label": "Name",
+      "placeholder": "deaths",
+      "hint": "Ein Wort in Kleinbuchstaben. Ziffern sind auch erlaubt."
+    },
+    "value": {
+      "label": "Wert",
+      "placeholder": "{user}"
+    },
+    "amount": {
+      "label": "Betrag"
+    }
+  }
+}

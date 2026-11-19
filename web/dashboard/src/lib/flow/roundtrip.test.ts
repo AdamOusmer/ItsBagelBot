@@ -116,8 +116,11 @@ function drawn(spec: NodeSpec, config: Config): Flow {
   };
 }
 
-const saved = (config: FlowConfig): Config =>
-  Object.fromEntries(Object.entries(config).filter(([key, value]) => value !== '' && !SHOWN_NOT_SAVED.has(key)));
+function saved(spec: NodeSpec, config: FlowConfig): Config {
+  const hiddenDefaults = spec.fields.filter((field) => field.initial === config[field.key] && !fieldVisible(spec, { config }, field));
+  const omitted = new Set([...SHOWN_NOT_SAVED, ...hiddenDefaults.map((field) => field.key)]);
+  return Object.fromEntries(Object.entries(config).filter(([key, value]) => value !== '' && !omitted.has(key)));
+}
 
 function unwrap<T>(result: FlowResult<T>): T {
   if (!result.ok) throw new Error(JSON.stringify(result.issues));
@@ -140,10 +143,10 @@ describe('every builder step survives a save and reload', () => {
 
     expect({
       enabled: lowered.actions?.[0]?.enabled,
-      config: back && saved(back.config)
+      config: back && saved(spec, back.config)
     }).toEqual({
       enabled: config.disabled ? false : undefined,
-      config: saved(config)
+      config: saved(spec, config)
     });
   });
 });

@@ -58,8 +58,9 @@
     "summary": "Pause vor dem nächsten Schritt",
     "field": {
       "seconds": {
-        "label": "Verzögerung",
-        "unit": "Sekunden, max. {max}"
+        "label": "Wartezeit",
+        "unit": "Sekunden, max. {max}",
+        "hint": "Alle Wartezeiten pro Durchlauf ergeben zusammen höchstens 60 Sekunden."
       }
     }
   },
@@ -69,7 +70,8 @@
     "field": {
       "times": {
         "label": "Wie oft",
-        "placeholder": "3"
+        "placeholder": "3",
+        "hint": "1 bis 100. Eine Variable wie {args} geht auch."
       }
     },
     "out": {
@@ -141,7 +143,8 @@
     "field": {
       "expression": {
         "label": "Ausdruck",
-        "placeholder": "({bits} / 100) + 1"
+        "placeholder": "random(1, 6) * 10",
+        "hint": "Verwende + - * / % ^ sowie round, floor, ceil, abs, min, max und random(a, b)."
       },
       "saveAs": {
         "label": "Speichern als",

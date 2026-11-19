@@ -33,7 +33,10 @@ const mappings = [
   ['reply.whisper', 'params.login', 'target'], ['reply.raid', 'params.login', 'target'],
   ['reply.mod', 'params.login', 'target'], ['reply.vip', 'params.login', 'target'],
   ['reply.poll', 'params.choices[1]', 'choices'], ['reply.prediction', 'params.outcomes[0]', 'outcomes'],
-  ['reply.chat', 'message.bits', 'message'], ['reply.math', 'config.expression', 'expression']
+  ['reply.chat', 'message.bits', 'message'], ['reply.math', 'config.expression', 'expression'],
+  ['reply.text', 'params.arg1', 'arg1'], ['reply.text', 'params.arg2', 'arg2'],
+  ['reply.var', 'params.name', 'name'], ['reply.var', 'params.amount', 'amount'],
+  ['reply.var', 'params.scope', 'scope'], ['reply.var', 'params.value', 'value']
 ];
 
 test.each(mappings)('%s maps %s to %s', (type, path, fieldKey) => {
@@ -42,10 +45,10 @@ test.each(mappings)('%s maps %s to %s', (type, path, fieldKey) => {
 });
 
 test.each([
-  ['replace', 'find', 'replaceWith'], ['substring', 'start', 'count'], ['split_pick', 'separator', 'pick'], ['contains', 'needle', undefined]
-])('text %s maps its operation arguments', (op, first, second) => {
-  const issues = ['arg1', 'arg2'].map((arg) => ({ path: `nodes.step.params.${arg}`, code: 'too_long' }));
-  expect(fieldIssues(issues, [nodeOf('reply.text', { op })]).map((issue) => issue.fieldKey)).toEqual([first, second]);
+  ['set', false], ['add', true], ['subtract', true], ['forget', false]
+])('variable %s uses the requirements of its saved action', (change, amount) => {
+  const node = nodeOf('reply.var', { do: change, scope: 'channel' });
+  expect({ missing: missingField(node), amount: fieldRequired(node, 'amount') }).toEqual({ missing: 'name', amount });
 });
 
 test.each([

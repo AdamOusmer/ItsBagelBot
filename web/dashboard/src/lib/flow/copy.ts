@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey } from '@bagel/kit';
 import { stepRequirement, type RequirementTrigger, type StepRequirement, type StepRole } from '@bagel/kit/automations';
-import { MAX_WAIT_SECONDS, specFor, targetFieldFor, type FieldSpec, type Flow, type FlowNode, type NodeSpec, type StepGroup, type VariableSpec } from './model';
+import { MAX_WAIT_SECONDS, specFor, targetFieldFor, targetHasViewer, type FieldSpec, type Flow, type FlowNode, type NodeSpec, type StepGroup, type VariableSpec } from './model';
 import type { FieldIssue } from './issues';
 import { issueMessage, type Translate } from './messages';
 
@@ -53,6 +53,15 @@ export function roleWarning(t: Translate, flow: Flow, node: FlowNode | undefined
   const trigger = flow.nodes.find((entry) => specFor(entry.type)?.kind === 'trigger');
   const knowsRole = trigger?.type.startsWith('twitch.chat.') || trigger?.type === 'countdown.finished';
   return knowsRole ? undefined : t('flows.step.condition.role.warning');
+}
+
+const viewerScoped = (node: FlowNode | undefined): boolean => node?.type === 'reply.var' && node.config.scope === 'viewer';
+
+const viewerlessTrigger = (flow: Flow): boolean =>
+  !targetHasViewer(flow.nodes.find((entry) => specFor(entry.type)?.kind === 'trigger')?.type);
+
+export function scopeWarning(t: Translate, flow: Flow, node: FlowNode | undefined): string | undefined {
+  return viewerScoped(node) && viewerlessTrigger(flow) ? t('flows.step.reply.varChange.scopeWarning') : undefined;
 }
 
 const known = (key: string, text: string): string => (text === key ? '' : text);
@@ -131,12 +140,19 @@ export function fieldOptions(t: Translate, spec: NodeSpec, field: FieldSpec): { 
   return field.options.map((value) => ({ value, label: optionText(t, spec, field, value) }));
 }
 
+function variantLabels(t: Translate, spec: NodeSpec, field: FieldSpec): string[] {
+  const control = spec.fields.find((entry) => entry.key === field.labelBy);
+  const values = control?.type === 'select' ? control.options : [];
+  return values.map((value) => variantCopy(t, { spec, field, node: { config: { [control!.key]: value } } }, 'label') ?? '');
+}
+
 export function fieldSearchText(t: Translate, spec: NodeSpec): string {
   return spec.fields.flatMap((field) => {
     const prefix = fieldCopyPrefix(spec, field);
     const options = field.type === 'select' ? field.options : [];
     return [
       known(`${prefix}.label`, t(`${prefix}.label` as MessageKey)),
+      ...variantLabels(t, spec, field),
       ...options.map((value) => known(`${prefix}.option.${value}`, t(`${prefix}.option.${value}` as MessageKey)))
     ];
   }).filter(Boolean).join(' ');

@@ -170,7 +170,8 @@ const TEMPLATE_FIELDS: Record<string, string[]> = {
   'reply.unban_resolve': ['resolution'],
   'reply.chat': ['message'],
   'cond.compare': ['left', 'right'],
-  'reply.var_set': ['value'],
+  'reply.var': ['value'],
+  'reply.text': ['input', 'arg1', 'arg2'],
   'reply.math': ['expression'],
   'reply.loop': ['times'],
   'reply.http_get': ['url'],
@@ -181,22 +182,36 @@ const recipeName = (v: unknown) => str(v).trim().toLowerCase();
 
 const varIdentity = (config: FlowConfig): Params => ({ scope: str(config.scope) || 'channel', name: recipeName(config.name) });
 
-export const TEXT_ARG_FIELDS = new Map<string, readonly string[]>([
-  ['replace', ['find', 'replaceWith']],
-  ['substring', ['start', 'count']],
-  ['split_pick', ['separator', 'pick']],
-  ['contains', ['needle']]
-]);
+export const TEXT_OPERAND_OPS = {
+  arg1: ['replace', 'substring', 'split_pick', 'contains', 'count'],
+  arg2: ['replace', 'substring', 'split_pick']
+} satisfies Record<string, readonly string[]>;
+
+function textFieldUsed(field: string, op: string): boolean {
+  const operands: Partial<Record<string, readonly string[]>> = TEXT_OPERAND_OPS;
+  return operands[field]?.includes(op) ?? true;
+}
 
 export const VAR_OPS_WITH_VALUE: readonly string[] = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains'];
 
 const textOp = (config: FlowConfig) => str(config.op) || 'upper';
 const varConditionOp = (config: FlowConfig) => str(config.op) || 'eq';
 
+const VARIABLE_ACTION_TYPES = new Map([
+  ['set', 'var_set'], ['add', 'var_add'], ['subtract', 'var_add'], ['forget', 'var_delete']
+]);
+
+export const variableActionType = (config: FlowConfig) => VARIABLE_ACTION_TYPES.get(str(config.do)) ?? 'var_set';
+
 function templateFields(node: FlowNode): readonly string[] {
-  if (node.type === 'reply.text') return ['input', ...TEXT_ARG_FIELDS.get(textOp(node.config)) ?? []];
-  if (node.type === 'cond.var') return VAR_OPS_WITH_VALUE.includes(varConditionOp(node.config)) ? ['value'] : [];
   const fields = TEMPLATE_FIELDS[node.type] ?? [];
+  if (node.type === 'reply.text') return fields.filter((field) => textFieldUsed(field, textOp(node.config)));
+  if (node.type === 'reply.var') return variableActionType(node.config) === 'var_set' ? fields : [];
+  if (node.type === 'cond.var') return VAR_OPS_WITH_VALUE.includes(varConditionOp(node.config)) ? ['value'] : [];
+  return targetTemplateFields(node, fields);
+}
+
+function targetTemplateFields(node: FlowNode, fields: readonly string[]): readonly string[] {
   if (!streamTargetNodes.has(node.type)) return fields;
   const legacy = usesLegacyTarget(node.config.who);
   const active = (field: string): boolean => field !== 'target' || legacy;
@@ -205,9 +220,17 @@ function templateFields(node: FlowNode): readonly string[] {
 
 function textAction(config: FlowConfig): Action {
   const op = textOp(config);
-  const [first, second] = TEXT_ARG_FIELDS.get(op) ?? [];
-  const arg = (key: string | undefined) => (key ? str(config[key]) : '');
-  return { type: 'text', params: { op, input: str(config.input), arg1: arg(first), arg2: arg(second), save_as: recipeName(config.saveAs) } };
+  const operand = (key: keyof typeof TEXT_OPERAND_OPS) => (textFieldUsed(key, op) ? str(config[key]) : '');
+  return { type: 'text', params: { op, input: str(config.input), arg1: operand('arg1'), arg2: operand('arg2'), save_as: recipeName(config.saveAs) } };
+}
+
+function variableAction(config: FlowConfig): Action {
+  const params = varIdentity(config);
+  const type = variableActionType(config);
+  if (type === 'var_delete') return { type, params };
+  if (type === 'var_set') return { type, params: { ...params, value: str(config.value) } };
+  const amount = num(config.amount) * (config.do === 'subtract' ? -1 : 1);
+  return { type, params: { ...params, amount } };
 }
 
 const REWARD_ENABLED = new Map<string, boolean | null>([
@@ -228,9 +251,12 @@ function withOptional(params: Params, optional: Params): Params {
 }
 
 const JSON_PATH_SEPARATOR = '.';
+const JSON_PATH_BRACKET = /\[(\d+|"[A-Za-z0-9_-]+"|'[A-Za-z0-9_-]+')\](?=\.|\[|$)/g;
 
 function jsonPathOf(config: FlowConfig): string[] | undefined {
-  const segments = str(config.jsonPath).trim().split(JSON_PATH_SEPARATOR).filter(Boolean);
+  const path = str(config.jsonPath).trim().replace(JSON_PATH_BRACKET, (_, segment: string) =>
+    `${JSON_PATH_SEPARATOR}${segment.replace(/['"]/g, '')}`);
+  const segments = path.split(JSON_PATH_SEPARATOR).filter(Boolean);
   return segments.length > 0 ? segments : undefined;
 }
 
@@ -315,10 +341,8 @@ const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   'reply.chat': (config) => ({ type: 'chat', params: { text: str(config.message) } }),
   'reply.lights': lightsAction,
   'reply.counter': (config) => ({ type: 'counter_add', params: { name: str(config.counter), amount: 1 } }),
-  'reply.wait': (config) => ({ type: 'delay', params: { ms: num(config.seconds) * 1000 } }),
-  'reply.var_set': (config) => ({ type: 'var_set', params: { ...varIdentity(config), value: str(config.value) } }),
-  'reply.var_add': (config) => ({ type: 'var_add', params: { ...varIdentity(config), amount: num(config.amount) } }),
-  'reply.var_delete': (config) => ({ type: 'var_delete', params: varIdentity(config) }),
+  'reply.wait': (config) => ({ type: 'delay', params: { ms: Math.round(num(config.seconds) * 1000) } }),
+  'reply.var': variableAction,
   'reply.text': textAction,
   'reply.math': (config) => ({ type: 'math', params: { expression: str(config.expression), save_as: recipeName(config.saveAs) } }),
   'reply.reward_update': rewardUpdateAction,
@@ -550,9 +574,11 @@ const waits = (list: Action[]): boolean => list.some((a) => a.type === 'delay' |
 
 const forkPauses = (paths: Action[][]) => paths.length > 1 && paths.some(waits);
 
-function fork(paths: Action[][]): Action[] {
+function fork(ctx: Lowering, paths: Action[][], source: FlowNode['id'] | undefined): Action[] {
   if (paths.length < 2) return paths[0] ?? [];
-  return [{ type: 'parallel', params: { branches: paths.map((actions) => ({ weight: 1, actions })) } }];
+  const branches = paths.map((actions) => ({ weight: 1, actions }));
+  if (source !== undefined) ctx.owners.set(branches, source);
+  return [{ type: 'parallel', params: { branches } }];
 }
 
 function lowerRest(ctx: Lowering, joins: string[], stop: Stops): Action[] {
@@ -560,7 +586,7 @@ function lowerRest(ctx: Lowering, joins: string[], stop: Stops): Action[] {
   return open.length > 0 ? lowerEntries(ctx, open, stop) : [];
 }
 
-function lowerEntries(ctx: Lowering, entries: string[], stop: Stops): Action[] {
+function lowerEntries(ctx: Lowering, entries: string[], stop: Stops, source?: FlowNode['id']): Action[] {
   entries = entries.filter((id) => !stop.has(id));
   if (entries.length === 1) return lowerFrom(ctx, entries[0]!, stop);
   const joins = commonJoins(ctx, entries);
@@ -568,12 +594,13 @@ function lowerEntries(ctx: Lowering, entries: string[], stop: Stops): Action[] {
   const paths = entries.map((id) => lowerFrom(ctx, id, bound)).filter((path) => path.length > 0);
   const anchor = joins[0] ?? [...stop][0];
   if (anchor && forkPauses(paths)) ctx.issues.push({ path: nodePath(anchor), code: FLOW_ISSUE.unstructuredMerge });
-  return [...fork(paths), ...lowerRest(ctx, joins, stop)];
+  return [...fork(ctx, paths, source), ...lowerRest(ctx, joins, stop)];
 }
 
 function lowerFrom(ctx: Lowering, id: string, stop: Stops): Action[] {
   const actions: Action[] = [];
   let entries = [id];
+  let source = id;
   while (entries.length === 1) {
     const current = entries[0]!;
     if (stop.has(current) || !visit(ctx, current)) return actions;
@@ -581,9 +608,10 @@ function lowerFrom(ctx: Lowering, id: string, stop: Stops): Action[] {
     const control = controlActions(ctx, node, stop);
     if (control) return actions.concat(control);
     actions.push(writeAction(ctx, node));
+    source = current;
     entries = targets(ctx, current, 'next');
   }
-  return actions.concat(lowerEntries(ctx, entries, stop));
+  return actions.concat(lowerEntries(ctx, entries, stop, source));
 }
 
 function controlActions(ctx: Lowering, node: FlowNode, stop: Stops): Action[] | null {
@@ -599,7 +627,7 @@ function lowerArms(ctx: Lowering, node: FlowNode, ports: readonly [string, strin
   const second = targets(ctx, node.id, ports[1]);
   const joins = armJoins(ctx, first, second);
   const bound = extended(stop, joins);
-  return { first: lowerEntries(ctx, first, bound), second: lowerEntries(ctx, second, bound), rest: lowerRest(ctx, joins, stop) };
+  return { first: lowerEntries(ctx, first, bound, node.id), second: lowerEntries(ctx, second, bound, node.id), rest: lowerRest(ctx, joins, stop) };
 }
 
 function lowerBranch(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
@@ -637,13 +665,15 @@ function leadingGate(ctx: Lowering, entries: string[]): FlowNode | null {
 
 function lowerRoot(ctx: Lowering, trigger: FlowNode): { conditions: Condition[]; actions: Action[] } {
   const conditions: Condition[] = [];
+  let source = trigger.id;
   let entries = targets(ctx, trigger.id, 'next');
   for (let gate = leadingGate(ctx, entries); gate; gate = leadingGate(ctx, entries)) {
     visit(ctx, gate.id);
     conditions.push(writeCondition(ctx, gate));
+    source = gate.id;
     entries = targets(ctx, gate.id, 'yes');
   }
-  return { conditions, actions: lowerEntries(ctx, entries, NO_STOPS) };
+  return { conditions, actions: lowerEntries(ctx, entries, NO_STOPS, source) };
 }
 
 function assembled(flow: Flow, trigger: Trigger, conditions: Condition[], actions: Action[]): Definition {
@@ -694,16 +724,27 @@ export function compileFlow(flow: Flow): FlowResult<{ definition: Definition; no
   return { ok: true, value: { definition: result.value, nodeByPath } };
 }
 
-type StepPaths = { byPath: Map<string, string>; lastDelay: string | null };
+type StepPaths = { byPath: Map<string, string>; forks: Map<string, string>; lastDelay: string | null };
+
+const NESTED_OWNERS = [
+  { param: 'condition', map: 'byPath' },
+  { param: 'branches', map: 'forks' }
+] as const;
+
+function recordStep(owners: Map<object, string>, action: Action, path: string, into: StepPaths): void {
+  const id = owners.get(action);
+  if (id) into.byPath.set(path, id);
+  if (id && action.type === 'delay') into.lastDelay = id;
+  for (const { param, map } of NESTED_OWNERS) {
+    const owner = owners.get(action.params?.[param] as object);
+    if (owner) into[map].set(`${path}.params.${param}`, owner);
+  }
+}
 
 function walkSteps(owners: Map<object, string>, list: Action[], base: string, into: StepPaths): void {
   list.forEach((action, i) => {
     const path = `${base}[${i}]`;
-    const id = owners.get(action);
-    if (id) into.byPath.set(path, id);
-    if (id && action.type === 'delay') into.lastDelay = id;
-    const gate = action.type === 'if' ? owners.get(action.params?.condition as object) : undefined;
-    if (gate) into.byPath.set(`${path}.params.condition`, gate);
+    recordStep(owners, action, path, into);
     for (const arm of armsOf(action)) walkSteps(owners, arm.list, `${path}.params.${arm.key}`, into);
   });
 }
@@ -730,7 +771,7 @@ export function flowStepRefs(flow: Flow): FlowStepRef[] {
 }
 
 function stepPaths(definition: Definition, owners: Map<object, string>): StepPaths {
-  const into: StepPaths = { byPath: new Map(), lastDelay: null };
+  const into: StepPaths = { byPath: new Map(), forks: new Map(), lastDelay: null };
   (definition.conditions ?? []).forEach((condition, i) => {
     const id = owners.get(condition);
     if (id) into.byPath.set(`conditions[${i}]`, id);
@@ -748,6 +789,8 @@ function deepestStep(path: string, found: StepPaths): string {
 function locateIssue(issue: Issue, found: StepPaths): Issue {
   const budget = issue.path === 'actions' && issue.code === CODE.delayBudget;
   if (budget && found.lastDelay) return { path: nodePath(found.lastDelay), code: issue.code };
+  const source = issue.code === CODE.tooMany ? found.forks.get(issue.path) : undefined;
+  if (source) return { path: nodePath(source), code: issue.code };
   const key = deepestStep(issue.path, found);
   if (!key) return issue;
   return { path: `${nodePath(found.byPath.get(key)!)}${issue.path.slice(key.length)}`, code: issue.code };
@@ -913,12 +956,17 @@ function lightsNode(params: Params): { type: string; config: FlowConfig } | null
 }
 
 function textNode(params: Params): { type: string; config: FlowConfig } {
-  const op = str(params.op);
-  const config: FlowConfig = { op, input: str(params.input), saveAs: str(params.save_as) };
-  const [first, second] = TEXT_ARG_FIELDS.get(op) ?? [];
-  if (first) config[first] = str(params.arg1);
-  if (second) config[second] = str(params.arg2);
-  return { type: 'reply.text', config };
+  return { type: 'reply.text', config: {
+    op: str(params.op), input: str(params.input), arg1: str(params.arg1), arg2: str(params.arg2), saveAs: str(params.save_as)
+  } };
+}
+
+function variableNode(params: Params, change: 'set' | 'add' | 'forget'): { type: string; config: FlowConfig } {
+  const config = { ...varConfig(params), do: change, amount: 1 };
+  if (change === 'set') return { type: 'reply.var', config: { ...config, value: str(params.value) } };
+  if (change === 'forget') return { type: 'reply.var', config };
+  const amount = num(params.amount);
+  return { type: 'reply.var', config: { ...config, do: amount < 0 ? 'subtract' : 'add', amount: Math.abs(amount) } };
 }
 
 function rewardEnabledChoice(enabled: unknown): string {
@@ -945,9 +993,9 @@ const ACTION_READERS: Record<string, (params: Params) => { type: string; config:
   lights: lightsNode,
   counter_add: (params) => (num(params.amount) === 1 ? { type: 'reply.counter', config: { counter: str(params.name) } } : null),
   delay: (params) => ({ type: 'reply.wait', config: { seconds: num(params.ms) / 1000 } }),
-  var_set: (params) => ({ type: 'reply.var_set', config: { ...varConfig(params), value: str(params.value) } }),
-  var_add: (params) => ({ type: 'reply.var_add', config: { ...varConfig(params), amount: num(params.amount) } }),
-  var_delete: (params) => ({ type: 'reply.var_delete', config: varConfig(params) }),
+  var_set: (params) => variableNode(params, 'set'),
+  var_add: (params) => variableNode(params, 'add'),
+  var_delete: (params) => variableNode(params, 'forget'),
   text: textNode,
   math: (params) => ({ type: 'reply.math', config: { expression: str(params.expression), saveAs: str(params.save_as) } }),
   reward_update: rewardUpdateNode,

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES, TEXT_ARG_FIELDS, type Issue } from '@bagel/kit/automations';
+import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES, variableActionType, type Issue } from '@bagel/kit/automations';
 import { specFor, targetFieldFor, targetMode, type FlowNode } from './model';
 import { configText } from './setup';
 
@@ -40,7 +40,6 @@ function fieldKeyFor(node: FlowNode, path: IssuePath): FieldKey | undefined {
 }
 
 function parameterField(node: FlowNode, param: FieldKey): FieldKey | undefined {
-  if (isTextArgument(node, param)) return TEXT_ARG_FIELDS.get(String(node.config.op))?.[Number(param.slice(-1)) - 1];
   const override = NODE_FIELDS[node.type]?.[param];
   if (override) return override;
   if (param === 'login') return loginField(node);
@@ -50,10 +49,6 @@ function parameterField(node: FlowNode, param: FieldKey): FieldKey | undefined {
 function loginField(node: FlowNode): FieldKey {
   if (node.config.who === 'user') return 'login';
   return specFor(node.type)?.fields.some((field) => field.key === 'target') ? 'target' : 'login';
-}
-
-function isTextArgument(node: FlowNode, param: FieldKey): boolean {
-  return node.type === 'reply.text' && /^arg[12]$/.test(param);
 }
 
 export function fieldIssues(issues: readonly Issue[], nodes: readonly FlowNode[]): FieldIssue[] {
@@ -109,7 +104,7 @@ function builderRule(node: FlowNode, key: FieldKey): boolean | undefined {
 }
 
 function catalogRequires(node: FlowNode, key: FieldKey): boolean {
-  const type = TYPES[node.type] ?? node.type.split('.').slice(1).join('.');
+  const type = node.type === 'reply.var' ? variableActionType(node.config) : TYPES[node.type] ?? node.type.split('.').slice(1).join('.');
   const catalog = [...TRIGGER_TYPES, ...CONDITION_TYPES, ...ACTION_TYPES].find((item) => item.type === type);
   return catalog?.fields.some((field) => field.required && fieldKeyFor(node, field.name) === key) ?? false;
 }

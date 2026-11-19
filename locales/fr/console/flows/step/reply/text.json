@@ -13,7 +13,8 @@
         "substring": "Extraire une sous-chaîne",
         "split_pick": "Séparer et en choisir un",
         "contains": "Vérifier s’il contient",
-        "url_encode": "Encoder pour une URL"
+        "url_encode": "Encoder pour une URL",
+        "count": "Compter les éléments"
       }
     },
     "input": {
@@ -45,6 +46,37 @@
     "saveAs": {
       "label": "Enregistrer sous",
       "placeholder": "propre"
+    },
+    "arg1": {
+      "label": "Première valeur",
+      "replace": {
+        "label": "Rechercher"
+      },
+      "substring": {
+        "label": "Ignorer"
+      },
+      "split_pick": {
+        "label": "Séparer sur"
+      },
+      "contains": {
+        "label": "Rechercher le texte"
+      },
+      "count": {
+        "label": "Séparer sur"
+      }
+    },
+    "arg2": {
+      "label": "Deuxième valeur",
+      "replace": {
+        "label": "Remplacer par"
+      },
+      "substring": {
+        "label": "Conserver"
+      },
+      "split_pick": {
+        "label": "Choisir",
+        "placeholder": "1, -1 pour le dernier ou random"
+      }
     }
   }
 }

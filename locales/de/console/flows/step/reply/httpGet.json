@@ -8,7 +8,8 @@
     },
     "jsonPath": {
       "label": "JSON-Pfad",
-      "placeholder": "data.value"
+      "placeholder": "data.items.0.name",
+      "hint": "Trenne Schlüssel mit Punkten. Eckige Klammern gehen auch."
     },
     "saveAs": {
       "label": "Speichern als",

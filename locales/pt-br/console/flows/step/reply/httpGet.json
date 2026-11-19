@@ -8,7 +8,8 @@
     },
     "jsonPath": {
       "label": "Caminho JSON",
-      "placeholder": "data.value"
+      "placeholder": "data.items.0.name",
+      "hint": "Separe as chaves com pontos. Colchetes também funcionam."
     },
     "saveAs": {
       "label": "Salvar como",

@@ -58,8 +58,9 @@
     "summary": "Пауза перед следующим шагом",
     "field": {
       "seconds": {
-        "label": "Задержка",
-        "unit": "секунд, макс. {max}"
+        "label": "Ждать в течение",
+        "unit": "секунд, макс. {max}",
+        "hint": "Общая длительность всех пауз за один запуск не превышает 60 секунд."
       }
     }
   },
@@ -69,7 +70,8 @@
     "field": {
       "times": {
         "label": "Сколько раз",
-        "placeholder": "3"
+        "placeholder": "3",
+        "hint": "От 1 до 100. Можно использовать переменную, например {args}."
       }
     },
     "out": {
@@ -141,7 +143,8 @@
     "field": {
       "expression": {
         "label": "Выражение",
-        "placeholder": "({bits} / 100) + 1"
+        "placeholder": "random(1, 6) * 10",
+        "hint": "Используйте + - * / % ^ и функции round, floor, ceil, abs, min, max и random(a, b)."
       },
       "saveAs": {
         "label": "Сохранить как",

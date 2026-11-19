@@ -1,0 +1,42 @@
+{
+  "label": "Alterar uma variável",
+  "summary": "Guardar, atualizar ou apagar um valor",
+  "keywords": "armazenar salvar lembrar contador definir adicionar apagar esquecer",
+  "scopeWarning": "Este gatilho não tem espectador. Escolha O canal para alterar uma variável aqui.",
+  "line": {
+    "set": "Definir {name} como {value}",
+    "add": "Somar {amount} a {name}",
+    "subtract": "Subtrair {amount} de {name}",
+    "forget": "Esquecer {name}"
+  },
+  "field": {
+    "do": {
+      "label": "Ação",
+      "option": {
+        "set": "Definir como",
+        "add": "Somar",
+        "subtract": "Subtrair",
+        "forget": "Esquecer"
+      }
+    },
+    "scope": {
+      "label": "Guardar para",
+      "option": {
+        "channel": "O canal",
+        "viewer": "Este espectador"
+      }
+    },
+    "name": {
+      "label": "Nome",
+      "placeholder": "deaths",
+      "hint": "Uma palavra em minúsculas. Pode conter letras e dígitos."
+    },
+    "value": {
+      "label": "Valor",
+      "placeholder": "{user}"
+    },
+    "amount": {
+      "label": "Quantidade"
+    }
+  }
+}

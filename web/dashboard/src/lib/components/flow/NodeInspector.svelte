@@ -20,9 +20,9 @@
   import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import DurationField from '#lib/components/shared/DurationField.svelte';
-  import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, stepLabel, stepRequirementFor, stepSummary, targetOptions, variableLabel } from '#lib/flow/copy';
+  import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, scopeWarning, stepLabel, stepRequirementFor, stepSummary, targetOptions, variableLabel } from '#lib/flow/copy';
   import { defaultComparison } from '#lib/flow/comparison';
-  import { fieldMounted, fieldVisible, NODE_SPECS, outputsFor, specFor, targetFieldFor, targetModesFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
+  import { fieldMounted, fieldVisible, NODE_SPECS, outputsFor, specFor, storedVariable, targetFieldFor, targetModesFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
   import { duplicateNode, hasCheckBefore, insertCheckBefore } from '#lib/flow/ops';
   import { descendants, graphIndex, portKey } from '#lib/flow/graph-index';
   import { awaitingSetup, configText } from '#lib/flow/setup';
@@ -95,7 +95,8 @@
   const incoming = $derived(node ? graphIndex(flow).incoming.get(node.id) ?? [] : []);
   const addedCheck = $derived(roleLevel ? hasCheckBefore(flow, node?.id ?? '', roleLevel) : false);
   const removeCheck = $derived(roleWarning(t, flow, node));
-  const roleNote = $derived(requirement ? requirementText(t, requirement, addedCheck ? 'start' : 'note') : removeCheck);
+  const roleNote = $derived(requirement ? requirementText(t, requirement, addedCheck ? 'start' : 'note') : removeCheck ?? scopeWarning(t, flow, node));
+  const variableToken = $derived(node?.type === 'reply.var' ? storedVariable(node.config)[0]?.token : undefined);
   const canAddCheck = $derived(roleLevel ? incoming.length > 0 && !addedCheck : false);
   const checkAction = $derived(canAddCheck || Boolean(removeCheck));
   const automaticComparisons = new Map<FlowNode['id'], boolean>();
@@ -353,6 +354,7 @@
                   type="number"
                   min={field.min}
                   max={field.max}
+                  step={field.step}
                   value={node.config[field.key] === undefined ? '' : Number(node.config[field.key])}
                   oninput={(e) => {
                     const raw = e.currentTarget.value;
@@ -453,6 +455,11 @@
             {/if}
             {#if hint}
               <small class="bb-field__hint bb-fit-box field-hint"><bb-fit mode="block">{hint}</bb-fit></small>
+            {/if}
+            {#if node.type === 'reply.var' && field.key === 'name'}
+              <div class="variable-preview" class:faded={!variableToken} aria-hidden={!variableToken}>
+                <VarCard token={variableToken ?? '\u00a0'} title={variableToken} />
+              </div>
             {/if}
             </fieldset>
           {/each}
@@ -687,6 +694,7 @@
     height: 84px;
   }
   .role-note,
+  .variable-preview,
   .check-action { transition: opacity 0.15s ease; }
   .check-action {
     display: flex;

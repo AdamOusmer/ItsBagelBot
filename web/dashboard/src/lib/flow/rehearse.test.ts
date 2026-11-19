@@ -180,7 +180,7 @@ test.each([
 test.each([
   { node: n('s', 'reply.shoutout', { target: '{touser}' }), text: 'Shoutout to Sender' },
   { node: n('s', 'reply.text', { op: 'upper', input: '{user}', saveAs: 'result' }), text: 'SENDER' },
-  { node: n('s', 'reply.var_set', { name: 'name', scope: 'channel', value: 'Hi {user}' }), text: 'Set name to Hi Sender' },
+  { node: n('s', 'reply.var', { do: 'set', name: 'name', scope: 'channel', value: 'Hi {user}' }), text: 'Set name to Hi Sender' },
   { node: n('s', 'reply.http_get', { url: 'https://example.com/{user}', saveAs: 'result' }), text: 'https://example.com/Sender' }
 ])('effect descriptions show rehearsal values for $node.type', ({ node, text }) => {
   const flow = flowOf([trigger, node], [e('t', 'next', 's')]);
@@ -224,7 +224,7 @@ test.each([
     ids: ['t', 's'], found: ['s', 'failed', 'Add at least two poll choices.', [['too_short', 'choices']]] },
   { name: 'lights without a device', flow: afterTrigger(trigger, n('s', 'reply.lights', { mode: 'color' })),
     ids: ['t', 's'], found: ['s', 'failed', 'Light is missing.', [['required', 'device'], ['required', 'device']]] },
-  { name: 'variable with a blank amount', flow: afterTrigger(trigger, n('s', 'reply.var_add', { name: 'score', scope: 'channel', amount: '' })),
+  { name: 'variable with a blank amount', flow: afterTrigger(trigger, n('s', 'reply.var', { do: 'add', name: 'score', scope: 'channel', amount: '' })),
     ids: ['t', 's'], found: ['s', 'failed', 'A number is outside the allowed range.', [['out_of_range', 'amount']]] },
   { name: 'total delay exceeds the save limit',
     flow: flowOf([trigger, n('w', 'reply.wait', { seconds: 40 }), n('s', 'reply.wait', { seconds: 40 })], [e('t', 'next', 'w'), e('w', 'next', 's')]),

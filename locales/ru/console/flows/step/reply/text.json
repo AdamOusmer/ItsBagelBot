@@ -13,7 +13,8 @@
         "substring": "Извлечь подстроку",
         "split_pick": "Разделить и выбрать",
         "contains": "Проверить, содержит ли",
-        "url_encode": "Кодировать для URL"
+        "url_encode": "Кодировать для URL",
+        "count": "Посчитать элементы"
       }
     },
     "input": {
@@ -45,6 +46,37 @@
     "saveAs": {
       "label": "Сохранить как",
       "placeholder": "cleaned"
+    },
+    "arg1": {
+      "label": "Первое значение",
+      "replace": {
+        "label": "Найти"
+      },
+      "substring": {
+        "label": "Пропустить"
+      },
+      "split_pick": {
+        "label": "Разделить по"
+      },
+      "contains": {
+        "label": "Искать текст"
+      },
+      "count": {
+        "label": "Разделить по"
+      }
+    },
+    "arg2": {
+      "label": "Второе значение",
+      "replace": {
+        "label": "Заменить на"
+      },
+      "substring": {
+        "label": "Оставить"
+      },
+      "split_pick": {
+        "label": "Выбрать",
+        "placeholder": "1, -1 для последнего или random"
+      }
     }
   }
 }

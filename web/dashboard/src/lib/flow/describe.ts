@@ -156,27 +156,6 @@ function lightsLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   return given(optionLabel(t, spec, n, 'scene'), (scene) => t('flows.line.lightsScene', { light, scene }));
 }
 
-function varAddLine(t: Translate, n: FlowNode): string {
-  const name = text(n, 'name');
-  const amount = Number(n.config.amount) || 0;
-  if (!name || amount === 0) return '';
-  return amount > 0 ? t('flows.line.varAdd', { name, amount }) : t('flows.line.varTake', { name, amount: -amount });
-}
-
-function varLine(t: Translate, n: FlowNode): string {
-  const name = text(n, 'name');
-  switch (n.type) {
-    case 'reply.var_set':
-      return given(name, (shown) => t('flows.line.varSet', { name: shown, value: text(n, 'value') }));
-    case 'reply.var_add':
-      return varAddLine(t, n);
-    case 'reply.var_delete':
-      return given(name, (shown) => t('flows.line.varDelete', { name: shown }));
-    default:
-      return '';
-  }
-}
-
 function dataLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   switch (n.type) {
     case 'reply.text':
@@ -189,7 +168,7 @@ function dataLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
     case 'reply.http_post':
       return text(n, 'url');
     default:
-      return varLine(t, n);
+      return '';
   }
 }
 
