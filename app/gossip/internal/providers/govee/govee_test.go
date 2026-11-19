@@ -49,21 +49,43 @@ const deviceListBody = `{
 	]
 }`
 
-func TestDevicesParsesAndFlagsColor(t *testing.T) {
-	var gotKey string
-	p := newProvider(t, fakeKeys{key: "k-123"}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/router/api/v1/user/devices", r.URL.Path)
-		gotKey = r.Header.Get("Govee-API-Key")
-		_, _ = io.WriteString(w, deviceListBody)
-	}))
+func TestDevicesReportsCapabilities(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		data string
+		want gossiprpc.GoveeDevice
+	}{
+		{"RGB strip", `{"sku":"H6159","device":"AB:CD:EF","deviceName":"Desk strip","capabilities":[
+			{"type":"devices.capabilities.on_off","instance":"powerSwitch"},
+			{"type":"devices.capabilities.range","instance":"brightness"},
+			{"type":"devices.capabilities.color_setting","instance":"colorRgb"},
+			{"type":"devices.capabilities.color_setting","instance":"colorTemperatureK","parameters":{"range":{"min":2000,"max":9000}}}
+		]}`, gossiprpc.GoveeDevice{Device: "AB:CD:EF", SKU: "H6159", Name: "Desk strip", Power: true, Brightness: true, Color: true, KelvinMin: 2000, KelvinMax: 9000}},
+		{"white bulb", `{"sku":"H6008","device":"22:33:44","deviceName":"White bulb","capabilities":[
+			{"type":"devices.capabilities.on_off","instance":"powerSwitch"},
+			{"type":"devices.capabilities.range","instance":"brightness"},
+			{"type":"devices.capabilities.color_setting","instance":"colorTemperatureK","parameters":{"range":{"min":2700,"max":6500}}}
+		]}`, gossiprpc.GoveeDevice{Device: "22:33:44", SKU: "H6008", Name: "White bulb", Power: true, Brightness: true, KelvinMin: 2700, KelvinMax: 6500}},
+		{"plug", `{"sku":"H5081","device":"11:22:33","deviceName":"Smart plug","capabilities":[
+			{"type":"devices.capabilities.on_off","instance":"powerSwitch"}
+		]}`, gossiprpc.GoveeDevice{Device: "11:22:33", SKU: "H5081", Name: "Smart plug", Power: true}},
+		{"existing device without light controls", `{"sku":"H5075","device":"33:44:55","deviceName":"Thermometer","capabilities":[
+			{"type":"devices.capabilities.range","instance":"temperature","parameters":{"range":{"min":-4.5,"max":40.5}}}
+		]}`,
+			gossiprpc.GoveeDevice{Device: "33:44:55", SKU: "H5075", Name: "Thermometer"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newProvider(t, fakeKeys{key: "k-123"}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "/router/api/v1/user/devices", r.URL.Path)
+				assert.Equal(t, "k-123", r.Header.Get("Govee-API-Key"))
+				_, _ = io.WriteString(w, `{"code":200,"data":[`+tc.data+`]}`)
+			}))
 
-	reply := providertest.Call[gossiprpc.GoveeDevicesReply](t, p, "devices", gossiprpc.Request{ChannelID: "2"})
+			reply := providertest.Call[gossiprpc.GoveeDevicesReply](t, p, "devices", gossiprpc.Request{ChannelID: "2"})
 
-	assert.Equal(t, "k-123", gotKey, "the broadcaster's key must ride the header")
-	assert.Equal(t, []gossiprpc.GoveeDevice{
-		{Device: "AB:CD:EF", SKU: "H6159", Name: "Desk strip", Color: true},
-		{Device: "11:22:33", SKU: "H5081", Name: "Smart plug"},
-	}, reply.Devices)
+			assert.Equal(t, gossiprpc.GoveeDevicesReply{Devices: []gossiprpc.GoveeDevice{tc.want}}, reply)
+		})
+	}
 }
 
 func TestDevicesFreshBypassesCache(t *testing.T) {
@@ -77,31 +99,43 @@ func TestDevicesFreshBypassesCache(t *testing.T) {
 	assert.Equal(t, 2, upstream.Hits())
 }
 
-func TestControlPowersOnThenSetsColor(t *testing.T) {
-	var bodies []map[string]any
-	var gotKey string
-	var mu sync.Mutex
-	p := newProvider(t, fakeKeys{key: "k-9"}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/router/api/v1/device/control", r.URL.Path)
-		assert.Equal(t, http.MethodPost, r.Method)
-		b, _ := io.ReadAll(r.Body)
-		var body map[string]any
-		require.NoError(t, codec.Unmarshal(b, &body))
-		mu.Lock()
-		gotKey = r.Header.Get("Govee-API-Key")
-		bodies = append(bodies, body)
-		mu.Unlock()
-		_, _ = io.WriteString(w, `{"code":200,"message":"success"}`)
-	}))
+func TestControlLooks(t *testing.T) {
+	scene := &gossiprpc.GoveeScene{Type: "devices.capabilities.dynamic_scene", Instance: "lightScene", Value: codec.RawMessage(`3054`)}
+	on := lightCapability{"devices.capabilities.on_off", "powerSwitch", 1}
+	off := lightCapability{"devices.capabilities.on_off", "powerSwitch", 0}
+	for _, tc := range []struct {
+		name  string
+		req   gossiprpc.Request
+		steps []lightCapability
+		want  gossiprpc.GoveeControlReply
+	}{
+		{"reward power off", gossiprpc.Request{PowerOff: true}, []lightCapability{off}, gossiprpc.GoveeControlReply{OK: true}},
+		{"reward colour", gossiprpc.Request{ColorRGB: 0x00CCFF}, []lightCapability{on, {"devices.capabilities.color_setting", "colorRgb", 0x00CCFF}}, gossiprpc.GoveeControlReply{OK: true}},
+		{"keep look", gossiprpc.Request{KeepLook: true, ColorRGB: -1}, []lightCapability{on}, gossiprpc.GoveeControlReply{OK: true}},
+		{"keep look and brightness", gossiprpc.Request{KeepLook: true, Brightness: 40}, []lightCapability{on, {"devices.capabilities.range", "brightness", 40}}, gossiprpc.GoveeControlReply{OK: true}},
+		{"Kelvin and brightness", gossiprpc.Request{Kelvin: 4000, Brightness: 80, ColorRGB: -1}, []lightCapability{on, {"devices.capabilities.color_setting", "colorTemperatureK", 4000}, {"devices.capabilities.range", "brightness", 80}}, gossiprpc.GoveeControlReply{OK: true}},
+		{"scene and brightness", gossiprpc.Request{Scene: scene, Brightness: 70, ColorRGB: -1}, []lightCapability{on, {scene.Type, scene.Instance, 3054}, {"devices.capabilities.range", "brightness", 70}}, gossiprpc.GoveeControlReply{OK: true, SceneApplied: true}},
+		{"Kelvin below minimum", gossiprpc.Request{Kelvin: 1500}, nil, gossiprpc.GoveeControlReply{Error: "colour temperature out of range"}},
+		{"brightness above maximum", gossiprpc.Request{Brightness: 101}, nil, gossiprpc.GoveeControlReply{Error: "brightness out of range"}},
+		{"power off with brightness", gossiprpc.Request{PowerOff: true, Brightness: 50}, nil, gossiprpc.GoveeControlReply{Error: "power off cannot be combined with a look"}},
+		{"scene and Kelvin", gossiprpc.Request{Scene: scene, Kelvin: 4000}, nil, gossiprpc.GoveeControlReply{Error: "pick one look"}},
+		{"Kelvin and keep look", gossiprpc.Request{Kelvin: 4000, KeepLook: true}, nil, gossiprpc.GoveeControlReply{Error: "pick one look"}},
+		{"colour out of range", gossiprpc.Request{ColorRGB: 0x1000000}, nil, gossiprpc.GoveeControlReply{Error: "colour out of range"}},
+		{"hold too long", gossiprpc.Request{HoldS: 61, HoldID: "flash"}, nil, gossiprpc.GoveeControlReply{Error: "hold out of range"}},
+		{"hold id is blank", gossiprpc.Request{HoldS: 5, HoldID: " "}, nil, gossiprpc.GoveeControlReply{Error: "missing hold id"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := &lightUpstream{t: t}
+			p := newProvider(t, fakeKeys{key: "k"}, upstream)
+			req := tc.req
+			req.ChannelID, req.Device, req.SKU = "2", "AB:CD:EF", "H6159"
 
-	reply := providertest.Call[gossiprpc.GoveeControlReply](t, p, "control",
-		gossiprpc.Request{ChannelID: "2", Device: "AB:CD:EF", SKU: "H6159", ColorRGB: 0x00CCFF})
+			reply := providertest.Call[gossiprpc.GoveeControlReply](t, p, "control", req)
 
-	require.True(t, reply.OK)
-	assert.Equal(t, "k-9", gotKey)
-	require.Len(t, bodies, 2, "control is power-on then colour")
-	assert.Equal(t, map[string]any{"type": "devices.capabilities.on_off", "instance": "powerSwitch", "value": float64(1)}, capabilityOf(t, bodies[0]))
-	assert.Equal(t, map[string]any{"type": "devices.capabilities.color_setting", "instance": "colorRgb", "value": float64(0x00CCFF)}, capabilityOf(t, bodies[1]))
+			assert.Equal(t, tc.want, reply)
+			assert.Equal(t, lightRequests(req, tc.steps...), upstream.requests())
+		})
+	}
 }
 
 func TestRequestsThatCannotBeServedExplainWhyAndOnlyDialWhenTheyShould(t *testing.T) {
