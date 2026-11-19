@@ -82,5 +82,7 @@
   "choices": "Opções (uma por linha)",
   "outcomes": "Resultados (um por linha)",
   "winner": "Número do resultado vencedor",
-  "resolution": "Mensagem da decisão (opcional)"
+  "resolution": "Mensagem da decisão (opcional)",
+  "paused": "Pausada",
+  "cooldown_s": "Intervalo global (s)"
 }

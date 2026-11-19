@@ -132,6 +132,8 @@ func TestRewardUpdateStepEmitsOutgressAction(t *testing.T) {
 		act("reward_update", obj{"reward_id": "rw-1", "enabled": false, "cost": 50, "reset_on_stream_end": true}),
 		act("reward_update", obj{"reward_id": "rw-2", "enabled": nil, "cost": 75, "reset_on_stream_end": false}),
 		act("reward_update", obj{"reward_id": "rw-3", "enabled": true, "cost": nil}),
+		act("reward_update", obj{"reward_id": "rw-4", "paused": true, "cooldown_s": 60}),
+		act("reward_update", obj{"reward_id": "rw-5", "paused": false, "cooldown_s": 0}),
 	))
 
 	rec := fx.run(t, "main", "req-reward", nil)
@@ -141,6 +143,8 @@ func TestRewardUpdateStepEmitsOutgressAction(t *testing.T) {
 		`reward_update reward=rw-1 {"enabled":false,"cost":50,"reset_on_stream_end":true}`,
 		`reward_update reward=rw-2 {"cost":75}`,
 		`reward_update reward=rw-3 {"enabled":true}`,
+		`reward_update reward=rw-4 {"paused":true,"global_cooldown_seconds":60}`,
+		`reward_update reward=rw-5 {"paused":false,"global_cooldown_seconds":0}`,
 	}, fx.described(t))
 }
 

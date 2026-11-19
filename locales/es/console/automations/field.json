@@ -82,5 +82,7 @@
   "choices": "Opciones (una por línea)",
   "outcomes": "Resultados (uno por línea)",
   "winner": "Número del resultado ganador",
-  "resolution": "Mensaje de resolución (opcional)"
+  "resolution": "Mensaje de resolución (opcional)",
+  "paused": "En pausa",
+  "cooldown_s": "Enfriamiento global (s)"
 }

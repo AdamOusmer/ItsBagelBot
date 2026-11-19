@@ -14,6 +14,7 @@ import {
   MAX_EXTRA_LIGHTS,
   MAX_FETCH_URL_LENGTH,
   MAX_POINTS_AMOUNT,
+  MAX_REWARD_COOLDOWN,
   MAX_REWARD_COST,
   MAX_TEMPLATE_LENGTH,
   MAX_VARIABLE_AMOUNT,
@@ -132,12 +133,11 @@ function checkMath(c: Chk, p: Wide<T.MathAction>): void {
 
 const REWARD_ID_PATTERN = /^[A-Za-z0-9-]+$/;
 
-type RewardUpdateFields = { reward_id: string; enabled: boolean | null; cost: number | null };
-
-function checkRewardUpdate(c: Chk, p: RewardUpdateFields): void {
+function checkRewardUpdate(c: Chk, p: Wide<T.RewardUpdateAction>): void {
   if (c.text('reward_id', p.reward_id, 1, 64) && !REWARD_ID_PATTERN.test(p.reward_id)) c.add('reward_id', CODE.invalidFormat);
-  if (p.enabled === null && p.cost === null) c.add('enabled', CODE.required);
+  if ([p.enabled, p.cost, p.paused, p.cooldown_s].every((change) => change === null)) c.add('enabled', CODE.required);
   if (p.cost !== null) c.inRange('cost', p.cost, 1, MAX_REWARD_COST);
+  if (p.cooldown_s !== null) c.inRange('cooldown_s', p.cooldown_s, 0, MAX_REWARD_COOLDOWN);
 }
 
 function jsonParses(text: string): boolean {
@@ -217,8 +217,8 @@ export const SIMPLE_ACTIONS: Table = {
   var_delete: register<Wide<T.VarDeleteAction>>({ scope: 'string', name: 'string' }, checkVarIdentity),
   text: register<Wide<T.TextStepAction>>({ op: 'string', input: 'string', arg1: 'string', arg2: 'string', save_as: 'string' }, checkTextStep),
   math: register<Wide<T.MathAction>>({ expression: 'string', save_as: 'string' }, checkMath),
-  reward_update: register<RewardUpdateFields>(
-    { reward_id: 'string', enabled: 'ptrbool', cost: 'ptrint', reset_on_stream_end: 'bool' },
+  reward_update: register<Wide<T.RewardUpdateAction>>(
+    { reward_id: 'string', enabled: 'ptrbool', cost: 'ptrint', reset_on_stream_end: 'bool', paused: 'ptrbool', cooldown_s: 'ptrint' },
     checkRewardUpdate,
   ),
   lights: register<Wide<T.LightsAction>>(

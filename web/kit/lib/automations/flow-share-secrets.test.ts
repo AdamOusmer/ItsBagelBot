@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { actionRegistry, conditionRegistry, register, triggerRegistry } from './engine';
 import { definitionToFlow, flowToDefinition } from './flow-graph';
 import { exportFlows, FLOW_FILE_FORMAT, FLOW_FILE_VERSION, planFlowImport, SETUP_LOGIN, SETUP_URL, setupGaps, SHARE_REVIEWED, SHARE_REWRITTEN, type FlowImportEntry } from './flow-share';
+import { SETUP_REWARD_ID } from './flow-setup';
 import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES } from './catalog';
 import type { Definition } from './types';
 import './validate';
@@ -439,6 +440,17 @@ describe('recipes v2 external targets never leave, at any depth', () => {
   test('a post keeps its paths and loses its body', () => {
     const entry = planned(manual([{ type: 'http_post', params: { url: `https://hooks.example.org/${LEAK}`, body: `x=${LEAK}`, on_failure: [chat('bad')] } }]));
     expect(entry.definition!.actions).toEqual([{ type: 'http_post', enabled: false, params: { url: SETUP_URL, on_failure: [chat('bad')] } }]);
+  });
+
+  test('sharing a reward update keeps resume and cooldown off', () => {
+    const definition = manual([{ type: 'reward_update', params: { reward_id: `reward-${LEAK}`, paused: false, cooldown_s: 0 } }]);
+    const want = [{
+      type: 'reward_update',
+      enabled: false,
+      params: { reward_id: SETUP_REWARD_ID, enabled: null, cost: null, reset_on_stream_end: false, paused: false, cooldown_s: 0 }
+    }];
+    expect(JSON.parse(exported(definition)).flows[0].definition.actions).toEqual(want);
+    expect(planned(definition).definition?.actions).toEqual(want);
   });
 
   test('the listed kept fields stay as written', () => {

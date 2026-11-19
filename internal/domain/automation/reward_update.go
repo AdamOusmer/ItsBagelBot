@@ -17,16 +17,27 @@ type RewardUpdateAction struct {
 	Enabled          *bool  `json:"enabled"`
 	Cost             *int   `json:"cost"`
 	ResetOnStreamEnd bool   `json:"reset_on_stream_end"`
+	Paused           *bool  `json:"paused,omitempty"`
+	CooldownS        *int   `json:"cooldown_s,omitempty"`
 }
 
 func checkRewardUpdate(c chk, p RewardUpdateAction) {
 	if c.text("reward_id", p.RewardID, nonEmpty(maxRewardIDLength)) && !rewardIDPattern.MatchString(p.RewardID) {
 		c.add("reward_id", CodeInvalidFormat)
 	}
-	if p.Enabled == nil && p.Cost == nil {
+	if !p.hasChange() {
 		c.add("enabled", CodeRequired)
 	}
 	if p.Cost != nil {
 		inRange(c, "cost", *p.Cost, between(1, maxRewardCost))
 	}
+	if p.CooldownS != nil {
+		inRange(c, "cooldown_s", *p.CooldownS, between(0, MaxRewardCooldown))
+	}
+}
+
+func (p RewardUpdateAction) hasChange() bool {
+	changesState := p.Enabled != nil || p.Paused != nil
+	changesAmount := p.Cost != nil || p.CooldownS != nil
+	return changesState || changesAmount
 }

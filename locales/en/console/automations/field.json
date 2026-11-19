@@ -82,5 +82,7 @@
   "choices": "Choices (one per line)",
   "outcomes": "Outcomes (one per line)",
   "winner": "Winning outcome number",
-  "resolution": "Resolution message (optional)"
+  "resolution": "Resolution message (optional)",
+  "paused": "Paused",
+  "cooldown_s": "Global cooldown (s)"
 }

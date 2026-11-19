@@ -167,7 +167,13 @@ func (x *actionExec) redemption(_ step, p automation.RedemptionAction) error {
 func (x *actionExec) rewardUpdate(s step, p automation.RewardUpdateAction) error {
 	o := x.out(outgress.TypeRewardUpdate)
 	o.RewardID = p.RewardID
-	o.Reward = &outgress.RewardUpdate{Enabled: p.Enabled, Cost: p.Cost, ResetOnStreamEnd: p.ResetOnStreamEnd}
+	o.Reward = &outgress.RewardUpdate{
+		Enabled:               p.Enabled,
+		Cost:                  p.Cost,
+		ResetOnStreamEnd:      p.ResetOnStreamEnd,
+		Paused:                p.Paused,
+		GlobalCooldownSeconds: p.CooldownS,
+	}
 	// Not the record's position: parallel paths and trimming both reuse positions.
 	o.RunID, o.ActionSlot = x.run.ID, s.EffectKey+x.iter
 	return x.queue(o)

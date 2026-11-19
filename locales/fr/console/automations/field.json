@@ -82,5 +82,7 @@
   "choices": "Choix (un par ligne)",
   "outcomes": "Résultats (un par ligne)",
   "winner": "Numéro du résultat gagnant",
-  "resolution": "Message de décision (facultatif)"
+  "resolution": "Message de décision (facultatif)",
+  "paused": "En pause",
+  "cooldown_s": "Délai global (s)"
 }

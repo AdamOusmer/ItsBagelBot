@@ -17,6 +17,7 @@ const (
 const (
 	MaxCooldownSeconds       = 2_592_000
 	MaxValkeyCooldownSeconds = 86_400
+	MaxRewardCooldown        = 604800
 )
 
 const (

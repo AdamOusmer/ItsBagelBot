@@ -403,7 +403,14 @@ function neutralHttpGet(params: Params): Params {
 }
 
 function neutralRewardUpdate(params: Params): Params {
-  return { reward_id: SETUP_REWARD_ID, enabled: params.enabled ?? null, cost: params.cost ?? null, reset_on_stream_end: params.reset_on_stream_end === true };
+  return {
+    reward_id: SETUP_REWARD_ID,
+    enabled: params.enabled ?? null,
+    cost: params.cost ?? null,
+    reset_on_stream_end: params.reset_on_stream_end === true,
+    ...(typeof params.paused === 'boolean' ? { paused: params.paused } : {}),
+    ...(typeof params.cooldown_s === 'number' ? { cooldown_s: params.cooldown_s } : {})
+  };
 }
 
 type ExternalRule = { code: SetupCode; rewrite: (params: Params) => Params };

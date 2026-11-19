@@ -3,7 +3,7 @@
 
 import { COMPARE_OPS } from './compare';
 import { eventKinds } from './event-kinds';
-import { MAX_COOLDOWN_SECONDS, MAX_LOGIN_TEMPLATE, MAX_POINTS_AMOUNT, MAX_TEMPLATE_LENGTH } from './limits';
+import { MAX_COOLDOWN_SECONDS, MAX_LOGIN_TEMPLATE, MAX_POINTS_AMOUNT, MAX_REWARD_COOLDOWN, MAX_TEMPLATE_LENGTH } from './limits';
 import { TARGET_MODES } from './types';
 import { CMP_OPS, PERM_LEVELS } from './values';
 
@@ -217,6 +217,8 @@ export const ACTION_TYPES: TypeDef[] = [
     f('enabled', 'bool'),
     f('cost', 'int', { min: 1, max: 10000000 }),
     f('reset_on_stream_end', 'bool'),
+    f('paused', 'bool'),
+    f('cooldown_s', 'int', { min: 0, max: MAX_REWARD_COOLDOWN }),
   ]),
   action('lights', [
     f('device', 'text', { required: true, min: 1, max: 64 }),

@@ -348,9 +348,11 @@ export interface LoopAction {
 
 export interface RewardUpdateAction {
   reward_id: string;
-  enabled: boolean | null;
-  cost: number | null;
+  enabled?: boolean | null;
+  cost?: number | null;
   reset_on_stream_end?: boolean;
+  paused?: boolean | null;
+  cooldown_s?: number | null;
 }
 
 export interface LightsAction {
