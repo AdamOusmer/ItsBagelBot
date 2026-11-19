@@ -155,11 +155,19 @@ Generated Ent code is not the schema source.
   a unique auto-increment column. An auto-increment primary key makes replicas
   writing different channels deadlock or wait. MySQL fence reads rely on READ COMMITTED, where
   an exact-key miss takes no gap lock. Insert the missing fence and read it again
-  under lock before applying effects.
+  under lock before applying effects. Freeze tables use raw DDL through
+  `EnsureWatchSchema` and declare their natural primary keys directly.
 - Preserve the global lock order: retention barrier, account fence, receipts and
   operations, `counters`, `counter_entries`, then `balances`. Use ascending owner
   and natural key order for multi-row writes. Lifecycle cleanup holds the exclusive
   fence across its deletes.
+- For freeze state, lock the account fence, then `loyalty_freezes`, then epochs
+  or snapshots, then balances. Cleanup takes the fence and freeze row. Freeze
+  and reset skip the account fence, and ordinary watch commits skip the freeze
+  row. Copy balances at READ COMMITTED using `INSERT ... SELECT` with row
+  binlogging so the source read does not lock live accrual.
+- Freeze changes publish the `freeze` marker on the `loyalty` invalidation
+  scope. Natural expiry is handled by the expiry returned to cache readers.
 - Watch chunks take a shared retention barrier lock. Pruning advances the barrier
   with one guarded autocommit update. Counter and earned transactions take shared
   account fences. Watch, lifecycle and trial promotion transactions take exclusive

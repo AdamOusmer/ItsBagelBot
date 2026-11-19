@@ -57,7 +57,7 @@ func NewValkeyLoyaltyStore(client valkey.Client, rpc *LoyaltyRPC, reporter *Loya
 		rpc:      rpc,
 		reporter: reporter,
 		scopes:   cache.New[counterScope](scopeCacheCapacity, scopeCacheTTL),
-		top:      cache.New[[]loyaltyrpc.Balance](topCacheCapacity, topCacheTTL),
+		top:      cache.New[[]loyaltyrpc.Balance](topCacheCapacity, topCacheTTL, cache.WithoutTTLJitter()),
 		log:      log,
 	}
 }
@@ -362,8 +362,9 @@ const topCacheCapacity int64 = 4096
 
 func (s *ValkeyLoyaltyStore) Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error) {
 	key := strconv.FormatUint(broadcasterID, 10) + ":" + strconv.Itoa(limit)
-	return s.top.GetOrLoad(ctx, key, func(ctx context.Context) ([]loyaltyrpc.Balance, error) {
-		return s.rpc.Top(ctx, broadcasterID, limit)
+	return s.top.GetOrLoadTTL(ctx, key, func(ctx context.Context) ([]loyaltyrpc.Balance, time.Duration, error) {
+		reply, err := s.rpc.topReply(ctx, broadcasterID, limit)
+		return reply.Top, freezeTTL(reply.FreezeStamp, topCacheTTL), err
 	})
 }
 

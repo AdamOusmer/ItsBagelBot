@@ -68,6 +68,7 @@ type Deps struct {
 	Duel           DuelStore
 	Quotes         QuotesStore
 	Loyalty        LoyaltyStore
+	LoyaltyFreeze  LoyaltyFreeze
 	LoyaltyTick    LoyaltyTicker
 	Stats          CounterBumper
 	PublicBaseURL  string
@@ -230,6 +231,11 @@ type WagerOutcome struct {
 	Found         bool
 	Applied       bool
 	LimitExceeded bool
+}
+
+type LoyaltyFreeze interface {
+	FreezeSet(context.Context, FreezeCommand) (loyaltyrpc.FreezeView, bool, error)
+	FreezeRelease(context.Context, FreezeCommand) (loyaltyrpc.FreezeView, bool, error)
 }
 
 type LoyaltyStore interface {

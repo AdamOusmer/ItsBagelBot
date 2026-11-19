@@ -19,11 +19,16 @@ import (
 type Option func(*options)
 
 type options struct {
-	staleWindow time.Duration
+	staleWindow      time.Duration
+	withoutTTLJitter bool
 }
 
 func StaleOnError(window time.Duration) Option {
 	return func(o *options) { o.staleWindow = window }
+}
+
+func WithoutTTLJitter() Option {
+	return func(o *options) { o.withoutTTLJitter = true }
 }
 
 type entry[V any] struct {
@@ -47,9 +52,10 @@ type Keyed[K comparable, V any] struct {
 	stripes [generationStripes]atomic.Uint64
 	loading map[K]int
 
-	capacity    int64
-	ttl         time.Duration
-	staleWindow time.Duration
+	capacity         int64
+	ttl              time.Duration
+	staleWindow      time.Duration
+	withoutTTLJitter bool
 }
 
 func NewKeyed[K comparable, V any](capacity int64, ttl time.Duration, keyFn func(K) string, opts ...Option) *Keyed[K, V] {
@@ -62,13 +68,14 @@ func NewKeyed[K comparable, V any](capacity int64, ttl time.Duration, keyFn func
 		panic("failed to build theine cache: " + err.Error())
 	}
 	return &Keyed[K, V]{
-		client:      client,
-		keyFn:       keyFn,
-		seed:        maphash.MakeSeed(),
-		loading:     make(map[K]int),
-		capacity:    capacity,
-		ttl:         ttl,
-		staleWindow: o.staleWindow,
+		client:           client,
+		keyFn:            keyFn,
+		seed:             maphash.MakeSeed(),
+		loading:          make(map[K]int),
+		capacity:         capacity,
+		ttl:              ttl,
+		staleWindow:      o.staleWindow,
+		withoutTTLJitter: o.withoutTTLJitter,
 	}
 }
 
@@ -166,9 +173,11 @@ func (c *Keyed[K, V]) Set(key K, value V) {
 }
 
 func (c *Keyed[K, V]) SetFor(key K, value V, ttl time.Duration) {
-	ttl += rand.N(ttl/10 + 1)
+	if !c.withoutTTLJitter {
+		ttl += rand.N(ttl/10 + 1)
+	}
 	e := entry[V]{value: value}
-	if c.staleWindow > 0 {
+	if c.withoutTTLJitter || c.staleWindow > 0 {
 		e.freshUntil = time.Now().Add(ttl)
 	}
 	c.client.SetWithTTL(key, e, 1, ttl+c.staleWindow)

@@ -125,11 +125,12 @@ func (l *LoyaltyRPC) BalanceTransfer(ctx context.Context, broadcasterID, fromVie
 }
 
 func (l *LoyaltyRPC) Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error) {
-	reply, err := l.call(ctx, "top.get", loyaltyrpc.Request{UserID: fmtID(broadcasterID), Limit: limit})
-	if err != nil {
-		return nil, err
-	}
-	return reply.Top, nil
+	reply, err := l.topReply(ctx, broadcasterID, limit)
+	return reply.Top, err
+}
+
+func (l *LoyaltyRPC) topReply(ctx context.Context, broadcasterID uint64, limit int) (loyaltyrpc.Reply, error) {
+	return l.call(ctx, "top.get", loyaltyrpc.Request{UserID: fmtID(broadcasterID), Limit: limit})
 }
 
 func (l *LoyaltyRPC) CounterGet(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string) (loyaltyrpc.Counter, bool, error) {

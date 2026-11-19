@@ -28,5 +28,6 @@
   "status.none": "No duel running. Open a pot with !duel <amount>, or challenge someone with !duel @user <amount>.",
   "status.pot": "Pot duel live: {duel:count} in, {duel:pot} {duel:points} in the pot. Drawing in ~{duel:secs}s. Type !duel <amount> to join!",
   "usage": "Usage: !duel <amount|half|all>; !duel @user <amount|half|all>; !duel accept|decline|cancel",
-  "won": "The blades fall. @{duel:winner} defeats @{duel:loser} and takes {duel:pot} {duel:points}!"
+  "won": "The blades fall. @{duel:winner} defeats @{duel:loser} and takes {duel:pot} {duel:points}!",
+  "frozen": "@{duel:user} duel stakes are paused while the leaderboard is frozen."
 }

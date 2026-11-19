@@ -28,5 +28,6 @@
   "status.none": "Aucun duel en cours. Lance une cagnotte avec !duel <montant>, ou défie quelqu'un avec !duel @utilisateur <montant>.",
   "status.pot": "Duel à cagnotte : {duel:count} inscrits, {duel:pot} {duel:points} en jeu. Tirage dans ~{duel:secs}s. Tape !duel <montant> pour rejoindre !",
   "usage": "Utilisation : !duel <montant|half|all> ; !duel @utilisateur <montant|half|all> ; !duel accept|decline|cancel",
-  "won": "Les lames retombent. @{duel:winner} bat @{duel:loser} et rafle {duel:pot} {duel:points} !"
+  "won": "Les lames retombent. @{duel:winner} bat @{duel:loser} et rafle {duel:pot} {duel:points} !",
+  "frozen": "@{duel:user} les mises en duel sont suspendues pendant la pause du classement."
 }

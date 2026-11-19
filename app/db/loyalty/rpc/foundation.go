@@ -47,14 +47,18 @@ func (l *loyaltyRPC) handleBalanceSnapshot(ctx context.Context, req loyaltyrpc.R
 	if !ok {
 		return loyaltyrpc.BalanceSnapshot{Refusal: reply.Refusal}
 	}
-	row, found, err := l.repo.BalanceGet(ctx, userID, viewerID)
+	route, err := l.resolveBoard(ctx, userID, loyaltyrpc.Request{})
+	if err != nil {
+		return loyaltyrpc.BalanceSnapshot{Refusal: l.fail(loyaltyrpc.VerbBalanceSnapshot, err).Refusal}
+	}
+	row, found, err := route.balance(ctx, viewerID)
 	if err != nil {
 		return loyaltyrpc.BalanceSnapshot{Refusal: l.fail(loyaltyrpc.VerbBalanceSnapshot, err).Refusal}
 	}
 	if !found {
-		return loyaltyrpc.BalanceSnapshot{}
+		return loyaltyrpc.BalanceSnapshot{FreezeStamp: route.activeStamp()}
 	}
-	return loyaltyrpc.BalanceSnapshot{Points: row.Points, WatchSeconds: row.WatchSeconds, Found: true}
+	return loyaltyrpc.BalanceSnapshot{Points: row.Points, WatchSeconds: row.WatchSeconds, Found: true, FreezeStamp: route.activeStamp()}
 }
 
 func (l *loyaltyRPC) handleWatchStatus(ctx context.Context, _ struct{}) loyaltyrpc.WatchStatus {

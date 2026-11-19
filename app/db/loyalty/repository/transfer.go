@@ -12,7 +12,6 @@ import (
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/app/db/loyalty/ent/balance"
 	"ItsBagelBot/internal/domain/validate"
-	"ItsBagelBot/pkg/db"
 )
 
 var errInsufficient = errors.New("insufficient points")
@@ -35,10 +34,11 @@ func (r *Loyalty) BalanceTransfer(ctx context.Context, t Transfer) (*TransferOut
 		return nil, found, err
 	}
 
-	if sender.ID == 0 {
+	move := transferMove{sender: sender, recipient: recipient, amount: t.Amount}
+	err = r.moveBalance(ctx, move)
+	if sender.ID == 0 && err == nil {
 		return &TransferOutcome{From: sender}, true, nil
 	}
-	err = r.moveBalance(ctx, sender, recipient, t.Amount)
 	if errors.Is(err, errInsufficient) {
 		fresh, ferr := r.client.Balance.Get(ctx, sender.ID)
 		if ferr != nil {
@@ -94,28 +94,27 @@ func validTransfer(t Transfer) (string, error) {
 	return login, nil
 }
 
-func (r *Loyalty) moveBalance(ctx context.Context, sender, recipient *ent.Balance, amount int64) error {
-	return db.WithExec(ctx, func(ctx context.Context) error {
-		return retryTx(ctx, func(ctx context.Context) error {
-			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-				if err := r.lockTransferRows(ctx, tx, sender, recipient); err != nil {
-					return err
-				}
-				return transferMove{senderID: sender.ID, recipient: recipient, amount: amount}.apply(ctx, tx)
-			})
-		})
+func (r *Loyalty) moveBalance(ctx context.Context, move transferMove) error {
+	return r.withFreezeCheck(ctx, freezeBlock{move.sender.UserID, freezeTransfers}, func(ctx context.Context, client *ent.Client) error {
+		if move.sender.ID == 0 {
+			return nil
+		}
+		if err := r.lockTransferRows(ctx, client, move.sender, move.recipient); err != nil {
+			return err
+		}
+		return move.apply(ctx, client)
 	})
 }
 
 type transferMove struct {
-	senderID  int
+	sender    *ent.Balance
 	recipient *ent.Balance
 	amount    int64
 }
 
-func (m transferMove) apply(ctx context.Context, tx *ent.Tx) error {
+func (m transferMove) apply(ctx context.Context, tx *ent.Client) error {
 	updated, err := tx.Balance.Update().
-		Where(balance.IDEQ(m.senderID), balance.PointsGTE(m.amount)).
+		Where(balance.IDEQ(m.sender.ID), balance.PointsGTE(m.amount)).
 		AddPoints(-m.amount).
 		Save(ctx)
 	if err != nil {
@@ -134,7 +133,7 @@ func transferLockOrder(senderViewerID, recipientViewerID uint64) [2]uint64 {
 	return [2]uint64{senderViewerID, recipientViewerID}
 }
 
-func (r *Loyalty) lockTransferRows(ctx context.Context, tx *ent.Tx, sender, recipient *ent.Balance) error {
+func (r *Loyalty) lockTransferRows(ctx context.Context, tx *ent.Client, sender, recipient *ent.Balance) error {
 	if r.dialect == "sqlite3" {
 		return nil
 	}
@@ -152,7 +151,7 @@ type transferPair struct {
 }
 
 // A locking read of an absent recipient gap-locks other channels' inserts, so the recipient is locked by creating it.
-func (p transferPair) lock(ctx context.Context, tx *ent.Tx, viewerID uint64) error {
+func (p transferPair) lock(ctx context.Context, tx *ent.Client, viewerID uint64) error {
 	if viewerID == p.recipient.ViewerID {
 		return ensureRecipient(ctx, tx, p.recipient)
 	}
@@ -160,7 +159,7 @@ func (p transferPair) lock(ctx context.Context, tx *ent.Tx, viewerID uint64) err
 	return err
 }
 
-func ensureRecipient(ctx context.Context, tx *ent.Tx, recipient *ent.Balance) error {
+func ensureRecipient(ctx context.Context, tx *ent.Client, recipient *ent.Balance) error {
 	return tx.Balance.Create().
 		SetUserID(recipient.UserID).
 		SetViewerID(recipient.ViewerID).
@@ -169,7 +168,7 @@ func ensureRecipient(ctx context.Context, tx *ent.Tx, recipient *ent.Balance) er
 		Ignore().Exec(ctx)
 }
 
-func creditTransfer(ctx context.Context, tx *ent.Tx, recipient *ent.Balance, amount int64) error {
+func creditTransfer(ctx context.Context, tx *ent.Client, recipient *ent.Balance, amount int64) error {
 	if err := ensureRecipient(ctx, tx, recipient); err != nil {
 		return err
 	}

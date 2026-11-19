@@ -12,7 +12,6 @@ import (
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 )
 
-// Debit must stay on balance.spend's conditional UPDATE so concurrent spends never go negative.
 type LoyaltyWallet struct {
 	analytics *analytics.Recorder
 	loyalty   LoyaltyStore
@@ -21,11 +20,11 @@ type LoyaltyWallet struct {
 func NewLoyaltyWallet(loyalty LoyaltyStore) *LoyaltyWallet { return &LoyaltyWallet{loyalty: loyalty} }
 
 func (w *LoyaltyWallet) Debit(ctx context.Context, broadcasterID uint64, entry DuelStake) (bool, bool, error) {
-	_, found, spent, err := w.loyalty.BalanceSpend(ctx, PointSpend{BroadcasterID: broadcasterID, ViewerID: entry.ViewerID, Login: entry.Login, Amount: entry.Stake})
-	if err == nil && spent {
+	out, err := w.loyalty.BalanceWager(ctx, PointWager{BroadcasterID: broadcasterID, ViewerID: entry.ViewerID, Login: entry.Login, Amount: entry.Stake})
+	if err == nil && out.Applied {
 		w.analytics.AddContext(ctx, catalog.PointsFlows, 1, "duel_stake")
 	}
-	return found, spent, err
+	return out.Found, out.Applied, err
 }
 
 func (w *LoyaltyWallet) Credit(ctx context.Context, broadcasterID uint64, entry DuelStake) error {

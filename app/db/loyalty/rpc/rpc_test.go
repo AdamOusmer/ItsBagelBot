@@ -60,6 +60,7 @@ func newHarnessWithWatchStatus(t *testing.T, status func(context.Context) (watch
 		require.NoError(t, client.Balance.Create().SetUserID(2).SetViewerID(seed.viewerID).SetViewerLogin(seed.login).SetPoints(seed.points).Exec(context.Background()))
 	}
 	repo := loyaltyrepo.NewLoyalty(client, drv, nil, zap.NewNop())
+	require.NoError(t, repo.EnsureWatchSchema(t.Context()))
 	nc := testnats.Connect(t)
 	require.NoError(t, Subscribe(Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop()}, Repo: repo,
 		Invalidations: bus.NewInvalidations(nc, invalidationPrefix, nil), WatchStatus: status}, "loyalty"))

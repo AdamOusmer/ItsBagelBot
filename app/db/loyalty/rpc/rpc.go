@@ -45,6 +45,9 @@ func Subscribe(w Wiring, prefix string) error {
 		bus.At("balance.transfer", l.handleBalanceTransfer),
 		bus.At("balance.reset", l.handleBalanceReset),
 		bus.At("top.get", l.handleTopGet),
+		bus.At(loyaltyrpc.VerbFreezeSet, l.freezeHandler(false)),
+		bus.At(loyaltyrpc.VerbFreezeRelease, l.freezeHandler(true)),
+		bus.At(loyaltyrpc.VerbFreezeGet, l.handleFreezeGet),
 		bus.At("counter.get", l.handleCounterGet),
 		bus.At("counter.create", l.handleCounterCreate),
 		bus.At("counter.set", l.handleCounterSet),
@@ -97,8 +100,16 @@ func requireViewer(req loyaltyrpc.Request) (userID, viewerID uint64, ok bool, re
 }
 
 func (l *loyaltyRPC) fail(op string, err error) loyaltyrpc.Reply {
-	if errors.Is(err, repository.ErrInvalidInput) {
-		return refuse(domainrpc.CodeInvalid, err.Error())
+	refusal := domainrpc.Fail(err,
+		domainrpc.Is(repository.ErrInvalidInput, domainrpc.CodeInvalid),
+		domainrpc.Is(repository.ErrFrozen, domainrpc.CodeConflict),
+		domainrpc.Is(repository.ErrFreezeHeldByRound, domainrpc.CodeConflict),
+		domainrpc.Is(repository.ErrStaleFreezePin, domainrpc.CodeConflict),
+		domainrpc.Is(repository.ErrFrozenTransfers, domainrpc.CodeConflict),
+		domainrpc.Is(repository.ErrFrozenGames, domainrpc.CodeConflict),
+	)
+	if refusal.Code == domainrpc.CodeInvalid || refusal.Code == domainrpc.CodeConflict {
+		return loyaltyrpc.Reply{Refusal: refusal}
 	}
 	l.log.Warn(op+" failed", zap.Error(err))
 	return refuse(domainrpc.CodeInternal, "loyalty request failed")

@@ -28,5 +28,6 @@
   "status.none": "No hay ningún duelo en curso. Abre un bote con !duel <amount>, o desafía a alguien con !duel @user <amount>.",
   "status.pot": "Duelo con bote abierto. Participaciones: {duel:count}; bote: {duel:pot} {duel:points}. Sorteo en ~{duel:secs}s. ¡Escribe !duel <amount> para participar!",
   "usage": "Uso: !duel <amount|half|all>; !duel @user <amount|half|all>; !duel accept|decline|cancel",
-  "won": "¡Caen las espadas! @{duel:winner} vence a @{duel:loser} y se lleva {duel:pot} {duel:points}."
+  "won": "¡Caen las espadas! @{duel:winner} vence a @{duel:loser} y se lleva {duel:pot} {duel:points}.",
+  "frozen": "@{duel:user} las apuestas en duelos están en pausa mientras la clasificación esté en pausa."
 }

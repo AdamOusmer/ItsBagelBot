@@ -14,5 +14,12 @@
   "points.insufficient": "@{loyalty:user} vous n'avez que {loyalty:points} {loyalty:name}.",
   "points.self": "@{loyalty:user} vous ne pouvez pas vous donner des {loyalty:name}.",
   "points.unknown": "@{loyalty:user} je n'ai pas encore vu {loyalty:target} sur cette chaîne.",
-  "points.usage": "Utilisation : !points ; ou !points <set|add|remove> @utilisateur <montant> ; ou !points give @utilisateur <montant>"
+  "points.usage": "Utilisation : !points ; ou !points <set|add|remove> @utilisateur <montant> ; ou !points give @utilisateur <montant>",
+  "freeze.started": "Classement en pause pendant {loyalty:minutes} min. Les points et le temps de visionnage continuent de s’accumuler.",
+  "freeze.active": "@{loyalty:user} le classement est déjà en pause. Il reste {loyalty:minutes} min.",
+  "freeze.usage": "Utilisation : !freeze [1-30]",
+  "unfreeze.done": "Le classement est de nouveau mis à jour en direct.",
+  "unfreeze.none": "@{loyalty:user} le classement n’est pas en pause.",
+  "unfreeze.round": "@{loyalty:user} Un concours utilise le classement en pause. Tire les gagnants au sort ou annule le concours pour reprendre les mises à jour.",
+  "points.frozen": "@{loyalty:user} tu ne peux pas offrir de {loyalty:name} pendant la pause du classement."
 }

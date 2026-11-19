@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	catalog "ItsBagelBot/internal/domain/analytics"
+	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 
 	"go.uber.org/zap"
 )
@@ -135,6 +136,10 @@ func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome
 	wager.roll = roll
 	wager.won = engine.GambleWins(roll, gc.cfg.WinPercent)
 	out, err := gc.d.Loyalty.BalanceWager(ctx, engine.PointWager{BroadcasterID: gc.c.BroadcasterID, ViewerID: gc.viewerID(), Login: login, Amount: wager.bet, Won: wager.won})
+	if engine.LoyaltyFreezeRefusal(err, loyaltyrpc.RefusalFrozenGames) {
+		gc.reply(emit, "", "gamble.frozen")
+		return nil
+	}
 	if err != nil {
 		gc.log.Warn("gamble: settlement failed", gc.c.BID(), zap.Error(err))
 		return err
