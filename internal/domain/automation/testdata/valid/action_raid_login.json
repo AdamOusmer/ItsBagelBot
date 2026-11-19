@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual" },
+  "actions": [
+    { "type": "raid", "params": { "login": "@cool_streamer" } },
+    { "type": "raid", "params": { "login": "{user}" } }
+  ]
+}

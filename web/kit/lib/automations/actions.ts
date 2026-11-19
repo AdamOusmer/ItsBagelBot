@@ -57,6 +57,12 @@ function checkCommercial(c: Chk, p: Wide<T.CommercialAction>): void {
   if (!COMMERCIAL_LENGTHS.includes(p.seconds)) c.add('seconds', CODE.invalidEnum);
 }
 
+function checkClip(c: Chk, p: Wide<T.ClipAction>): void {
+  c.text('title', p.title, 0, 100);
+  if (p.seconds !== 0) c.inRange('seconds', p.seconds, 5, 60);
+  c.text('reply', p.reply, 0, MAX_TEMPLATE_LENGTH);
+}
+
 function checkPointsAdd(c: Chk, p: Wide<T.PointsAddAction>): void {
   c.target(p, 0);
   c.inRange('amount', p.amount, -MAX_AMOUNT, MAX_AMOUNT);
@@ -181,12 +187,12 @@ export const SIMPLE_ACTIONS: Table = {
   warn: register<Wide<T.WarnAction>>({ login: 'string', reason: 'string' }, checkWarn),
   shield: register<Wide<T.ShieldAction>>({ on: 'bool' }, noop),
   shoutout: login,
-  clip: empty,
-  marker: register<Wide<T.MarkerAction>>({ description: 'string' }, (c, p) => void c.text('description', p.description, 0, 140)),
+  clip: register<Wide<T.ClipAction>>({ title: 'string', seconds: 'number', reply: 'string', quiet: 'bool' }, checkClip),
+  marker: register<Wide<T.MarkerAction>>({ description: 'string', quiet: 'bool' }, (c, p) => void c.text('description', p.description, 0, 140)),
   set_title: register<Wide<T.SetTitleAction>>({ title: 'string' }, (c, p) => void c.text('title', p.title, 1, 140)),
   set_game: register<Wide<T.SetGameAction>>({ game: 'string' }, (c, p) => void c.text('game', p.game, 1, 100)),
   set_tags: register<Wide<T.SetTagsAction>>({ tags: 'string' }, (c, p) => void c.template('tags', p.tags)),
-  commercial: register<Wide<T.CommercialAction>>({ seconds: 'int' }, checkCommercial),
+  commercial: register<Wide<T.CommercialAction>>({ seconds: 'int', quiet: 'bool' }, checkCommercial),
   points_add: register<Wide<T.PointsAddAction>>(POINTS_ACTION_SCHEMA, checkPointsAdd, TARGET_DEFAULTS),
   points_set: register<Wide<T.PointsSetAction>>(POINTS_ACTION_SCHEMA, checkPointsSet, TARGET_DEFAULTS),
   counter_add: register<Wide<T.CounterAddAction>>({ name: 'string', amount: 'int' }, checkCounterAdd),

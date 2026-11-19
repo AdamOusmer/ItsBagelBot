@@ -33,7 +33,7 @@ func TestAutomationOutputActions(t *testing.T) {
 		{"chat expands args", act("chat", obj{"text": "hi {args} {arg:k}"}), []string{`chat {"broadcaster_id":"1","message":"hi hello v v"}`}},
 		{"chat multi-line is a batch", act("chat", obj{"text": "one\n\ntwo"}), []string{`chat {"broadcaster_id":"1","message":"one"}`, `chat {"broadcaster_id":"1","message":"two"}`}},
 		{"announce color", act("announce", obj{"text": "big news", "color": "green"}), []string{`announce color=green {"message":"big news"}`}},
-		{"raid", act("raid", obj{"login": "target"}), []string{`raid_start to=target {}`}},
+		{"raid", act("raid", obj{"login": "target"}), []string{`raid_start to=target target_user_id=99 {}`}},
 		{"timeout", act("timeout", obj{"login": "@Target", "seconds": 60, "reason": "spam {args}"}), []string{`timeout {"data":{"user_id":"99","duration":60,"reason":"spam hello v"}}`}},
 		{"ban", act("ban", obj{"login": "target", "reason": "bye"}), []string{`ban {"data":{"user_id":"99","reason":"bye"}}`}},
 		{"ban truncates expanded Unicode reason", act("ban", obj{"login": "target", "reason": strings.Repeat("界", 494) + "{args}"}), []string{`ban {"data":{"user_id":"99","reason":"` + strings.Repeat("界", 494) + `hello "}}`}},
@@ -42,11 +42,11 @@ func TestAutomationOutputActions(t *testing.T) {
 		{"shield off", act("shield", obj{"on": false}), []string{`shield_mode {"is_active":false}`}},
 		{"shoutout", act("shoutout", obj{"login": "@Target"}), []string{`shoutout to=target {}`}},
 		{"clip", act("clip", obj{}), []string{`clip {}`}},
-		{"marker", act("marker", obj{"description": "moment {args}"}), []string{`stream_marker {"description":"moment hello v"}`}},
+		{"marker", act("marker", obj{"description": "moment {args}", "quiet": true}), []string{`stream_marker {"description":"moment hello v","quiet":true}`}},
 		{"set_title", act("set_title", obj{"title": "new {arg:a}"}), []string{`channel_update {"field":"title","value":"new hello"}`}},
 		{"set_game", act("set_game", obj{"game": "Chess"}), []string{`channel_update {"field":"game","value":"Chess"}`}},
 		{"set_tags", act("set_tags", obj{"tags": "a, b"}), []string{`channel_update {"field":"tags","value":"a, b"}`}},
-		{"commercial", act("commercial", obj{"seconds": 60}), []string{`commercial {"length":60}`}},
+		{"commercial", act("commercial", obj{"seconds": 60, "quiet": true}), []string{`commercial {"length":60,"quiet":true}`}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -73,7 +73,7 @@ func TestAutomationTargetModes(t *testing.T) {
 	}{
 		{"viewer", automation.TargetAction{Who: "viewer", Login: "target"}, 999, "alice", "target_user_id=999"},
 		{"mention", automation.TargetAction{Who: "mention", Login: "target"}, 555, "first", "target_user_id=555"},
-		{"user", automation.TargetAction{Who: "user", UserID: "00666", Login: " @Picked "}, 666, "picked", "target_user_id=666"},
+		{"user", automation.TargetAction{Who: "user", UserID: "00666", Login: "@Picked"}, 666, "picked", "target_user_id=666"},
 		{"user without login", automation.TargetAction{Who: "user", UserID: "00666"}, 666, "", "target_user_id=666"},
 		{"login", automation.TargetAction{Who: "login", Login: "@Target"}, 99, "target", "to=target"},
 		{"legacy login", automation.TargetAction{Login: "@Target"}, 99, "target", "to=target"},

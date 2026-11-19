@@ -163,7 +163,8 @@ func clipOutgress(o *module.Output) (outgress.Message, error) {
 		Clipper  string  `json:"clipper,omitempty"`
 		Duration float64 `json:"duration,omitempty"`
 		Reply    string  `json:"reply,omitempty"`
-	}{o.Text, o.To, o.Duration, o.Template})
+		Quiet    bool    `json:"quiet,omitempty"`
+	}{o.Text, o.To, o.Duration, o.Template, o.Quiet})
 }
 
 func channelUpdateOutgress(o *module.Output) (outgress.Message, error) {
@@ -180,7 +181,8 @@ func streamMarkerOutgress(o *module.Output) (outgress.Message, error) {
 		Description string `json:"description,omitempty"`
 		Locale      string `json:"locale,omitempty"`
 		User        string `json:"user,omitempty"`
-	}{o.Text, o.Template, o.To})
+		Quiet       bool   `json:"quiet,omitempty"`
+	}{o.Text, o.Template, o.To, o.Quiet})
 }
 
 func commercialOutgress(o *module.Output) (outgress.Message, error) {
@@ -188,7 +190,8 @@ func commercialOutgress(o *module.Output) (outgress.Message, error) {
 		Length int    `json:"length"`
 		Locale string `json:"locale,omitempty"`
 		User   string `json:"user,omitempty"`
-	}{int(o.Duration), o.Template, o.To})
+		Quiet  bool   `json:"quiet,omitempty"`
+	}{int(o.Duration), o.Template, o.To, o.Quiet})
 }
 
 func banOutgress(o *module.Output) (outgress.Message, error) {

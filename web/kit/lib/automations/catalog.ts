@@ -7,7 +7,7 @@ import { MAX_COOLDOWN_SECONDS, MAX_LOGIN_TEMPLATE, MAX_TEMPLATE_LENGTH } from '.
 import { TARGET_MODES } from './types';
 import { CMP_OPS, PERM_LEVELS } from './values';
 
-export type FieldKind = 'text' | 'template' | 'login' | 'int' | 'bool' | 'enum' | 'list' | 'actions' | 'condition' | 'branches' | 'map';
+export type FieldKind = 'text' | 'template' | 'login' | 'int' | 'number' | 'bool' | 'enum' | 'list' | 'actions' | 'condition' | 'branches' | 'map';
 
 export interface FieldDef {
   name: string;
@@ -15,6 +15,7 @@ export interface FieldDef {
   required?: boolean;
   min?: number;
   max?: number;
+  step?: number;
   values?: readonly string[];
   labelKey: string;
 }
@@ -166,12 +167,17 @@ export const ACTION_TYPES: TypeDef[] = [
   action('warn', [loginReq, f('reason', 'template', { required: true, min: 1, max: 500 })]),
   action('shield', [f('on', 'bool')]),
   action('shoutout', [loginReq]),
-  action('clip'),
-  action('marker', [f('description', 'template', { max: 140 })]),
+  action('clip', [
+    f('title', 'template', { max: 100 }),
+    f('seconds', 'number', { min: 5, max: 60, step: 0.1 }),
+    f('reply', 'template', { max: MAX_TEMPLATE_LENGTH }),
+    f('quiet', 'bool'),
+  ]),
+  action('marker', [f('description', 'template', { max: 140 }), f('quiet', 'bool')]),
   action('set_title', [f('title', 'template', { required: true, min: 1, max: 140 })]),
   action('set_game', [f('game', 'template', { required: true, min: 1, max: 100 })]),
   action('set_tags', [f('tags', 'template', { required: true, min: 1, max: 500 })]),
-  action('commercial', [f('seconds', 'enum', { required: true, values: ['30', '60', '90', '120', '150', '180'] })]),
+  action('commercial', [f('seconds', 'enum', { required: true, values: ['30', '60', '90', '120', '150', '180'] }), f('quiet', 'bool')]),
   action('points_add', [...targetFields, f('amount', 'int', { required: true, min: -1000000, max: 1000000 })]),
   action('points_set', [...targetFields, f('amount', 'int', { required: true, min: 0, max: 1000000000 })]),
   action('counter_add', [counterName, f('amount', 'int', { required: true, min: -1000000, max: 1000000 })]),

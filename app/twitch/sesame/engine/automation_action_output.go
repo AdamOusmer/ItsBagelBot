@@ -102,15 +102,24 @@ func (x *actionExec) shoutout(_ step, p automation.LoginAction) error {
 	return x.queue(o)
 }
 
-func (x *actionExec) clip(_ step, _ automation.EmptyParams) error {
+func (x *actionExec) clip(_ step, p automation.ClipAction) error {
+	if err := x.requireLive(); err != nil {
+		return err
+	}
 	o := x.out(outgress.TypeClip)
+	o.Text = utils.TruncateRunes(strings.TrimSpace(x.expand(p.Title)), automation.MaxClipTitleRunes)
+	o.Duration, o.Template, o.Quiet = p.Seconds, x.expand(p.Reply), p.Quiet
 	o.To = x.viewerName()
 	return x.queue(o)
 }
 
 func (x *actionExec) marker(_ step, p automation.MarkerAction) error {
+	if err := x.requireLive(); err != nil {
+		return err
+	}
 	o := x.out(outgress.TypeStreamMarker)
 	o.Text, o.Template, o.To = utils.TruncateRunes(strings.TrimSpace(x.expand(p.Description)), maxMarkerRunes), x.context().Locale, x.viewerName()
+	o.Quiet = p.Quiet
 	return x.queue(o)
 }
 
@@ -140,8 +149,12 @@ func (x *actionExec) channelUpdate(field, template string, maxRunes int) error {
 }
 
 func (x *actionExec) commercial(_ step, p automation.CommercialAction) error {
+	if err := x.requireLive(); err != nil {
+		return err
+	}
 	o := x.out(outgress.TypeCommercial)
 	o.Duration, o.Template, o.To = float64(p.Seconds), x.context().Locale, x.viewerName()
+	o.Quiet = p.Quiet
 	return x.queue(o)
 }
 

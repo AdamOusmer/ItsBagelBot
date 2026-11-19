@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual" },
+  "actions": [
+    { "type": "clip", "params": { "seconds": 4 } },
+    { "type": "clip", "params": { "seconds": 61 } }
+  ]
+}

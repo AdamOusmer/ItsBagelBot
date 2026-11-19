@@ -51,7 +51,7 @@ func streamActions(b *actionTableBuilder) *actionTableBuilder {
 		Step("vip", typed(toggleAction("vip"))).
 		Step("chat_mode", typed((*actionExec).chatMode)).
 		Step("clear_chat", typed(bareAction(outgress.TypeClearChat))).
-		Step("ad_snooze", typed(bareAction(outgress.TypeAdSnooze))).
+		Step("ad_snooze", typed((*actionExec).adSnooze)).
 		Step("whisper", typed((*actionExec).whisper)).
 		Step("unban_resolve", typed((*actionExec).unbanResolve)).
 		Step("branded_content", typed((*actionExec).brandedContent))
@@ -132,7 +132,23 @@ func (x *actionExec) predictionEnd(_ step, p automation.PredictionEndAction) err
 }
 
 func (x *actionExec) raid(_ step, p automation.LoginAction) error {
-	return x.loginOut(outgress.TypeRaidStart, p.Login, nil)
+	target, err := x.loginTarget(p.Login, false)
+	if err != nil {
+		return err
+	}
+	if target.id == x.run.BroadcasterID {
+		return failure("self_target")
+	}
+	o := x.out(outgress.TypeRaidStart)
+	o.To, o.TargetUserID = target.login, strconv.FormatUint(target.id, 10)
+	return x.queue(o)
+}
+
+func (x *actionExec) adSnooze(_ step, _ automation.EmptyParams) error {
+	if err := x.requireLive(); err != nil {
+		return err
+	}
+	return x.typedOut(outgress.TypeAdSnooze, "", nil)
 }
 
 func (x *actionExec) chatMode(_ step, p automation.ChatModeAction) error {

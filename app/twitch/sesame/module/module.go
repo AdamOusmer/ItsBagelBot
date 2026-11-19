@@ -42,6 +42,7 @@ type Output struct {
 	BatchID       string
 	Items         []Output
 	Duration      float64
+	Quiet         bool
 	Template      string
 	TargetUserID  string
 	Reason        string

@@ -69,7 +69,7 @@ func TestCommunityActionsResolveTheTargetAndActAsTheBroadcaster(t *testing.T) {
 		},
 		{
 			name:   "raid target ID skips the user lookup",
-			msg:    testMessage{Type: "raid_start", TargetUserID: "777", Payload: `{}`},
+			msg:    testMessage{Type: "raid_start", To: "bob", TargetUserID: "777", Payload: `{}`},
 			script: []scriptedResponse{{status: 200, body: `{"data":[{}]}`}},
 			want:   []recordedRequest{call("POST", "/helix/raids?from_broadcaster_id="+testBroadcaster+"&to_broadcaster_id=777", broadcasterAuth, "")},
 		},

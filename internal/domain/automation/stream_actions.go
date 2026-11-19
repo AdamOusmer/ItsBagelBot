@@ -94,6 +94,6 @@ func checkChatMode(c chk, p ChatModeAction) {
 }
 
 func checkWhisper(c chk, p WhisperAction) {
-	c.text("login", p.Login, loginRequired)
+	c.login(p.Login, loginRequired)
 	c.template("text", p.Text)
 }

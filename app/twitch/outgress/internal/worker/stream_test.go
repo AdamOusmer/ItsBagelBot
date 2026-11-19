@@ -49,7 +49,7 @@ func TestChannelUpdateGetsAndSetsStreamDetails(t *testing.T) {
 			payload: `{"field":"game","value":"fort","locale":"en","user":"alice"}`,
 			script:  []scriptedResponse{{status: 200, body: `{"data":[{"id":"33214","name":"Fortnite"}]}`}},
 			want: []recordedRequest{
-				call("GET", "/helix/search/categories"+"?"+"first=1&query=fort", appAuth, ""),
+				call("GET", "/helix/search/categories?first=10&query=fort", appAuth, ""),
 				call("PATCH", "/helix/channels"+"?"+"broadcaster_id="+testBroadcaster, "Bearer broadcaster-token", `{"game_id":"33214"}`),
 				chatLine("@alice updated the game to: Fortnite"),
 			},
@@ -96,7 +96,9 @@ func TestChannelUpdateDropsRejectionsAndRetriesTransientFailures(t *testing.T) {
 	}
 }
 
-func TestStreamEditorJobsConfirmInChat(t *testing.T) {
+func TestStreamEditorJobReplies(t *testing.T) {
+	marker := call("POST", "/helix/streams/markers", broadcasterAuth, `{"user_id":"`+testBroadcaster+`","description":"boss"}`)
+	commercial := call("POST", "/helix/channels/commercial", broadcasterAuth, `{"broadcaster_id":"`+testBroadcaster+`","length":30}`)
 	tests := []struct {
 		name   string
 		msg    testMessage
@@ -107,19 +109,31 @@ func TestStreamEditorJobsConfirmInChat(t *testing.T) {
 			name:   "creates a marker as the broadcaster",
 			msg:    testMessage{Type: "stream_marker", Payload: `{"description":"boss","locale":"en","user":"alice"}`},
 			script: scriptedResponse{status: 200, body: `{"data":[{"id":"1"}]}`},
-			want: []recordedRequest{
-				call("POST", "/helix/streams/markers", "Bearer broadcaster-token", `{"user_id":"`+testBroadcaster+`","description":"boss"}`),
-				chatLine("@alice dropped a stream marker."),
-			},
+			want:   []recordedRequest{marker, chatLine("@alice dropped a stream marker.")},
 		},
 		{
 			name:   "starts a commercial as the broadcaster",
 			msg:    testMessage{Type: "commercial", Payload: `{"length":30,"locale":"en","user":"alice"}`},
 			script: scriptedResponse{status: 200, body: `{"data":[{"length":30}]}`},
-			want: []recordedRequest{
-				call("POST", "/helix/channels/commercial", "Bearer broadcaster-token", `{"broadcaster_id":"`+testBroadcaster+`","length":30}`),
-				chatLine("@alice started a 30s commercial."),
-			},
+			want:   []recordedRequest{commercial, chatLine("@alice started a 30s commercial.")},
+		},
+		{
+			name:   "creates a quiet marker",
+			msg:    testMessage{Type: "stream_marker", Payload: `{"description":"boss","quiet":true}`},
+			script: scriptedResponse{status: 200, body: `{"data":[{"id":"1"}]}`},
+			want:   []recordedRequest{marker},
+		},
+		{
+			name:   "starts a quiet commercial",
+			msg:    testMessage{Type: "commercial", Payload: `{"length":30,"quiet":true}`},
+			script: scriptedResponse{status: 200, body: `{"data":[{"length":30}]}`},
+			want:   []recordedRequest{commercial},
+		},
+		{
+			name:   "keeps a quiet marker rejection out of chat",
+			msg:    testMessage{Type: "stream_marker", Payload: `{"description":"boss","quiet":true}`},
+			script: scriptedResponse{status: 400, body: `{"message":"stream offline"}`},
+			want:   []recordedRequest{marker},
 		},
 	}
 	for _, tt := range tests {

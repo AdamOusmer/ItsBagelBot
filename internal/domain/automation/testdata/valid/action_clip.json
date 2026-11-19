@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual" },
+  "actions": [
+    { "type": "clip", "params": { "title": "Highlight with {user}", "seconds": 12.5, "reply": "{user} clipped {clip:title}: {clip:url}", "quiet": true } },
+    { "type": "clip", "params": {} },
+    { "type": "clip", "params": { "seconds": 5 } },
+    { "type": "clip", "params": { "seconds": 60 } },
+    { "type": "marker", "params": { "description": "Highlights", "quiet": true } },
+    { "type": "commercial", "params": { "seconds": 30, "quiet": true } }
+  ]
+}
