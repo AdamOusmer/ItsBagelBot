@@ -100,7 +100,7 @@ func requireLookupRetry(t *testing.T, lookup func(context.Context) (bool, error)
 	before := time.Until(retryAt)
 	_, err := lookup(t.Context())
 	after := time.Until(retryAt)
-	var retry *ErrRetryAfter
+	var retry *RetryAfterError
 	require.ErrorAs(t, err, &retry)
 	require.GreaterOrEqual(t, retry.After, after)
 	require.LessOrEqual(t, retry.After, before)

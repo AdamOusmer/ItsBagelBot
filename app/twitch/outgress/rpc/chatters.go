@@ -203,7 +203,7 @@ func (c *chatters) attemptContext(ctx context.Context, req manage.ChattersReques
 		if isSubscriberLookup(endpoint) {
 			return nil
 		}
-		return c.recordProviderReset(ctx, c.providerIdentity(endpoint), reset)
+		return c.providerCooldown().recordProviderReset(ctx, c.providerIdentity(endpoint), reset, c.now)
 	})
 }
 func (c *chatters) failedReply(req manage.ChattersRequest, reply manage.ChattersReply, err error) manage.ChattersReply {
@@ -279,7 +279,7 @@ func (c *chatters) confirmLive(ctx context.Context, req manage.ChattersRequest, 
 		reply.StreamStartedAtUnixMilli = startedAt.UnixMilli()
 	}
 	if err != nil {
-		return reply, c.providerError(ctx, "helix:app", err)
+		return reply, c.providerError(ctx, appProviderIdentity, err)
 	}
 	reply.Live = live
 	reply.CheckedAtUnixMilli = c.now().UnixMilli()
@@ -289,7 +289,7 @@ func (c *chatters) confirmLive(ctx context.Context, req manage.ChattersRequest, 
 func (c *chatters) fetchChatterPage(ctx context.Context, broadcasterID, cursor string) (twitch.ChattersPage, error) {
 	page, err := c.twitch.GetChattersPage(ctx, twitch.ChattersPageRequest{BroadcasterID: broadcasterID, ModeratorID: c.botID, Cursor: cursor})
 	if err != nil {
-		return page, c.providerError(ctx, "helix:bot:"+c.botID, err)
+		return page, c.providerError(ctx, botProviderIdentity(c.botID), err)
 	}
 	return page, nil
 }
@@ -394,7 +394,7 @@ func (c *chatters) tenantReady(ctx context.Context, req manage.ChattersRequest) 
 	return nil
 }
 func (c *chatters) unavailable() error {
-	return &twitch.AdmissionError{Code: "unavailable", RetryAt: c.now().Add(time.Second)}
+	return admissionUnavailable(c.now())
 }
 func (c *chatters) admit(req manage.ChattersRequest) twitch.AttemptAdmission {
 	return func(ctx context.Context, endpoint string) error {
@@ -408,7 +408,7 @@ func (c *chatters) admit(req manage.ChattersRequest) twitch.AttemptAdmission {
 			share, shared := subscriberLookupQuotas(req.BroadcasterID)
 			return c.payQuotas(ctx, share, shared)
 		}
-		if err := c.providerReady(ctx, endpoint); err != nil {
+		if err := c.providerCooldown().providerReady(ctx, c.providerIdentity(endpoint), c.now); err != nil {
 			return err
 		}
 		if err := c.payTenant(ctx, req.BroadcasterID); err != nil {
@@ -425,20 +425,6 @@ func isSubscriberLookup(endpoint string) bool {
 // Tier lookups spend the broadcaster's own token, never the bot's attendance budget.
 func subscriberLookupQuotas(broadcasterID string) (ratelimit.Request, ratelimit.Request) {
 	return chatterSubsSpec.ForDynamicKey("ratelimit:watch:subs:", "watch:subs", broadcasterID), ratelimit.HelixUserRequest(broadcasterID)
-}
-func (c *chatters) providerReady(ctx context.Context, endpoint string) error {
-	if c.opts.ProviderRetryAt == nil {
-		return nil
-	}
-	reset, err := c.opts.ProviderRetryAt(ctx, c.providerIdentity(endpoint))
-	if err != nil {
-		return c.unavailable()
-	}
-	// Server TIME decides whether a cooldown is live, never this pod's clock.
-	if !reset.IsZero() {
-		return &twitch.AdmissionError{Code: "rate_limited", RetryAt: reset}
-	}
-	return nil
 }
 func (c *chatters) payTenant(ctx context.Context, id string) error {
 	tenant := chatterTenantSpec.ForDynamicKey("ratelimit:watch:tenant:", "watch:tenant", id)
@@ -468,7 +454,7 @@ func (c *chatters) payQuotas(ctx context.Context, share, shared ratelimit.Reques
 	return nil
 }
 
-func (c *chatters) providerError(ctx context.Context, identity string, err error) error {
+func (c *chatters) providerError(ctx context.Context, identity providerIdentity, err error) error {
 	code, retryAt := c.providerFailure(ctx, identity, err)
 	var authorization *twitch.ChatterAuthorizationError
 	if code == "authorization" && errors.As(err, &authorization) {
@@ -479,13 +465,13 @@ func (c *chatters) providerError(ctx context.Context, identity string, err error
 
 // Only actual provider feedback establishes token-wide cooldown; quota denials
 // and canceled work cannot masquerade as a provider observation.
-func (c *chatters) providerFailure(ctx context.Context, identity string, err error) (string, time.Time) {
+func (c *chatters) providerFailure(ctx context.Context, identity providerIdentity, err error) (string, time.Time) {
 	if persistErr := c.persistUnobservedReset(ctx, identity, err); persistErr != nil {
 		return "unavailable", c.now().Add(time.Second)
 	}
 	return chattersFailure(err, c.now())
 }
-func (c *chatters) persistUnobservedReset(ctx context.Context, identity string, err error) error {
+func (c *chatters) persistUnobservedReset(ctx context.Context, identity providerIdentity, err error) error {
 	var observed *twitch.AdmissionError
 	if !errors.As(err, &observed) {
 		return nil
@@ -496,24 +482,16 @@ func (c *chatters) persistUnobservedReset(ctx context.Context, identity string, 
 	if observed.ProviderObserved {
 		return nil
 	}
-	return c.recordProviderReset(ctx, identity, observed.RetryAt)
+	return c.providerCooldown().recordProviderReset(ctx, identity, observed.RetryAt, c.now)
 }
-func (c *chatters) providerIdentity(endpoint string) string {
+func (c *chatters) providerIdentity(endpoint string) providerIdentity {
 	if strings.HasPrefix(endpoint, "/helix/streams?") {
-		return "helix:app"
+		return appProviderIdentity
 	}
-	return "helix:bot:" + c.botID
+	return botProviderIdentity(c.botID)
 }
-func (c *chatters) recordProviderReset(ctx context.Context, identity string, reset time.Time) error {
-	if c.opts.ObserveProviderReset == nil {
-		return nil
-	}
-	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
-	defer cancel()
-	if err := c.opts.ObserveProviderReset(persistCtx, identity, reset); err != nil {
-		return c.unavailable()
-	}
-	return nil
+func (c *chatters) providerCooldown() ProviderCooldown {
+	return ProviderCooldown{RetryAt: c.opts.ProviderRetryAt, ObserveReset: c.opts.ObserveProviderReset}
 }
 func chattersFailure(err error, now time.Time) (string, time.Time) {
 	var admission *twitch.AdmissionError

@@ -65,17 +65,17 @@ func (c *cachedRPC[Req, Rep, Res]) load(ctx context.Context, req Req) (Res, time
 	return c.decode(reply)
 }
 
-type ErrRetryAfter struct {
+type RetryAfterError struct {
 	After time.Duration
 }
 
-func (e *ErrRetryAfter) Error() string {
+func (e *RetryAfterError) Error() string {
 	return "lookup rate limited, retry after " + e.After.String()
 }
 
 func lookupReplyError(message string, retryAtUnixMilli int64) error {
 	if retryAtUnixMilli != 0 {
-		return &ErrRetryAfter{After: max(0, time.Until(time.UnixMilli(retryAtUnixMilli)))}
+		return &RetryAfterError{After: max(0, time.Until(time.UnixMilli(retryAtUnixMilli)))}
 	}
 	return rpcReplyError(message)
 }

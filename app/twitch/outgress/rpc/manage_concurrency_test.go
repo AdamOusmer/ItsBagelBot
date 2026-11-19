@@ -25,7 +25,9 @@ func subscribedManage(t *testing.T, verify VerifyFunc) (*bus.RPCWiring, *channel
 	t.Cleanup(registry.Close)
 	registry.SeedPause(false)
 	wiring := bus.RPCWiring{NC: nc, Queue: "outgress", Log: zap.NewNop()}
-	require.NoError(t, SubscribeManage(SubscriptionConfig{RPCWiring: wiring, Prefix: "test.outgress", Verify: verify}, registry, nil))
+	require.NoError(t, SubscribeManage(SubscriptionConfig{
+		RPCWiring: wiring, Prefix: "test.outgress", Verify: verify, Limiter: &chatterFakeLimiter{allow: true},
+	}, registry, nil))
 	return &wiring, registry
 }
 
@@ -61,8 +63,16 @@ func TestChannelSetKeepsSubStateWrittenElsewhere(t *testing.T) {
 	reply, err := bus.RequestJSONTimeout[manage.ChannelReply](t.Context(), wiring.NC, "test.outgress.channel.set", manage.ChannelRequest{BroadcasterID: "42", IsMod: &isMod}, time.Second)
 
 	require.NoError(t, err)
-	require.True(t, reply.Channel.IsMod)
-	require.True(t, reply.Channel.Enabled)
-	require.Equal(t, "failing", reply.Channel.SubState)
-	require.Equal(t, "missing: channel.cheer", reply.Channel.SubError)
+	for _, status := range []struct {
+		field string
+		got   any
+		want  any
+	}{
+		{"is mod", reply.Channel.IsMod, true},
+		{"enabled", reply.Channel.Enabled, true},
+		{"sub state", reply.Channel.SubState, "failing"},
+		{"sub error", reply.Channel.SubError, "missing: channel.cheer"},
+	} {
+		require.Equal(t, status.want, status.got, status.field)
+	}
 }

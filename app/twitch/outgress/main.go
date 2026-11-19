@@ -139,29 +139,35 @@ func main() {
 	go system.EnsureClientEventSubs(ctx)
 	go system.ReconcileLifecycle(ctx)
 
-	rpcConfig := rpc.SubscriptionConfig{
-		RPCWiring: bus.RPCWiring{NC: nc, App: nrApp, Queue: queueGroup, Log: log.Named("rpc")},
-		Prefix:    cfg.RPCPrefix,
-		Runtime:   channelruntime.NewClient(projection.NewStore(pkg_valkey.Primary(valkeyClient)), nc, ""),
-		Verify:    system.VerifyChannel,
-		Limiter:   limiter,
-	}
-	svcboot.FatalIf(log, rpc.SubscribeManage(rpcConfig, registry, tw),
-		"failed to subscribe management rpc")
-	svcboot.FatalIf(log, rpc.SubscribeTrialSubscriptions(bus.RPCWiring{
-		NC: nc, App: nrApp, Queue: "outgress-trial-subscription", Log: log.Named("trial-rpc"), Timeout: 5 * time.Second,
-	}, valkeyClient, tw, cfg.TwitchBotUserID),
-		"failed to subscribe trial subscription rpc")
-
-	svcboot.FatalIf(log, rpc.SubscribeChannelPoints(rpcConfig, tw),
-		"failed to subscribe channel-points rpc")
-
-	svcboot.FatalIf(log, d.subscribeChatters(tw, limiter), "failed to subscribe chatters rpc")
+	d.subscribeRPCs(tw, registry, system, limiter)
 	d.serveHealth(premiumSub, standardSub, systemSub)
 
 	d.logReady(tw)
 
 	core.Await()
+}
+
+func (d *deps) subscribeRPCs(tw *twitch.Client, registry *channels.Registry, system *worker.Worker, limiter ratelimit.Manager) {
+	watchAttendance := watchtime.NewStore(d.valkey)
+	rpcConfig := rpc.SubscriptionConfig{
+		RPCWiring: bus.RPCWiring{NC: d.nc, App: d.nrApp, Queue: queueGroup, Log: d.log.Named("rpc")},
+		Prefix:    d.cfg.RPCPrefix,
+		Runtime:   channelruntime.NewClient(projection.NewStore(pkg_valkey.Primary(d.valkey)), d.nc, ""),
+		Verify:    system.VerifyChannel,
+		Limiter:   limiter,
+		Cooldown:  rpc.ProviderCooldown{RetryAt: watchAttendance.ProviderRetryAt, ObserveReset: watchAttendance.ObserveProviderReset},
+		BotID:     d.cfg.TwitchBotUserID,
+	}
+	svcboot.FatalIf(d.log, rpc.SubscribeManage(rpcConfig, registry, tw),
+		"failed to subscribe management rpc")
+	svcboot.FatalIf(d.log, rpc.SubscribeTrialSubscriptions(bus.RPCWiring{
+		NC: d.nc, App: d.nrApp, Queue: "outgress-trial-subscription", Log: d.log.Named("trial-rpc"), Timeout: 5 * time.Second,
+	}, d.valkey, tw, d.cfg.TwitchBotUserID),
+		"failed to subscribe trial subscription rpc")
+
+	svcboot.FatalIf(d.log, rpc.SubscribeChannelPoints(rpcConfig, tw),
+		"failed to subscribe channel-points rpc")
+	svcboot.FatalIf(d.log, d.subscribeChatters(tw, limiter, watchAttendance), "failed to subscribe chatters rpc")
 }
 
 func warnStartupFallbacks(cfg *config.Config, log *zap.Logger) {
@@ -409,8 +415,7 @@ func (d *deps) logReady(tw *twitch.Client) {
 		zap.Int("system_workers", d.cfg.SystemWorkers))
 }
 
-func (d *deps) subscribeChatters(tw *twitch.Client, limiter ratelimit.Manager) error {
-	watchAttendance := watchtime.NewStore(d.valkey)
+func (d *deps) subscribeChatters(tw *twitch.Client, limiter ratelimit.Manager, watchAttendance *watchtime.Store) error {
 	viewerAdmission := channelruntime.NewClient(projection.NewStore(pkg_valkey.Primary(d.valkey)), d.nc, "")
 	return rpc.SubscribeChatters(d.nc, tw, d.cfg.TwitchBotUserID, d.cfg.RPCPrefix, queueGroup, d.nrApp, d.log.Named("rpc"), rpc.ChattersOptions{
 		AdmitViewer: func(ctx context.Context, id string) (bool, error) {
