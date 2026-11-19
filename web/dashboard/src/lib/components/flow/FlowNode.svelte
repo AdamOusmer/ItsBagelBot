@@ -104,7 +104,7 @@
           <span class="title">{title}</span>
         </div>
         {#if isTrigger}
-          <span class="line trigger-line bb-fit-box"><bb-fit mode="block" data-fit>{line}</bb-fit></span>
+          <span class="line trigger-line bb-fit-box"><bb-fit mode="block">{line}</bb-fit></span>
         {:else}
           <span class="line">{line}</span>
         {/if}
@@ -113,7 +113,7 @@
 
     <span class="off-tag" class:off aria-hidden="true">
       <Chip as="span" tone="muted" class="bb-fit-box" style="min-width: 0; justify-content: center; padding: 2px 4px">
-        <bb-fit data-fit>{offLabel}</bb-fit>
+        <bb-fit>{offLabel}</bb-fit>
       </Chip>
     </span>
 

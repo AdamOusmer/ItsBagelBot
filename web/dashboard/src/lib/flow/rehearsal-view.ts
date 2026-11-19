@@ -4,6 +4,15 @@ import type { Flow } from './model';
 import type { RehearsalStep } from './rehearse';
 
 type Row = { step: RehearsalStep; more: number; pass: number; total: number };
+export type StepOutcome = 'passed' | 'skipped' | 'issue' | 'failed' | 'untested';
+const OUTCOME_BY_STATUS: Record<RehearsalStep['status'], StepOutcome> = { ok: 'passed', yes: 'passed', no: 'failed', failed: 'failed', skipped: 'skipped' };
+
+export function stepOutcome(step: RehearsalStep | undefined): StepOutcome {
+  if (!step) return 'untested';
+  if (step.issues?.length) return 'issue';
+  if (step.kind === 'trigger') return step.status === 'ok' ? 'passed' : 'failed';
+  return OUTCOME_BY_STATUS[step.status];
+}
 type Count = { count: number; last: Row };
 const loopPath = (step: RehearsalStep): string => step.iteration.length ? step.path.slice(0, step.path.lastIndexOf('.params.actions')) : '';
 

@@ -2,11 +2,14 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { getI18n } from '@bagel/kit';
-  import type { RehearsalOverrides, RehearsalScenario } from '#lib/flow/rehearse';
+  import type { RehearsalOverrides, RehearsalScenario, RehearsalView } from '#lib/flow/rehearse';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
   import IconButton from '@bagel/ui/svelte/IconButton.svelte';
+  import IconTile from '@bagel/ui/svelte/IconTile.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import Icon from './FlowIcon.svelte';
-  import type { RehearsalView } from '#lib/flow/rehearse';
   import ScenarioInputs from './ScenarioInputs.svelte';
   import RehearsalTimeline from './RehearsalTimeline.svelte';
 
@@ -19,6 +22,7 @@
     onClose: () => void;
   } = $props();
   const { t } = getI18n();
+  const uid = $props.id();
   let rejectedStart = $state(false);
   function makeStart() {
     if (!view.startPatch) return;
@@ -26,56 +30,138 @@
     if (!rejectedStart) onScenario(view.startPatch);
   }
   const stoppedStep = $derived(view.steps.find((step) => step.id === view.stoppedAt)?.label ?? '');
-  const headline = $derived({
+  const headline = $derived(view.issue?.text ?? {
     not_started: t('flows.test.wouldNotStart', { reason: view.blocked ?? '' }),
     started: t('flows.test.started'),
     stopped: t('flows.test.stoppedAt', { step: stoppedStep })
   }[view.state]);
+  const canStart = $derived(!view.issue && view.state === 'not_started' && Boolean(view.startPatch));
+  const issueNode = $derived(view.issue?.node ?? null);
+  const stoppedNode = $derived(!view.issue && view.state === 'stopped' ? view.stoppedAt ?? null : null);
+  const hasTrigger = $derived(view.steps.some((step) => step.kind === 'trigger'));
+
+  function showStep() {
+    if (issueNode) onSelect(issueNode, view.issue?.fieldKey);
+    else if (stoppedNode) onSelect(stoppedNode);
+  }
 </script>
 
-<aside class="panel" aria-label={t('flows.board.testRun')}>
+{#snippet event()}
+  <ScenarioInputs fields={view.fields} scenario={view.scenario} onChange={onScenario} />
+  <div class="start" class:off={!canStart} inert={!canStart}>
+    <Button variant="secondary" size="sm" disabled={!canStart} onclick={makeStart}><bb-fit>{t('flows.test.makeStart')}</bb-fit></Button>
+    <Text as="span" size="xs" tone="warning" class="start-rejected" role="status">{rejectedStart ? t('flows.test.repairBlocked') : ''}</Text>
+  </div>
+{/snippet}
+
+<aside class="panel" aria-labelledby="{uid}-title">
   <header class="head">
-    <h2 class="name bb-fit-box"><bb-fit>{t('flows.board.testRun')}</bb-fit></h2>
-    <IconButton label={t('flows.board.closeTestRun')} size="sm" onclick={onClose}><Icon name="x" size={14} /></IconButton>
+    <IconTile style="--tile: var(--bb-space-6)"><Icon name="start" size={16} /></IconTile>
+    <Heading level={2} variant="card" class="run-heading bb-fit-box" id="{uid}-title"><bb-fit>{t('flows.board.testRun')}</bb-fit></Heading>
+    <IconButton label={t('flows.board.closeTestRun')} size="sm" onclick={onClose}><Icon name="x" size={15} /></IconButton>
   </header>
   <div class="scroll">
-    <p class="summary bb-fit-box" class:invisible={Boolean(view.issue)} aria-live="polite"><bb-fit mode="block">{view.summary}</bb-fit></p>
-    <p class="note bb-fit-box"><bb-fit mode="block">{t('flows.test.pretend')}</bb-fit></p>
-    <ScenarioInputs fields={view.fields} scenario={view.scenario} onChange={onScenario} />
-    {#if view.issue}
-      <div class="notice" role="status">
-        <p class="sentence bb-fit-box"><bb-fit mode="block">{view.issue.text}</bb-fit></p>
-        {#if view.issue.node}<Button variant="ghost" size="sm" onclick={() => view.issue?.node && onSelect(view.issue.node, view.issue.fieldKey)}><bb-fit>{t('flows.test.fixStep')}</bb-fit></Button>{/if}
+    <div class="intro">
+      <Text size="sm" class="run-headline bb-fit-box" role="status" aria-live="polite"><bb-fit mode="block">{headline}</bb-fit></Text>
+      <div class="intro-action" class:off={!issueNode && !stoppedNode} inert={!issueNode && !stoppedNode}>
+        <Button variant="ghost" size="sm" onclick={showStep}><bb-fit>{t(issueNode ? 'flows.test.fixStep' : 'flows.test.showStep')}</bb-fit></Button>
       </div>
-    {/if}
-    <p class="sentence definition-notice bb-fit-box" class:invisible={!view.definitionNotice} role="status"><bb-fit mode="block">{view.definitionNotice ?? ''}</bb-fit></p>
-    <div class="notice start" class:invisible={Boolean(view.issue)} inert={Boolean(view.issue)}>
-      <p class="sentence bb-fit-box" role="status"><bb-fit mode="block">{headline}</bb-fit></p>
-      <div class="actions">
-        <div class="repair" class:invisible={view.state !== 'not_started' || !view.startPatch} inert={view.state !== 'not_started' || !view.startPatch}>
-          <Button variant="ghost" size="sm" onclick={makeStart}><bb-fit>{t('flows.test.makeStart')}</bb-fit></Button>
-        </div>
-        <div class="repair" class:invisible={view.state !== 'stopped'} inert={view.state !== 'stopped'}>
-          <Button variant="ghost" size="sm" onclick={() => view.stoppedAt && onSelect(view.stoppedAt)}><bb-fit>{t('flows.test.showStep')}</bb-fit></Button>
-        </div>
-      </div>
-      <span class="sentence" class:invisible={!rejectedStart} role="status">{rejectedStart ? t('flows.test.repairBlocked') : ''}</span>
+      <Text size="xs" tone="muted" class="run-pretend bb-fit-box"><bb-fit mode="block">{t('flows.test.pretend')}</bb-fit></Text>
+      <Text size="xs" tone="warning" class="run-definition bb-fit-box" role="status"><bb-fit mode="block">{view.definitionNotice ?? ''}</bb-fit></Text>
     </div>
-    <RehearsalTimeline steps={view.steps} scenario={view.scenario} verifyRepair={view.verifyRepair} {overrides} {onScenario} {onOverride} {onSelect} />
+    {#if !hasTrigger}
+      <Card class="event-card">
+        {#if view.fields.length}
+          {@render event()}
+        {:else}
+          <Text size="sm" tone="muted-light" class="event-empty bb-fit-box"><bb-fit mode="block">{t('flows.test.noTrigger')}</bb-fit></Text>
+        {/if}
+      </Card>
+    {/if}
+    <RehearsalTimeline steps={view.steps} scenario={view.scenario} summary={view.summary} verifyRepair={view.verifyRepair} {overrides} {onScenario} {onOverride} {onSelect} {event} />
   </div>
 </aside>
 
 <style>
-  .panel { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; border-radius: var(--bb-radius-md); background: var(--bb-bg-1); box-shadow: 0 16px 48px rgba(var(--bb-shadow-rgb), 0.65); }
-  .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: none; padding: 12px 12px 8px 16px; }
-  .name { flex: 1; height: 24px; margin: 0; min-width: 0; font-size: 17px; font-weight: 600; color: var(--bb-white); }
-  .scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 20px; }
-  .summary { flex: none; margin: 0; height: 48px; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
-  .note { flex: none; height: 40px; margin: 0; font-size: 13px; line-height: 20px; color: var(--bb-muted-light); }
-  .notice { flex: none; min-height: 64px; font-size: 14px; line-height: 1.4; }
-  .sentence { height: 42px; margin: 0 0 6px; }
-  .definition-notice { flex: none; }
-  .actions { display: grid; }
-  .repair { min-height: 32px; grid-area: 1 / 1; }
-  .invisible { visibility: hidden; opacity: 0; }
+  .panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: var(--bb-radius-md);
+    background: var(--bb-bg-1);
+    box-shadow: var(--bb-depth-1), 0 16px 48px rgba(var(--bb-shadow-rgb), 0.55);
+    --panel-pad: var(--bb-space-5);
+  }
+  .head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--bb-space-3);
+    padding: var(--bb-space-4) var(--bb-space-3) var(--bb-space-4) var(--panel-pad);
+    border-block-end: 1px solid var(--bb-rule);
+  }
+  .head :global(.run-heading) {
+    flex: 1;
+    min-width: 0;
+    height: var(--bb-space-5);
+    margin: 0;
+    font: 600 var(--bb-text-md)/1.25 var(--bb-font-body);
+    letter-spacing: normal;
+  }
+  .scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-4);
+    padding: var(--bb-space-4) var(--panel-pad) var(--bb-space-5);
+  }
+  .intro {
+    display: grid;
+    flex: none;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--bb-space-3);
+    row-gap: var(--bb-space-1);
+    align-items: center;
+  }
+  .intro > :global(:not(.intro-action)) { grid-column: 1 / -1; }
+  .intro > :global(:first-child) { grid-column: 1; }
+  .intro :global(.run-headline) {
+    height: var(--bb-space-6);
+    margin: 0;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .intro :global(.run-pretend) { height: var(--bb-space-5); margin: 0; }
+  .intro :global(.run-definition) { height: var(--bb-space-5); margin: 0; }
+  .intro-action { max-width: var(--bb-space-9); }
+  .scroll :global(.event-card) {
+    --card-pad: var(--bb-space-4);
+    --card-bg: var(--bb-elev-2);
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: var(--bb-space-3);
+  }
+  .scroll :global(.event-empty) {
+    height: calc(var(--bb-space-5) + var(--bb-space-4));
+    margin: 0;
+  }
+  .start {
+    display: flex;
+    align-items: center;
+    gap: var(--bb-space-1);
+    margin-block-start: var(--bb-space-3);
+    transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+  .start :global(.start-rejected) { flex: 1; min-width: 0; }
+  .off { visibility: hidden; opacity: 0; }
+  @media (max-width: 760px) {
+    .panel { --panel-pad: var(--bb-space-4); }
+  }
+  @media (prefers-reduced-motion: reduce) { .start { transition: none; } }
 </style>

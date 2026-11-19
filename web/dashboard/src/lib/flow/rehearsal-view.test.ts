@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import { expect, test } from 'bun:test';
 import { newFlow } from './model';
-import { rehearsalTimeline, rehearsalTrace } from './rehearsal-view';
+import { rehearsalTimeline, rehearsalTrace, stepOutcome, type StepOutcome } from './rehearsal-view';
 import type { RehearsalStep } from './rehearse';
 
 const step = (index: number, extra: Partial<RehearsalStep> = {}): RehearsalStep => ({
@@ -24,4 +24,17 @@ test.each(['yes', 'no'])('trace follows the %s port and ignores skipped nodes', 
   const events = [step(0, { port }), step(1, { id: port }), step(2, { id: 'skipped', status: 'skipped' })];
   const trace = rehearsalTrace(flow, events);
   expect([[...trace.nodes], [...trace.edges]]).toEqual([['0', port], [port]]);
+});
+
+test.each<{ extra: Partial<RehearsalStep> | null; outcome: StepOutcome }>([
+  { extra: null, outcome: 'untested' },
+  { extra: {}, outcome: 'passed' },
+  { extra: { kind: 'check', status: 'yes' }, outcome: 'passed' },
+  { extra: { kind: 'check', status: 'no' }, outcome: 'failed' },
+  { extra: { status: 'failed' }, outcome: 'failed' },
+  { extra: { status: 'skipped' }, outcome: 'skipped' },
+  { extra: { kind: 'trigger', status: 'skipped' }, outcome: 'failed' },
+  { extra: { issues: [{ nodeId: '0', fieldKey: 'message', code: 'required', path: 'actions[0].params.text' }] }, outcome: 'issue' }
+])('step outcome for $extra is $outcome', ({ extra, outcome }) => {
+  expect(stepOutcome(extra ? step(0, extra) : undefined)).toBe(outcome);
 });

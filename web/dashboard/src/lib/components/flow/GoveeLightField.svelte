@@ -121,7 +121,7 @@
         <Text size="sm">{t('flows.lightKeyBody')}</Text>
       {/if}
       <Text size="sm" tone="muted">{t('flows.lightKeyPath', { path: t('govee.keyPath') })}</Text>
-      <Field label={t('govee.keyFieldLabel')} for="{id}-key">
+      <Field fit label={t('govee.keyFieldLabel')} for="{id}-key">
         <Input id="{id}-key" fill mono name="key" type="password" placeholder={t('govee.keyPlaceholder')} autocomplete="off" spellcheck="false" required />
       </Field>
       <Text size="xs" tone="muted">{t('goveeSetup.keyStored')}</Text>
@@ -139,7 +139,7 @@
         { look: 'white', text: t('flows.step.reply.lights.noWarmth') }
       ]}
       {@const others = lights.filter((light) => light.device !== device)}
-      <Field label={t('flows.lightField')} {tag} error={fieldError} errorId="{id}-error" for={id}>
+      <Field fit label={t('flows.lightField')} {tag} error={fieldError} errorId="{id}-error" for={id}>
         <Select
           {id}
           {options}
@@ -154,7 +154,7 @@
         {#each hints as hint (hint.look)}
           {@const hidden = hint.look !== mismatch}
           <span class="look-hint-text bb-fit-box" class:faded={hidden} aria-hidden={hidden}>
-            <Text as="small" size="xs" tone="muted"><bb-fit data-fit mode="block">{hint.text}</bb-fit></Text>
+            <Text as="small" size="xs" tone="muted"><bb-fit mode="block">{hint.text}</bb-fit></Text>
           </span>
         {/each}
       </div>

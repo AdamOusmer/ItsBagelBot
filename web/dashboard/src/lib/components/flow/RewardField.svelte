@@ -126,17 +126,17 @@
 </script>
 
 {#snippet afterRun(source: Mode)}
-  <Field label={t('flows.reward.afterTitle')} for="{id}-{source}-after">
+  <Field fit label={t('flows.reward.afterTitle')} for="{id}-{source}-after">
     <div class="after-choice" class:faded={settledByStep} inert={settledByStep}>
       <Select fill id="{id}-{source}-after" options={afterOptions} value={settledByStep ? 'leave' : draft.onRedeem} disabled={settledByStep}
         onchange={(event) => (draft.onRedeem = event.currentTarget.value)} />
     </div>
-    <small class="after-note bb-fit-box" class:faded={!settledByStep} aria-hidden={!settledByStep}><bb-fit>{t('flows.reward.afterSettledByStep')}</bb-fit></small>
-    <small class="after-note bb-fit-box"><bb-fit>{t('flows.reward.afterRefundSkipped')}</bb-fit></small>
+    <small class="after-note bb-fit-box" class:faded={!settledByStep} aria-hidden={!settledByStep}><bb-fit mode="block">{t('flows.reward.afterSettledByStep')}</bb-fit></small>
+    <small class="after-note bb-fit-box"><bb-fit mode="block">{t('flows.reward.afterRefundSkipped')}</bb-fit></small>
   </Field>
 {/snippet}
 
-<SegmentedControl options={modeOptions} value={mode} onValueChange={chooseMode} label={t('flows.reward.modeLabel')} />
+<SegmentedControl class="bb-tabs--even bb-tabs--plain" options={modeOptions} value={mode} onValueChange={chooseMode} label={t('flows.reward.modeLabel')} />
 
 <div class="stack">
   <div class="pane" class:hidden={mode !== 'existing'} inert={mode !== 'existing'}>
@@ -173,6 +173,7 @@
 <style>
   .stack {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
   }
   .pane {
     grid-area: 1 / 1;
@@ -193,7 +194,7 @@
   }
   .after-note {
     display: block;
-    block-size: 1.25rem;
+    block-size: calc(2 * var(--bb-space-4));
     min-inline-size: 0;
   }
   .faded {

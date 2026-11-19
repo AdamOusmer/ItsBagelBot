@@ -101,7 +101,7 @@
   }
 </script>
 
-<Field {label} {tag} error={fixedStatus ? undefined : error} errorId="{id}-error" for={id}>
+<Field fit {label} {tag} error={fixedStatus ? undefined : error} errorId="{id}-error" for={id}>
   <Input
     {id}
     {placeholder}

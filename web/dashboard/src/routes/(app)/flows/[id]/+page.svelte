@@ -749,7 +749,7 @@
   <Button class="run-button" variant="ghost" aria-label={t('flows.board.testRun')} onclick={testRun}><Icon name="play" size={14} /> <span class="run-text bb-fit-box"><bb-fit>{t('flows.board.testRun')}</bb-fit></span></Button>
   <div class="manual-run" class:invisible={!isManual} inert={!isManual}>
     <Button class="run-button" variant="ghost" aria-label={t('flows.board.runNow')} disabled={!canRun} busy={running} onclick={runNow}>
-      <Icon name="send" size={14} /> <span class="run-text bb-fit-box"><bb-fit data-fit>{t('flows.board.runNow')}</bb-fit></span>
+      <Icon name="send" size={14} /> <span class="run-text bb-fit-box"><bb-fit>{t('flows.board.runNow')}</bb-fit></span>
     </Button>
   </div>
   <Button class="save-button" variant="primary" disabled={!dirty} busy={saving} onclick={() => void save()}><bb-fit>{t('flows.page.save')}</bb-fit></Button>
@@ -790,7 +790,7 @@
   <div class="panels">
     <div class="panel-slot inspector-slot" class:parked={!inspectorVisible} inert={!inspectorVisible}>
     {#await loadInspector() then { default: NodeInspector }}
-      <NodeInspector bind:flow bind:selectedId fallbackId={initialInspectorId} active={inspectorVisible} {rehearsal} {issues} {permissionRank} focusField={inspectField} focusToken={inspectFocus} onclose={closeInspector} onremove={(id, keepYes) => canvas?.removeStep(id, keepYes)} oncheck={() => { if (autoTidy) queueMicrotask(() => canvas?.tidyNow()); }} onResponseSample={(id, sample) => changeOverride(`${id}.response`, sample)} />
+      <NodeInspector bind:flow bind:selectedId fallbackId={initialInspectorId} active={inspectorVisible} {rehearsal} {issues} {permissionRank} focusField={inspectField} focusToken={inspectFocus} onclose={closeInspector} onremove={(id, keepYes) => canvas?.removeStep(id, keepYes)} oncheck={() => { if (autoTidy) queueMicrotask(() => canvas?.tidyNow()); }} ontest={() => { if (!testRunOpen) void testRun(); }} onResponseSample={(id, sample) => changeOverride(`${id}.response`, sample)} />
     {/await}
     </div>
   {#if testRunOpen}

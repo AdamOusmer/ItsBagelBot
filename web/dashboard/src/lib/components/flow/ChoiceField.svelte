@@ -110,14 +110,14 @@
 </script>
 
 {#if field.type === 'target'}
-  <Field {label} {error} errorId="{id}-error">
-    <SegmentedControl {id} {label} {options} class="bb-tabs--even" value={targetMode(node.config)}
+  <Field fit {label} {error} errorId="{id}-error">
+    <SegmentedControl {id} {label} {options} class="bb-tabs--even bb-tabs--plain" value={targetMode(node.config)}
       aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined}
       onValueChange={(next) => (node.config.who = next)} />
   </Field>
 {:else}
-<div class="choice-field">
-<Field {label} {tag} {error} errorId="{id}-error" for={id}>
+<div class="choice-field bb-field-span">
+<Field fit {label} {tag} {error} errorId="{id}-error" for={id}>
   <div class="choice-content">
   {#if list === null}
     <Text size="sm" tone="muted">{t('flows.choose.light')}</Text>

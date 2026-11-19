@@ -8,6 +8,7 @@ import { render } from 'svelte/server';
 import { flowToDefinition } from '@bagel/kit/automations';
 import { english } from '../../flow/english.testing';
 import { fieldMounted, fieldVisible, flowTrigger, newFlow, NODE_SPECS, type FieldSpec, type Flow, type FlowNode } from '../../flow/model';
+import { CHOICE_SOURCES } from '../../flow/choices';
 import { addNode } from '../../flow/ops.testing';
 import { rehearseFlow } from '../../flow/rehearse';
 
@@ -15,7 +16,9 @@ mock.module('$app/env', () => ({ browser: false, dev: false }));
 mock.module('$app/forms', () => ({ deserialize: JSON.parse, enhance: () => undefined }));
 mock.module('$app/navigation', () => ({ afterNavigate: () => {}, beforeNavigate: () => {}, goto: () => {}, invalidate: () => {}, invalidateAll: () => {} }));
 mock.module('$app/state', () => ({
-  navigating: null, page: { data: { govee: Promise.resolve({ keyPresent: false, devices: [] }) } }, updated: { current: false }
+  navigating: null,
+  page: { data: { govee: Promise.resolve({ keyPresent: false, devices: [] }), ...Object.fromEntries(CHOICE_SOURCES.map((source) => [source, Promise.resolve({ options: [] })])) } },
+  updated: { current: false }
 }));
 mock.module('virtual:bagel-i18n', () => ({ loaders: {}, localeNames: {}, locales: ['en'], sliced: false, urls: {} }));
 
@@ -51,7 +54,7 @@ test.each(gateCases)('$type keeps all fields mounted with $key set to $value', (
   const flow = newFlow('Inspector');
   const node = addNode(flow, spec.type, { x: 0, y: 0 });
   node.config[key] = value;
-  const fields = Array.from(inspect(flow, node).matchAll(/<fieldset\b([^>]*?)\bdata-field="([^"]+)"[^>]*>/g), ([, attributes, fieldKey]) => ({
+  const fields = Array.from(inspect(flow, node).matchAll(/<fieldset\b([^>]*?)\bname="([^"]+)"[^>]*>/g), ([, attributes, fieldKey]) => ({
     key: fieldKey, disabled: /\sdisabled\b/.test(attributes!), inert: /\sinert\b/.test(attributes!)
   }));
   const expected = spec.fields.filter((field) => fieldMounted(spec, node, field)).map((field) => {
@@ -71,7 +74,7 @@ test.each([
   const root = addNode(flow, trigger, { x: 0, y: 0 });
   Object.assign(root.config, config);
   const step = addNode(flow, 'reply.countdown_add', { x: 368, y: 0 }, { from: root.id, port: 'next' });
-  const field = inspect(flow, step).match(/<fieldset\b[^>]*\bdata-field="per"[^>]*>/)?.[0];
+  const field = inspect(flow, step).match(/<fieldset\b[^>]*\bname="per"[^>]*>/)?.[0];
   expect({ mounted: Boolean(field), inert: /\sinert\b/.test(field ?? '') }).toEqual({ mounted: true, inert: !active });
 });
 

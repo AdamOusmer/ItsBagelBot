@@ -39,7 +39,7 @@
 <div class="try-it">
   <div class="controls">
     <Button variant="ghost" size="sm" disabled={!eligible} busy={loading} aria-describedby={eligible ? undefined : hintId} onclick={tryRead}>
-      <bb-fit data-fit>{t('flows.step.reply.httpGet.tryIt.label')}</bb-fit>
+      <bb-fit>{t('flows.step.reply.httpGet.tryIt.label')}</bb-fit>
     </Button>
     <small class="bb-field__hint bb-fit-box fixed-hint" class:faded={eligible} aria-hidden={eligible} id={hintId}>
       <bb-fit mode="block">{t('flows.step.reply.httpGet.tryIt.fixedAddress')}</bb-fit>

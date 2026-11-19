@@ -4,19 +4,25 @@
   import { tick } from 'svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Icon from './FlowIcon.svelte';
+  import UiIcon from '@bagel/ui/svelte/Icon.svelte';
+  import '@bagel/ui/styles/elements/field-sheet.css';
   import IconButton from '@bagel/ui/svelte/IconButton.svelte';
   import IconTile from '@bagel/ui/svelte/IconTile.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Slider from '@bagel/ui/svelte/Slider.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import VarCard from '@bagel/ui/svelte/VarCard.svelte';
   import { getI18n, type MessageKey } from '@bagel/kit';
   import { chipHint, pinnedFor, sheetFor, variableById, type VariableChip } from '@bagel/kit/variables';
-  import { portLabel } from '#lib/flow/describe';
+  import { describe, portLabel } from '#lib/flow/describe';
+  import { stepOutcome } from '#lib/flow/rehearsal-view';
   import { fieldRequired, inlineFieldIssue, type FieldIssue } from '#lib/flow/issues';
   import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
@@ -30,6 +36,7 @@
   import { canNameCooldown, cooldownWindows, hasRedemptionStep, pointsChange, SETUP_URL, triggerAmountUnit } from '@bagel/kit/automations';
   import ChoiceField from './ChoiceField.svelte';
   import FlowRehearsal from './FlowRehearsal.svelte';
+  import RunOutcome from './RunOutcome.svelte';
   import GoveeLightField from './GoveeLightField.svelte';
   import RewardField from './RewardField.svelte';
   import UserField from './UserField.svelte';
@@ -49,8 +56,9 @@
     onclose,
     onremove,
     oncheck,
+    ontest,
     onResponseSample
-  }: { flow: Flow; selectedId?: string | null; fallbackId?: string; active?: boolean; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; permissionRank?: number; onclose?: () => void; onremove: (id: string, keepYes?: boolean) => void; oncheck?: () => void; onResponseSample?: (nodeId: FlowNode['id'], sample: string) => void } = $props();
+  }: { flow: Flow; selectedId?: string | null; fallbackId?: string; active?: boolean; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; permissionRank?: number; onclose?: () => void; onremove: (id: string, keepYes?: boolean) => void; oncheck?: () => void; ontest?: () => void; onResponseSample?: (nodeId: FlowNode['id'], sample: string) => void } = $props();
 
   const { t } = getI18n();
   type FieldKey = FieldSpec['key'];
@@ -86,6 +94,9 @@
   const namedCooldownDrafts = $derived(flow.nodes.filter((entry) => entry.type === 'cond.cooldown' && canNameCooldown(cooldownWindows(entry.config))));
   const trigger = $derived(flowTrigger(flow));
   const amountUnit = $derived(triggerAmountUnit(trigger));
+  const lastStep = $derived(node ? rehearsal.steps.findLast((step) => step.id === node.id) : undefined);
+  const summary = $derived(node ? describe(t, node, trigger) : '');
+  const lastText = $derived(lastStep?.text || lastStep?.lines?.join(' ') || t('flows.test.noResult'));
 
   const compareExample = $derived.by(() => {
     if (node?.type !== 'cond.compare') return null;
@@ -322,6 +333,12 @@
     onremove(node.id);
   }
 
+  const OWN_ERROR_TYPES = new Set<FieldSpec['type']>(['choice', 'target', 'reward', 'goveeLight', 'login', 'duration', 'toggle']);
+  function sharesNote(field: FieldSpec, hint: Hint): boolean {
+    if (!hint || OWN_ERROR_TYPES.has(field.type)) return false;
+    return !(field.type === 'template' && field.singleLine);
+  }
+
   function blankRequiredTarget(key: FieldKey, required: boolean): boolean {
     if (key !== 'target' || !required) return false;
     return !textOf(key).trim();
@@ -347,13 +364,24 @@
 {#if node && spec}
   <aside class="panel" aria-label={active ? t('flows.board.settings', { label: stepLabel(t, spec) }) : undefined} tabindex="-1" bind:this={panel}>
     <header class="head">
-      <IconTile style="--tile: 40px; color: {KIND_TINT[spec.kind]}"><Icon name={spec.icon} size={20} /></IconTile>
+      <IconTile style="--tile: var(--bb-space-6); color: {KIND_TINT[spec.kind]}"><Icon name={spec.icon} size={16} /></IconTile>
       <div class="titles">
-        <h2 class="name bb-fit-box"><bb-fit>{stepLabel(t, spec)}</bb-fit></h2>
-        <p class="sentence bb-fit-box"><bb-fit>{t('flows.board.settingsSentence', { summary: stepSummary(t, spec) })}</bb-fit></p>
+        <Heading level={2} variant="card" class="inspector-title bb-fit-box"><bb-fit>{stepLabel(t, spec)}</bb-fit></Heading>
+        <Text size="xs" tone="muted" class="inspector-sentence bb-fit-box"><bb-fit>{t('flows.board.settingsSentence', { summary: stepSummary(t, spec) })}</bb-fit></Text>
       </div>
-      <IconButton label={t('flows.board.closeSettings')} size="sm" onclick={() => (onclose ? onclose() : (selectedId = null))}><Icon name="x" size={14} /></IconButton>
+      <IconButton label={t('flows.board.closeSettings')} size="sm" onclick={() => (onclose ? onclose() : (selectedId = null))}><Icon name="x" size={15} /></IconButton>
     </header>
+
+    <div class="last-test">
+      <div class="last-test-top">
+        <Label as="span" class="last-test-label bb-fit-box"><bb-fit>{t('flows.test.lastTest')}</bb-fit></Label>
+        <RunOutcome outcome={stepOutcome(lastStep)} />
+      </div>
+      <Text size="sm" tone="muted-light" class="last-test-text bb-fit-box" role="status">
+        <bb-fit mode="block">{lastText}</bb-fit>
+      </Text>
+      <Button class="last-test-button" variant="ghost" size="sm" onclick={ontest} disabled={!ontest}><bb-fit>{t('flows.test.test')}</bb-fit></Button>
+    </div>
 
     <div class="scroll">
       {#if staticNote}
@@ -362,17 +390,8 @@
       {#if awaiting}
         <p class="note">{t('flows.setup.stepNote')}</p>
       {/if}
-      <div class="role-note" class:faded={!roleNote}>
-        <p class="note role-warning bb-fit-box" role="status"><bb-fit mode="block">{roleNote ?? ''}</bb-fit></p>
-        <div class="check-action" class:faded={!checkAction} inert={!checkAction}>
-          <Button variant="ghost" onclick={changeCheck}><bb-fit>{t(removeCheck ? 'flows.step.condition.role.remove' : 'flows.step.requirement.addCheck')}</bb-fit></Button>
-        </div>
-      </div>
-      {#if hasCheckNote(node) || node.type === 'cond.pattern'}
-        <p class="note check-note bb-fit-box" class:faded={!passingNote} role="status"><bb-fit data-fit mode="block">{passingNote ?? ''}</bb-fit></p>
-      {/if}
       {#if spec.fields.length}
-        <div class="fields">
+        <div class="fields bb-field-sheet">
           {#each spec.fields.filter((field) => fieldMounted(spec, node, field)) as field (field.key)}
             {@const disabled = !fieldVisible(spec, node, field, trigger)}
             {@const label = fieldLabel(t, spec, field, node)}
@@ -381,10 +400,11 @@
             {@const error = issue ? fieldIssueMessage(t, issue, node) : undefined}
             {@const required = !disabled && fieldRequired(node, field.key)}
             {@const tag = required ? t('flows.clarity.required') : undefined}
+            {@const inNote = sharesNote(field, hint)}
             {@const placeholder = node.config[field.key] === SETUP_URL ? t('flows.setup.addUrl') : fieldPlaceholder(t, spec, field, node)}
-            <fieldset class="field" class:inactive={disabled} {disabled} inert={disabled} data-field={field.key} bind:this={fieldElements[field.key]} aria-label={label} tabindex="-1">
+            <fieldset class="field bb-field-row" class:bb-field-row--stack={field.type === 'reward'} class:inactive={disabled} {disabled} inert={disabled} name={field.key} bind:this={fieldElements[field.key]} aria-label={label} tabindex="-1">
             {#if field.type === 'color'}
-              <Field {label} {tag} {error} for="{uid}-{field.key}">
+              <Field fit {label} {tag} error={inNote ? undefined : error} for="{uid}-{field.key}">
                 <ColorPicker
                   id="{uid}-{field.key}"
                   value={textOf(field.key) || '#ffffff'}
@@ -392,8 +412,8 @@
                 />
               </Field>
             {:else if field.type === 'toggle'}
+              <span class="bb-field__label"><span class="bb-field__text bb-fit-box"><bb-fit mode="block">{label}</bb-fit></span></span>
               <div class="toggle">
-                <span class="toggle-label">{label}</span>
                 <Switch
                   {label}
                   checked={Boolean(node.config[field.key] ?? (field.key === 'liveOnly' && field.initial))}
@@ -401,7 +421,7 @@
                 />
               </div>
             {:else if field.type === 'select'}
-              <Field {label} {tag} {error} for="{uid}-{field.key}">
+              <Field fit {label} {tag} error={inNote ? undefined : error} for="{uid}-{field.key}">
                 <Select
                   id="{uid}-{field.key}"
                   options={fieldOptions(t, spec, field)}
@@ -412,7 +432,7 @@
             {:else if field.type === 'slider'}
               {@const value = Number(node.config[field.key] ?? field.initial ?? field.min)}
               {@const valueText = field.unit ? `${value} ${field.unit}` : String(value)}
-              <Field {label} {tag} {error} for="{uid}-{field.key}" errorId="{uid}-{field.key}-error">
+              <Field fit {label} {tag} error={inNote ? undefined : error} for="{uid}-{field.key}" errorId="{uid}-{field.key}-error">
                 <div class="slider-row">
                   <Slider
                     id="{uid}-{field.key}"
@@ -425,12 +445,12 @@
                     aria-describedby={error ? `${uid}-${field.key}-error` : undefined}
                     oninput={(e) => (node.config[field.key] = e.currentTarget.valueAsNumber)}
                   />
-                  <span class="unit slider-value bb-fit-box" aria-hidden="true"><bb-fit data-fit>{valueText}</bb-fit></span>
+                  <span class="unit slider-value bb-fit-box" aria-hidden="true"><bb-fit>{valueText}</bb-fit></span>
                 </div>
               </Field>
             {:else if field.type === 'number'}
               {@const unit = field.whenTrigger === 'amount' && amountUnit ? t(`flows.line.timerAmount.${amountUnit}.unit`) : fieldUnit(t, spec, field)}
-              <Field {label} {tag} {error} for="{uid}-{field.key}">
+              <Field fit {label} {tag} error={inNote ? undefined : error} for="{uid}-{field.key}">
                 <Input
                   id="{uid}-{field.key}"
                   type="number"
@@ -449,9 +469,10 @@
               {@const value = durationConfig?.[field.key]}
               {@const outside = durationOutside(field, value)}
               {@const range = durationRange(t, spec, field)}
-              <Field {label} {tag} hint={outside ? undefined : range} error={error ?? (outside ? range : undefined)} errorId="{uid}-{field.key}-error">
+              <Field fit {label} {tag} hint={outside ? undefined : range} error={error ?? (outside ? range : undefined)} errorId="{uid}-{field.key}-error">
                 {#key node.id}
                   <DurationField
+                    compact
                     id="{uid}-{field.key}"
                     min={field.min}
                     max={field.max}
@@ -469,7 +490,7 @@
               {@const targetInput = field.key === 'target'}
               {@const missingTarget = blankRequiredTarget(field.key, required)}
               {@const shown = disabled ? undefined : error ?? (missingTarget ? t('flows.test.noTarget') : undefined)}
-              <Field {label} tag={targetFieldFor(spec) ? undefined : tag} error={targetInput ? undefined : shown} for="{uid}-{field.key}" errorId="{uid}-{field.key}-error">
+              <Field fit {label} tag={targetFieldFor(spec) ? undefined : tag} error={targetInput ? undefined : shown} for="{uid}-{field.key}" errorId="{uid}-{field.key}-error">
                 <Input
                   id="{uid}-{field.key}"
                   required={targetInput && required}
@@ -493,7 +514,7 @@
                 {/if}
               </Field>
             {:else if field.type === 'template'}
-              <Field {label} {tag} {error} for="{uid}-{field.key}">
+              <Field fit {label} {tag} error={inNote ? undefined : error} for="{uid}-{field.key}">
                 <Textarea
                   id="{uid}-{field.key}"
                   rows={4}
@@ -523,7 +544,7 @@
                 <UserField {node} id="{uid}-{field.key}" {label} {placeholder} tag={targetFieldFor(spec) ? undefined : tag} error={disabled ? undefined : error} fixedStatus={targetFieldFor(spec)} multiple={node.type === 'cond.user'} />
               {/key}
             {:else}
-              <Field {label} {tag} {error} for="{uid}-{field.key}">
+              <Field fit {label} {tag} error={inNote ? undefined : error} for="{uid}-{field.key}">
                 <Input
                   id="{uid}-{field.key}"
                   {placeholder}
@@ -532,7 +553,9 @@
                 />
               </Field>
             {/if}
-            {#if hint}
+            {#if inNote && error}
+              <small class="bb-field__error bb-fit-box field-hint" role="alert" id="{uid}-{field.key}-error"><bb-fit mode="block">{error}</bb-fit></small>
+            {:else if hint}
               <small class="bb-field__hint bb-fit-box field-hint"><bb-fit mode="block">{hint}</bb-fit></small>
             {/if}
             {#if node.type === 'reply.http_get' && field.key === 'url'}
@@ -554,15 +577,21 @@
         </div>
       {/if}
 
-      {#if spec.kind !== 'condition'}
-        <FlowRehearsal steps={rehearsal.steps} focusId={node.id} title={['reply.chat', 'reply.announce', 'reply.reply'].includes(node.type) ? t('chatPreview.rehearsal') : t('flows.board.whatHappens')} />
+      <div class="role-note" class:faded={!roleNote}>
+        <p class="note role-warning bb-fit-box" role="status"><bb-fit mode="block">{roleNote ?? ''}</bb-fit></p>
+        <div class="check-action" class:faded={!checkAction} inert={!checkAction}>
+          <Button variant="ghost" onclick={changeCheck}><bb-fit>{t(removeCheck ? 'flows.step.condition.role.remove' : 'flows.step.requirement.addCheck')}</bb-fit></Button>
+        </div>
+      </div>
+      {#if hasCheckNote(node) || node.type === 'cond.pattern'}
+        <p class="note check-note bb-fit-box" class:faded={!passingNote} role="status"><bb-fit mode="block">{passingNote ?? ''}</bb-fit></p>
       {/if}
 
       {#if branches.length}
         <section class="group">
           <h3 class="group-title">{t('flows.board.branchesTitle')}</h3>
           {#if compareExample}
-            <p class="note">{compareExample}</p>
+            <p class="note compare-example bb-fit-box"><bb-fit mode="block">{compareExample}</bb-fit></p>
           {/if}
           <ul class="branches">
             {#each branches as b (b.id)}
@@ -602,6 +631,7 @@
           {/if}
         </section>
       {/if}
+      <FlowRehearsal steps={spec.kind === 'condition' ? [] : rehearsal.steps} focusId={node.id} {summary} />
     </div>
 
     <footer class="foot">
@@ -616,13 +646,13 @@
             else node.config.disabled = true;
           }}
         />
-        <span class="run-label bb-fit-box"><bb-fit data-fit mode="block">{t('flows.board.runStep')}</bb-fit></span>
+        <span class="run-label bb-fit-box"><bb-fit mode="block">{t('flows.board.runStep')}</bb-fit></span>
         <span id="{uid}-always-runs" class="run-note bb-fit-box" class:faded={spec.kind === 'reply'} aria-hidden={spec.kind === 'reply'}>
-          <bb-fit data-fit mode="block">{t('flows.board.checksAlwaysRun')}</bb-fit>
+          <bb-fit mode="block">{t('flows.board.checksAlwaysRun')}</bb-fit>
         </span>
       </div>
-      <Button variant="ghost" onclick={duplicate}><bb-fit data-fit>{t('flows.board.duplicate')}</bb-fit></Button>
-      <Button tone="danger" onclick={remove}><bb-fit data-fit>{t('flows.board.removeStep')}</bb-fit></Button>
+      <IconButton label={t('flows.board.duplicate')} tooltip size="sm" onclick={duplicate}><UiIcon name="copy" size={15} /></IconButton>
+      <IconButton label={t('flows.board.removeStep')} tooltip size="sm" tone="danger" onclick={remove}><UiIcon name="trash" size={15} /></IconButton>
     </footer>
   </aside>
 {/if}
@@ -635,52 +665,79 @@
     height: 100%;
     min-height: 0;
     overflow: hidden;
-    border-radius: 12px;
+    border-radius: var(--bb-radius-md);
     background: var(--bb-bg-1);
-    box-shadow: 0 16px 48px rgba(var(--bb-shadow-rgb), 0.65);
+    box-shadow: var(--bb-depth-1), 0 16px 48px rgba(var(--bb-shadow-rgb), 0.55);
+    --panel-pad: var(--bb-space-5);
   }
   .head {
     display: flex;
-    align-items: flex-start;
-    gap: 12px;
     flex: none;
-    height: 76px;
-    box-sizing: border-box;
-    padding: 16px 12px 8px 16px;
+    align-items: center;
+    gap: var(--bb-space-3);
+    padding: var(--bb-space-4) var(--bb-space-3) var(--bb-space-4) var(--panel-pad);
+    border-block-end: 1px solid var(--bb-rule);
   }
   .titles {
     flex: 1;
     min-width: 0;
   }
-  .name {
+  .titles :global(.inspector-title) {
+    height: var(--bb-space-5);
+    margin: 0;
+    font: 600 var(--bb-text-md)/1.25 var(--bb-font-body);
+    letter-spacing: normal;
+  }
+  .titles :global(.inspector-sentence) {
+    height: var(--bb-space-4);
+    margin: 0;
+    line-height: 1.34;
+  }
+  .last-test {
+    display: grid;
+    flex: none;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: var(--bb-space-5) auto;
+    column-gap: var(--bb-space-3);
+    row-gap: var(--bb-space-1);
+    align-items: center;
+    margin: var(--bb-space-4) var(--panel-pad) 0;
+    padding: var(--bb-space-3);
+    border-radius: var(--bb-radius-md);
+    background: var(--bb-inset-bg);
+    box-shadow: var(--bb-depth-0);
+  }
+  .last-test-top {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin: 0;
-    font-family: var(--bb-font-body);
-    font-size: 17px;
-    font-weight: 600;
-    line-height: 1.3;
-    color: var(--bb-white);
-    height: 23px;
-    white-space: nowrap;
+    gap: var(--bb-space-2);
+    min-width: 0;
   }
-  .sentence {
-    margin: 2px 0 0;
-    font-size: 14px;
-    line-height: 1.4;
-    color: rgba(var(--bb-white-rgb), 0.92);
-    height: 20px;
-    white-space: nowrap;
+  .last-test :global(.last-test-label) {
+    min-width: 0;
+    line-height: 1.34;
+    max-width: var(--bb-space-9);
+    height: var(--bb-space-4);
+  }
+  .last-test :global(.last-test-text) {
+    grid-column: 1;
+    height: calc(var(--bb-space-5) + var(--bb-space-4));
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .last-test :global(.last-test-button) {
+    grid-area: 1 / 2 / 3 / 3;
+    max-width: var(--bb-space-9);
   }
   .scroll {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    scrollbar-width: thin;
     display: flex;
     flex-direction: column;
-    gap: 28px;
-    padding: 20px 16px;
+    gap: var(--bb-space-5);
+    padding: var(--bb-space-5) var(--panel-pad);
   }
   .scroll > :global(*) {
     flex: none;
@@ -688,63 +745,44 @@
   .fields {
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    --field-mb: 0;
-    --field-gap: 8px;
-  }
-  .field {
-    margin: 0;
-    padding: 0;
-    min-inline-size: 0;
-    border: 0;
+    --field-gap: var(--bb-space-2);
   }
   .field,
   .variable-group,
-  .target-error { transition: opacity 0.15s ease; }
+  .target-error { transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo); }
   .inactive { opacity: 0.45; }
-  @media (prefers-reduced-motion: reduce) {
-    .field,
-    .variable-group,
-    .target-error { transition: none; }
-  }
-  .target-error { height: 28px; }
-  .field-hint { height: 52px; margin-top: var(--field-gap); }
+  .target-error { height: var(--bb-space-6); }
+  .field-hint { height: var(--bb-space-7); }
   .unit {
-    font-size: 14px;
-    color: rgba(var(--bb-white-rgb), 0.92);
+    font-size: var(--bb-text-xs);
+    color: var(--bb-muted);
+    font-variant-numeric: tabular-nums;
   }
   .slider-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 64px;
+    grid-template-columns: minmax(0, 1fr) var(--bb-space-7);
     align-items: center;
-    gap: 12px;
+    gap: var(--bb-space-2);
+    min-height: var(--field-control-h);
   }
   .slider-value {
     text-align: end;
     white-space: nowrap;
-    font-variant-numeric: tabular-nums;
   }
   .toggle {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .toggle-label {
-    font-size: 15px;
-    color: var(--bb-white);
+    min-height: var(--field-control-h);
   }
   .group {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: var(--bb-space-2);
   }
   .group-title {
     margin: 0;
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    font-weight: 600;
-    color: rgba(var(--bb-white-rgb), 0.92);
+    font: 600 var(--bb-text-sm)/var(--bb-space-5) var(--bb-font-body);
+    color: var(--bb-white);
   }
   .branches {
     list-style: none;
@@ -752,31 +790,29 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--bb-space-2);
   }
   .branch {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 14px;
+    gap: var(--bb-space-2);
+    font-size: var(--bb-text-sm);
   }
   .branch-name {
     font-weight: 500;
-    color: rgba(var(--bb-white-rgb), 0.92);
+    color: var(--bb-white);
   }
   .branch:first-child .branch-name {
     color: var(--bb-green-glow);
   }
   .branch-count {
     margin-inline-start: auto;
-    color: rgba(var(--bb-white-rgb), 0.92);
+    color: var(--bb-muted-light);
   }
   .subgroup-title {
-    margin: 4px 0 0;
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    font-weight: 500;
-    color: rgba(var(--bb-white-rgb), 0.92);
+    margin: var(--bb-space-1) 0 0;
+    font: 500 var(--bb-text-sm)/var(--bb-space-5) var(--bb-font-body);
+    color: var(--bb-muted-light);
   }
   .vars {
     list-style: none;
@@ -784,53 +820,53 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--bb-space-1);
   }
   .role-note {
     display: grid;
-    grid-template-rows: minmax(0, 1fr) 44px;
-    gap: 4px;
-    height: 84px;
+    grid-template-rows: minmax(0, 1fr) var(--bb-space-6);
+    gap: var(--bb-space-1);
+    height: calc(var(--bb-space-8) + var(--bb-space-4));
   }
   .role-note,
   .variable-preview,
   .check-note,
-  .check-action { transition: opacity 0.15s ease; }
-  .check-note { height: 40px; }
+  .check-action { transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo); }
+  .check-note { height: var(--bb-space-6); }
   .check-action {
     display: flex;
     align-items: center;
     min-width: 0;
   }
   .role-warning { min-width: 0; }
-  .static-note { height: 48px; }
+  .static-note,
+  .compare-example { height: var(--bb-space-7); }
   .faded { opacity: 0; }
   .note {
     margin: 0;
-    font-size: 14px;
-    line-height: 1.4;
-    color: rgba(var(--bb-white-rgb), 0.92);
+    font-size: var(--bb-text-sm);
+    line-height: 1.45;
+    color: var(--bb-muted-light);
   }
   .foot {
-    display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.75fr) minmax(0, 0.85fr);
-    align-items: center;
-    gap: 8px;
+    display: flex;
     flex: none;
-    padding: 12px 16px;
+    align-items: center;
+    gap: var(--bb-space-2);
+    padding: var(--bb-space-4) var(--bb-space-4) var(--bb-space-4) var(--panel-pad);
+    border-block-start: 1px solid var(--bb-rule);
     background: var(--bb-bg-1);
-    box-shadow: 0 -8px 16px rgba(var(--bb-shadow-rgb), 0.3);
-    --btn-pad: 0 6px;
-    --btn-justify: center;
   }
   .run-step {
+    flex: 1;
+    min-width: 0;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    grid-template-rows: 28px 24px;
+    grid-template-rows: var(--bb-space-5) var(--bb-space-4);
     align-items: center;
-    column-gap: 6px;
-    font-family: var(--bb-font-body);
+    column-gap: var(--bb-space-3);
   }
+  .run-step > :global(:first-child) { grid-row: 1 / 3; }
   .run-label,
   .run-note {
     display: grid;
@@ -839,19 +875,25 @@
   }
   .run-label {
     color: var(--bb-white);
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1.07;
+    font-size: var(--bb-text-sm);
+    font-weight: 500;
   }
   .run-note {
-    grid-column: 1 / -1;
     color: var(--bb-muted);
-    font-size: 11.5px;
-    line-height: 1.04;
+    font-size: var(--bb-text-xs);
     transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
   }
+  @media (max-width: 760px) {
+    .panel { --panel-pad: var(--bb-space-4); }
+  }
   @media (prefers-reduced-motion: reduce) {
+    .field,
+    .variable-group,
+    .target-error,
+    .role-note,
+    .variable-preview,
     .check-note,
+    .check-action,
     .run-note { transition: none; }
   }
 </style>

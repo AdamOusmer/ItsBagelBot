@@ -58,34 +58,34 @@
     {@const value = inputValue(field)}
     {@const inactive = field.kind === 'duration' && timerSeconds(field) <= 0}
     <div class="input" class:timer-running={'seed' in field && field.kind === 'toggle'} class:inactive inert={inactive}>
-      <Label htmlFor={id} class="bb-fit-box"><bb-fit data-fit>{fieldLabel}</bb-fit></Label>
+      <Label htmlFor={id} class="bb-fit-box"><bb-fit>{fieldLabel}</bb-fit></Label>
       {#if field.kind === 'toggle'}
         <div class="toggle">
           <Switch {id} label={fieldLabel} checked={Boolean(value)} onCheckedChange={(checked) => update(field, checked)} />
-          <span class="toggle-status bb-fit-box"><bb-fit data-fit>{field.key === 'live' ? t(scenario.live ? 'flows.test.live' : 'flows.test.streamOffline') : t(value ? 'flows.test.yes' : 'flows.test.no')}</bb-fit></span>
+          <span class="toggle-status bb-fit-box"><bb-fit>{field.key === 'live' ? t(scenario.live ? 'flows.test.live' : 'flows.test.streamOffline') : t(value ? 'flows.test.yes' : 'flows.test.no')}</bb-fit></span>
         </div>
       {:else if 'options' in field && field.options}
         <Select {id} fill label={fieldLabel} value={String(value)} options={options(field)} onchange={(event) => update(field, event.currentTarget.value)} />
       {:else if field.kind === 'duration'}
-        <Input {id} fill type="number" min={1} max={MAX_COOLDOWN_SECONDS} inputmode="numeric" value={Number(value)} aria-describedby={`${id}-unit`} oninput={(event) => updateNumber(field, event.currentTarget)}>
-          {#snippet trailing()}<span id={`${id}-unit`} class="unit bb-fit-box"><bb-fit data-fit>{t('common.unit.seconds')}</bb-fit></span>{/snippet}
+        <Input {id} fill aria-label={fieldLabel} type="number" min={1} max={MAX_COOLDOWN_SECONDS} inputmode="numeric" value={Number(value)} aria-describedby={`${id}-unit`} oninput={(event) => updateNumber(field, event.currentTarget)}>
+          {#snippet trailing()}<span id={`${id}-unit`} class="unit bb-fit-box"><bb-fit>{t('common.unit.seconds')}</bb-fit></span>{/snippet}
         </Input>
       {:else if field.kind === 'number'}
-        <Input {id} fill type="number" min={'seed' in field && field.seed === 'counters' ? undefined : 0} value={Number(value)} oninput={(event) => updateNumber(field, event.currentTarget)} />
+        <Input {id} fill aria-label={fieldLabel} type="number" min={'seed' in field && field.seed === 'counters' ? undefined : 0} value={Number(value)} oninput={(event) => updateNumber(field, event.currentTarget)} />
       {:else}
-        <Input {id} fill value={String(value)} oninput={(event) => update(field, event.currentTarget.value)} />
+        <Input {id} fill aria-label={fieldLabel} value={String(value)} oninput={(event) => update(field, event.currentTarget.value)} />
       {/if}
     </div>
   {/each}
 </div>
 
 <style>
-  .inputs { display: grid; flex: none; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .input { display: grid; grid-template-rows: 20px 44px; gap: 4px; min-width: 0; }
+  .inputs { display: grid; flex: none; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--bb-space-3) var(--bb-space-2); }
+  .input { display: grid; grid-template-rows: var(--bb-space-5) calc(var(--bb-space-6) + var(--bb-space-3)); gap: var(--bb-space-1); min-width: 0; }
   .timer-running { grid-column: 1; }
   .inactive { opacity: 0.4; }
-  .unit { flex: none; width: 54px; font-size: 12px; color: var(--bb-muted-light); }
-  .toggle { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; font-size: 14px; }
+  .unit { flex: none; width: var(--bb-space-7); font-size: var(--bb-text-xs); color: var(--bb-muted-light); }
+  .toggle { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--bb-space-2); font-size: var(--bb-text-sm); }
   .toggle-status { overflow: hidden; }
 
   @media (max-width: 760px), (pointer: coarse) and (max-height: 520px) {
