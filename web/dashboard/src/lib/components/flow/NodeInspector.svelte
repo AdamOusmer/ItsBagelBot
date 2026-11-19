@@ -20,10 +20,10 @@
   import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import DurationField from '#lib/components/shared/DurationField.svelte';
-  import { durationOutside, durationRange, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, roleWarning, stepLabel, stepSummary, variableLabel } from '#lib/flow/copy';
+  import { durationOutside, durationRange, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, stepLabel, stepRequirementFor, stepSummary, variableLabel } from '#lib/flow/copy';
   import { defaultComparison } from '#lib/flow/comparison';
   import { fieldVisible, NODE_SPECS, outputsFor, specFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
-  import { duplicateNode } from '#lib/flow/ops';
+  import { duplicateNode, hasCheckBefore, insertCheckBefore } from '#lib/flow/ops';
   import { descendants, graphIndex, portKey } from '#lib/flow/graph-index';
   import { awaitingSetup, configText } from '#lib/flow/setup';
   import { SETUP_URL } from '@bagel/kit/automations';
@@ -43,9 +43,11 @@
     focusToken = 0,
     focusField,
     issues = [],
+    permissionRank = -1,
     onclose,
-    onremove
-  }: { flow: Flow; selectedId?: string | null; fallbackId?: string; active?: boolean; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; onclose?: () => void; onremove: (id: string, keepYes?: boolean) => void } = $props();
+    onremove,
+    oncheck
+  }: { flow: Flow; selectedId?: string | null; fallbackId?: string; active?: boolean; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; permissionRank?: number; onclose?: () => void; onremove: (id: string, keepYes?: boolean) => void; oncheck?: () => void } = $props();
 
   const { t } = getI18n();
   type FieldKey = FieldSpec['key'];
@@ -88,7 +90,14 @@
   const caret = new Map<string, number>();
   const textOf = (key: FieldKey) => (node ? configText(node, key) : '');
   const awaiting = $derived(node ? awaitingSetup(node) : false);
-  const roleNote = $derived(roleWarning(t, flow, node));
+  const requirement = $derived(spec && stepRequirementFor(spec, { ...requirementTrigger(flow), perm: permissionRank }));
+  const roleLevel = $derived(requirement?.kind === 'role' ? requirement.level : undefined);
+  const incoming = $derived(node ? graphIndex(flow).incoming.get(node.id) ?? [] : []);
+  const addedCheck = $derived(roleLevel ? hasCheckBefore(flow, node?.id ?? '', roleLevel) : false);
+  const removeCheck = $derived(roleWarning(t, flow, node));
+  const roleNote = $derived(requirement ? requirementText(t, requirement, addedCheck ? 'start' : 'note') : removeCheck);
+  const canAddCheck = $derived(roleLevel ? incoming.length > 0 && !addedCheck : false);
+  const checkAction = $derived(canAddCheck || Boolean(removeCheck));
   const automaticComparisons = new Map<FlowNode['id'], boolean>();
 
   function setSelect(key: FieldKey, value: string) {
@@ -264,6 +273,18 @@
     if (!node) return;
     onremove(node.id);
   }
+
+  function changeCheck() {
+    if (!node) return;
+    if (removeCheck) {
+      onremove(node.id, true);
+      return;
+    }
+    if (roleLevel) {
+      insertCheckBefore(flow, node.id, roleLevel);
+      oncheck?.();
+    }
+  }
 </script>
 
 {#if completion && suggestions.length}
@@ -285,12 +306,12 @@
       {#if awaiting}
         <p class="note">{t('flows.setup.stepNote')}</p>
       {/if}
-      {#if roleNote}
-        <div class="role-note">
-          <p class="note role-warning bb-fit-box" role="status"><bb-fit mode="block">{roleNote}</bb-fit></p>
-          <Button variant="ghost" onclick={() => onremove(node.id, true)}>{t('flows.step.condition.role.remove')}</Button>
+      <div class="role-note" class:faded={!roleNote}>
+        <p class="note role-warning bb-fit-box" role="status"><bb-fit mode="block">{roleNote ?? ''}</bb-fit></p>
+        <div class="check-action" class:faded={!checkAction} inert={!checkAction}>
+          <Button variant="ghost" onclick={changeCheck}><bb-fit>{t(removeCheck ? 'flows.step.condition.role.remove' : 'flows.step.requirement.addCheck')}</bb-fit></Button>
         </div>
-      {/if}
+      </div>
       {#if spec.fields.length}
         <div class="fields">
           {#each spec.fields.filter((f) => renderVisible(spec, node, f)) as field (field.key)}
@@ -623,8 +644,21 @@
     flex-direction: column;
     gap: 6px;
   }
-  .role-note { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-  .role-warning { width: 100%; height: 84px; }
+  .role-note {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) 44px;
+    gap: 4px;
+    height: 84px;
+  }
+  .role-note,
+  .check-action { transition: opacity 0.15s ease; }
+  .check-action {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+  .role-warning { min-width: 0; }
+  .faded { opacity: 0; }
   .note {
     margin: 0;
     font-size: 14px;

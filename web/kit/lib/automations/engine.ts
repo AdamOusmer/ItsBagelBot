@@ -30,37 +30,41 @@ export const triggerRegistry = new Map<string, Entry>();
 export const conditionRegistry = new Map<string, Entry>();
 export const actionRegistry = new Map<string, Entry>();
 
-const ROLE_MODERATOR = 3;
-const ROLE_LEAD_MODERATOR = 4;
+type StepType = TypedNode['type'];
+export type StepRole = 'mod' | 'lead_mod' | 'broadcaster';
+export type RequirementTrigger = { type: string; kind?: string; perm?: number };
+type RequiredTrigger = 'command' | 'reward' | 'unban_request';
+export type StepRequirement = { kind: 'trigger'; trigger: RequiredTrigger } | { kind: 'role'; level: StepRole };
 
-const REQUIRED_TRIGGER: Record<string, string> = {
+const REQUIRED_TRIGGER: Partial<Record<StepType, RequiredTrigger>> = {
   delete_message: 'command',
   redemption: 'reward',
+  unban_resolve: 'unban_request',
 };
 
-const ACTION_ROLE: Record<string, number> = {
-  poll: ROLE_MODERATOR,
-  poll_end: ROLE_MODERATOR,
-  prediction: ROLE_MODERATOR,
-  prediction_end: ROLE_MODERATOR,
-  raid: ROLE_LEAD_MODERATOR,
-  raid_cancel: ROLE_LEAD_MODERATOR,
-  mod: ROLE_LEAD_MODERATOR,
-  vip: ROLE_LEAD_MODERATOR,
-  chat_mode: ROLE_MODERATOR,
-  clear_chat: ROLE_MODERATOR,
-  ad_snooze: ROLE_LEAD_MODERATOR,
-  whisper: ROLE_MODERATOR,
-  unban_resolve: ROLE_MODERATOR,
-  branded_content: ROLE_MODERATOR,
-  timeout: ROLE_MODERATOR,
-  ban: ROLE_MODERATOR,
-  warn: ROLE_MODERATOR,
-  shield: ROLE_MODERATOR,
-  delete_message: ROLE_MODERATOR,
-  cooldown_add: ROLE_MODERATOR,
-  countdown_start: ROLE_MODERATOR,
-  countdown_add: ROLE_MODERATOR,
+const ACTION_ROLE: Partial<Record<StepType, StepRole>> = {
+  poll: 'mod',
+  poll_end: 'mod',
+  prediction: 'mod',
+  prediction_end: 'mod',
+  raid: 'lead_mod',
+  raid_cancel: 'lead_mod',
+  mod: 'lead_mod',
+  vip: 'lead_mod',
+  chat_mode: 'mod',
+  clear_chat: 'mod',
+  ad_snooze: 'lead_mod',
+  whisper: 'mod',
+  unban_resolve: 'mod',
+  branded_content: 'mod',
+  timeout: 'mod',
+  ban: 'mod',
+  warn: 'mod',
+  shield: 'mod',
+  delete_message: 'mod',
+  cooldown_add: 'mod',
+  countdown_start: 'mod',
+  countdown_add: 'mod',
 };
 
 export function paramsCode(err: DecodeError): string {
@@ -111,18 +115,29 @@ export function actions(c: Chk, list: ActionNode[]): void {
   list.forEach((a, i) => action(c.elem(i), a));
 }
 
-function triggerMismatch(at: Chk, type: string): boolean {
-  if (type === 'unban_resolve') return at.trigger !== 'event' || at.kind !== 'channel.unban_request.create';
-  const want = REQUIRED_TRIGGER[type];
-  return want !== undefined && at.trigger !== want;
+function missingTrigger(type: StepType, trigger: RequirementTrigger): RequiredTrigger | undefined {
+  if (!Object.hasOwn(REQUIRED_TRIGGER, type)) return undefined;
+  const required = REQUIRED_TRIGGER[type];
+  if (required === 'unban_request') {
+    return trigger.type === 'event' && trigger.kind === 'channel.unban_request.create' ? undefined : required;
+  }
+  return required === trigger.type ? undefined : required;
 }
 
-function permMissing(at: Chk, type: string): boolean {
-  const role = ACTION_ROLE[type];
-  return role !== undefined && at.trigger === 'command' && at.perm < role;
+function missingRole(type: StepType, trigger: RequirementTrigger): StepRole | undefined {
+  if (trigger.type !== 'command' || !Object.hasOwn(ACTION_ROLE, type)) return undefined;
+  const level = ACTION_ROLE[type]!;
+  return (trigger.perm ?? -1) < PERM_LEVELS.indexOf(level) ? level : undefined;
 }
 
-export function permRank(list: TypedNode[]): number {
+export function stepRequirement(type: StepType, trigger: RequirementTrigger): StepRequirement | null {
+  const required = missingTrigger(type, trigger);
+  if (required) return { kind: 'trigger', trigger: required };
+  const level = missingRole(type, trigger);
+  return level ? { kind: 'role', level } : null;
+}
+
+export function permRank(list: readonly { type: StepType; params?: unknown }[]): number {
   let best = -1;
   for (const cond of list) {
     if (cond.type !== 'perm') continue;
@@ -133,8 +148,9 @@ export function permRank(list: TypedNode[]): number {
 }
 
 function action(at: Chk, a: ActionNode): void {
-  if (triggerMismatch(at, a.type)) at.add('type', CODE.triggerMismatch);
-  if (permMissing(at, a.type)) at.add('type', CODE.permRequired);
+  const trigger = { type: at.trigger, kind: at.kind, perm: at.perm };
+  if (missingTrigger(a.type, trigger)) at.add('type', CODE.triggerMismatch);
+  if (missingRole(a.type, trigger)) at.add('type', CODE.permRequired);
   typed(at, actionRegistry, a);
 }
 

@@ -1,4 +1,5 @@
 {
+  "addsAfter": "Se añade después de {step}",
   "defaultChatMessage": "¡Gracias {user}!",
   "defaultPlainMessage": "¡Gracias!",
   "boardLabel": "Tablero de flujo",

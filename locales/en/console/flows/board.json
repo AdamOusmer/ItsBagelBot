@@ -1,4 +1,5 @@
 {
+  "addsAfter": "Adds after {step}",
   "defaultChatMessage": "Thanks {user}!",
   "defaultPlainMessage": "Thanks!",
   "boardLabel": "Flow board",

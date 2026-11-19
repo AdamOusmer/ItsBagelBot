@@ -1,4 +1,5 @@
 {
+  "addsAfter": "S’ajoute après {step}",
   "defaultChatMessage": "Merci {user} !",
   "defaultPlainMessage": "Merci !",
   "boardLabel": "Tableau de flux",

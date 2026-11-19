@@ -1,4 +1,11 @@
 {
+  "requirement": {
+    "addCheck": "Añadir comprobación",
+    "triggerTag": "Solo con «{trigger}»",
+    "triggerNote": "Solo se ejecuta con el disparador «{trigger}»",
+    "roleNote": "Requiere comprobar antes el rol «{role}»",
+    "startNote": "Esta receta necesita comprobar el rol «{role}» al inicio."
+  },
   "trigger.countdownFinished.keywords": "temporizador cuenta atrás fin terminado cero timer",
   "trigger.chatCommand.keywords": "comando chat activar prefijo escribir command",
   "trigger.chatWord.keywords": "palabra chat contiene coincide texto clave",

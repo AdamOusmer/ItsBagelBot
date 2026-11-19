@@ -1,4 +1,11 @@
 {
+  "requirement": {
+    "addCheck": "Adicionar verificação",
+    "triggerTag": "Só com “{trigger}”",
+    "triggerNote": "Só é executado com o gatilho “{trigger}”",
+    "roleNote": "Exige verificar o cargo “{role}” antes desta etapa",
+    "startNote": "Esta receita precisa verificar o cargo “{role}” no início."
+  },
   "trigger.countdownFinished.keywords": "temporizador contagem regressiva fim terminado zero timer countdown",
   "trigger.chatCommand.keywords": "comando chat gatilho prefixo digitar command",
   "trigger.chatWord.keywords": "palavra chat contém corresponde texto chave",

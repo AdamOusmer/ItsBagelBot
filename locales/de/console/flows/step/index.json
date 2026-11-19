@@ -1,4 +1,11 @@
 {
+  "requirement": {
+    "addCheck": "Prüfung hinzufügen",
+    "triggerTag": "Nur mit „{trigger}“",
+    "triggerNote": "Wird nur mit dem Auslöser „{trigger}“ ausgeführt",
+    "roleNote": "Erfordert vorher eine Prüfung der Rolle „{role}“",
+    "startNote": "Dieses Rezept braucht am Anfang eine Prüfung der Rolle „{role}“."
+  },
   "trigger.countdownFinished.keywords": "timer countdown fertig ende null abgelaufen",
   "trigger.chatCommand.keywords": "befehl command chat auslöser eingabe",
   "trigger.chatWord.keywords": "wort chat enthält text schlüsselwort",

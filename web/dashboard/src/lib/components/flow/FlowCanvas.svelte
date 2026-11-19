@@ -31,6 +31,7 @@
   import { onMount, tick, untrack } from 'svelte';
   import Icon from './FlowIcon.svelte';
   import IconTile from '@bagel/ui/svelte/IconTile.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import IconButton from '@bagel/ui/svelte/IconButton.svelte';
   import PickerPanel from '@bagel/ui/svelte/PickerPanel.svelte';
@@ -44,10 +45,10 @@
   import { connect, duplicateNode, removeEdge } from '../../flow/ops';
   import { addStep, connectionTarget, parallelPorts, portOccupied, removeStep as deleteStep, selectedPlacement } from '../../flow/editor';
   import { currentPositions, edgePaths, flowBounds, focusBounds, loopPaths, nodeBounds, startPaths, tweenPositions, windowEdges, windowNodes, wirePreview } from '../../flow/canvas-geometry';
-  import { searchSteps } from '../../flow/search';
+  import { stepSections } from '../../flow/search';
   import { neighbor, readingOrder, stepDelta, stepIndex } from '../../flow/keyboard';
   import type { Move } from '../../flow/history';
-  import { stepLabel, stepSummary } from '../../flow/copy';
+  import { groupLabel, requirementText, requirementTrigger, stepLabel, stepRequirementFor, stepSummary } from '../../flow/copy';
   import { nodeHeight, tidy } from '../../flow/layout';
   import { graphIndex } from '../../flow/graph-index';
   import { beginPinch, fitBox, openBox, pinchView, revealBox, type Inset, type Pinch } from '../../flow/touch';
@@ -869,7 +870,9 @@
 
   const wireD = $derived(wirePreview(flow, disp, wire, wireTarget && targetFor(wireTarget) ? wireTarget : null));
 
-  const results = $derived(searchSteps(t, query, ['reply', 'condition']));
+  const sections = $derived(stepSections(t, query, ['reply', 'condition']));
+  const results = $derived(sections.flatMap((section) => section.specs));
+  const requirementsTrigger = $derived(requirementTrigger(flow));
   const occupied = $derived(portOccupied(flow, menu?.link));
   const activeResultId = $derived(results[activeResult] ? `${pickerId}-${results[activeResult].type}` : undefined);
 
@@ -1000,7 +1003,7 @@
     <span class="menu-anchor" bind:this={menuAnchor} style:left="{menuLeft}px" style:top="{menuTop}px"></span>
     <PickerPanel bind:open={menuOpen} anchor={menuAnchor} label={t('flows.board.addStep')} width={menuWidth} maxHeight={menuHeight} onClose={() => closeMenu(true)}>
       <div class="menu" role="presentation" onkeydown={onMenuKey}>
-        <SearchInput bind:element={menuSearch} value={query} onValueChange={(v) => { query = v; activeResult = 0; }} placeholder={t('flows.board.searchSteps')} aria-label={t('flows.board.searchSteps')} role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="{pickerId}-results" aria-activedescendant={activeResultId} fill />
+        <SearchInput bind:element={menuSearch} value={query} onValueChange={(v) => { query = v; activeResult = 0; }} placeholder={t('flows.board.searchSteps')} aria-label={t('flows.board.searchSteps')} role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="{pickerId}-results" aria-activedescendant={activeResultId} fill tall />
         {#if occupied}
           <div class="insert-mode" role="group" aria-label={t('flows.board.addStep')}>
             <Button block variant={insertMode === 'insert' ? 'primary' : 'ghost'} aria-pressed={insertMode === 'insert'} onclick={() => (insertMode = 'insert')}><bb-fit>{t('flows.board.insertHere')}</bb-fit></Button>
@@ -1016,19 +1019,36 @@
           </PickerOption>
         {/if}
         <div id="{pickerId}-results" role="listbox" aria-label={t('flows.board.searchSteps')}>
-          {#each results as s, index (s.type)}
-            {#if !query.trim() && results[index - 1]?.kind !== s.kind}
-              <div class="menu-title" role="presentation">{s.kind === 'reply' ? t('flows.board.do') : t('flows.board.onlyIf')}</div>
+          {#each sections as section, index (section.key)}
+            {#if section.kind && sections[index - 1]?.kind !== section.kind}
+              <div class="menu-title bb-fit-box" role="presentation"><bb-fit>{t(section.kind === 'reply' ? 'flows.board.do' : 'flows.board.onlyIf')}</bb-fit></div>
             {/if}
-            <PickerOption id="{pickerId}-{s.type}" role="option" aria-selected={activeResult === index} selected={activeResult === index} tabindex={-1} onclick={() => pick(s.type)}>
-              <span class="menu-row" style:--tint={MENU_TINT[s.kind].color} style:--tint-rgb={MENU_TINT[s.kind].rgb}>
-                <IconTile class="menu-tile"><Icon name={s.icon} size={16} /></IconTile>
-                <span class="menu-text">
-                  <span class="menu-name bb-fit-box"><bb-fit>{stepLabel(t, s)}</bb-fit></span>
-                  <span class="menu-sum bb-fit-box"><bb-fit>{stepSummary(t, s)}</bb-fit></span>
+            {#if section.label}
+              <div class="menu-title menu-group bb-fit-box" role="presentation"><bb-fit>{section.label}</bb-fit></div>
+            {/if}
+            {#each section.specs as spec (spec.type)}
+              {@const selected = spec.type === results[activeResult]?.type}
+              {@const requirement = stepRequirementFor(spec, requirementsTrigger)}
+              <PickerOption id="{pickerId}-{spec.type}" role="option" aria-selected={selected} {selected} tabindex={-1} onclick={() => pick(spec.type)}>
+                <span class="menu-row" style:--tint={MENU_TINT[spec.kind].color} style:--tint-rgb={MENU_TINT[spec.kind].rgb}>
+                  <IconTile class="menu-tile"><Icon name={spec.icon} size={16} /></IconTile>
+                  <span class="menu-text">
+                    <span class="menu-name bb-fit-box"><bb-fit>{stepLabel(t, spec)}</bb-fit></span>
+                    <span class="menu-details">
+                      <span class="menu-sum bb-fit-box"><bb-fit>{stepSummary(t, spec)}</bb-fit></span>
+                      {#if section.kind === undefined}
+                        <span class="menu-tag bb-fit-box"><bb-fit>{groupLabel(t, spec.group)}</bb-fit></span>
+                      {/if}
+                    </span>
+                  </span>
+                  {#if requirement}
+                    <span class="menu-requirement">
+                      <Chip as="span" tone="muted" class="bb-fit-box" style="display: flex; padding: 4px 6px"><bb-fit>{requirementText(t, requirement)}</bb-fit></Chip>
+                    </span>
+                  {/if}
                 </span>
-              </span>
-            </PickerOption>
+              </PickerOption>
+            {/each}
           {/each}
         </div>
         {#if results.length === 0}
@@ -1201,10 +1221,17 @@
     font-family: var(--bb-font-body);
   }
   .menu-title {
-    padding: var(--bb-space-2) var(--bb-space-2) 0;
+    margin: var(--bb-space-2) var(--bb-space-2) 0;
+    height: 20px;
+    line-height: 20px;
     font-size: 14px;
     font-weight: 600;
     color: rgba(var(--bb-white-rgb), 0.92);
+  }
+  .menu-group,
+  .menu-tag {
+    font-size: 12px;
+    color: var(--bb-muted);
   }
   .insert-mode {
     display: grid;
@@ -1250,6 +1277,14 @@
     height: 18px;
     white-space: nowrap;
   }
+  .menu-details {
+    display: flex;
+    gap: 6px;
+    height: 18px;
+    line-height: 18px;
+  }
+  .menu-tag { flex: 0 0 36%; }
+  .menu-requirement { flex: 0 0 30%; }
   .menu-empty {
     padding: var(--bb-space-2);
   }

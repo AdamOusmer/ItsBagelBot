@@ -1,7 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { specFor, type FieldSpec, type Flow, type FlowEdge, type FlowNode } from './model';
+import type { StepRole } from '@bagel/kit/automations';
+import { COLUMN_GAP, NODE_W, ROW_GAP, specFor, type FieldSpec, type Flow, type FlowEdge, type FlowNode } from './model';
 import { cycleExclusions, graphIndex, linkKey } from './graph-index';
+import { nodeHeight } from './layout';
 
 export type EdgeEnds = Pick<FlowEdge, 'from' | 'port' | 'to'>;
 
@@ -109,20 +111,43 @@ function insertAtPort(flow: Flow, node: FlowNode, placement: Extract<Placement, 
   for (const child of children) connect(flow, { from: node.id, port: continuationPort(node), to: child.to });
 }
 
-function insertAtEdge(flow: Flow, node: FlowNode, edgeId: FlowEdge['id']): void {
-  const edge = flow.edges.find((edge) => edge.id === edgeId);
-  if (!edge) return;
-  const to = edge.to;
-  flow.edges = flow.edges.map((candidate) => candidate === edge ? { ...edge, to: node.id } : candidate);
-  connect(flow, { from: node.id, port: continuationPort(node), to });
+function insertAtEdge(flow: Flow, node: FlowNode, edges: readonly FlowEdge[]): void {
+  if (edges.length === 0) return;
+  const inserted = new Set(edges);
+  const targets = new Set(edges.map((edge) => edge.to));
+  flow.edges = flow.edges.map((edge) => inserted.has(edge) ? { ...edge, to: node.id } : edge);
+  for (const to of targets) connect(flow, { from: node.id, port: continuationPort(node), to });
 }
 
 export function insertNode(flow: Flow, request: InsertRequest): FlowNode {
   if (specFor(request.type)?.kind === 'trigger') throw new Error('Use replaceTrigger to add a trigger');
   const node = createNode(flow, request);
   if (request.placement.kind === 'port') insertAtPort(flow, node, request.placement);
-  if (request.placement.kind === 'edge') insertAtEdge(flow, node, request.placement.edgeId);
+  if (request.placement.kind === 'edge') {
+    const { edgeId } = request.placement;
+    insertAtEdge(flow, node, flow.edges.filter((edge) => edge.id === edgeId));
+  }
   return node;
+}
+
+const isRoleCheck = (node: FlowNode | undefined, level: StepRole): boolean => node?.type === 'cond.role' && node.config.level === level;
+
+export function hasCheckBefore(flow: Flow, nodeId: NodeId, level: StepRole): boolean {
+  const { nodes, incoming } = graphIndex(flow);
+  const edges = incoming.get(nodeId) ?? [];
+  const fromCheck = (edge: FlowEdge): boolean => edge.port === 'yes' && isRoleCheck(nodes.get(edge.from), level);
+  return edges.length > 0 && edges.every(fromCheck);
+}
+
+export function insertCheckBefore(flow: Flow, nodeId: NodeId, level: StepRole): void {
+  const { nodes, incoming } = graphIndex(flow);
+  const target = nodes.get(nodeId);
+  const edges = incoming.get(nodeId) ?? [];
+  if (!target || edges.length === 0) return;
+  const at = { x: target.x - NODE_W - COLUMN_GAP, y: target.y - nodeHeight(specFor('cond.role')) - ROW_GAP };
+  const check = createNode(flow, { type: 'cond.role', at });
+  check.config.level = level;
+  insertAtEdge(flow, check, edges);
 }
 
 export function replaceTrigger(flow: Flow, type: NodeType): FlowNode {

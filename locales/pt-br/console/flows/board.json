@@ -1,4 +1,5 @@
 {
+  "addsAfter": "É adicionado após {step}",
   "defaultChatMessage": "Valeu {user}!",
   "defaultPlainMessage": "Valeu!",
   "boardLabel": "Quadro do fluxo",

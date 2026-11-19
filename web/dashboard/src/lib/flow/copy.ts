@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey } from '@bagel/kit';
+import { stepRequirement, type RequirementTrigger, type StepRequirement, type StepRole } from '@bagel/kit/automations';
 import { MAX_WAIT_SECONDS, specFor, type FieldSpec, type Flow, type FlowNode, type NodeSpec, type StepGroup, type VariableSpec } from './model';
 import type { FieldIssue } from './issues';
 import { issueMessage, type Translate } from './messages';
@@ -8,6 +9,44 @@ import { issueMessage, type Translate } from './messages';
 export const stepLabel = (t: Translate, spec: NodeSpec): string => t(`flows.step.${spec.kind}.${spec.slug}.label` as MessageKey);
 
 export const stepSummary = (t: Translate, spec: NodeSpec): string => t(`flows.step.${spec.kind}.${spec.slug}.summary` as MessageKey);
+
+const REQUIREMENT_TRIGGERS: Record<string, RequirementTrigger> = {
+  'twitch.chat.command': { type: 'command' },
+  'twitch.chat.word': { type: 'command' },
+  'twitch.reward': { type: 'reward' },
+  'twitch.unban_request': { type: 'event', kind: 'channel.unban_request.create' }
+};
+
+const TRIGGER_LABELS: Record<Extract<StepRequirement, { kind: 'trigger' }>['trigger'], MessageKey> = {
+  command: 'flows.step.trigger.chatCommand.label',
+  reward: 'flows.step.trigger.reward.label',
+  unban_request: 'flows.step.trigger.unbanRequest.label'
+};
+
+const ROLE_LABELS: Record<StepRole, MessageKey> = {
+  mod: 'perm.badge.mod',
+  lead_mod: 'modules.permLeadMods',
+  broadcaster: 'flows.test.role.broadcaster'
+};
+
+export function requirementTrigger(flow: Flow): RequirementTrigger {
+  const trigger = flow.nodes.find((node) => specFor(node.type)?.kind === 'trigger');
+  return REQUIREMENT_TRIGGERS[trigger?.type ?? ''] ?? { type: '' };
+}
+
+export function stepRequirementFor(spec: NodeSpec, trigger: RequirementTrigger): StepRequirement | null {
+  return spec.kind === 'reply' ? stepRequirement(spec.type.slice('reply.'.length), trigger) : null;
+}
+
+export function requirementText(t: Translate, requirement: StepRequirement, variant: 'tag' | 'note' | 'start' = 'tag'): string {
+  if (requirement.kind === 'trigger') {
+    const trigger = t(TRIGGER_LABELS[requirement.trigger]);
+    return t(variant === 'tag' ? 'flows.step.requirement.triggerTag' : 'flows.step.requirement.triggerNote', { trigger });
+  }
+  const role = t(ROLE_LABELS[requirement.level]);
+  if (variant === 'tag') return role;
+  return t(variant === 'start' ? 'flows.step.requirement.startNote' : 'flows.step.requirement.roleNote', { role });
+}
 
 export function roleWarning(t: Translate, flow: Flow, node: FlowNode | undefined): string | undefined {
   if (node?.type !== 'cond.role') return undefined;
