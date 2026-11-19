@@ -37,7 +37,7 @@ test.each(chatTimeline)(
   }
 );
 
-test.each([
+test.each<{ overrides: Record<string, string> | undefined; text: string; lines: string[] }>([
   { overrides: undefined, text: 'Path 1', lines: ['A'] },
   { overrides: { 'r.path': '2' }, text: 'Path 2', lines: ['B'] },
   { overrides: { 'r.path': '3' }, text: 'Path 1', lines: ['A'] }

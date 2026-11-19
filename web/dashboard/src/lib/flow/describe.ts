@@ -48,7 +48,10 @@ const points = (t: Translate, count: number) => (count === 1 ? t('flows.line.poi
 
 const given = <T>(value: T, make: (value: T) => string): string => (value ? make(value) : '');
 
-const roleLine = (t: Translate, level: string): string => (Object.hasOwn(ROLES, level) ? t(ROLES[level]!) : '');
+function roleLine(t: Translate, node: FlowNode): string {
+  const level = text(node, 'level') || 'everyone';
+  return Object.hasOwn(ROLES, level) ? t(ROLES[level]!) : '';
+}
 
 type SelectField = Extract<FieldSpec, { type: 'select' }>;
 
@@ -111,7 +114,12 @@ function compareLine(t: Translate, n: FlowNode): string {
   if (!left) return '';
   const op = text(n, 'op') || 'gte';
   if (right === '') return Object.hasOwn(EMPTY_COMPARISONS, op) ? t(EMPTY_COMPARISONS[op]!, { left, right }) : '';
-  return Object.hasOwn(COMPARISONS, op) ? t(COMPARISONS[op]!, { left, right }) : t('flows.line.compareIs', { left, right });
+  return comparisonLine(t, { left, right, op });
+}
+
+function comparisonLine(t: Translate, { left, right, op }: { left: string; right: string; op: string }): string {
+  const key = Object.hasOwn(COMPARISONS, op) ? COMPARISONS[op]! : 'flows.line.compareIs';
+  return t(key, { left, right });
 }
 
 const minutes = (t: Translate, count: number) => (count === 1 ? t('flows.line.minutesOne', { count }) : t('flows.line.minutesMany', { count }));
@@ -163,27 +171,19 @@ function counterCheckLine(t: Translate, n: FlowNode): string {
   const name = text(n, 'counter');
   const value = text(n, 'value');
   if (!name || !value) return '';
-  return t('flows.line.varCheck', { name, op: optionLabel(t, specFor(n.type)!, n, 'op'), value });
+  return comparisonLine(t, { left: name, right: value, op: text(n, 'op') || 'gte' });
 }
 
-function conditionLine(t: Translate, n: FlowNode): string {
-  switch (n.type) {
-    case 'cond.var':
-      return varCheckLine(t, n);
-    case 'cond.role':
-      return roleLine(t, text(n, 'level') || 'everyone');
-    case 'cond.user':
-      return viewerLine(t, n);
-    case 'cond.cooldown':
-      return cooldownLine(t, n);
-    case 'cond.compare':
-      return compareLine(t, n);
-    case 'cond.chance':
-      return given(num(n, 'percent'), (percent) => t('flows.line.chance', { percent }));
-    case 'cond.counter':
-      return counterCheckLine(t, n);
-    default:
-      return '';
+function conditionLine(t: Translate, node: FlowNode): string {
+  switch (node.type) {
+    case 'cond.var': return varCheckLine(t, node);
+    case 'cond.role': return roleLine(t, node);
+    case 'cond.user': return viewerLine(t, node);
+    case 'cond.cooldown': return cooldownLine(t, node);
+    case 'cond.compare': return compareLine(t, node);
+    case 'cond.chance': return given(num(node, 'percent'), (percent) => t('flows.line.chance', { percent }));
+    case 'cond.counter': return counterCheckLine(t, node);
+    default: return '';
   }
 }
 
@@ -248,16 +248,16 @@ function dataLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   }
 }
 
-const REWARD_TOGGLE_LINES: Readonly<Record<string, Readonly<Record<string, MessageKey>>>> = {
-  setEnabled: { on: 'flows.step.reply.rewardUpdate.line.on', off: 'flows.step.reply.rewardUpdate.line.off' },
-  paused: { pause: 'flows.step.reply.rewardUpdate.line.pause', resume: 'flows.step.reply.rewardUpdate.line.resume' }
-};
+const REWARD_TOGGLE_LINES: Readonly<Record<string, Readonly<Record<string, MessageKey>>>> = Object.freeze({
+  setEnabled: Object.freeze({ on: 'flows.step.reply.rewardUpdate.line.on', off: 'flows.step.reply.rewardUpdate.line.off' }),
+  paused: Object.freeze({ pause: 'flows.step.reply.rewardUpdate.line.pause', resume: 'flows.step.reply.rewardUpdate.line.resume' })
+});
 
 function rewardUpdateLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   const reward = optionLabel(t, spec, n, 'reward');
   if (!reward) return '';
-  const lines = Object.entries(REWARD_TOGGLE_LINES).flatMap(([field, choices]) => {
-    const key = choices[text(n, field)];
+  const lines = ['setEnabled', 'paused'].flatMap((field) => {
+    const key = REWARD_TOGGLE_LINES[field][text(n, field)];
     return key ? [t(key, { reward })] : [];
   });
   const cost = num(n, 'cost');
@@ -323,7 +323,12 @@ function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
 
 function lineFor(t: Translate, node: FlowNode, spec: NodeSpec): string {
   if (spec.kind === 'trigger') return triggerLine(t, node, spec);
-  return specLine(t, node, spec) ?? (spec.kind === 'condition' ? conditionLine(t, node) : replyLine(t, node, spec));
+  return specLine(t, node, spec) ?? stepLine(t, node, spec);
+}
+
+function stepLine(t: Translate, node: FlowNode, spec: NodeSpec): string {
+  if (spec.kind === 'condition') return conditionLine(t, node);
+  return replyLine(t, node, spec);
 }
 
 type ConfigValue = FlowNode['config'][string] | undefined;
@@ -352,9 +357,16 @@ function whoLabel(t: Translate, node: FlowNode): string {
 
 function lineValue(t: Translate, node: FlowNode, spec: NodeSpec, key: string): string {
   if (key === 'who') return whoLabel(t, node);
-  const special = SPECIAL_LINE_VALUES[`${node.type}:${key}`];
-  if (special) return special(t, node);
-  const field = spec.fields.find((entry) => entry.key === key || (entry.type === 'choice' && entry.nameKey === key));
+  return specialLineValue(t, node, key) ?? fieldLineValue(t, node, spec, key);
+}
+
+function lineFieldMatches(field: FieldSpec, key: FieldSpec['key']): boolean {
+  if (field.key === key) return true;
+  return field.type === 'choice' && field.nameKey === key;
+}
+
+function fieldLineValue(t: Translate, node: FlowNode, spec: NodeSpec, key: FieldSpec['key']): string {
+  const field = spec.fields.find((entry) => lineFieldMatches(entry, key));
   const configKey = field?.key ?? key;
   if (!text(node, configKey)) return '';
   if (node.type === 'reply.chat_mode' && key === 'wait') return `${num(node, key)} ${t('flows.test.duration.second')}`;
@@ -368,8 +380,12 @@ function lineSuffix(node: FlowNode, spec: NodeSpec): string {
   if (node.type === 'reply.points') return `.${pointsChange(node.config)}`;
   const field = spec.fields.find((entry) => entry.key === spec.lineBy);
   const variant = lineVariant(node.config[spec.lineBy] ?? lineFallback(spec, field));
-  const showWait = node.type === 'reply.chat_mode' && node.config.mode === 'slow' && Boolean(node.config.wait);
-  return variant === 'on' && showWait ? '.slow' : `.${variant}`;
+  return variant === 'on' && showsChatWait(node) ? '.slow' : `.${variant}`;
+}
+
+function showsChatWait(node: FlowNode): boolean {
+  if (node.type !== 'reply.chat_mode') return false;
+  return node.config.mode === 'slow' && Boolean(node.config.wait);
 }
 
 function gamesLine(t: Translate, node: FlowNode): string {
@@ -383,12 +399,14 @@ function lineFallback(spec: NodeSpec, field: FieldSpec | undefined): ConfigValue
   return field?.initial;
 }
 
-const SPECIAL_LINE_VALUES: Readonly<Record<string, (t: Translate, node: FlowNode) => string>> = {
-  'cond.category:games': gamesLine,
-  'cond.accountAge:minDays': (_t, node) => String(node.config.minDays ?? 7),
-  'reply.points:amount': (t, node) => given(Math.abs(Number(node.config.amount)), (count) => points(t, count)),
-  'reply.points_spend:amount': (t, node) => given(num(node, 'amount'), (count) => points(t, count))
-};
+function specialLineValue(t: Translate, node: FlowNode, key: FieldSpec['key']): string | undefined {
+  switch (`${node.type}:${key}`) {
+    case 'cond.category:games': return gamesLine(t, node);
+    case 'cond.accountAge:minDays': return String(node.config.minDays ?? 7);
+    case 'reply.points:amount': return given(Math.abs(Number(node.config.amount)), (count) => points(t, count));
+    case 'reply.points_spend:amount': return given(num(node, 'amount'), (count) => points(t, count));
+  }
+}
 
 function specLine(t: Translate, node: FlowNode, spec: NodeSpec): string | undefined {
   if (node.type === 'cond.follow' && !num(node, 'minDays')) return t('flows.step.condition.follow.lineAny');
@@ -406,24 +424,46 @@ function specLine(t: Translate, node: FlowNode, spec: NodeSpec): string | undefi
 
 type TriggerContext = Pick<FlowNode, 'type' | 'config'>;
 
+const TIMER_ADD_TYPES = new Set(['reply.countdown_add', 'reply.cooldown_add']);
+
+function hasTimerPerValues(values: { per: number; seconds: number; name: string }): boolean {
+  return Object.values(values).every(Boolean);
+}
+
 function timerPerLine(t: Translate, node: FlowNode, trigger?: TriggerContext): string {
-  if (node.type !== 'reply.countdown_add' && node.type !== 'reply.cooldown_add') return '';
+  if (!TIMER_ADD_TYPES.has(node.type)) return '';
   const unit = triggerAmountUnit(trigger);
   const per = num(node, 'per');
   const seconds = num(node, 'seconds');
   const name = text(node, 'name');
-  if (!unit || !per || !seconds || !name) return '';
+  if (!unit || !hasTimerPerValues({ per, seconds, name })) return '';
   const amount = t(`flows.line.timerAmount.${unit}.${per === 1 ? 'one' : 'many'}`, { count: per });
   return t('flows.line.timerPer', { name, seconds: durationFormatter(t)(seconds), amount });
 }
 
-export function portLabel(t: Translate, node: FlowNode, id: string): string {
-  if (node.type === 'reply.random') return randomPortLabel(t, node, id);
-  const percent = node.type === 'cond.chance' ? num(node, 'percent') : 0;
-  if (percent) return id === 'yes' ? t('flows.line.chanceYes', { percent }) : t('flows.line.chanceNo');
-  if (node.type === 'cond.live' && node.config.state === 'offline') id = id === 'yes' ? 'no' : 'yes';
+function chancePortLabel(t: Translate, node: FlowNode, id: FlowNode['id']): string | undefined {
+  const percent = num(node, 'percent');
+  if (!percent) return undefined;
+  return id === 'yes' ? t('flows.line.chanceYes', { percent }) : t('flows.line.chanceNo');
+}
+
+function livePortLabel(t: Translate, node: FlowNode, id: FlowNode['id']): string {
+  if (node.config.state !== 'offline') return defaultPortLabel(t, node, id);
+  return defaultPortLabel(t, node, id === 'yes' ? 'no' : 'yes');
+}
+
+function defaultPortLabel(t: Translate, node: FlowNode, id: FlowNode['id']): string {
   const spec = specFor(node.type);
   return spec ? outputLabel(t, spec, id) : '';
+}
+
+export function portLabel(t: Translate, node: FlowNode, id: string): string {
+  switch (node.type) {
+    case 'reply.random': return randomPortLabel(t, node, id);
+    case 'cond.chance': return chancePortLabel(t, node, id) ?? defaultPortLabel(t, node, id);
+    case 'cond.live': return livePortLabel(t, node, id);
+    default: return defaultPortLabel(t, node, id);
+  }
 }
 
 function randomPortLabel(t: Translate, node: FlowNode, id: FlowNode['id']): string {

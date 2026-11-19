@@ -152,12 +152,17 @@ export const fieldHint = (t: Translate, spec: NodeSpec, field: FieldSpec): strin
   known(`${fieldCopyPrefix(spec, field)}.hint`, t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.hint` as MessageKey)) || undefined;
 
 export function fieldIssueMessage(t: Translate, issue: FieldIssue, node: FlowNode | undefined): string {
-  if (issue.code !== 'required') return issueMessage(t, issue);
-  if (node?.type === 'reply.reward_update' && issue.fieldKey === 'setEnabled') return t('flows.step.reply.rewardUpdate.pickChange');
-  const spec = node ? specFor(node.type) : undefined;
-  const field = spec?.fields.find((field) => field.key === issue.fieldKey);
-  if (!spec || !field) return issueMessage(t, issue);
-  return t('flows.issue.requiredField', { field: fieldLabel(t, spec, field, node) });
+  if (issue.code !== 'required' || !node) return issueMessage(t, issue);
+  if (node.type === 'reply.reward_update' && issue.fieldKey === 'setEnabled') return t('flows.step.reply.rewardUpdate.pickChange');
+  const field = requiredFieldLabel(t, node, issue.fieldKey);
+  return field === undefined ? issueMessage(t, issue) : t('flows.issue.requiredField', { field });
+}
+
+function requiredFieldLabel(t: Translate, node: FlowNode, key: FieldIssue['fieldKey']): string | undefined {
+  const spec = specFor(node.type);
+  if (!spec) return undefined;
+  const field = spec.fields.find((field) => field.key === key);
+  return field ? fieldLabel(t, spec, field, node) : undefined;
 }
 
 export function fieldPlaceholder(t: Translate, spec: NodeSpec, field: FieldSpec, node?: FieldCopy['node']): string | undefined {
@@ -182,14 +187,28 @@ export function durationOutside(field: DurationSpec, seconds: string | number | 
   return Number(seconds) < field.min || Number(seconds) > field.max;
 }
 
-function optionKey(spec: NodeSpec, field: FieldSpec, value: string): MessageKey {
-  const shared = field.type === 'select' ? field.optionKey : undefined;
-  if (typeof shared === 'string') return `${shared}.${value}`;
-  return shared?.[value] ?? `${fieldCopyPrefix(spec, field)}.option.${value}`;
+const SHARED_OPTION_PREFIXES = Object.freeze({
+  comparison: 'flows.step.condition.op',
+  loyalty: 'flows.step.condition.var.field.op.option'
+});
+
+const REDEMPTION_OPTIONS: Readonly<Record<string, MessageKey>> = Object.freeze({
+  fulfill: 'flows.reward.afterFulfill',
+  cancel: 'flows.reward.afterCancel'
+});
+
+function optionCopy(t: Translate, { spec, field }: Pick<FieldCopy, 'spec' | 'field'>, value: string, hideMissing = false): string {
+  const group = field.type === 'select' ? field.optionGroup : undefined;
+  const shared = group === 'redemption' ? REDEMPTION_OPTIONS[value] : undefined;
+  const prefix = group && group !== 'redemption'
+    ? SHARED_OPTION_PREFIXES[group] : `flows.step.${spec.kind}.${spec.slug}.field.${field.key}.option`;
+  const key = shared ?? (prefix + '.' + value);
+  const label = t(key as MessageKey);
+  return hideMissing ? known(key, label) : label;
 }
 
 export const optionText = (t: Translate, spec: NodeSpec, field: FieldSpec, value: string): string =>
-  t(optionKey(spec, field, value));
+  optionCopy(t, { spec, field }, value);
 
 export function fieldOptions(t: Translate, spec: NodeSpec, field: FieldSpec): { value: string; label: string }[] {
   if (field.type !== 'select') return [];
@@ -209,10 +228,7 @@ export function fieldSearchText(t: Translate, spec: NodeSpec): string {
     return [
       known(`${prefix}.label`, t(`${prefix}.label` as MessageKey)),
       ...variantLabels(t, spec, field),
-      ...options.map((value) => {
-        const key = optionKey(spec, field, value);
-        return known(key, t(key));
-      })
+      ...options.map((value) => optionCopy(t, { spec, field }, value, true))
     ];
   }).filter(Boolean).join(' ');
 }

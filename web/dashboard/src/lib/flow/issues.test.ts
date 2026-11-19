@@ -133,7 +133,7 @@ test.each<{ type: FlowNode['type']; key: string; config: FlowNode['config']; exp
   expect(fieldRequired(nodeOf(type, config), key)).toBe(expected);
 });
 
-test.each([
+test.each<{ percent: number; fields: { fieldKey: string | undefined; code: string }[] }>([
   { percent: 50.5, fields: [{ fieldKey: 'percent', code: 'invalid_format' }] },
   { percent: 50, fields: [] }
 ])('chance at $percent reports $fields', ({ percent, fields }) => {

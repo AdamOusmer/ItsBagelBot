@@ -54,7 +54,7 @@ test('imports the shared random and stop fixture without unsupported actions', (
   const reopened = rebuilt({ ...sharedNested, actions: [sharedNested.actions![1]!] });
   expect(reopened.nodes.slice(2).map(({ type, config }) => ({ type, config }))).toEqual([
     { type: 'reply.random', config: { paths: '2', weight1: 1, weight2: 3 } },
-    { type: 'reply.chat', config: { message: 'hello {user}' } },
+    { type: 'reply.chat', config: { message: 'hello {user}', reply: 'off' } },
     { type: 'reply.stop', config: {} }
   ]);
 });
@@ -1213,11 +1213,14 @@ describe('reading stored definitions', () => {
     );
     expect(result).toEqual({ ok: false, issues: [{ path: 'trigger', code: 'unsupported_trigger' }] });
 
-    const action = definitionToFlow(
-      { version: 1, trigger: { type: 'event', params: { kind: 'channel.follow' } }, actions: [chat('a'), { type: 'if', params: { condition: { type: 'live', params: { state: 'live' } }, then: [{ type: 'shield', params: { on: true } }] } }] },
-      meta
-    );
-    expect(action).toEqual({ ok: false, issues: [{ path: 'actions[1].condition', code: 'unsupported_condition' }] });
+    const branch = {
+      type: 'if',
+      params: { condition: { type: 'users', params: { allow_ids: ['1', '2'], deny_ids: ['2'] } }, then: [chat('b')] }
+    };
+    const definition: Definition = {
+      version: 1, trigger: { type: 'event', params: { kind: 'channel.follow' } }, actions: [chat('a'), branch]
+    };
+    expect(definitionToFlow(definition, meta)).toEqual({ ok: false, issues: [{ path: 'actions[1].condition', code: 'unsupported_condition' }] });
   });
 
   test('a disabled action stays disabled', () => {

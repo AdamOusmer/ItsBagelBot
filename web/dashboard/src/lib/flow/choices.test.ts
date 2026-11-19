@@ -30,7 +30,7 @@ test.each(draftCases)('$source includes draft $type with $config', ({ source, ty
   });
 });
 
-test.each([
+test.each<{ current: string | undefined; ids: string[] }>([
   { current: 'one', ids: ['two'] },
   { current: undefined, ids: ['one', 'two'] }
 ])('recipes exclude the current recipe $current', ({ current, ids }) => {

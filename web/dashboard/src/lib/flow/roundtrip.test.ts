@@ -51,7 +51,24 @@ function chosen(config: Config, field: Extract<FieldSpec, { type: 'choice' }>): 
   Object.assign(config, pick.meta);
 }
 
+const STATIC_FIELD_CONFIGS = new Map<FieldSpec['type'], Config>([
+  ['toggle', {}],
+  ['select', {}],
+  ['goveeLight', LIGHT],
+  ['login', { login: 'bagel', userId: '1234567' }]
+]);
+
+function staticFieldConfig(field: FieldSpec): Config | undefined {
+  if (field.key === 'users') return { users: '1234567:,2345678:' };
+  return STATIC_FIELD_CONFIGS.get(field.type);
+}
+
 function fill(config: Config, field: FieldSpec): void {
+  const fixed = staticFieldConfig(field);
+  if (fixed) {
+    Object.assign(config, fixed);
+    return;
+  }
   switch (field.type) {
     case 'number':
       config[field.key] = withinRange(field);
@@ -62,17 +79,8 @@ function fill(config: Config, field: FieldSpec): void {
     case 'slider':
       config[field.key] = field.max - field.step;
       break;
-    case 'toggle':
-    case 'select':
-      break;
     case 'choice':
       chosen(config, field);
-      break;
-    case 'goveeLight':
-      Object.assign(config, LIGHT);
-      break;
-    case 'login':
-      Object.assign(config, { login: 'bagel', userId: '1234567' });
       break;
     case 'reward':
       Object.assign(config, { [field.key]: 'sample', onRedeem: DEFAULT_REWARD_OUTCOME });
@@ -105,6 +113,7 @@ function configsFor(spec: NodeSpec): Config[] {
 const node = (id: string, type: string, config: Config): FlowNode => ({ id, type, x: 0, y: 0, config });
 
 function triggerFor(spec: NodeSpec): FlowNode {
+  if (spec.type === 'cond.pattern') return node('t', 'twitch.chat.command', { trigger: '!check' });
   if (spec.type === 'reply.unban_resolve') return node('t', 'twitch.unban_request', {});
   if (spec.type === 'reply.redemption') return node('t', 'twitch.reward', { reward: 'reward-1' });
   return node('t', 'twitch.cheer', { minBits: 100 });

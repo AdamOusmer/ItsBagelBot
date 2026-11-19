@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import { expect, test } from 'bun:test';
 import { flowToDefinition, validateDefinition } from '@bagel/kit/automations';
-import { NODE_SPECS, STEP_PLACEMENT, newFlow, outputsFor, specFor, type FlowNode } from './model';
+import { NODE_SPECS, STEP_PLACEMENT, newFlow, outputsFor, specFor, type Flow, type FlowNode, type NodeSpec } from './model';
 import { addNode } from './ops.testing';
 import { addStep } from './editor';
 import en from '../../../../../locales/en/console/flows/board.json';
@@ -119,14 +119,20 @@ const requiredSetup: Record<string, FlowNode['config']> = {
   'reply.run': { automationId: 'helper' }
 };
 
+function defaultsTrigger(flow: Flow, spec: NodeSpec): FlowNode {
+  if (spec.kind === 'trigger') return addNode(flow, spec.type, at);
+  if (spec.type !== 'cond.pattern') return addNode(flow, 'twitch.follow', at);
+  const trigger = addNode(flow, 'twitch.chat.command', at);
+  trigger.config.trigger = '!check';
+  return trigger;
+}
+
 test.each(NODE_SPECS)('$type lowers and validates its defaults with a broadcaster check', (spec) => {
   const flow = newFlow('Validate defaults');
-  const isTrigger = spec.kind === 'trigger';
-  const triggerType = spec.type === 'cond.pattern' ? 'twitch.chat.command' : 'twitch.follow';
-  const trigger = addNode(flow, isTrigger ? spec.type : triggerType, at);
-  if (spec.type === 'cond.pattern') trigger.config.trigger = '!check';
+  const trigger = defaultsTrigger(flow, spec);
   const gate = addNode(flow, 'cond.role', at, { from: trigger.id, port: 'next' });
   gate.config.level = 'broadcaster';
+  const isTrigger = spec.kind === 'trigger';
   const node = isTrigger ? gate : addNode(flow, spec.type, at, { from: gate.id, port: 'yes' });
   Object.assign(node.config, requiredSetup[spec.type]);
   const port = isTrigger ? 'yes' : outputsFor(spec, node)[0]?.id;

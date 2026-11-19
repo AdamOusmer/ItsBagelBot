@@ -240,6 +240,7 @@ function argRegexComparison(params: Params, context: Context): boolean {
 }
 
 const namedCooldownKey = (name: Text): Text => `named:${name}`;
+const VIEWER_COOLDOWN_PREFIX = 'viewer:';
 
 function cooldownKeys(params: Params, context: Context): Text[] {
   if (params.name) return [namedCooldownKey(nameOf(params))];
@@ -247,7 +248,7 @@ function cooldownKeys(params: Params, context: Context): Text[] {
   const suffix = ordinal > 0 ? `:${ordinal}` : '';
   const keys: Text[] = [];
   if (number(params.global_s) > 0) keys.push(`global${suffix}`);
-  if (number(params.user_s) > 0) keys.push(`viewer:${userID(context.scenario.userId ?? '') ?? 0n}${suffix}`);
+  if (number(params.user_s) > 0) keys.push(`${VIEWER_COOLDOWN_PREFIX}${userID(context.scenario.userId ?? '') ?? 0n}${suffix}`);
   return keys;
 }
 

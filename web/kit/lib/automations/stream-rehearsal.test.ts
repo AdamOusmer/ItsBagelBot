@@ -66,7 +66,7 @@ const actionCases: ActionCase[] = [
   { name: 'earlier poll already ended', type: 'poll_end', params: { status: 'terminate' }, before: [poll, { type: 'poll_end', params: { status: 'terminate' } }], expected: { status: 'skipped', detail: { code: 'nothing_running' } } },
   { name: 'no prediction in this test', type: 'prediction_end', params: { status: 'cancel' }, before: [poll], expected: { status: 'skipped', detail: { code: 'nothing_running' } } },
   { name: 'lock an earlier prediction', type: 'prediction_end', params: { status: 'lock' }, before: [prediction], expected: { status: 'ok' } },
-  { name: 'resolve a locked prediction', type: 'prediction_end', params: { status: 'resolve', outcome: '{choice:Blue;Red}' }, before: [prediction, { type: 'prediction_end', params: { status: 'lock' } }], expected: { status: 'ok', detail: { outcome: 'Blue' } } },
+  { name: 'resolve a locked prediction', type: 'prediction_end', params: { status: 'resolve', outcome: '{choice:Blue,Red}' }, before: [prediction, { type: 'prediction_end', params: { status: 'lock' } }], expected: { status: 'ok', detail: { outcome: 'Blue' } } },
   { name: 'no prediction after failed start', type: 'prediction_end', params: { status: 'cancel' }, before: [{ type: 'prediction', params: { outcomes: ['One', '{var:absent}'] } }], expected: { status: 'skipped', detail: { code: 'nothing_running' } } },
   { name: 'normalized target and expanded message', type: 'whisper', params: { login: ' @{touser} ', text: 'Hi {user}' }, expected: { status: 'ok', detail: { login: 'Lotti', text: 'Hi PrincessBarney' } } },
   { name: 'empty expanded message', type: 'whisper', params: { login: 'lotti', text: '{var:absent}' }, expected: { status: 'failed', detail: { code: 'empty' } } },

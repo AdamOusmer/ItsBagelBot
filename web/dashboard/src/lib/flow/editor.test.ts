@@ -90,7 +90,7 @@ test.each([
   flow.edges.push({ id: 'ac', from: 'a', port, to: 'c' });
   flow.nodes.push(...['c', 'd'].map((id) => ({ id, type: 'reply.chat', config: {}, x: 0, y: 0 })));
   const result = { placement: selectedPlacement(flow, 'a'), ports: parallelPorts(flow, 'a'), connected: connectionTarget(flow, 'd', { from: 'a', port }) };
-  expect(result).toEqual({ placement, ports, connected });
+  expect(result).toEqual({ placement, ports: [...ports], connected });
 });
 test.each([
   { type: 'cond.chance', ports: ['yes', 'no'] },

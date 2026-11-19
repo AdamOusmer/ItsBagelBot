@@ -842,9 +842,10 @@ function runNeedsSetup(action: Action): boolean {
 function dropDeadRuns(entry: FlowImportEntry, landedByRef: Map<string, FlowImportEntry>): FlowImportEntry {
   if (entry.status !== 'ready') return entry;
   const notes: Notes = [];
+  const noted = new Set(entry.setup.filter((note) => note.code === 'run_target').map((note) => note.path));
   const definition = mapDefinitionActions(entry.definition!, (action, path) => {
     if (runNeedsSetup(action)) {
-      notes.push({ code: 'run_target', path });
+      if (!noted.has(path)) notes.push({ code: 'run_target', path });
       return action;
     }
     const code = action.type === 'run' ? deadRunCode(action, landedByRef) : null;

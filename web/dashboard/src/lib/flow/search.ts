@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { MessageKey } from '@bagel/kit';
 import { fieldSearchText, groupLabel, stepKeywords, stepLabel, stepSummary } from './copy';
 import type { Translate } from './messages';
 import { LIBRARY_SPECS, STEP_GROUPS, type FlowKind, type NodeSpec, type StepGroup } from './model';
@@ -12,6 +13,13 @@ export type StepSection = { key: string; specs: NodeSpec[] } & (
 );
 
 const KINDS: readonly FlowKind[] = ['trigger', 'reply', 'condition'];
+
+const SEARCH_ALIASES: Readonly<Record<NodeSpec['type'], MessageKey>> = Object.freeze({
+  'reply.stream_info': 'flows.step.reply.streamInfo.searchAlias',
+  'reply.commercial': 'flows.step.reply.commercial.searchAlias',
+  'reply.wait': 'flows.step.reply.wait.searchAlias',
+  'twitch.stream.offline': 'flows.step.trigger.streamOffline.searchAlias'
+});
 
 const words = (value: SearchText): SearchText[] => value.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').match(/[\p{L}\p{N}]+/gu) ?? [];
 
@@ -32,14 +40,24 @@ function wordScore(query: SearchText, fields: readonly SearchText[][]): number {
   return index < 0 ? 0 : fields.length - index;
 }
 
+function matchesAlias(t: Translate, spec: NodeSpec, query: SearchText): boolean {
+  if (!Object.hasOwn(SEARCH_ALIASES, spec.type)) return false;
+  const key = SEARCH_ALIASES[spec.type];
+  const alias = t(key);
+  return alias !== key && words(alias).join(' ') === query;
+}
+
 function score(t: Translate, spec: NodeSpec, query: readonly SearchText[]): number {
   const label = words(stepLabel(t, spec));
   const fields = [label, words(stepKeywords(t, spec)), words(stepSummary(t, spec)), words(fieldSearchText(t, spec))];
+  const queryText = query.join(' ');
+  const base = query.length + 1;
+  const labelBonus = base ** (fields.length + 1);
+  if (matchesAlias(t, spec, queryText)) return labelBonus * base;
   const scores = query.map((word) => wordScore(word, fields));
   if (scores.includes(0)) return 0;
-  const base = query.length + 1;
   const relevance = scores.reduce((total, value) => total + base ** value, 0);
-  return label.join(' ').startsWith(query.join(' ')) ? relevance + base ** (fields.length + 1) : relevance;
+  return label.join(' ').startsWith(queryText) ? relevance + labelBonus : relevance;
 }
 
 function rankedSteps(t: Translate, tokens: readonly SearchText[], kinds: readonly FlowKind[]): NodeSpec[] {

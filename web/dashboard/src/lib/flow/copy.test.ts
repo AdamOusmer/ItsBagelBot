@@ -139,7 +139,7 @@ describe('step copy', () => {
     expect(shown.filter(missing)).toEqual([]);
   });
 
-  test.each([
+  test.each<{ paths: string; labels: string[] }>([
     { paths: '2', labels: ['Path 1 (75%)', 'Path 2 (25%)'] },
     { paths: '3', labels: ['Path 1 (30%)', 'Path 2 (10%)', 'Path 3 (60%)'] }
   ])('$paths random paths use only their active weights', ({ paths, labels }) => {

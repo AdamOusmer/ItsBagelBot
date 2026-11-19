@@ -14,7 +14,7 @@ import { rehearseFlow, type RehearsalScenario, type RehearsalStep } from './rehe
 import type { RehearsalMode } from '@bagel/kit/engine/rehearsal';
 import { searchSteps } from './search';
 
-type StepCase = { type: string; config: FlowNode['config']; line: string; effect?: string; kind: RehearsalStep['kind']; status?: RehearsalStep['status']; mode?: RehearsalMode; color?: string; message?: string; trigger?: string; scenario?: Partial<RehearsalScenario> };
+type StepCase = { type: string; config: FlowNode['config']; line: string; effect?: string; kind: RehearsalStep['kind']; status?: RehearsalStep['status']; mode?: RehearsalMode; color?: string; message?: string; trigger?: string; scenario?: Partial<RehearsalScenario>; missing?: RehearsalStep['missing'] };
 const steps: StepCase[] = [
   { type: 'reply.shoutout', config: { target: '{user}' }, line: 'Shoutout to {user}', effect: 'Shoutout to PrincessBarney', kind: 'effect' },
   { type: 'reply.announce', config: { text: 'Welcome {user} and {viewers} viewers!', color: 'orange' }, line: 'Announce: Welcome {user} and {viewers} viewers!', kind: 'say', mode: 'announce', color: 'orange', message: 'Welcome PrincessBarney and 42 viewers!' },
@@ -28,7 +28,7 @@ const steps: StepCase[] = [
   { type: 'reply.ban', config: { who: 'viewer', reason: 'Repeated spam' }, line: 'Ban the viewer', effect: 'Ban PrincessBarney', kind: 'effect' },
   { type: 'reply.unban', trigger: 'twitch.chat.command', scenario: { role: 'mod' }, config: { who: 'mention' }, line: 'Lift timeout or ban for the @mentioned viewer', effect: 'Lift timeout or ban for Lotti', kind: 'effect' },
   { type: 'reply.unban', trigger: 'twitch.chat.command', scenario: { role: 'mod', message: '!unban someone' }, config: { who: 'mention' }, line: 'Lift timeout or ban for the @mentioned viewer', effect: 'No viewer was @mentioned', kind: 'effect', status: 'failed' },
-  { type: 'reply.ban', config: { who: 'login', target: '{var:absent}' }, line: 'Ban {var:absent}', effect: 'The name came out empty', kind: 'effect', status: 'failed' },
+  { type: 'reply.ban', config: { who: 'login', target: '{var:absent}' }, line: 'Ban {var:absent}', effect: 'The name came out empty', kind: 'effect', status: 'failed', missing: ['absent'] },
   { type: 'reply.mod', config: { change: 'add', who: 'user', userId: '123', login: 'Lotti' }, line: 'Make Lotti a moderator', effect: 'Make Lotti a moderator', kind: 'effect' },
   { type: 'reply.vip', config: { change: 'remove', who: 'viewer' }, line: 'Remove the viewer as VIP', effect: 'Remove PrincessBarney as VIP', kind: 'effect' },
   { type: 'reply.unban_resolve', trigger: 'twitch.unban_request', config: { status: 'approve', resolution: 'Thanks for writing' }, line: 'Approve the unban request', effect: 'Approve the unban request', kind: 'effect' },
@@ -48,7 +48,7 @@ function stepAfter(flow: ReturnType<typeof newFlow>, trigger: string): { from: s
   return { from: addNode(flow, 'cond.role', at, { from: root.id, port: 'next' }).id, port: 'yes' };
 }
 
-test.each(steps)('$type saves, reopens, describes and rehearses its fields', ({ type, config, line, effect = '', kind, status = 'ok', mode, color, message, trigger = 'twitch.raid', scenario }) => {
+test.each(steps)('$type saves, reopens, describes and rehearses its fields', ({ type, config, line, effect = '', kind, status = 'ok', mode, color, message, trigger = 'twitch.raid', scenario, missing = [] }) => {
   const flow = newFlow('Stream steps');
   const node = addNode(flow, type, { x: 0, y: 0 }, stepAfter(flow, trigger));
   node.config = config;
@@ -62,7 +62,7 @@ test.each(steps)('$type saves, reopens, describes and rehearses its fields', ({ 
   expect({
     starts: rehearsal.starts, kind: rehearsed.kind, status: rehearsed.status, mode: body?.mode, color: body?.color, message: rehearsed.lines?.[0],
     text: rehearsed.text, missing: rehearsed.missing, segments: body?.segments.map((segment) => segment.text).join('')
-  }).toEqual({ starts: true, kind, status, mode, color, message, text: effect, missing: [], segments: message });
+  }).toEqual({ starts: true, kind, status, mode, color, message, text: effect, missing, segments: message });
 });
 
 const configuredSteps = new Set(['reply.stream_info', 'reply.raid']);

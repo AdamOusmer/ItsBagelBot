@@ -107,7 +107,7 @@ export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; whenTrigger?:
   | (Typed & { type: 'number'; min?: number; max?: number; step?: number; unit?: true })
   | { key: string; type: 'slider'; min: number; max: number; step: number; unit?: string }
   | { key: string; type: 'duration'; min: number; max: number }
-  | { key: string; type: 'select'; options: readonly string[]; fallback?: string; optionKey?: string | Readonly<Record<string, string>> }
+  | { key: string; type: 'select'; options: readonly string[]; fallback?: string; optionGroup?: 'comparison' | 'loyalty' | 'redemption' }
   | { key: string; type: 'toggle' }
   | { key: string; type: 'color' }
   | (Typed & { type: 'login' })
@@ -210,7 +210,7 @@ const varScope: FieldSpec = { key: 'scope', type: 'select', options: ['channel',
 const varName: FieldSpec = { key: 'name', type: 'text', placeholder: true };
 const saveAs: FieldSpec = { key: 'saveAs', type: 'text', placeholder: true };
 const counterChoice = { key: 'counter', type: 'choice', source: 'counters' } as const satisfies FieldSpec;
-const loyaltyOp = { key: 'op', type: 'select', options: CMP_OPS, initial: 'gte', optionKey: 'flows.step.condition.var.field.op.option' } as const satisfies FieldSpec;
+const loyaltyOp = { key: 'op', type: 'select', options: CMP_OPS, initial: 'gte', optionGroup: 'loyalty' } as const satisfies FieldSpec;
 const timerPer = { key: 'per', type: 'number', min: 1, whenTrigger: 'amount' } as const satisfies FieldSpec;
 const textOperands: FieldSpec[] = Object.entries(TEXT_OPERAND_OPS).map(([key, ops]) => ({
   key, type: 'template', singleLine: true, labelBy: 'op', when: { key: 'op', value: ops }
@@ -399,7 +399,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     icon: 'scale',
     fields: [
       { key: 'left', type: 'template', placeholder: true, singleLine: true },
-      { key: 'op', type: 'select', options: COMPARE_OPS, optionKey: 'flows.step.condition.op', initial: 'gte' },
+      { key: 'op', type: 'select', options: COMPARE_OPS, optionGroup: 'comparison', initial: 'gte' },
       { key: 'right', type: 'template', placeholder: true, singleLine: true },
       { key: 'matchCase', type: 'toggle', initial: false, when: { key: 'op', value: TEXT_COMPARE_OPS } }
     ],
@@ -419,7 +419,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     fields: [
       varScope,
       varName,
-      { key: 'op', type: 'select', options: VAR_OPS, optionKey: 'flows.step.condition.op', initial: 'exists' },
+      { key: 'op', type: 'select', options: VAR_OPS, optionGroup: 'comparison', initial: 'exists' },
       { key: 'value', type: 'template', placeholder: true, singleLine: true, when: { key: 'op', value: VAR_OPS_WITH_VALUE } }
     ],
     outputs: yesNo
@@ -642,7 +642,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'reply.redemption', slug: 'redemption', icon: 'coins', lineBy: 'result',
     fields: [{
       key: 'result', type: 'select', options: ['fulfill', 'cancel'], initial: 'fulfill',
-      optionKey: { fulfill: 'flows.reward.afterFulfill', cancel: 'flows.reward.afterCancel' }
+      optionGroup: 'redemption'
     }]
   },
   {

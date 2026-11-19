@@ -84,12 +84,14 @@ type IssueTarget = { node: FlowNode; path: IssuePath };
 
 function issueTarget(issue: Issue, nodes: readonly FlowNode[], trigger: FlowNode | undefined): IssueTarget | undefined {
   const match = /^nodes\.([^.]+)(?:\.(.*))?$/.exec(issue.path);
-  if (match) {
-    const node = nodes.find((entry) => entry.id === match[1]);
-    return node && { node, path: match[2] ?? '' };
-  }
+  if (match) return nodeIssueTarget(nodes, match);
   const onTrigger = issue.path.startsWith('trigger') ? trigger : undefined;
   return onTrigger && { node: onTrigger, path: issue.path.replace(/^trigger\.?/, '') };
+}
+
+function nodeIssueTarget(nodes: readonly FlowNode[], match: RegExpExecArray): IssueTarget | undefined {
+  const node = nodes.find((entry) => entry.id === match[1]);
+  return node && { node, path: match[2] ?? '' };
 }
 
 function locateFieldIssue(issue: Issue, nodes: readonly FlowNode[], trigger: FlowNode | undefined): FieldIssue[] {
@@ -138,15 +140,24 @@ const DYNAMIC_TYPES: Record<string, (config: FlowNode['config']) => string> = {
   'reply.counter': (config) => config.change === 'set' ? 'counter_set' : 'counter_add'
 };
 
+function catalogType(node: FlowNode): FlowNode['type'] {
+  const type = DYNAMIC_TYPES[node.type]?.(node.config) ?? TYPES[node.type];
+  return type ?? node.type.split('.').slice(1).join('.');
+}
+
 function catalogRequires(node: FlowNode, key: FieldKey): boolean {
-  const type = DYNAMIC_TYPES[node.type]?.(node.config) ?? TYPES[node.type] ?? node.type.split('.').slice(1).join('.');
+  const type = catalogType(node);
   const catalog = [...TRIGGER_TYPES, ...CONDITION_TYPES, ...ACTION_TYPES].find((item) => item.type === type);
   return catalog?.fields.some((field) => field.required && fieldKeyFor(node, field.name) === key) ?? false;
 }
 
 export function fieldRequired(node: FlowNode, key: FieldKey): boolean {
   const field = specFor(node.type)?.fields.find((entry) => entry.key === key);
-  return field?.required ?? targetRequired(node, key) ?? builderRule(node, key) ?? catalogRequires(node, key);
+  return field?.required ?? inferredRequirement(node, key);
+}
+
+function inferredRequirement(node: FlowNode, key: FieldKey): boolean {
+  return targetRequired(node, key) ?? builderRule(node, key) ?? catalogRequires(node, key);
 }
 
 function inlineNumberCode(node: FlowNode, field: Extract<FieldSpec, { type: 'number' }>): Issue['code'] | undefined {
@@ -156,9 +167,15 @@ function inlineNumberCode(node: FlowNode, field: Extract<FieldSpec, { type: 'num
   const value = Number(raw);
   const legacyPoints = node.type === 'reply.points' && node.config.change === undefined;
   const amount = legacyPoints ? Math.abs(value) : value;
+  if (numberOutsideRange(node, field, amount)) return CODE.outOfRange;
+}
+
+function numberOutsideRange(node: FlowNode, field: Extract<FieldSpec, { type: 'number' }>, amount: number): boolean {
   const counterDelta = node.type === 'reply.counter' && field.key === 'amount';
-  if (counterDelta && amount === 0) return CODE.outOfRange;
-  if (amount < (field.min ?? -Infinity) || amount > (field.max ?? Infinity)) return CODE.outOfRange;
+  if (counterDelta && amount === 0) return true;
+  const min = field.min ?? -Infinity;
+  const max = field.max ?? Infinity;
+  return amount < min || amount > max;
 }
 
 function missingRewardChange(node: FlowNode, field: FieldKey): boolean {
@@ -181,15 +198,25 @@ export function inlineFieldIssue(node: FlowNode, field: FieldSpec): FieldIssue |
   return code ? { nodeId: node.id, fieldKey: field.key, path: `nodes.${node.id}.config.${field.key}`, code } : undefined;
 }
 
+function missingCooldown(config: FlowNode['config']): FieldKey | undefined {
+  const { channelSeconds, viewerSeconds } = cooldownWindows(config);
+  return channelSeconds > 0 || viewerSeconds > 0 ? undefined : 'channelSeconds';
+}
+
+const MISSING_FIELDS = new Map<FlowNode['type'], (config: FlowNode['config']) => FieldKey | undefined>([
+  ['cond.user', (config) => viewerList(config).length ? undefined : 'users'],
+  ['cond.cooldown', missingCooldown]
+]);
+
 export function missingField(node: FlowNode): string | undefined {
-  if (node.type === 'cond.user') return viewerList(node.config).length ? undefined : 'users';
-  if (node.type === 'cond.cooldown') {
-    const { channelSeconds, viewerSeconds } = cooldownWindows(node.config);
-    return channelSeconds > 0 || viewerSeconds > 0 ? undefined : 'channelSeconds';
-  }
+  const missing = MISSING_FIELDS.get(node.type);
+  if (missing) return missing(node.config);
   const spec = specFor(node.type);
-  return spec?.fields.find(({ key }) => {
-    const stored = key === 'login' && targetFieldFor(spec) ? 'userId' : key;
-    return fieldRequired(node, key) && !configText(node, stored).trim();
-  })?.key;
+  if (!spec) return undefined;
+  const target = targetFieldFor(spec);
+  return spec.fields.find(({ key }) => fieldIsMissing(node, key, key === 'login' && target ? 'userId' : key))?.key;
+}
+
+function fieldIsMissing(node: FlowNode, key: FieldKey, stored: FieldKey): boolean {
+  return fieldRequired(node, key) && !configText(node, stored).trim();
 }

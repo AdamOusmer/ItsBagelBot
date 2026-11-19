@@ -142,9 +142,14 @@ function withMessage(t: Translate, summary: Text, message: Text | undefined): Te
   return message ? t('flows.test.summaryWithMessage', { summary, message }) : summary;
 }
 
+function summaryViewer(t: Translate, sample: RehearsalScenario): Text {
+  if (sample.anonymous) return t('flows.test.anonymousViewer');
+  return sample.user || t('flows.test.notSet');
+}
+
 function scenarioSummary(t: Translate, sample: RehearsalScenario, kind: Text): Text {
   if (STREAM_INFO_SCENARIOS.has(kind)) return streamSummary(t, sample, kind);
-  const user = sample.anonymous ? t('flows.test.anonymousViewer') : sample.user || t('flows.test.notSet');
+  const user = summaryViewer(t, sample);
   const summaryKind = kind.startsWith('twitch.chat.') ? 'twitch.chat' : kind;
   const summaries: Readonly<Record<Text, () => Text>> = {
     'twitch.chat': () => t('flows.test.summaryChat', { user, role: scenarioRoleLabel(t, sample.role ?? 'viewer'), message: sample.message ?? '' }),
@@ -173,7 +178,8 @@ function scenarioSummary(t: Translate, sample: RehearsalScenario, kind: Text): T
     'schedule.manual': () => withMessage(t, t('flows.test.summaryManual'), sample.args),
     'countdown.finished': () => t('flows.test.summaryCountdown', { name: sample.name ?? '' })
   };
-  return summaries[summaryKind]?.() ?? t('flows.test.summaryEvent', { user });
+  if (Object.hasOwn(summaries, summaryKind)) return summaries[summaryKind]();
+  return t('flows.test.summaryEvent', { user });
 }
 
 function streamSummary(t: Translate, { title = '', category = '' }: RehearsalScenario, kind: Text): Text {
@@ -260,14 +266,26 @@ function liveCheck(t: Translate, node: FlowNode, scenario: RehearsalScenario): T
   return t('flows.test.liveCheck', { actual, expected });
 }
 
+function compareCheck(t: Translate, node: FlowNode, inputs: ScenarioInputs): Text {
+  return describe(t, { ...node, config: { ...node.config, left: displayInput(node.config.left, inputs) || t('flows.test.emptyValue'), right: displayInput(node.config.right, inputs) } });
+}
+
+function patternCheck(t: Translate, scenario: RehearsalScenario, event: RehearsalEvent): Text {
+  return t(event.status === 'yes' ? 'flows.test.patternMatch' : 'flows.test.patternMiss', { args: scenario.args || t('flows.test.emptyValue') });
+}
+
 function checkText(t: Translate, node: FlowNode, inputs: ScenarioInputs, event: RehearsalEvent): Text {
   const { scenario } = inputs;
-  if (node.type === 'cond.role') return t('flows.test.roleCheck', { actual: scenarioRoleLabel(t, scenario.role ?? 'viewer'), expected: scenarioRoleLabel(t, String(node.config.level ?? 'viewer')) });
-  if (node.type === 'cond.user') return viewerCheck(t, node, scenario);
-  if (node.type === 'cond.live') return liveCheck(t, node, scenario);
-  if (node.type === 'cond.pattern') return t(event.status === 'yes' ? 'flows.test.patternMatch' : 'flows.test.patternMiss', { args: scenario.args || t('flows.test.emptyValue') });
-  if (node.type !== 'cond.compare') return describe(t, node);
-  return describe(t, { ...node, config: { ...node.config, left: displayInput(node.config.left, inputs) || t('flows.test.emptyValue'), right: displayInput(node.config.right, inputs) } });
+  switch (node.type) {
+    case 'cond.role': return t('flows.test.roleCheck', {
+      actual: scenarioRoleLabel(t, scenario.role ?? 'viewer'), expected: scenarioRoleLabel(t, String(node.config.level ?? 'viewer'))
+    });
+    case 'cond.user': return viewerCheck(t, node, scenario);
+    case 'cond.live': return liveCheck(t, node, scenario);
+    case 'cond.pattern': return patternCheck(t, scenario, event);
+    case 'cond.compare': return compareCheck(t, node, inputs);
+    default: return describe(t, node);
+  }
 }
 
 function displayInput(value: FlowNode['config'][Text] | undefined, inputs: ScenarioInputs): Text {
@@ -409,14 +427,18 @@ const FAILED_COMPARISONS: Readonly<Record<Text, MessageKey>> = Object.freeze({
 });
 
 function stepNote(t: Translate, node: FlowNode | undefined, context: { event: RehearsalEvent; inputs: ScenarioInputs }): Text | undefined {
-  if (node?.type === 'reply.run' && context.event.kind === 'effect') return t('flows.test.recipeSimulation');
-  if (emptyResponse(node, context.event)) return t('flows.test.emptyResponse');
-  if (node?.type !== 'cond.compare') return undefined;
-  if (context.event.status !== 'no') return undefined;
+  if (!node) return undefined;
+  const { event, inputs } = context;
+  if (node.type === 'reply.run' && event.kind === 'effect') return t('flows.test.recipeSimulation');
+  if (emptyResponse(node, event)) return t('flows.test.emptyResponse');
+  if (node.type === 'cond.compare' && event.status === 'no') return compareNote(t, node, inputs);
+}
+
+function compareNote(t: Translate, node: FlowNode, inputs: ScenarioInputs): Text {
   const op = String(node.config.op ?? 'gte');
   return t(Object.hasOwn(FAILED_COMPARISONS, op) ? FAILED_COMPARISONS[op]! : 'flows.test.compareNotEq', {
-    left: displayInput(node.config.left, context.inputs) || t('flows.test.emptyValue'),
-    right: displayInput(node.config.right, context.inputs) || t('flows.test.emptyValue')
+    left: displayInput(node.config.left, inputs) || t('flows.test.emptyValue'),
+    right: displayInput(node.config.right, inputs) || t('flows.test.emptyValue')
   });
 }
 

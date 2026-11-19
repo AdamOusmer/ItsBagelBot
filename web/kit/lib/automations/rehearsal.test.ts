@@ -175,10 +175,13 @@ const runs: RunCase[] = [
   },
   {
     name: 'reset preserves unnamed cooldowns with names that could collide',
-    actions: [choose(condition('cooldown', { global_s: 60, user_s: 60 })),
-      action('cooldown_reset', { name: 'global' }), action('cooldown_reset', { name: 'viewer' }),
-      choose(condition('cooldown', { global_s: 60 })), choose(condition('cooldown', { user_s: 60 }))],
-    lines: ['yes', 'no', 'no']
+    actions: [action('loop', { times: '2', actions: [
+      choose(condition('cooldown', { global_s: 60 })),
+      choose(condition('cooldown', { user_s: 60 })),
+      action('cooldown_reset', { name: 'global' }),
+      action('cooldown_reset', { name: 'viewer' })
+    ] })],
+    lines: ['yes', 'yes', 'no', 'no']
   }
 ];
 
