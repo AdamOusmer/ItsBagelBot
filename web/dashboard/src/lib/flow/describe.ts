@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey } from '@bagel/kit';
-import { compactDuration } from '@bagel/kit/automations';
-import { optionText, outputLabel, stepSummary } from './copy';
+import { activeRandomPaths, compactDuration, randomPathWeight } from '@bagel/kit/automations';
+import { optionText, outputLabel, randomPathLabel, stepSummary } from './copy';
 import type { Translate } from './messages';
 import { LINKED_REWARD_CHOICE, specFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
 import { awaitingSetup, configText } from './setup';
@@ -231,10 +231,11 @@ function lineVariant(value: ConfigValue): string {
 }
 
 function lineValue(t: Translate, node: FlowNode, spec: NodeSpec, key: string): string {
-  if (!text(node, key)) return '';
-  const field = spec.fields.find((entry) => entry.key === key);
+  const field = spec.fields.find((entry) => entry.key === key || (entry.type === 'choice' && entry.nameKey === key));
+  const configKey = field?.key ?? key;
+  if (!text(node, configKey)) return '';
   if (field?.type === 'duration') return given(num(node, key), durationFormatter(t));
-  return optionLabel(t, spec, node, key);
+  return optionLabel(t, spec, node, configKey);
 }
 
 function specLine(t: Translate, node: FlowNode, spec: NodeSpec): string | undefined {
@@ -251,10 +252,21 @@ function specLine(t: Translate, node: FlowNode, spec: NodeSpec): string | undefi
 }
 
 export function portLabel(t: Translate, node: FlowNode, id: string): string {
+  if (node.type === 'reply.random') return randomPortLabel(t, node, id);
   const percent = node.type === 'cond.chance' ? num(node, 'percent') : 0;
   if (percent) return id === 'yes' ? t('flows.line.chanceYes', { percent }) : t('flows.line.chanceNo');
   const spec = specFor(node.type);
   return spec ? outputLabel(t, spec, id) : '';
+}
+
+function randomPortLabel(t: Translate, node: FlowNode, id: FlowNode['id']): string {
+  const paths = activeRandomPaths(node.config);
+  const selected = paths.find((path) => path.id === id);
+  if (!selected) return '';
+  const weight = (key: keyof FlowNode['config']) => Math.max(0, randomPathWeight(node.config, key));
+  const total = paths.reduce((sum, path) => sum + weight(path.weightKey), 0);
+  const percent = total ? Math.round(100 * weight(selected.weightKey) / total) : 0;
+  return t('flows.step.reply.random.pathPercent', { label: randomPathLabel(t, selected.path), percent });
 }
 
 export function describe(t: Translate, node: FlowNode): string {

@@ -20,10 +20,10 @@
   import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import DurationField from '#lib/components/shared/DurationField.svelte';
-  import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, scopeWarning, stepLabel, stepRequirementFor, stepSummary, targetOptions, variableLabel } from '#lib/flow/copy';
+  import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, scopeWarning, stepLabel, stepNote, stepRequirementFor, stepSummary, targetOptions, variableLabel } from '#lib/flow/copy';
   import { defaultComparison } from '#lib/flow/comparison';
   import { fieldMounted, fieldVisible, NODE_SPECS, outputsFor, specFor, storedVariable, targetFieldFor, targetModesFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
-  import { duplicateNode, hasCheckBefore, insertCheckBefore } from '#lib/flow/ops';
+  import { duplicateNode, hasCheckBefore, insertCheckBefore, updateNodeConfig } from '#lib/flow/ops';
   import { descendants, graphIndex, portKey } from '#lib/flow/graph-index';
   import { awaitingSetup, configText } from '#lib/flow/setup';
   import { SETUP_URL } from '@bagel/kit/automations';
@@ -105,7 +105,7 @@
 
   function setSelect(key: FieldKey, value: string) {
     if (!node) return;
-    node.config[key] = value;
+    updateNodeConfig(flow, node, { [key]: value });
     if (node.type === 'cond.compare') automaticComparisons.set(node.id, false);
   }
 
@@ -134,7 +134,7 @@
   type TextControl = HTMLInputElement | HTMLTextAreaElement;
   let completion = $state<{ key: FieldKey; start: number; end: number; query: string; anchor: TextControl } | null>(null);
   let activeSuggestion = $state(0);
-  const contextualTokens = new Set(NODE_SPECS.flatMap((entry) => [...entry.provides ?? [], ...entry.outputs?.flatMap((output) => output.provides ?? []) ?? []]).map((v) => v.token));
+  const contextualTokens = new Set(NODE_SPECS.flatMap((entry) => [...entry.provides ?? [], ...outputsFor(entry).flatMap((output) => output.provides ?? [])]).map((v) => v.token));
   const channelChips = sheetFor('custom').filter((v) => !contextualTokens.has(v.token) && Boolean(chipHint(t, v)));
   const suggestions = $derived.by(() => {
     const search = completion?.query.toLowerCase() ?? '';
@@ -247,11 +247,12 @@
     return descendants(flow, starts).size;
   }
 
-  const branches = $derived(
-    node && spec?.outputs
-      ? outputsFor(spec).map((o) => ({ ...o, label: portLabel(t, node, o.id), count: reach(node.id, o.id) }))
-      : []
-  );
+  const branches = $derived.by(() => {
+    const ports = outputsFor(spec, node);
+    if (!node || ports.length < 2) return [];
+    return ports.map((out) => ({ ...out, label: portLabel(t, node, out.id), count: reach(node.id, out.id) }));
+  });
+  const staticNote = $derived(spec ? stepNote(t, spec) : undefined);
 
   const countText = (count: number) =>
     count === 0 ? t('flows.board.branchNone') : count === 1 ? t('flows.board.branchOne') : t('flows.board.branchMany', { count });
@@ -302,6 +303,9 @@
     </header>
 
     <div class="scroll">
+      {#if staticNote}
+        <p class="note static-note bb-fit-box"><bb-fit mode="block">{staticNote}</bb-fit></p>
+      {/if}
       {#if awaiting}
         <p class="note">{t('flows.setup.stepNote')}</p>
       {/if}
@@ -713,6 +717,7 @@
     min-width: 0;
   }
   .role-warning { min-width: 0; }
+  .static-note { height: 48px; }
   .faded { opacity: 0; }
   .note {
     margin: 0;

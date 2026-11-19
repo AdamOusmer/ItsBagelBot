@@ -114,7 +114,8 @@
     "scene": "Choose a scene",
     "light": "Choose a light first",
     "namedCooldown": "Choose a timer",
-    "namedCountdown": "Choose a countdown"
+    "namedCountdown": "Choose a countdown",
+    "recipe": "Choose a recipe"
   },
   "choiceEmpty": {
     "rewards": "No channel point rewards yet. Create one in Channel points.",
@@ -122,7 +123,8 @@
     "counters": "No counters yet. Create one in Counters.",
     "scenes": "This light has no scenes.",
     "namedCooldowns": "Add a Cooldown step and give it a name first.",
-    "namedCountdowns": "Add a Start countdown step first."
+    "namedCountdowns": "Add a Start countdown step first.",
+    "recipes": "Create another recipe to select it here."
   },
   "choiceProblem": {
     "rewards": "Could not load your rewards.",
@@ -130,7 +132,8 @@
     "scenes": "Could not load the scenes for this light.",
     "keyRejected": "Govee did not accept your API key.",
     "namedCooldowns": "Could not load your recipes' timers.",
-    "namedCountdowns": "Could not load your countdowns."
+    "namedCountdowns": "Could not load your countdowns.",
+    "recipes": "Could not load your recipes."
   },
   "choiceMissing": "\"{name}\" is no longer in the list.",
   "choiceUnowned": "No recipe currently owns \"{name}\". This will do nothing until one does.",
@@ -141,6 +144,7 @@
     "stepNote": "This step stays off until you fill it in.",
     "pickReward": "Pick a reward",
     "addUrl": "Add a URL",
-    "refused": "Fill in the steps that need setup and save, then turn this on."
+    "refused": "Fill in the steps that need setup and save, then turn this on.",
+    "pickRecipe": "Choose a recipe for the Run another recipe step."
   }
 }

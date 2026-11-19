@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { StepRole } from '@bagel/kit/automations';
-import { COLUMN_GAP, NODE_W, ROW_GAP, specFor, targetFieldFor, targetHasViewer, triggerProvidesViewer, type FieldSpec, type Flow, type FlowEdge, type FlowNode } from './model';
+import { COLUMN_GAP, NODE_W, ROW_GAP, outputsFor, specFor, targetFieldFor, targetHasViewer, triggerProvidesViewer, type FieldSpec, type Flow, type FlowEdge, type FlowNode } from './model';
 import { cycleExclusions, graphIndex, linkKey } from './graph-index';
 import { nodeHeight } from './layout';
 
@@ -80,7 +80,8 @@ function reachable(flow: Flow, roots: NodeId[]): Set<NodeId> {
 
 export function canConnect(flow: Flow, ends: EdgeEnds): boolean {
   const index = graphIndex(flow);
-  if (!index.nodes.has(ends.from)) return false;
+  const source = index.nodes.get(ends.from);
+  if (!source || !outputsFor(specFor(source.type), source).some(({ id }) => id === ends.port)) return false;
   const target = index.nodes.get(ends.to);
   if (!target || isTrigger(target)) return false;
   if (cycleExclusions(flow, ends.from).has(ends.to)) return false;
@@ -94,7 +95,19 @@ export function connect(flow: Flow, ends: EdgeEnds): FlowEdge | null {
   return edge;
 }
 
-const continuationPort = (node: FlowNode): string => node.type === 'reply.loop' ? 'done' : specFor(node.type)?.outputs?.[0]?.id ?? 'next';
+const continuationPort = (node: FlowNode): FlowEdge['port'] | undefined =>
+  node.type === 'reply.loop' ? 'done' : outputsFor(specFor(node.type), node)[0]?.id;
+
+export function updateNodeConfig(flow: Flow, node: FlowNode, patch: FlowNode['config']): void {
+  const spec = specFor(node.type);
+  const previous = outputsFor(spec, node);
+  Object.assign(node.config, patch);
+  if (!spec?.outputsFor) return;
+  const active = new Set(outputsFor(spec, node).map(({ id }) => id));
+  const removed = new Set(previous.filter(({ id }) => !active.has(id)).map(({ id }) => id));
+  if (!removed.size) return;
+  flow.edges = flow.edges.filter((edge) => edge.from !== node.id || !removed.has(edge.port));
+}
 
 function insertAtPort(flow: Flow, node: FlowNode, placement: Extract<Placement, { kind: 'port' }>): void {
   const children = placement.mode === 'insert'
@@ -102,7 +115,8 @@ function insertAtPort(flow: Flow, node: FlowNode, placement: Extract<Placement, 
     : [];
   flow.edges = flow.edges.filter((edge) => !children.includes(edge));
   connect(flow, { from: placement.from, port: placement.port, to: node.id });
-  for (const child of children) connect(flow, { from: node.id, port: continuationPort(node), to: child.to });
+  const port = continuationPort(node);
+  if (port) for (const child of children) connect(flow, { from: node.id, port, to: child.to });
 }
 
 function insertAtEdge(flow: Flow, node: FlowNode, edges: readonly FlowEdge[]): void {
@@ -110,7 +124,8 @@ function insertAtEdge(flow: Flow, node: FlowNode, edges: readonly FlowEdge[]): v
   const inserted = new Set(edges);
   const targets = new Set(edges.map((edge) => edge.to));
   flow.edges = flow.edges.map((edge) => inserted.has(edge) ? { ...edge, to: node.id } : edge);
-  for (const to of targets) connect(flow, { from: node.id, port: continuationPort(node), to });
+  const port = continuationPort(node);
+  if (port) for (const to of targets) connect(flow, { from: node.id, port, to });
 }
 
 export function insertNode(flow: Flow, request: InsertRequest): FlowNode {
@@ -154,8 +169,7 @@ export function replaceTrigger(flow: Flow, type: NodeType): FlowNode {
 }
 
 function healingPort(flow: Flow, node: FlowNode): string | null {
-  const outputs = specFor(node.type)?.outputs;
-  if (!outputs) return 'next';
+  const outputs = outputsFor(specFor(node.type), node);
   const used = new Set(flow.edges.filter((edge) => edge.from === node.id).map((edge) => edge.port));
   const port = node.type === 'reply.loop' && !used.has('body') ? 'done' : outputs[0]?.id;
   return [...used].every((usedPort) => usedPort === port) ? port ?? null : null;

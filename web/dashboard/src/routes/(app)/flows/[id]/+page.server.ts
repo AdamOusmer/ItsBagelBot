@@ -10,9 +10,9 @@ import { NEW_FLOW_ID } from '#lib/flow/ref';
 import type { ChoiceList } from '#lib/flow/choices';
 import { effectiveId } from '#lib/server/board';
 import { lookupTwitchUser } from '#lib/server/identity-heal';
-import { counterChoices, manageableRewardChoices, namedCooldownChoices, namedCountdownChoices, rewardChoices, sceneChoices } from '#lib/server/flow-choices';
+import { counterChoices, manageableRewardChoices, namedCooldownChoices, namedCountdownChoices, recipeChoices, rewardChoices, sceneChoices } from '#lib/server/flow-choices';
 import { listRuns } from '#lib/server/automations-store';
-import { parseFlowRouteId } from '#lib/flow/ref';
+import { parseFlowRouteId, type FlowRef } from '#lib/flow/ref';
 import { signedInAction } from '#lib/server/action-context';
 import { actionError, actionErrorBody } from '#lib/server/action-errors';
 import { rehearseFetchDef } from '#lib/server/fetch-def-actions';
@@ -49,22 +49,25 @@ type Choices = {
   counters: Promise<ChoiceList>;
   namedCooldowns: Promise<ChoiceList>;
   namedCountdowns: Promise<ChoiceList>;
+  recipes: Promise<ChoiceList>;
 };
 
-async function choicesFor(locals: App.Locals, url: URL): Promise<Choices> {
+async function choicesFor(locals: App.Locals, url: URL, ref: FlowRef | null): Promise<Choices> {
+  const current = ref?.layer === 'automation' ? ref.id : undefined;
   if (DEMO) {
     const demo = await import('#lib/flow/demo');
-    const lists = demo.demoChoices(demo.demoChoiceMode(url.searchParams.get('choices')));
+    const lists = demo.demoChoices(demo.demoChoiceMode(url.searchParams.get('choices')), current);
     return {
       rewards: Promise.resolve(lists.rewards),
       manageableRewards: Promise.resolve(lists.rewards),
       counters: Promise.resolve(lists.counters),
       namedCooldowns: Promise.resolve(lists.namedCooldowns),
-      namedCountdowns: Promise.resolve(lists.namedCountdowns)
+      namedCountdowns: Promise.resolve(lists.namedCountdowns),
+      recipes: Promise.resolve(lists.recipes)
     };
   }
   const uid = effectiveId(locals.session);
-  return { rewards: rewardChoices(uid), manageableRewards: manageableRewardChoices(uid), counters: counterChoices(uid), namedCooldowns: namedCooldownChoices(uid), namedCountdowns: namedCountdownChoices(uid) };
+  return { rewards: rewardChoices(uid), manageableRewards: manageableRewardChoices(uid), counters: counterChoices(uid), namedCooldowns: namedCooldownChoices(uid), namedCountdowns: namedCountdownChoices(uid), recipes: recipeChoices(uid, current) };
 }
 
 export const load: PageServerLoad = async ({ params, locals, url, depends }) => {
@@ -73,7 +76,7 @@ export const load: PageServerLoad = async ({ params, locals, url, depends }) => 
   const editor = await editorFor(locals, params.id);
   if (!editor) throw error(404);
   const govee = goveeLights(locals, url).catch((): GoveeLights => ({ keyPresent: true, devices: [], code: 'unreachable' }));
-  return { ...editor, govee, ...(await choicesFor(locals, url)) };
+  return { ...editor, govee, ...(await choicesFor(locals, url, editor.ref)) };
 };
 
 const LOGIN_PATTERN = /^[a-z0-9_]{1,25}$/;

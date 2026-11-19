@@ -66,7 +66,10 @@ const defaults = {
   'reply.text': { op: 'upper' },
   'reply.math': {},
   'reply.http_get': {},
-  'reply.http_post': {}
+  'reply.http_post': {},
+  'reply.stop': {},
+  'reply.random': { paths: '2', weight1: 1, weight2: 1, weight3: 1, weight4: 1, weight5: 1 },
+  'reply.run': {}
 } satisfies Record<keyof typeof STEP_PLACEMENT, FlowNode['config']>;
 
 test.each(NODE_SPECS)('$type gets its expected config when added', (spec) => {
@@ -87,7 +90,8 @@ const invalidDefaults = new Set(['out_of_range', 'invalid_enum', 'too_short']);
 const requiredSetup: Record<string, FlowNode['config']> = {
   'cond.user': { userId: '42' },
   'reply.poll': { choices: 'First\nSecond' },
-  'reply.prediction': { outcomes: 'First\nSecond' }
+  'reply.prediction': { outcomes: 'First\nSecond' },
+  'reply.run': { automationId: 'helper' }
 };
 
 test.each(NODE_SPECS)('$type lowers and validates its defaults with a broadcaster check', (spec) => {
@@ -98,8 +102,8 @@ test.each(NODE_SPECS)('$type lowers and validates its defaults with a broadcaste
   gate.config.level = 'broadcaster';
   const node = isTrigger ? gate : addNode(flow, spec.type, at, { from: gate.id, port: 'yes' });
   Object.assign(node.config, requiredSetup[spec.type]);
-  const port = isTrigger ? 'yes' : outputsFor(spec)[0].id;
-  addNode(flow, 'reply.chat', at, { from: node.id, port }).config.message = 'Saved';
+  const port = isTrigger ? 'yes' : outputsFor(spec, node)[0]?.id;
+  if (port) addNode(flow, 'reply.chat', at, { from: node.id, port }).config.message = 'Saved';
 
   const lowered = flowToDefinition(flow);
   if (!lowered.ok) throw new Error(JSON.stringify(lowered.issues));

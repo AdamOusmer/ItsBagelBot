@@ -108,5 +108,9 @@
     "rewardId": "ID de recompensa",
     "name": "Nombre de cuenta atrás",
     "amount": "bits"
-  }
+  },
+  "stoppedHere": "Se detuvo aquí",
+  "runsRecipe": "Ejecuta {name}",
+  "recipeSimulation": "La prueba no abre la otra receta",
+  "recipeFailed": "Falló"
 }

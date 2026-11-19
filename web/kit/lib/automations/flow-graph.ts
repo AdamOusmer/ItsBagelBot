@@ -3,7 +3,8 @@
 
 import { streamActionReaders, streamActionWriters, streamTargetNodes, usesLegacyTarget } from './stream-flow';
 import { COMPARE_OPS } from './compare';
-import { SETUP_LOGIN, SETUP_REWARD_ID } from './flow-setup';
+import { ACTION_TYPES } from './catalog';
+import { SETUP_LOGIN, SETUP_REWARD_ID, SETUP_RUN_TARGET } from './flow-setup';
 import { CODE, MAX_DELAY_MS, VERSION } from './limits';
 import type { Action, Condition, Definition, Issue, Params, Trigger } from './types';
 
@@ -274,6 +275,16 @@ const API_WRITERS: Record<string, (config: FlowConfig) => Action> = {
 const API_PORTS = ['ok', 'failure'] as const;
 const LOOP_TYPE = 'reply.loop';
 const LOOP_PORTS = ['body', 'done'] as const;
+const RANDOM_TYPE = 'reply.random';
+const randomBranchCount = ACTION_TYPES.find((entry) => entry.type === 'random_pick')!.fields.find((field) => field.name === 'branches')!;
+export const RANDOM_PATHS = Array.from({ length: randomBranchCount.max! }, (_, i) => ({
+  id: `p${i + 1}`, path: i + 1, weightKey: `weight${i + 1}`
+}));
+export const RANDOM_PATH_COUNTS = RANDOM_PATHS.slice(randomBranchCount.min! - 1).map(({ path }) => String(path));
+export const RANDOM_PATH_DEFAULT_WEIGHT = 1;
+export const activeRandomPaths = (config: FlowConfig) =>
+  RANDOM_PATHS.slice(0, Number(RANDOM_PATH_COUNTS.find((paths) => paths === String(config.paths)) ?? RANDOM_PATH_COUNTS[0]));
+export const randomPathWeight = (config: FlowConfig, key: keyof FlowConfig) => num(config[key] ?? RANDOM_PATH_DEFAULT_WEIGHT);
 
 const DEFAULT_LIGHT_COLOR = '#ffffff';
 
@@ -301,6 +312,16 @@ function lightsAction(config: FlowConfig): Action {
 }
 
 const awaitingUser = (config: FlowConfig) => config.login === SETUP_LOGIN;
+
+const SETUP_RUN_TEXT = '[setup-required:run]';
+export const setupRunPlaceholder = (): Action => ({ type: 'chat', enabled: false, params: { text: SETUP_RUN_TEXT } });
+export const isSetupRunPlaceholder = (action: Action): boolean =>
+  action.type === 'chat' && action.enabled === false && action.params?.text === SETUP_RUN_TEXT;
+
+function runAction(config: FlowConfig): Action {
+  const id = str(config.automationId);
+  return id === SETUP_RUN_TARGET ? setupRunPlaceholder() : { type: 'run', params: { automation_id: id } };
+}
 
 const COOLDOWN_PASSTHROUGH_FIELDS = [
   ['name', 'name'],
@@ -348,7 +369,9 @@ const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   'reply.reward_update': rewardUpdateAction,
   'reply.countdown_start': (config) => ({ type: 'countdown_start', params: { ...timeLeftParams(config), name: recipeName(config.name), seconds: num(config.seconds) } }),
   'reply.countdown_add': (config) => ({ ...cooldownAddAction(config), type: 'countdown_add' }),
-  'reply.cooldown_add': cooldownAddAction
+  'reply.cooldown_add': cooldownAddAction,
+  'reply.stop': () => ({ type: 'stop' }),
+  'reply.run': runAction
 };
 
 function cooldownAddAction(config: FlowConfig): Action {
@@ -614,9 +637,14 @@ function lowerFrom(ctx: Lowering, id: string, stop: Stops): Action[] {
   return actions.concat(lowerEntries(ctx, entries, stop, source));
 }
 
+const CONTROL_WRITERS: Readonly<Record<string, typeof lowerLoop>> = {
+  [LOOP_TYPE]: lowerLoop,
+  [RANDOM_TYPE]: lowerRandom
+};
+
 function controlActions(ctx: Lowering, node: FlowNode, stop: Stops): Action[] | null {
   if (isConditionType(node.type)) return lowerBranch(ctx, node, stop);
-  if (node.type === LOOP_TYPE) return lowerLoop(ctx, node, stop);
+  if (Object.hasOwn(CONTROL_WRITERS, node.type)) return CONTROL_WRITERS[node.type]!(ctx, node, stop);
   return Object.hasOwn(API_WRITERS, node.type) ? lowerApi(ctx, node, stop) : null;
 }
 
@@ -639,6 +667,23 @@ function lowerBranch(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
 }
 
 const withEnabled = (node: FlowNode, action: Action): Action => (node.config.disabled === true ? { ...action, enabled: false } : action);
+
+function randomJoins(ctx: Lowering, paths: string[][]): string[] {
+  if (paths.some((path) => path.length === 0)) return [];
+  const reached = paths.flat().map((id) => reachOf(ctx, id));
+  return earliest(ctx, [...reached[0]!].filter((id) => reached.every((set) => set.has(id))));
+}
+
+function lowerRandom(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
+  const ports = activeRandomPaths(node.config);
+  const paths = ports.map(({ id }) => targets(ctx, node.id, id));
+  const joins = randomJoins(ctx, paths);
+  const bound = extended(stop, joins);
+  const branches = ports.map(({ weightKey }, i) => ({
+    weight: randomPathWeight(node.config, weightKey), actions: lowerEntries(ctx, paths[i]!, bound, node.id)
+  }));
+  return [owned(ctx, node, withEnabled(node, { type: 'random_pick', params: { branches } })), ...lowerRest(ctx, joins, stop)];
+}
 
 function lowerLoop(ctx: Lowering, node: FlowNode, stop: Stops): Action[] {
   const times = str(loweredConfig(ctx, node).times);
@@ -987,9 +1032,11 @@ const API_READERS: Record<string, (params: Params) => { type: string; config: Fl
   http_post: (params) => ({ type: 'reply.http_post', config: { url: str(params.url), body: str(params.body), saveAs: str(params.save_as) } })
 };
 
-const ACTION_READERS: Record<string, (params: Params) => { type: string; config: FlowConfig } | null> = {
+const ACTION_READERS: Record<string, (params: Params, action: Action) => { type: string; config: FlowConfig } | null> = {
   ...streamActionReaders,
-  chat: (params) => ({ type: 'reply.chat', config: { message: str(params.text) } }),
+  chat: (params, action) => isSetupRunPlaceholder(action)
+    ? { type: 'reply.run', config: { automationId: SETUP_RUN_TARGET } }
+    : { type: 'reply.chat', config: { message: str(params.text) } },
   lights: lightsNode,
   counter_add: (params) => (num(params.amount) === 1 ? { type: 'reply.counter', config: { counter: str(params.name) } } : null),
   delay: (params) => ({ type: 'reply.wait', config: { seconds: num(params.ms) / 1000 } }),
@@ -1001,7 +1048,9 @@ const ACTION_READERS: Record<string, (params: Params) => { type: string; config:
   reward_update: rewardUpdateNode,
   countdown_start: (params) => ({ type: 'reply.countdown_start', config: { ...timeLeftConfig(params), name: str(params.name), seconds: num(params.seconds) } }),
   countdown_add: (params) => ({ ...cooldownAddNode(params), type: 'reply.countdown_add' }),
-  cooldown_add: cooldownAddNode
+  cooldown_add: cooldownAddNode,
+  stop: () => ({ type: 'reply.stop', config: {} }),
+  run: (params) => ({ type: 'reply.run', config: { automationId: str(params.automation_id) } })
 };
 
 function cooldownAddNode(params: Params): { type: string; config: FlowConfig } {
@@ -1049,16 +1098,24 @@ function placeApi(b: Building, action: Action, path: string, tails: Tail[]): Tai
   return [...worked, ...failed];
 }
 
+function placeRandom(b: Building, action: Action, path: string, tails: Tail[]): Tail[] {
+  const branches = (action.params?.branches ?? []) as { weight: number; actions?: Action[] }[];
+  const ports = RANDOM_PATHS.slice(0, branches.length);
+  const config = Object.fromEntries(ports.map(({ weightKey }, i) => [weightKey, branches[i]!.weight] as const));
+  const id = addNode(b, RANDOM_TYPE, placedConfig(action, { ...config, paths: String(branches.length) }), tails);
+  return ports.flatMap(({ id: port }, i) => placeActions(b, branches[i]!.actions ?? [], `${path}.params.branches[${i}].actions`, [{ from: id, port }]));
+}
+
+const CONTROL_READERS = { if: placeIf, parallel: placeParallel, loop: placeLoop, random_pick: placeRandom } as const;
+
 function placeAction(b: Building, action: Action, path: string, tails: Tail[]): Tail[] {
   if (disabledControlFlow(action)) {
     b.issues.push({ path, code: FLOW_ISSUE.unsupportedDisabledControlFlow });
     return tails;
   }
-  if (action.type === 'if') return placeIf(b, action, path, tails);
-  if (action.type === 'parallel') return placeParallel(b, action, path, tails);
-  if (action.type === 'loop') return placeLoop(b, action, path, tails);
+  if (Object.hasOwn(CONTROL_READERS, action.type)) return CONTROL_READERS[action.type as keyof typeof CONTROL_READERS](b, action, path, tails);
   if (Object.hasOwn(API_READERS, action.type)) return placeApi(b, action, path, tails);
-  const node = Object.hasOwn(ACTION_READERS, action.type) ? ACTION_READERS[action.type]!(action.params ?? {}) : null;
+  const node = Object.hasOwn(ACTION_READERS, action.type) ? ACTION_READERS[action.type]!(action.params ?? {}, action) : null;
   if (!node) {
     b.issues.push({ path, code: FLOW_ISSUE.unsupportedAction });
     return tails;

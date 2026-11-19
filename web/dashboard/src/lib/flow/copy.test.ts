@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
-import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, roleWarning, scopeWarning, stepLabel, stepSummary, variableLabel } from './copy';
-import { describe as describeNode } from './describe';
+import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, roleWarning, scopeWarning, stepLabel, stepNote, stepSummary, variableLabel } from './copy';
+import { describe as describeNode, portLabel } from './describe';
 import { english } from './english.testing';
-import { fieldVisible, newFlow, NODE_SPECS, specFor, type FlowNode } from './model';
+import { fieldVisible, newFlow, NODE_SPECS, outputsFor, specFor, type FlowNode } from './model';
 import type { Translate } from './messages';
 
 const missing = (text: string | undefined) => text === undefined || text.startsWith('flows.');
@@ -88,9 +88,12 @@ describe('step copy', () => {
   });
 
   test.each(NODE_SPECS.map((spec) => [spec.type, spec] as const))('%s has English for everything it shows', (_type, spec) => {
+    const node = { id: 'step', type: spec.type, config: {}, x: 0, y: 0 };
+    const ports = outputsFor(spec, node);
     const shown = [
       stepLabel(english, spec),
       stepSummary(english, spec),
+      stepNote(english, spec),
       groupLabel(english, spec.group),
       ...spec.fields.flatMap((field) => [
         fieldLabel(english, spec, field),
@@ -98,10 +101,19 @@ describe('step copy', () => {
         fieldUnit(english, spec, field),
         ...fieldOptions(english, spec, field).map((option) => option.label)
       ]),
-      ...(spec.outputs ?? []).map((output) => outputLabel(english, spec, output.id)),
-      ...[...(spec.provides ?? []), ...(spec.outputs ?? []).flatMap((output) => output.provides ?? [])].map((variable) => variableLabel(english, variable))
+      ...ports.map((output) => portLabel(english, node, output.id)),
+      ...[...(spec.provides ?? []), ...ports.flatMap((output) => output.provides ?? [])].map((variable) => variableLabel(english, variable))
     ].filter((text) => text !== undefined);
     expect(shown.filter(missing)).toEqual([]);
+  });
+
+  test.each([
+    { paths: '2', labels: ['Path 1 (75%)', 'Path 2 (25%)'] },
+    { paths: '3', labels: ['Path 1 (30%)', 'Path 2 (10%)', 'Path 3 (60%)'] }
+  ])('$paths random paths use only their active weights', ({ paths, labels }) => {
+    const spec = specFor('reply.random')!;
+    const node = { id: 'r', type: spec.type, config: { paths, weight1: 3, weight2: 1, weight3: 6 }, x: 0, y: 0 };
+    expect(outputsFor(spec, node).map((port) => portLabel(english, node, port.id))).toEqual(labels);
   });
 
   test('a field with no placeholder or unit asks for neither', () => {

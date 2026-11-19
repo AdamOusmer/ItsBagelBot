@@ -108,5 +108,9 @@
     "rewardId": "Belohnungs-ID",
     "name": "Countdown-Name",
     "amount": "Bits"
-  }
+  },
+  "stoppedHere": "Hier beendet",
+  "runsRecipe": "Führt {name} aus",
+  "recipeSimulation": "Der Testlauf öffnet das andere Rezept nicht",
+  "recipeFailed": "Fehlgeschlagen"
 }

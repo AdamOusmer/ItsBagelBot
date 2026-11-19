@@ -108,5 +108,9 @@
     "rewardId": "ID de la récompense",
     "name": "Nom du compte à rebours",
     "amount": "bits"
-  }
+  },
+  "stoppedHere": "Arrêt ici",
+  "runsRecipe": "Exécute {name}",
+  "recipeSimulation": "Le test n’ouvre pas l’autre recette",
+  "recipeFailed": "Échec"
 }

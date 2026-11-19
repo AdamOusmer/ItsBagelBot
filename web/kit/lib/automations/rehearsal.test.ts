@@ -64,6 +64,30 @@ test.each(runs)('$name', ({ actions, options, lines, times }) => {
   expect(new Set(result.events.map((event) => event.key)).size).toBe(result.events.length);
 });
 
+const stoppedPath = [chat('before'), { type: 'stop' }, chat('unreachable')];
+test.each([
+  { name: 'whole run', actions: stoppedPath, lane: [], lines: ['before'] },
+  { name: 'parallel lane', actions: [parallel([stoppedPath, [chat('sibling')]]), chat('after')], lane: [0], lines: ['before', 'sibling', 'after'] }
+])('stop ends only its $name', ({ actions, lane, lines }) => {
+  const result = execute(actions);
+  const skips = result.events.filter(({ kind }) => kind === 'skip').map(({ status, detail, lane }) => ({ status, code: detail?.code, lane }));
+  expect({ skips, lines: result.events.flatMap((event) => event.lines ?? []) })
+    .toEqual({ skips: [{ status: 'skipped', code: 'stopped', lane }], lines });
+});
+
+test.each([
+  { override: undefined, path: '1', text: 'first' },
+  { override: '2', path: '2', text: 'second' },
+  { override: '5', path: '1', text: 'first' }
+])('random pick samples $path with override $override', ({ override, path, text }) => {
+  const branches = ['first', 'second'].map((label, i) => ({ weight: i + 1, actions: [chat(label)] }));
+  const overrides = override ? { 'actions[0].path': override } : undefined;
+  const result = execute([action('random_pick', { branches }), chat('after')], { overrides });
+  const row = result.events[1];
+  expect({ port: row?.port, detail: row?.detail, lines: result.events.flatMap((event) => event.lines ?? []) })
+    .toEqual({ port: `p${path}`, detail: { path, random: '1' }, lines: [text, 'after'] });
+});
+
 test.each([
   { role: 'viewer', level: 'sub', expected: 'no' },
   { role: 'sub', level: 'sub', expected: 'yes' },

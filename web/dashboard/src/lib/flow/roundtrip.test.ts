@@ -17,7 +17,8 @@ const CHOICES: Record<ChoiceSource, { value: string; label: string; meta?: Recor
     meta: { sceneType: 'devices.capabilities.dynamic_scene', sceneInstance: 'snapshot', sceneValue: '{"paramId":4,"id":9}' }
   },
   namedCooldowns: { value: 'subathon', label: 'subathon, in Big cheer celebration' },
-  namedCountdowns: { value: 'subathon', label: 'subathon, in Big cheer celebration' }
+  namedCountdowns: { value: 'subathon', label: 'subathon, in Big cheer celebration' },
+  recipes: { value: 'recipe-1', label: 'Helper' }
 };
 
 const LIGHT: Config = { device: 'AA:BB:CC:DD:EE:FF:00:11', sku: 'H6008', deviceName: 'Desk lamp' };
@@ -96,10 +97,11 @@ function configsFor(spec: NodeSpec): Config[] {
 const node = (id: string, type: string, config: Config): FlowNode => ({ id, type, x: 0, y: 0, config });
 
 function drawn(spec: NodeSpec, config: Config): Flow {
+  const step = node('a', spec.type, config);
   const chat = node('z', 'reply.chat', { message: 'Thanks {user}!' });
-  const port = outputsFor(spec)[0]!.id;
+  const port = outputsFor(spec, step)[0]?.id;
   if (spec.kind === 'trigger') {
-    return { id: 'f', name: 'f', enabled: true, nodes: [node('a', spec.type, config), chat], edges: [{ id: 'e1', from: 'a', port, to: 'z' }] };
+    return { id: 'f', name: 'f', enabled: true, nodes: [step, chat], edges: [{ id: 'e1', from: 'a', port: port!, to: 'z' }] };
   }
   const trigger = spec.type === 'reply.unban_resolve'
     ? node('t', 'twitch.unban_request', {})
@@ -108,10 +110,10 @@ function drawn(spec: NodeSpec, config: Config): Flow {
     id: 'f',
     name: 'f',
     enabled: true,
-    nodes: [trigger, node('a', spec.type, config), chat],
+    nodes: port ? [trigger, step, chat] : [trigger, step],
     edges: [
       { id: 'e1', from: 't', port: 'next', to: 'a' },
-      { id: 'e2', from: 'a', port, to: 'z' }
+      ...(port ? [{ id: 'e2', from: 'a', port, to: 'z' }] : [])
     ]
   };
 }
@@ -119,6 +121,7 @@ function drawn(spec: NodeSpec, config: Config): Flow {
 function saved(spec: NodeSpec, config: FlowConfig): Config {
   const hiddenDefaults = spec.fields.filter((field) => field.initial === config[field.key] && !fieldVisible(spec, { config }, field));
   const omitted = new Set([...SHOWN_NOT_SAVED, ...hiddenDefaults.map((field) => field.key)]);
+  if (spec.type === 'reply.run') omitted.add('name');
   return Object.fromEntries(Object.entries(config).filter(([key, value]) => value !== '' && !omitted.has(key)));
 }
 

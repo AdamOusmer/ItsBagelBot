@@ -2,7 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { untrack } from 'svelte';
-  import { getI18n } from '@bagel/kit';
+  import { getI18n, type MessageKey } from '@bagel/kit';
   import { MAX_FLOW_FILE_BYTES } from '@bagel/kit/automations/limits';
   import type { FlowImportEntryView, FlowImportResultView, FlowLanding, Issue, SetupNote } from '@bagel/kit/automations';
   import Badge from '@bagel/ui/svelte/Badge.svelte';
@@ -65,34 +65,22 @@
     return t('automations.share.issue.generic', { code: `${issue.path} ${issue.code}`.trim() });
   }
 
-  function setupText(note: SetupNote): string {
-    switch (note.code) {
-      case 'reward_trigger':
-        return t('automations.share.setup.reward_trigger');
-      case 'event_filter':
-        return t('automations.share.setup.event_filter');
-      case 'users_list':
-        return t('automations.share.setup.users_list');
-      case 'login_target':
-        return t('automations.share.setup.login_target');
-      case 'http_target':
-        return t('automations.share.setup.http_target');
-      case 'reward_target':
-        return t('automations.share.setup.reward_target');
-      case 'lights_target':
-        return t('automations.share.setup.lights_target');
-      case 'slash_command':
-        return t('automations.share.setup.slash_command');
-      case 'secret_removed':
-        return t('automations.share.setup.secret_removed');
-      case 'run_removed':
-        return t('automations.share.setup.run_removed');
-      case 'run_target_simple':
-        return t('automations.share.setup.run_target_simple');
-      default:
-        return t('automations.share.setup.link_failed');
-    }
-  }
+  const SETUP_LABELS: Partial<Record<SetupNote['code'], MessageKey>> = {
+    reward_trigger: 'automations.share.setup.reward_trigger',
+    event_filter: 'automations.share.setup.event_filter',
+    users_list: 'automations.share.setup.users_list',
+    login_target: 'automations.share.setup.login_target',
+    http_target: 'automations.share.setup.http_target',
+    reward_target: 'automations.share.setup.reward_target',
+    lights_target: 'automations.share.setup.lights_target',
+    slash_command: 'automations.share.setup.slash_command',
+    secret_removed: 'automations.share.setup.secret_removed',
+    run_removed: 'automations.share.setup.run_removed',
+    run_target_simple: 'automations.share.setup.run_target_simple',
+    run_target: 'flows.setup.pickRecipe'
+  };
+
+  const setupText = (note: SetupNote): string => t(SETUP_LABELS[note.code] ?? 'automations.share.setup.link_failed');
 
   function reviewText(note: SetupNote): string {
     const detail = note.detail ?? '';

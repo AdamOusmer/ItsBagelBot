@@ -28,7 +28,8 @@ test.each([
   { type: 'reply.wait', port: 'next' },
   { type: 'cond.chance', port: 'yes' },
   { type: 'reply.loop', port: 'body' },
-  { type: 'reply.http_get', port: 'ok' }
+  { type: 'reply.http_get', port: 'ok' },
+  { type: 'reply.random', port: 'p1' }
 ])('inserts after selected $type', ({ type, port }) => {
   const flow = recipe(type);
   flow.edges[1].port = port;
@@ -78,6 +79,19 @@ test.each([
   expect({ occupied: portOccupied(flow, { from: 't', port: 'next' }), ports: parallelPorts(flow, 't'), empty: portOccupied(flow, undefined) }).toEqual({ occupied, ports: [...ports], empty: false });
 });
 
+test.each([
+  { type: 'reply.stop', paths: '2', port: 'next', placement: { kind: 'canvas' }, ports: [], connected: false },
+  { type: 'reply.random', paths: '2', port: 'p3', placement: { kind: 'port', from: 'a', port: 'p1', mode: 'insert' }, ports: [], connected: false },
+  { type: 'reply.random', paths: '3', port: 'p3', placement: { kind: 'port', from: 'a', port: 'p1', mode: 'insert' }, ports: ['p3'], connected: true }
+])('$type with $paths paths exposes only available ports', ({ type, paths, port, placement, ports, connected }) => {
+  const flow = recipe(type);
+  flow.nodes.find(({ id }) => id === 'a')!.config.paths = paths;
+  flow.edges[1]!.port = port;
+  flow.edges.push({ id: 'ac', from: 'a', port, to: 'c' });
+  flow.nodes.push(...['c', 'd'].map((id) => ({ id, type: 'reply.chat', config: {}, x: 0, y: 0 })));
+  const result = { placement: selectedPlacement(flow, 'a'), ports: parallelPorts(flow, 'a'), connected: connectionTarget(flow, 'd', { from: 'a', port }) };
+  expect(result).toEqual({ placement, ports, connected });
+});
 test.each([
   { type: 'cond.chance', ports: ['yes', 'no'] },
   { type: 'reply.http_get', ports: ['ok', 'failure'] }

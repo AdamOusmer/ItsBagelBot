@@ -22,6 +22,38 @@ const fork = [e('t', 'next', 'a'), e('t', 'next', 'b')];
 const loop = flowOf([trigger, n('l', 'reply.loop', { times: '3' }), n('s', 'reply.chat', { message: 'Pass {local:index}' }), join], [e('t', 'next', 'l'), e('l', 'body', 's'), e('l', 'done', 'j')]);
 
 test.each([
+  { overrides: undefined, text: 'Path 1', lines: ['A'] },
+  { overrides: { 'r.path': '2' }, text: 'Path 2', lines: ['B'] },
+  { overrides: { 'r.path': '3' }, text: 'Path 1', lines: ['A'] }
+])('random rehearsal shows $text as a sample', ({ overrides, text, lines }) => {
+  const random = n('r', 'reply.random', { paths: '2', weight1: 3, weight2: 1 });
+  const flow = flowOf([trigger, random, left, right], [e('t', 'next', 'r'), e('r', 'p1', 'a'), e('r', 'p2', 'b')]);
+  const steps = run(flow, { overrides }).steps;
+  const choice = steps.find((step) => step.id === 'r');
+  expect({ text: choice?.text, sample: choice?.sample, lines: steps.flatMap((step) => step.lines ?? []) }).toEqual({ text, sample: true, lines });
+});
+
+test.each([
+  { outcome: 'ok', status: 'ok', code: undefined },
+  { outcome: 'failure', status: 'failed', code: 'child_failed' }
+])('recipe call rehearsal pretends $outcome', ({ outcome, status, code }) => {
+  const call = n('r', 'reply.run', { automationId: 'helper', name: 'Helper' });
+  const flow = flowOf([trigger, call, left], [e('t', 'next', 'r'), e('r', 'next', 'a')]);
+  const steps = run(flow, { overrides: { r: outcome } }).steps;
+  const effect = steps.find((step) => step.id === 'r');
+  expect({ text: effect?.text, note: effect?.note, status: effect?.status, code: effect?.detail?.code, next: steps.at(-1)?.lines })
+    .toEqual({ text: 'Runs Helper', note: 'Test run does not open the other recipe', status, code, next: ['A'] });
+});
+
+test('stop shows its skip row and ends the rehearsal path', () => {
+  const stop = n('stop', 'reply.stop');
+  const flow = flowOf([trigger, stop], [e('t', 'next', 'stop')]);
+  const row = run(flow).steps.at(-1);
+  expect({ id: row?.id, status: row?.status, text: row?.text })
+    .toEqual({ id: 'stop', status: 'skipped', text: 'Stopped here' });
+});
+
+test.each([
   { name: 'parallel lanes', flow: flowOf([trigger, left, right], fork), expected: [['a', 0, [0], [], ['A']], ['b', 0, [1], [], ['B']]] },
   { name: 'paused parallel lane', flow: flowOf([trigger, wait, left, right], [e('t', 'next', 'w'), e('t', 'next', 'b'), e('w', 'next', 'a')]), expected: [['b', 0, [1], [], ['B']], ['a', 5000, [0], [], ['A']]] },
   { name: 'diamond continuation once after both arms', flow: flowOf([trigger, left, right, join], [...fork, e('a', 'next', 'j'), e('b', 'next', 'j')]), expected: [['a', 0, [0], [], ['A']], ['b', 0, [1], [], ['B']], ['j', 0, [], [], ['JOIN']]] },

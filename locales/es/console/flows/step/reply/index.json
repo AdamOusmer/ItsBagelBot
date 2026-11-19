@@ -350,5 +350,63 @@
         "label": "Activado"
       }
     }
+  },
+  "stop": {
+    "label": "Detener aquí",
+    "summary": "Termina la ejecución aquí",
+    "keywords": "fin terminar salir detener",
+    "line": "Termina la ejecución aquí",
+    "note": "En rutas paralelas, solo termina esa ruta."
+  },
+  "random": {
+    "label": "Elegir una ruta al azar",
+    "summary": "Elige una ruta según las probabilidades configuradas",
+    "keywords": "dados azar mezclar ponderado",
+    "path": "Ruta {path}",
+    "pathPercent": "{label} ({percent} %)",
+    "field": {
+      "paths": {
+        "label": "Rutas",
+        "option": {
+          "2": "2",
+          "3": "3",
+          "4": "4",
+          "5": "5"
+        }
+      },
+      "weight1": {
+        "label": "Probabilidad de la ruta 1",
+        "unit": "partes"
+      },
+      "weight2": {
+        "label": "Probabilidad de la ruta 2",
+        "unit": "partes"
+      },
+      "weight3": {
+        "label": "Probabilidad de la ruta 3",
+        "unit": "partes"
+      },
+      "weight4": {
+        "label": "Probabilidad de la ruta 4",
+        "unit": "partes"
+      },
+      "weight5": {
+        "label": "Probabilidad de la ruta 5",
+        "unit": "partes"
+      }
+    }
+  },
+  "run": {
+    "label": "Ejecutar otra receta",
+    "summary": "Inicia otra receta de este canal",
+    "keywords": "llamar activar encadenar",
+    "line": "Ejecutar {name}",
+    "note": "Una receta puede llamar a otras con hasta 2 niveles de profundidad.",
+    "field": {
+      "automationId": {
+        "label": "Receta",
+        "hint": "Se siguen aplicando sus propias comprobaciones. Empieza con los valores de esta receta y conserva sus cambios por separado."
+      }
+    }
   }
 }

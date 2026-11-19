@@ -108,5 +108,9 @@
     "rewardId": "ID da recompensa",
     "name": "Nome da contagem",
     "amount": "bits"
-  }
+  },
+  "stoppedHere": "Parou aqui",
+  "runsRecipe": "Executa {name}",
+  "recipeSimulation": "O teste não abre a outra receita",
+  "recipeFailed": "Falhou"
 }

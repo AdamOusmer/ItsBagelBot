@@ -4,10 +4,10 @@ import type { MessageKey, RehearsedLine } from '@bagel/kit';
 import { compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
-import { fieldIssueMessage, fieldLabel, roleWarning, stepLabel, variableLabel } from './copy';
-import { describe, durationFormatter } from './describe';
+import { fieldIssueMessage, fieldLabel, randomPathLabel, roleWarning, stepLabel, variableLabel } from './copy';
+import { describe, durationFormatter, optionLabel } from './describe';
 import { issueMessage, stepOf, type Translate } from './messages';
-import { NODE_SPECS, specFor, type Flow, type FlowNode } from './model';
+import { NODE_SPECS, outputsFor, specFor, type Flow, type FlowNode } from './model';
 import { fieldIssues, fieldRequired, type FieldIssue } from './issues';
 
 type Text = string;
@@ -96,7 +96,7 @@ function initialScenario(definition: Definition): RehearsalScenario {
 function executorOverrides(compiled: Compiled, overrides: RehearsalOverrides): RehearsalOverrides {
   const entries = [...compiled.nodeByPath].flatMap(([path, id]) => {
     const key = path.endsWith('.params.condition') ? path.slice(0, -17) : path;
-    return ['', '.response', '.error'].filter((suffix) => overrides[`${id}${suffix}`] !== undefined)
+    return ['', '.response', '.error', '.path'].filter((suffix) => overrides[`${id}${suffix}`] !== undefined)
       .map((suffix) => [`${key}${suffix}`, overrides[`${id}${suffix}`]!] as const);
   });
   return Object.fromEntries(entries);
@@ -153,7 +153,7 @@ function scenarioSummary(t: Translate, scenario: RehearsalScenario, kind: Text):
 }
 
 const INPUT_TOKENS: Readonly<Record<Text, keyof RehearsalScenario>> = { user: 'user', 'user.id': 'userId', userid: 'userId', bits: 'bits', 'event.amount': 'bits', viewers: 'viewers', 'event.viewers': 'viewers', 'event.months': 'months', months: 'months', 'event.input': 'input', input: 'input' };
-const TOKEN_LABELS = new Map(NODE_SPECS.flatMap((spec) => [...(spec.provides ?? []), ...(spec.outputs ?? []).flatMap((port) => port.provides ?? [])]).map((variable) => [variable.token, variable]));
+const TOKEN_LABELS = new Map(NODE_SPECS.flatMap((spec) => [...(spec.provides ?? []), ...outputsFor(spec).flatMap((port) => port.provides ?? [])]).map((variable) => [variable.token, variable]));
 
 function compareRepair(node: FlowNode): ScenarioPatch | undefined {
   const token = /^\{([^}]+)\}$/.exec(String(node.config.left));
@@ -219,6 +219,7 @@ function effectText(t: Translate, detail: Record<Text, Text>, node: FlowNode | u
 
 function eventText(t: Translate, event: RehearsalEvent, node: FlowNode | undefined, scenario: RehearsalScenario): Text {
   const detail = event.detail ?? {};
+  if (event.kind === 'effect') return rehearsalEffectText(t, detail, node);
   if (detail.code) return reasonText(t, detail.code);
   const line = effectText(t, detail, node);
   const texts = {
@@ -227,6 +228,15 @@ function eventText(t: Translate, event: RehearsalEvent, node: FlowNode | undefin
     check: node ? checkText(t, node, scenario) : line, effect: line, say: '', skip: line
   };
   return texts[event.kind];
+}
+
+function rehearsalEffectText(t: Translate, detail: Record<Text, Text>, node: FlowNode | undefined): Text {
+  if (node?.type === 'reply.random' && detail.path) return randomPathLabel(t, detail.path);
+  if (node?.type === 'reply.run') {
+    const name = optionLabel(t, specFor(node.type)!, node, 'automationId');
+    return t('flows.test.runsRecipe', { name });
+  }
+  return detail.code ? reasonText(t, detail.code) : effectText(t, detail, node);
 }
 
 function chatLines(event: RehearsalEvent): RehearsedLine[] {
@@ -241,7 +251,8 @@ function reasonText(t: Translate, code: Text): Text {
     max_steps: t('flows.test.limit'), max_actions: t('flows.test.limit'), upstream_error: t('flows.test.apiFailed'),
     not_running: t('flows.test.notRunning'), below_rate: t('flows.test.belowRate'), var_limit: t('flows.test.varLimit'),
     text_error: t('flows.test.textError'), math_error: t('flows.test.mathError'), bad_def: t('flows.test.badDef'),
-    empty_login: t('flows.test.noTarget'), no_device: t('flows.choose.light'), perm_required: t('flows.issue.permRequired')
+    empty_login: t('flows.test.noTarget'), no_device: t('flows.choose.light'), perm_required: t('flows.issue.permRequired'),
+    stopped: t('flows.test.stoppedHere')
   };
   return reasons[code] ?? t('flows.test.failed');
 }
@@ -291,6 +302,7 @@ function emptyResponse(node: FlowNode | undefined, event: RehearsalEvent): boole
 }
 
 function stepNote(t: Translate, node: FlowNode | undefined, context: { event: RehearsalEvent; scenario: RehearsalScenario }): Text | undefined {
+  if (node?.type === 'reply.run' && context.event.kind === 'effect') return t('flows.test.recipeSimulation');
   if (emptyResponse(node, context.event)) return t('flows.test.emptyResponse');
   if (node?.type !== 'cond.compare') return undefined;
   if (context.event.status !== 'no') return undefined;

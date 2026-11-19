@@ -108,6 +108,19 @@ function parallel(step: Step, run: Execution, frame: Frame): void {
   });
 }
 
+function* randomPick(step: Step, run: Execution, frame: Frame): Generator<number, void> {
+  const branches = (step.action.params?.branches ?? []) as { actions?: Action[] }[];
+  const requested = Number(frame.context.overrides[`${step.path}.path`]);
+  const index = branches[requested - 1] ? requested - 1 : 0;
+  emit(run, frame, { kind: 'effect', status: 'ok', port: `p${index + 1}`, detail: { path: String(index + 1), random: '1' } });
+  yield* list(branches[index]?.actions ?? [], `${step.path}.params.branches[${index}].actions`, run, frame);
+}
+
+function* stop(_step: Step, run: Execution, frame: Frame): Generator<number, void> {
+  frame.stopped = true;
+  emit(run, frame, { kind: 'skip', status: 'skipped', detail: { code: 'stopped' } });
+}
+
 function loopTimes(value: Path): number | null {
   const trimmed = value.trim();
   if (!/^[+-]?\d+$/.test(trimmed)) return null;
@@ -174,8 +187,8 @@ function say(step: Step, run: Execution, frame: Frame): void {
 }
 
 type Handler = (step: Step, run: Execution, frame: Frame) => Generator<number, void>;
-const CONTROL: Readonly<Record<string, Handler>> = { if: branch, loop };
-const EFFECTS: Readonly<Record<string, Handler>> = { delay: wait, http_get: http, http_post: http };
+const CONTROL: Readonly<Record<string, Handler>> = { if: branch, loop, random_pick: randomPick };
+const EFFECTS: Readonly<Record<string, Handler>> = { delay: wait, http_get: http, http_post: http, stop };
 
 function* execute(step: Step, run: Execution, frame: Frame): Generator<number, void> {
   if (step.action.enabled === false) {

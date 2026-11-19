@@ -4,7 +4,7 @@ import { STREAM_STEP_DEFINITIONS, TARGET_FIELDS } from './stream-steps';
 import { graphIndex, portKey } from './graph-index';
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
-import { TEXT_OPERAND_OPS, TEXT_OPS, VAR_OPS_WITH_VALUE } from '@bagel/kit/automations';
+import { activeRandomPaths, RANDOM_PATH_COUNTS, RANDOM_PATH_DEFAULT_WEIGHT, RANDOM_PATHS, TEXT_OPERAND_OPS, TEXT_OPS, VAR_OPS_WITH_VALUE } from '@bagel/kit/automations';
 import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
@@ -67,7 +67,10 @@ export const STEP_PLACEMENT = {
   'reply.text': { kind: 'reply', group: 'logic' },
   'reply.math': { kind: 'reply', group: 'logic' },
   'reply.http_get': { kind: 'reply', group: 'logic' },
-  'reply.http_post': { kind: 'reply', group: 'logic' }
+  'reply.http_post': { kind: 'reply', group: 'logic' },
+  'reply.stop': { kind: 'reply', group: 'logic' },
+  'reply.random': { kind: 'reply', group: 'logic' },
+  'reply.run': { kind: 'reply', group: 'logic' }
 } as const satisfies Record<string, { kind: FlowKind; group: StepGroup }>;
 
 type Typed = { key: string; placeholder?: true };
@@ -106,6 +109,7 @@ export type NodeSpec = {
   provides?: readonly VariableSpec[];
   providesFor?(config: FlowNode['config']): readonly VariableSpec[];
   outputs?: readonly OutputSpec[];
+  outputsFor?(config: FlowNode['config']): readonly OutputSpec[];
 };
 
 export type StepDefinition = Omit<NodeSpec, 'kind' | 'group' | 'type'> & { type: keyof typeof STEP_PLACEMENT };
@@ -420,7 +424,33 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
       { key: 'per', type: 'number', min: 0 }
     ]
   },
-  ...STREAM_STEP_DEFINITIONS
+  ...STREAM_STEP_DEFINITIONS,
+  {
+    type: 'reply.stop',
+    slug: 'stop',
+    icon: 'x',
+    fields: [],
+    outputs: []
+  },
+  {
+    type: 'reply.random',
+    slug: 'random',
+    icon: 'dice',
+    fields: [
+      { key: 'paths', type: 'select', options: RANDOM_PATH_COUNTS, initial: RANDOM_PATH_COUNTS[0]! },
+      ...RANDOM_PATHS.map(({ path, weightKey }): FieldSpec => ({
+        key: weightKey, type: 'number', min: 1, max: 100, step: 1, initial: RANDOM_PATH_DEFAULT_WEIGHT, unit: true,
+        when: { key: 'paths', value: RANDOM_PATH_COUNTS.filter((count) => Number(count) >= path) }
+      }))
+    ],
+    outputsFor: activeRandomPaths
+  },
+  {
+    type: 'reply.run',
+    slug: 'run',
+    icon: 'play',
+    fields: [{ key: 'automationId', type: 'choice', source: 'recipes', nameKey: 'name' }]
+  }
 ];
 
 export const NODE_SPECS: readonly NodeSpec[] = STEP_DEFINITIONS.map((spec) => ({ ...spec, ...STEP_PLACEMENT[spec.type] }));
@@ -480,9 +510,13 @@ export function targetModesFor(flow: Flow, node: FlowNode): string[] {
   return options.filter(([mode, allowed]) => allowed || mode === selected).map(([mode]) => mode);
 }
 
-export const outputsFor = (spec: NodeSpec): readonly OutputSpec[] => spec.outputs ?? [{ id: 'next' }];
+const nextOutput: readonly OutputSpec[] = [{ id: 'next' }];
+const defaultOutputConfig: Pick<FlowNode, 'config'> = { config: {} };
 
-export const isSecondPort = (spec: NodeSpec | undefined, port: string): boolean => spec?.outputs?.[1]?.id === port;
+export const outputsFor = (spec: NodeSpec | undefined, node = defaultOutputConfig): readonly OutputSpec[] =>
+  spec ? spec.outputsFor?.(node.config) ?? spec.outputs ?? nextOutput : [];
+
+export const isSecondPort = (spec: NodeSpec | undefined, node: FlowNode, port: FlowEdge['port']): boolean => outputsFor(spec, node)[1]?.id === port;
 
 export function storedVariable(config: FlowNode['config']): VariableSpec[] {
   const name = String(config.name ?? '').trim().toLowerCase();
@@ -505,9 +539,10 @@ function savedLocal(parent: FlowNode, spec: NodeSpec): VariableSpec[] {
 
 function providedBy(parent: FlowNode, spec: NodeSpec, port: string): readonly VariableSpec[] {
   if (parent.config.disabled) return [];
-  const viaPort = spec.outputs?.find((output) => output.id === port)?.provides ?? [];
+  const outputs = outputsFor(spec, parent);
+  const viaPort = outputs.find((output) => output.id === port)?.provides ?? [];
   const provided = spec.providesFor?.(parent.config) ?? spec.provides ?? [];
-  const saved = spec.outputs === apiPorts && port !== 'ok' ? [] : savedLocal(parent, spec);
+  const saved = outputs === apiPorts && port !== 'ok' ? [] : savedLocal(parent, spec);
   return [...provided, ...viaPort, ...saved];
 }
 
@@ -549,7 +584,7 @@ function pathVariables(flow: Flow, edge: FlowEdge, visit: (id: string) => Scope 
   if (!parent || !prior) return null;
   const spec = specFor(parent.type);
   if (!spec) return null;
-  const clearError = spec.outputs === apiPorts && edge.port === 'ok' && !parent.config.disabled;
+  const clearError = outputsFor(spec, parent) === apiPorts && edge.port === 'ok' && !parent.config.disabled;
   const scope: Scope = { parent: prior, provided: providedBy(parent, spec, edge.port), clearError, forks: prior.forks };
   return forkScope(flow, edge, scope);
 }

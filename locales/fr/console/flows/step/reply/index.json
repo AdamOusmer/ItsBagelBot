@@ -350,5 +350,63 @@
         "label": "Activé"
       }
     }
+  },
+  "stop": {
+    "label": "Arrêter ici",
+    "summary": "Terminer l’exécution ici",
+    "keywords": "fin terminer quitter arrêter",
+    "line": "Terminer l’exécution ici",
+    "note": "Dans des chemins parallèles, seul ce chemin s’arrête."
+  },
+  "random": {
+    "label": "Choisir un chemin au hasard",
+    "summary": "Choisir un chemin selon les chances indiquées",
+    "keywords": "dés hasard mélanger pondéré",
+    "path": "Chemin {path}",
+    "pathPercent": "{label} ({percent} %)",
+    "field": {
+      "paths": {
+        "label": "Chemins",
+        "option": {
+          "2": "2",
+          "3": "3",
+          "4": "4",
+          "5": "5"
+        }
+      },
+      "weight1": {
+        "label": "Chance du chemin 1",
+        "unit": "parts"
+      },
+      "weight2": {
+        "label": "Chance du chemin 2",
+        "unit": "parts"
+      },
+      "weight3": {
+        "label": "Chance du chemin 3",
+        "unit": "parts"
+      },
+      "weight4": {
+        "label": "Chance du chemin 4",
+        "unit": "parts"
+      },
+      "weight5": {
+        "label": "Chance du chemin 5",
+        "unit": "parts"
+      }
+    }
+  },
+  "run": {
+    "label": "Exécuter une autre recette",
+    "summary": "Lancer une autre recette de cette chaîne",
+    "keywords": "appeler déclencher enchaîner",
+    "line": "Exécuter {name}",
+    "note": "Une recette peut en appeler d’autres sur 2 niveaux au maximum.",
+    "field": {
+      "automationId": {
+        "label": "Recette",
+        "hint": "Ses propres vérifications s’appliquent toujours. Elle démarre avec les valeurs de cette recette et conserve ses modifications pour elle-même."
+      }
+    }
   }
 }

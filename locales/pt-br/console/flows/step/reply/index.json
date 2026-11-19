@@ -350,5 +350,63 @@
         "label": "Ativado"
       }
     }
+  },
+  "stop": {
+    "label": "Parar aqui",
+    "summary": "Encerra a execução aqui",
+    "keywords": "fim encerrar sair parar",
+    "line": "Encerra a execução aqui",
+    "note": "Em caminhos paralelos, encerra apenas esse caminho."
+  },
+  "random": {
+    "label": "Escolher um caminho aleatório",
+    "summary": "Escolhe um caminho com as chances que você definir",
+    "keywords": "dados sorteio embaralhar ponderado",
+    "path": "Caminho {path}",
+    "pathPercent": "{label} ({percent}%)",
+    "field": {
+      "paths": {
+        "label": "Caminhos",
+        "option": {
+          "2": "2",
+          "3": "3",
+          "4": "4",
+          "5": "5"
+        }
+      },
+      "weight1": {
+        "label": "Chance do caminho 1",
+        "unit": "partes"
+      },
+      "weight2": {
+        "label": "Chance do caminho 2",
+        "unit": "partes"
+      },
+      "weight3": {
+        "label": "Chance do caminho 3",
+        "unit": "partes"
+      },
+      "weight4": {
+        "label": "Chance do caminho 4",
+        "unit": "partes"
+      },
+      "weight5": {
+        "label": "Chance do caminho 5",
+        "unit": "partes"
+      }
+    }
+  },
+  "run": {
+    "label": "Executar outra receita",
+    "summary": "Inicia outra receita deste canal",
+    "keywords": "chamar acionar encadear",
+    "line": "Executar {name}",
+    "note": "Uma receita pode chamar outras em até 2 níveis.",
+    "field": {
+      "automationId": {
+        "label": "Receita",
+        "hint": "As verificações da outra receita continuam valendo. Ela começa com os valores desta receita e mantém as próprias alterações."
+      }
+    }
   }
 }

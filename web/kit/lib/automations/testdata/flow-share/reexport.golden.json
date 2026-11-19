@@ -59,6 +59,13 @@
             }
           },
           {
+            "type": "run",
+            "params": {
+              "automation_id": "setup-required"
+            },
+            "enabled": false
+          },
+          {
             "type": "counter_add",
             "params": {
               "name": "deaths",

@@ -112,7 +112,7 @@ const find = (g: Graph, id: string) => g.nodes.find((n) => n.id === id);
 function portRank(g: Graph, from: string, port: string): number {
   const node = find(g, from);
   const spec = node && specFor(node.type);
-  return spec ? Math.max(0, outputsFor(spec).findIndex((o) => o.id === port)) : 0;
+  return Math.max(0, outputsFor(spec, node).findIndex((o) => o.id === port));
 }
 
 function unique(nodes: FlowNode[]): FlowNode[] {

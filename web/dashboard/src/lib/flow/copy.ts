@@ -2,13 +2,18 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey } from '@bagel/kit';
 import { stepRequirement, type RequirementTrigger, type StepRequirement, type StepRole } from '@bagel/kit/automations';
-import { MAX_WAIT_SECONDS, specFor, targetFieldFor, targetHasViewer, type FieldSpec, type Flow, type FlowNode, type NodeSpec, type StepGroup, type VariableSpec } from './model';
+import { MAX_WAIT_SECONDS, outputsFor, specFor, targetFieldFor, targetHasViewer, type FieldSpec, type Flow, type FlowNode, type NodeSpec, type StepGroup, type VariableSpec } from './model';
 import type { FieldIssue } from './issues';
 import { issueMessage, type Translate } from './messages';
 
 export const stepLabel = (t: Translate, spec: NodeSpec): string => t(`flows.step.${spec.kind}.${spec.slug}.label` as MessageKey);
 
 export const stepSummary = (t: Translate, spec: NodeSpec): string => t(`flows.step.${spec.kind}.${spec.slug}.summary` as MessageKey);
+
+export function stepNote(t: Translate, spec: NodeSpec): string | undefined {
+  const key = `flows.step.${spec.kind}.${spec.slug}.note` as MessageKey;
+  return known(key, t(key)) || undefined;
+}
 
 const REQUIREMENT_TRIGGERS: Record<string, RequirementTrigger> = {
   'twitch.chat.command': { type: 'command' },
@@ -159,6 +164,9 @@ export function fieldSearchText(t: Translate, spec: NodeSpec): string {
 }
 
 export const outputLabel = (t: Translate, spec: NodeSpec, id: string): string =>
-  spec.outputs ? t(`flows.step.${spec.kind}.${spec.slug}.out.${id}` as MessageKey) : t('flows.step.then');
+  outputsFor(spec).some((output) => output.id === id && id !== 'next')
+    ? t(`flows.step.${spec.kind}.${spec.slug}.out.${id}` as MessageKey) : t('flows.step.then');
+
+export const randomPathLabel = (t: Translate, path: number | string): string => t('flows.step.reply.random.path', { path });
 
 export const variableLabel = (t: Translate, variable: VariableSpec): string => variable.literalName ? variable.name : t(`flows.step.variable.${variable.name}` as MessageKey);

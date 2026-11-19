@@ -561,7 +561,9 @@ const ACTIONS: Readonly<Record<string, ActionHandler>> = {
   countdown_start: (params, context) => timerStep(params, context, 'countdown_start'),
   countdown_add: (params, context) => timerStep(params, context, 'countdown_add'),
   cooldown_add: (params, context) => timerStep(params, context, 'cooldown_add'),
-  lights: requiredParams(['device', 'sku'], 'no_device', liveGated((params) => params.any_time === true))
+  lights: requiredParams(['device', 'sku'], 'no_device', liveGated((params) => params.any_time === true)),
+  run: requiredParams(['automation_id'], 'not_found', (_params, context) =>
+    context.overrides[context.path] === 'failure' ? failed('child_failed') : ok())
 };
 
 function expandParam(value: unknown, context: Context): ReturnType<typeof expandTemplate> {

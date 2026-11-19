@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { definitionToFlow, flowStepRefs, flowToDefinition, locateIssues, type Flow, type FlowConfig, type FlowEdge, type FlowNode } from './flow-graph';
 import { classifyFlow } from './flow-layer';
 import { SETUP_REWARD_ID } from './flow-setup';
@@ -27,6 +28,36 @@ function rebuilt(definition: Definition): Flow {
   if (!result.ok) throw new Error(JSON.stringify(result.issues));
   return result.value;
 }
+
+const sharedNested = JSON.parse(readFileSync(new URL('../../../../internal/domain/automation/testdata/valid/nested_and_disabled.json', import.meta.url), 'utf8')) as Definition;
+
+const controlRoundtrips: { name: Label; type: FlowNode['type']; actions: Action[]; config: FlowConfig; ports: FlowEdge['port'][] }[] = [
+  { name: 'terminal stop', type: 'reply.stop', actions: [chat('before'), { type: 'stop' }], config: {}, ports: [] },
+  {
+    name: 'random with an empty path and a shared continuation', type: 'reply.random', config: { paths: '3', weight1: 1, weight2: 2, weight3: 7 },
+    actions: [{ type: 'random_pick', params: { branches: [{ weight: 1, actions: [chat('a')] }, { weight: 2, actions: [] }, { weight: 7, actions: [chat('c')] }] } }, chat('after')],
+    ports: ['p1', 'p2', 'p3']
+  },
+  { name: 'recipe call', type: 'reply.run', actions: [{ type: 'run', params: { automation_id: 'helper' } }], config: { automationId: 'helper' }, ports: [] }
+];
+
+test.each(controlRoundtrips)('$name roundtrips through the graph', ({ type, actions, config, ports }) => {
+  const definition: Definition = { version: 1, trigger: { type: 'command', params: { name: '!test' } }, actions };
+  const reopened = rebuilt(definition);
+  const node = reopened.nodes.find((entry) => entry.type === type);
+  const edges = reopened.edges.filter((edge) => edge.from === node?.id).map((edge) => edge.port).sort();
+  expect({ config: node?.config, ports: edges, definition: lowered(reopened), issues: validateDefinition(definition) })
+    .toEqual({ config, ports, definition, issues: [] });
+});
+
+test('imports the shared random and stop fixture without unsupported actions', () => {
+  const reopened = rebuilt({ ...sharedNested, actions: [sharedNested.actions![1]!] });
+  expect(reopened.nodes.slice(2).map(({ type, config }) => ({ type, config }))).toEqual([
+    { type: 'reply.random', config: { paths: '2', weight1: 1, weight2: 3 } },
+    { type: 'reply.chat', config: { message: 'hello {user}' } },
+    { type: 'reply.stop', config: {} }
+  ]);
+});
 
 describe('target picker round-trip', () => {
   const actions = [

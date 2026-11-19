@@ -17,23 +17,24 @@ export function flowPreview(flow: Flow): FlowPreview {
   const placed = flow.nodes.flatMap((node) => {
     const spec = specFor(node.type);
     const pos = at.get(node.id);
-    return spec && pos ? [{ id: node.id, spec, x: pos.x, y: pos.y }] : [];
+    return spec && pos ? [{ node, spec, x: pos.x, y: pos.y }] : [];
   });
   const left = Math.min(...placed.map((p) => p.x));
   const top = Math.min(...placed.map((p) => p.y));
-  const index = new Map(placed.map((p, i) => [p.id, i]));
+  const index = new Map(placed.map((p, i) => [p.node.id, i]));
   return {
     n: placed.map((p) => [
       Math.round((p.x - left) / GRID),
       Math.round((p.y - top) / GRID),
-      Math.ceil(nodeHeight(p.spec) / GRID),
+      Math.ceil(nodeHeight(p.spec, p.node) / GRID),
       PREVIEW_KINDS.indexOf(p.spec.kind)
     ]),
     e: flow.edges.flatMap((edge) => {
       const from = index.get(edge.from);
       const to = index.get(edge.to);
       if (from === undefined || to === undefined) return [];
-      return [[from, to, isSecondPort(placed[from]!.spec, edge.port) ? 1 : 0]];
+      const source = placed[from]!;
+      return [[from, to, isSecondPort(source.spec, source.node, edge.port) ? 1 : 0]];
     })
   };
 }

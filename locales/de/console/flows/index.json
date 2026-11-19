@@ -114,7 +114,8 @@
     "scene": "Szene auswählen",
     "light": "Zuerst ein Licht auswählen",
     "namedCooldown": "Timer auswählen",
-    "namedCountdown": "Countdown auswählen"
+    "namedCountdown": "Countdown auswählen",
+    "recipe": "Rezept auswählen"
   },
   "choiceEmpty": {
     "rewards": "Noch keine Kanalpunkte-Belohnungen. Erstelle eine unter Kanalpunkte.",
@@ -122,7 +123,8 @@
     "counters": "Noch keine Zähler. Erstelle einen unter Zähler.",
     "scenes": "Dieses Licht hat keine Szenen.",
     "namedCooldowns": "Füge zuerst einen Cooldown-Schritt hinzu und benenne ihn.",
-    "namedCountdowns": "Füge zuerst einen Schritt zum Starten eines Countdowns hinzu."
+    "namedCountdowns": "Füge zuerst einen Schritt zum Starten eines Countdowns hinzu.",
+    "recipes": "Erstelle ein weiteres Rezept, um es hier auszuwählen."
   },
   "choiceProblem": {
     "rewards": "Deine Belohnungen konnten nicht geladen werden.",
@@ -130,7 +132,8 @@
     "scenes": "Die Szenen für dieses Licht konnten nicht geladen werden.",
     "keyRejected": "Govee hat deinen API-Schlüssel nicht akzeptiert.",
     "namedCooldowns": "Die Timer deiner Rezepte konnten nicht geladen werden.",
-    "namedCountdowns": "Countdowns konnten nicht geladen werden."
+    "namedCountdowns": "Countdowns konnten nicht geladen werden.",
+    "recipes": "Rezepte konnten nicht geladen werden."
   },
   "choiceMissing": "\"{name}\" ist nicht mehr in der Liste.",
   "choiceUnowned": "Noch kein Rezept besitzt \"{name}\". Das bewirkt nichts, bis eines es tut.",
@@ -141,6 +144,7 @@
     "stepNote": "Dieser Schritt bleibt aus, bis du ihn ausfüllst.",
     "pickReward": "Belohnung auswählen",
     "addUrl": "URL hinzufügen",
-    "refused": "Fülle die Schritte aus, die eingerichtet werden müssen, speichere und schalte dies dann ein."
+    "refused": "Fülle die Schritte aus, die eingerichtet werden müssen, speichere und schalte dies dann ein.",
+    "pickRecipe": "Wähle für den Schritt „Anderes Rezept ausführen“ ein Rezept aus."
   }
 }

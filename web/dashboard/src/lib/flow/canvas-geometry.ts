@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { NODE_W, isSecondPort, specFor, type Flow, type FlowEdge, type FlowNode } from './model';
+import { NODE_W, isSecondPort, outputsFor, specFor, type Flow, type FlowEdge, type FlowNode } from './model';
 import { HEADER_H, inputY, loopTails, nodeHeight, portY } from './layout';
 import { previewPath, returnPath, wirePath } from './wire';
 import { graphIndex } from './graph-index';
@@ -36,7 +36,7 @@ function spanBox(a: FlowNode, b: FlowNode): Box {
     x0: Math.min(a.x, b.x),
     x1: Math.max(a.x, b.x) + NODE_W,
     y0: Math.min(a.y, b.y),
-    y1: Math.max(a.y + nodeHeight(specFor(a.type)), b.y + nodeHeight(specFor(b.type)))
+    y1: Math.max(a.y + nodeHeight(specFor(a.type), a), b.y + nodeHeight(specFor(b.type), b))
   };
 }
 
@@ -56,7 +56,7 @@ export function windowEdges(flow: Flow, view: View, size: Size): Set<FlowEdge['i
 
 function overlaps(node: FlowNode, box: Box): boolean {
   const horizontal = node.x <= box.x1 && node.x + NODE_W >= box.x0;
-  const vertical = node.y <= box.y1 && node.y + nodeHeight(specFor(node.type)) >= box.y0;
+  const vertical = node.y <= box.y1 && node.y + nodeHeight(specFor(node.type), node) >= box.y0;
   return horizontal && vertical;
 }
 
@@ -94,14 +94,15 @@ function compactFocus(node: FlowNode, selected: Box, nearby: Box, frame: FocusFr
 export function focusFootprint(node: FlowNode, frame: { minZoom: number; touch?: boolean }): Box {
   const box = nodeBounds(node);
   if (!frame.touch) return box;
-  const branching = (specFor(node.type)?.outputs?.length ?? 0) > 1;
-  const above = branching ? 0 : UPPER_ADD_ROOM / frame.minZoom;
+  const count = outputsFor(specFor(node.type), node).length;
+  const branching = count > 1;
+  const above = count === 1 ? UPPER_ADD_ROOM / frame.minZoom : 0;
   const below = branching ? LOWER_ADD_ROOM / frame.minZoom : 0;
   return { ...box, x1: box.x1 + 48 / frame.minZoom, y0: box.y0 - above, y1: box.y1 + below };
 }
 
 export function nodeBounds(node: FlowNode): Box {
-  return { x0: node.x, y0: node.y, x1: node.x + NODE_W + ADD_ROOM, y1: node.y + nodeHeight(specFor(node.type)) + 24 };
+  return { x0: node.x, y0: node.y, x1: node.x + NODE_W + ADD_ROOM, y1: node.y + nodeHeight(specFor(node.type), node) + 24 };
 }
 
 export function wirePreview(flow: Flow, displayed: Positions, wire: { from: FlowNode['id']; port: string; x: number; y: number } | null, targetId: FlowNode['id'] | null): string {
@@ -112,7 +113,7 @@ export function wirePreview(flow: Flow, displayed: Positions, wire: { from: Flow
   const target = flow.nodes.find((node) => node.id === targetId);
   const position = target && (displayed[target.id] ?? target);
   const end = position ? { x: position.x - ARROW_GAP, y: position.y + inputY } : { x: wire.x, y: wire.y };
-  return previewPath({ x: a.x + NODE_W, y: a.y + portY(specFor(node.type), wire.port) }, end);
+  return previewPath({ x: a.x + NODE_W, y: a.y + portY(specFor(node.type), wire.port, node) }, end);
 }
 
 export function flowBounds(flow: Flow, start: Box, initial = false) {
@@ -121,7 +122,7 @@ export function flowBounds(flow: Flow, start: Box, initial = false) {
     x0: Math.min(box.x0, node.x),
     y0: Math.min(box.y0, node.y),
     x1: Math.max(box.x1, node.x + NODE_W + ADD_ROOM),
-    y1: Math.max(box.y1, node.y + nodeHeight(specFor(node.type)))
+    y1: Math.max(box.y1, node.y + nodeHeight(specFor(node.type), node))
   }), seed);
 }
 
@@ -141,9 +142,9 @@ export function edgePaths(flow: Flow, displayed: Positions) {
     const spec = specFor(from.type);
     const a = displayed[from.id] ?? from;
     const b = displayed[to.id] ?? to;
-    const p1 = { x: a.x + NODE_W, y: a.y + portY(spec, edge.port) };
+    const p1 = { x: a.x + NODE_W, y: a.y + portY(spec, edge.port, from) };
     const p2 = { x: b.x - ARROW_GAP, y: b.y + inputY };
-    return [{ id: edge.id, d: wirePath(p1, p2), tone: isSecondPort(spec, edge.port) ? 'no' : 'yes' }];
+    return [{ id: edge.id, d: wirePath(p1, p2), tone: isSecondPort(spec, from, edge.port) ? 'no' : 'yes' }];
   });
 }
 
@@ -155,8 +156,8 @@ export function loopPaths(flow: Flow, displayed: Positions) {
     if (!loopNode || !tailNode) return [];
     const l = displayed[loop] ?? loopNode;
     const a = displayed[tail] ?? tailNode;
-    const loopBottom = l.y + nodeHeight(specFor(loopNode.type));
-    const bottomY = Math.max(loopBottom, a.y + nodeHeight(specFor(tailNode.type))) + RETURN_DROP;
+    const loopBottom = l.y + nodeHeight(specFor(loopNode.type), loopNode);
+    const bottomY = Math.max(loopBottom, a.y + nodeHeight(specFor(tailNode.type), tailNode)) + RETURN_DROP;
     return [{ id: `${loop}:${tail}`, d: returnPath({ x: a.x + NODE_W, y: a.y + inputY }, { x: l.x + NODE_W / 2, y: loopBottom }, bottomY) }];
   });
 }

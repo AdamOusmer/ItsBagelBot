@@ -108,5 +108,9 @@
     "rewardId": "ID награды",
     "name": "Имя отсчёта",
     "amount": "bits"
-  }
+  },
+  "stoppedHere": "Остановлено здесь",
+  "runsRecipe": "Запускает {name}",
+  "recipeSimulation": "Пробный запуск не открывает другой рецепт",
+  "recipeFailed": "Ошибка"
 }

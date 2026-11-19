@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { expect, test } from 'bun:test';
-import { withDraftNames, type ChoiceSource } from './choices';
+import { isChoiceSource, recipeOptions, withDraftNames, type ChoiceSource } from './choices';
 import type { FlowNode } from './model';
 
 const draftCases: { source: ChoiceSource; type: string; config: FlowNode['config']; names: string[] }[] = [
@@ -11,7 +11,8 @@ const draftCases: { source: ChoiceSource; type: string; config: FlowNode['config
   { source: 'namedCountdowns', type: 'reply.countdown_start', config: { name: 'tea', disabled: true }, names: [] },
   { source: 'namedCountdowns', type: 'reply.countdown_add', config: { name: 'tea' }, names: [] },
   { source: 'namedCountdowns', type: 'reply.countdown_start', config: { name: 'tea_time' }, names: [] },
-  { source: 'counters', type: 'reply.countdown_start', config: { name: 'tea' }, names: [] }
+  { source: 'counters', type: 'reply.countdown_start', config: { name: 'tea' }, names: [] },
+  { source: 'recipes', type: 'reply.run', config: { automationId: 'elsewhere', name: 'tea' }, names: [] }
 ];
 
 test.each(draftCases)('$source includes draft $type with $config', ({ source, type, config, names }) => {
@@ -20,4 +21,13 @@ test.each(draftCases)('$source includes draft $type with $config', ({ source, ty
   expect(withDraftNames(list, source, [node, node])).toEqual({
     options: [...list.options, ...names.map((name) => ({ value: name, label: name }))], problem: 'unavailable'
   });
+});
+
+test.each([
+  { current: 'one', ids: ['two'] },
+  { current: undefined, ids: ['one', 'two'] }
+])('recipes exclude the current recipe $current', ({ current, ids }) => {
+  const recipes = [{ id: 'one', name: 'First' }, { id: 'two', name: 'Second' }];
+  expect({ supported: isChoiceSource('recipes'), options: recipeOptions(recipes, current) })
+    .toEqual({ supported: true, options: recipes.filter(({ id }) => ids.includes(id)).map(({ id, name }) => ({ value: id, label: name })) });
 });

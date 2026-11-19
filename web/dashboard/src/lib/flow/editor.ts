@@ -3,7 +3,7 @@
 import { outputsFor, specFor, type Flow, type FlowNode } from './model';
 import { canConnect, deleteNode, insertNode, removeCheckKeepYes, replaceTrigger, type InsertRequest, type Placement } from './ops';
 import { readingOrder } from './keyboard';
-import { graphIndex } from './graph-index';
+import { graphIndex, portKey } from './graph-index';
 
 type NodeId = FlowNode['id'];
 type Port = { from: NodeId; port: string };
@@ -20,8 +20,9 @@ export function connectionTarget(flow: Flow, id: NodeId, source: Port | null | u
 export function selectedPlacement(flow: Flow, selectedId: NodeId | null): Placement {
   const node = flow.nodes.find((node) => node.id === selectedId);
   const spec = node && specFor(node.type);
-  if (!node || !spec) return { kind: 'canvas' };
-  return { kind: 'port', from: node.id, port: outputsFor(spec)[0].id, mode: 'insert' };
+  const port = outputsFor(spec, node)[0];
+  if (!node || !port) return { kind: 'canvas' };
+  return { kind: 'port', from: node.id, port: port.id, mode: 'insert' };
 }
 
 export function addStep(flow: Flow, request: InsertRequest): { node: FlowNode; replaced: boolean } {
@@ -55,6 +56,9 @@ export function portOccupied(flow: Flow, link: Port | undefined): boolean {
 }
 
 export function parallelPorts(flow: Flow, id: NodeId): string[] {
-  const ports = (graphIndex(flow).outgoing.get(id) ?? []).map((edge) => edge.port);
-  return [...new Set(ports)].filter((port) => ports.filter((value) => value === port).length > 1);
+  const { nodes, ports } = graphIndex(flow);
+  const node = nodes.get(id);
+  return outputsFor(specFor(node?.type ?? ''), node)
+    .filter(({ id: port }) => (ports.get(portKey({ from: id, port }))?.length ?? 0) > 1)
+    .map((port) => port.id);
 }

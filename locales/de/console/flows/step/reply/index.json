@@ -350,5 +350,63 @@
         "label": "Aktiviert"
       }
     }
+  },
+  "stop": {
+    "label": "Hier beenden",
+    "summary": "Den Durchlauf hier beenden",
+    "keywords": "ende abbrechen verlassen stoppen",
+    "line": "Den Durchlauf hier beenden",
+    "note": "In parallelen Pfaden wird nur dieser Pfad beendet."
+  },
+  "random": {
+    "label": "Zufälligen Pfad wählen",
+    "summary": "Einen Pfad nach den eingestellten Chancen wählen",
+    "keywords": "würfel zufall mischen gewichtet",
+    "path": "Pfad {path}",
+    "pathPercent": "{label} ({percent} %)",
+    "field": {
+      "paths": {
+        "label": "Pfade",
+        "option": {
+          "2": "2",
+          "3": "3",
+          "4": "4",
+          "5": "5"
+        }
+      },
+      "weight1": {
+        "label": "Chance für Pfad 1",
+        "unit": "Teile"
+      },
+      "weight2": {
+        "label": "Chance für Pfad 2",
+        "unit": "Teile"
+      },
+      "weight3": {
+        "label": "Chance für Pfad 3",
+        "unit": "Teile"
+      },
+      "weight4": {
+        "label": "Chance für Pfad 4",
+        "unit": "Teile"
+      },
+      "weight5": {
+        "label": "Chance für Pfad 5",
+        "unit": "Teile"
+      }
+    }
+  },
+  "run": {
+    "label": "Anderes Rezept ausführen",
+    "summary": "Ein anderes Rezept in diesem Kanal starten",
+    "keywords": "aufrufen auslösen verketten",
+    "line": "{name} ausführen",
+    "note": "Rezepte können bis zu 2 Ebenen tief aufgerufen werden.",
+    "field": {
+      "automationId": {
+        "label": "Rezept",
+        "hint": "Die eigenen Prüfungen gelten weiterhin. Das andere Rezept startet mit den Werten dieses Rezepts. Seine Änderungen bleiben auf dieses Rezept beschränkt."
+      }
+    }
   }
 }
