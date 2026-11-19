@@ -18,6 +18,7 @@ const condition = (type: Text, params: Params): Condition => ({ type, params });
 const choose = (condition: Condition): Action => action('if', { condition, then: [chat('yes')], else: [chat('no')] });
 const definition = (actions: Action[]): Definition => ({ version: 1, trigger: { type: 'command', params: { name: '!hello' } }, actions });
 const parallel = (branches: Action[][]): Action => action('parallel', { branches: branches.map((actions) => ({ weight: 1, actions })) });
+const apiUrl = 'https://example.com';
 
 type Options = { scenario?: Partial<RehearsalScenario>; overrides?: RehearsalOverrides };
 function execute(actions: Action[], options: Options = {}) {
@@ -35,10 +36,9 @@ const runs: RunCase[] = [
   { name: 'nested loop restores index', actions: [action('loop', { times: '2', actions: [action('loop', { times: '1', actions: [chat('inner {local:index}')] }), chat('outer {local:index}')] }), chat('{local:index}')], lines: ['inner 1', 'outer 1', 'inner 1', 'outer 2'] },
   { name: 'zero loop goes straight to done', actions: [action('loop', { times: '0', actions: [chat('never')] }), chat('done')], lines: ['done'] },
   { name: 'parallel locals are cloned and restored', actions: [action('math', { expression: '1', save_as: 'x' }), parallel([[action('math', { expression: '2', save_as: 'x' }), chat('{local:x}')], [chat('{local:x}')]]), chat('{local:x}')], lines: ['2', '1', '1'] },
-  { name: 'http failure followed by success clears only error', actions: [action('http_get', { save_as: 'result', on_failure: [chat('{local:error}')] }), action('http_get', { save_as: 'result', on_ok: [chat('{local:result} {local:error}')] })], options: { overrides: { 'actions[0]': 'failure', 'actions[1].response': 'hello' } }, lines: ['upstream_error', 'hello '] },
-  { name: 'http success cannot leak failure-only values into siblings', actions: [parallel([[action('http_get', { on_failure: [chat('{local:error}')] })], [chat('{local:error}')]])], options: { overrides: { 'actions[0].params.branches[0].actions[0]': 'failure' } }, lines: ['upstream_error'] },
-  { name: 'http JSON extraction saves the selected value', actions: [action('http_get', { json_path: ['items', '0', 'name'], save_as: 'result', on_ok: [chat('{local:result}')] })], options: { overrides: { 'actions[0].response': '{"items":[{"name":"Lotti"}]}' } }, lines: ['Lotti'] },
-  { name: 'bad JSON takes failure only', actions: [action('http_get', { json_path: ['value'], on_ok: [chat('never')], on_failure: [chat('{local:error}')] })], options: { overrides: { 'actions[0].response': 'not JSON' } }, lines: ['bad_def'] },
+  { name: 'http failure followed by success clears only error', actions: [action('http_get', { url: apiUrl, save_as: 'result', on_failure: [chat('{local:error}')] }), action('http_get', { url: apiUrl, save_as: 'result', on_ok: [chat('{local:result} {local:error}')] })], options: { overrides: { 'actions[0]': 'failure', 'actions[1].response': 'hello' } }, lines: ['upstream_error', 'hello '] },
+  { name: 'http success cannot leak failure-only values into siblings', actions: [parallel([[action('http_get', { url: apiUrl, on_failure: [chat('{local:error}')] })], [chat('{local:error}')]])], options: { overrides: { 'actions[0].params.branches[0].actions[0]': 'failure' } }, lines: ['upstream_error'] },
+  { name: 'bad JSON takes failure only', actions: [action('http_get', { url: apiUrl, json_path: ['value'], on_ok: [chat('never')], on_failure: [chat('{local:error}')] })], options: { overrides: { 'actions[0].response': 'not JSON' } }, lines: ['bad_def'] },
   { name: 'math saves a computed local', actions: [action('math', { expression: '2.5 * 4 + max(1, 8)', save_as: 'answer' }), chat('{local:answer}')], lines: ['18'] },
   { name: 'actions store an empty expansion for missing values', actions: [action('var_set', { scope: 'channel', name: 'score', value: '{local:absent}' }), chat('value={var:score}.')], lines: ['value=.'] },
   { name: 'disabled chat is skipped', actions: [{ ...chat('never'), enabled: false }, chat('enabled')], lines: ['enabled'] },
@@ -171,6 +171,28 @@ test.each(runs.slice(0, 4))('execution is deterministic and pure: $name', ({ act
   expect(JSON.stringify({ actions, options })).toBe(original);
 });
 
+test.each<{ name: Text; type: Text; params: Params; overrides?: RehearsalOverrides; want: unknown }>([
+  { name: 'invalid expanded GET URL', type: 'http_get', params: { url: '{args}' },
+    want: ['failed', 'failure', 'bad_def', 'not a url', undefined, undefined, ['bad_def']] },
+  { name: 'empty JSON sample', type: 'http_get', params: { url: apiUrl, json_path: ['items', '0', 'name'] },
+    want: ['failed', 'failure', 'bad_def', apiUrl, undefined, undefined, ['bad_def']] },
+  { name: 'JSON extraction with a pasted sample', type: 'http_get', params: { url: apiUrl, json_path: ['items', '0', 'name'] },
+    overrides: { 'actions[0].response': '{"items":[{"name":"Lotti"}]}' },
+    want: ['ok', 'ok', undefined, apiUrl, undefined, 'Lotti', ['Lotti']] },
+  { name: 'expanded POST URL and body', type: 'http_post', params: { url: `${apiUrl}/{user}`, body: 'Hello {user}' },
+    overrides: { 'actions[0].response': 'Received' },
+    want: ['ok', 'ok', undefined, `${apiUrl}/Sender`, 'Hello Sender', 'Received', ['Received']] },
+  { name: 'invalid POST URL takes precedence over a pretend upstream failure', type: 'http_post', params: { url: '{args}' },
+    overrides: { 'actions[0]': 'failure' },
+    want: ['failed', 'failure', 'bad_def', 'not a url', undefined, undefined, ['bad_def']] }
+])('HTTP $name', ({ type, params, overrides, want }) => {
+  const step = action(type, { ...params, save_as: 'result', on_ok: [chat('{local:result}')], on_failure: [chat('{local:error}')] });
+  const { events } = execute([step], { scenario: { message: '!hello not a url', user: 'Sender' }, overrides });
+  const { status, port, detail } = events.find((candidate) => candidate.kind === 'effect')!;
+  const { code, url, body, response } = detail!;
+  expect<unknown>([status, port, code, url, body, response, events.at(-1)?.lines]).toEqual(want);
+});
+
 test.each([
   { name: 'missing JSON field', response: '{"other":1}', path: ['value'], status: 'failed', code: 'bad_def' },
   { name: 'object JSON value', response: '{"value":{"name":"hi"}}', path: ['value'], status: 'failed', code: 'bad_def' },
@@ -178,7 +200,7 @@ test.each([
   { name: 'scalar JSON value', response: '{"value":true}', path: ['value'], status: 'ok', code: undefined },
   { name: 'number JSON value', response: '{"value":42}', path: ['value'], status: 'ok', code: undefined }
 ])('HTTP $name', ({ response, path, status, code }) => {
-  const result = execute([action('http_get', { json_path: path, save_as: 'result' })], { overrides: { 'actions[0].response': response } });
+  const result = execute([action('http_get', { url: apiUrl, json_path: path, save_as: 'result' })], { overrides: { 'actions[0].response': response } });
   const event = result.events.at(-1);
   expect([event?.status, event?.detail?.code]).toEqual([status, code]);
 });
@@ -193,23 +215,25 @@ test.each([
   { response: '{"value":"quote: \\""}', path: ['value'], want: 'quote: "' },
   { response: '{"value":true}', path: ['value'], want: 'true' }
 ])('JSON preserves scalar text $response $path', ({ response, path, want }) => {
-  const result = execute([action('http_get', { json_path: path, save_as: 'result' }), chat('{local:result}')], { overrides: { 'actions[0].response': response } });
+  const result = execute([action('http_get', { url: apiUrl, json_path: path, save_as: 'result' }), chat('{local:result}')], { overrides: { 'actions[0].response': response } });
   const event = result.events.find((event) => event.kind === 'effect');
   expect([event?.status, result.events.at(-1)?.lines]).toEqual([want === null ? 'failed' : 'ok', want === null ? [] : [want]]);
 });
 
 test.each([
   { template: '{local:missing}', lines: [], missing: 'local:missing', code: 'empty' },
-  { template: 'Roll {random:1-10}, {choice:a;b}', lines: ['Roll 1, a'], missing: '', code: undefined },
-  { template: '{choice:first,second}', lines: ['first'], missing: '', code: undefined },
-  { template: '{random:1000-2000:,}', lines: ['1,000'], missing: '', code: undefined },
+  { template: 'Roll {random}', lines: ['Roll 1'], missing: '', code: undefined, random: '1' },
+  { template: 'Roll {random:1-10}, {choice:a;b}', lines: ['Roll 1, a;b'], missing: '', code: undefined, random: '1' },
+  { template: '{choice:a,b;c}', lines: ['a'], missing: '', code: undefined, random: '1' },
+  { template: '[{choice: a;b ,c}]', lines: ['[ a;b ]'], missing: '', code: undefined, random: '1' },
+  { template: '{random:1000-2000:,}', lines: ['1,000'], missing: '', code: undefined, random: '1' },
   { template: 'hello {var:missing}', lines: ['hello '], missing: 'var:missing', code: undefined },
   { template: '1\n\n2\n3\n4\n5\n6', lines: ['1', '2', '3', '4', '5'], missing: '', code: undefined },
   { template: 'one\rtwo', lines: ['one\rtwo'], missing: '', code: undefined }
-])('chat expands and limits $template', ({ template, lines, missing, code }) => {
+])('chat expands and limits $template', ({ template, lines, missing, code, random }) => {
   const result = execute([chat(template)]);
   const event = result.events.at(-1);
-  expect([event?.lines, event?.detail?.missing, event?.detail?.code]).toEqual([lines, missing, code]);
+  expect([event?.lines, event?.detail?.missing, event?.detail?.code, event?.detail?.random]).toEqual([lines, missing, code, random]);
 });
 
 test.each([
@@ -220,7 +244,7 @@ test.each([
   { current: '1.25', amount: 2, want: '3.25', status: 'ok' }
 ])('variable addition preserves $current plus $amount', ({ current, amount, want, status }) => {
   const result = execute([action('var_add', { scope: 'channel', name: 'score', amount }), chat('{var:score}')], { scenario: { state: { channelVars: { score: current } } } });
-  expect([result.events[1]?.status, result.events.at(-1)?.lines]).toEqual([status, [want]]);
+  expect([result.events[1]?.status, result.events[1]?.detail?.value, result.events.at(-1)?.lines]).toEqual([status, status === 'ok' ? want : String(amount), [want]]);
 });
 
 test.each([

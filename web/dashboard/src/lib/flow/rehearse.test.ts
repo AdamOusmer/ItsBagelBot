@@ -170,22 +170,27 @@ test('a changed event trigger does not reuse the prior chat message', () => {
 });
 
 test.each([
-  { node: n('s', 'reply.chat', { message: '{random:1-10} {choice:a;b}' }), text: '', lines: ['1 a'], secondary: undefined },
+  { node: n('s', 'reply.chat', { message: '{random}' }), text: '', lines: ['1'], secondary: undefined },
+  { node: n('s', 'reply.chat', { message: '{random:1-10} {choice:a;b}' }), text: '', lines: ['1 a;b'], secondary: undefined },
   { node: n('s', 'reply.math', { expression: 'random(1,9)', saveAs: 'score' }), text: '1', lines: undefined, secondary: 'random(1,9)' }
 ])('samples and computed math values for $node.type', ({ node, text, lines, secondary }) => {
   const step = run(flowOf([trigger, node], [e('t', 'next', 's')])).steps.at(-1);
   expect<unknown>([step?.sample, step?.text, step?.lines, step?.secondary, step?.missing]).toEqual([true, text, lines, secondary, []]);
 });
 
-test.each([
+test.each<{ node: FlowNode; text: string; message?: string; secondary?: string }>([
   { node: n('s', 'reply.shoutout', { target: '{touser}' }), text: 'Shoutout to Sender' },
-  { node: n('s', 'reply.text', { op: 'upper', input: '{user}', saveAs: 'result' }), text: 'SENDER' },
-  { node: n('s', 'reply.var', { do: 'set', name: 'name', scope: 'channel', value: 'Hi {user}' }), text: 'Set name to Hi Sender' },
-  { node: n('s', 'reply.http_get', { url: 'https://example.com/{user}', saveAs: 'result' }), text: 'https://example.com/Sender' }
-])('effect descriptions show rehearsal values for $node.type', ({ node, text }) => {
+  { node: n('s', 'reply.text', { op: 'upper', input: 'hi', saveAs: 'result' }), text: 'HI' },
+  { node: n('s', 'reply.var', { do: 'set', name: 'name', scope: 'channel', value: '{user}' }), text: 'Sender' },
+  { node: n('s', 'reply.var', { do: 'add', name: 'score', scope: 'channel', amount: 3 }), text: '10' },
+  { node: n('s', 'reply.var', { do: 'add', name: 'unset', scope: 'channel', amount: 3 }), text: '3' },
+  { node: n('s', 'reply.http_get', { url: 'https://example.com/{user}', saveAs: 'result' }), text: 'https://example.com/Sender' },
+  { node: n('s', 'reply.http_post', { url: 'https://example.com/{user}', body: 'Hello {user}' }), text: 'https://example.com/Sender' },
+  { node: n('s', 'reply.http_get', { url: '{args}' }), message: '!test not a url', text: 'Set up this step first', secondary: 'not a url' }
+])('effect descriptions show rehearsal values for $node.type', ({ node, text, message = '!test', secondary }) => {
   const flow = flowOf([trigger, node], [e('t', 'next', 's')]);
-  const step = run(flow, { scenario: { message: '!test', user: 'Sender' } }).steps.at(-1);
-  expect(step?.text).toBe(text);
+  const step = run(flow, { scenario: { message, user: 'Sender', state: { channelVars: { score: '7' } } } }).steps.at(-1);
+  expect([step?.text, step?.secondary]).toEqual([text, secondary]);
 });
 
 test.each([

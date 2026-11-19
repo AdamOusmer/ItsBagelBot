@@ -49,7 +49,11 @@
     'reply.http_post': [{ value: 'ok', label: t('flows.test.worked') }, { value: 'failure', label: t('flows.test.apiFailed') }]
   } as Record<string, { value: string; label: string }[]>);
   const defaults: Record<string, Record<string, string>> = { 'cond.chance': { yes: 'yes', no: 'no' }, 'cond.cooldown': { yes: 'ready', no: 'cooling' } };
-  const initial = (step: RehearsalStep) => defaults[step.node?.type ?? '']?.[step.port ?? ''] ?? step.port ?? 'ok';
+  const initial = (step: RehearsalStep) => {
+    const type = step.node?.type ?? '';
+    if (type.startsWith('reply.http_')) return 'ok';
+    return defaults[type]?.[step.port ?? ''] ?? step.port ?? 'ok';
+  };
 
   function blockedChance(step: RehearsalStep, choice: string): boolean {
     if (step.node?.type !== 'cond.chance') return false;
@@ -117,7 +121,7 @@
               </div>
             {/if}
             {#if api && step.id}
-              {@const failed = step.status === 'failed' && !step.issues}
+              {@const failed = pretendValue(step) === 'failure'}
               {@const key = `${step.id}.${failed ? 'error' : 'response'}`}
               <Field label={t(failed ? 'flows.test.errorCode' : 'flows.test.response')} for="{uid}-{step.key}-response">
                 <Input id="{uid}-{step.key}-response" fill placeholder={t('flows.test.notSet')} value={overrides[key] ?? (failed ? 'upstream_error' : '')} oninput={(event) => onOverride(key, event.currentTarget.value)} />

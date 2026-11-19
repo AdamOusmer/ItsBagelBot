@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { expandSegments } from '../engine/rehearsal';
+import { validateFetchDef } from '../engine/fetch-validate';
 import { queryEscape, resolveComputedUtil } from '../engine/pure';
 import type { VarToken } from '../engine/tmpl';
 import { comparePasses } from './compare';
@@ -72,9 +73,12 @@ export function compactDuration(value: number, units: readonly Text[] = ['d', 'h
   return parts.join(' ');
 }
 
+const RANDOM_TOKENS = new Map<Text, (token: VarToken) => Text | null>([
+  ['random', (token) => sanitized(randomSample(token))],
+  ['choice', (token) => token.payload?.split(',')[0] ?? null]
+]);
+
 const TOKEN_READERS: Readonly<Record<string, (token: VarToken, context: Context) => Text | null>> = {
-  random: (token) => randomSample(token),
-  choice: (token) => token.payload?.split(/[;,]/)[0] ?? null,
   local: (token, context) => context.locals[text(token.payload).toLowerCase()] ?? null,
   var: (token, context) => context.state.channelVars[text(token.payload).toLowerCase()] ?? null,
   viewervar: (token, context) => context.state.viewerVars[text(token.payload).toLowerCase()] ?? null,
@@ -85,7 +89,8 @@ const TOKEN_READERS: Readonly<Record<string, (token: VarToken, context: Context)
 };
 
 function randomSample(token: VarToken): Text | null {
-  const bounds = token.payload?.match(/^(\d+)-(\d+)(?::([^]))?$/u);
+  if (token.payload === null) return '1';
+  const bounds = token.payload.match(/^(\d+)-(\d+)(?::([^]))?$/u);
   if (!bounds) return null;
   if (BigInt(bounds[1]!) > BigInt(bounds[2]!)) return null;
   const value = String(BigInt(bounds[1]!));
@@ -111,14 +116,17 @@ function positional(token: VarToken, context: Context): Text {
   return sanitized(words.slice(start, end).join(' '))!;
 }
 
-export function expandTemplate(template: Text, context: Context): { text: Text; missing: Text[] } {
+export function expandTemplate(template: Text, context: Context): { text: Text; missing: Text[]; random: boolean } {
   const missing: Text[] = [];
+  let random = false;
   const segments = expandSegments(template, (token) => {
-    const value = resolveValue(token, context);
+    const sample = RANDOM_TOKENS.get(token.name);
+    const value = sample ? sample(token) : resolveValue(token, context);
     if (value === null || value === '') missing.push(token.key);
+    if (sample && value !== null) random = true;
     return value ?? '';
   });
-  return { text: segments.map((segment) => segment.text).join(''), missing: [...new Set(missing)] };
+  return { text: segments.map((segment) => segment.text).join(''), missing: [...new Set(missing)], random };
 }
 
 const expand = (value: unknown, context: Context): Text => expandTemplate(text(value), context).text;
@@ -248,7 +256,7 @@ function integerValue(value: Text): bigint | null {
   return parsed < -(2n ** 63n) || parsed > 2n ** 63n - 1n ? null : parsed;
 }
 
-function writeVariable(params: Params, context: Context, mode: Text): ActionOutcome {
+function writeVariable(params: Params, context: Context, mode: Text, expanded: ExpandedParams): ActionOutcome {
   if (params.scope === 'viewer' && !hasViewer(context)) return failed('no_viewer');
   const store = variableStore(params, context);
   const name = nameOf(params);
@@ -256,11 +264,16 @@ function writeVariable(params: Params, context: Context, mode: Text): ActionOutc
     delete store[name];
     return ok();
   }
-  const value = mode === 'set' ? expand(params.value, context) : addVariable(store[name] ?? '', number(params.amount));
+  const value = mode === 'set' ? text(expanded.value) : addVariable(store[name] ?? '', number(params.amount));
   if (value === null) return failed('var_limit');
   if ([...value].length > MAX_TEMPLATE_LENGTH) return failed('var_limit');
   store[name] = value;
-  return ok();
+  return { status: 'ok', detail: { value } };
+}
+
+function addVariableStep(params: Params, context: Context, expanded: ExpandedParams): ActionOutcome {
+  const outcome = writeVariable(params, context, 'add', expanded);
+  return { ...outcome, detail: { value: expanded.amount ?? '', ...outcome.detail } };
 }
 
 type Operands = { input: Text; arg1: Text; arg2: Text };
@@ -439,13 +452,15 @@ function mathStep(params: Params, context: Context): ActionOutcome {
   return { status: 'ok', detail: { value: fixedNumber(value), ...(parser.random ? { random: '1' } : {}) } };
 }
 
-function httpStep(params: Params, context: Context): ActionOutcome {
-  const outcome = context.overrides[context.path] ?? 'ok';
-  if (outcome === 'failure') {
-    const code = context.overrides[`${context.path}.error`] ?? 'upstream_error';
-    context.locals.error = code;
-    return failed(code);
-  }
+function failHttp(context: Context, code: Text): ActionOutcome {
+  context.locals.error = code;
+  return failed(code);
+}
+
+function httpStep(params: Params, context: Context, expanded: ExpandedParams): ActionOutcome {
+  const errors = validateFetchDef({ name: 'a', url: expanded.url ?? '', kind: 'plain', path: [], keyLabel: '' });
+  if (errors.url) return failHttp(context, 'bad_def');
+  if (context.overrides[context.path] === 'failure') return failHttp(context, context.overrides[`${context.path}.error`] ?? 'upstream_error');
   const response = context.overrides[`${context.path}.response`] ?? '';
   try {
     const value = extractJson(response, (params.json_path ?? []) as Text[]);
@@ -453,8 +468,7 @@ function httpStep(params: Params, context: Context): ActionOutcome {
     saveLocal(params, value, context);
     return { status: 'ok', detail: { response: value } };
   } catch {
-    context.locals.error = 'bad_def';
-    return failed('bad_def');
+    return failHttp(context, 'bad_def');
   }
 }
 
@@ -530,9 +544,9 @@ function targetStep(): ActionHandler {
 const ACTIONS: Readonly<Record<string, ActionHandler>> = {
   reply: replyStep,
   shoutout: targetStep(), timeout: targetStep(),
-  var_set: (params, context) => writeVariable(params, context, 'set'),
-  var_add: (params, context) => writeVariable(params, context, 'add'),
-  var_delete: (params, context) => writeVariable(params, context, 'delete'),
+  var_set: (params, context, expanded) => writeVariable(params, context, 'set', expanded),
+  var_add: addVariableStep,
+  var_delete: (params, context, expanded) => writeVariable(params, context, 'delete', expanded),
   text: textStep, math: mathStep, http_get: httpStep, http_post: httpStep,
   counter_add: (params, context) => {
     const name = text(params.name);
@@ -553,7 +567,7 @@ const ACTIONS: Readonly<Record<string, ActionHandler>> = {
 function expandParam(value: unknown, context: Context): ReturnType<typeof expandTemplate> {
   if (!Array.isArray(value)) return expandTemplate(text(value), context);
   const items = value.map((item) => expandTemplate(text(item), context));
-  return { text: items.map((item) => item.text).join('\n'), missing: items.flatMap((item) => item.missing) };
+  return { text: items.map((item) => item.text).join('\n'), missing: items.flatMap((item) => item.missing), random: items.some((item) => item.random) };
 }
 
 export function applyAction(action: Action, context: Context): ActionOutcome & { detail: ExpandedParams } {
@@ -561,6 +575,7 @@ export function applyAction(action: Action, context: Context): ActionOutcome & {
   const values = Object.entries(params).map(([key, value]) => [key, expandParam(value, context)] as const);
   const expanded = Object.fromEntries(values.map(([key, value]) => [key, value.text]));
   const missing = [...new Set(values.flatMap(([, value]) => value.missing))].join(',');
+  const sample: ExpandedParams = values.some(([, value]) => value.random) ? { random: '1' } : {};
   const outcome = ACTIONS[action.type]?.(params, context, expanded) ?? ok();
-  return { ...outcome, detail: { type: action.type, ...expanded, missing, ...outcome.detail } };
+  return { ...outcome, detail: { type: action.type, ...expanded, missing, ...sample, ...outcome.detail } };
 }

@@ -169,7 +169,7 @@ function say(step: Step, run: Execution, frame: Frame): void {
   const message = outcome.text ?? '';
   const lines = message.split('\n').filter((line) => trimSpace(line) !== '').slice(0, MAX_RESPONSE_LINES);
   const style: Record<string, string> = step.action.type === 'announce' ? { mode: 'announce', color: String(step.action.params?.color || 'primary') } : {};
-  const detail = { ...style, missing: outcome.missing, ...(lines.length === 0 ? { code: 'empty' } : {}) };
+  const detail = { ...style, missing: outcome.missing, ...(outcome.random ? { random: outcome.random } : {}), ...(lines.length === 0 ? { code: 'empty' } : {}) };
   emit(run, frame, { kind: 'say', status: lines.length > 0 ? 'ok' : 'skipped', lines, detail });
 }
 

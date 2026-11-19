@@ -203,7 +203,7 @@ function triggerText(node: FlowNode | undefined, scenario: RehearsalScenario, li
   return node?.type.startsWith('twitch.chat.') ? scenario.message ?? line : line;
 }
 
-const COMPUTED_VALUE_NODES = new Set(['reply.math', 'reply.text']);
+const COMPUTED_VALUE_NODES = new Set(['reply.math', 'reply.text', 'reply.var']);
 
 function effectText(t: Translate, detail: Record<Text, Text>, node: FlowNode | undefined): Text {
   if (!node) return t('flows.test.effect');
@@ -268,17 +268,22 @@ function mappedStep(t: Translate, event: RehearsalEvent, context: RunContext): R
   const id = compiled.nodeByPath.get(`${event.path}.params.condition`) ?? compiled.nodeByPath.get(event.path) ?? null;
   const node = nodes.get(id ?? '');
   return { ...event, ...stepValues(t, event, node), id, node, chatLines: chatLines(event),
-    ...stepDetails(t, node), repair: node ? checkRepair(node, event, context) : undefined,
+    ...stepDetails(t, node, event), repair: node ? checkRepair(node, event, context) : undefined,
     note: roleWarning(t, context.flow, node) ?? stepNote(t, node, { event, scenario }),
     text: eventText(t, event, node, scenarioIdentity(compiled.definition, scenario)) };
 }
 
-function stepDetails(t: Translate, node: FlowNode | undefined): Pick<RehearsalStep, 'label' | 'secondary'> {
+function stepDetails(t: Translate, node: FlowNode | undefined, event: RehearsalEvent): Pick<RehearsalStep, 'label' | 'secondary'> {
   const spec = node ? specFor(node.type) : undefined;
   return {
     label: spec ? stepLabel(t, spec) : t('flows.board.atSameTime'),
-    secondary: node?.type === 'reply.math' ? String(node.config.expression ?? '') : undefined,
+    secondary: node?.type === 'reply.math' ? String(node.config.expression ?? '') : failedRequestUrl(event),
   };
+}
+
+function failedRequestUrl(event: RehearsalEvent): Text | undefined {
+  if (event.kind !== 'effect' || event.status !== 'failed') return undefined;
+  return event.detail?.url;
 }
 
 function emptyResponse(node: FlowNode | undefined, event: RehearsalEvent): boolean {
@@ -299,7 +304,7 @@ function stepNote(t: Translate, node: FlowNode | undefined, context: { event: Re
 function stepValues(t: Translate, event: RehearsalEvent, node: FlowNode | undefined): Pick<RehearsalStep, 'missing' | 'sample'> {
   const tokens = (event.detail?.missing ?? '').split(',').filter(Boolean).map((token) => token.replace(/^unset:/, ''));
   const missing = [...new Set([...tokens.map((token) => missingLabel(t, token)), ...unsetFields(t, node)])];
-  const sample = event.detail?.random === '1' || Object.values(node?.config ?? {}).some((value) => /\{(?:random|choice)[}:]/.test(String(value)));
+  const sample = event.detail?.random === '1' || Object.values(node?.config ?? {}).some((value) => /\{(?:random[}:|]|choice:)/i.test(String(value)));
   return { missing, sample };
 }
 
