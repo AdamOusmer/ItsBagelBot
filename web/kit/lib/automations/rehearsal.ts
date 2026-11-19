@@ -10,7 +10,7 @@ import type { Action, Condition, Definition, Params } from './types';
 import type { RehearsalContext, RehearsalEvent, RehearsalOverrides, RehearsalResult, RehearsalScenario } from './rehearsal-types';
 
 export type * from './rehearsal-types';
-export { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioIdentity, scenarioKind, scenarioPatches } from './rehearsal-scenario';
+export { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioArgs, scenarioIdentity, scenarioKind, scenarioPatches } from './rehearsal-scenario';
 export { compactDuration } from './rehearsal-state';
 export { configKey } from './stream-flow';
 

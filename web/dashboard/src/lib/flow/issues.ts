@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { ACTION_TYPES, CONDITION_TYPES, FLOW_ISSUE, TRIGGER_TYPES, TEXT_ARG_FIELDS, cooldownWindows, needsSearchValue, type Issue } from '@bagel/kit/automations';
+import { ACTION_TYPES, CONDITION_TYPES, FLOW_ISSUE, TRIGGER_TYPES, TEXT_ARG_FIELDS, cooldownWindows, needsSearchValue, viewerList, type Issue } from '@bagel/kit/automations';
 import { specFor, targetFieldFor, targetMode, type FlowNode } from './model';
 import { configText } from './setup';
 
@@ -28,10 +28,14 @@ const NODE_FIELDS: Record<string, Record<string, string>> = {
   'twitch.raid': { filters: 'minViewers' },
   'twitch.reward': { title: 'reward', cost: 'reward', color: 'reward', cooldown_s: 'reward', on_redeem: 'reward', input_required: 'reward' },
   'reply.chat': { text: 'message' },
-  'reply.counter': { name: 'counter' }
+  'reply.counter': { name: 'counter' },
+  'cond.user': { allow: 'users', deny: 'users', allow_ids: 'users', deny_ids: 'users', userId: 'users', user_id: 'users', login: 'users' },
+  'cond.category': { allow: 'games', deny: 'games' },
+  'cond.follow': { min_days: 'minDays' },
+  'cond.accountAge': { min_days: 'minDays' }
 };
 
-const WHOLE_NODE_FIELDS: Record<string, string> = { 'cond.cooldown': 'channelSeconds', 'cond.user': 'login', 'cond.chance': 'percent' };
+const WHOLE_NODE_FIELDS: Record<string, string> = { 'cond.cooldown': 'channelSeconds', 'cond.user': 'users', 'cond.chance': 'percent', 'cond.category': 'games' };
 
 function fieldKeyFor(node: FlowNode, path: IssuePath): FieldKey | undefined {
   const param = path.replace(/^(?:params|config)(?:\.|$)/, '').split(/[.\[]/)[0];
@@ -86,7 +90,7 @@ const TYPES: Record<string, string> = {
   'cond.role': 'perm', 'cond.user': 'users', 'reply.points': 'points_add', 'reply.counter': 'counter_add', 'reply.wait': 'delay'
 };
 
-const REQUIRED: Record<string, readonly string[]> = { 'cond.user': ['login'], 'cond.cooldown': ['channelSeconds'] };
+const REQUIRED: Record<string, readonly string[]> = { 'cond.user': ['users'], 'cond.cooldown': ['channelSeconds'] };
 const searchValueRequired = (config: FlowNode['config']) => needsSearchValue(config.op);
 
 const REQUIRED_IF: Record<string, (config: FlowNode['config']) => boolean> = {
@@ -124,6 +128,7 @@ export function fieldRequired(node: FlowNode, key: FieldKey): boolean {
 }
 
 export function missingField(node: FlowNode): string | undefined {
+  if (node.type === 'cond.user') return viewerList(node.config).length ? undefined : 'users';
   if (node.type === 'cond.cooldown') {
     const { channelSeconds, viewerSeconds } = cooldownWindows(node.config);
     return channelSeconds > 0 || viewerSeconds > 0 ? undefined : 'channelSeconds';

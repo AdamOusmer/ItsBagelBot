@@ -14,14 +14,16 @@ const mappings = [
   ['cond.cooldown', 'params.global_s', 'channelSeconds'], ['cond.cooldown', 'params.user_s', 'viewerSeconds'],
   ['cond.cooldown', 'params.left_command', 'leftCommand'], ['cond.cooldown', 'params.left_reply', 'leftReply'],
   ['reply.countdown_start', 'params.ready_reply', 'readyReply'],
-  ['cond.user', 'params.allow_ids[0]', 'login'], ['cond.user', 'params.allow[0]', 'login'], ['cond.user', 'userId', 'login'],
+  ['cond.user', 'params.allow_ids[0]', 'users'], ['cond.user', 'params.allow[0]', 'users'], ['cond.user', 'userId', 'users'],
+  ['cond.user', 'params.deny_ids[0]', 'users'], ['cond.category', 'params.allow[1]', 'games'], ['cond.category', 'params.deny', 'games'],
+  ['cond.follow', 'params.min_days', 'minDays'], ['cond.accountAge', 'params.min_days', 'minDays'],
   ['twitch.chat.command', 'params.name', 'trigger'], ['twitch.chat.word', 'params.name', 'word'],
   ['twitch.sub', 'params.filters.is_gift', 'variant'], ['twitch.cheer', 'params.filters.amount', 'minBits'],
   ['twitch.raid', 'params.filters.viewers', 'minViewers'], ['twitch.reward', 'params.reward_id', 'reward'],
   ['twitch.reward', 'params.title', 'reward'], ['twitch.reward', 'params.cost', 'reward'],
   ['twitch.reward', 'params.color', 'reward'], ['twitch.reward', 'params.cooldown_s', 'reward'],
   ['twitch.reward', 'params.on_redeem', 'reward'], ['twitch.reward', 'params.input_required', 'reward'],
-  ['cond.cooldown', 'params', 'channelSeconds'], ['cond.user', 'params', 'login'],
+  ['cond.cooldown', 'params', 'channelSeconds'], ['cond.user', 'params', 'users'], ['cond.category', 'params', 'games'],
   ['reply.lights', 'params.sku', 'device'], ['reply.lights', 'params.extra_lights[0]', 'device'],
   ['reply.lights', 'params.device_name', 'device'], ['reply.lights', 'params.scene_value', 'scene'],
   ['reply.lights', 'params.scene_type', 'scene'], ['reply.lights', 'params.scene_instance', 'scene'],
@@ -61,7 +63,8 @@ test.each([
 test.each([
   ['reply.chat', 'message', true], ['reply.wait', 'seconds', true], ['reply.math', 'saveAs', true],
   ['reply.http_get', 'saveAs', false], ['reply.text', 'input', false], ['reply.text', 'saveAs', true],
-  ['cond.user', 'login', true], ['cond.cooldown', 'channelSeconds', true], ['cond.cooldown', 'name', false],
+  ['cond.user', 'users', true], ['cond.category', 'games', true], ['cond.pattern', 'pattern', true],
+  ['cond.cooldown', 'channelSeconds', true], ['cond.cooldown', 'name', false],
   ['twitch.chat.command', 'trigger', true], ['twitch.reward', 'reward', true], ['reply.shoutout', 'target', true],
   ['reply.raid', 'target', true], ['reply.mod', 'target', false], ['reply.vip', 'target', false],
   ['reply.whisper', 'target', true], ['reply.timeout', 'target', false],
@@ -125,7 +128,7 @@ test.each([
 });
 
 test.each([
-  { code: 'user_not_resolved', type: 'cond.user', key: 'login' },
+  { code: 'user_not_resolved', type: 'cond.user', key: 'users' },
   { code: 'unknown_port', type: 'cond.cooldown', key: undefined },
   { code: 'wait_too_long', type: 'reply.wait', key: 'seconds' },
   { code: 'delay_budget', type: 'reply.wait', key: 'seconds' },
@@ -135,10 +138,25 @@ test.each([
   expect(fieldIssues([{ path: 'nodes.step', code }], [nodeOf(type)])[0].fieldKey).toBe(key);
 });
 
+test.each<{ type: FlowNode['type']; config: FlowNode['config']; mismatch: boolean }>([
+  { type: 'twitch.follow', config: {}, mismatch: true },
+  { type: 'twitch.chat.command', config: { trigger: '!check' }, mismatch: false },
+  { type: 'twitch.chat.word', config: { word: 'check' }, mismatch: false }
+])('the command text check accepts chat triggers: $type', ({ type, config, mismatch }) => {
+  const flow = newFlow('Check trigger');
+  flow.nodes = [{ ...nodeOf(type, config), id: 'start' }, nodeOf('cond.pattern', { pattern: '^[0-9]+$' }), { ...nodeOf('reply.chat', { message: 'OK' }), id: 'reply' }];
+  flow.edges = [{ id: 'check', from: 'start', port: 'next', to: 'step' }, { id: 'yes', from: 'step', port: 'yes', to: 'reply' }];
+  const lowered = flowToDefinition(flow);
+  if (!lowered.ok) throw new Error(JSON.stringify(lowered.issues));
+  expect(locateIssues(flow, validateDefinition(lowered.value))).toEqual(mismatch ? [{ path: 'nodes.step.type', code: 'trigger_mismatch' }] : []);
+});
+
 test.each<{ type: FlowNode['type']; config: FlowNode['config']; missing: string | undefined }>([
   { type: 'twitch.follow', config: {}, missing: undefined },
   { type: 'twitch.chat.command', config: {}, missing: 'trigger' },
   { type: 'twitch.reward', config: { reward: 'setup-required' }, missing: 'reward' },
+  { type: 'cond.user', config: {}, missing: 'users' },
+  { type: 'cond.user', config: { userId: '42', login: 'lotti' }, missing: undefined },
   { type: 'cond.cooldown', config: { channelSeconds: 30, viewerSeconds: 0 }, missing: undefined },
   { type: 'cond.cooldown', config: { channelSeconds: 0, viewerSeconds: 30 }, missing: undefined },
   { type: 'cond.cooldown', config: { channelSeconds: 0, viewerSeconds: 0 }, missing: 'channelSeconds' },

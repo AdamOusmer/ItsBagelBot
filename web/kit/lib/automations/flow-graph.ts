@@ -297,7 +297,27 @@ function lightsAction(config: FlowConfig): Action {
   return { type: 'lights', params: { ...params, mode: 'color', color: str(config.color) || DEFAULT_LIGHT_COLOR } };
 }
 
-const awaitingUser = (config: FlowConfig) => config.login === SETUP_LOGIN;
+const awaitingUser = (config: FlowConfig) => config.users === undefined && config.login === SETUP_LOGIN;
+
+export const flowList = (value: FlowConfig[string] | undefined): string[] => str(value).split(',').map((entry) => entry.trim()).filter(Boolean);
+
+type ViewerEntry = { id: string; login: string };
+
+export const viewerIdKey = (id: ViewerEntry['id']): string => id.replace(/^0+(?=\d)/, '');
+
+export function viewerList(config: FlowConfig): ViewerEntry[] {
+  if (awaitingUser(config)) return [];
+  return flowList(config.users ?? `${String(config.userId ?? '')}:${str(config.login)}`).filter((entry) => entry !== ':').map((entry) => {
+    const [id = '', login = ''] = entry.split(':', 2);
+    return { id, login };
+  });
+}
+
+function userCondition(config: FlowConfig): Condition {
+  if (awaitingUser(config)) return { type: 'users', params: { allow: [SETUP_LOGIN] } };
+  const ids = viewerList(config).map(({ id }) => id);
+  return { type: 'users', params: { [config.mode === 'except' ? 'deny_ids' : 'allow_ids']: ids } };
+}
 
 const TIME_LEFT_PARAMS = [
   ['leftCommand', 'left_command'],
@@ -329,8 +349,13 @@ const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
     if (VAR_OPS_WITH_VALUE.includes(op)) params.value = str(config.value);
     return { type: 'var', params };
   },
-  'cond.user': (config) => ({ type: 'users', params: awaitingUser(config) ? { allow: [SETUP_LOGIN] } : { allow_ids: [str(config.userId)] } }),
-  'cond.cooldown': cooldownConditionAction
+  'cond.user': userCondition,
+  'cond.cooldown': cooldownConditionAction,
+  'cond.live': (config) => ({ type: 'live', params: { state: str(config.state) || 'live' } }),
+  'cond.category': (config) => ({ type: 'category', params: { [config.mode === 'deny' ? 'deny' : 'allow']: flowList(config.games) } }),
+  'cond.pattern': (config) => ({ type: 'arg_regex', params: { pattern: str(config.pattern) } }),
+  'cond.follow': (config) => ({ type: 'follow', params: { min_days: num(config.minDays) } }),
+  'cond.accountAge': (config) => ({ type: 'account_age', params: { min_days: num(config.minDays ?? 7) } })
 };
 
 function cooldownConditionAction(config: FlowConfig): Condition {
@@ -544,15 +569,21 @@ function visit(ctx: Lowering, id: string): boolean {
   return false;
 }
 
+function userListResolved(config: FlowConfig): boolean {
+  if (awaitingUser(config)) return true;
+  const viewers = viewerList(config);
+  return viewers.length > 0 && viewers.every(({ id }) => id !== '');
+}
+
 function writeCondition(ctx: Lowering, node: FlowNode): Condition {
   const write = CONDITION_WRITERS[node.type];
   if (!write) {
     ctx.issues.push({ path: nodePath(node.id), code: FLOW_ISSUE.unsupportedNode });
     return { type: node.type };
   }
-  const resolved = str(node.config.userId) !== '' || awaitingUser(node.config);
-  if (node.type === 'cond.user' && !resolved) {
+  if (node.type === 'cond.user' && !userListResolved(node.config)) {
     ctx.issues.push({ path: nodePath(node.id), code: FLOW_ISSUE.userNotResolved });
+    return { type: 'users' };
   }
   return owned(ctx, node, write(loweredConfig(ctx, node)));
 }
@@ -902,12 +933,30 @@ function cooldownNode(params: Params): { type: string; config: FlowConfig } {
   return { type: 'cond.cooldown', config: name ? { ...config, name } : config };
 }
 
-function userNode(params: Params): { type: string; config: FlowConfig } | null {
-  const ids = (params.allow_ids ?? []) as string[];
-  const others = [params.allow, params.deny, params.deny_ids].flatMap((list) => (list ?? []) as string[]);
-  const everyone = [...ids, ...others];
-  if (everyone.length === 1 && (params.allow as string[] | undefined)?.[0] === SETUP_LOGIN) return { type: 'cond.user', config: { login: SETUP_LOGIN } };
-  return ids.length === 1 && others.length === 0 ? { type: 'cond.user', config: { userId: ids[0]! } } : null;
+type ConditionNode = { type: string; config: FlowConfig };
+
+function userEntries(params: Params, mode: 'allow' | 'deny'): string[] {
+  const ids = (params[`${mode}_ids`] ?? []) as string[];
+  const logins = (params[mode] ?? []) as string[];
+  return [...ids.map((id) => `${id}:`), ...logins.map((login) => `:${login}`)];
+}
+
+function userNode(params: Params): ConditionNode | null {
+  const allowed = userEntries(params, 'allow');
+  const denied = userEntries(params, 'deny');
+  if (allowed.length && denied.length) return null;
+  if (allowed.length === 1 && allowed[0] === `:${SETUP_LOGIN}`) return { type: 'cond.user', config: { login: SETUP_LOGIN, mode: 'only' } };
+  const users = (denied.length ? denied : allowed).join(',');
+  return users ? { type: 'cond.user', config: { mode: denied.length ? 'except' : 'only', users } } : null;
+}
+
+function categoryNode(params: Params): ConditionNode | null {
+  const allow = (params.allow ?? []) as string[];
+  const deny = (params.deny ?? []) as string[];
+  if (allow.length && deny.length) return null;
+  const games = deny.length ? deny : allow;
+  if (games.some((game) => game.includes(','))) return null;
+  return { type: 'cond.category', config: { mode: deny.length ? 'deny' : 'allow', games: games.join(', ') } };
 }
 
 function compareNode(params: Params): { type: string; config: FlowConfig } | null {
@@ -925,7 +974,15 @@ function varConditionNode(params: Params): { type: string; config: FlowConfig } 
   return { type: 'cond.var', config };
 }
 
-function conditionToNode(condition: Condition): { type: string; config: FlowConfig } | null {
+const CONDITION_READERS: Readonly<Record<string, (params: Params) => ConditionNode | null>> = {
+  live: (params) => ({ type: 'cond.live', config: { state: str(params.state) } }),
+  category: categoryNode,
+  arg_regex: (params) => ({ type: 'cond.pattern', config: { pattern: str(params.pattern) } }),
+  follow: (params) => ({ type: 'cond.follow', config: { minDays: num(params.min_days) } }),
+  account_age: (params) => ({ type: 'cond.accountAge', config: { minDays: num(params.min_days) } })
+};
+
+function conditionToNode(condition: Condition): ConditionNode | null {
   const params = condition.params ?? {};
   if (condition.type === 'var') return varConditionNode(params);
   if (condition.type === 'compare') return compareNode(params);
@@ -933,7 +990,7 @@ function conditionToNode(condition: Condition): { type: string; config: FlowConf
   if (condition.type === 'perm') return { type: 'cond.role', config: { level: str(params.level) } };
   if (condition.type === 'chance') return { type: 'cond.chance', config: { percent: num(params.percent) } };
   if (condition.type === 'cooldown') return cooldownNode(params);
-  return null;
+  return Object.hasOwn(CONDITION_READERS, condition.type) ? CONDITION_READERS[condition.type]!(params) : null;
 }
 
 function lightsNode(params: Params): { type: string; config: FlowConfig } | null {

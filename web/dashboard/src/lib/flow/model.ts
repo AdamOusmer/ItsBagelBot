@@ -5,7 +5,7 @@ import { graphIndex, portKey } from './graph-index';
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
 import { COMPARE_OPS, TEXT_ARG_FIELDS, TEXT_COMPARE_OPS, VAR_OPS, VAR_OPS_WITH_VALUE, cooldownWindows } from '@bagel/kit/automations';
-import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
+import { MAX_AGE_DAYS, MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
 export const MAX_WAIT_SECONDS = MAX_DELAY_MS / 1000;
@@ -69,7 +69,12 @@ export const STEP_PLACEMENT = {
   'reply.text': { kind: 'reply', group: 'logic' },
   'reply.math': { kind: 'reply', group: 'logic' },
   'reply.http_get': { kind: 'reply', group: 'logic' },
-  'reply.http_post': { kind: 'reply', group: 'logic' }
+  'reply.http_post': { kind: 'reply', group: 'logic' },
+  'cond.live': { kind: 'condition', group: 'stream' },
+  'cond.category': { kind: 'condition', group: 'stream' },
+  'cond.pattern': { kind: 'condition', group: 'chat' },
+  'cond.follow': { kind: 'condition', group: 'community' },
+  'cond.accountAge': { kind: 'condition', group: 'community' }
 } as const satisfies Record<string, { kind: FlowKind; group: StepGroup }>;
 
 type Typed = { key: string; placeholder?: true };
@@ -256,7 +261,10 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'cond.user',
     slug: 'user',
     icon: 'users',
-    fields: [{ key: 'login', type: 'login', placeholder: true }],
+    fields: [
+      { key: 'mode', type: 'select', options: ['only', 'except'], initial: 'only' },
+      { key: 'users', type: 'login', placeholder: true }
+    ],
     outputs: yesNo
   },
   {
@@ -430,7 +438,47 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
       { key: 'per', type: 'number', min: 0 }
     ]
   },
-  ...STREAM_STEP_DEFINITIONS
+  ...STREAM_STEP_DEFINITIONS,
+  {
+    type: 'cond.live',
+    slug: 'live',
+    icon: 'radio',
+    fields: [{ key: 'state', type: 'select', options: ['live', 'offline'], initial: 'live' }],
+    lineBy: 'state',
+    outputs: yesNo
+  },
+  {
+    type: 'cond.category',
+    slug: 'category',
+    icon: 'gamepad',
+    fields: [
+      { key: 'mode', type: 'select', options: ['allow', 'deny'], initial: 'allow' },
+      { key: 'games', type: 'text', required: true }
+    ],
+    lineBy: 'mode',
+    outputs: yesNo
+  },
+  {
+    type: 'cond.pattern',
+    slug: 'pattern',
+    icon: 'braces',
+    fields: [{ key: 'pattern', type: 'text', required: true }],
+    outputs: yesNo
+  },
+  {
+    type: 'cond.follow',
+    slug: 'follow',
+    icon: 'heart',
+    fields: [{ key: 'minDays', type: 'number', min: 0, max: MAX_AGE_DAYS, step: 1, unit: true, initial: 0 }],
+    outputs: yesNo
+  },
+  {
+    type: 'cond.accountAge',
+    slug: 'accountAge',
+    icon: 'hourglass',
+    fields: [{ key: 'minDays', type: 'number', min: 1, max: MAX_AGE_DAYS, step: 1, unit: true, initial: 7 }],
+    outputs: yesNo
+  }
 ];
 
 export const NODE_SPECS: readonly NodeSpec[] = STEP_DEFINITIONS.map((spec) => ({ ...spec, ...STEP_PLACEMENT[spec.type] }));

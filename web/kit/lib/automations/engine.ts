@@ -41,6 +41,7 @@ const REQUIRED_TRIGGER: Partial<Record<StepType, RequiredTrigger>> = {
   delete_message: 'command',
   redemption: 'reward',
   unban_resolve: 'unban_request',
+  arg_regex: 'command',
 };
 
 const VIEWERLESS_TRIGGERS = new Set(['countdown:', 'timer:', 'event:stream.online', 'event:stream.offline']);
@@ -112,6 +113,7 @@ export function registerNested<T>(
 }
 
 export function typed(c: Chk, reg: Map<string, Entry>, node: TypedNode): void {
+  if (reg === conditionRegistry && missingTrigger(node.type, { type: c.trigger, kind: c.kind })) c.add('type', CODE.triggerMismatch);
   const entry = reg.get(node.type);
   if (node.type === '') c.add('type', CODE.required);
   else if (!entry) c.add('type', CODE.unknownType);

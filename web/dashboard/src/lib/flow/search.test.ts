@@ -26,6 +26,8 @@ test.each([
   ['send message', 'reply.chat'],
   ['say', 'reply.chat'],
   ['loop', 'reply.loop'],
+  ['live', 'cond.live'],
+  ['game', 'cond.category'],
   ['add points', 'reply.points'],
   ['ligth', 'reply.lights'],
   ['  SEND, méssage! ', 'reply.chat']
@@ -36,7 +38,7 @@ test.each([
 test.each([
   ['api', ['reply.http_get', 'reply.http_post']],
   ['if', [...NODE_SPECS.filter((spec) => spec.kind === 'condition').map((spec) => spec.type), 'reply.text']],
-  ['mod', ['reply.mod', 'reply.chat_mode', 'cond.role', 'reply.timeout', 'reply.ban', 'twitch.unban_request', 'reply.unban_resolve']],
+  ['mod', ['reply.mod', 'reply.chat_mode', 'cond.role', 'reply.timeout', 'reply.ban', 'twitch.unban_request', 'reply.unban_resolve', 'cond.user', 'cond.category']],
   ['modules', []],
   ['zzzz', []],
   ['send zzzz', []],

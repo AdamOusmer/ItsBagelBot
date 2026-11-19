@@ -273,6 +273,10 @@ function chanceComparison(params: Params, context: Context): boolean {
   return percent > 0 && context.overrides[context.path] !== 'no';
 }
 
+function viewerComparison(_params: Params, context: Context): boolean {
+  return hasViewer(context) && context.overrides[context.path] !== 'no';
+}
+
 const CONDITIONS: Readonly<Record<string, ConditionHandler>> = {
   perm: (params, context) => ROLE_RANK[context.scenario.role ?? 'viewer']! >= (ROLE_RANK[text(params.level)] ?? 0),
   users: userComparison,
@@ -282,7 +286,9 @@ const CONDITIONS: Readonly<Record<string, ConditionHandler>> = {
   cooldown: cooldownComparison,
   live: (params, context) => context.scenario.live === (params.state === 'live'),
   category: categoryComparison,
-  arg_regex: argRegexComparison
+  arg_regex: argRegexComparison,
+  follow: viewerComparison,
+  account_age: viewerComparison
 };
 
 export function evaluateCondition(condition: Condition, context: Context): ConditionOutcome {

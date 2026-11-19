@@ -4,9 +4,9 @@
 import { describe, expect, test } from 'bun:test';
 import { definitionToFlow, flowStepRefs, flowToDefinition, locateIssues, type Flow, type FlowConfig, type FlowEdge, type FlowNode } from './flow-graph';
 import { classifyFlow } from './flow-layer';
-import { SETUP_REWARD_ID } from './flow-setup';
+import { SETUP_LOGIN, SETUP_REWARD_ID } from './flow-setup';
 import { validateDefinition } from './validate';
-import type { Action, Definition, Params } from './types';
+import type { Action, Condition, Definition, Params } from './types';
 
 const node = (id: FlowNode['id'], type: FlowNode['type'], config: FlowConfig = {}): FlowNode => ({ id, type, x: 0, y: 0, config });
 const edge = (from: FlowEdge['from'], port: FlowEdge['port'], to: FlowEdge['to']): FlowEdge => ({ id: `${from}-${port}-${to}`, from, port, to });
@@ -503,7 +503,7 @@ describe('chat word trigger', () => {
   });
 });
 
-describe('specific user condition', () => {
+describe('viewer list and check round-trips', () => {
   const trigger = node('t', 'twitch.follow');
   const gate = node('u', 'cond.user', { login: 'itsbagelbot', userId: '123456' });
   const yes = node('y', 'reply.chat', { message: 'yes' });
@@ -523,11 +523,28 @@ describe('specific user condition', () => {
     expect(result).toEqual({ ok: false, issues: [{ path: 'nodes.u', code: 'user_not_resolved' }] });
   });
 
-  test('the id comes back, the display login has nowhere to live in the definition', () => {
-    const definition = lowered(flow([trigger, gate, yes], [edge('t', 'next', 'u'), edge('u', 'yes', 'y')]));
-    expect(JSON.stringify(definition)).not.toContain('itsbagelbot');
-    expect(rebuilt(definition).nodes[1]).toMatchObject({ type: 'cond.user', config: { userId: '123456' } });
-    expect(rebuilt(definition).nodes[1]!.config.login).toBeUndefined();
+  test.each<{ type: FlowNode['type']; condition: Condition; config?: FlowConfig; opened: FlowConfig; unresolved?: true }>([
+    { type: 'cond.user', condition: users, config: gate.config, opened: { mode: 'only', users: '123456:' } },
+    { type: 'cond.user', condition: { type: 'users', params: { allow_ids: ['1', '2', '3'] } }, config: { users: '1:alice,2:bob,3:carol' }, opened: { mode: 'only', users: '1:,2:,3:' } },
+    { type: 'cond.user', condition: { type: 'users', params: { deny_ids: ['2', '3'] } }, opened: { mode: 'except', users: '2:,3:' } },
+    { type: 'cond.user', condition: { type: 'users', params: { allow: [SETUP_LOGIN] } }, opened: { mode: 'only', login: SETUP_LOGIN } },
+    { type: 'cond.user', condition: { type: 'users', params: { allow: ['alice', 'bob'], allow_ids: ['3'] } }, opened: { mode: 'only', users: '3:,:alice,:bob' }, unresolved: true },
+    { type: 'cond.user', condition: { type: 'users', params: { deny: ['alice'] } }, opened: { mode: 'except', users: ':alice' }, unresolved: true },
+    { type: 'cond.live', condition: { type: 'live', params: { state: 'offline' } }, opened: { state: 'offline' } },
+    { type: 'cond.category', condition: { type: 'category', params: { allow: ['Just Chatting', 'Minecraft'] } }, config: { games: ' Just Chatting, , Minecraft ' }, opened: { mode: 'allow', games: 'Just Chatting, Minecraft' } },
+    { type: 'cond.category', condition: { type: 'category', params: { deny: ['Minecraft'] } }, opened: { mode: 'deny', games: 'Minecraft' } },
+    { type: 'cond.pattern', condition: { type: 'arg_regex', params: { pattern: '^[0-9]+$' } }, opened: { pattern: '^[0-9]+$' } },
+    { type: 'cond.follow', condition: { type: 'follow', params: { min_days: 0 } }, opened: { minDays: 0 } },
+    { type: 'cond.follow', condition: { type: 'follow', params: { min_days: 30 } }, opened: { minDays: 30 } },
+    { type: 'cond.accountAge', condition: { type: 'account_age', params: { min_days: 7 } }, opened: { minDays: 7 } }
+  ])('$type opens $condition.params', ({ type, condition, config, opened, unresolved }) => {
+    const start = node('t', 'twitch.chat.command', { trigger: '!check' });
+    const board = flow([start, node('u', type, config ?? opened), yes], [edge('t', 'next', 'u'), edge('u', 'yes', 'y')]);
+    const definition = { ...lowered(flow([start, yes], [edge('t', 'next', 'y')])), conditions: [condition] };
+    const restored = rebuilt(definition).nodes[1]!;
+    expect({ type: restored.type, config: restored.config, saved: flowToDefinition(board) }).toEqual({
+      type, config: opened, saved: unresolved ? { ok: false, issues: [{ path: 'nodes.u', code: 'user_not_resolved' }] } : { ok: true, value: definition }
+    });
   });
 
   test.each([
@@ -559,12 +576,9 @@ describe('specific user condition', () => {
   });
 
   test.each([
-    ['several allowed', { allow_ids: ['1', '2'] }],
-    ['an id deny list', { allow_ids: ['1'], deny_ids: ['2'] }],
-    ['a login list beside the id', { allow_ids: ['1'], allow: ['a'] }],
-    ['only logins', { allow: ['a'] }],
-    ['only a deny list', { deny: ['b'] }]
-  ])('%s is not drawn as one user', (_label, params) => {
+    ['allow and deny IDs', { allow_ids: ['1'], deny_ids: ['2'] }],
+    ['allow IDs and deny logins', { allow_ids: ['1'], deny: ['b'] }]
+  ])('%s is not drawn as one viewer list', (_label, params) => {
     const result = definitionToFlow({ version: 1, trigger: { type: 'event', params: { kind: 'channel.follow' } }, conditions: [{ type: 'users', params }], actions: [chat('a')] }, meta);
     expect(result).toEqual({ ok: false, issues: [{ path: 'conditions[0]', code: 'unsupported_condition' }] });
   });

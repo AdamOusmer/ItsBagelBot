@@ -35,6 +35,7 @@ export function requirementTrigger(flow: Flow): RequirementTrigger {
 }
 
 export function stepRequirementFor(spec: NodeSpec, trigger: RequirementTrigger): StepRequirement | null {
+  if (spec.type === 'cond.pattern') return stepRequirement('arg_regex', trigger);
   return spec.kind === 'reply' ? stepRequirement(spec.type.slice('reply.'.length), trigger) : null;
 }
 
@@ -58,10 +59,31 @@ export function roleWarning(t: Translate, flow: Flow, node: FlowNode | undefined
 const neverBlocks = (node: FlowNode): boolean => (node.config.level || 'everyone') === 'everyone';
 const alwaysPasses = (node: FlowNode): boolean => Number(node.config.percent) >= 100;
 
-export function checkNote(t: Translate, node: FlowNode | undefined): string | null {
-  if (node?.type === 'cond.role') return neverBlocks(node) ? t('flows.step.condition.role.everyoneNote') : null;
-  if (node?.type === 'cond.chance') return alwaysPasses(node) ? t('flows.step.condition.chance.alwaysNote') : null;
-  return null;
+function lacksViewer(flow: Flow | undefined): boolean {
+  const trigger = flow?.nodes.map((entry) => specFor(entry.type)).find((spec) => spec?.kind === 'trigger');
+  if (trigger?.type === 'countdown.finished') return false;
+  return !trigger?.provides?.some((variable) => variable.token === '{user.id}');
+}
+
+const CHECK_NOTE_RULES: Readonly<Record<FlowNode['type'], (node: FlowNode, flow?: Flow) => boolean>> = Object.freeze({
+  'cond.role': (node: FlowNode) => neverBlocks(node),
+  'cond.chance': (node: FlowNode) => alwaysPasses(node),
+  'cond.follow': (_node: FlowNode, flow?: Flow) => lacksViewer(flow)
+});
+
+const CHECK_NOTE_KEYS: Readonly<Record<FlowNode['type'], MessageKey>> = Object.freeze({
+  'cond.role': 'flows.step.condition.role.everyoneNote',
+  'cond.chance': 'flows.step.condition.chance.alwaysNote',
+  'cond.follow': 'flows.step.condition.follow.viewerNote'
+});
+
+export const hasCheckNote = (node: FlowNode): boolean => Object.hasOwn(CHECK_NOTE_RULES, node.type);
+
+const showsCheckNote = (node: FlowNode, flow?: Flow): boolean => hasCheckNote(node) && CHECK_NOTE_RULES[node.type]!(node, flow);
+
+export function checkNote(t: Translate, node: FlowNode | undefined, flow?: Flow): string | null {
+  if (!node || !showsCheckNote(node, flow)) return null;
+  return t(CHECK_NOTE_KEYS[node.type]!);
 }
 
 const known = (key: string, text: string): string => (text === key ? '' : text);

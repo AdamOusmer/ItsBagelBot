@@ -36,18 +36,15 @@
     }
   },
   "user": {
-    "label": "Usuário específico",
-    "summary": "Apenas este espectador passa",
+    "label": "Lista de espectadores",
+    "summary": "Permita ou bloqueie espectadores selecionados",
+    "repick": "Selecione novamente para salvar pelo ID",
+    "removeViewer": "Remover {name}",
     "field": {
-      "login": {
-        "label": "Nome de usuário",
-        "placeholder": "itsbagelbot"
-      }
+      "mode": { "label": "Modo", "option": { "only": "Apenas estes espectadores", "except": "Todos exceto estes" } },
+      "users": { "label": "Espectadores", "placeholder": "itsbagelbot" }
     },
-    "out": {
-      "yes": "Este usuário",
-      "no": "Qualquer outro"
-    }
+    "out": { "yes": "Permitido", "no": "Bloqueado" }
   },
   "cooldown": {
     "label": "Intervalo de espera",
@@ -149,5 +146,45 @@
       "value": { "label": "Valor", "placeholder": "10" }
     },
     "out": { "yes": "Sim", "no": "Não" }
+  },
+  "live": {
+    "label": "Ao vivo ou offline",
+    "summary": "Verifique se a transmissão está ao vivo",
+    "field": { "state": { "label": "A transmissão está", "option": { "live": "Ao vivo", "offline": "Offline" } } },
+    "line": { "live": "A transmissão está ao vivo", "offline": "A transmissão está offline" },
+    "out": { "yes": "Ao vivo", "no": "Offline" }
+  },
+  "category": {
+    "label": "Categoria do jogo",
+    "summary": "Verifique a categoria definida no seu canal",
+    "field": {
+      "mode": { "label": "Modo", "option": { "allow": "Está na lista", "deny": "Não está na lista" } },
+      "games": { "label": "Jogos", "hint": "Usa a categoria definida no seu canal, mesmo quando você está offline." }
+    },
+    "line": { "allow": "O jogo é {games}", "deny": "O jogo não é {games}" },
+    "out": { "yes": "Corresponde", "no": "Outro jogo" }
+  },
+  "pattern": {
+    "label": "O texto do comando corresponde",
+    "summary": "Verifique as palavras após um comando do chat",
+    "field": { "pattern": { "label": "Padrão", "hint": "Um padrão para as palavras após o comando, por exemplo ^[0-9]+$." } },
+    "line": "O texto do comando corresponde a {pattern}",
+    "out": { "yes": "Corresponde", "no": "Não corresponde" }
+  },
+  "follow": {
+    "label": "Segue você",
+    "summary": "Verifique há quanto tempo o espectador segue você",
+    "field": { "minDays": { "label": "Há pelo menos", "unit": "dias" } },
+    "line": "Segue você há {minDays} dias ou mais",
+    "lineAny": "Segue você",
+    "viewerNote": "Reconhece apenas espectadores que iniciam esta receita.",
+    "out": { "yes": "Segue", "no": "Não segue" }
+  },
+  "accountAge": {
+    "label": "Idade da conta",
+    "summary": "Verifique a idade da conta do espectador na Twitch",
+    "field": { "minDays": { "label": "Pelo menos", "unit": "dias" } },
+    "line": "A conta tem {minDays} dias ou mais",
+    "out": { "yes": "Atende à idade mínima", "no": "Recente demais" }
   }
 }

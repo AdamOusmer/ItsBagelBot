@@ -27,7 +27,7 @@ const defaults = {
   'twitch.reward': {},
   'countdown.finished': {},
   'cond.role': { level: 'mod' },
-  'cond.user': {},
+  'cond.user': { mode: 'only' },
   'cond.cooldown': { channelSeconds: 30, viewerSeconds: 0 },
   'cond.compare': { op: 'gte', matchCase: false },
   'cond.chance': { percent: 50 },
@@ -68,7 +68,12 @@ const defaults = {
   'reply.text': { op: 'upper' },
   'reply.math': {},
   'reply.http_get': {},
-  'reply.http_post': {}
+  'reply.http_post': {},
+  'cond.live': { state: 'live' },
+  'cond.category': { mode: 'allow' },
+  'cond.pattern': {},
+  'cond.follow': { minDays: 0 },
+  'cond.accountAge': { minDays: 7 }
 } satisfies Record<keyof typeof STEP_PLACEMENT, FlowNode['config']>;
 
 test.each(NODE_SPECS)('$type gets its expected config when added', (spec) => {
@@ -80,7 +85,9 @@ test.each(NODE_SPECS)('$type gets its expected config when added', (spec) => {
 
 const invalidDefaults = new Set(['out_of_range', 'invalid_enum', 'too_short']);
 const requiredSetup: Record<string, FlowNode['config']> = {
-  'cond.user': { userId: '42' },
+  'cond.user': { users: '42:' },
+  'cond.category': { games: 'Minecraft' },
+  'cond.pattern': { pattern: '^[0-9]+$' },
   'reply.poll': { choices: 'First\nSecond' },
   'reply.prediction': { outcomes: 'First\nSecond' }
 };
@@ -88,7 +95,9 @@ const requiredSetup: Record<string, FlowNode['config']> = {
 test.each(NODE_SPECS)('$type lowers and validates its defaults with a broadcaster check', (spec) => {
   const flow = newFlow('Validate defaults');
   const isTrigger = spec.kind === 'trigger';
-  const trigger = addNode(flow, isTrigger ? spec.type : 'twitch.follow', at);
+  const triggerType = spec.type === 'cond.pattern' ? 'twitch.chat.command' : 'twitch.follow';
+  const trigger = addNode(flow, isTrigger ? spec.type : triggerType, at);
+  if (spec.type === 'cond.pattern') trigger.config.trigger = '!check';
   const gate = addNode(flow, 'cond.role', at, { from: trigger.id, port: 'next' });
   gate.config.level = 'broadcaster';
   const node = isTrigger ? gate : addNode(flow, spec.type, at, { from: gate.id, port: 'yes' });

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey } from '@bagel/kit';
-import { compactDuration, cooldownWindows } from '@bagel/kit/automations';
+import { compactDuration, cooldownWindows, flowList, viewerList } from '@bagel/kit/automations';
 import { optionText, outputLabel, stepSummary } from './copy';
 import type { Translate } from './messages';
 import { LINKED_REWARD_CHOICE, specFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
@@ -141,6 +141,18 @@ function varCheckLine(t: Translate, n: FlowNode): string {
   return t('flows.line.varCheck', { name, op: optionLabel(t, spec, n, 'op'), value: text(n, 'value') });
 }
 
+export function viewerNames(node: FlowNode): string[] {
+  return viewerList(node.config).map(({ id, login }) => login ? `@${login}` : id);
+}
+
+function viewerLine(t: Translate, n: FlowNode): string {
+  const [first, second, ...remaining] = viewerNames(n);
+  if (!first) return '';
+  const pair = second ? t('flows.line.userPair', { first, second }) : first;
+  const user = remaining.length ? t('flows.line.userMore', { first, second: second!, count: remaining.length }) : pair;
+  return t(n.config.mode === 'except' ? 'flows.line.userExcept' : 'flows.line.userOnly', { user });
+}
+
 function conditionLine(t: Translate, n: FlowNode): string {
   switch (n.type) {
     case 'cond.var':
@@ -148,7 +160,7 @@ function conditionLine(t: Translate, n: FlowNode): string {
     case 'cond.role':
       return roleLine(t, text(n, 'level') || 'everyone');
     case 'cond.user':
-      return given(text(n, 'login') || text(n, 'userId'), (user) => t('flows.line.userOnly', { user }));
+      return viewerLine(t, n);
     case 'cond.cooldown':
       return cooldownLine(t, n);
     case 'cond.compare':
@@ -268,14 +280,29 @@ function lineVariant(value: ConfigValue): string {
 }
 
 function lineValue(t: Translate, node: FlowNode, spec: NodeSpec, key: string): string {
+  if (node.type === 'cond.category' && key === 'games') return gamesLine(t, node);
+  if (node.type === 'cond.accountAge' && key === 'minDays') return String(node.config.minDays ?? 7);
   if (!text(node, key)) return '';
   const field = spec.fields.find((entry) => entry.key === key);
   if (field?.type === 'duration') return given(num(node, key), durationFormatter(t));
   return optionLabel(t, spec, node, key);
 }
 
+function gamesLine(t: Translate, node: FlowNode): string {
+  const games = flowList(node.config.games);
+  if (games.length < 2) return games[0] ?? '';
+  return t('flows.line.gameAlternatives', { first: games.slice(0, -1).join(', '), last: games.at(-1)! });
+}
+
+function specLineVariant(node: FlowNode, spec: NodeSpec): string {
+  if (!spec.lineBy) return '';
+  const initial = spec.kind === 'condition' ? spec.fields.find((field) => field.key === spec.lineBy)?.initial : undefined;
+  return `.${lineVariant(node.config[spec.lineBy] ?? initial)}`;
+}
+
 function specLine(t: Translate, node: FlowNode, spec: NodeSpec): string | undefined {
-  const suffix = spec.lineBy ? `.${lineVariant(node.config[spec.lineBy])}` : '';
+  if (node.type === 'cond.follow' && !num(node, 'minDays')) return t('flows.step.condition.follow.lineAny');
+  const suffix = specLineVariant(node, spec);
   const template = t(`flows.step.${spec.kind}.${spec.slug}.line${suffix}` as MessageKey);
   if (template === `flows.step.${spec.kind}.${spec.slug}.line${suffix}`) return undefined;
   let missing = false;
@@ -290,6 +317,7 @@ function specLine(t: Translate, node: FlowNode, spec: NodeSpec): string | undefi
 export function portLabel(t: Translate, node: FlowNode, id: string): string {
   const percent = node.type === 'cond.chance' ? num(node, 'percent') : 0;
   if (percent) return id === 'yes' ? t('flows.line.chanceYes', { percent }) : t('flows.line.chanceNo');
+  if (node.type === 'cond.live' && node.config.state === 'offline') id = id === 'yes' ? 'no' : 'yes';
   const spec = specFor(node.type);
   return spec ? outputLabel(t, spec, id) : '';
 }

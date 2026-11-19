@@ -20,7 +20,7 @@
   import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import DurationField from '#lib/components/shared/DurationField.svelte';
-  import { checkNote, durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, stepLabel, stepRequirementFor, stepSummary, targetOptions, variableLabel } from '#lib/flow/copy';
+  import { checkNote, durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, hasCheckNote, requirementText, requirementTrigger, roleWarning, stepLabel, stepRequirementFor, stepSummary, targetOptions, variableLabel } from '#lib/flow/copy';
   import { defaultComparison } from '#lib/flow/comparison';
   import { fieldMounted, fieldVisible, migrateCooldownConfig, NODE_SPECS, outputsFor, specFor, targetFieldFor, targetModesFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
   import { duplicateNode, hasCheckBefore, insertCheckBefore } from '#lib/flow/ops';
@@ -98,7 +98,8 @@
   const addedCheck = $derived(roleLevel ? hasCheckBefore(flow, node?.id ?? '', roleLevel) : false);
   const removeCheck = $derived(roleWarning(t, flow, node));
   const roleNote = $derived(requirement ? requirementText(t, requirement, addedCheck ? 'start' : 'note') : removeCheck);
-  const passingNote = $derived(checkNote(t, node));
+  const patternSample = $derived(node?.type === 'cond.pattern' ? rehearsal.steps.find((step) => step.id === node?.id && step.kind === 'check')?.text : undefined);
+  const passingNote = $derived(patternSample ?? checkNote(t, node, flow));
   const canAddCheck = $derived(roleLevel ? incoming.length > 0 && !addedCheck : false);
   const checkAction = $derived(canAddCheck || Boolean(removeCheck));
   const automaticComparisons = new Map<FlowNode['id'], boolean>();
@@ -318,7 +319,7 @@
           <Button variant="ghost" onclick={changeCheck}><bb-fit>{t(removeCheck ? 'flows.step.condition.role.remove' : 'flows.step.requirement.addCheck')}</bb-fit></Button>
         </div>
       </div>
-      {#if node.type === 'cond.role' || node.type === 'cond.chance'}
+      {#if hasCheckNote(node) || node.type === 'cond.pattern'}
         <p class="note check-note bb-fit-box" class:faded={!passingNote} role="status"><bb-fit data-fit mode="block">{passingNote ?? ''}</bb-fit></p>
       {/if}
       {#if spec.fields.length}
@@ -451,7 +452,7 @@
               <GoveeLightField {node} {tag} fieldError={error} id="{uid}-{field.key}" onConfig={(config) => (node.config = config)} />
             {:else if field.type === 'login'}
               {#key node.id}
-                <UserField {node} id="{uid}-{field.key}" {label} {placeholder} tag={targetFieldFor(spec) ? undefined : tag} error={disabled ? undefined : error} fixedStatus={targetFieldFor(spec)} />
+                <UserField {node} id="{uid}-{field.key}" {label} {placeholder} tag={targetFieldFor(spec) ? undefined : tag} error={disabled ? undefined : error} fixedStatus={targetFieldFor(spec)} multiple={node.type === 'cond.user'} />
               {/key}
             {:else}
               <Field {label} {tag} {error} for="{uid}-{field.key}">

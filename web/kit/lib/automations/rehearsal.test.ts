@@ -128,7 +128,13 @@ const conditionCases: ConditionCase[] = [
   { type: 'category', params: { allow: ['minecraft'] }, scenario: { game: 'Minecraft' }, expected: 'yes' },
   { type: 'category', params: { deny: ['minecraft'], allow: ['Minecraft'] }, scenario: { game: 'Minecraft' }, expected: 'no' },
   { type: 'category', params: { allow: ['minecraft'] }, expected: 'yes' },
-  { type: 'category', params: { allow: ['minecraft'] }, overrides: { 'actions[0]': 'no' }, expected: 'no' }
+  { type: 'category', params: { allow: ['minecraft'] }, overrides: { 'actions[0]': 'no' }, expected: 'no' },
+  { type: 'follow', params: { min_days: 0 }, expected: 'yes' },
+  { type: 'follow', params: { min_days: 30 }, overrides: { 'actions[0]': 'no' }, expected: 'no' },
+  { type: 'follow', params: { min_days: 0 }, scenario: { userId: undefined }, overrides: { 'actions[0]': 'yes' }, expected: 'no' },
+  { type: 'account_age', params: { min_days: 7 }, expected: 'yes' },
+  { type: 'account_age', params: { min_days: 7 }, overrides: { 'actions[0]': 'no' }, expected: 'no' },
+  { type: 'account_age', params: { min_days: 7 }, scenario: { userId: undefined }, overrides: { 'actions[0]': 'yes' }, expected: 'no' }
 ];
 
 test.each(conditionCases)('$name $type $params', (row) => {

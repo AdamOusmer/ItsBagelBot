@@ -108,16 +108,20 @@ describe('step copy', () => {
     expect(describeNode(english, { id: 'c', type: 'cond.cooldown', x: 0, y: 0, config })).toBe(line);
   });
 
-  test.each<{ type: string; config: FlowNode['config']; note: string | null }>([
+  test.each<{ type: string; config: FlowNode['config']; note: string | null; trigger?: FlowNode['type'] }>([
     { type: 'cond.role', config: { level: 'everyone' }, note: 'Everyone passes, so this check never blocks.' },
     { type: 'cond.role', config: { level: '' }, note: 'Everyone passes, so this check never blocks.' },
     { type: 'cond.role', config: { level: 'mod' }, note: null },
     { type: 'cond.chance', config: { percent: 99 }, note: null },
     { type: 'cond.chance', config: { percent: 100 }, note: 'Always passes.' },
     { type: 'cond.chance', config: { percent: '100' }, note: 'Always passes.' },
-    { type: 'cond.chance', config: { percent: 101 }, note: 'Always passes.' }
-  ])('$type with $config shows $note', ({ type, config, note }) => {
-    expect(checkNote(english, { id: 'n', type, x: 0, y: 0, config })).toBe(note);
+    { type: 'cond.chance', config: { percent: 101 }, note: 'Always passes.' },
+    { type: 'cond.follow', config: {}, trigger: 'twitch.stream.offline', note: 'Only knows viewers that start this recipe.' },
+    { type: 'cond.follow', config: {}, trigger: 'twitch.chat.command', note: null }
+  ])('$type with $config shows $note', ({ type, config, note, trigger }) => {
+    const flow = newFlow('Check notes');
+    if (trigger) flow.nodes = [{ id: 't', type: trigger, x: 0, y: 0, config: {} }];
+    expect(checkNote(english, { id: 'n', type, x: 0, y: 0, config }, flow)).toBe(note);
   });
 
   test('unknown ports ask to reconnect the connection', () => {

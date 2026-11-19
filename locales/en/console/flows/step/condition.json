@@ -33,12 +33,15 @@
     "out": { "yes": "Allowed", "no": "Blocked" }
   },
   "user": {
-    "label": "Specific user",
-    "summary": "Only this viewer passes",
+    "label": "Viewer list",
+    "summary": "Allow or block selected viewers",
+    "repick": "Re-pick to save by id",
+    "removeViewer": "Remove {name}",
     "field": {
-      "login": { "label": "Username", "placeholder": "itsbagelbot" }
+      "mode": { "label": "Mode", "option": { "only": "Only these viewers", "except": "Everyone except these" } },
+      "users": { "label": "Viewers", "placeholder": "itsbagelbot" }
     },
-    "out": { "yes": "This user", "no": "Anyone else" }
+    "out": { "yes": "Passes", "no": "Blocked" }
   },
   "cooldown": {
     "label": "Cooldown",
@@ -98,5 +101,45 @@
       "value": { "label": "Value", "placeholder": "10" }
     },
     "out": { "yes": "Yes", "no": "No" }
+  },
+  "live": {
+    "label": "Live or offline",
+    "summary": "Check whether your stream is live",
+    "field": { "state": { "label": "Stream is", "option": { "live": "Live", "offline": "Offline" } } },
+    "line": { "live": "Stream is live", "offline": "Stream is offline" },
+    "out": { "yes": "Live", "no": "Offline" }
+  },
+  "category": {
+    "label": "Game category",
+    "summary": "Check the category set on your channel",
+    "field": {
+      "mode": { "label": "Mode", "option": { "allow": "Is one of", "deny": "Is not one of" } },
+      "games": { "label": "Games", "hint": "Uses the category set on your channel, even when offline." }
+    },
+    "line": { "allow": "Game is {games}", "deny": "Game is not {games}" },
+    "out": { "yes": "Matches", "no": "Other game" }
+  },
+  "pattern": {
+    "label": "Command text matches",
+    "summary": "Match the words after a chat command",
+    "field": { "pattern": { "label": "Pattern", "hint": "A pattern for the words after the command, for example ^[0-9]+$." } },
+    "line": "Command text matches {pattern}",
+    "out": { "yes": "Matches", "no": "No match" }
+  },
+  "follow": {
+    "label": "Follows you",
+    "summary": "Check how long the viewer has followed you",
+    "field": { "minDays": { "label": "For at least", "unit": "days" } },
+    "line": "Follows you for {minDays} days or more",
+    "lineAny": "Follows you",
+    "viewerNote": "Only knows viewers that start this recipe.",
+    "out": { "yes": "Following", "no": "Not following" }
+  },
+  "accountAge": {
+    "label": "Account age",
+    "summary": "Check how old the viewer’s Twitch account is",
+    "field": { "minDays": { "label": "At least", "unit": "days" } },
+    "line": "Account is {minDays} days old or more",
+    "out": { "yes": "Old enough", "no": "Too new" }
   }
 }

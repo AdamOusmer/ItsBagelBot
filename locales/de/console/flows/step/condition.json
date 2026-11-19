@@ -36,18 +36,15 @@
     }
   },
   "user": {
-    "label": "Bestimmter Nutzer",
-    "summary": "Nur diesen Zuschauer durchlassen",
+    "label": "Zuschauerliste",
+    "summary": "Ausgewählte Zuschauer zulassen oder blockieren",
+    "repick": "Erneut auswählen, um die ID zu speichern",
+    "removeViewer": "{name} entfernen",
     "field": {
-      "login": {
-        "label": "Benutzername",
-        "placeholder": "itsbagelbot"
-      }
+      "mode": { "label": "Modus", "option": { "only": "Nur diese Zuschauer", "except": "Alle außer diesen" } },
+      "users": { "label": "Zuschauer", "placeholder": "itsbagelbot" }
     },
-    "out": {
-      "yes": "Dieser Nutzer",
-      "no": "Alle anderen"
-    }
+    "out": { "yes": "Zugelassen", "no": "Blockiert" }
   },
   "cooldown": {
     "label": "Abklingzeit",
@@ -149,5 +146,45 @@
       "value": { "label": "Wert", "placeholder": "10" }
     },
     "out": { "yes": "Ja", "no": "Nein" }
+  },
+  "live": {
+    "label": "Live oder offline",
+    "summary": "Prüfen, ob dein Stream live ist",
+    "field": { "state": { "label": "Stream ist", "option": { "live": "Live", "offline": "Offline" } } },
+    "line": { "live": "Stream ist live", "offline": "Stream ist offline" },
+    "out": { "yes": "Live", "no": "Offline" }
+  },
+  "category": {
+    "label": "Spielkategorie",
+    "summary": "Die auf deinem Kanal eingestellte Kategorie prüfen",
+    "field": {
+      "mode": { "label": "Modus", "option": { "allow": "Ist eine davon", "deny": "Ist keine davon" } },
+      "games": { "label": "Spiele", "hint": "Verwendet die auf deinem Kanal eingestellte Kategorie, auch wenn du offline bist." }
+    },
+    "line": { "allow": "Spiel ist {games}", "deny": "Spiel ist nicht {games}" },
+    "out": { "yes": "Passt", "no": "Anderes Spiel" }
+  },
+  "pattern": {
+    "label": "Befehlstext passt",
+    "summary": "Die Wörter nach einem Chatbefehl prüfen",
+    "field": { "pattern": { "label": "Muster", "hint": "Ein Muster für die Wörter nach dem Befehl, zum Beispiel ^[0-9]+$." } },
+    "line": "Befehlstext passt zu {pattern}",
+    "out": { "yes": "Passt", "no": "Passt nicht" }
+  },
+  "follow": {
+    "label": "Folgt dir",
+    "summary": "Prüfen, wie lange dir der Zuschauer schon folgt",
+    "field": { "minDays": { "label": "Seit mindestens", "unit": "Tagen" } },
+    "line": "Folgt dir seit mindestens {minDays} Tagen",
+    "lineAny": "Folgt dir",
+    "viewerNote": "Erkennt nur Zuschauer, die dieses Rezept starten.",
+    "out": { "yes": "Folgt dir", "no": "Folgt dir nicht" }
+  },
+  "accountAge": {
+    "label": "Kontoalter",
+    "summary": "Das Alter des Twitch-Kontos des Zuschauers prüfen",
+    "field": { "minDays": { "label": "Mindestens", "unit": "Tage" } },
+    "line": "Konto ist mindestens {minDays} Tage alt",
+    "out": { "yes": "Alt genug", "no": "Zu neu" }
   }
 }

@@ -42,14 +42,19 @@
       return { ...group, rows };
     }).filter((group) => group.rows.length > 0);
   });
+  const yesNo = $derived([{ value: 'yes', label: t('flows.test.yes') }, { value: 'no', label: t('flows.test.no') }]);
   const choices = $derived({
-    'cond.chance': [{ value: 'yes', label: t('flows.test.yes') }, { value: 'no', label: t('flows.test.no') }],
+    'cond.chance': yesNo,
     'cond.cooldown': [{ value: 'ready', label: t('flows.test.ready') }, { value: 'cooling', label: t('flows.test.cooling') }],
     'reply.http_get': [{ value: 'ok', label: t('flows.test.worked') }, { value: 'failure', label: t('flows.test.apiFailed') }],
-    'reply.http_post': [{ value: 'ok', label: t('flows.test.worked') }, { value: 'failure', label: t('flows.test.apiFailed') }]
+    'reply.http_post': [{ value: 'ok', label: t('flows.test.worked') }, { value: 'failure', label: t('flows.test.apiFailed') }],
+    'cond.category': yesNo,
+    'cond.follow': yesNo,
+    'cond.accountAge': yesNo
   } as Record<string, { value: string; label: string }[]>);
   const defaults: Record<string, Record<string, string>> = { 'cond.chance': { yes: 'yes', no: 'no' }, 'cond.cooldown': { yes: 'ready', no: 'cooling' } };
-  const initial = (step: RehearsalStep) => defaults[step.node?.type ?? '']?.[step.port ?? ''] ?? step.port ?? 'ok';
+  const pretendYes = new Set(['cond.category', 'cond.follow', 'cond.accountAge']);
+  const initial = (step: RehearsalStep) => pretendYes.has(step.node?.type ?? '') ? 'yes' : defaults[step.node?.type ?? '']?.[step.port ?? ''] ?? step.port ?? 'ok';
 
   function blockedChance(step: RehearsalStep, choice: string): boolean {
     if (step.node?.type !== 'cond.chance') return false;

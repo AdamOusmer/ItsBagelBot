@@ -36,18 +36,15 @@
     }
   },
   "user": {
-    "label": "Utilisateur spécifique",
-    "summary": "Seul ce viewer passe",
+    "label": "Liste de spectateurs",
+    "summary": "Autoriser ou bloquer les spectateurs sélectionnés",
+    "repick": "Resélectionner pour enregistrer l’identifiant",
+    "removeViewer": "Retirer {name}",
     "field": {
-      "login": {
-        "label": "Nom d’utilisateur",
-        "placeholder": "itsbagelbot"
-      }
+      "mode": { "label": "Mode", "option": { "only": "Seulement ces spectateurs", "except": "Tous sauf ceux-ci" } },
+      "users": { "label": "Spectateurs", "placeholder": "itsbagelbot" }
     },
-    "out": {
-      "yes": "Cet utilisateur",
-      "no": "Tout autre utilisateur"
-    }
+    "out": { "yes": "Autorisé", "no": "Bloqué" }
   },
   "cooldown": {
     "label": "Délai de recharge",
@@ -149,5 +146,45 @@
       "value": { "label": "Valeur", "placeholder": "10" }
     },
     "out": { "yes": "Oui", "no": "Non" }
+  },
+  "live": {
+    "label": "En direct ou hors ligne",
+    "summary": "Vérifier si le stream est en direct",
+    "field": { "state": { "label": "Le stream est", "option": { "live": "En direct", "offline": "Hors ligne" } } },
+    "line": { "live": "Le stream est en direct", "offline": "Le stream est hors ligne" },
+    "out": { "yes": "En direct", "no": "Hors ligne" }
+  },
+  "category": {
+    "label": "Catégorie de jeu",
+    "summary": "Vérifier la catégorie choisie sur ta chaîne",
+    "field": {
+      "mode": { "label": "Mode", "option": { "allow": "Fait partie de la liste", "deny": "Ne fait pas partie de la liste" } },
+      "games": { "label": "Jeux", "hint": "Utilise la catégorie choisie sur ta chaîne, même quand elle est hors ligne." }
+    },
+    "line": { "allow": "Le jeu est {games}", "deny": "Le jeu est différent de {games}" },
+    "out": { "yes": "Correspond", "no": "Autre jeu" }
+  },
+  "pattern": {
+    "label": "Le texte de la commande correspond",
+    "summary": "Vérifier les mots qui suivent une commande du chat",
+    "field": { "pattern": { "label": "Motif", "hint": "Un motif pour les mots qui suivent la commande, par exemple ^[0-9]+$." } },
+    "line": "Le texte de la commande correspond à {pattern}",
+    "out": { "yes": "Correspond", "no": "Ne correspond pas" }
+  },
+  "follow": {
+    "label": "Te suit",
+    "summary": "Vérifier depuis quand le spectateur te suit",
+    "field": { "minDays": { "label": "Depuis au moins", "unit": "jours" } },
+    "line": "Te suit depuis au moins {minDays} jours",
+    "lineAny": "Te suit",
+    "viewerNote": "Reconnaît uniquement les spectateurs qui lancent cette recette.",
+    "out": { "yes": "Te suit", "no": "Ne te suit pas" }
+  },
+  "accountAge": {
+    "label": "Âge du compte",
+    "summary": "Vérifier l’âge du compte Twitch du spectateur",
+    "field": { "minDays": { "label": "Au moins", "unit": "jours" } },
+    "line": "Le compte a au moins {minDays} jours",
+    "out": { "yes": "Assez ancien", "no": "Trop récent" }
   }
 }

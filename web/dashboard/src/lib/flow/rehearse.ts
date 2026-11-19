@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey, RehearsedLine } from '@bagel/kit';
-import { comparePasses, compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition } from '@bagel/kit/automations';
+import { comparePasses, compileFlow, configKey, defaultScenario, locateIssues, matchTrigger, rehearseDefinition, SCENARIO_FIELDS, SETUP_LOGIN, scenarioArgs, scenarioIdentity, scenarioKind, scenarioPatches, validateDefinition, viewerIdKey, viewerList } from '@bagel/kit/automations';
 import type { Definition, Issue, RehearsalEvent, RehearsalOverrides, RehearsalScenario, ScenarioField } from '@bagel/kit/automations';
 export type { RehearsalOverrides, RehearsalScenario, ScenarioField, ScenarioValue } from '@bagel/kit/automations';
 import { fieldIssueMessage, fieldLabel, roleWarning, stepLabel, variableLabel } from './copy';
-import { describe, durationFormatter } from './describe';
+import { describe, durationFormatter, viewerNames } from './describe';
 import { issueMessage, stepOf, type Translate } from './messages';
 import { NODE_SPECS, specFor, type Flow, type FlowNode } from './model';
 import { fieldIssues, fieldRequired, type FieldIssue } from './issues';
@@ -72,7 +72,10 @@ function repairDraft(flow: Flow, issues: Issue[]): Flow {
 function repairField(nodes: FlowNode[], issue: Issue): void {
   const node = nodes.find((node) => node.id === stepOf([issue], nodes));
   if (!node) return;
-  if (issue.code === 'user_not_resolved') node.config.userId = '0';
+  if (issue.code === 'user_not_resolved') {
+    delete node.config.users;
+    node.config.login = SETUP_LOGIN;
+  }
   if (issue.code !== 'unmappable_token') return;
   const [, , field, token] = issue.path.split('.');
   node.config[field!] = String(node.config[field!] ?? '').replaceAll(`{${token}}`, `{unset:${token}}`);
@@ -176,12 +179,28 @@ function compareRepair(node: FlowNode): ScenarioPatch | undefined {
   return comparePasses(op, String(value), right, node.config.matchCase === false) ? { [field]: value } : undefined;
 }
 
+function viewerRepair(node: FlowNode, scenario: RehearsalScenario): ScenarioPatch | undefined {
+  const viewers = viewerList(node.config);
+  if (node.config.mode !== 'except') {
+    const first = viewers[0];
+    return first?.id ? { userId: first.id, user: first.login } : undefined;
+  }
+  const current = viewerIdKey(scenario.userId ?? '');
+  const excluded = viewers.some(({ id }) => id && viewerIdKey(id) === current);
+  return excluded ? { userId: '', user: '' } : undefined;
+}
+
+const REPAIR_CHECKS = new Map<Text, (node: FlowNode, scenario: RehearsalScenario) => ScenarioPatch | undefined>([
+  ['cond.user', viewerRepair],
+  ['cond.live', (node) => ({ live: node.config.state !== 'offline' })],
+  ['cond.compare', compareRepair]
+]);
+
 function checkRepair(node: FlowNode, event: RehearsalEvent, context: RunContext): ScenarioPatch | undefined {
   if (event.status !== 'no') return undefined;
   const fields = SCENARIO_FIELDS[scenarioKind(context.compiled.definition)] ?? [];
   if (node.type === 'cond.role') return fields.some((field) => field.key === 'role') ? { role: node.config.level as RehearsalScenario['role'] } : undefined;
-  if (node.type === 'cond.user') return node.config.userId ? { userId: String(node.config.userId), user: String(node.config.login) } : undefined;
-  const patch = node.type === 'cond.compare' ? compareRepair(node) : undefined;
+  const patch = REPAIR_CHECKS.get(node.type)?.(node, context.scenario);
   return possiblePatch(context, fields, patch);
 }
 
@@ -192,9 +211,24 @@ function possiblePatch(context: RunContext, fields: readonly ScenarioField[], pa
   return patch;
 }
 
-function checkText(t: Translate, node: FlowNode, scenario: RehearsalScenario): Text {
+function viewerCheck(t: Translate, node: FlowNode, scenario: RehearsalScenario): Text {
+  const actual = scenario.userId || t('flows.test.notSet');
+  const expected = viewerNames(node).join(', ') || t('flows.test.notSet');
+  return t(node.config.mode === 'except' ? 'flows.test.userExceptCheck' : 'flows.test.userCheck', { actual, expected });
+}
+
+function liveCheck(t: Translate, node: FlowNode, scenario: RehearsalScenario): Text {
+  const actual = t(scenario.live ? 'flows.step.condition.live.field.state.option.live' : 'flows.step.condition.live.field.state.option.offline');
+  const expected = t(node.config.state === 'offline' ? 'flows.step.condition.live.field.state.option.offline' : 'flows.step.condition.live.field.state.option.live');
+  return t('flows.test.liveCheck', { actual, expected });
+}
+
+function checkText(t: Translate, node: FlowNode, scenario: RehearsalScenario, event: RehearsalEvent): Text {
   if (node.type === 'cond.role') return t('flows.test.roleCheck', { actual: scenarioRoleLabel(t, scenario.role ?? 'viewer'), expected: scenarioRoleLabel(t, String(node.config.level ?? 'viewer')) });
-  if (node.type === 'cond.user') return t('flows.test.userCheck', { actual: scenario.userId ?? t('flows.test.notSet'), expected: String(node.config.userId || t('flows.test.notSet')) });
+  if (node.type === 'cond.user') return viewerCheck(t, node, scenario);
+  if (node.type === 'cond.live') return liveCheck(t, node, scenario);
+  if (node.type === 'cond.pattern') return t(event.status === 'yes' ? 'flows.test.patternMatch' : 'flows.test.patternMiss', { args: scenario.args || t('flows.test.emptyValue') });
+  if (node.type !== 'cond.compare') return describe(t, node);
   return describe(t, { ...node, config: { ...node.config, left: displayInput(node.config.left, scenario) || t('flows.test.emptyValue'), right: displayInput(node.config.right, scenario) } });
 }
 
@@ -235,7 +269,7 @@ function eventText(t: Translate, event: RehearsalEvent, node: FlowNode | undefin
   const texts = {
     trigger: triggerText(node, scenario, line, t), parallel: '', loop: loopText(t, event),
     wait: t('flows.test.wait', { seconds: Number(detail.ms) / 1000 }),
-    check: node ? checkText(t, node, scenario) : line, effect: line, say: '', skip: line
+    check: node ? checkText(t, node, scenario, event) : line, effect: line, say: '', skip: line
   };
   return texts[event.kind];
 }
@@ -415,6 +449,7 @@ export function rehearseDraft(draft: ReturnType<typeof prepareRehearsal>, t: Tra
   const kind = scenarioKind(definition);
   const fields = SCENARIO_FIELDS[kind] ?? [];
   const scenario = { ...initialScenario(definition), ...scenarioPatches(fields, options.scenario ?? {}) };
+  scenario.args = scenarioArgs(definition, scenario);
   const overrides = executorOverrides(compiled.value, options.overrides ?? {});
   const formatDuration = durationFormatter(t);
   const result = rehearseDefinition(definition, scenario, overrides, formatDuration);
