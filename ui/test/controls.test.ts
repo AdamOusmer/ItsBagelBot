@@ -518,8 +518,8 @@ describe('control stylesheets', () => {
       ],
     },
     {
-      name: 'info joins the toned group',
-      checks: [{ file: 'styles/elements/tag.css', has: ['.bb-tag--info', /\.bb-tag:is\([^)]*\.bb-tag--info\)/] }],
+      name: 'info and skipped join the toned group',
+      checks: [{ file: 'styles/elements/tag.css', has: ['.bb-tag--info', '.bb-tag--skipped', /\.bb-tag:is\([^)]*\.bb-tag--info[,)]/, /\.bb-tag:is\([^)]*\.bb-tag--skipped[,)]/] }],
     },
     {
       name: 'dashed pill dashes every side',

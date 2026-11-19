@@ -27,6 +27,7 @@
 @import './elements/tag.css';
 @import './elements/tabs.css';
 @import './elements/field.css';
+@import './elements/field-sheet.css';
 @import './elements/search-input.css';
 @import './elements/empty-state.css';
 @import './elements/counter-card.css';
