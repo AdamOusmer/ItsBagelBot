@@ -262,7 +262,8 @@
     "line": "Fazer uma raid para {target}",
     "field": {
       "target": {
-        "label": "Nome do canal ou espectador"
+        "label": "Canal de destino da raid",
+        "placeholder": "nome do canal"
       }
     }
   },
@@ -336,15 +337,6 @@
       },
       "resolution": {
         "label": "Mensagem da decisão (opcional)"
-      }
-    }
-  },
-  "brandedContent": {
-    "label": "Definir conteúdo de marca",
-    "summary": "Mostre ou oculte o aviso de promoção paga",
-    "field": {
-      "on": {
-        "label": "Ativado"
       }
     }
   }

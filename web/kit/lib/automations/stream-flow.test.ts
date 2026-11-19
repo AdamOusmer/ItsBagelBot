@@ -2,12 +2,20 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { expect, test } from 'bun:test';
-import { definitionToFlow, flowToDefinition, type Flow } from './flow-graph';
+import { compileFlow, definitionToFlow, flowToDefinition, type Flow, type FlowConfig, type FlowResult } from './flow-graph';
 import { exportFlows, SETUP_LOGIN } from './flow-share';
 import type { Action, Definition } from './types';
 import { validateDefinition } from './validate';
 
 const manual = (actions: Action[]): Definition => ({ version: 1, trigger: { type: 'manual', params: {} }, actions });
+const meta = { id: 'f', name: 'Stream steps', enabled: true };
+const cheer = { type: 'event', params: { kind: 'channel.cheer' } };
+const streamDefinition = (actions: Action[]): Definition => ({ version: 1, trigger: cheer, actions });
+
+function valueOf<T>(result: FlowResult<T>): T {
+  if (!result.ok) throw new Error(JSON.stringify(result.issues));
+  return result.value;
+}
 
 test('stream steps keep event templates and separate options across a save', () => {
   const flow: Flow = {
@@ -62,4 +70,49 @@ test('unban resolution requires the matching event even inside a branch', () => 
   expect(validateDefinition(definition)).toContainEqual({ path: 'actions[0].params.then[0].type', code: 'trigger_mismatch' });
   definition.trigger.params = { kind: 'channel.unban_request.create' };
   expect(validateDefinition(definition)).toEqual([]);
+});
+
+const setTitle = { type: 'set_title', params: { title: 'New title' } };
+const setGame = { type: 'set_game', params: { game: 'Chess' } };
+const streamInfo = { title: '', game: '', tags: '', branded: 'keep' };
+
+test.each([
+  { name: 'consecutive fields', actions: [setTitle, { ...setGame, enabled: true }], configs: [{ ...streamInfo, title: 'New title', game: 'Chess' }] },
+  { name: 'repeated field', actions: [setTitle, setTitle], configs: [streamInfo, streamInfo].map((config) => ({ ...config, title: 'New title' })) },
+  { name: 'different enabled flags', actions: [setTitle, { ...setGame, enabled: false }], configs: [{ ...streamInfo, title: 'New title' }, { ...streamInfo, game: 'Chess', disabled: true }] },
+  { name: 'lone branded content', actions: [{ type: 'branded_content', params: { on: true } }], configs: [{ ...streamInfo, branded: 'on' }] }
+] satisfies { name: string; actions: Action[]; configs: FlowConfig[] }[])('$name open as stream info', ({ actions, configs }) => {
+  const opened = valueOf(definitionToFlow(streamDefinition(actions), meta));
+  expect(opened.nodes.slice(1).map(({ type, config }) => ({ type, config })))
+    .toEqual(configs.map((config) => ({ type: 'reply.stream_info', config })));
+});
+
+test.each([true, false])('stream info writes ordered, owned actions with enabled=%j', (enabled) => {
+  const branded = { type: 'branded_content', params: { on: false } };
+  const tags = { type: 'set_tags', params: { tags: 'Échecs, , 遊戲2' } };
+  const title = { type: 'set_title', params: { title: '{event.amount} bits' } };
+  const actions = [branded, tags, setGame, title].map((action) => ({ ...action, enabled }));
+  const opened = valueOf(definitionToFlow(streamDefinition(actions), meta));
+  const node = opened.nodes[1]!;
+  const saved = valueOf(compileFlow(opened));
+  const expected = [title, setGame, tags, branded].map((action) => enabled ? action : { ...action, enabled: false });
+  const reopened = valueOf(definitionToFlow(saved.definition, meta));
+  expect({
+    actions: saved.definition.actions, issues: validateDefinition(saved.definition),
+    owners: [...saved.nodeByPath].filter(([path]) => path.startsWith('actions')).map(([, owner]) => owner),
+    config: reopened.nodes[1]?.config
+  }).toEqual({
+    actions: expected, issues: [], owners: expected.map(() => node.id),
+    config: { title: '{bits} bits', game: 'Chess', tags: 'Échecs, , 遊戲2', branded: 'off', ...(enabled ? {} : { disabled: true }) }
+  });
+});
+
+test.each([
+  { action: { type: 'commercial', params: { seconds: 90 } }, config: { seconds: '90', confirm: true }, quiet: false },
+  { action: { type: 'clip', params: { title: 'Highlight', seconds: 30, reply: '{clip:title} {clip:url}', quiet: true } }, config: { title: 'Highlight', seconds: 30, reply: '{clip:title} {clip:url}', confirm: false }, quiet: true }
+] satisfies { action: Action; config: FlowConfig; quiet: boolean }[])('$action.type round trips with quiet=$quiet', ({ action, config, quiet }) => {
+  const opened = valueOf(definitionToFlow(streamDefinition([action]), meta));
+  const saved = valueOf(flowToDefinition(opened));
+  expect({ config: opened.nodes[1]?.config, actions: saved.actions, issues: validateDefinition(saved) })
+    .toEqual({ config, actions: [{ ...action, params: { ...action.params, quiet } }], issues: [] });
 });

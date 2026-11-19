@@ -52,7 +52,6 @@
   "reply.adSnooze.keywords": "ad ads advert snooze postpone later",
   "reply.whisper.keywords": "whisper private direct message dm send",
   "reply.unbanResolve.keywords": "unban appeal request approve deny resolve moderation",
-  "reply.brandedContent.keywords": "brand branded content sponsor sponsored paid disclosure",
   "then": "Then",
   "variable": {
     "user": "Display name",
@@ -71,5 +70,9 @@
     "apiError": "Why it failed",
     "cooldownLeft": "Time left on the cooldown",
     "countdownLeft": "Time left on the countdown"
-  }
+  },
+  "reply.streamInfo.keywords": "title game category tags branded sponsor content rename",
+  "reply.commercial.keywords": "ad ads commercial midroll break",
+  "reply.marker.keywords": "marker highlight bookmark vod timestamp",
+  "reply.clip.keywords": "clip highlight capture"
 }

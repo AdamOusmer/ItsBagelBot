@@ -1,0 +1,21 @@
+{
+  "label": "Werbung abspielen",
+  "summary": "Starte jetzt eine Werbepause",
+  "line": "Werbung für {seconds} abspielen",
+  "field": {
+    "seconds": {
+      "label": "Dauer",
+      "option": {
+        "30": "30 Sekunden",
+        "60": "1 Minute",
+        "90": "1 Minute 30 Sekunden",
+        "120": "2 Minuten",
+        "150": "2 Minuten 30 Sekunden",
+        "180": "3 Minuten"
+      }
+    },
+    "confirm": {
+      "label": "Im Chat bestätigen"
+    }
+  }
+}

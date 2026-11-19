@@ -1,0 +1,21 @@
+{
+  "label": "Crear un clip",
+  "summary": "Crea un clip con los últimos momentos del directo",
+  "line": "Clip: {title}",
+  "field": {
+    "title": {
+      "label": "Título"
+    },
+    "seconds": {
+      "label": "Duración",
+      "unit": "segundos"
+    },
+    "reply": {
+      "label": "Mensaje del chat",
+      "hint": "{clip:url} es el enlace al nuevo clip"
+    },
+    "confirm": {
+      "label": "Confirmar en el chat"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "label": "Mostrar un anuncio",
+  "summary": "Inicia ahora una pausa publicitaria",
+  "line": "Mostrar un anuncio de {seconds}",
+  "field": {
+    "seconds": {
+      "label": "Duración",
+      "option": {
+        "30": "30 segundos",
+        "60": "1 minuto",
+        "90": "1 minuto y 30 segundos",
+        "120": "2 minutos",
+        "150": "2 minutos y 30 segundos",
+        "180": "3 minutos"
+      }
+    },
+    "confirm": {
+      "label": "Confirmar en el chat"
+    }
+  }
+}

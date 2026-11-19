@@ -1,0 +1,13 @@
+{
+  "label": "Poser un marqueur",
+  "summary": "Marque ce moment dans la rediffusion",
+  "line": "Marqueur : {description}",
+  "field": {
+    "description": {
+      "label": "Description"
+    },
+    "confirm": {
+      "label": "Confirmer dans le chat"
+    }
+  }
+}

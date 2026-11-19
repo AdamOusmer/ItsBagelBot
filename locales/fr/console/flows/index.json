@@ -106,7 +106,9 @@
     "nesting": "Les vérifications sont imbriquées trop profondément.",
     "delayBudget": "Le total des temps d’attente dépasse la durée de pause autorisée pour une recette.",
     "name": "Donnez un nom à la recette en utilisant des lettres, des chiffres et des espaces, jusqu’à 64 caractères.",
-    "generic": "Vérifie les réglages de cette étape et réessaie d’enregistrer."
+    "generic": "Vérifie les réglages de cette étape et réessaie d’enregistrer.",
+    "nothingToChange": "Modifie au moins un champ.",
+    "invalidTags": "Utilise jusqu’à 10 tags de 25 lettres ou chiffres chacun au maximum."
   },
   "choose": {
     "reward": "Choisir une récompense",

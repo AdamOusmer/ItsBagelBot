@@ -4,7 +4,9 @@
 import type { FlowConfig } from './flow-graph';
 import type { Action, Params } from './types';
 
-type ValueKind = 'text' | 'number' | 'toggle' | 'lines';
+type ValueKind = 'text' | 'number' | 'toggle' | 'lines' | 'numberOption' | 'confirmation';
+type Scalar = string | number | boolean;
+type ValueCodec = { write(value: unknown): Scalar | string[]; read(value: unknown): Scalar };
 type Fields = Record<string, ValueKind>;
 type StreamNode = { type: string; config: FlowConfig };
 
@@ -31,8 +33,13 @@ const STREAM_FIELDS: Record<string, Fields> = {
   ad_snooze: {},
   whisper: { login: 'text', text: 'text' },
   unban_resolve: { status: 'text', resolution: 'text' },
-  branded_content: { on: 'toggle' }
+  commercial: { seconds: 'numberOption', quiet: 'confirmation' },
+  marker: { description: 'text', quiet: 'confirmation' },
+  clip: { title: 'text', seconds: 'number', reply: 'text', quiet: 'confirmation' }
 };
+
+const STREAM_INFO_FIELDS = { set_title: 'title', set_game: 'game', set_tags: 'tags' } as const;
+const BRANDED_CONTENT = 'branded_content';
 
 const nodeType = (type: string): string => (type === 'points_add' ? 'reply.points' : `reply.${type}`);
 
@@ -40,6 +47,7 @@ export const streamTargetNodes = new Set(Object.keys(STREAM_FIELDS).filter((type
 
 export const configKey = (param: string): string => {
   if (param === 'user_id') return 'userId';
+  if (param === 'quiet') return 'confirm';
   return param === 'login' ? 'target' : param;
 };
 
@@ -58,26 +66,22 @@ function targetConfigKey(param: string, who: unknown): string {
 }
 
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
+const number = (value: unknown): number => Number(value) || 0;
+const toggle = (value: unknown): boolean => value === true;
 
-function parameter(kind: ValueKind, value: unknown): string | number | boolean | string[] {
-  if (kind === 'lines') return text(value).split(/\r?\n/);
-  return scalar(kind, value);
-}
-
-function configValue(kind: ValueKind, value: unknown): string | number | boolean {
-  if (kind === 'lines') return Array.isArray(value) ? value.join('\n') : '';
-  return scalar(kind, value);
-}
-
-function scalar(kind: Exclude<ValueKind, 'lines'>, value: unknown): string | number | boolean {
-  if (kind === 'number') return Number(value) || 0;
-  return kind === 'toggle' ? value === true : text(value);
-}
+const VALUE_CODECS: Record<ValueKind, ValueCodec> = {
+  text: { write: text, read: text },
+  number: { write: number, read: number },
+  toggle: { write: toggle, read: toggle },
+  lines: { write: (value) => text(value).split(/\r?\n/), read: (value) => Array.isArray(value) ? value.join('\n') : '' },
+  numberOption: { write: number, read: (value) => String(number(value)) },
+  confirmation: { write: (value) => value === false, read: (value) => value !== true }
+};
 
 function streamAction(type: string, config: FlowConfig): Action {
   const fields = activeFields(STREAM_FIELDS[type]!, config.who);
   const values = fields.map(([key, kind]) => ({ key, kind, value: config[targetConfigKey(key, config.who)] }));
-  const params = Object.fromEntries(values.filter(({ value }) => value !== undefined).map(({ key, kind, value }) => [key, parameter(kind, value)]));
+  const params = Object.fromEntries(values.filter(({ value }) => value !== undefined).map(({ key, kind, value }) => [key, VALUE_CODECS[kind].write(value)]));
   return { type, params };
 }
 
@@ -85,13 +89,57 @@ function streamNode(type: string, params: Params): StreamNode | null {
   const fields = STREAM_FIELDS[type]!;
   const lists = Object.entries(fields).filter(([, kind]) => kind === 'lines');
   if (lists.some(([key]) => hasMultilineOption(params[key]))) return null;
-  const supplied = activeFields(fields, params.who).filter(([key]) => params[key] !== undefined);
-  const config = Object.fromEntries(supplied.map(([key, kind]) => [targetConfigKey(key, params.who), configValue(kind, params[key])]));
+  const supplied = activeFields(fields, params.who).filter(([key, kind]) => params[key] !== undefined || kind === 'confirmation');
+  const config = Object.fromEntries(supplied.map(([key, kind]) => [targetConfigKey(key, params.who), VALUE_CODECS[kind].read(params[key])]));
   return { type: nodeType(type), config };
 }
 
 function hasMultilineOption(value: unknown): boolean {
   return Array.isArray(value) && value.some((item) => /[\r\n]/.test(text(item)));
+}
+
+export function streamInfoActions(config: FlowConfig): Action[] {
+  const actions: Action[] = Object.entries(STREAM_INFO_FIELDS).flatMap(([type, field]) => {
+    const value = text(config[field]).trim();
+    return value ? [{ type, params: { [field]: value } }] : [];
+  });
+  const branded = config.branded;
+  if (branded === 'on' || branded === 'off') actions.push({ type: BRANDED_CONTENT, params: { on: branded === 'on' } });
+  return actions;
+}
+
+export function invalidLiteralTags(value: unknown): boolean {
+  const tags = text(value);
+  if (tags.includes('{')) return false;
+  const literals = tags.split(',').map((tag) => tag.trim()).filter(Boolean);
+  return literals.length > 10 || literals.some((tag) => !/^[\p{L}\p{N}]{1,25}$/u.test(tag));
+}
+
+function streamInfoField({ type, params }: Action): FlowConfig {
+  if (type === BRANDED_CONTENT) return { branded: params?.on === true ? 'on' : 'off' };
+  const field = STREAM_INFO_FIELDS[type as keyof typeof STREAM_INFO_FIELDS];
+  return { [field]: text(params?.[field]) };
+}
+
+function streamInfoType(type: Action['type']): boolean {
+  return type === BRANDED_CONTENT || Object.hasOwn(STREAM_INFO_FIELDS, type);
+}
+
+export function streamInfoRun(actions: readonly Action[], start: number): { config: FlowConfig; end: number } | undefined {
+  const first = actions[start]!;
+  if (!streamInfoType(first.type)) return undefined;
+  const config: FlowConfig = { branded: 'keep' };
+  const seen = new Set<Action['type']>();
+  const disabled = first.enabled === false;
+  let end = start;
+  for (; end < actions.length; end++) {
+    const action = actions[end]!;
+    if (!streamInfoType(action.type) || seen.has(action.type)) break;
+    if ((action.enabled === false) !== disabled) break;
+    Object.assign(config, streamInfoField(action));
+    seen.add(action.type);
+  }
+  return { config, end };
 }
 
 export const streamActionWriters = Object.fromEntries(

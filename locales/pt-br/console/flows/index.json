@@ -106,7 +106,9 @@
     "nesting": "As verificações estão aninhadas profundamente demais.",
     "delayBudget": "As esperas somam mais do que uma receita pode pausar.",
     "name": "Dê um nome à receita usando letras, números e espaços, com até 64 caracteres.",
-    "generic": "Confira os ajustes desta etapa e tente salvar de novo."
+    "generic": "Confira os ajustes desta etapa e tente salvar de novo.",
+    "nothingToChange": "Altere pelo menos um campo.",
+    "invalidTags": "Use até 10 tags de no máximo 25 letras ou dígitos cada."
   },
   "choose": {
     "reward": "Escolha uma recompensa",

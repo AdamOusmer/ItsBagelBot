@@ -46,7 +46,7 @@ export const STEP_PLACEMENT = {
   'reply.raid': { kind: 'reply', group: 'stream' },
   'reply.raid_cancel': { kind: 'reply', group: 'stream' },
   'reply.ad_snooze': { kind: 'reply', group: 'stream' },
-  'reply.branded_content': { kind: 'reply', group: 'stream' },
+  'reply.stream_info': { kind: 'reply', group: 'stream' },
   'twitch.reward': { kind: 'trigger', group: 'loyalty' },
   'reply.points': { kind: 'reply', group: 'loyalty' },
   'reply.points_set': { kind: 'reply', group: 'loyalty' },
@@ -69,7 +69,10 @@ export const STEP_PLACEMENT = {
   'reply.text': { kind: 'reply', group: 'logic' },
   'reply.math': { kind: 'reply', group: 'logic' },
   'reply.http_get': { kind: 'reply', group: 'logic' },
-  'reply.http_post': { kind: 'reply', group: 'logic' }
+  'reply.http_post': { kind: 'reply', group: 'logic' },
+  'reply.commercial': { kind: 'reply', group: 'stream' },
+  'reply.marker': { kind: 'reply', group: 'stream' },
+  'reply.clip': { kind: 'reply', group: 'stream' }
 } as const satisfies Record<string, { kind: FlowKind; group: StepGroup }>;
 
 type Typed = { key: string; placeholder?: true };

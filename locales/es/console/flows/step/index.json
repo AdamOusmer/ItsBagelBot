@@ -52,7 +52,6 @@
   "reply.adSnooze.keywords": "anuncio publicidad posponer aplazar después ad",
   "reply.whisper.keywords": "susurro privado directo mensaje dm enviar whisper",
   "reply.unbanResolve.keywords": "desbanear apelación solicitud aprobar rechazar resolver unban moderación",
-  "reply.brandedContent.keywords": "marca contenido patrocinador patrocinado pagado publicidad aviso",
   "then": "Luego",
   "variable": {
     "user": "Nombre visible",
@@ -71,5 +70,9 @@
     "apiError": "Por qué falló",
     "cooldownLeft": "Tiempo restante de enfriamiento",
     "countdownLeft": "Tiempo restante de la cuenta atrás"
-  }
+  },
+  "reply.streamInfo.keywords": "título juego categoría etiquetas marca patrocinio contenido renombrar",
+  "reply.commercial.keywords": "anuncio anuncios publicidad pausa publicitaria",
+  "reply.marker.keywords": "marcador destacado grabación vod marca tiempo",
+  "reply.clip.keywords": "clip destacado captura"
 }

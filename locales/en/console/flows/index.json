@@ -106,7 +106,9 @@
     "nesting": "Checks are nested too deeply.",
     "delayBudget": "The waits add up to more than a recipe can pause.",
     "name": "Give the recipe a name using letters, numbers and spaces, up to 64 characters.",
-    "generic": "Check this step's settings and try saving again."
+    "generic": "Check this step's settings and try saving again.",
+    "nothingToChange": "Change at least one field.",
+    "invalidTags": "Use up to 10 tags of 25 letters or digits each."
   },
   "choose": {
     "reward": "Choose a reward",

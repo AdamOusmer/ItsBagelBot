@@ -28,7 +28,11 @@ test.each([
   ['loop', 'reply.loop'],
   ['add points', 'reply.points'],
   ['ligth', 'reply.lights'],
-  ['  SEND, méssage! ', 'reply.chat']
+  ['  SEND, méssage! ', 'reply.chat'],
+  ['title', 'reply.stream_info'],
+  ['clip', 'reply.clip'],
+  ['marker', 'reply.marker'],
+  ['commercial', 'reply.commercial']
 ])('%s ranks %s first', (query, type) => {
   expect(types(query)[0]).toBe(type);
 });

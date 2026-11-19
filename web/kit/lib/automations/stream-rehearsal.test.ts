@@ -36,6 +36,12 @@ const targetCases: OutcomeCase[] = [
 ];
 
 const lights = { device: 'desk', sku: 'H6008' };
+const liveSteps: Record<string, Params> = {
+  commercial: { seconds: 60 },
+  marker: { description: 'Highlight' },
+  clip: { seconds: 30 },
+  ad_snooze: {}
+};
 test.each([
   ...['shoutout', 'timeout'].flatMap((type) => targetCases.map((row) => ({ ...row, type, params: { seconds: 60, ...row.params } }))),
   { name: 'offline trigger defaults to offline', type: 'lights', params: lights, trigger: { type: 'event', params: { kind: 'stream.offline' } }, expected: { status: 'skipped', detail: { code: 'offline', ...lights } } },
@@ -49,7 +55,15 @@ test.each([
   { name: 'expanded reason and duration', type: 'timeout', params: { login: '{user}', reason: 'Stop {user}', seconds: 60 }, expected: { status: 'ok', detail: { login: 'PrincessBarney', seconds: '60', reason: 'Stop PrincessBarney' } } },
   { name: 'transformed text', type: 'text', params: { op: 'upper', input: '{user}', save_as: 'result' }, expected: { status: 'ok', detail: { input: 'PrincessBarney', value: 'PRINCESSBARNEY' } } },
   { name: 'text length', type: 'text', params: { op: 'length', input: '{touser}', save_as: 'result' }, expected: { status: 'ok', detail: { value: '5' } } },
-  { name: 'expanded variable value', type: 'var_set', params: { name: 'name', value: '{user}' }, expected: { status: 'ok', detail: { value: 'PrincessBarney' } } }
+  { name: 'expanded variable value', type: 'var_set', params: { name: 'name', value: '{user}' }, expected: { status: 'ok', detail: { value: 'PrincessBarney' } } },
+  { name: 'empty target', type: 'raid', params: { login: '{var:absent}' }, expected: { status: 'failed', detail: { code: 'empty_login' } } },
+  { name: 'literal target', type: 'raid', params: { login: 'bob' }, expected: { status: 'ok', detail: { login: 'bob' } } },
+  ...Object.entries(liveSteps).flatMap(([type, params]) => [
+    { name: 'while offline', type, params, scenario: { live: false }, expected: { status: 'skipped', detail: { code: 'offline' } } },
+    { name: 'while live', type, params, scenario: { live: true }, expected: { status: 'ok' } }
+  ] satisfies ActionCase[]),
+  { name: 'defers result tokens in the reply', type: 'clip', params: { reply: '{clip:title}: {clip:url}' }, expected: { status: 'ok', detail: { reply: '{clip:title}: {clip:url}', missing: '' } } },
+  { name: 'cannot read its result in the title', type: 'clip', params: { title: '{clip:title}', reply: '{clip:url}' }, expected: { status: 'ok', detail: { reply: '{clip:url}', missing: 'clip:title' } } }
 ] satisfies ActionCase[])('$type rehearses $name', (row: ActionCase) => {
   const def = definition([{ type: row.type, params: row.params }]);
   if (row.trigger) def.trigger = row.trigger;
