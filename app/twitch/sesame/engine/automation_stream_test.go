@@ -4,12 +4,14 @@
 package engine
 
 import (
+	"context"
 	"testing"
 
 	"ItsBagelBot/internal/domain/automation"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAutomationStreamControlActions(t *testing.T) {
@@ -26,7 +28,7 @@ func TestAutomationStreamControlActions(t *testing.T) {
 		{"prediction lock", act("prediction_end", obj{"status": "lock"}), `prediction_end {"status":"LOCKED"}`},
 		{"prediction cancel", act("prediction_end", obj{"status": "cancel", "winner": 3}), `prediction_end {"status":"CANCELED"}`},
 		{"prediction resolve", act("prediction_end", obj{"status": "resolve", "winner": 2}), `prediction_end {"status":"RESOLVED","winner":2}`},
-		{"raid", act("raid", obj{"login": "@{arg:a}"}), `raid_start to=target {}`},
+		{"raid", act("raid", obj{"login": "@{arg:a}"}), `raid_start to=target target_user_id=99 {}`},
 		{"raid cancel", act("raid_cancel", obj{}), `raid_cancel {}`},
 		{"mod add", act("mod", obj{"login": "Target", "on": true}), `mod_add to=target {}`},
 		{"mod remove", act("mod", obj{"login": "Target", "on": false}), `mod_remove to=target {}`},
@@ -49,6 +51,65 @@ func TestAutomationStreamControlActions(t *testing.T) {
 			rec := fx.run(t, "main", "req-"+tc.name, args)
 			assert.Equal(t, automationrpc.OutcomeOK, rec.Outcome, statuses(rec))
 			assert.Equal(t, []string{tc.want}, fx.described(t))
+		})
+	}
+}
+
+func TestAutomationStreamActionsSkipWhileOffline(t *testing.T) {
+	fx := newAutoFixture(manual("main",
+		act("marker", obj{}), act("clip", obj{}),
+		act("commercial", obj{"seconds": 30}), act("ad_snooze", obj{}),
+	))
+	fx.p.live = analyticsLive{}
+
+	rec := fx.run(t, "main", "offline-stream", nil)
+
+	assert.Equal(t, []automationrpc.ActionRecord{
+		{Type: "marker", Status: automationrpc.StatusSkipped, Detail: "offline"},
+		{Index: 1, Type: "clip", Status: automationrpc.StatusSkipped, Detail: "offline"},
+		{Index: 2, Type: "commercial", Status: automationrpc.StatusSkipped, Detail: "offline"},
+		{Index: 3, Type: "ad_snooze", Status: automationrpc.StatusSkipped, Detail: "offline"},
+	}, rec.Actions)
+	assert.Empty(t, fx.pub.snapshot())
+}
+
+type noRaidLookup struct{ t *testing.T }
+
+func (l noRaidLookup) ResolveLogin(context.Context, string) (string, bool, error) {
+	l.t.Error("raid viewer should use the event ID")
+	return "", false, nil
+}
+
+func TestProcessAutomationRaidTriggerStreamActions(t *testing.T) {
+	cases := []struct {
+		name    string
+		action  automation.Action
+		message []string
+		detail  string
+	}{
+		{"clip options", act("clip", obj{
+			"title": "  Highlight with {user}  ", "seconds": 12.5,
+			"reply": "{user} clipped {clip:title}: {clip:url}", "quiet": true,
+		}), []string{`clip {"title":"Highlight with Raider","clipper":"Raider","duration":12.5,"reply":"Raider clipped {clip:title}: {clip:url}","quiet":true}`}, "clip:sent:"},
+		{"raid back", act("raid", obj{"login": "{user}"}), []string{`raid_start to=raider target_user_id=777 {}`}, "raid:sent:"},
+		{"raid self", act("raid", obj{"login": "my_channel"}), nil, "raid:failed:self_target"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			const kind = "channel.raid"
+			a := testAutomation("t", "event", obj{"kind": kind})
+			a.Definition.Actions = []automation.Action{tc.action}
+			fx := autoFixture{pub: &fakePublisher{}}
+			p, runs := autoRig{automations: []automation.Automation{a}, pub: fx.pub, accounts: noRaidLookup{t}}.pipeline()
+			if tc.detail == "raid:failed:self_target" {
+				p.accounts = autoAccounts{"my_channel": "123"}
+			}
+
+			process(t, p, eventEnv(kind, `{"from_broadcaster_user_id":"777","from_broadcaster_user_login":"raider","from_broadcaster_user_name":"Raider","viewers":42}`))
+
+			require.Len(t, runs.recs, 1)
+			assert.Equal(t, []string{"0:" + tc.detail}, statuses(runs.recs[0]))
+			assert.Equal(t, tc.message, fx.described(t))
 		})
 	}
 }
@@ -118,7 +179,7 @@ func TestProcessAutomationModeratorActionsHonorPermCondition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			p, runs := autoRig{automations: []automation.Automation{a}}.pipeline()
+			p, runs := autoRig{automations: []automation.Automation{a}, accounts: autoAccounts{"target": "99"}}.pipeline()
 			process(t, p, chatEnv("!lock", tc.badge))
 			assert.Equal(t, []string{tc.want}, runs.summary())
 		})

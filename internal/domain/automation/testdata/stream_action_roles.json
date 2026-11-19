@@ -1,8 +1,8 @@
 {
   "actions": [
-    { "type": "raid", "params": { "login": "bob" } },
-    { "type": "mod", "params": { "login": "bob" } },
-    { "type": "vip", "params": { "login": "bob" } },
+    { "type": "raid", "params": { "login": "bobby" } },
+    { "type": "mod", "params": { "login": "bobby" } },
+    { "type": "vip", "params": { "login": "bobby" } },
     { "type": "set_title", "params": { "title": "Community night" } },
     { "type": "set_game", "params": { "game": "Chess" } },
     { "type": "set_tags", "params": { "tags": "English" } },

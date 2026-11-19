@@ -202,6 +202,18 @@ function moduleLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   return n.type === 'reply.reward_update' ? rewardUpdateLine(t, n, spec) : dataLine(t, n, spec);
 }
 
+function streamInfoLine(t: Translate, node: FlowNode): string {
+  const branded = { on: 'brandedOn', off: 'brandedOff' } as const;
+  const choice = node.config.branded;
+  const lines = [
+    ...(['title', 'game', 'tags'] as const).map((field) =>
+      given(text(node, field), (value) => t(`flows.step.reply.streamInfo.line.${field}`, { [field]: value }))),
+    choice === 'on' || choice === 'off' ? t(`flows.step.reply.streamInfo.line.${branded[choice]}`) : ''
+  ].filter(Boolean);
+  const [line = ''] = lines;
+  return lines.length > 1 ? t('flows.step.reply.streamInfo.line.more', { count: lines.length - 1, line }) : line;
+}
+
 function streamLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   switch (n.type) {
     case 'reply.shoutout':
@@ -212,6 +224,8 @@ function streamLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
       return given(text(n, 'text'), (message) => t('flows.line.reply', { message }));
     case 'reply.timeout':
       return given(text(n, 'target'), (target) => t('flows.line.timeout', { target, amount: cooldownAmount(t, num(n, 'seconds')) }));
+    case 'reply.stream_info':
+      return streamInfoLine(t, n);
     default:
       return moduleLine(t, n, spec);
   }

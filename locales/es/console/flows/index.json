@@ -106,7 +106,9 @@
     "nesting": "Las comprobaciones están anidadas a demasiada profundidad.",
     "delayBudget": "Las esperas suman más de lo que una receta puede pausarse.",
     "name": "Asigna a la receta un nombre usando letras, números y espacios, de hasta 64 caracteres.",
-    "generic": "Revisa los ajustes de este paso e intenta guardar de nuevo."
+    "generic": "Revisa los ajustes de este paso e intenta guardar de nuevo.",
+    "nothingToChange": "Cambia al menos un campo.",
+    "invalidTags": "Usa hasta 10 etiquetas de un máximo de 25 letras o dígitos cada una."
   },
   "choose": {
     "reward": "Elige una recompensa",

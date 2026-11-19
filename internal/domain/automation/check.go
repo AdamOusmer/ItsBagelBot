@@ -24,6 +24,8 @@ type (
 
 type whole interface{ ~int | ~int64 }
 
+type numeric interface{ whole | ~float64 }
+
 type itemCheck func(field, string)
 
 type span struct{ lo, hi quantity }
@@ -99,8 +101,8 @@ func (c chk) count(f field, n quantity, w span) bool { return c.bound(f, n, w, C
 
 func (c chk) template(f field, s string) bool { return c.text(f, s, nonEmpty(MaxTemplateLength)) }
 
-func inRange[T whole](c chk, f field, n T, w span) {
-	if quantity(n) < w.lo || quantity(n) > w.hi {
+func inRange[T numeric](c chk, f field, n T, w span) {
+	if n < T(w.lo) || n > T(w.hi) {
 		c.add(f, CodeOutOfRange)
 	}
 }

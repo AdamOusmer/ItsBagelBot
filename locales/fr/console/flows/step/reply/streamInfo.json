@@ -1,0 +1,33 @@
+{
+  "label": "Modifier les infos du stream",
+  "summary": "Modifie le titre, la catégorie, les tags ou le contenu sponsorisé",
+  "line": {
+    "title": "Titre : {title}",
+    "game": "Catégorie : {game}",
+    "tags": "Tags : {tags}",
+    "brandedOn": "Contenu sponsorisé activé",
+    "brandedOff": "Contenu sponsorisé désactivé",
+    "more": "{line} et {count} de plus"
+  },
+  "field": {
+    "title": {
+      "label": "Titre"
+    },
+    "game": {
+      "label": "Catégorie",
+      "hint": "Une correspondance exacte du nom est recherchée en priorité"
+    },
+    "tags": {
+      "label": "Tags",
+      "hint": "Jusqu’à 10 tags séparés par des virgules"
+    },
+    "branded": {
+      "label": "Contenu sponsorisé",
+      "option": {
+        "keep": "Laisser tel quel",
+        "on": "Activé",
+        "off": "Désactivé"
+      }
+    }
+  }
+}

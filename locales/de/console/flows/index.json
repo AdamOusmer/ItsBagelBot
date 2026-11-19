@@ -106,7 +106,9 @@
     "nesting": "Prüfungen sind zu tief verschachtelt.",
     "delayBudget": "Die Wartezeiten summieren sich auf mehr, als ein Rezept pausieren kann.",
     "name": "Gib dem Rezept einen Namen mit Buchstaben, Zahlen und Leerzeichen, bis zu 64 Zeichen.",
-    "generic": "Prüfe die Einstellungen dieses Schritts und speichere erneut."
+    "generic": "Prüfe die Einstellungen dieses Schritts und speichere erneut.",
+    "nothingToChange": "Ändere mindestens ein Feld.",
+    "invalidTags": "Verwende bis zu 10 Tags mit jeweils höchstens 25 Buchstaben oder Ziffern."
   },
   "choose": {
     "reward": "Belohnung auswählen",

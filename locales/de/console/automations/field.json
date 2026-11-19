@@ -82,5 +82,7 @@
   "choices": "Antworten (eine pro Zeile)",
   "outcomes": "Ergebnisse (eines pro Zeile)",
   "winner": "Nummer des Gewinnergebnisses",
-  "resolution": "Entscheidungsnachricht (optional)"
+  "resolution": "Entscheidungsnachricht (optional)",
+  "reply": "Chatantwort",
+  "quiet": "Ohne Chatnachricht"
 }

@@ -82,5 +82,7 @@
   "choices": "Choix (un par ligne)",
   "outcomes": "Résultats (un par ligne)",
   "winner": "Numéro du résultat gagnant",
-  "resolution": "Message de décision (facultatif)"
+  "resolution": "Message de décision (facultatif)",
+  "reply": "Réponse dans le chat",
+  "quiet": "Ignorer le message dans le chat"
 }

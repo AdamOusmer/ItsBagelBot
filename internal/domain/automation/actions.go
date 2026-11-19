@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	announceColors   = []string{"", "primary", "blue", "green", "orange", "purple"}
-	commercialLength = []int{30, 60, 90, 120, 150, 180}
+	announceColors     = []string{"", "primary", "blue", "green", "orange", "purple"}
+	commercialLength   = []int{30, 60, 90, 120, 150, 180}
+	actionLoginPattern = regexp.MustCompile(`^[a-zA-Z0-9_]{4,25}$`)
 
 	lightsModes        = enum{LightsModeColor, LightsModeScene}
 	lightsColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -55,8 +56,18 @@ type ShieldAction struct {
 	On bool `json:"on"`
 }
 
+const MaxClipTitleRunes = 100
+
+type ClipAction struct {
+	Title   string  `json:"title"`
+	Seconds float64 `json:"seconds"`
+	Reply   string  `json:"reply"`
+	Quiet   bool    `json:"quiet,omitempty"`
+}
+
 type MarkerAction struct {
 	Description string `json:"description"`
+	Quiet       bool   `json:"quiet,omitempty"`
 }
 
 type SetTitleAction struct {
@@ -72,7 +83,8 @@ type SetTagsAction struct {
 }
 
 type CommercialAction struct {
-	Seconds int `json:"seconds"`
+	Seconds int  `json:"seconds"`
+	Quiet   bool `json:"quiet,omitempty"`
 }
 
 type PointsAddAction struct {
@@ -188,13 +200,33 @@ func checkBan(c chk, p BanAction) {
 }
 
 func checkWarn(c chk, p WarnAction) {
-	c.text("login", p.Login, loginRequired)
+	c.login(p.Login, loginRequired)
 	c.text("reason", p.Reason, reasonNeeded)
 }
 
-func checkLogin(c chk, p LoginAction) { c.text("login", p.Login, loginRequired) }
+func checkLogin(c chk, p LoginAction) { c.login(p.Login, loginRequired) }
+
+func (c chk) login(login string, bounds span) {
+	if !c.text("login", login, bounds) {
+		return
+	}
+	if login == "" || !isStaticText(login) {
+		return
+	}
+	if !actionLoginPattern.MatchString(strings.TrimPrefix(login, "@")) {
+		c.add("login", CodeInvalidFormat)
+	}
+}
 
 func checkShield(chk, ShieldAction) {}
+
+func checkClip(c chk, p ClipAction) {
+	c.text("title", p.Title, upTo(MaxClipTitleRunes))
+	if p.Seconds != 0 {
+		inRange(c, "seconds", p.Seconds, between(5, 60))
+	}
+	c.text("reply", p.Reply, upTo(MaxTemplateLength))
+}
 
 func checkMarker(c chk, p MarkerAction) { c.text("description", p.Description, upTo(140)) }
 

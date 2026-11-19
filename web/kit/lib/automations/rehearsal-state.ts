@@ -541,7 +541,12 @@ const ACTIONS: Readonly<Record<string, ActionHandler>> = {
   countdown_start: (params, context) => timerStep(params, context, 'countdown_start'),
   countdown_add: (params, context) => timerStep(params, context, 'countdown_add'),
   cooldown_add: (params, context) => timerStep(params, context, 'cooldown_add'),
-  lights: requiredParams(['device', 'sku'], 'no_device', liveGated((params) => params.any_time === true))
+  lights: requiredParams(['device', 'sku'], 'no_device', liveGated((params) => params.any_time === true)),
+  raid: targetStep(),
+  commercial: liveGated(),
+  marker: liveGated(),
+  clip: liveGated(),
+  ad_snooze: liveGated()
 };
 
 function expandParam(value: unknown, context: Context): ReturnType<typeof expandTemplate> {
@@ -550,9 +555,16 @@ function expandParam(value: unknown, context: Context): ReturnType<typeof expand
   return { text: items.map((item) => item.text).join('\n'), missing: items.flatMap((item) => item.missing) };
 }
 
+function expandActionParam(action: Action, key: Text, context: Context): ReturnType<typeof expandTemplate> {
+  const value = action.params?.[key];
+  if (action.type !== 'clip' || key !== 'reply') return expandParam(value, context);
+  const values = { ...context.scenario.values, 'clip:url': '{clip:url}', 'clip:title': '{clip:title}' };
+  return expandParam(value, { ...context, scenario: { ...context.scenario, values } });
+}
+
 export function applyAction(action: Action, context: Context): ActionOutcome & { detail: ExpandedParams } {
   const params = action.params ?? {};
-  const values = Object.entries(params).map(([key, value]) => [key, expandParam(value, context)] as const);
+  const values = Object.keys(params).map((key) => [key, expandActionParam(action, key, context)] as const);
   const expanded = Object.fromEntries(values.map(([key, value]) => [key, value.text]));
   const missing = [...new Set(values.flatMap(([, value]) => value.missing))].join(',');
   const outcome = ACTIONS[action.type]?.(params, context, expanded) ?? ok();

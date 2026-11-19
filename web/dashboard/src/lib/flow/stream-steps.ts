@@ -12,6 +12,7 @@ export const TARGET_FIELDS = [
 
 const title: FieldSpec = { key: 'title', type: 'template', singleLine: true };
 const on: FieldSpec = { key: 'on', type: 'toggle', initial: true };
+const confirm: FieldSpec = { key: 'confirm', type: 'toggle', initial: true };
 
 export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
   {
@@ -59,7 +60,7 @@ export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
     ]
   },
   {
-    type: 'reply.raid', slug: 'raidStart', icon: 'swords', fields: [target]
+    type: 'reply.raid', slug: 'raidStart', icon: 'swords', fields: [{ ...target, placeholder: true }]
   },
   {
     type: 'reply.raid_cancel', slug: 'raidCancel', icon: 'swords', fields: []
@@ -93,6 +94,29 @@ export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
     fields: [{ key: 'status', type: 'select', options: ['approve', 'deny'], initial: 'deny' }, { key: 'resolution', type: 'template' }]
   },
   {
-    type: 'reply.branded_content', slug: 'brandedContent', icon: 'radio', fields: [{ key: 'on', type: 'toggle' }]
+    type: 'reply.stream_info', slug: 'streamInfo', icon: 'radio',
+    fields: [
+      title,
+      { key: 'game', type: 'template', singleLine: true },
+      { key: 'tags', type: 'template', singleLine: true },
+      { key: 'branded', type: 'select', options: ['keep', 'on', 'off'], initial: 'keep' }
+    ]
+  },
+  {
+    type: 'reply.commercial', slug: 'commercial', icon: 'timer',
+    fields: [{ key: 'seconds', type: 'select', options: ['30', '60', '90', '120', '150', '180'], initial: '30' }, confirm]
+  },
+  {
+    type: 'reply.marker', slug: 'marker', icon: 'star',
+    fields: [{ key: 'description', type: 'template', singleLine: true }, confirm]
+  },
+  {
+    type: 'reply.clip', slug: 'clip', icon: 'play',
+    fields: [
+      title,
+      { key: 'seconds', type: 'number', min: 5, max: 60, initial: 30, unit: true },
+      { key: 'reply', type: 'template', singleLine: true, initial: '{user} clipped it: {clip:url}' },
+      confirm
+    ]
   }
 ];

@@ -31,9 +31,9 @@ func (p TargetAction) targetsViewer() bool {
 func (c chk) target(p TargetAction, legacyLogin span) {
 	switch p.Who {
 	case "login":
-		c.text("login", p.Login, legacyLogin)
+		c.login(p.Login, legacyLogin)
 	case "viewer", "mention", "user":
-		c.text("login", p.Login, loginOptional)
+		c.login(p.Login, loginOptional)
 	default:
 		c.add("who", CodeInvalidEnum)
 		return

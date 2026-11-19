@@ -45,7 +45,7 @@ const defaults = {
   'reply.whisper': {},
   'reply.unban_resolve': { status: 'deny' },
   'reply.ad_snooze': {},
-  'reply.branded_content': {},
+  'reply.stream_info': { branded: 'keep' },
   'reply.chat_mode': { mode: 'slow', on: true },
   'reply.clear_chat': {},
   'reply.poll': { seconds: 60 },
@@ -68,7 +68,10 @@ const defaults = {
   'reply.text': { op: 'upper' },
   'reply.math': {},
   'reply.http_get': {},
-  'reply.http_post': {}
+  'reply.http_post': {},
+  'reply.commercial': { seconds: '30', confirm: true },
+  'reply.marker': { confirm: true },
+  'reply.clip': { seconds: 30, reply: '{user} clipped it: {clip:url}', confirm: true }
 } satisfies Record<keyof typeof STEP_PLACEMENT, FlowNode['config']>;
 
 test.each(NODE_SPECS)('$type gets its expected config when added', (spec) => {
@@ -82,7 +85,8 @@ const invalidDefaults = new Set(['out_of_range', 'invalid_enum', 'too_short']);
 const requiredSetup: Record<string, FlowNode['config']> = {
   'cond.user': { userId: '42' },
   'reply.poll': { choices: 'First\nSecond' },
-  'reply.prediction': { outcomes: 'First\nSecond' }
+  'reply.prediction': { outcomes: 'First\nSecond' },
+  'reply.stream_info': { title: 'New title' }
 };
 
 test.each(NODE_SPECS)('$type lowers and validates its defaults with a broadcaster check', (spec) => {

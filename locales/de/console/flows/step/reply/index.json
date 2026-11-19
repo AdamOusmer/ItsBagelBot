@@ -262,7 +262,8 @@
     "line": "Raid zu {target} starten",
     "field": {
       "target": {
-        "label": "Kanal- oder Zuschauername"
+        "label": "Kanal für den Raid",
+        "placeholder": "Kanalname"
       }
     }
   },
@@ -336,15 +337,6 @@
       },
       "resolution": {
         "label": "Entscheidungsnachricht (optional)"
-      }
-    }
-  },
-  "brandedContent": {
-    "label": "Markeninhalte kennzeichnen",
-    "summary": "Den Hinweis auf bezahlte Werbung einblenden oder ausblenden",
-    "field": {
-      "on": {
-        "label": "Aktiviert"
       }
     }
   }

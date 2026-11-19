@@ -6,6 +6,8 @@ package worker
 import (
 	"testing"
 
+	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
@@ -41,6 +43,7 @@ func TestClipCreationAnnouncesTheClipInChat(t *testing.T) {
 			`{"clipper":"viewer","title":"sick play","reply":"{user} made {clip} titled {target}"}`,
 			"viewer made " + testClipURL + " titled sick play",
 		},
+		{"expands the namespaced URL", `{"clipper":"bob","reply":"{user} clipped it: {clip:url}"}`, "bob clipped it: " + testClipURL},
 		{
 			"keeps unknown tokens literal",
 			`{"clipper":"viewer","title":"sick play","reply":"{clipper}: {title} {clip} {mystery}"}`,
@@ -68,9 +71,25 @@ func TestClipCreationAnnouncesTheClipInChat(t *testing.T) {
 
 			requests := rt.recorded()
 			require.Len(t, requests, 2)
-			assert.Equal(t, "POST", requests[0].Method)
-			assert.Equal(t, "/helix/clips", requests[0].Path)
+			assert.Equal(t, [2]string{"POST", "/helix/clips"}, [2]string{requests[0].Method, requests[0].Path})
 			assert.Equal(t, tt.want, sentMessage(t, requests[1]))
 		})
 	}
+}
+
+func TestQuietClipPublishesFactWithoutChat(t *testing.T) {
+	rt := &scriptedTransport{responses: []scriptedResponse{{status: 202, body: clipCreateBody}}}
+	w := pipelineWorker(t, rt)
+	facts := bustest.NewPublisher()
+	w.SetFactPublisher(facts)
+
+	msg := testMessage{Type: "clip", Payload: `{"clipper":"bob","title":"boss fight","duration":12.53,"quiet":true}`}
+	require.NoError(t, msg.send(w))
+
+	assert.Equal(t, []recordedRequest{call("POST", "/helix/clips?broadcaster_id="+testBroadcaster+"&duration=12.5&title=boss+fight", broadcasterAuth, "")}, rt.recorded())
+	published := facts.On(data.SubjectClipCreated)
+	require.Len(t, published, 1)
+	var fact data.ClipCreated
+	require.NoError(t, codec.Unmarshal(published[0].Payload, &fact))
+	assert.Equal(t, data.ClipCreated{BroadcasterID: testBroadcaster, ClipID: "AbCdEf", URL: testClipURL, Clipper: "bob", Title: "boss fight"}, fact)
 }

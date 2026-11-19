@@ -262,7 +262,8 @@
     "line": "Raid {target}",
     "field": {
       "target": {
-        "label": "Channel or viewer login"
+        "label": "Channel to raid",
+        "placeholder": "channel name"
       }
     }
   },
@@ -336,15 +337,6 @@
       },
       "resolution": {
         "label": "Resolution message (optional)"
-      }
-    }
-  },
-  "brandedContent": {
-    "label": "Set branded content",
-    "summary": "Show or hide the paid promotion notice",
-    "field": {
-      "on": {
-        "label": "Enabled"
       }
     }
   }

@@ -27,6 +27,7 @@ type clipMeta struct {
 	Clipper  string  `json:"clipper"`
 	Duration float64 `json:"duration"`
 	Reply    string  `json:"reply"`
+	Quiet    bool    `json:"quiet"`
 
 	BroadcasterID string `json:"-"`
 }
@@ -75,7 +76,7 @@ func clipEndpoint(meta clipMeta) string {
 		q.Set("title", title)
 	}
 	if meta.Duration > 0 {
-		q.Set("duration", strconv.FormatFloat(meta.Duration, 'f', -1, 64))
+		q.Set("duration", strings.TrimSuffix(strconv.FormatFloat(meta.Duration, 'f', 1, 64), ".0"))
 	}
 	return "/helix/clips?" + q.Encode()
 }
@@ -127,7 +128,7 @@ func (w *Worker) replyWithClip(ctx context.Context, meta clipMeta, res *http.Res
 		Title:         strings.TrimSpace(meta.Title),
 	}
 	w.publishClipCreated(ctx, evt)
-	w.scheduleClipVerify(ctx, clipProbe{broadcasterID: evt.BroadcasterID, clipper: evt.Clipper, clipID: evt.ClipID})
+	w.scheduleClipVerify(ctx, clipProbe{broadcasterID: evt.BroadcasterID, clipper: evt.Clipper, clipID: evt.ClipID, quiet: meta.Quiet})
 }
 
 func (w *Worker) publishClipCreated(ctx context.Context, evt data.ClipCreated) {
@@ -152,6 +153,9 @@ func clipID(body io.Reader) (string, error) {
 }
 
 func (w *Worker) sendClipReply(ctx context.Context, meta clipMeta, clipURL string) error {
+	if meta.Quiet {
+		return nil
+	}
 	return w.sendBotLine(ctx, meta.BroadcasterID, clipReplyText(meta, clipURL))
 }
 
@@ -178,6 +182,7 @@ func clipExpand(meta clipMeta, clipURL string) string {
 	title := strings.TrimLeft(strings.TrimSpace(meta.Title), " /")
 	tokens := map[string]string{
 		"clip":    clipURL,
+		"url":     clipURL,
 		"user":    meta.Clipper,
 		"clipper": meta.Clipper,
 		"target":  title,

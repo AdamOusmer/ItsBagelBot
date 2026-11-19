@@ -40,6 +40,7 @@ const NESTED_DEFAULTS: Partial<Record<FieldDef['kind'], () => unknown>> = {
   map: () => ({}),
   actions: () => [],
   bool: () => false,
+  number: () => null,
   text: () => '',
   template: () => '',
   login: () => '',

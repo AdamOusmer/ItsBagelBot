@@ -262,7 +262,8 @@
     "line": "Lancer un raid vers {target}",
     "field": {
       "target": {
-        "label": "Identifiant de chaîne ou de spectateur"
+        "label": "Chaîne à raider",
+        "placeholder": "nom de la chaîne"
       }
     }
   },
@@ -336,15 +337,6 @@
       },
       "resolution": {
         "label": "Message de décision (facultatif)"
-      }
-    }
-  },
-  "brandedContent": {
-    "label": "Définir le contenu sponsorisé",
-    "summary": "Afficher ou masquer la mention de promotion payée",
-    "field": {
-      "on": {
-        "label": "Activé"
       }
     }
   }

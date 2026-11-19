@@ -6,6 +6,7 @@ export type DecodeError = 'unknown_field' | 'mismatch';
 export type Kind =
   | 'string'
   | 'int'
+  | 'number'
   | 'bool'
   | 'strings'
   | 'strmap'
@@ -51,11 +52,13 @@ function fitsInt64(n: number): boolean {
   return Number.isInteger(n) && Math.abs(n) < INT64_LIMIT;
 }
 
-function decodeInt(v: unknown, ctx: Ctx): number {
-  if (typeof v === 'number' && fitsInt64(v)) return v;
+function decodeNumber(v: unknown, ctx: Ctx, valid = Number.isFinite): number {
+  if (typeof v === 'number' && valid(v)) return v;
   fail(ctx, 'mismatch');
   return 0;
 }
+
+const decodeInt = (v: unknown, ctx: Ctx): number => decodeNumber(v, ctx, fitsInt64);
 
 function decodeBool(v: unknown, ctx: Ctx): boolean {
   if (typeof v === 'boolean') return v;
@@ -84,6 +87,7 @@ function decodeMap(v: unknown, ctx: Ctx): Record<string, string> {
 const ZERO_VALUES: Record<Kind, () => unknown> = {
   string: () => '',
   int: () => 0,
+  number: () => 0,
   bool: () => false,
   strings: () => [],
   typeds: () => [],
@@ -103,6 +107,7 @@ function zeroOf(kind: Kind): unknown {
 const VALUE_DECODERS: Record<Kind, (v: unknown, ctx: Ctx) => unknown> = {
   string: decodeString,
   int: decodeInt,
+  number: decodeNumber,
   bool: decodeBool,
   strings: (v, ctx) => decodeList(v, ctx, (e) => orEmpty(e, ctx)),
   strmap: decodeMap,

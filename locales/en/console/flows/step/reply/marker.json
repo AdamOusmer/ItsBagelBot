@@ -1,0 +1,13 @@
+{
+  "label": "Drop a marker",
+  "summary": "Mark this moment in the VOD",
+  "line": "Marker: {description}",
+  "field": {
+    "description": {
+      "label": "Description"
+    },
+    "confirm": {
+      "label": "Confirm in chat"
+    }
+  }
+}

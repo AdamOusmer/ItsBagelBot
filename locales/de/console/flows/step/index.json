@@ -52,7 +52,6 @@
   "reply.adSnooze.keywords": "werbung anzeige verschieben später snooze ad",
   "reply.whisper.keywords": "flüstern privat direkt nachricht dm senden whisper",
   "reply.unbanResolve.keywords": "entbannung einspruch antrag annehmen ablehnen entscheiden unban moderation",
-  "reply.brandedContent.keywords": "marke inhalt sponsor gesponsert bezahlt werbung kennzeichnung",
   "then": "Dann",
   "variable": {
     "user": "Anzeigename",
@@ -71,5 +70,9 @@
     "apiError": "Warum es fehlgeschlagen ist",
     "cooldownLeft": "Verbleibender Cooldown",
     "countdownLeft": "Verbleibende Zeit des Countdowns"
-  }
+  },
+  "reply.streamInfo.keywords": "titel spiel kategorie tags werbehinweis werbung sponsor gesponsert umbenennen",
+  "reply.commercial.keywords": "werbung werbespot werbepause anzeige midroll",
+  "reply.marker.keywords": "markierung highlight lesezeichen aufzeichnung zeitstempel",
+  "reply.clip.keywords": "clip highlight mitschneiden"
 }

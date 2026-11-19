@@ -1,0 +1,33 @@
+{
+  "label": "Stream-Infos bearbeiten",
+  "summary": "Ändere Titel, Kategorie, Tags oder den Werbehinweis",
+  "line": {
+    "title": "Titel: {title}",
+    "game": "Kategorie: {game}",
+    "tags": "Tags: {tags}",
+    "brandedOn": "Werbehinweis an",
+    "brandedOff": "Werbehinweis aus",
+    "more": "{line} +{count} weitere"
+  },
+  "field": {
+    "title": {
+      "label": "Titel"
+    },
+    "game": {
+      "label": "Kategorie",
+      "hint": "Zuerst wird nach dem exakten Namen gesucht"
+    },
+    "tags": {
+      "label": "Tags",
+      "hint": "Bis zu 10 Tags, durch Kommas getrennt"
+    },
+    "branded": {
+      "label": "Bezahlte Werbung",
+      "option": {
+        "keep": "Unverändert lassen",
+        "on": "An",
+        "off": "Aus"
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { streamActionReaders, streamActionWriters, streamTargetNodes, usesLegacyTarget } from './stream-flow';
+import { invalidLiteralTags, streamActionReaders, streamActionWriters, streamInfoActions, streamInfoRun, streamTargetNodes, usesLegacyTarget } from './stream-flow';
 import { COMPARE_OPS } from './compare';
 import { SETUP_LOGIN, SETUP_REWARD_ID } from './flow-setup';
 import { CODE, MAX_DELAY_MS, VERSION } from './limits';
@@ -28,7 +28,9 @@ export const FLOW_ISSUE = {
   unsupportedDisabledControlFlow: 'unsupported_disabled_control_flow',
   waitTooLong: 'wait_too_long',
   unmappableToken: 'unmappable_token',
-  userNotResolved: 'user_not_resolved'
+  userNotResolved: 'user_not_resolved',
+  nothingToChange: 'nothing_to_change',
+  invalidTags: 'invalid_tags'
 } as const;
 
 const REWARD_KIND = 'channel.channel_points_custom_reward_redemption.add';
@@ -174,7 +176,10 @@ const TEMPLATE_FIELDS: Record<string, string[]> = {
   'reply.math': ['expression'],
   'reply.loop': ['times'],
   'reply.http_get': ['url'],
-  'reply.http_post': ['url', 'body']
+  'reply.http_post': ['url', 'body'],
+  'reply.stream_info': ['title', 'game', 'tags'],
+  'reply.marker': ['description'],
+  'reply.clip': ['title', 'reply']
 };
 
 const recipeName = (v: unknown) => str(v).trim().toLowerCase();
@@ -310,7 +315,7 @@ function cooldownConditionAction(config: FlowConfig): Condition {
   return { type: 'cooldown', params };
 }
 
-const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
+const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action | Action[]> = {
   ...streamActionWriters,
   'reply.chat': (config) => ({ type: 'chat', params: { text: str(config.message) } }),
   'reply.lights': lightsAction,
@@ -324,7 +329,8 @@ const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   'reply.reward_update': rewardUpdateAction,
   'reply.countdown_start': (config) => ({ type: 'countdown_start', params: { ...timeLeftParams(config), name: recipeName(config.name), seconds: num(config.seconds) } }),
   'reply.countdown_add': (config) => ({ ...cooldownAddAction(config), type: 'countdown_add' }),
-  'reply.cooldown_add': cooldownAddAction
+  'reply.cooldown_add': cooldownAddAction,
+  'reply.stream_info': streamInfoActions
 };
 
 function cooldownAddAction(config: FlowConfig): Action {
@@ -520,17 +526,26 @@ function owned<T extends object>(ctx: Lowering, node: FlowNode, written: T): T {
   return written;
 }
 
-function writeAction(ctx: Lowering, node: FlowNode): Action {
+function writeAction(ctx: Lowering, node: FlowNode): Action[] {
   const write = ACTION_WRITERS[node.type];
   if (!write) {
     ctx.issues.push({ path: nodePath(node.id), code: FLOW_ISSUE.unsupportedNode });
-    return { type: node.type };
+    return [{ type: node.type }];
   }
-  const action = write(loweredConfig(ctx, node));
+  const written = write(loweredConfig(ctx, node));
+  const actions = Array.isArray(written) ? written : [written];
+  if (actions.length === 0) ctx.issues.push({ path: nodePath(node.id), code: FLOW_ISSUE.nothingToChange });
+  if (node.type === 'reply.stream_info' && invalidLiteralTags(node.config.tags)) {
+    ctx.issues.push({ path: `${nodePath(node.id)}.tags`, code: FLOW_ISSUE.invalidTags });
+  }
+  return actions.map((action) => ownAction(ctx, node, action));
+}
+
+function ownAction(ctx: Lowering, node: FlowNode, action: Action): Action {
   if (action.type === 'delay' && num(action.params?.ms) > MAX_DELAY_MS) {
     ctx.issues.push({ path: nodePath(node.id), code: FLOW_ISSUE.waitTooLong });
   }
-  return owned(ctx, node, node.config.disabled === true ? { ...action, enabled: false } : action);
+  return owned(ctx, node, withEnabled(node, action));
 }
 
 const NESTED_PARAMS = ['then', 'else', 'on_ok', 'on_failure', 'actions'] as const;
@@ -580,7 +595,7 @@ function lowerFrom(ctx: Lowering, id: string, stop: Stops): Action[] {
     const node = ctx.byId.get(current)!;
     const control = controlActions(ctx, node, stop);
     if (control) return actions.concat(control);
-    actions.push(writeAction(ctx, node));
+    actions.push(...writeAction(ctx, node));
     entries = targets(ctx, current, 'next');
   }
   return actions.concat(lowerEntries(ctx, entries, stop));
@@ -1023,7 +1038,16 @@ function disabledControlFlow(action: Action): boolean {
 }
 
 function placeActions(b: Building, actions: Action[], path: string, tails: Tail[]): Tail[] {
-  return actions.reduce<Tail[]>((open, action, i) => placeAction(b, action, `${path}[${i}]`, open), tails);
+  let index = 0;
+  while (index < actions.length) {
+    const action = actions[index]!;
+    const streamInfo = streamInfoRun(actions, index);
+    tails = streamInfo
+      ? [{ from: addNode(b, 'reply.stream_info', placedConfig(action, streamInfo.config), tails), port: 'next' }]
+      : placeAction(b, action, `${path}[${index}]`, tails);
+    index = streamInfo?.end ?? index + 1;
+  }
+  return tails;
 }
 
 function placeConditions(b: Building, conditions: Condition[], tails: Tail[]): Tail[] {

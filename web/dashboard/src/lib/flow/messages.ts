@@ -39,7 +39,9 @@ function issueTexts(t: Translate, issue: Issue): Record<string, string> {
     simple_word: t('flows.issue.simpleWord'),
     invalid_regex: t('flows.issue.invalidRegex'),
     delay_budget: t('flows.issue.delayBudget'),
-    setup_required: t('flows.setup.refused')
+    setup_required: t('flows.setup.refused'),
+    nothing_to_change: t('flows.issue.nothingToChange'),
+    invalid_tags: t('flows.issue.invalidTags')
   };
 }
 

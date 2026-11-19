@@ -262,7 +262,8 @@
     "line": "Iniciar una incursión a {target}",
     "field": {
       "target": {
-        "label": "Nombre de canal o espectador"
+        "label": "Canal de destino de la incursión",
+        "placeholder": "nombre del canal"
       }
     }
   },
@@ -336,15 +337,6 @@
       },
       "resolution": {
         "label": "Mensaje de resolución (opcional)"
-      }
-    }
-  },
-  "brandedContent": {
-    "label": "Indicar contenido de marca",
-    "summary": "Muestra u oculta el aviso de promoción pagada",
-    "field": {
-      "on": {
-        "label": "Activado"
       }
     }
   }

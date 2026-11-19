@@ -259,7 +259,7 @@ func init() {
 		"warn":            register(checkWarn),
 		"shield":          register(checkShield),
 		"shoutout":        register(checkLogin),
-		"clip":            register(checkEmpty),
+		"clip":            register(checkClip),
 		"marker":          register(checkMarker),
 		"set_title":       register(checkSetTitle),
 		"set_game":        register(checkSetGame),

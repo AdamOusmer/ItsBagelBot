@@ -190,8 +190,16 @@ export interface ShieldAction {
   on: boolean;
 }
 
+export interface ClipAction {
+  title?: string;
+  seconds?: number;
+  reply?: string;
+  quiet?: boolean;
+}
+
 export interface MarkerAction {
   description?: string;
+  quiet?: boolean;
 }
 
 export interface SetTitleAction {
@@ -208,6 +216,7 @@ export interface SetTagsAction {
 
 export interface CommercialAction {
   seconds: 30 | 60 | 90 | 120 | 150 | 180;
+  quiet?: boolean;
 }
 
 export interface PointsAddAction extends TargetAction {

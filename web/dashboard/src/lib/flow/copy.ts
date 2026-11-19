@@ -35,7 +35,9 @@ export function requirementTrigger(flow: Flow): RequirementTrigger {
 }
 
 export function stepRequirementFor(spec: NodeSpec, trigger: RequirementTrigger): StepRequirement | null {
-  return spec.kind === 'reply' ? stepRequirement(spec.type.slice('reply.'.length), trigger) : null;
+  if (spec.kind !== 'reply') return null;
+  const action = spec.type === 'reply.stream_info' ? 'set_title' : spec.type.slice('reply.'.length);
+  return stepRequirement(action, trigger);
 }
 
 export function requirementText(t: Translate, requirement: StepRequirement, variant: 'tag' | 'note' | 'start' = 'tag'): string {

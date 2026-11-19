@@ -1,0 +1,21 @@
+{
+  "label": "Diffuser une pub",
+  "summary": "Lance une coupure publicitaire maintenant",
+  "line": "Diffuser une pub de {seconds}",
+  "field": {
+    "seconds": {
+      "label": "Durée",
+      "option": {
+        "30": "30 secondes",
+        "60": "1 minute",
+        "90": "1 minute 30 secondes",
+        "120": "2 minutes",
+        "150": "2 minutes 30 secondes",
+        "180": "3 minutes"
+      }
+    },
+    "confirm": {
+      "label": "Confirmer dans le chat"
+    }
+  }
+}
