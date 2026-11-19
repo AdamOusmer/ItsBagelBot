@@ -1,5 +1,10 @@
 {
   "chatCommand": {
+    "line": {
+      "start": "Alguien escribe {trigger} en el chat",
+      "aliasOne": "Alguien escribe {trigger} u otro nombre en el chat",
+      "aliasMany": "Alguien escribe {trigger} u otros {count} nombres en el chat"
+    },
     "label": "Comando de chat",
     "summary": "Alguien escribe un comando en el chat",
     "field": {
@@ -17,6 +22,7 @@
     }
   },
   "chatWord": {
+    "line": "Alguien dice {word} en el chat",
     "label": "Palabra de chat",
     "summary": "Alguien dice una palabra en el chat",
     "field": {
@@ -39,7 +45,15 @@
   },
   "sub": {
     "label": "Suscripción",
-    "summary": "Nueva suscripción, resub o regalo",
+    "summary": "Alguien se suscribe o renueva su suscripción",
+    "line": {
+      "any": "Alguien obtiene una suscripción nueva o regalada",
+      "new": "Alguien se suscribe por primera vez",
+      "gifted": "Alguien recibe una suscripción de regalo",
+      "resub": "Alguien renueva su suscripción",
+      "gift": "Alguien regala una suscripción"
+    },
+    "withTier": "{line} ({tier})",
     "field": {
       "variant": {
         "label": "Tipo",
@@ -59,6 +73,7 @@
     }
   },
   "subGift": {
+    "line": "Alguien regala {minGifts}+ suscripciones",
     "label": "Regalos de suscripciones",
     "summary": "Alguien regala suscripciones a la comunidad",
     "field": {
@@ -74,6 +89,7 @@
     }
   },
   "cheer": {
+    "line": "Alguien envía un cheer de {minBits} bits o más",
     "label": "Cheer",
     "summary": "Se hace un cheer con bits",
     "field": {
@@ -88,6 +104,7 @@
     }
   },
   "raid": {
+    "line": "Raid con {minViewers}+ espectadores",
     "label": "Raid",
     "summary": "Otro canal te hace raid",
     "field": {
@@ -121,6 +138,10 @@
     }
   },
   "adBreak": {
+    "line": {
+      "start": "Empieza una pausa publicitaria",
+      "minimum": "Empieza una pausa publicitaria de al menos {length}"
+    },
     "label": "Empieza una pausa publicitaria",
     "summary": "Comienza una pausa publicitaria en tu directo",
     "field": {
@@ -132,6 +153,7 @@
     }
   },
   "channelUpdate": {
+    "line": "La categoría cambia a {category}",
     "label": "Cambia el título o la categoría",
     "summary": "Cambia el título o la categoría de tu directo",
     "field": {
@@ -139,6 +161,7 @@
     }
   },
   "timer": {
+    "line": "Cada {amount}",
     "label": "Cada pocos minutos",
     "summary": "Se ejecuta a intervalos regulares",
     "field": {

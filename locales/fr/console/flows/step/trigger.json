@@ -1,5 +1,10 @@
 {
   "chatCommand": {
+    "line": {
+      "start": "Quelqu’un saisit {trigger} dans le chat",
+      "aliasOne": "Quelqu’un saisit {trigger} ou un autre nom dans le chat",
+      "aliasMany": "Quelqu’un saisit {trigger} ou l’un des {count} autres noms dans le chat"
+    },
     "label": "Commande de chat",
     "summary": "Quelqu’un écrit une commande dans le chat",
     "field": {
@@ -17,6 +22,7 @@
     }
   },
   "chatWord": {
+    "line": "Quelqu’un dit {word} dans le chat",
     "label": "Mot dans le chat",
     "summary": "Quelqu’un écrit un mot dans le chat",
     "field": {
@@ -39,7 +45,15 @@
   },
   "sub": {
     "label": "Abonnement",
-    "summary": "Nouveau sub, resub ou sub offert",
+    "summary": "Quelqu’un s’abonne ou se réabonne",
+    "line": {
+      "any": "Quelqu’un obtient un nouvel abonnement ou en reçoit un en cadeau",
+      "new": "Quelqu’un s’abonne pour la première fois",
+      "gifted": "Quelqu’un reçoit un abonnement en cadeau",
+      "resub": "Quelqu’un se réabonne",
+      "gift": "Quelqu’un offre un abonnement"
+    },
+    "withTier": "{line} ({tier})",
     "field": {
       "variant": {
         "label": "Type",
@@ -59,6 +73,7 @@
     }
   },
   "subGift": {
+    "line": "Quelqu’un offre {minGifts}+ abonnements",
     "label": "Cadeaux d’abonnements",
     "summary": "Quelqu’un offre des abonnements à la communauté",
     "field": {
@@ -74,6 +89,7 @@
     }
   },
   "cheer": {
+    "line": "Quelqu’un envoie un cheer de {minBits} bits ou plus",
     "label": "Cheer",
     "summary": "Des bits sont cheerés",
     "field": {
@@ -88,6 +104,7 @@
     }
   },
   "raid": {
+    "line": "Raid avec {minViewers}+ spectateurs",
     "label": "Raid",
     "summary": "Une autre chaîne vous lance un raid",
     "field": {
@@ -121,6 +138,10 @@
     }
   },
   "adBreak": {
+    "line": {
+      "start": "Une coupure publicitaire commence",
+      "minimum": "Une coupure publicitaire d’au moins {length} commence"
+    },
     "label": "Une coupure publicitaire commence",
     "summary": "Une coupure publicitaire commence sur ton stream",
     "field": {
@@ -132,6 +153,7 @@
     }
   },
   "channelUpdate": {
+    "line": "La catégorie devient {category}",
     "label": "Le titre ou la catégorie change",
     "summary": "Le titre ou la catégorie de ton stream change",
     "field": {
@@ -139,6 +161,7 @@
     }
   },
   "timer": {
+    "line": "Intervalle de {amount}",
     "label": "Toutes les quelques minutes",
     "summary": "S’exécute à intervalles réguliers",
     "field": {

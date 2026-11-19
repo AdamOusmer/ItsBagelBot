@@ -1,5 +1,10 @@
 {
   "chatCommand": {
+    "line": {
+      "start": "Alguém digita {trigger} no chat",
+      "aliasOne": "Alguém digita {trigger} ou outro nome no chat",
+      "aliasMany": "Alguém digita {trigger} ou um dos {count} outros nomes no chat"
+    },
     "label": "Comando de chat",
     "summary": "Alguém digita um comando no chat",
     "field": {
@@ -17,6 +22,7 @@
     }
   },
   "chatWord": {
+    "line": "Alguém diz {word} no chat",
     "label": "Palavra no chat",
     "summary": "Alguém diz uma palavra no chat",
     "field": {
@@ -39,7 +45,15 @@
   },
   "sub": {
     "label": "Inscrição",
-    "summary": "Novo inscrito, resub ou presente",
+    "summary": "Alguém se inscreve ou renova a inscrição",
+    "line": {
+      "any": "Alguém recebe uma inscrição nova ou de presente",
+      "new": "Alguém se inscreve pela primeira vez",
+      "gifted": "Alguém recebe uma inscrição de presente",
+      "resub": "Alguém renova a inscrição",
+      "gift": "Alguém dá uma inscrição de presente"
+    },
+    "withTier": "{line} ({tier})",
     "field": {
       "variant": {
         "label": "Tipo",
@@ -59,6 +73,7 @@
     }
   },
   "subGift": {
+    "line": "Alguém dá {minGifts}+ inscrições de presente",
     "label": "Presentes de inscrições",
     "summary": "Alguém presenteia a comunidade com inscrições",
     "field": {
@@ -74,6 +89,7 @@
     }
   },
   "cheer": {
+    "line": "Alguém envia um cheer de {minBits} bits ou mais",
     "label": "Cheer",
     "summary": "Bits são enviados",
     "field": {
@@ -88,6 +104,7 @@
     }
   },
   "raid": {
+    "line": "Raid com {minViewers}+ espectadores",
     "label": "Raid",
     "summary": "Outro canal faz uma raid em você",
     "field": {
@@ -121,6 +138,10 @@
     }
   },
   "adBreak": {
+    "line": {
+      "start": "Um intervalo comercial começa",
+      "minimum": "Começa um intervalo comercial de pelo menos {length}"
+    },
     "label": "O intervalo comercial começa",
     "summary": "Um intervalo comercial começa na sua transmissão",
     "field": {
@@ -132,6 +153,7 @@
     }
   },
   "channelUpdate": {
+    "line": "A categoria muda para {category}",
     "label": "O título ou a categoria muda",
     "summary": "O título ou a categoria da sua transmissão muda",
     "field": {
@@ -139,6 +161,7 @@
     }
   },
   "timer": {
+    "line": "A cada {amount}",
     "label": "A cada poucos minutos",
     "summary": "É executada em intervalos regulares",
     "field": {

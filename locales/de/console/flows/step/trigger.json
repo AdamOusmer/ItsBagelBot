@@ -1,5 +1,10 @@
 {
   "chatCommand": {
+    "line": {
+      "start": "Jemand tippt {trigger} im Chat",
+      "aliasOne": "Jemand tippt {trigger} oder 1 anderen Befehlsnamen im Chat",
+      "aliasMany": "Jemand tippt {trigger} oder {count} andere Befehlsnamen im Chat"
+    },
     "label": "Chat-Befehl",
     "summary": "Jemand gibt einen Befehl im Chat ein",
     "field": {
@@ -17,6 +22,7 @@
     }
   },
   "chatWord": {
+    "line": "Jemand sagt {word} im Chat",
     "label": "Chat-Wort",
     "summary": "Jemand schreibt ein Wort im Chat",
     "field": {
@@ -39,7 +45,15 @@
   },
   "sub": {
     "label": "Abo",
-    "summary": "Neues Abo, Resub oder Gift",
+    "summary": "Jemand schließt ein Abo ab oder verlängert es",
+    "line": {
+      "any": "Jemand erhält ein neues oder geschenktes Abo",
+      "new": "Jemand schließt zum ersten Mal ein Abo ab",
+      "gifted": "Jemand erhält ein Abo als Geschenk",
+      "resub": "Jemand verlängert ein Abo",
+      "gift": "Jemand verschenkt ein Abo"
+    },
+    "withTier": "{line} ({tier})",
     "field": {
       "variant": {
         "label": "Art",
@@ -59,6 +73,7 @@
     }
   },
   "subGift": {
+    "line": "Jemand verschenkt {minGifts}+ Abos",
     "label": "Geschenk-Abos",
     "summary": "Jemand verschenkt Abos an die Community",
     "field": {
@@ -74,6 +89,7 @@
     }
   },
   "cheer": {
+    "line": "Jemand cheert {minBits} Bits oder mehr",
     "label": "Cheer",
     "summary": "Bits werden gecheert",
     "field": {
@@ -88,6 +104,7 @@
     }
   },
   "raid": {
+    "line": "Raid mit {minViewers}+ Zuschauern",
     "label": "Raid",
     "summary": "Ein anderer Kanal raidet dich",
     "field": {
@@ -121,6 +138,10 @@
     }
   },
   "adBreak": {
+    "line": {
+      "start": "Ein Werbeblock beginnt",
+      "minimum": "Ein Werbeblock von mindestens {length} beginnt"
+    },
     "label": "Werbepause beginnt",
     "summary": "In deinem Stream beginnt eine Werbepause",
     "field": {
@@ -132,6 +153,7 @@
     }
   },
   "channelUpdate": {
+    "line": "Die Kategorie wechselt zu {category}",
     "label": "Titel oder Kategorie ändert sich",
     "summary": "Der Titel oder die Kategorie deines Streams ändert sich",
     "field": {
@@ -139,6 +161,7 @@
     }
   },
   "timer": {
+    "line": "Alle {amount}",
     "label": "Alle paar Minuten",
     "summary": "Wird in regelmäßigen Abständen ausgeführt",
     "field": {

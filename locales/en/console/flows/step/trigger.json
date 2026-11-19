@@ -1,5 +1,10 @@
 {
   "chatCommand": {
+    "line": {
+      "start": "Someone types {trigger} in chat",
+      "aliasOne": "Someone types {trigger} or 1 other name in chat",
+      "aliasMany": "Someone types {trigger} or {count} other names in chat"
+    },
     "label": "Chat command",
     "summary": "Someone types a command in chat",
     "field": {
@@ -14,6 +19,7 @@
     }
   },
   "chatWord": {
+    "line": "Someone says {word} in chat",
     "label": "Chat word",
     "summary": "Someone says a word in chat",
     "field": {
@@ -36,7 +42,15 @@
   },
   "sub": {
     "label": "Subscription",
-    "summary": "New sub, resub or gift",
+    "summary": "Someone subscribes or resubscribes",
+    "line": {
+      "any": "Someone gets a new or gifted sub",
+      "new": "Someone subscribes for the first time",
+      "gifted": "Someone receives a gifted sub",
+      "resub": "Someone resubscribes",
+      "gift": "Someone gifts a subscription"
+    },
+    "withTier": "{line} at {tier}",
     "field": {
       "variant": {
         "label": "Kind",
@@ -51,6 +65,7 @@
     }
   },
   "subGift": {
+    "line": "Someone gifts {minGifts}+ subs",
     "label": "Gift subs",
     "summary": "Someone gifts subs to the community",
     "field": {
@@ -66,6 +81,7 @@
     }
   },
   "cheer": {
+    "line": "Someone cheers {minBits} bits or more",
     "label": "Cheer",
     "summary": "Bits are cheered",
     "field": {
@@ -77,6 +93,7 @@
     }
   },
   "raid": {
+    "line": "Raid with {minViewers}+ viewers",
     "label": "Raid",
     "summary": "Another channel raids you",
     "field": {
@@ -105,6 +122,10 @@
     }
   },
   "adBreak": {
+    "line": {
+      "start": "An ad break starts",
+      "minimum": "An ad break of {length}+ starts"
+    },
     "label": "Ad break starts",
     "summary": "An ad break begins on your stream",
     "field": {
@@ -116,6 +137,7 @@
     }
   },
   "channelUpdate": {
+    "line": "Category changes to {category}",
     "label": "Title or category changes",
     "summary": "Your stream title or category changes",
     "field": {
@@ -123,6 +145,7 @@
     }
   },
   "timer": {
+    "line": "Every {amount}",
     "label": "Every few minutes",
     "summary": "Runs on a repeating timer",
     "field": {
