@@ -558,7 +558,7 @@
               </Field>
             {/each}
           </div>
-          <div class="quota-grid">
+          <div class="quota-grid depth-grid">
             <Field label={t('spotify.quota.queueLength')} hint={t('spotify.quota.queueLengthHint')}>
               <Input
                 fill
@@ -715,6 +715,9 @@
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     gap: 10px;
     margin-bottom: 10px;
+  }
+  .depth-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   }
 
   .setup { display: grid; gap: 16px; }
