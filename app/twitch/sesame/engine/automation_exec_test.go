@@ -5,9 +5,12 @@ package engine
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"ItsBagelBot/internal/domain/automation"
+	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
@@ -32,6 +35,7 @@ func TestAutomationOutputActions(t *testing.T) {
 		{"announce color", act("announce", obj{"text": "big news", "color": "green"}), []string{`announce color=green {"message":"big news"}`}},
 		{"timeout", act("timeout", obj{"login": "@Target", "seconds": 60, "reason": "spam {args}"}), []string{`timeout {"data":{"user_id":"99","duration":60,"reason":"spam hello v"}}`}},
 		{"ban", act("ban", obj{"login": "target", "reason": "bye"}), []string{`ban {"data":{"user_id":"99","reason":"bye"}}`}},
+		{"ban truncates expanded Unicode reason", act("ban", obj{"login": "target", "reason": strings.Repeat("界", 494) + "{args}"}), []string{`ban {"data":{"user_id":"99","reason":"` + strings.Repeat("界", 494) + `hello "}}`}},
 		{"warn", act("warn", obj{"login": "target", "reason": "careful"}), []string{`warn {"data":{"user_id":"99","reason":"careful"}}`}},
 		{"shield on", act("shield", obj{"on": true}), []string{`shield_mode {"is_active":true}`}},
 		{"shield off", act("shield", obj{"on": false}), []string{`shield_mode {"is_active":false}`}},
@@ -49,6 +53,120 @@ func TestAutomationOutputActions(t *testing.T) {
 			rec := fx.run(t, "main", "req-"+tc.name, args)
 			assert.Equal(t, automationrpc.OutcomeOK, rec.Outcome, statuses(rec))
 			assert.Equal(t, tc.want, fx.described(t))
+		})
+	}
+}
+
+func TestAutomationTargetModes(t *testing.T) {
+	cases := []struct {
+		name       string
+		target     automation.TargetAction
+		id         uint64
+		login      string
+		roleTarget string
+	}{
+		{"viewer", automation.TargetAction{Who: "viewer", Login: "target"}, 999, "alice", "target_user_id=999"},
+		{"mention", automation.TargetAction{Who: "mention", Login: "target"}, 555, "first", "target_user_id=555"},
+		{"user", automation.TargetAction{Who: "user", UserID: "00666", Login: " @Picked "}, 666, "picked", "target_user_id=666"},
+		{"user without login", automation.TargetAction{Who: "user", UserID: "00666"}, 666, "", "target_user_id=666"},
+		{"login", automation.TargetAction{Who: "login", Login: "@Target"}, 99, "target", "to=target"},
+		{"legacy login", automation.TargetAction{Login: "@Target"}, 99, "target", "to=target"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := targetCommand(
+				act("timeout", automation.TimeoutAction{TargetAction: tc.target, Seconds: 60}),
+				act("ban", automation.BanAction{TargetAction: tc.target}),
+				act("mod", automation.LoginToggleAction{TargetAction: tc.target, On: true}),
+				act("vip", automation.LoginToggleAction{TargetAction: tc.target, On: false}),
+				act("points_add", automation.PointsAddAction{TargetAction: tc.target, Amount: 5}),
+				act("points_set", automation.PointsSetAction{TargetAction: tc.target, Amount: 20}),
+			)
+			fx := autoFixture{pub: &fakePublisher{}, loyalty: &autoLoyalty{}}
+			p, runs := autoRig{automations: []automation.Automation{a}, pub: fx.pub, loyalty: fx.loyalty,
+				accounts: autoAccounts{"target": "99"}}.pipeline()
+			env := chatEnv("!to @First @Second", "broadcaster")
+			env.Mentions = []lane.Mention{{UserID: "555", UserLogin: "First"}, {UserID: "777", UserLogin: "Second"}}
+
+			process(t, p, env)
+
+			assert.Equal(t, []string{
+				fmt.Sprintf(`timeout {"data":{"user_id":"%d","duration":60}}`, tc.id),
+				fmt.Sprintf(`ban {"data":{"user_id":"%d"}}`, tc.id),
+				"mod_add " + tc.roleTarget + " {}", "vip_remove " + tc.roleTarget + " {}",
+			}, fx.described(t))
+			if tc.login == "" {
+				require.Len(t, runs.recs, 1)
+				assert.Subset(t, statuses(runs.recs[0]), []string{"4:points_add:failed:empty_login", "5:points_set:failed:empty_login"})
+				assert.Empty(t, fx.loyalty.adjusts)
+				return
+			}
+			assert.Equal(t, []BalanceAdjustment{
+				{BroadcasterID: 123, ViewerID: tc.id, ViewerLogin: tc.login, Value: 5},
+				{BroadcasterID: 123, ViewerID: tc.id, ViewerLogin: tc.login, Value: 20, Absolute: true},
+			}, fx.loyalty.adjusts)
+		})
+	}
+}
+
+func targetCommand(actions ...automation.Action) automation.Automation {
+	a := command("!to", obj{}, cond("perm", obj{"level": "lead_mod"}))
+	a.Definition.Actions = actions
+	return a
+}
+
+func TestAutomationCommandTargetFailures(t *testing.T) {
+	cases := []struct {
+		name     string
+		target   automation.TargetAction
+		mentions []lane.Mention
+		want     string
+	}{
+		{"no mention", automation.TargetAction{Who: "mention"}, nil, "no_target"},
+		{"invalid first mention", automation.TargetAction{Who: "mention"},
+			[]lane.Mention{{UserID: "bogus"}, {UserID: "555"}}, "no_target"},
+		{"zero fixed id", automation.TargetAction{Who: "user", UserID: "0"}, nil, "no_target"},
+		{"overflowing fixed id", automation.TargetAction{Who: "user", UserID: "18446744073709551616"}, nil, "no_target"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := targetCommand(act("timeout", automation.TimeoutAction{TargetAction: tc.target, Seconds: 60}))
+			pub := &fakePublisher{}
+			p, runs := autoRig{automations: []automation.Automation{a}, pub: pub}.pipeline()
+			env := chatEnv("!to", "broadcaster")
+			env.Mentions = tc.mentions
+
+			process(t, p, env)
+
+			require.Len(t, runs.recs, 1)
+			assert.Equal(t, []string{"0:timeout:failed:" + tc.want}, statuses(runs.recs[0]))
+			assert.Empty(t, pub.snapshot())
+		})
+	}
+}
+
+func TestAutomationModerationRequiresRunData(t *testing.T) {
+	cases := []struct {
+		name   string
+		action automation.Action
+		want   string
+	}{
+		{"viewerless event", act("ban", obj{"who": "viewer"}), "0:ban:failed:no_viewer"},
+		{"warn reason expands to empty", act("warn", obj{"login": "target", "reason": "{args}"}), "0:warn:failed:empty_reason"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := testAutomation("target", "event", obj{"kind": "stream.online"})
+			a.Definition.Actions = []automation.Action{tc.action}
+			pub := &fakePublisher{}
+			rig := autoRig{automations: []automation.Automation{a}, pub: pub, accounts: autoAccounts{"target": "99"}}
+			p, runs := rig.pipeline()
+
+			process(t, p, eventEnv("stream.online", `{}`))
+
+			require.Len(t, runs.recs, 1)
+			assert.Equal(t, []string{tc.want}, statuses(runs.recs[0]))
+			assert.Empty(t, pub.snapshot())
 		})
 	}
 }

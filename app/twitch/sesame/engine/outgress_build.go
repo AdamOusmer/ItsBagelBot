@@ -247,6 +247,6 @@ func streamActionOutgress(o *module.Output) (outgress.Message, error) {
 		payload = struct{}{}
 	}
 	msg, err := payloadMessage(o.Type, o.BroadcasterID, payload)
-	msg.To = o.To
+	msg.To, msg.TargetUserID = o.To, o.TargetUserID
 	return msg, err
 }

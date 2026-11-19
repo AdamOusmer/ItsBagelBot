@@ -246,6 +246,7 @@ func describe(m outgress.Message) string {
 	for _, kv := range [][2]string{
 		{"to", m.To}, {"color", m.Color}, {"msg", m.MsgID}, {"reward", m.RewardID},
 		{"redemption", m.RedemptionID}, {"status", m.Status},
+		{"target_user_id", m.TargetUserID},
 	} {
 		if kv[1] != "" {
 			parts = append(parts, kv[0]+"="+kv[1])

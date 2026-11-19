@@ -60,7 +60,7 @@ func (w *Worker) processRaidCancel(ctx context.Context, payload *outgress.Messag
 }
 
 func (w *Worker) withTarget(ctx context.Context, payload *outgress.Message, call func(ctx context.Context, targetID string) error) error {
-	targetID, err := w.resolveLogin(ctx, payload, payload.To)
+	targetID, err := w.targetID(ctx, payload)
 	if err != nil || targetID == "" {
 		return err
 	}
@@ -73,4 +73,11 @@ func (w *Worker) withTarget(ctx context.Context, payload *outgress.Message, call
 	return w.runTyped(ctx, payload, typedJob{as: outgress.AsBroadcaster, call: func(ctx context.Context) error {
 		return call(ctx, targetID)
 	}})
+}
+
+func (w *Worker) targetID(ctx context.Context, payload *outgress.Message) (string, error) {
+	if payload.TargetUserID != "" {
+		return payload.TargetUserID, nil
+	}
+	return w.resolveLogin(ctx, payload, payload.To)
 }
