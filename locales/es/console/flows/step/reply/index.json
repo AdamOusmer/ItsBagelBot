@@ -10,23 +10,29 @@
     }
   },
   "points": {
-    "label": "Dar puntos de fidelidad",
+    "label": "Cambiar puntos",
     "summary": "Añadir o quitar puntos",
     "field": {
       "amount": {
         "label": "Cantidad",
         "unit": "puntos"
-      }
-    }
+      },
+      "change": { "label": "Cambio", "option": { "add": "Añadir", "take": "Quitar" } }
+    },
+    "line": { "add": "Dar {amount}", "take": "Quitar {amount}" }
   },
   "counter": {
-    "label": "Aumentar contador",
-    "summary": "Aumentar un contador",
+    "label": "Cambiar contador",
+    "summary": "Aumentar, reducir o fijar un contador con nombre",
     "field": {
       "counter": {
         "label": "Contador"
-      }
-    }
+      },
+      "change": { "label": "Cambio", "option": { "add": "Añadir", "set": "Fijar" } },
+      "amount": { "label": "Cantidad", "hint": "Usa un número negativo para restar" },
+      "value": { "label": "Valor" }
+    },
+    "line": { "add": "Añadir {amount} a {counter}", "take": "Quitar {amount} de {counter}", "set": "Fijar {counter} en {value}" }
   },
   "lights": {
     "label": "Ajustar luces",
@@ -162,8 +168,8 @@
         "range": "Usa de 1 segundo a {days} días."
       },
       "per": {
-        "label": "Por",
-        "hint": "Añade el tiempo de arriba por cada cantidad completa. Pon 100 en una receta de bits para contar cada 100 bits. Déjalo vacío para añadirlo una vez por evento."
+        "label": "Por cada",
+        "hint": "Solo con Cheers y suscripciones regaladas. Déjalo vacío para añadir tiempo una vez."
       }
     }
   },
@@ -181,7 +187,7 @@
       },
       "per": {
         "label": "Por cada",
-        "hint": "Añade este tiempo por cada cantidad completa. Déjalo vacío para añadirlo una vez por evento."
+        "hint": "Solo con Cheers y suscripciones regaladas. Déjalo vacío para añadir tiempo una vez."
       }
     }
   },
@@ -346,6 +352,19 @@
       "on": {
         "label": "Activado"
       }
+    }
+  },
+  "redemption": {
+    "label": "Completar canje",
+    "summary": "Completa el canje de una recompensa o devuelve sus puntos",
+    "field": {
+      "result": {
+        "label": "Resultado"
+      }
+    },
+    "line": {
+      "fulfill": "Marcar como completada",
+      "cancel": "Devolver los puntos"
     }
   }
 }

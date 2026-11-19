@@ -7,5 +7,6 @@
       "label": "Anzahl",
       "unit": "Punkte"
     }
-  }
+  },
+  "line": "Punkte auf {amount} setzen"
 }

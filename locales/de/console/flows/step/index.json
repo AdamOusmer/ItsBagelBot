@@ -71,5 +71,8 @@
     "apiError": "Warum es fehlgeschlagen ist",
     "cooldownLeft": "Verbleibender Cooldown",
     "countdownLeft": "Verbleibende Zeit des Countdowns"
-  }
+  },
+  "condition.points.keywords": "wenn punkte punktestand treuepunkte zuschauer prüfen vergleichen",
+  "condition.counter.keywords": "wenn zähler zählerwert siege tode prüfen vergleichen",
+  "reply.redemption.keywords": "einlösung prämie erfüllen rückerstattung abbrechen punkte"
 }

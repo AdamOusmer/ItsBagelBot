@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES, TEXT_ARG_FIELDS, type Issue } from '@bagel/kit/automations';
-import { specFor, targetFieldFor, targetMode, type FlowNode } from './model';
+import { CODE, RECIPE_NAME_PATTERN } from '@bagel/kit/automations/limits';
+import { specFor, targetFieldFor, targetMode, type FieldSpec, type FlowNode } from './model';
 import { configText } from './setup';
 
 type FieldKey = string;
@@ -28,7 +29,9 @@ const NODE_FIELDS: Record<string, Record<string, string>> = {
   'twitch.raid': { filters: 'minViewers' },
   'twitch.reward': { title: 'reward', cost: 'reward', color: 'reward', cooldown_s: 'reward', on_redeem: 'reward', input_required: 'reward' },
   'reply.chat': { text: 'message' },
-  'reply.counter': { name: 'counter' }
+  'reply.counter': { name: 'counter' },
+  'cond.counter': { name: 'counter' },
+  'reply.redemption': { status: 'result' }
 };
 
 const WHOLE_NODE_FIELDS: Record<string, string> = { 'cond.cooldown': 'seconds', 'cond.user': 'login' };
@@ -82,7 +85,7 @@ function locateFieldIssue(issue: Issue, nodes: readonly FlowNode[], trigger: Flo
 
 const TYPES: Record<string, string> = {
   'twitch.chat.command': 'command', 'twitch.chat.word': 'command', 'twitch.reward': 'reward', 'countdown.finished': 'countdown',
-  'cond.role': 'perm', 'cond.user': 'users', 'reply.points': 'points_add', 'reply.counter': 'counter_add', 'reply.wait': 'delay'
+  'cond.role': 'perm', 'cond.user': 'users', 'reply.points': 'points_add', 'reply.wait': 'delay'
 };
 
 const REQUIRED: Record<string, readonly string[]> = { 'cond.user': ['login'], 'cond.cooldown': ['seconds'] };
@@ -93,6 +96,7 @@ const REQUIRED_IF: Record<string, (config: FlowNode['config']) => boolean> = {
 };
 
 const POINTS_NODES = new Set(['reply.points', 'reply.points_set']);
+const INLINE_NUMBER_NODES = new Set(['reply.points', 'reply.counter']);
 const TARGET_REQUIRED = new Map<FieldKey, (node: FlowNode) => boolean>([
   ['login', (node) => targetMode(node.config) === 'user'],
   ['target', (node) => targetMode(node.config) === 'login' && !POINTS_NODES.has(node.type)]
@@ -109,7 +113,8 @@ function builderRule(node: FlowNode, key: FieldKey): boolean | undefined {
 }
 
 function catalogRequires(node: FlowNode, key: FieldKey): boolean {
-  const type = TYPES[node.type] ?? node.type.split('.').slice(1).join('.');
+  const type = node.type === 'reply.counter' ? (node.config.change === 'set' ? 'counter_set' : 'counter_add')
+    : TYPES[node.type] ?? node.type.split('.').slice(1).join('.');
   const catalog = [...TRIGGER_TYPES, ...CONDITION_TYPES, ...ACTION_TYPES].find((item) => item.type === type);
   return catalog?.fields.some((field) => field.required && fieldKeyFor(node, field.name) === key) ?? false;
 }
@@ -117,6 +122,30 @@ function catalogRequires(node: FlowNode, key: FieldKey): boolean {
 export function fieldRequired(node: FlowNode, key: FieldKey): boolean {
   const field = specFor(node.type)?.fields.find((entry) => entry.key === key);
   return field?.required ?? targetRequired(node, key) ?? builderRule(node, key) ?? catalogRequires(node, key);
+}
+
+function inlineNumberCode(node: FlowNode, field: Extract<FieldSpec, { type: 'number' }>): Issue['code'] | undefined {
+  if (field.whenTrigger !== 'amount' && !INLINE_NUMBER_NODES.has(node.type)) return undefined;
+  const raw = configText(node, field.key).trim();
+  if (!raw) return field.required ? CODE.required : undefined;
+  const value = Number(raw);
+  const legacyPoints = node.type === 'reply.points' && node.config.change === undefined;
+  const amount = legacyPoints ? Math.abs(value) : value;
+  const counterDelta = node.type === 'reply.counter' && field.key === 'amount';
+  if (counterDelta && amount === 0) return CODE.outOfRange;
+  if (amount < (field.min ?? -Infinity) || amount > (field.max ?? Infinity)) return CODE.outOfRange;
+}
+
+function inlineCode(node: FlowNode, field: FieldSpec): Issue['code'] | undefined {
+  if (field.type === 'number') return inlineNumberCode(node, field);
+  if (node.type !== 'reply.countdown_start' || field.key !== 'name') return undefined;
+  const value = configText(node, field.key).trim();
+  if (value && !RECIPE_NAME_PATTERN.test(value)) return CODE.simpleWord;
+}
+
+export function inlineFieldIssue(node: FlowNode, field: FieldSpec): FieldIssue | undefined {
+  const code = inlineCode(node, field);
+  return code ? { nodeId: node.id, fieldKey: field.key, path: `nodes.${node.id}.config.${field.key}`, code } : undefined;
 }
 
 export function missingField(node: FlowNode): string | undefined {

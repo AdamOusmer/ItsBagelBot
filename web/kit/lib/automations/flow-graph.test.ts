@@ -34,7 +34,8 @@ describe('target picker round-trip', () => {
     { type: 'ban', nodeType: 'reply.ban', params: { reason: '{user} broke a rule' } },
     { type: 'mod', nodeType: 'reply.mod', params: { on: true } },
     { type: 'vip', nodeType: 'reply.vip', params: { on: false } },
-    { type: 'points_add', nodeType: 'reply.points', params: { amount: -10 } },
+    { type: 'points_add', nodeType: 'reply.points', params: { amount: 10 }, drawn: { change: 'add' } },
+    { type: 'points_add', nodeType: 'reply.points', params: { amount: -10 }, drawn: { change: 'take', amount: 10 } },
     { type: 'points_set', nodeType: 'reply.points_set', params: { amount: 0 } }
   ];
   const targets = [
@@ -46,8 +47,8 @@ describe('target picker round-trip', () => {
   ];
 
   test.each(actions.flatMap((entry) => targets.map((target) => ({ ...entry, ...target }))))(
-    '$type preserves $mode when reopened and resaved',
-    ({ type, nodeType, params, wire, config }) => {
+    '$type $params preserves $mode when reopened and resaved',
+    ({ type, nodeType, params, wire, config, drawn }) => {
       const definition: Definition = {
         version: 1,
         trigger: { type: 'command', params: { name: '!test' } },
@@ -55,7 +56,7 @@ describe('target picker round-trip', () => {
       };
       const reopened = rebuilt(definition);
       const step = reopened.nodes.find((node) => node.type === nodeType);
-      expect({ config: step?.config, definition: lowered(reopened) }).toEqual({ config: { ...params, ...config }, definition });
+      expect({ config: step?.config, definition: lowered(reopened) }).toEqual({ config: { ...params, ...config, ...drawn }, definition });
     }
   );
 
@@ -64,6 +65,14 @@ describe('target picker round-trip', () => {
     const step = node('r', 'reply.points', { amount: 10, who: 'mention', userId: '1234567', login: 'bagel', target: '{bits}' });
     expect(lowered(flow([trigger, step], [edge('t', 'next', 'r')])).actions).toEqual([
       { type: 'points_add', params: { amount: 10, who: 'mention' } }
+    ]);
+  });
+
+  test('a points step saved before Change retains its negative amount', () => {
+    const trigger = node('t', 'twitch.chat.command', { trigger: '!test' });
+    const step = node('r', 'reply.points', { amount: -10, target: 'bagel' });
+    expect(lowered(flow([trigger, step], [edge('t', 'next', 'r')])).actions).toEqual([
+      { type: 'points_add', params: { amount: -10, login: 'bagel' } }
     ]);
   });
 });
@@ -275,13 +284,13 @@ describe('reply tokens', () => {
 
   const bump = (id: FlowNode['id'], counter: Label) => node(id, 'reply.counter', { counter });
 
-  test('{count} after one counter reads that counter and draws back as {count}', () => {
+  test.each(['{count}', '{counter:wins}'])('a single counter lowers %s to its named token', (token) => {
     const definition = lowered(
-      flow([node('t', 'twitch.chat.command', { trigger: '!hug' }), bump('c', 'hugs'), line('hugs: {count}')], [edge('t', 'next', 'c'), edge('c', 'next', 'a')])
+      flow([node('t', 'twitch.chat.command', { trigger: '!wins' }), bump('c', 'wins'), line(`wins: ${token}`)], [edge('t', 'next', 'c'), edge('c', 'next', 'a')])
     );
-    expect(definition.actions?.[1]?.params?.text).toBe('hugs: {counter:hugs}');
-    expect(rebuilt(definition).nodes[2]!.config.message).toBe('hugs: {count}');
-    expect(lowered(rebuilt(definition))).toEqual(definition);
+    const reopened = rebuilt(definition);
+    expect({ text: definition.actions?.[1]?.params?.text, message: reopened.nodes[2]!.config.message, wire: lowered(reopened) })
+      .toEqual({ text: 'wins: {counter:wins}', message: 'wins: {counter:wins}', wire: definition });
   });
 
   test('{count} after two different counters is ambiguous', () => {
@@ -1007,7 +1016,8 @@ describe('reward trigger', () => {
   const trigger = (config: FlowConfig) => flow([node('t', 'twitch.reward', config)], []);
 
   test.each([
-    ['a linked reward keeps only its id', { reward: 'r1' }, { reward_id: 'r1' }, { reward: 'r1' }],
+    ['a linked reward with no outcome stays unset', { reward: 'r1' }, { reward_id: 'r1' }, { reward: 'r1' }],
+    ['a linked reward keeps its explicit outcome', { reward: 'r1', onRedeem: 'cancel' }, { reward_id: 'r1', on_redeem: 'cancel' }, { reward: 'r1', onRedeem: 'cancel' }],
     [
       'a saved managed reward carries its settings',
       { reward: 'r1', ...managed },
@@ -1015,7 +1025,7 @@ describe('reward trigger', () => {
       { reward: 'r1', ...managed }
     ],
     [
-      'an unset outcome writes fulfil and a stored blank draws as leave',
+      'an unset managed outcome lowers as fulfill',
       { reward: 'r1', title: 'Hydrate', cost: 5 },
       { reward_id: 'r1', title: 'Hydrate', cost: 5, color: '', cooldown_s: 0, on_redeem: 'fulfill', input_required: false },
       { reward: 'r1', title: 'Hydrate', cost: 5, color: '', cooldown: 0, onRedeem: 'fulfill', userInput: false }
@@ -1042,6 +1052,37 @@ describe('reward trigger', () => {
   ] as [string, FlowConfig, string][])('%s is refused', (_name, config, path) => {
     const issues = validateDefinition(lowered(flow([node('t', 'twitch.reward', config), node('a', 'reply.chat', { message: 'hi' })], [edge('t', 'next', 'a')])));
     expect(issues.map((issue) => issue.path)).toEqual([path]);
+  });
+
+  test.each([
+    { result: 'fulfill', disabled: false, outcome: 'leave' },
+    { result: 'cancel', disabled: false, outcome: 'leave' },
+    { result: 'cancel', disabled: true, outcome: 'fulfill' }
+  ])('redemption $result with disabled=$disabled keeps trigger outcome $outcome', ({ result, disabled, outcome }) => {
+    const root = node('t', 'twitch.reward', { reward: 'r1', onRedeem: 'fulfill' });
+    const step = node('r', 'reply.redemption', disabled ? { result, disabled } : { result });
+    const definition = lowered(flow([root, step], [edge('t', 'next', 'r')]));
+    const reopened = rebuilt(definition);
+    expect({ outcome: definition.trigger.params?.on_redeem, action: definition.actions?.[0], config: reopened.nodes[1]?.config, wire: lowered(reopened) })
+      .toEqual({ outcome, action: { type: 'redemption', ...(disabled ? { enabled: false } : {}), params: { status: result } }, config: step.config, wire: definition });
+  });
+});
+
+test.each<{ config: FlowConfig; action: Action }>([
+  { config: { counter: 'wins', change: 'add', amount: 1 }, action: { type: 'counter_add', params: { name: 'wins', amount: 1 } } },
+  { config: { counter: 'wins', change: 'add', amount: -2 }, action: { type: 'counter_add', params: { name: 'wins', amount: -2 } } },
+  { config: { counter: 'wins', change: 'set', value: 0 }, action: { type: 'counter_set', params: { name: 'wins', value: 0 } } }
+])('counter $action.type $action.params round-trips', ({ config, action }) => {
+  const root = node('t', 'twitch.follow');
+  const definition = lowered(flow([root, node('c', 'reply.counter', config)], [edge('t', 'next', 'c')]));
+  expect({ actions: definition.actions, config: rebuilt(definition).nodes[1]?.config }).toEqual({ actions: [action], config });
+});
+
+test.each(['reply.countdown_add', 'reply.cooldown_add'])('%s reports a negative per on its field', (type) => {
+  const root = node('t', 'twitch.cheer');
+  const step = node('a', type, { name: 'clock2', seconds: 60, per: -5 });
+  expect(flowToDefinition(flow([root, step], [edge('t', 'next', 'a')]))).toEqual({
+    ok: false, issues: [{ path: 'nodes.a.config.per', code: 'out_of_range' }]
   });
 });
 

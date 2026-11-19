@@ -58,5 +58,18 @@
   "textSaved": "{op}, als {name} speichern",
   "loop": "{times}-mal wiederholen",
   "rewardUpdate": "Ändere {reward}",
-  "rewardUpdateBack": "Ändere {reward} bis zum Stream-Ende"
+  "rewardUpdateBack": "Ändere {reward} bis zum Stream-Ende",
+  "timerPer": "{name} pro {amount} um {seconds} verlängern",
+  "timerAmount": {
+    "bits": {
+      "one": "{count} Bit",
+      "many": "{count} Bits",
+      "unit": "Bits"
+    },
+    "gifts": {
+      "one": "{count} verschenktes Abo",
+      "many": "{count} verschenkte Abos",
+      "unit": "verschenkte Abos"
+    }
+  }
 }

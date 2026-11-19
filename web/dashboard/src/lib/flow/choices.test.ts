@@ -11,7 +11,9 @@ const draftCases: { source: ChoiceSource; type: string; config: FlowNode['config
   { source: 'namedCountdowns', type: 'reply.countdown_start', config: { name: 'tea', disabled: true }, names: [] },
   { source: 'namedCountdowns', type: 'reply.countdown_add', config: { name: 'tea' }, names: [] },
   { source: 'namedCountdowns', type: 'reply.countdown_start', config: { name: 'tea_time' }, names: [] },
-  { source: 'counters', type: 'reply.countdown_start', config: { name: 'tea' }, names: [] }
+  { source: 'counters', type: 'reply.countdown_start', config: { name: 'tea' }, names: [] },
+  { source: 'namedCountdowns', type: 'reply.countdown_start', config: { name: 'Clock2' }, names: ['clock2'] },
+  { source: 'namedCooldowns', type: 'cond.cooldown', config: { name: 'Break2' }, names: ['break2'] }
 ];
 
 test.each(draftCases)('$source includes draft $type with $config', ({ source, type, config, names }) => {

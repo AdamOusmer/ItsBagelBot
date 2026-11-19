@@ -7,5 +7,6 @@
       "label": "Quantidade",
       "unit": "pontos"
     }
-  }
+  },
+  "line": "Definir o saldo em {amount} pontos"
 }

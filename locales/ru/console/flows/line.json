@@ -58,5 +58,18 @@
   "textSaved": "{op}, сохранить как {name}",
   "loop": "Повторить {times} раз",
   "rewardUpdate": "Изменить {reward}",
-  "rewardUpdateBack": "Изменить {reward} до конца стрима"
+  "rewardUpdateBack": "Изменить {reward} до конца стрима",
+  "timerPer": "Продлить {name} на {seconds} за {amount}",
+  "timerAmount": {
+    "bits": {
+      "one": "{count} битс",
+      "many": "{count} битсов",
+      "unit": "битсы"
+    },
+    "gifts": {
+      "one": "{count} подаренную подписку",
+      "many": "{count} подаренных подписок",
+      "unit": "подаренные подписки"
+    }
+  }
 }

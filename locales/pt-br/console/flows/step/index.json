@@ -71,5 +71,8 @@
     "apiError": "Por que falhou",
     "cooldownLeft": "Intervalo restante",
     "countdownLeft": "Tempo restante da contagem regressiva"
-  }
+  },
+  "condition.points.keywords": "se pontos saldo fidelidade espectador verificar comparar",
+  "condition.counter.keywords": "se contador valor vitórias mortes verificar comparar",
+  "reply.redemption.keywords": "resgate recompensa atender devolver cancelar pontos"
 }

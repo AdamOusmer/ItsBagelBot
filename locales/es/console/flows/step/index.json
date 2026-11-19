@@ -71,5 +71,8 @@
     "apiError": "Por qué falló",
     "cooldownLeft": "Tiempo restante de enfriamiento",
     "countdownLeft": "Tiempo restante de la cuenta atrás"
-  }
+  },
+  "condition.points.keywords": "si puntos saldo lealtad espectador comprobar comparar",
+  "condition.counter.keywords": "si contador valor victorias muertes comprobar comparar",
+  "reply.redemption.keywords": "canje recompensa completar reembolsar cancelar puntos"
 }

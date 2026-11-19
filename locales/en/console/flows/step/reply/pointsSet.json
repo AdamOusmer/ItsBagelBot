@@ -7,5 +7,6 @@
       "label": "Amount",
       "unit": "points"
     }
-  }
+  },
+  "line": "Set points to {amount}"
 }

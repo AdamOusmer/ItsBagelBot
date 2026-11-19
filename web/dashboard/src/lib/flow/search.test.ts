@@ -41,7 +41,7 @@ test.each([
   ['zzzz', []],
   ['send zzzz', []],
   ['wa', ['reply.wait', 'cond.cooldown']],
-  ['wi', ['reply.counter', 'reply.prediction_end', 'reply.text']],
+  ['wi', ['reply.counter', 'reply.prediction_end', 'cond.counter', 'reply.text']],
   ['waaitt', []],
   ['?!', []]
 ])('%s returns only the matching steps in relevance order', (query, expected) => {

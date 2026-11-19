@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { MessageKey } from '@bagel/kit';
-import { compactDuration } from '@bagel/kit/automations';
+import { compactDuration, pointsChange, triggerAmountUnit } from '@bagel/kit/automations';
 import { optionText, outputLabel, stepSummary } from './copy';
 import type { Translate } from './messages';
 import { LINKED_REWARD_CHOICE, specFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
@@ -54,7 +54,7 @@ type SelectField = Extract<FieldSpec, { type: 'select' }>;
 
 function selectLabel(t: Translate, spec: NodeSpec, field: SelectField, value: string): string {
   if (field.options.includes(value)) return optionText(t, spec, field, value);
-  const first = field.options[0];
+  const first = String(field.initial ?? field.options[0] ?? '');
   return value || (first ? optionText(t, spec, field, first) : '');
 }
 
@@ -125,6 +125,13 @@ function varCheckLine(t: Translate, n: FlowNode): string {
   return t('flows.line.varCheck', { name, op: optionLabel(t, spec, n, 'op'), value: text(n, 'value') });
 }
 
+function counterCheckLine(t: Translate, n: FlowNode): string {
+  const name = text(n, 'counter');
+  const value = text(n, 'value');
+  if (!name || !value) return '';
+  return t('flows.line.varCheck', { name, op: optionLabel(t, specFor(n.type)!, n, 'op'), value });
+}
+
 function conditionLine(t: Translate, n: FlowNode): string {
   switch (n.type) {
     case 'cond.var':
@@ -139,15 +146,21 @@ function conditionLine(t: Translate, n: FlowNode): string {
       return compareLine(t, n);
     case 'cond.chance':
       return given(num(n, 'percent'), (percent) => t('flows.line.chance', { percent }));
+    case 'cond.counter':
+      return counterCheckLine(t, n);
     default:
       return '';
   }
 }
 
-function pointsLine(t: Translate, n: FlowNode): string {
-  const amount = Number(n.config.amount);
-  if (!Number.isFinite(amount) || amount === 0) return '';
-  return amount > 0 ? t('flows.line.pointsGive', { amount: points(t, amount) }) : t('flows.line.pointsTake', { amount: points(t, -amount) });
+function counterLine(t: Translate, n: FlowNode): string {
+  const counter = text(n, 'counter');
+  if (!counter) return '';
+  if (n.config.change === 'set') return given(text(n, 'value'), (value) => t('flows.step.reply.counter.line.set', { counter, value }));
+  const amount = Number(n.config.amount ?? (n.config.change === undefined ? 1 : 0));
+  if (!amount) return '';
+  const key = amount < 0 ? 'flows.step.reply.counter.line.take' : 'flows.step.reply.counter.line.add';
+  return t(key, { counter, amount: Math.abs(amount) });
 }
 
 function lightsLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
@@ -221,10 +234,8 @@ function replyLine(t: Translate, n: FlowNode, spec: NodeSpec): string {
   switch (n.type) {
     case 'reply.chat':
       return text(n, 'message');
-    case 'reply.points':
-      return pointsLine(t, n);
     case 'reply.counter':
-      return given(optionLabel(t, spec, n, 'counter'), (counter) => t('flows.line.counter', { counter }));
+      return counterLine(t, n);
     case 'reply.lights':
       return lightsLine(t, n, spec);
     case 'reply.wait':
@@ -253,15 +264,23 @@ function lineVariant(value: ConfigValue): string {
 
 function lineValue(t: Translate, node: FlowNode, spec: NodeSpec, key: string): string {
   if (!text(node, key)) return '';
+  if (node.type === 'reply.points' && key === 'amount') return given(Math.abs(Number(node.config.amount)), (amount) => points(t, amount));
   const field = spec.fields.find((entry) => entry.key === key);
   if (field?.type === 'duration') return given(num(node, key), durationFormatter(t));
   return optionLabel(t, spec, node, key);
 }
 
+function lineSuffix(node: FlowNode, spec: NodeSpec): string {
+  if (!spec.lineBy) return '';
+  if (node.type === 'reply.points') return `.${pointsChange(node.config)}`;
+  const initial = spec.fields.find((field) => field.key === spec.lineBy)?.initial;
+  return `.${lineVariant(node.config[spec.lineBy] ?? initial)}`;
+}
+
 function specLine(t: Translate, node: FlowNode, spec: NodeSpec): string | undefined {
-  const suffix = spec.lineBy ? `.${lineVariant(node.config[spec.lineBy])}` : '';
-  const template = t(`flows.step.${spec.kind}.${spec.slug}.line${suffix}` as MessageKey);
-  if (template === `flows.step.${spec.kind}.${spec.slug}.line${suffix}`) return undefined;
+  const key = `flows.step.${spec.kind}.${spec.slug}.line${lineSuffix(node, spec)}` as MessageKey;
+  const template = t(key);
+  if (template === key) return undefined;
   let missing = false;
   const line = template.replace(/\{(\w+)\}/g, (_, key: string) => {
     const value = lineValue(t, node, spec, key);
@@ -271,6 +290,19 @@ function specLine(t: Translate, node: FlowNode, spec: NodeSpec): string | undefi
   return missing ? '' : line;
 }
 
+type TriggerContext = Pick<FlowNode, 'type' | 'config'>;
+
+function timerPerLine(t: Translate, node: FlowNode, trigger?: TriggerContext): string {
+  if (node.type !== 'reply.countdown_add' && node.type !== 'reply.cooldown_add') return '';
+  const unit = triggerAmountUnit(trigger);
+  const per = num(node, 'per');
+  const seconds = num(node, 'seconds');
+  const name = text(node, 'name');
+  if (!unit || !per || !seconds || !name) return '';
+  const amount = t(`flows.line.timerAmount.${unit}.${per === 1 ? 'one' : 'many'}`, { count: per });
+  return t('flows.line.timerPer', { name, seconds: durationFormatter(t)(seconds), amount });
+}
+
 export function portLabel(t: Translate, node: FlowNode, id: string): string {
   const percent = node.type === 'cond.chance' ? num(node, 'percent') : 0;
   if (percent) return id === 'yes' ? t('flows.line.chanceYes', { percent }) : t('flows.line.chanceNo');
@@ -278,9 +310,9 @@ export function portLabel(t: Translate, node: FlowNode, id: string): string {
   return spec ? outputLabel(t, spec, id) : '';
 }
 
-export function describe(t: Translate, node: FlowNode): string {
+export function describe(t: Translate, node: FlowNode, trigger?: TriggerContext): string {
   const spec = specFor(node.type);
   if (!spec) return '';
   if (awaitingSetup(node)) return t('flows.setup.line');
-  return (specLine(t, node, spec) ?? lineFor(t, node, spec)) || stepSummary(t, spec);
+  return timerPerLine(t, node, trigger) || (specLine(t, node, spec) ?? lineFor(t, node, spec)) || stepSummary(t, spec);
 }

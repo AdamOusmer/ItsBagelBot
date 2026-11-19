@@ -58,5 +58,18 @@
   "textSaved": "{op}, enregistrer sous {name}",
   "loop": "Répéter {times} fois",
   "rewardUpdate": "Modifier {reward}",
-  "rewardUpdateBack": "Modifier {reward} jusqu’à la fin du stream"
+  "rewardUpdateBack": "Modifier {reward} jusqu’à la fin du stream",
+  "timerPer": "Ajouter {seconds} à {name} par tranche de {amount}",
+  "timerAmount": {
+    "bits": {
+      "one": "{count} bit",
+      "many": "{count} bits",
+      "unit": "bits"
+    },
+    "gifts": {
+      "one": "{count} abonnement offert",
+      "many": "{count} abonnements offerts",
+      "unit": "abonnements offerts"
+    }
+  }
 }

@@ -71,5 +71,8 @@
     "apiError": "Why it failed",
     "cooldownLeft": "Time left on the cooldown",
     "countdownLeft": "Time left on the countdown"
-  }
+  },
+  "condition.points.keywords": "if points balance loyalty viewer check compare",
+  "condition.counter.keywords": "if counter value wins deaths check compare",
+  "reply.redemption.keywords": "redemption reward fulfill refund cancel points"
 }

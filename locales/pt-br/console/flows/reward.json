@@ -19,5 +19,7 @@
   "update": "Atualizar recompensa",
   "created": "Recompensa criada na Twitch.",
   "updated": "Recompensa atualizada na Twitch.",
-  "requestFailed": "Não foi possível falar com a Twitch. Tente novamente em um instante."
+  "requestFailed": "Não foi possível falar com a Twitch. Tente novamente em um instante.",
+  "afterSettledByStep": "A etapa Concluir resgate cuida disso.",
+  "afterRefundSkipped": "Se alguma verificação da receita falhar, o espectador recebe os pontos de volta."
 }

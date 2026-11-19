@@ -12,7 +12,7 @@ const viewer = ['{user}', '{user.id}'];
 const base: Step = ['root', 'twitch.follow'];
 
 const cases: ScopeCase[] = [
-  { name: 'linear ancestors', steps: [base, ['a', 'reply.counter', { counter: 'wins' }], ['b', 'reply.chat']], links: [['root', 'next', 'a'], ['a', 'next', 'b']], target: 'b', tokens: [...viewer, '{count}'] },
+  { name: 'linear ancestors', steps: [base, ['a', 'reply.counter', { counter: 'wins' }], ['b', 'reply.chat']], links: [['root', 'next', 'a'], ['a', 'next', 'b']], target: 'b', tokens: [...viewer, '{counter:wins}'] },
   { name: 'parallel sibling', steps: [base, ['a', 'reply.math', { saveAs: 'points' }], ['b', 'reply.chat']], links: [['root', 'next', 'a'], ['root', 'next', 'b']], target: 'b', tokens: viewer },
   { name: 'parallel merge', steps: [base, ['a', 'reply.math', { saveAs: 'points' }], ['b', 'reply.wait'], ['join', 'reply.chat']], links: [['root', 'next', 'a'], ['root', 'next', 'b'], ['a', 'next', 'join'], ['b', 'next', 'join']], target: 'join', tokens: viewer },
   { name: 'same local name on parallel paths is discarded', steps: [base, ['a', 'reply.math', { saveAs: 'points' }], ['b', 'reply.math', { saveAs: 'points' }], ['join', 'reply.chat']], links: [['root', 'next', 'a'], ['root', 'next', 'b'], ['a', 'next', 'join'], ['b', 'next', 'join']], target: 'join', tokens: viewer },
@@ -30,7 +30,8 @@ const cases: ScopeCase[] = [
   { name: 'loop done', steps: [base, ['loop', 'reply.loop'], ['b', 'reply.chat']], links: [['root', 'next', 'loop'], ['loop', 'done', 'b']], target: 'b', tokens: viewer },
   { name: 'disconnected producer', steps: [['a', 'reply.math', { saveAs: 'points' }], ['b', 'reply.chat']], links: [['a', 'next', 'b']], target: 'b', tokens: [] },
   { name: 'disabled producer', steps: [base, ['a', 'reply.math', { saveAs: 'points', disabled: true }], ['b', 'reply.chat']], links: [['root', 'next', 'a'], ['a', 'next', 'b']], target: 'b', tokens: viewer },
-  { name: 'trigger itself', steps: [base], links: [], target: 'root', tokens: [] }
+  { name: 'trigger itself', steps: [base], links: [], target: 'root', tokens: [] },
+  { name: 'cooldown extension', steps: [base, ['a', 'reply.cooldown_add', { name: 'break', seconds: 60 }], ['b', 'reply.chat']], links: [['root', 'next', 'a'], ['a', 'next', 'b']], target: 'b', tokens: [...viewer, '{cooldown:left}'] }
 ];
 
 const mixedSteps: Step[] = [base, ['chance', 'cond.chance'], ['math', 'reply.math', { saveAs: 'points' }], ['a', 'reply.chat'], ['b', 'reply.chat'], ['join', 'reply.chat']];

@@ -166,6 +166,7 @@ function possiblePatch(context: RunContext, fields: readonly ScenarioField[], pa
 function checkText(t: Translate, node: FlowNode, scenario: RehearsalScenario): Text {
   if (node.type === 'cond.role') return t('flows.test.roleCheck', { actual: scenarioRoleLabel(t, scenario.role ?? 'viewer'), expected: scenarioRoleLabel(t, String(node.config.level ?? 'viewer')) });
   if (node.type === 'cond.user') return t('flows.test.userCheck', { actual: scenario.userId ?? t('flows.test.notSet'), expected: String(node.config.userId || t('flows.test.notSet')) });
+  if (node.type !== 'cond.compare') return describe(t, node);
   return describe(t, { ...node, config: { ...node.config, left: displayInput(node.config.left, scenario) || t('flows.test.emptyValue'), right: displayInput(node.config.right, scenario) || t('flows.test.emptyValue') } });
 }
 

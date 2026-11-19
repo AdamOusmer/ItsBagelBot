@@ -5,7 +5,11 @@ import { streamActionReaders, streamActionWriters, streamTargetNodes, usesLegacy
 import { COMPARE_OPS } from './compare';
 import { SETUP_LOGIN, SETUP_REWARD_ID } from './flow-setup';
 import { CODE, MAX_DELAY_MS, VERSION } from './limits';
+import { CMP_OPS } from './values';
 import type { Action, Condition, Definition, Issue, Params, Trigger } from './types';
+
+export { pointsChange } from './stream-flow';
+export { CMP_OPS } from './values';
 
 export type FlowConfig = Record<string, string | number | boolean>;
 export type FlowNode = { id: string; type: string; x: number; y: number; config: FlowConfig };
@@ -89,16 +93,23 @@ function eventTrigger(kind: string, filters?: Record<string, string>): Trigger {
   return { type: 'event', params: filters ? { kind, filters } : { kind } };
 }
 
+export const DEFAULT_REWARD_OUTCOME = 'leave';
+export const CREATED_REWARD_OUTCOME = 'fulfill';
+
+export const hasRedemptionStep = (nodes: readonly FlowNode[]): boolean =>
+  nodes.some((node) => node.type === 'reply.redemption' && node.config.disabled !== true);
+
 function rewardTrigger(config: FlowConfig): Trigger {
   const title = str(config.title).trim();
-  if (title === '') return { type: 'reward', params: { reward_id: str(config.reward) } };
+  const chosen = str(config.onRedeem);
+  if (title === '') return { type: 'reward', params: chosen ? { reward_id: str(config.reward), on_redeem: chosen } : { reward_id: str(config.reward) } };
   const params = {
     reward_id: str(config.reward) || SETUP_REWARD_ID,
     title,
     cost: num(config.cost),
     color: str(config.color),
     cooldown_s: num(config.cooldown),
-    on_redeem: str(config.onRedeem) || 'fulfill',
+    on_redeem: chosen || CREATED_REWARD_OUTCOME,
     input_required: config.userInput === true
   };
   return { type: 'reward', params };
@@ -300,8 +311,14 @@ const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
     return { type: 'var', params: { ...varIdentity(config), op, value: VAR_OPS_WITH_VALUE.includes(op) ? str(config.value) : '' } };
   },
   'cond.user': (config) => ({ type: 'users', params: awaitingUser(config) ? { allow: [SETUP_LOGIN] } : { allow_ids: [str(config.userId)] } }),
-  'cond.cooldown': cooldownConditionAction
+  'cond.cooldown': cooldownConditionAction,
+  'cond.points': (config) => ({ type: 'points', params: loyaltyComparison(config) }),
+  'cond.counter': (config) => ({ type: 'counter', params: { name: str(config.counter), ...loyaltyComparison(config) } })
 };
+
+function loyaltyComparison(config: FlowConfig): Params {
+  return { op: str(config.op) || 'gte', value: num(config.value) };
+}
 
 function cooldownConditionAction(config: FlowConfig): Condition {
   const perUser = Boolean(config.perUser);
@@ -314,7 +331,7 @@ const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   ...streamActionWriters,
   'reply.chat': (config) => ({ type: 'chat', params: { text: str(config.message) } }),
   'reply.lights': lightsAction,
-  'reply.counter': (config) => ({ type: 'counter_add', params: { name: str(config.counter), amount: 1 } }),
+  'reply.counter': counterAction,
   'reply.wait': (config) => ({ type: 'delay', params: { ms: num(config.seconds) * 1000 } }),
   'reply.var_set': (config) => ({ type: 'var_set', params: { ...varIdentity(config), value: str(config.value) } }),
   'reply.var_add': (config) => ({ type: 'var_add', params: { ...varIdentity(config), amount: num(config.amount) } }),
@@ -324,8 +341,16 @@ const ACTION_WRITERS: Record<string, (config: FlowConfig) => Action> = {
   'reply.reward_update': rewardUpdateAction,
   'reply.countdown_start': (config) => ({ type: 'countdown_start', params: { ...timeLeftParams(config), name: recipeName(config.name), seconds: num(config.seconds) } }),
   'reply.countdown_add': (config) => ({ ...cooldownAddAction(config), type: 'countdown_add' }),
-  'reply.cooldown_add': cooldownAddAction
+  'reply.cooldown_add': cooldownAddAction,
+  'reply.redemption': (config) => ({ type: 'redemption', params: { status: str(config.result) || 'fulfill' } })
 };
+
+function counterAction(config: FlowConfig): Action {
+  const name = str(config.counter);
+  if (config.change === 'set') return { type: 'counter_set', params: { name, value: num(config.value) } };
+  const amount = config.change === undefined ? num(config.amount ?? 1) : num(config.amount);
+  return { type: 'counter_add', params: { name, amount } };
+}
 
 function cooldownAddAction(config: FlowConfig): Action {
   const params: Params = { name: recipeName(str(config.name)), seconds: num(config.seconds) };
@@ -412,6 +437,17 @@ function propagateCounters(state: { prior: Map<string, string[]>; counts: Map<st
 function triggerKind(trigger: Trigger): string {
   if (trigger.type === 'reward') return REWARD_KIND;
   return trigger.type === 'event' ? str(trigger.params?.kind) : '';
+}
+
+function amountUnit(trigger: Trigger): 'bits' | 'gifts' | undefined {
+  const tokens = EVENT_TOKENS[triggerKind(trigger)];
+  if (tokens?.bits === 'amount') return 'bits';
+  if (tokens?.count === 'amount') return 'gifts';
+}
+
+export function triggerAmountUnit(node?: Pick<FlowNode, 'type' | 'config'>): ReturnType<typeof amountUnit> {
+  const trigger = node && TRIGGER_WRITERS[node.type]?.(node.config);
+  return trigger ? amountUnit(trigger) : undefined;
 }
 
 function lowerCountToken(ctx: Lowering, counters: string[]): string | null {
@@ -520,13 +556,36 @@ function owned<T extends object>(ctx: Lowering, node: FlowNode, written: T): T {
   return written;
 }
 
+function rangeIssue(ctx: Lowering, node: FlowNode, field: 'amount' | 'per'): void {
+  ctx.issues.push({ path: `${nodePath(node.id)}.config.${field}`, code: CODE.outOfRange });
+}
+
+function perBelowMinimum(config: FlowConfig): boolean {
+  return String(config.per ?? '').trim() !== '' && num(config.per) < 1;
+}
+
+function actionConfig(ctx: Lowering, node: FlowNode): FlowConfig {
+  const config = loweredConfig(ctx, node);
+  switch (node.type) {
+    case 'reply.points':
+      if (config.change && num(config.amount) < 0) rangeIssue(ctx, node, 'amount');
+      return config;
+    case 'reply.countdown_add':
+    case 'reply.cooldown_add':
+      if (perBelowMinimum(config)) rangeIssue(ctx, node, 'per');
+      return amountUnit(ctx.trigger) ? config : { ...config, per: '' };
+    default:
+      return config;
+  }
+}
+
 function writeAction(ctx: Lowering, node: FlowNode): Action {
   const write = ACTION_WRITERS[node.type];
   if (!write) {
     ctx.issues.push({ path: nodePath(node.id), code: FLOW_ISSUE.unsupportedNode });
     return { type: node.type };
   }
-  const action = write(loweredConfig(ctx, node));
+  const action = write(actionConfig(ctx, node));
   if (action.type === 'delay' && num(action.params?.ms) > MAX_DELAY_MS) {
     ctx.issues.push({ path: nodePath(node.id), code: FLOW_ISSUE.waitTooLong });
   }
@@ -662,7 +721,9 @@ function lowerFlow(flow: Flow): Lowered {
   const found = triggerNode(flow);
   if (!found.ok) return { result: found, owners };
   const trigger = found.value;
-  const written = TRIGGER_WRITERS[trigger.type]?.(trigger.config);
+  const settles = trigger.type === 'twitch.reward' && hasRedemptionStep(flow.nodes);
+  const config = settles ? { ...trigger.config, onRedeem: 'leave' } : trigger.config;
+  const written = TRIGGER_WRITERS[trigger.type]?.(config);
   const ctx: Lowering = {
     trigger: written ?? { type: '' },
     byId: new Map(flow.nodes.map((n) => [n.id, n])),
@@ -831,7 +892,8 @@ function commandNode(params: Params): { type: string; config: FlowConfig } | nul
 function rewardNode(params: Params): { type: string; config: FlowConfig } {
   const id = str(params.reward_id);
   const title = str(params.title);
-  if (title === '') return { type: 'twitch.reward', config: { reward: id } };
+  const onRedeem = str(params.on_redeem) || DEFAULT_REWARD_OUTCOME;
+  if (title === '') return { type: 'twitch.reward', config: params.on_redeem ? { reward: id, onRedeem } : { reward: id } };
   const reward = id === SETUP_REWARD_ID ? '' : id;
   const config: FlowConfig = {
     reward,
@@ -839,7 +901,7 @@ function rewardNode(params: Params): { type: string; config: FlowConfig } {
     cost: num(params.cost),
     color: str(params.color),
     cooldown: num(params.cooldown_s),
-    onRedeem: str(params.on_redeem) || 'leave',
+    onRedeem,
     userInput: params.input_required === true
   };
   return { type: 'twitch.reward', config };
@@ -890,7 +952,16 @@ function conditionToNode(condition: Condition): { type: string; config: FlowConf
   if (condition.type === 'perm') return { type: 'cond.role', config: { level: str(params.level) } };
   if (condition.type === 'chance') return { type: 'cond.chance', config: { percent: num(params.percent) } };
   if (condition.type === 'cooldown') return cooldownNode(params);
-  return null;
+  return loyaltyConditionNode(condition);
+}
+
+function loyaltyConditionNode({ type, params = {} }: Condition): { type: string; config: FlowConfig } | null {
+  if (type !== 'points' && type !== 'counter') return null;
+  const op = str(params.op);
+  if (!CMP_OPS.includes(op)) return null;
+  const config: FlowConfig = { op, value: num(params.value) };
+  if (type === 'counter') config.counter = str(params.name);
+  return { type: `cond.${type}`, config };
 }
 
 function lightsNode(params: Params): { type: string; config: FlowConfig } | null {
@@ -943,7 +1014,7 @@ const ACTION_READERS: Record<string, (params: Params) => { type: string; config:
   ...streamActionReaders,
   chat: (params) => ({ type: 'reply.chat', config: { message: str(params.text) } }),
   lights: lightsNode,
-  counter_add: (params) => (num(params.amount) === 1 ? { type: 'reply.counter', config: { counter: str(params.name) } } : null),
+  counter_add: (params) => counterNode(params, 'add'),
   delay: (params) => ({ type: 'reply.wait', config: { seconds: num(params.ms) / 1000 } }),
   var_set: (params) => ({ type: 'reply.var_set', config: { ...varConfig(params), value: str(params.value) } }),
   var_add: (params) => ({ type: 'reply.var_add', config: { ...varConfig(params), amount: num(params.amount) } }),
@@ -953,8 +1024,17 @@ const ACTION_READERS: Record<string, (params: Params) => { type: string; config:
   reward_update: rewardUpdateNode,
   countdown_start: (params) => ({ type: 'reply.countdown_start', config: { ...timeLeftConfig(params), name: str(params.name), seconds: num(params.seconds) } }),
   countdown_add: (params) => ({ ...cooldownAddNode(params), type: 'reply.countdown_add' }),
-  cooldown_add: cooldownAddNode
+  cooldown_add: cooldownAddNode,
+  counter_set: (params) => counterNode(params, 'set'),
+  redemption: (params) => ({ type: 'reply.redemption', config: { result: str(params.status) } })
 };
+
+function counterNode(params: Params, change: 'add' | 'set'): { type: string; config: FlowConfig } | null {
+  const field = change === 'add' ? 'amount' : 'value';
+  const value = num(params[field]);
+  if (field === 'amount' && value === 0) return null;
+  return { type: 'reply.counter', config: { counter: str(params.name), change, [field]: value } };
+}
 
 function cooldownAddNode(params: Params): { type: string; config: FlowConfig } {
   const config: FlowConfig = { name: str(params.name), seconds: num(params.seconds) };
@@ -1037,9 +1117,7 @@ type CounterScan = { kind: string; counters: Map<string, string[]> };
 
 function raiseTemplate(scan: CounterScan, node: FlowNode, field: string): string {
   const counters = scan.counters.get(node.id) ?? [];
-  const text = eventTokensToBuilder(scan.kind, str(node.config[field]), counters.length > 0);
-  if (counters.length === 1 && !EVENT_TOKENS[scan.kind]?.count) return text.replaceAll(`{counter:${counters[0]}}`, '{count}');
-  return text;
+  return eventTokensToBuilder(scan.kind, str(node.config[field]), counters.length > 0);
 }
 
 function raiseMessages(b: Building, kind: string): void {

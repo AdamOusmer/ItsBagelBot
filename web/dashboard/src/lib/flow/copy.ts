@@ -123,8 +123,14 @@ export function durationOutside(field: DurationSpec, seconds: string | number | 
   return Number(seconds) < field.min || Number(seconds) > field.max;
 }
 
+function optionKey(spec: NodeSpec, field: FieldSpec, value: string): MessageKey {
+  const shared = field.type === 'select' ? field.optionKey : undefined;
+  if (typeof shared === 'string') return `${shared}.${value}`;
+  return shared?.[value] ?? `${fieldCopyPrefix(spec, field)}.option.${value}`;
+}
+
 export const optionText = (t: Translate, spec: NodeSpec, field: FieldSpec, value: string): string =>
-  t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.option.${value}` as MessageKey);
+  t(optionKey(spec, field, value));
 
 export function fieldOptions(t: Translate, spec: NodeSpec, field: FieldSpec): { value: string; label: string }[] {
   if (field.type !== 'select') return [];
@@ -137,7 +143,10 @@ export function fieldSearchText(t: Translate, spec: NodeSpec): string {
     const options = field.type === 'select' ? field.options : [];
     return [
       known(`${prefix}.label`, t(`${prefix}.label` as MessageKey)),
-      ...options.map((value) => known(`${prefix}.option.${value}`, t(`${prefix}.option.${value}` as MessageKey)))
+      ...options.map((value) => {
+        const key = optionKey(spec, field, value);
+        return known(key, t(key));
+      })
     ];
   }).filter(Boolean).join(' ');
 }

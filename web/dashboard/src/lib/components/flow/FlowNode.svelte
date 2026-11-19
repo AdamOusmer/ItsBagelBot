@@ -14,6 +14,7 @@
 
   let {
     node,
+    trigger,
     selected = false,
     tabbable = true,
     touch = false,
@@ -22,6 +23,7 @@
     onadd
   }: {
     node: FlowNode;
+    trigger?: FlowNode;
     selected?: boolean;
     tabbable?: boolean;
     touch?: boolean;
@@ -46,7 +48,7 @@
   const isTrigger = $derived(spec?.kind === 'trigger');
   const branching = $derived(Boolean(spec?.outputs));
   const { t } = getI18n();
-  const line = $derived(describe(t, node));
+  const line = $derived(describe(t, node, trigger));
   const title = $derived(spec ? stepLabel(t, spec) : '');
   const kindLabel = $derived(spec ? t(`flows.board.kind.${spec.kind}` as MessageKey) : '');
   const off = $derived(spec?.kind === 'reply' && node.config.disabled === true);

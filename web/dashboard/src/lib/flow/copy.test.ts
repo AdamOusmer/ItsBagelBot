@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
-import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, roleWarning, stepLabel, stepSummary, variableLabel } from './copy';
+import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, groupLabel, outputLabel, roleWarning, stepLabel, stepRequirementFor, stepSummary, variableLabel } from './copy';
 import { describe as describeNode } from './describe';
 import { english } from './english.testing';
 import { newFlow, NODE_SPECS, specFor, type FlowNode } from './model';
@@ -24,9 +24,10 @@ test.each([
 describe('step copy', () => {
   test.each([
     { type: 'cond.cooldown', key: 'name', hint: 'Naming this restarts it if it is running. Add time steps in any recipe can then extend it. Not available per viewer.' },
-    { type: 'reply.cooldown_add', key: 'per', hint: 'Adds the time above for each full amount. Put 100 on a bits recipe to count every 100 bits. Leave empty to add it once per event.' },
-    { type: 'reply.countdown_add', key: 'per', hint: 'Add this time for each full amount. Leave empty to add it once per event.' },
-    { type: 'reply.countdown_add', key: 'name', hint: undefined }
+    { type: 'reply.cooldown_add', key: 'per', hint: 'Only on cheer and gift sub triggers. Leave empty to add time once.' },
+    { type: 'reply.countdown_add', key: 'per', hint: 'Only on cheer and gift sub triggers. Leave empty to add time once.' },
+    { type: 'reply.countdown_add', key: 'name', hint: undefined },
+    { type: 'reply.counter', key: 'amount', hint: 'Use a minus number to take away' }
   ])('$type $key shows a hint only when translated', ({ type, key, hint }) => {
     const spec = specFor(type)!;
     const field = spec.fields.find((field) => field.key === key)!;
@@ -110,6 +111,13 @@ describe('step copy', () => {
     const wait = NODE_SPECS.find((spec) => spec.type === 'reply.wait')!;
     expect(fieldUnit(english, wait, wait.fields[0])).toMatch(/^seconds, max \d+$/);
   });
+});
+
+test.each([
+  { trigger: 'command', requirement: { kind: 'trigger', trigger: 'reward' } },
+  { trigger: 'reward', requirement: null }
+])('Complete redemption uses the engine requirement on $trigger', ({ trigger, requirement }) => {
+  expect(stepRequirementFor(specFor('reply.redemption')!, { type: trigger })).toEqual(requirement);
 });
 
 describe('describe', () => {

@@ -16,17 +16,17 @@
   import { getI18n, type MessageKey } from '@bagel/kit';
   import { chipHint, pinnedFor, sheetFor, variableById, type VariableChip } from '@bagel/kit/variables';
   import { portLabel } from '#lib/flow/describe';
-  import { fieldRequired, type FieldIssue } from '#lib/flow/issues';
+  import { fieldRequired, inlineFieldIssue, type FieldIssue } from '#lib/flow/issues';
   import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import DurationField from '#lib/components/shared/DurationField.svelte';
   import { durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, requirementText, requirementTrigger, roleWarning, stepLabel, stepRequirementFor, stepSummary, targetOptions, variableLabel } from '#lib/flow/copy';
   import { defaultComparison } from '#lib/flow/comparison';
-  import { fieldMounted, fieldVisible, NODE_SPECS, outputsFor, specFor, targetFieldFor, targetModesFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
+  import { fieldMounted, fieldVisible, flowTrigger, NODE_SPECS, outputsFor, specFor, targetFieldFor, targetModesFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
   import { duplicateNode, hasCheckBefore, insertCheckBefore } from '#lib/flow/ops';
   import { descendants, graphIndex, portKey } from '#lib/flow/graph-index';
   import { awaitingSetup, configText } from '#lib/flow/setup';
-  import { SETUP_URL } from '@bagel/kit/automations';
+  import { hasRedemptionStep, pointsChange, SETUP_URL, triggerAmountUnit } from '@bagel/kit/automations';
   import ChoiceField from './ChoiceField.svelte';
   import FlowRehearsal from './FlowRehearsal.svelte';
   import GoveeLightField from './GoveeLightField.svelte';
@@ -79,6 +79,8 @@
 
   const node = $derived(flow.nodes.find((n) => n.id === (selectedId ?? fallbackId)));
   const spec = $derived(node ? specFor(node.type) : undefined);
+  const trigger = $derived(flowTrigger(flow));
+  const amountUnit = $derived(triggerAmountUnit(trigger));
 
   const compareExample = $derived.by(() => {
     if (node?.type !== 'cond.compare') return null;
@@ -99,11 +101,35 @@
   const canAddCheck = $derived(roleLevel ? incoming.length > 0 && !addedCheck : false);
   const checkAction = $derived(canAddCheck || Boolean(removeCheck));
   const automaticComparisons = new Map<FlowNode['id'], boolean>();
+  const legacyTake = $derived(node?.type === 'reply.points' && node.config.change === undefined && pointsChange(node.config) === 'take');
 
   function setSelect(key: FieldKey, value: string) {
     if (!node) return;
+    if (key === 'change' && legacyTake) node.config.amount = Math.abs(Number(node.config.amount));
+    if (key === 'change' && node.type === 'reply.counter') setCounterDefault(node, value);
     node.config[key] = value;
     if (node.type === 'cond.compare') automaticComparisons.set(node.id, false);
+  }
+
+  function setCounterDefault(node: FlowNode, change: string) {
+    const key = change === 'set' ? 'value' : 'amount';
+    const initial = spec?.fields.find((field) => field.key === key)?.initial;
+    if (typeof initial === 'number') node.config[key] ??= initial;
+  }
+
+  function setNumber(key: FieldKey, raw: string) {
+    if (!node) return;
+    if (key === 'amount' && legacyTake) node.config.change = 'take';
+    if (key === 'amount' && node.type === 'reply.counter') node.config.change ??= 'add';
+    if (raw === '') delete node.config[key];
+    else node.config[key] = Number(raw);
+  }
+
+  function numberValue(node: FlowNode, key: FieldKey): number | '' {
+    if (key === 'amount' && legacyTake) return Math.abs(Number(node.config.amount));
+    const value = node.config[key];
+    if (value !== undefined) return Number(value);
+    return key === 'amount' && node.type === 'reply.counter' && node.config.change === undefined ? 1 : '';
   }
 
   function setTemplate(key: FieldKey, value: string) {
@@ -125,7 +151,7 @@
   });
 
   const templateFields = $derived(spec?.fields.filter((field) => field.type === 'template') ?? []);
-  const activeTemplates = $derived(node && spec ? templateFields.filter((field) => fieldVisible(spec, node, field)) : []);
+  const activeTemplates = $derived(node && spec ? templateFields.filter((field) => fieldVisible(spec, node, field, trigger)) : []);
 
   let focusedKey = $state<string>();
   type TextControl = HTMLInputElement | HTMLTextAreaElement;
@@ -137,7 +163,7 @@
     const search = completion?.query.toLowerCase() ?? '';
     const available = [
       ...tokens.map((v) => ({ token: v.token, label: variableLabel(t, v) })),
-      ...channelChips.map((v) => ({ token: v.token, label: catalogLabel(v) }))
+      ...(restrictedTokens ? [] : channelChips.map((v) => ({ token: v.token, label: catalogLabel(v) })))
     ];
     const unique = new Map(available.map((v) => [v.token, v]));
     return [...unique.values()].filter((v) => `${v.token} ${v.label}`.toLowerCase().includes(search));
@@ -149,11 +175,10 @@
     query = '';
     completion = null;
   });
-  const insertKey = $derived(activeTemplates.find((field) => field.key === focusedKey)?.key ?? activeTemplates[0]?.key);
-  const tokens = $derived(node ? [
-    ...variablesFor(flow, node.id).filter((v) => !(node.type === 'reply.countdown_start' && insertKey === 'leftReply' && v.token === '{countdown:left}')),
-    ...(node.type === 'reply.countdown_start' && insertKey === 'leftReply' ? [{ token: '{countdown:left}', name: 'countdownLeft', sample: '2d 3h' }] : [])
-  ] : []);
+  const insertField = $derived(activeTemplates.find((field) => field.key === focusedKey) ?? activeTemplates[0]);
+  const insertKey = $derived(insertField?.key);
+  const restrictedTokens = $derived(insertField?.tokens);
+  const tokens = $derived(restrictedTokens ?? (node ? variablesFor(flow, node.id) : []));
 
   let query = $state('');
   const needle = $derived(query.trim().toLowerCase());
@@ -165,6 +190,7 @@
   );
 
   const channelVars = $derived.by(() => {
+    if (restrictedTokens) return [];
     const chips = needle ? sheetFor('custom') : pinnedFor('custom');
     return chips
       .filter((c) => !contextualTokens.has(c.token) && Boolean(chipHint(t, c)))
@@ -311,12 +337,12 @@
       {#if spec.fields.length}
         <div class="fields">
           {#each spec.fields.filter((field) => fieldMounted(spec, node, field)) as field (field.key)}
-            {@const disabled = !fieldVisible(spec, node, field)}
+            {@const disabled = !fieldVisible(spec, node, field, trigger)}
             {@const label = fieldLabel(t, spec, field, node)}
             {@const hint = fieldHint(t, spec, field)}
-            {@const issue = issues.find((issue) => issue.nodeId === node.id && issue.fieldKey === field.key)}
+            {@const issue = issues.find((issue) => issue.nodeId === node.id && issue.fieldKey === field.key) ?? (!disabled ? inlineFieldIssue(node, field) : undefined)}
             {@const error = issue ? fieldIssueMessage(t, issue, node) : undefined}
-            {@const required = fieldRequired(node, field.key)}
+            {@const required = !disabled && fieldRequired(node, field.key)}
             {@const tag = required ? t('flows.clarity.required') : undefined}
             {@const placeholder = node.config[field.key] === SETUP_URL ? t('flows.setup.addUrl') : fieldPlaceholder(t, spec, field, node)}
             <fieldset class="field" class:inactive={disabled} {disabled} inert={disabled} data-field={field.key} bind:this={fieldElements[field.key]} aria-label={label} tabindex="-1">
@@ -342,25 +368,23 @@
                 <Select
                   id="{uid}-{field.key}"
                   options={fieldOptions(t, spec, field)}
-                  value={String(node.config[field.key] ?? field.options[0] ?? '')}
+                  value={String(node.config[field.key] ?? (field.key === 'change' && legacyTake ? 'take' : field.initial ?? field.options[0]) ?? '')}
                   onchange={(e) => setSelect(field.key, e.currentTarget.value)}
                 />
               </Field>
             {:else if field.type === 'number'}
+              {@const unit = field.whenTrigger === 'amount' && amountUnit ? t(`flows.line.timerAmount.${amountUnit}.unit`) : fieldUnit(t, spec, field)}
               <Field {label} {tag} {error} for="{uid}-{field.key}">
                 <Input
                   id="{uid}-{field.key}"
                   type="number"
                   min={field.min}
                   max={field.max}
-                  value={node.config[field.key] === undefined ? '' : Number(node.config[field.key])}
-                  oninput={(e) => {
-                    const raw = e.currentTarget.value;
-                    if (raw === '') delete node.config[field.key];
-                    else node.config[field.key] = Number(raw);
-                  }}
+                  invalid={Boolean(error)}
+                  value={numberValue(node, field.key)}
+                  oninput={(e) => setNumber(field.key, e.currentTarget.value)}
                 >
-                  {#snippet trailing()}{#if field.unit}<span class="unit">{fieldUnit(t, spec, field)}</span>{/if}{/snippet}
+                  {#snippet trailing()}{#if unit}<span class="unit">{unit}</span>{/if}{/snippet}
                 </Input>
               </Field>
             {:else if field.type === 'duration'}
@@ -434,7 +458,7 @@
             {:else if field.type === 'target'}
               <ChoiceField {node} {field} {label} {error} options={targetOptions(t, targetModesFor(flow, node))} id="{uid}-{field.key}" />
             {:else if field.type === 'reward'}
-              <RewardField {node} {label} {tag} {error} id="{uid}-{field.key}" />
+              <RewardField {node} {label} {tag} {error} settledByStep={hasRedemptionStep(flow.nodes)} id="{uid}-{field.key}" />
             {:else if field.type === 'goveeLight'}
               <GoveeLightField {node} {tag} fieldError={error} id="{uid}-{field.key}" onConfig={(config) => (node.config = config)} />
             {:else if field.type === 'login'}

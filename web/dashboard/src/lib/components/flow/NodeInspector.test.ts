@@ -7,7 +7,7 @@ import * as svelte from 'svelte';
 import { render } from 'svelte/server';
 import { flowToDefinition } from '@bagel/kit/automations';
 import { english } from '../../flow/english.testing';
-import { fieldMounted, fieldVisible, newFlow, NODE_SPECS, type Flow, type FlowNode } from '../../flow/model';
+import { fieldMounted, fieldVisible, flowTrigger, newFlow, NODE_SPECS, type Flow, type FlowNode } from '../../flow/model';
 import { addNode } from '../../flow/ops.testing';
 import { rehearseFlow } from '../../flow/rehearse';
 
@@ -36,7 +36,8 @@ const gateCases = NODE_SPECS.flatMap((spec) => {
     return 'key' in when ? [when.key] : when.map(({ key }) => key);
   }));
   return spec.fields.filter(({ key }) => gatedKeys.has(key)).flatMap((gate) => {
-    const options = gate.type === 'select' ? gate.options : gate.type === 'target' ? ['viewer', 'mention', 'user'] : [false, true];
+    const toggles = gate.type === 'text' ? ['', '!timeleft'] : [false, true];
+    const options = gate.type === 'select' ? gate.options : gate.type === 'target' ? ['viewer', 'mention', 'user'] : toggles;
     return options.map((value) => ({ type: spec.type, spec, key: gate.key, value }));
   });
 });
@@ -49,10 +50,24 @@ test.each(gateCases)('$type keeps all fields mounted with $key set to $value', (
     key: fieldKey, disabled: /\sdisabled\b/.test(attributes!), inert: /\sinert\b/.test(attributes!)
   }));
   const expected = spec.fields.filter((field) => fieldMounted(spec, node, field)).map((field) => {
-    const inactive = !fieldVisible(spec, node, field);
+    const inactive = !fieldVisible(spec, node, field, flowTrigger(flow));
     return { key: field.key, disabled: inactive, inert: inactive };
   });
   expect(fields).toEqual(expected);
+});
+
+test.each([
+  { trigger: 'twitch.cheer', config: {}, active: true },
+  { trigger: 'twitch.sub', config: { variant: 'gift' }, active: true },
+  { trigger: 'twitch.sub', config: { variant: 'resub' }, active: false },
+  { trigger: 'twitch.raid', config: {}, active: false }
+])('keeps For every mounted on $trigger $config', ({ trigger, config, active }) => {
+  const flow = newFlow('Inspector');
+  const root = addNode(flow, trigger, { x: 0, y: 0 });
+  Object.assign(root.config, config);
+  const step = addNode(flow, 'reply.countdown_add', { x: 368, y: 0 }, { from: root.id, port: 'next' });
+  const field = inspect(flow, step).match(/<fieldset\b[^>]*\bdata-field="per"[^>]*>/)?.[0];
+  expect({ mounted: Boolean(field), inert: /\sinert\b/.test(field ?? '') }).toEqual({ mounted: true, inert: !active });
 });
 
 test.each([

@@ -59,6 +59,16 @@ function targetConfigKey(param: string, who: unknown): string {
 
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
 
+export function pointsChange(config: FlowConfig): 'add' | 'take' {
+  if (config.change === 'take') return 'take';
+  return config.change === undefined && Number(config.amount) < 0 ? 'take' : 'add';
+}
+
+function pointsAmount(config: FlowConfig): number {
+  const amount = Math.abs(Number(config.amount)) || 0;
+  return pointsChange(config) === 'take' ? -amount : amount;
+}
+
 function parameter(kind: ValueKind, value: unknown): string | number | boolean | string[] {
   if (kind === 'lines') return text(value).split(/\r?\n/);
   return scalar(kind, value);
@@ -78,6 +88,7 @@ function streamAction(type: string, config: FlowConfig): Action {
   const fields = activeFields(STREAM_FIELDS[type]!, config.who);
   const values = fields.map(([key, kind]) => ({ key, kind, value: config[targetConfigKey(key, config.who)] }));
   const params = Object.fromEntries(values.filter(({ value }) => value !== undefined).map(({ key, kind, value }) => [key, parameter(kind, value)]));
+  if (type === 'points_add' && config.amount !== undefined) params.amount = pointsAmount(config);
   return { type, params };
 }
 
@@ -87,6 +98,7 @@ function streamNode(type: string, params: Params): StreamNode | null {
   if (lists.some(([key]) => hasMultilineOption(params[key]))) return null;
   const supplied = activeFields(fields, params.who).filter(([key]) => params[key] !== undefined);
   const config = Object.fromEntries(supplied.map(([key, kind]) => [targetConfigKey(key, params.who), configValue(kind, params[key])]));
+  if (type === 'points_add') Object.assign(config, { change: pointsChange(config), amount: Math.abs(Number(config.amount)) || 0 });
   return { type: nodeType(type), config };
 }
 

@@ -58,5 +58,18 @@
   "textSaved": "{op}, salvar como {name}",
   "loop": "Repetir {times} vezes",
   "rewardUpdate": "Alterar {reward}",
-  "rewardUpdateBack": "Alterar {reward} até a live terminar"
+  "rewardUpdateBack": "Alterar {reward} até a live terminar",
+  "timerPer": "Adicionar {seconds} a {name} a cada {amount}",
+  "timerAmount": {
+    "bits": {
+      "one": "{count} bit",
+      "many": "{count} bits",
+      "unit": "bits"
+    },
+    "gifts": {
+      "one": "{count} inscrição presenteada",
+      "many": "{count} inscrições presenteadas",
+      "unit": "inscrições presenteadas"
+    }
+  }
 }

@@ -4,8 +4,8 @@ import { STREAM_STEP_DEFINITIONS, TARGET_FIELDS } from './stream-steps';
 import { graphIndex, portKey } from './graph-index';
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
-import { TEXT_ARG_FIELDS, VAR_OPS_WITH_VALUE } from '@bagel/kit/automations';
-import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
+import { CMP_OPS, TEXT_ARG_FIELDS, VAR_OPS_WITH_VALUE, triggerAmountUnit } from '@bagel/kit/automations';
+import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_POINTS_AMOUNT, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
 export const MAX_WAIT_SECONDS = MAX_DELAY_MS / 1000;
@@ -69,19 +69,22 @@ export const STEP_PLACEMENT = {
   'reply.text': { kind: 'reply', group: 'logic' },
   'reply.math': { kind: 'reply', group: 'logic' },
   'reply.http_get': { kind: 'reply', group: 'logic' },
-  'reply.http_post': { kind: 'reply', group: 'logic' }
+  'reply.http_post': { kind: 'reply', group: 'logic' },
+  'cond.points': { kind: 'condition', group: 'loyalty' },
+  'cond.counter': { kind: 'condition', group: 'loyalty' },
+  'reply.redemption': { kind: 'reply', group: 'loyalty' }
 } as const satisfies Record<string, { kind: FlowKind; group: StepGroup }>;
 
 type Typed = { key: string; placeholder?: true };
 
 type FieldGate = { key: string; value: string | readonly string[] | boolean };
 
-export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; labelBy?: string; initial?: string | number | boolean; required?: true } & (
+export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; whenTrigger?: 'amount'; labelBy?: string; initial?: string | number | boolean; required?: true } & (
   | (Typed & { type: 'text' })
-  | (Typed & { type: 'template'; singleLine?: boolean })
+  | (Typed & { type: 'template'; singleLine?: boolean; tokens?: readonly VariableSpec[] })
   | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
   | { key: string; type: 'duration'; min: number; max: number }
-  | { key: string; type: 'select'; options: readonly string[] }
+  | { key: string; type: 'select'; options: readonly string[]; optionKey?: string | Readonly<Record<string, string>> }
   | { key: string; type: 'toggle' }
   | { key: string; type: 'color' }
   | (Typed & { type: 'login' })
@@ -142,6 +145,12 @@ const subVariables: Record<string, readonly VariableSpec[]> = {
 const subViewer: readonly VariableSpec[] = [...user, { token: '{tier}', name: 'tier', sample: '1' }];
 
 const yesNo: OutputSpec[] = [{ id: 'yes' }, { id: 'no' }];
+const countdownLeft: VariableSpec = { token: '{countdown:left}', name: 'countdownLeft', sample: '2d 3h' };
+const cooldownLeft: VariableSpec = { token: '{cooldown:left}', name: 'cooldownLeft', sample: '2d 3h' };
+const commandArgs: VariableSpec = { token: '{args}', name: 'args', sample: ARGS_SAMPLE };
+const commandTarget: VariableSpec = { token: '{touser}', name: 'touser', sample: TOUSER_SAMPLE };
+const countdownReplyTokens = [countdownLeft, user[0]!, commandTarget, commandArgs];
+const countdownCommandFilled = { key: 'leftCommand', value: true } as const;
 
 const apiPorts: OutputSpec[] = [
   { id: 'ok' },
@@ -156,6 +165,9 @@ const loopPorts: OutputSpec[] = [
 const varScope: FieldSpec = { key: 'scope', type: 'select', options: ['channel', 'viewer'] };
 const varName: FieldSpec = { key: 'name', type: 'text', placeholder: true };
 const saveAs: FieldSpec = { key: 'saveAs', type: 'text', placeholder: true };
+const counterChoice = { key: 'counter', type: 'choice', source: 'counters' } as const satisfies FieldSpec;
+const loyaltyOp = { key: 'op', type: 'select', options: CMP_OPS, initial: 'gte', optionKey: 'flows.step.condition.var.field.op.option' } as const satisfies FieldSpec;
+const timerPer = { key: 'per', type: 'number', min: 1, whenTrigger: 'amount' } as const satisfies FieldSpec;
 const textOperands: FieldSpec[] = Array.from(TEXT_ARG_FIELDS).flatMap(([op, keys]) => keys.map((key) => ({
   key, type: 'template', singleLine: true, placeholder: key === 'pick' ? true : undefined, when: { key: 'op', value: op }
 })));
@@ -173,26 +185,26 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
       { key: 'name', type: 'text', placeholder: true },
       { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS, initial: 3_600 },
       { key: 'leftCommand', type: 'text', placeholder: true },
-      { key: 'leftReply', type: 'template', placeholder: true, singleLine: true },
-      { key: 'readyReply', type: 'template', placeholder: true, singleLine: true }
+      { key: 'leftReply', type: 'template', placeholder: true, singleLine: true, when: countdownCommandFilled, tokens: countdownReplyTokens },
+      { key: 'readyReply', type: 'template', placeholder: true, singleLine: true, when: countdownCommandFilled, tokens: countdownReplyTokens }
     ],
-    provides: [{ token: '{countdown:left}', name: 'countdownLeft', sample: '2d 3h' }]
+    provides: [countdownLeft]
   },
   {
     type: 'reply.countdown_add', slug: 'countdownAdd', icon: 'timer',
     fields: [
       { key: 'name', type: 'choice', source: 'namedCountdowns' },
       { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS, initial: 60 },
-      { key: 'per', type: 'number', min: 0 }
+      timerPer
     ],
-    provides: [{ token: '{countdown:left}', name: 'countdownLeft', sample: '2d 3h' }]
+    provides: [countdownLeft]
   },
   {
     type: 'twitch.chat.command',
     slug: 'chatCommand',
     icon: 'commands',
     fields: [{ key: 'trigger', type: 'text', placeholder: true }],
-    provides: [...user, { token: '{args}', name: 'args', sample: ARGS_SAMPLE }, { token: '{touser}', name: 'touser', sample: TOUSER_SAMPLE }]
+    provides: [...user, commandArgs, commandTarget]
   },
   {
     type: 'twitch.chat.word',
@@ -270,7 +282,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
       { key: 'leftReply', type: 'template', placeholder: true, singleLine: true },
       { key: 'readyReply', type: 'template', placeholder: true, singleLine: true }
     ],
-    outputs: [{ id: 'yes' }, { id: 'no', provides: [{ token: '{cooldown:left}', name: 'cooldownLeft', sample: '2d 3h' }] }]
+    outputs: [{ id: 'yes' }, { id: 'no', provides: [cooldownLeft] }]
   },
   {
     type: 'cond.compare',
@@ -312,7 +324,12 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'reply.points',
     slug: 'points',
     icon: 'coins',
-    fields: [{ key: 'amount', type: 'number', unit: true, initial: 10 }, ...TARGET_FIELDS]
+    lineBy: 'change',
+    fields: [
+      { key: 'change', type: 'select', options: ['add', 'take'], initial: 'add' },
+      { key: 'amount', type: 'number', min: 1, max: MAX_POINTS_AMOUNT, unit: true, initial: 10, required: true },
+      ...TARGET_FIELDS
+    ]
   },
   {
     type: 'reply.points_set',
@@ -324,8 +341,13 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     type: 'reply.counter',
     slug: 'counter',
     icon: 'hash',
-    fields: [{ key: 'counter', type: 'choice', source: 'counters' }],
-    provides: [{ token: '{count}', name: 'count', sample: '17' }]
+    fields: [
+      counterChoice,
+      { key: 'change', type: 'select', options: ['add', 'set'], initial: 'add' },
+      { key: 'amount', type: 'number', initial: 1, when: { key: 'change', value: 'add' } },
+      { key: 'value', type: 'number', min: 0, initial: 0, when: { key: 'change', value: 'set' } }
+    ],
+    providesFor: counterVariable
   },
   {
     type: 'reply.lights',
@@ -425,10 +447,26 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     fields: [
       { key: 'name', type: 'choice', source: 'namedCooldowns' },
       { key: 'seconds', type: 'duration', min: 1, max: MAX_COOLDOWN_SECONDS, initial: 60 },
-      { key: 'per', type: 'number', min: 0 }
-    ]
+      timerPer
+    ],
+    provides: [cooldownLeft]
   },
-  ...STREAM_STEP_DEFINITIONS
+  ...STREAM_STEP_DEFINITIONS,
+  {
+    type: 'cond.points', slug: 'points', icon: 'coins', outputs: yesNo, lineBy: 'op',
+    fields: [loyaltyOp, { key: 'value', type: 'number', initial: 100, unit: true }]
+  },
+  {
+    type: 'cond.counter', slug: 'counter', icon: 'hash', outputs: yesNo,
+    fields: [counterChoice, loyaltyOp, { key: 'value', type: 'number', initial: 1 }]
+  },
+  {
+    type: 'reply.redemption', slug: 'redemption', icon: 'coins', lineBy: 'result',
+    fields: [{
+      key: 'result', type: 'select', options: ['fulfill', 'cancel'], initial: 'fulfill',
+      optionKey: { fulfill: 'flows.reward.afterFulfill', cancel: 'flows.reward.afterCancel' }
+    }]
+  }
 ];
 
 export const NODE_SPECS: readonly NodeSpec[] = STEP_DEFINITIONS.map((spec) => ({ ...spec, ...STEP_PLACEMENT[spec.type] }));
@@ -441,17 +479,20 @@ function matchesValue(wanted: FieldGate['value'], value: unknown): boolean {
 function gateMatches(spec: NodeSpec, config: FlowNode['config'], { key, value }: FieldGate): boolean {
   const gate = spec.fields.find((field) => field.key === key);
   if (gate?.type === 'target') return matchesValue(value, targetMode(config));
-  const fallback = gate?.type === 'select' ? gate.options[0] : gate?.initial;
+  const fallback = gate?.initial ?? (gate?.type === 'select' ? gate.options[0] : undefined);
   return matchesValue(value, config[key] ?? fallback);
 }
 
-export function fieldVisible(spec: NodeSpec, node: Pick<FlowNode, 'config'>, field: FieldSpec): boolean {
+export function fieldVisible(spec: NodeSpec, node: Pick<FlowNode, 'config'>, field: FieldSpec, trigger?: FlowNode): boolean {
+  if (field.whenTrigger === 'amount' && !triggerAmountUnit(trigger)) return false;
   if (!field.when) return true;
   const gates = 'key' in field.when ? [field.when] : field.when;
   return gates.every((gate) => gateMatches(spec, node.config, gate));
 }
 
 export const specFor = (type: string): NodeSpec | undefined => NODE_SPECS.find((s) => s.type === type);
+
+export const flowTrigger = (flow: Flow): FlowNode | undefined => flow.nodes.find((node) => specFor(node.type)?.kind === 'trigger');
 
 export const targetFieldFor = (spec: NodeSpec | undefined): boolean =>
   spec?.fields.some((field) => field.type === 'target') ?? false;
@@ -497,6 +538,11 @@ function storedVariable(config: FlowNode['config']): VariableSpec[] {
   if (!/^[a-z]+$/.test(name)) return [];
   const scope = config.scope === 'viewer' ? 'viewervar' : 'var';
   return [{ token: `{${scope}:${name}}`, name, literalName: true, sample: String(config.value ?? config.amount ?? '0') }];
+}
+
+function counterVariable(config: FlowNode['config']): VariableSpec[] {
+  const name = String(config.counter ?? '').trim().toLowerCase();
+  return name ? [{ token: `{counter:${name}}`, name, literalName: true, sample: '17' }] : [];
 }
 
 function savedLocal(parent: FlowNode, spec: NodeSpec): VariableSpec[] {

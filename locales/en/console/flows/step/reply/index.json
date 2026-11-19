@@ -10,23 +10,29 @@
     }
   },
   "points": {
-    "label": "Give loyalty points",
+    "label": "Change points",
     "summary": "Add or remove points",
     "field": {
       "amount": {
         "label": "Amount",
         "unit": "points"
-      }
-    }
+      },
+      "change": { "label": "Change", "option": { "add": "Add", "take": "Take" } }
+    },
+    "line": { "add": "Give {amount}", "take": "Take {amount}" }
   },
   "counter": {
-    "label": "Bump counter",
-    "summary": "Increase a counter",
+    "label": "Change counter",
+    "summary": "Add to, subtract from or set a named counter",
     "field": {
       "counter": {
         "label": "Counter"
-      }
-    }
+      },
+      "change": { "label": "Change", "option": { "add": "Add", "set": "Set" } },
+      "amount": { "label": "Amount", "hint": "Use a minus number to take away" },
+      "value": { "label": "Value" }
+    },
+    "line": { "add": "Add {amount} to {counter}", "take": "Take {amount} from {counter}", "set": "Set {counter} to {value}" }
   },
   "lights": {
     "label": "Set lights",
@@ -162,8 +168,8 @@
         "range": "Use 1 second to {days} days."
       },
       "per": {
-        "label": "Per",
-        "hint": "Adds the time above for each full amount. Put 100 on a bits recipe to count every 100 bits. Leave empty to add it once per event."
+        "label": "For every",
+        "hint": "Only on cheer and gift sub triggers. Leave empty to add time once."
       }
     }
   },
@@ -180,8 +186,8 @@
         "range": "Use 1 second to {days} days."
       },
       "per": {
-        "label": "Per",
-        "hint": "Add this time for each full amount. Leave empty to add it once per event."
+        "label": "For every",
+        "hint": "Only on cheer and gift sub triggers. Leave empty to add time once."
       }
     }
   },
@@ -346,6 +352,19 @@
       "on": {
         "label": "Enabled"
       }
+    }
+  },
+  "redemption": {
+    "label": "Complete redemption",
+    "summary": "Fulfill a reward redemption or refund its points",
+    "field": {
+      "result": {
+        "label": "Result"
+      }
+    },
+    "line": {
+      "fulfill": "Mark fulfilled",
+      "cancel": "Refund the points"
     }
   }
 }

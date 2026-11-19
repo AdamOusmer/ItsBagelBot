@@ -52,9 +52,9 @@ const defaults = {
   'reply.poll_end': { status: 'terminate' },
   'reply.prediction': { seconds: 120 },
   'reply.prediction_end': { status: 'lock' },
-  'reply.points': { amount: 10, who: 'viewer' },
+  'reply.points': { change: 'add', amount: 10, who: 'viewer' },
   'reply.points_set': { amount: 10, who: 'viewer' },
-  'reply.counter': {},
+  'reply.counter': { change: 'add', amount: 1, value: 0 },
   'reply.reward_update': { setEnabled: 'on' },
   'reply.countdown_start': { seconds: 3_600 },
   'reply.countdown_add': { seconds: 60 },
@@ -68,7 +68,10 @@ const defaults = {
   'reply.text': { op: 'upper' },
   'reply.math': {},
   'reply.http_get': {},
-  'reply.http_post': {}
+  'reply.http_post': {},
+  'cond.points': { op: 'gte', value: 100 },
+  'cond.counter': { op: 'gte', value: 1 },
+  'reply.redemption': { result: 'fulfill' }
 } satisfies Record<keyof typeof STEP_PLACEMENT, FlowNode['config']>;
 
 test.each(NODE_SPECS)('$type gets its expected config when added', (spec) => {

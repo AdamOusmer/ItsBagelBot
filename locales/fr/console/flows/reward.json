@@ -19,5 +19,7 @@
   "update": "Mettre à jour la récompense",
   "created": "Récompense créée sur Twitch.",
   "updated": "Récompense mise à jour sur Twitch.",
-  "requestFailed": "Impossible de joindre Twitch. Réessayez dans un instant."
+  "requestFailed": "Impossible de joindre Twitch. Réessayez dans un instant.",
+  "afterSettledByStep": "L’étape Finaliser un échange s’en charge.",
+  "afterRefundSkipped": "Si une vérification de la recette échoue, le spectateur récupère ses points."
 }

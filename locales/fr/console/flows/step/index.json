@@ -71,5 +71,8 @@
     "apiError": "Raison de l’échec",
     "cooldownLeft": "Délai restant",
     "countdownLeft": "Temps restant du compte à rebours"
-  }
+  },
+  "condition.points.keywords": "si points solde fidélité spectateur vérifier comparer",
+  "condition.counter.keywords": "si compteur valeur victoires morts vérifier comparer",
+  "reply.redemption.keywords": "échange récompense honorer rembourser annuler points"
 }

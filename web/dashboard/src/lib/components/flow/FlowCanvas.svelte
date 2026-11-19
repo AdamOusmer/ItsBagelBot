@@ -993,7 +993,7 @@
           if (mode === 'idle' && (e.target as HTMLElement).matches(':focus-visible')) revealNode(node.id);
         }}
       >
-        <FlowNodeCard bind:this={cards[node.id]} {node} parallel={parallelPorts(flow, node.id)} selected={selectedId === node.id} tabbable={stopId === node.id} {touch} connecting={connecting !== null} onadd={(port, el) => addFromPort(node.id, port, el)} />
+        <FlowNodeCard bind:this={cards[node.id]} {node} trigger={triggers[0]} parallel={parallelPorts(flow, node.id)} selected={selectedId === node.id} tabbable={stopId === node.id} {touch} connecting={connecting !== null} onadd={(port, el) => addFromPort(node.id, port, el)} />
       </div>
     {/each}
   </div>

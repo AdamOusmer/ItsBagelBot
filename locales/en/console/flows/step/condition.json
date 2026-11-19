@@ -83,5 +83,49 @@
       "value": { "label": "Value", "placeholder": "10" }
     },
     "out": { "yes": "Yes", "no": "No" }
+  },
+  "points": {
+    "label": "Viewer points",
+    "summary": "Check the triggering viewer’s points balance",
+    "field": {
+      "op": {
+        "label": "Is"
+      },
+      "value": {
+        "label": "Points",
+        "unit": "points"
+      }
+    },
+    "out": {
+      "yes": "Yes",
+      "no": "No"
+    },
+    "line": {
+      "eq": "Viewer has exactly {value} points",
+      "ne": "Viewer’s points are not equal to {value}",
+      "gt": "Viewer has more than {value} points",
+      "gte": "Viewer has at least {value} points",
+      "lt": "Viewer has less than {value} points",
+      "lte": "Viewer has at most {value} points"
+    }
+  },
+  "counter": {
+    "label": "Counter value",
+    "summary": "Check the current value of a named counter",
+    "field": {
+      "counter": {
+        "label": "Counter"
+      },
+      "op": {
+        "label": "Is"
+      },
+      "value": {
+        "label": "Value"
+      }
+    },
+    "out": {
+      "yes": "Yes",
+      "no": "No"
+    }
   }
 }

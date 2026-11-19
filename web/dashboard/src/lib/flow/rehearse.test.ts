@@ -214,6 +214,25 @@ test.each(['twitch.stream.online', 'twitch.stream.offline', 'countdown.finished'
   expect([result.scenario.user, result.scenario.message, result.scenario.bits]).toEqual([undefined, undefined, undefined]);
 });
 
+test.each<{ check: FlowNode; state: NonNullable<RehearsalOptions['scenario']>['state']; port: 'yes' | 'no'; text: string }>([
+  { check: n('c', 'cond.points', { op: 'gte', value: 100 }), state: { points: 100 }, port: 'yes', text: 'Viewer has at least 100 points' },
+  { check: n('c', 'cond.points', { op: 'gte', value: 100 }), state: { points: 99 }, port: 'no', text: 'Viewer has at least 100 points' },
+  { check: n('c', 'cond.counter', { counter: 'wins', op: 'gte', value: 1 }), state: { counters: { Wins: 1 } }, port: 'yes', text: 'wins is at least 1' },
+  { check: n('c', 'cond.counter', { counter: 'wins', op: 'gte', value: 1 }), state: { counters: { wins: 0 } }, port: 'no', text: 'wins is at least 1' }
+])('routes $check.type through $port from the seeded state', ({ check, state, port, text }) => {
+  const flow = flowOf([trigger, check, left, right], [e('t', 'next', 'c'), e('c', 'yes', 'a'), e('c', 'no', 'b')]);
+  const result = run(flow, { scenario: { state } });
+  const step = result.steps.find((event) => event.id === check.id);
+  expect({ port: step?.port, text: step?.text, branch: result.steps.at(-1)?.id }).toEqual({ port, text, branch: port === 'yes' ? 'a' : 'b' });
+});
+
+test('completes a redemption in a reward Test run', () => {
+  const reward = n('t', 'twitch.reward', { reward: 'hydrate' });
+  const redemption = n('s', 'reply.redemption', { result: 'cancel' });
+  const step = run(flowOf([reward, redemption], [e('t', 'next', 's')])).steps.at(-1);
+  expect({ id: step?.id, status: step?.status, text: step?.text }).toEqual({ id: 's', status: 'ok', text: 'Refund the points' });
+});
+
 const modCheck = n('c', 'cond.role', { level: 'mod' });
 const timeout = n('s', 'reply.timeout', { target: '{touser}', seconds: 60 });
 const blankChoice = n('s', 'reply.poll', { title: 'Play?', choices: 'Yes\nNo\n', seconds: 60 });
