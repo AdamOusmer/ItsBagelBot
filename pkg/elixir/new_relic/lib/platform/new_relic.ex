@@ -57,44 +57,40 @@ defmodule Platform.NewRelic do
     if enabled?(), do: safe(fn -> NewRelic.report_custom_event(type, clean) end), else: :ok
   end
 
-  def transaction(category, name, attrs, fun, policy \\ %{}) when is_function(fun, 0) do
-    if enabled?() do
-      safe(fn -> NewRelic.start_transaction(category, name) end)
-      safe(fn -> NewRelic.add_attributes(safe_attributes(attrs, policy)) end)
+  def continue(category, name, headers, fun) when is_function(fun, 0) do
+    case enabled?() && sampled_headers(headers) do
+      %{} = inbound ->
+        safe(fn -> NewRelic.start_transaction(category, name, inbound) end)
+        traced(fun)
 
-      try do
+      _unsampled ->
         fun.()
-      after
-        safe(fn -> NewRelic.stop_transaction() end)
-      end
-    else
-      fun.()
     end
   end
 
-  def span(name, attrs, fun, policy \\ %{}) when is_function(fun, 0) do
-    if enabled?() do
-      id = make_ref()
-
-      safe(fn ->
-        NewRelic.Tracer.Direct.start_span(id, name, attributes: safe_attributes(attrs, policy))
-      end)
-
-      try do
-        fun.()
-      after
-        safe(fn -> NewRelic.Tracer.Direct.stop_span(id) end)
-      end
-    else
+  defp traced(fun) do
+    try do
       fun.()
+    after
+      safe(fn -> NewRelic.stop_transaction() end)
     end
   end
 
-  def add_span_attributes(attrs, policy \\ %{}) do
-    if enabled?(),
-      do: safe(fn -> NewRelic.add_span_attributes(safe_attributes(attrs, policy)) end),
-      else: :ok
+  defp sampled_headers(headers) when is_list(headers) do
+    inbound =
+      headers
+      |> Map.new(fn {key, value} -> {String.downcase(to_string(key)), value} end)
+      |> Map.take(@trace_headers)
+
+    if sampled_parent?(inbound["traceparent"]), do: inbound
   end
+
+  defp sampled_headers(_headers), do: nil
+
+  defp sampled_parent?(traceparent) when is_binary(traceparent),
+    do: String.ends_with?(traceparent, "-01")
+
+  defp sampled_parent?(_traceparent), do: false
 
   def trace_headers do
     if enabled?() do
@@ -114,6 +110,7 @@ defmodule Platform.NewRelic do
     Enum.filter(attrs, fn {key, value} ->
       case Map.get(policy, key) do
         :number -> is_number(value)
+        :id -> is_binary(value) and Regex.match?(~r/\A[0-9A-Za-z_.:+\/=-]{1,96}\z/, value)
         {:enum, values} when is_list(values) -> value in values
         _ -> false
       end

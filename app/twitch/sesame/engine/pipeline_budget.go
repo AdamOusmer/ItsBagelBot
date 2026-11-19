@@ -15,7 +15,7 @@ const publishTimeout = 3 * time.Second
 var messageBudget = 10 * time.Second
 
 func messageContext(msg *bus.Message) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(msg.Context(), messageBudget)
+	return context.WithDeadline(msg.Context(), msg.DeliveredAt().Add(messageBudget))
 }
 
 // Detached so a reply already decided still publishes after the message budget runs out.

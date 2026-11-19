@@ -6,9 +6,9 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"database/sql/driver"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -35,7 +35,7 @@ func counterTestRepo(t *testing.T) (*Loyalty, *sql.DB) {
 	repo := NewLoyalty(client, drv, nil, zap.NewNop())
 	require.NoError(t, repo.EnsureWatchSchema(context.Background()))
 	require.NoError(t, repo.EnsureCounterSchema(context.Background()))
-	t.Cleanup(func() { repo.Close(context.Background()); _ = raw.Close() })
+	t.Cleanup(func() { _ = raw.Close() })
 	return repo, raw
 }
 
@@ -61,6 +61,27 @@ func holdCounterSQL(t *testing.T, raw *sql.DB) *sql.Conn {
 	return held
 }
 
+func coalescedCounterRun(t *testing.T, p *CounterProcessor, raw *sql.DB, events []data.CounterBumpedDTO) []error {
+	t.Helper()
+	held := holdCounterSQL(t, raw)
+	barrier := make(chan error, 1)
+	go func() {
+		barrier <- p.Process(t.Context(), data.CounterBumpedDTO{BatchID: "barrier", UserID: 99, Bumps: []data.CounterBumpEntry{{Name: "barrier", Delta: 1}}})
+	}()
+	require.Eventually(t, func() bool { return len(p.slots) > 0 }, time.Second, time.Millisecond)
+	time.Sleep(40 * time.Millisecond)
+	errs := make([]error, len(events))
+	var wg sync.WaitGroup
+	for i, event := range events {
+		wg.Go(func() { errs[i] = p.Process(t.Context(), event) })
+	}
+	require.Eventually(t, func() bool { return len(p.queue) == len(events) }, time.Second, time.Millisecond)
+	require.NoError(t, held.Close())
+	require.NoError(t, <-barrier)
+	wg.Wait()
+	return errs
+}
+
 func counterTestProcessor(t *testing.T, repo *Loyalty, client valkey_go.Client) *CounterProcessor {
 	t.Helper()
 	p := NewCounterProcessor(repo, client)
@@ -77,7 +98,7 @@ func TestCounterProcessorBatchesSQLAndValkey(t *testing.T) {
 	first := make(chan error, 1)
 	go func() { first <- p.Process(context.Background(), counterTestEvent("first", 1)) }()
 	require.Eventually(t, func() bool { return len(p.slots) > 0 }, time.Second, time.Millisecond)
-	time.Sleep(counterBatchWindow * 2)
+	time.Sleep(40 * time.Millisecond)
 	const count = 16
 	errors := make(chan error, count)
 	for i := 0; i < count; i++ {
@@ -218,13 +239,62 @@ func TestCounterProcessorRejectsMalformedAndKeepsHealthyRows(t *testing.T) {
 	p := counterTestProcessor(t, repo, newCounterFakeValkey(t))
 	event := counterTestEvent("invalid", -data.MaxCounter-1)
 	require.ErrorIs(t, p.Process(context.Background(), event), ErrInvalidInput)
-	event = counterTestEvent("seed", data.MaxCounter)
+	event = counterTestEvent("seed", data.MaxCounter-1)
+	event.Bumps = append(event.Bumps, data.CounterBumpEntry{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerLogin: "viewer", ViewerName: "Viewer", Delta: data.MaxCounter - 1})
 	require.NoError(t, p.Process(context.Background(), event))
-	event = counterTestEvent("saturated", 1)
-	event.Bumps = append(event.Bumps, data.CounterBumpEntry{Name: "hugs", Delta: 5})
+	event = counterTestEvent("boundary", 1)
+	event.Bumps = append(event.Bumps, data.CounterBumpEntry{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, Delta: 1})
 	require.NoError(t, p.Process(context.Background(), event))
-	assert.EqualValues(t, data.MaxCounter, counterTestValue(t, raw, "deaths"))
-	assert.EqualValues(t, 5, counterTestValue(t, raw, "hugs"))
+	entry := counterTestSaturatedEntry(t, raw)
+	event.BatchID = "saturated"
+	event.Bumps[1].ViewerLogin, event.Bumps[1].ViewerName = "changed", "Changed"
+	event.Bumps = append(event.Bumps, data.CounterBumpEntry{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 8, Delta: 5})
+	require.NoError(t, p.Process(t.Context(), event))
+	assert.Equal(t, saturatedCounterEntry{data.MaxCounter, "viewer", "Viewer", entry.updatedAt}, entry)
+	assert.Equal(t, entry, counterTestSaturatedEntry(t, raw))
+	var healthy int64
+	require.NoError(t, raw.QueryRow("SELECT value FROM counter_entries WHERE name='hugs' AND viewer_id=8").Scan(&healthy))
+	assert.Equal(t, [2]int64{data.MaxCounter, 5}, [2]int64{counterTestValue(t, raw, "deaths"), healthy})
+}
+
+type saturatedCounterEntry struct {
+	value       int64
+	login, name string
+	updatedAt   time.Time
+}
+
+func counterTestSaturatedEntry(t *testing.T, raw *sql.DB) saturatedCounterEntry {
+	t.Helper()
+	var entry saturatedCounterEntry
+	err := raw.QueryRow("SELECT value,viewer_login,viewer_name,updated_at FROM counter_entries WHERE name='hugs' AND viewer_id=7").
+		Scan(&entry.value, &entry.login, &entry.name, &entry.updatedAt)
+	require.NoError(t, err)
+	return entry
+}
+
+func TestCounterProcessorPreservesExistingScopeAndSkipsMissingNegativeEntry(t *testing.T) {
+	repo, raw := counterTestRepo(t)
+	p := counterTestProcessor(t, repo, newCounterFakeValkey(t))
+	ref := CounterRef{UserID: 1, Name: "hugs"}
+	_, err := repo.CounterCreate(t.Context(), ref, data.CounterScopeViewer)
+	require.NoError(t, err)
+	event := data.CounterBumpedDTO{BatchID: "existing-scope", UserID: ref.UserID, Bumps: []data.CounterBumpEntry{
+		{Name: ref.Name, Delta: 3},
+		{Name: ref.Name, Scope: data.CounterScopeViewer, ViewerID: 7, Command: "!Hello", Delta: 4},
+		{Name: ref.Name, Scope: data.CounterScopeViewer, ViewerID: 8, Delta: -5},
+	}}
+	require.NoError(t, p.Process(t.Context(), event))
+	def, value, found, err := repo.CounterGet(t.Context(), ref, SetTarget{ViewerID: 7, Command: "!Hello"})
+	require.NoError(t, err)
+	require.True(t, found)
+	var entries int
+	require.NoError(t, raw.QueryRow("SELECT COUNT(*) FROM counter_entries WHERE user_id=1 AND name='hugs'").Scan(&entries))
+	type snapshot struct {
+		scope         string
+		pooled, entry int64
+		buckets       int
+	}
+	assert.Equal(t, snapshot{data.CounterScopeViewer, 3, 4, 1}, snapshot{def.Scope, def.Value, value, entries})
 }
 
 func TestCounterProcessorRejectsNegativeSystemAndTrialCounters(t *testing.T) {
@@ -295,7 +365,6 @@ func TestCounterProcessorUnicodeAndInvalidDisplayFollowUpstream(t *testing.T) {
 	assert.Equal(t, []string{strings.Repeat("€", maxCounterName), "viewer", display}, []string{gotCommand, login, gotDisplay})
 	assert.EqualValues(t, 4, value)
 
-	// Process must not re-normalize: upstream already stripped one leading '!'.
 	event = data.CounterBumpedDTO{BatchID: "one-normalization", UserID: 1, Bumps: []data.CounterBumpEntry{{Name: "!!Hug", Scope: data.CounterScopeCommand, Command: "!!Hello", Delta: 1}}}
 	require.NoError(t, p.Process(t.Context(), event))
 	require.NoError(t, raw.QueryRow("SELECT command,value FROM counter_entries WHERE name='!hug'").Scan(&gotCommand, &value))
@@ -317,14 +386,7 @@ func TestCounterProcessorCoalescesPromotedAndUnpromotedTrials(t *testing.T) {
 				{BatchID: "trial-one", UserID: 1, Bumps: []data.CounterBumpEntry{{Name: data.CounterTrialDecoded, Delta: 5}, {Name: data.CounterTrialAnswered, Delta: 2}}},
 				{BatchID: "trial-two", UserID: 1, Bumps: []data.CounterBumpEntry{{Name: data.CounterTrialDecoded, Delta: 2}, {Name: data.CounterTrialAnswered, Delta: 1}}},
 			}
-			start := make(chan struct{})
-			results := make(chan error, 2)
-			for _, event := range events {
-				go func(event data.CounterBumpedDTO) { <-start; results <- p.Process(t.Context(), event) }(event)
-			}
-			close(start)
-			require.NoError(t, <-results)
-			require.NoError(t, <-results)
+			require.Equal(t, []error{nil, nil}, coalescedCounterRun(t, p, raw, events))
 			decoded, answered := int64(0), int64(0)
 			if promoted {
 				decoded, answered = 7, 3
@@ -342,15 +404,15 @@ func TestCounterProcessorCoalescesPromotedAndUnpromotedTrials(t *testing.T) {
 			}, got)
 			cache.mu.Lock()
 			defer cache.mu.Unlock()
-			require.Len(t, cache.batches, 2)
-			require.Len(t, cache.batches[0], 2, "both trial events share one claim pipeline")
+			require.Len(t, cache.batches, 4)
+			require.Len(t, cache.batches[2], 2, "both trial events share one claim pipeline")
 		})
 	}
 }
 
 func TestCounterProcessorRerunsCoalescedTransactionAfterPromotionRace(t *testing.T) {
 	store := newBatchStore(map[string]int64{data.CounterTrialDecoded: 100})
-	store.onShareLock = promoteWhileLocking
+	store.onTrialVerify = promoteBeforeTrialVerify
 	p := counterTestProcessor(t, coalescingRepo(t, store), newCounterFakeValkey(t))
 	events := []data.CounterBumpedDTO{
 		trialBatch("race-one", data.CounterBumpEntry{Name: data.CounterTrialDecoded, Delta: 3}),
@@ -366,40 +428,6 @@ func TestCounterProcessorRerunsCoalescedTransactionAfterPromotionRace(t *testing
 	assert.EqualValues(t, 105, store.values[data.CounterTrialDecoded])
 	assert.EqualValues(t, 105, store.values[data.CounterMessagesProcessed])
 	assert.EqualValues(t, 105, store.values[data.CounterEventsProcessed])
-}
-
-type stalledFlushConn struct {
-	*coalescingConn
-	entered chan<- struct{}
-	release <-chan struct{}
-}
-
-func (c *stalledFlushConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-	if strings.HasPrefix(query, "INSERT INTO balances ") {
-		c.entered <- struct{}{}
-		<-c.release
-	}
-	return c.coalescingConn.ExecContext(ctx, query, args)
-}
-
-func TestCounterProcessorCommitsWhileEarnedFlushIsInFlight(t *testing.T) {
-	store := newBatchStore(nil)
-	entered, release := make(chan struct{}), make(chan struct{})
-	repo := fakeLoyalty(t, func() driver.Conn {
-		return &stalledFlushConn{coalescingConn: &coalescingConn{&batchConn{store: store}}, entered: entered, release: release}
-	})
-	p := counterTestProcessor(t, repo, newCounterFakeValkey(t))
-	repo.RecordEarned(data.LoyaltyEarnedDTO{UserID: 42, Entries: []data.LoyaltyEarnEntry{{ViewerID: 7, Points: 5}}})
-	flushed := make(chan struct{})
-	go func() { defer close(flushed); repo.Flush(context.Background()) }()
-	<-entered
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-	defer cancel()
-	err := p.Process(ctx, trialBatch("during-flush", data.CounterBumpEntry{Name: "deaths", Delta: 3}))
-	close(release)
-	<-flushed
-	require.NoError(t, err)
-	assert.EqualValues(t, 3, store.values["deaths"])
 }
 
 func TestCounterProcessorCloseDrainsAndIsIdempotent(t *testing.T) {

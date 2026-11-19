@@ -30,10 +30,10 @@ func setupAdminRPCTest(t *testing.T) (*adminRPC, *ent.Client) {
 
 	client := testdb.Open(t, "adminrpc", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 
-	repo := repository.NewUsers(client, nil, nil, nil, zap.NewNop())
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Pub: bustest.NewPublisher(), Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(context.Background()) })
 
-	return &adminRPC{repo: repo, log: zap.NewNop()}, client
+	return &adminRPC{repo: repo, invalidations: repo.Invalidations(), log: zap.NewNop()}, client
 }
 
 func createAdminUser(t *testing.T, client *ent.Client, i int, updatedAt time.Time) {
@@ -119,15 +119,12 @@ func replyIDs(reply usersrpc.AdminReply) []uint64 {
 func TestAdminActiveToggleEchoesCommittedState(t *testing.T) {
 	a, client := setupAdminRPCTest(t)
 	createAdminUser(t, client, 0, time.Now())
-	a.repo = repository.NewUsers(client, nil, bustest.NewPublisher(), nil, zap.NewNop())
-	t.Cleanup(func() { a.repo.Close(context.Background()) })
 	for _, active := range []bool{false, true} {
 		reply := a.setActive(t.Context(), usersrpc.AdminRequest{UserID: "9000", Active: active})
 		require.Empty(t, reply.Error)
 		require.NotNil(t, reply.User)
 		require.NotNil(t, reply.User.Lifecycle)
-		require.Equal(t, active, reply.User.Lifecycle.DesiredEnabled)
-		require.False(t, reply.User.IsActive, "enable must verify access before serving")
-		require.False(t, client.User.GetX(t.Context(), 9000).IsActive)
+		states := [3]bool{reply.User.Lifecycle.DesiredEnabled, reply.User.IsActive, client.User.GetX(t.Context(), 9000).IsActive}
+		require.Equal(t, [3]bool{active, false, false}, states, "enable must verify access before serving")
 	}
 }

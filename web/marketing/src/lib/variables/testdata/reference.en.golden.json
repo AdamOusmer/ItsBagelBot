@@ -7258,6 +7258,14 @@
       "{valorant:rank:peaktier}",
       "{valorant:placement}",
       "{valorant:rank:placement}",
+      "{valorant:record:player}",
+      "{valorant:record:region}",
+      "{valorant:games}",
+      "{valorant:record:games}",
+      "{valorant:wins}",
+      "{valorant:record:wins}",
+      "{valorant:winrate}",
+      "{valorant:record:winrate}",
       "{valorant:matches:player}",
       "{valorant:matches:region}",
       "{valorant:count}",
@@ -7367,6 +7375,46 @@
       {
         "syntax": "{valorant:rank:placement}",
         "output": "513",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{valorant:record:player}",
+        "output": "Frosty#EUW1",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{valorant:record:region}",
+        "output": "eu",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{valorant:games}",
+        "output": "412",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{valorant:record:games}",
+        "output": "412",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{valorant:wins}",
+        "output": "231",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{valorant:record:wins}",
+        "output": "231",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{valorant:winrate}",
+        "output": "56",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{valorant:record:winrate}",
+        "output": "56",
         "surfaceId": "custom"
       },
       {

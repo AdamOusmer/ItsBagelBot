@@ -5,6 +5,7 @@ package monitor
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/pkg/env"
@@ -17,16 +18,33 @@ import (
 
 const shutdownTimeout = 10 * time.Second
 
-func New(service string, log *zap.Logger) (*newrelic.Application, error) {
+var processApp atomic.Pointer[newrelic.Application]
 
-	if env.Get("NEW_RELIC_LICENSE_KEY", "") == "" {
+func Install(app *newrelic.Application) {
+	processApp.Store(app)
+}
+
+func Resolve(app *newrelic.Application) *newrelic.Application {
+	if app != nil {
+		return app
+	}
+	return processApp.Load()
+}
+
+func New(service string, log *zap.Logger) (*newrelic.Application, error) {
+	key := env.Get("NEW_RELIC_LICENSE_KEY", "")
+	if key == "" {
 		log.Info("new relic disabled: no license key configured")
 		return nil, nil
 	}
+	exporter := NewSpanExporter(TraceAPIEndpoint, key, log)
+	InstallExporter(exporter)
+	go exporter.Run(context.Background())
 
 	app, err := newrelic.NewApplication(
 		newrelic.ConfigAppName("ItsBagelBot-"+service),
 		newrelic.ConfigDistributedTracerEnabled(true),
+		newrelic.ConfigRemoteParentSampled(newrelic.AlwaysOn),
 		newrelic.ConfigAppLogForwardingEnabled(false),
 		newrelic.ConfigAppLogMetricsEnabled(true),
 		newrelic.ConfigFromEnvironment(),

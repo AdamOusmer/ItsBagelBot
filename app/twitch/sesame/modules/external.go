@@ -278,7 +278,7 @@ func snapshotHandlers[C any, R any](d engine.Deps, spec snapshotSpec[C, R]) (onl
 }
 
 func (spec snapshotSpec[C, R]) onlineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
-	return func(_ context.Context, c *module.Context, _ module.Emit) error {
+	return func(ctx context.Context, c *module.Context, _ module.Emit) error {
 		cfg, channelID, ok := spec.begin(d, c)
 		if !ok || c.Decode(&cfg) != nil {
 			return nil
@@ -287,18 +287,19 @@ func (spec snapshotSpec[C, R]) onlineHandler(d engine.Deps, log *zap.Logger) mod
 		if !spec.validRequest(req) {
 			return nil
 		}
-		seqOrGo(d.Seq, c.BroadcasterID, log, func() {
-			wctx, cancel := context.WithTimeout(context.Background(), snapshotTimeout)
+		seqOrGo(ctx, d.Seq, c.BroadcasterID, func(ctx context.Context) error {
+			wctx, cancel := context.WithTimeout(ctx, snapshotTimeout)
 			defer cancel()
 			var reply R
 			route := engine.GossipRoute{Provider: spec.provider, Endpoint: "session_start"}
 			if err := d.Gossip.Call(wctx, route, req, &reply); err != nil {
 				log.Warn(spec.provider+": stream-start snapshot failed",
 					zap.String("channel_id", channelID), zap.String("account", req.Account), zap.Error(err))
-				return
+				return err
 			}
 			log.Debug(spec.provider+": stream-start snapshot stored",
 				zap.String("channel_id", channelID), zap.String("account", req.Account), spec.stored(&reply))
+			return nil
 		})
 		return nil
 	}
@@ -314,20 +315,22 @@ func (spec snapshotSpec[C, R]) validRequest(req gossiprpc.Request) bool {
 }
 
 func (spec snapshotSpec[C, R]) offlineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
-	return func(_ context.Context, c *module.Context, _ module.Emit) error {
+	return func(ctx context.Context, c *module.Context, _ module.Emit) error {
 		_, channelID, ok := spec.begin(d, c)
 		if !ok {
 			return nil
 		}
-		seqOrGo(d.Seq, c.BroadcasterID, log, func() {
-			wctx, cancel := context.WithTimeout(context.Background(), snapshotTimeout)
+		seqOrGo(ctx, d.Seq, c.BroadcasterID, func(ctx context.Context) error {
+			wctx, cancel := context.WithTimeout(ctx, snapshotTimeout)
 			defer cancel()
 			var reply R
 			route := engine.GossipRoute{Provider: spec.provider, Endpoint: "session_end"}
 			if err := d.Gossip.Call(wctx, route, gossiprpc.Request{ChannelID: channelID}, &reply); err != nil {
 				log.Debug(spec.provider+": stream-end snapshot clear failed",
 					zap.String("channel_id", channelID), zap.Error(err))
+				return err
 			}
+			return nil
 		})
 		return nil
 	}

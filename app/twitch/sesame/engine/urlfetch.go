@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"ItsBagelBot/app/twitch/sesame/module"
@@ -50,7 +51,6 @@ type tokenOutcome struct {
 	text    string
 	visible bool
 	failed  bool
-	release func()
 }
 
 func (s *urlTokenSink) record(o tokenOutcome) {
@@ -62,9 +62,6 @@ func (s *urlTokenSink) record(o tokenOutcome) {
 	if o.visible {
 		s.results[o.name] = o.text
 	}
-	if o.release != nil {
-		o.release()
-	}
 }
 
 func (s *urlTokenSink) verdict() string {
@@ -75,29 +72,24 @@ func (s *urlTokenSink) verdict() string {
 }
 
 func (p *Pipeline) launchTokenFetch(ctx context.Context, c *module.Context, name string, sink *urlTokenSink) {
-	dup, release := p.claimedUrlValue(ctx, c, name)
-	if dup {
-		sink.record(tokenOutcome{name: name, visible: true, failed: true})
-		return
-	}
 	sink.wg.Add(1)
+	ctx = concurrentTrace(ctx)
 	go func() {
 		defer sink.wg.Done()
-		text, visible, failed := p.resolveUrlToken(ctx, c, name)
-		out := tokenOutcome{name: name, text: text, visible: visible, failed: failed}
-		if failed {
-			out.release = release
-			defer sink.cancel()
+		out := tokenOutcome{name: name, visible: true}
+		err := p.dedup.Effect(ctx, EffectRef{Identity: EventIdentity(&c.Env), Effect: urlFetchTokenPrefix + name}, func(ctx context.Context) error {
+			out.text, out.visible, out.failed = p.resolveUrlToken(ctx, c, name)
+			if out.failed {
+				return errors.New("url token fetch failed")
+			}
+			return nil
+		})
+		if err != nil {
+			out.failed = true
+			sink.cancel()
 		}
 		sink.record(out)
 	}()
-}
-
-func (p *Pipeline) claimedUrlValue(ctx context.Context, c *module.Context, name string) (dup bool, release func()) {
-	if p.dedup == nil {
-		return false, func() {}
-	}
-	return p.dedup.Claim(ctx, EffectRef{Identity: EventIdentity(&c.Env), Effect: urlFetchTokenPrefix + name})
 }
 
 func (p *Pipeline) resolveUrlToken(ctx context.Context, c *module.Context, name string) (text string, visible, failed bool) {

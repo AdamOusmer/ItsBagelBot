@@ -5,6 +5,7 @@ package core
 
 import (
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/monitor"
 	"bytes"
 	"context"
 	"errors"
@@ -22,7 +23,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"golang.org/x/net/proxy"
 )
 
@@ -119,7 +119,7 @@ func newHTTPClient(lane Lane, base string, headers map[string]string, timeout ti
 		base:    base,
 		headers: headers,
 		lane:    lane,
-		hc:      &http.Client{Timeout: timeout, Transport: transportFor(lane), CheckRedirect: redirectPolicy},
+		hc:      &http.Client{Timeout: timeout, Transport: monitor.ExternalTransport(transportFor(lane)), CheckRedirect: redirectPolicy},
 	}
 }
 
@@ -524,10 +524,6 @@ func (c *HTTPClient) Do(ctx context.Context, r Request, out any) error {
 }
 
 func (c *HTTPClient) roundTrip(ctx context.Context, req *http.Request, noRedirects bool) (*http.Response, error) {
-	segment := newrelic.StartExternalSegment(newrelic.FromContext(ctx), req)
-	if c.lane == LaneWARP {
-		segment.AddAttribute("lane", "warp")
-	}
 	client := c.hc
 	if noRedirects {
 		isolated := *client
@@ -535,8 +531,6 @@ func (c *HTTPClient) roundTrip(ctx context.Context, req *http.Request, noRedirec
 		client = &isolated
 	}
 	resp, err := client.Do(req)
-	segment.Response = resp
-	segment.End()
 	if err != nil {
 		if c.lane == LaneWARP && errors.Is(err, syscall.ECONNREFUSED) {
 			return nil, fmt.Errorf("%w: %v", ErrWARPDown, err)

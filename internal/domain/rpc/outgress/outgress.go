@@ -45,8 +45,9 @@ type UptimeReply struct {
 }
 
 type StreamInfoRequest struct {
-	BroadcasterID string `json:"broadcaster_id,omitempty"`
-	TargetLogin   string `json:"target_login,omitempty"`
+	BroadcasterID       string `json:"broadcaster_id,omitempty"`
+	TargetLogin         string `json:"target_login,omitempty"`
+	CallerBroadcasterID string `json:"caller_broadcaster_id,omitempty"`
 }
 
 type StreamInfoReply struct {

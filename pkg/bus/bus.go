@@ -93,6 +93,9 @@ func ensureConsumer(js nats.JetStreamManager, stream string, desired *nats.Consu
 		return err
 	}
 
+	if newerConsumerContract(info.Config.Metadata, desired.Metadata) {
+		return fmt.Errorf("bus: consumer %q requires a newer contract", desired.Name)
+	}
 	desired.DeliverSubject = info.Config.DeliverSubject
 	desired.DeliverPolicy = info.Config.DeliverPolicy
 	desired.OptStartSeq = info.Config.OptStartSeq
@@ -109,6 +112,9 @@ func ensureConsumer(js nats.JetStreamManager, stream string, desired *nats.Consu
 }
 
 func replaceConsumer(js nats.JetStreamManager, stream string, desired *nats.ConsumerConfig, cause error) error {
+	if strings.HasPrefix(stream, "TWITCH_INGRESS") {
+		return fmt.Errorf("bus: ingress consumer %q requires a new versioned durable: %w", desired.Name, cause)
+	}
 	if derr := js.DeleteConsumer(stream, desired.Name); derr != nil && !errors.Is(derr, nats.ErrConsumerNotFound) {
 		return fmt.Errorf("bus: update consumer %q: %w (replace failed: %v)", desired.Name, cause, derr)
 	}
@@ -271,7 +277,7 @@ func (s *fleetSubscriber) subscriberFor(target subscriptionTarget) (Subscriber, 
 		return s.sharedLaneSubscriberFor(target, mode)
 	}
 	binding := LaneConfig{URL: s.url, Stream: target.stream, Subject: target.topic, Group: s.group}
-	if deadLettersStream(target.stream) {
+	if target.stream == DataStream.Name {
 		delay := dataRetryDelay()
 		return bindDurable(binding, int(delay.deliveries()), delay, s.log)
 	}
@@ -280,16 +286,19 @@ func (s *fleetSubscriber) subscriberFor(target subscriptionTarget) (Subscriber, 
 }
 
 func laneQualifiesForReceiptAcks(target subscriptionTarget) bool {
-	return isHotIngressLane(target.stream, target.topic) || IsCanaryLane(target.stream, target.topic)
+	return IsCanaryLane(target.stream, target.topic)
 }
 
 func (s *fleetSubscriber) laneModeFor(target subscriptionTarget) laneConsumeMode {
+	if isHotIngressLane(target.stream, target.topic) {
+		return hotLaneMode()
+	}
 	mode := consumeMode()
 	declined := mode != laneModeExplicit && !laneQualifiesForReceiptAcks(target)
 	if !declined {
 		return mode
 	}
-	s.logger().Info("receipt-level consumption declined outside the hot ingress lanes",
+	s.logger().Debug("receipt-level consumption declined outside the hot ingress lanes",
 		zap.String("stream", target.stream),
 		zap.String("subject", target.topic),
 		zap.String("mode", string(mode)))
@@ -353,14 +362,14 @@ func (s *fleetSubscriber) acquireFlowLane(target subscriptionTarget, mode laneCo
 }
 
 func newSharedLaneSubscriber(cfg flowLaneConfig, mode laneConsumeMode) (Subscriber, error) {
-	if mode == laneModePull {
-		sub, err := newPullLaneSubscriber(cfg)
-		if err != nil {
-			return nil, err
-		}
-		return sub, nil
+	var sub Subscriber
+	var err error
+	switch mode {
+	case laneModePull, laneModePush:
+		sub, err = newExplicitLaneSubscriber(cfg, mode)
+	default:
+		sub, err = newFlowLaneSubscriber(cfg)
 	}
-	sub, err := newFlowLaneSubscriber(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -468,9 +477,13 @@ func (s *fleetSubscriber) Close() error {
 	// Close these outside s.mu: a shared flow lane's Close re-enters releaseFlowLane and would deadlock.
 	subs, conns := s.takeResources()
 
-	var errs []error
+	closed := make(chan error, len(subs))
 	for _, sub := range subs {
-		if err := sub.Close(); err != nil {
+		go func() { closed <- sub.Close() }()
+	}
+	var errs []error
+	for range subs {
+		if err := <-closed; err != nil {
 			errs = append(errs, err)
 		}
 	}

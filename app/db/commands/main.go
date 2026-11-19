@@ -43,12 +43,11 @@ const (
 )
 
 type consumerWiring struct {
-	app       *newrelic.Application
-	repo      *repository.Commands
-	fetches   *repository.Fetches
-	broadcast bus.Subscriber
-	grouped   bus.Subscriber
-	log       *zap.Logger
+	app     *newrelic.Application
+	repo    *repository.Commands
+	fetches *repository.Fetches
+	grouped bus.Subscriber
+	log     *zap.Logger
 }
 
 func registerConsumers(ctx context.Context, w consumerWiring) (*bus.ConcurrentConsumer, error) {
@@ -58,8 +57,6 @@ func registerConsumers(ctx context.Context, w consumerWiring) (*bus.ConcurrentCo
 		subject string
 		handle  func(*bus.Message) error
 	}{
-		{"command changes", w.broadcast, data.SubjectCommandChanged, consumers.OnChangeInvalidate(changedUserID, w.repo.Invalidate)},
-		{"fetch changes", w.broadcast, data.SubjectFetchChanged, consumers.OnChangeInvalidate(fetchChangedUserID, w.fetches.Invalidate)},
 		{"user deleted events", w.grouped, data.SubjectUserDeleted, deleteAllForUser(w.repo, w.fetches, w.log)},
 	}
 	for _, s := range subs {
@@ -72,10 +69,6 @@ func registerConsumers(ctx context.Context, w consumerWiring) (*bus.ConcurrentCo
 		Handle: recordUse(w.repo, w.log), Log: w.log,
 	})
 }
-
-func changedUserID(dto data.CommandChangedDTO) uint64 { return dto.UserID }
-
-func fetchChangedUserID(dto data.FetchChangedDTO) uint64 { return dto.UserID }
 
 type commandShutdown struct {
 	consumer    *bus.ConcurrentConsumer
@@ -154,7 +147,9 @@ func main() {
 	recorder := analytics.New(svcboot.MustValkey(core), log, nil)
 	defer recorder.Close()
 
-	repo := repository.NewCommands(client, n.Pub, core.NR, log)
+	h := bus.NewInvalidations(n.RPC, conf.CacheInvalidationPrefix.Get(), log)
+	pub := h.Publisher(n.Pub)
+	repo := repository.NewCommands(client, pub, core.NR, log)
 	repo.SetAnalytics(recorder)
 
 	// Must run before RPC and consumer traffic so a concurrent edit cannot race it.
@@ -162,7 +157,7 @@ func main() {
 		log.Error("bump_counter backfill failed; commands keep their prior (unset) bump_counter", zap.Error(err))
 	}
 
-	fetches := repository.NewFetches(client, repository.NewFetchesFromEnv(log), n.Pub, log)
+	fetches := repository.NewFetches(client, repository.NewFetchesFromEnv(log), pub, log)
 	levels := analytics.NewLevelSource(analytics.Owner{
 		Service: serviceName,
 		Owned:   analytics.Owned{"custom.total", "custom.perm", "custom.flags", "custom.channels", "integrations.connected|fetch_key"},
@@ -170,7 +165,8 @@ func main() {
 	})
 	defer fetches.Close()
 
-	consumer, err := registerConsumers(core.Ctx, consumerWiring{core.NR, repo, fetches, n.Broadcast, n.Grouped, log})
+	svcboot.FatalIf(log, h.Changes(core.Ctx, n.Broadcast, data.SubjectCommandChanged, data.SubjectFetchChanged), "failed to subscribe changes")
+	consumer, err := registerConsumers(core.Ctx, consumerWiring{core.NR, repo, fetches, n.Grouped, log})
 	if err != nil {
 		log.Fatal("failed to subscribe to events", zap.Error(err))
 	}

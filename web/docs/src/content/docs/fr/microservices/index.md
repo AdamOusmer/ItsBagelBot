@@ -32,4 +32,4 @@ Le diagramme présente les principaux flux, pas tous les événements et RPC. Po
 | Bureau | [Controls gateway](/fr/microservices/controls-gateway/), [Application de bureau](/fr/microservices/desktop/) | `app/controls/gateway/`, `app/desktop/` |
 | Web | [Tableau de bord](/fr/microservices/console/), [Admin](/fr/microservices/admin/), [Marketing](/fr/microservices/web/) | `web/` |
 
-Le dépôt comprend aussi l’application de bureau (`app/desktop/`), les outils de publication (`app/release/`) et les opérations de cluster (`app/clusterops/`). `app/plain/` est une ébauche inachevée et `app/yt-ingress/` un emplacement réservé. Voir `CONTEXT-MAP.md` pour la carte complète du code.
+Le dépôt comprend aussi l’application de bureau (`app/desktop/`) et les outils de publication (`app/release/`). `app/plain/` est une ébauche inachevée et `app/yt-ingress/` un emplacement réservé. Voir `CONTEXT-MAP.md` pour la carte complète du code.

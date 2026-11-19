@@ -77,6 +77,8 @@ spec:
         sysctls:
           - name: net.ipv4.tcp_slow_start_after_idle
             value: "0"
+          - name: net.ipv4.tcp_rto_min_us
+            value: "10000"
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
@@ -90,7 +92,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: commands
-          image: ghcr.io/adamousmer/itsbagelbot/commands:main-1794846801-6fb0a727e5b5@sha256:ad8172cb134bb2ca5bdb9dcfa2b3e3d65d8f47cec306d3c26db0855464b68dc8
+          image: ghcr.io/adamousmer/itsbagelbot/commands:main-1794953194-61b046579e99@sha256:41c718fdce10f2e521f20746471308f26099d2e0c227a2b099f2f30721e77f77
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST

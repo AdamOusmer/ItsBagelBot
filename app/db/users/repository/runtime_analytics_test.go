@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRuntimeAndDesktopSeedOnlyCountsEligibleRows(t *testing.T) {
+func TestRuntimeAndDesktopSeedCountsKnownStates(t *testing.T) {
 	client, _, repo := setup(t)
 	for i, state := range append(catalog.Enum(catalog.KindRuntime), "private-input", "active", "active") {
 		client.User.Create().SetID(uint64(i + 1)).SetUsername(fmt.Sprint("viewer", i)).SetEmail(fmt.Sprint(i, "@test.invalid")).
@@ -55,7 +55,7 @@ func TestRuntimeAndDesktopSeedOnlyCountsEligibleRows(t *testing.T) {
 		}
 	}
 	require.Equal(t, analytics.Tally{
-		"accounts.runtime|active": 1, "accounts.runtime|dormant": 1, "accounts.runtime|blocked": 1,
+		"accounts.runtime|active": 3, "accounts.runtime|dormant": 1, "accounts.runtime|blocked": 1,
 		"accounts.runtime|disabled": 1, "accounts.runtime|recovering": 1, "accounts.runtime|degraded": 1,
 		"desktop.grants|macos": 1, "desktop.grants|windows": 1, "desktop.grants|linux": 1,
 	}, actual)

@@ -25,7 +25,7 @@ import (
 func cheerEvent(viewer uint64, bits int) string {
 	id := strconv.FormatUint(viewer, 10)
 	return `{"user_id":"` + id + `","user_login":"viewer` + id + `","user_name":"Viewer` + id +
-		`","bits":` + strconv.Itoa(bits) + `,"message":"","is_anonymous":"false"}`
+		`","bits":` + strconv.Itoa(bits) + `,"message":"","is_anonymous":false}`
 }
 
 func (r *cooldownRig) cheer(t *testing.T, at dispatchAt, bits int) {

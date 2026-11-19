@@ -26,13 +26,13 @@ func TestGetDoesNotServeStaleViewOfDeletedUser(t *testing.T) {
 	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("usersstale"))
 	t.Cleanup(func() { _ = client.Close() })
 
-	r := NewUsers(client, nil, bustest.NewPublisher(), nil, zap.NewNop())
+	r := NewUsers(UsersConfig{Client: client, Pub: bustest.NewPublisher(), Log: zap.NewNop()})
 	t.Cleanup(func() { r.Close(context.Background()) })
 	r.views.Close()
 	r.views = cache.New[UserView](userCacheCapacity, 10*time.Millisecond, cache.StaleOnError(time.Minute))
 
 	ctx := context.Background()
-	require.NoError(t, r.Register(ctx, 1001, "mavey", "Mavey", "mavey@example.com"))
+	require.NoError(t, r.Register(ctx, Registration{ID: 1001, Username: "mavey", DisplayName: "Mavey", Email: "mavey@example.com"}))
 	_, err := r.Get(ctx, 1001)
 	require.NoError(t, err)
 

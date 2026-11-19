@@ -12,9 +12,9 @@
   "runtime": "Estado de ejecución actual de las cuentas contabilizadas.",
   "desktop": "Autorizaciones sin revocar cuyos dos plazos de renovación siguen vigentes.",
   "signups": "Cuentas nuevas creadas cada día del período.",
-  "gainLoss": "Cuentas nuevas frente a cuentas eliminadas cada día.",
+  "gainLoss": "Cuentas nuevas frente a cuentas baneadas del chat, con acceso revocado o eliminadas cada día.",
   "funnel": "Registros, configuraciones terminadas y activaciones del bot en el período. Cada paso cuenta eventos del período, así que los pasos posteriores pueden incluir registros anteriores.",
-  "churn": "Bot deshabilitado, acceso revocado, cuentas eliminadas y bloqueos de chat, sumados en el período.",
+  "churn": "Bot desactivado, acceso revocado, baneos del chat y cuentas eliminadas, sumados en el periodo. Los canales inactivos conservan su bot y no cuentan.",
   "presets": "Ajustes iniciales elegidos durante la configuración, sumados en el período.",
   "active": "Canales a los que el bot prestó servicio cada día del período.",
   "live": "Canales que iniciaron directo cada día del período.",
@@ -38,6 +38,7 @@
   "activationAge": "Canales únicos atendidos en la última semana completa, por antigüedad al usarlos.",
   "onboarding": "Eventos de configuración del período y cuentas configuradas con su proporción del total en la última captura.",
   "imports": "Resultados de vista previa y confirmación del período, por origen.",
+  "signupSources": "Inicios de sesión y cuentas nuevas del período, según el sitio de origen.",
   "checkout": "Resultados de pago por plan. La proporción compara activaciones con redirecciones del período e incluye pagos anteriores.",
   "dashboard": "Visitas del período, separadas entre titulares y delegados.",
   "recipeRuns": "Ejecuciones del período por activador y canales únicos con recetas en la última semana completa.",
@@ -51,5 +52,8 @@
   "delegating": "Cuentas con al menos un delegado y su proporción del total en la última captura diaria.",
   "donations": "Pagos brutos de Ko-fi en el periodo por moneda, con la proporción recurrente y el periodo anterior de igual duración. Importes antes de las comisiones de Ko-fi y del procesador de pagos.",
   "donationMonths": "Pagos brutos de Ko-fi por mes natural en los últimos 12 meses, solo días UTC cerrados.",
-  "donationKinds": "Pagos de Ko-fi en el periodo por tipo."
+  "donationKinds": "Pagos de Ko-fi en el periodo por tipo.",
+  "stops": "Bots detenidos frente a cuentas que volvieron, contados desde el 18 de nov. de 2026, cuando se empezó a registrar el regreso. Los canales inactivos conservan su bot y no cuentan.",
+  "inactive": "Cuentas sin bot en marcha: baneadas del chat, con acceso revocado, apagadas por el streamer u otras. Las cuentas eliminadas no cuentan. Hoy se actualiza en vivo.",
+  "dormant": "Canales sin actividad durante 30 días. Hoy se actualiza en vivo."
 }

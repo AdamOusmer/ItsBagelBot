@@ -108,7 +108,7 @@ func TestIngressStreamIsolatesLanesPerSubject(t *testing.T) {
 	cfg := streamConfig(ingressStreamSpec(t))
 
 	requireContract(t,
-		contractClause{cfg.MaxMsgsPerSubject > 0, "ingress lanes need a per-subject cap so one lane cannot evict the others"},
+		contractClause{cfg.MaxMsgsPerSubject == -1, "ingress has no per-subject eviction cap"},
 		contractClause{cfg.MaxBytes > 0, "ingress stream still needs its global byte backstop"},
 		contractClause{cfg.Duplicates > 0 && cfg.Duplicates <= time.Minute,
 			fmt.Sprintf("duplicate window = %v, want a short non-zero dedup window", cfg.Duplicates)},

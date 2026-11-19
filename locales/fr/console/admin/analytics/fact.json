@@ -30,5 +30,15 @@
   "delegating": "Comptes avec délégataires",
   "delegatingShare": "Part des comptes avec délégataires",
   "newSubscribers": "Nouveaux membres Ko-fi",
-  "lastDonation": "Dernier paiement Ko-fi"
+  "lastDonation": "Dernier paiement Ko-fi",
+  "stopped": "Arrêts du bot",
+  "restarted": "Revenus",
+  "netStops": "Net",
+  "inactiveNow": "Inactifs maintenant",
+  "inactiveChange": "Évolution sur la période",
+  "dormantNow": "En sommeil maintenant",
+  "dormantShare": "Part des comptes",
+  "wentDormant": "Mises en sommeil sur la période",
+  "inactiveShare": "Part des comptes",
+  "deletedWindow": "Supprimés sur la période"
 }

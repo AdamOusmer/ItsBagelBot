@@ -5,6 +5,7 @@ package repository_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -34,7 +35,13 @@ type fixture struct {
 
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN(testdb.Name(t.Name())))
+	dsn := testdb.MemDSN(testdb.Name(t.Name()))
+	keep, err := sql.Open(testdb.Driver, dsn)
+	require.NoError(t, err)
+	pinned, err := keep.Conn(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pinned.Close(); _ = keep.Close() })
+	client := enttest.Open(t, testdb.Driver, dsn)
 	t.Cleanup(func() { _ = client.Close() })
 	return &fixture{repo: repository.New(client), client: client, ctx: context.Background()}
 }

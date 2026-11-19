@@ -33,7 +33,6 @@ on:
           - users
           - sesame
           - gossip
-          - clusterops
           - warp
           - twitch-ingress
           - console-dashboard
@@ -150,12 +149,6 @@ jobs:
               "description": "ItsBagelBot external API gossip service"
             },
             {
-              "image": "clusterops",
-              "context": ".",
-              "containerfile": "app/clusterops/Containerfile",
-              "description": "ItsBagelBot console cert roller and NATS account claims sync"
-            },
-            {
               "image": "twitch-ingress",
               "context": ".",
               "containerfile": "app/twitch/ingress/Containerfile",
@@ -207,7 +200,6 @@ jobs:
             add "users"
             add "sesame"
             add "gossip"
-            add "clusterops"
           }
 
           add_all_services() {
@@ -226,7 +218,6 @@ jobs:
             add "users"
             add "sesame"
             add "gossip"
-            add "clusterops"
             add "warp"
             add "twitch-ingress"
             add "console-dashboard"
@@ -302,9 +293,6 @@ jobs:
                 ;;
               app/gossip/*)
                 add "gossip"
-                ;;
-              app/clusterops/*)
-                add "clusterops"
                 ;;
               app/warp/*)
                 add "warp"

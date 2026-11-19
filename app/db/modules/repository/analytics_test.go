@@ -63,7 +63,7 @@ func TestModuleTogglesOnlyCountCommittedEnabledChanges(t *testing.T) {
 	repo.SetAnalytics(capture.Recorder)
 	ctx := t.Context()
 	for _, enabled := range []bool{false, false, true, true} {
-		_, err := repo.SetNow(ctx, 1, "quotes", enabled, nil)
+		_, err := repo.SetNow(ctx, repository.ModuleWrite{UserID: 1, Name: "quotes", Enabled: enabled, Configs: nil})
 		require.NoError(t, err)
 	}
 	_, err := repo.Patch(ctx, 1, "quotes", true, nil, nil)
@@ -79,10 +79,10 @@ func TestModuleTogglesOnlyCountCommittedEnabledChanges(t *testing.T) {
 	_, err = repo.Patch(ctx, 1, "quotes", false, nil, nil)
 	require.NoError(t, err)
 	for _, enabled := range []bool{true, false, false, true} {
-		_, err := repo.SetNow(ctx, 2, "alerts", enabled, nil)
+		_, err := repo.SetNow(ctx, repository.ModuleWrite{UserID: 2, Name: "alerts", Enabled: enabled, Configs: nil})
 		require.NoError(t, err)
 	}
-	_, err = repo.SetNow(ctx, 3, "unknown", true, nil)
+	_, err = repo.SetNow(ctx, repository.ModuleWrite{UserID: 3, Name: "unknown", Enabled: true, Configs: nil})
 	require.NoError(t, err)
 	require.Equal(t, map[string]int64{
 		"module.toggles|quotes|on": 1, "module.toggles|quotes|off": 1,
@@ -99,7 +99,7 @@ func TestModuleRolledBackCommitDoesNotRecordAnalytics(t *testing.T) {
 	capture := analyticstest.New(t)
 	repo.SetAnalytics(capture.Recorder)
 	rejectTransactionCommit(t, client)
-	_, err := repo.SetNow(t.Context(), 1, "quotes", true, nil)
+	_, err := repo.SetNow(t.Context(), repository.ModuleWrite{UserID: 1, Name: "quotes", Enabled: true, Configs: nil})
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 	require.Empty(t, capture.Counters())
 	require.Empty(t, readModuleSeed(t, repo))
@@ -161,13 +161,13 @@ func TestSQLLevelsFollowCommittedWrites(t *testing.T) {
 	govee := repository.NewGoveeCreds(client, dbtest.NewPacker(t))
 	repo.SetAnalytics(rec)
 
-	_, err := repo.SetNow(ctx, 1, "quotes", true, nil)
+	_, err := repo.SetNow(ctx, repository.ModuleWrite{UserID: 1, Name: "quotes", Enabled: true, Configs: nil})
 	require.NoError(t, err)
 	_, err = repo.Patch(ctx, 1, "loyalty", true, nil, nil)
 	require.NoError(t, err)
-	_, err = repo.SetNow(ctx, 2, "quotes", true, nil)
+	_, err = repo.SetNow(ctx, repository.ModuleWrite{UserID: 2, Name: "quotes", Enabled: true, Configs: nil})
 	require.NoError(t, err)
-	_, err = repo.SetNow(ctx, 1, "quotes", false, nil)
+	_, err = repo.SetNow(ctx, repository.ModuleWrite{UserID: 1, Name: "quotes", Enabled: false, Configs: nil})
 	require.NoError(t, err)
 	require.NoError(t, repo.DeleteAllForUser(ctx, 2))
 	require.NoError(t, govee.SetKey(ctx, 1, "key"))

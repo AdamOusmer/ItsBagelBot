@@ -38,7 +38,7 @@ func TestGiveawayPoolUsesAuthoritativeRules(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 	for id, name := range map[uint64]string{1: "eligible", 2: "inactive", 3: "staff", 4: "former", 5: "test", 6: "vip", 7: "banned", 8: "onboarding"} {
-		require.NoError(t, repo.Register(ctx, id, name, name, name+"@example.com"))
+		require.NoError(t, repo.Register(ctx, repository.Registration{ID: id, Username: name, DisplayName: name, Email: name + "@example.com"}))
 	}
 	require.NoError(t, repo.SetOnboarded(ctx, 1, true))
 	require.NoError(t, repo.SetOnboarded(ctx, 2, true))
@@ -72,7 +72,7 @@ func TestGiveawayPoolUsesAuthoritativeRules(t *testing.T) {
 func TestSetTestAccountRequiresAdminAndAudits(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 10, "target", "target", "target@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 10, Username: "target", DisplayName: "target", Email: "target@example.com"}))
 	audit := staffService(t, repo, []usersrpc.AdminAcctView{{ID: 11, Role: "moderator", Active: true, Login: "mod"}, {ID: 12, Role: "admin", Active: true, Login: "admin"}})
 	assert.Error(t, repo.SetTestAccount(ctx, 10, true, 11))
 	require.NoError(t, repo.SetTestAccount(ctx, 10, true, 12))
@@ -129,7 +129,7 @@ func (f *auditFixture) deliver(_ context.Context, req usersrpc.AuthRequest) user
 func TestPremiumGrantPreparationIsIdempotentAndConcurrent(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 20, "winner", "winner", "winner@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 20, Username: "winner", DisplayName: "winner", Email: "winner@example.com"}))
 	req := usersrpc.PreparePremiumGrantRequest{GiveawayID: "g-1", AwardID: "a-1", UserID: 20,
 		StartAt: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), EndAt: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), IntervalRuleVersion: "tebex-monthly-v1"}
 	rows := concurrentPrepares(t, ctx, repo, req)
@@ -197,7 +197,7 @@ func prepareWithSQLiteRetry(ctx context.Context, repo *repository.Users, req use
 func TestPremiumGrantCancellationExpiryAndCoverageStack(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 30, "stacked", "stacked", "stacked@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 30, Username: "stacked", DisplayName: "stacked", Email: "stacked@example.com"}))
 	start := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, 7)
 	makeGrant := func(award string, from, to time.Time) usersrpc.PremiumGrant {
 		g, err := repo.PreparePremiumGrant(ctx, usersrpc.PreparePremiumGrantRequest{GiveawayID: "g-2", AwardID: award, UserID: 30, StartAt: from, EndAt: to, IntervalRuleVersion: "tebex-monthly-v1"})
@@ -228,7 +228,7 @@ func TestPremiumGrantCancellationExpiryAndCoverageStack(t *testing.T) {
 func TestPremiumGrantBoundarySweepAdvancesProjectionPhase(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 31, "boundary", "boundary", "boundary@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 31, Username: "boundary", DisplayName: "boundary", Email: "boundary@example.com"}))
 	start := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, 7)
 	end := start.AddDate(0, 1, 0)
 	_, err := repo.PreparePremiumGrant(ctx, usersrpc.PreparePremiumGrantRequest{GiveawayID: "g-boundary", AwardID: "a-boundary", UserID: 31, StartAt: start, EndAt: end, IntervalRuleVersion: "tebex-monthly-v1"})
@@ -274,12 +274,11 @@ func (p *rejectInvalidateStatus) Close() error                    { return p.inn
 func TestPremiumGrantBoundarySweepIgnoresJetStreamStatusInvalidation(t *testing.T) {
 	client := testdb.Open(t, "grantinvalidate", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	inner := bustest.NewPublisher()
-	repo := repository.NewUsers(client, dbtest.NewPacker(t), &rejectInvalidateStatus{inner: inner}, nil, zap.NewNop())
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Packer: dbtest.NewPacker(t), Pub: &rejectInvalidateStatus{inner: inner}, Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(context.Background()) })
-	repo.SetInvalidationPrefix("cache.invalidate")
 
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 33, "jsboundary", "jsboundary", "jsboundary@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 33, Username: "jsboundary", DisplayName: "jsboundary", Email: "jsboundary@example.com"}))
 	start := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, 7)
 	end := start.AddDate(0, 1, 0)
 	_, err := repo.PreparePremiumGrant(ctx, usersrpc.PreparePremiumGrantRequest{
@@ -307,7 +306,7 @@ func TestPremiumGrantBoundarySweepIgnoresJetStreamStatusInvalidation(t *testing.
 func TestPremiumGrantNormalizesMicrosecondsForReplay(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 32, "precision", "precision", "precision@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 32, Username: "precision", DisplayName: "precision", Email: "precision@example.com"}))
 	start := time.Date(2026, 10, 1, 0, 0, 0, 123456789, time.FixedZone("offset", -4*60*60))
 	end := start.Add(31 * 24 * time.Hour).Add(987 * time.Nanosecond)
 	req := usersrpc.PreparePremiumGrantRequest{GiveawayID: "g-precision", AwardID: "a-precision", UserID: 32, StartAt: start, EndAt: end, IntervalRuleVersion: "verified-tebex-monthly"}
@@ -323,7 +322,7 @@ func TestPremiumGrantNormalizesMicrosecondsForReplay(t *testing.T) {
 func TestCommittedGrantOverlaysBillingAndRevokeKeepsPrize(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 40, "subscriber", "subscriber", "subscriber@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 40, Username: "subscriber", DisplayName: "subscriber", Email: "subscriber@example.com"}))
 	now := time.Now().UTC().Truncate(time.Second)
 	paidUntil := now.Add(time.Hour)
 	_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{UserID: 40, EventID: "paid-1", Action: billingrpc.ActionActivate,
@@ -369,7 +368,7 @@ func TestGrantSweepWritesPaidForAlreadyActiveCoverage(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
-	require.NoError(t, repo.Register(ctx, 34, "already", "already", "already@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 34, Username: "already", DisplayName: "already", Email: "already@example.com"}))
 	client.PremiumGrant.Create().
 		SetUserID(34).
 		SetGiveawayID("g-already").
@@ -398,7 +397,7 @@ func TestCommittedGrantDoesNotDemoteVIP(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
-	require.NoError(t, repo.Register(ctx, 35, "vipgrant", "vipgrant", "vipgrant@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 35, Username: "vipgrant", DisplayName: "vipgrant", Email: "vipgrant@example.com"}))
 	require.NoError(t, repo.SetStatus(ctx, 35, user.StatusVip))
 	_, err := repo.PreparePremiumGrant(ctx, usersrpc.PreparePremiumGrantRequest{
 		GiveawayID: "g-vip", AwardID: "a-vip", UserID: 35, StartAt: now.Add(-time.Minute), EndAt: now.AddDate(0, 1, 0), IntervalRuleVersion: "tebex-monthly-v1",
@@ -413,7 +412,7 @@ func TestExpireSubscriptionsKeepsCoveringGrantPaid(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 	now := time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)
-	require.NoError(t, repo.Register(ctx, 36, "gracegrant", "gracegrant", "gracegrant@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 36, Username: "gracegrant", DisplayName: "gracegrant", Email: "gracegrant@example.com"}))
 	expiry := now.Add(-time.Minute)
 	_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
 		UserID: 36, EventID: "evt-g", Action: billingrpc.ActionActivate,

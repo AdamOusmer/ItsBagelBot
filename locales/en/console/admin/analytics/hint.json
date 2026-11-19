@@ -12,9 +12,9 @@
   "runtime": "Current runtime state of counted accounts.",
   "desktop": "Unrevoked grants with both refresh deadlines still in the future.",
   "signups": "New accounts created on each day of the window.",
-  "gainLoss": "New accounts against deleted accounts on each day.",
+  "gainLoss": "New accounts against accounts banned from chat, with revoked access or deleted on each day.",
   "funnel": "Signups, finished setups and bot enables in the window. Each step counts events in the window, so later steps can include earlier signups.",
-  "churn": "Bot disabled, access revoked, accounts deleted and chat bans, summed over the window.",
+  "churn": "Bot disabled, access revoked, chat bans and deleted accounts, summed over the window. Dormant channels keep their bot and are not counted.",
   "presets": "Setup presets picked during onboarding, summed over the window.",
   "active": "Channels the bot served on each day of the window.",
   "live": "Channels that went live on each day of the window.",
@@ -38,6 +38,7 @@
   "activationAge": "Distinct channels served in the last full week, grouped by account age when served.",
   "onboarding": "Setup events over the window, plus onboarded accounts and their share of all accounts in the latest snapshot.",
   "imports": "Preview and commit results over the window, grouped by import source.",
+  "signupSources": "Logins started and new accounts over the window, by the site that sent the visitor.",
   "checkout": "Checkout results by plan. Activation share compares activation events with redirected checkouts in the window, including earlier checkouts.",
   "dashboard": "Views over the window, with counts split between account owners and delegates.",
   "recipeRuns": "Runs over the window by trigger, plus distinct channels using recipes in the last full week.",
@@ -51,5 +52,8 @@
   "delegating": "Accounts with at least one delegate and their share of all accounts in the latest daily snapshot.",
   "donations": "Gross Ko-fi payments in the window by currency, with the recurring share and the previous window of equal length. Amounts are before Ko-fi and payment processor fees.",
   "donationMonths": "Gross Ko-fi payments per calendar month over the last 12 months, closed UTC days only.",
-  "donationKinds": "Ko-fi payments in the window by type."
+  "donationKinds": "Ko-fi payments in the window by type.",
+  "stops": "Bots that stopped against accounts that came back, counted from Nov 18, 2026, when comebacks started being recorded. Dormant channels keep their bot and are not counted.",
+  "inactive": "Accounts without a running bot at each moment: banned from chat, revoked access, turned off by the streamer, or other. Deleted accounts are not counted. Today updates live.",
+  "dormant": "Channels with no activity for 30 days, at each moment. Today updates live."
 }

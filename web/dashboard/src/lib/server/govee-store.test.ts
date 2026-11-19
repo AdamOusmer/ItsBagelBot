@@ -3,9 +3,11 @@
 
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { GoveeScene } from '@bagel/kit';
+import { registerServerConfig } from '@bagel/kit/server/config';
 import { stubSvelteKit } from '../../../test/sveltekit';
 
 stubSvelteKit();
+registerServerConfig({ cacheInvalidationPrefix: 'inv' });
 
 let reply: Record<string, unknown> | Error = {};
 const savedReward = { reward: { id: 'rw-g', title: 'Whole room', cost: 900 } };
@@ -14,10 +16,12 @@ const calls: { subject: string; payload: unknown }[] = [];
 let moduleRows: unknown[] = [];
 const moduleReads = mock(async () => moduleRows);
 const moduleWrites: unknown[] = [];
+const published: unknown[] = [];
 
 const realNats = await import('@bagel/kit/server/nats');
 mock.module('@bagel/kit/server/nats', () => ({
   ...realNats,
+  publish: async (subject: string, payload: unknown) => { published.push({ subject, payload }); },
   rpcReply: async (subject: string, payload: unknown) => {
     if (subject.includes('.channelpoints.')) return rewardReply;
     calls.push({ subject, payload });
@@ -103,6 +107,30 @@ describe('listScenes', () => {
   });
 });
 
+test.each([
+  { method: 'setKey' as const, failed: false },
+  { method: 'setKey' as const, failed: true },
+  { method: 'clearKey' as const, failed: false },
+  { method: 'clearKey' as const, failed: true }
+])('$method broadcasts device and scene eviction only after success, failure=$failed', async ({ method, failed }) => {
+  invalidate('govee-devices:', 'govee-scenes:');
+  published.length = 0;
+  reply = { devices: [], scenes: [sunrise] };
+  const store = goveeStore('42');
+  const target = { device: 'AA', sku: 'H1' };
+  await store.listDevices();
+  await store.listScenes(target);
+  if (failed) reply = { error: 'write failed' };
+  await store[method]('key');
+  reply = { devices: [], scenes: [sunrise] };
+  calls.length = 0;
+  await store.listDevices();
+  await store.listScenes(target);
+  expect([published, calls.length]).toEqual(failed ? [[], 0] : [
+    [{ subject: 'inv.modules', payload: { broadcaster_id: '42' } }], 2
+  ]);
+});
+
 describe('light groups', () => {
   const lights = [
     { device: 'AA', sku: 'H1', name: 'Desk' },
@@ -124,13 +152,16 @@ describe('light groups', () => {
     expect(written.groups.map((g) => g.name)).toEqual(['Room', 'Other']);
   });
 
-  test('a dead Twitch grant asks for a reconnect and writes nothing', async () => {
+  test.each([
+    { name: 'a dead Twitch grant asks for a reconnect', wire: { error: 'reconnect required', code: 'forbidden', missing_scope: true }, refused: { missingScope: true } },
+    { name: 'a taken reward title is named', wire: { error: 'duplicate reward title', code: 'conflict' }, refused: { duplicateTitle: true } },
+    { name: 'a channel without affiliate is named', wire: { error: 'broadcaster not affiliate', code: 'forbidden', not_affiliate: true }, refused: { notAffiliate: true } }
+  ])('$name and writes nothing', async ({ wire, refused }) => {
     moduleRows = [{ name: 'govee', is_enabled: true, configs: { groups: [] } }];
     moduleWrites.length = 0;
-    rewardReply = { error: 'reconnect required', code: 'forbidden', missing_scope: true };
+    rewardReply = wire;
 
-    expect(await goveeStore('1').saveGroup({ rewardId: '', name: 'Room', lights }, draft)).toEqual({ ok: false, missingScope: true });
-    expect(moduleWrites).toHaveLength(0);
+    expect([await goveeStore('1').saveGroup({ rewardId: '', name: 'Room', lights }, draft), moduleWrites]).toEqual([{ ok: false, ...refused }, []]);
   });
 
   test('deleting a group leaves the other groups', async () => {

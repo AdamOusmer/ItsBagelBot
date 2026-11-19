@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/invalidate"
 	livekey "ItsBagelBot/internal/domain/live"
@@ -36,7 +35,7 @@ type LiveConfig struct {
 	CacheTTL              time.Duration
 	ProjectorLiveSubject  string
 	OutgressSystemSubject string
-	CacheInvalidatePrefix string
+	Invalidations         *bus.Invalidations
 	KeyspaceDB            int
 	Expiry                *pkg_valkey.ExpiryHub
 	OfflineConfirmDelays  []time.Duration
@@ -52,11 +51,12 @@ type ValkeyLiveStore struct {
 
 	cache      *cache.Keyed[uint64, bool]
 	rpcTimeout time.Duration
-
-	invalidationSub *nats.Subscription
 }
 
 func NewValkeyLiveStore(client valkey.Client, nc *nats.Conn, pub bus.Publisher, cfg LiveConfig) *ValkeyLiveStore {
+	if cfg.Invalidations == nil {
+		cfg.Invalidations = bus.NewInvalidations(nil, "", cfg.Log)
+	}
 	if cfg.CacheTTL <= 0 {
 		cfg.CacheTTL = 30 * time.Second
 	}
@@ -73,7 +73,7 @@ func NewValkeyLiveStore(client valkey.Client, nc *nats.Conn, pub bus.Publisher, 
 		pub:        pub,
 		cfg:        cfg,
 		log:        log,
-		cache:      cache.NewKeyed[uint64, bool](liveCacheCapacity, cfg.CacheTTL, livekey.Key),
+		cache:      cache.NewKeyed[uint64, bool](liveCacheCapacity, cfg.CacheTTL, livekey.Key).InvalidateOn(cfg.Invalidations, func(e cache.Event) []uint64 { return []uint64{e.ID} }, invalidate.ScopeLive),
 		rpcTimeout: 1500 * time.Millisecond,
 	}
 }
@@ -127,7 +127,7 @@ func (s *ValkeyLiveStore) SetLive(ctx context.Context, broadcasterID uint64, ver
 		return false, err
 	}
 	s.cache.Set(broadcasterID, true)
-	s.broadcast(broadcasterID)
+	s.cfg.Invalidations.Publish(invalidate.ScopeLive, broadcasterID)
 	return true, nil
 }
 
@@ -136,7 +136,7 @@ func (s *ValkeyLiveStore) ClearLive(ctx context.Context, broadcasterID uint64, v
 	applied, err := clearLiveKey(ctx, s.client, broadcasterID, version)
 	if applied {
 		s.armOfflineConfirm(ctx, broadcasterID)
-		s.broadcast(broadcasterID)
+		s.cfg.Invalidations.Publish(invalidate.ScopeLive, broadcasterID)
 	}
 	return applied, err
 }
@@ -147,39 +147,6 @@ func (s *ValkeyLiveStore) setLiveKey(ctx context.Context, broadcasterID uint64, 
 		ttl = 12 * time.Hour
 	}
 	return liveSlot(broadcasterID).Set(ctx, s.client, pkg_valkey.SlotWrite{Version: version, TTL: ttl, VerTTL: livekey.VerTTL})
-}
-
-func (s *ValkeyLiveStore) broadcast(broadcasterID uint64) {
-	if s.nc == nil || s.cfg.CacheInvalidatePrefix == "" {
-		return
-	}
-	if err := invalidate.Publish(s.nc, s.cfg.CacheInvalidatePrefix, livekey.InvalidateScope, strconv.FormatUint(broadcasterID, 10)); err != nil {
-		s.log.Warn("live: failed to broadcast invalidation", module.BIDField(broadcasterID), zap.Error(err))
-	}
-}
-
-func (s *ValkeyLiveStore) StartInvalidationListener() {
-	if s.cfg.CacheInvalidatePrefix == "" {
-		return
-	}
-	subject := s.cfg.CacheInvalidatePrefix + "." + livekey.InvalidateScope
-	sub, err := s.nc.Subscribe(subject, func(msg *nats.Msg) {
-		var dto invalidate.DTO
-		if err := codec.Unmarshal(msg.Data, &dto); err != nil {
-			return
-		}
-		id, err := strconv.ParseUint(dto.BroadcasterID, 10, 64)
-		if err != nil || id == 0 {
-			return
-		}
-		s.cache.Invalidate(id)
-	})
-	if err != nil {
-		s.log.Error("live: failed to subscribe to invalidation", zap.String("subject", subject), zap.Error(err))
-		return
-	}
-	s.invalidationSub = sub
-	s.log.Info("live: invalidation listener started", zap.String("subject", subject))
 }
 
 func (s *ValkeyLiveStore) StartExpiryWatcher(ctx context.Context) {
@@ -251,8 +218,5 @@ func (s *ValkeyLiveStore) requestRecheck(ctx context.Context, broadcasterID stri
 }
 
 func (s *ValkeyLiveStore) Close() {
-	if s.invalidationSub != nil {
-		_ = s.invalidationSub.Unsubscribe()
-	}
 	s.cache.Close()
 }

@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **132** blocks;
+Every block the library ships, by family. **133** blocks;
 **111** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 132 times
+omitted: nearly every block takes both, and listing them 133 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -51,6 +51,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **SetupStep** | `kicker*`: string<br>`title*`: string<br>`body`: string<br>`dir`: number<br>`instant`: boolean<br>`hero`: boolean<br>`heading`: HTMLHeadingElement \| null<br>`status`: Snippet | svelte | svelte-only | `styles/elements/page-hero.css, styles/elements/setup-step.css` |
 | **Spacer** | `size`: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`grow`: boolean | svelte + astro | stable | `styles/elements/layout.css` |
 | **Stack** | `gap`: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`align`: 'start' \| 'center' \| 'end'<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
+| **SwapStack** | `alternate*`: boolean<br>`primary*`: Snippet<br>`secondary*`: Snippet | svelte | svelte-only | `styles/elements/swap-stack.css` |
 | **Well** | `container`: boolean<br>`as`: T | svelte + astro | stable | `styles/elements/well.css` |
 | **Window** | — | astro<br>*Astro only: a static frame around a screenshot-like body; the title and actions are named slots.* | astro-only | `styles/elements/window.css` |
 

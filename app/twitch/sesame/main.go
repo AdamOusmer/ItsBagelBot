@@ -30,7 +30,7 @@ const (
 
 const projectionCacheTTL = 30 * time.Second
 
-const cacheOccupancyInterval = 5 * time.Minute
+const cacheOccupancyInterval = time.Hour
 
 func main() {
 	core, done := svcboot.NewCore(serviceName)
@@ -43,10 +43,11 @@ func main() {
 
 	// internal/consumer subscribes TWITCH_INGRESS_RETRY under the same flag; change both together.
 	owned := bus.IngressLaneSpecs()
+	owned = append(owned, bus.IngressDeadLetterStream)
 	if bus.FlowConsumeEnabled() {
 		owned = append(owned, bus.TwitchIngressRetryStream)
 	}
-	svcboot.FatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, owned, log),
+	svcboot.FatalIf(log, bus.EnsureConsumerStreams(ctx, bus.StreamSetup{URL: cfg.NATSURL, Group: cfg.ConsumerName, Specs: owned, Log: log}),
 		"failed to provision the TWITCH_INGRESS streams")
 
 	nc, pub, sub := dialNATS(cfg, log)
@@ -62,7 +63,8 @@ func main() {
 
 	activity.SetSink(activity.NewStore(valkeyClient))
 
-	w := wireCtx{ctx: ctx, in: infra{nc: nc, pub: pub, sub: sub, vc: valkeyClient}, cfg: cfg, log: log, expiry: pkgvalkey.NewExpiryHub(valkeyClient, 0, log)}
+	h := bus.NewInvalidations(nc, cfg.CacheInvalidationPrefix, log)
+	w := wireCtx{invalidations: h, ctx: ctx, in: infra{nc: nc, pub: pub, sub: sub, vc: valkeyClient}, cfg: cfg, log: log, expiry: pkgvalkey.NewExpiryHub(valkeyClient, 0, log)}
 
 	proj := newProjection(w)
 	defer proj.Close()
@@ -124,11 +126,9 @@ func main() {
 	logReady(cfg, deps.Special.Len(), log)
 
 	<-ctx.Done()
-	drainInflight(weighted, cfg.DrainTimeout, log)
+	drainInflight(weighted, pipe, cfg.DrainTimeout, log)
 }
 
-// prepareHotPath moves codec compilation and lazy read dials ahead of consumption.
-// Both are latency optimizations; a failure leaves normal lazy initialization available.
 func prepareHotPath(w wireCtx) {
 	if err := engine.PrepareJSON(); err != nil {
 		w.log.Warn("failed to precompile sesame JSON codecs", zap.Error(err))
@@ -177,10 +177,11 @@ func logReady(cfg *config.Config, specialUsers int, log *zap.Logger) {
 	)
 }
 
-func drainInflight(weighted *bus.Weighted, timeout time.Duration, log *zap.Logger) {
+func drainInflight(weighted *bus.Weighted, pipe *engine.Pipeline, timeout time.Duration, log *zap.Logger) {
 	log.Info("sesame shutting down, draining in-flight events", zap.Duration("timeout", timeout))
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+	defer pipe.Finish(ctx)
 	if err := weighted.Drain(ctx); err != nil {
 		log.Warn("drain deadline exceeded; in-flight events left for redelivery", zap.Error(err))
 		return
@@ -188,7 +189,10 @@ func drainInflight(weighted *bus.Weighted, timeout time.Duration, log *zap.Logge
 	log.Info("in-flight events drained")
 }
 
-const emoteRefreshInterval = time.Hour
+const (
+	emoteRefreshInterval = time.Hour
+	emoteRetryInterval   = 5 * time.Minute
+)
 
 const lexiconReloadInterval = 5 * time.Minute
 
@@ -217,24 +221,29 @@ func reloadLexicon(ctx context.Context, dir string, guard *automod.Gate, log *za
 }
 
 func refreshEmotes(ctx context.Context, fetcher *automod.EmoteFetcher, guard *automod.Gate, log *zap.Logger) {
-	load := func() {
-		n, err := fetcher.Refresh(ctx, guard)
-		if err != nil {
-			log.Warn("emote set refresh partial or failed", zap.Int("codes", n), zap.Error(err))
-			return
-		}
-		log.Info("emote set refreshed", zap.Int("codes", n))
-	}
-
-	load()
-	ticker := time.NewTicker(emoteRefreshInterval)
-	defer ticker.Stop()
 	for {
+		wait := emoteRefreshInterval
+		if !loadEmotes(ctx, fetcher, guard, log) {
+			wait = emoteRetryInterval
+		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			load()
+		case <-time.After(wait):
 		}
 	}
+}
+
+func loadEmotes(ctx context.Context, fetcher *automod.EmoteFetcher, guard *automod.Gate, log *zap.Logger) bool {
+	res, err := fetcher.Refresh(ctx, guard)
+	fields := []zap.Field{zap.Int("codes", res.Codes), zap.Int("failed_providers", res.Failed), zap.Error(err)}
+	switch {
+	case err == nil:
+		log.Info("emote set refreshed", zap.Int("codes", res.Codes))
+	case res.AllFailed() || res.Codes == 0:
+		log.Warn("emote set refresh partial or failed", fields...)
+	default:
+		log.Info("emote set refresh partial; previous codes kept", fields...)
+	}
+	return err == nil
 }

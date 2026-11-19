@@ -149,15 +149,16 @@ func counterReporterShutdown(t *testing.T, subject string, failures int) {
 	}
 	r.flush(t.Context())
 	pending := r.backlog().pending
-	require.Equal(t, 2, pending)
+	require.Equal(t, 1, pending)
+	attempts := len(pub.payloads[subject])
 	original := pub.payloads[subject][0]
 	r.record(99999)
 	pub.failures = failures
 	started := time.Now()
 	r.close()
 	bodies := pub.payloads[subject]
-	require.Len(t, bodies, pending+2, "shutdown must attempt every pending batch and the aggregate without advancing the clock")
-	require.Equal(t, original, bodies[1], "shutdown must preserve the uncertain batch identity and payload")
+	require.Len(t, bodies, attempts+pending+1, "shutdown must attempt every pending batch and the aggregate without advancing the clock")
+	require.Equal(t, original, bodies[attempts], "shutdown must preserve the uncertain batch identity and payload")
 	want := counterReporterBacklog{}
 	if failures < 0 {
 		want.pending = pending + 1
@@ -165,9 +166,9 @@ func counterReporterShutdown(t *testing.T, subject string, failures int) {
 		want.pending = failures
 	}
 	require.Equal(t, want, r.backlog(), "failed publications remain pending; all aggregates are drained")
-	deadline := pub.deadlines[1]
+	deadline := pub.deadlines[attempts]
 	require.WithinRange(t, deadline, started, started.Add(5*time.Second+time.Millisecond))
-	for _, observed := range pub.deadlines[1:] {
+	for _, observed := range pub.deadlines[attempts:] {
 		require.Equal(t, deadline, observed, "all final attempts must share the shutdown budget")
 	}
 }

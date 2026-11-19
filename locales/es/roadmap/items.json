@@ -1,0 +1,82 @@
+{
+  "209f337ab203": {
+    "title": "Estado del bot en tu panel",
+    "summary": "Mira si el bot está conectado, por qué falló algo y prueba alertas, recompensas y peticiones de canciones con un solo clic."
+  },
+  "e4683946cf01": {
+    "title": "Configuración para tu primer stream",
+    "summary": "Haz que el bot responda en tu chat desde tu primer stream, con los comandos indicados ya activados."
+  },
+  "686861f96b01": {
+    "title": "Soporte para Chat compartido",
+    "summary": "Los comandos, puntos y moderación funcionan correctamente cuando compartes chat con otros streamers."
+  },
+  "b43662db4096": {
+    "title": "Importar, exportar y copia de seguridad",
+    "summary": "Trae tus puntos desde tu bot anterior y exporta o restaura toda tu configuración cuando quieras."
+  },
+  "8eddf0c4db2d": {
+    "title": "Escudo contra hate raids",
+    "summary": "Un solo interruptor para bloquear el chat durante una hate raid y otro para volver a la normalidad."
+  },
+  "e9caa97aa4a1": {
+    "title": "Shoutouts, cumpleaños y lluvia de puntos",
+    "summary": "Cola de shoutouts, mensajes de cumpleaños, lluvia de puntos y resultados de encuestas ocultos hasta que terminen."
+  },
+  "af3c50f5329f": {
+    "title": "Panel totalmente traducido",
+    "summary": "Cada página del panel totalmente traducida al francés, ruso, español, alemán y portugués."
+  },
+  "76f8f84a616c": {
+    "title": "Alertas y overlays en OBS",
+    "summary": "Alertas de follow, sub, raid y recompensas en stream mediante una sola fuente de navegador en OBS, sin apps extra."
+  },
+  "a401a63332af": {
+    "title": "Historial de moderación y notas de espectadores",
+    "summary": "Busca cada acción de moderación con quién la hizo y por qué, y guarda notas privadas sobre los espectadores."
+  },
+  "4d6b80a99056": {
+    "title": "Tienda de recompensas para espectadores",
+    "summary": "Los espectadores gastan sus puntos en sonidos, mensajes en el chat y otras recompensas que tú configures."
+  },
+  "142291a73c3c": {
+    "title": "Mejores predicciones",
+    "summary": "Lanza varias predicciones de puntos a la vez, pon límites a las apuestas y anula resultados incorrectos."
+  },
+  "21179d46208b": {
+    "title": "Soporte para YouTube",
+    "summary": "Usa el mismo bot, comandos y alertas en YouTube cuando hagas multistream."
+  },
+  "1e9b628b6d08": {
+    "title": "Recetas listas para usar",
+    "summary": "Empieza con Recetas listas para usar para encuestas, predicciones, pausas BRB y más, y ajústalas como quieras."
+  },
+  "496117e1999f": {
+    "title": "Reglas de entrada para sorteos",
+    "summary": "Decide quién puede entrar en un sorteo: seguidores, subs, tiempo de visualización o puntos, con participaciones extra."
+  },
+  "8916f5441490": {
+    "title": "Resúmenes de stream",
+    "summary": "Un resumen guardado después de cada stream: nuevos seguidores, personas más activas en el chat, canciones reproducidas y recompensas canjeadas."
+  },
+  "03d345d90793": {
+    "title": "Soporte para Kick",
+    "summary": "Usa el mismo bot en Kick, después de YouTube."
+  },
+  "dc30a876c560": {
+    "title": "Traducción del chat en directo",
+    "summary": "Traducción opcional de mensajes del chat para que hables con tus espectadores en cualquier idioma."
+  },
+  "172af6d6bec0": {
+    "title": "Control de OBS con Bagel Bridge",
+    "summary": "Deja que las Recetas cambien escenas y fuentes de OBS a través de la app de escritorio de ItsBagelBot."
+  },
+  "d74d64c50f7f": {
+    "title": "Alertas de evasión de ban",
+    "summary": "Marca a los usuarios del chat que Twitch identifique como posibles evasores de ban para que tus moderadores los revisen."
+  },
+  "3181a7822b6c": {
+    "title": "Sugerencias de raid",
+    "summary": "Sugerencias opcionales de streamers pequeños de ItsBagelBot para raidear cuando termines tu stream."
+  }
+}

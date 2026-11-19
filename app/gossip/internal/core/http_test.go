@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/pkg/monitor"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -94,7 +96,7 @@ func h2ConfigOf(tr *http.Transport) http.HTTP2Config {
 
 func TestNewHTTPClientUsesSharedTransport(t *testing.T) {
 	c := newHTTPClient(LaneDirect, "https://example.invalid", nil, 0)
-	assert.Same(t, sharedTransport, c.hc.Transport)
+	assert.Same(t, sharedTransport, monitor.BaseTransport(c.hc.Transport))
 	assert.Equal(t, 10*time.Second, c.hc.Timeout, "a non-positive timeout falls back to 10s")
 }
 

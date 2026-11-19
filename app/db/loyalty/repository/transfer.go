@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/app/db/loyalty/ent/balance"
+	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/db"
 )
 
@@ -48,6 +49,7 @@ func (r *Loyalty) BalanceTransfer(ctx context.Context, t Transfer) (*TransferOut
 	if err != nil {
 		return nil, true, err
 	}
+	r.publishBalanceChange(t.UserID, sender.ViewerID, recipient.ViewerID)
 	return r.transferOutcome(ctx, sender.ID, recipient.UserID, recipient.ViewerID)
 }
 
@@ -76,9 +78,9 @@ func (r *Loyalty) transferParties(ctx context.Context, t Transfer) (sender, reci
 }
 
 func validTransfer(t Transfer) (string, error) {
-	login, err := normalizeSpendTarget(t.TargetLogin, t.Amount)
-	if err != nil {
-		return "", err
+	login := validate.NormalizeLogin(t.TargetLogin)
+	if login == "" || t.Amount <= 0 {
+		return "", fmt.Errorf("%w: viewer_login/amount", ErrInvalidInput)
 	}
 	if t.TargetViewerID == 0 {
 		return "", fmt.Errorf("%w: target_viewer_id", ErrInvalidInput)
@@ -92,8 +94,6 @@ func validTransfer(t Transfer) (string, error) {
 	return login, nil
 }
 
-// The points >= amount predicate stops a concurrent spend driving the sender negative.
-// Creating or crediting the recipient shares the debit transaction, including rollback.
 func (r *Loyalty) moveBalance(ctx context.Context, sender, recipient *ent.Balance, amount int64) error {
 	return db.WithExec(ctx, func(ctx context.Context) error {
 		return retryTx(ctx, func(ctx context.Context) error {
@@ -127,7 +127,6 @@ func (m transferMove) apply(ctx context.Context, tx *ent.Tx) error {
 	return creditTransfer(ctx, tx, m.recipient, m.amount)
 }
 
-// Opposite transfers must lock the same rows in the same order, or MySQL aborts one with 1213.
 func transferLockOrder(senderViewerID, recipientViewerID uint64) [2]uint64 {
 	if recipientViewerID < senderViewerID {
 		return [2]uint64{recipientViewerID, senderViewerID}
@@ -170,8 +169,6 @@ func ensureRecipient(ctx context.Context, tx *ent.Tx, recipient *ent.Balance) er
 		Ignore().Exec(ctx)
 }
 
-// The conflict write locks an existing recipient before checking integer capacity.
-// No floating SQL arithmetic is used at the signed BIGINT boundary.
 func creditTransfer(ctx context.Context, tx *ent.Tx, recipient *ent.Balance, amount int64) error {
 	if err := ensureRecipient(ctx, tx, recipient); err != nil {
 		return err

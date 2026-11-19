@@ -72,17 +72,12 @@ func (p *Pipeline) logTimerScopeFailure(ref timerRef) func(error) {
 }
 
 func (p *Pipeline) expandTimerText(ctx context.Context, run timerRun, text string) string {
-	toks := tmpl.Lex(text)
-	if !hasVarToken(toks) {
-		return text
+	r := textRender{
+		lex:     tmpl.Lex,
+		chainOf: func(toks []tmpl.Token) scope.Chain { return p.timerChain(ctx, run, toks) },
+		onErr:   p.logTimerScopeFailure(run.ref),
 	}
-	chain := p.timerChain(ctx, run, tmpl.WithCondRefs(toks))
-	values := chain.Plan(ctx, toks, p.logTimerScopeFailure(run.ref))
-	buf := GetBuf()
-	buf = chain.Render(buf, toks, values)
-	out := string(buf)
-	PutBuf(buf)
-	return out
+	return r.expand(ctx, text)
 }
 
 func defangTimerSlashLines(text string) string {

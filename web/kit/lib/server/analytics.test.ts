@@ -3,6 +3,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, setSystemTime } from 'bun:test';
 import { count, flushAnalytics, setAnalyticsClientForTests } from './analytics';
+import { VIA } from '../via';
 
 type Call = [string, ...unknown[]];
 
@@ -94,7 +95,8 @@ const metrics = [
   { metric: 'billing.checkout', dims: [['monthly', 'single', 'gift'], ['redirected', 'blocked', 'unavailable', 'rejected']] },
   { metric: 'import.runs', dims: [['streamelements', 'fossabot', 'moobot', 'nightbot', 'streamlabs_desktop', 'wizebot'],
     ['preview_ok', 'preview_failed', 'committed', 'commit_failed']] },
-  { metric: 'onboarding.steps', dims: [['viewed', 'consent_missing', 'save_failed']] }
+  { metric: 'onboarding.steps', dims: [['viewed', 'consent_missing', 'save_failed']] },
+  { metric: 'signup.via', dims: [[...VIA], ['started', 'signup']] }
 ];
 
 it.each(metrics)('accepts every catalog enum combination for $metric', async ({ metric, dims }) => {

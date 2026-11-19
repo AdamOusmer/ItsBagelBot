@@ -5,7 +5,7 @@ defmodule Ingress.Squash do
   use GenServer
 
   alias Ingress.Config.Squash, as: SquashConfig
-  alias Ingress.{Config, Metrics, Nats, Pipeline}
+  alias Ingress.{Config, Metrics, Nats, Pipeline, Trace}
 
   @keys_table __MODULE__.Keys
 
@@ -86,7 +86,7 @@ defmodule Ingress.Squash do
       cohorts: %{},
       max_senders: Keyword.get(opts, :max_senders) || SquashConfig.max_senders(),
       sweep_ms: Keyword.get(opts, :sweep_ms) || SquashConfig.sweep_ms(),
-      publish: Keyword.get(opts, :publish, &__MODULE__.publish_cohort/2)
+      publish: Keyword.get(opts, :publish, &__MODULE__.publish_cohort/3)
     }
 
     Process.send_after(self(), :sweep, state.sweep_ms)
@@ -94,13 +94,13 @@ defmodule Ingress.Squash do
   end
 
   @impl true
-  def handle_cast({:dup, key, generation, base, sender}, state) do
-    cohort_key = {key, generation}
+  def handle_cast({:dup, key, generation, {base, sender}, trace}, state) do
+    single = %{base: base, senders: [sender], count: 1, trace: trace}
 
     if current?(state.table, key, :any, generation) do
-      collect_duplicate(cohort_key, key, generation, base, sender, state)
+      collect_duplicate({key, generation}, single, state)
     else
-      emit(%{base: base, senders: [sender], count: 1}, state)
+      emit(single, state)
       {:noreply, state}
     end
   end
@@ -130,12 +130,8 @@ defmodule Ingress.Squash do
     {:reply, :ok, state}
   end
 
-  defp collect_duplicate(cohort_key, key, generation, base, sender, state) do
-    cohorts =
-      Map.update(state.cohorts, cohort_key, %{base: base, senders: [sender], count: 1}, fn c ->
-        %{c | senders: [sender | c.senders], count: c.count + 1}
-      end)
-
+  defp collect_duplicate({key, generation} = cohort_key, single, state) do
+    cohorts = Map.update(state.cohorts, cohort_key, single, &join(&1, single))
     cohort = Map.fetch!(cohorts, cohort_key)
 
     if cohort.count >= state.max_senders do
@@ -145,6 +141,15 @@ defmodule Ingress.Squash do
     else
       {:noreply, %{state | cohorts: cohorts}}
     end
+  end
+
+  defp join(cohort, %{senders: [sender], trace: trace}) do
+    %{
+      cohort
+      | senders: [sender | cohort.senders],
+        count: cohort.count + 1,
+        trace: cohort.trace || trace
+    }
   end
 
   @impl true
@@ -174,7 +179,7 @@ defmodule Ingress.Squash do
     end
   end
 
-  defp emit(%{base: base, senders: senders, count: count}, state) do
+  defp emit(%{base: base, senders: senders, count: count, trace: trace}, state) do
     distinct = senders |> Enum.map(& &1.chatter_user_id) |> Enum.uniq() |> length()
     ordered = Enum.reverse(senders)
 
@@ -200,13 +205,13 @@ defmodule Ingress.Squash do
 
     Metrics.count("Cohorts/Emitted")
     Metrics.count("Cohorts/Senders", count)
-    state.publish.(Config.hot_lane_subject(base.lane), message)
+    state.publish.(Config.hot_lane_subject(base.lane), message, Trace.held_headers(trace))
     true
   end
 
   @doc false
-  def publish_cohort(subject, message) do
-    Nats.publish_acked(subject, message)
+  def publish_cohort(subject, message, headers) do
+    Nats.publish_acked(subject, message, headers)
   end
 
   @impl true
@@ -240,8 +245,11 @@ defmodule Ingress.Squash do
     else
       case :ets.lookup(table, key) do
         [{^key, expires_at, current_generation}] when expires_at > now ->
-          {base, sender} = duplicate_parts(duplicate)
-          GenServer.cast(server, {:dup, key, current_generation, base, sender})
+          GenServer.cast(
+            server,
+            {:dup, key, current_generation, duplicate_parts(duplicate), Trace.hold()}
+          )
+
           :buffered
 
         [{^key, expires_at, current_generation}] ->

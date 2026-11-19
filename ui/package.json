@@ -63,9 +63,12 @@
     "@iconify-json/lucide": "1.2.150",
     "@iconify-json/simple-icons": "1.2.101",
     "@types/bun": "1.4.4",
-    "astro": "^7.4.4",
+    "astro": "7.4.7",
     "svelte": "^5.56.4",
     "svelte-check": "^4.7.6",
     "typescript": "^6.0.3"
+  },
+  "overrides": {
+    "undici": "8.12.2"
   }
 }

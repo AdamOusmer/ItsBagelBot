@@ -4,9 +4,9 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { CounterDef, CounterEntryView, CounterScope } from '@bagel/kit';
 import { COUNTER_SCOPES } from '@bagel/kit';
-import { listCounters, createCounter, renameCounter, deleteCounter, counterEntries } from '#lib/server/loyalty-store';
+import { listCounters, createCounter, deleteCounter, counterEntries } from '#lib/server/loyalty-store';
 import { UserError, normalizeCounterName } from '#lib/server/counter-form';
-import { runSet, runAddEntry, runDeleteEntry } from '#lib/server/counter-actions';
+import { runSet, runAddEntry, runDeleteEntry, runRename } from '#lib/server/counter-actions';
 import { moduleLoad } from '#lib/server/module-page';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
@@ -72,15 +72,7 @@ export const actions: Actions = {
 
   addEntry: mutate('addEntry', runAddEntry),
 
-  rename: mutate('rename', async (uid, f) => {
-    const name = normalizeCounterName(f.get('name'));
-    const newName = normalizeCounterName(f.get('new_name'));
-    if (!name || !newName) return null;
-    if (newName === name) return null;
-    const found = await renameCounter(uid, name, newName);
-    if (!found) throw new Error('unknown counter');
-    return `${name}>${newName}`;
-  }),
+  rename: mutate('rename', runRename),
 
   delete: mutate('delete', async (uid, f) => {
     const name = normalizeCounterName(f.get('name'));

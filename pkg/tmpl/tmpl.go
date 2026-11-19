@@ -100,6 +100,13 @@ func appendLiteral(out []Token, text string) []Token {
 }
 
 func Append(dst []byte, s string, repl func(tok Token) (val string, ok bool)) []byte {
+	s = Unnest(s, func(inner []Token) []string {
+		out := make([]string, len(inner))
+		for i, tok := range inner {
+			out[i] = string(appendSpan(nil, tok.Raw, repl))
+		}
+		return out
+	})
 	for i := 0; i < len(s); {
 		if s[i] != '{' {
 			dst = append(dst, s[i])

@@ -42,6 +42,29 @@ defmodule Platform.NatsTest do
     def request(%{body: body}), do: {:reply, body}
   end
 
+  defmodule TraceEcho do
+    use Platform.Nats.Server
+    @impl true
+    def request(message), do: {:reply, inspect(Map.get(message, :headers))}
+  end
+
+  test "servers continue caller traces and requests keep caller headers" do
+    start_supervised!(
+      Platform.Nats.consumer_child(:trace_echo, :test_nats, TraceEcho, [%{topic: "test.trace"}])
+    )
+
+    traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+
+    assert {:ok, %{body: traced}} =
+             Platform.Nats.request(:test_nats, "test.trace", "x",
+               receive_timeout: 1_000,
+               headers: [{"traceparent", traceparent}]
+             )
+
+    assert traced =~ traceparent
+    assert {:ok, %{body: "nil"}} = Platform.Nats.request(:test_nats, "test.trace", "x")
+  end
+
   test "builder bounds configuration and starts a generic consumer" do
     assert_raise ArgumentError, fn ->
       apply(Platform.Nats, :connection_child, [:bad, :test, [], []])

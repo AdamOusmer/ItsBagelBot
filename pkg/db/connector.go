@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -41,7 +42,7 @@ func (c timedConnector) logConnect(elapsed time.Duration, budget zap.Field, err 
 			zap.String("addr", c.addr), zap.Duration("elapsed", elapsed), budget, zap.Error(err))
 		return
 	}
-	zap.L().Info("db: opened connection",
+	zap.L().Debug("db: opened connection",
 		zap.String("addr", c.addr), zap.Duration("elapsed", elapsed), budget)
 }
 
@@ -79,6 +80,10 @@ func newInstrumentedConnector(mc *mysql.Config) (driver.Connector, error) {
 
 func datastoreSegmentBuilder(mc *mysql.Config) newrelic.SQLDriverSegmentBuilder {
 	host, portPathOrID := datastoreTarget(mc)
+	parse := sqlparse.ParseQuery
+	if mc.MultiStatements {
+		parse = parseMySQLPacket
+	}
 	return newrelic.SQLDriverSegmentBuilder{
 		BaseSegment: newrelic.DatastoreSegment{
 			Product:      newrelic.DatastoreMySQL,
@@ -86,7 +91,15 @@ func datastoreSegmentBuilder(mc *mysql.Config) newrelic.SQLDriverSegmentBuilder 
 			PortPathOrID: portPathOrID,
 			DatabaseName: mc.DBName,
 		},
-		ParseQuery: sqlparse.ParseQuery,
+		ParseQuery: parse,
+	}
+}
+
+func parseMySQLPacket(segment *newrelic.DatastoreSegment, query string) {
+	body := strings.TrimPrefix(query, "START TRANSACTION; ")
+	sqlparse.ParseQuery(segment, body)
+	if segment.Operation != "" {
+		segment.RawQuery = query
 	}
 }
 

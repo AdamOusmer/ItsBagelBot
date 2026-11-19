@@ -75,6 +75,7 @@ export const SITE_FOOTER = [
       { path: '/guides', key: 'guides' },
       { path: '/command-builder', key: 'builder' },
       { path: '/changelog', key: 'changelog' },
+      { path: '/roadmap', key: 'roadmap' },
     ],
   },
   {

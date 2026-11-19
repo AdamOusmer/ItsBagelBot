@@ -94,8 +94,7 @@ type streamLookups struct {
 }
 
 func (s streamLookups) Stream(ctx context.Context, login string) scope.Stream {
-	broadcasterID, named := s.address(login)
-	res, err := s.p.streamInfo.Lookup(ctx, broadcasterID, named)
+	res, err := s.p.streamInfo.Lookup(ctx, s.c.Env.BroadcasterUserID, login)
 	if err != nil {
 		s.p.log.Warn("channel token: stream lookup failed", module.BIDField(s.c.BroadcasterID), zap.Error(err))
 		return scope.Stream{}
@@ -104,13 +103,6 @@ func (s streamLookups) Stream(ctx context.Context, login string) scope.Stream {
 		UserFound: res.UserFound, Live: res.Live, Title: res.Title,
 		GameName: res.GameName, ViewerCount: res.ViewerCount, StartedAt: res.StartedAt,
 	}
-}
-
-func (s streamLookups) address(login string) (broadcasterID, named string) {
-	if login == "" {
-		return s.c.Env.BroadcasterUserID, ""
-	}
-	return "", login
 }
 
 type channelCountsLookup struct {

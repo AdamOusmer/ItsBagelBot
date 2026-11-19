@@ -19,7 +19,11 @@
     "bot_disabled": "Bot deaktiviert",
     "revoked": "Zugriff widerrufen",
     "chat_banned": "Im Chat gebannt",
-    "account_deleted": "Konto gelöscht"
+    "dormant": "Ruhend geworden",
+    "account_deleted": "Konto gelöscht",
+    "access_restored": "Zugriff wiederhergestellt",
+    "unbanned": "Entbannt",
+    "woke": "Aus dem Ruhezustand erwacht"
   },
   "billing": {
     "activate": "Tarif aktiviert",

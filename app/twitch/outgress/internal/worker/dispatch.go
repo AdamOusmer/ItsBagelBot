@@ -28,6 +28,7 @@ func (w *Worker) Process(msg *bus.Message) error {
 	if !w.decodePayload(ctx, msg.Payload, &payload) {
 		return nil
 	}
+	w.setEventTime(&payload, msg)
 	annotateTxn(ctx, &payload)
 	err := w.processDecoded(ctx, &payload, msg.UUID)
 	if err != nil && msg.FinalDelivery() {
@@ -44,8 +45,20 @@ func sendKind(payload *outgress.Message) string {
 	return "helix"
 }
 
+func (w *Worker) setEventTime(payload *outgress.Message, msg *bus.Message) {
+	if w.lane == LaneSystem || payload.EventAt != 0 {
+		return
+	}
+	if !msg.StoredAt().IsZero() {
+		payload.EventAt = msg.StoredAt().UnixMilli()
+	}
+}
+
 func (w *Worker) processDecoded(ctx context.Context, payload *outgress.Message, uuid string) error {
-	if allowed, err := w.admitPayload(ctx, payload); err != nil || !allowed {
+	if w.dropStale(ctx, payload) {
+		return nil
+	}
+	if allowed, err := w.admit(ctx, payload); err != nil || !allowed {
 		return err
 	}
 	if w.rejectTrialOutput(ctx, payload) {
@@ -62,7 +75,12 @@ func (w *Worker) processDecoded(ctx context.Context, payload *outgress.Message, 
 }
 
 func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) error {
-	if allowed, err := w.admitPayload(ctx, payload); err != nil || !allowed {
+	if w.dropStale(ctx, payload) {
+		return nil
+	}
+	ctx, cancel := w.actionContext(ctx, payload)
+	defer cancel()
+	if allowed, err := w.admit(ctx, payload); err != nil || !allowed {
 		return err
 	}
 	if w.rejectTrialOutput(ctx, payload) {
@@ -90,7 +108,24 @@ func (w *Worker) rejectTrialOutput(ctx context.Context, payload *outgress.Messag
 		return false
 	}
 	w.logTrialBlocked(payload)
+	markDropped(ctx, "trial")
 	return true
+}
+
+func (w *Worker) admit(ctx context.Context, payload *outgress.Message) (bool, error) {
+	allowed, err := w.admitPayload(ctx, payload)
+	if err == nil && !allowed {
+		markDropped(ctx, "admission")
+	}
+	return allowed, err
+}
+
+const droppedAttribute = "outgress.dropped"
+
+func markDropped(ctx context.Context, reason string) {
+	if txn := newrelic.FromContext(ctx); txn != nil {
+		txn.AddAttribute(droppedAttribute, reason)
+	}
 }
 
 func (w *Worker) logTrialBlocked(payload *outgress.Message) {
@@ -231,6 +266,9 @@ func (w *Worker) processBatchMessage(ctx context.Context, payload *outgress.Mess
 func inheritBatchAdmission(batch *outgress.Batch, payload *outgress.Message) {
 	for i := range batch.Items {
 		item := &batch.Items[i]
+		if item.EventAt == 0 {
+			item.EventAt = payload.EventAt
+		}
 		if item.AccountCreatedAt == 0 {
 			item.AccountCreatedAt = payload.AccountCreatedAt
 		}
@@ -238,4 +276,24 @@ func inheritBatchAdmission(batch *outgress.Batch, payload *outgress.Message) {
 			item.AdmissionGeneration = payload.AdmissionGeneration
 		}
 	}
+}
+
+func (w *Worker) actionContext(ctx context.Context, payload *outgress.Message) (context.Context, context.CancelFunc) {
+	if w.lane == LaneSystem || payload.EventAt == 0 {
+		return context.WithCancel(ctx)
+	}
+	return context.WithDeadline(ctx, time.UnixMilli(payload.EventAt).Add(outgress.ActionMaxAge))
+}
+
+func (w *Worker) dropStale(ctx context.Context, payload *outgress.Message) bool {
+	if w.lane == LaneSystem || !payload.Stale(time.Now()) {
+		return false
+	}
+	w.log.Warn("dropping stale chat action", zap.String("type", payload.Type), zap.Int64("event_at", payload.EventAt),
+		zap.Uint64("stale_drops", w.staleDrops.Add(1)))
+	if txn := newrelic.FromContext(ctx); txn != nil {
+		txn.AddAttribute(droppedAttribute, "stale")
+		txn.Application().RecordCustomMetric("Custom/Outgress/StaleDrops", 1)
+	}
+	return true
 }

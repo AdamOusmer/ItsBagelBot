@@ -103,18 +103,32 @@ test.describe('ItsBagelBot site', () => {
         await page.goto('/');
         await expect(page.locator('.bb-nav a.bb-nav__cta')).toHaveAttribute(
             'href',
-            'https://dashboard.itsbagelbot.com/auth/login'
+            'https://dashboard.itsbagelbot.com/auth/login?via=direct'
         );
         await expect(page.locator('.finale__actions a').first()).toHaveAttribute(
             'href',
-            'https://dashboard.itsbagelbot.com/auth/login'
+            'https://dashboard.itsbagelbot.com/auth/login?via=direct'
         );
 
         await page.goto('/fr/');
         await expect(page.locator('.bb-nav a.bb-nav__cta')).toHaveAttribute(
             'href',
-            'https://dashboard.itsbagelbot.com/auth/login?lang=fr'
+            'https://dashboard.itsbagelbot.com/auth/login?lang=fr&via=direct'
         );
+    });
+
+    test('sign-in links carry the landing source without browser storage', async ({ page }) => {
+        await page.goto('/?utm_source=chatgpt.com');
+        await expect(page.locator('.bb-nav a.bb-nav__cta')).toHaveAttribute(
+            'href',
+            'https://dashboard.itsbagelbot.com/auth/login?via=chatgpt'
+        );
+        await page.goto('/', { referer: 'https://www.google.com/' });
+        await expect(page.locator('.bb-nav a.bb-nav__cta')).toHaveAttribute(
+            'href',
+            'https://dashboard.itsbagelbot.com/auth/login?via=google'
+        );
+        expect(await page.evaluate(() => [document.cookie, localStorage.length, sessionStorage.length])).toEqual(['', 0, 0]);
     });
 
     test('pricing renders free-first tiers, oath, donations, and faq', async ({ page }) => {

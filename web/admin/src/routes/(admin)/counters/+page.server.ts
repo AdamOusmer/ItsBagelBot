@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
-import { mutateAction } from '@bagel/kit/server/form-action';
+import { mutateAction, thrownStatus } from '@bagel/kit/server/form-action';
 import { normalizeCounterName, parseCounterValue } from '@bagel/kit/validation';
 import { dev } from '$app/env';
 import { allows, requireRole, type AdminIdentity } from '#lib/server/access';
@@ -52,7 +52,7 @@ function mutate(op: string, run: Mutation) {
       failed: (e, f, admin) => {
         const error = (e as Error).message;
         audit(admin, { action, target: 'bot', detail: String(f.get('name') ?? ''), ok: false, error });
-        return fail(400, { ok: false, error });
+        return fail(thrownStatus(e), { ok: false, error });
       },
       audited: (admin, detail) => audit(admin, { action, target: 'bot', detail, ok: true }),
       invalid: adminText(event.locals.locale, 'admin.counters.invalid')

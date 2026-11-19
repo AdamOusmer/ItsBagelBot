@@ -92,12 +92,14 @@ const (
 	TimersTotal        Metric = "timers.total"
 	AutomodFlags       Metric = "automod.flags"
 	AccountsRuntime    Metric = "accounts.runtime"
+	AccountsInactive   Metric = "accounts.inactive"
 	GamesRounds        Metric = "games.rounds"
 	GamesEntrants      Metric = "games.entrants"
 	PointsFlows        Metric = "points.flows"
 	RewardsRedeems     Metric = "rewards.redeems"
 	AuthLogin          Metric = "auth.login"
 	DesktopGrants      Metric = "desktop.grants"
+	SignupVia          Metric = "signup.via"
 )
 
 const (
@@ -140,6 +142,7 @@ const (
 	KindRule      Kind = "rule"
 	KindMode      Kind = "mode"
 	KindRuntime   Kind = "runtime"
+	KindInactive  Kind = "inactive"
 	KindGame      Kind = "game"
 	KindEnd       Kind = "end"
 	KindBucket    Kind = "bucket"
@@ -149,6 +152,8 @@ const (
 	KindLogin     Kind = "login"
 	KindPlatform  Kind = "platform"
 	KindSize      Kind = "size"
+	KindVia       Kind = "via"
+	KindStage     Kind = "stage"
 )
 
 // CustomCommand stands in for every custom command name, which is streamer-written text.
@@ -210,16 +215,18 @@ var catalog = map[Metric]Spec{
 	TimersTotal:        {Type: Level, Dims: []Kind{KindOpt}},
 	AutomodFlags:       {Type: Counter, Dims: []Kind{KindRule, KindMode}},
 	AccountsRuntime:    {Type: Level, Dims: []Kind{KindRuntime}},
+	AccountsInactive:   {Type: Level, Dims: []Kind{KindInactive}},
 	GamesRounds:        {Type: Counter, Dims: []Kind{KindGame, KindEnd}},
 	GamesEntrants:      {Type: Counter, Dims: []Kind{KindGame, KindBucket}},
 	PointsFlows:        {Type: Counter, Dims: []Kind{KindFlow}},
 	RewardsRedeems:     {Type: Counter, Dims: []Kind{KindFeature, KindRedeem}},
 	AuthLogin:          {Type: Counter, Dims: []Kind{KindLogin}},
 	DesktopGrants:      {Type: Level, Dims: []Kind{KindPlatform}},
+	SignupVia:          {Type: Counter, Dims: []Kind{KindVia, KindStage}},
 }
 
 var enums = map[Kind][]string{
-	KindLifecycle: {"signup", "onboarded", "bot_enabled", "bot_disabled", "revoked", "chat_banned", "account_deleted", "trial_promoted"},
+	KindLifecycle: {"signup", "onboarded", "bot_enabled", "bot_disabled", "revoked", "chat_banned", "dormant", "account_deleted", "trial_promoted", "access_restored", "unbanned", "woke"},
 	KindPreset:    {"start-new", "integrate", "quiet", "import", "songs"},
 	KindToggle:    {"on", "off"},
 	KindChange:    {"created", "deleted"},
@@ -255,6 +262,7 @@ var enums = map[Kind][]string{
 	KindRule:     {"ip_logger", "scam", "phish", "heuristic", "block_term", "lex_hate", "lex_harassment", "lex_sexual", "lex_profanity", "council_campaign", "repeat", "campaign", "shield_mode", "other"},
 	KindMode:     {"shadow", "enforced"},
 	KindRuntime:  {"active", "dormant", "blocked", "disabled", "recovering", "degraded"},
+	KindInactive: {"banned", "revoked", "disabled", "other"},
 	KindGame:     {"raffle", "mraffle", "duel", "gamble"},
 	KindEnd:      {"drawn", "empty", "cancelled", "declined", "no_show", "won", "lost"},
 	KindBucket:   {"1", "2_4", "5_19", "20_99", "100p"},
@@ -264,6 +272,11 @@ var enums = map[Kind][]string{
 	KindLogin:    {"started", "ok", "declined", "oauth", "state", "bot", "scope", "link", "retry", "banned"},
 	KindPlatform: {"macos", "windows", "linux"},
 	KindSize:     {"v0_9", "v10_49", "v50_199", "v200_999", "v1kp"},
+	KindVia: {
+		"chatgpt", "gemini", "claude", "perplexity", "copilot", "google", "bing", "duckduckgo", "yahoo",
+		"twitch", "youtube", "reddit", "x", "discord", "github", "docs", "other", "direct", "none",
+	},
+	KindStage: {"started", "signup"},
 }
 
 var shapes = map[Kind]*regexp.Regexp{

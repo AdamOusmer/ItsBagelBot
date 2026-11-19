@@ -4,13 +4,11 @@
 package engine
 
 import (
-	"strconv"
 	"testing"
-	"time"
 
 	"ItsBagelBot/internal/domain/invalidate"
-	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/testnats"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/bustest"
 
 	"github.com/stretchr/testify/assert"
@@ -20,13 +18,14 @@ import (
 
 const invalidationTestPrefix = "test.invalidate"
 
-func TestLoyaltyInvalidationDropsChannelBalancesAndTop(t *testing.T) {
+func TestLoyaltyInvalidationDropsTopWithoutRepeatingSharedDeletion(t *testing.T) {
 	ctx := t.Context()
 	nc := testnats.Connect(t)
 	served := bustest.Respond(t, nc, counterRPCPrefix+".top.get", `{"top":[{"viewer_id":"7","points":5}]}`)
 	client := newHotPathTestClient(t)
 	store := NewValkeyLoyaltyStore(client, NewLoyaltyRPC(nc, counterRPCPrefix), nil, nil)
-	store.StartInvalidationListener(nc, invalidationTestPrefix)
+	h := bus.NewInvalidations(nc, invalidationTestPrefix, nil)
+	store.BindInvalidations(h)
 	t.Cleanup(store.Close)
 
 	channel, other := freshChannel(), freshChannel()
@@ -39,11 +38,10 @@ func TestLoyaltyInvalidationDropsChannelBalancesAndTop(t *testing.T) {
 	}
 	require.EqualValues(t, 2, served.Load())
 
-	require.NoError(t, invalidate.Publish(nc, invalidationTestPrefix, loyaltyrpc.InvalidateScope, strconv.FormatUint(channel, 10)))
+	h.Publish(invalidate.ScopeLoyalty, channel)
 
-	assert.Eventually(t, func() bool {
-		return keyGone(t, client, balanceKey(channel, 7)) && keyGone(t, client, balanceKey(channel, 8))
-	}, 3*time.Second, 10*time.Millisecond)
+	assert.False(t, keyGone(t, client, balanceKey(channel, 7)))
+	assert.False(t, keyGone(t, client, balanceKey(channel, 8)))
 	assert.False(t, keyGone(t, client, balanceKey(other, 7)), "another channel keeps its cached balance")
 
 	_, err := store.Top(ctx, channel, 10)
@@ -53,12 +51,13 @@ func TestLoyaltyInvalidationDropsChannelBalancesAndTop(t *testing.T) {
 	assert.EqualValues(t, 3, served.Load(), "only the reset channel reloads its top")
 }
 
-func TestLoyaltyKeyedInvalidationDropsOnlyEarnedViewers(t *testing.T) {
+func TestLoyaltyKeyedInvalidationDoesNotRepeatSharedDeletion(t *testing.T) {
 	ctx := t.Context()
 	nc := testnats.Connect(t)
 	client := newHotPathTestClient(t)
 	store := NewValkeyLoyaltyStore(client, NewLoyaltyRPC(nc, counterRPCPrefix), nil, nil)
-	store.StartInvalidationListener(nc, invalidationTestPrefix)
+	h := bus.NewInvalidations(nc, invalidationTestPrefix, nil)
+	store.BindInvalidations(h)
 	t.Cleanup(store.Close)
 
 	channel := freshChannel()
@@ -66,9 +65,9 @@ func TestLoyaltyKeyedInvalidationDropsOnlyEarnedViewers(t *testing.T) {
 		require.NoError(t, client.Do(ctx, client.B().Set().Key(key).Value("5:0").ExSeconds(60).Build()).Error())
 	}
 
-	require.NoError(t, invalidate.PublishKeys(nc, invalidationTestPrefix, loyaltyrpc.InvalidateScope, strconv.FormatUint(channel, 10), "7"))
+	h.Publish(invalidate.ScopeLoyalty, channel, "7")
 
-	assert.Eventually(t, func() bool { return keyGone(t, client, balanceKey(channel, 7)) }, 3*time.Second, 10*time.Millisecond)
+	assert.False(t, keyGone(t, client, balanceKey(channel, 7)))
 	assert.False(t, keyGone(t, client, balanceKey(channel, 8)), "a viewer who earned nothing keeps the cached balance")
 }
 

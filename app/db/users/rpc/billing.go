@@ -5,29 +5,18 @@ package rpc
 
 import (
 	"context"
-	"fmt"
 
-	"ItsBagelBot/internal/domain/invalidate"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/monitor"
-
-	"go.uber.org/zap"
 )
 
-func SubscribeBilling(w Wiring, subject, invalidationPrefix string) error {
-	nc, repo, log := w.NC, w.Repo, w.Log
+func SubscribeBilling(w Wiring, subject string) error {
+	repo := w.Repo
 	return bus.Serve(w.Within(billingBudget), subject,
 		func(ctx context.Context, req billingrpc.ApplyRequest) billingrpc.ApplyReply {
-			log := monitor.TxnLogger(ctx, log)
 			applied, err := repo.ApplyBilling(ctx, req)
 			if err != nil {
 				return billingrpc.ApplyReply{Refusal: refusal(err)}
-			}
-			if applied {
-				if err := invalidate.Publish(nc, invalidationPrefix, "status", fmt.Sprint(req.UserID)); err != nil {
-					log.Warn("billing cache invalidation publish failed", zap.Error(err))
-				}
 			}
 			return billingrpc.ApplyReply{Applied: applied}
 		},

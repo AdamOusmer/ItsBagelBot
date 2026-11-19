@@ -63,6 +63,7 @@ const COMMAND_TEXT: [name: string, template: string, want: string, overrides?: O
   ['a conditional equality is case-sensitive', '{if:command=HUG:hugs:waves}', 'waves'],
   ['a conditional on a counter tests emptiness', '{if:count:deaths:some deaths:none}', 'some deaths'],
   ['a conditional on a counter supports equality', '{if:count:deaths=42:exactly 42:something else}', 'exactly 42'],
+  ['an inner variable renders first and feeds the outer one', 'go watch {game:{touser}}', 'go watch Just Chatting'],
   ['a branch is literal text: no token expands inside it', '{if:user:hi {user}}', 'hi {user}'],
   ['a present value ignores its fallback', 'hi {user|everyone}', 'hi PrincessBarney'],
   ['the pure scope answers first, so a sample cannot shadow the dice', '{random}', '57', { random: 'nope' }],

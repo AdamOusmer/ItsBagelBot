@@ -320,7 +320,7 @@ const demoRewardOptions = (): ChoiceOption[] => [...demoRewards].map(([value, ti
 const sameTitle = (left: string, right: string) => left.trim().toLowerCase() === right.trim().toLowerCase();
 
 export function demoRewardSave(locale: Locale, draft: ManagedReward): RewardReply {
-  if (sameTitle(draft.title, DEMO_NO_SCOPE_TITLE)) return { ok: false, error: actionError(locale, 'missing_scope'), missingScope: true };
+  if (sameTitle(draft.title, DEMO_NO_SCOPE_TITLE)) return { ok: false, error: actionError(locale, 'missing_scope'), status: 403, missingScope: true };
   const known = draft.rewardId !== '' && !isSetupValue(draft.rewardId) ? draft.rewardId : '';
   const adopted = known || [...demoRewards].find(([, title]) => sameTitle(title, draft.title))?.[0] || `demo-reward-${demoRewards.size + 1}`;
   demoRewards.set(adopted, draft.title);

@@ -42,7 +42,7 @@ func preferenceOrderClient(t *testing.T, backend string) *ent.Client {
 
 func preferenceLockOrder(t *testing.T, client *ent.Client) {
 	t.Helper()
-	repo := NewUsers(client, nil, bustest.NewPublisher(), nil, zap.NewNop())
+	repo := NewUsers(UsersConfig{Client: client, Pub: bustest.NewPublisher(), Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(context.Background()) })
 	require.NoError(t, repo.preferences.Close(t.Context()))
 	queued := make(chan struct{}, 4)
@@ -52,7 +52,7 @@ func preferenceLockOrder(t *testing.T, client *ent.Client) {
 		Key:  preferenceKey, Timeout: time.Second, AfterCommit: repo.afterPreferences,
 	}, repo.flushPrefs)
 	for _, id := range []uint64{7101, 7102, 7103} {
-		require.NoError(t, repo.Register(t.Context(), id, fmt.Sprint(id), "Viewer", fmt.Sprintf("%d@example.invalid", id)))
+		require.NoError(t, repo.Register(t.Context(), Registration{ID: id, Username: fmt.Sprint(id), DisplayName: "Viewer", Email: fmt.Sprintf("%d@example.invalid", id)}))
 	}
 	entered, release := make(chan struct{}), make(chan struct{})
 	var order []uint64

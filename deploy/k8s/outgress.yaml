@@ -76,6 +76,8 @@ spec:
         sysctls:
           - name: net.ipv4.tcp_slow_start_after_idle
             value: "0"
+          - name: net.ipv4.tcp_rto_min_us
+            value: "10000"
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
@@ -83,7 +85,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: outgress
-          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1794846801-6fb0a727e5b5@sha256:2456512c6798802bec1a48b7bc84e3fc86823f6d4cc6fa82e3d9269e46b0bde0
+          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1795005422-4d8bb92f29d2@sha256:2047d2b28bf546ebf7d52ef1de33aa1a8692b95700e8f2abe5c2019e5ee21466
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -229,8 +231,6 @@ metadata:
 spec:
   scaleTargetRef:
     name: outgress
-  pollingInterval: 15
-  cooldownPeriod: 300
   minReplicaCount: 3
   maxReplicaCount: 12
   fallback:

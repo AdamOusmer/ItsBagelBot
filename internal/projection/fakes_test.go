@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/internal/testnats"
 	"ItsBagelBot/internal/valkeytest"
+	"ItsBagelBot/pkg/bus"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -47,15 +47,15 @@ func invalidatedClient(t *testing.T, store *Store) (*Client, evictFunc) {
 	t.Helper()
 	nc := testnats.Connect(t)
 	const unanswered = "projection.unanswered"
-	c := NewClient(Config{
+	h := bus.NewInvalidations(nc, "inv", nil)
+	c := NewClient(Config{Invalidations: h,
 		Store: store, NC: nc, TTL: time.Minute, Log: zap.NewNop(),
 		Subjects: Subjects{Users: unanswered, Modules: unanswered, Commands: unanswered, Fetches: unanswered},
 	})
-	c.StartInvalidationListener("inv")
 	t.Cleanup(c.Close)
 	return c, func(scope string, userID uint64, keys ...string) {
 		t.Helper()
-		require.NoError(t, invalidate.PublishKeys(nc, "inv", scope, strconv.FormatUint(userID, 10), keys...))
+		h.Publish(scope, userID, keys...)
 		require.NoError(t, nc.Flush())
 	}
 }

@@ -37,7 +37,7 @@ const FAMILY = {
   Stepper: 'Navigation', Spinner: 'Feedback', LineSeries: 'Data', Mark: 'Feedback', ChatPreview: 'Data',
   ProfileMenu: 'Navigation', SkipLink: 'Navigation', Popover: 'Feedback', CopySurface: 'Controls',
   SetupStage: 'Layout', SetupStep: 'Layout', SetupNote: 'Feedback', VarCard: 'Data',
-  Well: 'Layout', Window: 'Layout', JsonTree: 'Data',
+  Well: 'Layout', Window: 'Layout', JsonTree: 'Data', SwapStack: 'Layout',
   IconTile: 'Data', MarkBadge: 'Data', ActionBar: 'Navigation',
   RoundBadge: 'Feedback', Timeline: 'Data', TimelineItem: 'Data', AvatarPlate: 'Data',
   EditorStage: 'Layout', Bolota: 'Data', CanvasCard: 'Data',

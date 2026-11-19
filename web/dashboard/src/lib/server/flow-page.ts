@@ -54,10 +54,15 @@ function configOf(value: unknown): FlowConfig | null {
   return value as FlowConfig;
 }
 
+type NodeIdentity = Record<string, unknown> & { id: string; type: string };
+
+const hasNodeIdentity = (value: Record<string, unknown>): value is NodeIdentity => isText(value.id, 64) && isText(value.type, 64);
+
 function nodeOf(value: unknown): Flow['nodes'][number] | null {
   if (!isRecord(value)) return null;
   const config = configOf(value.config);
-  if (!isText(value.id, 64) || !isText(value.type, 64) || !config) return null;
+  if (!config) return null;
+  if (!hasNodeIdentity(value)) return null;
   return { id: value.id, type: value.type, x: Number(value.x) || 0, y: Number(value.y) || 0, config };
 }
 
@@ -175,9 +180,14 @@ export async function liveSave(locals: App.Locals, { request, flow, definition, 
   return withLatestRevision(locals, request.ref, saveReply(result));
 }
 
+const REWARD_REFUSAL_STATUS: Record<string, number> = { missing_scope: 403, duplicate_title: 409, not_affiliate: 403 };
+
 export async function liveRewardSave(locals: App.Locals, draft: ManagedReward): Promise<RewardReply> {
   const saved = await saveManagedReward(effectiveId(locals.session), draft).catch((): RewardSaved => ({ ok: false, error: 'reward_failed' }));
-  if (!saved.ok) return { ok: false, error: actionError(locals.locale, saved.error), missingScope: saved.error === 'missing_scope' };
+  if (!saved.ok) {
+    const status = REWARD_REFUSAL_STATUS[saved.error] ?? 502;
+    return { ok: false, error: actionError(locals.locale, saved.error), status, missingScope: saved.error === 'missing_scope' };
+  }
   return { ok: true, ...saved.reward };
 }
 

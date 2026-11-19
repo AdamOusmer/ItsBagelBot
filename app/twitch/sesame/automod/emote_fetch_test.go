@@ -5,9 +5,10 @@ package automod
 
 import (
 	"context"
+	"maps"
 	"net/http"
 	"net/http/httptest"
-	"sort"
+	"sync"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/module"
@@ -16,23 +17,52 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const unmatchedCapsLine = "SHOUT SHOUT SHOUT SHOUT KEKW"
+const (
+	unmatchedCapsLine = "SHOUT SHOUT SHOUT SHOUT KEKW"
+	ffzOnlyCapsLine   = "LUL LUL LUL SHOUT"
+	newBTTVCapsLine   = "POGGERS POGGERS POGGERS SHOUT"
+)
 
-func emoteServer(t *testing.T) *httptest.Server {
+var healthyProviderBodies = map[string]string{
+	"/bttv": `[{"id":"1","code":"KEKW"},{"id":"2","code":"OMEGALUL"}]`,
+	"/ffz":  `{"sets":{"3":{"emoticons":[{"name":"LUL"},{"name":"KEKW"}]}}}`,
+	"/7tv":  `{"emotes":[{"name":"PagMan"},{"name":"Clap"}]}`,
+}
+
+var healthyCatalog = EmoteCatalog{
+	SevenTV: []string{"Clap", "PagMan"},
+	BTTV:    []string{"KEKW", "OMEGALUL"},
+	FFZ:     []string{"KEKW", "LUL"},
+}
+
+type emoteProviders struct {
+	mu     sync.Mutex
+	bodies map[string]string
+}
+
+func (p *emoteProviders) set(bodies map[string]string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	maps.Copy(p.bodies, bodies)
+}
+
+func (p *emoteProviders) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	p.mu.Lock()
+	body, ok := p.bodies[r.URL.Path]
+	p.mu.Unlock()
+	if !ok || body == "" {
+		http.Error(w, "stalled", http.StatusGatewayTimeout)
+		return
+	}
+	_, _ = w.Write([]byte(body))
+}
+
+func emoteServer(t *testing.T) (*httptest.Server, *emoteProviders) {
 	t.Helper()
-	mux := http.NewServeMux()
-	mux.HandleFunc("/bttv", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`[{"id":"1","code":"KEKW"},{"id":"2","code":"OMEGALUL"}]`))
-	})
-	mux.HandleFunc("/ffz", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"sets":{"3":{"emoticons":[{"name":"LUL"},{"name":"KEKW"}]}}}`))
-	})
-	mux.HandleFunc("/7tv", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"emotes":[{"name":"PagMan"},{"name":"Clap"}]}`))
-	})
-	srv := httptest.NewServer(mux)
+	providers := &emoteProviders{bodies: maps.Clone(healthyProviderBodies)}
+	srv := httptest.NewServer(providers)
 	t.Cleanup(srv.Close)
-	return srv
+	return srv, providers
 }
 
 func endpointsFor(base string) EmoteEndpoints {
@@ -40,32 +70,53 @@ func endpointsFor(base string) EmoteEndpoints {
 }
 
 func TestFetchCatalogMergesAndKeepsProvidersApart(t *testing.T) {
-	srv := emoteServer(t)
+	srv, _ := emoteServer(t)
 
 	cat, err := NewEmoteFetcher(srv.Client(), endpointsFor(srv.URL)).FetchCatalog(context.Background())
 	require.NoError(t, err)
 
-	codes := cat.Codes()
-	sort.Strings(codes)
-	assert.Equal(t, []string{"Clap", "KEKW", "LUL", "OMEGALUL", "PagMan"}, codes)
-	assert.Equal(t, []string{"KEKW", "OMEGALUL"}, cat.BTTV)
-	assert.Equal(t, []string{"KEKW", "LUL"}, cat.FFZ)
-	assert.Equal(t, []string{"Clap", "PagMan"}, cat.SevenTV)
+	assert.Equal(t, healthyCatalog, cat)
+	assert.Equal(t, []string{"Clap", "KEKW", "LUL", "OMEGALUL", "PagMan"}, cat.Codes())
 }
 
 func TestFetchCatalogKeepsTheCodesOfWorkingProviders(t *testing.T) {
-	srv := emoteServer(t)
-	endpoints := endpointsFor(srv.URL)
-	endpoints.FFZ = srv.URL + "/missing"
+	srv, providers := emoteServer(t)
+	providers.set(map[string]string{"/ffz": ""})
 
-	cat, err := NewEmoteFetcher(srv.Client(), endpoints).FetchCatalog(context.Background())
+	cat, err := NewEmoteFetcher(srv.Client(), endpointsFor(srv.URL)).FetchCatalog(context.Background())
 
-	require.Error(t, err, "the 404 provider reports an error")
+	require.Error(t, err, "the failing provider reports an error")
 	assert.Len(t, cat.Codes(), 4)
 }
 
+type refreshOutcome struct {
+	failed    bool
+	allFailed bool
+	result    RefreshResult
+	catalog   EmoteCatalog
+	verdict   [2]Verdict
+}
+
+func refreshed(codes, failed int) RefreshResult {
+	return RefreshResult{Codes: codes, Failed: failed, Providers: 3}
+}
+
+func observeRefresh(g *Gate, f *EmoteFetcher) refreshOutcome {
+	res, err := f.Refresh(context.Background(), g)
+	return refreshOutcome{
+		failed:    err != nil,
+		allFailed: res.AllFailed(),
+		result:    res,
+		catalog:   f.Catalog(),
+		verdict: [2]Verdict{
+			g.Inspect(module.RoleEveryone, ffzOnlyCapsLine),
+			g.Inspect(module.RoleEveryone, newBTTVCapsLine),
+		},
+	}
+}
+
 func TestRefreshInstallsTheSetAndPublishesTheCatalog(t *testing.T) {
-	srv := emoteServer(t)
+	srv, _ := emoteServer(t)
 	g := New()
 	f := NewEmoteFetcher(srv.Client(), endpointsFor(srv.URL))
 
@@ -73,25 +124,64 @@ func TestRefreshInstallsTheSetAndPublishesTheCatalog(t *testing.T) {
 	assert.Empty(t, NewEmoteFetcher(nil, DefaultEmoteEndpoints).Catalog().SevenTV, "a nil client falls back to the default")
 	assert.Equal(t, Verdict{}, g.Inspect(module.RoleEveryone, unmatchedCapsLine), "no set is loaded yet")
 
-	n, err := f.Refresh(context.Background(), g)
+	got := observeRefresh(g, f)
 
-	require.NoError(t, err)
-	assert.Equal(t, 5, n)
-	assert.Equal(t, []string{"Clap", "PagMan"}, f.Catalog().SevenTV)
+	assert.Equal(t, refreshOutcome{
+		result: refreshed(5, 0), catalog: healthyCatalog, verdict: [2]Verdict{{}, verdictHeuristic},
+	}, got)
 	assert.Equal(t, verdictHeuristic, g.Inspect(module.RoleEveryone, unmatchedCapsLine), "the installed set no longer rescues everything")
 }
 
-func TestRefreshKeepsThePreviousSetOnTotalFailure(t *testing.T) {
-	srv := emoteServer(t)
-	g := New()
-	f := NewEmoteFetcher(srv.Client(), endpointsFor(srv.URL))
-	_, err := f.Refresh(context.Background(), g)
-	require.NoError(t, err)
-	srv.Close()
+func TestRefreshReplacesOnlyTheProvidersThatAnswered(t *testing.T) {
+	updatedBTTV := `[{"id":"1","code":"KEKW"},{"id":"9","code":"POGGERS"}]`
+	tests := []struct {
+		name   string
+		first  map[string]string
+		second map[string]string
+		want   refreshOutcome
+	}{
+		{
+			name:   "a failed provider keeps its codes while a healthy one updates",
+			second: map[string]string{"/bttv": updatedBTTV, "/ffz": ""},
+			want: refreshOutcome{failed: true, result: refreshed(5, 1), verdict: [2]Verdict{{}, {}}, catalog: EmoteCatalog{
+				SevenTV: healthyCatalog.SevenTV, BTTV: []string{"KEKW", "POGGERS"}, FFZ: healthyCatalog.FFZ,
+			}},
+		},
+		{
+			name:   "every provider failing keeps the whole set",
+			second: map[string]string{"/bttv": "", "/ffz": "", "/7tv": ""},
+			want: refreshOutcome{
+				failed: true, allFailed: true, result: refreshed(5, 3), catalog: healthyCatalog, verdict: [2]Verdict{{}, verdictHeuristic},
+			},
+		},
+		{
+			name:   "a successful empty response clears that provider",
+			second: map[string]string{"/ffz": `{"sets":{}}`},
+			want: refreshOutcome{result: refreshed(4, 0), verdict: [2]Verdict{verdictHeuristic, verdictHeuristic}, catalog: EmoteCatalog{
+				SevenTV: healthyCatalog.SevenTV, BTTV: healthyCatalog.BTTV, FFZ: []string{},
+			}},
+		},
+		{
+			name:   "an empty success beside failures publishes the emptied set",
+			first:  map[string]string{"/bttv": "", "/7tv": ""},
+			second: map[string]string{"/ffz": `{"sets":{}}`},
+			want: refreshOutcome{
+				failed: true, result: refreshed(0, 2), verdict: [2]Verdict{verdictHeuristic, verdictHeuristic},
+				catalog: EmoteCatalog{FFZ: []string{}},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv, providers := emoteServer(t)
+			g := New()
+			f := NewEmoteFetcher(srv.Client(), endpointsFor(srv.URL))
+			providers.set(tt.first)
+			_, err := f.Refresh(context.Background(), g)
+			require.Equal(t, tt.first != nil, err != nil, "first refresh error")
+			providers.set(tt.second)
 
-	n, err := f.Refresh(context.Background(), g)
-
-	require.Error(t, err)
-	assert.Zero(t, n)
-	assert.Equal(t, verdictHeuristic, g.Inspect(module.RoleEveryone, unmatchedCapsLine), "the previous set stays installed")
+			assert.Equal(t, tt.want, observeRefresh(g, f))
+		})
+	}
 }

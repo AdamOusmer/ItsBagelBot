@@ -13,7 +13,9 @@ import (
 	"ItsBagelBot/app/db/modules/ent"
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
+	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/crypto"
 	"ItsBagelBot/pkg/db"
 
@@ -48,20 +50,21 @@ type SpotifyGrantStatus struct {
 }
 
 type SpotifyCreds struct {
-	client *ent.Client
-	packer domaincrypto.Packer
+	client        *ent.Client
+	packer        domaincrypto.Packer
+	invalidations *bus.Invalidations
 }
 
-func NewSpotifyCreds(client *ent.Client, packer domaincrypto.Packer) *SpotifyCreds {
-	return &SpotifyCreds{client: client, packer: packer}
+func NewSpotifyCreds(client *ent.Client, packer domaincrypto.Packer, invalidations *bus.Invalidations) *SpotifyCreds {
+	return &SpotifyCreds{client: client, packer: packer, invalidations: invalidations}
 }
 
-func NewSpotifyCredsFromEnv(client *ent.Client, log *zap.Logger) *SpotifyCreds {
+func NewSpotifyCredsFromEnv(client *ent.Client, log *zap.Logger, invalidations *bus.Invalidations) *SpotifyCreds {
 	packer := crypto.OptionalFromEnv("spotify", log)
 	if packer == nil {
 		return nil
 	}
-	return NewSpotifyCreds(client, packer)
+	return NewSpotifyCreds(client, packer, invalidations)
 }
 
 func (s *SpotifyCreds) write(ctx context.Context, userID SpotifyUserID, stmt func(context.Context) error) error {
@@ -71,9 +74,20 @@ func (s *SpotifyCreds) write(ctx context.Context, userID SpotifyUserID, stmt fun
 	return db.WithExec(ctx, stmt)
 }
 
+func (s *SpotifyCreds) changed(userID SpotifyUserID, affected bool, err error) error {
+	if err == nil && affected {
+		s.invalidations.Publish(invalidate.ScopeSpotify, uint64(userID))
+	}
+	return err
+}
+
 func (s *SpotifyCreds) SetToken(ctx context.Context, userID SpotifyUserID, grant SpotifyGrant) error {
 	if grant.RefreshToken == "" {
 		return errors.New("empty spotify refresh token")
+	}
+	changed, err := s.tokenChanges(ctx, userID, grant)
+	if err != nil {
+		return err
 	}
 	sealed, err := s.packer.Pack([]byte(grant.RefreshToken), spotifyAAD(userID, fieldToken))
 	if err != nil {
@@ -82,7 +96,7 @@ func (s *SpotifyCreds) SetToken(ctx context.Context, userID SpotifyUserID, grant
 
 	// Must name columns, not UpdateNewValues, which would blank the stored app on every reconnect.
 	joined := strings.Join(grant.Scopes, " ")
-	return s.write(ctx, userID, func(ctx context.Context) error {
+	err = s.write(ctx, userID, func(ctx context.Context) error {
 		create := s.client.SpotifyCredential.Create().
 			SetUserID(uint64(userID)).
 			SetTokenEnc(sealed.Ciphertext)
@@ -99,6 +113,7 @@ func (s *SpotifyCreds) SetToken(ctx context.Context, userID SpotifyUserID, grant
 			}).
 			Exec(ctx)
 	})
+	return s.changed(userID, changed, err)
 }
 
 func (s *SpotifyCreds) SetApp(ctx context.Context, userID SpotifyUserID, app SpotifyApp) error {
@@ -107,6 +122,10 @@ func (s *SpotifyCreds) SetApp(ctx context.Context, userID SpotifyUserID, app Spo
 	if clientID == "" || clientSecret == "" {
 		return errors.New("spotify client id and secret are both required")
 	}
+	changed, err := s.appChanges(ctx, userID, SpotifyApp{ClientID: clientID, ClientSecret: clientSecret})
+	if err != nil {
+		return err
+	}
 
 	sealed, err := s.packer.Pack([]byte(clientSecret), spotifyAAD(userID, fieldApp))
 	if err != nil {
@@ -114,7 +133,7 @@ func (s *SpotifyCreds) SetApp(ctx context.Context, userID SpotifyUserID, app Spo
 	}
 
 	// Must name columns, not UpdateNewValues, which would blank token_enc.
-	return s.write(ctx, userID, func(ctx context.Context) error {
+	err = s.write(ctx, userID, func(ctx context.Context) error {
 		return s.client.SpotifyCredential.Create().
 			SetUserID(uint64(userID)).
 			SetClientID(clientID).
@@ -125,15 +144,19 @@ func (s *SpotifyCreds) SetApp(ctx context.Context, userID SpotifyUserID, app Spo
 			}).
 			Exec(ctx)
 	})
+	return s.changed(userID, changed, err)
 }
 
 func (s *SpotifyCreds) ClearApp(ctx context.Context, userID SpotifyUserID) error {
-	return s.write(ctx, userID, func(ctx context.Context) error {
-		_, err := s.client.SpotifyCredential.Delete().
+	var affected int
+	err := s.write(ctx, userID, func(ctx context.Context) error {
+		n, err := s.client.SpotifyCredential.Delete().
 			Where(spotifycredential.UserIDEQ(uint64(userID))).
 			Exec(ctx)
+		affected = n
 		return err
 	})
+	return s.changed(userID, affected > 0, err)
 }
 
 func (s *SpotifyCreds) AppClientID(ctx context.Context, userID SpotifyUserID) (string, error) {
@@ -222,24 +245,26 @@ func (s *SpotifyCreds) MarkTokenDead(ctx context.Context, userID SpotifyUserID, 
 	if current != token || row.RefreshFailedAt != nil {
 		return nil
 	}
-	_, err = s.updateSealed(ctx, userID, row.TokenEnc, func(u *ent.SpotifyCredentialUpdate) *ent.SpotifyCredentialUpdate {
-		return u.SetRefreshFailedAt(time.Now())
+	affected, err := s.updateSealed(ctx, userID, row.TokenEnc, func(u *ent.SpotifyCredentialUpdate) *ent.SpotifyCredentialUpdate {
+		return u.Where(spotifycredential.RefreshFailedAtIsNil()).SetRefreshFailedAt(time.Now())
 	})
-	return err
+	return s.changed(userID, affected > 0, err)
 }
 
 func (s *SpotifyCreds) updateGrant(ctx context.Context, userID SpotifyUserID, edits ...func(*ent.SpotifyCredentialUpdate) *ent.SpotifyCredentialUpdate) error {
-	return s.write(ctx, userID, func(ctx context.Context) error {
-		update := s.client.SpotifyCredential.Update().Where(spotifycredential.UserIDEQ(uint64(userID)))
+	var affected int
+	err := s.write(ctx, userID, func(ctx context.Context) error {
+		update := s.client.SpotifyCredential.Update().Where(spotifycredential.UserIDEQ(uint64(userID)), spotifycredential.Or(spotifycredential.TokenEncNotNil(), spotifycredential.RefreshFailedAtNotNil()))
 		for _, edit := range edits {
 			update = edit(update)
 		}
-		_, err := update.Save(ctx)
+		n, err := update.Save(ctx)
+		affected = n
 		return err
 	})
+	return s.changed(userID, affected > 0, err)
 }
 
-// Compare-and-swap on the sealed blob: the comparison and the write are one statement, so a concurrent writer leaves zero rows affected.
 func (s *SpotifyCreds) updateSealed(ctx context.Context, userID SpotifyUserID, sealed []byte, edit func(*ent.SpotifyCredentialUpdate) *ent.SpotifyCredentialUpdate) (int, error) {
 	var affected int
 	err := s.write(ctx, userID, func(ctx context.Context) error {

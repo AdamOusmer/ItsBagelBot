@@ -15,14 +15,17 @@ import (
 	"time"
 
 	catalog "ItsBagelBot/internal/domain/analytics"
+	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/idempotency"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
+	"github.com/google/uuid"
 
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
 const (
-	flushInterval = 10 * time.Second
+	flushInterval = time.Second
 	flushTimeout  = 3 * time.Second
 	flushSlots    = 4096
 	flushIDs      = 1 << 16
@@ -53,14 +56,14 @@ type saltResult struct {
 	err   error
 }
 
-// Recorder buffers aggregate analytics in process and flushes them to Valkey.
-// Channel ids reach Valkey only as salted HMACs inside sets, so counts are exact.
-// A nil Recorder records nothing.
 type Recorder struct {
-	client valkey.Client
-	log    *zap.Logger
-	reg    catalog.Registry
-	now    func() time.Time
+	flushMu sync.Mutex
+	next    *idempotency.Handoff
+	flight  *pending
+	client  valkey.Client
+	log     *zap.Logger
+	reg     catalog.Registry
+	now     func() time.Time
 
 	mu        sync.Mutex
 	counts    map[slot]int64
@@ -134,6 +137,10 @@ func cohortInput(channelID uint64, signup time.Time) bool {
 }
 
 func (r *Recorder) Add(m catalog.Metric, n int64, dims ...string) {
+	r.AddContext(context.Background(), m, n, dims...)
+}
+
+func (r *Recorder) AddContext(ctx context.Context, m catalog.Metric, n int64, dims ...string) {
 	if n <= 0 || !r.accepts(m, catalog.Counter, dims) {
 		return
 	}
@@ -142,12 +149,17 @@ func (r *Recorder) Add(m catalog.Metric, n int64, dims ...string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.counts[s] += n
+	r.join(ctx)
 	if len(r.counts) >= flushSlots {
 		r.nudge()
 	}
 }
 
 func (r *Recorder) Distinct(m catalog.Metric, channelID uint64, dims ...string) {
+	r.DistinctContext(context.Background(), m, channelID, dims...)
+}
+
+func (r *Recorder) DistinctContext(ctx context.Context, m catalog.Metric, channelID uint64, dims ...string) {
 	if channelID == 0 || !r.accepts(m, catalog.Distinct, dims) {
 		return
 	}
@@ -156,6 +168,7 @@ func (r *Recorder) Distinct(m catalog.Metric, channelID uint64, dims ...string) 
 	field := catalog.Field(m, dims...)
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.join(ctx)
 	for _, w := range []catalog.Window{catalog.Day, catalog.Week, catalog.Month} {
 		if spec.Windows&w != 0 {
 			r.addID(distinctSet{window: w, at: catalog.PeriodStart(w, at), key: catalog.DistinctKey(w, at, field)}, channelID)
@@ -163,8 +176,11 @@ func (r *Recorder) Distinct(m catalog.Metric, channelID uint64, dims ...string) 
 	}
 }
 
-// Cohort marks the channel active this week in the retention cell of its signup week.
 func (r *Recorder) Cohort(channelID uint64, signup time.Time) {
+	r.CohortContext(context.Background(), channelID, signup)
+}
+
+func (r *Recorder) CohortContext(ctx context.Context, channelID uint64, signup time.Time) {
 	if r == nil || !cohortInput(channelID, signup) {
 		return
 	}
@@ -174,6 +190,7 @@ func (r *Recorder) Cohort(channelID uint64, signup time.Time) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.join(ctx)
 	incarnation := channelID ^ (uint64(signup.UnixMicro()) * 0x9E3779B97F4A7C15)
 	r.addID(distinctSet{window: catalog.Week, at: catalog.PeriodStart(catalog.Week, at), key: catalog.CohortKey(signup, at)}, incarnation)
 }
@@ -202,6 +219,8 @@ func (r *Recorder) nudge() {
 }
 
 type pending struct {
+	handoff   *idempotency.Handoff
+	batch     pkg_valkey.ConfirmedBatch
 	counts    map[slot]int64
 	distincts map[distinctSet]map[uint64]struct{}
 }
@@ -214,26 +233,76 @@ func (r *Recorder) drain() pending {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	p := pending{counts: r.counts, distincts: r.distincts}
+	p.handoff, r.next = r.next, nil
+	p.batch.ID = "analytics:flush:" + uuid.NewString()
 	r.counts, r.distincts, r.ids = map[slot]int64{}, map[distinctSet]map[uint64]struct{}{}, 0
 	return p
 }
 
-// Flush writes everything pending. Analytics are loss-tolerant: a failed
-// write is logged and dropped, never retried into the hot path.
-func (r *Recorder) Flush(ctx context.Context) {
+func (r *Recorder) Flush(ctx context.Context) error {
 	if r == nil {
-		return
+		return nil
+	}
+	r.flushMu.Lock()
+	defer r.flushMu.Unlock()
+	ctx, cancel := context.WithTimeout(ctx, flushTimeout)
+	defer cancel()
+	if r.flight != nil {
+		if err := r.flushPending(ctx); err != nil {
+			return err
+		}
 	}
 	p := r.drain()
 	if p.empty() {
-		return
+		return nil
 	}
-	ctx, cancel := context.WithTimeout(ctx, flushTimeout)
-	defer cancel()
+	r.flight = &p
+	return r.flushPending(ctx)
+}
 
+func (r *Recorder) join(ctx context.Context) {
+	if r.next == nil {
+		r.next = &idempotency.Handoff{}
+	}
+	idempotency.Join(ctx, r.next)
+	bus.HoldDelivery(ctx)
+}
+
+func (r *Recorder) flushPending(ctx context.Context) error {
+	p := r.flight
+	err := r.prepare(ctx, p)
+	if err == nil {
+		err = pkg_valkey.ConfirmCommands(ctx, r.client, p.batch)
+	}
+	if err != nil {
+		if p.handoff != nil {
+			p.handoff.Notify(err)
+		}
+		r.log.Warn("analytics flush unconfirmed", zap.Error(err))
+		return err
+	}
+	if p.handoff != nil {
+		p.handoff.Resolve(nil)
+	}
+	r.flight = nil
+	return nil
+}
+
+func (r *Recorder) prepare(ctx context.Context, p *pending) error {
+	if p.batch.Commands != nil {
+		return nil
+	}
+	distincts, err := r.distinctCmds(ctx, p.distincts)
+	if err != nil {
+		return err
+	}
 	cmds := r.counterCmds(p.counts)
-	cmds = append(cmds, r.distinctCmds(ctx, p.distincts)...)
-	r.reportErrors(pkg_valkey.ExecMulti(ctx, r.client, cmds...))
+	cmds = append(cmds, distincts...)
+	p.batch.Commands = make([][]string, 0, len(cmds))
+	for _, cmd := range cmds {
+		p.batch.Commands = append(p.batch.Commands, append([]string(nil), cmd.Commands()...))
+	}
+	return nil
 }
 
 func (r *Recorder) counterCmds(counts map[slot]int64) valkey.Commands {
@@ -246,15 +315,14 @@ func (r *Recorder) counterCmds(counts map[slot]int64) valkey.Commands {
 	return append(cmds, r.expireCmds(expiries)...)
 }
 
-func (r *Recorder) distinctCmds(ctx context.Context, distincts map[distinctSet]map[uint64]struct{}) valkey.Commands {
+func (r *Recorder) distinctCmds(ctx context.Context, distincts map[distinctSet]map[uint64]struct{}) (valkey.Commands, error) {
 	cmds := make(valkey.Commands, 0, 2*len(distincts))
 	expiries := map[string]time.Time{}
 	salts := map[saltRef]saltResult{}
 	for s, ids := range distincts {
 		salt, err := r.flushSalt(ctx, s, salts)
 		if err != nil {
-			r.log.Debug("analytics salt unavailable", zap.Error(err))
-			continue
+			return nil, err
 		}
 		elements := make([]string, 0, len(ids))
 		for id := range ids {
@@ -269,7 +337,7 @@ func (r *Recorder) distinctCmds(ctx context.Context, distincts map[distinctSet]m
 		expiries[s.key] = expiry
 		expiries[index] = expiry
 	}
-	return append(cmds, r.expireCmds(expiries)...)
+	return append(cmds, r.expireCmds(expiries)...), nil
 }
 
 func (r *Recorder) expireCmds(expiries map[string]time.Time) valkey.Commands {
@@ -314,22 +382,6 @@ func element(salt []byte, id uint64) string {
 	mac := hmac.New(sha256.New, salt)
 	mac.Write(raw[:])
 	return string(mac.Sum(nil)[:elementBytes])
-}
-
-func (r *Recorder) reportErrors(resps []valkey.ValkeyResult) {
-	failed := 0
-	var first error
-	for _, resp := range resps {
-		if err := resp.Error(); err != nil {
-			if first == nil {
-				first = err
-			}
-			failed++
-		}
-	}
-	if failed > 0 {
-		r.log.Warn("analytics flush partially failed", zap.Int("failed", failed), zap.Error(first))
-	}
 }
 
 func (r *Recorder) Close() {

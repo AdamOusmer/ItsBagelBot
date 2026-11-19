@@ -3,9 +3,16 @@
 
 package outgress
 
-import "ItsBagelBot/pkg/codec"
+import (
+	"ItsBagelBot/internal/domain/invalidate"
+	"ItsBagelBot/pkg/codec"
+	"time"
+)
+
+const ActionMaxAge = 60 * time.Second
 
 type Message struct {
+	EventAt             int64            `json:"event_at,omitempty"`
 	AccountCreatedAt    int64            `json:"account_created_at,omitempty"`
 	AdmissionGeneration int64            `json:"admission_generation,omitempty"`
 	Origin              string           `json:"origin,omitempty"`
@@ -28,6 +35,10 @@ type Message struct {
 	ActionSlot          string           `json:"action_slot,omitempty"`
 }
 
+func (m *Message) Stale(now time.Time) bool {
+	return m.EventAt > 0 && !now.Before(time.UnixMilli(m.EventAt).Add(ActionMaxAge))
+}
+
 type Batch struct {
 	ID    string    `json:"id"`
 	Items []Message `json:"items"`
@@ -41,7 +52,7 @@ type StreamStatusJob struct {
 	BroadcasterID string `json:"broadcaster_id"`
 }
 
-const TokenWarmScope = "token-warm"
+const TokenWarmScope = invalidate.ScopeTokenWarm
 
 type EventSubJob struct {
 	Enabled bool   `json:"enabled"`

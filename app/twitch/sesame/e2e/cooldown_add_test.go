@@ -84,7 +84,7 @@ func (r *cooldownRig) dispatch(t *testing.T, at dispatchAt, kind, body string) {
 func subscribeEvent(viewer uint64, isGift bool) string {
 	id := strconv.FormatUint(viewer, 10)
 	return `{"user_id":"` + id + `","user_login":"viewer` + id + `","user_name":"Viewer` + id +
-		`","tier":"1000","is_gift":"` + strconv.FormatBool(isGift) + `"}`
+		`","tier":"1000","is_gift":` + strconv.FormatBool(isGift) + `}`
 }
 
 func (r *cooldownRig) subscribe(t *testing.T, at dispatchAt, isGift bool) {
@@ -105,7 +105,7 @@ func (r *cooldownRig) runArm(t *testing.T, at dispatchAt) {
 func giftEvent(viewer uint64, count int) string {
 	id := strconv.FormatUint(viewer, 10)
 	return `{"user_id":"` + id + `","user_login":"viewer` + id + `","user_name":"Viewer` + id +
-		`","tier":"1000","total":` + strconv.Itoa(count) + `,"cumulative_total":` + strconv.Itoa(count) + `,"is_anonymous":"false"}`
+		`","tier":"1000","total":` + strconv.Itoa(count) + `,"cumulative_total":` + strconv.Itoa(count) + `,"is_anonymous":false}`
 }
 
 func (r *cooldownRig) gift(t *testing.T, at dispatchAt, count int) {

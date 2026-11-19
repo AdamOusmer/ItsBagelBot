@@ -141,7 +141,7 @@ func TestProcessCountsReachTheBumper(t *testing.T) {
 			wantBot:      processed(7, 7),
 			wantChannels: map[uint64]map[string]int64{123: processed(7, 7)},
 		},
-		{name: "a malformed envelope counts nothing", lines: []string{"bad"}},
+		{name: "a malformed envelope counts nothing", lines: []string{"bad"}, wantErr: true},
 		{
 			name:         "the envelope is counted before the module views load",
 			lines:        []string{"chat"},

@@ -94,19 +94,22 @@ func TestDeadLetterDeduplicationIncludesConsumer(t *testing.T) {
 
 func TestUndeliverableDeadLetterLogsSourceExpiry(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		age  time.Duration
-		logs int
+		name   string
+		stream StreamSpec
+		age    time.Duration
+		logs   int
 	}{
-		{"fresh", time.Second, 0},
-		{"expiring before the next transfer", DataStream.MaxAge - deadLetterRetryDelay, 1},
+		{"fresh data", DataStream, time.Second, 0},
+		{"expiring data", DataStream, DataStream.MaxAge - deadLetterRetryDelay, 1},
+		{"fresh ingress", TwitchIngressPremiumStream, 30 * time.Second, 0},
+		{"expiring ingress", TwitchIngressPremiumStream, TwitchIngressPremiumStream.MaxAge - deadLetterRetryDelay, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			core, logs := observer.New(zap.ErrorLevel)
-			s := &concurrentDurableSubscriber{stream: DataStream.Name, consumer: "consumer", log: zap.New(core)}
+			s := &concurrentDurableSubscriber{stream: tc.stream.Name, consumer: "consumer", log: zap.New(core)}
 			msg := &nats.Msg{Subject: "data.test.expiry", Reply: fmt.Sprintf("$JS.ACK.DATA.consumer.1.1.1.%d.0", time.Now().Add(-tc.age).UnixNano())}
 			s.retryDeadLetter(msg, nats.ErrNoResponders)
-			assert.Equal(t, tc.logs, logs.FilterMessage("source message approaching DATA MaxAge without a dead letter").Len())
+			assert.Equal(t, tc.logs, logs.FilterMessage("source message approaching MaxAge without a dead letter").Len())
 		})
 	}
 }

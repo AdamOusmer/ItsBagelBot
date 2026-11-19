@@ -78,9 +78,6 @@ defmodule Ingress.Config do
   def max_chat_text_bytes,
     do: Application.get_env(:ingress, :max_chat_text_bytes, 4_096)
 
-  def trace_sample_rate,
-    do: Application.get_env(:ingress, :trace_sample_rate, 1_024)
-
   def nats, do: Application.fetch_env!(:ingress, :nats)
   def nats_bus, do: Application.fetch_env!(:ingress, :nats_bus)
 end

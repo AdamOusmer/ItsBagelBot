@@ -8,6 +8,7 @@ import { listModules, type ModuleView } from '#lib/server/commands-store';
 import { setModuleEnabled } from '#lib/server/module-blob';
 import { auditDashboardImpersonation } from '#lib/server/services';
 import { logger } from '@bagel/kit/server/logger';
+import { thrownStatus } from '@bagel/kit/server/form-action';
 import { broadcasterPremium, delegateCanOpen, gateSection, moduleWriteDenial } from '#lib/server/module-gate';
 import { moduleEditState } from '#lib/server/module-edit-state';
 import { disableChildren } from '#lib/server/module-parent';
@@ -82,6 +83,6 @@ async function flipModule(
     return { ok: true, name, enabled, revision: saved?.revision };
   } catch (e) {
     logger.error({ err: e }, `[modules] toggle ${name} failed`);
-    return fail(400, { ok: false });
+    return fail(thrownStatus(e), { ok: false });
   }
 }

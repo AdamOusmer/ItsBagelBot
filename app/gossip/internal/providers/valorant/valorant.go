@@ -23,6 +23,7 @@ const (
 	defaultContentBaseURL = "https://valorant-api.com"
 
 	rankTTL    = 5 * time.Minute
+	recordTTL  = 5 * time.Minute
 	matchesTTL = 5 * time.Minute
 
 	accountTTL = time.Hour
@@ -74,6 +75,14 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 		Budget(p.budget).
 		Fallback("rank lookup failed").
 		Fetch(p.rankFetch)
+
+	b.Endpoint("record").Timeout(handlerTimeout).
+		Cached(recordTTL, negativeTTL).
+		ID(riotID).
+		Reply(func(id, msg string) any { return recordReply{Player: id, Error: msg} }).
+		Budget(p.budget).
+		Fallback("record lookup failed").
+		Fetch(p.recordFetch)
 
 	b.Endpoint("matches").Timeout(handlerTimeout).
 		Cached(matchesTTL, negativeTTL).
@@ -354,21 +363,34 @@ type rankReply struct {
 	Error      string `json:"error,omitempty"`
 }
 
-func (p *api) rankFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
+type mmrLookup struct {
+	player riotIDValue
+	region string
+}
+
+func (p *api) fetchMMR(ctx context.Context, req gossiprpc.Request, wire any) (mmrLookup, error) {
 	rid, region, platform := scoped(req)
 	eff, err := p.effectiveRegion(ctx, rid, region)
 	if err != nil {
-		return nil, err
+		return mmrLookup{}, err
 	}
-	var wire mmrWire
 	path := "/valorant/v3/mmr/" + eff + "/" + platform + "/" + url.PathEscape(rid.name) + "/" + url.PathEscape(rid.tag)
-	if err := p.http.GetJSON(ctx, path, nil, &wire); err != nil {
+	if err := p.http.GetJSON(ctx, path, nil, wire); err != nil {
+		return mmrLookup{}, err
+	}
+	return mmrLookup{player: rid, region: eff}, nil
+}
+
+func (p *api) rankFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
+	var wire mmrWire
+	lookup, err := p.fetchMMR(ctx, req, &wire)
+	if err != nil {
 		return nil, err
 	}
 	mmr := wire.Data
 	reply := rankReply{
-		Player:     rid.String(),
-		Region:     eff,
+		Player:     lookup.player.String(),
+		Region:     lookup.region,
 		Tier:       mmr.Current.Tier.Name,
 		RR:         mmr.Current.RR,
 		LastChange: mmr.Current.LastChange,
@@ -387,6 +409,42 @@ func peakTier(peak peakMMR) string {
 		return ""
 	}
 	return peak.Tier.Name
+}
+
+// Decoded apart from mmrWire so an upstream shape change in seasonal cannot fail rank lookups.
+type recordWire struct {
+	Data struct {
+		Seasonal []seasonRecord `json:"seasonal"`
+	} `json:"data"`
+}
+
+type seasonRecord struct {
+	Games int `json:"games"`
+	Wins  int `json:"wins"`
+}
+
+type recordReply struct {
+	Player string `json:"player"`
+	Region string `json:"region"`
+	Games  int    `json:"games"`
+	Wins   int    `json:"wins"`
+	Empty  bool   `json:"empty"`
+	Error  string `json:"error,omitempty"`
+}
+
+func (p *api) recordFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
+	var wire recordWire
+	lookup, err := p.fetchMMR(ctx, req, &wire)
+	if err != nil {
+		return nil, err
+	}
+	reply := recordReply{Player: lookup.player.String(), Region: lookup.region}
+	for _, season := range wire.Data.Seasonal {
+		reply.Games += season.Games
+		reply.Wins += season.Wins
+	}
+	reply.Empty = reply.Games == 0
+	return reply, nil
 }
 
 type matchesWire struct {

@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/idempotency"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
@@ -95,11 +96,13 @@ type Pipeline struct {
 	autoExec    autoExecState
 	autoSegment time.Duration
 
-	queueWaiters    *queueWaiters
-	queueTiming     queueTiming
-	durable         *durableRuns
-	countdownCancel context.CancelFunc
-	countdownDone   chan struct{}
+	queueWaiters     *queueWaiters
+	queueTiming      queueTiming
+	durable          *durableRuns
+	countdownCancel  context.CancelFunc
+	countdownDone    chan struct{}
+	completionNeeded bool
+	completions      completionSet
 }
 
 func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
@@ -148,6 +151,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		queueTiming:       defaultQueueTiming,
 	}
 	p.localeLookup = p.readLocale
+	p.completionNeeded = needsCompletion(d, cfg)
 	if d.Automod == nil && d.Log != nil {
 		d.Log.Warn("automod gate not wired; chat moderation disabled")
 	}
@@ -166,6 +170,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 }
 
 func (p *Pipeline) Close() {
+	defer p.dedup.Finish(context.Background())
 	if p.countdownCancel != nil {
 		p.countdownCancel()
 		<-p.countdownDone
@@ -174,6 +179,9 @@ func (p *Pipeline) Close() {
 	p.queueWaiters.close()
 	p.durable.handOff()
 	p.closeObservers()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	p.Finish(ctx)
 	if p.uses != nil {
 		p.uses.Close()
 	}
@@ -187,6 +195,7 @@ const chatType = "channel.chat.message"
 func (p *Pipeline) Process(msg *bus.Message) (err error) {
 	ctx, cancel := messageContext(msg)
 	defer cancel()
+	ctx = withTrace(ctx)
 
 	env := GetEnvelope()
 	defer PutEnvelope(env)
@@ -194,9 +203,31 @@ func (p *Pipeline) Process(msg *bus.Message) (err error) {
 		traceResult(ctx, "invalid")
 		return p.dropPoison(ctx, msg.UUID, err)
 	}
-	defer func() { p.recordAcknowledged(env, err) }()
+	if !p.completionNeeded {
+		return p.processAcknowledged(ctx, env)
+	}
+	ctx, work := p.startCompletion(ctx, msg)
+	defer p.completions.deliveries.FinishOnReturn(work, msg.DeferCompletion(), &err)
+	defer finishDeliveryExecution(ctx, work)
+	return p.processAcknowledged(ctx, env)
+}
+
+func finishDeliveryExecution(ctx context.Context, work *idempotency.Work) {
+	if work.Deferred() {
+		bus.HoldDelivery(ctx)
+	}
+	bus.EndDeliveryExecution(ctx)
+}
+
+func (p *Pipeline) processAcknowledged(ctx context.Context, env *lane.Envelope) error {
+	err := p.processEnvelope(ctx, env)
+	p.recordAcknowledged(ctx, env, err)
+	return err
+}
+
+func (p *Pipeline) processEnvelope(ctx context.Context, env *lane.Envelope) error {
 	broadcasterID, ok := env.BroadcasterID()
-	p.countDecoded(ctx, env, broadcasterID)
+	p.countDecodedEffect(ctx, env, broadcasterID)
 	traceEnvelope(ctx, env)
 	if !p.eligible(env) {
 		traceResult(ctx, "filtered")
@@ -211,13 +242,30 @@ func (p *Pipeline) Process(msg *bus.Message) (err error) {
 }
 
 func (p *Pipeline) countDecoded(ctx context.Context, env *lane.Envelope, broadcasterID uint64) {
-	target := broadcasterID
+	p.countDecodedMetrics(ctx, decodedMetricsFor(env, broadcasterID))
+}
+
+type decodedMetrics struct {
+	target  uint64
+	change  delta
+	trialID string
+	trial   int64
+}
+
+func decodedMetricsFor(env *lane.Envelope, broadcasterID uint64) decodedMetrics {
+	m := decodedMetrics{target: broadcasterID, change: decodedDelta(env)}
 	if env.Origin == "trial" {
-		target = 0
+		m.target, m.trialID, m.trial = 0, env.BroadcasterUserID, env.MessageCount()
 	}
-	p.stats.count(target, decodedDelta(env))
-	if env.Origin == "trial" {
-		p.addTrial(ctx, env.BroadcasterUserID, "decoded", env.MessageCount())
+	return m
+}
+
+func (p *Pipeline) countDecodedMetrics(ctx context.Context, m decodedMetrics) {
+	if p.stats != nil {
+		p.stats.record(ctx, func() { p.stats.count(m.target, m.change) })
+	}
+	if m.trial > 0 {
+		p.addTrial(ctx, m.trialID, "decoded", m.trial)
 	}
 }
 
@@ -261,16 +309,12 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 		locale:    mctx.Locale,
 		mctx:      mctx,
 	}
-	emit := p.newEmit(ctx, env.BroadcasterUserID, &emission)
 	started := time.Now()
-	p.runTracedStages(ctx, mctx, views, emit, &emission)
+	p.runTracedStages(ctx, mctx, views, &emission)
 	p.flushLegacyOutput(ctx, &emission)
 	p.recordActivity(ctx, mctx, &emission, started)
 
-	if mctx.CommandAnswered {
-		p.stats.countAnswered(broadcasterID)
-	}
-	p.recordProcessed(broadcasterID, admission.AccountCreatedAt, mctx.CommandAnswered, emission.accepted)
+	p.recordProcessedEffect(ctx, mctx, admission.AccountCreatedAt, emission.accepted)
 
 	p.notifyObservers(ObservedEvent{
 		BroadcasterID: broadcasterID,
@@ -289,7 +333,9 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 
 func (p *Pipeline) feedChatGate(ctx context.Context, env *lane.Envelope, broadcasterID uint64) {
 	if p.chatLineCounter != nil && env.Type == chatType {
+		ctx, work := idempotency.NewWork(ctx)
 		p.chatLineCounter.CountChatLine(ctx, broadcasterID)
+		work.Seal(nil)
 	}
 }
 
@@ -307,13 +353,32 @@ func (p *Pipeline) tracedModuleViews(ctx context.Context, eventType string, broa
 	return views, err
 }
 
-func (p *Pipeline) runTracedStages(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit, emission *emitState) {
+func (p *Pipeline) runTracedStages(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emission *emitState) {
 	segment := startStage(ctx, "sesame.engine")
-	p.runStages(ctx, mctx, views, emit)
+	emit := p.newEmit(ctx, mctx.Env.BroadcasterUserID, emission)
+	consumed := p.runStages(ctx, mctx, views, emit)
+	if emission.err == nil {
+		emission.err = mctx.Failure
+	}
 	endStageForError(segment, emission.err, "error")
+	traceDecision(ctx, decisionOf(mctx, consumed), emission.accepted)
+}
+
+func decisionOf(mctx *module.Context, consumed bool) string {
+	switch {
+	case consumed:
+		return "moderated"
+	case mctx.Command != "":
+		return "command"
+	case mctx.Emitted > 0:
+		return "handled"
+	default:
+		return "ignored"
+	}
 }
 
 func (p *Pipeline) flushLegacyOutput(ctx context.Context, emission *emitState) {
+	defer emission.finishLegacy()
 	if emission.err != nil || !emission.needsFlush {
 		return
 	}
@@ -356,29 +421,44 @@ func (p *Pipeline) leaseContext(env *lane.Envelope, broadcasterID uint64) *modul
 	return mctx
 }
 
-func (p *Pipeline) runStages(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit) {
+func (p *Pipeline) runStages(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit) bool {
 	env := &mctx.Env
 	soloChat := env.Type == chatType && len(env.Senders) == 0
 
 	consumed := false
 	if env.Origin != "trial" {
-		consumed = p.moderateChat(ctx, mctx, views, emit)
-		consumed = p.refundSpecialRedemption(mctx, emit) || consumed
+		consumed = p.moderate(ctx, mctx, views, emit)
 	}
 	if soloChat && !consumed {
+		stage := startStage(ctx, "sesame.dispatch")
 		p.dispatch(ctx, mctx, views, emit)
+		endStage(stage, "ok")
 	}
 	if !consumed && len(p.registry.For(env.Type)) > 0 {
+		stage := startStage(ctx, "sesame.handlers")
 		p.ensureHandlerLocale(ctx, mctx)
-		p.runHandlers(ctx, views, mctx, emit, env.Type)
+		p.runHandlers(ctx, views, mctx, emit)
+		endStage(stage, "ok")
 	}
+	stage := startStage(ctx, "sesame.automations")
+	mctx.EffectScope, mctx.EffectOrdinal, mctx.EffectContext = "automation", 0, ctx
 	p.runAutomationStage(ctx, mctx, views, consumed, emit)
+	endStage(stage, "ok")
+	return consumed
+}
+
+func (p *Pipeline) moderate(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit) bool {
+	stage := startStage(ctx, "sesame.moderation")
+	consumed := p.moderateChat(ctx, mctx, views, emit)
+	consumed = p.refundSpecialRedemption(mctx, emit) || consumed
+	endStage(stage, "ok")
+	return consumed
 }
 
 func (p *Pipeline) dropPoison(ctx context.Context, msgID string, err error) error {
 	p.log.Warn("dropping malformed envelope", zap.String("message_id", msgID), zap.Error(err))
 	notice(ctx, err)
-	return nil
+	return bus.Poison(err)
 }
 
 func (p *Pipeline) isOwnChat(env *lane.Envelope, isChat bool) bool {

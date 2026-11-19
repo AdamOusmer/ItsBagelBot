@@ -1,0 +1,19 @@
+{
+  "eyebrow": "Roadmap",
+  "title": "No forno.",
+  "desc": "O que estamos construindo agora, o que vem a seguir e o que acabou de sair. Nossos planos mudam conforme aprendemos, então nada aqui tem data marcada.",
+  "metaTitle": "Roadmap do ItsBagelBot | Recursos em breve para bot da Twitch",
+  "metaDesc": "Veja o que o ItsBagelBot está construindo agora, o que vem a seguir e o que saiu recentemente, de status do bot a alertas no OBS e suporte ao YouTube.",
+  "now": "Agora",
+  "nowHint": "Em desenvolvimento",
+  "next": "A seguir",
+  "nextHint": "O próximo da fila",
+  "later": "Depois",
+  "laterHint": "Na lista",
+  "shipped": "Lançado",
+  "shippedHint": "Concluído nos últimos 90 dias",
+  "emptyColumn": "Nada por aqui no momento.",
+  "requestTitle": "Está faltando algo?",
+  "requestDesc": "Conte para a gente o que a sua live precisa. Os pedidos ajudam a definir o que sobe de prioridade.",
+  "requestCta": "Enviar sugestão"
+}

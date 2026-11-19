@@ -30,8 +30,8 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
+      maxSurge: 100%
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: sesame
@@ -70,6 +70,8 @@ spec:
         sysctls:
           - name: net.ipv4.tcp_slow_start_after_idle
             value: "0"
+          - name: net.ipv4.tcp_rto_min_us
+            value: "10000"
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
@@ -83,7 +85,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: sesame
-          image: ghcr.io/adamousmer/itsbagelbot/sesame:main-1794846801-6fb0a727e5b5@sha256:5ea8c76448f4596d04e974afeee15492668d2afdcfc2f9007602bd80942d8c66
+          image: ghcr.io/adamousmer/itsbagelbot/sesame:main-1795019110-152a63d55b7a@sha256:62a25d8ead4c2fe777232c9092a2be842e3da7d10fe6e9e92d6299fac294e7e9
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -134,6 +136,10 @@ spec:
               value: valkey-local.cache.svc.cluster.local:6380
             - name: GOMEMLIMIT
               value: 512MiB
+            - name: NATS_HOT_LANE_MODE
+              value: push
+            - name: NATS_LANE_ALIGN
+              value: "on"
             # The broker's MSG.NEXT grant must land first, or the lane silently drops to zero events.
             - name: NATS_CONSUME_FLOW
               value: "on"
@@ -142,13 +148,15 @@ spec:
             - name: NATS_PULL_FETCH_LOOPS
               value: "8"
             - name: NATS_PULL_MAX_ACK_PENDING
-              value: "200000"
+              value: "-1"
+            - name: NATS_PULL_ACK_WAIT
+              value: 20s
+            - name: NATS_PULL_NAK_DELAY
+              value: 1s
             - name: NATS_PULL_FETCH_BATCH
               value: "250"
             - name: NATS_PULL_CONNECTIONS
               value: "1"
-            - name: NATS_PULL_EXPIRY
-              value: 5s
             # Every twitch-ingress pod must stage per-subject cohorts first, or mixed batches are silently rejected.
             - name: NATS_INGRESS_PARTITION
               value: "on"
@@ -184,6 +192,8 @@ spec:
               value: "25"
             - name: SESAME_LIVE_TTL
               value: 12h
+            - name: SESAME_DRAIN_TIMEOUT
+              value: 25s
             - name: NATS_OUTGRESS_SYSTEM_SUBJECT
               value: twitch.outgress.system
             - name: NATS_BROADCASTER_LIVE_SUBJECT
@@ -250,7 +260,7 @@ spec:
         - name: valkey-client-tls
           secret:
             secretName: valkey-client-tls
-      terminationGracePeriodSeconds: 45
+      terminationGracePeriodSeconds: 75
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -271,8 +281,6 @@ metadata:
 spec:
   scaleTargetRef:
     name: sesame
-  pollingInterval: 15
-  cooldownPeriod: 300
   minReplicaCount: 3
   maxReplicaCount: 12
   fallback:
@@ -289,7 +297,7 @@ spec:
           stabilizationWindowSeconds: 300
           policies:
             - {type: Pods, value: 1, periodSeconds: 120}
-  # Lag is num_pending+num_ack_pending: premium leaves 3 pods past 4500 (113ms at 40k/s), but AckNone pull lanes held both near 0 while e2e p50 hit 0.3-5.5s (2026-10-11 bench), so cpu is the trigger that fires.
+  # Keep lag targets above normal explicit-ack in-flight work, or healthy completion traffic scales the fleet.
   triggers:
     - type: cpu
       metricType: AverageValue
@@ -302,10 +310,10 @@ spec:
         useHttps: "true"
         account: BUS
         accountID: ACIYGG26BMT5F25HWF456SM5NNKFDE5X7OBQVCCPQIKQVKY5GXWPNLSD
-        stream: TWITCH_INGRESS
-        consumer: worker_twitch_ingress_event_premium
-        lagThreshold: "1500"
-        activationLagThreshold: "500"
+        stream: TWITCH_INGRESS_PREMIUM
+        consumer: worker_twitch_ingress_event_premium_v3
+        lagThreshold: "5000"
+        activationLagThreshold: "10000"
     - type: nats-jetstream
       metadata:
         natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
@@ -313,6 +321,6 @@ spec:
         account: BUS
         accountID: ACIYGG26BMT5F25HWF456SM5NNKFDE5X7OBQVCCPQIKQVKY5GXWPNLSD
         stream: TWITCH_INGRESS_STANDARD
-        consumer: worker_twitch_ingress_event_standard
-        lagThreshold: "6000"
-        activationLagThreshold: "2000"
+        consumer: worker_twitch_ingress_event_standard_v3
+        lagThreshold: "5000"
+        activationLagThreshold: "10000"

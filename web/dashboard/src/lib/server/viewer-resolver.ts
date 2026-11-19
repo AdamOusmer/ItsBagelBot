@@ -12,6 +12,8 @@ export type Resolution = { kind: 'found'; viewerId: string } | { kind: 'missing'
 
 export type Lookup<V> = { kind: 'found'; value: V } | { kind: 'missing' } | { kind: 'busy' } | { kind: 'error' };
 
+type Resolver<T> = ((login: string) => Promise<T>) & { invalidate(logins: readonly string[]): void };
+
 export interface ResolverDeps {
   lookup: (login: string) => Promise<string>;
   now?: () => number;
@@ -34,13 +36,12 @@ function settled<V>(value: V | null): Lookup<V> {
   return value === null ? { kind: 'missing' } : { kind: 'found', value };
 }
 
-// Token bucket + positive/negative cache + inflight dedupe: an anonymous probe cannot hammer the upstream.
 export function createCachedResolver<V>({
   lookup,
   foundTtlMs = FOUND_TTL_MS,
   now = Date.now,
   maxEntries = MAX_CACHED_LOGINS
-}: CachedResolverDeps<V>): (login: string) => Promise<Lookup<V>> {
+}: CachedResolverDeps<V>): Resolver<Lookup<V>> {
   const cache = new Map<string, Cached<V>>();
   const inflight = new Map<string, Promise<Lookup<V>>>();
   let tokens = BUCKET_CAPACITY;
@@ -69,33 +70,46 @@ export function createCachedResolver<V>({
     cache.set(login, { value, expiresAt: now() + (value === null ? MISSING_TTL_MS : foundTtlMs) });
   }
 
-  async function fetchOnce(login: string): Promise<Lookup<V>> {
+  async function fetchOnce(login: string, current: () => boolean): Promise<Lookup<V>> {
     try {
       const value = await lookup(login);
-      remember(login, value);
+      if (current()) remember(login, value);
       return settled(value);
     } catch {
       return { kind: 'error' };
     }
   }
 
-  return async (login) => {
+  const resolve = async (login: string): Promise<Lookup<V>> => {
     if (login.length < MIN_LOGIN_LENGTH) return { kind: 'missing' };
     const hit = cached(login);
     if (hit) return hit;
     const pending = inflight.get(login);
     if (pending) return pending;
     if (!takeToken()) return { kind: 'busy' };
-    const started = fetchOnce(login).finally(() => inflight.delete(login));
+    const current = () => inflight.get(login) === started;
+    const started = fetchOnce(login, current).finally(() => {
+      if (current()) inflight.delete(login);
+    });
     inflight.set(login, started);
     return started;
   };
+
+  return Object.assign(resolve, {
+    invalidate(logins: readonly string[]): void {
+      for (const login of logins) {
+        cache.delete(login);
+        inflight.delete(login);
+      }
+    }
+  });
 }
 
-export function createViewerResolver({ lookup, ...rest }: ResolverDeps): (login: string) => Promise<Resolution> {
+export function createViewerResolver({ lookup, ...rest }: ResolverDeps): Resolver<Resolution> {
   const resolve = createCachedResolver<string>({ lookup: async (login) => (await lookup(login)) || null, ...rest });
-  return async (login) => {
+  const viewer = async (login: string): Promise<Resolution> => {
     const res = await resolve(login);
     return res.kind === 'found' ? { kind: 'found', viewerId: res.value } : res;
   };
+  return Object.assign(viewer, { invalidate: resolve.invalidate });
 }

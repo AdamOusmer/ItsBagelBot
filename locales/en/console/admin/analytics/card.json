@@ -38,6 +38,7 @@
   "activationAge": "Active channels by account age",
   "onboarding": "Setup steps",
   "imports": "Imports by source",
+  "signupSources": "Signups by source",
   "checkout": "Checkout results by plan",
   "dashboard": "Dashboard views by section",
   "recipeRuns": "Recipe runs by trigger",
@@ -51,5 +52,8 @@
   "delegating": "Accounts with delegates",
   "donations": "Ko-fi payments by currency",
   "donationMonths": "Ko-fi revenue by month",
-  "donationKinds": "Ko-fi payments by type"
+  "donationKinds": "Ko-fi payments by type",
+  "stops": "Bot stops per day",
+  "inactive": "Inactive accounts per day",
+  "dormant": "Dormant channels per day"
 }

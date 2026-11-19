@@ -4,6 +4,7 @@
 package repository_test
 
 import (
+	"ItsBagelBot/app/db/users/repository"
 	"context"
 	"errors"
 	"fmt"
@@ -82,9 +83,9 @@ func TestDeleteRecordsErasureOutsideDatabaseAndRevokesTwitchTokens(t *testing.T)
 	repo.SetErasureStore(store)
 	repo.SetTokenRevoker(revoker)
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@example.com"))
-	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("broadcaster-tok"), []byte("refresh"), nil))
-	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeUserToken, tokens.PlatformTwitch, []byte("user-tok"), nil, nil))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@example.com"}))
+	require.NoError(t, repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1001, Type: tokens.TypeAccessToken, Platform: tokens.PlatformTwitch, AccessToken: []byte("broadcaster-tok"), RefreshToken: []byte("refresh")}))
+	require.NoError(t, repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1001, Type: tokens.TypeUserToken, Platform: tokens.PlatformTwitch, AccessToken: []byte("user-tok")}))
 	createdAt := client.User.Query().Where(user.IDEQ(1001)).OnlyX(ctx).CreatedAt.UnixMicro()
 
 	require.NoError(t, repo.Delete(ctx, 1001))
@@ -102,7 +103,7 @@ func TestDeleteKeepsAccountWhenErasureRecordFails(t *testing.T) {
 	store.putErr = errors.New("r2 unavailable")
 	repo.SetErasureStore(store)
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@example.com"}))
 
 	require.Error(t, repo.Delete(ctx, 1001))
 	assert.Equal(t, 1, client.User.Query().CountX(ctx), "no record outside the database, no deletion")
@@ -166,7 +167,7 @@ func TestReplayErasuresResendsWithCommittedDeletionTime(t *testing.T) {
 	store := newFakeErasureStore()
 	repo.SetErasureStore(store)
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@example.com"))
+	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@example.com"}))
 	require.NoError(t, repo.Delete(ctx, 1001))
 	committed := client.LifecycleErasure.Query().OnlyX(ctx).DeletedAt
 	client.LifecycleErasure.Update().ClearDeletedPublishedAt().ExecX(ctx)

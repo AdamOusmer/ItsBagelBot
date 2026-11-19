@@ -337,7 +337,7 @@ describe('kpis', () => {
 describe('growth and engagement', () => {
   it.each([
     ['funnel', view.growth.funnel, ['signup:30:-', 'onboarded:12:40%', 'bot_enabled:8:27%']],
-    ['churn', view.growth.churn, ['bot_disabled:2:-', 'revoked:1:-', 'account_deleted:3:-', 'chat_banned:0:-']],
+    ['churn', view.growth.churn, ['bot_disabled:2:-', 'revoked:1:-', 'chat_banned:0:-', 'account_deleted:3:-']],
     ['presets', view.growth.presets, ['start-new:6:60%', 'import:2:20%', 'mystery:2:20%']]
   ])('%s bars', (_name, bars, expected) => {
     expect(lines(bars)).toEqual(expected);
@@ -420,7 +420,7 @@ describe('gained and lost accounts', () => {
       { points: [], totals: [0, 0, 0, 0] }
     ],
     [
-      'bot and access losses keep the account, deletions lose it',
+      'bans, revoked access and deletions lose the account, bot toggles do not',
       [
         life('2026-11-01', 'revoked', 3),
         life('2026-11-03', 'signup', 4),
@@ -432,12 +432,12 @@ describe('gained and lost accounts', () => {
       ],
       {
         points: [
-          [at('2026-11-01'), 0, 0],
+          [at('2026-11-01'), 0, 3],
           [at('2026-11-02'), 0, 0],
-          [at('2026-11-03'), 4, 0],
+          [at('2026-11-03'), 4, 1],
           [at('2026-11-04'), 2, 2]
         ],
-        totals: [6, 2, 4, 0]
+        totals: [6, 6, 0, 1]
       }
     ]
   ])('%s', (_name, rows, expected) => {
@@ -449,10 +449,89 @@ describe('gained and lost accounts', () => {
     expect({ length: points.length, gained, lost, net, lossDays }).toEqual({
       length: 30,
       gained: 30,
-      lost: 3,
-      net: 27,
-      lossDays: 1
+      lost: 4,
+      net: 26,
+      lossDays: 2
     });
+  });
+});
+
+describe('bot stops and inactive accounts', () => {
+  const life = (day: string, dim: string, value: number): AnalyticsRow => row(day, 'lifecycle', [dim], value);
+  const runtime = (day: string, pairs: [string, number][]) => snap(day, 'accounts.runtime', pairs);
+  const flows = (over: Partial<AnalyticsReads>) => {
+    const { stops, inactive, dormant } = buildAnalytics(reads({ days: 7, ...over })).growth;
+    return { stops, inactive, dormant };
+  };
+  const point = (rec: Record<string, number>) => Object.values(rec).join(':');
+
+  const LATER = '2026-11-21';
+  const stopPoints = (from: string, values: Record<string, string>) =>
+    daysIn({ from, to: LATER }).map((day) => `${Date.parse(day)}:${values[day] ?? '0:0'}`);
+
+  it('counts stops against comebacks from the day comebacks were recorded, leaving dormancy out', () => {
+    const { stops } = flows({
+      end: LATER,
+      counters: [
+        life('2026-11-17', 'bot_disabled', 5),
+        life('2026-11-18', 'revoked', 2),
+        life('2026-11-18', 'dormant', 1),
+        life('2026-11-19', 'unbanned', 1),
+        life('2026-11-20', 'bot_enabled', 1),
+        life('2026-11-20', 'woke', 1),
+        life('2026-11-20', 'account_deleted', 1),
+        life('2026-11-20', 'signup', 9)
+      ]
+    });
+    expect({ points: stops.points.map(point), facts: facts(stops.facts) }).toEqual({
+      points: stopPoints('2026-11-18', { '2026-11-18': '2:0', '2026-11-19': '0:1', '2026-11-20': '1:1' }),
+      facts: { stopped: '3', restarted: '2', netStops: '-1' }
+    });
+  });
+
+  it('starts the stops chart on the first tracked day', () => {
+    const { stops } = flows({
+      end: LATER,
+      counters: [row('2026-11-19', 'chat.messages', [], 10), life('2026-11-20', 'revoked', 1)]
+    });
+    expect(stops.points.map(point)).toEqual(stopPoints('2026-11-19', { '2026-11-20': '1:0' }));
+  });
+
+  it('splits accounts without a running bot on days with a snapshot', () => {
+    const { inactive } = flows({
+      counters: [life('2026-11-05', 'account_deleted', 3)],
+      levels: [
+        ...snap('2026-11-04', 'accounts.inactive', [['banned', 4], ['revoked', 3], ['disabled', 2]]),
+        ...snap(END, 'accounts.inactive', [['banned', 6], ['revoked', 2], ['disabled', 5], ['other', 1]]),
+        ...snap(END, 'accounts.total', [['free', 100], ['paid', 16]])
+      ]
+    });
+    expect({ points: inactive.points.map(point), facts: facts(inactive.facts) }).toEqual({
+      points: [`${Date.parse('2026-11-04')}:4:3:2:0`, `${Date.parse(END)}:6:2:5:1`],
+      facts: { inactiveNow: '14', inactiveShare: '12%', inactiveChange: '+5', deletedWindow: '3' }
+    });
+  });
+
+  it('keeps dormant channels apart from inactive accounts', () => {
+    const { dormant, inactive } = flows({
+      counters: [life('2026-11-06', 'dormant', 4), life('2026-10-01', 'dormant', 9)],
+      levels: [
+        ...runtime('2026-11-04', [['active', 80], ['dormant', 2]]),
+        ...runtime(END, [['active', 70], ['dormant', 6], ['blocked', 4]])
+      ]
+    });
+    expect({ points: dormant.points.map(point), facts: facts(dormant.facts), inactive: inactive.points }).toEqual({
+      points: [`${Date.parse('2026-11-04')}:2`, `${Date.parse(END)}:6`],
+      facts: { dormantNow: '6', dormantShare: '7.5%', wentDormant: '4' },
+      inactive: []
+    });
+  });
+
+  it('leaves every chart empty without rows', () => {
+    const { stops, inactive, dormant } = flows({ counters: [], levels: [] });
+    expect([stops.points, inactive.points, dormant.points, facts(inactive.facts), facts(dormant.facts)]).toEqual([
+      [], [], [], { inactiveNow: '-', inactiveShare: '-', inactiveChange: '-', deletedWindow: '0' }, { dormantNow: '-', dormantShare: '-', wentDormant: '0' }
+    ]);
   });
 });
 
@@ -803,6 +882,9 @@ describe('extended analytics blocks', () => {
       row('2026-11-03', 'import.runs', [importSource, 'preview_failed'], 1),
       row('2026-11-04', 'import.runs', [importSource, 'committed'], 3),
       row('2026-11-04', 'import.runs', [importSource, 'commit_failed'], 1),
+      row('2026-11-03', 'signup.via', ['chatgpt', 'started'], 6),
+      row('2026-11-04', 'signup.via', ['chatgpt', 'signup'], 2),
+      row('2026-11-04', 'signup.via', ['google', 'started'], 3),
       row('2026-11-03', 'dashboard.views', ['commands', 'owner'], 8),
       row('2026-11-03', 'dashboard.views', ['commands', 'delegate'], 2),
       row('2026-11-04', 'dashboard.views', ['overview', 'delegate'], 3),
@@ -867,13 +949,15 @@ describe('extended analytics blocks', () => {
     });
   });
 
-  it('shows last full week activation ages, setup steps, imports and onboarded account share', () => {
+  it('shows last full week activation ages, setup steps, imports, signup sources and onboarded account share', () => {
     expect({
       age: lines(extended.growth.activationAge),
       steps: lines(extended.growth.onboarding),
       imports: cells(extended.growth.imports),
+      sources: cells(extended.growth.signupSources),
       onboarded: facts(extended.growth.onboarded)
     }).toEqual({
+      sources: [['chatgpt', '6', '2'], ['google', '3', '0']],
       age: ['d0:2:-', 'd1:3:-', 'd2_6:4:-', 'd7_13:5:-', 'd14_29:6:-', 'd30p:7:-'],
       steps: ['viewed:20:-', 'consent_missing:2:-', 'save_failed:1:-'],
       imports: [[importSource, '5', '1', '3', '1']],

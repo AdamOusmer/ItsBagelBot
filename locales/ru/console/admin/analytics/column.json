@@ -77,5 +77,8 @@
   "recurringShare": "Доля регулярных",
   "previousGross": "Предыдущий период",
   "grossChange": "Изменение",
-  "month": "Месяц"
+  "month": "Месяц",
+  "via": "Источник",
+  "started": "Начатые входы",
+  "signup": "Новые аккаунты"
 }

@@ -63,7 +63,7 @@ func Fortnite(d engine.Deps) module.Module {
 	sessionRun := fortniteSessionRun(d)
 	storeRun := fortniteStoreRun(d)
 
-	m := module.NewModule(fortniteModuleName, module.KindOptIn)
+	m := module.NewModule(fortniteModuleName, module.KindOptIn).ProtectReplay()
 	m.Command("fn").Everyone().Cooldown(fortniteCooldown).
 		Run(subDispatch(statsRun, map[string]module.RunFunc{
 			"stats":   statsRun,

@@ -11,30 +11,25 @@ defmodule Ingress.BroadcasterStatus do
   def lane_for(broadcaster_id) do
     request = Sift.encode_to_iodata!(%{broadcaster_id: broadcaster_id})
 
-    Trace.span("broadcaster_status.request", [dependency: "nats"], fn ->
-      result =
-        with {:ok, %{body: body}} <- request_status(request),
-             {:ok, reply} <- Sift.decode(body) do
-          case reply do
-            %{"banned" => true} -> {:ok, :drop}
-            %{"runtime_allowed" => false} -> {:ok, :drop}
-            %{"tier" => "premium"} -> {:ok, :premium}
-            %{"error" => error} -> {:error, {:rpc, error}}
-            _ -> {:ok, :standard}
-          end
-        else
-          {:error, reason} -> {:error, reason}
+    Trace.span("broadcaster_status.request", fn ->
+      with {:ok, %{body: body}} <- request_status(request),
+           {:ok, reply} <- Sift.decode(body) do
+        case reply do
+          %{"banned" => true} -> {:ok, :drop}
+          %{"runtime_allowed" => false} -> {:ok, :drop}
+          %{"tier" => "premium"} -> {:ok, :premium}
+          %{"error" => error} -> {:error, {:rpc, error}}
+          _ -> {:ok, :standard}
         end
-
-      Trace.add_span_attributes(result: Trace.result(result))
-      result
+      else
+        {:error, reason} -> {:error, reason}
+      end
     end)
   end
 
   defp request_status(request) do
     Ingress.Rpc.request(@connection, Ingress.Config.broadcaster_status_subject(), request,
-      receive_timeout: Ingress.Config.broadcaster_status_timeout_ms(),
-      headers: Trace.trace_headers()
+      receive_timeout: Ingress.Config.broadcaster_status_timeout_ms()
     )
   catch
     :exit, reason -> {:error, {:nats_down, reason}}

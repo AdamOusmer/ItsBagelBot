@@ -1,0 +1,19 @@
+{
+  "eyebrow": "Feuille de route",
+  "title": "Dans le four.",
+  "desc": "Ce qu'on développe en ce moment, ce qui arrive ensuite et ce qui vient de sortir. Les plans évoluent avec ce qu'on apprend, donc rien ici n'a de date.",
+  "metaTitle": "Feuille de route ItsBagelBot | Nouvelles fonctionnalités du bot Twitch",
+  "metaDesc": "Découvre ce qu'ItsBagelBot prépare maintenant, ce qui arrive ensuite et les nouveautés récentes, de la santé du bot aux alertes OBS et au support de YouTube.",
+  "now": "En cours",
+  "nowHint": "En développement",
+  "next": "À suivre",
+  "nextHint": "Juste après",
+  "later": "Plus tard",
+  "laterHint": "Sur la liste",
+  "shipped": "Sorti",
+  "shippedHint": "Terminé ces 90 derniers jours",
+  "emptyColumn": "Rien ici pour le moment.",
+  "requestTitle": "Il te manque quelque chose ?",
+  "requestDesc": "Dis-nous ce dont ton stream a besoin. Les demandes aident à faire monter les priorités.",
+  "requestCta": "Envoyer une demande"
+}

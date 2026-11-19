@@ -53,14 +53,15 @@ const (
 )
 
 type deps struct {
-	core      svcboot.Core
-	cfg       *config.Config
-	log       *zap.Logger
-	nrApp     *newrelic.Application
-	nc        *nats.Conn
-	valkey    valkey_go.Client
-	host      string
-	analytics *analytics.Recorder
+	core          svcboot.Core
+	cfg           *config.Config
+	log           *zap.Logger
+	nrApp         *newrelic.Application
+	nc            *nats.Conn
+	valkey        valkey_go.Client
+	host          string
+	analytics     *analytics.Recorder
+	invalidations *bus.Invalidations
 }
 
 func main() {
@@ -79,11 +80,7 @@ func main() {
 	svcboot.FatalIf(log, err, "invalid optional Valkey configuration")
 	defer valkeyClient.Close()
 
-	activity.SetSink(activity.NewStore(valkeyClient))
-
-	registry := channels.New(valkeyClient)
-
-	nc := svcboot.MustRPCConn(core, cfg.NATSRPCURL)
+	nc, registry, h := openChannels(core, cfg, valkeyClient)
 	defer nc.Close()
 	defer registry.Close()
 
@@ -94,7 +91,7 @@ func main() {
 	host := podIdentity(log)
 	worker.SetNodeIdentity(cfg.RateRegion, env.Get("NODE_NAME", host))
 
-	d := &deps{core: core, cfg: cfg, log: log, nrApp: nrApp, nc: nc, valkey: valkeyClient, host: host, analytics: analytics.New(valkeyClient, log, nil)}
+	d := &deps{invalidations: h, core: core, cfg: cfg, log: log, nrApp: nrApp, nc: nc, valkey: valkeyClient, host: host, analytics: analytics.New(valkeyClient, log, nil)}
 	defer d.analytics.Close()
 
 	tw := d.newTwitchClient(ctx)
@@ -103,14 +100,13 @@ func main() {
 
 	limiter, batch, closeCoordination := d.newSendingCoordination(ctx, registry)
 	defer closeCoordination()
-	svcboot.FatalIf(log, registry.StartInvalidationListener(nc, cfg.CacheInvalidatePrefix, log.Named("channels")),
+	svcboot.FatalIf(log, registry.StartPauseListener(nc, cfg.CacheInvalidatePrefix, log.Named("channels")),
 		"failed to subscribe channel cache invalidation")
 
 	premium, standard, system, closeWorkers := d.newLaneWorkers(tw, limiter, registry, batch)
 	defer closeWorkers()
 
-	closeTokenWarm := d.startTokenWarmListener(system)
-	defer closeTokenWarm()
+	system.WatchTokenWarm(d.invalidations)
 
 	premiumSub, standardSub, systemSub, closeSubs := d.laneSubscribers()
 	defer closeSubs()
@@ -280,7 +276,7 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 		Owner:       d.host,
 		Conduit:     conduit.New(d.nc, d.cfg.ConduitSubject, d.cfg.TwitchConduitID, conduitCacheTTL, d.log.Named("conduit")),
 		Batch:       batch,
-		UserIDs:     worker.NewUserIDCache(),
+		UserIDs:     worker.NewUserIDCache(d.invalidations),
 
 		RewardSnapshots: worker.NewRewardSnapshots(d.valkey),
 	}
@@ -301,7 +297,7 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 	premium.SetModVerifier(modVerifier)
 	standard.SetModVerifier(modVerifier)
 	system.SetModVerifier(modVerifier)
-	system.SetLiveWriter(worker.NewLiveWriter(d.valkey, d.nc, d.cfg.CacheInvalidatePrefix, d.cfg.LiveTTL, d.log.Named("live")))
+	system.SetLiveWriter(worker.NewLiveWriter(d.valkey, d.invalidations, d.cfg.LiveTTL, d.log.Named("live")))
 	system.SetStreamInfoStore(projection.NewStore(d.valkey))
 
 	return premium, standard, system, func() {
@@ -367,12 +363,6 @@ func (d *deps) startSystemLane(ctx context.Context, sub bus.Subscriber, system *
 		MaxConsumers: 1,
 	}, d.log)
 	svcboot.FatalIf(d.log, err, "failed to consume system lane")
-}
-
-func (d *deps) startTokenWarmListener(system *worker.Worker) func() {
-	sub, err := system.SubscribeTokenWarm(d.nc, d.cfg.CacheInvalidatePrefix)
-	svcboot.FatalIf(d.log, err, "failed to subscribe token-warm fan-out")
-	return func() { _ = sub.Unsubscribe() }
 }
 
 func (d *deps) startStreamLane(ctx context.Context, system *worker.Worker) func() {
@@ -446,4 +436,11 @@ func (d *deps) subscribeChatters(tw *twitch.Client, limiter ratelimit.Manager) e
 			return active && snap.Generation == req.SessionGeneration && snap.LiveSession == req.LiveSession, err
 		},
 	})
+}
+
+func openChannels(core svcboot.Core, cfg *config.Config, client valkey_go.Client) (*nats.Conn, *channels.Registry, *bus.Invalidations) {
+	activity.SetSink(activity.NewStore(client))
+	nc := svcboot.MustRPCConn(core, cfg.NATSRPCURL)
+	h := bus.NewInvalidations(nc, cfg.CacheInvalidatePrefix, core.Log)
+	return nc, channels.New(client, h), h
 }

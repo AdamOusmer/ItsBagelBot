@@ -23,7 +23,7 @@ func NewLoyaltyWallet(loyalty LoyaltyStore) *LoyaltyWallet { return &LoyaltyWall
 func (w *LoyaltyWallet) Debit(ctx context.Context, broadcasterID uint64, entry DuelStake) (bool, bool, error) {
 	_, found, spent, err := w.loyalty.BalanceSpend(ctx, PointSpend{BroadcasterID: broadcasterID, ViewerID: entry.ViewerID, Login: entry.Login, Amount: entry.Stake})
 	if err == nil && spent {
-		w.analytics.Count(catalog.PointsFlows, "duel_stake")
+		w.analytics.AddContext(ctx, catalog.PointsFlows, 1, "duel_stake")
 	}
 	return found, spent, err
 }
@@ -43,8 +43,5 @@ func (w *LoyaltyWallet) Credit(ctx context.Context, broadcasterID uint64, entry 
 }
 
 func (w *LoyaltyWallet) credit(ctx context.Context, broadcasterID uint64, entry DuelStake) (loyaltyrpc.Balance, bool, error) {
-	if entry.ViewerID == 0 {
-		return w.loyalty.BalanceAdjust(ctx, broadcasterID, entry.Login, entry.Stake, false)
-	}
 	return w.loyalty.BalanceAdjustViewer(ctx, BalanceAdjustment{BroadcasterID: broadcasterID, ViewerID: entry.ViewerID, ViewerLogin: entry.Login, Value: entry.Stake})
 }

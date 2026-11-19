@@ -5,11 +5,13 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
+	"ItsBagelBot/internal/domain/lifecycle"
 	"ItsBagelBot/pkg/db"
 )
 
@@ -18,13 +20,27 @@ var accountColumns = []string{
 	user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldLocale,
 	user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldSongqueuePageHidden, user.FieldCreatedAt,
 	user.FieldTestAccount, user.FieldBanned,
-	user.FieldLifecycleState,
+	user.FieldLifecycleState, user.FieldLifecycle,
 }
 
 func tallyCounted(t analytics.Tally, u *ent.User) {
-	if !u.TestAccount && !u.Banned {
-		tallyAccount(t, u)
+	tallyAccount(t, u)
+	if !u.IsActive {
+		t.Add(catalog.AccountsInactive, inactiveReason(u))
 	}
+}
+
+func inactiveReason(u *ent.User) string {
+	state := LegacyLifecycle(u, time.Time{})
+	switch {
+	case u.Banned || state.ChatRestriction == lifecycle.RestrictionBanned:
+		return "banned"
+	case state.GrantHealth == lifecycle.GrantMissing:
+		return "revoked"
+	case !state.DesiredEnabled:
+		return "disabled"
+	}
+	return "other"
 }
 
 func (r *Users) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {

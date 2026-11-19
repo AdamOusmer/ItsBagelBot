@@ -13,9 +13,12 @@ import (
 	"ItsBagelBot/app/gossip/internal/engine"
 	"ItsBagelBot/app/gossip/internal/provider"
 	"ItsBagelBot/app/gossip/internal/providers"
+	"ItsBagelBot/internal/domain/invalidate"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/ratelimit"
 	"ItsBagelBot/pkg/svcboot"
@@ -42,7 +45,9 @@ func main() {
 	nc := svcboot.MustRPCConn(core, cfg.NATSRPCURL)
 	defer nc.Close()
 
-	deps := buildDeps(cfg, nc, valkeyClient, log)
+	h := bus.NewInvalidations(nc, conf.CacheInvalidationPrefix.Get(), log)
+	deps := buildDeps(gossipWiring{cfg: cfg, nc: nc, vc: valkeyClient, invalidations: h, log: log})
+	watchSpotify(core.Ctx, deps, h)
 
 	active := providers.All(cfg, deps)
 	if len(active) == 0 {
@@ -61,14 +66,33 @@ func main() {
 	core.Await()
 }
 
-func buildDeps(cfg *config.Config, nc *nats.Conn, valkeyClient valkey_go.Client, log *zap.Logger) provider.Deps {
+type gossipWiring struct {
+	cfg           *config.Config
+	nc            *nats.Conn
+	vc            valkey_go.Client
+	invalidations *bus.Invalidations
+	log           *zap.Logger
+}
+
+func buildDeps(w gossipWiring) provider.Deps {
 	deps := provider.Deps{
-		Cache:   core.NewCache(core.NewValkeyStore(valkeyClient)),
-		Limiter: ratelimit.New(valkeyClient),
-		Log:     log,
+		Cache:   core.NewCache(core.NewValkeyStore(w.vc)),
+		Limiter: ratelimit.New(w.vc),
+		Log:     w.log,
 	}
-	wireKeyResolvers(cfg, nc, valkeyClient, &deps)
+	wireKeyResolvers(w, &deps)
 	return deps
+}
+
+func watchSpotify(ctx context.Context, deps provider.Deps, h *bus.Invalidations) {
+	h.Watch(invalidate.ScopeSpotify, func(e cache.Event) {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		key := core.Key("spotify", "token", strconv.FormatUint(e.ID, 10))
+		if err := deps.Cache.DelJSON(ctx, key); err != nil {
+			deps.Logger().Warn("spotify token cache invalidation failed", zap.Error(err))
+		}
+	})
 }
 
 func logReady(active []provider.Provider, cfg *config.Config, log *zap.Logger) {
@@ -87,7 +111,8 @@ func warpCheck() health.Check {
 	return health.Degrades(health.Check{Name: "warp", Probe: core.WARPReachable})
 }
 
-func wireKeyResolvers(cfg *config.Config, nc *nats.Conn, valkeyClient valkey_go.Client, deps *provider.Deps) {
+func wireKeyResolvers(w gossipWiring, deps *provider.Deps) {
+	cfg, nc := w.cfg, w.nc
 	if cfg.GoveeKeySubjectPrefix != "" {
 		deps.GoveeKeys = core.NewGoveeKeyClient(nc, cfg.GoveeKeySubjectPrefix)
 	}
@@ -98,14 +123,16 @@ func wireKeyResolvers(cfg *config.Config, nc *nats.Conn, valkeyClient valkey_go.
 		deps.FetchKeys = core.NewFetchKeyClient(nc, cfg.FetchKeySubjectPrefix)
 	}
 	if cfg.FetchProjectionSubject != "" {
-		deps.FetchDefs = fetchDefSource{client: newFetchProjection(nc, valkeyClient, cfg.FetchProjectionSubject)}
+		deps.FetchDefs = fetchDefSource{client: newFetchProjection(w, cfg.FetchProjectionSubject)}
 	}
 }
 
-func newFetchProjection(nc *nats.Conn, vc valkey_go.Client, subject string) *projection.Client {
+func newFetchProjection(w gossipWiring, subject string) *projection.Client {
 	return projection.NewClient(projection.Config{
-		Store: projection.NewStore(vc),
-		NC:    nc,
+		Store:         projection.NewStore(w.vc),
+		NC:            w.nc,
+		Invalidations: w.invalidations,
+		Log:           w.log,
 		Subjects: projection.Subjects{
 			Fetches: subject,
 		},

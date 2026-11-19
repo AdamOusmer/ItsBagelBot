@@ -13,8 +13,6 @@ import { parseCounterValue } from '@bagel/kit/validation';
 import { adminL1CacheCapacity } from './config-sanity';
 import type { AnalyticsRow } from '#lib/analytics-view';
 
-// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
-// `||`, not `??`: a set-but-blank env var would build subjects no responder answers.
 const SUB = {
   shards: process.env.NATS_ADMIN_SUBJECT || 'twitch.ingress.admin.shards.get',
   scale: process.env.NATS_SHARD_SCALE_SUBJECT || 'twitch.ingress.admin.shards.scale',
@@ -35,25 +33,39 @@ const SUB = {
 
 export const STATUS_PREFIX = SUB.status;
 
-const SCOPES: ScopeMap = {
-  status: (id) => ['users:', `user:${id}`, `token:${id}`],
-  grant: (id) => ['users:', `user:${id}`, `token:${id}`],
+type UserId = string;
+type ActorId = string;
+
+const userKeys = (id: UserId) => ['users:', `user:${id}`, `token:${id}`, `auth:${id}`];
+const noKeys = () => [];
+
+export const SCOPES: ScopeMap = {
+  status: userKeys,
+  grant: userKeys,
+  rename: (id, keys) => [...userKeys(id), ...keys.map((login) => `user-login:${login.toLowerCase()}`)],
   staff: () => ['staff:', 'auth:'],
-  commands: () => [],
-  modules: () => [],
-  delegation: () => [],
+  audit: () => ['audit:'],
+  commands: noKeys,
+  modules: noKeys,
+  delegation: noKeys,
   notifications: () => ['notifications:'],
-  locale: () => [],
-  cursor: () => [],
-  commands_page: () => [],
-  leaderboard_page: () => [],
-  songqueue_page: () => [],
-  live: () => [],
-  'token-warm': () => [],
-  outgress: () => [],
-  fetches: () => [],
-  user: (id) => ['users:', `user:${id}`, `token:${id}`],
-  '*': (id) => ['users:', `user:${id}`, `token:${id}`]
+  locale: noKeys,
+  cursor: noKeys,
+  commands_page: noKeys,
+  leaderboard_page: noKeys,
+  songqueue_page: noKeys,
+  live: noKeys,
+  'token-warm': noKeys,
+  spotify: noKeys,
+  outgress: noKeys,
+  'outgress-pause': noKeys,
+  automations: noKeys,
+  loyalty: noKeys,
+  'loyalty-counters': noKeys,
+  'user-projection': noKeys,
+  fetches: noKeys,
+  user: userKeys,
+  '*': userKeys
 };
 
 const fabric = createCacheFabric({
@@ -74,8 +86,8 @@ function invalidate(...prefixes: string[]) {
   fabric.invalidate(...prefixes);
 }
 
-function invalidateUser(userId: string) {
-  invalidate('users:', `user:${userId}`, `token:${userId}`);
+function invalidateUser(userId: UserId) {
+  invalidate(...userKeys(userId));
 }
 
 function refreshUser(user: AdminUserWire, ref: UserRef) {
@@ -83,7 +95,7 @@ function refreshUser(user: AdminUserWire, ref: UserRef) {
   setCached(`user:${user.id}`, user, POLICY.adminRead);
 }
 
-function broadcastInvalidate(scope: string, broadcasterId: string) {
+function broadcastInvalidate(scope: string, broadcasterId: UserId) {
   void publish(`${getServerConfig().cacheInvalidationPrefix}.${scope}`, {
     broadcaster_id: broadcasterId
   }).catch(() => {});
@@ -185,7 +197,7 @@ export async function trialList(): Promise<TrialSnapshot> {
   return { ...snapshot, trials: snapshot.trials.map((row, i) => withTrialCounters(row, counts[i])) };
 }
 
-function trialCounters(broadcasterId: string): Promise<Map<string, number> | null> {
+function trialCounters(broadcasterId: UserId): Promise<Map<string, number> | null> {
   return rpc<{ counters?: { name: string; value: string | number }[] }>(`${SUB.loyalty}.counter.trial`, { user_id: broadcasterId })
     .then((reply) => {
       const counts = new Map<string, number>();
@@ -214,15 +226,15 @@ function withTrialCounters(row: TrialChannel, counts: Map<string, number> | null
   };
 }
 
-export function trialAdd(broadcasterId: string): Promise<TrialMutationReply> {
+export function trialAdd(broadcasterId: UserId): Promise<TrialMutationReply> {
   return rpc<TrialMutationReply>(`${SUB.trials}.add`, { broadcaster_id: broadcasterId });
 }
 
-export function trialRemove(broadcasterId: string): Promise<TrialMutationReply> {
+export function trialRemove(broadcasterId: UserId): Promise<TrialMutationReply> {
   return rpc<TrialMutationReply>(`${SUB.trials}.remove`, { broadcaster_id: broadcasterId });
 }
 
-export function trialSetEnabled(broadcasterId: string, enabled: boolean): Promise<TrialMutationReply> {
+export function trialSetEnabled(broadcasterId: UserId, enabled: boolean): Promise<TrialMutationReply> {
   return rpc<TrialMutationReply>(`${SUB.trials}.set_enabled`, { broadcaster_id: broadcasterId, enabled });
 }
 
@@ -237,7 +249,7 @@ function isDigits(s: string): boolean {
   return /^[0-9]+$/.test(s);
 }
 
-export async function userLookup(actorId: string, q: string): Promise<AdminUserWire> {
+export async function userLookup(actorId: ActorId, q: string): Promise<AdminUserWire> {
   const req = isDigits(q) ? { actor_id: actorId, user_id: q } : { actor_id: actorId, username: q };
   const key = isDigits(q) ? `user:${q}` : `user-login:${q.toLowerCase()}`;
   return cached(key, POLICY.adminRead, async () => {
@@ -249,18 +261,18 @@ export async function userLookup(actorId: string, q: string): Promise<AdminUserW
 
 export const userList = defineRead({
   subject: `${SUB.user}.list`,
-  request: (actorId: string, limit = 20) => ({ actor_id: actorId, limit }),
+  request: (actorId: ActorId, limit = 20) => ({ actor_id: actorId, limit }),
   map: (reply: { users: AdminUserWire[] }) => reply.users ?? [],
   cache: {
     fabric,
-    key: (_actorId: string, limit = 20) => `users:list:${limit}`,
+    key: (_actorId: ActorId, limit = 20) => `users:list:${limit}`,
     policy: POLICY.adminPage
   }
 });
 
 export const userStats = defineRead({
   subject: `${SUB.user}.stats`,
-  request: (actorId: string) => ({ actor_id: actorId }),
+  request: (actorId: ActorId) => ({ actor_id: actorId }),
   map: (reply: { stats: UserStats }) => reply.stats,
   cache: {
     fabric,
@@ -283,11 +295,11 @@ export const ENROLLMENT_WINDOW_DAYS = 30;
 
 export const userEnrollment = defineRead({
   subject: `${SUB.user}.enrollment`,
-  request: (actorId: string, days = ENROLLMENT_WINDOW_DAYS) => ({ actor_id: actorId, days }),
+  request: (actorId: ActorId, days = ENROLLMENT_WINDOW_DAYS) => ({ actor_id: actorId, days }),
   map: (reply: { enrollment: EnrollmentWire }) => reply.enrollment,
   cache: {
     fabric,
-    key: (_actorId: string, days = ENROLLMENT_WINDOW_DAYS) => `users:enrollment:${days}`,
+    key: (_actorId: ActorId, days = ENROLLMENT_WINDOW_DAYS) => `users:enrollment:${days}`,
     policy: POLICY.adminPage
   }
 });
@@ -296,7 +308,7 @@ export type AnalyticsWindow = 'd' | 'w' | 'm';
 
 export const analyticsSeries = defineRead({
   subject: SUB.analytics,
-  request: (actorId: string, window: AnalyticsWindow, metrics: string[], days: number) => ({
+  request: (actorId: ActorId, window: AnalyticsWindow, metrics: string[], days: number) => ({
     actor_id: actorId,
     window,
     metrics,
@@ -313,8 +325,6 @@ export type UserDirectoryQuery = {
   search: string;
   state: string;
   order: UserOrder;
-  // live asks for broadcasters whose live:<id> key exists right now.
-  // liveIDs is the set read for this request; ignored unless live is set.
   live: boolean;
   liveIDs?: number[];
 };
@@ -351,9 +361,6 @@ function overviewKey(q: UserDirectoryQuery): string {
 
 export async function userOverview(q: UserDirectoryQuery & { actorId: string }): Promise<UserPage> {
   const { actorId, page, search, state, order, live, liveIDs } = q;
-  // The overview cache is allowed to be 30s stale. A live filter served from
-  // it would keep showing someone who already went offline, so this path
-  // always reads through.
   const load = async () => {
     const r = await rpc<PageMetaWire & { users?: AdminUserWire[]; stats: UserStats }>(
       `${SUB.user}.overview`,
@@ -495,13 +502,13 @@ export const userUnban = defineWrite({
   after: (user, ref) => refreshUser(user, ref)
 });
 
-export async function restartUserEventSub(userId: string): Promise<void> {
+export async function restartUserEventSub(userId: UserId): Promise<void> {
   await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { mode: 'reconnect' } });
   invalidateUser(userId);
 }
 
 // Unenroll is flushed: unenroll-first mutations rely on it reaching NATS before their RPC.
-export async function publishUserEventSub(userId: string, enabled: boolean): Promise<void> {
+export async function publishUserEventSub(userId: UserId, enabled: boolean): Promise<void> {
   await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { enabled } }, { flush: !enabled });
 }
 
@@ -527,7 +534,7 @@ const SUB_READ_TIMEOUT_MS = 2000;
 const SUB_VERIFY_TIMEOUT_MS = 8000;
 
 export async function channelSubState(
-  broadcasterId: string,
+  broadcasterId: UserId,
   opts: SubStateOptions = {}
 ): Promise<ChannelSubState> {
   try {
@@ -671,7 +678,6 @@ export const notificationSend = defineWrite({
     expires_at: params.expiresAt || undefined,
     actor_id: params.actorId,
     actor_login: params.actorLogin,
-    // One id per logical send: it is the database idempotency key across redeliveries.
     request_id: crypto.randomUUID()
   }),
   map: (reply: { notification: NotificationWire }) => reply.notification,
@@ -732,7 +738,7 @@ export const AUDIT_MAX_PAGES = 25;
 
 export const adminCheck = defineRead({
   subject: `${SUB.auth}.check`,
-  request: (userId: string, login?: string, displayName?: string) => ({
+  request: (userId: UserId, login?: string, displayName?: string) => ({
     user_id: userId,
     login: login ?? '',
     display_name: displayName ?? ''
@@ -740,7 +746,7 @@ export const adminCheck = defineRead({
   map: (reply: AdminCheck) => reply,
   cache: {
     fabric,
-    key: (userId: string, _login?: string, _displayName?: string) => `auth:${userId}`,
+    key: (userId: UserId, _login?: string, _displayName?: string) => `auth:${userId}`,
     policy: POLICY.adminRead
   }
 });
@@ -775,7 +781,7 @@ export async function staffUpsert(
 
 export async function staffRemove(
   actor: { id: string },
-  userId: string
+  userId: UserId
 ): Promise<AdminAcct[]> {
   const r = await rpc<{ admins?: AdminAcct[]; error?: string }>(`${SUB.auth}.remove`, {
     actor_id: actor.id,
@@ -806,18 +812,19 @@ export async function auditAppend(entry: {
     error: entry.error ?? ''
   });
   invalidate('audit:');
+  broadcastInvalidate('audit', entry.actor_id);
 }
 
 export const auditList = defineRead({
   subject: `${SUB.audit}.list`,
-  request: (limit = 50, actorId?: string) => ({
+  request: (limit = 50, actorId?: ActorId) => ({
     limit,
     actor_filter: actorId ?? ''
   }),
   map: (reply: { entries?: AuditEntry[] }) => reply.entries ?? [],
   cache: {
     fabric,
-    key: (limit = 50, actorId?: string) => `audit:list:${limit}:${actorId ?? ''}`,
+    key: (limit = 50, actorId?: ActorId) => `audit:list:${limit}:${actorId ?? ''}`,
     policy: POLICY.adminPage
   }
 });
@@ -879,7 +886,7 @@ export async function botCounterCreate(name: string): Promise<BotCounter> {
 export async function botCounterSet(name: string, value: string): Promise<void> {
   const r = await loyaltyCall('set', { name, counter_value: value });
   if (r.error) throw new Error(r.error);
-  if (!r.found) throw new Error('unknown counter');
+  if (!r.found) throw new RpcError('unknown counter', 'not_found');
 }
 
 export async function botCounterDelete(name: string): Promise<void> {

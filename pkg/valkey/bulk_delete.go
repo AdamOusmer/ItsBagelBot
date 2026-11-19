@@ -5,11 +5,11 @@ package valkey
 
 import (
 	"context"
+	"slices"
 
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-// DelKeys deletes every key named, in one call.
 func DelKeys(ctx context.Context, client valkey_go.Client, keys ...string) error {
 	if len(keys) == 0 {
 		return nil
@@ -17,10 +17,10 @@ func DelKeys(ctx context.Context, client valkey_go.Client, keys ...string) error
 	return client.Do(ctx, client.B().Del().Key(keys...).Build()).Error()
 }
 
-// ScanUnlink unlinks every key matching Match, paging through SCAN until the cursor returns to zero.
 type ScanUnlink struct {
-	Match string
-	Count int64
+	Match  string
+	Count  int64
+	Filter func(string) bool
 }
 
 func (s ScanUnlink) Run(ctx context.Context, client valkey_go.Client) error {
@@ -30,7 +30,7 @@ func (s ScanUnlink) Run(ctx context.Context, client valkey_go.Client) error {
 		if err != nil {
 			return err
 		}
-		if err := UnlinkAll(ctx, client, page.Elements); err != nil {
+		if err := UnlinkAll(ctx, client, s.keys(page.Elements)); err != nil {
 			return err
 		}
 		if page.Cursor == 0 {
@@ -38,4 +38,11 @@ func (s ScanUnlink) Run(ctx context.Context, client valkey_go.Client) error {
 		}
 		cursor = page.Cursor
 	}
+}
+
+func (s ScanUnlink) keys(keys []string) []string {
+	if s.Filter == nil {
+		return keys
+	}
+	return slices.DeleteFunc(keys, func(key string) bool { return !s.Filter(key) })
 }

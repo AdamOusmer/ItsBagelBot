@@ -6,11 +6,14 @@ package engine
 import (
 	"context"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/internal/domain/event/lane"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/idempotency"
+	"github.com/google/uuid"
 
 	"go.uber.org/zap"
 )
@@ -28,18 +31,30 @@ func CounterEffect(name string) string {
 }
 
 type EventDedup struct {
-	store  idempotency.Store
-	prefix string
-	ttl    time.Duration
-	log    *zap.Logger
-	dupes  atomic.Int64
+	mu               sync.Mutex
+	shards           [32]effectShard
+	owner            string
+	acquiring        []effectAcquisition
+	acquireRunning   bool
+	heartbeatRunning bool
+	confirming       []completedEffect
+	confirmRunning   bool
+	store            idempotency.Store
+	prefix           string
+	ttl              time.Duration
+	log              *zap.Logger
+	dupes            atomic.Int64
+	conflicts        atomic.Int64
+	unavailableUntil atomic.Int64
+	stopped          atomic.Bool
+	activity         atomic.Uint64
 }
 
 func NewEventDedup(store idempotency.Store, prefix string, ttl time.Duration, log *zap.Logger) *EventDedup {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	return &EventDedup{store: store, prefix: prefix, ttl: ttl, log: log}
+	return &EventDedup{store: store, prefix: prefix, ttl: max(ttl, bus.TwitchEffectRetention()), log: log, owner: uuid.NewString()}
 }
 
 func EventIdentity(env *lane.Envelope) string {
@@ -63,31 +78,6 @@ func (d *EventDedup) Duplicate(ctx context.Context, ref EffectRef) bool {
 		d.dupes.Add(1)
 	}
 	return seen
-}
-
-func (d *EventDedup) Claim(ctx context.Context, ref EffectRef) (dup bool, release func()) {
-	noop := func() {}
-	if !d.active(ref.Identity) {
-		return false, noop
-	}
-	key := dedupKey(ref)
-	seen, err := d.store.Seen(ctx, key, d.ttl)
-	if seen {
-		d.dupes.Add(1)
-		return true, noop
-	}
-	if err != nil {
-		return false, noop
-	}
-	return false, func() { _ = d.store.Release(ctx, key) }
-}
-
-func (d *EventDedup) CounterClaim(env *lane.Envelope, name string) (string, time.Duration) {
-	identity := EventIdentity(env)
-	if !d.active(identity) {
-		return "", 0
-	}
-	return idempotency.Key(d.prefix, dedupKey(EffectRef{Identity: identity, Effect: CounterEffect(name)})), d.ttl
 }
 
 func (d *EventDedup) Duplicates() int64 {

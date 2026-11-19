@@ -12,9 +12,9 @@
   "runtime": "Aktueller Laufzeitstatus der gezählten Konten.",
   "desktop": "Nicht widerrufene Freigaben, deren beide Aktualisierungsfristen noch nicht abgelaufen sind.",
   "signups": "Neue Konten, die an jedem Tag des Zeitraums erstellt wurden.",
-  "gainLoss": "Neue Konten im Vergleich zu gelöschten Konten pro Tag.",
+  "gainLoss": "Neue Konten im Vergleich zu Konten, die an diesem Tag im Chat gebannt wurden, deren Zugriff widerrufen wurde oder die gelöscht wurden.",
   "funnel": "Registrierungen, abgeschlossene Einrichtungen und Bot-Aktivierungen im Zeitraum. Jeder Schritt zählt Ereignisse im Zeitraum, spätere Schritte können also frühere Registrierungen enthalten.",
-  "churn": "Bot deaktiviert, Zugriff widerrufen, Konten gelöscht und Chat-Banns, summiert über den Zeitraum.",
+  "churn": "Bot deaktiviert, Zugriff widerrufen, Chat-Banns und gelöschte Konten, summiert über den Zeitraum. Ruhende Kanäle behalten ihren Bot und zählen nicht.",
   "presets": "Bei der Einrichtung gewählte Voreinstellungen, summiert über den Zeitraum.",
   "active": "Kanäle, die der Bot an jedem Tag des Zeitraums bedient hat.",
   "live": "Kanäle, die an jedem Tag des Zeitraums live gegangen sind.",
@@ -38,6 +38,7 @@
   "activationAge": "In der letzten vollen Woche bediente Kanäle, nach Kontoalter bei der Nutzung.",
   "onboarding": "Einrichtungsereignisse im Zeitraum sowie fertig eingerichtete Konten und ihr Anteil an allen Konten im neuesten Stand.",
   "imports": "Vorschau- und Übernahmeergebnisse im Zeitraum, nach Importquelle.",
+  "signupSources": "Gestartete Logins und neue Konten im Zeitraum, nach verweisender Website.",
   "checkout": "Kassenergebnisse nach Tarif. Die Aktivierungsquote vergleicht Aktivierungen mit Weiterleitungen im Zeitraum, auch aus früheren Käufen.",
   "dashboard": "Aufrufe im Zeitraum, getrennt nach Kontoinhabern und Beauftragten.",
   "recipeRuns": "Ausführungen im Zeitraum nach Auslöser sowie Kanäle mit Rezeptnutzung in der letzten vollen Woche.",
@@ -51,5 +52,8 @@
   "delegating": "Konten mit mindestens einem Beauftragten und ihr Anteil an allen Konten im neuesten Tagesstand.",
   "donations": "Ko-fi-Bruttozahlungen im Zeitraum nach Währung, mit wiederkehrendem Anteil und dem vorherigen gleich langen Zeitraum. Beträge vor Gebühren von Ko-fi und Zahlungsanbieter.",
   "donationMonths": "Ko-fi-Bruttozahlungen pro Kalendermonat in den letzten 12 Monaten, nur abgeschlossene UTC-Tage.",
-  "donationKinds": "Ko-fi-Zahlungen im Zeitraum nach Art."
+  "donationKinds": "Ko-fi-Zahlungen im Zeitraum nach Art.",
+  "stops": "Gestoppte Bots gegenüber zurückgekehrten Konten, gezählt ab dem 18. Nov. 2026, seit Rückkehrer erfasst werden. Ruhende Kanäle behalten ihren Bot und zählen nicht.",
+  "inactive": "Konten ohne laufenden Bot: im Chat gebannt, Zugriff widerrufen, vom Streamer ausgeschaltet oder sonstige. Gelöschte Konten zählen nicht. Heute wird live aktualisiert.",
+  "dormant": "Kanäle ohne Aktivität seit 30 Tagen. Heute wird live aktualisiert."
 }

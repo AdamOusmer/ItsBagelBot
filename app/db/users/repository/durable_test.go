@@ -32,7 +32,7 @@ func durableUsers(t *testing.T, mysql bool) (*ent.Client, *repository.Users) {
 	raw := testdb.MySQL(t, "users_durable_")
 	client := ent.NewClient(ent.Driver(entsql.OpenDB("mysql", raw)))
 	require.NoError(t, client.Schema.Create(t.Context()))
-	repo := repository.NewUsers(client, dbtest.NewPacker(t), bustest.NewPublisher(), nil, zap.NewNop())
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Packer: dbtest.NewPacker(t), Pub: bustest.NewPublisher(), Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(context.Background()) })
 	return client, repo
 }
@@ -56,7 +56,7 @@ func TestDashboardPreferenceDurability(t *testing.T) {
 
 func preferencesCallerCancellation(t *testing.T, mysql bool) {
 	client, repo := durableUsers(t, mysql)
-	require.NoError(t, repo.Register(t.Context(), 1001, "viewer", "Viewer", "viewer@example.com"))
+	require.NoError(t, repo.Register(t.Context(), repository.Registration{ID: 1001, Username: "viewer", DisplayName: "Viewer", Email: "viewer@example.com"}))
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	client.User.Use(func(next ent.Mutator) ent.Mutator {
@@ -71,7 +71,7 @@ func preferencesCallerCancellation(t *testing.T, mysql bool) {
 
 func preferencesShutdown(t *testing.T, mysql bool) {
 	client, repo := durableUsers(t, mysql)
-	require.NoError(t, repo.Register(t.Context(), 1001, "viewer", "Viewer", "viewer@example.com"))
+	require.NoError(t, repo.Register(t.Context(), repository.Registration{ID: 1001, Username: "viewer", DisplayName: "Viewer", Email: "viewer@example.com"}))
 	entered, release := make(chan struct{}), make(chan struct{})
 	client.User.Use(func(next ent.Mutator) ent.Mutator {
 		return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
@@ -97,7 +97,7 @@ func preferencesShutdown(t *testing.T, mysql bool) {
 
 func preferencesVisible(t *testing.T, mysql bool) {
 	client, repo := durableUsers(t, mysql)
-	require.NoError(t, repo.Register(t.Context(), 1001, "viewer", "Viewer", "viewer@example.com"))
+	require.NoError(t, repo.Register(t.Context(), repository.Registration{ID: 1001, Username: "viewer", DisplayName: "Viewer", Email: "viewer@example.com"}))
 	for _, write := range []func() error{
 		func() error { return repo.SetLocale(t.Context(), 1001, "fr") },
 		func() error { return repo.SetCustomCursor(t.Context(), 1001, false) },
@@ -115,7 +115,7 @@ func preferencesVisible(t *testing.T, mysql bool) {
 
 func preferencesSameKey(t *testing.T, mysql bool) {
 	client, repo := durableUsers(t, mysql)
-	require.NoError(t, repo.Register(t.Context(), 1001, "viewer", "Viewer", "viewer@example.com"))
+	require.NoError(t, repo.Register(t.Context(), repository.Registration{ID: 1001, Username: "viewer", DisplayName: "Viewer", Email: "viewer@example.com"}))
 	var wg sync.WaitGroup
 	for range 48 {
 		wg.Go(func() { assert.NoError(t, repo.SetLocale(t.Context(), 1001, "de")) })
@@ -126,8 +126,8 @@ func preferencesSameKey(t *testing.T, mysql bool) {
 
 func preferencesPoison(t *testing.T, mysql bool) {
 	client, repo := durableUsers(t, mysql)
-	require.NoError(t, repo.Register(t.Context(), 1001, "viewer", "Viewer", "viewer@example.com"))
-	require.NoError(t, repo.Register(t.Context(), 1002, "other", "Other", "other@example.com"))
+	require.NoError(t, repo.Register(t.Context(), repository.Registration{ID: 1001, Username: "viewer", DisplayName: "Viewer", Email: "viewer@example.com"}))
+	require.NoError(t, repo.Register(t.Context(), repository.Registration{ID: 1002, Username: "other", DisplayName: "Other", Email: "other@example.com"}))
 	var wg sync.WaitGroup
 	wg.Go(func() { assert.Error(t, repo.SetLocale(t.Context(), 1001, "invalid-locale")) })
 	wg.Go(func() { assert.NoError(t, repo.SetLocale(t.Context(), 1002, "fr")) })
@@ -144,7 +144,7 @@ func TestPreferenceRetriesWholeTransaction(t *testing.T) {
 		t.Run(map[uint16]string{1213: "deadlock", 1205: "lock wait"}[number], func(t *testing.T) {
 			client, repo := durableUsers(t, true)
 			for _, id := range []uint64{1001, 1002} {
-				require.NoError(t, repo.Register(t.Context(), id, "viewer", "Viewer", fmt.Sprintf("viewer%d@example.com", id)))
+				require.NoError(t, repo.Register(t.Context(), repository.Registration{ID: id, Username: "viewer", DisplayName: "Viewer", Email: fmt.Sprintf("viewer%d@example.com", id)}))
 			}
 			var failed atomic.Bool
 			client.User.Use(func(next ent.Mutator) ent.Mutator {

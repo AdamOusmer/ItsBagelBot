@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/idempotency"
 
 	"go.uber.org/zap"
 )
@@ -32,12 +33,20 @@ type emitState struct {
 	accepted   int
 	needsFlush bool
 	err        error
+	legacy     *idempotency.Handoff
 }
 
 func (s *emitState) replayID() string {
 	if !s.baseDone {
 		s.replayBase = outputReplayBase(s.env)
 		s.baseDone = true
+	}
+	if s.replayBase == "" {
+		return ""
+	}
+	if s.mctx != nil && s.mctx.EffectScope != "" {
+		s.mctx.EffectOrdinal++
+		return replayOutputID(s.replayBase+":"+s.mctx.EffectScope, s.mctx.EffectOrdinal)
 	}
 	return replayOutputID(s.replayBase, s.ordinal)
 }
@@ -79,6 +88,7 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		accepted, err := p.publishOutput(ctx, state, replayID, o)
 		if err != nil {
 			state.err = err
+			state.fail(ctx, err)
 			return
 		}
 		if !accepted {
@@ -87,6 +97,7 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		state.acceptOutput(o)
 		if replayID == "" {
 			state.needsFlush = true
+			state.joinLegacy(ctx)
 		}
 	}
 }
@@ -105,6 +116,35 @@ func (p *Pipeline) prepareEmission(ctx context.Context, state *emitState, o *mod
 	}
 	capEmitText(o)
 	return !p.floorSuppressed(o)
+}
+
+func (s *emitState) joinLegacy(ctx context.Context) {
+	if s.mctx != nil && s.mctx.EffectContext != nil {
+		ctx = s.mctx.EffectContext
+	}
+	if !idempotency.Tracking(ctx) {
+		return
+	}
+	if s.legacy == nil {
+		s.legacy = &idempotency.Handoff{}
+	}
+	idempotency.Join(ctx, s.legacy)
+}
+
+func (s *emitState) finishLegacy() {
+	if s.legacy != nil {
+		s.legacy.Resolve(s.err)
+	}
+}
+
+func (s *emitState) fail(ctx context.Context, err error) {
+	idempotency.Fail(ctx, err)
+	if s.mctx == nil {
+		return
+	}
+	if s.mctx.EffectContext != nil {
+		idempotency.Fail(s.mctx.EffectContext, err)
+	}
 }
 
 func applyOutputLocale(o *module.Output, locale string) {
@@ -166,6 +206,7 @@ func (p *Pipeline) encodeOutput(ctx context.Context, state *emitState, o *module
 		output.AccountCreatedAt = state.admission.AccountCreatedAt
 		output.AdmissionGeneration = state.admission.State.AdmissionGeneration
 	}
+	output.EventAt = outputEventTime(state.env)
 	body, err := codec.Marshal(&output)
 	if err != nil {
 		endStage(encodeSegment, "error")
@@ -173,6 +214,13 @@ func (p *Pipeline) encodeOutput(ctx context.Context, state *emitState, o *module
 	}
 	endStage(encodeSegment, "ok")
 	return body, nil
+}
+
+func outputEventTime(env *lane.Envelope) int64 {
+	if env == nil {
+		return 0
+	}
+	return env.EventVersion()
 }
 
 func outputReplayBase(env *lane.Envelope) string {

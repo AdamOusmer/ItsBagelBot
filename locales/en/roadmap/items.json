@@ -1,0 +1,82 @@
+{
+  "209f337ab203": {
+    "title": "Bot health in your dashboard",
+    "summary": "See if the bot is connected, why something failed, and test alerts, rewards and song requests in one click."
+  },
+  "e4683946cf01": {
+    "title": "First-stream setup",
+    "summary": "Get the bot answering in your chat during your very first stream, with the right commands already on."
+  },
+  "686861f96b01": {
+    "title": "Shared Chat support",
+    "summary": "Commands, points and moderation behave correctly when you share chat with other streamers."
+  },
+  "b43662db4096": {
+    "title": "Import, export and backup",
+    "summary": "Bring your points with you from your old bot, and export or restore your whole setup any time."
+  },
+  "8eddf0c4db2d": {
+    "title": "Hate raid shield",
+    "summary": "One switch to lock chat down during a hate raid, and one to put everything back."
+  },
+  "e9caa97aa4a1": {
+    "title": "Shoutouts, birthdays and point rain",
+    "summary": "A shoutout queue, birthday messages, point rain, and poll results hidden until the poll ends."
+  },
+  "af3c50f5329f": {
+    "title": "Fully translated dashboard",
+    "summary": "Every dashboard page fully translated in French, Russian, Spanish, German and Portuguese."
+  },
+  "76f8f84a616c": {
+    "title": "Alerts and overlays in OBS",
+    "summary": "Follow, sub, raid and reward alerts on stream through one OBS browser source, no extra app."
+  },
+  "a401a63332af": {
+    "title": "Mod history and viewer notes",
+    "summary": "Search every moderation action with who did it and why, and keep private notes on viewers."
+  },
+  "4d6b80a99056": {
+    "title": "Viewer reward store",
+    "summary": "Viewers spend their points on sounds, chat messages and other rewards you set up."
+  },
+  "142291a73c3c": {
+    "title": "Better predictions",
+    "summary": "Run several point predictions at once, cap bets, and undo a wrong result."
+  },
+  "21179d46208b": {
+    "title": "YouTube support",
+    "summary": "Use the same bot, commands and alerts on YouTube when you multistream."
+  },
+  "1e9b628b6d08": {
+    "title": "Ready-made Recipes",
+    "summary": "Start from ready-made Recipes for polls, predictions, BRB breaks and more, then tweak them."
+  },
+  "496117e1999f": {
+    "title": "Giveaway entry rules",
+    "summary": "Decide who can enter a giveaway: followers, subs, watch time or points, with bonus entries."
+  },
+  "8916f5441490": {
+    "title": "Stream recaps",
+    "summary": "A saved recap after every stream: new followers, top chatters, songs played and rewards redeemed."
+  },
+  "03d345d90793": {
+    "title": "Kick support",
+    "summary": "Run the same bot on Kick, after YouTube."
+  },
+  "dc30a876c560": {
+    "title": "Live chat translation",
+    "summary": "Opt-in translation of chat messages so you can talk with viewers in any language."
+  },
+  "172af6d6bec0": {
+    "title": "OBS control with Bagel Bridge",
+    "summary": "Let Recipes switch OBS scenes and sources through the ItsBagelBot desktop app."
+  },
+  "d74d64c50f7f": {
+    "title": "Ban evasion alerts",
+    "summary": "Flag chatters Twitch marks as likely ban evaders so your mods can review them."
+  },
+  "3181a7822b6c": {
+    "title": "Raid suggestions",
+    "summary": "Opt-in suggestions of small ItsBagelBot streamers to raid when you end your stream."
+  }
+}

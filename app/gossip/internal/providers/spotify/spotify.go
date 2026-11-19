@@ -286,10 +286,14 @@ type trackItem struct {
 	} `json:"artists"`
 	Album struct {
 		Name   string `json:"name"`
+		Type   string `json:"album_type"`
 		Images []struct {
 			URL string `json:"url"`
 		} `json:"images"`
 	} `json:"album"`
+	ExternalIDs struct {
+		ISRC string `json:"isrc"`
+	} `json:"external_ids"`
 	DurationMS   int64 `json:"duration_ms"`
 	ExternalURLs struct {
 		Spotify string `json:"spotify"`
@@ -388,7 +392,10 @@ func (p *api) search(ctx context.Context, req gossiprpc.Request) any {
 	}
 	broadcaster := strings.TrimSpace(req.ChannelID)
 
-	target := classify(strings.TrimSpace(req.Query))
+	target := classify(req.Query)
+	if target.oversized() {
+		return gossiprpc.SpotifySearchReply{ResolvedAs: viaText}
+	}
 
 	if target.kind == resolveUnsupportedLink {
 		return gossiprpc.SpotifySearchReply{Error: "that Spotify link type isn't supported; share a track or album"}
@@ -408,6 +415,10 @@ func (p *api) search(ctx context.Context, req gossiprpc.Request) any {
 		canonical:   target.cacheKey(),
 		ttl:         searchTTL,
 	}
+	return p.searchTarget(ctx, tok, target, scope)
+}
+
+func (p *api) searchTarget(ctx context.Context, tok accessToken, target resolvedInput, scope searchScope) any {
 	switch target.kind {
 	case resolveTrackID:
 		scope.ttl = trackTTL
@@ -419,7 +430,7 @@ func (p *api) search(ctx context.Context, req gossiprpc.Request) any {
 		scope.ttl = trackTTL
 		return p.searchCached(ctx, scope, p.shareLinkFetch(tok, target.text, scope.limit))
 	default:
-		return p.searchCached(ctx, scope, p.textFetch(tok, rawQuery(req), scope.limit, broadcaster))
+		return p.searchCached(ctx, scope, p.textFetch(tok, target.raw, scope.limit, scope.broadcaster))
 	}
 }
 
@@ -431,10 +442,6 @@ func missingSearchInput(req gossiprpc.Request) string {
 		return "missing channel"
 	}
 	return ""
-}
-
-func rawQuery(req gossiprpc.Request) string {
-	return strings.TrimSpace(req.Query)
 }
 
 func clampSearchLimit(limit int) int {
@@ -493,27 +500,34 @@ func (p *api) albumTracksFetch(tok accessToken, id string, limit int) searchFetc
 	}
 }
 
-func (p *api) textFetch(tok accessToken, raw string, limit int, broadcaster string) searchFetch {
+func (p *api) textFetch(tok accessToken, raw matchText, limit int, broadcaster string) searchFetch {
 	return func(ctx context.Context) (gossiprpc.SpotifySearchReply, error) {
 		return p.searchText(ctx, tok, textSearchRequest{raw: raw, limit: limit, broadcaster: broadcaster})
 	}
 }
 
-func (p *api) runSearch(ctx context.Context, tok accessToken, c searchCandidate, limit int) (gossiprpc.SpotifySearchReply, error) {
-	q := url.Values{"q": {c.q}, "type": {"track"}, "limit": {strconv.Itoa(limit)}}
+func (p *api) runSearch(ctx context.Context, tok accessToken, c searchCandidate) ([]catalogTrack, error) {
+	q := url.Values{"q": {c.q}, "type": {"track"}, "limit": {strconv.Itoa(maxSearchLimit)}}
+	if c.offset > 0 {
+		q.Set("offset", strconv.Itoa(c.offset))
+	}
 	var resp searchResponse
 	r := core.Request{Method: http.MethodGet, Path: searchPath, Query: q, Headers: bearerHeader(tok)}
 	if err := p.http.Do(ctx, r, &resp); err != nil {
-		return gossiprpc.SpotifySearchReply{}, err
+		return nil, err
 	}
-	reply := gossiprpc.SpotifySearchReply{
-		ResolvedAs: c.name,
-		Tracks:     make([]gossiprpc.SpotifyTrack, 0, len(resp.Tracks.Items)),
-	}
+	tracks := make([]gossiprpc.SpotifyTrack, 0, len(resp.Tracks.Items))
 	for _, it := range resp.Tracks.Items {
-		reply.Tracks = append(reply.Tracks, *shapeTrack(it))
+		tracks = append(tracks, *shapeTrack(it))
 	}
-	return reply, nil
+	window := catalogWindow(tracks)
+	for i, it := range resp.Tracks.Items {
+		window[i].isrc = it.ExternalIDs.ISRC
+		if it.Album.Type == "compilation" {
+			window[i].compilation = 1
+		}
+	}
+	return window, nil
 }
 
 func (p *api) albumTracks(ctx context.Context, tok accessToken, id string, limit int) (gossiprpc.SpotifySearchReply, error) {

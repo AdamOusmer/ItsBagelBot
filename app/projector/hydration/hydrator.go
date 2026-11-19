@@ -13,6 +13,7 @@ import (
 	rpcprojection "ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -57,6 +58,7 @@ type job struct {
 	force  bool
 	ttl    time.Duration
 	seed   Seed
+	link   monitor.Link
 }
 
 type userGate struct {
@@ -113,21 +115,22 @@ func newHydrator(store store, fetch fetchers, queryTTL, liveTTL time.Duration, c
 	}
 }
 
-func (h *Hydrator) EnsureAsync(userID uint64, seed Seed) {
+func (h *Hydrator) EnsureAsync(ctx context.Context, userID uint64, seed Seed) {
 	if userID == 0 || !h.startQuery(userID) {
 		return
 	}
+	link := monitor.LinkFrom(ctx)
 	go func() {
 		defer h.finishQuery(userID)
-		h.run(job{userID: userID, ttl: h.queryTTL, seed: seed})
+		h.run(job{userID: userID, ttl: h.queryTTL, seed: seed, link: link})
 	}()
 }
 
-func (h *Hydrator) RefreshAsync(userID uint64) {
+func (h *Hydrator) RefreshAsync(ctx context.Context, userID uint64) {
 	if userID == 0 {
 		return
 	}
-	go h.run(job{userID: userID, force: true, ttl: h.liveTTL})
+	go h.run(job{userID: userID, force: true, ttl: h.liveTTL, link: monitor.LinkFrom(ctx)})
 }
 
 func (h *Hydrator) startQuery(userID uint64) bool {
@@ -153,7 +156,9 @@ func (h *Hydrator) run(j job) {
 	h.gate <- struct{}{}
 	defer func() { <-h.gate }()
 
-	ctx, cancel := context.WithTimeout(context.Background(), operationTimeout)
+	ctx, txn := j.link.Start(context.Background(), "hydrate")
+	defer txn.End()
+	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
 	defer cancel()
 
 	state := projection.HydrationState{}
@@ -203,7 +208,7 @@ func (h *Hydrator) fill(ctx context.Context, j job, state projection.HydrationSt
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			section(ctx, j)
+			section(monitor.Concurrent(ctx), j)
 		}()
 	}
 

@@ -107,12 +107,6 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: db
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: ops
-          podSelector:
-            matchLabels:
-              app: clusterops
       ports:
         - port: 4223
     - from:

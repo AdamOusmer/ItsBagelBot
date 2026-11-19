@@ -450,7 +450,12 @@
       </div>
       {#if !enabled}
         <Divider flush />
-        <div class="disabled-note"><Text size="sm" tone="muted">{t('modules.disabledNote')}</Text></div>
+        <div class="disabled-note">
+          <AlertBanner tone="warning" role="status" flush strong>
+            {t('modules.offBanner')}
+            {#snippet actions()}{#if !data.locked}<Button onclick={toggleModule}>{t('modules.turnOn')}</Button>{/if}{/snippet}
+          </AlertBanner>
+        </div>
       {/if}
     </Card>
   </div>

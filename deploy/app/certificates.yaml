@@ -9,6 +9,8 @@ metadata:
   namespace: app
 spec:
   secretName: console-dashboard-tls
+  secretTemplate:
+    labels: {itsbagelbot.com/reloader: "watch"}
   duration: 2160h
   renewBefore: 360h
   privateKey:
@@ -29,6 +31,8 @@ metadata:
   namespace: app
 spec:
   secretName: console-admin-tls
+  secretTemplate:
+    labels: {itsbagelbot.com/reloader: "watch"}
   duration: 2160h
   renewBefore: 360h
   privateKey:
@@ -289,6 +293,8 @@ metadata:
   namespace: app
 spec:
   secretName: valkey-client-tls
+  secretTemplate:
+    labels: {itsbagelbot.com/reloader: "watch"}
   duration: 2160h
   renewBefore: 360h
   privateKey:
@@ -310,6 +316,8 @@ metadata:
   namespace: app
 spec:
   secretName: nats-client-tls
+  secretTemplate:
+    labels: {itsbagelbot.com/reloader: "watch"}
   duration: 2160h
   renewBefore: 360h
   privateKey:

@@ -4,11 +4,13 @@
 package engine
 
 import (
+	"context"
+
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
 )
 
-func (p *Pipeline) recordFlag(rule flagRule, enforced bool) {
+func (p *Pipeline) recordFlag(ctx context.Context, rule flagRule, enforced bool) {
 	mode := "shadow"
 	if enforced {
 		mode = "enforced"
@@ -20,7 +22,7 @@ func (p *Pipeline) recordFlag(rule flagRule, enforced bool) {
 	case ruleSuffixCampaign:
 		name = "campaign"
 	}
-	p.analytics.Count(catalog.AutomodFlags, name, mode)
+	p.analytics.AddContext(ctx, catalog.AutomodFlags, 1, name, mode)
 }
 
 func entrantBucket(n int64) string {

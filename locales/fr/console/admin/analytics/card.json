@@ -38,6 +38,7 @@
   "activationAge": "Chaînes actives par âge du compte",
   "onboarding": "Étapes de configuration",
   "imports": "Imports par source",
+  "signupSources": "Inscriptions par source",
   "checkout": "Résultats du paiement par offre",
   "dashboard": "Vues du tableau de bord par section",
   "recipeRuns": "Exécutions de recettes par déclencheur",
@@ -51,5 +52,8 @@
   "delegating": "Comptes avec délégataires",
   "donations": "Paiements Ko-fi par devise",
   "donationMonths": "Revenus Ko-fi par mois",
-  "donationKinds": "Paiements Ko-fi par type"
+  "donationKinds": "Paiements Ko-fi par type",
+  "stops": "Arrêts du bot par jour",
+  "inactive": "Comptes inactifs par jour",
+  "dormant": "Chaînes en sommeil par jour"
 }

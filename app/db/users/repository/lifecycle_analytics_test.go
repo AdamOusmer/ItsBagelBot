@@ -9,6 +9,7 @@ import (
 
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
+	"ItsBagelBot/internal/domain/lifecycle"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/valkeytest"
 	"ItsBagelBot/pkg/bus/bustest"
@@ -31,7 +32,7 @@ func newLifecycleAnalyticsHarness(t *testing.T) lifecycleAnalyticsHarness {
 	t.Helper()
 	client, repo := lifecycleSetup(t)
 	t.Cleanup(func() { repo.Close(t.Context()) })
-	require.NoError(t, repo.Register(t.Context(), 1001, "account", "Account", "account@example.test"))
+	require.NoError(t, repo.Register(t.Context(), Registration{ID: 1001, Username: "account", DisplayName: "Account", Email: "account@example.test"}))
 	now := time.Now().UTC()
 	vc := valkeytest.Spawn(t)
 	rec := analytics.New(vc, zap.NewNop(), nil, analytics.WithoutTicker(), analytics.WithClock(func() time.Time { return now }))
@@ -106,4 +107,54 @@ func TestLifecycleAnalyticsCountsCommittedLossBeforePublication(t *testing.T) {
 	_, err = h.repo.Lifecycle(t.Context(), usersrpc.LifecycleRequest{Action: "due"})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, h.revoked(t))
+}
+
+func (h lifecycleAnalyticsHarness) lifecycleCounts(t *testing.T) map[string]int64 {
+	t.Helper()
+	h.rec.Flush(t.Context())
+	fields, err := pkgvalkey.HashAllInts(t.Context(), h.vc, catalog.CounterKey(h.now))
+	require.NoError(t, err)
+	counts := map[string]int64{}
+	for _, event := range []string{"chat_banned", "dormant", "unbanned", "woke", "access_restored"} {
+		counts[event] = fields["lifecycle|"+event]
+	}
+	return counts
+}
+
+func TestLifecycleAnalyticsCountsCommittedStopsAndComebacks(t *testing.T) {
+	h := newLifecycleAnalyticsHarness(t)
+	idle := lifecycle.State{Version: 1, DesiredEnabled: true, RuntimeState: lifecycle.Active, AdmissionGeneration: 1, ChatRestriction: lifecycle.RestrictionNone, GrantHealth: lifecycle.GrantHealthy, LastEngagedAt: h.now.Add(-lifecycle.DormancyPeriod)}
+	require.NoError(t, h.repo.client.User.UpdateOneID(1001).SetLifecycle(&idle).Exec(t.Context()))
+	for _, tc := range []struct {
+		name, action, event string
+		offset              time.Duration
+		want                map[string]int64
+	}{
+		{name: "dormancy", action: "dormancy", want: map[string]int64{"chat_banned": 0, "dormant": 1, "unbanned": 0, "woke": 0, "access_restored": 0}},
+		{name: "dormant again", action: "dormancy", want: map[string]int64{"chat_banned": 0, "dormant": 1, "unbanned": 0, "woke": 0, "access_restored": 0}},
+		{name: "wake", action: "engage", event: "command", want: map[string]int64{"chat_banned": 0, "dormant": 1, "unbanned": 0, "woke": 1, "access_restored": 0}},
+		{name: "ban", action: "ban", event: "ban", offset: time.Second, want: map[string]int64{"chat_banned": 1, "dormant": 1, "unbanned": 0, "woke": 1, "access_restored": 0}},
+		{name: "duplicate ban", action: "ban", event: "ban", offset: time.Second, want: map[string]int64{"chat_banned": 1, "dormant": 1, "unbanned": 0, "woke": 1, "access_restored": 0}},
+		{name: "unban", action: "unban", event: "unban", offset: 2 * time.Second, want: map[string]int64{"chat_banned": 1, "dormant": 1, "unbanned": 1, "woke": 1, "access_restored": 0}},
+		{name: "grant lost", action: "grant_missing", event: "lost", offset: 3 * time.Second, want: map[string]int64{"chat_banned": 1, "dormant": 1, "unbanned": 1, "woke": 1, "access_restored": 0}},
+		{name: "grant restored", action: "grant_restored", event: "restored", offset: 4 * time.Second, want: map[string]int64{"chat_banned": 1, "dormant": 1, "unbanned": 1, "woke": 1, "access_restored": 1}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := h.request(t, tc.action)
+			req.Reason, req.EventID, req.ObservedAt = "offline", tc.event, h.now.Add(tc.offset)
+			_, err := h.repo.Lifecycle(t.Context(), req)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, h.lifecycleCounts(t))
+		})
+	}
+}
+
+func TestLifecycleAnalyticsSkipsMigrationImports(t *testing.T) {
+	h := newLifecycleAnalyticsHarness(t)
+	req := h.request(t, "seed_blocked")
+	req.Reason = "bot_banned"
+	reply, err := h.repo.Lifecycle(t.Context(), req)
+	require.NoError(t, err)
+	require.Equal(t, lifecycle.RestrictionBanned, reply.State.ChatRestriction)
+	require.Zero(t, h.lifecycleCounts(t)["chat_banned"])
 }

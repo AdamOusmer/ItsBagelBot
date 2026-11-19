@@ -120,7 +120,6 @@ config :ingress,
     String.to_integer(System.get_env("INGRESS_DISPATCHER_COMPLETION_BATCH_SIZE", "4")),
   dispatcher_completion_flush_ms:
     String.to_integer(System.get_env("INGRESS_DISPATCHER_COMPLETION_FLUSH_MS", "25")),
-  trace_sample_rate: String.to_integer(System.get_env("INGRESS_TRACE_SAMPLE_RATE", "1024")),
   squash_partitions:
     String.to_integer(
       System.get_env("INGRESS_SQUASH_PARTITIONS", Integer.to_string(System.schedulers_online()))
@@ -131,7 +130,7 @@ config :ingress,
     ),
   publish_max_pending: String.to_integer(System.get_env("INGRESS_PUBLISH_MAX_PENDING", "16384")),
   publish_batch_size: String.to_integer(System.get_env("INGRESS_PUBLISH_BATCH_SIZE", "128")),
-  publish_batch_wait_ms: String.to_integer(System.get_env("INGRESS_PUBLISH_BATCH_WAIT_MS", "1")),
+  publish_batch_wait_ms: String.to_integer(System.get_env("INGRESS_PUBLISH_BATCH_WAIT_MS", "0")),
   publish_send_concurrency:
     String.to_integer(System.get_env("INGRESS_PUBLISH_SEND_CONCURRENCY", "22")),
   publish_wire: publish_wire,

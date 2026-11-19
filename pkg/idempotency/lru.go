@@ -6,6 +6,7 @@ package idempotency
 import (
 	"container/list"
 	"context"
+	"errors"
 	"sync"
 	"time"
 )
@@ -20,6 +21,17 @@ type lruStore struct {
 }
 
 type claimKey string
+
+func (l *lruStore) Contains(ctx context.Context, key string) (bool, error) {
+	if l.cache.has(claimKey(key)) {
+		return true, nil
+	}
+	reader, ok := l.inner.(Reader)
+	if !ok {
+		return false, errors.New("idempotency store does not support completed-effect reads")
+	}
+	return reader.Contains(ctx, key)
+}
 
 func (l *lruStore) Seen(ctx context.Context, key string, ttl time.Duration) (bool, error) {
 	if l.cache.has(claimKey(key)) {

@@ -90,15 +90,11 @@ func (r *Commands) backfillRow(ctx context.Context, userID uint64, name, bumpCou
 		return err
 	}
 
-	r.Invalidate(userID)
-
 	states, serr := r.rowStates(ctx, []commandKey{key})
-	if serr != nil {
-		return serr
-	}
 	state, found := states[key]
 	if !found {
-		return nil
+		r.Invalidate(userID)
+		return serr
 	}
 	return bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, state)
 }

@@ -43,7 +43,7 @@ func newAlertRig(t *testing.T, name testdb.Name) alertRig {
 
 func (r alertRig) seedAlerts(t *testing.T, configs string) int {
 	t.Helper()
-	views, err := r.modules.SetNow(t.Context(), 1001, "alerts", true, codec.RawMessage(configs))
+	views, err := r.modules.SetNow(t.Context(), repository.ModuleWrite{UserID: 1001, Name: "alerts", Enabled: true, Configs: codec.RawMessage(configs)})
 	require.NoError(t, err)
 	require.Len(t, views, 1)
 	return views[0].Revision

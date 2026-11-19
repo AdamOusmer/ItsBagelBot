@@ -26,7 +26,7 @@ func TestAccountLevelsFollowWrites(t *testing.T) {
 
 	for id := uint64(1); id <= 4; id++ {
 		name := fmt.Sprint("user", id)
-		require.NoError(t, repo.Register(ctx, id, name, name, name+"@example.test"))
+		require.NoError(t, repo.Register(ctx, repository.Registration{ID: id, Username: name, DisplayName: name, Email: name + "@example.test"}))
 	}
 	_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{UserID: 1, EventID: "e1", Action: billingrpc.ActionActivate, OccurredAt: now, ExpiresAt: ptr(now.Add(time.Hour))})
 	require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestAccountLevelsFollowWrites(t *testing.T) {
 	}, got)
 }
 
-func TestAnalyticsSeedTalliesCountedAccounts(t *testing.T) {
+func TestAnalyticsSeedTalliesEveryAccount(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
@@ -72,31 +72,35 @@ func TestAnalyticsSeedTalliesCountedAccounts(t *testing.T) {
 		SetOnboarded(true).SetIsActive(false).Exec(ctx))
 	require.NoError(t, create(3).SetStatus(user.StatusVip).SetLocale("fr").SetCommandsPageHidden(true).
 		SetLeaderboardPageHidden(true).SetSongqueuePageHidden(true).SetSubscriptionPaymentFailed(true).Exec(ctx))
-	require.NoError(t, create(4).SetTestAccount(true).SetStatus(user.StatusPaid).Exec(ctx))
-	require.NoError(t, create(5).SetBanned(true).Exec(ctx))
+	require.NoError(t, create(4).SetTestAccount(true).SetStatus(user.StatusPaid).SetSubscriptionSource("admin").Exec(ctx))
+	require.NoError(t, create(5).SetBanned(true).SetIsActive(false).Exec(ctx))
 
 	got, err := repo.AnalyticsSeed(ctx)
 	require.NoError(t, err)
 
 	week := catalog.Period(catalog.Week, now)
 	require.Equal(t, analytics.Tally{
-		"accounts.total|free":                  1,
-		"accounts.total|paid":                  1,
+		"accounts.total|free":                  2,
+		"accounts.total|paid":                  2,
 		"accounts.total|vip":                   1,
 		"accounts.bot_enabled|free":            1,
+		"accounts.bot_enabled|paid":            1,
 		"accounts.bot_enabled|vip":             1,
 		"accounts.onboarded":                   1,
 		"accounts.paid_source|tebex":           1,
+		"accounts.paid_source|admin":           1,
 		"accounts.paid_source|vip":             1,
 		"accounts.cancel_pending":              1,
+		"accounts.inactive|banned":             1,
+		"accounts.inactive|disabled":           1,
 		"accounts.payment_failed":              1,
-		"accounts.locale|en":                   2,
+		"accounts.locale|en":                   4,
 		"accounts.locale|fr":                   1,
 		"accounts.pages_hidden|commands":       1,
 		"accounts.pages_hidden|leaderboard":    1,
 		"accounts.pages_hidden|songqueue":      1,
-		"accounts.by_signup_week|" + week:      3,
-		"accounts.paid_by_signup_week|" + week: 2,
+		"accounts.by_signup_week|" + week:      5,
+		"accounts.paid_by_signup_week|" + week: 3,
 	}, got)
 }
 

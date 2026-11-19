@@ -6,6 +6,7 @@ package worker
 import (
 	"ItsBagelBot/internal/analytics"
 	"context"
+	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/action"
@@ -13,6 +14,7 @@ import (
 	"ItsBagelBot/app/twitch/outgress/internal/conduit"
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/channelruntime"
+	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
@@ -79,6 +81,7 @@ type Worker struct {
 	batch       BatchStore
 	actions     action.Registry
 	userIDs     *cache.Cache[string]
+	staleDrops  atomic.Uint64
 
 	modVerifier *ModVerifier
 	reauth      *ReauthNotifier
@@ -163,8 +166,12 @@ const (
 	UserIDCacheTTL      = 10 * time.Minute
 )
 
-func NewUserIDCache() *cache.Cache[string] {
-	return cache.New[string](UserIDCacheCapacity, UserIDCacheTTL)
+func NewUserIDCache(feeds ...cache.Feed) *cache.Cache[string] {
+	c := cache.New[string](UserIDCacheCapacity, UserIDCacheTTL)
+	for _, feed := range feeds {
+		c.InvalidateOn(feed, loginKeys, invalidate.ScopeRename)
+	}
+	return c
 }
 
 func recordStageDuration(ctx context.Context, attribute string, started time.Time) {
@@ -192,18 +199,18 @@ func (w *Worker) botIdentity(action string, payload *outgress.Message) (string, 
 	return id, true
 }
 
-func (w *Worker) modStatus(_ context.Context, payload *outgress.Message, ch manage.Channel, found bool) bool {
+func (w *Worker) modStatus(ctx context.Context, payload *outgress.Message, ch manage.Channel, found bool) bool {
 	if w.modVerifier == nil {
 		return found && ch.IsMod
 	}
-	return w.modVerifier.Status(ch, found, payload.BroadcasterID, payload.SenderID)
+	return w.modVerifier.Status(ctx, ch, found, payload)
 }
 
-func (w *Worker) scheduleModStatus(broadcasterID, senderID string) {
+func (w *Worker) scheduleModStatus(ctx context.Context, broadcasterID, senderID string) {
 	if !w.backgroundAllowed(context.Background(), broadcasterID) {
 		return
 	}
 	if w.modVerifier != nil {
-		w.modVerifier.Schedule(broadcasterID, senderID)
+		w.modVerifier.Schedule(ctx, broadcasterID, senderID)
 	}
 }

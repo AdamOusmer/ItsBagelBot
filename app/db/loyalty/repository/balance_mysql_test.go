@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/internal/testdb"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,9 +57,7 @@ func (w balanceWriter) round(ctx context.Context, round int) error {
 	if _, _, err := w.repo.BalanceAdjustViewer(ctx, adjust); err != nil {
 		return fmt.Errorf("adjust: %w", err)
 	}
-	w.repo.RecordEarned(data.LoyaltyEarnedDTO{UserID: w.channel, Entries: []data.LoyaltyEarnEntry{{ViewerID: w.earner(round), ViewerLogin: fmt.Sprint("earner", round), Points: 3}}})
-	w.repo.Flush(ctx)
-	return nil
+	return w.repo.ApplyEarned(ctx, data.LoyaltyEarnedDTO{BatchID: fmt.Sprint(w.channel, ":", round), UserID: w.channel, Entries: []data.LoyaltyEarnEntry{{ViewerID: w.earner(round), ViewerLogin: fmt.Sprint("earner", round), Points: 3}}})
 }
 
 func (w balanceWriter) run(errs chan<- error) {
@@ -70,7 +67,7 @@ func (w balanceWriter) run(errs chan<- error) {
 }
 
 func TestBalanceMySQLReplicasPostOtherChannelsWithoutLockConflicts(t *testing.T) {
-	raw := testdb.MySQL(t, "loyalty_balance_")
+	raw := loyaltyMySQL(t, "loyalty_balance_")
 	replicas := make([]*Loyalty, balanceReplicas)
 	for i := range replicas {
 		replicas[i] = mysqlReplica(t, raw)
@@ -112,13 +109,11 @@ func (w sharedChannelWriter) round(ctx context.Context, round int) error {
 	if _, _, err := w.repo.BalanceAdjustViewer(ctx, adjust); err != nil {
 		return fmt.Errorf("adjust: %w", err)
 	}
-	w.repo.RecordEarned(data.LoyaltyEarnedDTO{UserID: 1, Entries: []data.LoyaltyEarnEntry{{ViewerID: balanceSender, ViewerLogin: "sender", Points: 3}}})
-	w.repo.Flush(ctx)
-	return nil
+	return w.repo.ApplyEarned(ctx, data.LoyaltyEarnedDTO{BatchID: fmt.Sprint(w.replica, ":", round), UserID: 1, Entries: []data.LoyaltyEarnEntry{{ViewerID: balanceSender, ViewerLogin: "sender", Points: 3}}})
 }
 
 func TestBalanceMySQLReplicasPostSameChannelExactly(t *testing.T) {
-	raw := testdb.MySQL(t, "loyalty_shared_")
+	raw := loyaltyMySQL(t, "loyalty_shared_")
 	errs := make(chan error, balanceReplicas*balanceRounds)
 	var writers sync.WaitGroup
 	for replica := range balanceReplicas {

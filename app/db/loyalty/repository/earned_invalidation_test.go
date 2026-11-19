@@ -10,26 +10,28 @@ import (
 
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/invalidate"
-	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/testnats"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestFlushBroadcastsEarnedViewersPerChannel(t *testing.T) {
-	repo, _ := newLoyaltyRepo(t)
+func TestApplyEarnedBroadcastsViewersPerChannel(t *testing.T) {
+	repo, _ := sqliteRetentionRepo(t)
 	nc := testnats.Connect(t)
-	sub, err := nc.SubscribeSync("test.invalidate." + loyaltyrpc.InvalidateScope)
+	sub, err := nc.SubscribeSync("test.invalidate." + invalidate.ScopeLoyalty)
 	require.NoError(t, err)
 	require.NoError(t, nc.Flush())
-	repo.SetInvalidation(nc, "test.invalidate")
+	repo.SetInvalidations(bus.NewInvalidations(nc, "test.invalidate", nil))
 
-	repo.RecordEarned(data.LoyaltyEarnedDTO{UserID: 1, Entries: []data.LoyaltyEarnEntry{{ViewerID: 7, Points: 50}, {ViewerID: 8, Points: 5}}})
-	repo.RecordEarned(data.LoyaltyEarnedDTO{UserID: 2, Entries: []data.LoyaltyEarnEntry{{ViewerID: 7, Points: 50}}})
-	repo.Flush(t.Context())
-
+	for _, dto := range []data.LoyaltyEarnedDTO{
+		{BatchID: "one", UserID: 1, Entries: []data.LoyaltyEarnEntry{{ViewerID: 7, Points: 50}, {ViewerID: 8, Points: 5}}},
+		{BatchID: "two", UserID: 2, Entries: []data.LoyaltyEarnEntry{{ViewerID: 7, Points: 50}}},
+	} {
+		require.NoError(t, repo.ApplyEarned(t.Context(), dto))
+	}
 	got := map[string][]string{}
 	for range 2 {
 		msg, err := sub.NextMsg(3 * time.Second)

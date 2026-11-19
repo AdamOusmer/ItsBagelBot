@@ -68,11 +68,11 @@ func RequestInto(ctx context.Context, nc *nats.Conn, request RPCRequest, reply a
 
 	requestMsg := nats.NewMsg(subject)
 	requestMsg.Data = body
-	insertTraceHeaders(ctx, requestMsg)
 
 	segment := startMessagingSegment(ctx, messagingSpan{
 		name: "nats.request", operation: "request", destination: subject,
 	})
+	insertTraceHeaders(ctx, requestMsg)
 	msg, err := RequestMsgWithContext(ctx, nc, requestMsg)
 	endMessagingSegment(segment, err)
 	if err != nil {
@@ -149,6 +149,7 @@ func jsonRPCHandler[Req any, Resp any](
 	if timeout <= 0 {
 		timeout = defaultRPCTimeout
 	}
+	app = monitor.Resolve(app)
 
 	return func(msg *nats.Msg) {
 		start := time.Now()
@@ -194,6 +195,7 @@ func msgRPCHandler(subject string, timeout time.Duration, app *newrelic.Applicat
 	if timeout <= 0 {
 		timeout = defaultRPCTimeout
 	}
+	app = monitor.Resolve(app)
 	return func(msg *nats.Msg) {
 		txn := startRPCTransaction(app, subject, msg)
 		defer txn.End()

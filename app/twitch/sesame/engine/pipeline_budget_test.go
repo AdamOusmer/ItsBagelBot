@@ -41,6 +41,23 @@ func TestProcessBoundsAStalledHandlerAndStillPublishes(t *testing.T) {
 	assert.Equal(t, []published{{standardSubj, outgress.TypeChat, "", "late"}}, publishedMessages(pub))
 }
 
+func TestProcessBudgetIncludesQueueTime(t *testing.T) {
+	msg := chatMsg(t, "standard", "hi")
+	previous := messageBudget
+	messageBudget = 40 * time.Millisecond
+	t.Cleanup(func() { messageBudget = previous })
+	time.Sleep(60 * time.Millisecond)
+	var observed time.Time
+	m := module.NewModule("budget", module.KindCore)
+	m.On(chatType, func(ctx context.Context, _ *module.Context, _ module.Emit) error {
+		observed, _ = ctx.Deadline()
+		return nil
+	})
+	p := newPipelineWith(&fakePublisher{}, fakeReader{}, m.Build())
+	require.NoError(t, p.Process(msg))
+	assert.Equal(t, msg.DeliveredAt().Add(messageBudget), observed)
+}
+
 func TestProcessInheritsTheLaneDeadlineWhenShorter(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()

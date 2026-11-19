@@ -30,5 +30,15 @@
   "delegating": "Konten mit Beauftragten",
   "delegatingShare": "Anteil der Konten mit Beauftragten",
   "newSubscribers": "Neue Ko-fi-Mitglieder",
-  "lastDonation": "Letzte Ko-fi-Zahlung"
+  "lastDonation": "Letzte Ko-fi-Zahlung",
+  "stopped": "Bot-Stopps",
+  "restarted": "Zurückgekommen",
+  "netStops": "Saldo",
+  "inactiveNow": "Jetzt inaktiv",
+  "inactiveChange": "Veränderung im Zeitraum",
+  "dormantNow": "Jetzt ruhend",
+  "dormantShare": "Anteil der Konten",
+  "wentDormant": "Im Zeitraum ruhend geworden",
+  "inactiveShare": "Anteil der Konten",
+  "deletedWindow": "Im Zeitraum gelöscht"
 }

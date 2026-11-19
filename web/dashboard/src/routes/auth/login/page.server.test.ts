@@ -10,8 +10,9 @@ mock.module('@bagel/kit/server/analytics', () => ({ count: (...args: string[]) =
 mock.module('#lib/server/oauth', () => ({
   safeNextPath: () => null,
   scopes: () => ['openid'],
-  twitch: () => ({ createAuthorizationURL: () => new URL('https://id.twitch.tv/oauth2/authorize') })
+  twitch: () => ({ createAuthorizationURL: (state: string) => new URL(`https://id.twitch.tv/oauth2/authorize?state=${state}`) })
 }));
+mock.module('@bagel/kit/server/oauth', () => ({ generateState: () => 's' }));
 const { load } = await import('./+page.server');
 beforeEach(() => { counts.length = 0; });
 
@@ -22,5 +23,21 @@ test.each([false, true])('counts only an actual authorization start with session
   } catch (err) {
     expect((err as { status: number }).status).toBe(302);
   }
-  expect(counts).toEqual(signedIn ? [] : [['auth.login', 'started']]);
+  expect(counts).toEqual(signedIn ? [] : [['auth.login', 'started'], ['signup.via', 'none', 'started']]);
+});
+
+test.each([
+  ['?via=chatgpt', 'chatgpt', 's.chatgpt'],
+  ['?via=private-text', 'none', 's.none'],
+  ['', 'none', 's.none']
+])('carries the source %p in the OAuth state only', async (query, via, sent) => {
+  const stored = new Map<string, string>();
+  const cookies = { get: () => undefined, set: (n: string, v: string) => void stored.set(n, v), delete: () => {} };
+  let location = '';
+  try {
+    await load({ cookies, url: new URL(`https://dashboard.example/auth/login${query}`), locals: { session: null } } as never);
+  } catch (err) {
+    location = (err as { location: string }).location;
+  }
+  expect([counts.at(-1), stored.get('oauth_state'), new URL(location).searchParams.get('state')]).toEqual([['signup.via', via, 'started'], 's', sent]);
 });

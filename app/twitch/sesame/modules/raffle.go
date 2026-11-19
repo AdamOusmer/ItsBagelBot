@@ -296,7 +296,7 @@ func (rc raffleCmd) cancel(ctx context.Context, _ string, emit module.Emit) erro
 		return err
 	}
 	if ok {
-		rc.analytics.Count(catalog.GamesRounds, "raffle", "cancelled")
+		rc.analytics.AddContext(ctx, catalog.GamesRounds, 1, "raffle", "cancelled")
 		rc.reply(emit, "", "raffle.cancelled")
 	} else {
 		rc.reply(emit, "", "raffle.status.closed")

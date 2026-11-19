@@ -27,7 +27,7 @@ import (
 func TestWatchProjectionDistinguishesDeletedUserFromUnavailableSource(t *testing.T) {
 	nc := testnats.Connect(t)
 	client := testdb.Open(t, "watch-projection-rpc", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
-	repo := repository.NewUsers(client, nil, bustest.NewPublisher(), nil, zap.NewNop())
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Pub: bustest.NewPublisher(), Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(context.Background()) })
 	require.NoError(t, rpc.SubscribeProjection(rpc.Wiring{RPCWiring: bus.RPCWiring{NC: nc, Queue: "projection-test", Log: zap.NewNop()}, Repo: repo}, "projection.users.get"))
 	require.NoError(t, nc.Flush())

@@ -24,7 +24,7 @@
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { ANALYTICS_LIVE, ANALYTICS_REFRESH_MS, type AnalyticsView, type Bar, type DataTable, type Fact as ViewFact, type GainLoss, type Name, type Phrase, type Series } from '#lib/analytics-page';
+  import { ANALYTICS_LIVE, ANALYTICS_REFRESH_MS, type AnalyticsView, type Bar, type DataTable, type Fact as ViewFact, type Flow, type GainLoss, type Name, type Phrase, type Series } from '#lib/analytics-page';
   import { dateLabel, signed } from '#lib/analytics-view';
   import type { DonationsView } from '#lib/donations-view';
 
@@ -39,6 +39,7 @@
     builtIn: 'command',
     breadth: 'modulesOn',
     imports: 'importSource',
+    signupSources: 'via',
     checkout: 'plan',
     donations: 'currency',
     donationMonths: 'month',
@@ -193,6 +194,34 @@
       {:else}
         <div class="chart-box"><EmptyState title={t('admin.analytics.noRows')} /></div>
       {/if}
+    </Card>
+  {/if}
+{/snippet}
+
+{#snippet flowCard(id: string, flow: Flow | undefined)}
+  {#if !flow}
+    {@render loadingCard(id, SKELETON_HEIGHT.lines)}
+  {:else}
+    {@const series = flow.lines.map((line) => ({ key: line.key, label: phrase(line.name), tone: line.tone, dashed: line.dashed }))}
+    <Card as="section">
+      {@render head(id)}
+      {#if flow.points.length > 1}
+        <LineSeries
+          points={flow.points}
+          {series}
+          label={t(`admin.analytics.card.${id}`)}
+          formatValue={(value) => (value == null ? '' : formatCount(value))}
+          formatTime={formatDay}
+          gapMs={DAY_MS}
+        />
+      {:else}
+        <div class="chart-box"><EmptyState title={t('admin.analytics.noRows')} /></div>
+      {/if}
+      <FactList layout="tiles">
+        {#each flow.facts as fact (fact.key)}
+          <Fact term={t(`admin.analytics.fact.${fact.key}`)}>{fact.value}</Fact>
+        {/each}
+      </FactList>
     </Card>
   {/if}
 {/snippet}
@@ -360,6 +389,11 @@
     {@render seriesCard('signups', view?.growth.signups)}
     {@render gainLossCard(view?.growth.gainLoss)}
     <Grid cols={3} stackAt="md">
+      {@render flowCard('stops', view?.growth.stops)}
+      {@render flowCard('inactive', view?.growth.inactive)}
+      {@render flowCard('dormant', view?.growth.dormant)}
+    </Grid>
+    <Grid cols={3} stackAt="md">
       {@render barCard('funnel', view?.growth.funnel)}
       {@render barCard('churn', view?.growth.churn, view?.growth.churnFacts)}
       {@render barCard('presets', view?.growth.presets)}
@@ -369,6 +403,7 @@
       {@render barCard('onboarding', view?.growth.onboarding, view?.growth.onboarded)}
     </Grid>
     {@render tableCard('imports', view?.growth.imports)}
+    {@render tableCard('signupSources', view?.growth.signupSources)}
     <Grid cols={2} stackAt="md">
       {@render barCard('login', view?.growth.login)}
       {@render factsCard('trials', view?.growth.trials)}

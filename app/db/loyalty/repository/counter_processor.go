@@ -20,7 +20,6 @@ import (
 )
 
 const (
-	counterBatchWindow   = 20 * time.Millisecond
 	counterBatchMessages = 128
 	counterQueueMessages = 256
 	counterMaxBumps      = 4096
@@ -188,8 +187,6 @@ func (c *counterQueueCollector) drainNext() (*counterRequest, bool) {
 func (c *counterQueueCollector) collect(first *counterRequest) []*counterRequest {
 	batch := []*counterRequest{first}
 	bumps := len(first.dto.Bumps)
-	timer := time.NewTimer(counterBatchWindow)
-	defer timer.Stop()
 	for len(batch) < counterBatchMessages && bumps < counterBatchBumps {
 		select {
 		case request := <-c.processor.queue:
@@ -199,10 +196,10 @@ func (c *counterQueueCollector) collect(first *counterRequest) []*counterRequest
 			}
 			batch = append(batch, request)
 			bumps += len(request.dto.Bumps)
-		case <-timer.C:
-			return batch
 		case <-c.processor.stop:
 			c.stopping = true
+			return batch
+		default:
 			return batch
 		}
 	}
@@ -290,6 +287,30 @@ func (p *CounterProcessor) processBatch(batch []*counterRequest) {
 	defer cancel()
 	owner := "pending:" + uuid.NewString()
 	tracked := p.claimCounterDeliveries(ctx, deliveries, owner)
+	trackedLanes := counterDeliveryLanes(tracked)
+	var workers sync.WaitGroup
+	for i, lane := range counterDeliveryLanes(deliveries) {
+		if len(lane) == 0 {
+			continue
+		}
+		workers.Go(func() { p.processCounterLane(ctx, lane, trackedLanes[i], owner) })
+	}
+	workers.Wait()
+}
+
+func counterDeliveryLanes(deliveries []*counterDelivery) [2][]*counterDelivery {
+	var bot, channels []*counterDelivery
+	for _, delivery := range deliveries {
+		if delivery.request.dto.UserID == 0 {
+			bot = append(bot, delivery)
+			continue
+		}
+		channels = append(channels, delivery)
+	}
+	return [2][]*counterDelivery{bot, channels}
+}
+
+func (p *CounterProcessor) processCounterLane(ctx context.Context, deliveries, tracked []*counterDelivery, owner string) {
 	p.persistDeliveries(ctx, activeCounterDeliveries(deliveries))
 	p.finalizeCounterClaims(tracked, owner)
 	p.finish(deliveries)

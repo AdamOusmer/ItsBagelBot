@@ -77,5 +77,8 @@
   "recurringShare": "Proporción recurrente",
   "previousGross": "Periodo anterior",
   "grossChange": "Cambio",
-  "month": "Mes"
+  "month": "Mes",
+  "via": "Origen",
+  "started": "Inicios de sesión",
+  "signup": "Cuentas nuevas"
 }

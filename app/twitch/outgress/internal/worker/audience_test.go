@@ -53,7 +53,7 @@ func checkAudiencePoll(t *testing.T, tc audiencePoll) {
 	rec := analytics.New(vc, zap.NewNop(), nil, analytics.WithoutTicker(), analytics.WithClock(func() time.Time { return now }))
 	t.Cleanup(rec.Close)
 	w := pipelineWorker(t, &scriptedTransport{responses: audienceResponses(tc)})
-	w.SetLiveWriter(NewLiveWriter(vc, nil, "", time.Hour, zap.NewNop()))
+	w.SetLiveWriter(NewLiveWriter(vc, nil, time.Hour))
 	w.SetAnalytics(rec)
 	store := projection.NewStore(vc)
 	w.SetStreamInfoStore(store)

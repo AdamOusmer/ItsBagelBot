@@ -1,7 +1,7 @@
  # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-FROM docker.io/library/debian:bookworm-slim@sha256:99c0b25c46d0214d5a2091092e7908907dcaecd6a962cde0ac700acee222b6f3
+FROM docker.io/library/debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc
 
 ARG TARGETARCH
 ARG WARP_VERSION=2026.7.1377.0
@@ -10,6 +10,7 @@ ARG WARP_SHA256_amd64=95d33c2b4fc42f21c204981c51470a6a679d618fb0b78ee64bdd0db142
 
 # 2026.8.2110.0 reconnects forever without NET_ADMIN (fwmark rules), which the pod must not have.
 RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends curl gnupg ca-certificates \
     && curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg \
         | gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg \

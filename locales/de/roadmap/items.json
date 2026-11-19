@@ -1,0 +1,82 @@
+{
+  "209f337ab203": {
+    "title": "Bot-Status in deinem Dashboard",
+    "summary": "Sieh nach, ob der Bot verbunden ist, warum etwas fehlgeschlagen ist, und teste Alerts, Belohnungen und Songwünsche mit einem Klick."
+  },
+  "e4683946cf01": {
+    "title": "Einrichtung für deinen ersten Stream",
+    "summary": "Lass den Bot schon während deines allerersten Streams im Chat antworten, mit den passenden Befehlen direkt aktiv."
+  },
+  "686861f96b01": {
+    "title": "Unterstützung für den geteilten Chat",
+    "summary": "Befehle, Punkte und Moderation funktionieren wie gewohnt, wenn du deinen Chat mit anderen Streamern teilst."
+  },
+  "b43662db4096": {
+    "title": "Import, Export und Backup",
+    "summary": "Nimm deine Punkte von deinem alten Bot mit und exportiere oder stelle dein gesamtes Setup jederzeit wieder her."
+  },
+  "8eddf0c4db2d": {
+    "title": "Schutz vor Hate-Raids",
+    "summary": "Ein Schalter, um den Chat während eines Hate-Raids abzuriegeln, und einer, um alles wieder zurückzusetzen."
+  },
+  "e9caa97aa4a1": {
+    "title": "Shoutouts, Geburtstage und Punkte-Regen",
+    "summary": "Eine Shoutout-Warteschlange, Geburtstagsnachrichten, Punkte-Regen und Umfrageergebnisse, die bis zum Ende verborgen bleiben."
+  },
+  "af3c50f5329f": {
+    "title": "Vollständig übersetztes Dashboard",
+    "summary": "Jede Seite des Dashboards komplett auf Französisch, Russisch, Spanisch, Deutsch und Portugiesisch übersetzt."
+  },
+  "76f8f84a616c": {
+    "title": "Alerts und Overlays in OBS",
+    "summary": "Follow-, Sub-, Raid- und Belohnungs-Alerts im Stream über eine einzige OBS-Browserquelle, ohne zusätzliche App."
+  },
+  "a401a63332af": {
+    "title": "Mod-Verlauf und Notizen zu Zuschauern",
+    "summary": "Durchsuche jede Moderationsaktion mit ausführender Person und Grund, und mache dir private Notizen zu Zuschauern."
+  },
+  "4d6b80a99056": {
+    "title": "Belohnungs-Shop für Zuschauer",
+    "summary": "Zuschauer geben ihre Punkte für Sounds, Chat-Nachrichten und andere von dir eingerichtete Belohnungen aus."
+  },
+  "142291a73c3c": {
+    "title": "Bessere Vorhersagen",
+    "summary": "Starte mehrere Punkte-Vorhersagen gleichzeitig, begrenze Einsätze und mache falsche Ergebnisse rückgängig."
+  },
+  "21179d46208b": {
+    "title": "YouTube-Unterstützung",
+    "summary": "Nutze denselben Bot, dieselben Befehle und dieselben Alerts auf YouTube, wenn du multistreamst."
+  },
+  "1e9b628b6d08": {
+    "title": "Fertige Rezepte",
+    "summary": "Starte mit fertigen Rezepten für Umfragen, Vorhersagen, BRB-Pausen und mehr, und passe sie nach deinen Wünschen an."
+  },
+  "496117e1999f": {
+    "title": "Teilnahmeregeln für Giveaways",
+    "summary": "Bestimme, wer an einem Giveaway teilnehmen darf: Follower, Subs, Watchtime oder Punkte, inklusive Bonuschancen."
+  },
+  "8916f5441490": {
+    "title": "Stream-Zusammenfassungen",
+    "summary": "Eine gespeicherte Zusammenfassung nach jedem Stream: neue Follower, aktivste Chatter, gespielte Songs und eingelöste Belohnungen."
+  },
+  "03d345d90793": {
+    "title": "Kick-Unterstützung",
+    "summary": "Lass denselben Bot nach YouTube auch auf Kick laufen."
+  },
+  "dc30a876c560": {
+    "title": "Live-Chat-Übersetzung",
+    "summary": "Optionale Übersetzung von Chat-Nachrichten, damit du dich mit Zuschauern in jeder Sprache unterhalten kannst."
+  },
+  "172af6d6bec0": {
+    "title": "OBS-Steuerung mit Bagel Bridge",
+    "summary": "Lass Rezepte OBS-Szenen und Quellen über die ItsBagelBot-Desktop-App wechseln."
+  },
+  "d74d64c50f7f": {
+    "title": "Alerts bei Bann-Umgehung",
+    "summary": "Hebe Chatter hervor, die Twitch als wahrscheinliche Bann-Umgeher einstuft, damit deine Mods sie prüfen können."
+  },
+  "3181a7822b6c": {
+    "title": "Raid-Vorschläge",
+    "summary": "Optionale Vorschläge für kleinere ItsBagelBot-Streamer, die du am Ende deines Streams raiden kannst."
+  }
+}

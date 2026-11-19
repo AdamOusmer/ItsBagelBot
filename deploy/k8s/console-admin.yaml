@@ -23,9 +23,9 @@ metadata:
   namespace: app
   annotations:
     secrets.doppler.com/reload: "true"
-    itsbagelbot.com/restart-on-tls-secret: "console-admin-tls,nats-client-tls,valkey-client-tls"
+    secret.reloader.stakater.com/reload: "console-admin-tls,nats-client-tls,valkey-client-tls"
 spec:
-  replicas: 1
+  replicas: 2
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -82,6 +82,8 @@ spec:
         sysctls:
           - name: net.ipv4.tcp_slow_start_after_idle
             value: "0"
+          - name: net.ipv4.tcp_rto_min_us
+            value: "10000"
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
@@ -89,7 +91,7 @@ spec:
       priorityClassName: bagel-edge
       containers:
         - name: console-admin
-          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1794864991-7aaccc6274d6@sha256:30eaa775b6fb84f449cdfe6ea187168b0f82cce27735e4497229e3d9a5564c90
+          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1795015800-218d5e138437@sha256:f752e5cf5a757cc58fa099ae9e1884b4437052e81a681ed305a1707896007b20
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_CLIENT_CERT_FILE
@@ -196,6 +198,10 @@ spec:
               value: "true"
             - name: NEW_RELIC_ALLOW_ALL_HEADERS
               value: "false"
+            - name: NEW_RELIC_ERROR_COLLECTOR_EXPECTED_ERROR_CODES
+              value: "400-499"
+            - name: NEW_RELIC_IGNORING_RULES
+              value: "^/healthz$,^/readyz$"
             - name: NEW_RELIC_LABELS
               value: "service:console-admin;tier:web;component:ssr"
             - name: NEW_RELIC_PROCESS_HOST_DISPLAY_NAME
@@ -226,10 +232,10 @@ spec:
           resources:
             requests:
               cpu: 50m
-              memory: 128Mi
+              memory: 192Mi
             limits:
               cpu: 1000m
-              memory: 256Mi
+              memory: 384Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

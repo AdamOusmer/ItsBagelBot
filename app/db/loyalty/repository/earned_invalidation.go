@@ -4,37 +4,66 @@
 package repository
 
 import (
+	"context"
 	"strconv"
+	"time"
 
-	"github.com/nats-io/nats.go"
+	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/cache"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
+	valkey_go "github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/internal/domain/invalidate"
-	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 )
 
-func (r *Loyalty) SetInvalidation(nc *nats.Conn, prefix string) {
-	r.persistMu.Lock()
-	defer r.persistMu.Unlock()
-	r.nc, r.invalidationPrefix = nc, prefix
+func (r *Loyalty) SetInvalidations(h *bus.Invalidations) {
+	r.invalidations.Store(h)
 }
 
-func (r *Loyalty) invalidationReady() bool {
-	return r.nc != nil && !r.nc.IsClosed() && r.invalidationPrefix != ""
+func (r *Loyalty) SetBalanceCache(client valkey_go.Client) {
+	r.balanceCache = &pkg_valkey.LoyaltyCache{Client: client}
 }
 
-// Caller must hold r.persistMu.
-func (r *Loyalty) publishEarned(earn map[balKey]*earnSum) {
-	if !r.invalidationReady() {
+func (r *Loyalty) publishBalanceChange(userID uint64, viewers ...uint64) {
+	keys := make([]string, len(viewers))
+	for i, viewer := range viewers {
+		keys[i] = strconv.FormatUint(viewer, 10)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := r.balanceCache.Drop(ctx, cache.Event{ID: userID, Keys: keys}); err != nil {
+		r.log.Warn("loyalty: failed to drop cached balances", zap.Uint64("user_id", userID), zap.Error(err))
+	}
+	r.publishChange(invalidate.ScopeLoyalty, userID, keys...)
+}
+
+func (r *Loyalty) publishChange(scope invalidate.Scope, userID uint64, keys ...string) {
+	h := r.invalidations.Load()
+	if h == nil {
 		return
 	}
-	viewers := map[uint64][]string{}
-	for k := range earn {
-		viewers[k.userID] = append(viewers[k.userID], strconv.FormatUint(k.viewerID, 10))
-	}
-	for userID, ids := range viewers {
-		if err := invalidate.PublishKeys(r.nc, r.invalidationPrefix, loyaltyrpc.InvalidateScope, strconv.FormatUint(userID, 10), ids...); err != nil {
-			r.log.Warn("loyalty: failed to broadcast earned invalidation", zap.Uint64("user_id", userID), zap.Error(err))
+	_ = h.Publish(scope, userID, keys...)
+}
+
+func (r *Loyalty) publishEarned(userID uint64, entries []data.LoyaltyEarnEntry) {
+	viewers := make(map[uint64]struct{}, len(entries))
+	for _, entry := range entries {
+		if earnsAnything(entry) {
+			viewers[entry.ViewerID] = struct{}{}
 		}
 	}
+	ids := make([]uint64, 0, len(viewers))
+	for viewer := range viewers {
+		ids = append(ids, viewer)
+	}
+	if len(ids) > 0 {
+		r.publishBalanceChange(userID, ids...)
+	}
+}
+
+func (r *Loyalty) publishAccountChange(userID uint64) {
+	r.publishBalanceChange(userID)
+	r.publishChange(invalidate.ScopeLoyaltyCounters, userID)
 }

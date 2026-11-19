@@ -109,8 +109,7 @@ const SERVICE_TIER: Record<string, string> = {
   sesame: 'app',
   'twitch-ingress': 'app',
   'console-dashboard': 'app',
-  'console-admin': 'app',
-  clusterops: 'ops'
+  'console-admin': 'app'
 };
 
 export const PINNABLE = Object.keys(SERVICE_TIER).sort();

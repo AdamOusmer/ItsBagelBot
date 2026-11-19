@@ -491,9 +491,6 @@ func (r *Users) publishGrantPhase(ctx context.Context, row *ent.PremiumGrant, ph
 	if err := r.publishChanged(ctx, row.UserID); err != nil {
 		return err
 	}
-	if err := r.publishStatusInvalidation(ctx, row.UserID); err != nil {
-		return err
-	}
 	_, err := db.WithQuery(ctx, r.client.PremiumGrant.UpdateOneID(row.ID).SetProjectionPhase(phase).Save)
 	return err
 }

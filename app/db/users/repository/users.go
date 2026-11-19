@@ -7,6 +7,7 @@ import "ItsBagelBot/internal/domain/lifecycle"
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -70,51 +71,60 @@ type UserView struct {
 }
 
 type Users struct {
-	client             *ent.Client
-	views              *cache.Cache[UserView]
-	stats              *cache.Cache[UserCounts]
-	packer             domaincrypto.Packer
-	pub                bus.Publisher
-	preferences        *batch.Group[prefWrite]
-	app                *newrelic.Application
-	log                *zap.Logger
-	invalidationPrefix string
-	nc                 *nats.Conn
-	erasures           ErasureStore
-	revoker            TokenRevoker
-	analytics          *analytics.Recorder
-	adminAuth          *adminauth.Client
-	deviceSigner       *tokensign.Signer
+	client        *ent.Client
+	views         *cache.Cache[UserView]
+	stats         *cache.Cache[UserCounts]
+	packer        domaincrypto.Packer
+	pub           bus.Publisher
+	preferences   *batch.Group[prefWrite]
+	app           *newrelic.Application
+	log           *zap.Logger
+	invalidations *bus.Invalidations
+	nc            *nats.Conn
+	erasures      ErasureStore
+	revoker       TokenRevoker
+	analytics     *analytics.Recorder
+	adminAuth     *adminauth.Client
+	deviceSigner  *tokensign.Signer
 }
 
 func (r *Users) SetAdminAuth(client *adminauth.Client) { r.adminAuth = client }
 
+func (r *Users) Invalidations() *bus.Invalidations { return r.invalidations }
+
 func (r *Users) SetAnalytics(rec *analytics.Recorder) {
 	r.analytics = rec
-}
-
-func (r *Users) SetInvalidationPrefix(prefix string) {
-	r.invalidationPrefix = strings.TrimSuffix(strings.TrimSpace(prefix), ".")
 }
 
 func (r *Users) SetInvalidationConn(nc *nats.Conn) {
 	r.nc = nc
 }
 
-func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher, app *newrelic.Application, log *zap.Logger) *Users {
+type UsersConfig struct {
+	Client *ent.Client
+	Packer domaincrypto.Packer
+	Pub    bus.Publisher
+	App    *newrelic.Application
+	Log    *zap.Logger
+}
+
+func NewUsers(cfg UsersConfig) *Users {
+	client, packer, pub, app, log := cfg.Client, cfg.Packer, cfg.Pub, cfg.App, cfg.Log
+	pub, h := bus.WithInvalidations(pub)
 
 	if log == nil {
 		log = zap.NewNop()
 	}
 
 	r := &Users{
-		client: client,
-		views:  cache.New[UserView](userCacheCapacity, userCacheTTL, cache.StaleOnError(userCacheTTL)),
-		stats:  cache.New[UserCounts](userStatsCapacity, userStatsTTL),
-		packer: packer,
-		pub:    pub,
-		app:    app,
-		log:    log,
+		client:        client,
+		views:         cache.New[UserView](userCacheCapacity, userCacheTTL, cache.StaleOnError(userCacheTTL)).InvalidateOn(h, cache.UserKeys(userKeyPrefix), data.SubjectUserChanged, data.SubjectUserDeleted),
+		stats:         cache.New[UserCounts](userStatsCapacity, userStatsTTL).InvalidateOn(h, func(cache.Event) []string { return []string{userStatsKey} }, data.SubjectUserChanged, data.SubjectUserDeleted),
+		packer:        packer,
+		pub:           pub,
+		invalidations: h,
+		app:           app,
+		log:           log,
 	}
 
 	r.preferences = r.newPreferenceGroup()
@@ -132,7 +142,10 @@ func (d displayName) storable() displayName {
 }
 
 func (d displayName) changes(existing *ent.User, username string) bool {
-	return existing.Username != username || (d != "" && existing.DisplayName != string(d))
+	if existing.Username != username {
+		return true
+	}
+	return d != "" && existing.DisplayName != string(d)
 }
 
 func (d displayName) apply(upd *ent.UserUpdateOne) *ent.UserUpdateOne {
@@ -142,17 +155,29 @@ func (d displayName) apply(upd *ent.UserUpdateOne) *ent.UserUpdateOne {
 	return upd.SetDisplayName(string(d))
 }
 
-func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayName, email string) error {
-	if err := validate.UserID(id); err != nil {
+type Registration struct {
+	ID          uint64
+	Username    string
+	DisplayName string
+	Email       string
+}
+
+func (reg Registration) validate() error {
+	if err := validate.UserID(reg.ID); err != nil {
 		return err
 	}
-	if err := validate.Username(username); err != nil {
+	if err := validate.Username(reg.Username); err != nil {
 		return err
 	}
-	if err := validate.Email(email); err != nil {
+	return validate.Email(reg.Email)
+}
+
+func (r *Users) Register(ctx context.Context, request Registration) error {
+	id, username, email := request.ID, request.Username, request.Email
+	if err := request.validate(); err != nil {
 		return err
 	}
-	name := displayName(rawDisplayName).storable()
+	name := displayName(request.DisplayName).storable()
 	reg := registration{id: id, username: username, email: email, name: name}
 
 	created := false
@@ -188,7 +213,6 @@ type registration struct {
 	name     displayName
 }
 
-// createUser reports false when a concurrent login created the row first; that row only gets the name refresh.
 func (r *Users) createUser(ctx context.Context, reg registration) (bool, error) {
 	_, err := r.client.User.Create().
 		SetID(reg.id).
@@ -209,44 +233,52 @@ func (r *Users) createUser(ctx context.Context, reg registration) (bool, error) 
 func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 	key := cache.UserKey(userKeyPrefix, id)
 	return r.views.GetOrLoad(ctx, key, func(ctx context.Context) (UserView, error) {
-		return db.WithRead(ctx, func(ctx context.Context) (UserView, error) {
-
-			u, err := r.client.User.Query().
-				Where(user.IDEQ(id)).
-				Only(ctx)
-			if ent.IsNotFound(err) {
-				// Drop the view so StaleOnError cannot resurrect a deleted user.
-				r.views.Invalidate(key)
-			}
-			if err != nil {
-				return UserView{}, err
-			}
-
-			return UserView{
-				Lifecycle:                 lifecycleView(u),
-				ID:                        u.ID,
-				AccountCreatedAt:          u.CreatedAt.UnixMicro(),
-				StateRevision:             u.StateRevision,
-				Username:                  u.Username,
-				DisplayName:               u.DisplayName,
-				IsActive:                  u.IsActive,
-				Status:                    string(u.Status),
-				Banned:                    u.Banned,
-				Locale:                    u.Locale,
-				CustomCursor:              u.CustomCursor,
-				CommandsPageHidden:        u.CommandsPageHidden,
-				LeaderboardPageHidden:     u.LeaderboardPageHidden,
-				SongQueuePageHidden:       u.SongqueuePageHidden,
-				CreatorCode:               u.CreatorCode,
-				SubscriptionSource:        u.SubscriptionSource,
-				SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
-				SubscriptionRef:           u.SubscriptionRef,
-				SubscriptionCancelPending: u.SubscriptionCancelPending,
-				SubscriptionPaymentFailed: u.SubscriptionPaymentFailed,
-				Onboarded:                 u.Onboarded,
-			}, nil
-		})
+		return r.loadUser(ctx, id)
 	})
+}
+
+func (r *Users) loadUser(ctx context.Context, id uint64) (UserView, error) {
+	return db.WithRead(ctx, func(ctx context.Context) (UserView, error) {
+
+		u, err := r.client.User.Query().
+			Where(user.IDEQ(id)).
+			Only(ctx)
+		if ent.IsNotFound(err) {
+			// Drop the view so StaleOnError cannot resurrect a deleted user.
+			r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
+		}
+		if err != nil {
+			return UserView{}, err
+		}
+
+		return userView(u), nil
+	})
+}
+
+func userView(u *ent.User) UserView {
+	return UserView{
+		Lifecycle:                 lifecycleView(u),
+		ID:                        u.ID,
+		AccountCreatedAt:          u.CreatedAt.UnixMicro(),
+		StateRevision:             u.StateRevision,
+		Username:                  u.Username,
+		DisplayName:               u.DisplayName,
+		IsActive:                  u.IsActive,
+		Status:                    string(u.Status),
+		Banned:                    u.Banned,
+		Locale:                    u.Locale,
+		CustomCursor:              u.CustomCursor,
+		CommandsPageHidden:        u.CommandsPageHidden,
+		LeaderboardPageHidden:     u.LeaderboardPageHidden,
+		SongQueuePageHidden:       u.SongqueuePageHidden,
+		CreatorCode:               u.CreatorCode,
+		SubscriptionSource:        u.SubscriptionSource,
+		SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
+		SubscriptionRef:           u.SubscriptionRef,
+		SubscriptionCancelPending: u.SubscriptionCancelPending,
+		SubscriptionPaymentFailed: u.SubscriptionPaymentFailed,
+		Onboarded:                 u.Onboarded,
+	}
 }
 
 // Must order by updated_at and stay uncached: a renamed login can still sit on our old row.
@@ -297,14 +329,11 @@ func (r *Users) SetActive(ctx context.Context, id uint64, active bool) error {
 	return r.setDesiredEnabled(ctx, id, active)
 }
 
-// SetActiveNow commits interactive toggles before an RPC read or invalidation.
 func (r *Users) SetActiveNow(ctx context.Context, id uint64, active bool) error {
 	return r.SetActive(ctx, id, active)
 }
 
-// SetBanned is moderation enforcement, so it writes through. Banning also
-// revokes every desktop device grant; the DB write commits regardless of
-// whether the best-effort revocation publish succeeds.
+// Commit bans and revoke desktop grants even if the revocation publish fails.
 func (r *Users) SetBanned(ctx context.Context, id uint64, banned bool) error {
 	if err := r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetBanned(banned) }); err != nil {
 		return err
@@ -388,6 +417,14 @@ func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error
 	return r.publishDeletions(ctx, []data.UserDeletedDTO{deleted})
 }
 
+func (r *Users) publishDeleted(ctx context.Context, deleted data.UserDeletedDTO) error {
+	return errors.Join(
+		bus.PublishJSON(ctx, r.pub, data.SubjectUserDeleted, deleted),
+		r.invalidations.Publish(invalidate.ScopeStatus, deleted.UserID),
+		r.invalidations.Publish(invalidate.ScopeUser, deleted.UserID),
+	)
+}
+
 func (r *Users) Invalidate(id uint64) {
 	r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
 }
@@ -401,15 +438,19 @@ func (r *Users) Close(ctx context.Context) {
 }
 
 func (r *Users) publishChanged(ctx context.Context, id uint64) error {
-
-	r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
-
-	view, err := r.Get(ctx, id)
+	view, err := r.loadUser(ctx, id)
 	if err != nil {
+		r.Invalidate(id)
 		return err
 	}
 
-	return bus.PublishJSON(ctx, r.pub, data.SubjectUserChanged, data.UserChangedDTO{
+	err = bus.PublishJSON(ctx, r.pub, data.SubjectUserChanged, changedDTO(view))
+	r.invalidations.Publish(invalidate.ScopeStatus, id)
+	return err
+}
+
+func changedDTO(view UserView) data.UserChangedDTO {
+	return data.UserChangedDTO{
 		Lifecycle:          view.Lifecycle,
 		UserID:             view.ID,
 		AccountCreatedAt:   view.AccountCreatedAt,
@@ -424,15 +465,7 @@ func (r *Users) publishChanged(ctx context.Context, id uint64) error {
 		LeaderboardPageHidden: view.LeaderboardPageHidden,
 		SongQueuePageHidden:   view.SongQueuePageHidden,
 		CreatorCode:           view.CreatorCodeText(),
-	})
-}
-
-func (r *Users) publishStatusInvalidation(_ context.Context, id uint64) error {
-	// Must be core NATS: cache.invalidate.* has no JetStream stream.
-	if r.nc == nil || r.invalidationPrefix == "" {
-		return nil
 	}
-	return invalidate.Publish(r.nc, r.invalidationPrefix, "status", strconv.FormatUint(id, 10))
 }
 
 func (r *Users) Reproject(ctx context.Context) error {
@@ -453,10 +486,8 @@ func (r *Users) Reproject(ctx context.Context) error {
 			return err
 		}
 
-		for _, row := range rows {
-			if err := r.publishReprojectedUser(ctx, row); err != nil {
-				return err
-			}
+		if err := r.publishReprojectedPage(ctx, rows); err != nil {
+			return err
 		}
 
 		if len(rows) < pageSize {
@@ -465,6 +496,15 @@ func (r *Users) Reproject(ctx context.Context) error {
 
 		afterID = rows[len(rows)-1].ID
 	}
+}
+
+func (r *Users) publishReprojectedPage(ctx context.Context, rows []*ent.User) error {
+	for _, row := range rows {
+		if err := r.publishReprojectedUser(ctx, row); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *Users) publishReprojectedUser(ctx context.Context, row *ent.User) error {
@@ -478,93 +518,96 @@ func (r *Users) publishReprojectedUser(ctx context.Context, row *ent.User) error
 	})
 }
 
-func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens.Type, platform tokens.Platform, accessToken []byte, refreshToken []byte, accessTokenExpiresAt *time.Time) error {
+type TokenWrite struct {
+	UserID       uint64
+	Type         tokens.Type
+	Platform     tokens.Platform
+	AccessToken  []byte
+	RefreshToken []byte
+	ExpiresAt    *time.Time
+}
 
-	if err := validate.UserID(userID); err != nil {
+func (w TokenWrite) validate() error {
+	if err := validate.UserID(w.UserID); err != nil {
 		return err
 	}
-	if err := validate.Token(accessToken); err != nil {
+	if err := validate.Token(w.AccessToken); err != nil {
 		return err
 	}
-	if len(refreshToken) > 0 {
-		if err := validate.Token(refreshToken); err != nil {
-			return err
-		}
+	if len(w.RefreshToken) == 0 {
+		return nil
 	}
+	return validate.Token(w.RefreshToken)
+}
 
-	aad := tokenOwner(userID).aad(tokenType, platform)
+type sealedToken struct {
+	TokenWrite
+	access  domaincrypto.SecureEnvelope
+	refresh domaincrypto.SecureEnvelope
+}
 
-	sealed, err := r.packer.Pack(accessToken, aad)
+func (r *Users) UpsertToken(ctx context.Context, write TokenWrite) error {
+	if err := write.validate(); err != nil {
+		return err
+	}
+	sealed, err := r.sealToken(write)
 	if err != nil {
 		return err
 	}
-
-	var sealedRefresh domaincrypto.SecureEnvelope
-	if len(refreshToken) > 0 {
-		if sealedRefresh, err = r.packer.Pack(refreshToken, aad); err != nil {
-			return err
-		}
-	}
-
 	return db.WithExec(ctx, func(ctx context.Context) error {
-		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-
-			existing, err := tx.Tokens.Query().
-				Where(
-					tokens.TypeEQ(tokenType),
-					tokens.PlatformEQ(platform),
-					tokenOwner(userID).match(),
-				).
-				Only(ctx)
-
-			switch {
-			case ent.IsNotFound(err):
-				create := tx.Tokens.Create().
-					SetUserID(userID).
-					SetType(tokenType).
-					SetPlatform(platform).
-					SetToken(sealed.Ciphertext).
-					SetNillableAccessTokenExpiresAt(accessTokenExpiresAt)
-
-				if len(sealedRefresh.Ciphertext) > 0 {
-					create.SetRefreshToken(sealedRefresh.Ciphertext)
-				}
-
-				if err := create.Exec(ctx); err != nil {
-					if ent.IsConstraintError(err) {
-						existing, err = tx.Tokens.Query().
-							Where(
-								tokens.TypeEQ(tokenType),
-								tokens.PlatformEQ(platform),
-								tokenOwner(userID).match(),
-							).
-							Only(ctx)
-						if err != nil {
-							return err
-						}
-						update := applyTokenExpiry(existing.Update().SetToken(sealed.Ciphertext), accessTokenExpiresAt)
-						if len(sealedRefresh.Ciphertext) > 0 {
-							update.SetRefreshToken(sealedRefresh.Ciphertext)
-						}
-						return update.Exec(ctx)
-					}
-					return err
-				}
-				return nil
-
-			case err != nil:
-				return err
-			}
-
-			update := applyTokenExpiry(existing.Update().SetToken(sealed.Ciphertext), accessTokenExpiresAt)
-
-			if len(sealedRefresh.Ciphertext) > 0 {
-				update.SetRefreshToken(sealedRefresh.Ciphertext)
-			}
-
-			return update.Exec(ctx)
-		})
+		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error { return sealed.save(ctx, tx) })
 	})
+}
+
+func (r *Users) sealToken(write TokenWrite) (sealedToken, error) {
+	s := sealedToken{TokenWrite: write}
+	aad := tokenOwner(write.UserID).aad(write.Type, write.Platform)
+	var err error
+	s.access, err = r.packer.Pack(write.AccessToken, aad)
+	if err != nil || len(write.RefreshToken) == 0 {
+		return s, err
+	}
+	s.refresh, err = r.packer.Pack(write.RefreshToken, aad)
+	return s, err
+}
+
+func (s sealedToken) find(ctx context.Context, tx *ent.Tx) (*ent.Tokens, error) {
+	return tx.Tokens.Query().Where(tokens.TypeEQ(s.Type), tokens.PlatformEQ(s.Platform), tokenOwner(s.UserID).match()).Only(ctx)
+}
+
+func (s sealedToken) save(ctx context.Context, tx *ent.Tx) error {
+	existing, err := s.find(ctx, tx)
+	if ent.IsNotFound(err) {
+		return s.create(ctx, tx)
+	}
+	if err != nil {
+		return err
+	}
+	return s.update(ctx, existing)
+}
+
+func (s sealedToken) create(ctx context.Context, tx *ent.Tx) error {
+	create := tx.Tokens.Create().SetUserID(s.UserID).SetType(s.Type).SetPlatform(s.Platform).SetToken(s.access.Ciphertext).SetNillableAccessTokenExpiresAt(s.ExpiresAt)
+	if len(s.refresh.Ciphertext) > 0 {
+		create.SetRefreshToken(s.refresh.Ciphertext)
+	}
+	err := create.Exec(ctx)
+	if !ent.IsConstraintError(err) {
+		return err
+	}
+	existing, err := s.find(ctx, tx)
+	if err != nil {
+		return err
+	}
+	return s.update(ctx, existing)
+}
+
+func (s sealedToken) update(ctx context.Context, existing *ent.Tokens) error {
+	update := applyTokenExpiry(existing.Update().SetToken(s.access.Ciphertext), s.ExpiresAt)
+	if len(s.refresh.Ciphertext) > 0 {
+		update.SetRefreshToken(s.refresh.Ciphertext)
+	}
+	return update.Exec(ctx)
 }
 
 type tokenOwner uint64

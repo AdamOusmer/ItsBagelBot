@@ -35,9 +35,17 @@ export function managedReward(definition: Definition): ManagedReward | null {
 
 const existingId = (reward: ManagedReward) => (isSetupValue(reward.rewardId) ? '' : reward.rewardId);
 
-const failure = (result: Extract<RewardRemoteResult, { ok: false }>): { ok: false; error: string } => ({
+type RewardRefusedResult = Extract<RewardRemoteResult, { ok: false }>;
+
+const REFUSAL_CODES = [
+  ['missingScope', 'missing_scope'],
+  ['duplicateTitle', 'duplicate_title'],
+  ['notAffiliate', 'not_affiliate']
+] as const;
+
+const failure = (result: RewardRefusedResult): { ok: false; error: string } => ({
   ok: false,
-  error: result.missingScope ? 'missing_scope' : (result.error ?? 'reward_failed')
+  error: REFUSAL_CODES.find(([flag]) => result[flag])?.[1] ?? result.error ?? 'reward_failed'
 });
 
 function withReward(definition: Definition, mirrored: MirroredReward): Definition {

@@ -12,7 +12,8 @@ lets the scheduler re-place them.
   `kubernetes/cronjob/cronjob.yaml` at v0.36.0, vendored verbatim except that
   the image carries the digest its tag resolved to. Do not edit.
 - `kustomization.yaml` holds every local change: schedule, placement on
-  `role=node`, `bagel-operator` priority, resources, job history.
+  `role=node`, `bagel-operator` priority, resources, job history, and log
+  verbosity 1 (evictions only).
 - `policy.yaml` is the `DeschedulerPolicy`, mounted at `/policy-dir/policy.yaml`.
 
 Descheduler minor versions track Kubernetes minors (v0.36 for k3s v1.36). Bump

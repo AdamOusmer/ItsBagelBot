@@ -30,7 +30,7 @@ func TestEraseRPCReturnsErasedAcknowledgment(t *testing.T) {
 	nc, err := nats.Connect(s.ClientURL())
 	require.NoError(t, err)
 	t.Cleanup(nc.Close)
-	require.NoError(t, SubscribeConnection(Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop(), Queue: "test"}, Repo: repository.New(client)}, "test.invalidate"))
+	require.NoError(t, SubscribeConnection(Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop(), Queue: "test"}, Repo: repository.New(client), Invalidations: bus.NewInvalidations(nc, "test.invalidate", nil)}))
 	require.NoError(t, nc.Flush())
 	reply, err := bus.RequestJSONTimeout[notificationsrpc.ConnectionReply](context.Background(), nc, notificationsrpc.ConnectionSubject+".erase", notificationsrpc.ConnectionRequest{AccountID: 123, AccountCreatedAt: time.Now().Add(-time.Hour).UnixMicro(), ErasedAt: time.Now()}, time.Second)
 	require.NoError(t, err)

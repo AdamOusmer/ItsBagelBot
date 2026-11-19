@@ -83,11 +83,12 @@ type VariableGroup struct {
 }
 
 type Module struct {
-	Variables []VariableGroup
-	Name      string
-	Kind      Kind
-	Events    map[string]EventHandler
-	Commands  []Command
-	Beta      bool
-	Trial     bool
+	ProtectReplay bool
+	Variables     []VariableGroup
+	Name          string
+	Kind          Kind
+	Events        map[string]EventHandler
+	Commands      []Command
+	Beta          bool
+	Trial         bool
 }

@@ -3,5 +3,11 @@
   "gainLossSummary": "Gained {gained}, lost {lost}, net {net}",
   "gained": "Gained",
   "lost": "Lost",
-  "lossDays": "Days with more lost than gained: {days}"
+  "lossDays": "Days with more lost than gained: {days}",
+  "stopped": "Stopped",
+  "restarted": "Came back",
+  "banned": "Banned",
+  "revoked": "Revoked",
+  "disabled": "Turned off",
+  "other": "Other"
 }

@@ -5,6 +5,7 @@ package automod
 
 import (
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/monitor"
 	"cmp"
 	"context"
 	"fmt"
@@ -36,7 +37,7 @@ type EmoteFetcher struct {
 
 func NewEmoteFetcher(client *http.Client, endpoints EmoteEndpoints) *EmoteFetcher {
 	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
+		client = &http.Client{Timeout: 10 * time.Second, Transport: monitor.ExternalTransport(nil)}
 	}
 	return &EmoteFetcher{client: client, endpoints: endpoints}
 }
@@ -57,14 +58,45 @@ func (c EmoteCatalog) Codes() []string {
 }
 
 func (f *EmoteFetcher) FetchCatalog(ctx context.Context) (EmoteCatalog, error) {
-	bttv, bttvErr := f.fetchBTTV(ctx)
-	ffz, ffzErr := f.fetchFFZ(ctx)
-	seven, sevenErr := f.fetch7TV(ctx)
-	return EmoteCatalog{
-		SevenTV: sortedCodes(seven),
-		BTTV:    sortedCodes(bttv),
-		FFZ:     sortedCodes(ffz),
-	}, cmp.Or(bttvErr, ffzErr, sevenErr)
+	cat, _, err := f.fetchOver(ctx, EmoteCatalog{})
+	return cat, err
+}
+
+type RefreshResult struct {
+	Codes     int
+	Failed    int
+	Providers int
+}
+
+func (r RefreshResult) AllFailed() bool { return r.Failed == r.Providers }
+
+type emoteSource struct {
+	fetch func(context.Context) ([]string, error)
+	slot  func(*EmoteCatalog) *[]string
+}
+
+func (f *EmoteFetcher) sources() []emoteSource {
+	return []emoteSource{
+		{f.fetchBTTV, func(c *EmoteCatalog) *[]string { return &c.BTTV }},
+		{f.fetchFFZ, func(c *EmoteCatalog) *[]string { return &c.FFZ }},
+		{f.fetch7TV, func(c *EmoteCatalog) *[]string { return &c.SevenTV }},
+	}
+}
+
+func (f *EmoteFetcher) fetchOver(ctx context.Context, previous EmoteCatalog) (EmoteCatalog, int, error) {
+	next := previous
+	failed := 0
+	var firstErr error
+	for _, src := range f.sources() {
+		codes, err := src.fetch(ctx)
+		if err != nil {
+			failed++
+			firstErr = cmp.Or(firstErr, err)
+			continue
+		}
+		*src.slot(&next) = sortedCodes(codes)
+	}
+	return next, failed, firstErr
 }
 
 func sortedCodes(codes []string) []string {
@@ -93,14 +125,15 @@ func (f *EmoteFetcher) Catalog() EmoteCatalog {
 	return EmoteCatalog{}
 }
 
-func (f *EmoteFetcher) Refresh(ctx context.Context, gate *Gate) (int, error) {
-	cat, err := f.FetchCatalog(ctx)
+func (f *EmoteFetcher) Refresh(ctx context.Context, gate *Gate) (RefreshResult, error) {
+	cat, failed, err := f.fetchOver(ctx, f.Catalog())
 	codes := cat.Codes()
-	if len(codes) > 0 {
+	res := RefreshResult{Codes: len(codes), Failed: failed, Providers: len(f.sources())}
+	if !res.AllFailed() {
 		gate.SetEmotes(NewEmoteSet(codes))
 		f.catalog.Store(&cat)
 	}
-	return len(codes), err
+	return res, err
 }
 
 func (f *EmoteFetcher) fetchBTTV(ctx context.Context) ([]string, error) {

@@ -93,7 +93,7 @@ func TestCustomCommandStaysSilentWhileLookupFails(t *testing.T) {
 	pub := &fakePublisher{}
 	p := newPipelineWith(pub, proj)
 
-	require.NoError(t, p.Process(chatMsg(t, "standard", "!hi")))
+	require.Error(t, p.Process(chatMsg(t, "standard", "!hi")))
 	require.Empty(t, pub.snapshot(), "no reply while the command lookup fails")
 
 	require.NoError(t, p.Process(chatMsg(t, "standard", "!hi")))

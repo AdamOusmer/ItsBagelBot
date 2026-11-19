@@ -77,5 +77,8 @@
   "recurringShare": "Recurring share",
   "previousGross": "Previous window",
   "grossChange": "Change",
-  "month": "Month"
+  "month": "Month",
+  "via": "Source",
+  "started": "Logins started",
+  "signup": "New accounts"
 }

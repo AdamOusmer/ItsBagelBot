@@ -69,6 +69,10 @@ export type Fact = { key: string; value: string };
 export type Series = { values: number[]; labels: string[]; ticks: number[]; average: string; peak: string };
 export type GainLossPoint = { at: number; gained: number; lost: number };
 export type GainLoss = { points: GainLossPoint[]; gained: number; lost: number; net: number; lossDays: number };
+export type FlowTone = 'accent' | 'warm' | 'danger';
+export type FlowLine = { key: string; name: Phrase; tone: FlowTone; dashed?: boolean };
+export type FlowPoint = { at: number; [key: string]: number };
+export type Flow = { lines: FlowLine[]; points: FlowPoint[]; facts: Fact[] };
 export type TableCell ={ text: string };
 export type TableRow = { id: string; name: Name; cells: TableCell[] };
 export type DataTable = { columns: string[]; rows: TableRow[] };
@@ -79,7 +83,7 @@ export type AnalyticsView = {
   empty: boolean;
   period: { start: string; end: string };
   kpis: Kpi[];
-  growth: { signups: Series; gainLoss: GainLoss; funnel: Bar[]; churn: Bar[]; churnFacts: Fact[]; presets: Bar[]; activationAge: Bar[]; onboarding: Bar[]; imports: DataTable; onboarded: Fact[]; login: Bar[]; trials: Fact[] };
+  growth: { signups: Series; gainLoss: GainLoss; stops: Flow; inactive: Flow; dormant: Flow; funnel: Bar[]; churn: Bar[]; churnFacts: Fact[]; presets: Bar[]; activationAge: Bar[]; onboarding: Bar[]; imports: DataTable; signupSources: DataTable; onboarded: Fact[]; login: Bar[]; trials: Fact[] };
   engagement: { active: Series; live: Series; messages: Series; answered: Series; facts: Fact[] };
   retention: { horizon: number; rows: CohortLine[] };
   revenue: { plans: DataTable; sources: Bar[]; billing: Bar[]; billingFacts: Fact[]; conversion: DataTable; checkout: DataTable; checkoutFacts: Fact[] };
@@ -102,7 +106,7 @@ const ENUMS = {
   feature: ['channelpoints', 'govee'],
   login: ['started', 'ok', 'declined', 'oauth', 'state', 'bot', 'scope', 'link', 'retry', 'banned'],
   platform: ['macos', 'windows', 'linux'],
-  lifecycle: ['signup', 'onboarded', 'bot_enabled', 'bot_disabled', 'revoked', 'chat_banned', 'account_deleted'],
+  lifecycle: ['signup', 'onboarded', 'bot_enabled', 'bot_disabled', 'revoked', 'chat_banned', 'dormant', 'account_deleted', 'access_restored', 'unbanned', 'woke'],
   billing: ['activate', 'cancel_requested', 'cancel_aborted', 'revoke', 'payment_failed', 'expired'],
   tier: ['free', 'paid', 'vip'],
   source: ['tebex', 'admin', 'giveaway', 'vip'],
@@ -123,7 +127,18 @@ const ENUMS = {
 } as const;
 
 const FUNNEL = ['signup', 'onboarded', 'bot_enabled'] as const;
-const CHURN = ['bot_disabled', 'revoked', 'account_deleted', 'chat_banned'] as const;
+const CHURN = ['bot_disabled', 'revoked', 'chat_banned', 'account_deleted'] as const;
+const INACTIVE: { key: string; tone: FlowTone; dashed?: boolean }[] = [
+  { key: 'banned', tone: 'danger' },
+  { key: 'revoked', tone: 'warm' },
+  { key: 'disabled', tone: 'accent' },
+  { key: 'other', tone: 'accent', dashed: true }
+];
+const COMEBACKS_RECORDED_FROM = '2026-11-18';
+const STOP_LINES = [
+  { key: 'stopped', tone: 'danger' },
+  { key: 'restarted', tone: 'accent' }
+] as const;
 const HORIZON = 8;
 const CONVERSION_WEEKS = 12;
 const BUILT_IN_LIMIT = 30;
@@ -317,7 +332,8 @@ function stepOf(values: Count[]): (value: Count, index: Slot) => Phrase | null {
         };
 }
 
-const isLoss = (row: AnalyticsRow): boolean => row.dims[0] === 'account_deleted';
+const LOST = ['chat_banned', 'revoked', 'account_deleted'];
+const isLoss = (row: AnalyticsRow): boolean => LOST.includes(row.dims[0]);
 
 export function gainLoss(counters: AnalyticsRow[], range: DateRange): GainLoss {
   const inside = inRange(pick(counters, 'lifecycle'), range);
@@ -332,6 +348,73 @@ export function gainLoss(counters: AnalyticsRow[], range: DateRange): GainLoss {
   return { points, gained, lost, net: gained - lost, lossDays: points.filter((p) => p.lost > p.gained).length };
 }
 
+const COMEBACKS = ['bot_enabled', 'access_restored', 'unbanned'];
+const isStop = (row: AnalyticsRow): boolean => (CHURN as readonly string[]).includes(row.dims[0]);
+const isComeback = (row: AnalyticsRow): boolean => COMEBACKS.includes(row.dims[0]);
+
+function flowPoints(days: Day[], lines: Map<string, Map<Day, number>>): FlowPoint[] {
+  return days.map((day) => {
+    const point: FlowPoint = { at: Date.parse(day) };
+    for (const [key, values] of lines) point[key] = get(values, day);
+    return point;
+  });
+}
+
+function stopFlow(c: Ctx): Flow {
+  const range = { from: [c.cur.from, c.tracked, COMEBACKS_RECORDED_FROM].sort()[2], to: c.cur.to };
+  const inside = inRange(pick(c.r.counters, 'lifecycle'), range);
+  const stops = byDay(inside.filter(isStop));
+  const starts = byDay(inside.filter(isComeback));
+  const lines = new Map([['stopped', stops], ['restarted', starts]]);
+  const [stopped, restarted] = [total(stops), total(starts)];
+  const points = flowPoints(daysIn(range), lines);
+  return {
+    lines: STOP_LINES.map(({ key, tone }) => ({ key, tone, name: { key: `admin.analytics.chart.${key}` } })),
+    points,
+    facts: facts({ stopped: fmt(stopped), restarted: fmt(restarted), netStops: signed(restarted - stopped) })
+  };
+}
+
+function change(points: FlowPoint[], value: (point: FlowPoint) => number): string {
+  return points.length > 1 ? signed(value(points[points.length - 1]) - value(points[0])) : '-';
+}
+
+function inactiveFlow(c: Ctx): Flow {
+  const levels = inRange(pick(c.r.levels, 'accounts.inactive'), c.cur);
+  const days = [...byDay(levels).keys()].sort();
+  const lines = new Map(INACTIVE.map(({ key }): [string, Map<Day, number>] => [key, byDay(withDim(levels, key))]));
+  const points = flowPoints(days, lines);
+  const inactive = (point: FlowPoint) => INACTIVE.reduce((acc, { key }) => acc + point[key], 0);
+  const last = points[points.length - 1];
+  const accounts = sum(latest(inRange(pick(c.r.levels, 'accounts.total'), c.cur)));
+  return {
+    lines: INACTIVE.map(({ key, tone, dashed }) => ({ key, tone, dashed, name: { key: `admin.analytics.chart.${key}` } })),
+    points,
+    facts: facts({
+      inactiveNow: last ? fmt(inactive(last)) : '-',
+      inactiveShare: last ? pct(inactive(last), accounts) : '-',
+      inactiveChange: change(points, inactive),
+      deletedWindow: fmt(sum(withDim(counter(c, 'lifecycle'), 'account_deleted')))
+    })
+  };
+}
+
+function dormantFlow(c: Ctx): Flow {
+  const runtime = inRange(pick(c.r.levels, 'accounts.runtime'), c.cur);
+  const days = [...byDay(runtime).keys()].sort();
+  const points = flowPoints(days, new Map([['dormant', byDay(withDim(runtime, 'dormant'))]]));
+  const last = points[points.length - 1];
+  return {
+    lines: [{ key: 'dormant', tone: 'warm', name: { key: 'admin.analytics.roadmap.runtime.dormant' } }],
+    points,
+    facts: facts({
+      dormantNow: last ? fmt(last.dormant) : '-',
+      dormantShare: last ? pct(last.dormant, sum(latest(runtime))) : '-',
+      wentDormant: fmt(sum(withDim(counter(c, 'lifecycle'), 'dormant')))
+    })
+  };
+}
+
 function growth(c: Ctx): AnalyticsView['growth'] {
   const life = byDim(counter(c, 'lifecycle'));
   const n = (id: Dim) => get(life, id);
@@ -340,6 +423,9 @@ function growth(c: Ctx): AnalyticsView['growth'] {
   return {
     signups: daily(c, withDim(pick(c.r.counters, 'lifecycle'), 'signup')),
     gainLoss: gainLoss(c.r.counters, c.cur),
+    stops: stopFlow(c),
+    inactive: inactiveFlow(c),
+    dormant: dormantFlow(c),
     funnel: bars(life, { ids: FUNNEL, enum: 'lifecycle', order: 'keep', secondary: stepOf(FUNNEL.map(n)) }),
     churn: bars(life, { ids: CHURN, enum: 'lifecycle', order: 'keep' }),
     churnFacts: facts({
@@ -350,6 +436,7 @@ function growth(c: Ctx): AnalyticsView['growth'] {
     activationAge: bars(byDim(weekly(c, 'activation.age')), { ids: ENUMS.age, enum: 'age', order: 'keep' }),
     onboarding: bars(byDim(counter(c, 'onboarding.steps')), { ids: ENUMS.onboard, enum: 'onboard', order: 'keep' }),
     imports: dimensionTable(counter(c, 'import.runs'), ['preview_ok', 'preview_failed', 'committed', 'commit_failed']),
+    signupSources: dimensionTable(counter(c, 'signup.via'), ['started', 'signup']),
     onboarded: accountFacts(c, 'accounts.onboarded', 'onboarded'),
     login: bars(byDim(counter(c, 'auth.login')), { ids: ENUMS.login, enum: 'login', order: 'keep' }),
     trials: facts({ trialPromoted: fmt(n('trial_promoted')) })

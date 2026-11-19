@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { unnest } from './tmpl-nest';
+
 export interface LiteralToken {
   kind: 'literal';
   text: string;
@@ -76,7 +78,8 @@ export function intactSpan(name: string, payload: string | null): string | null 
 }
 
 export function expand(template: string, resolve: (token: VarToken) => string | null): string {
-  return lex(template)
+  const flat = unnest(template, (raws) => raws.map((raw) => renderSpan(parseSpan(raw), resolve)));
+  return lex(flat)
     .map((token) => (token.kind === 'literal' ? token.text : renderSpan(token, resolve)))
     .join('');
 }

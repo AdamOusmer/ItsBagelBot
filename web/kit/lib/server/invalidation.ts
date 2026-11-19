@@ -5,7 +5,6 @@ import { subscribeDurable } from './nats';
 import { getServerConfig } from './config';
 import type { SwrCache } from './cache';
 
-// `keys` is the optional extra list a publisher attaches (e.g. rename logins); empty when absent.
 export type ScopeMap = Record<string, (id: string, keys: readonly string[]) => string[]>;
 
 const MAX_KEYS = 8;
@@ -39,7 +38,7 @@ export function startInvalidationBus(opts: InvalidationBusOptions): void {
         const scope = subject.slice(subject.lastIndexOf('.') + 1);
         const keys = parseKeys(msg.keys);
         const route = opts.scopes[scope] ?? fallback;
-        const prefixes = route(id, keys);
+        const prefixes = route(id, keys).map((key) => id === '*' ? key.replace(/:\*(?=:|$)/, ':') : key);
         if (prefixes.length) opts.cache.invalidate(...prefixes);
         opts.onApplied?.(scope, id, prefixes, keys);
       } catch {}

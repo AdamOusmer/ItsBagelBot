@@ -14,6 +14,7 @@ let twitch: (login: string) => Promise<TwitchReply> = async () => ({});
 let sync: (id: string, login: string, name: string) => Promise<unknown> = async () => ({ renamed: true });
 const twitchCalls: unknown[] = [];
 const syncCalls: unknown[][] = [];
+const renameHandlers: Array<(id: string, logins: string[]) => void> = [];
 
 mock.module('@bagel/kit/server/nats', () => ({
   ...nats,
@@ -24,6 +25,7 @@ mock.module('@bagel/kit/server/nats', () => ({
 }));
 mock.module('./services', () => ({
   SUB: { outgressRpc: 'rpc.outgress' },
+  onRename: (handler: (id: string, logins: string[]) => void) => renameHandlers.push(handler),
   syncIdentity: (...args: [string, string, string]) => {
     syncCalls.push(args);
     return sync(...args);
@@ -37,6 +39,17 @@ let n = 0;
 const fresh = () => `heal${n++}`;
 
 const onTwitch = (login: string): TwitchReply => ({ target_id: '42', login, display_name: 'NewName', user_found: true });
+
+test('rename events drop cached identity healing and Twitch lookup results', async () => {
+  const login = fresh();
+  await healLogin(login);
+  await lookupTwitchUser(login);
+  for (const handler of renameHandlers) handler('42', [login]);
+  twitchCalls.length = 0;
+  await healLogin(login);
+  await lookupTwitchUser(login);
+  expect(twitchCalls).toHaveLength(2);
+});
 
 beforeEach(() => {
   twitch = async (login) => onTwitch(login);

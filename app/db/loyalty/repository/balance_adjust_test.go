@@ -211,13 +211,13 @@ func checkConcurrentAdjustmentAccrual(t *testing.T, repo *loyaltyrepo.Loyalty, r
 func TestLegacyBalanceAdjustRejectsOverflow(t *testing.T) {
 	repo, client := newLoyaltyRepo(t)
 	seedBalance(t, client, seedRow{UserID: 17, ViewerID: 77, Login: "viewer", Points: math.MaxInt64})
-	_, found, err := repo.BalanceAdjust(t.Context(), 17, "viewer", 1, false)
+	_, found, err := repo.BalanceAdjust(t.Context(), loyaltyrepo.BalanceAdjustment{UserID: 17, ViewerLogin: "viewer", Value: 1})
 	require.ErrorIs(t, err, loyaltyrepo.ErrInvalidInput)
 	require.False(t, found)
 	row, _, err := repo.BalanceGet(t.Context(), 17, 77)
 	require.NoError(t, err)
 	require.EqualValues(t, math.MaxInt64, row.Points)
-	_, found, err = repo.BalanceAdjust(t.Context(), 17, "unseen", 1, false)
+	_, found, err = repo.BalanceAdjust(t.Context(), loyaltyrepo.BalanceAdjustment{UserID: 17, ViewerLogin: "unseen", Value: 1})
 	require.NoError(t, err)
 	require.False(t, found)
 }

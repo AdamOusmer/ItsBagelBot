@@ -33,10 +33,12 @@ type concurrentDurableSubscriber struct {
 	dropped atomic.Int64
 	wheel   *keepAliveWheel
 
-	mu      sync.Mutex
-	closed  bool
-	subs    map[*nats.Subscription]ownedSubscription
-	closeCh chan struct{}
+	mu        sync.Mutex
+	closed    bool
+	subs      map[*nats.Subscription]ownedSubscription
+	closeCh   chan struct{}
+	closeOnce sync.Once
+	closeErr  error
 
 	registrations sync.WaitGroup
 	acks          sync.WaitGroup
@@ -574,10 +576,12 @@ func (s *concurrentDurableSubscriber) nack(msg *nats.Msg, retryAfter time.Durati
 }
 
 func (s *concurrentDurableSubscriber) Close() error {
-	subs, started := s.beginClose()
-	if !started {
-		return nil
-	}
+	s.closeOnce.Do(func() { s.closeErr = s.shutdown() })
+	return s.closeErr
+}
+
+func (s *concurrentDurableSubscriber) shutdown() error {
+	subs := s.beginClose()
 
 	deadline := time.NewTimer(subscriberDrainTimeout)
 	defer deadline.Stop()
@@ -603,12 +607,8 @@ type ownedSubscription struct {
 	pump      *subscriptionPump
 }
 
-func (s *concurrentDurableSubscriber) beginClose() ([]ownedSubscription, bool) {
+func (s *concurrentDurableSubscriber) beginClose() []ownedSubscription {
 	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
-		return nil, false
-	}
 	s.closed = true
 	s.mu.Unlock()
 
@@ -620,7 +620,7 @@ func (s *concurrentDurableSubscriber) beginClose() ([]ownedSubscription, bool) {
 	for _, owned := range s.subs {
 		subs = append(subs, owned)
 	}
-	return subs, true
+	return subs
 }
 
 func (s *concurrentDurableSubscriber) stopCallbacks(subs []ownedSubscription) {

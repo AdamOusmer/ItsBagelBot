@@ -35,8 +35,6 @@ type alertUpgradeWrite struct {
 
 func (a *Automations) BindModules(m *Modules) { a.modules = m }
 
-// UpgradeAlert commits the alert switching off and the automation insert together,
-// so a channel never has both firing nor neither.
 func (a *Automations) UpgradeAlert(ctx context.Context, userID uint64, in AutomationInput, alert AlertUpgrade) (automation.Automation, error) {
 	in.ID, in.ExpectedRevision = "", nil
 	in.Name = strings.TrimSpace(in.Name)
@@ -120,6 +118,6 @@ func writeAlertOff(ctx context.Context, tx *ent.Tx, row *ent.Modules, enableKey 
 
 func (a *Automations) announceAlertFlip(ctx context.Context, userID uint64, flip *alertFlip) {
 	if flip != nil && a.modules != nil {
-		a.modules.announcePatch(ctx, userID, automation.AlertsModuleName, flip.enabled, flip.blob)
+		a.modules.announcePatch(ctx, ModuleWrite{UserID: userID, Name: automation.AlertsModuleName, Enabled: flip.enabled, Configs: flip.blob})
 	}
 }

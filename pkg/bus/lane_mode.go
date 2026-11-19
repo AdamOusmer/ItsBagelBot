@@ -10,10 +10,12 @@ import (
 )
 
 func isHotIngressLane(stream, subject string) bool {
-	if stream != TwitchIngressStream.Name && stream != TwitchIngressStandardStream.Name {
+	switch stream {
+	case TwitchIngressStream.Name, TwitchIngressPremiumStream.Name, TwitchIngressStandardStream.Name:
+		return subject == "twitch.ingress.event.premium" || subject == "twitch.ingress.event.standard"
+	default:
 		return false
 	}
-	return strings.HasSuffix(subject, ".premium") || strings.HasSuffix(subject, ".standard")
 }
 
 func IsCanaryLane(stream, subject string) bool {
@@ -34,8 +36,23 @@ type laneConsumeMode string
 const (
 	laneModeFlow     laneConsumeMode = "flow"
 	laneModePull     laneConsumeMode = "pull"
+	laneModePush     laneConsumeMode = "push"
 	laneModeExplicit laneConsumeMode = "explicit"
 )
+
+func hotLaneMode() laneConsumeMode {
+	if env.Get("NATS_HOT_LANE_MODE", string(laneModePull)) == string(laneModePush) {
+		return laneModePush
+	}
+	return laneModePull
+}
+
+func HotLaneConsumerName(group, subject string) string {
+	if hotLaneMode() == laneModePush {
+		return pushConsumerName(group, subject)
+	}
+	return pullConsumerName(group, subject)
+}
 
 func consumeMode() laneConsumeMode {
 	if !FlowConsumeEnabled() {

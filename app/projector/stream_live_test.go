@@ -36,7 +36,7 @@ func TestStaleStreamOfflineLeavesANewerLiveProjection(t *testing.T) {
 	_, err = store.SetStreamLive(ctx, id, projection.StreamLive{Live: true, Version: online.UnixMilli()})
 	require.NoError(t, err)
 
-	p := &Projector{store: store, log: zap.NewNop()}
+	p := NewProjector(Deps{Store: store, Log: zap.NewNop()})
 	staleOffline := fmt.Sprintf(`{"type":"stream.offline","event":{"broadcaster_user_id":"%d"},"received_at":%q}`,
 		id, online.Add(-time.Second).Format(time.RFC3339Nano))
 	require.NoError(t, p.HandleStreamEvent(&bus.Message{UUID: "stale-offline", Payload: []byte(staleOffline)}))

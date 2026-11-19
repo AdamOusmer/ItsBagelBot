@@ -5,15 +5,11 @@ package engine
 
 import (
 	"context"
-	"strconv"
 	"strings"
 
 	"ItsBagelBot/internal/domain/invalidate"
-	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/cache"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
-
-	"github.com/nats-io/nats.go"
-	"go.uber.org/zap"
 )
 
 func (s *ValkeyLoyaltyClock) nudge() {
@@ -34,26 +30,14 @@ func (s *ValkeyLoyaltyClock) StartExpiryWatcher(ctx context.Context) {
 }
 
 func (s *ValkeyLoyaltyClock) StartRearmWatcher(ctx context.Context) {
-	if s.nc == nil || s.rearmSubject == "" {
+	if s.invalidations == nil {
 		return
 	}
-	sub, err := s.nc.Subscribe(s.rearmSubject, func(msg *nats.Msg) {
-		var dto invalidate.DTO
-		if codec.Unmarshal(msg.Data, &dto) != nil {
-			return
-		}
-		if id, err := strconv.ParseUint(dto.BroadcasterID, 10, 64); err == nil && id != 0 {
-			select {
-			case s.rearms <- id:
-			default:
-				s.nudge()
-			}
+	s.invalidations.Watch(invalidate.ScopeModules, func(e cache.Event) {
+		select {
+		case s.rearms <- e.ID:
+		default:
+			s.nudge()
 		}
 	})
-	if err != nil {
-		s.log.Error("loyalty: rearm watcher unavailable", zap.Error(err))
-		return
-	}
-	defer sub.Unsubscribe()
-	<-ctx.Done()
 }

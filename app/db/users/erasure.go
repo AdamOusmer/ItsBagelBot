@@ -14,6 +14,7 @@ import (
 
 	"ItsBagelBot/app/db/users/repository"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/objstore"
 	"ItsBagelBot/pkg/svcboot"
 
@@ -31,7 +32,7 @@ func wireErasure(ctx context.Context, repo *repository.Users, log *zap.Logger) {
 	})
 	svcboot.FatalIf(log, err, "failed to configure erasure ledger")
 	repo.SetErasureStore(store)
-	repo.SetTokenRevoker(twitchRevoker{clientID: env.MustGet("TWITCH_CLIENT_ID"), http: &http.Client{Timeout: 10 * time.Second}})
+	repo.SetTokenRevoker(twitchRevoker{clientID: env.MustGet("TWITCH_CLIENT_ID"), http: monitor.HTTPClient(10 * time.Second)})
 	go replayErasures(ctx, repo, log)
 }
 

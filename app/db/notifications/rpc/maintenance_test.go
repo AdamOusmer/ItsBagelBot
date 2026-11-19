@@ -42,7 +42,7 @@ func TestCleanupRPCReportsSelectedBatchDespiteConcurrentRead(t *testing.T) {
 				})
 			})
 			nc := testnats.Connect(t)
-			wiring := Wiring{RPCWiring: bus.RPCWiring{NC: nc, Queue: "test", Log: zap.NewNop()}, Repo: repo}
+			wiring := Wiring{RPCWiring: bus.RPCWiring{NC: nc, Queue: "test", Log: zap.NewNop()}, Repo: repo, Invalidations: bus.NewInvalidations(nil, "", nil)}
 			require.NoError(t, SubscribeMaintenance(wiring, "test.cleanup"))
 			reply, err := bus.RequestJSON[notificationsrpc.CleanupReply](t.Context(), nc, "test.cleanup", notificationsrpc.CleanupRequest{})
 			require.NoError(t, err)

@@ -4,10 +4,7 @@
 package rpc
 
 import (
-	"strconv"
 	"time"
-
-	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/notifications/repository"
 	"ItsBagelBot/internal/domain/invalidate"
@@ -16,7 +13,22 @@ import (
 
 type Wiring struct {
 	bus.RPCWiring
-	Repo *repository.Notifications
+	Repo          *repository.Notifications
+	Invalidations *bus.Invalidations
+}
+
+func (w Wiring) invalidateDeleted(deleted repository.DeletedNotifications) {
+	ids := make(map[uint64]bool)
+	for _, target := range deleted.TargetUserIDs {
+		if target == nil {
+			w.Invalidations.PublishAll(invalidate.ScopeNotifications)
+			return
+		}
+		ids[*target] = true
+	}
+	for id := range ids {
+		w.Invalidations.Publish(invalidate.ScopeNotifications, id)
+	}
 }
 
 const (
@@ -24,11 +36,3 @@ const (
 	sendBudget    = 5 * time.Second
 	cleanupBudget = 30 * time.Second
 )
-
-func accountKey(accountID uint64) string { return strconv.FormatUint(accountID, 10) }
-
-func (w Wiring) invalidateNotifications(prefix, broadcasterID string) {
-	if err := invalidate.Publish(w.NC, prefix, "notifications", broadcasterID); err != nil {
-		w.Log.Warn("notification invalidation publish failed", zap.Error(err))
-	}
-}

@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/idempotency"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
@@ -50,10 +51,7 @@ const (
 	loyaltyStateRetention      = 30 * 24 * time.Hour
 )
 
-// The sorted set is the durable source of scheduled work. Expiry notifications
-// only wake the bounded poller; a restart or dropped subscription cannot erase
-// an outstanding window. Each worker handles ONE page, then yields the channel
-// to the shared queue so large channels cannot occupy a worker for every page.
+// Keep scheduled work in the sorted set; expiry notifications alone lose work on reconnect.
 type ValkeyLoyaltyClock struct {
 	client          valkey.Client
 	proj            projection.Reader
@@ -64,7 +62,7 @@ type ValkeyLoyaltyClock struct {
 	nc              *nats.Conn
 	request         func(context.Context, string, []byte) (*nats.Msg, error)
 	chattersSubject string
-	rearmSubject    string
+	invalidations   cache.Feed
 	botID           string
 	keyspaceDB      int
 	expiry          *pkg_valkey.ExpiryHub
@@ -75,20 +73,22 @@ type ValkeyLoyaltyClock struct {
 }
 
 type LoyaltyClockConfig struct {
-	OutgressRPCPrefix        string
-	ModulesInvalidateSubject string
-	BotUserID                string
-	KeyspaceDB               int
-	Expiry                   *pkg_valkey.ExpiryHub
-	// Retained for rolling wiring compatibility. Reconfirmation now occurs in
-	// the correlated chatter request and requires a successful Twitch result.
+	Proj                  projection.Reader
+	Live                  IsLiveChecker
+	Reporter              *LoyaltyReporter
+	OutgressRPCPrefix     string
+	Invalidations         cache.Feed
+	BotUserID             string
+	KeyspaceDB            int
+	Expiry                *pkg_valkey.ExpiryHub
 	Publisher             bus.Publisher
 	OutgressSystemSubject string
 	Log                   *zap.Logger
 	ViewerSnapshots       *ValkeyChatters
 }
 
-func NewValkeyLoyaltyClock(client valkey.Client, nc *nats.Conn, proj projection.Reader, live IsLiveChecker, reporter *LoyaltyReporter, cfg LoyaltyClockConfig) *ValkeyLoyaltyClock {
+func NewValkeyLoyaltyClock(client valkey.Client, nc *nats.Conn, cfg LoyaltyClockConfig) *ValkeyLoyaltyClock {
+	proj, live, reporter := cfg.Proj, cfg.Live, cfg.Reporter
 	log := cfg.Log
 	if log == nil {
 		log = zap.NewNop()
@@ -101,7 +101,7 @@ func NewValkeyLoyaltyClock(client valkey.Client, nc *nats.Conn, proj projection.
 		request: func(ctx context.Context, subject string, body []byte) (*nats.Msg, error) {
 			return bus.RequestWithContext(ctx, nc, subject, body)
 		},
-		chattersSubject: cfg.OutgressRPCPrefix + ".chatters.get", rearmSubject: cfg.ModulesInvalidateSubject, botID: cfg.BotUserID, keyspaceDB: cfg.KeyspaceDB, expiry: cfg.Expiry,
+		chattersSubject: cfg.OutgressRPCPrefix + ".chatters.get", invalidations: cfg.Invalidations, botID: cfg.BotUserID, keyspaceDB: cfg.KeyspaceDB, expiry: cfg.Expiry,
 		log: log, wake: make(chan struct{}, 1), rearms: make(chan uint64, loyaltyQueueSize), now: time.Now}
 }
 
@@ -110,9 +110,6 @@ func loyaltyTickKey(id uint64) string { return cache.UserKey(loyaltyTickKeyPrefi
 func loyaltyScheduleKey(id uint64) string { return cache.UserKey(loyaltySchedulePrefix, id) }
 
 func loyaltyClaimKey(id uint64) string { return cache.UserKey(loyaltyTickClaimPrefix, id) }
-
-// Arm is the recovery/legacy surface. An already active schedule stays intact;
-// only a real versioned online event can start a new stream's window.
 
 type loyaltyArmRequest struct {
 	broadcaster uint64
@@ -134,6 +131,7 @@ func (s *ValkeyLoyaltyClock) arm(ctx context.Context, request loyaltyArmRequest)
 	}
 	liveSession, known, err := s.liveSession(ctx, request)
 	if err != nil {
+		idempotency.Fail(ctx, err)
 		return false
 	}
 	if !known {
@@ -141,6 +139,7 @@ func (s *ValkeyLoyaltyClock) arm(ctx context.Context, request loyaltyArmRequest)
 	}
 	snap, allowed, err := s.awards.Capture(ctx, request.broadcaster)
 	if err != nil {
+		idempotency.Fail(ctx, err)
 		s.log.Warn("loyalty: admission unavailable while arming", module.BIDField(request.broadcaster), zap.Error(err))
 		return false
 	}
@@ -164,6 +163,7 @@ func (s *ValkeyLoyaltyClock) persistArm(ctx context.Context, request loyaltyArmR
 	}
 	armed, err := result.AsInt64()
 	if err != nil {
+		idempotency.Fail(ctx, err)
 		return false
 	}
 	if armed == 1 {
@@ -209,6 +209,7 @@ func (s *ValkeyLoyaltyClock) DisarmVersioned(ctx context.Context, id uint64, ver
 
 func (s *ValkeyLoyaltyClock) eval(ctx context.Context, script pkg_valkey.Script, keys []string, args ...string) (valkey.ValkeyResult, error) {
 	result := script.Exec(ctx, s.client, keys, args)
+	idempotency.Fail(ctx, result.Error())
 	return result, result.Error()
 }
 

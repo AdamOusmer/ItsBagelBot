@@ -4,6 +4,7 @@
 package rpc
 
 import (
+	"ItsBagelBot/internal/domain/invalidate"
 	"context"
 	"strconv"
 	"time"
@@ -18,25 +19,23 @@ import (
 
 type userRPC struct {
 	Wiring
-	userGetSubject     string
-	invalidationPrefix string
-	fullReadTTL        time.Duration
-	peekTTL            time.Duration
+	userGetSubject string
+	fullReadTTL    time.Duration
+	peekTTL        time.Duration
 }
 
 type UserConfig struct {
-	UserGetSubject     string
-	Prefix             string
-	InvalidationPrefix string
-	FullReadTTL        time.Duration
-	PeekTTL            time.Duration
+	UserGetSubject string
+	Prefix         string
+	FullReadTTL    time.Duration
+	PeekTTL        time.Duration
 }
 
 func SubscribeUser(w Wiring, cfg UserConfig) error {
 	if cfg.UserGetSubject == "" {
 		cfg.UserGetSubject = conf.UsersGetSubject.Get()
 	}
-	u := &userRPC{Wiring: w, userGetSubject: cfg.UserGetSubject, invalidationPrefix: cfg.InvalidationPrefix, fullReadTTL: cfg.FullReadTTL, peekTTL: cfg.PeekTTL}
+	u := &userRPC{Wiring: w, userGetSubject: cfg.UserGetSubject, fullReadTTL: cfg.FullReadTTL, peekTTL: cfg.PeekTTL}
 
 	read := w.Within(readBudget)
 	if err := bus.ServeForUser[notificationsrpc.UserListRequest, notificationsrpc.UserListReply](read, cfg.Prefix+".list", u.list); err != nil {
@@ -87,7 +86,7 @@ func (u *userRPC) markRead(ctx context.Context, req notificationsrpc.MarkReadReq
 	if err := u.Repo.MarkReadForIncarnation(ctx, notifID, recipient, time.Now().Add(u.fullReadTTL)); err != nil {
 		return notificationsrpc.MarkReadReply{}, err
 	}
-	u.invalidateNotifications(u.invalidationPrefix, accountKey(userID))
+	u.Invalidations.Publish(invalidate.ScopeNotifications, userID)
 	return notificationsrpc.MarkReadReply{}, nil
 }
 
@@ -97,11 +96,11 @@ func (u *userRPC) markPeeked(ctx context.Context, req notificationsrpc.MarkPeeke
 		return notificationsrpc.MarkPeekedReply{}, err
 	}
 	peeked, err := u.Repo.MarkPeekedForIncarnation(ctx, recipient, time.Now().Add(u.peekTTL))
+	if peeked > 0 {
+		u.Invalidations.Publish(invalidate.ScopeNotifications, userID)
+	}
 	if err != nil {
 		return notificationsrpc.MarkPeekedReply{}, err
-	}
-	if peeked > 0 {
-		u.invalidateNotifications(u.invalidationPrefix, accountKey(userID))
 	}
 	return notificationsrpc.MarkPeekedReply{Peeked: peeked}, nil
 }

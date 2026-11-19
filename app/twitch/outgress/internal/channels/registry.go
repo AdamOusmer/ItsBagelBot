@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/utils"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/kvstate"
@@ -34,8 +35,7 @@ const (
 	unhealthyKey          = "outgress:channels:unhealthy"
 	unhealthySweepLockKey = "outgress:channels:unhealthy:sweep"
 
-	cacheInvalidateScope = "outgress"
-	pauseInvalidateScope = "outgress-pause"
+	pauseInvalidateScope = invalidate.ScopeOutgressPause
 )
 
 const (
@@ -70,7 +70,7 @@ type Registry struct {
 
 	nc               *nats.Conn
 	invalidatePrefix string
-	invalidateSub    *nats.Subscription
+	invalidations    *bus.Invalidations
 	pauseSub         *nats.Subscription
 	log              *zap.Logger
 
@@ -79,36 +79,36 @@ type Registry struct {
 	pauseWG     sync.WaitGroup
 }
 
-func New(client valkey.Client) *Registry {
+func New(client valkey.Client, hubs ...*bus.Invalidations) *Registry {
+	var h *bus.Invalidations
+	if len(hubs) > 0 {
+		h = hubs[0]
+	}
+	if h == nil {
+		h = bus.NewInvalidations(nil, "", nil)
+	}
 	return &Registry{
-		client: pkg_valkey.Primary(client),
-		cache:  cache.New[manage.Channel](channelCacheCapacity, channelCacheTTL),
+		client:        pkg_valkey.Primary(client),
+		cache:         cache.New[manage.Channel](channelCacheCapacity, channelCacheTTL).InvalidateOn(h, cache.UserKeys(""), invalidate.ScopeOutgress),
+		invalidations: h,
+		log:           zap.NewNop(),
 	}
 }
 
-func (r *Registry) StartInvalidationListener(nc *nats.Conn, prefix string, log *zap.Logger) error {
+func (r *Registry) StartPauseListener(nc *nats.Conn, prefix string, log *zap.Logger) error {
 	r.nc = nc
 	r.invalidatePrefix = prefix
 	r.log = log
 
-	sub, err := r.subscribeChannelInvalidation(prefix, log)
+	pauseSub, err := r.subscribePauseInvalidation()
 	if err != nil {
-		return err
-	}
-
-	pauseSub, err := r.subscribePauseInvalidation(prefix, log)
-	if err != nil {
-		_ = sub.Unsubscribe()
 		return err
 	}
 
 	if err := r.seedPauseSnapshot(); err != nil {
-		_ = sub.Unsubscribe()
-		_ = pauseSub.Unsubscribe()
 		return err
 	}
 
-	r.invalidateSub = sub
 	r.pauseSub = pauseSub
 	pollCtx, cancel := context.WithCancel(context.Background())
 	r.pauseCancel = cancel
@@ -117,21 +117,8 @@ func (r *Registry) StartInvalidationListener(nc *nats.Conn, prefix string, log *
 	return nil
 }
 
-func (r *Registry) subscribeChannelInvalidation(prefix string, log *zap.Logger) (*nats.Subscription, error) {
-	return r.nc.Subscribe(prefix+"."+cacheInvalidateScope, func(msg *nats.Msg) {
-		var payload invalidate.DTO
-		if err := codec.Unmarshal(msg.Data, &payload); err != nil {
-			log.Debug("channel cache invalidation: bad payload", zap.Error(err))
-			return
-		}
-		if payload.BroadcasterID == "" {
-			return
-		}
-		r.cache.Invalidate(payload.BroadcasterID)
-	})
-}
-
-func (r *Registry) subscribePauseInvalidation(prefix string, log *zap.Logger) (*nats.Subscription, error) {
+func (r *Registry) subscribePauseInvalidation() (*nats.Subscription, error) {
+	prefix, log := r.invalidatePrefix, r.log
 	return r.nc.Subscribe(prefix+"."+pauseInvalidateScope, func(msg *nats.Msg) {
 		if r.pauseStore != nil {
 			return
@@ -169,41 +156,32 @@ func (r *Registry) Close() {
 		r.pauseCancel()
 		r.pauseWG.Wait()
 	}
-	if r.invalidateSub != nil {
-		_ = r.invalidateSub.Unsubscribe()
-	}
 	if r.pauseSub != nil {
 		_ = r.pauseSub.Unsubscribe()
 	}
 	r.cache.Close()
 }
 
-func (r *Registry) publishInvalidation(broadcasterID string) {
-	if r.nc == nil || r.invalidatePrefix == "" {
-		return
-	}
-	if err := invalidate.Publish(r.nc, r.invalidatePrefix, cacheInvalidateScope, broadcasterID); err != nil && r.log != nil {
-		r.log.Warn("failed to publish channel cache invalidation",
-			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
-	}
-}
+type channelID string
 
-func channelFromFields(broadcasterID string, fields map[string]string) manage.Channel {
+type epochSeconds string
+
+func channelFromFields(broadcasterID channelID, fields map[string]string) manage.Channel {
 	if len(fields) == 0 {
 		return manage.Channel{}
 	}
 	return manage.Channel{
-		BroadcasterID:  broadcasterID,
+		BroadcasterID:  string(broadcasterID),
 		Enabled:        fields["enabled"] == "1",
 		IsMod:          fields["is_mod"] == "1",
-		ModCheckedAt:   unixField(fields["mod_checked_at"]),
-		UpdatedAt:      unixField(fields["updated_at"]),
+		ModCheckedAt:   unixField(epochSeconds(fields["mod_checked_at"])),
+		UpdatedAt:      unixField(epochSeconds(fields["updated_at"])),
 		SubState:       fields["sub_state"],
 		SubError:       fields["sub_error"],
-		SubCheckedAt:   unixField(fields["sub_checked_at"]),
-		BlockedAt:      unixField(fields["blocked_at"]),
+		SubCheckedAt:   unixField(epochSeconds(fields["sub_checked_at"])),
+		BlockedAt:      unixField(epochSeconds(fields["blocked_at"])),
 		GrantState:     manage.GrantState(fields["grant_state"]),
-		GrantCheckedAt: unixField(fields["grant_checked_at"]),
+		GrantCheckedAt: unixField(epochSeconds(fields["grant_checked_at"])),
 	}
 }
 
@@ -214,7 +192,7 @@ func (r *Registry) Get(ctx context.Context, broadcasterID string) (manage.Channe
 		if err != nil {
 			return manage.Channel{}, err
 		}
-		return channelFromFields(broadcasterID, fields), nil
+		return channelFromFields(channelID(broadcasterID), fields), nil
 	})
 
 	if err != nil {
@@ -243,7 +221,7 @@ func (r *Registry) SetFlags(ctx context.Context, broadcasterID string, enabled, 
 	if err := update.Apply(ctx, r.client, pkg_valkey.Membership{Key: indexKey, Member: broadcasterID, Include: true}); err != nil {
 		return err
 	}
-	return r.afterChannelUpdate(ctx, broadcasterID)
+	return r.afterChannelUpdate(ctx, channelID(broadcasterID))
 }
 
 func (r *Registry) SetMod(ctx context.Context, broadcasterID string, isMod bool) error {
@@ -258,7 +236,7 @@ func (r *Registry) SetMod(ctx context.Context, broadcasterID string, isMod bool)
 	if err := update.Apply(ctx, r.client, pkg_valkey.Membership{Key: indexKey, Member: broadcasterID, Include: true}); err != nil {
 		return err
 	}
-	return r.afterChannelUpdate(ctx, broadcasterID)
+	return r.afterChannelUpdate(ctx, channelID(broadcasterID))
 }
 
 func (r *Registry) SetSubState(ctx context.Context, broadcasterID, state, errMsg string) error {
@@ -271,15 +249,15 @@ func (r *Registry) SetSubState(ctx context.Context, broadcasterID, state, errMsg
 	}
 	err := update.Apply(ctx, r.client,
 		pkg_valkey.Membership{Key: indexKey, Member: broadcasterID, Include: true},
-		pkg_valkey.Membership{Key: unhealthyKey, Member: broadcasterID, Include: unhealthyState(state)},
+		pkg_valkey.Membership{Key: unhealthyKey, Member: broadcasterID, Include: (SubState{State: state}).unhealthy()},
 	)
 	if err != nil {
 		return err
 	}
-	return r.afterChannelUpdate(ctx, broadcasterID)
+	return r.afterChannelUpdate(ctx, channelID(broadcasterID))
 }
 
-func unhealthyState(state string) bool { return state == "failing" || state == "pending" }
+func (s SubState) unhealthy() bool { return s.State == "failing" || s.State == "pending" }
 
 func (r *Registry) UnhealthyBatch(ctx context.Context, n int) ([]string, error) {
 	return pkg_valkey.ExpiringSet{Key: unhealthyKey}.Sample(ctx, r.client, n)
@@ -305,13 +283,13 @@ func (r *Registry) SetSubStateUnless(ctx context.Context, broadcasterID string, 
 			{Field: "sub_checked_at", Value: now},
 			{Field: "updated_at", Value: now},
 		},
-		Member: broadcasterID, Flag: unhealthyState(write.State), Protected: protected,
+		Member: broadcasterID, Flag: write.unhealthy(), Protected: protected,
 	}
 	applied, err := transition.Apply(ctx, r.client)
 	if err != nil || !applied {
 		return false, err
 	}
-	return true, r.afterChannelUpdate(ctx, broadcasterID)
+	return true, r.afterChannelUpdate(ctx, channelID(broadcasterID))
 }
 
 func (r *Registry) MarkBlocked(ctx context.Context, ch manage.Channel) error {
@@ -322,7 +300,7 @@ func (r *Registry) MarkBlocked(ctx context.Context, ch manage.Channel) error {
 	if err := update.Apply(ctx, r.client, pkg_valkey.Membership{Key: indexKey, Member: ch.BroadcasterID, Include: true}); err != nil {
 		return err
 	}
-	return r.afterChannelUpdate(ctx, ch.BroadcasterID)
+	return r.afterChannelUpdate(ctx, channelID(ch.BroadcasterID))
 }
 
 func (r *Registry) SetGrantState(ctx context.Context, broadcasterID string, state manage.GrantState) error {
@@ -337,16 +315,22 @@ func (r *Registry) SetGrantState(ctx context.Context, broadcasterID string, stat
 	if err := update.Apply(ctx, r.client, pkg_valkey.Membership{Key: indexKey, Member: broadcasterID, Include: true}); err != nil {
 		return err
 	}
-	return r.afterChannelUpdate(ctx, broadcasterID)
+	return r.afterChannelUpdate(ctx, channelID(broadcasterID))
 }
 
-func (r *Registry) afterChannelUpdate(ctx context.Context, broadcasterID string) error {
-	if err := r.retainHot(ctx, broadcasterID); err != nil {
-		return err
+func (r *Registry) afterChannelUpdate(ctx context.Context, id channelID) error {
+	r.invalidateChannel(id)
+	return r.retainHot(ctx, string(id))
+}
+
+func (r *Registry) invalidateChannel(id channelID) {
+	r.cache.Invalidate(string(id))
+	userID, err := strconv.ParseUint(string(id), 10, 64)
+	if err != nil {
+		r.log.Warn("skipping channel cache invalidation: invalid broadcaster id", zap.String("broadcaster_id", string(id)), zap.Error(err))
+		return
 	}
-	r.cache.Invalidate(broadcasterID)
-	r.publishInvalidation(broadcasterID)
-	return nil
+	r.invalidations.Publish(invalidate.ScopeOutgress, userID)
 }
 
 const enrollLockPrefix = "outgress:enroll:lock:"
@@ -375,7 +359,6 @@ func (r *Registry) EnrollCooldownActive(ctx context.Context, broadcasterID strin
 
 const reauthBeaconPrefix = "outgress:reauth:beacon:"
 
-// namedLock names a lock by its prefixed key and owner, so acquire and release share one shape.
 type namedLock struct {
 	key   string
 	owner string
@@ -527,8 +510,8 @@ func nextPauseReconcileDelay() time.Duration {
 	return pauseReconcileInterval - pauseReconcileJitter/2 + rand.N(pauseReconcileJitter)
 }
 
-func unixField(v string) time.Time {
-	sec, err := strconv.ParseInt(v, 10, 64)
+func unixField(v epochSeconds) time.Time {
+	sec, err := strconv.ParseInt(string(v), 10, 64)
 	if err != nil || sec <= 0 {
 		return time.Time{}
 	}
@@ -547,7 +530,7 @@ func (r *Registry) listChannels(ctx context.Context, ids channelIDs) ([]manage.C
 		if read.Err != nil {
 			return nil, read.Err
 		}
-		ch := channelFromFields(ids[i], read.Fields)
+		ch := channelFromFields(channelID(ids[i]), read.Fields)
 		if ch.BroadcasterID != "" {
 			out = append(out, ch)
 		}

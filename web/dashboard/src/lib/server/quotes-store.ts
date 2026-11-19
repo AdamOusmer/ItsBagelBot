@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { rpc } from '@bagel/kit/server/nats';
+import { rpc, RpcError } from '@bagel/kit/server/nats';
 import { MOD } from '@bagel/kit';
 import { SUB } from './services';
 import { upsertModule } from './commands-store';
@@ -75,7 +75,8 @@ export async function editQuote(userId: string, num: number, text: string, creat
     { user_id: userId, number: num, text, created_at: createdAt },
     RPC_TIMEOUT_MS
   );
-  if (!r.found || !r.quote) throw new Error(`quote edit: #${num} does not exist`);
+  if (!r.found) throw new RpcError(`quote edit: #${num} does not exist`, 'not_found');
+  if (!r.quote) throw new Error('quote edit returned no row');
   return r.quote;
 }
 

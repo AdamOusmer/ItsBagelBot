@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 
+	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/tmpl"
 )
 
@@ -40,9 +41,10 @@ func (c Chain) Plan(ctx context.Context, toks []Var, onErr func(error)) Values {
 	var group sync.WaitGroup
 	for _, i := range due {
 		group.Add(1)
+		planCtx := monitor.Concurrent(ctx)
 		go func() {
 			defer group.Done()
-			planned[i] = plannedValues(ctx, c[i], wants[i], onErr)
+			planned[i] = plannedValues(planCtx, c[i], wants[i], onErr)
 		}()
 	}
 	group.Wait()

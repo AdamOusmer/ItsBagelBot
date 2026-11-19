@@ -25,7 +25,7 @@
         "id": "itsbagelbot",
         "music": "Spotify",
         "plays": "!sr fügt den Titel zu deiner eigenen Spotify-Warteschlange hinzu. Braucht Spotify Premium und deine eigene Spotify-Entwickler-App.",
-        "price": "Kostenlos. Die Warteschlange fasst 100 Songs.",
+        "price": "Kostenlos. Die Warteschlange ist unbegrenzt.",
         "source": "https://itsbagelbot.com/song-requests/"
       },
       {
@@ -93,7 +93,7 @@
       },
       {
         "name": "Lange Gratis-Warteschlange",
-        "desc": "Der kostenlose Tarif von ItsBagelBot reiht 100 Songs ein. Der kostenlose Tarif von SpotchBot fasst bis zu 6."
+        "desc": "Der kostenlose Tarif von ItsBagelBot bietet eine unbegrenzte Warteschlange. Der kostenlose Tarif von SpotchBot fasst bis zu 6."
       },
       {
         "name": "Ein Bot für den Chat",
@@ -125,7 +125,7 @@
     },
     {
       "q": "Gibt es einen kostenlosen Spotify-Songwunsch-Bot für Twitch?",
-      "a": "ItsBagelBot enthält Spotify-Songwünsche im kostenlosen Tarif, mit einer Warteschlange von 100 Songs. SpotchBot hat einen kostenlosen Tarif mit bis zu 6 Songs in der Warteschlange. Beide brauchen Spotify Premium, das Spotify für die Steuerung der Warteschlange verlangt."
+      "a": "ItsBagelBot enthält Spotify-Songwünsche im kostenlosen Tarif, mit einer unbegrenzten Warteschlange. SpotchBot hat einen kostenlosen Tarif mit bis zu 6 Songs in der Warteschlange. Beide brauchen Spotify Premium, das Spotify für die Steuerung der Warteschlange verlangt."
     },
     {
       "q": "Brauche ich Spotify Premium für Song-Anfragen?",

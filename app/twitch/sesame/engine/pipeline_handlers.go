@@ -5,10 +5,12 @@ package engine
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/idempotency"
 	"ItsBagelBot/pkg/monitor"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -16,23 +18,30 @@ import (
 )
 
 type boundHandler struct {
-	m      module.Module
-	handle module.EventHandler
+	m       module.Module
+	handle  module.EventHandler
+	ordinal int
 }
 
 func (p *Pipeline) dispatch(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit) {
-	if err := p.dispatchCommand(ctx, mctx, views, emit); err != nil {
+	mctx.EffectScope, mctx.EffectOrdinal = "command", 0
+	err := p.dispatchCommand(ctx, mctx, views, emit)
+	if err != nil {
 		p.log.Error("command dispatch failed", module.BIDField(mctx.BroadcasterID), zap.Error(err))
 		notice(ctx, err)
+		idempotency.Fail(ctx, err)
+		mctx.Failure = err
 	}
 }
 
-func (p *Pipeline) runHandlers(ctx context.Context, views map[string]projection.ModuleView, mctx *module.Context, emit module.Emit, eventType string) {
-	for _, m := range p.registry.For(eventType) {
+func (p *Pipeline) runHandlers(ctx context.Context, views map[string]projection.ModuleView, mctx *module.Context, emit module.Emit) {
+	ctx = p.prepareHandlerEffects(ctx, mctx, views)
+	eventType := mctx.Env.Type
+	for ordinal, m := range p.registry.For(eventType) {
 		if !p.enabled(m, views, mctx) {
 			continue
 		}
-		h := boundHandler{m: m, handle: m.Events[eventType]}
+		h := boundHandler{m: m, handle: m.Events[eventType], ordinal: ordinal}
 		p.runHandler(ctx, mctx, &h, emit)
 	}
 }
@@ -42,15 +51,46 @@ func (p *Pipeline) runHandler(ctx context.Context, mctx *module.Context, h *boun
 		return
 	}
 	before := mctx.Emitted
-	err := h.handle(ctx, mctx, emit)
-	p.recordHandled(mctx, h.m, before)
+	mctx.EffectScope, mctx.EffectOrdinal = "", 0
+	if mctx.Env.EventID != "" || p.dedup != nil {
+		mctx.EffectScope = h.effectScope()
+	}
+	err := p.runHandlerEffect(ctx, mctx, h, emit)
 	if err != nil {
 		p.handlerFailed(ctx, mctx, h.m, err)
+		idempotency.Fail(ctx, err)
+		mctx.Failure = err
 		return
 	}
 	if engagedBy(mctx, h.m, before) {
 		mctx.Engaged = true
 	}
+}
+
+func (h *boundHandler) effectScope() string {
+	if h.m.Name != "" {
+		return "handler:" + h.m.Name
+	}
+	return "handler:core:" + strconv.Itoa(h.ordinal)
+}
+
+func (p *Pipeline) runHandlerEffect(ctx context.Context, c *module.Context, h *boundHandler, emit module.Emit) error {
+	if h.m.ProtectReplay {
+		return p.dedup.Effect(ctx, EffectRef{Identity: EventIdentity(&c.Env), Effect: c.EffectScope}, func(ctx context.Context) error {
+			return p.invokeHandler(ctx, c, h, emit)
+		})
+	}
+	return p.invokeHandler(ctx, c, h, emit)
+}
+
+func (p *Pipeline) invokeHandler(ctx context.Context, c *module.Context, h *boundHandler, emit module.Emit) error {
+	c.EffectContext = ctx
+	before := c.Emitted
+	err := h.handle(ctx, c, emit)
+	if err == nil {
+		p.recordHandled(ctx, c, h.m, before)
+	}
+	return err
 }
 
 func engagedBy(mctx *module.Context, m module.Module, emittedBefore int) bool {

@@ -37,8 +37,16 @@ import { GRANTABLE_SECTIONS } from '@bagel/kit';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { cookieOptions, deleteOptions } from '#lib/server/cookies';
+import { logger } from '@bagel/kit/server/logger';
 
 const DEMO = dev && env.DEMO === '1';
+
+type UpstreamFailure = { op: string; error: string; ok?: false };
+
+function upstreamFailed(err: unknown, { op, ...body }: UpstreamFailure) {
+  logger.error({ err }, `[settings] ${op} failed`);
+  return fail(502, body);
+}
 
 function tokenLabel(token: string): string {
   return token.length <= 8 ? 'token=redacted' : `token=${token.slice(0, 8)}...`;
@@ -82,8 +90,8 @@ function pageToggle(page: PublicPage) {
 
     try {
       await pageToggles[page].write(s.user_id, !enabled);
-    } catch {
-      return fail(502, { error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
+    } catch (err) {
+      return upstreamFailed(err, { op: `${action}:set`, error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
     }
 
     auditDashboardImpersonation(s, `${action}:set`, `enabled=${enabled}`);
@@ -103,8 +111,8 @@ function ownerAction<R>(
     const form = await request.formData();
     try {
       return await run(s, form, locals.locale);
-    } catch {
-      return fail(502, { error: actionError(locals.locale, failMsg) });
+    } catch (err) {
+      return upstreamFailed(err, { op: `owner action (${failMsg})`, error: actionError(locals.locale, failMsg) });
     }
   };
 }
@@ -239,8 +247,8 @@ export const actions: Actions = {
       const fresh = await listFetches(actor.session.user_id);
       auditDashboardImpersonation(actor.session, 'fetchkey:set', label);
       return { ok: true, action: 'fetchkeyset', name: label, last4, fetchKeys: fresh.keys };
-    } catch {
-      return fail(502, { ok: false, error: actionError(locals.locale, 'Could not seal the key.') });
+    } catch (err) {
+      return upstreamFailed(err, { op: 'fetchkey:set', ok: false, error: actionError(locals.locale, 'Could not seal the key.') });
     }
   },
 
@@ -257,8 +265,8 @@ export const actions: Actions = {
       const fresh = await listFetches(actor.session.user_id);
       auditDashboardImpersonation(actor.session, 'fetchkey:delete', label);
       return { ok: true, action: 'fetchkeydeleted', name: label, fetchKeys: fresh.keys };
-    } catch {
-      return fail(502, { ok: false, error: actionError(locals.locale, 'Could not delete the key.') });
+    } catch (err) {
+      return upstreamFailed(err, { op: 'fetchkey:delete', ok: false, error: actionError(locals.locale, 'Could not delete the key.') });
     }
   },
 
@@ -274,8 +282,8 @@ export const actions: Actions = {
     try {
       await notificationMarkRead(s.user_id, id);
       return { ok: true, action: 'read' };
-    } catch {
-      return fail(502, { error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
+    } catch (err) {
+      return upstreamFailed(err, { op: 'notification:read', error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
     }
   },
 
@@ -298,8 +306,9 @@ export const actions: Actions = {
     if (ids.length === 0) return { ok: true, action: 'all_read' };
 
     const settled = await Promise.allSettled(ids.map((id) => notificationMarkRead(s.user_id, id)));
-    if (settled.some((r) => r.status === 'rejected')) {
-      return fail(502, { error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
+    const failed = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (failed) {
+      return upstreamFailed(failed.reason, { op: 'notification:read_all', error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
     }
     return { ok: true, action: 'all_read' };
   },
@@ -313,8 +322,8 @@ export const actions: Actions = {
     try {
       await notificationMarkPeeked(s.user_id);
       return { ok: true, action: 'peeked' };
-    } catch {
-      return fail(502, { error: actionError(locals.locale, 'Could not update.') });
+    } catch (err) {
+      return upstreamFailed(err, { op: 'notification:peek', error: actionError(locals.locale, 'Could not update.') });
     }
   },
 
@@ -330,8 +339,8 @@ export const actions: Actions = {
       auditDashboardImpersonation(s, 'account:delete');
       schedulePurgeChannel(s.user_id, [s.login]);
       scheduleLeaderboardPurge(s.user_id, [s.login]);
-    } catch {
-      return fail(502, { error: actionError(locals.locale, 'Could not delete account.') });
+    } catch (err) {
+      return upstreamFailed(err, { op: 'account:delete', error: actionError(locals.locale, 'Could not delete account.') });
     }
     cookies.delete(COOKIE, { path: '/' });
     cookies.set(ACCOUNT_DELETED_COOKIE, '1', cookieOptions(url, 60));
@@ -410,8 +419,8 @@ export const actions: Actions = {
     // instead of landing on the login page believing every device was signed out.
     try {
       await deviceGrantRevokeAll(s.user_id);
-    } catch {
-      return fail(502, { error: actionError(locals.locale, 'Could not revoke your devices.') });
+    } catch (err) {
+      return upstreamFailed(err, { op: 'sign_out_everywhere', error: actionError(locals.locale, 'Could not revoke your devices.') });
     }
 
     const now = Math.floor(Date.now() / 1000);

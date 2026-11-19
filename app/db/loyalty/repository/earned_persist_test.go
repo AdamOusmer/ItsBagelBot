@@ -31,8 +31,6 @@ func TestEarnedFailureRollbackAndRestartReplay(t *testing.T) {
 	for viewer := uint64(9); viewer <= 1006; viewer++ {
 		dto.Entries = append(dto.Entries, data.LoyaltyEarnEntry{ViewerID: viewer, Points: 1})
 	}
-	// Fail after the first chunk has already been written: receipt and ALL
-	// credits must roll back, rather than ACKing or retaining a partial award.
 	_, err = raw.Exec(`CREATE TRIGGER fail_earned BEFORE INSERT ON balances WHEN NEW.viewer_id=1006 BEGIN SELECT RAISE(ABORT, 'injected failure'); END`)
 	require.NoError(t, err)
 	require.Error(t, r.ApplyEarned(t.Context(), dto))
@@ -44,13 +42,11 @@ func TestEarnedFailureRollbackAndRestartReplay(t *testing.T) {
 	_, err = raw.Exec("DROP TRIGGER fail_earned")
 	require.NoError(t, err)
 	require.NoError(t, r.ApplyEarned(t.Context(), dto))
-	r.Close(t.Context())
 	require.NoError(t, raw.Close())
 	raw2, err := sql.Open(testdb.Driver, path+"?_fk=1")
 	require.NoError(t, err)
 	t.Cleanup(func() { raw2.Close() })
 	restarted := watchRetentionRepo(t, raw2, "sqlite3")
-	// Represents a lost commit response/ACK followed by restart and redelivery.
 	require.NoError(t, restarted.ApplyEarned(t.Context(), dto))
 	for viewer, points := range map[uint64]int64{7: 10, 8: 20} {
 		balance, found, err := restarted.BalanceGet(t.Context(), 17, viewer)

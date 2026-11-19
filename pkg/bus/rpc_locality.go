@@ -44,7 +44,15 @@ func validSubjectToken(token rpcNodeName) bool {
 }
 
 func RequestWithContext(ctx context.Context, nc *nats.Conn, subject string, data []byte) (*nats.Msg, error) {
-	return RequestMsgWithContext(ctx, nc, &nats.Msg{Subject: subject, Data: data})
+	msg := nats.NewMsg(subject)
+	msg.Data = data
+	segment := startMessagingSegment(ctx, messagingSpan{
+		name: "nats.request", operation: "request", destination: subject,
+	})
+	insertTraceHeaders(ctx, msg)
+	reply, err := RequestMsgWithContext(ctx, nc, msg)
+	endMessagingSegment(segment, err)
+	return reply, err
 }
 
 // Never retry timeouts: the request may have executed, and a replayed mutation applies twice.

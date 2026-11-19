@@ -23,7 +23,7 @@ metadata:
   namespace: app
   annotations:
     secrets.doppler.com/reload: "true"
-    itsbagelbot.com/restart-on-tls-secret: "console-dashboard-tls,nats-client-tls,valkey-client-tls"
+    secret.reloader.stakater.com/reload: "console-dashboard-tls,nats-client-tls,valkey-client-tls"
 spec:
   replicas: 2
   revisionHistoryLimit: 3
@@ -69,6 +69,8 @@ spec:
         sysctls:
           - name: net.ipv4.tcp_slow_start_after_idle
             value: "0"
+          - name: net.ipv4.tcp_rto_min_us
+            value: "10000"
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
@@ -76,7 +78,7 @@ spec:
       priorityClassName: bagel-edge
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1794871409-400e5a595e33@sha256:714fa0d841a591ec689b66b507314029855e9c9fb58c5a9901c14e67432f90b5
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1794967759-d977817ef2ad@sha256:d8fb4055808e497fb1e9e53ae69fe1c6046d47c3d427d1d2bf3ff3b94802437b
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
@@ -183,6 +185,8 @@ spec:
               value: "true"
             - name: NEW_RELIC_ALLOW_ALL_HEADERS
               value: "false"
+            - name: NEW_RELIC_ERROR_COLLECTOR_EXPECTED_ERROR_CODES
+              value: "400-499"
             - name: NEW_RELIC_IGNORING_RULES
               value: "^/healthz$,^/readyz$"
             - name: NEW_RELIC_INSTRUMENTATION_FS_ENABLED

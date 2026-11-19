@@ -101,7 +101,7 @@ func TestHydrationCannotAdmitOfflineWatchtime(t *testing.T) {
 			nc, up := newUpstream(t, watchReplies(func() {}))
 			h := hydration.New(store, nc, up.subjects, queryTTL, liveTTL, 1, zap.NewNop())
 			// Even a forced go-live settings refresh cannot establish live status.
-			h.RefreshAsync(id)
+			h.RefreshAsync(context.Background(), id)
 			store.awaitFill(t)
 			_, err := store.SetStreamLive(ctx, id, projection.StreamLive{Live: projectedLive, Version: 1000})
 			require.NoError(t, err)
@@ -134,7 +134,7 @@ func TestHydrationFinishingAfterOfflineCannotReviveWatchtime(t *testing.T) {
 		}
 	}))
 	h := hydration.New(store, nc, up.subjects, queryTTL, liveTTL, 1, zap.NewNop())
-	h.RefreshAsync(id)
+	h.RefreshAsync(context.Background(), id)
 	store.awaitFill(t)
 	slot := pkg_valkey.VersionedSlot{Key: livekey.Key(id), VerKey: livekey.VerKey(id)}
 	_, err := slot.Set(ctx, client, pkg_valkey.SlotWrite{Version: 2000, TTL: time.Hour, VerTTL: 2 * time.Hour})
@@ -143,7 +143,7 @@ func TestHydrationFinishingAfterOfflineCannotReviveWatchtime(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, allowed)
 
-	h.RefreshAsync(id)
+	h.RefreshAsync(context.Background(), id)
 	waitFor(t, secondUserStarted, "hydration to reach the delayed account fetch")
 	_, err = slot.Clear(ctx, client, 3000, 2*time.Hour)
 	require.NoError(t, err)

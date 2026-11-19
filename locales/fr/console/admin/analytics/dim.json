@@ -19,7 +19,11 @@
     "bot_disabled": "Bot désactivé",
     "revoked": "Accès révoqué",
     "chat_banned": "Banni du chat",
-    "account_deleted": "Compte supprimé"
+    "dormant": "Mis en sommeil",
+    "account_deleted": "Compte supprimé",
+    "access_restored": "Accès rétabli",
+    "unbanned": "Débanni",
+    "woke": "Sorti du sommeil"
   },
   "billing": {
     "activate": "Offre activée",

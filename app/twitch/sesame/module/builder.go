@@ -11,12 +11,13 @@ import (
 )
 
 type Builder struct {
-	name   string
-	kind   Kind
-	beta   bool
-	trial  bool
-	events map[string]EventHandler
-	cmds   []*Command
+	protectReplay bool
+	name          string
+	kind          Kind
+	beta          bool
+	trial         bool
+	events        map[string]EventHandler
+	cmds          []*Command
 }
 
 func NewModule(name string, kind Kind) *Builder {
@@ -30,6 +31,11 @@ func (b *Builder) Beta() *Builder {
 
 func (b *Builder) Trial() *Builder {
 	b.trial = true
+	return b
+}
+
+func (b *Builder) ProtectReplay() *Builder {
+	b.protectReplay = true
 	return b
 }
 
@@ -66,12 +72,13 @@ func (b *Builder) Build() Module {
 	}
 
 	return Module{
-		Name:     b.name,
-		Kind:     b.kind,
-		Beta:     b.beta,
-		Trial:    b.trial,
-		Events:   events,
-		Commands: cmds,
+		ProtectReplay: b.protectReplay,
+		Name:          b.name,
+		Kind:          b.kind,
+		Beta:          b.beta,
+		Trial:         b.trial,
+		Events:        events,
+		Commands:      cmds,
 	}
 }
 

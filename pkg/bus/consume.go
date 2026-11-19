@@ -45,6 +45,7 @@ type consumeLane struct {
 }
 
 func newConsumeLane(app *newrelic.Application, subject string, handle func(*Message) error, log *zap.Logger) consumeLane {
+	app = monitor.Resolve(app)
 	if handle != nil && log != nil {
 		base := handle
 		lg := log
@@ -76,7 +77,7 @@ func (lane consumeLane) process(msg *Message) {
 	}
 	wait := msg.deliveryWait(time.Now())
 
-	if lane.stats.sample() {
+	if continuesTrace(msg.Metadata) || lane.stats.sample() {
 		lane.processSampled(msg, wait)
 		return
 	}
@@ -84,12 +85,40 @@ func (lane consumeLane) process(msg *Message) {
 }
 
 func (lane consumeLane) processSampled(msg *Message, wait time.Duration) {
+	lane.stats.recordBroker(msg)
 	txn := lane.startTransaction(msg, wait)
 	log := monitor.TraceLogger(txn, lane.log)
 
-	msg.SetContext(newrelic.NewContext(msg.Context(), txn))
+	ctx := newrelic.NewContext(msg.Context(), txn)
+	upstream, deferred := parseIngressTrace(msg.Metadata)
+	var gate *monitor.Gate
+	if deferred {
+		ctx, gate = monitor.Defer(ctx)
+	}
+	msg.SetContext(ctx)
 
+	out := lane.handleTraced(txn, msg, wait)
+	lane.settleDeferred(txn, gate, upstream, out)
+	lane.finish(msg, out, log)
+	txn.End()
+}
+
+func (lane consumeLane) settleDeferred(txn *newrelic.Transaction, gate *monitor.Gate, upstream ingressTrace, out outcome) {
+	if gate == nil {
+		return
+	}
+	if !gate.Kept() && !out.loud() {
+		txn.Ignore()
+		return
+	}
+	upstream.export(lane.subject)
+}
+
+func (lane consumeLane) handleTraced(txn *newrelic.Transaction, msg *Message, wait time.Duration) outcome {
 	processSegment := txn.StartSegment("message.process")
+	if msg.hasBrokerTime {
+		processSegment.AddAttribute("broker_ms", brokerMillis(msg.brokerTime))
+	}
 	out := classify(lane.handle(msg), wait)
 	processSegment.AddAttribute(resultAttribute, out.result)
 	processSegment.End()
@@ -98,9 +127,7 @@ func (lane consumeLane) processSampled(msg *Message, wait time.Duration) {
 		monitor.NoticeError(txn, out.err)
 	}
 	txn.AddAttribute(resultAttribute, out.result)
-	txn.End()
-
-	lane.finish(msg, out, log)
+	return out
 }
 
 func (lane consumeLane) processUnsampled(msg *Message, wait time.Duration) {
@@ -132,15 +159,18 @@ func (lane consumeLane) startTransaction(msg *Message, wait time.Duration) *newr
 	acceptMetadataTraceHeaders(txn, msg.Metadata)
 	addMessagingTransactionAttributes(txn, messagingAttributes{operation: "process", destination: lane.subject})
 	txn.AddAttribute(queueMillisAttribute, float64(wait.Microseconds())/1000)
+	txn.AddAttribute(messageIDAttribute, msg.UUID)
 	return txn
 }
 
 func (lane consumeLane) finish(msg *Message, out outcome, log *zap.Logger) {
+	defer msg.completionState().detach()
+	defer EndDeliveryExecution(msg.Context())
 	lane.stats.record(out.result, out.wait)
 
 	switch {
 	case out.err == nil:
-		msg.Ack()
+		msg.finishSuccess()
 		return
 	case out.result == resultDeferred:
 		log.Debug("event deferred by expected backpressure",
@@ -152,6 +182,12 @@ func (lane consumeLane) finish(msg *Message, out outcome, log *zap.Logger) {
 			zap.String("subject", lane.subject),
 			zap.String("message_id", msg.UUID),
 			zap.Error(out.err))
+	}
+	if msg.quarantine(out.err) {
+		return
+	}
+	if msg.completionDeferred() {
+		return
 	}
 	msg.nackAfter(requestedRetryDelay(out.err))
 }

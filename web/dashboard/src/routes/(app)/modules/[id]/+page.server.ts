@@ -6,6 +6,7 @@ import { moduleDef, type ModuleDef, MOD } from '@bagel/kit';
 import { listModules, listModulesForEditing, upsertModule, patchModule, type ModuleView } from '#lib/server/commands-store';
 import { auditDashboardImpersonation } from '#lib/server/services';
 import { logger } from '@bagel/kit/server/logger';
+import { thrownStatus } from '@bagel/kit/server/form-action';
 import { gateSection, moduleLocked, moduleWriteDenial } from '#lib/server/module-gate';
 import { parentIsEnabled } from '#lib/server/module-parent';
 import { moduleLoad } from '#lib/server/module-page';
@@ -177,7 +178,7 @@ async function applyPatch(
     return { result: { ok: true, rev: res.rev, conflict: false }, freshRead: !res.synced };
   } catch (e) {
     logger.error({ err: e }, `[modules] patch ${def.id} failed`);
-    return { result: fail(400, { ok: false }), freshRead: false };
+    return { result: fail(thrownStatus(e), { ok: false }), freshRead: false };
   }
 }
 

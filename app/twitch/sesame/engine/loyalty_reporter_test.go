@@ -269,7 +269,9 @@ func TestCommandPublicationRetainsOverflowKeyAndRetry(t *testing.T) {
 	r.flush(context.Background())
 	require.Empty(t, r.pending)
 	bodies := pub.payloads[data.SubjectCommandUsed]
-	require.JSONEq(t, string(bodies[0]), string(bodies[1]))
+	for i := range useMaxKeys + 1 {
+		require.JSONEq(t, string(bodies[i]), string(bodies[i+useMaxKeys+1]))
+	}
 }
 
 func TestStatsRejectNegativeAndOverflow(t *testing.T) {

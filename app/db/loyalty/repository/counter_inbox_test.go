@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/internal/testdb"
+
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
@@ -47,7 +47,7 @@ func TestCounterDurableInbox(t *testing.T) {
 func durableCounterRepo(t *testing.T, dialect string) (*Loyalty, *sql.DB) {
 	t.Helper()
 	if dialect == "mysql" {
-		raw := testdb.MySQL(t, "loyalty_receipts_")
+		raw := loyaltyMySQL(t, "loyalty_receipts_")
 		return mysqlReplica(t, raw), raw
 	}
 	return counterTestRepo(t)
@@ -69,6 +69,30 @@ func counterCrashGap(t *testing.T, repo *Loyalty, raw *sql.DB) {
 	require.NoError(t, p.Process(t.Context(), event))
 	require.EqualValues(t, 7, counterTestValue(t, raw, "deaths"))
 	assertCounterReceipts(t, raw, 1)
+}
+
+func TestCounterProcessorAdmitsFreshAndMixedReceiptBatches(t *testing.T) {
+	repo, raw := counterTestRepo(t)
+	cache := newCounterFakeValkey(t)
+	cache.outage(true, true)
+	p := counterTestProcessor(t, repo, cache)
+	first := counterTestEvent("first", 2)
+	second := counterTestEvent("second", 3)
+	third := counterTestEvent("third", 5)
+	for _, events := range [][]data.CounterBumpedDTO{{first, second}, {first, third}} {
+		require.Equal(t, []error{nil, nil}, coalescedCounterRun(t, p, raw, events))
+	}
+	require.EqualValues(t, 10, counterTestValue(t, raw, "deaths"))
+	assertCounterReceipts(t, raw, 4)
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	var claimSizes []int
+	for _, batch := range cache.batches {
+		if batch[0] == counterClaimScript {
+			claimSizes = append(claimSizes, len(batch))
+		}
+	}
+	require.Equal(t, []int{1, 2, 1, 2}, claimSizes)
 }
 
 func counterConcurrentReplay(t *testing.T, repo *Loyalty, raw *sql.DB) {
@@ -186,7 +210,7 @@ func counterReceiptPruning(t *testing.T, repo *Loyalty, raw *sql.DB) {
 	p := uncachedCounterProcessor(t, repo)
 	require.NoError(t, p.Process(t.Context(), counterTestEvent("retained", 2)))
 	require.Equal(t, 24*time.Hour, data.CounterReceiptRetention)
-	require.GreaterOrEqual(t, watchHistoryPruneBatch*watchHistoryPrunePasses, 200*int(flushInterval/time.Second))
+	require.GreaterOrEqual(t, watchHistoryPruneBatch*watchHistoryPrunePasses, 200*int(CounterReceiptMaintenanceInterval/time.Second))
 	cutoff := time.Now().Add(-data.CounterReceiptRetention).Unix()
 	seedExpiredCounterReceipts(t, raw, cutoff-60)
 	_, err := raw.Exec("UPDATE loyalty_counter_receipts SET created_at=? WHERE batch_id=?", cutoff+60, []byte(counterIdentity(counterTestEvent("retained", 2)).batch))
@@ -194,13 +218,12 @@ func counterReceiptPruning(t *testing.T, repo *Loyalty, raw *sql.DB) {
 	require.NoError(t, repo.PruneCounterReceipts(t.Context()))
 	assertCounterReceipts(t, raw, 1)
 	seedExpiredCounterReceipts(t, raw, cutoff-60)
-	repo.ticker.Reset(10 * time.Millisecond)
+	go repo.MaintainCounterReceipts(t.Context())
 	require.Eventually(t, func() bool {
 		var count int
 		err := raw.QueryRow("SELECT COUNT(*) FROM loyalty_counter_receipts").Scan(&count)
 		return err == nil && count == 1
-	}, time.Second, 10*time.Millisecond)
-	repo.ticker.Reset(flushInterval)
+	}, 2*CounterReceiptMaintenanceInterval, 10*time.Millisecond)
 	require.NoError(t, p.Process(t.Context(), counterTestEvent("retained", 2)))
 	require.EqualValues(t, 2, counterTestValue(t, raw, "deaths"))
 	var batch, digest, owner []byte
@@ -213,7 +236,7 @@ func seedExpiredCounterReceipts(t *testing.T, raw *sql.DB, createdAt int64) {
 	tx, err := raw.BeginTx(t.Context(), nil)
 	require.NoError(t, err)
 	defer tx.Rollback()
-	for i := range 200*int(flushInterval/time.Second) + 1 {
+	for i := range 200*int(CounterReceiptMaintenanceInterval/time.Second) + 1 {
 		_, err := tx.ExecContext(t.Context(), "INSERT INTO loyalty_counter_receipts (user_id,batch_id,payload_hash,admission_id,created_at) VALUES (1,?,?,?,?)", []byte(fmt.Sprint(i)), make([]byte, 32), make([]byte, 16), createdAt)
 		require.NoError(t, err)
 	}
@@ -238,20 +261,50 @@ func counterLargePayload(t *testing.T, repo *Loyalty, raw *sql.DB) {
 }
 
 func TestCounterMySQLRetriesEntireReceiptTransaction(t *testing.T) {
-	for _, number := range []int{1205, 1213} {
-		t.Run(fmt.Sprint(number), func(t *testing.T) {
-			raw := testdb.MySQL(t, "loyalty_counter_retry_")
-			raw.SetMaxOpenConns(1)
-			repo := mysqlReplica(t, raw)
-			trigger := fmt.Sprintf("CREATE TRIGGER counter_retry BEFORE INSERT ON counters FOR EACH ROW BEGIN SET @counter_attempts=COALESCE(@counter_attempts,0)+1; IF @counter_attempts=1 THEN SIGNAL SQLSTATE '40001' SET MYSQL_ERRNO=%d, MESSAGE_TEXT='retry entire counter transaction'; END IF; END", number)
-			_, err := raw.Exec(trigger)
-			require.NoError(t, err)
-			p := uncachedCounterProcessor(t, repo)
-			require.NoError(t, p.Process(t.Context(), counterTestEvent("retry-transaction", 5)))
-			require.EqualValues(t, 5, counterTestValue(t, raw, "deaths"))
-			assertCounterReceipts(t, raw, 1)
+	for _, failure := range []struct {
+		table string
+		errno int
+	}{{"loyalty_counter_receipts", 1205}, {"counter_entries", 1205}, {"counter_entries", 1213}} {
+		t.Run(fmt.Sprintf("%s/%d", failure.table, failure.errno), func(t *testing.T) {
+			trigger := fmt.Sprintf(`CREATE TRIGGER counter_retry BEFORE INSERT ON %s FOR EACH ROW
+				BEGIN
+					SET @counter_attempts=COALESCE(@counter_attempts,0)+1;
+					IF @counter_attempts=1 THEN SIGNAL SQLSTATE '40001' SET MYSQL_ERRNO=%d; END IF;
+				END`, failure.table, failure.errno)
+			testCounterMySQLPacketRetry(t, trigger)
 		})
 	}
+}
+
+func testCounterMySQLPacketRetry(t *testing.T, trigger string) {
+	t.Helper()
+	raw := loyaltyMySQL(t, "loyalty_counter_retry_")
+	raw.SetMaxOpenConns(1)
+	repo := mysqlReplica(t, raw)
+	event := counterTestEvent("retry-transaction", 5)
+	event.Bumps = append(event.Bumps, replicaEntryBump(7, 3))
+	require.NoError(t, repo.RestoreUser(t.Context(), event.UserID, 1))
+	_, err := raw.ExecContext(t.Context(), trigger)
+	require.NoError(t, err)
+	before := counterSessionStatements(t, raw)
+	p := uncachedCounterProcessor(t, repo)
+	require.NoError(t, p.Process(t.Context(), event))
+	assertMySQLPacketRetryState(t, raw, before["Com_rollback"])
+}
+
+func assertMySQLPacketRetryState(t *testing.T, raw *sql.DB, rollbacksBefore int) {
+	t.Helper()
+	type retryState struct {
+		attempts, counter, entry, receipts int
+		rollbacks                          int
+	}
+	got := retryState{rollbacks: counterSessionStatements(t, raw)["Com_rollback"] - rollbacksBefore}
+	err := raw.QueryRowContext(t.Context(), `SELECT @counter_attempts,
+		(SELECT value FROM counters WHERE name='deaths'),
+		(SELECT value FROM counter_entries WHERE name='hugs'),
+		(SELECT COUNT(*) FROM loyalty_counter_receipts)`).Scan(&got.attempts, &got.counter, &got.entry, &got.receipts)
+	require.NoError(t, err)
+	require.Equal(t, retryState{attempts: 2, counter: 5, entry: 3, receipts: 1, rollbacks: 1}, got)
 }
 
 func assertCounterReceipts(t *testing.T, raw *sql.DB, expected int) {
@@ -259,4 +312,29 @@ func assertCounterReceipts(t *testing.T, raw *sql.DB, expected int) {
 	var count int
 	require.NoError(t, raw.QueryRow("SELECT COUNT(*) FROM loyalty_counter_receipts").Scan(&count))
 	require.Equal(t, expected, count)
+}
+
+func TestCounterReceiptMaintenanceLoopPrunesWithoutProcessor(t *testing.T) {
+	repo, raw := counterTestRepo(t)
+	cutoff := time.Now().Add(-data.CounterReceiptRetention).Unix()
+	seedExpiredCounterReceipts(t, raw, cutoff-60)
+	_, err := raw.Exec("INSERT INTO loyalty_counter_receipts (user_id,batch_id,payload_hash,admission_id,created_at) VALUES (1,?,?,?,?)", []byte("retained"), make([]byte, 32), make([]byte, 16), cutoff+60)
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		repo.MaintainCounterReceipts(ctx)
+	}()
+	require.Eventually(t, func() bool {
+		var count int
+		err := raw.QueryRow("SELECT COUNT(*) FROM loyalty_counter_receipts").Scan(&count)
+		return err == nil && count == 1
+	}, 2*CounterReceiptMaintenanceInterval, 10*time.Millisecond)
+	cancel()
+	<-done
+	var batch []byte
+	require.NoError(t, raw.QueryRow("SELECT batch_id FROM loyalty_counter_receipts").Scan(&batch))
+	require.Equal(t, []byte("retained"), batch)
 }

@@ -54,9 +54,8 @@ func newHarness(t *testing.T) *harness {
 		require.NoError(t, client.Balance.Create().SetUserID(2).SetViewerID(seed.viewerID).SetViewerLogin(seed.login).SetPoints(seed.points).Exec(context.Background()))
 	}
 	repo := loyaltyrepo.NewLoyalty(client, drv, nil, zap.NewNop())
-	t.Cleanup(func() { repo.Close(context.Background()) })
 	nc := testnats.Connect(t)
-	require.NoError(t, Subscribe(Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop()}, Repo: repo, InvalidationPrefix: invalidationPrefix}, "loyalty"))
+	require.NoError(t, Subscribe(Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop()}, Repo: repo, Invalidations: bus.NewInvalidations(nc, invalidationPrefix, nil)}, "loyalty"))
 	return &harness{nc: nc, repo: repo, client: client}
 }
 

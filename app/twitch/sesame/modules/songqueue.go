@@ -27,11 +27,6 @@ const songqueueListLen = 3
 
 const srlistLen = 5
 
-const (
-	defaultSongQueueDepth = 100
-	hardSongQueueDepth    = 1000
-)
-
 const srAddCooldown = 5 * time.Second
 
 const currentCooldown = 5 * time.Second
@@ -79,7 +74,7 @@ func SongQueue(d engine.Deps) module.Module {
 	log := songQueueLog(d)
 	warn := newSpotifyWarnThrottle()
 
-	m := module.NewModule(songqueueModuleName, module.KindOptIn)
+	m := module.NewModule(songqueueModuleName, module.KindOptIn).ProtectReplay()
 	m.Command("sr").Everyone().Cooldown(srAddCooldown).
 		Aliases("songrequest", "songreq").
 		Run(songQueueDispatch(d, log, warn))
@@ -90,12 +85,12 @@ func SongQueue(d engine.Deps) module.Module {
 
 	m.Command("skip").Mod().
 		Aliases("next").
-		Run(songQueueSkip(d, log, warn))
+		Run(songQueueMutation(d, log, warn, songSkip))
 
 	m.Command("clear").Mod().
-		Run(songQueueClear(d, log, warn))
+		Run(songQueueMutation(d, log, warn, songClear))
 	m.Command("remove").Everyone().
-		Run(songQueueRemove(d, log, warn))
+		Run(songQueueMutation(d, log, warn, songRemove))
 	m.Command("srlist").Everyone().Cooldown(currentCooldown).
 		Aliases("songlist").
 		Run(songQueueList(d, log, warn))
@@ -136,12 +131,6 @@ func newSongQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger, warn *ca
 	qc = songQueueCmd{chatReplier: newChatReplier(c), deps: d, store: d.SongQueue, gossip: d.Gossip, live: d.Live, log: log, warn: warn}
 	_ = c.Decode(&qc.cfg)
 	qc.maxDepth = qc.cfg.MaxDepth
-	if qc.maxDepth <= 0 {
-		qc.maxDepth = defaultSongQueueDepth
-	}
-	if qc.maxDepth > hardSongQueueDepth {
-		qc.maxDepth = hardSongQueueDepth
-	}
 	return qc, true
 }
 
@@ -291,33 +280,30 @@ func (qc songQueueCmd) cachedReadPlayer(ctx context.Context, players *cache.Keye
 	return player.track, failure
 }
 
-func songQueueSkip(d engine.Deps, log *zap.Logger, warn *cache.Keyed[string, bool]) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-		qc, ok := newSongQueueCmd(d, c, log, warn)
-		if !ok {
-			return nil
-		}
-		return qc.nextTrack(ctx, emit)
-	}
-}
+type songMutation uint8
 
-func songQueueClear(d engine.Deps, log *zap.Logger, warn *cache.Keyed[string, bool]) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-		qc, ok := newSongQueueCmd(d, c, log, warn)
-		if !ok {
-			return nil
-		}
-		return qc.clearAll(ctx, emit)
-	}
-}
+const (
+	songSkip songMutation = iota
+	songClear
+	songRemove
+)
 
-func songQueueRemove(d engine.Deps, log *zap.Logger, warn *cache.Keyed[string, bool]) module.RunFunc {
+func songQueueMutation(d engine.Deps, log *zap.Logger, warn *cache.Keyed[string, bool], action songMutation) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		qc, ok := newSongQueueCmd(d, c, log, warn)
 		if !ok {
 			return nil
 		}
-		return qc.actRemove(ctx, args, strings.TrimSpace(args), emit)
+		return qc.mutate(ctx, func(ctx context.Context) error {
+			switch action {
+			case songSkip:
+				return qc.nextTrack(ctx, emit)
+			case songClear:
+				return qc.clearAll(ctx, emit)
+			default:
+				return qc.actRemove(ctx, args, strings.TrimSpace(args), emit)
+			}
+		})
 	}
 }
 
@@ -337,17 +323,34 @@ func songQueueDispatch(d engine.Deps, log *zap.Logger, warn *cache.Keyed[string,
 		if !ok {
 			return nil
 		}
-		args = strings.TrimSpace(args)
-		if args == "" {
-			return qc.view(ctx, emit)
-		}
-		sub, rest := splitFirst(args)
-		act := songQueueActions[strings.ToLower(sub)]
+		return qc.dispatch(ctx, strings.TrimSpace(args), emit)
+	}
+}
+
+func (qc songQueueCmd) dispatch(ctx context.Context, args string, emit module.Emit) error {
+	if args == "" {
+		return qc.view(ctx, emit)
+	}
+	sub, rest := splitFirst(args)
+	sub = strings.ToLower(sub)
+	if songQueueRead(sub, rest) {
+		return qc.actView(ctx, args, rest, emit)
+	}
+	return qc.mutate(ctx, func(ctx context.Context) error {
+		act := songQueueActions[sub]
 		if act == nil {
 			return qc.request(ctx, args, emit)
 		}
 		return act(&qc, ctx, args, rest, emit)
-	}
+	})
+}
+
+func songQueueRead(sub, rest string) bool {
+	return rest == "" && (sub == "queue" || sub == "list")
+}
+
+func (qc songQueueCmd) mutate(ctx context.Context, run func(context.Context) error) error {
+	return qc.deps.Dedup.Effect(ctx, engine.EffectRef{Identity: engine.EventIdentity(&qc.c.Env), Effect: "songqueue:mutation"}, run)
 }
 
 func (qc songQueueCmd) actRetract(ctx context.Context, _, _ string, emit module.Emit) error {

@@ -94,6 +94,8 @@ spec:
         sysctls:
           - name: net.ipv4.tcp_slow_start_after_idle
             value: "0"
+          - name: net.ipv4.tcp_rto_min_us
+            value: "10000"
         runAsNonRoot: true
         runAsUser: 999
         runAsGroup: 999
@@ -101,7 +103,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: ingress
-          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1794576144-6e792fd889ea@sha256:de3db03d6e7ab29d292a80cc986125f38df7886ba358fd1c6c729a2204861dec
+          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1795017771-9c11ea532d70@sha256:239bdd9f3ec770c09202866a8c5595932c8b1ce3716653ec1c73b96f4b144720
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
@@ -178,7 +180,7 @@ spec:
             - name: INGRESS_PUBLISH_BATCH_SIZE
               value: "256"
             - name: INGRESS_PUBLISH_BATCH_WAIT_MS
-              value: "4"
+              value: "0"
             - name: INGRESS_PUBLISH_WIRE
               value: "atomic"
             - name: INGRESS_PUBLISH_BATCH_INFLIGHT

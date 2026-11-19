@@ -4,6 +4,7 @@
 package rpc
 
 import (
+	"ItsBagelBot/pkg/bus"
 	"context"
 	"net"
 	"os/exec"
@@ -63,15 +64,15 @@ func TestModuleSaveProjectsCommittedSnapshotBeforeReply(t *testing.T) {
 	repo := repository.NewModules(client, bustest.NewPublisher(), nil, zap.NewNop())
 	defer repo.Close(ctx)
 	repo.SetAccountInstanceResolver(func(_ context.Context, _ uint64) (int64, error) { return 100, nil })
-	loyalty, err := repo.SetNow(ctx, 1001, "loyalty", true, codec.RawMessage(`{}`))
+	loyalty, err := repo.SetNow(ctx, repository.ModuleWrite{UserID: 1001, Name: "loyalty", Enabled: true, Configs: codec.RawMessage(`{}`)})
 	require.NoError(t, err)
 	require.NoError(t, store.SetModules(ctx, 1001, loyalty))
-	before, err := repo.SetNow(ctx, 1001, "queue", false, codec.RawMessage(`{}`))
+	before, err := repo.SetNow(ctx, repository.ModuleWrite{UserID: 1001, Name: "queue", Enabled: false, Configs: codec.RawMessage(`{}`)})
 	require.NoError(t, err)
 	require.NoError(t, store.SetModules(ctx, 1001, before))
-	committed, err := repo.SetNow(ctx, 1001, "queue", true, codec.RawMessage(`{}`))
+	committed, err := repo.SetNow(ctx, repository.ModuleWrite{UserID: 1001, Name: "queue", Enabled: true, Configs: codec.RawMessage(`{}`)})
 	require.NoError(t, err)
-	d := &Dashboard{store: store, writeGate: make(chan struct{}, 1)}
+	d := &Dashboard{store: store, writeGate: make(chan struct{}, 1), invalidations: bus.NewInvalidations(nil, "", nil)}
 	reply := d.handleModulesReplace(ctx, projectorrpc.DashboardRequest{UserID: "1001", Modules: committed})
 	require.Empty(t, reply.Error)
 	actual, projected, err := store.GetModulesPrimary(ctx, 1001)
@@ -81,13 +82,10 @@ func TestModuleSaveProjectsCommittedSnapshotBeforeReply(t *testing.T) {
 	require.Equal(t, 2, actual["queue"].Revision)
 	require.Equal(t, int64(100), actual["loyalty"].AccountCreatedAt)
 
-	// A delayed replacement must echo the accepted state, not falsely
-	// acknowledge rows rejected by the Lua revision fence.
 	stale := d.handleModulesReplace(ctx, projectorrpc.DashboardRequest{UserID: "1001", Modules: before})
 	require.Empty(t, stale.Error)
 	require.ElementsMatch(t, projection.ModuleList(actual), stale.Modules)
 
-	// Projection failures must not report the proposed snapshot as synchronized.
 	cancelled, cancel := context.WithCancel(ctx)
 	cancel()
 	failed := d.handleModulesReplace(cancelled, projectorrpc.DashboardRequest{UserID: "1001", Modules: committed})

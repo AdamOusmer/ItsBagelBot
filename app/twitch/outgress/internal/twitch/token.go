@@ -5,6 +5,7 @@ package twitch
 
 import (
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/monitor"
 	"context"
 	"fmt"
 	"io"
@@ -46,7 +47,7 @@ func newTokenHTTPClient() *http.Client {
 		SendPingTimeout: tokenH2ReadIdleTimeout,
 		PingTimeout:     tokenH2PingTimeout,
 	}
-	return &http.Client{Transport: transport, Timeout: tokenClientTimeout}
+	return &http.Client{Transport: monitor.ExternalTransport(transport), Timeout: tokenClientTimeout}
 }
 
 func MaxMintLeaseHold() time.Duration {

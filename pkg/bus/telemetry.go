@@ -14,6 +14,8 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
+
+	"ItsBagelBot/pkg/monitor"
 )
 
 const (
@@ -21,6 +23,8 @@ const (
 	messagingOperationAttribute   = "messaging.operation"
 	messagingDestinationAttribute = "messaging.destination"
 	queueMillisAttribute          = "messaging.queue_ms"
+	messageIDAttribute            = "messaging.message.id"
+	sampledTraceFlags             = "-01"
 	sampledAttribute              = "sampled"
 	resultAttribute               = "result"
 	rpcDestinationPrefix          = "rpc."
@@ -116,6 +120,7 @@ func startMessagingSegment(ctx context.Context, span messagingSpan) *newrelic.Se
 	if txn == nil {
 		return nil
 	}
+	monitor.Keep(ctx)
 	segment := txn.StartSegment(span.name)
 	addMessagingAttributes(segment, span.attributes())
 	return segment
@@ -176,6 +181,14 @@ func acceptTraceHeaders(txn *newrelic.Transaction, headers nats.Header) {
 	acceptQueueTrace(txn, httpHeaders)
 }
 
+func continuesTrace(metadata Metadata) bool {
+	parent, ok := metadata["traceparent"]
+	if !ok {
+		parent = metadata["Traceparent"]
+	}
+	return strings.HasSuffix(parent, sampledTraceFlags)
+}
+
 func acceptMetadataTraceHeaders(txn *newrelic.Transaction, metadata Metadata) {
 	headers, ok := traceHeaderBuffer(txn, len(metadata))
 	if !ok {
@@ -234,6 +247,7 @@ const (
 )
 
 type laneStats struct {
+	expired     atomic.Uint64
 	destination string
 
 	sampleRate   uint64
@@ -245,6 +259,61 @@ type laneStats struct {
 
 	queueMicros    atomic.Uint64
 	queueMaxMicros atomic.Uint64
+
+	brokerMu       sync.Mutex
+	broker         laneBrokerSample
+	aligned        atomic.Uint32
+	alignStepdowns atomic.Uint64
+}
+
+type laneBrokerSample struct {
+	count uint64
+	total time.Duration
+	peak  time.Duration
+}
+
+func brokerMillis(duration time.Duration) float64 {
+	return float64(duration) / float64(time.Millisecond)
+}
+
+func (s *laneStats) recordBroker(msg *Message) {
+	if !msg.hasBrokerTime {
+		return
+	}
+	s.brokerMu.Lock()
+	defer s.brokerMu.Unlock()
+	if s.broker.count == 0 || msg.brokerTime > s.broker.peak {
+		s.broker.peak = msg.brokerTime
+	}
+	s.broker.count++
+	s.broker.total += msg.brokerTime
+}
+
+func (s *laneStats) takeBrokerSample() laneBrokerSample {
+	s.brokerMu.Lock()
+	defer s.brokerMu.Unlock()
+	sample := s.broker
+	s.broker = laneBrokerSample{}
+	return sample
+}
+
+func (s *laneStats) setAlignment(aligned bool) {
+	if aligned {
+		s.aligned.Store(2)
+		return
+	}
+	s.aligned.Store(1)
+}
+
+func (s *laneStats) addLaneAttributes(params map[string]any, stepdowns uint64, broker laneBrokerSample) {
+	if broker.count != 0 {
+		params["broker_ms.avg"] = brokerMillis(broker.total) / float64(broker.count)
+		params["broker_ms.max"] = brokerMillis(broker.peak)
+	}
+	if aligned := s.aligned.Load(); aligned != 0 {
+		params["leaders_aligned"] = float64(aligned - 1)
+		params["lane_align_stepdowns"] = float64(stepdowns)
+	}
 }
 
 func (s *laneStats) sample() bool {
@@ -289,25 +358,31 @@ func (s *laneStats) drain() (map[string]any, bool) {
 	failed := s.failed.Swap(0)
 
 	processed := ok + deferred + failed
-	if processed == 0 {
+	expired := s.expired.Swap(0)
+	stepdowns := s.alignStepdowns.Swap(0)
+	broker := s.takeBrokerSample()
+	if processed+expired+stepdowns+broker.count == 0 {
 		return nil, false
 	}
 
 	micros := s.queueMicros.Swap(0)
 	peak := s.queueMaxMicros.Swap(0)
 
-	return map[string]any{
+	params := map[string]any{
 		messagingSystemAttribute:      "nats",
 		messagingOperationAttribute:   "process",
 		messagingDestinationAttribute: s.destination,
 		"sample_rate":                 float64(s.sampleRate),
 		"processed":                   float64(processed),
+		"deliveries_expired":          float64(expired),
 		resultOK:                      float64(ok),
 		resultDeferred:                float64(deferred),
 		"failed":                      float64(failed),
-		"queue_ms.avg":                float64(micros) / float64(processed) / 1000,
+		"queue_ms.avg":                float64(micros) / float64(max(processed, 1)) / 1000,
 		"queue_ms.max":                float64(peak) / 1000,
-	}, true
+	}
+	s.addLaneAttributes(params, stepdowns, broker)
+	return params, true
 }
 
 type laneTelemetry struct {

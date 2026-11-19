@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"ItsBagelBot/pkg/monitor"
 )
 
 const maxFeedEntries = 500_000
@@ -46,7 +48,7 @@ func NewFeeds(sources []FeedSource, client *http.Client) *Feeds {
 		sources = DefaultFeedSources
 	}
 	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
+		client = &http.Client{Timeout: 15 * time.Second, Transport: monitor.ExternalTransport(nil)}
 	}
 	f := &Feeds{sources: sources, client: client}
 	empty := make(map[string]struct{})

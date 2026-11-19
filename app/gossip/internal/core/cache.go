@@ -63,9 +63,12 @@ type Cache struct {
 	store      Store
 	sf         singleflight.Group
 	refreshing sync.Map
+	stripes    [256]cacheStripe
 }
 
-func NewCache(store Store) *Cache { return &Cache{store: store} }
+func NewCache(store Store) *Cache {
+	return &Cache{store: store}
+}
 
 const maxStaleWindow = 24 * time.Hour
 
@@ -123,6 +126,7 @@ func decodeEnvelope[T any](b []byte) (out envelope[T], ok bool) {
 }
 
 func Cached[T any](ctx context.Context, c *Cache, key string, ttl, negativeTTL time.Duration, admit func(context.Context) error, fetch func(context.Context) (T, error)) (T, error) {
+	ctx = c.guardFill(ctx, key)
 	f := envelopeFlight[T]{cache: c, key: key, ttl: ttl, negativeTTL: negativeTTL, admit: admit, fetch: fetch}
 	var zero T
 
@@ -209,11 +213,21 @@ func (f envelopeFlight[T]) envelopeFor(v T, ferr error) (cacheEnvelope[T], time.
 	if ferr == nil {
 		return cacheEnvelope[T]{Value: v, Fresh: time.Now().Add(f.ttl).UnixMilli()}, storedTTL(f.ttl), nil
 	}
-	var ue *UpstreamError
-	if errors.As(ferr, &ue) && (ue.Status == 404 || ue.Status == 400) {
+	if ue := cacheableAbsence(ferr); ue != nil {
 		return cacheEnvelope[T]{Error: ue}, f.negativeTTL, nil
 	}
 	return cacheEnvelope[T]{}, 0, ferr
+}
+
+func cacheableAbsence(err error) *UpstreamError {
+	var ue *UpstreamError
+	if !errors.As(err, &ue) {
+		return nil
+	}
+	if ue.Status == 404 || ue.Status == 400 {
+		return ue
+	}
+	return nil
 }
 
 func (f envelopeFlight[T]) refresh(parent context.Context) {
@@ -222,7 +236,7 @@ func (f envelopeFlight[T]) refresh(parent context.Context) {
 	}
 	go func() {
 		defer f.cache.refreshing.Delete(f.key)
-		ctx, cancel := WithFetchTimeout(DetachedRequestTelemetry(parent), swrRefreshTimeout)
+		ctx, cancel := WithFetchTimeout(detachedFill(parent), swrRefreshTimeout)
 		defer cancel()
 		won, err := f.cache.store.SetNX(ctx, f.key+":swr", swrRefreshTimeout)
 		RecordCacheError(ctx, "claim", err)
@@ -259,7 +273,7 @@ func StoreCached[T any](ctx context.Context, c *Cache, req StoreRequest[T]) {
 func (c *Cache) storeEnvelope(ctx context.Context, key string, env any, ttl time.Duration) {
 	b, err := codec.Marshal(env)
 	if err == nil {
-		err = c.store.Set(ctx, key, b, ttl)
+		err = c.set(ctx, key, b, ttl)
 	}
 	RecordCacheError(ctx, "write", err)
 }
@@ -280,10 +294,14 @@ func (c *Cache) SetJSON(ctx context.Context, key string, v any, ttl time.Duratio
 	if err != nil {
 		return err
 	}
-	return c.store.Set(ctx, key, b, ttl)
+	return c.set(ctx, key, b, ttl)
 }
 
 func (c *Cache) DelJSON(ctx context.Context, key string) error {
+	stripe := c.stripe(key)
+	stripe.Lock()
+	defer stripe.Unlock()
+	stripe.generation.Add(1)
 	return c.store.Del(ctx, key)
 }
 

@@ -14,6 +14,7 @@ export interface AlertLook {
   row?: 1 | 2;
   flush?: boolean;
   stack?: boolean;
+  strong?: boolean;
 }
 
 export function alertClass(look: AlertLook): string {
@@ -25,6 +26,7 @@ export function alertClass(look: AlertLook): string {
     look.row === 2 && 'bb-alert--row-2',
     look.flush && 'bb-alert--flush',
     look.stack && 'bb-alert--stack',
+    look.strong && 'bb-alert--strong',
   ]
     .filter(Boolean)
     .join(' ');

@@ -14,6 +14,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/micro"
 	"github.com/nats-io/nuid"
+	"github.com/newrelic/go-agent/v3/newrelic"
 )
 
 const (
@@ -122,7 +123,9 @@ func (ps *PermitService) Borrow(ctx context.Context, donor Member, request Borro
 	if err != nil {
 		return BorrowReply{}, err
 	}
+	segment := newrelic.Segment{StartTime: newrelic.FromContext(ctx).StartSegmentNow(), Name: "ratelimit.borrow"}
 	msg, err := ps.nc.RequestWithContext(ctx, permitSubject(donor.Region, donor.PodID), data)
+	segment.End()
 	if err != nil {
 		return BorrowReply{}, err
 	}

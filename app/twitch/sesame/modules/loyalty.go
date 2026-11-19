@@ -18,7 +18,9 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/idempotency"
 
 	"go.uber.org/zap"
 )
@@ -131,14 +133,14 @@ func onAccrual[T any](d engine.Deps, award func(cfg engine.LoyaltyModuleConfig, 
 }
 
 func onStreamTick(d engine.Deps, arm bool) module.EventHandler {
-	return func(_ context.Context, c *module.Context, _ module.Emit) error {
+	return func(ctx context.Context, c *module.Context, _ module.Emit) error {
 		if d.LoyaltyTick == nil {
 			return nil
 		}
 		id := c.BroadcasterID
 		version := c.EventVersion()
-		seqOrGo(d.Seq, id, d.Log, func() {
-			wctx, cancel := context.WithTimeout(context.Background(), loyaltyTickTimeout)
+		seqOrGo(ctx, d.Seq, id, func(ctx context.Context) error {
+			wctx, cancel := context.WithTimeout(ctx, loyaltyTickTimeout)
 			defer cancel()
 			if versioned, ok := d.LoyaltyTick.(engine.VersionedLoyaltyTicker); ok {
 				if arm {
@@ -146,13 +148,14 @@ func onStreamTick(d engine.Deps, arm bool) module.EventHandler {
 				} else {
 					versioned.DisarmVersioned(wctx, id, version)
 				}
-				return
+				return nil
 			}
 			if arm {
 				d.LoyaltyTick.Arm(wctx, id)
 			} else {
 				d.LoyaltyTick.Disarm(wctx, id)
 			}
+			return nil
 		})
 		return nil
 	}
@@ -264,21 +267,20 @@ func (lc loyaltyCmd) pointsAdjust(ctx context.Context, input pointsInput, absolu
 }
 
 func (lc loyaltyCmd) adjustPoints(ctx context.Context, adjustment engine.BalanceAdjustment) error {
-	cfg := lc.cfg
+	return lc.d.Dedup.Effect(ctx, engine.EffectRef{Identity: engine.EventIdentity(&lc.c.Env), Effect: engine.EffectPointsAdjust}, func(ctx context.Context) error {
+		return lc.applyPoints(ctx, adjustment)
+	})
+}
 
-	duplicate, release := lc.d.Dedup.Claim(ctx, engine.EffectRef{Identity: engine.EventIdentity(&lc.c.Env), Effect: engine.EffectPointsAdjust})
-	if duplicate {
-		return nil
-	}
+func (lc loyaltyCmd) applyPoints(ctx context.Context, adjustment engine.BalanceAdjustment) error {
+	cfg := lc.cfg
 	bal, found, err := lc.d.Loyalty.BalanceAdjustViewer(ctx, adjustment)
 	if err != nil {
-		release()
 		lc.log.Warn("loyalty: balance adjust failed", lc.c.BID(), zap.Error(err))
-		lc.reply("loyalty.counter.err")
-		return nil
+		lc.pointsFailure(ctx, err)
+		return err
 	}
 	if !found {
-		release()
 		lc.reply("loyalty.counter.err")
 		return nil
 	}
@@ -287,8 +289,15 @@ func (lc loyaltyCmd) adjustPoints(ctx context.Context, adjustment engine.Balance
 		"points", strconv.FormatInt(bal.Points, 10),
 		"name", cfg.Name(),
 	)
-	lc.d.Analytics.Count(catalog.PointsFlows, "adjust")
+	lc.d.Analytics.AddContext(ctx, catalog.PointsFlows, 1, "adjust")
 	return nil
+}
+
+func (lc loyaltyCmd) pointsFailure(ctx context.Context, err error) {
+	idempotency.Fail(ctx, err)
+	if bus.DeliveryTerminal(ctx) {
+		lc.reply("loyalty.counter.err")
+	}
 }
 
 func (lc loyaltyCmd) grantVerb(enabled bool, run func() error) error {
@@ -335,19 +344,19 @@ func (lc loyaltyCmd) resolvePointsUser(ctx context.Context, login string, atPref
 }
 
 func (lc loyaltyCmd) transferPoints(ctx context.Context, req pointsGiveRequest, cfg engine.LoyaltyModuleConfig) error {
-	duplicate, release := lc.d.Dedup.Claim(ctx, engine.EffectRef{Identity: engine.EventIdentity(&lc.c.Env), Effect: engine.EffectPointsAdjust})
-	if duplicate {
-		return nil
-	}
+	return lc.d.Dedup.Effect(ctx, engine.EffectRef{Identity: engine.EventIdentity(&lc.c.Env), Effect: engine.EffectPointsAdjust}, func(ctx context.Context) error {
+		return lc.applyTransfer(ctx, req, cfg)
+	})
+}
+
+func (lc loyaltyCmd) applyTransfer(ctx context.Context, req pointsGiveRequest, cfg engine.LoyaltyModuleConfig) error {
 	bal, found, moved, err := lc.d.Loyalty.BalanceTransfer(ctx, engine.PointTransfer{BroadcasterID: lc.c.BroadcasterID, FromViewerID: req.senderID, TargetViewerID: req.targetID, TargetLogin: req.login, Amount: req.value})
 	if err != nil {
-		release()
 		lc.log.Warn("loyalty: balance transfer failed", lc.c.BID(), zap.Error(err))
-		lc.reply("loyalty.counter.err")
-		return nil
+		lc.pointsFailure(ctx, err)
+		return err
 	}
 	if !found {
-		release()
 		lc.reply("loyalty.counter.err")
 		return nil
 	}
@@ -358,7 +367,7 @@ func (lc loyaltyCmd) transferPoints(ctx context.Context, req pointsGiveRequest, 
 		)
 		return nil
 	}
-	lc.d.Analytics.Count(catalog.PointsFlows, "transfer")
+	lc.d.Analytics.AddContext(ctx, catalog.PointsFlows, 1, "transfer")
 	lc.reply("loyalty.points.gave",
 		"target", req.login,
 		"amount", strconv.FormatInt(req.value, 10),
@@ -530,10 +539,11 @@ func (a accrual) earn(ctx context.Context, d engine.Deps, c *module.Context, cfg
 	if a.points <= 0 {
 		return
 	}
-	if d.Dedup.Duplicate(ctx, engine.EffectRef{Identity: engine.EventIdentity(&c.Env), Effect: engine.EffectEarn}) {
-		return
-	}
-	d.Loyalty.Earn(engine.PointEarning{BroadcasterID: c.BroadcasterID, ViewerID: viewerID, Login: a.login, Name: a.name, Points: a.points})
+	err = d.Dedup.Effect(ctx, engine.EffectRef{Identity: engine.EventIdentity(&c.Env), Effect: engine.EffectEarn}, func(ctx context.Context) error {
+		d.Loyalty.Earn(engine.PointEarning{Context: ctx, BroadcasterID: c.BroadcasterID, ViewerID: viewerID, Login: a.login, Name: a.name, Points: a.points})
+		return nil
+	})
+	idempotency.Fail(ctx, err)
 }
 
 func (lc loyaltyCmd) reply(key replyKey, kv ...string) {

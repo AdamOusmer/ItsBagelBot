@@ -235,16 +235,11 @@ func TestRecipesV2DefinitionToEffects(t *testing.T) {
 		lines := s.awaitChat(t, queued, 6)
 		got := texts(lines)
 		require.Len(t, got, 6, "%v", got)
-		t.Logf("queued chat order: %v", got)
-		for i := range 2 {
-			run := got[i*3 : i*3+3]
-			assert.Equal(t, "worked 1 from-upstream", run[0])
-			assert.Equal(t, "failed 2 upstream_error", run[1])
-			assert.True(t, strings.HasPrefix(run[2], "done from-"), run[2])
-			assert.True(t, strings.HasSuffix(run[2], " "+strconv.Itoa(i+1)), "run %d saw the counter from the run before it: %s", i+1, run[2])
-		}
-		assert.True(t, lines[3].At.After(lines[2].At), "the second run starts after the first ends")
+		assertQueuedRuns(t, s, queued)
 		assert.Equal(t, "2", s.channelVariable(t, queued, "seen"))
+		for _, ending := range []string{"done from-a", "done from-b"} {
+			assert.Contains(t, strings.Join(got, " "), ending)
+		}
 	})
 
 	t.Run("stream offline restores and clears through the live module", func(t *testing.T) {
@@ -267,4 +262,38 @@ func TestRecipesV2DefinitionToEffects(t *testing.T) {
 		assert.Equal(t, []string{"hello bob"}, texts(lines))
 		assert.Empty(t, s.helix.patches(legacy))
 	})
+}
+
+func assertQueuedRuns(t *testing.T, s *stack, channel uint64) {
+	t.Helper()
+	var runs []automationrpc.RunRecord
+	require.Eventually(t, func() bool {
+		var err error
+		runs, err = s.runs.Recent(t.Context(), channel, e2eID, 10)
+		return err == nil && queuedRunsFinished(runs)
+	}, settle, 20*time.Millisecond)
+	slices.SortFunc(runs, func(a, b automationrpc.RunRecord) int { return a.At.Compare(b.At) })
+	for _, run := range runs {
+		assert.Equal(t, automationrpc.OutcomeOK, run.Outcome)
+		assert.Equal(t, []string{"http_get:ok", "chat:ok", "http_get:failed", "chat:ok", "chat:ok"}, queuedRunSteps(run))
+	}
+	end := runs[0].At.Add(time.Duration(runs[0].DurationMS) * time.Millisecond)
+	assert.False(t, runs[1].At.Before(end), "the second run starts after the first ends")
+}
+
+func queuedRunSteps(run automationrpc.RunRecord) []string {
+	var steps []string
+	for _, action := range run.Actions {
+		if action.Type == "chat" || action.Type == "http_get" {
+			steps = append(steps, action.Type+":"+action.Status)
+		}
+	}
+	return steps
+}
+
+func queuedRunsFinished(runs []automationrpc.RunRecord) bool {
+	if len(runs) != 2 {
+		return false
+	}
+	return runs[0].Outcome == automationrpc.OutcomeOK && runs[1].Outcome == automationrpc.OutcomeOK
 }

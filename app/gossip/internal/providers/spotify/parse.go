@@ -7,6 +7,9 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"unicode/utf8"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 type resolveKind uint8
@@ -26,6 +29,11 @@ type resolvedInput struct {
 	id   string
 	// text carries normalized free text, or a case-sensitive share URL.
 	text string
+	raw  matchText
+}
+
+func (r resolvedInput) oversized() bool {
+	return r.kind == resolveText && !r.raw.validLength()
 }
 
 func (r resolvedInput) cacheKey() string {
@@ -38,7 +46,7 @@ func (r resolvedInput) cacheKey() string {
 		return "share:" + r.text
 	default:
 		// A new matcher must not reuse an old cached first-result selection.
-		return "text:v3:" + r.text
+		return "text:v9:" + r.text
 	}
 }
 
@@ -66,9 +74,12 @@ func classify(raw string) resolvedInput {
 	if s == "" {
 		return resolvedInput{kind: resolveText}
 	}
-	target := classifyReference(inputReference{raw: s, lower: strings.ToLower(s)})
+	clean := chatContent(matchText(s))
+	ref := inputReference{raw: string(clean), lower: strings.ToLower(string(clean))}
+	target := classifyReference(ref)
 	if target.kind == resolveText {
-		target.text = normalizeText(s)
+		target.text = textCacheKey(clean)
+		target.raw = clean
 	}
 	return target
 }
@@ -225,49 +236,79 @@ const (
 )
 
 type searchCandidate struct {
-	q            string
-	name         string
-	song, artist string
-	operators    bool
+	q             string
+	name          string
+	song, artist  string
+	match         *searchFields
+	confirmCredit matchPhrase
+	operators     bool
+	otherFilters  bool
+	corrected     bool
+	offset        int
+	checkPlain    bool
 }
 
-// planTextSearch turns chat text into ordered search candidates. The FIRST
-// candidate whose metadata matches wins; plain text recovers from an
-// incorrect convention split such as a title containing "by".
-func planTextSearch(raw string) []searchCandidate {
-	s := normalizedQuery{text: normalizeText(raw)}
-	if s.text == "" {
+func (c searchCandidate) hasFields() bool { return c.song != "" || c.artist != "" }
+
+func (c searchCandidate) fields() searchFields {
+	if c.match != nil {
+		return *c.match
+	}
+	return searchFields{song: matchWords(c.song), artist: matchWords(c.artist)}
+}
+
+func (c searchCandidate) plainFallback() searchCandidate {
+	q := strings.TrimSpace(c.song + " " + c.artist)
+	return searchCandidate{q: q, name: viaText, song: c.song, artist: c.artist, match: c.match, confirmCredit: c.confirmCredit}
+}
+
+func (raw matchText) validLength() bool {
+	return utf8.RuneCountInString(string(raw)) <= 500
+}
+
+func planTextSearch(raw matchText) []searchCandidate {
+	s := normalizedQuery{text: normalizeText(string(raw))}
+	if s.text == "" || !raw.validLength() {
 		return nil
 	}
 	if candidate, ok := s.operatorCandidate(); ok {
 		return []searchCandidate{candidate}
 	}
-	if first, ok := s.heuristicCandidate(); ok {
-		plan := []searchCandidate{first}
-		if !s.splitBy().ok {
-			split := s.splitDash()
-			if reverse, ok := split.candidate(); ok && reverse.q != first.q {
-				plan = append(plan, reverse)
-			}
-		}
-		return append(plan, searchCandidate{q: s.text, name: viaText})
+	plain := searchCandidate{q: s.text, name: viaText}
+	convention := normalizedQuery{text: trimLeadingFiller(matchText(s.text))}
+	split := convention.splitBy()
+	first, ok := split.candidate()
+	if !ok {
+		return convention.dashPlan(plain)
 	}
-	return []searchCandidate{{q: s.text, name: viaText}}
+	if len(strings.Fields(split.left)) == 1 {
+		return []searchCandidate{plain, first}
+	}
+	first.checkPlain = true
+	return []searchCandidate{first, plain}
+}
+
+func (s normalizedQuery) dashPlan(plain searchCandidate) []searchCandidate {
+	split := s.splitDash()
+	if !split.ok {
+		return []searchCandidate{plain}
+	}
+	reverse, _ := split.candidate()
+	split.swap()
+	first, _ := split.candidate()
+	return []searchCandidate{first, reverse, plain}
+}
+
+func trimLeadingFiller(text matchText) string {
+	words := matchPhrase(strings.Fields(string(text)))
+	content := words.contentRange()
+	if content.start == len(words) {
+		return string(text)
+	}
+	return words[content.start:].text()
 }
 
 type normalizedQuery struct{ text string }
-
-func (s normalizedQuery) heuristicCandidate() (searchCandidate, bool) {
-	split := s.splitBy()
-	if !split.ok {
-		split = s.splitDash()
-		split.swap() // the dash convention orders artist first
-	}
-	if !split.ok {
-		return searchCandidate{}, false
-	}
-	return split.candidate()
-}
 
 type textSplit struct {
 	left, right string
@@ -277,8 +318,8 @@ type textSplit struct {
 func (t *textSplit) swap() { t.left, t.right = t.right, t.left }
 
 func (t textSplit) candidate() (searchCandidate, bool) {
-	song := strings.TrimSpace(strings.ReplaceAll(t.left, `"`, ""))
-	artist := strings.TrimSpace(strings.ReplaceAll(t.right, `"`, ""))
+	song := queryField(t.left).unquoted()
+	artist := queryField(t.right).unquoted()
 	if song == "" || artist == "" {
 		return searchCandidate{}, false
 	}
@@ -302,7 +343,7 @@ func (s normalizedQuery) splitBy() textSplit {
 }
 
 func (q normalizedQuery) splitDash() textSplit {
-	s := q.text
+	s := queryDashes.Replace(q.text)
 	i := strings.Index(s, " - ")
 	if i <= 0 || i+3 >= len(s) {
 		return textSplit{}
@@ -310,8 +351,10 @@ func (q normalizedQuery) splitDash() textSplit {
 	return textSplit{left: strings.TrimSpace(s[:i]), right: strings.TrimSpace(s[i+3:]), ok: true}
 }
 
+var queryDashes = strings.NewReplacer(" – ", " - ", " — ", " - ", " ‒ ", " - ")
+
 func normalizeText(s string) string {
-	return strings.ToLower(strings.Join(strings.Fields(s), " "))
+	return norm.NFC.String(strings.ToLower(norm.NFKD.String(strings.Join(strings.Fields(s), " "))))
 }
 
 var spotifyFilter = regexp.MustCompile(`(?:^|\s)(track|artist|album|year|upc|isrc|genre|tag):(?:"([^"]+)"|(\S+))`)
@@ -324,16 +367,29 @@ func (q normalizedQuery) operatorCandidate() (searchCandidate, bool) {
 	}
 	candidate := searchCandidate{q: s, name: viaText, operators: true}
 	for _, match := range matches {
-		value := match[2]
-		if value == "" {
-			value = match[3]
-		}
 		switch match[1] {
 		case "track":
-			candidate.song = value
 		case "artist":
-			candidate.artist = value
+			candidate.artist = filterValue(match)
+		default:
+			candidate.otherFilters = true
 		}
 	}
+	candidate.song = strings.TrimSpace(spotifyFilter.ReplaceAllStringFunc(s, filterTitle))
 	return candidate, true
+}
+
+func filterValue(match []string) string {
+	if match[2] != "" {
+		return match[2]
+	}
+	return match[3]
+}
+
+func filterTitle(filter string) string {
+	match := spotifyFilter.FindStringSubmatch(filter)
+	if match[1] != "track" {
+		return " "
+	}
+	return " " + filterValue(match) + " "
 }

@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
@@ -200,7 +201,7 @@ func processRoutingCases() []processCase {
 	pong := emitModule("", module.KindCore, "pong")
 
 	return []processCase{
-		{name: "a malformed envelope is dropped and acked", raw: []byte("{not json"), modules: []module.Module{pong}},
+		{name: "a malformed envelope is quarantined", raw: []byte("{not json"), modules: []module.Module{pong}, wantErr: true},
 		{name: "a chat line with no module acks and emits nothing", lane: "premium", text: "hi"},
 		{
 			name: "chat is emitted to the standard lane", lane: "standard", text: "hi", modules: []module.Module{pong},
@@ -211,7 +212,7 @@ func processRoutingCases() []processCase {
 			want: []published{{premiumSubj, outgress.TypeChat, "", "pong"}},
 		},
 		{
-			name: "a failing module is skipped, not nacked", lane: "standard", text: "hi",
+			name: "a failing required module nacks", lane: "standard", text: "hi", wantErr: true,
 			modules: []module.Module{errCore(), emitModule("", module.KindCore, "still here")},
 			want:    []published{{standardSubj, outgress.TypeChat, "", "still here"}},
 		},
@@ -419,6 +420,26 @@ func TestProcessOutputIDsFollowTheEventID(t *testing.T) {
 			assert.Len(t, pub.snapshot(), len(tc.eventIDs))
 			assert.Len(t, ids, tc.wantIDs)
 			assert.Equal(t, tc.wantEmpty, ids[""])
+		})
+	}
+}
+
+func TestProcessOutputKeepsOriginalEventTime(t *testing.T) {
+	for _, timestamp := range []string{"2026-11-16T10:00:00.123Z", "", "invalid"} {
+		t.Run(timestamp, func(t *testing.T) {
+			pub := &fakePublisher{}
+			p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "pong"))
+			msg := envelopeMsg(t, "event-time", map[string]any{
+				"chatter_user_id": "999", "text": "hi", "received_at": timestamp,
+			})
+			require.NoError(t, p.Process(msg))
+			got := pub.snapshot()
+			require.Len(t, got, 1)
+			var want int64
+			if original, err := time.Parse(time.RFC3339Nano, timestamp); err == nil {
+				want = original.UnixMilli()
+			}
+			assert.Equal(t, want, got[0].msg.EventAt)
 		})
 	}
 }

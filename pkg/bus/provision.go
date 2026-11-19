@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -26,9 +25,21 @@ const (
 )
 
 func EnsureStreams(ctx context.Context, url string, specs []StreamSpec, log *zap.Logger) error {
-	guardian := &streamGuardian{specs: specs, log: log}
+	return EnsureConsumerStreams(ctx, StreamSetup{URL: url, Specs: specs, Log: log, Group: "worker"})
+}
 
-	nc, err := nats.Connect(busURL(endpoint(url)), busOptions("stream-guardian")...)
+type StreamSetup struct {
+	URL   string
+	Specs []StreamSpec
+	Log   *zap.Logger
+	Group string
+}
+
+func EnsureConsumerStreams(ctx context.Context, setup StreamSetup) error {
+	guardian := &streamGuardian{specs: setup.Specs, log: setup.Log, group: setup.Group}
+	log := setup.Log
+
+	nc, err := nats.Connect(busURL(endpoint(setup.URL)), busOptions("stream-guardian")...)
 	if err != nil {
 		return fmt.Errorf("bus: connect for provisioning: %w", err)
 	}
@@ -50,7 +61,7 @@ func EnsureStreams(ctx context.Context, url string, specs []StreamSpec, log *zap
 		guardian.reconcileAll(ctx)
 	})
 
-	go guardian.retryUntilConverged(ctx)
+	go guardian.reconcilePeriodically(ctx)
 
 	go func() {
 		<-ctx.Done()
@@ -61,10 +72,10 @@ func EnsureStreams(ctx context.Context, url string, specs []StreamSpec, log *zap
 }
 
 type streamGuardian struct {
+	group string
 	js    streamProvisioner
 	specs []StreamSpec
 	log   *zap.Logger
-	dirty atomic.Bool
 }
 
 // No delete: a leaked runtime credential must not be able to erase a stream.
@@ -95,6 +106,9 @@ func (g *streamGuardian) provisionAtStartup(ctx context.Context) error {
 }
 
 func (g *streamGuardian) reconcileOnce(ctx context.Context) error {
+	if err := g.prepareIngress(ctx); err != nil {
+		return err
+	}
 	for _, spec := range g.specs {
 		if err := g.reconcile(ctx, spec); err != nil {
 			return err
@@ -104,24 +118,21 @@ func (g *streamGuardian) reconcileOnce(ctx context.Context) error {
 }
 
 func (g *streamGuardian) reconcileAll(ctx context.Context) {
-	for _, spec := range g.specs {
-		if err := g.reconcile(ctx, spec); err != nil {
-			g.log.Error("jetstream stream reconcile failed; retrying",
-				zap.String("stream", spec.Name),
-				zap.Duration("retry_in", streamReconcileRetry),
-				zap.Error(err))
-			g.dirty.Store(true)
-		}
+	if err := g.reconcileOnce(ctx); err != nil {
+		g.log.Error("jetstream reconcile failed; retrying", zap.Error(err))
 	}
 }
 
 func (g *streamGuardian) reconcile(ctx context.Context, spec StreamSpec) error {
 	ctx, cancel := context.WithTimeout(ctx, streamReconcileTimeout)
 	defer cancel()
+	if err := g.detachPremiumPredecessor(ctx, spec); err != nil {
+		return err
+	}
 	return reconcileStream(ctx, g.js, spec, g.log)
 }
 
-func (g *streamGuardian) retryUntilConverged(ctx context.Context) {
+func (g *streamGuardian) reconcilePeriodically(ctx context.Context) {
 	ticker := time.NewTicker(streamReconcileRetry)
 	defer ticker.Stop()
 	for {
@@ -129,9 +140,7 @@ func (g *streamGuardian) retryUntilConverged(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if g.dirty.Swap(false) {
-				g.reconcileAll(ctx)
-			}
+			g.reconcileAll(ctx)
 		}
 	}
 }

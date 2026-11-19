@@ -57,6 +57,6 @@ func fakeLoyalty(t *testing.T, open func() driver.Conn) *Loyalty {
 	pool := sql.OpenDB(fakeConnector{open})
 	t.Cleanup(func() { _ = pool.Close() })
 	r := bare()
-	r.sqldb, r.log, r.done = pool, zap.NewNop(), make(chan struct{})
+	r.sqldb, r.log = pool, zap.NewNop()
 	return r
 }
