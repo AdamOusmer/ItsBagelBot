@@ -4,7 +4,7 @@
 import { lookupEventKind } from './event-kinds';
 import { unescapeWord } from './flow-graph';
 import type { Definition, Params } from './types';
-import type { RehearsalScenario, ScenarioField, TriggerMatch } from './rehearsal-types';
+import type { RehearsalScenario, ScenarioField, ScenarioInputField, ScenarioStateField, TriggerMatch } from './rehearsal-types';
 
 const VIEWER: readonly ScenarioField[] = [
   { key: 'user', kind: 'text', default: 'PrincessBarney' },
@@ -30,7 +30,55 @@ export const SCENARIO_FIELDS: Readonly<Record<string, readonly ScenarioField[]>>
   'countdown.finished': [LIVE]
 };
 
-export function scenarioPatches(fields: readonly ScenarioField[], patch: Partial<RehearsalScenario>): Partial<RehearsalScenario> {
+type Seed = ScenarioStateField['seed'];
+type StateFields = Map<ScenarioStateField['key'], ScenarioStateField>;
+
+const STATE_STEPS = new Map<string, Seed>([
+  ['points', 'points'], ['points_add', 'points'], ['points_set', 'points'], ['points_spend', 'points'],
+  ['counter', 'counters'], ['counter_add', 'counters'], ['counter_set', 'counters'],
+  ['countdown_add', 'countdowns'], ['countdown_stop', 'countdowns'],
+  ['cooldown', 'cooldowns'], ['cooldown_add', 'cooldowns'], ['cooldown_reset', 'cooldowns']
+]);
+
+function addStateFields(fields: StateFields, seed: Seed, rawName: unknown): void {
+  if (seed === 'points') {
+    fields.set('state:points', { key: 'state:points', seed, kind: 'number', default: 0 });
+    return;
+  }
+  const name = String(rawName ?? '').trim().toLowerCase();
+  if (!name) return;
+  const key = `state:${seed}:${name}` as const;
+  if (seed === 'counters') {
+    fields.set(key, { key, seed, name, kind: 'number', default: 0 });
+    return;
+  }
+  const seconds = 60;
+  fields.set(key, { key, seed, name, kind: 'toggle', default: false, initialSeconds: seconds });
+  const left = `${key}:left` as const;
+  fields.set(left, { key: left, seed, name, kind: 'duration', default: seconds });
+}
+
+function collectStateFields(value: unknown, fields: StateFields): void {
+  if (typeof value === 'string') {
+    for (const match of value.matchAll(/\{counter:([^{}:|]+)[|}]/gi)) addStateFields(fields, 'counters', match[1]);
+    return;
+  }
+  if (value === null || typeof value !== 'object') return;
+  const step = value as { type?: string; params?: Params };
+  const seed = STATE_STEPS.get(step.type ?? '');
+  if (seed) addStateFields(fields, seed, step.params?.name);
+  for (const child of Object.values(value)) collectStateFields(child, fields);
+}
+
+const SEED_ORDER: Record<Seed, number> = { points: 0, counters: 1, countdowns: 2, cooldowns: 3 };
+
+export function scenarioStateFields(definition: Definition): ScenarioStateField[] {
+  const fields: StateFields = new Map();
+  collectStateFields(definition, fields);
+  return [...fields.values()].sort((a, b) => SEED_ORDER[a.seed] - SEED_ORDER[b.seed]);
+}
+
+export function scenarioPatches(fields: readonly ScenarioInputField[], patch: Partial<RehearsalScenario>): Partial<RehearsalScenario> {
   const keys = new Set<string>([...fields.map((field) => field.key), 'state']);
   return Object.fromEntries(Object.entries(patch).filter(([key]) => keys.has(key)));
 }

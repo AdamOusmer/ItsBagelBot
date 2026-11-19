@@ -107,6 +107,21 @@
     "isGift": "Geschenktes Abo",
     "rewardId": "Belohnungs-ID",
     "name": "Countdown-Name",
-    "amount": "Bits"
-  }
+    "amount": "Bits",
+    "points": "Punkte des Zuschauers",
+    "counter": "Zähler: {name}",
+    "timerRunning": "{name} läuft",
+    "timerLeft": "Restzeit"
+  },
+  "pointsResult": "{action} (jetzt {value})",
+  "pointsSetResult": "Neuer Punktestand: {value}",
+  "counterResult": "{name} steht jetzt bei {value}",
+  "timerResult": "{name}: noch {left}",
+  "rewardOn": "aktiviert",
+  "rewardOff": "deaktiviert",
+  "rewardCost": "Preis auf {cost} gesetzt",
+  "rewardUntilEnd": "{changes} bis zum Stream-Ende",
+  "rewardResult": "{name}: {changes}",
+  "noRedemption": "Dieser Schritt erfordert das Einlösen einer Belohnung.",
+  "noRewardChanges": "Wähle zuerst eine Änderung für die Belohnung."
 }

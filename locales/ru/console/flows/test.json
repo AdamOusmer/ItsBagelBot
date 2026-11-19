@@ -107,6 +107,21 @@
     "isGift": "Подарочная подписка",
     "rewardId": "ID награды",
     "name": "Имя отсчёта",
-    "amount": "bits"
-  }
+    "amount": "bits",
+    "points": "Баллы зрителя",
+    "counter": "Счётчик: {name}",
+    "timerRunning": "Таймер {name} запущен",
+    "timerLeft": "Оставшееся время"
+  },
+  "pointsResult": "{action} (теперь {value})",
+  "pointsSetResult": "Новый баланс баллов: {value}",
+  "counterResult": "Новое значение {name}: {value}",
+  "timerResult": "{name}: осталось {left}",
+  "rewardOn": "включена",
+  "rewardOff": "отключена",
+  "rewardCost": "новая стоимость: {cost}",
+  "rewardUntilEnd": "{changes} до конца трансляции",
+  "rewardResult": "{name}: {changes}",
+  "noRedemption": "Для этого шага нужно получить награду за баллы.",
+  "noRewardChanges": "Сначала выберите, что изменить в награде."
 }

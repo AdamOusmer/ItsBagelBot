@@ -188,15 +188,22 @@ test.each([
   expect(step?.text).toBe(text);
 });
 
-test.each([
+test.each<{ node: FlowNode; text: string; state?: NonNullable<RehearsalOptions['scenario']>['state'] }>([
   { node: n('s', 'reply.poll', { title: 'What should {user} play?', choices: 'Chess\nCheckers', seconds: 60 }), text: 'Poll: What should Sender play?' },
   { node: n('s', 'reply.whisper', { target: '{user}', text: 'Thanks, {user}!' }), text: 'Whisper to Sender: Thanks, Sender!' },
   { node: n('s', 'reply.chat_mode', { mode: 'followers', on: false }), text: 'Followers only off' },
-  { node: n('s', 'reply.countdown_start', { name: 'subathon', seconds: 3600 }), text: 'Start subathon for 1h' }
-])('reuses the card template for the $node.type effect', ({ node, text }) => {
+  { node: n('s', 'reply.countdown_start', { name: 'subathon', seconds: 3600 }), text: 'Start subathon for 1h' },
+  { node: n('s', 'reply.points', { amount: 10 }), state: { points: 15 }, text: 'Give 10 points (now 25)' },
+  { node: n('s', 'reply.points_set', { amount: 10 }), state: { points: 15 }, text: 'Points are now 10' },
+  { node: n('s', 'reply.counter', { counter: 'wins' }), state: { counters: { Wins: 3 } }, text: 'wins is now 4' },
+  { node: n('s', 'reply.countdown_add', { name: 'subathon', seconds: 300 }), state: { countdowns: { subathon: 3_600_000 } }, text: 'subathon: 1h 5m left' },
+  { node: n('s', 'reply.cooldown_add', { name: 'break', seconds: 30 }), state: { cooldowns: { break: 60_000 } }, text: 'break: 1m 30s left' },
+  { node: n('s', 'reply.reward_update', { reward: 'hydrate', rewardTitle: 'Hydrate', setEnabled: 'off', reset: true }), text: 'Hydrate: turned off until the stream ends' },
+  { node: n('s', 'reply.reward_update', { reward: 'hydrate', rewardTitle: 'Hydrate', setEnabled: 'on', cost: 500 }), text: 'Hydrate: turned on, cost set to 500' }
+])('renders the $node.type effect', ({ node, text, state }) => {
   const gate = n('c', 'cond.role', { level: 'broadcaster' });
   const flow = flowOf([trigger, gate, node], [e('t', 'next', 'c'), e('c', 'yes', 's')]);
-  const step = run(flow, { scenario: { user: 'Sender', role: 'broadcaster' } }).steps.at(-1);
+  const step = run(flow, { scenario: { user: 'Sender', role: 'broadcaster', state } }).steps.at(-1);
   expect([step?.id, step?.kind, step?.status, step?.text]).toEqual(['s', 'effect', 'ok', text]);
 });
 

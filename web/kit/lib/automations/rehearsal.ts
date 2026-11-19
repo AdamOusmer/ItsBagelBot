@@ -10,7 +10,7 @@ import type { Action, Condition, Definition } from './types';
 import type { RehearsalContext, RehearsalEvent, RehearsalOverrides, RehearsalResult, RehearsalScenario } from './rehearsal-types';
 
 export type * from './rehearsal-types';
-export { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioIdentity, scenarioKind, scenarioPatches } from './rehearsal-scenario';
+export { SCENARIO_FIELDS, defaultScenario, matchTrigger, scenarioIdentity, scenarioKind, scenarioPatches, scenarioStateFields } from './rehearsal-scenario';
 export { compactDuration } from './rehearsal-state';
 export { configKey } from './stream-flow';
 
@@ -40,7 +40,7 @@ function contextFor(definition: Definition, scenario: RehearsalScenario, overrid
     ...scenario.values
   };
   addViewerValues(values, scenario, args);
-  return { scenario: { ...scenario, args, values }, state: createState(scenario), overrides, locals: {}, path: 'trigger', atMs: 0, formatDuration };
+  return { triggerType: definition.trigger.type, scenario: { ...scenario, args, values }, state: createState(scenario), overrides, locals: {}, path: 'trigger', atMs: 0, formatDuration };
 }
 
 function addViewerValues(values: Record<string, string>, scenario: RehearsalScenario, args: Path): void {

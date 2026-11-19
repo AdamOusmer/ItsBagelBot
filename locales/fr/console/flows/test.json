@@ -107,6 +107,21 @@
     "isGift": "Abonnement offert",
     "rewardId": "ID de la récompense",
     "name": "Nom du compte à rebours",
-    "amount": "bits"
-  }
+    "amount": "bits",
+    "points": "Points du spectateur",
+    "counter": "Compteur : {name}",
+    "timerRunning": "{name} en cours",
+    "timerLeft": "Temps restant"
+  },
+  "pointsResult": "{action} ({value} maintenant)",
+  "pointsSetResult": "Nouveau solde de points : {value}",
+  "counterResult": "{name} vaut maintenant {value}",
+  "timerResult": "{name} : il reste {left}",
+  "rewardOn": "activée",
+  "rewardOff": "désactivée",
+  "rewardCost": "coût fixé à {cost}",
+  "rewardUntilEnd": "{changes} jusqu’à la fin du stream",
+  "rewardResult": "{name} : {changes}",
+  "noRedemption": "Cette étape requiert l’utilisation d’une récompense.",
+  "noRewardChanges": "Choisis d’abord une modification pour la récompense."
 }

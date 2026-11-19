@@ -35,11 +35,21 @@ export type RehearsalScenario = {
 };
 
 export type ScenarioField = {
-  key: keyof RehearsalScenario;
+  key: Exclude<keyof RehearsalScenario, 'state' | 'values'>;
   kind: 'text' | 'number' | 'role' | 'select' | 'toggle';
   default: ScenarioValue;
   options?: readonly string[];
 };
+
+export type ScenarioStateField = { key: `state:${string}` } & (
+  | { seed: 'points'; kind: 'number'; default: number }
+  | { seed: 'counters'; name: string; kind: 'number'; default: number }
+  | { seed: 'countdowns' | 'cooldowns'; name: string } & (
+    | { kind: 'toggle'; default: false; initialSeconds: number }
+    | { kind: 'duration'; default: number }
+  )
+);
+export type ScenarioInputField = ScenarioField | ScenarioStateField;
 
 export type RehearsalOverrides = Readonly<Record<string, string>>;
 export type RehearsalReason = { reason: string; values: Record<string, string> };
@@ -65,6 +75,7 @@ export type RehearsalResult = {
 };
 
 export type RehearsalContext = {
+  triggerType: string;
   scenario: RehearsalScenario;
   state: RehearsalState;
   overrides: RehearsalOverrides;

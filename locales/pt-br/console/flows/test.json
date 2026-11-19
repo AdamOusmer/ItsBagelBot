@@ -107,6 +107,21 @@
     "isGift": "Inscrição de presente",
     "rewardId": "ID da recompensa",
     "name": "Nome da contagem",
-    "amount": "bits"
-  }
+    "amount": "bits",
+    "points": "Pontos do espectador",
+    "counter": "Contador: {name}",
+    "timerRunning": "{name} em andamento",
+    "timerLeft": "Tempo restante"
+  },
+  "pointsResult": "{action} (agora {value})",
+  "pointsSetResult": "O saldo de pontos agora é {value}",
+  "counterResult": "{name} agora vale {value}",
+  "timerResult": "{name}: faltam {left}",
+  "rewardOn": "ativada",
+  "rewardOff": "desativada",
+  "rewardCost": "custo definido como {cost}",
+  "rewardUntilEnd": "{changes} até o fim da transmissão",
+  "rewardResult": "{name}: {changes}",
+  "noRedemption": "Esta etapa requer o resgate de uma recompensa.",
+  "noRewardChanges": "Escolha primeiro o que mudar na recompensa."
 }

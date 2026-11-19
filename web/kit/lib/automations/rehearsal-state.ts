@@ -4,6 +4,7 @@
 import { expandSegments } from '../engine/rehearsal';
 import { queryEscape, resolveComputedUtil } from '../engine/pure';
 import type { VarToken } from '../engine/tmpl';
+import { ACTION_TYPES } from './catalog';
 import { comparePasses } from './compare';
 import { MAX_COOLDOWN_SECONDS, MAX_TEMPLATE_LENGTH } from './limits';
 import { compareBytes, trimSpace } from './text';
@@ -20,6 +21,7 @@ type ConditionHandler = (params: Params, context: Context) => boolean;
 
 const text = (value: unknown): Text => String(value ?? '');
 const number = (value: unknown): number => Number(value) || 0;
+const stateName = (value: unknown): Text => trimSpace(text(value)).toLowerCase();
 const nameOf = (params: Params): Text => text(params.name).toLowerCase();
 const capped = (value: Text): Text => [...value].slice(0, MAX_TEMPLATE_LENGTH).join('');
 const failed = (code: Text): ActionOutcome => ({ status: 'failed', detail: { code } });
@@ -40,13 +42,19 @@ export function createState(scenario: RehearsalScenario): RehearsalState {
   const seed = scenario.state;
   return {
     channelVars: { ...seed?.channelVars }, viewerVars: { ...seed?.viewerVars },
-    counters: { ...seed?.counters }, points: seed?.points ?? 0,
+    counters: Object.fromEntries(Object.entries(seed?.counters ?? {}).map(([name, value]) => [stateName(name), value])),
+    points: Math.max(0, seed?.points ?? 0),
     cooldowns: {}, countdowns: { ...seed?.countdowns }
   };
 }
 
 function variableStore(params: Params, context: Context): Record<string, string> {
   return params.scope === 'viewer' ? context.state.viewerVars : context.state.channelVars;
+}
+
+function counterValue(context: Context, name: Text): number | undefined {
+  const counters = context.state.counters;
+  return Object.hasOwn(counters, name) ? counters[name] : undefined;
 }
 
 function timerLeft(until: number | undefined, context: Context): Text | null {
@@ -78,7 +86,7 @@ const TOKEN_READERS: Readonly<Record<string, (token: VarToken, context: Context)
   local: (token, context) => context.locals[text(token.payload).toLowerCase()] ?? null,
   var: (token, context) => context.state.channelVars[text(token.payload).toLowerCase()] ?? null,
   viewervar: (token, context) => context.state.viewerVars[text(token.payload).toLowerCase()] ?? null,
-  counter: (token, context) => context.state.counters[text(token.payload)]?.toString() ?? null,
+  counter: (token, context) => counterValue(context, stateName(token.payload))?.toString() ?? null,
   points: (_, context) => String(context.state.points),
   cooldown: (token, context) => token.payload === 'left' ? durationLeft(context.locals['cooldown:end'], context) : null,
   countdown: (token, context) => token.payload === 'left' ? durationLeft(context.locals['countdown:end'], context) : null
@@ -127,6 +135,8 @@ const ORDER: Readonly<Record<string, (order: number) => boolean>> = {
   eq: (order) => order === 0, ne: (order) => order !== 0, gt: (order) => order > 0,
   gte: (order) => order >= 0, lt: (order) => order < 0, lte: (order) => order <= 0
 };
+const compareOrder = (op: unknown, order: number): boolean => ORDER[text(op)]?.(order) ?? false;
+const compareNumber = (params: Params, value: number): boolean => compareOrder(params.op, Math.sign(value - number(params.value)));
 const DECIMAL = /^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/;
 
 function trimDecimal(value: Text): Text {
@@ -154,7 +164,7 @@ function variableComparison(params: Params, context: Context): boolean {
   const rightNumber = decimal(right);
   const numeric = leftNumber !== null && rightNumber !== null;
   const order = numeric ? Math.sign(leftNumber! - rightNumber!) : compareBytes(current ?? '', right);
-  return ORDER[text(params.op)]?.(order) ?? false;
+  return compareOrder(params.op, order);
 }
 
 function userComparison(params: Params, context: Context): boolean {
@@ -216,7 +226,9 @@ const CONDITIONS: Readonly<Record<string, ConditionHandler>> = {
   var: variableComparison,
   chance: chanceComparison,
   cooldown: cooldownComparison,
-  live: (params, context) => context.scenario.live === (params.state === 'live')
+  live: (params, context) => context.scenario.live === (params.state === 'live'),
+  points: (params, context) => hasViewer(context) && compareNumber(params, context.state.points),
+  counter: (params, context) => compareNumber(params, counterValue(context, stateName(params.name)) ?? 0)
 };
 
 export function evaluateCondition(condition: Condition, context: Context): boolean {
@@ -460,13 +472,13 @@ function timerAdded(params: Params, context: Context): number {
 }
 
 function timerStep(params: Params, context: Context, mode: Text): ActionOutcome {
+  const added = timerAdded(params, context);
+  if (added <= 0) return { status: 'skipped', detail: { code: 'below_rate' } };
   const store = mode === 'cooldown_add' ? context.state.cooldowns : context.state.countdowns;
   const name = nameOf(params);
   const until = mode === 'cooldown_add' ? cooldownWindow(name, context) : store[name] ?? 0;
   const running = until > context.atMs;
   if (mode !== 'countdown_start' && !running) return { status: 'skipped', detail: { code: 'not_running' } };
-  const added = timerAdded(params, context);
-  if (added <= 0) return { status: 'skipped', detail: { code: 'below_rate' } };
   const base = mode === 'countdown_start' ? context.atMs : Math.max(context.atMs, until);
   store[name] = Math.min(context.atMs + MAX_COOLDOWN_SECONDS * 1000, base + added);
   const token = mode === 'cooldown_add' ? 'cooldown:end' : 'countdown:end';
@@ -521,27 +533,75 @@ function targetStep(): ActionHandler {
   };
 }
 
+const targetedAction = targetStep();
+const MAX_SET_POINTS = ACTION_TYPES.find((action) => action.type === 'points_set')!.fields.find((field) => field.name === 'amount')!.max!;
+
+function pointsMode(params: Params, expanded: ExpandedParams): unknown {
+  const mode = params.who || 'login';
+  return mode === 'login' && !loginText(expanded.login) ? 'viewer' : mode;
+}
+
+function targetsViewer(mode: Params['who'], target: Text, context: Context): boolean {
+  if (mode === 'viewer') return true;
+  if (!hasViewer(context)) return false;
+  if (mode === 'user') return target.replace(/^0+/, '') === context.scenario.userId?.replace(/^0+/, '');
+  return target.toLowerCase() === loginText(context.scenario.user).toLowerCase();
+}
+
+function pointsStep(set: boolean): ActionHandler {
+  return (params, context, expanded) => {
+    const who = pointsMode(params, expanded);
+    if (who === 'viewer' && !loginText(context.scenario.user)) return failed('no_viewer');
+    const outcome = targetedAction({ ...params, who }, context, expanded);
+    if (outcome.status !== 'ok') return outcome;
+    const target = outcome.detail!.login!;
+    if (!targetsViewer(who, target, context)) return { ...outcome, detail: { ...outcome.detail, target } };
+    const amount = number(params.amount);
+    context.state.points = Math.max(0, set ? Math.min(MAX_SET_POINTS, amount) : context.state.points + amount);
+    return { ...outcome, detail: { ...outcome.detail, target, value: text(context.state.points) } };
+  };
+}
+
+function counterStep(set: boolean): ActionHandler {
+  return (params, context) => {
+    const name = stateName(params.name);
+    const value = set ? number(params.value) : (counterValue(context, name) ?? 0) + number(params.amount);
+    context.state.counters[name] = value;
+    return { status: 'ok', detail: { name, value: text(value) } };
+  };
+}
+
+function redemptionStep(params: Params, context: Context): ActionOutcome {
+  if (context.triggerType !== 'reward') return failed('no_redemption');
+  const value = text(params.status);
+  return ['fulfill', 'cancel'].includes(value) ? { status: 'ok', detail: { value } } : failed('no_redemption');
+}
+
+function rewardUpdateStep(params: Params): ActionOutcome {
+  const changes: ExpandedParams = {};
+  if (typeof params.enabled === 'boolean') changes.enabled = text(params.enabled);
+  if (typeof params.cost === 'number') changes.cost = text(params.cost);
+  if (!Object.keys(changes).length) return failed('nothing_to_change');
+  return { status: 'ok', detail: { ...changes, reset_on_stream_end: text(params.reset_on_stream_end === true) } };
+}
+
 const ACTIONS: Readonly<Record<string, ActionHandler>> = {
   reply: replyStep,
-  shoutout: targetStep(), timeout: targetStep(),
+  shoutout: targetedAction, timeout: targetedAction,
   var_set: (params, context) => writeVariable(params, context, 'set'),
   var_add: (params, context) => writeVariable(params, context, 'add'),
   var_delete: (params, context) => writeVariable(params, context, 'delete'),
   text: textStep, math: mathStep, http_get: httpStep, http_post: httpStep,
-  counter_add: (params, context) => {
-    const name = text(params.name);
-    context.state.counters[name] = (context.state.counters[name] ?? 0) + number(params.amount);
-    return { status: 'ok', detail: { value: String(context.state.counters[name]) } };
-  },
-  points_add: (params, context) => {
-    if (!hasViewer(context)) return failed('no_viewer');
-    context.state.points += number(params.amount);
-    return { status: 'ok', detail: { value: String(context.state.points) } };
-  },
+  counter_add: counterStep(false),
+  points_add: pointsStep(false),
   countdown_start: (params, context) => timerStep(params, context, 'countdown_start'),
   countdown_add: (params, context) => timerStep(params, context, 'countdown_add'),
   cooldown_add: (params, context) => timerStep(params, context, 'cooldown_add'),
-  lights: requiredParams(['device', 'sku'], 'no_device', liveGated((params) => params.any_time === true))
+  lights: requiredParams(['device', 'sku'], 'no_device', liveGated((params) => params.any_time === true)),
+  counter_set: counterStep(true),
+  points_set: pointsStep(true),
+  redemption: redemptionStep,
+  reward_update: rewardUpdateStep
 };
 
 function expandParam(value: unknown, context: Context): ReturnType<typeof expandTemplate> {
