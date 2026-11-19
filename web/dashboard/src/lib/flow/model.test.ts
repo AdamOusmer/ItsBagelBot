@@ -2,8 +2,32 @@
 // Proprietary. No license granted. See LICENSE.md.
 import { expect, test } from 'bun:test';
 import { flowToDefinition, validateDefinition } from '@bagel/kit/automations';
-import { newFlow, variablesFor } from './model';
+import { fieldVisible, newFlow, variablesFor, type FieldSpec, type FlowNode, type NodeSpec } from './model';
 import { addNode } from './ops.testing';
+
+const gatedField: FieldSpec = {
+  key: 'value', type: 'number', when: [{ key: 'mode', value: ['slow', 'followers'] }, { key: 'on', value: true }]
+};
+
+const gateSpec: NodeSpec = {
+  type: 'reply.chat_mode', kind: 'reply', group: 'chat', slug: 'chatMode', icon: 'clock',
+  fields: [
+    { key: 'mode', type: 'select', options: ['slow', 'followers', 'emote'] },
+    { key: 'on', type: 'toggle', defaultOn: true },
+    gatedField
+  ]
+};
+
+test.each<{ config: FlowNode['config']; visible: boolean }>([
+  { config: {}, visible: true },
+  { config: { mode: 'slow', on: true }, visible: true },
+  { config: { mode: 'followers', on: true }, visible: true },
+  { config: { mode: 'slow', on: false }, visible: false },
+  { config: { mode: 'emote', on: true }, visible: false },
+  { config: { mode: 'emote', on: false }, visible: false }
+])('gates $config match all conditions: $visible', ({ config, visible }) => {
+  expect(fieldVisible(gateSpec, { config }, gatedField)).toBe(visible);
+});
 
 const subscriptions = [
   { variant: undefined, tokens: ['{user}', '{user.id}', '{tier}'], event: 'channel.subscribe', text: '{user} {user.id} {event.tier}' },

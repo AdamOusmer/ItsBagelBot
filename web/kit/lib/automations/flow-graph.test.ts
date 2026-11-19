@@ -879,11 +879,23 @@ describe('containers keep their drawn shape through save and reload', () => {
     }
   });
 
-  test('a var condition as the first gate lowers and reopens, including exists with no value', () => {
+  test.each(['', '{bits}'])('a var exists gate ignores its inactive value %s and reopens', (value) => {
     const saved = expectStable(
-      flow([trigger(), node('v', 'cond.var', { scope: 'channel', name: 'mode', op: 'exists' }), say('a')], [edge('t', 'next', 'v'), edge('v', 'yes', 'a')])
+      flow([trigger(), node('v', 'cond.var', { scope: 'channel', name: 'mode', op: 'exists', value }), say('a')], [edge('t', 'next', 'v'), edge('v', 'yes', 'a')])
     );
     expect(saved.conditions).toEqual([{ type: 'var', params: { scope: 'channel', name: 'mode', op: 'exists', value: '' } }]);
+  });
+
+  test.each([
+    { op: 'upper', issues: [], args: ['', ''] },
+    { op: 'replace', issues: [{ path: 'nodes.s.find.bits', code: 'unmappable_token' }], args: undefined }
+  ])('a Follow trigger token-checks only the operands used by $op', ({ op, issues, args }) => {
+    const step = node('s', 'reply.text', { op, input: '{user}', find: '{bits}', saveAs: 'out' });
+    const result = flowToDefinition(flow([trigger(), step], [edge('t', 'next', 's')]));
+    const outcome = result.ok
+      ? { issues: [], args: [result.value.actions?.[0]?.params?.arg1, result.value.actions?.[0]?.params?.arg2] }
+      : { issues: result.issues, args: undefined };
+    expect(outcome).toEqual({ issues, args });
   });
 
   test('builder tokens inside new templates lower to the event and raise back', () => {

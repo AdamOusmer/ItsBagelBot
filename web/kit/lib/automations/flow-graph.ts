@@ -167,9 +167,7 @@ const TEMPLATE_FIELDS: Record<string, string[]> = {
   'reply.unban_resolve': ['resolution'],
   'reply.chat': ['message'],
   'cond.compare': ['left', 'right'],
-  'cond.var': ['value'],
   'reply.var_set': ['value'],
-  'reply.text': ['input', 'find', 'replaceWith', 'start', 'count', 'separator', 'pick', 'needle'],
   'reply.math': ['expression'],
   'reply.loop': ['times'],
   'reply.http_get': ['url'],
@@ -187,8 +185,19 @@ export const TEXT_ARG_FIELDS = new Map<string, readonly string[]>([
   ['contains', ['needle']]
 ]);
 
+export const VAR_OPS_WITH_VALUE: readonly string[] = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains'];
+
+const textOp = (config: FlowConfig) => str(config.op) || 'upper';
+const varConditionOp = (config: FlowConfig) => str(config.op) || 'eq';
+
+function templateFields(node: FlowNode): readonly string[] {
+  if (node.type === 'reply.text') return ['input', ...TEXT_ARG_FIELDS.get(textOp(node.config)) ?? []];
+  if (node.type === 'cond.var') return VAR_OPS_WITH_VALUE.includes(varConditionOp(node.config)) ? ['value'] : [];
+  return TEMPLATE_FIELDS[node.type] ?? [];
+}
+
 function textAction(config: FlowConfig): Action {
-  const op = str(config.op) || 'upper';
+  const op = textOp(config);
   const [first, second] = TEXT_ARG_FIELDS.get(op) ?? [];
   const arg = (key: string | undefined) => (key ? str(config[key]) : '');
   return { type: 'text', params: { op, input: str(config.input), arg1: arg(first), arg2: arg(second), save_as: recipeName(config.saveAs) } };
@@ -280,8 +289,8 @@ const CONDITION_WRITERS: Record<string, (config: FlowConfig) => Condition> = {
   'cond.role': (config) => ({ type: 'perm', params: { level: str(config.level) } }),
   'cond.chance': (config) => ({ type: 'chance', params: { percent: num(config.percent) } }),
   'cond.var': (config) => {
-    const op = str(config.op) || 'eq';
-    return { type: 'var', params: { ...varIdentity(config), op, value: op === 'exists' ? '' : str(config.value) } };
+    const op = varConditionOp(config);
+    return { type: 'var', params: { ...varIdentity(config), op, value: VAR_OPS_WITH_VALUE.includes(op) ? str(config.value) : '' } };
   },
   'cond.user': (config) => ({ type: 'users', params: awaitingUser(config) ? { allow: [SETUP_LOGIN] } : { allow_ids: [str(config.userId)] } }),
   'cond.cooldown': cooldownConditionAction
@@ -426,7 +435,7 @@ function lowerTemplate(ctx: Lowering, node: FlowNode, field: string): string {
 
 function loweredConfig(ctx: Lowering, node: FlowNode): FlowConfig {
   const lowered: FlowConfig = { ...node.config };
-  for (const field of TEMPLATE_FIELDS[node.type] ?? []) lowered[field] = lowerTemplate(ctx, node, field);
+  for (const field of templateFields(node)) lowered[field] = lowerTemplate(ctx, node, field);
   return lowered;
 }
 
@@ -1032,7 +1041,7 @@ function raiseMessages(b: Building, kind: string): void {
   const flow = { nodes: b.nodes, edges: b.edges } as Flow;
   const scan: CounterScan = { kind, counters: priorCounters({ byId: new Map(b.nodes.map((node) => [node.id, node])), outs: outgoing(flow) }) };
   for (const node of b.nodes) {
-    for (const field of TEMPLATE_FIELDS[node.type] ?? []) {
+    for (const field of templateFields(node)) {
       node.config = { ...node.config, [field]: raiseTemplate(scan, node, field) };
     }
   }

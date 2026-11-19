@@ -63,9 +63,10 @@
     if (!root) return;
     const key = focusField;
     void tick().then(() => {
-      const field = key ? fieldElements[key] : undefined;
+      const target = key ? fieldElements[key] : undefined;
+      const field = target?.inert ? undefined : target;
       const control = field?.querySelector<HTMLElement>('input, textarea, select, button');
-      const fields = Array.from(root.querySelectorAll<HTMLElement>('.scroll :is(input, textarea, select, button):not([disabled], [tabindex="-1"])'));
+      const fields = Array.from(root.querySelectorAll<HTMLElement>('.scroll :is(input, textarea, select, button):not(:disabled, [tabindex="-1"], [inert] *)'));
       (control ?? field ?? fields.find((el) => el.getClientRects().length > 0) ?? root).focus();
     });
   });
@@ -124,12 +125,8 @@
     }
   });
 
-  $effect(() => {
-    if (!node || spec?.type !== 'cond.cooldown') return;
-    if (node.config.perUser && node.config.name) delete node.config.name;
-  });
-
-  const templateFields = $derived(node && spec ? spec.fields.filter((f) => f.type === 'template' && fieldVisible(spec, node, f)) : []);
+  const templateFields = $derived(spec?.fields.filter((field) => field.type === 'template') ?? []);
+  const activeTemplates = $derived(node && spec ? templateFields.filter((field) => fieldVisible(spec, node, field)) : []);
 
   let focusedKey = $state<string>();
   type TextControl = HTMLInputElement | HTMLTextAreaElement;
@@ -153,7 +150,7 @@
     query = '';
     completion = null;
   });
-  const insertKey = $derived(templateFields.find((f) => f.key === focusedKey)?.key ?? templateFields[0]?.key);
+  const insertKey = $derived(activeTemplates.find((field) => field.key === focusedKey)?.key ?? activeTemplates[0]?.key);
   const tokens = $derived(node ? [
     ...variablesFor(flow, node.id).filter((v) => !(node.type === 'reply.countdown_start' && insertKey === 'leftReply' && v.token === '{countdown:left}')),
     ...(node.type === 'reply.countdown_start' && insertKey === 'leftReply' ? [{ token: '{countdown:left}', name: 'countdownLeft', sample: '2d 3h' }] : [])
@@ -258,11 +255,6 @@
     count === 0 ? t('flows.board.branchNone') : count === 1 ? t('flows.board.branchOne') : t('flows.board.branchMany', { count });
   const hintTitle = (token: Token, hint: Hint) => (hint ? t('flows.board.variableTitle', { token, hint }) : token);
 
-  const RESERVE_SPACE = new Set(['cond.cooldown:name']);
-  function renderVisible(s: NodeSpec, n: FlowNode, field: FieldSpec): boolean {
-    return RESERVE_SPACE.has(`${s.type}:${field.key}`) || fieldVisible(s, n, field);
-  }
-
   function duplicate() {
     if (!node) return;
     const copy = duplicateNode(flow, node.id);
@@ -314,17 +306,17 @@
       </div>
       {#if spec.fields.length}
         <div class="fields">
-          {#each spec.fields.filter((f) => renderVisible(spec, node, f)) as field (field.key)}
-            {@const label = fieldLabel(t, spec, field)}
+          {#each spec.fields as field (field.key)}
+            {@const disabled = !fieldVisible(spec, node, field)}
+            {@const label = fieldLabel(t, spec, field, node)}
             {@const issue = issues.find((issue) => issue.nodeId === node.id && issue.fieldKey === field.key)}
             {@const error = issue ? fieldIssueMessage(t, issue, node) : undefined}
             {@const tag = fieldRequired(node, field.key) ? t('flows.clarity.required') : undefined}
-            {@const placeholder = node.config[field.key] === SETUP_URL ? t('flows.setup.addUrl') : fieldPlaceholder(t, spec, field)}
-            <div class="field" bind:this={fieldElements[field.key]} role="group" aria-label={label} tabindex="-1">
+            {@const placeholder = node.config[field.key] === SETUP_URL ? t('flows.setup.addUrl') : fieldPlaceholder(t, spec, field, node)}
+            <fieldset class="field" class:inactive={disabled} {disabled} inert={disabled} data-field={field.key} bind:this={fieldElements[field.key]} aria-label={label} tabindex="-1">
             {#if spec.type === 'cond.cooldown' && field.key === 'name'}
-              {@const perViewer = Boolean(node.config.perUser)}
               <Field {label} {tag} {error} for="{uid}-{field.key}" hint={t('flows.step.condition.cooldown.field.name.hint')}>
-                <Input id="{uid}-{field.key}" {placeholder} value={perViewer ? '' : textOf(field.key)} disabled={perViewer} oninput={(e) => (node.config[field.key] = e.currentTarget.value)} />
+                <Input id="{uid}-{field.key}" {placeholder} value={textOf(field.key)} oninput={(e) => (node.config[field.key] = e.currentTarget.value)} />
               </Field>
             {:else if field.type === 'color'}
               <Field {label} {tag} {error} for="{uid}-{field.key}">
@@ -451,7 +443,7 @@
                 />
               </Field>
             {/if}
-            </div>
+            </fieldset>
           {/each}
         </div>
       {/if}
@@ -477,15 +469,15 @@
         </section>
       {/if}
 
-      {#if insertKey}
-        <section class="group">
+      {#if templateFields.length}
+        <section class="group variable-group" class:inactive={!insertKey} inert={!insertKey}>
           <h3 class="group-title">{t('flows.board.variables')}</h3>
           <SearchInput fill bind:value={query} placeholder={t('flows.board.searchVariables')} />
           {#if flowVars.length}
             <h4 class="subgroup-title">{t('flows.board.variablesFlow')}</h4>
             <ul class="vars">
               {#each flowVars as v (v.token)}
-                <li><VarCard stacked token={v.label} hint={v.hint} title={hintTitle(v.token, v.hint)} onclick={() => insertToken(insertKey, v.token)} /></li>
+                <li><VarCard stacked token={v.label} hint={v.hint} title={hintTitle(v.token, v.hint)} onclick={() => insertKey && insertToken(insertKey, v.token)} /></li>
               {/each}
             </ul>
           {:else if !tokens.length && !needle}
@@ -495,7 +487,7 @@
             <h4 class="subgroup-title">{needle ? t('flows.board.variablesAll') : t('flows.board.variablesPopular')}</h4>
             <ul class="vars">
               {#each channelVars as v (v.token)}
-                <li><VarCard stacked token={v.label} hint={v.hint} title={hintTitle(v.token, v.hint)} onclick={() => insertToken(insertKey, v.token)} /></li>
+                <li><VarCard stacked token={v.label} hint={v.hint} title={hintTitle(v.token, v.hint)} onclick={() => insertKey && insertToken(insertKey, v.token)} /></li>
               {/each}
             </ul>
           {/if}
@@ -577,6 +569,19 @@
     gap: 20px;
     --field-mb: 0;
     --field-gap: 8px;
+  }
+  .field {
+    margin: 0;
+    padding: 0;
+    min-inline-size: 0;
+    border: 0;
+  }
+  .field,
+  .variable-group { transition: opacity 0.15s ease; }
+  .inactive { opacity: 0.45; }
+  @media (prefers-reduced-motion: reduce) {
+    .field,
+    .variable-group { transition: none; }
   }
   .unit {
     font-size: 14px;

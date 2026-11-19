@@ -5,6 +5,7 @@ import { durationOutside, durationRange, fieldIssueMessage, fieldLabel, fieldOpt
 import { describe as describeNode } from './describe';
 import { english } from './english.testing';
 import { newFlow, NODE_SPECS, type FlowNode } from './model';
+import type { Translate } from './messages';
 
 const missing = (text: string | undefined) => text === undefined || text.startsWith('flows.');
 
@@ -21,6 +22,27 @@ test.each([
 });
 
 describe('step copy', () => {
+  test.each([
+    { op: undefined, label: 'Uppercase input', placeholder: '{args}', variantOnly: undefined },
+    { op: 'replace', label: 'Text to change', placeholder: 'Search text', variantOnly: 'Search text' },
+    { op: 'split_pick', label: 'Text', placeholder: '{args}', variantOnly: undefined }
+  ])('chooses field copy for $op with plain keys as fallback', ({ op, label, placeholder, variantOnly }) => {
+    const spec = NODE_SPECS.find((entry) => entry.type === 'reply.text')!;
+    const field = { ...spec.fields[1]!, labelBy: 'op' };
+    const variants: Record<string, string> = {
+      'flows.step.reply.text.field.input.upper.label': 'Uppercase input',
+      'flows.step.reply.text.field.input.replace.label': 'Text to change',
+      'flows.step.reply.text.field.input.replace.placeholder': 'Search text'
+    };
+    const t: Translate = (key, params) => variants[key] ?? english(key, params);
+    const node: Pick<FlowNode, 'config'> = { config: op === undefined ? {} : { op } };
+    expect({
+      label: fieldLabel(t, spec, field, node),
+      placeholder: fieldPlaceholder(t, spec, field, node),
+      variantOnly: fieldPlaceholder(t, spec, { ...field, type: 'template', placeholder: undefined }, node)
+    }).toEqual({ label, placeholder, variantOnly });
+  });
+
   test.each([
     { type: 'reply.chat', fieldKey: 'message', code: 'required', expected: 'Message is missing.' },
     { type: 'twitch.chat.command', fieldKey: 'trigger', code: 'required', expected: 'Command is missing.' },

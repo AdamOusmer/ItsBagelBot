@@ -4,6 +4,7 @@ import { STREAM_STEP_DEFINITIONS } from './stream-steps';
 import { graphIndex, portKey } from './graph-index';
 import type { ChoiceSource } from './choices';
 import type { FlowIconName as IconName } from './icons';
+import { TEXT_ARG_FIELDS, VAR_OPS_WITH_VALUE } from '@bagel/kit/automations';
 import { MAX_COOLDOWN_SECONDS, MAX_DELAY_MS, MAX_REWARD_COST } from '@bagel/kit/automations/limits';
 import { ARGS_SAMPLE, GAME_SAMPLE, TITLE_SAMPLE, TOUSER_SAMPLE, USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
 
@@ -71,7 +72,9 @@ export const STEP_PLACEMENT = {
 
 type Typed = { key: string; placeholder?: true };
 
-export type FieldSpec = { when?: { key: string; value: string | readonly string[] | boolean } } & (
+type FieldGate = { key: string; value: string | readonly string[] | boolean };
+
+export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; labelBy?: string } & (
   | (Typed & { type: 'text' })
   | (Typed & { type: 'template'; singleLine?: boolean })
   | { key: string; type: 'number'; min?: number; max?: number; unit?: true }
@@ -149,7 +152,9 @@ const loopPorts: OutputSpec[] = [
 const varScope: FieldSpec = { key: 'scope', type: 'select', options: ['channel', 'viewer'] };
 const varName: FieldSpec = { key: 'name', type: 'text', placeholder: true };
 const saveAs: FieldSpec = { key: 'saveAs', type: 'text', placeholder: true };
-const VAR_OPS_WITH_VALUE = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains'] as const;
+const textOperands: FieldSpec[] = Array.from(TEXT_ARG_FIELDS).flatMap(([op, keys]) => keys.map((key) => ({
+  key, type: 'template', singleLine: true, placeholder: key === 'pick' ? true : undefined, when: { key: 'op', value: op }
+})));
 
 export const newFlow = (name: string): Flow => ({ id: 'new', name, enabled: true, nodes: [], edges: [] });
 
@@ -364,13 +369,7 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
     fields: [
       { key: 'op', type: 'select', options: ['upper', 'lower', 'trim', 'length', 'replace', 'substring', 'split_pick', 'contains', 'url_encode'] },
       { key: 'input', type: 'template', placeholder: true, singleLine: true },
-      { key: 'find', type: 'template', singleLine: true, when: { key: 'op', value: 'replace' } },
-      { key: 'replaceWith', type: 'template', singleLine: true, when: { key: 'op', value: 'replace' } },
-      { key: 'start', type: 'template', singleLine: true, when: { key: 'op', value: 'substring' } },
-      { key: 'count', type: 'template', singleLine: true, when: { key: 'op', value: 'substring' } },
-      { key: 'separator', type: 'template', singleLine: true, when: { key: 'op', value: 'split_pick' } },
-      { key: 'pick', type: 'template', placeholder: true, singleLine: true, when: { key: 'op', value: 'split_pick' } },
-      { key: 'needle', type: 'template', singleLine: true, when: { key: 'op', value: 'contains' } },
+      ...textOperands,
       saveAs
     ]
   },
@@ -424,16 +423,21 @@ const STEP_DEFINITIONS: readonly StepDefinition[] = [
 
 export const NODE_SPECS: readonly NodeSpec[] = STEP_DEFINITIONS.map((spec) => ({ ...spec, ...STEP_PLACEMENT[spec.type] }));
 
-function gateMatches(wanted: string | readonly string[] | boolean, value: unknown): boolean {
+function matchesValue(wanted: FieldGate['value'], value: unknown): boolean {
   if (typeof wanted === 'boolean') return Boolean(value) === wanted;
   return typeof wanted === 'string' ? value === wanted : wanted.includes(String(value));
 }
 
+function gateMatches(spec: NodeSpec, config: FlowNode['config'], { key, value }: FieldGate): boolean {
+  const gate = spec.fields.find((field) => field.key === key);
+  const fallback = gate?.type === 'select' ? gate.options[0] : gate?.type === 'toggle' ? gate.defaultOn : undefined;
+  return matchesValue(value, config[key] ?? fallback);
+}
+
 export function fieldVisible(spec: NodeSpec, node: Pick<FlowNode, 'config'>, field: FieldSpec): boolean {
   if (!field.when) return true;
-  const gate = spec.fields.find((f) => f.key === field.when?.key);
-  const fallback = gate?.type === 'select' ? gate.options[0] : undefined;
-  return gateMatches(field.when.value, node.config[field.when.key] ?? fallback);
+  const gates = 'key' in field.when ? [field.when] : field.when;
+  return gates.every((gate) => gateMatches(spec, node.config, gate));
 }
 
 export const specFor = (type: string): NodeSpec | undefined => NODE_SPECS.find((s) => s.type === type);

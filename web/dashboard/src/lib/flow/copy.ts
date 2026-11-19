@@ -55,30 +55,47 @@ export function roleWarning(t: Translate, flow: Flow, node: FlowNode | undefined
   return knowsRole ? undefined : t('flows.step.condition.role.warning');
 }
 
-function searchLabel(t: Translate, key: MessageKey): string {
-  const translated = t(key);
-  return translated === key ? '' : translated;
-}
+const known = (key: string, text: string): string => (text === key ? '' : text);
 
 export const stepKeywords = (t: Translate, spec: NodeSpec): string =>
-  searchLabel(t, `flows.step.${spec.kind}.${spec.slug}.keywords` as MessageKey);
+  known(`flows.step.${spec.kind}.${spec.slug}.keywords`, t(`flows.step.${spec.kind}.${spec.slug}.keywords` as MessageKey));
 
 export const groupLabel = (t: Translate, group: StepGroup): string => t(`flows.board.group.${group}`);
 
-export const fieldLabel = (t: Translate, spec: NodeSpec, field: FieldSpec): string =>
-  t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.label` as MessageKey);
+type FieldCopy = { spec: NodeSpec; field: FieldSpec; node?: Pick<FlowNode, 'config'> };
+
+function fieldVariant({ spec, field, node }: FieldCopy): string | undefined {
+  if (!field.labelBy || !node) return undefined;
+  const select = spec.fields.find((entry) => entry.key === field.labelBy);
+  if (select?.type !== 'select') return undefined;
+  return String(node.config[select.key] ?? select.options[0] ?? '') || undefined;
+}
+
+const fieldCopyPrefix = (spec: NodeSpec, field: FieldSpec) => `flows.step.${spec.kind}.${spec.slug}.field.${field.key}`;
+
+function variantCopy(t: Translate, source: FieldCopy, part: 'label' | 'placeholder'): string | undefined {
+  const variant = fieldVariant(source);
+  if (!variant) return undefined;
+  const prefix = fieldCopyPrefix(source.spec, source.field);
+  return known(`${prefix}.${variant}.${part}`, t(`${prefix}.${variant}.${part}` as MessageKey)) || undefined;
+}
+
+export const fieldLabel = (t: Translate, spec: NodeSpec, field: FieldSpec, node?: FieldCopy['node']): string =>
+  variantCopy(t, { spec, field, node }, 'label') ?? t(`${fieldCopyPrefix(spec, field)}.label` as MessageKey);
 
 export function fieldIssueMessage(t: Translate, issue: FieldIssue, node: FlowNode | undefined): string {
   if (issue.code !== 'required') return issueMessage(t, issue);
   const spec = node ? specFor(node.type) : undefined;
   const field = spec?.fields.find((field) => field.key === issue.fieldKey);
   if (!spec || !field) return issueMessage(t, issue);
-  return t('flows.issue.requiredField', { field: fieldLabel(t, spec, field) });
+  return t('flows.issue.requiredField', { field: fieldLabel(t, spec, field, node) });
 }
 
-export function fieldPlaceholder(t: Translate, spec: NodeSpec, field: FieldSpec): string | undefined {
+export function fieldPlaceholder(t: Translate, spec: NodeSpec, field: FieldSpec, node?: FieldCopy['node']): string | undefined {
+  const variant = variantCopy(t, { spec, field, node }, 'placeholder');
+  if (variant) return variant;
   if (!('placeholder' in field) || !field.placeholder) return undefined;
-  return t(`flows.step.${spec.kind}.${spec.slug}.field.${field.key}.placeholder` as MessageKey);
+  return t(`${fieldCopyPrefix(spec, field)}.placeholder` as MessageKey);
 }
 
 export function fieldUnit(t: Translate, spec: NodeSpec, field: FieldSpec): string | undefined {
@@ -105,11 +122,14 @@ export function fieldOptions(t: Translate, spec: NodeSpec, field: FieldSpec): { 
 }
 
 export function fieldSearchText(t: Translate, spec: NodeSpec): string {
-  const translate: Translate = (key) => searchLabel(t, key);
-  return spec.fields.flatMap((field) => [
-    fieldLabel(translate, spec, field),
-    ...fieldOptions(translate, spec, field).map(({ label }) => label)
-  ]).filter(Boolean).join(' ');
+  return spec.fields.flatMap((field) => {
+    const prefix = fieldCopyPrefix(spec, field);
+    const options = field.type === 'select' ? field.options : [];
+    return [
+      known(`${prefix}.label`, t(`${prefix}.label` as MessageKey)),
+      ...options.map((value) => known(`${prefix}.option.${value}`, t(`${prefix}.option.${value}` as MessageKey)))
+    ];
+  }).filter(Boolean).join(' ');
 }
 
 export const outputLabel = (t: Translate, spec: NodeSpec, id: string): string =>
