@@ -17,24 +17,30 @@ import (
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/cache"
 )
 
 type loyaltyRPC struct {
-	repo          *repository.Loyalty
-	log           *zap.Logger
-	invalidations *bus.Invalidations
-	watchStatus   func(context.Context) (watchtime.BacklogStatus, error)
+	repo           *repository.Loyalty
+	standingsCount *cache.Keyed[standingsCountKey, int64]
+	log            *zap.Logger
+	invalidations  *bus.Invalidations
+	watchStatus    func(context.Context) (watchtime.BacklogStatus, error)
 }
 
 func Subscribe(w Wiring, prefix string) error {
 	if w.WatchStatus == nil {
 		return errors.New("loyalty RPC requires WatchStatus")
 	}
-	l := &loyaltyRPC{repo: w.Repo, log: w.Log, invalidations: w.Invalidations, watchStatus: w.WatchStatus}
+	l := &loyaltyRPC{repo: w.Repo, log: w.Log, invalidations: w.Invalidations, watchStatus: w.WatchStatus, standingsCount: newStandingsCountCache()}
 	if err := bus.Serve(w.RPCWiring, prefix+"."+loyaltyrpc.VerbBalanceSnapshot, l.handleBalanceSnapshot); err != nil {
 		return err
 	}
 	if err := bus.Serve(w.RPCWiring, prefix+"."+loyaltyrpc.VerbWatchStatus, l.handleWatchStatus); err != nil {
+		return err
+	}
+
+	if err := bus.Serve(w.RPCWiring, prefix+"."+loyaltyrpc.VerbBalanceCountAtLeast, l.handleBalanceCount); err != nil {
 		return err
 	}
 

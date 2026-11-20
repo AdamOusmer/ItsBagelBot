@@ -16,6 +16,7 @@ type CloseRequest struct {
 	Channel ChannelID
 	Actor   ViewerID
 	Winners *WinnerPolicy
+	Kind    Kind
 }
 
 type ExtendRequest struct {
@@ -28,6 +29,7 @@ type ModAction struct {
 	Channel ChannelID
 	Actor   ViewerID
 	Round   RoundID
+	Kind    Kind
 }
 
 type SlotAction struct {
@@ -40,7 +42,7 @@ type SlotAction struct {
 
 func (s *Store) Close(ctx context.Context, req CloseRequest) (bool, error) {
 	r, found, err := s.Joinable(ctx, req.Channel)
-	if err != nil || !found {
+	if err != nil || !found || !r.isKind(req.Kind) {
 		return false, err
 	}
 	now, err := valkey.ServerNow(ctx, s.client)
@@ -85,7 +87,7 @@ func (s *Store) Extend(ctx context.Context, req ExtendRequest) (bool, error) {
 
 func (s *Store) Cancel(ctx context.Context, req ModAction) (bool, error) {
 	r, err := s.cancellable(ctx, req)
-	if err != nil || !cancellable(r.Phase) {
+	if err != nil || !r.canCancel(req.Kind) {
 		return false, err
 	}
 	now, err := valkey.ServerNow(ctx, s.client)
@@ -104,7 +106,9 @@ func (s *Store) Cancel(ctx context.Context, req ModAction) (bool, error) {
 	return s.amend(ctx, r, phaseShift(r, PhaseCancelled, now), action)
 }
 
-func cancellable(phase Phase) bool { return phase == PhaseOpen || phase == PhaseClosing }
+func (r Round) canCancel(kind Kind) bool {
+	return (r.Phase == PhaseOpen || r.Phase == PhaseClosing) && r.isKind(kind)
+}
 
 func (s *Store) cancellable(ctx context.Context, req ModAction) (Round, error) {
 	id := req.Round
@@ -116,13 +120,20 @@ func (s *Store) cancellable(ctx context.Context, req ModAction) (Round, error) {
 		}
 	}
 	if id == "" {
-		return s.latest(ctx, req.Channel, roundFilter{phase: PhaseClosing})
+		return s.latest(ctx, req.Channel, roundFilter{phase: PhaseClosing, kind: req.Kind})
 	}
 	r, err := s.metadata(ctx, req.Channel, id)
-	if r.Channel != req.Channel {
+	if err != nil || r.Channel != req.Channel {
 		return Round{}, err
 	}
-	return r, err
+	if req.Round == "" && !r.isKind(req.Kind) {
+		return s.latest(ctx, req.Channel, roundFilter{phase: PhaseClosing, kind: req.Kind})
+	}
+	return r, nil
+}
+
+func (r Round) isKind(kind Kind) bool {
+	return kind == "" || r.Terms.Kind == kind
 }
 
 func (s *Store) amend(ctx context.Context, r Round, shift valkey.PhaseShift, action Action) (bool, error) {
@@ -272,6 +283,6 @@ func (s *Store) commitEdit(ctx context.Context, data snapshot, edit slotEdit) (i
 	if err != nil || !ok {
 		return 0, err
 	}
-	s.announceChanges(ctx, data.round, edit.transitions)
+	s.announceChanges(ctx, data, edit.transitions)
 	return len(edit.transitions), nil
 }

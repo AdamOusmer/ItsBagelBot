@@ -262,6 +262,7 @@ func appendDrawFields(args []string, fields []FieldValue) []string {
 type RoundRead struct {
 	Round, Slots, Labels map[string]string
 	Entries              []ScoredMember
+	EntryCount           int64
 	Found                bool
 	Refused              int64
 }
@@ -281,36 +282,49 @@ func (k RoundKeys) Read(ctx context.Context, client valkey_go.Client) (RoundRead
 
 func (k RoundKeys) read(ctx context.Context, client valkey_go.Client, withPool bool) (RoundRead, error) {
 	b := client.B()
-	commands := []valkey_go.Completed{b.Hgetall().Key(k.Round).Build(), b.Hgetall().Key(k.Slots).Build()}
+	commands := []valkey_go.Completed{b.Hgetall().Key(k.Round).Build(), b.Hgetall().Key(k.Slots).Build(),
+		b.Hlen().Key(k.Refused).Build()}
 	if withPool {
-		commands = append(commands, b.Hgetall().Key(k.Labels).Build(),
-			b.Zrange().Key(k.Entries).Min("0").Max("-1").Withscores().Build(),
-			b.Hlen().Key(k.Refused).Build())
+		commands = append(commands, b.Zrange().Key(k.Entries).Min("0").Max("-1").Withscores().Build(),
+			b.Hgetall().Key(k.Labels).Build())
+	} else {
+		commands = append(commands, b.Zcard().Key(k.Entries).Build())
 	}
 	results := client.DoMulti(ctx, commands...)
 	var read RoundRead
-	hashes := []*map[string]string{&read.Round, &read.Slots, &read.Labels}
-	for i, dst := range hashes[:min(len(hashes), len(results))] {
+	if err := read.decodeOverview(results); err != nil {
+		return RoundRead{}, err
+	}
+	if withPool {
+		err := read.decodePool(results[3:])
+		return read, err
+	}
+	count, err := results[3].AsInt64()
+	read.EntryCount = count
+	return read, err
+}
+
+func (r *RoundRead) decodeOverview(results []valkey_go.ValkeyResult) error {
+	for i, dst := range []*map[string]string{&r.Round, &r.Slots} {
 		fields, err := results[i].AsStrMap()
 		if err != nil {
-			return RoundRead{}, err
+			return err
 		}
 		*dst = fields
 	}
-	read.Found = len(read.Round) != 0
-	if !withPool {
-		return read, nil
-	}
-	err := read.decodePool(results[3:])
-	return read, err
+	r.Found = len(r.Round) != 0
+	var err error
+	r.Refused, err = results[2].AsInt64()
+	return err
 }
 
 func (r *RoundRead) decodePool(results []valkey_go.ValkeyResult) error {
 	if err := r.readScores(results[0]); err != nil {
 		return err
 	}
+	r.EntryCount = int64(len(r.Entries))
 	var err error
-	r.Refused, err = results[1].AsInt64()
+	r.Labels, err = results[1].AsStrMap()
 	return err
 }
 

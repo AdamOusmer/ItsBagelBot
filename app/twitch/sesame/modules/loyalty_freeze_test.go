@@ -23,7 +23,12 @@ import (
 type freezeStore struct {
 	sets, releases []engine.FreezeCommand
 	changed        bool
+	closeGames     bool
 	err            error
+}
+
+func (s *freezeStore) FreezeGet(context.Context, uint64) (loyaltyrpc.FreezeView, error) {
+	return loyaltyrpc.FreezeView{CloseGames: s.closeGames}, s.err
 }
 
 func (s *freezeStore) FreezeSet(_ context.Context, command engine.FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {

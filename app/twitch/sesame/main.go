@@ -83,7 +83,7 @@ func main() {
 	recorder := analytics.New(valkeyClient, log, nil)
 	defer recorder.Close()
 	raffle := newRaffle(w, proj, loyalty, recorder)
-	draw := newDraw(w, proj, loyalty)
+	draw := newDraw(w, proj, loyalty, recorder)
 	duel := newDuel(w, proj, loyalty, recorder)
 
 	guard := automod.New()
@@ -118,6 +118,10 @@ func main() {
 
 	prepareHotPath(w)
 	svcboot.FatalIf(log, registerAutomationRPC(w, pipe, core.NR), "failed to subscribe automation rpc")
+
+	raffleRPC := engine.RaffleStatusRPC{Draw: deps.Draw, Watch: deps.LoyaltyTick, Log: log}
+	svcboot.FatalIf(log, raffleRPC.Subscribe(bus.RPCWiring{NC: w.in.nc, Queue: queueGroup, App: core.NR, Log: log}),
+		"failed to subscribe raffle status rpc")
 
 	startTrialPromotion(w, recorder)
 

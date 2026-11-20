@@ -31,7 +31,7 @@ for (const def of BUILTIN_COMMANDS) {
 }
 
 // Modules with fixed replies still publish their existing command facts.
-const extraGroups: Record<string, { name: string; samples: Record<string, string> }[]> = {
+const extraGroups: Record<string, { name: string; samples: Record<string, string>; messageKey?: string }[]> = {
   uptime: [{ name: 'reply', samples: { uptime: '2 hours, 15 minutes' } }],
   followage: [{ name: 'status', samples: { followage: '2 years, 3 months', followedat: '2024-06-01T12:00:00Z' } }],
   accountage: [{ name: 'status', samples: { accountage: '5 years, 2 months', createdat: '2021-07-01T12:00:00Z' } }],
@@ -40,7 +40,11 @@ const extraGroups: Record<string, { name: string; samples: Record<string, string
   loyalty: [{ name: 'balance', samples: { points: '1280', pointsname: 'crumbs', watchtime: '2 hours, 15 minutes', duration: '2 hours, 15 minutes', user: 'SnackPackPanda', name: 'crumbs', hours: '2' } }],
   stream: [{ name: 'channel', samples: { uptime: '2 hours, 15 minutes', title: 'bagel baking and chill', game: 'Just Chatting', viewers: '128' } }],
   queue: [{ name: 'status', samples: { size: '12', entries: 'SnackPackPanda, MikanMeerkat', open: 'true' } }],
-  raffle: [{ name: 'status', samples: { entrants: '18', seconds: '120', open: 'true' } }],
+  raffle: [
+    { name: 'status', samples: { entrants: '18', seconds: '120', open: 'true' } },
+    { name: 'won', samples: { claim: '15', prize: 'a game key' } },
+    { name: 'claimok', messageKey: 'claimOkMessage', samples: { user: 'SnackPackPanda' } }
+  ],
   govee: [{ name: 'redeem', samples: { user: 'PrincessBarney', color: 'blue' } }],
   channelpoints: [{ name: 'redeem', samples: { user: 'PrincessBarney', reward: 'Hydrate', input: 'water please', cost: '500', channel: 'itsmavey', counter: '12', points: '100' } }],
   triggers: [{ name: 'response', samples: { user: 'PrincessBarney', channel: 'itsmavey' } }],
@@ -62,7 +66,7 @@ for (const mod of MODULE_VARIABLE_SPECS) {
         existing.samples[field] ??= sample;
       }
     } else {
-      const publicGroup = { ...group, messageKey: undefined, fields: Object.keys(group.samples) };
+      const publicGroup = { ...group, messageKey: group.messageKey, fields: Object.keys(group.samples) };
       // The short raffle facts describe the current raffle; winner facts stay explicit.
       if (mod.id === 'raffle' && group.name === 'status') mod.groups.unshift(publicGroup);
       else mod.groups.push(publicGroup);

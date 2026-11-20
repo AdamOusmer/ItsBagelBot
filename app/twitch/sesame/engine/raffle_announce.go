@@ -22,7 +22,7 @@ import (
 // Both the command path and the deadline path must render draws through this.
 type RaffleAnnouncement struct {
 	Locale string
-	Config RaffleModuleConfig
+	Config LegacyRaffleConfig
 	Points string
 }
 
@@ -71,7 +71,7 @@ func (a RaffleAnnouncement) wonLines(res *RaffleResult) []string {
 	entrants := strconv.FormatInt(res.Entrants, 10)
 	claim := strconv.FormatInt(int64(raffleClaimWindow.Minutes()), 10)
 	amount := strconv.FormatInt(res.Winners[0].Points, 10)
-	return chunkMentions(res.Winners, func(targets string) string {
+	return chunkMentions(res.Winners, func(w RaffleWinner) string { return w.Login }, func(targets string) string {
 		return a.render(a.Config.WonMessage, key,
 			"targets", targets, "count", count, "entrants", entrants,
 			"claim", claim, "amount", amount, "points", a.Points, "prize", prize)
@@ -94,11 +94,15 @@ func (a RaffleAnnouncement) expand(text string, kv []string) string {
 }
 
 // The chat cap truncates long lines, which would cut the last winners' names.
-func chunkMentions(winners []RaffleWinner, render func(targets string) string) []string {
+func chunkMentions[T any](winners []T, login func(T) string, render func(targets string) string) []string {
 	var lines []string
 	group := ""
 	for _, w := range winners {
-		mention := "@" + w.Login
+		name := login(w)
+		if name == "" {
+			continue
+		}
+		mention := "@" + name
 		next := mention
 		if group != "" {
 			next = group + ", " + mention
@@ -108,6 +112,9 @@ func chunkMentions(winners []RaffleWinner, render func(targets string) string) [
 			next = mention
 		}
 		group = next
+	}
+	if group == "" {
+		return nil
 	}
 	return append(lines, render(group))
 }
@@ -148,7 +155,7 @@ func (s *ValkeyRaffleStore) announcement(ctx context.Context, broadcasterID uint
 	loyalty, _ := ReadLoyaltyConfig(ctx, s.cfg.Proj, broadcasterID)
 	return RaffleAnnouncement{
 		Locale: s.localeOf(ctx, broadcasterID),
-		Config: ReadRaffleConfig(ctx, s.cfg.Proj, broadcasterID),
+		Config: ReadLegacyRaffleConfig(ctx, s.cfg.Proj, broadcasterID),
 		Points: loyalty.Name(),
 	}
 }

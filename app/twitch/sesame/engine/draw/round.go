@@ -50,6 +50,7 @@ type Terms struct {
 	Winners       WinnerPolicy
 	ClaimWindow   time.Duration
 	RerollNoShows bool
+	MultiRaffle   bool            `json:",omitempty"`
 	Rules         json.RawMessage `json:",omitempty"`
 	ClosesAt      time.Time
 }

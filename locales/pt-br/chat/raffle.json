@@ -6,7 +6,7 @@
   "claim.ok": "@{raffle:user} seu prêmio está confirmado. Aproveite!",
   "claim.prize_default": "seu prêmio",
   "draw.empty": "Ninguém se inscreveu no sorteio. Ninguém para sortear.",
-  "err.usage": "Uso: !raffle [valor] [segundos], !mraffle [valor] [segundos], !raffle draw|cancel|status. Os valores aceitam k e m (5k). Espectadores participam com !join",
+  "err.usage": "Uso: !raffle [valor] [segundos], !mraffle [valor] [segundos] [winners|auto], !raffle draw [winners|auto], !raffle cancel|status. Os valores aceitam k e m (5k). Espectadores participam com !join",
   "join.already": "@{raffle:user} você já está neste sorteio (inscrições: {raffle:count}).",
   "join.closed": "@{raffle:user} não há sorteio em andamento agora.",
   "join.queue_hint": "Fila: !queue join",
@@ -16,8 +16,8 @@
   "last.empty": "O último sorteio terminou sem inscrições.",
   "last.none": "Nenhum sorteio foi realizado aqui ainda.",
   "open.already": "Já há um sorteio em andamento! Digite !join para participar.",
-  "opened": "Sorteio ABERTO! Digite !join para participar. Resultado em {raffle:mins} min!",
-  "opened.secs": "Sorteio ABERTO! Digite !join para participar. Resultado em {raffle:secs} s!",
+  "opened": "Sorteio ABERTO! Digite !join para participar. Resultado em {raffle:mins} min! Prêmio: {raffle:amount} pontos.",
+  "opened.secs": "Sorteio ABERTO! Digite !join para participar. Resultado em {raffle:secs} s! Prêmio: {raffle:amount} pontos.",
   "payout.failed": "Alguns {raffle:points} do sorteio não puderam ser pagos. Um moderador pode adicioná-los com !points add.",
   "remind": "Lembrete do sorteio: restam ~{raffle:mins} min! Inscrições até agora: {raffle:count}. Digite !join!",
   "remind.claim": "Lembrete do sorteio: restam ~{raffle:mins} min! Inscrições até agora: {raffle:count}. Digite !join! Quem ganhar deve usar !claim.",
@@ -27,5 +27,9 @@
   "won": "Parabéns {raffle:targets}, você ganhou o sorteio! Digite !claim em até {raffle:claim} min para receber {raffle:prize}.",
   "won.plain": "Parabéns {raffle:targets}, você ganhou o sorteio!",
   "won.points": "Parabéns {raffle:targets}, você ganhou o sorteio! {raffle:amount} {raffle:points} já estão no seu saldo.",
-  "won.points.claim": "Parabéns {raffle:targets}, você ganhou o sorteio! {raffle:amount} {raffle:points} já estão no seu saldo. Digite !claim em até {raffle:claim} min para receber {raffle:prize}."
+  "won.points.claim": "Parabéns {raffle:targets}, você ganhou o sorteio! {raffle:amount} {raffle:points} já estão no seu saldo. Digite !claim em até {raffle:claim} min para receber {raffle:prize}.",
+  "open.frozen": "Os sorteios ficam pausados enquanto o ranking estiver congelado.",
+  "open.loyalty_off": "Ative a fidelidade para iniciar um sorteio de pontos.",
+  "verifying": "Sorteando os ganhadores. Só um momento.",
+  "won.paid": "{raffle:targets} ganharam {raffle:amount} {raffle:points} cada!"
 }

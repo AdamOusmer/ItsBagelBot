@@ -65,7 +65,7 @@ func (s *Store) advanceSlots(ctx context.Context, data snapshot, now time.Time) 
 	stampWinners(data, changes, at)
 	ok, err := s.commitSlots(ctx, data, slotBatch{changes: changes, now: at})
 	if ok {
-		s.announceChanges(ctx, data.round, changes)
+		s.announceChanges(ctx, data, changes)
 	}
 	return err
 }
@@ -254,9 +254,13 @@ func indexedSlot(change slotChange) Slot {
 	return change.prior
 }
 
-func (s *Store) announceChanges(ctx context.Context, r Round, changes []slotChange) {
+func (s *Store) announceChanges(ctx context.Context, data snapshot, changes []slotChange) {
+	r := data.round
 	events := map[SlotState]NoticeEvent{
-		settlers[r.Terms.Kind].announceOn: NoticeWinners, SlotNoShow: NoticeNoShow, SlotUnfilled: NoticeUnfilled, SlotUnpaid: NoticeUnpaid,
+		SlotNoShow: NoticeNoShow, SlotUnfilled: NoticeUnfilled, SlotUnpaid: NoticeUnpaid,
+	}
+	if r.Terms.Kind == KindGiveaway {
+		events[SlotWon] = NoticeWinners
 	}
 	notices := make(map[NoticeEvent][]Slot)
 	for _, change := range changes {
@@ -266,7 +270,7 @@ func (s *Store) announceChanges(ctx context.Context, r Round, changes []slotChan
 	}
 	for _, event := range []NoticeEvent{NoticeNoShow, NoticeWinners, NoticeUnfilled, NoticeUnpaid} {
 		if slots := notices[event]; len(slots) > 0 {
-			s.cfg.Announcer.Announce(ctx, Notice{Event: event, Round: r, Slots: slots})
+			s.cfg.Announcer.Announce(ctx, Notice{Event: event, Round: r, Slots: slots, Entries: len(data.stored.Entries)})
 		}
 	}
 }

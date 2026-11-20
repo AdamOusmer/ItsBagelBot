@@ -59,10 +59,11 @@ func NewStore(client valkey_go.Client, cfg Config) *Store {
 func NewRoundID() RoundID { return RoundID(uuid.NewString()) }
 
 type OpenRequest struct {
-	ID      RoundID
-	Channel ChannelID
-	Terms   Terms
-	Actor   ViewerID
+	ID       RoundID
+	Channel  ChannelID
+	Terms    Terms
+	Duration time.Duration
+	Actor    ViewerID
 }
 
 type OpenOutcome int64
@@ -141,6 +142,9 @@ func validateTerms(req OpenRequest, now time.Time) (Terms, error) {
 	policy, ok := settlers[t.Kind]
 	if !ok || !req.validTarget() {
 		return Terms{}, ErrInvalidTerms
+	}
+	if req.Duration != 0 {
+		t.ClosesAt = now.Add(req.Duration)
 	}
 	t.ClosesAt = t.ClosesAt.Truncate(time.Millisecond)
 	if !t.ClosesAt.After(now) || t.ClosesAt.After(now.Add(Pins.MaxOpen)) {

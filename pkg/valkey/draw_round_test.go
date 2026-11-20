@@ -131,8 +131,11 @@ func TestDrawRoundJoin(t *testing.T) {
 	require.Equal(t, RoundRead{
 		Round: map[string]string{"phase": "closing"}, Slots: map[string]string{},
 		Labels:  map[string]string{testViewer: "renamed", "other": "other login"},
-		Entries: []ScoredMember{{Member: "other", Score: 100}, {Member: testViewer, Score: 120}}, Found: true,
+		Entries: []ScoredMember{{Member: "other", Score: 100}, {Member: testViewer, Score: 120}}, EntryCount: 2, Found: true,
 	}, read)
+	view, err := keys.View(t.Context(), client)
+	require.NoError(t, err)
+	require.Equal(t, RoundRead{Round: read.Round, Slots: read.Slots, EntryCount: 2, Found: true}, view)
 }
 
 func TestDrawRoundShift(t *testing.T) {

@@ -176,11 +176,11 @@ describe('module catalog', () => {
     expect(listed.every(catalogIndexable)).toBe(true);
   });
 
-  test('gamble and duels nest under loyalty with no second currency name', () => {
-    for (const id of ['gamble', 'duel'] as const) {
+  test('point games link to Loyalty Games and use its currency', () => {
+    for (const id of ['gamble', 'duel', 'raffle'] as const) {
       const def = moduleDef(id);
       expect(def?.parent).toBe('loyalty');
-      expect(def?.href).toBeUndefined();
+      expect(def?.href).toBe('/loyalty#games');
       expect(def?.settings?.some((s) => s.key === 'pointsName')).toBe(false);
     }
   });
