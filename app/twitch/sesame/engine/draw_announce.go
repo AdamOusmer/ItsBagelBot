@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -31,12 +32,12 @@ type noticeRenderer func(drawAnnouncer, context.Context, string, draw.Notice) []
 
 var noticeRenderers = map[draw.Kind]noticeRenderer{}
 
-func (a drawAnnouncer) Announce(ctx context.Context, notice draw.Notice) {
+func (a drawAnnouncer) Announce(ctx context.Context, notice draw.Notice) error {
 	if notice.Round.Terms.Kind == draw.KindRaffle {
 		a.recordRaffleNotice(ctx, notice)
 	}
 	if notice.Event == draw.NoticeDrawn {
-		return
+		return nil
 	}
 	channel := uint64(notice.Round.Channel)
 	user, _ := a.cfg.Proj.User(ctx, channel)
@@ -44,9 +45,12 @@ func (a drawAnnouncer) Announce(ctx context.Context, notice draw.Notice) {
 	if render == nil {
 		render = fallbackDrawNotice
 	}
+	var postErr error
 	for _, line := range render(a, ctx, user.Locale, notice) {
-		a.cfg.Post(ctx, channel, line, a.log)
+		delivery := announcementLine{text: line, confirmed: notice.Event == draw.NoticeRefusals}
+		postErr = errors.Join(postErr, a.cfg.post(ctx, channel, delivery, a.log))
 	}
+	return postErr
 }
 
 func fallbackDrawNotice(a drawAnnouncer, ctx context.Context, locale string, notice draw.Notice) []string {

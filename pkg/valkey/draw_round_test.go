@@ -5,6 +5,7 @@ package valkey
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,13 +28,13 @@ func testDrawKeys(t *testing.T, id string) RoundKeys {
 	return RoundKeys{
 		Joinable: prefix + "joinable", Active: prefix + "active", Due: prefix + "due", Claimable: prefix + "claimable",
 		Round: prefix + "round:" + id, Entries: prefix + "entries:" + id, Labels: prefix + "labels:" + id,
-		Slots: prefix + "slots:" + id, Lease: prefix + "lease:" + id, Refused: prefix + "refused:" + id, RefusalSeen: prefix + "seen:" + id, RefusalPending: prefix + "pending:" + id,
+		Slots: prefix + "slots:" + id, Lease: prefix + "lease:" + id, Refused: prefix + "refused:" + id, RefusalPending: prefix + "pending:" + id,
 	}
 }
 
 func cleanDrawKeys(t *testing.T, client valkey_go.Client, keys RoundKeys) {
 	t.Helper()
-	cleanKeys(t, client, keys.Joinable, keys.Active, keys.Due, keys.Claimable, keys.Round, keys.Entries, keys.Labels, keys.Slots, keys.Lease, keys.Refused, keys.RefusalSeen, keys.RefusalPending)
+	cleanKeys(t, client, keys.Joinable, keys.Active, keys.Due, keys.Claimable, keys.Round, keys.Entries, keys.Labels, keys.Slots, keys.Lease, keys.Refused, keys.RefusalPending)
 }
 
 func openTestDraw(t *testing.T, client valkey_go.Client, keys RoundKeys) {
@@ -352,7 +353,7 @@ func TestDrawRoundTeardown(t *testing.T) {
 func assertDrawTeardown(t *testing.T, client valkey_go.Client, keys RoundKeys) {
 	t.Helper()
 	ctx := t.Context()
-	remaining, err := client.Do(ctx, ExistsCmd(client, keys.Round, keys.Entries, keys.Labels, keys.Slots, keys.Lease, keys.Refused, keys.RefusalSeen, keys.RefusalPending)).AsInt64()
+	remaining, err := client.Do(ctx, ExistsCmd(client, keys.Round, keys.Entries, keys.Labels, keys.Slots, keys.Lease, keys.Refused, keys.RefusalPending)).AsInt64()
 	require.NoError(t, err)
 	claimable, err := HashAll(ctx, client, keys.Claimable)
 	require.NoError(t, err)
@@ -415,16 +416,58 @@ func TestDrawRoundBatchesRefusals(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, tc.first, first)
 	}
-	var messages []string
+	var messages map[string]string
 	require.Eventually(t, func() bool {
 		var err error
-		messages, err = keys.DrainRefusals(ctx, client)
+		messages, err = keys.ReadRefusals(ctx, client)
 		return err == nil && len(messages) != 0
 	}, time.Second, 10*time.Millisecond)
-	require.ElementsMatch(t, []string{"@a watch", "@b watch"}, messages)
-	again, err := keys.DrainRefusals(ctx, client)
+	require.Equal(t, map[string]string{"a": "@a watch", "b": "@b watch"}, messages)
+	again, err := keys.ReadRefusals(ctx, client)
 	require.NoError(t, err)
-	require.Empty(t, again)
+	require.Equal(t, messages, again)
+
+	first, _, err := keys.Refuse(ctx, client, Refusal{Viewer: "c", Reason: "watch", Notice: "@c watch",
+		BatchAfter: time.Second, RoundID: testRoundID, Wake: "test:draw:notice-wake", TTL: testDrawTTL})
+	require.NoError(t, err)
+	require.True(t, first)
+	require.NoError(t, keys.AckRefusals(ctx, client, []string{"a", "b"}))
+	remaining, err := keys.ReadRefusals(ctx, client)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"c": "@c watch"}, remaining)
+}
+
+func TestDrawChannelWake(t *testing.T) {
+	client := valkeytest.Real(t)
+	for _, tc := range []struct {
+		name, kind, phase string
+		wakes             bool
+	}{
+		{"open giveaway", "giveaway", "open", true},
+		{"settling giveaway", "giveaway", "settling", true},
+		{"closed giveaway", "giveaway", "closing", false},
+		{"open raffle", "raffle", "open", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			keys := testDrawKeys(t, testRoundID)
+			cleanDrawKeys(t, client, keys)
+			code, err := keys.Open(ctx, client, RoundOpen{RoundID: testRoundID, TTL: testDrawTTL,
+				Fields: []FieldValue{{Field: "kind", Value: tc.kind}, {Field: "phase", Value: tc.phase}}, DueAt: time.Hour})
+			require.NoError(t, err)
+			require.Equal(t, RoundOpened, code)
+			park := DrawSchedule{RoundID: testRoundID, Parked: true}
+			require.NoError(t, keys.Schedule(ctx, client, park))
+
+			wake := DrawChannelWake{Active: keys.Active, Due: keys.Due, RoundPrefix: strings.TrimSuffix(keys.Round, testRoundID), Publish: keys.Due + ":wake"}
+			require.NoError(t, wake.Wake(ctx, client))
+			require.NoError(t, keys.Schedule(ctx, client, park))
+
+			ids, _, err := (DueIndex{Key: keys.Due}).Lapsed(ctx, client, 1)
+			require.NoError(t, err)
+			require.Equal(t, tc.wakes, slices.Contains(ids, testRoundID))
+		})
+	}
 }
 
 func TestDrawStatusProbeRoundDeadline(t *testing.T) {

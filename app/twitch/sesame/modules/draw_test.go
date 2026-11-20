@@ -106,7 +106,7 @@ func TestDrawSharedCommandsProcess(t *testing.T) {
 			views: queue, want: drawChatResult{joined: join, message: "Entry is free."}},
 		{name: "ticket aliases join while open", command: "ticket", draw: fakeDraw{joinable: true, kind: draw.KindGiveaway},
 			views: queue, want: drawChatResult{joined: join, message: "Entry is free."}},
-		{name: "giveaway closes during admission", command: "join", draw: fakeDraw{joinable: true, kind: draw.KindGiveaway, closed: true},
+		{name: "giveaway closes during alias admission", command: "enter", draw: fakeDraw{joinable: true, kind: draw.KindGiveaway, closed: true},
 			views: queue, want: drawChatResult{joined: join, message: "The draw has closed."}},
 		{name: "raffle closes during admission", command: "join", draw: fakeDraw{joinable: true, kind: draw.KindRaffle, closed: true},
 			views: []projection.ModuleView{{Name: raffleModuleName, Configs: codec.RawMessage(`{"noRaffleMessage":"Raffle just closed."}`)}},

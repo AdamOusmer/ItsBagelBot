@@ -73,6 +73,7 @@ type Round struct {
 	Terms         Terms
 	Phase         Phase
 	OpenedAt      time.Time
+	LiveAtOpen    bool
 	ClosesAt      time.Time
 	SettledAt     time.Time
 	ClaimPausedAt time.Time

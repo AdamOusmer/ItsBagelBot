@@ -57,11 +57,11 @@ func closeDue(ctx context.Context, s *Store, data snapshot, now time.Time) error
 	if err != nil {
 		return err
 	}
-	if !state.Live {
-		return s.schedule(ctx, data, sweepPoll)
+	if state.offlineSince(r.OpenedAt, r.LiveAtOpen) {
+		return s.scheduleRound(ctx, data, valkey.DrawSchedule{Parked: true})
 	}
 	shift := phaseShift(r, PhaseClosing, now)
-	shift.Match = timeField("closes_at", r.ClosesAt)
+	shift.Match = valkey.FieldValue{Field: "revision", Value: data.stored.Round["revision"]}
 	_, err = s.shiftPhase(ctx, r, shift)
 	return err
 }

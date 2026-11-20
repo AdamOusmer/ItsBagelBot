@@ -14,7 +14,7 @@ import (
 
 type RoundKeys struct {
 	Joinable, Active, Round, Entries, Labels, Slots, Claimable, Due, Lease, Refused string
-	RefusalSeen, RefusalPending                                                     string
+	RefusalPending                                                                  string
 }
 
 type RoundOpen struct {
@@ -152,7 +152,7 @@ type Refusal struct {
 }
 
 var drawRefuseScript = NewScript(drawTimeLua + `
-local round, entries, refused, seen, pending, due = unpack(KEYS)
+local round, entries, refused, pending, due = unpack(KEYS)
 local viewer, reason, ttl, channel, notice, delay, id, wake = unpack(ARGV)
 if channel ~= '0' and redis.call('HGET', round, 'channel') ~= channel then return {0, 0} end
 local deadline = redis.call('HGET', round, 'closes_at')
@@ -161,9 +161,7 @@ if redis.call('HGET', round, 'phase') ~= 'open' or (deadline and tonumber(deadli
   return {0, redis.call('HLEN', refused)}
 end
 if redis.call('ZSCORE', entries, viewer) then return {0, redis.call('HLEN', refused)} end
-local first = redis.call('HSETNX', seen, viewer, reason)
-redis.call('HSETNX', refused, viewer, reason)
-redis.call('PEXPIRE', seen, ttl)
+local first = redis.call('HSETNX', refused, viewer, reason)
 redis.call('PEXPIRE', refused, ttl)
 if first == 1 and notice ~= '' then
   redis.call('HSET', pending, viewer, notice)
@@ -181,7 +179,7 @@ return {first, redis.call('HLEN', refused)}
 func (k RoundKeys) Refuse(ctx context.Context, client valkey_go.Client, r Refusal) (bool, int64, error) {
 	args := []string{r.Viewer, r.Reason, strconv.FormatInt(r.TTL.Milliseconds(), 10), strconv.FormatUint(r.Channel, 10),
 		r.Notice, strconv.FormatInt(r.BatchAfter.Milliseconds(), 10), r.RoundID, r.Wake}
-	keys := []string{k.Round, k.Entries, k.Refused, drawOptionalKey(k.RefusalSeen, k.Refused),
+	keys := []string{k.Round, k.Entries, k.Refused,
 		drawOptionalKey(k.RefusalPending, k.Round), drawOptionalKey(k.Due, k.Round)}
 	reply, err := drawRefuseScript.Exec(ctx, client, keys, args).AsIntSlice()
 	if err != nil {
@@ -190,18 +188,27 @@ func (k RoundKeys) Refuse(ctx context.Context, client valkey_go.Client, r Refusa
 	return reply[0] == 1, reply[1], nil
 }
 
-var drainDrawRefusalsScript = NewScript(drawTimeLua + `
+var readDrawRefusalsScript = NewScript(drawTimeLua + `
 local round, pending = unpack(KEYS)
 local at = tonumber(redis.call('HGET', round, 'refusal_at'))
-if not at or at > now_ms() then return {} end
-local entries = redis.call('HVALS', pending)
-redis.call('DEL', pending)
-redis.call('HDEL', round, 'refusal_at')
-return entries
+if not at then return {} end
+if at > now_ms() and redis.call('HGET', round, 'phase') == 'open' then return {} end
+return redis.call('HGETALL', pending)
 `)
 
-func (k RoundKeys) DrainRefusals(ctx context.Context, client valkey_go.Client) ([]string, error) {
-	return drainDrawRefusalsScript.Exec(ctx, client, []string{k.Round, k.RefusalPending}, nil).AsStrSlice()
+func (k RoundKeys) ReadRefusals(ctx context.Context, client valkey_go.Client) (map[string]string, error) {
+	return readDrawRefusalsScript.Exec(ctx, client, []string{k.Round, k.RefusalPending}, nil).AsStrMap()
+}
+
+var ackDrawRefusalsScript = NewScript(`
+local round, pending = unpack(KEYS)
+for _, viewer in ipairs(ARGV) do redis.call('HDEL', pending, viewer) end
+if redis.call('HLEN', pending) == 0 then redis.call('HDEL', round, 'refusal_at') end
+return 1
+`)
+
+func (k RoundKeys) AckRefusals(ctx context.Context, client valkey_go.Client, viewers []string) error {
+	return ackDrawRefusalsScript.Exec(ctx, client, []string{k.Round, k.RefusalPending}, viewers).Error()
 }
 
 type DrawWake struct {
@@ -245,6 +252,28 @@ local function wake_draw(round, due, id, channel, at)
 end
 `
 
+type DrawChannelWake struct {
+	Active, Due, RoundPrefix, Publish string
+}
+
+var wakeDrawChannelScript = NewScript(drawTimeLua + drawWakeLua + `
+local active, due = unpack(KEYS)
+local prefix, wake = unpack(ARGV)
+local now = now_ms()
+for _, id in ipairs(redis.call('ZRANGE', active, 0, -1)) do
+  local round = prefix .. id
+  if redis.call('HGET', round, 'kind') == 'giveaway' then
+    local phase = redis.call('HGET', round, 'phase')
+    if phase == 'open' or phase == 'settling' then wake_draw(round, due, id, wake, now) end
+  end
+end
+return 1
+`)
+
+func (w DrawChannelWake) Wake(ctx context.Context, client valkey_go.Client) error {
+	return wakeDrawChannelScript.Exec(ctx, client, []string{w.Active, w.Due}, []string{w.RoundPrefix, w.Publish}).Error()
+}
+
 var drawPhaseScript = NewScript(releaseDrawJoinableLua + drawActionLua + drawWakeLua + `
 local round, entries, labels, slots, joinable, due = unpack(KEYS)
 local from, to, release, id, action, ttl, count, field, expected, wake, at = unpack(ARGV, 1, 11)
@@ -259,6 +288,8 @@ if release == 'true' then release_joinable(joinable, id) end
 for i = 1, 4 do redis.call('PEXPIRE', KEYS[i], ttl) end
 redis.call('PEXPIRE', KEYS[7], ttl)
 redis.call('PEXPIRE', KEYS[8], ttl)
+local refusal_at = tonumber(redis.call('HGET', round, 'refusal_at'))
+if to == 'open' and refusal_at then at = math.min(tonumber(at), refusal_at) end
 wake_draw(round, due, id, wake, at)
 return 1
 `)
@@ -279,6 +310,8 @@ func (k RoundKeys) Shift(ctx context.Context, client valkey_go.Client, s PhaseSh
 type DrawSchedule struct {
 	RoundID, Revision string
 	After, TTL        time.Duration
+	Parked            bool
+	Retry             bool
 }
 
 var drawScheduleScript = NewScript(drawTimeLua + `
@@ -291,17 +324,22 @@ if ttl > 0 then
   if KEYS[#KEYS] ~= KEYS[1] and redis.call('GET', KEYS[#KEYS]) == ARGV[1] then redis.call('PEXPIRE', KEYS[#KEYS], ttl) end
 end
 local now = now_ms()
-local next = now + tonumber(ARGV[3])
 local refusal_at = tonumber(redis.call('HGET', KEYS[1], 'refusal_at'))
-if refusal_at then next = math.min(next, math.max(now + 1, refusal_at)) end
+if ARGV[5] == 'true' then
+  if not refusal_at then return redis.call('ZREM', KEYS[2], ARGV[1]) end
+  return redis.call('ZADD', KEYS[2], math.max(now + 1, refusal_at), ARGV[1])
+end
+local next = now + tonumber(ARGV[3])
+if refusal_at and ARGV[6] ~= 'true' then next = math.min(next, math.max(now + 1, refusal_at)) end
 return redis.call('ZADD', KEYS[2], next, ARGV[1])
 `)
 
 func (k RoundKeys) Schedule(ctx context.Context, client valkey_go.Client, s DrawSchedule) error {
-	args := []string{s.RoundID, s.Revision, strconv.FormatInt(s.After.Milliseconds(), 10), strconv.FormatInt(s.TTL.Milliseconds(), 10)}
+	args := []string{s.RoundID, s.Revision, strconv.FormatInt(s.After.Milliseconds(), 10),
+		strconv.FormatInt(s.TTL.Milliseconds(), 10), strconv.FormatBool(s.Parked), strconv.FormatBool(s.Retry)}
 	keys := []string{k.Round, k.Due, drawOptionalKey(k.Entries, k.Round), drawOptionalKey(k.Labels, k.Round),
 		drawOptionalKey(k.Slots, k.Round), drawOptionalKey(k.Active, k.Round), drawOptionalKey(k.Refused, k.Round),
-		drawOptionalKey(k.RefusalSeen, k.Round), drawOptionalKey(k.RefusalPending, k.Round), drawOptionalKey(k.Joinable, k.Round)}
+		drawOptionalKey(k.RefusalPending, k.Round), drawOptionalKey(k.Joinable, k.Round)}
 	return drawScheduleScript.Exec(ctx, client, keys, args).Error()
 }
 
@@ -410,7 +448,7 @@ func ServerNow(ctx context.Context, client valkey_go.Client) (time.Time, error) 
 var drawTeardownScript = NewScript(releaseDrawJoinableLua + drawClaimIndexLua + `
 local round, entries, labels, slots, lease, due, active, joinable, claimable, refused = unpack(KEYS)
 local id = ARGV[1]
-redis.call('DEL', round, entries, labels, slots, lease, refused, KEYS[11], KEYS[12])
+redis.call('DEL', round, entries, labels, slots, lease, refused, KEYS[11])
 redis.call('ZREM', due, id)
 redis.call('ZREM', active, id)
 release_joinable(joinable, id)
@@ -428,6 +466,6 @@ return 1
 
 func (k RoundKeys) Teardown(ctx context.Context, client valkey_go.Client, roundID string) error {
 	keys := []string{k.Round, k.Entries, k.Labels, k.Slots, k.Lease, k.Due, k.Active, k.Joinable, k.Claimable, drawOptionalKey(k.Refused, k.Round),
-		drawOptionalKey(k.RefusalSeen, k.Round), drawOptionalKey(k.RefusalPending, k.Round)}
+		drawOptionalKey(k.RefusalPending, k.Round)}
 	return drawTeardownScript.Exec(ctx, client, keys, []string{roundID}).Error()
 }

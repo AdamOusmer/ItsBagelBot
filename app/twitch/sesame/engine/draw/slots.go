@@ -58,11 +58,7 @@ func (s *Store) advanceSlots(ctx context.Context, data snapshot, now time.Time) 
 	}
 	if len(changes) == 0 {
 		next := nextSlotDue(data, now).Add(time.Millisecond - time.Nanosecond).Truncate(time.Millisecond)
-		delay := next.Sub(now.Truncate(time.Millisecond))
-		if s.cfg.Live != nil && data.round.Terms.ClaimWindow > 0 {
-			delay = min(delay, sweepPoll)
-		}
-		return s.schedule(ctx, data, delay)
+		return s.schedule(ctx, data, next.Sub(now.Truncate(time.Millisecond)))
 	}
 	at, err := valkey.ServerNow(ctx, s.client)
 	if err != nil {

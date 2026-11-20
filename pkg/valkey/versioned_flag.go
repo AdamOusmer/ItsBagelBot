@@ -77,36 +77,9 @@ func firstMessageError(messages []valkey_go.ValkeyMessage) error {
 
 // Read returns the flag and version in one round trip.
 func (f VersionedFlag) Read(ctx context.Context, client valkey_go.Client) (bool, int64, error) {
-	values, err := client.Do(ctx, client.B().Mget().Key(f.Flag, f.Version).Build()).ToArray()
-	if err != nil {
-		return false, 0, err
-	}
-	if len(values) != 2 {
-		return false, 0, errors.New("versioned flag read returned an invalid result")
-	}
-	flag, err := versionedFlagMessageString(values[0])
-	if err != nil {
-		return false, 0, err
-	}
-	version, err := versionedFlagMessageInt(values[1])
+	flag, version, err := (VersionedSlot{Key: f.Flag, VerKey: f.Version}).Read(ctx, client)
 	if err != nil {
 		return false, 0, err
 	}
 	return flag == "1", version, nil
-}
-
-func versionedFlagMessageString(value valkey_go.ValkeyMessage) (string, error) {
-	raw, err := value.ToString()
-	if valkey_go.IsValkeyNil(err) {
-		return "", nil
-	}
-	return raw, err
-}
-
-func versionedFlagMessageInt(value valkey_go.ValkeyMessage) (int64, error) {
-	raw, err := versionedFlagMessageString(value)
-	if err != nil || raw == "" {
-		return 0, err
-	}
-	return strconv.ParseInt(raw, 10, 64)
 }

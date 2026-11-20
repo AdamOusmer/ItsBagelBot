@@ -17,6 +17,13 @@ func (s *Store) liveState(ctx context.Context, round Round) (LiveState, error) {
 	return s.cfg.Live.DrawLiveState(ctx, uint64(round.Channel))
 }
 
+func (s LiveState) offlineSince(start time.Time, liveAtOpen bool) bool {
+	if s.Live {
+		return false
+	}
+	return liveAtOpen || s.ChangedAt.After(start)
+}
+
 type claimClockResult uint8
 
 const (
@@ -30,18 +37,28 @@ func (s *Store) syncClaimClock(ctx context.Context, data snapshot, now time.Time
 		return clockReady, nil
 	}
 	state, err := s.liveState(ctx, data.round)
-	if err != nil || state.Live == data.round.ClaimPausedAt.IsZero() {
+	if err != nil || !data.round.claimClockNeedsSync(state) {
 		return clockReady, err
 	}
-	at := state.ChangedAt
-	if at.IsZero() || at.After(now) {
-		at = now
-	}
-	applied, err := s.updateClaimClock(ctx, data, state, at)
+	applied, err := s.updateClaimClock(ctx, data, state, state.claimClockTime(now))
 	if err == nil && !applied {
 		return clockConflict, nil
 	}
 	return clockMoved, err
+}
+
+func (s LiveState) claimClockTime(now time.Time) time.Time {
+	if s.ChangedAt.IsZero() {
+		return now
+	}
+	return earlier(s.ChangedAt, now)
+}
+
+func (r Round) claimClockNeedsSync(state LiveState) bool {
+	if !r.ClaimPausedAt.IsZero() {
+		return state.Live
+	}
+	return state.offlineSince(r.SettledAt, r.LiveAtOpen)
 }
 
 func (s *Store) updateClaimClock(ctx context.Context, data snapshot, state LiveState, at time.Time) (bool, error) {

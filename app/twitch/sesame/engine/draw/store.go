@@ -121,6 +121,11 @@ func (s *Store) replayInvalidOpen(ctx context.Context, req OpenRequest, invalid 
 }
 
 func (s *Store) openRound(ctx context.Context, r Round, openedOrder int64) (Round, OpenOutcome, error) {
+	state, err := s.liveState(ctx, r)
+	if err != nil {
+		return Round{}, Opened, err
+	}
+	r.LiveAtOpen = r.Terms.Kind == KindGiveaway && state.Live
 	spec, err := s.openSpec(r, openedOrder)
 	if err != nil {
 		return Round{}, Opened, err
@@ -154,6 +159,7 @@ func (s *Store) openSpec(r Round, openedOrder int64) (valkey.RoundOpen, error) {
 	fields := []valkey.FieldValue{
 		{Field: "kind", Value: string(r.Terms.Kind)}, {Field: "terms", Value: string(terms)},
 		{Field: "phase", Value: string(r.Phase)}, timeField("opened_at", r.OpenedAt), timeField("closes_at", r.ClosesAt),
+		{Field: "live_at_open", Value: strconv.FormatBool(r.LiveAtOpen)},
 	}
 	if len(r.Actions) != 0 {
 		fields = append(fields, valkey.FieldValue{Field: "actions", Value: string(actions)})

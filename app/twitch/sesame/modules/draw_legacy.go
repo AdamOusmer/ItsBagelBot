@@ -34,7 +34,7 @@ func (rc raffleCmd) entrant() engine.RaffleEntrant {
 	return engine.RaffleEntrant{ID: rc.c.Env.ChatterUserID, Login: strings.ToLower(rc.c.Env.ChatterUserLogin)}
 }
 
-func (rc raffleCmd) join(ctx context.Context, _ string, emit module.Emit) error {
+func (rc raffleCmd) join(ctx context.Context, output joinOutput) error {
 	entrant := rc.entrant()
 	if entrant.ID == "" || entrant.Login == "" {
 		return nil
@@ -43,7 +43,9 @@ func (rc raffleCmd) join(ctx context.Context, _ string, emit module.Emit) error 
 	if err != nil {
 		return err
 	}
-	rc.raffleJoinReplies().replyJoin(ctx, emit, entry)
+	output.reply(rc.c, entry.Joined, func(emit module.Emit) {
+		rc.raffleJoinReplies().replyJoin(ctx, emit, entry)
+	})
 	return nil
 }
 

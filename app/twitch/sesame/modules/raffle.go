@@ -195,7 +195,10 @@ func (rc raffleCommands) closeRound(ctx context.Context, winners *draw.WinnerPol
 }
 
 func raffleDrawInProgress(r draw.RoundView) bool {
-	return r.Terms.Kind == draw.KindRaffle && (r.Phase == draw.PhaseClosing || r.Phase == draw.PhaseSettling)
+	if r.Terms.Kind != draw.KindRaffle {
+		return false
+	}
+	return r.Phase == draw.PhaseClosing || r.Phase == draw.PhaseSettling
 }
 
 func (rc raffleCommands) drawLegacy(ctx context.Context, winners *draw.WinnerPolicy, emit module.Emit) (bool, error) {
@@ -250,10 +253,10 @@ func (rc raffleCommands) join(ctx context.Context, _ string, emit module.Emit) e
 	}
 	owner := drawOwner{deps: rc.deps, log: rc.deps.Log}
 	if open && r.Terms.Kind == draw.KindRaffle {
-		return owner.joinRound(ctx, rc.c, r, emit)
+		return owner.joinRound(ctx, rc.c, r, joinOutput{emit: emit})
 	}
 	if legacy, ok := owner.legacy(ctx, rc.c); ok && !open {
-		return legacy.join(ctx, "", emit)
+		return legacy.join(ctx, joinOutput{emit: emit})
 	}
 	owner.replyRaffleJoin(ctx, rc.c, emit, draw.JoinOutcome{})
 	return nil

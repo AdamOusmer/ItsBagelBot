@@ -16,6 +16,7 @@ const (
 	LegacyRaffleDeadlinePrefix = "raffle:deadline:"
 	dueKey                     = "draw:due"
 	wakeChannel                = "draw:due:wake"
+	roundPrefix                = "draw:round:"
 )
 
 func JoinableKey(channel ChannelID) string { return cache.UserKey("draw:joinable:", uint64(channel)) }
@@ -24,7 +25,7 @@ func claimableKey(channel ChannelID) string {
 	return cache.UserKey("draw:claimable:", uint64(channel))
 }
 
-func roundKey(id RoundID) string   { return "draw:round:" + string(id) }
+func roundKey(id RoundID) string   { return roundPrefix + string(id) }
 func entriesKey(id RoundID) string { return "draw:entries:" + string(id) }
 func labelsKey(id RoundID) string  { return "draw:labels:" + string(id) }
 func slotsKey(id RoundID) string   { return "draw:slots:" + string(id) }
@@ -35,7 +36,7 @@ func keysFor(channel ChannelID, id RoundID) valkey.RoundKeys {
 		Joinable: JoinableKey(channel), Active: activeKey(channel), Claimable: claimableKey(channel),
 		Round: roundKey(id), Entries: entriesKey(id), Labels: labelsKey(id), Slots: slotsKey(id), Lease: leaseKey(id),
 		Due: dueKey, Refused: "draw:refused:" + string(id),
-		RefusalSeen: "draw:refusal-seen:" + string(id), RefusalPending: "draw:refusal-pending:" + string(id),
+		RefusalPending: "draw:refusal-pending:" + string(id),
 	}
 }
 

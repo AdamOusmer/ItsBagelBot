@@ -5,6 +5,8 @@ package draw
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"time"
 
 	"ItsBagelBot/pkg/codec"
@@ -48,25 +50,44 @@ func (data snapshot) refusalAt() time.Time {
 
 func (s *Store) flushRefusals(ctx context.Context, data snapshot, now time.Time) error {
 	at := data.refusalAt()
-	if at.IsZero() || at.After(now) {
+	if at.IsZero() || data.refusalsStillBatching(at, now) {
 		return nil
 	}
 	r := data.round
-	raw, err := keysFor(r.Channel, r.ID).DrainRefusals(ctx, s.client)
+	keys := keysFor(r.Channel, r.ID)
+	raw, err := keys.ReadRefusals(ctx, s.client)
 	if err != nil {
 		return err
 	}
+	viewers, err := decodeRefusedViewers(raw)
+	if err != nil {
+		return err
+	}
+	if err := s.announceRefusals(ctx, r, viewers); err != nil {
+		return err
+	}
+	return keys.AckRefusals(ctx, s.client, slices.Collect(maps.Keys(raw)))
+}
+
+func (data snapshot) refusalsStillBatching(at, now time.Time) bool {
+	return data.round.Phase == PhaseOpen && at.After(now)
+}
+
+func decodeRefusedViewers(raw map[string]string) ([]RefusedViewer, error) {
 	viewers := make([]RefusedViewer, 0, len(raw))
 	for _, entry := range raw {
 		var viewer RefusedViewer
 		if err := codec.Unmarshal([]byte(entry), &viewer); err != nil {
-			return err
+			return nil, err
 		}
 		viewers = append(viewers, viewer)
 	}
-	if len(viewers) != 0 {
-		s.cfg.Announcer.Announce(ctx, Notice{Event: NoticeRefusals, Round: r, Refused: viewers})
+	return viewers, nil
+}
+
+func (s *Store) announceRefusals(ctx context.Context, r Round, viewers []RefusedViewer) error {
+	if len(viewers) == 0 {
+		return nil
 	}
-	delete(data.stored.Round, "refusal_at")
-	return nil
+	return s.cfg.Announcer.Announce(ctx, Notice{Event: NoticeRefusals, Round: r, Refused: viewers})
 }

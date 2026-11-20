@@ -297,6 +297,7 @@ func (NoopCooldown) AllowAll(context.Context, []CooldownWindow) (bool, error) { 
 func (NoopCooldown) TimeLeft(context.Context, string) (time.Duration, error) { return 0, nil }
 
 type DrawStore interface {
+	Wake(context.Context, draw.ChannelID) error
 	Open(context.Context, draw.OpenRequest) (draw.Round, draw.OpenOutcome, error)
 	Joinable(context.Context, draw.ChannelID) (draw.Round, bool, error)
 	Join(context.Context, draw.JoinRequest) (draw.JoinOutcome, error)

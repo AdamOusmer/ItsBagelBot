@@ -95,9 +95,16 @@ func remainingClaim(view draw.RoundView, target draw.SlotAction, now time.Time) 
 			continue
 		}
 		remaining := slot.Deadline.Sub(view.ClaimTime(now, slot))
-		if remaining > 0 && (left == 0 || remaining < left) {
+		if earlierClaim(left, remaining) {
 			left = remaining
 		}
 	}
 	return left
+}
+
+func earlierClaim(left, remaining time.Duration) bool {
+	if remaining <= 0 {
+		return false
+	}
+	return left == 0 || remaining < left
 }

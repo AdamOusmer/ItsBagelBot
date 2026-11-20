@@ -25,7 +25,7 @@ import (
 
 type drawJoinPorts struct{ draw.Payer }
 
-func (drawJoinPorts) Announce(context.Context, draw.Notice) {}
+func (drawJoinPorts) Announce(context.Context, draw.Notice) error { return nil }
 
 type drawEligibilityData struct {
 	standingsFailures int
@@ -76,6 +76,8 @@ func TestDrawEligibilityProcess(t *testing.T) {
 	cases := []drawEligibilityCase{
 		{name: "free entry notice is shared by both aliases", calls: []drawChatCall{{command: "enter", viewer: "7"}, {command: "ticket", viewer: "7"}},
 			results: drawEligibilityResult{entries: 1, weight: 100, replies: []string{"Entry is free."}}},
+		{name: "refused alias has no free entry notice", rules: eligibility.Rules{Role: eligibility.Sub},
+			calls: []drawChatCall{{command: "ticket", viewer: "7"}}, results: drawEligibilityResult{refused: 1, refusalCalls: 1, batched: 1}},
 		{name: "refused once", rules: eligibility.Rules{Role: eligibility.Sub}, calls: rejoin,
 			results: drawEligibilityResult{refused: 1, refusalCalls: 2, batched: 1}},
 		{name: "refusal disabled", rules: eligibility.Rules{Role: eligibility.Sub}, config: codec.RawMessage(`{"refusalEnabled":false}`),

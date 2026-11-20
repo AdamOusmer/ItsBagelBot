@@ -86,13 +86,12 @@ func (s *Store) syncClaimLookup(ctx context.Context, lookup ClaimLookup) error {
 }
 
 func (s *Store) syncClaimReference(ctx context.Context, channel ChannelID, id RoundID, now time.Time) error {
-	for ctx.Err() == nil {
-		result, err := s.syncClaimRound(ctx, channel, id, now)
-		if err != nil || result != clockConflict {
-			return err
-		}
+	result, err := s.syncClaimRound(ctx, channel, id, now)
+	if err != nil || result != clockConflict {
+		return err
 	}
-	return ctx.Err()
+	_, err = s.syncClaimRound(ctx, channel, id, now)
+	return err
 }
 
 func (s *Store) syncClaimRound(ctx context.Context, channel ChannelID, id RoundID, now time.Time) (claimClockResult, error) {

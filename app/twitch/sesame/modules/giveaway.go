@@ -46,16 +46,25 @@ var giveawayRoutes = map[string]giveawayRun{
 func (g giveawayCommands) dispatch(ctx context.Context, args string, emit module.Emit) error {
 	sub, rest := splitFirst(args)
 	if !g.c.Chatter().Allows(module.RoleModerator) {
-		if sub != "" {
-			return nil
-		}
-		return g.status(ctx, "", emit)
+		return g.viewerStatus(ctx, sub == "", emit)
 	}
 	if run := giveawayRoutes[strings.ToLower(sub)]; run != nil {
 		return run(g, ctx, rest, emit)
 	}
 	g.reply(emit, "", "giveaway.usage")
 	return nil
+}
+
+func (g giveawayCommands) viewerStatus(ctx context.Context, bare bool, emit module.Emit) error {
+	if !bare || g.c.Env.ChatterUserID == "" {
+		return nil
+	}
+	key := engine.CommandCooldownKey(g.c.BroadcasterID, "giveaway:viewer:"+g.c.Env.ChatterUserID)
+	allowed, err := g.deps.Cooldown.Allow(ctx, key, draw.Pins.GiveawayStatusCooldown)
+	if err != nil || !allowed {
+		return err
+	}
+	return g.status(ctx, "", emit)
 }
 
 func (g giveawayCommands) action() draw.ModAction {
@@ -111,8 +120,10 @@ func giveawayRerollSlot(args string) (draw.SlotAction, bool) {
 		return draw.SlotAction{Login: strings.ToLower(login)}, login != "" && !strings.ContainsAny(login, " @")
 	}
 	slot, err := strconv.Atoi(arg)
-	return draw.SlotAction{Slot: slot}, err == nil && slot >= 1 && slot <= draw.Pins.MaxWinners
+	return draw.SlotAction{Slot: slot}, err == nil && validGiveawaySlot(slot)
 }
+
+func validGiveawaySlot(slot int) bool { return slot >= 1 && slot <= draw.Pins.MaxWinners }
 
 func (g giveawayCommands) status(ctx context.Context, _ string, emit module.Emit) error {
 	round, open, err := g.deps.Draw.Joinable(ctx, g.action().Channel)

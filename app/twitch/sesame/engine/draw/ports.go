@@ -78,7 +78,7 @@ type Notice struct {
 }
 
 type Announcer interface {
-	Announce(context.Context, Notice)
+	Announce(context.Context, Notice) error
 }
 
 type WinnerSink interface {

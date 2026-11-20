@@ -124,8 +124,12 @@ func (s RaffleRPC) action(verb raffleVerb) raffleRPCHandler {
 }
 
 func (in raffleRPCInput) validAction() bool {
-	id, err := uuid.Parse(in.RoundID)
-	return err == nil && in.RoundID == id.String() && validRaffleWinners(in.Winners)
+	return canonicalRaffleRoundID(draw.RoundID(in.RoundID)) && validRaffleWinners(in.Winners)
+}
+
+func canonicalRaffleRoundID(raw draw.RoundID) bool {
+	id, err := uuid.Parse(string(raw))
+	return err == nil && raw == draw.RoundID(id.String())
 }
 
 func validRaffleWinners(n int) bool { return n >= 0 && n <= draw.Pins.MaxWinners }

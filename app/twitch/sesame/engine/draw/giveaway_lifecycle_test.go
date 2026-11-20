@@ -257,12 +257,29 @@ func TestDrawRerollsCurrentWinnerByLogin(t *testing.T) {
 	require.Equal(t, draw.ViewerID("12"), replacement.Viewer)
 }
 
+type retryRefusalNotice struct {
+	notices
+	fail bool
+}
+
+func (a *retryRefusalNotice) Announce(ctx context.Context, notice draw.Notice) error {
+	if a.fail && notice.Event == draw.NoticeRefusals {
+		a.fail = false
+		return errors.New("refusal publisher unavailable")
+	}
+	return a.notices.Announce(ctx, notice)
+}
+
 func TestDrawRefusalBatchSurvivesClosing(t *testing.T) {
-	for _, phase := range []draw.Phase{draw.PhaseClosing, draw.PhaseCancelled} {
-		t.Run(string(phase), func(t *testing.T) {
+	for _, tc := range []struct {
+		phase draw.Phase
+		fail  bool
+	}{{draw.PhaseClosing, true}, {draw.PhaseCancelled, false}} {
+		t.Run(string(tc.phase), func(t *testing.T) {
 			ann := make(notices, 5)
-			f := newFixture(t, draw.Config{Announcer: ann})
+			f := newFixture(t, draw.Config{Announcer: &retryRefusalNotice{notices: ann, fail: tc.fail}})
 			r := f.open(433, draw.Terms{Kind: draw.KindGiveaway})
+			f.join(r, "10")
 			viewers := []draw.RefusedViewer{{Login: "a", Reason: "watch", Need: 7200}, {Login: "b", Reason: "watch", Need: 7200}}
 			for i, viewer := range viewers {
 				req := draw.Refusal{Round: r, Viewer: draw.ViewerID(strconv.Itoa(i + 1)), Reason: viewer.Reason, Notice: &viewer}
@@ -270,18 +287,20 @@ func TestDrawRefusalBatchSurvivesClosing(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, first)
 			}
-			if phase == draw.PhaseCancelled {
+			if tc.phase == draw.PhaseCancelled {
 				ok, err := cancelSnapshotGiveaway(f.Store, t.Context(), r)
 				require.NoError(t, err)
 				require.True(t, ok)
 			} else {
 				f.close(r.Channel)
 			}
-			r.Phase = phase
-			now := f.now()
-			f.shiftFields(r, now, testTimeField("refusal_at", now.Add(-time.Second)))
 			f.start(f.Store)
-			require.ElementsMatch(t, viewers, ann.next(t, draw.NoticeRefusals).Refused)
+			refusal := take(t, ann)
+			require.Equal(t, draw.NoticeRefusals, refusal.Event)
+			require.ElementsMatch(t, viewers, refusal.Refused)
+			if tc.phase == draw.PhaseClosing {
+				require.Equal(t, draw.NoticeWinners, take(t, ann).Event)
+			}
 			waitRemoved(t, f.client, drawKeys(r))
 		})
 	}

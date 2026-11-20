@@ -5,7 +5,6 @@ package engine
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
@@ -24,13 +23,25 @@ func clearLiveKey(ctx context.Context, client valkey.Client, broadcasterID uint6
 }
 
 func (s *ValkeyLiveStore) DrawLiveState(ctx context.Context, channel uint64) (draw.LiveState, error) {
-	on, err := s.IsLive(ctx, channel)
-	if err != nil {
+	slot := liveSlot(channel)
+	client := pkg_valkey.Primary(s.client)
+	state, err := readDrawLiveState(ctx, client, slot)
+	if err != nil || knownDrawLiveState(state) {
+		return state, err
+	}
+	if _, err := s.IsLive(ctx, channel); err != nil {
 		return draw.LiveState{}, err
 	}
-	raw, _, err := pkg_valkey.ReadString(ctx, s.client, livekey.VerKey(channel))
-	ms, _ := strconv.ParseInt(raw, 10, 64)
-	state := draw.LiveState{Live: on}
+	return readDrawLiveState(ctx, client, slot)
+}
+
+func knownDrawLiveState(state draw.LiveState) bool {
+	return state.Live || !state.ChangedAt.IsZero()
+}
+
+func readDrawLiveState(ctx context.Context, client valkey.Client, slot pkg_valkey.VersionedSlot) (draw.LiveState, error) {
+	value, ms, err := slot.Read(ctx, client)
+	state := draw.LiveState{Live: value != ""}
 	if ms > 0 {
 		state.ChangedAt = time.UnixMilli(ms)
 	}

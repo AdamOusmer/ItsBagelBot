@@ -23,6 +23,11 @@ const (
 	dueBatch  = 100
 )
 
+func (s *Store) Wake(ctx context.Context, channel ChannelID) error {
+	wake := valkey.DrawChannelWake{Active: activeKey(channel), Due: dueKey, RoundPrefix: roundPrefix, Publish: wakeChannel}
+	return wake.Wake(ctx, s.client)
+}
+
 func (s *Store) Run(ctx context.Context) {
 	wake := make(chan struct{}, 1)
 	go s.watch(ctx, wake)
@@ -127,7 +132,7 @@ func (s *Store) stepRound(ctx context.Context, id RoundID, steps map[Phase]round
 	if err != nil {
 		retry, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 		defer cancel()
-		err = errors.Join(err, s.schedule(retry, data, sweepPoll))
+		err = errors.Join(err, s.scheduleRound(retry, data, valkey.DrawSchedule{After: sweepPoll, Retry: true}))
 	}
 	return err
 }
@@ -145,10 +150,14 @@ func (s *Store) advanceRound(ctx context.Context, data snapshot, advance roundAd
 }
 
 func (s *Store) schedule(ctx context.Context, data snapshot, delay time.Duration) error {
+	return s.scheduleRound(ctx, data, valkey.DrawSchedule{After: max(delay, time.Millisecond)})
+}
+
+func (s *Store) scheduleRound(ctx context.Context, data snapshot, schedule valkey.DrawSchedule) error {
 	r := data.round
-	return keysFor(r.Channel, r.ID).Schedule(ctx, s.client, valkey.DrawSchedule{
-		RoundID: string(r.ID), Revision: data.stored.Round["revision"], After: max(delay, time.Millisecond), TTL: roundTTL,
-	})
+	schedule.RoundID, schedule.Revision = string(r.ID), data.stored.Round["revision"]
+	schedule.TTL = roundTTL
+	return keysFor(r.Channel, r.ID).Schedule(ctx, s.client, schedule)
 }
 
 func (s *Store) logFailure(ctx context.Context, round RoundID, err error) {

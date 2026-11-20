@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/tmpl"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -254,26 +255,45 @@ func streamActionOutgress(o *module.Output) (outgress.Message, error) {
 	return msg, err
 }
 
+type announcementLine struct {
+	text      string
+	confirmed bool
+}
+
 func (c AnnouncementConfig) Post(ctx context.Context, broadcasterID uint64, text string, log *zap.Logger) {
-	if text == "" {
-		return
+	_ = c.post(ctx, broadcasterID, announcementLine{text: text}, log)
+}
+
+func (c AnnouncementConfig) post(ctx context.Context, broadcasterID uint64, line announcementLine, log *zap.Logger) error {
+	if line.text == "" {
+		return nil
 	}
-	if term, hit := moderation.CheckFloor(text); hit {
+	if term, hit := moderation.CheckFloor(line.text); hit {
 		log.Warn("announcement: suppressed announcement carrying floor content",
 			module.BIDField(broadcasterID), zap.String("term", term))
-		return
+		return nil
 	}
 
 	subject := c.OutgressStandardSubject
 	if u, err := c.Proj.User(ctx, broadcasterID); err == nil && u.Premium() {
 		subject = c.OutgressPremiumSubject
 	}
-	body, err := buildOutgress(ctx, c.Runtime, &module.Output{Type: outgress.TypeChat, BroadcasterID: strconv.FormatUint(broadcasterID, 10), Text: text})
+	body, err := buildOutgress(ctx, c.Runtime, &module.Output{Type: outgress.TypeChat, BroadcasterID: strconv.FormatUint(broadcasterID, 10), Text: line.text})
 	if err != nil {
 		log.Warn("announcement: failed to build outgress message", module.BIDField(broadcasterID), zap.Error(err))
-		return
+		return err
 	}
-	if err := bus.PublishRaw(ctx, c.Pub, subject, body); err != nil {
+	err = c.publish(ctx, bus.Publication{Subject: subject, Payload: body}, line.confirmed)
+	if err != nil {
 		log.Warn("announcement: failed to publish", module.BIDField(broadcasterID), zap.Error(err))
 	}
+	return err
+}
+
+func (c AnnouncementConfig) publish(ctx context.Context, publication bus.Publication, confirmed bool) error {
+	if !confirmed {
+		return bus.PublishRaw(ctx, c.Pub, publication.Subject, publication.Payload)
+	}
+	publication.ID = uuid.NewString()
+	return bus.PublishConfirmed(ctx, c.Pub, publication)
 }
