@@ -5,6 +5,8 @@
   "granted": "You are subscribed.",
   "withdrawn": "You unsubscribed.",
   "unknown": "Email preferences are temporarily unavailable.",
-  "optIn": "I agree to receive product news and offers from ItsBagelBot by email (optional). Contact {contact}. You can withdraw at any time in Settings or from any of these emails.",
-  "saveError": "Could not update your email preference. Try again."
+  "optIn": "ItsBagelBot sends product news and offers. Contact us by mail at {address} or by email at {contact}. Unsubscribe anytime in Settings or from any of these emails.",
+  "saveError": "Could not update your email preference. Try again.",
+  "optInUnavailable": "New email subscriptions are temporarily unavailable.",
+  "optInLabel": "I agree to receive product emails"
 }

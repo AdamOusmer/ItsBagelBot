@@ -29,37 +29,46 @@ type GateCase = {
   terms?: string;
   session?: Record<string, unknown>;
   missingScope?: boolean;
+  method?: 'POST';
+  ghost?: boolean;
   landing: string | null;
 };
 
 const gateCases: GateCase[] = [
   { name: 'scope gap precedes terms', missingScope: true, terms: '', landing: '/auth/login?reauth=1&next=%2Fcommands%3Ftab%3D1' },
   { name: 'legacy acceptance needs current terms', terms: '', landing: '/consent?next=%2Fcommands%3Ftab%3D1' },
-  { name: 'older terms need renewal in settings', path: '/settings', terms: '2025-12', landing: '/consent?next=%2Fsettings' },
+  { name: 'older terms allow opening settings', path: '/settings', terms: '2025-12', landing: null },
+  { name: 'older terms allow submitting a settings withdrawal', path: '/settings?/marketing', method: 'POST', terms: '2025-12', landing: null },
+  { name: 'settings still checks Twitch scopes', path: '/settings', missingScope: true, terms: '2025-12', landing: '/auth/login?reauth=1&next=%2Fsettings' },
   { name: 'current terms', terms: TERMS_VERSION, landing: null },
   { name: 'newer terms during a rollback', terms: '9999-12', landing: null },
   { name: 'unsafe return path', path: '//example.test', terms: '', landing: '/consent?next=%2F' },
   { name: 'delegate with a scope gap and older terms', session: { delegate_of: '2002' }, missingScope: true, terms: '', landing: null },
   { name: 'impersonation with a scope gap and older terms', session: { impersonator_id: '3003' }, missingScope: true, terms: '', landing: null },
-  { name: 'unreadable account state', landing: null },
+  { name: 'an unreadable account state fails open', landing: null },
+  { name: 'a state marker without a value fails open', ghost: true, landing: null },
   {
     name: 'a regular billing visit still needs terms', path: '/billing?subscribe=1', terms: '',
     landing: '/consent?next=%2Fbilling%3Fsubscribe%3D1'
   },
-  ...['/consent', '/auth/callback', '/auth/logout', '/logout', '/terms', '/privacy', '/creator-terms', '/legal/privacy',
-    '/billing?checkout=complete', '/billing?checkout=cancelled'].map((path) => ({
+  ...['/billing?checkout=complete', '/billing?checkout=cancelled'].map((path) => ({
     name: `exempt path ${path}`, path, missingScope: true, terms: '', landing: null
   }))
 ];
 
+function gateState(row: GateCase) {
+  if (row.ghost) return { ghost: true };
+  if (row.terms === undefined) return undefined;
+  return { value: { active: true, status: 'free', onboarded: true, termsVersion: row.terms } };
+}
+
 test.each(gateCases)('dashboard gates: $name', async (row) => {
   const url = new URL(`https://dashboard.itsbagelbot.com${row.path ?? '/commands?tab=1'}`);
-  const accountState = row.terms === undefined ? undefined : { value: { active: true, status: 'free', onboarded: true, termsVersion: row.terms } };
   const event = {
-    locals: { session: { user_id: '1001', scopes: row.missingScope ? [] : granted(), ...row.session }, locale: 'en', accountState },
+    locals: { session: { user_id: '1001', scopes: row.missingScope ? [] : granted(), ...row.session }, locale: 'en', accountState: gateState(row) },
     url,
-    route: { id: '/(app)/commands' },
-    request: new Request(url)
+    route: { id: `/(app)${url.pathname}` },
+    request: new Request(url, { method: row.method })
   };
   const landing = await Promise.resolve(load(event as never)).then(
     () => null,

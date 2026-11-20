@@ -55,6 +55,8 @@
   const savedLocale = $derived((data.savedLocale ?? 'en') as Locale);
   const marketingStatus = $derived(data.emailPreferences?.status ?? 'unknown');
   const marketingEnabled = $derived(marketingStatus === 'granted');
+  const mailingAddress = $derived(data.emailPreferences?.mailingAddress ?? '');
+  const marketingDisabled = $derived(marketingStatus === 'unknown' || (!marketingEnabled && !mailingAddress));
   let marketingBusy = $state(false);
   const submitMarketing = busyEnhance(
     (busy) => (marketingBusy = busy),
@@ -620,11 +622,13 @@
         <div class="row-text">
           <Text as="span" size="sm">{t('marketing.email')}</Text>
           <Text size="sm" tone="muted" id="marketing-status">{t(`marketing.${marketingStatus}`)}</Text>
-          <Text size="sm" tone="muted" id="marketing-disclosure">{t('marketing.optIn', { contact: SITE.supportEmail })}</Text>
+          <Text size="sm" tone="muted" id="marketing-disclosure">
+            {mailingAddress ? t('marketing.optIn', { address: mailingAddress, contact: SITE.supportEmail }) : t('marketing.optInUnavailable')}
+          </Text>
         </div>
         <form method="POST" action="?/marketing" use:enhance={submitMarketing}>
           <input type="hidden" name="status" value={marketingEnabled ? 'withdrawn' : 'granted'} />
-          <Switch type="submit" checked={marketingEnabled} busy={marketingBusy} disabled={marketingStatus === 'unknown'} label={t('marketing.switchLabel')} describedby="marketing-status marketing-disclosure" />
+          <Switch type="submit" checked={marketingEnabled} busy={marketingBusy} disabled={marketingDisabled} label={t('marketing.switchLabel')} describedby="marketing-status marketing-disclosure" />
         </form>
       </div>
     {/if}

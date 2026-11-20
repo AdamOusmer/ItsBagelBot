@@ -54,7 +54,7 @@ func (c TermsConsent) valid() bool {
 	if c.Source != consent.Welcome && c.Source != consent.Consent {
 		return false
 	}
-	if c.TermsVersion != consent.TermsVersion || strings.TrimSpace(c.RequestID) == "" {
+	if !consent.IsPublishedTermsVersion(c.TermsVersion) || strings.TrimSpace(c.RequestID) == "" {
 		return false
 	}
 	return i18n.Supported(c.Locale)

@@ -4,6 +4,7 @@
 package worker
 
 import (
+	"context"
 	"io"
 	"net/http"
 
@@ -12,27 +13,38 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-func (w *Worker) recordChatResult(payload *outgress.Message, res *http.Response) {
+type chatDeliveryKey struct{}
+
+type chatDelivery struct{ sent bool }
+
+func (w *Worker) recordChatResult(ctx context.Context, payload *outgress.Message, res *http.Response) {
 	if payload.Type != outgress.TypeChat || res.StatusCode != http.StatusOK {
 		return
 	}
-	var reply struct {
-		Data []struct {
-			IsSent     *bool `json:"is_sent"`
-			DropReason *struct {
-				Code    string `json:"code"`
-				Message string `json:"message"`
-			} `json:"drop_reason"`
-		} `json:"data"`
-	}
-	body, err := io.ReadAll(io.LimitReader(res.Body, maxResponseDrain))
-	if err != nil || codec.Unmarshal(body, &reply) != nil {
+	sent := readChatDelivery(res.Body)
+	if sent == nil {
 		return
 	}
-	if len(reply.Data) == 0 {
-		return
+	if delivery, ok := ctx.Value(chatDeliveryKey{}).(*chatDelivery); ok {
+		delivery.sent = *sent
 	}
-	if sent := reply.Data[0].IsSent; sent != nil && !*sent {
+	if !*sent {
 		w.analytics.Count(catalog.OutgressDropped, "chat", "chat_dropped")
 	}
+}
+
+func readChatDelivery(r io.Reader) *bool {
+	var reply struct {
+		Data []struct {
+			IsSent *bool `json:"is_sent"`
+		} `json:"data"`
+	}
+	body, err := io.ReadAll(io.LimitReader(r, maxResponseDrain))
+	if err != nil || codec.Unmarshal(body, &reply) != nil {
+		return nil
+	}
+	if len(reply.Data) == 0 {
+		return nil
+	}
+	return reply.Data[0].IsSent
 }

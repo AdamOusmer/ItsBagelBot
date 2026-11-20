@@ -3,11 +3,19 @@
 
 package consent
 
+import "slices"
+
 const (
 	TermsVersion           = "2026-11"
 	MarketingPolicyVersion = "2026-11"
 	MarketingTextKey       = "marketing.optIn"
 )
+
+var publishedTermsVersions = [...]string{"2026-09", "2026-10", TermsVersion}
+
+func IsPublishedTermsVersion(version string) bool {
+	return slices.Contains(publishedTermsVersions[:], version)
+}
 
 type MarketingStatus string
 

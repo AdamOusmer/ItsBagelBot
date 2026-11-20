@@ -245,14 +245,23 @@ func (d *deps) tokenStore(accountID string) *tokenstore.Store {
 
 func (d *deps) loadBroadcasterToken(ctx context.Context, accountID string) (twitch.StoredToken, error) {
 	loaded, err := d.tokenStore(accountID).Load(ctx)
-	return twitch.StoredToken(loaded), err
+	return twitchStoredToken(loaded), err
 }
 
 func storedLoad(loaded tokenstore.Tokens, err error) twitch.StoredLoad {
 	if tokenstore.Unavailable(err) {
 		return twitch.StoredLoad{Err: err}
 	}
-	return twitch.StoredLoad{StoredToken: twitch.StoredToken(loaded)}
+	return twitch.StoredLoad{StoredToken: twitchStoredToken(loaded)}
+}
+
+func twitchStoredToken(loaded tokenstore.Tokens) twitch.StoredToken {
+	return twitch.StoredToken{
+		RefreshToken:         loaded.RefreshToken,
+		AccessToken:          loaded.AccessToken,
+		AccessTokenExpiresAt: loaded.AccessTokenExpiresAt,
+		Scopes:               loaded.Scopes,
+	}
 }
 
 func warmupTwitch(ctx context.Context, tw *twitch.Client, log *zap.Logger) {

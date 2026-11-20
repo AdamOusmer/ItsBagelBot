@@ -189,9 +189,7 @@ func (w *Worker) HandleStreamEvent(msg *bus.Message) error {
 
 	log := monitor.TxnLogger(ctx, w.log)
 	log.Debug("mod status refresh scheduled on go-live", zap.String("broadcaster_id", broadcasterID))
-	if err := w.postScopeNotice(ctx, broadcasterID, fence); err != nil {
-		log.Warn("Twitch scope notice failed", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
-	}
+	w.scheduleScopeNotice(ctx, scopeNoticeTarget{broadcasterID: broadcasterID, fence: fence})
 	return nil
 }
 

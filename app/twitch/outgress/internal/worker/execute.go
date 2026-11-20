@@ -49,7 +49,7 @@ func (w *Worker) executeHelix(ctx context.Context, payload *outgress.Message) (h
 	if err != nil {
 		return outcome, err
 	}
-	w.recordChatResult(payload, res)
+	w.recordChatResult(ctx, payload, res)
 	return outcome, nil
 }
 

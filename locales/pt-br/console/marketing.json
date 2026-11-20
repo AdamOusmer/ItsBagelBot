@@ -5,6 +5,8 @@
   "granted": "Sua inscrição está ativa.",
   "withdrawn": "Você cancelou a inscrição.",
   "unknown": "As preferências de e-mail estão temporariamente indisponíveis.",
-  "optIn": "Aceito receber novidades do produto e ofertas do ItsBagelBot por e-mail (opcional). Contato: {contact}. Você pode retirar o consentimento a qualquer momento nas Configurações ou em qualquer um desses e-mails.",
-  "saveError": "Não foi possível atualizar sua preferência de e-mail. Tente novamente."
+  "optIn": "ItsBagelBot envia novidades e ofertas. Fale com a gente pelo endereço postal {address} ou pelo e-mail {contact}. Cancele a inscrição a qualquer momento nas Configurações ou em qualquer um desses e-mails.",
+  "saveError": "Não foi possível atualizar sua preferência de e-mail. Tente novamente.",
+  "optInUnavailable": "Novas inscrições por e-mail estão temporariamente indisponíveis.",
+  "optInLabel": "Aceito receber e-mails sobre o produto"
 }

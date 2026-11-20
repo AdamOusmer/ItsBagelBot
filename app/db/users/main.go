@@ -35,6 +35,8 @@ const (
 	queueGroup  = "users-rpc"
 )
 
+const marketingMACKeysetEnv crypto.KeysetPathEnv = "MARKETING_ADDRESS_HMAC_KEYSET_PATH"
+
 const shutdownFlushBudget = 10 * time.Second
 
 func ownedAccountLevels() []string {
@@ -66,7 +68,7 @@ func main() {
 	defer recorder.Close()
 
 	h := bus.NewInvalidations(n.RPC, conf.CacheInvalidationPrefix.Get(), log)
-	marketingMAC := crypto.OptionalMACFromEnv("marketing address HMAC", log)
+	marketingMAC := crypto.OptionalMACFromEnv(marketingMACKeysetEnv, "marketing address HMAC", log)
 	repo := repository.NewUsers(repository.UsersConfig{
 		Client: client, Packer: packer, MarketingMAC: marketingMAC, Pub: h.Publisher(n.Pub), App: core.NR, Log: log,
 	})

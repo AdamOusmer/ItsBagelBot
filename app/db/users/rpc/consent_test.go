@@ -5,12 +5,14 @@ package rpc_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"ItsBagelBot/app/db/dbtest"
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/enttest"
 	"ItsBagelBot/app/db/users/ent/tokens"
+	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/repository"
 	"ItsBagelBot/app/db/users/rpc"
 	"ItsBagelBot/internal/domain/consent"
@@ -152,17 +154,43 @@ func TestDashboardConsentRecordsTermsWhenMarketingIsSkipped(t *testing.T) {
 	}
 }
 
-func TestDashboardConsentRejectsOtherTermsVersions(t *testing.T) {
+func TestDashboardConsentAcceptsPublishedTermsVersions(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		version string
+		code    domainrpc.Code
+	}{
+		{name: "September policy", version: "2026-09"},
+		{name: "October policy", version: "2026-10"},
+		{name: "current policy", version: consent.TermsVersion},
+		{name: "missing version", code: domainrpc.CodeInvalid},
+		{name: "unknown past policy", version: "1900-01", code: domainrpc.CodeInvalid},
+		{name: "unknown future policy", version: "9999-12", code: domainrpc.CodeInvalid},
+		{name: "malformed version", version: consent.TermsVersion + " ", code: domainrpc.CodeInvalid},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			checkDashboardConsentVersion(t, tc.version, tc.code)
+		})
+	}
+}
+
+func checkDashboardConsentVersion(t *testing.T, version string, code domainrpc.Code) {
+	t.Helper()
 	h := newConsentHarness(t, nil)
 	dashboardLogin(t, h, "")
-	for _, version := range []string{"", "1900-01", "9999-12", consent.TermsVersion + " "} {
-		req := dashboardConsentRequest(ownerContext)
-		req.TermsVersion = version
-		reply := call[usersrpc.ConsentWriteReply](t, h, dashboardPrefix+".consent_set", req)
-		require.Equal(t, domainrpc.CodeInvalid, reply.Code, "version %q", version)
+	req := dashboardConsentRequest(ownerContext)
+	req.TermsVersion = version
+	req.Marketing = false
+	reply := call[usersrpc.ConsentWriteReply](t, h, dashboardPrefix+".consent_set", req)
+	require.Equal(t, code, reply.Code)
+	if code != domainrpc.CodeOK {
+		requireDashboardConsent(t, h, "", consent.None)
+		require.Zero(t, h.client.TermsAcceptance.Query().CountX(t.Context()))
+		return
 	}
-	requireDashboardConsent(t, h, "", consent.None)
-	require.Zero(t, h.client.TermsAcceptance.Query().CountX(t.Context()))
+	require.True(t, reply.OK, "%+v", reply.Refusal)
+	requireDashboardConsent(t, h, version, consent.None)
+	require.Equal(t, version, h.client.TermsAcceptance.Query().OnlyX(t.Context()).TermsVersion)
 }
 
 func requireConsentReply(t *testing.T, h harness, req usersrpc.ConsentSetRequest, skipped consent.MarketingSkipReason) {
@@ -205,42 +233,54 @@ func TestDashboardStateMasksContactEmailOnRequest(t *testing.T) {
 func TestDashboardGrantAndTokenScopes(t *testing.T) {
 	h := newConsentHarness(t, nil)
 	dashboardLogin(t, h, "")
+	const secondOwnerID = 1002
+	secondOwner := usersrpc.UpsertUserRequest{UserID: strconv.FormatUint(secondOwnerID, 10), Username: "second_owner"}
+	require.True(t, call[usersrpc.ConsentWriteReply](t, h, dashboardPrefix+".upsert_user", secondOwner).OK)
 	scopes := []string{"channel:bot", "user:read:chat"}
+	otherScopes := []string{"channel:read:subscriptions"}
 	empty := []string{}
-	get := usersrpc.TokensRequest{UserID: consentOwnerID}
+	primaryID, err := strconv.ParseUint(consentOwnerID, 10, 64)
+	require.NoError(t, err)
 
-	for _, test := range []struct {
-		name  string
-		grant bool
-		save  []string
-		want  []string
-	}{
-		{name: "first refresh with unknown scopes"},
-		{name: "grant supplies scopes", grant: true, save: scopes, want: scopes},
-		{name: "omitted refresh scopes preserve grant scopes", want: scopes},
-		{name: "omitted grant scopes clear the previous grant", grant: true},
-		{name: "refresh can supply scopes", save: scopes, want: scopes},
-		{name: "explicit empty remains empty on the wire", save: empty, want: empty},
-		{name: "omitted refresh scopes preserve explicit empty", want: empty},
+	for _, test := range []tokenScopesCase{
+		{name: "first refresh with unknown scopes", ownerID: primaryID},
+		{name: "grant supplies scopes", ownerID: primaryID, grant: true, save: scopes, want: scopes},
+		{name: "second owner's grant has distinct scopes", ownerID: secondOwnerID, grant: true, save: otherScopes, want: otherScopes},
+		{name: "omitted refresh scopes preserve grant scopes", ownerID: primaryID, want: scopes},
+		{name: "omitted grant scopes clear the previous grant", ownerID: primaryID, grant: true},
+		{name: "refresh can supply scopes", ownerID: primaryID, save: scopes, want: scopes},
+		{name: "explicit empty remains empty on the wire", ownerID: primaryID, save: empty, want: empty},
+		{name: "omitted refresh scopes preserve explicit empty", ownerID: primaryID, want: empty},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			saveTokenScopes(t, h, test.grant, test.save)
+			owner := strconv.FormatUint(test.ownerID, 10)
+			test.saveScopes(t, h, owner)
+			get := usersrpc.TokensRequest{UserID: owner}
 			reply := call[usersrpc.TokensReply](t, h, tokensPrefix+".get", get)
 			require.Empty(t, reply.Error)
 			require.Equal(t, test.want, reply.Scopes)
-			require.Equal(t, test.want == nil, h.client.Tokens.Query().Where(tokens.ScopesIsNil()).ExistX(t.Context()))
+			missing := h.client.Tokens.Query().Where(tokens.HasUserWith(user.IDEQ(test.ownerID)), tokens.ScopesIsNil())
+			require.Equal(t, test.want == nil, missing.ExistX(t.Context()))
 		})
 	}
 }
 
-func saveTokenScopes(t *testing.T, h harness, grant bool, scopes []string) {
+type tokenScopesCase struct {
+	name    string
+	ownerID uint64
+	grant   bool
+	save    []string
+	want    []string
+}
+
+func (test tokenScopesCase) saveScopes(t *testing.T, h harness, owner string) {
 	t.Helper()
-	if grant {
-		req := usersrpc.GrantSaveRequest{BroadcasterUserID: consentOwnerID, AccessToken: "grant-token", Scopes: scopes}
+	if test.grant {
+		req := usersrpc.GrantSaveRequest{BroadcasterUserID: owner, AccessToken: "grant-token", Scopes: test.save}
 		reply := call[usersrpc.ConsentWriteReply](t, h, dashboardPrefix+".grant_save", req)
 		require.True(t, reply.OK, "%+v", reply.Refusal)
 		return
 	}
-	req := usersrpc.TokensRequest{UserID: consentOwnerID, AccessToken: "refreshed-token", Scopes: scopes}
+	req := usersrpc.TokensRequest{UserID: owner, AccessToken: "refreshed-token", Scopes: test.save}
 	require.Empty(t, call[usersrpc.TokensReply](t, h, tokensPrefix+".save", req).Error)
 }

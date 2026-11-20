@@ -75,12 +75,7 @@ function requireTwitchScopes(s: Session, url: URL): void {
   throw redirect(302, `/auth/login?reauth=1&next=${encodeURIComponent(url.pathname + url.search)}`);
 }
 
-const GATE_EXEMPT_PATHS = new Set(['/consent', '/auth', '/logout', '/legal', '/terms', '/privacy', '/creator-terms']);
-
-function gatesExempt(url: URL): boolean {
-  const path = url.pathname.replace(/\/$/, '');
-  if (GATE_EXEMPT_PATHS.has(path)) return true;
-  if (path.startsWith('/auth/') || path.startsWith('/legal/')) return true;
+function isCheckoutReturn(url: URL, path: string): boolean {
   return path === '/billing' && ['complete', 'cancelled'].includes(url.searchParams.get('checkout') ?? '');
 }
 
@@ -91,10 +86,11 @@ function requireConsent(account: AccountState | null, url: URL): void {
 }
 
 async function gatedAccount(locals: App.Locals, s: Session, url: URL): Promise<AccountState | null> {
-  const gateOwner = isOwnerSession(s) && !gatesExempt(url);
+  const path = url.pathname.replace(/\/$/, '');
+  const gateOwner = isOwnerSession(s) && !isCheckoutReturn(url, path);
   if (gateOwner) requireTwitchScopes(s, url);
   const account = await loadAccountState(locals, s);
-  if (gateOwner) requireConsent(account, url);
+  if (gateOwner && path !== '/settings') requireConsent(account, url);
   return account;
 }
 

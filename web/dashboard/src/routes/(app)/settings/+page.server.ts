@@ -39,7 +39,7 @@ import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { cookieOptions, deleteOptions } from '#lib/server/cookies';
 import { logger } from '@bagel/kit/server/logger';
-import { currentAccount } from '#lib/server/consent';
+import { businessMailingAddress, currentAccount } from '#lib/server/consent';
 import { isOwnerSession } from '#lib/server/owner';
 
 const DEMO = dev && env.DEMO === '1';
@@ -135,7 +135,7 @@ function readFetchKeys(result: PromiseSettledResult<{ defs: { name: string; key_
 
 function emailPreferences(locals: App.Locals) {
   if (!isOwnerSession(locals.session)) return null;
-  return { status: currentAccount(locals)?.marketingStatus ?? null };
+  return { status: currentAccount(locals)?.marketingStatus ?? null, mailingAddress: businessMailingAddress() };
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -246,6 +246,7 @@ export const actions: Actions = {
 
     const status = (await request.formData()).get('status');
     if (status !== 'granted' && status !== 'withdrawn') return fail(400, { error: actionError(locale, 'Invalid input.') });
+    if (status === 'granted' && !businessMailingAddress()) return fail(503, { error: translate(locale, 'marketing.optInUnavailable') });
     try {
       await setMarketing(session.user_id, { status, locale });
       return { ok: true };

@@ -37,7 +37,7 @@ Status: in progress on branch feature/consent-reauth. Date: 2026-11-20. Companio
 
 ## RPCs
 
-- `rpc.dashboard.consent_set` (owner only): current terms version, marketing choice, source, locale. One transaction, idempotent on a request id. Accepts terms and returns `marketing_skipped` (`no_email` or `unavailable`) when a requested opt-in cannot be recorded.
+- `rpc.dashboard.consent_set` (owner only): published terms version, marketing choice, source, locale. One transaction, idempotent on a request id. Records the submitted version so a dashboard serving the previous version can still save consent during a rollout. Returns `marketing_skipped` (`no_email` or `unavailable`) when a requested opt-in cannot be recorded.
 - `rpc.dashboard.state_get` returns `terms_version` and `marketing_status`.
 - No new NATS identity, subject import or consumer: both ride the existing dashboard verb set (`app/db/users/rpc/dashboard.go:44-62`).
 
@@ -61,12 +61,12 @@ Order in `(app)/+layout.server.ts`:
 ### One required-scope list
 
 - New `internal/domain/twitchauth`: `RequiredBroadcasterScopes`, a short `SetVersion` hash, `Gap(granted)`.
-- Pin tests: the dashboard `scopes()` minus `openid` (`web/dashboard/src/lib/server/oauth.ts:14-29`) and the `DASHBOARD_LOGIN_SCOPES` override in `deploy/k8s/console-dashboard.yaml:94-95` must equal the Go list. One table test, per the policy-pin rule.
+- Pin tests: the dashboard `scopes()` minus `openid` (`web/dashboard/src/lib/server/oauth.ts:14-29`) must equal the Go list. `deploy/k8s/console-dashboard.yaml` omits the `DASHBOARD_LOGIN_SCOPES` override. One table test, per the policy-pin rule.
 
 ### Post once, from Outgress
 
 - Outgress already handles `stream.online` (`app/twitch/outgress/internal/worker/streamstatus.go:177-198`), gates with `AllowsBackground` (skips unregistered, banned, dormant, disabled, blocked, bot-banned, broken grant), loads tokens and posts with `sendBotChat`.
-- On go-live, after the gate passes: load tokens with scopes. Null: one `/oauth2/validate` call, compare in memory. Gap found: take a Valkey owner lock `reauthScope:<channel>:<SetVersion>` (TTL 180 days, existing `pkg_valkey.NewOwnerLock` pattern in `channels/registry.go:367-381`), then send one normal chat line. Lock before send, so it is at most once across pods and restarts.
+- On go-live, after the gate passes, schedule the notice check on a bounded background worker. Load tokens with scopes. For null scopes, call `/oauth2/validate` once and compare in memory. Skip validation if the access token is missing or its stored expiry has passed. If there is a gap, recheck the gate, take a Valkey owner lock `reauthScope:<channel>:<SetVersion>` (TTL 180 days, existing `pkg_valkey.NewOwnerLock` pattern in `channels/registry.go:367-381`), then send one normal chat line. Lock before send, so it is at most once across pods and restarts.
 - Signing in stores the full scope set, so the next go-live finds no gap. A future scope addition changes `SetVersion` and gives each affected channel exactly one new notice.
 - Delete the uncalled `reauthBeaconOnLive` (`streamstatus.go:200-277`) instead of reviving it.
 - No new NATS identity, import or consumer.

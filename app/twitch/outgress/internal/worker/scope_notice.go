@@ -5,39 +5,85 @@ package worker
 
 import (
 	"context"
+	"time"
 
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/twitchauth"
+	"ItsBagelBot/pkg/monitor"
+
+	"go.uber.org/zap"
 )
 
-func (w *Worker) postScopeNotice(ctx context.Context, broadcasterID string, fence admissionFence) error {
-	if w.loadBroadcasterToken == nil || w.reauth == nil {
-		return nil
-	}
-	scopes, err := w.broadcasterScopes(ctx, broadcasterID)
-	if err != nil || scopes == nil {
-		return err
-	}
-	if len(twitchauth.Gap(scopes)) == 0 {
-		return nil
-	}
-	return w.claimAndSendScopeNotice(ctx, broadcasterID, fence)
+const (
+	scopeNoticeSlots   = 16
+	scopeNoticeTimeout = 10 * time.Second
+)
+
+type scopeNoticeTarget struct {
+	broadcasterID string
+	fence         admissionFence
 }
 
-func (w *Worker) claimAndSendScopeNotice(ctx context.Context, broadcasterID string, fence admissionFence) error {
+func (w *Worker) scheduleScopeNotice(ctx context.Context, target scopeNoticeTarget) {
+	if w.loadBroadcasterToken == nil || w.reauth == nil {
+		return
+	}
+	link := monitor.LinkFrom(ctx)
+	post := func(ctx context.Context) {
+		ctx, txn := link.Start(ctx, "Twitch scope notice")
+		defer txn.End()
+		w.postScopeNotice(ctx, target)
+	}
+	if !runBounded(w.scopeNotice, scopeNoticeTimeout, post) {
+		w.log.Warn("Twitch scope notice skipped: checks saturated", zap.String("broadcaster_id", target.broadcasterID))
+	}
+}
+
+func (w *Worker) postScopeNotice(ctx context.Context, target scopeNoticeTarget) {
+	scopes, err := w.broadcasterScopes(ctx, target.broadcasterID)
+	if err != nil {
+		monitor.TxnLogger(ctx, w.log).Warn("Twitch scope notice could not check scopes",
+			zap.String("broadcaster_id", target.broadcasterID), zap.Error(err))
+		return
+	}
+	if scopes == nil || len(twitchauth.Gap(scopes)) == 0 {
+		return
+	}
+	w.claimAndSendScopeNotice(ctx, target)
+}
+
+func (w *Worker) claimAndSendScopeNotice(ctx context.Context, target scopeNoticeTarget) {
+	broadcasterID := target.broadcasterID
 	locale, found := w.reauth.ResolveLocale(ctx, broadcasterID)
 	if !found {
-		return nil
+		return
 	}
 	current, allowed := w.backgroundFence(ctx, broadcasterID)
-	if !allowed || current != fence {
-		return nil
+	if !allowed || current != target.fence {
+		return
 	}
 	claimed, err := w.registry.ClaimScopeNotice(ctx, broadcasterID)
-	if err != nil || !claimed {
-		return err
+	if err != nil {
+		monitor.TxnLogger(ctx, w.log).Warn("Twitch scope notice claim failed",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return
 	}
-	return w.sendBotChat(ctx, broadcasterID, i18n.T(locale, i18n.KeyGrantScopeChat), fence)
+	if claimed {
+		w.sendClaimedScopeNotice(ctx, target, i18n.T(locale, i18n.KeyGrantScopeChat))
+	}
+}
+
+func (w *Worker) sendClaimedScopeNotice(ctx context.Context, target scopeNoticeTarget, text string) {
+	var delivery chatDelivery
+	ctx = context.WithValue(ctx, chatDeliveryKey{}, &delivery)
+	err := w.sendBotChat(ctx, target.broadcasterID, text, target.fence)
+	log := monitor.TxnLogger(ctx, w.log).With(zap.String("broadcaster_id", target.broadcasterID),
+		zap.String("scope_set_version", twitchauth.SetVersion))
+	if err != nil || !delivery.sent {
+		log.Warn("Twitch scope notice send failed after claiming", zap.Error(err))
+		return
+	}
+	log.Info("Twitch scope notice sent")
 }
 
 func (w *Worker) broadcasterScopes(ctx context.Context, broadcasterID string) ([]string, error) {
@@ -46,6 +92,9 @@ func (w *Worker) broadcasterScopes(ctx context.Context, broadcasterID string) ([
 		return token.Scopes, err
 	}
 	if token.AccessToken == "" {
+		return nil, nil
+	}
+	if expires := token.AccessTokenExpiresAt; expires != nil && !expires.After(time.Now()) {
 		return nil, nil
 	}
 	if err := w.takeSystemHelix(ctx); err != nil {

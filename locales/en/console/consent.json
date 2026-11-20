@@ -2,5 +2,8 @@
   "continue": "Continue",
   "email": "Send to {address}",
   "reload": "Reload the page to review the current agreement.",
-  "saveError": "Could not save your consent. Try again."
+  "saveError": "Could not save your consent. Try again.",
+  "subscribed": "You're subscribed to product emails.",
+  "marketingNoEmail": "We couldn't subscribe you to product emails because there's no email address on file.",
+  "marketingUnavailable": "We couldn't subscribe you to product emails right now. You can try again in Settings."
 }

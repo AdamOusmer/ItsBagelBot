@@ -5,6 +5,8 @@
   "granted": "Du hast ein aktives Abonnement.",
   "withdrawn": "Du hast dich abgemeldet.",
   "unknown": "Die E-Mail-Einstellungen sind vorübergehend nicht verfügbar.",
-  "optIn": "Ich möchte per E-Mail Produktneuigkeiten und Angebote von ItsBagelBot erhalten (optional). Kontakt: {contact}. Du kannst deine Einwilligung jederzeit in den Einstellungen oder über jede dieser E-Mails widerrufen.",
-  "saveError": "Deine E-Mail-Einstellung konnte nicht aktualisiert werden. Versuche es erneut."
+  "optIn": "ItsBagelBot verschickt Produktneuigkeiten und Angebote. Du erreichst uns per Post unter {address} oder per E-Mail unter {contact}. Du kannst dich jederzeit in den Einstellungen oder über jede dieser E-Mails abmelden.",
+  "saveError": "Deine E-Mail-Einstellung konnte nicht aktualisiert werden. Versuche es erneut.",
+  "optInUnavailable": "Neue E-Mail-Abonnements sind vorübergehend nicht verfügbar.",
+  "optInLabel": "Ich möchte Produkt-E-Mails erhalten"
 }

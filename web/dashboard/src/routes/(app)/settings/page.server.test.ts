@@ -99,16 +99,20 @@ function submitToggle(toggle: Toggle, session: Session | null, fields: Record<st
 
 const channelPurge: PurgeBody[] = [{ files: allPageUrls('7', ['streamerlogin']) }, { tags: ['lb:streamerlogin'] }];
 const refused = { status: 403, data: { error: staticText('en', 'serverErrors.notAllowed') } };
+const mailingAddress = 'test mailing address';
 
 test.each([
-  { name: 'owner opts in', session: { user_id: '7' }, status: 'granted', want: { ok: true }, writes: true },
+  { name: 'owner opts in with a mailing address', session: { user_id: '7' }, status: 'granted', address: mailingAddress, want: { ok: true }, writes: true },
   { name: 'owner withdraws', session: { user_id: '7' }, status: 'withdrawn', want: { ok: true }, writes: true },
-  { name: 'unavailable write', session: { user_id: '7' }, status: 'granted', want: { status: 502 }, writes: true, failed: true },
+  { name: 'owner cannot opt in without a mailing address', session: { user_id: '7' }, status: 'granted', want: { status: 503 }, writes: false },
+  { name: 'blank mailing address is treated as unset', session: { user_id: '7' }, status: 'granted', address: '   ', want: { status: 503 }, writes: false },
+  { name: 'unavailable write', session: { user_id: '7' }, status: 'granted', address: mailingAddress, want: { status: 502 }, writes: true, failed: true },
   { name: 'invalid status', session: { user_id: '7' }, status: 'none', want: { status: 400 }, writes: false },
   { name: 'signed out', session: null, status: 'granted', want: { status: 401 }, writes: false },
   { name: 'delegate', session: { user_id: '7', delegate_of: '8' }, status: 'granted', want: { status: 403 }, writes: false },
   { name: 'impersonation', session: { user_id: '7', impersonator_id: '9' }, status: 'withdrawn', want: { status: 403 }, writes: false }
-])('marketing preference: $name', async ({ session, status, want, writes, failed }) => {
+])('marketing preference: $name', async ({ session, status, address, want, writes, failed }) => {
+  privateEnv.BUSINESS_MAILING_ADDRESS = address;
   writeFails = failed ?? false;
   const request = new Request('https://dashboard.itsbagelbot.com/settings?/marketing', {
     method: 'POST', body: new URLSearchParams({ status })
@@ -239,10 +243,11 @@ test('settings preserves every saved language as the selected one', async () => 
 });
 
 test.each([
-  { session: { user_id: '42' }, status: 'granted', want: { status: 'granted' } },
-  { session: { user_id: '42' }, status: 'withdrawn', want: { status: 'withdrawn' } },
-  { session: { user_id: '42', impersonator_id: '9' }, status: 'granted', want: null }
-])('settings exposes email preferences only to the owner: $session', async ({ session, status, want }) => {
+  { name: 'owner with an address configured', session: { user_id: '42' }, status: 'withdrawn', address: `  ${mailingAddress}  `, want: { status: 'withdrawn', mailingAddress } },
+  { name: 'subscribed owner without an address configured', session: { user_id: '42' }, status: 'granted', want: { status: 'granted', mailingAddress: '' } },
+  { name: 'impersonation', session: { user_id: '42', impersonator_id: '9' }, status: 'granted', address: mailingAddress, want: null }
+])('settings email preference data: $name', async ({ session, status, address, want }) => {
+  privateEnv.BUSINESS_MAILING_ADDRESS = address;
   const locals = { session, locale: 'en', accountState: { value: { marketingStatus: status } } };
   expect(await load({ locals } as never)).toMatchObject({ emailPreferences: want });
 });

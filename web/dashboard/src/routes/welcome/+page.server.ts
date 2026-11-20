@@ -4,7 +4,7 @@
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { fail, redirect, type Cookies } from '@sveltejs/kit';
-import { publishEventSub, setOnboarded } from '#lib/server/services';
+import { setOnboarded } from '#lib/server/services';
 import { consentFields, currentAccount, needsTerms, submitTerms } from '#lib/server/consent';
 import { applyFeaturePreset } from '#lib/server/feature-presets';
 import { count } from '@bagel/kit/server/analytics';
@@ -24,11 +24,6 @@ type Counted = SetupPreset | 'import';
 
 function termsAccepted(locals: App.Locals): boolean {
   return !needsTerms(currentAccount(locals)?.termsVersion);
-}
-
-async function startSetup(uid: string, locals: App.Locals) {
-  await setOnboarded(uid, true);
-  if (currentAccount(locals)?.active) await publishEventSub(uid, true);
 }
 
 async function tourSession(locals: App.Locals): Promise<Session | null> {
@@ -104,7 +99,7 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
     name: s.display_name || s.login,
     connected: connectedSources(cookies),
     accepted,
-    consent: accepted ? null : await consentFields(s, DEMO)
+    consent: accepted ? null : await consentFields(s, locals, DEMO)
   };
 };
 
@@ -113,8 +108,7 @@ export const actions: Actions = {
     const session = await tourSession(locals);
     const result = await submitTerms({ locals: { ...locals, session }, request }, 'welcome', DEMO);
     if (!('uid' in result)) return recordConsentFailure(result);
-    if (DEMO) return { ok: true };
-    return (await markOnboarded(() => startSetup(result.uid, locals), locals.locale)) ?? { ok: true };
+    return { ok: true, marketingSkipped: result.marketingSkipped };
   },
   done: async ({ locals, request }) => {
     if (!DEMO && !termsAccepted(locals)) return consentMissing(locals);

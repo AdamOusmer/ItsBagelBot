@@ -22,6 +22,9 @@
 <SetupStage label={title} orbs={false}>
   {#snippet start()}<Brand title="ItsBagelBot" sub={t('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />{/snippet}
   <SetupStep title={title} kicker="" instant>
-    <ConsentForm locale={i18n.locale} requestId={data.requestId} maskedEmail={data.maskedEmail} serverError={form?.error} />
+    <ConsentForm
+      locale={i18n.locale} requestId={data.requestId} mailingAddress={data.mailingAddress}
+      subscribed={data.subscribed} maskedEmail={data.maskedEmail} serverError={form?.error}
+    />
   </SetupStep>
 </SetupStage>

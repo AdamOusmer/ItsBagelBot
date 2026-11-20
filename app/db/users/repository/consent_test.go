@@ -69,7 +69,8 @@ func TestConsentEvidenceAndErasure(t *testing.T) {
 	incarnation := owner.CreatedAt.UnixMicro()
 	require.Equal(t, []int64{incarnation, incarnation}, []int64{terms.AccountCreatedAt, grant.AccountCreatedAt})
 	require.Equal(t, terms.AcceptedAt, grant.CreatedAt)
-	require.Equal(t, &grant.CreatedAt, owner.MarketingStatusAt)
+	require.True(t, owner.MarketingStatusAt != nil && grant.CreatedAt.Equal(*owner.MarketingStatusAt),
+		"marketing status time %v differs from grant time %v", owner.MarketingStatusAt, grant.CreatedAt)
 
 	err := f.repo.Delete(ctx, id)
 	require.NoError(t, err)
