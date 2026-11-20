@@ -12,8 +12,7 @@ import { evictRenamed, fabric, invalidate, invalidateUser } from './fabric';
 
 // Must match the projector's tierFromStatus.
 function tierFromStatus(status: string): Tier {
-  const s = status.toLowerCase();
-  return s === 'premium' || s === 'vip' || s === 'paid' ? 'premium' : 'standard';
+  return ['premium', 'vip', 'paid'].includes(status.toLowerCase()) ? 'premium' : 'standard';
 }
 
 export const tier = defineRead({

@@ -230,7 +230,13 @@ func (d *deps) storedTokenSource(accountID, seedRefresh string) *twitch.Source {
 			return storedLoad(loaded, err)
 		},
 		Persist: func(ctx context.Context, token twitch.StoredToken) error {
-			if err := store.Save(ctx, tokenstore.Tokens(token)); err != nil {
+			stored := tokenstore.Tokens{
+				RefreshToken:         token.RefreshToken,
+				AccessToken:          token.AccessToken,
+				AccessTokenExpiresAt: token.AccessTokenExpiresAt,
+				Scopes:               token.Scopes,
+			}
+			if err := store.Save(ctx, stored); err != nil {
 				log.Warn("token persist failed", zap.String("account_id", accountID), zap.Error(err))
 				return err
 			}
@@ -448,7 +454,8 @@ func (d *deps) subscribeChatters(tw *twitch.Client, limiter ratelimit.Manager) e
 				return false, err
 			}
 			snap, active, err := watchAttendance.Capture(ctx, id)
-			return active && snap.Generation == req.SessionGeneration && snap.LiveSession == req.LiveSession, err
+			sameSession := snap.Generation == req.SessionGeneration && snap.LiveSession == req.LiveSession
+			return active && sameSession, err
 		},
 	})
 }

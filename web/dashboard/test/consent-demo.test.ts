@@ -19,11 +19,11 @@ const { load, actions } = await import('../src/routes/consent/+page.server');
 test('demo owners can load and submit consent without a signed-in session or RPCs', async () => {
   const url = new URL('https://dashboard.itsbagelbot.com/consent?next=%2Fsettings');
   const locals = { session: null, locale: 'en' };
-  const data = await load({ locals, url } as never) as { requestId: string; maskedEmail: string };
-  const { request } = actionEvent({ consent: 'yes', terms_version: TERMS_VERSION, request_id: data.requestId, marketing: 'yes' });
+  const { consent } = await load({ locals, url } as never) as { consent: { requestId: string; maskedEmail: string } };
+  const { request } = actionEvent({ consent: 'yes', terms_version: TERMS_VERSION, request_id: consent.requestId, marketing: 'yes' });
   const result = await Promise.resolve().then(() => actions.default({ locals, request, url } as never)).catch((err) => err);
 
-  expect(data).toMatchObject({ requestId: expect.stringMatching(/^[\da-f-]{36}$/), mailingAddress: privateEnv.BUSINESS_MAILING_ADDRESS, maskedEmail: '' });
+  expect(consent).toMatchObject({ requestId: expect.stringMatching(/^[\da-f-]{36}$/), mailingAddress: privateEnv.BUSINESS_MAILING_ADDRESS, maskedEmail: '' });
   expect(result).toMatchObject({ status: 303, location: '/settings' });
   expect(rpc).not.toHaveBeenCalled();
 });

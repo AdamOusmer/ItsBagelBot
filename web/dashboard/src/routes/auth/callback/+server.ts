@@ -228,7 +228,9 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
   count('auth.login', 'ok');
   const nextPath = next?.split(/[?#]/, 1)[0];
   const startsWelcome = nextPath === '/welcome' || nextPath === '/welcome/import';
-  throw redirect(302, landing ?? (signup && !startsWelcome ? '/welcome' : next) ?? '/');
+  const needsWelcome = signup && !startsWelcome;
+  const defaultLanding = needsWelcome ? '/welcome' : (next ?? '/');
+  throw redirect(302, landing ?? defaultLanding);
 };
 
 async function completeLogin(cookies: Cookies, url: URL, code: string, storedNonce: string) {

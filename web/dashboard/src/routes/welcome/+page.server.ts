@@ -4,7 +4,7 @@
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { fail, redirect, type Cookies } from '@sveltejs/kit';
-import { setOnboarded } from '#lib/server/services';
+import { publishEventSub, setOnboarded } from '#lib/server/services';
 import { consentFields, currentAccount, needsTerms, submitTerms } from '#lib/server/consent';
 import { applyFeaturePreset } from '#lib/server/feature-presets';
 import { count } from '@bagel/kit/server/analytics';
@@ -49,6 +49,13 @@ function owner(locals: App.Locals) {
   if (!s) return { failure: fail(401, { error: actionError(locals.locale, 'Sign in to finish setup.') }) };
   if (!isOwnerSession(s)) return { failure: fail(403, { error: actionError(locals.locale, 'Only the channel owner can finish setup.') }) };
   return { uid: s.user_id };
+}
+
+async function finishOnboarding(locals: App.Locals, uid: Session['user_id']) {
+  const account = currentAccount(locals);
+  const pendingEnrollment = account?.active && !account.onboarded;
+  if (pendingEnrollment) await publishEventSub(uid, true, { flush: true });
+  await setOnboarded(uid, true);
 }
 
 async function markOnboarded(save: () => Promise<unknown>, locale: Locale) {
@@ -123,7 +130,7 @@ export const actions: Actions = {
       preset,
       async (uid) => {
         await applyFeaturePreset(uid, preset);
-        await setOnboarded(uid, true);
+        await finishOnboarding(locals, uid);
       },
       () => {
         throw redirect(303, '/');
@@ -132,7 +139,7 @@ export const actions: Actions = {
   },
   finishImport: async ({ locals }) => {
     if (!DEMO && !termsAccepted(locals)) return consentMissing(locals);
-    return finishSetup(locals, 'import', (uid) => setOnboarded(uid, true), () => ({ ok: true }));
+    return finishSetup(locals, 'import', (uid) => finishOnboarding(locals, uid), () => ({ ok: true }));
   }
 };
 

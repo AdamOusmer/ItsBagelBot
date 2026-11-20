@@ -145,7 +145,9 @@
   );
 
   let leaveTarget = $state<number | null>(null);
-  const hasDraft = $derived(session.hasProgress || !!session.credential || !!session.uploadFile);
+  const hasInput = $derived(!!session.credential || !!session.uploadFile);
+  const hasDraft = $derived(session.hasProgress || hasInput);
+  const showsPreview = $derived(PREVIEW_STEPS.includes(step) && step !== 'done');
 
   function selectRail(i: number) {
     if (i < BEFORE_IMPORT.length) {
@@ -161,7 +163,8 @@
     const index = ORDER.indexOf(target);
     if (index > maxRailStep) return false;
     if (!PREVIEW_STEPS.includes(target)) return true;
-    return !!previewResult || (target === 'done' && !!commitResult);
+    const canReturnToDone = target === 'done' && !!commitResult;
+    return !!previewResult || canReturnToDone;
   }
 
   function confirmLeave() {
@@ -192,7 +195,8 @@
   let reaction = $state<string | null>(null);
   let hover = $state<string | null>(null);
   let reactionTimer: ReturnType<typeof setTimeout> | null = null;
-  const expression = $derived(reaction ?? hover ?? STAGE_FACE[step]);
+  const idleExpression = $derived(hover ?? STAGE_FACE[step]);
+  const expression = $derived(reaction ?? idleExpression);
   function play(seq: Sequence) {
     sequence = seq;
     sequenceKey += 1;
@@ -509,7 +513,7 @@
         </div>
       </form>
     </Card>
-  {:else if (step === 'commands' || step === 'extras' || step === 'review') && previewResult?.manifest}
+  {:else if showsPreview && previewResult?.manifest}
     {#if step === 'review'}
     <Card style={cardPad}>
       <div class="step-title"><Heading level={6} as="h2">{unnumbered(t('import.reviewTitle'))}</Heading></div>

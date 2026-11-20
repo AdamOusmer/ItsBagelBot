@@ -18,11 +18,7 @@ const keysetPathEnv KeysetPathEnv = "TINK_KEYSET_PATH"
 
 func MustFromEnv(log *zap.Logger) *Crypto {
 	path := env.MustGet(string(keysetPathEnv))
-	keysetJSON, err := os.ReadFile(path)
-	if err != nil {
-		log.Fatal("failed to read tink keyset", zap.Error(err))
-	}
-	return mustCrypto(keysetJSON, log)
+	return mustCrypto(loadKeysetFile(path, "crypto", false, log), log)
 }
 
 func OptionalFromEnv(feature string, log *zap.Logger) *Crypto {
@@ -40,8 +36,12 @@ func optionalKeyset(pathEnv KeysetPathEnv, feature string, log *zap.Logger) []by
 		log.Warn(feature + " key custody disabled: " + name + " not set")
 		return nil
 	}
+	return loadKeysetFile(path, feature, true, log)
+}
+
+func loadKeysetFile(path, feature string, optional bool, log *zap.Logger) []byte {
 	keysetJSON, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
+	if optional && errors.Is(err, os.ErrNotExist) {
 		log.Warn(feature+" key custody disabled: keyset not provisioned yet", zap.String("path", path))
 		return nil
 	}

@@ -5,8 +5,11 @@ import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { redirect } from '@sveltejs/kit';
 import { safeReturnPath } from '@bagel/kit/return-path';
+import { bestEffort } from '@bagel/kit/server/best-effort';
 import { consentFields, currentAccount, needsTerms, submitTerms } from '#lib/server/consent';
 import { isOwnerSession } from '#lib/server/owner';
+import { freshAccountState, type AccountState } from '#lib/server/services';
+import type { Session } from '#lib/server/session';
 import type { Actions, PageServerLoad } from './$types';
 
 const DEMO = dev && env.DEMO === '1';
@@ -25,9 +28,16 @@ function loginPath(next: string): string {
   return `/login?next=${encodeURIComponent(`/consent?next=${encodeURIComponent(next)}`)}`;
 }
 
-function accepted(locals: App.Locals): boolean {
-  const account = currentAccount(locals);
-  return !!account && !needsTerms(account.termsVersion);
+function skippedReason(url: URL) {
+  const skipped = url.searchParams.get('skipped');
+  return skipped === 'no_email' || skipped === 'unavailable' ? skipped : null;
+}
+
+async function accepted(locals: App.Locals, session: Session, checkFresh: boolean): Promise<boolean> {
+  if (!needsTerms(currentAccount(locals)?.termsVersion)) return true;
+  if (!checkFresh || DEMO) return false;
+  const account = await bestEffort<AccountState | null>(freshAccountState(session.user_id), null);
+  return !needsTerms(account?.termsVersion);
 }
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -35,8 +45,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const next = returnTo(url);
   if (!session) throw redirect(302, loginPath(next));
   if (!isOwnerSession(session)) throw redirect(303, '/');
-  if (accepted(locals)) throw redirect(303, next);
-  return consentFields(session, locals, DEMO);
+
+  const skipped = skippedReason(url);
+  if (!(await accepted(locals, session, skipped !== null))) {
+    return { consent: await consentFields(session, locals, DEMO), notice: null };
+  }
+  if (!skipped) throw redirect(303, next);
+  return { consent: null, notice: { skipped, next } };
 };
 
 export const actions: Actions = {
@@ -45,7 +60,10 @@ export const actions: Actions = {
     const result = await submitTerms({ locals: { ...locals, session }, request }, 'consent', DEMO);
     if (!('uid' in result)) return result;
     const next = returnTo(url);
-    if (result.marketingSkipped) return { next, marketingSkipped: result.marketingSkipped };
+    if (result.marketingSkipped) {
+      const query = new URLSearchParams({ skipped: result.marketingSkipped, next });
+      throw redirect(303, `/consent?${query}`);
+    }
     throw redirect(303, next);
   }
 };

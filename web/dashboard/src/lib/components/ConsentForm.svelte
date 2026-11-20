@@ -2,7 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { enhance, type ActionResult, type SubmitFunction } from '$app/forms';
-  import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
   import { TERMS_VERSION } from '@bagel/kit/consent';
   import { translate, type Locale } from '@bagel/kit/i18n';
   import { SITE } from '@bagel/kit/site-links';
@@ -29,17 +29,17 @@
   let busy = $state(false);
   let error = $state('');
   let retryId = $state('');
+  let mounted = $state(false);
+  const status = $derived(error || serverError);
 
-  const skipMessage = (reason: unknown) => {
-    if (reason === 'no_email') return t('consent.marketingNoEmail');
-    if (reason === 'unavailable') return t('consent.marketingUnavailable');
-  };
+  onMount(() => { mounted = true; });
 
-  async function saved(data: Extract<ActionResult, { type: 'success' }>['data']) {
-    const message = skipMessage(data?.marketingSkipped);
-    if (typeof data?.next === 'string') await goto(data.next, { refreshAll: true });
+  function saved(data: Extract<ActionResult, { type: 'success' }>['data']) {
     onaccepted?.();
-    if (message) toast('info', message, { ttlMs: 8000 });
+    const skipped = data?.marketingSkipped;
+    if (skipped !== 'no_email' && skipped !== 'unavailable') return;
+    const message = skipped === 'no_email' ? t('consent.marketingNoEmail') : t('consent.marketingUnavailable');
+    toast('info', message, { ttlMs: 8000 });
   }
 
   const submit: SubmitFunction = ({ cancel }) => {
@@ -48,10 +48,11 @@
     error = '';
     return async ({ result, update }) => {
       try {
-        if (result.type === 'success') return await saved(result.data);
+        if (result.type === 'success') return saved(result.data);
         if (result.type === 'redirect') return await update();
         retryId = crypto.randomUUID();
-        error = result.type === 'failure' && typeof result.data?.error === 'string' ? result.data.error : t('consent.saveError');
+        const detail = result.type === 'failure' ? result.data?.error : undefined;
+        error = typeof detail === 'string' ? detail : t('consent.saveError');
       } finally {
         busy = false;
       }
@@ -67,31 +68,31 @@
   <div class="bb-setup-row choice terms">
     <Checkbox name="consent" value="yes" bind:checked={accepted} required disabled={busy} aria-labelledby="{id}-terms" />
     <div class="choice-copy">
-      <bb-fit mode="block"><span data-fit id="{id}-terms" class="bb-prose bb-prose-inline">{@html t('onboarding.consentLabel')}</span></bb-fit>
+      <bb-fit mode="block"><span id="{id}-terms" class="bb-prose bb-prose-inline">{@html t('onboarding.consentLabel')}</span></bb-fit>
     </div>
   </div>
 
   {#if subscribed}
     <div class="bb-setup-row choice terms">
-      <div class="choice-copy"><bb-fit mode="block"><span data-fit>{t('consent.subscribed')}</span></bb-fit></div>
+      <div class="choice-copy"><bb-fit mode="block">{t('consent.subscribed')}</bb-fit></div>
     </div>
   {:else if mailingAddress}
     <div class="bb-setup-row choice marketing">
       <Checkbox name="marketing" value="yes" disabled={busy} aria-labelledby="{id}-marketing" aria-describedby="{id}-details" />
       <div class="choice-copy" id="{id}-details">
         <bb-fit mode="block">
-          <span data-fit id="{id}-marketing">{t('marketing.optInLabel')} {t('common.optional')}</span>
-          <span data-fit class="marketing-detail">{translate(locale, 'marketing.optIn', { address: mailingAddress, contact: SITE.supportEmail })}</span>
+          <span id="{id}-marketing">{t('marketing.optInLabel')} {t('common.optional')}</span>
+          <span class="marketing-detail">{translate(locale, 'marketing.optIn', { address: mailingAddress, contact: SITE.supportEmail })}</span>
           {#if maskedEmail}
-            <span data-fit class="marketing-detail">{translate(locale, 'consent.email', { address: maskedEmail })}</span>
+            <span class="marketing-detail">{translate(locale, 'consent.email', { address: maskedEmail })}</span>
           {/if}
         </bb-fit>
       </div>
     </div>
   {/if}
 
-  <div class="bb-setup-actions"><Button type="submit" disabled={!accepted} {busy}>{t('consent.continue')}</Button></div>
-  <div class="status" role="status">{error || serverError || ''}</div>
+  <div class="bb-setup-actions"><Button type="submit" disabled={mounted && !accepted} {busy}>{t('consent.continue')}</Button></div>
+  <div class="status" role="status">{status ?? ''}</div>
 </form>
 
 <style>

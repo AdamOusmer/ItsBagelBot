@@ -152,7 +152,8 @@
   let dir = $state(1);
   let consentAccepted = $state(acceptedAtLoad);
   let consentSaved = $state(acceptedAtLoad);
-  const importActive = $derived(consentSaved && (page.state.importing ?? importLink));
+  const wantsImport = $derived(page.state.importing ?? importLink);
+  const importActive = $derived(consentSaved && wantsImport);
   let consentForm = $state<HTMLFormElement | null>(null);
   type Phase = 'idle' | 'leaving';
   let phase = $state<Phase>('idle');
@@ -171,7 +172,8 @@
   const canAdvance = $derived(!nextDisabled && !finishing);
   const pastChoice = $derived(consentSaved && step >= choiceStep);
   const canImport = $derived(!leaving && pastChoice);
-  const canFinish = $derived(!locked && pastChoice && last && setup !== 'import');
+  const hasFinishStep = $derived(last && setup !== 'import');
+  const canFinish = $derived(canImport && hasFinishStep);
   let instant = $state(false);
 
   const SWAP_MS = 280;
@@ -194,7 +196,8 @@
   let reaction = $state<string | null>(null);
   let hover = $state<string | null>(null);
   let reactionTimer: ReturnType<typeof setTimeout> | null = null;
-  const expression = $derived(reaction ?? hover ?? current.face);
+  const idleExpression = $derived(hover ?? current.face);
+  const expression = $derived(reaction ?? idleExpression);
   function react(face: string, ms: number) {
     reaction = face;
     if (reactionTimer) clearTimeout(reactionTimer);
@@ -224,7 +227,8 @@
   function readTour(): SavedTour | null {
     try {
       const v = JSON.parse(sessionStorage.getItem(TOUR_KEY) ?? 'null') as Partial<SavedTour> | null;
-      if (!v || !SETUPS.includes(v.setup as Setup) || !LOCALES.includes(v.locale as Locale)) return null;
+      if (!v) return null;
+      if (!SETUPS.includes(v.setup as Setup) || !LOCALES.includes(v.locale as Locale)) return null;
       if (!Number.isInteger(v.step) || !Number.isInteger(v.furthest)) return null;
       return v as SavedTour;
     } catch {
@@ -321,7 +325,8 @@
   }
 
   function showSaveError(result: ActionResult) {
-    saveErrorServer = result.type === 'failure' && result.status < 500 && typeof result.data?.error === 'string' ? result.data.error : '';
+    const detail = result.type === 'failure' && result.status < 500 ? result.data?.error : undefined;
+    saveErrorServer = typeof detail === 'string' ? detail : '';
     saveError = true;
     react('attentive', 2400);
   }
@@ -393,7 +398,8 @@
     return e.target instanceof Element && arrowBlocker(e.target) !== null;
   }
 
-  const keysPaused = (e: KeyboardEvent) => leaving || importActive || arrowsBlocked(e);
+  const tourPaused = $derived(leaving || importActive);
+  const keysPaused = (e: KeyboardEvent) => tourPaused || arrowsBlocked(e);
   function onKeydown(e: KeyboardEvent) {
     if (keysPaused(e)) return;
     if (e.key === 'ArrowRight' && canAdvance) {

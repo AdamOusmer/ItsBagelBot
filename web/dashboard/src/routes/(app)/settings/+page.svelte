@@ -56,7 +56,8 @@
   const marketingStatus = $derived(data.emailPreferences?.status ?? 'unknown');
   const marketingEnabled = $derived(marketingStatus === 'granted');
   const mailingAddress = $derived(data.emailPreferences?.mailingAddress ?? '');
-  const marketingDisabled = $derived(marketingStatus === 'unknown' || (!marketingEnabled && !mailingAddress));
+  const optInUnavailable = $derived(!marketingEnabled && !mailingAddress);
+  const marketingDisabled = $derived(marketingStatus === 'unknown' || optInUnavailable);
   let marketingBusy = $state(false);
   const submitMarketing = busyEnhance(
     (busy) => (marketingBusy = busy),

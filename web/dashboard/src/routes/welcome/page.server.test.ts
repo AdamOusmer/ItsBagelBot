@@ -10,6 +10,7 @@ stubSvelteKit();
 let saveFails = false;
 let consentFails = false;
 let marketingSkipped: 'no_email' | undefined;
+let publishFails = false;
 const writes: unknown[] = [];
 const mailingAddress = 'test mailing address';
 const requestId = '11111111-2222-4333-8444-555555555555';
@@ -29,6 +30,7 @@ mock.module('#lib/server/services', () => ({
   },
   publishEventSub: async (...args: unknown[]) => {
     writes.push(['eventsub', ...args]);
+    if (publishFails) throw new Error('publish failed');
   }
 }));
 mock.module('#lib/server/feature-presets', () => ({ applyFeaturePreset: async () => {} }));
@@ -38,6 +40,7 @@ beforeEach(() => {
   saveFails = false;
   consentFails = false;
   marketingSkipped = undefined;
+  publishFails = false;
   privateEnv.BUSINESS_MAILING_ADDRESS = mailingAddress;
   writes.length = 0;
 });
@@ -68,7 +71,7 @@ test.each([
 });
 
 test.each([
-  { name: 'active account with an address', active: true, address: mailingAddress, marketing: true, published: [['eventsub', '7', true]] },
+  { name: 'active account with an address', active: true, address: mailingAddress, marketing: true, published: [['eventsub', '7', true, { flush: true }]] },
   { name: 'disabled account without an address', active: false, marketing: false, published: [] },
   { name: 'marketing opt-in skipped by Users', active: false, address: mailingAddress, marketing: true, skipped: 'no_email' as const, published: [] }
 ])('accepting the terms on welcome: $name', async ({ active, address, marketing, skipped, published }) => {
@@ -80,8 +83,8 @@ test.each([
   expect(result).toEqual({ ok: true, marketingSkipped: skipped });
   expect(writes).toEqual([
     ['consent', '7', { source: 'welcome', marketing, locale: 'fr', requestId }],
-    ['onboarded', '7', true],
-    ...published
+    ...published,
+    ['onboarded', '7', true]
   ]);
 });
 
@@ -111,4 +114,15 @@ test.each([
     status: row.status, counts: row.counts.map(([field, n]) => [field, n])
   });
   if (row.status === 403 || row.consentFailed) expect(writes).toEqual([]);
+});
+
+test.each([
+  { action: 'done', fails: false, status: 303, writes: [['eventsub', '7', true, { flush: true }], ['onboarded', '7', true]] },
+  { action: 'finishImport', fails: true, status: 502, writes: [['eventsub', '7', true, { flush: true }]] }
+])('welcome $action resumes active onboarding with saved terms', async (row) => {
+  publishFails = row.fails;
+  const event = actionEvent({ preset: 'quiet' });
+  const locals = { ...event.locals, accountState: { value: { active: true, onboarded: false, termsVersion: TERMS_VERSION } } };
+  const response = await Promise.resolve().then(() => actions[row.action]({ ...event, locals } as never)).catch((err) => err);
+  expect({ status: response.status, writes }).toEqual({ status: row.status, writes: [...row.writes] });
 });

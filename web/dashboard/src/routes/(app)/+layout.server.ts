@@ -76,7 +76,9 @@ function requireTwitchScopes(s: Session, url: URL): void {
 }
 
 function isCheckoutReturn(url: URL, path: string): boolean {
-  return path === '/billing' && ['complete', 'cancelled'].includes(url.searchParams.get('checkout') ?? '');
+  if (path !== '/billing') return false;
+  const outcome = url.searchParams.get('checkout') ?? '';
+  return ['complete', 'cancelled'].includes(outcome);
 }
 
 function requireConsent(account: AccountState | null, url: URL): void {

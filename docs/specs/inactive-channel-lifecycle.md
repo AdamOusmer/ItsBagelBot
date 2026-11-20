@@ -79,8 +79,6 @@ Retaining subscriptions has a deliberate cost: dormant channels still occupy sub
 
 If a dormant subscription is lost, process its revocation or fleet transport-recovery event through a bounded repair operation. Do not invent a polling loop to discover activity. A missing wake subscription is an observable degraded state with explicit Retry; reconnect/Enable is the fallback if no event can arrive. A dormant account whose authorization fails becomes blocked.
 
-As an exception to section 6's chat rule, Outgress may post the Twitch permission notice on an admitted go-live once per channel and required scope set.
-
 ## 5. Blocked and disabled accounts
 
 On a verified access failure, commit the incident and block admission before scheduling cleanup. Stop moderator checks, `stream_status` escalation, token prewarm, speculative enrollment, bot-only settings hydration, and loyalty baseline work. Recheck admission at execution as well as enqueue, including delayed jobs and batch children. Fleet/service bans, trial provenance, and existing output safety rules remain stronger gates.
@@ -139,6 +137,8 @@ An incident is one continuous period of unusable channel access. Store its ident
 Open an incident only on a verified usable-to-blocked transition, or a first authoritative failure when no unresolved incident exists. One Users transaction records the new incident and one notification-outbox operation. Concurrent failures and redelivery converge on the same incident. If a stronger cause arrives, update the current incident/banner without creating another bell item or marking an existing item unread again.
 
 Send one localized dashboard warning with the correct repair action. Remove recurring go-live reconnect chat messages entirely; these connection incidents do not send email or unsolicited chat. Reading, dismissing, deleting, or expiring the warning never clears the incident. The dashboard's persistent status/banner continues to show the problem after notification history expires.
+
+As an exception, Outgress may post the Twitch permission notice on an admitted go-live once per channel and required scope set.
 
 Only confirmed recovery resolves the incident. A later genuine failure may open a new incident; additionally cap new connection bell warnings at one per account per rolling 24 hours to avoid noisy flapping. A new incident within that cooldown is marked suppressed, with the current problem still visible in the status panel. Do not schedule a delayed reminder when the cooldown expires.
 

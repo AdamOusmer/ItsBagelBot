@@ -4,12 +4,13 @@
 import { randomUUID } from 'node:crypto';
 import { fail } from '@sveltejs/kit';
 import { TERMS_VERSION } from '@bagel/kit/consent';
-import { isLocale, translate } from '@bagel/kit/i18n';
+import { isLocale, translate, type Locale } from '@bagel/kit/i18n';
 import { bestEffort } from '@bagel/kit/server/best-effort';
 import { env } from '@bagel/kit/server/env';
+import { logger } from '@bagel/kit/server/logger';
 import { actionError } from './action-errors';
 import { isOwnerSession } from './owner';
-import { maskedContactEmail, publishEventSub, setOnboarded, setTermsConsent } from '#lib/server/services';
+import { freshAccountState, maskedContactEmail, publishEventSub, setOnboarded, setTermsConsent, type AccountState } from '#lib/server/services';
 import type { Session } from './session';
 
 const REQUEST_ID = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i;
@@ -31,9 +32,8 @@ export function businessMailingAddress(): string {
 export async function consentFields(session: Session, locals: App.Locals, demo = false) {
   const mailingAddress = businessMailingAddress();
   const subscribed = currentAccount(locals)?.marketingStatus === 'granted';
-  const maskedEmail = demo || !mailingAddress || subscribed
-    ? ''
-    : await bestEffort(maskedContactEmail(session.user_id), '');
+  const offersOptIn = !!mailingAddress && !subscribed;
+  const maskedEmail = offersOptIn && !demo ? await bestEffort(maskedContactEmail(session.user_id), '') : '';
   return {
     requestId: randomUUID(),
     mailingAddress,
@@ -48,22 +48,36 @@ function termsRequestId(form: FormData): string | null {
   return typeof id === 'string' && REQUEST_ID.test(id) ? id : null;
 }
 
-async function startSetup(uid: Session['user_id'], account: ReturnType<typeof currentAccount>) {
-  await setOnboarded(uid, true);
-  if (account?.active) await publishEventSub(uid, true);
+function wantsMarketing(form: FormData, account: AccountState): boolean {
+  const canOptIn = !!businessMailingAddress() && account.marketingStatus !== 'granted';
+  return canOptIn && form.get('marketing') === 'yes';
+}
+
+function upstreamFailed(err: unknown, op: string, locale: Locale) {
+  logger.error({ err }, `[consent] ${op} failed`);
+  return fail(502, { error: translate(locale, 'consent.saveError') });
 }
 
 async function persistTerms(locals: App.Locals, uid: Session['user_id'], form: FormData, terms: TermsSubmission) {
-  const account = currentAccount(locals);
   const formLocale = form.get('locale');
   const locale = isLocale(formLocale) ? formLocale : locals.locale;
-  const marketing = !!businessMailingAddress() && account?.marketingStatus !== 'granted' && form.get('marketing') === 'yes';
+  let op = 'state_get';
   try {
-    const reply = await setTermsConsent(uid, { ...terms, marketing, locale });
-    if (terms.source === 'welcome' || !account?.onboarded) await startSetup(uid, account);
+    const account = currentAccount(locals) ?? await freshAccountState(uid);
+    op = 'consent_set';
+    const reply = await setTermsConsent(uid, { ...terms, marketing: wantsMarketing(form, account), locale });
+    const setup = terms.source === 'welcome' || !account.onboarded;
+    if (setup && account.active) {
+      op = 'eventsub publish';
+      await publishEventSub(uid, true, { flush: true });
+    }
+    if (setup) {
+      op = 'onboarded_set';
+      await setOnboarded(uid, true);
+    }
     return { uid, marketingSkipped: reply.marketing_skipped };
-  } catch {
-    return fail(502, { error: translate(locale, 'consent.saveError') });
+  } catch (err) {
+    return upstreamFailed(err, op, locale);
   }
 }
 

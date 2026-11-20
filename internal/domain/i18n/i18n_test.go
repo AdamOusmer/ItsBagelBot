@@ -152,11 +152,15 @@ func TestFallbackChain(t *testing.T) {
 
 func isChatCatalogFile(name string) bool {
 	segments := strings.Split(name, "/")
-	return len(segments) >= 3 && segments[1] == chatDir && path.Ext(name) == ".json"
+	inChatDir := len(segments) >= 3 && segments[1] == chatDir
+	return inChatDir && path.Ext(name) == ".json"
 }
 
 func skipsEmbedCheck(name string, d fs.DirEntry, err error) bool {
-	return err != nil || d.IsDir() || !isChatCatalogFile(name)
+	if err != nil {
+		return true
+	}
+	return d.IsDir() || !isChatCatalogFile(name)
 }
 
 func TestEmbedCoversChatTree(t *testing.T) {
