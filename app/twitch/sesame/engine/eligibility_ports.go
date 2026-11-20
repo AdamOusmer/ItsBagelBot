@@ -28,8 +28,8 @@ type followsPort struct{ FollowageLookup }
 
 type accountsPort struct{ AccountAgeLookup }
 
-func (p standingsPort) Snapshot(ctx context.Context, channel, viewer uint64) (loyaltyrpc.BalanceSnapshot, error) {
-	return p.BalanceSnapshot(ctx, BalanceSnapshotRequest{BroadcasterID: channel, ViewerID: viewer})
+func (p standingsPort) Snapshot(ctx context.Context, req eligibility.StandingLookup) (loyaltyrpc.BalanceSnapshot, error) {
+	return p.BalanceSnapshot(ctx, BalanceSnapshotRequest{BroadcasterID: req.Channel, ViewerID: req.Viewer, SnapshotID: req.SnapshotID})
 }
 
 func (p followsPort) FollowedAt(ctx context.Context, channel, viewer uint64) (time.Time, bool, error) {

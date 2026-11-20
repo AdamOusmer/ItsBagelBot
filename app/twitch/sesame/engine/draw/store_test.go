@@ -112,7 +112,7 @@ func drawKeys(r draw.Round) valkey.RoundKeys {
 	id := string(r.ID)
 	return valkey.RoundKeys{Joinable: draw.JoinableKey(r.Channel), Active: "draw:active:" + channel,
 		Round: "draw:round:" + id, Entries: "draw:entries:" + id, Labels: "draw:labels:" + id,
-		Refused: "draw:refused:" + id, Slots: "draw:slots:" + id, Claimable: "draw:claimable:" + channel, Due: "draw:due", Lease: "draw:lease:" + id}
+		Refused: "draw:refused:" + id, RefusalSeen: "draw:refusal-seen:" + id, RefusalPending: "draw:refusal-pending:" + id, Slots: "draw:slots:" + id, Claimable: "draw:claimable:" + channel, Due: "draw:due", Lease: "draw:lease:" + id}
 }
 
 func TestDrawCloseAndReopen(t *testing.T) {

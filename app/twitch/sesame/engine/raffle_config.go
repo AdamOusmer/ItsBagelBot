@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/codec"
 )
@@ -21,13 +22,15 @@ const (
 )
 
 type RaffleModuleConfig struct {
-	OpenedMessage   string       `json:"openedMessage"`
-	JoinMessage     string       `json:"joinMessage"`
-	AlreadyMessage  string       `json:"alreadyMessage"`
-	NoRaffleMessage string       `json:"noRaffleMessage"`
-	WonMessage      string       `json:"wonMessage"`
-	PrizePoints     codec.Number `json:"prizePoints"`
-	DurationSeconds codec.Number `json:"durationSeconds"`
+	BareRaffle      string          `json:"bareRaffle"`
+	MidCountEnabled *giveawayToggle `json:"midCountEnabled"`
+	OpenedMessage   string          `json:"openedMessage"`
+	JoinMessage     string          `json:"joinMessage"`
+	AlreadyMessage  string          `json:"alreadyMessage"`
+	NoRaffleMessage string          `json:"noRaffleMessage"`
+	WonMessage      string          `json:"wonMessage"`
+	PrizePoints     codec.Number    `json:"prizePoints"`
+	DurationSeconds codec.Number    `json:"durationSeconds"`
 
 	OpenedEnabled   string `json:"openedEnabled"`
 	JoinEnabled     string `json:"joinEnabled"`
@@ -47,6 +50,13 @@ func (c RaffleModuleConfig) AlreadyOn() bool  { return lineDefaultOff(c.AlreadyE
 func (c RaffleModuleConfig) NoRaffleOn() bool { return lineDefaultOn(c.NoRaffleEnabled) }
 func (c RaffleModuleConfig) WonOn() bool      { return lineDefaultOn(c.WonEnabled) }
 func (c RaffleModuleConfig) RemindOn() bool   { return lineDefaultOn(c.RemindEnabled) }
+
+func (c RaffleModuleConfig) MidCountOn() bool {
+	if c.MidCountEnabled == nil {
+		return draw.Pins.MidCountDefault
+	}
+	return bool(*c.MidCountEnabled)
+}
 
 func (c RaffleModuleConfig) Prize() int64 {
 	n, err := c.PrizePoints.Int64()

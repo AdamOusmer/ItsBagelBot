@@ -29,6 +29,7 @@ type fakeDraw struct {
 	lookups  int
 	joined   draw.JoinRequest
 	refusals int
+	batched  int
 	claims   draw.ClaimOutcome
 	claimed  draw.ViewerID
 	slots    []draw.Slot
@@ -55,7 +56,11 @@ func (d *fakeDraw) Join(ctx context.Context, req draw.JoinRequest) (draw.JoinOut
 
 func (d *fakeDraw) Refuse(ctx context.Context, req draw.Refusal) (bool, int64, error) {
 	d.refusals++
-	return d.DrawStore.Refuse(ctx, req)
+	first, count, err := d.DrawStore.Refuse(ctx, req)
+	if first && req.Notice != nil {
+		d.batched++
+	}
+	return first, count, err
 }
 
 func (d *fakeDraw) LookupClaims(_ context.Context, _ draw.ChannelID, viewer draw.ViewerID) (draw.ClaimLookup, error) {
@@ -97,6 +102,10 @@ func TestDrawSharedCommandsProcess(t *testing.T) {
 	cases := []drawChatCase{
 		{name: "new round beats legacy and queue", command: "join", draw: fakeDraw{joinable: true, kind: draw.KindRaffle},
 			raffle: legacy, views: queue, want: drawChatResult{joined: join}},
+		{name: "enter aliases join while open", command: "enter", draw: fakeDraw{joinable: true, kind: draw.KindRaffle},
+			views: queue, want: drawChatResult{joined: join, message: "Entry is free."}},
+		{name: "ticket aliases join while open", command: "ticket", draw: fakeDraw{joinable: true, kind: draw.KindGiveaway},
+			views: queue, want: drawChatResult{joined: join, message: "Entry is free."}},
 		{name: "giveaway closes during admission", command: "join", draw: fakeDraw{joinable: true, kind: draw.KindGiveaway, closed: true},
 			views: queue, want: drawChatResult{joined: join, message: "The draw has closed."}},
 		{name: "raffle closes during admission", command: "join", draw: fakeDraw{joinable: true, kind: draw.KindRaffle, closed: true},
@@ -125,7 +134,7 @@ func TestDrawSharedCommandsProcess(t *testing.T) {
 		{name: "legacy winner works with raffle disabled", command: "winner", raffle: legacy,
 			want: drawChatResult{message: "Last raffle: @legacy"}},
 	}
-	for _, command := range []string{"join", "check", "claim", "winner"} {
+	for _, command := range []string{"join", "enter", "ticket", "check", "claim", "winner"} {
 		cases = append(cases, drawChatCase{name: "custom " + command + " runs after yield", command: command,
 			want: drawChatResult{message: "custom " + command}})
 	}

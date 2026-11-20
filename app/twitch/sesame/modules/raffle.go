@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
@@ -59,10 +58,21 @@ func (rc raffleCommands) dispatch(ctx context.Context, args string, emit module.
 	if run := raffleRoutes[strings.ToLower(sub)]; run != nil {
 		return run(rc, ctx, rest, emit)
 	}
-	if sub == "" && !rc.isMod() {
-		return rc.status(ctx, "", emit)
+	if sub == "" {
+		return rc.bare(ctx, emit)
 	}
 	return rc.single(ctx, args, emit)
+}
+
+func (rc raffleCommands) bare(ctx context.Context, emit module.Emit) error {
+	switch {
+	case !rc.isMod():
+		return rc.status(ctx, "", emit)
+	case rc.cfg.BareRaffle == "split":
+		return rc.multi(ctx, "", emit)
+	default:
+		return rc.single(ctx, "", emit)
+	}
 }
 
 func (rc raffleCommands) isMod() bool { return rc.c.Chatter().Allows(module.RoleModerator) }
@@ -85,76 +95,32 @@ func (rc raffleCommands) start(ctx context.Context, input raffleStartInput, emit
 	}
 	req, valid := parseRaffleStart(input, rc.cfg)
 	if !valid {
-		rc.reply(emit, "", "raffle.err.usage")
+		rc.reply(emit, "", raffleUsageKey(input.args))
 		return nil
 	}
-	refusal, err := rc.startRefusal(ctx)
-	if err != nil {
-		return err
-	}
-	if refusal != "" {
-		rc.reply(emit, "", refusal)
-		return nil
-	}
-	return rc.open(ctx, req, emit)
-}
-
-func (rc raffleCommands) startRefusal(ctx context.Context) (replyKey, error) {
-	channel := rc.c.BroadcasterID
-	on, err := engine.LoyaltyOn(ctx, rc.deps.Proj, channel)
-	if err != nil {
-		return "", err
-	}
-	if !on {
-		return "raffle.open.loyalty_off", nil
-	}
-	return "", nil
-}
-
-func (rc raffleCommands) open(ctx context.Context, req raffleStart, emit module.Emit) error {
-	r, outcome, err := rc.deps.Draw.Open(ctx, draw.OpenRequest{
+	round, refusal, err := engine.StartRaffle(ctx, rc.deps, draw.OpenRequest{
 		Channel: rc.channel(), Actor: rc.actor(), Duration: req.duration,
-		Terms: engine.RaffleTerms(engine.RaffleLaunch{Points: req.prize, Winners: req.winners, Multi: req.multi}),
+		Terms: rc.cfg.Terms(engine.RaffleLaunch{Points: req.prize, Winners: req.winners, Multi: req.multi}),
 	})
 	if err != nil {
 		return err
 	}
-	switch outcome {
-	case draw.Opened:
-		rc.replyOpened(ctx, emit, r)
-	case draw.JoinableBusy:
-		return rc.replyBusy(ctx, emit)
-	case draw.LegacyBusy:
-		rc.reply(emit, "", "raffle.open.already")
+	if refusal != "" {
+		rc.reply(emit, "", raffleStartKeys[refusal])
+		return nil
+	}
+	if rc.cfg.OpenedOn() {
+		line := rc.cfg.OpenedLine(ctx, rc.deps.Proj, rc.c.Locale, round)
+		rc.say(emit, line)
 	}
 	return nil
 }
 
-func (rc raffleCommands) replyBusy(ctx context.Context, emit module.Emit) error {
-	r, _, err := rc.deps.Draw.Joinable(ctx, rc.channel())
-	if err != nil {
-		return err
-	}
-	key := replyKey("raffle.open.already")
-	if r.Terms.Kind == draw.KindGiveaway {
-		key = "draw.open.busy_giveaway"
-	}
-	rc.reply(emit, "", key)
-	return nil
-}
-
-func (rc raffleCommands) replyOpened(ctx context.Context, emit module.Emit, r draw.Round) {
-	if !rc.cfg.OpenedOn() {
-		return
-	}
-	secs := int64(r.ClosesAt.Sub(r.OpenedAt) / time.Second)
-	key := replyKey("raffle.opened")
-	if secs%60 != 0 {
-		key = "raffle.opened.secs"
-	}
-	loyalty, _ := engine.ReadLoyaltyConfig(ctx, rc.deps.Proj, rc.c.BroadcasterID)
-	rc.reply(emit, rc.cfg.OpenedMessage, key, "mins", strconv.FormatInt((secs+59)/60, 10),
-		"secs", strconv.FormatInt(secs, 10), "amount", strconv.FormatInt(r.Terms.Prize.Points, 10), "points", loyalty.Name())
+var raffleStartKeys = map[string]replyKey{
+	"busy_giveaway": "draw.open.busy_giveaway",
+	"busy_raffle":   "raffle.open.already",
+	"loyalty_off":   "raffle.open.loyalty_off",
+	"invalid":       "raffle.err.usage",
 }
 
 func (rc raffleCommands) status(ctx context.Context, _ string, emit module.Emit) error {
@@ -249,9 +215,9 @@ func (rc raffleCommands) drawLegacy(ctx context.Context, winners *draw.WinnerPol
 	if err != nil || res == nil {
 		return true, err
 	}
-	loyalty, _ := engine.ReadLoyaltyConfig(ctx, rc.deps.Proj, channel)
+	currency := engine.DrawCurrencyName(ctx, rc.deps.Proj, channel)
 	notice := engine.RaffleAnnouncement{
-		Locale: string(rc.c.Locale), Points: loyalty.Name(),
+		Locale: string(rc.c.Locale), Points: currency,
 		Config: engine.ReadLegacyRaffleConfig(ctx, rc.deps.Proj, channel),
 	}
 	for _, line := range notice.ResultLines(res) {

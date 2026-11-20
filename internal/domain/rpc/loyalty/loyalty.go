@@ -20,6 +20,7 @@ const (
 	VerbFreezeGet           = "freeze.get"
 
 	VerbSnapshotCreate = "snapshot.create"
+	VerbSnapshotExtend = "snapshot.extend"
 	VerbSnapshotDrop   = "snapshot.drop"
 
 	RefusalFrozen                = "frozen"
@@ -118,6 +119,17 @@ type SnapshotCreateRequest struct {
 	UserID    string `json:"user_id"`
 	Owner     string `json:"owner"`
 	ExpiresAt int64  `json:"expires_at"`
+}
+
+type SnapshotExtendRequest struct {
+	UserID     string `json:"user_id"`
+	SnapshotID string `json:"snapshot_id"`
+	ExpiresAt  int64  `json:"expires_at"`
+}
+
+type SnapshotExtended struct {
+	Extended bool `json:"extended"`
+	rpc.Refusal
 }
 
 type SnapshotDropRequest struct {

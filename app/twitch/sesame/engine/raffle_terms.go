@@ -12,13 +12,14 @@ import (
 )
 
 type RaffleLaunch struct {
-	Points  int64
-	Winners draw.WinnerPolicy
-	Multi   bool
+	Points           int64
+	Winners          draw.WinnerPolicy
+	Multi            bool
+	MidCountDisabled bool
 }
 
 func RaffleTerms(l RaffleLaunch) draw.Terms {
-	return draw.Terms{Kind: draw.KindRaffle, Prize: draw.Prize{Points: l.Points}, Winners: l.Winners, MultiRaffle: l.Multi}
+	return draw.Terms{Kind: draw.KindRaffle, Prize: draw.Prize{Points: l.Points}, Winners: l.Winners, MultiRaffle: l.Multi, MidCountDisabled: l.MidCountDisabled}
 }
 
 func RaffleGame(r draw.Round) string {

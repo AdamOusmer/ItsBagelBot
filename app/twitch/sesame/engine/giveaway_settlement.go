@@ -18,10 +18,10 @@ type GiveawayPhaseObserver struct {
 }
 
 func (o GiveawayPhaseObserver) LeftOpen(ctx context.Context, round draw.Round) {
-	if round.Terms.Kind != draw.KindGiveaway || round.Terms.FreezeID == "" {
+	if round.Terms.Kind != draw.KindGiveaway || round.Terms.StandingsID() == "" {
 		return
 	}
-	if err := o.Snapshots.SnapshotDrop(ctx, uint64(round.Channel), round.Terms.FreezeID); err != nil {
+	if err := o.Snapshots.SnapshotDrop(ctx, uint64(round.Channel), round.Terms.StandingsID()); err != nil {
 		o.Log.Warn("giveaway: drop standings snapshot failed", zap.String("round_id", string(round.ID)), zap.Error(err))
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"ItsBagelBot/pkg/valkey"
 )
@@ -18,8 +19,9 @@ type ClaimOutcome struct {
 }
 
 type ClaimLookup struct {
-	Found bool
-	spec  valkey.SlotClaim
+	Found   bool
+	spec    valkey.SlotClaim
+	channel ChannelID
 }
 
 func (s *Store) CanClaim(ctx context.Context, ch ChannelID, viewer ViewerID) (bool, error) {
@@ -34,7 +36,7 @@ func (s *Store) LookupClaims(ctx context.Context, ch ChannelID, viewer ViewerID)
 		return ClaimLookup{}, err
 	}
 	refs, err := decodeRefs(raw)
-	return ClaimLookup{Found: true, spec: valkey.SlotClaim{
+	return ClaimLookup{Found: true, channel: ch, spec: valkey.SlotClaim{
 		Claimable: key, Viewer: string(viewer), Refs: refs, Due: dueKey, Wake: wakeChannel,
 	}}, err
 }
@@ -51,6 +53,9 @@ func (s *Store) ClaimResolved(ctx context.Context, lookup ClaimLookup) (ClaimOut
 	if len(lookup.spec.Refs) == 0 {
 		return ClaimOutcome{}, nil
 	}
+	if err := s.syncClaimLookup(ctx, lookup); err != nil {
+		return ClaimOutcome{}, err
+	}
 	codes, err := valkey.ClaimSlots(ctx, s.client, lookup.spec)
 	var out ClaimOutcome
 	for _, code := range codes {
@@ -62,6 +67,41 @@ func (s *Store) ClaimResolved(ctx context.Context, lookup ClaimLookup) (ClaimOut
 		}
 	}
 	return out, err
+}
+
+func (s *Store) syncClaimLookup(ctx context.Context, lookup ClaimLookup) error {
+	if s.cfg.Live == nil {
+		return nil
+	}
+	now, err := valkey.ServerNow(ctx, s.client)
+	if err != nil {
+		return err
+	}
+	for _, ref := range lookup.spec.Refs {
+		if err := s.syncClaimReference(ctx, lookup.channel, RoundID(ref.RoundID), now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Store) syncClaimReference(ctx context.Context, channel ChannelID, id RoundID, now time.Time) error {
+	for ctx.Err() == nil {
+		result, err := s.syncClaimRound(ctx, channel, id, now)
+		if err != nil || result != clockConflict {
+			return err
+		}
+	}
+	return ctx.Err()
+}
+
+func (s *Store) syncClaimRound(ctx context.Context, channel ChannelID, id RoundID, now time.Time) (claimClockResult, error) {
+	raw, err := keysFor(channel, id).View(ctx, s.client)
+	data, err := decodeSnapshot(id, raw, err)
+	if err != nil || data.round.Phase != PhaseSettling {
+		return clockReady, err
+	}
+	return s.syncClaimClock(ctx, data, now)
 }
 
 func decodeRefs(raw []string) ([]valkey.ClaimRef, error) {

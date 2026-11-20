@@ -31,11 +31,10 @@ type GiveawayStart struct {
 }
 
 type GiveawayStartOutcome struct {
-	Round         draw.Round
-	Config        GiveawayModuleConfig
-	Rules         eligibility.Rules
-	Refusal       string
-	windowClamped bool
+	Round   draw.Round
+	Config  GiveawayModuleConfig
+	Rules   eligibility.Rules
+	Refusal string
 }
 
 func StartGiveaway(ctx context.Context, d Deps, req GiveawayStart) (GiveawayStartOutcome, error) {
@@ -103,7 +102,7 @@ func validateGiveawayStart(d Deps, req GiveawayStart) string {
 		return "giveaway.prize_blocked"
 	case req.Winners < 1 || req.Winners > draw.Pins.MaxWinners:
 		return "giveaway.open.winners"
-	case req.Window < draw.Pins.GiveawayMinEntryWindow || req.Window > draw.Pins.MaxOpen:
+	case req.Window < draw.Pins.GiveawayMinEntryWindow || req.Window > draw.Pins.GiveawayMaxEntryWindow:
 		return giveawayWindowRefusal
 	default:
 		return ""
@@ -123,7 +122,7 @@ type giveawayLaunch struct {
 }
 
 func openGiveaway(ctx context.Context, d Deps, req GiveawayStart, launch giveawayLaunch) (GiveawayStartOutcome, error) {
-	if prior, found, err := d.Draw.Joinable(ctx, draw.ChannelID(req.Channel)); err != nil || found {
+	if prior, _, err := d.Draw.Joinable(ctx, draw.ChannelID(req.Channel)); err != nil || prior.Phase == draw.PhaseOpen {
 		return GiveawayStartOutcome{Refusal: giveawayBusyKey(prior)}, err
 	}
 	open, err := giveawayOpenRequest(req, launch)
@@ -138,10 +137,14 @@ func openGiveaway(ctx context.Context, d Deps, req GiveawayStart, launch giveawa
 		return giveawayOpenError(err)
 	}
 	if outcome != draw.Opened {
-		return startRefused(giveawayBusyKey(round))
+		return giveawayStartBusy(ctx, d.Draw, open.Channel)
 	}
-	clamped := round.Terms.FreezeEndsMS > 0 && round.ClosesAt.Before(round.OpenedAt.Add(open.Duration))
-	return GiveawayStartOutcome{Round: round, Config: launch.config, Rules: launch.preset.Rules, windowClamped: clamped}, nil
+	return GiveawayStartOutcome{Round: round, Config: launch.config, Rules: launch.preset.Rules}, nil
+}
+
+func giveawayStartBusy(ctx context.Context, store DrawStore, channel draw.ChannelID) (GiveawayStartOutcome, error) {
+	r, _, err := store.Joinable(ctx, channel)
+	return GiveawayStartOutcome{Refusal: giveawayBusyKey(r)}, err
 }
 
 func giveawayOpenError(err error) (GiveawayStartOutcome, error) {
@@ -168,7 +171,7 @@ func giveawayOpenRequest(req GiveawayStart, launch giveawayLaunch) (draw.OpenReq
 }
 
 func takeGiveawaySnapshot(ctx context.Context, standings StandingsSnapshots, preset GiveawayPreset, req *draw.OpenRequest) error {
-	if !preset.FreezeOn() {
+	if !preset.Rules.NeedsStandings() {
 		return nil
 	}
 	closesAt := time.Now().UTC().Add(req.Duration).Truncate(time.Millisecond)
@@ -181,6 +184,6 @@ func takeGiveawaySnapshot(ctx context.Context, standings StandingsSnapshots, pre
 	if ref.SnapshotID == "" {
 		return errors.New("giveaway: missing standings snapshot")
 	}
-	req.Terms.FreezeID, req.Terms.ClosesAt, req.Duration = ref.SnapshotID, closesAt, 0
+	req.Terms.SnapshotID, req.Terms.ClosesAt, req.Duration = ref.SnapshotID, closesAt, 0
 	return nil
 }

@@ -46,29 +46,38 @@ type WinnerPolicy struct {
 }
 
 type Terms struct {
-	Kind          Kind
-	Prize         Prize
-	Winners       WinnerPolicy
-	ClaimWindow   time.Duration
-	RerollNoShows bool
-	RemindEnabled bool             `json:",omitempty"`
-	MultiRaffle   bool             `json:",omitempty"`
-	Rules         codec.RawMessage `json:",omitempty"`
-	FreezeID      string           `json:"freeze_id,omitempty"`
-	FreezeEndsMS  int64            `json:"freeze_ends,omitempty"`
-	ClosesAt      time.Time
+	Kind             Kind
+	Prize            Prize
+	Winners          WinnerPolicy
+	ClaimWindow      time.Duration
+	RerollNoShows    bool
+	RemindEnabled    bool             `json:",omitempty"`
+	MidCountDisabled bool             `json:",omitempty"`
+	MultiRaffle      bool             `json:",omitempty"`
+	Rules            codec.RawMessage `json:",omitempty"`
+	SnapshotID       string           `json:"snapshot_id,omitempty"`
+	LegacySnapshotID string           `json:"freeze_id,omitempty"`
+	ClosesAt         time.Time
+}
+
+func (t Terms) StandingsID() string {
+	if t.SnapshotID != "" {
+		return t.SnapshotID
+	}
+	return t.LegacySnapshotID
 }
 
 type Round struct {
-	ID        RoundID
-	Channel   ChannelID
-	Terms     Terms
-	Phase     Phase
-	OpenedAt  time.Time
-	ClosesAt  time.Time
-	SettledAt time.Time
-	Winners   int
-	Actions   []Action
+	ID            RoundID
+	Channel       ChannelID
+	Terms         Terms
+	Phase         Phase
+	OpenedAt      time.Time
+	ClosesAt      time.Time
+	SettledAt     time.Time
+	ClaimPausedAt time.Time
+	Winners       int
+	Actions       []Action
 }
 
 type Action struct {

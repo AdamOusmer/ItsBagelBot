@@ -31,6 +31,7 @@ type slotBatch struct {
 	changes []slotChange
 	action  string
 	now     time.Time
+	fields  []valkey.FieldValue
 }
 
 type slotWork struct {
@@ -57,7 +58,11 @@ func (s *Store) advanceSlots(ctx context.Context, data snapshot, now time.Time) 
 	}
 	if len(changes) == 0 {
 		next := nextSlotDue(data, now).Add(time.Millisecond - time.Nanosecond).Truncate(time.Millisecond)
-		return s.schedule(ctx, data, next.Sub(now.Truncate(time.Millisecond)))
+		delay := next.Sub(now.Truncate(time.Millisecond))
+		if s.cfg.Live != nil && data.round.Terms.ClaimWindow > 0 {
+			delay = min(delay, sweepPoll)
+		}
+		return s.schedule(ctx, data, delay)
 	}
 	at, err := valkey.ServerNow(ctx, s.client)
 	if err != nil {
@@ -259,7 +264,7 @@ func (s *Store) commitSlots(ctx context.Context, data snapshot, batch slotBatch)
 	revision := data.stored.Round["revision"]
 	spec := valkey.SlotBatch{Revision: &revision, RoundID: string(r.ID), Phase: string(PhaseSettling), Action: batch.action,
 		Wake: valkey.DrawWake{Channel: wakeChannel, At: batch.now}}
-	spec.Fields = workingFields(data, batch)
+	spec.Fields = append(batch.fields, workingFields(data, batch)...)
 	for _, change := range batch.changes {
 		field := strconv.Itoa(change.prior.N)
 		raw, err := codec.Marshal(change.next)

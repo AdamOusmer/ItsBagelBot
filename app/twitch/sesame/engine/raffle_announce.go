@@ -95,20 +95,30 @@ func (a RaffleAnnouncement) expand(text string, kv []string) string {
 
 // The chat cap truncates long lines, which would cut the last winners' names.
 func chunkMentions[T any](winners []T, login func(T) string, render func(targets string) string) []string {
+	return chunkJoinedMentions(winners, mentionFormat[T]{login: login, render: render, separator: ", "})
+}
+
+type mentionFormat[T any] struct {
+	login     func(T) string
+	render    func(string) string
+	separator string
+}
+
+func chunkJoinedMentions[T any](winners []T, format mentionFormat[T]) []string {
 	var lines []string
 	group := ""
 	for _, w := range winners {
-		name := login(w)
+		name := format.login(w)
 		if name == "" {
 			continue
 		}
 		mention := "@" + name
 		next := mention
 		if group != "" {
-			next = group + ", " + mention
+			next = group + format.separator + mention
 		}
-		if group != "" && len(render(next)) > validate.MaxResponseLineLength {
-			lines = append(lines, render(group))
+		if group != "" && len(format.render(next)) > validate.MaxResponseLineLength {
+			lines = append(lines, format.render(group))
 			next = mention
 		}
 		group = next
@@ -116,7 +126,7 @@ func chunkMentions[T any](winners []T, login func(T) string, render func(targets
 	if group == "" {
 		return nil
 	}
-	return append(lines, render(group))
+	return append(lines, format.render(group))
 }
 
 func (a RaffleAnnouncement) RemindText(leftSeconds, entrants int64) string {
@@ -152,11 +162,11 @@ func (s *ValkeyRaffleStore) autoDraw(ctx context.Context, broadcasterID uint64) 
 }
 
 func (s *ValkeyRaffleStore) announcement(ctx context.Context, broadcasterID uint64) RaffleAnnouncement {
-	loyalty, _ := ReadLoyaltyConfig(ctx, s.cfg.Proj, broadcasterID)
+	currency := DrawCurrencyName(ctx, s.cfg.Proj, broadcasterID)
 	return RaffleAnnouncement{
 		Locale: s.localeOf(ctx, broadcasterID),
 		Config: ReadLegacyRaffleConfig(ctx, s.cfg.Proj, broadcasterID),
-		Points: loyalty.Name(),
+		Points: currency,
 	}
 }
 

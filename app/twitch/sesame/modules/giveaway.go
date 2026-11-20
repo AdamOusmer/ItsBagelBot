@@ -17,7 +17,7 @@ import (
 
 func Giveaway(d engine.Deps) module.Module {
 	m := module.NewModule(engine.GiveawayModuleName, module.KindOptIn)
-	m.Command("giveaway").Mod().Run(giveawayHandler(d, giveawayCommands.dispatch))
+	m.Command("giveaway").Everyone().Run(giveawayHandler(d, giveawayCommands.dispatch))
 	m.Command("reroll").Mod().Run(giveawayHandler(d, giveawayCommands.reroll))
 	return m.Build()
 }
@@ -45,6 +45,12 @@ var giveawayRoutes = map[string]giveawayRun{
 
 func (g giveawayCommands) dispatch(ctx context.Context, args string, emit module.Emit) error {
 	sub, rest := splitFirst(args)
+	if !g.c.Chatter().Allows(module.RoleModerator) {
+		if sub != "" {
+			return nil
+		}
+		return g.status(ctx, "", emit)
+	}
 	if run := giveawayRoutes[strings.ToLower(sub)]; run != nil {
 		return run(g, ctx, rest, emit)
 	}
@@ -76,47 +82,36 @@ func (g giveawayCommands) start(ctx context.Context, args string, emit module.Em
 func (g giveawayCommands) close(ctx context.Context, _ string, emit module.Emit) error {
 	target := g.action()
 	applied, err := g.deps.Draw.Close(ctx, draw.CloseRequest{Channel: target.Channel, Actor: target.Actor, Kind: target.Kind})
-	return g.actionReply(emit, applied, err, "")
+	return g.actionReply(ctx, emit, giveawayActionResult{applied: applied, err: err})
 }
 
 func (g giveawayCommands) cancel(ctx context.Context, _ string, emit module.Emit) error {
 	applied, err := g.deps.Draw.Cancel(ctx, g.action())
-	return g.actionReply(emit, applied, err, "giveaway.cancelled")
-}
-
-func (g giveawayCommands) actionReply(emit module.Emit, applied bool, err error, key replyKey) error {
-	switch {
-	case err != nil:
-		return err
-	case !applied:
-		g.reply(emit, "", "giveaway.action.unavailable")
-	case key != "":
-		g.reply(emit, "", key)
-	}
-	return nil
+	return g.actionReply(ctx, emit, giveawayActionResult{applied: applied, err: err, success: "giveaway.cancelled"})
 }
 
 func (g giveawayCommands) reroll(ctx context.Context, args string, emit module.Emit) error {
-	slot, ok := giveawayRerollSlot(args)
+	selector, ok := giveawayRerollSlot(args)
 	if !ok {
 		g.reply(emit, "", "giveaway.reroll.usage")
 		return nil
 	}
 	target := g.action()
-	changed, err := g.deps.Draw.Reroll(ctx, draw.SlotAction{Channel: target.Channel, Actor: target.Actor, Kind: target.Kind, Slot: slot})
-	return g.actionReply(emit, changed > 0, err, "")
+	selector.Channel, selector.Actor, selector.Kind = target.Channel, target.Actor, target.Kind
+	changed, err := g.deps.Draw.Reroll(ctx, selector)
+	return g.actionReply(ctx, emit, giveawayActionResult{applied: changed > 0, err: err, reroll: true, target: selector})
 }
 
-func giveawayRerollSlot(args string) (int, bool) {
+func giveawayRerollSlot(args string) (draw.SlotAction, bool) {
 	arg := strings.TrimSpace(args)
 	if arg == "" {
-		return 0, true
+		return draw.SlotAction{}, true
+	}
+	if login, ok := strings.CutPrefix(arg, "@"); ok {
+		return draw.SlotAction{Login: strings.ToLower(login)}, login != "" && !strings.ContainsAny(login, " @")
 	}
 	slot, err := strconv.Atoi(arg)
-	if err != nil {
-		return 0, false
-	}
-	return slot, slot >= 1 && slot <= draw.Pins.MaxWinners
+	return draw.SlotAction{Slot: slot}, err == nil && slot >= 1 && slot <= draw.Pins.MaxWinners
 }
 
 func (g giveawayCommands) status(ctx context.Context, _ string, emit module.Emit) error {
@@ -124,13 +119,27 @@ func (g giveawayCommands) status(ctx context.Context, _ string, emit module.Emit
 	if err != nil {
 		return err
 	}
-	if !open || round.Terms.Kind != draw.KindGiveaway {
-		g.reply(emit, "", "giveaway.status.closed")
+	switch {
+	case round.Terms.Kind != draw.KindGiveaway:
+		return g.last(ctx, emit)
+	case !open && round.Phase == draw.PhaseOpen:
+		g.reply(emit, "", "giveaway.status.awaiting_draw", "prize", round.Terms.Prize.Item)
 		return nil
+	case !open:
+		return g.last(ctx, emit)
 	}
 	left := i18n.CompactDuration(g.c.Locale, time.Until(round.ClosesAt))
 	g.reply(emit, "", "giveaway.status.open", "prize", round.Terms.Prize.Item, "left", left)
 	return nil
+}
+
+func (g giveawayCommands) last(ctx context.Context, emit module.Emit) error {
+	owner := drawOwner{deps: g.deps}
+	replied, err := owner.lastGiveaway(ctx, g.c, emit, g.deps.GiveawayWinners != nil)
+	if err == nil && !replied {
+		g.reply(emit, "", "giveaway.status.closed")
+	}
+	return err
 }
 
 func giveawayVariables(d engine.Deps) variableRead {

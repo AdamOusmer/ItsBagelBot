@@ -14,6 +14,9 @@ func earlier(a, b time.Time) time.Time {
 
 func nextSlotDue(data snapshot, now time.Time) time.Time {
 	next := settlementDeadline(data.round)
+	if !data.round.ClaimPausedAt.IsZero() {
+		next = now.Add(sweepPoll)
+	}
 	if at := verifyingNoticeAt(data); !at.IsZero() && hasWorkingSlots(data, now) {
 		next = earlier(next, at)
 	}
@@ -33,7 +36,7 @@ func settlementDeadline(r Round) time.Time {
 }
 
 func slotDue(r Round, slot Slot, now time.Time) time.Time {
-	if slotTerminal(r, slot) {
+	if slotTerminal(r, slot) || pausedClaim(r, slot) {
 		return time.Time{}
 	}
 	deadline := settlementDeadline(r)
@@ -81,4 +84,8 @@ func retryAt(slot Slot, now time.Time) time.Time {
 		return now
 	}
 	return slot.RetryAt
+}
+
+func pausedClaim(r Round, slot Slot) bool {
+	return slot.State == SlotWon && !r.ClaimPausedAt.IsZero() && !slot.Deadline.Before(r.ClaimTime(r.ClaimPausedAt, slot))
 }

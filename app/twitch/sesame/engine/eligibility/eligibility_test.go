@@ -13,9 +13,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/engine/eligibility"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/invalidate"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
-	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/require"
@@ -31,10 +29,12 @@ type eligibilityData struct {
 	err     error
 	calls   []string
 	since   time.Time
+	lookups []eligibility.StandingLookup
 }
 
-func (d *eligibilityData) Snapshot(context.Context, uint64, uint64) (loyaltyrpc.BalanceSnapshot, error) {
+func (d *eligibilityData) Snapshot(_ context.Context, lookup eligibility.StandingLookup) (loyaltyrpc.BalanceSnapshot, error) {
 	d.calls = append(d.calls, "standings")
+	d.lookups = append(d.lookups, lookup)
 	return d.balance, d.err
 }
 
@@ -65,8 +65,8 @@ func newChecker(t *testing.T, data *eligibilityData) *eligibility.Checker {
 func TestJoinRules(t *testing.T) {
 	everyone := eligibility.Joiner{Channel: 2, Viewer: 7}
 	frozenAt := checkTime.Add(-time.Minute)
-	frozen := loyaltyrpc.BalanceSnapshot{Found: true, Points: 100, WatchSeconds: 1800,
-		FreezeStamp: loyaltyrpc.FreezeStamp{FreezeID: "freeze", FrozenAsOf: frozenAt.UnixMilli(), ExpiresAt: checkTime.Add(time.Minute).UnixMilli()}}
+	frozen := loyaltyrpc.BalanceSnapshot{Found: true, Points: 100, WatchSeconds: 1800}
+	cutoff := eligibility.Cutoff{ID: "snapshot", OpenedAt: frozenAt, ClosesAt: checkTime.Add(time.Minute)}
 	cases := []struct {
 		name  string
 		rules eligibility.Rules
@@ -83,10 +83,10 @@ func TestJoinRules(t *testing.T) {
 			want: eligibility.Verdict{Reason: eligibility.ReasonRole}},
 		{name: "points before watch, missing row counts as zero", rules: eligibility.Rules{MinPoints: 10, MinWatchSeconds: 1}, who: everyone,
 			want: eligibility.Verdict{Reason: eligibility.ReasonPoints, Need: 10, AsOf: checkTime}, reads: 1},
-		{name: "watch short on frozen standings", rules: eligibility.Rules{MinPoints: 100, MinWatchSeconds: 3600}, who: everyone,
+		{name: "watch short on frozen standings", rules: eligibility.Rules{MinPoints: 100, MinWatchSeconds: 3600}, who: eligibility.Joiner{Channel: 2, Viewer: 7, Cutoff: cutoff},
 			data: eligibilityData{balance: frozen}, want: eligibility.Verdict{Reason: eligibility.ReasonWatch, Need: 3600, Had: 1800, AsOf: frozenAt}, reads: 1},
 		{name: "subscriber luck", rules: eligibility.Rules{Role: eligibility.Sub, SubLuckPercent: 200, MinPoints: 100, MinWatchSeconds: 1800},
-			who: eligibility.Joiner{Channel: 2, Viewer: 7, Role: module.RoleSubscriber, Subscriber: true}, data: eligibilityData{balance: frozen},
+			who: eligibility.Joiner{Channel: 2, Viewer: 7, Role: module.RoleSubscriber, Subscriber: true, Cutoff: cutoff}, data: eligibilityData{balance: frozen},
 			want: eligibility.Verdict{Pass: true, Weight: 200, AsOf: frozenAt}, reads: 1},
 		{name: "draw-time rules do not read anything at join", rules: eligibility.Rules{FollowersOnly: true, MinAccountDays: 1, SkipWinnersDays: 1}, who: everyone,
 			want: eligibility.Verdict{Pass: true, Weight: draw.Pins.EntryWeight}},
@@ -103,39 +103,30 @@ func TestJoinRules(t *testing.T) {
 	}
 }
 
-type freezeFeed struct{ listener func(cache.Event) }
-
-func (f *freezeFeed) Watch(_ string, fn func(cache.Event)) { f.listener = fn }
-func (*freezeFeed) WatchGap(func())                        {}
-
 func TestJoinSnapshotCache(t *testing.T) {
 	for _, tc := range []struct {
-		name, freezeID string
-		offset         time.Duration
-		invalidate     bool
-		secondPass     bool
+		name, firstID, secondID string
+		firstUntil              time.Duration
+		secondPass              bool
 	}{
 		{name: "live data is read again", secondPass: true},
-		{name: "frozen data is reused", freezeID: "freeze", offset: time.Minute},
-		{name: "expired response is not cached", freezeID: "freeze", offset: -time.Second, secondPass: true},
-		{name: "early release invalidates cached data", freezeID: "freeze", offset: time.Minute, invalidate: true, secondPass: true},
+		{name: "same private cutoff is reused", firstID: "round-a", secondID: "round-a", firstUntil: time.Minute},
+		{name: "another round has a separate cutoff", firstID: "round-a", secondID: "round-b", firstUntil: time.Minute, secondPass: true},
+		{name: "expired cutoff is not cached", firstID: "round-a", secondID: "round-a", firstUntil: -time.Second, secondPass: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			data := &eligibilityData{balance: loyaltyrpc.BalanceSnapshot{FreezeStamp: loyaltyrpc.FreezeStamp{
-				FreezeID: tc.freezeID, ExpiresAt: checkTime.Add(tc.offset).UnixMilli(),
-			}}}
-			c, feed := newChecker(t, data), &freezeFeed{}
-			c.WatchFreezes(feed)
-			rules, who := eligibility.Rules{MinPoints: 1}, eligibility.Joiner{Channel: 2, Viewer: 7}
+			data := &eligibilityData{}
+			c := newChecker(t, data)
+			rules := eligibility.Rules{MinPoints: 1}
+			who := eligibility.Joiner{Channel: 2, Viewer: 7, Cutoff: eligibility.Cutoff{ID: tc.firstID, ClosesAt: checkTime.Add(tc.firstUntil)}}
 			first, err := c.Join(t.Context(), rules, who)
 			require.NoError(t, err)
 			data.balance = loyaltyrpc.BalanceSnapshot{Points: 1, Found: true}
-			if tc.invalidate {
-				feed.listener(cache.Event{Scope: invalidate.ScopeLoyalty, ID: who.Channel, Keys: []string{invalidate.LoyaltyFreezeMarker}})
-			}
+			who.Cutoff.ID = tc.secondID
 			second, err := c.Join(t.Context(), rules, who)
 			require.NoError(t, err)
 			require.Equal(t, []bool{false, tc.secondPass}, []bool{first.Pass, second.Pass})
+			require.Equal(t, tc.firstID, data.lookups[0].SnapshotID)
 		})
 	}
 }

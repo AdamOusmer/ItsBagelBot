@@ -15,6 +15,7 @@ type PolicyPins struct {
 	GiveawayDefaultWinners    int
 	GiveawayEntryWindow       time.Duration
 	GiveawayMinEntryWindow    time.Duration
+	GiveawayMaxEntryWindow    time.Duration
 	GiveawayMaxPresets        int
 	GiveawayPresetNameMax     int
 	RaffleDefaultWinners      int
@@ -29,17 +30,19 @@ type PolicyPins struct {
 	ModActionTimeout          time.Duration
 	GiveawayHorizon           time.Duration
 	RemindInterval            time.Duration
+	RefusalInterval           time.Duration
+	MidCountDefault           bool
 	MaxOpen                   time.Duration
 	WinnerCooldown            time.Duration
 }
 
 var Pins = PolicyPins{
 	EntryWeight: 100, MaxWinners: drawrpc.MaxWinners, GiveawayDefaultWinners: 1, RaffleDefaultWinners: 1,
-	GiveawayEntryWindow: 3 * time.Minute, GiveawayMinEntryWindow: time.Second, GiveawayMaxPresets: 10, GiveawayPresetNameMax: 24,
+	GiveawayEntryWindow: 3 * time.Minute, GiveawayMinEntryWindow: time.Second, GiveawayMaxEntryWindow: 2 * time.Hour, GiveawayMaxPresets: 10, GiveawayPresetNameMax: 24,
 	MultiRaffleDefaultWinners: 3, AutoDivisor: 10,
 	ClaimWindowMin: 30 * time.Second, ClaimWindowMax: 15 * time.Minute, ClaimWindowDefault: 2 * time.Minute,
 	PayoutHorizon: 24 * time.Hour, VerifyingNotice: 10 * time.Second, VerifyStuck: 2 * time.Minute,
-	ModActionTimeout: 30 * time.Minute, GiveawayHorizon: 24 * time.Hour, RemindInterval: 5 * time.Minute,
+	ModActionTimeout: 30 * time.Minute, GiveawayHorizon: 24 * time.Hour, RemindInterval: 5 * time.Minute, RefusalInterval: 10 * time.Second, MidCountDefault: true,
 	MaxOpen: 2 * time.Hour, WinnerCooldown: 5 * time.Second,
 }
 

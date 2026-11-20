@@ -80,6 +80,7 @@ type RaffleStatus struct {
 	Open        bool
 	Entrants    int64
 	SecondsLeft int64
+	DeadlineMS  int64
 }
 
 type RaffleStore interface {
@@ -138,12 +139,12 @@ func (s *ValkeyRaffleStore) Join(ctx context.Context, broadcasterID uint64, entr
 
 func (s *ValkeyRaffleStore) Status(ctx context.Context, broadcasterID uint64) (RaffleStatus, error) {
 	st := RaffleStatus{SecondsLeft: -1}
-	open, entrants, left, err := pkg_valkey.StatusProbe(ctx, s.client,
+	status, err := pkg_valkey.StatusProbe(ctx, s.client,
 		raffleKey(raffleDeadlinePrefix, broadcasterID), raffleKey(raffleEntriesPrefix, broadcasterID))
 	if err != nil {
 		return st, err
 	}
-	st.Open, st.Entrants, st.SecondsLeft = open, entrants, left
+	st.Open, st.Entrants, st.SecondsLeft, st.DeadlineMS = status.Open, status.Size, status.TTLSeconds, status.ExpiresMS
 	return st, nil
 }
 

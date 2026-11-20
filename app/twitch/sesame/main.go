@@ -124,6 +124,8 @@ func main() {
 	svcboot.FatalIf(log, raffleRPC.Subscribe(bus.RPCWiring{NC: w.in.nc, Queue: queueGroup, App: core.NR, Log: log}),
 		"failed to subscribe raffle status rpc")
 
+	svcboot.FatalIf(log, registerRaffleRPC(w, deps, core.NR), "failed to subscribe raffle rpc")
+
 	startTrialPromotion(w, recorder)
 
 	weighted, err := newConsumer(sub, nrApp, cfg, log).Start(ctx, pipe.Process)

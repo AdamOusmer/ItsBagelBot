@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
+	"ItsBagelBot/app/twitch/sesame/module"
 	catalog "ItsBagelBot/internal/domain/analytics"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/pkg/tmpl"
 )
 
@@ -24,12 +26,15 @@ func noticeRaffle(announcer drawAnnouncer, ctx context.Context, locale string, n
 	case draw.NoticeWinners:
 		return raffleWinnerLines(ctx, cfg, a, notice)
 	case draw.NoticeUnpaid:
-		loyalty, _ := ReadLoyaltyConfig(ctx, cfg.Proj, uint64(notice.Round.Channel))
-		return []string{a.render("", "raffle.payout.failed", "points", loyalty.Name())}
+		currency := DrawCurrencyName(ctx, cfg.Proj, uint64(notice.Round.Channel))
+		return []string{a.render("", "raffle.payout.failed", "points", currency)}
 	case draw.NoticeEmpty:
 		return []string{a.render("", "raffle.draw.empty")}
 	case draw.NoticeVerifying:
 		return []string{a.render("", "raffle.verifying")}
+	case draw.NoticeMidCount:
+		return []string{a.render("", "raffle.mid_count", "count", strconv.Itoa(notice.Entries),
+			"time", i18n.CompactDuration(locale, notice.TimeLeft))}
 	case draw.NoticeRemind:
 		return raffleReminder(ctx, cfg, a, notice)
 	default:
@@ -43,8 +48,8 @@ func raffleWinnerLines(ctx context.Context, cfg AnnouncementConfig, a RaffleAnno
 	if !raffle.WonOn() {
 		return nil
 	}
-	loyalty, _ := ReadLoyaltyConfig(ctx, cfg.Proj, channel)
-	override := pointsRaffleTemplate(raffle.WonMessage)
+	currency := DrawCurrencyName(ctx, cfg.Proj, channel)
+	override := module.KV("points", currency).WithNamespace("draw").ExpandString(pointsRaffleTemplate(raffle.WonMessage))
 	key := "raffle.won.paid"
 	if len(notice.Slots) == 1 {
 		key = "raffle.won.paid.single"
@@ -52,7 +57,7 @@ func raffleWinnerLines(ctx context.Context, cfg AnnouncementConfig, a RaffleAnno
 	return chunkMentions(notice.Slots, func(slot draw.Slot) string { return slot.Login }, func(targets string) string {
 		return a.render(override, key,
 			"targets", targets, "count", strconv.Itoa(len(notice.Slots)),
-			"entrants", strconv.Itoa(notice.Entries), "amount", drawPoints(notice.Round), "points", loyalty.Name())
+			"entrants", strconv.Itoa(notice.Entries), "amount", drawPoints(notice.Round), "points", currency)
 	})
 }
 

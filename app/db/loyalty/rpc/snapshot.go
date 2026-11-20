@@ -13,10 +13,16 @@ import (
 )
 
 func (l *loyaltyRPC) subscribeSnapshots(w bus.RPCWiring, prefix string) error {
-	if err := bus.Serve(w, prefix+"."+loyaltyrpc.VerbSnapshotCreate, l.handleSnapshotCreate); err != nil {
-		return err
+	for verb, register := range map[string]func(string) error{
+		loyaltyrpc.VerbSnapshotCreate: func(subject string) error { return bus.Serve(w, subject, l.handleSnapshotCreate) },
+		loyaltyrpc.VerbSnapshotDrop:   func(subject string) error { return bus.Serve(w, subject, l.handleSnapshotDrop) },
+		loyaltyrpc.VerbSnapshotExtend: func(subject string) error { return bus.Serve(w, subject, l.handleSnapshotExtend) },
+	} {
+		if err := register(prefix + "." + verb); err != nil {
+			return err
+		}
 	}
-	return bus.Serve(w, prefix+"."+loyaltyrpc.VerbSnapshotDrop, l.handleSnapshotDrop)
+	return nil
 }
 
 func (l *loyaltyRPC) handleSnapshotCreate(ctx context.Context, req loyaltyrpc.SnapshotCreateRequest) loyaltyrpc.SnapshotRef {
@@ -43,4 +49,18 @@ func (l *loyaltyRPC) handleSnapshotDrop(ctx context.Context, req loyaltyrpc.Snap
 		return loyaltyrpc.SnapshotDropped{Refusal: l.fail("loyalty snapshot.drop", err).Refusal}
 	}
 	return loyaltyrpc.SnapshotDropped{Dropped: dropped}
+}
+
+func (l *loyaltyRPC) handleSnapshotExtend(ctx context.Context, req loyaltyrpc.SnapshotExtendRequest) loyaltyrpc.SnapshotExtended {
+	userID, err := bus.NonZeroUserID(req.UserID)
+	if err != nil {
+		return loyaltyrpc.SnapshotExtended{Refusal: invalidStandings(err)}
+	}
+	updated, err := l.repo.ExtendSnapshot(ctx, repository.SnapshotExtension{
+		UserID: userID, ID: repository.SnapshotID(req.SnapshotID), ExpiresAt: time.UnixMilli(req.ExpiresAt),
+	})
+	if err != nil {
+		return loyaltyrpc.SnapshotExtended{Refusal: l.fail("loyalty snapshot.extend", err).Refusal}
+	}
+	return loyaltyrpc.SnapshotExtended{Extended: updated}
 }

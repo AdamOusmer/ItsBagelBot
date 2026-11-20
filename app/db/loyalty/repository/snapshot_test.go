@@ -136,3 +136,34 @@ func verifyMigratedStandings(t *testing.T, r *loyaltyrepo.Loyalty, legacy legacy
 	require.Len(t, page.Rows, 1)
 	assert.Equal(t, int64(100), page.Rows[0].Points)
 }
+
+func TestExtendPrivateSnapshot(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		public, dropped bool
+		want            bool
+	}{
+		{name: "extend private cutoff", want: true},
+		{name: "public pause is independent", public: true},
+		{name: "dropped cutoff stays expired", dropped: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r, _ := sqliteRetentionRepo(t)
+			ctx := t.Context()
+			state := takeSnapshot(t, r)
+			if tc.public {
+				state = setFreeze(t, r)
+			}
+			if tc.dropped {
+				_, err := r.DropSnapshot(ctx, freezeChannel, state.SnapshotID)
+				require.NoError(t, err)
+			}
+			req := loyaltyrepo.SnapshotExtension{UserID: freezeChannel, ID: state.SnapshotID, ExpiresAt: state.ExpiresAt.Add(time.Minute)}
+			for range 2 {
+				applied, err := r.ExtendSnapshot(ctx, req)
+				require.NoError(t, err)
+				require.Equal(t, tc.want, applied)
+			}
+		})
+	}
+}

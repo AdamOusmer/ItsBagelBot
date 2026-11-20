@@ -82,7 +82,6 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 	followage := engine.NewFollowageRPC(in.nc, cfg.OutgressRPCPrefix)
 	winners := engine.NewGiveawayWinnersRPC(in.nc, cfg.ModulesRPCPrefix)
 	checker := engine.NewEligibility(rt.loyalty, followage, accountsRPC, winners)
-	checker.WatchFreezes(w.invalidations)
 	recipeState := engine.NewRecipeStateRPC(in.nc, cfg.ModulesRPCPrefix)
 	return engine.Deps{
 		AutomationHook: &engine.AutomationHook{},
@@ -248,7 +247,7 @@ func newDraw(w wireCtx, rt engineRuntime, ports drawPorts) *draw.Store {
 	log := w.log.Named("draw")
 	announce := announcementConfig(w, rt.proj)
 	store := draw.NewStore(w.in.vc, draw.Config{Log: log, LegacyKey: engine.RaffleStateKey,
-		LegacyDeadlineKey: engine.RaffleDeadlineKey, Payer: engine.NewDrawPayer(rt.loyalty, announce.Runtime),
+		LegacyDeadlineKey: engine.RaffleDeadlineKey, Live: rt.live, Snapshots: rt.loyalty, Payer: engine.NewDrawPayer(rt.loyalty, announce.Runtime),
 		Announcer: engine.NewDrawAnnouncer(announce, log, rt.analytics), Verifier: ports.verifier,
 		Winners: engine.GiveawayWinnerSink{Winners: ports.winners}, Phases: engine.GiveawayPhaseObserver{Snapshots: rt.loyalty, Log: log}})
 	go store.Run(w.ctx)
@@ -349,4 +348,9 @@ func registerAutomationRPC(w wireCtx, pipe *engine.Pipeline, app *newrelic.Appli
 func registerGiveawayRPC(w wireCtx, deps engine.Deps, standings engine.GiveawayBalanceCounter, app *newrelic.Application) error {
 	giveaway := engine.GiveawayRPC{Deps: deps, Announce: announcementConfig(w, deps.Proj), Standings: standings}
 	return giveaway.Subscribe(bus.RPCWiring{NC: w.in.nc, Queue: queueGroup, App: app, Log: w.log})
+}
+
+func registerRaffleRPC(w wireCtx, deps engine.Deps, app *newrelic.Application) error {
+	raffle := engine.RaffleRPC{Deps: deps, Announce: announcementConfig(w, deps.Proj)}
+	return raffle.Subscribe(bus.RPCWiring{NC: w.in.nc, Queue: queueGroup, App: app, Log: w.log})
 }

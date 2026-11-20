@@ -49,11 +49,12 @@ func (a drawAnnouncer) Announce(ctx context.Context, notice draw.Notice) {
 	}
 }
 
-func fallbackDrawNotice(_ drawAnnouncer, _ context.Context, locale string, notice draw.Notice) []string {
+func fallbackDrawNotice(a drawAnnouncer, ctx context.Context, locale string, notice draw.Notice) []string {
 	if notice.Event == draw.NoticeRemind {
 		return []string{drawReminder(locale, notice)}
 	}
-	return []string{module.KV("targets", DrawTargets(notice.Slots), "points", drawPoints(notice.Round)).WithNamespace("draw").
+	currency := DrawCurrencyName(ctx, a.cfg.Proj, uint64(notice.Round.Channel))
+	return []string{module.KV("targets", DrawTargets(notice.Slots), "points", currency, "amount", drawPoints(notice.Round)).WithNamespace("draw").
 		ExpandString(i18n.T(locale, drawNoticeKey(notice)))}
 }
 

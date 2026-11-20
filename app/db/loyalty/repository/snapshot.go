@@ -23,6 +23,12 @@ type SnapshotRequest struct {
 	ExpiresAt time.Time
 }
 
+type SnapshotExtension struct {
+	UserID    uint64
+	ID        SnapshotID
+	ExpiresAt time.Time
+}
+
 type snapshotKey struct {
 	userID uint64
 	id     SnapshotID

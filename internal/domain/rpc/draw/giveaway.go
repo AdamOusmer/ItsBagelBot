@@ -57,18 +57,19 @@ type GiveawaySlot struct {
 }
 
 type GiveawayRound struct {
-	ID           string         `json:"id"`
-	Kind         string         `json:"kind"`
-	Phase        string         `json:"phase"`
-	Prize        string         `json:"prize"`
-	Winners      int            `json:"winners"`
-	OpenedMS     int64          `json:"opened_ms"`
-	ClosesMS     int64          `json:"closes_ms"`
-	FreezeEndsMS int64          `json:"freeze_ends_ms,omitempty"`
-	Entries      int            `json:"entries"`
-	Refused      int64          `json:"refused"`
-	Slots        []GiveawaySlot `json:"slots"`
-	Requirements []string       `json:"requirements"`
+	ID              string         `json:"id"`
+	Kind            string         `json:"kind"`
+	Phase           string         `json:"phase"`
+	Prize           string         `json:"prize"`
+	Winners         int            `json:"winners"`
+	OpenedMS        int64          `json:"opened_ms"`
+	ClosesMS        int64          `json:"closes_ms"`
+	FreezeEndsMS    int64          `json:"freeze_ends_ms,omitempty"`
+	Entries         int            `json:"entries"`
+	Refused         int64          `json:"refused"`
+	ClaimPausedAtMS int64          `json:"claim_paused_at_ms,omitempty"`
+	Slots           []GiveawaySlot `json:"slots"`
+	Requirements    []string       `json:"requirements"`
 }
 
 type GiveawayReply struct {

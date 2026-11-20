@@ -5,6 +5,7 @@ package modules
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
@@ -25,6 +26,7 @@ func Draw(d engine.Deps) module.Module {
 	owner := drawOwner{deps: d, log: log}
 	m := module.NewModule(drawModuleName, module.KindCore)
 	m.Command("join").Everyone().Yields().When(ownsDrawCommand(owner.resolveJoin)).Run(owner.join)
+	m.Command("enter").Aliases("ticket").Everyone().Yields().When(ownsDrawCommand(owner.resolveEntryAlias)).Run(owner.entryAlias)
 	m.Command("check").Everyone().Yields().When(ownsDrawCommand(owner.resolveCheck)).UserCooldown(eligibility.Limits.CheckCooldown).Run(owner.check)
 	m.Command("claim").Everyone().Yields().When(ownsDrawCommand(owner.resolveClaim)).Run(owner.claim)
 	m.Command("winner").Everyone().Yields().When(ownsDrawCommand(owner.resolveWinner)).Cooldown(draw.Pins.WinnerCooldown).Run(owner.winner)
@@ -43,6 +45,8 @@ type drawCommandState struct {
 	found       bool
 	legacy      raffleCmd
 	legacyFound bool
+	legacyOpen  bool
+	aliasKey    string
 	result      *engine.RaffleResult
 	err         error
 }
@@ -88,9 +92,54 @@ func (d drawOwner) resolveJoin(ctx context.Context, c *module.Context) drawComma
 	}
 	legacy, err := d.deps.Raffle.Status(ctx, c.BroadcasterID)
 	if legacy.Open {
-		return drawCommandState{legacyFound: true, err: err}
+		return drawCommandState{legacyFound: true, legacyOpen: true, err: err,
+			aliasKey: "legacy:" + strconv.FormatUint(c.BroadcasterID, 10) + ":" + strconv.FormatInt(legacy.DeadlineMS, 10)}
 	}
 	return drawCommandState{round: r, legacyFound: wantsClosedRaffle(c), err: err}
+}
+
+func (d drawOwner) resolveEntryAlias(ctx context.Context, c *module.Context) drawCommandState {
+	state := d.resolveJoin(ctx, c)
+	switch {
+	case state.found:
+		state.aliasKey = string(state.round.ID)
+	case !state.legacyOpen:
+		return drawCommandState{err: state.err}
+	}
+	return state
+}
+
+func (d drawOwner) entryAlias(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+	state := drawState(ctx, c, d.resolveEntryAlias)
+	if state.err != nil || state.aliasKey == "" {
+		return state.err
+	}
+	key := "cd:draw:entry_alias:" + state.aliasKey + ":" + c.Env.ChatterUserID
+	first, err := d.deps.Cooldown.Allow(ctx, key, draw.Pins.MaxOpen)
+	if err != nil {
+		return err
+	}
+	if !first {
+		return d.join(ctx, c, args, emit)
+	}
+	return d.joinWithFreeNotice(ctx, c, emit)
+}
+
+func (d drawOwner) joinWithFreeNotice(ctx context.Context, c *module.Context, emit module.Emit) error {
+	reply := newChatReplier(c)
+	free := reply.render("", "draw.join.free")
+	sent := false
+	err := d.join(ctx, c, "", func(o *module.Output) {
+		if !sent {
+			o.Text += " " + free
+			sent = true
+		}
+		emit(o)
+	})
+	if err == nil && !sent {
+		reply.say(emit, free)
+	}
+	return err
 }
 
 func hasJoinRound(phase draw.Phase, found bool) bool {
@@ -120,7 +169,7 @@ func (d drawOwner) join(ctx context.Context, c *module.Context, _ string, emit m
 }
 
 func (d drawOwner) joinRound(ctx context.Context, c *module.Context, r draw.Round, emit module.Emit) error {
-	joiner, err := drawJoiner(c, r.Terms.Kind)
+	joiner, err := drawJoiner(c, r)
 	if err != nil {
 		return nil
 	}
@@ -134,7 +183,7 @@ func (d drawOwner) joinRound(ctx context.Context, c *module.Context, r draw.Roun
 		return d.replyJoinLookupFailure(ctx, c, emit, draw.Check{Round: r, Viewer: viewer})
 	}
 	if !verdict.Pass {
-		return d.refuseJoin(ctx, c, emit, refusedJoin{r, viewer, verdict})
+		return d.refuseJoin(ctx, c, refusedJoin{r, viewer, verdict})
 	}
 	joined, err := d.deps.Draw.Join(ctx, draw.JoinRequest{Channel: draw.ChannelID(c.BroadcasterID),
 		Round: r.ID, Viewer: viewer, Login: strings.ToLower(c.Env.ChatterUserLogin), Weight: verdict.Weight})

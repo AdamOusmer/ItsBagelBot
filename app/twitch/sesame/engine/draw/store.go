@@ -28,6 +28,8 @@ type Config struct {
 	Announcer         Announcer
 	Winners           WinnerSink
 	Phases            PhaseObserver
+	Live              StreamState
+	Snapshots         SnapshotExtender
 	LegacyKey         func(ChannelID) string
 	LegacyDeadlineKey func(ChannelID) string
 	Random            func(int64) int64
@@ -153,12 +155,12 @@ func (s *Store) openSpec(r Round, openedOrder int64) (valkey.RoundOpen, error) {
 	if len(r.Actions) != 0 {
 		fields = append(fields, valkey.FieldValue{Field: "actions", Value: string(actions)})
 	}
-	next := r.ClosesAt
-	if r.Terms.remindersEnabled() {
-		reminder := r.OpenedAt.Add(Pins.RemindInterval)
-		fields = append(fields, timeField("remind_at", reminder))
-		next = earlier(reminder, next)
+	var remindAt time.Time
+	if r.regularReminders() {
+		remindAt = r.OpenedAt.Add(Pins.RemindInterval)
+		fields = append(fields, timeField("remind_at", remindAt))
 	}
+	next := r.nextReminder(remindAt, false).at
 	return valkey.RoundOpen{
 		RoundID: string(r.ID), Channel: uint64(r.Channel), Legacy: roundLegacyKey(r.Channel, s.cfg.LegacyKey, legacyStateKey),
 		LegacyDeadline: roundLegacyKey(r.Channel, s.cfg.LegacyDeadlineKey, legacyDeadlineKey),
@@ -183,9 +185,6 @@ func validateTerms(req OpenRequest, now time.Time) (Terms, error) {
 	if req.Duration != 0 {
 		t.ClosesAt = now.Add(req.Duration)
 	}
-	if t.FreezeEndsMS > 0 {
-		t.ClosesAt = earlier(t.ClosesAt, fromMillis(t.FreezeEndsMS))
-	}
 	t.ClosesAt = t.ClosesAt.Truncate(time.Millisecond)
 	if !t.validEntryDeadline(now) {
 		return Terms{}, ErrInvalidTerms
@@ -200,13 +199,14 @@ func validateTerms(req OpenRequest, now time.Time) (Terms, error) {
 }
 
 func (t Terms) validEntryDeadline(now time.Time) bool {
-	if !t.ClosesAt.After(now) || t.ClosesAt.After(now.Add(Pins.MaxOpen)) {
-		return false
+	return t.ClosesAt.After(now) && !t.ClosesAt.After(now.Add(t.maxWindow()))
+}
+
+func (t Terms) maxWindow() time.Duration {
+	if t.Kind == KindGiveaway {
+		return Pins.GiveawayMaxEntryWindow
 	}
-	if t.Kind != KindGiveaway || t.FreezeEndsMS <= 0 {
-		return true
-	}
-	return !fromMillis(t.FreezeEndsMS).Before(now.Add(Pins.GiveawayMinEntryWindow))
+	return Pins.MaxOpen
 }
 
 func (r OpenRequest) validTarget() bool {

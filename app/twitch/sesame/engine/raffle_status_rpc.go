@@ -34,7 +34,7 @@ func (s RaffleStatusRPC) status(ctx context.Context, req drawrpc.RaffleStatusReq
 		s.Log.Warn("raffle status unavailable", zap.Error(err))
 		return drawrpc.RaffleStatus{Refusal: rpc.Refused(rpc.CodeUnavailable, "raffle status unavailable")}
 	}
-	return drawrpc.RaffleStatus{AccrualHealth: string(s.Watch.AccrualHealth(ctx, id)), Unpaid: unpaidRaffleViewers(rounds)}
+	return drawrpc.RaffleStatus{AccrualHealth: string(s.Watch.AccrualHealth(ctx, id)), Unpaid: unpaidRaffleViewers(rounds), Rounds: raffleRoundViews(rounds)}
 }
 
 func unpaidRaffleViewers(rounds []draw.RoundView) []string {
@@ -54,4 +54,15 @@ func appendUnpaidViewers(names []string, slots []draw.Slot) []string {
 		}
 	}
 	return names
+}
+
+func raffleRoundViews(rounds []draw.RoundView) []drawrpc.RaffleRound {
+	var views []drawrpc.RaffleRound
+	for _, round := range rounds {
+		if round.Terms.Kind == draw.KindRaffle {
+			views = append(views, drawrpc.RaffleRound{ID: string(round.ID), Phase: string(round.Phase),
+				ClosesMS: round.ClosesAt.UnixMilli(), Entries: round.Entries})
+		}
+	}
+	return views
 }

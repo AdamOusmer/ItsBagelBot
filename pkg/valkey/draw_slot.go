@@ -174,7 +174,10 @@ local function claim(slots, round, ref, field, generation)
   local slot = stamped_slot(slots, field, 'won', generation)
   if not slot then return 3 end
   if slot.viewer_id and slot.viewer_id ~= viewer then return 3 end
-  if (tonumber(slot.deadline) or 0) < now then return 2 end
+  local paused = tonumber(redis.call('HGET', round, 'claim_paused_at'))
+  local clock = now
+  if paused and paused > 0 then clock = math.max(paused, tonumber(slot.won_at) or 0) end
+  if (tonumber(slot.deadline) or 0) < clock then return 2 end
 
   slot.state = 'claimed'
   slot.claimed_at = now

@@ -137,13 +137,13 @@ var shippedContract = map[string]moduleSpec{
 		command("valmatches", roleEveryone, "valhistory"), command("valaccount", roleEveryone, "valwho"),
 		command("vallb", roleEveryone, "valleaderboard"), command("valshop", roleEveryone, "valrotation"),
 	}},
-	"giveaway": {module.KindOptIn, []commandSpec{command("giveaway", roleModerator), command("reroll", roleModerator)}},
+	"giveaway": {module.KindOptIn, []commandSpec{command("giveaway", roleEveryone), command("reroll", roleModerator)}},
 	"raffle": {module.KindOptIn, []commandSpec{
 		command("raffle", roleEveryone), command("sraffle", roleEveryone, "singleraffle"), command("mraffle", roleEveryone, "multiraffle"),
 		command("cancelraffle", roleEveryone),
 	}},
 	"draw": {module.KindCore, []commandSpec{
-		command("join", roleEveryone), command("check", roleEveryone), command("claim", roleEveryone), command("winner", roleEveryone),
+		command("join", roleEveryone), command("enter", roleEveryone, "ticket"), command("check", roleEveryone), command("claim", roleEveryone), command("winner", roleEveryone),
 	}},
 	"queue": {module.KindOptIn, []commandSpec{
 		command("queue", roleEveryone), command("join", roleEveryone), command("leave", roleEveryone), command("list", roleEveryone, "queuelist"),

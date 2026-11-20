@@ -53,9 +53,16 @@ func closeDue(ctx context.Context, s *Store, data snapshot, now time.Time) error
 	if now.Before(r.ClosesAt) {
 		return s.remind(ctx, data, now)
 	}
+	state, err := s.liveState(ctx, r)
+	if err != nil {
+		return err
+	}
+	if !state.Live {
+		return s.schedule(ctx, data, sweepPoll)
+	}
 	shift := phaseShift(r, PhaseClosing, now)
 	shift.Match = timeField("closes_at", r.ClosesAt)
-	_, err := s.shiftPhase(ctx, r, shift)
+	_, err = s.shiftPhase(ctx, r, shift)
 	return err
 }
 
@@ -129,6 +136,9 @@ func seedShift(r Round) (valkey.PhaseShift, error) {
 func settleSlots(ctx context.Context, s *Store, data snapshot, now time.Time) error {
 	if allTerminal(data) {
 		return s.finish(ctx, data, now)
+	}
+	if result, err := s.syncClaimClock(ctx, data, now); result != clockReady || err != nil {
+		return err
 	}
 	if verifyingNoticeDue(data, now) {
 		return s.markVerifying(ctx, data, now)
@@ -237,7 +247,10 @@ func (s *Store) announcePaidRaffle(ctx context.Context, data snapshot) {
 	}
 }
 
-func teardownRound(ctx context.Context, s *Store, data snapshot, _ time.Time) error {
+func teardownRound(ctx context.Context, s *Store, data snapshot, now time.Time) error {
+	if at := data.refusalAt(); !at.IsZero() {
+		return s.schedule(ctx, data, at.Sub(now))
+	}
 	r := data.round
 	return keysFor(r.Channel, r.ID).Teardown(ctx, s.client, string(r.ID))
 }

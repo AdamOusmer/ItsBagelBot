@@ -30,9 +30,11 @@ type drawEligibilityData struct {
 	standingsFailures int
 	followCalls       int
 	followErr         error
+	snapshotID        string
 }
 
-func (d *drawEligibilityData) Snapshot(context.Context, uint64, uint64) (loyaltyrpc.BalanceSnapshot, error) {
+func (d *drawEligibilityData) Snapshot(_ context.Context, req eligibility.StandingLookup) (loyaltyrpc.BalanceSnapshot, error) {
+	d.snapshotID = req.SnapshotID
 	if d.standingsFailures > 0 {
 		d.standingsFailures--
 		return loyaltyrpc.BalanceSnapshot{}, errors.New("standings unavailable")
@@ -57,9 +59,9 @@ type drawEligibilityCase struct {
 }
 
 type drawEligibilityResult struct {
-	entries, refused, refusalCalls, follows int
-	replies                                 []string
-	weight                                  int64
+	entries, refused, refusalCalls, follows, batched int
+	replies                                          []string
+	weight                                           int64
 }
 
 func TestDrawEligibilityProcess(t *testing.T) {
@@ -67,11 +69,13 @@ func TestDrawEligibilityProcess(t *testing.T) {
 	check := drawChatCall{command: "check", viewer: "7"}
 	rejoin := []drawChatCall{join, join}
 	lookupFailed := "@viewer eligibility could not be checked. Try again shortly."
-	roleRefusal := "@viewer your chat role does not meet the entry requirement."
-	pointsRefusal := "@viewer you need 100 points (you had 40 at 20:14 UTC)."
+	pointsRefusal := "@viewer you need 100 points. You had 40 when entries opened."
+	joinPassed := "@viewer you meet the entry requirements. "
 	cases := []drawEligibilityCase{
+		{name: "free entry notice is shared by both aliases", calls: []drawChatCall{{command: "enter", viewer: "7"}, {command: "ticket", viewer: "7"}},
+			results: drawEligibilityResult{entries: 1, weight: 100, replies: []string{"Entry is free."}}},
 		{name: "refused once", rules: eligibility.Rules{Role: eligibility.Sub}, calls: rejoin,
-			results: drawEligibilityResult{refused: 1, refusalCalls: 2, replies: []string{roleRefusal}}},
+			results: drawEligibilityResult{refused: 1, refusalCalls: 2, batched: 1}},
 		{name: "refusal disabled", rules: eligibility.Rules{Role: eligibility.Sub}, config: codec.RawMessage(`{"refusalEnabled":false}`),
 			calls: rejoin, results: drawEligibilityResult{refused: 1, refusalCalls: 2}},
 		{name: "invalid refusal config propagates after recording", rules: eligibility.Rules{Role: eligibility.Sub},
@@ -82,24 +86,24 @@ func TestDrawEligibilityProcess(t *testing.T) {
 			calls: rejoin, results: drawEligibilityResult{replies: []string{lookupFailed}}},
 		{name: "lookup failure leaves the rule refusal available", rules: eligibility.Rules{MinPoints: 100},
 			data: drawEligibilityData{standingsFailures: 1}, calls: rejoin,
-			results: drawEligibilityResult{refused: 1, refusalCalls: 1, replies: []string{lookupFailed, pointsRefusal}}},
+			results: drawEligibilityResult{refused: 1, refusalCalls: 1, replies: []string{lookupFailed}, batched: 1}},
 		{name: "lookup failure can recover and admit", rules: eligibility.Rules{MinPoints: 40},
 			data: drawEligibilityData{standingsFailures: 1}, calls: rejoin,
 			results: drawEligibilityResult{entries: 1, weight: 100, replies: []string{lookupFailed}}},
 		{name: "own bot messages are ignored", calls: []drawChatCall{{command: "join", viewer: "99"}}},
 		{name: "giveaway excludes its broadcaster", calls: []drawChatCall{{command: "join"}},
-			results: drawEligibilityResult{refused: 1, refusalCalls: 1, replies: []string{"@viewer the broadcaster cannot enter their own draw."}}},
+			results: drawEligibilityResult{refused: 1, refusalCalls: 1, batched: 1}},
 		{name: "raffle admits its broadcaster", kind: draw.KindRaffle, calls: []drawChatCall{{command: "join"}},
 			results: drawEligibilityResult{entries: 1, weight: 100}},
-		{name: "check reports standings with timestamp", rules: eligibility.Rules{MinPoints: 100, FollowersOnly: true},
+		{name: "check reports private cutoff before draw rules", rules: eligibility.Rules{MinPoints: 100, FollowersOnly: true},
 			calls: []drawChatCall{check}, results: drawEligibilityResult{
-				replies: []string{pointsRefusal + " Checked at the draw: channel follow."}}},
+				replies: []string{pointsRefusal + " We check these when we draw the winners: channel follow."}}},
 		{name: "check uses a per-viewer cooldown and checks follow", rules: eligibility.Rules{FollowersOnly: true},
 			calls:   []drawChatCall{check, check, {command: "check", viewer: "8"}},
-			results: drawEligibilityResult{follows: 2, replies: []string{"@viewer a channel follow could not be verified.", "@viewer a channel follow could not be verified."}}},
+			results: drawEligibilityResult{follows: 2, replies: []string{joinPassed + "@viewer a channel follow could not be verified.", joinPassed + "@viewer a channel follow could not be verified."}}},
 		{name: "check reports missing followers scope", rules: eligibility.Rules{FollowersOnly: true},
 			data: drawEligibilityData{followErr: eligibility.ErrFollowScope}, calls: []drawChatCall{check},
-			results: drawEligibilityResult{follows: 1, replies: []string{"@viewer the bot needs permission to read this channel's followers."}}},
+			results: drawEligibilityResult{follows: 1, replies: []string{joinPassed + "@viewer the bot needs permission to read this channel's followers."}}},
 		{name: "check confirms eligibility without entering", calls: []drawChatCall{check},
 			results: drawEligibilityResult{replies: []string{"@viewer you meet the entry requirements."}}},
 	}
@@ -146,12 +150,15 @@ func (tc drawEligibilityCase) run(t *testing.T) {
 	t.Cleanup(p.Close)
 	round := tc.open(t, store)
 	tc.process(t, p, round.Channel)
+	if tc.rules.NeedsStandings() {
+		require.Equal(t, "private-snapshot", data.snapshotID)
+	}
 	rounds, err := store.Live(t.Context(), round.Channel)
 	require.NoError(t, err)
 	require.Len(t, rounds, 1)
 	require.Equal(t, tc.results, drawEligibilityResult{
 		entries: rounds[0].Entries, refused: int(rounds[0].Refused), refusalCalls: store.refusals,
-		follows: data.followCalls, replies: drawReplies(t, pub), weight: store.joined.Weight,
+		follows: data.followCalls, batched: store.batched, replies: drawReplies(t, pub), weight: store.joined.Weight,
 	})
 }
 
@@ -173,6 +180,9 @@ func (tc drawEligibilityCase) open(t *testing.T, store engine.DrawStore) draw.Ro
 	require.NoError(t, err)
 	channel := draw.ChannelID(time.Now().UnixNano())
 	terms := draw.Terms{Kind: draw.KindGiveaway, Prize: draw.Prize{Item: "Prize"}, Rules: raw, ClosesAt: time.Now().Add(time.Minute)}
+	if tc.rules.NeedsStandings() {
+		terms.SnapshotID = "private-snapshot"
+	}
 	if tc.kind == draw.KindRaffle {
 		terms.Kind, terms.Prize = draw.KindRaffle, draw.Prize{Points: 100}
 	}

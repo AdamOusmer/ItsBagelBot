@@ -63,6 +63,8 @@ const (
 	NoticeEmpty     NoticeEvent = "empty"
 	NoticeUnpaid    NoticeEvent = "unpaid"
 	NoticeRemind    NoticeEvent = "remind"
+	NoticeMidCount  NoticeEvent = "mid_count"
+	NoticeRefusals  NoticeEvent = "refusals"
 	NoticeUnfilled  NoticeEvent = "unfilled"
 )
 
@@ -72,6 +74,7 @@ type Notice struct {
 	Slots    []Slot
 	Entries  int
 	TimeLeft time.Duration
+	Refused  []RefusedViewer
 }
 
 type Announcer interface {
@@ -93,3 +96,22 @@ type PhaseObserver interface {
 type IgnorePhaseChanges struct{}
 
 func (IgnorePhaseChanges) LeftOpen(context.Context, Round) {}
+
+type StreamState interface {
+	DrawLiveState(context.Context, uint64) (LiveState, error)
+}
+
+type LiveState struct {
+	Live      bool
+	ChangedAt time.Time
+}
+
+type SnapshotExtension struct {
+	Channel   ChannelID
+	ID        string
+	ExpiresAt time.Time
+}
+
+type SnapshotExtender interface {
+	ExtendSnapshot(context.Context, SnapshotExtension) (bool, error)
+}

@@ -143,11 +143,22 @@ func loyaltyModuleConfig(ctx context.Context, proj projection.Reader, broadcaste
 	if state != ModuleOn {
 		return LoyaltyModuleConfig{}, false
 	}
+	return decodeLoyaltyConfig(view.Configs)
+}
+
+func DrawCurrencyName(ctx context.Context, proj projection.Reader, channel uint64) string {
+	view, _, _ := ModuleLookup{Proj: proj, BroadcasterID: channel, Name: LoyaltyModuleName, Absent: ModuleOff}.Resolve(ctx)
+	cfg, _ := decodeLoyaltyConfig(view.Configs)
+	return cfg.Name()
+}
+
+func decodeLoyaltyConfig(raw codec.RawMessage) (LoyaltyModuleConfig, bool) {
 	var cfg LoyaltyModuleConfig
-	if len(view.Configs) > 0 {
-		if err := codec.Unmarshal(view.Configs, &cfg); err != nil {
-			return LoyaltyModuleConfig{}, false
-		}
+	if len(raw) == 0 {
+		return cfg, true
+	}
+	if err := codec.Unmarshal(raw, &cfg); err != nil {
+		return LoyaltyModuleConfig{}, false
 	}
 	return cfg, true
 }

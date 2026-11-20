@@ -5,6 +5,7 @@ package draw_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -24,8 +25,14 @@ type giveawayLifecycleProjection struct {
 }
 
 func (giveawayLifecycleProjection) Module(context.Context, uint64, string) (projection.ModuleView, bool, error) {
-	raw := codec.RawMessage(`{"defaultPrize":"Game","windowSeconds":600,"defaultPreset":"all","openedMessage":"{giveaway:prize} for {giveaway:mins} min.","presets":[{"name":"all","freezeWhileOpen":true}]}`)
+	raw := codec.RawMessage(`{"defaultPrize":"Game","windowSeconds":600,"defaultPreset":"all","presets":[{"name":"all","freezeWhileOpen":false,"rules":{"min_points":100}}]}`)
 	return projection.ModuleView{Name: engine.GiveawayModuleName, IsEnabled: true, Configs: raw}, true, nil
+}
+
+type giveawayLifecycleClock struct{ engine.LoyaltyTicker }
+
+func (giveawayLifecycleClock) AccrualHealth(context.Context, uint64) engine.AccrualState {
+	return engine.AccrualHealthy
 }
 
 type giveawayLifecycleSnapshots struct {
@@ -67,7 +74,7 @@ func TestGiveawaySnapshotLifecycle(t *testing.T) {
 func (tc giveawayLifecycleCase) run(t *testing.T) {
 	snapshots := &giveawayLifecycleSnapshots{dropped: make(chan droppedSnapshot, 2)}
 	f := newFixture(t, draw.Config{Phases: engine.GiveawayPhaseObserver{Snapshots: snapshots, Log: zap.NewNop()}})
-	deps := engine.Deps{Draw: f.Store, StandingsSnapshots: snapshots, Proj: giveawayLifecycleProjection{}, Automod: automod.New()}
+	deps := engine.Deps{Draw: f.Store, StandingsSnapshots: snapshots, Proj: giveawayLifecycleProjection{}, LoyaltyTick: giveawayLifecycleClock{}, Automod: automod.New()}
 	outcome, err := engine.StartGiveaway(t.Context(), deps, engine.GiveawayStart{Channel: 42, Actor: "7", Window: tc.window})
 	require.NoError(t, err)
 
@@ -77,23 +84,11 @@ func (tc giveawayLifecycleCase) run(t *testing.T) {
 	tc.checkRound(f, outcome.Round, snapshots)
 }
 
-func TestGiveawayDrawRejectsTooShortFreeze(t *testing.T) {
-	f := newFixture(t, draw.Config{})
-	terms := draw.Terms{Kind: draw.KindGiveaway, FreezeID: "snapshot"}
-	for _, window := range []time.Duration{-time.Second, 500 * time.Millisecond} {
-		t.Run(window.String(), func(t *testing.T) {
-			terms.FreezeEndsMS = f.now().Add(window).UnixMilli()
-			_, _, err := f.Open(t.Context(), draw.OpenRequest{ID: draw.NewRoundID(), Channel: 42, Terms: terms, Duration: time.Minute})
-			require.ErrorIs(t, err, draw.ErrInvalidTerms)
-		})
-	}
-}
-
 func (tc giveawayLifecycleCase) checkRound(f fixture, r draw.Round, snapshots *giveawayLifecycleSnapshots) {
 	f.t.Helper()
 	ctx := f.t.Context()
 	require.Equal(f.t, engine.SnapshotRequest{BroadcasterID: 42, Owner: "round:" + string(r.ID), ExpiresAt: r.ClosesAt}, snapshots.created)
-	require.Equal(f.t, "snapshot", r.Terms.FreezeID)
+	require.Equal(f.t, "snapshot", r.Terms.SnapshotID)
 	f.t.Cleanup(func() {
 		require.NoError(f.t, drawKeys(r).Teardown(context.Background(), f.client, string(r.ID)))
 	})
@@ -142,4 +137,57 @@ func TestGiveawayRoundTargetRejectsStaleDashboardActions(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, found)
 	require.Equal(t, current.ID, matched.ID)
+}
+
+func TestDrawRerollsCurrentWinnerByLogin(t *testing.T) {
+	ann := make(notices, 6)
+	f := newFixture(t, draw.Config{Announcer: ann, Random: func(int64) int64 { return 0 }})
+	r := f.open(431, draw.Terms{Kind: draw.KindGiveaway, ClaimWindow: 30 * time.Second})
+	f.join(r, "11")
+	f.join(r, "12")
+	f.close(r.Channel)
+	f.start(f.Store)
+	winners := ann.next(t, draw.NoticeWinners).Slots
+	f.expireLine(r, winners)
+	ann.next(t, draw.NoticeNoShow)
+	for _, tc := range []struct {
+		login string
+		want  int
+	}{{"viewer12", 0}, {"VIEWER11", 1}} {
+		applied, err := f.Reroll(t.Context(), draw.SlotAction{Channel: r.Channel, Login: tc.login})
+		require.NoError(t, err)
+		require.Equal(t, tc.want, applied)
+	}
+	replacement := ann.next(t, draw.NoticeWinners).Slots[0]
+	require.Equal(t, draw.ViewerID("12"), replacement.Viewer)
+}
+
+func TestDrawRefusalBatchSurvivesClosing(t *testing.T) {
+	for _, phase := range []draw.Phase{draw.PhaseClosing, draw.PhaseCancelled} {
+		t.Run(string(phase), func(t *testing.T) {
+			ann := make(notices, 5)
+			f := newFixture(t, draw.Config{Announcer: ann})
+			r := f.open(433, draw.Terms{Kind: draw.KindGiveaway})
+			viewers := []draw.RefusedViewer{{Login: "a", Reason: "watch", Need: 7200}, {Login: "b", Reason: "watch", Need: 7200}}
+			for i, viewer := range viewers {
+				req := draw.Refusal{Round: r, Viewer: draw.ViewerID(strconv.Itoa(i + 1)), Reason: viewer.Reason, Notice: &viewer}
+				first, _, err := f.Refuse(t.Context(), req)
+				require.NoError(t, err)
+				require.True(t, first)
+			}
+			if phase == draw.PhaseCancelled {
+				ok, err := cancelSnapshotGiveaway(f.Store, t.Context(), r)
+				require.NoError(t, err)
+				require.True(t, ok)
+			} else {
+				f.close(r.Channel)
+			}
+			r.Phase = phase
+			now := f.now()
+			f.shiftFields(r, now, testTimeField("refusal_at", now.Add(-time.Second)))
+			f.start(f.Store)
+			require.ElementsMatch(t, viewers, ann.next(t, draw.NoticeRefusals).Refused)
+			waitRemoved(t, f.client, drawKeys(r))
+		})
+	}
 }

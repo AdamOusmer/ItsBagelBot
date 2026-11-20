@@ -4,6 +4,7 @@
 package modules
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -77,4 +78,13 @@ func (arg raffleArg) durationOr(fallback time.Duration) (time.Duration, bool) {
 	}
 	seconds, err := strconv.ParseUint(string(arg), 10, 32)
 	return engine.ClampRaffleDuration(time.Duration(seconds) * time.Second), err == nil
+}
+
+var stuckRaffleAmount = regexp.MustCompile(`(?i)^([0-9]+(?:[.,][0-9]+)?[km])([0-9]+)$`)
+
+func raffleUsageKey(args string) replyKey {
+	if stuckRaffleAmount.MatchString(strings.TrimSpace(args)) {
+		return "raffle.err.missing_space"
+	}
+	return "raffle.err.usage"
 }

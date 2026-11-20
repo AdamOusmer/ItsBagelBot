@@ -6,6 +6,7 @@ package draw
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
 	"ItsBagelBot/pkg/codec"
@@ -39,18 +40,22 @@ type SlotAction struct {
 	Channel ChannelID
 	Actor   ViewerID
 	Slot    int
+	Login   string
 	Round   RoundID
 	Kind    Kind
 }
 
 func (s *Store) Close(ctx context.Context, req CloseRequest) (bool, error) {
-	r, found, err := s.Joinable(ctx, req.Channel)
-	if err != nil || !r.targetable(found, req.Kind, req.Round) {
+	r, err := s.joinRound(ctx, req.Channel)
+	if err != nil || !r.targetable(r.Phase == PhaseOpen, req.Kind, req.Round) {
 		return false, err
 	}
 	now, err := valkey.ServerNow(ctx, s.client)
 	if err != nil {
 		return false, err
+	}
+	if r.Terms.Kind == KindRaffle && !now.Before(r.ClosesAt) {
+		return false, nil
 	}
 	override, err := req.winnerOverride()
 	if err != nil {
@@ -81,20 +86,31 @@ func (s *Store) Extend(ctx context.Context, req ExtendRequest) (bool, error) {
 		return false, err
 	}
 	next := r.ClosesAt.Add(time.Minute)
-	bound := r.OpenedAt.Add(Pins.MaxOpen)
-	if r.Terms.FreezeEndsMS > 0 {
-		bound = earlier(bound, fromMillis(r.Terms.FreezeEndsMS))
-	}
+	bound := r.OpenedAt.Add(r.Terms.maxWindow())
 	if !req.Until.IsZero() {
 		bound = earlier(bound, req.Until)
 	}
 	if next.After(bound) {
 		return false, nil
 	}
+	if ok, err := s.extendCutoff(ctx, r, next); err != nil || !ok {
+		return false, err
+	}
 	shift := phaseShift(r, PhaseOpen, now)
 	shift.Match = timeField("closes_at", r.ClosesAt)
 	shift.Fields = []valkey.FieldValue{timeField("closes_at", next)}
 	return s.amend(ctx, r, shift, Action{Kind: "extend", Actor: req.Actor, At: now, Value: shift.Fields[0].Value})
+}
+
+func (s *Store) extendCutoff(ctx context.Context, r Round, until time.Time) (bool, error) {
+	id := r.Terms.StandingsID()
+	if id == "" {
+		return true, nil
+	}
+	if s.cfg.Snapshots == nil {
+		return false, ErrInvalidTerms
+	}
+	return s.cfg.Snapshots.ExtendSnapshot(ctx, SnapshotExtension{Channel: r.Channel, ID: id, ExpiresAt: until})
 }
 
 func (s *Store) Cancel(ctx context.Context, req ModAction) (bool, error) {
@@ -213,10 +229,17 @@ func (s *Store) changeSlots(ctx context.Context, req SlotAction, kind slotAction
 	if err != nil || !now.Before(settlementDeadline(data.round)) {
 		return 0, err
 	}
-	action := Action{Kind: string(kind), Actor: req.Actor, At: now, Value: strconv.Itoa(req.Slot)}
+	action := Action{Kind: string(kind), Actor: req.Actor, At: now, Value: req.selection()}
 	edit := slotEdit{action: action, transitions: modTransitions(data, req, action)}
 	stampSlotTimes(data, edit.transitions, now, 0)
 	return s.commitEdit(ctx, data, edit)
+}
+
+func (req SlotAction) selection() string {
+	if req.Login != "" {
+		return "@" + req.Login
+	}
+	return strconv.Itoa(req.Slot)
 }
 
 func (s *Store) slotActionRound(ctx context.Context, req SlotAction, kind slotActionKind) (snapshot, error) {
@@ -259,7 +282,7 @@ func actionMatches(r Round, req SlotAction, kind slotActionKind) bool {
 func modTransitions(data snapshot, req SlotAction, action Action) []slotChange {
 	var changes []slotChange
 	for _, slot := range data.slots {
-		if req.Slot != 0 && slot.N != req.Slot {
+		if !req.Matches(slot) {
 			continue
 		}
 		if next := modSlot(data.round, slot, action); next.State != "" {
@@ -267,6 +290,22 @@ func modTransitions(data snapshot, req SlotAction, action Action) []slotChange {
 		}
 	}
 	return changes
+}
+
+func (req SlotAction) Matches(slot Slot) bool {
+	if req.Login != "" {
+		return namedWinner(slot.State) && strings.EqualFold(req.Login, slot.Login)
+	}
+	return req.Slot == 0 || slot.N == req.Slot
+}
+
+func namedWinner(state SlotState) bool {
+	switch state {
+	case SlotWon, SlotNoShow, SlotClaimed:
+		return true
+	default:
+		return false
+	}
 }
 
 func modSlot(r Round, slot Slot, action Action) Slot {

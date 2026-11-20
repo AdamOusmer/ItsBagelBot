@@ -5,7 +5,6 @@ package engine
 
 import (
 	"context"
-	"slices"
 	"strconv"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
-	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -33,32 +31,16 @@ func (o GiveawayStartOutcome) OpenedLine(locale string) string {
 	if requirements != "" {
 		key = "giveaway.opened.requirements"
 	}
-	return renderGiveaway(module.Locale(locale), o.openedTemplate(), key, module.KV(
+	return renderGiveaway(module.Locale(locale), o.Config.OpenedMessage, key, module.KV(
 		"prize", r.Terms.Prize.Item, "count", strconv.Itoa(r.Terms.Winners.Count),
 		"mins", strconv.FormatInt(int64((left+time.Minute-1)/time.Minute), 10),
 		"left", i18n.CompactDuration(locale, left), "requirements", requirements))
 }
 
-func (o GiveawayStartOutcome) openedTemplate() string {
-	override := o.Config.OpenedMessage
-	if !o.windowClamped || override == "" {
-		return override
-	}
-	tokens := tmpl.Lex(override)
-	if containsGiveawayField(tokens, "left") && !containsGiveawayField(tokens, "mins") {
-		return override
-	}
-	return ""
-}
-
-func containsGiveawayField(tokens []tmpl.Token, field string) bool {
-	return slices.ContainsFunc(tokens, func(token tmpl.Token) bool {
-		return module.TokenKey(token, "giveaway") == field
-	})
-}
-
 func noticeGiveaway(a drawAnnouncer, ctx context.Context, locale string, notice draw.Notice) []string {
 	switch notice.Event {
+	case draw.NoticeRefusals:
+		return a.giveawayRefusalLines(ctx, module.Locale(locale), notice)
 	case draw.NoticeWinners, draw.NoticeNoShow:
 		return a.giveawaySlotNotice(ctx, module.Locale(locale), notice)
 	case draw.NoticeEmpty, draw.NoticeUnfilled, draw.NoticeVerifying:

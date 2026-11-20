@@ -56,7 +56,7 @@ func (s *Store) metadata(ctx context.Context, ch ChannelID, id RoundID) (Round, 
 func decodeRound(id RoundID, raw map[string]string) (Round, error) {
 	r := Round{ID: id, Channel: ChannelID(parseUint(raw["channel"])), Phase: Phase(raw["phase"]),
 		OpenedAt: fromMillis(parseInt(raw["opened_at"])), ClosesAt: fromMillis(parseInt(raw["closes_at"])),
-		SettledAt: fromMillis(parseInt(raw["settled_at"])), Winners: int(parseInt(raw["winners"]))}
+		SettledAt: fromMillis(parseInt(raw["settled_at"])), ClaimPausedAt: fromMillis(parseInt(raw["claim_paused_at"])), Winners: int(parseInt(raw["winners"]))}
 	if err := codec.Unmarshal([]byte(raw["terms"]), &r.Terms); err != nil {
 		return Round{}, err
 	}

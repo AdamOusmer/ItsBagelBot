@@ -35,16 +35,8 @@ type GiveawayModuleConfig struct {
 }
 
 type GiveawayPreset struct {
-	Name            string            `json:"name"`
-	Rules           eligibility.Rules `json:"rules"`
-	FreezeWhileOpen *bool             `json:"freezeWhileOpen,omitempty"`
-}
-
-func (p GiveawayPreset) FreezeOn() bool {
-	if p.FreezeWhileOpen != nil {
-		return *p.FreezeWhileOpen
-	}
-	return p.Rules.NeedsStandings()
+	Name  string            `json:"name"`
+	Rules eligibility.Rules `json:"rules"`
 }
 
 var giveawayPresetName = regexp.MustCompile(`^[a-z0-9-]+$`)
@@ -83,7 +75,7 @@ func (c GiveawayModuleConfig) EntryWindow() time.Duration {
 	if err != nil || seconds <= 0 {
 		return draw.Pins.GiveawayEntryWindow
 	}
-	return time.Duration(min(seconds, int64(draw.Pins.MaxOpen/time.Second))) * time.Second
+	return time.Duration(min(seconds, int64(draw.Pins.GiveawayMaxEntryWindow/time.Second))) * time.Second
 }
 
 func (c GiveawayModuleConfig) ClaimWindow() time.Duration {

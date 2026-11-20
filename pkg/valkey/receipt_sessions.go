@@ -223,20 +223,25 @@ func ReadDrawPool(ctx context.Context, client valkey_go.Client, keys DrawPoolKey
 	return stateRaw, true, members, labels, nil
 }
 
-// StatusProbe reads whether a deadline key exists, a pool's size, and the deadline's remaining TTL in seconds, in one pipeline.
-func StatusProbe(ctx context.Context, client valkey_go.Client, deadlineKey, poolKey string) (exists bool, size, ttlSeconds int64, err error) {
+type DeadlineStatus struct {
+	Open                        bool
+	Size, TTLSeconds, ExpiresMS int64
+}
+
+func StatusProbe(ctx context.Context, client valkey_go.Client, deadlineKey, poolKey string) (DeadlineStatus, error) {
 	results := client.DoMulti(ctx,
-		client.B().Exists().Key(deadlineKey).Build(),
+		client.B().Pexpiretime().Key(deadlineKey).Build(),
 		client.B().Zcard().Key(poolKey).Build(),
 		client.B().Ttl().Key(deadlineKey).Build(),
 	)
-	existsN, err := results[0].AsInt64()
+	expires, err := results[0].AsInt64()
 	if err != nil {
-		return false, 0, 0, err
+		return DeadlineStatus{}, err
 	}
-	if size, err = results[1].AsInt64(); err != nil {
-		return false, 0, 0, err
+	size, err := results[1].AsInt64()
+	if err != nil {
+		return DeadlineStatus{}, err
 	}
-	ttlSeconds, err = results[2].AsInt64()
-	return existsN > 0, size, ttlSeconds, err
+	ttl, err := results[2].AsInt64()
+	return DeadlineStatus{Open: expires > -2 && ttl != -2, Size: size, TTLSeconds: ttl, ExpiresMS: expires}, err
 }

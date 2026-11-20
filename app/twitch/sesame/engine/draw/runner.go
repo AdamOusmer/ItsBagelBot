@@ -123,13 +123,25 @@ func (s *Store) stepRound(ctx context.Context, id RoundID, steps map[Phase]round
 	if step == nil {
 		return fmt.Errorf("draw: unknown phase %q", data.round.Phase)
 	}
-	err = step(ctx, s, data, now)
+	err = s.advanceRound(ctx, data, roundAdvance{step: step, now: now})
 	if err != nil {
 		retry, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 		defer cancel()
 		err = errors.Join(err, s.schedule(retry, data, sweepPoll))
 	}
 	return err
+}
+
+type roundAdvance struct {
+	step roundStep
+	now  time.Time
+}
+
+func (s *Store) advanceRound(ctx context.Context, data snapshot, advance roundAdvance) error {
+	if err := s.flushRefusals(ctx, data, advance.now); err != nil {
+		return err
+	}
+	return advance.step(ctx, s, data, advance.now)
 }
 
 func (s *Store) schedule(ctx context.Context, data snapshot, delay time.Duration) error {

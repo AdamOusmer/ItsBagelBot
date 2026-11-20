@@ -5,13 +5,11 @@ package eligibility
 
 import (
 	"context"
-	"slices"
 	"strconv"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/invalidate"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/cache"
 )
@@ -19,7 +17,17 @@ import (
 const snapshotTTL = 30 * time.Second
 
 type Standings interface {
-	Snapshot(ctx context.Context, channel, viewer uint64) (loyaltyrpc.BalanceSnapshot, error)
+	Snapshot(context.Context, StandingLookup) (loyaltyrpc.BalanceSnapshot, error)
+}
+
+type StandingLookup struct {
+	Channel, Viewer uint64
+	SnapshotID      string
+}
+
+type Cutoff struct {
+	ID                 string
+	OpenedAt, ClosesAt time.Time
 }
 
 type Ports struct {
@@ -32,30 +40,21 @@ type Ports struct {
 
 type Checker struct {
 	ports     Ports
-	snapshots *cache.Keyed[viewerKey, loyaltyrpc.BalanceSnapshot]
+	snapshots *cache.Keyed[StandingLookup, loyaltyrpc.BalanceSnapshot]
 }
 
 type viewerKey struct{ channel, viewer uint64 }
 
-func (k viewerKey) String() string {
-	return strconv.FormatUint(k.channel, 10) + ":" + strconv.FormatUint(k.viewer, 10)
+func (k StandingLookup) String() string {
+	return strconv.FormatUint(k.Channel, 10) + ":" + strconv.FormatUint(k.Viewer, 10) + ":" + k.SnapshotID
 }
 
 func NewChecker(p Ports) *Checker {
 	if p.Now == nil {
 		p.Now = time.Now
 	}
-	return &Checker{ports: p, snapshots: cache.NewKeyed[viewerKey, loyaltyrpc.BalanceSnapshot](
-		cache.DefaultCapacity, snapshotTTL+time.Second, viewerKey.String)}
-}
-
-func (c *Checker) WatchFreezes(feed cache.Feed) {
-	feed.Watch(invalidate.ScopeLoyalty, func(e cache.Event) {
-		if slices.Contains(e.Keys, invalidate.LoyaltyFreezeMarker) {
-			c.snapshots.InvalidateWhere(func(k viewerKey) bool { return k.channel == e.ID })
-		}
-	})
-	feed.WatchGap(c.snapshots.Clear)
+	return &Checker{ports: p, snapshots: cache.NewKeyed[StandingLookup, loyaltyrpc.BalanceSnapshot](
+		cache.DefaultCapacity, snapshotTTL+time.Second, StandingLookup.String)}
 }
 
 func (c *Checker) Close() { c.snapshots.Close() }
@@ -65,6 +64,7 @@ type Joiner struct {
 	Kind            draw.Kind
 	Role            module.Role
 	Subscriber      bool
+	Cutoff          Cutoff
 }
 
 type Verdict struct {
@@ -86,11 +86,11 @@ func (c *Checker) Join(ctx context.Context, rules Rules, j Joiner) (Verdict, err
 	if !rules.NeedsStandings() {
 		return result, nil
 	}
-	snapshot, err := c.snapshot(ctx, viewerKey{j.Channel, j.Viewer})
+	snapshot, err := c.snapshot(ctx, j)
 	if err != nil {
 		return Verdict{}, err
 	}
-	return checkStandings(rules, result, snapshot, c.ports.Now()), nil
+	return checkStandings(rules, result, snapshot, joinAsOf(j.Cutoff, c.ports.Now())), nil
 }
 
 func roleRefusal(r Rules, j Joiner) Reason {
@@ -113,24 +113,29 @@ func joinWeight(r Rules, subscriber bool) int64 {
 	return draw.Pins.EntryWeight
 }
 
-func (c *Checker) snapshot(ctx context.Context, key viewerKey) (loyaltyrpc.BalanceSnapshot, error) {
-	return c.snapshots.GetOrLoadTTL(ctx, key, func(ctx context.Context) (loyaltyrpc.BalanceSnapshot, time.Duration, error) {
-		balance, err := c.ports.Standings.Snapshot(ctx, key.channel, key.viewer)
-		return balance, snapshotLifetime(balance, c.ports.Now()), err
+func (c *Checker) snapshot(ctx context.Context, j Joiner) (loyaltyrpc.BalanceSnapshot, error) {
+	req := StandingLookup{Channel: j.Channel, Viewer: j.Viewer, SnapshotID: j.Cutoff.ID}
+	if req.SnapshotID == "" {
+		return c.ports.Standings.Snapshot(ctx, req)
+	}
+	return c.snapshots.GetOrLoadTTL(ctx, req, func(ctx context.Context) (loyaltyrpc.BalanceSnapshot, time.Duration, error) {
+		balance, err := c.ports.Standings.Snapshot(ctx, req)
+		left := j.Cutoff.ClosesAt.Sub(c.ports.Now())
+		if left <= 0 {
+			return balance, cache.SkipStoreTTL, err
+		}
+		return balance, min(snapshotTTL, left), err
 	})
 }
 
-func snapshotLifetime(balance loyaltyrpc.BalanceSnapshot, now time.Time) time.Duration {
-	if balance.FreezeID == "" || balance.ExpiresAt <= now.UnixMilli() {
-		return cache.SkipStoreTTL
+func joinAsOf(cutoff Cutoff, now time.Time) time.Time {
+	if cutoff.ID != "" {
+		return cutoff.OpenedAt
 	}
-	return min(snapshotTTL, time.UnixMilli(balance.ExpiresAt).Sub(now))
+	return now
 }
 
 func checkStandings(r Rules, pass Verdict, s loyaltyrpc.BalanceSnapshot, asOf time.Time) Verdict {
-	if s.FreezeID != "" {
-		asOf = time.UnixMilli(s.FrozenAsOf).UTC()
-	}
 	switch {
 	case r.MinPoints > 0 && s.Points < r.MinPoints:
 		return Verdict{Reason: ReasonPoints, Need: r.MinPoints, Had: s.Points, AsOf: asOf}

@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
@@ -26,7 +27,7 @@ func (raffleStatusDraw) Live(_ context.Context, ch draw.ChannelID) ([]draw.Round
 		return nil, nil
 	}
 	return []draw.RoundView{
-		{Round: draw.Round{Terms: RaffleTerms(RaffleLaunch{Points: 10})}, Slots: []draw.Slot{
+		{Round: draw.Round{ID: "raffle", Phase: draw.PhaseSettling, ClosesAt: time.UnixMilli(123), Terms: RaffleTerms(RaffleLaunch{Points: 10})}, Entries: 4, Slots: []draw.Slot{
 			{State: draw.SlotPaid, Login: "paid"}, {State: draw.SlotUnpaid, Login: "unpaid"},
 		}},
 		{Round: draw.Round{Terms: draw.Terms{Kind: draw.KindGiveaway}}, Slots: []draw.Slot{
@@ -53,7 +54,7 @@ func TestRaffleStatusRPC(t *testing.T) {
 		code domainrpc.Code
 	}{
 		{"settling raffle", drawrpc.RaffleStatusRequest{UserID: "42", Source: "dashboard"},
-			drawrpc.RaffleStatus{AccrualHealth: "healthy", Unpaid: []string{"unpaid"}}, domainrpc.CodeOK},
+			drawrpc.RaffleStatus{AccrualHealth: "healthy", Unpaid: []string{"unpaid"}, Rounds: []drawrpc.RaffleRound{{ID: "raffle", Phase: "settling", ClosesMS: 123, Entries: 4}}}, domainrpc.CodeOK},
 		{"different channel", drawrpc.RaffleStatusRequest{UserID: "43", Source: "dashboard"},
 			drawrpc.RaffleStatus{AccrualHealth: "healthy"}, domainrpc.CodeOK},
 		{"invalid channel", drawrpc.RaffleStatusRequest{UserID: "0", Source: "dashboard"},

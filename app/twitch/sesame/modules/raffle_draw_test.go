@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/engine/eligibility"
 	"ItsBagelBot/internal/domain/event/lane"
+	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/internal/valkeytest"
 	"ItsBagelBot/pkg/bus"
@@ -117,13 +118,17 @@ func TestRaffleProcessOpensOnlyValidPointsRounds(t *testing.T) {
 		{command: "!raffle 5k 30", want: draw.WinnerPolicy{Count: 1}, reply: "5000 bagels", currency: "bagels"},
 		{command: "!sraffle 5k 30", want: draw.WinnerPolicy{Count: 1}, reply: "5000 points"},
 		{command: "!sraffle 5k 30 2", reply: "Usage"},
-		{command: "!mraffle 5k 30", want: draw.WinnerPolicy{Count: 3}, reply: "5000 points"},
+		{command: "!mraffle 5k 30", want: draw.WinnerPolicy{Count: 3}, reply: "3 winners split 5000 points"},
 		{command: "!mraffle 5k 30 5", want: draw.WinnerPolicy{Count: 5}, reply: "5000 points"},
-		{command: "!mraffle 5k 30 auto", want: draw.WinnerPolicy{Auto: true}, reply: "5000 points"},
+		{command: "!mraffle 5k 30 auto", want: draw.WinnerPolicy{Auto: true}, reply: "Winners: 1 per 10 entries."},
+		{command: "!raffle", config: `{"bareRaffle":"split"}`, want: draw.WinnerPolicy{Count: 3}, reply: "3 winners split 1000 points"},
+		{command: "!raffle 5k60", reply: "Put a space between the amount and the seconds: !raffle 5k 60."},
 		{command: "!mraffle 5k 30 101", reply: "Usage"},
 		{command: "!mraffle 5k 30 3 extra", reply: "Usage"},
 		{command: "!raffle 0", reply: "Usage"},
 		{command: "!raffle", config: `{"prizePoints":0}`, want: draw.WinnerPolicy{Count: 1}, reply: "1000 points"},
+		{command: "!raffle", config: `{"openedMessage":"Good luck with {raffle:amount} {raffle:points}!"}`,
+			want: draw.WinnerPolicy{Count: 1}, reply: "1 winner takes 1000 points. Type !join (1m). Good luck with 1000 points!"},
 		{command: "!sraffle", config: `{"prizePoints":-25}`, want: draw.WinnerPolicy{Count: 1}, reply: "1000 points"},
 		{command: "!raffle", off: true, reply: "Loyalty must be on"},
 		{command: "!raffle", paused: true, want: draw.WinnerPolicy{Count: 1}, reply: "1000 points"},
@@ -191,7 +196,7 @@ func TestRaffleProcessDrainsLegacyRound(t *testing.T) {
 		{"!raffle status", &mod, "1 entered"},
 		{"!raffle draw", &mod, "@legacyviewer"},
 		{"!winner", &viewer, "Last raffle: @legacyviewer won from 1 entries."},
-		{"!raffle", &mod, "Prize: 1000 points"},
+		{"!raffle", &mod, "1 winner takes 1000 points"},
 	} {
 		assert.Contains(t, fmt.Sprint(f.run(ch, step.chatter, step.command)), step.want)
 	}
@@ -223,14 +228,16 @@ func TestRaffleAnnouncementsRespectSettings(t *testing.T) {
 		want         []string
 	}{
 		{"remind default", "", draw.NoticeRemind, []string{"Raffle reminder: ~1 min left! 1 entered so far. Type !join!"}},
+		{"mid count", "", draw.NoticeMidCount, []string{"1 entered, 1m left. Type !join."}},
 		{"remind off", `{"remindEnabled":"off"}`, draw.NoticeRemind, nil},
 		{"won off", `{"wonEnabled":"off"}`, draw.NoticeWinners, nil},
 		{"claim token falls back", `{"wonMessage":"Type !claim within {raffle:claim} min."}`, draw.NoticeWinners, []string{"@winner won 1000 bagels!"}},
+		{"draw currency token", `{"wonMessage":"{raffle:targets} gets {raffle:amount} {draw:points}!"}`, draw.NoticeWinners, []string{"@winner gets 1000 bagels!"}},
 		{"supported custom winner line", `{"wonMessage":"{raffle:targets} gets {raffle:amount} {raffle:points}!"}`, draw.NoticeWinners, []string{"@winner gets 1000 bagels!"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			proj := &fakeProj{modules: []projection.ModuleView{
-				{Name: engine.LoyaltyModuleName, IsEnabled: true, Configs: []byte(`{"pointsName":"bagels"}`)},
+				{Name: engine.LoyaltyModuleName, IsEnabled: false, Configs: []byte(`{"pointsName":"bagels"}`)},
 				{Name: raffleModuleName, IsEnabled: true, Configs: []byte(tc.config)},
 			}}
 			out := &variablePublisher{}
@@ -252,7 +259,7 @@ func TestRaffleProcessCancelAndStatus(t *testing.T) {
 		lines   []string
 	}{
 		{"raffle status and cancel", draw.Opened, []string{"!raffle 1000 60", "!raffle status", "!cancelraffle", "!raffle status"},
-			[]string{"Prize: 1000 points", "0 entered", "cancelled", "No raffle is running"}},
+			[]string{"1 winner takes 1000 points", "0 entered", "cancelled", "No raffle is running"}},
 		{"giveaway stays open", draw.JoinableBusy, []string{"!raffle draw 2", "!raffle cancel"},
 			[]string{"No raffle is running", "No raffle is running"}},
 	} {
@@ -352,4 +359,45 @@ func (f raffleFixture) assertMultiPayout(loseAck bool) {
 	for _, name := range []string{"@viewer1", "@viewer2", "@viewer3", "each won 3333 points"} {
 		assert.Contains(t, lines[0], name)
 	}
+}
+
+func TestDrawBatchedRefusalLines(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		viewers []draw.RefusedViewer
+	}{
+		{"one line per reason", []draw.RefusedViewer{
+			{Login: "b", Reason: "watch", Need: 7200}, {Login: "a", Reason: "watch", Need: 7200}, {Login: "c", Reason: "mod"},
+		}},
+		{"multiple lines for long mention lists", longRefusalBatch()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out := &variablePublisher{}
+			announcer := engine.NewDrawAnnouncer(engine.AnnouncementConfig{Proj: &fakeProj{}, Pub: out}, zap.NewNop(), nil)
+			announcer.Announce(t.Context(), draw.Notice{Event: draw.NoticeRefusals, Refused: tc.viewers,
+				Round: draw.Round{Channel: 80220, Terms: draw.Terms{Kind: draw.KindGiveaway}}})
+			assertRefusalBatch(t, drawReplies(t, out), tc.viewers)
+		})
+	}
+}
+
+func longRefusalBatch() []draw.RefusedViewer {
+	var viewers []draw.RefusedViewer
+	for i := 0; i < 40; i++ {
+		viewers = append(viewers, draw.RefusedViewer{Login: fmt.Sprintf("watch_viewer_%020d", i), Reason: "watch", Need: 7200})
+	}
+	return viewers
+}
+
+func assertRefusalBatch(t *testing.T, lines []string, viewers []draw.RefusedViewer) {
+	t.Helper()
+	require.GreaterOrEqual(t, len(lines), 2)
+	for _, line := range lines {
+		require.LessOrEqual(t, len(line), validate.MaxResponseLineLength)
+	}
+	all := strings.Join(lines, "\n")
+	for _, viewer := range viewers {
+		require.Equal(t, 1, strings.Count(all, "@"+viewer.Login))
+	}
+	require.Contains(t, all, "need 2 hours of watch time. Type !check for details.")
 }

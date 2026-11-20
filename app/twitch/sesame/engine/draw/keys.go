@@ -35,6 +35,7 @@ func keysFor(channel ChannelID, id RoundID) valkey.RoundKeys {
 		Joinable: JoinableKey(channel), Active: activeKey(channel), Claimable: claimableKey(channel),
 		Round: roundKey(id), Entries: entriesKey(id), Labels: labelsKey(id), Slots: slotsKey(id), Lease: leaseKey(id),
 		Due: dueKey, Refused: "draw:refused:" + string(id),
+		RefusalSeen: "draw:refusal-seen:" + string(id), RefusalPending: "draw:refusal-pending:" + string(id),
 	}
 }
 

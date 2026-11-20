@@ -35,8 +35,14 @@ func (giveawayRPCProjection) User(context.Context, uint64) (projection.User, err
 }
 
 func (giveawayRPCProjection) Module(context.Context, uint64, string) (projection.ModuleView, bool, error) {
-	config := codec.RawMessage(`{"openedEnabled":false,"presets":[{"name":"regulars","rules":{"min_watch_seconds":300}},{"name":"frozen","freezeWhileOpen":true}]}`)
+	config := codec.RawMessage(`{"openedEnabled":false,"presets":[{"name":"regulars","rules":{"min_watch_seconds":300}},{"name":"frozen","rules":{"min_points":10},"freezeWhileOpen":false}]}`)
 	return projection.ModuleView{Name: engine.GiveawayModuleName, IsEnabled: true, Configs: config}, true, nil
+}
+
+type giveawayRPCClock struct{ engine.LoyaltyTicker }
+
+func (giveawayRPCClock) AccrualHealth(context.Context, uint64) engine.AccrualState {
+	return engine.AccrualHealthy
 }
 
 type giveawayRPCCalls struct {
@@ -56,7 +62,7 @@ func (d giveawayRPCCalls) Live(_ context.Context, channel draw.ChannelID) ([]dra
 	}
 	round := rpcGiveawayRound(draw.OpenRequest{ID: giveawayRPCRoundID, Channel: channel, Terms: draw.Terms{
 		Kind: draw.KindGiveaway, Prize: draw.Prize{Item: "Game"}, Winners: draw.WinnerPolicy{Count: 2},
-		Rules: codec.RawMessage(`{"min_follow_days":7}`), FreezeEndsMS: 1790000200000,
+		Rules: codec.RawMessage(`{"min_follow_days":7}`),
 	}})
 	slot := draw.Slot{N: 1, Generation: 2, State: draw.SlotWon, Viewer: "17", Login: "winner",
 		Deadline: round.ClosesAt, History: []draw.Candidate{{Viewer: "16", Login: "first", Generation: 1, Reason: "follow_age"}}}
@@ -151,7 +157,7 @@ func TestGiveawayRPC(t *testing.T) {
 	log := zap.NewNop()
 	d := giveawayRPCCalls{calls: make(chan any, 1)}
 	server := engine.GiveawayRPC{Deps: engine.Deps{
-		Draw: d, GiveawayWinners: d, StandingsSnapshots: d, Proj: giveawayRPCProjection{}, Automod: automod.New(), Log: log,
+		Draw: d, LoyaltyTick: giveawayRPCClock{}, GiveawayWinners: d, StandingsSnapshots: d, Proj: giveawayRPCProjection{}, Automod: automod.New(), Log: log,
 	}, Standings: d}
 	require.NoError(t, server.Subscribe(bus.RPCWiring{NC: nc, Log: log}))
 	for _, tc := range giveawayRPCCases() {
@@ -239,7 +245,7 @@ func checkGiveawayLive(t *testing.T, reply drawrpc.GiveawayReply, _ any) {
 	require.NotNil(t, reply.Rounds)
 	require.Equal(t, []drawrpc.GiveawayRound{{
 		ID: giveawayRPCRoundID, Kind: "giveaway", Phase: "open", Prize: "Game", Winners: 2, OpenedMS: 1790000000000,
-		ClosesMS: 1790000000000, FreezeEndsMS: 1790000200000, Entries: 9, Refused: 3, Requirements: []string{"7 days of following"},
+		ClosesMS: 1790000000000, Entries: 9, Refused: 3, Requirements: []string{"7 days of following"},
 		Slots: []drawrpc.GiveawaySlot{{N: 1, Generation: 2, State: "won", ViewerID: "17", Login: "winner", DeadlineMS: 1790000000000,
 			Rejected: []drawrpc.GiveawayCandidate{{ViewerID: "16", Login: "first", Generation: 1, Reason: "follow_age"}}}},
 	}}, *reply.Rounds)
@@ -266,7 +272,7 @@ func checkGiveawaySnapshotStart(t *testing.T, reply drawrpc.GiveawayReply, obser
 	t.Helper()
 	req, ok := observed.(draw.OpenRequest)
 	require.True(t, ok)
-	require.Equal(t, []any{"snapshot", false, string(req.ID)}, []any{req.Terms.FreezeID, req.Terms.ClosesAt.IsZero(), reply.Round.ID})
+	require.Equal(t, []any{"snapshot", false, string(req.ID)}, []any{req.Terms.SnapshotID, req.Terms.ClosesAt.IsZero(), reply.Round.ID})
 }
 
 func checkGiveawayCount(t *testing.T, reply drawrpc.GiveawayReply, observed any) {

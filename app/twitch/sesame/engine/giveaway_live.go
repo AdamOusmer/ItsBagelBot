@@ -49,8 +49,8 @@ func giveawayRoundWire(view draw.RoundView, requirements []string) drawrpc.Givea
 	}
 	return drawrpc.GiveawayRound{ID: string(view.ID), Kind: string(view.Terms.Kind), Phase: string(view.Phase),
 		Prize: view.Terms.Prize.Item, Winners: view.Terms.Winners.Count, OpenedMS: view.OpenedAt.UnixMilli(),
-		ClosesMS: view.ClosesAt.UnixMilli(), FreezeEndsMS: view.Terms.FreezeEndsMS, Entries: view.Entries,
-		Refused: view.Refused, Slots: slots, Requirements: requirements}
+		ClosesMS: view.ClosesAt.UnixMilli(), Entries: view.Entries,
+		Refused: view.Refused, ClaimPausedAtMS: giveawayClaimPause(view.Round), Slots: slots, Requirements: requirements}
 }
 
 func giveawaySlotWire(slot draw.Slot, now time.Time) drawrpc.GiveawaySlot {
@@ -68,4 +68,11 @@ func giveawaySlotWire(slot draw.Slot, now time.Time) drawrpc.GiveawaySlot {
 		}
 	}
 	return row
+}
+
+func giveawayClaimPause(round draw.Round) int64 {
+	if round.ClaimPausedAt.IsZero() {
+		return 0
+	}
+	return round.ClaimPausedAt.UnixMilli()
 }
