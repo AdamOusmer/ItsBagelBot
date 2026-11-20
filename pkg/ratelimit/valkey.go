@@ -9,6 +9,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/valkey-io/valkey-go"
 )
@@ -18,7 +19,8 @@ local count = #KEYS
 if count < 1 or count > 2 then
     return redis.error_reply("token bucket requires one or two keys")
 end
-if #ARGV ~= count * 4 then
+local report_retry = #ARGV == count * 4 + 1 and ARGV[#ARGV] == "retry"
+if #ARGV ~= count * 4 and not report_retry then
     return redis.error_reply("invalid token bucket arguments")
 end
 
@@ -69,6 +71,10 @@ end
 
 if denied ~= 0 then
     -- Atomic evaluation: if any bucket denies, do not consume tokens from any bucket.
+    if report_retry then
+        local refill_per_ms = tonumber(ARGV[(denied - 1) * 4 + 2])
+        return {denied, math.ceil((1 - states[denied].tokens) / refill_per_ms)}
+    end
     return denied
 end
 
@@ -78,6 +84,9 @@ for i = 1, count do
     redis.call("EXPIRE", KEYS[i], states[i].ttl_s)
 end
 
+if report_retry then
+    return {0, 0}
+end
 return 0
 `
 
@@ -213,7 +222,7 @@ func New(client valkey.Client) *Limiter {
 var errEmptyKey = errors.New("ratelimit: empty bucket key")
 
 func (l *Limiter) Allow(ctx context.Context, req Request) (bool, error) {
-	denied, err := l.allow(ctx, req, nil)
+	denied, err := l.allow(ctx, bucketCheck{first: req})
 	if err != nil {
 		return false, err
 	}
@@ -221,23 +230,54 @@ func (l *Limiter) Allow(ctx context.Context, req Request) (bool, error) {
 }
 
 func (l *Limiter) AllowOrdered(ctx context.Context, first, second Request) (denied uint8, err error) {
-	return l.allow(ctx, first, &second)
+	return l.allow(ctx, bucketCheck{first: first, second: &second})
 }
 
-func (l *Limiter) allow(ctx context.Context, first Request, second *Request) (uint8, error) {
-	return l.allowAt(ctx, first, second, 0, 0)
+func (l *Limiter) AllowOrderedWithRetry(ctx context.Context, first, second Request) (uint8, time.Duration, error) {
+	res, err := l.runCheck(ctx, bucketCheck{first: first, second: &second, reportRetry: true})
+	if err != nil {
+		return 0, 0, err
+	}
+	decision, err := res.AsIntSlice()
+	if err != nil {
+		return 0, 0, err
+	}
+	if len(decision) != 2 {
+		return 0, 0, errInvalidDecision
+	}
+	denied, err := bucketDecision(decision[0], 2)
+	return denied, bucketRetryAfter(decision[1]), err
+}
+
+func bucketRetryAfter(ms int64) time.Duration {
+	if ms < 0 || ms > math.MaxInt64/int64(time.Millisecond) {
+		return 0
+	}
+	return time.Duration(ms) * time.Millisecond
+}
+
+func (l *Limiter) allow(ctx context.Context, check bucketCheck) (uint8, error) {
+	res, err := l.runCheck(ctx, check)
+	if err != nil {
+		return 0, err
+	}
+	result, err := res.AsInt64()
+	if err != nil {
+		return 0, err
+	}
+	return bucketDecision(result, check.count())
 }
 
 func (l *Limiter) AllowEmergency(ctx context.Context, req Request, generation uint64, validFromMS int64) (bool, error) {
 	emergency := Request{Key: emergencyKey(req.valkeyKey(), generation), Spec: req.Spec.emergency()}
-	denied, err := l.allowAt(ctx, emergency, nil, validFromMS, validFromMS)
+	denied, err := l.allow(ctx, bucketCheck{first: emergency, originMS: validFromMS})
 	return denied == 0, err
 }
 
 func (l *Limiter) AllowEmergencyOrdered(ctx context.Context, first, second Request, generation uint64, validFromMS int64) (uint8, error) {
 	first = Request{Key: emergencyKey(first.valkeyKey(), generation), Spec: first.Spec.emergency()}
 	second = Request{Key: emergencyKey(second.valkeyKey(), generation), Spec: second.Spec.emergency()}
-	return l.allowAt(ctx, first, &second, validFromMS, validFromMS)
+	return l.allow(ctx, bucketCheck{first: first, second: &second, originMS: validFromMS})
 }
 
 func emergencyKey(key string, generation uint64) string {
@@ -248,37 +288,48 @@ func generationKey(key, class string, generation uint64) string {
 	return key + ":" + class + ":g" + strconv.FormatUint(generation, 10)
 }
 
-func (l *Limiter) allowAt(ctx context.Context, first Request, second *Request, firstOriginMS, secondOriginMS int64) (uint8, error) {
-	firstKey := first.valkeyKey()
-	if firstKey == "" {
-		return 0, errEmptyKey
-	}
-	secondKey := ""
-	if second != nil {
-		secondKey = second.valkeyKey()
-		if secondKey == "" {
-			return 0, errEmptyKey
-		}
-	}
+type bucketCheck struct {
+	first       Request
+	second      *Request
+	originMS    int64
+	reportRetry bool
+}
 
-	keys := [2]string{firstKey}
-	args := [8]string{first.Spec.capacityArg, first.Spec.refillArg, first.Spec.ttlArg, originArg(firstOriginMS)}
-	count := 1
-	if second != nil {
-		keys[1] = secondKey
+func (c bucketCheck) count() int {
+	if c.second != nil {
+		return 2
+	}
+	return 1
+}
+
+func (l *Limiter) runCheck(ctx context.Context, check bucketCheck) (valkey.ValkeyResult, error) {
+	origin := originArg(check.originMS)
+	keys := [2]string{check.first.valkeyKey()}
+	first := check.first.Spec
+	args := [9]string{first.capacityArg, first.refillArg, first.ttlArg, origin}
+	if second := check.second; second != nil {
+		keys[1] = second.valkeyKey()
 		args[4] = second.Spec.capacityArg
 		args[5] = second.Spec.refillArg
 		args[6] = second.Spec.ttlArg
-		args[7] = originArg(secondOriginMS)
-		count = 2
+		args[7] = origin
 	}
+	count := check.count()
+	if keys[0] == "" || keys[count-1] == "" {
+		return valkey.ValkeyResult{}, errEmptyKey
+	}
+	argv := args[:count*4]
+	if check.reportRetry {
+		argv = append(argv, "retry")
+	}
+	return l.script.Exec(ctx, l.client, keys[:count], argv), nil
+}
 
-	result, err := l.script.Exec(ctx, l.client, keys[:count], args[:count*4]).AsInt64()
-	if err != nil {
-		return 0, err
-	}
+var errInvalidDecision = errors.New("ratelimit: invalid script decision")
+
+func bucketDecision(result int64, count int) (uint8, error) {
 	if result < 0 || result > int64(count) {
-		return 0, errors.New("ratelimit: invalid script decision")
+		return 0, errInvalidDecision
 	}
 	return uint8(result), nil
 }

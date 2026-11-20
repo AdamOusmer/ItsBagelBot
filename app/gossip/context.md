@@ -49,6 +49,7 @@ Provider packages under [internal/providers/](internal/providers/) cover Urchin,
 - Add a provider package plus registration in `providers.All`; keep `main.go` focused on infrastructure. Add shared contracts and caller wiring when introducing new verbs.
 - Declare `.Trusted()` before constructing clients. Without it, the builder selects WARP. Custom user URLs must keep the guarded WARP route; a dead sidecar fails closed rather than falling back to direct egress.
 - Endpoints run concurrently with themselves. Guard captured mutable state and retain per-subject budgets so slow endpoints cannot block unrelated cache hits.
+- Set caller timeouts for `tts.synthesize` above its 25 s endpoint timeout.
 - Cache absence separately from infrastructure failure. Preserve deadline-based freshness for answers that expire at a real boundary such as a daily shop reset.
 - Never put decrypted fetch keys in projections, caches, or logs. Custom fetches revalidate destinations, bound extraction, and use channel/definition/host budgets.
 - Spotify credentials belong to each broadcaster's registered application and grant; do not introduce a fleet-wide Spotify application assumption.
