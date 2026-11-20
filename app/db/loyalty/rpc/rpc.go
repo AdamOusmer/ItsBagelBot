@@ -54,7 +54,6 @@ func Subscribe(w Wiring, prefix string) error {
 		bus.At(loyaltyrpc.VerbBalanceDebit, l.keyedBalanceHandler(loyaltyrpc.VerbBalanceDebit, l.repo.BalanceDebit)),
 		bus.At("balance.set", l.handleBalanceSet),
 		bus.At("balance.add", l.handleBalanceAdd),
-		bus.At("balance.spend", l.handleBalanceSpend),
 		bus.At("balance.wager", l.handleBalanceWager),
 		bus.At("balance.transfer", l.handleBalanceTransfer),
 		bus.At("balance.reset", l.handleBalanceReset),

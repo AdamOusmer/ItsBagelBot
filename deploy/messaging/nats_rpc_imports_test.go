@@ -110,7 +110,6 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.loyalty.balance.add", "app/twitch/sesame/engine/loyalty_rpc.go"},
 		{"rpc.loyalty.balance.set", "app/twitch/sesame/engine/loyalty_rpc.go"},
 		{"rpc.loyalty.balance.debit", "app/twitch/sesame/engine/loyalty_rpc.go"},
-		{"rpc.loyalty.balance.spend", "older Sesame pods during rollout"},
 		{"rpc.loyalty.balance.transfer", "app/twitch/sesame/engine/loyalty_rpc.go"},
 		{"rpc.loyalty.counter.get", "app/twitch/sesame/engine/loyalty_rpc.go"},
 		{"rpc.loyalty.counter.create", "app/twitch/sesame/engine/loyalty_rpc.go"},

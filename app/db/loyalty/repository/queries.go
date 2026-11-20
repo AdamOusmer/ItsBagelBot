@@ -71,31 +71,7 @@ type Spend struct {
 	Amount           int64
 }
 
-func (s Spend) valid() bool {
-	return s.UserID != 0 && s.ViewerID != 0 && s.Amount > 0
-}
-
 // The points >= amount guard must stay in the UPDATE's WHERE so concurrent spends cannot go negative.
-func (r *Loyalty) BalanceSpendViewer(ctx context.Context, spend Spend) (*ent.Balance, bool, bool, error) {
-	if !spend.valid() {
-		return nil, false, false, fmt.Errorf("%w: user_id/viewer_id/amount", ErrInvalidInput)
-	}
-	row, found, err := getOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
-		return r.client.Balance.Query().
-			Where(balance.UserIDEQ(spend.UserID), balance.ViewerIDEQ(spend.ViewerID)).
-			Only(ctx)
-	})
-	if err != nil || !found {
-		return nil, false, found, err
-	}
-	spend.ViewerLogin = normalizeLogin(spend.ViewerLogin)
-	fresh, spent, err := spendRow(ctx, r.client, row.ID, spend)
-	if spent {
-		r.publishBalanceChange(spend.UserID, spend.ViewerID)
-	}
-	return fresh, true, spent, err
-}
-
 func spendRow(ctx context.Context, client *ent.Client, rowID int, spend Spend) (*ent.Balance, bool, error) {
 	update := client.Balance.Update().
 		Where(balance.IDEQ(rowID), balance.PointsGTE(spend.Amount)).
