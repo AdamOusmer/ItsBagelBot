@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/internal/domain/event/lane"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/bus"
@@ -27,30 +28,32 @@ type freezeStore struct {
 }
 
 type freezeCall struct {
-	channel, actor uint64
-	minutes        int
+	channel draw.ChannelID
+	actor   draw.ViewerID
+	minutes engine.FreezeMinutes
 }
 
-func (s *freezeStore) FreezeGet(context.Context, uint64) (loyaltyrpc.FreezeView, error) {
+func (s *freezeStore) FreezeGet(context.Context, draw.ChannelID) (loyaltyrpc.FreezeView, error) {
 	s.gets++
 	return loyaltyrpc.FreezeView{Active: s.active}, nil
 }
 
-func (s *freezeStore) FreezeSet(_ context.Context, channel uint64, minutes int, actor uint64) (loyaltyrpc.FreezeTimes, error) {
+func (s *freezeStore) FreezeSet(_ context.Context, channel draw.ChannelID, minutes engine.FreezeMinutes, actor draw.ViewerID) (loyaltyrpc.FreezeTimes, error) {
 	s.sets = append(s.sets, freezeCall{channel: channel, actor: actor, minutes: minutes})
 	return loyaltyrpc.FreezeTimes{}, nil
 }
 
-func (s *freezeStore) FreezeRelease(_ context.Context, channel, actor uint64) (bool, error) {
+func (s *freezeStore) FreezeRelease(_ context.Context, channel draw.ChannelID, actor draw.ViewerID) (bool, error) {
 	s.releases = append(s.releases, freezeCall{channel: channel, actor: actor})
 	return s.changed, nil
 }
 
 type freezeChatCase struct {
-	name, command, reply    string
-	badge                   string
-	minutes, sets, releases int
-	changed                 bool
+	name, command, reply string
+	badge                string
+	minutes              engine.FreezeMinutes
+	sets, releases       int
+	changed              bool
 }
 
 func TestLoyaltyFreezeCommandsProcess(t *testing.T) {
@@ -68,7 +71,7 @@ func TestLoyaltyFreezeCommandsProcess(t *testing.T) {
 			pub := processFreezeChat(t, store, tc)
 			require.Len(t, store.sets, tc.sets)
 			require.Len(t, store.releases, tc.releases)
-			want := freezeCall{channel: 2, actor: 7, minutes: tc.minutes}
+			want := freezeCall{channel: 2, actor: "7", minutes: tc.minutes}
 			for _, command := range append(store.sets, store.releases...) {
 				assert.Equal(t, want, command)
 			}

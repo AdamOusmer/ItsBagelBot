@@ -31,7 +31,7 @@ func createRPCSnapshot(t *testing.T, client *engine.LoyaltyRPC) engine.SnapshotR
 func TestSnapshotRPCReadRoutes(t *testing.T) {
 	h := newHarness(t)
 	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
-	_, err := client.FreezeSet(t.Context(), 2, 1, 7)
+	_, err := client.FreezeSet(t.Context(), 2, 1, "7")
 	require.NoError(t, err)
 	public := h.call(t, "top.get", loyaltyrpc.Request{UserID: "2"})
 	private := createRPCSnapshot(t, client)

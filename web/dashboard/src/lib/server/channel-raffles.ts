@@ -9,6 +9,13 @@ import { raffleStatus } from './loyalty-store';
 
 type RaffleVerb = 'start' | 'draw' | 'cancel';
 
+const integerLimits = {
+  amount: { min: 0, max: pins.raffleMaxPrize },
+  seconds: { min: pins.raffleMinSeconds, max: pins.maxOpen },
+  winners: { min: 0, max: pins.maxWinners }
+};
+const splitModes = new Map<FormDataEntryValue | null, boolean>([['single', false], ['split', true]]);
+
 interface WinnerChoice {
   winners: number;
   auto: boolean;
@@ -45,31 +52,38 @@ export async function liveDraws(userId: DrawActor['userId']) {
 
 export type LiveDraws = Awaited<ReturnType<typeof liveDraws>>;
 
-function formInteger(form: FormData, key: 'amount' | 'seconds' | 'winners', max: number) {
+function formInteger(form: FormData, key: keyof typeof integerLimits) {
   const raw = form.get(key) ?? '';
   if (typeof raw !== 'string' || !/^\d*$/.test(raw)) return null;
   const value = Number(raw);
-  return Number.isSafeInteger(value) && value <= max ? value : null;
+  if (value === 0) return value;
+  if (!Number.isSafeInteger(value)) return null;
+  const { min, max } = integerLimits[key];
+  return value < min || value > max ? null : value;
 }
 
 function winnerChoice(form: FormData): WinnerChoice | null {
-  const winners = formInteger(form, 'winners', pins.maxWinners);
+  const winners = formInteger(form, 'winners');
+  if (winners === null) return null;
   const auto = form.get('auto');
-  if (winners === null || (auto !== null && auto !== 'on')) return null;
-  return { winners: auto ? 0 : winners, auto: auto === 'on' };
+  if (auto === null) return { winners, auto: false };
+  return auto === 'on' ? { winners: 0, auto: true } : null;
+}
+
+function rafflePrize(form: FormData) {
+  const amount = formInteger(form, 'amount');
+  const seconds = formInteger(form, 'seconds');
+  return amount === null || seconds === null ? null : { amount, seconds };
 }
 
 function raffleStart(form: FormData): RaffleMutation | null {
   const choice = winnerChoice(form);
-  const amount = formInteger(form, 'amount', pins.raffleMaxPrize);
-  const seconds = formInteger(form, 'seconds', pins.maxOpen);
-  const mode = form.get('mode');
-  if (!choice || amount === null || seconds === null) return null;
-  if (seconds > 0 && seconds < pins.raffleMinSeconds) return null;
-  if (mode !== 'single' && mode !== 'split') return null;
-  const split = mode === 'split';
+  const prize = rafflePrize(form);
+  if (!choice || !prize) return null;
+  const split = splitModes.get(form.get('mode'));
+  if (split === undefined) return null;
   const winners = split ? choice : { winners: 0, auto: false };
-  return { verb: 'start', input: { amount, seconds, split, ...winners } };
+  return { verb: 'start', input: { ...prize, split, ...winners } };
 }
 
 export function raffleInput(verb: RaffleVerb, form: FormData): RaffleMutation | null {

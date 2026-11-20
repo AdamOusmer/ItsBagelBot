@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/internal/domain/invalidate"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
@@ -22,14 +23,15 @@ func TestFreezeRPCValidatesIdentityAndDuration(t *testing.T) {
 	h := newHarness(t)
 	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
 	for _, tc := range []struct {
-		name           string
-		channel, actor uint64
-		minutes        int
+		name    string
+		channel draw.ChannelID
+		actor   draw.ViewerID
+		minutes engine.FreezeMinutes
 	}{
-		{"invalid channel", 0, 7, 1},
-		{"invalid actor", 2, 0, 1},
-		{"zero minutes", 2, 7, 0},
-		{"over cap", 2, 7, 31},
+		{"invalid channel", 0, "7", 1},
+		{"invalid actor", 2, "0", 1},
+		{"zero minutes", 2, "7", 0},
+		{"over cap", 2, "7", 31},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := client.FreezeSet(t.Context(), tc.channel, tc.minutes, tc.actor)
@@ -43,14 +45,14 @@ func TestFreezeRPCPublishesMarkerOnlyOnChange(t *testing.T) {
 	sub, err := h.nc.SubscribeSync(invalidationPrefix + ".loyalty")
 	require.NoError(t, err)
 	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
-	for _, minutes := range []int{2, 4} {
-		view, err := client.FreezeSet(t.Context(), 2, minutes, 7)
+	for _, minutes := range []engine.FreezeMinutes{2, 4} {
+		view, err := client.FreezeSet(t.Context(), 2, minutes, "7")
 		require.NoError(t, err)
 		assert.Equal(t, int64(minutes)*time.Minute.Milliseconds(), view.ExpiresAt-view.FrozenAsOf)
 		checkFreezeStatus(t, client, loyaltyrpc.FreezeView{Active: true, FreezeTimes: view})
 	}
 	for _, want := range []bool{true, false} {
-		released, err := client.FreezeRelease(t.Context(), 2, 8)
+		released, err := client.FreezeRelease(t.Context(), 2, "8")
 		require.NoError(t, err)
 		assert.Equal(t, want, released)
 	}
@@ -81,7 +83,7 @@ func checkFreezeMarkers(t *testing.T, sub *nats.Subscription) {
 func TestFreezeRPCRoutesLeaderboardPins(t *testing.T) {
 	h := newHarness(t)
 	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
-	_, err := client.FreezeSet(t.Context(), 2, 1, 7)
+	_, err := client.FreezeSet(t.Context(), 2, 1, "7")
 	require.NoError(t, err)
 	stamp := h.call(t, "top.get", loyaltyrpc.Request{UserID: "2"}).FreezeStamp
 	require.NotEmpty(t, stamp.FreezeID)
@@ -102,7 +104,7 @@ func TestFreezeRPCRoutesLeaderboardPins(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.release {
-				released, err := client.FreezeRelease(t.Context(), 2, 8)
+				released, err := client.FreezeRelease(t.Context(), 2, "8")
 				require.NoError(t, err)
 				require.True(t, released)
 			}
@@ -121,7 +123,7 @@ func TestFreezeRPCRoutesLeaderboardPins(t *testing.T) {
 func TestFreezeRPCOnlyBlocksReset(t *testing.T) {
 	h := newHarness(t)
 	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
-	_, err := client.FreezeSet(t.Context(), 2, 1, 7)
+	_, err := client.FreezeSet(t.Context(), 2, 1, "7")
 	require.NoError(t, err)
 	req := loyaltyrpc.Request{UserID: "2", ViewerID: "7", TargetViewerID: "8", ViewerLogin: "receiver", Value: 1}
 	for _, tc := range []struct {

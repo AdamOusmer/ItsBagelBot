@@ -41,13 +41,8 @@ func (giveawayLifecycleClock) AccrualHealth(context.Context, uint64) engine.Accr
 
 type giveawayLifecycleSnapshots struct {
 	created      engine.SnapshotRequest
-	dropped      chan droppedSnapshot
+	dropped      chan engine.SnapshotDropRequest
 	beforeReturn func()
-}
-
-type droppedSnapshot struct {
-	channel uint64
-	id      string
 }
 
 func (s *giveawayLifecycleSnapshots) SnapshotCreate(_ context.Context, req engine.SnapshotRequest) (engine.SnapshotRef, error) {
@@ -58,8 +53,8 @@ func (s *giveawayLifecycleSnapshots) SnapshotCreate(_ context.Context, req engin
 	return engine.SnapshotRef{SnapshotID: "snapshot"}, nil
 }
 
-func (s *giveawayLifecycleSnapshots) SnapshotDrop(_ context.Context, channel uint64, id string) error {
-	s.dropped <- droppedSnapshot{channel, id}
+func (s *giveawayLifecycleSnapshots) SnapshotDrop(_ context.Context, req engine.SnapshotDropRequest) error {
+	s.dropped <- req
 	return nil
 }
 
@@ -87,7 +82,7 @@ func TestGiveawaySnapshotLifecycle(t *testing.T) {
 }
 
 func (tc giveawayLifecycleCase) run(t *testing.T) {
-	snapshots := &giveawayLifecycleSnapshots{dropped: make(chan droppedSnapshot, 2)}
+	snapshots := &giveawayLifecycleSnapshots{dropped: make(chan engine.SnapshotDropRequest, 2)}
 	f := newFixture(t, draw.Config{Phases: engine.GiveawayPhaseObserver{Snapshots: snapshots, Log: zap.NewNop()}})
 	outcome := f.startSnapshotGiveaway(snapshots, tc.window)
 	left := i18n.CompactDuration("en", outcome.Round.ClosesAt.Sub(outcome.Round.OpenedAt))
@@ -122,7 +117,7 @@ func (tc giveawayLifecycleCase) checkRound(f fixture, r draw.Round, snapshots *g
 	if tc.action != nil {
 		tc.applyAction(f, ctx, r)
 	}
-	require.Equal(f.t, droppedSnapshot{42, "snapshot"}, take(f.t, snapshots.dropped))
+	require.Equal(f.t, engine.SnapshotDropRequest{Channel: 42, SnapshotID: "snapshot"}, take(f.t, snapshots.dropped))
 	require.Empty(f.t, snapshots.dropped)
 }
 
@@ -160,13 +155,13 @@ func (f fixture) joinSnapshotGiveaway(r draw.Round, snapshots eligibility.Standi
 func TestGiveawayLostStartRaceDropsSnapshot(t *testing.T) {
 	f := newFixture(t, draw.Config{})
 	var winner draw.Round
-	snapshots := &giveawayLifecycleSnapshots{dropped: make(chan droppedSnapshot, 1), beforeReturn: func() {
+	snapshots := &giveawayLifecycleSnapshots{dropped: make(chan engine.SnapshotDropRequest, 1), beforeReturn: func() {
 		winner = f.open(42, draw.Terms{Kind: draw.KindGiveaway, Prize: draw.Prize{Item: "Other game"}})
 	}}
 	loser, err := engine.StartGiveaway(t.Context(), f.giveawayDeps(snapshots), engine.GiveawayStart{Channel: 42, Actor: "7"})
 	require.NoError(t, err)
 	require.Equal(t, "draw.open.busy_giveaway", loser.Refusal)
-	require.Equal(t, droppedSnapshot{42, "snapshot"}, take(t, snapshots.dropped))
+	require.Equal(t, engine.SnapshotDropRequest{Channel: 42, SnapshotID: "snapshot"}, take(t, snapshots.dropped))
 
 	live, found, err := f.Joinable(t.Context(), winner.Channel)
 	require.NoError(t, err)
@@ -185,14 +180,14 @@ func (d drawOpenFailure) Open(context.Context, draw.OpenRequest) (draw.Round, dr
 
 func TestGiveawayOpenErrorDropsSnapshot(t *testing.T) {
 	f := newFixture(t, draw.Config{})
-	snapshots := &giveawayLifecycleSnapshots{dropped: make(chan droppedSnapshot, 1)}
+	snapshots := &giveawayLifecycleSnapshots{dropped: make(chan engine.SnapshotDropRequest, 1)}
 	failure := errors.New("open failed")
 	deps := f.giveawayDeps(snapshots)
 	deps.Draw = drawOpenFailure{DrawStore: f.Store, err: failure}
 
 	_, err := engine.StartGiveaway(t.Context(), deps, engine.GiveawayStart{Channel: 42, Actor: "7"})
 	require.ErrorIs(t, err, failure)
-	require.Equal(t, droppedSnapshot{42, "snapshot"}, take(t, snapshots.dropped))
+	require.Equal(t, engine.SnapshotDropRequest{Channel: 42, SnapshotID: "snapshot"}, take(t, snapshots.dropped))
 }
 
 func closeSnapshotGiveaway(s *draw.Store, ctx context.Context, r draw.Round) (bool, error) {

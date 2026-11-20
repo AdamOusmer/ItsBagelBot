@@ -20,6 +20,13 @@ const raffleCommand = readSource('app/twitch/sesame/modules/raffle.go');
 const giveawayPolicy = [draw, eligibility, moduleRpc].join('\n');
 
 const units: Record<string, number> = { Second: 1, Minute: 60, Hour: 3600 };
+const goLiterals = new Map<string, boolean | string | number>([
+  ['true', true],
+  ['false', false],
+  ['single', 'single'],
+  ['multi', 'split'],
+  ['time.Second', units.Second]
+]);
 const rafflePins: Partial<Record<keyof typeof GIVEAWAY_LIMITS, [string, RegExp]>> = {
   raffleMaxPrize: [raffleConfig, /^\s*MaxRafflePrize\s*=\s*int64\(([\d_]+)\)$/m],
   raffleDefaultPrize: [raffleConfig, /^\s*raffleDefaultPrize\s*=\s*int64\(([\d_]+)\)$/m],
@@ -42,13 +49,14 @@ const pins = [
   })
 ];
 
+function goNumber(raw: string, unit: string | undefined): number {
+  return (units[raw] ?? Number(raw.replaceAll('_', ''))) * (unit ? units[unit] : 1);
+}
+
 function goValue(match: RegExpExecArray | null): number | boolean | string | undefined {
   if (!match) return undefined;
   const [, raw, unit] = match;
-  if (raw === 'true' || raw === 'false') return raw === 'true';
-  if (raw === 'single' || raw === 'multi') return raw === 'multi' ? 'split' : 'single';
-  if (raw === 'time.Second') return 1;
-  return (units[raw] ?? Number(raw.replaceAll('_', ''))) * (unit ? units[unit] : 1);
+  return goLiterals.get(raw) ?? goNumber(raw, unit);
 }
 
 test.each(pins)('$name matches the Go policy', ({ web, source, go }) => {

@@ -8,15 +8,17 @@ import (
 	"strconv"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/module"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 )
 
 type freezeChat struct {
 	chatReplier
-	store          engine.LoyaltyFreeze
-	emit           module.Emit
-	channel, actor uint64
+	store   engine.LoyaltyFreeze
+	emit    module.Emit
+	channel draw.ChannelID
+	actor   draw.ViewerID
 }
 
 func freezeRun(d engine.Deps, release bool) module.RunFunc {
@@ -28,7 +30,8 @@ func freezeRun(d engine.Deps, release bool) module.RunFunc {
 		if err != nil {
 			return err
 		}
-		chat := freezeChat{chatReplier: newChatReplier(c), store: d.LoyaltyFreeze, emit: emit, channel: c.BroadcasterID, actor: actor}
+		chat := freezeChat{chatReplier: newChatReplier(c), store: d.LoyaltyFreeze, emit: emit,
+			channel: draw.ChannelID(c.BroadcasterID), actor: draw.ViewerID(strconv.FormatUint(actor, 10))}
 		ref := engine.EffectRef{Identity: engine.EventIdentity(&c.Env), Effect: engine.EffectLoyaltyFreeze}
 		return d.Dedup.Effect(ctx, ref, func(ctx context.Context) error {
 			if release {
@@ -45,7 +48,7 @@ func (f freezeChat) set(ctx context.Context, args string) error {
 		f.reply(f.emit, "", "loyalty.freeze.usage")
 		return nil
 	}
-	_, err := f.store.FreezeSet(ctx, f.channel, minutes, f.actor)
+	_, err := f.store.FreezeSet(ctx, f.channel, engine.FreezeMinutes(minutes), f.actor)
 	if err != nil {
 		return err
 	}

@@ -234,14 +234,14 @@ type WagerOutcome struct {
 }
 
 type LoyaltyFreeze interface {
-	FreezeGet(context.Context, uint64) (loyaltyrpc.FreezeView, error)
-	FreezeSet(ctx context.Context, channel uint64, minutes int, actor uint64) (loyaltyrpc.FreezeTimes, error)
-	FreezeRelease(ctx context.Context, channel, actor uint64) (bool, error)
+	FreezeGet(context.Context, draw.ChannelID) (loyaltyrpc.FreezeView, error)
+	FreezeSet(ctx context.Context, channel draw.ChannelID, minutes FreezeMinutes, actor draw.ViewerID) (loyaltyrpc.FreezeTimes, error)
+	FreezeRelease(ctx context.Context, channel draw.ChannelID, actor draw.ViewerID) (bool, error)
 }
 
 type StandingsSnapshots interface {
 	SnapshotCreate(context.Context, SnapshotRequest) (SnapshotRef, error)
-	SnapshotDrop(ctx context.Context, channel uint64, snapshotID string) error
+	SnapshotDrop(context.Context, SnapshotDropRequest) error
 }
 
 type LoyaltyStore interface {

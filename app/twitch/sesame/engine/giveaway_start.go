@@ -153,7 +153,7 @@ func dropUnopenedSnapshot(ctx context.Context, standings StandingsSnapshots, req
 	if req.Terms.SnapshotID == "" {
 		return nil
 	}
-	return standings.SnapshotDrop(context.WithoutCancel(ctx), uint64(req.Channel), req.Terms.SnapshotID)
+	return standings.SnapshotDrop(context.WithoutCancel(ctx), SnapshotDropRequest{Channel: req.Channel, SnapshotID: req.Terms.SnapshotID})
 }
 
 func giveawayStartBusy(ctx context.Context, store DrawStore, channel draw.ChannelID) (GiveawayStartOutcome, error) {

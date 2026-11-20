@@ -21,7 +21,8 @@ func (o GiveawayPhaseObserver) LeftOpen(ctx context.Context, round draw.Round) {
 	if round.Terms.Kind != draw.KindGiveaway || round.Terms.StandingsID() == "" {
 		return
 	}
-	if err := o.Snapshots.SnapshotDrop(ctx, uint64(round.Channel), round.Terms.StandingsID()); err != nil {
+	req := SnapshotDropRequest{Channel: round.Channel, SnapshotID: round.Terms.StandingsID()}
+	if err := o.Snapshots.SnapshotDrop(ctx, req); err != nil {
 		o.Log.Warn("giveaway: drop standings snapshot failed", zap.String("round_id", string(round.ID)), zap.Error(err))
 	}
 }
