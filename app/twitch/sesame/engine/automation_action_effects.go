@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/internal/domain/automation"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
@@ -22,6 +23,9 @@ const (
 	customPostEndpoint   = "post"
 	goveeProvider        = "govee"
 	goveeControlEndpoint = "control"
+	goveeRestoreEndpoint = "restore"
+	restoreRetryMS       = 1000
+	noViewer             = "no_viewer"
 )
 
 type actionTarget struct {
@@ -29,15 +33,55 @@ type actionTarget struct {
 	login string
 }
 
-func (x *actionExec) target(template string, selfWhenEmpty bool) (actionTarget, error) {
+func usesLegacyLogin(p automation.TargetAction) bool {
+	return p.Who == "" || p.Who == "login"
+}
+
+func (x *actionExec) target(p automation.TargetAction, selfWhenEmpty bool) (actionTarget, error) {
+	switch p.Who {
+	case "viewer":
+		return x.viewerTarget()
+	case "mention":
+		return x.mentionTarget()
+	case "user":
+		id, err := strconv.ParseUint(p.UserID, 10, 64)
+		if err != nil || id == 0 {
+			return actionTarget{}, failure("no_target")
+		}
+		return actionTarget{id: id, login: scope.NormalizeLogin(p.Login)}, nil
+	case "", "login":
+		return x.loginTarget(p.Login, selfWhenEmpty)
+	default:
+		return actionTarget{}, failure("no_target")
+	}
+}
+
+func (x *actionExec) viewerTarget() (actionTarget, error) {
+	viewer := x.run.Viewer
+	login := scope.NormalizeLogin(viewer.Login)
+	if viewer.ID == 0 || login == "" {
+		return actionTarget{}, failure(noViewer)
+	}
+	return actionTarget{id: viewer.ID, login: login}, nil
+}
+
+func (x *actionExec) mentionTarget() (actionTarget, error) {
+	if x.run.Env == nil {
+		return actionTarget{}, failure("no_target")
+	}
+	mentions := x.run.Env.Mentions
+	id := scope.MentionedViewerID(mentions, "")
+	if id == 0 {
+		return actionTarget{}, failure("no_target")
+	}
+	return actionTarget{id: id, login: scope.NormalizeLogin(mentions[0].UserLogin)}, nil
+}
+
+func (x *actionExec) loginTarget(template string, selfWhenEmpty bool) (actionTarget, error) {
 	login := scope.NormalizeLogin(x.expand(template))
 	viewer := x.run.Viewer
 	if login == "" && selfWhenEmpty {
-		login = scope.NormalizeLogin(viewer.Login)
-		if viewer.ID == 0 {
-			return actionTarget{}, failure("no_viewer")
-		}
-		return actionTarget{id: viewer.ID, login: login}, nil
+		return x.viewerTarget()
 	}
 	if login == "" {
 		return actionTarget{}, failure("empty_login")
@@ -66,13 +110,30 @@ func (x *actionExec) lookupLogin(login string) (actionTarget, error) {
 	return actionTarget{id: id, login: login}, nil
 }
 
+func (x *actionExec) effectRef(s step) EffectRef {
+	identity := x.identity()
+	if usesHoldIdentity(s) {
+		identity = x.holdIdentity()
+	}
+	return EffectRef{Identity: identity, Effect: s.EffectKey + x.iter}
+}
+
+func hasLightsHold(s step) bool { return s.Type == "lights" && len(s.Branches) > 0 }
+
+func usesHoldIdentity(s step) bool { return s.Internal || hasLightsHold(s) }
+
+func (x *actionExec) holdIdentity() string {
+	identity := x.identity()
+	if anonymousRun(identity) {
+		return x.run.ID
+	}
+	return identity
+}
+
 func (x *actionExec) once(s step, do func() error) error {
 	ran := false
 	var detail error
-	err := x.p.dedup.Effect(x.ctx, EffectRef{
-		Identity: x.identity(),
-		Effect:   s.EffectKey + x.iter,
-	}, func(ctx context.Context) error {
+	err := x.p.dedup.Effect(x.ctx, x.effectRef(s), func(ctx context.Context) error {
 		ran = true
 		previous := x.ctx
 		x.ctx = ctx
@@ -92,7 +153,9 @@ func (x *actionExec) once(s step, do func() error) error {
 func effectOutcome(err error) error {
 	status, detail := classify(err)
 	switch {
-	case status == automationrpc.StatusOK, status == automationrpc.StatusSkipped, detail == "store_error":
+	case status == automationrpc.StatusOK, status == automationrpc.StatusSent, status == automationrpc.StatusSkipped:
+		return nil
+	case detail == "store_error", detail == noViewer:
 		return nil
 	default:
 		return err
@@ -101,7 +164,7 @@ func effectOutcome(err error) error {
 
 func storeResult(err error, found bool) error {
 	if err != nil {
-		return failure("store_error")
+		return loyaltyStoreFailure(err)
 	}
 	if !found {
 		return failure("not_found")
@@ -109,21 +172,62 @@ func storeResult(err error, found bool) error {
 	return nil
 }
 
+func loyaltyStoreFailure(err error) error {
+	var reply bus.RPCReplyError
+	if errors.As(err, &reply) && reply.Message == loyaltyrpc.CounterTargetRequired {
+		return failure(noViewer)
+	}
+	return failure("store_error")
+}
+
 func (x *actionExec) pointsAdd(s step, p automation.PointsAddAction) error {
-	return x.adjustPoints(s, p.Login, p.Amount, false)
+	return x.adjustPoints(s, p.TargetAction, p.Amount, false)
 }
 
 func (x *actionExec) pointsSet(s step, p automation.PointsSetAction) error {
-	return x.adjustPoints(s, p.Login, p.Amount, true)
+	return x.adjustPoints(s, p.TargetAction, p.Amount, true)
 }
 
-func (x *actionExec) adjustPoints(s step, login string, amount int64, absolute bool) error {
+func (x *actionExec) pointsSpend(s step, p automation.PointsSpendAction) error {
+	viewer, err := x.viewerTarget()
+	if err != nil {
+		return err
+	}
 	if x.p.loyalty == nil {
 		return failure("no_loyalty")
 	}
-	t, err := x.target(login, true)
+	spend := PointSpend{BroadcasterID: x.run.BroadcasterID, ViewerID: viewer.id, Login: viewer.login, Amount: p.Amount}
+	var balance loyaltyrpc.Balance
+	var spent bool
+	err = x.once(s, func() error {
+		var err error
+		balance, _, spent, err = x.p.loyalty.BalanceSpend(x.ctx, spend)
+		if err != nil {
+			return loyaltyStoreFailure(err)
+		}
+		return nil
+	})
 	if err != nil {
 		return err
+	}
+	x.run.points = strconv.FormatInt(balance.Points, 10)
+	if !spent {
+		return x.failBranch(s, "insufficient_points")
+	}
+	x.execList(s.Branches[0])
+	return nil
+}
+
+func (x *actionExec) adjustPoints(s step, target automation.TargetAction, amount int64, absolute bool) error {
+	if x.p.loyalty == nil {
+		return failure("no_loyalty")
+	}
+	t, err := x.target(target, true)
+	if err != nil {
+		return err
+	}
+	if target.Who == "user" && t.login == "" {
+		return failure("empty_login")
 	}
 	return x.once(s, func() error {
 		_, found, err := x.p.loyalty.BalanceAdjustViewer(x.ctx, BalanceAdjustment{
@@ -148,7 +252,9 @@ func (x *actionExec) loyaltyOnce(s step, apply func(LoyaltyStore) (found bool, e
 }
 
 func (x *actionExec) counterAdd(s step, p automation.CounterAddAction) error {
-	bump := CounterBump{BroadcasterID: x.run.BroadcasterID, Name: p.Name, Viewer: x.run.Viewer, Delta: p.Amount}
+	bump := CounterBump{
+		BroadcasterID: x.run.BroadcasterID, Name: p.Name, Viewer: x.run.Viewer, Command: x.run.Plan.Automation.ID, Delta: p.Amount,
+	}
 	return x.loyaltyOnce(s, func(l LoyaltyStore) (bool, error) {
 		_, err := l.CounterBump(x.ctx, bump)
 		return true, err
@@ -156,7 +262,10 @@ func (x *actionExec) counterAdd(s step, p automation.CounterAddAction) error {
 }
 
 func (x *actionExec) counterSet(s step, p automation.CounterSetAction) error {
-	set := CounterAssignment{BroadcasterID: x.run.BroadcasterID, Name: p.Name, ViewerID: x.run.Viewer.ID, Value: p.Value}
+	set := CounterAssignment{
+		BroadcasterID: x.run.BroadcasterID, Name: p.Name, ViewerID: x.run.Viewer.ID,
+		Command: x.run.Plan.Automation.ID, Value: p.Value, RequireTarget: true,
+	}
 	return x.loyaltyOnce(s, func(l LoyaltyStore) (bool, error) {
 		return l.CounterSet(x.ctx, set)
 	})
@@ -166,13 +275,58 @@ func (x *actionExec) lights(s step, p automation.LightsAction) error {
 	if refusal := x.lightsRefusal(p); refusal != nil {
 		return refusal
 	}
-	if !p.AnyTime {
-		if err := x.requireLive(); err != nil {
-			return err
+	req := lightsRequest(x.bid, p)
+	if len(s.Branches) > 0 {
+		req.HoldS, req.HoldID = p.HoldS, x.lightHoldID(&s.Branches[0][1])
+	}
+	return x.once(s, func() error { return x.controlLights(s, req) })
+}
+
+func (x *actionExec) controlLights(s step, req gossiprpc.Request) error {
+	if err := x.sendLights(req); err != nil {
+		return err
+	}
+	if req.HoldS > 0 {
+		x.execPath(s, 0, 0)
+	}
+	return nil
+}
+
+func (x *actionExec) lightHoldID(restore step) string {
+	ref := x.effectRef(restore)
+	return nestedReplayKey(ref.Identity, ref.Effect)
+}
+
+func (x *actionExec) lightsRestore(s step, p automation.LightsRestoreAction) error {
+	if x.p.gossip == nil {
+		return failure("no_gossip")
+	}
+	req := lightsTargetRequest(x.bid, p)
+	req.HoldID = x.lightHoldID(s)
+	var reply gossiprpc.GoveeRestoreReply
+	err := x.once(s, func() error { return x.sendLightsRestore(req, &reply) })
+	if reply.RateLimited {
+		x.signal, x.delayMS = signalRetry, int(reply.RetryAfterMS)
+		if x.delayMS <= 0 {
+			x.delayMS = restoreRetryMS
 		}
 	}
-	req := lightsRequest(x.bid, p)
-	return x.once(s, func() error { return x.sendLights(req) })
+	return err
+}
+
+func (x *actionExec) sendLightsRestore(req gossiprpc.Request, reply *gossiprpc.GoveeRestoreReply) error {
+	err := x.p.gossip.Call(x.ctx, GossipRoute{Provider: goveeProvider, Endpoint: goveeRestoreEndpoint}, req, reply)
+	switch {
+	case err != nil:
+		return gossipFailure(err)
+	case reply.RateLimited:
+		return limited("rate_limited")
+	case reply.Error != "":
+		return failure(reply.Error)
+	case !reply.OK:
+		return failure("gossip_error")
+	}
+	return nil
 }
 
 func (x *actionExec) requireLive() error {
@@ -197,6 +351,8 @@ func (x *actionExec) lightsRefusal(p automation.LightsAction) error {
 		return failure("no_gossip")
 	case !hasLightTarget(p):
 		return failure("no_device")
+	case !p.AnyTime:
+		return x.requireLive()
 	}
 	return nil
 }
@@ -206,32 +362,58 @@ func (x *actionExec) sendLights(req gossiprpc.Request) error {
 	if err := x.p.gossip.Call(x.ctx, GossipRoute{Provider: goveeProvider, Endpoint: goveeControlEndpoint}, req, &reply); err != nil {
 		return gossipFailure(err)
 	}
-	if req.Scene != nil && !reply.SceneApplied {
+	switch {
+	case reply.Error != "":
+		return failure(reply.Error)
+	case req.Scene != nil && !reply.SceneApplied:
 		return failure("gossip_outdated")
+	case !reply.OK:
+		return failure("gossip_error")
 	}
 	return nil
 }
 
-func lightsRequest(channelID string, p automation.LightsAction) gossiprpc.Request {
-	req := gossiprpc.Request{ChannelID: channelID, Device: p.Device, SKU: p.SKU, ColorRGB: p.RGB, Lights: lightGroup(p)}
-	if p.Mode == automation.LightsModeScene {
+var lightsRequests = map[string]func(*gossiprpc.Request, automation.LightsAction){
+	automation.LightsModeColor: func(req *gossiprpc.Request, p automation.LightsAction) { req.ColorRGB = p.RGB },
+	automation.LightsModeScene: func(req *gossiprpc.Request, p automation.LightsAction) {
 		req.Scene = &gossiprpc.GoveeScene{
 			ID: p.SceneID, Name: p.SceneName, Type: p.SceneType, Instance: p.SceneInstance, Value: codec.RawMessage(p.SceneValue),
 		}
+	},
+	automation.LightsModeWhite: func(req *gossiprpc.Request, p automation.LightsAction) { req.Kelvin = p.Kelvin },
+	automation.LightsModeOn:    func(req *gossiprpc.Request, _ automation.LightsAction) { req.KeepLook = true },
+	automation.LightsModeOff:   func(req *gossiprpc.Request, _ automation.LightsAction) { req.PowerOff = true },
+}
+
+func lightsRequest(channelID string, p automation.LightsAction) gossiprpc.Request {
+	req := lightsTargetRequest(channelID, automation.LightsRestoreAction{Device: p.Device, SKU: p.SKU, ExtraLights: p.ExtraLights})
+	if apply := lightsRequests[p.Mode]; apply != nil {
+		apply(&req, p)
+	}
+	if !req.PowerOff {
+		req.Brightness = p.Brightness
 	}
 	return req
 }
 
-func lightGroup(p automation.LightsAction) []gossiprpc.GoveeLight {
+func lightsTargetRequest(channelID string, p automation.LightsRestoreAction) gossiprpc.Request {
+	return gossiprpc.Request{ChannelID: channelID, Device: p.Device, SKU: p.SKU, Lights: lightGroup(p)}
+}
+
+func lightGroup(p automation.LightsRestoreAction) []gossiprpc.GoveeLight {
 	if len(p.ExtraLights) == 0 {
 		return nil
 	}
 	lights := make([]gossiprpc.GoveeLight, 0, len(p.ExtraLights)+1)
 	lights = append(lights, gossiprpc.GoveeLight{Device: p.Device, SKU: p.SKU})
+	seen := map[string]bool{p.Device: true}
 	for _, ref := range p.ExtraLights {
-		if device, sku, ok := strings.Cut(ref, "/"); ok {
-			lights = append(lights, gossiprpc.GoveeLight{Device: device, SKU: sku})
+		device, sku, ok := strings.Cut(ref, "/")
+		if !ok || seen[device] {
+			continue
 		}
+		seen[device] = true
+		lights = append(lights, gossiprpc.GoveeLight{Device: device, SKU: sku})
 	}
 	return lights
 }
@@ -248,10 +430,14 @@ func gossipFailure(err error) error {
 }
 
 func (x *actionExec) httpPost(s step, p automation.HTTPPostAction) error {
+	target := x.expand(p.URL)
+	if validate.FetchURL(target) != nil {
+		return x.settleFetch(s, p.SaveAs, fetchResult{failure: string(gossiprpc.FetchBadDef)})
+	}
 	if x.p.gossip == nil {
 		return x.settleFetch(s, p.SaveAs, fetchResult{failure: "no_gossip"})
 	}
-	req := gossiprpc.Request{Account: x.bid, ChannelID: x.bid, IsPremium: x.run.Regress.IsPremium(), Def: &gossiprpc.FetchDef{URL: p.URL}, Body: x.expand(p.Body), CaptureBody: p.SaveAs != ""}
+	req := gossiprpc.Request{Account: x.bid, ChannelID: x.bid, IsPremium: x.run.Regress.IsPremium(), Def: &gossiprpc.FetchDef{URL: target}, Body: x.expand(p.Body), CaptureBody: p.SaveAs != ""}
 	var result fetchResult
 	err := x.once(s, func() error {
 		result = x.callFetch(customPostEndpoint, req)

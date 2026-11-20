@@ -2,6 +2,19 @@
   "label": "Estatísticas de Valorant",
   "tagline": "Patentes, histórico de partidas, rankings e rotação diária da loja de Valorant no chat.",
   "description": "Um comando, seis visões: !val mostra a classificação competitiva de um jogador (patente, RR, variação de RR da última partida, maior patente); !val record soma as partidas ranqueadas e as vitórias da conta; !val matches lista partidas ranqueadas recentes com agente e resultados K/D/A; !val account mostra a quem um Riot ID corresponde, com o nível da conta; !val lb exibe os 10 primeiros de qualquer ranking regional, PC ou console; !val shop mostra a rotação global de skins de hoje com preços em VP e contagem regressiva para a renovação. As formas compactas !valrank, !valrecord, !valmatches, !valaccount, !vallb e !valshop também funcionam. Vincule seu Riot ID abaixo (\"Name#Tag\"). Os espectadores também podem informar qualquer jogador, por exemplo, \"!val Frosty#EUW1\", e adicionar um shard ou uma plataforma em qualquer lugar da linha para limitar essa consulta (\"!val eu Frosty#EUW1\", \"!val lb console ap\"). Deixe a região em branco para o bot detectar o shard pela própria conta.",
+  "connection": {
+    "title": "Conta Riot",
+    "prompt": "Entre para compartilhar suas estatísticas de Valorant no chat.",
+    "linked": "Vinculada como {account} ({shard})",
+    "signIn": "Entrar com a Riot",
+    "unlink": "Desvincular",
+    "unconfigured": "O login com a Riot está indisponível no momento.",
+    "declined": "O login com a Riot foi recusado.",
+    "state": "O login com a Riot expirou. Comece novamente.",
+    "oauth": "O login com a Riot falhou. Tente novamente.",
+    "store": "Não foi possível consultar ou atualizar a conexão com a Riot. Tente novamente.",
+    "unlinkFailed": "Não foi possível desvincular sua conta Riot. Tente novamente."
+  },
   "settings": {
     "account": {
       "label": "Riot ID vinculado",

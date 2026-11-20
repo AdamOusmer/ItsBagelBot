@@ -55,12 +55,25 @@ func (w *Worker) changeReward(ctx context.Context, payload *outgress.Message, ch
 	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
-	patch := twitch.RewardPatch{IsEnabled: change.Enabled, Cost: change.Cost}
+	patch := rewardUpdatePatch(change)
 	err := w.twitch.PatchCustomReward(ctx, payload.BroadcasterID, payload.RewardID, patch)
 	if !change.ResetOnStreamEnd {
 		return err
 	}
 	return w.settleSnapshot(ctx, payload, err)
+}
+
+func rewardUpdatePatch(change outgress.RewardUpdate) twitch.RewardPatch {
+	patch := twitch.RewardPatch{IsEnabled: change.Enabled, Cost: change.Cost, IsPaused: change.Paused}
+	if change.GlobalCooldownSeconds == nil {
+		return patch
+	}
+	enabled := *change.GlobalCooldownSeconds > 0
+	patch.IsGlobalCooldownEnabled = &enabled
+	if enabled {
+		patch.GlobalCooldownSeconds = change.GlobalCooldownSeconds
+	}
+	return patch
 }
 
 // Staged before the patch so a redelivery after an ambiguous failure never reads a value this change already wrote.
@@ -80,7 +93,16 @@ func (w *Worker) stageSnapshot(ctx context.Context, payload *outgress.Message) e
 	if err != nil {
 		return err
 	}
-	return w.rewardSnapshots.stage(ctx, reward, rewardSnapshot{Enabled: prior.IsEnabled, Cost: prior.Cost})
+	snapshot := rewardSnapshot{
+		Enabled:               &prior.IsEnabled,
+		Cost:                  &prior.Cost,
+		Paused:                &prior.IsPaused,
+		GlobalCooldownEnabled: &prior.GlobalCooldownEnabled,
+	}
+	if prior.GlobalCooldownSeconds > 0 {
+		snapshot.GlobalCooldownSeconds = &prior.GlobalCooldownSeconds
+	}
+	return w.rewardSnapshots.stage(ctx, reward, snapshot)
 }
 
 // Only a patch that worked owes a restore; a staged value left by a failed one must never overwrite a later edit.
@@ -250,7 +272,13 @@ func (w *Worker) restoreReward(ctx context.Context, payload *outgress.Message, r
 	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
-	patch := twitch.RewardPatch{IsEnabled: &snapshot.Enabled, Cost: &snapshot.Cost}
+	patch := twitch.RewardPatch{
+		IsEnabled:               snapshot.Enabled,
+		Cost:                    snapshot.Cost,
+		IsPaused:                snapshot.Paused,
+		IsGlobalCooldownEnabled: snapshot.GlobalCooldownEnabled,
+		GlobalCooldownSeconds:   snapshot.GlobalCooldownSeconds,
+	}
 	err := w.twitch.PatchCustomReward(ctx, payload.BroadcasterID, rewardID, patch)
 	if err == nil || errors.Is(err, twitch.ErrRewardNotFound) {
 		return w.rewardSnapshots.clear(ctx, rewardRef{payload.BroadcasterID, rewardID})

@@ -10,11 +10,50 @@ const NAMED_GROUP = /\(\?P</g;
 const REPEAT_COUNT = /\{(\d+)(?:,(\d*))?\}/y;
 const MAX_REPEAT = 1000;
 
+const GO_UNICODE_CLASSES = new Set([
+  'Adlam', 'Ahom', 'Anatolian_Hieroglyphs', 'Any', 'Arabic', 'Armenian', 'ASCII', 'Assigned',
+  'Avestan', 'Balinese', 'Bamum', 'Bassa_Vah', 'Batak', 'Bengali', 'Beria_Erfe', 'Bhaiksuki',
+  'Bopomofo', 'Brahmi', 'Braille', 'Buginese', 'Buhid', 'C', 'Canadian_Aboriginal', 'Carian',
+  'Cased_Letter', 'Caucasian_Albanian', 'Cc', 'Cf', 'Chakma', 'Cham', 'Cherokee', 'Chorasmian',
+  'Close_Punctuation', 'Cn', 'cntrl', 'Co', 'Combining_Mark', 'Common', 'Connector_Punctuation', 'Control',
+  'Coptic', 'Cs', 'Cuneiform', 'Currency_Symbol', 'Cypriot', 'Cypro_Minoan', 'Cyrillic', 'Dash_Punctuation',
+  'Decimal_Number', 'Deseret', 'Devanagari', 'digit', 'Dives_Akuru', 'Dogra', 'Duployan', 'Egyptian_Hieroglyphs',
+  'Elbasan', 'Elymaic', 'Enclosing_Mark', 'Ethiopic', 'Final_Punctuation', 'Format', 'Garay', 'Georgian',
+  'Glagolitic', 'Gothic', 'Grantha', 'Greek', 'Gujarati', 'Gunjala_Gondi', 'Gurmukhi', 'Gurung_Khema',
+  'Han', 'Hangul', 'Hanifi_Rohingya', 'Hanunoo', 'Hatran', 'Hebrew', 'Hiragana', 'Imperial_Aramaic',
+  'Inherited', 'Initial_Punctuation', 'Inscriptional_Pahlavi', 'Inscriptional_Parthian', 'Javanese', 'Kaithi', 'Kannada', 'Katakana',
+  'Kawi', 'Kayah_Li', 'Kharoshthi', 'Khitan_Small_Script', 'Khmer', 'Khojki', 'Khudawadi', 'Kirat_Rai',
+  'L', 'Lao', 'Latin', 'LC', 'Lepcha', 'Letter', 'Letter_Number', 'Limbu',
+  'Line_Separator', 'Linear_A', 'Linear_B', 'Lisu', 'Ll', 'Lm', 'Lo', 'Lowercase_Letter',
+  'Lt', 'Lu', 'Lycian', 'Lydian', 'M', 'Mahajani', 'Makasar', 'Malayalam',
+  'Mandaic', 'Manichaean', 'Marchen', 'Mark', 'Masaram_Gondi', 'Math_Symbol', 'Mc', 'Me',
+  'Medefaidrin', 'Meetei_Mayek', 'Mende_Kikakui', 'Meroitic_Cursive', 'Meroitic_Hieroglyphs', 'Miao', 'Mn', 'Modi',
+  'Modifier_Letter', 'Modifier_Symbol', 'Mongolian', 'Mro', 'Multani', 'Myanmar', 'N', 'Nabataean',
+  'Nag_Mundari', 'Nandinagari', 'Nd', 'New_Tai_Lue', 'Newa', 'Nko', 'Nl', 'No',
+  'Nonspacing_Mark', 'Number', 'Nushu', 'Nyiakeng_Puachue_Hmong', 'Ogham', 'Ol_Chiki', 'Ol_Onal', 'Old_Hungarian',
+  'Old_Italic', 'Old_North_Arabian', 'Old_Permic', 'Old_Persian', 'Old_Sogdian', 'Old_South_Arabian', 'Old_Turkic', 'Old_Uyghur',
+  'Open_Punctuation', 'Oriya', 'Osage', 'Osmanya', 'Other', 'Other_Letter', 'Other_Number', 'Other_Punctuation',
+  'Other_Symbol', 'P', 'Pahawh_Hmong', 'Palmyrene', 'Paragraph_Separator', 'Pau_Cin_Hau', 'Pc', 'Pd',
+  'Pe', 'Pf', 'Phags_Pa', 'Phoenician', 'Pi', 'Po', 'Private_Use', 'Ps',
+  'Psalter_Pahlavi', 'punct', 'Punctuation', 'Rejang', 'Runic', 'S', 'Samaritan', 'Saurashtra',
+  'Sc', 'Separator', 'Sharada', 'Shavian', 'Siddham', 'Sidetic', 'SignWriting', 'Sinhala',
+  'Sk', 'Sm', 'So', 'Sogdian', 'Sora_Sompeng', 'Soyombo', 'Space_Separator', 'Spacing_Mark',
+  'Sundanese', 'Sunuwar', 'Surrogate', 'Syloti_Nagri', 'Symbol', 'Syriac', 'Tagalog', 'Tagbanwa',
+  'Tai_Le', 'Tai_Tham', 'Tai_Viet', 'Tai_Yo', 'Takri', 'Tamil', 'Tangsa', 'Tangut',
+  'Telugu', 'Thaana', 'Thai', 'Tibetan', 'Tifinagh', 'Tirhuta', 'Titlecase_Letter', 'Todhri',
+  'Tolong_Siki', 'Toto', 'Tulu_Tigalari', 'Ugaritic', 'Unassigned', 'Uppercase_Letter', 'Vai', 'Vithkuqi',
+  'Wancho', 'Warang_Citi', 'Yezidi', 'Yi', 'Z', 'Zanabazar_Square', 'Zl', 'Zp', 'Zs',
+].map(canonicalUnicodeClass));
+
 const UNSUPPORTED = [LOOKAROUND, BACKREFERENCE];
 
 type RegexSource = string;
 
 type Cursor = { source: RegexSource; at: number };
+
+type EscapeScanner = { source: RegexSource; closeAt: number };
+
+type EscapeScan = { end: number; className?: RegexSource };
 
 type ScanKind = 'open' | 'close' | 'atom' | 'modifier' | 'repeat';
 
@@ -94,14 +133,73 @@ function hasUnsupportedSyntax(source: RegexSource): boolean {
   return UNSUPPORTED.some((syntax) => syntax.test(source)) || hasGoRejectedEscape(source);
 }
 
+function canonicalUnicodeClass(name: RegexSource): RegexSource {
+  return name.replace(/[ _-]/g, '').replace(/[A-Z]/g, (c) => c.toLowerCase());
+}
+
+function codePointEnd(source: RegexSource, at: number): number {
+  return at + ((source.codePointAt(at) ?? 0) > 0xffff ? 2 : 1);
+}
+
+function nextClose(scanner: EscapeScanner, from: number): number {
+  if (scanner.closeAt >= 0 && scanner.closeAt < from) scanner.closeAt = scanner.source.indexOf('}', from);
+  return scanner.closeAt;
+}
+
+function quotedEnd(source: RegexSource, from: number): number {
+  const close = source.indexOf('\\E', from);
+  return close < 0 ? source.length : close + 2;
+}
+
+function bracedClass(scanner: EscapeScanner, open: number): EscapeScan {
+  const close = nextClose(scanner, open + 1);
+  if (close < 0) return { end: open, className: '' };
+  return { end: close + 1, className: scanner.source.slice(open + 1, close).replace(/^\^/, '') };
+}
+
+function unicodeClass(scanner: EscapeScanner, from: number): EscapeScan {
+  const { source } = scanner;
+  if (source[from] === '{') return bracedClass(scanner, from);
+  if (from >= source.length) return { end: from, className: '' };
+  const end = codePointEnd(source, from);
+  return { end, className: source.slice(from, end) };
+}
+
+function scanEscape(scanner: EscapeScanner, at: number): EscapeScan {
+  const kind = scanner.source[at + 1];
+  if (kind === 'Q') return { end: quotedEnd(scanner.source, at + 2) };
+  if (kind === 'p' || kind === 'P') return unicodeClass(scanner, at + 2);
+  return { end: codePointEnd(scanner.source, at + 1) };
+}
+
+const isGoUnicodeClass = (name: RegexSource): boolean => GO_UNICODE_CLASSES.has(canonicalUnicodeClass(name));
+
+function normalizeUnicodeClasses(source: RegexSource): RegexSource | null {
+  const scanner: EscapeScanner = { source, closeAt: source.indexOf('}') };
+  let normalized = '';
+  let copied = 0;
+  for (let at = source.indexOf('\\'); at >= 0 && at + 1 < source.length; at = source.indexOf('\\', copied)) {
+    const scan = scanEscape(scanner, at);
+    if (scan.className !== undefined && !isGoUnicodeClass(scan.className)) return null;
+    normalized += scan.className === undefined ? source.slice(copied, scan.end) : source.slice(copied, at) + '\\w';
+    copied = scan.end;
+  }
+  return normalized + source.slice(copied);
+}
+
 function toJsSyntax(source: RegexSource): RegexSource {
   return source.replace(FLAG_GROUP, '').replace(FLAG_SCOPE, '(?:').replace(NAMED_GROUP, '(?<');
 }
 
+function goRejects(normalized: RegexSource): boolean {
+  return hasUnsupportedSyntax(normalized) || repeatTooLarge(normalized);
+}
+
 export function compilesAsRe2(pattern: RegexSource): boolean {
-  if (hasUnsupportedSyntax(pattern) || repeatTooLarge(pattern)) return false;
+  const normalized = normalizeUnicodeClasses(pattern);
+  if (normalized === null || goRejects(normalized)) return false;
   try {
-    new RegExp(toJsSyntax(pattern));
+    new RegExp(toJsSyntax(normalized));
     return true;
   } catch {
     return false;

@@ -183,7 +183,10 @@ func (d *dashboardRPC) handleGrantSave(ctx context.Context, msg *nats.Msg) {
 
 	d.writeThenInvalidate(ctx, msg, dashboardWrite{scope: invalidate.ScopeGrant, id: id, op: "grant_save",
 		write: func(ctx context.Context) error {
-			return d.repo.UpsertToken(ctx, repository.TokenWrite{UserID: id, Type: tokens.TypeUserToken, Platform: tokens.PlatformTwitch, AccessToken: []byte(req.AccessToken), RefreshToken: []byte(req.RefreshToken)})
+			if err := d.repo.UpsertToken(ctx, repository.TokenWrite{UserID: id, Type: tokens.TypeUserToken, Platform: tokens.PlatformTwitch, AccessToken: []byte(req.AccessToken), RefreshToken: []byte(req.RefreshToken)}); err != nil {
+				return err
+			}
+			return d.repo.ResumeAfterReconnect(ctx, id)
 		}})
 }
 

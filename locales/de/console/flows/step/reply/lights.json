@@ -1,0 +1,46 @@
+{
+  "label": "Lichter einstellen",
+  "summary": "Farbe, Szene, Weiß oder Ein und Aus für Govee-Lichter",
+  "field": {
+    "device": {
+      "label": "Licht"
+    },
+    "mode": {
+      "label": "Einstellen",
+      "option": {
+        "color": "Farbe",
+        "scene": "Szene",
+        "white": "Weiß",
+        "on": "Ein",
+        "off": "Aus"
+      }
+    },
+    "color": {
+      "label": "Farbe"
+    },
+    "scene": {
+      "label": "Szene",
+      "hint": "Verwendet die Szenenliste des ersten Lichts."
+    },
+    "liveOnly": {
+      "label": "Nur während des Streams"
+    },
+    "kelvin": {
+      "label": "Farbtemperatur"
+    },
+    "brightness": {
+      "label": "Helligkeit",
+      "placeholder": "Beibehalten",
+      "unit": "%"
+    },
+    "holdS": {
+      "label": "Zurück nach",
+      "hint": "Die Lichter kehren zu ihrem vorherigen Zustand zurück. Bei Szenen wird die letzte Farbe wiederhergestellt.",
+      "range": "Wähle 0 bis {max} Sekunden."
+    }
+  },
+  "noColors": "Dieses Licht unterstützt keine Farben",
+  "noWarmth": "Dieses Licht hat kein einstellbares Weiß",
+  "noLights": "Keine steuerbaren Govee-Lichter gefunden.",
+  "noLightsBody": "Füge deinem Govee-Konto in der Govee-App ein Licht hinzu."
+}

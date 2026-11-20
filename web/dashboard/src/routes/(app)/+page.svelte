@@ -27,6 +27,7 @@
   import RetryButton from '#lib/components/overview/RetryButton.svelte';
   import ActivityLog from '#lib/components/overview/ActivityLog.svelte';
   import AnsweredTonight from '#lib/components/overview/AnsweredTonight.svelte';
+  import PremiumStrip from '#lib/components/overview/PremiumStrip.svelte';
   import { livePoll } from '@bagel/kit/live-poll';
   import {
     CONNECTION_POLL_FAST_MS,
@@ -249,6 +250,10 @@
       enableSubmit={enableSubmit}
     />
   {/await}
+
+  {#if !data.isPremium && !isDelegate}
+    <PremiumStrip />
+  {/if}
 
   {#await Promise.all([data.stream, data.counters, data.volume, data.commands, data.conn, data.modules])}
     <section class="ov-loading" aria-busy="true" aria-label={t('overview.loadingStream')}>

@@ -72,6 +72,15 @@
     --bb-status-info-border: #3f6d86;
     --bb-status-info-rgb: 123, 181, 217;
 
+    --bb-status-skipped: color-mix(in srgb, var(--bb-status-info) 65%, var(--bb-tier-inactive));
+    --bb-status-skipped-fg: color-mix(in srgb, var(--bb-status-info-fg) 65%, var(--bb-tier-inactive));
+    --bb-status-skipped-bg: var(--bb-status-info-bg);
+    --bb-status-skipped-border: color-mix(in srgb, var(--bb-status-info-border) 65%, var(--bb-tier-inactive));
+
+    --bb-rule: color-mix(in srgb, var(--bb-muted) 15%, var(--bb-bg-1));
+    --bb-rule-strong: color-mix(in srgb, var(--bb-muted) 35%, var(--bb-bg-1));
+    --bb-inset-hover: color-mix(in srgb, var(--bb-inset-bg), var(--bb-white) 4%);
+
     --bb-tier-free: var(--bb-green-glow);
     --bb-tier-free-bg: rgba(var(--bb-green-glow-rgb), 0.12);
     --bb-tier-free-border: rgba(var(--bb-green-glow-rgb), 0.35);

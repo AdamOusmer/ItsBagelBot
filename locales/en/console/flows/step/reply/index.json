@@ -1,55 +1,11 @@
 {
   "chat": {
-    "label": "Send chat message",
-    "summary": "Bot replies in chat",
+    "label": "Send message",
+    "summary": "Post a message in chat",
     "field": {
       "message": {
         "label": "Message",
         "placeholder": "Thanks {user}!"
-      }
-    }
-  },
-  "points": {
-    "label": "Give loyalty points",
-    "summary": "Add or remove points",
-    "field": {
-      "amount": {
-        "label": "Amount",
-        "unit": "points"
-      }
-    }
-  },
-  "counter": {
-    "label": "Bump counter",
-    "summary": "Increase a counter",
-    "field": {
-      "counter": {
-        "label": "Counter"
-      }
-    }
-  },
-  "lights": {
-    "label": "Set lights",
-    "summary": "Set a Govee color or scene",
-    "field": {
-      "device": {
-        "label": "Light"
-      },
-      "mode": {
-        "label": "Set",
-        "option": {
-          "color": "Color",
-          "scene": "Scene"
-        }
-      },
-      "color": {
-        "label": "Color"
-      },
-      "scene": {
-        "label": "Scene"
-      },
-      "liveOnly": {
-        "label": "Only while live"
       }
     }
   },
@@ -58,8 +14,9 @@
     "summary": "Pause before the next step",
     "field": {
       "seconds": {
-        "label": "Delay",
-        "unit": "seconds, max {max}"
+        "label": "Wait for",
+        "unit": "seconds, max {max}",
+        "hint": "All waits in one run add up to 60 seconds at most."
       }
     }
   },
@@ -69,53 +26,13 @@
     "field": {
       "times": {
         "label": "How many times",
-        "placeholder": "3"
+        "placeholder": "3",
+        "hint": "1 to 100. A variable works too, like {args}."
       }
     },
     "out": {
       "body": "Each time",
       "done": "When done"
-    }
-  },
-  "varSet": {
-    "label": "Set a variable",
-    "summary": "Keep a value for later",
-    "field": {
-      "scope": {
-        "label": "Kept for",
-        "option": {
-          "channel": "The channel",
-          "viewer": "This viewer"
-        }
-      },
-      "name": {
-        "label": "Name",
-        "placeholder": "deaths"
-      },
-      "value": {
-        "label": "Value",
-        "placeholder": "{user}"
-      }
-    }
-  },
-  "varAdd": {
-    "label": "Add to a variable",
-    "summary": "Count up or down",
-    "field": {
-      "scope": {
-        "label": "Kept for",
-        "option": {
-          "channel": "The channel",
-          "viewer": "This viewer"
-        }
-      },
-      "name": {
-        "label": "Name",
-        "placeholder": "deaths"
-      },
-      "amount": {
-        "label": "Amount"
-      }
     }
   },
   "varDelete": {
@@ -141,7 +58,8 @@
     "field": {
       "expression": {
         "label": "Expression",
-        "placeholder": "({bits} / 100) + 1"
+        "placeholder": "random(1, 6) * 10",
+        "hint": "Use + - * / % ^ and round, floor, ceil, abs, min, max, random(a, b)."
       },
       "saveAs": {
         "label": "Save as",
@@ -149,71 +67,27 @@
       }
     }
   },
-  "cooldownAdd": {
-    "label": "Add time to a cooldown",
-    "summary": "Extend a named timer while it runs",
-    "field": {
-      "name": {
-        "label": "Timer"
-      },
-      "seconds": {
-        "label": "Add",
-        "range": "Use 1 second to {days} days."
-      },
-      "per": {
-        "label": "Per",
-        "hint": "Adds the time above for each full amount. Put 100 on a bits recipe to count every 100 bits. Leave empty to add it once per event."
-      }
-    }
-  },
-  "countdownAdd": {
-    "label": "Add time to countdown",
-    "summary": "Extend a running countdown",
-    "field": {
-      "name": {
-        "label": "Countdown"
-      },
-      "seconds": {
-        "label": "Add",
-        "range": "Use 1 second to {days} days."
-      },
-      "per": {
-        "label": "Per",
-        "hint": "Add this time for each full amount. Leave empty to add it once per event."
-      }
-    }
-  },
-  "poll": {
-    "label": "Start a poll",
-    "summary": "Start a poll",
-    "field": {
-      "title": {
-        "label": "Title"
-      },
-      "choices": {
-        "label": "Choices (one per line)"
-      },
-      "seconds": {
-        "label": "Duration (seconds)"
-      }
-    }
-  },
   "pollEnd": {
     "label": "End a poll",
-    "summary": "End a poll",
+    "summary": "Stop voting or archive the results",
+    "line": {
+      "terminate": "End poll and show results",
+      "archive": "End poll and hide results"
+    },
     "field": {
       "status": {
         "label": "Action",
         "option": {
-          "terminate": "Stop voting",
-          "archive": "Archive"
+          "terminate": "End and show results",
+          "archive": "End and hide results"
         }
       }
     }
   },
   "prediction": {
     "label": "Start a prediction",
-    "summary": "Start a prediction",
+    "summary": "Let viewers bet points on an outcome",
+    "line": "Prediction: {title}",
     "field": {
       "title": {
         "label": "Title"
@@ -226,102 +100,143 @@
       }
     }
   },
-  "predictionEnd": {
-    "label": "End a prediction",
-    "summary": "End a prediction",
-    "field": {
-      "status": {
-        "label": "Action",
-        "option": {
-          "lock": "Lock voting",
-          "cancel": "Cancel and refund",
-          "resolve": "Choose a winner"
-        }
-      },
-      "winner": {
-        "label": "Winning outcome number"
-      }
-    }
-  },
   "raidStart": {
     "label": "Start a raid",
-    "summary": "Start a raid",
+    "summary": "Send your viewers to another channel",
+    "line": "Raid {target}",
     "field": {
       "target": {
-        "label": "Channel or viewer login"
+        "label": "Channel to raid",
+        "placeholder": "channel name"
       }
     }
   },
   "raidCancel": {
     "label": "Cancel a raid",
-    "summary": "Cancel a raid"
+    "summary": "Stop the raid before viewers leave"
   },
   "mod": {
-    "label": "Set moderator role",
-    "summary": "Set moderator role",
+    "label": "Moderator role",
+    "summary": "Add or remove a moderator",
+    "line": {
+      "add": "Make {who} a moderator",
+      "remove": "Remove {who} as moderator"
+    },
     "field": {
-      "target": {
-        "label": "Channel or viewer login"
-      },
-      "on": {
-        "label": "Enabled"
+      "change": {
+        "label": "Change",
+        "option": {
+          "add": "Add",
+          "remove": "Remove"
+        }
       }
     }
   },
   "vip": {
-    "label": "Set VIP role",
-    "summary": "Set VIP role",
+    "label": "VIP role",
+    "summary": "Add or remove a VIP",
+    "line": {
+      "add": "Make {who} a VIP",
+      "remove": "Remove {who} as VIP"
+    },
     "field": {
-      "target": {
-        "label": "Channel or viewer login"
-      },
-      "on": {
-        "label": "Enabled"
+      "change": {
+        "label": "Change",
+        "option": {
+          "add": "Add",
+          "remove": "Remove"
+        }
       }
     }
   },
   "clearChat": {
     "label": "Clear chat",
-    "summary": "Clear chat"
+    "summary": "Remove all messages from chat",
+    "line": "Clear all chat"
   },
   "adSnooze": {
     "label": "Snooze the next ad",
-    "summary": "Snooze the next ad"
+    "summary": "Push back the next ad break"
   },
   "whisper": {
     "label": "Send a whisper",
-    "summary": "Send a whisper",
+    "summary": "Send a private message to one viewer",
+    "line": "Whisper {target}: {text}",
     "field": {
       "target": {
         "label": "Channel or viewer login"
       },
       "text": {
-        "label": "Message"
+        "label": "Message",
+        "hint": "Sent from the bot account."
       }
     }
   },
-  "unbanResolve": {
-    "label": "Resolve the unban request",
-    "summary": "Resolve the unban request",
+  "stop": {
+    "label": "Stop here",
+    "summary": "End the run here",
+    "keywords": "end exit quit",
+    "line": "End the run here",
+    "note": "Inside parallel paths it ends only that path."
+  },
+  "run": {
+    "label": "Run another recipe",
+    "summary": "Start another recipe in this channel",
+    "keywords": "call trigger chain",
+    "line": "Run {name}",
+    "note": "A recipe can call at most 2 levels deep.",
     "field": {
-      "status": {
-        "label": "Action",
-        "option": {
-          "approve": "Approve",
-          "deny": "Deny"
-        }
-      },
-      "resolution": {
-        "label": "Resolution message (optional)"
+      "automationId": {
+        "label": "Recipe",
+        "hint": "Its own checks still apply. It starts with this recipe's values; its changes stay with it."
       }
     }
   },
-  "brandedContent": {
-    "label": "Set branded content",
-    "summary": "Set branded content",
+  "redemption": {
+    "label": "Complete redemption",
+    "summary": "Fulfill a reward redemption or refund its points",
     "field": {
-      "on": {
-        "label": "Enabled"
+      "result": {
+        "label": "Result"
+      }
+    },
+    "line": {
+      "fulfill": "Mark fulfilled",
+      "cancel": "Refund the points"
+    }
+  },
+  "pointsSpend": {
+    "label": "Spend points",
+    "summary": "Deduct points when the viewer has enough",
+    "line": "Spend {amount}",
+    "field": {
+      "amount": {
+        "label": "Amount",
+        "unit": "points"
+      }
+    },
+    "out": {
+      "enough": "Enough",
+      "notEnough": "Not enough"
+    }
+  },
+  "countdownStop": {
+    "label": "Stop countdown",
+    "summary": "End a running countdown early",
+    "line": "Stop {name}",
+    "field": {
+      "name": {
+        "label": "Countdown"
+      }
+    }
+  },
+  "cooldownReset": {
+    "label": "Reset cooldown",
+    "summary": "Clear a named cooldown",
+    "line": "Reset {name}",
+    "field": {
+      "name": {
+        "label": "Cooldown"
       }
     }
   }

@@ -103,16 +103,17 @@ type entryProbe struct {
 
 func TestCounterSetTargetsOneEntryPerScope(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		scope  string
-		seed   *loyaltyrepo.SetTarget
-		target loyaltyrepo.SetTarget
-		probes []entryProbe
+		name    string
+		scope   string
+		seed    *loyaltyrepo.SetTarget
+		target  loyaltyrepo.SetTarget
+		probes  []entryProbe
+		wantErr error
 	}{
 		{
 			name:   "command scope writes the normalized command bucket",
 			scope:  data.CounterScopeCommand,
-			target: loyaltyrepo.SetTarget{Command: "!Raid"},
+			target: loyaltyrepo.SetTarget{Command: "!Raid", RequireTarget: true},
 			probes: []entryProbe{{0, "raid", 5}, {0, "hug", 0}},
 		},
 		{
@@ -133,6 +134,14 @@ func TestCounterSetTargetsOneEntryPerScope(t *testing.T) {
 			seed:   &loyaltyrepo.SetTarget{ViewerID: 7},
 			probes: []entryProbe{{7, "", 0}},
 		},
+		{
+			name:    "a targeted set without a viewer preserves entries",
+			scope:   data.CounterScopeViewer,
+			seed:    &loyaltyrepo.SetTarget{ViewerID: 7},
+			target:  loyaltyrepo.SetTarget{Command: "recipe", RequireTarget: true},
+			probes:  []entryProbe{{7, "", 3}},
+			wantErr: loyaltyrepo.ErrCounterTargetRequired,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo, _ := newLoyaltyRepo(t)
@@ -147,9 +156,8 @@ func TestCounterSetTargetsOneEntryPerScope(t *testing.T) {
 				require.NoError(t, err)
 			}
 			tc.target.Value = 5
-			found, err := repo.CounterSet(ctx, ref, tc.target)
-			require.NoError(t, err)
-			require.True(t, found)
+			_, err = repo.CounterSet(ctx, ref, tc.target)
+			require.ErrorIs(t, err, tc.wantErr)
 			for _, probe := range tc.probes {
 				_, got, found, err := repo.CounterGet(ctx, ref, loyaltyrepo.SetTarget{ViewerID: probe.viewerID, Command: probe.command})
 				require.NoError(t, err)

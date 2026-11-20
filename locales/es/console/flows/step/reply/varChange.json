@@ -1,0 +1,42 @@
+{
+  "label": "Cambiar una variable",
+  "summary": "Guardar, actualizar o borrar un valor",
+  "keywords": "almacenar guardar recordar contador asignar sumar borrar olvidar",
+  "scopeWarning": "Este disparador no tiene espectador. Elige El canal para cambiar una variable aquí.",
+  "line": {
+    "set": "Asignar {value} a {name}",
+    "add": "Sumar {amount} a {name}",
+    "subtract": "Restar {amount} de {name}",
+    "forget": "Olvidar {name}"
+  },
+  "field": {
+    "do": {
+      "label": "Acción",
+      "option": {
+        "set": "Asignar",
+        "add": "Sumar",
+        "subtract": "Restar",
+        "forget": "Olvidar"
+      }
+    },
+    "scope": {
+      "label": "Guardar para",
+      "option": {
+        "channel": "El canal",
+        "viewer": "Este espectador"
+      }
+    },
+    "name": {
+      "label": "Nombre",
+      "placeholder": "deaths",
+      "hint": "Una palabra en minúsculas. Puedes usar letras y dígitos."
+    },
+    "value": {
+      "label": "Valor",
+      "placeholder": "{user}"
+    },
+    "amount": {
+      "label": "Cantidad"
+    }
+  }
+}

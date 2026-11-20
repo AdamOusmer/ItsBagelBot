@@ -1,0 +1,12 @@
+{
+  "label": "Treuepunkte festlegen",
+  "summary": "Den Treuepunktestand eines Zuschauers festlegen",
+  "keywords": "treuepunkte punkte guthaben festlegen",
+  "field": {
+    "amount": {
+      "label": "Anzahl",
+      "unit": "Punkte"
+    }
+  },
+  "line": "Punkte auf {amount} setzen"
+}

@@ -1,0 +1,30 @@
+[
+  {
+    "path": "conditions[0].params.right",
+    "code": "required"
+  },
+  {
+    "path": "conditions[1].params.value",
+    "code": "required"
+  },
+  {
+    "path": "conditions[2].params.value",
+    "code": "required"
+  },
+  {
+    "path": "conditions[3].params.min_days",
+    "code": "out_of_range"
+  },
+  {
+    "path": "conditions[4].params.min_days",
+    "code": "out_of_range"
+  },
+  {
+    "path": "conditions[5].params.min_days",
+    "code": "out_of_range"
+  },
+  {
+    "path": "conditions[6].params.min_days",
+    "code": "out_of_range"
+  }
+]

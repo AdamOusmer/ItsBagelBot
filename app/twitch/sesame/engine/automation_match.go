@@ -12,10 +12,8 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/event/lane"
-	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/internal/utils"
-	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -26,6 +24,7 @@ type triggerMatch struct {
 	event         map[string]string
 	left          *automation.CooldownCondition
 	countdownLeft *automation.CountdownStartAction
+	redemption    *redemptionSettlement
 }
 
 func (p *Pipeline) runAutomationStage(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, consumed bool, emit module.Emit) {
@@ -91,27 +90,10 @@ func (p *Pipeline) runKindAutomations(ctx context.Context, mctx *module.Context,
 	event := triggers[0].Kind.Extract(mctx.Env.Event)
 	for _, t := range triggers {
 		if compiledPasses(t, event) {
-			p.startAutomation(ctx, mctx, triggerMatch{plan: t.Plan, event: event}, emit)
-			resolveRedemption(t, mctx, emit)
+			match := triggerMatch{plan: t.Plan, event: event, redemption: matchedRedemption(t, mctx.Env.Event)}
+			p.startAutomation(ctx, mctx, match, emit)
 		}
 	}
-}
-
-var redeemOutcomeStatuses = map[string]string{
-	"fulfill": outgress.RedemptionFulfilled,
-	"cancel":  outgress.RedemptionCanceled,
-}
-
-func resolveRedemption(t *automation.CompiledTrigger, mctx *module.Context, emit module.Emit) {
-	status, ok := redeemOutcomeStatuses[t.OnRedeem]
-	if !ok {
-		return
-	}
-	var ev RedemptionEvent
-	if err := codec.Unmarshal(mctx.Env.Event, &ev); err != nil || ev.ID == "" {
-		return
-	}
-	emit(ev.Resolve(status))
 }
 
 func compiledPasses(t *automation.CompiledTrigger, event map[string]string) bool {
@@ -172,6 +154,7 @@ func fillTriggeredRun(run *AutomationRun, mctx *module.Context, m triggerMatch) 
 		Viewer:        triggerViewer(&mctx.Env, m.event),
 		Args:          m.args,
 		Event:         m.event,
+		redemption:    m.redemption,
 		Source:        m.plan.Automation.Definition.Trigger.Type,
 	}
 }

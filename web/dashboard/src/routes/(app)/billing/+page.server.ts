@@ -197,6 +197,11 @@ async function billingPageData(input: { uid: string }): Promise<{ account: Billi
   };
 }
 
+function countUpsellClick(url: URL, isDelegate: boolean): void {
+  if (isDelegate || url.searchParams.get('from') !== 'overview') return;
+  count('upsell.clicks', 'overview');
+}
+
 export const load: PageServerLoad = async ({ locals, url }) => {
   const autostart = url.searchParams.get('subscribe') === '1';
 
@@ -212,6 +217,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   if (isDelegate && !(s.sections ?? []).includes('billing')) throw redirect(302, '/');
 
   const uid = s.delegate_of ?? s.user_id;
+
+  countUpsellClick(url, isDelegate);
 
   const board = await billingPageData({ uid });
   return {

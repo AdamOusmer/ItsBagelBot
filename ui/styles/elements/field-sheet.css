@@ -1,0 +1,112 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+    .bb-field-sheet {
+        --field-term: var(--bb-space-9);
+        --field-control-h: calc(var(--bb-space-6) + var(--bb-space-2));
+    }
+
+    .bb-field-row {
+        display: grid;
+        grid-template-columns: var(--field-term) minmax(0, 1fr);
+        align-items: start;
+        column-gap: var(--bb-space-3);
+        min-inline-size: 0;
+        margin: 0;
+        padding: var(--bb-space-4) 0;
+        border: 0;
+        --field-mb: 0;
+    }
+
+    .bb-field-row + .bb-field-row { border-block-start: 1px solid var(--bb-rule); }
+
+    :is(.bb-field-row, .bb-field-row > .bb-field-span) > *,
+    :is(.bb-field-row, .bb-field-row > .bb-field-span) > .bb-field > * {
+        grid-column: 2;
+        min-width: 0;
+    }
+
+    :is(.bb-field-row, .bb-field-row > .bb-field-span) > :is(.bb-field, .bb-field-span) {
+        display: grid;
+        grid-column: 1 / -1;
+        grid-template-columns: subgrid;
+        align-items: start;
+        row-gap: var(--bb-space-1);
+    }
+
+    :is(.bb-field-row, .bb-field-row > .bb-field-span) > .bb-field__label,
+    :is(.bb-field-row, .bb-field-row > .bb-field-span) > .bb-field > .bb-field__label {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        grid-column: 1;
+        min-height: var(--field-control-h);
+        font-size: var(--bb-text-sm);
+        color: var(--bb-muted-light);
+    }
+
+    .bb-field-row .bb-field__text {
+        display: flex;
+        align-items: center;
+        height: calc(2 * var(--bb-space-4));
+        line-height: var(--bb-space-4);
+        overflow-wrap: anywhere;
+    }
+
+    .bb-field-row .bb-field__tag {
+        margin: 0;
+        padding: 0;
+        border: 0;
+        font: var(--bb-text-xs)/var(--bb-space-4) var(--bb-font-body);
+        letter-spacing: normal;
+        text-transform: none;
+        color: var(--bb-muted);
+    }
+
+    .bb-field-row .bb-field__error { margin-top: 0; }
+
+    .bb-field-sheet :is(.bb-input:has(> input), .bb-input--select, .bb-color) {
+        box-sizing: border-box;
+        min-height: var(--field-control-h);
+        padding-block: 0;
+    }
+
+    .bb-field-sheet :is(.bb-input, .bb-color):not(:has(:disabled)):hover { background: var(--bb-inset-hover); }
+
+    .bb-field-row.bb-field-row--stack { grid-template-columns: minmax(0, 1fr); row-gap: var(--bb-space-2); }
+    :is(.bb-field-row--stack, .bb-field-row--stack > .bb-field-span) > *,
+    :is(.bb-field-row--stack, .bb-field-row--stack > .bb-field-span) > .bb-field > * { grid-column: 1; }
+    :is(.bb-field-row--stack, .bb-field-row--stack > .bb-field-span) > :is(.bb-field, .bb-field-span) { grid-column: 1 / -1; }
+    :is(.bb-field-row--stack, .bb-field-row--stack > .bb-field-span) > .bb-field__label,
+    :is(.bb-field-row--stack, .bb-field-row--stack > .bb-field-span) > .bb-field > .bb-field__label {
+        flex-direction: row;
+        align-items: baseline;
+        justify-content: flex-start;
+        gap: var(--bb-space-2);
+        min-height: 0;
+    }
+    .bb-field-row--stack .bb-field__text { height: var(--bb-space-4); }
+
+    @media (max-width: 760px) {
+        .bb-field-row { grid-template-columns: minmax(0, 1fr); row-gap: var(--bb-space-2); }
+        :is(.bb-field-row, .bb-field-row > .bb-field-span) > *,
+        :is(.bb-field-row, .bb-field-row > .bb-field-span) > .bb-field > * { grid-column: 1; }
+        :is(.bb-field-row, .bb-field-row > .bb-field-span) > :is(.bb-field, .bb-field-span) { grid-column: 1 / -1; }
+        :is(.bb-field-row, .bb-field-row > .bb-field-span) > .bb-field__label,
+        :is(.bb-field-row, .bb-field-row > .bb-field-span) > .bb-field > .bb-field__label {
+            flex-direction: row;
+            align-items: baseline;
+            justify-content: flex-start;
+            gap: var(--bb-space-2);
+            min-height: 0;
+        }
+        .bb-field-row .bb-field__text { height: var(--bb-space-4); }
+    }
+
+    @media (pointer: coarse) {
+        .bb-field-sheet { --field-control-h: calc(var(--bb-space-6) + var(--bb-space-3)); }
+    }
+}

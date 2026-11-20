@@ -1,0 +1,6 @@
+{
+  "label": "Lever une exclusion ou un ban",
+  "summary": "Laisser un spectateur reparler dans le chat",
+  "keywords": "débannir débloquer lever exclusion ban modération",
+  "line": "Lever l’exclusion ou le ban : {who}"
+}

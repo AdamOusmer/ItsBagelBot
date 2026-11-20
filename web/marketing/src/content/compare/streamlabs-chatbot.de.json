@@ -55,7 +55,7 @@
     },
     {
       "feature": "Spielstatistiken",
-      "us": "Eingebaute Module decken Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale und CODM ab. Verbinde zum Beispiel deine Riot-ID und nutze !valrank.",
+      "us": "Eingebaute Module decken Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale und CODM ab. Verknüpfe zum Beispiel dein Riot-Konto über „Bei Riot anmelden“ und nutze !val.",
       "them": "Die offizielle Erweiterungsanleitung beschreibt Python-Skripte und ihre Installation. Wenn deine Spielabfragen von einem Skript abhängen, prüfe dessen Datenquelle und Wartungsaufwand, bevor du es ersetzt.",
       "source": "https://streamlabs.com/content-hub/post/chatbot-scripts-desktop"
     },

@@ -1,0 +1,18 @@
+{
+  "label": "Ajouter du temps à un délai de récupération",
+  "summary": "Prolonger un minuteur nommé pendant qu’il est en cours",
+  "line": "Ajouter {seconds} à {name}",
+  "field": {
+    "name": {
+      "label": "Minuteur"
+    },
+    "seconds": {
+      "label": "Ajouter",
+      "range": "Utilisez de 1 seconde à {days} jours."
+    },
+    "per": {
+      "label": "Par tranche de",
+      "hint": "Uniquement pour les Cheers et les abonnements offerts. Laissez vide pour ajouter du temps une seule fois."
+    }
+  }
+}

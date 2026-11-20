@@ -10,6 +10,8 @@ import (
 
 const InvalidateScope = invalidate.ScopeLoyalty
 
+const CounterTargetRequired = "counter_target_required"
+
 const (
 	VerbBalanceCredit       = "balance.credit"
 	VerbBalanceSnapshot     = "balance.snapshot"
@@ -36,6 +38,7 @@ type Request struct {
 	NewName          string `json:"new_name,omitempty"`
 	Scope            string `json:"scope,omitempty"`
 	Command          string `json:"command,omitempty"`
+	RequireTarget    bool   `json:"require_target,omitempty"`
 	Value            int64  `json:"value,omitempty"`
 	Key              string `json:"key,omitempty"`
 	AccountCreatedAt *int64 `json:"account_created_at,omitempty"`

@@ -1,0 +1,11 @@
+{
+  "label": "Banir",
+  "summary": "Expulse um espectador de vez",
+  "keywords": "banir bloquear espectador moderação",
+  "line": "Banir {who}",
+  "field": {
+    "reason": {
+      "label": "Motivo (opcional)"
+    }
+  }
+}

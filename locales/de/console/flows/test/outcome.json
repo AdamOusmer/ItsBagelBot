@@ -1,0 +1,7 @@
+{
+  "passed": "Bestanden",
+  "skipped": "Übersprungen",
+  "issue": "Zu beheben",
+  "failed": "Fehlgeschlagen",
+  "untested": "Ungetestet"
+}

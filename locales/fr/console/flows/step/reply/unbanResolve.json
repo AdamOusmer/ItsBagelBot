@@ -1,0 +1,20 @@
+{
+  "label": "Répondre à une demande de déban",
+  "summary": "Accepter ou refuser un recours",
+  "line": {
+    "approve": "Accepter la demande de déban",
+    "deny": "Refuser la demande de déban"
+  },
+  "field": {
+    "status": {
+      "label": "Réponse",
+      "option": {
+        "approve": "Accepter",
+        "deny": "Refuser"
+      }
+    },
+    "resolution": {
+      "label": "Message au spectateur (facultatif)"
+    }
+  }
+}

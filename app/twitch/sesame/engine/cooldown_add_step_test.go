@@ -19,6 +19,7 @@ import (
 // scriptedExtend answers ExtendLongCooldown with a fixed outcome and counts calls, so a test can prove a redelivery
 // did or did not reach the store.
 type scriptedExtend struct {
+	LongCooldownStore
 	mu     sync.Mutex
 	calls  int
 	expiry int64

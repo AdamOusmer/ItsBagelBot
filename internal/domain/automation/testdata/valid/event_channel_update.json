@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "event",
+    "params": {
+      "kind": "channel.update",
+      "filters": {
+        "title": "Cozy stream",
+        "category": "Just Chatting",
+        "category_id": "509658"
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "chat",
+      "params": { "text": "{event.title} in {event.category}" }
+    }
+  ]
+}

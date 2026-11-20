@@ -88,6 +88,10 @@
   // svelte-ignore state_referenced_locally
   let quotaDraft = $state<QuotaDraft>(quotaStrings(data.quotas ?? blankSpotifyQuotas()));
   // svelte-ignore state_referenced_locally
+  let maxDepth = $state<number | null>(data.maxDepth ?? null);
+  // svelte-ignore state_referenced_locally
+  let depthDraft = $state(String(data.maxDepth ?? ''));
+  // svelte-ignore state_referenced_locally
   let app = $state<{ present: boolean; clientId: string }>(data.app ?? { present: false, clientId: '' });
   // svelte-ignore state_referenced_locally
   let queue = $state<QueueView | null>(data.queue ?? null);
@@ -96,8 +100,9 @@
   // svelte-ignore state_referenced_locally
   let seed = data;
 
+  const depthDirty = $derived(String(depthDraft ?? '') !== String(maxDepth ?? ''));
   const quotaDirty = $derived(
-    SPOTIFY_QUOTA_TIERS.some((tier) => String(quotaDraft[tier] ?? '') !== String(quotas[tier] ?? ''))
+    depthDirty || SPOTIFY_QUOTA_TIERS.some((tier) => String(quotaDraft[tier] ?? '') !== String(quotas[tier] ?? ''))
   );
 
   $effect(() => {
@@ -111,7 +116,11 @@
     sr = data.sr ?? blankSpotifySr();
     redeem = data.redeem ?? blankSpotifyRedeem();
     quotas = data.quotas ?? blankSpotifyQuotas();
-    if (!untrack(() => quotaDirty)) quotaDraft = quotaStrings(quotas);
+    maxDepth = data.maxDepth ?? null;
+    if (!untrack(() => quotaDirty)) {
+      quotaDraft = quotaStrings(quotas);
+      depthDraft = String(maxDepth ?? '');
+    }
     queue = data.queue ?? null;
     queueAt = Date.now();
   });
@@ -549,6 +558,19 @@
               </Field>
             {/each}
           </div>
+          <div class="quota-grid depth-grid">
+            <Field label={t('spotify.quota.queueLength')} hint={t('spotify.quota.queueLengthHint')}>
+              <Input
+                fill
+                name="max_depth"
+                type="number"
+                min={1}
+                step={1}
+                placeholder={t('spotify.quota.unlimited')}
+                bind:value={depthDraft}
+              />
+            </Field>
+          </div>
           <Button variant="secondary" type="submit" busy={quotaSaving} disabled={!quotaDirty}>{t('spotify.quota.save')}</Button>
         </form>
       </Card>
@@ -693,6 +715,9 @@
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     gap: 10px;
     margin-bottom: 10px;
+  }
+  .depth-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   }
 
   .setup { display: grid; gap: 16px; }

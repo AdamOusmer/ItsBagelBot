@@ -6,6 +6,7 @@ export type DecodeError = 'unknown_field' | 'mismatch';
 export type Kind =
   | 'string'
   | 'int'
+  | 'number'
   | 'bool'
   | 'strings'
   | 'strmap'
@@ -24,17 +25,36 @@ interface Ctx {
 }
 
 const INT64_LIMIT = 2 ** 63;
+const INT64_BIG_LIMIT = 1n << 63n;
+const INTEGER_TOKEN = /^-?\d+$/;
+const SLICE_KINDS = new Set<Kind>(['strings', 'typeds', 'actions', 'branches']);
+
+class JSONNumber {
+  constructor(readonly value: number, readonly source: string) {}
+}
 
 export const TYPED_SCHEMA: Schema = { type: 'string', params: 'raw' };
 export const ACTION_SCHEMA: Schema = { type: 'string', enabled: 'ptrbool', params: 'raw' };
 export const BRANCH_SCHEMA: Schema = { weight: 'int', actions: 'actions' };
+
+export function parseJSONForDecode(raw: string): { value: unknown; original: () => unknown } {
+  let preserved = false;
+  const value: unknown = JSON.parse(raw, (_key: string, value: unknown, context?: { source?: string }) => {
+    const source = context?.source;
+    if (typeof value !== 'number' || source === undefined) return value;
+    if (Number.isSafeInteger(value) && INTEGER_TOKEN.test(source)) return value;
+    preserved = true;
+    return new JSONNumber(value, source);
+  });
+  return { value, original: () => preserved ? JSON.parse(raw) : value };
+}
 
 function fail(ctx: Ctx, err: DecodeError): void {
   ctx.err ??= err;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
+  return typeof v === 'object' && v !== null && !Array.isArray(v) && !(v instanceof JSONNumber);
 }
 
 function decodeString(v: unknown, ctx: Ctx): string {
@@ -48,14 +68,27 @@ function orEmpty(e: unknown, ctx: Ctx): string {
 }
 
 function fitsInt64(n: number): boolean {
-  return Number.isInteger(n) && Math.abs(n) < INT64_LIMIT;
+  return Number.isInteger(n) && n >= -INT64_LIMIT && n < INT64_LIMIT;
 }
 
-function decodeInt(v: unknown, ctx: Ctx): number {
-  if (typeof v === 'number' && fitsInt64(v)) return v;
+function fitsInt64Token(source: string): boolean {
+  if (source.length > 20 || !INTEGER_TOKEN.test(source)) return false;
+  const exact = BigInt(source);
+  return exact >= -INT64_BIG_LIMIT && exact < INT64_BIG_LIMIT;
+}
+
+function decodeNumber(v: unknown, ctx: Ctx, valid = Number.isFinite): number {
+  if (typeof v === 'number' && valid(v)) return v;
   fail(ctx, 'mismatch');
   return 0;
 }
+
+function decodeInt(v: unknown, ctx: Ctx): number {
+  if (v instanceof JSONNumber && fitsInt64Token(v.source)) return v.value;
+  return decodeNumber(v, ctx, fitsInt64);
+}
+
+const decodeFloat = (v: unknown, ctx: Ctx): number => decodeNumber(v instanceof JSONNumber ? v.value : v, ctx);
 
 function decodeBool(v: unknown, ctx: Ctx): boolean {
   if (typeof v === 'boolean') return v;
@@ -84,6 +117,7 @@ function decodeMap(v: unknown, ctx: Ctx): Record<string, string> {
 const ZERO_VALUES: Record<Kind, () => unknown> = {
   string: () => '',
   int: () => 0,
+  number: () => 0,
   bool: () => false,
   strings: () => [],
   typeds: () => [],
@@ -103,6 +137,7 @@ function zeroOf(kind: Kind): unknown {
 const VALUE_DECODERS: Record<Kind, (v: unknown, ctx: Ctx) => unknown> = {
   string: decodeString,
   int: decodeInt,
+  number: decodeFloat,
   bool: decodeBool,
   strings: (v, ctx) => decodeList(v, ctx, (e) => orEmpty(e, ctx)),
   strmap: decodeMap,
@@ -130,8 +165,13 @@ function zeroStruct(schema: Schema, defaults: Record<string, unknown>): Record<s
 function decodeFields(fields: Record<string, unknown>, schema: Schema, out: Record<string, unknown>, ctx: Ctx): void {
   for (const [key, value] of Object.entries(fields)) {
     const name = resolveField(schema, key);
-    if (name === undefined) fail(ctx, 'unknown_field');
-    else if (value !== null) out[name] = VALUE_DECODERS[schema[name]](value, ctx);
+    if (name === undefined) {
+      fail(ctx, 'unknown_field');
+      continue;
+    }
+    const kind = schema[name];
+    if (value !== null) out[name] = VALUE_DECODERS[kind](value, ctx);
+    else if (SLICE_KINDS.has(kind)) out[name] = [];
   }
 }
 

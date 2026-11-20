@@ -39,7 +39,15 @@ func SubscribeRecipeState(w bus.RPCWiring, repo *repository.RecipeState, prefix 
 		cooldownVerb("release", s.handleCooldownRelease),
 		cooldownVerb("peek", s.handleCooldownPeek),
 		cooldownVerb("extend", s.handleCooldownExtend),
+		cooldownVerb("reset", s.handleCooldownReset),
 	)
+}
+
+func (s *recipeStateRPC) handleCooldownReset(ctx context.Context, req modulesrpc.CooldownRequest, userID uint64) (modulesrpc.CooldownReply, error) {
+	if err := s.repo.CooldownReset(ctx, userID, req.Name); err != nil {
+		return modulesrpc.CooldownReply{Refusal: s.refusal("cooldown.reset", err)}, nil
+	}
+	return modulesrpc.CooldownReply{Found: true}, nil
 }
 
 func variableVerb(name string, load func(context.Context, modulesrpc.VariableRequest, uint64) (modulesrpc.VariableReply, error)) bus.Verb[modulesrpc.VariableRequest, modulesrpc.VariableReply] {

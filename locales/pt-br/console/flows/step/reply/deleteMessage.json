@@ -1,0 +1,7 @@
+{
+  "label": "Excluir mensagem",
+  "summary": "Remova a mensagem que iniciou esta receita",
+  "line": "Excluir a mensagem que ativou a receita",
+  "note": "Só funciona com comandos de chat como gatilho",
+  "keywords": "excluir apagar remover chat comando mensagem"
+}

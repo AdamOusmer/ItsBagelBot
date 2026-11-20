@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import Icon from './FlowIcon.svelte';
   import CanvasCard from '@bagel/ui/svelte/CanvasCard.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
   import IconTile from '@bagel/ui/svelte/IconTile.svelte';
   import FlowAddButton from './FlowAddButton.svelte';
   import { NODE_W, outputsFor, specFor, type FlowNode } from '../../flow/model';
@@ -13,22 +14,26 @@
 
   let {
     node,
+    trigger,
     selected = false,
     tabbable = true,
     touch = false,
     connecting = false,
+    parallel = [],
     onadd
   }: {
     node: FlowNode;
+    trigger?: FlowNode;
     selected?: boolean;
     tabbable?: boolean;
     touch?: boolean;
     connecting?: boolean;
+    parallel?: string[];
     onadd?: (port: string, anchor: HTMLElement) => void;
   } = $props();
 
-  const ports: Record<string, HTMLElement | null> = {};
-  const adds: Record<string, HTMLElement | null> = {};
+  let ports = $state<Record<string, HTMLElement | null>>({});
+  let adds = $state<Record<string, HTMLElement | null>>({});
 
   export function portAt(el: Element | null): string | undefined {
     return Object.keys(ports).find((id) => ports[id]?.contains(el));
@@ -39,18 +44,27 @@
   }
 
   const spec = $derived(specFor(node.type));
-  const outputs = $derived(spec ? outputsFor(spec) : []);
+  const outputs = $derived(outputsFor(spec, node));
   const isTrigger = $derived(spec?.kind === 'trigger');
-  const branching = $derived(Boolean(spec?.outputs));
+  const branching = $derived(outputs.length > 1);
   const { t } = getI18n();
-  const line = $derived(describe(t, node));
+  const line = $derived(describe(t, node, trigger));
   const title = $derived(spec ? stepLabel(t, spec) : '');
   const kindLabel = $derived(spec ? t(`flows.board.kind.${spec.kind}` as MessageKey) : '');
+  const off = $derived(spec?.kind === 'reply' && node.config.disabled === true);
+  const offLabel = $derived(t('flows.board.stepOff'));
+  const nodeLabel = $derived(t('flows.board.nodeLabel', { label: title, kind: kindLabel, line }));
   const cardClass = $derived(['node', spec && `kind-${spec.kind}`, touch && 'touch', connecting && 'connecting'].filter(Boolean).join(' '));
 </script>
 
 {#snippet outPort(id: string, label: string, y: number, tone: 'yes' | 'no')}
   <span class="out" style:top="{y}px">
+    {#if parallel.includes(id)}
+      <span class="parallel" style:top="{branching ? -5 : -HEADER_H / 2 - 22}px">
+        <Icon name="branch" size={12} />
+        <span class="parallel-text bb-fit-box"><bb-fit>{t('flows.board.atSameTime')}</bb-fit></span>
+      </span>
+    {/if}
     <span class="port port--out tone-{tone}" bind:this={ports[id]}></span>
     <span class="add tone-{tone}" bind:this={adds[id]}>
       <FlowAddButton
@@ -71,11 +85,11 @@
     class={cardClass}
     background
     {selected}
-    style="width: {NODE_W}px; height: {nodeHeight(spec)}px;"
+    style="width: {NODE_W}px; height: {nodeHeight(spec, node)}px;"
     role="button"
     tabindex={tabbable ? 0 : -1}
     aria-pressed={selected}
-    aria-label={t('flows.board.nodeLabel', { label: title, kind: kindLabel, line })}
+    aria-label={off ? `${nodeLabel}, ${offLabel}` : nodeLabel}
   >
     {#if !isTrigger}
       <span class="port port--in" style:top="{inputY}px"></span>
@@ -89,31 +103,38 @@
         <div class="title-row">
           <span class="title">{title}</span>
         </div>
-        <span class="line">{line}</span>
+        {#if isTrigger}
+          <span class="line trigger-line bb-fit-box"><bb-fit mode="block">{line}</bb-fit></span>
+        {:else}
+          <span class="line">{line}</span>
+        {/if}
       </div>
     </div>
+
+    <span class="off-tag" class:off aria-hidden="true">
+      <Chip as="span" tone="muted" class="bb-fit-box" style="min-width: 0; justify-content: center; padding: 2px 4px">
+        <bb-fit>{offLabel}</bb-fit>
+      </Chip>
+    </span>
 
     {#if branching}
       <div class="rows" style:top="{HEADER_H}px">
         {#each outputs as out, i (out.id)}
-          <div class="row" class:tone-yes={i === 0} style:height="{ROW_H}px">
+          <div class="row" class:tone-yes={i !== 1} style:height="{ROW_H}px">
             <span class="row-label">{portLabel(t, node, out.id)}</span>
           </div>
         {/each}
       </div>
       {#each outputs as out, i (out.id)}
-        {@render outPort(out.id, t('flows.board.addAfter', { label: portLabel(t, node, out.id) }), portY(spec, out.id), i === 0 ? 'yes' : 'no')}
+        {@render outPort(out.id, t('flows.board.addAfter', { label: portLabel(t, node, out.id) }), portY(spec, out.id, node), i === 1 ? 'no' : 'yes')}
       {/each}
-    {:else}
-      {@render outPort(outputs[0]?.id ?? 'next', t('flows.board.addAfterThis'), HEADER_H / 2, 'yes')}
+    {:else if outputs[0]}
+      {@render outPort(outputs[0].id, t('flows.board.addAfterThis'), HEADER_H / 2, 'yes')}
     {/if}
   </CanvasCard>
 {/if}
 
 <style>
-  /* Background, idle/hover shadow and the selected/focus ring live in the
-     shared CanvasCard (ui/styles/elements/canvas-card.css); this file only
-     owns the node's own layout, accent tint and drag affordance. */
   :global(.node) {
     --accent: var(--bb-muted-light);
     cursor: grab;
@@ -178,6 +199,22 @@
     line-height: 18px;
     color: rgba(var(--bb-white-rgb), 0.92);
   }
+  .trigger-line {
+    display: block;
+    height: 36px;
+  }
+  .off-tag {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: grid;
+    width: 44px;
+    height: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+  .off-tag.off { opacity: 1; }
   .rows {
     position: absolute;
     left: 0;
@@ -233,6 +270,29 @@
   }
   .port--in {
     left: -6px;
+  }
+  .parallel {
+    position: absolute;
+    right: 26px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    box-sizing: border-box;
+    width: 166px;
+    height: 22px;
+    padding: 3px 7px;
+    border-radius: var(--bb-radius-pill);
+    background: var(--bb-bg-1);
+    color: var(--bb-white);
+    font-size: 12px;
+    line-height: 16px;
+    pointer-events: none;
+  }
+  .parallel-text {
+    display: block;
+    width: 136px;
+    min-width: 0;
+    white-space: nowrap;
   }
   .out {
     position: absolute;
@@ -304,6 +364,7 @@
   @media (prefers-reduced-motion: reduce) {
     :global(.node),
     .add,
+    .off-tag,
     .port {
       transition: none;
     }

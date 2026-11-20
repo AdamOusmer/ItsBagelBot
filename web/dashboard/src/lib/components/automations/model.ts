@@ -40,6 +40,7 @@ const NESTED_DEFAULTS: Partial<Record<FieldDef['kind'], () => unknown>> = {
   map: () => ({}),
   actions: () => [],
   bool: () => false,
+  number: () => null,
   text: () => '',
   template: () => '',
   login: () => '',
@@ -184,6 +185,7 @@ export const OUTCOME_TONE: Record<string, RunTone> = {
 
 export const STATUS_TONE: Record<string, RunTone> = {
   ok: 'live',
+  sent: 'neutral',
   skipped: 'quiet',
   unsupported: 'neutral',
   failed: 'danger',

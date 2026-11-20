@@ -57,6 +57,13 @@ func TestPollCreateAppliesTheTwitchLimits(t *testing.T) {
 			},
 		},
 		{
+			name: "a positive point cost enables channel points voting",
+			msg:  testMessage{Type: "poll_create", Payload: `{"title":"Pick","choices":["A","B"],"duration":120,"channel_points_per_vote":100}`},
+			want: []recordedRequest{
+				call("POST", "/helix/polls", broadcasterAuth, `{"broadcaster_id":"`+testBroadcaster+`","channel_points_per_vote":100,"channel_points_voting_enabled":true,"choices":[{"title":"A"},{"title":"B"}],"duration":120,"title":"Pick"}`),
+			},
+		},
+		{
 			name: "long title, long choices, extra choices and long duration are cut",
 			msg:  testMessage{Type: "poll_create", Payload: `{"title":"` + long + `","choices":["` + strings.Repeat("x", 40) + `","b","c","d","e","f"],"duration":5000}`},
 			want: []recordedRequest{call("POST", "/helix/polls", broadcasterAuth,
@@ -121,12 +128,12 @@ func TestPollEndOnlyEndsTheActivePoll(t *testing.T) {
 func TestPredictionCreateAppliesTheTwitchLimits(t *testing.T) {
 	runActionCases(t, []actionCase{
 		{
-			name: "long title and outcome are cut, short window raised, confirmed",
+			name: "long title and outcome are cut with a one second window",
 			msg: testMessage{Type: "prediction_create",
-				Payload: `{"title":"` + strings.Repeat("t", 80) + `","outcomes":["yes","` + strings.Repeat("n", 30) + `"],"window":10}`},
+				Payload: `{"title":"` + strings.Repeat("t", 80) + `","outcomes":["yes","` + strings.Repeat("n", 30) + `"],"window":1}`},
 			want: []recordedRequest{
 				call("POST", "/helix/predictions", broadcasterAuth,
-					createBody(expectedCreation{"outcomes", "prediction_window", strings.Repeat("t", 45), titleList("yes", strings.Repeat("n", 25)), 30})),
+					createBody(expectedCreation{"outcomes", "prediction_window", strings.Repeat("t", 45), titleList("yes", strings.Repeat("n", 25)), 1})),
 			},
 		},
 		{
@@ -143,7 +150,7 @@ func TestPredictionCreateAppliesTheTwitchLimits(t *testing.T) {
 
 func TestPredictionEndFollowsTheStatusTransitions(t *testing.T) {
 	prediction := func(status string) []scriptedResponse {
-		return ok(`{"data":[{"id":"pr1","status":"` + status + `","outcomes":[{"id":"o1"},{"id":"o2"}]}]}`)
+		return ok(`{"data":[{"id":"pr1","status":"` + status + `","outcomes":[{"id":"o1","title":"Yes"},{"id":"o2","title":"No"}]}]}`)
 	}
 	patch := func(want expectedEnding) recordedRequest {
 		want.id = "pr1"
@@ -167,6 +174,24 @@ func TestPredictionEndFollowsTheStatusTransitions(t *testing.T) {
 			msg:    testMessage{Type: "prediction_end", Payload: `{"status":"RESOLVED","winner":2}`},
 			script: prediction("LOCKED"),
 			want:   []recordedRequest{latest("/helix/predictions"), patch(expectedEnding{status: "RESOLVED", winner: "o2"})},
+		},
+		{
+			name:   "outcome 2 resolves by position",
+			msg:    testMessage{Type: "prediction_end", Payload: `{"status":"RESOLVED","outcome":"2","winner":1}`},
+			script: prediction("LOCKED"),
+			want:   []recordedRequest{latest("/helix/predictions"), patch(expectedEnding{status: "RESOLVED", winner: "o2"})},
+		},
+		{
+			name:   "outcome title matches after trimming and ignoring case",
+			msg:    testMessage{Type: "prediction_end", Payload: `{"status":"RESOLVED","outcome":" yes "}`},
+			script: prediction("LOCKED"),
+			want:   []recordedRequest{latest("/helix/predictions"), patch(expectedEnding{status: "RESOLVED", winner: "o1"})},
+		},
+		{
+			name:   "an unmatched outcome skips resolution",
+			msg:    testMessage{Type: "prediction_end", Payload: `{"status":"RESOLVED","outcome":"maybe","winner":2}`},
+			script: prediction("LOCKED"),
+			want:   []recordedRequest{latest("/helix/predictions")},
 		},
 		{
 			name:   "out of range winner is dropped",

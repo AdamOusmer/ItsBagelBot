@@ -4,6 +4,7 @@
 package automation
 
 import (
+	"maps"
 	"slices"
 
 	"ItsBagelBot/pkg/codec"
@@ -21,6 +22,7 @@ type nesting struct {
 	lists     [][]Action
 	labels    []string
 	condition *Condition
+	internal  bool
 }
 
 var (
@@ -37,6 +39,18 @@ var requiredTrigger = map[string]string{
 	"redemption":     "reward",
 }
 
+type triggerShape struct{ typ, kind string }
+
+var viewerlessTriggers = map[triggerShape]struct{}{
+	{typ: "countdown"}:                     {},
+	{typ: "timer"}:                         {},
+	{typ: "event", kind: "stream.online"}:  {},
+	{typ: "event", kind: "stream.offline"}: {},
+
+	{typ: "event", kind: "channel.ad_break.begin"}: {},
+	{typ: "event", kind: "channel.update"}:         {},
+}
+
 var actionRole = map[string]int{
 	"poll":            roleModerator,
 	"poll_end":        roleModerator,
@@ -51,11 +65,24 @@ var actionRole = map[string]int{
 	"ad_snooze":       roleLeadModerator,
 	"whisper":         roleModerator,
 	"unban_resolve":   roleModerator,
-	"branded_content": roleModerator,
+	"branded_content": roleLeadModerator,
+	"set_title":       roleLeadModerator,
+	"set_game":        roleLeadModerator,
+	"set_tags":        roleLeadModerator,
+	"commercial":      roleLeadModerator,
+	"marker":          roleLeadModerator,
+	"clip":            roleLeadModerator,
 
-	"timeout": roleModerator, "ban": roleModerator, "warn": roleModerator, "shield": roleModerator,
+	"timeout": roleModerator, "ban": roleModerator, "unban": roleModerator, "warn": roleModerator, "shield": roleModerator,
 	"delete_message": roleModerator, "cooldown_add": roleModerator,
 	"countdown_start": roleModerator, "countdown_add": roleModerator,
+	"countdown_stop": roleModerator, "cooldown_reset": roleModerator,
+}
+
+var selfTargetExempt = map[string]func(codec.RawMessage) bool{
+	"timeout":        whoIsViewer,
+	"ban":            whoIsViewer,
+	"delete_message": func(codec.RawMessage) bool { return true },
 }
 
 func register[T any](check func(chk, T)) entry {
@@ -78,8 +105,14 @@ func register[T any](check func(chk, T)) entry {
 	}
 }
 
-func registerNested[T any](check func(chk, T), nested func(T) nesting) entry {
+func registerPlan[T any](check func(chk, T), nested func(T) nesting) entry {
 	e := register(check)
+	e.plan = func(params any) nesting { return nested(params.(T)) }
+	return e
+}
+
+func registerNested[T any](check func(chk, T), nested func(T) nesting) entry {
+	e := registerPlan(check, nested)
 	e.nested = func(raw codec.RawMessage) [][]Action {
 		p, err := DecodeParams[T](raw)
 		if err != nil {
@@ -87,8 +120,13 @@ func registerNested[T any](check func(chk, T), nested func(T) nesting) entry {
 		}
 		return nested(p).lists
 	}
-	e.plan = func(params any) nesting { return nested(params.(T)) }
 	return e
+}
+
+var internalActionRegistry = map[string]entry{
+	LightsRestoreType: {
+		decode: func(raw codec.RawMessage) (any, error) { return DecodeParams[LightsRestoreAction](raw) },
+	},
 }
 
 func registerNestedEffect[T any](check func(chk, T), nested func(T) nesting) entry {
@@ -135,10 +173,10 @@ func (c chk) actions(list []Action) {
 
 func (c chk) action(i index, a Action) {
 	at := c.elem(i)
-	if c.triggerMismatch(a.Type) {
+	if c.triggerMismatch(a) {
 		at.add("type", CodeTriggerMismatch)
 	}
-	if c.permMissing(a.Type) {
+	if c.permMissing(a) {
 		at.add("type", CodePermRequired)
 	}
 	at.typed(actionRegistry, typedParams{Type: a.Type, Params: a.Params})
@@ -150,17 +188,45 @@ func IsBranching(typ string) bool {
 	return e.nested != nil && !e.effect
 }
 
-func (c chk) triggerMismatch(typ string) bool {
-	want, ok := requiredTrigger[typ]
-	if typ == "unban_resolve" {
+func (c chk) triggerMismatch(a Action) bool {
+	switch a.Type {
+	case "unban_resolve":
 		return c.trigger != "event" || c.kind != "channel.unban_request.create"
+	case "points_add", "points_set", "points_spend":
+		_, viewerless := viewerlessTriggers[triggerShape{typ: c.trigger, kind: c.kind}]
+		return viewerless && pointsTargetViewer(a)
 	}
+	want, ok := requiredTrigger[a.Type]
 	return ok && c.trigger != want
 }
 
-func (c chk) permMissing(typ string) bool {
-	role, ok := actionRole[typ]
-	return ok && c.trigger == "command" && c.perm < role
+func pointsTargetViewer(a Action) bool {
+	if a.Type == "points_spend" {
+		_, err := DecodeParams[PointsSpendAction](a.Params)
+		return err == nil
+	}
+	p, err := DecodeParams[PointsAddAction](a.Params)
+	return err == nil && p.targetsViewer()
+}
+
+func whoIsViewer(raw codec.RawMessage) bool {
+	var p struct {
+		Who string `json:"who"`
+	}
+	return codec.Unmarshal(raw, &p) == nil && p.Who == "viewer"
+}
+
+func (c chk) permMissing(a Action) bool {
+	role, ok := actionRole[a.Type]
+	if !ok || c.trigger != "command" {
+		return false
+	}
+	return c.perm < role && !selfTargeted(a)
+}
+
+func selfTargeted(a Action) bool {
+	exempt, ok := selfTargetExempt[a.Type]
+	return ok && exempt(a.Params)
 }
 
 func permRank(conditions []Condition) int {
@@ -194,19 +260,7 @@ func init() {
 		"manual":    register(checkEmpty),
 		"countdown": register(checkCountdownTrigger),
 	}
-	conditionRegistry = map[string]entry{
-		"perm":      register(checkPerm),
-		"users":     register(checkUsers),
-		"live":      register(checkLive),
-		"cooldown":  register(checkCooldown),
-		"chance":    register(checkChance),
-		"counter":   register(checkCounterCond),
-		"points":    register(checkPointsCond),
-		"arg_regex": register(checkArgRegex),
-		"category":  register(checkCategory),
-		"compare":   register(checkCompare),
-		"var":       register(checkVarCondition),
-	}
+	registerConditions()
 	actionRegistry = map[string]entry{
 		"poll":            register(checkPoll),
 		"poll_end":        register(checkPollEnd),
@@ -214,8 +268,8 @@ func init() {
 		"prediction_end":  register(checkPredictionEnd),
 		"raid":            register(checkLogin),
 		"raid_cancel":     register(checkEmpty),
-		"mod":             register(checkLoginToggle),
-		"vip":             register(checkLoginToggle),
+		"mod":             register(checkTargetToggle),
+		"vip":             register(checkTargetToggle),
 		"chat_mode":       register(checkChatMode),
 		"clear_chat":      register(checkEmpty),
 		"ad_snooze":       register(checkEmpty),
@@ -224,15 +278,17 @@ func init() {
 		"branded_content": register(checkBrandedContent),
 
 		"chat":            register(checkText),
+		"pin":             register(checkText),
 		"announce":        register(checkAnnounce),
-		"reply":           register(checkText),
+		"reply":           register(checkReply),
 		"timeout":         register(checkTimeout),
 		"ban":             register(checkBan),
+		"unban":           register(checkUnban),
 		"delete_message":  register(checkEmpty),
 		"warn":            register(checkWarn),
 		"shield":          register(checkShield),
 		"shoutout":        register(checkLogin),
-		"clip":            register(checkEmpty),
+		"clip":            register(checkClip),
 		"marker":          register(checkMarker),
 		"set_title":       register(checkSetTitle),
 		"set_game":        register(checkSetGame),
@@ -252,7 +308,7 @@ func init() {
 		"loop":            registerNested(checkLoop, loopBranches),
 		"http_post":       registerNestedEffect(checkHTTPPost, httpPostBranches),
 		"http_get":        registerNestedEffect(checkHTTPGet, httpGetBranches),
-		"lights":          register(checkLights),
+		"lights":          registerPlan(checkLights, lightsHoldBranch),
 		"stop":            register(checkEmpty),
 		"var_set":         register(checkVarSet),
 		"var_add":         register(checkVarAdd),
@@ -262,6 +318,25 @@ func init() {
 		"cooldown_add":    register(checkCooldownAdd),
 		"countdown_start": register(checkCountdownStart),
 		"countdown_add":   register(checkCountdownAdd),
+	}
+	maps.Copy(actionRegistry, loyaltyActions())
+}
+
+func registerConditions() {
+	conditionRegistry = map[string]entry{
+		"perm":        register(checkPerm),
+		"users":       register(checkUsers),
+		"live":        register(checkLive),
+		"cooldown":    register(checkCooldown),
+		"chance":      register(checkChance),
+		"counter":     register(checkCounterCond),
+		"points":      register(checkPointsCond),
+		"arg_regex":   register(checkArgRegex),
+		"category":    register(checkCategory),
+		"compare":     register(checkCompare),
+		"var":         register(checkVarCondition),
+		"follow":      register(checkFollow),
+		"account_age": register(checkAccountAge),
 	}
 }
 

@@ -17,7 +17,7 @@
     hover?: boolean;
     flush?: boolean;
     dashed?: boolean;
-    tone?: 'accent' | 'danger';
+    tone?: 'accent' | 'danger' | 'gold';
     label?: string;
     band?: Snippet;
     class?: string;

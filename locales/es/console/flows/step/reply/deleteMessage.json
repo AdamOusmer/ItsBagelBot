@@ -1,0 +1,7 @@
+{
+  "label": "Eliminar mensaje",
+  "summary": "Elimina el mensaje que activó esta receta",
+  "line": "Eliminar el mensaje de activación",
+  "note": "Solo funciona con activadores de comando de chat",
+  "keywords": "eliminar borrar chat comando mensaje"
+}

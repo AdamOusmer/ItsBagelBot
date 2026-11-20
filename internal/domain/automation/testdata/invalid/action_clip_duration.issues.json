@@ -1,0 +1,10 @@
+[
+  {
+    "path": "actions[0].params.seconds",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[1].params.seconds",
+    "code": "out_of_range"
+  }
+]

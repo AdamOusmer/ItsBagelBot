@@ -1,0 +1,6 @@
+{
+  "label": "Revogar timeout ou banimento",
+  "summary": "Deixe um espectador voltar ao chat",
+  "keywords": "desbanir desbloquear revogar timeout banimento moderação",
+  "line": "Revogar timeout ou banimento: {who}"
+}

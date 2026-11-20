@@ -62,7 +62,7 @@
     },
     {
       "feature": "Comando de rango de Valorant",
-      "us": "Activa el módulo de Valorant, vincula un Riot ID como Nombre#Tag y usa !val o !valrank. El módulo también cubre partidas clasificatorias recientes y clasificaciones.",
+      "us": "Activa el módulo de Valorant, elige «Iniciar sesión con Riot» y usa !val en el chat. El módulo también muestra partidas clasificatorias recientes y la clasificación del acto.",
       "them": "Su guía oficial de Valorant describe un comando !rank personalizado con una API de terceros. Es una ruta de configuración documentada, no un módulo dedicado de Valorant; revisa el proveedor antes de usar el ejemplo.",
       "source": "https://support.streamelements.com/hc/en-us/articles/12362107401234-How-to-add-a-rank-command-for-VALORANT"
     },

@@ -46,10 +46,13 @@ const (
 	scenesPath    = "/router/api/v1/device/scenes"
 	diyScenesPath = "/router/api/v1/device/diy-scenes"
 
-	powerCapabilityType = "devices.capabilities.on_off"
-	powerInstance       = "powerSwitch"
-	colorCapabilityType = "devices.capabilities.color_setting"
-	colorInstance       = "colorRgb"
+	powerCapabilityType      = "devices.capabilities.on_off"
+	powerInstance            = "powerSwitch"
+	colorCapabilityType      = "devices.capabilities.color_setting"
+	colorInstance            = "colorRgb"
+	kelvinInstance           = "colorTemperatureK"
+	brightnessCapabilityType = "devices.capabilities.range"
+	brightnessInstance       = "brightness"
 
 	dynamicSceneCapabilityType = "devices.capabilities.dynamic_scene"
 	diySceneCapabilityType     = "devices.capabilities.diy_color_setting"
@@ -72,7 +75,8 @@ type api struct {
 	log     *zap.Logger
 	limiter *ratelimit.Limiter
 
-	buckets core.Buckets
+	buckets    core.Buckets
+	retryAfter time.Duration
 }
 
 func New(cfg Config, d provider.Deps) provider.Provider {
@@ -81,6 +85,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	b.Endpoint("devices").Timeout(devicesTimeout).Handle(p.devices)
 	b.Endpoint("scenes").Timeout(scenesTimeout).Handle(p.scenes)
 	b.Endpoint("control").Timeout(controlTimeout).Handle(p.control)
+	b.Endpoint("restore").Timeout(controlTimeout).Handle(p.restore)
 	return b.Build()
 }
 
@@ -93,12 +98,13 @@ func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 		cfg.RateLimit = defaultRateLimit
 	}
 	return &api{
-		http:    b.Client(base, nil, httpTimeout),
-		cache:   d.Cache,
-		keys:    d.GoveeKeys,
-		log:     d.Logger(),
-		limiter: d.Limiter,
-		buckets: core.NewBuckets("ratelimit:gossip:govee", cfg.RateLimit, rateWindowSeconds),
+		http:       b.Client(base, nil, httpTimeout),
+		cache:      d.Cache,
+		keys:       d.GoveeKeys,
+		log:        d.Logger(),
+		limiter:    d.Limiter,
+		buckets:    core.NewBuckets("ratelimit:gossip:govee", cfg.RateLimit, rateWindowSeconds),
+		retryAfter: time.Duration(rateWindowSeconds / cfg.RateLimit * float64(time.Second)),
 	}
 }
 
@@ -113,14 +119,21 @@ type deviceListResponse struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 	Data    []struct {
-		SKU          string `json:"sku"`
-		Device       string `json:"device"`
-		DeviceName   string `json:"deviceName"`
-		Capabilities []struct {
-			Type     string `json:"type"`
-			Instance string `json:"instance"`
-		} `json:"capabilities"`
+		SKU          string             `json:"sku"`
+		Device       string             `json:"device"`
+		DeviceName   string             `json:"deviceName"`
+		Capabilities []deviceCapability `json:"capabilities"`
 	} `json:"data"`
+}
+
+type capabilityID struct {
+	Type     string `json:"type"`
+	Instance string `json:"instance"`
+}
+
+type deviceCapability struct {
+	capabilityID
+	Parameters codec.RawMessage `json:"parameters"`
 }
 
 func cachedBytesFor(fresh bool) func(context.Context, *core.Cache, string, func(context.Context) error, func(context.Context) ([]byte, time.Duration, error)) ([]byte, error) {
@@ -193,21 +206,39 @@ func (p *api) fetchDevices(key string) func(context.Context) (any, error) {
 func buildDevicesReply(resp deviceListResponse) gossiprpc.GoveeDevicesReply {
 	out := gossiprpc.GoveeDevicesReply{Devices: make([]gossiprpc.GoveeDevice, 0, len(resp.Data))}
 	for _, d := range resp.Data {
-		color := false
+		device := gossiprpc.GoveeDevice{Device: d.Device, SKU: d.SKU, Name: d.DeviceName}
 		for _, c := range d.Capabilities {
-			if c.Type == colorCapabilityType && c.Instance == colorInstance {
-				color = true
-				break
-			}
+			applyDeviceCapability(&device, c)
 		}
-		out.Devices = append(out.Devices, gossiprpc.GoveeDevice{
-			Device: d.Device,
-			SKU:    d.SKU,
-			Name:   d.DeviceName,
-			Color:  color,
-		})
+		out.Devices = append(out.Devices, device)
 	}
 	return out
+}
+
+func applyDeviceCapability(device *gossiprpc.GoveeDevice, c deviceCapability) {
+	switch c.capabilityID {
+	case capabilityID{powerCapabilityType, powerInstance}:
+		device.Power = true
+	case capabilityID{brightnessCapabilityType, brightnessInstance}:
+		device.Brightness = true
+	case capabilityID{colorCapabilityType, colorInstance}:
+		device.Color = true
+	case capabilityID{colorCapabilityType, kelvinInstance}:
+		device.KelvinMin, device.KelvinMax = kelvinRange(c.Parameters)
+	}
+}
+
+func kelvinRange(raw codec.RawMessage) (int, int) {
+	var parameters struct {
+		Range struct {
+			Min int `json:"min"`
+			Max int `json:"max"`
+		} `json:"range"`
+	}
+	if err := codec.Unmarshal(raw, &parameters); err != nil {
+		return 0, 0
+	}
+	return parameters.Range.Min, parameters.Range.Max
 }
 
 type sceneOption struct {
@@ -223,12 +254,12 @@ type sceneCapability struct {
 	} `json:"parameters"`
 }
 
-type sceneListRequest struct {
-	RequestID string           `json:"requestId"`
-	Payload   sceneListPayload `json:"payload"`
+type deviceRequest struct {
+	RequestID string        `json:"requestId"`
+	Payload   devicePayload `json:"payload"`
 }
 
-type sceneListPayload struct {
+type devicePayload struct {
 	SKU    string `json:"sku"`
 	Device string `json:"device"`
 }
@@ -262,7 +293,7 @@ func (p *api) scenes(ctx context.Context, req gossiprpc.Request) any {
 	if broadcaster == "" {
 		return gossiprpc.GoveeScenesReply{Error: "missing channel"}
 	}
-	target := sceneListPayload{SKU: strings.TrimSpace(req.SKU), Device: strings.TrimSpace(req.Device)}
+	target := devicePayload{SKU: strings.TrimSpace(req.SKU), Device: strings.TrimSpace(req.Device)}
 	if target.SKU == "" || target.Device == "" {
 		return gossiprpc.GoveeScenesReply{Error: "missing device"}
 	}
@@ -298,7 +329,7 @@ func scenesErrMapper(err error) (string, core.Pin) {
 	return "", core.PinNone
 }
 
-func (p *api) fetchScenes(key string, target sceneListPayload) func(context.Context) (any, error) {
+func (p *api) fetchScenes(key string, target devicePayload) func(context.Context) (any, error) {
 	return func(ctx context.Context) (any, error) {
 		var dynamic, diy, listed []sceneCapability
 		g, gctx := errgroup.WithContext(ctx)
@@ -321,8 +352,8 @@ func (p *api) fetchScenes(key string, target sceneListPayload) func(context.Cont
 	}
 }
 
-func (p *api) fetchSceneList(ctx context.Context, key, path string, target sceneListPayload) ([]sceneCapability, error) {
-	body, err := codec.Marshal(sceneListRequest{RequestID: uuid.NewString(), Payload: target})
+func (p *api) fetchSceneList(ctx context.Context, key, path string, target devicePayload) ([]sceneCapability, error) {
+	body, err := codec.Marshal(deviceRequest{RequestID: uuid.NewString(), Payload: target})
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +369,7 @@ func (p *api) fetchSceneList(ctx context.Context, key, path string, target scene
 	return resp.Payload.Capabilities, err
 }
 
-func (p *api) fetchListedScenes(ctx context.Context, key string, target sceneListPayload) ([]sceneCapability, error) {
+func (p *api) fetchListedScenes(ctx context.Context, key string, target devicePayload) ([]sceneCapability, error) {
 	var resp sceneDeviceListResponse
 	req := core.Request{Method: http.MethodGet, Path: devicesPath, Headers: authHeader(key)}
 	if err := p.http.Do(ctx, req, &resp); err != nil {
@@ -481,13 +512,14 @@ func (p *api) control(ctx context.Context, req gossiprpc.Request) any {
 // One light failing must not refund a redemption that changed the others.
 func (p *api) driveLights(ctx context.Context, broadcaster string, headers map[string]string, req gossiprpc.Request) error {
 	lights := controlLights(req)
-	steps := controlSteps(req)
+	if req.HoldS > 0 {
+		lights = distinctLights(lights)
+	}
 	errs := make([]error, len(lights))
 	var wg sync.WaitGroup
 	for i, light := range lights {
 		wg.Go(func() {
-			target := goveeTarget{http: p.http, headers: headers, sku: strings.TrimSpace(light.SKU), device: strings.TrimSpace(light.Device)}
-			errs[i] = p.driveLight(ctx, broadcaster, target, steps)
+			errs[i] = p.driveHeldLight(ctx, broadcaster, p.target(light, headers), req)
 		})
 	}
 	wg.Wait()
@@ -501,9 +533,16 @@ func (p *api) driveLights(ctx context.Context, broadcaster string, headers map[s
 	return failure
 }
 
+func (p *api) driveHeldLight(ctx context.Context, broadcaster string, target goveeTarget, req gossiprpc.Request) error {
+	if err := p.stageHold(ctx, broadcaster, target, req); err != nil {
+		return err
+	}
+	return p.driveLight(ctx, broadcaster, target, controlSteps(req))
+}
+
 func (p *api) driveLight(ctx context.Context, broadcaster string, target goveeTarget, steps []controlStep) error {
 	for _, step := range steps {
-		if err := target.set(ctx, step.capType, step.instance, step.value); err != nil {
+		if err := target.set(ctx, step); err != nil {
 			monitor.TxnLogger(ctx, p.log).Warn("govee control step failed",
 				zap.String("broadcaster", broadcaster), zap.String("sku", target.sku), zap.String("device", target.device),
 				zap.String("capability", step.capType), zap.String("instance", step.instance), zap.Any("value", step.value), zap.Error(err))
@@ -521,19 +560,75 @@ func controlLights(req gossiprpc.Request) []gossiprpc.GoveeLight {
 }
 
 func validateControlInput(req gossiprpc.Request) string {
+	if msg := validateLightRequest(req); msg != "" {
+		return msg
+	}
+	if req.Brightness < 0 || req.Brightness > 100 {
+		return "brightness out of range"
+	}
+	if kelvinOutOfRange(req.Kelvin) {
+		return "colour temperature out of range"
+	}
+	if msg := validateHold(req); msg != "" {
+		return msg
+	}
+	return validateControlLook(req)
+}
+
+func kelvinOutOfRange(kelvin int) bool {
+	return kelvin != 0 && !inKelvinRange(kelvin)
+}
+
+func inKelvinRange(kelvin int) bool {
+	return kelvin >= 2000 && kelvin <= 9000
+}
+
+func validateLightRequest(req gossiprpc.Request) string {
 	if strings.TrimSpace(req.ChannelID) == "" {
 		return "missing channel"
 	}
-	if msg := validateControlLights(controlLights(req)); msg != "" {
-		return msg
+	return validateControlLights(controlLights(req))
+}
+
+func validateControlLook(req gossiprpc.Request) string {
+	if req.PowerOff {
+		return validatePowerOff(req)
+	}
+	if multipleLooks(req) {
+		return "pick one look"
 	}
 	if req.Scene != nil {
 		return validateScene(req)
 	}
-	if !req.PowerOff && !validColorRGB(req.ColorRGB) {
+	if usesColorRGB(req) && !validColorRGB(req.ColorRGB) {
 		return "colour out of range"
 	}
 	return ""
+}
+
+func multipleLooks(req gossiprpc.Request) bool {
+	if req.Scene != nil {
+		return req.Kelvin > 0 || req.KeepLook
+	}
+	return req.Kelvin > 0 && req.KeepLook
+}
+
+func usesColorRGB(req gossiprpc.Request) bool {
+	return req.Scene == nil && req.Kelvin == 0 && !req.KeepLook
+}
+
+func validatePowerOff(req gossiprpc.Request) string {
+	if req.Scene != nil {
+		return "scene cannot be combined with power off"
+	}
+	if asksForLook(req) {
+		return "power off cannot be combined with a look"
+	}
+	return ""
+}
+
+func asksForLook(req gossiprpc.Request) bool {
+	return req.Kelvin > 0 || req.KeepLook || req.Brightness > 0
 }
 
 func validateControlLights(lights []gossiprpc.GoveeLight) string {
@@ -549,9 +644,6 @@ func validateControlLights(lights []gossiprpc.GoveeLight) string {
 }
 
 func validateScene(req gossiprpc.Request) string {
-	if req.PowerOff {
-		return "scene cannot be combined with power off"
-	}
 	if !sceneCapabilityAllowed(req.Scene.Type, req.Scene.Instance) {
 		return "invalid scene"
 	}
@@ -591,17 +683,20 @@ func controlSteps(req gossiprpc.Request) []controlStep {
 	if req.PowerOff {
 		return []controlStep{{powerCapabilityType, powerInstance, 0}}
 	}
-	if req.Scene != nil {
+	steps := []controlStep{{powerCapabilityType, powerInstance, 1}}
+	switch {
+	case req.Scene != nil:
 		value, _, _ := parseSceneValue(req.Scene.Instance, req.Scene.Value)
-		return []controlStep{
-			{powerCapabilityType, powerInstance, 1},
-			{req.Scene.Type, req.Scene.Instance, value},
-		}
+		steps = append(steps, controlStep{req.Scene.Type, req.Scene.Instance, value})
+	case req.Kelvin > 0:
+		steps = append(steps, controlStep{colorCapabilityType, kelvinInstance, req.Kelvin})
+	case !req.KeepLook:
+		steps = append(steps, controlStep{colorCapabilityType, colorInstance, req.ColorRGB})
 	}
-	return []controlStep{
-		{powerCapabilityType, powerInstance, 1},
-		{colorCapabilityType, colorInstance, req.ColorRGB},
+	if req.Brightness > 0 {
+		steps = append(steps, controlStep{brightnessCapabilityType, brightnessInstance, req.Brightness})
 	}
+	return steps
 }
 
 type goveeTarget struct {
@@ -611,13 +706,17 @@ type goveeTarget struct {
 	device  string
 }
 
-func (t goveeTarget) set(ctx context.Context, capType, instance string, value any) error {
+func (p *api) target(light gossiprpc.GoveeLight, headers map[string]string) goveeTarget {
+	return goveeTarget{http: p.http, headers: headers, sku: strings.TrimSpace(light.SKU), device: strings.TrimSpace(light.Device)}
+}
+
+func (t goveeTarget) set(ctx context.Context, step controlStep) error {
 	body, err := codec.Marshal(controlRequest{
 		RequestID: uuid.NewString(),
 		Payload: controlPayload{
 			SKU:        t.sku,
 			Device:     t.device,
-			Capability: controlCapability{Type: capType, Instance: instance, Value: value},
+			Capability: controlCapability{Type: step.capType, Instance: step.instance, Value: step.value},
 		},
 	})
 	if err != nil {

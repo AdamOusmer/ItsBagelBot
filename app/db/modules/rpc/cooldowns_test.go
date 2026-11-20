@@ -50,3 +50,17 @@ func TestCooldownVerbsRefuseBadInput(t *testing.T) {
 		assert.Equal(t, domainrpc.CodeInvalid, reply.Code, name)
 	}
 }
+
+func TestCooldownResetRPCFreesNamedClaim(t *testing.T) {
+	h := newStateHarness(t)
+	claim := modulesrpc.CooldownRequest{UserID: "2", Windows: []modulesrpc.CooldownWindow{{Key: "cooldown:named:2:raffle", TTLSeconds: 100}}}
+	var result modulesrpc.CooldownReply
+	h.call(t, "cooldown.claim", claim, &result)
+	require.True(t, result.Claimed)
+	result = modulesrpc.CooldownReply{}
+	h.call(t, "cooldown.reset", modulesrpc.CooldownRequest{UserID: "2", Name: "RAFFLE"}, &result)
+	require.True(t, result.Found)
+	result = modulesrpc.CooldownReply{}
+	h.call(t, "cooldown.claim", claim, &result)
+	require.True(t, result.Claimed)
+}

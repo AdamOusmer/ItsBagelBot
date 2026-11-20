@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, test } from 'bun:test';
+import { STATUS_TONE } from '../components/automations/model';
 import { english } from './english.testing';
 import type { Flow } from './model';
 import { explainRun, explainStep, runStepRows } from './runs';
@@ -40,13 +41,13 @@ describe('run step rows', () => {
     );
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ type: 'http_get', count: 3, status: 'failed', detail: 'timeout', name: 'Read from a web address', line: 'https://api.example.com/a' });
-    expect(rows[1]).toMatchObject({ type: 'chat', count: 1, status: 'ok', name: 'Send chat message', line: 'after' });
+    expect(rows[1]).toMatchObject({ type: 'chat', count: 1, status: 'ok', name: 'Send message', line: 'after' });
   });
 
   test('same-type steps on different paths list every step they could be, not a guess', () => {
     const rows = runStepRows(english, [{ index: 0, type: 'chat', status: 'ok' }], flow);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ name: 'Send chat message', line: 'One of: worked, failed', count: 1 });
+    expect(rows[0]).toMatchObject({ name: 'Send message', line: 'One of: worked, failed', count: 1 });
   });
 
   test('same-type steps on one path each get their own row, in order, repeating under a loop', () => {
@@ -86,6 +87,17 @@ describe('run step rows', () => {
       { index: 2, type: 'math', status: 'ok' }
     ]);
     expect(rows).toMatchObject([{ count: 2, name: null }]);
+  });
+
+  test('sent remains visible on grouped steps and has a neutral label', () => {
+    const rows = runStepRows(english, [
+      { index: 0, type: 'raid', status: 'ok' },
+      { index: 0, type: 'raid', status: 'sent' },
+      { index: 1, type: 'raid', status: 'sent' },
+      { index: 1, type: 'raid', status: 'failed' }
+    ]);
+    expect(rows).toMatchObject([{ status: 'sent', count: 2 }, { status: 'failed', count: 2 }]);
+    expect([english('automations.status.sent'), STATUS_TONE.sent, explainStep(english, 'sent', '')]).toEqual(['sent', 'neutral', '']);
   });
 });
 

@@ -9,7 +9,7 @@ const (
 	MaxRecursionDepth        = 2
 	MaxNameLength            = 64
 	MaxAutomationsPerChannel = 100
-	MaxDefinitionBytes       = 32768
+	MaxDefinitionBytes       = 262144
 	MaxPreviewBytes          = 4096
 	RunsKept                 = 50
 )
@@ -17,6 +17,8 @@ const (
 const (
 	MaxCooldownSeconds       = 2_592_000
 	MaxValkeyCooldownSeconds = 86_400
+	MaxAgeDays               = 3650
+	MaxRewardCooldown        = 604800
 )
 
 const (
@@ -28,6 +30,15 @@ const (
 	MaxListEntries    = 100
 	MaxExtraLights    = 31
 	MaxPatternLength  = 200
+	MaxPointsAmount   = 1000000
+)
+
+const (
+	MaxLightsHoldS      = 60
+	MinLightsKelvin     = 2000
+	MaxLightsKelvin     = 9000
+	MinLightsBrightness = 1
+	MaxLightsBrightness = 100
 )
 
 const (

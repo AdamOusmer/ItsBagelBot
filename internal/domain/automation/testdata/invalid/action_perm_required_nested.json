@@ -28,7 +28,7 @@
           {
             "type": "ban",
             "params": {
-              "login": "x"
+              "login": "alice"
             }
           }
         ],

@@ -19,5 +19,7 @@
   "update": "Actualizar recompensa",
   "created": "Recompensa creada en Twitch.",
   "updated": "Recompensa actualizada en Twitch.",
-  "requestFailed": "No se pudo contactar con Twitch. Inténtalo de nuevo en un momento."
+  "requestFailed": "No se pudo contactar con Twitch. Inténtalo de nuevo en un momento.",
+  "afterSettledByStep": "El paso Completar canje se encarga de resolverlo.",
+  "afterRefundSkipped": "Si alguna comprobación de la receta falla, se devuelven los puntos al espectador."
 }

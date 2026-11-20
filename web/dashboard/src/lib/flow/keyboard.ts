@@ -112,7 +112,7 @@ const find = (g: Graph, id: string) => g.nodes.find((n) => n.id === id);
 function portRank(g: Graph, from: string, port: string): number {
   const node = find(g, from);
   const spec = node && specFor(node.type);
-  return spec ? Math.max(0, outputsFor(spec).findIndex((o) => o.id === port)) : 0;
+  return Math.max(0, outputsFor(spec, node).findIndex((o) => o.id === port));
 }
 
 function unique(nodes: FlowNode[]): FlowNode[] {
@@ -157,11 +157,6 @@ export function neighbor(g: Graph, id: string, dir: Dir): string | null {
   if (dir === 'right') return childrenOf(g, id)[0]?.id ?? null;
   if (dir === 'left') return parentsOf(g, id)[0]?.id ?? null;
   return siblingAt(g, node, dir === 'down' ? 1 : -1);
-}
-
-export function neighborAfterRemove(g: Graph, id: string): string | null {
-  const near = neighbor(g, id, 'right') ?? neighbor(g, id, 'left') ?? neighbor(g, id, 'down') ?? neighbor(g, id, 'up');
-  return near ?? readingOrder(g).find((n) => n.id !== id)?.id ?? null;
 }
 
 const FOCUS_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Home', 'End']);

@@ -1,0 +1,20 @@
+{
+  "label": "Add to a variable",
+  "summary": "Count up or down",
+  "field": {
+    "scope": {
+      "label": "Kept for",
+      "option": {
+        "channel": "The channel",
+        "viewer": "This viewer"
+      }
+    },
+    "name": {
+      "label": "Name",
+      "placeholder": "deaths"
+    },
+    "amount": {
+      "label": "Amount"
+    }
+  }
+}

@@ -23,6 +23,7 @@
     invalid = false,
     describedby,
     disabled = false,
+    compact = false,
     hint,
     onblur
   }: {
@@ -35,6 +36,7 @@
     invalid?: boolean;
     describedby?: string;
     disabled?: boolean;
+    compact?: boolean;
     hint?: Snippet;
     onblur?: () => void;
   } = $props();
@@ -69,7 +71,7 @@
 </script>
 
 <div class="duration">
-  <div class="duration-row">
+  <div class="duration-row" class:compact>
     <span class="num">
       <Input
         id={id ?? uid}
@@ -81,6 +83,7 @@
         step={1}
         {disabled}
         {invalid}
+        fill={compact}
         aria-label={label}
         aria-invalid={invalid ? 'true' : undefined}
         aria-describedby={describedby}
@@ -94,6 +97,7 @@
         bind:value={unit}
         options={unitOptions}
         {disabled}
+        fill={compact}
         label={t('common.unit.label')}
         onchange={onUnit}
       />
@@ -107,4 +111,6 @@
   .num { display: block; width: 100px; flex: none; }
   .unit { flex: 1; min-width: 130px; }
   .help { display: block; margin-top: 2px; opacity: 0.7; }
+  .compact { display: grid; grid-template-columns: minmax(var(--bb-space-7), 2fr) minmax(0, 3fr); gap: var(--bb-space-2); }
+  .compact .num, .compact .unit { width: auto; min-width: 0; }
 </style>

@@ -1,0 +1,25 @@
+{
+  "label": "Points du spectateur",
+  "summary": "Vérifier le solde de points du spectateur qui a déclenché la recette",
+  "field": {
+    "op": {
+      "label": "Est"
+    },
+    "value": {
+      "label": "Points",
+      "unit": "points"
+    }
+  },
+  "out": {
+    "yes": "Oui",
+    "no": "Non"
+  },
+  "line": {
+    "eq": "Le spectateur a exactement {value} points",
+    "ne": "Le solde du spectateur est différent de {value} points",
+    "gt": "Le spectateur a plus de {value} points",
+    "gte": "Le spectateur a au moins {value} points",
+    "lt": "Le spectateur a moins de {value} points",
+    "lte": "Le spectateur a au plus {value} points"
+  }
+}

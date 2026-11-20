@@ -58,6 +58,26 @@ func TestCommunityActionsResolveTheTargetAndActAsTheBroadcaster(t *testing.T) {
 			want:   []recordedRequest{userLookup("bob"), call("DELETE", "/helix/channels/vips"+roleQuery, broadcasterAuth, "")},
 		},
 		{
+			name: "moderator target ID takes precedence over the login",
+			msg:  testMessage{Type: "mod_add", To: "ghost", TargetUserID: "777", Payload: `{}`},
+			want: []recordedRequest{call("POST", "/helix/moderation/moderators"+roleQuery, broadcasterAuth, "")},
+		},
+		{
+			name: "VIP removal only needs a target ID",
+			msg:  testMessage{Type: "vip_remove", TargetUserID: "777", Payload: `{}`},
+			want: []recordedRequest{call("DELETE", "/helix/channels/vips"+roleQuery, broadcasterAuth, "")},
+		},
+		{
+			name:   "raid target ID skips the user lookup",
+			msg:    testMessage{Type: "raid_start", To: "bob", TargetUserID: "777", Payload: `{}`},
+			script: []scriptedResponse{{status: 200, body: `{"data":[{}]}`}},
+			want:   []recordedRequest{call("POST", "/helix/raids?from_broadcaster_id="+testBroadcaster+"&to_broadcaster_id=777", broadcasterAuth, "")},
+		},
+		{
+			name: "a raid targeting the channel ID itself is refused",
+			msg:  testMessage{Type: "raid_start", TargetUserID: testBroadcaster, Payload: `{}`},
+		},
+		{
 			name:   "an unknown login costs no action call",
 			msg:    testMessage{Type: "mod_add", To: "ghost", Payload: `{}`},
 			script: []scriptedResponse{{status: 200, body: `{"data":[]}`}},

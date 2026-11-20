@@ -147,9 +147,9 @@
     <Field label={label}>
       <Select fill label={label} {disabled} invalid={!!code} options={enumChoices} value={String(params[field.name] ?? '')} onchange={(e) => setEnum(e.currentTarget.value)} />
     </Field>
-  {:else if field.kind === 'int'}
+  {:else if field.kind === 'int' || field.kind === 'number'}
     <Field label={label}>
-      <Input fill type="number" min={field.min} max={field.max} mono {disabled} invalid={!!code} aria-describedby={code ? errId : undefined} value={params[field.name] as number} oninput={(e: Event) => setNumber((e.currentTarget as HTMLInputElement).valueAsNumber)} />
+      <Input fill type="number" min={field.min} max={field.max} step={field.step} mono {disabled} invalid={!!code} aria-describedby={code ? errId : undefined} value={params[field.name] as number} oninput={(e: Event) => setNumber((e.currentTarget as HTMLInputElement).valueAsNumber)} />
     </Field>
   {:else}
     <Field label={label}>

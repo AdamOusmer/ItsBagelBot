@@ -51,6 +51,10 @@ func TestFetchDefName(t *testing.T) {
 func TestFetchURL(t *testing.T) {
 	assertRule(t, validate.FetchURL, []fetchRule{
 		{"plain https", "https://api.example.com/v1/weather?q=berlin", nil},
+		{"no port", "https://a.example.com/x", nil},
+		{"explicit default port", "https://a.example.com:443/x", nil},
+		{"non-HTTPS port", "https://a.example.com:8443/x", validate.ErrFetchURL},
+		{"zero-padded port", "https://a.example.com:0443/x", validate.ErrFetchURL},
 		{"signed query string at the cap", "https://s3.example.com/b?" + strings.Repeat("a", 487), nil},
 
 		{"empty", "", validate.ErrFetchURL},

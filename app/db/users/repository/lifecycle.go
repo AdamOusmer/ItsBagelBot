@@ -47,6 +47,16 @@ func (r *Users) setDesiredEnabled(ctx context.Context, id uint64, enabled bool) 
 	return err
 }
 
+// ResumeAfterReconnect restarts recovery that was parked until the owner granted the missing scopes.
+func (r *Users) ResumeAfterReconnect(ctx context.Context, id uint64) error {
+	view, err := r.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	_, err = r.Lifecycle(ctx, usersrpc.LifecycleRequest{UserID: id, AccountCreatedAt: view.AccountCreatedAt, Action: "grant_saved"})
+	return err
+}
+
 // Lifecycle uses revision CAS so competing replicas never apply an old ban,
 // owner decision or recovery result over newer account state. The JSON current
 // record and its indexed due dates commit in the same SQL statement.
@@ -92,7 +102,7 @@ func legacyEngagementSeed(row *ent.User, req usersrpc.LifecycleRequest) bool {
 	return !req.ObservedAt.IsZero()
 }
 func (m lifecycleMutation) reply() usersrpc.LifecycleReply {
-	return usersrpc.LifecycleReply{State: m.state, AccountCreatedAt: m.row.CreatedAt.UnixMicro(), StateRevision: m.row.StateRevision}
+	return usersrpc.LifecycleReply{State: m.state, AccountCreatedAt: m.row.CreatedAt.UnixMicro(), StateRevision: m.row.StateRevision, TermsAccepted: m.row.Onboarded}
 }
 func (m lifecycleMutation) readRequest() (usersrpc.LifecycleReply, bool, error) {
 	reply := m.reply()

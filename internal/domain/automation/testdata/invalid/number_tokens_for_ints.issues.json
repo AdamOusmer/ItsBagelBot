@@ -1,0 +1,26 @@
+[
+  {
+    "path": "actions[0].params",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[1].params",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[2].params",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[3].params",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[4].params",
+    "code": "invalid_format"
+  },
+  {
+    "path": "trigger.params",
+    "code": "invalid_format"
+  }
+]

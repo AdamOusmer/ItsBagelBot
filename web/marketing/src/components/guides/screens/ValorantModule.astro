@@ -1,0 +1,236 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Button from '@bagel/ui/astro/Button.astro';
+import Card from '@bagel/ui/astro/Card.astro';
+import DeckList from '@bagel/ui/astro/DeckList.astro';
+import Divider from '@bagel/ui/astro/Divider.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Icon from '@bagel/ui/astro/Icon.astro';
+import IconButton from '@bagel/ui/astro/IconButton.astro';
+import Input from '@bagel/ui/astro/Input.astro';
+import ManagementRow from '@bagel/ui/astro/ManagementRow.astro';
+import PageHead from '@bagel/ui/astro/PageHead.astro';
+import SectionNav from '@bagel/ui/astro/SectionNav.astro';
+import Select from '@bagel/ui/astro/Select.astro';
+import Switch from '@bagel/ui/astro/Switch.astro';
+import Tag from '@bagel/ui/astro/Tag.astro';
+import Text from '@bagel/ui/astro/Text.astro';
+import TextLink from '@bagel/ui/astro/TextLink.astro';
+import { moduleDef, namespaceReplyTemplate } from '@bagel/kit/catalog';
+import { dashboardNavGroups, dashboardNavItems } from '@bagel/kit/nav';
+import type { Lang } from '../../../i18n/lang';
+import { valorantConsoleText } from '../../../i18n/valorant-console';
+import logo from '../../../assets/LogoBOT.png';
+import DashFrame from '../DashFrame.astro';
+import ScreenChrome from '../ScreenChrome.astro';
+
+interface Props {
+    lang: Lang;
+    description: string;
+    linked?: boolean;
+}
+
+const shownSettings = new Set(['region', 'platform']);
+const { lang, description, linked = false } = Astro.props;
+const consoleText = (key: string, fallback?: string) => valorantConsoleText(lang, key, fallback);
+const def = moduleDef('valorant')!;
+const copy = (key: string, fallback?: string) => consoleText(`modules.catalog.${def.id}.${key}`, fallback);
+const title = copy('label', def.label);
+const accountTitle = copy('connection.title');
+const accountStatus = linked
+    ? copy('connection.linked').replace('{account}', 'Frosty#EUW1').replace('{shard}', 'eu')
+    : copy('connection.prompt');
+const signIn = copy('connection.signIn');
+const unlink = copy('connection.unlink');
+const settingsTitle = consoleText('modules.settingsTitle');
+const repliesTitle = consoleText('modules.repliesLabel');
+const toggleLabel = (label: string) => consoleText('modules.toggleAria').replace('{label}', label);
+const groups = dashboardNavGroups(dashboardNavItems({ isDelegate: false, sections: [], section: 'modules', t: consoleText }), consoleText);
+const sections = [
+    { href: '#mod-settings', label: settingsTitle },
+    { href: '#mod-replies', label: repliesTitle },
+];
+---
+
+<DashFrame path="/modules/valorant" label={`${title}. ${accountTitle}. ${accountStatus} ${linked ? unlink : signIn}`} embedded cropped>
+    <ScreenChrome
+        console={consoleText('common.console')}
+        crumb={consoleText('nav.modules')}
+        crumbLabel={consoleText('common.breadcrumb')}
+        account={`Frosty · ${consoleText('topbar.roleBroadcaster')}`}
+        navLabel={consoleText('nav.ariaMain')}
+        groups={groups}
+        logoSrc={logo.src}
+        class="riot-module"
+    >
+        <Fragment slot="topActions">
+            <TextLink href="https://status.itsbagelbot.com" variant="quiet" icon="arrowUpRight" label={consoleText('nav.status')} />
+            <IconButton label={consoleText('bell.title')}><Icon name="bell" /></IconButton>
+        </Fragment>
+        <Fragment slot="pageHead">
+            <nav aria-label={consoleText('modules.breadcrumbLabel')}>
+                <ol class="riot-module__crumbs">
+                    <li><TextLink href="/modules" variant="quiet" icon="arrowLeft" label={consoleText('modules.allModules')} /></li>
+                    <li aria-hidden="true">/</li>
+                    <li><Text as="span" size="sm" tone="accent" aria-current="page">{title}</Text></li>
+                </ol>
+            </nav>
+            <PageHead eyebrow={consoleText('modules.detailEyebrow')} compact class="riot-module__head">
+                <span class="riot-module__line"><bb-fit>{title}</bb-fit></span>
+                <span slot="description" class="riot-module__description"><bb-fit mode="block">{description}</bb-fit></span>
+            </PageHead>
+        </Fragment>
+        <Card>
+            <div class="riot-module__connection">
+                <div class="riot-module__details">
+                    <Heading as="div" level={6} class="riot-module__line"><bb-fit>{accountTitle}</bb-fit></Heading>
+                    <Text size="sm" tone="muted" class="riot-module__status"><bb-fit mode="block">{accountStatus}</bb-fit></Text>
+                </div>
+                <div class="riot-module__controls">
+                    <div class:list={['riot-module__control', linked && 'riot-module__control--faded']} inert={linked}>
+                        <Button as="span" block><span class="riot-module__action"><bb-fit>{signIn}</bb-fit></span></Button>
+                    </div>
+                    <div class:list={['riot-module__control', !linked && 'riot-module__control--faded']} inert={!linked}>
+                        <Button as="span" tone="danger" block><span class="riot-module__action"><bb-fit>{unlink}</bb-fit></span></Button>
+                    </div>
+                </div>
+            </div>
+        </Card>
+        <SectionNav label={consoleText('modules.sectionNav')} items={sections} orientation="horizontal" />
+        <Card flush>
+            <div class="riot-module__row">
+                <div class="riot-module__details">
+                    <Heading as="div" level={6} class="riot-module__line"><bb-fit>{consoleText('modules.moduleStatus')}</bb-fit></Heading>
+                    <Text size="xs" tone="muted" class="riot-module__line"><bb-fit>{consoleText('modules.enabledHelp')}</bb-fit></Text>
+                </div>
+                <Tag tone="live" mark="solid" bare>{consoleText('modules.statusOn')}</Tag>
+                <Switch checked label={toggleLabel(title)} />
+            </div>
+        </Card>
+        <Card flush>
+            <div class="riot-module__row">
+                <Heading as="div" level={6} variant="eyebrow" class="riot-module__line riot-module__details"><bb-fit>{settingsTitle}</bb-fit></Heading>
+                <Text as="span" size="xs" tone="muted" class="riot-module__autosave"><bb-fit>{consoleText('modules.autoSaveNote')}</bb-fit></Text>
+            </div>
+            {def.settings?.filter((field) => shownSettings.has(field.key)).map((field) => {
+                const key = `settings.${field.key}`;
+                const label = copy(`${key}.label`, field.label);
+                return (
+                    <Fragment>
+                        <Divider flush />
+                        <div class="riot-module__row">
+                            <div class="riot-module__details">
+                                <Text as="span" size="sm" class="riot-module__line"><bb-fit>{label}</bb-fit></Text>
+                                <Text as="span" size="xs" tone="muted" class="riot-module__hint"><bb-fit mode="block">{copy(`${key}.help`, field.help)}</bb-fit></Text>
+                            </div>
+                            <div class="riot-module__field">
+                                {field.type === 'select' ? (
+                                    <Select label={label} aria-label={label} value={field.placeholder} fill options={field.options?.map((option) => ({
+                                        value: option.value,
+                                        label: copy(`${key}.options.${option.value}`, option.label),
+                                    }))} />
+                                ) : (
+                                    <Input aria-label={label} placeholder={copy(`${key}.placeholder`, field.placeholder)} fill readonly />
+                                )}
+                            </div>
+                        </div>
+                    </Fragment>
+                );
+            })}
+        </Card>
+        <DeckList>
+            <div class="riot-module__row"><Heading as="div" level={6} variant="eyebrow" class="riot-module__line"><bb-fit>{repliesTitle}</bb-fit></Heading></div>
+            <Divider flush />
+            {def.replies.map((reply) => {
+                const label = copy(`replies.${reply.key}.label`, reply.label);
+                const template = namespaceReplyTemplate(def.id, reply, copy(`replies.${reply.key}.defaultMessage`, reply.defaultMessage));
+                return (
+                    <ManagementRow selectable={false}>
+                        <span class="riot-module__details">
+                            <Heading as="span" level={6} class="riot-module__line"><bb-fit>{label}</bb-fit></Heading>
+                            <Text as="span" size="xs" tone="muted" class="riot-module__line"><bb-fit>{template}</bb-fit></Text>
+                        </span>
+                        <Fragment slot="actions"><Switch checked={!reply.defaultOff} label={toggleLabel(label)} /></Fragment>
+                    </ManagementRow>
+                );
+            })}
+        </DeckList>
+    </ScreenChrome>
+</DashFrame>
+
+<style>
+    .riot-module {
+        --riot-canvas: 1040px;
+        --riot-zoom: tan(atan2(100cqw, var(--riot-canvas)));
+        --screen-chrome-rail-height: calc(var(--dframe-crop-height) / var(--riot-zoom));
+        width: var(--riot-canvas);
+        zoom: var(--riot-zoom);
+        align-items: stretch;
+        --card-pad: var(--bb-space-4);
+        --bb-status-danger-border: var(--bb-border);
+    }
+
+    .riot-module :global(.dframe__stage) {
+        gap: var(--bb-space-2);
+        padding: 12px var(--bb-space-4) 0;
+    }
+
+    .riot-module__crumbs {
+        display: flex;
+        align-items: center;
+        gap: var(--bb-space-2);
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .riot-module__head { margin: 0; }
+    .riot-module__line,
+    .riot-module__description,
+    .riot-module__status,
+    .riot-module__hint { display: block; margin: 0; overflow: hidden; }
+    .riot-module__line { height: 1lh; }
+    .riot-module__description { height: 3lh; }
+    .riot-module__status { height: 2lh; }
+    .riot-module__hint { height: 2lh; }
+
+    .riot-module__connection {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 11rem;
+        align-items: center;
+        gap: var(--bb-space-3);
+    }
+
+    .riot-module__details {
+        display: grid;
+        flex: 1;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--bb-space-1);
+        min-inline-size: 0;
+    }
+
+    .riot-module__controls { display: grid; inline-size: min(11rem, 100%); }
+    .riot-module__control { grid-area: 1 / 1; transition: opacity 160ms ease; }
+    .riot-module__control--faded { opacity: 0; pointer-events: none; }
+    .riot-module__action { display: block; inline-size: 8rem; text-align: center; }
+
+    .riot-module__row {
+        display: flex;
+        align-items: center;
+        gap: var(--bb-space-3);
+        padding: var(--bb-space-2) var(--bb-space-4);
+    }
+
+    .riot-module__autosave { inline-size: 11rem; text-align: end; }
+    .riot-module__field { flex: 0 0 min(32%, 11rem); }
+
+    @container (max-width: 540px) {
+        .riot-module { --riot-canvas: 800px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .riot-module__control { transition: none; }
+    }
+</style>

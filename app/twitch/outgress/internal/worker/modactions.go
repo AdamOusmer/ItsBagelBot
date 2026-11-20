@@ -18,15 +18,16 @@ import (
 )
 
 type modAction struct {
-	name   string
-	method string
-	path   string
+	name        string
+	method      string
+	path        string
+	activityKey string
 }
 
 var (
-	banAction    = modAction{"ban/timeout", http.MethodPost, "/helix/moderation/bans"}
-	shieldAction = modAction{"shield_mode", http.MethodPut, "/helix/moderation/shield_mode"}
-	warnAction   = modAction{"warn", http.MethodPost, "/helix/moderation/warnings"}
+	banAction    = modAction{"ban/timeout", http.MethodPost, "/helix/moderation/bans", "activity.automod.ban_timeout"}
+	shieldAction = modAction{"shield_mode", http.MethodPut, "/helix/moderation/shield_mode", ""}
+	warnAction   = modAction{"warn", http.MethodPost, "/helix/moderation/warnings", ""}
 )
 
 func (w *Worker) processModAction(ctx context.Context, payload *outgress.Message, action modAction) error {
@@ -43,19 +44,23 @@ func (w *Worker) processModAction(ctx context.Context, payload *outgress.Message
 	payload.Method = action.method
 	payload.Endpoint = modEndpoint(action.path, payload.BroadcasterID, mod)
 
-	return w.execute(ctx, payload)
+	return w.executeModAction(ctx, payload, action.activityKey)
 }
 
-func (w *Worker) processBan(ctx context.Context, payload *outgress.Message) error {
-	err := w.processModAction(ctx, payload, banAction)
-	if err == nil {
+func (w *Worker) executeModAction(ctx context.Context, payload *outgress.Message, activityKey string) error {
+	outcome, err := w.executeHelix(ctx, payload)
+	if outcome == helixSucceeded && activityKey != "" {
 		activity.Emit(ctx, payload.BroadcasterID, activity.Row{
 			Kind: activity.KindAutomod,
-			Text: i18n.T(payload.Locale, "activity.automod.ban_timeout"),
+			Text: i18n.T(payload.Locale, activityKey),
 			At:   time.Now(),
 		})
 	}
 	return err
+}
+
+func (w *Worker) processBan(ctx context.Context, payload *outgress.Message) error {
+	return w.processModAction(ctx, payload, banAction)
 }
 
 func (w *Worker) processShieldMode(ctx context.Context, payload *outgress.Message) error {
@@ -94,14 +99,37 @@ func (w *Worker) processAnnounce(ctx context.Context, payload *outgress.Message)
 	return w.execute(ctx, payload)
 }
 
+type modDeleteAction struct {
+	path        string
+	queryKey    string
+	missingID   string
+	activityKey string
+}
+
 func (w *Worker) processDelete(ctx context.Context, payload *outgress.Message) error {
-	mod, ok := w.botIdentity("delete", payload)
+	return w.processModDelete(ctx, payload, payload.MsgID, modDeleteAction{
+		path:        "/helix/moderation/chat",
+		queryKey:    "message_id",
+		missingID:   "dropping delete: no message id",
+		activityKey: "activity.automod.deleted",
+	})
+}
+
+func (w *Worker) processUnban(ctx context.Context, payload *outgress.Message) error {
+	return w.processModDelete(ctx, payload, payload.TargetUserID, modDeleteAction{
+		path:      "/helix/moderation/bans",
+		queryKey:  "user_id",
+		missingID: "dropping unban: no target user id",
+	})
+}
+
+func (w *Worker) processModDelete(ctx context.Context, payload *outgress.Message, id string, action modDeleteAction) error {
+	mod, ok := w.botIdentity(payload.Type, payload)
 	if !ok {
 		return nil
 	}
-	if payload.MsgID == "" {
-		w.log.Error("dropping delete: no message id",
-			zap.String("broadcaster_id", payload.BroadcasterID))
+	if id == "" {
+		w.log.Error(action.missingID, zap.String("broadcaster_id", payload.BroadcasterID))
 		return nil
 	}
 
@@ -111,24 +139,10 @@ func (w *Worker) processDelete(ctx context.Context, payload *outgress.Message) e
 
 	payload.As = outgress.AsBot
 	payload.Method = http.MethodDelete
-	payload.Endpoint = deleteEndpoint(payload.BroadcasterID, mod, payload.MsgID)
+	payload.Endpoint = modEndpoint(action.path, payload.BroadcasterID, mod) + "&" + action.queryKey + "=" + url.QueryEscape(id)
 	payload.Payload = nil
 
-	err := w.execute(ctx, payload)
-	if err == nil {
-		activity.Emit(ctx, payload.BroadcasterID, activity.Row{
-			Kind: activity.KindAutomod,
-			Text: i18n.T(payload.Locale, "activity.automod.deleted"),
-			At:   time.Now(),
-		})
-	}
-	return err
-}
-
-func deleteEndpoint(broadcasterID, moderatorID, msgID string) string {
-	return "/helix/moderation/chat?broadcaster_id=" + url.QueryEscape(broadcasterID) +
-		"&moderator_id=" + url.QueryEscape(moderatorID) +
-		"&message_id=" + url.QueryEscape(msgID)
+	return w.executeModAction(ctx, payload, action.activityKey)
 }
 
 func (w *Worker) processShoutout(ctx context.Context, payload *outgress.Message) error {

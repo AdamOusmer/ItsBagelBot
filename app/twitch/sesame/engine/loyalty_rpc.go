@@ -161,7 +161,9 @@ func (l *LoyaltyRPC) CounterCreate(ctx context.Context, ref counterRef, scope co
 }
 
 func (l *LoyaltyRPC) CounterSet(ctx context.Context, set CounterAssignment) (bool, error) {
-	req := loyaltyrpc.Request{UserID: fmtID(set.BroadcasterID), Name: set.Name, Command: set.Command, Value: set.Value}
+	req := loyaltyrpc.Request{
+		UserID: fmtID(set.BroadcasterID), Name: set.Name, Command: set.Command, Value: set.Value, RequireTarget: set.RequireTarget,
+	}
 	if set.ViewerID != 0 {
 		req.ViewerID = fmtID(set.ViewerID)
 	}

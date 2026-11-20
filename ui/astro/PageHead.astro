@@ -16,6 +16,7 @@ interface Props extends Omit<HTMLAttributes<'div'>, 'eyebrow' | 'title' | 'descr
 const { eyebrow, title, description, compact = false, class: className = '', ...rest } = Astro.props;
 
 const trailed = Astro.slots.has('trailing');
+const hasDescription = description || Astro.slots.has('description');
 
 const classes = [
   'bb-page-head',
@@ -27,4 +28,4 @@ const classes = [
   .join(' ');
 ---
 
-<div class={classes} {...rest}><div class="bb-page-head__main">{eyebrow && <span class="bb-page-head__eyebrow">{eyebrow}</span>}<h1 tabindex="-1"><slot>{title}</slot></h1>{description && <p class="bb-page-head__description">{description}</p>}</div>{trailed && <div class="bb-page-head__trail"><slot name="trailing" /></div>}</div>
+<div class={classes} {...rest}><div class="bb-page-head__main">{eyebrow && <span class="bb-page-head__eyebrow">{eyebrow}</span>}<h1 tabindex="-1"><slot>{title}</slot></h1>{hasDescription && <p class="bb-page-head__description"><slot name="description">{description}</slot></p>}</div>{trailed && <div class="bb-page-head__trail"><slot name="trailing" /></div>}</div>

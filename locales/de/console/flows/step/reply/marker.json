@@ -1,0 +1,13 @@
+{
+  "label": "Markierung setzen",
+  "summary": "Markiere diesen Moment in der Aufzeichnung",
+  "line": "Markierung: {description}",
+  "field": {
+    "description": {
+      "label": "Beschreibung"
+    },
+    "confirm": {
+      "label": "Im Chat bestätigen"
+    }
+  }
+}

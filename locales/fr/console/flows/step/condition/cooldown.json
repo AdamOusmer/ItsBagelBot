@@ -1,0 +1,35 @@
+{
+  "label": "Délai de recharge",
+  "summary": "Lancer une fois toutes les quelques secondes",
+  "field": {
+    "channelSeconds": {
+      "label": "Délai pour la chaîne",
+      "range": "Utilisez de 0 seconde à {days} jours."
+    },
+    "viewerSeconds": {
+      "label": "Délai par viewer",
+      "range": "Utilisez de 0 seconde à {days} jours."
+    },
+    "name": {
+      "label": "Nom",
+      "placeholder": "subathon",
+      "hint": "Les étapes d’ajout de temps de n’importe quelle recette peuvent prolonger un délai nommé. S’applique uniquement au délai de la chaîne."
+    },
+    "leftCommand": {
+      "label": "Commande de temps restant",
+      "placeholder": "!tempsrestant"
+    },
+    "leftReply": {
+      "label": "Réponse pendant l’attente",
+      "placeholder": "{user}, encore {cooldown:left} avant de pouvoir réutiliser ceci."
+    },
+    "readyReply": {
+      "label": "Réponse quand c’est prêt",
+      "placeholder": "{user}, c’est prêt à être utilisé."
+    }
+  },
+  "out": {
+    "yes": "Prêt",
+    "no": "En recharge"
+  }
+}

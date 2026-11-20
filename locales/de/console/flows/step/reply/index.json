@@ -1,55 +1,11 @@
 {
   "chat": {
-    "label": "Chatnachricht senden",
-    "summary": "Bot antwortet im Chat",
+    "label": "Nachricht senden",
+    "summary": "Eine Nachricht im Chat posten",
     "field": {
       "message": {
         "label": "Nachricht",
         "placeholder": "Danke {user}!"
-      }
-    }
-  },
-  "points": {
-    "label": "Treuepunkte vergeben",
-    "summary": "Punkte hinzufügen oder abziehen",
-    "field": {
-      "amount": {
-        "label": "Menge",
-        "unit": "Punkte"
-      }
-    }
-  },
-  "counter": {
-    "label": "Zähler erhöhen",
-    "summary": "Einen Zähler erhöhen",
-    "field": {
-      "counter": {
-        "label": "Zähler"
-      }
-    }
-  },
-  "lights": {
-    "label": "Lichter einstellen",
-    "summary": "Eine Govee-Farbe oder -Szene einstellen",
-    "field": {
-      "device": {
-        "label": "Licht"
-      },
-      "mode": {
-        "label": "Einstellen",
-        "option": {
-          "color": "Farbe",
-          "scene": "Szene"
-        }
-      },
-      "color": {
-        "label": "Farbe"
-      },
-      "scene": {
-        "label": "Szene"
-      },
-      "liveOnly": {
-        "label": "Nur während des Streams"
       }
     }
   },
@@ -58,8 +14,9 @@
     "summary": "Pause vor dem nächsten Schritt",
     "field": {
       "seconds": {
-        "label": "Verzögerung",
-        "unit": "Sekunden, max. {max}"
+        "label": "Wartezeit",
+        "unit": "Sekunden, max. {max}",
+        "hint": "Alle Wartezeiten pro Durchlauf ergeben zusammen höchstens 60 Sekunden."
       }
     }
   },
@@ -69,53 +26,13 @@
     "field": {
       "times": {
         "label": "Wie oft",
-        "placeholder": "3"
+        "placeholder": "3",
+        "hint": "1 bis 100. Eine Variable wie {args} geht auch."
       }
     },
     "out": {
       "body": "Jedes Mal",
       "done": "Wenn fertig"
-    }
-  },
-  "varSet": {
-    "label": "Variable setzen",
-    "summary": "Einen Wert für später speichern",
-    "field": {
-      "scope": {
-        "label": "Gespeichert für",
-        "option": {
-          "channel": "Der Kanal",
-          "viewer": "Dieser Zuschauer"
-        }
-      },
-      "name": {
-        "label": "Name",
-        "placeholder": "tode"
-      },
-      "value": {
-        "label": "Wert",
-        "placeholder": "{user}"
-      }
-    }
-  },
-  "varAdd": {
-    "label": "Zu Variable hinzufügen",
-    "summary": "Hoch- oder herunterzählen",
-    "field": {
-      "scope": {
-        "label": "Gespeichert für",
-        "option": {
-          "channel": "Der Kanal",
-          "viewer": "Dieser Zuschauer"
-        }
-      },
-      "name": {
-        "label": "Name",
-        "placeholder": "tode"
-      },
-      "amount": {
-        "label": "Menge"
-      }
     }
   },
   "varDelete": {
@@ -141,7 +58,8 @@
     "field": {
       "expression": {
         "label": "Ausdruck",
-        "placeholder": "({bits} / 100) + 1"
+        "placeholder": "random(1, 6) * 10",
+        "hint": "Verwende + - * / % ^ sowie round, floor, ceil, abs, min, max und random(a, b)."
       },
       "saveAs": {
         "label": "Speichern als",
@@ -149,71 +67,27 @@
       }
     }
   },
-  "cooldownAdd": {
-    "label": "Zeit zu einem Cooldown hinzufügen",
-    "summary": "Einen benannten Timer verlängern, während er läuft",
-    "field": {
-      "name": {
-        "label": "Timer"
-      },
-      "seconds": {
-        "label": "Hinzufügen",
-        "range": "Verwende 1 Sekunde bis {days} Tage."
-      },
-      "per": {
-        "label": "Pro",
-        "hint": "Fügt die Zeit oben für jeden vollen Betrag hinzu. Trage in einem Bits-Rezept 100 ein, um je 100 Bits zu zählen. Leer lassen, um sie einmal pro Ereignis hinzuzufügen."
-      }
-    }
-  },
-  "countdownAdd": {
-    "label": "Zeit zum Countdown hinzufügen",
-    "summary": "Einen laufenden Countdown verlängern",
-    "field": {
-      "name": {
-        "label": "Countdown"
-      },
-      "seconds": {
-        "label": "Hinzufügen",
-        "range": "1 Sekunde bis {days} Tage eingeben."
-      },
-      "per": {
-        "label": "Pro",
-        "hint": "Diese Zeit für jeden vollen Betrag hinzufügen. Leer lassen, um sie einmal pro Ereignis hinzuzufügen."
-      }
-    }
-  },
-  "poll": {
-    "label": "Umfrage starten",
-    "summary": "Umfrage starten",
-    "field": {
-      "title": {
-        "label": "Titel"
-      },
-      "choices": {
-        "label": "Antworten (eine pro Zeile)"
-      },
-      "seconds": {
-        "label": "Dauer (Sekunden)"
-      }
-    }
-  },
   "pollEnd": {
     "label": "Umfrage beenden",
-    "summary": "Umfrage beenden",
+    "summary": "Abstimmung stoppen oder Ergebnisse archivieren",
+    "line": {
+      "terminate": "Umfrage beenden und Ergebnisse anzeigen",
+      "archive": "Umfrage beenden und Ergebnisse ausblenden"
+    },
     "field": {
       "status": {
         "label": "Aktion",
         "option": {
-          "terminate": "Abstimmung stoppen",
-          "archive": "Archivieren"
+          "terminate": "Beenden und Ergebnisse anzeigen",
+          "archive": "Beenden und Ergebnisse ausblenden"
         }
       }
     }
   },
   "prediction": {
     "label": "Vorhersage starten",
-    "summary": "Vorhersage starten",
+    "summary": "Zuschauer mit Punkten auf ein Ergebnis wetten lassen",
+    "line": "Vorhersage: {title}",
     "field": {
       "title": {
         "label": "Titel"
@@ -226,102 +100,143 @@
       }
     }
   },
-  "predictionEnd": {
-    "label": "Vorhersage beenden",
-    "summary": "Vorhersage beenden",
-    "field": {
-      "status": {
-        "label": "Aktion",
-        "option": {
-          "lock": "Abstimmung sperren",
-          "cancel": "Abbrechen und erstatten",
-          "resolve": "Gewinner wählen"
-        }
-      },
-      "winner": {
-        "label": "Nummer des Gewinnergebnisses"
-      }
-    }
-  },
   "raidStart": {
     "label": "Raid starten",
-    "summary": "Raid starten",
+    "summary": "Deine Zuschauer zu einem anderen Kanal schicken",
+    "line": "Raid zu {target} starten",
     "field": {
       "target": {
-        "label": "Kanal- oder Zuschauername"
+        "label": "Kanal für den Raid",
+        "placeholder": "Kanalname"
       }
     }
   },
   "raidCancel": {
     "label": "Raid abbrechen",
-    "summary": "Raid abbrechen"
+    "summary": "Den Raid vor dem Kanalwechsel stoppen"
   },
   "mod": {
-    "label": "Moderatorrolle ändern",
-    "summary": "Moderatorrolle ändern",
+    "label": "Moderatorrolle",
+    "summary": "Einen Moderator hinzufügen oder entfernen",
+    "line": {
+      "add": "{who} zum Moderator machen",
+      "remove": "{who} aus dem Moderatorenteam entfernen"
+    },
     "field": {
-      "target": {
-        "label": "Kanal- oder Zuschauername"
-      },
-      "on": {
-        "label": "Aktiviert"
+      "change": {
+        "label": "Änderung",
+        "option": {
+          "add": "Hinzufügen",
+          "remove": "Entfernen"
+        }
       }
     }
   },
   "vip": {
-    "label": "VIP-Rolle ändern",
-    "summary": "VIP-Rolle ändern",
+    "label": "VIP-Rolle",
+    "summary": "Einen VIP hinzufügen oder entfernen",
+    "line": {
+      "add": "{who} zum VIP machen",
+      "remove": "{who} aus der VIP-Liste entfernen"
+    },
     "field": {
-      "target": {
-        "label": "Kanal- oder Zuschauername"
-      },
-      "on": {
-        "label": "Aktiviert"
+      "change": {
+        "label": "Änderung",
+        "option": {
+          "add": "Hinzufügen",
+          "remove": "Entfernen"
+        }
       }
     }
   },
   "clearChat": {
     "label": "Chat leeren",
-    "summary": "Chat leeren"
+    "summary": "Alle Nachrichten aus dem Chat entfernen",
+    "line": "Gesamten Chat leeren"
   },
   "adSnooze": {
     "label": "Nächste Werbung verschieben",
-    "summary": "Nächste Werbung verschieben"
+    "summary": "Die nächste Werbepause später starten"
   },
   "whisper": {
     "label": "Flüsternachricht senden",
-    "summary": "Flüsternachricht senden",
+    "summary": "Einem Zuschauer eine private Nachricht schicken",
+    "line": "Flüstern an {target}: {text}",
     "field": {
       "target": {
         "label": "Kanal- oder Zuschauername"
       },
       "text": {
-        "label": "Nachricht"
+        "label": "Nachricht",
+        "hint": "Wird vom Bot-Konto gesendet."
       }
     }
   },
-  "unbanResolve": {
-    "label": "Entbannungsantrag bearbeiten",
-    "summary": "Entbannungsantrag bearbeiten",
+  "stop": {
+    "label": "Hier beenden",
+    "summary": "Den Durchlauf hier beenden",
+    "keywords": "ende abbrechen verlassen stoppen",
+    "line": "Den Durchlauf hier beenden",
+    "note": "In parallelen Pfaden wird nur dieser Pfad beendet."
+  },
+  "run": {
+    "label": "Anderes Rezept ausführen",
+    "summary": "Ein anderes Rezept in diesem Kanal starten",
+    "keywords": "aufrufen auslösen verketten",
+    "line": "{name} ausführen",
+    "note": "Rezepte können bis zu 2 Ebenen tief aufgerufen werden.",
     "field": {
-      "status": {
-        "label": "Aktion",
-        "option": {
-          "approve": "Genehmigen",
-          "deny": "Ablehnen"
-        }
-      },
-      "resolution": {
-        "label": "Entscheidungsnachricht (optional)"
+      "automationId": {
+        "label": "Rezept",
+        "hint": "Die eigenen Prüfungen gelten weiterhin. Das andere Rezept startet mit den Werten dieses Rezepts. Seine Änderungen bleiben auf dieses Rezept beschränkt."
       }
     }
   },
-  "brandedContent": {
-    "label": "Markeninhalte kennzeichnen",
-    "summary": "Markeninhalte kennzeichnen",
+  "redemption": {
+    "label": "Einlösung abschließen",
+    "summary": "Eine Prämieneinlösung erfüllen oder die Punkte erstatten",
     "field": {
-      "on": {
-        "label": "Aktiviert"
+      "result": {
+        "label": "Ergebnis"
+      }
+    },
+    "line": {
+      "fulfill": "Als erfüllt markieren",
+      "cancel": "Punkte zurückgeben"
+    }
+  },
+  "pointsSpend": {
+    "label": "Punkte ausgeben",
+    "summary": "Ziehe Punkte ab, wenn der Zuschauer genug hat",
+    "line": "{amount} ausgeben",
+    "field": {
+      "amount": {
+        "label": "Menge",
+        "unit": "Punkte"
+      }
+    },
+    "out": {
+      "enough": "Genug",
+      "notEnough": "Nicht genug"
+    }
+  },
+  "countdownStop": {
+    "label": "Countdown stoppen",
+    "summary": "Beende einen laufenden Countdown vorzeitig",
+    "line": "{name} stoppen",
+    "field": {
+      "name": {
+        "label": "Countdown"
+      }
+    }
+  },
+  "cooldownReset": {
+    "label": "Cooldown zurücksetzen",
+    "summary": "Hebe die Wartezeit für einen benannten Cooldown auf",
+    "line": "{name} zurücksetzen",
+    "field": {
+      "name": {
+        "label": "Cooldown"
       }
     }
   }

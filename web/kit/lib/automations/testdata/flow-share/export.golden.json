@@ -48,7 +48,7 @@
               "scene_name": "setup-required",
               "scene_type": "setup-required",
               "scene_instance": "setup-required",
-              "scene_value": "\"setup-required\""
+              "scene_value": "{\"paramId\":0,\"id\":0,\"setup\":\"setup-required\"}"
             },
             "enabled": false
           },

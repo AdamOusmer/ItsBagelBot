@@ -164,6 +164,39 @@ func TestHTTPPostInsideLoopPostsEachIterationOnce(t *testing.T) {
 	assert.Equal(t, 3, fx.gossip.calls)
 }
 
+func TestHTTPPostExpandsAndValidatesURL(t *testing.T) {
+	cases := []struct {
+		name   string
+		target string
+		want   *gossiprpc.FetchDef
+		status []string
+		writes []string
+	}{
+		{
+			name:   "valid URL",
+			target: "https://hooks.example.com",
+			want:   &gossiprpc.FetchDef{URL: "https://hooks.example.com/item"},
+			status: []string{"0:http_post:ok:", "0:var_set:ok:"},
+			writes: []string{"ok=yes"},
+		},
+		{"invalid URL", "http://hooks.example.com", nil, []string{"0:http_post:failed:bad_def", "0:var_set:ok:"}, []string{"why=bad_def"}},
+		{"invalid port", "https://hooks.example.com:8443", nil, []string{"0:http_post:failed:bad_def", "0:var_set:ok:"}, []string{"why=bad_def"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fx := newAutoFixture(manual("main", act("http_post", obj{
+				"url": "{var:hook}/{args}", "on_ok": actions(setVar("ok", "yes")),
+				"on_failure": actions(setVar("why", "{local:error}")),
+			})))
+			fx.vars.values[variableKey(channelVars, "hook")] = tc.target
+			rec := fx.run(t, "main", "req-post-url", map[string]string{"path": "item"})
+			assert.Equal(t, tc.want, fx.gossip.req.Def)
+			assert.Equal(t, tc.status, statuses(rec))
+			assert.Equal(t, tc.writes, fx.vars.writesSoFar())
+		})
+	}
+}
+
 func TestFetchNodeConsumesBudget(t *testing.T) {
 	fx := newAutoFixture(manual("main", act("http_get", obj{"url": "https://example.com/"})))
 	x := fx.p.newActionExec(context.Background(), &AutomationRun{Plan: automation.NewPlan(manual("main")), BroadcasterID: 1, ID: "r", Tree: new(runTree)}, func(*module.Output) {})

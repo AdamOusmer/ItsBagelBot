@@ -1,0 +1,11 @@
+{
+  "label": "Timeout",
+  "summary": "Einen Zuschauer kurz stummschalten",
+  "keywords": "timeout stummschalten moderation mod dauer grund",
+  "line": "{who} für {seconds} stummschalten",
+  "field": {
+    "target": { "label": "Zuschauername" },
+    "seconds": { "label": "Dauer", "range": "1 Sekunde bis {days} Tage." },
+    "reason": { "label": "Grund (optional)" }
+  }
+}

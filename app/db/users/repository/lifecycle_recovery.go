@@ -72,6 +72,7 @@ func (t *lifecycleTransition) succeedRecovery() (bool, error) {
 	s.LastEngagedAt = t.now
 	s.OperationID = ""
 	s.NextAttemptAt = time.Time{}
+	s.DegradedRetries = 0
 	t.retractIncident()
 	s.IncidentID = ""
 	s.IncidentReason = ""
@@ -105,8 +106,31 @@ func (t *lifecycleTransition) failRecovery() (bool, error) {
 }
 func (t *lifecycleTransition) degradeRecovery() {
 	t.state.RuntimeState = lifecycle.Degraded
-	t.state.NextAttemptAt = t.now.Add(degradedRetryDelay)
+	t.state.NextAttemptAt = t.degradedRetryAt()
 	t.bump()
+}
+
+func (t *lifecycleTransition) degradedRetryAt() time.Time {
+	if t.state.DegradedRetries >= lifecycle.MaxDegradedRetries {
+		return time.Time{}
+	}
+	return t.now.Add(degradedRetryDelay)
+}
+
+func (t *lifecycleTransition) parkedDegraded() bool {
+	return t.state.RuntimeState == lifecycle.Degraded && t.state.NextAttemptAt.IsZero()
+}
+
+func (t *lifecycleTransition) resumeAfterReconnect() (bool, error) {
+	if !t.parkedDegraded() {
+		return false, nil
+	}
+	return t.ownerRetry()
+}
+
+func (t *lifecycleTransition) ownerRetry() (bool, error) {
+	t.state.DegradedRetries = 0
+	return t.retryRecovery()
 }
 
 const degradedRetryDelay = time.Hour
@@ -119,6 +143,7 @@ func (t *lifecycleTransition) retryDegraded() (bool, error) {
 		t.state.NextAttemptAt = t.now.Add(degradedRetryDelay)
 		return true, nil
 	}
+	t.state.DegradedRetries++
 	return t.retryRecovery()
 }
 

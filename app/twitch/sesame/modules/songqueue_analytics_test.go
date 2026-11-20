@@ -35,6 +35,8 @@ func TestSongRequestRecordsOutcomes(t *testing.T) {
 		{request: srCase{config: `{"sr":{"allowOffline":false}}`, live: liveOffline}, outcome: "offline"},
 		{request: srCase{noTracks: true}, outcome: "not_found"},
 		{request: srCase{config: `{"maxDepth":1}`, store: fakeSongQueue{up: []engine.SongEntry{{TrackID: "existing"}}}}, outcome: "queue_full"},
+		{request: srCase{config: `{"maxDepth":"1"}`, store: fakeSongQueue{up: []engine.SongEntry{{TrackID: "existing"}}}}, outcome: "queue_full"},
+		{request: srCase{config: `{"maxDepth":0}`, store: fakeSongQueue{up: []engine.SongEntry{{TrackID: "existing"}}}}, outcome: "queued"},
 		{request: srCase{drop: "spotify.queue"}, outcome: "player_refused"},
 		{addErr: fmt.Errorf("wrapped: %w", engine.ErrSongQuotaReached), outcome: "queue_full"},
 		{addErr: fmt.Errorf("wrapped: %w", engine.ErrSongQueueFull), outcome: "queue_full"},

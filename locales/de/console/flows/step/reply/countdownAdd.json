@@ -1,0 +1,18 @@
+{
+  "label": "Zeit zum Countdown hinzufügen",
+  "summary": "Einen laufenden Countdown verlängern",
+  "line": "{name} um {seconds} verlängern",
+  "field": {
+    "name": {
+      "label": "Countdown"
+    },
+    "seconds": {
+      "label": "Hinzufügen",
+      "range": "1 Sekunde bis {days} Tage eingeben."
+    },
+    "per": {
+      "label": "Für je",
+      "hint": "Nur bei Cheers und geschenkten Abos. Leer lassen, um einmal Zeit hinzuzufügen."
+    }
+  }
+}

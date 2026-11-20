@@ -32,6 +32,7 @@ type CooldownWindow struct {
 type CooldownRequest struct {
 	UserID  string           `json:"user_id"`
 	Windows []CooldownWindow `json:"windows,omitempty"`
+	Name    string           `json:"name,omitempty"`
 }
 
 // CooldownReply lists the won windows when Claimed, otherwise the window that refused with its expiry. Capped is set

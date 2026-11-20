@@ -1,0 +1,11 @@
+{
+  "label": "Exclusion temporaire",
+  "summary": "Exclure un spectateur temporairement",
+  "keywords": "timeout muet exclusion modération mod durée raison",
+  "line": "Exclure {who} pendant {seconds}",
+  "field": {
+    "target": { "label": "Identifiant du viewer" },
+    "seconds": { "label": "Durée", "range": "De 1 seconde à {days} jours." },
+    "reason": { "label": "Raison (facultative)" }
+  }
+}

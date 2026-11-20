@@ -10,10 +10,11 @@
         "trim": "Leerzeichen entfernen",
         "length": "Zeichen zählen",
         "replace": "Ersetzen",
-        "substring": "Teil herausschneiden",
+        "substring": "Teilzeichenfolge extrahieren",
         "split_pick": "Trennen und eins auswählen",
         "contains": "Prüfen, ob es enthalten ist",
-        "url_encode": "Für Links sicher machen"
+        "url_encode": "Für URLs kodieren",
+        "count": "Elemente zählen"
       }
     },
     "input": {
@@ -45,6 +46,37 @@
     "saveAs": {
       "label": "Speichern als",
       "placeholder": "bereinigt"
+    },
+    "arg1": {
+      "label": "Erster Wert",
+      "replace": {
+        "label": "Suchen"
+      },
+      "substring": {
+        "label": "Überspringen"
+      },
+      "split_pick": {
+        "label": "Trennen bei"
+      },
+      "contains": {
+        "label": "Suchen nach"
+      },
+      "count": {
+        "label": "Trennen bei"
+      }
+    },
+    "arg2": {
+      "label": "Zweiter Wert",
+      "replace": {
+        "label": "Ersetzen durch"
+      },
+      "substring": {
+        "label": "Behalten"
+      },
+      "split_pick": {
+        "label": "Auswählen",
+        "placeholder": "1, -1 für das letzte Element oder random"
+      }
     }
   }
 }

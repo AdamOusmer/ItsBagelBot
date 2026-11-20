@@ -5,7 +5,7 @@ export type Tone = 'neutral' | 'accent' | 'warm' | 'success' | 'warning' | 'dang
 
 export type TagTone =
   | Extract<Tone, 'neutral' | 'success' | 'warning' | 'danger' | 'info'>
-  | 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive';
+  | 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive' | 'skipped';
 export type BadgeTone = Exclude<TagTone, 'info'>;
 export type TextTone =
   | Extract<Tone, 'accent' | 'success' | 'danger' | 'warning'>

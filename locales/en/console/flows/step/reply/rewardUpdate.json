@@ -1,6 +1,6 @@
 {
   "label": "Change a reward",
-  "summary": "Turn a reward on or off, or set its cost",
+  "summary": "Change a reward’s availability, cost or cooldown",
   "field": {
     "reward": {
       "label": "Reward"
@@ -19,6 +19,29 @@
     },
     "reset": {
       "label": "Put it back when stream ends"
+    },
+    "paused": {
+      "label": "Paused",
+      "option": {
+        "keep": "Leave as it is",
+        "pause": "Pause",
+        "resume": "Resume"
+      }
+    },
+    "cooldown": {
+      "label": "Cooldown",
+      "range": "Leave blank to keep the cooldown. Use 0 to turn it off. Maximum {days} days."
     }
+  },
+  "pickChange": "Pick at least one change",
+  "line": {
+    "on": "Turn on {reward}",
+    "off": "Turn off {reward}",
+    "pause": "Pause {reward}",
+    "resume": "Resume {reward}",
+    "cost": "Set {reward} to {cost}",
+    "cooldown": "Set {reward} cooldown to {cooldown}",
+    "cooldownOff": "Turn off {reward} cooldown",
+    "untilEnd": "{changes} until the stream ends"
   }
 }

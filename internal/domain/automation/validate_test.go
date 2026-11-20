@@ -86,6 +86,29 @@ func TestInvalidFixturesMatchGoldens(t *testing.T) {
 	}
 }
 
+func TestLogicValidationCases(t *testing.T) {
+	var cases []struct {
+		Name   string
+		Action automation.Action
+		Issues []automation.Issue
+	}
+	if err := codec.Unmarshal(readFile(t, "testdata/logic_validation_cases.json"), &cases); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			def := automation.Definition{
+				Version: automation.Version,
+				Trigger: automation.Trigger{Type: "manual"},
+				Actions: []automation.Action{tc.Action},
+			}
+			if got := automation.Validate(def); !reflect.DeepEqual(got, tc.Issues) {
+				t.Fatalf("got %v, want %v", got, tc.Issues)
+			}
+		})
+	}
+}
+
 func TestValidFixturesRoundTrip(t *testing.T) {
 	for _, f := range fixtures(t, "valid") {
 		t.Run(filepath.Base(f), func(t *testing.T) {

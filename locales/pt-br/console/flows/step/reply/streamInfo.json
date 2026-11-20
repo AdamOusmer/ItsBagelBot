@@ -1,0 +1,33 @@
+{
+  "label": "Editar dados da transmissão",
+  "summary": "Altere o título, a categoria, as tags ou o conteúdo de marca",
+  "line": {
+    "title": "Título: {title}",
+    "game": "Categoria: {game}",
+    "tags": "Tags: {tags}",
+    "brandedOn": "Conteúdo de marca ativado",
+    "brandedOff": "Conteúdo de marca desativado",
+    "more": "{line} +{count} a mais"
+  },
+  "field": {
+    "title": {
+      "label": "Título"
+    },
+    "game": {
+      "label": "Categoria",
+      "hint": "A busca prioriza o nome exato"
+    },
+    "tags": {
+      "label": "Tags",
+      "hint": "Até 10 tags, separadas por vírgulas"
+    },
+    "branded": {
+      "label": "Conteúdo de marca",
+      "option": {
+        "keep": "Manter como está",
+        "on": "Ativado",
+        "off": "Desativado"
+      }
+    }
+  }
+}

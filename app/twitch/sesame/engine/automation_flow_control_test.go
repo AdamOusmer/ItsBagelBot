@@ -106,3 +106,12 @@ func TestAutomationStopEndsRun(t *testing.T) {
 	assert.Equal(t, automationrpc.OutcomeOK, rec.Outcome)
 	assert.Len(t, fx.messages(t), 1)
 }
+
+func TestAutomationStopEndsOnlyParallelPath(t *testing.T) {
+	fx := newAutoFixture(manual("main",
+		parallelOf(actions(setVar("before", "x"), act("stop", obj{}), setVar("unreachable", "x")), actions(setVar("sibling", "x"))),
+		setVar("after", "x"),
+	))
+	fx.run(t, "main", "req-stop-parallel", nil)
+	assert.Equal(t, []string{"before=x", "sibling=x", "after=x"}, fx.vars.writesSoFar())
+}

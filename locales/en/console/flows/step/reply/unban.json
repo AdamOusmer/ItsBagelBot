@@ -1,0 +1,6 @@
+{
+  "label": "Lift timeout or ban",
+  "summary": "Let a viewer chat again",
+  "keywords": "unban untimeout lift pardon timeout ban moderation",
+  "line": "Lift timeout or ban for {who}"
+}

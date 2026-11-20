@@ -65,6 +65,11 @@ func TestChatActionsPostAsTheApp(t *testing.T) {
 			want: []recordedRequest{call("POST", "/helix/chat/messages", appAuth, `{"message":"hello","sender_id":"555"}`)},
 		},
 		{
+			name: "chat forwards the reply parent to Twitch",
+			msg:  testMessage{Type: "chat", Payload: `{"message":"hello","reply_parent_message_id":"parent"}`},
+			want: []recordedRequest{call("POST", "/helix/chat/messages", appAuth, `{"message":"hello","reply_parent_message_id":"parent","sender_id":"987654"}`)},
+		},
+		{
 			name: "announce posts as the app and defaults the color",
 			msg:  testMessage{Type: "announce", Payload: `{"message":"gm"}`},
 			want: []recordedRequest{call("POST", "/helix/chat/announcements?broadcaster_id=44322889&"+mod, appAuth, `{"message":"gm","color":"primary"}`)},
@@ -139,6 +144,15 @@ func TestModerationActionsCallTwitchAsTheBot(t *testing.T) {
 			name: "ban posts the payload as the bot",
 			msg:  testMessage{Type: "ban", Payload: `{"data":{"user_id":"1"}}`},
 			want: []recordedRequest{call("POST", "/helix/moderation/bans?broadcaster_id=44322889&"+mod, botAuth, `{"data":{"user_id":"1"}}`)},
+		},
+		{
+			name: "unban deletes the ban as the bot",
+			msg:  testMessage{Type: "unban", TargetUserID: "1"},
+			want: []recordedRequest{call("DELETE", "/helix/moderation/bans?broadcaster_id=44322889&"+mod+"&user_id=1", botAuth, "")},
+		},
+		{
+			name: "unban without a target is dropped",
+			msg:  testMessage{Type: "unban"},
 		},
 		{
 			name: "timeout shares the ban route",

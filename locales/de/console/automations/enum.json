@@ -1,4 +1,10 @@
 {
+  "who": {
+    "viewer": "Der auslösende Zuschauer",
+    "mention": "Erwähnter Zuschauer",
+    "user": "Ausgewählter Zuschauer",
+    "login": "Zuschauer-Login"
+  },
   "match": {
     "start": "Beginnt mit",
     "exact": "Exakt",
@@ -30,6 +36,8 @@
     "offline": "Offline"
   },
   "op": {
+    "starts": "beginnt mit",
+    "not_exists": "ist nicht gesetzt",
     "contains": "enthält",
     "eq": "ist gleich",
     "ne": "ist nicht",
@@ -45,7 +53,8 @@
     "replace": "Ersetzen",
     "substring": "Teil herausschneiden",
     "split_pick": "Trennen und eins auswählen",
-    "url_encode": "Für Links sicher machen"
+    "url_encode": "Für Links sicher machen",
+    "count": "Elemente zählen"
   },
   "scope": {
     "channel": "Der Kanal",
@@ -73,7 +82,11 @@
     "followers": "Nur Follower",
     "slow": "Langsamer Modus",
     "subscribers": "Nur Abonnenten",
-    "unique": "Einzigartige Nachrichten"
+    "unique": "Einzigartige Nachrichten",
+    "chat_delay": "Chatverzögerung",
+    "white": "Weiß",
+    "on": "Ein",
+    "off": "Aus"
   },
   "kind": {
     "text": "Text",
@@ -88,6 +101,7 @@
       },
       "cheer": "Cheer",
       "raid": "Eingehender Raid",
+      "update": "Titel oder Kategorie geändert",
       "ad_break": {
         "begin": "Werbepause beginnt"
       },

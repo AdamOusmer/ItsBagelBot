@@ -3,6 +3,8 @@
 
 package engine
 
+import "ItsBagelBot/internal/domain/automation"
+
 type actionHandler func(x *actionExec, s step) error
 
 type actionGroup func(*actionTableBuilder) *actionTableBuilder
@@ -53,13 +55,24 @@ func typed[T any](h func(*actionExec, step, T) error) actionHandler {
 	}
 }
 
+func internalAction(handler actionHandler) actionHandler {
+	return func(x *actionExec, s step) error {
+		if !s.Internal {
+			return failure("unknown_type")
+		}
+		return handler(x, s)
+	}
+}
+
 func outputActions(b *actionTableBuilder) *actionTableBuilder {
 	return b.
 		Step("chat", typed((*actionExec).chat)).
+		Step("pin", typed((*actionExec).pin)).
 		Step("announce", typed((*actionExec).announce)).
 		Step("reply", typed((*actionExec).reply)).
 		Step("timeout", typed((*actionExec).timeout)).
 		Step("ban", typed((*actionExec).ban)).
+		Step("unban", typed((*actionExec).unban)).
 		Step("warn", typed((*actionExec).warn)).
 		Step("delete_message", typed((*actionExec).deleteMessage)).
 		Step("shield", typed((*actionExec).shield)).
@@ -83,6 +96,7 @@ func effectActions(b *actionTableBuilder) *actionTableBuilder {
 		Step("http_post", typed((*actionExec).httpPost)).
 		Step("http_get", typed((*actionExec).httpGet)).
 		Step("lights", typed((*actionExec).lights)).
+		Step(automation.LightsRestoreType, internalAction(typed((*actionExec).lightsRestore))).
 		Step("var_set", typed((*actionExec).varSet)).
 		Step("var_add", typed((*actionExec).varAdd)).
 		Step("var_delete", typed((*actionExec).varDelete)).
@@ -90,7 +104,10 @@ func effectActions(b *actionTableBuilder) *actionTableBuilder {
 		Step("math", typed((*actionExec).mathStep)).
 		Step("cooldown_add", typed((*actionExec).cooldownAdd)).
 		Step("countdown_start", typed((*actionExec).countdownStart)).
-		Step("countdown_add", typed((*actionExec).countdownAdd))
+		Step("countdown_add", typed((*actionExec).countdownAdd)).
+		Step("points_spend", typed((*actionExec).pointsSpend)).
+		Step("countdown_stop", typed((*actionExec).countdownStop)).
+		Step("cooldown_reset", typed((*actionExec).cooldownReset))
 }
 
 func flowActions(b *actionTableBuilder) *actionTableBuilder {

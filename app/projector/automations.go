@@ -7,13 +7,13 @@ import (
 	"ItsBagelBot/internal/domain/invalidate"
 	"context"
 	"errors"
-	"strconv"
 	"time"
 
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/event/data"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
 	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/nats-io/nats.go"
@@ -33,15 +33,7 @@ func newAutomationOwner(nc *nats.Conn) automationOwner {
 }
 
 func (o ownerRPC) Automations(ctx context.Context, userID uint64) ([]automation.Automation, error) {
-	req := automationrpc.ProjectionRequest{UserID: strconv.FormatUint(userID, 10)}
-	reply, err := bus.RequestJSONTimeout[automationrpc.AutomationsProjectionReply](ctx, o.nc, automationrpc.ProjectionAutomationsSubj, req, o.timeout)
-	if err != nil {
-		return nil, err
-	}
-	if reply.Error != "" {
-		return nil, errors.New(reply.Error)
-	}
-	return reply.Automations, nil
+	return projection.FetchAutomations(ctx, o.nc, projection.AutomationRequest{Subject: automationrpc.ProjectionAutomationsSubj, UserID: userID, Timeout: o.timeout})
 }
 
 var errMissingAutomationID = errors.New("automation change without id")

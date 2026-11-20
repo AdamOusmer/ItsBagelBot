@@ -1,0 +1,35 @@
+{
+  "label": "Tiempo de espera",
+  "summary": "Permite una ejecución cada pocos segundos",
+  "field": {
+    "channelSeconds": {
+      "label": "Espera del canal",
+      "range": "Usa de 0 segundos a {days} días."
+    },
+    "viewerSeconds": {
+      "label": "Espera por espectador",
+      "range": "Usa de 0 segundos a {days} días."
+    },
+    "name": {
+      "label": "Nombre",
+      "placeholder": "subathon",
+      "hint": "Los pasos para añadir tiempo de cualquier receta pueden prolongar una espera con nombre. Solo se aplica a la espera del canal."
+    },
+    "leftCommand": {
+      "label": "Comando de tiempo restante",
+      "placeholder": "!tiemporestante"
+    },
+    "leftReply": {
+      "label": "Respuesta durante la espera",
+      "placeholder": "{user}, quedan {cooldown:left} antes de poder usar esto de nuevo."
+    },
+    "readyReply": {
+      "label": "Respuesta cuando esté listo",
+      "placeholder": "{user}, esto ya está listo para usar."
+    }
+  },
+  "out": {
+    "yes": "Listo",
+    "no": "En espera"
+  }
+}

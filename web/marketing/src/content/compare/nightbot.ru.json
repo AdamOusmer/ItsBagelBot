@@ -56,7 +56,7 @@
     },
     {
       "feature": "Игровая статистика",
-      "us": "Встроенные модули охватывают Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale и CODM. Например, привяжите свой Riot ID и используйте !valrank.",
+      "us": "Встроенные модули охватывают Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale и CODM. Например, привяжите аккаунт через «Войти через Riot» и используйте !val.",
       "them": "Встроенные переменные рангов охватывают League of Legends и Teamfight Tactics. Справка по TFT: https://docs.nightbot.tv/variables/teamfighttactics.",
       "source": "https://docs.nightbot.tv/variables/leagueoflegends"
     },

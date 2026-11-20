@@ -90,15 +90,30 @@ func automationViews(rows []*ent.Automation) ([]automation.Automation, error) {
 }
 
 func (a *Automations) List(ctx context.Context, userID uint64) ([]automation.Automation, error) {
-	rows, err := db.WithRead(ctx, a.client.Automation.Query().
+	items, _, err := a.ListPage(ctx, userID, 0)
+	return items, err
+}
+
+func (a *Automations) ListPage(ctx context.Context, userID uint64, page int) ([]automation.Automation, int, error) {
+	const pageSize = 4
+	query := a.client.Automation.Query().
 		Where(entautomation.UserID(userID)).
 		Order(ent.Asc(entautomation.FieldNameKey)).
-		Select(runtimeColumns...).
-		All)
-	if err != nil {
-		return nil, err
+		Select(runtimeColumns...)
+	if page > 0 {
+		query.Offset((page - 1) * pageSize).Limit(pageSize + 1)
 	}
-	return automationViews(rows)
+	rows, err := db.WithRead(ctx, query.All)
+	if err != nil {
+		return nil, 0, err
+	}
+	next := 0
+	if page > 0 && len(rows) > pageSize {
+		next = page + 1
+		rows = rows[:pageSize]
+	}
+	items, err := automationViews(rows)
+	return items, next, err
 }
 
 func (a *Automations) Get(ctx context.Context, userID uint64, id string) (*automation.Automation, bool, error) {

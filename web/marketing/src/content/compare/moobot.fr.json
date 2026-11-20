@@ -55,7 +55,7 @@
     },
     {
       "feature": "Statistiques de jeu",
-      "us": "Les modules intégrés couvrent Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale et CODM. Vous pouvez par exemple lier votre Riot ID et utiliser !valrank.",
+      "us": "Les modules intégrés couvrent Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale et CODM. Par exemple, liez votre compte via « Se connecter avec Riot » et utilisez !val.",
       "them": "Les balises proposent des statistiques League of Legends, Teamfight Tactics et Apex Legends. Les commandes de récupération d’URL peuvent aussi lire les données d’un service externe. Récupération d’URL : https://moo.bot/docs/building-your-own-dream-twitch-bot-chat-commands.",
       "source": "https://moo.bot/docs/custom-twitch-bot-chat-commands"
     },

@@ -19,11 +19,20 @@ const (
 	maxTitleRunes  = 140
 	maxGameRunes   = 100
 	maxTagsRunes   = 500
+	maxReasonRunes = 500
 	rewardQueued   = "queued"
 )
 
 func (x *actionExec) chat(_ step, p automation.TextAction) error {
-	o := x.out(outgress.TypeChat)
+	return x.chatText(outgress.TypeChat, p)
+}
+
+func (x *actionExec) pin(_ step, p automation.TextAction) error {
+	return x.chatText(outgress.TypePin, p)
+}
+
+func (x *actionExec) chatText(typ string, p automation.TextAction) error {
+	o := x.out(typ)
 	o.Text = x.expand(p.Text)
 	return x.queueText(o)
 }
@@ -34,13 +43,35 @@ func (x *actionExec) announce(_ step, p automation.AnnounceAction) error {
 	return x.queueText(o)
 }
 
-func (x *actionExec) reply(_ step, p automation.TextAction) error {
+func (x *actionExec) reply(_ step, p automation.ReplyAction) error {
 	o := x.out(outgress.TypeChat)
 	o.Text = x.expand(p.Text)
+	if o.MsgID = x.replyParentID(p.Thread); o.MsgID != "" {
+		return x.queueText(o)
+	}
 	if name := x.viewerName(); name != "" && strings.TrimSpace(o.Text) != "" {
 		o.Text = "@" + name + " " + o.Text
 	}
 	return x.queueText(o)
+}
+
+func (x *actionExec) replyParentID(thread bool) string {
+	if !thread {
+		return ""
+	}
+	return x.chatMessageID()
+}
+
+func (x *actionExec) chatMessageID() string {
+	env := x.run.Env
+	switch {
+	case env == nil:
+		return ""
+	case env.ChatMessageID != "":
+		return env.ChatMessageID
+	default:
+		return env.MsgID
+	}
 }
 
 func (x *actionExec) viewerName() string {
@@ -52,34 +83,43 @@ func (x *actionExec) viewerName() string {
 }
 
 func (x *actionExec) timeout(_ step, p automation.TimeoutAction) error {
-	return x.moderate(outgress.TypeTimeout, p.Login, p.Reason, float64(p.Seconds))
+	return x.moderate(outgress.TypeTimeout, p.TargetAction, p.Reason, float64(p.Seconds))
 }
 
 func (x *actionExec) ban(_ step, p automation.BanAction) error {
-	return x.moderate(outgress.TypeBan, p.Login, p.Reason, 0)
+	return x.moderate(outgress.TypeBan, p.TargetAction, p.Reason, 0)
+}
+
+func (x *actionExec) unban(_ step, p automation.UnbanAction) error {
+	return x.moderate(outgress.TypeUnban, p.TargetAction, "", 0)
 }
 
 func (x *actionExec) warn(_ step, p automation.WarnAction) error {
-	return x.moderate(outgress.TypeWarn, p.Login, p.Reason, 0)
+	return x.moderate(outgress.TypeWarn, automation.TargetAction{Login: p.Login}, p.Reason, 0)
 }
 
-func (x *actionExec) moderate(typ, login, reason string, seconds float64) error {
-	t, err := x.target(login, false)
+func (x *actionExec) moderate(typ string, target automation.TargetAction, reason string, seconds float64) error {
+	t, err := x.target(target, false)
 	if err != nil {
 		return err
 	}
+	reason = utils.TruncateRunes(x.expand(reason), maxReasonRunes)
+	if typ == outgress.TypeWarn && strings.TrimSpace(reason) == "" {
+		return failure("empty_reason")
+	}
 	o := x.out(typ)
 	o.TargetUserID = strconv.FormatUint(t.id, 10)
-	o.Duration, o.Reason = seconds, x.expand(reason)
+	o.Duration, o.Reason = seconds, reason
 	return x.queue(o)
 }
 
 func (x *actionExec) deleteMessage(_ step, _ automation.EmptyParams) error {
-	if x.run.Env == nil || x.run.Env.MsgID == "" {
+	id := x.chatMessageID()
+	if id == "" {
 		return failure("no_message")
 	}
 	o := x.out(outgress.TypeDelete)
-	o.MsgID = x.run.Env.MsgID
+	o.MsgID = id
 	return x.queue(o)
 }
 
@@ -97,15 +137,24 @@ func (x *actionExec) shoutout(_ step, p automation.LoginAction) error {
 	return x.queue(o)
 }
 
-func (x *actionExec) clip(_ step, _ automation.EmptyParams) error {
+func (x *actionExec) clip(_ step, p automation.ClipAction) error {
+	if err := x.requireLive(); err != nil {
+		return err
+	}
 	o := x.out(outgress.TypeClip)
+	o.Text = utils.TruncateRunes(strings.TrimSpace(x.expand(p.Title)), automation.MaxClipTitleRunes)
+	o.Duration, o.Template, o.Quiet = p.Seconds, x.expand(p.Reply), p.Quiet
 	o.To = x.viewerName()
 	return x.queue(o)
 }
 
 func (x *actionExec) marker(_ step, p automation.MarkerAction) error {
+	if err := x.requireLive(); err != nil {
+		return err
+	}
 	o := x.out(outgress.TypeStreamMarker)
 	o.Text, o.Template, o.To = utils.TruncateRunes(strings.TrimSpace(x.expand(p.Description)), maxMarkerRunes), x.context().Locale, x.viewerName()
+	o.Quiet = p.Quiet
 	return x.queue(o)
 }
 
@@ -135,8 +184,12 @@ func (x *actionExec) channelUpdate(field, template string, maxRunes int) error {
 }
 
 func (x *actionExec) commercial(_ step, p automation.CommercialAction) error {
+	if err := x.requireLive(); err != nil {
+		return err
+	}
 	o := x.out(outgress.TypeCommercial)
 	o.Duration, o.Template, o.To = float64(p.Seconds), x.context().Locale, x.viewerName()
+	o.Quiet = p.Quiet
 	return x.queue(o)
 }
 
@@ -162,14 +215,16 @@ func (x *actionExec) redemption(_ step, p automation.RedemptionAction) error {
 func (x *actionExec) rewardUpdate(s step, p automation.RewardUpdateAction) error {
 	o := x.out(outgress.TypeRewardUpdate)
 	o.RewardID = p.RewardID
-	o.Reward = &outgress.RewardUpdate{Enabled: p.Enabled, Cost: p.Cost, ResetOnStreamEnd: p.ResetOnStreamEnd}
+	o.Reward = &outgress.RewardUpdate{
+		Enabled:               p.Enabled,
+		Cost:                  p.Cost,
+		ResetOnStreamEnd:      p.ResetOnStreamEnd,
+		Paused:                p.Paused,
+		GlobalCooldownSeconds: p.CooldownS,
+	}
 	// Not the record's position: parallel paths and trimming both reuse positions.
 	o.RunID, o.ActionSlot = x.run.ID, s.EffectKey+x.iter
-	if err := x.queue(o); err != nil {
-		return err
-	}
-	x.run.Record.Actions[len(x.run.Record.Actions)-1].Slot = o.ActionSlot
-	return succeeded(rewardQueued)
+	return x.queue(o)
 }
 
 func (x *actionExec) redemptionIDs() (rewardID, redemptionID string) {

@@ -138,8 +138,17 @@ export interface PointsCondition {
 
 export interface CompareCondition {
   left: string;
-  op: 'gte' | 'lt' | 'eq' | 'contains';
+  op: CompareOp | 'contains' | 'starts';
   right?: string;
+  ignore_case?: boolean;
+}
+
+export interface FollowCondition {
+  min_days: number;
+}
+
+export interface AccountAgeCondition {
+  min_days: number;
 }
 
 export interface ArgRegexCondition {
@@ -155,21 +164,33 @@ export interface TextAction {
   text: string;
 }
 
+export interface ReplyAction extends TextAction {
+  thread?: boolean;
+}
+
 export interface AnnounceAction {
   text: string;
   color?: AnnounceColor;
 }
 
-export interface TimeoutAction {
-  login: string;
+export const TARGET_MODES = ['login', 'viewer', 'mention', 'user'] as const;
+
+export interface TargetAction {
+  who?: (typeof TARGET_MODES)[number];
+  user_id?: string;
+  login?: string;
+}
+
+export interface TimeoutAction extends TargetAction {
   seconds: number;
   reason?: string;
 }
 
-export interface BanAction {
-  login: string;
+export interface BanAction extends TargetAction {
   reason?: string;
 }
+
+export type UnbanAction = TargetAction;
 
 export interface LoginAction {
   login: string;
@@ -184,8 +205,16 @@ export interface ShieldAction {
   on: boolean;
 }
 
+export interface ClipAction {
+  title?: string;
+  seconds?: number;
+  reply?: string;
+  quiet?: boolean;
+}
+
 export interface MarkerAction {
   description?: string;
+  quiet?: boolean;
 }
 
 export interface SetTitleAction {
@@ -202,15 +231,14 @@ export interface SetTagsAction {
 
 export interface CommercialAction {
   seconds: 30 | 60 | 90 | 120 | 150 | 180;
+  quiet?: boolean;
 }
 
-export interface PointsAddAction {
-  login?: string;
+export interface PointsAddAction extends TargetAction {
   amount: number;
 }
 
-export interface PointsSetAction {
-  login?: string;
+export interface PointsSetAction extends TargetAction {
   amount: number;
 }
 
@@ -271,8 +299,18 @@ export interface HTTPGetAction {
   on_failure?: Action[];
 }
 
+export interface PointsSpendAction {
+  amount: number;
+  on_ok?: Action[];
+  on_failure?: Action[];
+}
+
+export interface NamedTimerAction {
+  name: string;
+}
+
 export type VarScope = 'channel' | 'viewer';
-export type VarOp = CompareOp | 'contains' | 'exists';
+export type VarOp = CompareCondition['op'] | 'exists' | 'not_exists';
 
 export interface VarCondition {
   scope: VarScope;
@@ -312,7 +350,8 @@ export interface CooldownAddAction {
   per?: number;
 }
 
-export type TextOp = 'upper' | 'lower' | 'trim' | 'length' | 'replace' | 'substring' | 'split_pick' | 'contains' | 'url_encode';
+export const TEXT_OPS = ['upper', 'lower', 'trim', 'length', 'replace', 'substring', 'split_pick', 'contains', 'url_encode', 'count'] as const;
+export type TextOp = (typeof TEXT_OPS)[number];
 
 export interface TextStepAction {
   op: TextOp;
@@ -334,17 +373,21 @@ export interface LoopAction {
 
 export interface RewardUpdateAction {
   reward_id: string;
-  enabled: boolean | null;
-  cost: number | null;
+  enabled?: boolean | null;
+  cost?: number | null;
   reset_on_stream_end?: boolean;
+  paused?: boolean | null;
+  cooldown_s?: number | null;
 }
+
+export const LIGHTS_MODES = ['color', 'scene', 'white', 'on', 'off'] as const;
 
 export interface LightsAction {
   device: string;
   sku: string;
   device_name?: string;
   extra_lights?: string[];
-  mode?: 'color' | 'scene';
+  mode?: (typeof LIGHTS_MODES)[number];
   color?: string;
   scene_id?: string;
   scene_name?: string;
@@ -352,6 +395,9 @@ export interface LightsAction {
   scene_instance?: string;
   scene_value?: string;
   any_time?: boolean;
+  kelvin?: number;
+  brightness?: number;
+  hold_s?: number;
 }
 
 export type RefusalCode = 'invalid' | 'not_found' | 'forbidden' | 'conflict' | 'unavailable' | 'internal';
@@ -362,7 +408,7 @@ export interface Refusal {
 }
 
 export type RunOutcome = 'ok' | 'skipped' | 'partial' | 'failed' | 'limited';
-export type ActionStatus = 'ok' | 'skipped' | 'unsupported' | 'failed' | 'limited';
+export type ActionStatus = 'ok' | 'sent' | 'skipped' | 'unsupported' | 'failed' | 'limited';
 
 export interface ActionRecord {
   index: number;
@@ -386,10 +432,12 @@ export interface RunRecord {
 
 export interface ListRequest {
   user_id: string;
+  page?: number;
 }
 
 export interface ListReply extends Refusal {
   automations: Automation[];
+  next_page?: number;
 }
 
 export interface GetRequest {

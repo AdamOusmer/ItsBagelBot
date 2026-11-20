@@ -1,0 +1,33 @@
+{
+  "label": "Edit stream info",
+  "summary": "Change the title, category, tags or branded content",
+  "line": {
+    "title": "Title: {title}",
+    "game": "Category: {game}",
+    "tags": "Tags: {tags}",
+    "brandedOn": "Branded content on",
+    "brandedOff": "Branded content off",
+    "more": "{line} +{count} more"
+  },
+  "field": {
+    "title": {
+      "label": "Title"
+    },
+    "game": {
+      "label": "Category",
+      "hint": "Matched by exact name first"
+    },
+    "tags": {
+      "label": "Tags",
+      "hint": "Comma separated, up to 10 tags"
+    },
+    "branded": {
+      "label": "Branded content",
+      "option": {
+        "keep": "Keep as is",
+        "on": "On",
+        "off": "Off"
+      }
+    }
+  }
+}

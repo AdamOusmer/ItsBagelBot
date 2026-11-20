@@ -3,10 +3,25 @@
 
 import { COMPARE_OPS } from './compare';
 import { eventKinds } from './event-kinds';
-import { MAX_COOLDOWN_SECONDS, MAX_TEMPLATE_LENGTH } from './limits';
-import { CMP_OPS, PERM_LEVELS } from './values';
+import {
+  MAX_AGE_DAYS,
+  MAX_COOLDOWN_SECONDS,
+  MAX_LIGHTS_BRIGHTNESS,
+  MAX_LIGHTS_HOLD_S,
+  MAX_LIGHTS_KELVIN,
+  MAX_LOGIN_TEMPLATE,
+  MAX_MATH_EXPRESSION_RUNES,
+  MAX_POINTS_AMOUNT,
+  MAX_REWARD_COOLDOWN,
+  MAX_TEMPLATE_LENGTH,
+  MIN_LIGHTS_BRIGHTNESS,
+  MIN_LIGHTS_KELVIN,
+} from './limits';
+import { CHAT_MODE_NAMES } from './stream-types';
+import { LIGHTS_MODES, TARGET_MODES, TEXT_OPS } from './types';
+import { CMP_OPS, PERM_LEVELS, VAR_OPS } from './values';
 
-export type FieldKind = 'text' | 'template' | 'login' | 'int' | 'bool' | 'enum' | 'list' | 'actions' | 'condition' | 'branches' | 'map';
+export type FieldKind = 'text' | 'template' | 'login' | 'int' | 'number' | 'bool' | 'enum' | 'list' | 'actions' | 'condition' | 'branches' | 'map';
 
 export interface FieldDef {
   name: string;
@@ -14,6 +29,7 @@ export interface FieldDef {
   required?: boolean;
   min?: number;
   max?: number;
+  step?: number;
   values?: readonly string[];
   labelKey: string;
 }
@@ -54,7 +70,11 @@ const action = (type: TypeName, fields?: FieldDef[]) => def('action', type, fiel
 const counterName = f('name', 'text', { required: true, min: 1, max: 64 });
 const reasonOpt = f('reason', 'template', { max: 500 });
 const loginReq = f('login', 'login', { required: true, min: 1, max: 100 });
-const loginOpt = f('login', 'login', { min: 0, max: 100 });
+const targetFields = [
+  f('who', 'enum', { values: TARGET_MODES }),
+  f('user_id', 'text'),
+  f('login', 'login', { max: MAX_LOGIN_TEMPLATE }),
+];
 const textReq = f('text', 'template', { required: true, min: 1, max: 500 });
 const op = f('op', 'enum', { required: true, values: CMP_OPS });
 const listLogin = (name: FieldName) => f(name, 'list', { max: 100 });
@@ -109,13 +129,16 @@ export const CONDITION_TYPES: TypeDef[] = [
     f('left', 'template', { required: true, min: 1, max: 500 }),
     f('op', 'enum', { required: true, values: COMPARE_OPS }),
     f('right', 'template', { max: 500 }),
+    f('ignore_case', 'bool'),
   ]),
   condition('var', [
     varScope,
     varName,
-    f('op', 'enum', { required: true, values: [...CMP_OPS, 'contains', 'exists'] }),
+    f('op', 'enum', { required: true, values: VAR_OPS }),
     f('value', 'template', { max: 500 }),
   ]),
+  condition('follow', [f('min_days', 'int', { min: 0, max: MAX_AGE_DAYS })]),
+  condition('account_age', [f('min_days', 'int', { required: true, min: 1, max: MAX_AGE_DAYS })]),
 ];
 
 export const ACTION_TYPES: TypeDef[] = [
@@ -123,25 +146,27 @@ export const ACTION_TYPES: TypeDef[] = [
     f('title', 'text', { required: true, min: 1, max: 60 }),
     f('choices', 'list', { required: true, min: 2, max: 5 }),
     f('seconds', 'int', { required: true, min: 15, max: 1800 }),
+    f('points_per_vote', 'int', { min: 0, max: 1000000 }),
   ]),
   action('poll_end', [f('status', 'enum', { required: true, values: ['terminate', 'archive'] })]),
   action('prediction', [
     f('title', 'text', { required: true, min: 1, max: 45 }),
     f('outcomes', 'list', { required: true, min: 2, max: 10 }),
-    f('seconds', 'int', { required: true, min: 30, max: 1800 }),
+    f('seconds', 'int', { required: true, min: 1, max: 1800 }),
   ]),
   action('prediction_end', [
     f('status', 'enum', { required: true, values: ['lock', 'cancel', 'resolve'] }),
     f('winner', 'int', { min: 1, max: 10 }),
+    f('outcome', 'template', { max: 100 }),
   ]),
   action('raid', [loginReq]),
   action('raid_cancel'),
-  action('mod', [loginReq, f('on', 'bool')]),
-  action('vip', [loginReq, f('on', 'bool')]),
+  action('mod', [...targetFields, f('on', 'bool')]),
+  action('vip', [...targetFields, f('on', 'bool')]),
   action('chat_mode', [
-    f('mode', 'enum', { required: true, values: ['emote_only', 'followers', 'slow', 'subscribers', 'unique'] }),
+    f('mode', 'enum', { required: true, values: CHAT_MODE_NAMES }),
     f('on', 'bool'),
-    f('value', 'int', { min: 0, max: 86400 }),
+    f('value', 'int'),
   ]),
   action('clear_chat'),
   action('ad_snooze'),
@@ -153,22 +178,29 @@ export const ACTION_TYPES: TypeDef[] = [
   action('branded_content', [f('on', 'bool')]),
 
   action('chat', [textReq]),
+  action('pin', [textReq]),
   action('announce', [textReq, f('color', 'enum', { values: ['', 'primary', 'blue', 'green', 'orange', 'purple'] })]),
-  action('reply', [textReq]),
-  action('timeout', [loginReq, f('seconds', 'int', { required: true, min: 1, max: 1209600 }), reasonOpt]),
-  action('ban', [loginReq, reasonOpt]),
+  action('reply', [textReq, f('thread', 'bool')]),
+  action('timeout', [...targetFields, f('seconds', 'int', { required: true, min: 1, max: 1209600 }), reasonOpt]),
+  action('ban', [...targetFields, reasonOpt]),
+  action('unban', [...targetFields]),
   action('delete_message'),
   action('warn', [loginReq, f('reason', 'template', { required: true, min: 1, max: 500 })]),
   action('shield', [f('on', 'bool')]),
   action('shoutout', [loginReq]),
-  action('clip'),
-  action('marker', [f('description', 'template', { max: 140 })]),
+  action('clip', [
+    f('title', 'template', { max: 100 }),
+    f('seconds', 'number', { min: 5, max: 60, step: 0.1 }),
+    f('reply', 'template', { max: MAX_TEMPLATE_LENGTH }),
+    f('quiet', 'bool'),
+  ]),
+  action('marker', [f('description', 'template', { max: 140 }), f('quiet', 'bool')]),
   action('set_title', [f('title', 'template', { required: true, min: 1, max: 140 })]),
   action('set_game', [f('game', 'template', { required: true, min: 1, max: 100 })]),
   action('set_tags', [f('tags', 'template', { required: true, min: 1, max: 500 })]),
-  action('commercial', [f('seconds', 'enum', { required: true, values: ['30', '60', '90', '120', '150', '180'] })]),
-  action('points_add', [loginOpt, f('amount', 'int', { required: true, min: -1000000, max: 1000000 })]),
-  action('points_set', [loginOpt, f('amount', 'int', { required: true, min: 0, max: 1000000000 })]),
+  action('commercial', [f('seconds', 'enum', { required: true, values: ['30', '60', '90', '120', '150', '180'] }), f('quiet', 'bool')]),
+  action('points_add', [...targetFields, f('amount', 'int', { required: true, min: -MAX_POINTS_AMOUNT, max: MAX_POINTS_AMOUNT })]),
+  action('points_set', [...targetFields, f('amount', 'int', { required: true, min: 0, max: 1000000000 })]),
   action('counter_add', [counterName, f('amount', 'int', { required: true, min: -1000000, max: 1000000 })]),
   action('counter_set', [counterName, f('value', 'int', { required: true })]),
   action('redemption', [f('status', 'enum', { required: true, values: ['fulfill', 'cancel'] })]),
@@ -182,7 +214,7 @@ export const ACTION_TYPES: TypeDef[] = [
     f('else', 'actions'),
   ]),
   action('http_post', [
-    f('url', 'text', { required: true, min: 1, max: 512 }),
+    f('url', 'template', { required: true, min: 1, max: 512 }),
     f('body', 'template', { max: 2000 }),
     saveAsOpt,
     f('on_ok', 'actions'),
@@ -199,26 +231,28 @@ export const ACTION_TYPES: TypeDef[] = [
   action('var_add', [varScope, varName, f('amount', 'int', { required: true })]),
   action('var_delete', [varScope, varName]),
   action('text', [
-    f('op', 'enum', { required: true, values: ['upper', 'lower', 'trim', 'length', 'replace', 'substring', 'split_pick', 'contains', 'url_encode'] }),
+    f('op', 'enum', { required: true, values: TEXT_OPS }),
     f('input', 'template', { max: 500 }),
     f('arg1', 'template', { max: 500 }),
     f('arg2', 'template', { max: 500 }),
     saveAsReq,
   ]),
-  action('math', [f('expression', 'template', { required: true, min: 1, max: 500 }), saveAsReq]),
+  action('math', [f('expression', 'template', { required: true, min: 1, max: MAX_MATH_EXPRESSION_RUNES }), saveAsReq]),
   action('loop', [f('times', 'template', { required: true, min: 1, max: 500 }), f('actions', 'actions')]),
   action('reward_update', [
     f('reward_id', 'text', { required: true, min: 1, max: 64 }),
     f('enabled', 'bool'),
     f('cost', 'int', { min: 1, max: 10000000 }),
     f('reset_on_stream_end', 'bool'),
+    f('paused', 'bool'),
+    f('cooldown_s', 'int', { min: 0, max: MAX_REWARD_COOLDOWN }),
   ]),
   action('lights', [
     f('device', 'text', { required: true, min: 1, max: 64 }),
     f('sku', 'text', { required: true, min: 1, max: 32 }),
     f('device_name', 'text', { max: 100 }),
     f('extra_lights', 'list', { max: 31 }),
-    f('mode', 'enum', { values: ['color', 'scene'] }),
+    f('mode', 'enum', { values: LIGHTS_MODES }),
     f('color', 'text', { min: 7, max: 7 }),
     f('scene_id', 'text', { max: 100 }),
     f('scene_name', 'text', { max: 100 }),
@@ -226,6 +260,9 @@ export const ACTION_TYPES: TypeDef[] = [
     f('scene_instance', 'text', { min: 1, max: 64 }),
     f('scene_value', 'text', { min: 1, max: 200 }),
     f('any_time', 'bool'),
+    f('kelvin', 'int', { min: MIN_LIGHTS_KELVIN, max: MAX_LIGHTS_KELVIN }),
+    f('brightness', 'int', { min: MIN_LIGHTS_BRIGHTNESS, max: MAX_LIGHTS_BRIGHTNESS }),
+    f('hold_s', 'int', { min: 0, max: MAX_LIGHTS_HOLD_S }),
   ]),
   action('stop'),
   action('countdown_start', [varName, f('seconds', 'int', { required: true, min: 1, max: MAX_COOLDOWN_SECONDS }), f('left_command', 'text', { max: 64 }), f('left_reply', 'text', { max: MAX_TEMPLATE_LENGTH }), f('ready_reply', 'text', { max: MAX_TEMPLATE_LENGTH })]),
@@ -235,4 +272,11 @@ export const ACTION_TYPES: TypeDef[] = [
     f('seconds', 'int', { required: true, min: 1, max: MAX_COOLDOWN_SECONDS }),
     f('per', 'int', { min: 0 }),
   ]),
+  action('points_spend', [
+    f('amount', 'int', { required: true, min: 1, max: MAX_POINTS_AMOUNT }),
+    f('on_ok', 'actions'),
+    f('on_failure', 'actions'),
+  ]),
+  action('countdown_stop', [varName]),
+  action('cooldown_reset', [varName]),
 ];

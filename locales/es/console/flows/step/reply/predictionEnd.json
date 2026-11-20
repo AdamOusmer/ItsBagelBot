@@ -1,0 +1,23 @@
+{
+  "label": "Finalizar una predicción",
+  "summary": "Cierra apuestas, devuelve puntos o elige ganador",
+  "line": {
+    "lock": "Cerrar las apuestas",
+    "cancel": "Cancelar y devolver los puntos",
+    "resolve": "Ganador: {outcome}"
+  },
+  "field": {
+    "status": {
+      "label": "Acción",
+      "option": {
+        "lock": "Cerrar las apuestas",
+        "cancel": "Cancelar y devolver los puntos",
+        "resolve": "Elegir un ganador"
+      }
+    },
+    "outcome": {
+      "label": "Resultado ganador",
+      "hint": "Un número o el nombre del resultado"
+    }
+  }
+}

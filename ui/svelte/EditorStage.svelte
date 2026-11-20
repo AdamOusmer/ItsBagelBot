@@ -15,9 +15,11 @@
     topCenter?: Snippet;
     topEnd?: Snippet;
     slimBar?: boolean;
+    stackBar?: boolean;
     rail?: Snippet;
     leftPanel?: Snippet;
     rightPanel?: Snippet;
+    rightPanelHidden?: boolean;
     children: Snippet;
     onboardpointerdown?: (event: PointerEvent) => void;
     editorEl?: HTMLDivElement;
@@ -39,9 +41,11 @@
     topCenter,
     topEnd,
     slimBar = false,
+    stackBar = false,
     rail,
     leftPanel,
     rightPanel,
+    rightPanelHidden = false,
     children,
     onboardpointerdown,
     editorEl = $bindable<HTMLDivElement | undefined>(undefined),
@@ -58,6 +62,7 @@
     [
       'bb-editor-stage',
       slimBar ? 'bb-editor-stage--slim-bar' : null,
+      stackBar ? 'bb-editor-stage--stack-bar' : null,
       rail ? 'bb-editor-stage--has-rail' : null,
       className || null,
     ]
@@ -106,7 +111,7 @@
       {/if}
 
       {#if rightPanel}
-        <div class="bb-editor-stage__panel bb-editor-stage__panel--right" bind:this={rightPanelEl}>
+        <div class="bb-editor-stage__panel bb-editor-stage__panel--right" class:bb-editor-stage__panel--hidden={rightPanelHidden} inert={rightPanelHidden} bind:this={rightPanelEl}>
           <span class="bb-editor-stage__grip" aria-hidden="true"></span>
           {@render rightPanel()}
         </div>

@@ -1,0 +1,23 @@
+{
+  "label": "Vorhersage beenden",
+  "summary": "Wetten sperren, Punkte erstatten oder Gewinner wählen",
+  "line": {
+    "lock": "Wetten schließen",
+    "cancel": "Abbrechen und Punkte erstatten",
+    "resolve": "Gewinner: {outcome}"
+  },
+  "field": {
+    "status": {
+      "label": "Aktion",
+      "option": {
+        "lock": "Wetten schließen",
+        "cancel": "Abbrechen und Punkte erstatten",
+        "resolve": "Gewinner auswählen"
+      }
+    },
+    "outcome": {
+      "label": "Gewinnergebnis",
+      "hint": "Eine Zahl oder der Name des Ergebnisses"
+    }
+  }
+}

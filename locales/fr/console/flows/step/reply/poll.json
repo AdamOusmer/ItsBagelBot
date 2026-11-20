@@ -1,0 +1,22 @@
+{
+  "label": "Lancer un sondage",
+  "summary": "Laisser les spectateurs voter sur une question",
+  "line": "Sondage : {title}",
+  "field": {
+    "title": {
+      "label": "Titre"
+    },
+    "choices": {
+      "label": "Choix (un par ligne)"
+    },
+    "seconds": {
+      "label": "Durée (secondes)"
+    },
+    "extraVotes": {
+      "label": "Votes supplémentaires avec les points de chaîne"
+    },
+    "pointsPerVote": {
+      "label": "Points par vote"
+    }
+  }
+}

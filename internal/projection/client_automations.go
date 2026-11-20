@@ -9,7 +9,6 @@ import (
 
 	"ItsBagelBot/internal/domain/automation"
 	automationrpc "ItsBagelBot/internal/domain/rpc/automation"
-	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 )
 
@@ -51,12 +50,12 @@ func (c *Client) automationEntry(ctx context.Context, userID uint64) (automation
 			loadSource(ctx, "projection.automations.source", "valkey")
 			return automationEntry{list: list, index: automation.CompileIndex(list)}, nil
 		}
-		reply, err := bus.RequestJSONTimeout[automationrpc.AutomationsProjectionReply](ctx, c.nc, c.automationsSubject(), projectionRequest(userID), c.rpcTimeout)
+		list, err := FetchAutomations(ctx, c.nc, AutomationRequest{Subject: c.automationsSubject(), UserID: userID, Timeout: c.rpcTimeout})
 		if err != nil {
 			loadSource(ctx, "projection.automations.source", "rpc_error")
 			return automationEntry{}, err
 		}
 		loadSource(ctx, "projection.automations.source", "rpc")
-		return automationEntry{list: reply.Automations, index: automation.CompileIndex(reply.Automations)}, nil
+		return automationEntry{list: list, index: automation.CompileIndex(list)}, nil
 	})
 }

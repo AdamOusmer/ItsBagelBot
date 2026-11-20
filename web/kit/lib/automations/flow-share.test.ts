@@ -10,18 +10,24 @@ import {
   flowImportView,
   FLOW_FILE_FORMAT,
   FLOW_FILE_VERSION,
+  LEGACY_SETUP_SCENE_VALUE,
   planFlowImport,
   serializeFlowFile,
+  setupGaps,
   SETUP_LOGIN,
   SETUP_REWARD_ID,
+  SETUP_SCENE_VALUE,
   type FlowCommitDeps,
   type FlowExportRow,
   type FlowImportContext,
   type FlowImportEntry,
   type FlowWrite
 } from './flow-share';
+import { definitionToFlow, flowToDefinition } from './flow-graph';
+import { SETUP_RUN_TARGET } from './flow-setup';
 import { classifyFlow } from './flow-layer';
-import { MAX_AUTOMATIONS_PER_CHANNEL, MAX_FLOWS_PER_FILE, MAX_FLOW_FILE_BYTES, MAX_NAME_LENGTH } from './limits';
+import { MAX_AUTOMATIONS_PER_CHANNEL, MAX_DEFINITION_BYTES, MAX_FLOWS_PER_FILE, MAX_FLOW_FILE_BYTES, MAX_NAME_LENGTH } from './limits';
+import { sizedRecipe } from './testdata/large-recipe';
 import type { Definition } from './types';
 
 const GOLDENS = join(import.meta.dir, 'testdata/flow-share');
@@ -37,6 +43,7 @@ function golden({ file, actual }: { file: string; actual: string }): string {
 const EMPTY: FlowImportContext = { count: 0, names: [], commands: [], alerts: [] };
 const chat = (text: string) => ({ type: 'chat', params: { text } });
 const run = (automation_id: string) => ({ type: 'run', params: { automation_id } });
+const pendingRun = { ...run(SETUP_RUN_TARGET), enabled: false };
 const manual = (actions: Definition['actions'] = [chat('hi')]): Definition => ({ version: 1, trigger: { type: 'manual', params: {} }, actions });
 const command = (name: string, actions: Definition['actions'] = [chat('hi')]): Definition => ({
   version: 1,
@@ -206,12 +213,12 @@ describe('exportFlows', () => {
   test('links runs inside the selection and marks the rest', () => {
     const [first] = file.flows;
     const runs = first!.definition.actions!.filter((a) => a.type === 'run');
-    expect(runs).toEqual([run('f2'), { type: 'run', enabled: false, params: { automation_id: 'setup-required' } }]);
+    expect(runs).toEqual([run('f2'), pendingRun]);
   });
 
   test('reports what the exporter should know about', () => {
     expect(report[0]!.setup.map((n) => n.code)).toEqual(
-      expect.arrayContaining(['reward_trigger', 'users_list', 'http_target', 'lights_target', 'run_removed', 'counter', 'fetch'])
+      expect.arrayContaining(['reward_trigger', 'users_list', 'http_target', 'lights_target', 'run_target', 'counter', 'fetch'])
     );
     expect(report.every((r) => r.issues.length === 0)).toBe(true);
     expect(report[3]!.scrubbed.map((note) => `${note.path} ${note.type} ${note.kind}`)).toEqual([
@@ -238,6 +245,11 @@ describe('planFlowImport round trip', () => {
     expect(view).toBe(golden({ file: 'import-preview.golden.json', actual: view }));
   });
 
+  test('upgrades the scene placeholder from older flow exports', () => {
+    const legacy = text.text.replaceAll(JSON.stringify(SETUP_SCENE_VALUE), JSON.stringify(LEGACY_SETUP_SCENE_VALUE));
+    expect(planned({ text: legacy })).toEqual(planned(text));
+  });
+
   async function imported(file: FileText): Promise<FlowExportRow[]> {
     const { writes, deps } = recorder();
     const results = await commitFlowImport(planned(file), deps);
@@ -257,7 +269,35 @@ describe('planFlowImport round trip', () => {
   test('links inside the selection stay linked through the round trip', async () => {
     const rows = await imported(text);
     const runs = exportFlows(rows).file.flows[0]!.definition.actions!.filter((a) => a.type === 'run');
-    expect(runs).toEqual([run('f2')]);
+    expect(runs).toEqual([run('f2'), pendingRun]);
+  });
+
+  test.each([
+    { target: 'external-one', replacement: undefined },
+    { target: 'external-two', replacement: 'local-recipe' }
+  ])('a call to $target opens awaiting setup and saves with $replacement', async ({ target, replacement }) => {
+    const rows = [{ id: 'parent', name: 'Parent', definition: command('!parent', [run(target), chat('next')]) }];
+    const portable = exportFlows(rows).file;
+    const text = serializeFlowFile(portable);
+    const [stored] = await imported({ text });
+    const opened = definitionToFlow(stored!.definition, { id: stored!.id!, name: stored!.name, enabled: false });
+    if (!opened.ok) throw new Error(JSON.stringify(opened.issues));
+    const call = opened.value.nodes.find((node) => node.type === 'reply.run');
+    if (!call) throw new Error('Missing recipe call');
+    const config = { ...call.config };
+    if (replacement) call.config.automationId = replacement;
+    const actions = replacement ? [{ ...run(replacement), enabled: false }, chat('next')] : stored!.definition.actions;
+    expect({
+      leaked: text.includes(target),
+      setup: setupGaps(stored!.definition),
+      config,
+      savedAgain: flowToDefinition(opened.value)
+    }).toEqual({
+      leaked: false,
+      setup: [{ path: 'actions[0]', code: 'setup_required' }],
+      config: { automationId: SETUP_RUN_TARGET, disabled: true },
+      savedAgain: { ok: true, value: { ...stored!.definition, actions } }
+    });
   });
 
   test('every valid shared fixture is importable', () => {
@@ -325,8 +365,8 @@ describe('per-recipe refusals', () => {
   });
 
   test('nesting past the size limit is refused by size', () => {
-    let deep: unknown = chat('x');
-    for (let i = 0; i < 5000; i++) deep = { type: 'if', params: { then: [deep] } };
+    let deep: unknown = chat('x'.repeat(MAX_DEFINITION_BYTES));
+    for (let i = 0; i < 200; i++) deep = { type: 'if', params: { then: [deep] } };
     expect(issueCodes(onlyEntry({ version: 1, trigger: { type: 'manual' }, actions: [deep] }))).toEqual(['too_long']);
   });
 
@@ -347,7 +387,7 @@ describe('per-recipe refusals', () => {
   });
 
   test('oversized definitions and bad names', () => {
-    const long = manual(Array.from({ length: 20 }, () => chat('x'.repeat(2000))));
+    const long = sizedRecipe(MAX_DEFINITION_BYTES + 1);
     expect(issueCodes(onlyEntry(long))).toEqual(['too_long']);
     expect(issueCodes(planned(asFile([entry('f1', 'x'.repeat(MAX_NAME_LENGTH + 1))]))[0]!)).toEqual(['too_long']);
   });

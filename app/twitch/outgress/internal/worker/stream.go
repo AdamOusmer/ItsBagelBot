@@ -30,6 +30,13 @@ type streamJobMeta struct {
 	Length      int    `json:"length"`
 	Locale      string `json:"locale"`
 	User        string `json:"user"`
+	Quiet       bool   `json:"quiet"`
+}
+
+type streamFailure struct {
+	locale string
+	err    error
+	quiet  bool
 }
 
 func (w *Worker) processChannelUpdate(ctx context.Context, payload *outgress.Message) error {
@@ -57,7 +64,7 @@ func (w *Worker) processChannelUpdate(ctx context.Context, payload *outgress.Mes
 func (w *Worker) streamGet(ctx context.Context, payload *outgress.Message, meta channelUpdateMeta) error {
 	info, err := w.twitch.ChannelInfo(ctx, payload.BroadcasterID)
 	if err != nil {
-		return w.streamHelixErr(ctx, payload, meta.Locale, err)
+		return w.streamHelixErr(ctx, payload, streamFailure{locale: meta.Locale, err: err})
 	}
 	return w.sendBotLine(ctx, payload.BroadcasterID, streamGetReply(meta, info))
 }
@@ -65,14 +72,14 @@ func (w *Worker) streamGet(ctx context.Context, payload *outgress.Message, meta 
 func (w *Worker) streamSet(ctx context.Context, payload *outgress.Message, meta channelUpdateMeta) error {
 	patch, display, ok, err := w.buildChannelPatch(ctx, payload, meta)
 	if err != nil {
-		return w.streamHelixErr(ctx, payload, meta.Locale, err)
+		return w.streamHelixErr(ctx, payload, streamFailure{locale: meta.Locale, err: err})
 	}
 	if !ok {
 		return nil
 	}
 
 	if err := w.twitch.ModifyChannel(ctx, payload.BroadcasterID, patch); err != nil {
-		return w.streamHelixErr(ctx, payload, meta.Locale, err)
+		return w.streamHelixErr(ctx, payload, streamFailure{locale: meta.Locale, err: err})
 	}
 	if err := w.sendBotLine(ctx, payload.BroadcasterID, streamSetReply(meta, display)); err != nil {
 		w.log.Warn("channel updated but reply chat failed",
@@ -151,7 +158,10 @@ func (w *Worker) runStreamJob(ctx context.Context, payload *outgress.Message, ki
 		return err
 	}
 	if err := call(); err != nil {
-		return w.streamHelixErr(ctx, payload, meta.Locale, err)
+		return w.streamHelixErr(ctx, payload, streamFailure{locale: meta.Locale, err: err, quiet: meta.Quiet})
+	}
+	if meta.Quiet {
+		return nil
 	}
 	if err := w.sendBotLine(ctx, payload.BroadcasterID, streamExpand(meta.Locale, "stream."+kind+".ok", tokens)); err != nil {
 		w.log.Warn("stream job ran but reply chat failed",
@@ -161,19 +171,18 @@ func (w *Worker) runStreamJob(ctx context.Context, payload *outgress.Message, ki
 	return nil
 }
 
-func (w *Worker) streamHelixErr(ctx context.Context, payload *outgress.Message, locale string, err error) error {
-	if err == nil {
-		return nil
+func (w *Worker) streamHelixErr(ctx context.Context, payload *outgress.Message, failure streamFailure) error {
+	if !streamDrop(failure.err) {
+		return failure.err
 	}
-	if streamDrop(err) {
-		w.log.Error("dropping stream-editor job: twitch rejected it",
-			zap.String("broadcaster_id", payload.BroadcasterID),
-			zap.String("type", payload.Type),
-			zap.Error(err))
-		_ = w.sendBotLine(ctx, payload.BroadcasterID, streamExpand(locale, "stream.unavailable", nil))
-		return nil
+	w.log.Error("dropping stream-editor job: twitch rejected it",
+		zap.String("broadcaster_id", payload.BroadcasterID),
+		zap.String("type", payload.Type),
+		zap.Error(failure.err))
+	if !failure.quiet {
+		_ = w.sendBotLine(ctx, payload.BroadcasterID, streamExpand(failure.locale, "stream.unavailable", nil))
 	}
-	return err
+	return nil
 }
 
 func streamDrop(err error) bool {

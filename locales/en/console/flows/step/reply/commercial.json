@@ -1,0 +1,21 @@
+{
+  "label": "Run an ad",
+  "summary": "Start an ad break now",
+  "line": "Run an ad for {seconds}",
+  "field": {
+    "seconds": {
+      "label": "Duration",
+      "option": {
+        "30": "30 seconds",
+        "60": "1 minute",
+        "90": "1 minute 30 seconds",
+        "120": "2 minutes",
+        "150": "2 minutes 30 seconds",
+        "180": "3 minutes"
+      }
+    },
+    "confirm": {
+      "label": "Confirm in chat"
+    }
+  }
+}

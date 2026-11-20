@@ -219,6 +219,7 @@ func (p *Pipeline) finishQueueWait(ctx context.Context, run *AutomationRun, turn
 	default:
 		run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeLimited, reason
 	}
+	p.refundQueuedRedemption(ctx, run)
 	p.finishRun(ctx, run)
 	p.leaveQueue(turn.seat)
 	return false
@@ -300,17 +301,36 @@ func (p *Pipeline) runQueuedTurn(parent context.Context, run *AutomationRun) {
 	defer p.failPanickedSegment(ctx, run)
 	if p.automationsLockedFor(ctx, run.BroadcasterID) {
 		run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeLimited, "premium_required"
+		p.refundQueuedRedemption(ctx, run)
 		p.finishRun(ctx, run)
 		return
 	}
+	p.executeQueuedRun(ctx, run)
+	p.finishRun(ctx, run)
+}
+
+func (p *Pipeline) executeQueuedRun(ctx context.Context, run *AutomationRun) {
 	out := p.detachedEmit(ctx, run.BroadcasterID, run.Locale, run.replayKey()+":0")
+	run.settleRedemption(true, out.emit)
 	x := p.newActionExec(ctx, run, out.emit)
 	defer releaseActionExec(x)
 	x.execute()
+	p.flushQueuedRun(ctx, run, out)
+}
+
+func (p *Pipeline) refundQueuedRedemption(ctx context.Context, run *AutomationRun) {
+	if run.redemption == nil || !p.durable.stillOurs(ctx, run) {
+		return
+	}
+	out := p.detachedEmit(ctx, run.BroadcasterID, run.Locale, run.replayKey()+":redemption")
+	run.settleRedemption(false, out.emit)
+	p.flushQueuedRun(ctx, run, out)
+}
+
+func (p *Pipeline) flushQueuedRun(ctx context.Context, run *AutomationRun, out detachedEmission) {
 	if err := p.flushDetached(ctx, out); err != nil {
 		p.log.Warn("automation queued run publish failed", zap.String("run_id", run.ID), zap.Error(err))
 	}
-	p.finishRun(ctx, run)
 }
 
 func (p *Pipeline) holdSlot(seat RunQueueSeat) *queueSlot {

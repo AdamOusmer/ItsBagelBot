@@ -1,0 +1,21 @@
+{
+  "label": "Définir une variable",
+  "summary": "Conserver une valeur pour plus tard",
+  "field": {
+    "scope": {
+      "label": "Conservé pour",
+      "option": {
+        "channel": "La chaîne",
+        "viewer": "Ce viewer"
+      }
+    },
+    "name": {
+      "label": "Nom",
+      "placeholder": "morts"
+    },
+    "value": {
+      "label": "Valeur",
+      "placeholder": "{user}"
+    }
+  }
+}

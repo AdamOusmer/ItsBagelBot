@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "trigger": { "type": "manual" },
+  "conditions": [
+    { "type": "compare", "params": { "left": "{user}", "op": "starts", "right": "bagel", "ignore_case": true } },
+    { "type": "compare", "params": { "left": "{user}", "op": "ne", "right": "", "ignore_case": false } },
+    { "type": "var", "params": { "scope": "channel", "name": "mode", "op": "starts", "value": "raid" } },
+    { "type": "var", "params": { "scope": "viewer", "name": "score", "op": "not_exists" } },
+    { "type": "follow", "params": { "min_days": 0 } },
+    { "type": "follow", "params": { "min_days": 3650 } },
+    { "type": "account_age", "params": { "min_days": 1 } },
+    { "type": "account_age", "params": { "min_days": 3650 } }
+  ]
+}

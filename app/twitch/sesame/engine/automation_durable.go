@@ -315,6 +315,7 @@ func (d *durableRuns) finishChanged(run *AutomationRun, seat *RunQueueSeat) {
 		defer run.Slot.drop()
 	}
 	run.Record.Outcome, run.Record.Reason = automationrpc.OutcomeLimited, durableReasonChanged
+	d.p.refundQueuedRedemption(d.ctx, run)
 	d.p.finishRun(d.ctx, run)
 }
 

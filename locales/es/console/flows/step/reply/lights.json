@@ -1,0 +1,46 @@
+{
+  "label": "Ajustar luces",
+  "summary": "Color, escena, blanco, encendido o apagado de luces Govee",
+  "field": {
+    "device": {
+      "label": "Luz"
+    },
+    "mode": {
+      "label": "Ajustar",
+      "option": {
+        "color": "Color",
+        "scene": "Escena",
+        "white": "Blanco",
+        "on": "Encender",
+        "off": "Apagar"
+      }
+    },
+    "color": {
+      "label": "Color"
+    },
+    "scene": {
+      "label": "Escena",
+      "hint": "Usa la lista de escenas de la primera luz."
+    },
+    "liveOnly": {
+      "label": "Solo en directo"
+    },
+    "kelvin": {
+      "label": "Temperatura de color"
+    },
+    "brightness": {
+      "label": "Brillo",
+      "placeholder": "Mantener",
+      "unit": "%"
+    },
+    "holdS": {
+      "label": "Volver después de",
+      "hint": "Las luces vuelven a su estado anterior. Si había una escena, se recupera su último color.",
+      "range": "Usa de 0 a {max} segundos."
+    }
+  },
+  "noColors": "Esta luz no admite colores",
+  "noWarmth": "Esta luz no permite ajustar el blanco",
+  "noLights": "No se encontraron luces Govee que puedas controlar.",
+  "noLightsBody": "Añade una luz a tu cuenta de Govee desde la aplicación."
+}

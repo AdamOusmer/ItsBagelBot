@@ -7,7 +7,7 @@ import { actionError } from '#lib/server/action-errors';
 import type { EditorData, Lowered } from '#lib/server/flow-page';
 import type { ManagedReward } from '#lib/server/flow-reward';
 import { cardFromSummary, type FlowCard } from './cards';
-import { unavailable, type ChoiceList, type ChoiceOption } from './choices';
+import { recipeOptions, unavailable, type ChoiceList, type ChoiceOption } from './choices';
 import { MAX_WAIT_SECONDS, specFor, type Flow } from './model';
 import { flowRouteId, parseFlowRouteId, type FlowRef } from './ref';
 import type { DeleteReply, RewardReply, SaveReply, ToggleReply } from './replies';
@@ -304,6 +304,8 @@ const DEMO_RUNS: RunRecord[] = [
   }
 ];
 
+export const demoRun = () => ({ ok: true });
+
 export function demoRuns(automationId?: string): RunRecord[] {
   return DEMO_RUNS.filter((run) => !automationId || run.automation_id === automationId);
 }
@@ -354,12 +356,13 @@ function demoList(options: ChoiceOption[], mode: DemoChoiceMode): ChoiceList {
   return { options: mode === 'empty' ? [] : options };
 }
 
-export function demoChoices(mode: DemoChoiceMode) {
+export function demoChoices(mode: DemoChoiceMode, current?: FlowId) {
   return {
     rewards: demoList(demoRewardOptions(), mode),
     counters: demoList(DEMO_COUNTERS, mode),
     namedCooldowns: demoList(DEMO_NAMED_COOLDOWNS, mode),
-    namedCountdowns: demoList(DEMO_NAMED_COOLDOWNS, mode)
+    namedCountdowns: demoList([], mode),
+    recipes: demoList(recipeOptions(DEMO_SYSTEMS, current), mode)
   };
 }
 

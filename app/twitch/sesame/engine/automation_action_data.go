@@ -107,8 +107,10 @@ func (x *actionExec) conditionVar(c automation.VarCondition) (bool, error) {
 	comparison := automation.VarComparison{
 		Op:      c.Op,
 		Current: automation.VariableValue(current),
-		Value:   automation.VariableValue(x.expand(c.Value)),
 		Exists:  exists,
+	}
+	if c.UsesValue() {
+		comparison.Value = automation.VariableValue(x.expand(c.Value))
 	}
 	return comparison.Passes(), nil
 }
@@ -162,10 +164,14 @@ func (x *actionExec) settleFetch(s step, saveAs string, result fetchResult) erro
 		return nil
 	}
 	x.setLocal(localError, result.failure)
+	return x.failBranch(s, result.failure)
+}
+
+func (x *actionExec) failBranch(s step, reason string) error {
 	first := len(x.run.Record.Actions)
 	x.execList(s.Branches[1])
 	x.noteHandled(x.run.Record.Actions[first:])
-	return failure(result.failure)
+	return failure(reason)
 }
 
 func (x *actionExec) noteHandled(path []automationrpc.ActionRecord) {
@@ -178,7 +184,7 @@ func (x *actionExec) noteHandled(path []automationrpc.ActionRecord) {
 func tallyRecords(records []automationrpc.ActionRecord) (good, bad int) {
 	for _, r := range records {
 		switch r.Status {
-		case automationrpc.StatusOK:
+		case automationrpc.StatusOK, automationrpc.StatusSent:
 			good++
 		case automationrpc.StatusFailed, automationrpc.StatusLimited, automationrpc.StatusUnsupported:
 			bad++

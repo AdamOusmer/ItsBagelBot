@@ -1,55 +1,11 @@
 {
   "chat": {
-    "label": "Enviar mensagem no chat",
-    "summary": "Bot responde no chat",
+    "label": "Enviar mensagem",
+    "summary": "Publique uma mensagem no chat",
     "field": {
       "message": {
         "label": "Mensagem",
         "placeholder": "Obrigado, {user}!"
-      }
-    }
-  },
-  "points": {
-    "label": "Dar pontos de fidelidade",
-    "summary": "Adicionar ou remover pontos",
-    "field": {
-      "amount": {
-        "label": "Quantidade",
-        "unit": "pontos"
-      }
-    }
-  },
-  "counter": {
-    "label": "Aumentar contador",
-    "summary": "Aumentar um contador",
-    "field": {
-      "counter": {
-        "label": "Contador"
-      }
-    }
-  },
-  "lights": {
-    "label": "Ajustar luzes",
-    "summary": "Definir uma cor ou cena Govee",
-    "field": {
-      "device": {
-        "label": "Luz"
-      },
-      "mode": {
-        "label": "Definir",
-        "option": {
-          "color": "Cor",
-          "scene": "Cena"
-        }
-      },
-      "color": {
-        "label": "Cor"
-      },
-      "scene": {
-        "label": "Cena"
-      },
-      "liveOnly": {
-        "label": "Só durante a live"
       }
     }
   },
@@ -58,8 +14,9 @@
     "summary": "Pausar antes da próxima etapa",
     "field": {
       "seconds": {
-        "label": "Atraso",
-        "unit": "segundos, máximo {max}"
+        "label": "Aguardar por",
+        "unit": "segundos, máximo {max}",
+        "hint": "A soma de todas as esperas em uma execução pode chegar a 60 segundos."
       }
     }
   },
@@ -69,53 +26,13 @@
     "field": {
       "times": {
         "label": "Quantas vezes",
-        "placeholder": "3"
+        "placeholder": "3",
+        "hint": "De 1 a 100. Uma variável como {args} também funciona."
       }
     },
     "out": {
       "body": "A cada repetição",
       "done": "Ao terminar"
-    }
-  },
-  "varSet": {
-    "label": "Definir uma variável",
-    "summary": "Guardar um valor para depois",
-    "field": {
-      "scope": {
-        "label": "Guardada para",
-        "option": {
-          "channel": "O canal",
-          "viewer": "Este espectador"
-        }
-      },
-      "name": {
-        "label": "Nome",
-        "placeholder": "mortes"
-      },
-      "value": {
-        "label": "Valor",
-        "placeholder": "{user}"
-      }
-    }
-  },
-  "varAdd": {
-    "label": "Somar a uma variável",
-    "summary": "Contar para cima ou para baixo",
-    "field": {
-      "scope": {
-        "label": "Guardada para",
-        "option": {
-          "channel": "O canal",
-          "viewer": "Este espectador"
-        }
-      },
-      "name": {
-        "label": "Nome",
-        "placeholder": "mortes"
-      },
-      "amount": {
-        "label": "Quantidade"
-      }
     }
   },
   "varDelete": {
@@ -141,7 +58,8 @@
     "field": {
       "expression": {
         "label": "Expressão",
-        "placeholder": "({bits} / 100) + 1"
+        "placeholder": "random(1, 6) * 10",
+        "hint": "Use + - * / % ^ e as funções round, floor, ceil, abs, min, max e random(a, b)."
       },
       "saveAs": {
         "label": "Salvar como",
@@ -149,71 +67,27 @@
       }
     }
   },
-  "cooldownAdd": {
-    "label": "Adicionar tempo a um intervalo de uso",
-    "summary": "Estender um temporizador nomeado enquanto ele está em andamento",
-    "field": {
-      "name": {
-        "label": "Temporizador"
-      },
-      "seconds": {
-        "label": "Adicionar",
-        "range": "Use de 1 segundo a {days} dias."
-      },
-      "per": {
-        "label": "Por",
-        "hint": "Adiciona o tempo acima para cada quantidade completa. Coloque 100 em uma receita de bits para contar a cada 100 bits. Deixe vazio para adicionar uma vez por evento."
-      }
-    }
-  },
-  "countdownAdd": {
-    "label": "Adicionar tempo à contagem regressiva",
-    "summary": "Estender uma contagem regressiva ativa",
-    "field": {
-      "name": {
-        "label": "Contagem regressiva"
-      },
-      "seconds": {
-        "label": "Adicionar",
-        "range": "Use de 1 segundo a {days} dias."
-      },
-      "per": {
-        "label": "A cada",
-        "hint": "Adiciona este tempo para cada valor completo. Deixe vazio para adicionar uma vez por evento."
-      }
-    }
-  },
-  "poll": {
-    "label": "Iniciar uma enquete",
-    "summary": "Iniciar uma enquete",
-    "field": {
-      "title": {
-        "label": "Título"
-      },
-      "choices": {
-        "label": "Opções (uma por linha)"
-      },
-      "seconds": {
-        "label": "Duração (segundos)"
-      }
-    }
-  },
   "pollEnd": {
     "label": "Encerrar uma enquete",
-    "summary": "Encerrar uma enquete",
+    "summary": "Pare a votação ou arquive os resultados",
+    "line": {
+      "terminate": "Encerrar enquete e mostrar resultados",
+      "archive": "Encerrar enquete e ocultar resultados"
+    },
     "field": {
       "status": {
         "label": "Ação",
         "option": {
-          "terminate": "Parar a votação",
-          "archive": "Arquivar"
+          "terminate": "Encerrar e mostrar resultados",
+          "archive": "Encerrar e ocultar resultados"
         }
       }
     }
   },
   "prediction": {
     "label": "Iniciar uma previsão",
-    "summary": "Iniciar uma previsão",
+    "summary": "Deixe os espectadores apostarem pontos em um resultado",
+    "line": "Previsão: {title}",
     "field": {
       "title": {
         "label": "Título"
@@ -226,102 +100,143 @@
       }
     }
   },
-  "predictionEnd": {
-    "label": "Encerrar uma previsão",
-    "summary": "Encerrar uma previsão",
-    "field": {
-      "status": {
-        "label": "Ação",
-        "option": {
-          "lock": "Bloquear a votação",
-          "cancel": "Cancelar e reembolsar",
-          "resolve": "Escolher vencedor"
-        }
-      },
-      "winner": {
-        "label": "Número do resultado vencedor"
-      }
-    }
-  },
   "raidStart": {
     "label": "Iniciar uma raid",
-    "summary": "Iniciar uma raid",
+    "summary": "Envie seus espectadores para outro canal",
+    "line": "Fazer uma raid para {target}",
     "field": {
       "target": {
-        "label": "Nome do canal ou espectador"
+        "label": "Canal de destino da raid",
+        "placeholder": "nome do canal"
       }
     }
   },
   "raidCancel": {
     "label": "Cancelar uma raid",
-    "summary": "Cancelar uma raid"
+    "summary": "Pare a raid antes que os espectadores saiam"
   },
   "mod": {
-    "label": "Alterar cargo de moderador",
-    "summary": "Alterar cargo de moderador",
+    "label": "Cargo de moderador",
+    "summary": "Adicione ou remova um moderador",
+    "line": {
+      "add": "Dar cargo de moderador: {who}",
+      "remove": "Remover cargo de moderador: {who}"
+    },
     "field": {
-      "target": {
-        "label": "Nome do canal ou espectador"
-      },
-      "on": {
-        "label": "Ativado"
+      "change": {
+        "label": "Alteração",
+        "option": {
+          "add": "Adicionar",
+          "remove": "Remover"
+        }
       }
     }
   },
   "vip": {
-    "label": "Alterar cargo VIP",
-    "summary": "Alterar cargo VIP",
+    "label": "Cargo VIP",
+    "summary": "Adicione ou remova um VIP",
+    "line": {
+      "add": "Dar cargo VIP: {who}",
+      "remove": "Remover cargo VIP: {who}"
+    },
     "field": {
-      "target": {
-        "label": "Nome do canal ou espectador"
-      },
-      "on": {
-        "label": "Ativado"
+      "change": {
+        "label": "Alteração",
+        "option": {
+          "add": "Adicionar",
+          "remove": "Remover"
+        }
       }
     }
   },
   "clearChat": {
     "label": "Limpar o chat",
-    "summary": "Limpar o chat"
+    "summary": "Remova todas as mensagens do chat",
+    "line": "Limpar todo o chat"
   },
   "adSnooze": {
     "label": "Adiar o próximo anúncio",
-    "summary": "Adiar o próximo anúncio"
+    "summary": "Atrase a próxima pausa para anúncios"
   },
   "whisper": {
     "label": "Enviar um sussurro",
-    "summary": "Enviar um sussurro",
+    "summary": "Envie uma mensagem privada para um espectador",
+    "line": "Sussurrar para {target}: {text}",
     "field": {
       "target": {
         "label": "Nome do canal ou espectador"
       },
       "text": {
-        "label": "Mensagem"
+        "label": "Mensagem",
+        "hint": "A mensagem é enviada pela conta do bot."
       }
     }
   },
-  "unbanResolve": {
-    "label": "Resolver pedido de desbanimento",
-    "summary": "Resolver pedido de desbanimento",
+  "stop": {
+    "label": "Parar aqui",
+    "summary": "Encerra a execução aqui",
+    "keywords": "fim encerrar sair parar",
+    "line": "Encerra a execução aqui",
+    "note": "Em caminhos paralelos, encerra apenas esse caminho."
+  },
+  "run": {
+    "label": "Executar outra receita",
+    "summary": "Inicia outra receita deste canal",
+    "keywords": "chamar acionar encadear",
+    "line": "Executar {name}",
+    "note": "Uma receita pode chamar outras em até 2 níveis.",
     "field": {
-      "status": {
-        "label": "Ação",
-        "option": {
-          "approve": "Aprovar",
-          "deny": "Negar"
-        }
-      },
-      "resolution": {
-        "label": "Mensagem da decisão (opcional)"
+      "automationId": {
+        "label": "Receita",
+        "hint": "As verificações da outra receita continuam valendo. Ela começa com os valores desta receita e mantém as próprias alterações."
       }
     }
   },
-  "brandedContent": {
-    "label": "Definir conteúdo de marca",
-    "summary": "Definir conteúdo de marca",
+  "redemption": {
+    "label": "Concluir resgate",
+    "summary": "Atenda a um resgate de recompensa ou devolva os pontos",
     "field": {
-      "on": {
-        "label": "Ativado"
+      "result": {
+        "label": "Resultado"
+      }
+    },
+    "line": {
+      "fulfill": "Marcar como atendida",
+      "cancel": "Devolver os pontos"
+    }
+  },
+  "pointsSpend": {
+    "label": "Gastar pontos",
+    "summary": "Desconte pontos quando o espectador tiver saldo suficiente",
+    "line": "Gastar {amount}",
+    "field": {
+      "amount": {
+        "label": "Quantidade",
+        "unit": "pontos"
+      }
+    },
+    "out": {
+      "enough": "Suficientes",
+      "notEnough": "Insuficientes"
+    }
+  },
+  "countdownStop": {
+    "label": "Parar a contagem regressiva",
+    "summary": "Encerre antes da hora uma contagem regressiva em andamento",
+    "line": "Parar {name}",
+    "field": {
+      "name": {
+        "label": "Contagem regressiva"
+      }
+    }
+  },
+  "cooldownReset": {
+    "label": "Zerar o intervalo",
+    "summary": "Encerre a espera de um intervalo com nome",
+    "line": "Zerar {name}",
+    "field": {
+      "name": {
+        "label": "Intervalo"
       }
     }
   }

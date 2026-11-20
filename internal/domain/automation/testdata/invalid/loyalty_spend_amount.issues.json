@@ -1,0 +1,18 @@
+[
+  {
+    "path": "actions[0].params.amount",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[1].params.amount",
+    "code": "out_of_range"
+  },
+  {
+    "path": "actions[2].params",
+    "code": "unknown_field"
+  },
+  {
+    "path": "actions[3].params.on_ok[0].type",
+    "code": "perm_required"
+  }
+]

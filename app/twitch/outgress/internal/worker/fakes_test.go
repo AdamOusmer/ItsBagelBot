@@ -176,6 +176,7 @@ func pipelineWorker(tb testing.TB, rt http.RoundTripper, opts ...workerOption) *
 
 type testMessage struct {
 	Type, Broadcaster, Sender, To, MsgID, Color, As, Method, Endpoint, Payload string
+	TargetUserID                                                               string
 }
 
 func (m testMessage) body() string {
@@ -183,7 +184,7 @@ func (m testMessage) body() string {
 		m.Broadcaster = testBroadcaster
 	}
 	parts := []string{`"type":"` + m.Type + `"`, `"broadcaster_id":"` + m.Broadcaster + `"`}
-	for key, value := range map[string]string{"sender_id": m.Sender, "to": m.To, "msg_id": m.MsgID, "color": m.Color, "as": m.As, "method": m.Method, "endpoint": m.Endpoint} {
+	for key, value := range map[string]string{"sender_id": m.Sender, "to": m.To, "msg_id": m.MsgID, "color": m.Color, "as": m.As, "method": m.Method, "endpoint": m.Endpoint, "target_user_id": m.TargetUserID} {
 		if value != "" {
 			parts = append(parts, `"`+key+`":"`+value+`"`)
 		}

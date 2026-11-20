@@ -8,5 +8,7 @@
   "saveFailed": "Die Limits konnten nicht gespeichert werden.",
   "saved": "Limits gespeichert.",
   "title": "Limits pro Zuschauer",
-  "unlimited": "Kein Limit"
+  "unlimited": "Kein Limit",
+  "queueLength": "Ganze Warteschlange",
+  "queueLengthHint": "Höchstens so viele Songs warten gleichzeitig. Leer lassen für kein Limit."
 }

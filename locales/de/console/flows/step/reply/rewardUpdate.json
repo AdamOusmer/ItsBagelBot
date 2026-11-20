@@ -1,6 +1,6 @@
 {
   "label": "Belohnung ändern",
-  "summary": "Eine Belohnung aktivieren oder deaktivieren oder ihre Kosten ändern",
+  "summary": "Verfügbarkeit, Kosten oder Cooldown einer Belohnung ändern",
   "field": {
     "reward": {
       "label": "Belohnung"
@@ -19,6 +19,29 @@
     },
     "reset": {
       "label": "Beim Stream-Ende zurücksetzen"
+    },
+    "paused": {
+      "label": "Pausiert",
+      "option": {
+        "keep": "Unverändert lassen",
+        "pause": "Pausieren",
+        "resume": "Fortsetzen"
+      }
+    },
+    "cooldown": {
+      "label": "Cooldown",
+      "range": "Leer lassen, um den Cooldown beizubehalten. Mit 0 deaktivieren. Maximal {days} Tage."
     }
+  },
+  "pickChange": "Wähle mindestens eine Änderung",
+  "line": {
+    "on": "{reward} aktivieren",
+    "off": "{reward} deaktivieren",
+    "pause": "{reward} pausieren",
+    "resume": "{reward} fortsetzen",
+    "cost": "{reward} auf {cost} setzen",
+    "cooldown": "Cooldown für {reward} auf {cooldown} setzen",
+    "cooldownOff": "Cooldown für {reward} deaktivieren",
+    "untilEnd": "{changes} bis zum Stream-Ende"
   }
 }

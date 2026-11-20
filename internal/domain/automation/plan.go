@@ -33,6 +33,7 @@ type PlannedCondition struct {
 type Step struct {
 	Type      string
 	Enabled   bool
+	Internal  bool
 	Params    any
 	Index     int
 	EffectKey string
@@ -41,17 +42,24 @@ type Step struct {
 }
 
 type planner struct {
-	id        string
-	count     int
-	templates map[string][]tmpl.Token
+	id              string
+	count           int
+	cooldownOrdinal int
+	templates       map[string][]tmpl.Token
 
 	showsCooldownLeft bool
 }
 
+type stepLocation struct {
+	prefix   string
+	top      int
+	internal bool
+}
+
 func NewPlan(a Automation) *Plan {
 	pl := &planner{id: a.ID}
-	steps := pl.steps(a.Definition.Actions, "", -1)
 	conditions := pl.conditions(a.Definition.Conditions)
+	steps := pl.steps(a.Definition.Actions, stepLocation{top: -1})
 	return &Plan{
 		Automation: a,
 		Conditions: conditions,
@@ -95,42 +103,60 @@ func (pl *planner) condition(c Condition) PlannedCondition {
 		pl.lexTemplate(p.Left)
 		pl.lexTemplate(p.Right)
 	}
+	pl.assignCooldownOrdinal(&planned)
 	return planned
 }
 
-func (pl *planner) steps(list []Action, prefix string, top int) []Step {
+func (pl *planner) assignCooldownOrdinal(c *PlannedCondition) {
+	cooldown, ok := c.Params.(CooldownCondition)
+	if !ok || cooldown.Name != "" {
+		return
+	}
+	cooldown.Ordinal = pl.cooldownOrdinal
+	c.Params = cooldown
+	pl.cooldownOrdinal++
+}
+
+func (pl *planner) steps(list []Action, loc stepLocation) []Step {
 	if len(list) == 0 {
 		return nil
 	}
 	out := make([]Step, len(list))
 	for i, a := range list {
-		out[i] = pl.step(a, prefix+strconv.Itoa(i), top, i)
+		out[i] = pl.step(a, loc, i)
 	}
 	return out
 }
 
-func (pl *planner) step(a Action, path string, top, i int) Step {
-	pl.count++
+func (pl *planner) step(a Action, loc stepLocation, i int) Step {
+	if !loc.internal {
+		pl.count++
+	}
+	path, top := loc.prefix+strconv.Itoa(i), loc.top
 	if top < 0 {
 		top = i
 	}
-	s := Step{Type: a.Type, Enabled: a.IsEnabled(), Index: top, EffectKey: "auto:" + pl.id + ":" + path}
-	e, params, ok := decodeAction(a)
+	s := Step{Type: a.Type, Enabled: a.IsEnabled(), Internal: loc.internal, Index: top, EffectKey: "auto:" + pl.id + ":" + path}
+	e, params, ok := decodeAction(a, loc.internal)
 	if !ok {
 		return s
 	}
 	s.Params = params
+	if e.nested == nil {
+		pl.lexTemplates(reflect.ValueOf(params))
+	}
 	if e.plan != nil {
 		pl.nest(&s, path, e.plan(params))
-		return s
 	}
-	pl.lexTemplates(reflect.ValueOf(params))
 	return s
 }
 
-func decodeAction(a Action) (entry, any, bool) {
-	e, ok := actionRegistry[a.Type]
-	if !ok || e.decode == nil {
+func decodeAction(a Action, internal bool) (entry, any, bool) {
+	e := actionRegistry[a.Type]
+	if internal && e.decode == nil {
+		e = internalActionRegistry[a.Type]
+	}
+	if e.decode == nil {
 		return e, nil, false
 	}
 	params, err := e.decode(a.Params)
@@ -181,12 +207,15 @@ func (pl *planner) lexTemplate(text string) {
 }
 
 func (pl *planner) nest(s *Step, path string, n nesting) {
-	s.Branches = make([][]Step, len(n.lists))
-	for k, list := range n.lists {
-		s.Branches[k] = pl.steps(list, path+"."+n.labels[k]+".", s.Index)
-	}
 	if n.condition != nil {
 		c := pl.condition(*n.condition)
 		s.Condition = &c
+	}
+	if len(n.lists) == 0 {
+		return
+	}
+	s.Branches = make([][]Step, len(n.lists))
+	for k, list := range n.lists {
+		s.Branches[k] = pl.steps(list, stepLocation{prefix: path + "." + n.labels[k] + ".", top: s.Index, internal: n.internal})
 	}
 }

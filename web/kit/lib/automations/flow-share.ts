@@ -2,10 +2,11 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { lex } from '../engine/tmpl';
+import { isSetupRunPlaceholder, setupRunPlaceholder } from './flow-graph';
 import { classifyFlow, type AlertKey, type SimpleCommand } from './flow-layer';
 import { CODE, MAX_AUTOMATIONS_PER_CHANNEL, MAX_DEFINITION_BYTES, MAX_FLOWS_PER_FILE, MAX_FLOW_FILE_BYTES, MAX_NAME_LENGTH } from './limits';
 import { byteLength, trimSpace } from './text';
-import { isSetupValue, SETUP_FILTER_VALUE, SETUP_LOGIN, SETUP_REWARD_ID, SETUP_RUN_TARGET, SETUP_SCENE_VALUE, SETUP_TEXT, SETUP_URL } from './flow-setup';
+import { isSetupValue, LEGACY_SETUP_SCENE_VALUE, SETUP_FILTER_VALUE, SETUP_LOGIN, SETUP_REWARD_ID, SETUP_RUN_TARGET, SETUP_SCENE_VALUE, SETUP_TEXT, SETUP_URL } from './flow-setup';
 import { scrubSecrets, type ScrubKind } from './flow-share-scrub';
 import type { Action, Condition, Definition, Issue, Params } from './types';
 import { leftCommandNames, normalizeCommandName, ownedCooldownNames, ownedCountdownNames, triggerCommandNames, validateDefinition, validateName } from './validate';
@@ -47,7 +48,8 @@ export type SetupCode =
   | 'fetch'
   | 'command_in_use'
   | 'privileged_action'
-  | 'timer_unowned';
+  | 'timer_unowned'
+  | 'run_target';
 
 const REVIEW_ONLY: ReadonlySet<SetupCode> = new Set([
   'run_linked',
@@ -160,10 +162,11 @@ const FILE_KEYS = new Set(['format', 'version', 'flows']);
 const SAFE_KEY = /^[a-z0-9_]+$/;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const FILTERS_WITH_CHANNEL_VALUES = new Set(['user', 'login', 'user_id', 'reward', 'reward_id']);
-const LOGIN_TARGET_ACTIONS = new Set(['timeout', 'ban', 'warn', 'shoutout', 'points_add', 'points_set', 'raid', 'mod', 'vip', 'whisper']);
+const LOGIN_TARGET_ACTIONS = new Set(['timeout', 'ban', 'unban', 'warn', 'shoutout', 'points_add', 'points_set', 'raid', 'mod', 'vip', 'whisper']);
 const CHAT_TEXT_ACTIONS = new Set(['chat', 'reply', 'announce']);
 const PRIVILEGED_ACTIONS = new Set([
   'ban',
+  'unban',
   'timeout',
   'warn',
   'commercial',
@@ -188,6 +191,7 @@ const PRIVILEGED_ACTIONS = new Set([
   'chat_mode',
   'unban_resolve',
   'branded_content',
+  'points_spend',
 ]);
 // Types whose params are rewritten by a rule below. Any type in neither list has its params dropped on the way through.
 export const SHARE_REWRITTEN = {
@@ -198,13 +202,15 @@ export const SHARE_REWRITTEN = {
 // Types reviewed as carrying only the user's own text, numbers and names. A new type is not shareable until it is added here.
 export const SHARE_REVIEWED = {
   trigger: ['command', 'timer', 'manual', 'countdown'],
-  condition: ['perm', 'live', 'cooldown', 'chance', 'counter', 'points', 'arg_regex', 'category', 'compare', 'var'],
+  condition: ['perm', 'live', 'cooldown', 'chance', 'counter', 'points', 'arg_regex', 'category', 'compare', 'var', 'follow', 'account_age'],
   action: [
     'chat',
+    'pin',
     'announce',
     'reply',
     'timeout',
     'ban',
+    'unban',
     'delete_message',
     'warn',
     'shield',
@@ -248,6 +254,9 @@ export const SHARE_REVIEWED = {
     'chat_mode',
     'unban_resolve',
     'branded_content',
+    'points_spend',
+    'countdown_stop',
+    'cooldown_reset',
   ]
 } as const;
 const SHAREABLE: Record<keyof typeof SHARE_REVIEWED, ReadonlySet<string>> = {
@@ -295,7 +304,8 @@ const NAMED_ARMS = new Map<string, readonly string[]>([
   ['if', ['then', 'else']],
   ['loop', ['actions']],
   ['http_get', API_ARMS],
-  ['http_post', API_ARMS]
+  ['http_post', API_ARMS],
+  ['points_spend', API_ARMS]
 ]);
 
 function mapNested(action: Action, path: string, visit: ActionVisit): Action {
@@ -398,7 +408,14 @@ function neutralHttpGet(params: Params): Params {
 }
 
 function neutralRewardUpdate(params: Params): Params {
-  return { reward_id: SETUP_REWARD_ID, enabled: params.enabled ?? null, cost: params.cost ?? null, reset_on_stream_end: params.reset_on_stream_end === true };
+  return {
+    reward_id: SETUP_REWARD_ID,
+    enabled: params.enabled ?? null,
+    cost: params.cost ?? null,
+    reset_on_stream_end: params.reset_on_stream_end === true,
+    ...(typeof params.paused === 'boolean' ? { paused: params.paused } : {}),
+    ...(typeof params.cooldown_s === 'number' ? { cooldown_s: params.cooldown_s } : {})
+  };
 }
 
 type ExternalRule = { code: SetupCode; rewrite: (params: Params) => Params };
@@ -578,10 +595,13 @@ function exportRow(row: FlowExportRow, ref: string, refs: Map<string, string>): 
   const run: RunRule = (action, path, notes) => {
     const target = refs.get(str(action.params?.automation_id));
     if (target) return { ...action, params: { automation_id: target } };
-    notes.push({ code: 'run_removed', path });
+    notes.push({ code: 'run_target', path });
     return disabled(action, { automation_id: SETUP_RUN_TARGET });
   };
-  const neutral = neutralDefinition(restrictedDefinition(row), run);
+  const source = mapDefinitionActions(restrictedDefinition(row), (action) => isSetupRunPlaceholder(action)
+    ? { type: 'run', params: { automation_id: SETUP_RUN_TARGET }, enabled: false }
+    : action);
+  const neutral = neutralDefinition(source, run);
   const { definition, scrubbed } = scrubDefinition(neutral.definition, neutral.setup);
   const nameAt: ScrubAt = { type: 'name', found: [] };
   const name = trimSpace(scrubString(row.name, 'name', nameAt));
@@ -603,7 +623,7 @@ function conditionGaps(definition: Definition): Issue[] {
 function actionGaps(definition: Definition): Issue[] {
   const gaps: Issue[] = [];
   mapDefinitionActions(definition, (action, path) => {
-    if (Object.values(action.params ?? {}).some(isSetupValue)) gaps.push({ path, code: 'setup_required' });
+    if (isSetupRunPlaceholder(action) || Object.values(action.params ?? {}).some(isSetupValue)) gaps.push({ path, code: 'setup_required' });
     return action;
   });
   return gaps;
@@ -675,12 +695,24 @@ function keyIssue(value: unknown): Issue | null {
   return null;
 }
 
+const isLightsStep = (value: unknown): value is Record<string, unknown> => isObject(value) && value.type === 'lights';
+
+const holdsLegacySetupScene = (params: unknown): params is Record<string, unknown> =>
+  isObject(params) && params.scene_value === LEGACY_SETUP_SCENE_VALUE;
+
+function upgradeLegacyLightsScenes(value: unknown): void {
+  for (const child of childrenOf(value)) upgradeLegacyLightsScenes(child);
+  if (isLightsStep(value) && holdsLegacySetupScene(value.params)) value.params.scene_value = SETUP_SCENE_VALUE;
+}
+
 function definitionIssues(definition: unknown): Issue[] {
   if (!isObject(definition)) return [{ path: 'definition', code: CODE.required }];
   // Size comes first: it bounds how deep the walks below can recurse on a hostile file.
-  if (byteLength(JSON.stringify(definition) ?? '') > MAX_DEFINITION_BYTES) return [{ path: 'definition', code: CODE.tooLong }];
+  const encoded = JSON.stringify(definition) ?? '';
+  if (byteLength(encoded) > MAX_DEFINITION_BYTES) return [{ path: 'definition', code: CODE.tooLong }];
   const key = keyIssue(definition);
   if (key) return [key];
+  if (encoded.includes(JSON.stringify(LEGACY_SETUP_SCENE_VALUE))) upgradeLegacyLightsScenes(definition);
   return validateDefinition(definition).map((issue) => ({ ...issue, path: issue.path ? `definition.${issue.path}` : 'definition' }));
 }
 
@@ -803,10 +835,19 @@ function deadRunCode(action: Action, landedByRef: Map<string, FlowImportEntry>):
   return target?.status === 'ready' ? 'run_target_simple' : 'run_removed';
 }
 
+function runNeedsSetup(action: Action): boolean {
+  return action.type === 'run' && action.enabled === false && action.params?.automation_id === SETUP_RUN_TARGET;
+}
+
 function dropDeadRuns(entry: FlowImportEntry, landedByRef: Map<string, FlowImportEntry>): FlowImportEntry {
   if (entry.status !== 'ready') return entry;
   const notes: Notes = [];
+  const noted = new Set(entry.setup.filter((note) => note.code === 'run_target').map((note) => note.path));
   const definition = mapDefinitionActions(entry.definition!, (action, path) => {
+    if (runNeedsSetup(action)) {
+      if (!noted.has(path)) notes.push({ code: 'run_target', path });
+      return action;
+    }
     const code = action.type === 'run' ? deadRunCode(action, landedByRef) : null;
     if (!code) return action;
     notes.push({ code, path });
@@ -823,7 +864,7 @@ function noteLinks(entry: FlowImportEntry, landedByRef: Map<string, FlowImportEn
   if (entry.status !== 'ready') return entry;
   const notes: Notes = [];
   mapDefinitionActions(entry.definition!, (action, path) => {
-    if (action.type === 'run') notes.push({ code: 'run_linked', path, detail: landedByRef.get(str(action.params?.automation_id))?.name });
+    if (action.type === 'run' && !runNeedsSetup(action)) notes.push({ code: 'run_linked', path, detail: landedByRef.get(str(action.params?.automation_id))?.name });
     return action;
   });
   return { ...entry, setup: [...entry.setup, ...notes] };
@@ -840,15 +881,21 @@ function ownedNamesAcross(entries: readonly FlowImportEntry[], countdown = false
 
 type TimerOwners = { cooldowns: Set<string>; countdowns: Set<string> };
 
+const TIMER_OWNER_GROUPS = new Map<string, keyof TimerOwners>([
+  ['cooldown_add', 'cooldowns'],
+  ['countdown_add', 'countdowns'],
+  ['countdown_stop', 'countdowns'],
+  ['cooldown_reset', 'cooldowns']
+]);
+
 function unownedTimerNote(action: Action, path: string, owners: TimerOwners): SetupNote | undefined {
-  const names = action.type === 'cooldown_add' ? owners.cooldowns : action.type === 'countdown_add' ? owners.countdowns : undefined;
-  if (!names) return undefined;
+  const group = TIMER_OWNER_GROUPS.get(action.type);
+  if (!group) return undefined;
   const name = str(action.params?.name);
-  if (!name || names.has(name.toLowerCase())) return undefined;
+  if (!name || owners[group].has(name.toLowerCase())) return undefined;
   return { code: 'timer_unowned', path, detail: name };
 }
 
-// An add step with no owner still saves; the note tells the importer about the missing timer.
 function noteUnownedTimers(entry: FlowImportEntry, owners: TimerOwners): FlowImportEntry {
   if (entry.status !== 'ready') return entry;
   const notes: Notes = [];
@@ -901,13 +948,16 @@ export function flowResultView(result: FlowImportResult): FlowImportResultView {
 
 // Holds each run's place: with the run simply gone, `command + chat + run` would classify as a plain command and land in the wrong layer.
 function firstPassDefinition(definition: Definition): Definition {
-  return mapDefinitionActions(definition, (action) => (action.type === 'run' ? { type: 'stop', enabled: false } : action));
+  return mapDefinitionActions(definition, (action) => {
+    if (runNeedsSetup(action)) return setupRunPlaceholder();
+    return action.type === 'run' ? { type: 'stop', enabled: false } : action;
+  });
 }
 
 function hasRuns(definition: Definition): boolean {
   let found = false;
   mapDefinitionActions(definition, (action) => {
-    found ||= action.type === 'run';
+    found ||= action.type === 'run' && !runNeedsSetup(action);
     return action;
   });
   return found;
@@ -917,6 +967,7 @@ function linkedDefinition(definition: Definition, ids: Map<string, string>): Def
   return compactDefinition(
     mapDefinitionActions(definition, (action) => {
       if (action.type !== 'run') return action;
+      if (runNeedsSetup(action)) return setupRunPlaceholder();
       const id = ids.get(str(action.params?.automation_id));
       return id ? { ...action, params: { automation_id: id } } : null;
     })
@@ -981,7 +1032,8 @@ async function linkEntry(created: Created, ids: Map<string, string>, deps: FlowC
 function droppedLinkNotes(entry: FlowImportEntry, ids: Map<string, string>): FlowImportEntry {
   const notes: Notes = [];
   mapDefinitionActions(entry.definition!, (action, path) => {
-    if (action.type === 'run' && !ids.has(str(action.params?.automation_id))) notes.push({ code: 'run_removed', path });
+    if (action.type !== 'run' || runNeedsSetup(action)) return action;
+    if (!ids.has(str(action.params?.automation_id))) notes.push({ code: 'run_removed', path });
     return action;
   });
   const dropped = new Set(notes.map((note) => note.path));

@@ -1,0 +1,46 @@
+{
+  "label": "Set lights",
+  "summary": "Color, scene, white, on or off on Govee lights",
+  "field": {
+    "device": {
+      "label": "Light"
+    },
+    "mode": {
+      "label": "Set",
+      "option": {
+        "color": "Color",
+        "scene": "Scene",
+        "white": "White",
+        "on": "On",
+        "off": "Off"
+      }
+    },
+    "color": {
+      "label": "Color"
+    },
+    "scene": {
+      "label": "Scene",
+      "hint": "Plays on the first light's scene list."
+    },
+    "liveOnly": {
+      "label": "Only while live"
+    },
+    "kelvin": {
+      "label": "Warmth"
+    },
+    "brightness": {
+      "label": "Brightness",
+      "placeholder": "Keep",
+      "unit": "%"
+    },
+    "holdS": {
+      "label": "Go back after",
+      "hint": "Lights return to how they were. Scenes come back as their last color.",
+      "range": "Use 0 to {max} seconds."
+    }
+  },
+  "noColors": "This light has no colors",
+  "noWarmth": "This light has no white warmth",
+  "noLights": "No controllable Govee lights found.",
+  "noLightsBody": "Add a light to your Govee account in the Govee app."
+}

@@ -75,7 +75,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
 
         <FeatureCard index={2} tone="gold" label={t('games.valCh')} href={localizePath('/valorant-stats', lang)}>
             <div slot="demo" class="games__demo games__demo--val">
-                <span class="games-val__line">!valrank Frosty#EUW1</span>
+                <span class="games-val__line">!val</span>
                 <span class="games__value fcard-value games-val__value"><bb-fit>Immortal 2</bb-fit></span>
                 <div class="games-val__stats">
                     <span class="games-val__stat"><b class="games-stat__key">RR</b> 67</span>
@@ -257,7 +257,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         transform: translateY(4px);
     }
 
-    .games-val__line { animation: gamesTypeVal 12s steps(20) infinite; }
+    .games-val__line { animation: gamesTypeVal 12s steps(4) infinite; }
     .games-cr__line { animation: gamesTypeCr 12s steps(12) infinite; }
     .games-val__stats { animation: gamesFadeVal 12s ease-in-out infinite; }
     .games-cr__stats { animation: gamesFadeCr 12s ease-in-out infinite; }
@@ -294,8 +294,8 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
 
     @keyframes gamesTypeVal {
         0%, 4% { width: 0; opacity: 1; }
-        20%, 88% { width: 20ch; opacity: 1; }
-        94%, 100% { width: 20ch; opacity: 0; }
+        20%, 88% { width: 4ch; opacity: 1; }
+        94%, 100% { width: 4ch; opacity: 0; }
     }
 
     @keyframes gamesFadeVal {
@@ -357,7 +357,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
             animation: none;
             border-right: none;
         }
-        .games-val__line { width: 20ch; opacity: 1; }
+        .games-val__line { width: 4ch; opacity: 1; }
         .games-cr__line { width: 12ch; opacity: 1; }
         .games-val__stats,
         .games-cr__stats {

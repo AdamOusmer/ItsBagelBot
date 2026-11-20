@@ -17,7 +17,7 @@ export type RunStepRow = {
   line: string | null;
 };
 
-const STATUS_RANK: readonly ActionStatus[] = ['ok', 'skipped', 'unsupported', 'limited', 'failed'];
+const STATUS_RANK: readonly ActionStatus[] = ['ok', 'sent', 'skipped', 'unsupported', 'limited', 'failed'];
 
 const worse = (a: ActionStatus, b: ActionStatus) => (STATUS_RANK.indexOf(b) > STATUS_RANK.indexOf(a) ? b : a);
 
@@ -93,7 +93,7 @@ function byStatus(t: Translate, status: ActionStatus, detail: string): string {
 export function explainStep(t: Translate, status: ActionStatus, detail: string): string {
   const known = knownReason(t, detail);
   if (known) return known;
-  return status === 'ok' ? detail : byStatus(t, status, detail);
+  return status === 'ok' || status === 'sent' ? detail : byStatus(t, status, detail);
 }
 
 export function explainRun(t: Translate, reason: string | undefined): string {

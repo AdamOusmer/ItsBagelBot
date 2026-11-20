@@ -1,0 +1,20 @@
+{
+  "label": "Прибавить к переменной",
+  "summary": "Прибавить или вычесть",
+  "field": {
+    "scope": {
+      "label": "Хранить для",
+      "option": {
+        "channel": "Канал",
+        "viewer": "Этот зритель"
+      }
+    },
+    "name": {
+      "label": "Название",
+      "placeholder": "deaths"
+    },
+    "amount": {
+      "label": "Количество"
+    }
+  }
+}

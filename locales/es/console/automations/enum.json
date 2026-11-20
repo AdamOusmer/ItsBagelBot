@@ -1,4 +1,10 @@
 {
+  "who": {
+    "viewer": "El espectador que activó la receta",
+    "mention": "Espectador mencionado",
+    "user": "Espectador elegido",
+    "login": "Usuario del espectador"
+  },
   "match": {
     "start": "Empieza por",
     "exact": "Exacto",
@@ -30,6 +36,8 @@
     "offline": "Desconectado"
   },
   "op": {
+    "starts": "empieza por",
+    "not_exists": "no está definida",
     "contains": "contiene",
     "eq": "es igual a",
     "ne": "no es",
@@ -45,7 +53,8 @@
     "replace": "Reemplazar",
     "substring": "Extraer una parte",
     "split_pick": "Dividir y elegir uno",
-    "url_encode": "Hacer seguro para un enlace"
+    "url_encode": "Hacer seguro para un enlace",
+    "count": "Contar elementos"
   },
   "scope": {
     "channel": "El canal",
@@ -73,7 +82,11 @@
     "followers": "Solo seguidores",
     "slow": "Modo lento",
     "subscribers": "Solo suscriptores",
-    "unique": "Mensajes únicos"
+    "unique": "Mensajes únicos",
+    "chat_delay": "Retraso del chat",
+    "white": "Blanco",
+    "on": "Encender",
+    "off": "Apagar"
   },
   "kind": {
     "text": "Texto",
@@ -88,6 +101,7 @@
       },
       "cheer": "Cheer",
       "raid": "Raid entrante",
+      "update": "Cambia el título o la categoría",
       "ad_break": {
         "begin": "Empieza una pausa publicitaria"
       },

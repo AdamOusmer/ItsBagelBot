@@ -62,7 +62,7 @@
     },
     {
       "feature": "Valorant rank command",
-      "us": "Enable the Valorant module, link a Riot ID such as Name#Tag and use !val or !valrank. The module also covers recent ranked matches and leaderboards.",
+      "us": "Enable the Valorant module, choose Sign in with Riot and use !val in chat. The module also shows recent ranked matches and the act leaderboard.",
       "them": "Its official Valorant guide describes a custom !rank command using a third-party API. That is a documented setup route, rather than a dedicated Valorant module; check the provider before using the example.",
       "source": "https://support.streamelements.com/hc/en-us/articles/12362107401234-How-to-add-a-rank-command-for-VALORANT"
     },

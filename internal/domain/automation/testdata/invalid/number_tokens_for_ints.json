@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "trigger": {
+    "type": "timer",
+    "params": { "interval_s": 60.0 }
+  },
+  "actions": [
+    { "type": "delay", "params": { "ms": 60.5 } },
+    { "type": "delay", "params": { "ms": 1e3 } },
+    { "type": "delay", "params": { "ms": 1e400 } },
+    { "type": "delay", "params": { "ms": 9223372036854775808 } },
+    { "type": "delay", "params": { "ms": -9223372036854775809 } }
+  ]
+}

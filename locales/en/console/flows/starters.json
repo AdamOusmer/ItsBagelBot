@@ -1,0 +1,7 @@
+{
+  "title": "Starter recipes",
+  "open": "Use this recipe",
+  "hug": { "title": "Hug command", "body": "Send a hug with !hug.", "message": "{user} gives {touser} a big warm hug." },
+  "follow": { "title": "Welcome followers", "body": "Greet each new follower in chat.", "message": "Welcome to the stream, {user}!" },
+  "sub": { "title": "Thank subscribers", "body": "Thank each new subscriber in chat.", "message": "Thanks for the sub, {user}!" }
+}

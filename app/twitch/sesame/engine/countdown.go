@@ -59,6 +59,7 @@ type CountdownCheckpoint struct{ Key, Status string }
 type CountdownStore interface {
 	StartCountdown(context.Context, CountdownMutation) (CountdownResult, error)
 	AddCountdown(context.Context, CountdownMutation) (CountdownResult, error)
+	StopCountdown(context.Context, CountdownMutation) (CountdownResult, error)
 	PeekCountdown(context.Context, CountdownRef) (CountdownResult, error)
 	ClaimCountdown(context.Context) (CountdownDue, bool, error)
 	AckCountdown(context.Context, CountdownDue) error
@@ -114,6 +115,26 @@ func (x *actionExec) countdownAdd(s step, p automation.CountdownAddAction) error
 
 func (x *actionExec) countdownMutation(s step, name string, seconds int64) CountdownMutation {
 	return CountdownMutation{Ref: CountdownRef{BroadcasterID: x.run.BroadcasterID, Name: name}, Seconds: seconds, OperationID: nestedReplayKey(x.run.replayKey(), s.EffectKey+x.iter)}
+}
+
+func (x *actionExec) countdownStop(s step, p automation.NamedTimerAction) error {
+	name, ok := automation.VariableName(p.Name)
+	switch {
+	case !ok:
+		return failure("bad_name")
+	case x.p.automations.Countdowns == nil:
+		return failure("no_countdowns")
+	}
+	result, err := x.p.automations.Countdowns.StopCountdown(x.ctx, x.countdownMutation(s, name, 0))
+	switch {
+	case err != nil:
+		return failure("store_error")
+	case !result.Found:
+		return failure("not_running")
+	case x.run.CountdownEndMS == result.ExpiresAtMS:
+		x.run.CountdownEndMS = 0
+	}
+	return succeeded(name)
 }
 
 func (p *Pipeline) startCountdownWorker() {
@@ -271,7 +292,29 @@ func countdownRunError(ctx context.Context, run *AutomationRun) error {
 }
 
 func countdownRunFailed(run *AutomationRun) bool {
-	return run.Record.Outcome == automationrpc.OutcomeFailed || run.Record.Reason == queueReasonFull || run.Record.Reason == queueReasonTimeout
+	switch run.Record.Reason {
+	case queueReasonFull, queueReasonTimeout:
+		return true
+	}
+	return run.Record.Outcome == automationrpc.OutcomeFailed && !countdownOnlyRefused(run.Record.Actions)
+}
+
+func countdownOnlyRefused(actions []automationrpc.ActionRecord) bool {
+	_, bad := tallyRecords(actions)
+	refused := 0
+	for _, action := range actions {
+		if countdownActionRefused(action) {
+			refused++
+		}
+	}
+	return refused > 0 && refused == bad
+}
+
+func countdownActionRefused(action automationrpc.ActionRecord) bool {
+	if action.Status != automationrpc.StatusFailed {
+		return false
+	}
+	return action.Detail == noViewer || (action.Type == "countdown_stop" && action.Detail == "not_running")
 }
 
 func countdownStoreFailed(run *AutomationRun) bool {

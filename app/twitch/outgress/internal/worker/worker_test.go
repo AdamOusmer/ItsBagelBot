@@ -4,13 +4,63 @@
 package worker
 
 import (
+	"context"
+	"net/http"
 	"testing"
 
 	"ItsBagelBot/app/twitch/outgress/internal/action"
+	"ItsBagelBot/internal/activity"
 	"ItsBagelBot/internal/domain/outgress"
 
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
+
+type moderationActivitySink struct {
+	rows []activity.Row
+}
+
+func (s *moderationActivitySink) Emit(_ context.Context, _ string, row activity.Row) {
+	s.rows = append(s.rows, row)
+}
+
+func TestModerationActivityRequiresHelixSuccess(t *testing.T) {
+	ban := testMessage{Type: outgress.TypeBan, Payload: `{"data":{"user_id":"1"}}`}
+	timeout := testMessage{Type: outgress.TypeTimeout, Payload: `{"data":{"user_id":"1","duration":60}}`}
+	deleteMessage := testMessage{Type: outgress.TypeDelete, MsgID: "abc-123"}
+	tests := []struct {
+		name      string
+		msg       testMessage
+		status    int
+		wantRows  int
+		wantRetry bool
+	}{
+		{"ban with 400", ban, http.StatusBadRequest, 0, false},
+		{"ban with 200", ban, http.StatusOK, 1, false},
+		{"ban with 204", ban, http.StatusNoContent, 1, false},
+		{"ban with 304", ban, http.StatusNotModified, 0, false},
+		{"timeout with 403", timeout, http.StatusForbidden, 0, false},
+		{"delete with 404", deleteMessage, http.StatusNotFound, 0, false},
+		{"delete with 204", deleteMessage, http.StatusNoContent, 1, false},
+		{"ban with 422", ban, http.StatusUnprocessableEntity, 0, false},
+		{"ban with 429", ban, http.StatusTooManyRequests, 0, true},
+		{"ban with 500", ban, http.StatusInternalServerError, 0, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sink := &moderationActivitySink{}
+			activity.SetSink(sink)
+			t.Cleanup(func() { activity.SetSink(nil) })
+			rt := &scriptedTransport{responses: []scriptedResponse{{status: tc.status}}}
+
+			err := tc.msg.send(pipelineWorker(t, rt))
+
+			assert.Len(t, rt.recorded(), 1)
+			assert.Equal(t, tc.wantRetry, err != nil, "worker error: %v", err)
+			assert.Len(t, sink.rows, tc.wantRows)
+		})
+	}
+}
 
 func TestCloudBotChatActionsUseAppToken(t *testing.T) {
 	actions := testActions()

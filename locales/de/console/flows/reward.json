@@ -19,5 +19,7 @@
   "update": "Belohnung aktualisieren",
   "created": "Belohnung auf Twitch erstellt.",
   "updated": "Belohnung auf Twitch aktualisiert.",
-  "requestFailed": "Twitch ist nicht erreichbar. Versuche es gleich erneut."
+  "requestFailed": "Twitch ist nicht erreichbar. Versuche es gleich erneut.",
+  "afterSettledByStep": "Der Schritt „Einlösung abschließen“ übernimmt das.",
+  "afterRefundSkipped": "Wenn eine Prüfung im Rezept fehlschlägt, erhält der Zuschauer seine Punkte zurück."
 }

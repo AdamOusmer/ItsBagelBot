@@ -5,6 +5,7 @@ package automation
 
 import (
 	"errors"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -20,12 +21,27 @@ type LoopAction struct {
 
 func checkLoop(c chk, p LoopAction) {
 	c.template("times", p.Times)
-	if isStaticText(p.Times) && p.Times != "" {
-		if _, ok := ParseLoopTimes(p.Times); !ok {
-			c.add("times", CodeInvalidFormat)
-		}
+	if _, issue := staticLoopTimes(p.Times); issue != "" {
+		c.add("times", issue)
 	}
 	c.sub("actions").nest().actions(p.Actions)
+}
+
+var loopTimesPattern = regexp.MustCompile(`^[+-]?[0-9]+$`)
+
+func staticLoopTimes(raw string) (int, issueCode) {
+	if raw == "" || !isStaticText(raw) {
+		return 1, ""
+	}
+	trimmed := strings.TrimSpace(raw)
+	if !loopTimesPattern.MatchString(trimmed) {
+		return 1, CodeInvalidFormat
+	}
+	value, _ := strconv.ParseInt(trimmed, 10, 32)
+	if value < 0 || value > MaxLoopTimes {
+		return 1, CodeOutOfRange
+	}
+	return int(value), ""
 }
 
 func loopBranches(p LoopAction) nesting {

@@ -24,8 +24,11 @@ const (
 )
 
 type rewardSnapshot struct {
-	Enabled bool `json:"enabled"`
-	Cost    int  `json:"cost"`
+	Enabled               *bool `json:"enabled,omitempty"`
+	Cost                  *int  `json:"cost,omitempty"`
+	Paused                *bool `json:"paused,omitempty"`
+	GlobalCooldownEnabled *bool `json:"global_cooldown_enabled,omitempty"`
+	GlobalCooldownSeconds *int  `json:"global_cooldown_seconds,omitempty"`
 }
 
 type RewardSnapshots struct {

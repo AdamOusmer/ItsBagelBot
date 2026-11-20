@@ -16,7 +16,7 @@ func (w *Worker) buildActions() action.Registry {
 	b.Action(outgress.TypePin).Put("/helix/chat/pins").As(outgress.AsApp).Run(w.processPin)
 	b.Action(outgress.TypeBan).Post("/helix/moderation/bans").As(outgress.AsBot).Run(w.processBan)
 	b.Action(outgress.TypeTimeout).Post("/helix/moderation/bans").As(outgress.AsBot).Run(w.processBan)
-	b.Action(outgress.TypeUnban).Delete("/helix/moderation/bans").As(outgress.AsBot).Run(w.processAPI)
+	b.Action(outgress.TypeUnban).Delete("/helix/moderation/bans").As(outgress.AsBot).Run(w.processUnban)
 	b.Action(outgress.TypeShieldMode).Put("/helix/moderation/shield_mode").As(outgress.AsBot).Run(w.processShieldMode)
 	b.Action(outgress.TypeDelete).Delete("/helix/moderation/chat").As(outgress.AsBot).Run(w.processDelete)
 	b.Action(outgress.TypeWarn).Post("/helix/moderation/warnings").As(outgress.AsBot).Run(w.processWarn)

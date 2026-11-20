@@ -2,18 +2,22 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 export const MAX_ACTIONS = 1000;
+export const MAX_LOOP_TIMES = 100;
 export const MAX_DELAY_MS = 60000;
+export const MAX_MATH_EXPRESSION_RUNES = 200;
 export const MAX_RECURSION_DEPTH = 2;
 export const MAX_NAME_LENGTH = 64;
 export const MAX_AUTOMATIONS_PER_CHANNEL = 100;
-export const MAX_DEFINITION_BYTES = 32768;
+export const MAX_DEFINITION_BYTES = 262144;
+export const MAX_EDITOR_PAYLOAD_BYTES = 4 * MAX_DEFINITION_BYTES;
 export const MAX_PREVIEW_BYTES = 4096;
 export const MAX_FLOWS_PER_FILE = MAX_AUTOMATIONS_PER_CHANNEL;
-export const MAX_FLOW_FILE_BYTES = 4 * 1024 * 1024;
+export const MAX_FLOW_FILE_BYTES = 32 * 1024 * 1024;
 export const RUNS_KEPT = 50;
 
 export const MAX_COOLDOWN_SECONDS = 2_592_000;
 export const MAX_VALKEY_COOLDOWN_SECONDS = 86_400;
+export const MAX_AGE_DAYS = 3650;
 export const MAX_COOLDOWN_ADD_PER = 1_000_000;
 
 export const MAX_TEMPLATE_LENGTH = 500;
@@ -23,12 +27,18 @@ export const MAX_FILTER_VALUE = 100;
 export const MAX_COMMAND_ALIASES = 10;
 export const MAX_LIST_ENTRIES = 100;
 export const MAX_EXTRA_LIGHTS = 31;
+export const MAX_LIGHTS_HOLD_S = 60;
+export const MIN_LIGHTS_KELVIN = 2000;
+export const MAX_LIGHTS_KELVIN = 9000;
+export const MIN_LIGHTS_BRIGHTNESS = 1;
+export const MAX_LIGHTS_BRIGHTNESS = 100;
 export const MAX_PATTERN_LENGTH = 200;
 export const MAX_FETCH_URL_LENGTH = 512;
 export const MAX_REWARD_COST = 10000000;
 export const MAX_REWARD_TITLE = 45;
 export const MAX_REWARD_COOLDOWN = 604800;
 export const MAX_VARIABLE_AMOUNT = 1_000_000_000_000_000;
+export const MAX_POINTS_AMOUNT = 1000000;
 export const RECIPE_NAME_PATTERN = /^[A-Za-z0-9]{1,32}$/;
 export const QUEUE_NAME_PATTERN = /^[a-z0-9]{1,32}$/;
 

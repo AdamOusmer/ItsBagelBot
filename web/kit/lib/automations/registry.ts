@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Chk } from './check';
+import { lex } from '../engine/tmpl';
 import { CONDITIONS } from './conditions';
 import {
   actionRegistry,
@@ -9,6 +10,7 @@ import {
   type ActionNode,
   conditionRegistry,
   type Entry,
+  permRank,
   registerNested,
   type Table,
   triggerRegistry,
@@ -16,7 +18,7 @@ import {
   typed,
 } from './engine';
 import { checkHttpGetFields, checkHttpPostFields, SIMPLE_ACTIONS } from './actions';
-import { CODE } from './limits';
+import { CODE, MAX_LOOP_TIMES, type IssueCode } from './limits';
 import { trimSpace } from './text';
 import { TRIGGERS } from './triggers';
 
@@ -37,7 +39,7 @@ interface RandomPickParams {
 
 function checkIf(c: Chk, p: IfParams): void {
   typed(c.sub('condition'), conditionRegistry, p.condition);
-  actions(c.sub('then').nest(), p.then);
+  actions(c.sub('then').nest(Math.max(c.perm, permRank([p.condition]))), p.then);
   actions(c.sub('else').nest(), p.else);
 }
 
@@ -57,17 +59,27 @@ function checkParallel(c: Chk, p: RandomPickParams): void {
   });
 }
 
-interface LoopParams {
+export interface LoopParams {
   times: string;
   actions: ActionNode[];
 }
 
 const LOOP_TIMES_TEXT = /^[+-]?\d+$/;
+export const LOOP_SCHEMA = { times: 'string', actions: 'actions' } as const;
+
+export function staticLoopTimes(raw: string): number | IssueCode {
+  if (raw === '' || lex(raw).some((token) => token.kind === 'var')) return 1;
+  const trimmed = trimSpace(raw);
+  if (!LOOP_TIMES_TEXT.test(trimmed)) return CODE.invalidFormat;
+  const times = Number(trimmed);
+  if (times < 0 || times > MAX_LOOP_TIMES) return CODE.outOfRange;
+  return times;
+}
 
 function checkLoop(c: Chk, p: LoopParams): void {
   c.template('times', p.times);
-  const fixed = p.times !== '' && !p.times.includes('{');
-  if (fixed && !LOOP_TIMES_TEXT.test(trimSpace(p.times))) c.add('times', CODE.invalidFormat);
+  const times = staticLoopTimes(p.times);
+  if (typeof times !== 'number') c.add('times', times);
   actions(c.sub('actions').nest(), p.actions);
 }
 
@@ -98,7 +110,7 @@ const apiLists = (p: ApiPaths): ActionNode[][] => [p.on_ok, p.on_failure];
 const asEffect = (entry: Entry): Entry => ({ ...entry, effect: true });
 
 const NESTED: Table = {
-  loop: registerNested<LoopParams>({ times: 'string', actions: 'actions' }, checkLoop, (p) => [p.actions]),
+  loop: registerNested<LoopParams>(LOOP_SCHEMA, checkLoop, (p) => [p.actions]),
   http_get: asEffect(
     registerNested<HttpGetParams>(
       { url: 'string', json_path: 'strings', save_as: 'string', on_ok: 'actions', on_failure: 'actions' },

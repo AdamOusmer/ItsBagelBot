@@ -1,0 +1,25 @@
+{
+  "label": "Puntos del espectador",
+  "summary": "Comprueba el saldo de puntos del espectador que activó la receta",
+  "field": {
+    "op": {
+      "label": "Es"
+    },
+    "value": {
+      "label": "Puntos",
+      "unit": "puntos"
+    }
+  },
+  "out": {
+    "yes": "Sí",
+    "no": "No"
+  },
+  "line": {
+    "eq": "El espectador tiene exactamente {value} puntos",
+    "ne": "El saldo del espectador es distinto de {value} puntos",
+    "gt": "El espectador tiene más de {value} puntos",
+    "gte": "El espectador tiene al menos {value} puntos",
+    "lt": "El espectador tiene menos de {value} puntos",
+    "lte": "El espectador tiene como máximo {value} puntos"
+  }
+}

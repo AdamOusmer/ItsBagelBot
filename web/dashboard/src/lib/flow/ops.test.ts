@@ -1,10 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { describe, expect, spyOn, test } from 'bun:test';
-import { definitionToFlow, flowToDefinition } from '@bagel/kit/automations';
+import { definitionToFlow, flowToDefinition, validateDefinition } from '@bagel/kit/automations';
 import { nodeHeight, tidy } from './layout';
 import { specFor, type Flow } from './model';
-import { addNode, duplicateNode } from './ops';
+import { connect, duplicateNode, insertCheckBefore } from './ops';
+import { addNode } from './ops.testing';
 
 const at = { x: 0, y: 0 };
 
@@ -52,12 +53,54 @@ describe('adding steps', () => {
       const first = addNode(flow, 'reply.chat', at, { from: root.id, port: 'next' });
       const second = addNode(flow, 'reply.chat', at, { from: first.id, port: 'next' });
       const copy = duplicateNode(flow, second.id)!;
-      expect(new Set(flow.nodes.map((node) => node.id)).size).toBe(4);
-      expect(new Set(flow.edges.map((edge) => edge.id)).size).toBe(2);
+      expect({ nodes: new Set(flow.nodes.map((node) => node.id)).size, edges: new Set(flow.edges.map((edge) => edge.id)).size }).toEqual({ nodes: 4, edges: 2 });
       expect(copy.id).not.toBe(second.id);
       expect(flow.edges.map(({ from, to }) => [from, to])).toEqual([[root.id, first.id], [first.id, second.id]]);
     } finally {
       uuid.mockRestore();
     }
+  });
+});
+
+test('a role check gates every incoming edge of the selected step', () => {
+  const flow: Flow = { id: 'f', name: 'flow', enabled: true, nodes: [], edges: [] };
+  const trigger = addNode(flow, 'twitch.chat.command', at);
+  const branch = addNode(flow, 'cond.chance', at, { from: trigger.id, port: 'next' });
+  const action = addNode(flow, 'reply.clear_chat', at, { from: branch.id, port: 'yes' });
+  connect(flow, { from: branch.id, port: 'no', to: action.id });
+  const original = flow.edges.filter((edge) => edge.to === action.id);
+
+  insertCheckBefore(flow, action.id, 'mod');
+
+  const check = flow.nodes.find((node) => node.type === 'cond.role')!;
+  expect({
+    checks: flow.nodes.filter((node) => node.type === 'cond.role').map(({ config }) => config.level),
+    redirected: flow.edges.filter((edge) => edge.to === check.id),
+    continuation: flow.edges.filter((edge) => edge.to === action.id).map(({ from, port }) => ({ from, port }))
+  }).toEqual({
+    checks: ['mod'],
+    redirected: original.map((edge) => ({ ...edge, to: check.id })),
+    continuation: [{ from: check.id, port: 'yes' }]
+  });
+});
+
+test('a leading role check clears perm_required after lowering', () => {
+  const flow: Flow = { id: 'f', name: 'flow', enabled: true, nodes: [], edges: [] };
+  const trigger = addNode(flow, 'twitch.chat.command', at);
+  trigger.config.trigger = 'clear';
+  const action = addNode(flow, 'reply.clear_chat', at, { from: trigger.id, port: 'next' });
+  const before = flowToDefinition(flow);
+  insertCheckBefore(flow, action.id, 'mod');
+  const after = flowToDefinition(flow);
+  if (!before.ok || !after.ok) throw new Error(JSON.stringify({ before, after }));
+
+  expect({
+    before: validateDefinition(before.value).map(({ code }) => code),
+    after: validateDefinition(after.value).map(({ code }) => code),
+    conditions: after.value.conditions
+  }).toEqual({
+    before: ['perm_required'],
+    after: [],
+    conditions: [{ type: 'perm', params: { level: 'mod' } }]
   });
 });

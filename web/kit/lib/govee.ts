@@ -28,6 +28,10 @@ export interface GoveeDevice {
   sku: string;
   name: string;
   color: boolean;
+  power?: boolean;
+  brightness?: boolean;
+  kelvin_min?: number;
+  kelvin_max?: number;
 }
 
 export type GoveeSceneValue = number | { paramId: number; id: number };

@@ -1,23 +1,10 @@
 {
   "lockedChip": "Premium Beta",
   "introTitle": "Willkommen bei {name}",
-  "introLead": "Für fortgeschrittene Nutzer entwickelt, die volle Kontrolle wollen. Verbinde Auslöser, Bedingungen und Aktionen zu einem System und teste jeden Pfad, bevor er den Chat erreicht.",
-  "introCta": "Loslegen",
+  "introLead": "Wähle ein Rezept und passe es an. Die Schritte sind bereit zum Bearbeiten.",
+  "introCta": "Leer beginnen",
+  "clarity": {"liveNow":"Schaltet sofort","required":"Pflichtfeld","liveOnSave":"Live ab Speichern","staysOff":"Bleibt aus","browse":"Meine Rezepte ansehen"},
   "introDocs": "Anleitung lesen",
-  "introStart": "Start",
-  "introWhenLabel": "Wenn",
-  "introWhen": "Jemand 1000 Bits cheert",
-  "introIfLabel": "Nur wenn",
-  "introIf": "Der Stream ist live",
-  "introDoLabel": "Dann",
-  "introDo": "Bedanke dich und ändere das Licht",
-  "introEasierTitle": "Einfacher und schneller zu erstellen",
-  "introCommands": "Befehle",
-  "introCommandsBody": "Antworte, wenn jemand !socials eingibt",
-  "introAlerts": "Chat-Benachrichtigungen",
-  "introAlertsBody": "Bedanke dich für Follows, Abos, Cheers und Raids",
-  "introTimers": "Timer",
-  "introTimersBody": "Wiederhole eine Nachricht, während du live bist",
   "connectExisting": "Mit einem Schritt auf dem Board verbinden",
   "connectHint": "Tippe auf einen Schritt zum Verbinden",
   "connectCancel": "Abbrechen",
@@ -25,7 +12,6 @@
   "linkedRemove": "Verbunden. Auswählen zum Entfernen.",
   "noteConnected": "Schritte verbunden.",
   "noteDisconnected": "Verbindung entfernt.",
-  "noteRemoved": "Schritt entfernt.",
   "noteDuplicated": "Schritt dupliziert.",
   "noteUndo": "Rückgängig gemacht.",
   "noteRedo": "Wiederhergestellt.",
@@ -86,18 +72,21 @@
   "warnAlertOff": "Gespeichert, aber die integrierte Benachrichtigung ist noch aktiv, sodass Zuschauer möglicherweise beides sehen.",
   "warnAlertsOn": "Das Chat-Benachrichtigungsmodul war deaktiviert und ist jetzt aktiviert.",
   "unsupportedTitle": "Dieses Rezept kann hier noch nicht geöffnet werden",
-  "unsupportedBody": "Es verwendet einen Schritt, den der Builder nicht darstellen kann. Es läuft weiter und du kannst es in Automatisierungen bearbeiten.",
-  "unsupportedCta": "Automatisierungen öffnen",
+  "unsupportedBody": "Öffne dieses Rezept zum Bearbeiten im ursprünglichen Editor.",
+  "unsupportedCta": "Ursprünglichen Editor öffnen",
   "issue": {
+    "permRequired": "Dieser Befehl braucht für diesen Schritt eine höhere Nutzerstufe. Füge davor eine Prüfung der Nutzerstufe hinzu.",
     "noTrigger": "Füge einen Wenn-Schritt hinzu, um dieses Rezept zu starten.",
     "multipleTriggers": "Ein Rezept kann nur auf eine Art starten. Entferne den zusätzlichen Wenn-Schritt.",
     "cycle": "Dieser Schritt führt auf sich selbst zurück. Entferne eine der Verbindungen.",
     "unconnectedNode": "Dieser Schritt ist nicht mit dem Start verbunden. Verbinde ihn oder entferne ihn.",
-    "unstructuredMerge": "Zwei Pfade laufen hier auf eine Weise zusammen, die nicht gespeichert werden kann. Gib jedem Pfad eigene Schritte.",
+    "unknownPort": "Eine Verbindung führt von einem Ausgang weg, den dieser Schritt nicht hat. Stelle die Verbindung neu her.",
+    "unstructuredMerge": "Ein Pfad mit Warten kann nicht in einen anderen Pfad münden. Verschiebe Warten hinter die Verbindung oder gib jedem Pfad eigene Schritte.",
     "unsupportedNode": "Dieser Schritt kann noch nicht gespeichert werden.",
     "unsupportedTrigger": "Dieser Start kann noch nicht gespeichert werden.",
     "unsupportedCondition": "Diese Prüfung kann noch nicht gespeichert werden.",
     "unsupportedAction": "Diese Aktion kann noch nicht gespeichert werden.",
+    "unsupportedDisabledControlFlow": "Eine ausgeschaltete Prüfung oder Gruppe kann hier nicht geöffnet werden. Bearbeite sie in Automationen.",
     "waitTooLong": "Diese Wartezeit ist länger, als ein Rezept pausieren kann.",
     "unmappableToken": "{token} ist mit diesem Start nicht verfügbar. Entferne es oder ändere den Start.",
     "userNotResolved": "Wähle einen Twitch-Nutzer aus. Gib einen Namen ein und verlasse das Feld, damit er überprüft werden kann.",
@@ -107,6 +96,7 @@
     "duplicate": "Ein solches Rezept existiert bereits.",
     "tooMany": "Du hast das Rezept-Limit erreicht.",
     "required": "Ein Wert fehlt.",
+    "requiredField": "{field} fehlt.",
     "tooLong": "Ein Wert ist zu lang.",
     "tooShort": "Ein Wert ist zu kurz.",
     "outOfRange": "Eine Zahl liegt außerhalb des zulässigen Bereichs.",
@@ -117,7 +107,9 @@
     "nesting": "Prüfungen sind zu tief verschachtelt.",
     "delayBudget": "Die Wartezeiten summieren sich auf mehr, als ein Rezept pausieren kann.",
     "name": "Gib dem Rezept einen Namen mit Buchstaben, Zahlen und Leerzeichen, bis zu 64 Zeichen.",
-    "generic": "Etwas in diesem Rezept kann nicht gespeichert werden ({code})."
+    "generic": "Prüfe die Einstellungen dieses Schritts und speichere erneut.",
+    "nothingToChange": "Ändere mindestens ein Feld.",
+    "invalidTags": "Verwende bis zu 10 Tags mit jeweils höchstens 25 Buchstaben oder Ziffern."
   },
   "choose": {
     "reward": "Belohnung auswählen",
@@ -125,15 +117,17 @@
     "scene": "Szene auswählen",
     "light": "Zuerst ein Licht auswählen",
     "namedCooldown": "Timer auswählen",
-    "namedCountdown": "Countdown auswählen"
+    "namedCountdown": "Countdown auswählen",
+    "recipe": "Rezept auswählen"
   },
   "choiceEmpty": {
     "rewards": "Noch keine Kanalpunkte-Belohnungen. Erstelle eine unter Kanalpunkte.",
     "manageableRewards": "Twitch lässt uns nur hier erstellte Belohnungen ändern. Erstelle eine unter Kanalpunkte.",
     "counters": "Noch keine Zähler. Erstelle einen unter Zähler.",
     "scenes": "Dieses Licht hat keine Szenen.",
-    "namedCooldowns": "Noch kein Rezept benennt einen Timer. Gib einem unter seinem Cooldown einen Namen.",
-    "namedCountdowns": "Noch kein Countdown in einem Rezept gestartet."
+    "namedCooldowns": "Füge zuerst einen Cooldown-Schritt hinzu und benenne ihn.",
+    "namedCountdowns": "Füge zuerst einen Schritt zum Starten eines Countdowns hinzu.",
+    "recipes": "Erstelle ein weiteres Rezept, um es hier auszuwählen."
   },
   "choiceProblem": {
     "rewards": "Deine Belohnungen konnten nicht geladen werden.",
@@ -141,17 +135,19 @@
     "scenes": "Die Szenen für dieses Licht konnten nicht geladen werden.",
     "keyRejected": "Govee hat deinen API-Schlüssel nicht akzeptiert.",
     "namedCooldowns": "Die Timer deiner Rezepte konnten nicht geladen werden.",
-    "namedCountdowns": "Countdowns konnten nicht geladen werden."
+    "namedCountdowns": "Countdowns konnten nicht geladen werden.",
+    "recipes": "Rezepte konnten nicht geladen werden."
   },
   "choiceMissing": "\"{name}\" ist nicht mehr in der Liste.",
   "choiceUnowned": "Noch kein Rezept besitzt \"{name}\". Das bewirkt nichts, bis eines es tut.",
-  "choiceRetry": "Erneut versuchen",
+  "choiceRetry": "Aktualisieren",
   "choiceLoading": "Wird geladen",
   "setup": {
     "line": "Aus, bis eingerichtet",
     "stepNote": "Dieser Schritt bleibt aus, bis du ihn ausfüllst.",
     "pickReward": "Belohnung auswählen",
     "addUrl": "URL hinzufügen",
-    "refused": "Fülle die Schritte aus, die eingerichtet werden müssen, speichere und schalte dies dann ein."
+    "refused": "Fülle die Schritte aus, die eingerichtet werden müssen, speichere und schalte dies dann ein.",
+    "pickRecipe": "Wähle für den Schritt „Anderes Rezept ausführen“ ein Rezept aus."
   }
 }

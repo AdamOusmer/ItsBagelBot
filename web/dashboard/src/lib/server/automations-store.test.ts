@@ -16,7 +16,8 @@ mock.module('@bagel/kit/server/nats', () => ({
   rpc: async (subject: string, body: any) => {
     calls.push({ subject, body });
     if (!(subject in replies)) throw new Error(`Unexpected RPC: ${subject}`);
-    return replies[subject];
+    const reply = replies[subject];
+    return typeof reply === 'function' ? reply(body) : reply;
   }
 }));
 
@@ -48,7 +49,14 @@ describe('automations store reads', () => {
     replies[`${MOD}.list`] = { automations: [sample('a')] };
     expect(await store.listAutomations('7')).toEqual([sample('a')]);
     expect(await store.listAutomations('7')).toEqual([sample('a')]);
-    expect(calls).toEqual([{ subject: `${MOD}.list`, body: { user_id: '7' } }]);
+    expect(calls).toEqual([{ subject: `${MOD}.list`, body: { user_id: '7', page: 1 } }]);
+  });
+
+  test('list reads every page before caching the rows', async () => {
+    replies[`${MOD}.list`] = ({ page }: { page: number }) => ({ automations: [sample(String(page))], next_page: page === 1 ? 2 : undefined });
+    expect(await store.listAutomations('7')).toEqual([sample('1'), sample('2')]);
+    expect(await store.listAutomations('7')).toEqual([sample('1'), sample('2')]);
+    expect(calls.map((call) => call.body.page)).toEqual([1, 2]);
   });
 
   test('a refusal throws so the page degrades instead of caching an empty list', async () => {

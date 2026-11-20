@@ -62,6 +62,14 @@ export class FlowHistory {
     return this.#redo.length > 0;
   }
 
+  get undoEntry(): object | null {
+    return this.#undo.at(-1) ?? null;
+  }
+
+  get snapshot(): Readonly<Snap> {
+    return this.#head;
+  }
+
   sync(flow: Graph, now = Date.now()): boolean {
     const next = snapOf(flow);
     if (shape(next) === shape(this.#head)) {

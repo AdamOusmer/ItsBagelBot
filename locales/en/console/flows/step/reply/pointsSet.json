@@ -1,0 +1,12 @@
+{
+  "label": "Set loyalty points",
+  "summary": "Set a viewer’s loyalty point balance",
+  "keywords": "points loyalty currency balance set",
+  "field": {
+    "amount": {
+      "label": "Amount",
+      "unit": "points"
+    }
+  },
+  "line": "Set points to {amount}"
+}

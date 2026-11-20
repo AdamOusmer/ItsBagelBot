@@ -1,4 +1,6 @@
 {
+  "follow": "Sigue tu canal",
+  "account_age": "Antigüedad de la cuenta",
   "perm": "Rol del espectador",
   "users": "Espectadores concretos",
   "live": "Estado del stream",

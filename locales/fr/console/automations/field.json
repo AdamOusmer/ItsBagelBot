@@ -1,4 +1,8 @@
 {
+  "ignore_case": "Ignorer la casse",
+  "min_days": "Nombre minimal de jours",
+  "who": "Qui",
+  "user_id": "ID utilisateur Twitch",
   "aliases": "Alias",
   "allow": "Autorisés",
   "amount": "Montant",
@@ -80,5 +84,15 @@
   "choices": "Choix (un par ligne)",
   "outcomes": "Résultats (un par ligne)",
   "winner": "Numéro du résultat gagnant",
-  "resolution": "Message de décision (facultatif)"
+  "resolution": "Message de décision (facultatif)",
+  "reply": "Réponse dans le chat",
+  "quiet": "Ignorer le message dans le chat",
+  "points_per_vote": "Points de chaîne par vote",
+  "outcome": "Résultat gagnant",
+  "thread": "Répondre dans le fil",
+  "kelvin": "Température du blanc",
+  "brightness": "Luminosité",
+  "hold_s": "Rétablir après",
+  "paused": "En pause",
+  "cooldown_s": "Délai global (s)"
 }

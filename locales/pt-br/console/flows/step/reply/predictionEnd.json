@@ -1,0 +1,23 @@
+{
+  "label": "Encerrar uma previsão",
+  "summary": "Feche apostas, devolva pontos ou escolha um vencedor",
+  "line": {
+    "lock": "Fechar apostas",
+    "cancel": "Cancelar e reembolsar",
+    "resolve": "Vencedor: {outcome}"
+  },
+  "field": {
+    "status": {
+      "label": "Ação",
+      "option": {
+        "lock": "Fechar apostas",
+        "cancel": "Cancelar e reembolsar",
+        "resolve": "Escolher um vencedor"
+      }
+    },
+    "outcome": {
+      "label": "Resultado vencedor",
+      "hint": "Um número ou o nome do resultado"
+    }
+  }
+}

@@ -1,23 +1,10 @@
 {
   "lockedChip": "Bêta Premium",
   "introTitle": "Bienvenue sur {name}",
-  "introLead": "Conçu pour les utilisateurs avancés qui souhaitent un contrôle total. Associez déclencheurs, conditions et actions au sein d’un même système, puis testez chaque chemin avant qu’il n’atteigne le chat.",
-  "introCta": "Commencer",
+  "introLead": "Choisis une recette et adapte-la. Les étapes sont prêtes à modifier.",
+  "introCta": "Partir de zéro",
+  "clarity": {"liveNow":"Change en direct","required":"Requis","liveOnSave":"Active si sauvée","staysOff":"Reste inactive","browse":"Voir mes recettes"},
   "introDocs": "Consulter le guide",
-  "introStart": "Début",
-  "introWhenLabel": "Quand",
-  "introWhen": "Quelqu’un cheer 1000 bits",
-  "introIfLabel": "Seulement si",
-  "introIf": "Le stream est en direct",
-  "introDoLabel": "Faire",
-  "introDo": "Les remercier et changer les lumières",
-  "introEasierTitle": "Plus simple et plus rapide à créer",
-  "introCommands": "Commandes",
-  "introCommandsBody": "Répondre quand quelqu’un tape !socials",
-  "introAlerts": "Alertes de chat",
-  "introAlertsBody": "Remercier les follows, subs, cheers et raids",
-  "introTimers": "Minuteurs",
-  "introTimersBody": "Répéter un message pendant que vous êtes en direct",
   "connectExisting": "Connecter à une étape du tableau",
   "connectHint": "Appuyez sur une étape pour la connecter",
   "connectCancel": "Annuler",
@@ -25,7 +12,6 @@
   "linkedRemove": "Connecté. Sélectionnez pour supprimer.",
   "noteConnected": "Étapes connectées.",
   "noteDisconnected": "Connexion supprimée.",
-  "noteRemoved": "Étape supprimée.",
   "noteDuplicated": "Étape dupliquée.",
   "noteUndo": "Annulé.",
   "noteRedo": "Rétabli.",
@@ -86,18 +72,21 @@
   "warnAlertOff": "Enregistrée, mais l’alerte intégrée est toujours active, les viewers peuvent donc voir les deux.",
   "warnAlertsOn": "Le module Alertes de chat était désactivé et est maintenant activé.",
   "unsupportedTitle": "Cette recette ne peut pas encore être ouverte ici",
-  "unsupportedBody": "Elle utilise une étape que le créateur ne peut pas afficher. Elle continue de s’exécuter, et vous pouvez la modifier dans Automatisations.",
-  "unsupportedCta": "Ouvrir Automatisations",
+  "unsupportedBody": "Ouvre cette recette dans son éditeur d’origine pour la modifier.",
+  "unsupportedCta": "Ouvrir l’éditeur d’origine",
   "issue": {
+    "permRequired": "Cette commande exige un niveau utilisateur plus élevé pour cette étape. Ajoute une vérification du niveau utilisateur avant elle.",
     "noTrigger": "Ajoutez une étape Quand pour démarrer cette recette.",
     "multipleTriggers": "Une recette ne peut démarrer que d’une seule façon. Supprimez l’étape Quand supplémentaire.",
     "cycle": "Cette étape boucle sur elle-même. Supprimez l’une des connexions.",
     "unconnectedNode": "Cette étape n’est pas connectée au début. Connectez-la ou supprimez-la.",
-    "unstructuredMerge": "Deux chemins se rejoignent ici d’une manière qui ne peut pas être enregistrée. Donnez à chaque chemin ses propres étapes.",
+    "unknownPort": "Une connexion part d’une sortie que cette étape ne possède pas. Reconnectez-la.",
+    "unstructuredMerge": "Un chemin avec Attendre ne peut pas rejoindre un autre chemin. Déplacez Attendre après la jonction ou donnez à chaque chemin ses propres étapes.",
     "unsupportedNode": "Cette étape ne peut pas encore être enregistrée.",
     "unsupportedTrigger": "Ce début ne peut pas encore être enregistré.",
     "unsupportedCondition": "Cette vérification ne peut pas encore être enregistrée.",
     "unsupportedAction": "Cette action ne peut pas encore être enregistrée.",
+    "unsupportedDisabledControlFlow": "Une vérification ou un groupe désactivé ne peut pas s'ouvrir ici. Modifie-le dans Automatisations.",
     "waitTooLong": "Cette attente est plus longue que la pause autorisée pour une recette.",
     "unmappableToken": "{token} n’est pas disponible avec ce début. Supprimez-le ou modifiez le début.",
     "userNotResolved": "Choisissez un utilisateur Twitch. Saisissez un nom et quittez le champ pour qu’il puisse être vérifié.",
@@ -107,6 +96,7 @@
     "duplicate": "Une recette similaire existe déjà.",
     "tooMany": "Vous avez atteint la limite de recettes.",
     "required": "Une valeur est manquante.",
+    "requiredField": "{field} manque.",
     "tooLong": "Une valeur est trop longue.",
     "tooShort": "Une valeur est trop courte.",
     "outOfRange": "Un nombre se situe en dehors de la plage autorisée.",
@@ -117,7 +107,9 @@
     "nesting": "Les vérifications sont imbriquées trop profondément.",
     "delayBudget": "Le total des temps d’attente dépasse la durée de pause autorisée pour une recette.",
     "name": "Donnez un nom à la recette en utilisant des lettres, des chiffres et des espaces, jusqu’à 64 caractères.",
-    "generic": "Un élément de cette recette ne peut pas être enregistré ({code})."
+    "generic": "Vérifie les réglages de cette étape et réessaie d’enregistrer.",
+    "nothingToChange": "Modifie au moins un champ.",
+    "invalidTags": "Utilise jusqu’à 10 tags de 25 lettres ou chiffres chacun au maximum."
   },
   "choose": {
     "reward": "Choisir une récompense",
@@ -125,15 +117,17 @@
     "scene": "Choisir une scène",
     "light": "Choisir d’abord une lumière",
     "namedCooldown": "Choisir un minuteur",
-    "namedCountdown": "Choisir un compte à rebours"
+    "namedCountdown": "Choisir un compte à rebours",
+    "recipe": "Choisir une recette"
   },
   "choiceEmpty": {
     "rewards": "Aucune récompense de points de chaîne pour le moment. Créez-en une dans Points de chaîne.",
     "manageableRewards": "Twitch ne permet de modifier que les récompenses créées ici. Créez-en une dans Points de chaîne.",
     "counters": "Aucun compteur pour le moment. Créez-en un dans Compteurs.",
     "scenes": "Cette lumière n’a aucune scène.",
-    "namedCooldowns": "Aucune recette ne nomme encore de minuteur. Donnez-en un nom dans son délai de récupération.",
-    "namedCountdowns": "Aucun compte à rebours démarré dans une recette."
+    "namedCooldowns": "Ajoute d’abord un délai de récupération et donne-lui un nom.",
+    "namedCountdowns": "Ajoute d’abord une étape pour démarrer un compte à rebours.",
+    "recipes": "Crée une autre recette pour pouvoir la sélectionner ici."
   },
   "choiceProblem": {
     "rewards": "Impossible de charger vos récompenses.",
@@ -141,17 +135,19 @@
     "scenes": "Impossible de charger les scènes de cette lumière.",
     "keyRejected": "Govee n’a pas accepté votre clé API.",
     "namedCooldowns": "Impossible de charger les minuteurs de vos recettes.",
-    "namedCountdowns": "Impossible de charger les comptes à rebours."
+    "namedCountdowns": "Impossible de charger les comptes à rebours.",
+    "recipes": "Impossible de charger tes recettes."
   },
   "choiceMissing": "\"{name}\" n’est plus dans la liste.",
   "choiceUnowned": "Aucune recette ne possède encore \"{name}\". Cela ne fera rien jusqu’à ce qu’une le fasse.",
-  "choiceRetry": "Réessayer",
+  "choiceRetry": "Actualiser",
   "choiceLoading": "Chargement",
   "setup": {
     "line": "Désactivé avant configuration",
     "stepNote": "Cette étape reste désactivée tant que tu ne l'as pas remplie.",
     "pickReward": "Choisis une récompense",
     "addUrl": "Ajoute une URL",
-    "refused": "Remplis les étapes à configurer, enregistre, puis active ceci."
+    "refused": "Remplis les étapes à configurer, enregistre, puis active ceci.",
+    "pickRecipe": "Choisis une recette pour l’étape « Exécuter une autre recette »."
   }
 }

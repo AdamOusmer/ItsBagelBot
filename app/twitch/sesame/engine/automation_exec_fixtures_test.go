@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -76,6 +77,9 @@ func (l *autoLoyalty) BalanceAdjustViewer(_ context.Context, a BalanceAdjustment
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.adjusts = append(l.adjusts, a)
+	if a.ViewerLogin == "" {
+		return loyaltyrpc.Balance{}, false, fmt.Errorf("missing viewer login")
+	}
 	return loyaltyrpc.Balance{}, true, nil
 }
 
@@ -107,6 +111,12 @@ func (l *autoLoyalty) adjustCount() int {
 	return len(l.adjusts)
 }
 
+type goveeCall struct {
+	at    time.Time
+	route GossipRoute
+	req   gossiprpc.Request
+}
+
 type autoGossip struct {
 	mu     sync.Mutex
 	route  GossipRoute
@@ -117,7 +127,16 @@ type autoGossip struct {
 	err    error
 	slow   time.Duration
 
-	outdated bool
+	outdated       bool
+	controlError   string
+	restoreReplies []gossiprpc.GoveeRestoreReply
+	goveeCalls     []goveeCall
+}
+
+func (g *autoGossip) lightsCalls() []goveeCall {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return slices.Clone(g.goveeCalls)
 }
 
 func (g *autoGossip) Call(_ context.Context, route GossipRoute, req gossiprpc.Request, out any) error {
@@ -125,6 +144,9 @@ func (g *autoGossip) Call(_ context.Context, route GossipRoute, req gossiprpc.Re
 	defer g.mu.Unlock()
 	g.route, g.req = route, req
 	g.calls++
+	if route.Provider == goveeProvider {
+		g.goveeCalls = append(g.goveeCalls, goveeCall{at: time.Now(), route: route, req: req})
+	}
 	time.Sleep(g.slow)
 	if g.err != nil {
 		return g.err
@@ -133,9 +155,20 @@ func (g *autoGossip) Call(_ context.Context, route GossipRoute, req gossiprpc.Re
 	case *gossiprpc.CustomFetchReply:
 		reply.Status, reply.Values = g.status, g.values
 	case *gossiprpc.GoveeControlReply:
-		reply.SceneApplied = !g.outdated
+		*reply = gossiprpc.GoveeControlReply{OK: g.controlError == "", Error: g.controlError, SceneApplied: !g.outdated}
+	case *gossiprpc.GoveeRestoreReply:
+		*reply = g.nextRestoreReply()
 	}
 	return nil
+}
+
+func (g *autoGossip) nextRestoreReply() gossiprpc.GoveeRestoreReply {
+	if len(g.restoreReplies) == 0 {
+		return gossiprpc.GoveeRestoreReply{OK: true}
+	}
+	reply := g.restoreReplies[0]
+	g.restoreReplies = g.restoreReplies[1:]
+	return reply
 }
 
 type autoAccounts map[string]string
@@ -246,6 +279,7 @@ func describe(m outgress.Message) string {
 	for _, kv := range [][2]string{
 		{"to", m.To}, {"color", m.Color}, {"msg", m.MsgID}, {"reward", m.RewardID},
 		{"redemption", m.RedemptionID}, {"status", m.Status},
+		{"target_user_id", m.TargetUserID},
 	} {
 		if kv[1] != "" {
 			parts = append(parts, kv[0]+"="+kv[1])

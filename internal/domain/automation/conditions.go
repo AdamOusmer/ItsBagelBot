@@ -56,10 +56,19 @@ type CooldownCondition struct {
 	LeftCommand string `json:"left_command,omitempty"`
 	LeftReply   string `json:"left_reply,omitempty"`
 	ReadyReply  string `json:"ready_reply,omitempty"`
+	Ordinal     int    `json:"-"`
 }
 
 type ChanceCondition struct {
 	Percent int `json:"percent"`
+}
+
+type FollowCondition struct {
+	MinDays int `json:"min_days"`
+}
+
+type AccountAgeCondition struct {
+	MinDays int `json:"min_days"`
 }
 
 type CounterCondition struct {
@@ -94,6 +103,12 @@ func checkPerm(c chk, p PermCondition) { c.oneOf("level", p.Level, permLevels) }
 func checkLive(c chk, p LiveCondition) { c.oneOf("state", p.State, liveStates) }
 
 func checkChance(c chk, p ChanceCondition) { inRange(c, "percent", p.Percent, between(1, 100)) }
+
+func checkFollow(c chk, p FollowCondition) { inRange(c, "min_days", p.MinDays, between(0, MaxAgeDays)) }
+
+func checkAccountAge(c chk, p AccountAgeCondition) {
+	inRange(c, "min_days", p.MinDays, between(1, MaxAgeDays))
+}
 
 func checkArgRegex(c chk, p ArgRegexCondition) { c.regex("pattern", p.Pattern, MaxPatternLength) }
 

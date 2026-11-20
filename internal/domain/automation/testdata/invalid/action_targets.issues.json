@@ -1,0 +1,34 @@
+[
+  {
+    "path": "actions[0].params.user_id",
+    "code": "required"
+  },
+  {
+    "path": "actions[1].params.user_id",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[2].params.login",
+    "code": "required"
+  },
+  {
+    "path": "actions[3].params.who",
+    "code": "invalid_enum"
+  },
+  {
+    "path": "actions[4].params",
+    "code": "invalid_format"
+  },
+  {
+    "path": "actions[5].params.login",
+    "code": "required"
+  },
+  {
+    "path": "actions[6].params.who",
+    "code": "invalid_enum"
+  },
+  {
+    "path": "actions[7].params.login",
+    "code": "required"
+  }
+]

@@ -1,6 +1,6 @@
 {
   "label": "Modifier une récompense",
-  "summary": "Activer ou désactiver une récompense, ou définir son coût",
+  "summary": "Modifie la disponibilité, le coût ou le délai d’une récompense",
   "field": {
     "reward": {
       "label": "Récompense"
@@ -19,6 +19,29 @@
     },
     "reset": {
       "label": "Rétablir à la fin du stream"
+    },
+    "paused": {
+      "label": "En pause",
+      "option": {
+        "keep": "Laisser tel quel",
+        "pause": "Mettre en pause",
+        "resume": "Reprendre"
+      }
+    },
+    "cooldown": {
+      "label": "Délai",
+      "range": "Laisse vide pour conserver le délai. Saisis 0 pour le désactiver. Maximum : {days} jours."
     }
+  },
+  "pickChange": "Choisis au moins une modification",
+  "line": {
+    "on": "Activer {reward}",
+    "off": "Désactiver {reward}",
+    "pause": "Mettre {reward} en pause",
+    "resume": "Réactiver {reward} après la pause",
+    "cost": "Fixer le coût de {reward} à {cost}",
+    "cooldown": "Fixer le délai de {reward} à {cooldown}",
+    "cooldownOff": "Désactiver le délai de {reward}",
+    "untilEnd": "{changes} jusqu’à la fin du stream"
   }
 }

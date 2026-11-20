@@ -1,0 +1,12 @@
+{
+  "label": "Definir pontos de fidelidade",
+  "summary": "Definir o saldo de pontos de fidelidade de um espectador",
+  "keywords": "pontos fidelidade saldo definir",
+  "field": {
+    "amount": {
+      "label": "Quantidade",
+      "unit": "pontos"
+    }
+  },
+  "line": "Definir o saldo em {amount} pontos"
+}

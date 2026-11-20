@@ -10,10 +10,11 @@
         "trim": "Remover espaços",
         "length": "Contar caracteres",
         "replace": "Substituir",
-        "substring": "Pegar uma parte",
+        "substring": "Extrair uma subcadeia",
         "split_pick": "Dividir e escolher um",
         "contains": "Verificar se contém",
-        "url_encode": "Tornar seguro para link"
+        "url_encode": "Codificar para URL",
+        "count": "Contar itens"
       }
     },
     "input": {
@@ -45,6 +46,37 @@
     "saveAs": {
       "label": "Salvar como",
       "placeholder": "limpo"
+    },
+    "arg1": {
+      "label": "Primeiro valor",
+      "replace": {
+        "label": "Localizar"
+      },
+      "substring": {
+        "label": "Pular"
+      },
+      "split_pick": {
+        "label": "Separar por"
+      },
+      "contains": {
+        "label": "Procurar texto"
+      },
+      "count": {
+        "label": "Separar por"
+      }
+    },
+    "arg2": {
+      "label": "Segundo valor",
+      "replace": {
+        "label": "Substituir por"
+      },
+      "substring": {
+        "label": "Manter"
+      },
+      "split_pick": {
+        "label": "Escolher",
+        "placeholder": "1, -1 para o último ou random"
+      }
     }
   }
 }

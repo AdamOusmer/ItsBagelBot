@@ -51,10 +51,7 @@ type RewardTrigger struct {
 	InputRequired bool   `json:"input_required"`
 }
 
-const (
-	maxRewardTitle    = 45
-	maxRewardCooldown = 604800
-)
+const maxRewardTitle = 45
 
 var redeemOutcomes = enum{"", "fulfill", "cancel", "leave"}
 
@@ -162,6 +159,6 @@ func checkReward(c chk, p RewardTrigger) {
 	if p.Color != "" {
 		c.format("color", p.Color, lightsColorPattern)
 	}
-	inRange(c, "cooldown_s", p.CooldownS, between(0, maxRewardCooldown))
+	inRange(c, "cooldown_s", p.CooldownS, between(0, MaxRewardCooldown))
 	c.oneOf("on_redeem", p.OnRedeem, redeemOutcomes)
 }

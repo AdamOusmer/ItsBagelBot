@@ -3,10 +3,13 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { invalidate } from '$app/navigation';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
   import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
   import { getI18n } from '@bagel/kit';
+  import { CREATED_REWARD_OUTCOME, DEFAULT_REWARD_OUTCOME } from '@bagel/kit/automations';
   import { postAction, reseedOnChange } from '#lib/client-actions.svelte';
   import type { RewardReply } from '#lib/flow/replies';
   import RewardCoreFields from '#lib/components/channelpoints/RewardCoreFields.svelte';
@@ -15,7 +18,7 @@
   import { REWARD_COOLDOWN_MAX, REWARD_COST_MAX, REWARD_COST_MIN, wholeBetween, type RewardCoreDraft } from '#lib/reward-fields';
   import ChoiceField from './ChoiceField.svelte';
 
-  let { node, id, label }: { node: FlowNode; id: string; label: string } = $props();
+  let { node, id, label, tag, error, settledByStep }: { node: FlowNode; id: string; label: string; tag?: string; error?: string; settledByStep: boolean } = $props();
 
   const { t } = getI18n();
 
@@ -47,7 +50,7 @@
       node.config.cooldown = wholeNumber(value);
     },
     get onRedeem() {
-      return configText(node, 'onRedeem') || 'fulfill';
+      return configText(node, 'onRedeem') || (mode === 'create' ? CREATED_REWARD_OUTCOME : DEFAULT_REWARD_OUTCOME);
     },
     set onRedeem(value) {
       node.config.onRedeem = value;
@@ -55,11 +58,11 @@
     replyMessage: ''
   };
 
-  const afterOptions = [
+  const afterOptions = $derived([
     { value: 'fulfill', label: t('flows.reward.afterFulfill') },
     { value: 'cancel', label: t('flows.reward.afterCancel') },
     { value: 'leave', label: t('flows.reward.afterLeave') }
-  ];
+  ]);
 
   type Mode = 'existing' | 'create';
   type Source = { title: string; reward: string; rewardTitle: string };
@@ -122,11 +125,23 @@
   }
 </script>
 
-<SegmentedControl options={modeOptions} value={mode} onValueChange={chooseMode} label={t('flows.reward.modeLabel')} />
+{#snippet afterRun(source: Mode)}
+  <Field fit label={t('flows.reward.afterTitle')} for="{id}-{source}-after">
+    <div class="after-choice" class:faded={settledByStep} inert={settledByStep}>
+      <Select fill id="{id}-{source}-after" options={afterOptions} value={settledByStep ? 'leave' : draft.onRedeem} disabled={settledByStep}
+        onchange={(event) => (draft.onRedeem = event.currentTarget.value)} />
+    </div>
+    <small class="after-note bb-fit-box" class:faded={!settledByStep} aria-hidden={!settledByStep}><bb-fit mode="block">{t('flows.reward.afterSettledByStep')}</bb-fit></small>
+    <small class="after-note bb-fit-box"><bb-fit mode="block">{t('flows.reward.afterRefundSkipped')}</bb-fit></small>
+  </Field>
+{/snippet}
+
+<SegmentedControl class="bb-tabs--even bb-tabs--plain" options={modeOptions} value={mode} onValueChange={chooseMode} label={t('flows.reward.modeLabel')} />
 
 <div class="stack">
   <div class="pane" class:hidden={mode !== 'existing'} inert={mode !== 'existing'}>
-    <ChoiceField {node} field={LINKED_REWARD_CHOICE} {label} {id} />
+    <ChoiceField {node} field={LINKED_REWARD_CHOICE} {label} {id} {tag} {error} />
+    {@render afterRun('existing')}
   </div>
   <div class="pane" class:hidden={mode !== 'create'} inert={mode !== 'create'}>
     <RewardCoreFields
@@ -134,16 +149,15 @@
       {errors}
       idPrefix="flow-reward"
       withReply={false}
-      {afterOptions}
       labels={{
         title: t('flows.reward.fieldTitle'),
         cost: t('flows.reward.fieldCost'),
         color: t('flows.reward.fieldColor'),
         cooldown: t('flows.reward.fieldCooldown'),
-        cooldownTag: t('flows.reward.fieldCooldownTag'),
-        after: t('flows.reward.afterTitle')
+        cooldownTag: t('flows.reward.fieldCooldownTag')
       }}
     />
+    {@render afterRun('create')}
     <SwitchRow
       control="end"
       checked={node.config.userInput === true}
@@ -159,6 +173,7 @@
 <style>
   .stack {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
   }
   .pane {
     grid-area: 1 / 1;
@@ -172,5 +187,20 @@
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
+  }
+  .after-choice,
+  .after-note {
+    transition: opacity 0.2s ease;
+  }
+  .after-note {
+    display: block;
+    block-size: calc(2 * var(--bb-space-4));
+    min-inline-size: 0;
+  }
+  .faded {
+    opacity: 0.45;
+  }
+  .after-note.faded {
+    opacity: 0;
   }
 </style>

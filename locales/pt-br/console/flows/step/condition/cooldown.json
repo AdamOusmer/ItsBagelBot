@@ -1,0 +1,35 @@
+{
+  "label": "Intervalo de espera",
+  "summary": "Permite executar uma vez a cada poucos segundos",
+  "field": {
+    "channelSeconds": {
+      "label": "Espera do canal",
+      "range": "Use de 0 segundos a {days} dias."
+    },
+    "viewerSeconds": {
+      "label": "Espera por espectador",
+      "range": "Use de 0 segundos a {days} dias."
+    },
+    "name": {
+      "label": "Nome",
+      "placeholder": "subathon",
+      "hint": "As etapas de adicionar tempo de qualquer receita podem estender uma espera com nome. Vale apenas para a espera do canal."
+    },
+    "leftCommand": {
+      "label": "Comando de tempo restante",
+      "placeholder": "!temporestante"
+    },
+    "leftReply": {
+      "label": "Resposta durante a espera",
+      "placeholder": "{user}, faltam {cooldown:left} para poder usar isso de novo."
+    },
+    "readyReply": {
+      "label": "Resposta quando estiver pronto",
+      "placeholder": "{user}, isso já está pronto para usar."
+    }
+  },
+  "out": {
+    "yes": "Pronto",
+    "no": "Em espera"
+  }
+}

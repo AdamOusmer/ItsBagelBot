@@ -12,24 +12,55 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func streamCommand(t *testing.T, typ, role string) automation.Definition {
-	t.Helper()
-	var def automation.Definition
-	require.NoError(t, codec.Unmarshal([]byte(`{"version":1,"trigger":{"type":"command","params":{"name":"!run"}},"conditions":[],"actions":[{"type":"`+typ+`","params":{"login":"bob"}}]}`), &def))
-	if role != "" {
-		def.Conditions = []automation.Condition{{Type: "perm", Params: []byte(`{"level":"` + role + `"}`)}}
+func TestStreamCommandsRequireTheAppropriateRole(t *testing.T) {
+	var policy struct {
+		Actions []automation.Action
+		Callers []struct {
+			Level        string
+			PermRequired bool
+		}
 	}
-	return def
+	require.NoError(t, codec.Unmarshal(readFile(t, "testdata/stream_action_roles.json"), &policy))
+	for _, caller := range policy.Callers {
+		perms, err := codec.Marshal(automation.PermCondition{Level: caller.Level})
+		require.NoError(t, err)
+		var want []automation.Issue
+		if caller.PermRequired {
+			want = []automation.Issue{{Path: "actions[0].type", Code: "perm_required"}}
+		}
+		for _, action := range policy.Actions {
+			t.Run(caller.Level+"/"+action.Type, func(t *testing.T) {
+				def := automation.Definition{
+					Version:    1,
+					Trigger:    automation.Trigger{Type: "command", Params: []byte(`{"name":"!run"}`)},
+					Conditions: []automation.Condition{{Type: "perm", Params: perms}},
+					Actions:    []automation.Action{action},
+				}
+				require.Equal(t, want, automation.Validate(def))
+			})
+		}
+	}
 }
 
-func TestStreamCommandsRequireTheAppropriateRole(t *testing.T) {
-	for _, typ := range []string{"raid", "mod", "vip"} {
-		t.Run(typ, func(t *testing.T) {
-			for _, role := range []string{"", "mod"} {
-				issues := automation.Validate(streamCommand(t, typ, role))
-				require.Equal(t, []automation.Issue{{Path: "actions[0].type", Code: "perm_required"}}, issues)
+func TestSelfTargetRoles(t *testing.T) {
+	var cases []struct {
+		Trigger          automation.Trigger
+		Action           automation.Action
+		WantPermRequired bool
+	}
+	require.NoError(t, codec.Unmarshal(readFile(t, "testdata/self_target_roles.json"), &cases))
+	for _, tc := range cases {
+		t.Run(tc.Action.Type+"/"+string(tc.Action.Params), func(t *testing.T) {
+			var want []automation.Issue
+			if tc.WantPermRequired {
+				want = []automation.Issue{{Path: "actions[0].type", Code: "perm_required"}}
 			}
-			require.Empty(t, automation.Validate(streamCommand(t, typ, "lead_mod")))
+			def := automation.Definition{
+				Version: 1,
+				Trigger: tc.Trigger,
+				Actions: []automation.Action{tc.Action},
+			}
+			require.Equal(t, want, automation.Validate(def))
 		})
 	}
 }

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { actionRegistry, conditionRegistry, register, triggerRegistry } from './engine';
 import { definitionToFlow, flowToDefinition } from './flow-graph';
 import { exportFlows, FLOW_FILE_FORMAT, FLOW_FILE_VERSION, planFlowImport, SETUP_LOGIN, SETUP_URL, setupGaps, SHARE_REVIEWED, SHARE_REWRITTEN, type FlowImportEntry } from './flow-share';
+import { SETUP_REWARD_ID } from './flow-setup';
 import { ACTION_TYPES, CONDITION_TYPES, TRIGGER_TYPES } from './catalog';
 import type { Definition } from './types';
 import './validate';
@@ -398,7 +399,10 @@ describe('recipes v2 external targets never leave, at any depth', () => {
   const inIf = (inner: unknown[]) => ({ type: 'if', params: { condition: { type: 'live', params: { state: 'live' } }, then: inner } });
   const inFork = (inner: unknown[]) => ({ type: 'parallel', params: { branches: [{ weight: 1, actions: inner }, { weight: 1, actions: [chat('b')] }] } });
 
-  const wrappers = { loop: inLoop, on_ok: inOk, on_failure: inFailure, if: inIf, parallel: inFork };
+  const wrappers = {
+    loop: inLoop, on_ok: inOk, on_failure: inFailure, if: inIf, parallel: inFork,
+    points_spend: (inner: unknown[]) => ({ type: 'points_spend', params: { amount: 10, on_ok: inner, on_failure: inner } })
+  };
 
   function nested(depth: number): unknown[] {
     const chain = [inLoop, inOk, inFailure, inIf, inFork];
@@ -436,6 +440,17 @@ describe('recipes v2 external targets never leave, at any depth', () => {
   test('a post keeps its paths and loses its body', () => {
     const entry = planned(manual([{ type: 'http_post', params: { url: `https://hooks.example.org/${LEAK}`, body: `x=${LEAK}`, on_failure: [chat('bad')] } }]));
     expect(entry.definition!.actions).toEqual([{ type: 'http_post', enabled: false, params: { url: SETUP_URL, on_failure: [chat('bad')] } }]);
+  });
+
+  test('sharing a reward update keeps resume and cooldown off', () => {
+    const definition = manual([{ type: 'reward_update', params: { reward_id: `reward-${LEAK}`, paused: false, cooldown_s: 0 } }]);
+    const want = [{
+      type: 'reward_update',
+      enabled: false,
+      params: { reward_id: SETUP_REWARD_ID, enabled: null, cost: null, reset_on_stream_end: false, paused: false, cooldown_s: 0 }
+    }];
+    expect(JSON.parse(exported(definition)).flows[0].definition.actions).toEqual(want);
+    expect(planned(definition).definition?.actions).toEqual(want);
   });
 
   test('the listed kept fields stay as written', () => {
