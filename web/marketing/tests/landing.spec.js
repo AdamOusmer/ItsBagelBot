@@ -223,7 +223,7 @@ for (const [lang, prefix] of VS_LOCALES) {
         await page.emulateMedia({ reducedMotion: 'reduce' });
         await page.goto(`${prefix}/valorant-stats/`);
         const steps = page.locator('.flhow__step');
-        const visuals = steps.getByRole('img');
+        const visuals = steps.locator('[role="img"][aria-label]');
         await expect(visuals).toHaveCount(3);
         await expect(visuals.nth(1)).toHaveAccessibleName(/Frosty#EUW1 \(eu\)/);
         await expect(steps.locator('.riot-module__control:not([inert])')).toHaveCount(2);
