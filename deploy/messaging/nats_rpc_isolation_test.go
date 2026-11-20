@@ -8,11 +8,27 @@ import (
 	"strings"
 	"testing"
 
+	drawrpc "ItsBagelBot/internal/domain/rpc/draw"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/internal/natsacl"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestDrawRPCIsolation(t *testing.T) {
+	grant := rpcGrant{kind: "service", subject: "rpc.draw.>"}
+	wantExports := map[string]rpcGrant{"WORKER_RPC": grant}
+	wantImports := map[string]rpcImport{"DASHBOARD_RPC": {rpcGrant: grant, account: "WORKER_RPC"}}
+	for _, account := range loadRPCCatalog(t).accounts {
+		for _, suffix := range []string{"", ".node.n1"} {
+			subject := drawrpc.RaffleStatusSubject + suffix
+			export, _ := account.exportCovering(subject)
+			imp, _ := account.importCovering(subject)
+			assert.Equal(t, wantExports[account.name], export, "%s export: %s", account.name, subject)
+			assert.Equal(t, wantImports[account.name], imp, "%s import: %s", account.name, subject)
+		}
+	}
+}
 
 func TestChannelGiveawayWinnersRPCIsolation(t *testing.T) {
 	verbs := []string{

@@ -86,7 +86,7 @@ func (s *Store) Open(ctx context.Context, req OpenRequest) (Round, OpenOutcome, 
 	if err != nil {
 		return Round{}, Opened, err
 	}
-	terms, err := validateTerms(req.Terms, now)
+	terms, err := validateTerms(req, now)
 	if err != nil {
 		return s.replayInvalidOpen(ctx, req, err)
 	}
@@ -174,7 +174,8 @@ func roundLegacyKey(channel ChannelID, key, fallback func(ChannelID) string) str
 	return fallback(channel)
 }
 
-func validateTerms(t Terms, now time.Time) (Terms, error) {
+func validateTerms(req OpenRequest, now time.Time) (Terms, error) {
+	t := req.Terms
 	policy, ok := settlers[t.Kind]
 	if !ok {
 		return Terms{}, ErrInvalidTerms

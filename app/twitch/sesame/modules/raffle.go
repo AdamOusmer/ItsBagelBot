@@ -5,6 +5,7 @@ package modules
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +14,8 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/module"
 	catalog "ItsBagelBot/internal/domain/analytics"
+
+	"go.uber.org/zap"
 )
 
 const raffleModuleName = engine.RaffleModuleName
@@ -111,8 +114,12 @@ func (rc raffleCommands) startRefusal(ctx context.Context) (replyKey, error) {
 		return "", nil
 	}
 	freeze, err := rc.deps.LoyaltyFreeze.FreezeGet(ctx, channel)
-	if err != nil || !freeze.CloseGames {
-		return "", err
+	if err != nil {
+		rc.deps.Log.Warn("raffle: freeze status unavailable", rc.c.BID(), zap.Error(err))
+		return "", nil
+	}
+	if !freeze.CloseGames {
+		return "", nil
 	}
 	return "raffle.open.frozen", nil
 }
@@ -127,7 +134,7 @@ func (rc raffleCommands) open(ctx context.Context, req raffleStart, emit module.
 	}
 	switch outcome {
 	case draw.Opened:
-		rc.replyOpened(emit, r, req.duration)
+		rc.replyOpened(ctx, emit, r)
 	case draw.JoinableBusy:
 		return rc.replyBusy(ctx, emit)
 	case draw.LegacyBusy:
@@ -149,17 +156,18 @@ func (rc raffleCommands) replyBusy(ctx context.Context, emit module.Emit) error 
 	return nil
 }
 
-func (rc raffleCommands) replyOpened(emit module.Emit, r draw.Round, duration time.Duration) {
+func (rc raffleCommands) replyOpened(ctx context.Context, emit module.Emit, r draw.Round) {
 	if !rc.cfg.OpenedOn() {
 		return
 	}
-	secs := int64(duration.Seconds())
+	secs := int64(r.ClosesAt.Sub(r.OpenedAt) / time.Second)
 	key := replyKey("raffle.opened")
 	if secs%60 != 0 {
 		key = "raffle.opened.secs"
 	}
+	loyalty, _ := engine.ReadLoyaltyConfig(ctx, rc.deps.Proj, rc.c.BroadcasterID)
 	rc.reply(emit, rc.cfg.OpenedMessage, key, "mins", strconv.FormatInt((secs+59)/60, 10),
-		"secs", strconv.FormatInt(secs, 10), "amount", strconv.FormatInt(r.Terms.Prize.Points, 10))
+		"secs", strconv.FormatInt(secs, 10), "amount", strconv.FormatInt(r.Terms.Prize.Points, 10), "points", loyalty.Name())
 }
 
 func (rc raffleCommands) status(ctx context.Context, _ string, emit module.Emit) error {
@@ -218,17 +226,58 @@ func (rc raffleCommands) close(ctx context.Context, _ string, emit module.Emit) 
 
 func (rc raffleCommands) closeRound(ctx context.Context, winners *draw.WinnerPolicy, emit module.Emit) error {
 	ok, err := rc.deps.Draw.Close(ctx, draw.CloseRequest{Channel: rc.channel(), Actor: rc.actor(), Winners: winners, Kind: draw.KindRaffle})
-	if err == nil && !ok {
-		rc.reply(emit, "", "raffle.status.closed")
+	if err != nil || ok {
+		return err
 	}
-	return err
+	drained, err := rc.drawLegacy(ctx, winners, emit)
+	if err != nil || drained {
+		return err
+	}
+	rounds, err := rc.deps.Draw.Live(ctx, rc.channel())
+	if err != nil || slices.ContainsFunc(rounds, raffleDrawInProgress) {
+		return err
+	}
+	rc.reply(emit, "", "raffle.status.closed")
+	return nil
+}
+
+func raffleDrawInProgress(r draw.RoundView) bool {
+	return r.Terms.Kind == draw.KindRaffle && (r.Phase == draw.PhaseClosing || r.Phase == draw.PhaseSettling)
+}
+
+func (rc raffleCommands) drawLegacy(ctx context.Context, winners *draw.WinnerPolicy, emit module.Emit) (bool, error) {
+	if rc.deps.Raffle == nil {
+		return false, nil
+	}
+	channel := rc.c.BroadcasterID
+	status, err := rc.deps.Raffle.Status(ctx, channel)
+	if err != nil || !status.Open {
+		return false, err
+	}
+	var count int64
+	if winners != nil {
+		count = int64(draw.ResolveWinners(*winners, int(status.Entrants), draw.Prize{}))
+	}
+	res, err := rc.deps.Raffle.Draw(ctx, channel, count)
+	if err != nil || res == nil {
+		return true, err
+	}
+	loyalty, _ := engine.ReadLoyaltyConfig(ctx, rc.deps.Proj, channel)
+	notice := engine.RaffleAnnouncement{
+		Locale: string(rc.c.Locale), Points: loyalty.Name(),
+		Config: engine.ReadLegacyRaffleConfig(ctx, rc.deps.Proj, channel),
+	}
+	for _, line := range notice.ResultLines(res) {
+		rc.say(emit, line)
+	}
+	return true, nil
 }
 
 func (rc raffleCommands) cancel(ctx context.Context, _ string, emit module.Emit) error {
 	if !rc.isMod() {
 		return nil
 	}
-	ok, err := rc.deps.Draw.Cancel(ctx, draw.ModAction{Channel: rc.channel(), Actor: rc.actor(), Kind: draw.KindRaffle})
+	round, ok, err := rc.deps.Draw.CancelRound(ctx, draw.ModAction{Channel: rc.channel(), Actor: rc.actor(), Kind: draw.KindRaffle})
 	if err != nil {
 		return err
 	}
@@ -236,7 +285,7 @@ func (rc raffleCommands) cancel(ctx context.Context, _ string, emit module.Emit)
 		rc.reply(emit, "", "raffle.status.closed")
 		return nil
 	}
-	rc.deps.Analytics.AddContext(ctx, catalog.GamesRounds, 1, "raffle", "cancelled")
+	rc.deps.Analytics.AddContext(ctx, catalog.GamesRounds, 1, engine.RaffleGame(round), "cancelled")
 	rc.reply(emit, "", "raffle.cancelled")
 	return nil
 }

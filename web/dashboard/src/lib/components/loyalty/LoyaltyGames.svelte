@@ -20,9 +20,9 @@
 
 <section class="block" aria-labelledby="loy-games-h">
   <Heading level={6} as="h2" variant="title" id="loy-games-h">{t('loyalty.gamesTitle')}</Heading>
-  {#if unpaid.length}
+  <div class="unpaid" class:unpaid-hidden={!unpaid.length} inert={!unpaid.length}>
     <AlertBanner tone="warning">{t('loyalty.raffleUnpaid', { viewers: unpaid.map((name) => '@' + name).join(', ') })}</AlertBanner>
-  {/if}
+  </div>
   <Card>
     <div class="hint"><Text size="xs" tone="muted">{t(enabled ? 'loyalty.gamesHint' : 'loyalty.gamesNeedsOn')}</Text></div>
     <div class="games">
@@ -40,4 +40,9 @@
   .games { display: grid; gap: 8px; }
   .block { display: grid; gap: 12px; margin-bottom: 26px; }
   .hint { margin-bottom: 14px; }
+  .unpaid { block-size: 4.5rem; overflow: auto; transition: opacity 160ms ease; }
+  .unpaid-hidden { opacity: 0; }
+  @media (prefers-reduced-motion: reduce) {
+    .unpaid { transition: none; }
+  }
 </style>

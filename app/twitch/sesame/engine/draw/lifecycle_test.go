@@ -100,29 +100,17 @@ func TestDrawEndSlotsKeepsClaimsAndDropsUnclaimedRefs(t *testing.T) {
 func TestDrawLegacyGateEndToEnd(t *testing.T) {
 	f := newFixture(t, draw.Config{})
 	const ch draw.ChannelID = 424
-	legacy := engine.NewValkeyRaffleStore(f.client, engine.RaffleConfig{}, nil)
-	spec := engine.RaffleOpenSpec{Duration: time.Minute}
 	ctx := t.Context()
-	opened, err := legacy.Open(ctx, uint64(ch), spec)
-	require.NoError(t, err)
-	require.True(t, opened)
-	t.Cleanup(func() { _, _ = legacy.Cancel(context.Background(), uint64(ch)) })
+	state, deadline := engine.RaffleStateKey(ch), engine.RaffleDeadlineKey(ch)
+	kv := valkey.NewKV(f.client)
+	require.NoError(t, kv.Set(ctx, valkey.Key{Name: state, TTL: time.Minute}, "{}"))
+	require.NoError(t, kv.Set(ctx, valkey.Key{Name: deadline, TTL: time.Minute}, "1"))
 	terms := draw.Terms{Kind: draw.KindGiveaway, ClosesAt: f.now().Add(time.Minute)}
 	_, code, err := f.Open(ctx, draw.OpenRequest{Channel: ch, Terms: terms})
 	require.NoError(t, err)
 	require.Equal(t, draw.LegacyBusy, code)
-	cancelled, err := legacy.Cancel(ctx, uint64(ch))
-	require.NoError(t, err)
-	require.True(t, cancelled)
-	r := f.open(ch, terms)
-	for _, want := range []bool{false, true} {
-		opened, err := legacy.Open(ctx, uint64(ch), spec)
-		require.NoError(t, err)
-		require.Equal(t, want, opened)
-		if !opened {
-			f.close(r.Channel)
-		}
-	}
+	require.NoError(t, valkey.DelKeys(ctx, f.client, state, deadline))
+	f.open(ch, terms)
 }
 
 func TestDrawExplicitIDAndLiveRefusalCount(t *testing.T) {

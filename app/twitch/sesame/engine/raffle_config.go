@@ -50,10 +50,10 @@ func (c RaffleModuleConfig) RemindOn() bool   { return lineDefaultOn(c.RemindEna
 
 func (c RaffleModuleConfig) Prize() int64 {
 	n, err := c.PrizePoints.Int64()
-	if err != nil {
+	if err != nil || n <= 0 {
 		return raffleDefaultPrize
 	}
-	return min(max(n, 0), MaxRafflePrize)
+	return min(n, MaxRafflePrize)
 }
 
 func (c RaffleModuleConfig) Duration() time.Duration {

@@ -295,6 +295,7 @@ type DrawStore interface {
 	Close(context.Context, draw.CloseRequest) (bool, error)
 	Extend(context.Context, draw.ExtendRequest) (bool, error)
 	Cancel(context.Context, draw.ModAction) (bool, error)
+	CancelRound(context.Context, draw.ModAction) (draw.Round, bool, error)
 	EndSlots(context.Context, draw.SlotAction) (int, error)
 	Reroll(context.Context, draw.SlotAction) (int, error)
 	SkipRule(context.Context, draw.SlotAction) (int, error)

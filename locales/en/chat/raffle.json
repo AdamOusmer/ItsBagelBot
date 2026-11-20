@@ -16,8 +16,8 @@
   "last.empty": "The last raffle closed with no entries.",
   "last.none": "No raffle has been drawn here yet.",
   "open.already": "A raffle is already running! Type !join to enter it.",
-  "opened": "Raffle is LIVE! Type !join to enter. Drawing in {raffle:mins} min! Prize: {raffle:amount} points.",
-  "opened.secs": "Raffle is LIVE! Type !join to enter. Drawing in {raffle:secs} sec! Prize: {raffle:amount} points.",
+  "opened": "Raffle is LIVE! Type !join to enter. Drawing in {raffle:mins} min! Prize: {raffle:amount} {raffle:points}.",
+  "opened.secs": "Raffle is LIVE! Type !join to enter. Drawing in {raffle:secs} sec! Prize: {raffle:amount} {raffle:points}.",
   "payout.failed": "Some raffle {raffle:points} could not be paid. A mod can add them with !points add.",
   "remind": "Raffle reminder: ~{raffle:mins} min left! {raffle:count} entered so far. Type !join!",
   "remind.claim": "Raffle reminder: ~{raffle:mins} min left! {raffle:count} entered so far. Type !join! Winners must !claim.",
@@ -31,5 +31,6 @@
   "open.frozen": "Raffles are paused while standings are frozen.",
   "open.loyalty_off": "Loyalty must be on to start a points raffle.",
   "verifying": "Drawing winners. One moment.",
-  "won.paid": "{raffle:targets} each won {raffle:amount} {raffle:points}!"
+  "won.paid": "{raffle:targets} each won {raffle:amount} {raffle:points}!",
+  "won.paid.single": "{raffle:targets} won {raffle:amount} {raffle:points}!"
 }

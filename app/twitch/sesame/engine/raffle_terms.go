@@ -21,6 +21,13 @@ func RaffleTerms(l RaffleLaunch) draw.Terms {
 	return draw.Terms{Kind: draw.KindRaffle, Prize: draw.Prize{Points: l.Points}, Winners: l.Winners, MultiRaffle: l.Multi}
 }
 
+func RaffleGame(r draw.Round) string {
+	if r.Terms.MultiRaffle {
+		return "mraffle"
+	}
+	return "raffle"
+}
+
 func LoyaltyOn(ctx context.Context, proj projection.Reader, ch uint64) (bool, error) {
 	_, state, err := ModuleLookup{Proj: proj, BroadcasterID: ch, Name: LoyaltyModuleName, Absent: ModuleOff}.Resolve(ctx)
 	return state == ModuleOn, err

@@ -38,7 +38,7 @@
       "label": "Verlosung eröffnet",
       "tagline": "Wenn eine Verlosung startet und die Teilnahme öffnet.",
       "event": "!raffle",
-      "defaultMessage": "Verlosung ist LIVE! Gib !join ein, um teilzunehmen. Ziehung in {mins} Min.! Preis: {amount} Punkte."
+      "defaultMessage": "Verlosung ist LIVE! Gib !join ein, um teilzunehmen. Ziehung in {mins} Min.! Preis: {amount} {raffle:points}."
     },
     "won": {
       "label": "Gewinner verkündet",

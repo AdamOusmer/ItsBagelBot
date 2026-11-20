@@ -70,13 +70,6 @@ type RaffleResult struct {
 	Claims   []string       `json:"-"`
 }
 
-type RaffleOpenSpec struct {
-	OpenedBy string
-	Duration time.Duration
-	Prize    int64
-	Multi    bool
-}
-
 type RaffleEntry struct {
 	Joined   bool
 	Open     bool
@@ -90,11 +83,9 @@ type RaffleStatus struct {
 }
 
 type RaffleStore interface {
-	Open(ctx context.Context, broadcasterID uint64, spec RaffleOpenSpec) (ok bool, err error)
 	Join(ctx context.Context, broadcasterID uint64, entrant RaffleEntrant) (RaffleEntry, error)
 	Status(ctx context.Context, broadcasterID uint64) (RaffleStatus, error)
 	Draw(ctx context.Context, broadcasterID uint64, winners int64) (*RaffleResult, error)
-	Cancel(ctx context.Context, broadcasterID uint64) (ok bool, err error)
 	LastResult(ctx context.Context, broadcasterID uint64) (*RaffleResult, bool, error)
 	Claim(ctx context.Context, broadcasterID uint64, viewerID string) (RaffleClaim, error)
 	StartExpiryWatcher(ctx context.Context)
@@ -120,68 +111,12 @@ func NewValkeyRaffleStore(client valkey.Client, cfg RaffleConfig, log *zap.Logge
 	return &ValkeyRaffleStore{client: pkg_valkey.Primary(client), cfg: cfg, log: log}
 }
 
-func (s *ValkeyRaffleStore) armDeadline(ctx context.Context, broadcasterID uint64, duration time.Duration) (bool, error) {
-	claim := pkg_valkey.Claim{Key: raffleKey(raffleDeadlinePrefix, broadcasterID), TTL: duration.Truncate(time.Second)}
-	return pkg_valkey.ClaimUnlessPresent(ctx, s.client, claim, draw.JoinableKey(draw.ChannelID(broadcasterID)))
-}
-
 func RaffleStateKey(channel draw.ChannelID) string {
 	return raffleKey(raffleStatePrefix, uint64(channel))
 }
 
 func RaffleDeadlineKey(channel draw.ChannelID) string {
 	return raffleKey(raffleDeadlinePrefix, uint64(channel))
-}
-
-type raffleInstall struct {
-	state      []byte
-	remindSecs int64
-	dueAt      time.Time
-}
-
-func (s *ValkeyRaffleStore) installState(ctx context.Context, broadcasterID uint64, in raffleInstall) error {
-	state, remindSecs, dueAt := in.state, in.remindSecs, in.dueAt
-	stateKey := pkg_valkey.Key{Name: raffleKey(raffleStatePrefix, broadcasterID), TTL: raffleStateTTL}
-	clear := []string{raffleKey(raffleEntriesPrefix, broadcasterID), raffleKey(raffleNamesPrefix, broadcasterID)}
-	var remind *pkg_valkey.Key
-	if remindSecs > 0 {
-		remind = &pkg_valkey.Key{Name: raffleKey(raffleRemindPrefix, broadcasterID), TTL: time.Duration(remindSecs) * time.Second}
-	}
-	err := pkg_valkey.OpenSession(ctx, s.client, pkg_valkey.OpenSpec{
-		State: stateKey, StateValue: string(state), Clear: clear,
-		Due: pkg_valkey.DueSchedule{
-			Key: raffleDueKey, Score: float64(dueAt.UnixMilli()), Member: strconv.FormatUint(broadcasterID, 10),
-		},
-		Remind: remind, RemindValue: "1",
-	})
-	if err != nil {
-		_ = pkg_valkey.DelKeys(ctx, s.client, raffleKey(raffleDeadlinePrefix, broadcasterID))
-		return err
-	}
-	return nil
-}
-
-func (s *ValkeyRaffleStore) Open(ctx context.Context, broadcasterID uint64, spec RaffleOpenSpec) (bool, error) {
-	spec, remindSecs := clampRaffleOpen(spec)
-
-	ok, err := s.armDeadline(ctx, broadcasterID, spec.Duration)
-	if err != nil || !ok {
-		return false, err
-	}
-
-	now := time.Now()
-	state, err := codec.Marshal(RaffleState{
-		OpenedBy: spec.OpenedBy, OpenedAt: now.UnixMilli(),
-		Prize: spec.Prize, Multi: spec.Multi,
-	})
-	if err != nil {
-		_ = pkg_valkey.DelKeys(ctx, s.client, raffleKey(raffleDeadlinePrefix, broadcasterID))
-		return false, err
-	}
-	if err := s.installState(ctx, broadcasterID, raffleInstall{state: state, remindSecs: remindSecs, dueAt: now.Add(spec.Duration)}); err != nil {
-		return false, err
-	}
-	return true, nil
 }
 
 func (s *ValkeyRaffleStore) Join(ctx context.Context, broadcasterID uint64, entrant RaffleEntrant) (RaffleEntry, error) {
@@ -210,16 +145,6 @@ func (s *ValkeyRaffleStore) Status(ctx context.Context, broadcasterID uint64) (R
 	}
 	st.Open, st.Entrants, st.SecondsLeft = open, entrants, left
 	return st, nil
-}
-
-func (s *ValkeyRaffleStore) Cancel(ctx context.Context, broadcasterID uint64) (bool, error) {
-	drop := []string{
-		raffleKey(raffleDeadlinePrefix, broadcasterID), raffleKey(raffleStatePrefix, broadcasterID),
-		raffleKey(raffleRemindPrefix, broadcasterID), raffleKey(raffleEntriesPrefix, broadcasterID),
-		raffleKey(raffleNamesPrefix, broadcasterID),
-	}
-	due := pkg_valkey.DueMember{Key: raffleDueKey, Member: strconv.FormatUint(broadcasterID, 10)}
-	return pkg_valkey.CancelAndForget(ctx, s.client, drop, due)
 }
 
 func (s *ValkeyRaffleStore) LastResult(ctx context.Context, broadcasterID uint64) (*RaffleResult, bool, error) {

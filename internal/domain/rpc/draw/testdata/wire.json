@@ -1,0 +1,21 @@
+{
+  "subject": "rpc.draw.raffle.status",
+  "request": {
+    "user_id": "7",
+    "source": "dashboard"
+  },
+  "reply": {
+    "accrual_health": "healthy",
+    "unpaid": [
+      "unpaid"
+    ]
+  },
+  "empty": {
+    "accrual_health": "offline"
+  },
+  "refused": {
+    "accrual_health": "",
+    "error": "invalid user_id or source",
+    "code": "invalid"
+  }
+}

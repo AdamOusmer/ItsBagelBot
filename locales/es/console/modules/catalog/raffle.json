@@ -38,7 +38,7 @@
       "label": "Sorteo abierto",
       "tagline": "Cuando empieza un sorteo y se abren las inscripciones.",
       "event": "!raffle",
-      "defaultMessage": "¡El sorteo está ABIERTO! Escribe !join para participar. ¡Sorteo en {mins} min! Premio: {amount} puntos."
+      "defaultMessage": "¡El sorteo está ABIERTO! Escribe !join para participar. ¡Sorteo en {mins} min! Premio: {amount} {raffle:points}."
     },
     "won": {
       "label": "Resultado anunciado",

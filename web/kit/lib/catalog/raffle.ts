@@ -61,8 +61,8 @@ export const RAFFLE_MODULE: ModuleDef = {
       command: 'raffle',
       enableKey: 'openedEnabled',
       messageKey: 'openedMessage',
-      defaultMessage: 'Raffle is LIVE! Type !join to enter. Drawing in {mins} min! Prize: {amount} points.',
-      tokens: replyTokens(['mins', 'secs', 'amount'], { mins: '1', secs: '60', amount: '1000' })
+      defaultMessage: 'Raffle is LIVE! Type !join to enter. Drawing in {mins} min! Prize: {amount} {raffle:points}.',
+      tokens: replyTokens(['mins', 'secs', 'amount', 'points'], { mins: '1', secs: '60', amount: '1000', points: 'points' })
     },
     {
       key: 'won',

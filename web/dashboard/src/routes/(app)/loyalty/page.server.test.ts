@@ -4,12 +4,13 @@
 import { expect, mock, test } from 'bun:test';
 import { FREEZE_MAX_MINUTES } from '@bagel/kit/catalog';
 import { stubSvelteKit } from '../../../../test/sveltekit';
+import raffleWire from '../../../../../../internal/domain/rpc/draw/testdata/wire.json';
 
 stubSvelteKit();
 const nats = await import('@bagel/kit/server/nats');
 const { RpcError } = nats;
 const { SUB } = await import('#lib/server/services');
-const user = '7';
+const user = raffleWire.request.user_id;
 const stamp = { freeze_id: 'epoch', frozen_as_of: 100, expires_at: 200 };
 const freezeStamp = { id: stamp.freeze_id, asOf: stamp.frozen_as_of, expiresAt: stamp.expires_at };
 const locals = { session: { user_id: user }, locale: 'en' };
@@ -104,35 +105,47 @@ test.each([
   { name: 'delegate', session: { user_id: '8', delegate_of: user, sections: ['modules'] }, userId: user, status: 200 },
   { name: 'signed out', session: null, userId: null, status: 401 }
 ])('raffle status scopes the request for $name', async ({ session, userId, status }) => {
-  const subject = 'rpc.draw.raffle.status';
-  const view = { accrual_health: 'healthy', unpaid: ['unpaid'] };
-  replies = { [subject]: view };
+  const { subject, reply } = raffleWire;
+  replies = { [subject]: reply };
   calls.length = 0;
   const res = await GET({ locals: { ...locals, session } } as never);
-  expect({ code: res.status, view: await res.json(), calls }).toEqual({
+  expect({ code: res.status, cache: res.headers.get('cache-control'), view: await res.json(), calls }).toEqual({
     code: status,
-    view: userId ? view : null,
-    calls: userId ? [{ subject, payload: { user_id: userId, source: 'dashboard' }, timeoutMs: 4000 }] : []
+    cache: 'no-store',
+    view: userId ? reply : null,
+    calls: userId ? [{ subject, payload: { ...raffleWire.request, user_id: userId }, timeoutMs: 4000 }] : []
   });
 });
 
-test('gameSettings sends the child revision and only accepts its current settings', async () => {
+test.each([
+  { name: 'raffle', conflict: false, want: { ok: true, conflict: false, rev: 5 } },
+  { name: 'raffle', conflict: true, want: { ok: false, conflict: true, rev: 5 } },
+  { name: 'loyalty', conflict: false, want: invalid }
+])('gameSettings patches only a loyalty child ($name, conflict: $conflict)', async ({ name, conflict, want }) => {
   const subject = `${SUB.modules}.patch`;
   const projector = `${SUB.projector}.modules.replace`;
   const row = { name: 'raffle', is_enabled: true, revision: 5, configs: { prizePoints: '3000' } };
-  replies = { [subject]: { rev: 5, modules: [row] }, [projector]: { modules: [row] } };
+  replies = { [subject]: { rev: 5, conflict, modules: [row] }, [projector]: { modules: [row] } };
   calls.length = 0;
+  const cookies = { set: mock() };
   const url = new URL('https://dashboard.test/loyalty?/gameSettings');
   const request = new Request(url, {
     method: 'POST',
     body: new URLSearchParams({
-      name: 'raffle', is_enabled: 'on', expected_rev: '4',
+      name, is_enabled: 'on', expected_rev: '4',
       partial: JSON.stringify({ prizePoints: '3000', claimPrize: 'legacy' })
     })
   });
-  const result = await actions.gameSettings({ request, locals, url } as never);
-  expect({ result, rpc: calls.find((call) => call.subject === subject)?.payload }).toEqual({
-    result: { ok: true, conflict: false, rev: 5 },
-    rpc: { user_id: user, name: 'raffle', is_enabled: true, expected_rev: 4, configs: { prizePoints: '3000' } }
+  const result = await actions.gameSettings({ request, locals, cookies, url } as never);
+  expect({
+    result,
+    rpc: calls.find((call) => call.subject === subject)?.payload,
+    refresh: cookies.set.mock.calls.length
+  }).toEqual({
+    result: want,
+    rpc: name === 'raffle'
+      ? { user_id: user, name, is_enabled: true, expected_rev: 4, configs: { prizePoints: '3000' } }
+      : undefined,
+    refresh: conflict ? 1 : 0
   });
 });

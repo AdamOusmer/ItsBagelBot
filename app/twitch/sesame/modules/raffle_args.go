@@ -56,7 +56,7 @@ func parseWinners(arg string, def draw.WinnerPolicy) (draw.WinnerPolicy, bool) {
 
 func (arg raffleArg) prizeOr(fallback int64) (int64, bool) {
 	if arg == "" {
-		return max(1, fallback), true
+		return fallback, true
 	}
 	amount := ParsePointsAmount(string(arg))
 	value := min(amount.Resolve(0), engine.MaxRafflePrize)

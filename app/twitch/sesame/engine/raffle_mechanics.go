@@ -20,14 +20,6 @@ func ClampRaffleDuration(d time.Duration) time.Duration {
 	return max(minRaffleDuration, min(d, maxRaffleDuration))
 }
 
-func clampRaffleOpen(spec RaffleOpenSpec) (RaffleOpenSpec, int64) {
-	spec.Duration = ClampRaffleDuration(spec.Duration)
-	if raffleDefaultRemind >= int64(spec.Duration.Seconds()) {
-		return spec, 0
-	}
-	return spec, raffleDefaultRemind
-}
-
 func multiRaffleWinners(entrants int) int64 {
 	n := int64(entrants)
 	switch {

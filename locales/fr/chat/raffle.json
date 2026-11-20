@@ -16,8 +16,8 @@
   "last.empty": "La dernière loterie s'est fermée sans participant.",
   "last.none": "Aucune loterie n'a encore été tirée ici.",
   "open.already": "Une loterie est déjà en cours ! Tapez !join pour y participer.",
-  "opened": "La loterie est LANCÉE ! Tapez !join pour participer. Tirage dans {raffle:mins} min ! Prix : {raffle:amount} points.",
-  "opened.secs": "La loterie est LANCÉE ! Tapez !join pour participer. Tirage dans {raffle:secs} s ! Prix : {raffle:amount} points.",
+  "opened": "La loterie est LANCÉE ! Tapez !join pour participer. Tirage dans {raffle:mins} min ! Prix : {raffle:amount} {raffle:points}.",
+  "opened.secs": "La loterie est LANCÉE ! Tapez !join pour participer. Tirage dans {raffle:secs} s ! Prix : {raffle:amount} {raffle:points}.",
   "payout.failed": "Certains gains en {raffle:points} de la loterie n'ont pas pu être versés. Un modo peut les ajouter avec !points add.",
   "remind": "Rappel loterie : ~{raffle:mins} min restantes ! {raffle:count} inscrits. Tapez !join !",
   "remind.claim": "Rappel loterie : ~{raffle:mins} min restantes ! {raffle:count} inscrits. Tapez !join ! Les gagnants doivent taper !claim.",
@@ -31,5 +31,6 @@
   "open.frozen": "Les tirages sont suspendus pendant la pause du classement.",
   "open.loyalty_off": "Activez la fidélité pour lancer un tirage de points.",
   "verifying": "Tirage des gagnants en cours. Un instant.",
-  "won.paid": "{raffle:targets} remportent chacun {raffle:amount} {raffle:points} !"
+  "won.paid": "{raffle:targets} remportent chacun {raffle:amount} {raffle:points} !",
+  "won.paid.single": "{raffle:targets} remporte {raffle:amount} {raffle:points} !"
 }

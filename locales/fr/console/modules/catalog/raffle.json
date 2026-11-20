@@ -38,7 +38,7 @@
       "label": "Tirage ouvert",
       "tagline": "Quand un tirage démarre et que les inscriptions s'ouvrent.",
       "event": "!raffle",
-      "defaultMessage": "La loterie est LANCÉE ! Tape !join pour participer. Tirage dans {mins} min ! Prix : {amount} points."
+      "defaultMessage": "La loterie est LANCÉE ! Tape !join pour participer. Tirage dans {mins} min ! Prix : {amount} {raffle:points}."
     },
     "won": {
       "label": "Gagnants annoncés",

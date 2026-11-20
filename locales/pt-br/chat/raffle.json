@@ -16,8 +16,8 @@
   "last.empty": "O último sorteio terminou sem inscrições.",
   "last.none": "Nenhum sorteio foi realizado aqui ainda.",
   "open.already": "Já há um sorteio em andamento! Digite !join para participar.",
-  "opened": "Sorteio ABERTO! Digite !join para participar. Resultado em {raffle:mins} min! Prêmio: {raffle:amount} pontos.",
-  "opened.secs": "Sorteio ABERTO! Digite !join para participar. Resultado em {raffle:secs} s! Prêmio: {raffle:amount} pontos.",
+  "opened": "Sorteio ABERTO! Digite !join para participar. Resultado em {raffle:mins} min! Prêmio: {raffle:amount} {raffle:points}.",
+  "opened.secs": "Sorteio ABERTO! Digite !join para participar. Resultado em {raffle:secs} s! Prêmio: {raffle:amount} {raffle:points}.",
   "payout.failed": "Alguns {raffle:points} do sorteio não puderam ser pagos. Um moderador pode adicioná-los com !points add.",
   "remind": "Lembrete do sorteio: restam ~{raffle:mins} min! Inscrições até agora: {raffle:count}. Digite !join!",
   "remind.claim": "Lembrete do sorteio: restam ~{raffle:mins} min! Inscrições até agora: {raffle:count}. Digite !join! Quem ganhar deve usar !claim.",
@@ -31,5 +31,6 @@
   "open.frozen": "Os sorteios ficam pausados enquanto o ranking estiver congelado.",
   "open.loyalty_off": "Ative a fidelidade para iniciar um sorteio de pontos.",
   "verifying": "Sorteando os ganhadores. Só um momento.",
-  "won.paid": "{raffle:targets} ganharam {raffle:amount} {raffle:points} cada!"
+  "won.paid": "{raffle:targets} ganharam {raffle:amount} {raffle:points} cada!",
+  "won.paid.single": "{raffle:targets} ganhou {raffle:amount} {raffle:points}!"
 }

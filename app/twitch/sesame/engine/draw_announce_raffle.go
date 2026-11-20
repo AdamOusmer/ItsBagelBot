@@ -44,8 +44,12 @@ func raffleWinnerLines(ctx context.Context, cfg AnnouncementConfig, a RaffleAnno
 	}
 	loyalty, _ := ReadLoyaltyConfig(ctx, cfg.Proj, channel)
 	override := pointsRaffleTemplate(raffle.WonMessage)
+	key := "raffle.won.paid"
+	if len(notice.Slots) == 1 {
+		key = "raffle.won.paid.single"
+	}
 	return chunkMentions(notice.Slots, func(slot draw.Slot) string { return slot.Login }, func(targets string) string {
-		return a.render(override, "raffle.won.paid",
+		return a.render(override, key,
 			"targets", targets, "count", strconv.Itoa(len(notice.Slots)),
 			"entrants", strconv.Itoa(notice.Entries), "amount", drawPoints(notice.Round), "points", loyalty.Name())
 	})
@@ -70,10 +74,7 @@ func raffleReminder(ctx context.Context, cfg AnnouncementConfig, a RaffleAnnounc
 }
 
 func (a drawAnnouncer) recordRaffleNotice(ctx context.Context, notice draw.Notice) {
-	game := "raffle"
-	if notice.Round.Terms.MultiRaffle {
-		game = "mraffle"
-	}
+	game := RaffleGame(notice.Round)
 	switch notice.Event {
 	case draw.NoticeDrawn:
 		a.analytics.AddContext(ctx, catalog.GamesRounds, 1, game, "drawn")

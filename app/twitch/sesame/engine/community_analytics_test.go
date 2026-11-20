@@ -28,7 +28,7 @@ func TestRaffleAnalyticsCountsEachDrawOnce(t *testing.T) {
 			store, id := raffleStoreFor(t)
 			capture := analyticstest.New(t)
 			store.SetAnalytics(capture.Recorder)
-			openAndJoin(t, store, id, raffleSetup{RaffleOpenSpec{Duration: time.Minute, Multi: row.multi}, numberedEntrants(row.entrants)})
+			openAndJoin(t, store, id, raffleSetup{RaffleState{Multi: row.multi}, numberedEntrants(row.entrants)})
 			_, err := store.Draw(t.Context(), id, 0)
 			require.NoError(t, err)
 			_, err = store.Draw(t.Context(), id, 0)
@@ -93,7 +93,7 @@ func TestRafflePayoutCountsSuccessfulWinnerCredits(t *testing.T) {
 	store, id := raffleStoreWith(t, RaffleConfig{AnnouncementConfig: AnnouncementConfig{Proj: loyaltyReader(true, "")}, Wallet: wallet})
 	capture := analyticstest.New(t)
 	store.SetAnalytics(capture.Recorder)
-	openAndJoin(t, store, id, raffleSetup{RaffleOpenSpec{Duration: time.Minute, Prize: 1000}, numberedEntrants(5)})
+	openAndJoin(t, store, id, raffleSetup{RaffleState{Prize: 1000}, numberedEntrants(5)})
 	_, err := store.Draw(t.Context(), id, 3)
 	require.NoError(t, err)
 	require.Equal(t, map[string]int64{

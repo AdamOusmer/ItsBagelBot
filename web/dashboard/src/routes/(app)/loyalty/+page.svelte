@@ -2,6 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { afterNavigate } from '$app/navigation';
+  import { page } from '$app/state';
   import { untrack } from 'svelte';
   import { livePoll } from '@bagel/kit/live-poll';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
@@ -27,7 +28,7 @@
   let raffle = $state<RaffleStatus | null>(untrack(() => data.raffle));
   reseedOnChange(() => data.raffle, (next) => { raffle = next; });
 
-  let tab = $state('status');
+  let tab = $state(untrack(() => page.url.hash === '#games' ? 'games' : 'status'));
   const pollStatus = $derived(tab === 'status' || tab === 'games');
   const statusInterval = 5000;
   const options = $derived([

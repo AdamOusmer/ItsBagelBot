@@ -19,7 +19,6 @@ import (
 type fakeRaffle struct {
 	open       bool
 	pool       []string
-	lastSpec   engine.RaffleOpenSpec
 	drawResult *engine.RaffleResult
 	lastResult *engine.RaffleResult
 	lastFound  bool
@@ -27,18 +26,6 @@ type fakeRaffle struct {
 	claimedBy  string
 	joinedIDs  []string
 	err        error
-}
-
-func (f *fakeRaffle) Open(_ context.Context, _ uint64, spec engine.RaffleOpenSpec) (bool, error) {
-	if f.err != nil {
-		return false, f.err
-	}
-	if f.open {
-		return false, nil
-	}
-	f.open = true
-	f.lastSpec = spec
-	return true, nil
 }
 
 func (f *fakeRaffle) Join(_ context.Context, _ uint64, entrant engine.RaffleEntrant) (engine.RaffleEntry, error) {
@@ -68,12 +55,6 @@ func (f *fakeRaffle) Draw(_ context.Context, _ uint64, _ int64) (*engine.RaffleR
 	}
 	f.open = false
 	return f.drawResult, nil
-}
-
-func (f *fakeRaffle) Cancel(_ context.Context, _ uint64) (bool, error) {
-	was := f.open
-	f.open = false
-	return was, f.err
 }
 
 func (f *fakeRaffle) LastResult(_ context.Context, _ uint64) (*engine.RaffleResult, bool, error) {

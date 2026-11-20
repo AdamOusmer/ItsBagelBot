@@ -86,24 +86,27 @@ func (s *Store) Extend(ctx context.Context, req ExtendRequest) (bool, error) {
 }
 
 func (s *Store) Cancel(ctx context.Context, req ModAction) (bool, error) {
+	_, applied, err := s.CancelRound(ctx, req)
+	return applied, err
+}
+
+func (s *Store) CancelRound(ctx context.Context, req ModAction) (Round, bool, error) {
 	r, err := s.cancellable(ctx, req)
 	if err != nil || !r.canCancel(req.Kind) {
-		return false, err
+		return r, false, err
 	}
 	now, err := valkey.ServerNow(ctx, s.client)
 	if err != nil {
-		return false, err
+		return r, false, err
 	}
 	action := Action{Kind: "cancel", Actor: req.Actor, At: now}
 	applied, err := s.amend(ctx, r, phaseShift(r, PhaseCancelled, now), action)
-	if applied || err != nil {
-		return applied, err
-	}
-	if r.Phase == PhaseClosing {
-		return false, nil
+	if applied || err != nil || r.Phase == PhaseClosing {
+		return r, applied, err
 	}
 	r.Phase = PhaseClosing
-	return s.amend(ctx, r, phaseShift(r, PhaseCancelled, now), action)
+	applied, err = s.amend(ctx, r, phaseShift(r, PhaseCancelled, now), action)
+	return r, applied, err
 }
 
 func (r Round) canCancel(kind Kind) bool {
