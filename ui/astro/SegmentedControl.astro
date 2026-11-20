@@ -11,14 +11,15 @@ interface Props extends Omit<HTMLAttributes<'div'>, 'options' | 'value' | 'label
     options: readonly (string | { value: string; label: string; count?: number | string; attrs?: Record<string, string> })[];
     value?: string;
     label?: string;
+    even?: boolean;
     class?: string;
 }
 
 const { t } = uiI18n(Astro);
-const { options, value = '', label = t('choice.filter'), class: className = '', ...rest } = Astro.props;
+const { options, value = '', label = t('choice.filter'), even = false, class: className = '', ...rest } = Astro.props;
 const items = options.map((opt) => (typeof opt === 'string' ? { value: opt, label: opt, count: undefined, attrs: undefined } : opt));
 const tabStop = items.some((opt) => opt.value === value) ? value : items[0]?.value;
-const classes = ['bb-tabs bb-tabs--wrap', className].filter(Boolean).join(' ');
+const classes = ['bb-tabs', even ? 'bb-tabs--even' : 'bb-tabs--wrap', className].filter(Boolean).join(' ');
 ---
 
 <div class={classes} role="radiogroup" aria-label={label} {...rest}><Glide />{items.map((opt) => (<button type="button" class={`bb-tab ${value === opt.value ? 'is-active' : ''}`} role="radio" aria-checked={value === opt.value} tabindex={tabStop === opt.value ? 0 : -1} value={opt.value} {...opt.attrs}><bb-fit>{opt.label}</bb-fit>{opt.count !== undefined && <span class="bb-tab__count">{opt.count}</span>}</button>))}</div>

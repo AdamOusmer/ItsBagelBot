@@ -5,8 +5,9 @@ import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/tag.css';
 import '../styles/elements/field.css';
 import '../styles/elements/fit.css';
-interface Props extends Omit<HTMLAttributes<'label'>, 'label' | 'tag' | 'hint' | 'error' | 'hintId' | 'errorId' | 'for' | 'fit' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'label'>, 'label' | 'fitCopy' | 'tag' | 'hint' | 'error' | 'hintId' | 'errorId' | 'for' | 'fit' | 'class'> {
     label: string;
+    fitCopy?: boolean;
     tag?: string;
     hint?: string;
     error?: string;
@@ -17,11 +18,11 @@ interface Props extends Omit<HTMLAttributes<'label'>, 'label' | 'tag' | 'hint' |
     class?: string;
 }
 
-const { label, tag, hint, error, hintId, errorId, for: htmlFor, fit = false, class: className, ...rest } = Astro.props;
+const { label, fitCopy = false, tag, hint, error, hintId, errorId, for: htmlFor, fit = false, class: className, ...rest } = Astro.props;
 ---
 
 <label class:list={['bb-field', className]} for={htmlFor} {...rest}>
-  <span class="bb-field__label">{fit ? <span class="bb-field__text bb-fit-box"><bb-fit mode="block">{label}</bb-fit></span> : label}{tag && <small class="bb-tag bb-tag--quiet bb-field__tag">{tag}</small>}</span>
+  <span class="bb-field__label">{fit || fitCopy ? <span class="bb-field__text bb-fit-box"><bb-fit mode="block">{label}</bb-fit></span> : label}{tag && <small class="bb-tag bb-tag--quiet bb-field__tag">{tag}</small>}</span>
   <slot />
   {hint && <small class="bb-field__hint" id={hintId}>{hint}</small>}
   {error && <small class="bb-field__error" role="alert" id={errorId}>{error}</small>}

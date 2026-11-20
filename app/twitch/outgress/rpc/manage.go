@@ -7,16 +7,18 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/channels"
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
+	"ItsBagelBot/app/twitch/outgress/internal/worker"
 	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/monitor"
-	"strconv"
+	"ItsBagelBot/pkg/ratelimit"
 
 	"go.uber.org/zap"
 )
@@ -38,20 +40,29 @@ type Manage struct {
 	registry *channels.Registry
 	twitch   *twitch.Client
 	verify   VerifyFunc
+	limiter  ratelimit.Manager
+	cooldown ProviderCooldown
+	botID    string
 	log      *zap.Logger
 }
 
 type SubscriptionConfig struct {
 	bus.RPCWiring
-	Prefix  string
-	Runtime channelruntime.Reader
-	Verify  VerifyFunc
+	Prefix   string
+	Runtime  channelruntime.Reader
+	Verify   VerifyFunc
+	Limiter  ratelimit.Manager
+	Cooldown ProviderCooldown
+	BotID    string
 }
 
 func SubscribeManage(cfg SubscriptionConfig, registry *channels.Registry, tw *twitch.Client) error {
 	nc, prefix, queueGroup, app, log := cfg.NC, cfg.Prefix, cfg.Queue, cfg.App, cfg.Log
 
-	m := &Manage{registry: registry, twitch: tw, log: log, runtime: cfg.Runtime, verify: cfg.Verify}
+	m := &Manage{
+		registry: registry, twitch: tw, log: log, runtime: cfg.Runtime, verify: cfg.Verify,
+		limiter: cfg.Limiter, cooldown: cfg.Cooldown, botID: cfg.BotID,
+	}
 
 	return subscribeAll(
 		func() error {
@@ -106,7 +117,7 @@ func (m *Manage) handleFollowage(ctx context.Context, req outgressrpc.FollowageR
 	}
 	targetID, err := m.resolveFollowageTarget(ctx, req)
 	if err != nil {
-		return outgressrpc.FollowageReply{Error: "lookup failed"}
+		return outgressrpc.FollowageReply{Error: "lookup failed", RetryAtUnixMilli: lookupRetryAt(err)}
 	}
 	return m.readFollowage(ctx, req, targetID)
 }
@@ -122,6 +133,7 @@ func (m *Manage) resolveFollowageTarget(ctx context.Context, req outgressrpc.Fol
 	if req.TargetID != "" {
 		return req.TargetID, nil
 	}
+	ctx = m.withLookupBudget(ctx, twitch.IdentityApp)
 	targetID, err := m.twitch.UserIDByLogin(ctx, req.TargetLogin)
 	if err != nil {
 		m.log.Warn("followage target resolve failed", zap.Error(err))
@@ -140,10 +152,12 @@ func (m *Manage) readFollowage(ctx context.Context, req outgressrpc.FollowageReq
 }
 
 func (m *Manage) fetchFollowage(ctx context.Context, req outgressrpc.FollowageRequest, targetID string) outgressrpc.FollowageReply {
+	ctx = m.withLookupBudget(ctx, twitch.IdentityBot)
 	followedAt, following, err := m.twitch.FollowedAt(ctx, req.BroadcasterID, targetID)
 	if err != nil {
 		m.logFollowageFailure(req, err)
-		return outgressrpc.FollowageReply{TargetID: targetID, UserFound: true, Error: "lookup failed"}
+		return outgressrpc.FollowageReply{TargetID: targetID, UserFound: true, Error: "lookup failed",
+			RetryAtUnixMilli: lookupRetryAt(err), MissingScope: twitch.MissingScope(err)}
 	}
 	return outgressrpc.FollowageReply{
 		TargetID: targetID, UserFound: true, Following: following, FollowedAt: followedAt,
@@ -169,10 +183,11 @@ func (m *Manage) handleAccountAge(ctx context.Context, req outgressrpc.AccountAg
 	if req.TargetID == "" && req.TargetLogin == "" {
 		return outgressrpc.AccountAgeReply{Error: "bad request"}
 	}
+	ctx = m.withLookupBudget(ctx, twitch.IdentityApp)
 	user, found, err := m.twitch.LookupUser(ctx, req.TargetID, req.TargetLogin)
 	if err != nil {
 		log.Warn("accountage lookup failed", zap.Error(err))
-		return outgressrpc.AccountAgeReply{Error: "lookup failed"}
+		return outgressrpc.AccountAgeReply{Error: "lookup failed", RetryAtUnixMilli: lookupRetryAt(err)}
 	}
 	if !found {
 		return outgressrpc.AccountAgeReply{UserFound: false}
@@ -184,6 +199,42 @@ func (m *Manage) handleAccountAge(ctx context.Context, req outgressrpc.AccountAg
 		UserFound:   true,
 		CreatedAt:   user.CreatedAt,
 	}
+}
+
+func (m *Manage) withLookupBudget(ctx context.Context, identity twitch.Identity) context.Context {
+	provider := appProviderIdentity
+	if identity == twitch.IdentityBot {
+		provider = botProviderIdentity(m.botID)
+	}
+	standard, shared := worker.HelixRequests(identity, "")
+	ctx = twitch.WithAttemptAdmission(ctx, func(ctx context.Context, _ string) error {
+		if err := m.cooldown.providerReady(ctx, provider, time.Now); err != nil {
+			return err
+		}
+		return m.payLookupBudget(ctx, standard, shared)
+	})
+	return twitch.WithProviderResetObserver(ctx, func(ctx context.Context, _ string, reset time.Time) error {
+		return m.cooldown.recordProviderReset(ctx, provider, reset, time.Now)
+	})
+}
+
+func (m *Manage) payLookupBudget(ctx context.Context, standard, shared ratelimit.Request) error {
+	denied, err := m.limiter.AllowOrdered(ctx, standard, shared)
+	if err != nil {
+		return admissionUnavailable(time.Now())
+	}
+	if denied != 0 {
+		return &twitch.AdmissionError{Code: "rate_limited", RetryAt: time.Now().Add(time.Second)}
+	}
+	return nil
+}
+
+func lookupRetryAt(err error) int64 {
+	var admission *twitch.AdmissionError
+	if errors.As(err, &admission) && !admission.RetryAt.IsZero() {
+		return admission.RetryAt.UnixMilli()
+	}
+	return 0
 }
 
 func (m *Manage) handleUptime(ctx context.Context, req outgressrpc.UptimeRequest) outgressrpc.UptimeReply {

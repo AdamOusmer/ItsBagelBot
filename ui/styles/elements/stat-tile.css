@@ -39,6 +39,8 @@
         color: var(--bb-muted);
     }
 
+    .bb-stat__label.bb-fit-box { flex: 1; min-width: 0; }
+
     .bb-stat__value {
         font-family: var(--bb-font-display);
         font-weight: 500;

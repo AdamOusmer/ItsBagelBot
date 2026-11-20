@@ -5,8 +5,9 @@ and [app map](../../../CONTEXT-MAP.md).
 
 ## Responsibility and boundaries
 
-Owns broadcaster module enablement/config JSON, channel quote books, lifetime
-personality feed tallies, recipe variables, named countdowns, recipe cooldown windows over one day,
+Owns broadcaster module enablement/config JSON, channel quote books, channel
+giveaway winners, lifetime personality feed tallies, recipe variables, named
+countdowns, recipe cooldown windows over one day,
 and sealed Govee/Spotify credentials in the MySQL schema selected by `DB_SCHEMA`.
 Sesame implements module behavior, Gossip contacts external integrations, and
 Projector maintains the shared configuration projection.
@@ -38,6 +39,7 @@ Loyalty module configuration lives here, but balances/counters live in Loyalty.
 | [repository/modules.go](repository/modules.go) | Cached lists, synchronous SetNow/Patch/PatchExisting, publication and reprojection. |
 | [repository/loyalty_instance.go](repository/loyalty_instance.go) | Loyalty instance stamps and canonical-account-guarded snapshot cleanup. |
 | [repository/quotes.go](repository/quotes.go) | Quote numbering, CRUD, random reads, date correction and race retries. |
+| [repository/giveaway_winners.go](repository/giveaway_winners.go) | Winner records, delivery updates, paged history and recent winner checks. |
 | [repository/personality.go](repository/personality.go) | Atomic feed increments, receipts and leaderboard reads. |
 | [repository/personality_slots.go](repository/personality_slots.go) | Global feed slots, total reads and additive slot initialization. |
 | [repository/govee.go](repository/govee.go), [spotify.go](repository/spotify.go) | AEAD key/token/app custody and safe status metadata. |
@@ -45,13 +47,14 @@ Loyalty module configuration lives here, but balances/counters live in Loyalty.
 | [repository/cooldowns.go](repository/cooldowns.go) | Atomic all-or-nothing claim, release and expiry cleanup for long windows. |
 | [repository/countdown.go](repository/countdown.go) | Named countdowns, leased completion delivery and 31-day operation replay ledger. |
 | [repository/cooldown_mover.go](repository/cooldown_mover.go) | Leased hourly job moving rows with 25 hours or less left into Valkey markers. |
-| [repository/schema.go](repository/schema.go) | `MigrateSchema`: on MySQL, cooldown claims are clustered on their natural key. |
+| [repository/schema.go](repository/schema.go) | `MigrateSchema`: MySQL clusters cooldown claims and giveaway winners on their natural keys. |
 | [rpc/recipe_state.go](rpc/recipe_state.go) | `variable.*` and `cooldown.*` verbs. |
 | [rpc/countdown.go](rpc/countdown.go) | `countdown.start`, `add`, `peek`, and leased completion `claim`/`progress`/`ack` verbs. |
 | [rpc/dashboard.go](rpc/dashboard.go) | Module list/upsert/patch and integration-custody wiring. |
 | [rpc/quotes.go](rpc/quotes.go), [personality.go](rpc/personality.go) | Quote and feed RPC surfaces. |
+| [rpc/giveaway.go](rpc/giveaway.go) | Winner record, delivery, history and eligibility lookup RPCs. |
 | [rpc/govee.go](rpc/govee.go), [spotify.go](rpc/spotify.go) | Dashboard credential setup plus internal unseal verbs. |
-| [ent/schema/](ent/schema/) | Seven durable entities, including FeedReceipt; other Ent files are generated. |
+| [ent/schema/](ent/schema/) | Durable entity schemas. Other Ent files are generated. |
 
 Contracts: [modules RPC](../../../internal/domain/rpc/modules/),
 [projection RPC](../../../internal/domain/rpc/projection/),
@@ -62,8 +65,9 @@ Contracts: [modules RPC](../../../internal/domain/rpc/modules/),
 ## Flow and contracts
 
 - Default dashboard prefix `rpc.modules`: `list`, `upsert`, `patch`,
-  `patch-existing`, with quote verbs under `.quote`, feed verbs under `.personality`,
-  and recipe state under `.variable`, `.cooldown`, and `.countdown`.
+  `patch-existing`, with quote verbs under `.quote`, winner history under
+  `.giveaway`, feed verbs under `.personality`, and recipe state under
+  `.variable`, `.cooldown`, and `.countdown`.
 - A long cooldown is refused from a Valkey marker first (key and TTL rules in
   `internal/domain/automation/cooldown_marker.go`); a moved window exists only as its marker.
 - Dashboard upsert uses `SetNow`, persists immediately and returns committed views.
@@ -98,6 +102,12 @@ Contracts: [modules RPC](../../../internal/domain/rpc/modules/),
   clearing it. Rotation can preserve existing scopes.
 - Quote numbers use max+1 and retain holes after deletion; do not renumber an
   existing quote book. Maximum text length is 450; conflicting adds retry boundedly.
+- Giveaway records are keyed by channel, round and slot. Modules stores only
+  winners and their claim state and delivery time. Account deletion captures the
+  channel's highest visible winner ID and deletes through that ID after checking
+  the account incarnation. MySQL allocates auto-increment IDs before commit, so
+  a concurrent insert with a lower ID can commit after capture and still be
+  deleted. This race is accepted. Higher IDs survive the sweep.
 - Global feed total and channel tallies are distinct durable values. The daily
   total and hot sorted-set view live in Sesame's Valkey, not these tables.
   Row 1 remains the legacy base, including increments from older pods. Slot

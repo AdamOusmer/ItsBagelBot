@@ -37,7 +37,8 @@ type Context struct {
 
 	Num string
 
-	Command string
+	Command      string
+	CommandState any
 	// Engaged means an admitted command or enabled feature handled real activity.
 	// Parsing an unknown command and background stream bookkeeping do not qualify.
 	Engaged         bool
@@ -137,6 +138,7 @@ func (c *Context) Reset() {
 	c.Config = nil
 	c.Num = ""
 	c.Command = ""
+	c.CommandState = nil
 	c.Engaged = false
 	c.Emitted = 0
 	c.CommandAnswered = false

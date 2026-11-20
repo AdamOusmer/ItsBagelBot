@@ -37,7 +37,8 @@ RPC reads and synchronous balance/counter management.
 | --- | --- |
 | [main.go](main.go) | Earned/lifecycle/counter consumers, 32 counter handlers, Valkey watchtime consumer and drain order. |
 | [repository/loyalty.go](repository/loyalty.go) | Legacy earned accumulation, 15-second flush, additive SQL upserts and shutdown coordination. |
-| [repository/queries.go](repository/queries.go) | Balance read/set/add/spend/top and counter management/read APIs. |
+| [repository/queries.go](repository/queries.go) | Balance read/set/add/top and counter management/read APIs. |
+| [repository/balance_credit.go](repository/balance_credit.go) | `balance.credit` and `balance.debit`: keyed mutations and replay receipts under the account fence. |
 | [repository/transfer.go](repository/transfer.go) | Transactional guarded debit and recipient credit/create. |
 | [repository/balance_adjust.go](repository/balance_adjust.go), [wager.go](repository/wager.go) | Resolved-viewer balance adjustment and atomic wager settlement. |
 | [repository/balance_reset.go](repository/balance_reset.go) | `balance.reset`: one bulk UPDATE zeroing a channel's points, watch seconds kept. |
@@ -64,6 +65,9 @@ Generated Ent code is not the schema source.
 
 - Default RPC prefix is `rpc.loyalty`; balance verbs require a real owner,
   counter verbs can admit the reserved bot namespace `user_id="0"`.
+- `balance.credit` and `balance.debit` require a caller-prefixed key and account
+  instance. Debit requires sufficient available points and records the outcome
+  for replays, including refusals for missing balances or insufficient points.
 - Grouped earned events accumulate in memory and bulk-add standings. Reads hit
   Ent directly; a just-accepted legacy delta may not yet appear in an RPC read.
 - Grouped counter events wait for `CounterProcessor.Process` before acknowledgment.
@@ -155,11 +159,19 @@ Generated Ent code is not the schema source.
   a unique auto-increment column. An auto-increment primary key makes replicas
   writing different channels deadlock or wait. MySQL fence reads rely on READ COMMITTED, where
   an exact-key miss takes no gap lock. Insert the missing fence and read it again
-  under lock before applying effects.
+  under lock before applying effects. Freeze tables use raw DDL through
+  `EnsureWatchSchema` and declare their natural primary keys directly.
 - Preserve the global lock order: retention barrier, account fence, receipts and
   operations, `counters`, `counter_entries`, then `balances`. Use ascending owner
   and natural key order for multi-row writes. Lifecycle cleanup holds the exclusive
   fence across its deletes.
+- For freeze state, lock the account fence, then `loyalty_freezes`, then epochs
+  or snapshots, then balances. Cleanup takes the fence and freeze row. Freeze
+  and reset skip the account fence, and ordinary watch commits skip the freeze
+  row. Copy balances at READ COMMITTED using `INSERT ... SELECT` with row
+  binlogging so the source read does not lock live accrual.
+- Freeze changes publish the `freeze` marker on the `loyalty` invalidation
+  scope. Natural expiry is handled by the expiry returned to cache readers.
 - Watch chunks take a shared retention barrier lock. Pruning advances the barrier
   with one guarded autocommit update. Counter and earned transactions take shared
   account fences. Watch, lifecycle and trial promotion transactions take exclusive

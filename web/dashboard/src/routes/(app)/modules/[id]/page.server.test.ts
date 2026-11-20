@@ -69,6 +69,14 @@ beforeEach(() => {
   synced = true;
 });
 
+test.each([
+  { id: 'raffle', location: '/loyalty#games' },
+  { id: 'gamble', location: '/loyalty#games' },
+  { id: 'duel', location: '/loyalty#games' }
+])('$id redirects to $location', async ({ id, location }) => {
+  await expect(load({ params: { id }, locals } as never)).rejects.toMatchObject({ status: 302, location });
+});
+
 describe('module editor load', () => {
   test('an ordinary view reads the projection', async () => {
     expect(await view(new Map())).toBe(4);

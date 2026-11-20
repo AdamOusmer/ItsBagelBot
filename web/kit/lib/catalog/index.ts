@@ -16,8 +16,11 @@ import { CODM_MODULE } from './codm';
 import { COUNTERS_MODULE } from './counters';
 import { EMOTEPLAY_MODULE } from './emoteplay';
 import { FORTNITE_MODULE } from './fortnite';
+import { GIVEAWAY_MODULE } from './giveaway';
+export { GIVEAWAY_LIMITS, giveawayRuleNumbers, giveawayRuleToggles } from './giveaway';
 import { GOVEE_MODULE } from './govee';
 import { LOYALTY_MODULE } from './loyalty';
+export { FREEZE_MAX_MINUTES } from './loyalty';
 import { MCSR_MODULE } from './mcsr';
 import { PERSONALITY_MODULE } from './personality';
 import { QUEUE_MODULE } from './queue';
@@ -56,6 +59,7 @@ export const MOD = {
   raffle: 'raffle',
   quotes: 'quotes',
   govee: 'govee',
+  giveaway: 'giveaway',
   songqueue: 'songqueue',
   stream: 'stream',
   cmd: 'cmd'
@@ -84,6 +88,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = ([
   CLASHROYALE_MODULE,
   VALORANT_MODULE_DEF,
   QUEUE_MODULE,
+  GIVEAWAY_MODULE,
   RAFFLE_MODULE,
   QUOTES_MODULE,
   GOVEE_MODULE,

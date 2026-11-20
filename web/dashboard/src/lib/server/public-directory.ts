@@ -127,13 +127,13 @@ function moduleCommand(label: string, meta: string, perm: string): ModuleCommand
 // several share one trigger and must never each become a row.
 function catalogCommands(def: (typeof MODULE_CATALOG)[number], config: Record<string, string>, locale: Locale): ModuleCommand[] {
   const t = (key: string) => translate(locale, key);
-  const commands = (def.commands ?? []).filter((command) => !command.requiresSetting || config[command.requiresSetting] === 'on');
+  const commands = def.commands ?? [];
   const rows = commands.map((command) => {
     const fallback = command.perm ?? 'everyone';
     const perm = command.permKey ? parsePerm(config[command.permKey], fallback) : fallback;
     return moduleCommand(command.trigger, tModuleCommandSummary(t, def.id, command), permLabel(locale, perm));
   });
-  const seen = new Set((def.commands ?? []).map((command) => triggerBase(command.trigger)));
+  const seen = new Set(commands.map((command) => triggerBase(command.trigger)));
   for (const reply of def.replies) {
     if (!reply.command || !activeReply(config, reply.enableKey)) continue;
     const base = `!${reply.command}`;

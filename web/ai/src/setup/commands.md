@@ -1,7 +1,7 @@
 ---
 title: Create a custom command: setup reference for AI assistants
 description: Create, configure, save, and test a custom Twitch chat response using exact dashboard labels.
-updated: 2026-10-13
+updated: 2026-11-20
 kind: setup
 human: https://itsbagelbot.com/guides/commands/
 ---
@@ -42,6 +42,7 @@ Assistants guiding a broadcaster or a delegate with command-management access th
 - Variables use single braces, for example `{user}`, `{args}`, and `{touser|everyone}`.
 - Module variables require the referenced module; preview uses sample data and does not enable the module.
 - "{{console:commandEditor.restrictUser}}" accepts a numeric Twitch ID, not a username.
+- For built-in draw commands such as `!raffle` and `!giveaway`, enable the feature under [{{console:modules.catalog.loyalty.label}} > {{console:loyalty.gamesTitle}}](https://dashboard.itsbagelbot.com/loyalty#games) or on [{{console:nav.giveaways}}](https://dashboard.itsbagelbot.com/giveaways). See the [draw command reference](../features/engagement.md).
 
 </facts>
 

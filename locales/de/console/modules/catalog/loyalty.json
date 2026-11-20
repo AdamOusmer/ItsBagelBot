@@ -9,6 +9,8 @@
     "points_set_user_500": "Lege den Punktestand eines Zuschauers fest.",
     "points_add_user_500": "Vergib Punkte an einen Zuschauer.",
     "points_remove_user_500": "Entferne Punkte eines Zuschauers.",
+    "freeze": "Pausiere die Rangliste für bis zu 30 Minuten.",
+    "unfreeze": "Schalte die Rangliste wieder live.",
     "counter": "Verwalte Zähler (auch auf der Zählerseite)."
   }
 }

@@ -7,10 +7,11 @@ import type { SwitchRowTone } from '../lib/tone';
 import '../styles/elements/toggle.css';
 import Switch from './Switch.astro';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'hint' | 'hintId' | 'checked' | 'switchLabel' | 'control' | 'tone' | 'disabled' | 'busy' | 'type' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'hint' | 'hintId' | 'fitCopy' | 'checked' | 'switchLabel' | 'control' | 'tone' | 'disabled' | 'busy' | 'type' | 'class'> {
     label: string;
     hint?: string;
     hintId?: string;
+    fitCopy?: boolean;
     checked?: boolean;
     switchLabel?: string;
     control?: 'start' | 'end';
@@ -25,6 +26,7 @@ const {
     label,
     hint,
     hintId,
+    fitCopy = false,
     checked = false,
     switchLabel,
     control = 'start',
@@ -38,6 +40,7 @@ const {
 const classes = [
     'bb-switch-row',
     control === 'end' ? 'bb-switch-row--end' : null,
+    fitCopy ? 'bb-switch-row--fit-copy' : null,
     tone ? `bb-switch-row--${tone}` : null,
     className,
 ]
@@ -47,4 +50,13 @@ const describedby = hint ? hintId : undefined;
 const toggle = { checked, label: switchLabel ?? label, describedby, disabled, busy, type };
 ---
 
-<div class={classes} {...rest}>{control === 'start' && <Switch {...toggle} />}<span class="bb-switch-row__text"><span class="bb-switch-row__label">{label}</span>{hint && <span class="bb-switch-row__hint" id={hintId}>{hint}</span>}</span>{Astro.slots.has('status') && <span class="bb-switch-row__status"><slot name="status" /></span>}{control === 'end' && <Switch {...toggle} />}{Astro.slots.has('note') && <span class="bb-switch-row__note"><slot name="note" /></span>}</div>
+<div class={classes} {...rest}>
+    {control === 'start' && <Switch {...toggle} />}
+    <span class="bb-switch-row__text">
+        <span class="bb-switch-row__label">{fitCopy ? <bb-fit mode="block">{label}</bb-fit> : label}</span>
+        {hint && <span class="bb-switch-row__hint" id={hintId}>{fitCopy ? <bb-fit mode="block">{hint}</bb-fit> : hint}</span>}
+    </span>
+    {Astro.slots.has('status') && <span class="bb-switch-row__status"><slot name="status" /></span>}
+    {control === 'end' && <Switch {...toggle} />}
+    {Astro.slots.has('note') && <span class="bb-switch-row__note"><slot name="note" /></span>}
+</div>

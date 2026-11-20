@@ -48,10 +48,10 @@ func (s *StreamInfoRPC) Lookup(ctx context.Context, broadcasterID, login string)
 	return s.rpc.lookup(ctx, broadcasterID+"/"+login, req)
 }
 
-func decodeStreamInfo(reply outgressrpc.StreamInfoReply) (StreamInfoResult, time.Duration, string) {
+func decodeStreamInfo(reply outgressrpc.StreamInfoReply) (StreamInfoResult, time.Duration, error) {
 	result := StreamInfoResult{
 		UserFound: reply.UserFound, Live: reply.Live, Title: reply.Title,
 		GameName: reply.GameName, ViewerCount: reply.ViewerCount, StartedAt: reply.StartedAt,
 	}
-	return result, ttlWhen(reply.Live, uptimePositiveTTL, uptimeOfflineTTL), reply.Error
+	return result, ttlWhen(reply.Live, uptimePositiveTTL, uptimeOfflineTTL), rpcReplyError(reply.Error)
 }

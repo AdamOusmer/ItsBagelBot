@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/automod"
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
+	"ItsBagelBot/app/twitch/sesame/engine/eligibility"
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/channelruntime"
@@ -37,6 +39,7 @@ type QuotesStore interface {
 }
 
 type Deps struct {
+	Eligibility    *eligibility.Checker
 	Runtime        *channelruntime.Client
 	TrialStore     valkey.Client
 	Proj           projection.Reader
@@ -64,10 +67,11 @@ type Deps struct {
 	Campaign       Campaign
 	Queue          QueueStore
 	SongQueue      SongQueueStore
-	Raffle         RaffleStore
+	Draw           DrawStore
 	Duel           DuelStore
 	Quotes         QuotesStore
 	Loyalty        LoyaltyStore
+	LoyaltyFreeze  LoyaltyFreeze
 	LoyaltyTick    LoyaltyTicker
 	Stats          CounterBumper
 	PublicBaseURL  string
@@ -81,8 +85,11 @@ type Deps struct {
 	AutomationHook *AutomationHook
 	Analytics      *analytics.Recorder
 
+	StandingsSnapshots StandingsSnapshots
 	LeaderboardBaseURL string
 	QueueBaseURL       string
+
+	GiveawayWinners GiveawayWinnersStore
 }
 
 type FeedCounts struct {
@@ -197,11 +204,26 @@ type PointTransfer struct {
 	Amount         int64
 }
 
-type PointSpend struct {
-	BroadcasterID uint64
-	ViewerID      uint64
-	Login         string
-	Amount        int64
+type PointCredit struct {
+	BroadcasterID    uint64
+	ViewerID         uint64
+	ViewerLogin      string
+	Value            int64
+	Key              string
+	AccountCreatedAt int64
+}
+
+type CreditOutcome struct {
+	Balance  loyaltyrpc.Balance
+	Replayed bool
+}
+
+type PointDebit PointCredit
+
+type DebitOutcome struct {
+	Balance  loyaltyrpc.Balance
+	Spent    bool
+	Replayed bool
 }
 
 type PointWager struct {
@@ -219,14 +241,28 @@ type WagerOutcome struct {
 	LimitExceeded bool
 }
 
+type LoyaltyFreeze interface {
+	FreezeGet(context.Context, draw.ChannelID) (loyaltyrpc.FreezeView, error)
+	FreezeSet(ctx context.Context, channel draw.ChannelID, minutes FreezeMinutes) (loyaltyrpc.FreezeTimes, error)
+	FreezeRelease(ctx context.Context, channel draw.ChannelID) (bool, error)
+}
+
+type StandingsSnapshots interface {
+	SnapshotCreate(context.Context, SnapshotRequest) (SnapshotRef, error)
+	SnapshotDrop(context.Context, SnapshotDropRequest) error
+}
+
 type LoyaltyStore interface {
 	Earn(earning PointEarning)
 	CounterBump(ctx context.Context, b CounterBump) (int64, error)
 	CounterPeek(ctx context.Context, target CounterTarget) (loyaltyrpc.Counter, bool, error)
 	BalanceWager(ctx context.Context, wager PointWager) (WagerOutcome, error)
 	BalanceGet(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.Balance, error)
+	BalanceCredit(ctx context.Context, credit PointCredit) (CreditOutcome, error)
+	BalanceDebit(ctx context.Context, debit PointDebit) (DebitOutcome, error)
+	BalanceSnapshot(ctx context.Context, req BalanceSnapshotRequest) (loyaltyrpc.BalanceSnapshot, error)
+	WatchStatus(ctx context.Context) (loyaltyrpc.WatchStatus, error)
 	BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error)
-	BalanceSpend(ctx context.Context, spend PointSpend) (bal loyaltyrpc.Balance, found, spent bool, err error)
 	BalanceTransfer(ctx context.Context, transfer PointTransfer) (bal loyaltyrpc.Balance, found, moved bool, err error)
 	Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error)
 	CounterCreate(ctx context.Context, broadcasterID uint64, name, scope string) (loyaltyrpc.Counter, error)
@@ -243,6 +279,7 @@ type CounterBumper interface {
 type LoyaltyTicker interface {
 	Arm(ctx context.Context, broadcasterID uint64)
 	Disarm(ctx context.Context, broadcasterID uint64)
+	AccrualHealth(ctx context.Context, broadcasterID uint64) AccrualState
 }
 
 type VersionedLoyaltyTicker interface {
@@ -267,3 +304,23 @@ func (NoopCooldown) Allow(context.Context, string, time.Duration) (bool, error) 
 func (NoopCooldown) AllowAll(context.Context, []CooldownWindow) (bool, error) { return true, nil }
 
 func (NoopCooldown) TimeLeft(context.Context, string) (time.Duration, error) { return 0, nil }
+
+type DrawStore interface {
+	Wake(context.Context, draw.ChannelID) error
+	Open(context.Context, draw.OpenRequest) (draw.Round, draw.OpenOutcome, error)
+	Joinable(context.Context, draw.ChannelID) (draw.Round, bool, error)
+	Join(context.Context, draw.JoinRequest) (draw.JoinOutcome, error)
+	Refuse(context.Context, draw.Refusal) (bool, int64, error)
+	Close(context.Context, draw.CloseRequest) (bool, error)
+	Extend(context.Context, draw.ExtendRequest) (bool, error)
+	Cancel(context.Context, draw.ModAction) (bool, error)
+	CancelRound(context.Context, draw.ModAction) (draw.Round, bool, error)
+	EndSlots(context.Context, draw.SlotAction) (int, error)
+	Reroll(context.Context, draw.SlotAction) (int, error)
+	SkipRule(context.Context, draw.SlotAction) (int, error)
+	LookupClaims(context.Context, draw.ChannelID, draw.ViewerID) (draw.ClaimLookup, error)
+	ClaimResolved(context.Context, draw.ClaimLookup) (draw.ClaimOutcome, error)
+	Claim(context.Context, draw.ChannelID, draw.ViewerID) (draw.ClaimOutcome, error)
+	Settling(context.Context, draw.ChannelID, draw.Kind) (draw.Round, []draw.Slot, bool, error)
+	Live(context.Context, draw.ChannelID) ([]draw.RoundView, error)
+}

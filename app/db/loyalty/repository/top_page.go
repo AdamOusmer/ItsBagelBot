@@ -95,7 +95,7 @@ func (r *Loyalty) viewerPage(ctx context.Context, userID uint64, q TopQuery) (To
 	if row, err = r.reconcileLogin(ctx, row, q.reconcileHint()); err != nil {
 		return TopPage{}, err
 	}
-	rank, err := r.boardRank(ctx, userID, row)
+	rank, err := r.boardRank(ctx, liveRankSource(userID), row)
 	if err != nil {
 		return TopPage{}, err
 	}
@@ -119,25 +119,38 @@ func (r *Loyalty) reconcileLogin(ctx context.Context, row *ent.Balance, login st
 	return r.client.Balance.UpdateOneID(row.ID).SetViewerLogin(login).Save(ctx)
 }
 
-func (r *Loyalty) boardRank(ctx context.Context, userID uint64, row *ent.Balance) (int64, error) {
-	ahead, err := r.countRows(ctx, `user_id = ? AND points > ?`, userID, row.Points)
-	if err != nil {
-		return 0, err
-	}
-	tied, err := r.countRows(ctx, `user_id = ? AND points = ? AND viewer_id < ?`, userID, row.Points, row.ViewerID)
-	if err != nil {
-		return 0, err
-	}
-	return 1 + ahead + tied, nil
+type rankSource struct {
+	table string
+	index string
+	scope string
+	args  []any
 }
 
-func (r *Loyalty) countRows(ctx context.Context, where string, args ...any) (int64, error) {
-	source := "balances"
+func liveRankSource(userID uint64) rankSource {
+	return rankSource{table: "balances", index: rankIndex, scope: "user_id=?", args: []any{userID}}
+}
+
+func (r *Loyalty) boardRank(ctx context.Context, source rankSource, row *ent.Balance) (int64, error) {
+	ahead, err := r.countRows(ctx, source, rankFilter{where: " AND points > ?", args: []any{row.Points}})
+	if err != nil {
+		return 0, err
+	}
+	tied, err := r.countRows(ctx, source, rankFilter{where: " AND points = ? AND viewer_id < ?", args: []any{row.Points, row.ViewerID}})
+	return 1 + ahead + tied, err
+}
+
+type rankFilter struct {
+	where string
+	args  []any
+}
+
+func (r *Loyalty) countRows(ctx context.Context, source rankSource, filter rankFilter) (int64, error) {
+	table := source.table
 	if r.dialect != "sqlite3" {
-		source += " FORCE INDEX (" + rankIndex + ")"
+		table += " FORCE INDEX (" + source.index + ")"
 	}
 	var n int64
-	err := r.sqldb.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+source+` WHERE `+where, args...).Scan(&n)
+	err := r.sqldb.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+table+` WHERE `+source.scope+filter.where, append(source.args, filter.args...)...).Scan(&n)
 	return n, err
 }
 

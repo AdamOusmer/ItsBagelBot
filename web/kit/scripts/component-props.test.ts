@@ -6,7 +6,7 @@ import { resolve, relative } from 'node:path';
 
 const root = resolve(import.meta.dir, '../../..');
 // Public integration contracts belong to their respective tools.
-const integrations = /^(?:data-sveltekit-[\w-]+|data-astro-[\w-]+|data-cfasync|data-pagefind-[\w-]+|data-lenis-prevent|data-processed)$/;
+const integrations = /^(?:data-sveltekit-[\w-]+|data-astro-[\w-]+|data-cfasync|data-pagefind-[\w-]+|data-lenis-prevent|data-fit|data-processed)$/;
 const sources = ['ui/astro', 'ui/svelte', 'ui/lib', 'ui/styles', 'web/kit/components', 'web/kit/lib', 'web/kit/styles', ...['marketing', 'docs', 'dashboard', 'admin', 'ai'].map((app) => `web/${app}/src`)];
 
 async function files(dir: string): Promise<string[]> {

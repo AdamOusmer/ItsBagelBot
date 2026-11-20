@@ -16,6 +16,8 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+const SkipStoreTTL time.Duration = -1
+
 type Option func(*options)
 
 type options struct {
@@ -128,7 +130,7 @@ func (c *Keyed[K, V]) load(ctx context.Context, key K, loader func(context.Conte
 
 	c.mu.Lock()
 	if generation == c.generation(name) {
-		c.SetFor(key, value, ttl)
+		c.setLoaded(key, value, ttl)
 	}
 	c.mu.Unlock()
 	return value, nil
@@ -166,7 +168,21 @@ func (c *Keyed[K, V]) Set(key K, value V) {
 }
 
 func (c *Keyed[K, V]) SetFor(key K, value V, ttl time.Duration) {
-	ttl += rand.N(ttl/10 + 1)
+	c.store(key, value, ttl+rand.N(ttl/10+1))
+}
+
+func (c *Keyed[K, V]) setLoaded(key K, value V, ttl time.Duration) {
+	if ttl == SkipStoreTTL {
+		return
+	}
+	if ttl < c.ttl {
+		c.store(key, value, ttl)
+		return
+	}
+	c.SetFor(key, value, ttl)
+}
+
+func (c *Keyed[K, V]) store(key K, value V, ttl time.Duration) {
 	e := entry[V]{value: value}
 	if c.staleWindow > 0 {
 		e.freshUntil = time.Now().Add(ttl)

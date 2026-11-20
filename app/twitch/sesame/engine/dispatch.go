@@ -40,13 +40,13 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	c.ModuleLookup = p.moduleLookup(views, c)
 	if bc, ok := p.claimOwner(ctx, owners, views, c); ok {
 		emittedBefore := c.Emitted
-		err := p.runBaked(ctx, c, bc.Cmd, num, input.args, emit)
+		err := p.runBaked(ctx, c, bakedCommand{cmd: bc.Cmd, num: num, args: input.args}, emit)
 		return p.finishBaked(ctx, c, bakedRun{bc: bc, emittedBefore: emittedBefore, err: err})
 	}
 	if c.Env.Origin == "trial" {
 		return nil
 	}
-	claimed, err := p.runCustom(ctx, c, name, input.args, emit)
+	claimed, err := p.runCustom(ctx, c, input.args, emit)
 	if claimed || err != nil {
 		return err
 	}
@@ -80,10 +80,14 @@ func (p *Pipeline) claimOwner(ctx context.Context, owners []BoundCommand, views 
 		if bc.Cmd.When == nil || bc.Cmd.When(ctx, c) {
 			return bc, true
 		}
-		if declined < 0 {
+		if declined < 0 && !bc.Cmd.Yield {
 			declined = i
 		}
 	}
+	return p.fallbackOwner(owners, views, c, declined)
+}
+
+func (p *Pipeline) fallbackOwner(owners []BoundCommand, views map[string]projection.ModuleView, c *module.Context, declined int) (BoundCommand, bool) {
 	if declined < 0 {
 		return BoundCommand{}, false
 	}
@@ -117,7 +121,13 @@ func trialReadOnlyCommand(name string) bool {
 	}
 }
 
-func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.Command, num, args string, emit module.Emit) error {
+type bakedCommand struct {
+	cmd       module.Command
+	num, args string
+}
+
+func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, command bakedCommand, emit module.Emit) error {
+	cmd := command.cmd
 	perm, err := p.builtinPermission(ctx, c.BroadcasterID, cmd)
 	if err != nil {
 		return err
@@ -128,15 +138,16 @@ func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.C
 		perm:          perm,
 		liveOnly:      cmd.LiveOnly,
 		cooldown:      cmd.Cooldown,
+		userCooldown:  cmd.UserCooldown,
 	})
 	if err != nil || !pass {
 		return err
 	}
-	c.Num = num
+	c.Num = command.num
 	p.ensureLocale(ctx, c)
-	run := commandRun{c: c, command: cmd.Name, args: args}
+	run := commandRun{c: c, command: cmd.Name, args: command.args}
 	var emitErr error
-	err = cmd.Run(ctx, c, args, func(o *module.Output) {
+	err = cmd.Run(ctx, c, command.args, func(o *module.Output) {
 		if emitErr != nil {
 			return
 		}
@@ -166,10 +177,14 @@ func (p *Pipeline) builtinPermission(ctx context.Context, broadcasterID uint64, 
 	if !found || len(view.Configs) == 0 {
 		return cmd.Perm, nil
 	}
+	return parseBuiltinPermission(cmd, view.Configs)
+}
+
+func parseBuiltinPermission(cmd module.Command, raw codec.RawMessage) (module.Role, error) {
 	var config struct {
 		Permission string `json:"permission"`
 	}
-	if err := codec.Unmarshal(view.Configs, &config); err != nil {
+	if err := codec.Unmarshal(raw, &config); err != nil {
 		return cmd.Perm, err
 	}
 	if config.Permission == "" {
@@ -201,8 +216,8 @@ func (p *Pipeline) activeCustom(ctx context.Context, c *module.Context, name str
 	return cc, cc.IsActive && cc.Response != "", nil
 }
 
-func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args string, emit module.Emit) (bool, error) {
-	cc, ok, err := p.activeCustom(ctx, c, name)
+func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, args string, emit module.Emit) (bool, error) {
+	cc, ok, err := p.activeCustom(ctx, c, c.Command)
 	if err != nil || !ok {
 		return false, err
 	}
@@ -220,7 +235,7 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	}
 
 	p.log.Debug("command matched",
-		zap.String("command", name),
+		zap.String("command", c.Command),
 		zap.String("regress", c.Regress.String()),
 		module.BIDField(c.BroadcasterID),
 	)

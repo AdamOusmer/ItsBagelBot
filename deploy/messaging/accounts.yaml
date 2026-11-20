@@ -550,6 +550,8 @@ accounts:
               from: WORKER_RPC
             - service: rpc.automations.runs.node.*
               from: WORKER_RPC
+            - service: rpc.draw.>
+              from: WORKER_RPC
             - stream: cache.invalidate.loyalty
               from: LOYALTY_RPC
         roles:
@@ -877,6 +879,7 @@ accounts:
             - service: rpc.automations.run.node.*
             - service: rpc.automations.runs
             - service: rpc.automations.runs.node.*
+            - service: rpc.draw.>
         imports:
             - service: rpc.internal.projection.modules.automations.get
               from: MODULES_RPC
@@ -901,6 +904,8 @@ accounts:
             - service: rpc.commands.>
               from: COMMANDS_RPC
             - service: rpc.modules.quote.>
+              from: MODULES_RPC
+            - service: rpc.modules.giveaway.>
               from: MODULES_RPC
             - service: rpc.modules.variable.>
               from: MODULES_RPC

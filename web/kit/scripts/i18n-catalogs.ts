@@ -141,7 +141,7 @@ export function i18nCatalogs({ exclude = [], source = { locales: consoleLocales,
     configureServer(server) {
       server.watcher.add(LOCALES_DIR);
       server.watcher.on('change', (file) => {
-        if (!file.startsWith(LOCALES_DIR)) return;
+        if (!file.startsWith(`${LOCALES_DIR}/`)) return;
         cached = undefined;
         for (const module of server.moduleGraph.idToModuleMap.values()) {
           if (module.id?.startsWith(`\0${VIRTUAL}`)) server.moduleGraph.invalidateModule(module);

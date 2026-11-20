@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/db/modules/ent/countdownoperation"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedreceipt"
+	"ItsBagelBot/app/db/modules/ent/giveawaywinner"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/predicate"
@@ -44,6 +45,7 @@ const (
 	TypeCountdownOperation = "CountdownOperation"
 	TypeFeedCounter        = "FeedCounter"
 	TypeFeedReceipt        = "FeedReceipt"
+	TypeGiveawayWinner     = "GiveawayWinner"
 	TypeGoveeCredential    = "GoveeCredential"
 	TypeModules            = "Modules"
 	TypeQuote              = "Quote"
@@ -4962,6 +4964,961 @@ func (m *FeedReceiptMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *FeedReceiptMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown FeedReceipt edge %s", name)
+}
+
+// GiveawayWinnerMutation represents an operation that mutates the GiveawayWinner nodes in the graph.
+type GiveawayWinnerMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int
+	user_id       *uint64
+	adduser_id    *int64
+	round_id      *string
+	slot          *uint8
+	addslot       *int8
+	prize         *string
+	won_at        *time.Time
+	viewer_id     *uint64
+	addviewer_id  *int64
+	viewer_login  *string
+	claimed       *bool
+	claimed_at    *time.Time
+	delivered_at  *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*GiveawayWinner, error)
+	predicates    []predicate.GiveawayWinner
+}
+
+var _ ent.Mutation = (*GiveawayWinnerMutation)(nil)
+
+// giveawaywinnerOption allows management of the mutation configuration using functional options.
+type giveawaywinnerOption func(*GiveawayWinnerMutation)
+
+// newGiveawayWinnerMutation creates new mutation for the GiveawayWinner entity.
+func newGiveawayWinnerMutation(c config, op Op, opts ...giveawaywinnerOption) *GiveawayWinnerMutation {
+	m := &GiveawayWinnerMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeGiveawayWinner,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withGiveawayWinnerID sets the ID field of the mutation.
+func withGiveawayWinnerID(id int) giveawaywinnerOption {
+	return func(m *GiveawayWinnerMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *GiveawayWinner
+		)
+		m.oldValue = func(ctx context.Context) (*GiveawayWinner, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().GiveawayWinner.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withGiveawayWinner sets the old GiveawayWinner of the mutation.
+func withGiveawayWinner(node *GiveawayWinner) giveawaywinnerOption {
+	return func(m *GiveawayWinnerMutation) {
+		m.oldValue = func(context.Context) (*GiveawayWinner, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m GiveawayWinnerMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m GiveawayWinnerMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *GiveawayWinnerMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *GiveawayWinnerMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().GiveawayWinner.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *GiveawayWinnerMutation) SetUserID(u uint64) {
+	m.user_id = &u
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *GiveawayWinnerMutation) UserID() (r uint64, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the GiveawayWinner entity.
+// If the GiveawayWinner object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GiveawayWinnerMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds u to the "user_id" field.
+func (m *GiveawayWinnerMutation) AddUserID(u int64) {
+	if m.adduser_id != nil {
+		*m.adduser_id += u
+	} else {
+		m.adduser_id = &u
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *GiveawayWinnerMutation) AddedUserID() (r int64, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *GiveawayWinnerMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+}
+
+// SetRoundID sets the "round_id" field.
+func (m *GiveawayWinnerMutation) SetRoundID(s string) {
+	m.round_id = &s
+}
+
+// RoundID returns the value of the "round_id" field in the mutation.
+func (m *GiveawayWinnerMutation) RoundID() (r string, exists bool) {
+	v := m.round_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRoundID returns the old "round_id" field's value of the GiveawayWinner entity.
+// If the GiveawayWinner object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GiveawayWinnerMutation) OldRoundID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRoundID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRoundID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRoundID: %w", err)
+	}
+	return oldValue.RoundID, nil
+}
+
+// ResetRoundID resets all changes to the "round_id" field.
+func (m *GiveawayWinnerMutation) ResetRoundID() {
+	m.round_id = nil
+}
+
+// SetSlot sets the "slot" field.
+func (m *GiveawayWinnerMutation) SetSlot(u uint8) {
+	m.slot = &u
+	m.addslot = nil
+}
+
+// Slot returns the value of the "slot" field in the mutation.
+func (m *GiveawayWinnerMutation) Slot() (r uint8, exists bool) {
+	v := m.slot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSlot returns the old "slot" field's value of the GiveawayWinner entity.
+// If the GiveawayWinner object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GiveawayWinnerMutation) OldSlot(ctx context.Context) (v uint8, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSlot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSlot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSlot: %w", err)
+	}
+	return oldValue.Slot, nil
+}
+
+// AddSlot adds u to the "slot" field.
+func (m *GiveawayWinnerMutation) AddSlot(u int8) {
+	if m.addslot != nil {
+		*m.addslot += u
+	} else {
+		m.addslot = &u
+	}
+}
+
+// AddedSlot returns the value that was added to the "slot" field in this mutation.
+func (m *GiveawayWinnerMutation) AddedSlot() (r int8, exists bool) {
+	v := m.addslot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSlot resets all changes to the "slot" field.
+func (m *GiveawayWinnerMutation) ResetSlot() {
+	m.slot = nil
+	m.addslot = nil
+}
+
+// SetPrize sets the "prize" field.
+func (m *GiveawayWinnerMutation) SetPrize(s string) {
+	m.prize = &s
+}
+
+// Prize returns the value of the "prize" field in the mutation.
+func (m *GiveawayWinnerMutation) Prize() (r string, exists bool) {
+	v := m.prize
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPrize returns the old "prize" field's value of the GiveawayWinner entity.
+// If the GiveawayWinner object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GiveawayWinnerMutation) OldPrize(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPrize is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPrize requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPrize: %w", err)
+	}
+	return oldValue.Prize, nil
+}
+
+// ResetPrize resets all changes to the "prize" field.
+func (m *GiveawayWinnerMutation) ResetPrize() {
+	m.prize = nil
+}
+
+// SetWonAt sets the "won_at" field.
+func (m *GiveawayWinnerMutation) SetWonAt(t time.Time) {
+	m.won_at = &t
+}
+
+// WonAt returns the value of the "won_at" field in the mutation.
+func (m *GiveawayWinnerMutation) WonAt() (r time.Time, exists bool) {
+	v := m.won_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWonAt returns the old "won_at" field's value of the GiveawayWinner entity.
+// If the GiveawayWinner object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GiveawayWinnerMutation) OldWonAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWonAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWonAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWonAt: %w", err)
+	}
+	return oldValue.WonAt, nil
+}
+
+// ResetWonAt resets all changes to the "won_at" field.
+func (m *GiveawayWinnerMutation) ResetWonAt() {
+	m.won_at = nil
+}
+
+// SetViewerID sets the "viewer_id" field.
+func (m *GiveawayWinnerMutation) SetViewerID(u uint64) {
+	m.viewer_id = &u
+	m.addviewer_id = nil
+}
+
+// ViewerID returns the value of the "viewer_id" field in the mutation.
+func (m *GiveawayWinnerMutation) ViewerID() (r uint64, exists bool) {
+	v := m.viewer_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldViewerID returns the old "viewer_id" field's value of the GiveawayWinner entity.
+// If the GiveawayWinner object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GiveawayWinnerMutation) OldViewerID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldViewerID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldViewerID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldViewerID: %w", err)
+	}
+	return oldValue.ViewerID, nil
+}
+
+// AddViewerID adds u to the "viewer_id" field.
+func (m *GiveawayWinnerMutation) AddViewerID(u int64) {
+	if m.addviewer_id != nil {
+		*m.addviewer_id += u
+	} else {
+		m.addviewer_id = &u
+	}
+}
+
+// AddedViewerID returns the value that was added to the "viewer_id" field in this mutation.
+func (m *GiveawayWinnerMutation) AddedViewerID() (r int64, exists bool) {
+	v := m.addviewer_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetViewerID resets all changes to the "viewer_id" field.
+func (m *GiveawayWinnerMutation) ResetViewerID() {
+	m.viewer_id = nil
+	m.addviewer_id = nil
+}
+
+// SetViewerLogin sets the "viewer_login" field.
+func (m *GiveawayWinnerMutation) SetViewerLogin(s string) {
+	m.viewer_login = &s
+}
+
+// ViewerLogin returns the value of the "viewer_login" field in the mutation.
+func (m *GiveawayWinnerMutation) ViewerLogin() (r string, exists bool) {
+	v := m.viewer_login
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldViewerLogin returns the old "viewer_login" field's value of the GiveawayWinner entity.
+// If the GiveawayWinner object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GiveawayWinnerMutation) OldViewerLogin(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldViewerLogin is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldViewerLogin requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldViewerLogin: %w", err)
+	}
+	return oldValue.ViewerLogin, nil
+}
+
+// ResetViewerLogin resets all changes to the "viewer_login" field.
+func (m *GiveawayWinnerMutation) ResetViewerLogin() {
+	m.viewer_login = nil
+}
+
+// SetClaimed sets the "claimed" field.
+func (m *GiveawayWinnerMutation) SetClaimed(b bool) {
+	m.claimed = &b
+}
+
+// Claimed returns the value of the "claimed" field in the mutation.
+func (m *GiveawayWinnerMutation) Claimed() (r bool, exists bool) {
+	v := m.claimed
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClaimed returns the old "claimed" field's value of the GiveawayWinner entity.
+// If the GiveawayWinner object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GiveawayWinnerMutation) OldClaimed(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClaimed is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClaimed requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClaimed: %w", err)
+	}
+	return oldValue.Claimed, nil
+}
+
+// ResetClaimed resets all changes to the "claimed" field.
+func (m *GiveawayWinnerMutation) ResetClaimed() {
+	m.claimed = nil
+}
+
+// SetClaimedAt sets the "claimed_at" field.
+func (m *GiveawayWinnerMutation) SetClaimedAt(t time.Time) {
+	m.claimed_at = &t
+}
+
+// ClaimedAt returns the value of the "claimed_at" field in the mutation.
+func (m *GiveawayWinnerMutation) ClaimedAt() (r time.Time, exists bool) {
+	v := m.claimed_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClaimedAt returns the old "claimed_at" field's value of the GiveawayWinner entity.
+// If the GiveawayWinner object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GiveawayWinnerMutation) OldClaimedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClaimedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClaimedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClaimedAt: %w", err)
+	}
+	return oldValue.ClaimedAt, nil
+}
+
+// ClearClaimedAt clears the value of the "claimed_at" field.
+func (m *GiveawayWinnerMutation) ClearClaimedAt() {
+	m.claimed_at = nil
+	m.clearedFields[giveawaywinner.FieldClaimedAt] = struct{}{}
+}
+
+// ClaimedAtCleared returns if the "claimed_at" field was cleared in this mutation.
+func (m *GiveawayWinnerMutation) ClaimedAtCleared() bool {
+	_, ok := m.clearedFields[giveawaywinner.FieldClaimedAt]
+	return ok
+}
+
+// ResetClaimedAt resets all changes to the "claimed_at" field.
+func (m *GiveawayWinnerMutation) ResetClaimedAt() {
+	m.claimed_at = nil
+	delete(m.clearedFields, giveawaywinner.FieldClaimedAt)
+}
+
+// SetDeliveredAt sets the "delivered_at" field.
+func (m *GiveawayWinnerMutation) SetDeliveredAt(t time.Time) {
+	m.delivered_at = &t
+}
+
+// DeliveredAt returns the value of the "delivered_at" field in the mutation.
+func (m *GiveawayWinnerMutation) DeliveredAt() (r time.Time, exists bool) {
+	v := m.delivered_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeliveredAt returns the old "delivered_at" field's value of the GiveawayWinner entity.
+// If the GiveawayWinner object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GiveawayWinnerMutation) OldDeliveredAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeliveredAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeliveredAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeliveredAt: %w", err)
+	}
+	return oldValue.DeliveredAt, nil
+}
+
+// ClearDeliveredAt clears the value of the "delivered_at" field.
+func (m *GiveawayWinnerMutation) ClearDeliveredAt() {
+	m.delivered_at = nil
+	m.clearedFields[giveawaywinner.FieldDeliveredAt] = struct{}{}
+}
+
+// DeliveredAtCleared returns if the "delivered_at" field was cleared in this mutation.
+func (m *GiveawayWinnerMutation) DeliveredAtCleared() bool {
+	_, ok := m.clearedFields[giveawaywinner.FieldDeliveredAt]
+	return ok
+}
+
+// ResetDeliveredAt resets all changes to the "delivered_at" field.
+func (m *GiveawayWinnerMutation) ResetDeliveredAt() {
+	m.delivered_at = nil
+	delete(m.clearedFields, giveawaywinner.FieldDeliveredAt)
+}
+
+// Where appends a list predicates to the GiveawayWinnerMutation builder.
+func (m *GiveawayWinnerMutation) Where(ps ...predicate.GiveawayWinner) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the GiveawayWinnerMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *GiveawayWinnerMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.GiveawayWinner, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *GiveawayWinnerMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *GiveawayWinnerMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (GiveawayWinner).
+func (m *GiveawayWinnerMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *GiveawayWinnerMutation) Fields() []string {
+	fields := make([]string, 0, 10)
+	if m.user_id != nil {
+		fields = append(fields, giveawaywinner.FieldUserID)
+	}
+	if m.round_id != nil {
+		fields = append(fields, giveawaywinner.FieldRoundID)
+	}
+	if m.slot != nil {
+		fields = append(fields, giveawaywinner.FieldSlot)
+	}
+	if m.prize != nil {
+		fields = append(fields, giveawaywinner.FieldPrize)
+	}
+	if m.won_at != nil {
+		fields = append(fields, giveawaywinner.FieldWonAt)
+	}
+	if m.viewer_id != nil {
+		fields = append(fields, giveawaywinner.FieldViewerID)
+	}
+	if m.viewer_login != nil {
+		fields = append(fields, giveawaywinner.FieldViewerLogin)
+	}
+	if m.claimed != nil {
+		fields = append(fields, giveawaywinner.FieldClaimed)
+	}
+	if m.claimed_at != nil {
+		fields = append(fields, giveawaywinner.FieldClaimedAt)
+	}
+	if m.delivered_at != nil {
+		fields = append(fields, giveawaywinner.FieldDeliveredAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *GiveawayWinnerMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case giveawaywinner.FieldUserID:
+		return m.UserID()
+	case giveawaywinner.FieldRoundID:
+		return m.RoundID()
+	case giveawaywinner.FieldSlot:
+		return m.Slot()
+	case giveawaywinner.FieldPrize:
+		return m.Prize()
+	case giveawaywinner.FieldWonAt:
+		return m.WonAt()
+	case giveawaywinner.FieldViewerID:
+		return m.ViewerID()
+	case giveawaywinner.FieldViewerLogin:
+		return m.ViewerLogin()
+	case giveawaywinner.FieldClaimed:
+		return m.Claimed()
+	case giveawaywinner.FieldClaimedAt:
+		return m.ClaimedAt()
+	case giveawaywinner.FieldDeliveredAt:
+		return m.DeliveredAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *GiveawayWinnerMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case giveawaywinner.FieldUserID:
+		return m.OldUserID(ctx)
+	case giveawaywinner.FieldRoundID:
+		return m.OldRoundID(ctx)
+	case giveawaywinner.FieldSlot:
+		return m.OldSlot(ctx)
+	case giveawaywinner.FieldPrize:
+		return m.OldPrize(ctx)
+	case giveawaywinner.FieldWonAt:
+		return m.OldWonAt(ctx)
+	case giveawaywinner.FieldViewerID:
+		return m.OldViewerID(ctx)
+	case giveawaywinner.FieldViewerLogin:
+		return m.OldViewerLogin(ctx)
+	case giveawaywinner.FieldClaimed:
+		return m.OldClaimed(ctx)
+	case giveawaywinner.FieldClaimedAt:
+		return m.OldClaimedAt(ctx)
+	case giveawaywinner.FieldDeliveredAt:
+		return m.OldDeliveredAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown GiveawayWinner field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GiveawayWinnerMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case giveawaywinner.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case giveawaywinner.FieldRoundID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRoundID(v)
+		return nil
+	case giveawaywinner.FieldSlot:
+		v, ok := value.(uint8)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSlot(v)
+		return nil
+	case giveawaywinner.FieldPrize:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPrize(v)
+		return nil
+	case giveawaywinner.FieldWonAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWonAt(v)
+		return nil
+	case giveawaywinner.FieldViewerID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetViewerID(v)
+		return nil
+	case giveawaywinner.FieldViewerLogin:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetViewerLogin(v)
+		return nil
+	case giveawaywinner.FieldClaimed:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetClaimed(v)
+		return nil
+	case giveawaywinner.FieldClaimedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetClaimedAt(v)
+		return nil
+	case giveawaywinner.FieldDeliveredAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeliveredAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown GiveawayWinner field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *GiveawayWinnerMutation) AddedFields() []string {
+	var fields []string
+	if m.adduser_id != nil {
+		fields = append(fields, giveawaywinner.FieldUserID)
+	}
+	if m.addslot != nil {
+		fields = append(fields, giveawaywinner.FieldSlot)
+	}
+	if m.addviewer_id != nil {
+		fields = append(fields, giveawaywinner.FieldViewerID)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *GiveawayWinnerMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case giveawaywinner.FieldUserID:
+		return m.AddedUserID()
+	case giveawaywinner.FieldSlot:
+		return m.AddedSlot()
+	case giveawaywinner.FieldViewerID:
+		return m.AddedViewerID()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GiveawayWinnerMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case giveawaywinner.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
+	case giveawaywinner.FieldSlot:
+		v, ok := value.(int8)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSlot(v)
+		return nil
+	case giveawaywinner.FieldViewerID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddViewerID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown GiveawayWinner numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *GiveawayWinnerMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(giveawaywinner.FieldClaimedAt) {
+		fields = append(fields, giveawaywinner.FieldClaimedAt)
+	}
+	if m.FieldCleared(giveawaywinner.FieldDeliveredAt) {
+		fields = append(fields, giveawaywinner.FieldDeliveredAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *GiveawayWinnerMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *GiveawayWinnerMutation) ClearField(name string) error {
+	switch name {
+	case giveawaywinner.FieldClaimedAt:
+		m.ClearClaimedAt()
+		return nil
+	case giveawaywinner.FieldDeliveredAt:
+		m.ClearDeliveredAt()
+		return nil
+	}
+	return fmt.Errorf("unknown GiveawayWinner nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *GiveawayWinnerMutation) ResetField(name string) error {
+	switch name {
+	case giveawaywinner.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case giveawaywinner.FieldRoundID:
+		m.ResetRoundID()
+		return nil
+	case giveawaywinner.FieldSlot:
+		m.ResetSlot()
+		return nil
+	case giveawaywinner.FieldPrize:
+		m.ResetPrize()
+		return nil
+	case giveawaywinner.FieldWonAt:
+		m.ResetWonAt()
+		return nil
+	case giveawaywinner.FieldViewerID:
+		m.ResetViewerID()
+		return nil
+	case giveawaywinner.FieldViewerLogin:
+		m.ResetViewerLogin()
+		return nil
+	case giveawaywinner.FieldClaimed:
+		m.ResetClaimed()
+		return nil
+	case giveawaywinner.FieldClaimedAt:
+		m.ResetClaimedAt()
+		return nil
+	case giveawaywinner.FieldDeliveredAt:
+		m.ResetDeliveredAt()
+		return nil
+	}
+	return fmt.Errorf("unknown GiveawayWinner field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *GiveawayWinnerMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *GiveawayWinnerMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *GiveawayWinnerMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *GiveawayWinnerMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *GiveawayWinnerMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *GiveawayWinnerMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *GiveawayWinnerMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown GiveawayWinner unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *GiveawayWinnerMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown GiveawayWinner edge %s", name)
 }
 
 // GoveeCredentialMutation represents an operation that mutates the GoveeCredential nodes in the graph.

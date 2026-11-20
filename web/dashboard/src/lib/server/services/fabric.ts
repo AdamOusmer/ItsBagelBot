@@ -3,8 +3,8 @@
 
 import newrelic from 'newrelic';
 import { publish } from '@bagel/kit/server/nats';
-import { createCacheFabric } from '@bagel/kit/server/cache-fabric';
-import type { ScopeMap } from '@bagel/kit/server/invalidation';
+import { createCacheFabric, type InvalidationEvent } from '@bagel/kit/server/cache-fabric';
+import { LOYALTY_FREEZE_MARKER, type ScopeMap } from '@bagel/kit/server/invalidation';
 import { getServerConfig } from '@bagel/kit/server/config';
 import { LOGIN_RE } from '#lib/public-login';
 import { PUBLIC_PAGES, pageScope } from '#lib/public-pages';
@@ -54,14 +54,24 @@ const SILENT_SCOPES: ReadonlySet<string> = new Set(['live', 'fetches']);
 type RenameHandler = (userId: string, logins: string[]) => void;
 
 const renameHandlers: RenameHandler[] = [];
+const loyaltyFreezeHandlers: ((userId: string) => void)[] = [];
 
 export function onRename(handler: RenameHandler): void {
   renameHandlers.push(handler);
 }
 
+export function onLoyaltyFreeze(handler: (userId: string) => void): void {
+  loyaltyFreezeHandlers.push(handler);
+}
+
 function announceRename({ id, keys }: { id: string; keys: readonly string[] }): void {
   const logins = renamedLogins(keys);
   if (logins.length) for (const handler of renameHandlers) handler(id, logins);
+}
+
+function announceFreeze({ id, keys }: InvalidationEvent): void {
+  if (!keys.includes(LOYALTY_FREEZE_MARKER)) return;
+  for (const handler of loyaltyFreezeHandlers) handler(id);
 }
 
 export const fabric = createCacheFabric({
@@ -70,6 +80,7 @@ export const fabric = createCacheFabric({
   capacity: dashboardL1CacheCapacity(process.env),
   onInvalidation: (event) => {
     if (event.scope === 'rename') announceRename(event);
+    if (event.scope === 'loyalty') announceFreeze(event);
     if (event.prefixes.length && !SILENT_SCOPES.has(event.scope)) liveHub.publish(event.id, event.scope);
   }
 });

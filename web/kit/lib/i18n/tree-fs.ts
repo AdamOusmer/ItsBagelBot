@@ -39,6 +39,7 @@ function readJson(file: string): unknown {
 
 export function readConsoleFiles(locale: Locale): CatalogFile[] {
   const dir = join(LOCALES_DIR, locale, 'console');
+  if (!existsSync(dir)) return [];
   return readdirSync(dir, { recursive: true, encoding: 'utf8' })
     .filter((name) => name.endsWith('.json'))
     .sort()

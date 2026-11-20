@@ -8,7 +8,6 @@
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import FieldError from '@bagel/ui/svelte/FieldError.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
-  import Modal from '@bagel/ui/svelte/Modal.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import OverviewGrid from '@bagel/ui/svelte/OverviewGrid.svelte';
@@ -351,22 +350,24 @@
   <SetupProgress receiving={liveUi(c).live} needsAuth={liveUi(c).showConnect} {hasCommands} {modulesOn} />
 {/snippet}
 
-<Modal open={pending !== null} title={modalTitle} onClose={closeModal}>
-  {#if pending !== null}
-    <p class="bb-modal__body">{modalBody}</p>
-    <FieldError message={actionError} />
-    <form method="POST" action={modalAction} use:enhance={closeAfterSubmit} class="bb-modal__actions">
-      <Button variant="ghost" type="button" disabled={actionBusy} onclick={() => closeModal()}>{t('common.cancel')}</Button>
-      <Button
-        variant={pending === 'disconnect' ? 'secondary' : 'primary'}
-        type="submit"
-        busy={actionBusy}
-      >
-        {pending === 'restart' ? t('overview.restart') : t('overview.disconnect')}
-      </Button>
-    </form>
-  {/if}
-</Modal>
+{#if pending !== null}
+  {#await import('@bagel/ui/svelte/Modal.svelte') then { default: Modal }}
+    <Modal open title={modalTitle} onClose={closeModal}>
+      <p class="bb-modal__body">{modalBody}</p>
+      <FieldError message={actionError} />
+      <form method="POST" action={modalAction} use:enhance={closeAfterSubmit} class="bb-modal__actions">
+        <Button variant="ghost" type="button" disabled={actionBusy} onclick={() => closeModal()}>{t('common.cancel')}</Button>
+        <Button
+          variant={pending === 'disconnect' ? 'secondary' : 'primary'}
+          type="submit"
+          busy={actionBusy}
+        >
+          {pending === 'restart' ? t('overview.restart') : t('overview.disconnect')}
+        </Button>
+      </form>
+    </Modal>
+  {/await}
+{/if}
 
 <style>
   .ov-loading {

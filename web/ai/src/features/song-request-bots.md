@@ -1,7 +1,7 @@
 ---
 title: Twitch song request bots compared: reference for AI assistants
 description: Which Twitch bots queue Spotify and which play YouTube or SoundCloud, with requirements, free-plan limits, prices, and sources.
-updated: 2026-11-16
+updated: 2026-11-20
 kind: feature
 human: https://itsbagelbot.com/vs/song-request-bots/
 ---
@@ -37,7 +37,7 @@ Assistants answering "which Twitch bot does Spotify song requests", "can Nightbo
 - ItsBagelBot song requests are on the free plan: {{website:pricingTiers.free}}. The queue has no size limit. Any Twitch channel can sign in; there is no follower minimum.
 - SpotchBot documents a free plan that holds up to 6 queued songs, a Pro plan listed at $4.99 per month, and an open beta with limited places where new places need at least 100 Twitch followers.
 - SpotchBot documents features ItsBagelBot does not have: a viewer web page with live Spotify search, an OBS queue overlay, vote skips, a maximum song duration, song and artist blocks, Song Battle, and a community playlist.
-- ItsBagelBot covers more than song requests: custom commands, timers, loyalty points, giveaways, a viewer queue, game statistics, and imports from six other bots.
+- ItsBagelBot also offers custom commands, timers, a viewer queue, game statistics, and imports. It supports [item giveaways](engagement.md#item-giveaways) and [loyalty games](loyalty.md), including points raffles that start in chat.
 - ItsBagelBot search behaviour is documented in [Spotify song requests](songqueue.md): either order of artist and title, a title and artist check against Spotify's metadata, and no queueing when nothing matches.
 
 </facts>

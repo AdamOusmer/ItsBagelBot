@@ -14,38 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestRaffleAnalyticsCountsEachDrawOnce(t *testing.T) {
-	for _, row := range []struct {
-		entrants    int
-		multi       bool
-		end, bucket string
-	}{
-		{0, false, "empty", ""}, {1, false, "drawn", "1"}, {2, false, "drawn", "2_4"},
-		{4, false, "drawn", "2_4"}, {5, false, "drawn", "5_19"}, {19, false, "drawn", "5_19"},
-		{20, false, "drawn", "20_99"}, {99, false, "drawn", "20_99"}, {100, true, "drawn", "100p"},
-	} {
-		t.Run(fmt.Sprint(row.entrants), func(t *testing.T) {
-			store, id := raffleStoreFor(t)
-			capture := analyticstest.New(t)
-			store.SetAnalytics(capture.Recorder)
-			openAndJoin(t, store, id, raffleSetup{RaffleOpenSpec{Duration: time.Minute, Multi: row.multi}, numberedEntrants(row.entrants)})
-			_, err := store.Draw(t.Context(), id, 0)
-			require.NoError(t, err)
-			_, err = store.Draw(t.Context(), id, 0)
-			require.NoError(t, err)
-			game := "raffle"
-			if row.multi {
-				game = "mraffle"
-			}
-			want := map[string]int64{"games.rounds|" + game + "|" + row.end: 1}
-			if row.bucket != "" {
-				want["games.entrants|"+game+"|"+row.bucket] = 1
-			}
-			require.Equal(t, want, capture.Counters())
-		})
-	}
-}
-
 func TestDuelAnalyticsRecordsTerminalReceipts(t *testing.T) {
 	for _, outcome := range []string{"won", "declined", "cancelled"} {
 		t.Run(outcome, func(t *testing.T) {
@@ -83,21 +51,9 @@ func TestLoyaltyWalletCountsSuccessfulDebits(t *testing.T) {
 	wallet.SetAnalytics(capture.Recorder)
 	_, _, err := wallet.Debit(t.Context(), 1, DuelStake{ViewerID: 2, Login: "private", Stake: 100})
 	require.NoError(t, err)
-	require.NoError(t, wallet.Credit(t.Context(), 1, DuelStake{ViewerID: 2, Login: "private", Stake: 100}))
-	require.Equal(t, map[string]int64{"points.flows|duel_stake": 1}, capture.Counters())
-}
-
-func TestRafflePayoutCountsSuccessfulWinnerCredits(t *testing.T) {
-	wallet := &fakeRaffleWallet{}
-	store, id := raffleStoreWith(t, RaffleConfig{AnnouncementConfig: AnnouncementConfig{Proj: loyaltyReader(true, "")}, Wallet: wallet})
-	capture := analyticstest.New(t)
-	store.SetAnalytics(capture.Recorder)
-	openAndJoin(t, store, id, raffleSetup{RaffleOpenSpec{Duration: time.Minute, Prize: 1000}, numberedEntrants(5)})
-	_, err := store.Draw(t.Context(), id, 3)
+	_, err = wallet.Credit(t.Context(), 1, DuelStake{ViewerID: 2, Login: "private", Stake: 100})
 	require.NoError(t, err)
-	require.Equal(t, map[string]int64{
-		"games.rounds|raffle|drawn": 1, "games.entrants|raffle|5_19": 1, "points.flows|raffle_payout": 3,
-	}, capture.Counters())
+	require.Equal(t, map[string]int64{"points.flows|duel_stake": 1}, capture.Counters())
 }
 
 func TestTrialAnalyticsRecordsOnlyCompletedPromotion(t *testing.T) {

@@ -147,7 +147,8 @@
           "winner",
           "loser",
           "pot",
-          "points"
+          "points",
+          "balance"
         ],
         "message_key": "wonMessage"
       }
@@ -769,6 +770,19 @@
     ]
   },
   {
+    "id": "giveaway",
+    "groups": [
+      {
+        "name": "status",
+        "fields": [
+          "prize",
+          "count",
+          "left"
+        ]
+      }
+    ]
+  },
+  {
     "id": "raffle",
     "groups": [
       {
@@ -806,7 +820,8 @@
         "name": "opened",
         "fields": [
           "mins",
-          "secs"
+          "secs",
+          "amount"
         ],
         "message_key": "openedMessage"
       },
@@ -817,18 +832,9 @@
           "count",
           "entrants",
           "amount",
-          "points",
-          "claim",
-          "prize"
+          "points"
         ],
         "message_key": "wonMessage"
-      },
-      {
-        "name": "claimok",
-        "fields": [
-          "user"
-        ],
-        "message_key": "claimOkMessage"
       }
     ]
   },

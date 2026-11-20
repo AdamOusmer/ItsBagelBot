@@ -46,13 +46,17 @@ var (
 
 func generalHelixRequests(payload *outgress.Message) (standard, shared ratelimit.Request) {
 	identity := twitch.ResolveIdentity(twitch.ParseIdentity(payload.As), payload.Endpoint)
+	return HelixRequests(identity, payload.BroadcasterID)
+}
+
+func HelixRequests(identity twitch.Identity, broadcasterID string) (standard, shared ratelimit.Request) {
 	switch identity {
 	case twitch.IdentityBot:
 		shared = ratelimit.HelixBotRequest()
 		standard = helixUserStandardSpec.ForKey("ratelimit:helix:user:bot:standard")
 	case twitch.IdentityBroadcaster:
-		shared = ratelimit.HelixUserRequest(payload.BroadcasterID)
-		standard = helixUserStandardSpec.ForDynamicKey("ratelimit:helix:user:standard:", "helix:user:standard", payload.BroadcasterID)
+		shared = ratelimit.HelixUserRequest(broadcasterID)
+		standard = helixUserStandardSpec.ForDynamicKey("ratelimit:helix:user:standard:", "helix:user:standard", broadcasterID)
 	default:
 		shared = ratelimit.HelixAppRequest()
 		standard = helixStandardSpec.ForKey(helixAppStandardKey)

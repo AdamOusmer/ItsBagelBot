@@ -20,9 +20,9 @@ import {
 import { ValkeyRateLimiter, warmRateLimiter } from '@bagel/kit/server/rate-limit';
 import { warmSessionRevocation } from '@bagel/kit/server/session-revocation';
 import { logger } from '@bagel/kit/server/logger';
-import { onRename, startInvalidationListener } from '#lib/server/services';
+import { onLoyaltyFreeze, onRename, startInvalidationListener } from '#lib/server/services';
 import { assertConfigSane } from '#lib/server/config-sanity';
-import { purgeEdgeByTag, purgeRenamedChannel } from '#lib/server/edge-purge';
+import { purgeEdgeByTag, purgeRenamedChannel, scheduleLeaderboardPurge } from '#lib/server/edge-purge';
 import { enumerableChannelQuery } from '#lib/server/channel-urls';
 import { preloadCatalog, preloadSlices } from '#lib/server/catalog-preload';
 import { errorTarget } from '#lib/error-routes';
@@ -36,6 +36,7 @@ export const init: ServerInit = async () => {
   warmSessionRevocation();
 
   onRename(purgeRenamedChannel);
+  onLoyaltyFreeze(scheduleLeaderboardPurge);
   startInvalidationListener();
   scheduleDeployPurge();
 };
@@ -101,6 +102,12 @@ type HookEvent = Parameters<Handle>[0]['event'];
 
 type EdgeTtl = readonly [edgeTtlSec: number, swrSec: number];
 
+function capTtl(ttl: EdgeTtl, cap: number | undefined): EdgeTtl {
+  if (cap === undefined) return ttl;
+  const fresh = Math.min(ttl[0], cap);
+  return [fresh, Math.min(ttl[1], cap - fresh)];
+}
+
 function edgeTtl(event: HookEvent): EdgeTtl | null {
   const routeTtl = EDGE_CACHE[event.route.id ?? ''];
   if (!routeTtl) return null;
@@ -110,7 +117,7 @@ function edgeTtl(event: HookEvent): EdgeTtl | null {
     case 'missing':
       return SHORT_EDGE_TTL;
     default:
-      return routeTtl;
+      return capTtl(routeTtl, event.locals.edgeTtlCapSec);
   }
 }
 
@@ -159,9 +166,10 @@ export function edgeCacheHeaders(event: HookEvent, res: Response): Record<string
   const ttl = edgeTtl(event);
   if (!ttl || !cacheableRequest(event)) return null;
   if (!cacheableResponse(res, event) || !anonymousDefaultRender(event)) return null;
+  const staleIfError = event.locals.edgeTtlCapSec === undefined ? 86400 : 0;
   return {
     'Cache-Control': 'public, max-age=0',
-    'CDN-Cache-Control': `max-age=${ttl[0]}, stale-while-revalidate=${ttl[1]}, stale-if-error=86400`,
+    'CDN-Cache-Control': `max-age=${ttl[0]}, stale-while-revalidate=${ttl[1]}, stale-if-error=${staleIfError}`,
     'Cache-Tag': [DEPLOY_CACHE_TAG, event.locals.edgeCacheTag].filter(Boolean).join(',')
   };
 }

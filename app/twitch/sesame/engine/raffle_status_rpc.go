@@ -1,0 +1,68 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+package engine
+
+import (
+	"context"
+
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
+	"ItsBagelBot/internal/domain/rpc"
+	drawrpc "ItsBagelBot/internal/domain/rpc/draw"
+	"ItsBagelBot/pkg/bus"
+
+	"go.uber.org/zap"
+)
+
+type RaffleStatusRPC struct {
+	Draw  DrawStore
+	Watch LoyaltyTicker
+	Log   *zap.Logger
+}
+
+func (s RaffleStatusRPC) Subscribe(w bus.RPCWiring) error {
+	return bus.Serve(w, drawrpc.RaffleStatusSubject, s.status)
+}
+
+func (s RaffleStatusRPC) status(ctx context.Context, req drawrpc.RaffleStatusRequest) drawrpc.RaffleStatus {
+	id, err := bus.NonZeroUserID(req.UserID)
+	if err != nil || req.Source != "dashboard" {
+		return drawrpc.RaffleStatus{Refusal: rpc.Refused(rpc.CodeInvalid, "invalid user_id or source")}
+	}
+	rounds, err := s.Draw.Live(ctx, draw.ChannelID(id))
+	if err != nil {
+		s.Log.Warn("raffle status unavailable", zap.Error(err))
+		return drawrpc.RaffleStatus{Refusal: rpc.Refused(rpc.CodeUnavailable, "raffle status unavailable")}
+	}
+	return drawrpc.RaffleStatus{AccrualHealth: string(s.Watch.AccrualHealth(ctx, id)), Unpaid: unpaidRaffleViewers(rounds), Rounds: raffleRoundViews(rounds)}
+}
+
+func unpaidRaffleViewers(rounds []draw.RoundView) []string {
+	var names []string
+	for _, round := range rounds {
+		if round.Terms.Kind == draw.KindRaffle {
+			names = appendUnpaidViewers(names, round.Slots)
+		}
+	}
+	return names
+}
+
+func appendUnpaidViewers(names []string, slots []draw.Slot) []string {
+	for _, slot := range slots {
+		if slot.State == draw.SlotUnpaid && slot.Login != "" {
+			names = append(names, slot.Login)
+		}
+	}
+	return names
+}
+
+func raffleRoundViews(rounds []draw.RoundView) []drawrpc.RaffleRound {
+	var views []drawrpc.RaffleRound
+	for _, round := range rounds {
+		if round.Terms.Kind == draw.KindRaffle {
+			views = append(views, drawrpc.RaffleRound{ID: string(round.ID), Phase: string(round.Phase),
+				ClosesMS: round.ClosesAt.UnixMilli(), Entries: round.Entries})
+		}
+	}
+	return views
+}

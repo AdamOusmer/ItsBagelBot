@@ -14,7 +14,8 @@ import (
 )
 
 var naturalKeys = map[string]string{
-	"cooldown_claims": "cooldownclaim_user_id_cooldown_key",
+	"cooldown_claims":  "cooldownclaim_user_id_cooldown_key",
+	"giveaway_winners": "giveawaywinner_user_id_round_id_slot",
 }
 
 func MigrateSchema(ctx context.Context, client *ent.Client, dialectName string) error {

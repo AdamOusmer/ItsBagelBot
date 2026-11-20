@@ -3,6 +3,33 @@
 
 package valkey
 
+import (
+	"context"
+	"strconv"
+
+	valkey_go "github.com/valkey-io/valkey-go"
+)
+
+type WindowHealth struct {
+	Active     bool
+	Failed     bool
+	DueAt      int64
+	LastPageAt int64
+}
+
+const windowRestarted = "provider stream changed"
+
+func ReadWindowHealth(ctx context.Context, client valkey_go.Client, key string) (WindowHealth, error) {
+	fields, err := Exec1(ctx, client, HMGetCmd(client, key, "active", "last_error", "due", "last_page_at")).AsStrSlice()
+	if err != nil {
+		return WindowHealth{}, err
+	}
+	due, _ := strconv.ParseInt(fields[2], 10, 64)
+	last, _ := strconv.ParseInt(fields[3], 10, 64)
+	failed := fields[1] != "" && fields[1] != windowRestarted
+	return WindowHealth{Active: fields[0] == "1", Failed: failed, DueAt: due, LastPageAt: last}, nil
+}
+
 const clearCursorSeen = `for _,field in ipairs(redis.call('HKEYS',KEYS[1])) do if string.sub(field,1,12)=='cursor_seen:' then redis.call('HDEL',KEYS[1],field) end end`
 
 // SaveQueuePage persists a SCAN cursor and appends discovered members to a work queue.
@@ -32,7 +59,7 @@ if not active and incoming==current and generation==ARGV[3] and redis.call('HGET
 redis.call('DEL',KEYS[3])
 redis.call('PERSIST',KEYS[1])
 redis.call('HSET',KEYS[1],'version',ARGV[2],'session',ARGV[2],'active','1','generation',ARGV[3],'live_session',ARGV[2],'due',ARGV[5],'chunk','0','failures','0','confirmed_at','0')
-redis.call('HDEL',KEYS[1],'window','window_started_at','cursor','pending','pending_cursor','pending_complete','last_error','retry_at','stop_reason','provider_stream_id','provider_started_at')
+redis.call('HDEL',KEYS[1],'window','window_started_at','cursor','pending','pending_cursor','pending_complete','last_error','retry_at','stop_reason','provider_stream_id','provider_started_at','last_page_at')
 redis.call('ZADD',KEYS[2],ARGV[5],ARGV[1]);return 1`)
 
 // DisarmWindow stops a scheduled window.
@@ -87,7 +114,7 @@ else
  redis.call('HINCRBY',KEYS[1],'chunk',1)
  redis.call('ZADD',KEYS[2],now+250,ARGV[2])
 end
-redis.call('HSET',KEYS[1],'failures','0')
+redis.call('HSET',KEYS[1],'failures','0','last_page_at',ARGV[6])
 redis.call('HDEL',KEYS[1],'pending','pending_cursor','pending_complete','last_error','retry_at')
 return 1`)
 
@@ -97,8 +124,8 @@ if redis.call('GET',KEYS[2])~=ARGV[1] or redis.call('HGET',KEYS[1],'active')~='1
 local prior=redis.call('HGET',KEYS[1],'provider_stream_id')
 redis.call('HSET',KEYS[1],'confirmed_at',ARGV[2],'provider_stream_id',ARGV[3],'provider_started_at',ARGV[4])
 if prior and prior~=ARGV[3] then
- redis.call('HSET',KEYS[1],'due',ARGV[6],'chunk','0','failures','0','last_error','provider stream changed')
- redis.call('HDEL',KEYS[1],'window','window_started_at','cursor','pending','pending_cursor','pending_complete','retry_at')
+ redis.call('HSET',KEYS[1],'due',ARGV[6],'chunk','0','failures','0','last_error','` + windowRestarted + `')
+ redis.call('HDEL',KEYS[1],'window','window_started_at','cursor','pending','pending_cursor','pending_complete','retry_at','last_page_at')
  redis.call('ZADD',KEYS[3],ARGV[6],ARGV[5]);return 2
 end
 return 1`)

@@ -31,12 +31,65 @@ func NewLoyaltyRPC(nc *nats.Conn, prefix LoyaltyRPCPrefix) *LoyaltyRPC {
 type loyaltyVerb string
 
 func (l *LoyaltyRPC) call(ctx context.Context, verb loyaltyVerb, req loyaltyrpc.Request) (loyaltyrpc.Reply, error) {
-	subject := string(l.prefix) + "." + string(verb)
+	return requestLoyalty[loyaltyrpc.Reply](ctx, l, verb, req)
+}
 
-	return bus.RequestJSONTimeout[loyaltyrpc.Reply](ctx, l.nc, subject, req, loyaltyRPCTimeout)
+func requestLoyalty[Reply any](ctx context.Context, l *LoyaltyRPC, verb loyaltyVerb, req any) (Reply, error) {
+	subject := string(l.prefix) + "." + string(verb)
+	return bus.RequestJSONTimeout[Reply](ctx, l.nc, subject, req, loyaltyRPCTimeout)
 }
 
 func fmtID(id uint64) string { return strconv.FormatUint(id, 10) }
+
+func (l *LoyaltyRPC) BalanceCredit(ctx context.Context, credit PointCredit) (CreditOutcome, error) {
+	reply, err := l.keyedBalance(ctx, loyaltyrpc.VerbBalanceCredit, credit)
+	if err != nil {
+		return CreditOutcome{}, err
+	}
+	if reply.Balance == nil {
+		return CreditOutcome{}, fmt.Errorf("rpc %s.balance.credit: empty reply", l.prefix)
+	}
+	return CreditOutcome{Balance: *reply.Balance, Replayed: reply.Replayed}, nil
+}
+
+func (l *LoyaltyRPC) BalanceDebit(ctx context.Context, debit PointDebit) (DebitOutcome, error) {
+	reply, err := l.keyedBalance(ctx, loyaltyrpc.VerbBalanceDebit, PointCredit(debit))
+	out := DebitOutcome{Spent: reply.Spent, Replayed: reply.Replayed}
+	if reply.Balance != nil {
+		out.Balance = *reply.Balance
+	}
+	return out, err
+}
+
+func (l *LoyaltyRPC) keyedBalance(ctx context.Context, verb loyaltyVerb, mutation PointCredit) (loyaltyrpc.Reply, error) {
+	req := loyaltyrpc.Request{UserID: fmtID(mutation.BroadcasterID), ViewerID: fmtID(mutation.ViewerID),
+		ViewerLogin: mutation.ViewerLogin, Value: mutation.Value, Key: mutation.Key, AccountCreatedAt: &mutation.AccountCreatedAt}
+	return l.call(ctx, verb, req)
+}
+
+func (l *LoyaltyRPC) BalanceCountAtLeast(ctx context.Context, broadcasterID uint64, mins BalanceMinimums) (loyaltyrpc.BalanceCount, error) {
+	req := loyaltyrpc.BalanceCountRequest{UserID: fmtID(broadcasterID), MinPoints: mins.Points, MinWatchSeconds: mins.WatchSeconds, SnapshotID: mins.SnapshotID}
+	return requestLoyalty[loyaltyrpc.BalanceCount](ctx, l, loyaltyrpc.VerbBalanceCountAtLeast, req)
+}
+
+type BalanceMinimums struct {
+	Points, WatchSeconds int64
+	SnapshotID           string
+}
+
+type BalanceSnapshotRequest struct {
+	BroadcasterID, ViewerID uint64
+	SnapshotID              string
+}
+
+func (l *LoyaltyRPC) BalanceSnapshot(ctx context.Context, req BalanceSnapshotRequest) (loyaltyrpc.BalanceSnapshot, error) {
+	wire := loyaltyrpc.BalanceSnapshotRequest{UserID: fmtID(req.BroadcasterID), ViewerID: fmtID(req.ViewerID), SnapshotID: req.SnapshotID}
+	return requestLoyalty[loyaltyrpc.BalanceSnapshot](ctx, l, loyaltyrpc.VerbBalanceSnapshot, wire)
+}
+
+func (l *LoyaltyRPC) WatchStatus(ctx context.Context) (loyaltyrpc.WatchStatus, error) {
+	return requestLoyalty[loyaltyrpc.WatchStatus](ctx, l, loyaltyrpc.VerbWatchStatus, struct{}{})
+}
 
 func (l *LoyaltyRPC) BalanceGet(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.Balance, error) {
 	reply, err := l.call(ctx, "balance.get", loyaltyrpc.Request{UserID: fmtID(broadcasterID), ViewerID: fmtID(viewerID)})
@@ -47,10 +100,6 @@ func (l *LoyaltyRPC) BalanceGet(ctx context.Context, broadcasterID, viewerID uin
 		return loyaltyrpc.Balance{}, nil
 	}
 	return *reply.Balance, nil
-}
-
-func (l *LoyaltyRPC) BalanceAdjust(ctx context.Context, broadcasterID uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error) {
-	return l.BalanceAdjustViewer(ctx, BalanceAdjustment{BroadcasterID: broadcasterID, ViewerLogin: viewerLogin, Value: value, Absolute: absolute})
 }
 
 func (l *LoyaltyRPC) BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error) {
@@ -72,24 +121,13 @@ func (l *LoyaltyRPC) BalanceAdjustViewer(ctx context.Context, adjustment Balance
 	return *reply.Balance, true, nil
 }
 
-func (l *LoyaltyRPC) BalanceSpend(ctx context.Context, spend PointSpend) (bal loyaltyrpc.Balance, found, spent bool, err error) {
-	reply, err := l.call(ctx, "balance.spend", loyaltyrpc.Request{UserID: fmtID(spend.BroadcasterID), ViewerID: fmtID(spend.ViewerID), ViewerLogin: spend.Login, Value: spend.Amount})
-	if err != nil {
-		return loyaltyrpc.Balance{}, false, false, err
-	}
-	if !reply.Found || reply.Balance == nil {
-		return loyaltyrpc.Balance{}, false, false, nil
-	}
-	return *reply.Balance, true, reply.Spent, nil
-}
-
-func (l *LoyaltyRPC) BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID, targetViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, target *loyaltyrpc.Balance, found, moved bool, err error) {
+func (l *LoyaltyRPC) BalanceTransfer(ctx context.Context, transfer PointTransfer) (bal loyaltyrpc.Balance, target *loyaltyrpc.Balance, found, moved bool, err error) {
 	reply, err := l.call(ctx, "balance.transfer", loyaltyrpc.Request{
-		UserID:         fmtID(broadcasterID),
-		ViewerID:       fmtID(fromViewerID),
-		ViewerLogin:    targetLogin,
-		TargetViewerID: fmtID(targetViewerID),
-		Value:          amount,
+		UserID:         fmtID(transfer.BroadcasterID),
+		ViewerID:       fmtID(transfer.FromViewerID),
+		ViewerLogin:    transfer.TargetLogin,
+		TargetViewerID: fmtID(transfer.TargetViewerID),
+		Value:          transfer.Amount,
 	})
 	if err != nil {
 		return loyaltyrpc.Balance{}, nil, false, false, err
@@ -101,17 +139,18 @@ func (l *LoyaltyRPC) BalanceTransfer(ctx context.Context, broadcasterID, fromVie
 }
 
 func (l *LoyaltyRPC) Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error) {
-	reply, err := l.call(ctx, "top.get", loyaltyrpc.Request{UserID: fmtID(broadcasterID), Limit: limit})
-	if err != nil {
-		return nil, err
-	}
-	return reply.Top, nil
+	reply, err := l.topReply(ctx, broadcasterID, limit)
+	return reply.Top, err
 }
 
-func (l *LoyaltyRPC) CounterGet(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string) (loyaltyrpc.Counter, bool, error) {
-	req := loyaltyrpc.Request{UserID: fmtID(broadcasterID), Name: name, Command: command}
-	if viewerID != 0 {
-		req.ViewerID = fmtID(viewerID)
+func (l *LoyaltyRPC) topReply(ctx context.Context, broadcasterID uint64, limit int) (loyaltyrpc.Reply, error) {
+	return l.call(ctx, "top.get", loyaltyrpc.Request{UserID: fmtID(broadcasterID), Limit: limit})
+}
+
+func (l *LoyaltyRPC) CounterGet(ctx context.Context, target CounterTarget) (loyaltyrpc.Counter, bool, error) {
+	req := loyaltyrpc.Request{UserID: fmtID(target.BroadcasterID), Name: target.Name, Command: target.Command}
+	if target.ViewerID != 0 {
+		req.ViewerID = fmtID(target.ViewerID)
 	}
 	reply, err := l.call(ctx, "counter.get", req)
 	if err != nil {
@@ -123,8 +162,8 @@ func (l *LoyaltyRPC) CounterGet(ctx context.Context, broadcasterID uint64, name 
 	return *reply.Counter, true, nil
 }
 
-func (l *LoyaltyRPC) CounterCreate(ctx context.Context, broadcasterID uint64, name, scope string) (loyaltyrpc.Counter, error) {
-	reply, err := l.call(ctx, "counter.create", loyaltyrpc.Request{UserID: fmtID(broadcasterID), Name: name, Scope: scope})
+func (l *LoyaltyRPC) CounterCreate(ctx context.Context, ref counterRef, scope counterScope) (loyaltyrpc.Counter, error) {
+	reply, err := l.call(ctx, "counter.create", loyaltyrpc.Request{UserID: fmtID(ref.broadcasterID), Name: ref.name, Scope: string(scope)})
 	if err != nil {
 		return loyaltyrpc.Counter{}, err
 	}
@@ -153,8 +192,8 @@ func (l *LoyaltyRPC) PromoteTrial(ctx context.Context, broadcasterID uint64) err
 	return err
 }
 
-func (l *LoyaltyRPC) CounterDelete(ctx context.Context, broadcasterID uint64, name string) error {
-	_, err := l.call(ctx, "counter.delete", loyaltyrpc.Request{UserID: fmtID(broadcasterID), Name: name})
+func (l *LoyaltyRPC) CounterDelete(ctx context.Context, ref counterRef) error {
+	_, err := l.call(ctx, "counter.delete", loyaltyrpc.Request{UserID: fmtID(ref.broadcasterID), Name: ref.name})
 	return err
 }
 

@@ -6,6 +6,7 @@ package repository_test
 import (
 	"database/sql"
 	"math"
+	"strconv"
 	"testing"
 
 	"ItsBagelBot/app/db/loyalty/ent/balance"
@@ -92,10 +93,11 @@ func checkConcurrentWagerSpends(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sq
 	t.Helper()
 	_, _, err := repo.BalanceAdjustViewer(t.Context(), loyaltyrepo.BalanceAdjustment{UserID: 2, ViewerID: 7, ViewerLogin: "sender", Value: 50, Absolute: true})
 	require.NoError(t, err)
+	require.NoError(t, repo.EnsureBalanceCreditSchema(t.Context()))
 	const changes = 20
 	start := make(chan struct{})
 	results := make(chan wagerChange, changes*3)
-	for range changes {
+	for i := range changes {
 		go func() {
 			<-start
 			outcome, err := repo.BalanceWager(t.Context(), loyaltyrepo.Wager{UserID: 2, ViewerID: 7, Amount: 7})
@@ -107,9 +109,9 @@ func checkConcurrentWagerSpends(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sq
 		}()
 		go func() {
 			<-start
-			_, _, spent, err := repo.BalanceSpendViewer(t.Context(), loyaltyrepo.Spend{UserID: 2, ViewerID: 7, Amount: 3})
+			outcome, err := repo.BalanceDebit(t.Context(), loyaltyrepo.BalanceDebit{UserID: 2, ViewerID: 7, Value: 3, Key: "recipe:r:" + strconv.Itoa(i)})
 			result := wagerChange{err: err}
-			if spent {
+			if outcome.Spent {
 				result.debit = 3
 			}
 			results <- result

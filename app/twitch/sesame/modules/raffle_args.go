@@ -4,74 +4,87 @@
 package modules
 
 import (
-	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
 )
 
 type raffleStart struct {
 	prize    int64
 	duration time.Duration
+	winners  draw.WinnerPolicy
+	multi    bool
 }
 
-func parseRaffleStart(args string, cfg engine.RaffleModuleConfig) (raffleStart, bool) {
-	amountArg, rest := splitFirst(args)
-	secondsArg, _ := splitFirst(rest)
-	prize, ok := raffleAmountOr(amountArg, cfg.Prize())
+type raffleStartInput struct {
+	args    string
+	winners int
+	multi   bool
+}
+
+type raffleArg string
+
+func parseRaffleStart(input raffleStartInput, cfg engine.RaffleModuleConfig) (raffleStart, bool) {
+	amountArg, rest := splitFirst(input.args)
+	secondsArg, rest := splitFirst(rest)
+	prize, ok := raffleArg(amountArg).prizeOr(cfg.Prize())
 	if !ok {
 		return raffleStart{}, false
 	}
-	duration, ok := raffleSecondsOr(secondsArg, cfg.Duration())
-	return raffleStart{prize: prize, duration: duration}, ok
+	duration, ok := raffleArg(secondsArg).durationOr(cfg.Duration())
+	if !ok || !input.allowsWinnerArg(rest) {
+		return raffleStart{}, false
+	}
+	winners, ok := parseWinners(rest, draw.WinnerPolicy{Count: input.winners})
+	return raffleStart{prize: prize, duration: duration, winners: winners, multi: input.multi}, ok
 }
 
-func raffleAmountOr(arg string, fallback int64) (int64, bool) {
+func (input raffleStartInput) allowsWinnerArg(arg string) bool {
+	return arg == "" || input.multi
+}
+
+func parseWinners(arg string, def draw.WinnerPolicy) (draw.WinnerPolicy, bool) {
+	switch {
+	case arg == "":
+		return def, true
+	case strings.EqualFold(arg, "auto"):
+		return draw.WinnerPolicy{Auto: true}, true
+	default:
+		n, err := strconv.ParseUint(arg, 10, 16)
+		return draw.WinnerPolicy{Count: int(n)}, err == nil && validRaffleWinnerCount(n)
+	}
+}
+
+func validRaffleWinnerCount(n uint64) bool {
+	return n > 0 && n <= uint64(draw.Pins.MaxWinners)
+}
+
+func (arg raffleArg) prizeOr(fallback int64) (int64, bool) {
 	if arg == "" {
 		return fallback, true
 	}
-	return parseRaffleAmount(arg)
+	amount := ParsePointsAmount(string(arg))
+	value := min(amount.Resolve(0), engine.MaxRafflePrize)
+	return value, amount.Valid() && value > 0
 }
 
-func raffleSecondsOr(arg string, fallback time.Duration) (time.Duration, bool) {
+func (arg raffleArg) durationOr(fallback time.Duration) (time.Duration, bool) {
 	if arg == "" {
 		return fallback, true
 	}
-	seconds, err := strconv.ParseUint(arg, 10, 32)
+	seconds, err := strconv.ParseUint(string(arg), 10, 32)
 	return engine.ClampRaffleDuration(time.Duration(seconds) * time.Second), err == nil
 }
 
-func parseRaffleAmount(arg string) (int64, bool) {
-	digits, multiplier := strings.ToLower(arg), 1.0
-	switch {
-	case strings.HasSuffix(digits, "k"):
-		digits, multiplier = strings.TrimSuffix(digits, "k"), 1e3
-	case strings.HasSuffix(digits, "m"):
-		digits, multiplier = strings.TrimSuffix(digits, "m"), 1e6
-	}
-	if !plainDecimal(digits, multiplier != 1) {
-		return 0, false
-	}
-	value, err := strconv.ParseFloat(digits, 64)
-	if err != nil {
-		return 0, false
-	}
-	return int64(math.Round(min(value*multiplier, float64(engine.MaxRafflePrize)))), true
-}
+var stuckRaffleAmount = regexp.MustCompile(`(?i)^([0-9]+(?:[.,][0-9]+)?[km])([0-9]+)$`)
 
-func plainDecimal(s string, allowDot bool) bool {
-	digits, dots := 0, 0
-	for _, r := range s {
-		switch {
-		case r >= '0' && r <= '9':
-			digits++
-		case r == '.' && allowDot:
-			dots++
-		default:
-			return false
-		}
+func raffleUsageKey(args string) replyKey {
+	if stuckRaffleAmount.MatchString(strings.TrimSpace(args)) {
+		return "raffle.err.missing_space"
 	}
-	return digits > 0 && dots <= 1
+	return "raffle.err.usage"
 }

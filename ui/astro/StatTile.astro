@@ -5,8 +5,9 @@ import type { HTMLAttributes } from 'astro/types';
 import type { StatTone } from '../lib/tone';
 import '../styles/elements/stat-tile.css';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'value' | 'unit' | 'delta' | 'flat' | 'static' | 'inline' | 'text' | 'tone' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'fitCopy' | 'value' | 'unit' | 'delta' | 'flat' | 'static' | 'inline' | 'text' | 'tone' | 'class'> {
     label: string;
+    fitCopy?: boolean;
     value: string;
     unit?: string;
     delta?: string;
@@ -20,6 +21,7 @@ interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'value' | 'unit' |
 
 const {
     label,
+    fitCopy = false,
     value,
     unit = '',
     delta,
@@ -45,7 +47,7 @@ const classes = [
 
 <div class={classes} {...rest}>
   <div class="bb-stat__head">
-    <span class="bb-stat__label">{label}</span>
+    <span class:list={['bb-stat__label', fitCopy && 'bb-fit-box']}>{fitCopy ? <bb-fit><span data-fit="">{label}</span></bb-fit> : label}</span>
     <slot name="trailing" />
   </div>
   <div class="bb-stat__value"><span>{value}</span>{unit && <small>{unit}</small>}</div>

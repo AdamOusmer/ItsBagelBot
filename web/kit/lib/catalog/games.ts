@@ -13,6 +13,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
     category: 'Points',
     defaultEnabled: false,
     parent: 'loyalty',
+    href: '/loyalty#games',
     settings: [
       { key: 'winPercent', label: 'Win chance %', type: 'number', placeholder: '50', help: 'A roll of this number or lower wins. 50 is a fair coin; 1-99 allowed.' },
       { key: 'minBet', label: 'Minimum bet', type: 'number', placeholder: '1' },
@@ -57,6 +58,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
     category: 'Points',
     defaultEnabled: false,
     parent: 'loyalty',
+    href: '/loyalty#games',
     settings: [
       { key: 'minStake', label: 'Minimum stake', type: 'number', placeholder: '1' },
       { key: 'maxStake', label: 'Maximum stake', type: 'number', placeholder: '1000' },
@@ -106,7 +108,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
         previewArgs: 'accept',
         messageKey: 'wonMessage',
         defaultMessage: 'The blades fall: @{winner} defeats @{loser} and takes {pot} {points}!',
-        tokens: replyTokens(['winner', 'loser', 'pot', 'points'], { winner: 'SnackPackPanda', loser: 'PrincessBarney', pot: '1000', points: 'points' })
+        tokens: replyTokens(['winner', 'loser', 'pot', 'points', 'balance'], { winner: 'SnackPackPanda', loser: 'PrincessBarney', pot: '1000', points: 'points', balance: '1500' })
       }
     ],
     commands: [

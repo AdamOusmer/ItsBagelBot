@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/db/modules/ent/countdownoperation"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedreceipt"
+	"ItsBagelBot/app/db/modules/ent/giveawaywinner"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/quote"
@@ -93,6 +94,7 @@ func checkColumn(t, c string) error {
 			countdownoperation.Table: countdownoperation.ValidColumn,
 			feedcounter.Table:        feedcounter.ValidColumn,
 			feedreceipt.Table:        feedreceipt.ValidColumn,
+			giveawaywinner.Table:     giveawaywinner.ValidColumn,
 			goveecredential.Table:    goveecredential.ValidColumn,
 			modules.Table:            modules.ValidColumn,
 			quote.Table:              quote.ValidColumn,

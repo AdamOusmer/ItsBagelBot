@@ -1,0 +1,21 @@
+{
+  "claim.late": "@{draw:user}, время получения приза истекло.",
+  "claim.ok": "@{draw:user}, ваш приз подтверждён!",
+  "empty": "В розыгрыше никто не участвовал.",
+  "join.closed": "Розыгрыш закрыт.",
+  "no_show": "Время получения приза истекло для {draw:targets}.",
+  "remind": "До конца регистрации примерно {draw:mins} мин. Уже участвуют: {draw:count}. Введите !join.",
+  "status.no_show": "Время получения приза истекло: {draw:targets}.",
+  "status.none": "Победителей пока нет.",
+  "status.paying": "Ожидают выплаты: {draw:targets}.",
+  "status.unpaid": "Не удалось начислить баллы: {draw:targets}.",
+  "status.winners": "Победители: {draw:targets}.",
+  "unfilled": "Подходящих участников больше нет.",
+  "unpaid": "Некоторые призы не удалось выплатить.",
+  "verifying": "Проверяем победителей. Скоро объявим результат.",
+  "winners": "Выигрыш получает {draw:targets}!",
+  "winners.claim": "Выигрыш получает {draw:targets}! Чтобы забрать приз, введите !claim.",
+  "winners.raffle": "{draw:targets} получили по {draw:amount} {draw:points}!",
+  "open.busy_giveaway": "Уже идёт конкурс. Сначала выберите победителей или отмените его.",
+  "join.free": "Участие бесплатное."
+}

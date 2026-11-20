@@ -69,9 +69,11 @@ type Command struct {
 	Aliases       []string
 	Perm          Role
 	Cooldown      time.Duration
+	UserCooldown  time.Duration
 	LiveOnly      bool
 	AllowedUserID string
 	NumericSuffix bool
+	Yield         bool
 	When          ClaimFunc
 	Run           RunFunc
 }

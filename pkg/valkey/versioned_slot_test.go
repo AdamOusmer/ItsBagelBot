@@ -28,9 +28,7 @@ func TestVersionedSlotRejectsAStaleVersionAndClearHonorsTheSameGuard(t *testing.
 	require.NoError(t, err)
 	require.False(t, applied, "a lower version must not overwrite a higher one")
 
-	value, err := client.Do(ctx, client.B().Get().Key(slot.Key).Build()).ToString()
-	require.NoError(t, err)
-	require.Equal(t, "10", value)
+	checkVersionedSlot(t, client, slot, expectedSlot{"10", 10})
 
 	applied, err = slot.Clear(ctx, client, 5, time.Minute)
 	require.NoError(t, err)
@@ -40,6 +38,17 @@ func TestVersionedSlotRejectsAStaleVersionAndClearHonorsTheSameGuard(t *testing.
 	require.NoError(t, err)
 	require.True(t, applied)
 
-	_, err = client.Do(ctx, client.B().Get().Key(slot.Key).Build()).ToString()
-	require.True(t, valkey_go.IsValkeyNil(err))
+	checkVersionedSlot(t, client, slot, expectedSlot{"", 20})
+}
+
+type expectedSlot struct {
+	value   string
+	version int64
+}
+
+func checkVersionedSlot(t *testing.T, client valkey_go.Client, slot VersionedSlot, expected expectedSlot) {
+	t.Helper()
+	value, version, err := slot.Read(t.Context(), client)
+	require.NoError(t, err)
+	require.Equal(t, expected, expectedSlot{value, version})
 }

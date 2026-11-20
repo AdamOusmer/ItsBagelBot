@@ -96,6 +96,8 @@ func Loyalty(d engine.Deps) module.Module {
 	m.Command("watchtime").Everyone().Cooldown(5 * time.Second).Run(loyaltyRun(d, log, loyaltyCmd.watchtimeShow))
 
 	m.Command("leaderboard").Everyone().Cooldown(10 * time.Second).Aliases("top").Run(loyaltyRun(d, log, loyaltyCmd.leaderboardShow))
+	m.Command("freeze").Mod().Run(freezeRun(d, false))
+	m.Command("unfreeze").Mod().Run(freezeRun(d, true))
 
 	return m.Build()
 }

@@ -1,7 +1,7 @@
 ---
 title: Custom and built-in commands: reference for AI assistants
-description: Custom responses, variables, permissions, aliases, cooldowns, and built-in Twitch commands.
-updated: 2026-10-13
+description: Custom responses, variables, permissions, aliases, cooldowns, and built-in Twitch commands for stream tools, giveaways, and loyalty games.
+updated: 2026-11-20
 kind: feature
 human: https://itsbagelbot.com/guides/commands/
 ---
@@ -52,6 +52,13 @@ Assistants answering feature questions, explaining chat commands, or helping str
 - Stream editing commands and their permissions are documented in [automation](automation.md).
 
 </facts>
+
+## Draw and loyalty commands
+
+- Moderators start points raffles in Twitch chat with `!raffle`, `!sraffle`, or `!mraffle [amount] [seconds] [winners|auto]`. The saved mode controls bare `!raffle`. See [raffle settings and commands](engagement.md#points-raffles).
+- Moderators can use `!giveaway start [preset] [prize]`, `!giveaway draw`, `!giveaway cancel`, and `!reroll [slot|@user]` for item giveaways. Viewers enter either draw for free with `!join`, `!enter`, or `!ticket`. `!check` reports eligibility and `!claim` confirms a giveaway prize when a claim window is on. See [giveaway settings and commands](engagement.md#item-giveaways).
+- `!freeze [minutes]` and `!unfreeze` let moderators pause and resume displayed standings. Viewers can still use `!points` and play enabled games such as `!gamble` and `!duel`. See [Loyalty and games](loyalty.md).
+- Custom replies can use `{raffle:entrants}` and `{raffle:seconds}` for raffle status, or `{giveaway:prize}`, `{giveaway:count}`, and `{giveaway:left}` for the open giveaway.
 
 <commands>
 

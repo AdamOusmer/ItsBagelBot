@@ -5,10 +5,12 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
@@ -46,14 +48,15 @@ func liveOnlineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 			if !applied {
 				return nil
 			}
+			wakeErr := wakeDraw(wctx, d.Draw, id)
 			if err := d.Greet.ResetGreets(wctx, id); err != nil {
 				log.Warn("live: failed to reset greets", module.BIDField(id), zap.Error(err))
-				return err
+				return errors.Join(err, wakeErr)
 			}
 			if d.Timers != nil {
 				d.Timers.ArmOnline(wctx, id)
 			}
-			return nil
+			return wakeErr
 		})
 
 		emit(&module.Output{
@@ -88,11 +91,18 @@ func liveOfflineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 			if d.Timers != nil {
 				d.Timers.DisarmAll(wctx, id)
 			}
-			return nil
+			return wakeDraw(wctx, d.Draw, id)
 		})
 		log.Debug("stream offline", module.BIDField(id))
 		return nil
 	}
+}
+
+func wakeDraw(ctx context.Context, store engine.DrawStore, channel uint64) error {
+	if store == nil {
+		return nil
+	}
+	return store.Wake(ctx, draw.ChannelID(channel))
 }
 
 // Lives in the core module so a channel that lost the recipes module mid-stream still gets its rewards back.

@@ -5,6 +5,7 @@ package valkey
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"time"
 
@@ -73,4 +74,36 @@ func (s VersionedSlot) Clear(ctx context.Context, client valkey_go.Client, versi
 		},
 	}})[0].ToInt64()
 	return n == 1, err
+}
+
+func (s VersionedSlot) Read(ctx context.Context, client valkey_go.Client) (string, int64, error) {
+	values, err := client.Do(ctx, client.B().Mget().Key(s.Key, s.VerKey).Build()).ToArray()
+	if err != nil {
+		return "", 0, err
+	}
+	if len(values) != 2 {
+		return "", 0, errors.New("versioned slot read returned an invalid result")
+	}
+	value, err := slotMessageString(values[0])
+	if err != nil {
+		return "", 0, err
+	}
+	version, err := slotMessageInt(values[1])
+	return value, version, err
+}
+
+func slotMessageString(value valkey_go.ValkeyMessage) (string, error) {
+	raw, err := value.ToString()
+	if valkey_go.IsValkeyNil(err) {
+		return "", nil
+	}
+	return raw, err
+}
+
+func slotMessageInt(value valkey_go.ValkeyMessage) (int64, error) {
+	raw, err := slotMessageString(value)
+	if err != nil || raw == "" {
+		return 0, err
+	}
+	return strconv.ParseInt(raw, 10, 64)
 }

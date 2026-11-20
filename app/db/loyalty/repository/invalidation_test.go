@@ -33,7 +33,7 @@ func captureInvalidations(repo *loyaltyrepo.Loyalty) *[]cache.Event {
 }
 
 func TestBalanceMutationsInvalidateDurableViewers(t *testing.T) {
-	for _, operation := range []string{"set", "add", "spend", "win", "loss", "transfer"} {
+	for _, operation := range []string{"set", "add", "debit", "win", "loss", "transfer"} {
 		t.Run(operation, func(t *testing.T) {
 			repo, client := newLoyaltyRepo(t)
 			seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 100})
@@ -71,8 +71,9 @@ func mutateBalance(t *testing.T, repo *loyaltyrepo.Loyalty, operation string) []
 			return []int64{20}
 		}
 		return []int64{120}
-	case "spend":
-		_, _, _, err := repo.BalanceSpendViewer(ctx, loyaltyrepo.Spend{UserID: 2, ViewerID: 7, Amount: 20})
+	case "debit":
+		require.NoError(t, repo.EnsureBalanceCreditSchema(ctx))
+		_, err := repo.BalanceDebit(ctx, loyaltyrepo.BalanceDebit{UserID: 2, ViewerID: 7, Value: 20, Key: "recipe:r:1"})
 		require.NoError(t, err)
 		return []int64{80}
 	case "win", "loss":
@@ -92,9 +93,7 @@ func mutateBalance(t *testing.T, repo *loyaltyrepo.Loyalty, operation string) []
 func TestRefusedBalanceMutationsDoNotInvalidate(t *testing.T) {
 	repo, _ := newLoyaltyRepo(t)
 	events := captureInvalidations(repo)
-	_, _, _, err := repo.BalanceSpendViewer(t.Context(), loyaltyrepo.Spend{UserID: 2, ViewerID: 7, Amount: 20})
-	require.NoError(t, err)
-	_, err = repo.BalanceWager(t.Context(), loyaltyrepo.Wager{UserID: 2, ViewerID: 7, Amount: 20})
+	_, err := repo.BalanceWager(t.Context(), loyaltyrepo.Wager{UserID: 2, ViewerID: 7, Amount: 20})
 	require.NoError(t, err)
 	_, _, err = repo.BalanceTransfer(t.Context(), loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetViewerID: 8, TargetLogin: "receiver", Amount: 20})
 	require.NoError(t, err)

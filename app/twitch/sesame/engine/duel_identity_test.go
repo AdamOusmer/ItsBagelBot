@@ -34,18 +34,18 @@ func TestParseLedgerValue(t *testing.T) {
 
 type recordingLoyalty struct {
 	LoyaltyStore
-	spends  []PointSpend
+	spends  []PointWager
 	viewers []BalanceAdjustment
 }
 
-func (r *recordingLoyalty) BalanceSpend(_ context.Context, spend PointSpend) (loyaltyrpc.Balance, bool, bool, error) {
+func (r *recordingLoyalty) BalanceWager(_ context.Context, spend PointWager) (WagerOutcome, error) {
 	r.spends = append(r.spends, spend)
-	return loyaltyrpc.Balance{}, true, true, nil
+	return WagerOutcome{Found: true, Applied: true}, nil
 }
 
 func (r *recordingLoyalty) BalanceAdjustViewer(_ context.Context, a BalanceAdjustment) (loyaltyrpc.Balance, bool, error) {
 	r.viewers = append(r.viewers, a)
-	return loyaltyrpc.Balance{}, true, nil
+	return loyaltyrpc.Balance{Points: 110}, true, nil
 }
 
 func TestLoyaltyWalletActsOnViewerID(t *testing.T) {
@@ -55,9 +55,11 @@ func TestLoyaltyWalletActsOnViewerID(t *testing.T) {
 
 	_, _, err := wallet.Debit(t.Context(), 2, renamed)
 	require.NoError(t, err)
-	require.NoError(t, wallet.Credit(t.Context(), 2, renamed))
+	balance, err := wallet.Credit(t.Context(), 2, renamed)
+	require.NoError(t, err)
 
-	assert.Equal(t, []PointSpend{{BroadcasterID: 2, ViewerID: 42, Login: "newname", Amount: 10}}, store.spends)
+	assert.EqualValues(t, 110, balance)
+	assert.Equal(t, []PointWager{{BroadcasterID: 2, ViewerID: 42, Login: "newname", Amount: 10}}, store.spends)
 	assert.Equal(t, []BalanceAdjustment{{BroadcasterID: 2, ViewerID: 42, ViewerLogin: "newname", Value: 10}}, store.viewers)
 }
 

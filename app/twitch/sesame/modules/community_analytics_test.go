@@ -4,10 +4,12 @@
 package modules
 
 import (
+	"context"
 	"errors"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/internal/analytics/analyticstest"
 	"ItsBagelBot/pkg/bus"
 	"github.com/stretchr/testify/require"
@@ -100,19 +102,34 @@ func TestPointFlowsCountSuccessfulCommands(t *testing.T) {
 	}
 }
 
-func TestRaffleCancelCountsOnlyAnOpenRound(t *testing.T) {
-	for _, open := range []bool{true, false} {
-		t.Run(map[bool]string{true: "open", false: "closed"}[open], func(t *testing.T) {
+func TestRaffleCancelCountsTheCancelledGame(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		cancelled bool
+		multi     bool
+		want      map[string]int64
+	}{
+		{"single", true, false, map[string]int64{"games.rounds|raffle|cancelled": 1}},
+		{"multi", true, true, map[string]int64{"games.rounds|mraffle|cancelled": 1}},
+		{"closed", false, false, map[string]int64{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			capture := analyticstest.New(t)
-			d := raffleDeps(&fakeRaffle{open: open})
+			d := engine.Deps{Draw: cancelRaffleDraw{cancelled: tc.cancelled, multi: tc.multi}}
 			d.Analytics = capture.Recorder
 			c := chatCtx("42", "mod", "moderator")
 			runChat(t, Raffle(d), c, "!cancelraffle")
-			want := map[string]int64{}
-			if open {
-				want["games.rounds|raffle|cancelled"] = 1
-			}
-			require.Equal(t, want, capture.Counters())
+			require.Equal(t, tc.want, capture.Counters())
 		})
 	}
+}
+
+type cancelRaffleDraw struct {
+	engine.DrawStore
+	cancelled bool
+	multi     bool
+}
+
+func (s cancelRaffleDraw) CancelRound(context.Context, draw.ModAction) (draw.Round, bool, error) {
+	return draw.Round{Terms: draw.Terms{MultiRaffle: s.multi}}, s.cancelled, nil
 }

@@ -3,53 +3,90 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import type { LoyaltyConfig, LoyaltyStanding } from '@bagel/kit';
-import { blankLoyaltyConfig, catalogChildren, moduleDef } from '@bagel/kit';
-import { readLoyalty, writeLoyalty, topStandings, resetPoints } from '#lib/server/loyalty-store';
-import { listModules } from '#lib/server/commands-store';
-import { setModuleEnabled } from '#lib/server/module-blob';
-import { disableChildren, isChildOf } from '#lib/server/module-parent';
+import { blankLoyaltyConfig, catalogChildren, MOD, moduleDef } from '@bagel/kit';
+import { FREEZE_MAX_MINUTES } from '@bagel/kit/catalog';
+import { RpcError } from '@bagel/kit/server/nats';
+import {
+  freezeStandings,
+  readFreeze,
+  readLoyalty,
+  raffleStatus,
+  resetPoints,
+  topStandings,
+  unfreezeStandings,
+  writeLoyalty
+} from '#lib/server/loyalty-store';
+import { listModules, listModulesForEditing, type ModuleView } from '#lib/server/commands-store';
+import { disableChildren } from '#lib/server/module-parent';
 import { moduleLoad } from '#lib/server/module-page';
 import { storeMutator } from '#lib/server/reward-action';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
-import { fail } from '@sveltejs/kit';
+import { fail, type Cookies } from '@sveltejs/kit';
+
+import { gateModulePage, moduleWriteDenial } from '#lib/server/module-gate';
+import { moduleAction } from '#lib/server/module-action';
+import { moduleEditState } from '#lib/server/module-edit-state';
+import { patchModuleSettings } from '#lib/server/module-patch';
+import { notSignedIn } from '#lib/server/action-context';
+import { baseCookie } from '#lib/server/cookies';
 
 const DEMO = dev && env.DEMO === '1';
 
-function gameFlags(rows: { name: string; is_enabled: boolean }[]) {
-  return catalogChildren('loyalty').map((def) => ({
-    id: def.id,
-    enabled: rows.find((r) => r.name === def.id)?.is_enabled ?? false
-  }));
+const loyaltyGames = catalogChildren(MOD.loyalty);
+const FRESH_GAME_COOKIE = 'bagel_loyalty_game_fresh';
+
+function gameSettings(rows: ModuleView[]) {
+  return loyaltyGames.map((def) => {
+    const row = rows.find((r) => r.name === def.id);
+    const settings = moduleEditState(row);
+    if (def.id === MOD.raffle) normalizeMidCount(settings.config);
+    return { id: def.id, enabled: row?.is_enabled ?? def.defaultEnabled, ...settings };
+  });
 }
 
-export const load: PageServerLoad = ({ locals }) =>
+function normalizeMidCount(config: Record<string, string>) {
+  const value = config.midCountEnabled;
+  if (value === 'true' || value === 'false') config.midCountEnabled = value === 'true' ? 'on' : 'off';
+}
+
+function gameRows(uid: string, cookies: Cookies, url: URL) {
+  if (!cookies.get(FRESH_GAME_COOKIE)) return listModules(uid);
+  cookies.delete(FRESH_GAME_COOKIE, baseCookie(url, '/loyalty'));
+  return listModulesForEditing(uid);
+}
+
+export const load: PageServerLoad = ({ locals, cookies, url }) =>
   moduleLoad('loyalty', locals.session, {
     demo: DEMO
       ? async () => ({
           enabled: true,
           config: blankLoyaltyConfig(),
           top: (await import('#lib/server/demo-data')).demoStandings(),
-          games: gameFlags([])
+          topFreeze: null,
+          freeze: null,
+          raffle: null,
+          games: gameSettings([])
         })
       : undefined,
     read: async (uid) => {
       const view = await readLoyalty(uid);
-      let top: LoyaltyStanding[] = [];
-      try {
-        top = await topStandings(uid, 10);
-      } catch {}
-      let games = gameFlags([]);
-      try {
-        games = gameFlags(await listModules(uid));
-      } catch {}
-      return { enabled: view.enabled, config: view.config, top, games };
+      const [top, freeze, modules, raffle] = await Promise.all([
+        topStandings(uid).catch(() => null),
+        readFreeze(uid).catch(() => null),
+        gameRows(uid, cookies, url).catch(() => []),
+        raffleStatus(uid).catch(() => null)
+      ]);
+      return { ...view, top: top?.rows ?? [], topFreeze: top?.freeze ?? null, freeze, raffle, games: gameSettings(modules) };
     },
     blank: () => ({
       enabled: false,
       config: blankLoyaltyConfig(),
       top: [] as LoyaltyStanding[],
-      games: gameFlags([])
+      topFreeze: null,
+      freeze: null,
+      raffle: null,
+      games: gameSettings([])
     })
   });
 
@@ -102,6 +139,10 @@ function parseConfig(raw: string): LoyaltyConfig | null {
 
 const mutate = storeMutator('loyalty', DEMO, (uid) => uid);
 
+function validFreezeMinutes(minutes: number): boolean {
+  return Number.isInteger(minutes) && minutes >= 1 && minutes <= FREEZE_MAX_MINUTES;
+}
+
 export const actions: Actions = {
   toggle: mutate('toggle', 'Invalid settings.', async (uid, f) => {
     const enabled = f.get('is_enabled') === 'on';
@@ -121,16 +162,39 @@ export const actions: Actions = {
 
   reset: mutate('reset', 'Invalid request.', async (uid, f) => {
     if (f.get('confirm') !== 'reset') return null;
-    return String(await resetPoints(uid));
+    try {
+      return String(await resetPoints(uid));
+    } catch (err) {
+      if (!(err instanceof RpcError) || err.code !== 'conflict') throw err;
+      return fail(409, { ok: false, reason: 'frozen' });
+    }
   }),
 
-  toggleGame: mutate('toggleGame', 'Unknown game.', async (uid, f) => {
-    const name = String(f.get('name') ?? '');
-    const enabled = f.get('is_enabled') === 'on';
-    if (!isChildOf(moduleDef(name), 'loyalty')) return null;
-    const loy = await readLoyalty(uid);
-    if (enabled && !loy.enabled) return fail(400, { ok: false, error: 'loyalty-off' });
-    await setModuleEnabled(uid, name, enabled);
-    return `${name}=${enabled}`;
-  })
+  freeze: moduleAction(MOD.loyalty, 'freeze', async (uid, form, locals) => {
+    const minutes = Number(form.get('minutes'));
+    if (!validFreezeMinutes(minutes)) return null;
+    const pause = await freezeStandings(uid, locals.session!.user_id, minutes);
+    if (!pause) throw new Error('empty leaderboard pause reply');
+    return String(minutes);
+  }, { demo: DEMO, invalid: 'Invalid request.' }),
+
+  unfreeze: moduleAction(MOD.loyalty, 'unfreeze', async (uid, _form, locals) => {
+    await unfreezeStandings(uid, locals.session!.user_id);
+    return '';
+  }, { demo: DEMO }),
+
+  gameSettings: async ({ request, locals, cookies, url }) => {
+    gateModulePage(locals.session, 'loyalty');
+    if (!DEMO && !locals.session) return notSignedIn(locals.locale);
+
+    const form = await request.formData();
+    const def = moduleDef(String(form.get('name') ?? ''));
+    if (!def || !loyaltyGames.includes(def)) return fail(400, { ok: false });
+    const denied = await moduleWriteDenial(locals, def);
+    if (denied) return denied;
+
+    const { result, freshRead } = await patchModuleSettings(def, form, locals, DEMO);
+    if (freshRead) cookies.set(FRESH_GAME_COOKIE, '1', { ...baseCookie(url, '/loyalty'), maxAge: 30 });
+    return result;
+  }
 };

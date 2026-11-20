@@ -1,0 +1,73 @@
+{
+  "label": "Tirages au sort",
+  "tagline": "Faites gagner des lots à votre public.",
+  "description": "Ouvrez les inscriptions dans le chat, tirez au sort les gagnants et suivez le retrait et la remise des lots.",
+  "settings": {
+    "defaultPrize": {
+      "label": "Lot par défaut"
+    },
+    "winners": {
+      "label": "Nombre de gagnants par défaut"
+    },
+    "windowSeconds": {
+      "label": "Durée des inscriptions (secondes)"
+    },
+    "claimSeconds": {
+      "label": "Délai pour réclamer un lot (secondes)",
+      "help": "Saisissez 0 pour que les gagnants n’aient pas à réclamer leur lot."
+    },
+    "rerollNoShows": {
+      "label": "Remettre automatiquement en jeu les lots non réclamés"
+    },
+    "openedEnabled": {
+      "label": "Annonce d’ouverture"
+    },
+    "wonEnabled": {
+      "label": "Annonce des gagnants"
+    },
+    "noShowEnabled": {
+      "label": "Avis de lot non réclamé"
+    },
+    "refusalEnabled": {
+      "label": "Avis de refus d’inscription"
+    },
+    "openedMessage": {
+      "label": "Message d’ouverture",
+      "placeholder": "Tirage au sort : {giveaway:prize} | Gagnants : {giveaway:count} | Temps restant : {giveaway:left}. Tapez !join pour participer."
+    },
+    "wonMessage": {
+      "label": "Message pour les gagnants",
+      "placeholder": "Lot remporté par {giveaway:targets} : {giveaway:prize} !"
+    },
+    "defaultPreset": {
+      "label": "Profil par défaut"
+    },
+    "presets": {
+      "label": "Profils de règles"
+    }
+  },
+  "replies": {
+    "opened": {
+      "label": "Annonce d’ouverture",
+      "tagline": "À l’ouverture des inscriptions.",
+      "event": "!giveaway start",
+      "defaultMessage": "Tirage au sort : {giveaway:prize} | Gagnants : {giveaway:count} | Temps restant : {giveaway:left}. Tapez !join pour participer."
+    },
+    "won": {
+      "label": "Annonce des gagnants",
+      "tagline": "À l’annonce des gagnants du tirage.",
+      "event": "!giveaway draw",
+      "defaultMessage": "Lot remporté par {giveaway:targets} : {giveaway:prize} !"
+    }
+  },
+  "commands": {
+    "giveaway_start_preset_prize": "Ouvrez un tirage au sort avec un profil et un lot facultatifs.",
+    "giveaway_draw": "Fermez les inscriptions et tirez au sort les gagnants.",
+    "giveaway_cancel": "Annulez le tirage au sort en cours.",
+    "reroll_slot": "Remplacez un candidat ou remettez en jeu tous les lots non réclamés.",
+    "join": "Inscrivez-vous au tirage au sort en cours.",
+    "check": "Vérifiez si vous pouvez participer.",
+    "claim": "Réclamez votre lot.",
+    "winner": "Affichez les gagnants du dernier tirage au sort."
+  }
+}
