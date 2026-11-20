@@ -137,6 +137,7 @@ func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, command bake
 		perm:          perm,
 		liveOnly:      cmd.LiveOnly,
 		cooldown:      cmd.Cooldown,
+		userCooldown:  cmd.UserCooldown,
 	})
 	if err != nil || !pass {
 		return err

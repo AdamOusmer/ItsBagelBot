@@ -156,7 +156,8 @@ func (m *Manage) fetchFollowage(ctx context.Context, req outgressrpc.FollowageRe
 	followedAt, following, err := m.twitch.FollowedAt(ctx, req.BroadcasterID, targetID)
 	if err != nil {
 		m.logFollowageFailure(req, err)
-		return outgressrpc.FollowageReply{TargetID: targetID, UserFound: true, Error: "lookup failed", RetryAtUnixMilli: lookupRetryAt(err)}
+		return outgressrpc.FollowageReply{TargetID: targetID, UserFound: true, Error: "lookup failed",
+			RetryAtUnixMilli: lookupRetryAt(err), MissingScope: twitch.MissingScope(err)}
 	}
 	return outgressrpc.FollowageReply{
 		TargetID: targetID, UserFound: true, Following: following, FollowedAt: followedAt,

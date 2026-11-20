@@ -179,6 +179,11 @@ func (c *CmdBuilder) Broadcaster() *CmdBuilder { c.cmd.Perm = RoleBroadcaster; r
 
 func (c *CmdBuilder) Cooldown(d time.Duration) *CmdBuilder { c.cmd.Cooldown = d; return c }
 
+func (c *CmdBuilder) UserCooldown(d time.Duration) *CmdBuilder {
+	c.cmd.UserCooldown = d
+	return c
+}
+
 func (c *CmdBuilder) LiveOnly() *CmdBuilder { c.cmd.LiveOnly = true; return c }
 
 func (c *CmdBuilder) NumericSuffix() *CmdBuilder { c.cmd.NumericSuffix = true; return c }

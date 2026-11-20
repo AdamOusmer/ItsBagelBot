@@ -7,10 +7,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/pkg/valkey"
 
@@ -30,10 +32,43 @@ func (r recordWith) Record(ctx context.Context, round draw.Round, slots []draw.S
 	return r(ctx, round, slots)
 }
 
-type retryHint time.Duration
+func TestDrawRetryAfterKeepsCandidateVerifying(t *testing.T) {
+	const hint = 8 * time.Second
+	f := newFixture(t, draw.Config{})
+	round := f.open(429, draw.Terms{Kind: draw.KindGiveaway})
+	f.join(round, "11")
+	f.close(round.Channel)
+	verified := make(chan time.Time, 1)
+	cfg := testConfig(draw.Config{Verifier: verifyWith(func(ctx context.Context, _ draw.Check) (draw.Verdict, error) {
+		time.Sleep(20 * time.Millisecond)
+		at, err := valkey.ServerNow(ctx, f.client)
+		if err != nil {
+			return draw.Verdict{}, err
+		}
+		verified <- at
+		return draw.Verdict{}, &engine.RetryAfterError{After: hint}
+	})})
+	f.start(draw.NewStore(f.client, cfg))
+	slot := f.awaitSlot(round, func(slot draw.Slot) bool {
+		return slot.State == draw.SlotVerifying && !slot.RetryAt.IsZero()
+	})
+	minRetry := take(t, verified).Add(hint)
+	require.Equal(t, draw.ViewerID("11"), slot.Viewer)
+	require.False(t, slot.RetryAt.Before(minRetry))
+	f.awaitRetryDue(round, minRetry)
+}
 
-func (r retryHint) Error() string             { return "verification throttled" }
-func (r retryHint) RetryAfter() time.Duration { return time.Duration(r) }
+func (f fixture) awaitRetryDue(round draw.Round, minRetry time.Time) {
+	f.t.Helper()
+	minDue := minRetry.Add(time.Millisecond - time.Nanosecond).UnixMilli()
+	require.EventuallyWithT(f.t, func(check *assert.CollectT) {
+		ids, err := valkey.ZRangeByScore(f.t.Context(), f.client, drawKeys(round).Due, valkey.ScoreRange{
+			Min: strconv.FormatInt(minDue, 10), Max: "+inf", Limit: -1,
+		})
+		require.NoError(check, err)
+		require.Contains(check, ids, string(round.ID))
+	}, time.Second, 10*time.Millisecond)
+}
 
 func TestDrawRejectedCandidateReturnsToPendingWithReason(t *testing.T) {
 	seen := make(chan draw.Check, 2)
@@ -128,7 +163,7 @@ func verifyFirstCandidate(_ context.Context, check draw.Check) (draw.Verdict, er
 	if check.Viewer != "11" {
 		return draw.Verdict{Pass: true}, nil
 	}
-	return draw.Verdict{}, fmt.Errorf("lookup: %w", retryHint(3*time.Second))
+	return draw.Verdict{}, fmt.Errorf("lookup: %w", &engine.RetryAfterError{After: 3 * time.Second})
 }
 
 func (tc stuckCase) resolve(f fixture, r draw.Round) {

@@ -7,9 +7,9 @@ import (
 	"context"
 	"strconv"
 
-	valkey_go "github.com/valkey-io/valkey-go"
-
 	"ItsBagelBot/pkg/codec"
+
+	valkey_go "github.com/valkey-io/valkey-go"
 )
 
 type SlotStamp struct {

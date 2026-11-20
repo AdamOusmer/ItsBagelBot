@@ -14,6 +14,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
+	"ItsBagelBot/app/twitch/sesame/engine/eligibility"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/internal/valkeytest"
@@ -53,21 +54,6 @@ func (p *rafflePayCapture) Pay(_ context.Context, payment draw.Payment) error {
 	return nil
 }
 
-type raffleOutput struct {
-	variablePublisher
-}
-
-func (p *raffleOutput) texts(t *testing.T) []string {
-	t.Helper()
-	var texts []string
-	for _, item := range p.messages {
-		var payload struct{ Message string }
-		require.NoError(t, codec.Unmarshal(item.Payload, &payload))
-		texts = append(texts, payload.Message)
-	}
-	return texts
-}
-
 type raffleFixture struct {
 	t      *testing.T
 	draw   *draw.Store
@@ -76,7 +62,7 @@ type raffleFixture struct {
 	logs   *observer.ObservedLogs
 	proj   *fakeProj
 	pay    *rafflePayCapture
-	notice *raffleOutput
+	notice *variablePublisher
 	events *variablePublisher
 	pipe   *engine.Pipeline
 }
@@ -91,14 +77,16 @@ func newRaffleFixture(t *testing.T, loyaltyOn, closeGames bool) raffleFixture {
 		{Name: raffleModuleName, IsEnabled: true, Configs: []byte(raffleJoinOn)},
 	}}
 	pay := &rafflePayCapture{payments: make(map[draw.PaymentKey]draw.Payment)}
-	notice := &raffleOutput{}
-	store := draw.NewStore(client, draw.Config{Verifier: draw.PassAll{}, Payer: pay, Winners: draw.DiscardWinnerRecords{},
+	notice := &variablePublisher{}
+	checker := eligibility.NewChecker(eligibility.Ports{})
+	t.Cleanup(checker.Close)
+	store := draw.NewStore(client, draw.Config{Verifier: checker, Payer: pay, Winners: draw.DiscardWinnerRecords{},
 		Announcer: engine.NewDrawAnnouncer(engine.AnnouncementConfig{Proj: proj, Pub: notice}, log, nil),
 		Phases:    draw.IgnorePhaseChanges{}})
 	events := &variablePublisher{}
 	legacy := engine.NewValkeyRaffleStore(client, engine.RaffleConfig{}, log)
 	freeze := &freezeStore{closeGames: closeGames}
-	deps := engine.Deps{Draw: store, Raffle: legacy, Proj: proj, Pub: events, Log: log, LoyaltyFreeze: freeze}
+	deps := engine.Deps{Draw: store, Eligibility: checker, Raffle: legacy, Proj: proj, Pub: events, Log: log, LoyaltyFreeze: freeze}
 	pipe := engine.NewPipeline(deps, engine.NewRegistry(log, All(deps)...), engine.Config{OutgressStandard: "outgress.standard"})
 	t.Cleanup(pipe.Close)
 	return raffleFixture{t: t, draw: store, kv: valkey.NewKV(client), freeze: freeze, logs: logs,
@@ -114,7 +102,7 @@ func (f raffleFixture) run(channel draw.ChannelID, chatter *lane.Envelope, comma
 	body, err := codec.Marshal(chatter)
 	require.NoError(f.t, err)
 	require.NoError(f.t, f.pipe.Process(bus.NewMessage("raffle-test", body)))
-	return (&raffleOutput{variablePublisher: *f.events}).texts(f.t)
+	return drawReplies(f.t, f.events)
 }
 
 func TestRaffleProcessOpensOnlyValidPointsRounds(t *testing.T) {
@@ -254,13 +242,13 @@ func TestRaffleAnnouncementsRespectSettings(t *testing.T) {
 				{Name: engine.LoyaltyModuleName, IsEnabled: true, Configs: []byte(`{"pointsName":"bagels"}`)},
 				{Name: raffleModuleName, IsEnabled: true, Configs: []byte(tc.config)},
 			}}
-			out := &raffleOutput{}
+			out := &variablePublisher{}
 			announcer := engine.NewDrawAnnouncer(engine.AnnouncementConfig{Proj: proj, Pub: out}, zap.NewNop(), nil)
 			announcer.Announce(t.Context(), draw.Notice{
 				Event: tc.event, Entries: 1, TimeLeft: time.Minute, Slots: []draw.Slot{{Login: "winner"}},
 				Round: draw.Round{Channel: 80700, Winners: 1, Terms: engine.RaffleTerms(engine.RaffleLaunch{Points: 1000})},
 			})
-			assert.Equal(t, tc.want, out.texts(t))
+			assert.Equal(t, tc.want, drawReplies(t, out))
 		})
 	}
 }
@@ -364,7 +352,7 @@ func (f raffleFixture) assertMultiPayout(loseAck bool) {
 		assert.Equal(t, int64(3333), payment.Points)
 	}
 	var lines []string
-	for _, line := range f.notice.texts(t) {
+	for _, line := range drawReplies(t, f.notice) {
 		if strings.Contains(line, "each won") {
 			lines = append(lines, line)
 		}

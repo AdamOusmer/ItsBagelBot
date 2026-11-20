@@ -87,6 +87,7 @@ draw:joinable:<channel>      round_id of the one joinable round
 draw:round:<round_id>        hash: kind, terms, phase, opened_at, closes_at
 draw:entries:<round_id>      zset viewer_id -> weight
 draw:labels:<round_id>       hash viewer_id -> login, display only
+draw:refused:<round_id>      hash viewer_id -> join-time rule refusal for current non-entrants
 draw:slots:<round_id>        hash slot_n -> {generation, viewer_id, state, deadline, reason}
 draw:claimable:<channel>     hash viewer_id -> round_id:slot_n:generation
 draw:due                     zset round_id -> next action time
@@ -135,10 +136,10 @@ Fairness record
 Settings (`giveaway` module row)
 - Default prize name (floor-checked at save and at open), winners, entry window, claim window, reroll no-shows.
 - Rule presets, for example "Regulars" (7 day follow, 2 h watch time) or "Subs only". A round copies its preset at open.
-- Subscriber luck: optional multiplier 1x to 3x (default off, D2). Stored on each entry.
+- Subscriber luck: optional multiplier 1x to 3x (default off, D2) for viewers with a subscriber or founder badge. Stored on each entry.
 - Skip recent winners: exclude anyone who won a giveaway in this channel within N days (default off). Checked at draw against the stored winner rows.
 - Freeze standings while open: default on when the preset has a points or watch time rule (section 11).
-- Rejection line: when `!join` fails a join-time rule, reply once per viewer per round with the reason (default on). Successful joins stay silent.
+- Rejection line: when `!join` fails a join-time rule, reply once per viewer per round with the reason (default on). A standings lookup failure prompts a retry once per viewer per round and leaves the refusal count unchanged. Successful joins stay silent.
 
 Chat (mods)
 - `!giveaway start [preset] [prize...]`: the first word is a preset only when it names a saved preset; otherwise all the text is the prize and the default preset applies. No prize text uses the default prize. Examples `!giveaway start regulars Steam Deck`, `!giveaway start Steam Deck`.
@@ -182,7 +183,7 @@ Chat stays compatible: `!raffle [amount] [seconds]`, `!sraffle`, `!mraffle [amou
 | Rule | Source | When |
 | --- | --- | --- |
 | Role: everyone, subscribers, VIP or higher | Chat badges (`module/permission.go:19-50`) | At `!join` |
-| Exclude broadcaster and bot; optionally mods | Envelope | At `!join` |
+| Exclude the broadcaster and optionally mods from giveaways | Envelope | At `!join` |
 | Minimum points | `balance.snapshot` (new, freeze-aware) | At `!join` |
 | Minimum watch time (lifetime in channel) | Same read | At `!join` |
 | Followers only, minimum follow age | `followage.get` (`engine/followage_rpc.go:15-21`) | At draw |
@@ -190,8 +191,9 @@ Chat stays compatible: `!raffle [amount] [seconds]`, `!sraffle`, `!mraffle [amou
 | Skip recent winners | Modules giveaway winner rows | At draw |
 
 - Join-time rules run in this order and stop at the first failure. The result is stored on the entry.
+- The chat pipeline drops messages from the configured bot before command dispatch.
 - Draw-time rules run per candidate (section 5). `!check` runs them for the asking viewer behind its cooldown.
-- `balance.snapshot` reads the freeze copy when one is active and live balances otherwise. A viewer with no row reads as 0 points and 0 watch time. Replies are cached in `pkg/valkey` keyed by `freeze_id` until the freeze expires, so a join burst does not repeat reads.
+- `balance.snapshot` reads the freeze copy when one is active and live balances otherwise. A viewer with no row reads as 0 points and 0 watch time. Frozen standings reads are cached in-process per Sesame replica through `pkg/cache`, keyed by channel and viewer. The loyalty freeze marker invalidates that channel's cache entries. Live reads bypass the cache, and cached replies expire within 30 seconds or at freeze expiry, whichever comes first.
 - Followers are not in chat badges, so the followers rule runs at draw.
 - `followage.get` and `accountage.get` start charging the existing bucket of the credential they use (bot for followers, app for users, `app/twitch/outgress/internal/twitch/client.go:326-352`) on every HTTP attempt. Throttling returns a typed retry time carried through the RPC reply and Sesame's decoder (`engine/cached_rpc.go:53-64`), separate from a missing scope, so verification reschedules instead of failing. Pattern: `app/twitch/outgress/rpc/chatters.go:429-467`. Requests carry Twitch ids only. No new caps.
 - A rule on points or watch time requires Loyalty on and accrual not `stalled` at open (section 9).

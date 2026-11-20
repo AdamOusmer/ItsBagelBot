@@ -191,7 +191,7 @@ func (s *Store) changeSlots(ctx context.Context, req SlotAction, kind slotAction
 	}
 	action := Action{Kind: string(kind), Actor: req.Actor, At: now, Value: strconv.Itoa(req.Slot)}
 	edit := slotEdit{action: action, transitions: modTransitions(data, req, action)}
-	stampWinners(data, edit.transitions, now)
+	stampSlotTimes(data, edit.transitions, now, 0)
 	return s.commitEdit(ctx, data, edit)
 }
 

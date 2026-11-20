@@ -5,10 +5,12 @@ package modules
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
+	"ItsBagelBot/app/twitch/sesame/engine/eligibility"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
@@ -22,24 +24,38 @@ type fakeDraw struct {
 	engine.DrawStore
 	joinable bool
 	phase    draw.Phase
+	kind     draw.Kind
+	closed   bool
 	lookups  int
 	joined   draw.JoinRequest
+	refusals int
 	claims   draw.ClaimOutcome
 	claimed  draw.ViewerID
 	slots    []draw.Slot
 }
 
-func (d *fakeDraw) Joinable(context.Context, draw.ChannelID) (draw.Round, bool, error) {
+func (d *fakeDraw) Joinable(ctx context.Context, channel draw.ChannelID) (draw.Round, bool, error) {
+	if d.DrawStore != nil {
+		return d.DrawStore.Joinable(ctx, channel)
+	}
 	d.lookups++
 	if d.joinable || d.phase != "" {
-		return draw.Round{ID: "active", Phase: d.phase}, d.joinable, nil
+		return draw.Round{ID: "active", Phase: d.phase, Terms: draw.Terms{Kind: d.kind}}, d.joinable, nil
 	}
 	return draw.Round{}, false, nil
 }
 
-func (d *fakeDraw) Join(_ context.Context, req draw.JoinRequest) (draw.JoinOutcome, error) {
+func (d *fakeDraw) Join(ctx context.Context, req draw.JoinRequest) (draw.JoinOutcome, error) {
 	d.joined = req
-	return draw.JoinOutcome{Open: true, Added: true}, nil
+	if d.DrawStore != nil {
+		return d.DrawStore.Join(ctx, req)
+	}
+	return draw.JoinOutcome{Open: !d.closed, Added: !d.closed}, nil
+}
+
+func (d *fakeDraw) Refuse(ctx context.Context, req draw.Refusal) (bool, int64, error) {
+	d.refusals++
+	return d.DrawStore.Refuse(ctx, req)
 }
 
 func (d *fakeDraw) LookupClaims(_ context.Context, _ draw.ChannelID, viewer draw.ViewerID) (draw.ClaimLookup, error) {
@@ -77,9 +93,15 @@ type drawChatCase struct {
 func TestDrawSharedCommandsProcess(t *testing.T) {
 	legacy := fakeRaffle{open: true, lastFound: true, lastResult: &engine.RaffleResult{Winners: winners("legacy"), Entrants: 2}}
 	queue := []projection.ModuleView{enabledVariables(queueModuleName, "")}
+	join := draw.JoinRequest{Channel: 2, Round: "active", Viewer: "9", Login: "viewer", Weight: draw.Pins.EntryWeight}
 	cases := []drawChatCase{
-		{name: "new round beats legacy and queue", command: "join", draw: fakeDraw{joinable: true}, raffle: legacy, views: queue,
-			want: drawChatResult{joined: draw.JoinRequest{Channel: 2, Round: "active", Viewer: "9", Login: "viewer", Weight: 100}}},
+		{name: "new round beats legacy and queue", command: "join", draw: fakeDraw{joinable: true, kind: draw.KindRaffle},
+			raffle: legacy, views: queue, want: drawChatResult{joined: join}},
+		{name: "giveaway closes during admission", command: "join", draw: fakeDraw{joinable: true, kind: draw.KindGiveaway, closed: true},
+			views: queue, want: drawChatResult{joined: join, message: "The draw has closed."}},
+		{name: "raffle closes during admission", command: "join", draw: fakeDraw{joinable: true, kind: draw.KindRaffle, closed: true},
+			views: []projection.ModuleView{{Name: raffleModuleName, Configs: codec.RawMessage(`{"noRaffleMessage":"Raffle just closed."}`)}},
+			want:  drawChatResult{joined: join, message: "Raffle just closed."}},
 		{name: "round past its deadline claims join before the sweep", command: "join", draw: fakeDraw{phase: draw.PhaseOpen}, views: queue,
 			want: drawChatResult{message: "The draw has closed."}},
 		{name: "closing claims join before queue", command: "join", draw: fakeDraw{phase: draw.PhaseClosing}, views: queue,
@@ -103,7 +125,7 @@ func TestDrawSharedCommandsProcess(t *testing.T) {
 		{name: "legacy winner works with raffle disabled", command: "winner", raffle: legacy,
 			want: drawChatResult{message: "Last raffle: @legacy"}},
 	}
-	for _, command := range []string{"join", "claim", "winner"} {
+	for _, command := range []string{"join", "check", "claim", "winner"} {
 		cases = append(cases, drawChatCase{name: "custom " + command + " runs after yield", command: command,
 			want: drawChatResult{message: "custom " + command}})
 	}
@@ -114,23 +136,42 @@ func TestDrawSharedCommandsProcess(t *testing.T) {
 
 func (tc drawChatCase) run(t *testing.T) {
 	pub := &variablePublisher{}
+	checker := eligibility.NewChecker(eligibility.Ports{})
+	t.Cleanup(checker.Close)
 	deps := engine.Deps{
 		Proj: &fakeProj{modules: tc.views, commands: map[string]projection.Command{
 			tc.command: {Name: tc.command, IsActive: true, Response: "custom " + tc.command, Perm: "everyone"},
 		}},
-		Draw: &tc.draw, Raffle: &tc.raffle, Queue: &fakeQueue{open: true}, Pub: pub,
+		Draw: &tc.draw, Eligibility: checker, Raffle: &tc.raffle, Queue: &fakeQueue{open: true}, Pub: pub,
 		Live: &fakeLive{live: true}, Greet: &fakeGreet{}, Cooldown: engine.NoopCooldown{},
 		Special: engine.NewSpecialSet(""), Log: zap.NewNop(),
 	}
 	p := engine.NewPipeline(deps, engine.NewRegistry(deps.Log, All(deps)...), engine.Config{OutgressStandard: "outgress.standard"})
 	t.Cleanup(p.Close)
-	event := lane.Envelope{Type: "channel.chat.message", Lane: "standard", BroadcasterUserID: "2",
-		BroadcasterUserLogin: "streamer", ChatterUserID: "9", ChatterUserLogin: "viewer", Text: "!" + tc.command}
-	body, err := codec.Marshal(event)
-	require.NoError(t, err)
-	require.NoError(t, p.Process(bus.NewMessage("draw-command", body)))
+	call := drawChatCall{command: tc.command, viewer: "9"}
+	require.NoError(t, call.process(t, p, 2))
 	require.Equal(t, 1, tc.draw.lookups)
 	tc.check(t, pub)
+}
+
+type drawChatCall struct {
+	command string
+	viewer  draw.ViewerID
+	badges  []lane.Badge
+}
+
+func (c drawChatCall) process(t *testing.T, pipe *engine.Pipeline, channel draw.ChannelID) error {
+	t.Helper()
+	broadcaster := strconv.FormatUint(uint64(channel), 10)
+	viewer := string(c.viewer)
+	if viewer == "" {
+		viewer = broadcaster
+	}
+	event := lane.Envelope{Type: "channel.chat.message", Lane: "standard", BroadcasterUserID: broadcaster,
+		BroadcasterUserLogin: "streamer", ChatterUserID: viewer, ChatterUserLogin: "viewer", Text: "!" + c.command, Badges: c.badges}
+	body, err := codec.Marshal(event)
+	require.NoError(t, err)
+	return pipe.Process(bus.NewMessage("draw-command", body))
 }
 
 func (tc drawChatCase) check(t *testing.T, pub *variablePublisher) {
@@ -138,12 +179,22 @@ func (tc drawChatCase) check(t *testing.T, pub *variablePublisher) {
 	got := drawChatResult{joined: tc.draw.joined, claimed: tc.draw.claimed,
 		legacyJoined: tc.raffle.joinedIDs, legacyClaim: tc.raffle.claimedBy, message: tc.want.message}
 	require.Equal(t, tc.want, got)
+	replies := drawReplies(t, pub)
 	if tc.want.message == "" {
-		require.Empty(t, pub.messages)
+		require.Empty(t, replies)
 		return
 	}
-	require.Len(t, pub.messages, 1)
-	var payload struct{ Message string }
-	require.NoError(t, codec.Unmarshal(pub.messages[0].Payload, &payload))
-	require.Contains(t, payload.Message, tc.want.message)
+	require.Len(t, replies, 1)
+	require.Contains(t, replies[0], tc.want.message)
+}
+
+func drawReplies(t *testing.T, pub *variablePublisher) []string {
+	t.Helper()
+	var replies []string
+	for _, m := range pub.messages {
+		var payload struct{ Message string }
+		require.NoError(t, codec.Unmarshal(m.Payload, &payload))
+		replies = append(replies, payload.Message)
+	}
+	return replies
 }

@@ -142,7 +142,7 @@ var shippedContract = map[string]moduleSpec{
 		command("cancelraffle", roleEveryone),
 	}},
 	"draw": {module.KindCore, []commandSpec{
-		command("join", roleEveryone), command("claim", roleEveryone), command("winner", roleEveryone),
+		command("join", roleEveryone), command("check", roleEveryone), command("claim", roleEveryone), command("winner", roleEveryone),
 	}},
 	"queue": {module.KindOptIn, []commandSpec{
 		command("queue", roleEveryone), command("join", roleEveryone), command("leave", roleEveryone), command("list", roleEveryone, "queuelist"),

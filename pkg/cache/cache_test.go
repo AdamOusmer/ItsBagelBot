@@ -122,6 +122,18 @@ func TestGetOrLoadTTLUsesLoaderTTL(t *testing.T) {
 	}
 }
 
+func TestGetOrLoadTTLCanSkipStore(t *testing.T) {
+	c := cache.New[string](1000, time.Minute)
+	defer c.Close()
+	value, err := c.GetOrLoadTTL(t.Context(), "key", func(context.Context) (string, time.Duration, error) {
+		return "live", cache.SkipStoreTTL, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, "live", value)
+	_, cached := c.Get("key")
+	require.False(t, cached)
+}
+
 func TestGetReportsHitsMissesAndZeroValues(t *testing.T) {
 	c := cache.NewKeyed[uint64, bool](cache.DefaultCapacity, time.Minute, uintKey)
 	defer c.Close()

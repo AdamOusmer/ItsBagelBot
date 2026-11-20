@@ -9,6 +9,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/automod"
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
+	"ItsBagelBot/app/twitch/sesame/engine/eligibility"
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/channelruntime"
@@ -38,6 +39,7 @@ type QuotesStore interface {
 }
 
 type Deps struct {
+	Eligibility    *eligibility.Checker
 	Runtime        *channelruntime.Client
 	TrialStore     valkey.Client
 	Proj           projection.Reader
@@ -292,6 +294,7 @@ type DrawStore interface {
 	Open(context.Context, draw.OpenRequest) (draw.Round, draw.OpenOutcome, error)
 	Joinable(context.Context, draw.ChannelID) (draw.Round, bool, error)
 	Join(context.Context, draw.JoinRequest) (draw.JoinOutcome, error)
+	Refuse(context.Context, draw.Refusal) (bool, int64, error)
 	Close(context.Context, draw.CloseRequest) (bool, error)
 	Extend(context.Context, draw.ExtendRequest) (bool, error)
 	Cancel(context.Context, draw.ModAction) (bool, error)
