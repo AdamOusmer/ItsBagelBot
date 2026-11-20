@@ -16,6 +16,7 @@ export const SUB = {
   loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX || 'rpc.loyalty',
   goveeKey: process.env.NATS_MODULES_GOVEE_SUBJECT_PREFIX || 'rpc.modules.govee',
   spotifyKey: process.env.NATS_MODULES_SPOTIFY_SUBJECT_PREFIX || 'rpc.modules.spotify',
+  riotLink: process.env.NATS_MODULES_RIOT_SUBJECT_PREFIX || 'rpc.modules.riot.link',
   audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX || 'rpc.admin.user.audit',
   delegation: process.env.NATS_DELEGATION_SUBJECT_PREFIX || 'rpc.delegation',
   notifications: process.env.NATS_NOTIFICATIONS_SUBJECT_PREFIX || 'rpc.notifications',

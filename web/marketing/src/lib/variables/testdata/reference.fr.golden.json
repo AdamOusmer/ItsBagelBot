@@ -7509,12 +7509,12 @@
       },
       {
         "syntax": "{valorant:board}",
-        "output": "ap/console",
+        "output": "eu/pc",
         "surfaceId": "custom"
       },
       {
         "syntax": "{valorant:board:board}",
-        "output": "ap/console",
+        "output": "eu/pc",
         "surfaceId": "custom"
       },
       {
@@ -7524,12 +7524,12 @@
       },
       {
         "syntax": "{valorant:entries}",
-        "output": "#4 Zekken#5221 (431 RR), #5 Frosty#EUW1 (402 RR)",
+        "output": "#1 Secret Agent (431 RR), #2 Frosty#EUW1 (402 RR)",
         "surfaceId": "custom"
       },
       {
         "syntax": "{valorant:board:entries}",
-        "output": "#4 Zekken#5221 (431 RR), #5 Frosty#EUW1 (402 RR)",
+        "output": "#1 Secret Agent (431 RR), #2 Frosty#EUW1 (402 RR)",
         "surfaceId": "custom"
       }
     ],

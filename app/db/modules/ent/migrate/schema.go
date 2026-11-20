@@ -260,6 +260,29 @@ var (
 			},
 		},
 	}
+	// RiotLinksColumns holds the columns for the "riot_links" table.
+	RiotLinksColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "puuid", Type: field.TypeString, Size: 128},
+		{Name: "game_name", Type: field.TypeString, Size: 32},
+		{Name: "tag_line", Type: field.TypeString, Size: 8},
+		{Name: "shard", Type: field.TypeString, Size: 8},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// RiotLinksTable holds the schema information for the "riot_links" table.
+	RiotLinksTable = &schema.Table{
+		Name:       "riot_links",
+		Columns:    RiotLinksColumns,
+		PrimaryKey: []*schema.Column{RiotLinksColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "riotlink_user_id",
+				Unique:  true,
+				Columns: []*schema.Column{RiotLinksColumns[1]},
+			},
+		},
+	}
 	// SpotifyCredentialsColumns holds the columns for the "spotify_credentials" table.
 	SpotifyCredentialsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -326,6 +349,7 @@ var (
 		GoveeCredentialsTable,
 		ModulesTable,
 		QuotesTable,
+		RiotLinksTable,
 		SpotifyCredentialsTable,
 		VariablesTable,
 	}

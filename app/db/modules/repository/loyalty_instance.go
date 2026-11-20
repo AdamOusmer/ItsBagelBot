@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/predicate"
 	"ItsBagelBot/app/db/modules/ent/quote"
+	"ItsBagelBot/app/db/modules/ent/riotlink"
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
 	"ItsBagelBot/internal/domain/cooldownmarker"
 	"ItsBagelBot/internal/domain/event/data"
@@ -164,6 +165,7 @@ type accountCleanupSnapshot struct {
 	modules     []*ent.Modules
 	govee       []*ent.GoveeCredential
 	spotify     []*ent.SpotifyCredential
+	riot        []*ent.RiotLink
 	quotes      []*ent.Quote
 	automations []*ent.Automation
 }
@@ -180,6 +182,10 @@ func (r *Modules) captureAccountCleanup(ctx context.Context, id uint64) (account
 		return snapshot, err
 	}
 	snapshot.spotify, err = r.client.SpotifyCredential.Query().Where(spotifycredential.UserIDEQ(id)).All(ctx)
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.riot, err = r.client.RiotLink.Query().Where(riotlink.UserIDEQ(id)).All(ctx)
 	if err != nil {
 		return snapshot, err
 	}
@@ -260,6 +266,9 @@ func (s accountCleanupSnapshot) deleteCapturedRows(ctx context.Context, tx *ent.
 	if err := s.deleteSpotify(ctx, tx); err != nil {
 		return err
 	}
+	if err := s.deleteRiot(ctx, tx); err != nil {
+		return err
+	}
 	if err := s.deleteQuotes(ctx, tx); err != nil {
 		return err
 	}
@@ -296,6 +305,15 @@ func (s accountCleanupSnapshot) deleteGovee(ctx context.Context, tx *ent.Tx) err
 func (s accountCleanupSnapshot) deleteSpotify(ctx context.Context, tx *ent.Tx) error {
 	for _, row := range s.spotify {
 		if _, err := tx.SpotifyCredential.Delete().Where(spotifyCleanupConditions(row)...).Exec(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s accountCleanupSnapshot) deleteRiot(ctx context.Context, tx *ent.Tx) error {
+	for _, row := range s.riot {
+		if _, err := tx.RiotLink.Delete().Where(riotlink.IDEQ(row.ID), riotlink.UpdatedAtEQ(row.UpdatedAt), riotlink.PuuidEQ(row.Puuid)).Exec(ctx); err != nil {
 			return err
 		}
 	}

@@ -54,6 +54,7 @@ type Modules struct {
 	log              *zap.Logger
 	govee            *GoveeCreds
 	spotify          *SpotifyCreds
+	riot             *RiotLinks
 	analytics        *analytics.Recorder
 }
 
@@ -69,6 +70,7 @@ func NewModules(client *ent.Client, pub bus.Publisher, app *newrelic.Application
 		log:           log,
 		govee:         NewGoveeCredsFromEnv(client, log),
 		spotify:       NewSpotifyCredsFromEnv(client, log, h),
+		riot:          NewRiotLinks(client),
 
 		recipeState: &RecipeState{client: client},
 	}
@@ -181,6 +183,8 @@ func (r *Modules) evict(userIDs ...uint64) {
 func (r *Modules) Govee() *GoveeCreds { return r.govee }
 
 func (r *Modules) Spotify() *SpotifyCreds { return r.spotify }
+
+func (r *Modules) Riot() *RiotLinks { return r.riot }
 
 func (r *Modules) sweepGovee(ctx context.Context, userID uint64) {
 	if r.govee == nil {

@@ -20,6 +20,7 @@ import { actionError } from '#lib/server/action-errors';
 import { notSignedIn } from '#lib/server/action-context';
 import { baseCookie } from '#lib/server/cookies';
 import { moduleEditState } from '#lib/server/module-edit-state';
+import { readRiotConnection, riotConnectionDefaults, type RiotConnection } from '#lib/server/riot-store';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -46,24 +47,56 @@ function requiredModulesOff(def: ModuleDef, rows: ModuleView[]): string[] {
   return [...required].filter((id) => rows.find((r) => r.name === id)?.is_enabled !== true);
 }
 
+async function demoRiotConnection(riot: RiotConnection | null, setup: boolean): Promise<RiotConnection | null> {
+  if (!DEMO || !riot) return null;
+  const { demoRiotAccount } = await import('#lib/server/demo-data');
+  return { ...riot, configured: true, ...(setup ? {} : demoRiotAccount) };
+}
+
+function moduleRiot(def: ModuleDef, url: URL): RiotConnection | null {
+  if (def.id !== MOD.valorant) return null;
+  return riotConnectionDefaults(url.searchParams.get('e') ?? '');
+}
+
+type PageContext = { def: ModuleDef; locked: boolean; riot: RiotConnection | null; cookies: Cookies; url: URL };
+
+function blankPage({ def, locked, riot }: PageContext) {
+  return {
+    def, locked, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0,
+    requiresOff: [] as string[], riot: riot && { ...riot, unavailable: true }
+  };
+}
+
+async function demoPage(page: PageContext) {
+  const connection = await demoRiotConnection(page.riot, page.url.searchParams.get('setup') === '1');
+  return { ...blankPage(page), enabled: !!connection?.account || page.def.defaultEnabled, riot: connection };
+}
+
+async function readPage(uid: string, page: PageContext) {
+  const { def, riot } = page;
+  const [rows, connection] = await Promise.all([
+    editorRows(uid, def.id, page.cookies, page.url),
+    riot && readRiotConnection(uid, riot)
+  ]);
+  const row = rows.find((r) => r.name === def.id);
+  const { config, revision } = moduleEditState(row);
+  return {
+    def, locked: page.locked, enabled: row ? row.is_enabled : def.defaultEnabled, config, revision,
+    requiresOff: requiredModulesOff(def, rows), riot: connection
+  };
+}
+
 export const load: PageServerLoad = async ({ params, locals, cookies, url }) => {
   gateSection(locals.session, 'modules');
   const def = moduleDef(params.id);
   if (!def || def.hidden) throw error(404, actionError(locals.locale, 'Unknown module'));
   if (def.href) throw redirect(302, def.href);
 
-  const locked = await moduleLocked(locals, def);
-  const blank = () => ({ def, locked, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0, requiresOff: [] as string[] });
-
+  const page: PageContext = { def, locked: await moduleLocked(locals, def), riot: moduleRiot(def, url), cookies, url };
   return moduleLoad(def.id, locals.session, {
-    demo: DEMO ? async () => blank() : undefined,
-    read: async (uid) => {
-      const rows = await editorRows(uid, def.id, cookies, url);
-      const row = rows.find((r) => r.name === def.id);
-      const { config, revision } = moduleEditState(row);
-      return { def, locked, enabled: row ? row.is_enabled : def.defaultEnabled, config, revision, requiresOff: requiredModulesOff(def, rows) };
-    },
-    blank
+    demo: DEMO ? () => demoPage(page) : undefined,
+    read: (uid) => readPage(uid, page),
+    blank: () => blankPage(page)
   });
 };
 

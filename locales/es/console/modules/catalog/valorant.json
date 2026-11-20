@@ -1,7 +1,7 @@
 {
   "label": "Estadísticas de Valorant",
-  "tagline": "Rangos, historial de partidas, clasificaciones y rotación diaria de la tienda de Valorant en el chat.",
-  "description": "Un comando, seis vistas: !val muestra la clasificación competitiva de un jugador (rango, RR, variación de RR de la última partida, rango máximo); !val record suma las partidas clasificatorias y las victorias de su cuenta; !val matches muestra sus partidas clasificatorias recientes con agente, resultado y K/D/A; !val account muestra a quién corresponde un Riot ID y el nivel de su cuenta; !val lb muestra los primeros 10 puestos de cualquier clasificación regional, de PC o consola; !val shop muestra la rotación global de aspectos de hoy con precios en VP y la cuenta atrás hasta el reinicio. También funcionan las formas abreviadas !valrank, !valrecord, !valmatches, !valaccount, !vallb y !valshop. Vincula tu Riot ID abajo (\"Name#Tag\"). Los espectadores también pueden indicar cualquier jugador, p. ej., \"!val Frosty#EUW1\", y añadir una región o plataforma en cualquier parte del mensaje para limitar esa consulta (\"!val eu Frosty#EUW1\", \"!val lb console ap\"). Deja la región vacía y el bot la detectará a partir de la propia cuenta.",
+  "tagline": "Estadísticas de Valorant en el chat desde tu cuenta de Riot vinculada.",
+  "description": "Inicia sesión con Riot para mostrar tus estadísticas de Valorant en el chat. !val muestra tu rango competitivo, !val matches tus últimas partidas clasificatorias y !val lb muestra el top 10 de la clasificación del acto. Las estadísticas del jugador proceden solo de la cuenta de Riot que vinculaste.",
   "connection": {
     "title": "Cuenta de Riot",
     "prompt": "Inicia sesión para compartir tus estadísticas de Valorant en el chat.",
@@ -16,11 +16,6 @@
     "unlinkFailed": "No se pudo desvincular tu cuenta de Riot. Inténtalo de nuevo."
   },
   "settings": {
-    "account": {
-      "label": "Riot ID vinculado",
-      "help": "Jugador predeterminado para todos los comandos, con formato \"Name#Tag\". Valorant no permite buscar solo por nombre, así que se necesita el #tag.",
-      "placeholder": "Frosty#EUW1"
-    },
     "region": {
       "label": "Región",
       "help": "na, eu, ap, kr, br o latam. Déjalo vacío y el bot detectará la región a partir de la propia cuenta.",
@@ -38,26 +33,26 @@
   },
   "replies": {
     "rank": {
-      "tagline": "Clasificación competitiva: !val, !val rank o !valrank.",
+      "tagline": "Rango competitivo de tu cuenta vinculada (también !val rank y !valrank).",
       "defaultMessage": "{player} · {tier} · {rr} RR ({lastchange}) · máximo {peaktier}"
     },
     "record": {
-      "tagline": "Partidas clasificatorias y victorias de la cuenta (también !valrecord).",
+      "tagline": "Partidas clasificatorias y victorias de tu cuenta vinculada (también !valrecord).",
       "event": "!val record",
       "defaultMessage": "{player} · {games} partidas clasificatorias · {wins} victorias ({winrate}%)"
     },
     "matches": {
-      "tagline": "Partidas clasificatorias recientes (también !valmatches).",
+      "tagline": "Partidas clasificatorias recientes de tu cuenta vinculada (también !valmatches).",
       "event": "!val matches",
       "defaultMessage": "Últimas partidas de {player} ({count}): {matches}"
     },
     "account": {
-      "tagline": "A quién corresponde un ID, con el nivel de cuenta (también !valaccount).",
+      "tagline": "Tu cuenta de Riot vinculada y su nivel (también !valaccount).",
       "event": "!val account",
       "defaultMessage": "{player} · nivel de cuenta {level}"
     },
     "board": {
-      "tagline": "Primeros 10 puestos regionales, PC o consola (también !vallb).",
+      "tagline": "Clasificación del acto para tu cuenta vinculada (también !vallb).",
       "event": "!val lb",
       "defaultMessage": "{board}: {entries}"
     },

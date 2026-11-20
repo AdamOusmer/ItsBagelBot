@@ -309,6 +309,14 @@ type SpotifyQueueReply struct {
 	Error      string         `json:"error,omitempty"`
 }
 
+type ValorantLinkReply struct {
+	Puuid    string `json:"puuid,omitempty"`
+	GameName string `json:"game_name,omitempty"`
+	TagLine  string `json:"tag_line,omitempty"`
+	Shard    string `json:"shard,omitempty"`
+	Error    string `json:"error,omitempty"`
+}
+
 type SpotifyExchangeReply struct {
 	RefreshToken string   `json:"refresh_token,omitempty"`
 	Scopes       []string `json:"scopes,omitempty"`

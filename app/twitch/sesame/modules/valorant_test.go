@@ -55,16 +55,16 @@ func TestValorantReplies(t *testing.T) {
 	runGossipCases(t, []gossipCase{
 		{name: "valrank default template", chat: valChat("!valrank", ""), replies: rank,
 			exact: "Frosty#EUW1 · Immortal 2 · 67 RR (-12) · peak Immortal 1",
-			call:  &gossipCall{"valorant.rank", gossiprpc.Request{Account: "streamer"}}},
+			call:  &gossipCall{"valorant.rank", gossiprpc.Request{ChannelID: "2"}}},
 		{name: "valrank unranked", chat: valChat("!valrank", ""),
 			replies: map[string]any{"valorant.rank": gossiprpc.ValorantRankReply{Player: "Frosty#EUW1", Unranked: true}},
 			exact:   "Frosty#EUW1 has no competitive record this act"},
 		{name: "valrank renders the namespaced saved template", chat: valChat("!valrank", `{"rankMessage":"{valorant:player}: {valorant:tier} ({valorant:rr} RR) {valorant:unknown}"}`),
 			replies: rank, exact: "Frosty#EUW1: Immortal 2 (67 RR) {valorant:unknown}"},
-		{name: "valrecord default template rounds the win rate", chat: valChat("!valrecord eu Frosty#EUW1", ""),
+		{name: "valrecord default template rounds the win rate", chat: valChat("!valrecord eu", ""),
 			replies: map[string]any{"valorant.record": gossiprpc.ValorantRecordReply{Player: "Frosty#EUW1", Region: "eu", Games: 412, Wins: 231}},
 			exact:   "Frosty#EUW1 · 412 ranked games · 231 wins (56%)",
-			call:    &gossipCall{"valorant.record", gossiprpc.Request{Account: "Frosty#EUW1", Region: "eu"}}},
+			call:    &gossipCall{"valorant.record", gossiprpc.Request{ChannelID: "2", Region: "eu"}}},
 		{name: "valrecord without ranked games replaces the template", chat: valChat("!valrecord", ""),
 			replies: map[string]any{"valorant.record": gossiprpc.ValorantRecordReply{Player: "Frosty#EUW1", Empty: true}},
 			exact:   "Frosty#EUW1 has no ranked games on record"},
@@ -85,41 +85,38 @@ func TestValorantReplies(t *testing.T) {
 				},
 			}},
 			exact: "ap/console: #4 Zekken#5221 (431 RR), #5 Frosty#EUW1 (402 RR)",
-			call:  &gossipCall{"valorant.leaderboard", gossiprpc.Request{Region: "ap", Platform: "console"}}},
-		{name: "vallb with an id finds that player", chat: valChat("!vallb eu Frosty#EUW1", ""),
+			call:  &gossipCall{"valorant.leaderboard", gossiprpc.Request{ChannelID: "2", Region: "ap", Platform: "console"}}},
+		{name: "vallb with a shard reads that board", chat: valChat("!vallb eu", ""),
 			replies: map[string]any{"valorant.leaderboard": gossiprpc.ValorantLeaderboardReply{
 				Player: "Frosty#EUW1", Board: "eu/pc",
 				Entries: []gossiprpc.ValorantLeaderboardEntry{{Rank: 513, Player: "Frosty#EUW1", Tier: 24, RR: 1832}},
 			}},
 			exact: "eu/pc: #513 Frosty#EUW1 (1832 RR)",
-			call:  &gossipCall{"valorant.leaderboard", gossiprpc.Request{Account: "Frosty#EUW1", Region: "eu"}}},
+			call:  &gossipCall{"valorant.leaderboard", gossiprpc.Request{ChannelID: "2", Region: "eu"}}},
 		{name: "valaccount default template", chat: valChat("!valaccount", ""),
 			replies: map[string]any{"valorant.account": gossiprpc.ValorantAccountReply{Player: "Frosty#EUW1", Region: "eu", AccountLevel: 142, Title: "Radiant"}},
 			exact:   "Frosty#EUW1 · account level 142"},
 		{name: "valshop default template", chat: valChat("!valshop", ""), replies: map[string]any{"valorant.shop": shop},
 			exact: "Daily rotation (2): Reaver Vandal (1775 VP), Ion Frenzy (875 VP) · resets in 2h 30m"},
-		{name: "a reply error chats the typed player", chat: valChat("!valrank Frosty#EUW1", ""), err: notFound, exact: "Frosty#EUW1: player not found"},
+		{name: "a reply error names the channel", chat: valChat("!valrank", ""), err: notFound, exact: "streamer: player not found"},
 		{name: "a shop reply error names the rotation", chat: valChat("!valshop", ""), err: notFound, exact: "daily rotation: player not found"},
 	})
 }
 
-func TestValorantAccountScoping(t *testing.T) {
-	const config = `{"account":"Frosty#EUW1","region":"eu","platform":"pc"}`
-	const linkedOnly = `{"account":"Frosty#EUW1","region":"eu","platform":"pc","linkedOnly":"on"}`
+func TestValorantOnlyReadsTheSignedInAccount(t *testing.T) {
+	const config = `{"region":"eu","platform":"pc"}`
 	rank := map[string]any{"valorant.rank": valRankReply()}
 	runGossipCases(t, []gossipCase{
-		{name: "config supplies account, region and platform", chat: valChat("!valrank", config), replies: rank, contains: []string{"Immortal 2"},
-			call: &gossipCall{"valorant.rank", gossiprpc.Request{Account: "Frosty#EUW1", Region: "eu", Platform: "pc"}}},
-		{name: "typed platform, player and region win", chat: valChat("!valrank console @Reyna#KR5 ap", config), replies: rank, contains: []string{"Immortal 2"},
-			call: &gossipCall{"valorant.rank", gossiprpc.Request{Account: "Reyna#KR5", Region: "ap", Platform: "console"}}},
-		{name: "linkedOnly keeps the linked player but takes the typed shard", chat: valChat("!valrank console @Reyna#KR5 ap", linkedOnly),
+		{name: "config supplies region and platform", chat: valChat("!valrank", config), replies: rank, contains: []string{"Immortal 2"},
+			call: &gossipCall{"valorant.rank", gossiprpc.Request{ChannelID: "2", Region: "eu", Platform: "pc"}}},
+		{name: "a typed Riot ID is ignored while typed shard and ladder win", chat: valChat("!valrank console @Reyna#KR5 ap", config),
 			replies: rank, contains: []string{"Immortal 2"},
-			call: &gossipCall{"valorant.rank", gossiprpc.Request{Account: "Frosty#EUW1", Region: "ap", Platform: "console"}}},
+			call: &gossipCall{"valorant.rank", gossiprpc.Request{ChannelID: "2", Region: "ap", Platform: "console"}}},
 	})
 }
 
 func TestValorantDispatch(t *testing.T) {
-	const config = `{"account":"Frosty#EUW1","region":"eu"}`
+	const config = `{"region":"eu"}`
 	routes := []struct{ name, text, route string }{
 		{"a bare val is rank", "!val", "valorant.rank"},
 		{"an id argument is rank", "!val Frosty#EUW1", "valorant.rank"},

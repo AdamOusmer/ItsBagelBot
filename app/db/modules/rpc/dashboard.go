@@ -36,7 +36,10 @@ func SubscribeDashboard(w Wiring, prefix string) error {
 	if err := wireGovee(w.RPCWiring, w.Repo.Govee()); err != nil {
 		return err
 	}
-	return wireSpotify(w.RPCWiring, w.Repo.Spotify())
+	if err := wireSpotify(w.RPCWiring, w.Repo.Spotify()); err != nil {
+		return err
+	}
+	return wireRiot(w.RPCWiring, w.Repo.Riot())
 }
 
 func (d *dashboardRPC) handleList(ctx context.Context, _ modulesrpc.DashboardRequest, id uint64) (modulesrpc.DashboardReply, error) {

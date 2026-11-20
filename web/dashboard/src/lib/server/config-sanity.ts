@@ -29,6 +29,15 @@ export function dashboardL1CacheCapacity(env: Env): number {
   );
 }
 
+function assertRiotConfig(env: Env, origin: string | undefined): void {
+  if (!env.RIOT_RSO_CLIENT_ID && !env.RIOT_RSO_REDIRECT_URI) return;
+  if (!env.RIOT_RSO_CLIENT_ID?.trim()) throw new Error('RIOT_RSO_CLIENT_ID is not set');
+  assertCallback('RIOT_RSO_REDIRECT_URI', env.RIOT_RSO_REDIRECT_URI, {
+    origin,
+    callbackPath: '/riot/callback'
+  });
+}
+
 export function assertConfigSane(env: Env): void {
   assertDemoConfigSafe(env);
   const origin = env.ORIGIN ? assertOrigin('ORIGIN', env.ORIGIN) : undefined;
@@ -36,6 +45,7 @@ export function assertConfigSane(env: Env): void {
     origin,
     callbackPath: '/auth/callback'
   });
+  assertRiotConfig(env, origin);
   assertOptionalHTTPSURL('TEBEX_PREMIUM_CHECKOUT_URL', env.TEBEX_PREMIUM_CHECKOUT_URL);
   assertOptionalHTTPSURL('TEBEX_CANCEL_URL', env.TEBEX_CANCEL_URL);
   dashboardL1CacheCapacity(env);

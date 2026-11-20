@@ -54,6 +54,13 @@ type Config struct {
 	ValorantAPIKey           string
 	ValorantRateLimit        float64
 	ValorantContentRateLimit float64
+	RiotBaseURL              string
+	RiotAPIKey               string
+	RiotRateLimit            float64
+	RiotAuthBaseURL          string
+	RiotRSOClientID          string
+	RiotRSOClientSecret      string
+	RiotLinkSubjectPrefix    string
 
 	GoveeBaseURL          string
 	GoveeRateLimit        float64
@@ -126,6 +133,13 @@ func Load() *Config {
 		ValorantAPIKey:           env.Get("VALORANT_API_KEY", ""),
 		ValorantRateLimit:        env.GetFloat("VALORANT_RATE_LIMIT", 30.0),
 		ValorantContentRateLimit: env.GetFloat("VALORANT_CONTENT_RATE_LIMIT", 60.0),
+		RiotBaseURL:              env.Get("RIOT_BASE_URL", "https://{route}.api.riotgames.com"),
+		RiotAPIKey:               env.Get("RIOT_API_KEY", ""),
+		RiotRateLimit:            env.GetFloat("RIOT_RATE_LIMIT", 300.0),
+		RiotAuthBaseURL:          env.Get("RIOT_AUTH_BASE_URL", "https://auth.riotgames.com"),
+		RiotRSOClientID:          env.Get("RIOT_RSO_CLIENT_ID", ""),
+		RiotRSOClientSecret:      env.Get("RIOT_RSO_CLIENT_SECRET", ""),
+		RiotLinkSubjectPrefix:    conf.RiotLinkPrefix.Get(),
 
 		GoveeBaseURL:          env.Get("GOVEE_BASE_URL", "https://openapi.api.govee.com"),
 		GoveeRateLimit:        env.GetFloat("GOVEE_RATE_LIMIT", 8.0),

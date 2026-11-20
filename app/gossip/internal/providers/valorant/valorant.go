@@ -16,6 +16,8 @@ import (
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
 	"ItsBagelBot/pkg/ratelimit"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -26,9 +28,9 @@ const (
 	recordTTL  = 5 * time.Minute
 	matchesTTL = 5 * time.Minute
 
-	accountTTL = time.Hour
+	accountTTL = 5 * time.Minute
 
-	resolveTTL = 24 * time.Hour
+	linkTTL = time.Minute
 
 	boardTTL = 30 * time.Minute
 
@@ -51,6 +53,7 @@ type Config struct {
 	APIKey           string
 	RateLimit        float64
 	ContentRateLimit float64
+	Riot             RiotConfig
 }
 
 const providerName = "valorant"
@@ -58,6 +61,9 @@ const providerName = "valorant"
 type api struct {
 	http           *core.HTTPClient
 	content        *core.HTTPClient
+	riot           *riotAPI
+	links          provider.RiotLinkResolver
+	log            *zap.Logger
 	cache          *core.Cache
 	limiter        *ratelimit.Limiter
 	buckets        core.Buckets
@@ -67,56 +73,87 @@ type api struct {
 func New(cfg Config, d provider.Deps) provider.Provider {
 	b := provider.NewProvider(providerName, d).Trusted()
 	p := newAPI(cfg, d, b)
+	henrik, official := p.henrikSources(cfg.APIKey), p.officialSources()
 
-	b.Endpoint("rank").Timeout(handlerTimeout).
-		Cached(rankTTL, negativeTTL).
-		ID(riotID).
-		Reply(func(id, msg string) any { return rankReply{Player: id, Error: msg} }).
-		Budget(p.budget).
-		Fallback("rank lookup failed").
-		Fetch(p.rankFetch)
+	for _, e := range []endpointSpec{
+		{name: "rank", ttl: rankTTL, id: channelID, fallback: "rank lookup failed",
+			reply: func(id, msg string) any { return rankReply{Player: id, Error: msg} },
+			src:   firstSource("rank", henrik.rank, official.rank)},
+		{name: "record", ttl: recordTTL, id: channelID, fallback: "record lookup failed",
+			reply: func(id, msg string) any { return recordReply{Player: id, Error: msg} },
+			src:   firstSource("record", henrik.record)},
+		{name: "matches", ttl: matchesTTL, id: channelID, fallback: "match history lookup failed",
+			reply: func(id, msg string) any { return matchesReply{Player: id, Error: msg} },
+			src:   firstSource("matches", official.matches, henrik.matches)},
+		{name: "account", ttl: accountTTL, id: accountID, fallback: "account lookup failed",
+			reply: func(id, msg string) any { return accountReply{Player: id, Error: msg} },
+			src:   firstSource("account", official.account, henrik.account)},
+		{name: "leaderboard", ttl: boardTTL, id: boardID, fallback: "leaderboard lookup failed",
+			reply: func(id, msg string) any { return leaderboardReply{Player: id, Error: msg} },
+			src:   firstSource("leaderboard", official.board, henrik.board)},
+		{name: "shop", ttl: bundleTTL, id: provider.StaticID("featured"), fallback: "shop lookup failed",
+			reply: func(_, msg string) any { return shopReply{Error: msg} },
+			src:   firstSource("shop", henrik.shop)},
+	} {
+		b.Endpoint(e.name).Timeout(handlerTimeout).
+			Cached(e.ttl, negativeTTL).
+			ID(e.id).
+			Reply(e.reply).
+			Budget(e.src.budget).
+			Fallback(e.fallback).
+			Fetch(e.src.fetch)
+	}
 
-	b.Endpoint("record").Timeout(handlerTimeout).
-		Cached(recordTTL, negativeTTL).
-		ID(riotID).
-		Reply(func(id, msg string) any { return recordReply{Player: id, Error: msg} }).
-		Budget(p.budget).
-		Fallback("record lookup failed").
-		Fetch(p.recordFetch)
-
-	b.Endpoint("matches").Timeout(handlerTimeout).
-		Cached(matchesTTL, negativeTTL).
-		ID(riotID).
-		Reply(func(id, msg string) any { return matchesReply{Player: id, Error: msg} }).
-		Budget(p.budget).
-		Fallback("match history lookup failed").
-		Fetch(p.matchesFetch)
-
-	b.Endpoint("account").Timeout(handlerTimeout).
-		Cached(accountTTL, negativeTTL).
-		ID(accountID).
-		Reply(func(id, msg string) any { return accountReply{Player: id, Error: msg} }).
-		Budget(p.budget).
-		Fallback("account lookup failed").
-		Fetch(p.accountFetch)
-
-	b.Endpoint("leaderboard").Timeout(handlerTimeout).
-		Cached(boardTTL, negativeTTL).
-		ID(boardID).
-		Reply(func(id, msg string) any { return leaderboardReply{Player: id, Error: msg} }).
-		Budget(p.budget).
-		Fallback("leaderboard lookup failed").
-		Fetch(p.boardFetch)
-
-	b.Endpoint("shop").Timeout(handlerTimeout).
-		Cached(bundleTTL, negativeTTL).
-		ID(provider.StaticID("featured")).
-		Reply(func(_, msg string) any { return shopReply{Error: msg} }).
-		Budget(p.shopBudget).
-		Fallback("shop lookup failed").
-		Fetch(p.shopFetch)
+	b.Endpoint("link").Timeout(handlerTimeout).Handle(p.linkExchange)
 
 	return b.Build()
+}
+
+type endpointSpec struct {
+	name     string
+	ttl      time.Duration
+	id       provider.IDFunc
+	reply    provider.ReplyFunc
+	fallback string
+	src      source
+}
+
+type source struct {
+	fetch  provider.FetchFunc
+	budget provider.AdmitFunc
+}
+
+type sources struct {
+	rank, record, matches, account, board, shop *source
+}
+
+func (p *api) henrikSources(key string) sources {
+	if key == "" {
+		return sources{}
+	}
+	via := func(fetch provider.FetchFunc) *source { return &source{fetch: fetch, budget: p.budget} }
+	return sources{
+		rank:    via(p.rankFetch),
+		record:  via(p.recordFetch),
+		matches: via(p.matchesFetch),
+		account: via(p.accountFetch),
+		board:   via(p.boardFetch),
+		shop:    &source{fetch: p.shopFetch, budget: p.shopBudget},
+	}
+}
+
+func firstSource(endpoint string, candidates ...*source) source {
+	for _, c := range candidates {
+		if c != nil {
+			return *c
+		}
+	}
+	return source{
+		fetch: func(context.Context, gossiprpc.Request, provider.ID) (any, error) {
+			return nil, &core.UpstreamError{Status: 404, Message: "valorant " + endpoint + " is not available right now"}
+		},
+		budget: func(context.Context, gossiprpc.Request) error { return nil },
+	}
 }
 
 func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
@@ -140,6 +177,9 @@ func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 			"Authorization": cfg.APIKey,
 		}, httpTimeout),
 		content:        b.Client(content, nil, httpTimeout),
+		riot:           newRiot(cfg.Riot, b),
+		links:          d.RiotLinks,
+		log:            d.Logger(),
 		cache:          d.Cache,
 		limiter:        d.Limiter,
 		buckets:        core.NewBuckets("ratelimit:gossip:valorant", cfg.RateLimit, rateWindowSeconds),
@@ -163,25 +203,7 @@ type riotIDValue struct {
 	tag  string
 }
 
-func parseRiotID(account string) (riotIDValue, string) {
-	raw := strings.TrimSpace(account)
-	name, tag, found := strings.Cut(raw, "#")
-	name, tag = strings.TrimSpace(name), strings.TrimSpace(tag)
-	if !wellFormedRiotID(name, tag, found) {
-		return riotIDValue{}, "invalid riot id (want name#tag)"
-	}
-	return riotIDValue{name: name, tag: strings.ToUpper(tag)}, ""
-}
-
-func wellFormedRiotID(name, tag string, found bool) bool {
-	return found && name != "" && tag != "" && len(name) <= 32 && len(tag) <= 8
-}
-
 func (r riotIDValue) String() string { return r.name + "#" + r.tag }
-
-func (r riotIDValue) cacheKey() string {
-	return strings.ToLower(r.name) + "#" + strings.ToLower(r.tag)
-}
 
 var affinities = map[string]struct{}{
 	"na": {}, "eu": {}, "ap": {}, "kr": {}, "br": {}, "latam": {},
@@ -209,47 +231,101 @@ func normalizePlatform(platform string) (string, string) {
 	}
 }
 
-func riotID(req gossiprpc.Request) (provider.ID, string) {
-	id, msg := parseRiotID(req.Account)
-	if msg != "" {
-		return provider.ID{Display: strings.TrimSpace(req.Account)}, msg
+func scope(req gossiprpc.Request) (region, platform, reject string) {
+	region, reject = normalizeRegion(req.Region)
+	if reject != "" {
+		return "", "", reject
 	}
-	region, msg := normalizeRegion(req.Region)
-	if msg != "" {
-		return provider.ID{Display: id.String()}, msg
+	platform, reject = normalizePlatform(req.Platform)
+	return region, platform, reject
+}
+
+func channelID(req gossiprpc.Request) (provider.ID, string) {
+	channel := strings.TrimSpace(req.ChannelID)
+	if channel == "" {
+		return provider.ID{}, "missing channel"
 	}
-	platform, msg := normalizePlatform(req.Platform)
-	if msg != "" {
-		return provider.ID{Display: id.String()}, msg
+	region, platform, reject := scope(req)
+	if reject != "" {
+		return provider.ID{}, reject
 	}
-	return provider.ID{
-		Display: id.String(),
-		Key:     core.CacheID(id.cacheKey(), region, platform),
-	}, ""
+	return provider.ID{Key: core.CacheID(channel, region, platform)}, ""
 }
 
 func accountID(req gossiprpc.Request) (provider.ID, string) {
-	id, reject := riotID(req)
-	// Account data is independent of the requested region and platform. Retain
-	// their validation, but share the reply with a freshly resolved account.
-	id.Key = core.CacheID(id.Display)
+	id, reject := channelID(req)
+	id.Key = core.CacheID(strings.TrimSpace(req.ChannelID))
 	return id, reject
 }
 
 func boardID(req gossiprpc.Request) (provider.ID, string) {
-	display := strings.TrimSpace(req.Account)
-	region, msg := normalizeRegion(req.Region)
-	if msg != "" {
-		return provider.ID{}, msg
+	channel := strings.TrimSpace(req.ChannelID)
+	region, platform, reject := scope(req)
+	if reject != "" {
+		return provider.ID{}, reject
 	}
-	platform, msg := normalizePlatform(req.Platform)
-	if msg != "" {
-		return provider.ID{}, msg
+	if channel == "" && region == "auto" {
+		return provider.ID{}, "missing region (no linked account to detect it from)"
 	}
-	if display == "" && region == "auto" {
-		return provider.ID{}, "missing region (no account to detect it from)"
+	return provider.ID{Key: core.CacheID(channel, region, platform)}, ""
+}
+
+const notLinkedMessage = "link a Riot account on the ItsBagelBot dashboard first"
+
+type linkedPlayer struct {
+	id    riotIDValue
+	puuid string
+	shard string
+}
+
+type linkWire struct {
+	Name  string `json:"name"`
+	Tag   string `json:"tag"`
+	Puuid string `json:"puuid"`
+	Shard string `json:"shard"`
+}
+
+func (p *api) linked(ctx context.Context, channel string) (linkedPlayer, error) {
+	key := core.Key(providerName, "link", channel)
+	wire, err := core.Cached(ctx, p.cache, key, linkTTL, linkTTL, nil, func(ctx context.Context) (linkWire, error) {
+		if p.links == nil {
+			return linkWire{}, &core.UpstreamError{Status: 404, Message: "Riot accounts can't be read right now"}
+		}
+		link, err := p.links.RiotLink(ctx, channel)
+		if err != nil {
+			return linkWire{}, err
+		}
+		if !link.Linked {
+			return linkWire{}, &core.UpstreamError{Status: 404, Message: notLinkedMessage}
+		}
+		return linkWire{Name: link.GameName, Tag: link.TagLine, Puuid: link.Puuid, Shard: link.Shard}, nil
+	})
+	if err != nil {
+		return linkedPlayer{}, err
 	}
-	return provider.ID{Display: display, Key: core.CacheID(display, region, platform)}, ""
+	return linkedPlayer{id: riotIDValue{name: wire.Name, tag: wire.Tag}, puuid: wire.Puuid, shard: wire.Shard}, nil
+}
+
+type lookup struct {
+	player   linkedPlayer
+	region   string
+	platform string
+}
+
+func (p *api) lookup(ctx context.Context, req gossiprpc.Request) (lookup, error) {
+	player, err := p.linked(ctx, strings.TrimSpace(req.ChannelID))
+	if err != nil {
+		return lookup{}, err
+	}
+	region, platform, _ := scope(req)
+	if region == "auto" {
+		region = player.shard
+	}
+	return lookup{player: player, region: region, platform: platform}, nil
+}
+
+func (l lookup) henrikPath(prefix string) string {
+	return prefix + l.region + "/" + l.platform + "/" + url.PathEscape(l.player.id.name) + "/" + url.PathEscape(l.player.id.tag)
 }
 
 type accountInfo struct {
@@ -266,39 +342,6 @@ type accountWire struct {
 	Data accountInfo `json:"data"`
 }
 
-func (p *api) effectiveRegion(ctx context.Context, id riotIDValue, region string) (string, error) {
-	if region != "auto" {
-		return region, nil
-	}
-	info, err := p.resolveAccount(ctx, id)
-	if err != nil {
-		return "", err
-	}
-	shard := strings.ToLower(strings.TrimSpace(info.Region))
-	if shard == "" {
-		return "", &core.UpstreamError{Status: 404, Message: "could not detect region"}
-	}
-	return shard, nil
-}
-
-func (p *api) resolveAccount(ctx context.Context, id riotIDValue) (accountInfo, error) {
-	key := core.Key(providerName, "resolve", id.cacheKey())
-	return core.Cached(ctx, p.cache, key, resolveTTL, negativeTTL, nil, func(ctx context.Context) (accountInfo, error) {
-		info, err := p.fetchAccount(ctx, id)
-		if err != nil {
-			return accountInfo{}, err
-		}
-		// Only a new HTTP result can warm the short-lived account reply. A hit
-		// on the 24-hour resolver must never renew that reply's freshness.
-		if body, err := core.MarshalReply(accountReplyFor(id, info)); err == nil {
-			core.StoreCachedBytes(ctx, p.cache, core.BytesEntry{
-				Key: core.Key(providerName, "account", id.cacheKey()), Value: body, TTL: accountTTL,
-			})
-		}
-		return info, nil
-	})
-}
-
 func (p *api) fetchAccount(ctx context.Context, id riotIDValue) (accountInfo, error) {
 	var wire accountWire
 	path := "/valorant/v2/account/" + url.PathEscape(id.name) + "/" + url.PathEscape(id.tag)
@@ -309,13 +352,6 @@ func (p *api) fetchAccount(ctx context.Context, id riotIDValue) (accountInfo, er
 		return accountInfo{}, &core.UpstreamError{Status: 404, Message: "player not found"}
 	}
 	return wire.Data, nil
-}
-
-func scoped(req gossiprpc.Request) (id riotIDValue, region, platform string) {
-	id, _ = parseRiotID(req.Account)
-	region, _ = normalizeRegion(req.Region)
-	platform, _ = normalizePlatform(req.Platform)
-	return id, region, platform
 }
 
 // Peak arrives as one object despite the spec's array; an array decode fails every rank lookup.
@@ -363,22 +399,15 @@ type rankReply struct {
 	Error      string `json:"error,omitempty"`
 }
 
-type mmrLookup struct {
-	player riotIDValue
-	region string
-}
-
-func (p *api) fetchMMR(ctx context.Context, req gossiprpc.Request, wire any) (mmrLookup, error) {
-	rid, region, platform := scoped(req)
-	eff, err := p.effectiveRegion(ctx, rid, region)
+func (p *api) fetchMMR(ctx context.Context, req gossiprpc.Request, wire any) (lookup, error) {
+	at, err := p.lookup(ctx, req)
 	if err != nil {
-		return mmrLookup{}, err
+		return lookup{}, err
 	}
-	path := "/valorant/v3/mmr/" + eff + "/" + platform + "/" + url.PathEscape(rid.name) + "/" + url.PathEscape(rid.tag)
-	if err := p.http.GetJSON(ctx, path, nil, wire); err != nil {
-		return mmrLookup{}, err
+	if err := p.http.GetJSON(ctx, at.henrikPath("/valorant/v3/mmr/"), nil, wire); err != nil {
+		return lookup{}, err
 	}
-	return mmrLookup{player: rid, region: eff}, nil
+	return at, nil
 }
 
 func (p *api) rankFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
@@ -389,7 +418,7 @@ func (p *api) rankFetch(ctx context.Context, req gossiprpc.Request, id provider.
 	}
 	mmr := wire.Data
 	reply := rankReply{
-		Player:     lookup.player.String(),
+		Player:     lookup.player.id.String(),
 		Region:     lookup.region,
 		Tier:       mmr.Current.Tier.Name,
 		RR:         mmr.Current.RR,
@@ -438,7 +467,7 @@ func (p *api) recordFetch(ctx context.Context, req gossiprpc.Request, id provide
 	if err != nil {
 		return nil, err
 	}
-	reply := recordReply{Player: lookup.player.String(), Region: lookup.region}
+	reply := recordReply{Player: lookup.player.id.String(), Region: lookup.region}
 	for _, season := range wire.Data.Seasonal {
 		reply.Games += season.Games
 		reply.Wins += season.Wins
@@ -519,24 +548,43 @@ type matchesReply struct {
 }
 
 func (p *api) matchesFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
-	rid, region, platform := scoped(req)
-	eff, err := p.effectiveRegion(ctx, rid, region)
+	at, err := p.lookup(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 	var history matchesWire
-	path := "/valorant/v4/matches/" + eff + "/" + platform + "/" + url.PathEscape(rid.name) + "/" + url.PathEscape(rid.tag)
 	query := url.Values{"mode": {"competitive"}, "size": {strconv.Itoa(matchCount)}}
-	if err := p.http.GetJSON(ctx, path, query, &history); err != nil {
+	if err := p.http.GetJSON(ctx, at.henrikPath("/valorant/v4/matches/"), query, &history); err != nil {
 		return nil, err
 	}
-	now := time.Now()
-	entries := make([]matchEntry, 0, len(history.Data))
-	for _, match := range history.Data {
+	entries := summarizeMatches(history.Data, byRiotID(at.player.id), time.Now())
+	return matchesReply{
+		Player:  at.player.id.String(),
+		Region:  at.region,
+		Matches: entries,
+		Empty:   len(entries) == 0,
+	}, nil
+}
+
+type selfMatcher func(matchPlayer) bool
+
+func byRiotID(rid riotIDValue) selfMatcher {
+	return func(player matchPlayer) bool {
+		return strings.EqualFold(player.Name, rid.name) && strings.EqualFold(player.Tag, rid.tag)
+	}
+}
+
+func byPuuid(puuid string) selfMatcher {
+	return func(player matchPlayer) bool { return player.Puuid == puuid }
+}
+
+func summarizeMatches(matches []matchV4, isSelf selfMatcher, now time.Time) []matchEntry {
+	entries := make([]matchEntry, 0, len(matches))
+	for _, match := range matches {
 		if !match.Metadata.IsCompleted {
 			continue
 		}
-		player, ok := findSelf(match.Players, rid)
+		player, ok := findSelf(match.Players, isSelf)
 		if !ok {
 			continue
 		}
@@ -555,17 +603,12 @@ func (p *api) matchesFetch(ctx context.Context, req gossiprpc.Request, id provid
 		entry.AgoSeconds = max(int64(now.Sub(match.Metadata.StartedAt).Seconds()), 0)
 		entries = append(entries, entry)
 	}
-	return matchesReply{
-		Player:  rid.String(),
-		Region:  eff,
-		Matches: entries,
-		Empty:   len(entries) == 0,
-	}, nil
+	return entries
 }
 
-func findSelf(players []matchPlayer, rid riotIDValue) (matchPlayer, bool) {
+func findSelf(players []matchPlayer, isSelf selfMatcher) (matchPlayer, bool) {
 	for _, player := range players {
-		if strings.EqualFold(player.Name, rid.name) && strings.EqualFold(player.Tag, rid.tag) {
+		if isSelf(player) {
 			return player, true
 		}
 	}
@@ -614,16 +657,15 @@ type accountReply struct {
 }
 
 func (p *api) accountFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
-	rid, _, _ := scoped(req)
-	info, err := p.fetchAccount(ctx, rid)
+	at, err := p.lookup(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	core.StoreCached(ctx, p.cache, core.StoreRequest[accountInfo]{
-		Key: core.Key(providerName, "resolve", rid.cacheKey()), TTL: resolveTTL,
-		NegativeTTL: negativeTTL, Value: info,
-	})
-	return accountReplyFor(rid, info), nil
+	info, err := p.fetchAccount(ctx, at.player.id)
+	if err != nil {
+		return nil, err
+	}
+	return accountReplyFor(at.player.id, info), nil
 }
 
 func accountReplyFor(rid riotIDValue, info accountInfo) accountReply {
@@ -645,6 +687,7 @@ type boardWire struct {
 
 type boardPlayer struct {
 	LeaderboardRank int    `json:"leaderboard_rank"`
+	Anonymized      bool   `json:"is_anonymized"`
 	Name            string `json:"name"`
 	Tag             string `json:"tag"`
 	Wins            int    `json:"wins"`
@@ -669,22 +712,27 @@ type leaderboardReply struct {
 }
 
 func (p *api) boardFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
-	_, region, platform := scoped(req)
-	eff := region
-	if region == "auto" {
-		rid, _, _ := scoped(req)
-		resolved, err := p.effectiveRegion(ctx, rid, region)
-		if err != nil {
-			return nil, err
-		}
-		eff = resolved
-	}
-	var board boardWire
-	path := "/valorant/v3/leaderboard/" + eff + "/" + platform
-	if err := p.http.GetJSON(ctx, path, nil, &board); err != nil {
+	region, platform, err := p.boardScope(ctx, req)
+	if err != nil {
 		return nil, err
 	}
-	players := board.Data.Players
+	var board boardWire
+	if err := p.http.GetJSON(ctx, "/valorant/v3/leaderboard/"+region+"/"+platform, nil, &board); err != nil {
+		return nil, err
+	}
+	return boardReplyFor(board.Data.Players, id.Display, region+"/"+platform), nil
+}
+
+func (p *api) boardScope(ctx context.Context, req gossiprpc.Request) (region, platform string, err error) {
+	region, platform, _ = scope(req)
+	if region != "auto" {
+		return region, platform, nil
+	}
+	at, err := p.lookup(ctx, req)
+	return at.region, platform, err
+}
+
+func boardReplyFor(players []boardPlayer, display, board string) leaderboardReply {
 	sort.SliceStable(players, func(i, j int) bool {
 		return players[i].LeaderboardRank < players[j].LeaderboardRank
 	})
@@ -695,16 +743,23 @@ func (p *api) boardFetch(ctx context.Context, req gossiprpc.Request, id provider
 	for _, player := range players {
 		entries = append(entries, lbEntry{
 			Rank:   player.LeaderboardRank,
-			Player: player.Name + "#" + player.Tag,
+			Player: boardName(player),
 			Tier:   player.Tier,
 			RR:     player.RR,
 			Wins:   player.Wins,
 		})
 	}
 	return leaderboardReply{
-		Player:  id.Display,
-		Board:   eff + "/" + platform,
+		Player:  display,
+		Board:   board,
 		Entries: entries,
 		Empty:   len(entries) == 0,
-	}, nil
+	}
+}
+
+func boardName(player boardPlayer) string {
+	if player.Anonymized || player.Name == "" {
+		return "Secret Agent"
+	}
+	return player.Name + "#" + player.Tag
 }

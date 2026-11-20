@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/quote"
+	"ItsBagelBot/app/db/modules/ent/riotlink"
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
 	"ItsBagelBot/app/db/modules/ent/variable"
 	"context"
@@ -96,6 +97,7 @@ func checkColumn(t, c string) error {
 			goveecredential.Table:    goveecredential.ValidColumn,
 			modules.Table:            modules.ValidColumn,
 			quote.Table:              quote.ValidColumn,
+			riotlink.Table:           riotlink.ValidColumn,
 			spotifycredential.Table:  spotifycredential.ValidColumn,
 			variable.Table:           variable.ValidColumn,
 		})

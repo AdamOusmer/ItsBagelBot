@@ -1,7 +1,7 @@
 {
   "label": "Stats Valorant",
-  "tagline": "Rangs Valorant, historique de matchs, classements et rotation boutique du jour dans le chat.",
-  "description": "Une commande, six regards : !val montre le standing compétitif d'un joueur (palier, RR, variation de RR de la dernière partie, palier max) ; !val record additionne les parties classées et les victoires de son compte ; !val matches liste ses parties classées récentes en résultats agent K/D/A ; !val account montre à qui un Riot ID correspond, avec le niveau de compte ; !val lb affiche le top 10 de n'importe quel classement régional, PC ou console ; !val shop montre la rotation mondiale de skins du jour avec les prix VP et le compte à rebours. Les formes compactes !valrank, !valrecord, !valmatches, !valaccount, !vallb et !valshop marchent aussi. Liez votre Riot ID ci-dessous (« Nom#Tag »). Les viewers peuvent aussi nommer n'importe quel joueur, ex. « !val Frosty#EUW1 », et ajouter un shard ou une ladder n'importe où dans la ligne pour cadrer cette recherche (« !val eu Frosty#EUW1 », « !val lb console ap »). Laissez la région vide et le bot détecte le shard depuis le compte lui-même.",
+  "tagline": "Vos stats Valorant dans le chat à partir de votre compte Riot lié.",
+  "description": "Connectez-vous avec Riot pour afficher vos stats Valorant dans le chat. !val affiche votre rang compétitif, !val matches vos dernières parties classées et !val lb affiche le top 10 du classement de l’acte. Les stats du joueur proviennent uniquement du compte Riot que vous avez lié.",
   "connection": {
     "title": "Compte Riot",
     "prompt": "Connectez-vous pour partager vos stats Valorant dans le chat.",
@@ -16,11 +16,6 @@
     "unlinkFailed": "Impossible de dissocier votre compte Riot. Réessayez."
   },
   "settings": {
-    "account": {
-      "label": "Riot ID lié",
-      "help": "Joueur par défaut de chaque commande, au format « Nom#Tag ». Valorant n'a pas de recherche par nom seul, donc le #tag est obligatoire.",
-      "placeholder": "Frosty#EUW1"
-    },
     "region": {
       "label": "Shard de région",
       "help": "na, eu, ap, kr, br ou latam. Laissez vide et le bot détecte le shard depuis le compte lui-même.",
@@ -38,26 +33,26 @@
   },
   "replies": {
     "rank": {
-      "tagline": "Standing compétitif : !val, !val rank ou !valrank.",
+      "tagline": "Rang compétitif de votre compte lié (aussi !val rank et !valrank).",
       "defaultMessage": "{player} · {tier} · {rr} RR ({lastchange}) · meilleur rang {peaktier}"
     },
     "record": {
-      "tagline": "Parties classées et victoires du compte (aussi !valrecord).",
+      "tagline": "Parties classées et victoires de votre compte lié (aussi !valrecord).",
       "event": "!val record",
       "defaultMessage": "{player} · {games} parties classées · {wins} victoires ({winrate}%)"
     },
     "matches": {
-      "tagline": "Parties classées récentes (aussi !valmatches).",
+      "tagline": "Dernières parties classées de votre compte lié (aussi !valmatches).",
       "event": "!val matches",
       "defaultMessage": "Les {count} derniers matchs de {player} : {matches}"
     },
     "account": {
-      "tagline": "À qui un ID correspond, avec le niveau de compte (aussi !valaccount).",
+      "tagline": "Votre compte Riot lié et son niveau (aussi !valaccount).",
       "event": "!val account",
       "defaultMessage": "{player} · compte niveau {level}"
     },
     "board": {
-      "tagline": "Top 10 régional, PC ou console (aussi !vallb).",
+      "tagline": "Classement de l’acte pour votre compte lié (aussi !vallb).",
       "event": "!val lb",
       "defaultMessage": "{board}: {entries}"
     },

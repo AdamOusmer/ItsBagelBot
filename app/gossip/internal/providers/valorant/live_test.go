@@ -6,6 +6,7 @@ package valorant
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"ItsBagelBot/app/gossip/internal/providertest"
@@ -15,11 +16,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func liveProbeEnabled() bool {
+	return os.Getenv("VALORANT_LIVE") == "1" && os.Getenv("VALORANT_API_KEY") != ""
+}
+
 func TestLiveUpstream(t *testing.T) {
-	if os.Getenv("VALORANT_LIVE") != "1" || os.Getenv("VALORANT_API_KEY") == "" {
-		t.Skip("live probe: needs VALORANT_LIVE=1 and a real VALORANT_API_KEY")
+	name, tag, linked := strings.Cut(os.Getenv("VALORANT_LIVE_RIOT_ID"), "#")
+	if !liveProbeEnabled() || !linked {
+		t.Skip("live probe: needs VALORANT_LIVE=1, a real VALORANT_API_KEY and your own VALORANT_LIVE_RIOT_ID (Name#Tag)")
 	}
-	p := New(Config{APIKey: os.Getenv("VALORANT_API_KEY")}, providertest.Deps(providertest.NewMemStore()))
+	d := providertest.Deps(providertest.NewMemStore())
+	d.RiotLinks = fakeLinks{linkedChannel: {GameName: name, TagLine: tag, Shard: os.Getenv("VALORANT_LIVE_SHARD")}}
+	p := New(Config{APIKey: os.Getenv("VALORANT_API_KEY")}, d)
 
 	board := providertest.Call[leaderboardReply](t, p, "leaderboard", gossiprpc.Request{Region: "eu", Platform: "pc"})
 	require.Empty(t, board.Error, "leaderboard probe failed")
@@ -28,7 +36,7 @@ func TestLiveUpstream(t *testing.T) {
 	fmt.Printf("leaderboard: %s top=%s tier=%d rr=%d\n", board.Board, top.Player, top.Tier, top.RR)
 	require.Contains(t, top.Player, "#", "board row missing tagline")
 
-	player := gossiprpc.Request{Account: top.Player}
+	player := gossiprpc.Request{ChannelID: linkedChannel}
 
 	account := providertest.Call[accountReply](t, p, "account", player)
 	assert.Empty(t, account.Error)

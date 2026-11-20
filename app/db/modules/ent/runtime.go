@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/quote"
+	"ItsBagelBot/app/db/modules/ent/riotlink"
 	"ItsBagelBot/app/db/modules/ent/schema"
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
 	"ItsBagelBot/app/db/modules/ent/variable"
@@ -398,6 +399,30 @@ func init() {
 	quoteDescCreatedAt := quoteFields[4].Descriptor()
 	// quote.DefaultCreatedAt holds the default value on creation for the created_at field.
 	quote.DefaultCreatedAt = quoteDescCreatedAt.Default.(func() time.Time)
+	riotlinkFields := schema.RiotLink{}.Fields()
+	_ = riotlinkFields
+	// riotlinkDescPuuid is the schema descriptor for puuid field.
+	riotlinkDescPuuid := riotlinkFields[1].Descriptor()
+	// riotlink.PuuidValidator is a validator for the "puuid" field. It is called by the builders before save.
+	riotlink.PuuidValidator = riotlinkDescPuuid.Validators[0].(func(string) error)
+	// riotlinkDescGameName is the schema descriptor for game_name field.
+	riotlinkDescGameName := riotlinkFields[2].Descriptor()
+	// riotlink.GameNameValidator is a validator for the "game_name" field. It is called by the builders before save.
+	riotlink.GameNameValidator = riotlinkDescGameName.Validators[0].(func(string) error)
+	// riotlinkDescTagLine is the schema descriptor for tag_line field.
+	riotlinkDescTagLine := riotlinkFields[3].Descriptor()
+	// riotlink.TagLineValidator is a validator for the "tag_line" field. It is called by the builders before save.
+	riotlink.TagLineValidator = riotlinkDescTagLine.Validators[0].(func(string) error)
+	// riotlinkDescShard is the schema descriptor for shard field.
+	riotlinkDescShard := riotlinkFields[4].Descriptor()
+	// riotlink.ShardValidator is a validator for the "shard" field. It is called by the builders before save.
+	riotlink.ShardValidator = riotlinkDescShard.Validators[0].(func(string) error)
+	// riotlinkDescUpdatedAt is the schema descriptor for updated_at field.
+	riotlinkDescUpdatedAt := riotlinkFields[5].Descriptor()
+	// riotlink.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	riotlink.DefaultUpdatedAt = riotlinkDescUpdatedAt.Default.(func() time.Time)
+	// riotlink.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	riotlink.UpdateDefaultUpdatedAt = riotlinkDescUpdatedAt.UpdateDefault.(func() time.Time)
 	spotifycredentialFields := schema.SpotifyCredential{}.Fields()
 	_ = spotifycredentialFields
 	// spotifycredentialDescClientID is the schema descriptor for client_id field.

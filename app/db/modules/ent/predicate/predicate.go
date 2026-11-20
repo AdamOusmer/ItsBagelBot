@@ -39,6 +39,9 @@ type Modules func(*sql.Selector)
 // Quote is the predicate function for quote builders.
 type Quote func(*sql.Selector)
 
+// RiotLink is the predicate function for riotlink builders.
+type RiotLink func(*sql.Selector)
+
 // SpotifyCredential is the predicate function for spotifycredential builders.
 type SpotifyCredential func(*sql.Selector)
 

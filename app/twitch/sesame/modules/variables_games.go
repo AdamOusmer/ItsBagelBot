@@ -11,14 +11,8 @@ import (
 )
 
 func valorantVariableReaders(d engine.Deps) map[string]variableRead {
-	request := func(call statsCall[valorantConfig]) gossiprpc.Request {
-		account, region, platform := valLookup(call, valScope{})
-		return gossiprpc.Request{Account: account, Region: region, Platform: platform, IsPremium: call.Ctx.Regress.IsPremium()}
-	}
-	board := func(call statsCall[valorantConfig]) gossiprpc.Request {
-		account, region, platform := valLookup(call, valScope{noBroadcasterFallback: true})
-		return gossiprpc.Request{Account: account, Region: region, Platform: platform, IsPremium: call.Ctx.Regress.IsPremium()}
-	}
+	request := valLinkedRequest
+	board := valLinkedRequest
 	shop := func(call statsCall[valorantConfig]) gossiprpc.Request {
 		return gossiprpc.Request{IsPremium: call.Ctx.Regress.IsPremium()}
 	}

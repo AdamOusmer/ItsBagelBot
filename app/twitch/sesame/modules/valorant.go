@@ -6,6 +6,7 @@ package modules
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,8 +37,6 @@ const (
 )
 
 type valorantConfig struct {
-	linkedAccountConfig
-
 	Region   string `json:"region"`
 	Platform string `json:"platform"`
 
@@ -127,7 +126,7 @@ func newValRuns(d engine.Deps) valRuns {
 			fallback: defaultValAccountTemplate,
 			tokens:   valAccountTokens(),
 		}),
-		board: valRun(d, valScope{noBroadcasterFallback: true}, externalCommand[valorantConfig, gossiprpc.ValorantLeaderboardReply]{
+		board: valRun(d, valScope{}, externalCommand[valorantConfig, gossiprpc.ValorantLeaderboardReply]{
 			route:    valRoute("leaderboard"),
 			enabled:  func(c valorantConfig) string { return c.BoardEnabled },
 			message:  func(c valorantConfig) string { return c.BoardMessage },
@@ -179,9 +178,10 @@ type valRuns struct {
 }
 
 type valScope struct {
-	noBroadcasterFallback bool
-	accountless           bool
+	accountless bool
 }
+
+func (valorantConfig) linked() linkedAccountConfig { return linkedAccountConfig{} }
 
 func valRun[R any](d engine.Deps, scope valScope, cmd externalCommand[valorantConfig, R]) module.RunFunc {
 	return statsHandler[valorantConfig, R]{
@@ -199,8 +199,7 @@ func valTarget(scope valScope) func(statsCall[valorantConfig]) statsSubject {
 		return fixedSubject[valorantConfig]("daily rotation")
 	}
 	return func(call statsCall[valorantConfig]) statsSubject {
-		account, _, _ := valLookup(call, scope)
-		return statsSubject{Account: account, Display: account}
+		return statsSubject{Display: call.Ctx.Env.BroadcasterUserLogin}
 	}
 }
 
@@ -208,41 +207,29 @@ func valRequest(scope valScope) func(statsCall[valorantConfig], statsSubject) go
 	if scope.accountless {
 		return accountRequest[valorantConfig]
 	}
-	return func(call statsCall[valorantConfig], _ statsSubject) gossiprpc.Request {
-		req := gossiprpc.Request{IsPremium: call.Ctx.Regress.IsPremium()}
-		req.Account, req.Region, req.Platform = valLookup(call, scope)
-		return req
+	return func(call statsCall[valorantConfig], _ statsSubject) gossiprpc.Request { return valLinkedRequest(call) }
+}
+
+func valLinkedRequest(call statsCall[valorantConfig]) gossiprpc.Request {
+	region, platform := parseValArgs(call.Args)
+	return gossiprpc.Request{
+		ChannelID: strconv.FormatUint(call.Ctx.BroadcasterID, 10),
+		Region:    orDefault(region, call.Cfg.Region),
+		Platform:  orDefault(platform, call.Cfg.Platform),
+		IsPremium: call.Ctx.Regress.IsPremium(),
 	}
 }
 
-func valLookup(call statsCall[valorantConfig], scope valScope) (account, region, platform string) {
-	cfg := call.Cfg
-	argAccount, region, platform := parseValArgs(call.Args)
-	if explicitOn(cfg.LinkedOnly) {
-		argAccount = ""
-	}
-	region, platform = orDefault(region, cfg.Region), orDefault(platform, cfg.Platform)
-	if scope.noBroadcasterFallback {
-		return orDefault(argAccount, cfg.Account), region, platform
-	}
-	account = resolveAccount(accountSources{Arg: argAccount, Linked: cfg.Account, BroadcasterLogin: call.Ctx.Env.BroadcasterUserLogin})
-	return account, region, platform
-}
-
-func parseValArgs(args string) (account, region, platform string) {
+func parseValArgs(args string) (region, platform string) {
 	for _, f := range strings.Fields(args) {
 		switch w := strings.ToLower(f); w {
 		case "na", "eu", "ap", "kr", "br", "latam":
 			region = w
 		case "pc", "console":
 			platform = w
-		default:
-			if account == "" {
-				account = strings.TrimPrefix(f, "@")
-			}
 		}
 	}
-	return account, region, platform
+	return region, platform
 }
 
 func valRankTokens() module.TokenExpander[gossiprpc.ValorantRankReply] {

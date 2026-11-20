@@ -129,12 +129,22 @@ func appendClashRoyale(out []provider.Provider, cfg *config.Config, d provider.D
 }
 
 func appendValorant(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	return gated(out, log, cfg.ValorantAPIKey == "", "valorant provider disabled: VALORANT_API_KEY not set (!val commands will not answer)", valorant.New, valorant.Config{
+	return gated(out, log, cfg.ValorantAPIKey == "" && cfg.RiotAPIKey == "", "valorant provider disabled: neither VALORANT_API_KEY nor RIOT_API_KEY set (!val commands will not answer)", valorant.New, valorant.Config{
 		BaseURL:          cfg.ValorantBaseURL,
 		ContentBaseURL:   cfg.ValorantContentBaseURL,
 		APIKey:           cfg.ValorantAPIKey,
 		RateLimit:        cfg.ValorantRateLimit,
 		ContentRateLimit: cfg.ValorantContentRateLimit,
+		Riot: valorant.RiotConfig{
+			BaseURL:   cfg.RiotBaseURL,
+			APIKey:    cfg.RiotAPIKey,
+			RateLimit: cfg.RiotRateLimit,
+			SignOn: valorant.SignOnConfig{
+				AuthBaseURL:  cfg.RiotAuthBaseURL,
+				ClientID:     cfg.RiotRSOClientID,
+				ClientSecret: cfg.RiotRSOClientSecret,
+			},
+		},
 	}, d)
 }
 

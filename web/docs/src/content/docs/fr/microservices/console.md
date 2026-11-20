@@ -18,6 +18,8 @@ La garde de session vérifie le compte et la délégation ; `board.ts` choisit l
 
 Les services de données possèdent les comptes et la configuration ; Kit fournit les catalogues et fonctions partagés.
 
+Riot Sign On est facultatif. Pour l’activer, renseignez `RIOT_RSO_CLIENT_ID` et `RIOT_RSO_REDIRECT_URI`. L’URI de redirection utilise l’origine du tableau de bord et le chemin `/riot/callback`. Gossip détient le secret client et échange les codes d’autorisation. Le tableau de bord utilise `NATS_MODULES_RIOT_SUBJECT_PREFIX` pour les RPC de stockage des liaisons, avec `rpc.modules.riot.link` par défaut.
+
 ## Comportement en cas d’échec
 
 Les gardes de session, de compte et de délégation contrôlent l’accès avant les actions protégées.
