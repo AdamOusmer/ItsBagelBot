@@ -18,6 +18,12 @@ type RaffleLaunch struct {
 	MidCountDisabled bool
 }
 
+type RaffleStatus struct {
+	Open        bool
+	Entrants    int64
+	SecondsLeft int64
+}
+
 func RaffleTerms(l RaffleLaunch) draw.Terms {
 	return draw.Terms{Kind: draw.KindRaffle, Prize: draw.Prize{Points: l.Points}, Winners: l.Winners, MultiRaffle: l.Multi, MidCountDisabled: l.MidCountDisabled}
 }
@@ -34,22 +40,11 @@ func LoyaltyOn(ctx context.Context, proj projection.Reader, ch uint64) (bool, er
 	return state == ModuleOn, err
 }
 
-func (d Deps) RaffleStatus(ctx context.Context, ch uint64) (RaffleStatus, error) {
-	status, err := runningRaffle(ctx, d.Draw, draw.ChannelID(ch))
-	if status.Open || err != nil {
-		return status, err
-	}
-	if d.Raffle != nil {
-		return d.Raffle.Status(ctx, ch)
-	}
-	return RaffleStatus{}, nil
-}
-
-func runningRaffle(ctx context.Context, store DrawStore, ch draw.ChannelID) (RaffleStatus, error) {
-	if store == nil {
+func (d Deps) ReadRaffleStatus(ctx context.Context, ch uint64) (RaffleStatus, error) {
+	if d.Draw == nil {
 		return RaffleStatus{}, nil
 	}
-	rounds, err := store.Live(ctx, ch)
+	rounds, err := d.Draw.Live(ctx, draw.ChannelID(ch))
 	if err != nil {
 		return RaffleStatus{}, err
 	}

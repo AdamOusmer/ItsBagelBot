@@ -18,23 +18,20 @@ type RoundKeys struct {
 }
 
 type RoundOpen struct {
-	Wake           DrawWake
-	RoundID        string
-	Channel        uint64
-	Legacy         string
-	LegacyDeadline string
-	Fields         []FieldValue
-	TTL            time.Duration
-	DueAt          time.Duration
-	OpenedMs       int64
-	Seen           string
+	Wake     DrawWake
+	RoundID  string
+	Channel  uint64
+	Fields   []FieldValue
+	TTL      time.Duration
+	DueAt    time.Duration
+	OpenedMs int64
+	Seen     string
 }
 
 const (
-	RoundOpened int64 = iota
-	RoundJoinableBusy
-	RoundLegacyBusy
-	RoundAlreadyOpened
+	RoundOpened        int64 = 0
+	RoundJoinableBusy  int64 = 1
+	RoundAlreadyOpened int64 = 3
 )
 
 const drawTimeLua = `
@@ -45,7 +42,7 @@ end
 `
 
 var drawOpenScript = NewScript(drawTimeLua + `
-local joinable, round, due, active, legacy, seen_round, legacy_deadline = unpack(KEYS)
+local joinable, round, due, active, seen_round = unpack(KEYS)
 local id, ttl, after, opened, seen, wake, at, channel = unpack(ARGV, 1, 8)
 local exists = redis.call('EXISTS', round) == 1
 if exists and (redis.call('HGET', round, 'channel') or '0') == channel then return 3 end
@@ -53,7 +50,6 @@ if exists then return 1 end
 local current = redis.call('GET', joinable) or ''
 if current ~= seen then return 1 end
 if seen ~= '' and redis.call('EXISTS', seen_round) == 1 then return 1 end
-if redis.call('EXISTS', legacy, legacy_deadline) > 0 then return 2 end
 redis.call('SET', joinable, id, 'PX', ttl)
 redis.call('HSET', round, unpack(ARGV, 9))
 redis.call('PEXPIRE', round, ttl)
@@ -74,8 +70,7 @@ func (k RoundKeys) Open(ctx context.Context, client valkey_go.Client, o RoundOpe
 		return 0, err
 	}
 	o.Seen = seen
-	keys := []string{k.Joinable, k.Round, k.Due, k.Active, drawOptionalKey(o.Legacy, k.Round),
-		k.joinableRound(o), drawOptionalKey(o.LegacyDeadline, k.Round)}
+	keys := []string{k.Joinable, k.Round, k.Due, k.Active, k.joinableRound(o)}
 	channel := strconv.FormatUint(o.Channel, 10)
 	args := []string{
 		o.RoundID, strconv.FormatInt(o.TTL.Milliseconds(), 10), strconv.FormatInt(o.DueAt.Milliseconds(), 10),

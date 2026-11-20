@@ -146,7 +146,7 @@ func (g giveawayCommands) status(ctx context.Context, _ string, emit module.Emit
 
 func (g giveawayCommands) last(ctx context.Context, emit module.Emit) error {
 	owner := drawOwner{deps: g.deps}
-	replied, err := owner.lastGiveaway(ctx, g.c, emit, g.deps.GiveawayWinners != nil)
+	replied, err := owner.lastGiveaway(ctx, g.c, emit)
 	if err == nil && !replied {
 		g.reply(emit, "", "giveaway.status.closed")
 	}

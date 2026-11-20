@@ -12,11 +12,9 @@ type ChannelID uint64
 type RoundID string
 
 const (
-	LegacyRaffleStatePrefix    = "raffle:state:"
-	LegacyRaffleDeadlinePrefix = "raffle:deadline:"
-	dueKey                     = "draw:due"
-	wakeChannel                = "draw:due:wake"
-	roundPrefix                = "draw:round:"
+	dueKey      = "draw:due"
+	wakeChannel = "draw:due:wake"
+	roundPrefix = "draw:round:"
 )
 
 func JoinableKey(channel ChannelID) string { return cache.UserKey("draw:joinable:", uint64(channel)) }
@@ -38,12 +36,4 @@ func keysFor(channel ChannelID, id RoundID) valkey.RoundKeys {
 		Due: dueKey, Refused: "draw:refused:" + string(id),
 		RefusalPending: "draw:refusal-pending:" + string(id),
 	}
-}
-
-func legacyStateKey(channel ChannelID) string {
-	return cache.UserKey(LegacyRaffleStatePrefix, uint64(channel))
-}
-
-func legacyDeadlineKey(channel ChannelID) string {
-	return cache.UserKey(LegacyRaffleDeadlinePrefix, uint64(channel))
 }

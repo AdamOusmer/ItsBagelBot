@@ -67,24 +67,16 @@ func TestDrawRoundOpen(t *testing.T) {
 		{"expired", func(t *testing.T, keys RoundKeys) {
 			require.NoError(t, NewKV(client).Set(t.Context(), Key{Name: keys.Joinable, TTL: testDrawTTL}, testPeerID))
 		}, RoundOpened},
-		{"legacy", func(t *testing.T, keys RoundKeys) {
-			require.NoError(t, NewKV(client).Set(t.Context(), Key{Name: keys.Joinable + ":legacy", TTL: testDrawTTL}, "1"))
-		}, RoundLegacyBusy},
-		{"legacy deadline reserved", func(t *testing.T, keys RoundKeys) {
-			require.NoError(t, NewKV(client).Set(t.Context(), Key{Name: keys.Joinable + ":deadline", TTL: testDrawTTL}, "1"))
-		}, RoundLegacyBusy},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
 			keys, peer := testDrawKeys(t, testRoundID), testDrawKeys(t, testPeerID)
 			cleanDrawKeys(t, client, keys)
-			legacy := keys.Joinable + ":legacy"
-			deadline := keys.Joinable + ":deadline"
-			cleanKeys(t, client, peer.Round, legacy, deadline)
+			cleanKeys(t, client, peer.Round)
 			tc.seed(t, peer)
 			code, err := keys.Open(ctx, client, RoundOpen{
-				RoundID: testRoundID, Legacy: legacy, LegacyDeadline: deadline, Fields: []FieldValue{{Field: "phase", Value: testOpenPhase}},
+				RoundID: testRoundID, Fields: []FieldValue{{Field: "phase", Value: testOpenPhase}},
 				TTL: testDrawTTL, DueAt: -time.Second,
 			})
 			require.NoError(t, err)
@@ -466,31 +458,6 @@ func TestDrawChannelWake(t *testing.T) {
 			ids, _, err := (DueIndex{Key: keys.Due}).Lapsed(ctx, client, 1)
 			require.NoError(t, err)
 			require.Equal(t, tc.wakes, slices.Contains(ids, testRoundID))
-		})
-	}
-}
-
-func TestDrawStatusProbeRoundDeadline(t *testing.T) {
-	client := valkeytest.Real(t)
-	ctx := t.Context()
-	keys := testDrawKeys(t, testRoundID)
-	cleanDrawKeys(t, client, keys)
-	for _, tc := range []struct {
-		name string
-		ttl  time.Duration
-	}{
-		{"missing", 0}, {"open", time.Minute},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if tc.ttl > 0 {
-				require.NoError(t, NewKV(client).Set(ctx, Key{Name: keys.Round, TTL: tc.ttl}, "1"))
-			}
-			status, err := StatusProbe(ctx, client, keys.Round, keys.Entries)
-			require.NoError(t, err)
-			require.Equal(t, tc.ttl > 0, status.Open)
-			if status.Open {
-				require.InDelta(t, time.Now().Add(tc.ttl).UnixMilli(), status.ExpiresMS, float64(time.Second.Milliseconds()))
-			}
 		})
 	}
 }

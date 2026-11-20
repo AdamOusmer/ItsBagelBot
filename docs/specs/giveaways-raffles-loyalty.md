@@ -263,9 +263,9 @@ Viewer
 
 ## 13. Migration
 
-- The `raffle` row keeps `prizePoints`, `durationSeconds` and its line toggles. `claimEnabled` and `claimPrize` seed the new `giveaway` row (claim window, default prize) and are no longer read by raffles.
-- Rollout needs a mutual gate before the new engine opens anything. First a release where the legacy `Open` also refuses while `draw:joinable:<id>` exists (today it checks only its own deadline, `engine/raffle_valkey.go:154-174`). Then the release where new `Open` refuses while a legacy `raffle:state:<id>` exists and the shared `!join` routes to the legacy store while one is open. The legacy store keeps its due sweep until `raffle:due` is empty, then is removed.
-- `!claim` and `!winner` read legacy results until they expire (24 hours). Legacy raffle results are not migrated.
+- The `raffle` row keeps `prizePoints`, `durationSeconds` and its line toggles. Channels with no giveaway row use the old `claimPrize` setting as their default giveaway prize.
+- The draw engine replaces the old raffle store in the same release. Any raffle still open in the old store at rollout expires without a draw. Entry is free and the prize is minted at draw time, so viewers keep their points. Old results are left to expire.
+- Loyalty drops `balance.spend` in the same release; recipe point spends use `balance.debit`. Between the Loyalty and Sesame rollouts, an old Sesame pod running a "spend points" step gets no reply and takes the step's failure branch.
 - Recipe tokens: `{raffle:*}` keeps its names; giveaways add `{giveaway:prize}`, `{giveaway:count}`, `{giveaway:left}`.
 
 ## 14. Later
@@ -310,14 +310,12 @@ One PR each; main stays shippable after every step.
 
 1. Loyalty: `balance.credit` (keyed, idempotent), `watch.status`, `balance.snapshot` (live only). Sesame tick state `last_page_at`.
 2. Outgress: bucket charging and typed retry on `followage.get` and `accountage.get`.
-3. Legacy raffle `Open` gate on `draw:joinable` (ships alone, before step 4).
-4. `pkg/valkey` round operations and `engine/draw` with its store tests, the shared viewer command owner and legacy routing.
-5. Raffle on `engine/draw`: explicit winners, `auto`, exact payout, re-parent under Loyalty, Games tab.
-6. Freeze: tables, verbs, frozen `top.get`, public banner, purge consumer, dashboard control, `!freeze`.
-7. `engine/eligibility`, `!check`, join refusals.
-8. Giveaway module, live panel, presets, Modules winner rows, public past winners.
-9. Amount grammar and gamble id cooldown.
-10. Remove the legacy `raffle:*` store after drain.
+3. `pkg/valkey` round operations and `engine/draw` with its store tests and shared viewer commands.
+4. Raffle on `engine/draw`: explicit winners, `auto`, exact payout, re-parent under Loyalty, Games tab. Remove the old raffle store in this release.
+5. Freeze: tables, verbs, frozen `top.get`, public banner, purge consumer, dashboard control, `!freeze`.
+6. `engine/eligibility`, `!check`, join refusals.
+7. Giveaway module, live panel, presets, Modules winner rows, public past winners.
+8. Amount grammar and gamble id cooldown.
 
 ## 19. Not building
 

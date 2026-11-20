@@ -23,16 +23,14 @@ const roundTTL = 48 * time.Hour
 var ErrInvalidTerms = errors.New("draw: invalid terms")
 
 type Config struct {
-	Verifier          Verifier
-	Payer             Payer
-	Announcer         Announcer
-	Winners           WinnerSink
-	Phases            PhaseObserver
-	Live              StreamState
-	LegacyKey         func(ChannelID) string
-	LegacyDeadlineKey func(ChannelID) string
-	Random            func(int64) int64
-	Log               *zap.Logger
+	Verifier  Verifier
+	Payer     Payer
+	Announcer Announcer
+	Winners   WinnerSink
+	Phases    PhaseObserver
+	Live      StreamState
+	Random    func(int64) int64
+	Log       *zap.Logger
 }
 
 type Store struct {
@@ -76,7 +74,6 @@ type OpenOutcome int64
 const (
 	Opened        OpenOutcome = OpenOutcome(valkey.RoundOpened)
 	JoinableBusy  OpenOutcome = OpenOutcome(valkey.RoundJoinableBusy)
-	LegacyBusy    OpenOutcome = OpenOutcome(valkey.RoundLegacyBusy)
 	AlreadyOpened OpenOutcome = OpenOutcome(valkey.RoundAlreadyOpened)
 )
 
@@ -171,18 +168,10 @@ func (s *Store) openSpec(r Round, openedOrder int64) (valkey.RoundOpen, error) {
 	}
 	next := r.nextReminder(remindAt, false).at
 	return valkey.RoundOpen{
-		RoundID: string(r.ID), Channel: uint64(r.Channel), Legacy: roundLegacyKey(r.Channel, s.cfg.LegacyKey, legacyStateKey),
-		LegacyDeadline: roundLegacyKey(r.Channel, s.cfg.LegacyDeadlineKey, legacyDeadlineKey),
-		TTL:            roundTTL, Wake: valkey.DrawWake{Channel: wakeChannel, At: next}, OpenedMs: openedOrder,
+		RoundID: string(r.ID), Channel: uint64(r.Channel),
+		TTL: roundTTL, Wake: valkey.DrawWake{Channel: wakeChannel, At: next}, OpenedMs: openedOrder,
 		Fields: fields,
 	}, nil
-}
-
-func roundLegacyKey(channel ChannelID, key, fallback func(ChannelID) string) string {
-	if key != nil {
-		return key(channel)
-	}
-	return fallback(channel)
 }
 
 func validateTerms(req OpenRequest, now time.Time) (Terms, error) {

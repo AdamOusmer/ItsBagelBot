@@ -24,7 +24,10 @@ func Draw(d engine.Deps) module.Module {
 	}
 	owner := drawOwner{deps: d, log: log}
 	m := module.NewModule(drawModuleName, module.KindCore)
-	m.Command("join").Everyone().Yields().When(ownsDrawCommand(owner.resolveJoin)).Run(owner.join)
+	ownsJoin := ownsDrawCommand(owner.resolveJoin)
+	m.Command("join").Everyone().Yields().When(func(ctx context.Context, c *module.Context) bool {
+		return ownsJoin(ctx, c) || wantsClosedRaffle(c)
+	}).Run(owner.join)
 	m.Command("enter").Aliases("ticket").Everyone().Yields().When(ownsDrawCommand(owner.resolveEntryAlias)).Run(owner.entryAlias)
 	m.Command("check").Everyone().Yields().When(ownsDrawCommand(owner.resolveCheck)).UserCooldown(eligibility.Limits.CheckCooldown).Run(owner.check)
 	m.Command("claim").Everyone().Yields().When(ownsDrawCommand(owner.resolveClaim)).Run(owner.claim)
@@ -38,22 +41,18 @@ type drawOwner struct {
 }
 
 type drawCommandState struct {
-	round       draw.Round
-	slots       []draw.Slot
-	claims      draw.ClaimLookup
-	found       bool
-	legacy      raffleCmd
-	legacyFound bool
-	legacyOpen  bool
-	result      *engine.RaffleResult
-	err         error
+	round  draw.Round
+	slots  []draw.Slot
+	claims draw.ClaimLookup
+	found  bool
+	err    error
 }
 
 func (s drawCommandState) ownsCommand() bool {
 	if s.round.ID != "" || s.found {
 		return true
 	}
-	return s.legacyFound || s.err != nil
+	return s.err != nil
 }
 
 type drawResolve func(context.Context, *module.Context) drawCommandState
@@ -82,22 +81,12 @@ func (d drawOwner) activeJoin(ctx context.Context, c *module.Context) (draw.Roun
 
 func (d drawOwner) resolveJoin(ctx context.Context, c *module.Context) drawCommandState {
 	r, found, err := d.activeJoin(ctx, c)
-	if err != nil || hasJoinRound(r.Phase, found) {
-		return drawCommandState{round: r, found: found, err: err}
-	}
-	if d.deps.Raffle == nil {
-		return drawCommandState{round: r}
-	}
-	legacy, err := d.deps.Raffle.Status(ctx, c.BroadcasterID)
-	if legacy.Open {
-		return drawCommandState{legacyFound: true, legacyOpen: true, err: err}
-	}
-	return drawCommandState{round: r, legacyFound: wantsClosedRaffle(c), err: err}
+	return drawCommandState{round: r, found: found, err: err}
 }
 
 func (d drawOwner) resolveEntryAlias(ctx context.Context, c *module.Context) drawCommandState {
 	state := d.resolveJoin(ctx, c)
-	if state.found || state.legacyOpen {
+	if state.found {
 		return state
 	}
 	return drawCommandState{err: state.err}
@@ -133,10 +122,6 @@ func (o joinOutput) reply(c *module.Context, accepted bool, send func(module.Emi
 	}
 }
 
-func hasJoinRound(phase draw.Phase, found bool) bool {
-	return found || phase == draw.PhaseOpen
-}
-
 func wantsClosedRaffle(c *module.Context) bool {
 	return c.ModuleOn(raffleModuleName) && !c.ModuleOn(queueModuleName)
 }
@@ -157,8 +142,8 @@ func (d drawOwner) joinResolved(ctx context.Context, c *module.Context, state dr
 		newChatReplier(c).reply(output.emit, "", "draw.join.closed")
 		return nil
 	}
-	if rc, ok := d.legacy(ctx, c); ok {
-		return rc.join(ctx, output)
+	if wantsClosedRaffle(c) {
+		d.replyRaffleJoin(ctx, c, output.emit, draw.JoinOutcome{})
 	}
 	return nil
 }
@@ -211,11 +196,7 @@ func (d drawOwner) enterRound(ctx context.Context, c *module.Context, output joi
 
 func (d drawOwner) resolveClaim(ctx context.Context, c *module.Context) drawCommandState {
 	claims, err := d.lookupClaims(ctx, c)
-	if claims.Found || err != nil {
-		return drawCommandState{claims: claims, found: claims.Found, err: err}
-	}
-	rc, found, err := d.legacyClaim(ctx, c)
-	return drawCommandState{legacy: rc, legacyFound: found, err: err}
+	return drawCommandState{claims: claims, found: claims.Found, err: err}
 }
 
 func (d drawOwner) lookupClaims(ctx context.Context, c *module.Context) (draw.ClaimLookup, error) {
@@ -230,9 +211,6 @@ func (d drawOwner) claim(ctx context.Context, c *module.Context, _ string, emit 
 	if state.err != nil {
 		return state.err
 	}
-	if state.legacyFound {
-		return state.legacy.claimConfirm(ctx, emit)
-	}
 	if !state.found {
 		return nil
 	}
@@ -246,18 +224,8 @@ func (d drawOwner) claim(ctx context.Context, c *module.Context, _ string, emit 
 		reply.reply(emit, "", "draw.claim.ok")
 	case outcome.Late > 0:
 		reply.reply(emit, "", "draw.claim.late")
-	default:
-		return d.claimLegacyFallback(ctx, c, emit)
 	}
 	return nil
-}
-
-func (d drawOwner) claimLegacyFallback(ctx context.Context, c *module.Context, emit module.Emit) error {
-	rc, found, err := d.legacyClaim(ctx, c)
-	if err != nil || !found {
-		return err
-	}
-	return rc.claimConfirm(ctx, emit)
 }
 
 func (d drawOwner) settling(ctx context.Context, c *module.Context) (draw.Round, []draw.Slot, bool, error) {
@@ -269,16 +237,7 @@ func (d drawOwner) settling(ctx context.Context, c *module.Context) (draw.Round,
 
 func (d drawOwner) resolveWinner(ctx context.Context, c *module.Context) drawCommandState {
 	r, slots, found, err := d.settling(ctx, c)
-	if found || err != nil {
-		return drawCommandState{round: r, slots: slots, found: found, err: err}
-	}
-	res, found, err := d.legacyResult(ctx, c)
-	owns := found || anyDrawModuleOn(c)
-	return drawCommandState{result: res, legacyFound: found, err: err, found: owns}
-}
-
-func anyDrawModuleOn(c *module.Context) bool {
-	return c.ModuleOn(raffleModuleName) || c.ModuleOn(engine.GiveawayModuleName)
+	return drawCommandState{round: r, slots: slots, found: found || c.ModuleOn(engine.GiveawayModuleName), err: err}
 }
 
 func (d drawOwner) winner(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
@@ -290,7 +249,29 @@ func (d drawOwner) winner(ctx context.Context, c *module.Context, _ string, emit
 		replyDrawWinner(c, emit, state.round, state.slots)
 		return nil
 	}
-	return d.legacyWinner(ctx, c, emit, state)
+	if !c.ModuleOn(engine.GiveawayModuleName) {
+		return nil
+	}
+	replied, err := d.lastGiveaway(ctx, c, emit)
+	if err == nil && !replied {
+		newChatReplier(c).reply(emit, "", "draw.status.none")
+	}
+	return err
+}
+
+func (d drawOwner) lastGiveaway(ctx context.Context, c *module.Context, emit module.Emit) (bool, error) {
+	if d.deps.GiveawayWinners == nil {
+		return false, nil
+	}
+	rows, err := engine.LastGiveawayWinners(ctx, d.deps.GiveawayWinners, c.BroadcasterID)
+	if err != nil || len(rows) == 0 {
+		return false, err
+	}
+	reply := newChatReplier(c)
+	for _, line := range engine.GiveawayHistoryLines(c.Locale, rows) {
+		reply.say(emit, line)
+	}
+	return true, nil
 }
 
 func replyDrawWinner(c *module.Context, emit module.Emit, r draw.Round, slots []draw.Slot) {

@@ -124,7 +124,7 @@ var raffleStartKeys = map[string]replyKey{
 }
 
 func (rc raffleCommands) status(ctx context.Context, _ string, emit module.Emit) error {
-	status, err := rc.deps.RaffleStatus(ctx, rc.c.BroadcasterID)
+	status, err := rc.deps.ReadRaffleStatus(ctx, rc.c.BroadcasterID)
 	if err != nil {
 		return err
 	}
@@ -182,10 +182,6 @@ func (rc raffleCommands) closeRound(ctx context.Context, winners *draw.WinnerPol
 	if err != nil || ok {
 		return err
 	}
-	drained, err := rc.drawLegacy(ctx, winners, emit)
-	if err != nil || drained {
-		return err
-	}
 	rounds, err := rc.deps.Draw.Live(ctx, rc.channel())
 	if err != nil || slices.ContainsFunc(rounds, raffleDrawInProgress) {
 		return err
@@ -199,34 +195,6 @@ func raffleDrawInProgress(r draw.RoundView) bool {
 		return false
 	}
 	return r.Phase == draw.PhaseClosing || r.Phase == draw.PhaseSettling
-}
-
-func (rc raffleCommands) drawLegacy(ctx context.Context, winners *draw.WinnerPolicy, emit module.Emit) (bool, error) {
-	if rc.deps.Raffle == nil {
-		return false, nil
-	}
-	channel := rc.c.BroadcasterID
-	status, err := rc.deps.Raffle.Status(ctx, channel)
-	if err != nil || !status.Open {
-		return false, err
-	}
-	var count int64
-	if winners != nil {
-		count = int64(draw.ResolveWinners(*winners, int(status.Entrants), draw.Prize{}))
-	}
-	res, err := rc.deps.Raffle.Draw(ctx, channel, count)
-	if err != nil || res == nil {
-		return true, err
-	}
-	currency := engine.DrawCurrencyName(ctx, rc.deps.Proj, channel)
-	notice := engine.RaffleAnnouncement{
-		Locale: string(rc.c.Locale), Points: currency,
-		Config: engine.ReadLegacyRaffleConfig(ctx, rc.deps.Proj, channel),
-	}
-	for _, line := range notice.ResultLines(res) {
-		rc.say(emit, line)
-	}
-	return true, nil
 }
 
 func (rc raffleCommands) cancel(ctx context.Context, _ string, emit module.Emit) error {
@@ -254,9 +222,6 @@ func (rc raffleCommands) join(ctx context.Context, _ string, emit module.Emit) e
 	owner := drawOwner{deps: rc.deps, log: rc.deps.Log}
 	if open && r.Terms.Kind == draw.KindRaffle {
 		return owner.joinRound(ctx, rc.c, r, joinOutput{emit: emit})
-	}
-	if legacy, ok := owner.legacy(ctx, rc.c); ok && !open {
-		return legacy.join(ctx, joinOutput{emit: emit})
 	}
 	owner.replyRaffleJoin(ctx, rc.c, emit, draw.JoinOutcome{})
 	return nil

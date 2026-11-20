@@ -324,25 +324,6 @@ func (f fixture) claimOldGeneration(r draw.Round, slot draw.Slot) {
 	}
 }
 
-func TestDrawOpenRejectsEitherLegacyKey(t *testing.T) {
-	f := newFixture(t, draw.Config{})
-	const channel draw.ChannelID = 406
-	ctx := t.Context()
-	now, err := valkey.ServerNow(ctx, f.client)
-	require.NoError(t, err)
-	for _, prefix := range []string{"raffle:state:", "raffle:deadline:"} {
-		t.Run(prefix, func(t *testing.T) {
-			key := prefix + strconv.FormatUint(uint64(channel), 10)
-			require.NoError(t, valkey.NewKV(f.client).Set(ctx, valkey.Key{Name: key, TTL: time.Minute}, "1"))
-			t.Cleanup(func() { require.NoError(t, valkey.DelKeys(ctx, f.client, key)) })
-			_, result, err := f.Open(ctx, draw.OpenRequest{Channel: channel,
-				Terms: draw.Terms{Kind: draw.KindGiveaway, ClosesAt: now.Add(time.Minute)}})
-			require.NoError(t, err)
-			require.Equal(t, draw.LegacyBusy, result)
-		})
-	}
-}
-
 func TestDrawExtendKeepsOpeningTermsAndHonorsWindow(t *testing.T) {
 	for _, tc := range []struct {
 		name, snapshotID string

@@ -47,11 +47,12 @@ func (d *fakeDraw) Joinable(ctx context.Context, channel draw.ChannelID) (draw.R
 }
 
 func (d *fakeDraw) Join(ctx context.Context, req draw.JoinRequest) (draw.JoinOutcome, error) {
+	added := !d.closed && d.joined != req
 	d.joined = req
 	if d.DrawStore != nil {
 		return d.DrawStore.Join(ctx, req)
 	}
-	return draw.JoinOutcome{Open: !d.closed, Added: !d.closed}, nil
+	return draw.JoinOutcome{Open: !d.closed, Added: added, Count: 1}, nil
 }
 
 func (d *fakeDraw) Refuse(ctx context.Context, req draw.Refusal) (bool, int64, error) {
@@ -77,31 +78,34 @@ func (d *fakeDraw) ClaimResolved(_ context.Context, _ draw.ClaimLookup) (draw.Cl
 
 func (d *fakeDraw) Settling(context.Context, draw.ChannelID, draw.Kind) (draw.Round, []draw.Slot, bool, error) {
 	d.lookups++
-	return draw.Round{ID: "settling", Terms: draw.Terms{Kind: draw.KindRaffle}}, d.slots, len(d.slots) != 0, nil
+	if len(d.slots) == 0 {
+		return draw.Round{}, nil, false, nil
+	}
+	return draw.Round{ID: "settling", Terms: draw.Terms{Kind: draw.KindRaffle}}, d.slots, true, nil
 }
 
 type drawChatResult struct {
-	message, legacyClaim string
-	legacyJoined         []string
-	joined               draw.JoinRequest
-	claimed              draw.ViewerID
+	message string
+	joined  draw.JoinRequest
+	claimed draw.ViewerID
 }
 
 type drawChatCase struct {
 	name, command string
 	draw          fakeDraw
-	raffle        fakeRaffle
 	views         []projection.ModuleView
+	history       bool
 	want          drawChatResult
 }
 
 func TestDrawSharedCommandsProcess(t *testing.T) {
-	legacy := fakeRaffle{open: true, lastFound: true, lastResult: &engine.RaffleResult{Winners: winners("legacy"), Entrants: 2}}
-	queue := []projection.ModuleView{enabledVariables(queueModuleName, "")}
+	raffle := enabledVariables(raffleModuleName, "")
+	queue := []projection.ModuleView{enabledVariables(queueModuleName, ""), raffle}
+	giveaway := []projection.ModuleView{enabledVariables(engine.GiveawayModuleName, "")}
 	join := draw.JoinRequest{Channel: 2, Round: "active", Viewer: "9", Login: "viewer", Weight: draw.Pins.EntryWeight}
 	cases := []drawChatCase{
-		{name: "new round beats legacy and queue", command: "join", draw: fakeDraw{joinable: true, kind: draw.KindRaffle},
-			raffle: legacy, views: queue, want: drawChatResult{joined: join}},
+		{name: "open raffle takes join before queue", command: "join", draw: fakeDraw{joinable: true, kind: draw.KindRaffle},
+			views: queue, want: drawChatResult{joined: join}},
 		{name: "enter aliases join while open", command: "enter", draw: fakeDraw{joinable: true, kind: draw.KindRaffle},
 			views: queue, want: drawChatResult{joined: join, message: "Entry is free."}},
 		{name: "ticket aliases join while open", command: "ticket", draw: fakeDraw{joinable: true, kind: draw.KindGiveaway},
@@ -117,22 +121,21 @@ func TestDrawSharedCommandsProcess(t *testing.T) {
 			want: drawChatResult{message: "The draw has closed."}},
 		{name: "settling claims join before queue", command: "join", draw: fakeDraw{phase: draw.PhaseSettling}, views: queue,
 			want: drawChatResult{message: "The draw has closed."}},
-		{name: "legacy open beats settling and queue even with raffle disabled", command: "join",
-			draw: fakeDraw{phase: draw.PhaseSettling}, raffle: legacy, views: queue,
-			want: drawChatResult{legacyJoined: []string{"9"}}},
+		{name: "raffle closed reply with no round", command: "join", views: []projection.ModuleView{raffle},
+			want: drawChatResult{message: "no raffle is running right now."}},
 		{name: "queue receives unclaimed join", command: "join", views: queue,
 			want: drawChatResult{message: "you joined the queue"}},
-		{name: "new claim beats legacy with opening modules off", command: "claim", draw: fakeDraw{claims: draw.ClaimOutcome{Claimed: 1}}, raffle: legacy,
+		{name: "claim works with opening modules off", command: "claim", draw: fakeDraw{claims: draw.ClaimOutcome{Claimed: 1}},
 			want: drawChatResult{message: "@viewer your prize is confirmed!", claimed: "9"}},
-		{name: "legacy claim remains available with raffle disabled", command: "claim",
-			raffle: fakeRaffle{lastFound: true, lastResult: legacy.lastResult, claim: engine.ClaimOk},
-			views:  []projection.ModuleView{{Name: raffleModuleName, Configs: []byte(raffleClaimOn)}},
-			want:   drawChatResult{message: "your prize is confirmed", legacyClaim: "9"}},
-		{name: "new winner shows unpaid slots before legacy results", command: "winner", raffle: legacy,
+		{name: "winner shows unpaid slots before giveaway history", command: "winner", views: giveaway, history: true,
 			draw: fakeDraw{slots: []draw.Slot{{Login: "new", State: draw.SlotUnpaid}}},
 			want: drawChatResult{message: "Could not pay: @new."}},
-		{name: "legacy winner works with raffle disabled", command: "winner", raffle: legacy,
-			want: drawChatResult{message: "Last raffle: @legacy"}},
+		{name: "winner shows giveaway history", command: "winner", views: giveaway, history: true,
+			want: drawChatResult{message: "Last giveaway winners for Game: @winner."}},
+		{name: "winner replies when giveaway history is empty", command: "winner", views: giveaway,
+			want: drawChatResult{message: "No winners are available yet."}},
+		{name: "winner yields with raffle on and no settling round", command: "winner", views: []projection.ModuleView{raffle},
+			want: drawChatResult{message: "custom winner"}},
 	}
 	for _, command := range []string{"join", "enter", "ticket", "check", "claim", "winner"} {
 		cases = append(cases, drawChatCase{name: "custom " + command + " runs after yield", command: command,
@@ -151,8 +154,9 @@ func (tc drawChatCase) run(t *testing.T) {
 		Proj: &fakeProj{modules: tc.views, commands: map[string]projection.Command{
 			tc.command: {Name: tc.command, IsActive: true, Response: "custom " + tc.command, Perm: "everyone"},
 		}},
-		Draw: &tc.draw, Eligibility: checker, Raffle: &tc.raffle, Queue: &fakeQueue{open: true}, Pub: pub,
-		Live: &fakeLive{live: true}, Greet: &fakeGreet{}, Cooldown: engine.NoopCooldown{},
+		Draw: &tc.draw, Eligibility: checker, Queue: &fakeQueue{open: true}, Pub: pub,
+		GiveawayWinners: giveawayChatWinners{empty: !tc.history},
+		Live:            &fakeLive{live: true}, Greet: &fakeGreet{}, Cooldown: engine.NoopCooldown{},
 		Special: engine.NewSpecialSet(""), Log: zap.NewNop(),
 	}
 	p := engine.NewPipeline(deps, engine.NewRegistry(deps.Log, All(deps)...), engine.Config{OutgressStandard: "outgress.standard"})
@@ -185,8 +189,7 @@ func (c drawChatCall) process(t *testing.T, pipe *engine.Pipeline, channel draw.
 
 func (tc drawChatCase) check(t *testing.T, pub *variablePublisher) {
 	t.Helper()
-	got := drawChatResult{joined: tc.draw.joined, claimed: tc.draw.claimed,
-		legacyJoined: tc.raffle.joinedIDs, legacyClaim: tc.raffle.claimedBy, message: tc.want.message}
+	got := drawChatResult{joined: tc.draw.joined, claimed: tc.draw.claimed, message: tc.want.message}
 	require.Equal(t, tc.want, got)
 	replies := drawReplies(t, pub)
 	if tc.want.message == "" {

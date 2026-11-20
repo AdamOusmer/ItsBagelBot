@@ -137,6 +137,10 @@ func defaultGiveawayConfig() GiveawayModuleConfig {
 		RefusalEnabled: refusalToggle(eligibility.Limits.RefusalEnabled)}
 }
 
+type giveawayPrizeSeed struct {
+	ClaimPrize string `json:"claimPrize"`
+}
+
 func readGiveawayModule(ctx context.Context, proj projection.Reader, channel uint64) (GiveawayModuleConfig, ModuleState, error) {
 	cfg := defaultGiveawayConfig()
 	view, state, err := ModuleLookup{Proj: proj, BroadcasterID: channel, Name: GiveawayModuleName, Absent: ModuleOff}.Resolve(ctx)
@@ -144,7 +148,7 @@ func readGiveawayModule(ctx context.Context, proj projection.Reader, channel uin
 	case err != nil:
 		return cfg, state, err
 	case view.Name == "" && len(view.Configs) == 0:
-		cfg.DefaultPrize = ReadLegacyRaffleConfig(ctx, proj, channel).ClaimPrize
+		cfg.DefaultPrize = readRaffleConfig[giveawayPrizeSeed](ctx, proj, channel).ClaimPrize
 	case len(view.Configs) > 0:
 		err = codec.Unmarshal(view.Configs, &cfg)
 		cfg.clampPresets()

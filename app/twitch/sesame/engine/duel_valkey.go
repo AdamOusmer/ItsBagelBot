@@ -622,13 +622,21 @@ func (s *ValkeyDuelStore) onExpired(ctx context.Context, key string) {
 	if !strings.HasPrefix(key, duelDeadlinePrefix) {
 		return
 	}
-	id, ok := parseRaffleID(strings.TrimPrefix(key, duelDeadlinePrefix))
+	id, ok := parseChannelID(strings.TrimPrefix(key, duelDeadlinePrefix))
 	if !ok {
 		return
 	}
 	if s.claimExpiry(ctx, duelKey(duelClaimPrefix, id)) {
 		go s.autoResolve(context.WithoutCancel(ctx), id)
 	}
+}
+
+func parseChannelID(s string) (uint64, bool) {
+	id, err := strconv.ParseUint(s, 10, 64)
+	if err != nil || id == 0 {
+		return 0, false
+	}
+	return id, true
 }
 
 func (s *ValkeyDuelStore) claimExpiry(ctx context.Context, key string) bool {

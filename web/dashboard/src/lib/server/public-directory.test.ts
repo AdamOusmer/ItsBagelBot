@@ -59,10 +59,12 @@ describe('public directory module commands', () => {
     expect(queue).toEqual(MODULE_CATALOG.find((def) => def.id === 'queue')!.commands!.map((c) => c.trigger));
   });
 
-  test('omits !claim for points raffles with legacy claim settings', () => {
-    const off = commandsOf([{ name: 'raffle', is_enabled: true }], 'raffle').map((c) => c.label);
-    const on = commandsOf([{ name: 'raffle', is_enabled: true, configs: { claimEnabled: 'on' } }], 'raffle').map((c) => c.label);
-    expect({ off: off.includes('!claim'), on: on.includes('!claim') }).toEqual({ off: false, on: false });
+  test('lists !claim once under enabled giveaways', () => {
+    const raffle = { name: 'raffle', is_enabled: true, configs: { claimEnabled: 'on' } };
+    const rows = [raffle, { name: 'giveaway', is_enabled: true }];
+    expect(commandsOf(rows, 'raffle').some((command) => command.label === '!claim')).toBe(false);
+    expect(commandsOf(rows, 'giveaway').filter((command) => command.label === '!claim')).toHaveLength(1);
+    expect(commandsOf([raffle], 'giveaway')).toHaveLength(0);
   });
 
   test('raffle !join reads as a command, not a reply line', () => {

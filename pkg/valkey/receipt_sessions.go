@@ -23,12 +23,6 @@ type HashFieldTTL struct {
 	TTL               time.Duration
 }
 
-// DueMember names one member of a due index by key.
-type DueMember struct {
-	Key    string
-	Member string
-}
-
 func runTolerant(ctx context.Context, client valkey_go.Client, cmds []valkey_go.Completed) error {
 	for _, r := range client.DoMulti(ctx, cmds...) {
 		if err := r.Error(); err != nil && !absent(err) {
@@ -135,42 +129,6 @@ func SnapshotThenReceipt(ctx context.Context, client valkey_go.Client, spec Snap
 	return runTolerant(ctx, client, cmds)
 }
 
-// SnapshotFieldReceiptSpec is what SnapshotThenFieldReceipt writes.
-type SnapshotFieldReceiptSpec struct {
-	Escrow  RenameTTL
-	Drop    []string
-	Due     DueMember
-	Receipt HashFieldTTL
-}
-
-// SnapshotThenFieldReceipt renames the escrow key to a snapshot with its own TTL, deletes the session's live keys,
-// removes one member from a due index, then records the outcome as one TTL'd hash field, in that order, in one pipeline.
-func SnapshotThenFieldReceipt(ctx context.Context, client valkey_go.Client, spec SnapshotFieldReceiptSpec) error {
-	cmds := []valkey_go.Completed{
-		client.B().Rename().Key(spec.Escrow.From).Newkey(spec.Escrow.To).Build(),
-		client.B().Expire().Key(spec.Escrow.To).Seconds(int64(spec.Escrow.TTL.Seconds())).Build(),
-		client.B().Del().Key(spec.Drop...).Build(),
-		client.B().Zrem().Key(spec.Due.Key).Member(spec.Due.Member).Build(),
-		client.B().Hset().Key(spec.Receipt.Key).FieldValue().FieldValue(spec.Receipt.Field, spec.Receipt.Value).Build(),
-		client.B().Expire().Key(spec.Receipt.Key).Seconds(int64(spec.Receipt.TTL.Seconds())).Build(),
-	}
-	return runTolerant(ctx, client, cmds)
-}
-
-// CancelAndForget deletes the session's live keys and removes one member from a due index, in one pipeline; it
-// reports whether the delete removed anything.
-func CancelAndForget(ctx context.Context, client valkey_go.Client, drop []string, due DueMember) (bool, error) {
-	results := client.DoMulti(ctx,
-		client.B().Del().Key(drop...).Build(),
-		client.B().Zrem().Key(due.Key).Member(due.Member).Build(),
-	)
-	n, err := results[0].AsInt64()
-	if err != nil {
-		return false, err
-	}
-	return n > 0, nil
-}
-
 // RearmSpec is what RearmAndForget writes.
 type RearmSpec struct {
 	Marker      Key
@@ -184,64 +142,4 @@ func RearmAndForget(ctx context.Context, client valkey_go.Client, spec RearmSpec
 		client.B().Set().Key(spec.Marker.Name).Value(spec.MarkerValue).Ex(spec.Marker.TTL).Build(),
 		client.B().Del().Key(spec.Forget).Build(),
 	)
-}
-
-// TTLAndSize reads a key's remaining TTL in seconds and a sorted set's cardinality, in one pipeline.
-func TTLAndSize(ctx context.Context, client valkey_go.Client, ttlKey, sizeKey string) (ttlSeconds, size int64, err error) {
-	results := client.DoMulti(ctx, client.B().Ttl().Key(ttlKey).Build(), client.B().Zcard().Key(sizeKey).Build())
-	if ttlSeconds, err = results[0].AsInt64(); err != nil {
-		return 0, 0, err
-	}
-	size, err = results[1].AsInt64()
-	return ttlSeconds, size, err
-}
-
-// DrawPoolKeys names the three keys a draw pool is read from.
-type DrawPoolKeys struct {
-	State, Pool, Labels string
-}
-
-// ReadDrawPool reads a session's state record, every member of its pool, and a labels hash alongside it, in one pipeline.
-// stateOK is false when the state record was absent; the pool and labels reads propagate their own errors.
-func ReadDrawPool(ctx context.Context, client valkey_go.Client, keys DrawPoolKeys) (stateRaw string, stateOK bool, members []string, labels map[string]string, err error) {
-	results := client.DoMulti(ctx,
-		client.B().Get().Key(keys.State).Build(),
-		client.B().Zrange().Key(keys.Pool).Min("0").Max("-1").Build(),
-		client.B().Hgetall().Key(keys.Labels).Build(),
-	)
-	stateRaw, err = results[0].ToString()
-	if valkey_go.IsValkeyNil(err) {
-		return "", false, nil, nil, nil
-	}
-	if err != nil {
-		return "", false, nil, nil, err
-	}
-	if members, err = results[1].AsStrSlice(); err != nil {
-		return "", false, nil, nil, err
-	}
-	labels, _ = results[2].AsStrMap()
-	return stateRaw, true, members, labels, nil
-}
-
-type DeadlineStatus struct {
-	Open                        bool
-	Size, TTLSeconds, ExpiresMS int64
-}
-
-func StatusProbe(ctx context.Context, client valkey_go.Client, deadlineKey, poolKey string) (DeadlineStatus, error) {
-	results := client.DoMulti(ctx,
-		client.B().Pexpiretime().Key(deadlineKey).Build(),
-		client.B().Zcard().Key(poolKey).Build(),
-		client.B().Ttl().Key(deadlineKey).Build(),
-	)
-	expires, err := results[0].AsInt64()
-	if err != nil {
-		return DeadlineStatus{}, err
-	}
-	size, err := results[1].AsInt64()
-	if err != nil {
-		return DeadlineStatus{}, err
-	}
-	ttl, err := results[2].AsInt64()
-	return DeadlineStatus{Open: expires > -2 && ttl != -2, Size: size, TTLSeconds: ttl, ExpiresMS: expires}, err
 }

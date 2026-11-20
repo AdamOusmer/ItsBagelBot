@@ -19,6 +19,8 @@ const (
 	MaxRafflePrize     = int64(1_000_000)
 
 	raffleDefaultDuration = time.Minute
+	minRaffleDuration     = 5 * time.Second
+	maxRaffleDuration     = 2 * time.Hour
 )
 
 type RaffleModuleConfig struct {

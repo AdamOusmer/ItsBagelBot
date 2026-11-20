@@ -51,8 +51,8 @@ func raffleBusyReason(round draw.Round) string {
 }
 
 func (c RaffleModuleConfig) OpenedLine(ctx context.Context, proj projection.Reader, locale string, r draw.Round) string {
-	a := RaffleAnnouncement{Locale: locale, Points: DrawCurrencyName(ctx, proj, uint64(r.Channel))}
-	fields := a.openingFields(r)
+	a := RaffleAnnouncement{Locale: locale}
+	fields := raffleOpeningFields(locale, r, DrawCurrencyName(ctx, proj, uint64(r.Channel)))
 	line := a.render("", raffleOpenedKey(r.Terms), fields...)
 	extra := strings.TrimSpace(a.expand(c.OpenedMessage, fields))
 	if extra == "" || extra == line {
@@ -64,11 +64,11 @@ func (c RaffleModuleConfig) OpenedLine(ctx context.Context, proj projection.Read
 	return line + " " + extra
 }
 
-func (a RaffleAnnouncement) openingFields(r draw.Round) []string {
+func raffleOpeningFields(locale string, r draw.Round, currency string) []string {
 	left := r.ClosesAt.Sub(r.OpenedAt)
-	return []string{"points", a.Points, "amount", strconv.FormatInt(r.Terms.Prize.Points, 10),
+	return []string{"points", currency, "amount", strconv.FormatInt(r.Terms.Prize.Points, 10),
 		"count", strconv.Itoa(draw.ResolveWinners(r.Terms.Winners, 0, r.Terms.Prize)),
-		"time", i18n.CompactDuration(a.Locale, left),
+		"time", i18n.CompactDuration(locale, left),
 		"mins", strconv.FormatInt(int64((left+time.Minute-1)/time.Minute), 10),
 		"secs", strconv.FormatInt(int64((left+time.Second-1)/time.Second), 10),
 	}

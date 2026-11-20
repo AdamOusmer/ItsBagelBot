@@ -4,78 +4,13 @@
 package engine
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"strings"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/pkg/cache"
-	"ItsBagelBot/pkg/codec"
 )
-
-func raffleKey(prefix string, id uint64) string { return cache.UserKey(prefix, id) }
 
 func ClampRaffleDuration(d time.Duration) time.Duration {
 	return max(minRaffleDuration, min(d, maxRaffleDuration))
-}
-
-func multiRaffleWinners(entrants int) int64 {
-	n := int64(entrants)
-	switch {
-	case n > 200:
-		return n / 20
-	case n > 50:
-		return n / 8
-	case n > 20:
-		return n / 5
-	case n > 10:
-		return n / 4
-	case n > 1:
-		return n / 2
-	}
-	return n
-}
-
-func pickWinners(members []string, n int64) []string {
-	total := int64(len(members))
-	if n < 0 {
-		n = 0
-	}
-	if n > maxRaffleWinners {
-		n = maxRaffleWinners
-	}
-	if n >= total {
-		return members
-	}
-
-	picked := make(map[int64]struct{}, n)
-	out := make([]string, 0, n)
-	for int64(len(out)) < n {
-		k := drawIndex(total)
-		if _, dup := picked[k]; dup {
-			continue
-		}
-		picked[k] = struct{}{}
-		out = append(out, members[k])
-	}
-	return out
-}
-
-func drawIndex(total int64) int64 {
-	return mustCryptoInt("raffle", total)
-}
-
-func DigestPool(members []string) string {
-	h := sha256.New()
-	h.Write([]byte("raffle-v1\n"))
-	h.Write([]byte(strings.Join(members, "\n")))
-	return hex.EncodeToString(h.Sum(nil))
-}
-
-func marshalJSON(v any) string {
-	b, _ := codec.Marshal(v)
-	return string(b)
 }
 
 type tokenExpansion struct {

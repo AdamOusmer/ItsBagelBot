@@ -97,22 +97,6 @@ func TestDrawEndSlotsKeepsClaimsAndDropsUnclaimedRefs(t *testing.T) {
 	waitRemoved(t, f.client, drawKeys(r))
 }
 
-func TestDrawLegacyGateEndToEnd(t *testing.T) {
-	f := newFixture(t, draw.Config{})
-	const ch draw.ChannelID = 424
-	ctx := t.Context()
-	state, deadline := engine.RaffleStateKey(ch), engine.RaffleDeadlineKey(ch)
-	kv := valkey.NewKV(f.client)
-	require.NoError(t, kv.Set(ctx, valkey.Key{Name: state, TTL: time.Minute}, "{}"))
-	require.NoError(t, kv.Set(ctx, valkey.Key{Name: deadline, TTL: time.Minute}, "1"))
-	terms := draw.Terms{Kind: draw.KindGiveaway, ClosesAt: f.now().Add(time.Minute)}
-	_, code, err := f.Open(ctx, draw.OpenRequest{Channel: ch, Terms: terms})
-	require.NoError(t, err)
-	require.Equal(t, draw.LegacyBusy, code)
-	require.NoError(t, valkey.DelKeys(ctx, f.client, state, deadline))
-	f.open(ch, terms)
-}
-
 func TestDrawExplicitIDAndLiveRefusalCount(t *testing.T) {
 	f := newFixture(t, draw.Config{})
 	ctx := t.Context()

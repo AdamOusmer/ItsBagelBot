@@ -18,40 +18,34 @@ type raffleJoinReplies struct {
 	q   engine.QueueStore
 }
 
-func (rc raffleCmd) raffleJoinReplies() raffleJoinReplies {
-	return raffleJoinReplies{chatReplier: rc.chatReplier, cfg: rc.cfg.RaffleModuleConfig, q: rc.q}
-}
-
 func (d drawOwner) replyRaffleJoin(ctx context.Context, c *module.Context, emit module.Emit, joined draw.JoinOutcome) {
 	cfg := engine.ReadRaffleConfig(ctx, d.deps.Proj, c.BroadcasterID)
 	reply := raffleJoinReplies{chatReplier: newChatReplier(c), cfg: cfg, q: d.deps.Queue}
-	reply.replyJoin(ctx, emit, engine.RaffleEntry{Open: joined.Open, Joined: joined.Added, Entrants: joined.Count})
+	reply.replyJoin(ctx, emit, joined)
 }
 
-func (rc raffleJoinReplies) replyJoin(ctx context.Context, emit module.Emit, entry engine.RaffleEntry) {
+func (rc raffleJoinReplies) replyJoin(ctx context.Context, emit module.Emit, entry draw.JoinOutcome) {
 	switch {
-	case !entry.Open:
-		if rc.cfg.NoRaffleOn() {
-			rc.reply(emit, rc.cfg.NoRaffleMessage, "raffle.join.closed")
-		}
-	case rc.entryLineOn(entry):
+	case !entry.Open && rc.cfg.NoRaffleOn():
+		rc.reply(emit, rc.cfg.NoRaffleMessage, "raffle.join.closed")
+	case entry.Open && rc.entryLineOn(entry.Added):
 		rc.replyEntered(ctx, emit, entry)
 	}
 }
 
-func (rc raffleJoinReplies) entryLineOn(entry engine.RaffleEntry) bool {
-	if entry.Joined {
+func (rc raffleJoinReplies) entryLineOn(added bool) bool {
+	if added {
 		return rc.cfg.JoinOn()
 	}
 	return rc.cfg.AlreadyOn()
 }
 
-func (rc raffleJoinReplies) replyEntered(ctx context.Context, emit module.Emit, entry engine.RaffleEntry) {
+func (rc raffleJoinReplies) replyEntered(ctx context.Context, emit module.Emit, entry draw.JoinOutcome) {
 	override, key := rc.cfg.AlreadyMessage, replyKey("raffle.join.already")
-	if entry.Joined {
+	if entry.Added {
 		override, key = rc.cfg.JoinMessage, "raffle.joined"
 	}
-	line := rc.render(override, key, "count", strconv.FormatInt(entry.Entrants, 10))
+	line := rc.render(override, key, "count", strconv.FormatInt(entry.Count, 10))
 	if override == "" && rc.queueOpen(ctx) {
 		line += " " + rc.render("", "raffle.join.queue_hint")
 	}

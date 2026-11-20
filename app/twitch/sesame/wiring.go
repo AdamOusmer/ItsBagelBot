@@ -65,7 +65,6 @@ type engineRuntime struct {
 	loyalty   *engine.ValkeyLoyaltyStore
 	tick      *engine.ValkeyLoyaltyClock
 	stats     *engine.LoyaltyReporter
-	raffle    *engine.ValkeyRaffleStore
 	duel      *engine.ValkeyDuelStore
 	seq       *engine.Sequencer
 	emotes    *automod.EmoteFetcher
@@ -121,7 +120,6 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Campaign:       engine.NewValkeyCampaign(in.vc, log),
 		Queue:          engine.NewValkeyQueueStore(in.vc, 24*time.Hour, log),
 		SongQueue:      engine.NewValkeySongQueueStore(in.vc, 24*time.Hour, log),
-		Raffle:         rt.raffle,
 		Draw:           newDraw(w, rt, drawPorts{verifier: checker, winners: winners}),
 		Eligibility:    checker,
 		Duel:           rt.duel,
@@ -246,19 +244,11 @@ type drawPorts struct {
 func newDraw(w wireCtx, rt engineRuntime, ports drawPorts) *draw.Store {
 	log := w.log.Named("draw")
 	announce := announcementConfig(w, rt.proj)
-	store := draw.NewStore(w.in.vc, draw.Config{Log: log, LegacyKey: engine.RaffleStateKey,
-		LegacyDeadlineKey: engine.RaffleDeadlineKey, Live: rt.live, Payer: engine.NewDrawPayer(rt.loyalty, announce.Runtime),
+	store := draw.NewStore(w.in.vc, draw.Config{Log: log, Live: rt.live, Payer: engine.NewDrawPayer(rt.loyalty, announce.Runtime),
 		Announcer: engine.NewDrawAnnouncer(announce, log, rt.analytics), Verifier: ports.verifier,
 		Winners: engine.GiveawayWinnerSink{Winners: ports.winners}, Phases: engine.GiveawayPhaseObserver{Snapshots: rt.loyalty, Log: log}})
 	go store.Run(w.ctx)
 	return store
-}
-
-func newRaffle(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore, rec *analytics.Recorder) *engine.ValkeyRaffleStore {
-	cfg := engine.RaffleConfig{AnnouncementConfig: announcementConfig(w, proj), Expiry: w.expiry, Wallet: engine.NewRaffleWallet(loyalty)}
-	store := engine.NewValkeyRaffleStore(w.in.vc, cfg, w.log)
-	store.SetAnalytics(rec)
-	return watchExpiry(w, store)
 }
 
 func newDuel(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore, rec *analytics.Recorder) *engine.ValkeyDuelStore {

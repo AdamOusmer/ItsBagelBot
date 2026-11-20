@@ -193,10 +193,10 @@ func queueVariables(d engine.Deps) variableRead {
 
 func raffleVariables(d engine.Deps) variableRead {
 	return func(ctx context.Context, c *module.Context) (map[string]string, error) {
-		if d.Raffle == nil && d.Draw == nil {
+		if d.Draw == nil {
 			return nil, nil
 		}
-		status, err := d.RaffleStatus(ctx, c.BroadcasterID)
+		status, err := d.ReadRaffleStatus(ctx, c.BroadcasterID)
 		if err != nil {
 			return nil, err
 		}

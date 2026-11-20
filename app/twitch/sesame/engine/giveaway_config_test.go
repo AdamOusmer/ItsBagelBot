@@ -19,23 +19,31 @@ import (
 type giveawayConfigReader struct {
 	projection.Reader
 	config codec.RawMessage
+	raffle codec.RawMessage
 	err    error
 }
 
-func (r giveawayConfigReader) Module(context.Context, uint64, string) (projection.ModuleView, bool, error) {
-	return projection.ModuleView{Name: engine.GiveawayModuleName, Configs: r.config}, len(r.config) > 0, r.err
+func (r giveawayConfigReader) Module(_ context.Context, _ uint64, name string) (projection.ModuleView, bool, error) {
+	raw := r.config
+	if name == engine.RaffleModuleName {
+		raw = r.raffle
+	}
+	return projection.ModuleView{Name: name, Configs: raw}, len(raw) > 0, r.err
 }
 
 func TestReadGiveawayConfig(t *testing.T) {
 	projectionErr := errors.New("projection unavailable")
 	for _, tc := range []struct {
-		name string
-		raw  codec.RawMessage
-		read error
-		on   bool
-		bad  bool
+		name        string
+		raw, raffle codec.RawMessage
+		prize       string
+		read        error
+		on          bool
+		bad         bool
 	}{
 		{name: "module absent", on: true},
+		{name: "missing giveaway row uses old prize", raffle: codec.RawMessage(`{"claimPrize":"Game","claimEnabled":"off"}`), prize: "Game", on: true},
+		{name: "configured giveaway prize wins", raw: codec.RawMessage(`{"defaultPrize":"Poster"}`), raffle: codec.RawMessage(`{"claimPrize":"Game"}`), prize: "Poster", on: true},
 		{name: "field absent", raw: codec.RawMessage(`{}`), on: true},
 		{name: "only reads the canonical key", raw: codec.RawMessage(`{"refusalLineOn":false}`), on: true},
 		{name: "explicit false", raw: codec.RawMessage(`{"refusalEnabled":false}`)},
@@ -46,14 +54,16 @@ func TestReadGiveawayConfig(t *testing.T) {
 		{name: "projection failure", read: projectionErr},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := engine.ReadGiveawayConfig(t.Context(), giveawayConfigReader{config: tc.raw, err: tc.read}, 2)
-			if tc.bad {
+			cfg, err := engine.ReadGiveawayConfig(t.Context(), giveawayConfigReader{config: tc.raw, raffle: tc.raffle, err: tc.read}, 2)
+			switch {
+			case tc.bad:
 				require.Error(t, err)
-				return
-			}
-			require.ErrorIs(t, err, tc.read)
-			if err == nil {
+			case tc.read != nil:
+				require.ErrorIs(t, err, tc.read)
+			default:
+				require.NoError(t, err)
 				require.Equal(t, tc.on, bool(cfg.RefusalEnabled))
+				require.Equal(t, tc.prize, cfg.DefaultPrize)
 			}
 		})
 	}

@@ -67,7 +67,6 @@ type Deps struct {
 	Campaign       Campaign
 	Queue          QueueStore
 	SongQueue      SongQueueStore
-	Raffle         RaffleStore
 	Draw           DrawStore
 	Duel           DuelStore
 	Quotes         QuotesStore

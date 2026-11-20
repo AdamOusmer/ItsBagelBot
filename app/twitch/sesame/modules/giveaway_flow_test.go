@@ -42,9 +42,15 @@ func (d *giveawayFlowDraw) Reroll(_ context.Context, action draw.SlotAction) (in
 	return d.changed, nil
 }
 
-type giveawayChatWinners struct{ engine.GiveawayWinnersStore }
+type giveawayChatWinners struct {
+	engine.GiveawayWinnersStore
+	empty bool
+}
 
-func (giveawayChatWinners) Recent(context.Context, uint64, modulesrpc.GiveawayRecentQuery) ([]modulesrpc.GiveawayWinner, error) {
+func (s giveawayChatWinners) Recent(context.Context, uint64, modulesrpc.GiveawayRecentQuery) ([]modulesrpc.GiveawayWinner, error) {
+	if s.empty {
+		return nil, nil
+	}
 	return []modulesrpc.GiveawayWinner{{Login: "winner", Prize: "Game", RoundID: "prior"}}, nil
 }
 

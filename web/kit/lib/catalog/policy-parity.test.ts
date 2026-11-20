@@ -15,7 +15,6 @@ const drawRpc = readSource('internal/domain/rpc/draw/giveaway.go');
 const moduleRpc = readSource('internal/domain/rpc/modules/giveaway.go');
 const loyalty = readFileSync(process.env.LOYALTY_POLICY_GO ?? join(root, 'internal/domain/rpc/loyalty/policy.go'), 'utf8');
 const raffleConfig = readSource('app/twitch/sesame/engine/raffle_config.go');
-const raffleTiming = readSource('app/twitch/sesame/engine/raffle_valkey.go');
 const raffleCommand = readSource('app/twitch/sesame/modules/raffle.go');
 const giveawayPolicy = [draw, eligibility, moduleRpc].join('\n');
 
@@ -30,7 +29,7 @@ const goLiterals = new Map<string, boolean | string | number>([
 const rafflePins: Partial<Record<keyof typeof GIVEAWAY_LIMITS, [string, RegExp]>> = {
   raffleMaxPrize: [raffleConfig, /^\s*MaxRafflePrize\s*=\s*int64\(([\d_]+)\)$/m],
   raffleDefaultPrize: [raffleConfig, /^\s*raffleDefaultPrize\s*=\s*int64\(([\d_]+)\)$/m],
-  raffleMinSeconds: [raffleTiming, /^\s*minRaffleDuration\s*=\s*(\d+)\s*\*\s*time\.(Second)$/m],
+  raffleMinSeconds: [raffleConfig, /^\s*minRaffleDuration\s*=\s*(\d+)\s*\*\s*time\.(Second)$/m],
   raffleDefaultSeconds: [raffleConfig, /^\s*raffleDefaultDuration\s*=\s*time\.(Minute)$/m],
   splitRaffleDefaultWinners: [draw, /\bMultiRaffleDefaultWinners:\s*(\d+),/],
   raffleBareMode: [raffleCommand, /^func \(rc raffleCommands\) bare\([^\n]*\{(?:(?!^\})[\s\S])*?default:\s*return rc\.(single|multi)\(/m],

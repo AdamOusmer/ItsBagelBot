@@ -46,7 +46,8 @@ floor check is also in Sesame; there is no separate Outgress reply-safety layer.
 | Consumers and retry lanes | [internal/consumer/consumer.go](internal/consumer/consumer.go) |
 | Cooldowns/dedup/counters | [engine/cooldown_valkey.go](engine/cooldown_valkey.go), [engine/cooldown_long_marker.go](engine/cooldown_long_marker.go), [engine/cooldown_left.go](engine/cooldown_left.go), [engine/dedup.go](engine/dedup.go), [engine/use_reporter.go](engine/use_reporter.go) |
 | Loyalty and watch windows | [engine/loyalty_tick.go](engine/loyalty_tick.go), [engine/loyalty_schedule.go](engine/loyalty_schedule.go), [engine/loyalty_reporter.go](engine/loyalty_reporter.go), [modules/loyalty.go](modules/loyalty.go) |
-| Raffle/queue/duel/song queue | Corresponding `modules/` entry and `engine/*_valkey.go` store; `engine/raffle_claim.go` owns raffle claims |
+| Raffles and giveaways | [engine/draw](engine/draw), [modules/draw.go](modules/draw.go), [modules/raffle.go](modules/raffle.go), [modules/giveaway.go](modules/giveaway.go) |
+| Queue, duel and song queue | Corresponding `modules/` entry and `engine/*_valkey.go` store |
 | External facts and lookups | `engine/*_rpc.go`, [engine/urlfetch.go](engine/urlfetch.go), [engine/gossip_rpc.go](engine/gossip_rpc.go) |
 | Incoming AutoMod | [automod/gate.go](automod/gate.go), [automod/config.go](automod/config.go), [engine/moderate.go](engine/moderate.go), [modules/automod.go](modules/automod.go) |
 | Manual sweep helpers | [engine/nuke.go](engine/nuke.go), [engine/recent.go](engine/recent.go), [engine/recent_valkey.go](engine/recent_valkey.go), [modules/moderation.go](modules/moderation.go) |
