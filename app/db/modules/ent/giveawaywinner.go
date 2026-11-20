@@ -36,9 +36,7 @@ type GiveawayWinner struct {
 	// ClaimedAt holds the value of the "claimed_at" field.
 	ClaimedAt *time.Time `json:"claimed_at,omitempty"`
 	// DeliveredAt holds the value of the "delivered_at" field.
-	DeliveredAt *time.Time `json:"delivered_at,omitempty"`
-	// DeliveryNote holds the value of the "delivery_note" field.
-	DeliveryNote string `json:"delivery_note,omitempty"`
+	DeliveredAt  *time.Time `json:"delivered_at,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -51,7 +49,7 @@ func (*GiveawayWinner) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case giveawaywinner.FieldID, giveawaywinner.FieldUserID, giveawaywinner.FieldSlot, giveawaywinner.FieldViewerID:
 			values[i] = new(sql.NullInt64)
-		case giveawaywinner.FieldRoundID, giveawaywinner.FieldPrize, giveawaywinner.FieldViewerLogin, giveawaywinner.FieldDeliveryNote:
+		case giveawaywinner.FieldRoundID, giveawaywinner.FieldPrize, giveawaywinner.FieldViewerLogin:
 			values[i] = new(sql.NullString)
 		case giveawaywinner.FieldWonAt, giveawaywinner.FieldClaimedAt, giveawaywinner.FieldDeliveredAt:
 			values[i] = new(sql.NullTime)
@@ -138,12 +136,6 @@ func (_m *GiveawayWinner) assignValues(columns []string, values []any) error {
 				_m.DeliveredAt = new(time.Time)
 				*_m.DeliveredAt = value.Time
 			}
-		case giveawaywinner.FieldDeliveryNote:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field delivery_note", values[i])
-			} else if value.Valid {
-				_m.DeliveryNote = value.String
-			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -213,9 +205,6 @@ func (_m *GiveawayWinner) String() string {
 		builder.WriteString("delivered_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
-	builder.WriteString(", ")
-	builder.WriteString("delivery_note=")
-	builder.WriteString(_m.DeliveryNote)
 	builder.WriteByte(')')
 	return builder.String()
 }

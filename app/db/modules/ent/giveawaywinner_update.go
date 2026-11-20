@@ -48,26 +48,6 @@ func (_u *GiveawayWinnerUpdate) ClearDeliveredAt() *GiveawayWinnerUpdate {
 	return _u
 }
 
-// SetDeliveryNote sets the "delivery_note" field.
-func (_u *GiveawayWinnerUpdate) SetDeliveryNote(v string) *GiveawayWinnerUpdate {
-	_u.mutation.SetDeliveryNote(v)
-	return _u
-}
-
-// SetNillableDeliveryNote sets the "delivery_note" field if the given value is not nil.
-func (_u *GiveawayWinnerUpdate) SetNillableDeliveryNote(v *string) *GiveawayWinnerUpdate {
-	if v != nil {
-		_u.SetDeliveryNote(*v)
-	}
-	return _u
-}
-
-// ClearDeliveryNote clears the value of the "delivery_note" field.
-func (_u *GiveawayWinnerUpdate) ClearDeliveryNote() *GiveawayWinnerUpdate {
-	_u.mutation.ClearDeliveryNote()
-	return _u
-}
-
 // Mutation returns the GiveawayWinnerMutation object of the builder.
 func (_u *GiveawayWinnerUpdate) Mutation() *GiveawayWinnerMutation {
 	return _u.mutation
@@ -118,12 +98,6 @@ func (_u *GiveawayWinnerUpdate) sqlSave(ctx context.Context) (_node int, err err
 	if _u.mutation.DeliveredAtCleared() {
 		_spec.ClearField(giveawaywinner.FieldDeliveredAt, field.TypeTime)
 	}
-	if value, ok := _u.mutation.DeliveryNote(); ok {
-		_spec.SetField(giveawaywinner.FieldDeliveryNote, field.TypeString, value)
-	}
-	if _u.mutation.DeliveryNoteCleared() {
-		_spec.ClearField(giveawaywinner.FieldDeliveryNote, field.TypeString)
-	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{giveawaywinner.Label}
@@ -161,26 +135,6 @@ func (_u *GiveawayWinnerUpdateOne) SetNillableDeliveredAt(v *time.Time) *Giveawa
 // ClearDeliveredAt clears the value of the "delivered_at" field.
 func (_u *GiveawayWinnerUpdateOne) ClearDeliveredAt() *GiveawayWinnerUpdateOne {
 	_u.mutation.ClearDeliveredAt()
-	return _u
-}
-
-// SetDeliveryNote sets the "delivery_note" field.
-func (_u *GiveawayWinnerUpdateOne) SetDeliveryNote(v string) *GiveawayWinnerUpdateOne {
-	_u.mutation.SetDeliveryNote(v)
-	return _u
-}
-
-// SetNillableDeliveryNote sets the "delivery_note" field if the given value is not nil.
-func (_u *GiveawayWinnerUpdateOne) SetNillableDeliveryNote(v *string) *GiveawayWinnerUpdateOne {
-	if v != nil {
-		_u.SetDeliveryNote(*v)
-	}
-	return _u
-}
-
-// ClearDeliveryNote clears the value of the "delivery_note" field.
-func (_u *GiveawayWinnerUpdateOne) ClearDeliveryNote() *GiveawayWinnerUpdateOne {
-	_u.mutation.ClearDeliveryNote()
 	return _u
 }
 
@@ -263,12 +217,6 @@ func (_u *GiveawayWinnerUpdateOne) sqlSave(ctx context.Context) (_node *Giveaway
 	}
 	if _u.mutation.DeliveredAtCleared() {
 		_spec.ClearField(giveawaywinner.FieldDeliveredAt, field.TypeTime)
-	}
-	if value, ok := _u.mutation.DeliveryNote(); ok {
-		_spec.SetField(giveawaywinner.FieldDeliveryNote, field.TypeString, value)
-	}
-	if _u.mutation.DeliveryNoteCleared() {
-		_spec.ClearField(giveawaywinner.FieldDeliveryNote, field.TypeString)
 	}
 	_node = &GiveawayWinner{config: _u.config}
 	_spec.Assign = _node.assignValues

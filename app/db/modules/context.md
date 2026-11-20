@@ -103,7 +103,11 @@ Contracts: [modules RPC](../../../internal/domain/rpc/modules/),
 - Quote numbers use max+1 and retain holes after deletion; do not renumber an
   existing quote book. Maximum text length is 450; conflicting adds retry boundedly.
 - Giveaway records are keyed by channel, round and slot. Modules stores only
-  winners and their claim and delivery state. Account deletion clears the captured winner history.
+  winners and their claim state and delivery time. Account deletion captures the
+  channel's highest visible winner ID and deletes through that ID after checking
+  the account incarnation. MySQL allocates auto-increment IDs before commit, so
+  a concurrent insert with a lower ID can commit after capture and still be
+  deleted. This race is accepted. Higher IDs survive the sweep.
 - Global feed total and channel tallies are distinct durable values. The daily
   total and hot sorted-set view live in Sesame's Valkey, not these tables.
   Row 1 remains the legacy base, including increments from older pods. Slot

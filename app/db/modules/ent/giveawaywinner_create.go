@@ -106,20 +106,6 @@ func (_c *GiveawayWinnerCreate) SetNillableDeliveredAt(v *time.Time) *GiveawayWi
 	return _c
 }
 
-// SetDeliveryNote sets the "delivery_note" field.
-func (_c *GiveawayWinnerCreate) SetDeliveryNote(v string) *GiveawayWinnerCreate {
-	_c.mutation.SetDeliveryNote(v)
-	return _c
-}
-
-// SetNillableDeliveryNote sets the "delivery_note" field if the given value is not nil.
-func (_c *GiveawayWinnerCreate) SetNillableDeliveryNote(v *string) *GiveawayWinnerCreate {
-	if v != nil {
-		_c.SetDeliveryNote(*v)
-	}
-	return _c
-}
-
 // Mutation returns the GiveawayWinnerMutation object of the builder.
 func (_c *GiveawayWinnerCreate) Mutation() *GiveawayWinnerMutation {
 	return _c.mutation
@@ -269,10 +255,6 @@ func (_c *GiveawayWinnerCreate) createSpec() (*GiveawayWinner, *sqlgraph.CreateS
 		_spec.SetField(giveawaywinner.FieldDeliveredAt, field.TypeTime, value)
 		_node.DeliveredAt = &value
 	}
-	if value, ok := _c.mutation.DeliveryNote(); ok {
-		_spec.SetField(giveawaywinner.FieldDeliveryNote, field.TypeString, value)
-		_node.DeliveryNote = value
-	}
 	return _node, _spec
 }
 
@@ -340,24 +322,6 @@ func (u *GiveawayWinnerUpsert) UpdateDeliveredAt() *GiveawayWinnerUpsert {
 // ClearDeliveredAt clears the value of the "delivered_at" field.
 func (u *GiveawayWinnerUpsert) ClearDeliveredAt() *GiveawayWinnerUpsert {
 	u.SetNull(giveawaywinner.FieldDeliveredAt)
-	return u
-}
-
-// SetDeliveryNote sets the "delivery_note" field.
-func (u *GiveawayWinnerUpsert) SetDeliveryNote(v string) *GiveawayWinnerUpsert {
-	u.Set(giveawaywinner.FieldDeliveryNote, v)
-	return u
-}
-
-// UpdateDeliveryNote sets the "delivery_note" field to the value that was provided on create.
-func (u *GiveawayWinnerUpsert) UpdateDeliveryNote() *GiveawayWinnerUpsert {
-	u.SetExcluded(giveawaywinner.FieldDeliveryNote)
-	return u
-}
-
-// ClearDeliveryNote clears the value of the "delivery_note" field.
-func (u *GiveawayWinnerUpsert) ClearDeliveryNote() *GiveawayWinnerUpsert {
-	u.SetNull(giveawaywinner.FieldDeliveryNote)
 	return u
 }
 
@@ -448,27 +412,6 @@ func (u *GiveawayWinnerUpsertOne) UpdateDeliveredAt() *GiveawayWinnerUpsertOne {
 func (u *GiveawayWinnerUpsertOne) ClearDeliveredAt() *GiveawayWinnerUpsertOne {
 	return u.Update(func(s *GiveawayWinnerUpsert) {
 		s.ClearDeliveredAt()
-	})
-}
-
-// SetDeliveryNote sets the "delivery_note" field.
-func (u *GiveawayWinnerUpsertOne) SetDeliveryNote(v string) *GiveawayWinnerUpsertOne {
-	return u.Update(func(s *GiveawayWinnerUpsert) {
-		s.SetDeliveryNote(v)
-	})
-}
-
-// UpdateDeliveryNote sets the "delivery_note" field to the value that was provided on create.
-func (u *GiveawayWinnerUpsertOne) UpdateDeliveryNote() *GiveawayWinnerUpsertOne {
-	return u.Update(func(s *GiveawayWinnerUpsert) {
-		s.UpdateDeliveryNote()
-	})
-}
-
-// ClearDeliveryNote clears the value of the "delivery_note" field.
-func (u *GiveawayWinnerUpsertOne) ClearDeliveryNote() *GiveawayWinnerUpsertOne {
-	return u.Update(func(s *GiveawayWinnerUpsert) {
-		s.ClearDeliveryNote()
 	})
 }
 
@@ -725,27 +668,6 @@ func (u *GiveawayWinnerUpsertBulk) UpdateDeliveredAt() *GiveawayWinnerUpsertBulk
 func (u *GiveawayWinnerUpsertBulk) ClearDeliveredAt() *GiveawayWinnerUpsertBulk {
 	return u.Update(func(s *GiveawayWinnerUpsert) {
 		s.ClearDeliveredAt()
-	})
-}
-
-// SetDeliveryNote sets the "delivery_note" field.
-func (u *GiveawayWinnerUpsertBulk) SetDeliveryNote(v string) *GiveawayWinnerUpsertBulk {
-	return u.Update(func(s *GiveawayWinnerUpsert) {
-		s.SetDeliveryNote(v)
-	})
-}
-
-// UpdateDeliveryNote sets the "delivery_note" field to the value that was provided on create.
-func (u *GiveawayWinnerUpsertBulk) UpdateDeliveryNote() *GiveawayWinnerUpsertBulk {
-	return u.Update(func(s *GiveawayWinnerUpsert) {
-		s.UpdateDeliveryNote()
-	})
-}
-
-// ClearDeliveryNote clears the value of the "delivery_note" field.
-func (u *GiveawayWinnerUpsertBulk) ClearDeliveryNote() *GiveawayWinnerUpsertBulk {
-	return u.Update(func(s *GiveawayWinnerUpsert) {
-		s.ClearDeliveryNote()
 	})
 }
 

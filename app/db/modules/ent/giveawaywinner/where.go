@@ -104,11 +104,6 @@ func DeliveredAt(v time.Time) predicate.GiveawayWinner {
 	return predicate.GiveawayWinner(sql.FieldEQ(FieldDeliveredAt, v))
 }
 
-// DeliveryNote applies equality check predicate on the "delivery_note" field. It's identical to DeliveryNoteEQ.
-func DeliveryNote(v string) predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldEQ(FieldDeliveryNote, v))
-}
-
 // UserIDEQ applies the EQ predicate on the "user_id" field.
 func UserIDEQ(v uint64) predicate.GiveawayWinner {
 	return predicate.GiveawayWinner(sql.FieldEQ(FieldUserID, v))
@@ -572,81 +567,6 @@ func DeliveredAtIsNil() predicate.GiveawayWinner {
 // DeliveredAtNotNil applies the NotNil predicate on the "delivered_at" field.
 func DeliveredAtNotNil() predicate.GiveawayWinner {
 	return predicate.GiveawayWinner(sql.FieldNotNull(FieldDeliveredAt))
-}
-
-// DeliveryNoteEQ applies the EQ predicate on the "delivery_note" field.
-func DeliveryNoteEQ(v string) predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldEQ(FieldDeliveryNote, v))
-}
-
-// DeliveryNoteNEQ applies the NEQ predicate on the "delivery_note" field.
-func DeliveryNoteNEQ(v string) predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldNEQ(FieldDeliveryNote, v))
-}
-
-// DeliveryNoteIn applies the In predicate on the "delivery_note" field.
-func DeliveryNoteIn(vs ...string) predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldIn(FieldDeliveryNote, vs...))
-}
-
-// DeliveryNoteNotIn applies the NotIn predicate on the "delivery_note" field.
-func DeliveryNoteNotIn(vs ...string) predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldNotIn(FieldDeliveryNote, vs...))
-}
-
-// DeliveryNoteGT applies the GT predicate on the "delivery_note" field.
-func DeliveryNoteGT(v string) predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldGT(FieldDeliveryNote, v))
-}
-
-// DeliveryNoteGTE applies the GTE predicate on the "delivery_note" field.
-func DeliveryNoteGTE(v string) predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldGTE(FieldDeliveryNote, v))
-}
-
-// DeliveryNoteLT applies the LT predicate on the "delivery_note" field.
-func DeliveryNoteLT(v string) predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldLT(FieldDeliveryNote, v))
-}
-
-// DeliveryNoteLTE applies the LTE predicate on the "delivery_note" field.
-func DeliveryNoteLTE(v string) predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldLTE(FieldDeliveryNote, v))
-}
-
-// DeliveryNoteContains applies the Contains predicate on the "delivery_note" field.
-func DeliveryNoteContains(v string) predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldContains(FieldDeliveryNote, v))
-}
-
-// DeliveryNoteHasPrefix applies the HasPrefix predicate on the "delivery_note" field.
-func DeliveryNoteHasPrefix(v string) predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldHasPrefix(FieldDeliveryNote, v))
-}
-
-// DeliveryNoteHasSuffix applies the HasSuffix predicate on the "delivery_note" field.
-func DeliveryNoteHasSuffix(v string) predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldHasSuffix(FieldDeliveryNote, v))
-}
-
-// DeliveryNoteIsNil applies the IsNil predicate on the "delivery_note" field.
-func DeliveryNoteIsNil() predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldIsNull(FieldDeliveryNote))
-}
-
-// DeliveryNoteNotNil applies the NotNil predicate on the "delivery_note" field.
-func DeliveryNoteNotNil() predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldNotNull(FieldDeliveryNote))
-}
-
-// DeliveryNoteEqualFold applies the EqualFold predicate on the "delivery_note" field.
-func DeliveryNoteEqualFold(v string) predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldEqualFold(FieldDeliveryNote, v))
-}
-
-// DeliveryNoteContainsFold applies the ContainsFold predicate on the "delivery_note" field.
-func DeliveryNoteContainsFold(v string) predicate.GiveawayWinner {
-	return predicate.GiveawayWinner(sql.FieldContainsFold(FieldDeliveryNote, v))
 }
 
 // And groups predicates with the AND operator between them.

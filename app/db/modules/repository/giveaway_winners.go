@@ -42,33 +42,29 @@ type WinnerRow struct {
 type WinnerDelivery struct {
 	WinnerRef
 	Delivered bool
-	Note      string
 }
 
 func (g *GiveawayWinners) Record(ctx context.Context, userID uint64, rows []WinnerRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	return db.WithExec(ctx, func(ctx context.Context) error {
-		return db.WithTx(ctx, g.client, func(tx *ent.Tx) error {
-			batch := tx.GiveawayWinner.MapCreateBulk(rows, func(create *ent.GiveawayWinnerCreate, i int) {
-				row := rows[i]
-				create.SetUserID(userID).SetRoundID(row.RoundID).SetSlot(row.Slot).
-					SetViewerID(row.ViewerID).SetViewerLogin(row.Login).SetPrize(row.Prize).
-					SetWonAt(row.WonAt.UTC()).SetClaimed(row.Claimed || row.ClaimedAt != nil).SetNillableClaimedAt(row.ClaimedAt)
-			})
-			return batch.OnConflictColumns(giveawaywinner.FieldUserID, giveawaywinner.FieldRoundID, giveawaywinner.FieldSlot).Ignore().Exec(ctx)
-		})
+	batch := g.client.GiveawayWinner.MapCreateBulk(rows, func(create *ent.GiveawayWinnerCreate, i int) {
+		row := rows[i]
+		create.SetUserID(userID).SetRoundID(row.RoundID).SetSlot(row.Slot).
+			SetViewerID(row.ViewerID).SetViewerLogin(row.Login).SetPrize(row.Prize).
+			SetWonAt(row.WonAt.UTC()).SetClaimed(row.Claimed || row.ClaimedAt != nil).SetNillableClaimedAt(row.ClaimedAt)
 	})
+	upsert := batch.OnConflictColumns(giveawaywinner.FieldUserID, giveawaywinner.FieldRoundID, giveawaywinner.FieldSlot).Ignore()
+	return db.WithExec(ctx, upsert.Exec)
 }
 
 func (g *GiveawayWinners) MarkDelivered(ctx context.Context, userID uint64, delivery WinnerDelivery) (bool, error) {
 	match := giveawaywinner.And(giveawaywinner.UserID(userID), giveawaywinner.RoundID(delivery.RoundID), giveawaywinner.Slot(delivery.Slot))
 	update := g.client.GiveawayWinner.Update().Where(match)
 	if delivery.Delivered {
-		update.SetDeliveredAt(time.Now().UTC().Truncate(time.Millisecond)).SetDeliveryNote(delivery.Note)
+		update.Where(giveawaywinner.DeliveredAtIsNil()).SetDeliveredAt(time.Now().UTC().Truncate(time.Millisecond))
 	} else {
-		update.ClearDeliveredAt().ClearDeliveryNote()
+		update.ClearDeliveredAt()
 	}
 	count, err := db.WithQuery(ctx, update.Save)
 	if err != nil || count > 0 {
@@ -101,7 +97,7 @@ func giveawayWinnerView(row *ent.GiveawayWinner) modulesrpc.GiveawayWinner {
 	view := modulesrpc.GiveawayWinner{
 		RoundID: row.RoundID, Slot: int(row.Slot), Prize: row.Prize,
 		ViewerID: strconv.FormatUint(row.ViewerID, 10), Login: row.ViewerLogin,
-		WonAt: row.WonAt.UnixMilli(), Claimed: row.Claimed, DeliveryNote: row.DeliveryNote,
+		WonAt: row.WonAt.UnixMilli(), Claimed: row.Claimed,
 	}
 	if row.ClaimedAt != nil {
 		view.ClaimedAt = row.ClaimedAt.UnixMilli()

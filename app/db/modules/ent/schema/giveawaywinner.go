@@ -29,7 +29,6 @@ func (GiveawayWinner) Fields() []ent.Field {
 		field.Bool("claimed").Default(false).Immutable(),
 		field.Time("claimed_at").SchemaType(millisecond).Optional().Nillable().Immutable(),
 		field.Time("delivered_at").SchemaType(millisecond).Optional().Nillable(),
-		field.Text("delivery_note").Optional(),
 	}
 }
 
