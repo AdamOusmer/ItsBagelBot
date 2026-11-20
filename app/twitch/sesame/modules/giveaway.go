@@ -31,9 +31,6 @@ type giveawayRun func(giveawayCommands, context.Context, string, module.Emit) er
 
 func giveawayHandler(d engine.Deps, run giveawayRun) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		if d.Draw == nil {
-			return nil
-		}
 		return run(giveawayCommands{chatReplier: newChatReplier(c), deps: d}, ctx, args, emit)
 	}
 }
@@ -116,7 +113,10 @@ func giveawayRerollSlot(args string) (int, bool) {
 		return 0, true
 	}
 	slot, err := strconv.Atoi(arg)
-	return slot, err == nil && slot >= 1 && slot <= draw.Pins.MaxWinners
+	if err != nil {
+		return 0, false
+	}
+	return slot, slot >= 1 && slot <= draw.Pins.MaxWinners
 }
 
 func (g giveawayCommands) status(ctx context.Context, _ string, emit module.Emit) error {
@@ -135,9 +135,6 @@ func (g giveawayCommands) status(ctx context.Context, _ string, emit module.Emit
 
 func giveawayVariables(d engine.Deps) variableRead {
 	return func(ctx context.Context, c *module.Context) (map[string]string, error) {
-		if d.Draw == nil {
-			return nil, nil
-		}
 		rounds, err := d.Draw.Live(ctx, draw.ChannelID(c.BroadcasterID))
 		if err != nil {
 			return nil, err

@@ -13,6 +13,8 @@ import (
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/pkg/bus"
+
+	"github.com/google/uuid"
 )
 
 const giveawayRPCTimeout = 10 * time.Second
@@ -84,11 +86,12 @@ func validGiveawayActor(req drawrpc.GiveawayRequest) bool {
 }
 
 func (s GiveawayRPC) start(ctx context.Context, in giveawayRPCInput) (drawrpc.GiveawayReply, error) {
-	if in.WindowSeconds < 0 || in.WindowSeconds > int(draw.Pins.MaxOpen/time.Second) {
-		return giveawayLaunchRefusal("giveaway.open.window")
+	window := time.Duration(in.WindowSeconds) * time.Second
+	if window/time.Second != time.Duration(in.WindowSeconds) {
+		window = -time.Second
 	}
 	outcome, err := StartGiveaway(ctx, s.Deps, GiveawayStart{Channel: uint64(in.channel), Actor: draw.ViewerID(in.ActorID),
-		Preset: in.Preset, Prize: in.Prize, Winners: in.Winners, Window: time.Duration(in.WindowSeconds) * time.Second})
+		Preset: in.Preset, Prize: in.Prize, Winners: in.Winners, Window: window})
 	if err != nil {
 		return drawrpc.GiveawayReply{}, err
 	}
@@ -148,13 +151,20 @@ func (s GiveawayRPC) slotAction(run giveawaySlotAction, single bool) giveawayRPC
 }
 
 func (s GiveawayRPC) markDelivered(ctx context.Context, in giveawayRPCInput) (drawrpc.GiveawayReply, error) {
-	if !validGiveawayRoundID(in) || !validGiveawaySlot(in.Slot, true) || in.Delivered == nil {
+	if !validDelivery(in) {
 		return invalidGiveawayRPC("invalid round_id, slot or delivered")
 	}
 	changed, err := s.Deps.GiveawayWinners.MarkDelivered(ctx, uint64(in.channel), modulesrpc.GiveawayDelivery{
 		RoundID: in.RoundID, Slot: in.Slot, Delivered: *in.Delivered,
 	})
 	return giveawayActionReply(changed, 0, err)
+}
+
+func validDelivery(in giveawayRPCInput) bool {
+	if in.Delivered == nil {
+		return false
+	}
+	return validGiveawayRoundID(in) && validGiveawaySlot(in.Slot, true)
 }
 
 func (s GiveawayRPC) eligibleCount(ctx context.Context, in giveawayRPCInput) (drawrpc.GiveawayReply, error) {
@@ -173,7 +183,8 @@ func (s GiveawayRPC) eligibleCount(ctx context.Context, in giveawayRPCInput) (dr
 }
 
 func validGiveawayRoundID(in giveawayRPCInput) bool {
-	return len(in.RoundID) <= modulesrpc.GiveawayRoundIDMaxLen && giveawayPresetName.MatchString(in.RoundID)
+	id, err := uuid.Parse(in.RoundID)
+	return err == nil && in.RoundID == id.String()
 }
 
 func validGiveawaySlot(slot int, single bool) bool {

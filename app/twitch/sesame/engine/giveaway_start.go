@@ -19,6 +19,8 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
+const giveawayWindowRefusal = "giveaway.open.window"
+
 type GiveawayStart struct {
 	Channel  uint64
 	Actor    draw.ViewerID
@@ -30,10 +32,11 @@ type GiveawayStart struct {
 }
 
 type GiveawayStartOutcome struct {
-	Round   draw.Round
-	Config  GiveawayModuleConfig
-	Rules   eligibility.Rules
-	Refusal string
+	Round         draw.Round
+	Config        GiveawayModuleConfig
+	Rules         eligibility.Rules
+	Refusal       string
+	windowClamped bool
 }
 
 func StartGiveaway(ctx context.Context, d Deps, req GiveawayStart) (GiveawayStartOutcome, error) {
@@ -101,8 +104,8 @@ func validateGiveawayStart(d Deps, req GiveawayStart) string {
 		return "giveaway.prize_blocked"
 	case req.Winners < 1 || req.Winners > draw.Pins.MaxWinners:
 		return "giveaway.open.winners"
-	case req.Window < time.Second || req.Window > draw.Pins.MaxOpen:
-		return "giveaway.open.window"
+	case req.Window < draw.Pins.GiveawayMinEntryWindow || req.Window > draw.Pins.MaxOpen:
+		return giveawayWindowRefusal
 	default:
 		return ""
 	}
@@ -112,10 +115,7 @@ func giveawayPrizeBlocked(d Deps, prize string) bool {
 	if kind, _ := moderation.MatchFloorPrescan(prize); kind != moderation.FloorNone {
 		return true
 	}
-	if d.Automod != nil {
-		return d.Automod.FloorPrescan(prize)
-	}
-	return moderation.EmbeddedLexicon().FloorPrescan(prize)
+	return d.Automod.FloorPrescan(prize)
 }
 
 type giveawayLaunch struct {
@@ -132,16 +132,24 @@ func openGiveaway(ctx context.Context, d Deps, req GiveawayStart, launch giveawa
 		return GiveawayStartOutcome{}, err
 	}
 	if err := holdGiveawayFreeze(ctx, d.LoyaltyFreeze, launch.preset, &open); err != nil {
-		return GiveawayStartOutcome{}, err
+		return giveawayOpenError(err)
 	}
 	round, outcome, err := d.Draw.Open(ctx, open)
 	if err != nil {
-		return GiveawayStartOutcome{}, err
+		return giveawayOpenError(err)
 	}
 	if outcome != draw.Opened {
 		return startRefused(giveawayBusyKey(round))
 	}
-	return GiveawayStartOutcome{Round: round, Config: launch.config, Rules: launch.preset.Rules}, nil
+	clamped := round.Terms.FreezeEndsMS > 0 && round.ClosesAt.Before(round.OpenedAt.Add(open.Duration))
+	return GiveawayStartOutcome{Round: round, Config: launch.config, Rules: launch.preset.Rules, windowClamped: clamped}, nil
+}
+
+func giveawayOpenError(err error) (GiveawayStartOutcome, error) {
+	if errors.Is(err, draw.ErrInvalidTerms) {
+		return startRefused(giveawayWindowRefusal)
+	}
+	return GiveawayStartOutcome{}, err
 }
 
 func giveawayBusyKey(r draw.Round) string {
@@ -161,14 +169,17 @@ func giveawayOpenRequest(req GiveawayStart, launch giveawayLaunch) (draw.OpenReq
 }
 
 func holdGiveawayFreeze(ctx context.Context, freeze LoyaltyFreeze, preset GiveawayPreset, req *draw.OpenRequest) error {
-	if !preset.FreezeOn() || freeze == nil {
+	if !preset.FreezeOn() {
 		return nil
 	}
 	view, _, err := freeze.FreezeSet(ctx, giveawayFreezeCommand(req.Channel, req.ID))
 	if err != nil {
 		return err
 	}
-	if view.FreezeID == "" || view.ExpiresAt <= 0 {
+	if time.Until(time.UnixMilli(view.ExpiresAt)) < draw.Pins.GiveawayMinEntryWindow {
+		return draw.ErrInvalidTerms
+	}
+	if view.FreezeID == "" {
 		return errors.New("giveaway: missing freeze stamp")
 	}
 	req.Terms.FreezeID, req.Terms.FreezeEndsMS = view.FreezeID, view.ExpiresAt

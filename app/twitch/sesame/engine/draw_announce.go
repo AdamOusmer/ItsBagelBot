@@ -27,7 +27,7 @@ func NewDrawAnnouncer(cfg AnnouncementConfig, log *zap.Logger, rec *analytics.Re
 	return drawAnnouncer{cfg: cfg, log: log, analytics: rec}
 }
 
-type noticeRenderer func(context.Context, AnnouncementConfig, string, draw.Notice) []string
+type noticeRenderer func(drawAnnouncer, context.Context, string, draw.Notice) []string
 
 var noticeRenderers = map[draw.Kind]noticeRenderer{}
 
@@ -44,12 +44,12 @@ func (a drawAnnouncer) Announce(ctx context.Context, notice draw.Notice) {
 	if render == nil {
 		render = fallbackDrawNotice
 	}
-	for _, line := range render(ctx, a.cfg, user.Locale, notice) {
+	for _, line := range render(a, ctx, user.Locale, notice) {
 		a.cfg.Post(ctx, channel, line, a.log)
 	}
 }
 
-func fallbackDrawNotice(_ context.Context, _ AnnouncementConfig, locale string, notice draw.Notice) []string {
+func fallbackDrawNotice(_ drawAnnouncer, _ context.Context, locale string, notice draw.Notice) []string {
 	if notice.Event == draw.NoticeRemind {
 		return []string{drawReminder(locale, notice)}
 	}

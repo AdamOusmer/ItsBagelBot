@@ -17,7 +17,8 @@ func init() {
 	noticeRenderers[draw.KindRaffle] = noticeRaffle
 }
 
-func noticeRaffle(ctx context.Context, cfg AnnouncementConfig, locale string, notice draw.Notice) []string {
+func noticeRaffle(announcer drawAnnouncer, ctx context.Context, locale string, notice draw.Notice) []string {
+	cfg := announcer.cfg
 	a := RaffleAnnouncement{Locale: locale}
 	switch notice.Event {
 	case draw.NoticeWinners:

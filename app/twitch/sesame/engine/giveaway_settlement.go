@@ -50,7 +50,14 @@ func (s GiveawayWinnerSink) Record(ctx context.Context, round draw.Round, slots 
 }
 
 func settledGiveawayWinner(round draw.Round, slot draw.Slot) bool {
-	return slot.State == draw.SlotClaimed || (slot.State == draw.SlotWon && round.Terms.ClaimWindow == 0)
+	switch slot.State {
+	case draw.SlotClaimed:
+		return true
+	case draw.SlotWon:
+		return round.Terms.ClaimWindow == 0
+	default:
+		return false
+	}
 }
 
 func giveawayWinnerRow(round draw.Round, slot draw.Slot) modulesrpc.GiveawayWinner {
@@ -67,9 +74,6 @@ func giveawayWinnerRow(round draw.Round, slot draw.Slot) modulesrpc.GiveawayWinn
 }
 
 func LastGiveawayWinners(ctx context.Context, store GiveawayWinnersStore, channel uint64) ([]modulesrpc.GiveawayWinner, error) {
-	if store == nil {
-		return nil, nil
-	}
 	latest, err := store.Recent(ctx, channel, modulesrpc.GiveawayRecentQuery{Limit: 1})
 	if err != nil || len(latest) == 0 {
 		return nil, err

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/automod"
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/internal/domain/rpc"
@@ -23,6 +24,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const giveawayRPCRoundID = "74b24fbb-c77d-4733-9a2c-bb64cbe38793"
+
 type giveawayRPCProjection struct {
 	projection.Reader
 }
@@ -32,21 +35,28 @@ func (giveawayRPCProjection) User(context.Context, uint64) (projection.User, err
 }
 
 func (giveawayRPCProjection) Module(context.Context, uint64, string) (projection.ModuleView, bool, error) {
-	config := codec.RawMessage(`{"openedEnabled":false,"presets":[{"name":"regulars","rules":{"min_watch_seconds":300}}]}`)
+	config := codec.RawMessage(`{"openedEnabled":false,"presets":[{"name":"regulars","rules":{"min_watch_seconds":300}},{"name":"frozen","freezeWhileOpen":true}]}`)
 	return projection.ModuleView{Name: engine.GiveawayModuleName, IsEnabled: true, Configs: config}, true, nil
 }
 
 type giveawayRPCCalls struct {
 	engine.DrawStore
 	engine.GiveawayWinnersStore
+	engine.LoyaltyFreeze
 	calls chan any
+}
+
+func (d giveawayRPCCalls) FreezeSet(context.Context, engine.FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {
+	return loyaltyrpc.FreezeView{FreezeStamp: loyaltyrpc.FreezeStamp{
+		FreezeID: "snapshot", ExpiresAt: time.Now().Add(500 * time.Millisecond).UnixMilli(),
+	}}, true, nil
 }
 
 func (d giveawayRPCCalls) Live(_ context.Context, channel draw.ChannelID) ([]draw.RoundView, error) {
 	if channel != 42 {
 		return nil, nil
 	}
-	round := rpcGiveawayRound(draw.OpenRequest{ID: "current", Channel: channel, Terms: draw.Terms{
+	round := rpcGiveawayRound(draw.OpenRequest{ID: giveawayRPCRoundID, Channel: channel, Terms: draw.Terms{
 		Kind: draw.KindGiveaway, Prize: draw.Prize{Item: "Game"}, Winners: draw.WinnerPolicy{Count: 2},
 		Rules: codec.RawMessage(`{"min_follow_days":7}`), FreezeEndsMS: 1790000200000,
 	}})
@@ -135,17 +145,20 @@ type giveawayRPCTest struct {
 	call     any
 	response func(*testing.T, drawrpc.GiveawayReply, any)
 	refusal  rpc.Code
+	reason   string
 }
 
 func TestGiveawayRPC(t *testing.T) {
 	nc := testnats.Connect(t)
 	log := zap.NewNop()
 	d := giveawayRPCCalls{calls: make(chan any, 1)}
-	server := engine.GiveawayRPC{Deps: engine.Deps{Draw: d, GiveawayWinners: d, Proj: giveawayRPCProjection{}, Log: log}, Standings: d}
+	server := engine.GiveawayRPC{Deps: engine.Deps{
+		Draw: d, GiveawayWinners: d, LoyaltyFreeze: d, Proj: giveawayRPCProjection{}, Automod: automod.New(), Log: log,
+	}, Standings: d}
 	require.NoError(t, server.Subscribe(bus.RPCWiring{NC: nc, Log: log}))
 	for _, tc := range giveawayRPCCases() {
 		t.Run(tc.verb, func(t *testing.T) {
-			req := drawrpc.GiveawayRequest{UserID: "42", Source: "dashboard", ActorID: "7", RoundID: "current", Slot: 2}
+			req := drawrpc.GiveawayRequest{UserID: "42", Source: "dashboard", ActorID: "7", RoundID: giveawayRPCRoundID, Slot: 2}
 			if tc.edit != nil {
 				tc.edit(&req)
 			}
@@ -165,23 +178,33 @@ func rpcObservedCall(calls <-chan any) any {
 }
 
 func giveawayRPCCases() []giveawayRPCTest {
-	slot := draw.SlotAction{Channel: 42, Actor: "7", Slot: 2, Round: "current", Kind: draw.KindGiveaway}
+	slot := draw.SlotAction{Channel: 42, Actor: "7", Slot: 2, Round: giveawayRPCRoundID, Kind: draw.KindGiveaway}
 	return []giveawayRPCTest{
 		{verb: drawrpc.VerbGiveawayLive, response: checkGiveawayLive},
 		{verb: drawrpc.VerbGiveawayLive, edit: func(r *drawrpc.GiveawayRequest) { r.UserID = "43" }, response: checkEmptyGiveawayLive},
 		{verb: drawrpc.VerbGiveawayLive, edit: func(r *drawrpc.GiveawayRequest) { r.Source = "chat" }, refusal: rpc.CodeInvalid},
 		{verb: drawrpc.VerbGiveawayLive, edit: func(r *drawrpc.GiveawayRequest) { r.UserID = "0" }, refusal: rpc.CodeInvalid},
 		{verb: drawrpc.VerbGiveawayStart, edit: func(r *drawrpc.GiveawayRequest) { r.Prize, r.Winners, r.WindowSeconds = "Game", 2, 90 }, response: checkGiveawayStart},
-		{verb: drawrpc.VerbGiveawayClose, call: draw.CloseRequest{Channel: 42, Actor: "7", Round: "current", Kind: draw.KindGiveaway}},
+		{verb: drawrpc.VerbGiveawayStart, edit: func(r *drawrpc.GiveawayRequest) { r.Prize, r.Preset = "Game", "frozen" },
+			refusal: rpc.CodeInvalid, reason: "giveaway.open.window"},
+		{verb: drawrpc.VerbGiveawayStart, edit: func(r *drawrpc.GiveawayRequest) { r.Prize, r.WindowSeconds = "Game", -1 },
+			refusal: rpc.CodeInvalid, reason: "giveaway.open.window"},
+		{verb: drawrpc.VerbGiveawayStart, edit: func(r *drawrpc.GiveawayRequest) { r.Prize, r.WindowSeconds = "Game", 7201 },
+			refusal: rpc.CodeInvalid, reason: "giveaway.open.window"},
+		{verb: drawrpc.VerbGiveawayStart, edit: func(r *drawrpc.GiveawayRequest) { r.Prize, r.WindowSeconds = "Game", 1<<55 },
+			refusal: rpc.CodeInvalid, reason: "giveaway.open.window"},
+		{verb: drawrpc.VerbGiveawayClose, call: draw.CloseRequest{Channel: 42, Actor: "7", Round: giveawayRPCRoundID, Kind: draw.KindGiveaway}},
 		{verb: drawrpc.VerbGiveawayClose, edit: func(r *drawrpc.GiveawayRequest) { r.ActorID = "0" }, refusal: rpc.CodeInvalid},
-		{verb: drawrpc.VerbGiveawayExtend, call: draw.ExtendRequest{Channel: 42, Actor: "7", Round: "current", Kind: draw.KindGiveaway}},
-		{verb: drawrpc.VerbGiveawayCancel, call: draw.ModAction{Channel: 42, Actor: "7", Round: "current", Kind: draw.KindGiveaway}},
+		{verb: drawrpc.VerbGiveawayClose, edit: func(r *drawrpc.GiveawayRequest) { r.RoundID = "regulars" },
+			refusal: rpc.CodeInvalid, reason: "invalid round_id"},
+		{verb: drawrpc.VerbGiveawayExtend, call: draw.ExtendRequest{Channel: 42, Actor: "7", Round: giveawayRPCRoundID, Kind: draw.KindGiveaway}},
+		{verb: drawrpc.VerbGiveawayCancel, call: draw.ModAction{Channel: 42, Actor: "7", Round: giveawayRPCRoundID, Kind: draw.KindGiveaway}},
 		{verb: drawrpc.VerbGiveawayReroll, call: giveawaySlotChange{drawrpc.VerbGiveawayReroll, slot}},
 		{verb: drawrpc.VerbGiveawayEndSlots, call: giveawaySlotChange{drawrpc.VerbGiveawayEndSlots, slot}},
 		{verb: drawrpc.VerbGiveawaySkipRule, call: giveawaySlotChange{drawrpc.VerbGiveawaySkipRule, slot}},
 		{verb: drawrpc.VerbGiveawaySkipRule, edit: func(r *drawrpc.GiveawayRequest) { r.Slot = 0 }, refusal: rpc.CodeInvalid},
 		{verb: drawrpc.VerbGiveawayMarkDelivered, edit: func(r *drawrpc.GiveawayRequest) { v := false; r.Delivered = &v },
-			call: giveawayDeliveryCall{42, modulesrpc.GiveawayDelivery{RoundID: "current", Slot: 2}}},
+			call: giveawayDeliveryCall{42, modulesrpc.GiveawayDelivery{RoundID: giveawayRPCRoundID, Slot: 2}}},
 		{verb: drawrpc.VerbGiveawayMarkDelivered, refusal: rpc.CodeInvalid},
 		{verb: drawrpc.VerbGiveawayEligibleCount, edit: func(r *drawrpc.GiveawayRequest) { r.Preset = "regulars" },
 			call: giveawayStandingsCall{42, engine.BalanceMinimums{WatchSeconds: 300}}, response: checkGiveawayCount},
@@ -195,6 +218,9 @@ func (tc giveawayRPCTest) check(t *testing.T, reply drawrpc.GiveawayReply, err e
 		var refusal bus.RPCReplyError
 		require.ErrorAs(t, err, &refusal)
 		require.Equal(t, tc.refusal, refusal.Code)
+		if tc.reason != "" {
+			require.Equal(t, tc.reason, refusal.Message)
+		}
 		require.Nil(t, observed)
 	case tc.response != nil:
 		require.NoError(t, err)
@@ -214,7 +240,7 @@ func checkGiveawayLive(t *testing.T, reply drawrpc.GiveawayReply, _ any) {
 	t.Helper()
 	require.NotNil(t, reply.Rounds)
 	require.Equal(t, []drawrpc.GiveawayRound{{
-		ID: "current", Kind: "giveaway", Phase: "open", Prize: "Game", Winners: 2, OpenedMS: 1790000000000,
+		ID: giveawayRPCRoundID, Kind: "giveaway", Phase: "open", Prize: "Game", Winners: 2, OpenedMS: 1790000000000,
 		ClosesMS: 1790000000000, FreezeEndsMS: 1790000200000, Entries: 9, Refused: 3, Requirements: []string{"7 days of following"},
 		Slots: []drawrpc.GiveawaySlot{{N: 1, Generation: 2, State: "won", ViewerID: "17", Login: "winner", DeadlineMS: 1790000000000,
 			Rejected: []drawrpc.GiveawayCandidate{{ViewerID: "16", Login: "first", Generation: 1, Reason: "follow_age"}}}},
@@ -231,12 +257,11 @@ func checkGiveawayStart(t *testing.T, reply drawrpc.GiveawayReply, observed any)
 	t.Helper()
 	req, ok := observed.(draw.OpenRequest)
 	require.True(t, ok)
-	require.NotEmpty(t, req.ID)
 	require.Equal(t, draw.OpenRequest{ID: req.ID, Channel: 42, Actor: "7", Duration: 90 * time.Second, Terms: draw.Terms{
 		Kind: draw.KindGiveaway, Prize: draw.Prize{Item: "Game"}, Winners: draw.WinnerPolicy{Count: 2},
 		ClaimWindow: 2 * time.Minute, Rules: codec.RawMessage(`{}`),
 	}}, req)
-	require.Equal(t, string(req.ID), reply.Round.ID)
+	require.Equal(t, []any{true, string(req.ID)}, []any{req.ID != "", reply.Round.ID})
 }
 
 func checkGiveawayCount(t *testing.T, reply drawrpc.GiveawayReply, observed any) {

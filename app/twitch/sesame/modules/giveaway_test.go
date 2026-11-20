@@ -20,11 +20,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 type giveawayChatDraw struct {
 	engine.DrawStore
 	busy      bool
+	openErr   error
 	open      draw.OpenRequest
 	closed    draw.CloseRequest
 	cancelled draw.ModAction
@@ -37,6 +39,9 @@ func (d *giveawayChatDraw) Joinable(context.Context, draw.ChannelID) (draw.Round
 
 func (d *giveawayChatDraw) Open(_ context.Context, req draw.OpenRequest) (draw.Round, draw.OpenOutcome, error) {
 	d.open = req
+	if d.openErr != nil {
+		return draw.Round{}, draw.Opened, d.openErr
+	}
 	at := time.Now()
 	r := draw.Round{ID: req.ID, Channel: req.Channel, Terms: req.Terms, OpenedAt: at, ClosesAt: at.Add(req.Duration)}
 	return r, draw.Opened, nil
@@ -70,6 +75,7 @@ type giveawayChatCase struct {
 	viewer, busy         bool
 	prize, action        string
 	slot                 int
+	openErr              error
 }
 
 func TestGiveawayProcess(t *testing.T) {
@@ -79,6 +85,8 @@ func TestGiveawayProcess(t *testing.T) {
 		{name: "defaults", command: "start", prize: "Mystery box", reply: "Mystery box"},
 		{name: "blocked prize", command: "start " + blockedGiveawayPrize, reply: "Choose a different giveaway prize name."},
 		{name: "stalled accrual", command: "start points Game", reply: "Watch time accrual has stalled."},
+		{name: "draw rejects window", command: "start Game", prize: "Game", openErr: draw.ErrInvalidTerms,
+			reply: "The entry window is outside the allowed range."},
 		{name: "busy", command: "start Game", busy: true, reply: "A giveaway is already open."},
 		{name: "viewer cannot start", command: "start Game", viewer: true},
 		{name: "draw", command: "draw", action: "close"},
@@ -95,7 +103,7 @@ func TestGiveawayProcess(t *testing.T) {
 const blockedGiveawayPrize = "blocked prize"
 
 func (tc giveawayChatCase) run(t *testing.T) {
-	store := &giveawayChatDraw{busy: tc.busy}
+	store := &giveawayChatDraw{busy: tc.busy, openErr: tc.openErr}
 	pub := &variablePublisher{}
 	proj := &fakeProj{modules: []projection.ModuleView{
 		enabledVariables(engine.LoyaltyModuleName, ""),
@@ -195,21 +203,27 @@ func TestGiveawayAnnouncements(t *testing.T) {
 		claim  time.Duration
 		config string
 		want   []string
+		warn   bool
 	}{
-		{"win with a claim", draw.NoticeWinners, time.Minute, "", []string{"@viewer won Game! Type !claim within 1m."}},
-		{"win without a claim", draw.NoticeWinners, 0, "", []string{"@viewer won Game!"}},
-		{"custom win", draw.NoticeWinners, 0, `{"wonMessage":"{giveaway:targets} gets {giveaway:prize}."}`, []string{"@viewer gets Game."}},
-		{"win disabled", draw.NoticeWinners, 0, `{"wonEnabled":false}`, nil},
-		{"no-show", draw.NoticeNoShow, time.Minute, "", []string{"@viewer missed the claim deadline."}},
-		{"no-show disabled", draw.NoticeNoShow, time.Minute, `{"noShowEnabled":false}`, nil},
+		{name: "win with a claim", event: draw.NoticeWinners, claim: time.Minute, want: []string{"@viewer won Game! Type !claim within 1m."}},
+		{name: "win without a claim", event: draw.NoticeWinners, want: []string{"@viewer won Game!"}},
+		{name: "custom win", event: draw.NoticeWinners, config: `{"wonMessage":"{giveaway:targets} gets {giveaway:prize}."}`,
+			want: []string{"@viewer gets Game."}},
+		{name: "win disabled", event: draw.NoticeWinners, config: `{"wonEnabled":false}`},
+		{name: "no-show", event: draw.NoticeNoShow, claim: time.Minute, want: []string{"@viewer missed the claim deadline."}},
+		{name: "no-show disabled", event: draw.NoticeNoShow, claim: time.Minute, config: `{"noShowEnabled":false}`},
+		{name: "invalid winner settings", event: draw.NoticeWinners, config: `{"wonEnabled":13}`, warn: true},
+		{name: "invalid no-show settings", event: draw.NoticeNoShow, config: `{"noShowEnabled":13}`, warn: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			pub := &variablePublisher{}
 			proj := &fakeProj{modules: []projection.ModuleView{enabledVariables(engine.GiveawayModuleName, tc.config)}}
-			announcer := engine.NewDrawAnnouncer(engine.AnnouncementConfig{Proj: proj, Pub: pub}, zap.NewNop(), nil)
+			core, logs := observer.New(zap.WarnLevel)
+			announcer := engine.NewDrawAnnouncer(engine.AnnouncementConfig{Proj: proj, Pub: pub}, zap.New(core), nil)
 			round := draw.Round{Channel: 2, Terms: draw.Terms{Kind: draw.KindGiveaway, Prize: draw.Prize{Item: "Game"}, ClaimWindow: tc.claim}}
 			announcer.Announce(t.Context(), draw.Notice{Round: round, Event: tc.event, Slots: []draw.Slot{{Login: "viewer"}}})
 			require.Equal(t, tc.want, drawReplies(t, pub))
+			require.Equal(t, tc.warn, logs.FilterMessage("giveaway: failed to read announcement settings").Len() != 0)
 		})
 	}
 }

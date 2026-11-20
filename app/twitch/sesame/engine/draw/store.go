@@ -187,7 +187,7 @@ func validateTerms(req OpenRequest, now time.Time) (Terms, error) {
 		t.ClosesAt = earlier(t.ClosesAt, fromMillis(t.FreezeEndsMS))
 	}
 	t.ClosesAt = t.ClosesAt.Truncate(time.Millisecond)
-	if !t.ClosesAt.After(now) || t.ClosesAt.After(now.Add(Pins.MaxOpen)) {
+	if !t.validEntryDeadline(now) {
 		return Terms{}, ErrInvalidTerms
 	}
 	if t.ClaimWindow != 0 && !validClaimWindow(t.ClaimWindow) {
@@ -197,6 +197,16 @@ func validateTerms(req OpenRequest, now time.Time) (Terms, error) {
 		t.Winners.Count = policy.defaultWinners
 	}
 	return t, policy.validate(t)
+}
+
+func (t Terms) validEntryDeadline(now time.Time) bool {
+	if !t.ClosesAt.After(now) || t.ClosesAt.After(now.Add(Pins.MaxOpen)) {
+		return false
+	}
+	if t.Kind != KindGiveaway || t.FreezeEndsMS <= 0 {
+		return true
+	}
+	return !fromMillis(t.FreezeEndsMS).Before(now.Add(Pins.GiveawayMinEntryWindow))
 }
 
 func (r OpenRequest) validTarget() bool {
@@ -221,13 +231,9 @@ func (s *Store) Join(ctx context.Context, req JoinRequest) (JoinOutcome, error) 
 	if !req.valid() {
 		return JoinOutcome{}, errors.New("draw: invalid entrant")
 	}
-	id := req.Round
-	if id == "" {
-		var err error
-		id, err = s.joinableID(ctx, req.Channel)
-		if err != nil || id == "" {
-			return JoinOutcome{}, err
-		}
+	id, err := s.targetOrJoinableID(ctx, req.Channel, req.Round)
+	if err != nil || id == "" {
+		return JoinOutcome{}, err
 	}
 	keys := keysFor(req.Channel, id)
 	return keys.Join(ctx, s.client, valkey.RoundEntrant{
@@ -237,7 +243,17 @@ func (s *Store) Join(ctx context.Context, req JoinRequest) (JoinOutcome, error) 
 }
 
 func (r JoinRequest) valid() bool {
-	return r.Channel != 0 && r.Viewer != "" && r.Weight > 0
+	if r.Channel == 0 {
+		return false
+	}
+	return r.Viewer != "" && r.Weight > 0
+}
+
+func (s *Store) targetOrJoinableID(ctx context.Context, channel ChannelID, id RoundID) (RoundID, error) {
+	if id != "" {
+		return id, nil
+	}
+	return s.joinableID(ctx, channel)
 }
 
 func (s *Store) joinableID(ctx context.Context, ch ChannelID) (RoundID, error) {

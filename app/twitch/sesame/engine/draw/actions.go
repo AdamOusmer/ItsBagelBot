@@ -45,29 +45,35 @@ type SlotAction struct {
 
 func (s *Store) Close(ctx context.Context, req CloseRequest) (bool, error) {
 	r, found, err := s.Joinable(ctx, req.Channel)
-	if err != nil || !found || !r.matchesTarget(req.Kind, req.Round) {
+	if err != nil || !r.targetable(found, req.Kind, req.Round) {
 		return false, err
 	}
 	now, err := valkey.ServerNow(ctx, s.client)
 	if err != nil {
 		return false, err
 	}
-	shift := phaseShift(r, PhaseClosing, now)
-	action := Action{Kind: "close", Actor: req.Actor, At: now}
-	if req.Winners != nil {
-		raw, err := codec.Marshal(req.Winners)
-		if err != nil {
-			return false, err
-		}
-		action.Value = string(raw)
-		shift.Fields = []valkey.FieldValue{{Field: "winner_override", Value: action.Value}}
+	override, err := req.winnerOverride()
+	if err != nil {
+		return false, err
 	}
-	return s.amend(ctx, r, shift, action)
+	shift := phaseShift(r, PhaseClosing, now)
+	if override != "" {
+		shift.Fields = []valkey.FieldValue{{Field: "winner_override", Value: override}}
+	}
+	return s.amend(ctx, r, shift, Action{Kind: "close", Actor: req.Actor, At: now, Value: override})
+}
+
+func (r CloseRequest) winnerOverride() (string, error) {
+	if r.Winners == nil {
+		return "", nil
+	}
+	raw, err := codec.Marshal(r.Winners)
+	return string(raw), err
 }
 
 func (s *Store) Extend(ctx context.Context, req ExtendRequest) (bool, error) {
 	r, found, err := s.Joinable(ctx, req.Channel)
-	if err != nil || !found || !r.matchesTarget(req.Kind, req.Round) {
+	if err != nil || !r.targetable(found, req.Kind, req.Round) {
 		return false, err
 	}
 	now, err := valkey.ServerNow(ctx, s.client)
@@ -107,7 +113,7 @@ func (s *Store) CancelRound(ctx context.Context, req ModAction) (Round, bool, er
 	}
 	action := Action{Kind: "cancel", Actor: req.Actor, At: now}
 	applied, err := s.amend(ctx, r, phaseShift(r, PhaseCancelled, now), action)
-	if applied || err != nil || r.Phase == PhaseClosing {
+	if err != nil || !r.needsClosingRetry(applied) {
 		return r, applied, err
 	}
 	r.Phase = PhaseClosing
@@ -115,18 +121,23 @@ func (s *Store) CancelRound(ctx context.Context, req ModAction) (Round, bool, er
 	return r, applied, err
 }
 
+func (r Round) needsClosingRetry(applied bool) bool {
+	return !applied && r.Phase == PhaseOpen
+}
+
 func (r Round) canCancel(kind Kind) bool {
-	return (r.Phase == PhaseOpen || r.Phase == PhaseClosing) && r.isKind(kind)
+	switch r.Phase {
+	case PhaseOpen, PhaseClosing:
+		return r.isKind(kind)
+	default:
+		return false
+	}
 }
 
 func (s *Store) cancellable(ctx context.Context, req ModAction) (Round, error) {
-	id := req.Round
-	if id == "" {
-		var err error
-		id, err = s.joinableID(ctx, req.Channel)
-		if err != nil {
-			return Round{}, err
-		}
+	id, err := s.targetOrJoinableID(ctx, req.Channel, req.Round)
+	if err != nil {
+		return Round{}, err
 	}
 	if id == "" {
 		return s.latest(ctx, req.Channel, roundFilter{phase: PhaseClosing, kind: req.Kind})
@@ -141,8 +152,11 @@ func (s *Store) cancellable(ctx context.Context, req ModAction) (Round, error) {
 	return r, nil
 }
 
-func (r Round) matchesTarget(kind Kind, id RoundID) bool {
-	return r.isKind(kind) && (id == "" || id == r.ID)
+func (r Round) targetable(found bool, kind Kind, id RoundID) bool {
+	if !found || !r.isKind(kind) {
+		return false
+	}
+	return id == "" || id == r.ID
 }
 
 func (r Round) isKind(kind Kind) bool {
@@ -206,19 +220,23 @@ func (s *Store) changeSlots(ctx context.Context, req SlotAction, kind slotAction
 }
 
 func (s *Store) slotActionRound(ctx context.Context, req SlotAction, kind slotActionKind) (snapshot, error) {
-	id := req.Round
-	if id == "" {
-		r, err := s.latest(ctx, req.Channel, roundFilter{phase: PhaseSettling, kind: actionRoundKind(req, kind)})
-		if err != nil || r.ID == "" {
-			return snapshot{}, err
-		}
-		id = r.ID
+	id, err := s.slotActionRoundID(ctx, req, kind)
+	if err != nil || id == "" {
+		return snapshot{}, err
 	}
 	data, err := s.read(ctx, id)
 	if data.round.Channel != req.Channel || !actionMatches(data.round, req, kind) {
 		return snapshot{}, err
 	}
 	return data, err
+}
+
+func (s *Store) slotActionRoundID(ctx context.Context, req SlotAction, kind slotActionKind) (RoundID, error) {
+	if req.Round != "" {
+		return req.Round, nil
+	}
+	r, err := s.latest(ctx, req.Channel, roundFilter{phase: PhaseSettling, kind: actionRoundKind(req, kind)})
+	return r.ID, err
 }
 
 func actionRoundKind(req SlotAction, kind slotActionKind) Kind {
@@ -252,30 +270,30 @@ func modTransitions(data snapshot, req SlotAction, action Action) []slotChange {
 }
 
 func modSlot(r Round, slot Slot, action Action) Slot {
-	stuck := CanSkipRule(slot, action.At)
-	switch action.Kind {
-	case "reroll":
-		if rerollableNoShow(slot, action.At) || specificStuckSlot(stuck, action) {
-			return rerolled(slot)
-		}
-	case "skip_rule":
-		if stuck {
-			return finalSlot(slot, SlotWon)
-		}
-	case "end":
-		if !slotTerminal(r, slot) {
-			return finalSlot(slot, SlotEnded)
-		}
+	switch {
+	case action.Kind == "reroll" && canRerollSlot(slot, action):
+		return rerolled(slot)
+	case action.Kind == "skip_rule" && CanSkipRule(slot, action.At):
+		return finalSlot(slot, SlotWon)
+	case action.Kind == "end" && !slotTerminal(r, slot):
+		return finalSlot(slot, SlotEnded)
+	default:
+		return Slot{}
 	}
-	return Slot{}
 }
 
-func specificStuckSlot(stuck bool, action Action) bool {
-	return stuck && action.Value != "0"
+func canRerollSlot(slot Slot, action Action) bool {
+	if rerollableNoShow(slot, action.At) {
+		return true
+	}
+	return action.Value != "0" && CanSkipRule(slot, action.At)
 }
 
 func CanSkipRule(slot Slot, now time.Time) bool {
-	return slot.State == SlotVerifying && !now.Before(verifyStuckAt(slot)) && now.Before(verifyDeadline(slot))
+	if slot.State != SlotVerifying {
+		return false
+	}
+	return !now.Before(verifyStuckAt(slot)) && now.Before(verifyDeadline(slot))
 }
 
 func rerollableNoShow(slot Slot, now time.Time) bool {

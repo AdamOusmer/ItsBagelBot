@@ -8,8 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/automod"
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
+	"ItsBagelBot/internal/domain/i18n"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/codec"
@@ -23,7 +25,7 @@ type giveawayLifecycleProjection struct {
 }
 
 func (giveawayLifecycleProjection) Module(context.Context, uint64, string) (projection.ModuleView, bool, error) {
-	raw := codec.RawMessage(`{"defaultPrize":"Game","windowSeconds":600,"defaultPreset":"all","presets":[{"name":"all","freezeWhileOpen":true}]}`)
+	raw := codec.RawMessage(`{"defaultPrize":"Game","windowSeconds":600,"defaultPreset":"all","openedMessage":"{giveaway:prize} for {giveaway:mins} min.","presets":[{"name":"all","freezeWhileOpen":true}]}`)
 	return projection.ModuleView{Name: engine.GiveawayModuleName, IsEnabled: true, Configs: raw}, true, nil
 }
 
@@ -48,13 +50,16 @@ type giveawayLifecycleCase struct {
 	name   string
 	action func(*draw.Store, context.Context, draw.Round) (bool, error)
 	window time.Duration
+	refuse bool
 }
 
 func TestGiveawayFreezeLifecycle(t *testing.T) {
 	for _, tc := range []giveawayLifecycleCase{
-		{name: "manual close", action: closeHeldGiveaway, window: 2 * time.Minute},
+		{name: "manual close", action: closeHeldGiveaway, window: 30 * time.Second},
 		{name: "cancel", action: cancelHeldGiveaway, window: 2 * time.Minute},
-		{name: "timer", window: time.Second},
+		{name: "timer", window: 2 * time.Second},
+		{name: "expiring mod freeze", window: 500 * time.Millisecond, refuse: true},
+		{name: "expired mod freeze", window: -time.Second, refuse: true},
 	} {
 		t.Run(tc.name, tc.run)
 	}
@@ -64,11 +69,30 @@ func (tc giveawayLifecycleCase) run(t *testing.T) {
 	freeze := &giveawayLifecycleFreeze{release: make(chan engine.FreezeCommand, 2)}
 	f := newFixture(t, draw.Config{Phases: engine.GiveawayPhaseObserver{Freeze: freeze, Log: zap.NewNop()}})
 	freeze.expiresAt = f.now().Add(tc.window).UnixMilli()
-	deps := engine.Deps{Draw: f.Store, LoyaltyFreeze: freeze, Proj: giveawayLifecycleProjection{}}
+	deps := engine.Deps{Draw: f.Store, LoyaltyFreeze: freeze, Proj: giveawayLifecycleProjection{}, Automod: automod.New()}
 	outcome, err := engine.StartGiveaway(t.Context(), deps, engine.GiveawayStart{Channel: 42, Actor: "7"})
 	require.NoError(t, err)
+	if tc.refuse {
+		require.Equal(t, "giveaway.open.window", outcome.Refusal)
+		require.Empty(t, outcome.Round.ID)
+		return
+	}
 	require.Empty(t, outcome.Refusal)
+	left := i18n.CompactDuration("en", outcome.Round.ClosesAt.Sub(outcome.Round.OpenedAt))
+	require.Contains(t, outcome.OpenedLine("en"), "Time: "+left+".")
 	tc.checkRound(f, outcome.Round, freeze)
+}
+
+func TestGiveawayDrawRejectsTooShortFreeze(t *testing.T) {
+	f := newFixture(t, draw.Config{})
+	terms := draw.Terms{Kind: draw.KindGiveaway, FreezeID: "snapshot"}
+	for _, window := range []time.Duration{-time.Second, 500 * time.Millisecond} {
+		t.Run(window.String(), func(t *testing.T) {
+			terms.FreezeEndsMS = f.now().Add(window).UnixMilli()
+			_, _, err := f.Open(t.Context(), draw.OpenRequest{ID: draw.NewRoundID(), Channel: 42, Terms: terms, Duration: time.Minute})
+			require.ErrorIs(t, err, draw.ErrInvalidTerms)
+		})
+	}
 }
 
 func (tc giveawayLifecycleCase) checkRound(f fixture, r draw.Round, freeze *giveawayLifecycleFreeze) {
