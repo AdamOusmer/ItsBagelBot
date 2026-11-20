@@ -23,7 +23,7 @@
   "req.follow_days": "{eligibility:value} days of following",
   "req.account_days": "an account at least {eligibility:value} days old",
   "req.skip_winners_days": "no wins in the past {eligibility:value} days",
-  "req.sub_luck": "{eligibility:value}% weight for subscribers and founders",
+  "req.sub_luck": "{eligibility:value} percent weight for subscribers and founders",
   "req.list": "{eligibility:first} and {eligibility:last}",
   "check.draw_ok": "You also meet the draw requirements right now.",
   "batch.role": "Not eligible yet: {eligibility:targets} need a different chat role. Type !check for details.",

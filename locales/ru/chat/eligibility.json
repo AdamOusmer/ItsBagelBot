@@ -23,7 +23,7 @@
   "req.follow_days": "следить за каналом не менее {eligibility:value} дн.",
   "req.account_days": "аккаунт не моложе {eligibility:value} дн.",
   "req.skip_winners_days": "без побед за последние {eligibility:value} дн.",
-  "req.sub_luck": "вес {eligibility:value}% для платных подписчиков и основателей",
+  "req.sub_luck": "вес {eligibility:value} процентов для платных подписчиков и основателей",
   "req.list": "{eligibility:first} и {eligibility:last}",
   "check.draw_ok": "Пока ты также соответствуешь условиям розыгрыша.",
   "batch.role": "{eligibility:targets} нужна другая роль в чате для участия. Напиши !check, чтобы узнать подробности.",

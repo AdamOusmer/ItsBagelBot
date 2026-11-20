@@ -23,7 +23,7 @@
   "req.follow_days": "{eligibility:value} días siguiendo el canal",
   "req.account_days": "una cuenta con al menos {eligibility:value} días",
   "req.skip_winners_days": "sin victorias en los últimos {eligibility:value} días",
-  "req.sub_luck": "peso del {eligibility:value}% para suscriptores y fundadores",
+  "req.sub_luck": "peso del {eligibility:value} por ciento para suscriptores y fundadores",
   "req.list": "{eligibility:first} y {eligibility:last}",
   "check.draw_ok": "Por ahora también cumples los requisitos del sorteo.",
   "batch.role": "{eligibility:targets} necesitan otro rol en el chat para participar. Escribe !check para más detalles.",

@@ -23,7 +23,7 @@
   "req.follow_days": "dem Kanal seit {eligibility:value} Tagen folgen",
   "req.account_days": "Konto mindestens {eligibility:value} Tage alt",
   "req.skip_winners_days": "kein Gewinn in den letzten {eligibility:value} Tagen",
-  "req.sub_luck": "{eligibility:value} % Gewicht für Abonnenten und Gründer",
+  "req.sub_luck": "{eligibility:value} Prozent Gewicht für Abonnenten und Gründer",
   "req.list": "{eligibility:first} und {eligibility:last}",
   "check.draw_ok": "Du erfüllst aktuell auch die Bedingungen für die Ziehung.",
   "batch.role": "{eligibility:targets} brauchen eine andere Chatrolle, um teilzunehmen. Schreib !check für Details.",

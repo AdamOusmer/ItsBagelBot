@@ -23,7 +23,7 @@
   "req.follow_days": "{eligibility:value} jours de suivi",
   "req.account_days": "un compte de {eligibility:value} jours ou plus",
   "req.skip_winners_days": "aucune victoire dans les {eligibility:value} derniers jours",
-  "req.sub_luck": "poids de {eligibility:value} % pour les abonnés et les fondateurs",
+  "req.sub_luck": "poids de {eligibility:value} pour cent pour les abonnés et les fondateurs",
   "req.list": "{eligibility:first} et {eligibility:last}",
   "check.draw_ok": "Tu remplis aussi les conditions du tirage pour le moment.",
   "batch.role": "Pour participer, {eligibility:targets} doivent avoir un autre rôle dans le chat. Tape !check pour les détails.",
