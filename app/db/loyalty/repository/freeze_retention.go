@@ -22,8 +22,8 @@ func (r *Loyalty) PruneFreezeSnapshots(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	for _, epoch := range epochs {
-		if err := r.pruneFreezeEpoch(ctx, epoch); err != nil {
+	for i := 0; i < len(epochs) && ctx.Err() == nil; i++ {
+		if err := r.pruneFreezeEpoch(ctx, epochs[i]); err != nil {
 			return err
 		}
 	}
@@ -62,7 +62,7 @@ func (r *Loyalty) pruneFreezeEpoch(ctx context.Context, epoch freezeEpochKey) er
 			return r.dropFreezeEpoch(ctx, epoch)
 		}
 	}
-	return ctx.Err()
+	return nil
 }
 
 func (r *Loyalty) dropFreezeEpoch(ctx context.Context, epoch freezeEpochKey) error {

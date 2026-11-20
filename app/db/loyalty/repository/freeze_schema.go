@@ -15,7 +15,7 @@ var freezeTables = []string{
 		freeze_id VARCHAR(32) NOT NULL DEFAULT '',
 		as_of_ms BIGINT NOT NULL DEFAULT 0,
 		expires_at_ms BIGINT NOT NULL DEFAULT 0,
-		holders VARCHAR(2048) NOT NULL DEFAULT '{}',
+		holders TEXT NOT NULL,
 		block_transfer INTEGER NOT NULL DEFAULT 0,
 		close_games INTEGER NOT NULL DEFAULT 0)`,
 	`CREATE TABLE IF NOT EXISTS loyalty_freeze_epochs (

@@ -57,7 +57,7 @@ func NewValkeyLoyaltyStore(client valkey.Client, rpc *LoyaltyRPC, reporter *Loya
 		rpc:      rpc,
 		reporter: reporter,
 		scopes:   cache.New[counterScope](scopeCacheCapacity, scopeCacheTTL),
-		top:      cache.New[[]loyaltyrpc.Balance](topCacheCapacity, topCacheTTL, cache.WithoutTTLJitter()),
+		top:      cache.New[[]loyaltyrpc.Balance](topCacheCapacity, topCacheTTL),
 		log:      log,
 	}
 }
@@ -339,15 +339,6 @@ func (s *ValkeyLoyaltyStore) BalanceAdjustViewer(ctx context.Context, adjustment
 	}
 	s.invalidateTop(cache.Event{ID: adjustment.BroadcasterID})
 	return bal, true, nil
-}
-
-func (s *ValkeyLoyaltyStore) BalanceSpend(ctx context.Context, spend PointSpend) (loyaltyrpc.Balance, bool, bool, error) {
-	bal, found, spent, err := s.rpc.BalanceSpend(ctx, spend)
-	if err != nil || !found {
-		return bal, found, spent, err
-	}
-	s.invalidateTop(cache.Event{ID: spend.BroadcasterID})
-	return bal, true, spent, nil
 }
 
 func (s *ValkeyLoyaltyStore) BalanceTransfer(ctx context.Context, t PointTransfer) (bal loyaltyrpc.Balance, found, moved bool, err error) {

@@ -10,6 +10,7 @@ import (
 
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/app/db/loyalty/ent/balance"
+	"ItsBagelBot/pkg/db"
 )
 
 type Wager struct {
@@ -49,20 +50,28 @@ func (r *Loyalty) BalanceWager(ctx context.Context, wager Wager) (WagerOutcome, 
 }
 
 func (r *Loyalty) applyWager(ctx context.Context, wager Wager) (bool, error) {
-	updated := 0
-	err := r.withFreezeCheck(ctx, freezeBlock{wager.UserID, freezeGames}, func(ctx context.Context, client *ent.Client) error {
-		var err error
-		updated, err = wager.update(ctx, client)
-		return err
+	var block freezeBlock
+	var updated int
+	err := db.WithExec(ctx, func(ctx context.Context) error {
+		return retryTx(ctx, func(ctx context.Context) error {
+			block = newFreezeBlock(wager.UserID, freezeGames)
+			var err error
+			updated, err = wager.update(ctx, r.client, block)
+			return err
+		})
 	})
-	if err == nil && updated != 0 {
-		r.publishBalanceChange(wager.UserID, wager.ViewerID)
+	if err != nil {
+		return false, err
 	}
-	return updated != 0, err
+	if updated == 0 {
+		return false, block.refusal(ctx, r)
+	}
+	r.publishBalanceChange(wager.UserID, wager.ViewerID)
+	return true, nil
 }
 
-func (wager Wager) update(ctx context.Context, client *ent.Client) (int, error) {
-	update := client.Balance.Update().Where(balance.UserIDEQ(wager.UserID), balance.ViewerIDEQ(wager.ViewerID), balance.PointsGTE(wager.Amount))
+func (wager Wager) update(ctx context.Context, client *ent.Client, block freezeBlock) (int, error) {
+	update := client.Balance.Update().Where(balance.UserIDEQ(wager.UserID), balance.ViewerIDEQ(wager.ViewerID), balance.PointsGTE(wager.Amount), block.allowed)
 	delta := -wager.Amount
 	if wager.Won {
 		update.Where(balance.PointsLTE(math.MaxInt64 - wager.Amount))

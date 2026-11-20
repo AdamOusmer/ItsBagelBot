@@ -9,69 +9,50 @@ import (
 	"errors"
 	"time"
 
-	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/pkg/db"
+
+	entsql "entgo.io/ent/dialect/sql"
 )
 
 type freezeBlock struct {
 	userID uint64
 	kind   freezeBlockKind
+	atMS   int64
 }
 
-type freezeBlockKind uint8
+type freezeBlockKind string
 
 const (
-	freezeTransfers freezeBlockKind = iota
-	freezeGames
+	freezeTransfers freezeBlockKind = "block_transfer"
+	freezeGames     freezeBlockKind = "close_games"
 )
 
-func (b freezeBlock) check(ctx context.Context, tx *sql.Tx) error {
-	var flags FreezeFlags
-	err := tx.QueryRowContext(ctx, `SELECT block_transfer, close_games FROM loyalty_freezes WHERE user_id=? AND expires_at_ms>?`, b.userID, time.Now().UnixMilli()).
-		Scan(&flags.BlockTransfer, &flags.CloseGames)
+func newFreezeBlock(userID uint64, kind freezeBlockKind) freezeBlock {
+	return freezeBlock{userID: userID, kind: kind, atMS: time.Now().UnixMilli()}
+}
+
+func (b freezeBlock) blockedQuery() string {
+	return "SELECT 1 FROM loyalty_freezes WHERE user_id=? AND " + string(b.kind) + "=1 AND expires_at_ms>?"
+}
+
+func (b freezeBlock) allowed(s *entsql.Selector) {
+	s.Where(entsql.NotExists(entsql.Expr(b.blockedQuery(), b.userID, b.atMS)))
+}
+
+func (b freezeBlock) refusal(ctx context.Context, r *Loyalty) error {
+	_, err := db.WithRead(ctx, func(ctx context.Context) (int, error) {
+		var blocked int
+		err := r.sqldb.QueryRowContext(ctx, b.blockedQuery(), b.userID, b.atMS).Scan(&blocked)
+		return blocked, err
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	return flags.refusal(b.kind)
-}
-
-func (f FreezeFlags) refusal(kind freezeBlockKind) error {
-	if kind == freezeTransfers && f.BlockTransfer {
+	if b.kind == freezeTransfers {
 		return ErrFrozenTransfers
 	}
-	if kind == freezeGames && f.CloseGames {
-		return ErrFrozenGames
-	}
-	return nil
-}
-
-type balanceMutation func(context.Context, *ent.Client) error
-
-func (r *Loyalty) withFreezeCheck(ctx context.Context, block freezeBlock, fn balanceMutation) error {
-	return db.WithExec(ctx, func(ctx context.Context) error {
-		return retryTx(ctx, func(ctx context.Context) error {
-			return r.checkAndMutateBalance(ctx, block, fn)
-		})
-	})
-}
-
-func (r *Loyalty) checkAndMutateBalance(ctx context.Context, block freezeBlock, fn balanceMutation) error {
-	tx, err := r.sqldb.BeginTx(ctx, db.ReadCommittedTx(r.dialect))
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if err := block.check(ctx, tx); err != nil {
-		return err
-	}
-	client := ent.NewClient(ent.Driver(db.EntTransactionDriver(r.dialect, tx)))
-	client.Balance.Use(r.client.Balance.Hooks()...)
-	client.Balance.Intercept(r.client.Balance.Interceptors()...)
-	if err := fn(ctx, client); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return ErrFrozenGames
 }

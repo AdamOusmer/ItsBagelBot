@@ -244,24 +244,36 @@ type frozenRank struct {
 
 func TestFreezeFlagsGateLiveMutations(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		flags    loyaltyrepo.FreezeFlags
-		transfer error
-		wager    error
+		name          string
+		flags         loyaltyrepo.FreezeFlags
+		expired       bool
+		amount        int64
+		transfer      error
+		wager         error
+		moved, played bool
 	}{
-		{"defaults", loyaltyrepo.FreezeFlags{}, nil, nil},
-		{"transfers", loyaltyrepo.FreezeFlags{BlockTransfer: true}, loyaltyrepo.ErrFrozenTransfers, nil},
-		{"games", loyaltyrepo.FreezeFlags{CloseGames: true}, nil, loyaltyrepo.ErrFrozenGames},
+		{name: "defaults", amount: 1, moved: true, played: true},
+		{name: "transfers blocked", flags: loyaltyrepo.FreezeFlags{BlockTransfer: true}, amount: 1, transfer: loyaltyrepo.ErrFrozenTransfers, played: true},
+		{name: "games closed", flags: loyaltyrepo.FreezeFlags{CloseGames: true}, amount: 1, wager: loyaltyrepo.ErrFrozenGames, moved: true},
+		{name: "insufficient funds", amount: 11},
+		{name: "freeze refusal takes precedence over shortfall", flags: loyaltyrepo.FreezeFlags{BlockTransfer: true, CloseGames: true}, amount: 11,
+			transfer: loyaltyrepo.ErrFrozenTransfers, wager: loyaltyrepo.ErrFrozenGames},
+		{name: "expired flags", flags: loyaltyrepo.FreezeFlags{BlockTransfer: true, CloseGames: true}, expired: true, amount: 1, moved: true, played: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			r, _ := sqliteRetentionRepo(t)
+			r, raw := sqliteRetentionRepo(t)
 			ctx := t.Context()
 			require.NoError(t, r.ApplyWatchAward(ctx, watchAward(freezeChannel, freezeViewer, 100)))
-			setFreeze(t, r, "mod", tc.flags)
-			_, _, err := r.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: freezeChannel, FromViewerID: freezeViewer, TargetViewerID: 8, TargetLogin: "target", Amount: 1})
+			state := setFreeze(t, r, "mod", tc.flags)
+			if tc.expired {
+				ageFreeze(t, raw, state)
+			}
+			transfer, _, err := r.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: freezeChannel, FromViewerID: freezeViewer, TargetViewerID: 8, TargetLogin: "target", Amount: tc.amount})
 			require.ErrorIs(t, err, tc.transfer)
-			_, err = r.BalanceWager(ctx, loyaltyrepo.Wager{UserID: freezeChannel, ViewerID: freezeViewer, Amount: 1})
+			assert.Equal(t, tc.moved, transfer != nil && transfer.To != nil)
+			wager, err := r.BalanceWager(ctx, loyaltyrepo.Wager{UserID: freezeChannel, ViewerID: freezeViewer, Amount: tc.amount})
 			require.ErrorIs(t, err, tc.wager)
+			assert.Equal(t, tc.played, wager.Applied)
 		})
 	}
 }

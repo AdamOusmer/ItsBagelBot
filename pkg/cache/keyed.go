@@ -19,16 +19,11 @@ import (
 type Option func(*options)
 
 type options struct {
-	staleWindow      time.Duration
-	withoutTTLJitter bool
+	staleWindow time.Duration
 }
 
 func StaleOnError(window time.Duration) Option {
 	return func(o *options) { o.staleWindow = window }
-}
-
-func WithoutTTLJitter() Option {
-	return func(o *options) { o.withoutTTLJitter = true }
 }
 
 type entry[V any] struct {
@@ -52,10 +47,9 @@ type Keyed[K comparable, V any] struct {
 	stripes [generationStripes]atomic.Uint64
 	loading map[K]int
 
-	capacity         int64
-	ttl              time.Duration
-	staleWindow      time.Duration
-	withoutTTLJitter bool
+	capacity    int64
+	ttl         time.Duration
+	staleWindow time.Duration
 }
 
 func NewKeyed[K comparable, V any](capacity int64, ttl time.Duration, keyFn func(K) string, opts ...Option) *Keyed[K, V] {
@@ -68,14 +62,13 @@ func NewKeyed[K comparable, V any](capacity int64, ttl time.Duration, keyFn func
 		panic("failed to build theine cache: " + err.Error())
 	}
 	return &Keyed[K, V]{
-		client:           client,
-		keyFn:            keyFn,
-		seed:             maphash.MakeSeed(),
-		loading:          make(map[K]int),
-		capacity:         capacity,
-		ttl:              ttl,
-		staleWindow:      o.staleWindow,
-		withoutTTLJitter: o.withoutTTLJitter,
+		client:      client,
+		keyFn:       keyFn,
+		seed:        maphash.MakeSeed(),
+		loading:     make(map[K]int),
+		capacity:    capacity,
+		ttl:         ttl,
+		staleWindow: o.staleWindow,
 	}
 }
 
@@ -135,7 +128,7 @@ func (c *Keyed[K, V]) load(ctx context.Context, key K, loader func(context.Conte
 
 	c.mu.Lock()
 	if generation == c.generation(name) {
-		c.SetFor(key, value, ttl)
+		c.setLoaded(key, value, ttl)
 	}
 	c.mu.Unlock()
 	return value, nil
@@ -173,11 +166,20 @@ func (c *Keyed[K, V]) Set(key K, value V) {
 }
 
 func (c *Keyed[K, V]) SetFor(key K, value V, ttl time.Duration) {
-	if !c.withoutTTLJitter {
-		ttl += rand.N(ttl/10 + 1)
+	c.store(key, value, ttl+rand.N(ttl/10+1))
+}
+
+func (c *Keyed[K, V]) setLoaded(key K, value V, ttl time.Duration) {
+	if ttl < c.ttl {
+		c.store(key, value, ttl)
+		return
 	}
+	c.SetFor(key, value, ttl)
+}
+
+func (c *Keyed[K, V]) store(key K, value V, ttl time.Duration) {
 	e := entry[V]{value: value}
-	if c.withoutTTLJitter || c.staleWindow > 0 {
+	if c.staleWindow > 0 {
 		e.freshUntil = time.Now().Add(ttl)
 	}
 	c.client.SetWithTTL(key, e, 1, ttl+c.staleWindow)

@@ -239,9 +239,9 @@ func (r *Loyalty) lockFreezeRow(ctx context.Context, tx *sql.Tx, userID uint64) 
 }
 
 func (r *Loyalty) createFreezeRow(ctx context.Context, tx *sql.Tx, userID uint64) (sql.Result, error) {
-	stmt := "INSERT INTO loyalty_freezes (user_id) VALUES (?) ON DUPLICATE KEY UPDATE user_id=user_id"
+	stmt := "INSERT INTO loyalty_freezes (user_id, holders) VALUES (?, '{}') ON DUPLICATE KEY UPDATE user_id=user_id"
 	if r.dialect == "sqlite3" {
-		stmt = "INSERT OR IGNORE INTO loyalty_freezes (user_id) VALUES (?)"
+		stmt = "INSERT OR IGNORE INTO loyalty_freezes (user_id, holders) VALUES (?, '{}')"
 	}
 	return tx.ExecContext(ctx, stmt, userID)
 }

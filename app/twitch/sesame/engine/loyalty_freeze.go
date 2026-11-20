@@ -71,5 +71,5 @@ func freezeTTL(stamp loyaltyrpc.FreezeStamp, base time.Duration) time.Duration {
 	if stamp.ExpiresAt == 0 {
 		return base
 	}
-	return max(time.Second, min(base, time.Until(time.UnixMilli(stamp.ExpiresAt))))
+	return max(time.Nanosecond, min(base-time.Nanosecond, time.Until(time.UnixMilli(stamp.ExpiresAt))))
 }

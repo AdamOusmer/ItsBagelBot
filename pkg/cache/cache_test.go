@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"ItsBagelBot/pkg/cache"
@@ -85,26 +86,40 @@ func TestGetOrLoadCachesValuesButNotErrors(t *testing.T) {
 }
 
 func TestGetOrLoadTTLUsesLoaderTTL(t *testing.T) {
-	c := cache.New[string](1000, time.Minute)
-	defer c.Close()
+	for _, tc := range []struct {
+		name   string
+		ttl    time.Duration
+		jitter bool
+	}{
+		{"clamped", time.Second / 2, false},
+		{"default", time.Second, true},
+		{"extended", 2 * time.Second, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				c := cache.New[string](1000, time.Second)
+				defer c.Close()
+				loader := func(context.Context) (string, time.Duration, error) {
+					return "value", tc.ttl, nil
+				}
+				_, err := c.GetOrLoadTTL(t.Context(), "key", loader)
+				require.NoError(t, err)
 
-	var calls atomic.Int32
-	loader := func(context.Context) (string, time.Duration, error) {
-		calls.Add(1)
-		return "value", 20 * time.Millisecond, nil
+				time.Sleep(tc.ttl - time.Nanosecond)
+				value, ok := c.Get("key")
+				assert.Equal(t, "value", value)
+				assert.True(t, ok)
+
+				time.Sleep(time.Nanosecond)
+				_, ok = c.Get("key")
+				assert.Equal(t, tc.jitter, ok)
+
+				time.Sleep(tc.ttl / 10)
+				_, ok = c.Get("key")
+				assert.False(t, ok)
+			})
+		})
 	}
-
-	for range 2 {
-		value, err := c.GetOrLoadTTL(context.Background(), "key", loader)
-		require.NoError(t, err)
-		require.Equal(t, "value", value)
-	}
-	require.Equal(t, int32(1), calls.Load())
-
-	require.Eventually(t, func() bool {
-		_, err := c.GetOrLoadTTL(context.Background(), "key", loader)
-		return err == nil && calls.Load() == 2
-	}, time.Second, 10*time.Millisecond, "entry should expire after the loader TTL")
 }
 
 func TestGetReportsHitsMissesAndZeroValues(t *testing.T) {

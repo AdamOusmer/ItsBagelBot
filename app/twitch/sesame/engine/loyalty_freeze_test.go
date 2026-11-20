@@ -4,33 +4,48 @@
 package engine
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
-	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+	"ItsBagelBot/internal/testnats"
+	"ItsBagelBot/pkg/bus/bustest"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestFreezeTTL(t *testing.T) {
+func TestLoyaltyTopRefreshesAtFreezeExpiry(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		expires time.Duration
-		want    time.Duration
+		name      string
+		remaining time.Duration
 	}{
-		{"live", 0, time.Minute},
-		{"long freeze", 2 * time.Minute, time.Minute},
-		{"short freeze", 10 * time.Second, 10 * time.Second},
-		{"near expiry", 100 * time.Millisecond, time.Second},
-		{"expired", -time.Second, time.Second},
+		{"near expiry", 300 * time.Millisecond},
+		{"expired reply", -time.Second},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var stamp loyaltyrpc.FreezeStamp
-			if tc.expires != 0 {
-				stamp.ExpiresAt = time.Now().Add(tc.expires).UnixMilli()
+			nc := testnats.Connect(t)
+			expires := time.Now().Add(tc.remaining)
+			frozen := fmt.Sprintf(`{"freeze_id":"frozen","expires_at":%d,"top":[{"viewer_id":"7","points":5}]}`, expires.UnixMilli())
+			served := bustest.Respond(t, nc, counterRPCPrefix+".top.get", frozen, `{"top":[{"viewer_id":"7","points":9}]}`)
+			store := NewValkeyLoyaltyStore(nil, NewLoyaltyRPC(nc, counterRPCPrefix), nil, nil)
+			t.Cleanup(store.Close)
+
+			channel := freshChannel()
+			top, err := store.Top(t.Context(), channel, 10)
+			require.NoError(t, err)
+			require.Len(t, top, 1)
+			assert.EqualValues(t, 5, top[0].Points)
+			if tc.remaining > 0 {
+				_, err := store.Top(t.Context(), channel, 10)
+				require.NoError(t, err)
+				assert.EqualValues(t, 1, served.Load())
 			}
-			got := freezeTTL(stamp, time.Minute)
-			assert.LessOrEqual(t, got, tc.want)
-			assert.InDelta(t, tc.want, got, float64(100*time.Millisecond))
+			time.Sleep(time.Until(expires))
+			require.Eventually(t, func() bool {
+				top, err := store.Top(t.Context(), channel, 10)
+				return err == nil && len(top) == 1 && top[0].Points == 9
+			}, 300*time.Millisecond, 5*time.Millisecond)
 		})
 	}
 }
