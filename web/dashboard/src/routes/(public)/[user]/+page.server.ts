@@ -186,7 +186,7 @@ async function publicFeatures(channel: Channel, view: BoardParams, locals: App.L
 		showStandings ? standings(channel.userId, loyalty, view) : emptyStandings(view, false),
 		boardVisible ? publicGiveawayWinners(channel.userId) : { winners: [], degraded: true }
 	]);
-	if (!showStandings && !giveaways.winners.length && !giveaways.degraded) hideChannel(locals);
+	if (!showStandings && !hasWinnerSection(giveaways)) hideChannel(locals);
 	return { boardVisible, commandsPage, showStandings, standing, giveaways };
 }
 
@@ -217,3 +217,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		giveawayHistoryUnavailable: giveaways.degraded
 	};
 };
+
+function hasWinnerSection(giveaways: { winners: unknown[]; degraded: boolean }): boolean {
+	return giveaways.winners.length > 0 || giveaways.degraded;
+}
