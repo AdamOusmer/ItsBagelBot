@@ -56,7 +56,7 @@
     },
     {
       "feature": "Statistiques de jeu",
-      "us": "Les modules intégrés couvrent Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale et CODM. Vous pouvez par exemple lier votre Riot ID et utiliser !valrank.",
+      "us": "Les modules intégrés couvrent Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale et CODM. Par exemple, liez votre compte via « Se connecter avec Riot » et utilisez !val.",
       "them": "La référence des balises couvre League of Legends, Steam et des interactions avec 7 Days to Die et Project Zomboid. Comparez ces intégrations aux statistiques que vos spectateurs utilisent réellement.",
       "source": "https://support.wizebot.tv/docs/tags"
     },

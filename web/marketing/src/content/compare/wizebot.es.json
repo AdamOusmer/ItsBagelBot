@@ -56,7 +56,7 @@
     },
     {
       "feature": "Estadísticas de juego",
-      "us": "Los módulos integrados cubren Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale y CODM. Por ejemplo, vincula tu Riot ID y usa !valrank.",
+      "us": "Los módulos integrados cubren Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale y CODM. Por ejemplo, vincula tu cuenta con «Iniciar sesión con Riot» y usa !val.",
       "them": "La referencia de etiquetas incluye League of Legends, Steam e interacciones de juego para 7 Days to Die y Project Zomboid. Compara esas integraciones con las consultas de juego que realmente usan tus espectadores.",
       "source": "https://support.wizebot.tv/docs/tags"
     },

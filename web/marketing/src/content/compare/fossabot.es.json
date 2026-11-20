@@ -56,7 +56,7 @@
     },
     {
       "feature": "Estadísticas de juego",
-      "us": "Los módulos integrados cubren Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale y CODM. Por ejemplo, vincula tu Riot ID y usa !valrank.",
+      "us": "Los módulos integrados cubren Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale y CODM. Por ejemplo, vincula tu cuenta con «Iniciar sesión con Riot» y usa !val.",
       "them": "Las variables de Valorant muestran rango, RR, posición en la clasificación y victorias o derrotas de la sesión. Primero conecta y autoriza tu cuenta de Riot en el panel; algunos datos pueden tener hasta 30 minutos de antigüedad.",
       "source": "https://docs.fossabot.com/variables/valorant/"
     },

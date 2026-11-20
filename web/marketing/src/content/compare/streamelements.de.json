@@ -62,7 +62,7 @@
     },
     {
       "feature": "Valorant-Rangbefehl",
-      "us": "Aktiviere das Valorant-Modul, verbinde eine Riot-ID wie Name#Tag und nutze !val oder !valrank. Das Modul deckt außerdem neueste Ranglistenspiele und Bestenlisten ab.",
+      "us": "Aktiviere das Valorant-Modul, wähle „Bei Riot anmelden“ und nutze !val im Chat. Das Modul zeigt auch die letzten Ranglistenspiele und die Bestenliste des Akts.",
       "them": "Der offizielle Valorant-Leitfaden beschreibt einen eigenen !rank-Befehl über eine API eines Drittanbieters. Das ist ein dokumentierter Einrichtungsweg und kein eigenes Valorant-Modul. Prüfe den Anbieter, bevor du das Beispiel verwendest.",
       "source": "https://support.streamelements.com/hc/en-us/articles/12362107401234-How-to-add-a-rank-command-for-VALORANT"
     },

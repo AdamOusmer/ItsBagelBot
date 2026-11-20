@@ -56,7 +56,7 @@
     },
     {
       "feature": "Spielstatistiken",
-      "us": "Eingebaute Module decken Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale und CODM ab. Verbinde zum Beispiel deine Riot-ID und nutze !valrank.",
+      "us": "Eingebaute Module decken Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale und CODM ab. Verknüpfe zum Beispiel dein Riot-Konto über „Bei Riot anmelden“ und nutze !val.",
       "them": "Die Tag-Referenz umfasst League of Legends, Steam sowie Spielinteraktionen für 7 Days to Die und Project Zomboid. Vergleiche diese Integrationen mit den Spielabfragen, die deine Zuschauer tatsächlich nutzen.",
       "source": "https://support.wizebot.tv/docs/tags"
     },

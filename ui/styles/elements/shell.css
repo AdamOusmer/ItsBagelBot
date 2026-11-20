@@ -579,7 +579,7 @@
   }
 
   @media (max-width: 480px) {
-    .bb-topbar__crumb {
+    .bb-topbar:not(.bb-topbar--brandless) .bb-topbar__crumb {
       display: none;
     }
   }

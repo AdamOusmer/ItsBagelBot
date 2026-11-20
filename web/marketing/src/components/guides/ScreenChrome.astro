@@ -2,44 +2,54 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import type { HTMLAttributes } from 'astro/types';
 import Rail from '@bagel/ui/astro/Rail.astro';
 import Mark from './Mark.astro';
 import Badge from '@bagel/ui/astro/Badge.astro';
 import Topbar from '@bagel/ui/astro/Topbar.astro';
 import PageHead from '@bagel/ui/astro/PageHead.astro';
-import type { UiNavLink } from '@bagel/ui/lib/nav-types';
+import type { UiNavGroup, UiNavLink } from '@bagel/ui/lib/nav-types';
 
 export type SectionId = 'overview' | 'commands' | 'modules' | 'billing' | 'settings';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'title'> {
     console: string;
     crumbRoot?: string;
     crumb: string;
+    crumbLabel?: string;
     account: string;
     navLabel: string;
-    nav: Record<SectionId, string>;
-    active: SectionId;
+    nav?: Record<SectionId, string>;
+    active?: SectionId;
+    groups?: UiNavGroup[];
     eyebrow?: string;
-    titleHtml: string;
+    titleHtml?: string;
     description?: string;
     railNote?: string;
+    logoSrc?: string;
+    class?: string;
 }
 
 const {
     console: consoleLabel,
     crumbRoot = 'ItsBagelBot',
     crumb,
+    crumbLabel,
     account,
     navLabel,
     nav,
     active,
+    groups,
     eyebrow,
     titleHtml,
     description,
     railNote,
+    logoSrc,
+    class: className,
+    ...rest
 } = Astro.props;
 
-const brand = { title: 'ItsBagelBot', sub: consoleLabel };
+const brand = { title: 'ItsBagelBot', sub: consoleLabel, logoSrc, logoAlt: '' };
 
 const SECTIONS: readonly { id: SectionId; icon: UiNavLink['icon'] }[] = [
     { id: 'overview', icon: 'overview' },
@@ -49,28 +59,40 @@ const SECTIONS: readonly { id: SectionId; icon: UiNavLink['icon'] }[] = [
     { id: 'settings', icon: 'settings' },
 ];
 
-const items: UiNavLink[] = SECTIONS.map((section) => ({
+const items: UiNavLink[] = nav ? SECTIONS.map((section) => ({
     icon: section.icon,
     label: nav[section.id],
     current: section.id === active,
-}));
+})) : [];
 ---
 
-<div class="dframe__screen">
-    <Rail brand={brand} groups={[{ label: navLabel, items }]} label={navLabel}>
+<div class:list={['dframe__screen', className]} {...rest}>
+    <Rail brand={brand} groups={groups ?? [{ label: navLabel, items }]} label={navLabel} class={groups && 'screen-chrome__rail'}>
         <Fragment slot="footer">
-            <Badge tone="quiet">{account}</Badge>
+            {groups ? <span class="screen-chrome__account"><bb-fit>{account}</bb-fit></span> : <Badge tone="quiet">{account}</Badge>}
             {railNote && <Mark n={railNote} />}
         </Fragment>
     </Rail>
     <div class="dframe__stage">
-        <Topbar
-            brand={brand}
-            crumbs={[{ label: crumbRoot }, { label: crumb }]}
-            clock={false}
-            railed
-        />
-        <PageHead eyebrow={eyebrow} description={description}><Fragment set:html={titleHtml} /></PageHead>
+        <Topbar brand={brand} crumbs={[{ label: crumbRoot }, { label: crumb }]} crumbLabel={crumbLabel} clock={false} railed showBrand={!groups}>
+            <Fragment slot="actions"><slot name="topActions" /></Fragment>
+        </Topbar>
+        <slot name="pageHead"><PageHead eyebrow={eyebrow} description={description}><Fragment set:html={titleHtml} /></PageHead></slot>
         <slot />
     </div>
 </div>
+
+<style>
+    .screen-chrome__rail {
+        --rail-width: 224px;
+        block-size: var(--screen-chrome-rail-height, auto);
+    }
+
+    .screen-chrome__account {
+        overflow: hidden;
+        color: var(--bb-muted-light);
+        font: 500 var(--bb-text-sm)/1.4 var(--bb-font-body);
+        block-size: 1lh;
+        margin: var(--bb-space-2);
+    }
+</style>

@@ -18,15 +18,18 @@ interface Props {
     path?: string;
     notes?: Note[];
     caption?: string;
+    label?: string;
+    embedded?: boolean;
+    cropped?: boolean;
 }
 
-const { path = '/', notes = [], caption } = Astro.props;
+const { path = '/', notes = [], caption, label, embedded = false, cropped = false } = Astro.props;
 ---
 
-<figure class="dframe reveal-in">
-    <Window class="dframe__win" role="img" aria-label={caption ?? `dashboard.itsbagelbot.com${path}`}>
+<figure class:list={['dframe', embedded ? 'dframe--embedded' : 'reveal-in', cropped && 'dframe--cropped']}>
+    <Window class="dframe__win" role="img" aria-label={label ?? caption ?? `dashboard.itsbagelbot.com${path}`}>
         <Well as="span" slot="title" class="dframe__url">dashboard.itsbagelbot.com<b class="dframe__path">{path}</b></Well>
-        <div class="dframe__body bb-static-frame" inert>
+        <div class:list={['dframe__body bb-static-frame', cropped && 'dframe__body--cropped']} inert>
             <slot />
         </div>
     </Window>
@@ -45,6 +48,8 @@ const { path = '/', notes = [], caption } = Astro.props;
 
 <style>
     .dframe { margin: 20px 0 28px; }
+
+    .dframe--embedded { margin: 0; }
 
     .dframe__url {
         flex: 1;
@@ -99,6 +104,14 @@ const { path = '/', notes = [], caption } = Astro.props;
 
     @media (max-width: 640px) {
         .dframe__body { padding: 12px; }
+    }
+
+    .dframe--cropped { container-type: inline-size; }
+
+    .dframe__body--cropped {
+        block-size: var(--dframe-crop-height, 32rem);
+        overflow: clip;
+        padding: 0;
     }
 </style>
 

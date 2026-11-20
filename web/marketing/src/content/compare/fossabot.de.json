@@ -56,7 +56,7 @@
     },
     {
       "feature": "Spielstatistiken",
-      "us": "Eingebaute Module decken Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale und CODM ab. Verbinde zum Beispiel deine Riot-ID und nutze !valrank.",
+      "us": "Eingebaute Module decken Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale und CODM ab. Verknüpfe zum Beispiel dein Riot-Konto über „Bei Riot anmelden“ und nutze !val.",
       "them": "Valorant-Variablen liefern Rang, RR, Platzierung in der Bestenliste sowie Siege und Niederlagen der Sitzung. Verbinde und autorisiere zuerst dein Riot-Konto im Dashboard. Manche Daten können bis zu 30 Minuten alt sein.",
       "source": "https://docs.fossabot.com/variables/valorant/"
     },

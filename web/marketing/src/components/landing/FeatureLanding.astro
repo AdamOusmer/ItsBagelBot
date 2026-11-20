@@ -30,6 +30,10 @@ interface Item {
     desc: string;
 }
 
+interface Step extends Item {
+    visual?: string;
+}
+
 interface TableRow {
     cells: string[];
     copy?: string;
@@ -83,7 +87,7 @@ interface Props {
     lead: string;
     howEyebrow: string;
     howTitle: string;
-    steps: Item[];
+    steps: Step[];
     listEyebrow: string;
     listTitle: string;
     listItems: Item[];
@@ -111,6 +115,8 @@ const {
     ctaTitle, ctaPrimary, ctaSecondary, legal,
     updated, table, demo, prereq, convert, related,
 } = Astro.props;
+
+const illustratedSteps = steps.some((step) => step.visual);
 
 const lists: ListSpec[] = [
     ...(detail ? [detail] : []),
@@ -206,11 +212,26 @@ const lists: ListSpec[] = [
 <Section size="band" class="flhow">
   <Container>
     <SectionHeading eyebrow={howEyebrow} title={howTitle} />
-    <Grid as="ol" cols={3} gap={5} stackAt="md">
-        {steps.map((step, i) => (
-            <StepCard index={i + 1} title={step.title} class="reveal-in" style={`--reveal-i: ${i}`}>{step.desc}</StepCard>
-        ))}
-    </Grid>
+    {illustratedSteps ? (
+        <ol class="flhow__steps" role="list">
+            {steps.map((step, i) => (
+                <li class="flhow__step reveal-in">
+                    <div class="flhow__copy">
+                        <span class="flhow__index" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+                        {step.title && <Heading level={4} as="h3" class="flhow__title"><bb-fit>{step.title}</bb-fit></Heading>}
+                        <Text tone="muted" class="flhow__desc"><bb-fit mode="block">{step.desc}</bb-fit></Text>
+                    </div>
+                    {step.visual && <div class="flhow__visual"><slot name={step.visual} /></div>}
+                </li>
+            ))}
+        </ol>
+    ) : (
+        <Grid as="ol" cols={3} gap={5} stackAt="md">
+            {steps.map((step, i) => (
+                <StepCard index={i + 1} title={step.title} class="reveal-in" style={`--reveal-i: ${i}`}>{step.desc}</StepCard>
+            ))}
+        </Grid>
+    )}
   </Container>
 </Section>
 
@@ -305,6 +326,60 @@ const lists: ListSpec[] = [
     .flconv__code { min-height: calc(3 * 1lh); }
 
     .flhow { --step-card-body-lines: 5; }
+
+    .flhow__steps {
+        display: grid;
+        gap: clamp(var(--bb-space-7), 7vw, var(--bb-space-9));
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .flhow__step {
+        display: grid;
+        grid-template-columns: minmax(0, 3fr) minmax(0, 5fr);
+        grid-template-areas: "copy visual";
+        align-items: center;
+        gap: clamp(var(--bb-space-6), 4vw, var(--bb-space-7));
+    }
+
+    .flhow__step:nth-child(even) {
+        grid-template-columns: minmax(0, 5fr) minmax(0, 3fr);
+        grid-template-areas: "visual copy";
+    }
+
+    .flhow__copy {
+        grid-area: copy;
+        max-inline-size: 28rem;
+        min-inline-size: 0;
+    }
+
+    .flhow__index {
+        display: block;
+        margin-block-end: var(--bb-space-3);
+        color: var(--bb-muted);
+        font: 500 var(--bb-text-xs)/1.4 var(--bb-font-mono);
+    }
+
+    .flhow__title { height: 1lh; margin: 0; overflow: hidden; }
+
+    .flhow__desc { height: 4lh; margin: var(--bb-space-2) 0 0; overflow: hidden; }
+
+    .flhow__visual {
+        --dframe-crop-height: min(clamp(84cqw, 32rem, 107cqw), 38rem);
+        grid-area: visual;
+        min-inline-size: 0;
+        container-type: inline-size;
+    }
+
+    @media (max-width: 850px) {
+        .flhow__step,
+        .flhow__step:nth-child(even) {
+            grid-template-columns: minmax(0, 1fr);
+            grid-template-areas: "copy" "visual";
+            gap: var(--bb-space-4);
+        }
+    }
 
     .fllist__list {
         --fact-value-h: calc(2 * 1lh);
