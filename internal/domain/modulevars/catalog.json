@@ -807,7 +807,8 @@
         "name": "opened",
         "fields": [
           "mins",
-          "secs"
+          "secs",
+          "amount"
         ],
         "message_key": "openedMessage"
       },

@@ -4,10 +4,12 @@
 package modules
 
 import (
+	"context"
 	"errors"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/internal/analytics/analyticstest"
 	"ItsBagelBot/pkg/bus"
 	"github.com/stretchr/testify/require"
@@ -104,7 +106,7 @@ func TestRaffleCancelCountsOnlyAnOpenRound(t *testing.T) {
 	for _, open := range []bool{true, false} {
 		t.Run(map[bool]string{true: "open", false: "closed"}[open], func(t *testing.T) {
 			capture := analyticstest.New(t)
-			d := raffleDeps(&fakeRaffle{open: open})
+			d := engine.Deps{Draw: cancelRaffleDraw{cancelled: open}}
 			d.Analytics = capture.Recorder
 			c := chatCtx("42", "mod", "moderator")
 			runChat(t, Raffle(d), c, "!cancelraffle")
@@ -115,4 +117,13 @@ func TestRaffleCancelCountsOnlyAnOpenRound(t *testing.T) {
 			require.Equal(t, want, capture.Counters())
 		})
 	}
+}
+
+type cancelRaffleDraw struct {
+	engine.DrawStore
+	cancelled bool
+}
+
+func (s cancelRaffleDraw) Cancel(context.Context, draw.ModAction) (bool, error) {
+	return s.cancelled, nil
 }

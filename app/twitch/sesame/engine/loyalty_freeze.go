@@ -29,6 +29,14 @@ func LoyaltyFreezeRefusal(err error, reason string) bool {
 	return errors.As(err, &reply) && reply.Code == rpc.CodeConflict && reply.Message == reason
 }
 
+func (l *LoyaltyRPC) FreezeGet(ctx context.Context, channel uint64) (loyaltyrpc.FreezeView, error) {
+	reply, err := l.call(ctx, loyaltyrpc.VerbFreezeGet, loyaltyrpc.Request{UserID: fmtID(channel)})
+	if err != nil || !reply.Found || reply.Freeze == nil {
+		return loyaltyrpc.FreezeView{}, err
+	}
+	return *reply.Freeze, nil
+}
+
 func (l *LoyaltyRPC) FreezeSet(ctx context.Context, command FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {
 	return l.freeze(ctx, loyaltyrpc.VerbFreezeSet, command)
 }
@@ -53,6 +61,10 @@ func (l *LoyaltyRPC) freeze(ctx context.Context, verb loyaltyVerb, command Freez
 
 func (s *ValkeyLoyaltyStore) FreezeSet(ctx context.Context, command FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {
 	return s.freeze(ctx, loyaltyrpc.VerbFreezeSet, command)
+}
+
+func (s *ValkeyLoyaltyStore) FreezeGet(ctx context.Context, channel uint64) (loyaltyrpc.FreezeView, error) {
+	return s.rpc.FreezeGet(ctx, channel)
 }
 
 func (s *ValkeyLoyaltyStore) FreezeRelease(ctx context.Context, command FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {

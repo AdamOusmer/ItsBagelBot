@@ -6,7 +6,7 @@
   "claim.ok": "@{raffle:user} ваш приз подтверждён. Приятного пользования!",
   "claim.prize_default": "ваш приз",
   "draw.empty": "В розыгрыше никто не участвовал. Выбирать некого.",
-  "err.usage": "Использование: !raffle [сумма] [секунды], !mraffle [сумма] [секунды], !raffle draw|cancel|status. В сумме можно писать k и m (5k). Зрители участвуют командой !join",
+  "err.usage": "Использование: !raffle [сумма] [секунды], !mraffle [сумма] [секунды] [winners|auto], !raffle draw [winners|auto], !raffle cancel|status. В сумме можно писать k и m (5k). Зрители участвуют командой !join",
   "join.already": "@{raffle:user} вы уже участвуете (участников: {raffle:count}).",
   "join.closed": "@{raffle:user} сейчас розыгрыш не идёт.",
   "join.queue_hint": "Очередь: !queue join",
@@ -16,8 +16,8 @@
   "last.empty": "Последний розыгрыш завершился без заявок.",
   "last.none": "Здесь ещё не выбирали победителей розыгрыша.",
   "open.already": "Розыгрыш уже идёт! Введите !join, чтобы участвовать.",
-  "opened": "Розыгрыш НАЧАЛСЯ! Введите !join, чтобы участвовать. Выбор через {raffle:mins} мин!",
-  "opened.secs": "Розыгрыш НАЧАЛСЯ! Введите !join, чтобы участвовать. Выбор через {raffle:secs} сек!",
+  "opened": "Розыгрыш НАЧАЛСЯ! Введите !join, чтобы участвовать. Выбор через {raffle:mins} мин! Приз: {raffle:amount} баллов.",
+  "opened.secs": "Розыгрыш НАЧАЛСЯ! Введите !join, чтобы участвовать. Выбор через {raffle:secs} сек! Приз: {raffle:amount} баллов.",
   "payout.failed": "Часть выигрыша ({raffle:points}) не удалось выплатить. Модератор может начислить её командой !points add.",
   "remind": "Напоминаем о розыгрыше: осталось ~{raffle:mins} мин! Участников: {raffle:count}. Введите !join!",
   "remind.claim": "Напоминаем о розыгрыше: осталось ~{raffle:mins} мин! Участников: {raffle:count}. Введите !join! Для получения приза нужно ввести !claim.",
@@ -27,5 +27,9 @@
   "won": "{raffle:targets}, поздравляем с победой в розыгрыше! Введите !claim в течение {raffle:claim} мин, чтобы получить {raffle:prize}.",
   "won.plain": "{raffle:targets}, поздравляем с победой в розыгрыше!",
   "won.points": "{raffle:targets}, поздравляем с победой в розыгрыше! {raffle:amount} {raffle:points} уже на балансе.",
-  "won.points.claim": "{raffle:targets}, поздравляем с победой в розыгрыше! {raffle:amount} {raffle:points} уже на балансе. Введите !claim в течение {raffle:claim} мин, чтобы получить {raffle:prize}."
+  "won.points.claim": "{raffle:targets}, поздравляем с победой в розыгрыше! {raffle:amount} {raffle:points} уже на балансе. Введите !claim в течение {raffle:claim} мин, чтобы получить {raffle:prize}.",
+  "open.frozen": "Розыгрыши приостановлены, пока рейтинг заморожен.",
+  "open.loyalty_off": "Включите программу лояльности, чтобы разыграть баллы.",
+  "verifying": "Выбираем победителей. Одну минуту.",
+  "won.paid": "{raffle:targets} получают по {raffle:amount} {raffle:points}!"
 }

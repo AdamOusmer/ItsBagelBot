@@ -58,6 +58,10 @@ func (l *LoyaltyRPC) BalanceSnapshot(ctx context.Context, broadcasterID, viewerI
 	return requestLoyalty[loyaltyrpc.BalanceSnapshot](ctx, l, loyaltyrpc.VerbBalanceSnapshot, loyaltyrpc.Request{UserID: fmtID(broadcasterID), ViewerID: fmtID(viewerID)})
 }
 
+func (l *LoyaltyRPC) BalanceCountAtLeast(ctx context.Context, req loyaltyrpc.BalanceCountRequest) (loyaltyrpc.Reply, error) {
+	return requestLoyalty[loyaltyrpc.Reply](ctx, l, loyaltyrpc.VerbBalanceCountAtLeast, req)
+}
+
 func (l *LoyaltyRPC) WatchStatus(ctx context.Context) (loyaltyrpc.WatchStatus, error) {
 	return requestLoyalty[loyaltyrpc.WatchStatus](ctx, l, loyaltyrpc.VerbWatchStatus, struct{}{})
 }

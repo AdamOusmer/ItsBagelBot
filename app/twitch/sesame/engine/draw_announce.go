@@ -11,58 +11,56 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/domain/i18n"
 
 	"go.uber.org/zap"
 )
 
 type drawAnnouncer struct {
-	cfg AnnouncementConfig
-	log *zap.Logger
+	cfg       AnnouncementConfig
+	log       *zap.Logger
+	analytics *analytics.Recorder
 }
 
-func NewDrawAnnouncer(cfg AnnouncementConfig, log *zap.Logger) draw.Announcer {
-	return drawAnnouncer{cfg: cfg, log: log}
+func NewDrawAnnouncer(cfg AnnouncementConfig, log *zap.Logger, rec *analytics.Recorder) draw.Announcer {
+	return drawAnnouncer{cfg: cfg, log: log, analytics: rec}
 }
 
-type noticeRenderer func(context.Context, AnnouncementConfig, string, draw.Notice) string
+type noticeRenderer func(context.Context, AnnouncementConfig, string, draw.Notice) []string
 
 var noticeRenderers = map[draw.Kind]noticeRenderer{}
 
 func (a drawAnnouncer) Announce(ctx context.Context, notice draw.Notice) {
+	if notice.Round.Terms.Kind == draw.KindRaffle {
+		a.recordRaffleNotice(ctx, notice)
+	}
+	if notice.Event == draw.NoticeDrawn {
+		return
+	}
 	channel := uint64(notice.Round.Channel)
 	user, _ := a.cfg.Proj.User(ctx, channel)
 	render := noticeRenderers[notice.Round.Terms.Kind]
 	if render == nil {
 		render = fallbackDrawNotice
 	}
-	a.cfg.Post(ctx, channel, render(ctx, a.cfg, user.Locale, notice), a.log)
+	for _, line := range render(ctx, a.cfg, user.Locale, notice) {
+		a.cfg.Post(ctx, channel, line, a.log)
+	}
 }
 
-func fallbackDrawNotice(ctx context.Context, cfg AnnouncementConfig, locale string, notice draw.Notice) string {
+func fallbackDrawNotice(_ context.Context, _ AnnouncementConfig, locale string, notice draw.Notice) []string {
 	if notice.Event == draw.NoticeRemind {
-		return drawReminder(ctx, cfg, locale, notice)
+		return []string{drawReminder(locale, notice)}
 	}
-	return module.KV("targets", DrawTargets(notice.Slots), "points", drawPoints(notice.Round)).WithNamespace("draw").
-		ExpandString(i18n.T(locale, drawNoticeKey(notice)))
+	return []string{module.KV("targets", DrawTargets(notice.Slots), "points", drawPoints(notice.Round)).WithNamespace("draw").
+		ExpandString(i18n.T(locale, drawNoticeKey(notice)))}
 }
 
-func drawReminder(ctx context.Context, cfg AnnouncementConfig, locale string, notice draw.Notice) string {
-	if notice.Round.Terms.Kind == draw.KindRaffle {
-		return raffleDrawReminder(ctx, cfg, locale, notice)
-	}
+func drawReminder(locale string, notice draw.Notice) string {
 	minutes := (notice.TimeLeft + time.Minute - 1) / time.Minute
 	return module.KV("mins", strconv.FormatInt(int64(minutes), 10), "count", strconv.Itoa(notice.Entries)).
 		WithNamespace("draw").ExpandString(i18n.T(locale, "draw.remind"))
-}
-
-func raffleDrawReminder(ctx context.Context, cfg AnnouncementConfig, locale string, notice draw.Notice) string {
-	if !ReadRaffleConfig(ctx, cfg.Proj, uint64(notice.Round.Channel)).RemindOn() {
-		return ""
-	}
-	a := RaffleAnnouncement{Locale: locale}
-	left := (notice.TimeLeft + time.Second - 1) / time.Second
-	return a.RemindText(int64(left), int64(notice.Entries))
 }
 
 func DrawTargets(slots []draw.Slot) string {

@@ -10,30 +10,44 @@ import {
   freezeStandings,
   readFreeze,
   readLoyalty,
+  raffleStatus,
   resetPoints,
   topStandings,
   unfreezeStandings,
   writeLoyalty
 } from '#lib/server/loyalty-store';
-import { listModules } from '#lib/server/commands-store';
-import { setModuleEnabled } from '#lib/server/module-blob';
+import { listModules, listModulesForEditing, type ModuleView } from '#lib/server/commands-store';
 import { disableChildren, isChildOf } from '#lib/server/module-parent';
 import { moduleLoad } from '#lib/server/module-page';
 import { storeMutator } from '#lib/server/reward-action';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
-import { fail } from '@sveltejs/kit';
+import { fail, type Cookies } from '@sveltejs/kit';
+
+import { gateModulePage, moduleWriteDenial } from '#lib/server/module-gate';
+import { moduleEditState } from '#lib/server/module-edit-state';
+import { patchModuleSettings } from '#lib/server/module-patch';
+import { notSignedIn } from '#lib/server/action-context';
+import { baseCookie } from '#lib/server/cookies';
 
 const DEMO = dev && env.DEMO === '1';
 
-function gameFlags(rows: { name: string; is_enabled: boolean }[]) {
-  return catalogChildren('loyalty').map((def) => ({
-    id: def.id,
-    enabled: rows.find((r) => r.name === def.id)?.is_enabled ?? false
-  }));
+const FRESH_GAME_COOKIE = 'bagel_loyalty_game_fresh';
+
+function gameSettings(rows: ModuleView[]) {
+  return catalogChildren('loyalty').map((def) => {
+    const row = rows.find((r) => r.name === def.id);
+    return { id: def.id, enabled: row?.is_enabled ?? def.defaultEnabled, ...moduleEditState(row) };
+  });
 }
 
-export const load: PageServerLoad = ({ locals }) =>
+function gameRows(uid: string, cookies: Cookies, url: URL) {
+  if (!cookies.get(FRESH_GAME_COOKIE)) return listModules(uid);
+  cookies.delete(FRESH_GAME_COOKIE, baseCookie(url, '/loyalty'));
+  return listModulesForEditing(uid);
+}
+
+export const load: PageServerLoad = ({ locals, cookies, url }) =>
   moduleLoad('loyalty', locals.session, {
     demo: DEMO
       ? async () => ({
@@ -42,17 +56,19 @@ export const load: PageServerLoad = ({ locals }) =>
           top: (await import('#lib/server/demo-data')).demoStandings(),
           topFreeze: null,
           freeze: null,
-          games: gameFlags([])
+          raffle: null,
+          games: gameSettings([])
         })
       : undefined,
     read: async (uid) => {
       const view = await readLoyalty(uid);
-      const [top, freeze, modules] = await Promise.all([
+      const [top, freeze, modules, raffle] = await Promise.all([
         topStandings(uid).catch(() => null),
         readFreeze(uid).catch(() => null),
-        listModules(uid).catch(() => [])
+        gameRows(uid, cookies, url).catch(() => []),
+        raffleStatus(uid).catch(() => null)
       ]);
-      return { ...view, top: top?.rows ?? [], topFreeze: top?.freeze ?? null, freeze, games: gameFlags(modules) };
+      return { ...view, top: top?.rows ?? [], topFreeze: top?.freeze ?? null, freeze, raffle, games: gameSettings(modules) };
     },
     blank: () => ({
       enabled: false,
@@ -60,7 +76,8 @@ export const load: PageServerLoad = ({ locals }) =>
       top: [] as LoyaltyStanding[],
       topFreeze: null,
       freeze: null,
-      games: gameFlags([])
+      raffle: null,
+      games: gameSettings([])
     })
   });
 
@@ -171,13 +188,18 @@ export const actions: Actions = {
     }
   }),
 
-  toggleGame: mutate('toggleGame', 'Unknown game.', async (uid, f) => {
-    const name = String(f.get('name') ?? '');
-    const enabled = f.get('is_enabled') === 'on';
-    if (!isChildOf(moduleDef(name), 'loyalty')) return null;
-    const loy = await readLoyalty(uid);
-    if (enabled && !loy.enabled) return fail(400, { ok: false, error: 'loyalty-off' });
-    await setModuleEnabled(uid, name, enabled);
-    return `${name}=${enabled}`;
-  })
+  gameSettings: async ({ request, locals, cookies, url }) => {
+    gateModulePage(locals.session, 'loyalty');
+    if (!DEMO && !locals.session) return notSignedIn(locals.locale);
+
+    const form = await request.formData();
+    const def = moduleDef(String(form.get('name') ?? ''));
+    if (!def || !isChildOf(def, 'loyalty')) return fail(400, { ok: false });
+    const denied = await moduleWriteDenial(locals, def);
+    if (denied) return denied;
+
+    const { result, freshRead } = await patchModuleSettings(def, form, locals, DEMO);
+    if (freshRead) cookies.set(FRESH_GAME_COOKIE, '1', { ...baseCookie(url, '/loyalty'), maxAge: 30 });
+    return result;
+  }
 };

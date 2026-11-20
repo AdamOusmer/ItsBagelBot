@@ -52,6 +52,7 @@ type Terms struct {
 	ClaimWindow   time.Duration
 	RerollNoShows bool
 	RemindEnabled bool             `json:",omitempty"`
+	MultiRaffle   bool             `json:",omitempty"`
 	Rules         codec.RawMessage `json:",omitempty"`
 	ClosesAt      time.Time
 }

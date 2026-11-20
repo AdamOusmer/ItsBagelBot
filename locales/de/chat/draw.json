@@ -15,5 +15,6 @@
   "verifying": "Die Gewinner werden überprüft. Das Ergebnis folgt.",
   "winners": "Gewonnen hat: {draw:targets}!",
   "winners.claim": "Gewonnen hat: {draw:targets}! Hol dir deinen Preis mit !claim.",
-  "winners.raffle": "Je {draw:points} Punkte gehen an {draw:targets}!"
+  "winners.raffle": "Je {draw:points} Punkte gehen an {draw:targets}!",
+  "open.busy_giveaway": "Ein Gewinnspiel ist bereits offen. Ziehe zuerst die Gewinner oder brich es ab."
 }

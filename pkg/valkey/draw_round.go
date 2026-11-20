@@ -295,40 +295,45 @@ func (k RoundKeys) read(ctx context.Context, client valkey_go.Client, withPool b
 		b.Hgetall().Key(k.Round).Build(), b.Hgetall().Key(k.Slots).Build(), b.Hlen().Key(k.Refused).Build(),
 	}
 	if withPool {
-		commands = append(commands, b.Hgetall().Key(k.Labels).Build(),
-			b.Zrange().Key(k.Entries).Min("0").Max("-1").Withscores().Build())
+		commands = append(commands, b.Zrange().Key(k.Entries).Min("0").Max("-1").Withscores().Build(),
+			b.Hgetall().Key(k.Labels).Build())
 	} else {
 		commands = append(commands, b.Zcard().Key(k.Entries).Build())
 	}
 	results := client.DoMulti(ctx, commands...)
 	var read RoundRead
-	for i, dst := range []*map[string]string{&read.Round, &read.Slots} {
-		fields, err := results[i].AsStrMap()
-		if err != nil {
-			return RoundRead{}, err
-		}
-		*dst = fields
-	}
-	read.Found = len(read.Round) != 0
-	var err error
-	read.Refused, err = results[2].AsInt64()
-	if err != nil {
+	if err := read.decodeOverview(results); err != nil {
 		return RoundRead{}, err
 	}
 	if withPool {
-		err = read.decodePool(results[3:])
-	} else {
-		read.EntryCount, err = results[3].AsInt64()
+		err := read.decodePool(results[3:])
+		return read, err
 	}
+	var err error
+	read.EntryCount, err = results[3].AsInt64()
 	return read, err
 }
 
+func (r *RoundRead) decodeOverview(results []valkey_go.ValkeyResult) error {
+	for i, dst := range []*map[string]string{&r.Round, &r.Slots} {
+		fields, err := results[i].AsStrMap()
+		if err != nil {
+			return err
+		}
+		*dst = fields
+	}
+	r.Found = len(r.Round) != 0
+	var err error
+	r.Refused, err = results[2].AsInt64()
+	return err
+}
+
 func (r *RoundRead) decodePool(results []valkey_go.ValkeyResult) error {
-	labels, err := results[0].AsStrMap()
+	scores, err := results[0].AsZScores()
 	if err != nil {
 		return err
 	}
-	scores, err := results[1].AsZScores()
+	labels, err := results[1].AsStrMap()
 	if err != nil {
 		return err
 	}

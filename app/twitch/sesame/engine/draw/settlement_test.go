@@ -114,6 +114,7 @@ func (tc stuckCase) run(t *testing.T) {
 	tc.resolve(f, r)
 	if tc.kind == draw.KindRaffle && tc.action == "timeout" {
 		waitRemoved(t, f.client, drawKeys(r))
+		require.Equal(t, draw.NoticeDrawn, take(t, ann).Event)
 		require.Empty(t, ann)
 		return
 	}

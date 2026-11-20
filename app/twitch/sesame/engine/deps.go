@@ -231,6 +231,7 @@ type WagerOutcome struct {
 }
 
 type LoyaltyFreeze interface {
+	FreezeGet(context.Context, uint64) (loyaltyrpc.FreezeView, error)
 	FreezeSet(context.Context, FreezeCommand) (loyaltyrpc.FreezeView, bool, error)
 	FreezeRelease(context.Context, FreezeCommand) (loyaltyrpc.FreezeView, bool, error)
 }

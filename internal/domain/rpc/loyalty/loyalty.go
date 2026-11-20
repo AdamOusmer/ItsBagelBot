@@ -11,12 +11,13 @@ import (
 const InvalidateScope = invalidate.ScopeLoyalty
 
 const (
-	VerbBalanceCredit   = "balance.credit"
-	VerbBalanceSnapshot = "balance.snapshot"
-	VerbWatchStatus     = "watch.status"
-	VerbFreezeSet       = "freeze.set"
-	VerbFreezeRelease   = "freeze.release"
-	VerbFreezeGet       = "freeze.get"
+	VerbBalanceCredit       = "balance.credit"
+	VerbBalanceSnapshot     = "balance.snapshot"
+	VerbBalanceCountAtLeast = "balance.count_at_least"
+	VerbWatchStatus         = "watch.status"
+	VerbFreezeSet           = "freeze.set"
+	VerbFreezeRelease       = "freeze.release"
+	VerbFreezeGet           = "freeze.get"
 
 	FreezeModHolder        = "mod"
 	FreezeRoundPrefix      = "round:"
@@ -50,6 +51,12 @@ type Request struct {
 	BlockTransfer    bool   `json:"block_transfer,omitempty"`
 	CloseGames       bool   `json:"close_games,omitempty"`
 	Live             bool   `json:"live,omitempty"`
+}
+
+type BalanceCountRequest struct {
+	UserID          string `json:"user_id"`
+	MinPoints       int64  `json:"min_points"`
+	MinWatchSeconds uint64 `json:"min_watch_seconds"`
 }
 
 type Balance struct {

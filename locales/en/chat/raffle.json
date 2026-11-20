@@ -6,7 +6,7 @@
   "claim.ok": "@{raffle:user} your prize is confirmed. Enjoy!",
   "claim.prize_default": "your prize",
   "draw.empty": "No one entered the raffle. Nobody to draw.",
-  "err.usage": "Usage: !raffle [amount] [seconds], !mraffle [amount] [seconds], !raffle draw|cancel|status. Amounts take k and m (5k). Viewers enter with !join",
+  "err.usage": "Usage: !raffle [amount] [seconds], !mraffle [amount] [seconds] [winners|auto], !raffle draw [winners|auto], !raffle cancel|status. Amounts take k and m (5k). Viewers enter with !join",
   "join.already": "@{raffle:user} you are already in this raffle ({raffle:count} entered).",
   "join.closed": "@{raffle:user} no raffle is running right now.",
   "join.queue_hint": "Queue: !queue join",
@@ -16,8 +16,8 @@
   "last.empty": "The last raffle closed with no entries.",
   "last.none": "No raffle has been drawn here yet.",
   "open.already": "A raffle is already running! Type !join to enter it.",
-  "opened": "Raffle is LIVE! Type !join to enter. Drawing in {raffle:mins} min!",
-  "opened.secs": "Raffle is LIVE! Type !join to enter. Drawing in {raffle:secs} sec!",
+  "opened": "Raffle is LIVE! Type !join to enter. Drawing in {raffle:mins} min! Prize: {raffle:amount} points.",
+  "opened.secs": "Raffle is LIVE! Type !join to enter. Drawing in {raffle:secs} sec! Prize: {raffle:amount} points.",
   "payout.failed": "Some raffle {raffle:points} could not be paid. A mod can add them with !points add.",
   "remind": "Raffle reminder: ~{raffle:mins} min left! {raffle:count} entered so far. Type !join!",
   "remind.claim": "Raffle reminder: ~{raffle:mins} min left! {raffle:count} entered so far. Type !join! Winners must !claim.",
@@ -27,5 +27,9 @@
   "won": "Congrats {raffle:targets}, you won the raffle! Type !claim within {raffle:claim} min to get {raffle:prize}.",
   "won.plain": "Congrats {raffle:targets}, you won the raffle!",
   "won.points": "Congrats {raffle:targets}, you won the raffle! {raffle:amount} {raffle:points} just landed in your balance.",
-  "won.points.claim": "Congrats {raffle:targets}, you won the raffle! {raffle:amount} {raffle:points} just landed in your balance. Type !claim within {raffle:claim} min to get {raffle:prize}."
+  "won.points.claim": "Congrats {raffle:targets}, you won the raffle! {raffle:amount} {raffle:points} just landed in your balance. Type !claim within {raffle:claim} min to get {raffle:prize}.",
+  "open.frozen": "Raffles are paused while standings are frozen.",
+  "open.loyalty_off": "Loyalty must be on to start a points raffle.",
+  "verifying": "Drawing winners. One moment.",
+  "won.paid": "{raffle:targets} each won {raffle:amount} {raffle:points}!"
 }

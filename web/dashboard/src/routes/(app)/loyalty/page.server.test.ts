@@ -29,13 +29,14 @@ mock.module('@bagel/kit/server/nats', () => ({
   ...nats,
   rpc: async (subject: string, payload: unknown, timeoutMs: number) => {
     calls.push({ subject, payload, timeoutMs });
-    const reply = replies[subject.slice(SUB.loyalty.length + 1)];
+    const reply = replies[subject] ?? replies[subject.slice(SUB.loyalty.length + 1)];
     if (reply instanceof Error) throw reply;
     return reply;
   }
 }));
 
 const { actions, load } = await import('./+page.server');
+const { GET } = await import('./status/+server');
 const ok = { ok: true };
 const invalid = { status: 400, data: { ok: false } };
 const conflict = (reason: string) => ({ status: 409, data: { ok: false, reason } });
@@ -89,11 +90,49 @@ test.each([
   }
 ])('load handles $name independently of the top standings', async ({ reply, expected }) => {
   replies = { 'freeze.get': reply, 'top.get': { ...stamp } };
-  const page = await load({ locals } as never);
+  const page = await load({ locals, cookies: { get: () => undefined } } as never);
   expect(page).toMatchObject({
     enabled: true,
     config: { pointsName: 'bagels' },
     freeze: expected,
     topFreeze: freezeStamp
+  });
+});
+
+test.each([
+  { name: 'owner', session: locals.session, userId: user, status: 200 },
+  { name: 'delegate', session: { user_id: '8', delegate_of: user, sections: ['modules'] }, userId: user, status: 200 },
+  { name: 'signed out', session: null, userId: null, status: 401 }
+])('raffle status scopes the request for $name', async ({ session, userId, status }) => {
+  const subject = 'rpc.draw.raffle.status';
+  const view = { accrual_health: 'healthy', unpaid: ['unpaid'] };
+  replies = { [subject]: view };
+  calls.length = 0;
+  const res = await GET({ locals: { ...locals, session } } as never);
+  expect({ code: res.status, view: await res.json(), calls }).toEqual({
+    code: status,
+    view: userId ? view : null,
+    calls: userId ? [{ subject, payload: { user_id: userId, source: 'dashboard' }, timeoutMs: 4000 }] : []
+  });
+});
+
+test('gameSettings sends the child revision and only accepts its current settings', async () => {
+  const subject = `${SUB.modules}.patch`;
+  const projector = `${SUB.projector}.modules.replace`;
+  const row = { name: 'raffle', is_enabled: true, revision: 5, configs: { prizePoints: '3000' } };
+  replies = { [subject]: { rev: 5, modules: [row] }, [projector]: { modules: [row] } };
+  calls.length = 0;
+  const url = new URL('https://dashboard.test/loyalty?/gameSettings');
+  const request = new Request(url, {
+    method: 'POST',
+    body: new URLSearchParams({
+      name: 'raffle', is_enabled: 'on', expected_rev: '4',
+      partial: JSON.stringify({ prizePoints: '3000', claimPrize: 'legacy' })
+    })
+  });
+  const result = await actions.gameSettings({ request, locals, url } as never);
+  expect({ result, rpc: calls.find((call) => call.subject === subject)?.payload }).toEqual({
+    result: { ok: true, conflict: false, rev: 5 },
+    rpc: { user_id: user, name: 'raffle', is_enabled: true, expected_rev: 4, configs: { prizePoints: '3000' } }
   });
 });

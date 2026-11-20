@@ -113,7 +113,14 @@ func (d drawOwner) joinRound(ctx context.Context, c *module.Context, r draw.Roun
 	}
 	joined, err := d.deps.Draw.Join(ctx, draw.JoinRequest{Channel: draw.ChannelID(c.BroadcasterID),
 		Round: r.ID, Viewer: viewer, Login: strings.ToLower(c.Env.ChatterUserLogin), Weight: draw.Pins.EntryWeight})
-	if err == nil && !joined.Open {
+	if err != nil {
+		return err
+	}
+	if r.Terms.Kind == draw.KindRaffle {
+		d.replyRaffleJoin(ctx, c, emit, joined)
+		return nil
+	}
+	if !joined.Open {
 		newChatReplier(c).reply(emit, "", "draw.join.closed")
 	}
 	return err

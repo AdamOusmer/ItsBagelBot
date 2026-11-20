@@ -15,13 +15,12 @@ import (
 type settler struct {
 	defaultWinners int
 	validate       func(Terms) error
-	announceOn     SlotState
 	afterWin       slotStep
 }
 
 var settlers = map[Kind]settler{
-	KindGiveaway: {Pins.GiveawayDefaultWinners, validateGiveaway, SlotWon, expireWin},
-	KindRaffle:   {Pins.RaffleDefaultWinners, validateRaffle, SlotPaid, payWin},
+	KindGiveaway: {Pins.GiveawayDefaultWinners, validateGiveaway, expireWin},
+	KindRaffle:   {Pins.RaffleDefaultWinners, validateRaffle, payWin},
 }
 
 func validateGiveaway(t Terms) error {
@@ -74,8 +73,8 @@ func seedSlots(ctx context.Context, s *Store, data snapshot, now time.Time) erro
 		return err
 	}
 	ok, err := keysFor(r.Channel, r.ID).Shift(ctx, s.client, shift)
-	if ok && count == 0 {
-		s.cfg.Announcer.Announce(ctx, Notice{Event: NoticeEmpty, Round: r})
+	if ok {
+		s.announceDraw(ctx, r, count)
 	}
 	return err
 }
@@ -89,6 +88,15 @@ func roundWinners(terms Terms, policy WinnerPolicy, count int) int {
 		return min(count, winners)
 	}
 	return winners
+}
+
+func (s *Store) announceDraw(ctx context.Context, r Round, count int) {
+	switch {
+	case count == 0:
+		s.cfg.Announcer.Announce(ctx, Notice{Event: NoticeEmpty, Round: r})
+	case r.Terms.Kind == KindRaffle:
+		s.cfg.Announcer.Announce(ctx, Notice{Event: NoticeDrawn, Round: r, Entries: count})
+	}
 }
 
 func decodeOverride(data snapshot, p *WinnerPolicy) error {
@@ -208,8 +216,25 @@ func (s *Store) finish(ctx context.Context, data snapshot, now time.Time) error 
 			return err
 		}
 	}
-	_, err := keysFor(r.Channel, r.ID).Shift(ctx, s.client, phaseShift(r, PhaseDone, now))
+	ok, err := keysFor(r.Channel, r.ID).Shift(ctx, s.client, phaseShift(r, PhaseDone, now))
+	if ok && r.Terms.Kind == KindRaffle {
+		s.announcePaidRaffle(ctx, data)
+	}
 	return err
+}
+
+func (s *Store) announcePaidRaffle(ctx context.Context, data snapshot) {
+	var paid []Slot
+	for _, slot := range data.slots {
+		if slot.State == SlotPaid {
+			paid = append(paid, slot)
+		}
+	}
+	if len(paid) > 0 {
+		s.cfg.Announcer.Announce(ctx, Notice{
+			Event: NoticeWinners, Round: data.round, Slots: paid, Entries: len(data.stored.Entries),
+		})
+	}
 }
 
 func teardownRound(ctx context.Context, s *Store, data snapshot, _ time.Time) error {

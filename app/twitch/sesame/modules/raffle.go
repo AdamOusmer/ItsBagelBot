@@ -10,272 +10,249 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
-
-	"go.uber.org/zap"
 )
 
-const raffleModuleName = "raffle"
+const raffleModuleName = engine.RaffleModuleName
 
 func Raffle(d engine.Deps) module.Module {
-	log := d.Log
-	if log == nil {
-		log = zap.NewNop()
-	}
-
 	m := module.NewModule(raffleModuleName, module.KindOptIn)
-	m.Command("raffle").Everyone().Run(raffleDispatch(d, log))
-	m.Command("sraffle").Aliases("singleraffle").Everyone().Run(raffleModOnly(d, log, raffleCmd.startSingle))
-	m.Command("mraffle").Aliases("multiraffle").Everyone().Run(raffleModOnly(d, log, raffleCmd.startMulti))
-	m.Command("cancelraffle").Everyone().Run(raffleModOnly(d, log, raffleCmd.cancel))
+	m.Command("raffle").Everyone().Run(raffleHandler(d, raffleCommands.dispatch))
+	m.Command("sraffle").Aliases("singleraffle").Everyone().Run(raffleHandler(d, raffleCommands.single))
+	m.Command("mraffle").Aliases("multiraffle").Everyone().Run(raffleHandler(d, raffleCommands.multi))
+	m.Command("cancelraffle").Everyone().Run(raffleHandler(d, raffleCommands.cancel))
 	return m.Build()
 }
 
-type raffleCmd struct {
-	analytics *analytics.Recorder
+type raffleCommands struct {
 	chatReplier
-	r       engine.RaffleStore
-	q       engine.QueueStore
-	cfg     engine.RaffleModuleConfig
-	loyalty func(context.Context) (points string, on bool)
-	log     *zap.Logger
+	deps engine.Deps
+	cfg  engine.RaffleModuleConfig
 }
 
-func newRaffleCmd(d engine.Deps, c *module.Context, log *zap.Logger) (rc raffleCmd, ok bool) {
-	if d.Raffle == nil {
-		return raffleCmd{}, false
-	}
-	rc = raffleCmd{chatReplier: newChatReplier(c), r: d.Raffle, q: d.Queue, log: log, analytics: d.Analytics,
-		loyalty: func(ctx context.Context) (string, bool) { return loyaltyVoice(ctx, d, c, "") }}
-	_ = c.Decode(&rc.cfg)
-	return rc, true
-}
+type raffleRunner func(raffleCommands, context.Context, string, module.Emit) error
 
-func (rc raffleCmd) entrant() engine.RaffleEntrant {
-	return engine.RaffleEntrant{ID: rc.c.Env.ChatterUserID, Login: strings.ToLower(rc.c.Env.ChatterUserLogin)}
-}
-
-type raffleRunner func(rc raffleCmd, ctx context.Context, args string, emit module.Emit) error
-
-func raffleModOnly(d engine.Deps, log *zap.Logger, fn raffleRunner) module.RunFunc {
+func raffleHandler(d engine.Deps, run raffleRunner) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		if !c.Chatter().Allows(module.RoleModerator) {
+		if d.Draw == nil {
 			return nil
 		}
-		rc, ok := newRaffleCmd(d, c, log)
-		if !ok {
-			return nil
-		}
-		return fn(rc, ctx, args, emit)
+		rc := raffleCommands{chatReplier: newChatReplier(c), deps: d}
+		_ = c.Decode(&rc.cfg)
+		return run(rc, ctx, args, emit)
 	}
 }
 
-type raffleRoute struct {
-	mod bool
-	run raffleRunner
+var raffleRoutes = map[string]raffleRunner{
+	"status": raffleCommands.status,
+	"draw":   raffleCommands.draw,
+	"close":  raffleCommands.close,
+	"cancel": raffleCommands.cancel,
+	"join":   raffleCommands.join,
 }
 
-var raffleRoutes = map[string]raffleRoute{
-	"status": {run: raffleCmd.status},
-	"draw":   {mod: true, run: raffleCmd.draw},
-	"close": {mod: true, run: func(rc raffleCmd, ctx context.Context, _ string, emit module.Emit) error {
-		return rc.draw(ctx, "", emit)
-	}},
-	"cancel": {mod: true, run: raffleCmd.cancel},
-	"join":   {run: raffleCmd.join},
-}
-
-func raffleDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		rc, ok := newRaffleCmd(d, c, log)
-		if !ok {
-			return nil
-		}
-		sub, rest := splitFirst(args)
-		route, known := raffleRoutes[strings.ToLower(sub)]
-		isMod := c.Chatter().Allows(module.RoleModerator)
-		if !known {
-			return rc.unrouted(ctx, args, isMod, emit)
-		}
-		if route.mod && !isMod {
-			return nil
-		}
-		return route.run(rc, ctx, rest, emit)
+func (rc raffleCommands) dispatch(ctx context.Context, args string, emit module.Emit) error {
+	sub, rest := splitFirst(args)
+	if run := raffleRoutes[strings.ToLower(sub)]; run != nil {
+		return run(rc, ctx, rest, emit)
 	}
-}
-
-func (rc raffleCmd) unrouted(ctx context.Context, args string, isMod bool, emit module.Emit) error {
-	switch {
-	case isMod:
-		return rc.startSingle(ctx, args, emit)
-	case strings.TrimSpace(args) == "":
+	if sub == "" && !rc.isMod() {
 		return rc.status(ctx, "", emit)
 	}
-	return nil
+	return rc.single(ctx, args, emit)
 }
 
-func (rc raffleCmd) status(ctx context.Context, _ string, emit module.Emit) error {
-	st, err := rc.r.Status(ctx, rc.c.BroadcasterID)
-	if err != nil {
-		rc.log.Warn("raffle: status failed", rc.c.BID(), zap.Error(err))
-		return err
+func (rc raffleCommands) isMod() bool { return rc.c.Chatter().Allows(module.RoleModerator) }
+
+func (rc raffleCommands) channel() draw.ChannelID { return draw.ChannelID(rc.c.BroadcasterID) }
+
+func (rc raffleCommands) actor() draw.ViewerID { return draw.ViewerID(rc.c.Env.ChatterUserID) }
+
+func (rc raffleCommands) single(ctx context.Context, args string, emit module.Emit) error {
+	return rc.start(ctx, raffleStartInput{args: args, winners: draw.Pins.RaffleDefaultWinners}, emit)
+}
+
+func (rc raffleCommands) multi(ctx context.Context, args string, emit module.Emit) error {
+	return rc.start(ctx, raffleStartInput{args: args, winners: draw.Pins.MultiRaffleDefaultWinners, multi: true}, emit)
+}
+
+func (rc raffleCommands) start(ctx context.Context, input raffleStartInput, emit module.Emit) error {
+	if !rc.isMod() {
+		return nil
 	}
-	switch {
-	case !st.Open:
-		rc.reply(emit, "", "raffle.status.closed")
-	case st.SecondsLeft < 60:
-		rc.reply(emit, "", "raffle.status.open.secs",
-			"count", strconv.FormatInt(st.Entrants, 10),
-			"secs", strconv.FormatInt(max(st.SecondsLeft, 1), 10))
-	default:
-		rc.reply(emit, "", "raffle.status.open",
-			"count", strconv.FormatInt(st.Entrants, 10),
-			"mins", strconv.FormatInt((st.SecondsLeft+59)/60, 10))
-	}
-	return nil
-}
-
-func (rc raffleCmd) startSingle(ctx context.Context, args string, emit module.Emit) error {
-	return rc.start(ctx, raffleLaunch{args: args}, emit)
-}
-
-func (rc raffleCmd) startMulti(ctx context.Context, args string, emit module.Emit) error {
-	return rc.start(ctx, raffleLaunch{args: args, multi: true}, emit)
-}
-
-type raffleLaunch struct {
-	args  string
-	multi bool
-}
-
-func (rc raffleCmd) start(ctx context.Context, launch raffleLaunch, emit module.Emit) error {
-	req, valid := parseRaffleStart(launch.args, rc.cfg)
+	req, valid := parseRaffleStart(input, rc.cfg)
 	if !valid {
 		rc.reply(emit, "", "raffle.err.usage")
 		return nil
 	}
-	prize := req.prize
-	if _, on := rc.loyalty(ctx); !on {
-		prize = 0
-	}
-
-	opened, err := rc.r.Open(ctx, rc.c.BroadcasterID, engine.RaffleOpenSpec{
-		OpenedBy: strings.ToLower(rc.c.Env.ChatterUserLogin),
-		Duration: req.duration,
-		Prize:    prize,
-		Multi:    launch.multi,
-	})
+	refusal, err := rc.startRefusal(ctx)
 	if err != nil {
-		rc.log.Warn("raffle: open failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
-	switch {
-	case opened && rc.cfg.OpenedOn():
-		rc.replyOpened(emit, req.duration)
-	case opened:
-	default:
+	if refusal != "" {
+		rc.reply(emit, "", refusal)
+		return nil
+	}
+	return rc.open(ctx, req, emit)
+}
+
+func (rc raffleCommands) startRefusal(ctx context.Context) (replyKey, error) {
+	channel := rc.c.BroadcasterID
+	on, err := engine.LoyaltyOn(ctx, rc.deps.Proj, channel)
+	if err != nil {
+		return "", err
+	}
+	if !on {
+		return "raffle.open.loyalty_off", nil
+	}
+	if rc.deps.LoyaltyFreeze == nil {
+		return "", nil
+	}
+	freeze, err := rc.deps.LoyaltyFreeze.FreezeGet(ctx, channel)
+	if err != nil || !freeze.CloseGames {
+		return "", err
+	}
+	return "raffle.open.frozen", nil
+}
+
+func (rc raffleCommands) open(ctx context.Context, req raffleStart, emit module.Emit) error {
+	r, outcome, err := rc.deps.Draw.Open(ctx, draw.OpenRequest{
+		Channel: rc.channel(), Actor: rc.actor(), Duration: req.duration,
+		Terms: engine.RaffleTerms(engine.RaffleLaunch{Points: req.prize, Winners: req.winners, Multi: req.multi}),
+	})
+	if err != nil {
+		return err
+	}
+	switch outcome {
+	case draw.Opened:
+		rc.replyOpened(emit, r, req.duration)
+	case draw.JoinableBusy:
+		return rc.replyBusy(ctx, emit)
+	case draw.LegacyBusy:
 		rc.reply(emit, "", "raffle.open.already")
 	}
 	return nil
 }
 
-func (rc raffleCmd) replyOpened(emit module.Emit, duration time.Duration) {
+func (rc raffleCommands) replyBusy(ctx context.Context, emit module.Emit) error {
+	r, _, err := rc.deps.Draw.Joinable(ctx, rc.channel())
+	if err != nil {
+		return err
+	}
+	key := replyKey("raffle.open.already")
+	if r.Terms.Kind == draw.KindGiveaway {
+		key = "draw.open.busy_giveaway"
+	}
+	rc.reply(emit, "", key)
+	return nil
+}
+
+func (rc raffleCommands) replyOpened(emit module.Emit, r draw.Round, duration time.Duration) {
+	if !rc.cfg.OpenedOn() {
+		return
+	}
 	secs := int64(duration.Seconds())
 	key := replyKey("raffle.opened")
 	if secs%60 != 0 {
 		key = "raffle.opened.secs"
 	}
-	rc.reply(emit, rc.cfg.OpenedMessage, key,
-		"mins", strconv.FormatInt((secs+59)/60, 10), "secs", strconv.FormatInt(secs, 10))
+	rc.reply(emit, rc.cfg.OpenedMessage, key, "mins", strconv.FormatInt((secs+59)/60, 10),
+		"secs", strconv.FormatInt(secs, 10), "amount", strconv.FormatInt(r.Terms.Prize.Points, 10))
 }
 
-func (rc raffleCmd) join(ctx context.Context, _ string, emit module.Emit) error {
-	entrant := rc.entrant()
-	if entrant.ID == "" || entrant.Login == "" {
-		return nil
-	}
-	entry, err := rc.r.Join(ctx, rc.c.BroadcasterID, entrant)
+func (rc raffleCommands) status(ctx context.Context, _ string, emit module.Emit) error {
+	status, err := rc.deps.RaffleStatus(ctx, rc.c.BroadcasterID)
 	if err != nil {
-		rc.log.Warn("raffle: join failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
-	rc.replyJoin(ctx, emit, entry)
+	if status.Open {
+		rc.replyOpenStatus(emit, status)
+		return nil
+	}
+	r, slots, settling, err := rc.deps.Draw.Settling(ctx, rc.channel(), draw.KindRaffle)
+	if err != nil {
+		return err
+	}
+	if settling {
+		replyDrawWinner(rc.c, emit, r, slots)
+		return nil
+	}
+	rc.reply(emit, "", "raffle.status.closed")
 	return nil
 }
 
-func (rc raffleCmd) replyJoin(ctx context.Context, emit module.Emit, entry engine.RaffleEntry) {
-	switch {
-	case !entry.Open:
-		if rc.cfg.NoRaffleOn() {
-			rc.reply(emit, rc.cfg.NoRaffleMessage, "raffle.join.closed")
-		}
-	case rc.entryLineOn(entry):
-		rc.replyEntered(ctx, emit, entry)
+func (rc raffleCommands) replyOpenStatus(emit module.Emit, status engine.RaffleStatus) {
+	secs := status.SecondsLeft
+	key := replyKey("raffle.status.open")
+	if secs < 60 {
+		key = "raffle.status.open.secs"
 	}
+	rc.reply(emit, "", key, "count", strconv.FormatInt(status.Entrants, 10),
+		"secs", strconv.FormatInt(secs, 10), "mins", strconv.FormatInt((secs+59)/60, 10))
 }
 
-func (rc raffleCmd) entryLineOn(entry engine.RaffleEntry) bool {
-	if entry.Joined {
-		return rc.cfg.JoinOn()
+func (rc raffleCommands) draw(ctx context.Context, args string, emit module.Emit) error {
+	if !rc.isMod() {
+		return nil
 	}
-	return rc.cfg.AlreadyOn()
+	p, ok := parseWinners(strings.TrimSpace(args), draw.WinnerPolicy{})
+	if !ok {
+		rc.reply(emit, "", "raffle.err.usage")
+		return nil
+	}
+	var override *draw.WinnerPolicy
+	if p != (draw.WinnerPolicy{}) {
+		override = &p
+	}
+	return rc.closeRound(ctx, override, emit)
 }
 
-func (rc raffleCmd) replyEntered(ctx context.Context, emit module.Emit, entry engine.RaffleEntry) {
-	override, key := rc.cfg.AlreadyMessage, replyKey("raffle.join.already")
-	if entry.Joined {
-		override, key = rc.cfg.JoinMessage, "raffle.joined"
+func (rc raffleCommands) close(ctx context.Context, _ string, emit module.Emit) error {
+	if !rc.isMod() {
+		return nil
 	}
-	line := rc.render(override, key, "count", strconv.FormatInt(entry.Entrants, 10))
-	if override == "" && rc.queueOpen(ctx) {
-		line += " " + rc.render("", "raffle.join.queue_hint")
-	}
-	rc.say(emit, line)
+	return rc.closeRound(ctx, nil, emit)
 }
 
-func (rc raffleCmd) queueOpen(ctx context.Context) bool {
-	if rc.q == nil || !rc.c.ModuleOn(queueModuleName) {
-		return false
+func (rc raffleCommands) closeRound(ctx context.Context, winners *draw.WinnerPolicy, emit module.Emit) error {
+	ok, err := rc.deps.Draw.Close(ctx, draw.CloseRequest{Channel: rc.channel(), Actor: rc.actor(), Winners: winners, Kind: draw.KindRaffle})
+	if err == nil && !ok {
+		rc.reply(emit, "", "raffle.status.closed")
 	}
-	open, err := rc.q.IsOpen(ctx, rc.c.BroadcasterID)
-	return err == nil && open
+	return err
 }
 
-func (rc raffleCmd) draw(ctx context.Context, arg string, emit module.Emit) error {
-	override := int64(0)
-	if n, err := strconv.ParseInt(strings.TrimSpace(arg), 10, 64); err == nil && n > 0 {
-		override = n
+func (rc raffleCommands) cancel(ctx context.Context, _ string, emit module.Emit) error {
+	if !rc.isMod() {
+		return nil
 	}
-	res, err := rc.r.Draw(ctx, rc.c.BroadcasterID, override)
+	ok, err := rc.deps.Draw.Cancel(ctx, draw.ModAction{Channel: rc.channel(), Actor: rc.actor(), Kind: draw.KindRaffle})
 	if err != nil {
-		rc.log.Warn("raffle: draw failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
-	if res == nil {
+	if !ok {
 		rc.reply(emit, "", "raffle.status.closed")
 		return nil
 	}
-	points, _ := rc.loyalty(ctx)
-	announce := engine.RaffleAnnouncement{Locale: rc.c.Locale, Config: rc.cfg, Points: points}
-	for _, line := range announce.ResultLines(res) {
-		rc.say(emit, line)
-	}
+	rc.deps.Analytics.AddContext(ctx, catalog.GamesRounds, 1, "raffle", "cancelled")
+	rc.reply(emit, "", "raffle.cancelled")
 	return nil
 }
 
-func (rc raffleCmd) cancel(ctx context.Context, _ string, emit module.Emit) error {
-	ok, err := rc.r.Cancel(ctx, rc.c.BroadcasterID)
+func (rc raffleCommands) join(ctx context.Context, _ string, emit module.Emit) error {
+	r, open, err := rc.deps.Draw.Joinable(ctx, rc.channel())
 	if err != nil {
-		rc.log.Warn("raffle: cancel failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
-	if ok {
-		rc.analytics.AddContext(ctx, catalog.GamesRounds, 1, "raffle", "cancelled")
-		rc.reply(emit, "", "raffle.cancelled")
-	} else {
-		rc.reply(emit, "", "raffle.status.closed")
+	owner := drawOwner{deps: rc.deps, log: rc.deps.Log}
+	if open && r.Terms.Kind == draw.KindRaffle {
+		return owner.joinRound(ctx, rc.c, r, emit)
 	}
+	if legacy, ok := owner.legacy(ctx, rc.c); ok && !open {
+		return legacy.join(ctx, "", emit)
+	}
+	owner.replyRaffleJoin(ctx, rc.c, emit, draw.JoinOutcome{})
 	return nil
 }

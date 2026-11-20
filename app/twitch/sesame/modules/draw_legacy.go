@@ -14,6 +14,39 @@ import (
 	"go.uber.org/zap"
 )
 
+type raffleCmd struct {
+	chatReplier
+	r   engine.RaffleStore
+	q   engine.QueueStore
+	cfg engine.LegacyRaffleConfig
+	log *zap.Logger
+}
+
+func newRaffleCmd(d engine.Deps, c *module.Context, log *zap.Logger) (rc raffleCmd, ok bool) {
+	if d.Raffle == nil {
+		return raffleCmd{}, false
+	}
+	rc = raffleCmd{chatReplier: newChatReplier(c), r: d.Raffle, q: d.Queue, log: log}
+	return rc, true
+}
+
+func (rc raffleCmd) entrant() engine.RaffleEntrant {
+	return engine.RaffleEntrant{ID: rc.c.Env.ChatterUserID, Login: strings.ToLower(rc.c.Env.ChatterUserLogin)}
+}
+
+func (rc raffleCmd) join(ctx context.Context, _ string, emit module.Emit) error {
+	entrant := rc.entrant()
+	if entrant.ID == "" || entrant.Login == "" {
+		return nil
+	}
+	entry, err := rc.r.Join(ctx, rc.c.BroadcasterID, entrant)
+	if err != nil {
+		return err
+	}
+	rc.raffleJoinReplies().replyJoin(ctx, emit, entry)
+	return nil
+}
+
 func (rc raffleCmd) last(res *engine.RaffleResult, emit module.Emit) {
 	switch {
 	case res == nil:
@@ -69,7 +102,7 @@ func mentionTargets(winners []engine.RaffleWinner) string {
 func (d drawOwner) legacy(ctx context.Context, c *module.Context) (raffleCmd, bool) {
 	rc, ok := newRaffleCmd(d.deps, c, d.log)
 	if ok {
-		rc.cfg = engine.ReadRaffleConfig(ctx, d.deps.Proj, c.BroadcasterID)
+		rc.cfg = engine.ReadLegacyRaffleConfig(ctx, d.deps.Proj, c.BroadcasterID)
 	}
 	return rc, ok
 }

@@ -416,6 +416,8 @@ func TestDrawAccountInstanceFailure(t *testing.T) {
 			f.join(r, "11")
 			f.close(r.Channel)
 			f.start(f.Store)
+			drawn := take(t, ann)
+			require.Equal(t, draw.Notice{Event: draw.NoticeDrawn, Round: drawn.Round, Entries: 1}, drawn)
 			if tc.permanent {
 				waitRemoved(t, f.client, drawKeys(r))
 				require.Empty(t, ann)

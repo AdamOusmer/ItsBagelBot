@@ -59,10 +59,10 @@ describe('public directory module commands', () => {
     expect(queue).toEqual(MODULE_CATALOG.find((def) => def.id === 'queue')!.commands!.map((c) => c.trigger));
   });
 
-  test('lists !claim only while the streamer has it turned on', () => {
+  test('omits !claim for points raffles with legacy claim settings', () => {
     const off = commandsOf([{ name: 'raffle', is_enabled: true }], 'raffle').map((c) => c.label);
     const on = commandsOf([{ name: 'raffle', is_enabled: true, configs: { claimEnabled: 'on' } }], 'raffle').map((c) => c.label);
-    expect({ off: off.includes('!claim'), on: on.includes('!claim') }).toEqual({ off: false, on: true });
+    expect({ off: off.includes('!claim'), on: on.includes('!claim') }).toEqual({ off: false, on: false });
   });
 
   test('raffle !join reads as a command, not a reply line', () => {

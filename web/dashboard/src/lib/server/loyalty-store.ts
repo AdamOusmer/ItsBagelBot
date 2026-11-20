@@ -303,3 +303,12 @@ export async function standingsPage(userId: BroadcasterId, req: StandingsPageReq
   });
   return { rows: (reply.top ?? []).map(toStanding), total: reply.total ?? 0, freeze: freezeStamp(reply) };
 }
+
+export interface RaffleStatus {
+  accrual_health: 'healthy' | 'starting' | 'offline' | 'stalled';
+  unpaid?: string[];
+}
+
+export function raffleStatus(userId: BroadcasterId): Promise<RaffleStatus> {
+  return rpc<RaffleStatus>('rpc.draw.raffle.status', { user_id: userId, source: 'dashboard' }, 4000);
+}

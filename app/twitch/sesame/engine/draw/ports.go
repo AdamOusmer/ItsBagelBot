@@ -57,6 +57,7 @@ type NoticeEvent string
 
 const (
 	NoticeWinners   NoticeEvent = "winners"
+	NoticeDrawn     NoticeEvent = "drawn"
 	NoticeVerifying NoticeEvent = "verifying"
 	NoticeNoShow    NoticeEvent = "no_show"
 	NoticeEmpty     NoticeEvent = "empty"

@@ -234,12 +234,12 @@ func watchExpiry[T interface{ StartExpiryWatcher(context.Context) }](w wireCtx, 
 	return store
 }
 
-func newDraw(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *draw.Store {
+func newDraw(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore, rec *analytics.Recorder) *draw.Store {
 	log := w.log.Named("draw")
 	announce := announcementConfig(w, proj)
 	store := draw.NewStore(w.in.vc, draw.Config{Log: log, LegacyKey: engine.RaffleStateKey,
 		LegacyDeadlineKey: engine.RaffleDeadlineKey, Payer: engine.NewDrawPayer(loyalty, announce.Runtime),
-		Announcer: engine.NewDrawAnnouncer(announce, log), Verifier: draw.PassAll{}, Winners: draw.DiscardWinnerRecords{},
+		Announcer: engine.NewDrawAnnouncer(announce, log, rec), Verifier: draw.PassAll{}, Winners: draw.DiscardWinnerRecords{},
 		Phases: draw.IgnorePhaseChanges{}})
 	go store.Run(w.ctx)
 	return store

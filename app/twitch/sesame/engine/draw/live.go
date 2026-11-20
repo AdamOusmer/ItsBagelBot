@@ -30,7 +30,7 @@ func (s *Store) Live(ctx context.Context, ch ChannelID) ([]RoundView, error) {
 		}
 		if livePhase(data.round.Phase) {
 			rounds = append(rounds, RoundView{Round: data.round, Slots: data.slots,
-				Entries: int(raw.EntryCount), Refused: raw.Refused})
+				Entries: int(data.stored.EntryCount), Refused: data.stored.Refused})
 		}
 	}
 	return rounds, nil
