@@ -30,6 +30,9 @@ type FeedCounter func(*sql.Selector)
 // FeedReceipt is the predicate function for feedreceipt builders.
 type FeedReceipt func(*sql.Selector)
 
+// GiveawayWinner is the predicate function for giveawaywinner builders.
+type GiveawayWinner func(*sql.Selector)
+
 // GoveeCredential is the predicate function for goveecredential builders.
 type GoveeCredential func(*sql.Selector)
 

@@ -19,6 +19,7 @@ import (
 	"ItsBagelBot/app/db/modules/ent/countdownoperation"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedreceipt"
+	"ItsBagelBot/app/db/modules/ent/giveawaywinner"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/quote"
@@ -51,6 +52,8 @@ type Client struct {
 	FeedCounter *FeedCounterClient
 	// FeedReceipt is the client for interacting with the FeedReceipt builders.
 	FeedReceipt *FeedReceiptClient
+	// GiveawayWinner is the client for interacting with the GiveawayWinner builders.
+	GiveawayWinner *GiveawayWinnerClient
 	// GoveeCredential is the client for interacting with the GoveeCredential builders.
 	GoveeCredential *GoveeCredentialClient
 	// Modules is the client for interacting with the Modules builders.
@@ -80,6 +83,7 @@ func (c *Client) init() {
 	c.CountdownOperation = NewCountdownOperationClient(c.config)
 	c.FeedCounter = NewFeedCounterClient(c.config)
 	c.FeedReceipt = NewFeedReceiptClient(c.config)
+	c.GiveawayWinner = NewGiveawayWinnerClient(c.config)
 	c.GoveeCredential = NewGoveeCredentialClient(c.config)
 	c.Modules = NewModulesClient(c.config)
 	c.Quote = NewQuoteClient(c.config)
@@ -185,6 +189,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		CountdownOperation: NewCountdownOperationClient(cfg),
 		FeedCounter:        NewFeedCounterClient(cfg),
 		FeedReceipt:        NewFeedReceiptClient(cfg),
+		GiveawayWinner:     NewGiveawayWinnerClient(cfg),
 		GoveeCredential:    NewGoveeCredentialClient(cfg),
 		Modules:            NewModulesClient(cfg),
 		Quote:              NewQuoteClient(cfg),
@@ -217,6 +222,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		CountdownOperation: NewCountdownOperationClient(cfg),
 		FeedCounter:        NewFeedCounterClient(cfg),
 		FeedReceipt:        NewFeedReceiptClient(cfg),
+		GiveawayWinner:     NewGiveawayWinnerClient(cfg),
 		GoveeCredential:    NewGoveeCredentialClient(cfg),
 		Modules:            NewModulesClient(cfg),
 		Quote:              NewQuoteClient(cfg),
@@ -253,7 +259,8 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.Automation, c.ChannelFeedCounter, c.CooldownClaim, c.Countdown,
 		c.CountdownDelivery, c.CountdownOperation, c.FeedCounter, c.FeedReceipt,
-		c.GoveeCredential, c.Modules, c.Quote, c.SpotifyCredential, c.Variable,
+		c.GiveawayWinner, c.GoveeCredential, c.Modules, c.Quote, c.SpotifyCredential,
+		c.Variable,
 	} {
 		n.Use(hooks...)
 	}
@@ -265,7 +272,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.Automation, c.ChannelFeedCounter, c.CooldownClaim, c.Countdown,
 		c.CountdownDelivery, c.CountdownOperation, c.FeedCounter, c.FeedReceipt,
-		c.GoveeCredential, c.Modules, c.Quote, c.SpotifyCredential, c.Variable,
+		c.GiveawayWinner, c.GoveeCredential, c.Modules, c.Quote, c.SpotifyCredential,
+		c.Variable,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -290,6 +298,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.FeedCounter.mutate(ctx, m)
 	case *FeedReceiptMutation:
 		return c.FeedReceipt.mutate(ctx, m)
+	case *GiveawayWinnerMutation:
+		return c.GiveawayWinner.mutate(ctx, m)
 	case *GoveeCredentialMutation:
 		return c.GoveeCredential.mutate(ctx, m)
 	case *ModulesMutation:
@@ -1369,6 +1379,139 @@ func (c *FeedReceiptClient) mutate(ctx context.Context, m *FeedReceiptMutation) 
 	}
 }
 
+// GiveawayWinnerClient is a client for the GiveawayWinner schema.
+type GiveawayWinnerClient struct {
+	config
+}
+
+// NewGiveawayWinnerClient returns a client for the GiveawayWinner from the given config.
+func NewGiveawayWinnerClient(c config) *GiveawayWinnerClient {
+	return &GiveawayWinnerClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `giveawaywinner.Hooks(f(g(h())))`.
+func (c *GiveawayWinnerClient) Use(hooks ...Hook) {
+	c.hooks.GiveawayWinner = append(c.hooks.GiveawayWinner, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `giveawaywinner.Intercept(f(g(h())))`.
+func (c *GiveawayWinnerClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GiveawayWinner = append(c.inters.GiveawayWinner, interceptors...)
+}
+
+// Create returns a builder for creating a GiveawayWinner entity.
+func (c *GiveawayWinnerClient) Create() *GiveawayWinnerCreate {
+	mutation := newGiveawayWinnerMutation(c.config, OpCreate)
+	return &GiveawayWinnerCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GiveawayWinner entities.
+func (c *GiveawayWinnerClient) CreateBulk(builders ...*GiveawayWinnerCreate) *GiveawayWinnerCreateBulk {
+	return &GiveawayWinnerCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GiveawayWinnerClient) MapCreateBulk(slice any, setFunc func(*GiveawayWinnerCreate, int)) *GiveawayWinnerCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GiveawayWinnerCreateBulk{err: fmt.Errorf("calling to GiveawayWinnerClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GiveawayWinnerCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GiveawayWinnerCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GiveawayWinner.
+func (c *GiveawayWinnerClient) Update() *GiveawayWinnerUpdate {
+	mutation := newGiveawayWinnerMutation(c.config, OpUpdate)
+	return &GiveawayWinnerUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GiveawayWinnerClient) UpdateOne(_m *GiveawayWinner) *GiveawayWinnerUpdateOne {
+	mutation := newGiveawayWinnerMutation(c.config, OpUpdateOne, withGiveawayWinner(_m))
+	return &GiveawayWinnerUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GiveawayWinnerClient) UpdateOneID(id int) *GiveawayWinnerUpdateOne {
+	mutation := newGiveawayWinnerMutation(c.config, OpUpdateOne, withGiveawayWinnerID(id))
+	return &GiveawayWinnerUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GiveawayWinner.
+func (c *GiveawayWinnerClient) Delete() *GiveawayWinnerDelete {
+	mutation := newGiveawayWinnerMutation(c.config, OpDelete)
+	return &GiveawayWinnerDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GiveawayWinnerClient) DeleteOne(_m *GiveawayWinner) *GiveawayWinnerDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GiveawayWinnerClient) DeleteOneID(id int) *GiveawayWinnerDeleteOne {
+	builder := c.Delete().Where(giveawaywinner.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GiveawayWinnerDeleteOne{builder}
+}
+
+// Query returns a query builder for GiveawayWinner.
+func (c *GiveawayWinnerClient) Query() *GiveawayWinnerQuery {
+	return &GiveawayWinnerQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGiveawayWinner},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GiveawayWinner entity by its id.
+func (c *GiveawayWinnerClient) Get(ctx context.Context, id int) (*GiveawayWinner, error) {
+	return c.Query().Where(giveawaywinner.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GiveawayWinnerClient) GetX(ctx context.Context, id int) *GiveawayWinner {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *GiveawayWinnerClient) Hooks() []Hook {
+	return c.hooks.GiveawayWinner
+}
+
+// Interceptors returns the client interceptors.
+func (c *GiveawayWinnerClient) Interceptors() []Interceptor {
+	return c.inters.GiveawayWinner
+}
+
+func (c *GiveawayWinnerClient) mutate(ctx context.Context, m *GiveawayWinnerMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GiveawayWinnerCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GiveawayWinnerUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GiveawayWinnerUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GiveawayWinnerDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GiveawayWinner mutation op: %q", m.Op())
+	}
+}
+
 // GoveeCredentialClient is a client for the GoveeCredential schema.
 type GoveeCredentialClient struct {
 	config
@@ -2038,12 +2181,12 @@ func (c *VariableClient) mutate(ctx context.Context, m *VariableMutation) (Value
 type (
 	hooks struct {
 		Automation, ChannelFeedCounter, CooldownClaim, Countdown, CountdownDelivery,
-		CountdownOperation, FeedCounter, FeedReceipt, GoveeCredential, Modules, Quote,
-		SpotifyCredential, Variable []ent.Hook
+		CountdownOperation, FeedCounter, FeedReceipt, GiveawayWinner, GoveeCredential,
+		Modules, Quote, SpotifyCredential, Variable []ent.Hook
 	}
 	inters struct {
 		Automation, ChannelFeedCounter, CooldownClaim, Countdown, CountdownDelivery,
-		CountdownOperation, FeedCounter, FeedReceipt, GoveeCredential, Modules, Quote,
-		SpotifyCredential, Variable []ent.Interceptor
+		CountdownOperation, FeedCounter, FeedReceipt, GiveawayWinner, GoveeCredential,
+		Modules, Quote, SpotifyCredential, Variable []ent.Interceptor
 	}
 )

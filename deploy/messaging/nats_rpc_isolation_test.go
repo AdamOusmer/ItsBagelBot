@@ -8,10 +8,35 @@ import (
 	"strings"
 	"testing"
 
+	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/internal/natsacl"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestChannelGiveawayWinnersRPCIsolation(t *testing.T) {
+	verbs := []string{
+		modulesrpc.VerbGiveawayRecord, modulesrpc.VerbGiveawayDeliver,
+		modulesrpc.VerbGiveawayRecent, modulesrpc.VerbGiveawayWonWithin,
+	}
+	for _, account := range loadRPCCatalog(t).accounts {
+		for _, verb := range verbs {
+			assertGiveawayImport(t, account, "rpc.modules"+modulesrpc.GiveawaySuffix+"."+verb)
+		}
+	}
+}
+
+func assertGiveawayImport(t *testing.T, account rpcAccount, subject string) {
+	t.Helper()
+	allowed := account.name == "DASHBOARD_RPC" || account.name == "WORKER_RPC"
+	for _, candidate := range []string{subject, subject + ".node.n1"} {
+		grant, imported := account.importCovering(candidate)
+		assert.Equal(t, allowed, imported, "%s: %s", account.name, candidate)
+		if imported {
+			assert.Equal(t, "MODULES_RPC", grant.account)
+		}
+	}
+}
 
 func TestGiveawayGrantCustody(t *testing.T) {
 	for _, verb := range []string{"pool", "coverage", "prepare", "commit", "cancel"} {

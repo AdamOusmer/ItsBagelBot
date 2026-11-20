@@ -104,6 +104,18 @@ func (f FeedReceiptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value,
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FeedReceiptMutation", m)
 }
 
+// The GiveawayWinnerFunc type is an adapter to allow the use of ordinary
+// function as GiveawayWinner mutator.
+type GiveawayWinnerFunc func(context.Context, *ent.GiveawayWinnerMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GiveawayWinnerFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GiveawayWinnerMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GiveawayWinnerMutation", m)
+}
+
 // The GoveeCredentialFunc type is an adapter to allow the use of ordinary
 // function as GoveeCredential mutator.
 type GoveeCredentialFunc func(context.Context, *ent.GoveeCredentialMutation) (ent.Value, error)

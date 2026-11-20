@@ -902,6 +902,8 @@ accounts:
               from: COMMANDS_RPC
             - service: rpc.modules.quote.>
               from: MODULES_RPC
+            - service: rpc.modules.giveaway.>
+              from: MODULES_RPC
             - service: rpc.modules.variable.>
               from: MODULES_RPC
             - service: rpc.modules.cooldown.>
