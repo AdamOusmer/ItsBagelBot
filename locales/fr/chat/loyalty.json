@@ -15,7 +15,7 @@
   "points.self": "@{loyalty:user} tu ne peux pas te donner de {loyalty:name} à toi-même.",
   "points.unknown": "@{loyalty:user} je n'ai pas encore vu {loyalty:target} sur cette chaîne.",
   "points.usage": "Utilisation : !points ; ou !points <set|add|remove> @utilisateur <montant> ; ou !points give @utilisateur <montant>",
-  "freeze.started": "Classement mis en pause à {loyalty:time}. Les points et le temps de visionnage continuent de compter.",
+  "freeze.started": "Classement mis en pause pendant {loyalty:minutes} min. Les points et le temps de visionnage continuent de compter.",
   "freeze.usage": "Utilisation : !freeze [1-30]",
   "unfreeze.done": "Le classement est de nouveau mis à jour en direct.",
   "unfreeze.none": "@{loyalty:user} le classement n’est pas en pause."

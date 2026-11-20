@@ -24,7 +24,6 @@ type CloseRequest struct {
 type ExtendRequest struct {
 	Channel ChannelID
 	Actor   ViewerID
-	Until   time.Time
 	Round   RoundID
 	Kind    Kind
 }
@@ -86,31 +85,13 @@ func (s *Store) Extend(ctx context.Context, req ExtendRequest) (bool, error) {
 		return false, err
 	}
 	next := r.ClosesAt.Add(time.Minute)
-	bound := r.OpenedAt.Add(r.Terms.maxWindow())
-	if !req.Until.IsZero() {
-		bound = earlier(bound, req.Until)
-	}
-	if next.After(bound) {
+	if next.After(r.OpenedAt.Add(r.Terms.maxWindow())) {
 		return false, nil
-	}
-	if ok, err := s.extendCutoff(ctx, r, next); err != nil || !ok {
-		return false, err
 	}
 	shift := phaseShift(r, PhaseOpen, now)
 	shift.Match = timeField("closes_at", r.ClosesAt)
 	shift.Fields = []valkey.FieldValue{timeField("closes_at", next)}
 	return s.amend(ctx, r, shift, Action{Kind: "extend", Actor: req.Actor, At: now, Value: shift.Fields[0].Value})
-}
-
-func (s *Store) extendCutoff(ctx context.Context, r Round, until time.Time) (bool, error) {
-	id := r.Terms.StandingsID()
-	if id == "" {
-		return true, nil
-	}
-	if s.cfg.Snapshots == nil {
-		return false, ErrInvalidTerms
-	}
-	return s.cfg.Snapshots.ExtendSnapshot(ctx, SnapshotExtension{Channel: r.Channel, ID: id, ExpiresAt: until})
 }
 
 func (s *Store) Cancel(ctx context.Context, req ModAction) (bool, error) {

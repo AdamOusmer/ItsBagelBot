@@ -26,8 +26,8 @@ type StandingLookup struct {
 }
 
 type Cutoff struct {
-	ID                 string
-	OpenedAt, ClosesAt time.Time
+	ID       string
+	OpenedAt time.Time
 }
 
 type Ports struct {
@@ -115,12 +115,13 @@ func joinWeight(r Rules, subscriber bool) int64 {
 
 func (c *Checker) snapshot(ctx context.Context, j Joiner) (loyaltyrpc.BalanceSnapshot, error) {
 	req := StandingLookup{Channel: j.Channel, Viewer: j.Viewer, SnapshotID: j.Cutoff.ID}
-	if req.SnapshotID == "" {
+	expiresAt := j.Cutoff.OpenedAt.Add(draw.Pins.GiveawayMaxEntryWindow)
+	if req.SnapshotID == "" || !c.ports.Now().Before(expiresAt) {
 		return c.ports.Standings.Snapshot(ctx, req)
 	}
 	return c.snapshots.GetOrLoadTTL(ctx, req, func(ctx context.Context) (loyaltyrpc.BalanceSnapshot, time.Duration, error) {
 		balance, err := c.ports.Standings.Snapshot(ctx, req)
-		left := j.Cutoff.ClosesAt.Sub(c.ports.Now())
+		left := expiresAt.Sub(c.ports.Now())
 		if left <= 0 {
 			return balance, cache.SkipStoreTTL, err
 		}

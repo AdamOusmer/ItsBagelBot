@@ -45,13 +45,12 @@ func TestGiveawayWireGolden(t *testing.T) {
 	}{
 		{"delivery reset", GiveawayRequest{UserID: "7", Source: "dashboard", ActorID: "8", RoundID: "round", Slot: 2, Delivered: &delivered},
 			`{"user_id":"7","source":"dashboard","actor_id":"8","round_id":"round","slot":2,"delivered":false}`},
-		{"eligible count zero", GiveawayReply{Count: &count, FreezeID: "snapshot", ExpiresAt: 20},
-			`{"count":0,"freeze_id":"snapshot","expires_at":20}`},
+		{"eligible count zero", GiveawayReply{Count: &count}, `{"count":0}`},
 		{"empty live", GiveawayReply{Rounds: &empty}, `{"rounds":[]}`},
 		{"live round", GiveawayRound{ID: "round", Kind: "giveaway", Phase: "settling", Prize: "Game",
-			Winners: 2, OpenedMS: 1, ClosesMS: 2, FreezeEndsMS: 4, Entries: 9, Refused: 3,
+			Winners: 2, OpenedMS: 1, ClosesMS: 2, Entries: 9, Refused: 3,
 			Requirements: []string{"Followers only"}, Slots: []GiveawaySlot{{N: 1, Generation: 3, State: "verifying", CanSkipRule: true}}},
-			`{"id":"round","kind":"giveaway","phase":"settling","prize":"Game","winners":2,"opened_ms":1,"closes_ms":2,"freeze_ends_ms":4,"entries":9,"refused":3,"requirements":["Followers only"],"slots":[{"n":1,"generation":3,"state":"verifying","can_skip_rule":true}]}`},
+			`{"id":"round","kind":"giveaway","phase":"settling","prize":"Game","winners":2,"opened_ms":1,"closes_ms":2,"entries":9,"refused":3,"requirements":["Followers only"],"slots":[{"n":1,"generation":3,"state":"verifying","can_skip_rule":true}]}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			wire, err := codec.Marshal(tc.wire)

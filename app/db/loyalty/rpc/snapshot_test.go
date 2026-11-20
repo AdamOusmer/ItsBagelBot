@@ -4,10 +4,13 @@
 package rpc
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
+	"ItsBagelBot/app/twitch/sesame/engine/eligibility"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/codec"
@@ -66,7 +69,8 @@ func TestSnapshotRPCIdempotenceAndDrop(t *testing.T) {
 	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
 	first := createRPCSnapshot(t, client)
 	h.call(t, "balance.add", loyaltyrpc.Request{UserID: "2", TargetViewerID: "7", ViewerLogin: "sender", Value: 5})
-	retry, err := client.SnapshotCreate(t.Context(), engine.SnapshotRequest{BroadcasterID: 2, Owner: "round:first", ExpiresAt: time.Now().Add(2 * time.Hour)})
+	req := engine.SnapshotRequest{BroadcasterID: 2, Owner: "round:first", ExpiresAt: time.Now().Add(2 * time.Hour)}
+	retry, err := client.SnapshotCreate(t.Context(), req)
 	require.NoError(t, err)
 	require.Equal(t, first, retry)
 	for _, expected := range []bool{true, false} {
@@ -81,6 +85,46 @@ func TestSnapshotRPCIdempotenceAndDrop(t *testing.T) {
 	}
 	_, err = client.BalanceCountAtLeast(t.Context(), 2, engine.BalanceMinimums{SnapshotID: first.SnapshotID})
 	requireRPCCode(t, err, loyaltyrpc.RefusalSnapshotGone)
+	_, err = client.SnapshotCreate(t.Context(), req)
+	requireRPCCode(t, err, loyaltyrpc.RefusalSnapshotGone)
+}
+
+type snapshotLoyalty struct {
+	engine.LoyaltyStore
+	rpc *engine.LoyaltyRPC
+}
+
+func (s snapshotLoyalty) BalanceSnapshot(ctx context.Context, req engine.BalanceSnapshotRequest) (loyaltyrpc.BalanceSnapshot, error) {
+	return s.rpc.BalanceSnapshot(ctx, req)
+}
+
+func TestGiveawayJoinEligibilityAfterPointsMove(t *testing.T) {
+	h := newHarness(t)
+	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
+	cutoff := createRPCSnapshot(t, client)
+	moved := h.call(t, "balance.transfer", loyaltyrpc.Request{UserID: "2", ViewerID: "7", TargetViewerID: "8", ViewerLogin: "receiver", Value: 500})
+	require.True(t, moved.Spent)
+	checker := engine.NewEligibility(snapshotLoyalty{rpc: client}, nil, nil, nil)
+	t.Cleanup(checker.Close)
+	for _, tc := range []struct {
+		name   string
+		viewer uint64
+		id     string
+		pass   bool
+	}{
+		{"sender still qualifies at open", 7, cutoff.SnapshotID, true},
+		{"recipient still falls short at open", 8, cutoff.SnapshotID, false},
+		{"sender would fall short live", 7, "", false},
+		{"recipient would qualify live", 8, "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			who := eligibility.Joiner{Channel: 2, Viewer: tc.viewer, Kind: draw.KindGiveaway,
+				Cutoff: eligibility.Cutoff{ID: tc.id, OpenedAt: time.UnixMilli(cutoff.AsOf)}}
+			verdict, err := checker.Join(t.Context(), eligibility.Rules{MinPoints: 600}, who)
+			require.NoError(t, err)
+			require.Equal(t, tc.pass, verdict.Pass)
+		})
+	}
 }
 
 func TestStandingsRPCWireFields(t *testing.T) {
@@ -96,6 +140,8 @@ func TestStandingsRPCWireFields(t *testing.T) {
 		{loyaltyrpc.VerbFreezeGet, `{"user_id":"2"}`, []string{"active", "frozen_as_of", "expires_at"}},
 		{loyaltyrpc.VerbSnapshotCreate, `{"user_id":"2","owner":"round:wire","expires_at":4102444800000}`, []string{"snapshot_id", "as_of"}},
 		{loyaltyrpc.VerbSnapshotDrop, `{"user_id":"2","snapshot_id":"missing"}`, []string{"dropped"}},
+		{loyaltyrpc.VerbBalanceSnapshot, `{"user_id":"2","viewer_id":"7"}`, []string{"points", "watch_seconds", "found"}},
+		{loyaltyrpc.VerbBalanceCountAtLeast, `{"user_id":"2"}`, []string{"count"}},
 	} {
 		t.Run(tc.verb, func(t *testing.T) {
 			msg, err := h.nc.Request("loyalty."+tc.verb, []byte(tc.body), time.Second)

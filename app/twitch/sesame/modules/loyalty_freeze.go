@@ -6,7 +6,6 @@ package modules
 import (
 	"context"
 	"strconv"
-	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
@@ -46,12 +45,11 @@ func (f freezeChat) set(ctx context.Context, args string) error {
 		f.reply(f.emit, "", "loyalty.freeze.usage")
 		return nil
 	}
-	view, err := f.store.FreezeSet(ctx, f.channel, minutes, f.actor)
+	_, err := f.store.FreezeSet(ctx, f.channel, minutes, f.actor)
 	if err != nil {
 		return err
 	}
-	at := time.UnixMilli(view.FrozenAsOf).UTC().Format("15:04")
-	f.reply(f.emit, "", "loyalty.freeze.started", "time", at)
+	f.reply(f.emit, "", "loyalty.freeze.started", "minutes", strconv.Itoa(minutes))
 	return nil
 }
 

@@ -66,7 +66,7 @@ func TestJoinRules(t *testing.T) {
 	everyone := eligibility.Joiner{Channel: 2, Viewer: 7}
 	frozenAt := checkTime.Add(-time.Minute)
 	frozen := loyaltyrpc.BalanceSnapshot{Found: true, Points: 100, WatchSeconds: 1800}
-	cutoff := eligibility.Cutoff{ID: "snapshot", OpenedAt: frozenAt, ClosesAt: checkTime.Add(time.Minute)}
+	cutoff := eligibility.Cutoff{ID: "snapshot", OpenedAt: frozenAt}
 	cases := []struct {
 		name  string
 		rules eligibility.Rules
@@ -106,22 +106,26 @@ func TestJoinRules(t *testing.T) {
 func TestJoinSnapshotCache(t *testing.T) {
 	for _, tc := range []struct {
 		name, firstID, secondID string
-		firstUntil              time.Duration
+		left, advance           time.Duration
 		secondPass              bool
 	}{
 		{name: "live data is read again", secondPass: true},
-		{name: "same private cutoff is reused", firstID: "round-a", secondID: "round-a", firstUntil: time.Minute},
-		{name: "another round has a separate cutoff", firstID: "round-a", secondID: "round-b", firstUntil: time.Minute, secondPass: true},
-		{name: "expired cutoff is not cached", firstID: "round-a", secondID: "round-a", firstUntil: -time.Second, secondPass: true},
+		{name: "same private cutoff is reused", firstID: "round-a", secondID: "round-a", left: time.Minute},
+		{name: "another round has a separate cutoff", firstID: "round-a", secondID: "round-b", left: time.Minute, secondPass: true},
+		{name: "cached cutoff expires at the policy window", firstID: "round-a", secondID: "round-a", left: time.Second, advance: time.Second, secondPass: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			data := &eligibilityData{}
-			c := newChecker(t, data)
+			now := checkTime
+			c := eligibility.NewChecker(eligibility.Ports{Standings: data, Now: func() time.Time { return now }})
+			t.Cleanup(c.Close)
 			rules := eligibility.Rules{MinPoints: 1}
-			who := eligibility.Joiner{Channel: 2, Viewer: 7, Cutoff: eligibility.Cutoff{ID: tc.firstID, ClosesAt: checkTime.Add(tc.firstUntil)}}
+			openedAt := checkTime.Add(tc.left - draw.Pins.GiveawayMaxEntryWindow)
+			who := eligibility.Joiner{Channel: 2, Viewer: 7, Cutoff: eligibility.Cutoff{ID: tc.firstID, OpenedAt: openedAt}}
 			first, err := c.Join(t.Context(), rules, who)
 			require.NoError(t, err)
 			data.balance = loyaltyrpc.BalanceSnapshot{Points: 1, Found: true}
+			now = now.Add(tc.advance)
 			who.Cutoff.ID = tc.secondID
 			second, err := c.Join(t.Context(), rules, who)
 			require.NoError(t, err)

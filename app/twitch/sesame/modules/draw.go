@@ -179,19 +179,32 @@ func (d drawOwner) joinRound(ctx context.Context, c *module.Context, r draw.Roun
 	}
 	viewer := drawViewerID(joiner.Viewer)
 	verdict, err := d.admit(ctx, rules, joiner)
-	if err != nil {
+	switch {
+	case snapshotGone(err):
+		newChatReplier(c).reply(emit, "", "draw.join.closed")
+		return nil
+	case err != nil:
 		return d.replyJoinLookupFailure(ctx, c, emit, draw.Check{Round: r, Viewer: viewer})
-	}
-	if !verdict.Pass {
+	case !verdict.Pass:
 		return d.refuseJoin(ctx, c, refusedJoin{r, viewer, verdict})
 	}
+	return d.enterRound(ctx, c, emit, drawEntry{round: r, viewer: viewer, weight: verdict.Weight})
+}
+
+type drawEntry struct {
+	round  draw.Round
+	viewer draw.ViewerID
+	weight int64
+}
+
+func (d drawOwner) enterRound(ctx context.Context, c *module.Context, emit module.Emit, entry drawEntry) error {
 	joined, err := d.deps.Draw.Join(ctx, draw.JoinRequest{Channel: draw.ChannelID(c.BroadcasterID),
-		Round: r.ID, Viewer: viewer, Login: strings.ToLower(c.Env.ChatterUserLogin), Weight: verdict.Weight})
+		Round: entry.round.ID, Viewer: entry.viewer, Login: strings.ToLower(c.Env.ChatterUserLogin), Weight: entry.weight})
 	if err != nil {
 		return err
 	}
 	switch {
-	case r.Terms.Kind == draw.KindRaffle:
+	case entry.round.Terms.Kind == draw.KindRaffle:
 		d.replyRaffleJoin(ctx, c, emit, joined)
 	case !joined.Open:
 		newChatReplier(c).reply(emit, "", "draw.join.closed")

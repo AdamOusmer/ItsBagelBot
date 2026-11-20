@@ -64,7 +64,6 @@ type GiveawayRound struct {
 	Winners         int            `json:"winners"`
 	OpenedMS        int64          `json:"opened_ms"`
 	ClosesMS        int64          `json:"closes_ms"`
-	FreezeEndsMS    int64          `json:"freeze_ends_ms,omitempty"`
 	Entries         int            `json:"entries"`
 	Refused         int64          `json:"refused"`
 	ClaimPausedAtMS int64          `json:"claim_paused_at_ms,omitempty"`
@@ -73,14 +72,11 @@ type GiveawayRound struct {
 }
 
 type GiveawayReply struct {
-	Rounds     *[]GiveawayRound `json:"rounds,omitempty"`
-	Round      *GiveawayRound   `json:"round,omitempty"`
-	Done       bool             `json:"done,omitempty"`
-	Affected   int              `json:"affected,omitempty"`
-	Count      *int64           `json:"count,omitempty"`
-	FreezeID   string           `json:"freeze_id,omitempty"`
-	FrozenAsOf int64            `json:"frozen_as_of,omitempty"`
-	ExpiresAt  int64            `json:"expires_at,omitempty"`
-	Reason     string           `json:"reason,omitempty"`
+	Rounds   *[]GiveawayRound `json:"rounds,omitempty"`
+	Round    *GiveawayRound   `json:"round,omitempty"`
+	Done     bool             `json:"done,omitempty"`
+	Affected int              `json:"affected,omitempty"`
+	Count    *int64           `json:"count,omitempty"`
+	Reason   string           `json:"reason,omitempty"`
 	rpc.Refusal
 }

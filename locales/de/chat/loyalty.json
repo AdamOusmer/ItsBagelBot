@@ -15,7 +15,7 @@
   "points.self": "@{loyalty:user} du kannst dir nicht selbst {loyalty:name} geben.",
   "points.unknown": "@{loyalty:user} ich habe {loyalty:target} in diesem Kanal noch nicht gesehen.",
   "points.usage": "Verwendung: !points; oder !points <set|add|remove> @user <amount>; oder !points give @user <amount>",
-  "freeze.started": "Rangliste um {loyalty:time} pausiert. Punkte und Wiedergabezeit werden weiter gezählt.",
+  "freeze.started": "Rangliste für {loyalty:minutes} Min. pausiert. Punkte und Wiedergabezeit werden weiter gezählt.",
   "freeze.usage": "Verwendung: !freeze [1-30]",
   "unfreeze.done": "Die Rangliste wird wieder live aktualisiert.",
   "unfreeze.none": "@{loyalty:user} die Rangliste pausiert nicht."

@@ -38,7 +38,7 @@ func (s *freezeStore) FreezeGet(context.Context, uint64) (loyaltyrpc.FreezeView,
 
 func (s *freezeStore) FreezeSet(_ context.Context, channel uint64, minutes int, actor uint64) (loyaltyrpc.FreezeTimes, error) {
 	s.sets = append(s.sets, freezeCall{channel: channel, actor: actor, minutes: minutes})
-	return loyaltyrpc.FreezeTimes{FrozenAsOf: time.Date(2026, 11, 20, 20, 14, 0, 0, time.UTC).UnixMilli()}, nil
+	return loyaltyrpc.FreezeTimes{}, nil
 }
 
 func (s *freezeStore) FreezeRelease(_ context.Context, channel, actor uint64) (bool, error) {
@@ -55,8 +55,8 @@ type freezeChatCase struct {
 
 func TestLoyaltyFreezeCommandsProcess(t *testing.T) {
 	for _, tc := range []freezeChatCase{
-		{name: "bare freeze", command: "!freeze", badge: "moderator", minutes: 30, sets: 1, changed: true, reply: "Leaderboard paused at 20:14. Points and watch time are still counting."},
-		{name: "restart freeze", command: "!freeze 6", badge: "moderator", minutes: 6, sets: 1, reply: "Leaderboard paused at 20:14. Points and watch time are still counting."},
+		{name: "bare freeze", command: "!freeze", badge: "moderator", minutes: 30, sets: 1, changed: true, reply: "Leaderboard paused for 30 min. Points and watch time are still counting."},
+		{name: "restart freeze", command: "!freeze 20", badge: "moderator", minutes: 20, sets: 1, reply: "Leaderboard paused for 20 min. Points and watch time are still counting."},
 		{name: "invalid minutes", command: "!freeze 31", badge: "moderator", reply: "Usage: !freeze [1-30]"},
 		{name: "viewer cannot freeze", command: "!freeze"},
 		{name: "released", command: "!unfreeze", badge: "moderator", releases: 1, changed: true, reply: "Leaderboard unpaused. Standings are live again."},

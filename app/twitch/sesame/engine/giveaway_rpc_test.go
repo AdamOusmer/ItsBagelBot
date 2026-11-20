@@ -80,9 +80,12 @@ func (d giveawayRPCCalls) Open(_ context.Context, req draw.OpenRequest) (draw.Ro
 }
 
 func rpcGiveawayRound(req draw.OpenRequest) draw.Round {
-	now := time.UnixMilli(1790000000000)
+	openedAt := req.OpenedAt
+	if openedAt.IsZero() {
+		openedAt = time.UnixMilli(1790000000000)
+	}
 	return draw.Round{ID: req.ID, Channel: req.Channel, Terms: req.Terms, Phase: draw.PhaseOpen,
-		OpenedAt: now, ClosesAt: now.Add(req.Duration)}
+		OpenedAt: openedAt, ClosesAt: openedAt.Add(req.Duration)}
 }
 
 func (d giveawayRPCCalls) Close(_ context.Context, req draw.CloseRequest) (bool, error) {
@@ -140,7 +143,7 @@ type giveawayStandingsCall struct {
 
 func (d giveawayRPCCalls) BalanceCountAtLeast(_ context.Context, channel uint64, mins engine.BalanceMinimums) (loyaltyrpc.BalanceCount, error) {
 	d.calls <- giveawayStandingsCall{channel, mins}
-	return loyaltyrpc.BalanceCount{Count: 9, FreezeStamp: loyaltyrpc.FreezeStamp{FreezeID: "snapshot", FrozenAsOf: 1, ExpiresAt: 2}}, nil
+	return loyaltyrpc.BalanceCount{Count: 9}, nil
 }
 
 type giveawayRPCTest struct {
@@ -272,12 +275,13 @@ func checkGiveawaySnapshotStart(t *testing.T, reply drawrpc.GiveawayReply, obser
 	t.Helper()
 	req, ok := observed.(draw.OpenRequest)
 	require.True(t, ok)
-	require.Equal(t, []any{"snapshot", false, string(req.ID)}, []any{req.Terms.SnapshotID, req.Terms.ClosesAt.IsZero(), reply.Round.ID})
+	require.Equal(t, []any{"snapshot", true, string(req.ID), req.OpenedAt.UnixMilli()},
+		[]any{req.Terms.SnapshotID, !req.OpenedAt.IsZero(), reply.Round.ID, reply.Round.OpenedMS})
 }
 
 func checkGiveawayCount(t *testing.T, reply drawrpc.GiveawayReply, observed any) {
 	t.Helper()
 	count := int64(9)
-	require.Equal(t, drawrpc.GiveawayReply{Count: &count, FreezeID: "snapshot", FrozenAsOf: 1, ExpiresAt: 2}, reply)
+	require.Equal(t, drawrpc.GiveawayReply{Count: &count}, reply)
 	require.Equal(t, giveawayStandingsCall{42, engine.BalanceMinimums{WatchSeconds: 300}}, observed)
 }

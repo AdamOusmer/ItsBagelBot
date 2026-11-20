@@ -29,7 +29,6 @@ type Config struct {
 	Winners           WinnerSink
 	Phases            PhaseObserver
 	Live              StreamState
-	Snapshots         SnapshotExtender
 	LegacyKey         func(ChannelID) string
 	LegacyDeadlineKey func(ChannelID) string
 	Random            func(int64) int64
@@ -69,6 +68,7 @@ type OpenRequest struct {
 	Terms    Terms
 	Duration time.Duration
 	Actor    ViewerID
+	OpenedAt time.Time
 }
 
 type OpenOutcome int64
@@ -88,6 +88,9 @@ func (s *Store) Open(ctx context.Context, req OpenRequest) (Round, OpenOutcome, 
 	if err != nil {
 		return Round{}, Opened, err
 	}
+	if req.OpenedAt.IsZero() {
+		req.OpenedAt = now.Truncate(time.Millisecond)
+	}
 	terms, err := validateTerms(req, now)
 	if err != nil {
 		return s.replayInvalidOpen(ctx, req, err)
@@ -96,7 +99,7 @@ func (s *Store) Open(ctx context.Context, req OpenRequest) (Round, OpenOutcome, 
 		req.ID = NewRoundID()
 	}
 	r := Round{ID: req.ID, Channel: req.Channel, Terms: terms, Phase: PhaseOpen,
-		OpenedAt: now.Truncate(time.Millisecond), ClosesAt: terms.ClosesAt}
+		OpenedAt: req.OpenedAt, ClosesAt: terms.ClosesAt}
 	if req.Actor != "" {
 		r.Actions = []Action{{Kind: "open", Actor: req.Actor, At: r.OpenedAt}}
 	}
@@ -183,10 +186,10 @@ func validateTerms(req OpenRequest, now time.Time) (Terms, error) {
 		return Terms{}, ErrInvalidTerms
 	}
 	if req.Duration != 0 {
-		t.ClosesAt = now.Add(req.Duration)
+		t.ClosesAt = req.OpenedAt.Add(req.Duration)
 	}
 	t.ClosesAt = t.ClosesAt.Truncate(time.Millisecond)
-	if !t.validEntryDeadline(now) {
+	if !t.ClosesAt.After(now) || t.ClosesAt.After(req.OpenedAt.Add(t.maxWindow())) {
 		return Terms{}, ErrInvalidTerms
 	}
 	if t.ClaimWindow != 0 && !validClaimWindow(t.ClaimWindow) {
@@ -196,10 +199,6 @@ func validateTerms(req OpenRequest, now time.Time) (Terms, error) {
 		t.Winners.Count = policy.defaultWinners
 	}
 	return t, policy.validate(t)
-}
-
-func (t Terms) validEntryDeadline(now time.Time) bool {
-	return t.ClosesAt.After(now) && !t.ClosesAt.After(now.Add(t.maxWindow()))
 }
 
 func (t Terms) maxWindow() time.Duration {

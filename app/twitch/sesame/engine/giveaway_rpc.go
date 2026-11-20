@@ -178,8 +178,7 @@ func (s GiveawayRPC) eligibleCount(ctx context.Context, in giveawayRPCInput) (dr
 	}
 	count, err := s.Standings.BalanceCountAtLeast(ctx, uint64(in.channel),
 		BalanceMinimums{Points: preset.Rules.MinPoints, WatchSeconds: int64(preset.Rules.MinWatchSeconds)})
-	return drawrpc.GiveawayReply{Count: &count.Count, FreezeID: count.FreezeID,
-		FrozenAsOf: count.FrozenAsOf, ExpiresAt: count.ExpiresAt}, err
+	return drawrpc.GiveawayReply{Count: &count.Count}, err
 }
 
 func validGiveawayRoundID(in giveawayRPCInput) bool {

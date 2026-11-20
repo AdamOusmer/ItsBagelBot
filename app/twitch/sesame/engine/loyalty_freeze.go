@@ -4,7 +4,6 @@
 package engine
 
 import (
-	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"context"
 	"time"
 
@@ -79,10 +78,4 @@ func freezeTTL(stamp loyaltyrpc.FreezeStamp, base time.Duration) time.Duration {
 		return base
 	}
 	return max(time.Nanosecond, min(base-time.Nanosecond, time.Until(time.UnixMilli(stamp.ExpiresAt))))
-}
-
-func (s *ValkeyLoyaltyStore) ExtendSnapshot(ctx context.Context, ext draw.SnapshotExtension) (bool, error) {
-	req := loyaltyrpc.SnapshotExtendRequest{UserID: fmtID(uint64(ext.Channel)), SnapshotID: ext.ID, ExpiresAt: ext.ExpiresAt.UnixMilli()}
-	reply, err := requestLoyalty[loyaltyrpc.SnapshotExtended](ctx, s.rpc, loyaltyrpc.VerbSnapshotExtend, req)
-	return reply.Extended, err
 }

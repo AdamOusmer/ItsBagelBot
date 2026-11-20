@@ -5,6 +5,7 @@ package draw_test
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -12,9 +13,12 @@ import (
 	"ItsBagelBot/app/twitch/sesame/automod"
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
+	"ItsBagelBot/app/twitch/sesame/engine/eligibility"
 	"ItsBagelBot/internal/domain/i18n"
+	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/valkey"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -36,8 +40,9 @@ func (giveawayLifecycleClock) AccrualHealth(context.Context, uint64) engine.Accr
 }
 
 type giveawayLifecycleSnapshots struct {
-	created engine.SnapshotRequest
-	dropped chan droppedSnapshot
+	created      engine.SnapshotRequest
+	dropped      chan droppedSnapshot
+	beforeReturn func()
 }
 
 type droppedSnapshot struct {
@@ -47,12 +52,22 @@ type droppedSnapshot struct {
 
 func (s *giveawayLifecycleSnapshots) SnapshotCreate(_ context.Context, req engine.SnapshotRequest) (engine.SnapshotRef, error) {
 	s.created = req
+	if s.beforeReturn != nil {
+		s.beforeReturn()
+	}
 	return engine.SnapshotRef{SnapshotID: "snapshot"}, nil
 }
 
 func (s *giveawayLifecycleSnapshots) SnapshotDrop(_ context.Context, channel uint64, id string) error {
 	s.dropped <- droppedSnapshot{channel, id}
 	return nil
+}
+
+func (s *giveawayLifecycleSnapshots) Snapshot(_ context.Context, req eligibility.StandingLookup) (loyaltyrpc.BalanceSnapshot, error) {
+	if req.SnapshotID != "snapshot" || !time.Now().Before(s.created.ExpiresAt) {
+		return loyaltyrpc.BalanceSnapshot{}, errors.New("snapshot unavailable")
+	}
+	return loyaltyrpc.BalanceSnapshot{Found: true, Points: 100}, nil
 }
 
 type giveawayLifecycleCase struct {
@@ -74,30 +89,110 @@ func TestGiveawaySnapshotLifecycle(t *testing.T) {
 func (tc giveawayLifecycleCase) run(t *testing.T) {
 	snapshots := &giveawayLifecycleSnapshots{dropped: make(chan droppedSnapshot, 2)}
 	f := newFixture(t, draw.Config{Phases: engine.GiveawayPhaseObserver{Snapshots: snapshots, Log: zap.NewNop()}})
-	deps := engine.Deps{Draw: f.Store, StandingsSnapshots: snapshots, Proj: giveawayLifecycleProjection{}, LoyaltyTick: giveawayLifecycleClock{}, Automod: automod.New()}
-	outcome, err := engine.StartGiveaway(t.Context(), deps, engine.GiveawayStart{Channel: 42, Actor: "7", Window: tc.window})
-	require.NoError(t, err)
-
-	require.Empty(t, outcome.Refusal)
+	outcome := f.startSnapshotGiveaway(snapshots, tc.window)
 	left := i18n.CompactDuration("en", outcome.Round.ClosesAt.Sub(outcome.Round.OpenedAt))
 	require.Contains(t, outcome.OpenedLine("en"), "Time: "+left+".")
 	tc.checkRound(f, outcome.Round, snapshots)
 }
 
+func (f fixture) giveawayDeps(snapshots engine.StandingsSnapshots) engine.Deps {
+	return engine.Deps{Draw: f.Store, StandingsSnapshots: snapshots, Proj: giveawayLifecycleProjection{},
+		LoyaltyTick: giveawayLifecycleClock{}, Automod: automod.New()}
+}
+
+func (f fixture) startSnapshotGiveaway(snapshots engine.StandingsSnapshots, window time.Duration) engine.GiveawayStartOutcome {
+	f.t.Helper()
+	outcome, err := engine.StartGiveaway(f.t.Context(), f.giveawayDeps(snapshots), engine.GiveawayStart{Channel: 42, Actor: "7", Window: window})
+	require.NoError(f.t, err)
+	require.Empty(f.t, outcome.Refusal)
+	f.t.Cleanup(func() {
+		r := outcome.Round
+		require.NoError(f.t, drawKeys(r).Teardown(context.Background(), f.client, string(r.ID)))
+	})
+	return outcome
+}
+
 func (tc giveawayLifecycleCase) checkRound(f fixture, r draw.Round, snapshots *giveawayLifecycleSnapshots) {
 	f.t.Helper()
 	ctx := f.t.Context()
-	require.Equal(f.t, engine.SnapshotRequest{BroadcasterID: 42, Owner: "round:" + string(r.ID), ExpiresAt: r.ClosesAt}, snapshots.created)
+	require.Equal(f.t, engine.SnapshotRequest{BroadcasterID: 42, Owner: "round:" + string(r.ID),
+		ExpiresAt: r.OpenedAt.Add(draw.Pins.GiveawayMaxEntryWindow)}, snapshots.created)
 	require.Equal(f.t, "snapshot", r.Terms.SnapshotID)
-	f.t.Cleanup(func() {
-		require.NoError(f.t, drawKeys(r).Teardown(context.Background(), f.client, string(r.ID)))
-	})
 	f.start(f.Store)
 	if tc.action != nil {
 		tc.applyAction(f, ctx, r)
 	}
 	require.Equal(f.t, droppedSnapshot{42, "snapshot"}, take(f.t, snapshots.dropped))
 	require.Empty(f.t, snapshots.dropped)
+}
+
+func TestExtendedGiveawayAcceptsJoinAfterOriginalClose(t *testing.T) {
+	f := newFixture(t, draw.Config{})
+	snapshots := &giveawayLifecycleSnapshots{}
+	r := f.startSnapshotGiveaway(snapshots, 2*time.Second).Round
+	extended, err := f.Extend(t.Context(), draw.ExtendRequest{Channel: r.Channel, Round: r.ID, Kind: draw.KindGiveaway})
+	require.NoError(t, err)
+	require.True(t, extended)
+	require.Eventually(t, func() bool {
+		now, err := valkey.ServerNow(t.Context(), f.client)
+		return err == nil && now.After(r.ClosesAt)
+	}, 5*time.Second, 20*time.Millisecond)
+
+	f.joinSnapshotGiveaway(r, snapshots)
+}
+
+func (f fixture) joinSnapshotGiveaway(r draw.Round, snapshots eligibility.Standings) {
+	f.t.Helper()
+	ctx := f.t.Context()
+	checker := eligibility.NewChecker(eligibility.Ports{Standings: snapshots})
+	f.t.Cleanup(checker.Close)
+	who := eligibility.Joiner{Channel: uint64(r.Channel), Viewer: 8, Kind: r.Terms.Kind,
+		Cutoff: eligibility.Cutoff{ID: r.Terms.SnapshotID, OpenedAt: r.OpenedAt}}
+	verdict, err := checker.Join(ctx, eligibility.Rules{MinPoints: 100}, who)
+	require.NoError(f.t, err)
+	require.True(f.t, verdict.Pass)
+
+	joined, err := f.Join(ctx, draw.JoinRequest{Channel: r.Channel, Round: r.ID, Viewer: "8", Weight: verdict.Weight})
+	require.NoError(f.t, err)
+	require.Equal(f.t, draw.JoinOutcome{Open: true, Added: true, Count: 1}, joined)
+}
+
+func TestGiveawayLostStartRaceDropsSnapshot(t *testing.T) {
+	f := newFixture(t, draw.Config{})
+	var winner draw.Round
+	snapshots := &giveawayLifecycleSnapshots{dropped: make(chan droppedSnapshot, 1), beforeReturn: func() {
+		winner = f.open(42, draw.Terms{Kind: draw.KindGiveaway, Prize: draw.Prize{Item: "Other game"}})
+	}}
+	loser, err := engine.StartGiveaway(t.Context(), f.giveawayDeps(snapshots), engine.GiveawayStart{Channel: 42, Actor: "7"})
+	require.NoError(t, err)
+	require.Equal(t, "draw.open.busy_giveaway", loser.Refusal)
+	require.Equal(t, droppedSnapshot{42, "snapshot"}, take(t, snapshots.dropped))
+
+	live, found, err := f.Joinable(t.Context(), winner.Channel)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, winner.ID, live.ID)
+}
+
+type drawOpenFailure struct {
+	engine.DrawStore
+	err error
+}
+
+func (d drawOpenFailure) Open(context.Context, draw.OpenRequest) (draw.Round, draw.OpenOutcome, error) {
+	return draw.Round{}, draw.Opened, d.err
+}
+
+func TestGiveawayOpenErrorDropsSnapshot(t *testing.T) {
+	f := newFixture(t, draw.Config{})
+	snapshots := &giveawayLifecycleSnapshots{dropped: make(chan droppedSnapshot, 1)}
+	failure := errors.New("open failed")
+	deps := f.giveawayDeps(snapshots)
+	deps.Draw = drawOpenFailure{DrawStore: f.Store, err: failure}
+
+	_, err := engine.StartGiveaway(t.Context(), deps, engine.GiveawayStart{Channel: 42, Actor: "7"})
+	require.ErrorIs(t, err, failure)
+	require.Equal(t, droppedSnapshot{42, "snapshot"}, take(t, snapshots.dropped))
 }
 
 func closeSnapshotGiveaway(s *draw.Store, ctx context.Context, r draw.Round) (bool, error) {

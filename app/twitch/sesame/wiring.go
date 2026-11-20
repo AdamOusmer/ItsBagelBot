@@ -247,7 +247,7 @@ func newDraw(w wireCtx, rt engineRuntime, ports drawPorts) *draw.Store {
 	log := w.log.Named("draw")
 	announce := announcementConfig(w, rt.proj)
 	store := draw.NewStore(w.in.vc, draw.Config{Log: log, LegacyKey: engine.RaffleStateKey,
-		LegacyDeadlineKey: engine.RaffleDeadlineKey, Live: rt.live, Snapshots: rt.loyalty, Payer: engine.NewDrawPayer(rt.loyalty, announce.Runtime),
+		LegacyDeadlineKey: engine.RaffleDeadlineKey, Live: rt.live, Payer: engine.NewDrawPayer(rt.loyalty, announce.Runtime),
 		Announcer: engine.NewDrawAnnouncer(announce, log, rt.analytics), Verifier: ports.verifier,
 		Winners: engine.GiveawayWinnerSink{Winners: ports.winners}, Phases: engine.GiveawayPhaseObserver{Snapshots: rt.loyalty, Log: log}})
 	go store.Run(w.ctx)

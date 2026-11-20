@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine/eligibility"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
+	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/bus"
 
 	"go.uber.org/zap"
@@ -34,7 +35,7 @@ func drawJoiner(c *module.Context, round draw.Round) (eligibility.Joiner, error)
 		return badge.SetID == "subscriber" || badge.SetID == "founder"
 	})
 	return eligibility.Joiner{Channel: c.BroadcasterID, Viewer: viewer, Kind: round.Terms.Kind, Role: c.Chatter(), Subscriber: subscriber,
-		Cutoff: eligibility.Cutoff{ID: round.Terms.StandingsID(), OpenedAt: round.OpenedAt, ClosesAt: round.ClosesAt}}, err
+		Cutoff: eligibility.Cutoff{ID: round.Terms.StandingsID(), OpenedAt: round.OpenedAt}}, err
 }
 
 func drawViewerID(viewer uint64) draw.ViewerID { return draw.ViewerID(strconv.FormatUint(viewer, 10)) }
@@ -48,7 +49,7 @@ func roundRules(round draw.Round) (eligibility.Rules, error) {
 
 func (d drawOwner) admit(ctx context.Context, rules eligibility.Rules, joiner eligibility.Joiner) (eligibility.Verdict, error) {
 	verdict, err := d.deps.Eligibility.Join(ctx, rules, joiner)
-	if err != nil {
+	if err != nil && !snapshotGone(err) {
 		d.log.Warn("draw standings lookup failed", module.BIDField(joiner.Channel), zap.Error(err))
 	}
 	return verdict, err
@@ -61,6 +62,11 @@ func (d drawOwner) replyJoinLookupFailure(ctx context.Context, c *module.Context
 		newChatReplier(c).reply(emit, "", eligibilityLookupFailed)
 	}
 	return err
+}
+
+func snapshotGone(err error) bool {
+	var refusal bus.RPCReplyError
+	return errors.As(err, &refusal) && refusal.Code == loyaltyrpc.RefusalSnapshotGone
 }
 
 func (d drawOwner) refuseJoin(ctx context.Context, c *module.Context, refusal refusedJoin) error {

@@ -339,25 +339,38 @@ func TestDrawOpenRejectsEitherLegacyKey(t *testing.T) {
 	}
 }
 
-func TestDrawExtendKeepsOpeningTermsAndHonorsFreeze(t *testing.T) {
-	f := newFixture(t, draw.Config{})
-	r := f.open(407, draw.Terms{Kind: draw.KindGiveaway, Prize: draw.Prize{Item: "poster"}})
+func TestDrawExtendKeepsOpeningTermsAndHonorsWindow(t *testing.T) {
 	for _, tc := range []struct {
-		until   time.Duration
+		name    string
+		window  time.Duration
 		applied bool
-	}{{30 * time.Second, false}, {time.Minute, true}} {
-		got, err := f.Extend(t.Context(), draw.ExtendRequest{Channel: r.Channel, Actor: "mod", Until: r.ClosesAt.Add(tc.until)})
-		require.NoError(t, err)
-		require.Equal(t, tc.applied, got)
+	}{
+		{"within the policy window", time.Minute, true},
+		{"beyond the policy window", draw.Pins.GiveawayMaxEntryWindow, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, draw.Config{})
+			r := f.openFor(407, draw.Terms{Kind: draw.KindGiveaway, Prize: draw.Prize{Item: "poster"}}, tc.window)
+			applied, err := f.Extend(t.Context(), draw.ExtendRequest{Channel: r.Channel, Actor: "mod"})
+			require.NoError(t, err)
+			require.Equal(t, tc.applied, applied)
+			f.checkExtension(r, applied)
+		})
 	}
-	got, found, err := f.Joinable(t.Context(), r.Channel)
-	require.NoError(t, err)
-	require.True(t, found)
-	r.ClosesAt = r.ClosesAt.Add(time.Minute)
-	require.Len(t, got.Actions, 1)
-	r.Actions = []draw.Action{{Kind: "extend", Actor: "mod", At: got.Actions[0].At,
-		Value: strconv.FormatInt(r.ClosesAt.UnixMilli(), 10)}}
-	require.Equal(t, r, got)
+}
+
+func (f fixture) checkExtension(r draw.Round, applied bool) {
+	f.t.Helper()
+	got, found, err := f.Joinable(f.t.Context(), r.Channel)
+	require.NoError(f.t, err)
+	require.True(f.t, found)
+	if applied {
+		r.ClosesAt = r.ClosesAt.Add(time.Minute)
+		require.Len(f.t, got.Actions, 1)
+		r.Actions = []draw.Action{{Kind: "extend", Actor: "mod", At: got.Actions[0].At,
+			Value: strconv.FormatInt(r.ClosesAt.UnixMilli(), 10)}}
+	}
+	require.Equal(f.t, r, got)
 }
 
 func TestDrawTransientPaymentStopsAtHorizon(t *testing.T) {

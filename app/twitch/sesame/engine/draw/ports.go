@@ -105,13 +105,3 @@ type LiveState struct {
 	Live      bool
 	ChangedAt time.Time
 }
-
-type SnapshotExtension struct {
-	Channel   ChannelID
-	ID        string
-	ExpiresAt time.Time
-}
-
-type SnapshotExtender interface {
-	ExtendSnapshot(context.Context, SnapshotExtension) (bool, error)
-}

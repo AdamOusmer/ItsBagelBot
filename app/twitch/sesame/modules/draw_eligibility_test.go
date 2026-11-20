@@ -16,6 +16,7 @@ import (
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/internal/valkeytest"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/require"
@@ -28,6 +29,7 @@ func (drawJoinPorts) Announce(context.Context, draw.Notice) {}
 
 type drawEligibilityData struct {
 	standingsFailures int
+	standingsErr      error
 	followCalls       int
 	followErr         error
 	snapshotID        string
@@ -39,7 +41,7 @@ func (d *drawEligibilityData) Snapshot(_ context.Context, req eligibility.Standi
 		d.standingsFailures--
 		return loyaltyrpc.BalanceSnapshot{}, errors.New("standings unavailable")
 	}
-	return loyaltyrpc.BalanceSnapshot{Points: 40, Found: true}, nil
+	return loyaltyrpc.BalanceSnapshot{Points: 40, Found: true}, d.standingsErr
 }
 
 func (d *drawEligibilityData) FollowedAt(context.Context, uint64, uint64) (time.Time, bool, error) {
@@ -90,6 +92,9 @@ func TestDrawEligibilityProcess(t *testing.T) {
 		{name: "lookup failure can recover and admit", rules: eligibility.Rules{MinPoints: 40},
 			data: drawEligibilityData{standingsFailures: 1}, calls: rejoin,
 			results: drawEligibilityResult{entries: 1, weight: 100, replies: []string{lookupFailed}}},
+		{name: "gone cutoff replies closed", rules: eligibility.Rules{MinPoints: 40},
+			data: drawEligibilityData{standingsErr: bus.RPCReplyError{Code: loyaltyrpc.RefusalSnapshotGone}}, calls: []drawChatCall{join},
+			results: drawEligibilityResult{replies: []string{"The draw has closed."}}},
 		{name: "own bot messages are ignored", calls: []drawChatCall{{command: "join", viewer: "99"}}},
 		{name: "giveaway excludes its broadcaster", calls: []drawChatCall{{command: "join"}},
 			results: drawEligibilityResult{refused: 1, refusalCalls: 1, batched: 1}},

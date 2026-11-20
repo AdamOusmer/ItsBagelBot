@@ -23,12 +23,6 @@ type SnapshotRequest struct {
 	ExpiresAt time.Time
 }
 
-type SnapshotExtension struct {
-	UserID    uint64
-	ID        SnapshotID
-	ExpiresAt time.Time
-}
-
 type snapshotKey struct {
 	userID uint64
 	id     SnapshotID
@@ -56,16 +50,23 @@ func (req SnapshotRequest) validOwner() bool {
 func (req SnapshotRequest) create(ctx context.Context, tx *sql.Tx) (FreezeState, error) {
 	row := tx.QueryRowContext(ctx, `SELECT snapshot_id,as_of_ms,expires_at_ms FROM loyalty_snapshots WHERE user_id=? AND owner=?`, req.UserID, []byte(req.Owner))
 	state, err := scanStandingsState(row)
-	if !errors.Is(err, sql.ErrNoRows) {
+	now := time.Now().Truncate(time.Millisecond)
+	switch {
+	case err == nil && !state.Active(now):
+		return FreezeState{}, ErrSnapshotGone
+	case !errors.Is(err, sql.ErrNoRows):
 		return state, err
 	}
-	now := time.Now().Truncate(time.Millisecond)
 	end := req.ExpiresAt.Truncate(time.Millisecond)
 	if !end.After(now) {
 		return FreezeState{}, ErrInvalidInput
 	}
 	return copyStandings(ctx, tx, snapshotCopy{userID: req.UserID, owner: req.Owner, asOf: now, expiresAt: end})
 }
+
+const freezeCopy = `INSERT INTO loyalty_freeze_balances (user_id, snapshot_id, viewer_id, points, watch_seconds, login, viewer_name)
+	SELECT user_id, ?, viewer_id, points, watch_seconds, COALESCE(viewer_login, ''), COALESCE(viewer_name, '')
+	FROM balances WHERE user_id=?`
 
 func copyStandings(ctx context.Context, tx *sql.Tx, copy snapshotCopy) (FreezeState, error) {
 	account, err := readAccountFence(tx.QueryRowContext(ctx, accountFenceQuery, copy.userID))

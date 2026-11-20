@@ -132,14 +132,28 @@ func openGiveaway(ctx context.Context, d Deps, req GiveawayStart, launch giveawa
 	if err := takeGiveawaySnapshot(ctx, d.StandingsSnapshots, launch.preset, &open); err != nil {
 		return giveawayOpenError(err)
 	}
+	return launch.open(ctx, d, open)
+}
+
+func (launch giveawayLaunch) open(ctx context.Context, d Deps, open draw.OpenRequest) (GiveawayStartOutcome, error) {
 	round, outcome, err := d.Draw.Open(ctx, open)
+	if err == nil && outcome == draw.Opened {
+		return GiveawayStartOutcome{Round: round, Config: launch.config, Rules: launch.preset.Rules}, nil
+	}
+	if dropErr := dropUnopenedSnapshot(ctx, d.StandingsSnapshots, open); dropErr != nil {
+		return GiveawayStartOutcome{}, errors.Join(err, dropErr)
+	}
 	if err != nil {
 		return giveawayOpenError(err)
 	}
-	if outcome != draw.Opened {
-		return giveawayStartBusy(ctx, d.Draw, open.Channel)
+	return giveawayStartBusy(ctx, d.Draw, open.Channel)
+}
+
+func dropUnopenedSnapshot(ctx context.Context, standings StandingsSnapshots, req draw.OpenRequest) error {
+	if req.Terms.SnapshotID == "" {
+		return nil
 	}
-	return GiveawayStartOutcome{Round: round, Config: launch.config, Rules: launch.preset.Rules}, nil
+	return standings.SnapshotDrop(context.WithoutCancel(ctx), uint64(req.Channel), req.Terms.SnapshotID)
 }
 
 func giveawayStartBusy(ctx context.Context, store DrawStore, channel draw.ChannelID) (GiveawayStartOutcome, error) {
@@ -174,9 +188,9 @@ func takeGiveawaySnapshot(ctx context.Context, standings StandingsSnapshots, pre
 	if !preset.Rules.NeedsStandings() {
 		return nil
 	}
-	closesAt := time.Now().UTC().Add(req.Duration).Truncate(time.Millisecond)
+	req.OpenedAt = time.Now().UTC().Truncate(time.Millisecond)
 	ref, err := standings.SnapshotCreate(ctx, SnapshotRequest{
-		BroadcasterID: uint64(req.Channel), Owner: "round:" + string(req.ID), ExpiresAt: closesAt,
+		BroadcasterID: uint64(req.Channel), Owner: "round:" + string(req.ID), ExpiresAt: req.OpenedAt.Add(draw.Pins.GiveawayMaxEntryWindow),
 	})
 	if err != nil {
 		return err
@@ -184,6 +198,6 @@ func takeGiveawaySnapshot(ctx context.Context, standings StandingsSnapshots, pre
 	if ref.SnapshotID == "" {
 		return errors.New("giveaway: missing standings snapshot")
 	}
-	req.Terms.SnapshotID, req.Terms.ClosesAt, req.Duration = ref.SnapshotID, closesAt, 0
+	req.Terms.SnapshotID = ref.SnapshotID
 	return nil
 }

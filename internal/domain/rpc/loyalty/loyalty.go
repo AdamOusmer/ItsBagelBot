@@ -20,7 +20,6 @@ const (
 	VerbFreezeGet           = "freeze.get"
 
 	VerbSnapshotCreate = "snapshot.create"
-	VerbSnapshotExtend = "snapshot.extend"
 	VerbSnapshotDrop   = "snapshot.drop"
 
 	RefusalFrozen                = "frozen"
@@ -121,17 +120,6 @@ type SnapshotCreateRequest struct {
 	ExpiresAt int64  `json:"expires_at"`
 }
 
-type SnapshotExtendRequest struct {
-	UserID     string `json:"user_id"`
-	SnapshotID string `json:"snapshot_id"`
-	ExpiresAt  int64  `json:"expires_at"`
-}
-
-type SnapshotExtended struct {
-	Extended bool `json:"extended"`
-	rpc.Refusal
-}
-
 type SnapshotDropRequest struct {
 	UserID     string `json:"user_id"`
 	SnapshotID string `json:"snapshot_id"`
@@ -175,7 +163,6 @@ type BalanceSnapshot struct {
 	Points       int64  `json:"points"`
 	WatchSeconds uint64 `json:"watch_seconds"`
 	Found        bool   `json:"found"`
-	FreezeStamp
 	rpc.Refusal
 }
 
@@ -190,7 +177,6 @@ func (r BalanceCountRequest) Requested() string { return r.UserID }
 
 type BalanceCount struct {
 	Count int64 `json:"count"`
-	FreezeStamp
 	rpc.Refusal
 }
 

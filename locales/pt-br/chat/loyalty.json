@@ -15,7 +15,7 @@
   "points.self": "@{loyalty:user} você não pode dar {loyalty:name} a si mesmo.",
   "points.unknown": "@{loyalty:user} ainda não vi {loyalty:target} neste canal.",
   "points.usage": "Uso: !points; ou !points <set|add|remove> @user <amount>; ou !points give @user <amount>",
-  "freeze.started": "Ranking pausado às {loyalty:time}. Os pontos e o tempo assistido continuam contando.",
+  "freeze.started": "Ranking pausado por {loyalty:minutes} min. Os pontos e o tempo assistido continuam contando.",
   "freeze.usage": "Uso: !freeze [1-30]",
   "unfreeze.done": "A classificação voltou a ser atualizada em tempo real.",
   "unfreeze.none": "@{loyalty:user} a classificação não está em pausa."
