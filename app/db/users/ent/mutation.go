@@ -6458,6 +6458,7 @@ type TermsAcceptanceMutation struct {
 	source                *termsacceptance.Source
 	locale                *string
 	request_id            *string
+	marketing_skipped     *string
 	clearedFields         map[string]struct{}
 	user                  *uint64
 	cleareduser           bool
@@ -6836,6 +6837,42 @@ func (m *TermsAcceptanceMutation) ResetRequestID() {
 	m.request_id = nil
 }
 
+// SetMarketingSkipped sets the "marketing_skipped" field.
+func (m *TermsAcceptanceMutation) SetMarketingSkipped(s string) {
+	m.marketing_skipped = &s
+}
+
+// MarketingSkipped returns the value of the "marketing_skipped" field in the mutation.
+func (m *TermsAcceptanceMutation) MarketingSkipped() (r string, exists bool) {
+	v := m.marketing_skipped
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMarketingSkipped returns the old "marketing_skipped" field's value of the TermsAcceptance entity.
+// If the TermsAcceptance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TermsAcceptanceMutation) OldMarketingSkipped(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMarketingSkipped is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMarketingSkipped requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMarketingSkipped: %w", err)
+	}
+	return oldValue.MarketingSkipped, nil
+}
+
+// ResetMarketingSkipped resets all changes to the "marketing_skipped" field.
+func (m *TermsAcceptanceMutation) ResetMarketingSkipped() {
+	m.marketing_skipped = nil
+}
+
 // ClearUser clears the "user" edge to the User entity.
 func (m *TermsAcceptanceMutation) ClearUser() {
 	m.cleareduser = true
@@ -6897,7 +6934,7 @@ func (m *TermsAcceptanceMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *TermsAcceptanceMutation) Fields() []string {
-	fields := make([]string, 0, 7)
+	fields := make([]string, 0, 8)
 	if m.user != nil {
 		fields = append(fields, termsacceptance.FieldUserID)
 	}
@@ -6918,6 +6955,9 @@ func (m *TermsAcceptanceMutation) Fields() []string {
 	}
 	if m.request_id != nil {
 		fields = append(fields, termsacceptance.FieldRequestID)
+	}
+	if m.marketing_skipped != nil {
+		fields = append(fields, termsacceptance.FieldMarketingSkipped)
 	}
 	return fields
 }
@@ -6941,6 +6981,8 @@ func (m *TermsAcceptanceMutation) Field(name string) (ent.Value, bool) {
 		return m.Locale()
 	case termsacceptance.FieldRequestID:
 		return m.RequestID()
+	case termsacceptance.FieldMarketingSkipped:
+		return m.MarketingSkipped()
 	}
 	return nil, false
 }
@@ -6964,6 +7006,8 @@ func (m *TermsAcceptanceMutation) OldField(ctx context.Context, name string) (en
 		return m.OldLocale(ctx)
 	case termsacceptance.FieldRequestID:
 		return m.OldRequestID(ctx)
+	case termsacceptance.FieldMarketingSkipped:
+		return m.OldMarketingSkipped(ctx)
 	}
 	return nil, fmt.Errorf("unknown TermsAcceptance field %s", name)
 }
@@ -7021,6 +7065,13 @@ func (m *TermsAcceptanceMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetRequestID(v)
+		return nil
+	case termsacceptance.FieldMarketingSkipped:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMarketingSkipped(v)
 		return nil
 	}
 	return fmt.Errorf("unknown TermsAcceptance field %s", name)
@@ -7106,6 +7157,9 @@ func (m *TermsAcceptanceMutation) ResetField(name string) error {
 		return nil
 	case termsacceptance.FieldRequestID:
 		m.ResetRequestID()
+		return nil
+	case termsacceptance.FieldMarketingSkipped:
+		m.ResetMarketingSkipped()
 		return nil
 	}
 	return fmt.Errorf("unknown TermsAcceptance field %s", name)

@@ -188,6 +188,7 @@ func (d *dashboardRPC) handleGrantSave(ctx context.Context, msg *nats.Msg) {
 			write := repository.TokenWrite{
 				UserID: id, Type: tokens.TypeUserToken, Platform: tokens.PlatformTwitch,
 				AccessToken: []byte(req.AccessToken), RefreshToken: []byte(req.RefreshToken), Scopes: req.Scopes,
+				ReplaceScopes: true,
 			}
 			if err := d.repo.UpsertToken(ctx, write); err != nil {
 				return err
@@ -206,8 +207,8 @@ func (d *dashboardRPC) handleGrantHas(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	accessToken, _, _, _, err := d.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
-	hasGrant := err == nil && len(accessToken) > 0
+	token, err := d.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
+	hasGrant := err == nil && len(token.AccessToken) > 0
 	bus.Respond(msg, map[string]any{"has_grant": hasGrant})
 }
 

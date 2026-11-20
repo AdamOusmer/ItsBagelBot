@@ -128,7 +128,6 @@ func (User) Indexes() []ent.Index {
 		index.Fields("notice_due_at", "id"),
 		index.Fields("lifecycle_projection_pending", "id"),
 		index.Fields("lifecycle_migration_pending", "id"),
-		index.Fields("terms_version"),
 		index.Fields("marketing_status", "id"),
 	}
 }

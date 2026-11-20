@@ -269,6 +269,7 @@ var (
 		{Name: "source", Type: field.TypeEnum, Enums: []string{"welcome", "consent"}},
 		{Name: "locale", Type: field.TypeString, Size: 8},
 		{Name: "request_id", Type: field.TypeString, Unique: true, Size: 128},
+		{Name: "marketing_skipped", Type: field.TypeString, Size: 16, Default: ""},
 		{Name: "user_id", Type: field.TypeUint64},
 	}
 	// TermsAcceptanceTable holds the schema information for the "terms_acceptance" table.
@@ -279,7 +280,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "terms_acceptance_users_terms_acceptances",
-				Columns:    []*schema.Column{TermsAcceptanceColumns[7]},
+				Columns:    []*schema.Column{TermsAcceptanceColumns[8]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -397,11 +398,6 @@ var (
 				Name:    "user_lifecycle_migration_pending_id",
 				Unique:  false,
 				Columns: []*schema.Column{UsersColumns[10], UsersColumns[0]},
-			},
-			{
-				Name:    "user_terms_version",
-				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[31]},
 			},
 			{
 				Name:    "user_marketing_status_id",

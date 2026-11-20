@@ -248,11 +248,11 @@ func (r *Users) revokeTwitchTokens(ctx context.Context, userID uint64) {
 		return
 	}
 	for _, tokenType := range []tokens.Type{tokens.TypeAccessToken, tokens.TypeUserToken} {
-		access, _, _, _, err := r.Token(ctx, userID, tokenType, tokens.PlatformTwitch)
+		token, err := r.Token(ctx, userID, tokenType, tokens.PlatformTwitch)
 		if err != nil {
 			continue
 		}
-		if err := r.revoker.Revoke(ctx, string(access)); err != nil {
+		if err := r.revoker.Revoke(ctx, string(token.AccessToken)); err != nil {
 			r.log.Warn("twitch token revoke failed on account deletion", zap.Uint64("user_id", userID), zap.String("type", tokenType.String()), zap.Error(err))
 		}
 	}

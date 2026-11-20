@@ -45,11 +45,16 @@ type consentWrite struct {
 	at    time.Time
 }
 
+type consentChange struct {
+	changed bool
+	skipped consent.MarketingSkipReason
+}
+
 func (c TermsConsent) valid() bool {
 	if c.Source != consent.Welcome && c.Source != consent.Consent {
 		return false
 	}
-	if strings.TrimSpace(c.TermsVersion) == "" || strings.TrimSpace(c.RequestID) == "" {
+	if c.TermsVersion != consent.TermsVersion || strings.TrimSpace(c.RequestID) == "" {
 		return false
 	}
 	return i18n.Supported(c.Locale)
@@ -67,63 +72,84 @@ func (c MarketingChoice) valid() bool {
 	}
 }
 
-func (r *Users) SetConsent(ctx context.Context, id uint64, req TermsConsent) error {
+func (r *Users) SetConsent(ctx context.Context, id uint64, req TermsConsent) (consent.MarketingSkipReason, error) {
 	if !req.valid() {
-		return ErrConsentInvalid
+		return "", ErrConsentInvalid
 	}
-	return r.withConsentOwner(ctx, id, func(w consentWrite) (bool, error) {
-		replayed, err := w.acceptTerms(ctx, req)
-		if err != nil || replayed {
-			return false, err
+	change, err := r.withConsentOwner(ctx, id, func(w consentWrite) (consentChange, error) {
+		prior, err := w.tx.TermsAcceptance.Query().Where(termsacceptance.RequestIDEQ(req.RequestID)).Only(ctx)
+		switch {
+		case err == nil:
+			return w.replayTerms(prior)
+		case ent.IsNotFound(err):
+			return r.recordConsent(ctx, w, req)
+		default:
+			return consentChange{}, err
 		}
-		update := w.userUpdate().SetTermsVersion(req.TermsVersion)
-		if err := r.applyTermsOptIn(ctx, w, update, req); err != nil {
-			return false, err
-		}
-		return true, update.Exec(ctx)
 	})
+	return change.skipped, err
 }
 
-func (r *Users) applyTermsOptIn(ctx context.Context, w consentWrite, update *ent.UserUpdateOne, req TermsConsent) error {
-	if !req.Marketing {
-		return nil
+func (r *Users) recordConsent(ctx context.Context, w consentWrite, req TermsConsent) (consentChange, error) {
+	var skipped consent.MarketingSkipReason
+	if req.Marketing {
+		skipped = r.marketingSkipReason(w.owner)
 	}
-	w.projectMarketing(update, consent.Granted)
-	return r.applyMarketingChoice(ctx, w, MarketingChoice{Status: consent.Granted, Source: req.Source, Locale: req.Locale})
+	if err := w.acceptTerms(ctx, req, skipped); err != nil {
+		return consentChange{}, err
+	}
+	update := w.userUpdate().SetTermsVersion(req.TermsVersion)
+	if !req.Marketing || skipped != "" {
+		return consentChange{changed: true, skipped: skipped}, update.Exec(ctx)
+	}
+	choice := MarketingChoice{Status: consent.Granted, Source: req.Source, Locale: req.Locale}
+	if err := r.applyMarketingChoice(ctx, w, choice); err != nil {
+		return consentChange{}, err
+	}
+	return consentChange{changed: true}, w.projectMarketing(update, choice.Status).Exec(ctx)
 }
 
-func (w consentWrite) acceptTerms(ctx context.Context, req TermsConsent) (bool, error) {
-	prior, err := w.tx.TermsAcceptance.Query().Where(termsacceptance.RequestIDEQ(req.RequestID)).Only(ctx)
-	switch {
-	case err == nil:
-		if prior.UserID != w.owner.ID || prior.AccountCreatedAt != w.owner.CreatedAt.UnixMicro() {
-			return false, ErrConsentRequestUsed
-		}
-		return true, nil
-	case !ent.IsNotFound(err):
-		return false, err
+func (r *Users) marketingSkipReason(owner *ent.User) consent.MarketingSkipReason {
+	if len(owner.EmailEnc) == 0 {
+		return consent.MarketingSkipNoEmail
 	}
-	err = w.tx.TermsAcceptance.Create().
+	if r.marketingMAC == nil {
+		return consent.MarketingSkipUnavailable
+	}
+	return ""
+}
+
+func (w consentWrite) replayTerms(prior *ent.TermsAcceptance) (consentChange, error) {
+	if prior.UserID != w.owner.ID || prior.AccountCreatedAt != w.owner.CreatedAt.UnixMicro() {
+		return consentChange{}, ErrConsentRequestUsed
+	}
+	return consentChange{skipped: consent.MarketingSkipReason(prior.MarketingSkipped)}, nil
+}
+
+func (w consentWrite) acceptTerms(ctx context.Context, req TermsConsent, skipped consent.MarketingSkipReason) error {
+	err := w.tx.TermsAcceptance.Create().
 		SetUserID(w.owner.ID).SetAccountCreatedAt(w.owner.CreatedAt.UnixMicro()).
 		SetTermsVersion(req.TermsVersion).SetAcceptedAt(w.at).
 		SetSource(termsacceptance.Source(req.Source)).SetLocale(req.Locale).SetRequestID(req.RequestID).
+		SetMarketingSkipped(string(skipped)).
 		Exec(ctx)
 	if ent.IsConstraintError(err) {
-		return false, ErrConsentRequestUsed
+		return ErrConsentRequestUsed
 	}
-	return false, err
+	return err
 }
 
 func (r *Users) SetMarketing(ctx context.Context, id uint64, choice MarketingChoice) error {
 	if !choice.valid() {
 		return ErrConsentInvalid
 	}
-	return r.withConsentOwner(ctx, id, func(w consentWrite) (bool, error) {
+	_, err := r.withConsentOwner(ctx, id, func(w consentWrite) (consentChange, error) {
 		if err := r.applyMarketingChoice(ctx, w, choice); err != nil {
-			return false, err
+			return consentChange{}, err
 		}
-		return true, w.projectMarketing(w.userUpdate(), choice.Status).Exec(ctx)
+		return consentChange{changed: true}, w.projectMarketing(w.userUpdate(), choice.Status).Exec(ctx)
 	})
+	return err
 }
 
 func (r *Users) applyMarketingChoice(ctx context.Context, w consentWrite, choice MarketingChoice) error {
@@ -204,22 +230,22 @@ func (w consentWrite) projectMarketing(update *ent.UserUpdateOne, status consent
 	return update.SetMarketingStatus(user.MarketingStatus(status)).SetMarketingStatusAt(w.at)
 }
 
-func (r *Users) withConsentOwner(ctx context.Context, id uint64, apply func(consentWrite) (bool, error)) error {
+func (r *Users) withConsentOwner(ctx context.Context, id uint64, apply func(consentWrite) (consentChange, error)) (consentChange, error) {
 	if err := validate.UserID(id); err != nil {
-		return err
+		return consentChange{}, err
 	}
-	changed, err := db.WithQuery(ctx, func(ctx context.Context) (bool, error) {
-		return db.RetryWithTxResult(ctx, r.client, func(tx *ent.Tx) (bool, error) {
+	change, err := db.WithQuery(ctx, func(ctx context.Context) (consentChange, error) {
+		return db.RetryWithTxResult(ctx, r.client, func(tx *ent.Tx) (consentChange, error) {
 			owner, err := tx.User.Query().Where(user.IDEQ(id), lockOwnerRow).Only(ctx)
 			if err != nil {
-				return false, err
+				return consentChange{}, err
 			}
 			return apply(consentWrite{tx: tx, owner: owner, at: time.Now().UTC()})
 		})
 	})
-	if err != nil || !changed {
-		return err
+	if err != nil || !change.changed {
+		return change, err
 	}
 	r.Invalidate(id)
-	return r.publishChanged(ctx, id)
+	return change, r.publishChanged(ctx, id)
 }

@@ -11,6 +11,13 @@ const (
 
 type MarketingStatus string
 
+type MarketingSkipReason string
+
+const (
+	MarketingSkipNoEmail     MarketingSkipReason = "no_email"
+	MarketingSkipUnavailable MarketingSkipReason = "unavailable"
+)
+
 const (
 	None      MarketingStatus = "none"
 	Granted   MarketingStatus = "granted"

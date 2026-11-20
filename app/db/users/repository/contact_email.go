@@ -32,17 +32,18 @@ func (r *Users) SetContactEmail(ctx context.Context, id uint64, email string) er
 		return err
 	}
 
-	return r.withConsentOwner(ctx, id, func(w consentWrite) (bool, error) {
+	_, err = r.withConsentOwner(ctx, id, func(w consentWrite) (consentChange, error) {
 		withdrawn, err := r.withdrawChangedAddress(ctx, w, email)
 		if err != nil {
-			return false, err
+			return consentChange{}, err
 		}
 		update := w.userUpdate().SetEmailEnc(sealed.Ciphertext)
 		if withdrawn {
 			w.projectMarketing(update, consent.Withdrawn)
 		}
-		return withdrawn, update.Exec(ctx)
+		return consentChange{changed: withdrawn}, update.Exec(ctx)
 	})
+	return err
 }
 
 func (r *Users) withdrawChangedAddress(ctx context.Context, w consentWrite, email string) (bool, error) {

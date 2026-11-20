@@ -35,6 +35,7 @@ type MarketingSetRequest struct {
 }
 
 type ConsentWriteReply struct {
-	OK bool `json:"ok"`
+	OK               bool                        `json:"ok"`
+	MarketingSkipped consent.MarketingSkipReason `json:"marketing_skipped,omitempty"`
 	rpc.Refusal
 }

@@ -28,6 +28,8 @@ const (
 	FieldLocale = "locale"
 	// FieldRequestID holds the string denoting the request_id field in the database.
 	FieldRequestID = "request_id"
+	// FieldMarketingSkipped holds the string denoting the marketing_skipped field in the database.
+	FieldMarketingSkipped = "marketing_skipped"
 	// EdgeUser holds the string denoting the user edge name in mutations.
 	EdgeUser = "user"
 	// Table holds the table name of the termsacceptance in the database.
@@ -51,6 +53,7 @@ var Columns = []string{
 	FieldSource,
 	FieldLocale,
 	FieldRequestID,
+	FieldMarketingSkipped,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -70,6 +73,10 @@ var (
 	LocaleValidator func(string) error
 	// RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
 	RequestIDValidator func(string) error
+	// DefaultMarketingSkipped holds the default value on creation for the "marketing_skipped" field.
+	DefaultMarketingSkipped string
+	// MarketingSkippedValidator is a validator for the "marketing_skipped" field. It is called by the builders before save.
+	MarketingSkippedValidator func(string) error
 )
 
 // Source defines the type for the "source" enum field.
@@ -136,6 +143,11 @@ func ByLocale(opts ...sql.OrderTermOption) OrderOption {
 // ByRequestID orders the results by the request_id field.
 func ByRequestID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRequestID, opts...).ToFunc()
+}
+
+// ByMarketingSkipped orders the results by the marketing_skipped field.
+func ByMarketingSkipped(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMarketingSkipped, opts...).ToFunc()
 }
 
 // ByUserField orders the results by user field.

@@ -52,33 +52,32 @@ func TestConsentEvidenceAndErasure(t *testing.T) {
 	ctx, id := t.Context(), consentAccount.ID
 	require.NoError(t, f.repo.SetContactEmail(ctx, id, consentEmail))
 	req := consentRequest(true)
-	require.NoError(t, f.repo.SetConsent(ctx, id, req))
+	f.saveConsent(t, req)
 
 	terms := f.client.TermsAcceptance.Query().OnlyX(ctx)
-	grant := f.client.MarketingConsent.Query().OnlyX(ctx)
-	owner := f.client.User.GetX(ctx, id)
 	require.Equal(t, termsacceptance.SourceConsent, terms.Source)
-	require.Equal(t, marketingconsent.SourceConsent, grant.Source)
-	require.Equal(t, marketingconsent.BasisExpress, grant.Basis)
-
 	require.Equal(t, []string{req.RequestID, req.TermsVersion, req.Locale},
 		[]string{terms.RequestID, terms.TermsVersion, terms.Locale})
-	require.Equal(t, []string{consent.MarketingPolicyVersion, consent.MarketingTextKey, req.Locale},
-		[]string{grant.PolicyVersion, grant.ConsentTextKey, grant.Locale})
+
+	grant := f.client.MarketingConsent.Query().OnlyX(ctx)
+	require.Equal(t, []string{string(marketingconsent.SourceConsent), string(marketingconsent.BasisExpress),
+		consent.MarketingPolicyVersion, consent.MarketingTextKey, req.Locale},
+		[]string{string(grant.Source), string(grant.Basis), grant.PolicyVersion, grant.ConsentTextKey, grant.Locale})
 	require.NoError(t, f.mac.VerifyMAC(grant.AddressHmac, []byte(consentEmail)))
 
+	owner := f.client.User.GetX(ctx, id)
 	incarnation := owner.CreatedAt.UnixMicro()
 	require.Equal(t, []int64{incarnation, incarnation}, []int64{terms.AccountCreatedAt, grant.AccountCreatedAt})
-
-	require.NotNil(t, owner.MarketingStatusAt)
 	require.Equal(t, terms.AcceptedAt, grant.CreatedAt)
-	require.True(t, grant.CreatedAt.Equal(*owner.MarketingStatusAt))
+	require.Equal(t, &grant.CreatedAt, owner.MarketingStatusAt)
 
-	require.NoError(t, f.repo.Delete(ctx, id))
+	err := f.repo.Delete(ctx, id)
+	require.NoError(t, err)
 	require.Zero(t, f.client.TermsAcceptance.Query().CountX(ctx))
 	require.Zero(t, f.client.MarketingConsent.Query().CountX(ctx))
 
-	require.NoError(t, f.repo.Register(ctx, consentAccount))
+	err = f.repo.Register(ctx, consentAccount)
+	require.NoError(t, err)
 	f.requireProjection(t, "", consent.None)
 }
 
@@ -86,23 +85,27 @@ func TestConsentRetriesAndOptionalMarketing(t *testing.T) {
 	f := setupConsent(t)
 	ctx, id := t.Context(), consentAccount.ID
 	optIn := consentRequest(true)
-	declined := repository.TermsConsent{TermsVersion: "2027-01", RequestID: "consent-2", Source: consent.Consent, Locale: "fr"}
-	require.ErrorIs(t, f.repo.SetConsent(ctx, id, optIn), repository.ErrNoContactEmail)
-	f.requireProjection(t, "", consent.None)
-	require.Zero(t, f.client.TermsAcceptance.Query().CountX(ctx))
+	declined := consentRequest(false)
+	declined.RequestID = "consent-2"
 
 	require.NoError(t, f.repo.SetContactEmail(ctx, id, consentEmail))
-	require.NoError(t, f.repo.SetConsent(ctx, id, optIn))
-	require.NoError(t, f.repo.SetConsent(ctx, id, optIn))
-	require.NoError(t, f.repo.SetConsent(ctx, id, declined))
+	f.saveConsent(t, optIn)
+	f.saveConsent(t, declined)
 	f.requireProjection(t, declined.TermsVersion, consent.Granted)
 	require.Equal(t, 1, f.client.MarketingConsent.Query().CountX(ctx))
 
 	require.NoError(t, f.repo.SetMarketing(ctx, id, repository.MarketingChoice{Status: consent.Withdrawn, Source: consent.Settings}))
-	require.NoError(t, f.repo.SetConsent(ctx, id, optIn))
+	f.saveConsent(t, optIn)
 	f.requireProjection(t, declined.TermsVersion, consent.Withdrawn)
 	require.Equal(t, 2, f.client.TermsAcceptance.Query().CountX(ctx))
 	require.Equal(t, 2, f.client.MarketingConsent.Query().CountX(ctx))
+}
+
+func (f consentFixture) saveConsent(t *testing.T, req repository.TermsConsent) {
+	t.Helper()
+	skipped, err := f.repo.SetConsent(t.Context(), consentAccount.ID, req)
+	require.NoError(t, err)
+	require.Empty(t, skipped)
 }
 
 func (f consentFixture) requireProjection(t *testing.T, version string, status consent.MarketingStatus) {
@@ -117,7 +120,7 @@ func TestContactEmailChangeWithdrawsMarketing(t *testing.T) {
 	f := setupConsent(t)
 	ctx, id := t.Context(), consentAccount.ID
 	require.NoError(t, f.repo.SetContactEmail(ctx, id, consentEmail))
-	require.NoError(t, f.repo.SetConsent(ctx, id, consentRequest(true)))
+	f.saveConsent(t, consentRequest(true))
 
 	for _, tc := range []struct {
 		name    string

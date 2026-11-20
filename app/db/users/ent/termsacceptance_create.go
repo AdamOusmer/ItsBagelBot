@@ -65,6 +65,20 @@ func (_c *TermsAcceptanceCreate) SetRequestID(v string) *TermsAcceptanceCreate {
 	return _c
 }
 
+// SetMarketingSkipped sets the "marketing_skipped" field.
+func (_c *TermsAcceptanceCreate) SetMarketingSkipped(v string) *TermsAcceptanceCreate {
+	_c.mutation.SetMarketingSkipped(v)
+	return _c
+}
+
+// SetNillableMarketingSkipped sets the "marketing_skipped" field if the given value is not nil.
+func (_c *TermsAcceptanceCreate) SetNillableMarketingSkipped(v *string) *TermsAcceptanceCreate {
+	if v != nil {
+		_c.SetMarketingSkipped(*v)
+	}
+	return _c
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_c *TermsAcceptanceCreate) SetUser(v *User) *TermsAcceptanceCreate {
 	return _c.SetUserID(v.ID)
@@ -77,6 +91,7 @@ func (_c *TermsAcceptanceCreate) Mutation() *TermsAcceptanceMutation {
 
 // Save creates the TermsAcceptance in the database.
 func (_c *TermsAcceptanceCreate) Save(ctx context.Context) (*TermsAcceptance, error) {
+	_c.defaults()
 	return withHooks(ctx, _c.sqlSave, _c.mutation, _c.hooks)
 }
 
@@ -99,6 +114,14 @@ func (_c *TermsAcceptanceCreate) Exec(ctx context.Context) error {
 func (_c *TermsAcceptanceCreate) ExecX(ctx context.Context) {
 	if err := _c.Exec(ctx); err != nil {
 		panic(err)
+	}
+}
+
+// defaults sets the default values of the builder before save.
+func (_c *TermsAcceptanceCreate) defaults() {
+	if _, ok := _c.mutation.MarketingSkipped(); !ok {
+		v := termsacceptance.DefaultMarketingSkipped
+		_c.mutation.SetMarketingSkipped(v)
 	}
 }
 
@@ -143,6 +166,14 @@ func (_c *TermsAcceptanceCreate) check() error {
 	if v, ok := _c.mutation.RequestID(); ok {
 		if err := termsacceptance.RequestIDValidator(v); err != nil {
 			return &ValidationError{Name: "request_id", err: fmt.Errorf(`ent: validator failed for field "TermsAcceptance.request_id": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.MarketingSkipped(); !ok {
+		return &ValidationError{Name: "marketing_skipped", err: errors.New(`ent: missing required field "TermsAcceptance.marketing_skipped"`)}
+	}
+	if v, ok := _c.mutation.MarketingSkipped(); ok {
+		if err := termsacceptance.MarketingSkippedValidator(v); err != nil {
+			return &ValidationError{Name: "marketing_skipped", err: fmt.Errorf(`ent: validator failed for field "TermsAcceptance.marketing_skipped": %w`, err)}
 		}
 	}
 	if len(_c.mutation.UserIDs()) == 0 {
@@ -198,6 +229,10 @@ func (_c *TermsAcceptanceCreate) createSpec() (*TermsAcceptance, *sqlgraph.Creat
 	if value, ok := _c.mutation.RequestID(); ok {
 		_spec.SetField(termsacceptance.FieldRequestID, field.TypeString, value)
 		_node.RequestID = value
+	}
+	if value, ok := _c.mutation.MarketingSkipped(); ok {
+		_spec.SetField(termsacceptance.FieldMarketingSkipped, field.TypeString, value)
+		_node.MarketingSkipped = value
 	}
 	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -300,6 +335,9 @@ func (u *TermsAcceptanceUpsertOne) UpdateNewValues() *TermsAcceptanceUpsertOne {
 		if _, exists := u.create.mutation.RequestID(); exists {
 			s.SetIgnore(termsacceptance.FieldRequestID)
 		}
+		if _, exists := u.create.mutation.MarketingSkipped(); exists {
+			s.SetIgnore(termsacceptance.FieldMarketingSkipped)
+		}
 	}))
 	return u
 }
@@ -383,6 +421,7 @@ func (_c *TermsAcceptanceCreateBulk) Save(ctx context.Context) ([]*TermsAcceptan
 	for i := range _c.builders {
 		func(i int, root context.Context) {
 			builder := _c.builders[i]
+			builder.defaults()
 			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 				mutation, ok := m.(*TermsAcceptanceMutation)
 				if !ok {
@@ -526,6 +565,9 @@ func (u *TermsAcceptanceUpsertBulk) UpdateNewValues() *TermsAcceptanceUpsertBulk
 			}
 			if _, exists := b.mutation.RequestID(); exists {
 				s.SetIgnore(termsacceptance.FieldRequestID)
+			}
+			if _, exists := b.mutation.MarketingSkipped(); exists {
+				s.SetIgnore(termsacceptance.FieldMarketingSkipped)
 			}
 		}
 	}))

@@ -357,6 +357,12 @@ func init() {
 			return nil
 		}
 	}()
+	// termsacceptanceDescMarketingSkipped is the schema descriptor for marketing_skipped field.
+	termsacceptanceDescMarketingSkipped := termsacceptanceFields[7].Descriptor()
+	// termsacceptance.DefaultMarketingSkipped holds the default value on creation for the marketing_skipped field.
+	termsacceptance.DefaultMarketingSkipped = termsacceptanceDescMarketingSkipped.Default.(string)
+	// termsacceptance.MarketingSkippedValidator is a validator for the "marketing_skipped" field. It is called by the builders before save.
+	termsacceptance.MarketingSkippedValidator = termsacceptanceDescMarketingSkipped.Validators[0].(func(string) error)
 	tokensFields := schema.Tokens{}.Fields()
 	_ = tokensFields
 	userHooks := schema.User{}.Hooks()

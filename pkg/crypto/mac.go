@@ -4,27 +4,39 @@
 package crypto
 
 import (
-	"fmt"
+	"errors"
 	"os"
 
 	"ItsBagelBot/pkg/env"
 
 	"github.com/tink-crypto/tink-go/v2/mac"
 	"github.com/tink-crypto/tink-go/v2/tink"
+	"go.uber.org/zap"
 )
 
-func OptionalMACFromEnv(pathEnv string) (tink.MAC, error) {
-	path := env.Get(pathEnv, "")
+const macKeysetPathEnv = "MARKETING_ADDRESS_HMAC_KEYSET_PATH"
+
+func OptionalMACFromEnv(feature string, log *zap.Logger) tink.MAC {
+	path := env.Get(macKeysetPathEnv, "")
 	if path == "" {
-		return nil, nil
+		log.Warn(feature + " key custody disabled: " + macKeysetPathEnv + " not set")
+		return nil
 	}
 	keysetJSON, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		log.Warn(feature+" key custody disabled: keyset not provisioned yet", zap.String("path", path))
+		return nil
+	}
 	if err != nil {
-		return nil, fmt.Errorf("read %s keyset: %w", pathEnv, err)
+		log.Fatal("failed to read tink MAC keyset", zap.String("feature", feature), zap.Error(err))
 	}
 	handle, err := readKeyset(keysetJSON)
 	if err != nil {
-		return nil, err
+		log.Fatal("invalid tink MAC keyset", zap.String("feature", feature), zap.Error(err))
 	}
-	return mac.New(handle)
+	primitive, err := mac.New(handle)
+	if err != nil {
+		log.Fatal("failed to initialize tink MAC", zap.String("feature", feature), zap.Error(err))
+	}
+	return primitive
 }

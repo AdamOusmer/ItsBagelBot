@@ -63,16 +63,15 @@ func TestTokenRoundTrip(t *testing.T) {
 	assert.NotEqual(t, plaintext, row.Token)
 	assert.NotEqual(t, refresh, row.RefreshToken)
 
-	access, gotRefresh, _, _, err := repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	token, err := repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	require.NoError(t, err)
-	assert.Equal(t, plaintext, access)
-	assert.Equal(t, refresh, gotRefresh)
+	assert.Equal(t, repository.StoredToken{AccessToken: plaintext, RefreshToken: refresh}, token)
 
 	require.NoError(t, repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1001, Type: tokens.TypeAccessToken, Platform: tokens.PlatformTwitch, AccessToken: []byte("new")}))
 
-	access, _, _, _, err = repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	token, err = repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	require.NoError(t, err)
-	assert.Equal(t, []byte("new"), access, "an upsert replaces the stored token")
+	assert.Equal(t, []byte("new"), token.AccessToken, "an upsert replaces the stored token")
 }
 
 func TestTokenExpiryPersistsAndClearsOnOverwrite(t *testing.T) {
@@ -84,16 +83,17 @@ func TestTokenExpiryPersistsAndClearsOnOverwrite(t *testing.T) {
 	expiresAt := ptrTime(time.Now().Add(4 * time.Hour).Truncate(time.Second))
 	require.NoError(t, repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1001, Type: tokens.TypeAccessToken, Platform: tokens.PlatformTwitch, AccessToken: []byte("first"), ExpiresAt: expiresAt}))
 
-	_, _, gotExpiry, _, err := repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	token, err := repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	require.NoError(t, err)
-	require.NotNil(t, gotExpiry)
-	assert.True(t, expiresAt.Equal(*gotExpiry))
+	require.NotNil(t, token.ExpiresAt)
+	assert.True(t, expiresAt.Equal(*token.ExpiresAt))
 
-	require.NoError(t, repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1001, Type: tokens.TypeAccessToken, Platform: tokens.PlatformTwitch, AccessToken: []byte("second")}))
-
-	_, _, gotExpiry, _, err = repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	err = repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1001, Type: tokens.TypeAccessToken, Platform: tokens.PlatformTwitch, AccessToken: []byte("second")})
 	require.NoError(t, err)
-	assert.Nil(t, gotExpiry)
+
+	token, err = repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	require.NoError(t, err)
+	assert.Nil(t, token.ExpiresAt)
 }
 
 func TestTokenCiphertextBoundToOwner(t *testing.T) {
@@ -114,7 +114,7 @@ func TestTokenCiphertextBoundToOwner(t *testing.T) {
 		SetToken(stolen).
 		ExecX(ctx)
 
-	_, _, _, _, err := repo.Token(ctx, 2, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	_, err := repo.Token(ctx, 2, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	assert.Error(t, err, "a ciphertext moved between users must not decrypt")
 }
 
@@ -209,10 +209,9 @@ func TestSetCreatorCodeStoresTrimsClearsAndPublishes(t *testing.T) {
 
 	view, err := repo.Get(ctx, 1001)
 	require.NoError(t, err)
-	require.NotNil(t, view.CreatorCode)
-	assert.Equal(t, "MAVEY10", *view.CreatorCode)
-	require.NotNil(t, client.User.GetX(ctx, 1001).CreatorCode)
-	assert.Equal(t, "MAVEY10", *client.User.GetX(ctx, 1001).CreatorCode)
+	code := "MAVEY10"
+	assert.Equal(t, &code, view.CreatorCode)
+	assert.Equal(t, &code, client.User.GetX(ctx, 1001).CreatorCode)
 	changed := decodeChanged(t, pub)
 	assert.Equal(t, "MAVEY10", changed[len(changed)-1].CreatorCode, "the code must ride the user projection")
 
@@ -222,8 +221,8 @@ func TestSetCreatorCodeStoresTrimsClearsAndPublishes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, view.CreatorCode)
 	assert.Nil(t, client.User.GetX(ctx, 1001).CreatorCode)
-	assert.Len(t, pub.On(data.SubjectUserChanged), 3, "register, set and clear must announce state")
 	changed = decodeChanged(t, pub)
+	assert.Len(t, changed, 3, "register, set and clear must announce state")
 	assert.Empty(t, changed[len(changed)-1].CreatorCode, "a cleared code must clear the projected value")
 }
 
@@ -257,10 +256,10 @@ func TestApplyBillingLifecycleIsMonotonicAndProtectsAdminGrants(t *testing.T) {
 
 	view, err := repo.Get(ctx, 1001)
 	require.NoError(t, err)
-	assert.Equal(t, "paid", view.Status)
-	assert.Equal(t, "tebex", view.SubscriptionSource)
-	assert.Equal(t, "tbx-r-current", *view.SubscriptionRef)
-	assert.Equal(t, expires, *view.SubscriptionExpiresAt)
+	assert.Equal(t, [2]string{"paid", "tebex"}, [2]string{view.Status, view.SubscriptionSource})
+	reference := "tbx-r-current"
+	assert.Equal(t, &reference, view.SubscriptionRef)
+	assert.Equal(t, &expires, view.SubscriptionExpiresAt)
 
 	applied, err = repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
 		UserID: 1001, EventID: "evt-old", Action: billingrpc.ActionRevoke,
@@ -389,9 +388,8 @@ func TestApplyBillingBackstopClampsUnboundedPaidGrant(t *testing.T) {
 	view, err = repo.Get(ctx, 5005)
 	require.NoError(t, err)
 	assert.Equal(t, "paid", view.Status)
-	require.NotNil(t, view.SubscriptionExpiresAt,
-		"a nil-expiry paid update against a NULL stored expiry must not mint an unbounded grant")
-	assert.Equal(t, won.AddDate(0, 1, 0), *view.SubscriptionExpiresAt)
+	assert.Equal(t, ptrTime(won.AddDate(0, 1, 0)), view.SubscriptionExpiresAt,
+		"a nil-expiry paid update against a NULL stored expiry must keep the grant bounded")
 }
 
 func TestExpireSubscriptionsHonorsTebexGrace(t *testing.T) {
@@ -437,10 +435,10 @@ func TestDeleteCascadesAndPublishes(t *testing.T) {
 	require.NoError(t, repo.Register(ctx, repository.Registration{ID: 1001, Username: "Mavey", DisplayName: "Mavey", Email: "mavey@concordia.ca"}))
 	require.NoError(t, repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1001, Type: tokens.TypeAccessToken, Platform: tokens.PlatformTwitch, AccessToken: []byte("tok")}))
 
-	require.NoError(t, repo.Delete(ctx, 1001))
+	err := repo.Delete(ctx, 1001)
+	require.NoError(t, err)
 
-	assert.Equal(t, 0, client.User.Query().CountX(ctx))
-	assert.Equal(t, 0, client.Tokens.Query().CountX(ctx), "tokens must cascade with the user")
+	assert.Equal(t, [2]int{}, [2]int{client.User.Query().CountX(ctx), client.Tokens.Query().CountX(ctx)}, "tokens must cascade with the user")
 
 	assert.Len(t, pub.On(data.SubjectUserDeleted), 1)
 }
@@ -459,7 +457,8 @@ func TestDelegateCanOptOutOfConsumedDelegation(t *testing.T) {
 	require.Len(t, access, 1)
 
 	require.Error(t, repo.OptOutDelegation(ctx, 9999, 2002), "delegate cannot drop a grant for another owner")
-	require.NoError(t, repo.OptOutDelegation(ctx, 1001, 2002))
+	err = repo.OptOutDelegation(ctx, 1001, 2002)
+	require.NoError(t, err)
 
 	access, err = repo.ListAccessByDelegate(ctx, 2002)
 	require.NoError(t, err)
@@ -666,7 +665,8 @@ func TestUserEventsIdentifyAccountIncarnation(t *testing.T) {
 	require.Equal(t, first.CreatedAt.UnixMicro(), changed.AccountCreatedAt)
 	require.Positive(t, changed.AccountCreatedAt)
 
-	require.NoError(t, repo.SetPageHidden(ctx, 1001, repository.PageCommands, true))
+	err := repo.SetPageHidden(ctx, 1001, repository.PageCommands, true)
+	require.NoError(t, err)
 	require.NoError(t, repo.Reproject(ctx))
 	for _, msg := range pub.On(data.SubjectUserChanged) {
 		var dto data.UserChangedDTO

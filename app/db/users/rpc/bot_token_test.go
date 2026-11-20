@@ -59,11 +59,11 @@ func TestBotTokenSaveWithoutStaffAccount(t *testing.T) {
 	require.Empty(t, result.Error)
 	require.NotNil(t, result.Token)
 	require.True(t, result.Token.Present)
-	require.Equal(t, req.AccessToken, presented)
-	access, refresh, _, _, err := a.repo.Token(ctx, 1061740761, tokens.TypeUserToken, tokens.PlatformTwitch)
+
+	token, err := a.repo.Token(ctx, 1061740761, tokens.TypeUserToken, tokens.PlatformTwitch)
 	require.NoError(t, err)
-	require.Equal(t, req.AccessToken, string(access))
-	require.Equal(t, req.RefreshToken, string(refresh))
+	require.Equal(t, [2]string{req.AccessToken, req.AccessToken}, [2]string{presented, string(token.AccessToken)})
+	require.Equal(t, req.RefreshToken, string(token.RefreshToken))
 }
 
 func TestBotTokenSaveRejectsOtherTargetsAndMissingConfiguration(t *testing.T) {

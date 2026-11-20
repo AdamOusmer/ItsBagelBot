@@ -31,16 +31,16 @@ func SubscribeTokens(w Wiring, prefix string) error {
 }
 
 func (t *tokensRPC) handleGet(ctx context.Context, _ usersrpc.TokensRequest, id uint64) (usersrpc.TokensReply, error) {
-	access, refresh, expiresAt, scopes, err := t.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
+	token, err := t.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
 	if err != nil {
 		return usersrpc.TokensReply{Refusal: bus.Classify(err, entNotFound)}, nil
 	}
 
 	return usersrpc.TokensReply{
-		AccessToken:          string(access),
-		RefreshToken:         string(refresh),
-		AccessTokenExpiresAt: expiresAt,
-		Scopes:               scopes,
+		AccessToken:          string(token.AccessToken),
+		RefreshToken:         string(token.RefreshToken),
+		AccessTokenExpiresAt: token.ExpiresAt,
+		Scopes:               token.Scopes,
 	}, nil
 }
 

@@ -10,6 +10,7 @@ import (
 	"ItsBagelBot/app/db/dbtest"
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/enttest"
+	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/repository"
 	"ItsBagelBot/app/db/users/rpc"
 	"ItsBagelBot/internal/domain/consent"
@@ -23,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tink-crypto/tink-go/v2/keyset"
 	"github.com/tink-crypto/tink-go/v2/mac"
+	"github.com/tink-crypto/tink-go/v2/tink"
 	"go.uber.org/zap"
 )
 
@@ -34,12 +36,8 @@ const (
 
 var ownerContext = usersrpc.DashboardOwner{BroadcasterUserID: consentOwnerID, ActorID: consentOwnerID}
 
-func newConsentHarness(t *testing.T) harness {
+func newConsentHarness(t *testing.T, addressMAC tink.MAC) harness {
 	t.Helper()
-	handle, err := keyset.NewHandle(mac.HMACSHA256Tag256KeyTemplate())
-	require.NoError(t, err)
-	addressMAC, err := mac.New(handle)
-	require.NoError(t, err)
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	repo := repository.NewUsers(repository.UsersConfig{
 		Client: client, Packer: dbtest.NewPacker(t), MarketingMAC: addressMAC, Pub: bustest.NewPublisher(),
@@ -52,6 +50,15 @@ func newConsentHarness(t *testing.T) harness {
 	require.NoError(t, nc.Flush())
 
 	return harness{nc: nc, client: client, repo: repo}
+}
+
+func newConsentMAC(t *testing.T) tink.MAC {
+	t.Helper()
+	handle, err := keyset.NewHandle(mac.HMACSHA256Tag256KeyTemplate())
+	require.NoError(t, err)
+	addressMAC, err := mac.New(handle)
+	require.NoError(t, err)
+	return addressMAC
 }
 
 func dashboardLogin(t *testing.T, h harness, email string) {
@@ -71,7 +78,7 @@ func dashboardConsentRequest(owner usersrpc.DashboardOwner) usersrpc.ConsentSetR
 }
 
 func TestDashboardConsentVerbsRejectNonOwners(t *testing.T) {
-	h := newConsentHarness(t)
+	h := newConsentHarness(t, nil)
 	dashboardLogin(t, h, "contact@example.test")
 
 	for _, test := range []struct {
@@ -98,17 +105,11 @@ func TestDashboardConsentVerbsRejectNonOwners(t *testing.T) {
 }
 
 func TestDashboardConsentRoundTrip(t *testing.T) {
-	h := newConsentHarness(t)
-	dashboardLogin(t, h, "")
-	req := dashboardConsentRequest(ownerContext)
-	missingAddress := call[usersrpc.ConsentWriteReply](t, h, dashboardPrefix+".consent_set", req)
-	require.Equal(t, domainrpc.CodeInvalid, missingAddress.Code)
-	requireDashboardConsent(t, h, "", consent.None)
-
+	h := newConsentHarness(t, newConsentMAC(t))
 	dashboardLogin(t, h, "contact@example.test")
+	req := dashboardConsentRequest(ownerContext)
 	for range 2 {
-		reply := call[usersrpc.ConsentWriteReply](t, h, dashboardPrefix+".consent_set", req)
-		require.True(t, reply.OK, "%+v", reply.Refusal)
+		requireConsentReply(t, h, req, "")
 	}
 	requireDashboardConsent(t, h, req.TermsVersion, consent.Granted)
 	require.Equal(t, 1, h.client.TermsAcceptance.Query().CountX(t.Context()))
@@ -125,6 +126,51 @@ func TestDashboardConsentRoundTrip(t *testing.T) {
 	}
 }
 
+func TestDashboardConsentRecordsTermsWhenMarketingIsSkipped(t *testing.T) {
+	addressMAC := newConsentMAC(t)
+	for _, tc := range []struct {
+		name  string
+		email string
+		mac   tink.MAC
+		want  consent.MarketingSkipReason
+	}{
+		{name: "missing contact email", mac: addressMAC, want: consent.MarketingSkipNoEmail},
+		{name: "missing keyset", email: "contact@example.test", want: consent.MarketingSkipUnavailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newConsentHarness(t, tc.mac)
+			dashboardLogin(t, h, tc.email)
+			req := dashboardConsentRequest(ownerContext)
+			requireConsentReply(t, h, req, tc.want)
+			requireDashboardConsent(t, h, req.TermsVersion, consent.None)
+
+			dashboardLogin(t, h, "contact@example.test")
+			requireConsentReply(t, h, req, tc.want)
+			require.Equal(t, 1, h.client.TermsAcceptance.Query().CountX(t.Context()))
+			require.Zero(t, h.client.MarketingConsent.Query().CountX(t.Context()))
+		})
+	}
+}
+
+func TestDashboardConsentRejectsOtherTermsVersions(t *testing.T) {
+	h := newConsentHarness(t, nil)
+	dashboardLogin(t, h, "")
+	for _, version := range []string{"", "1900-01", "9999-12", consent.TermsVersion + " "} {
+		req := dashboardConsentRequest(ownerContext)
+		req.TermsVersion = version
+		reply := call[usersrpc.ConsentWriteReply](t, h, dashboardPrefix+".consent_set", req)
+		require.Equal(t, domainrpc.CodeInvalid, reply.Code, "version %q", version)
+	}
+	requireDashboardConsent(t, h, "", consent.None)
+	require.Zero(t, h.client.TermsAcceptance.Query().CountX(t.Context()))
+}
+
+func requireConsentReply(t *testing.T, h harness, req usersrpc.ConsentSetRequest, skipped consent.MarketingSkipReason) {
+	t.Helper()
+	reply := call[usersrpc.ConsentWriteReply](t, h, dashboardPrefix+".consent_set", req)
+	require.Equal(t, usersrpc.ConsentWriteReply{OK: true, MarketingSkipped: skipped}, reply)
+}
+
 func requireDashboardConsent(t *testing.T, h harness, version string, status consent.MarketingStatus) {
 	t.Helper()
 	state := call[usersrpc.StateGetReply](t, h, dashboardPrefix+".state_get", usersrpc.StateGetRequest{BroadcasterUserID: consentOwnerID})
@@ -134,32 +180,44 @@ func requireDashboardConsent(t *testing.T, h harness, version string, status con
 }
 
 func TestDashboardGrantAndTokenScopes(t *testing.T) {
-	h := newConsentHarness(t)
+	h := newConsentHarness(t, nil)
 	dashboardLogin(t, h, "")
 	scopes := []string{"channel:bot", "user:read:chat"}
+	empty := []string{}
 	get := usersrpc.TokensRequest{UserID: consentOwnerID}
-	firstSave := usersrpc.TokensRequest{UserID: consentOwnerID, AccessToken: "unknown-scope-token"}
-	reply := call[usersrpc.TokensReply](t, h, tokensPrefix+".save", firstSave)
-	require.Empty(t, reply.Error)
-	require.Nil(t, call[usersrpc.TokensReply](t, h, tokensPrefix+".get", get).Scopes)
-
-	grant := usersrpc.GrantSaveRequest{BroadcasterUserID: consentOwnerID, AccessToken: "grant-token", Scopes: scopes}
-	saved := call[usersrpc.ConsentWriteReply](t, h, dashboardPrefix+".grant_save", grant)
-	require.True(t, saved.OK, "%+v", saved.Refusal)
-	require.Equal(t, scopes, call[usersrpc.TokensReply](t, h, tokensPrefix+".get", get).Scopes)
 
 	for _, test := range []struct {
-		name string
-		save []string
-		want []string
+		name  string
+		grant bool
+		save  []string
+		want  []string
 	}{
-		{"omitted scopes keep grant scopes", nil, scopes},
-		{"explicit empty remains empty on the wire", []string{}, []string{}},
+		{name: "first refresh with unknown scopes"},
+		{name: "grant supplies scopes", grant: true, save: scopes, want: scopes},
+		{name: "omitted refresh scopes preserve grant scopes", want: scopes},
+		{name: "omitted grant scopes clear the previous grant", grant: true},
+		{name: "refresh can supply scopes", save: scopes, want: scopes},
+		{name: "explicit empty remains empty on the wire", save: empty, want: empty},
+		{name: "omitted refresh scopes preserve explicit empty", want: empty},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			req := usersrpc.TokensRequest{UserID: consentOwnerID, AccessToken: "refreshed-token", Scopes: test.save}
-			require.Empty(t, call[usersrpc.TokensReply](t, h, tokensPrefix+".save", req).Error)
-			require.Equal(t, test.want, call[usersrpc.TokensReply](t, h, tokensPrefix+".get", get).Scopes)
+			saveTokenScopes(t, h, test.grant, test.save)
+			reply := call[usersrpc.TokensReply](t, h, tokensPrefix+".get", get)
+			require.Empty(t, reply.Error)
+			require.Equal(t, test.want, reply.Scopes)
+			require.Equal(t, test.want == nil, h.client.Tokens.Query().Where(tokens.ScopesIsNil()).ExistX(t.Context()))
 		})
 	}
+}
+
+func saveTokenScopes(t *testing.T, h harness, grant bool, scopes []string) {
+	t.Helper()
+	if grant {
+		req := usersrpc.GrantSaveRequest{BroadcasterUserID: consentOwnerID, AccessToken: "grant-token", Scopes: scopes}
+		reply := call[usersrpc.ConsentWriteReply](t, h, dashboardPrefix+".grant_save", req)
+		require.True(t, reply.OK, "%+v", reply.Refusal)
+		return
+	}
+	req := usersrpc.TokensRequest{UserID: consentOwnerID, AccessToken: "refreshed-token", Scopes: scopes}
+	require.Empty(t, call[usersrpc.TokensReply](t, h, tokensPrefix+".save", req).Error)
 }

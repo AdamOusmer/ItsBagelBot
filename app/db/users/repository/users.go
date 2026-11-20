@@ -529,13 +529,14 @@ func (r *Users) publishReprojectedUser(ctx context.Context, row *ent.User) error
 }
 
 type TokenWrite struct {
-	UserID       uint64
-	Type         tokens.Type
-	Platform     tokens.Platform
-	AccessToken  []byte
-	RefreshToken []byte
-	ExpiresAt    *time.Time
-	Scopes       []string
+	UserID        uint64
+	Type          tokens.Type
+	Platform      tokens.Platform
+	AccessToken   []byte
+	RefreshToken  []byte
+	ExpiresAt     *time.Time
+	Scopes        []string
+	ReplaceScopes bool
 }
 
 func (w TokenWrite) validate() error {
@@ -621,8 +622,11 @@ func (s sealedToken) update(ctx context.Context, existing *ent.Tokens) error {
 	if len(s.refresh.Ciphertext) > 0 {
 		update.SetRefreshToken(s.refresh.Ciphertext)
 	}
-	if s.Scopes != nil {
+	switch {
+	case s.Scopes != nil:
 		update.SetScopes(s.Scopes)
+	case s.ReplaceScopes:
+		update.ClearScopes()
 	}
 	return update.Exec(ctx)
 }
@@ -635,8 +639,14 @@ func (o tokenOwner) match() predicate.Tokens {
 	})
 }
 
-func (r *Users) Token(ctx context.Context, userID uint64, tokenType tokens.Type, platform tokens.Platform) (accessToken []byte, refreshToken []byte, accessTokenExpiresAt *time.Time, scopes []string, err error) {
+type StoredToken struct {
+	AccessToken  []byte
+	RefreshToken []byte
+	ExpiresAt    *time.Time
+	Scopes       []string
+}
 
+func (r *Users) Token(ctx context.Context, userID uint64, tokenType tokens.Type, platform tokens.Platform) (StoredToken, error) {
 	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Tokens, error) {
 		return r.client.Tokens.Query().
 			Where(
@@ -647,23 +657,25 @@ func (r *Users) Token(ctx context.Context, userID uint64, tokenType tokens.Type,
 			Only(ctx)
 	})
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return StoredToken{}, err
 	}
 
 	aad := tokenOwner(userID).aad(tokenType, platform)
 
-	accessToken, err = r.packer.Unpack(domaincrypto.SecureEnvelope{Ciphertext: row.Token, AttachedData: aad})
+	accessToken, err := r.packer.Unpack(domaincrypto.SecureEnvelope{Ciphertext: row.Token, AttachedData: aad})
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return StoredToken{}, err
 	}
 
-	if len(row.RefreshToken) > 0 {
-		if refreshToken, err = r.packer.Unpack(domaincrypto.SecureEnvelope{Ciphertext: row.RefreshToken, AttachedData: aad}); err != nil {
-			return nil, nil, nil, nil, err
-		}
+	token := StoredToken{AccessToken: accessToken, ExpiresAt: row.AccessTokenExpiresAt, Scopes: row.Scopes}
+	if len(row.RefreshToken) == 0 {
+		return token, nil
 	}
-
-	return accessToken, refreshToken, row.AccessTokenExpiresAt, row.Scopes, nil
+	token.RefreshToken, err = r.packer.Unpack(domaincrypto.SecureEnvelope{Ciphertext: row.RefreshToken, AttachedData: aad})
+	if err != nil {
+		return StoredToken{}, err
+	}
+	return token, nil
 }
 
 // A nil expiry must clear: the row may still carry the replaced token's expiry.

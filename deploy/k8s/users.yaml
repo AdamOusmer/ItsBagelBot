@@ -138,6 +138,8 @@ spec:
               value: "16"
             - name: DB_AUTO_MIGRATE
               value: "true"
+            - name: MARKETING_ADDRESS_HMAC_KEYSET_PATH
+              value: /etc/tink-mac/keyset.json
             - name: GOMEMLIMIT
               value: 160MiB
             - name: TLS_CERT_FILE
@@ -157,6 +159,9 @@ spec:
             - {name: health-tls, mountPath: /etc/users/tls, readOnly: true}
             - name: tink-keyset
               mountPath: /etc/tink
+              readOnly: true
+            - name: tink-mac-keyset
+              mountPath: /etc/tink-mac
               readOnly: true
           ports:
             - containerPort: 8080
@@ -203,6 +208,13 @@ spec:
             secretName: users-env
             items:
               - key: TINK_KEYSET
+                path: keyset.json
+        - name: tink-mac-keyset
+          secret:
+            secretName: users-env
+            optional: true
+            items:
+              - key: MARKETING_HMAC_KEYSET
                 path: keyset.json
 ---
 apiVersion: policy/v1

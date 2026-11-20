@@ -32,6 +32,8 @@ type TermsAcceptance struct {
 	Locale string `json:"locale,omitempty"`
 	// RequestID holds the value of the "request_id" field.
 	RequestID string `json:"request_id,omitempty"`
+	// MarketingSkipped holds the value of the "marketing_skipped" field.
+	MarketingSkipped string `json:"marketing_skipped,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the TermsAcceptanceQuery when eager-loading is set.
 	Edges        TermsAcceptanceEdges `json:"edges"`
@@ -65,7 +67,7 @@ func (*TermsAcceptance) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case termsacceptance.FieldID, termsacceptance.FieldUserID, termsacceptance.FieldAccountCreatedAt:
 			values[i] = new(sql.NullInt64)
-		case termsacceptance.FieldTermsVersion, termsacceptance.FieldSource, termsacceptance.FieldLocale, termsacceptance.FieldRequestID:
+		case termsacceptance.FieldTermsVersion, termsacceptance.FieldSource, termsacceptance.FieldLocale, termsacceptance.FieldRequestID, termsacceptance.FieldMarketingSkipped:
 			values[i] = new(sql.NullString)
 		case termsacceptance.FieldAcceptedAt:
 			values[i] = new(sql.NullTime)
@@ -132,6 +134,12 @@ func (_m *TermsAcceptance) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.RequestID = value.String
 			}
+		case termsacceptance.FieldMarketingSkipped:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field marketing_skipped", values[i])
+			} else if value.Valid {
+				_m.MarketingSkipped = value.String
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -193,6 +201,9 @@ func (_m *TermsAcceptance) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("request_id=")
 	builder.WriteString(_m.RequestID)
+	builder.WriteString(", ")
+	builder.WriteString("marketing_skipped=")
+	builder.WriteString(_m.MarketingSkipped)
 	builder.WriteByte(')')
 	return builder.String()
 }

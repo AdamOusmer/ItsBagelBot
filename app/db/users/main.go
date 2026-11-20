@@ -66,8 +66,7 @@ func main() {
 	defer recorder.Close()
 
 	h := bus.NewInvalidations(n.RPC, conf.CacheInvalidationPrefix.Get(), log)
-	marketingMAC, err := crypto.OptionalMACFromEnv("MARKETING_ADDRESS_HMAC_KEYSET_PATH")
-	svcboot.FatalIf(log, err, "failed to load marketing address HMAC")
+	marketingMAC := crypto.OptionalMACFromEnv("marketing address HMAC", log)
 	repo := repository.NewUsers(repository.UsersConfig{
 		Client: client, Packer: packer, MarketingMAC: marketingMAC, Pub: h.Publisher(n.Pub), App: core.NR, Log: log,
 	})

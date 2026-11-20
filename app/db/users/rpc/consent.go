@@ -18,7 +18,7 @@ import (
 
 func ownerWrite[Req interface {
 	OwnerContext() usersrpc.DashboardOwner
-}](write func(context.Context, uint64, Req) error) func(context.Context, *nats.Msg) {
+}](write func(context.Context, uint64, Req) (usersrpc.ConsentWriteReply, error)) func(context.Context, *nats.Msg) {
 	return func(ctx context.Context, msg *nats.Msg) {
 		req, ok := decodeRequest[Req](msg)
 		if !ok {
@@ -28,19 +28,22 @@ func ownerWrite[Req interface {
 		if !ok {
 			return
 		}
-		respondConsentWrite(msg, write(ctx, id, req))
+		reply, err := write(ctx, id, req)
+		respondConsentWrite(msg, reply, err)
 	}
 }
 
-func (d *dashboardRPC) setConsent(ctx context.Context, id uint64, req usersrpc.ConsentSetRequest) error {
-	return d.repo.SetConsent(ctx, id, repository.TermsConsent{
+func (d *dashboardRPC) setConsent(ctx context.Context, id uint64, req usersrpc.ConsentSetRequest) (usersrpc.ConsentWriteReply, error) {
+	skipped, err := d.repo.SetConsent(ctx, id, repository.TermsConsent{
 		TermsVersion: req.TermsVersion, Marketing: req.Marketing, Source: req.Source,
 		Locale: req.Locale, RequestID: req.RequestID,
 	})
+	return usersrpc.ConsentWriteReply{OK: err == nil, MarketingSkipped: skipped}, err
 }
 
-func (d *dashboardRPC) setMarketing(ctx context.Context, id uint64, req usersrpc.MarketingSetRequest) error {
-	return d.repo.SetMarketing(ctx, id, repository.MarketingChoice{Status: req.Status, Source: req.Source, Locale: req.Locale})
+func (d *dashboardRPC) setMarketing(ctx context.Context, id uint64, req usersrpc.MarketingSetRequest) (usersrpc.ConsentWriteReply, error) {
+	err := d.repo.SetMarketing(ctx, id, repository.MarketingChoice{Status: req.Status, Source: req.Source, Locale: req.Locale})
+	return usersrpc.ConsentWriteReply{OK: err == nil}, err
 }
 
 func dashboardOwnerID(msg *nats.Msg, owner usersrpc.DashboardOwner) (uint64, bool) {
@@ -58,7 +61,7 @@ func isDashboardOwner(owner usersrpc.DashboardOwner) bool {
 	return owner.ActorID != "" && owner.ActorID == owner.BroadcasterUserID
 }
 
-func respondConsentWrite(msg *nats.Msg, err error) {
+func respondConsentWrite(msg *nats.Msg, reply usersrpc.ConsentWriteReply, err error) {
 	if err != nil {
 		respondFail(msg, err,
 			domainrpc.Is(validate.ErrUserIDZero, domainrpc.CodeInvalid),
@@ -70,5 +73,5 @@ func respondConsentWrite(msg *nats.Msg, err error) {
 		)
 		return
 	}
-	respondOK(msg)
+	bus.Respond(msg, reply)
 }

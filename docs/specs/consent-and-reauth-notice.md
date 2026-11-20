@@ -27,16 +27,17 @@ Status: in progress on branch feature/consent-reauth. Date: 2026-11-20. Companio
 
 ## Data model (Users schema)
 
-- `terms_acceptance`, append-only: user id, account incarnation (`account_created_at`), `terms_version`, accepted at, source (`welcome`, `consent`), locale.
-- Projection on `users`: `terms_version` accepted, so the layout check is one indexed field, carried on the existing dashboard state read.
+- `terms_acceptance`, append-only: user id, account incarnation (`account_created_at`), `terms_version`, accepted at, source (`welcome`, `consent`), locale, and any marketing skip reason for idempotent replies.
+- Projection on `users`: `terms_version` accepted, carried on the existing dashboard state read.
 - `marketing_consent` and the `users.marketing_status` projection exactly as in marketing-email.md, source `consent`.
-- `terms_version` is the legal content `updated` date from `web/marketing/src/content/legal/*/meta.json`, exported once as a constant the dashboard reads, so a policy change re-prompts everyone automatically.
+- `email_suppression` and opt-in/withdrawal counters by source ship with the marketing-email PRs, not here.
+- `terms_version` is the latest `updated` month in `web/marketing/src/content/legal/{terms,privacy}/en/meta.json`, formatted `YYYY-MM` and pinned by a test. The dashboard reads the exported constant to re-prompt owners after a policy update.
 - The current `onboarded` bool stays for onboarding progress. Existing onboarded users have no recorded version, so all of them see `/consent` once.
 - Erasure: both tables go with the account.
 
 ## RPCs
 
-- `rpc.dashboard.consent_set` (owner only): terms version, marketing choice, source, locale. One transaction, idempotent on a request id.
+- `rpc.dashboard.consent_set` (owner only): current terms version, marketing choice, source, locale. One transaction, idempotent on a request id. Accepts terms and returns `marketing_skipped` (`no_email` or `unavailable`) when a requested opt-in cannot be recorded.
 - `rpc.dashboard.state_get` returns `terms_version` and `marketing_status`.
 - No new NATS identity, subject import or consumer: both ride the existing dashboard verb set (`app/db/users/rpc/dashboard.go:44-62`).
 

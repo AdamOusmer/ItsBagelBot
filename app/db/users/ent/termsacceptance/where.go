@@ -85,6 +85,11 @@ func RequestID(v string) predicate.TermsAcceptance {
 	return predicate.TermsAcceptance(sql.FieldEQ(FieldRequestID, v))
 }
 
+// MarketingSkipped applies equality check predicate on the "marketing_skipped" field. It's identical to MarketingSkippedEQ.
+func MarketingSkipped(v string) predicate.TermsAcceptance {
+	return predicate.TermsAcceptance(sql.FieldEQ(FieldMarketingSkipped, v))
+}
+
 // UserIDEQ applies the EQ predicate on the "user_id" field.
 func UserIDEQ(v uint64) predicate.TermsAcceptance {
 	return predicate.TermsAcceptance(sql.FieldEQ(FieldUserID, v))
@@ -398,6 +403,71 @@ func RequestIDEqualFold(v string) predicate.TermsAcceptance {
 // RequestIDContainsFold applies the ContainsFold predicate on the "request_id" field.
 func RequestIDContainsFold(v string) predicate.TermsAcceptance {
 	return predicate.TermsAcceptance(sql.FieldContainsFold(FieldRequestID, v))
+}
+
+// MarketingSkippedEQ applies the EQ predicate on the "marketing_skipped" field.
+func MarketingSkippedEQ(v string) predicate.TermsAcceptance {
+	return predicate.TermsAcceptance(sql.FieldEQ(FieldMarketingSkipped, v))
+}
+
+// MarketingSkippedNEQ applies the NEQ predicate on the "marketing_skipped" field.
+func MarketingSkippedNEQ(v string) predicate.TermsAcceptance {
+	return predicate.TermsAcceptance(sql.FieldNEQ(FieldMarketingSkipped, v))
+}
+
+// MarketingSkippedIn applies the In predicate on the "marketing_skipped" field.
+func MarketingSkippedIn(vs ...string) predicate.TermsAcceptance {
+	return predicate.TermsAcceptance(sql.FieldIn(FieldMarketingSkipped, vs...))
+}
+
+// MarketingSkippedNotIn applies the NotIn predicate on the "marketing_skipped" field.
+func MarketingSkippedNotIn(vs ...string) predicate.TermsAcceptance {
+	return predicate.TermsAcceptance(sql.FieldNotIn(FieldMarketingSkipped, vs...))
+}
+
+// MarketingSkippedGT applies the GT predicate on the "marketing_skipped" field.
+func MarketingSkippedGT(v string) predicate.TermsAcceptance {
+	return predicate.TermsAcceptance(sql.FieldGT(FieldMarketingSkipped, v))
+}
+
+// MarketingSkippedGTE applies the GTE predicate on the "marketing_skipped" field.
+func MarketingSkippedGTE(v string) predicate.TermsAcceptance {
+	return predicate.TermsAcceptance(sql.FieldGTE(FieldMarketingSkipped, v))
+}
+
+// MarketingSkippedLT applies the LT predicate on the "marketing_skipped" field.
+func MarketingSkippedLT(v string) predicate.TermsAcceptance {
+	return predicate.TermsAcceptance(sql.FieldLT(FieldMarketingSkipped, v))
+}
+
+// MarketingSkippedLTE applies the LTE predicate on the "marketing_skipped" field.
+func MarketingSkippedLTE(v string) predicate.TermsAcceptance {
+	return predicate.TermsAcceptance(sql.FieldLTE(FieldMarketingSkipped, v))
+}
+
+// MarketingSkippedContains applies the Contains predicate on the "marketing_skipped" field.
+func MarketingSkippedContains(v string) predicate.TermsAcceptance {
+	return predicate.TermsAcceptance(sql.FieldContains(FieldMarketingSkipped, v))
+}
+
+// MarketingSkippedHasPrefix applies the HasPrefix predicate on the "marketing_skipped" field.
+func MarketingSkippedHasPrefix(v string) predicate.TermsAcceptance {
+	return predicate.TermsAcceptance(sql.FieldHasPrefix(FieldMarketingSkipped, v))
+}
+
+// MarketingSkippedHasSuffix applies the HasSuffix predicate on the "marketing_skipped" field.
+func MarketingSkippedHasSuffix(v string) predicate.TermsAcceptance {
+	return predicate.TermsAcceptance(sql.FieldHasSuffix(FieldMarketingSkipped, v))
+}
+
+// MarketingSkippedEqualFold applies the EqualFold predicate on the "marketing_skipped" field.
+func MarketingSkippedEqualFold(v string) predicate.TermsAcceptance {
+	return predicate.TermsAcceptance(sql.FieldEqualFold(FieldMarketingSkipped, v))
+}
+
+// MarketingSkippedContainsFold applies the ContainsFold predicate on the "marketing_skipped" field.
+func MarketingSkippedContainsFold(v string) predicate.TermsAcceptance {
+	return predicate.TermsAcceptance(sql.FieldContainsFold(FieldMarketingSkipped, v))
 }
 
 // HasUser applies the HasEdge predicate on the "user" edge.

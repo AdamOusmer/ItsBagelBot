@@ -30,6 +30,7 @@ func (TermsAcceptance) Fields() []ent.Field {
 		field.Enum("source").Values(string(consent.Welcome), string(consent.Consent)).Immutable(),
 		field.String("locale").NotEmpty().MaxLen(8).Immutable(),
 		field.String("request_id").NotEmpty().MaxLen(128).Unique().Immutable(),
+		field.String("marketing_skipped").MaxLen(16).Default("").Immutable(),
 	}
 }
 
