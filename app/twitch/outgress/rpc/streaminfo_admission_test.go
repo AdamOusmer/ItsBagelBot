@@ -16,7 +16,6 @@ import (
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 type streamInfoCallerRuntime struct{}
@@ -37,7 +36,8 @@ func (streamInfoCallerRuntime) Get(_ context.Context, id uint64) (channelruntime
 func TestNamedStreamInfoAdmitsCallerAndReadsTarget(t *testing.T) {
 	api := twitch.NewClient("client", twitch.NewStaticTokenSource("app"), nil, nil)
 	api.SetTransport(chatterRevocationTransport(streamInfoTargetTransport(t)))
-	m := &Manage{twitch: api, runtime: streamInfoCallerRuntime{}, log: zap.NewNop()}
+	m := newTestManage(api)
+	m.runtime = streamInfoCallerRuntime{}
 
 	req := outgressrpc.StreamInfoRequest{CallerBroadcasterID: "123", TargetLogin: "streamer"}
 	reply := m.handleStreamInfo(t.Context(), req)

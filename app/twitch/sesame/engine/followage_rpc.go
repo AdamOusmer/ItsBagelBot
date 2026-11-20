@@ -51,12 +51,12 @@ func NewFollowageRPC(nc *nats.Conn, prefix string) *FollowageRPC {
 	}, decodeFollowage)}
 }
 
-func decodeFollowage(reply outgressrpc.FollowageReply) (FollowageResult, time.Duration, string) {
+func decodeFollowage(reply outgressrpc.FollowageReply) (FollowageResult, time.Duration, error) {
 	result := FollowageResult{
 		TargetID: reply.TargetID, UserFound: reply.UserFound,
 		Following: reply.Following, FollowedAt: reply.FollowedAt,
 	}
-	return result, ttlWhen(result.Following, followagePositiveTTL, followageNegativeTTL), reply.Error
+	return result, ttlWhen(result.Following, followagePositiveTTL, followageNegativeTTL), lookupReplyError(reply.Error, reply.RetryAtUnixMilli)
 }
 
 func (f *FollowageRPC) Lookup(ctx context.Context, query FollowageQuery) (FollowageResult, error) {

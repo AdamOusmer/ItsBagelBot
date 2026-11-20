@@ -44,12 +44,12 @@ func NewChannelCountsRPC(nc *nats.Conn, prefix string) *ChannelCountsRPC {
 	}, decodeChannelCounts)}
 }
 
-func decodeChannelCounts(reply outgressrpc.ChannelCountsReply) (ChannelCountsResult, time.Duration, string) {
+func decodeChannelCounts(reply outgressrpc.ChannelCountsReply) (ChannelCountsResult, time.Duration, error) {
 	result := ChannelCountsResult{
 		Followers: reply.Followers, FollowersOK: reply.FollowersOK,
 		Subs: reply.Subs, SubsOK: reply.SubsOK,
 	}
-	return result, ttlWhen(result.FollowersOK && result.SubsOK, channelCountsPositiveTTL, channelCountsNegativeTTL), reply.Error
+	return result, ttlWhen(result.FollowersOK && result.SubsOK, channelCountsPositiveTTL, channelCountsNegativeTTL), rpcReplyError(reply.Error)
 }
 
 func (r *ChannelCountsRPC) Lookup(ctx context.Context, broadcasterID string) (ChannelCountsResult, error) {
