@@ -62,7 +62,7 @@ export const hasGrant = defineRead({
 
 export const saveGrant = defineWrite({
   subject: `${SUB.dashboard}.grant_save`,
-  request: (userId: string, grant: { access_token: string; refresh_token: string; scopes: string[] }) => ({
+  request: (userId: string, grant: { access_token: string; refresh_token: string; scopes: string[] | null }) => ({
     broadcaster_user_id: userId,
     ...grant
   }),

@@ -37,6 +37,8 @@ mock.module('@bagel/kit/server/nats', () => ({
 }));
 
 const { SUB } = await import('#lib/server/services/subjects');
+const { freshAccountState } = await import('#lib/server/services/account-state');
+const { setMarketing, setTermsConsent } = await import('#lib/server/services/consent');
 const { actions, load } = await import('./+page.server');
 const UUID = '11111111-2222-4333-8444-555555555555';
 const mailingAddress = 'test mailing address';
@@ -55,6 +57,28 @@ beforeEach(() => {
   stateReply = undefined;
   failedSubject = undefined;
   privateEnv.BUSINESS_MAILING_ADDRESS = mailingAddress;
+});
+
+test.each([
+  { name: 'old Users response', state: { onboarded: true }, version: undefined },
+  { name: 'known unaccepted terms', state: { onboarded: true, terms_version: '' }, version: '' }
+])('account state preserves the terms version for $name', async ({ state, version }) => {
+  stateReply = state;
+  expect((await freshAccountState('7')).termsVersion).toBe(version);
+});
+
+test.each([
+  { name: 'owner', identity: {}, target: '7' },
+  { name: 'delegate', identity: { delegate_of: '8' }, target: '8' },
+  { name: 'impersonation', identity: { impersonator_id: '9' }, target: '7' }
+])('consent RPCs forward the authenticated $name context', async ({ identity, target }) => {
+  const session = { ...actionEvent().locals.session, role: 'streamer' as const, sid: 'test', iat: 0, expires_at: 0, ...identity };
+  const owner = expect.objectContaining({
+    broadcaster_user_id: target, actor_id: '7', delegate_of: identity.delegate_of, impersonator_id: identity.impersonator_id
+  });
+  await setTermsConsent(session, { source: 'consent', marketing: false, locale: 'en', requestId: UUID });
+  await setMarketing(session, { status: 'withdrawn', locale: 'en' });
+  expect(calls).toEqual([[consentSet, owner], [`${SUB.dashboard}.marketing_set`, owner]]);
 });
 
 type ActionCase = {
@@ -120,7 +144,7 @@ test.each(actionCases)('consent action: $name', async (row) => {
   const url = reader(row.next ?? '/');
   const result = await submitConsent({ ...event, locals, url } as never);
   const payload = {
-    broadcaster_user_id: '7', actor_id: '7', terms_version: TERMS_VERSION,
+    broadcaster_user_id: '7', actor_id: '7', delegate_of: undefined, impersonator_id: undefined, terms_version: TERMS_VERSION,
     marketing: row.write, source: 'consent', locale: 'fr', request_id: UUID
   };
   const response = row.location ? { status: row.status, location: row.location } : { status: row.status };

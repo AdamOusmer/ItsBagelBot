@@ -54,10 +54,7 @@ func (r *Users) withdrawChangedAddress(ctx context.Context, w consentWrite, emai
 	if err != nil {
 		return false, err
 	}
-	if r.marketingMAC == nil {
-		return false, ErrConsentMACUnavailable
-	}
-	if r.marketingMAC.VerifyMAC(grant.AddressHmac, []byte(email)) == nil {
+	if r.marketingMAC != nil && r.marketingMAC.VerifyMAC(grant.AddressHmac, []byte(email)) == nil {
 		return false, nil
 	}
 	record := marketingRecord{

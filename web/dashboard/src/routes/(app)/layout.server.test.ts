@@ -31,11 +31,13 @@ type GateCase = {
   missingScope?: boolean;
   method?: 'POST';
   ghost?: boolean;
+  readFailed?: boolean;
   landing: string | null;
 };
 
 const gateCases: GateCase[] = [
   { name: 'scope gap precedes terms', missingScope: true, terms: '', landing: '/auth/login?reauth=1&next=%2Fcommands%3Ftab%3D1' },
+  { name: 'state from an older Users pod omits the terms version', landing: null },
   { name: 'legacy acceptance needs current terms', terms: '', landing: '/consent?next=%2Fcommands%3Ftab%3D1' },
   { name: 'older terms allow opening settings', path: '/settings', terms: '2025-12', landing: null },
   { name: 'older terms allow submitting a settings withdrawal', path: '/settings?/marketing', method: 'POST', terms: '2025-12', landing: null },
@@ -45,7 +47,7 @@ const gateCases: GateCase[] = [
   { name: 'unsafe return path', path: '//example.test', terms: '', landing: '/consent?next=%2F' },
   { name: 'delegate with a scope gap and older terms', session: { delegate_of: '2002' }, missingScope: true, terms: '', landing: null },
   { name: 'impersonation with a scope gap and older terms', session: { impersonator_id: '3003' }, missingScope: true, terms: '', landing: null },
-  { name: 'an unreadable account state fails open', landing: null },
+  { name: 'an unreadable account state fails open', readFailed: true, landing: null },
   { name: 'a state marker without a value fails open', ghost: true, landing: null },
   {
     name: 'a regular billing visit still needs terms', path: '/billing?subscribe=1', terms: '',
@@ -58,7 +60,7 @@ const gateCases: GateCase[] = [
 
 function gateState(row: GateCase) {
   if (row.ghost) return { ghost: true };
-  if (row.terms === undefined) return undefined;
+  if (row.readFailed) return undefined;
   return { value: { active: true, status: 'free', onboarded: true, termsVersion: row.terms } };
 }
 

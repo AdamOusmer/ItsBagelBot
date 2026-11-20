@@ -58,14 +58,15 @@ function upstreamFailed(err: unknown, op: string, locale: Locale) {
   return fail(502, { error: translate(locale, 'consent.saveError') });
 }
 
-async function persistTerms(locals: App.Locals, uid: Session['user_id'], form: FormData, terms: TermsSubmission) {
+async function persistTerms(locals: App.Locals, session: Session, form: FormData, terms: TermsSubmission) {
+  const uid = session.user_id;
   const formLocale = form.get('locale');
   const locale = isLocale(formLocale) ? formLocale : locals.locale;
   let op = 'state_get';
   try {
     const account = currentAccount(locals) ?? await freshAccountState(uid);
     op = 'consent_set';
-    const reply = await setTermsConsent(uid, { ...terms, marketing: wantsMarketing(form, account), locale });
+    const reply = await setTermsConsent(session, { ...terms, marketing: wantsMarketing(form, account), locale });
     const setup = terms.source === 'welcome' || !account.onboarded;
     if (setup && account.active) {
       op = 'eventsub publish';
@@ -95,5 +96,5 @@ export async function submitTerms(
   if (form.get('consent') !== 'yes') return fail(400, { error: translate(locale, 'onboarding.consentHint') });
   if (!requestId) return fail(400, { error: translate(locale, 'consent.reload') });
   if (demo) return { uid: session.user_id, marketingSkipped: undefined };
-  return persistTerms(locals, session.user_id, form, { source, requestId });
+  return persistTerms(locals, session, form, { source, requestId });
 }

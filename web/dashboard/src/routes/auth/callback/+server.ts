@@ -183,7 +183,9 @@ async function seedCursorCookie(cookies: Cookies, url: URL, userId: string): Pro
 
 async function persistGrant(userId: string, tokens: { accessToken(): string; refreshToken(): string }, granted: string[]): Promise<void> {
   try {
-    await saveGrant(userId, { access_token: tokens.accessToken(), refresh_token: tokens.refreshToken(), scopes: granted });
+    await saveGrant(userId, {
+      access_token: tokens.accessToken(), refresh_token: tokens.refreshToken(), scopes: granted.length ? granted : null
+    });
   } catch (err: unknown) {
     logger.error({ err }, '[callback] grant_save failed (non-fatal)');
   }

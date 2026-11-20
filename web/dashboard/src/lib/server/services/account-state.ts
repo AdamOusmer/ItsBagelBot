@@ -18,7 +18,7 @@ export type AccountState = {
   active: boolean;
   status: AccountStatus;
   onboarded: boolean;
-  termsVersion: string;
+  termsVersion?: string;
   marketingStatus: MarketingStatus;
   creatorCode: string | null;
   username: string;
@@ -79,7 +79,7 @@ function toAccountState(r: StateReply): AccountState {
     active: !!r.active,
     status: normalizeStatus(r.status),
     onboarded: !!r.onboarded,
-    termsVersion: r.terms_version ?? '',
+    termsVersion: r.terms_version,
     marketingStatus: r.marketing_status ?? 'none',
     creatorCode: r.creator_code?.trim() ? r.creator_code : null,
     username: (r.username ?? '').trim(),

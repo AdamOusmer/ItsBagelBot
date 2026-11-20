@@ -136,9 +136,7 @@ An incident is one continuous period of unusable channel access. Store its ident
 
 Open an incident only on a verified usable-to-blocked transition, or a first authoritative failure when no unresolved incident exists. One Users transaction records the new incident and one notification-outbox operation. Concurrent failures and redelivery converge on the same incident. If a stronger cause arrives, update the current incident/banner without creating another bell item or marking an existing item unread again.
 
-Send one localized dashboard warning with the correct repair action. Remove recurring go-live reconnect chat messages entirely; these connection incidents do not send email or unsolicited chat. Reading, dismissing, deleting, or expiring the warning never clears the incident. The dashboard's persistent status/banner continues to show the problem after notification history expires.
-
-As an exception, Outgress may post the Twitch permission notice on an admitted go-live once per channel and required scope set.
+Send one localized dashboard warning with the correct repair action. Remove recurring go-live reconnect chat messages entirely; these connection incidents do not send email or unsolicited chat. The one exception is the [Twitch permission notice](consent-and-reauth-notice.md#one-time-permission-notice): Outgress may post it on an admitted go-live once per channel and required scope set. Reading, dismissing, deleting, or expiring the warning never clears the incident. The dashboard's persistent status/banner continues to show the problem after notification history expires.
 
 Only confirmed recovery resolves the incident. A later genuine failure may open a new incident; additionally cap new connection bell warnings at one per account per rolling 24 hours to avoid noisy flapping. A new incident within that cooldown is marked suppressed, with the current problem still visible in the status panel. Do not schedule a delayed reminder when the cooldown expires.
 

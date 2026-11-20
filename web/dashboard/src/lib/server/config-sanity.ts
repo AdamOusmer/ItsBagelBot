@@ -9,6 +9,7 @@ import {
   assertOrigin,
   positiveIntegerSetting
 } from '@bagel/kit/server/config-sanity';
+import { logger } from '@bagel/kit/server/logger';
 
 type Env = Record<string, string | undefined>;
 
@@ -39,4 +40,7 @@ export function assertConfigSane(env: Env): void {
   assertOptionalHTTPSURL('TEBEX_PREMIUM_CHECKOUT_URL', env.TEBEX_PREMIUM_CHECKOUT_URL);
   assertOptionalHTTPSURL('TEBEX_CANCEL_URL', env.TEBEX_CANCEL_URL);
   dashboardL1CacheCapacity(env);
+  if (!env.BUSINESS_MAILING_ADDRESS?.trim()) {
+    logger.warn('[startup] BUSINESS_MAILING_ADDRESS is empty. Marketing opt-in is disabled.');
+  }
 }

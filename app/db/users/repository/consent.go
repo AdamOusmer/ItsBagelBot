@@ -98,7 +98,7 @@ func (r *Users) recordConsent(ctx context.Context, w consentWrite, req TermsCons
 	if err := w.acceptTerms(ctx, req, skipped); err != nil {
 		return consentChange{}, err
 	}
-	update := w.userUpdate().SetTermsVersion(req.TermsVersion)
+	update := w.userUpdate().SetTermsVersion(max(w.owner.TermsVersion, req.TermsVersion))
 	if !req.Marketing || skipped != "" {
 		return consentChange{changed: true, skipped: skipped}, update.Exec(ctx)
 	}

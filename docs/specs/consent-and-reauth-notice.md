@@ -1,6 +1,6 @@
 # Consent screen and one-time permission notice
 
-Status: in progress on branch feature/consent-reauth. Date: 2026-11-20. Companion to [marketing-email.md](marketing-email.md).
+Status: implemented on branch `feature/consent-reauth`. Date: 2026-11-20. Companion to [marketing-email.md](marketing-email.md).
 
 ## Goal
 
@@ -9,11 +9,11 @@ Status: in progress on branch feature/consent-reauth. Date: 2026-11-20. Companio
 
 ## User flow
 
-1. Streamer goes live. Outgress sees a scope gap, posts one chat line, never again for that scope set.
-2. Streamer opens the dashboard. An owner session with a scope gap is already redirected to `/auth/login?reauth=1` (`web/dashboard/src/routes/(app)/+layout.server.ts:71-74`). Twitch asks for the new permissions.
-3. After sign-in, if the owner has not accepted the current terms version, the layout redirects to `/consent`.
-4. `/consent` shows two separate boxes and one button. Done, back to the page they asked for.
-5. New signups get the same component on the `/welcome` consent step, so there is one screen and one write path.
+1. The streamer goes live. Outgress checks for a scope gap and claims the one-time chat notice for that scope set before sending it.
+2. The streamer opens the dashboard. An owner session with a known scope gap redirects to `/auth/login?reauth=1`. Twitch asks for the new permissions.
+3. After sign-in, existing owners whose known terms version is below the current version are redirected to `/consent` on gated pages.
+4. `/consent` shows two separate boxes and one button. After saving, the owner returns to the requested page.
+5. New owner signups redirect to `/welcome`. Its consent step shares the form and write path with `/consent`.
 
 ## Consent screen
 
@@ -22,71 +22,81 @@ Status: in progress on branch feature/consent-reauth. Date: 2026-11-20. Companio
 - Box 2, optional and unticked: marketing email. Text names ItsBagelBot, says what we send (product news and offers), gives the contact address and says it can be withdrawn any time in Settings or from any email (CASL s.10(1), Regs SOR/2012-36 s.4). Leaving it empty never blocks anything.
 - Shows the address the email would go to (from `email_enc`), masked.
 - Fits the viewport on desktop and phone without scrolling, fixed boxes with `data-fit` text, all six locales, no layout shift when a box is ticked.
-- Reuses the existing welcome consent step markup (`web/dashboard/src/routes/welcome/+page.svelte:156-176`) and shared ui blocks. No new component library pieces.
+- Both routes use [ConsentForm.svelte](../../web/dashboard/src/lib/components/ConsentForm.svelte) and shared UI blocks.
 - Form action posts both values in one request. Server writes terms first, then the email choice only when ticked.
 
 ## Data model (Users schema)
 
 - `terms_acceptance`, append-only: user id, account incarnation (`account_created_at`), `terms_version`, accepted at, source (`welcome`, `consent`), locale, and any marketing skip reason for idempotent replies.
-- Projection on `users`: `terms_version` accepted, carried on the existing dashboard state read.
-- `marketing_consent` and the `users.marketing_status` projection exactly as in marketing-email.md, source `consent`.
+- The `users.terms_version` projection carries the highest accepted version on the dashboard state read. The ledger always records the submitted version.
+- `marketing_consent` records express consent and the address HMAC. Changes to the contact address withdraw any grant. If the HMAC key is unavailable and the existing grant cannot be verified, saving the address also withdraws the grant.
 - `email_suppression` and opt-in/withdrawal counters by source ship with the marketing-email PRs, not here.
 - `terms_version` is the latest `updated` month in `web/marketing/src/content/legal/{terms,privacy}/en/meta.json`, formatted `YYYY-MM` and pinned by a test. The dashboard reads the exported constant to re-prompt owners after a policy update.
-- The current `onboarded` bool stays for onboarding progress. Existing onboarded users have no recorded version, so all of them see `/consent` once.
+- The `onboarded` flag tracks onboarding progress. Users returns an empty version for an account with no acceptance, which triggers the terms gate on a gated page.
 - Erasure: both tables go with the account.
 
 ## RPCs
 
 - `rpc.dashboard.consent_set` (owner only): published terms version, marketing choice, source, locale. One transaction, idempotent on a request id. Records the submitted version so a dashboard serving the previous version can still save consent during a rollout. Returns `marketing_skipped` (`no_email` or `unavailable`) when a requested opt-in cannot be recorded.
+- `rpc.dashboard.marketing_set` (owner only) records an opt-in or withdrawal from Settings. Both consent writes carry the actor, delegation and impersonation fields from the authenticated session.
 - `rpc.dashboard.state_get` returns `terms_version` and `marketing_status`.
-- No new NATS identity, subject import or consumer: both ride the existing dashboard verb set (`app/db/users/rpc/dashboard.go:44-62`).
+- These RPCs use the existing [dashboard verb set](../../app/db/users/rpc/dashboard.go).
 
 ## Layout gate
 
-Order in `(app)/+layout.server.ts`:
+The [app layout](../../web/dashboard/src/routes/%28app%29/+layout.server.ts) checks in this order.
 
 1. Scope gap: existing redirect to `/auth/login?reauth=1`.
-2. Terms version below current: redirect to `/consent?next=<path>`.
+2. Known terms version below current: redirect to `/consent?next=<path>`.
 3. Otherwise render.
 
-`/consent`, `/auth/*`, `/billing` return paths, legal pages and logout are exempt so nobody gets stuck.
+An older Users pod can omit `terms_version` during rollout. The layout treats the version as unknown and skips the terms redirect. The welcome flow still requires terms acceptance.
+
+`/settings` is exempt from the terms gate so owners can manage their email preference. It still checks Twitch scopes. `/consent`, `/auth/*`, billing checkout returns, legal pages and logout bypass the layout gates.
 
 ## One-time permission notice
 
 ### Know each grant's scopes (Users owns it)
 
-- Twitch returns `scope` on every token refresh, but Outgress drops it (`app/twitch/outgress/internal/twitch/token.go:527-531`), and the dashboard callback keeps it only in the session (`web/dashboard/src/routes/auth/callback/+server.ts:85-88,268`). The `tokens` table has no scopes column (`app/db/users/ent/schema/tokens.go:17-36`).
-- Add nullable `scopes` JSON to `tokens`. Written by `grant_save` (dashboard sign-in) and `tokens.save` (Outgress refresh). Returned by `tokens.get`. Null means unknown.
+- The [tokens schema](../../app/db/users/ent/schema/tokens.go) stores nullable `scopes` JSON. The dashboard callback writes the Twitch grant through `grant_save`. Outgress writes refresh scopes through `tokens.save` and reads them through `tokens.get`.
+- Null means unknown. If Twitch returns an empty scope list at sign-in, `grant_save` sends null and Outgress checks the grant through validation.
 
 ### One required-scope list
 
-- New `internal/domain/twitchauth`: `RequiredBroadcasterScopes`, a short `SetVersion` hash, `Gap(granted)`.
-- Pin tests: the dashboard `scopes()` minus `openid` (`web/dashboard/src/lib/server/oauth.ts:14-29`) must equal the Go list. `deploy/k8s/console-dashboard.yaml` omits the `DASHBOARD_LOGIN_SCOPES` override. One table test, per the policy-pin rule.
+- [The Go scope list](../../internal/domain/twitchauth/scopes.go) supplies `SetVersion` and `Gap(granted)`.
+- Pin tests keep the Go list aligned with [dashboard OAuth scopes](../../web/dashboard/src/lib/server/oauth.ts), excluding `openid`. The dashboard deployment manifest omits the `DASHBOARD_LOGIN_SCOPES` override.
 
 ### Post once, from Outgress
 
-- Outgress already handles `stream.online` (`app/twitch/outgress/internal/worker/streamstatus.go:177-198`), gates with `AllowsBackground` (skips unregistered, banned, dormant, disabled, blocked, bot-banned, broken grant), loads tokens and posts with `sendBotChat`.
-- On go-live, after the gate passes, schedule the notice check on a bounded background worker. Load tokens with scopes. For null scopes, call `/oauth2/validate` once and compare in memory. Skip validation if the access token is missing or its stored expiry has passed. If there is a gap, recheck the gate, take a Valkey owner lock `reauthScope:<channel>:<SetVersion>` (TTL 180 days, existing `pkg_valkey.NewOwnerLock` pattern in `channels/registry.go:367-381`), then send one normal chat line. Lock before send, so it is at most once across pods and restarts.
-- Signing in stores the full scope set, so the next go-live finds no gap. A future scope addition changes `SetVersion` and gives each affected channel exactly one new notice.
-- Delete the uncalled `reauthBeaconOnLive` (`streamstatus.go:200-277`) instead of reviving it.
+- [HandleStreamEvent](../../app/twitch/outgress/internal/worker/streamstatus.go) schedules [the scope notice](../../app/twitch/outgress/internal/worker/scope_notice.go) on a bounded background worker once the channel passes background admission.
+- For null scopes, Outgress calls `/oauth2/validate` once per check and compares in memory. It skips validation if the access token is missing or its stored expiry has passed. If there is a gap, Outgress rechecks admission and claims the Valkey owner lock `reauthScope:<channel>:<SetVersion>` for 180 days before sending a normal chat line. The claim gives at-most-once delivery across pods and restarts for its lifetime. A send that fails after the claim can lose the notice because the claim is retained until it expires.
+- Signing in with all required scopes clears the gap. A future scope addition changes `SetVersion` and makes affected channels eligible for a new notice.
+- The legacy `reauthBeaconOnLive` was removed.
 - No new NATS identity, import or consumer.
 
 ### Copy
 
-- Key `scope.chat` in `locales/{en,fr,es,de,pt-br,ru}/chat/grant.json`, constant next to `internal/domain/i18n/i18n.go:31-32`, locale from the channel's dashboard locale (`reauth.go:148-163`).
-- English draft: "Hi! ItsBagelBot needs an updated Twitch permission. The streamer can sign in once at {dashboard_url} to keep everything working."
+- Key `scope.chat` in `locales/{en,fr,es,de,pt-br,ru}/chat/grant.json`, referenced by `KeyGrantScopeChat`. [ResolveLocale](../../app/twitch/outgress/internal/worker/reauth.go) uses the channel's dashboard locale.
+- English: "Hi! ItsBagelBot needs an updated Twitch permission. The streamer can sign in once at {dashboard_url} to keep everything working."
 - Normal chat, not an announcement. Nothing about email, Premium or offers.
 
-## Pull requests
+## Release
+
+The branch contains the complete implementation. Slice the changes into these PRs at release.
 
 | # | Content |
 |---|---|
 | 1 | `internal/domain/twitchauth`, scope-list pin tests |
-| 2 | Users: `tokens.scopes`, `terms_acceptance`, `marketing_consent`, projections, `consent_set`, state fields, erasure |
+| 2 | Users: `tokens.scopes`, `terms_acceptance`, `marketing_consent`, projections, consent RPCs, state fields, erasure |
 | 3 | Dashboard: pass scopes on sign-in, `/consent` route, layout gate, welcome reuse, six locales; privacy policy update (en, fr) for the marketing basis and Resend scope |
 | 4 | Outgress: keep refresh scopes, validate fallback, one-time go-live notice, remove dead beacon, `scope.chat` copy |
 
-Deploy order: Users (schema), then dashboard, then Outgress. Ship 4 only after 3 is live, so people who sign in find the consent screen.
+Set the Doppler prerequisites before release.
+
+- `dashboard-env` needs `BUSINESS_MAILING_ADDRESS` for marketing opt-in. An empty value logs a startup warning and disables opt-in.
+- `users-env` needs `MARKETING_HMAC_KEYSET` for the address HMAC.
+
+Deploy Users with the schema and RPCs first, then the dashboard, then Outgress. The consent screen must be live before Outgress starts posting sign-in notices.
 
 ## Tests (exported seams)
 
@@ -100,8 +110,8 @@ Deploy order: Users (schema), then dashboard, then Outgress. Ship 4 only after 3
 
 | # | Decision | Recommendation |
 |---|---|---|
-| C1 | The lifecycle spec says connection incidents send no unsolicited chat (`docs/specs/inactive-channel-lifecycle.md:141`). Allow this one-time notice as a stated exception | Yes, written into that spec |
+| C1 | Allow the one-time permission notice as an exception to the connection-incident chat rule | Yes, documented in [section 4 of the lifecycle spec](inactive-channel-lifecycle.md#4-dormancy-and-automatic-wake-up) |
 | C2 | Where the notice runs: Outgress go-live (no contract change) or Sesame via a new projection field | Outgress |
-| C3 | Remove the `DASHBOARD_LOGIN_SCOPES` override from the dashboard manifest so the code list is the only source | Done in PR 1; merging rolls the dashboard. The `dashboard-env` secret carries no such key (checked 2026-11-20) |
+| C3 | Remove the `DASHBOARD_LOGIN_SCOPES` override from the dashboard manifest so the code list is the only source | Removed in release slice 1 |
 | C4 | Every existing owner sees `/consent` once (terms were never versioned) | Yes |
 | C5 | Marketing email decisions D1 to D8 | See marketing-email.md |

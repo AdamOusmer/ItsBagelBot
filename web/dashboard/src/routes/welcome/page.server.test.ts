@@ -77,12 +77,12 @@ test.each([
 ])('accepting the terms on welcome: $name', async ({ active, address, marketing, skipped, published }) => {
   privateEnv.BUSINESS_MAILING_ADDRESS = address;
   marketingSkipped = skipped;
-  const event = actionEvent({ ...acceptedForm, marketing: 'yes', locale: 'fr' }) as { locals: Record<string, unknown> };
-  event.locals.accountState = { value: { onboarded: false, active } };
-  const result = await actions.consent(event as never);
+  const event = actionEvent({ ...acceptedForm, marketing: 'yes', locale: 'fr' });
+  const locals = { ...event.locals, accountState: { value: { onboarded: false, active } } };
+  const result = await actions.consent({ ...event, locals } as never);
   expect(result).toEqual({ ok: true, marketingSkipped: skipped });
   expect(writes).toEqual([
-    ['consent', '7', { source: 'welcome', marketing, locale: 'fr', requestId }],
+    ['consent', locals.session, { source: 'welcome', marketing, locale: 'fr', requestId }],
     ...published,
     ['onboarded', '7', true]
   ]);

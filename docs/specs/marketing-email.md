@@ -1,6 +1,6 @@
 # Marketing email: consent, unsubscribe and a shared sender
 
-Status: plan, nothing built. Date: 2026-11-20.
+Status: PR 2 consent schema and PR 3 capture ship in `feature/consent-reauth`. The rest remains planned. Date: 2026-11-20.
 
 ## Legal answer first
 

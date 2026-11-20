@@ -119,7 +119,7 @@ test.each([
   });
   const result = await actions.marketing({ request, locals: { session, locale: 'fr' } } as never);
   expect(result).toMatchObject(want);
-  expect(marketingWrites).toEqual(writes ? [['7', { status, locale: 'fr' }]] : []);
+  expect(marketingWrites).toEqual(writes ? [[session, { status, locale: 'fr' }]] : []);
 });
 
 const cases: {

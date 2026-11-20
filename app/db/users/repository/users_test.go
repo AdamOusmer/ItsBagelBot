@@ -26,26 +26,28 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tink-crypto/tink-go/v2/tink"
 
 	"go.uber.org/zap"
 )
 
 func setup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Users) {
 	t.Helper()
-	return setupWithMarketingMAC(t, nil)
+	cfg, pub := testUsersConfig(t)
+	return cfg.Client, pub, openTestUsers(t, cfg)
 }
 
-func setupWithMarketingMAC(t *testing.T, marketingMAC tink.MAC) (*ent.Client, *bustest.Publisher, *repository.Users) {
+func testUsersConfig(t *testing.T) (repository.UsersConfig, *bustest.Publisher) {
 	t.Helper()
-
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	pub := bustest.NewPublisher()
+	return repository.UsersConfig{Client: client, Packer: dbtest.NewPacker(t), Pub: pub, Log: zap.NewNop()}, pub
+}
 
-	repo := repository.NewUsers(repository.UsersConfig{Client: client, Packer: dbtest.NewPacker(t), MarketingMAC: marketingMAC, Pub: pub, Log: zap.NewNop()})
+func openTestUsers(t *testing.T, cfg repository.UsersConfig) *repository.Users {
+	t.Helper()
+	repo := repository.NewUsers(cfg)
 	t.Cleanup(func() { repo.Close(context.Background()) })
-
-	return client, pub, repo
+	return repo
 }
 
 func TestTokenRoundTrip(t *testing.T) {

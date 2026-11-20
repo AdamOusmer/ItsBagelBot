@@ -8,8 +8,6 @@ process.env.SESSION_KEY = Buffer.alloc(32, 7).toString('base64');
 stubSvelteKit();
 Object.assign(privateEnv, { TWITCH_CLIENT_ID: 'client', TWITCH_BOT_USER_ID: '999' });
 
-const { RpcError } = await import('@bagel/kit/server/nats');
-
 let existing: () => Promise<{ username: string }> = async () => ({ username: 'streamer' });
 const purged: { kind: 'pages' | 'board'; userId: string; logins: readonly string[] }[] = [];
 
@@ -18,6 +16,7 @@ let rejectedLink = false;
 let registerFailed = false;
 let claims: Record<string, unknown> = {};
 const GRANTED_SCOPES = ['openid', 'user:read:email', 'channel:bot'];
+let grantedScopes = GRANTED_SCOPES;
 const grants: unknown[] = [];
 const analytics: string[][] = [];
 mock.module('@bagel/kit/server/analytics', () => ({ count: (...args: string[]) => analytics.push(args) }));
@@ -29,6 +28,22 @@ async function step<T>(name: string, value: T): Promise<T> {
   events.push(`end:${name}`);
   return value;
 }
+
+const nats = await import('@bagel/kit/server/nats');
+const { RpcError } = nats;
+const { SUB } = await import('#lib/server/services/subjects');
+mock.module('@bagel/kit/server/nats', () => ({
+  ...nats,
+  rpc: async (subject: string, payload: unknown) => {
+    if (subject === `${SUB.dashboard}.grant_save`) {
+      grants.push(payload);
+      return step('grant', { ok: true });
+    }
+    events.push('register');
+    if (registerFailed) throw new Error('unavailable');
+    return { ok: true };
+  }
+}));
 
 const services = await import('../../../lib/server/services');
 mock.module('#lib/server/services', () => ({
@@ -42,20 +57,7 @@ mock.module('#lib/server/services', () => ({
   },
   userLocale: () => step('locale', 'fr'),
   userCursor: () => step('cursor', true),
-  saveGrant: (...args: unknown[]) => {
-    grants.push(args);
-    return step('grant', undefined);
-  },
   delegationConsume: () => step('delegation', { ok: !rejectedLink, owner_user_id: '7', owner_login: 'owner', sections: [] })
-}));
-const nats = await import('@bagel/kit/server/nats');
-mock.module('@bagel/kit/server/nats', () => ({
-  ...nats,
-  rpc: async () => {
-    events.push('register');
-    if (registerFailed) throw new Error('unavailable');
-    return { ok: true };
-  }
 }));
 mock.module('#lib/server/edge-purge', () => ({
   schedulePurgeChannel: (userId: string, logins: readonly string[] = []) => void purged.push({ kind: 'pages', userId, logins }),
@@ -70,7 +72,7 @@ mock.module('#lib/server/oauth', () => ({
   twitch: () => ({
     validateAuthorizationCode: async () => ({
       claims: () => ({ sub: '42', preferred_username: 'Streamer', aud: 'client', iss: 'https://id.twitch.tv/oauth2', nonce: 'n', ...claims }),
-      scopes: () => GRANTED_SCOPES,
+      scopes: () => grantedScopes,
       accessToken: () => 'a',
       refreshToken: () => 'r'
     })
@@ -109,6 +111,7 @@ beforeEach(() => {
   rejectedLink = false;
   registerFailed = false;
   claims = {};
+  grantedScopes = GRANTED_SCOPES;
   grants.length = 0;
   analytics.length = 0;
   existing = async () => ({ username: 'streamer' });
@@ -176,9 +179,13 @@ describe('auth callback ordering', () => {
     expect([written.get('locale'), written.get('bagel_cursor')]).toEqual(['fr', '1']);
   });
 
-  test('the callback persists the scopes Twitch actually granted', async () => {
+  test.each([
+    { name: 'known scopes', scopes: GRANTED_SCOPES, stored: GRANTED_SCOPES },
+    { name: 'empty scope list', scopes: [], stored: null }
+  ])('the callback saves the grant with $name', async ({ scopes, stored }) => {
+    grantedScopes = [...scopes];
     await signInTo();
-    expect(grants).toEqual([['42', { access_token: 'a', refresh_token: 'r', scopes: GRANTED_SCOPES }]]);
+    expect(grants).toEqual([{ broadcaster_user_id: '42', access_token: 'a', refresh_token: 'r', scopes: stored }]);
   });
 
   test('an invitee accepting a team link still stores their own Twitch grant', async () => {

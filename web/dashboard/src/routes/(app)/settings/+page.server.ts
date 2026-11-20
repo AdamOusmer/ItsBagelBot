@@ -248,7 +248,7 @@ export const actions: Actions = {
     if (status !== 'granted' && status !== 'withdrawn') return fail(400, { error: actionError(locale, 'Invalid input.') });
     if (status === 'granted' && !businessMailingAddress()) return fail(503, { error: translate(locale, 'marketing.optInUnavailable') });
     try {
-      await setMarketing(session.user_id, { status, locale });
+      await setMarketing(session, { status, locale });
       return { ok: true };
     } catch (err) {
       return upstreamFailed(err, { op: 'marketing_set', error: translate(locale, 'marketing.saveError') });

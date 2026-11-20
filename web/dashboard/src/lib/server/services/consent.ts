@@ -4,6 +4,7 @@
 import { TERMS_VERSION } from '@bagel/kit/consent';
 import type { Locale } from '@bagel/kit/i18n';
 import { defineRead, defineWrite } from '@bagel/kit/server/service';
+import type { Session } from '../session';
 import type { MarketingStatus } from './account-state';
 import { invalidate } from './fabric';
 import { SUB } from './subjects';
@@ -18,17 +19,24 @@ type WriteReply = { ok: boolean; marketing_skipped?: 'no_email' | 'unavailable' 
 type TermsChoice = { source: 'consent' | 'welcome'; marketing: boolean; locale: Locale; requestId: string };
 type MarketingChoice = { status: Exclude<MarketingStatus, 'none'>; locale: Locale };
 
-const owner = (id: string) => ({ broadcaster_user_id: id, actor_id: id });
+function ownerContext(session: Session) {
+  return {
+    broadcaster_user_id: session.delegate_of ?? session.user_id,
+    actor_id: session.user_id,
+    delegate_of: session.delegate_of,
+    impersonator_id: session.impersonator_id
+  };
+}
 
-function refreshState(reply: WriteReply, id: string): void {
+function refreshState(reply: WriteReply, session: Session): void {
   if (!reply.ok) throw new Error('Consent write failed');
-  invalidate(`state:${id}`);
+  invalidate(`state:${session.user_id}`);
 }
 
 export const setTermsConsent = defineWrite({
   subject: `${SUB.dashboard}.consent_set`,
-  request: (id: string, choice: TermsChoice) => ({
-    ...owner(id),
+  request: (session: Session, choice: TermsChoice) => ({
+    ...ownerContext(session),
     terms_version: TERMS_VERSION,
     marketing: choice.marketing,
     source: choice.source,
@@ -40,6 +48,6 @@ export const setTermsConsent = defineWrite({
 
 export const setMarketing = defineWrite({
   subject: `${SUB.dashboard}.marketing_set`,
-  request: (id: string, choice: MarketingChoice) => ({ ...owner(id), ...choice, source: 'settings' }),
+  request: (session: Session, choice: MarketingChoice) => ({ ...choice, ...ownerContext(session), source: 'settings' }),
   after: refreshState
 });

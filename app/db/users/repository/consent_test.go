@@ -27,6 +27,7 @@ type consentFixture struct {
 	client *ent.Client
 	repo   *repository.Users
 	mac    tink.MAC
+	config repository.UsersConfig
 }
 
 func setupConsent(t *testing.T) consentFixture {
@@ -35,9 +36,11 @@ func setupConsent(t *testing.T) consentFixture {
 	require.NoError(t, err)
 	addressMAC, err := mac.New(handle)
 	require.NoError(t, err)
-	client, _, repo := setupWithMarketingMAC(t, addressMAC)
+	cfg, _ := testUsersConfig(t)
+	cfg.MarketingMAC = addressMAC
+	repo := openTestUsers(t, cfg)
 	require.NoError(t, repo.Register(t.Context(), consentAccount))
-	return consentFixture{client: client, repo: repo, mac: addressMAC}
+	return consentFixture{client: cfg.Client, repo: repo, mac: addressMAC, config: cfg}
 }
 
 func consentRequest(marketing bool) repository.TermsConsent {
@@ -102,6 +105,34 @@ func TestConsentRetriesAndOptionalMarketing(t *testing.T) {
 	require.Equal(t, 2, f.client.MarketingConsent.Query().CountX(ctx))
 }
 
+func TestConsentKeepsLatestTermsProjection(t *testing.T) {
+	const older = "2026-10"
+	for _, tc := range []struct {
+		name      string
+		first     string
+		submitted string
+	}{
+		{name: "newer submission", first: older, submitted: consent.TermsVersion},
+		{name: "older submission during rollout", first: consent.TermsVersion, submitted: older},
+		{name: "same version", first: consent.TermsVersion, submitted: consent.TermsVersion},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := setupConsent(t)
+			req := consentRequest(false)
+			req.TermsVersion = tc.first
+			f.saveConsent(t, req)
+
+			req.TermsVersion = tc.submitted
+			req.RequestID = "consent-2"
+			f.saveConsent(t, req)
+
+			f.requireProjection(t, consent.TermsVersion, consent.None)
+			record := f.client.TermsAcceptance.Query().Where(termsacceptance.RequestIDEQ(req.RequestID)).OnlyX(t.Context())
+			require.Equal(t, tc.submitted, record.TermsVersion)
+		})
+	}
+}
+
 func (f consentFixture) saveConsent(t *testing.T, req repository.TermsConsent) {
 	t.Helper()
 	skipped, err := f.repo.SetConsent(t.Context(), consentAccount.ID, req)
@@ -149,4 +180,35 @@ func TestContactEmailChangeWithdrawsMarketing(t *testing.T) {
 	withdrawal := f.client.MarketingConsent.Query().Where(marketingconsent.StatusEQ(marketingconsent.StatusWithdrawn)).OnlyX(ctx)
 	require.Equal(t, marketingconsent.SourceAddressChanged, withdrawal.Source)
 	require.NoError(t, f.mac.VerifyMAC(withdrawal.AddressHmac, []byte(consentEmail)))
+}
+
+func TestContactEmailWithoutMACWithdrawsMarketing(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		email string
+	}{
+		{name: "replacement address", email: "new@example.test"},
+		{name: "address match cannot be verified", email: consentEmail},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := setupConsent(t)
+			ctx, id := t.Context(), consentAccount.ID
+			require.NoError(t, f.repo.SetContactEmail(ctx, id, consentEmail))
+			f.saveConsent(t, consentRequest(true))
+
+			cfg := f.config
+			cfg.MarketingMAC = nil
+			f.repo = openTestUsers(t, cfg)
+			require.NoError(t, f.repo.SetContactEmail(ctx, id, tc.email))
+			f.requireProjection(t, consent.TermsVersion, consent.Withdrawn)
+
+			email, err := f.repo.ContactEmail(ctx, id)
+			require.NoError(t, err)
+			require.Equal(t, tc.email, email)
+
+			withdrawal := f.client.MarketingConsent.Query().Where(marketingconsent.StatusEQ(marketingconsent.StatusWithdrawn)).OnlyX(ctx)
+			require.Equal(t, marketingconsent.SourceAddressChanged, withdrawal.Source)
+			require.NoError(t, f.mac.VerifyMAC(withdrawal.AddressHmac, []byte(consentEmail)))
+		})
+	}
 }
