@@ -5,6 +5,8 @@ package rpc
 
 import (
 	"context"
+	"strings"
+	"unicode/utf8"
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/repository"
@@ -15,6 +17,22 @@ import (
 
 	"github.com/nats-io/nats.go"
 )
+
+func (d *dashboardRPC) maskedContactEmail(ctx context.Context, id uint64) string {
+	email, err := d.repo.ContactEmail(ctx, id)
+	if err != nil {
+		return ""
+	}
+	at := strings.LastIndexByte(email, '@')
+	if at < 1 {
+		return ""
+	}
+	_, size := utf8.DecodeRuneInString(email[:at])
+	if size == at {
+		size = 0
+	}
+	return email[:size] + "***" + email[at:]
+}
 
 func ownerWrite[Req interface {
 	OwnerContext() usersrpc.DashboardOwner

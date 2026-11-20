@@ -1,0 +1,10 @@
+{
+  "email": "Email",
+  "switchLabel": "Marketing email",
+  "none": "You are not subscribed.",
+  "granted": "You are subscribed.",
+  "withdrawn": "You unsubscribed.",
+  "unknown": "Email preferences are temporarily unavailable.",
+  "optIn": "I agree to receive product news and offers from ItsBagelBot by email (optional). Contact {contact}. You can withdraw at any time in Settings or from any of these emails.",
+  "saveError": "Could not update your email preference. Try again."
+}

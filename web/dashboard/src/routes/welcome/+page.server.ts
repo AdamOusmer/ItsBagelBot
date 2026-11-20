@@ -4,7 +4,8 @@
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { fail, redirect, type Cookies } from '@sveltejs/kit';
-import { publishEventSub, setOnboarded, type AccountState } from '#lib/server/services';
+import { publishEventSub, setOnboarded } from '#lib/server/services';
+import { consentFields, currentAccount, needsTerms, submitTerms } from '#lib/server/consent';
 import { applyFeaturePreset } from '#lib/server/feature-presets';
 import { count } from '@bagel/kit/server/analytics';
 import { SERVER_STRATEGIES } from '#lib/server/importer';
@@ -12,6 +13,7 @@ import { actionError } from '#lib/server/action-errors';
 import { isOwnerSession } from '#lib/server/owner';
 import type { Session } from '#lib/server/session';
 import { IMPORT_SOURCES, type ImportSource } from '@bagel/kit';
+import { translate, type Locale } from '@bagel/kit/i18n';
 import type { Actions, PageServerLoad } from './$types';
 
 const DEMO = dev && env.DEMO === '1';
@@ -20,18 +22,13 @@ const SETUP_PRESETS = new Set(['start-new', 'integrate', 'quiet']);
 type SetupPreset = 'start-new' | 'integrate' | 'quiet';
 type Counted = SetupPreset | 'import';
 
-const consented = (form: FormData) => form.get('consent') === 'yes';
-
-function account(locals: App.Locals): AccountState | null {
-  const state = locals.accountState;
-  return state && 'value' in state ? state.value : null;
+function termsAccepted(locals: App.Locals): boolean {
+  return !needsTerms(currentAccount(locals)?.termsVersion);
 }
 
-const termsAccepted = (locals: App.Locals) => account(locals)?.onboarded === true;
-
-async function acceptTerms(uid: string, locals: App.Locals) {
+async function startSetup(uid: string, locals: App.Locals) {
   await setOnboarded(uid, true);
-  if (account(locals)?.active) await publishEventSub(uid, true);
+  if (currentAccount(locals)?.active) await publishEventSub(uid, true);
 }
 
 async function tourSession(locals: App.Locals): Promise<Session | null> {
@@ -52,36 +49,27 @@ function connectedSources(cookies: Cookies): Record<ImportSource, boolean> {
   >;
 }
 
-function signedIn(locals: App.Locals, permitted: (s: Session) => boolean) {
+function owner(locals: App.Locals) {
   const s = locals.session;
   if (!s) return { failure: fail(401, { error: actionError(locals.locale, 'Sign in to finish setup.') }) };
-  if (!permitted(s)) return { failure: fail(403, { error: actionError(locals.locale, 'Only the channel owner can finish setup.') }) };
+  if (!isOwnerSession(s)) return { failure: fail(403, { error: actionError(locals.locale, 'Only the channel owner can finish setup.') }) };
   return { uid: s.user_id };
 }
 
-const notImpersonated = (s: Session) => !s.impersonator_id;
-const owner = (locals: App.Locals) => signedIn(locals, isOwnerSession);
-const signer = (locals: App.Locals) => signedIn(locals, notImpersonated);
-
-function welcomeClosed(s: Session, locals: App.Locals): boolean {
-  if (s.impersonator_id) return true;
-  return !!s.delegate_of && termsAccepted(locals);
-}
-
-async function markOnboarded(save: () => Promise<unknown>) {
+async function markOnboarded(save: () => Promise<unknown>, locale: Locale) {
   try {
     await save();
     return null;
   } catch {
     count('onboarding.steps', 'save_failed');
-    return fail(502, { error: 'Could not save your setup. Try again.' });
+    return fail(502, { error: translate(locale, 'onboarding.saveError') });
   }
 }
 
 async function persist(locals: App.Locals, counted: Counted, save: (uid: string) => Promise<unknown>) {
   const who = owner(locals);
   if ('failure' in who) return who.failure;
-  const failed = await markOnboarded(() => save(who.uid));
+  const failed = await markOnboarded(() => save(who.uid), locals.locale);
   if (failed) return failed;
   count('onboarding.preset', counted);
   return null;
@@ -100,30 +88,37 @@ async function finishSetup<R>(
   return finish();
 }
 
+function recordConsentFailure<T extends { status: number }>(failure: T): T {
+  if (failure.status === 400) count('onboarding.steps', 'consent_missing');
+  if (failure.status === 502) count('onboarding.steps', 'save_failed');
+  return failure;
+}
+
 export const load: PageServerLoad = async ({ locals, cookies }) => {
   const s = await tourSession(locals);
   if (!s) throw redirect(302, `/login?next=${encodeURIComponent('/welcome')}`);
-  if (welcomeClosed(s, locals)) throw redirect(303, '/');
+  if (!isOwnerSession(s)) throw redirect(303, '/');
+  const accepted = termsAccepted(locals);
   count('onboarding.steps', 'viewed');
   return {
     name: s.display_name || s.login,
     connected: connectedSources(cookies),
-    accepted: termsAccepted(locals),
-    delegate: !!s.delegate_of
+    accepted,
+    consent: accepted ? null : await consentFields(s, DEMO)
   };
 };
 
 export const actions: Actions = {
   consent: async ({ locals, request }) => {
-    if (!consented(await request.formData())) return consentMissing(locals);
+    const session = await tourSession(locals);
+    const result = await submitTerms({ locals: { ...locals, session }, request }, 'welcome', DEMO);
+    if (!('uid' in result)) return recordConsentFailure(result);
     if (DEMO) return { ok: true };
-    const who = signer(locals);
-    if ('failure' in who) return who.failure;
-    return (await markOnboarded(() => acceptTerms(who.uid, locals))) ?? { ok: true };
+    return (await markOnboarded(() => startSetup(result.uid, locals), locals.locale)) ?? { ok: true };
   },
   done: async ({ locals, request }) => {
+    if (!DEMO && !termsAccepted(locals)) return consentMissing(locals);
     const form = await request.formData();
-    if (!consented(form)) return consentMissing(locals);
     const value = form.get('preset');
     if (typeof value !== 'string' || !SETUP_PRESETS.has(value)) {
       return fail(400, { error: actionError(locals.locale, 'Choose a setup.') });
@@ -141,9 +136,8 @@ export const actions: Actions = {
       }
     );
   },
-  finishImport: async ({ locals, request }) => {
-    const form = await request.formData();
-    if (!consented(form)) return consentMissing(locals);
+  finishImport: async ({ locals }) => {
+    if (!DEMO && !termsAccepted(locals)) return consentMissing(locals);
     return finishSetup(locals, 'import', (uid) => setOnboarded(uid, true), () => ({ ok: true }));
   }
 };

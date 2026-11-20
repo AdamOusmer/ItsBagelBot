@@ -179,6 +179,29 @@ func requireDashboardConsent(t *testing.T, h harness, version string, status con
 	require.Equal(t, status, state.MarketingStatus)
 }
 
+func TestDashboardStateMasksContactEmailOnRequest(t *testing.T) {
+	h := newConsentHarness(t, nil)
+	for _, tc := range []struct {
+		name    string
+		email   string
+		include bool
+		want    string
+	}{
+		{name: "placeholder is hidden", include: true},
+		{name: "regular state has no email", email: "contact@example.test"},
+		{name: "opt in reads mask", email: "contact@example.test", include: true, want: "c***@example.test"},
+		{name: "one-character local part is fully hidden", email: "c@example.test", include: true, want: "***@example.test"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dashboardLogin(t, h, tc.email)
+			req := usersrpc.StateGetRequest{BroadcasterUserID: consentOwnerID, IncludeMaskedEmail: tc.include}
+			state := call[usersrpc.StateGetReply](t, h, dashboardPrefix+".state_get", req)
+			require.Empty(t, state.Error)
+			require.Equal(t, tc.want, state.MaskedEmail)
+		})
+	}
+}
+
 func TestDashboardGrantAndTokenScopes(t *testing.T) {
 	h := newConsentHarness(t, nil)
 	dashboardLogin(t, h, "")

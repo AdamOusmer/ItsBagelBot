@@ -52,6 +52,7 @@ export {
   type AccountState,
   type AccountStatus
 } from './services/account-state';
+export { maskedContactEmail, setMarketing, setTermsConsent } from './services/consent';
 export {
   deleteSelf,
   hasGrant,

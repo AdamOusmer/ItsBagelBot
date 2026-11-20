@@ -19,6 +19,7 @@ import {
   userLocale,
   pageToggles,
   hasGrant,
+  setMarketing,
   deviceGrantList,
   deviceGrantRevoke,
   deviceGrantRevokeAll,
@@ -38,6 +39,8 @@ import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { cookieOptions, deleteOptions } from '#lib/server/cookies';
 import { logger } from '@bagel/kit/server/logger';
+import { currentAccount } from '#lib/server/consent';
+import { isOwnerSession } from '#lib/server/owner';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -130,6 +133,11 @@ function readFetchKeys(result: PromiseSettledResult<{ defs: { name: string; key_
   return { fetchKeys: result.value.keys, fetchKeyRefs };
 }
 
+function emailPreferences(locals: App.Locals) {
+  if (!isOwnerSession(locals.session)) return null;
+  return { status: currentAccount(locals)?.marketingStatus ?? null };
+}
+
 export const load: PageServerLoad = async ({ locals }) => {
   if (DEMO) {
     const d = await import('#lib/server/demo-data');
@@ -139,6 +147,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       grantableSections: [...GRANTABLE_SECTIONS],
       notifications: d.demoNotifications,
       savedLocale: locals.locale,
+      emailPreferences: null,
       pages: Object.fromEntries(PUBLIC_PAGES.map((page) => [page, true])) as PageFlags,
       twitchConnected: true as boolean | null,
       degraded: false,
@@ -174,6 +183,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     grantableSections: [...GRANTABLE_SECTIONS],
     notifications,
     savedLocale: savedLocaleOf(localeResult),
+    emailPreferences: emailPreferences(locals),
     pages,
     twitchConnected: grantResult.status === 'fulfilled' ? grantResult.value === true : (null as boolean | null),
     degraded: [givenResult, receivedResult, localeResult, ...pageResults].some(rejected),
@@ -229,6 +239,21 @@ async function demoKeyDelete(label: string) {
 }
 
 export const actions: Actions = {
+  marketing: async ({ locals, request }) => {
+    const { session, locale } = locals;
+    if (!session) return fail(401, { error: actionError(locale, 'Not signed in.') });
+    if (!isOwnerSession(session)) return fail(403, { error: actionError(locale, 'Not allowed.') });
+
+    const status = (await request.formData()).get('status');
+    if (status !== 'granted' && status !== 'withdrawn') return fail(400, { error: actionError(locale, 'Invalid input.') });
+    try {
+      await setMarketing(session.user_id, { status, locale });
+      return { ok: true };
+    } catch (err) {
+      return upstreamFailed(err, { op: 'marketing_set', error: translate(locale, 'marketing.saveError') });
+    }
+  },
+
   setfetchkey: async ({ request, locals }) => {
     const form = await request.formData();
     const label = slugifyName(String(form.get('label') ?? ''));

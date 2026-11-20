@@ -17,6 +17,8 @@ let banned = false;
 let rejectedLink = false;
 let registerFailed = false;
 let claims: Record<string, unknown> = {};
+const GRANTED_SCOPES = ['openid', 'user:read:email', 'channel:bot'];
+const grants: unknown[] = [];
 const analytics: string[][] = [];
 mock.module('@bagel/kit/server/analytics', () => ({ count: (...args: string[]) => analytics.push(args) }));
 const events: string[] = [];
@@ -40,7 +42,10 @@ mock.module('#lib/server/services', () => ({
   },
   userLocale: () => step('locale', 'fr'),
   userCursor: () => step('cursor', true),
-  saveGrant: () => step('grant', undefined),
+  saveGrant: (...args: unknown[]) => {
+    grants.push(args);
+    return step('grant', undefined);
+  },
   delegationConsume: () => step('delegation', { ok: !rejectedLink, owner_user_id: '7', owner_login: 'owner', sections: [] })
 }));
 const nats = await import('@bagel/kit/server/nats');
@@ -65,7 +70,7 @@ mock.module('#lib/server/oauth', () => ({
   twitch: () => ({
     validateAuthorizationCode: async () => ({
       claims: () => ({ sub: '42', preferred_username: 'Streamer', aud: 'client', iss: 'https://id.twitch.tv/oauth2', nonce: 'n', ...claims }),
-      scopes: () => [],
+      scopes: () => GRANTED_SCOPES,
       accessToken: () => 'a',
       refreshToken: () => 'r'
     })
@@ -104,6 +109,7 @@ beforeEach(() => {
   rejectedLink = false;
   registerFailed = false;
   claims = {};
+  grants.length = 0;
   analytics.length = 0;
   existing = async () => ({ username: 'streamer' });
 });
@@ -170,6 +176,11 @@ describe('auth callback ordering', () => {
     expect([written.get('locale'), written.get('bagel_cursor')]).toEqual(['fr', '1']);
   });
 
+  test('the callback persists the scopes Twitch actually granted', async () => {
+    await signInTo();
+    expect(grants).toEqual([['42', { access_token: 'a', refresh_token: 'r', scopes: GRANTED_SCOPES }]]);
+  });
+
   test('an invitee accepting a team link still stores their own Twitch grant', async () => {
     const result = await signInTo([['pending_delegation', 'invite']]);
     expect(result).toEqual({ status: 302, location: '/' });
@@ -178,11 +189,11 @@ describe('auth callback ordering', () => {
 });
 
 describe('auth callback channel purge', () => {
-  test('a first sign-in purges the new commands pages and no leaderboard tag', async () => {
+  test('a first sign-in opens welcome and purges the new commands pages', async () => {
     existing = async () => {
       throw new RpcError('ent: user not found', 'not_found');
     };
-    expect(await signIn()).toBe(302);
+    expect(await signInTo()).toEqual({ status: 302, location: '/welcome' });
     expect(purged).toEqual([{ kind: 'pages', userId: '42', logins: ['streamer'] }]);
   });
 

@@ -58,7 +58,7 @@
   } from '@bagel/kit/importer/strategy';
   import type { ImportSource } from '@bagel/kit';
 
-  let { onback, onexit, consentAccepted, locale }: { onback: (welcomeStep: number) => void; onexit: (to: string) => void; consentAccepted: boolean; locale: Locale } = $props();
+  let { onback, onexit, locale }: { onback: (welcomeStep: number) => void; onexit: (to: string) => void; locale: Locale } = $props();
   const t = (key: string, params?: Record<string, string | number>) => translate(locale, key, params);
   const importText = (text: string, params?: Record<string, string | number>) => translate(locale, `import.${text}`, params);
   const rowText = { cannotImport: (m: string) => t('import.cannotImport', { m }), alreadyExists: () => t('import.alreadyExists') };
@@ -347,9 +347,7 @@
 
   async function saveFinish(): Promise<boolean> {
     try {
-      const body = new FormData();
-      body.set('consent', consentAccepted ? 'yes' : 'no');
-      const res = await fetch('/welcome?/finishImport', { method: 'POST', body });
+      const res = await fetch('/welcome?/finishImport', { method: 'POST', body: new URLSearchParams() });
       const result = deserialize(await res.text());
       if (result.type === 'success' && actionPayload(result)?.ok) return true;
     } catch {

@@ -1,0 +1,10 @@
+{
+  "email": "Correo electrónico",
+  "switchLabel": "Correos promocionales",
+  "none": "No tienes una suscripción activa.",
+  "granted": "Tu suscripción está activa.",
+  "withdrawn": "Cancelaste tu suscripción.",
+  "unknown": "Las preferencias de correo no están disponibles temporalmente.",
+  "optIn": "Acepto recibir novedades del producto y ofertas de ItsBagelBot por correo electrónico (opcional). Contacto: {contact}. Puedes retirar tu consentimiento en cualquier momento desde Configuración o desde cualquiera de estos correos.",
+  "saveError": "No se pudo actualizar tu preferencia de correo. Inténtalo de nuevo."
+}

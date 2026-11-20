@@ -63,10 +63,9 @@ export const hasGrant = defineRead({
 
 export const saveGrant = defineWrite({
   subject: `${SUB.dashboard}.grant_save`,
-  request: (userId: string, accessToken: string, refreshToken: string) => ({
+  request: (userId: string, grant: { access_token: string; refresh_token: string; scopes: string[] }) => ({
     broadcaster_user_id: userId,
-    access_token: accessToken,
-    refresh_token: refreshToken
+    ...grant
   }),
   after: (_result: unknown, userId: string) => invalidate(`grant:${userId}`, `state:${userId}`)
 });

@@ -240,7 +240,8 @@ type LocaleSetRequest struct {
 }
 
 type StateGetRequest struct {
-	BroadcasterUserID string `json:"broadcaster_user_id"`
+	BroadcasterUserID  string `json:"broadcaster_user_id"`
+	IncludeMaskedEmail bool   `json:"include_masked_email,omitempty"`
 }
 
 type StateGetReply struct {
@@ -250,6 +251,7 @@ type StateGetReply struct {
 	Locale          string                  `json:"locale"`
 	TermsVersion    string                  `json:"terms_version"`
 	MarketingStatus consent.MarketingStatus `json:"marketing_status"`
+	MaskedEmail     string                  `json:"masked_email,omitempty"`
 	rpc.Refusal
 }
 

@@ -221,20 +221,20 @@ func (d *dashboardRPC) handleActiveSet(ctx context.Context, msg *nats.Msg) {
 }
 
 func (d *dashboardRPC) handleActiveGet(ctx context.Context, msg *nats.Msg) {
-	d.readView(ctx, msg, func(view repository.UserView) map[string]any {
+	d.readView(ctx, msg, func(_ usersrpc.StateGetRequest, view repository.UserView) map[string]any {
 		return map[string]any{"active": view.IsActive}
 	})
 }
 
 func (d *dashboardRPC) handleStatusGet(ctx context.Context, msg *nats.Msg) {
-	d.readView(ctx, msg, func(view repository.UserView) map[string]any {
+	d.readView(ctx, msg, func(_ usersrpc.StateGetRequest, view repository.UserView) map[string]any {
 		return map[string]any{"status": view.Status, "onboarded": view.Onboarded}
 	})
 }
 
 func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
-	d.readView(ctx, msg, func(view repository.UserView) map[string]any {
-		return map[string]any{
+	d.readView(ctx, msg, func(req usersrpc.StateGetRequest, view repository.UserView) map[string]any {
+		state := map[string]any{
 			"active":                      view.IsActive,
 			"lifecycle":                   view.Lifecycle,
 			"state_revision":              view.StateRevision,
@@ -257,6 +257,10 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 			"subscription_cancel_pending": view.SubscriptionCancelPending,
 			"subscription_payment_failed": view.SubscriptionPaymentFailed,
 		}
+		if req.IncludeMaskedEmail {
+			state["masked_email"] = d.maskedContactEmail(ctx, view.ID)
+		}
+		return state
 	})
 }
 
@@ -304,8 +308,8 @@ func (d *dashboardRPC) handleIdentitySync(ctx context.Context, msg *nats.Msg) {
 	bus.Respond(msg, usersrpc.IdentitySyncReply{Renamed: prior != "", PriorUsername: prior})
 }
 
-func (d *dashboardRPC) readView(ctx context.Context, msg *nats.Msg, render func(repository.UserView) map[string]any) {
-	req, ok := decodeRequest[usersrpc.GrantHasRequest](msg)
+func (d *dashboardRPC) readView(ctx context.Context, msg *nats.Msg, render func(usersrpc.StateGetRequest, repository.UserView) map[string]any) {
+	req, ok := decodeRequest[usersrpc.StateGetRequest](msg)
 	if !ok {
 		return
 	}
@@ -319,7 +323,7 @@ func (d *dashboardRPC) readView(ctx context.Context, msg *nats.Msg, render func(
 		respondFail(msg, err)
 		return
 	}
-	bus.Respond(msg, render(view))
+	bus.Respond(msg, render(req, view))
 }
 
 func (d *dashboardRPC) handleOnboardedSet(ctx context.Context, msg *nats.Msg) {

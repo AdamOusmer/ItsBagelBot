@@ -10,7 +10,20 @@ import { SUB } from './subjects';
 import { broadcastInvalidation, fabric, invalidate } from './fabric';
 
 export type AccountStatus = 'free' | 'paid' | 'vip';
-export type AccountState = { lifecycleRevision?: number; accountCreatedAt?: number; lifecycle?: ChannelLifecycle; active: boolean; status: AccountStatus; onboarded: boolean; creatorCode: string | null; username: string; displayName: string };
+export type MarketingStatus = 'none' | 'granted' | 'withdrawn';
+export type AccountState = {
+  lifecycleRevision?: number;
+  accountCreatedAt?: number;
+  lifecycle?: ChannelLifecycle;
+  active: boolean;
+  status: AccountStatus;
+  onboarded: boolean;
+  termsVersion: string;
+  marketingStatus: MarketingStatus;
+  creatorCode: string | null;
+  username: string;
+  displayName: string;
+};
 
 export function normalizeStatus(raw: string | undefined): AccountStatus {
   const s = (raw ?? 'free').toLowerCase();
@@ -21,6 +34,8 @@ export type StateReply = {
   active?: boolean;
   status?: string;
   onboarded?: boolean;
+  terms_version?: string;
+  marketing_status?: MarketingStatus;
   creator_code?: string | null;
   username?: string | null;
   display_name?: string | null;
@@ -59,6 +74,8 @@ export const accountState = stateView((r): AccountState => ({
   active: !!r.active,
   status: normalizeStatus(r.status),
   onboarded: !!r.onboarded,
+  termsVersion: r.terms_version ?? '',
+  marketingStatus: r.marketing_status ?? 'none',
   creatorCode: r.creator_code?.trim() ? r.creator_code : null,
   username: (r.username ?? '').trim(),
   displayName: (r.display_name ?? '').trim()

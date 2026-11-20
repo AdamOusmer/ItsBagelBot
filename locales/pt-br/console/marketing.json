@@ -1,0 +1,10 @@
+{
+  "email": "E-mail",
+  "switchLabel": "E-mails promocionais",
+  "none": "Você não tem uma inscrição ativa.",
+  "granted": "Sua inscrição está ativa.",
+  "withdrawn": "Você cancelou a inscrição.",
+  "unknown": "As preferências de e-mail estão temporariamente indisponíveis.",
+  "optIn": "Aceito receber novidades do produto e ofertas do ItsBagelBot por e-mail (opcional). Contato: {contact}. Você pode retirar o consentimento a qualquer momento nas Configurações ou em qualquer um desses e-mails.",
+  "saveError": "Não foi possível atualizar sua preferência de e-mail. Tente novamente."
+}

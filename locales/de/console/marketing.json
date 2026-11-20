@@ -1,0 +1,10 @@
+{
+  "email": "E-Mail",
+  "switchLabel": "Marketing-E-Mails",
+  "none": "Du hast kein Abonnement.",
+  "granted": "Du hast ein aktives Abonnement.",
+  "withdrawn": "Du hast dich abgemeldet.",
+  "unknown": "Die E-Mail-Einstellungen sind vorübergehend nicht verfügbar.",
+  "optIn": "Ich möchte per E-Mail Produktneuigkeiten und Angebote von ItsBagelBot erhalten (optional). Kontakt: {contact}. Du kannst deine Einwilligung jederzeit in den Einstellungen oder über jede dieser E-Mails widerrufen.",
+  "saveError": "Deine E-Mail-Einstellung konnte nicht aktualisiert werden. Versuche es erneut."
+}

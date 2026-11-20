@@ -18,6 +18,7 @@ import {
   type TimerDef
 } from '@bagel/kit';
 import { DEFAULT_LOCALE } from '@bagel/kit/i18n';
+import { TERMS_VERSION } from '@bagel/kit/consent';
 import type { Session } from './session';
 import type { AccountState, BillingState, DeviceGrantView, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';
@@ -87,6 +88,8 @@ export const demoAccountState: AccountState = {
   active: true,
   status: 'vip',
   onboarded: true,
+  termsVersion: TERMS_VERSION,
+  marketingStatus: 'none',
   creatorCode: null,
   username: 'demo',
   displayName: 'Demo'

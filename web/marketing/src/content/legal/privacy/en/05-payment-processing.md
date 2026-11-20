@@ -7,7 +7,7 @@ plain: "Tebex handles payments, Resend our automated emails, Zoho our correspond
 
 To offer premium subscriptions, we integrate with Tebex. Tebex acts as the merchant of record for all transactions. When you initiate a checkout, we create a secure basket and redirect you to Tebex to complete the purchase. We do not process, collect, or store any payment details (like credit card numbers). We only receive the transaction ID and order status to fulfill your subscription. Tebex processes your payment data subject to their own Privacy Policy.
 
-We use Resend, Inc. to deliver automated transactional emails, such as purchase receipts and gift notifications. When we send you such an email, Resend processes your email address and the message content for delivery purposes only, subject to Resend's own Privacy Policy.
+We use Resend, Inc. to deliver automated transactional emails, such as purchase receipts and gift notifications, and marketing emails when you have expressly opted in. Resend processes your email address and the message content for delivery purposes only, subject to Resend's own Privacy Policy.
 
 We use Zoho Corporation's email services for non-automated correspondence, such as replies from our support team. When you email us, or we write to you directly, Zoho processes your email address and the content of the exchange to deliver and host that correspondence, subject to Zoho's own Privacy Policy. Aside from the processors described in this policy and a business transfer as described in this policy, we do not share your email address with anyone.
 
