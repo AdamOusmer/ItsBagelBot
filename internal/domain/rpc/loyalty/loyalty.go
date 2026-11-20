@@ -14,6 +14,7 @@ const CounterTargetRequired = "counter_target_required"
 
 const (
 	VerbBalanceCredit       = "balance.credit"
+	VerbBalanceDebit        = "balance.debit"
 	VerbBalanceSnapshot     = "balance.snapshot"
 	VerbBalanceCountAtLeast = "balance.count_at_least"
 	VerbWatchStatus         = "watch.status"

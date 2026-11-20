@@ -15,23 +15,34 @@ import (
 	"go.uber.org/zap"
 )
 
-func (l *loyaltyRPC) handleBalanceCredit(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, viewerID, ok, reply := requireViewer(req)
-	if !ok {
-		return reply
+type balanceMutationFn func(context.Context, repository.BalanceMutation) (repository.BalanceMutationResult, error)
+
+func (l *loyaltyRPC) keyedBalanceHandler(verb string, mutate balanceMutationFn) func(context.Context, loyaltyrpc.Request) loyaltyrpc.Reply {
+	targetRequired := "invalid viewer_id"
+	if verb == loyaltyrpc.VerbBalanceDebit {
+		targetRequired = loyaltyrpc.CounterTargetRequired
 	}
-	if req.AccountCreatedAt == nil {
-		return refuse(domainrpc.CodeInvalid, "account_created_at is required")
+	return func(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
+		userID, viewerID, ok, reply := parseIDs(req, false)
+		if !ok {
+			return reply
+		}
+		if viewerID == 0 {
+			return refuse(domainrpc.CodeInvalid, targetRequired)
+		}
+		if req.AccountCreatedAt == nil {
+			return refuse(domainrpc.CodeInvalid, "account_created_at is required")
+		}
+		result, err := mutate(ctx, repository.BalanceMutation{UserID: userID, ViewerID: viewerID,
+			ViewerLogin: req.ViewerLogin, Value: req.Value, Key: req.Key, AccountCreatedAt: *req.AccountCreatedAt})
+		if err != nil {
+			return l.keyedBalanceFailure(verb, err)
+		}
+		return loyaltyrpc.Reply{Balance: result.Balance, Found: result.Balance != nil, Spent: result.Spent, Replayed: result.Replayed}
 	}
-	result, err := l.repo.BalanceCredit(ctx, repository.BalanceCredit{UserID: userID, ViewerID: viewerID,
-		ViewerLogin: req.ViewerLogin, Value: req.Value, Key: req.Key, AccountCreatedAt: *req.AccountCreatedAt})
-	if err != nil {
-		return l.creditFailure(err)
-	}
-	return loyaltyrpc.Reply{Balance: result.Balance, Found: true, Replayed: result.Replayed}
 }
 
-func (l *loyaltyRPC) creditFailure(err error) loyaltyrpc.Reply {
+func (l *loyaltyRPC) keyedBalanceFailure(verb string, err error) loyaltyrpc.Reply {
 	refusal := domainrpc.Fail(err,
 		domainrpc.Is(repository.ErrInvalidInput, domainrpc.CodeInvalid),
 		domainrpc.Is(repository.ErrCreditKeyMismatch, domainrpc.CodeConflict),
@@ -41,10 +52,12 @@ func (l *loyaltyRPC) creditFailure(err error) loyaltyrpc.Reply {
 	switch refusal.Code {
 	case domainrpc.CodeInvalid, domainrpc.CodeConflict, domainrpc.CodeForbidden:
 		return loyaltyrpc.Reply{Refusal: refusal}
-	default:
-		l.log.Warn("balance.credit failed", zap.Error(err))
+	}
+	l.log.Warn(verb+" failed", zap.Error(err))
+	if verb == loyaltyrpc.VerbBalanceCredit {
 		return refuse(domainrpc.CodeUnavailable, "loyalty credit unavailable")
 	}
+	return refuse(domainrpc.CodeUnavailable, "loyalty debit unavailable")
 }
 
 func (l *loyaltyRPC) snapshotUnavailable(err error) loyaltyrpc.BalanceSnapshot {

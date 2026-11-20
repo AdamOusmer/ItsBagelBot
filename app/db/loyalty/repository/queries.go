@@ -89,15 +89,15 @@ func (r *Loyalty) BalanceSpendViewer(ctx context.Context, spend Spend) (*ent.Bal
 		return nil, false, found, err
 	}
 	spend.ViewerLogin = normalizeLogin(spend.ViewerLogin)
-	fresh, exists, spent, err := r.spendRow(ctx, row.ID, spend)
+	fresh, spent, err := spendRow(ctx, r.client, row.ID, spend)
 	if spent {
 		r.publishBalanceChange(spend.UserID, spend.ViewerID)
 	}
-	return fresh, exists, spent, err
+	return fresh, true, spent, err
 }
 
-func (r *Loyalty) spendRow(ctx context.Context, rowID int, spend Spend) (*ent.Balance, bool, bool, error) {
-	update := r.client.Balance.Update().
+func spendRow(ctx context.Context, client *ent.Client, rowID int, spend Spend) (*ent.Balance, bool, error) {
+	update := client.Balance.Update().
 		Where(balance.IDEQ(rowID), balance.PointsGTE(spend.Amount)).
 		AddPoints(-spend.Amount)
 	if spend.ViewerLogin != "" {
@@ -105,10 +105,10 @@ func (r *Loyalty) spendRow(ctx context.Context, rowID int, spend Spend) (*ent.Ba
 	}
 	n, err := update.Save(ctx)
 	if err != nil {
-		return nil, true, false, err
+		return nil, false, err
 	}
-	fresh, err := r.client.Balance.Get(ctx, rowID)
-	return fresh, true, n > 0, err
+	fresh, err := client.Balance.Get(ctx, rowID)
+	return fresh, n > 0, err
 }
 
 func clampLimit(limit int) int {

@@ -38,6 +38,7 @@ RPC reads and synchronous balance/counter management.
 | [main.go](main.go) | Earned/lifecycle/counter consumers, 32 counter handlers, Valkey watchtime consumer and drain order. |
 | [repository/loyalty.go](repository/loyalty.go) | Legacy earned accumulation, 15-second flush, additive SQL upserts and shutdown coordination. |
 | [repository/queries.go](repository/queries.go) | Balance read/set/add/spend/top and counter management/read APIs. |
+| [repository/balance_credit.go](repository/balance_credit.go) | `balance.credit` and `balance.debit`: keyed mutations and replay receipts under the account fence. |
 | [repository/transfer.go](repository/transfer.go) | Transactional guarded debit and recipient credit/create. |
 | [repository/balance_adjust.go](repository/balance_adjust.go), [wager.go](repository/wager.go) | Resolved-viewer balance adjustment and atomic wager settlement. |
 | [repository/balance_reset.go](repository/balance_reset.go) | `balance.reset`: one bulk UPDATE zeroing a channel's points, watch seconds kept. |
@@ -64,6 +65,10 @@ Generated Ent code is not the schema source.
 
 - Default RPC prefix is `rpc.loyalty`; balance verbs require a real owner,
   counter verbs can admit the reserved bot namespace `user_id="0"`.
+- `balance.credit` and `balance.debit` require a caller-prefixed key and account
+  instance. Debit requires sufficient available points and records the outcome
+  for replays, including refusals for missing balances or insufficient points.
+  `balance.spend` remains available for older Sesame pods during rollout.
 - Grouped earned events accumulate in memory and bulk-add standings. Reads hit
   Ent directly; a just-accepted legacy delta may not yet appear in an RPC read.
 - Grouped counter events wait for `CounterProcessor.Process` before acknowledgment.

@@ -50,7 +50,8 @@ func Subscribe(w Wiring, prefix string) error {
 
 	return bus.ServeVerbs(w.RPCWiring, prefix,
 		bus.At("balance.get", l.handleBalanceGet),
-		bus.At(loyaltyrpc.VerbBalanceCredit, l.handleBalanceCredit),
+		bus.At(loyaltyrpc.VerbBalanceCredit, l.keyedBalanceHandler(loyaltyrpc.VerbBalanceCredit, l.repo.BalanceCredit)),
+		bus.At(loyaltyrpc.VerbBalanceDebit, l.keyedBalanceHandler(loyaltyrpc.VerbBalanceDebit, l.repo.BalanceDebit)),
 		bus.At("balance.set", l.handleBalanceSet),
 		bus.At("balance.add", l.handleBalanceAdd),
 		bus.At("balance.spend", l.handleBalanceSpend),

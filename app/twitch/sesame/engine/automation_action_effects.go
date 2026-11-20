@@ -196,26 +196,41 @@ func (x *actionExec) pointsSpend(s step, p automation.PointsSpendAction) error {
 	if x.p.loyalty == nil {
 		return failure("no_loyalty")
 	}
-	spend := PointSpend{BroadcasterID: x.run.BroadcasterID, ViewerID: viewer.id, Login: viewer.login, Amount: p.Amount}
-	var balance loyaltyrpc.Balance
-	var spent bool
+	debit := PointDebit{
+		BroadcasterID: x.run.BroadcasterID, ViewerID: viewer.id, ViewerLogin: viewer.login, Value: p.Amount,
+		Key: "recipe:" + x.run.replayKey() + ":" + s.EffectKey + x.iter,
+	}
+	var outcome DebitOutcome
 	err = x.once(s, func() error {
 		var err error
-		balance, _, spent, err = x.p.loyalty.BalanceSpend(x.ctx, spend)
-		if err != nil {
-			return loyaltyStoreFailure(err)
-		}
-		return nil
+		outcome, err = x.debitPoints(debit)
+		return err
 	})
 	if err != nil {
 		return err
 	}
-	x.run.points = strconv.FormatInt(balance.Points, 10)
-	if !spent {
+	x.run.points = strconv.FormatInt(outcome.Balance.Points, 10)
+	if !outcome.Spent {
 		return x.failBranch(s, "insufficient_points")
 	}
 	x.execList(s.Branches[0])
 	return nil
+}
+
+func (x *actionExec) debitPoints(debit PointDebit) (DebitOutcome, error) {
+	if x.p.runtime == nil {
+		return DebitOutcome{}, failure("store_error")
+	}
+	instance, err := loyaltyAccountInstance(x.ctx, x.p.runtime, debit.BroadcasterID)
+	if err != nil {
+		return DebitOutcome{}, loyaltyStoreFailure(err)
+	}
+	debit.AccountCreatedAt = instance
+	outcome, err := x.p.loyalty.BalanceDebit(x.ctx, debit)
+	if err != nil {
+		return DebitOutcome{}, loyaltyStoreFailure(err)
+	}
+	return outcome, nil
 }
 
 func (x *actionExec) adjustPoints(s step, target automation.TargetAction, amount int64, absolute bool) error {

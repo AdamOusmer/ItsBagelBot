@@ -314,14 +314,24 @@ func decodeBalance(raw string) (points int64, watch uint64, ok bool) {
 
 func (s *ValkeyLoyaltyStore) BalanceCredit(ctx context.Context, credit PointCredit) (CreditOutcome, error) {
 	out, err := s.rpc.BalanceCredit(ctx, credit)
+	s.invalidateKeyedBalance(ctx, credit, err)
+	return out, err
+}
+
+func (s *ValkeyLoyaltyStore) BalanceDebit(ctx context.Context, debit PointDebit) (DebitOutcome, error) {
+	out, err := s.rpc.BalanceDebit(ctx, debit)
+	s.invalidateKeyedBalance(ctx, PointCredit(debit), err)
+	return out, err
+}
+
+func (s *ValkeyLoyaltyStore) invalidateKeyedBalance(ctx context.Context, mutation PointCredit, err error) {
 	if err != nil {
-		return out, err
+		return
 	}
-	if err := pkg_valkey.DelKeys(ctx, s.client, balanceKey(credit.BroadcasterID, credit.ViewerID)); err != nil {
-		s.log.Warn("loyalty: failed to invalidate balance view", module.BIDField(credit.BroadcasterID), zap.Error(err))
+	if err := pkg_valkey.DelKeys(ctx, s.client, balanceKey(mutation.BroadcasterID, mutation.ViewerID)); err != nil {
+		s.log.Warn("loyalty: failed to invalidate balance view", module.BIDField(mutation.BroadcasterID), zap.Error(err))
 	}
-	s.invalidateTop(cache.Event{ID: credit.BroadcasterID})
-	return out, nil
+	s.invalidateTop(cache.Event{ID: mutation.BroadcasterID})
 }
 
 func (s *ValkeyLoyaltyStore) BalanceCountAtLeast(ctx context.Context, broadcasterID uint64, mins BalanceMinimums) (loyaltyrpc.BalanceCount, error) {
@@ -343,15 +353,6 @@ func (s *ValkeyLoyaltyStore) BalanceAdjustViewer(ctx context.Context, adjustment
 	}
 	s.invalidateTop(cache.Event{ID: adjustment.BroadcasterID})
 	return bal, true, nil
-}
-
-func (s *ValkeyLoyaltyStore) BalanceSpend(ctx context.Context, spend PointSpend) (loyaltyrpc.Balance, bool, bool, error) {
-	bal, found, spent, err := s.rpc.BalanceSpend(ctx, spend)
-	if err != nil || !found {
-		return bal, found, spent, err
-	}
-	s.invalidateTop(cache.Event{ID: spend.BroadcasterID})
-	return bal, true, spent, nil
 }
 
 func (s *ValkeyLoyaltyStore) BalanceTransfer(ctx context.Context, t PointTransfer) (bal loyaltyrpc.Balance, found, moved bool, err error) {

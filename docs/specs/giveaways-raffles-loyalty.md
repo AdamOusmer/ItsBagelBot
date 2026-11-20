@@ -169,14 +169,14 @@ Chat stays compatible: `!raffle [amount] [seconds]`, `!sraffle`, `!mraffle [amou
 - Catalog `parent: 'loyalty'`; settings move to the Loyalty Games tab. Opening with Loyalty off is refused with one line instead of a silent zero prize.
 - Even split with integer floor: every winner gets the same announced amount and the remainder is not minted.
 - A raffle opened while Loyalty was on pays its terms even if Loyalty is turned off before the draw.
-- Payout per slot through `balance.add` with key `raffle:<round_id>:<slot_n>`:
+- Payout per slot through `balance.credit` with key `raffle:<round_id>:<slot_n>`:
   - The loyalty service stores the key with a payload hash and the original reply in the credit transaction, under the account fence. A replay with the same payload returns the stored reply; a different payload is refused.
   - Transient errors leave the slot `won` with a due retry. Permanent errors (invalid input, overflow, retired account) move it to `unpaid`.
   - The winner line is posted after payout and states the paid amount: "@a, @b and @c each won 1,666 points".
   - While the raffle is settling, `!winner` and the dashboard list unpaid slots by name. Once every slot is `paid` or `unpaid` the round's keys are deleted and nothing remains.
   - A slot stops retrying 24 hours after the draw and becomes `unpaid`. The dedup marker is only the key and payload hash, written in the credit transaction so a retry cannot pay twice. It is deleted 24 hours after the draw, once no retry can arrive, with the existing retention pattern (`repo/counter_retention.go:31`). It is not a raffle record.
   - The round records the winner's account instance when the slot is drawn; a credit for a different instance (deleted and recreated account) is a permanent error.
-  - Keyed credits use a new verb `balance.credit` that requires the key, so an old loyalty pod can never accept a keyed credit without deduplicating it. Loyalty ships first.
+  - Recipe spends use `balance.debit` with key `recipe:<run_id>:<step_id>` and the channel account instance. The same receipt table records the original balance and whether points were spent, including missing balances and insufficient funds. A retry returns that outcome while the receipt is retained. Credit and debit keys are scoped by direction. Loyalty ships both keyed verbs before their callers.
 
 ## 8. Participation rules (`engine/eligibility`)
 

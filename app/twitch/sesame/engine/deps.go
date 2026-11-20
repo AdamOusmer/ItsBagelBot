@@ -219,11 +219,12 @@ type CreditOutcome struct {
 	Replayed bool
 }
 
-type PointSpend struct {
-	BroadcasterID uint64
-	ViewerID      uint64
-	Login         string
-	Amount        int64
+type PointDebit PointCredit
+
+type DebitOutcome struct {
+	Balance  loyaltyrpc.Balance
+	Spent    bool
+	Replayed bool
 }
 
 type PointWager struct {
@@ -259,10 +260,10 @@ type LoyaltyStore interface {
 	BalanceWager(ctx context.Context, wager PointWager) (WagerOutcome, error)
 	BalanceGet(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.Balance, error)
 	BalanceCredit(ctx context.Context, credit PointCredit) (CreditOutcome, error)
+	BalanceDebit(ctx context.Context, debit PointDebit) (DebitOutcome, error)
 	BalanceSnapshot(ctx context.Context, req BalanceSnapshotRequest) (loyaltyrpc.BalanceSnapshot, error)
 	WatchStatus(ctx context.Context) (loyaltyrpc.WatchStatus, error)
 	BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error)
-	BalanceSpend(ctx context.Context, spend PointSpend) (bal loyaltyrpc.Balance, found, spent bool, err error)
 	BalanceTransfer(ctx context.Context, transfer PointTransfer) (bal loyaltyrpc.Balance, found, moved bool, err error)
 	Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error)
 	CounterCreate(ctx context.Context, broadcasterID uint64, name, scope string) (loyaltyrpc.Counter, error)

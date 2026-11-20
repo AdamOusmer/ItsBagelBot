@@ -29,7 +29,7 @@ var (
 	ErrCreditAccountRetired  = errors.New("credit account is retired")
 )
 
-type BalanceCredit struct {
+type BalanceMutation struct {
 	UserID, ViewerID uint64
 	ViewerLogin      string
 	Value            int64
@@ -37,10 +37,24 @@ type BalanceCredit struct {
 	AccountCreatedAt int64
 }
 
-type CreditResult struct {
+type BalanceCredit = BalanceMutation
+type BalanceDebit = BalanceMutation
+
+type BalanceMutationResult struct {
 	Balance  *loyaltyrpc.Balance
+	Spent    bool
 	Replayed bool
 }
+
+type CreditResult = BalanceMutationResult
+type DebitResult = BalanceMutationResult
+
+type balanceDirection byte
+
+const (
+	balanceCredit balanceDirection = iota
+	balanceDebit
+)
 
 func (r *Loyalty) EnsureBalanceCreditSchema(ctx context.Context) error {
 	stmt := `CREATE TABLE IF NOT EXISTS loyalty_balance_credits (
@@ -65,14 +79,14 @@ func (r *Loyalty) EnsureBalanceCreditSchema(ctx context.Context) error {
 	return nil
 }
 
-func (c BalanceCredit) validate() error {
+func (c BalanceMutation) validate() error {
 	if c.UserID == 0 || c.ViewerID == 0 {
 		return fmt.Errorf("%w: user_id/viewer_id", ErrInvalidInput)
 	}
 	if c.Value <= 0 || c.AccountCreatedAt < 0 {
 		return fmt.Errorf("%w: value/account_created_at", ErrInvalidInput)
 	}
-	if !creditKeyPrefixed(c.Key) {
+	if !balanceKeyPrefixed(c.Key) {
 		return fmt.Errorf("%w: key requires a caller prefix and value", ErrInvalidInput)
 	}
 	if len(validate.NormalizeLogin(c.ViewerLogin)) > maxCounterName {
@@ -81,139 +95,183 @@ func (c BalanceCredit) validate() error {
 	return nil
 }
 
-func creditKeyPrefixed(key string) bool {
+func balanceKeyPrefixed(key string) bool {
 	prefix, value, _ := strings.Cut(key, ":")
 	return strings.TrimSpace(prefix) != "" && strings.TrimSpace(value) != ""
 }
 
-type creditOperation struct {
-	BalanceCredit
+type balanceOperation struct {
+	BalanceMutation
+	direction            balanceDirection
 	keyHash, payloadHash [sha256.Size]byte
 }
 
-func (c BalanceCredit) payloadHash() [sha256.Size]byte {
-	var body [24]byte
+func (d balanceDirection) receiptKey(key string) [sha256.Size]byte {
+	if d == balanceDebit {
+		key = ":" + key
+	}
+	return sha256.Sum256([]byte(key))
+}
+
+func (c BalanceMutation) payloadHash(direction balanceDirection) [sha256.Size]byte {
+	var body [25]byte
 	binary.BigEndian.PutUint64(body[0:8], c.ViewerID)
 	binary.BigEndian.PutUint64(body[8:16], uint64(c.Value))
 	binary.BigEndian.PutUint64(body[16:24], uint64(c.AccountCreatedAt))
+	// Preserve the original credit hash so old and new pods can replay the same receipt.
+	if direction == balanceCredit {
+		return sha256.Sum256(body[:24])
+	}
+	body[24] = byte(direction)
 	return sha256.Sum256(body[:])
 }
 
 func (r *Loyalty) BalanceCredit(ctx context.Context, credit BalanceCredit) (CreditResult, error) {
-	if err := credit.validate(); err != nil {
-		return CreditResult{}, err
+	return r.mutateBalance(ctx, credit, balanceCredit)
+}
+
+func (r *Loyalty) BalanceDebit(ctx context.Context, debit BalanceDebit) (DebitResult, error) {
+	return r.mutateBalance(ctx, debit, balanceDebit)
+}
+
+func (r *Loyalty) mutateBalance(ctx context.Context, mutation BalanceMutation, direction balanceDirection) (BalanceMutationResult, error) {
+	if err := mutation.validate(); err != nil {
+		return BalanceMutationResult{}, err
 	}
-	op := creditOperation{BalanceCredit: credit, keyHash: sha256.Sum256([]byte(credit.Key)), payloadHash: credit.payloadHash()}
-	result, err := r.commitCredit(ctx, op)
+	op := balanceOperation{BalanceMutation: mutation, direction: direction, keyHash: direction.receiptKey(mutation.Key), payloadHash: mutation.payloadHash(direction)}
+	result, err := r.commitBalanceMutation(ctx, op)
 	if err != nil {
 		return result, err
 	}
-	r.publishBalanceChange(credit.UserID, credit.ViewerID)
+	r.publishBalanceChange(mutation.UserID, mutation.ViewerID)
 	return result, nil
 }
 
-func (r *Loyalty) commitCredit(ctx context.Context, op creditOperation) (CreditResult, error) {
-	var result CreditResult
+func (r *Loyalty) commitBalanceMutation(ctx context.Context, op balanceOperation) (BalanceMutationResult, error) {
+	var result BalanceMutationResult
 	err := retryTx(ctx, func(ctx context.Context) error {
 		return db.WithExec(ctx, func(ctx context.Context) error {
 			var err error
-			result, err = r.creditTransaction(ctx, op)
+			result, err = r.balanceMutationTx(ctx, op)
 			return err
 		})
 	})
 	if err != nil {
-		return CreditResult{}, err
+		return BalanceMutationResult{}, err
 	}
 	return result, nil
 }
 
-func (r *Loyalty) creditTransaction(ctx context.Context, op creditOperation) (CreditResult, error) {
+func (r *Loyalty) balanceMutationTx(ctx context.Context, op balanceOperation) (BalanceMutationResult, error) {
 	tx, err := r.sqldb.BeginTx(ctx, nil)
 	if err != nil {
-		return CreditResult{}, err
+		return BalanceMutationResult{}, err
 	}
 	defer tx.Rollback()
-	result, err := r.applyCredit(ctx, tx, op)
+	result, err := r.applyBalanceMutation(ctx, tx, op)
 	if err != nil {
-		return CreditResult{}, err
+		return BalanceMutationResult{}, err
 	}
 	return result, tx.Commit()
 }
 
-func (r *Loyalty) applyCredit(ctx context.Context, tx *sql.Tx, op creditOperation) (CreditResult, error) {
+func (r *Loyalty) applyBalanceMutation(ctx context.Context, tx *sql.Tx, op balanceOperation) (BalanceMutationResult, error) {
 	account, err := r.fence(ctx, tx, op.UserID, 0)
 	if err != nil {
-		return CreditResult{}, err
+		return BalanceMutationResult{}, err
 	}
 	if account.deleted {
-		return CreditResult{}, ErrCreditAccountRetired
+		return BalanceMutationResult{}, ErrCreditAccountRetired
 	}
 	if !account.admitsInstance(op.AccountCreatedAt) {
-		return CreditResult{}, ErrCreditAccountMismatch
+		return BalanceMutationResult{}, ErrCreditAccountMismatch
 	}
-	receipt := creditReceipt{op: op, account: op.AccountCreatedAt}
-	result, err := r.replayCredit(ctx, tx, receipt)
+	result, err := r.replayBalanceMutation(ctx, tx, op)
 	if err != nil || result.Replayed {
 		return result, err
 	}
 	client := ent.NewClient(ent.Driver(db.EntTransactionDriver(r.dialect, tx)))
+	result, err = r.updateKeyedBalance(ctx, client, op)
+	if err != nil {
+		return BalanceMutationResult{}, err
+	}
+	return result, op.insertReceipt(ctx, tx, result)
+}
+
+func (r *Loyalty) updateKeyedBalance(ctx context.Context, client *ent.Client, op balanceOperation) (BalanceMutationResult, error) {
 	adjustment := BalanceAdjustment{UserID: op.UserID, ViewerID: op.ViewerID, ViewerLogin: validate.NormalizeLogin(op.ViewerLogin), Value: op.Value}
+	if op.direction == balanceDebit {
+		return r.applyBalanceDebit(ctx, client, adjustment)
+	}
 	row, update, err := r.prepareBalanceAdjustment(ctx, client, adjustment)
 	if err != nil {
-		return CreditResult{}, err
+		return BalanceMutationResult{}, err
 	}
 	row, err = update.SetViewerLogin(displayUpdate(row.ViewerLogin, adjustment.ViewerLogin)).Save(ctx)
 	if err != nil {
-		return CreditResult{}, err
+		return BalanceMutationResult{}, err
 	}
-	reply := BalanceView(row)
-	return CreditResult{Balance: reply}, receipt.insert(ctx, tx, reply)
+	return BalanceMutationResult{Balance: BalanceView(row)}, nil
 }
 
-type creditReceipt struct {
-	op      creditOperation
-	account int64
+func (r *Loyalty) applyBalanceDebit(ctx context.Context, client *ent.Client, adjustment BalanceAdjustment) (BalanceMutationResult, error) {
+	row, found, err := optionalRow(r.lockedAdjustmentBalance(ctx, client, adjustment))
+	if err != nil || !found {
+		return BalanceMutationResult{}, err
+	}
+	row, spent, err := spendRow(ctx, client, row.ID, Spend{
+		UserID: adjustment.UserID, ViewerID: adjustment.ViewerID, ViewerLogin: adjustment.ViewerLogin, Amount: adjustment.Value,
+	})
+	if err != nil {
+		return BalanceMutationResult{}, err
+	}
+	return BalanceMutationResult{Balance: BalanceView(row), Spent: spent}, nil
 }
 
-func (r *Loyalty) replayCredit(ctx context.Context, tx *sql.Tx, receipt creditReceipt) (CreditResult, error) {
+func (r *Loyalty) replayBalanceMutation(ctx context.Context, tx *sql.Tx, op balanceOperation) (BalanceMutationResult, error) {
 	query := "SELECT payload_hash, account_created_at, balance_reply FROM loyalty_balance_credits WHERE user_id=? AND key_hash=?"
 	if r.dialect != "sqlite3" {
 		query += " FOR UPDATE"
 	}
-	return receipt.replay(tx.QueryRowContext(ctx, query, receipt.op.UserID, receipt.op.keyHash[:]))
+	return op.readReceipt(tx.QueryRowContext(ctx, query, op.UserID, op.keyHash[:]))
 }
 
-func (c creditReceipt) replay(row *sql.Row) (CreditResult, error) {
+type balanceReceiptReply struct {
+	*loyaltyrpc.Balance
+	Spent bool `json:"spent,omitempty"`
+}
+
+func (op balanceOperation) readReceipt(row *sql.Row) (BalanceMutationResult, error) {
 	var hash, body []byte
 	var account int64
 	err := row.Scan(&hash, &account, &body)
 	if errors.Is(err, sql.ErrNoRows) {
-		return CreditResult{}, nil
+		return BalanceMutationResult{}, nil
 	}
 	if err != nil {
-		return CreditResult{}, err
+		return BalanceMutationResult{}, err
 	}
-	if !bytes.Equal(hash, c.op.payloadHash[:]) {
-		return CreditResult{}, ErrCreditKeyMismatch
+	if !bytes.Equal(hash, op.payloadHash[:]) {
+		return BalanceMutationResult{}, ErrCreditKeyMismatch
 	}
-	if account != c.account {
-		return CreditResult{}, ErrCreditAccountMismatch
+	if account != op.AccountCreatedAt {
+		return BalanceMutationResult{}, ErrCreditAccountMismatch
 	}
-	var balance loyaltyrpc.Balance
-	if err := codec.Unmarshal(body, &balance); err != nil {
-		return CreditResult{}, err
+	var reply balanceReceiptReply
+	if err := codec.Unmarshal(body, &reply); err != nil {
+		return BalanceMutationResult{}, err
 	}
-	return CreditResult{Balance: &balance, Replayed: true}, nil
+	return BalanceMutationResult{Balance: reply.Balance, Spent: reply.Spent, Replayed: true}, nil
 }
 
-func (c creditReceipt) insert(ctx context.Context, tx *sql.Tx, reply *loyaltyrpc.Balance) error {
-	body, err := codec.Marshal(reply)
+func (op balanceOperation) insertReceipt(ctx context.Context, tx *sql.Tx, result BalanceMutationResult) error {
+	body, err := codec.Marshal(balanceReceiptReply{Balance: result.Balance, Spent: result.Spent})
 	if err != nil {
 		return err
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO loyalty_balance_credits
 		(user_id, key_hash, payload_hash, account_created_at, balance_reply, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		c.op.UserID, c.op.keyHash[:], c.op.payloadHash[:], c.account, body, time.Now().UnixMilli())
+		op.UserID, op.keyHash[:], op.payloadHash[:], op.AccountCreatedAt, body, time.Now().UnixMilli())
 	return err
 }
 

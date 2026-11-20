@@ -10,8 +10,29 @@ import (
 	"time"
 
 	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
+	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"github.com/stretchr/testify/require"
 )
+
+func TestBalanceCreditReplaysLegacyReceipt(t *testing.T) {
+	r, raw := sqliteRetentionRepo(t)
+	ctx := t.Context()
+	require.NoError(t, r.EnsureBalanceCreditSchema(ctx))
+	credit := loyaltyrepo.BalanceCredit{UserID: 42, ViewerID: 7, ViewerLogin: "winner", Value: 10, Key: "raffle:old:1", AccountCreatedAt: 11}
+	keyHash := sha256.Sum256([]byte(credit.Key))
+	payload := [24]byte{7: 7, 15: 10, 23: 11}
+	payloadHash := sha256.Sum256(payload[:])
+	reply := []byte(`{"viewer_id":"7","viewer_login":"winner","points":10,"points_exact":"10","watch_seconds":0}`)
+	_, err := raw.ExecContext(ctx, `INSERT INTO loyalty_balance_credits
+		(user_id, key_hash, payload_hash, account_created_at, balance_reply, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		credit.UserID, keyHash[:], payloadHash[:], credit.AccountCreatedAt, reply, time.Now().UnixMilli())
+	require.NoError(t, err)
+
+	result, err := r.BalanceCredit(ctx, credit)
+	require.NoError(t, err)
+	require.Equal(t, loyaltyrepo.CreditResult{Replayed: true,
+		Balance: &loyaltyrpc.Balance{ViewerID: "7", ViewerLogin: "winner", Points: 10, PointsExact: "10"}}, result)
+}
 
 func TestBalanceCreditReplaysOriginalStanding(t *testing.T) {
 	for _, tc := range []struct {

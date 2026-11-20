@@ -25,7 +25,11 @@ func NewDrawPayer(loyalty LoyaltyStore, accounts channelruntime.Reader) draw.Pay
 }
 
 func (p drawPayer) Instance(ctx context.Context, channel draw.ChannelID, _ draw.ViewerID) (int64, error) {
-	account, err := p.accounts.Get(ctx, uint64(channel))
+	return loyaltyAccountInstance(ctx, p.accounts, uint64(channel))
+}
+
+func loyaltyAccountInstance(ctx context.Context, accounts channelruntime.Reader, broadcasterID uint64) (int64, error) {
+	account, err := accounts.Get(ctx, broadcasterID)
 	if err != nil {
 		return 0, err
 	}

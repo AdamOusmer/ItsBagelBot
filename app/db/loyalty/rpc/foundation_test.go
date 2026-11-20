@@ -6,6 +6,7 @@ package rpc
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -72,10 +74,58 @@ func TestBalanceCreditRPCStorageUnavailable(t *testing.T) {
 	requireRPCCode(t, err, domainrpc.CodeUnavailable)
 }
 
-func TestBalanceCreditRPCRequiresAccountInstance(t *testing.T) {
+func TestKeyedBalanceRPCRequiresAccountInstance(t *testing.T) {
 	h := newHarness(t)
-	reply := h.call(t, loyaltyrpc.VerbBalanceCredit, loyaltyrpc.Request{UserID: "2", ViewerID: "9", Value: 8, Key: "raffle:r:1"})
-	require.Equal(t, domainrpc.Refused(domainrpc.CodeInvalid, "account_created_at is required"), reply.Refusal)
+	for _, verb := range []string{loyaltyrpc.VerbBalanceCredit, loyaltyrpc.VerbBalanceDebit} {
+		reply := h.call(t, verb, loyaltyrpc.Request{UserID: "2", ViewerID: "9", Value: 8, Key: "caller:r:1"})
+		require.Equal(t, domainrpc.Refused(domainrpc.CodeInvalid, "account_created_at is required"), reply.Refusal)
+	}
+}
+
+func TestBalanceDebitRPC(t *testing.T) {
+	h := newHarness(t)
+	ctx := t.Context()
+	require.NoError(t, h.repo.EnsureBalanceCreditSchema(ctx))
+	require.NoError(t, h.repo.RestoreUser(ctx, 2, 11))
+	h.repo.SetInvalidations(bus.NewInvalidations(h.nc, invalidationPrefix, nil))
+	sub, err := h.nc.SubscribeSync(invalidationPrefix + "." + loyaltyrpc.InvalidateScope)
+	require.NoError(t, err)
+	require.NoError(t, h.nc.Flush())
+
+	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
+	spent := engine.DebitOutcome{Balance: *balanceOf("7", "sender", 992), Spent: true}
+	for _, tc := range []struct {
+		name, key       string
+		viewer          uint64
+		value, instance int64
+		want            engine.DebitOutcome
+		refusal         domainrpc.Refusal
+	}{
+		{name: "spent", viewer: 7, key: "recipe:r:1", value: 8, instance: 11, want: spent},
+		{name: "replay", viewer: 7, key: "recipe:r:1", value: 8, instance: 11,
+			want: engine.DebitOutcome{Balance: spent.Balance, Spent: true, Replayed: true}},
+		{name: "conflict", viewer: 7, key: "recipe:r:1", value: 9, instance: 11, refusal: domainrpc.Refused(domainrpc.CodeConflict, "credit key has a different payload")},
+		{name: "insufficient", viewer: 8, key: "recipe:r:2", value: 101, instance: 11,
+			want: engine.DebitOutcome{Balance: *balanceOf("8", "receiver", 100)}},
+		{name: "missing", viewer: 9, key: "recipe:r:3", value: 8, instance: 11},
+		{name: "missing replay", viewer: 9, key: "recipe:r:3", value: 8, instance: 11, want: engine.DebitOutcome{Replayed: true}},
+		{name: "stale account", viewer: 7, key: "recipe:r:1", value: 8, instance: 10, refusal: domainrpc.Refused(domainrpc.CodeForbidden, "credit account instance changed")},
+		{name: "missing viewer", key: "recipe:r:4", value: 8, instance: 11, refusal: domainrpc.Refused(domainrpc.CodeInvalid, loyaltyrpc.CounterTargetRequired)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := client.BalanceDebit(t.Context(), engine.PointDebit{BroadcasterID: 2, ViewerID: tc.viewer,
+				Value: tc.value, Key: tc.key, AccountCreatedAt: tc.instance})
+			if tc.refusal.Code != domainrpc.CodeOK {
+				requireRPCCode(t, err, tc.refusal.Code)
+				require.ErrorContains(t, err, tc.refusal.Error)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+			requireBalanceInvalidation(t, sub, tc.viewer)
+		})
+	}
+	h.requireStored(t, map[uint64]int64{7: 992, 8: 100})
 }
 
 func TestBalanceCreditRPCPublishesOnReplay(t *testing.T) {
@@ -92,12 +142,17 @@ func TestBalanceCreditRPCPublishesOnReplay(t *testing.T) {
 		require.Equal(t, domainrpc.Refusal{}, reply.Refusal)
 		require.Equal(t, replay, reply.Replayed)
 
-		msg, err := sub.NextMsg(time.Second)
-		require.NoError(t, err)
-		var event invalidate.DTO
-		require.NoError(t, codec.Unmarshal(msg.Data, &event))
-		require.Equal(t, invalidate.DTO{BroadcasterID: "2", Keys: []string{"9"}}, event)
+		requireBalanceInvalidation(t, sub, 9)
 	}
+}
+
+func requireBalanceInvalidation(t *testing.T, sub *nats.Subscription, viewer uint64) {
+	t.Helper()
+	msg, err := sub.NextMsg(time.Second)
+	require.NoError(t, err)
+	var event invalidate.DTO
+	require.NoError(t, codec.Unmarshal(msg.Data, &event))
+	require.Equal(t, invalidate.DTO{BroadcasterID: "2", Keys: []string{strconv.FormatUint(viewer, 10)}}, event)
 }
 
 func TestBalanceSnapshotRPC(t *testing.T) {
