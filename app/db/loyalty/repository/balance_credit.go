@@ -148,7 +148,7 @@ func (r *Loyalty) applyCredit(ctx context.Context, tx *sql.Tx, op creditOperatio
 	if account.deleted {
 		return CreditResult{}, ErrCreditAccountRetired
 	}
-	if op.AccountCreatedAt != account.instance {
+	if !account.admitsInstance(op.AccountCreatedAt) {
 		return CreditResult{}, ErrCreditAccountMismatch
 	}
 	receipt := creditReceipt{op: op, account: account.instance}
@@ -215,4 +215,8 @@ func (c creditReceipt) insert(ctx context.Context, tx *sql.Tx, reply *loyaltyrpc
 		(user_id, key_hash, payload_hash, account_created_at, balance_reply, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
 		c.op.UserID, c.op.keyHash[:], c.op.payloadHash[:], c.account, body, time.Now().UnixMilli())
 	return err
+}
+
+func (a loyaltyAccountState) admitsInstance(instance int64) bool {
+	return a.instance == 0 || a.instance == instance
 }
