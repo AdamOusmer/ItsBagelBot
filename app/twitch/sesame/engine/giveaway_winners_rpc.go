@@ -16,6 +16,7 @@ import (
 const giveawayWinnersRPCTimeout = 3 * time.Second
 
 type GiveawayWinnersStore interface {
+	MarkDelivered(context.Context, uint64, modulesrpc.GiveawayDelivery) (bool, error)
 	Record(ctx context.Context, broadcasterID uint64, rows []modulesrpc.GiveawayWinner) error
 	WonWithin(ctx context.Context, broadcasterID uint64, viewers []uint64, since time.Time) ([]uint64, error)
 	Recent(ctx context.Context, broadcasterID uint64, q modulesrpc.GiveawayRecentQuery) ([]modulesrpc.GiveawayWinner, error)
@@ -68,4 +69,11 @@ func parseGiveawayIDs(viewers []string) ([]uint64, error) {
 		ids[i] = id
 	}
 	return ids, nil
+}
+
+func (c *GiveawayWinnersRPC) MarkDelivered(ctx context.Context, broadcasterID uint64, delivery modulesrpc.GiveawayDelivery) (bool, error) {
+	req := modulesrpc.GiveawayRequest{UserID: fmtID(broadcasterID), RoundID: delivery.RoundID,
+		Slot: delivery.Slot, Delivered: delivery.Delivered}
+	reply, err := c.call(ctx, modulesrpc.VerbGiveawayDeliver, req)
+	return reply.Found, err
 }

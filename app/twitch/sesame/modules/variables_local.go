@@ -27,6 +27,7 @@ var localVariableGroups = map[string]map[string]variableReaderFactory{
 	"stream":      {"channel": streamVariables},
 	"queue":       {"status": queueVariables},
 	"raffle":      {"status": raffleVariables},
+	"giveaway":    {"status": giveawayVariables},
 	"followage":   {"reply": fixedVariableReader(commandContextVariables), "status": followageVariables},
 	"accountage":  {"reply": fixedVariableReader(commandContextVariables), "status": accountageVariables},
 	"uptime":      {"reply": uptimeVariables},

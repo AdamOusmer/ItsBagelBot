@@ -7,6 +7,7 @@ import (
 	"context"
 	"strconv"
 	"time"
+	"unicode/utf8"
 
 	"ItsBagelBot/app/db/modules/repository"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
@@ -58,7 +59,7 @@ func validWinnerDetails(w modulesrpc.GiveawayWinner) bool {
 }
 
 func validWinnerPrize(w modulesrpc.GiveawayWinner) bool {
-	return w.Prize != "" && len(w.Prize) <= modulesrpc.GiveawayPrizeMaxLen
+	return w.Prize != "" && utf8.RuneCountInString(w.Prize) <= modulesrpc.GiveawayPrizeMaxLen
 }
 
 func validWinnerMetadata(w modulesrpc.GiveawayWinner) bool {

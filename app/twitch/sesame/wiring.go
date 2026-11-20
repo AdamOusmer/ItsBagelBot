@@ -123,7 +123,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Queue:          engine.NewValkeyQueueStore(in.vc, 24*time.Hour, log),
 		SongQueue:      engine.NewValkeySongQueueStore(in.vc, 24*time.Hour, log),
 		Raffle:         rt.raffle,
-		Draw:           newDraw(w, rt, checker),
+		Draw:           newDraw(w, rt, drawPorts{verifier: checker, winners: winners}),
 		Eligibility:    checker,
 		Duel:           rt.duel,
 		Timers:         rt.timers,
@@ -223,7 +223,7 @@ func startTimerWatchers(w wireCtx, timers *engine.ValkeyTimerStore) {
 	go timers.StartReconciler(w.ctx)
 }
 
-func announcementConfig(w wireCtx, proj *projection.Client) engine.AnnouncementConfig {
+func announcementConfig(w wireCtx, proj projection.Reader) engine.AnnouncementConfig {
 	return engine.AnnouncementConfig{
 		Runtime:                 newRuntime(w),
 		OutgressPremiumSubject:  w.cfg.OutgressPremiumSubject,
@@ -238,13 +238,18 @@ func watchExpiry[T interface{ StartExpiryWatcher(context.Context) }](w wireCtx, 
 	return store
 }
 
-func newDraw(w wireCtx, rt engineRuntime, verifier draw.Verifier) *draw.Store {
+type drawPorts struct {
+	verifier draw.Verifier
+	winners  engine.GiveawayWinnerRecorder
+}
+
+func newDraw(w wireCtx, rt engineRuntime, ports drawPorts) *draw.Store {
 	log := w.log.Named("draw")
 	announce := announcementConfig(w, rt.proj)
 	store := draw.NewStore(w.in.vc, draw.Config{Log: log, LegacyKey: engine.RaffleStateKey,
 		LegacyDeadlineKey: engine.RaffleDeadlineKey, Payer: engine.NewDrawPayer(rt.loyalty, announce.Runtime),
-		Announcer: engine.NewDrawAnnouncer(announce, log, rt.analytics), Verifier: verifier, Winners: draw.DiscardWinnerRecords{},
-		Phases: draw.IgnorePhaseChanges{}})
+		Announcer: engine.NewDrawAnnouncer(announce, log, rt.analytics), Verifier: ports.verifier,
+		Winners: engine.GiveawayWinnerSink{Winners: ports.winners}, Phases: engine.GiveawayPhaseObserver{Freeze: rt.loyalty, Log: log}})
 	go store.Run(w.ctx)
 	return store
 }
@@ -338,4 +343,9 @@ func registerAutomationRPC(w wireCtx, pipe *engine.Pipeline, app *newrelic.Appli
 		App:      app,
 		Log:      w.log,
 	})
+}
+
+func registerGiveawayRPC(w wireCtx, deps engine.Deps, standings engine.GiveawayBalanceCounter, app *newrelic.Application) error {
+	giveaway := engine.GiveawayRPC{Deps: deps, Announce: announcementConfig(w, deps.Proj), Standings: standings}
+	return giveaway.Subscribe(bus.RPCWiring{NC: w.in.nc, Queue: queueGroup, App: app, Log: w.log})
 }

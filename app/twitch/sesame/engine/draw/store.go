@@ -183,6 +183,9 @@ func validateTerms(req OpenRequest, now time.Time) (Terms, error) {
 	if req.Duration != 0 {
 		t.ClosesAt = now.Add(req.Duration)
 	}
+	if t.FreezeEndsMS > 0 {
+		t.ClosesAt = earlier(t.ClosesAt, fromMillis(t.FreezeEndsMS))
+	}
 	t.ClosesAt = t.ClosesAt.Truncate(time.Millisecond)
 	if !t.ClosesAt.After(now) || t.ClosesAt.After(now.Add(Pins.MaxOpen)) {
 		return Terms{}, ErrInvalidTerms

@@ -137,6 +137,7 @@ var shippedContract = map[string]moduleSpec{
 		command("valmatches", roleEveryone, "valhistory"), command("valaccount", roleEveryone, "valwho"),
 		command("vallb", roleEveryone, "valleaderboard"), command("valshop", roleEveryone, "valrotation"),
 	}},
+	"giveaway": {module.KindOptIn, []commandSpec{command("giveaway", roleModerator), command("reroll", roleModerator)}},
 	"raffle": {module.KindOptIn, []commandSpec{
 		command("raffle", roleEveryone), command("sraffle", roleEveryone, "singleraffle"), command("mraffle", roleEveryone, "multiraffle"),
 		command("cancelraffle", roleEveryone),

@@ -38,6 +38,15 @@ func TestGiveawayWinnersRPC(t *testing.T) {
 			call:    func(ctx context.Context) (any, error) { return nil, client.Record(ctx, 10, winners) },
 		},
 		{
+			verb:    "deliver",
+			request: modulesrpc.GiveawayRequest{UserID: "10", RoundID: "round", Slot: 1, Delivered: true},
+			reply:   modulesrpc.GiveawayReply{Found: true},
+			call: func(ctx context.Context) (any, error) {
+				return client.MarkDelivered(ctx, 10, modulesrpc.GiveawayDelivery{RoundID: "round", Slot: 1, Delivered: true})
+			},
+			want: true,
+		},
+		{
 			verb:    "recent",
 			request: modulesrpc.GiveawayRequest{UserID: "10", RoundID: "round", Limit: 2, Offset: 1},
 			reply:   modulesrpc.GiveawayReply{Winners: winners},

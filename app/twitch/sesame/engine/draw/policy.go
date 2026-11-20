@@ -3,12 +3,18 @@
 
 package draw
 
-import "time"
+import (
+	drawrpc "ItsBagelBot/internal/domain/rpc/draw"
+	"time"
+)
 
 type PolicyPins struct {
 	EntryWeight               int64
 	MaxWinners                int
 	GiveawayDefaultWinners    int
+	GiveawayEntryWindow       time.Duration
+	GiveawayMaxPresets        int
+	GiveawayPresetNameMax     int
 	RaffleDefaultWinners      int
 	MultiRaffleDefaultWinners int
 	AutoDivisor               int
@@ -26,7 +32,8 @@ type PolicyPins struct {
 }
 
 var Pins = PolicyPins{
-	EntryWeight: 100, MaxWinners: 100, GiveawayDefaultWinners: 1, RaffleDefaultWinners: 1,
+	EntryWeight: 100, MaxWinners: drawrpc.MaxWinners, GiveawayDefaultWinners: 1, RaffleDefaultWinners: 1,
+	GiveawayEntryWindow: 3 * time.Minute, GiveawayMaxPresets: 10, GiveawayPresetNameMax: 24,
 	MultiRaffleDefaultWinners: 3, AutoDivisor: 10,
 	ClaimWindowMin: 30 * time.Second, ClaimWindowMax: 15 * time.Minute, ClaimWindowDefault: 2 * time.Minute,
 	PayoutHorizon: 24 * time.Hour, VerifyingNotice: 10 * time.Second, VerifyStuck: 2 * time.Minute,

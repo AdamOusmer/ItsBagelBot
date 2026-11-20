@@ -57,13 +57,9 @@ func GiveawayOpenGate(ctx context.Context, d Deps, channel uint64, rules eligibi
 }
 
 func GiveawayRequirements(locale string, rules eligibility.Rules) string {
-	reqs := eligibility.Describe(rules)
-	if len(reqs) == 0 {
+	parts := giveawayRequirementLines(locale, rules)
+	if len(parts) == 0 {
 		return ""
-	}
-	parts := make([]string, 0, len(reqs))
-	for _, req := range reqs {
-		parts = append(parts, renderRequirement(locale, req))
 	}
 	last := len(parts) - 1
 	if last == 0 {
@@ -71,6 +67,15 @@ func GiveawayRequirements(locale string, rules eligibility.Rules) string {
 	}
 	return module.KV("first", strings.Join(parts[:last], ", "), "last", parts[last]).
 		WithNamespace("eligibility").ExpandString(i18n.T(locale, "eligibility.req.list"))
+}
+
+func giveawayRequirementLines(locale string, rules eligibility.Rules) []string {
+	reqs := eligibility.Describe(rules)
+	parts := make([]string, 0, len(reqs))
+	for _, req := range reqs {
+		parts = append(parts, renderRequirement(locale, req))
+	}
+	return parts
 }
 
 func renderRequirement(locale string, req eligibility.Requirement) string {

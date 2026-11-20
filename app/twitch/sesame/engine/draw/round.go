@@ -54,6 +54,8 @@ type Terms struct {
 	RemindEnabled bool             `json:",omitempty"`
 	MultiRaffle   bool             `json:",omitempty"`
 	Rules         codec.RawMessage `json:",omitempty"`
+	FreezeID      string           `json:"freeze_id,omitempty"`
+	FreezeEndsMS  int64            `json:"freeze_ends,omitempty"`
 	ClosesAt      time.Time
 }
 
@@ -78,6 +80,7 @@ type Action struct {
 
 type Candidate struct {
 	Viewer     ViewerID
+	Login      string `json:",omitempty"`
 	Generation int64
 	Reason     string
 	Detail     map[string]string `json:",omitempty"`
@@ -94,6 +97,7 @@ type Slot struct {
 	Line       int64       `json:"line,omitempty"`
 	Instance   int64       `json:"instance,omitempty"`
 	History    []Candidate `json:"history,omitempty"`
+	WonAtMS    int64       `json:"won_at,omitempty"`
 	ClaimedAt  time.Time   `json:"-"`
 	RetryAt    time.Time   `json:"retry_at"`
 }

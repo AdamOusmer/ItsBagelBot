@@ -28,6 +28,7 @@ func All(d engine.Deps) []module.Module {
 		Valorant(d),
 		Draw(d),
 		Raffle(d),
+		Giveaway(d),
 		Queue(d),
 		Quotes(d),
 		Automod(d),

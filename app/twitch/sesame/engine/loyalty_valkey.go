@@ -324,6 +324,10 @@ func (s *ValkeyLoyaltyStore) BalanceCredit(ctx context.Context, credit PointCred
 	return out, nil
 }
 
+func (s *ValkeyLoyaltyStore) BalanceCountAtLeast(ctx context.Context, broadcasterID uint64, mins BalanceMinimums) (loyaltyrpc.BalanceCount, error) {
+	return s.rpc.BalanceCountAtLeast(ctx, broadcasterID, mins)
+}
+
 func (s *ValkeyLoyaltyStore) BalanceSnapshot(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.BalanceSnapshot, error) {
 	return s.rpc.BalanceSnapshot(ctx, broadcasterID, viewerID)
 }

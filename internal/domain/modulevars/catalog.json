@@ -770,6 +770,19 @@
     ]
   },
   {
+    "id": "giveaway",
+    "groups": [
+      {
+        "name": "status",
+        "fields": [
+          "prize",
+          "count",
+          "left"
+        ]
+      }
+    ]
+  },
+  {
     "id": "raffle",
     "groups": [
       {

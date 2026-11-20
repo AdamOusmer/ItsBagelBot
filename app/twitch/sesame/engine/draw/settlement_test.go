@@ -98,7 +98,7 @@ func TestDrawRejectedCandidateReturnsToPendingWithReason(t *testing.T) {
 	}})
 	f.start(draw.NewStore(f.client, cfg))
 	want := draw.Slot{N: 1, Generation: 1, State: draw.SlotPending,
-		History: []draw.Candidate{{Viewer: "11", Generation: 1, Reason: "role", Detail: detail}}}
+		History: []draw.Candidate{{Viewer: "11", Login: "viewer11", Generation: 1, Reason: "role", Detail: detail}}}
 	require.Equal(t, want, take(t, pending))
 	first, second := take(t, seen), take(t, seen)
 	require.Equal(t, []draw.Entry{{Weight: 100}, {Weight: 210}}, []draw.Entry{first.Entry, second.Entry})

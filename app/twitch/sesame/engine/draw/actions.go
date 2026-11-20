@@ -16,6 +16,7 @@ type CloseRequest struct {
 	Channel ChannelID
 	Actor   ViewerID
 	Winners *WinnerPolicy
+	Round   RoundID
 	Kind    Kind
 }
 
@@ -23,6 +24,8 @@ type ExtendRequest struct {
 	Channel ChannelID
 	Actor   ViewerID
 	Until   time.Time
+	Round   RoundID
+	Kind    Kind
 }
 
 type ModAction struct {
@@ -42,7 +45,7 @@ type SlotAction struct {
 
 func (s *Store) Close(ctx context.Context, req CloseRequest) (bool, error) {
 	r, found, err := s.Joinable(ctx, req.Channel)
-	if err != nil || !found || !r.isKind(req.Kind) {
+	if err != nil || !found || !r.matchesTarget(req.Kind, req.Round) {
 		return false, err
 	}
 	now, err := valkey.ServerNow(ctx, s.client)
@@ -64,7 +67,7 @@ func (s *Store) Close(ctx context.Context, req CloseRequest) (bool, error) {
 
 func (s *Store) Extend(ctx context.Context, req ExtendRequest) (bool, error) {
 	r, found, err := s.Joinable(ctx, req.Channel)
-	if err != nil || !found {
+	if err != nil || !found || !r.matchesTarget(req.Kind, req.Round) {
 		return false, err
 	}
 	now, err := valkey.ServerNow(ctx, s.client)
@@ -73,6 +76,9 @@ func (s *Store) Extend(ctx context.Context, req ExtendRequest) (bool, error) {
 	}
 	next := r.ClosesAt.Add(time.Minute)
 	bound := r.OpenedAt.Add(Pins.MaxOpen)
+	if r.Terms.FreezeEndsMS > 0 {
+		bound = earlier(bound, fromMillis(r.Terms.FreezeEndsMS))
+	}
 	if !req.Until.IsZero() {
 		bound = earlier(bound, req.Until)
 	}
@@ -133,6 +139,10 @@ func (s *Store) cancellable(ctx context.Context, req ModAction) (Round, error) {
 		return s.latest(ctx, req.Channel, roundFilter{phase: PhaseClosing, kind: req.Kind})
 	}
 	return r, nil
+}
+
+func (r Round) matchesTarget(kind Kind, id RoundID) bool {
+	return r.isKind(kind) && (id == "" || id == r.ID)
 }
 
 func (r Round) isKind(kind Kind) bool {
@@ -242,10 +252,10 @@ func modTransitions(data snapshot, req SlotAction, action Action) []slotChange {
 }
 
 func modSlot(r Round, slot Slot, action Action) Slot {
-	stuck := verifiableByMod(slot, action.At)
+	stuck := CanSkipRule(slot, action.At)
 	switch action.Kind {
 	case "reroll":
-		if stuck || rerollableNoShow(slot, action.At) {
+		if rerollableNoShow(slot, action.At) || specificStuckSlot(stuck, action) {
 			return rerolled(slot)
 		}
 	case "skip_rule":
@@ -260,7 +270,11 @@ func modSlot(r Round, slot Slot, action Action) Slot {
 	return Slot{}
 }
 
-func verifiableByMod(slot Slot, now time.Time) bool {
+func specificStuckSlot(stuck bool, action Action) bool {
+	return stuck && action.Value != "0"
+}
+
+func CanSkipRule(slot Slot, now time.Time) bool {
 	return slot.State == SlotVerifying && !now.Before(verifyStuckAt(slot)) && now.Before(verifyDeadline(slot))
 }
 

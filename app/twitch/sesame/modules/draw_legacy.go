@@ -124,14 +124,33 @@ func (d drawOwner) legacyClaim(ctx context.Context, c *module.Context) (raffleCm
 }
 
 func (d drawOwner) legacyWinner(ctx context.Context, c *module.Context, emit module.Emit, state drawCommandState) error {
+	giveawayOn := c.ModuleOn(engine.GiveawayModuleName)
+	if replied, err := d.lastGiveaway(ctx, c, emit, giveawayOn); replied || err != nil {
+		return err
+	}
 	if rc, ok := d.legacy(ctx, c); ok && wantsLegacyWinner(c, state.legacyFound) {
 		rc.last(state.result, emit)
 		return nil
 	}
-	if c.ModuleOn("giveaway") {
+	if giveawayOn {
 		newChatReplier(c).reply(emit, "", "draw.status.none")
 	}
 	return nil
+}
+
+func (d drawOwner) lastGiveaway(ctx context.Context, c *module.Context, emit module.Emit, enabled bool) (bool, error) {
+	if !enabled {
+		return false, nil
+	}
+	rows, err := engine.LastGiveawayWinners(ctx, d.deps.GiveawayWinners, c.BroadcasterID)
+	if err != nil || len(rows) == 0 {
+		return false, err
+	}
+	reply := newChatReplier(c)
+	for _, line := range engine.GiveawayHistoryLines(c.Locale, rows) {
+		reply.say(emit, line)
+	}
+	return true, nil
 }
 
 func wantsLegacyWinner(c *module.Context, found bool) bool {

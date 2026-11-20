@@ -159,7 +159,7 @@ func reserveRafflePick(ctx context.Context, payer Payer, w slotWork) Slot {
 func startVerification(w slotWork, slot Slot) Slot {
 	slot.State, slot.Viewer, slot.Login = SlotVerifying, w.candidate, w.login
 	slot.Since, slot.RetryAt = w.now, time.Time{}
-	slot.History = append(slices.Clone(slot.History), Candidate{Viewer: slot.Viewer, Generation: slot.Generation})
+	slot.History = append(slices.Clone(slot.History), Candidate{Viewer: slot.Viewer, Login: slot.Login, Generation: slot.Generation})
 	return slot
 }
 
@@ -204,7 +204,20 @@ func pendingSlot(slot Slot, generation int64) Slot {
 }
 
 func rerolled(slot Slot) Slot {
+	prior := slot.History
+	if len(prior) != 0 {
+		prior = slices.Clone(prior)
+		prior[len(prior)-1].Reason = rerollReason(slot.State)
+	}
+	slot.History = prior
 	return pendingSlot(slot, slot.Generation+1)
+}
+
+func rerollReason(state SlotState) string {
+	if state == SlotNoShow {
+		return "no_show"
+	}
+	return "rerolled"
 }
 
 func stepNoShow(_ context.Context, _ *Store, w slotWork) Slot {
@@ -233,6 +246,7 @@ func stampSlotTimes(data snapshot, changes []slotChange, at time.Time, elapsed t
 			continue
 		}
 		change.next.Line = line
+		change.next.WonAtMS = millis(at)
 		if window > 0 {
 			change.next.Deadline = at.Add(window)
 			change.index = valkey.ClaimAdd

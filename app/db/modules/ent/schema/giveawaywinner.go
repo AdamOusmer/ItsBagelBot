@@ -22,7 +22,7 @@ func (GiveawayWinner) Fields() []ent.Field {
 		field.Uint64("user_id").Immutable(),
 		field.String("round_id").NotEmpty().MaxLen(modulesrpc.GiveawayRoundIDMaxLen).Immutable(),
 		field.Uint8("slot").Immutable(),
-		field.String("prize").NotEmpty().MaxLen(modulesrpc.GiveawayPrizeMaxLen).Immutable(),
+		field.String("prize").NotEmpty().MaxRuneLen(modulesrpc.GiveawayPrizeMaxLen).Immutable(),
 		field.Time("won_at").SchemaType(millisecond).Immutable(),
 		field.Uint64("viewer_id").Immutable(),
 		field.String("viewer_login").MaxLen(modulesrpc.GiveawayLoginMaxLen).Immutable(),

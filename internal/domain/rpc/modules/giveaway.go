@@ -3,7 +3,10 @@
 
 package modulesrpc
 
-import "ItsBagelBot/internal/domain/rpc"
+import (
+	"ItsBagelBot/internal/domain/rpc"
+	drawrpc "ItsBagelBot/internal/domain/rpc/draw"
+)
 
 const GiveawaySuffix = ".giveaway"
 
@@ -15,7 +18,7 @@ const (
 )
 
 const (
-	GiveawayMaxWinners    = 100
+	GiveawayMaxWinners    = drawrpc.MaxWinners
 	GiveawayMaxViewerIDs  = 100
 	GiveawayMaxRecentPage = 50
 	GiveawayRoundIDMaxLen = 36
@@ -33,6 +36,12 @@ type GiveawayWinner struct {
 	Claimed     bool   `json:"claimed"`
 	ClaimedAt   int64  `json:"claimed_at,omitempty"`
 	DeliveredAt int64  `json:"delivered_at,omitempty"`
+}
+
+type GiveawayDelivery struct {
+	RoundID   string
+	Slot      int
+	Delivered bool
 }
 
 type GiveawayRecentQuery struct {
