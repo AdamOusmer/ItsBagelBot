@@ -180,6 +180,16 @@ func RefreshTokenNotNil() predicate.Tokens {
 	return predicate.Tokens(sql.FieldNotNull(FieldRefreshToken))
 }
 
+// ScopesIsNil applies the IsNil predicate on the "scopes" field.
+func ScopesIsNil() predicate.Tokens {
+	return predicate.Tokens(sql.FieldIsNull(FieldScopes))
+}
+
+// ScopesNotNil applies the NotNil predicate on the "scopes" field.
+func ScopesNotNil() predicate.Tokens {
+	return predicate.Tokens(sql.FieldNotNull(FieldScopes))
+}
+
 // PlatformEQ applies the EQ predicate on the "platform" field.
 func PlatformEQ(v Platform) predicate.Tokens {
 	return predicate.Tokens(sql.FieldEQ(FieldPlatform, v))

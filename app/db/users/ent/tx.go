@@ -24,8 +24,12 @@ type Tx struct {
 	DeviceGrant *DeviceGrantClient
 	// LifecycleErasure is the client for interacting with the LifecycleErasure builders.
 	LifecycleErasure *LifecycleErasureClient
+	// MarketingConsent is the client for interacting with the MarketingConsent builders.
+	MarketingConsent *MarketingConsentClient
 	// PremiumGrant is the client for interacting with the PremiumGrant builders.
 	PremiumGrant *PremiumGrantClient
+	// TermsAcceptance is the client for interacting with the TermsAcceptance builders.
+	TermsAcceptance *TermsAcceptanceClient
 	// Tokens is the client for interacting with the Tokens builders.
 	Tokens *TokensClient
 	// User is the client for interacting with the User builders.
@@ -167,7 +171,9 @@ func (tx *Tx) init() {
 	tx.Delegation = NewDelegationClient(tx.config)
 	tx.DeviceGrant = NewDeviceGrantClient(tx.config)
 	tx.LifecycleErasure = NewLifecycleErasureClient(tx.config)
+	tx.MarketingConsent = NewMarketingConsentClient(tx.config)
 	tx.PremiumGrant = NewPremiumGrantClient(tx.config)
+	tx.TermsAcceptance = NewTermsAcceptanceClient(tx.config)
 	tx.Tokens = NewTokensClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 }

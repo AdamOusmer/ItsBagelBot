@@ -9,7 +9,9 @@ import (
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
+	"ItsBagelBot/app/db/users/ent/marketingconsent"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
+	"ItsBagelBot/app/db/users/ent/termsacceptance"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"context"
@@ -87,7 +89,9 @@ func checkColumn(t, c string) error {
 			delegation.Table:         delegation.ValidColumn,
 			devicegrant.Table:        devicegrant.ValidColumn,
 			lifecycleerasure.Table:   lifecycleerasure.ValidColumn,
+			marketingconsent.Table:   marketingconsent.ValidColumn,
 			premiumgrant.Table:       premiumgrant.ValidColumn,
+			termsacceptance.Table:    termsacceptance.ValidColumn,
 			tokens.Table:             tokens.ValidColumn,
 			user.Table:               user.ValidColumn,
 		})

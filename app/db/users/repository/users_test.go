@@ -26,18 +26,23 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tink-crypto/tink-go/v2/tink"
 
 	"go.uber.org/zap"
 )
 
 func setup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Users) {
 	t.Helper()
+	return setupWithMarketingMAC(t, nil)
+}
 
-	client := testdb.Open(t, "usersent", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
+func setupWithMarketingMAC(t *testing.T, marketingMAC tink.MAC) (*ent.Client, *bustest.Publisher, *repository.Users) {
+	t.Helper()
 
+	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	pub := bustest.NewPublisher()
 
-	repo := repository.NewUsers(repository.UsersConfig{Client: client, Packer: dbtest.NewPacker(t), Pub: pub, Log: zap.NewNop()})
+	repo := repository.NewUsers(repository.UsersConfig{Client: client, Packer: dbtest.NewPacker(t), MarketingMAC: marketingMAC, Pub: pub, Log: zap.NewNop()})
 	t.Cleanup(func() { repo.Close(context.Background()) })
 
 	return client, pub, repo
@@ -58,14 +63,14 @@ func TestTokenRoundTrip(t *testing.T) {
 	assert.NotEqual(t, plaintext, row.Token)
 	assert.NotEqual(t, refresh, row.RefreshToken)
 
-	access, gotRefresh, _, err := repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	access, gotRefresh, _, _, err := repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	require.NoError(t, err)
 	assert.Equal(t, plaintext, access)
 	assert.Equal(t, refresh, gotRefresh)
 
 	require.NoError(t, repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1001, Type: tokens.TypeAccessToken, Platform: tokens.PlatformTwitch, AccessToken: []byte("new")}))
 
-	access, _, _, err = repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	access, _, _, _, err = repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("new"), access, "an upsert replaces the stored token")
 }
@@ -79,14 +84,14 @@ func TestTokenExpiryPersistsAndClearsOnOverwrite(t *testing.T) {
 	expiresAt := ptrTime(time.Now().Add(4 * time.Hour).Truncate(time.Second))
 	require.NoError(t, repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1001, Type: tokens.TypeAccessToken, Platform: tokens.PlatformTwitch, AccessToken: []byte("first"), ExpiresAt: expiresAt}))
 
-	_, _, gotExpiry, err := repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	_, _, gotExpiry, _, err := repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	require.NoError(t, err)
 	require.NotNil(t, gotExpiry)
 	assert.True(t, expiresAt.Equal(*gotExpiry))
 
 	require.NoError(t, repo.UpsertToken(ctx, repository.TokenWrite{UserID: 1001, Type: tokens.TypeAccessToken, Platform: tokens.PlatformTwitch, AccessToken: []byte("second")}))
 
-	_, _, gotExpiry, err = repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	_, _, gotExpiry, _, err = repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	require.NoError(t, err)
 	assert.Nil(t, gotExpiry)
 }
@@ -109,7 +114,7 @@ func TestTokenCiphertextBoundToOwner(t *testing.T) {
 		SetToken(stolen).
 		ExecX(ctx)
 
-	_, _, _, err := repo.Token(ctx, 2, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	_, _, _, _, err := repo.Token(ctx, 2, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	assert.Error(t, err, "a ciphertext moved between users must not decrypt")
 }
 

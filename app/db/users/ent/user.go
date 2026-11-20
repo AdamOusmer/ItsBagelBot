@@ -79,6 +79,12 @@ type User struct {
 	GiftsSent uint32 `json:"gifts_sent,omitempty"`
 	// Onboarded holds the value of the "onboarded" field.
 	Onboarded bool `json:"onboarded,omitempty"`
+	// TermsVersion holds the value of the "terms_version" field.
+	TermsVersion string `json:"terms_version,omitempty"`
+	// MarketingStatus holds the value of the "marketing_status" field.
+	MarketingStatus user.MarketingStatus `json:"marketing_status,omitempty"`
+	// MarketingStatusAt holds the value of the "marketing_status_at" field.
+	MarketingStatusAt *time.Time `json:"marketing_status_at,omitempty"`
 	// TestAccount holds the value of the "test_account" field.
 	TestAccount bool `json:"test_account,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -101,9 +107,13 @@ type UserEdges struct {
 	DeviceGrants []*DeviceGrant `json:"device_grants,omitempty"`
 	// AuthorizationCodes holds the value of the authorization_codes edge.
 	AuthorizationCodes []*AuthorizationCode `json:"authorization_codes,omitempty"`
+	// TermsAcceptances holds the value of the terms_acceptances edge.
+	TermsAcceptances []*TermsAcceptance `json:"terms_acceptances,omitempty"`
+	// MarketingConsents holds the value of the marketing_consents edge.
+	MarketingConsents []*MarketingConsent `json:"marketing_consents,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [4]bool
+	loadedTypes [6]bool
 }
 
 // TokensOrErr returns the Tokens value or an error if the edge
@@ -142,6 +152,24 @@ func (e UserEdges) AuthorizationCodesOrErr() ([]*AuthorizationCode, error) {
 	return nil, &NotLoadedError{edge: "authorization_codes"}
 }
 
+// TermsAcceptancesOrErr returns the TermsAcceptances value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) TermsAcceptancesOrErr() ([]*TermsAcceptance, error) {
+	if e.loadedTypes[4] {
+		return e.TermsAcceptances, nil
+	}
+	return nil, &NotLoadedError{edge: "terms_acceptances"}
+}
+
+// MarketingConsentsOrErr returns the MarketingConsents value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) MarketingConsentsOrErr() ([]*MarketingConsent, error) {
+	if e.loadedTypes[5] {
+		return e.MarketingConsents, nil
+	}
+	return nil, &NotLoadedError{edge: "marketing_consents"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -153,9 +181,9 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case user.FieldID, user.FieldStateRevision, user.FieldGiftsSent:
 			values[i] = new(sql.NullInt64)
-		case user.FieldUsername, user.FieldDisplayName, user.FieldEmail, user.FieldLifecycleState, user.FieldStatus, user.FieldLocale, user.FieldCreatorCode, user.FieldSubscriptionSource, user.FieldSubscriptionRef, user.FieldBillingEventID:
+		case user.FieldUsername, user.FieldDisplayName, user.FieldEmail, user.FieldLifecycleState, user.FieldStatus, user.FieldLocale, user.FieldCreatorCode, user.FieldSubscriptionSource, user.FieldSubscriptionRef, user.FieldBillingEventID, user.FieldTermsVersion, user.FieldMarketingStatus:
 			values[i] = new(sql.NullString)
-		case user.FieldDormantAfter, user.FieldLifecycleDueAt, user.FieldNoticeDueAt, user.FieldSubscriptionExpiresAt, user.FieldBillingEventAt, user.FieldCreatedAt, user.FieldUpdatedAt:
+		case user.FieldDormantAfter, user.FieldLifecycleDueAt, user.FieldNoticeDueAt, user.FieldSubscriptionExpiresAt, user.FieldBillingEventAt, user.FieldMarketingStatusAt, user.FieldCreatedAt, user.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -368,6 +396,25 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Onboarded = value.Bool
 			}
+		case user.FieldTermsVersion:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field terms_version", values[i])
+			} else if value.Valid {
+				_m.TermsVersion = value.String
+			}
+		case user.FieldMarketingStatus:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field marketing_status", values[i])
+			} else if value.Valid {
+				_m.MarketingStatus = user.MarketingStatus(value.String)
+			}
+		case user.FieldMarketingStatusAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field marketing_status_at", values[i])
+			} else if value.Valid {
+				_m.MarketingStatusAt = new(time.Time)
+				*_m.MarketingStatusAt = value.Time
+			}
 		case user.FieldTestAccount:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field test_account", values[i])
@@ -417,6 +464,16 @@ func (_m *User) QueryDeviceGrants() *DeviceGrantQuery {
 // QueryAuthorizationCodes queries the "authorization_codes" edge of the User entity.
 func (_m *User) QueryAuthorizationCodes() *AuthorizationCodeQuery {
 	return NewUserClient(_m.config).QueryAuthorizationCodes(_m)
+}
+
+// QueryTermsAcceptances queries the "terms_acceptances" edge of the User entity.
+func (_m *User) QueryTermsAcceptances() *TermsAcceptanceQuery {
+	return NewUserClient(_m.config).QueryTermsAcceptances(_m)
+}
+
+// QueryMarketingConsents queries the "marketing_consents" edge of the User entity.
+func (_m *User) QueryMarketingConsents() *MarketingConsentQuery {
+	return NewUserClient(_m.config).QueryMarketingConsents(_m)
 }
 
 // Update returns a builder for updating this User.
@@ -545,6 +602,17 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("onboarded=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Onboarded))
+	builder.WriteString(", ")
+	builder.WriteString("terms_version=")
+	builder.WriteString(_m.TermsVersion)
+	builder.WriteString(", ")
+	builder.WriteString("marketing_status=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MarketingStatus))
+	builder.WriteString(", ")
+	if v := _m.MarketingStatusAt; v != nil {
+		builder.WriteString("marketing_status_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("test_account=")
 	builder.WriteString(fmt.Sprintf("%v", _m.TestAccount))

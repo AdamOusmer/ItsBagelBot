@@ -49,6 +49,8 @@ func SubscribeDashboard(w Wiring, prefix string) error {
 		"active_get":           d.handleActiveGet,
 		"status_get":           d.handleStatusGet,
 		"state_get":            d.handleStateGet,
+		"consent_set":          ownerWrite(d.setConsent),
+		"marketing_set":        ownerWrite(d.setMarketing),
 		"lifecycle_retry":      d.handleLifecycleRetry,
 		"login_resolve":        d.handleLoginResolve,
 		"identity_sync":        d.handleIdentitySync,
@@ -183,7 +185,11 @@ func (d *dashboardRPC) handleGrantSave(ctx context.Context, msg *nats.Msg) {
 
 	d.writeThenInvalidate(ctx, msg, dashboardWrite{scope: invalidate.ScopeGrant, id: id, op: "grant_save",
 		write: func(ctx context.Context) error {
-			if err := d.repo.UpsertToken(ctx, repository.TokenWrite{UserID: id, Type: tokens.TypeUserToken, Platform: tokens.PlatformTwitch, AccessToken: []byte(req.AccessToken), RefreshToken: []byte(req.RefreshToken)}); err != nil {
+			write := repository.TokenWrite{
+				UserID: id, Type: tokens.TypeUserToken, Platform: tokens.PlatformTwitch,
+				AccessToken: []byte(req.AccessToken), RefreshToken: []byte(req.RefreshToken), Scopes: req.Scopes,
+			}
+			if err := d.repo.UpsertToken(ctx, write); err != nil {
 				return err
 			}
 			return d.repo.ResumeAfterReconnect(ctx, id)
@@ -200,7 +206,7 @@ func (d *dashboardRPC) handleGrantHas(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	accessToken, _, _, err := d.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
+	accessToken, _, _, _, err := d.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
 	hasGrant := err == nil && len(accessToken) > 0
 	bus.Respond(msg, map[string]any{"has_grant": hasGrant})
 }
@@ -236,6 +242,8 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 			"display_name":                view.DisplayName,
 			"status":                      view.Status,
 			"onboarded":                   view.Onboarded,
+			"terms_version":               view.TermsVersion,
+			"marketing_status":            view.MarketingStatus,
 			"locale":                      view.Locale,
 			"custom_cursor":               view.CustomCursor,
 			"commands_page_hidden":        view.CommandsPageHidden,

@@ -24,8 +24,14 @@ type DeviceGrant func(*sql.Selector)
 // LifecycleErasure is the predicate function for lifecycleerasure builders.
 type LifecycleErasure func(*sql.Selector)
 
+// MarketingConsent is the predicate function for marketingconsent builders.
+type MarketingConsent func(*sql.Selector)
+
 // PremiumGrant is the predicate function for premiumgrant builders.
 type PremiumGrant func(*sql.Selector)
+
+// TermsAcceptance is the predicate function for termsacceptance builders.
+type TermsAcceptance func(*sql.Selector)
 
 // Tokens is the predicate function for tokens builders.
 type Tokens func(*sql.Selector)

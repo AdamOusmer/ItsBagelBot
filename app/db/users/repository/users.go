@@ -21,6 +21,7 @@ import (
 	"ItsBagelBot/internal/adminauth"
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
+	"ItsBagelBot/internal/domain/consent"
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/invalidate"
@@ -33,6 +34,7 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
+	"github.com/tink-crypto/tink-go/v2/tink"
 
 	"go.uber.org/zap"
 )
@@ -68,6 +70,9 @@ type UserView struct {
 	SubscriptionCancelPending bool             `json:"subscription_cancel_pending"`
 	SubscriptionPaymentFailed bool             `json:"subscription_payment_failed"`
 	Onboarded                 bool             `json:"onboarded"`
+
+	TermsVersion    string                  `json:"terms_version"`
+	MarketingStatus consent.MarketingStatus `json:"marketing_status"`
 }
 
 type Users struct {
@@ -75,6 +80,7 @@ type Users struct {
 	views         *cache.Cache[UserView]
 	stats         *cache.Cache[UserCounts]
 	packer        domaincrypto.Packer
+	marketingMAC  tink.MAC
 	pub           bus.Publisher
 	preferences   *batch.Group[prefWrite]
 	app           *newrelic.Application
@@ -101,11 +107,12 @@ func (r *Users) SetInvalidationConn(nc *nats.Conn) {
 }
 
 type UsersConfig struct {
-	Client *ent.Client
-	Packer domaincrypto.Packer
-	Pub    bus.Publisher
-	App    *newrelic.Application
-	Log    *zap.Logger
+	Client       *ent.Client
+	Packer       domaincrypto.Packer
+	MarketingMAC tink.MAC
+	Pub          bus.Publisher
+	App          *newrelic.Application
+	Log          *zap.Logger
 }
 
 func NewUsers(cfg UsersConfig) *Users {
@@ -121,6 +128,7 @@ func NewUsers(cfg UsersConfig) *Users {
 		views:         cache.New[UserView](userCacheCapacity, userCacheTTL, cache.StaleOnError(userCacheTTL)).InvalidateOn(h, cache.UserKeys(userKeyPrefix), data.SubjectUserChanged, data.SubjectUserDeleted),
 		stats:         cache.New[UserCounts](userStatsCapacity, userStatsTTL).InvalidateOn(h, func(cache.Event) []string { return []string{userStatsKey} }, data.SubjectUserChanged, data.SubjectUserDeleted),
 		packer:        packer,
+		marketingMAC:  cfg.MarketingMAC,
 		pub:           pub,
 		invalidations: h,
 		app:           app,
@@ -278,6 +286,8 @@ func userView(u *ent.User) UserView {
 		SubscriptionCancelPending: u.SubscriptionCancelPending,
 		SubscriptionPaymentFailed: u.SubscriptionPaymentFailed,
 		Onboarded:                 u.Onboarded,
+		TermsVersion:              u.TermsVersion,
+		MarketingStatus:           consent.MarketingStatus(u.MarketingStatus),
 	}
 }
 
@@ -525,6 +535,7 @@ type TokenWrite struct {
 	AccessToken  []byte
 	RefreshToken []byte
 	ExpiresAt    *time.Time
+	Scopes       []string
 }
 
 func (w TokenWrite) validate() error {
@@ -591,6 +602,9 @@ func (s sealedToken) create(ctx context.Context, tx *ent.Tx) error {
 	if len(s.refresh.Ciphertext) > 0 {
 		create.SetRefreshToken(s.refresh.Ciphertext)
 	}
+	if s.Scopes != nil {
+		create.SetScopes(s.Scopes)
+	}
 	err := create.Exec(ctx)
 	if !ent.IsConstraintError(err) {
 		return err
@@ -607,6 +621,9 @@ func (s sealedToken) update(ctx context.Context, existing *ent.Tokens) error {
 	if len(s.refresh.Ciphertext) > 0 {
 		update.SetRefreshToken(s.refresh.Ciphertext)
 	}
+	if s.Scopes != nil {
+		update.SetScopes(s.Scopes)
+	}
 	return update.Exec(ctx)
 }
 
@@ -618,7 +635,7 @@ func (o tokenOwner) match() predicate.Tokens {
 	})
 }
 
-func (r *Users) Token(ctx context.Context, userID uint64, tokenType tokens.Type, platform tokens.Platform) (accessToken []byte, refreshToken []byte, accessTokenExpiresAt *time.Time, err error) {
+func (r *Users) Token(ctx context.Context, userID uint64, tokenType tokens.Type, platform tokens.Platform) (accessToken []byte, refreshToken []byte, accessTokenExpiresAt *time.Time, scopes []string, err error) {
 
 	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Tokens, error) {
 		return r.client.Tokens.Query().
@@ -630,23 +647,23 @@ func (r *Users) Token(ctx context.Context, userID uint64, tokenType tokens.Type,
 			Only(ctx)
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	aad := tokenOwner(userID).aad(tokenType, platform)
 
 	accessToken, err = r.packer.Unpack(domaincrypto.SecureEnvelope{Ciphertext: row.Token, AttachedData: aad})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	if len(row.RefreshToken) > 0 {
 		if refreshToken, err = r.packer.Unpack(domaincrypto.SecureEnvelope{Ciphertext: row.RefreshToken, AttachedData: aad}); err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 	}
 
-	return accessToken, refreshToken, row.AccessTokenExpiresAt, nil
+	return accessToken, refreshToken, row.AccessTokenExpiresAt, row.Scopes, nil
 }
 
 // A nil expiry must clear: the row may still carry the replaced token's expiry.

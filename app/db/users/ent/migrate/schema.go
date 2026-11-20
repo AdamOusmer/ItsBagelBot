@@ -185,6 +185,41 @@ var (
 			},
 		},
 	}
+	// MarketingConsentColumns holds the columns for the "marketing_consent" table.
+	MarketingConsentColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "account_created_at", Type: field.TypeInt64},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"granted", "withdrawn"}},
+		{Name: "basis", Type: field.TypeEnum, Enums: []string{"express"}, Default: "express"},
+		{Name: "source", Type: field.TypeEnum, Enums: []string{"welcome", "settings", "prompt", "consent", "preference_page", "one_click", "complaint", "admin", "address_changed"}},
+		{Name: "policy_version", Type: field.TypeString, Size: 64},
+		{Name: "consent_text_key", Type: field.TypeString, Size: 128},
+		{Name: "locale", Type: field.TypeString, Size: 8},
+		{Name: "address_hmac", Type: field.TypeBytes, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeUint64},
+	}
+	// MarketingConsentTable holds the schema information for the "marketing_consent" table.
+	MarketingConsentTable = &schema.Table{
+		Name:       "marketing_consent",
+		Columns:    MarketingConsentColumns,
+		PrimaryKey: []*schema.Column{MarketingConsentColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "marketing_consent_users_marketing_consents",
+				Columns:    []*schema.Column{MarketingConsentColumns[10]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "marketingconsent_user_id_account_created_at_status_id",
+				Unique:  false,
+				Columns: []*schema.Column{MarketingConsentColumns[10], MarketingConsentColumns[1], MarketingConsentColumns[2], MarketingConsentColumns[0]},
+			},
+		},
+	}
 	// PremiumGrantsColumns holds the columns for the "premium_grants" table.
 	PremiumGrantsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -225,12 +260,38 @@ var (
 			},
 		},
 	}
+	// TermsAcceptanceColumns holds the columns for the "terms_acceptance" table.
+	TermsAcceptanceColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "account_created_at", Type: field.TypeInt64},
+		{Name: "terms_version", Type: field.TypeString, Size: 64},
+		{Name: "accepted_at", Type: field.TypeTime},
+		{Name: "source", Type: field.TypeEnum, Enums: []string{"welcome", "consent"}},
+		{Name: "locale", Type: field.TypeString, Size: 8},
+		{Name: "request_id", Type: field.TypeString, Unique: true, Size: 128},
+		{Name: "user_id", Type: field.TypeUint64},
+	}
+	// TermsAcceptanceTable holds the schema information for the "terms_acceptance" table.
+	TermsAcceptanceTable = &schema.Table{
+		Name:       "terms_acceptance",
+		Columns:    TermsAcceptanceColumns,
+		PrimaryKey: []*schema.Column{TermsAcceptanceColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "terms_acceptance_users_terms_acceptances",
+				Columns:    []*schema.Column{TermsAcceptanceColumns[7]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+	}
 	// TokensColumns holds the columns for the "tokens" table.
 	TokensColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "type", Type: field.TypeEnum, Enums: []string{"access_token", "user_token"}, Default: "access_token"},
 		{Name: "token", Type: field.TypeBytes},
 		{Name: "refresh_token", Type: field.TypeBytes, Nullable: true},
+		{Name: "scopes", Type: field.TypeJSON, Nullable: true},
 		{Name: "platform", Type: field.TypeEnum, Enums: []string{"twitch"}, Default: "twitch"},
 		{Name: "access_token_expires_at", Type: field.TypeTime, Nullable: true},
 		{Name: "user_tokens", Type: field.TypeUint64},
@@ -243,7 +304,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "tokens_users_tokens",
-				Columns:    []*schema.Column{TokensColumns[6]},
+				Columns:    []*schema.Column{TokensColumns[7]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -252,7 +313,7 @@ var (
 			{
 				Name:    "tokens_type_platform_user_tokens",
 				Unique:  true,
-				Columns: []*schema.Column{TokensColumns[1], TokensColumns[4], TokensColumns[6]},
+				Columns: []*schema.Column{TokensColumns[1], TokensColumns[5], TokensColumns[7]},
 			},
 		},
 	}
@@ -289,6 +350,9 @@ var (
 		{Name: "billing_event_id", Type: field.TypeString, Nullable: true},
 		{Name: "gifts_sent", Type: field.TypeUint32, Default: 0},
 		{Name: "onboarded", Type: field.TypeBool, Default: false},
+		{Name: "terms_version", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "marketing_status", Type: field.TypeEnum, Enums: []string{"none", "granted", "withdrawn"}, Default: "none"},
+		{Name: "marketing_status_at", Type: field.TypeTime, Nullable: true},
 		{Name: "test_account", Type: field.TypeBool, Default: false},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
@@ -334,6 +398,16 @@ var (
 				Unique:  false,
 				Columns: []*schema.Column{UsersColumns[10], UsersColumns[0]},
 			},
+			{
+				Name:    "user_terms_version",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[31]},
+			},
+			{
+				Name:    "user_marketing_status_id",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[32], UsersColumns[0]},
+			},
 		},
 	}
 	// Tables holds all the tables in the schema.
@@ -344,7 +418,9 @@ var (
 		DelegationsTable,
 		DeviceGrantsTable,
 		LifecycleErasuresTable,
+		MarketingConsentTable,
 		PremiumGrantsTable,
+		TermsAcceptanceTable,
 		TokensTable,
 		UsersTable,
 	}
@@ -356,6 +432,14 @@ func init() {
 		Collation: "utf8mb4_bin",
 	}
 	DeviceGrantsTable.ForeignKeys[0].RefTable = UsersTable
+	MarketingConsentTable.ForeignKeys[0].RefTable = UsersTable
+	MarketingConsentTable.Annotation = &entsql.Annotation{
+		Table: "marketing_consent",
+	}
 	PremiumGrantsTable.ForeignKeys[0].RefTable = UsersTable
+	TermsAcceptanceTable.ForeignKeys[0].RefTable = UsersTable
+	TermsAcceptanceTable.Annotation = &entsql.Annotation{
+		Table: "terms_acceptance",
+	}
 	TokensTable.ForeignKeys[0].RefTable = UsersTable
 }

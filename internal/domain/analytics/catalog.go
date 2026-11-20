@@ -8,6 +8,8 @@ package analytics
 import (
 	"regexp"
 	"slices"
+
+	"ItsBagelBot/internal/domain/consent"
 )
 
 type Metric string
@@ -62,6 +64,7 @@ const (
 	AccountsCancelPending Metric = "accounts.cancel_pending"
 	AccountsPaymentFailed Metric = "accounts.payment_failed"
 	AccountsLocale        Metric = "accounts.locale"
+	AccountsMarketing     Metric = "accounts.marketing"
 	AccountsPagesHidden   Metric = "accounts.pages_hidden"
 	AccountsBySignupWeek  Metric = "accounts.by_signup_week"
 	PaidBySignupWeek      Metric = "accounts.paid_by_signup_week"
@@ -144,6 +147,7 @@ const (
 	KindMode      Kind = "mode"
 	KindRuntime   Kind = "runtime"
 	KindInactive  Kind = "inactive"
+	KindStatus    Kind = "status"
 	KindGame      Kind = "game"
 	KindEnd       Kind = "end"
 	KindBucket    Kind = "bucket"
@@ -187,6 +191,7 @@ var catalog = map[Metric]Spec{
 	AccountsCancelPending: {Type: Level},
 	AccountsPaymentFailed: {Type: Level},
 	AccountsLocale:        {Type: Level, Dims: []Kind{KindLocale}},
+	AccountsMarketing:     {Type: Level, Dims: []Kind{KindStatus}},
 	AccountsPagesHidden:   {Type: Level, Dims: []Kind{KindPage}},
 	AccountsBySignupWeek:  {Type: Level, Dims: []Kind{KindWeek}},
 	PaidBySignupWeek:      {Type: Level, Dims: []Kind{KindWeek}},
@@ -266,6 +271,7 @@ var enums = map[Kind][]string{
 	KindMode:     {"shadow", "enforced"},
 	KindRuntime:  {"active", "dormant", "blocked", "disabled", "recovering", "degraded"},
 	KindInactive: {"banned", "revoked", "disabled", "other"},
+	KindStatus:   {string(consent.None), string(consent.Granted), string(consent.Withdrawn)},
 	KindGame:     {"raffle", "mraffle", "duel", "gamble"},
 	KindEnd:      {"drawn", "empty", "cancelled", "declined", "no_show", "won", "lost"},
 	KindBucket:   {"1", "2_4", "5_19", "20_99", "100p"},

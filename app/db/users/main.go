@@ -44,6 +44,7 @@ func ownedAccountLevels() []string {
 		string(catalog.AccountsLocale), string(catalog.AccountsPagesHidden), string(catalog.AccountsBySignupWeek),
 		string(catalog.PaidBySignupWeek), string(catalog.AccountsDelegating),
 		string(catalog.AccountsRuntime), string(catalog.AccountsInactive), string(catalog.DesktopGrants),
+		string(catalog.AccountsMarketing),
 	}
 }
 
@@ -65,7 +66,11 @@ func main() {
 	defer recorder.Close()
 
 	h := bus.NewInvalidations(n.RPC, conf.CacheInvalidationPrefix.Get(), log)
-	repo := repository.NewUsers(repository.UsersConfig{Client: client, Packer: packer, Pub: h.Publisher(n.Pub), App: core.NR, Log: log})
+	marketingMAC, err := crypto.OptionalMACFromEnv("MARKETING_ADDRESS_HMAC_KEYSET_PATH")
+	svcboot.FatalIf(log, err, "failed to load marketing address HMAC")
+	repo := repository.NewUsers(repository.UsersConfig{
+		Client: client, Packer: packer, MarketingMAC: marketingMAC, Pub: h.Publisher(n.Pub), App: core.NR, Log: log,
+	})
 	repo.SetAnalytics(recorder)
 	repo.SetAdminAuth(adminauth.New(n.RPC, adminauth.Config{AuthPrefix: env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", adminauth.DefaultAuthPrefix), AuditPrefix: env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", adminauth.DefaultAuditPrefix)}))
 	repo.SetDeviceAuthSigner(loadDeviceAuthSigner(log))

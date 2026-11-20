@@ -80,6 +80,18 @@ func (f LifecycleErasureFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.V
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.LifecycleErasureMutation", m)
 }
 
+// The MarketingConsentFunc type is an adapter to allow the use of ordinary
+// function as MarketingConsent mutator.
+type MarketingConsentFunc func(context.Context, *ent.MarketingConsentMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MarketingConsentFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MarketingConsentMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MarketingConsentMutation", m)
+}
+
 // The PremiumGrantFunc type is an adapter to allow the use of ordinary
 // function as PremiumGrant mutator.
 type PremiumGrantFunc func(context.Context, *ent.PremiumGrantMutation) (ent.Value, error)
@@ -90,6 +102,18 @@ func (f PremiumGrantFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PremiumGrantMutation", m)
+}
+
+// The TermsAcceptanceFunc type is an adapter to allow the use of ordinary
+// function as TermsAcceptance mutator.
+type TermsAcceptanceFunc func(context.Context, *ent.TermsAcceptanceMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TermsAcceptanceFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TermsAcceptanceMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TermsAcceptanceMutation", m)
 }
 
 // The TokensFunc type is an adapter to allow the use of ordinary

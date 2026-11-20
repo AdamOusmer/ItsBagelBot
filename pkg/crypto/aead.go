@@ -4,15 +4,13 @@
 package crypto
 
 import (
-	domain "ItsBagelBot/internal/domain/crypto"
 	"bytes"
 
+	domain "ItsBagelBot/internal/domain/crypto"
+
 	"github.com/tink-crypto/tink-go/v2/aead"
-
-	"github.com/tink-crypto/tink-go/v2/keyset"
-
 	"github.com/tink-crypto/tink-go/v2/insecurecleartextkeyset"
-
+	"github.com/tink-crypto/tink-go/v2/keyset"
 	"github.com/tink-crypto/tink-go/v2/tink"
 )
 
@@ -21,8 +19,7 @@ type Crypto struct {
 }
 
 func NewCrypto(keysetJSON []byte) (*Crypto, error) {
-
-	handle, err := insecurecleartextkeyset.Read(keyset.NewJSONReader(bytes.NewReader(keysetJSON)))
+	handle, err := readKeyset(keysetJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -33,6 +30,10 @@ func NewCrypto(keysetJSON []byte) (*Crypto, error) {
 	}
 
 	return &Crypto{primitive: primitive}, nil
+}
+
+func readKeyset(keysetJSON []byte) (*keyset.Handle, error) {
+	return insecurecleartextkeyset.Read(keyset.NewJSONReader(bytes.NewReader(keysetJSON)))
 }
 
 func (c *Crypto) Pack(plaintext []byte, associatedData []byte) (domain.SecureEnvelope, error) {

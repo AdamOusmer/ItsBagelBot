@@ -248,7 +248,7 @@ func (r *Users) revokeTwitchTokens(ctx context.Context, userID uint64) {
 		return
 	}
 	for _, tokenType := range []tokens.Type{tokens.TypeAccessToken, tokens.TypeUserToken} {
-		access, _, _, err := r.Token(ctx, userID, tokenType, tokens.PlatformTwitch)
+		access, _, _, _, err := r.Token(ctx, userID, tokenType, tokens.PlatformTwitch)
 		if err != nil {
 			continue
 		}

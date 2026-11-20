@@ -31,7 +31,7 @@ func SubscribeTokens(w Wiring, prefix string) error {
 }
 
 func (t *tokensRPC) handleGet(ctx context.Context, _ usersrpc.TokensRequest, id uint64) (usersrpc.TokensReply, error) {
-	access, refresh, expiresAt, err := t.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
+	access, refresh, expiresAt, scopes, err := t.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
 	if err != nil {
 		return usersrpc.TokensReply{Refusal: bus.Classify(err, entNotFound)}, nil
 	}
@@ -40,11 +40,16 @@ func (t *tokensRPC) handleGet(ctx context.Context, _ usersrpc.TokensRequest, id 
 		AccessToken:          string(access),
 		RefreshToken:         string(refresh),
 		AccessTokenExpiresAt: expiresAt,
+		Scopes:               scopes,
 	}, nil
 }
 
 func (t *tokensRPC) handleSave(ctx context.Context, req usersrpc.TokensRequest, id uint64) (usersrpc.TokensReply, error) {
-	err := t.repo.UpsertToken(ctx, repository.TokenWrite{UserID: id, Type: tokens.TypeUserToken, Platform: tokens.PlatformTwitch, AccessToken: []byte(req.AccessToken), RefreshToken: []byte(req.RefreshToken), ExpiresAt: req.AccessTokenExpiresAt})
+	err := t.repo.UpsertToken(ctx, repository.TokenWrite{
+		UserID: id, Type: tokens.TypeUserToken, Platform: tokens.PlatformTwitch,
+		AccessToken: []byte(req.AccessToken), RefreshToken: []byte(req.RefreshToken),
+		ExpiresAt: req.AccessTokenExpiresAt, Scopes: req.Scopes,
+	})
 	if err != nil {
 		monitor.TxnLogger(ctx, t.log).Error("tokens save", zap.Error(err))
 	}

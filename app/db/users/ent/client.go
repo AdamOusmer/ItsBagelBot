@@ -17,7 +17,9 @@ import (
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
+	"ItsBagelBot/app/db/users/ent/marketingconsent"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
+	"ItsBagelBot/app/db/users/ent/termsacceptance"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 
@@ -45,8 +47,12 @@ type Client struct {
 	DeviceGrant *DeviceGrantClient
 	// LifecycleErasure is the client for interacting with the LifecycleErasure builders.
 	LifecycleErasure *LifecycleErasureClient
+	// MarketingConsent is the client for interacting with the MarketingConsent builders.
+	MarketingConsent *MarketingConsentClient
 	// PremiumGrant is the client for interacting with the PremiumGrant builders.
 	PremiumGrant *PremiumGrantClient
+	// TermsAcceptance is the client for interacting with the TermsAcceptance builders.
+	TermsAcceptance *TermsAcceptanceClient
 	// Tokens is the client for interacting with the Tokens builders.
 	Tokens *TokensClient
 	// User is the client for interacting with the User builders.
@@ -68,7 +74,9 @@ func (c *Client) init() {
 	c.Delegation = NewDelegationClient(c.config)
 	c.DeviceGrant = NewDeviceGrantClient(c.config)
 	c.LifecycleErasure = NewLifecycleErasureClient(c.config)
+	c.MarketingConsent = NewMarketingConsentClient(c.config)
 	c.PremiumGrant = NewPremiumGrantClient(c.config)
+	c.TermsAcceptance = NewTermsAcceptanceClient(c.config)
 	c.Tokens = NewTokensClient(c.config)
 	c.User = NewUserClient(c.config)
 }
@@ -169,7 +177,9 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Delegation:         NewDelegationClient(cfg),
 		DeviceGrant:        NewDeviceGrantClient(cfg),
 		LifecycleErasure:   NewLifecycleErasureClient(cfg),
+		MarketingConsent:   NewMarketingConsentClient(cfg),
 		PremiumGrant:       NewPremiumGrantClient(cfg),
+		TermsAcceptance:    NewTermsAcceptanceClient(cfg),
 		Tokens:             NewTokensClient(cfg),
 		User:               NewUserClient(cfg),
 	}, nil
@@ -197,7 +207,9 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Delegation:         NewDelegationClient(cfg),
 		DeviceGrant:        NewDeviceGrantClient(cfg),
 		LifecycleErasure:   NewLifecycleErasureClient(cfg),
+		MarketingConsent:   NewMarketingConsentClient(cfg),
 		PremiumGrant:       NewPremiumGrantClient(cfg),
+		TermsAcceptance:    NewTermsAcceptanceClient(cfg),
 		Tokens:             NewTokensClient(cfg),
 		User:               NewUserClient(cfg),
 	}, nil
@@ -230,7 +242,8 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AdminAuditDelivery, c.AuthorizationCode, c.BillingReceipt, c.Delegation,
-		c.DeviceGrant, c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
+		c.DeviceGrant, c.LifecycleErasure, c.MarketingConsent, c.PremiumGrant,
+		c.TermsAcceptance, c.Tokens, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -241,7 +254,8 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AdminAuditDelivery, c.AuthorizationCode, c.BillingReceipt, c.Delegation,
-		c.DeviceGrant, c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
+		c.DeviceGrant, c.LifecycleErasure, c.MarketingConsent, c.PremiumGrant,
+		c.TermsAcceptance, c.Tokens, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -262,8 +276,12 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.DeviceGrant.mutate(ctx, m)
 	case *LifecycleErasureMutation:
 		return c.LifecycleErasure.mutate(ctx, m)
+	case *MarketingConsentMutation:
+		return c.MarketingConsent.mutate(ctx, m)
 	case *PremiumGrantMutation:
 		return c.PremiumGrant.mutate(ctx, m)
+	case *TermsAcceptanceMutation:
+		return c.TermsAcceptance.mutate(ctx, m)
 	case *TokensMutation:
 		return c.Tokens.mutate(ctx, m)
 	case *UserMutation:
@@ -1103,6 +1121,155 @@ func (c *LifecycleErasureClient) mutate(ctx context.Context, m *LifecycleErasure
 	}
 }
 
+// MarketingConsentClient is a client for the MarketingConsent schema.
+type MarketingConsentClient struct {
+	config
+}
+
+// NewMarketingConsentClient returns a client for the MarketingConsent from the given config.
+func NewMarketingConsentClient(c config) *MarketingConsentClient {
+	return &MarketingConsentClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `marketingconsent.Hooks(f(g(h())))`.
+func (c *MarketingConsentClient) Use(hooks ...Hook) {
+	c.hooks.MarketingConsent = append(c.hooks.MarketingConsent, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `marketingconsent.Intercept(f(g(h())))`.
+func (c *MarketingConsentClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MarketingConsent = append(c.inters.MarketingConsent, interceptors...)
+}
+
+// Create returns a builder for creating a MarketingConsent entity.
+func (c *MarketingConsentClient) Create() *MarketingConsentCreate {
+	mutation := newMarketingConsentMutation(c.config, OpCreate)
+	return &MarketingConsentCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MarketingConsent entities.
+func (c *MarketingConsentClient) CreateBulk(builders ...*MarketingConsentCreate) *MarketingConsentCreateBulk {
+	return &MarketingConsentCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MarketingConsentClient) MapCreateBulk(slice any, setFunc func(*MarketingConsentCreate, int)) *MarketingConsentCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MarketingConsentCreateBulk{err: fmt.Errorf("calling to MarketingConsentClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MarketingConsentCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MarketingConsentCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MarketingConsent.
+func (c *MarketingConsentClient) Update() *MarketingConsentUpdate {
+	mutation := newMarketingConsentMutation(c.config, OpUpdate)
+	return &MarketingConsentUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MarketingConsentClient) UpdateOne(_m *MarketingConsent) *MarketingConsentUpdateOne {
+	mutation := newMarketingConsentMutation(c.config, OpUpdateOne, withMarketingConsent(_m))
+	return &MarketingConsentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MarketingConsentClient) UpdateOneID(id int) *MarketingConsentUpdateOne {
+	mutation := newMarketingConsentMutation(c.config, OpUpdateOne, withMarketingConsentID(id))
+	return &MarketingConsentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MarketingConsent.
+func (c *MarketingConsentClient) Delete() *MarketingConsentDelete {
+	mutation := newMarketingConsentMutation(c.config, OpDelete)
+	return &MarketingConsentDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MarketingConsentClient) DeleteOne(_m *MarketingConsent) *MarketingConsentDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MarketingConsentClient) DeleteOneID(id int) *MarketingConsentDeleteOne {
+	builder := c.Delete().Where(marketingconsent.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MarketingConsentDeleteOne{builder}
+}
+
+// Query returns a query builder for MarketingConsent.
+func (c *MarketingConsentClient) Query() *MarketingConsentQuery {
+	return &MarketingConsentQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMarketingConsent},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MarketingConsent entity by its id.
+func (c *MarketingConsentClient) Get(ctx context.Context, id int) (*MarketingConsent, error) {
+	return c.Query().Where(marketingconsent.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MarketingConsentClient) GetX(ctx context.Context, id int) *MarketingConsent {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a MarketingConsent.
+func (c *MarketingConsentClient) QueryUser(_m *MarketingConsent) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(marketingconsent.Table, marketingconsent.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, marketingconsent.UserTable, marketingconsent.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *MarketingConsentClient) Hooks() []Hook {
+	return c.hooks.MarketingConsent
+}
+
+// Interceptors returns the client interceptors.
+func (c *MarketingConsentClient) Interceptors() []Interceptor {
+	return c.inters.MarketingConsent
+}
+
+func (c *MarketingConsentClient) mutate(ctx context.Context, m *MarketingConsentMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MarketingConsentCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MarketingConsentUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MarketingConsentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MarketingConsentDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MarketingConsent mutation op: %q", m.Op())
+	}
+}
+
 // PremiumGrantClient is a client for the PremiumGrant schema.
 type PremiumGrantClient struct {
 	config
@@ -1249,6 +1416,155 @@ func (c *PremiumGrantClient) mutate(ctx context.Context, m *PremiumGrantMutation
 		return (&PremiumGrantDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown PremiumGrant mutation op: %q", m.Op())
+	}
+}
+
+// TermsAcceptanceClient is a client for the TermsAcceptance schema.
+type TermsAcceptanceClient struct {
+	config
+}
+
+// NewTermsAcceptanceClient returns a client for the TermsAcceptance from the given config.
+func NewTermsAcceptanceClient(c config) *TermsAcceptanceClient {
+	return &TermsAcceptanceClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `termsacceptance.Hooks(f(g(h())))`.
+func (c *TermsAcceptanceClient) Use(hooks ...Hook) {
+	c.hooks.TermsAcceptance = append(c.hooks.TermsAcceptance, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `termsacceptance.Intercept(f(g(h())))`.
+func (c *TermsAcceptanceClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TermsAcceptance = append(c.inters.TermsAcceptance, interceptors...)
+}
+
+// Create returns a builder for creating a TermsAcceptance entity.
+func (c *TermsAcceptanceClient) Create() *TermsAcceptanceCreate {
+	mutation := newTermsAcceptanceMutation(c.config, OpCreate)
+	return &TermsAcceptanceCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TermsAcceptance entities.
+func (c *TermsAcceptanceClient) CreateBulk(builders ...*TermsAcceptanceCreate) *TermsAcceptanceCreateBulk {
+	return &TermsAcceptanceCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TermsAcceptanceClient) MapCreateBulk(slice any, setFunc func(*TermsAcceptanceCreate, int)) *TermsAcceptanceCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TermsAcceptanceCreateBulk{err: fmt.Errorf("calling to TermsAcceptanceClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TermsAcceptanceCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TermsAcceptanceCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TermsAcceptance.
+func (c *TermsAcceptanceClient) Update() *TermsAcceptanceUpdate {
+	mutation := newTermsAcceptanceMutation(c.config, OpUpdate)
+	return &TermsAcceptanceUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TermsAcceptanceClient) UpdateOne(_m *TermsAcceptance) *TermsAcceptanceUpdateOne {
+	mutation := newTermsAcceptanceMutation(c.config, OpUpdateOne, withTermsAcceptance(_m))
+	return &TermsAcceptanceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TermsAcceptanceClient) UpdateOneID(id int) *TermsAcceptanceUpdateOne {
+	mutation := newTermsAcceptanceMutation(c.config, OpUpdateOne, withTermsAcceptanceID(id))
+	return &TermsAcceptanceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TermsAcceptance.
+func (c *TermsAcceptanceClient) Delete() *TermsAcceptanceDelete {
+	mutation := newTermsAcceptanceMutation(c.config, OpDelete)
+	return &TermsAcceptanceDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TermsAcceptanceClient) DeleteOne(_m *TermsAcceptance) *TermsAcceptanceDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TermsAcceptanceClient) DeleteOneID(id int) *TermsAcceptanceDeleteOne {
+	builder := c.Delete().Where(termsacceptance.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TermsAcceptanceDeleteOne{builder}
+}
+
+// Query returns a query builder for TermsAcceptance.
+func (c *TermsAcceptanceClient) Query() *TermsAcceptanceQuery {
+	return &TermsAcceptanceQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTermsAcceptance},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TermsAcceptance entity by its id.
+func (c *TermsAcceptanceClient) Get(ctx context.Context, id int) (*TermsAcceptance, error) {
+	return c.Query().Where(termsacceptance.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TermsAcceptanceClient) GetX(ctx context.Context, id int) *TermsAcceptance {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a TermsAcceptance.
+func (c *TermsAcceptanceClient) QueryUser(_m *TermsAcceptance) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(termsacceptance.Table, termsacceptance.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, termsacceptance.UserTable, termsacceptance.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *TermsAcceptanceClient) Hooks() []Hook {
+	return c.hooks.TermsAcceptance
+}
+
+// Interceptors returns the client interceptors.
+func (c *TermsAcceptanceClient) Interceptors() []Interceptor {
+	return c.inters.TermsAcceptance
+}
+
+func (c *TermsAcceptanceClient) mutate(ctx context.Context, m *TermsAcceptanceMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TermsAcceptanceCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TermsAcceptanceUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TermsAcceptanceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TermsAcceptanceDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TermsAcceptance mutation op: %q", m.Op())
 	}
 }
 
@@ -1573,6 +1889,38 @@ func (c *UserClient) QueryAuthorizationCodes(_m *User) *AuthorizationCodeQuery {
 	return query
 }
 
+// QueryTermsAcceptances queries the terms_acceptances edge of a User.
+func (c *UserClient) QueryTermsAcceptances(_m *User) *TermsAcceptanceQuery {
+	query := (&TermsAcceptanceClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(termsacceptance.Table, termsacceptance.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.TermsAcceptancesTable, user.TermsAcceptancesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryMarketingConsents queries the marketing_consents edge of a User.
+func (c *UserClient) QueryMarketingConsents(_m *User) *MarketingConsentQuery {
+	query := (&MarketingConsentClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(marketingconsent.Table, marketingconsent.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.MarketingConsentsTable, user.MarketingConsentsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
 	hooks := c.hooks.User
@@ -1603,10 +1951,12 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 type (
 	hooks struct {
 		AdminAuditDelivery, AuthorizationCode, BillingReceipt, Delegation, DeviceGrant,
-		LifecycleErasure, PremiumGrant, Tokens, User []ent.Hook
+		LifecycleErasure, MarketingConsent, PremiumGrant, TermsAcceptance, Tokens,
+		User []ent.Hook
 	}
 	inters struct {
 		AdminAuditDelivery, AuthorizationCode, BillingReceipt, Delegation, DeviceGrant,
-		LifecycleErasure, PremiumGrant, Tokens, User []ent.Interceptor
+		LifecycleErasure, MarketingConsent, PremiumGrant, TermsAcceptance, Tokens,
+		User []ent.Interceptor
 	}
 )

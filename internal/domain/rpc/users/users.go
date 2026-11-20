@@ -3,11 +3,13 @@
 
 package usersrpc
 
-import "ItsBagelBot/internal/domain/lifecycle"
+import (
+	"time"
 
-import "ItsBagelBot/internal/domain/rpc"
-
-import "time"
+	"ItsBagelBot/internal/domain/consent"
+	"ItsBagelBot/internal/domain/lifecycle"
+	"ItsBagelBot/internal/domain/rpc"
+)
 
 type AdminRequest struct {
 	ActorID      string `json:"actor_id"`
@@ -213,9 +215,10 @@ type CountsReply struct {
 }
 
 type GrantSaveRequest struct {
-	BroadcasterUserID string `json:"broadcaster_user_id"`
-	AccessToken       string `json:"access_token"`
-	RefreshToken      string `json:"refresh_token"`
+	BroadcasterUserID string   `json:"broadcaster_user_id"`
+	AccessToken       string   `json:"access_token"`
+	RefreshToken      string   `json:"refresh_token"`
+	Scopes            []string `json:"scopes"`
 }
 
 type GrantHasRequest struct {
@@ -241,10 +244,12 @@ type StateGetRequest struct {
 }
 
 type StateGetReply struct {
-	Active    bool   `json:"active"`
-	Status    string `json:"status"`
-	Onboarded bool   `json:"onboarded"`
-	Locale    string `json:"locale"`
+	Active          bool                    `json:"active"`
+	Status          string                  `json:"status"`
+	Onboarded       bool                    `json:"onboarded"`
+	Locale          string                  `json:"locale"`
+	TermsVersion    string                  `json:"terms_version"`
+	MarketingStatus consent.MarketingStatus `json:"marketing_status"`
 	rpc.Refusal
 }
 
@@ -318,11 +323,13 @@ type TokensRequest struct {
 	AccessToken          string     `json:"access_token"`
 	RefreshToken         string     `json:"refresh_token"`
 	AccessTokenExpiresAt *time.Time `json:"access_token_expires_at,omitempty"`
+	Scopes               []string   `json:"scopes"`
 }
 
 type TokensReply struct {
 	AccessToken          string     `json:"access_token,omitempty"`
 	RefreshToken         string     `json:"refresh_token,omitempty"`
 	AccessTokenExpiresAt *time.Time `json:"access_token_expires_at,omitempty"`
+	Scopes               []string   `json:"scopes"`
 	rpc.Refusal
 }

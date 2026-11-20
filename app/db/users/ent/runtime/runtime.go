@@ -9,8 +9,10 @@ import (
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
+	"ItsBagelBot/app/db/users/ent/marketingconsent"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/schema"
+	"ItsBagelBot/app/db/users/ent/termsacceptance"
 	"ItsBagelBot/app/db/users/ent/user"
 	"time"
 
@@ -177,6 +179,62 @@ func init() {
 	lifecycleerasureDescNextAttemptAt := lifecycleerasureFields[7].Descriptor()
 	// lifecycleerasure.DefaultNextAttemptAt holds the default value on creation for the next_attempt_at field.
 	lifecycleerasure.DefaultNextAttemptAt = lifecycleerasureDescNextAttemptAt.Default.(func() time.Time)
+	marketingconsentFields := schema.MarketingConsent{}.Fields()
+	_ = marketingconsentFields
+	// marketingconsentDescPolicyVersion is the schema descriptor for policy_version field.
+	marketingconsentDescPolicyVersion := marketingconsentFields[5].Descriptor()
+	// marketingconsent.PolicyVersionValidator is a validator for the "policy_version" field. It is called by the builders before save.
+	marketingconsent.PolicyVersionValidator = func() func(string) error {
+		validators := marketingconsentDescPolicyVersion.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(policy_version string) error {
+			for _, fn := range fns {
+				if err := fn(policy_version); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// marketingconsentDescConsentTextKey is the schema descriptor for consent_text_key field.
+	marketingconsentDescConsentTextKey := marketingconsentFields[6].Descriptor()
+	// marketingconsent.ConsentTextKeyValidator is a validator for the "consent_text_key" field. It is called by the builders before save.
+	marketingconsent.ConsentTextKeyValidator = func() func(string) error {
+		validators := marketingconsentDescConsentTextKey.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(consent_text_key string) error {
+			for _, fn := range fns {
+				if err := fn(consent_text_key); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// marketingconsentDescLocale is the schema descriptor for locale field.
+	marketingconsentDescLocale := marketingconsentFields[7].Descriptor()
+	// marketingconsent.LocaleValidator is a validator for the "locale" field. It is called by the builders before save.
+	marketingconsent.LocaleValidator = func() func(string) error {
+		validators := marketingconsentDescLocale.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(locale string) error {
+			for _, fn := range fns {
+				if err := fn(locale); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	premiumgrantFields := schema.PremiumGrant{}.Fields()
 	_ = premiumgrantFields
 	// premiumgrantDescGiveawayID is the schema descriptor for giveaway_id field.
@@ -243,6 +301,62 @@ func init() {
 	premiumgrant.DefaultUpdatedAt = premiumgrantDescUpdatedAt.Default.(func() time.Time)
 	// premiumgrant.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	premiumgrant.UpdateDefaultUpdatedAt = premiumgrantDescUpdatedAt.UpdateDefault.(func() time.Time)
+	termsacceptanceFields := schema.TermsAcceptance{}.Fields()
+	_ = termsacceptanceFields
+	// termsacceptanceDescTermsVersion is the schema descriptor for terms_version field.
+	termsacceptanceDescTermsVersion := termsacceptanceFields[2].Descriptor()
+	// termsacceptance.TermsVersionValidator is a validator for the "terms_version" field. It is called by the builders before save.
+	termsacceptance.TermsVersionValidator = func() func(string) error {
+		validators := termsacceptanceDescTermsVersion.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(terms_version string) error {
+			for _, fn := range fns {
+				if err := fn(terms_version); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// termsacceptanceDescLocale is the schema descriptor for locale field.
+	termsacceptanceDescLocale := termsacceptanceFields[5].Descriptor()
+	// termsacceptance.LocaleValidator is a validator for the "locale" field. It is called by the builders before save.
+	termsacceptance.LocaleValidator = func() func(string) error {
+		validators := termsacceptanceDescLocale.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(locale string) error {
+			for _, fn := range fns {
+				if err := fn(locale); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// termsacceptanceDescRequestID is the schema descriptor for request_id field.
+	termsacceptanceDescRequestID := termsacceptanceFields[6].Descriptor()
+	// termsacceptance.RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
+	termsacceptance.RequestIDValidator = func() func(string) error {
+		validators := termsacceptanceDescRequestID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(request_id string) error {
+			for _, fn := range fns {
+				if err := fn(request_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	tokensFields := schema.Tokens{}.Fields()
 	_ = tokensFields
 	userHooks := schema.User{}.Hooks()
@@ -335,16 +449,22 @@ func init() {
 	userDescOnboarded := userFields[30].Descriptor()
 	// user.DefaultOnboarded holds the default value on creation for the onboarded field.
 	user.DefaultOnboarded = userDescOnboarded.Default.(bool)
+	// userDescTermsVersion is the schema descriptor for terms_version field.
+	userDescTermsVersion := userFields[31].Descriptor()
+	// user.DefaultTermsVersion holds the default value on creation for the terms_version field.
+	user.DefaultTermsVersion = userDescTermsVersion.Default.(string)
+	// user.TermsVersionValidator is a validator for the "terms_version" field. It is called by the builders before save.
+	user.TermsVersionValidator = userDescTermsVersion.Validators[0].(func(string) error)
 	// userDescTestAccount is the schema descriptor for test_account field.
-	userDescTestAccount := userFields[31].Descriptor()
+	userDescTestAccount := userFields[34].Descriptor()
 	// user.DefaultTestAccount holds the default value on creation for the test_account field.
 	user.DefaultTestAccount = userDescTestAccount.Default.(bool)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[32].Descriptor()
+	userDescCreatedAt := userFields[35].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[33].Descriptor()
+	userDescUpdatedAt := userFields[36].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
