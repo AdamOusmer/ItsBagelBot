@@ -4,17 +4,14 @@
 package twitchauth_test
 
 import (
-	"crypto/sha256"
-	"fmt"
 	"slices"
-	"strings"
 	"testing"
 
 	"ItsBagelBot/internal/domain/twitchauth"
 )
 
 func TestGap(t *testing.T) {
-	required := slices.Clone(twitchauth.RequiredBroadcasterScopes)
+	required := twitchauth.Required()
 	slices.Sort(required)
 
 	full := slices.Clone(required)
@@ -44,11 +41,8 @@ func TestGap(t *testing.T) {
 	}
 }
 
-func TestSetVersion(t *testing.T) {
-	required := slices.Clone(twitchauth.RequiredBroadcasterScopes)
-	slices.Sort(required)
-	digest := fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(required, "\n"))))
-	if got, want := twitchauth.SetVersion, digest[:16]; got != want {
+func TestSetVersionIsPinned(t *testing.T) {
+	if got, want := twitchauth.SetVersion, "bb64e312d9ada33e"; got != want {
 		t.Fatalf("SetVersion = %q, want %q", got, want)
 	}
 }

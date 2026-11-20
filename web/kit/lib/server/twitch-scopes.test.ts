@@ -10,7 +10,7 @@ mock.module('@bagel/kit/server/env', () => ({ env: {} }));
 const { scopes } = await import('../../../dashboard/src/lib/server/oauth');
 const source = await Bun.file(new URL('../../../../internal/domain/twitchauth/scopes.go', import.meta.url)).text();
 const manifest = await Bun.file(new URL('../../../../deploy/k8s/console-dashboard.yaml', import.meta.url)).text();
-const declaration = source.match(/var RequiredBroadcasterScopes = \[\]string\{([^}]*)\}/)?.[1] ?? '';
+const declaration = source.match(/var requiredBroadcasterScopes = \[\]string\{([^}]*)\}/)?.[1] ?? '';
 const goScopes = [...declaration.matchAll(/"([^"]+)"/g)].map((match) => match[1]!).sort();
 
 test.each([

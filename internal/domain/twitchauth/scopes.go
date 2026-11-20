@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-var RequiredBroadcasterScopes = []string{
+var requiredBroadcasterScopes = []string{
 	"bits:read",
 	"channel:bot",
 	"channel:edit:commercial",
@@ -37,8 +37,10 @@ var RequiredBroadcasterScopes = []string{
 
 var SetVersion = scopeSetVersion()
 
+func Required() []string { return slices.Clone(requiredBroadcasterScopes) }
+
 func scopeSetVersion() string {
-	sorted := slices.Sorted(slices.Values(RequiredBroadcasterScopes))
+	sorted := slices.Sorted(slices.Values(requiredBroadcasterScopes))
 	digest := sha256.Sum256([]byte(strings.Join(sorted, "\n")))
 	return hex.EncodeToString(digest[:8])
 }
@@ -50,7 +52,7 @@ func Gap(granted []string) []string {
 	}
 
 	var missing []string
-	for _, scope := range RequiredBroadcasterScopes {
+	for _, scope := range requiredBroadcasterScopes {
 		if _, ok := have[scope]; !ok {
 			missing = append(missing, scope)
 		}

@@ -1,6 +1,6 @@
 # Consent screen and one-time permission notice
 
-Status: spec only, nothing built. Date: 2026-11-20. Companion to [marketing-email.md](marketing-email.md).
+Status: in progress on branch feature/consent-reauth. Date: 2026-11-20. Companion to [marketing-email.md](marketing-email.md).
 
 ## Goal
 
@@ -101,6 +101,6 @@ Deploy order: Users (schema), then dashboard, then Outgress. Ship 4 only after 3
 |---|---|---|
 | C1 | The lifecycle spec says connection incidents send no unsolicited chat (`docs/specs/inactive-channel-lifecycle.md:141`). Allow this one-time notice as a stated exception | Yes, written into that spec |
 | C2 | Where the notice runs: Outgress go-live (no contract change) or Sesame via a new projection field | Outgress |
-| C3 | Remove the `DASHBOARD_LOGIN_SCOPES` override from the dashboard manifest so the code list is the only source | Yes, as a deploy change after PR 1 |
+| C3 | Remove the `DASHBOARD_LOGIN_SCOPES` override from the dashboard manifest so the code list is the only source | Done in PR 1; merging rolls the dashboard. The `dashboard-env` secret carries no such key (checked 2026-11-20) |
 | C4 | Every existing owner sees `/consent` once (terms were never versioned) | Yes |
 | C5 | Marketing email decisions D1 to D8 | See marketing-email.md |
