@@ -2,10 +2,10 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { lex, type VarToken } from '@bagel/kit/engine/tmpl';
-import { VARIABLES as KIT_VARIABLES, type VariableDef, type VariableGroup } from '@bagel/kit/variables';
+import type { VariableDef, VariableGroup } from '@bagel/kit/variables';
 import { builtinDef } from '@bagel/kit/catalog/builtin-commands';
 import { moduleDef } from '@bagel/kit/catalog';
-import { SURFACES, kitText, type VarDef as SurfaceVarDef, type SurfaceDef } from '../../i18n/builder';
+import { PUBLIC_VARIABLES, SURFACES, kitText, type VarDef as SurfaceVarDef, type SurfaceDef } from '../../i18n/builder';
 import type { Lang } from '../../i18n/lang';
 import { STATIC_LOCALES } from '@bagel/kit/i18n/static';
 import type {
@@ -132,8 +132,8 @@ function finalizeReference(draft: Draft): VariableReference {
 }
 
 function buildCatalog(): VariableReference[] {
-  const byHead = new Map(KIT_VARIABLES.map((def) => [def.head, def]));
-  const byId = new Map<string, Draft>(KIT_VARIABLES.map((def) => [def.id, kitRecord(def)]));
+  const byHead = new Map(PUBLIC_VARIABLES.map((def) => [def.head, def]));
+  const byId = new Map<string, Draft>(PUBLIC_VARIABLES.map((def) => [def.id, kitRecord(def)]));
 
   for (const surface of SURFACES) {
     for (const variable of surface.vars) {

@@ -7289,12 +7289,7 @@
       "{valorant:board:board}",
       "{valorant:board:count}",
       "{valorant:entries}",
-      "{valorant:board:entries}",
-      "{valorant:shop:count}",
-      "{valorant:items}",
-      "{valorant:shop:items}",
-      "{valorant:reset}",
-      "{valorant:shop:reset}"
+      "{valorant:board:entries}"
     ],
     "examples": [
       {
@@ -7535,31 +7530,6 @@
       {
         "syntax": "{valorant:board:entries}",
         "output": "#4 Zekken#5221 (431 RR), #5 Frosty#EUW1 (402 RR)",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{valorant:shop:count}",
-        "output": "2",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{valorant:items}",
-        "output": "Reaver Vandal (1775 VP), Ion Frenzy (875 VP)",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{valorant:shop:items}",
-        "output": "Reaver Vandal (1775 VP), Ion Frenzy (875 VP)",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{valorant:reset}",
-        "output": "2h 30m",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{valorant:shop:reset}",
-        "output": "2h 30m",
         "surfaceId": "custom"
       }
     ],
