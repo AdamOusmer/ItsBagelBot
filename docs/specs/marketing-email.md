@@ -1,6 +1,6 @@
 # Marketing email: consent, unsubscribe and a shared sender
 
-Status: PR 2 consent schema and PR 3 capture ship in `feature/consent-reauth`. The rest remains planned. Date: 2026-11-20.
+Status: the consent records (terms acceptance, marketing consent, projections) and the capture points (welcome, `/consent`, Settings) ship in `feature/consent-reauth`. Suppression, analytics counters, `pkg/email`, unsubscribe, webhooks and campaigns remain planned. Date: 2026-11-20.
 
 ## Legal answer first
 
@@ -22,11 +22,13 @@ So consent for existing users is collected in the product: a dashboard prompt an
 
 ## What exists today
 
-- One Resend client in `app/db/transactions/mail/mail.go:57`, private `send` at `:94`, env at `app/db/transactions/main.go:218` (`RESEND_API`, `RESEND_FROM`). Callers: gift mail, admin grant mail, giveaway mail with the `award_email` ledger.
-- Addresses are sealed in `users.email_enc` (`app/db/users/repository/contact_email.go:21`, AAD `<id>|contact_email`). The `email` column holds a synthetic `<id>@twitch.tv` placeholder and must never be a send target. Each login can overwrite the address from Twitch (`app/db/users/rpc/dashboard.go:163`).
-- Address lookup: `rpc.internal.users.email.get` (`app/db/users/rpc/email.go:15`), imported only by Transactions.
-- Onboarding stores terms acceptance as a bare `onboarded` bool (`app/db/users/ent/schema/user.go:70`), with no time or version.
-- Privacy policy says the email is "never used for marketing without your consent" and that Resend sends transactional email only (`web/marketing/src/content/legal/privacy/en/01-data-collected.md:13`, `05-payment-processing.md:10`). Legal pages exist in en and fr only.
+As of 2026-11-20, before the consent work on `feature/consent-reauth`:
+
+- One Resend client in `app/db/transactions/mail/mail.go`, env read in `app/db/transactions/main.go` (`RESEND_API`, `RESEND_FROM`). Callers: gift mail, admin grant mail, giveaway mail with the `award_email` ledger.
+- Addresses are sealed in `users.email_enc` (`app/db/users/repository/contact_email.go`, AAD `<id>|contact_email`). The `email` column holds a synthetic `<id>@twitch.tv` placeholder and must never be a send target. Each login can overwrite the address from Twitch (`upsert_user` in `app/db/users/rpc/dashboard.go`).
+- Address lookup: `rpc.internal.users.email.get` (`app/db/users/rpc/email.go`), imported only by Transactions.
+- Before that branch, terms acceptance was a bare `onboarded` bool. The branch adds versioned `terms_acceptance` and `marketing_consent` records (see consent-and-reauth-notice.md).
+- Before that branch, the privacy policy said Resend sends transactional email only; the branch updates en and fr for consent-based marketing email. Legal pages exist in en and fr only.
 
 ## Target design
 
@@ -57,7 +59,7 @@ Users owns consent, suppression, tokens and audience selection.
 All use an unticked box, separate from the required terms box, with text that names ItsBagelBot, the purpose, a contact address and how to withdraw (CASL s.10(1) and Regs s.4).
 
 - `/welcome` consent step, next to the terms box. Step must still fit the viewport.
-- Settings, preferences section: an "Email" row (`web/dashboard/src/routes/(app)/settings/+page.svelte:593`), owner only.
+- Settings, preferences section: an "Email" row (`web/dashboard/src/routes/(app)/settings/+page.svelte`), owner only.
 - Existing accounts: one dismissible dashboard prompt (or a bell notification linking to settings). This is how the 121 accounts can opt in.
 - Tebex checkout gives no consent by itself. A buyer can tick the box in our dashboard before checkout.
 - Copy in all six locales.

@@ -110,7 +110,7 @@ Deploy Users with the schema and RPCs first, then the dashboard, then Outgress. 
 
 | # | Decision | Recommendation |
 |---|---|---|
-| C1 | Allow the one-time permission notice as an exception to the connection-incident chat rule | Yes, documented in [section 4 of the lifecycle spec](inactive-channel-lifecycle.md#4-dormancy-and-automatic-wake-up) |
+| C1 | Allow the one-time permission notice as an exception to the connection-incident chat rule | Yes, documented in [section 6 of the lifecycle spec](inactive-channel-lifecycle.md#6-one-warning-per-connection-incident) |
 | C2 | Where the notice runs: Outgress go-live (no contract change) or Sesame via a new projection field | Outgress |
 | C3 | Remove the `DASHBOARD_LOGIN_SCOPES` override from the dashboard manifest so the code list is the only source | Removed in release slice 1 |
 | C4 | Every existing owner sees `/consent` once (terms were never versioned) | Yes |
