@@ -5,12 +5,12 @@ package draw
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
 	"time"
 
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/valkey"
 
 	"github.com/google/uuid"
@@ -103,11 +103,11 @@ func (s *Store) Open(ctx context.Context, req OpenRequest) (Round, OpenOutcome, 
 }
 
 func (s *Store) openSpec(r Round, openedOrder int64) (valkey.RoundOpen, error) {
-	terms, err := json.Marshal(r.Terms)
+	terms, err := codec.Marshal(r.Terms)
 	if err != nil {
 		return valkey.RoundOpen{}, err
 	}
-	actions, err := json.Marshal(r.Actions)
+	actions, err := codec.Marshal(r.Actions)
 	if err != nil {
 		return valkey.RoundOpen{}, err
 	}

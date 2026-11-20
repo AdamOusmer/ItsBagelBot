@@ -5,10 +5,10 @@ package draw
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"time"
 
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/valkey"
 )
 
@@ -88,7 +88,7 @@ func decodeOverride(data snapshot, p *WinnerPolicy) error {
 	if raw == "" {
 		return nil
 	}
-	return json.Unmarshal([]byte(raw), p)
+	return codec.Unmarshal([]byte(raw), p)
 }
 
 func seedShift(r Round) (valkey.PhaseShift, error) {
@@ -101,7 +101,7 @@ func seedShift(r Round) (valkey.PhaseShift, error) {
 		timeField("settled_at", r.SettledAt), timeField("working_since", r.SettledAt),
 	}
 	for n := 1; n <= r.Winners; n++ {
-		raw, err := json.Marshal(Slot{N: n, Generation: 1, State: SlotPending})
+		raw, err := codec.Marshal(Slot{N: n, Generation: 1, State: SlotPending})
 		if err != nil {
 			return valkey.PhaseShift{}, err
 		}

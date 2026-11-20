@@ -4,11 +4,11 @@
 package valkey
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
 	"ItsBagelBot/internal/valkeytest"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/require"
 	valkey_go "github.com/valkey-io/valkey-go"
@@ -104,13 +104,13 @@ func TestDrawClaimSlots(t *testing.T) {
 		{Key: keys.Slots, Field: "2"}: {State: "won", Generation: 1, Deadline: passed},
 		{Key: keys.Slots, Field: "3"}: {State: "won", Generation: 2, Deadline: future},
 	} {
-		raw, err := json.Marshal(slot)
+		raw, err := codec.Marshal(slot)
 		require.NoError(t, err)
 		require.NoError(t, field.Set(ctx, client, string(raw)))
 	}
 	const firstRef, peerRef, lateRef, staleRef = "round-a:1:1", "round-ab:1:1", "round-a:2:1", "round-a:3:1"
 	claimField := HashField{Key: keys.Claimable, Field: testViewer}
-	indexed, err := json.Marshal([]string{firstRef, peerRef, lateRef, staleRef})
+	indexed, err := codec.Marshal([]string{firstRef, peerRef, lateRef, staleRef})
 	require.NoError(t, err)
 	require.NoError(t, claimField.Set(ctx, client, string(indexed)))
 	refs := []ClaimRef{
@@ -143,7 +143,7 @@ func TestDrawClaimSlots(t *testing.T) {
 	read, err := keys.Read(ctx, client)
 	require.NoError(t, err)
 	var claimed drawClaimTestSlot
-	require.NoError(t, json.Unmarshal([]byte(read.Slots["1"]), &claimed))
+	require.NoError(t, codec.Unmarshal([]byte(read.Slots["1"]), &claimed))
 	require.True(t, claimed.ClaimedAt >= now.UnixMilli() && claimed.ClaimedAt < future)
 	require.Equal(t, drawClaimTestSlot{State: "claimed", Generation: 1, Deadline: future, ClaimedAt: claimed.ClaimedAt}, claimed)
 }

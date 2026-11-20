@@ -6,7 +6,6 @@ package draw_test
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -16,6 +15,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/internal/valkeytest"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/valkey"
 
 	"github.com/stretchr/testify/assert"
@@ -288,7 +288,7 @@ func (f fixture) rewriteSlots(r draw.Round, slots []draw.Slot, wake time.Time) {
 	batch := valkey.SlotBatch{RoundID: string(r.ID), Phase: "settling",
 		Wake: valkey.DrawWake{Channel: "draw:due:wake", At: wake}}
 	for _, slot := range slots {
-		raw, err := json.Marshal(slot)
+		raw, err := codec.Marshal(slot)
 		require.NoError(f.t, err)
 		batch.Shifts = append(batch.Shifts, valkey.SlotShift{Slot: strconv.Itoa(slot.N), Next: string(raw),
 			Expect: valkey.SlotStamp{State: string(slot.State), Generation: slot.Generation}})
@@ -307,7 +307,7 @@ func (f fixture) claimOldGeneration(r draw.Round, slot draw.Slot) {
 		ref  string
 		want int
 	}{{stale, 0}, {current, 1}} {
-		value, err := json.Marshal([]string{test.ref})
+		value, err := codec.Marshal([]string{test.ref})
 		require.NoError(f.t, err)
 		require.NoError(f.t, field.Write(f.t.Context(), f.client, valkey.HashWrite{Value: string(value), TTL: time.Hour, Replace: true}))
 		result, err := f.Claim(f.t.Context(), r.Channel, slot.Viewer)

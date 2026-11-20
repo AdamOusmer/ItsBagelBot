@@ -5,10 +5,10 @@ package draw
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"time"
 
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/valkey"
 )
 
@@ -50,7 +50,7 @@ func (s *Store) Close(ctx context.Context, req CloseRequest) (bool, error) {
 	shift := phaseShift(r, PhaseClosing, now)
 	action := Action{Kind: "close", Actor: req.Actor, At: now}
 	if req.Winners != nil {
-		raw, err := json.Marshal(req.Winners)
+		raw, err := codec.Marshal(req.Winners)
 		if err != nil {
 			return false, err
 		}
@@ -126,7 +126,7 @@ func (s *Store) cancellable(ctx context.Context, req ModAction) (Round, error) {
 }
 
 func (s *Store) amend(ctx context.Context, r Round, shift valkey.PhaseShift, action Action) (bool, error) {
-	raw, err := json.Marshal(action)
+	raw, err := codec.Marshal(action)
 	if err != nil {
 		return false, err
 	}
@@ -264,7 +264,7 @@ func (s *Store) commitEdit(ctx context.Context, data snapshot, edit slotEdit) (i
 	if len(edit.transitions) == 0 {
 		return 0, nil
 	}
-	raw, err := json.Marshal(edit.action)
+	raw, err := codec.Marshal(edit.action)
 	if err != nil {
 		return 0, err
 	}

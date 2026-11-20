@@ -5,12 +5,12 @@ package draw
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"slices"
 	"strconv"
 	"time"
 
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/valkey"
 
 	"golang.org/x/sync/errgroup"
@@ -223,7 +223,7 @@ func (s *Store) commitSlots(ctx context.Context, data snapshot, batch slotBatch)
 	spec.Fields = workingFields(data, batch)
 	for _, change := range batch.changes {
 		field := strconv.Itoa(change.prior.N)
-		raw, err := json.Marshal(change.next)
+		raw, err := codec.Marshal(change.next)
 		if err != nil {
 			return false, err
 		}

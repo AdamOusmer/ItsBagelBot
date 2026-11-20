@@ -203,6 +203,8 @@
         "{duel:won:loser}",
         "{duel:won:pot}",
         "{duel:won:points}",
+        "{duel:balance}",
+        "{duel:won:balance}",
         "{triggers:user}",
         "{triggers:response:user}",
         "{triggers:channel}",
