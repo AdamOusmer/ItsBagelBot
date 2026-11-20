@@ -167,6 +167,13 @@
   }
 
   onMount(() => {
+    if (!page.url.searchParams.has('from')) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('from');
+    replaceState(url, {});
+  });
+
+  onMount(() => {
     if (!data.autostart) return;
     const url = new URL(window.location.href);
     url.searchParams.delete('subscribe');

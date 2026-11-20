@@ -33,7 +33,8 @@ const CATALOG: Record<string, ((v: string) => boolean)[]> = {
   'import.runs': [one(['streamelements', 'fossabot', 'moobot', 'nightbot', 'streamlabs_desktop', 'wizebot']),
     one(['preview_ok', 'preview_failed', 'committed', 'commit_failed'])],
   'onboarding.steps': [one(['viewed', 'consent_missing', 'save_failed'])],
-  'signup.via': [one(VIA), one(['started', 'signup'])]
+  'signup.via': [one(VIA), one(['started', 'signup'])],
+  'upsell.clicks': [one(['overview'])]
 };
 
 let clientOverride: Client | null | undefined;
