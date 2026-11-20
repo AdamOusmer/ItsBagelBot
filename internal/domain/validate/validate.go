@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	maxUsernameLength    = 25
 	maxEmailLength       = 254
 	maxCommandNameLength = 64
 	maxCommandAliases    = 25
@@ -55,15 +54,8 @@ func UserID(id uint64) error {
 
 func Username(username string) error {
 
-	if len(username) == 0 || len(username) > maxUsernameLength {
+	if Login(strings.ToLower(username)) != nil {
 		return ErrUsernameInvalid
-	}
-
-	for i := 0; i < len(username); i++ {
-		c := username[i]
-		if !isAlphanumeric(c) && c != '_' {
-			return ErrUsernameInvalid
-		}
 	}
 
 	return nil

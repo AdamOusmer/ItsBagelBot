@@ -245,7 +245,6 @@ async function completeLogin(cookies: Cookies, url: URL, code: string, storedNon
   ]);
   if (banned) rejectLogin('banned');
   if (!account) rejectLogin('retry');
-  // preferred_username is the display name, which may use any script; the login comes from Helix.
   const identity: Identity = { userId: claims.sub, login: account.login, displayName: account.displayName };
 
   // Register before the delegation accept, or the ghost-session gate bounces a first-time invitee.

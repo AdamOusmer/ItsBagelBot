@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-export const LOGIN_RE = /^[a-z0-9_]{1,25}$/;
+import { USERNAME_RE } from '@bagel/kit/twitch-names';
 
-const LOGIN_SHAPE_RE = new RegExp(LOGIN_RE.source, 'i');
+export { LOGIN_RE } from '@bagel/kit/twitch-names';
 
 export const normalizeLogin = (raw: string): string => raw.replace(/^@+/, '').toLowerCase();
 
-export const isLoginShape = (name: string): boolean => LOGIN_SHAPE_RE.test(name);
+export const isLoginShape = (name: string): boolean => USERNAME_RE.test(name);

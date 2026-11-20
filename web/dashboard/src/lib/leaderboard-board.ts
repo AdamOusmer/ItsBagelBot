@@ -2,12 +2,12 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { LoyaltyStanding } from '@bagel/kit';
+import { LOGIN_RE } from '@bagel/kit/twitch-names';
 
 export const PAGE_SIZE = 15;
 export const PODIUM_SIZE = 3;
 export const MAX_QUERY_LENGTH = 25;
 const MAX_ID_LENGTH = 20;
-const LOGIN_RE = /^[a-z0-9_]{1,25}$/;
 export const MAX_PAGES = 399;
 
 export interface BoardParams {

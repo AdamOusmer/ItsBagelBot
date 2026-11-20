@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { safeReturnPath } from '@bagel/kit/return-path';
-import { Twitch } from '@bagel/kit/server/oauth';
+import { readTwitchAccount, Twitch, type TwitchAccount } from '@bagel/kit/server/oauth';
 import { env } from '@bagel/kit/server/env';
 import { scopeGap } from '@bagel/kit';
 
@@ -72,30 +72,8 @@ export function twitchScopeGap(granted: readonly string[] | undefined): boolean 
   return !!granted && scopeGap(scopes().filter((s) => s !== 'openid'), granted).length > 0;
 }
 
-export type TwitchAccount = { login: string; displayName: string; email: string | null };
-
-type HelixUser = { login?: string; display_name?: string; email?: string };
-
-function accountFrom({ login = '', display_name = '', email = '' }: HelixUser = {}): TwitchAccount | null {
-  if (!login) return null;
-  const address = email.trim();
-  return { login: login.toLowerCase(), displayName: display_name || login, email: address.includes('@') ? address : null };
-}
-
-export async function fetchTwitchAccount(accessToken: string): Promise<TwitchAccount | null> {
-  const clientId = env.TWITCH_CLIENT_ID;
-  if (!clientId) return null;
-  try {
-    const res = await fetch('https://api.twitch.tv/helix/users', {
-      headers: { Authorization: `Bearer ${accessToken}`, 'Client-Id': clientId },
-      signal: AbortSignal.timeout(2500)
-    });
-    if (!res.ok) return null;
-    const body = (await res.json()) as { data?: HelixUser[] };
-    return accountFrom(body.data?.[0]);
-  } catch {
-    return null;
-  }
+export function fetchTwitchAccount(accessToken: string): Promise<TwitchAccount | null> {
+  return readTwitchAccount(env.TWITCH_CLIENT_ID ?? '', accessToken);
 }
 
 export function safeNextPath(value: string | null | undefined): string | null {
