@@ -303,6 +303,7 @@ Custom entry keyword, giveaway overlay events on the desktop overlay lane, entry
 | Raffle default winners | `!raffle` and `!sraffle` 1, `!mraffle` 3 |
 | Raffle auto winners | `ceil(entrants / 10)`, at most the maximum and the prize |
 | Claim window | off, or 30 s to 15 min; default 2 min |
+| Mod action timeout for stuck verification | 30 min for giveaways and raffles |
 | Freeze maximum | 30 min |
 | Giveaway and raffle modules, luck, skip recent winners, transfer block, close games while frozen | default off |
 | Freeze standings while open | default on when the preset has a points or watch time rule, otherwise off |
