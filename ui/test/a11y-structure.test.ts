@@ -102,6 +102,13 @@ describe('SegmentedControl', () => {
   test('the label defaults to the catalog word', () => {
     expect(svelteHtml(SvelteSegmentedControl, { options, value: 'all' })).toContain('aria-label="Filter"');
   });
+
+  test('even segments use the same radio group in both adapters', async () => {
+    const props = { options, value: 'all', even: true };
+    const html = svelteHtml(SvelteSegmentedControl, props);
+    expect(html).toContain('class="bb-tabs bb-tabs--even" role="radiogroup"');
+    expect(await astroHtml(AstroSegmentedControl, props)).toBe(html);
+  });
 });
 
 const CONTROLS = [

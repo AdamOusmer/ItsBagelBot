@@ -13,7 +13,7 @@ mock.module('@bagel/ui/svelte/toast', () => ({ toast }));
 const { finishFreezeAction } = await import('./freeze-action');
 
 const unavailable = { type: 'failure', status: 502, data: { ok: false }, location: '/loyalty' } as const;
-const success = { type: 'success', status: 200, data: { ok: true } } as const;
+const success = { type: 'success', status: 200, data: { ok: true }, location: '/loyalty' } as const;
 const cases = [
   { releasing: false, result: unavailable, tone: 'danger', key: 'loyalty.toastFreezeFailed' },
   { releasing: true, result: unavailable, tone: 'danger', key: 'loyalty.toastFreezeFailed' },

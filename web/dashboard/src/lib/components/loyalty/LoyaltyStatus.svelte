@@ -3,7 +3,6 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { enhance, type SubmitFunction } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
@@ -12,6 +11,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n, type MessageKey } from '@bagel/kit';
   import { FREEZE_MAX_MINUTES } from '@bagel/kit/catalog';
+  import PageNotice from '#lib/components/shared/PageNotice.svelte';
   import type { FreezeView, RaffleStatus } from '#lib/server/loyalty-store';
   import { finishFreezeAction } from '../../../routes/(app)/loyalty/freeze-action';
 
@@ -62,9 +62,9 @@
 </script>
 
 <section class="block" aria-labelledby="loy-freeze-h">
-  <AlertBanner role="status" tone={enabled && health === 'stalled' ? 'warning' : 'info'}>
+  <PageNotice role="status" tone={enabled && health === 'stalled' ? 'warning' : 'info'}>
     {t(!enabled ? 'loyalty.accrualOff' : health ? healthCopy[health] : 'loyalty.accrualUnavailable')}
-  </AlertBanner>
+  </PageNotice>
   <Heading level={6} as="h2" variant="title" id="loy-freeze-h">{t('loyalty.freezeTitle')}</Heading>
   <Card>
     <div class="freeze-copy" role="status">

@@ -81,7 +81,7 @@
 </form>
 
 <style>
-  .start { display: grid; gap: var(--bb-space-4); }
+  .start { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--bb-space-4); }
   .fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--bb-space-3); }
   .footer { --btn-w: 7rem; display: flex; gap: var(--bb-space-3); justify-content: space-between; align-items: center; }
   .count { min-width: 0; flex: 1; }

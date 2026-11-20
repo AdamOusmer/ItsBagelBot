@@ -67,7 +67,7 @@
 </form>
 
 <style>
-  .start { display: grid; gap: var(--bb-space-4); }
+  .start { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--bb-space-4); }
   .fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--bb-space-3); }
   .auto { max-inline-size: 24rem; }
   .conditional { transition: opacity var(--bb-dur-fast); }

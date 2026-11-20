@@ -11,7 +11,7 @@ const { liveDraws, mutateRaffle } = await import('./channel-raffles');
 const userId = '42';
 const actor = { userId, actorId: '95' };
 const round_id = '32ff6551-4646-4fb4-bf55-02268d943b1a';
-const round = { id: round_id, phase: 'open', closes_ms: 5000, entries: 19 };
+const round = { id: round_id, phase: 'open' as const, closes_ms: 5000, entries: 19 };
 const status = { accrual_health: 'healthy', rounds: [round], unpaid: ['viewer'] };
 
 afterEach(() => mock.restore());

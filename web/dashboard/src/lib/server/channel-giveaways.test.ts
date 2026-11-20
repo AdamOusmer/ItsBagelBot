@@ -19,7 +19,7 @@ const winner = { round_id: round, slot: 1, viewer_id: '81', login: 'viewer', pri
 afterEach(() => mock.restore());
 
 test.each([
-  { verb: 'live', input: {}, response: { rounds: [] }, run: () => store.liveGiveaways(uid), expected: { rounds: [], degraded: false } },
+  { verb: 'live', input: {}, response: { rounds: [] }, run: () => store.liveGiveaways(uid), expected: { rounds: [], degraded: false } satisfies import('./channel-giveaways').LiveGiveaways },
   {
     verb: 'eligible_count', input: { preset: 'regulars' }, response: { count: 0, frozen_as_of: 10, expires_at: 99 },
     run: () => store.eligibleCount(uid, 'regulars'), expected: { count: 0 }

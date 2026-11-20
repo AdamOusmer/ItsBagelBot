@@ -42,6 +42,7 @@ export const load: PageServerLoad = async ({ locals, depends, url }) => {
   if (DEMO) return {
     ...emptyGiveawaySettings,
     degraded: false,
+    loyaltyEnabled: true,
     demo: true,
     serverNow: Date.now(),
     live: { rounds: [], degraded: false, raffles: emptyLiveRaffles },
@@ -94,7 +95,7 @@ function drawAction(action: DrawAction): Action {
     const { locals } = event;
     const def = kind === 'raffle' ? raffleDef : giveawayDef;
     return mutateAction(event, {
-      gate: () => authorizedSession(locals, def),
+      gate: async () => DEMO ? (await import('#lib/server/demo-data')).demoSession() : authorizedSession(locals, def),
       refusal: () => denied(locals),
       demo: DEMO,
       invalid: translate(locals.locale, 'giveaways.invalidInput'),

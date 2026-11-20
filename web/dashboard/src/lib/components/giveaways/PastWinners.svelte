@@ -4,12 +4,12 @@
   import type { Snippet } from 'svelte';
   import { enhance, type SubmitFunction } from '$app/forms';
   import { getI18n } from '@bagel/kit';
-  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import Table from '@bagel/ui/svelte/Table.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import PageNotice from '#lib/components/shared/PageNotice.svelte';
   import type { GiveawayWinner } from '#lib/channel-giveaway';
 
   type Row = Pick<GiveawayWinner, 'round_id' | 'slot' | 'login' | 'prize' | 'won_at'> & Partial<Pick<GiveawayWinner, 'viewer_id' | 'delivered_at'>>;
@@ -29,9 +29,16 @@
 <Card>
   <div class="history">
     <CardHead title={t('giveaways.history')} headingLevel={2} />
-    {#if degraded}
-      <AlertBanner tone="warning">{t('giveaways.historyUnavailable')}</AlertBanner>
-    {:else if winners.length}
+    {#if degraded || !winners.length}
+      <div class="historyState">
+        <div class="stateMessage">
+          <PageNotice tone="warning" visible={degraded}>{t('giveaways.historyUnavailable')}</PageNotice>
+        </div>
+        <div class="stateMessage empty" class:faded={degraded} inert={degraded} aria-hidden={degraded}>
+          <Text as="span" size="sm" tone="muted"><bb-fit mode="block">{t('giveaways.noWinners')}</bb-fit></Text>
+        </div>
+      </div>
+    {:else}
       <Table label={t('giveaways.history')} minWidth={submit ? '34rem' : undefined} compact>
         <thead><tr>
           {#each cols as col (col)}<th scope="col"><bb-fit><span data-fit="">{t(`giveaways.${col}`)}</span></bb-fit></th>{/each}
@@ -59,8 +66,6 @@
           {/each}
         </tbody>
       </Table>
-    {:else}
-      <Text size="sm" tone="muted">{t('giveaways.noWinners')}</Text>
     {/if}
     {@render pager?.()}
   </div>
@@ -68,6 +73,13 @@
 
 <style>
   .history { display: grid; gap: var(--bb-space-3); min-width: 0; }
+  .historyState { display: grid; }
+  .stateMessage { grid-area: 1 / 1; min-inline-size: 0; }
+  .empty { display: grid; align-content: center; transition: opacity var(--bb-dur-fast); }
+  .faded { opacity: 0; }
   .delivery { --btn-w: 10rem; }
   .name { overflow-wrap: anywhere; }
+  @media (prefers-reduced-motion: reduce) {
+    .empty { transition: none; }
+  }
 </style>

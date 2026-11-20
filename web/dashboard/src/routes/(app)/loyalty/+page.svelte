@@ -5,7 +5,6 @@
   import { page } from '$app/state';
   import { untrack } from 'svelte';
   import { livePoll } from '@bagel/kit/live-poll';
-  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
@@ -16,6 +15,7 @@
   import LoyaltyEarning from '#lib/components/loyalty/LoyaltyEarning.svelte';
   import LoyaltyStandings from '#lib/components/loyalty/LoyaltyStandings.svelte';
   import LoyaltyGames from '#lib/components/loyalty/LoyaltyGames.svelte';
+  import PageNotice from '#lib/components/shared/PageNotice.svelte';
   import { reseedOnChange } from '#lib/client-actions.svelte';
   import { getI18n, MasterToggle, moduleDef } from '@bagel/kit';
   import type { RaffleStatus } from '#lib/server/loyalty-store';
@@ -70,9 +70,7 @@
     {t('loyalty.titlePre')}<em>{t('loyalty.titleEm')}</em>
   </PageHead>
 
-  {#if data.degraded}
-    <AlertBanner>{t('loyalty.degraded')}</AlertBanner>
-  {/if}
+  <PageNotice visible={!!data.degraded}>{t('loyalty.degraded')}</PageNotice>
 
   <PageToolbar>
     {#snippet leading()}
@@ -90,7 +88,7 @@
     {/snippet}
   </PageToolbar>
 
-  <SegmentedControl {options} bind:value={tab} label={t('loyalty.tabsLabel')} />
+  <SegmentedControl {options} bind:value={tab} label={t('loyalty.tabsLabel')} even />
   <div class="panels">
     <div id="loyalty-status" class="panel" class:inactive={tab !== 'status'} inert={tab !== 'status'}>
       <LoyaltyStatus freeze={data.freeze} health={raffle?.accrual_health} {enabled} />

@@ -6,7 +6,6 @@
   import { onMount, untrack } from 'svelte';
   import { livePoll } from '@bagel/ui/lib/live-poll';
   import { getI18n, MOD, moduleDef, type ModuleField } from '@bagel/kit';
-  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import Pager from '@bagel/ui/svelte/Pager.svelte';
@@ -23,6 +22,7 @@
   import PastWinners from '#lib/components/giveaways/PastWinners.svelte';
   import PresetEditor from '#lib/components/giveaways/PresetEditor.svelte';
   import StartForm from '#lib/components/giveaways/StartForm.svelte';
+  import PageNotice from '#lib/components/shared/PageNotice.svelte';
   import type { LiveDraws } from '#lib/server/channel-raffles';
   import type { ActionData, PageData } from './$types';
 
@@ -47,7 +47,8 @@
   const liveUnavailable = $derived(live.degraded || live.raffles.degraded);
   const openRound = $derived([...live.rounds, ...live.raffles.rounds].some((round) => round.phase === 'open'));
   const blocked = $derived(liveUnavailable || openRound || data.degraded);
-  const activeNotice = $derived(form?.error ? 'form' : liveUnavailable ? 'live' : data.degraded ? 'settings' : null);
+  const availabilityNotice = $derived(liveUnavailable ? t('giveaways.liveUnavailable') : t('giveaways.settingsUnavailable'));
+  const notice = $derived(form?.error || (liveUnavailable || data.degraded ? availabilityNotice : ''));
 
   const idle = () => !(busy || setting);
   const pollable = () => idle() && !document.hidden;
@@ -103,7 +104,7 @@
     poll?.abort();
     return async ({ result, update }) => {
       try {
-        await update({ reset: false, invalidateAll: false });
+        await update({ reset: false, refreshAll: false });
         if (refreshAfter(result)) await invalidate(loadKey);
       } finally {
         busy = false;
@@ -138,27 +139,15 @@
 
 <svelte:head><title>{t('nav.giveaways')}</title></svelte:head>
 
-{#snippet notice(visible: boolean, copy: string)}
-  <div class="notice" class:hiddenNotice={!visible} inert={!visible} aria-hidden={!visible}>
-    <AlertBanner tone="warning" flush>
-      <span class="noticeCopy"><bb-fit mode="block">{copy}</bb-fit></span>
-    </AlertBanner>
-  </div>
-{/snippet}
-
 <div class="pageContent">
   <PageHead><bb-fit><span data-fit="">{t('nav.giveaways')}</span></bb-fit></PageHead>
 
-  <div class="notices">
-    {@render notice(activeNotice === 'form', form?.error ?? '')}
-    {@render notice(activeNotice === 'live', t('giveaways.liveUnavailable'))}
-    {@render notice(activeNotice === 'settings', t('giveaways.settingsUnavailable'))}
-  </div>
+  <PageNotice tone="warning" visible={!!notice}>{notice}</PageNotice>
 
   <Card>
     <div class="section">
       <CardHead title={t('giveaways.new')} headingLevel={2} />
-      <SegmentedControl options={startOptions} bind:value={startKind} label={t('giveaways.new')} />
+      <SegmentedControl options={startOptions} bind:value={startKind} label={t('giveaways.new')} even />
       <div class="startForms">
         <div id="start-raffle" class="startForm" class:hiddenNotice={startKind !== 'raffle'} inert={startKind !== 'raffle'}>
           <RaffleStartForm config={data.raffleSettings.config}
@@ -175,11 +164,9 @@
   {#each live.raffles.rounds as round (round.id)}
     <LivePanel {round} {now} busy={busy || !!setting || live.raffles.degraded} {submit} />
   {/each}
-  {#if live.raffles.unpaid.length}
-    <AlertBanner tone="warning" role="status">
-      {t('loyalty.raffleUnpaid', { viewers: live.raffles.unpaid.map((name) => '@' + name).join(', ') })}
-    </AlertBanner>
-  {/if}
+  <PageNotice visible={live.raffles.unpaid.length > 0} tone="warning" role="status">
+    {t('loyalty.raffleUnpaid', { viewers: live.raffles.unpaid.map((name) => '@' + name).join(', ') })}
+  </PageNotice>
   {#each live.rounds as round (round.id)}
     <LivePanel {round} {now} busy={busy || !!setting || live.degraded} {submit} />
   {/each}
@@ -216,14 +203,13 @@
 
 <style>
   .pageContent { display: grid; min-width: 0; gap: var(--bb-space-5); }
-  .notices, .startForms { display: grid; }
+  .startForms { display: grid; }
+  .pageContent, .startForms, .section, .settingsHead { grid-template-columns: minmax(0, 1fr); }
   .startForm { grid-area: 1 / 1; min-inline-size: 0; transition: opacity var(--bb-dur-fast); }
-  .notice { grid-area: 1 / 1; min-inline-size: 0; transition: opacity var(--bb-dur-fast); }
   .hiddenNotice { opacity: 0; }
-  .noticeCopy { display: block; block-size: 2.75em; align-content: center; }
   .section, .settingsHead { display: grid; gap: var(--bb-space-3); min-width: 0; }
   .settingsHead { padding: var(--bb-space-4) var(--bb-space-5); }
   @media (prefers-reduced-motion: reduce) {
-    .notice, .startForm { transition: none; }
+    .startForm { transition: none; }
   }
 </style>

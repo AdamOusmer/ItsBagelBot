@@ -14,27 +14,42 @@ const eligibility = readSource('app/twitch/sesame/engine/eligibility/policy.go')
 const drawRpc = readSource('internal/domain/rpc/draw/giveaway.go');
 const moduleRpc = readSource('internal/domain/rpc/modules/giveaway.go');
 const loyalty = readFileSync(process.env.LOYALTY_POLICY_GO ?? join(root, 'internal/domain/rpc/loyalty/policy.go'), 'utf8');
+const raffleConfig = readSource('app/twitch/sesame/engine/raffle_config.go');
+const raffleTiming = readSource('app/twitch/sesame/engine/raffle_valkey.go');
+const raffleCommand = readSource('app/twitch/sesame/modules/raffle.go');
 const giveawayPolicy = [draw, eligibility, moduleRpc].join('\n');
 
 const units: Record<string, number> = { Second: 1, Minute: 60, Hour: 3600 };
-
-function goValue(match: RegExpExecArray | null): number | boolean | undefined {
-  if (!match) return undefined;
-  const [, raw, unit] = match;
-  if (raw === 'true' || raw === 'false') return raw === 'true';
-  if (raw === 'time.Second') return 1;
-  return Number(raw.replaceAll('_', '')) * (unit ? units[unit] : 1);
-}
+const rafflePins: Partial<Record<keyof typeof GIVEAWAY_LIMITS, [string, RegExp]>> = {
+  raffleMaxPrize: [raffleConfig, /^\s*MaxRafflePrize\s*=\s*int64\(([\d_]+)\)$/m],
+  raffleDefaultPrize: [raffleConfig, /^\s*raffleDefaultPrize\s*=\s*int64\(([\d_]+)\)$/m],
+  raffleMinSeconds: [raffleTiming, /^\s*minRaffleDuration\s*=\s*(\d+)\s*\*\s*time\.(Second)$/m],
+  raffleDefaultSeconds: [raffleConfig, /^\s*raffleDefaultDuration\s*=\s*time\.(Minute)$/m],
+  splitRaffleDefaultWinners: [draw, /\bMultiRaffleDefaultWinners:\s*(\d+),/],
+  raffleBareMode: [raffleCommand, /^func \(rc raffleCommands\) bare\([^\n]*\{(?:(?!^\})[\s\S])*?default:\s*return rc\.(single|multi)\(/m],
+  raffleMidCountEnabled: [draw, /\bMidCountDefault:\s*(true|false),/]
+};
 
 const pins = [
   { name: 'FreezeMaximum', web: FREEZE_MAX_MINUTES, source: loyalty, go: /^\s*FreezeMaximum\s*=\s*(\d+)\s*\*\s*time\.Minute\s*$/m },
   ...Object.entries(GIVEAWAY_LIMITS).map(([key, web]) => {
     const name = key[0].toUpperCase() + key.slice(1);
-    const source = key === 'maxWinners' ? drawRpc : giveawayPolicy;
-    const go = new RegExp('\\b' + name + '\\s*[:=]\\s*(true|false|[\\d_]+|time\\.Second)(?:\\s*\\*\\s*time\\.(\\w+))?(?=\\s*(?:,|$))', 'm');
+    const [source, go] = rafflePins[key as keyof typeof GIVEAWAY_LIMITS] ?? [
+      key === 'maxWinners' ? drawRpc : giveawayPolicy,
+      new RegExp('\\b' + name + '\\s*[:=]\\s*(true|false|[\\d_]+|time\\.Second)(?:\\s*\\*\\s*time\\.(\\w+))?(?=\\s*(?:,|$))', 'm')
+    ];
     return { name, web, source, go };
   })
 ];
+
+function goValue(match: RegExpExecArray | null): number | boolean | string | undefined {
+  if (!match) return undefined;
+  const [, raw, unit] = match;
+  if (raw === 'true' || raw === 'false') return raw === 'true';
+  if (raw === 'single' || raw === 'multi') return raw === 'multi' ? 'split' : 'single';
+  if (raw === 'time.Second') return 1;
+  return (units[raw] ?? Number(raw.replaceAll('_', ''))) * (unit ? units[unit] : 1);
+}
 
 test.each(pins)('$name matches the Go policy', ({ web, source, go }) => {
   expect(goValue(go.exec(source))).toBe(web);

@@ -13,6 +13,7 @@
     options: readonly (string | { value: string; label: string; count?: number | string; attrs?: Record<string, string> })[];
     value: string;
     label?: string;
+    even?: boolean;
     onValueChange?: (value: string) => void;
     class?: string;
   };
@@ -21,6 +22,7 @@
     options,
     value = $bindable(''),
     label = i18n.t('choice.filter'),
+    even = false,
     onValueChange,
     onkeydown: callerKeydown,
     class: className = '',
@@ -31,7 +33,7 @@
 
   const items = $derived(options.map((opt) => (typeof opt === 'string' ? { value: opt, label: opt } : opt)));
   const tabStop = $derived(items.some((opt) => opt.value === value) ? value : items[0]?.value);
-  const classes = $derived(['bb-tabs bb-tabs--wrap', className || null].filter(Boolean).join(' '));
+  const classes = $derived(['bb-tabs', even ? 'bb-tabs--even' : 'bb-tabs--wrap', className].filter(Boolean).join(' '));
 
   let tabsEl = $state<HTMLElement | null>(null);
   $effect(() => {

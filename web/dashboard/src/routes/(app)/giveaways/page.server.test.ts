@@ -16,9 +16,11 @@ const bystander = { ...session, sections: ['commands'] };
 
 afterEach(() => mock.restore());
 
-function invoke(action: keyof typeof actions, fields: Record<string, string>, caller: typeof session | null = session) {
+function invoke(action: keyof typeof actions, fields: Record<string, string | undefined>, caller: typeof session | null = session) {
   const body = new FormData();
-  for (const [name, value] of Object.entries(fields)) body.set(name, value);
+  for (const [name, value] of Object.entries(fields)) {
+    if (value !== undefined) body.set(name, value);
+  }
   return actions[action]({
     request: new Request(`https://dashboard.test/giveaways?/${action}`, { method: 'POST', body }),
     locals: { locale: 'en', session: caller }
@@ -51,7 +53,7 @@ test.each([
   { action: 'start', fields: {}, caller: null, status: 401 }
 ])('rejects $action with status $status before RPC', async ({ action, fields, caller, status }) => {
   const rpc = spyOn(bus, 'rpcReply');
-  expect(await invoke(action, fields as Record<string, string>, caller)).toMatchObject({ status, data: { ok: false } });
+  expect(await invoke(action, fields, caller)).toMatchObject({ status, data: { ok: false } });
   expect(rpc).not.toHaveBeenCalled();
 });
 
@@ -128,7 +130,7 @@ test.each([
   { action: 'raffleCancel', verb: 'cancel', fields: { round_id }, input: { round_id }, reply: { done: true } }
 ])('delegated $action validates and sends $input', async ({ action, verb, fields, input, reply }) => {
   const rpc = spyOn(bus, 'rpcReply').mockResolvedValueOnce(reply);
-  expect(await invoke(action, fields as Record<string, string>)).toEqual({ ok: true });
+  expect(await invoke(action, fields)).toEqual({ ok: true });
   expect(rpc).toHaveBeenCalledWith(`rpc.draw.raffle.${verb}`, { user_id: '42', actor_id: '95', ...input }, 10_000);
 });
 
@@ -141,7 +143,7 @@ test.each([
   { action: 'raffleCancel', fields: { round_id }, caller: bystander, status: 403 }
 ])('$action rejects $fields or the caller before contacting Sesame', async ({ action, fields, caller, status }) => {
   const rpc = spyOn(bus, 'rpcReply');
-  expect(await invoke(action, fields as Record<string, string>, caller)).toMatchObject({ status, data: { ok: false } });
+  expect(await invoke(action, fields, caller)).toMatchObject({ status, data: { ok: false } });
   expect(rpc).not.toHaveBeenCalled();
 });
 
