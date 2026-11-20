@@ -134,6 +134,19 @@
         color: var(--bb-muted);
     }
 
+    .bb-switch-row--fit-copy .bb-switch-row__label {
+        block-size: 1lh;
+    }
+
+    .bb-switch-row--fit-copy .bb-switch-row__hint {
+        block-size: 2lh;
+    }
+
+    .bb-switch-row--fit-copy .bb-switch-row__label,
+    .bb-switch-row--fit-copy .bb-switch-row__hint {
+        overflow: clip;
+    }
+
     .bb-switch-row__status {
         display: inline-flex;
         flex: none;

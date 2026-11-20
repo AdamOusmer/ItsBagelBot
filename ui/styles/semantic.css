@@ -70,6 +70,7 @@
     --bb-status-info-fg: #a9d0e8;
     --bb-status-info-bg: #0f1e28;
     --bb-status-info-border: #3f6d86;
+    --bb-status-info-rgb: 123, 181, 217;
 
     --bb-tier-free: var(--bb-green-glow);
     --bb-tier-free-bg: rgba(var(--bb-green-glow-rgb), 0.12);

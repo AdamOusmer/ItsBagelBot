@@ -9,6 +9,8 @@
     "points_set_user_500": "Defina o saldo de um espectador.",
     "points_add_user_500": "Conceda pontos a um espectador.",
     "points_remove_user_500": "Remova pontos de um espectador.",
+    "freeze": "Pausa o ranking por até 30 minutos.",
+    "unfreeze": "Retoma o ranking ao vivo.",
     "counter": "Gerencie contadores (também na página Contadores)."
   }
 }

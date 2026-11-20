@@ -23,6 +23,7 @@ type EventOptions = {
   session?: unknown;
   edgeOutcome?: string;
   edgeCacheTag?: string;
+  edgeTtlCapSec?: number;
   search?: string;
   isDataRequest?: boolean;
   lang?: string;
@@ -53,7 +54,13 @@ function makeEvent(opts: EventOptions): Event {
     request: new Request(requested),
     url,
     isDataRequest: opts.isDataRequest ?? false,
-    locals: { session: opts.session ?? null, locale: opts.locale ?? 'en', edgeOutcome: opts.edgeOutcome, edgeCacheTag: opts.edgeCacheTag },
+    locals: {
+      session: opts.session ?? null,
+      locale: opts.locale ?? 'en',
+      edgeOutcome: opts.edgeOutcome,
+      edgeCacheTag: opts.edgeCacheTag,
+      edgeTtlCapSec: opts.edgeTtlCapSec
+    },
     cookies: { get: (name: string) => cookies[name], set: () => {}, delete: () => {} }
   } as unknown as Event;
 }
@@ -123,6 +130,18 @@ const LEADERBOARD_TTL = {
   ...cached('max-age=30, stale-while-revalidate=30, stale-if-error=86400'),
   'Cache-Tag': 'dashboard-edge-shell,lb:foo'
 };
+
+test.each([
+  { cap: 1, fresh: 1, swr: 0 },
+  { cap: 18, fresh: 18, swr: 0 },
+  { cap: 42, fresh: 30, swr: 12 },
+  { cap: 90, fresh: 30, swr: 30 }
+])('a frozen board with $cap seconds left caps both cache windows', ({ cap, fresh, swr }) => {
+  const event = makeEvent({ ...BOARD, edgeTtlCapSec: cap });
+  expect(edgeCacheHeaders(event, htmlResponse(200))?.['CDN-Cache-Control']).toBe(
+    `max-age=${fresh}, stale-while-revalidate=${swr}, stale-if-error=0`
+  );
+});
 
 const edgeCases: { name: string; event: EventOptions; res: Response; want: Record<string, string | null> }[] = [
   { name: 'a hidden-channel 404 gets the route TTL', event: { edgeOutcome: 'hidden' }, res: htmlResponse(404), want: DEFAULT_TTL },

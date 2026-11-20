@@ -4,7 +4,17 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { LoyaltyConfig, LoyaltyStanding } from '@bagel/kit';
 import { blankLoyaltyConfig, catalogChildren, moduleDef } from '@bagel/kit';
-import { readLoyalty, writeLoyalty, topStandings, resetPoints } from '#lib/server/loyalty-store';
+import { FREEZE_MAX_MINUTES } from '@bagel/kit/catalog';
+import { RpcError } from '@bagel/kit/server/nats';
+import {
+  freezeStandings,
+  readFreeze,
+  readLoyalty,
+  resetPoints,
+  topStandings,
+  unfreezeStandings,
+  writeLoyalty
+} from '#lib/server/loyalty-store';
 import { listModules } from '#lib/server/commands-store';
 import { setModuleEnabled } from '#lib/server/module-blob';
 import { disableChildren, isChildOf } from '#lib/server/module-parent';
@@ -30,25 +40,26 @@ export const load: PageServerLoad = ({ locals }) =>
           enabled: true,
           config: blankLoyaltyConfig(),
           top: (await import('#lib/server/demo-data')).demoStandings(),
+          topFreeze: null,
+          freeze: null,
           games: gameFlags([])
         })
       : undefined,
     read: async (uid) => {
       const view = await readLoyalty(uid);
-      let top: LoyaltyStanding[] = [];
-      try {
-        top = await topStandings(uid, 10);
-      } catch {}
-      let games = gameFlags([]);
-      try {
-        games = gameFlags(await listModules(uid));
-      } catch {}
-      return { enabled: view.enabled, config: view.config, top, games };
+      const [top, freeze, modules] = await Promise.all([
+        topStandings(uid).catch(() => null),
+        readFreeze(uid).catch(() => null),
+        listModules(uid).catch(() => [])
+      ]);
+      return { ...view, top: top?.rows ?? [], topFreeze: top?.freeze ?? null, freeze, games: gameFlags(modules) };
     },
     blank: () => ({
       enabled: false,
       config: blankLoyaltyConfig(),
       top: [] as LoyaltyStanding[],
+      topFreeze: null,
+      freeze: null,
       games: gameFlags([])
     })
   });
@@ -102,6 +113,15 @@ function parseConfig(raw: string): LoyaltyConfig | null {
 
 const mutate = storeMutator('loyalty', DEMO, (uid) => uid);
 
+function freezeConflict(err: unknown, reason: 'frozen' | 'held_by_round') {
+  if (!(err instanceof RpcError) || err.code !== 'conflict') throw err;
+  return fail(409, { ok: false, reason });
+}
+
+function validFreezeMinutes(minutes: number): boolean {
+  return Number.isInteger(minutes) && minutes >= 1 && minutes <= FREEZE_MAX_MINUTES;
+}
+
 export const actions: Actions = {
   toggle: mutate('toggle', 'Invalid settings.', async (uid, f) => {
     const enabled = f.get('is_enabled') === 'on';
@@ -121,7 +141,34 @@ export const actions: Actions = {
 
   reset: mutate('reset', 'Invalid request.', async (uid, f) => {
     if (f.get('confirm') !== 'reset') return null;
-    return String(await resetPoints(uid));
+    try {
+      return String(await resetPoints(uid));
+    } catch (err) {
+      return freezeConflict(err, 'frozen');
+    }
+  }),
+
+  freeze: mutate('freeze', 'Invalid request.', async (uid, f) => {
+    const minutes = Number(f.get('minutes'));
+    if (!validFreezeMinutes(minutes)) return null;
+    const freeze = await freezeStandings(uid, {
+      minutes,
+      blockTransfer: f.get('block_transfer') === 'on',
+      closeGames: f.get('close_games') === 'on'
+    });
+    if (!freeze) throw new Error('empty freeze reply');
+    return freeze.id;
+  }),
+
+  unfreeze: mutate('unfreeze', 'Invalid request.', async (uid, f) => {
+    const id = f.get('freeze_id');
+    if (typeof id !== 'string' || !id.trim()) return null;
+    try {
+      const released = await unfreezeStandings(uid, id);
+      return released ? id : fail(409, { ok: false, reason: 'stale_pin' });
+    } catch (err) {
+      return freezeConflict(err, 'held_by_round');
+    }
   }),
 
   toggleGame: mutate('toggleGame', 'Unknown game.', async (uid, f) => {

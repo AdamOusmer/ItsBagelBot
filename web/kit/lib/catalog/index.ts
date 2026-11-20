@@ -18,6 +18,7 @@ import { EMOTEPLAY_MODULE } from './emoteplay';
 import { FORTNITE_MODULE } from './fortnite';
 import { GOVEE_MODULE } from './govee';
 import { LOYALTY_MODULE } from './loyalty';
+export { FREEZE_MAX_MINUTES } from './loyalty';
 import { MCSR_MODULE } from './mcsr';
 import { PERSONALITY_MODULE } from './personality';
 import { QUEUE_MODULE } from './queue';

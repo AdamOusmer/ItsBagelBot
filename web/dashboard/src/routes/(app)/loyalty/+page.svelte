@@ -23,6 +23,7 @@
   import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
   import { toast } from '@bagel/ui/svelte/toast';
   import {
+    actionPayload,
     MasterToggle,
     getI18n,
     LOYALTY_DEFAULTS,
@@ -32,9 +33,11 @@
     catalogChildren,
     type LoyaltyConfig
   } from '@bagel/kit';
+  import { FREEZE_MAX_MINUTES } from '@bagel/kit/catalog';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import ModuleCommandList from '#lib/components/modules/ModuleCommandList.svelte';
   import LoyaltyGameRow from '#lib/components/loyalty/LoyaltyGameRow.svelte';
+  import { finishFreezeAction } from './freeze-action';
 
   let { data } = $props();
   const { t, locale } = getI18n();
@@ -179,13 +182,19 @@
   let resetBusy = $state(false);
   let resetFormEl = $state<HTMLFormElement | null>(null);
 
+  function refusalReason(result: unknown) {
+    return actionPayload<{ reason?: string }>(result)?.reason;
+  }
+
   const resetSubmit: SubmitFunction = () => {
     resetBusy = true;
     return async ({ result }) => {
       resetBusy = false;
       resetOpen = false;
       if (result.type !== 'success') {
-        toast('danger', t('loyalty.toastResetFailed'));
+        const frozen = refusalReason(result) === 'frozen';
+        toast('danger', t(frozen ? 'loyalty.toastResetFrozen' : 'loyalty.toastResetFailed'));
+        if (frozen) await invalidateAll();
         return;
       }
       toast('success', t('loyalty.toastReset'));
@@ -232,6 +241,58 @@
   }
 
   const top = $derived(data.top ?? []);
+  const freeze = $derived(data.freeze);
+  const hasModHold = $derived(freeze?.holders.includes('mod') ?? false);
+  const hasRoundHold = $derived(freeze?.holders.some((holder) => holder.startsWith('round:')) ?? false);
+  let freezeBusy = $state(false);
+  let freezeNow = $state(Date.now());
+  let minutes = $state(FREEZE_MAX_MINUTES);
+  let blockTransfer = $state(false);
+  let closeGames = $state(false);
+  let timeZone = $state('UTC');
+
+  $effect(() => {
+    timeZone = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+  });
+
+  $effect(() => {
+    if (!freeze) return;
+    const now = Date.now();
+    freezeNow = now;
+    const wait = freeze.expiresAt - now;
+    if (wait <= 0) return;
+    const interval = setInterval(() => (freezeNow = Date.now()), 1000);
+    const timeout = setTimeout(() => void invalidateAll(), wait);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  });
+
+  const timeFmt = $derived(new Intl.DateTimeFormat(locale, { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }));
+  const freezeStatus = $derived(freeze
+    ? t('loyalty.freezeStatusPaused', { time: timeFmt.format(freeze.asOf), end: timeFmt.format(freeze.expiresAt) })
+    : t('loyalty.freezeStatusLive'));
+  const topCaption = $derived(data.topFreeze
+    ? t('loyalty.topPausedAt', { time: timeFmt.format(data.topFreeze.asOf) })
+    : t('loyalty.topCaption'));
+  const freezeMinutesLeft = $derived(freeze ? Math.max(0, Math.ceil((freeze.expiresAt - freezeNow) / 60_000)) : null);
+
+  const freezeSubmit: SubmitFunction = () => {
+    const releasing = hasModHold;
+    freezeBusy = true;
+    return async ({ result }) => {
+      try {
+        if (result.type === 'success') {
+          blockTransfer = false;
+          closeGames = false;
+        }
+        await finishFreezeAction(result, releasing, t);
+      } finally {
+        freezeBusy = false;
+      }
+    };
+  };
 </script>
 
 <section class="screen active">
@@ -258,6 +319,73 @@
       <ButtonLink href="/counters" variant="ghost">{t('loyalty.countersLink')}</ButtonLink>
     {/snippet}
   </PageToolbar>
+
+  <section class="block" aria-labelledby="loy-freeze-h">
+    <Heading level={6} as="h2" variant="title" id="loy-freeze-h">{t('loyalty.freezeTitle')}</Heading>
+    <Card>
+      <div class="freeze-copy" role="status">
+        <Text as="span" size="sm"><bb-fit mode="block">{freezeStatus}</bb-fit></Text>
+      </div>
+      <div class="freeze-copy">
+        <Text as="span" size="xs" tone="muted">
+          <bb-fit mode="block">{t(hasRoundHold ? 'loyalty.freezeRoundHold' : 'loyalty.freezeHint')}</bb-fit>
+        </Text>
+      </div>
+      <form method="POST" action={hasModHold ? '?/unfreeze' : '?/freeze'} use:enhance={freezeSubmit}>
+        <input type="hidden" name="freeze_id" value={freeze?.id ?? ''} />
+        <input type="hidden" name="minutes" value={Math.max(1, freezeMinutesLeft ?? 1)} disabled={!freeze || hasModHold} />
+        <fieldset class="freeze-config" class:freeze-locked={!!freeze} disabled={!!freeze || freezeBusy}>
+          <Field label={t(freeze ? 'loyalty.freezeMinutesLeft' : 'loyalty.freezeMinutes')}>
+            <span class="num">
+              <Input
+                fill
+                type="number"
+                name="minutes"
+                min={1}
+                max={FREEZE_MAX_MINUTES}
+                step={1}
+                required
+                value={freezeMinutesLeft ?? minutes}
+                oninput={(event) => (minutes = event.currentTarget.valueAsNumber)}
+              />
+            </span>
+          </Field>
+          <SwitchRow
+            control="end"
+            fitCopy
+            label={t('loyalty.freezeBlockTransfers')}
+            hint={t('loyalty.freezeBlockTransfersHint')}
+            hintId="freeze-transfer-hint"
+            disabled={!!freeze || freezeBusy}
+            checked={freeze?.blockTransfer ?? blockTransfer}
+            onCheckedChange={(checked) => (blockTransfer = checked)}
+          />
+          <SwitchRow
+            control="end"
+            fitCopy
+            label={t('loyalty.freezeCloseGames')}
+            hint={t('loyalty.freezeCloseGamesHint')}
+            hintId="freeze-games-hint"
+            disabled={!!freeze || freezeBusy}
+            checked={freeze?.closeGames ?? closeGames}
+            onCheckedChange={(checked) => (closeGames = checked)}
+          />
+          <input type="hidden" name="block_transfer" value={blockTransfer ? 'on' : ''} />
+          <input type="hidden" name="close_games" value={closeGames ? 'on' : ''} />
+        </fieldset>
+        <div class="freeze-copy">
+          <Text as="span" size="xs" tone="muted"><bb-fit mode="block">{t('loyalty.freezeLag')}</bb-fit></Text>
+        </div>
+        <div class="actions">
+          <span class="freeze-button">
+            <Button block variant="primary" type="submit" busy={freezeBusy}>
+              <bb-fit>{t(hasModHold ? 'loyalty.unfreezeButton' : 'loyalty.freezeButton')}</bb-fit>
+            </Button>
+          </span>
+        </div>
+      </form>
+    </Card>
+  </section>
 
   {#if games.length}
     <section class="block" aria-labelledby="loy-games-h">
@@ -410,8 +538,11 @@
           <ButtonLink href="#loy-rates-h" variant="ghost">{t('loyalty.topEmptyCta')}</ButtonLink>
         </EmptyState>
       {:else}
-        <Table label={t('loyalty.topCaption')}>
-          <caption class="bb-sr-only">{t('loyalty.topCaption')}</caption>
+        <div class="freeze-copy" class:freeze-inactive={!data.topFreeze} aria-hidden={!data.topFreeze}>
+          <Text as="span" size="xs" tone="muted"><bb-fit mode="block">{topCaption}</bb-fit></Text>
+        </div>
+        <Table label={topCaption}>
+          <caption class="bb-sr-only">{topCaption}</caption>
           <thead>
             <tr>
               <th scope="col" class="r">{t('loyalty.colRank')}</th>
@@ -473,6 +604,24 @@
   .block { display: grid; gap: 12px; margin-bottom: 26px; }
 
   .hint { margin-bottom: 14px; }
+
+  .freeze-copy { display: grid; block-size: 2.5em; transition: opacity 160ms ease; }
+  .freeze-config {
+    display: grid;
+    gap: 12px;
+    min-inline-size: 0;
+    margin: 0 0 12px;
+    border: 0;
+    padding: 0;
+    transition: opacity 160ms ease;
+  }
+  .freeze-inactive { opacity: 0; }
+  .freeze-locked { opacity: 0.7; }
+  .freeze-button { inline-size: 13rem; max-inline-size: 100%; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .freeze-config, .freeze-copy { transition: none; }
+  }
 
   .perm-title { margin: 18px 0 6px; }
   .perm {

@@ -4,9 +4,18 @@
 import { error, redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
+import { RpcError } from '@bagel/kit/server/nats';
 import type { PageServerLoad } from './$types';
 import { userCommandsPage, userLeaderboardPage } from '#lib/server/services';
-import { readLoyalty, standingsPage, topStandings } from '#lib/server/loyalty-store';
+import {
+	readLoyalty,
+	standingsPage,
+	topStandings,
+	type FreezeStamp,
+	type StandingsPage,
+	type StandingsPageRequest,
+	type StandingsPin
+} from '#lib/server/loyalty-store';
 import { resolveCurrentViewer } from '#lib/server/viewer-lookup';
 import {
 	boardParams,
@@ -60,45 +69,72 @@ async function requireChannel(login: string, locals: App.Locals): Promise<Channe
 
 type Standings = {
 	currencyName: string;
-	podium: Awaited<ReturnType<typeof topStandings>>;
+	podium: StandingsPage['rows'];
 	board: BoardView;
+	freeze: FreezeStamp | null;
 	degraded: boolean;
 	busy: boolean;
 };
 
 type Search = { busy: boolean };
+type ReadBoard = (req: StandingsPageRequest) => Promise<StandingsPage>;
 
 function hideChannel(locals: App.Locals): never {
 	markEdge(locals, 'hidden');
 	return channelNotFound();
 }
 
-async function loginPage(userId: string, req: PageRequest, search: Search): Promise<PageReply> {
+async function loginPage(req: PageRequest, search: Search, read: ReadBoard): Promise<PageReply> {
 	const { limit, offset, query } = req;
-	const stored = await standingsPage(userId, { limit, offset, viewerLogin: query });
-	if (stored.rows.length > 0) return stored;
+	const stored = await read({ limit, offset, viewerLogin: query });
+	if (stored.freeze || stored.rows.length > 0) return stored;
 	const resolved = await resolveCurrentViewer(query);
 	search.busy = resolved.kind === 'busy';
 	if (resolved.kind !== 'found') return stored;
-	return standingsPage(userId, { limit, offset, viewerId: resolved.viewerId, viewerLogin: query });
+	return read({ limit, offset, viewerId: resolved.viewerId, viewerLogin: query });
 }
 
-function searchPage(userId: string, req: PageRequest, search: Search): Promise<PageReply> {
+function searchPage(req: PageRequest, search: Search, read: ReadBoard): Promise<PageReply> {
 	const { limit, offset, query } = req;
-	if (!query) return standingsPage(userId, { limit, offset });
+	if (!query) return read({ limit, offset });
 	if (!isSearchable(query)) return Promise.resolve({ rows: [], total: 0 });
-	if (isViewerId(query)) return standingsPage(userId, { limit, offset, viewerId: query });
-	return loginPage(userId, req, search);
+	if (isViewerId(query)) return read({ limit, offset, viewerId: query });
+	return loginPage(req, search, read);
+}
+
+function pinTo(freeze: FreezeStamp | null): StandingsPin {
+	return freeze ? { freezeId: freeze.id } : { live: true };
+}
+
+async function loadStandings(userId: string, params: BoardParams, podium?: StandingsPage) {
+	const search: Search = { busy: false };
+	let pin = podium ? pinTo(podium.freeze) : undefined;
+	const read: ReadBoard = async (req) => {
+		const page = await standingsPage(userId, { ...req, ...pin });
+		pin ??= pinTo(page.freeze);
+		return page;
+	};
+	const board = await loadBoard(params, (req) => searchPage(req, search, read));
+	const top = podium ?? await topStandings(userId, PODIUM_SIZE, pin);
+	return { podium: top.rows, freeze: top.freeze, board, busy: search.busy };
+}
+
+async function pinnedStandings(userId: string, params: BoardParams) {
+	const podium = await topStandings(userId, PODIUM_SIZE);
+	try {
+		return await loadStandings(userId, params, podium);
+	} catch (err) {
+		if (!(err instanceof RpcError) || err.code !== 'conflict') throw err;
+		return loadStandings(userId, params);
+	}
 }
 
 async function standings(userId: string, loyalty: ReturnType<typeof readLoyalty>, params: BoardParams): Promise<Standings> {
-	const search: Search = { busy: false };
 	try {
-		const [view, podium] = await Promise.all([loyalty, topStandings(userId, PODIUM_SIZE)]);
-		const board = await loadBoard(params, (req) => searchPage(userId, req, search));
-		return { currencyName: view.config.pointsName || 'points', podium, board, degraded: false, busy: search.busy };
+		const [view, standing] = await Promise.all([loyalty, pinnedStandings(userId, params)]);
+		return { currencyName: view.config.pointsName || 'points', ...standing, degraded: false };
 	} catch {
-		return { currencyName: 'points', podium: [], board: emptyBoard(params), degraded: true, busy: false };
+		return { currencyName: 'points', podium: [], freeze: null, board: emptyBoard(params), degraded: true, busy: false };
 	}
 }
 
@@ -109,6 +145,7 @@ async function demoPage(login: string, params: BoardParams) {
 		channelName: d.demoSession().display_name,
 		currencyName: d.demoLeaderboard.currencyName,
 		podium: d.demoPodium(),
+		frozen: null,
 		...(await loadBoard(params, async (req) => d.demoStandingsPage(req))),
 		degraded: false,
 		busy: false,
@@ -144,12 +181,15 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 
 	const standing = await board;
 	markEdge(locals, pageOutcome([boardVisible, commandsPage], standing.degraded || standing.busy));
+	const freeze = standing.freeze;
+	if (freeze) locals.edgeTtlCapSec = Math.max(1, Math.floor((freeze.expiresAt - Date.now()) / 1000));
 
 	return {
 		login: channel.login,
 		channelName: channel.channelName,
 		currencyName: standing.currencyName,
 		podium: standing.podium,
+		frozen: freeze ? { asOf: freeze.asOf } : null,
 		...standing.board,
 		degraded: standing.degraded,
 		busy: standing.busy,
