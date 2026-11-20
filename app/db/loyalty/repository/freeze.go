@@ -79,7 +79,7 @@ func (r *Loyalty) ReleaseFreeze(ctx context.Context, userID uint64) (bool, error
 func closePublicSnapshot(ctx context.Context, tx *sql.Tx, key snapshotKey) error {
 	now := time.Now().UnixMilli()
 	_, err := tx.ExecContext(ctx, `UPDATE loyalty_snapshots SET expires_at_ms=? WHERE user_id=? AND snapshot_id=? AND expires_at_ms>?`,
-		now, key.userID, key.id)
+		now, key.userID, key.id, now)
 	return err
 }
 

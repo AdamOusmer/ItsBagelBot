@@ -34,7 +34,10 @@ type giveawayChatDraw struct {
 }
 
 func (d *giveawayChatDraw) Joinable(context.Context, draw.ChannelID) (draw.Round, bool, error) {
-	return draw.Round{Terms: draw.Terms{Kind: draw.KindGiveaway}}, d.busy, nil
+	if !d.busy {
+		return draw.Round{}, false, nil
+	}
+	return draw.Round{Phase: draw.PhaseOpen, Terms: draw.Terms{Kind: draw.KindGiveaway}}, true, nil
 }
 
 func (d *giveawayChatDraw) Open(_ context.Context, req draw.OpenRequest) (draw.Round, draw.OpenOutcome, error) {

@@ -6,7 +6,6 @@ package valkey
 import (
 	"context"
 	"errors"
-	"strconv"
 
 	valkey_go "github.com/valkey-io/valkey-go"
 )

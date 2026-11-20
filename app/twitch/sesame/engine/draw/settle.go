@@ -247,10 +247,7 @@ func (s *Store) announcePaidRaffle(ctx context.Context, data snapshot) {
 	}
 }
 
-func teardownRound(ctx context.Context, s *Store, data snapshot, now time.Time) error {
-	if at := data.refusalAt(); !at.IsZero() {
-		return s.schedule(ctx, data, at.Sub(now))
-	}
+func teardownRound(ctx context.Context, s *Store, data snapshot, _ time.Time) error {
 	r := data.round
 	return keysFor(r.Channel, r.ID).Teardown(ctx, s.client, string(r.ID))
 }
