@@ -114,8 +114,7 @@ test.describe('feature landing pages', () => {
 
     test('valorant-stats lists every catalog command with an example reply', async ({ page }) => {
         await page.goto('/valorant-stats/');
-        const cells = (await commandCells(page)).join('\n');
-        for (const command of valorantCommands) expect(cells).toContain(command);
+        await expect(page.locator('.fltbl tbody .bb-copy__value')).toHaveText(valorantCommands);
         await expect(page.locator('.fltbl')).toContainText('Frosty#EUW1');
         await expect(page.locator('.fldemo')).toBeVisible();
         await expect(page.locator('.flcta__legal')).toContainText('Riot Games');
@@ -202,6 +201,46 @@ const VS_LOCALES = [['en', ''], ['fr', '/fr'], ['de', '/de'], ['es', '/es'], ['p
 const VS_CASES = VS_SLUGS.flatMap((slug) => VS_LOCALES.map(([lang, prefix]) => ({ slug, lang, prefix })));
 const FOOTER_PAGES = ['/pricing/', '/guides/', '/command-builder/', '/changelog/', '/contact/'];
 const FOOTER_CASES = [['', '/'], ['/de', '/de/']].flatMap(([prefix, route]) => FOOTER_PAGES.map((path) => ({ route, href: `${prefix}${path}` })));
+
+async function valorantStepLayout(rows) {
+    return rows.evaluateAll((steps) => steps.map((step) => {
+        const copy = step.querySelector('.flhow__copy').getBoundingClientRect();
+        const visual = step.querySelector('.flhow__visual').getBoundingClientRect();
+        if (copy.bottom <= visual.top) return 'stacked';
+        return copy.left < visual.left ? 'text-left' : 'text-right';
+    }));
+}
+
+async function valorantRepliesInFrame(steps) {
+    return steps.locator('.dframe__body').evaluateAll((frames) => frames.map((frame) => {
+        const replies = [...frame.querySelectorAll('.bb-deck-list .row-shell')].slice(0, 2);
+        return replies.filter((reply) => reply.getBoundingClientRect().bottom <= frame.getBoundingClientRect().bottom).length;
+    }));
+}
+
+for (const [lang, prefix] of VS_LOCALES) {
+    test(`Valorant walkthrough shows both account states and chat in ${lang}`, async ({ page }) => {
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await page.goto(`${prefix}/valorant-stats/`);
+        const steps = page.locator('.flhow__step');
+        const visuals = steps.getByRole('img');
+        await expect(visuals).toHaveCount(3);
+        await expect(visuals.nth(1)).toHaveAccessibleName(/Frosty#EUW1 \(eu\)/);
+        await expect(steps.locator('.riot-module__control:not([inert])')).toHaveCount(2);
+        await expect(steps.locator('.dframe__body .bb-rail-item.is-active')).toHaveCount(2);
+        await expect(visuals.nth(2).locator('.bb-chat__msg--cmd')).toHaveText(['!val', '!val matches', '!val lb']);
+        await expect(visuals.nth(2).locator('.bb-chat__name--bot')).toHaveCount(3);
+
+        await page.setViewportSize({ width: 1440, height: 900 });
+        expect(await valorantStepLayout(steps)).toEqual(['text-left', 'text-right', 'text-left']);
+        expect(await valorantRepliesInFrame(steps)).toEqual([2, 2]);
+        for (const width of [768, 390]) {
+            await page.setViewportSize({ width, height: 900 });
+            expect(await valorantStepLayout(steps)).toEqual(['stacked', 'stacked', 'stacked']);
+            expect(await valorantRepliesInFrame(steps)).toEqual([2, 2]);
+        }
+    });
+}
 
 for (const { slug, lang, prefix } of VS_CASES) {
     test(`${prefix}/vs/${slug}/ renders sourced rows and matching FAQ schema`, async ({ page }) => {

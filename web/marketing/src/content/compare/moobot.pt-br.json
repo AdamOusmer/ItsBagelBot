@@ -55,7 +55,7 @@
     },
     {
       "feature": "Estatísticas de jogos",
-      "us": "Módulos integrados cobrem Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale e CODM. Por exemplo, vincule seu Riot ID e use !valrank.",
+      "us": "Módulos integrados cobrem Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale e CODM. Por exemplo, vincule sua conta com “Entrar com a Riot” e use !val.",
       "them": "As tags de resposta cobrem estatísticas de League of Legends, Teamfight Tactics e Apex Legends. Comandos de busca por URL também podem ler dados de um serviço externo. Referência da busca por URL: https://moo.bot/docs/building-your-own-dream-twitch-bot-chat-commands.",
       "source": "https://moo.bot/docs/custom-twitch-bot-chat-commands"
     },

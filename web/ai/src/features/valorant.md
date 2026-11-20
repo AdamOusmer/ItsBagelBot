@@ -1,14 +1,14 @@
 ---
 title: Valorant stats module: reference for AI assistants
 description: Capabilities, prerequisites, exact chat syntax, aliases, permissions, and defaults for Valorant stats module.
-updated: 2026-10-13
+updated: 2026-11-19
 kind: feature
 human: https://itsbagelbot.com/valorant-stats/
 ---
 
 [Human guide](https://itsbagelbot.com/valorant-stats/).
 
-ItsBagelBot returns Valorant competitive rank, ranked game totals, recent ranked matches, account details, regional leaderboards, and skin rotation in Twitch chat.
+ItsBagelBot shares Valorant stats from the streamer's signed-in Riot account in Twitch chat.
 
 <page type="feature">
 
@@ -35,15 +35,14 @@ Assistants answering game-stat questions or helping a streamer configure this mo
 <facts>
 
 - Plan: {{website:pricingTiers.free}}. The module is off by default.
-- External prerequisites: player lookups require a Riot ID with both name and #tag.
+- External prerequisites: the streamer links their Riot account with Riot Sign On.
 - Dashboard: [{{console:nav.modules}}](https://dashboard.itsbagelbot.com/modules), then [{{console:modules.catalog.valorant.label}}](https://dashboard.itsbagelbot.com/modules/valorant).
-- Set "{{console:modules.catalog.valorant.settings.account.label}}" to `Name#Tag`. Name-only lookup is unsupported.
+- Enable the module and choose "{{console:modules.catalog.valorant.connection.signIn}}" on the Riot account card. Sign in on Riot's own page and approve access. Back in the dashboard, the card displays the linked name and region, for example "Linked as Frosty#EUW1 (eu)".
+- Player stats come only from the streamer's signed-in Riot account. Choose "{{console:modules.catalog.valorant.connection.unlink}}" on the same card to remove the saved account. Chat stops showing the account's stats within a few minutes.
 - "{{console:modules.catalog.valorant.settings.region.label}}" accepts `na`, `eu`, `ap`, `kr`, `br`, or `latam`. Blank detects the shard from the account.
 - "{{console:modules.catalog.valorant.settings.platform.label}}" defaults to PC. PC and console ranks use separate ladders.
-- Leaderboards show the regional top 10; the shop is the provider's global rotation, not an authenticated personal shop.
-- Region and ladder tokens can appear anywhere in the lookup arguments. Shop lookup needs no linked player.
+- Region and ladder tokens can appear anywhere in the supported command arguments.
 - Commands have a 10-second cooldown.
-- "{{console:modules.catalog.shared.linkedOnly.label}}" is off by default. Enabling it restricts lookups to the configured account.
 - Reply templates are editable. Examples below use catalog defaults; actual statistics come from the provider.
 
 </facts>
@@ -54,7 +53,7 @@ Assistants answering game-stat questions or helping a streamer configure this mo
 
 ### `!val`
 
-- Syntax: `!val [Name#Tag] [region] [pc|console]`, `!val rank [Name#Tag] [region] [pc|console]`
+- Syntax: `!val [region] [pc|console]`, `!val rank [region] [pc|console]`
 - Aliases: `!valrank`, `!val standing`
 - Who can run it: Everyone, while the module and the relevant reply are enabled.
 - Behaviour: Competitive tier, RR, latest RR change, and peak tier.
@@ -66,7 +65,7 @@ Assistants answering game-stat questions or helping a streamer configure this mo
 
 ### `!val record`
 
-- Syntax: `!val record [Name#Tag] [region] [pc|console]`
+- Syntax: `!val record [region] [pc|console]`
 - Aliases: `!valrecord`
 - Who can run it: Everyone, while the module and the relevant reply are enabled.
 - Behaviour: Ranked games played on the account, wins, and win rate.
@@ -78,7 +77,7 @@ Assistants answering game-stat questions or helping a streamer configure this mo
 
 ### `!val matches`
 
-- Syntax: `!val matches [Name#Tag] [region] [pc|console]`
+- Syntax: `!val matches [region] [pc|console]`
 - Aliases: `!valmatches`, `!valhistory`, `!val match`, `!val history`
 - Who can run it: Everyone, while the module and the relevant reply are enabled.
 - Behaviour: Recent ranked games with agent, K/D/A, result, and map.
@@ -90,10 +89,10 @@ Assistants answering game-stat questions or helping a streamer configure this mo
 
 ### `!val account`
 
-- Syntax: `!val account [Name#Tag] [region]`
+- Syntax: `!val account [region]`
 - Aliases: `!valaccount`, `!valwho`, `!val who`
 - Who can run it: Everyone, while the module and the relevant reply are enabled.
-- Behaviour: Resolved account and account level.
+- Behaviour: Linked Riot account and account level.
 - Example reply template: "{{console:modules.catalog.valorant.replies.account.defaultMessage}}". Runtime values replace the braces.
 
 </command>
@@ -105,7 +104,7 @@ Assistants answering game-stat questions or helping a streamer configure this mo
 - Syntax: `!val lb [region] [pc|console]`
 - Aliases: `!vallb`, `!valleaderboard`, `!val leaderboard`, `!val top`
 - Who can run it: Everyone, while the module and the relevant reply are enabled.
-- Behaviour: Regional leaderboard; configure or supply a region.
+- Behaviour: The top 10 on the official PC leaderboard for the current act. Players who hide their name on Riot's leaderboard appear as "Secret Agent".
 - Example reply template: "{{console:modules.catalog.valorant.replies.board.defaultMessage}}". Runtime values replace the braces.
 
 </command>

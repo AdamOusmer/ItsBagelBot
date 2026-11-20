@@ -2,6 +2,19 @@
   "label": "Estadísticas de Valorant",
   "tagline": "Rangos, historial de partidas, clasificaciones y rotación diaria de la tienda de Valorant en el chat.",
   "description": "Un comando, seis vistas: !val muestra la clasificación competitiva de un jugador (rango, RR, variación de RR de la última partida, rango máximo); !val record suma las partidas clasificatorias y las victorias de su cuenta; !val matches muestra sus partidas clasificatorias recientes con agente, resultado y K/D/A; !val account muestra a quién corresponde un Riot ID y el nivel de su cuenta; !val lb muestra los primeros 10 puestos de cualquier clasificación regional, de PC o consola; !val shop muestra la rotación global de aspectos de hoy con precios en VP y la cuenta atrás hasta el reinicio. También funcionan las formas abreviadas !valrank, !valrecord, !valmatches, !valaccount, !vallb y !valshop. Vincula tu Riot ID abajo (\"Name#Tag\"). Los espectadores también pueden indicar cualquier jugador, p. ej., \"!val Frosty#EUW1\", y añadir una región o plataforma en cualquier parte del mensaje para limitar esa consulta (\"!val eu Frosty#EUW1\", \"!val lb console ap\"). Deja la región vacía y el bot la detectará a partir de la propia cuenta.",
+  "connection": {
+    "title": "Cuenta de Riot",
+    "prompt": "Inicia sesión para compartir tus estadísticas de Valorant en el chat.",
+    "linked": "Vinculada como {account} ({shard})",
+    "signIn": "Iniciar sesión con Riot",
+    "unlink": "Desvincular",
+    "unconfigured": "El inicio de sesión con Riot no está disponible en este momento.",
+    "declined": "Se rechazó el inicio de sesión con Riot.",
+    "state": "Caducó el inicio de sesión con Riot. Empieza de nuevo.",
+    "oauth": "Falló el inicio de sesión con Riot. Inténtalo de nuevo.",
+    "store": "No se pudo consultar o actualizar tu conexión con Riot. Inténtalo de nuevo.",
+    "unlinkFailed": "No se pudo desvincular tu cuenta de Riot. Inténtalo de nuevo."
+  },
   "settings": {
     "account": {
       "label": "Riot ID vinculado",

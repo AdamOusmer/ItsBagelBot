@@ -56,7 +56,7 @@
     },
     {
       "feature": "Game stats",
-      "us": "Built-in modules cover Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale and CODM. For example, link your Riot ID and use !valrank.",
+      "us": "Built-in modules cover Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale and CODM. For example, link your Riot account with Sign in with Riot and use !val.",
       "them": "The tag reference includes League of Legends, Steam and game interactions for 7 Days to Die and Project Zomboid. Compare those integrations against the game lookups your viewers actually use.",
       "source": "https://support.wizebot.tv/docs/tags"
     },

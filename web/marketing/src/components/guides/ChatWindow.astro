@@ -2,22 +2,25 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import type { HTMLAttributes } from 'astro/types';
 import ChatPreview from '@bagel/ui/astro/ChatPreview.astro';
 import ChatLines from './ChatLines.astro';
 import type { ChatLine } from './ChatLines.astro';
 
 export type { ChatLine };
 
-interface Props {
+interface Props extends HTMLAttributes<'div'> {
     title: string;
     label: string;
     lines: ChatLine[];
+    kind?: string;
+    fitReplies?: boolean;
     class?: string;
 }
 
-const { title, label, lines, class: className } = Astro.props;
+const { title, label, lines, kind = 'chat', fitReplies, ...rest } = Astro.props;
 ---
 
-<ChatPreview title={title} label={label} kind="chat" class={className}>
-    <ChatLines lines={lines} />
+<ChatPreview title={title} label={label} kind={kind} {...rest}>
+    <ChatLines lines={lines} fitReplies={fitReplies} />
 </ChatPreview>

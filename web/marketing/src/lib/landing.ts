@@ -37,7 +37,6 @@ const VIEWER = 'PrincessBarney';
 const SONG = { title: 'One More Time', artist: 'Daft Punk', pos: '3' };
 
 export const SONG_REQUEST_EXAMPLE = `${SONG.artist} - ${SONG.title}`;
-export const VALORANT_EXAMPLE_ID = 'Frosty#EUW1';
 
 function fill(template: string, samples: Record<string, string>): string {
     return template.replace(SLOT, (slot, name: string) => samples[name] ?? slot);
@@ -72,18 +71,14 @@ export function valorantCommands(): string[] {
 }
 
 export function valorantRows(lang: Lang, t: Translate): CommandRow[] {
-    const rows = moduleOf('valorant').replies.flatMap((reply): CommandRow[] => {
+    return moduleOf('valorant').replies.flatMap((reply): CommandRow[] => {
         if (!reply.command) return [];
         const command = `!${reply.command}`;
-        const row: CommandRow = {
+        return [{
             cells: [command, VALORANT_ALIASES[reply.command] ?? t('landing.none'), t('landing.whoEveryone'), catalogReplyText(lang, 'valorant', reply)],
             copy: command,
-        };
-        if (reply.command !== 'val') return [row];
-        const byId = `${command} Name#TAG`;
-        return [row, { cells: [byId, '!valrank Name#TAG', t('landing.whoEveryone'), row.cells[3]], copy: `${command} ${VALORANT_EXAMPLE_ID}` }];
+        }];
     });
-    return rows;
 }
 
 function chatLine(lang: Lang, file: string, key: string, samples: Record<string, string>): string {
@@ -154,15 +149,20 @@ export function goveeExampleLines(lang: Lang, t: Translate) {
     ];
 }
 
-export function valorantExampleLines(lang: Lang) {
+export function valorantExampleLines(lang: Lang, includeLeaderboard = false) {
     const replies = moduleOf('valorant').replies;
-    const [rank, matches] = ['rank', 'matches'].map((key) => replies.find((reply) => reply.key === key)!);
-    return [
-        { who: 'viewer' as const, name: VIEWER, text: '!valrank' },
-        { who: 'bot' as const, text: catalogReplyText(lang, 'valorant', rank) },
-        { who: 'viewer' as const, name: 'Cardistry', text: '!valmatches' },
-        { who: 'bot' as const, text: catalogReplyText(lang, 'valorant', matches) },
+    const examples = [
+        { key: 'rank', name: VIEWER },
+        { key: 'matches', name: 'Cardistry' },
+        { key: 'board', name: VIEWER },
     ];
+    return examples.slice(0, includeLeaderboard ? examples.length : 2).flatMap(({ key, name }) => {
+        const reply = replies.find((item) => item.key === key)!;
+        return [
+            { who: 'viewer' as const, name, text: reply.event },
+            { who: 'bot' as const, text: catalogReplyText(lang, 'valorant', reply) },
+        ];
+    });
 }
 
 interface GameSpec {

@@ -15,6 +15,7 @@ interface Props extends Omit<HTMLAttributes<'header'>, 'brand' | 'crumbs' | 'cru
   clock?: boolean;
   clockText?: string;
   railed?: boolean;
+  showBrand?: boolean;
   class?: string;
 }
 
@@ -26,14 +27,15 @@ const {
   clock = true,
   clockText = '',
   railed = false,
+  showBrand = true,
   class: className = '',
   ...rest
 } = Astro.props;
 
-const classes = ['bb-topbar', className || null].filter(Boolean).join(' ');
+const classes = ['bb-topbar', !showBrand && 'bb-topbar--brandless', className].filter(Boolean).join(' ');
 const hasAccount = Astro.slots.has('account');
 ---
 
-<header class={classes} {...rest}><Brand title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="sm" logoShape={brand.logoShape} style="--bb-cursor: quiet" />{crumbs.length > 0 && <nav class="bb-topbar__crumb" aria-label={crumbLabel}><ol>{crumbs.map((crumb, i) => (
+<header class={classes} {...rest}>{showBrand && <Brand title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="sm" logoShape={brand.logoShape} style="--bb-cursor: quiet" />}{crumbs.length > 0 && <nav class="bb-topbar__crumb" aria-label={crumbLabel}><ol>{crumbs.map((crumb, i) => (
   <li class={i === crumbs.length - 1 ? 'is-current' : undefined}>{crumb.href ? <a href={crumb.href}>{crumb.label}</a> : <span aria-current="page">{crumb.label}</span>}</li>
 ))}</ol></nav>}<div class="bb-topbar__grow"></div>{clock && <span class="bb-topbar__clock" aria-hidden="true">{clockText}</span>}{hasAccount && <div class:list={['bb-topbar__account', railed && 'bb-topbar__account--railed']}><slot name="account" /></div>}<slot name="actions" /></header>

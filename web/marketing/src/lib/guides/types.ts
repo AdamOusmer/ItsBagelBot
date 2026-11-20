@@ -25,6 +25,7 @@ export type ScreenName =
   | 'CommandEditor'
   | 'ModulesGrid'
   | 'ModuleConfigure'
+  | 'ValorantModule'
   | 'NewCounter'
   | 'RewardCounter'
   | 'DataSourceModal'

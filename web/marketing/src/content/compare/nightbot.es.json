@@ -56,7 +56,7 @@
     },
     {
       "feature": "Estadísticas de juego",
-      "us": "Los módulos integrados cubren Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale y CODM. Por ejemplo, vincula tu Riot ID y usa !valrank.",
+      "us": "Los módulos integrados cubren Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale y CODM. Por ejemplo, vincula tu cuenta con «Iniciar sesión con Riot» y usa !val.",
       "them": "Las variables de rango integradas cubren League of Legends y Teamfight Tactics. Referencia de TFT: https://docs.nightbot.tv/variables/teamfighttactics.",
       "source": "https://docs.nightbot.tv/variables/leagueoflegends"
     },

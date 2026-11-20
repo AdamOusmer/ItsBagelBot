@@ -55,7 +55,7 @@
     },
     {
       "feature": "Estatísticas de jogos",
-      "us": "Módulos integrados cobrem Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale e CODM. Por exemplo, vincule seu Riot ID e use !valrank.",
+      "us": "Módulos integrados cobrem Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale e CODM. Por exemplo, vincule sua conta com “Entrar com a Riot” e use !val.",
       "them": "O guia oficial de extensões descreve scripts em Python e a instalação deles. Se suas consultas de jogos dependem de um script, verifique a fonte de dados e os requisitos de manutenção dele antes de substituí-lo.",
       "source": "https://streamlabs.com/content-hub/post/chatbot-scripts-desktop"
     },

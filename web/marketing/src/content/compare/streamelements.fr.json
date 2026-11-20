@@ -62,7 +62,7 @@
     },
     {
       "feature": "Commande de rang Valorant",
-      "us": "Activez le module Valorant, liez un Riot ID comme Name#Tag et utilisez !val ou !valrank. Le module couvre aussi les derniers matchs classés et les classements.",
+      "us": "Activez le module Valorant, choisissez « Se connecter avec Riot » et utilisez !val dans le chat. Le module affiche aussi les dernières parties classées et le classement de l’acte.",
       "them": "Son guide officiel Valorant décrit une commande !rank personnalisée qui utilise une API tierce. C'est une méthode de configuration documentée, plutôt qu'un module Valorant dédié ; vérifiez le fournisseur avant d'utiliser l'exemple.",
       "source": "https://support.streamelements.com/hc/en-us/articles/12362107401234-How-to-add-a-rank-command-for-VALORANT"
     },

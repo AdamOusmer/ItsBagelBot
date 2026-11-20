@@ -2,6 +2,19 @@
   "label": "Valorant-Statistiken",
   "tagline": "Valorant-Ränge, Spielverlauf, Ranglisten und die tägliche Shop-Rotation im Chat.",
   "description": "Ein Befehl, sechs Ansichten: !val zeigt den Wettbewerbsstand eines Spielers (Rangstufe, RR, RR-Änderung im letzten Spiel, höchste Rangstufe); !val record zählt die Ranglistenspiele und Siege des Kontos; !val matches listet kürzliche Ranglistenspiele als Agenten-K/D/A-Ergebnisse; !val account zeigt das Konto hinter einer Riot-ID mit Kontolevel; !val lb zeigt die Top 10 einer regionalen Rangliste für PC oder Konsole; !val shop zeigt die heutige globale Skin-Rotation mit VP-Preisen und Countdown bis zum Zurücksetzen. Auch !valrank, !valrecord, !valmatches, !valaccount, !vallb und !valshop funktionieren. Verknüpfe unten deine Riot-ID („Name#Tag“). Zuschauer können auch beliebige Spieler angeben, z. B. „!val Frosty#EUW1“, und irgendwo in der Zeile einen Shard oder eine Rangliste ergänzen, um die Abfrage einzugrenzen („!val eu Frosty#EUW1“, „!val lb console ap“). Bei leerer Region erkennt der Bot den Shard anhand des Kontos.",
+  "connection": {
+    "title": "Riot-Konto",
+    "prompt": "Melde dich an, um deine Valorant-Statistiken im Chat zu teilen.",
+    "linked": "Verknüpft als {account} ({shard})",
+    "signIn": "Bei Riot anmelden",
+    "unlink": "Verknüpfung lösen",
+    "unconfigured": "Die Anmeldung bei Riot ist derzeit nicht verfügbar.",
+    "declined": "Die Anmeldung bei Riot wurde abgelehnt.",
+    "state": "Die Riot-Anmeldung ist abgelaufen. Starte sie erneut.",
+    "oauth": "Die Riot-Anmeldung ist fehlgeschlagen. Versuche es erneut.",
+    "store": "Die Riot-Verknüpfung konnte nicht gelesen oder aktualisiert werden. Versuche es erneut.",
+    "unlinkFailed": "Die Riot-Verknüpfung konnte nicht gelöst werden. Versuche es erneut."
+  },
   "settings": {
     "account": {
       "label": "Verknüpfte Riot-ID",

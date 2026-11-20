@@ -4,13 +4,19 @@
 
 import Layout from '../../layouts/Layout.astro';
 import FeatureLanding from '../../components/landing/FeatureLanding.astro';
+import ChatWindow from '../../components/guides/ChatWindow.astro';
+import ValorantModule from '../../components/guides/screens/ValorantModule.astro';
 import { getLangFromUrl, useTranslations, dashLoginHref, localizePath, localeStaticPaths } from '../../i18n/ui';
+import { valorantConsoleText } from '../../i18n/valorant-console';
 import { valorantRows, valorantExampleLines, landingSchema, GAMES } from '../../lib/landing';
 
 export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
+const chatLines = valorantExampleLines(lang);
+const walkthroughChat = valorantExampleLines(lang, true);
+const walkthroughChatLabel = walkthroughChat.map((line) => line.text).join(' / ');
 const link = (path: string, label: string) => ({ href: localizePath(path, lang), label });
 const table = {
     eyebrow: t('valorantStats.tblEyebrow'),
@@ -23,7 +29,24 @@ const table = {
     rows: valorantRows(lang, t),
     note: t('valorantStats.tblNote'),
 };
-const updated = { text: t('valorantStats.updated'), iso: '2026-10-13' };
+const steps = [
+    {
+        title: t('valorantStats.step1Title'),
+        desc: t('valorantStats.step1Desc'),
+        visual: 'riot-sign-in',
+    },
+    {
+        title: t('valorantStats.step2Title'),
+        desc: t('valorantStats.step2Desc'),
+        visual: 'riot-linked',
+    },
+    {
+        title: t('valorantStats.step3Title'),
+        desc: t('valorantStats.step3Desc'),
+        visual: 'valorant-chat',
+    },
+];
+const updated = { text: t('valorantStats.updated'), iso: '2026-11-19' };
 const schema = landingSchema({
     site: Astro.site!,
     url: Astro.url,
@@ -44,11 +67,7 @@ const schema = landingSchema({
         lead={t('valorantStats.lead')}
         howEyebrow={t('valorantStats.howEyebrow')}
         howTitle={t('valorantStats.howTitle')}
-        steps={[
-            { title: t('valorantStats.step1Title'), desc: t('valorantStats.step1Desc') },
-            { title: t('valorantStats.step2Title'), desc: t('valorantStats.step2Desc') },
-            { title: t('valorantStats.step3Title'), desc: t('valorantStats.step3Desc') },
-        ]}
+        steps={steps}
         listEyebrow={t('valorantStats.listEyebrow')}
         listTitle={t('valorantStats.listTitle')}
         listItems={[
@@ -78,12 +97,22 @@ const schema = landingSchema({
             eyebrow: t('landing.exampleEyebrow'),
             title: t('valorantStats.demoTitle'),
             caption: t('landing.exampleCaption'),
-            lines: valorantExampleLines(lang),
+            lines: chatLines,
         }}
         prereq={{ title: t('landing.prereqTitle'), items: [t('valorantStats.prereq1'), t('valorantStats.prereq2')] }}
         related={{
             title: t('landing.relatedTitle'),
             links: [link('/guides/modules', t('landing.relModules')), link('/guides/data-sources', t('landing.relDataSources')), link('/guides/variables', t('landing.relVariables')), link('/command-builder', t('landing.relCommandBuilder')), ...Object.values(GAMES).map((game) => link(game.path, t(game.relKey)))],
         }}
-    />
+    >
+        <ValorantModule slot="riot-sign-in" lang={lang} description={t('valorantStats.consoleDescription')} />
+        <ValorantModule slot="riot-linked" lang={lang} description={t('valorantStats.consoleDescription')} linked />
+        <ChatWindow slot="valorant-chat" title="#frosty" label={walkthroughChatLabel} kind={valorantConsoleText(lang, 'modules.catChat')} lines={walkthroughChat} class="val-steps-chat" fitReplies />
+    </FeatureLanding>
 </Layout>
+
+<style>
+    .val-steps-chat {
+        --chat-reply-height: 2lh;
+    }
+</style>

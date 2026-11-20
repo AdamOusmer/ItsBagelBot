@@ -55,7 +55,7 @@
     },
     {
       "feature": "Game stats",
-      "us": "Built-in modules cover Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale and CODM. For example, link your Riot ID and use !valrank.",
+      "us": "Built-in modules cover Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale and CODM. For example, link your Riot account with Sign in with Riot and use !val.",
       "them": "Response tags cover League of Legends, Teamfight Tactics and Apex Legends stats. URL-fetch commands can also read data from an external service. URL-fetch reference: https://moo.bot/docs/building-your-own-dream-twitch-bot-chat-commands.",
       "source": "https://moo.bot/docs/custom-twitch-bot-chat-commands"
     },

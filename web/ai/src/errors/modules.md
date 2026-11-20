@@ -38,7 +38,7 @@ Assistants explaining dashboard module errors or game-stat failure replies for V
 - All six game-stat modules are {{website:pricingTiers.free}} and off by default. A viewer lookup requires the module and its relevant reply to be enabled, with command access and cooldown satisfied.
 - Dashboard settings are under [{{console:nav.modules}}](https://dashboard.itsbagelbot.com/modules), at `/modules/valorant`, `/modules/fortnite`, `/modules/urchin`, `/modules/mcsr`, `/modules/clashroyale`, and `/modules/codm`.
 - Provider data is an external prerequisite. Lookup errors, empty data, disabled replies, and bot connection problems are distinct conditions.
-- Valorant uses a Riot ID; Fortnite uses an Epic account; Urchin and MCSR use Minecraft accounts; Clash Royale uses a player tag; CODM uses a Global UID or exact nickname.
+- Valorant uses the streamer's account linked with Riot Sign On. Fortnite uses an Epic account, Urchin and MCSR use Minecraft accounts, Clash Royale uses a player tag, and CODM uses a Global UID or exact nickname.
 - "{{console:modules.catalog.shared.linkedOnly.label}}" can force lookups to the linked account even when a viewer supplies another one.
 - The chat locale catalogs contain a shared retry notice and Fortnite/MCSR result fragments. Valorant, Urchin, Clash Royale, and CODM have additional fixed code replies without locale keys; these are paraphrased by symptom below.
 - `%s`, `{label}`, and other variables are runtime substitutions, not current player data.
@@ -299,9 +299,9 @@ Next action: Reload the dashboard and contact support if the session lookup keep
 
 Meaning: The game provider returned a not-found result.
 
-Checks: Check spelling and identifier type: Riot ID, Epic account, Minecraft name, Clash Royale tag, or CODM Global identifier.
+Checks: For Valorant, check the linked Riot account in the dashboard. For other modules, check the spelling and identifier type.
 
-Next action: Correct the identifier and retry after the cooldown.
+Next action: Relink the correct Riot account or correct the identifier for the relevant module, then retry after the cooldown.
 
 <a id="provider-forbidden"></a>
 ## Provider lookup not permitted
@@ -340,13 +340,13 @@ Checks: Check account validity and whether failures affect multiple players.
 Next action: Retry later and escalate persistent failures with command and provider.
 
 <a id="valorant-id"></a>
-## Valorant Riot ID invalid
+## Valorant Riot account not linked
 
-Meaning: The supplied Riot ID is malformed.
+Meaning: The lookup needs the streamer's linked Riot account.
 
-Checks: Check `name#tag`, with non-empty name and tag; provider maxima are 32 and 8 characters respectively.
+Checks: Check the Riot account card in the Valorant Stats module.
 
-Next action: Use the exact Riot ID.
+Next action: Choose "{{console:modules.catalog.valorant.connection.signIn}}" and approve access on Riot's page.
 
 <a id="valorant-region"></a>
 ## Valorant region invalid
@@ -371,16 +371,16 @@ Next action: Choose the matching supported platform.
 
 Meaning: An accountless leaderboard lookup cannot determine an automatic region.
 
-Checks: Check explicit region selection for `!valboard`.
+Checks: Check the linked account and region selection for `!val lb`.
 
-Next action: Set a supported region in the module.
+Next action: Link the Riot account or set a supported region in the module.
 
 <a id="valorant-region-detection"></a>
 ## Valorant region detection failed
 
 Meaning: The provider could not detect a region from the account.
 
-Checks: Check Riot ID and configured region.
+Checks: Check the linked Riot account and configured region.
 
 Next action: Correct the account or choose its region explicitly.
 
@@ -389,7 +389,7 @@ Next action: Correct the account or choose its region explicitly.
 
 Meaning: The current act has no competitive record for the returned player.
 
-Checks: Check Riot ID, platform, and act context.
+Checks: Check the linked Riot account, platform, and act context.
 
 Next action: Explain the missing record or retry after competitive data exists.
 
@@ -398,7 +398,7 @@ Next action: Explain the missing record or retry after competitive data exists.
 
 Meaning: The provider returned no ranked games for the returned player.
 
-Checks: Check Riot ID and platform.
+Checks: Check the linked Riot account and platform.
 
 Next action: Retry after ranked games are recorded.
 

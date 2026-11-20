@@ -56,7 +56,7 @@
     },
     {
       "feature": "Game stats",
-      "us": "Built-in modules cover Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale and CODM. For example, link your Riot ID and use !valrank.",
+      "us": "Built-in modules cover Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale and CODM. For example, link your Riot account with Sign in with Riot and use !val.",
       "them": "Valorant variables expose rank, RR, leaderboard placement and session wins or losses. Connect and authorize your Riot account in the dashboard first; some data may be up to 30 minutes old.",
       "source": "https://docs.fossabot.com/variables/valorant/"
     },
