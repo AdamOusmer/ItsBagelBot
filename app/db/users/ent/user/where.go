@@ -145,6 +145,16 @@ func SongqueuePageHidden(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldSongqueuePageHidden, v))
 }
 
+// TtsEnabled applies equality check predicate on the "tts_enabled" field. It's identical to TtsEnabledEQ.
+func TtsEnabled(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTtsEnabled, v))
+}
+
+// TtsVoice applies equality check predicate on the "tts_voice" field. It's identical to TtsVoiceEQ.
+func TtsVoice(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTtsVoice, v))
+}
+
 // CreatorCode applies equality check predicate on the "creator_code" field. It's identical to CreatorCodeEQ.
 func CreatorCode(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatorCode, v))
@@ -885,6 +895,81 @@ func SongqueuePageHiddenNEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldSongqueuePageHidden, v))
 }
 
+// TtsEnabledEQ applies the EQ predicate on the "tts_enabled" field.
+func TtsEnabledEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTtsEnabled, v))
+}
+
+// TtsEnabledNEQ applies the NEQ predicate on the "tts_enabled" field.
+func TtsEnabledNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldTtsEnabled, v))
+}
+
+// TtsVoiceEQ applies the EQ predicate on the "tts_voice" field.
+func TtsVoiceEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTtsVoice, v))
+}
+
+// TtsVoiceNEQ applies the NEQ predicate on the "tts_voice" field.
+func TtsVoiceNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldTtsVoice, v))
+}
+
+// TtsVoiceIn applies the In predicate on the "tts_voice" field.
+func TtsVoiceIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldTtsVoice, vs...))
+}
+
+// TtsVoiceNotIn applies the NotIn predicate on the "tts_voice" field.
+func TtsVoiceNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldTtsVoice, vs...))
+}
+
+// TtsVoiceGT applies the GT predicate on the "tts_voice" field.
+func TtsVoiceGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldTtsVoice, v))
+}
+
+// TtsVoiceGTE applies the GTE predicate on the "tts_voice" field.
+func TtsVoiceGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldTtsVoice, v))
+}
+
+// TtsVoiceLT applies the LT predicate on the "tts_voice" field.
+func TtsVoiceLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldTtsVoice, v))
+}
+
+// TtsVoiceLTE applies the LTE predicate on the "tts_voice" field.
+func TtsVoiceLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldTtsVoice, v))
+}
+
+// TtsVoiceContains applies the Contains predicate on the "tts_voice" field.
+func TtsVoiceContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldTtsVoice, v))
+}
+
+// TtsVoiceHasPrefix applies the HasPrefix predicate on the "tts_voice" field.
+func TtsVoiceHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldTtsVoice, v))
+}
+
+// TtsVoiceHasSuffix applies the HasSuffix predicate on the "tts_voice" field.
+func TtsVoiceHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldTtsVoice, v))
+}
+
+// TtsVoiceEqualFold applies the EqualFold predicate on the "tts_voice" field.
+func TtsVoiceEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldTtsVoice, v))
+}
+
+// TtsVoiceContainsFold applies the ContainsFold predicate on the "tts_voice" field.
+func TtsVoiceContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldTtsVoice, v))
+}
+
 // CreatorCodeEQ applies the EQ predicate on the "creator_code" field.
 func CreatorCodeEQ(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatorCode, v))
@@ -1519,6 +1604,52 @@ func HasAuthorizationCodes() predicate.User {
 func HasAuthorizationCodesWith(preds ...predicate.AuthorizationCode) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newAuthorizationCodesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasVoiceUsage applies the HasEdge predicate on the "voice_usage" edge.
+func HasVoiceUsage() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, VoiceUsageTable, VoiceUsageColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasVoiceUsageWith applies the HasEdge predicate on the "voice_usage" edge with a given conditions (other predicates).
+func HasVoiceUsageWith(preds ...predicate.VoiceUsage) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newVoiceUsageStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasVoiceUsageReceipts applies the HasEdge predicate on the "voice_usage_receipts" edge.
+func HasVoiceUsageReceipts() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, VoiceUsageReceiptsTable, VoiceUsageReceiptsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasVoiceUsageReceiptsWith applies the HasEdge predicate on the "voice_usage_receipts" edge with a given conditions (other predicates).
+func HasVoiceUsageReceiptsWith(preds ...predicate.VoiceUsageReceipt) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newVoiceUsageReceiptsStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

@@ -86,6 +86,7 @@ func main() {
 	go expireSubscriptions(ctx, repo, log)
 	go expirePremiumGrants(ctx, repo, log)
 	go cleanupDeviceAuth(ctx, repo, log)
+	go cleanupVoiceUsageReceipts(ctx, repo, log)
 	go deliverAdminAudits(ctx, repo, log)
 
 	svcboot.FatalIf(log, levels.Serve(bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log}), "failed to subscribe analytics levels rpc")
@@ -240,6 +241,12 @@ func cleanupDeviceAuth(ctx context.Context, repo *repository.Users, log *zap.Log
 	runPeriodicSweep(ctx, log, interval, 10*time.Second,
 		"failed to clean up device authorization", "cleaned up device authorization",
 		repo.CleanupDeviceAuth)
+}
+
+func cleanupVoiceUsageReceipts(ctx context.Context, repo *repository.Users, log *zap.Logger) {
+	runPeriodicSweep(ctx, log, 5*time.Minute, 10*time.Second,
+		"failed to clean up voice usage receipts", "cleaned up voice usage receipts",
+		repo.CleanupVoiceUsageReceipts)
 }
 
 func runPeriodicSweep(ctx context.Context, log *zap.Logger, interval, timeout time.Duration, errorMessage, successMessage string, sweep func(context.Context, time.Time) (int, error)) {

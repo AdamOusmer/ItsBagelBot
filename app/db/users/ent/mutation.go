@@ -13,6 +13,8 @@ import (
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/app/db/users/ent/voiceusage"
+	"ItsBagelBot/app/db/users/ent/voiceusagereceipt"
 	"ItsBagelBot/internal/domain/lifecycle"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"context"
@@ -44,6 +46,8 @@ const (
 	TypePremiumGrant       = "PremiumGrant"
 	TypeTokens             = "Tokens"
 	TypeUser               = "User"
+	TypeVoiceUsage         = "VoiceUsage"
+	TypeVoiceUsageReceipt  = "VoiceUsageReceipt"
 )
 
 // AdminAuditDeliveryMutation represents an operation that mutates the AdminAuditDelivery nodes in the graph.
@@ -6194,6 +6198,8 @@ type UserMutation struct {
 	commands_page_hidden         *bool
 	leaderboard_page_hidden      *bool
 	songqueue_page_hidden        *bool
+	tts_enabled                  *bool
+	tts_voice                    *string
 	creator_code                 *string
 	subscription_source          *string
 	subscription_expires_at      *time.Time
@@ -6221,6 +6227,12 @@ type UserMutation struct {
 	authorization_codes          map[int]struct{}
 	removedauthorization_codes   map[int]struct{}
 	clearedauthorization_codes   bool
+	voice_usage                  map[int]struct{}
+	removedvoice_usage           map[int]struct{}
+	clearedvoice_usage           bool
+	voice_usage_receipts         map[int]struct{}
+	removedvoice_usage_receipts  map[int]struct{}
+	clearedvoice_usage_receipts  bool
 	done                         bool
 	oldValue                     func(context.Context) (*User, error)
 	predicates                   []predicate.User
@@ -7135,6 +7147,78 @@ func (m *UserMutation) ResetSongqueuePageHidden() {
 	m.songqueue_page_hidden = nil
 }
 
+// SetTtsEnabled sets the "tts_enabled" field.
+func (m *UserMutation) SetTtsEnabled(b bool) {
+	m.tts_enabled = &b
+}
+
+// TtsEnabled returns the value of the "tts_enabled" field in the mutation.
+func (m *UserMutation) TtsEnabled() (r bool, exists bool) {
+	v := m.tts_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTtsEnabled returns the old "tts_enabled" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldTtsEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTtsEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTtsEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTtsEnabled: %w", err)
+	}
+	return oldValue.TtsEnabled, nil
+}
+
+// ResetTtsEnabled resets all changes to the "tts_enabled" field.
+func (m *UserMutation) ResetTtsEnabled() {
+	m.tts_enabled = nil
+}
+
+// SetTtsVoice sets the "tts_voice" field.
+func (m *UserMutation) SetTtsVoice(s string) {
+	m.tts_voice = &s
+}
+
+// TtsVoice returns the value of the "tts_voice" field in the mutation.
+func (m *UserMutation) TtsVoice() (r string, exists bool) {
+	v := m.tts_voice
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTtsVoice returns the old "tts_voice" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldTtsVoice(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTtsVoice is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTtsVoice requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTtsVoice: %w", err)
+	}
+	return oldValue.TtsVoice, nil
+}
+
+// ResetTtsVoice resets all changes to the "tts_voice" field.
+func (m *UserMutation) ResetTtsVoice() {
+	m.tts_voice = nil
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (m *UserMutation) SetCreatorCode(s string) {
 	m.creator_code = &s
@@ -7904,6 +7988,114 @@ func (m *UserMutation) ResetAuthorizationCodes() {
 	m.removedauthorization_codes = nil
 }
 
+// AddVoiceUsageIDs adds the "voice_usage" edge to the VoiceUsage entity by ids.
+func (m *UserMutation) AddVoiceUsageIDs(ids ...int) {
+	if m.voice_usage == nil {
+		m.voice_usage = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.voice_usage[ids[i]] = struct{}{}
+	}
+}
+
+// ClearVoiceUsage clears the "voice_usage" edge to the VoiceUsage entity.
+func (m *UserMutation) ClearVoiceUsage() {
+	m.clearedvoice_usage = true
+}
+
+// VoiceUsageCleared reports if the "voice_usage" edge to the VoiceUsage entity was cleared.
+func (m *UserMutation) VoiceUsageCleared() bool {
+	return m.clearedvoice_usage
+}
+
+// RemoveVoiceUsageIDs removes the "voice_usage" edge to the VoiceUsage entity by IDs.
+func (m *UserMutation) RemoveVoiceUsageIDs(ids ...int) {
+	if m.removedvoice_usage == nil {
+		m.removedvoice_usage = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.voice_usage, ids[i])
+		m.removedvoice_usage[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedVoiceUsage returns the removed IDs of the "voice_usage" edge to the VoiceUsage entity.
+func (m *UserMutation) RemovedVoiceUsageIDs() (ids []int) {
+	for id := range m.removedvoice_usage {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// VoiceUsageIDs returns the "voice_usage" edge IDs in the mutation.
+func (m *UserMutation) VoiceUsageIDs() (ids []int) {
+	for id := range m.voice_usage {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetVoiceUsage resets all changes to the "voice_usage" edge.
+func (m *UserMutation) ResetVoiceUsage() {
+	m.voice_usage = nil
+	m.clearedvoice_usage = false
+	m.removedvoice_usage = nil
+}
+
+// AddVoiceUsageReceiptIDs adds the "voice_usage_receipts" edge to the VoiceUsageReceipt entity by ids.
+func (m *UserMutation) AddVoiceUsageReceiptIDs(ids ...int) {
+	if m.voice_usage_receipts == nil {
+		m.voice_usage_receipts = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.voice_usage_receipts[ids[i]] = struct{}{}
+	}
+}
+
+// ClearVoiceUsageReceipts clears the "voice_usage_receipts" edge to the VoiceUsageReceipt entity.
+func (m *UserMutation) ClearVoiceUsageReceipts() {
+	m.clearedvoice_usage_receipts = true
+}
+
+// VoiceUsageReceiptsCleared reports if the "voice_usage_receipts" edge to the VoiceUsageReceipt entity was cleared.
+func (m *UserMutation) VoiceUsageReceiptsCleared() bool {
+	return m.clearedvoice_usage_receipts
+}
+
+// RemoveVoiceUsageReceiptIDs removes the "voice_usage_receipts" edge to the VoiceUsageReceipt entity by IDs.
+func (m *UserMutation) RemoveVoiceUsageReceiptIDs(ids ...int) {
+	if m.removedvoice_usage_receipts == nil {
+		m.removedvoice_usage_receipts = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.voice_usage_receipts, ids[i])
+		m.removedvoice_usage_receipts[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedVoiceUsageReceipts returns the removed IDs of the "voice_usage_receipts" edge to the VoiceUsageReceipt entity.
+func (m *UserMutation) RemovedVoiceUsageReceiptsIDs() (ids []int) {
+	for id := range m.removedvoice_usage_receipts {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// VoiceUsageReceiptsIDs returns the "voice_usage_receipts" edge IDs in the mutation.
+func (m *UserMutation) VoiceUsageReceiptsIDs() (ids []int) {
+	for id := range m.voice_usage_receipts {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetVoiceUsageReceipts resets all changes to the "voice_usage_receipts" edge.
+func (m *UserMutation) ResetVoiceUsageReceipts() {
+	m.voice_usage_receipts = nil
+	m.clearedvoice_usage_receipts = false
+	m.removedvoice_usage_receipts = nil
+}
+
 // Where appends a list predicates to the UserMutation builder.
 func (m *UserMutation) Where(ps ...predicate.User) {
 	m.predicates = append(m.predicates, ps...)
@@ -7938,7 +8130,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 33)
+	fields := make([]string, 0, 35)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -7998,6 +8190,12 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.songqueue_page_hidden != nil {
 		fields = append(fields, user.FieldSongqueuePageHidden)
+	}
+	if m.tts_enabled != nil {
+		fields = append(fields, user.FieldTtsEnabled)
+	}
+	if m.tts_voice != nil {
+		fields = append(fields, user.FieldTtsVoice)
 	}
 	if m.creator_code != nil {
 		fields = append(fields, user.FieldCreatorCode)
@@ -8086,6 +8284,10 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.LeaderboardPageHidden()
 	case user.FieldSongqueuePageHidden:
 		return m.SongqueuePageHidden()
+	case user.FieldTtsEnabled:
+		return m.TtsEnabled()
+	case user.FieldTtsVoice:
+		return m.TtsVoice()
 	case user.FieldCreatorCode:
 		return m.CreatorCode()
 	case user.FieldSubscriptionSource:
@@ -8161,6 +8363,10 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldLeaderboardPageHidden(ctx)
 	case user.FieldSongqueuePageHidden:
 		return m.OldSongqueuePageHidden(ctx)
+	case user.FieldTtsEnabled:
+		return m.OldTtsEnabled(ctx)
+	case user.FieldTtsVoice:
+		return m.OldTtsVoice(ctx)
 	case user.FieldCreatorCode:
 		return m.OldCreatorCode(ctx)
 	case user.FieldSubscriptionSource:
@@ -8335,6 +8541,20 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetSongqueuePageHidden(v)
+		return nil
+	case user.FieldTtsEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTtsEnabled(v)
+		return nil
+	case user.FieldTtsVoice:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTtsVoice(v)
 		return nil
 	case user.FieldCreatorCode:
 		v, ok := value.(string)
@@ -8626,6 +8846,12 @@ func (m *UserMutation) ResetField(name string) error {
 	case user.FieldSongqueuePageHidden:
 		m.ResetSongqueuePageHidden()
 		return nil
+	case user.FieldTtsEnabled:
+		m.ResetTtsEnabled()
+		return nil
+	case user.FieldTtsVoice:
+		m.ResetTtsVoice()
+		return nil
 	case user.FieldCreatorCode:
 		m.ResetCreatorCode()
 		return nil
@@ -8671,7 +8897,7 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 6)
 	if m.tokens != nil {
 		edges = append(edges, user.EdgeTokens)
 	}
@@ -8683,6 +8909,12 @@ func (m *UserMutation) AddedEdges() []string {
 	}
 	if m.authorization_codes != nil {
 		edges = append(edges, user.EdgeAuthorizationCodes)
+	}
+	if m.voice_usage != nil {
+		edges = append(edges, user.EdgeVoiceUsage)
+	}
+	if m.voice_usage_receipts != nil {
+		edges = append(edges, user.EdgeVoiceUsageReceipts)
 	}
 	return edges
 }
@@ -8715,13 +8947,25 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeVoiceUsage:
+		ids := make([]ent.Value, 0, len(m.voice_usage))
+		for id := range m.voice_usage {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeVoiceUsageReceipts:
+		ids := make([]ent.Value, 0, len(m.voice_usage_receipts))
+		for id := range m.voice_usage_receipts {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 6)
 	if m.removedtokens != nil {
 		edges = append(edges, user.EdgeTokens)
 	}
@@ -8733,6 +8977,12 @@ func (m *UserMutation) RemovedEdges() []string {
 	}
 	if m.removedauthorization_codes != nil {
 		edges = append(edges, user.EdgeAuthorizationCodes)
+	}
+	if m.removedvoice_usage != nil {
+		edges = append(edges, user.EdgeVoiceUsage)
+	}
+	if m.removedvoice_usage_receipts != nil {
+		edges = append(edges, user.EdgeVoiceUsageReceipts)
 	}
 	return edges
 }
@@ -8765,13 +9015,25 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeVoiceUsage:
+		ids := make([]ent.Value, 0, len(m.removedvoice_usage))
+		for id := range m.removedvoice_usage {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeVoiceUsageReceipts:
+		ids := make([]ent.Value, 0, len(m.removedvoice_usage_receipts))
+		for id := range m.removedvoice_usage_receipts {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 6)
 	if m.clearedtokens {
 		edges = append(edges, user.EdgeTokens)
 	}
@@ -8783,6 +9045,12 @@ func (m *UserMutation) ClearedEdges() []string {
 	}
 	if m.clearedauthorization_codes {
 		edges = append(edges, user.EdgeAuthorizationCodes)
+	}
+	if m.clearedvoice_usage {
+		edges = append(edges, user.EdgeVoiceUsage)
+	}
+	if m.clearedvoice_usage_receipts {
+		edges = append(edges, user.EdgeVoiceUsageReceipts)
 	}
 	return edges
 }
@@ -8799,6 +9067,10 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 		return m.cleareddevice_grants
 	case user.EdgeAuthorizationCodes:
 		return m.clearedauthorization_codes
+	case user.EdgeVoiceUsage:
+		return m.clearedvoice_usage
+	case user.EdgeVoiceUsageReceipts:
+		return m.clearedvoice_usage_receipts
 	}
 	return false
 }
@@ -8827,6 +9099,1450 @@ func (m *UserMutation) ResetEdge(name string) error {
 	case user.EdgeAuthorizationCodes:
 		m.ResetAuthorizationCodes()
 		return nil
+	case user.EdgeVoiceUsage:
+		m.ResetVoiceUsage()
+		return nil
+	case user.EdgeVoiceUsageReceipts:
+		m.ResetVoiceUsageReceipts()
+		return nil
 	}
 	return fmt.Errorf("unknown User edge %s", name)
+}
+
+// VoiceUsageMutation represents an operation that mutates the VoiceUsage nodes in the graph.
+type VoiceUsageMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *int
+	period          *string
+	audio_tokens    *int64
+	addaudio_tokens *int64
+	duration_ms     *int64
+	addduration_ms  *int64
+	requests        *int
+	addrequests     *int
+	updated_at      *time.Time
+	clearedFields   map[string]struct{}
+	user            *uint64
+	cleareduser     bool
+	done            bool
+	oldValue        func(context.Context) (*VoiceUsage, error)
+	predicates      []predicate.VoiceUsage
+}
+
+var _ ent.Mutation = (*VoiceUsageMutation)(nil)
+
+// voiceusageOption allows management of the mutation configuration using functional options.
+type voiceusageOption func(*VoiceUsageMutation)
+
+// newVoiceUsageMutation creates new mutation for the VoiceUsage entity.
+func newVoiceUsageMutation(c config, op Op, opts ...voiceusageOption) *VoiceUsageMutation {
+	m := &VoiceUsageMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeVoiceUsage,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withVoiceUsageID sets the ID field of the mutation.
+func withVoiceUsageID(id int) voiceusageOption {
+	return func(m *VoiceUsageMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *VoiceUsage
+		)
+		m.oldValue = func(ctx context.Context) (*VoiceUsage, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().VoiceUsage.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withVoiceUsage sets the old VoiceUsage of the mutation.
+func withVoiceUsage(node *VoiceUsage) voiceusageOption {
+	return func(m *VoiceUsageMutation) {
+		m.oldValue = func(context.Context) (*VoiceUsage, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m VoiceUsageMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m VoiceUsageMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *VoiceUsageMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *VoiceUsageMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().VoiceUsage.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *VoiceUsageMutation) SetUserID(u uint64) {
+	m.user = &u
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *VoiceUsageMutation) UserID() (r uint64, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the VoiceUsage entity.
+// If the VoiceUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VoiceUsageMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *VoiceUsageMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetPeriod sets the "period" field.
+func (m *VoiceUsageMutation) SetPeriod(s string) {
+	m.period = &s
+}
+
+// Period returns the value of the "period" field in the mutation.
+func (m *VoiceUsageMutation) Period() (r string, exists bool) {
+	v := m.period
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPeriod returns the old "period" field's value of the VoiceUsage entity.
+// If the VoiceUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VoiceUsageMutation) OldPeriod(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPeriod is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPeriod requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPeriod: %w", err)
+	}
+	return oldValue.Period, nil
+}
+
+// ResetPeriod resets all changes to the "period" field.
+func (m *VoiceUsageMutation) ResetPeriod() {
+	m.period = nil
+}
+
+// SetAudioTokens sets the "audio_tokens" field.
+func (m *VoiceUsageMutation) SetAudioTokens(i int64) {
+	m.audio_tokens = &i
+	m.addaudio_tokens = nil
+}
+
+// AudioTokens returns the value of the "audio_tokens" field in the mutation.
+func (m *VoiceUsageMutation) AudioTokens() (r int64, exists bool) {
+	v := m.audio_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAudioTokens returns the old "audio_tokens" field's value of the VoiceUsage entity.
+// If the VoiceUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VoiceUsageMutation) OldAudioTokens(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAudioTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAudioTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAudioTokens: %w", err)
+	}
+	return oldValue.AudioTokens, nil
+}
+
+// AddAudioTokens adds i to the "audio_tokens" field.
+func (m *VoiceUsageMutation) AddAudioTokens(i int64) {
+	if m.addaudio_tokens != nil {
+		*m.addaudio_tokens += i
+	} else {
+		m.addaudio_tokens = &i
+	}
+}
+
+// AddedAudioTokens returns the value that was added to the "audio_tokens" field in this mutation.
+func (m *VoiceUsageMutation) AddedAudioTokens() (r int64, exists bool) {
+	v := m.addaudio_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAudioTokens resets all changes to the "audio_tokens" field.
+func (m *VoiceUsageMutation) ResetAudioTokens() {
+	m.audio_tokens = nil
+	m.addaudio_tokens = nil
+}
+
+// SetDurationMs sets the "duration_ms" field.
+func (m *VoiceUsageMutation) SetDurationMs(i int64) {
+	m.duration_ms = &i
+	m.addduration_ms = nil
+}
+
+// DurationMs returns the value of the "duration_ms" field in the mutation.
+func (m *VoiceUsageMutation) DurationMs() (r int64, exists bool) {
+	v := m.duration_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDurationMs returns the old "duration_ms" field's value of the VoiceUsage entity.
+// If the VoiceUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VoiceUsageMutation) OldDurationMs(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDurationMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDurationMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDurationMs: %w", err)
+	}
+	return oldValue.DurationMs, nil
+}
+
+// AddDurationMs adds i to the "duration_ms" field.
+func (m *VoiceUsageMutation) AddDurationMs(i int64) {
+	if m.addduration_ms != nil {
+		*m.addduration_ms += i
+	} else {
+		m.addduration_ms = &i
+	}
+}
+
+// AddedDurationMs returns the value that was added to the "duration_ms" field in this mutation.
+func (m *VoiceUsageMutation) AddedDurationMs() (r int64, exists bool) {
+	v := m.addduration_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetDurationMs resets all changes to the "duration_ms" field.
+func (m *VoiceUsageMutation) ResetDurationMs() {
+	m.duration_ms = nil
+	m.addduration_ms = nil
+}
+
+// SetRequests sets the "requests" field.
+func (m *VoiceUsageMutation) SetRequests(i int) {
+	m.requests = &i
+	m.addrequests = nil
+}
+
+// Requests returns the value of the "requests" field in the mutation.
+func (m *VoiceUsageMutation) Requests() (r int, exists bool) {
+	v := m.requests
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequests returns the old "requests" field's value of the VoiceUsage entity.
+// If the VoiceUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VoiceUsageMutation) OldRequests(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequests is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequests requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequests: %w", err)
+	}
+	return oldValue.Requests, nil
+}
+
+// AddRequests adds i to the "requests" field.
+func (m *VoiceUsageMutation) AddRequests(i int) {
+	if m.addrequests != nil {
+		*m.addrequests += i
+	} else {
+		m.addrequests = &i
+	}
+}
+
+// AddedRequests returns the value that was added to the "requests" field in this mutation.
+func (m *VoiceUsageMutation) AddedRequests() (r int, exists bool) {
+	v := m.addrequests
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRequests resets all changes to the "requests" field.
+func (m *VoiceUsageMutation) ResetRequests() {
+	m.requests = nil
+	m.addrequests = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *VoiceUsageMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *VoiceUsageMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the VoiceUsage entity.
+// If the VoiceUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VoiceUsageMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *VoiceUsageMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *VoiceUsageMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[voiceusage.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *VoiceUsageMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *VoiceUsageMutation) UserIDs() (ids []uint64) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *VoiceUsageMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the VoiceUsageMutation builder.
+func (m *VoiceUsageMutation) Where(ps ...predicate.VoiceUsage) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the VoiceUsageMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *VoiceUsageMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.VoiceUsage, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *VoiceUsageMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *VoiceUsageMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (VoiceUsage).
+func (m *VoiceUsageMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *VoiceUsageMutation) Fields() []string {
+	fields := make([]string, 0, 6)
+	if m.user != nil {
+		fields = append(fields, voiceusage.FieldUserID)
+	}
+	if m.period != nil {
+		fields = append(fields, voiceusage.FieldPeriod)
+	}
+	if m.audio_tokens != nil {
+		fields = append(fields, voiceusage.FieldAudioTokens)
+	}
+	if m.duration_ms != nil {
+		fields = append(fields, voiceusage.FieldDurationMs)
+	}
+	if m.requests != nil {
+		fields = append(fields, voiceusage.FieldRequests)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, voiceusage.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *VoiceUsageMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case voiceusage.FieldUserID:
+		return m.UserID()
+	case voiceusage.FieldPeriod:
+		return m.Period()
+	case voiceusage.FieldAudioTokens:
+		return m.AudioTokens()
+	case voiceusage.FieldDurationMs:
+		return m.DurationMs()
+	case voiceusage.FieldRequests:
+		return m.Requests()
+	case voiceusage.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *VoiceUsageMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case voiceusage.FieldUserID:
+		return m.OldUserID(ctx)
+	case voiceusage.FieldPeriod:
+		return m.OldPeriod(ctx)
+	case voiceusage.FieldAudioTokens:
+		return m.OldAudioTokens(ctx)
+	case voiceusage.FieldDurationMs:
+		return m.OldDurationMs(ctx)
+	case voiceusage.FieldRequests:
+		return m.OldRequests(ctx)
+	case voiceusage.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown VoiceUsage field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *VoiceUsageMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case voiceusage.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case voiceusage.FieldPeriod:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPeriod(v)
+		return nil
+	case voiceusage.FieldAudioTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAudioTokens(v)
+		return nil
+	case voiceusage.FieldDurationMs:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDurationMs(v)
+		return nil
+	case voiceusage.FieldRequests:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequests(v)
+		return nil
+	case voiceusage.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown VoiceUsage field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *VoiceUsageMutation) AddedFields() []string {
+	var fields []string
+	if m.addaudio_tokens != nil {
+		fields = append(fields, voiceusage.FieldAudioTokens)
+	}
+	if m.addduration_ms != nil {
+		fields = append(fields, voiceusage.FieldDurationMs)
+	}
+	if m.addrequests != nil {
+		fields = append(fields, voiceusage.FieldRequests)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *VoiceUsageMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case voiceusage.FieldAudioTokens:
+		return m.AddedAudioTokens()
+	case voiceusage.FieldDurationMs:
+		return m.AddedDurationMs()
+	case voiceusage.FieldRequests:
+		return m.AddedRequests()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *VoiceUsageMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case voiceusage.FieldAudioTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAudioTokens(v)
+		return nil
+	case voiceusage.FieldDurationMs:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDurationMs(v)
+		return nil
+	case voiceusage.FieldRequests:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRequests(v)
+		return nil
+	}
+	return fmt.Errorf("unknown VoiceUsage numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *VoiceUsageMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *VoiceUsageMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *VoiceUsageMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown VoiceUsage nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *VoiceUsageMutation) ResetField(name string) error {
+	switch name {
+	case voiceusage.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case voiceusage.FieldPeriod:
+		m.ResetPeriod()
+		return nil
+	case voiceusage.FieldAudioTokens:
+		m.ResetAudioTokens()
+		return nil
+	case voiceusage.FieldDurationMs:
+		m.ResetDurationMs()
+		return nil
+	case voiceusage.FieldRequests:
+		m.ResetRequests()
+		return nil
+	case voiceusage.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown VoiceUsage field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *VoiceUsageMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, voiceusage.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *VoiceUsageMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case voiceusage.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *VoiceUsageMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *VoiceUsageMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *VoiceUsageMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, voiceusage.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *VoiceUsageMutation) EdgeCleared(name string) bool {
+	switch name {
+	case voiceusage.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *VoiceUsageMutation) ClearEdge(name string) error {
+	switch name {
+	case voiceusage.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown VoiceUsage unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *VoiceUsageMutation) ResetEdge(name string) error {
+	switch name {
+	case voiceusage.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown VoiceUsage edge %s", name)
+}
+
+// VoiceUsageReceiptMutation represents an operation that mutates the VoiceUsageReceipt nodes in the graph.
+type VoiceUsageReceiptMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *int
+	request_id      *string
+	period          *string
+	audio_tokens    *int64
+	addaudio_tokens *int64
+	created_at      *time.Time
+	allowance       *usersrpc.VoiceAllowance
+	clearedFields   map[string]struct{}
+	user            *uint64
+	cleareduser     bool
+	done            bool
+	oldValue        func(context.Context) (*VoiceUsageReceipt, error)
+	predicates      []predicate.VoiceUsageReceipt
+}
+
+var _ ent.Mutation = (*VoiceUsageReceiptMutation)(nil)
+
+// voiceusagereceiptOption allows management of the mutation configuration using functional options.
+type voiceusagereceiptOption func(*VoiceUsageReceiptMutation)
+
+// newVoiceUsageReceiptMutation creates new mutation for the VoiceUsageReceipt entity.
+func newVoiceUsageReceiptMutation(c config, op Op, opts ...voiceusagereceiptOption) *VoiceUsageReceiptMutation {
+	m := &VoiceUsageReceiptMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeVoiceUsageReceipt,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withVoiceUsageReceiptID sets the ID field of the mutation.
+func withVoiceUsageReceiptID(id int) voiceusagereceiptOption {
+	return func(m *VoiceUsageReceiptMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *VoiceUsageReceipt
+		)
+		m.oldValue = func(ctx context.Context) (*VoiceUsageReceipt, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().VoiceUsageReceipt.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withVoiceUsageReceipt sets the old VoiceUsageReceipt of the mutation.
+func withVoiceUsageReceipt(node *VoiceUsageReceipt) voiceusagereceiptOption {
+	return func(m *VoiceUsageReceiptMutation) {
+		m.oldValue = func(context.Context) (*VoiceUsageReceipt, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m VoiceUsageReceiptMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m VoiceUsageReceiptMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *VoiceUsageReceiptMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *VoiceUsageReceiptMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().VoiceUsageReceipt.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetRequestID sets the "request_id" field.
+func (m *VoiceUsageReceiptMutation) SetRequestID(s string) {
+	m.request_id = &s
+}
+
+// RequestID returns the value of the "request_id" field in the mutation.
+func (m *VoiceUsageReceiptMutation) RequestID() (r string, exists bool) {
+	v := m.request_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestID returns the old "request_id" field's value of the VoiceUsageReceipt entity.
+// If the VoiceUsageReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VoiceUsageReceiptMutation) OldRequestID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestID: %w", err)
+	}
+	return oldValue.RequestID, nil
+}
+
+// ResetRequestID resets all changes to the "request_id" field.
+func (m *VoiceUsageReceiptMutation) ResetRequestID() {
+	m.request_id = nil
+}
+
+// SetUserID sets the "user_id" field.
+func (m *VoiceUsageReceiptMutation) SetUserID(u uint64) {
+	m.user = &u
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *VoiceUsageReceiptMutation) UserID() (r uint64, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the VoiceUsageReceipt entity.
+// If the VoiceUsageReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VoiceUsageReceiptMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *VoiceUsageReceiptMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetPeriod sets the "period" field.
+func (m *VoiceUsageReceiptMutation) SetPeriod(s string) {
+	m.period = &s
+}
+
+// Period returns the value of the "period" field in the mutation.
+func (m *VoiceUsageReceiptMutation) Period() (r string, exists bool) {
+	v := m.period
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPeriod returns the old "period" field's value of the VoiceUsageReceipt entity.
+// If the VoiceUsageReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VoiceUsageReceiptMutation) OldPeriod(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPeriod is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPeriod requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPeriod: %w", err)
+	}
+	return oldValue.Period, nil
+}
+
+// ResetPeriod resets all changes to the "period" field.
+func (m *VoiceUsageReceiptMutation) ResetPeriod() {
+	m.period = nil
+}
+
+// SetAudioTokens sets the "audio_tokens" field.
+func (m *VoiceUsageReceiptMutation) SetAudioTokens(i int64) {
+	m.audio_tokens = &i
+	m.addaudio_tokens = nil
+}
+
+// AudioTokens returns the value of the "audio_tokens" field in the mutation.
+func (m *VoiceUsageReceiptMutation) AudioTokens() (r int64, exists bool) {
+	v := m.audio_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAudioTokens returns the old "audio_tokens" field's value of the VoiceUsageReceipt entity.
+// If the VoiceUsageReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VoiceUsageReceiptMutation) OldAudioTokens(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAudioTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAudioTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAudioTokens: %w", err)
+	}
+	return oldValue.AudioTokens, nil
+}
+
+// AddAudioTokens adds i to the "audio_tokens" field.
+func (m *VoiceUsageReceiptMutation) AddAudioTokens(i int64) {
+	if m.addaudio_tokens != nil {
+		*m.addaudio_tokens += i
+	} else {
+		m.addaudio_tokens = &i
+	}
+}
+
+// AddedAudioTokens returns the value that was added to the "audio_tokens" field in this mutation.
+func (m *VoiceUsageReceiptMutation) AddedAudioTokens() (r int64, exists bool) {
+	v := m.addaudio_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAudioTokens resets all changes to the "audio_tokens" field.
+func (m *VoiceUsageReceiptMutation) ResetAudioTokens() {
+	m.audio_tokens = nil
+	m.addaudio_tokens = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *VoiceUsageReceiptMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *VoiceUsageReceiptMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the VoiceUsageReceipt entity.
+// If the VoiceUsageReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VoiceUsageReceiptMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *VoiceUsageReceiptMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetAllowance sets the "allowance" field.
+func (m *VoiceUsageReceiptMutation) SetAllowance(ua usersrpc.VoiceAllowance) {
+	m.allowance = &ua
+}
+
+// Allowance returns the value of the "allowance" field in the mutation.
+func (m *VoiceUsageReceiptMutation) Allowance() (r usersrpc.VoiceAllowance, exists bool) {
+	v := m.allowance
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAllowance returns the old "allowance" field's value of the VoiceUsageReceipt entity.
+// If the VoiceUsageReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VoiceUsageReceiptMutation) OldAllowance(ctx context.Context) (v usersrpc.VoiceAllowance, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAllowance is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAllowance requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAllowance: %w", err)
+	}
+	return oldValue.Allowance, nil
+}
+
+// ResetAllowance resets all changes to the "allowance" field.
+func (m *VoiceUsageReceiptMutation) ResetAllowance() {
+	m.allowance = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *VoiceUsageReceiptMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[voiceusagereceipt.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *VoiceUsageReceiptMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *VoiceUsageReceiptMutation) UserIDs() (ids []uint64) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *VoiceUsageReceiptMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the VoiceUsageReceiptMutation builder.
+func (m *VoiceUsageReceiptMutation) Where(ps ...predicate.VoiceUsageReceipt) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the VoiceUsageReceiptMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *VoiceUsageReceiptMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.VoiceUsageReceipt, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *VoiceUsageReceiptMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *VoiceUsageReceiptMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (VoiceUsageReceipt).
+func (m *VoiceUsageReceiptMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *VoiceUsageReceiptMutation) Fields() []string {
+	fields := make([]string, 0, 6)
+	if m.request_id != nil {
+		fields = append(fields, voiceusagereceipt.FieldRequestID)
+	}
+	if m.user != nil {
+		fields = append(fields, voiceusagereceipt.FieldUserID)
+	}
+	if m.period != nil {
+		fields = append(fields, voiceusagereceipt.FieldPeriod)
+	}
+	if m.audio_tokens != nil {
+		fields = append(fields, voiceusagereceipt.FieldAudioTokens)
+	}
+	if m.created_at != nil {
+		fields = append(fields, voiceusagereceipt.FieldCreatedAt)
+	}
+	if m.allowance != nil {
+		fields = append(fields, voiceusagereceipt.FieldAllowance)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *VoiceUsageReceiptMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case voiceusagereceipt.FieldRequestID:
+		return m.RequestID()
+	case voiceusagereceipt.FieldUserID:
+		return m.UserID()
+	case voiceusagereceipt.FieldPeriod:
+		return m.Period()
+	case voiceusagereceipt.FieldAudioTokens:
+		return m.AudioTokens()
+	case voiceusagereceipt.FieldCreatedAt:
+		return m.CreatedAt()
+	case voiceusagereceipt.FieldAllowance:
+		return m.Allowance()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *VoiceUsageReceiptMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case voiceusagereceipt.FieldRequestID:
+		return m.OldRequestID(ctx)
+	case voiceusagereceipt.FieldUserID:
+		return m.OldUserID(ctx)
+	case voiceusagereceipt.FieldPeriod:
+		return m.OldPeriod(ctx)
+	case voiceusagereceipt.FieldAudioTokens:
+		return m.OldAudioTokens(ctx)
+	case voiceusagereceipt.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case voiceusagereceipt.FieldAllowance:
+		return m.OldAllowance(ctx)
+	}
+	return nil, fmt.Errorf("unknown VoiceUsageReceipt field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *VoiceUsageReceiptMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case voiceusagereceipt.FieldRequestID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestID(v)
+		return nil
+	case voiceusagereceipt.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case voiceusagereceipt.FieldPeriod:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPeriod(v)
+		return nil
+	case voiceusagereceipt.FieldAudioTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAudioTokens(v)
+		return nil
+	case voiceusagereceipt.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case voiceusagereceipt.FieldAllowance:
+		v, ok := value.(usersrpc.VoiceAllowance)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAllowance(v)
+		return nil
+	}
+	return fmt.Errorf("unknown VoiceUsageReceipt field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *VoiceUsageReceiptMutation) AddedFields() []string {
+	var fields []string
+	if m.addaudio_tokens != nil {
+		fields = append(fields, voiceusagereceipt.FieldAudioTokens)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *VoiceUsageReceiptMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case voiceusagereceipt.FieldAudioTokens:
+		return m.AddedAudioTokens()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *VoiceUsageReceiptMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case voiceusagereceipt.FieldAudioTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAudioTokens(v)
+		return nil
+	}
+	return fmt.Errorf("unknown VoiceUsageReceipt numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *VoiceUsageReceiptMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *VoiceUsageReceiptMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *VoiceUsageReceiptMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown VoiceUsageReceipt nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *VoiceUsageReceiptMutation) ResetField(name string) error {
+	switch name {
+	case voiceusagereceipt.FieldRequestID:
+		m.ResetRequestID()
+		return nil
+	case voiceusagereceipt.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case voiceusagereceipt.FieldPeriod:
+		m.ResetPeriod()
+		return nil
+	case voiceusagereceipt.FieldAudioTokens:
+		m.ResetAudioTokens()
+		return nil
+	case voiceusagereceipt.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case voiceusagereceipt.FieldAllowance:
+		m.ResetAllowance()
+		return nil
+	}
+	return fmt.Errorf("unknown VoiceUsageReceipt field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *VoiceUsageReceiptMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, voiceusagereceipt.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *VoiceUsageReceiptMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case voiceusagereceipt.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *VoiceUsageReceiptMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *VoiceUsageReceiptMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *VoiceUsageReceiptMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, voiceusagereceipt.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *VoiceUsageReceiptMutation) EdgeCleared(name string) bool {
+	switch name {
+	case voiceusagereceipt.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *VoiceUsageReceiptMutation) ClearEdge(name string) error {
+	switch name {
+	case voiceusagereceipt.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown VoiceUsageReceipt unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *VoiceUsageReceiptMutation) ResetEdge(name string) error {
+	switch name {
+	case voiceusagereceipt.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown VoiceUsageReceipt edge %s", name)
 }

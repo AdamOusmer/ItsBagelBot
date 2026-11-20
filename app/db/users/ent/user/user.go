@@ -56,6 +56,10 @@ const (
 	FieldLeaderboardPageHidden = "leaderboard_page_hidden"
 	// FieldSongqueuePageHidden holds the string denoting the songqueue_page_hidden field in the database.
 	FieldSongqueuePageHidden = "songqueue_page_hidden"
+	// FieldTtsEnabled holds the string denoting the tts_enabled field in the database.
+	FieldTtsEnabled = "tts_enabled"
+	// FieldTtsVoice holds the string denoting the tts_voice field in the database.
+	FieldTtsVoice = "tts_voice"
 	// FieldCreatorCode holds the string denoting the creator_code field in the database.
 	FieldCreatorCode = "creator_code"
 	// FieldSubscriptionSource holds the string denoting the subscription_source field in the database.
@@ -90,6 +94,10 @@ const (
 	EdgeDeviceGrants = "device_grants"
 	// EdgeAuthorizationCodes holds the string denoting the authorization_codes edge name in mutations.
 	EdgeAuthorizationCodes = "authorization_codes"
+	// EdgeVoiceUsage holds the string denoting the voice_usage edge name in mutations.
+	EdgeVoiceUsage = "voice_usage"
+	// EdgeVoiceUsageReceipts holds the string denoting the voice_usage_receipts edge name in mutations.
+	EdgeVoiceUsageReceipts = "voice_usage_receipts"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// TokensTable is the table that holds the tokens relation/edge.
@@ -120,6 +128,20 @@ const (
 	AuthorizationCodesInverseTable = "authorization_codes"
 	// AuthorizationCodesColumn is the table column denoting the authorization_codes relation/edge.
 	AuthorizationCodesColumn = "user_id"
+	// VoiceUsageTable is the table that holds the voice_usage relation/edge.
+	VoiceUsageTable = "voice_usage"
+	// VoiceUsageInverseTable is the table name for the VoiceUsage entity.
+	// It exists in this package in order to avoid circular dependency with the "voiceusage" package.
+	VoiceUsageInverseTable = "voice_usage"
+	// VoiceUsageColumn is the table column denoting the voice_usage relation/edge.
+	VoiceUsageColumn = "user_id"
+	// VoiceUsageReceiptsTable is the table that holds the voice_usage_receipts relation/edge.
+	VoiceUsageReceiptsTable = "voice_usage_receipt"
+	// VoiceUsageReceiptsInverseTable is the table name for the VoiceUsageReceipt entity.
+	// It exists in this package in order to avoid circular dependency with the "voiceusagereceipt" package.
+	VoiceUsageReceiptsInverseTable = "voice_usage_receipt"
+	// VoiceUsageReceiptsColumn is the table column denoting the voice_usage_receipts relation/edge.
+	VoiceUsageReceiptsColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -145,6 +167,8 @@ var Columns = []string{
 	FieldCommandsPageHidden,
 	FieldLeaderboardPageHidden,
 	FieldSongqueuePageHidden,
+	FieldTtsEnabled,
+	FieldTtsVoice,
 	FieldCreatorCode,
 	FieldSubscriptionSource,
 	FieldSubscriptionExpiresAt,
@@ -211,6 +235,10 @@ var (
 	DefaultLeaderboardPageHidden bool
 	// DefaultSongqueuePageHidden holds the default value on creation for the "songqueue_page_hidden" field.
 	DefaultSongqueuePageHidden bool
+	// DefaultTtsEnabled holds the default value on creation for the "tts_enabled" field.
+	DefaultTtsEnabled bool
+	// DefaultTtsVoice holds the default value on creation for the "tts_voice" field.
+	DefaultTtsVoice string
 	// CreatorCodeValidator is a validator for the "creator_code" field. It is called by the builders before save.
 	CreatorCodeValidator func(string) error
 	// DefaultSubscriptionSource holds the default value on creation for the "subscription_source" field.
@@ -358,6 +386,16 @@ func BySongqueuePageHidden(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSongqueuePageHidden, opts...).ToFunc()
 }
 
+// ByTtsEnabled orders the results by the tts_enabled field.
+func ByTtsEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTtsEnabled, opts...).ToFunc()
+}
+
+// ByTtsVoice orders the results by the tts_voice field.
+func ByTtsVoice(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTtsVoice, opts...).ToFunc()
+}
+
 // ByCreatorCode orders the results by the creator_code field.
 func ByCreatorCode(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatorCode, opts...).ToFunc()
@@ -478,6 +516,34 @@ func ByAuthorizationCodes(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOptio
 		sqlgraph.OrderByNeighborTerms(s, newAuthorizationCodesStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByVoiceUsageCount orders the results by voice_usage count.
+func ByVoiceUsageCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newVoiceUsageStep(), opts...)
+	}
+}
+
+// ByVoiceUsage orders the results by voice_usage terms.
+func ByVoiceUsage(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newVoiceUsageStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByVoiceUsageReceiptsCount orders the results by voice_usage_receipts count.
+func ByVoiceUsageReceiptsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newVoiceUsageReceiptsStep(), opts...)
+	}
+}
+
+// ByVoiceUsageReceipts orders the results by voice_usage_receipts terms.
+func ByVoiceUsageReceipts(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newVoiceUsageReceiptsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newTokensStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -504,5 +570,19 @@ func newAuthorizationCodesStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(AuthorizationCodesInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, AuthorizationCodesTable, AuthorizationCodesColumn),
+	)
+}
+func newVoiceUsageStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(VoiceUsageInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, VoiceUsageTable, VoiceUsageColumn),
+	)
+}
+func newVoiceUsageReceiptsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(VoiceUsageReceiptsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, VoiceUsageReceiptsTable, VoiceUsageReceiptsColumn),
 	)
 }

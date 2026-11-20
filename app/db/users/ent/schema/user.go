@@ -57,6 +57,8 @@ func (User) Fields() []ent.Field {
 		field.Bool("commands_page_hidden").Default(false),
 		field.Bool("leaderboard_page_hidden").Default(false),
 		field.Bool("songqueue_page_hidden").Default(false),
+		field.Bool("tts_enabled").Default(true),
+		field.String("tts_voice").Default(""),
 
 		field.String("creator_code").Optional().Nillable().MaxLen(64),
 
@@ -103,6 +105,10 @@ func (User) Edges() []ent.Edge {
 			Annotations(entsql.Annotation{
 				OnDelete: entsql.Cascade,
 			}),
+		edge.To("voice_usage", VoiceUsage.Type).
+			Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("voice_usage_receipts", VoiceUsageReceipt.Type).
+			Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }
 

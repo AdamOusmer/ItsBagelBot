@@ -20,6 +20,8 @@ import (
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/app/db/users/ent/voiceusage"
+	"ItsBagelBot/app/db/users/ent/voiceusagereceipt"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
@@ -51,6 +53,10 @@ type Client struct {
 	Tokens *TokensClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
+	// VoiceUsage is the client for interacting with the VoiceUsage builders.
+	VoiceUsage *VoiceUsageClient
+	// VoiceUsageReceipt is the client for interacting with the VoiceUsageReceipt builders.
+	VoiceUsageReceipt *VoiceUsageReceiptClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -71,6 +77,8 @@ func (c *Client) init() {
 	c.PremiumGrant = NewPremiumGrantClient(c.config)
 	c.Tokens = NewTokensClient(c.config)
 	c.User = NewUserClient(c.config)
+	c.VoiceUsage = NewVoiceUsageClient(c.config)
+	c.VoiceUsageReceipt = NewVoiceUsageReceiptClient(c.config)
 }
 
 type (
@@ -172,6 +180,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		PremiumGrant:       NewPremiumGrantClient(cfg),
 		Tokens:             NewTokensClient(cfg),
 		User:               NewUserClient(cfg),
+		VoiceUsage:         NewVoiceUsageClient(cfg),
+		VoiceUsageReceipt:  NewVoiceUsageReceiptClient(cfg),
 	}, nil
 }
 
@@ -200,6 +210,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		PremiumGrant:       NewPremiumGrantClient(cfg),
 		Tokens:             NewTokensClient(cfg),
 		User:               NewUserClient(cfg),
+		VoiceUsage:         NewVoiceUsageClient(cfg),
+		VoiceUsageReceipt:  NewVoiceUsageReceiptClient(cfg),
 	}, nil
 }
 
@@ -231,6 +243,7 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AdminAuditDelivery, c.AuthorizationCode, c.BillingReceipt, c.Delegation,
 		c.DeviceGrant, c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
+		c.VoiceUsage, c.VoiceUsageReceipt,
 	} {
 		n.Use(hooks...)
 	}
@@ -242,6 +255,7 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AdminAuditDelivery, c.AuthorizationCode, c.BillingReceipt, c.Delegation,
 		c.DeviceGrant, c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
+		c.VoiceUsage, c.VoiceUsageReceipt,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -268,6 +282,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Tokens.mutate(ctx, m)
 	case *UserMutation:
 		return c.User.mutate(ctx, m)
+	case *VoiceUsageMutation:
+		return c.VoiceUsage.mutate(ctx, m)
+	case *VoiceUsageReceiptMutation:
+		return c.VoiceUsageReceipt.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -1573,6 +1591,38 @@ func (c *UserClient) QueryAuthorizationCodes(_m *User) *AuthorizationCodeQuery {
 	return query
 }
 
+// QueryVoiceUsage queries the voice_usage edge of a User.
+func (c *UserClient) QueryVoiceUsage(_m *User) *VoiceUsageQuery {
+	query := (&VoiceUsageClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(voiceusage.Table, voiceusage.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.VoiceUsageTable, user.VoiceUsageColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryVoiceUsageReceipts queries the voice_usage_receipts edge of a User.
+func (c *UserClient) QueryVoiceUsageReceipts(_m *User) *VoiceUsageReceiptQuery {
+	query := (&VoiceUsageReceiptClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(voiceusagereceipt.Table, voiceusagereceipt.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.VoiceUsageReceiptsTable, user.VoiceUsageReceiptsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
 	hooks := c.hooks.User
@@ -1599,14 +1649,314 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 	}
 }
 
+// VoiceUsageClient is a client for the VoiceUsage schema.
+type VoiceUsageClient struct {
+	config
+}
+
+// NewVoiceUsageClient returns a client for the VoiceUsage from the given config.
+func NewVoiceUsageClient(c config) *VoiceUsageClient {
+	return &VoiceUsageClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `voiceusage.Hooks(f(g(h())))`.
+func (c *VoiceUsageClient) Use(hooks ...Hook) {
+	c.hooks.VoiceUsage = append(c.hooks.VoiceUsage, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `voiceusage.Intercept(f(g(h())))`.
+func (c *VoiceUsageClient) Intercept(interceptors ...Interceptor) {
+	c.inters.VoiceUsage = append(c.inters.VoiceUsage, interceptors...)
+}
+
+// Create returns a builder for creating a VoiceUsage entity.
+func (c *VoiceUsageClient) Create() *VoiceUsageCreate {
+	mutation := newVoiceUsageMutation(c.config, OpCreate)
+	return &VoiceUsageCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of VoiceUsage entities.
+func (c *VoiceUsageClient) CreateBulk(builders ...*VoiceUsageCreate) *VoiceUsageCreateBulk {
+	return &VoiceUsageCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *VoiceUsageClient) MapCreateBulk(slice any, setFunc func(*VoiceUsageCreate, int)) *VoiceUsageCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &VoiceUsageCreateBulk{err: fmt.Errorf("calling to VoiceUsageClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*VoiceUsageCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &VoiceUsageCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for VoiceUsage.
+func (c *VoiceUsageClient) Update() *VoiceUsageUpdate {
+	mutation := newVoiceUsageMutation(c.config, OpUpdate)
+	return &VoiceUsageUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *VoiceUsageClient) UpdateOne(_m *VoiceUsage) *VoiceUsageUpdateOne {
+	mutation := newVoiceUsageMutation(c.config, OpUpdateOne, withVoiceUsage(_m))
+	return &VoiceUsageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *VoiceUsageClient) UpdateOneID(id int) *VoiceUsageUpdateOne {
+	mutation := newVoiceUsageMutation(c.config, OpUpdateOne, withVoiceUsageID(id))
+	return &VoiceUsageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for VoiceUsage.
+func (c *VoiceUsageClient) Delete() *VoiceUsageDelete {
+	mutation := newVoiceUsageMutation(c.config, OpDelete)
+	return &VoiceUsageDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *VoiceUsageClient) DeleteOne(_m *VoiceUsage) *VoiceUsageDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *VoiceUsageClient) DeleteOneID(id int) *VoiceUsageDeleteOne {
+	builder := c.Delete().Where(voiceusage.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &VoiceUsageDeleteOne{builder}
+}
+
+// Query returns a query builder for VoiceUsage.
+func (c *VoiceUsageClient) Query() *VoiceUsageQuery {
+	return &VoiceUsageQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeVoiceUsage},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a VoiceUsage entity by its id.
+func (c *VoiceUsageClient) Get(ctx context.Context, id int) (*VoiceUsage, error) {
+	return c.Query().Where(voiceusage.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *VoiceUsageClient) GetX(ctx context.Context, id int) *VoiceUsage {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a VoiceUsage.
+func (c *VoiceUsageClient) QueryUser(_m *VoiceUsage) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(voiceusage.Table, voiceusage.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, voiceusage.UserTable, voiceusage.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *VoiceUsageClient) Hooks() []Hook {
+	return c.hooks.VoiceUsage
+}
+
+// Interceptors returns the client interceptors.
+func (c *VoiceUsageClient) Interceptors() []Interceptor {
+	return c.inters.VoiceUsage
+}
+
+func (c *VoiceUsageClient) mutate(ctx context.Context, m *VoiceUsageMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&VoiceUsageCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&VoiceUsageUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&VoiceUsageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&VoiceUsageDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown VoiceUsage mutation op: %q", m.Op())
+	}
+}
+
+// VoiceUsageReceiptClient is a client for the VoiceUsageReceipt schema.
+type VoiceUsageReceiptClient struct {
+	config
+}
+
+// NewVoiceUsageReceiptClient returns a client for the VoiceUsageReceipt from the given config.
+func NewVoiceUsageReceiptClient(c config) *VoiceUsageReceiptClient {
+	return &VoiceUsageReceiptClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `voiceusagereceipt.Hooks(f(g(h())))`.
+func (c *VoiceUsageReceiptClient) Use(hooks ...Hook) {
+	c.hooks.VoiceUsageReceipt = append(c.hooks.VoiceUsageReceipt, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `voiceusagereceipt.Intercept(f(g(h())))`.
+func (c *VoiceUsageReceiptClient) Intercept(interceptors ...Interceptor) {
+	c.inters.VoiceUsageReceipt = append(c.inters.VoiceUsageReceipt, interceptors...)
+}
+
+// Create returns a builder for creating a VoiceUsageReceipt entity.
+func (c *VoiceUsageReceiptClient) Create() *VoiceUsageReceiptCreate {
+	mutation := newVoiceUsageReceiptMutation(c.config, OpCreate)
+	return &VoiceUsageReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of VoiceUsageReceipt entities.
+func (c *VoiceUsageReceiptClient) CreateBulk(builders ...*VoiceUsageReceiptCreate) *VoiceUsageReceiptCreateBulk {
+	return &VoiceUsageReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *VoiceUsageReceiptClient) MapCreateBulk(slice any, setFunc func(*VoiceUsageReceiptCreate, int)) *VoiceUsageReceiptCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &VoiceUsageReceiptCreateBulk{err: fmt.Errorf("calling to VoiceUsageReceiptClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*VoiceUsageReceiptCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &VoiceUsageReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for VoiceUsageReceipt.
+func (c *VoiceUsageReceiptClient) Update() *VoiceUsageReceiptUpdate {
+	mutation := newVoiceUsageReceiptMutation(c.config, OpUpdate)
+	return &VoiceUsageReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *VoiceUsageReceiptClient) UpdateOne(_m *VoiceUsageReceipt) *VoiceUsageReceiptUpdateOne {
+	mutation := newVoiceUsageReceiptMutation(c.config, OpUpdateOne, withVoiceUsageReceipt(_m))
+	return &VoiceUsageReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *VoiceUsageReceiptClient) UpdateOneID(id int) *VoiceUsageReceiptUpdateOne {
+	mutation := newVoiceUsageReceiptMutation(c.config, OpUpdateOne, withVoiceUsageReceiptID(id))
+	return &VoiceUsageReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for VoiceUsageReceipt.
+func (c *VoiceUsageReceiptClient) Delete() *VoiceUsageReceiptDelete {
+	mutation := newVoiceUsageReceiptMutation(c.config, OpDelete)
+	return &VoiceUsageReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *VoiceUsageReceiptClient) DeleteOne(_m *VoiceUsageReceipt) *VoiceUsageReceiptDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *VoiceUsageReceiptClient) DeleteOneID(id int) *VoiceUsageReceiptDeleteOne {
+	builder := c.Delete().Where(voiceusagereceipt.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &VoiceUsageReceiptDeleteOne{builder}
+}
+
+// Query returns a query builder for VoiceUsageReceipt.
+func (c *VoiceUsageReceiptClient) Query() *VoiceUsageReceiptQuery {
+	return &VoiceUsageReceiptQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeVoiceUsageReceipt},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a VoiceUsageReceipt entity by its id.
+func (c *VoiceUsageReceiptClient) Get(ctx context.Context, id int) (*VoiceUsageReceipt, error) {
+	return c.Query().Where(voiceusagereceipt.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *VoiceUsageReceiptClient) GetX(ctx context.Context, id int) *VoiceUsageReceipt {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a VoiceUsageReceipt.
+func (c *VoiceUsageReceiptClient) QueryUser(_m *VoiceUsageReceipt) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(voiceusagereceipt.Table, voiceusagereceipt.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, voiceusagereceipt.UserTable, voiceusagereceipt.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *VoiceUsageReceiptClient) Hooks() []Hook {
+	return c.hooks.VoiceUsageReceipt
+}
+
+// Interceptors returns the client interceptors.
+func (c *VoiceUsageReceiptClient) Interceptors() []Interceptor {
+	return c.inters.VoiceUsageReceipt
+}
+
+func (c *VoiceUsageReceiptClient) mutate(ctx context.Context, m *VoiceUsageReceiptMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&VoiceUsageReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&VoiceUsageReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&VoiceUsageReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&VoiceUsageReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown VoiceUsageReceipt mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
 		AdminAuditDelivery, AuthorizationCode, BillingReceipt, Delegation, DeviceGrant,
-		LifecycleErasure, PremiumGrant, Tokens, User []ent.Hook
+		LifecycleErasure, PremiumGrant, Tokens, User, VoiceUsage,
+		VoiceUsageReceipt []ent.Hook
 	}
 	inters struct {
 		AdminAuditDelivery, AuthorizationCode, BillingReceipt, Delegation, DeviceGrant,
-		LifecycleErasure, PremiumGrant, Tokens, User []ent.Interceptor
+		LifecycleErasure, PremiumGrant, Tokens, User, VoiceUsage,
+		VoiceUsageReceipt []ent.Interceptor
 	}
 )

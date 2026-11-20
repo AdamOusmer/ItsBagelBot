@@ -15,6 +15,8 @@ owns all desktop device-authorization state and token logic (device grants,
 authorization codes, Ed25519 access-token signing); the dashboard owns HTTP
 input/CSRF/rate-limiting and forwards to Users over RPC, and the controls
 gateway only verifies access tokens and listens for revocation.
+Users also owns each channel's Premium voice settings and monthly audio-token
+ledger.
 
 ## Nomenclature
 
@@ -63,6 +65,7 @@ gateway only verifies access tokens and listens for revocation.
 | [rpc/budgets.go](rpc/budgets.go) | Explicit deadlines protected by tests. |
 | [rpc/deviceauth.go](rpc/deviceauth.go) | Desktop device-authorization RPCs (`rpc.dashboard.device.*`); OAuth-error mapping for the token endpoint. |
 | [repository/deviceauth_codes.go](repository/deviceauth_codes.go), [deviceauth_refresh.go](repository/deviceauth_refresh.go), [deviceauth_grants.go](repository/deviceauth_grants.go), [deviceauth_cleanup.go](repository/deviceauth_cleanup.go) | Code issuance/exchange, refresh rotation with reuse detection, grant listing/revocation, and the expired-code/stale-grant sweep. |
+| [repository/voice.go](repository/voice.go), [rpc/voice.go](rpc/voice.go) | Premium voice settings, allowance reads, idempotent recording and receipt cleanup. |
 | [tokensign/tokensign.go](tokensign/tokensign.go) | Ed25519 access-token signing/verification (`v1.<payload>.<sig>`), keyed by `kid`. |
 | [ent/schema/](ent/schema/) | User, Tokens, PremiumGrant, Delegation, LifecycleErasure, DeviceGrant, AuthorizationCode and pending AdminAuditDelivery definitions. |
 
@@ -112,6 +115,12 @@ Edit schemas rather than generated Ent code.
   expiry. They contain only the provider event ID and creation time, with no user
   ID or account association, so account erasure retains these event-only replay
   receipts indefinitely.
+- Premium voice usage accumulates per account and calendar month in UTC.
+  The owner-only dashboard verbs `voice_get` and `voice_set` require matching
+  authenticated actor and broadcaster IDs from Dashboard. Internal voice
+  `check` and `record` use `rpc.internal.users.voice.*`. Recording stores the
+  original allowance reply with the per-user request ID for replay. The sweep
+  expires receipts after 40 days. Account erasure cascades to usage and receipts.
 
 Lifecycle authority: `repository/lifecycle.go` owns immediate intent, independent bot moderation/grant facts, admission generations, incident suppression, bounded recovery and indexed due replay. `lifecycle_projection_pending` persists publication failures without changing read revision on acknowledgment. Legacy seeds run 200 per due pass and unknown access stays degraded. `LifecycleErasure` retains incarnation-fenced cleanup after deletion; completed markers expire after seven days only once the deletion event has been published.
 

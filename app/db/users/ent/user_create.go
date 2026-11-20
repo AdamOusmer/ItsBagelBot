@@ -8,6 +8,8 @@ import (
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/app/db/users/ent/voiceusage"
+	"ItsBagelBot/app/db/users/ent/voiceusagereceipt"
 	"ItsBagelBot/internal/domain/lifecycle"
 	"context"
 	"errors"
@@ -275,6 +277,34 @@ func (_c *UserCreate) SetNillableSongqueuePageHidden(v *bool) *UserCreate {
 	return _c
 }
 
+// SetTtsEnabled sets the "tts_enabled" field.
+func (_c *UserCreate) SetTtsEnabled(v bool) *UserCreate {
+	_c.mutation.SetTtsEnabled(v)
+	return _c
+}
+
+// SetNillableTtsEnabled sets the "tts_enabled" field if the given value is not nil.
+func (_c *UserCreate) SetNillableTtsEnabled(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetTtsEnabled(*v)
+	}
+	return _c
+}
+
+// SetTtsVoice sets the "tts_voice" field.
+func (_c *UserCreate) SetTtsVoice(v string) *UserCreate {
+	_c.mutation.SetTtsVoice(v)
+	return _c
+}
+
+// SetNillableTtsVoice sets the "tts_voice" field if the given value is not nil.
+func (_c *UserCreate) SetNillableTtsVoice(v *string) *UserCreate {
+	if v != nil {
+		_c.SetTtsVoice(*v)
+	}
+	return _c
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (_c *UserCreate) SetCreatorCode(v string) *UserCreate {
 	_c.mutation.SetCreatorCode(v)
@@ -523,6 +553,36 @@ func (_c *UserCreate) AddAuthorizationCodes(v ...*AuthorizationCode) *UserCreate
 	return _c.AddAuthorizationCodeIDs(ids...)
 }
 
+// AddVoiceUsageIDs adds the "voice_usage" edge to the VoiceUsage entity by IDs.
+func (_c *UserCreate) AddVoiceUsageIDs(ids ...int) *UserCreate {
+	_c.mutation.AddVoiceUsageIDs(ids...)
+	return _c
+}
+
+// AddVoiceUsage adds the "voice_usage" edges to the VoiceUsage entity.
+func (_c *UserCreate) AddVoiceUsage(v ...*VoiceUsage) *UserCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddVoiceUsageIDs(ids...)
+}
+
+// AddVoiceUsageReceiptIDs adds the "voice_usage_receipts" edge to the VoiceUsageReceipt entity by IDs.
+func (_c *UserCreate) AddVoiceUsageReceiptIDs(ids ...int) *UserCreate {
+	_c.mutation.AddVoiceUsageReceiptIDs(ids...)
+	return _c
+}
+
+// AddVoiceUsageReceipts adds the "voice_usage_receipts" edges to the VoiceUsageReceipt entity.
+func (_c *UserCreate) AddVoiceUsageReceipts(v ...*VoiceUsageReceipt) *UserCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddVoiceUsageReceiptIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_c *UserCreate) Mutation() *UserMutation {
 	return _c.mutation
@@ -611,6 +671,14 @@ func (_c *UserCreate) defaults() error {
 	if _, ok := _c.mutation.SongqueuePageHidden(); !ok {
 		v := user.DefaultSongqueuePageHidden
 		_c.mutation.SetSongqueuePageHidden(v)
+	}
+	if _, ok := _c.mutation.TtsEnabled(); !ok {
+		v := user.DefaultTtsEnabled
+		_c.mutation.SetTtsEnabled(v)
+	}
+	if _, ok := _c.mutation.TtsVoice(); !ok {
+		v := user.DefaultTtsVoice
+		_c.mutation.SetTtsVoice(v)
 	}
 	if _, ok := _c.mutation.SubscriptionSource(); !ok {
 		v := user.DefaultSubscriptionSource
@@ -729,6 +797,12 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.SongqueuePageHidden(); !ok {
 		return &ValidationError{Name: "songqueue_page_hidden", err: errors.New(`ent: missing required field "User.songqueue_page_hidden"`)}
+	}
+	if _, ok := _c.mutation.TtsEnabled(); !ok {
+		return &ValidationError{Name: "tts_enabled", err: errors.New(`ent: missing required field "User.tts_enabled"`)}
+	}
+	if _, ok := _c.mutation.TtsVoice(); !ok {
+		return &ValidationError{Name: "tts_voice", err: errors.New(`ent: missing required field "User.tts_voice"`)}
 	}
 	if v, ok := _c.mutation.CreatorCode(); ok {
 		if err := user.CreatorCodeValidator(v); err != nil {
@@ -872,6 +946,14 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldSongqueuePageHidden, field.TypeBool, value)
 		_node.SongqueuePageHidden = value
 	}
+	if value, ok := _c.mutation.TtsEnabled(); ok {
+		_spec.SetField(user.FieldTtsEnabled, field.TypeBool, value)
+		_node.TtsEnabled = value
+	}
+	if value, ok := _c.mutation.TtsVoice(); ok {
+		_spec.SetField(user.FieldTtsVoice, field.TypeString, value)
+		_node.TtsVoice = value
+	}
 	if value, ok := _c.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
 		_node.CreatorCode = &value
@@ -981,6 +1063,38 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(authorizationcode.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.VoiceUsageIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageTable,
+			Columns: []string{user.VoiceUsageColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusage.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.VoiceUsageReceiptsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageReceiptsTable,
+			Columns: []string{user.VoiceUsageReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusagereceipt.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -1313,6 +1427,30 @@ func (u *UserUpsert) SetSongqueuePageHidden(v bool) *UserUpsert {
 // UpdateSongqueuePageHidden sets the "songqueue_page_hidden" field to the value that was provided on create.
 func (u *UserUpsert) UpdateSongqueuePageHidden() *UserUpsert {
 	u.SetExcluded(user.FieldSongqueuePageHidden)
+	return u
+}
+
+// SetTtsEnabled sets the "tts_enabled" field.
+func (u *UserUpsert) SetTtsEnabled(v bool) *UserUpsert {
+	u.Set(user.FieldTtsEnabled, v)
+	return u
+}
+
+// UpdateTtsEnabled sets the "tts_enabled" field to the value that was provided on create.
+func (u *UserUpsert) UpdateTtsEnabled() *UserUpsert {
+	u.SetExcluded(user.FieldTtsEnabled)
+	return u
+}
+
+// SetTtsVoice sets the "tts_voice" field.
+func (u *UserUpsert) SetTtsVoice(v string) *UserUpsert {
+	u.Set(user.FieldTtsVoice, v)
+	return u
+}
+
+// UpdateTtsVoice sets the "tts_voice" field to the value that was provided on create.
+func (u *UserUpsert) UpdateTtsVoice() *UserUpsert {
+	u.SetExcluded(user.FieldTtsVoice)
 	return u
 }
 
@@ -1875,6 +2013,34 @@ func (u *UserUpsertOne) SetSongqueuePageHidden(v bool) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateSongqueuePageHidden() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateSongqueuePageHidden()
+	})
+}
+
+// SetTtsEnabled sets the "tts_enabled" field.
+func (u *UserUpsertOne) SetTtsEnabled(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTtsEnabled(v)
+	})
+}
+
+// UpdateTtsEnabled sets the "tts_enabled" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateTtsEnabled() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTtsEnabled()
+	})
+}
+
+// SetTtsVoice sets the "tts_voice" field.
+func (u *UserUpsertOne) SetTtsVoice(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTtsVoice(v)
+	})
+}
+
+// UpdateTtsVoice sets the "tts_voice" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateTtsVoice() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTtsVoice()
 	})
 }
 
@@ -2635,6 +2801,34 @@ func (u *UserUpsertBulk) SetSongqueuePageHidden(v bool) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateSongqueuePageHidden() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateSongqueuePageHidden()
+	})
+}
+
+// SetTtsEnabled sets the "tts_enabled" field.
+func (u *UserUpsertBulk) SetTtsEnabled(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTtsEnabled(v)
+	})
+}
+
+// UpdateTtsEnabled sets the "tts_enabled" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateTtsEnabled() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTtsEnabled()
+	})
+}
+
+// SetTtsVoice sets the "tts_voice" field.
+func (u *UserUpsertBulk) SetTtsVoice(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTtsVoice(v)
+	})
+}
+
+// UpdateTtsVoice sets the "tts_voice" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateTtsVoice() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTtsVoice()
 	})
 }
 
