@@ -55,11 +55,6 @@
       "tagline": "Таблица лидеров акта для привязанного аккаунта (также !vallb).",
       "event": "!val lb",
       "defaultMessage": "{board}: {entries}"
-    },
-    "shop": {
-      "tagline": "Сегодняшние общие скины со временем до обновления (также !valshop).",
-      "event": "!val shop",
-      "defaultMessage": "Ежедневный ассортимент ({count}): {items} · До обновления: {reset}"
     }
   }
 }

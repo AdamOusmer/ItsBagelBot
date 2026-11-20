@@ -395,5 +395,5 @@ func TestProviderDeclaresItsRPCEndpoints(t *testing.T) {
 		names = append(names, ep.Name)
 	}
 	assert.Equal(t, "valorant", p.Name())
-	assert.ElementsMatch(t, []string{"rank", "record", "matches", "account", "leaderboard", "shop", "link"}, names)
+	assert.ElementsMatch(t, []string{"rank", "record", "matches", "account", "leaderboard", "link"}, names)
 }

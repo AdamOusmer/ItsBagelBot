@@ -55,11 +55,6 @@
       "tagline": "Clasificación del acto para tu cuenta vinculada (también !vallb).",
       "event": "!val lb",
       "defaultMessage": "{board}: {entries}"
-    },
-    "shop": {
-      "tagline": "Rotación global de aspectos de hoy con cuenta atrás hasta el reinicio (también !valshop).",
-      "event": "!val shop",
-      "defaultMessage": "Rotación diaria ({count}): {items} · reinicio en {reset}"
     }
   }
 }

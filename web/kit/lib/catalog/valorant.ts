@@ -80,19 +80,6 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
         player: 'Frosty#EUW1', board: 'eu/pc', count: '2',
         entries: '#1 Secret Agent (431 RR), #2 Frosty#EUW1 (402 RR)'
       })
-    },
-    {
-      key: 'shop',
-      label: '!val shop',
-      tagline: "Today's global skin rotation with reset countdown (also !valshop).",
-      event: '!val shop',
-      command: 'val shop',
-      enableKey: 'shopEnabled',
-      messageKey: 'shopMessage',
-      defaultMessage: 'Daily rotation ({count}): {items} · resets in {reset}',
-      tokens: replyTokens(['count', 'items', 'reset'], {
-        count: '2', items: 'Reaver Vandal (1775 VP), Ion Frenzy (875 VP)', reset: '2h 30m'
-      })
     }
   ],
   settings: [

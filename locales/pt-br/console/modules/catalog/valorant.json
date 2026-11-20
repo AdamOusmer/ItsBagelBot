@@ -55,11 +55,6 @@
       "tagline": "Ranking do ato para sua conta vinculada (também !vallb).",
       "event": "!val lb",
       "defaultMessage": "{board}: {entries}"
-    },
-    "shop": {
-      "tagline": "Rotação global de skins de hoje com contagem regressiva para a renovação (também !valshop).",
-      "event": "!val shop",
-      "defaultMessage": "Rotação diária ({count}): {items} · tempo até renovar: {reset}"
     }
   }
 }

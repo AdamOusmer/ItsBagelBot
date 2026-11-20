@@ -55,11 +55,6 @@
       "tagline": "Akt-Rangliste für dein verknüpftes Konto (auch !vallb).",
       "event": "!val lb",
       "defaultMessage": "{board}: {entries}"
-    },
-    "shop": {
-      "tagline": "Heutige globale Skin-Rotation mit Countdown bis zum Zurücksetzen (auch !valshop).",
-      "event": "!val shop",
-      "defaultMessage": "Tägliche Rotation ({count}): {items} · Zurücksetzen in {reset}"
     }
   }
 }

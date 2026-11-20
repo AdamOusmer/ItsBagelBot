@@ -5,7 +5,6 @@ package modules
 
 import (
 	"testing"
-	"time"
 
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
@@ -26,7 +25,6 @@ func valorantReplies() map[string]any {
 		"valorant.matches":     gossiprpc.ValorantMatchesReply{Player: "Frosty#EUW1"},
 		"valorant.account":     gossiprpc.ValorantAccountReply{Player: "Frosty#EUW1", AccountLevel: 142},
 		"valorant.leaderboard": gossiprpc.ValorantLeaderboardReply{Board: "ap/console"},
-		"valorant.shop":        gossiprpc.ValorantShopReply{},
 	}
 }
 
@@ -43,14 +41,6 @@ func TestValorantReplies(t *testing.T) {
 			{Map: "Haven", Agent: "Jett", Result: "win", Kills: 20, Deaths: 14, Assists: 7, ACS: 231.4, AgoSeconds: 7200},
 			{Map: "Ascent", Agent: "Omen", Result: "loss", Kills: 9, Deaths: 17, Assists: 3, AgoSeconds: 60},
 		},
-	}
-	shop := gossiprpc.ValorantShopReply{
-		ResetUnix: time.Now().Add(2*time.Hour + 30*time.Minute).Unix(),
-		Items: []gossiprpc.ValorantShopItem{
-			{Name: "Reaver Vandal", Price: 1775, Tier: "Exclusive"},
-			{Name: "Ion Frenzy", Price: 875},
-		},
-		Count: 2,
 	}
 	runGossipCases(t, []gossipCase{
 		{name: "valrank default template", chat: valChat("!valrank", ""), replies: rank,
@@ -96,10 +86,7 @@ func TestValorantReplies(t *testing.T) {
 		{name: "valaccount default template", chat: valChat("!valaccount", ""),
 			replies: map[string]any{"valorant.account": gossiprpc.ValorantAccountReply{Player: "Frosty#EUW1", Region: "eu", AccountLevel: 142, Title: "Radiant"}},
 			exact:   "Frosty#EUW1 · account level 142"},
-		{name: "valshop default template", chat: valChat("!valshop", ""), replies: map[string]any{"valorant.shop": shop},
-			exact: "Daily rotation (2): Reaver Vandal (1775 VP), Ion Frenzy (875 VP) · resets in 2h 30m"},
 		{name: "a reply error names the channel", chat: valChat("!valrank", ""), err: notFound, exact: "streamer: player not found"},
-		{name: "a shop reply error names the rotation", chat: valChat("!valshop", ""), err: notFound, exact: "daily rotation: player not found"},
 	})
 }
 
@@ -129,8 +116,6 @@ func TestValorantDispatch(t *testing.T) {
 		{"the who alias is case insensitive", "!val WHO", "valorant.account"},
 		{"lb subcommand with a shard", "!val lb console ap", "valorant.leaderboard"},
 		{"the leaderboard alias", "!val leaderboard", "valorant.leaderboard"},
-		{"shop subcommand", "!val shop", "valorant.shop"},
-		{"the rotation alias", "!val rotation", "valorant.shop"},
 	}
 	var cases []gossipCase
 	for _, r := range routes {
@@ -149,7 +134,6 @@ func TestValorantDisabledCommandsStaySilent(t *testing.T) {
 		{"valmatches", `{"matchesEnabled":"off"}`},
 		{"valaccount", `{"accountEnabled":"off"}`},
 		{"vallb", `{"boardEnabled":"off"}`},
-		{"valshop", `{"shopEnabled":"off"}`},
 	} {
 		cases = append(cases, gossipCase{name: tc.trigger, chat: valChat("!"+tc.trigger, tc.config), silent: true})
 	}

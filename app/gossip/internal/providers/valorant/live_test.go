@@ -53,14 +53,4 @@ func TestLiveUpstream(t *testing.T) {
 		fmt.Printf("match[%d]: %s on %s as %s %d/%d/%d acs=%.1f\n",
 			i, m.Result, m.Map, m.Agent, m.Kills, m.Deaths, m.Assists, m.ACS)
 	}
-
-	shop := providertest.Call[shopReply](t, p, "shop", gossiprpc.Request{})
-	assert.Empty(t, shop.Error)
-	if shop.Count > 0 {
-		fmt.Printf("shop: bundle=%q (%.1f%% off) price=%d vp items=%d first=%q expires_in=%.1fd\n",
-			shop.Bundle, shop.DiscountPct, shop.Price, shop.Count, shop.Items[0].Name,
-			float64(shop.ExpiresSeconds)/86400)
-	} else {
-		fmt.Println("shop: no featured bundle payload")
-	}
 }

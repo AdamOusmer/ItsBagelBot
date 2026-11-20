@@ -55,11 +55,6 @@
       "tagline": "Classement de l’acte pour votre compte lié (aussi !vallb).",
       "event": "!val lb",
       "defaultMessage": "{board}: {entries}"
-    },
-    "shop": {
-      "tagline": "Rotation mondiale de skins du jour avec compte à rebours (aussi !valshop).",
-      "event": "!val shop",
-      "defaultMessage": "Rotation quotidienne ({count}) : {items} · renouvellement dans {reset}"
     }
   }
 }

@@ -599,22 +599,6 @@ type ValorantLeaderboardReply struct {
 	Error   string                     `json:"error,omitempty"`
 }
 
-type ValorantShopItem struct {
-	Name  string `json:"name"`
-	Price int64  `json:"price"`
-	Tier  string `json:"tier,omitempty"`
-	Color string `json:"color,omitempty"`
-	Icon  string `json:"icon,omitempty"`
-}
-
-type ValorantShopReply struct {
-	ResetUnix int64              `json:"reset_unix"`
-	Items     []ValorantShopItem `json:"items"`
-	Count     int                `json:"count"`
-	Empty     bool               `json:"empty"`
-	Error     string             `json:"error,omitempty"`
-}
-
 type FetchDef struct {
 	Name     string   `json:"name"`
 	URL      string   `json:"url"`

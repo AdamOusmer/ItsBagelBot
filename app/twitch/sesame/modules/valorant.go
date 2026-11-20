@@ -25,7 +25,6 @@ const (
 	defaultValMatchesTemplate = "{valorant:player}'s last {valorant:count}: {valorant:matches}"
 	defaultValAccountTemplate = "{valorant:player} · account level {valorant:level}"
 	defaultValBoardTemplate   = "{valorant:board}: {valorant:entries}"
-	defaultValShopTemplate    = "Daily rotation ({valorant:count}): {valorant:items} · resets in {valorant:reset}"
 )
 
 const (
@@ -33,7 +32,6 @@ const (
 	valNoRecordText   = "has no ranked games on record"
 	valNoMatchesText  = "has no recent competitive games"
 	valEmptyBoardText = "leaderboard has no entries yet"
-	valEmptyShopText  = "the daily rotation is empty today"
 )
 
 type valorantConfig struct {
@@ -50,8 +48,6 @@ type valorantConfig struct {
 	AcctMessage  string `json:"accountMessage"`
 	BoardEnabled string `json:"boardEnabled"`
 	BoardMessage string `json:"boardMessage"`
-	ShopEnabled  string `json:"shopEnabled"`
-	ShopMessage  string `json:"shopMessage"`
 }
 
 func valRankSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantRankReply) (string, bool) {
@@ -82,20 +78,13 @@ func valBoardSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantLeaderboa
 	return r.Board + " " + valEmptyBoardText, true
 }
 
-func valShopSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantShopReply) (string, bool) {
-	if !r.Empty {
-		return "", false
-	}
-	return valEmptyShopText, true
-}
-
 func valRoute(endpoint string) engine.GossipRoute {
 	return engine.GossipRoute{Provider: "valorant", Endpoint: endpoint}
 }
 
 func newValRuns(d engine.Deps) valRuns {
 	return valRuns{
-		rank: valRun(d, valScope{}, externalCommand[valorantConfig, gossiprpc.ValorantRankReply]{
+		rank: valRun(d, externalCommand[valorantConfig, gossiprpc.ValorantRankReply]{
 			route:    valRoute("rank"),
 			enabled:  func(c valorantConfig) string { return c.RankEnabled },
 			message:  func(c valorantConfig) string { return c.RankMessage },
@@ -103,7 +92,7 @@ func newValRuns(d engine.Deps) valRuns {
 			tokens:   valRankTokens(),
 			special:  valRankSpecial,
 		}),
-		record: valRun(d, valScope{}, externalCommand[valorantConfig, gossiprpc.ValorantRecordReply]{
+		record: valRun(d, externalCommand[valorantConfig, gossiprpc.ValorantRecordReply]{
 			route:    valRoute("record"),
 			enabled:  func(c valorantConfig) string { return c.RecEnabled },
 			message:  func(c valorantConfig) string { return c.RecMessage },
@@ -111,7 +100,7 @@ func newValRuns(d engine.Deps) valRuns {
 			tokens:   valRecordTokens(),
 			special:  valRecordSpecial,
 		}),
-		matches: valRun(d, valScope{}, externalCommand[valorantConfig, gossiprpc.ValorantMatchesReply]{
+		matches: valRun(d, externalCommand[valorantConfig, gossiprpc.ValorantMatchesReply]{
 			route:    valRoute("matches"),
 			enabled:  func(c valorantConfig) string { return c.MatchEnabled },
 			message:  func(c valorantConfig) string { return c.MatchMessage },
@@ -119,28 +108,20 @@ func newValRuns(d engine.Deps) valRuns {
 			tokens:   valMatchTokens(),
 			special:  valMatchSpecial,
 		}),
-		account: valRun(d, valScope{}, externalCommand[valorantConfig, gossiprpc.ValorantAccountReply]{
+		account: valRun(d, externalCommand[valorantConfig, gossiprpc.ValorantAccountReply]{
 			route:    valRoute("account"),
 			enabled:  func(c valorantConfig) string { return c.AcctEnabled },
 			message:  func(c valorantConfig) string { return c.AcctMessage },
 			fallback: defaultValAccountTemplate,
 			tokens:   valAccountTokens(),
 		}),
-		board: valRun(d, valScope{}, externalCommand[valorantConfig, gossiprpc.ValorantLeaderboardReply]{
+		board: valRun(d, externalCommand[valorantConfig, gossiprpc.ValorantLeaderboardReply]{
 			route:    valRoute("leaderboard"),
 			enabled:  func(c valorantConfig) string { return c.BoardEnabled },
 			message:  func(c valorantConfig) string { return c.BoardMessage },
 			fallback: defaultValBoardTemplate,
 			tokens:   valBoardTokens(),
 			special:  valBoardSpecial,
-		}),
-		shop: valRun(d, valScope{accountless: true}, externalCommand[valorantConfig, gossiprpc.ValorantShopReply]{
-			route:    valRoute("shop"),
-			enabled:  func(c valorantConfig) string { return c.ShopEnabled },
-			message:  func(c valorantConfig) string { return c.ShopMessage },
-			fallback: defaultValShopTemplate,
-			tokens:   valShopTokens(),
-			special:  valShopSpecial,
 		}),
 	}
 }
@@ -154,7 +135,6 @@ func Valorant(d engine.Deps) module.Module {
 			"match": runs.matches, "matches": runs.matches, "history": runs.matches,
 			"account": runs.account, "who": runs.account,
 			"lb": runs.board, "leaderboard": runs.board, "top": runs.board,
-			"shop": runs.shop, "rotation": runs.shop,
 			"rank": runs.rank, "standing": runs.rank,
 			"record": runs.record,
 		}))
@@ -168,46 +148,28 @@ func Valorant(d engine.Deps) module.Module {
 		Run(runs.account)
 	m.Command("vallb").Everyone().Cooldown(valCooldown).Aliases("valleaderboard").
 		Run(runs.board)
-	m.Command("valshop").Everyone().Cooldown(valCooldown).Aliases("valrotation").
-		Run(runs.shop)
 	return m.Build()
 }
 
 type valRuns struct {
-	rank, record, matches, account, board, shop module.RunFunc
-}
-
-type valScope struct {
-	accountless bool
+	rank, record, matches, account, board module.RunFunc
 }
 
 func (valorantConfig) linked() linkedAccountConfig { return linkedAccountConfig{} }
 
-func valRun[R any](d engine.Deps, scope valScope, cmd externalCommand[valorantConfig, R]) module.RunFunc {
+func valRun[R any](d engine.Deps, cmd externalCommand[valorantConfig, R]) module.RunFunc {
 	return statsHandler[valorantConfig, R]{
 		d:       d,
 		enabled: cmd.enabled,
 		route:   cmd.route,
-		target:  valTarget(scope),
-		request: valRequest(scope),
-		render:  cmd.render,
+		target: func(call statsCall[valorantConfig]) statsSubject {
+			return statsSubject{Display: call.Ctx.Env.BroadcasterUserLogin}
+		},
+		request: func(call statsCall[valorantConfig], _ statsSubject) gossiprpc.Request {
+			return valLinkedRequest(call)
+		},
+		render: cmd.render,
 	}.run
-}
-
-func valTarget(scope valScope) func(statsCall[valorantConfig]) statsSubject {
-	if scope.accountless {
-		return fixedSubject[valorantConfig]("daily rotation")
-	}
-	return func(call statsCall[valorantConfig]) statsSubject {
-		return statsSubject{Display: call.Ctx.Env.BroadcasterUserLogin}
-	}
-}
-
-func valRequest(scope valScope) func(statsCall[valorantConfig], statsSubject) gossiprpc.Request {
-	if scope.accountless {
-		return accountRequest[valorantConfig]
-	}
-	return func(call statsCall[valorantConfig], _ statsSubject) gossiprpc.Request { return valLinkedRequest(call) }
 }
 
 func valLinkedRequest(call statsCall[valorantConfig]) gossiprpc.Request {
@@ -286,16 +248,19 @@ func valMatchTokens() module.TokenExpander[gossiprpc.ValorantMatchesReply] {
 	}
 }
 
-func valAccountTokens() module.TokenExpander[gossiprpc.ValorantAccountReply] {
-	type reply = gossiprpc.ValorantAccountReply
-	return module.TokenExpander[reply]{
-		"player": func(r *reply) string { return r.Player },
-		"puuid":  func(r *reply) string { return r.Puuid },
-		"region": func(r *reply) string { return r.Region },
-		"level":  func(r *reply) string { return i64(int64(r.AccountLevel)) },
-		"card":   func(r *reply) string { return r.Card },
-		"title":  func(r *reply) string { return r.Title },
-	}
+type valAccount = gossiprpc.ValorantAccountReply
+
+var valAccountTokenSet = module.TokenExpander[valAccount]{
+	"player": func(r *valAccount) string { return r.Player },
+	"puuid":  func(r *valAccount) string { return r.Puuid },
+	"region": func(r *valAccount) string { return r.Region },
+	"level":  func(r *valAccount) string { return i64(int64(r.AccountLevel)) },
+	"card":   func(r *valAccount) string { return r.Card },
+	"title":  func(r *valAccount) string { return r.Title },
+}
+
+func valAccountTokens() module.TokenExpander[valAccount] {
+	return valAccountTokenSet
 }
 
 func valBoardTokens() module.TokenExpander[gossiprpc.ValorantLeaderboardReply] {
@@ -315,22 +280,6 @@ func valBoardTokens() module.TokenExpander[gossiprpc.ValorantLeaderboardReply] {
 	}
 }
 
-func valShopTokens() module.TokenExpander[gossiprpc.ValorantShopReply] {
-	type reply = gossiprpc.ValorantShopReply
-	return module.TokenExpander[reply]{
-		"count": func(r *reply) string { return i64(int64(r.Count)) },
-		"items": func(r *reply) string {
-			items := r.Items
-			parts := make([]string, len(items))
-			for i, item := range items {
-				parts[i] = item.Name + " (" + i64(item.Price) + " VP)"
-			}
-			return strings.Join(parts, ", ")
-		},
-		"reset": func(r *reply) string { return valResetIn(r.ResetUnix) },
-	}
-}
-
 func valAgo(seconds int64) string {
 	d := time.Duration(seconds) * time.Second
 	switch {
@@ -342,22 +291,5 @@ func valAgo(seconds int64) string {
 		return fmt.Sprintf("%dh ago", int(d.Hours()))
 	default:
 		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
-	}
-}
-
-func valResetIn(unix int64) string {
-	d := time.Until(time.Unix(unix, 0)).Round(time.Minute)
-	if d < 0 {
-		d = 0
-	}
-	h := int(d.Hours())
-	m := int(d.Minutes()) % 60
-	switch {
-	case h > 0 && m > 0:
-		return fmt.Sprintf("%dh %dm", h, m)
-	case h > 0:
-		return fmt.Sprintf("%dh", h)
-	default:
-		return fmt.Sprintf("%dm", m)
 	}
 }

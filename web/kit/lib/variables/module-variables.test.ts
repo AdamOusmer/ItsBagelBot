@@ -81,6 +81,6 @@ describe('module custom command variables', () => {
     expect(examples).toContain('{valorant:rank:rr}');
     expect(examples).toContain('{valorant:account:level}');
     expect(examples).toContain('{valorant:matches:count}');
-    expect(examples).toContain('{valorant:shop:count}');
+    expect(examples).toContain('{valorant:board:count}');
   });
 });

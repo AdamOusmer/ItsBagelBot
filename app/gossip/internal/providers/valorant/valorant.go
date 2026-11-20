@@ -34,8 +34,6 @@ const (
 
 	boardTTL = 30 * time.Minute
 
-	bundleTTL = 6 * time.Hour
-
 	negativeTTL = 5 * time.Minute
 
 	httpTimeout    = 10 * time.Second
@@ -48,26 +46,24 @@ const (
 )
 
 type Config struct {
-	BaseURL          string
-	ContentBaseURL   string
-	APIKey           string
-	RateLimit        float64
-	ContentRateLimit float64
-	Riot             RiotConfig
+	BaseURL        string
+	ContentBaseURL string
+	APIKey         string
+	RateLimit      float64
+	Riot           RiotConfig
 }
 
 const providerName = "valorant"
 
 type api struct {
-	http           *core.HTTPClient
-	content        *core.HTTPClient
-	riot           *riotAPI
-	links          provider.RiotLinkResolver
-	log            *zap.Logger
-	cache          *core.Cache
-	limiter        *ratelimit.Limiter
-	buckets        core.Buckets
-	contentBuckets core.Buckets
+	http    *core.HTTPClient
+	content *core.HTTPClient
+	riot    *riotAPI
+	links   provider.RiotLinkResolver
+	log     *zap.Logger
+	cache   *core.Cache
+	limiter *ratelimit.Limiter
+	buckets core.Buckets
 }
 
 func New(cfg Config, d provider.Deps) provider.Provider {
@@ -91,9 +87,6 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 		{name: "leaderboard", ttl: boardTTL, id: boardID, fallback: "leaderboard lookup failed",
 			reply: func(id, msg string) any { return leaderboardReply{Player: id, Error: msg} },
 			src:   firstSource("leaderboard", official.board, henrik.board)},
-		{name: "shop", ttl: bundleTTL, id: provider.StaticID("featured"), fallback: "shop lookup failed",
-			reply: func(_, msg string) any { return shopReply{Error: msg} },
-			src:   firstSource("shop", henrik.shop)},
 	} {
 		b.Endpoint(e.name).Timeout(handlerTimeout).
 			Cached(e.ttl, negativeTTL).
@@ -124,7 +117,7 @@ type source struct {
 }
 
 type sources struct {
-	rank, record, matches, account, board, shop *source
+	rank, record, matches, account, board *source
 }
 
 func (p *api) henrikSources(key string) sources {
@@ -138,7 +131,6 @@ func (p *api) henrikSources(key string) sources {
 		matches: via(p.matchesFetch),
 		account: via(p.accountFetch),
 		board:   via(p.boardFetch),
-		shop:    &source{fetch: p.shopFetch, budget: p.shopBudget},
 	}
 }
 
@@ -168,33 +160,22 @@ func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 	if cfg.RateLimit <= 0 {
 		cfg.RateLimit = 30
 	}
-	if cfg.ContentRateLimit <= 0 {
-		cfg.ContentRateLimit = 60
-	}
 	return &api{
 		// HenrikDev takes the raw key; a "Bearer" prefix gets 401 on every call.
 		http: b.Client(base, map[string]string{
 			"Authorization": cfg.APIKey,
 		}, httpTimeout),
-		content:        b.Client(content, nil, httpTimeout),
-		riot:           newRiot(cfg.Riot, b),
-		links:          d.RiotLinks,
-		log:            d.Logger(),
-		cache:          d.Cache,
-		limiter:        d.Limiter,
-		buckets:        core.NewBuckets("ratelimit:gossip:valorant", cfg.RateLimit, rateWindowSeconds),
-		contentBuckets: core.NewBuckets("ratelimit:gossip:valorant:content", cfg.ContentRateLimit, rateWindowSeconds),
+		content: b.Client(content, nil, httpTimeout),
+		riot:    newRiot(cfg.Riot, b),
+		links:   d.RiotLinks,
+		log:     d.Logger(),
+		cache:   d.Cache,
+		limiter: d.Limiter,
+		buckets: core.NewBuckets("ratelimit:gossip:valorant", cfg.RateLimit, rateWindowSeconds),
 	}
 }
 
 func (p *api) budget(ctx context.Context, req gossiprpc.Request) error {
-	return p.buckets.Enforce(ctx, p.limiter, req.IsPremium)
-}
-
-func (p *api) shopBudget(ctx context.Context, req gossiprpc.Request) error {
-	if err := p.contentBuckets.Enforce(ctx, p.limiter, req.IsPremium); err != nil {
-		return err
-	}
 	return p.buckets.Enforce(ctx, p.limiter, req.IsPremium)
 }
 

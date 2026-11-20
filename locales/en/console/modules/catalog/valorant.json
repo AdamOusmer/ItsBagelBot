@@ -55,11 +55,6 @@
       "tagline": "Act leaderboard for your linked account (also !vallb).",
       "event": "!val lb",
       "defaultMessage": "{board}: {entries}"
-    },
-    "shop": {
-      "tagline": "Today's global skin rotation with reset countdown (also !valshop).",
-      "event": "!val shop",
-      "defaultMessage": "Daily rotation ({count}): {items} · resets in {reset}"
     }
   }
 }
