@@ -57,7 +57,7 @@ func decodeRound(id RoundID, raw map[string]string) (Round, error) {
 	r := Round{ID: id, Channel: ChannelID(parseUint(raw["channel"])), Phase: Phase(raw["phase"]),
 		OpenedAt: fromMillis(parseInt(raw["opened_at"])), ClosesAt: fromMillis(parseInt(raw["closes_at"])),
 		LiveAtOpen: raw["live_at_open"] == "true",
-		SettledAt:  fromMillis(parseInt(raw["settled_at"])), ClaimPausedAt: fromMillis(parseInt(raw["claim_paused_at"])), Winners: int(parseInt(raw["winners"]))}
+		SettledAt:  fromMillis(parseInt(raw["settled_at"])), ClaimPausedAt: fromMillis(parseInt(raw["claim_paused_at"])), Winners: parseCount(raw["winners"])}
 	if err := codec.Unmarshal([]byte(raw["terms"]), &r.Terms); err != nil {
 		return Round{}, err
 	}
@@ -118,4 +118,9 @@ func (s *Store) Settling(ctx context.Context, ch ChannelID, kind Kind) (Round, [
 		}
 	}
 	return Round{}, nil, false, nil
+}
+
+func parseCount(s string) int {
+	n, _ := strconv.Atoi(s)
+	return n
 }

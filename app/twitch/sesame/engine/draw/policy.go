@@ -4,6 +4,7 @@
 package draw
 
 import (
+	"math"
 	"time"
 
 	drawrpc "ItsBagelBot/internal/domain/rpc/draw"
@@ -53,8 +54,8 @@ func ResolveWinners(p WinnerPolicy, entrants int, prize Prize) int {
 		count = (entrants-1)/Pins.AutoDivisor + 1
 	}
 	count = min(count, Pins.MaxWinners)
-	if prize.Points > 0 {
-		count = int(min(int64(count), prize.Points))
+	if p := prize.Points; p > 0 && p <= math.MaxInt32 {
+		count = min(count, int(p))
 	}
 	return max(1, count)
 }

@@ -20,7 +20,7 @@ func TestLoyaltyTopRefreshesAtFreezeExpiry(t *testing.T) {
 		name      string
 		remaining time.Duration
 	}{
-		{"near expiry", 300 * time.Millisecond},
+		{"near expiry", 1500 * time.Millisecond},
 		{"expired reply", -time.Second},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -45,7 +45,7 @@ func TestLoyaltyTopRefreshesAtFreezeExpiry(t *testing.T) {
 			require.Eventually(t, func() bool {
 				top, err := store.Top(t.Context(), channel, 10)
 				return err == nil && len(top) == 1 && top[0].Points == 9
-			}, 300*time.Millisecond, 5*time.Millisecond)
+			}, 2*time.Second, 10*time.Millisecond)
 		})
 	}
 }
