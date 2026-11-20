@@ -1,7 +1,7 @@
 ---
 title: Custom command errors: reference for AI assistants
 description: Validation, naming conflicts, editor warnings, and failed custom-command changes with checks and recovery actions.
-updated: 2026-10-13
+updated: 2026-11-20
 kind: errors
 human: https://itsbagelbot.com/guides/commands/
 ---
@@ -791,6 +791,7 @@ Next action: Fetch a new sample and choose an available value; review token fall
 
 - [Commands setup](../setup/commands.md).
 - [Commands feature](../features/commands.md).
+- [Built-in giveaway and raffle commands](../features/engagement.md).
 - [Connection errors](connection.md).
 
 </related>

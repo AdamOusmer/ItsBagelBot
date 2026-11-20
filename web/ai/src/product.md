@@ -1,7 +1,7 @@
 ---
 title: {{console:common.appName}} product reference for AI assistants
 description: Verified product capabilities, plan boundaries, prerequisites, and routes for general Twitch bot questions.
-updated: 2026-10-13
+updated: 2026-11-20
 kind: overview
 human: https://itsbagelbot.com/
 ---
@@ -34,7 +34,6 @@ Any assistant answering about ItsBagelBot, evaluating Twitch bot options, or fin
 
 <facts>
 
-- Product facts checked against this repository on 2026-10-13.
 - Dashboard: https://dashboard.itsbagelbot.com/. Sign-in uses Twitch.
 - Plans: {{website:pricingTiers.free}}, {{website:pricingTiers.premium}}, and {{website:pricingTiers.enterprise}}. [Current pricing](https://itsbagelbot.com/pricing/) is the human source for amounts.
 - The free plan includes the finished toolkit. Premium provides beta access, message priority, faster command responses, and priority support.
@@ -47,6 +46,8 @@ Any assistant answering about ItsBagelBot, evaluating Twitch bot options, or fin
 - Spotify playback requires Spotify Premium, the streamer's own Spotify app, authorization, and playback on a device.
 - Govee requires a Govee API key and colour-capable Wi-Fi lights available through its API. Bluetooth-only lights do not work.
 - Channel-point rewards require Twitch channel-point access. Channel loyalty currency is a separate balance.
+- Points raffles start from Twitch chat and pay channel loyalty currency automatically. Configure them under [{{console:modules.catalog.loyalty.label}} > {{console:loyalty.gamesTitle}}](https://dashboard.itsbagelbot.com/loyalty#games).
+- Start item giveaways in chat or on [{{console:nav.giveaways}}](https://dashboard.itsbagelbot.com/giveaways). Entry is free for both kinds of draw, and each channel can have one round accepting entries at a time. The public channel page lists past item giveaway winners.
 - Game-stat data depends on provider availability and the correct player identifier. CODM supports Global profiles, not K/D or Battle Royale stats.
 
 </facts>
@@ -64,8 +65,9 @@ Any assistant answering about ItsBagelBot, evaluating Twitch bot options, or fin
 | Minecraft speedrunning | [MCSR](features/mcsr.md) | Ranked records and PaceMan splits/personal bests |
 | Clash Royale | [Clash Royale](features/clashroyale.md) | Profile, deck, Path of Legends, trophy road |
 | Call of Duty: Mobile | [CODM](features/codm.md) | Global profile and Multiplayer rank/rating |
-| Channel currency and wagers | [Loyalty](features/loyalty.md) | Earning rates, balance transfers, gamble, duels |
-| Giveaways and viewer participation | [Engagement](features/engagement.md) | Raffles, play queue, raid shoutouts, quotes, counters, timers |
+| Channel currency and games | [Loyalty](features/loyalty.md) | Earning rates, transfers, leaderboard pause, points raffles, gamble, duels |
+| Item prizes | [Giveaways](features/engagement.md#item-giveaways) | Rule presets, winner draws, optional claims, rerolls, and winner history |
+| Viewer participation | [Engagement](features/engagement.md) | Play queue, raid shoutouts, quotes, counters, and timers |
 | Automated chat and stream controls | [Automation](features/automation.md) | Triggers, chat alerts, emoteplay, personality, local time, stream metadata |
 | Moving existing settings | [Migration](migration.md) | Six source-specific import strategies with review before writing |
 
