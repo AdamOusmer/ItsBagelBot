@@ -83,9 +83,9 @@ func giveawaySlotLines(locale module.Locale, cfg GiveawayModuleConfig, notice dr
 	override := ""
 	winner := notice.Event == draw.NoticeWinners
 	switch {
-	case winner && !cfg.WonEnabled:
+	case winner && !bool(cfg.WonEnabled):
 		return nil
-	case !winner && !cfg.NoShowEnabled:
+	case !winner && !bool(cfg.NoShowEnabled):
 		return nil
 	case winner:
 		key, override = giveawayWinKey(notice.Round), cfg.WonMessage

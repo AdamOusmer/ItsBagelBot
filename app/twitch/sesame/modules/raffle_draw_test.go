@@ -86,7 +86,7 @@ func newRaffleFixture(t *testing.T, loyaltyOn, closeGames bool) raffleFixture {
 	events := &variablePublisher{}
 	legacy := engine.NewValkeyRaffleStore(client, engine.RaffleConfig{}, log)
 	freeze := &freezeStore{closeGames: closeGames}
-	deps := engine.Deps{Draw: store, Eligibility: checker, Raffle: legacy, Proj: proj, Pub: events, Log: log, LoyaltyFreeze: freeze}
+	deps := engine.Deps{Draw: store, Eligibility: checker, Raffle: legacy, Proj: proj, Pub: events, Log: log, LoyaltyFreeze: freeze, Cooldown: engine.NoopCooldown{}}
 	pipe := engine.NewPipeline(deps, engine.NewRegistry(log, All(deps)...), engine.Config{OutgressStandard: "outgress.standard"})
 	t.Cleanup(pipe.Close)
 	return raffleFixture{t: t, draw: store, kv: valkey.NewKV(client), freeze: freeze, logs: logs,
