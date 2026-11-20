@@ -30,27 +30,39 @@ test('counts the welcome view once', async () => {
 });
 
 test.each([
-  { accountState: undefined, accepted: false },
-  { accountState: { value: { onboarded: false } }, accepted: false },
-  { accountState: { value: { onboarded: true } }, accepted: true }
-])('load reports accepted=$accepted', async ({ accountState, accepted }) => {
-  const event = actionEvent() as { locals: Record<string, unknown> };
+  { name: 'owner without state', session: {}, accountState: undefined, want: { landing: null, accepted: false } },
+  { name: 'unaccepted owner', session: {}, accountState: { value: { onboarded: false } }, want: { landing: null, accepted: false } },
+  { name: 'accepted owner', session: {}, accountState: { value: { onboarded: true } }, want: { landing: null, accepted: true } },
+  { name: 'unaccepted delegate', session: { delegate_of: '2' }, accountState: { value: { onboarded: false } }, want: { landing: null, accepted: false } },
+  { name: 'accepted delegate', session: { delegate_of: '2' }, accountState: { value: { onboarded: true } }, want: { landing: '/', accepted: undefined } },
+  { name: 'impersonation', session: { impersonator_id: '3' }, accountState: { value: { onboarded: false } }, want: { landing: '/', accepted: undefined } }
+])('load for $name', async ({ session, accountState, want }) => {
+  const event = actionEvent() as { locals: Record<string, unknown> & { session: Record<string, unknown> } };
+  Object.assign(event.locals.session, session);
   event.locals.accountState = accountState;
-  expect(((await load(event as never)) as { accepted: boolean }).accepted).toBe(accepted);
+  const got = await Promise.resolve(load(event as never)).then(
+    (data) => ({ landing: null, accepted: (data as { accepted: boolean }).accepted }),
+    (e: { location?: string }) => ({ landing: e.location ?? null, accepted: undefined })
+  );
+  expect(got).toEqual(want);
 });
 
 test.each([
   { action: 'consent', consent: '', failed: false, status: 400, counts: [['onboarding.steps|consent_missing', 1]] },
   { action: 'consent', consent: 'yes', failed: true, status: 502, counts: [['onboarding.steps|save_failed', 1]] },
   { action: 'consent', consent: 'yes', failed: false, status: undefined, counts: [] },
+  { action: 'consent', consent: 'yes', failed: false, status: undefined, counts: [], session: { delegate_of: '2' } },
+  { action: 'consent', consent: 'yes', failed: false, status: 403, counts: [], session: { impersonator_id: '3' } },
   { action: 'done', consent: '', failed: false, status: 400, counts: [['onboarding.steps|consent_missing', 1]] },
   { action: 'finishImport', consent: '', failed: false, status: 400, counts: [['onboarding.steps|consent_missing', 1]] },
   { action: 'done', consent: 'yes', failed: true, status: 502, counts: [['onboarding.steps|save_failed', 1]] },
   { action: 'finishImport', consent: 'yes', failed: true, status: 502, counts: [['onboarding.steps|save_failed', 1]] },
   { action: 'done', consent: 'yes', failed: false, status: 303, counts: [['onboarding.preset|quiet', 1]] },
   { action: 'finishImport', consent: 'yes', failed: false, status: undefined, counts: [['onboarding.preset|import', 1]] }
-])('$action consent=$consent failed=$failed', async ({ action, consent, failed, status, counts }) => {
+])('$action consent=$consent failed=$failed session=$session', async ({ action, consent, failed, status, counts, session }) => {
   saveFails = failed;
-  const response = await Promise.resolve().then(() => actions[action](actionEvent({ consent, preset: 'quiet' }) as never)).catch((err) => err);
+  const event = actionEvent({ consent, preset: 'quiet' });
+  Object.assign(event.locals.session, session);
+  const response = await Promise.resolve().then(() => actions[action](event as never)).catch((err) => err);
   expect({ status: response.status, counts: await recorded() }).toEqual({ status, counts: counts.map(([field, n]) => [field, n]) });
 });

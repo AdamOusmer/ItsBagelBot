@@ -107,8 +107,10 @@
     hoveredChoice = null;
   }
 
+  const delegate = untrack(() => data.delegate);
+  const beatsFor = (s: Setup): Beat[] => (delegate ? INTRO.slice(0, consentStep) : [...INTRO, ...(s === 'start-new' ? NEW_STREAMER : [])]);
   const tour = $derived<Beat[]>(
-    [...INTRO, ...(setup === 'start-new' ? NEW_STREAMER : [])].map((b) => ({
+    beatsFor(setup).map((b) => ({
       kind: b.kind,
       face: b.face,
       title: tr(`onboarding.${b.title}`),
@@ -142,7 +144,12 @@
   let importLink = $state(importRequested);
   const importActive = $derived(page.state.importing ?? importLink);
   const acceptedAtLoad = untrack(() => data.accepted);
-  const firstStep = importRequested ? choiceStep : acceptedAtLoad ? consentStep + 1 : 0;
+  function startStep(): number {
+    if (delegate) return consentStep;
+    if (importRequested) return choiceStep;
+    return acceptedAtLoad ? consentStep + 1 : 0;
+  }
+  const firstStep = startStep();
   let step = $state(firstStep);
   let furthest = $state(firstStep);
   let dir = $state(1);
@@ -160,10 +167,15 @@
   const current = $derived(steps[step]);
   const last = $derived(step === steps.length - 1);
   const consentBlocked = $derived(!consentAccepted);
-  const floor = $derived(consentSaved ? consentStep + 1 : 0);
+  function lowestStep(saved: boolean): number {
+    if (saved) return consentStep + 1;
+    return delegate ? consentStep : 0;
+  }
+  const floor = $derived(lowestStep(consentSaved));
   const maxStep = $derived(consentSaved ? Math.min(furthest + 1, steps.length - 1) : consentStep);
   const nextDisabled = $derived(current.kind === 'consent' ? consentBlocked : step + 1 > maxStep);
-  const canAdvance = $derived(!nextDisabled && !last);
+  const finishing = $derived(last && current.kind !== 'consent');
+  const canAdvance = $derived(!nextDisabled && !finishing);
   const pastChoice = $derived(consentSaved && step >= choiceStep);
   const canImport = $derived(!leaving && pastChoice);
   const canFinish = $derived(!locked && pastChoice && last && setup !== 'import');
@@ -212,11 +224,12 @@
   const TOUR_KEY = 'bb-welcome-tour';
   const SETUPS: readonly Setup[] = CHOICES.map((c) => c.id);
   let tourReady = false;
-  let tourDone = false;
+  let tourDone = delegate;
 
   type SavedTour = { step: number; furthest: number; setup: Setup; locale: Locale };
 
   function readTour(): SavedTour | null {
+    if (delegate) return null;
     try {
       const v = JSON.parse(sessionStorage.getItem(TOUR_KEY) ?? 'null') as Partial<SavedTour> | null;
       if (!v || !SETUPS.includes(v.setup as Setup) || !LOCALES.includes(v.locale as Locale)) return null;
@@ -333,6 +346,7 @@
     consentSaving = false;
     if (result.type !== 'success') return showSaveError(result);
     consentSaved = true;
+    if (delegate) return exitTo('/');
     go(step + 1);
   }
 
@@ -546,7 +560,7 @@
           <Button onpointerover={() => (hover = 'excited')} onclick={goNext}>{tr('onboarding.heroCta')}</Button>
         {:else}
           <Button variant="ghost" onpointerover={() => (hover = 'curious')} onclick={goBack} disabled={step - 1 < floor}>{tr('onboarding.back')}</Button>
-          {#if last}
+          {#if finishing}
             {#if setup === 'import'}
               <Button onpointerover={() => (hover = 'excited')} onclick={startImport} tone="success">{tr('onboarding.choiceImportCta')}</Button>
             {:else}

@@ -76,7 +76,7 @@ function requireTwitchScopes(s: Session, url: URL): void {
 const CONSENT_FREE_SECTIONS = new Set(['settings']);
 
 function consentPending(gate: App.Locals['accountState'], s: Session): boolean {
-  if (!isOwnerSession(s) || !gate) return false;
+  if (s.impersonator_id || !gate) return false;
   return 'value' in gate && !gate.value.onboarded;
 }
 

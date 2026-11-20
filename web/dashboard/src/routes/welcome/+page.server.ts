@@ -45,11 +45,20 @@ function connectedSources(cookies: Cookies): Record<ImportSource, boolean> {
   >;
 }
 
-function owner(locals: App.Locals) {
+function signedIn(locals: App.Locals, permitted: (s: Session) => boolean) {
   const s = locals.session;
   if (!s) return { failure: fail(401, { error: actionError(locals.locale, 'Sign in to finish setup.') }) };
-  if (!isOwnerSession(s)) return { failure: fail(403, { error: actionError(locals.locale, 'Only the channel owner can finish setup.') }) };
+  if (!permitted(s)) return { failure: fail(403, { error: actionError(locals.locale, 'Only the channel owner can finish setup.') }) };
   return { uid: s.user_id };
+}
+
+const notImpersonated = (s: Session) => !s.impersonator_id;
+const owner = (locals: App.Locals) => signedIn(locals, isOwnerSession);
+const signer = (locals: App.Locals) => signedIn(locals, notImpersonated);
+
+function welcomeClosed(s: Session, locals: App.Locals): boolean {
+  if (s.impersonator_id) return true;
+  return !!s.delegate_of && termsAccepted(locals);
 }
 
 async function markOnboarded(save: () => Promise<unknown>) {
@@ -87,16 +96,21 @@ async function finishSetup<R>(
 export const load: PageServerLoad = async ({ locals, cookies }) => {
   const s = await tourSession(locals);
   if (!s) throw redirect(302, `/login?next=${encodeURIComponent('/welcome')}`);
-  if (!isOwnerSession(s)) throw redirect(303, '/');
+  if (welcomeClosed(s, locals)) throw redirect(303, '/');
   count('onboarding.steps', 'viewed');
-  return { name: s.display_name || s.login, connected: connectedSources(cookies), accepted: termsAccepted(locals) };
+  return {
+    name: s.display_name || s.login,
+    connected: connectedSources(cookies),
+    accepted: termsAccepted(locals),
+    delegate: !!s.delegate_of
+  };
 };
 
 export const actions: Actions = {
   consent: async ({ locals, request }) => {
     if (!consented(await request.formData())) return consentMissing(locals);
     if (DEMO) return { ok: true };
-    const who = owner(locals);
+    const who = signer(locals);
     if ('failure' in who) return who.failure;
     return (await markOnboarded(() => setOnboarded(who.uid, true))) ?? { ok: true };
   },
