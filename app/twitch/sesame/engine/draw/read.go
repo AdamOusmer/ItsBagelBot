@@ -5,10 +5,10 @@ package draw
 
 import (
 	"context"
-	"encoding/json"
 	"slices"
 	"strconv"
 
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/valkey"
 )
 
@@ -35,7 +35,7 @@ func decodeSnapshot(id RoundID, raw valkey.RoundRead, err error) (snapshot, erro
 	slots := make([]Slot, 0, len(raw.Slots))
 	for _, field := range raw.Slots {
 		var slot Slot
-		if err := json.Unmarshal([]byte(field), &slot); err != nil {
+		if err := codec.Unmarshal([]byte(field), &slot); err != nil {
 			return snapshot{}, err
 		}
 		slots = append(slots, slot)
@@ -57,11 +57,11 @@ func decodeRound(id RoundID, raw map[string]string) (Round, error) {
 	r := Round{ID: id, Channel: ChannelID(parseUint(raw["channel"])), Phase: Phase(raw["phase"]),
 		OpenedAt: fromMillis(parseInt(raw["opened_at"])), ClosesAt: fromMillis(parseInt(raw["closes_at"])),
 		SettledAt: fromMillis(parseInt(raw["settled_at"])), Winners: int(parseInt(raw["winners"]))}
-	if err := json.Unmarshal([]byte(raw["terms"]), &r.Terms); err != nil {
+	if err := codec.Unmarshal([]byte(raw["terms"]), &r.Terms); err != nil {
 		return Round{}, err
 	}
 	if actions := raw["actions"]; actions != "" {
-		err := json.Unmarshal([]byte(actions), &r.Actions)
+		err := codec.Unmarshal([]byte(actions), &r.Actions)
 		return r, err
 	}
 	return r, nil

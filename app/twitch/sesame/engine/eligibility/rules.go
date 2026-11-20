@@ -3,7 +3,7 @@
 
 package eligibility
 
-import "encoding/json"
+import "ItsBagelBot/pkg/codec"
 
 type Role string
 
@@ -25,12 +25,15 @@ type Rules struct {
 	SubLuckPercent  int    `json:"sub_luck_percent,omitempty"`
 }
 
-func Parse(raw json.RawMessage) Rules {
+func Parse(raw codec.RawMessage) (Rules, error) {
 	var rules Rules
-	if len(raw) != 0 && json.Unmarshal(raw, &rules) != nil {
-		return Rules{}
+	if len(raw) == 0 {
+		return rules, nil
 	}
-	return rules.Clamp()
+	if err := codec.Unmarshal(raw, &rules); err != nil {
+		return Rules{}, err
+	}
+	return rules.Clamp(), nil
 }
 
 func (r Rules) Clamp() Rules {
@@ -70,15 +73,14 @@ type Reason string
 const (
 	ReasonRole         Reason = "role"
 	ReasonBroadcaster  Reason = "broadcaster"
-	ReasonBot          Reason = "bot"
 	ReasonMod          Reason = "mod"
 	ReasonPoints       Reason = "points"
 	ReasonWatch        Reason = "watch"
 	ReasonFollow       Reason = "follow"
+	ReasonScope        Reason = "scope"
 	ReasonFollowAge    Reason = "follow_age"
 	ReasonAccountAge   Reason = "account_age"
 	ReasonRecentWinner Reason = "recent_winner"
-	ReasonLookup       Reason = "lookup"
 	ReasonLoyaltyOff   Reason = "loyalty_off"
 	ReasonStalled      Reason = "stalled"
 )

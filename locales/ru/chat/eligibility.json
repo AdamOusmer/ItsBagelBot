@@ -4,11 +4,11 @@
   "lookup_failed": "@{eligibility:user}, не удалось проверить условия участия. Попробуй чуть позже.",
   "refused.role": "@{eligibility:user}, твоя роль в чате не соответствует условиям участия.",
   "refused.broadcaster": "@{eligibility:user}, ведущий не может участвовать в собственном розыгрыше.",
-  "refused.bot": "@{eligibility:user}, бот не может участвовать в розыгрыше.",
   "refused.mod": "@{eligibility:user}, модераторы не могут участвовать в этом розыгрыше.",
   "refused.points": "@{eligibility:user}, нужно набрать {eligibility:need} баллов (в {eligibility:time} UTC у тебя было {eligibility:had}).",
   "refused.watch": "@{eligibility:user}, нужно смотреть канал {eligibility:need} (в {eligibility:time} UTC у тебя было {eligibility:had}).",
   "refused.follow": "@{eligibility:user}, не удалось проверить, следишь ли ты за каналом.",
+  "refused.scope": "@{eligibility:user}, боту нужно разрешение на просмотр списка фолловеров канала.",
   "refused.follow_age": "@{eligibility:user}, нужно следить за каналом не менее {eligibility:need} дн.",
   "refused.account_age": "@{eligibility:user}, с создания аккаунта должно пройти не менее {eligibility:need} дн.",
   "refused.recent_winner": "@{eligibility:user}, победители за последние {eligibility:need} дн. не могут выиграть этот розыгрыш.",
@@ -23,6 +23,6 @@
   "req.follow_days": "следить за каналом не менее {eligibility:value} дн.",
   "req.account_days": "аккаунт не моложе {eligibility:value} дн.",
   "req.skip_winners_days": "без побед за последние {eligibility:value} дн.",
-  "req.sub_luck": "вес {eligibility:value}% для платных подписчиков и ролей выше",
+  "req.sub_luck": "вес {eligibility:value}% для платных подписчиков и основателей",
   "req.list": "{eligibility:first} и {eligibility:last}"
 }

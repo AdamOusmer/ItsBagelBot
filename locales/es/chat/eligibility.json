@@ -4,11 +4,11 @@
   "lookup_failed": "@{eligibility:user} no se pudieron verificar los requisitos. Vuelve a intentarlo en breve.",
   "refused.role": "@{eligibility:user} tu rol en el chat no cumple el requisito de participación.",
   "refused.broadcaster": "@{eligibility:user} quien emite no puede participar en su propio sorteo.",
-  "refused.bot": "@{eligibility:user} el bot no puede participar en el sorteo.",
   "refused.mod": "@{eligibility:user} los moderadores no pueden participar en este sorteo.",
   "refused.points": "@{eligibility:user} necesitas {eligibility:need} puntos (tenías {eligibility:had} a las {eligibility:time} UTC).",
   "refused.watch": "@{eligibility:user} necesitas {eligibility:need} de visualización (tenías {eligibility:had} a las {eligibility:time} UTC).",
   "refused.follow": "@{eligibility:user} no se pudo verificar que sigas el canal.",
+  "refused.scope": "@{eligibility:user} el bot necesita permiso para consultar los seguidores de este canal.",
   "refused.follow_age": "@{eligibility:user} debes seguir el canal desde hace al menos {eligibility:need} días.",
   "refused.account_age": "@{eligibility:user} tu cuenta debe tener al menos {eligibility:need} días.",
   "refused.recent_winner": "@{eligibility:user} quienes ganaron en los últimos {eligibility:need} días no pueden ganar este sorteo.",
@@ -23,6 +23,6 @@
   "req.follow_days": "{eligibility:value} días siguiendo el canal",
   "req.account_days": "una cuenta con al menos {eligibility:value} días",
   "req.skip_winners_days": "sin victorias en los últimos {eligibility:value} días",
-  "req.sub_luck": "peso del {eligibility:value}% para suscriptores y roles superiores",
+  "req.sub_luck": "peso del {eligibility:value}% para suscriptores y fundadores",
   "req.list": "{eligibility:first} y {eligibility:last}"
 }

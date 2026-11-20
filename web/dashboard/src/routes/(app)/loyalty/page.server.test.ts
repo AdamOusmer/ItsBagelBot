@@ -36,6 +36,7 @@ mock.module('@bagel/kit/server/nats', () => ({
 }));
 
 const { actions, load } = await import('./+page.server');
+const { eligibleCount } = await import('#lib/server/loyalty-store');
 const ok = { ok: true };
 const invalid = { status: 400, data: { ok: false } };
 const conflict = (reason: string) => ({ status: 409, data: { ok: false, reason } });
@@ -96,4 +97,29 @@ test.each([
     freeze: expected,
     topFreeze: freezeStamp
   });
+});
+
+const countVerb = 'balance.count_at_least';
+const minimums = { minPoints: 25, minWatchSeconds: 7200 };
+
+test.each([
+  { name: 'zero on live standings', reply: { count: 0 }, expected: { count: 0, freeze: null } },
+  { name: 'a frozen count', reply: { count: 3, ...stamp }, expected: { count: 3, freeze: freezeStamp } }
+])('eligibleCount returns $name and sends both minimums', async ({ reply, expected }) => {
+  replies = { [countVerb]: reply };
+  calls.length = 0;
+  const count = await eligibleCount(user, minimums);
+  expect({ count, calls }).toEqual({
+    count: expected,
+    calls: [{
+      subject: `${SUB.loyalty}.${countVerb}`,
+      payload: { user_id: user, min_points: 25, min_watch_seconds: 7200 },
+      timeoutMs: 4000
+    }]
+  });
+});
+
+test('eligibleCount requires a count in the reply', async () => {
+  replies = { [countVerb]: { ...stamp } };
+  await expect(eligibleCount(user, minimums)).rejects.toThrow('missing loyalty standings count');
 });

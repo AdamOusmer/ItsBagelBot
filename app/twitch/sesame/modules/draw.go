@@ -106,12 +106,19 @@ func (d drawOwner) join(ctx context.Context, c *module.Context, _ string, emit m
 }
 
 func (d drawOwner) joinRound(ctx context.Context, c *module.Context, r draw.Round, emit module.Emit) error {
-	joiner, err := drawJoiner(c)
+	joiner, err := drawJoiner(c, r.Terms.Kind)
 	if err != nil {
 		return nil
 	}
+	rules, err := roundRules(r)
+	if err != nil {
+		return err
+	}
 	viewer := drawViewerID(joiner.Viewer)
-	verdict := d.admit(ctx, roundRules(r), joiner)
+	verdict, err := d.admit(ctx, rules, joiner)
+	if err != nil {
+		return d.replyJoinLookupFailure(ctx, c, emit, draw.Check{Round: r, Viewer: viewer})
+	}
 	if !verdict.Pass {
 		return d.refuseJoin(ctx, c, emit, refusedJoin{r, viewer, verdict})
 	}
@@ -187,7 +194,7 @@ func (d drawOwner) resolveWinner(ctx context.Context, c *module.Context) drawCom
 		return drawCommandState{round: r, slots: slots, found: found, err: err}
 	}
 	res, found, err := d.legacyResult(ctx, c)
-	owns := found || c.ModuleOn(raffleModuleName) || c.ModuleOn("giveaway")
+	owns := found || c.ModuleOn(raffleModuleName) || c.ModuleOn(engine.GiveawayModuleName)
 	return drawCommandState{result: res, legacyFound: found, err: err, found: owns}
 }
 

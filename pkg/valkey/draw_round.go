@@ -106,7 +106,7 @@ type JoinResult struct {
 }
 
 var drawJoinScript = NewScript(drawTimeLua + `
-local round, entries, labels = unpack(KEYS)
+local round, entries, labels, refused = unpack(KEYS)
 local member, label, weight, ttl, check_deadline, channel = unpack(ARGV)
 if channel ~= '0' and redis.call('HGET', round, 'channel') ~= channel then return {0, 0, 0} end
 local deadline = tonumber(redis.call('HGET', round, 'closes_at') or 0)
@@ -115,6 +115,7 @@ if redis.call('HGET', round, 'phase') ~= 'open' then
   return {0, 0, redis.call('ZCARD', entries)}
 end
 local added = redis.call('ZADD', entries, 'NX', weight, member)
+if refused ~= round then redis.call('HDEL', refused, member) end
 redis.call('HSET', labels, member, label)
 redis.call('PEXPIRE', entries, ttl)
 redis.call('PEXPIRE', labels, ttl)
@@ -122,7 +123,7 @@ return {1, added, redis.call('ZCARD', entries)}
 `)
 
 func (k RoundKeys) Join(ctx context.Context, client valkey_go.Client, e RoundEntrant) (JoinResult, error) {
-	keys := []string{k.Round, k.Entries, k.Labels}
+	keys := []string{k.Round, k.Entries, k.Labels, drawOptionalKey(k.Refused, k.Round)}
 	args := []string{e.Member, e.Label, strconv.FormatInt(e.Weight, 10), strconv.FormatInt(e.TTL.Milliseconds(), 10), strconv.FormatBool(e.CheckDeadline), strconv.FormatUint(e.Channel, 10)}
 	reply, err := drawJoinScript.Exec(ctx, client, keys, args).AsIntSlice()
 	if err != nil {

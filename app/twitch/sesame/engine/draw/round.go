@@ -4,8 +4,9 @@
 package draw
 
 import (
-	"encoding/json"
 	"time"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 type ViewerID string
@@ -50,7 +51,7 @@ type Terms struct {
 	Winners       WinnerPolicy
 	ClaimWindow   time.Duration
 	RerollNoShows bool
-	Rules         json.RawMessage `json:",omitempty"`
+	Rules         codec.RawMessage `json:",omitempty"`
 	ClosesAt      time.Time
 }
 
@@ -104,12 +105,12 @@ type slotJSON struct {
 }
 
 func (v Slot) MarshalJSON() ([]byte, error) {
-	return json.Marshal(slotJSON{slotFields: slotFields(v), Deadline: millis(v.Deadline), ClaimedAt: millis(v.ClaimedAt)})
+	return codec.Marshal(slotJSON{slotFields: slotFields(v), Deadline: millis(v.Deadline), ClaimedAt: millis(v.ClaimedAt)})
 }
 
 func (v *Slot) UnmarshalJSON(data []byte) error {
 	var wire slotJSON
-	if err := json.Unmarshal(data, &wire); err != nil {
+	if err := codec.Unmarshal(data, &wire); err != nil {
 		return err
 	}
 	*v = Slot(wire.slotFields)

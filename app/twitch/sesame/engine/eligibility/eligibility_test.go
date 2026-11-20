@@ -5,7 +5,6 @@ package eligibility_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"ItsBagelBot/internal/domain/invalidate"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/require"
 )
@@ -75,9 +75,8 @@ func TestJoinRules(t *testing.T) {
 		want  eligibility.Verdict
 		reads int
 	}{
-		{name: "broadcaster before bot", rules: eligibility.Rules{MinPoints: 1},
-			who: eligibility.Joiner{Channel: 2, Viewer: 2, IsBot: true}, want: eligibility.Verdict{Reason: eligibility.ReasonBroadcaster}},
-		{name: "bot", who: eligibility.Joiner{Channel: 2, Viewer: 7, IsBot: true}, want: eligibility.Verdict{Reason: eligibility.ReasonBot}},
+		{name: "giveaway excludes its broadcaster", rules: eligibility.Rules{MinPoints: 1},
+			who: eligibility.Joiner{Channel: 2, Viewer: 2, Kind: draw.KindGiveaway}, want: eligibility.Verdict{Reason: eligibility.ReasonBroadcaster}},
 		{name: "mods excluded before standings", rules: eligibility.Rules{ExcludeMods: true, MinPoints: 1},
 			who: eligibility.Joiner{Channel: 2, Viewer: 7, Role: module.RoleLeadModerator}, want: eligibility.Verdict{Reason: eligibility.ReasonMod}},
 		{name: "VIP rule", rules: eligibility.Rules{Role: eligibility.VIP, MinPoints: 1}, who: everyone,
@@ -87,12 +86,12 @@ func TestJoinRules(t *testing.T) {
 		{name: "watch short on frozen standings", rules: eligibility.Rules{MinPoints: 100, MinWatchSeconds: 3600}, who: everyone,
 			data: eligibilityData{balance: frozen}, want: eligibility.Verdict{Reason: eligibility.ReasonWatch, Need: 3600, Had: 1800, AsOf: frozenAt}, reads: 1},
 		{name: "subscriber luck", rules: eligibility.Rules{Role: eligibility.Sub, SubLuckPercent: 200, MinPoints: 100, MinWatchSeconds: 1800},
-			who: eligibility.Joiner{Channel: 2, Viewer: 7, Role: module.RoleSubscriber}, data: eligibilityData{balance: frozen},
+			who: eligibility.Joiner{Channel: 2, Viewer: 7, Role: module.RoleSubscriber, Subscriber: true}, data: eligibilityData{balance: frozen},
 			want: eligibility.Verdict{Pass: true, Weight: 200, AsOf: frozenAt}, reads: 1},
 		{name: "draw-time rules do not read anything at join", rules: eligibility.Rules{FollowersOnly: true, MinAccountDays: 1, SkipWinnersDays: 1}, who: everyone,
 			want: eligibility.Verdict{Pass: true, Weight: draw.Pins.EntryWeight}},
-		{name: "snapshot failed", rules: eligibility.Rules{MinPoints: 1}, who: everyone, data: eligibilityData{err: errors.New("no reply")},
-			want: eligibility.Verdict{Reason: eligibility.ReasonLookup}, reads: 1},
+		{name: "snapshot failed", rules: eligibility.Rules{MinPoints: 1}, who: everyone,
+			data: eligibilityData{err: errors.New("no reply")}, reads: 1},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -146,7 +145,7 @@ func TestVerifyDrawRules(t *testing.T) {
 	old := checkTime.Add(-7 * day)
 	retry := &engine.RetryAfterError{After: 3 * time.Second}
 	rules := eligibility.Rules{MinFollowDays: 7, MinAccountDays: 7, SkipWinnersDays: 7}
-	raw, err := json.Marshal(rules)
+	raw, err := codec.Marshal(rules)
 	require.NoError(t, err)
 	passed := draw.Verdict{Pass: true}
 	for _, tc := range []struct {
@@ -155,21 +154,23 @@ func TestVerifyDrawRules(t *testing.T) {
 		data  eligibilityData
 		want  draw.Verdict
 		calls []string
+		err   error
 	}{
-		{"passes at cutoff", draw.KindGiveaway, eligibilityData{follow: old, account: old}, passed, []string{"follow", "account", "winners"}},
-		{"raffle avoids all lookups", draw.KindRaffle, eligibilityData{}, passed, nil},
-		{"not following", draw.KindGiveaway, eligibilityData{}, draw.Verdict{Reason: "follow"}, []string{"follow"}},
-		{"follow too recent", draw.KindGiveaway, eligibilityData{follow: old.Add(time.Second)}, rejectedAge("follow_age"), []string{"follow"}},
-		{"account missing", draw.KindGiveaway, eligibilityData{follow: old}, rejectedAge("account_age"), []string{"follow", "account"}},
-		{"account too new", draw.KindGiveaway, eligibilityData{follow: old, account: old.Add(time.Second)}, rejectedAge("account_age"), []string{"follow", "account"}},
-		{"recent winner", draw.KindGiveaway, eligibilityData{follow: old, account: old, winners: []uint64{7}}, rejectedAge("recent_winner"), []string{"follow", "account", "winners"}},
-		{"throttled", draw.KindGiveaway, eligibilityData{err: retry}, draw.Verdict{}, []string{"follow"}},
+		{"passes at cutoff", draw.KindGiveaway, eligibilityData{follow: old, account: old}, passed, []string{"follow", "account", "winners"}, nil},
+		{"raffle avoids all lookups", draw.KindRaffle, eligibilityData{}, passed, nil, nil},
+		{"not following", draw.KindGiveaway, eligibilityData{}, draw.Verdict{Reason: "follow"}, []string{"follow"}, nil},
+		{"missing followers scope", draw.KindGiveaway, eligibilityData{err: eligibility.ErrFollowScope}, draw.Verdict{Reason: "scope"}, []string{"follow"}, nil},
+		{"follow too recent", draw.KindGiveaway, eligibilityData{follow: old.Add(time.Second)}, rejectedAge(eligibility.ReasonFollowAge), []string{"follow"}, nil},
+		{"account missing", draw.KindGiveaway, eligibilityData{follow: old}, rejectedAge(eligibility.ReasonAccountAge), []string{"follow", "account"}, nil},
+		{"account too new", draw.KindGiveaway, eligibilityData{follow: old, account: old.Add(time.Second)}, rejectedAge(eligibility.ReasonAccountAge), []string{"follow", "account"}, nil},
+		{"recent winner", draw.KindGiveaway, eligibilityData{follow: old, account: old, winners: []uint64{7}}, rejectedAge(eligibility.ReasonRecentWinner), []string{"follow", "account", "winners"}, nil},
+		{"throttled", draw.KindGiveaway, eligibilityData{err: retry}, draw.Verdict{}, []string{"follow"}, retry},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c := newChecker(t, &tc.data)
 			r := draw.Round{Channel: 2, Terms: draw.Terms{Kind: tc.kind, Rules: raw}}
 			got, err := c.Verify(t.Context(), draw.Check{Round: r, Viewer: "7"})
-			require.ErrorIs(t, err, tc.data.err)
+			require.ErrorIs(t, err, tc.err)
 			require.Equal(t, tc.want, got)
 			require.Equal(t, tc.calls, tc.data.calls)
 			if len(tc.calls) == 3 {
@@ -179,17 +180,19 @@ func TestVerifyDrawRules(t *testing.T) {
 	}
 }
 
-func rejectedAge(reason string) draw.Verdict {
-	return draw.Verdict{Reason: reason, Detail: map[string]string{"need": "7"}}
+func rejectedAge(reason eligibility.Reason) draw.Verdict {
+	return draw.Verdict{Reason: string(reason), Detail: map[string]string{"need": "7"}}
 }
 
 func TestEligibilityPolicy(t *testing.T) {
 	bounds := eligibility.RuleLimits{MaxPoints: 1_000_000_000, MaxWatchHours: 10_000, MaxFollowDays: 3650,
-		MaxAccountDays: 3650, MaxSkipDays: 90, LuckMin: 100, LuckMax: 300, CheckCooldown: 10 * time.Second, RefusalLineOn: true}
+		MaxAccountDays: 3650, MaxSkipDays: 90, LuckMin: 100, LuckMax: 300, CheckCooldown: 10 * time.Second, RefusalEnabled: true}
 	require.Equal(t, bounds, eligibility.Limits)
-	raw := json.RawMessage(`{"role":"other","min_points":1000000001,"min_watch_seconds":36000001,"min_follow_days":3651,"min_account_days":3651,"skip_winners_days":91,"sub_luck_percent":301}`)
+	raw := codec.RawMessage(`{"role":"other","min_points":1000000001,"min_watch_seconds":36000001,"min_follow_days":3651,"min_account_days":3651,"skip_winners_days":91,"sub_luck_percent":301}`)
+	rules, err := eligibility.Parse(raw)
+	require.NoError(t, err)
 	require.Equal(t, eligibility.Rules{MinPoints: bounds.MaxPoints, MinWatchSeconds: bounds.MaxWatchHours * 3600,
-		MinFollowDays: bounds.MaxFollowDays, MinAccountDays: bounds.MaxAccountDays, SkipWinnersDays: bounds.MaxSkipDays, SubLuckPercent: bounds.LuckMax}, eligibility.Parse(raw))
+		MinFollowDays: bounds.MaxFollowDays, MinAccountDays: bounds.MaxAccountDays, SkipWinnersDays: bounds.MaxSkipDays, SubLuckPercent: bounds.LuckMax}, rules)
 }
 
 func TestOpenGate(t *testing.T) {
@@ -213,8 +216,40 @@ func TestOpenGate(t *testing.T) {
 	}
 }
 
-func TestGiveawayRequirements(t *testing.T) {
-	rules := eligibility.Rules{MinWatchSeconds: 7200, MinFollowDays: 7, FollowersOnly: true}
-	require.Equal(t, "2h of watch time and 7 days of following", engine.GiveawayRequirements("en", rules))
-	require.Empty(t, engine.GiveawayRequirements("en", eligibility.Rules{}))
+func TestMalformedRulesFailVerification(t *testing.T) {
+	for _, raw := range []codec.RawMessage{codec.RawMessage(`{`), codec.RawMessage(`{"min_points":"invalid"}`)} {
+		t.Run(string(raw), func(t *testing.T) {
+			data := &eligibilityData{}
+			checker := newChecker(t, data)
+			_, parseErr := eligibility.Parse(raw)
+			require.Error(t, parseErr)
+			round := draw.Round{Terms: draw.Terms{Kind: draw.KindGiveaway, Rules: raw}}
+			verdict, err := checker.Verify(t.Context(), draw.Check{Round: round, Viewer: "7"})
+			require.EqualError(t, err, parseErr.Error())
+			require.Equal(t, draw.Verdict{}, verdict)
+			require.Empty(t, data.calls)
+		})
+	}
+}
+
+func TestDescribe(t *testing.T) {
+	for _, tc := range []struct {
+		rules eligibility.Rules
+		want  eligibility.Requirement
+	}{
+		{eligibility.Rules{Role: eligibility.Sub}, eligibility.Requirement{Key: "req.sub"}},
+		{eligibility.Rules{Role: eligibility.VIP}, eligibility.Requirement{Key: "req.vip"}},
+		{eligibility.Rules{ExcludeMods: true}, eligibility.Requirement{Key: "req.exclude_mods"}},
+		{eligibility.Rules{MinPoints: 50}, eligibility.Requirement{Key: "req.points", Value: 50}},
+		{eligibility.Rules{MinWatchSeconds: 3600}, eligibility.Requirement{Key: "req.watch_hours", Value: 3600}},
+		{eligibility.Rules{FollowersOnly: true}, eligibility.Requirement{Key: "req.followers"}},
+		{eligibility.Rules{FollowersOnly: true, MinFollowDays: 7}, eligibility.Requirement{Key: "req.follow_days", Value: 7}},
+		{eligibility.Rules{MinAccountDays: 14}, eligibility.Requirement{Key: "req.account_days", Value: 14}},
+		{eligibility.Rules{SkipWinnersDays: 30}, eligibility.Requirement{Key: "req.skip_winners_days", Value: 30}},
+		{eligibility.Rules{SubLuckPercent: 200}, eligibility.Requirement{Key: "req.sub_luck", Value: 200}},
+	} {
+		t.Run(tc.want.Key, func(t *testing.T) {
+			require.Equal(t, []eligibility.Requirement{tc.want}, eligibility.Describe(tc.rules))
+		})
+	}
 }

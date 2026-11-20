@@ -248,6 +248,28 @@ func TestDrawRoundRefuseChecksChannelAndDeadline(t *testing.T) {
 	}
 }
 
+func TestDrawJoinClearsRefusal(t *testing.T) {
+	client := valkeytest.Real(t)
+	ctx := t.Context()
+	keys := testDrawKeys(t, testRoundID)
+	cleanDrawKeys(t, client, keys)
+	openTestDraw(t, client, keys)
+	for _, viewer := range []string{testViewer, "other"} {
+		first, _, err := keys.Refuse(ctx, client, Refusal{Viewer: viewer, Reason: "role", TTL: testDrawTTL})
+		require.NoError(t, err)
+		require.True(t, first)
+	}
+	joined, err := keys.Join(ctx, client, RoundEntrant{Member: testViewer, Weight: 100, TTL: testDrawTTL})
+	require.NoError(t, err)
+	require.Equal(t, JoinResult{Open: true, Added: true, Count: 1}, joined)
+	view, err := keys.View(ctx, client)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, view.Refused)
+	fields, err := HashAll(ctx, client, keys.Refused)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"other": "role"}, fields)
+}
+
 func TestDrawPhaseRefreshesActiveExpiry(t *testing.T) {
 	client := valkeytest.Real(t)
 	ctx := t.Context()

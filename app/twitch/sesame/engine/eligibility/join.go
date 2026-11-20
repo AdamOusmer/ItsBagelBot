@@ -62,8 +62,9 @@ func (c *Checker) Close() { c.snapshots.Close() }
 
 type Joiner struct {
 	Channel, Viewer uint64
+	Kind            draw.Kind
 	Role            module.Role
-	IsBot           bool
+	Subscriber      bool
 }
 
 type Verdict struct {
@@ -75,16 +76,19 @@ type Verdict struct {
 }
 
 func (c *Checker) Join(ctx context.Context, rules Rules, j Joiner) (Verdict, error) {
+	if j.Kind == draw.KindRaffle {
+		return Verdict{Pass: true, Weight: draw.Pins.EntryWeight}, nil
+	}
 	if reason := roleRefusal(rules, j); reason != "" {
 		return Verdict{Reason: reason}, nil
 	}
-	result := Verdict{Pass: true, Weight: joinWeight(rules, j.Role)}
+	result := Verdict{Pass: true, Weight: joinWeight(rules, j.Subscriber)}
 	if !rules.NeedsStandings() {
 		return result, nil
 	}
 	snapshot, err := c.snapshot(ctx, viewerKey{j.Channel, j.Viewer})
 	if err != nil {
-		return Verdict{Reason: ReasonLookup}, err
+		return Verdict{}, err
 	}
 	return checkStandings(rules, result, snapshot, c.ports.Now()), nil
 }
@@ -93,8 +97,6 @@ func roleRefusal(r Rules, j Joiner) Reason {
 	switch {
 	case j.Viewer == j.Channel || j.Role == module.RoleBroadcaster:
 		return ReasonBroadcaster
-	case j.IsBot:
-		return ReasonBot
 	case r.ExcludeMods && j.Role.Allows(module.RoleModerator):
 		return ReasonMod
 	case !j.Role.Allows(module.ParsePerm(string(r.Role))):
@@ -104,8 +106,8 @@ func roleRefusal(r Rules, j Joiner) Reason {
 	}
 }
 
-func joinWeight(r Rules, role module.Role) int64 {
-	if r.SubLuckPercent > 0 && role.Allows(module.RoleSubscriber) {
+func joinWeight(r Rules, subscriber bool) int64 {
+	if r.SubLuckPercent > 0 && subscriber {
 		return int64(r.SubLuckPercent)
 	}
 	return draw.Pins.EntryWeight

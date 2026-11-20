@@ -5,6 +5,7 @@ package eligibility
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -16,6 +17,8 @@ import (
 type Follows interface {
 	FollowedAt(ctx context.Context, channel, viewer uint64) (time.Time, bool, error)
 }
+
+var ErrFollowScope = errors.New("eligibility: missing followers scope")
 
 type Accounts interface {
 	CreatedAt(ctx context.Context, viewer uint64) (time.Time, bool, error)
@@ -30,7 +33,13 @@ type candidate struct {
 	now time.Time
 }
 
-type drawRule func(context.Context, Rules, candidate) (draw.Verdict, error)
+type drawRule struct {
+	enabled bool
+	days    int
+	missing Reason
+	age     Reason
+	lookup  func(context.Context) (time.Time, bool, error)
+}
 
 func (c *Checker) Verify(ctx context.Context, chk draw.Check) (draw.Verdict, error) {
 	if chk.Round.Terms.Kind != draw.KindGiveaway {
@@ -40,10 +49,20 @@ func (c *Checker) Verify(ctx context.Context, chk draw.Check) (draw.Verdict, err
 	if err != nil || viewer == 0 {
 		return draw.Verdict{}, fmt.Errorf("eligibility: invalid viewer id %q", chk.Viewer)
 	}
-	rules := Parse(chk.Round.Terms.Rules)
+	rules, err := Parse(chk.Round.Terms.Rules)
+	if err != nil {
+		return draw.Verdict{}, err
+	}
 	entry := candidate{viewerKey{uint64(chk.Round.Channel), viewer}, c.ports.Now()}
-	for _, check := range []drawRule{c.checkFollow, c.checkAccount, c.checkRecentWin} {
-		result, err := check(ctx, rules, entry)
+	return verifyRules(ctx, entry.now, c.drawRules(rules, entry))
+}
+
+func verifyRules(ctx context.Context, now time.Time, rules []drawRule) (draw.Verdict, error) {
+	for _, rule := range rules {
+		if !rule.enabled {
+			continue
+		}
+		result, err := rule.verify(ctx, now)
 		if err != nil || !result.Pass {
 			return result, err
 		}
@@ -51,61 +70,51 @@ func (c *Checker) Verify(ctx context.Context, chk draw.Check) (draw.Verdict, err
 	return draw.Verdict{Pass: true}, nil
 }
 
-func (c *Checker) checkFollow(ctx context.Context, r Rules, entry candidate) (draw.Verdict, error) {
-	if !r.FollowersOnly && r.MinFollowDays == 0 {
-		return draw.Verdict{Pass: true}, nil
+func (c *Checker) drawRules(r Rules, entry candidate) []drawRule {
+	return []drawRule{
+		{enabled: r.FollowersOnly || r.MinFollowDays > 0, days: r.MinFollowDays, missing: ReasonFollow, age: ReasonFollowAge,
+			lookup: func(ctx context.Context) (time.Time, bool, error) {
+				return c.ports.Follows.FollowedAt(ctx, entry.channel, entry.viewer)
+			}},
+		{enabled: r.MinAccountDays > 0, days: r.MinAccountDays, missing: ReasonAccountAge, age: ReasonAccountAge,
+			lookup: func(ctx context.Context) (time.Time, bool, error) {
+				return c.ports.Accounts.CreatedAt(ctx, entry.viewer)
+			}},
+		{enabled: r.SkipWinnersDays > 0, days: r.SkipWinnersDays, missing: ReasonRecentWinner,
+			lookup: func(ctx context.Context) (time.Time, bool, error) {
+				since := entry.now.Add(-daySpan(r.SkipWinnersDays))
+				winners, err := c.ports.Winners.WonWithin(ctx, entry.channel, []uint64{entry.viewer}, since)
+				return time.Time{}, !slices.Contains(winners, entry.viewer), err
+			}},
 	}
-	at, following, err := c.ports.Follows.FollowedAt(ctx, entry.channel, entry.viewer)
+}
+
+func (r drawRule) verify(ctx context.Context, now time.Time) (draw.Verdict, error) {
+	at, found, err := r.lookup(ctx)
 	switch {
+	case errors.Is(err, ErrFollowScope):
+		return draw.Verdict{Reason: string(ReasonScope)}, nil
 	case err != nil:
 		return draw.Verdict{}, err
-	case !following:
-		return draw.Verdict{Reason: string(ReasonFollow)}, nil
+	case !found:
+		return r.failure(r.missing), nil
+	case r.age != "" && !meetsAge(now, at, r.days):
+		return r.failure(r.age), nil
 	default:
-		return ageVerdict(entry.now, at, r.MinFollowDays, ReasonFollowAge), nil
-	}
-}
-
-func (c *Checker) checkAccount(ctx context.Context, r Rules, entry candidate) (draw.Verdict, error) {
-	if r.MinAccountDays == 0 {
 		return draw.Verdict{Pass: true}, nil
 	}
-	at, found, err := c.ports.Accounts.CreatedAt(ctx, entry.viewer)
-	if err != nil {
-		return draw.Verdict{}, err
-	}
-	if !found {
-		at = time.Time{}
-	}
-	return ageVerdict(entry.now, at, r.MinAccountDays, ReasonAccountAge), nil
 }
 
-func (c *Checker) checkRecentWin(ctx context.Context, r Rules, entry candidate) (draw.Verdict, error) {
-	if r.SkipWinnersDays == 0 {
-		return draw.Verdict{Pass: true}, nil
+func (r drawRule) failure(reason Reason) draw.Verdict {
+	result := draw.Verdict{Reason: string(reason)}
+	if reason != ReasonFollow {
+		result.Detail = map[string]string{"need": strconv.Itoa(r.days)}
 	}
-	since := entry.now.Add(-time.Duration(r.SkipWinnersDays) * 24 * time.Hour)
-	winners, err := c.ports.Winners.WonWithin(ctx, entry.channel, []uint64{entry.viewer}, since)
-	if err != nil {
-		return draw.Verdict{}, err
-	}
-	if slices.Contains(winners, entry.viewer) {
-		return draw.Verdict{Reason: string(ReasonRecentWinner), Detail: dayDetail(r.SkipWinnersDays)}, nil
-	}
-	return draw.Verdict{Pass: true}, nil
-}
-
-func ageVerdict(now, at time.Time, need int, reason Reason) draw.Verdict {
-	if need == 0 || meetsAge(now, at, need) {
-		return draw.Verdict{Pass: true}
-	}
-	return draw.Verdict{Reason: string(reason), Detail: dayDetail(need)}
+	return result
 }
 
 func meetsAge(now, at time.Time, days int) bool {
-	return !at.IsZero() && now.Sub(at) >= time.Duration(days)*24*time.Hour
+	return days == 0 || (!at.IsZero() && now.Sub(at) >= daySpan(days))
 }
 
-func dayDetail(days int) map[string]string {
-	return map[string]string{"need": strconv.Itoa(days)}
-}
+func daySpan(days int) time.Duration { return time.Duration(days) * 24 * time.Hour }

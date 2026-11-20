@@ -5,8 +5,9 @@ package valkey
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
+
+	"ItsBagelBot/pkg/codec"
 
 	valkey_go "github.com/valkey-io/valkey-go"
 )
@@ -210,6 +211,6 @@ func ReadClaimRefs(ctx context.Context, client valkey_go.Client, claimable, view
 		return nil, err
 	}
 	var refs []string
-	err = json.Unmarshal([]byte(raw), &refs)
+	err = codec.Unmarshal([]byte(raw), &refs)
 	return refs, err
 }

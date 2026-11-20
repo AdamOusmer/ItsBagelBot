@@ -35,7 +35,7 @@ func (p standingsPort) Snapshot(ctx context.Context, channel, viewer uint64) (lo
 func (p followsPort) FollowedAt(ctx context.Context, channel, viewer uint64) (time.Time, bool, error) {
 	result, err := p.Lookup(ctx, FollowageQuery{BroadcasterID: fmtID(channel), TargetID: fmtID(viewer)})
 	if errors.Is(err, errFollowageScope) {
-		return time.Time{}, false, nil
+		return time.Time{}, false, eligibility.ErrFollowScope
 	}
 	return result.FollowedAt, result.UserFound && result.Following, err
 }

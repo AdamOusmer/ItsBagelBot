@@ -210,7 +210,7 @@ func TestDrawVerifyingNoticeStartsWithRerollBatch(t *testing.T) {
 			if c.Viewer == "11" {
 				return draw.Verdict{Pass: true}, nil
 			}
-			return draw.Verdict{}, retryHint(time.Minute)
+			return draw.Verdict{}, &engine.RetryAfterError{After: time.Minute}
 		}),
 	})
 	r := f.open(427, draw.Terms{Kind: draw.KindGiveaway, ClaimWindow: draw.Pins.ClaimWindowMin})

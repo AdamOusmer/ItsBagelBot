@@ -9,12 +9,29 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
+	"ItsBagelBot/app/twitch/sesame/engine/eligibility"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
+	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestEligibilityPreservesFollowersScopeFailure(t *testing.T) {
+	nc := bustest.NATS(t)
+	served := bustest.Respond(t, nc, "test.followage.get", `{"missing_scope":true}`)
+	require.NoError(t, nc.Flush())
+	checker := NewEligibility(nil, NewFollowageRPC(nc, "test"), nil, nil)
+	t.Cleanup(checker.Close)
+	round := draw.Round{Channel: 2, Terms: draw.Terms{Kind: draw.KindGiveaway, Rules: codec.RawMessage(`{"followers_only":true}`)}}
+	verdict, err := checker.Verify(t.Context(), draw.Check{Round: round, Viewer: "7"})
+	require.NoError(t, err)
+	require.Equal(t, draw.Verdict{Reason: string(eligibility.ReasonScope)}, verdict)
+	require.EqualValues(t, 1, served.Load())
+}
 
 func TestRPCLookupsCacheSuccessfulReplies(t *testing.T) {
 	retryAt := time.Now().Add(time.Minute).Truncate(time.Millisecond)

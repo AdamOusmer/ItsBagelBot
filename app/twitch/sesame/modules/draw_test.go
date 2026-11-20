@@ -5,6 +5,7 @@ package modules
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
@@ -25,12 +26,16 @@ type fakeDraw struct {
 	closing  bool
 	lookups  int
 	joined   draw.JoinRequest
+	refusals int
 	claims   draw.ClaimOutcome
 	claimed  draw.ViewerID
 	slots    []draw.Slot
 }
 
-func (d *fakeDraw) Joinable(context.Context, draw.ChannelID) (draw.Round, bool, error) {
+func (d *fakeDraw) Joinable(ctx context.Context, channel draw.ChannelID) (draw.Round, bool, error) {
+	if d.DrawStore != nil {
+		return d.DrawStore.Joinable(ctx, channel)
+	}
 	d.lookups++
 	if d.joinable || d.closing {
 		return draw.Round{ID: "active", Terms: draw.Terms{Kind: draw.KindRaffle}}, d.joinable, nil
@@ -38,9 +43,17 @@ func (d *fakeDraw) Joinable(context.Context, draw.ChannelID) (draw.Round, bool, 
 	return draw.Round{}, false, nil
 }
 
-func (d *fakeDraw) Join(_ context.Context, req draw.JoinRequest) (draw.JoinOutcome, error) {
+func (d *fakeDraw) Join(ctx context.Context, req draw.JoinRequest) (draw.JoinOutcome, error) {
 	d.joined = req
+	if d.DrawStore != nil {
+		return d.DrawStore.Join(ctx, req)
+	}
 	return draw.JoinOutcome{Open: true, Added: true}, nil
+}
+
+func (d *fakeDraw) Refuse(ctx context.Context, req draw.Refusal) (bool, int64, error) {
+	d.refusals++
+	return d.DrawStore.Refuse(ctx, req)
 }
 
 func (d *fakeDraw) LookupClaims(_ context.Context, _ draw.ChannelID, viewer draw.ViewerID) (draw.ClaimLookup, error) {
@@ -122,13 +135,30 @@ func (tc drawChatCase) run(t *testing.T) {
 	}
 	p := engine.NewPipeline(deps, engine.NewRegistry(deps.Log, All(deps)...), engine.Config{OutgressStandard: "outgress.standard"})
 	t.Cleanup(p.Close)
-	event := lane.Envelope{Type: "channel.chat.message", Lane: "standard", BroadcasterUserID: "2",
-		BroadcasterUserLogin: "streamer", ChatterUserID: "9", ChatterUserLogin: "viewer", Text: "!" + tc.command}
-	body, err := codec.Marshal(event)
-	require.NoError(t, err)
-	require.NoError(t, p.Process(bus.NewMessage("draw-command", body)))
+	call := drawChatCall{command: tc.command, viewer: "9"}
+	require.NoError(t, call.process(t, p, 2))
 	require.Equal(t, 1, tc.draw.lookups)
 	tc.check(t, pub)
+}
+
+type drawChatCall struct {
+	command string
+	viewer  draw.ViewerID
+	badges  []lane.Badge
+}
+
+func (c drawChatCall) process(t *testing.T, pipe *engine.Pipeline, channel draw.ChannelID) error {
+	t.Helper()
+	broadcaster := strconv.FormatUint(uint64(channel), 10)
+	viewer := string(c.viewer)
+	if viewer == "" {
+		viewer = broadcaster
+	}
+	event := lane.Envelope{Type: "channel.chat.message", Lane: "standard", BroadcasterUserID: broadcaster,
+		BroadcasterUserLogin: "streamer", ChatterUserID: viewer, ChatterUserLogin: "viewer", Text: "!" + c.command, Badges: c.badges}
+	body, err := codec.Marshal(event)
+	require.NoError(t, err)
+	return pipe.Process(bus.NewMessage("draw-command", body))
 }
 
 func (tc drawChatCase) check(t *testing.T, pub *variablePublisher) {
@@ -136,12 +166,11 @@ func (tc drawChatCase) check(t *testing.T, pub *variablePublisher) {
 	got := drawChatResult{joined: tc.draw.joined, claimed: tc.draw.claimed,
 		legacyJoined: tc.raffle.joinedIDs, legacyClaim: tc.raffle.claimedBy, message: tc.want.message}
 	require.Equal(t, tc.want, got)
+	replies := drawReplies(t, pub)
 	if tc.want.message == "" {
-		require.Empty(t, pub.messages)
+		require.Empty(t, replies)
 		return
 	}
-	require.Len(t, pub.messages, 1)
-	var payload struct{ Message string }
-	require.NoError(t, codec.Unmarshal(pub.messages[0].Payload, &payload))
-	require.Contains(t, payload.Message, tc.want.message)
+	require.Len(t, replies, 1)
+	require.Contains(t, replies[0], tc.want.message)
 }

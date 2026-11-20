@@ -5,16 +5,20 @@ package modules
 
 import (
 	"context"
+	"slices"
 	"strconv"
 
+	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/engine/eligibility"
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
+
+const eligibilityLookupFailed replyKey = "eligibility.lookup_failed"
 
 type refusedJoin struct {
 	round   draw.Round
@@ -22,64 +26,55 @@ type refusedJoin struct {
 	verdict eligibility.Verdict
 }
 
-func drawJoiner(c *module.Context) (eligibility.Joiner, error) {
+func drawJoiner(c *module.Context, kind draw.Kind) (eligibility.Joiner, error) {
 	viewer, err := bus.NonZeroUserID(c.Env.ChatterUserID)
-	return eligibility.Joiner{Channel: c.BroadcasterID, Viewer: viewer, Role: c.Chatter()}, err
+	subscriber := slices.ContainsFunc(c.Env.Badges, func(badge lane.Badge) bool {
+		return badge.SetID == "subscriber" || badge.SetID == "founder"
+	})
+	return eligibility.Joiner{Channel: c.BroadcasterID, Viewer: viewer, Kind: kind, Role: c.Chatter(), Subscriber: subscriber}, err
 }
 
 func drawViewerID(viewer uint64) draw.ViewerID { return draw.ViewerID(strconv.FormatUint(viewer, 10)) }
 
-func roundRules(round draw.Round) eligibility.Rules {
+func roundRules(round draw.Round) (eligibility.Rules, error) {
 	if round.Terms.Kind == draw.KindGiveaway {
 		return eligibility.Parse(round.Terms.Rules)
 	}
-	return eligibility.Rules{}
+	return eligibility.Rules{}, nil
 }
 
-func (d drawOwner) admit(ctx context.Context, rules eligibility.Rules, joiner eligibility.Joiner) eligibility.Verdict {
+func (d drawOwner) admit(ctx context.Context, rules eligibility.Rules, joiner eligibility.Joiner) (eligibility.Verdict, error) {
 	verdict, err := d.deps.Eligibility.Join(ctx, rules, joiner)
 	if err != nil {
 		d.log.Warn("draw standings lookup failed", module.BIDField(joiner.Channel), zap.Error(err))
 	}
-	return verdict
+	return verdict, err
 }
 
-func (d drawOwner) refuseJoin(ctx context.Context, c *module.Context, emit module.Emit, refusal refusedJoin) error {
-	on, err := d.refusalLineOn(ctx, refusal.round)
-	if err != nil {
-		return err
-	}
-	first, _, err := d.deps.Draw.Refuse(ctx, draw.Refusal{
-		Round: refusal.round, Viewer: refusal.viewer, Reason: string(refusal.verdict.Reason),
-	})
-	if first && on {
-		newChatReplier(c).say(emit, eligibilityLine(c, refusal.verdict))
+func (d drawOwner) replyJoinLookupFailure(ctx context.Context, c *module.Context, emit module.Emit, check draw.Check) error {
+	key := "cd:draw:lookup_failed:" + string(check.Round.ID) + ":" + string(check.Viewer)
+	first, err := d.deps.Cooldown.Allow(ctx, key, draw.Pins.MaxOpen)
+	if first && err == nil {
+		newChatReplier(c).reply(emit, "", eligibilityLookupFailed)
 	}
 	return err
 }
 
-func (d drawOwner) refusalLineOn(ctx context.Context, round draw.Round) (bool, error) {
-	if round.Terms.Kind != draw.KindGiveaway {
-		return false, nil
+func (d drawOwner) refuseJoin(ctx context.Context, c *module.Context, emit module.Emit, refusal refusedJoin) error {
+	first, _, err := d.deps.Draw.Refuse(ctx, draw.Refusal{
+		Round: refusal.round, Viewer: refusal.viewer, Reason: string(refusal.verdict.Reason),
+	})
+	if err != nil || !first {
+		return err
 	}
-	view, _, err := d.deps.Proj.Module(ctx, uint64(round.Channel), "giveaway")
-	var config struct {
-		Line    codec.RawMessage `json:"refusalLineOn"`
-		Enabled codec.RawMessage `json:"refusalEnabled"`
+	config, err := engine.ReadGiveawayConfig(ctx, d.deps.Proj, uint64(refusal.round.Channel))
+	if err != nil {
+		return err
 	}
-	_ = codec.Unmarshal(view.Configs, &config)
-	raw := config.Line
-	if len(raw) == 0 {
-		raw = config.Enabled
+	if config.RefusalEnabled {
+		replyEligibility(c, emit, joinVerdict(c, refusal.verdict), eligibility.Rules{})
 	}
-	switch string(raw) {
-	case "false", `"false"`, `"off"`:
-		return false, err
-	case "true", `"true"`, `"on"`:
-		return true, err
-	default:
-		return eligibility.Limits.RefusalLineOn, err
-	}
+	return nil
 }
 
 func (d drawOwner) resolveCheck(ctx context.Context, c *module.Context) drawCommandState {
@@ -87,7 +82,7 @@ func (d drawOwner) resolveCheck(ctx context.Context, c *module.Context) drawComm
 	if !found {
 		return drawCommandState{err: err}
 	}
-	return drawCommandState{round: round, found: true}
+	return drawCommandState{round: round, found: true, err: err}
 }
 
 func (d drawOwner) check(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
@@ -95,64 +90,64 @@ func (d drawOwner) check(ctx context.Context, c *module.Context, _ string, emit 
 	if state.err != nil {
 		return state.err
 	}
-	joiner, err := drawJoiner(c)
+	joiner, err := drawJoiner(c, state.round.Terms.Kind)
 	if err != nil {
 		return nil
 	}
-	rules := roundRules(state.round)
-	verdict := d.admit(ctx, rules, joiner)
-	if !verdict.Pass {
-		replyJoinCheck(c, emit, verdict, rules.DrawRules())
-		return nil
-	}
-	result, err := d.deps.Eligibility.Verify(ctx, draw.Check{Round: state.round, Viewer: drawViewerID(joiner.Viewer)})
+	rules, err := roundRules(state.round)
 	if err != nil {
-		d.log.Warn("draw eligibility lookup failed", c.BID(), zap.Error(err))
+		return err
 	}
-	replyDrawCheck(c, emit, result, err)
+	verdict, err := d.admit(ctx, rules, joiner)
+	switch {
+	case err != nil:
+		newChatReplier(c).reply(emit, "", eligibilityLookupFailed)
+	case !verdict.Pass:
+		replyEligibility(c, emit, joinVerdict(c, verdict), rules.DrawRules())
+	default:
+		d.verifyCheck(ctx, c, emit, draw.Check{Round: state.round, Viewer: drawViewerID(joiner.Viewer)})
+	}
 	return nil
 }
 
-func replyDrawCheck(c *module.Context, emit module.Emit, result draw.Verdict, err error) {
-	reply := newChatReplier(c)
-	switch {
-	case err != nil:
-		reply.reply(emit, "", "eligibility.lookup_failed")
-	case result.Pass:
-		reply.reply(emit, "", "eligibility.check.ok")
-	default:
-		reply.reply(emit, "", replyKey("eligibility.refused."+result.Reason), "need", result.Detail["need"])
+func (d drawOwner) verifyCheck(ctx context.Context, c *module.Context, emit module.Emit, check draw.Check) {
+	result, err := d.deps.Eligibility.Verify(ctx, check)
+	if err != nil {
+		d.log.Warn("draw eligibility lookup failed", c.BID(), zap.Error(err))
+		newChatReplier(c).reply(emit, "", eligibilityLookupFailed)
+		return
 	}
+	replyEligibility(c, emit, result, eligibility.Rules{})
 }
 
-func replyJoinCheck(c *module.Context, emit module.Emit, verdict eligibility.Verdict, later eligibility.Rules) {
+func replyEligibility(c *module.Context, emit module.Emit, result draw.Verdict, later eligibility.Rules) {
 	reply := newChatReplier(c)
-	line := eligibilityLine(c, verdict)
+	if result.Pass {
+		reply.reply(emit, "", "eligibility.check.ok")
+		return
+	}
+	line := reply.render("", replyKey("eligibility.refused."+result.Reason),
+		"need", result.Detail["need"], "had", result.Detail["had"], "time", result.Detail["time"])
 	if requirements := engine.GiveawayRequirements(c.Locale, later); requirements != "" {
 		line += " " + reply.render("", "eligibility.check.later", "requirements", requirements)
 	}
 	reply.say(emit, line)
 }
 
-func eligibilityLine(c *module.Context, result eligibility.Verdict) string {
-	reply := newChatReplier(c)
-	switch result.Reason {
-	case eligibility.ReasonLookup:
-		return reply.render("", "eligibility.lookup_failed")
-	case eligibility.ReasonPoints, eligibility.ReasonWatch:
-		return standingRequirementLine(c, result)
-	default:
-		return reply.render("", replyKey("eligibility.refused."+result.Reason))
+func joinVerdict(c *module.Context, result eligibility.Verdict) draw.Verdict {
+	verdict := draw.Verdict{Reason: string(result.Reason)}
+	if result.Reason == eligibility.ReasonPoints || result.Reason == eligibility.ReasonWatch {
+		verdict.Detail = standingDetails(c, result)
 	}
+	return verdict
 }
 
-func standingRequirementLine(c *module.Context, result eligibility.Verdict) string {
+func standingDetails(c *module.Context, result eligibility.Verdict) map[string]string {
 	need := strconv.FormatInt(result.Need, 10)
 	had := strconv.FormatInt(result.Had, 10)
 	if result.Reason == eligibility.ReasonWatch {
 		need = watchSeconds(result.Need).humanize(c)
 		had = watchSeconds(result.Had).humanize(c)
 	}
-	return newChatReplier(c).render("", replyKey("eligibility.refused."+result.Reason),
-		"need", need, "had", had, "time", result.AsOf.UTC().Format("15:04"))
+	return map[string]string{"need": need, "had": had, "time": result.AsOf.UTC().Format("15:04")}
 }

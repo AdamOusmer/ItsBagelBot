@@ -14,11 +14,11 @@ type RuleLimits struct {
 	LuckMin        int
 	LuckMax        int
 	CheckCooldown  time.Duration
-	RefusalLineOn  bool
+	RefusalEnabled bool
 }
 
 var Limits = RuleLimits{
 	MaxPoints: 1_000_000_000, MaxWatchHours: 10_000, MaxFollowDays: 3650,
 	MaxAccountDays: 3650, MaxSkipDays: 90, LuckMin: 100, LuckMax: 300,
-	CheckCooldown: 10 * time.Second, RefusalLineOn: true,
+	CheckCooldown: 10 * time.Second, RefusalEnabled: true,
 }

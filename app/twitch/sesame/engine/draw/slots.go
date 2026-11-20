@@ -5,12 +5,12 @@ package draw
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"slices"
 	"strconv"
 	"time"
 
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/valkey"
 
 	"golang.org/x/sync/errgroup"
@@ -56,13 +56,14 @@ func (s *Store) advanceSlots(ctx context.Context, data snapshot, now time.Time) 
 		return err
 	}
 	if len(changes) == 0 {
-		return s.schedule(ctx, data, nextSlotDue(data, now).Sub(now))
+		next := nextSlotDue(data, now).Add(time.Millisecond - time.Nanosecond).Truncate(time.Millisecond)
+		return s.schedule(ctx, data, next.Sub(now.Truncate(time.Millisecond)))
 	}
 	at, err := valkey.ServerNow(ctx, s.client)
 	if err != nil {
 		return err
 	}
-	stampWinners(data, changes, at)
+	stampSlotTimes(data, changes, now, at)
 	ok, err := s.commitSlots(ctx, data, slotBatch{changes: changes, now: at})
 	if ok {
 		s.announceChanges(ctx, data.round, changes)
@@ -199,11 +200,14 @@ func claimIndex(prior, next Slot) valkey.ClaimIndex {
 	return valkey.ClaimKeep
 }
 
-func stampWinners(data snapshot, changes []slotChange, at time.Time) {
+func stampSlotTimes(data snapshot, changes []slotChange, startedAt, at time.Time) {
 	window := data.round.Terms.ClaimWindow
 	line := parseInt(data.stored.Round["revision"]) + 1
 	for i := range changes {
 		change := &changes[i]
+		if change.next.State == SlotVerifying && !change.next.RetryAt.IsZero() {
+			change.next.RetryAt = change.next.RetryAt.Add(at.Sub(startedAt))
+		}
 		if change.next.State != SlotWon || change.prior.State == SlotWon {
 			continue
 		}
@@ -223,7 +227,7 @@ func (s *Store) commitSlots(ctx context.Context, data snapshot, batch slotBatch)
 	spec.Fields = workingFields(data, batch)
 	for _, change := range batch.changes {
 		field := strconv.Itoa(change.prior.N)
-		raw, err := json.Marshal(change.next)
+		raw, err := codec.Marshal(change.next)
 		if err != nil {
 			return false, err
 		}
