@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/providers/mcsr"
 	"ItsBagelBot/app/gossip/internal/providers/paceman"
 	"ItsBagelBot/app/gossip/internal/providers/spotify"
+	"ItsBagelBot/app/gossip/internal/providers/tts"
 	"ItsBagelBot/app/gossip/internal/providers/urchin"
 	"ItsBagelBot/app/gossip/internal/providers/valorant"
 
@@ -38,6 +39,7 @@ func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 	out = appendClashRoyale(out, cfg, d, log)
 	out = appendValorant(out, cfg, d, log)
 	out = appendSpotify(out, cfg, d, log)
+	out = appendTTS(out, cfg, d, log)
 	out = appendCustom(out, cfg, d, log)
 	return out
 }
@@ -156,5 +158,16 @@ func appendCustom(out []provider.Provider, cfg *config.Config, d provider.Deps, 
 		RecipeChannelRateLimit: cfg.CustomRecipeChannelRateLimit,
 		RecipeDefRateLimit:     cfg.CustomRecipeDefRateLimit,
 		PositiveTTL:            cfg.CustomPositiveTTL,
+	}, d)
+}
+
+func appendTTS(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	return gated(out, log, cfg.GeminiAPIKey == "", "tts provider disabled: GEMINI_API_KEY not set", tts.New, tts.Config{
+		BaseURL:          cfg.GeminiBaseURL,
+		APIKey:           cfg.GeminiAPIKey,
+		Model:            cfg.GeminiTTSModel,
+		Voice:            cfg.GeminiTTSVoice,
+		RateLimit:        cfg.GeminiTTSRateLimit,
+		ChannelRateLimit: cfg.GeminiTTSChannelRateLimit,
 	}, d)
 }

@@ -34,7 +34,7 @@ Read the [shared vocabulary](../../CONTEXT.md) and [context map](../../CONTEXT-M
 | [internal/core/](internal/core/) | Credential RPC clients, error/reply helpers, and limiter helpers shared by providers. |
 | [shared Gossip contracts](../../internal/domain/rpc/gossip/gossip.go) | Request, reply, and subject naming shared with callers. |
 
-Provider packages under [internal/providers/](internal/providers/) cover Urchin, Hypixel/Mojang, MCSR Ranked, Paceman, Fortnite, CODM, Govee, Clash Royale, Valorant, Spotify, and custom URL fetches. Open the named package for endpoint declarations and reply parsing; registration is centralized in `all.go`.
+Provider packages under [internal/providers/](internal/providers/) cover Urchin, Hypixel/Mojang, MCSR Ranked, Paceman, Fortnite, CODM, Govee, Clash Royale, Valorant, Spotify, Gemini text-to-speech (`tts`), and custom URL fetches. Open the named package for endpoint declarations and reply parsing; registration is centralized in `all.go`.
 
 ## Request and ownership flow
 

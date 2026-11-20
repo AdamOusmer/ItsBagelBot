@@ -54,6 +54,11 @@ type Request struct {
 
 	Region   string `json:"region,omitempty"`
 	Platform string `json:"platform,omitempty"`
+
+	Text  string   `json:"text,omitempty"`
+	Voice string   `json:"voice,omitempty"`
+	Style string   `json:"style,omitempty"`
+	Model TTSModel `json:"model,omitempty"`
 }
 
 func Subject(prefix, provider, endpoint string) string {

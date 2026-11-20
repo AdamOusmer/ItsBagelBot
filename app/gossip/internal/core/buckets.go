@@ -6,6 +6,7 @@ package core
 import (
 	"context"
 	"math"
+	"net/http"
 
 	"ItsBagelBot/pkg/ratelimit"
 )
@@ -49,6 +50,20 @@ func NewPacedBuckets(key string, capacity, windowSeconds, maxBurst float64) Buck
 func (b Buckets) WithKey(key string) Buckets {
 	b.key = key
 	return b
+}
+
+func (b Buckets) EnforceGeneralPair(ctx context.Context, limiter *ratelimit.Limiter, other Buckets) error {
+	if limiter == nil {
+		return nil
+	}
+	denied, err := limiter.AllowOrdered(ctx, b.general.ForKey(b.key), other.general.ForKey(other.key))
+	if err != nil {
+		return err
+	}
+	if denied != 0 {
+		return &UpstreamError{Status: http.StatusTooManyRequests, LocalDeny: true}
+	}
+	return nil
 }
 
 func (b Buckets) Enforce(ctx context.Context, limiter *ratelimit.Limiter, isPremium bool) error {

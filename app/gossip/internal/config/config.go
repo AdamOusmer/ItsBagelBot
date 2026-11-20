@@ -6,6 +6,7 @@ package config
 import (
 	"time"
 
+	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/svcboot"
@@ -67,6 +68,13 @@ type Config struct {
 	ClashRoyaleBaseURL   string
 	ClashRoyaleAPIKey    string
 	ClashRoyaleRateLimit float64
+
+	GeminiBaseURL             string
+	GeminiAPIKey              string
+	GeminiTTSModel            gossiprpc.TTSModel
+	GeminiTTSVoice            string
+	GeminiTTSRateLimit        float64
+	GeminiTTSChannelRateLimit float64
 
 	FetchKeySubjectPrefix  string
 	FetchProjectionSubject string
@@ -139,6 +147,13 @@ func Load() *Config {
 		ClashRoyaleBaseURL:   env.Get("CLASHROYALE_BASE_URL", "https://proxy.royaleapi.dev/v1"),
 		ClashRoyaleAPIKey:    env.Get("CLASHROYALE_API_KEY", ""),
 		ClashRoyaleRateLimit: env.GetFloat("CLASHROYALE_RATE_LIMIT", 600.0),
+
+		GeminiBaseURL:             env.Get("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com"),
+		GeminiAPIKey:              env.Get("GEMINI_API_KEY", ""),
+		GeminiTTSModel:            gossiprpc.TTSModel(env.Get("GEMINI_TTS_MODEL", string(gossiprpc.TTSFlash))),
+		GeminiTTSVoice:            env.Get("GEMINI_TTS_VOICE", "Kore"),
+		GeminiTTSRateLimit:        env.GetFloat("GEMINI_TTS_RATE_LIMIT", 60),
+		GeminiTTSChannelRateLimit: env.GetFloat("GEMINI_TTS_CHANNEL_RATE_LIMIT", 12),
 
 		FetchKeySubjectPrefix:  conf.FetchKeyPrefix.Get(),
 		FetchProjectionSubject: env.Get("PROJECTION_FETCHES_SUBJECT", "rpc.internal.projection.commands.fetches.get"),
