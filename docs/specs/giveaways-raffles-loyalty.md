@@ -207,46 +207,32 @@ Healthy means all of:
 
 States: `healthy`, `starting` (stream live, first page not yet due, at most one tick interval plus jitter), `offline` (not live: accrual paused, rules on points and watch time still work on stored values), `stalled` (any other failure). Opening a round with a points or watch rule is refused only when `stalled`, with the reason shown on the panel. The Loyalty page shows the same status line.
 
-## 10. Freeze
+## 10. Standings: public pause and round cutoffs
 
-Semantics
-- A freeze pins public standings and `balance.snapshot` to the values copied at `as_of`. Live balances keep changing: watch awards, subs, cheers, games and mod adjustments commit as today.
-- `as_of` is the start of the copy statement. A watch award is committed in chunks of up to 64 viewers (`repo/watchtime_posting.go:22-25,51-59`), so standings can differ by one award window between viewers. That is accepted and stated.
-- At most 30 minutes from `as_of`; never extended.
+Revision 2026-11-20. The first freeze design coupled three things in one lock: the public leaderboard, giveaway eligibility and point games. Holders, refused unfreezes, orphan holds after a lost start race and games closing mid-stream made the flow hard to follow. They are now two separate tools that never block each other.
 
-Holders
-- One freeze per channel, with a `freeze_id` and a set of holders: `mod` (with its own end time) and `round:<id>`.
-- `!freeze [minutes]`, `!unfreeze` and the dashboard button manage the mod hold. A round with "freeze standings while open" adds its hold at open and releases it when it leaves `open`.
-- A round opening during a mod freeze joins it; no second copy.
-- The freeze ends when the last holder releases or at `expires_at`. A round releasing its hold leaves a mod hold running until the mod's end time. `!unfreeze` during a round's hold is refused: "A giveaway is using the frozen standings; drawing or cancelling it unfreezes."
-- Every release is a compare-and-set on `freeze_id`, so a late release from an old round never ends a newer freeze.
-- A round whose rules read the freeze cannot have an entry window longer than the freeze has left.
-- If the loyalty freeze succeeds and the round open then fails, the orphan hold ends at `expires_at`. That bound is the cleanup.
+**Public pause** (a display tool for mods)
+- `!freeze [minutes]` (default and maximum 30), `!unfreeze`, and one dashboard button. One state per channel: paused until a time, or live. Any mod can unfreeze at any time; a new `!freeze` restarts the timer.
+- It pins only what the public leaderboard, `!leaderboard` and the dashboard top list show. `!points`, games, transfers, raffles and giveaways are never affected. There are no flags.
+- Public copy: "Leaderboard paused at 20:14. Points and watch time are still counting." The time is shown in the viewer's own time zone on the page and with no time zone in chat.
+
+**Round cutoff** (private to one giveaway)
+- A giveaway whose rules use points or watch time takes a private snapshot at open: "standings as of when the giveaway opened". Its rules read that snapshot, so points moved to an alt after the opening line do not count.
+- The snapshot belongs to the round (`snapshot_id` in the round terms). Nobody else reads it; the public board stays live. It is dropped when the round leaves `open` and expires on its own at the end of the entry window, so a lost start race leaves nothing visible behind.
+- No 30 minute bound on giveaway entry windows any more; the window has its own policy maximum.
 
 Storage (loyalty service)
-- `loyalty_freezes(user_id PK, freeze_id, as_of, expires_at, holders)`.
-- `loyalty_freeze_balances(user_id, freeze_id, viewer_id, points, watch_seconds, login, viewer_name)`, natural key `(user_id, freeze_id, viewer_id)` registered in `MigrateSchema`, plus a rank index `(user_id, freeze_id, points DESC, viewer_id)` matching the live one (`app/db/loyalty/ent/schema/balance.go:44-45`, `repo/top_page.go:18,137`).
-- The freeze verb copies with one `INSERT ... SELECT` and writes the freeze row in the same transaction, at READ COMMITTED (`pkg/db/provider.go:102`). Under READ COMMITTED the source read takes no row locks, so accrual is not blocked. The copy must never run inside a REPEATABLE READ transaction; a MySQL test pins this.
-- The verb is idempotent by holder: a retry after a timeout returns the active freeze.
-- Freeze, reset and account cleanup serialize on the channel's `loyalty_freezes` row, not on the account fence, so watch commits (which take the fence, `repo/watchtime.go:43-51`) never wait for a copy. Reset while frozen is refused. Account deletion and recreation lock the freeze row and delete snapshot rows (`repo/watchtime.go:226-258`).
-- Old `freeze_id` rows are deleted in batches after the freeze ends (`repo/counter_retention.go:31` pattern).
-- Before shipping, measure copy time, lock waits and replica lag on the largest channel under live accrual.
+- `loyalty_freezes(user_id PK, snapshot_id, as_of, expires_at)` for the public pause; `loyalty_snapshots(user_id, snapshot_id PK, owner, as_of, expires_at)` for both kinds; `loyalty_freeze_balances` keyed `(user_id, snapshot_id, viewer_id)` holds the copied rows for either.
+- The copy is one `INSERT ... SELECT` at READ COMMITTED (`pkg/db/provider.go:102`), serialized on the channel's snapshot row, never on the account fence, so accrual never waits for a copy. A MySQL test pins the isolation and the absence of lock waits.
+- Reset refuses only while a public pause is active. Account deletion deletes every snapshot of the channel. Expired snapshots are pruned in batches.
 
 Why a full copy
-- Holding accrual back and replaying it on unfreeze breaks the account fences, the retention floor, the overflow checks and the spend guard (`repo/watchtime.go:183-243`, `repo/watchtime_posting.go:148-158`, `repo/queries.go:98-105`). The copy leaves every write path untouched, which is what keeps counting exact.
-- A copy-on-write pre-image avoids the bulk copy but touches every write path and makes frozen top lists a full scan. Revisit only if the measured copy time is a problem.
+- Holding accrual back and replaying it breaks fences, the retention floor, overflow checks and the spend guard (`repo/watchtime.go:183-243`, `repo/queries.go:98-105`). The copy leaves every write path untouched.
 
 Readers
-- Frozen: `top.get` (public page podium, paging and search; `!leaderboard`; dashboard top list) and `balance.snapshot`. Every reply carries `freeze_id`, `frozen_as_of` and `expires_at`, and one page load stays on one `freeze_id`. Search on the frozen path reads the snapshot and never reconciles logins into it (`repo/top_page.go:115-120` stays on the live path).
-- Live: `balance.get`, `!points`, `!watchtime`, variables, automations, gamble, duel and transfer. A viewer always sees their real balance.
-- Optional per-freeze flags: block `!points give`, and close point games, while frozen (both default off).
-
-Caches and edge
-- Freeze and release publish `ScopeLoyalty` (drops Sesame's top cache, `engine/loyalty_valkey.go:343-351,394-403`) and a freeze event. The dashboard server consumes the freeze event and schedules the leaderboard tag purge (`web/dashboard/src/lib/server/edge-purge.ts:139-142`), which covers chat-triggered freezes too.
-- Natural expiry fires no event, so every cache clamps its TTL to `expires_at - now`, and the public page's edge TTL does the same.
-- Even so, a change normally takes 10 to 70 seconds to reach the public page, longer on purge retries or edge errors (`web/dashboard/src/lib/server/edge-purge.ts:26-27,64-68`, `web/dashboard/src/hooks.server.ts:75-84,157-165`). The freeze button says so.
-
-Public page copy: "Leaderboard paused at 20:14. Points and watch time are still counting."
+- Public pause: `top.get` (public page, `!leaderboard`, dashboard top list). Replies carry `frozen_as_of` and `expires_at`; caches clamp TTL to `expires_at`; the dashboard purges the edge on pause and resume.
+- Round cutoff: `balance.snapshot` and `balance.count_at_least` with the round's `snapshot_id`.
+- Everything else reads live balances.
 
 ## 11. Streamer and viewer flows
 
@@ -339,3 +325,20 @@ One PR each; main stays shippable after every step.
 - Points-bought entries for item giveaways.
 - Chat setup wizards and entrant dumps in chat.
 - Scheduled automatic loyalty resets (owner decision, 2026-10-21).
+
+## 20. Revision 2026-11-20: flow fixes from persona reviews
+
+Raffles are the tool streamers run most, often several times a stream. Item giveaways are rarer and higher stakes. The product now reflects that.
+
+- **One page: Raffles & Giveaways** (Play). Top card: start a points raffle (amount, seconds, winners) or a giveaway, with whichever round is running shown live. Raffle settings live here; the Loyalty Games tab keeps Gamble and Duels and links here.
+- **Bare `!raffle` setting**: "single winner" (default) or "split pot", so channels used to the split-pot habit keep it. The opening line always states the winner count: "Raffle is LIVE! 3 winners split 5000 points. Type !join (1 min)."
+- **One mid-raffle count** (default on): at half time, "12 entered, 30 s left. Type !join." Joins stay silent.
+- **Old habits work**: `!enter` and `!ticket` act as `!join` while a round is open (first use per viewer adds "entry is free"). Viewers' bare `!giveaway` shows the open giveaway or the last winners.
+- **Refusals are batched**: refused joins of the last 10 seconds post as one line grouped by reason, with mentions, e.g. "Not eligible yet: @a @b need 2 hours of watch time. Type !check for details." No time stamps or time zones in chat.
+- **`!check`** reports join-time rules first, then draw-time rules.
+- **Clear mod replies**: every refused action says why and what works now (e.g. "No-shows can be rerolled when the claim window ends in 40 s", "The draw already started; use End unfinished on the dashboard").
+- **`!reroll @user`** works alongside `!reroll 2`.
+- **Offline**: when the stream goes offline, an open giveaway does not auto-close and claim clocks stop; both resume when the stream is live again or a mod draws. Raffles still close on time (points need no presence).
+- **Typos**: `!raffle 5k60` replies "Put a space between the amount and the seconds: !raffle 5k 60."
+- **Copy**: winner lines use the channel's currency name; French chat uses "tu" everywhere.
+- Not built: point tickets for item giveaways. Free entry remains the rule.
