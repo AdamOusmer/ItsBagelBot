@@ -8,10 +8,11 @@ import { env } from '@bagel/kit/server/env';
 import { RpcError } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { mutateAction, thrownStatus } from '@bagel/kit/server/form-action';
+import type { GiveawayRound } from '#lib/channel-giveaway';
 import { effectiveId } from '#lib/server/board';
 import {
   DrawRefusal, emptyGiveawaySettings, giveawayDef, giveawaySettings, liveGiveaways, mutateGiveaway, pastWinners,
-  type DrawActor, type DrawMutation
+  type DrawActor, type DrawInput, type DrawMutation
 } from '#lib/server/channel-giveaways';
 import { patchModule } from '#lib/server/commands-store';
 import { drawInput, presetPatch, settingPatch } from '#lib/server/giveaway-input';
@@ -65,17 +66,43 @@ const refusalCopy: Record<string, string> = {
   'giveaway.open.loyalty_off': 'loyaltyOff',
   'giveaway.open.stalled': 'loyaltyStalled',
   'giveaway.open.busy': 'busyRaffle',
+  'giveaway.extend.snapshot_expiry': 'snapshotExpiry',
   'draw.open.busy_giveaway': 'busy',
   'draw.open.busy_raffle': 'busyRaffle'
 };
 
+const slotConflictCopy: Partial<Record<DrawMutation, string>> = {
+  reroll: 'rerollUnavailable',
+  end_slots: 'endSlotsUnavailable',
+  skip_rule: 'skipUnavailable'
+};
+
+const slotPhaseCopy: Partial<Record<GiveawayRound['phase'], string>> = {
+  open: 'slotsBeforeDraw',
+  closing: 'slotsDrawing'
+};
+
 type Action = Actions[string];
 
-function failedDraw(err: unknown, locals: App.Locals) {
+function failedDraw(err: unknown, locals: App.Locals, conflictKey = 'changed') {
   const status = thrownStatus(err instanceof DrawRefusal ? err.refusal : err);
-  const fallback = status === 409 ? 'changed' : 'actionFailed';
+  const fallback = status === 409 ? conflictKey : 'actionFailed';
   const key = err instanceof DrawRefusal && err.reason ? refusalCopy[err.reason] ?? fallback : fallback;
   return fail(status, { ok: false as const, error: translate(locals.locale, `giveaways.${key}`) });
+}
+
+function unresolvedSlotConflict(err: unknown): boolean {
+  if (!(err instanceof DrawRefusal) || err.reason) return false;
+  return err.refusal.code === 'conflict' && err.refusal.message === 'giveaway action no longer applies';
+}
+
+async function slotRefusalCopy(err: unknown, verb: DrawMutation, actor: DrawActor, input: DrawInput) {
+  const fallback = slotConflictCopy[verb];
+  if (!fallback || !unresolvedSlotConflict(err)) return fallback;
+  const live = await liveGiveaways(actor.userId);
+  if (live.degraded) return fallback;
+  const round = live.rounds.find(({ id }) => id === input.round_id);
+  return round ? slotPhaseCopy[round.phase] ?? fallback : 'slotsRoundEnded';
 }
 
 function giveawayAction(verb: DrawMutation): Action {
@@ -86,18 +113,22 @@ function giveawayAction(verb: DrawMutation): Action {
       refusal: () => denied(locals),
       demo: DEMO,
       invalid: translate(locals.locale, 'giveaways.invalidInput'),
-      run: (session, form) => runDraw(verb, { userId: effectiveId(session), actorId: session.user_id }, form),
+      run: (session, form) => runDraw(verb, { userId: effectiveId(session), actorId: session.user_id }, form, locals),
       failed: (err) => failedDraw(err, locals),
       audited: (actor, detail) => auditDashboardImpersonation(actor, `giveaway:${verb}`, detail)
     });
   };
 }
 
-async function runDraw(verb: DrawMutation, actor: DrawActor, form: FormData) {
+async function runDraw(verb: DrawMutation, actor: DrawActor, form: FormData, locals: App.Locals) {
   const input = drawInput(verb, form);
   if (!input) return null;
-  await mutateGiveaway(verb, actor, input);
-  return input.round_id ?? '';
+  try {
+    await mutateGiveaway(verb, actor, input);
+    return input.round_id ?? '';
+  } catch (err) {
+    return failedDraw(err, locals, await slotRefusalCopy(err, verb, actor, input));
+  }
 }
 
 function authorizedSession(locals: App.Locals) {

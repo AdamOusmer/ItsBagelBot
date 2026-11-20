@@ -31,13 +31,13 @@ func (l *LoyaltyRPC) FreezeGet(ctx context.Context, channel draw.ChannelID) (loy
 	return requestLoyalty[loyaltyrpc.FreezeView](ctx, l, loyaltyrpc.VerbFreezeGet, loyaltyrpc.FreezeGetRequest{UserID: fmtID(uint64(channel))})
 }
 
-func (l *LoyaltyRPC) FreezeSet(ctx context.Context, channel draw.ChannelID, minutes FreezeMinutes, actor draw.ViewerID) (loyaltyrpc.FreezeTimes, error) {
-	req := loyaltyrpc.FreezeSetRequest{UserID: fmtID(uint64(channel)), Minutes: int(minutes), ActorID: string(actor)}
+func (l *LoyaltyRPC) FreezeSet(ctx context.Context, channel draw.ChannelID, minutes FreezeMinutes) (loyaltyrpc.FreezeTimes, error) {
+	req := loyaltyrpc.FreezeSetRequest{UserID: fmtID(uint64(channel)), Minutes: int(minutes)}
 	return requestLoyalty[loyaltyrpc.FreezeTimes](ctx, l, loyaltyrpc.VerbFreezeSet, req)
 }
 
-func (l *LoyaltyRPC) FreezeRelease(ctx context.Context, channel draw.ChannelID, actor draw.ViewerID) (bool, error) {
-	req := loyaltyrpc.FreezeReleaseRequest{UserID: fmtID(uint64(channel)), ActorID: string(actor)}
+func (l *LoyaltyRPC) FreezeRelease(ctx context.Context, channel draw.ChannelID) (bool, error) {
+	req := loyaltyrpc.FreezeReleaseRequest{UserID: fmtID(uint64(channel))}
 	reply, err := requestLoyalty[loyaltyrpc.FreezeReleased](ctx, l, loyaltyrpc.VerbFreezeRelease, req)
 	return reply.Released, err
 }
@@ -53,8 +53,8 @@ func (l *LoyaltyRPC) SnapshotDrop(ctx context.Context, req SnapshotDropRequest) 
 	return err
 }
 
-func (s *ValkeyLoyaltyStore) FreezeSet(ctx context.Context, channel draw.ChannelID, minutes FreezeMinutes, actor draw.ViewerID) (loyaltyrpc.FreezeTimes, error) {
-	view, err := s.rpc.FreezeSet(ctx, channel, minutes, actor)
+func (s *ValkeyLoyaltyStore) FreezeSet(ctx context.Context, channel draw.ChannelID, minutes FreezeMinutes) (loyaltyrpc.FreezeTimes, error) {
+	view, err := s.rpc.FreezeSet(ctx, channel, minutes)
 	if err == nil {
 		s.invalidateTop(cache.Event{ID: uint64(channel)})
 	}
@@ -65,8 +65,8 @@ func (s *ValkeyLoyaltyStore) FreezeGet(ctx context.Context, channel draw.Channel
 	return s.rpc.FreezeGet(ctx, channel)
 }
 
-func (s *ValkeyLoyaltyStore) FreezeRelease(ctx context.Context, channel draw.ChannelID, actor draw.ViewerID) (bool, error) {
-	released, err := s.rpc.FreezeRelease(ctx, channel, actor)
+func (s *ValkeyLoyaltyStore) FreezeRelease(ctx context.Context, channel draw.ChannelID) (bool, error) {
+	released, err := s.rpc.FreezeRelease(ctx, channel)
 	if err == nil && released {
 		s.invalidateTop(cache.Event{ID: uint64(channel)})
 	}

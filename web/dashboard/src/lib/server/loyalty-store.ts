@@ -54,7 +54,6 @@ interface LoyaltyReplyWire extends FreezeStampWire {
   balance?: BalanceWire;
   top?: BalanceWire[];
   total?: number;
-  count?: number;
   counter?: CounterWire;
   counters?: CounterWire[];
   entries?: EntryWire[];
@@ -241,21 +240,6 @@ export async function freezeStandings(userId: BroadcasterId, actorId: Broadcaste
 
 export async function unfreezeStandings(userId: BroadcasterId, actorId: BroadcasterId): Promise<void> {
   await callLoyalty('freeze.release', { user_id: userId, actor_id: actorId });
-}
-
-export interface StandingsMinimums {
-  minPoints: number;
-  minWatchSeconds: number;
-}
-
-export async function eligibleCount(userId: BroadcasterId, mins: StandingsMinimums): Promise<{ count: number; freeze: FreezeStamp | null }> {
-  const reply = await callLoyalty('balance.count_at_least', {
-    user_id: userId,
-    min_points: mins.minPoints,
-    min_watch_seconds: mins.minWatchSeconds
-  });
-  if (typeof reply.count !== 'number') throw new Error('missing loyalty standings count');
-  return { count: reply.count, freeze: freezeStamp(reply) };
 }
 
 export interface StandingsPage {

@@ -21,6 +21,7 @@ type Page = {
   degraded: boolean;
   busy: boolean;
   commandsPage: boolean;
+  showStandings: boolean;
   frozen: { asOf: number } | null;
   giveawayWinners: { round_id: string; slot: number; login: string; prize: string; won_at: number }[];
 };
@@ -117,7 +118,8 @@ mock.module('#lib/server/services', () => ({
 
 let giveawayHistory: { winners: Page['giveawayWinners']; degraded: boolean } = { winners: [], degraded: false };
 const giveawayStore = await import('#lib/server/channel-giveaways');
-mock.module('#lib/server/channel-giveaways', () => ({ ...giveawayStore, publicGiveawayWinners: async () => giveawayHistory }));
+const readGiveawayHistory = mock(async () => giveawayHistory);
+mock.module('#lib/server/channel-giveaways', () => ({ ...giveawayStore, publicGiveawayWinners: readGiveawayHistory }));
 
 mock.module('#lib/server/identity-heal', () => ({ healLogin: async () => healReply }));
 
@@ -156,6 +158,7 @@ type Setup = {
 
 function arrange(setup: Setup): void {
   giveawayHistory = { winners: [], degraded: false };
+  readGiveawayHistory.mockClear();
   pageRequests.length = 0;
   resolverCalls.length = 0;
   reconciled.clear();
@@ -230,9 +233,22 @@ describe('(public)/[user] load: leaderboard visibility', () => {
     expect(await loadPage()).toEqual(notFound);
   });
 
-  test('a disabled loyalty module 404s edge-cached', async () => {
-    arrange({ loyaltyEnabled: false });
-    expect(await loadPage()).toEqual(notFound);
+  test.each([
+    { name: 'public channel with winners', visible: true, hasWinners: true, edge: 'page' },
+    { name: 'hidden channel with winners', visible: false, hasWinners: true, edge: 'hidden' },
+    { name: 'public channel without winners', visible: true, hasWinners: false, edge: 'hidden' }
+  ])('Loyalty off on a $name', async ({ visible, hasWinners, edge }) => {
+    arrange({ loyaltyEnabled: false, leaderboardPage: async () => visible });
+    const winners = hasWinners ? [{ round_id: 'round', slot: 1, login: 'viewer', prize: 'A game', won_at: 1 }] : [];
+    giveawayHistory = { winners, degraded: false };
+    const result = await loadPage();
+    expect({ result, pins, historyReads: readGiveawayHistory.mock.calls.length }).toMatchObject({
+      result: edge === 'hidden' ? notFound : {
+        edge, page: { showStandings: false, podium: [], rows: [], giveawayWinners: winners }
+      },
+      pins: [],
+      historyReads: visible ? 1 : 0
+    });
   });
 
   test('a rejected leaderboard-flag read fails open and renders', async () => {

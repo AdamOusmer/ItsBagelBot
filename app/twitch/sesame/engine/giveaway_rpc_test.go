@@ -93,6 +93,9 @@ func (d giveawayRPCCalls) Close(_ context.Context, req draw.CloseRequest) (bool,
 }
 
 func (d giveawayRPCCalls) Extend(_ context.Context, req draw.ExtendRequest) (bool, error) {
+	if req.Actor == "8" {
+		return false, draw.ErrSnapshotExpiry
+	}
 	return d.roundChange(req)
 }
 
@@ -205,6 +208,8 @@ func giveawayRPCCases() []giveawayRPCTest {
 		{verb: drawrpc.VerbGiveawayClose, edit: func(r *drawrpc.GiveawayRequest) { r.RoundID = "regulars" },
 			refusal: rpc.CodeInvalid, reason: "invalid round_id"},
 		{verb: drawrpc.VerbGiveawayExtend, call: draw.ExtendRequest{Channel: 42, Actor: "7", Round: giveawayRPCRoundID, Kind: draw.KindGiveaway}},
+		{verb: drawrpc.VerbGiveawayExtend, edit: func(r *drawrpc.GiveawayRequest) { r.ActorID = "8" },
+			refusal: rpc.CodeConflict, reason: "adding a minute would exceed the standings snapshot expiry"},
 		{verb: drawrpc.VerbGiveawayCancel, call: draw.ModAction{Channel: 42, Actor: "7", Round: giveawayRPCRoundID, Kind: draw.KindGiveaway}},
 		{verb: drawrpc.VerbGiveawayReroll, call: giveawaySlotChange{drawrpc.VerbGiveawayReroll, slot}},
 		{verb: drawrpc.VerbGiveawayEndSlots, call: giveawaySlotChange{drawrpc.VerbGiveawayEndSlots, slot}},

@@ -219,6 +219,13 @@ type CreditOutcome struct {
 	Replayed bool
 }
 
+type PointSpend struct {
+	BroadcasterID uint64
+	ViewerID      uint64
+	Login         string
+	Amount        int64
+}
+
 type PointWager struct {
 	BroadcasterID uint64
 	ViewerID      uint64
@@ -236,8 +243,8 @@ type WagerOutcome struct {
 
 type LoyaltyFreeze interface {
 	FreezeGet(context.Context, draw.ChannelID) (loyaltyrpc.FreezeView, error)
-	FreezeSet(ctx context.Context, channel draw.ChannelID, minutes FreezeMinutes, actor draw.ViewerID) (loyaltyrpc.FreezeTimes, error)
-	FreezeRelease(ctx context.Context, channel draw.ChannelID, actor draw.ViewerID) (bool, error)
+	FreezeSet(ctx context.Context, channel draw.ChannelID, minutes FreezeMinutes) (loyaltyrpc.FreezeTimes, error)
+	FreezeRelease(ctx context.Context, channel draw.ChannelID) (bool, error)
 }
 
 type StandingsSnapshots interface {
@@ -255,6 +262,7 @@ type LoyaltyStore interface {
 	BalanceSnapshot(ctx context.Context, req BalanceSnapshotRequest) (loyaltyrpc.BalanceSnapshot, error)
 	WatchStatus(ctx context.Context) (loyaltyrpc.WatchStatus, error)
 	BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error)
+	BalanceSpend(ctx context.Context, spend PointSpend) (bal loyaltyrpc.Balance, found, spent bool, err error)
 	BalanceTransfer(ctx context.Context, transfer PointTransfer) (bal loyaltyrpc.Balance, found, moved bool, err error)
 	Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error)
 	CounterCreate(ctx context.Context, broadcasterID uint64, name, scope string) (loyaltyrpc.Counter, error)

@@ -5,6 +5,7 @@ package draw
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,8 @@ import (
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/valkey"
 )
+
+var ErrSnapshotExpiry = errors.New("adding a minute would exceed the standings snapshot expiry")
 
 type CloseRequest struct {
 	Channel ChannelID
@@ -85,6 +88,9 @@ func (s *Store) Extend(ctx context.Context, req ExtendRequest) (bool, error) {
 		return false, err
 	}
 	next := r.ClosesAt.Add(time.Minute)
+	if expires := r.snapshotExpiry(); !expires.IsZero() && next.After(expires) {
+		return false, ErrSnapshotExpiry
+	}
 	if next.After(r.OpenedAt.Add(r.Terms.maxWindow())) {
 		return false, nil
 	}

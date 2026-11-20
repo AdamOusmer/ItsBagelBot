@@ -50,13 +50,13 @@
       "label": "Розыгрыш открыт",
       "tagline": "Когда начинается розыгрыш и открывается приём заявок.",
       "event": "!raffle",
-      "defaultMessage": "Розыгрыш НАЧАЛСЯ! Введите !join для участия. Результат через {mins} мин! Приз: {amount} {raffle:points}."
+      "defaultMessage": "Розыгрыш открыт! Один победитель получит {raffle:amount} {raffle:points}. Напиши !join ({raffle:time})."
     },
     "won": {
       "label": "Результаты объявлены",
       "tagline": "Когда определены победители вручную или по таймеру.",
       "event": "!raffle draw",
-      "defaultMessage": "{targets} получают по {amount} {points}!"
+      "defaultMessage": "{raffle:targets} получает {raffle:amount} {raffle:points}!"
     }
   },
   "commands": {

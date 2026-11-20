@@ -24,6 +24,16 @@ func (s LiveState) offlineSince(start time.Time, liveAtOpen bool) bool {
 	return liveAtOpen || s.ChangedAt.After(start)
 }
 
+func (s *Store) entryPause(ctx context.Context, r Round, now time.Time) (valkey.DrawSchedule, bool, error) {
+	expiry := r.snapshotExpiry()
+	if !expiry.IsZero() && !now.Before(expiry) {
+		return valkey.DrawSchedule{}, false, nil
+	}
+	state, err := s.liveState(ctx, r)
+	schedule := valkey.DrawSchedule{Parked: expiry.IsZero(), After: max(time.Millisecond, expiry.Sub(now))}
+	return schedule, state.offlineSince(r.OpenedAt, r.LiveAtOpen), err
+}
+
 type claimClockResult uint8
 
 const (

@@ -71,8 +71,8 @@ export const RAFFLE_MODULE: ModuleDef = {
       command: 'raffle',
       enableKey: 'openedEnabled',
       messageKey: 'openedMessage',
-      defaultMessage: 'Raffle is LIVE! Type !join to enter. Drawing in {mins} min! Prize: {amount} {raffle:points}.',
-      tokens: replyTokens(['mins', 'secs', 'amount', 'points'], { mins: '1', secs: '60', amount: '1000', points: 'points' })
+      defaultMessage: 'Raffle is LIVE! 1 winner takes {raffle:amount} {raffle:points}. Type !join ({raffle:time}).',
+      tokens: replyTokens(['mins', 'secs', 'amount', 'points', 'time'], { mins: '1', secs: '60', amount: '1000', points: 'points', time: '1 min' })
     },
     {
       key: 'won',
@@ -82,9 +82,8 @@ export const RAFFLE_MODULE: ModuleDef = {
       command: 'raffle draw',
       enableKey: 'wonEnabled',
       messageKey: 'wonMessage',
-      defaultMessage:
-        '{targets} each won {amount} {points}!',
-      tokens: replyTokens(['targets', 'count', 'entrants', 'amount', 'points'], { targets: '@SnackPackPanda, @crustycrumbs', count: '2', entrants: '18', amount: '500', points: 'points' })
+      defaultMessage: '{raffle:targets} won {raffle:amount} {raffle:points}!',
+      tokens: replyTokens(['targets', 'count', 'entrants', 'amount', 'points'], { targets: '@SnackPackPanda', count: '1', entrants: '18', amount: '1000', points: 'points' })
     }
   ],
   commands: [

@@ -6,8 +6,21 @@ package engine
 import (
 	"context"
 
+	"ItsBagelBot/internal/projection"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 )
+
+type LegacyRaffleConfig struct {
+	RaffleModuleConfig
+	ClaimEnabled string `json:"claimEnabled"`
+	ClaimPrize   string `json:"claimPrize"`
+}
+
+func (c LegacyRaffleConfig) ClaimOn() bool { return lineDefaultOff(c.ClaimEnabled) }
+
+func ReadLegacyRaffleConfig(ctx context.Context, proj projection.Reader, broadcasterID uint64) LegacyRaffleConfig {
+	return readRaffleConfig[LegacyRaffleConfig](ctx, proj, broadcasterID)
+}
 
 type RaffleClaim int
 

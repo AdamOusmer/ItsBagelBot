@@ -50,13 +50,13 @@
       "label": "Tirage ouvert",
       "tagline": "Quand un tirage démarre et que les inscriptions s'ouvrent.",
       "event": "!raffle",
-      "defaultMessage": "La loterie est LANCÉE ! Tape !join pour participer. Tirage dans {mins} min ! Prix : {amount} {raffle:points}."
+      "defaultMessage": "Le tirage est lancé ! 1 personne gagne {raffle:amount} {raffle:points}. Tape !join ({raffle:time})."
     },
     "won": {
       "label": "Gagnants annoncés",
       "tagline": "Quand un tirage nomme ses gagnants (manuel ou chronométré).",
       "event": "!raffle draw",
-      "defaultMessage": "{targets} remportent chacun {amount} {points} !"
+      "defaultMessage": "{raffle:targets} remporte {raffle:amount} {raffle:points} !"
     }
   },
   "commands": {

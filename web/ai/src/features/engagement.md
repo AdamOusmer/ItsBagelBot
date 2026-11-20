@@ -1,14 +1,14 @@
 ---
 title: Giveaways, viewer queue, and engagement modules: reference for AI assistants
-description: Raffles, viewer queue, raid shoutouts, quotes, counters, timers, syntax, permissions, and defaults.
-updated: 2026-10-13
+description: Giveaways, points raffles, viewer queue, raid shoutouts, quotes, counters, timers, syntax, permissions, and defaults.
+updated: 2026-11-20
 kind: feature
 human: https://itsbagelbot.com/guides/modules/
 ---
 
 [Human guide](https://itsbagelbot.com/guides/modules/).
 
-ItsBagelBot supports timed raffle giveaways, a viewer play queue, automatic raid shoutouts, saved quotes, counters, and scheduled chat messages.
+ItsBagelBot supports item giveaways, points raffles, a viewer play queue, automatic raid shoutouts, saved quotes, counters, and scheduled chat messages.
 
 <page type="feature">
 
@@ -36,14 +36,14 @@ Assistants explaining features, selecting a module for a Twitch task, or helping
 <facts>
 
 - Plan: {{website:pricingTiers.free}} for every feature on this page.
-- External prerequisites: Twitch authorization. Raffles and viewer queues need only chat access; raid shoutouts need incoming raid events.
-- Configure [{{console:modules.catalog.raffle.label}}](https://dashboard.itsbagelbot.com/modules/raffle), [{{console:modules.catalog.queue.label}}](https://dashboard.itsbagelbot.com/modules/queue), and [{{console:modules.catalog.shoutout.label}}](https://dashboard.itsbagelbot.com/modules/shoutout) under "{{console:nav.modules}}".
+- External prerequisites: Twitch authorization. Raffles also require Loyalty to be enabled before starting. Raid shoutouts need incoming raid events.
+- Configure [{{console:modules.catalog.raffle.label}}](https://dashboard.itsbagelbot.com/loyalty#games) under Loyalty Games. Open [{{console:modules.catalog.giveaway.label}}](https://dashboard.itsbagelbot.com/giveaways) under Play.
+- Configure [{{console:modules.catalog.queue.label}}](https://dashboard.itsbagelbot.com/modules/queue) and [{{console:modules.catalog.shoutout.label}}](https://dashboard.itsbagelbot.com/modules/shoutout) under "{{console:nav.modules}}".
 - Dedicated destinations: [{{console:modules.catalog.quotes.label}}](https://dashboard.itsbagelbot.com/quotes), [{{console:nav.counters}}](https://dashboard.itsbagelbot.com/counters), and [{{console:nav.timers}}](https://dashboard.itsbagelbot.com/timers).
-- Raffle, queue, shoutout, quotes, and timers default off. Counters are always available in the dashboard.
-- Raffles default to 10 minutes, 1 winner, and reminders every 5 minutes. A reminder value of 0 disables reminders.
-- Each raffle entrant counts once, winners are selected uniformly, and the draw produces a verifiable receipt.
-- Winners have 15 minutes to claim. `!winner` has a 5-second cooldown.
-- An active raffle takes `!join` priority. Use `!queue join` explicitly when both features are in use.
+- Giveaways, raffles, queue, shoutout, quotes, and timers default off. Counters are always available in the dashboard.
+- A points raffle defaults to 1,000 points, 60 seconds, and one winner. Raffle winnings are paid automatically.
+- An item giveaway is free to enter. Its optional claim window defaults to two minutes.
+- An open giveaway or raffle takes `!join` priority. Use `!queue join` to join the queue directly.
 - The viewer queue is first come, first served. Closing joins preserves the waiting line. Listing shows ten entries with a 5-second cooldown.
 - Quote add/edit permissions default to moderators. Reads have a 5-second cooldown; deleted numbers are retired.
 - Counter scopes: channel, per viewer, per command, and per viewer plus command. Custom commands with "{{console:commandEditor.bumpCounter}}" and channel-points rewards can increment them; there is no built-in chat command for counters.
@@ -61,10 +61,10 @@ Assistants explaining features, selecting a module for a Twitch task, or helping
 
 ### `!raffle`
 
-- Syntax: `!raffle status`, `!raffle [amount] [seconds]`, `!sraffle [amount] [seconds]`, `!mraffle [amount] [seconds]`, `!raffle draw [winners]`, `!raffle close`, `!raffle cancel`, `!cancelraffle`
+- Syntax: `!raffle status`, `!raffle [amount] [seconds]`, `!sraffle [amount] [seconds]`, `!mraffle [amount] [seconds] [winners|auto]`, `!raffle draw [winners|auto]`, `!raffle close`, `!raffle cancel`, `!cancelraffle`
 - Aliases: `!singleraffle` for `!sraffle`, `!multiraffle` for `!mraffle`.
 - Who can run it: Anyone reads status (a viewer typing `!raffle` gets it). Starting, draw, close, and cancel require moderator access.
-- Behaviour: Runs a timed giveaway. `!raffle` and `!sraffle` give one winner the whole amount; `!mraffle` splits it across winners set by entrant count at the draw. Amounts take k and m (5k). Close draws early; cancel stops without drawing.
+- Behaviour: Runs a timed points raffle using the configured mode. `!sraffle` always draws one winner. `!mraffle` splits the points across three winners by default. With `auto`, the draw selects one winner per ten entries, rounded up, subject to prize and winner limits. Amounts take k and m (5k). Close draws early, and cancel stops without drawing.
 - Example reply template: "{{console:modules.catalog.raffle.replies.opened.defaultMessage}}".
 
 </command>
@@ -74,9 +74,9 @@ Assistants explaining features, selecting a module for a Twitch task, or helping
 ### `!join`
 
 - Syntax: `!join`
-- Aliases: None registered.
-- Who can run it: Everyone while the corresponding module is enabled.
-- Behaviour: Enters an active raffle once. When a raffle is running, it takes priority over the viewer queue.
+- Aliases: `!enter`, `!ticket` while a draw is open.
+- Who can run it: Viewers who meet the entry requirements for the open draw.
+- Behaviour: Enters the open giveaway or raffle once. An open draw takes priority over the viewer queue.
 - Example reply template: "{{console:modules.catalog.raffle.replies.joined.defaultMessage}}".
 
 </command>
@@ -87,9 +87,8 @@ Assistants explaining features, selecting a module for a Twitch task, or helping
 
 - Syntax: `!claim`
 - Aliases: None registered.
-- Who can run it: A selected raffle winner within the claim window.
-- Behaviour: Confirms a raffle prize.
-- Example reply template: "{{console:modules.catalog.raffle.replies.claimOk.defaultMessage}}".
+- Who can run it: A giveaway winner with a claim window still open.
+- Behaviour: {{console:modules.catalog.giveaway.commands.claim}}
 
 </command>
 
@@ -99,8 +98,8 @@ Assistants explaining features, selecting a module for a Twitch task, or helping
 
 - Syntax: `!winner`
 - Aliases: None registered.
-- Who can run it: Everyone while the corresponding module is enabled.
-- Behaviour: Recalls the latest draw and confirmations.
+- Who can run it: Everyone.
+- Behaviour: Shows the giveaway currently settling or the latest recorded giveaway winners. For a settling points raffle, it can show winners and pending payouts.
 - Example reply template: "{{console:modules.catalog.raffle.replies.won.defaultMessage}}".
 
 </command>
@@ -110,9 +109,9 @@ Assistants explaining features, selecting a module for a Twitch task, or helping
 ### `!queue`
 
 - Syntax: `!queue`, `!queue join`, `!queue leave`, `!queue list`
-- Aliases: `!join (queue join when an active raffle does not claim it)`, `!leave`, `!list`, `!queuelist`
+- Aliases: `!join` when no draw is open, `!leave`, `!list`, `!queuelist`
 - Who can run it: Everyone while the corresponding module is enabled.
-- Behaviour: Shows queue status, joins, leaves, or lists the next ten viewers. `!join` is the queue shortcut when no active raffle takes it.
+- Behaviour: Shows queue status, joins, leaves, or lists the next ten viewers. `!join` is the queue shortcut when no giveaway or raffle is open.
 - Example reply template: "{{console:modules.catalog.queue.replies.join.defaultMessage}}".
 
 </command>

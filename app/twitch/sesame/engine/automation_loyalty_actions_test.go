@@ -29,11 +29,10 @@ func (s sqliteSpendStore) BalanceSpend(ctx context.Context, spend PointSpend) (l
 	row, found, spent, err := s.repo.BalanceSpendViewer(ctx, loyaltyrepo.Spend{
 		UserID: spend.BroadcasterID, ViewerID: spend.ViewerID, ViewerLogin: spend.Login, Amount: spend.Amount,
 	})
-	balance := loyaltyrpc.Balance{}
-	if row != nil {
-		balance.Points = row.Points
+	if row == nil {
+		return loyaltyrpc.Balance{}, found, spent, err
 	}
-	return balance, found, spent, err
+	return *loyaltyrepo.BalanceView(row), found, spent, err
 }
 
 func newSQLiteSpendStore(t *testing.T, balance int64) sqliteSpendStore {

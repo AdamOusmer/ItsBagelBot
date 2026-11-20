@@ -35,7 +35,7 @@ func drawJoiner(c *module.Context, round draw.Round) (eligibility.Joiner, error)
 		return badge.SetID == "subscriber" || badge.SetID == "founder"
 	})
 	return eligibility.Joiner{Channel: c.BroadcasterID, Viewer: viewer, Kind: round.Terms.Kind, Role: c.Chatter(), Subscriber: subscriber,
-		Cutoff: eligibility.Cutoff{ID: round.Terms.StandingsID(), OpenedAt: round.OpenedAt}}, err
+		Cutoff: eligibility.Cutoff{ID: round.Terms.SnapshotID, OpenedAt: round.OpenedAt}}, err
 }
 
 func drawViewerID(viewer uint64) draw.ViewerID { return draw.ViewerID(strconv.FormatUint(viewer, 10)) }

@@ -80,6 +80,10 @@ type Standings = {
 type Search = { busy: boolean };
 type ReadBoard = (req: StandingsPageRequest) => Promise<StandingsPage>;
 
+function emptyStandings(params: BoardParams, degraded: boolean): Standings {
+	return { currencyName: 'points', podium: [], freeze: null, board: emptyBoard(params), degraded, busy: false };
+}
+
 function hideChannel(locals: App.Locals): never {
 	markEdge(locals, 'hidden');
 	return channelNotFound();
@@ -135,7 +139,7 @@ async function standings(userId: string, loyalty: ReturnType<typeof readLoyalty>
 		const [view, standing] = await Promise.all([loyalty, pinnedStandings(userId, params)]);
 		return { currencyName: view.config.pointsName || 'points', ...standing, degraded: false };
 	} catch {
-		return { currencyName: 'points', podium: [], freeze: null, board: emptyBoard(params), degraded: true, busy: false };
+		return emptyStandings(params, true);
 	}
 }
 
@@ -151,7 +155,9 @@ async function demoPage(login: string, params: BoardParams) {
 		degraded: false,
 		busy: false,
 		commandsPage: true,
-		giveawayWinners: []
+		showStandings: true,
+		giveawayWinners: [],
+		giveawayHistoryUnavailable: false
 	};
 }
 
@@ -166,22 +172,31 @@ function enter(url: URL, segment: string, locals: App.Locals): string {
 	throw redirect(308, `${spelled ? url.pathname : `/${login}`}${search}`);
 }
 
+async function publicFeatures(channel: Channel, view: BoardParams, locals: App.Locals) {
+	const loyalty = readLoyalty(channel.userId);
+	const [boardVisible, commandsPage, loyaltyEnabled] = await Promise.all([
+		readVisibility(userLeaderboardPage(channel.userId)),
+		readVisibility(userCommandsPage(channel.userId)),
+		readVisibility(loyalty.then((v) => v.enabled))
+	]);
+	if (boardVisible === false) hideChannel(locals);
+
+	const showStandings = loyaltyEnabled !== false;
+	const [standing, giveaways] = await Promise.all([
+		showStandings ? standings(channel.userId, loyalty, view) : emptyStandings(view, false),
+		boardVisible ? publicGiveawayWinners(channel.userId) : { winners: [], degraded: true }
+	]);
+	if (!showStandings && !giveaways.winners.length && !giveaways.degraded) hideChannel(locals);
+	return { boardVisible, commandsPage, showStandings, standing, giveaways };
+}
+
 export const load: PageServerLoad = async ({ params, url, locals }) => {
 	const login = enter(url, params.user ?? '', locals);
 	const view = boardParams(url);
 	if (DEMO) return demoPage(login, view);
 
 	const channel = await requireChannel(login, locals);
-	const loyalty = readLoyalty(channel.userId);
-	const board = standings(channel.userId, loyalty, view);
-	const [boardVisible, commandsPage, loyaltyEnabled] = await Promise.all([
-		readVisibility(userLeaderboardPage(channel.userId)),
-		readVisibility(userCommandsPage(channel.userId)),
-		readVisibility(loyalty.then((v) => v.enabled))
-	]);
-	if (boardVisible === false || loyaltyEnabled === false) hideChannel(locals);
-
-	const [standing, giveaways] = await Promise.all([board, publicGiveawayWinners(channel.userId)]);
+	const { boardVisible, commandsPage, showStandings, standing, giveaways } = await publicFeatures(channel, view, locals);
 	const degraded = standing.degraded || standing.busy || giveaways.degraded;
 	markEdge(locals, pageOutcome([boardVisible, commandsPage], degraded));
 	const freeze = standing.freeze;
@@ -197,6 +212,8 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		degraded: standing.degraded,
 		busy: standing.busy,
 		commandsPage: commandsPage !== false,
-		giveawayWinners: giveaways.winners
+		showStandings,
+		giveawayWinners: giveaways.winners,
+		giveawayHistoryUnavailable: giveaways.degraded
 	};
 };

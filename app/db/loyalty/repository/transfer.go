@@ -35,11 +35,10 @@ func (r *Loyalty) BalanceTransfer(ctx context.Context, t Transfer) (*TransferOut
 		return nil, found, err
 	}
 
-	move := transferMove{sender: sender, recipient: recipient, amount: t.Amount}
-	err = r.moveBalance(ctx, move)
-	if sender.ID == 0 && err == nil {
+	if sender.ID == 0 {
 		return &TransferOutcome{From: sender}, true, nil
 	}
+	err = r.moveBalance(ctx, sender, recipient, t.Amount)
 	if errors.Is(err, errInsufficient) {
 		fresh, ferr := r.client.Balance.Get(ctx, sender.ID)
 		if ferr != nil {
@@ -95,29 +94,28 @@ func validTransfer(t Transfer) (string, error) {
 	return login, nil
 }
 
-func (r *Loyalty) moveBalance(ctx context.Context, move transferMove) error {
-	if move.sender.ID == 0 {
-		return nil
-	}
+func (r *Loyalty) moveBalance(ctx context.Context, sender, recipient *ent.Balance, amount int64) error {
 	return db.WithExec(ctx, func(ctx context.Context) error {
-		return db.RetryWithTx(ctx, r.client, func(tx *ent.Tx) error {
-			if err := r.lockTransferRows(ctx, tx, move.sender, move.recipient); err != nil {
-				return err
-			}
-			return move.apply(ctx, tx)
+		return retryTx(ctx, func(ctx context.Context) error {
+			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+				if err := r.lockTransferRows(ctx, tx, sender, recipient); err != nil {
+					return err
+				}
+				return transferMove{senderID: sender.ID, recipient: recipient, amount: amount}.apply(ctx, tx)
+			})
 		})
 	})
 }
 
 type transferMove struct {
-	sender    *ent.Balance
+	senderID  int
 	recipient *ent.Balance
 	amount    int64
 }
 
 func (m transferMove) apply(ctx context.Context, tx *ent.Tx) error {
 	updated, err := tx.Balance.Update().
-		Where(balance.IDEQ(m.sender.ID), balance.PointsGTE(m.amount)).
+		Where(balance.IDEQ(m.senderID), balance.PointsGTE(m.amount)).
 		AddPoints(-m.amount).
 		Save(ctx)
 	if err != nil {

@@ -44,7 +44,7 @@ func TestBalanceCountAtLeastRPC(t *testing.T) {
 func TestBalanceCountAtLeastRPCUsesOnlyRequestedSnapshot(t *testing.T) {
 	h := newHarness(t)
 	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
-	_, err := client.FreezeSet(t.Context(), 2, 1, "7")
+	_, err := client.FreezeSet(t.Context(), 2, 1)
 	require.NoError(t, err)
 	snapshot := createRPCSnapshot(t, client)
 	h.call(t, "balance.add", loyaltyrpc.Request{UserID: "2", TargetViewerID: "7", ViewerLogin: "sender", Value: 5})

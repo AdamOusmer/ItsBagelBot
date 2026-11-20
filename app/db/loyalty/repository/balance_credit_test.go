@@ -88,16 +88,23 @@ func TestBalanceCreditFencesAccountInstances(t *testing.T) {
 	}
 }
 
-func TestBalanceCreditAdmitsRealInstanceOnNewFence(t *testing.T) {
+func TestBalanceCreditReplaysAfterFirstWatchAward(t *testing.T) {
 	r, _ := sqliteRetentionRepo(t)
 	ctx := t.Context()
 	require.NoError(t, r.EnsureBalanceCreditSchema(ctx))
-	_, err := r.BalanceCredit(ctx, loyaltyrepo.BalanceCredit{UserID: 42, ViewerID: 7, Value: 10, Key: "raffle:new:1", AccountCreatedAt: 10})
+	credit := loyaltyrepo.BalanceCredit{UserID: 42, ViewerID: 7, Value: 10, Key: "raffle:new:1", AccountCreatedAt: 10}
+	first, err := r.BalanceCredit(ctx, credit)
 	require.NoError(t, err)
+	require.NoError(t, r.ApplyWatchAward(ctx, watchAward(credit.UserID, credit.ViewerID, credit.AccountCreatedAt)))
+
+	replay, err := r.BalanceCredit(ctx, credit)
+	require.NoError(t, err)
+	require.Equal(t, loyaltyrepo.CreditResult{Balance: first.Balance, Replayed: true}, replay)
+
 	standing, found, err := r.BalanceGet(ctx, 42, 7)
 	require.NoError(t, err)
 	require.True(t, found)
-	require.Equal(t, int64(10), standing.Points)
+	require.Equal(t, int64(20), standing.Points)
 }
 
 func TestBalanceCreditPrunesOnlyExpiredMarkers(t *testing.T) {

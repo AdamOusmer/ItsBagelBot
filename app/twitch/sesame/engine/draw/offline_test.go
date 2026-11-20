@@ -86,6 +86,26 @@ func (f fixture) resumeOfflineGiveaway(r draw.Round, live *drawStream, manual bo
 	require.NoError(t, f.Wake(t.Context(), r.Channel))
 }
 
+func TestDrawOfflineGiveawayClosesAtSnapshotExpiry(t *testing.T) {
+	live := &drawStream{}
+	live.set(true, time.Now().Add(-time.Minute))
+	f := newFixture(t, draw.Config{Live: live})
+	now := f.now().Truncate(time.Millisecond)
+	r := f.openRequest(draw.OpenRequest{
+		Channel: 434, OpenedAt: now.Add(3*time.Second - draw.Pins.GiveawayMaxEntryWindow),
+		Terms: draw.Terms{Kind: draw.KindGiveaway, Prize: draw.Prize{Item: "poster"}, SnapshotID: "snapshot", ClosesAt: now.Add(time.Second)},
+	})
+	live.set(false, f.now())
+	f.start(f.Store)
+
+	require.Eventually(t, func() bool {
+		round, joinable, err := f.Joinable(t.Context(), r.Channel)
+		return err == nil && round.Phase == draw.PhaseOpen && !joinable && live.checks.Load() >= 2
+	}, 3*time.Second, 25*time.Millisecond)
+	waitRemoved(t, f.client, drawKeys(r))
+	require.False(t, f.join(r, "11").Open)
+}
+
 func TestDrawOfflineClaimClock(t *testing.T) {
 	for _, tc := range []struct {
 		name   string

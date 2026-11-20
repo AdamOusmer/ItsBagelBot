@@ -68,6 +68,21 @@ test.each([
 });
 
 test.each([
+  { action: 'reroll', phase: 'settling', copy: 'Reroll after a claim window closes or choose a slot with stalled verification.' },
+  { action: 'end', phase: 'settling', copy: 'Once winners are drawn, you can end any unfinished slots.' },
+  { action: 'skip', phase: 'settling', copy: 'You can skip a rule once verification has stalled for that slot.' },
+  { action: 'reroll', phase: 'open', copy: 'Close entries and draw winners before changing winner slots.' },
+  { action: 'end', phase: 'closing', copy: 'The draw is still selecting winners. Wait for the winner slots to appear.' },
+  { action: 'skip', phase: null, copy: 'This giveaway has already ended. Review the latest giveaway.' },
+  { action: 'extend', phase: null, reason: 'giveaway.extend.snapshot_expiry', copy: 'Adding a minute would run past the standings snapshot. Close the giveaway before the snapshot expires.' }
+])('explains why $action was refused in phase $phase', async ({ action, phase, reason, copy }) => {
+  spyOn(bus, 'rpcReply').mockResolvedValueOnce({ code: 'conflict', error: 'giveaway action no longer applies', reason });
+  const live = spyOn(bus, 'rpc').mockResolvedValueOnce({ rounds: phase ? [{ id: round_id, phase }] : [] });
+  expect(await invoke(action, { round_id, slot: '1' })).toMatchObject({ status: 409, data: { ok: false, error: copy } });
+  expect(live.mock.calls).toEqual(reason ? [] : [['rpc.draw.giveaway.live', { user_id: '42', source: 'dashboard' }, 10_000]]);
+});
+
+test.each([
   { claim: '0', expected: { claimSeconds: 0 } },
   { claim: '120', expected: { claimSeconds: 120 } },
   { claim: '', expected: { claimSeconds: 120 } }

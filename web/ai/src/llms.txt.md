@@ -37,7 +37,7 @@ Verified as of 2026-10-13. Finished features are free. AutoMod is a Premium beta
 - [Clash Royale](https://ai.itsbagelbot.com/features/clashroyale.md): Profile, deck, ranked standing, and trophy road.
 - [CODM Global](https://ai.itsbagelbot.com/features/codm.md): Profile and Multiplayer rank/rating.
 - [Loyalty, gamble, and duels](https://ai.itsbagelbot.com/features/loyalty.md): Channel currency and point wagers.
-- [Engagement](https://ai.itsbagelbot.com/features/engagement.md): Raffle giveaways, viewer queue, raid shoutouts, quotes, counters, and timers.
+- [Engagement](https://ai.itsbagelbot.com/features/engagement.md): Giveaways, points raffles, viewer queue, raid shoutouts, quotes, counters, and timers.
 - [Automation](https://ai.itsbagelbot.com/features/automation.md): Triggers, chat alerts, AutoMod, emoteplay, personality, time, and stream management.
 
 ## Mid-setup help

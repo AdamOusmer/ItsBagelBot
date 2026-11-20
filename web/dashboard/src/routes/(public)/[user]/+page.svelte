@@ -100,8 +100,8 @@
 </script>
 
 <PublicHead
-  title={t('leaderboard.title', { channel: data.channelName })}
-  description={t('leaderboard.metaDescription', { channel: data.channelName })}
+  title={data.showStandings ? t('leaderboard.title', { channel: data.channelName }) : data.channelName}
+  description={t(data.showStandings ? 'leaderboard.metaDescription' : 'giveaways.history', { channel: data.channelName })}
   url="https://leaderboard.itsbagelbot.com/{data.login}"
 />
 
@@ -114,11 +114,15 @@
 <main class="lb">
   <PublicStreamerHeader>
     <div class="lb-intro">
-      <span class="lb-eyebrow"><bb-fit>{t('leaderboard.eyebrow')}</bb-fit></span>
+      {#if data.showStandings}
+        <span class="lb-eyebrow"><bb-fit>{t('leaderboard.eyebrow')}</bb-fit></span>
+      {/if}
       <h1 class="lb-title{titleSize ? ` lb-title--${titleSize}` : ''}">
         {#each titleWords as word, i (i)}{i > 0 ? ' ' : ''}<span class="lb-word">{word}</span>{/each}
       </h1>
-      <p class="lb-tagline"><bb-fit mode="block">{t('leaderboard.tagline')}</bb-fit></p>
+      {#if data.showStandings}
+        <p class="lb-tagline"><bb-fit mode="block">{t('leaderboard.tagline')}</bb-fit></p>
+      {/if}
       <div class="lb-visit" aria-hidden={!data.commandsPage}>
         {#if data.commandsPage}
           <TextLink variant="arrow" tone="go" href={channelHref} label={t('leaderboard.visitChannel')}><bb-fit>{t('leaderboard.visitChannel')}</bb-fit></TextLink>
@@ -127,6 +131,7 @@
     </div>
   </PublicStreamerHeader>
 
+  {#if data.showStandings}
   <div class="lb-notices">
     <div class="lb-notice" class:lb-notice-hidden={!data.degraded} aria-hidden={!data.degraded}>
       <AlertBanner tone="warning" flush>
@@ -239,10 +244,11 @@
   </Card>
 
   <p class="lb-earn"><bb-fit mode="block">{t('leaderboard.earnNote')}</bb-fit></p>
+  {/if}
 
-  {#if data.giveawayWinners.length}
+  {#if data.giveawayWinners.length || (!data.showStandings && data.giveawayHistoryUnavailable)}
     <section class="giveaway-history" aria-label={t('giveaways.history')}>
-      <PastWinners winners={data.giveawayWinners} />
+      <PastWinners winners={data.giveawayWinners} degraded={data.giveawayHistoryUnavailable} />
     </section>
   {/if}
 </main>

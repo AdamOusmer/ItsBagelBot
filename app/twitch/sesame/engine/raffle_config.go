@@ -74,23 +74,8 @@ func (c RaffleModuleConfig) Duration() time.Duration {
 	return ClampRaffleDuration(time.Duration(min(n, int64(maxRaffleDuration/time.Second))) * time.Second)
 }
 
-type LegacyRaffleConfig struct {
-	RaffleModuleConfig
-	ClaimOkMessage string `json:"claimOkMessage"`
-	ClaimOkEnabled string `json:"claimOkEnabled"`
-	ClaimEnabled   string `json:"claimEnabled"`
-	ClaimPrize     string `json:"claimPrize"`
-}
-
-func (c LegacyRaffleConfig) ClaimOkOn() bool { return lineDefaultOn(c.ClaimOkEnabled) }
-func (c LegacyRaffleConfig) ClaimOn() bool   { return lineDefaultOff(c.ClaimEnabled) }
-
 func ReadRaffleConfig(ctx context.Context, proj projection.Reader, broadcasterID uint64) RaffleModuleConfig {
 	return readRaffleConfig[RaffleModuleConfig](ctx, proj, broadcasterID)
-}
-
-func ReadLegacyRaffleConfig(ctx context.Context, proj projection.Reader, broadcasterID uint64) LegacyRaffleConfig {
-	return readRaffleConfig[LegacyRaffleConfig](ctx, proj, broadcasterID)
 }
 
 func readRaffleConfig[C any](ctx context.Context, proj projection.Reader, broadcasterID uint64) C {

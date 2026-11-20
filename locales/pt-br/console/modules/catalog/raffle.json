@@ -50,13 +50,13 @@
       "label": "Sorteio aberto",
       "tagline": "Quando um sorteio começa e as participações são abertas.",
       "event": "!raffle",
-      "defaultMessage": "Sorteio ABERTO! Digite !join para participar. Sorteio em {mins} min! Prêmio: {amount} {raffle:points}."
+      "defaultMessage": "O sorteio está aberto! 1 pessoa ganha {raffle:amount} {raffle:points}. Digite !join ({raffle:time})."
     },
     "won": {
       "label": "Resultado anunciado",
       "tagline": "Quando um sorteio define quem venceu (manual ou por prazo).",
       "event": "!raffle draw",
-      "defaultMessage": "{targets} ganharam {amount} {points} cada!"
+      "defaultMessage": "{raffle:targets} ganhou {raffle:amount} {raffle:points}!"
     }
   },
   "commands": {

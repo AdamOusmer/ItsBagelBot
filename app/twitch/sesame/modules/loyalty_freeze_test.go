@@ -29,7 +29,6 @@ type freezeStore struct {
 
 type freezeCall struct {
 	channel draw.ChannelID
-	actor   draw.ViewerID
 	minutes engine.FreezeMinutes
 }
 
@@ -38,13 +37,13 @@ func (s *freezeStore) FreezeGet(context.Context, draw.ChannelID) (loyaltyrpc.Fre
 	return loyaltyrpc.FreezeView{Active: s.active}, nil
 }
 
-func (s *freezeStore) FreezeSet(_ context.Context, channel draw.ChannelID, minutes engine.FreezeMinutes, actor draw.ViewerID) (loyaltyrpc.FreezeTimes, error) {
-	s.sets = append(s.sets, freezeCall{channel: channel, actor: actor, minutes: minutes})
+func (s *freezeStore) FreezeSet(_ context.Context, channel draw.ChannelID, minutes engine.FreezeMinutes) (loyaltyrpc.FreezeTimes, error) {
+	s.sets = append(s.sets, freezeCall{channel: channel, minutes: minutes})
 	return loyaltyrpc.FreezeTimes{}, nil
 }
 
-func (s *freezeStore) FreezeRelease(_ context.Context, channel draw.ChannelID, actor draw.ViewerID) (bool, error) {
-	s.releases = append(s.releases, freezeCall{channel: channel, actor: actor})
+func (s *freezeStore) FreezeRelease(_ context.Context, channel draw.ChannelID) (bool, error) {
+	s.releases = append(s.releases, freezeCall{channel: channel})
 	return s.changed, nil
 }
 
@@ -71,7 +70,7 @@ func TestLoyaltyFreezeCommandsProcess(t *testing.T) {
 			pub := processFreezeChat(t, store, tc)
 			require.Len(t, store.sets, tc.sets)
 			require.Len(t, store.releases, tc.releases)
-			want := freezeCall{channel: 2, actor: "7", minutes: tc.minutes}
+			want := freezeCall{channel: 2, minutes: tc.minutes}
 			for _, command := range append(store.sets, store.releases...) {
 				assert.Equal(t, want, command)
 			}

@@ -53,12 +53,12 @@ func closeDue(ctx context.Context, s *Store, data snapshot, now time.Time) error
 	if now.Before(r.ClosesAt) {
 		return s.remind(ctx, data, now)
 	}
-	state, err := s.liveState(ctx, r)
+	schedule, paused, err := s.entryPause(ctx, r, now)
 	if err != nil {
 		return err
 	}
-	if state.offlineSince(r.OpenedAt, r.LiveAtOpen) {
-		return s.scheduleRound(ctx, data, valkey.DrawSchedule{Parked: true})
+	if paused {
+		return s.scheduleRound(ctx, data, schedule)
 	}
 	shift := phaseShift(r, PhaseClosing, now)
 	shift.Match = valkey.FieldValue{Field: "revision", Value: data.stored.Round["revision"]}

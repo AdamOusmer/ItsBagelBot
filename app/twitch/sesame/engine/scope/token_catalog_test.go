@@ -93,7 +93,7 @@ func ExampleCommandTokenFamilies() {
 	// emotes: 4 examples
 	// channel: 16 examples
 	// viewer: 17 examples
-	// modules: 598 examples
+	// modules: 593 examples
 	// uses: 1 examples
 	// store: 2 examples
 	// external: 1 examples

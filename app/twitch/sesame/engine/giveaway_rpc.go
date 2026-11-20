@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
@@ -123,6 +124,9 @@ func (s GiveawayRPC) roundAction(verb giveawayRoundVerb) giveawayRPCHandler {
 			return invalidGiveawayRPC("invalid round_id")
 		}
 		changed, err := s.applyRoundAction(ctx, in.modAction(), verb)
+		if errors.Is(err, draw.ErrSnapshotExpiry) {
+			return drawrpc.GiveawayReply{Reason: "giveaway.extend.snapshot_expiry", Refusal: rpc.Refused(rpc.CodeConflict, err.Error())}, nil
+		}
 		return giveawayActionReply(changed, 0, err)
 	}
 }

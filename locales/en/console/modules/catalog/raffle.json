@@ -50,13 +50,13 @@
       "label": "Raffle opened",
       "tagline": "When a raffle starts and entries open.",
       "event": "!raffle",
-      "defaultMessage": "Raffle is LIVE! Type !join to enter. Drawing in {mins} min! Prize: {amount} {raffle:points}."
+      "defaultMessage": "Raffle is LIVE! 1 winner takes {raffle:amount} {raffle:points}. Type !join ({raffle:time})."
     },
     "won": {
       "label": "Winners announced",
       "tagline": "When a draw names its winners (manual or timed).",
       "event": "!raffle draw",
-      "defaultMessage": "{targets} each won {amount} {points}!"
+      "defaultMessage": "{raffle:targets} won {raffle:amount} {raffle:points}!"
     }
   },
   "commands": {

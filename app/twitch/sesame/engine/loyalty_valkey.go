@@ -345,6 +345,15 @@ func (s *ValkeyLoyaltyStore) BalanceAdjustViewer(ctx context.Context, adjustment
 	return bal, true, nil
 }
 
+func (s *ValkeyLoyaltyStore) BalanceSpend(ctx context.Context, spend PointSpend) (loyaltyrpc.Balance, bool, bool, error) {
+	bal, found, spent, err := s.rpc.BalanceSpend(ctx, spend)
+	if err != nil || !found {
+		return bal, found, spent, err
+	}
+	s.invalidateTop(cache.Event{ID: spend.BroadcasterID})
+	return bal, true, spent, nil
+}
+
 func (s *ValkeyLoyaltyStore) BalanceTransfer(ctx context.Context, t PointTransfer) (bal loyaltyrpc.Balance, found, moved bool, err error) {
 	bal, _, found, moved, err = s.rpc.BalanceTransfer(ctx, t)
 	if err != nil || !found {

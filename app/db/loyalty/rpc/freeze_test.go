@@ -19,22 +19,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFreezeRPCValidatesIdentityAndDuration(t *testing.T) {
+func TestFreezeRPCValidatesChannelAndDuration(t *testing.T) {
 	h := newHarness(t)
 	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
 	for _, tc := range []struct {
 		name    string
 		channel draw.ChannelID
-		actor   draw.ViewerID
 		minutes engine.FreezeMinutes
 	}{
-		{"invalid channel", 0, "7", 1},
-		{"invalid actor", 2, "0", 1},
-		{"zero minutes", 2, "7", 0},
-		{"over cap", 2, "7", 31},
+		{"invalid channel", 0, 1},
+		{"zero minutes", 2, 0},
+		{"over cap", 2, 31},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := client.FreezeSet(t.Context(), tc.channel, tc.minutes, tc.actor)
+			_, err := client.FreezeSet(t.Context(), tc.channel, tc.minutes)
 			requireRPCCode(t, err, domainrpc.CodeInvalid)
 		})
 	}
@@ -46,13 +44,13 @@ func TestFreezeRPCPublishesMarkerOnlyOnChange(t *testing.T) {
 	require.NoError(t, err)
 	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
 	for _, minutes := range []engine.FreezeMinutes{2, 4} {
-		view, err := client.FreezeSet(t.Context(), 2, minutes, "7")
+		view, err := client.FreezeSet(t.Context(), 2, minutes)
 		require.NoError(t, err)
 		assert.Equal(t, int64(minutes)*time.Minute.Milliseconds(), view.ExpiresAt-view.FrozenAsOf)
 		checkFreezeStatus(t, client, loyaltyrpc.FreezeView{Active: true, FreezeTimes: view})
 	}
 	for _, want := range []bool{true, false} {
-		released, err := client.FreezeRelease(t.Context(), 2, "8")
+		released, err := client.FreezeRelease(t.Context(), 2)
 		require.NoError(t, err)
 		assert.Equal(t, want, released)
 	}
@@ -83,7 +81,7 @@ func checkFreezeMarkers(t *testing.T, sub *nats.Subscription) {
 func TestFreezeRPCRoutesLeaderboardPins(t *testing.T) {
 	h := newHarness(t)
 	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
-	_, err := client.FreezeSet(t.Context(), 2, 1, "7")
+	_, err := client.FreezeSet(t.Context(), 2, 1)
 	require.NoError(t, err)
 	stamp := h.call(t, "top.get", loyaltyrpc.Request{UserID: "2"}).FreezeStamp
 	require.NotEmpty(t, stamp.FreezeID)
@@ -104,7 +102,7 @@ func TestFreezeRPCRoutesLeaderboardPins(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.release {
-				released, err := client.FreezeRelease(t.Context(), 2, "8")
+				released, err := client.FreezeRelease(t.Context(), 2)
 				require.NoError(t, err)
 				require.True(t, released)
 			}
@@ -123,7 +121,7 @@ func TestFreezeRPCRoutesLeaderboardPins(t *testing.T) {
 func TestFreezeRPCOnlyBlocksReset(t *testing.T) {
 	h := newHarness(t)
 	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
-	_, err := client.FreezeSet(t.Context(), 2, 1, "7")
+	_, err := client.FreezeSet(t.Context(), 2, 1)
 	require.NoError(t, err)
 	req := loyaltyrpc.Request{UserID: "2", ViewerID: "7", TargetViewerID: "8", ViewerLogin: "receiver", Value: 1}
 	for _, tc := range []struct {

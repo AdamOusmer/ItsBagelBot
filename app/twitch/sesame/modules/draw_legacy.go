@@ -80,9 +80,7 @@ func (rc raffleCmd) claimConfirm(ctx context.Context, emit module.Emit) error {
 	}
 	switch outcome {
 	case engine.ClaimOk:
-		if rc.cfg.ClaimOkOn() {
-			rc.reply(emit, rc.cfg.ClaimOkMessage, "raffle.claim.ok")
-		}
+		rc.reply(emit, "", "raffle.claim.ok")
 	case engine.ClaimAlready:
 		rc.reply(emit, "", "raffle.claim.already")
 	case engine.ClaimLate:

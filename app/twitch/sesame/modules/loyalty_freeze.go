@@ -18,7 +18,6 @@ type freezeChat struct {
 	store   engine.LoyaltyFreeze
 	emit    module.Emit
 	channel draw.ChannelID
-	actor   draw.ViewerID
 }
 
 func freezeRun(d engine.Deps, release bool) module.RunFunc {
@@ -26,12 +25,8 @@ func freezeRun(d engine.Deps, release bool) module.RunFunc {
 		if d.LoyaltyFreeze == nil {
 			return nil
 		}
-		actor, err := strconv.ParseUint(c.Env.ChatterUserID, 10, 64)
-		if err != nil {
-			return err
-		}
 		chat := freezeChat{chatReplier: newChatReplier(c), store: d.LoyaltyFreeze, emit: emit,
-			channel: draw.ChannelID(c.BroadcasterID), actor: draw.ViewerID(strconv.FormatUint(actor, 10))}
+			channel: draw.ChannelID(c.BroadcasterID)}
 		ref := engine.EffectRef{Identity: engine.EventIdentity(&c.Env), Effect: engine.EffectLoyaltyFreeze}
 		return d.Dedup.Effect(ctx, ref, func(ctx context.Context) error {
 			if release {
@@ -48,7 +43,7 @@ func (f freezeChat) set(ctx context.Context, args string) error {
 		f.reply(f.emit, "", "loyalty.freeze.usage")
 		return nil
 	}
-	_, err := f.store.FreezeSet(ctx, f.channel, engine.FreezeMinutes(minutes), f.actor)
+	_, err := f.store.FreezeSet(ctx, f.channel, engine.FreezeMinutes(minutes))
 	if err != nil {
 		return err
 	}
@@ -65,7 +60,7 @@ func freezeMinutes(args string) (int, bool) {
 }
 
 func (f freezeChat) release(ctx context.Context) error {
-	released, err := f.store.FreezeRelease(ctx, f.channel, f.actor)
+	released, err := f.store.FreezeRelease(ctx, f.channel)
 	if err != nil {
 		return err
 	}

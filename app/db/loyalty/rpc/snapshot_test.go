@@ -31,7 +31,7 @@ func createRPCSnapshot(t *testing.T, client *engine.LoyaltyRPC) engine.SnapshotR
 func TestSnapshotRPCReadRoutes(t *testing.T) {
 	h := newHarness(t)
 	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
-	_, err := client.FreezeSet(t.Context(), 2, 1, "7")
+	_, err := client.FreezeSet(t.Context(), 2, 1)
 	require.NoError(t, err)
 	public := h.call(t, "top.get", loyaltyrpc.Request{UserID: "2"})
 	private := createRPCSnapshot(t, client)
@@ -134,9 +134,9 @@ func TestStandingsRPCWireFields(t *testing.T) {
 		body string
 		keys []string
 	}{
-		{loyaltyrpc.VerbFreezeSet, `{"user_id":"2","minutes":1,"actor_id":"7"}`, []string{"frozen_as_of", "expires_at"}},
+		{loyaltyrpc.VerbFreezeSet, `{"user_id":"2","minutes":1}`, []string{"frozen_as_of", "expires_at"}},
 		{loyaltyrpc.VerbFreezeGet, `{"user_id":"2"}`, []string{"active", "frozen_as_of", "expires_at"}},
-		{loyaltyrpc.VerbFreezeRelease, `{"user_id":"2","actor_id":"8"}`, []string{"released"}},
+		{loyaltyrpc.VerbFreezeRelease, `{"user_id":"2"}`, []string{"released"}},
 		{loyaltyrpc.VerbFreezeGet, `{"user_id":"2"}`, []string{"active", "frozen_as_of", "expires_at"}},
 		{loyaltyrpc.VerbSnapshotCreate, `{"user_id":"2","owner":"round:wire","expires_at":4102444800000}`, []string{"snapshot_id", "as_of"}},
 		{loyaltyrpc.VerbSnapshotDrop, `{"user_id":"2","snapshot_id":"missing"}`, []string{"dropped"}},

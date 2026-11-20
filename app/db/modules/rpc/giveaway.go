@@ -146,7 +146,7 @@ func (g giveawayRPC) wonWithin(ctx context.Context, req modulesrpc.GiveawayReque
 	for i, viewer := range req.ViewerIDs {
 		id, err := bus.NonZeroUserID(viewer)
 		if err != nil {
-			return modulesrpc.GiveawayReply{}, err
+			return invalidGiveaway("invalid viewer id")
 		}
 		viewers[i] = id
 	}

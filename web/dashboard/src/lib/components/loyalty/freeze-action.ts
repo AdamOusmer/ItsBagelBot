@@ -3,7 +3,7 @@
 
 import { invalidateAll } from '$app/navigation';
 import type { ActionResult } from '$app/forms';
-import { type I18n } from '@bagel/kit';
+import type { I18n } from '@bagel/kit';
 import { toast } from '@bagel/ui/svelte/toast';
 
 export async function finishFreezeAction(result: ActionResult, releasing: boolean, t: I18n['t']): Promise<void> {

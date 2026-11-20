@@ -151,7 +151,7 @@ func (r *Loyalty) applyCredit(ctx context.Context, tx *sql.Tx, op creditOperatio
 	if !account.admitsInstance(op.AccountCreatedAt) {
 		return CreditResult{}, ErrCreditAccountMismatch
 	}
-	receipt := creditReceipt{op: op, account: account.instance}
+	receipt := creditReceipt{op: op, account: op.AccountCreatedAt}
 	result, err := r.replayCredit(ctx, tx, receipt)
 	if err != nil || result.Replayed {
 		return result, err

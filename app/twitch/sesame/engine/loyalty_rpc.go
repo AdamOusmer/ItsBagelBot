@@ -108,6 +108,17 @@ func (l *LoyaltyRPC) BalanceAdjustViewer(ctx context.Context, adjustment Balance
 	return *reply.Balance, true, nil
 }
 
+func (l *LoyaltyRPC) BalanceSpend(ctx context.Context, spend PointSpend) (bal loyaltyrpc.Balance, found, spent bool, err error) {
+	reply, err := l.call(ctx, "balance.spend", loyaltyrpc.Request{UserID: fmtID(spend.BroadcasterID), ViewerID: fmtID(spend.ViewerID), ViewerLogin: spend.Login, Value: spend.Amount})
+	if err != nil {
+		return loyaltyrpc.Balance{}, false, false, err
+	}
+	if !reply.Found || reply.Balance == nil {
+		return loyaltyrpc.Balance{}, false, false, nil
+	}
+	return *reply.Balance, true, reply.Spent, nil
+}
+
 func (l *LoyaltyRPC) BalanceTransfer(ctx context.Context, transfer PointTransfer) (bal loyaltyrpc.Balance, target *loyaltyrpc.Balance, found, moved bool, err error) {
 	reply, err := l.call(ctx, "balance.transfer", loyaltyrpc.Request{
 		UserID:         fmtID(transfer.BroadcasterID),

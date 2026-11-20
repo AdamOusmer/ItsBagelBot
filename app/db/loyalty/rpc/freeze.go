@@ -5,7 +5,6 @@ package rpc
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"ItsBagelBot/app/db/loyalty/repository"
@@ -25,19 +24,8 @@ func (l *loyaltyRPC) subscribeFreeze(w bus.RPCWiring, prefix string) error {
 	return bus.Serve(w, prefix+"."+loyaltyrpc.VerbFreezeGet, l.handleFreezeGet)
 }
 
-type freezeIdentity struct {
-	channel, actor string
-}
-
-func (id freezeIdentity) channelID() (uint64, error) {
-	if _, err := bus.NonZeroUserID(id.actor); err != nil {
-		return 0, fmt.Errorf("actor_id: %w", err)
-	}
-	return bus.NonZeroUserID(id.channel)
-}
-
 func (l *loyaltyRPC) handleFreezeSet(ctx context.Context, req loyaltyrpc.FreezeSetRequest) loyaltyrpc.FreezeTimes {
-	userID, err := (freezeIdentity{req.UserID, req.ActorID}).channelID()
+	userID, err := bus.NonZeroUserID(req.UserID)
 	if err != nil {
 		return loyaltyrpc.FreezeTimes{Refusal: invalidStandings(err)}
 	}
@@ -50,7 +38,7 @@ func (l *loyaltyRPC) handleFreezeSet(ctx context.Context, req loyaltyrpc.FreezeS
 }
 
 func (l *loyaltyRPC) handleFreezeRelease(ctx context.Context, req loyaltyrpc.FreezeReleaseRequest) loyaltyrpc.FreezeReleased {
-	userID, err := (freezeIdentity{req.UserID, req.ActorID}).channelID()
+	userID, err := bus.NonZeroUserID(req.UserID)
 	if err != nil {
 		return loyaltyrpc.FreezeReleased{Refusal: invalidStandings(err)}
 	}

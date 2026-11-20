@@ -18,8 +18,6 @@ function findLocalesDir(start: string): string {
 
 export const LOCALES_DIR = findLocalesDir(dirname(fileURLToPath(import.meta.url)));
 
-export const CONSOLE_FRAGMENTS_DIR = join(dirname(LOCALES_DIR), 'web', 'kit', 'console-locales');
-
 export function surfaceLocales(surface: string): Locale[] {
   return readdirSync(LOCALES_DIR, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && existsSync(join(LOCALES_DIR, entry.name, surface)))
@@ -39,17 +37,13 @@ function readJson(file: string): unknown {
   }
 }
 
-function consoleFiles(root: string, locale: Locale): CatalogFile[] {
-  const dir = join(root, locale, 'console');
+export function readConsoleFiles(locale: Locale): CatalogFile[] {
+  const dir = join(LOCALES_DIR, locale, 'console');
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { recursive: true, encoding: 'utf8' })
     .filter((name) => name.endsWith('.json'))
     .sort()
     .map((name) => ({ path: `${locale}/console/${name.split(sep).join('/')}`, content: readJson(join(dir, name)) }));
-}
-
-export function readConsoleFiles(locale: Locale): CatalogFile[] {
-  return [LOCALES_DIR, CONSOLE_FRAGMENTS_DIR].flatMap((root) => consoleFiles(root, locale));
 }
 
 export function readConsoleTree(locale: Locale): MessageTree {

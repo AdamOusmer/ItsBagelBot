@@ -78,10 +78,13 @@ func (f fixture) open(channel draw.ChannelID, terms draw.Terms) draw.Round {
 
 func (f fixture) openFor(channel draw.ChannelID, terms draw.Terms, window time.Duration) draw.Round {
 	f.t.Helper()
-	now, err := valkey.ServerNow(f.t.Context(), f.client)
-	require.NoError(f.t, err)
-	terms.ClosesAt = now.Add(window)
-	r, result, err := f.Open(f.t.Context(), draw.OpenRequest{Channel: channel, Terms: terms})
+	terms.ClosesAt = f.now().Add(window)
+	return f.openRequest(draw.OpenRequest{Channel: channel, Terms: terms})
+}
+
+func (f fixture) openRequest(req draw.OpenRequest) draw.Round {
+	f.t.Helper()
+	r, result, err := f.Open(f.t.Context(), req)
 	require.NoError(f.t, err)
 	require.Equal(f.t, draw.Opened, result)
 	f.t.Cleanup(func() {
@@ -342,18 +345,21 @@ func TestDrawOpenRejectsEitherLegacyKey(t *testing.T) {
 
 func TestDrawExtendKeepsOpeningTermsAndHonorsWindow(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		window  time.Duration
-		applied bool
+		name, snapshotID string
+		window           time.Duration
+		applied          bool
+		wantErr          error
 	}{
-		{"within the policy window", time.Minute, true},
-		{"beyond the policy window", draw.Pins.GiveawayMaxEntryWindow, false},
+		{name: "within the policy window", window: time.Minute, applied: true},
+		{name: "beyond the policy window", window: draw.Pins.GiveawayMaxEntryWindow},
+		{name: "exactly at snapshot expiry", snapshotID: "snapshot", window: draw.Pins.GiveawayMaxEntryWindow - time.Minute, applied: true},
+		{name: "beyond snapshot expiry", snapshotID: "snapshot", window: draw.Pins.GiveawayMaxEntryWindow - time.Second, wantErr: draw.ErrSnapshotExpiry},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t, draw.Config{})
-			r := f.openFor(407, draw.Terms{Kind: draw.KindGiveaway, Prize: draw.Prize{Item: "poster"}}, tc.window)
+			r := f.openFor(407, draw.Terms{Kind: draw.KindGiveaway, Prize: draw.Prize{Item: "poster"}, SnapshotID: tc.snapshotID}, tc.window)
 			applied, err := f.Extend(t.Context(), draw.ExtendRequest{Channel: r.Channel, Actor: "mod"})
-			require.NoError(t, err)
+			require.ErrorIs(t, err, tc.wantErr)
 			require.Equal(t, tc.applied, applied)
 			f.checkExtension(r, applied)
 		})

@@ -832,18 +832,9 @@
           "count",
           "entrants",
           "amount",
-          "points",
-          "claim",
-          "prize"
+          "points"
         ],
         "message_key": "wonMessage"
-      },
-      {
-        "name": "claimok",
-        "fields": [
-          "user"
-        ],
-        "message_key": "claimOkMessage"
       }
     ]
   },

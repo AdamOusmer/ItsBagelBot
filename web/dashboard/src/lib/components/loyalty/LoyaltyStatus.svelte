@@ -13,7 +13,7 @@
   import { FREEZE_MAX_MINUTES } from '@bagel/kit/catalog';
   import PageNotice from '#lib/components/shared/PageNotice.svelte';
   import type { FreezeView, RaffleStatus } from '#lib/server/loyalty-store';
-  import { finishFreezeAction } from '../../../routes/(app)/loyalty/freeze-action';
+  import { finishFreezeAction } from './freeze-action';
 
   let { freeze, health, enabled }: {
     freeze: FreezeView | null;

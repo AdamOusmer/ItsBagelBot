@@ -20,7 +20,7 @@ import (
 )
 
 func TestLocalBalanceMutationsInvalidateEveryTopLimit(t *testing.T) {
-	for _, verb := range []string{"add", "transfer", "wager"} {
+	for _, verb := range []string{"add", "spend", "transfer", "wager"} {
 		t.Run(verb, func(t *testing.T) {
 			nc := testnats.Connect(t)
 			served := bustest.Respond(t, nc, counterRPCPrefix+".top.get", `{"top":[{"viewer_id":"7","points":5}]}`)
@@ -80,6 +80,9 @@ func mutateLoyaltyStore(ctx context.Context, store *ValkeyLoyaltyStore, channel 
 	switch verb {
 	case "add":
 		_, _, err := store.BalanceAdjustViewer(ctx, BalanceAdjustment{BroadcasterID: channel, ViewerID: 7, ViewerLogin: "viewer", Value: 1})
+		return err
+	case "spend":
+		_, _, _, err := store.BalanceSpend(ctx, PointSpend{BroadcasterID: channel, ViewerID: 7, Amount: 1})
 		return err
 	case "transfer":
 		_, _, _, err := store.BalanceTransfer(ctx, PointTransfer{BroadcasterID: channel, FromViewerID: 7, TargetViewerID: 8, TargetLogin: "other", Amount: 1})

@@ -89,12 +89,10 @@ type FreezeStamp struct {
 type FreezeSetRequest struct {
 	UserID  string `json:"user_id"`
 	Minutes int    `json:"minutes"`
-	ActorID string `json:"actor_id"`
 }
 
 type FreezeReleaseRequest struct {
-	UserID  string `json:"user_id"`
-	ActorID string `json:"actor_id"`
+	UserID string `json:"user_id"`
 }
 
 type FreezeGetRequest struct {
@@ -175,8 +173,6 @@ type BalanceCountRequest struct {
 	MinPoints       int64  `json:"min_points,omitempty"`
 	MinWatchSeconds int64  `json:"min_watch_seconds,omitempty"`
 }
-
-func (r BalanceCountRequest) Requested() string { return r.UserID }
 
 type BalanceCount struct {
 	Count int64 `json:"count"`

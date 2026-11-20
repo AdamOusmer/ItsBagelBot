@@ -21,7 +21,10 @@ function replyVariableGroups(mod: ModuleDef) {
   return mod.replies.flatMap((reply) => {
     if (!reply.tokens?.length) return [];
     const samples = Object.fromEntries(reply.tokens.map((token) => [token.name.slice(mod.id.length + 1), token.sample]));
-    if (mod.id === MOD.raffle && reply.key === 'opened') delete samples.points;
+    if (mod.id === MOD.raffle && reply.key === 'opened') {
+      delete samples.points;
+      delete samples.time;
+    }
     return [{ name: reply.key.toLowerCase(), messageKey: reply.messageKey as string | undefined, fields: Object.keys(samples), samples }];
   });
 }
@@ -47,11 +50,7 @@ const extraGroups: Record<string, { name: string; samples: Record<string, string
   stream: [{ name: 'channel', samples: { uptime: '2 hours, 15 minutes', title: 'bagel baking and chill', game: 'Just Chatting', viewers: '128' } }],
   queue: [{ name: 'status', samples: { size: '12', entries: 'SnackPackPanda, MikanMeerkat', open: 'true' } }],
   giveaway: [{ name: 'status', samples: { prize: 'a game key', count: '18', left: '180' } }],
-  raffle: [
-    { name: 'status', samples: { entrants: '18', seconds: '120', open: 'true' } },
-    { name: 'won', samples: { claim: '15', prize: 'a game key' } },
-    { name: 'claimok', messageKey: 'claimOkMessage', samples: { user: 'SnackPackPanda' } }
-  ],
+  raffle: [{ name: 'status', samples: { entrants: '18', seconds: '120', open: 'true' } }],
   govee: [{ name: 'redeem', samples: { user: 'PrincessBarney', color: 'blue' } }],
   channelpoints: [{ name: 'redeem', samples: { user: 'PrincessBarney', reward: 'Hydrate', input: 'water please', cost: '500', channel: 'itsmavey', counter: '12', points: '100' } }],
   triggers: [{ name: 'response', samples: { user: 'PrincessBarney', channel: 'itsmavey' } }],

@@ -56,15 +56,7 @@ type Terms struct {
 	MultiRaffle      bool             `json:",omitempty"`
 	Rules            codec.RawMessage `json:",omitempty"`
 	SnapshotID       string           `json:"snapshot_id,omitempty"`
-	LegacySnapshotID string           `json:"freeze_id,omitempty"`
 	ClosesAt         time.Time
-}
-
-func (t Terms) StandingsID() string {
-	if t.SnapshotID != "" {
-		return t.SnapshotID
-	}
-	return t.LegacySnapshotID
 }
 
 type Round struct {
@@ -79,6 +71,13 @@ type Round struct {
 	ClaimPausedAt time.Time
 	Winners       int
 	Actions       []Action
+}
+
+func (r Round) snapshotExpiry() time.Time {
+	if r.Terms.SnapshotID == "" {
+		return time.Time{}
+	}
+	return r.OpenedAt.Add(Pins.GiveawayMaxEntryWindow)
 }
 
 type Action struct {
