@@ -3652,6 +3652,8 @@ export type KnownMessageKey =
   | 'loyalty.freezeHint'
   | 'loyalty.freezeLag'
   | 'loyalty.freezeMinutes'
+  | 'loyalty.freezeMinutesLeft'
+  | 'loyalty.freezeRoundHold'
   | 'loyalty.freezeStatusLive'
   | 'loyalty.freezeStatusPaused'
   | 'loyalty.freezeTitle'

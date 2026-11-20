@@ -37,9 +37,11 @@
   }
 
   .bb-alert--info {
+    --alert-rgb: var(--bb-status-info-rgb);
     --alert-fg: var(--bb-status-info-fg);
     --alert-accent: var(--bb-status-info);
     --alert-bg: var(--bb-status-info-bg);
+    --alert-border: var(--bb-status-info-border);
   }
 
   .bb-alert--callout {
@@ -57,6 +59,11 @@
   .bb-alert--callout.bb-alert--danger {
     --alert-bg: rgba(var(--bb-status-danger-rgb), 0.06);
     --alert-border: rgba(var(--bb-status-danger-rgb), 0.24);
+  }
+
+  .bb-alert--callout.bb-alert--info {
+    --alert-bg: rgba(var(--alert-rgb), 0.06);
+    --alert-border: rgba(var(--alert-rgb), 0.24);
   }
 
   .bb-alert--callout .bb-alert__msg > b:first-child {

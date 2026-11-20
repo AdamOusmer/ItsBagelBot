@@ -135,7 +135,7 @@ export function schedulePurgeChannel(userId: string, logins: readonly string[] =
   void knownLogins(userId, logins).then((known) => pageQueue.add(allPageUrls(userId, known)));
 }
 
-// Leaderboard tags are purged on visibility, loyalty on/off, freeze changes, points reset, rename or deletion.
+// Leaderboard responses are tagged per login: call only on board visibility, loyalty on/off, freeze change, points reset, rename or deletion.
 export function scheduleLeaderboardPurge(userId: string, logins: readonly string[] = []): void {
   if (DEMO) return;
   void knownLogins(userId, logins).then((known) => leaderboardQueue.add(known.map(leaderboardCacheTag)));

@@ -37,6 +37,7 @@
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import ModuleCommandList from '#lib/components/modules/ModuleCommandList.svelte';
   import LoyaltyGameRow from '#lib/components/loyalty/LoyaltyGameRow.svelte';
+  import { finishFreezeAction } from './freeze-action';
 
   let { data } = $props();
   const { t, locale } = getI18n();
@@ -241,7 +242,10 @@
 
   const top = $derived(data.top ?? []);
   const freeze = $derived(data.freeze);
+  const hasModHold = $derived(freeze?.holders.includes('mod') ?? false);
+  const hasRoundHold = $derived(freeze?.holders.some((holder) => holder.startsWith('round:')) ?? false);
   let freezeBusy = $state(false);
+  let freezeNow = $state(Date.now());
   let minutes = $state(FREEZE_MAX_MINUTES);
   let blockTransfer = $state(false);
   let closeGames = $state(false);
@@ -253,10 +257,16 @@
 
   $effect(() => {
     if (!freeze) return;
-    const wait = freeze.expiresAt - Date.now();
+    const now = Date.now();
+    freezeNow = now;
+    const wait = freeze.expiresAt - now;
     if (wait <= 0) return;
+    const interval = setInterval(() => (freezeNow = Date.now()), 1000);
     const timeout = setTimeout(() => void invalidateAll(), wait);
-    return () => clearTimeout(timeout);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
   });
 
   const timeFmt = $derived(new Intl.DateTimeFormat(locale, { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }));
@@ -266,23 +276,18 @@
   const topCaption = $derived(data.topFreeze
     ? t('loyalty.topPausedAt', { time: timeFmt.format(data.topFreeze.asOf) })
     : t('loyalty.topCaption'));
-  const freezeDuration = $derived(freeze ? Math.ceil((freeze.expiresAt - freeze.asOf) / 60_000) : null);
+  const freezeMinutesLeft = $derived(freeze ? Math.max(0, Math.ceil((freeze.expiresAt - freezeNow) / 60_000)) : null);
 
   const freezeSubmit: SubmitFunction = () => {
-    const releasing = Boolean(freeze);
+    const releasing = hasModHold;
     freezeBusy = true;
     return async ({ result }) => {
       try {
         if (result.type === 'success') {
-          toast('success', t(releasing ? 'loyalty.toastUnfrozen' : 'loyalty.toastFrozen'));
           blockTransfer = false;
           closeGames = false;
-          await invalidateAll();
-          return;
         }
-        const reason = refusalReason(result);
-        toast('danger', t(reason === 'held_by_round' ? 'loyalty.toastUnfreezeRound' : 'loyalty.toastFreezeFailed'));
-        if (reason) await invalidateAll();
+        await finishFreezeAction(result, releasing, t);
       } finally {
         freezeBusy = false;
       }
@@ -322,12 +327,15 @@
         <Text as="span" size="sm"><bb-fit mode="block">{freezeStatus}</bb-fit></Text>
       </div>
       <div class="freeze-copy">
-        <Text as="span" size="xs" tone="muted"><bb-fit mode="block">{t('loyalty.freezeHint')}</bb-fit></Text>
+        <Text as="span" size="xs" tone="muted">
+          <bb-fit mode="block">{t(hasRoundHold ? 'loyalty.freezeRoundHold' : 'loyalty.freezeHint')}</bb-fit>
+        </Text>
       </div>
-      <form method="POST" action={freeze ? '?/unfreeze' : '?/freeze'} use:enhance={freezeSubmit}>
+      <form method="POST" action={hasModHold ? '?/unfreeze' : '?/freeze'} use:enhance={freezeSubmit}>
         <input type="hidden" name="freeze_id" value={freeze?.id ?? ''} />
+        <input type="hidden" name="minutes" value={Math.max(1, freezeMinutesLeft ?? 1)} disabled={!freeze || hasModHold} />
         <fieldset class="freeze-config" class:freeze-locked={!!freeze} disabled={!!freeze || freezeBusy}>
-          <Field label={t('loyalty.freezeMinutes')}>
+          <Field label={t(freeze ? 'loyalty.freezeMinutesLeft' : 'loyalty.freezeMinutes')}>
             <span class="num">
               <Input
                 fill
@@ -337,7 +345,7 @@
                 max={FREEZE_MAX_MINUTES}
                 step={1}
                 required
-                value={freezeDuration ?? minutes}
+                value={freezeMinutesLeft ?? minutes}
                 oninput={(event) => (minutes = event.currentTarget.valueAsNumber)}
               />
             </span>
@@ -371,7 +379,7 @@
         <div class="actions">
           <span class="freeze-button">
             <Button block variant="primary" type="submit" busy={freezeBusy}>
-              <bb-fit>{t(freeze ? 'loyalty.unfreezeButton' : 'loyalty.freezeButton')}</bb-fit>
+              <bb-fit>{t(hasModHold ? 'loyalty.unfreezeButton' : 'loyalty.freezeButton')}</bb-fit>
             </Button>
           </span>
         </div>

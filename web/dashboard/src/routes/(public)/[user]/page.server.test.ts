@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { describe, expect, mock, test } from 'bun:test';
+import { describe, expect, mock, spyOn, test } from 'bun:test';
 import { stubSvelteKit } from '../../../../test/sveltekit';
 import { boardHref, emptyCopyKeys } from '../../../lib/leaderboard-board';
 import type { FreezeStamp, StandingsPin } from '#lib/server/loyalty-store';
@@ -394,6 +394,26 @@ describe('(public)/[user] load: search and pages', () => {
 describe('(public)/[user] load: consistent standings during a freeze', () => {
   const snapshot = { id: 'first', asOf: 1_700_000_000_000, expiresAt: 1 };
   const replacement = { ...snapshot, id: 'second', asOf: snapshot.asOf + 1000 };
+
+  test.each([
+    { name: 'time remaining', remaining: 12_950, cap: 12 },
+    { name: 'ended within the snapshot grace period', remaining: -1_000, cap: 1 }
+  ])('caps edge caching for a pinned freeze with $name', async ({ remaining, cap }) => {
+    const now = snapshot.asOf + 60_000;
+    const freeze = { ...snapshot, expiresAt: now + remaining };
+    arrange({ freeze });
+    const clock = spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      const { page } = await loadPage();
+      expect({ pins, frozen: page?.frozen, cap: lastLocals.edgeTtlCapSec }).toEqual({
+        pins: [{ part: 'podium', pin: {} }, { part: 'board', pin: { freezeId: freeze.id } }],
+        frozen: { asOf: freeze.asOf },
+        cap
+      });
+    } finally {
+      clock.mockRestore();
+    }
+  });
 
   test.each([
     { name: 'live podium as a freeze starts', nextFreeze: snapshot, expected: null, boardPin: { live: true } },

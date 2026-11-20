@@ -11,6 +11,7 @@ import { readModuleBlob } from './module-blob';
 import { parseCounterValue, readPointBalance } from '@bagel/kit/validation';
 
 const LOYALTY_MODULE = MOD.loyalty;
+const FREEZE_SET_TIMEOUT_MS = 30_000;
 
 type BroadcasterId = string;
 
@@ -67,8 +68,8 @@ interface LoyaltyReplyWire extends FreezeStampWire {
   error?: string;
 }
 
-function callLoyalty(verb: string, req: Record<string, unknown>): Promise<LoyaltyReplyWire> {
-  return rpc<LoyaltyReplyWire>(`${SUB.loyalty}.${verb}`, req, 4000);
+function callLoyalty(verb: string, req: Record<string, unknown>, timeoutMs = 4000): Promise<LoyaltyReplyWire> {
+  return rpc<LoyaltyReplyWire>(`${SUB.loyalty}.${verb}`, req, timeoutMs);
 }
 
 const RATE_KEYS = [
@@ -259,7 +260,7 @@ export async function freezeStandings(userId: BroadcasterId, options: FreezeOpti
     minutes: options.minutes,
     block_transfer: options.blockTransfer,
     close_games: options.closeGames
-  });
+  }, FREEZE_SET_TIMEOUT_MS);
   return freezeView(reply.freeze);
 }
 

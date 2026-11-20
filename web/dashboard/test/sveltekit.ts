@@ -30,13 +30,17 @@ function stubCatalogBundle(): void {
   mock.module('virtual:bagel-i18n', () => ({ urls: {}, sliced: false }));
 }
 
-export function stubSvelteKit(options: { dev?: boolean } = {}): void {
+export function stubSvelteKit(options: { dev?: boolean; invalidateAll?: () => Promise<void> } = {}): void {
   process.env.NEW_RELIC_ENABLED = 'false';
   process.env.LOG_LEVEL = 'silent';
   stubI18n();
   stubCatalogBundle();
   mock.module('$app/env', () => ({ browser: false, building: false, dev: options.dev ?? false }));
-  mock.module('$app/navigation', () => ({ afterNavigate: () => {}, beforeNavigate: () => {} }));
+  mock.module('$app/navigation', () => ({
+    afterNavigate: () => {},
+    beforeNavigate: () => {},
+    invalidateAll: options.invalidateAll ?? (async () => {})
+  }));
   mock.module('$app/state', () => ({ navigating: {}, page: {}, updated: {} }));
   mock.module('$app/forms', () => ({ enhance: () => ({ destroy: () => {} }) }));
   mock.module('@bagel/kit/server/env', () => ({ env: privateEnv }));
