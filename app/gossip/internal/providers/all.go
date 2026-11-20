@@ -162,12 +162,18 @@ func appendCustom(out []provider.Provider, cfg *config.Config, d provider.Deps, 
 }
 
 func appendTTS(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	return gated(out, log, cfg.GeminiAPIKey == "", "tts provider disabled: GEMINI_API_KEY not set", tts.New, tts.Config{
+	disabled := cfg.VertexCredentials == "" && cfg.GeminiAPIKey == ""
+	return gated(out, log, disabled, "tts provider disabled: GOOGLE_VERTEX_CREDENTIALS and GEMINI_API_KEY unset", tts.New, tts.Config{
 		BaseURL:          cfg.GeminiBaseURL,
 		APIKey:           cfg.GeminiAPIKey,
 		Model:            cfg.GeminiTTSModel,
 		Voice:            cfg.GeminiTTSVoice,
 		RateLimit:        cfg.GeminiTTSRateLimit,
 		ChannelRateLimit: cfg.GeminiTTSChannelRateLimit,
+		Vertex: tts.VertexConfig{
+			Credentials: cfg.VertexCredentials,
+			Project:     cfg.VertexProject,
+			Location:    cfg.VertexLocation,
+		},
 	}, d)
 }

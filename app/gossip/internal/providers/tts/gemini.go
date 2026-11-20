@@ -7,18 +7,18 @@ import (
 	"cmp"
 	"context"
 	"encoding/base64"
-	"errors"
 	"net/http"
 	"slices"
 	"strings"
-	"unicode/utf8"
 
 	"ItsBagelBot/app/gossip/internal/core"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/codec"
 )
 
-const wavMIME = "audio/wav"
+type geminiBackend struct {
+	client *core.HTTPClient
+}
 
 type interaction struct {
 	Model            gossiprpc.TTSModel `json:"model"`
@@ -107,13 +107,13 @@ func (s responseStep) audio() string {
 	return ""
 }
 
-func (s *synthesizer) fetch(ctx context.Context, req gossiprpc.Request) gossiprpc.TTSSynthesizeReply {
+func (g geminiBackend) generate(ctx context.Context, req gossiprpc.Request) (speech, error) {
 	body, err := codec.Marshal(interactionFor(req))
 	if err != nil {
-		return gossiprpc.TTSSynthesizeReply{Error: "internal error"}
+		return speech{}, errInternal
 	}
 	var result interactionResponse
-	err = s.client.Do(ctx, core.Request{
+	err = g.client.Do(ctx, core.Request{
 		Method:      http.MethodPost,
 		Path:        "/v1beta/interactions",
 		Body:        body,
@@ -121,39 +121,21 @@ func (s *synthesizer) fetch(ctx context.Context, req gossiprpc.Request) gossiprp
 		DecodeError: decodeGeminiError,
 	}, &result)
 	if err != nil {
-		return s.failure(ctx, err)
+		return speech{}, err
 	}
-	return result.reply(ctx, req)
+	return result.speech()
 }
 
-func (r interactionResponse) reply(ctx context.Context, req gossiprpc.Request) gossiprpc.TTSSynthesizeReply {
+func (r interactionResponse) speech() (speech, error) {
 	data := r.audio()
 	if data == "" {
-		err := errors.New("speech provider returned no audio")
-		core.RecordFetchError(ctx, err)
-		return gossiprpc.TTSSynthesizeReply{Error: err.Error()}
+		return speech{}, errNoAudio
 	}
 	audio, duration, err := decodeWAV(data)
 	if err != nil {
-		core.RecordFetchError(ctx, err)
-		return gossiprpc.TTSSynthesizeReply{Error: "speech provider returned invalid audio"}
+		return speech{}, errInvalidAudio
 	}
-	usage := r.tokenUsage()
-	return gossiprpc.TTSSynthesizeReply{
-		Audio:            audio,
-		MimeType:         wavMIME,
-		DurationMS:       duration,
-		BilledCharacters: utf8.RuneCountInString(req.Text),
-		StyleCharacters:  utf8.RuneCountInString(req.Style),
-		AudioTokens:      usage.audio,
-		TotalTokens:      usage.total,
-		Model:            req.Model,
-	}
-}
-
-type tokenUsage struct {
-	audio int64
-	total int64
+	return speech{wav: audio, durationMS: duration, usage: r.tokenUsage()}, nil
 }
 
 func (r interactionResponse) tokenUsage() tokenUsage {

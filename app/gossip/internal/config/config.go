@@ -75,6 +75,9 @@ type Config struct {
 	GeminiTTSVoice            string
 	GeminiTTSRateLimit        float64
 	GeminiTTSChannelRateLimit float64
+	VertexCredentials         string
+	VertexProject             string
+	VertexLocation            string
 
 	FetchKeySubjectPrefix  string
 	FetchProjectionSubject string
@@ -154,6 +157,9 @@ func Load() *Config {
 		GeminiTTSVoice:            env.Get("GEMINI_TTS_VOICE", "Kore"),
 		GeminiTTSRateLimit:        env.GetFloat("GEMINI_TTS_RATE_LIMIT", 60),
 		GeminiTTSChannelRateLimit: env.GetFloat("GEMINI_TTS_CHANNEL_RATE_LIMIT", 12),
+		VertexCredentials:         env.Get("GOOGLE_VERTEX_CREDENTIALS", ""),
+		VertexProject:             env.Get("GOOGLE_VERTEX_PROJECT", ""),
+		VertexLocation:            env.Get("GOOGLE_VERTEX_LOCATION", "global"),
 
 		FetchKeySubjectPrefix:  conf.FetchKeyPrefix.Get(),
 		FetchProjectionSubject: env.Get("PROJECTION_FETCHES_SUBJECT", "rpc.internal.projection.commands.fetches.get"),

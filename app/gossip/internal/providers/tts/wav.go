@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	wavMIME       = "audio/wav"
 	wavSampleRate = 24000
 	wavFrameBytes = 2
 	wavByteRate   = wavSampleRate * wavFrameBytes
@@ -77,8 +78,7 @@ func hasWAVSignature(wav []byte) bool {
 func isGeminiPCM(format, pcm []byte) bool {
 	var decoded wavFormat
 	_, err := binary.Decode(format, binary.LittleEndian, &decoded)
-	want := wavFormat{Encoding: 1, Channels: 1, SampleRate: wavSampleRate, ByteRate: wavByteRate, FrameBytes: wavFrameBytes, SampleBits: 16}
-	if err != nil || decoded != want {
+	if err != nil || decoded != pcmFormat(wavSampleRate) {
 		return false
 	}
 	return hasPCMFrames(pcm)
@@ -86,4 +86,23 @@ func isGeminiPCM(format, pcm []byte) bool {
 
 func hasPCMFrames(pcm []byte) bool {
 	return len(pcm) > 0 && len(pcm)%wavFrameBytes == 0
+}
+
+func pcmFormat(rate uint32) wavFormat {
+	return wavFormat{Encoding: 1, Channels: 1, SampleRate: rate, ByteRate: rate * wavFrameBytes, FrameBytes: wavFrameBytes, SampleBits: 16}
+}
+
+func wrapPCM(pcm []byte, rate uint32) ([]byte, int64) {
+	const headerBytes = 44
+	format := pcmFormat(rate)
+	wav := make([]byte, headerBytes+len(pcm))
+	copy(wav, "RIFF")
+	binary.LittleEndian.PutUint32(wav[4:], uint32(len(wav)-8))
+	copy(wav[8:], "WAVEfmt ")
+	binary.LittleEndian.PutUint32(wav[16:], 16)
+	_, _ = binary.Encode(wav[20:36], binary.LittleEndian, format)
+	copy(wav[36:], "data")
+	binary.LittleEndian.PutUint32(wav[40:], uint32(len(pcm)))
+	copy(wav[headerBytes:], pcm)
+	return wav, int64(len(pcm)) * 1000 / int64(format.ByteRate)
 }

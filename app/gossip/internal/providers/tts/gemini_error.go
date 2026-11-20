@@ -43,11 +43,7 @@ func decodeGeminiError(upstream *core.UpstreamError, body []byte) error {
 }
 
 func readGeminiError(upstream *core.UpstreamError, body []byte) error {
-	var envelope struct {
-		Error geminiError `json:"error"`
-	}
-	_ = codec.Unmarshal(body, &envelope)
-	details := envelope.Error
+	details := readGoogleError(body)
 	if upstream.Status == http.StatusBadRequest && details.namesAPIKey() {
 		return fmt.Errorf("%w: %w", errKeyRejected, upstream)
 	}
@@ -55,6 +51,14 @@ func readGeminiError(upstream *core.UpstreamError, body []byte) error {
 		upstream.RetryAfter = details.retryAfter(upstream.RetryAfter)
 	}
 	return upstream
+}
+
+func readGoogleError(body []byte) geminiError {
+	var envelope struct {
+		Error geminiError `json:"error"`
+	}
+	_ = codec.Unmarshal(body, &envelope)
+	return envelope.Error
 }
 
 func (e geminiError) namesAPIKey() bool {
