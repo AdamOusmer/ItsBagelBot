@@ -4,7 +4,7 @@
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { fail, redirect, type Cookies } from '@sveltejs/kit';
-import { setOnboarded } from '#lib/server/services';
+import { publishEventSub, setOnboarded, type AccountState } from '#lib/server/services';
 import { applyFeaturePreset } from '#lib/server/feature-presets';
 import { count } from '@bagel/kit/server/analytics';
 import { SERVER_STRATEGIES } from '#lib/server/importer';
@@ -21,6 +21,18 @@ type SetupPreset = 'start-new' | 'integrate' | 'quiet';
 type Counted = SetupPreset | 'import';
 
 const consented = (form: FormData) => form.get('consent') === 'yes';
+
+function account(locals: App.Locals): AccountState | null {
+  const state = locals.accountState;
+  return state && 'value' in state ? state.value : null;
+}
+
+const termsAccepted = (locals: App.Locals) => account(locals)?.onboarded === true;
+
+async function acceptTerms(uid: string, locals: App.Locals) {
+  await setOnboarded(uid, true);
+  if (account(locals)?.active) await publishEventSub(uid, true);
+}
 
 async function tourSession(locals: App.Locals): Promise<Session | null> {
   if (locals.session) return locals.session;
@@ -40,11 +52,20 @@ function connectedSources(cookies: Cookies): Record<ImportSource, boolean> {
   >;
 }
 
-function owner(locals: App.Locals) {
+function signedIn(locals: App.Locals, permitted: (s: Session) => boolean) {
   const s = locals.session;
   if (!s) return { failure: fail(401, { error: actionError(locals.locale, 'Sign in to finish setup.') }) };
-  if (!isOwnerSession(s)) return { failure: fail(403, { error: actionError(locals.locale, 'Only the channel owner can finish setup.') }) };
+  if (!permitted(s)) return { failure: fail(403, { error: actionError(locals.locale, 'Only the channel owner can finish setup.') }) };
   return { uid: s.user_id };
+}
+
+const notImpersonated = (s: Session) => !s.impersonator_id;
+const owner = (locals: App.Locals) => signedIn(locals, isOwnerSession);
+const signer = (locals: App.Locals) => signedIn(locals, notImpersonated);
+
+function welcomeClosed(s: Session, locals: App.Locals): boolean {
+  if (s.impersonator_id) return true;
+  return !!s.delegate_of && termsAccepted(locals);
 }
 
 async function markOnboarded(save: () => Promise<unknown>) {
@@ -82,12 +103,24 @@ async function finishSetup<R>(
 export const load: PageServerLoad = async ({ locals, cookies }) => {
   const s = await tourSession(locals);
   if (!s) throw redirect(302, `/login?next=${encodeURIComponent('/welcome')}`);
-  if (!isOwnerSession(s)) throw redirect(303, '/');
+  if (welcomeClosed(s, locals)) throw redirect(303, '/');
   count('onboarding.steps', 'viewed');
-  return { name: s.display_name || s.login, connected: connectedSources(cookies) };
+  return {
+    name: s.display_name || s.login,
+    connected: connectedSources(cookies),
+    accepted: termsAccepted(locals),
+    delegate: !!s.delegate_of
+  };
 };
 
 export const actions: Actions = {
+  consent: async ({ locals, request }) => {
+    if (!consented(await request.formData())) return consentMissing(locals);
+    if (DEMO) return { ok: true };
+    const who = signer(locals);
+    if ('failure' in who) return who.failure;
+    return (await markOnboarded(() => acceptTerms(who.uid, locals))) ?? { ok: true };
+  },
   done: async ({ locals, request }) => {
     const form = await request.formData();
     if (!consented(form)) return consentMissing(locals);

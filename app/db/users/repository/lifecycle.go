@@ -92,7 +92,7 @@ func legacyEngagementSeed(row *ent.User, req usersrpc.LifecycleRequest) bool {
 	return !req.ObservedAt.IsZero()
 }
 func (m lifecycleMutation) reply() usersrpc.LifecycleReply {
-	return usersrpc.LifecycleReply{State: m.state, AccountCreatedAt: m.row.CreatedAt.UnixMicro(), StateRevision: m.row.StateRevision}
+	return usersrpc.LifecycleReply{State: m.state, AccountCreatedAt: m.row.CreatedAt.UnixMicro(), StateRevision: m.row.StateRevision, TermsAccepted: m.row.Onboarded}
 }
 func (m lifecycleMutation) readRequest() (usersrpc.LifecycleReply, bool, error) {
 	reply := m.reply()

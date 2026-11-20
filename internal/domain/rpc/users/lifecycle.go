@@ -47,5 +47,6 @@ type LifecycleReply struct {
 	AccountCreatedAt int64              `json:"account_created_at"`
 	StateRevision    int64              `json:"state_revision"`
 	Applied          bool               `json:"applied"`
+	TermsAccepted    bool               `json:"terms_accepted"`
 	rpc.Refusal
 }

@@ -60,7 +60,8 @@ test.each([
   { name: 'unaccepted owner on the overview', onboarded: false, route: '/(app)', session: {}, landing: '/welcome' },
   { name: 'unaccepted owner in settings', onboarded: false, route: '/(app)/settings', session: {}, landing: null },
   { name: 'accepted owner', onboarded: true, route: '/(app)/commands', session: {}, landing: null },
-  { name: 'unaccepted delegate', onboarded: false, route: '/(app)/commands', session: { delegate_of: '2002', sections: ['commands'] }, landing: null },
+  { name: 'unaccepted delegate', onboarded: false, route: '/(app)/commands', session: { delegate_of: '2002', sections: ['commands'] }, landing: '/welcome' },
+  { name: 'accepted delegate', onboarded: true, route: '/(app)/commands', session: { delegate_of: '2002', sections: ['commands'] }, landing: null },
   { name: 'unaccepted impersonated owner', onboarded: false, route: '/(app)/commands', session: { impersonator_id: '3003' }, landing: null },
   { name: 'unreadable account state', onboarded: null, route: '/(app)/commands', session: {}, landing: null }
 ])('consent gate: $name', async ({ onboarded, route, session, landing }) => {
