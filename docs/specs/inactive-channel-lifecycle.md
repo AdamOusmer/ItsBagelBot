@@ -81,6 +81,8 @@ Retaining subscriptions has a deliberate cost: dormant channels still occupy sub
 
 If a dormant subscription is lost, process its revocation or fleet transport-recovery event through a bounded repair operation. Do not invent a polling loop to discover activity. A missing wake subscription is an observable degraded state with explicit Retry; reconnect/Enable is the fallback if no event can arrive. A dormant account whose authorization fails becomes blocked.
 
+As an exception to section 6's chat rule, Outgress may post the Twitch permission notice on an admitted go-live once per channel and required scope set.
+
 ## 5. Blocked and disabled accounts
 
 On a verified access failure, commit the incident and block admission before scheduling cleanup. Stop moderator checks, `stream_status` escalation, token prewarm, speculative enrollment, bot-only settings hydration, and loyalty baseline work. Recheck admission at execution as well as enqueue, including delayed jobs and batch children. Fleet/service bans, trial provenance, and existing output safety rules remain stronger gates.
