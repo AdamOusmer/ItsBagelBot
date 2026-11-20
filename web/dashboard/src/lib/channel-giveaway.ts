@@ -61,14 +61,6 @@ export interface GiveawayRound {
   requirements: string[];
 }
 
-export interface RaffleRound {
-  kind: 'raffle';
-  id: string;
-  phase: GiveawayRound['phase'];
-  closes_ms: number;
-  entries: number;
-}
-
 export interface GiveawayWinner {
   round_id: string;
   slot: number;

@@ -33,14 +33,21 @@ import { baseCookie } from '#lib/server/cookies';
 
 const DEMO = dev && env.DEMO === '1';
 
-const loyaltyGames = catalogChildren(MOD.loyalty).filter((def) => def.id !== MOD.raffle);
+const loyaltyGames = catalogChildren(MOD.loyalty);
 const FRESH_GAME_COOKIE = 'bagel_loyalty_game_fresh';
 
 function gameSettings(rows: ModuleView[]) {
   return loyaltyGames.map((def) => {
     const row = rows.find((r) => r.name === def.id);
-    return { id: def.id, enabled: row?.is_enabled ?? def.defaultEnabled, ...moduleEditState(row) };
+    const settings = moduleEditState(row);
+    if (def.id === MOD.raffle) normalizeMidCount(settings.config);
+    return { id: def.id, enabled: row?.is_enabled ?? def.defaultEnabled, ...settings };
   });
+}
+
+function normalizeMidCount(config: Record<string, string>) {
+  const value = config.midCountEnabled;
+  if (value === 'true' || value === 'false') config.midCountEnabled = value === 'true' ? 'on' : 'off';
 }
 
 function gameRows(uid: string, cookies: Cookies, url: URL) {

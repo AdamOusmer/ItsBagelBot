@@ -180,7 +180,7 @@ describe('module catalog', () => {
     for (const id of ['gamble', 'duel', 'raffle'] as const) {
       const def = moduleDef(id);
       expect(def?.parent).toBe('loyalty');
-      expect(def?.href).toBe(id === 'raffle' ? '/giveaways' : '/loyalty#games');
+      expect(def?.href).toBe('/loyalty#games');
       expect(def?.settings?.some((s) => s.key === 'pointsName')).toBe(false);
     }
   });

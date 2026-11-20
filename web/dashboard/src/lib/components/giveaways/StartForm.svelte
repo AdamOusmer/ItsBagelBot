@@ -10,13 +10,12 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import type { EligibleCount, GiveawayConfig } from '#lib/channel-giveaway';
 
-  let { config, enabled, blocked, busy, demo, active, submit }: {
+  let { config, enabled, blocked, busy, demo, submit }: {
     config: GiveawayConfig;
     enabled: boolean;
     blocked: boolean;
     busy: boolean;
     demo: boolean;
-    active: boolean;
     submit: SubmitFunction;
   } = $props();
 
@@ -31,7 +30,7 @@
     ...config.presets.map((item) => ({ value: item.name, label: item.name }))
   ]);
 
-  const countable = () => active && enabled && !demo && !blocked;
+  const countable = () => enabled && !demo && !blocked;
 
   $effect(() => {
     const selected = preset;

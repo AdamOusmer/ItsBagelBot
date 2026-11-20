@@ -5,8 +5,7 @@ import { giveawayDefaults, type EligibleCount, type GiveawayRound, type Giveaway
 import { MOD, moduleDef } from '@bagel/kit';
 import { logger } from '@bagel/kit/server/logger';
 import { rpc, rpcRefusal, rpcReply, type RpcError } from '@bagel/kit/server/nats';
-import { listModulesForEditing, type ModuleView } from './commands-store';
-import { moduleEditState } from './module-edit-state';
+import { listModulesForEditing } from './commands-store';
 import { readModuleBlob } from './module-blob';
 import { SUB } from './services/subjects';
 import { readGiveawayConfig } from './giveaway-input';
@@ -47,8 +46,7 @@ export interface LiveGiveaways {
 
 export const giveawayDef = moduleDef(MOD.giveaway)!;
 export const unavailableGiveaways: LiveGiveaways = { rounds: [], degraded: true };
-export const emptyGiveawaySettings = { enabled: false, revision: 0, config: giveawayDefaults,
-  raffleSettings: readRaffleSettings(), loyaltyEnabled: false, degraded: true };
+export const emptyGiveawaySettings = { enabled: false, revision: 0, config: giveawayDefaults, degraded: true };
 
 const drawSubject = (verb: DrawRead | DrawMutation) => `rpc.draw.giveaway.${verb}`;
 const drawIdentity = (userId: UserId) => ({ user_id: userId, source: 'dashboard' });
@@ -107,24 +105,14 @@ export async function publicGiveawayWinners(userId: UserId) {
   }
 }
 
-function readRaffleSettings(row?: ModuleView) {
-  const settings = moduleEditState(row);
-  const value = settings.config.midCountEnabled;
-  if (value === 'true' || value === 'false') settings.config.midCountEnabled = value === 'true' ? 'on' : 'off';
-  return { ...settings, enabled: row?.is_enabled ?? false };
-}
-
 export async function giveawaySettings(userId: UserId) {
   try {
     const rows = await listModulesForEditing(userId);
     const row = rows.find((candidate) => candidate.name === MOD.giveaway);
-    const raffle = rows.find((candidate) => candidate.name === MOD.raffle);
     return {
       enabled: row?.is_enabled ?? false,
       revision: row?.revision ?? 0,
       config: readGiveawayConfig(row?.configs),
-      raffleSettings: readRaffleSettings(raffle),
-      loyaltyEnabled: rows.some((candidate) => candidate.name === MOD.loyalty && candidate.is_enabled),
       degraded: false
     };
   } catch (err) {

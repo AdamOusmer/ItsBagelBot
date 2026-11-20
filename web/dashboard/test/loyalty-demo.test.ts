@@ -20,12 +20,12 @@ test('load supplies the loyalty demo shape without a freeze', async () => {
     topFreeze: null,
     freeze: null,
     raffle: null,
-    games: catalogChildren('loyalty').filter(({ id }) => id !== 'raffle').map(({ id }) => ({ id, enabled: false, config: {}, revision: 0 }))
+    games: catalogChildren('loyalty').map(({ id }) => ({ id, enabled: false, config: {}, revision: 0 }))
   });
 });
 
 test.each([
-  { name: 'raffle', partial: '{"prizePoints":"5000"}', status: 400, revision: undefined },
+  { name: 'raffle', partial: '{"prizePoints":"5000"}', status: undefined, revision: 4 },
   { name: 'gamble', partial: '{"winPercent":"55"}', status: undefined, revision: 4 },
   { name: 'duel', partial: '{"minStake":"100"}', status: undefined, revision: 4 },
   { name: 'queue', partial: '{}', status: 400, revision: undefined },

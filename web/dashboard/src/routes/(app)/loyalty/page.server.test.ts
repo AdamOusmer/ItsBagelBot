@@ -18,13 +18,17 @@ const moderator = { user_id: '95', delegate_of: user, sections: ['modules'] };
 const calls: { subject: string; payload: unknown; timeoutMs: number }[] = [];
 let replies: Record<string, object | Error>;
 const loyaltyRow = { name: 'loyalty', is_enabled: true, configs: { pointsName: 'bagels' } };
+const raffleRow = {
+  name: 'raffle', is_enabled: true, revision: 4,
+  configs: { bareRaffle: 'split', midCountEnabled: false }
+};
 
 const valkey = await import('@bagel/kit/server/valkey-store');
 mock.module('@bagel/kit/server/valkey-store', () => ({
   ...valkey,
   getModules: async () => ({
     projected: true,
-    modules: [loyaltyRow]
+    modules: [loyaltyRow, raffleRow]
   })
 }));
 
@@ -86,13 +90,17 @@ test.each([
   { name: 'an inactive freeze', reply: { active: false }, expected: null },
   { name: 'an active freeze', reply: { active: true, ...times }, expected: { asOf: freezeStamp.asOf, expiresAt: freezeStamp.expiresAt } }
 ])('load handles $name independently of the top standings', async ({ reply, expected }) => {
-  replies = { 'freeze.get': reply, 'top.get': { ...stamp } };
+  replies = { 'freeze.get': reply, 'top.get': { ...stamp }, [raffleWire.subject]: raffleWire.reply };
   const page = await load({ locals, cookies: { get: () => undefined } } as never);
   expect(page).toMatchObject({
     enabled: true,
     config: { pointsName: 'bagels' },
     freeze: expected,
-    topFreeze: freezeStamp
+    topFreeze: freezeStamp,
+    games: expect.arrayContaining([
+      { id: 'raffle', enabled: true, revision: 4, config: { bareRaffle: 'split', midCountEnabled: 'off' } }
+    ]),
+    raffle: raffleWire.reply
   });
 });
 
@@ -113,12 +121,16 @@ test.each([
   });
 });
 
+const raffleConfig = { prizePoints: '5000', durationSeconds: '60', bareRaffle: 'split', midCountEnabled: 'off', wonEnabled: 'off' };
+const gambleConfig = { winPercent: '55' };
+const gamePatched = { ok: true, conflict: false, rev: 5 };
+
 test.each([
-  { name: 'gamble', conflict: false, want: { ok: true, conflict: false, rev: 5 } },
-  { name: 'gamble', conflict: true, want: { ok: false, conflict: true, rev: 5 } },
-  { name: 'raffle', conflict: false, want: invalid },
-  { name: 'loyalty', conflict: false, want: invalid }
-])('gameSettings patches only a loyalty child ($name, conflict: $conflict)', async ({ name, conflict, want }) => {
+  { name: 'gamble', conflict: false, configs: gambleConfig, want: gamePatched },
+  { name: 'gamble', conflict: true, configs: gambleConfig, want: { ok: false, conflict: true, rev: 5 } },
+  { name: 'raffle', conflict: false, configs: raffleConfig, want: gamePatched },
+  { name: 'loyalty', conflict: false, configs: null, want: invalid }
+])('gameSettings patches only a loyalty child ($name, conflict: $conflict)', async ({ name, conflict, configs, want }) => {
   const subject = `${SUB.modules}.patch`;
   const projector = `${SUB.projector}.modules.replace`;
   const modules = [loyaltyRow, { name: 'gamble', is_enabled: true, revision: 5, configs: { winPercent: '55' } }];
@@ -130,7 +142,7 @@ test.each([
     method: 'POST',
     body: new URLSearchParams({
       name, is_enabled: 'on', expected_rev: '4',
-      partial: JSON.stringify({ winPercent: '55', claimPrize: 'legacy' })
+      partial: JSON.stringify({ ...configs, claimPrize: 'legacy' })
     })
   });
   const result = await actions.gameSettings({ request, locals, cookies, url } as never);
@@ -140,8 +152,8 @@ test.each([
     refresh: cookies.set.mock.calls.length
   }).toEqual({
     result: want,
-    rpc: name === 'gamble'
-      ? { user_id: user, name, is_enabled: true, expected_rev: 4, configs: { winPercent: '55' } }
+    rpc: configs
+      ? { user_id: user, name, is_enabled: true, expected_rev: 4, configs }
       : undefined,
     refresh: conflict ? 1 : 0
   });

@@ -164,7 +164,7 @@ function slotInput(verb: DrawMutation, form: FormData): DrawInput | null {
   return delivered === undefined ? null : { slot, delivered };
 }
 
-export function drawRoundID(form: FormData) {
+function drawRoundID(form: FormData) {
   const id = text(form, 'round_id');
   return id.length === pins.giveawayRoundIDMaxLen && uuidPattern.test(id) ? id : null;
 }

@@ -70,7 +70,7 @@ beforeEach(() => {
 });
 
 test.each([
-  { id: 'raffle', location: '/giveaways' },
+  { id: 'raffle', location: '/loyalty#games' },
   { id: 'gamble', location: '/loyalty#games' },
   { id: 'duel', location: '/loyalty#games' }
 ])('$id redirects to $location', async ({ id, location }) => {

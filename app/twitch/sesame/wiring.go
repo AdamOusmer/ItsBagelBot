@@ -349,8 +349,3 @@ func registerGiveawayRPC(w wireCtx, deps engine.Deps, standings engine.GiveawayB
 	giveaway := engine.GiveawayRPC{Deps: deps, Announce: announcementConfig(w, deps.Proj), Standings: standings}
 	return giveaway.Subscribe(bus.RPCWiring{NC: w.in.nc, Queue: queueGroup, App: app, Log: w.log})
 }
-
-func registerRaffleRPC(w wireCtx, deps engine.Deps, app *newrelic.Application) error {
-	raffle := engine.RaffleRPC{Deps: deps, Announce: announcementConfig(w, deps.Proj)}
-	return raffle.Subscribe(bus.RPCWiring{NC: w.in.nc, Queue: queueGroup, App: app, Log: w.log})
-}

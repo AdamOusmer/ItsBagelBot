@@ -12,7 +12,7 @@ export const RAFFLE_MODULE: ModuleDef = {
   category: 'Points',
   defaultEnabled: false,
   parent: 'loyalty',
-  href: '/giveaways',
+  href: '/loyalty#games',
   settings: [
     { key: 'prizePoints', label: 'Points prize', type: 'number', placeholder: String(pins.raffleDefaultPrize), help: 'Total points split evenly across winners when no amount is given.' },
     { key: 'durationSeconds', label: 'Raffle length', type: 'number', placeholder: String(pins.raffleDefaultSeconds), help: 'Seconds a raffle stays open when the command gives none. Minimum 5.' },

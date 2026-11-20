@@ -3,18 +3,16 @@
 
 import { fail } from '@sveltejs/kit';
 import { dev } from '$app/env';
-import { GIVEAWAY_LIMITS as pins, MOD, moduleDef, translate } from '@bagel/kit';
+import { GIVEAWAY_LIMITS as pins, MOD, translate } from '@bagel/kit';
 import { env } from '@bagel/kit/server/env';
 import { RpcError } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { mutateAction, thrownStatus } from '@bagel/kit/server/form-action';
 import { effectiveId } from '#lib/server/board';
 import {
-  DrawRefusal, emptyGiveawaySettings, giveawayDef, giveawaySettings, mutateGiveaway, pastWinners,
-  type DrawMutation
+  DrawRefusal, emptyGiveawaySettings, giveawayDef, giveawaySettings, liveGiveaways, mutateGiveaway, pastWinners,
+  type DrawActor, type DrawMutation
 } from '#lib/server/channel-giveaways';
-import { emptyLiveRaffles, liveDraws, mutateRaffle, raffleInput } from '#lib/server/channel-raffles';
-import { patchModuleSettings } from '#lib/server/module-patch';
 import { patchModule } from '#lib/server/commands-store';
 import { drawInput, presetPatch, settingPatch } from '#lib/server/giveaway-input';
 import { assertModuleWritable, gateModulePage } from '#lib/server/module-gate';
@@ -23,7 +21,6 @@ import type { Actions, PageServerLoad } from './$types';
 
 const DEMO = dev && env.DEMO === '1';
 const WINNERS_PER_PAGE = 20;
-const raffleDef = moduleDef(MOD.raffle)!;
 
 async function winnerHistory(userId: string, url: URL) {
   const selected = Number(url.searchParams.get('winners'));
@@ -42,17 +39,16 @@ export const load: PageServerLoad = async ({ locals, depends, url }) => {
   if (DEMO) return {
     ...emptyGiveawaySettings,
     degraded: false,
-    loyaltyEnabled: true,
     demo: true,
     serverNow: Date.now(),
-    live: { rounds: [], degraded: false, raffles: emptyLiveRaffles },
+    live: { rounds: [], degraded: false },
     history: { page: 1, winners: [], more: false, degraded: false }
   };
 
   const uid = effectiveId(locals.session);
   const [settings, live, history] = await Promise.all([
     giveawaySettings(uid),
-    liveDraws(uid),
+    liveGiveaways(uid),
     winnerHistory(uid, url)
   ]);
   return { ...settings, demo: false, serverNow: Date.now(), live, history };
@@ -68,13 +64,9 @@ const refusalCopy: Record<string, string> = {
   'giveaway.open.window': 'invalidInput',
   'giveaway.open.loyalty_off': 'loyaltyOff',
   'giveaway.open.stalled': 'loyaltyStalled',
-  'giveaway.open.busy': 'busy',
+  'giveaway.open.busy': 'busyRaffle',
   'draw.open.busy_giveaway': 'busy',
-  'draw.open.busy_raffle': 'busyRaffle',
-  busy_giveaway: 'busy',
-  busy_raffle: 'busyRaffle',
-  loyalty_off: 'raffleLoyaltyOff',
-  invalid: 'invalidInput'
+  'draw.open.busy_raffle': 'busyRaffle'
 };
 
 type Action = Actions[string];
@@ -86,44 +78,31 @@ function failedDraw(err: unknown, locals: App.Locals) {
   return fail(status, { ok: false as const, error: translate(locals.locale, `giveaways.${key}`) });
 }
 
-type RaffleVerb = Parameters<typeof raffleInput>[0];
-type DrawAction = { kind: 'giveaway'; verb: DrawMutation } | { kind: 'raffle'; verb: RaffleVerb };
-
-function drawAction(action: DrawAction): Action {
-  const { kind, verb } = action;
+function giveawayAction(verb: DrawMutation): Action {
   return (event) => {
     const { locals } = event;
-    const def = kind === 'raffle' ? raffleDef : giveawayDef;
     return mutateAction(event, {
-      gate: async () => DEMO ? (await import('#lib/server/demo-data')).demoSession() : authorizedSession(locals, def),
+      gate: async () => DEMO ? (await import('#lib/server/demo-data')).demoSession() : authorizedSession(locals),
       refusal: () => denied(locals),
       demo: DEMO,
       invalid: translate(locals.locale, 'giveaways.invalidInput'),
-      run: (session, form) => runDraw(action, { userId: effectiveId(session), actorId: session.user_id }, form),
+      run: (session, form) => runDraw(verb, { userId: effectiveId(session), actorId: session.user_id }, form),
       failed: (err) => failedDraw(err, locals),
-      audited: (actor, detail) => auditDashboardImpersonation(actor, `${kind}:${verb}`, detail)
+      audited: (actor, detail) => auditDashboardImpersonation(actor, `giveaway:${verb}`, detail)
     });
   };
 }
 
-async function runDraw(action: DrawAction, actor: Parameters<typeof mutateRaffle>[0], form: FormData) {
-  if (action.kind === 'raffle') return runRaffle(action.verb, actor, form);
-  const input = drawInput(action.verb, form);
+async function runDraw(verb: DrawMutation, actor: DrawActor, form: FormData) {
+  const input = drawInput(verb, form);
   if (!input) return null;
-  await mutateGiveaway(action.verb, actor, input);
+  await mutateGiveaway(verb, actor, input);
   return input.round_id ?? '';
 }
 
-async function runRaffle(verb: RaffleVerb, actor: Parameters<typeof mutateRaffle>[0], form: FormData) {
-  const mutation = raffleInput(verb, form);
-  if (!mutation) return null;
-  const reply = await mutateRaffle(actor, mutation);
-  return mutation.verb === 'start' ? reply.round_id ?? '' : mutation.input.round_id;
-}
-
-function authorizedSession(locals: App.Locals, def = giveawayDef) {
+function authorizedSession(locals: App.Locals) {
   const session = locals.session;
-  return session && assertModuleWritable(session, def) ? session : null;
+  return session && assertModuleWritable(session, giveawayDef) ? session : null;
 }
 
 function denied(locals: App.Locals) {
@@ -175,19 +154,7 @@ function save(kind: SettingsChange): Action {
   };
 }
 
-function giveawayAction(verb: DrawMutation) {
-  return drawAction({ kind: 'giveaway', verb });
-}
-
 export const actions: Actions = {
-  raffleStart: drawAction({ kind: 'raffle', verb: 'start' }),
-  raffleDraw: drawAction({ kind: 'raffle', verb: 'draw' }),
-  raffleCancel: drawAction({ kind: 'raffle', verb: 'cancel' }),
-  raffleSettings: async ({ locals, request }) => {
-    if (!authorizedSession(locals, raffleDef)) return denied(locals);
-    const { result } = await patchModuleSettings(raffleDef, await request.formData(), locals, DEMO);
-    return result;
-  },
   start: giveawayAction('start'),
   close: giveawayAction('close'),
   extend: giveawayAction('extend'),

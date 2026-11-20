@@ -6,7 +6,7 @@ import { MOD } from '@bagel/kit';
 import { env } from '@bagel/kit/server/env';
 import { json } from '@sveltejs/kit';
 import { effectiveId } from '#lib/server/board';
-import { emptyLiveRaffles, liveDraws } from '#lib/server/channel-raffles';
+import { liveGiveaways } from '#lib/server/channel-giveaways';
 import { gateModulePage } from '#lib/server/module-gate';
 import type { RequestHandler } from './$types';
 
@@ -15,6 +15,6 @@ const headers = { 'cache-control': 'no-store' };
 
 export const GET: RequestHandler = async ({ locals }) => {
   gateModulePage(locals.session, MOD.giveaway);
-  if (DEMO) return json({ rounds: [], degraded: false, raffles: emptyLiveRaffles }, { headers });
-  return json(await liveDraws(effectiveId(locals.session)), { headers });
+  if (DEMO) return json({ rounds: [], degraded: false }, { headers });
+  return json(await liveGiveaways(effectiveId(locals.session)), { headers });
 };

@@ -330,7 +330,8 @@ One PR each; main stays shippable after every step.
 
 Raffles are the tool streamers run most, often several times a stream. Item giveaways are rarer and higher stakes. The product now reflects that.
 
-- **One page: Raffles & Giveaways** (Play). Top card: start a points raffle (amount, seconds, winners) or a giveaway, with whichever round is running shown live. Raffle settings live here; the Loyalty Games tab keeps Gamble and Duels and links here.
+- **Giveaways** (Play) covers item giveaways, including starting a giveaway, viewing the live round, managing presets, and viewing past winners.
+- **Points raffles** start only from chat. Raffle settings live on the Loyalty Games tab alongside Gamble and Duels. The Loyalty page shows live raffle status.
 - **Bare `!raffle` setting**: "single winner" (default) or "split pot", so channels used to the split-pot habit keep it. The opening line always states the winner count: "Raffle is LIVE! 3 winners split 5000 points. Type !join (1 min)."
 - **One mid-raffle count** (default on): at half time, "12 entered, 30 s left. Type !join." Joins stay silent.
 - **Old habits work**: `!enter` and `!ticket` act as `!join` while a round is open (first use per viewer adds "entry is free"). Viewers' bare `!giveaway` shows the open giveaway or the last winners.

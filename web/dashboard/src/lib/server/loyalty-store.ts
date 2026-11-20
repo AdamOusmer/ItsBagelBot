@@ -1,7 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { RaffleRound } from '#lib/channel-giveaway';
 import { rpc } from '@bagel/kit/server/nats';
 import type { CounterDef, CounterEntryView, CounterScope, LoyaltyConfig, LoyaltyStanding } from '@bagel/kit';
 import { blankLoyaltyConfig, COUNTER_SCOPES, MOD } from '@bagel/kit';
@@ -297,7 +296,6 @@ export async function standingsPage(userId: BroadcasterId, req: StandingsPageReq
 export interface RaffleStatus {
   accrual_health: 'healthy' | 'starting' | 'offline' | 'stalled';
   unpaid?: string[];
-  rounds?: Omit<RaffleRound, 'kind'>[];
 }
 
 export function raffleStatus(userId: BroadcasterId): Promise<RaffleStatus> {

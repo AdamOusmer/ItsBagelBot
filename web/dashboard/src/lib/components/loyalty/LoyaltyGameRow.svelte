@@ -13,13 +13,10 @@
   import ReplyEditor from '#lib/components/modules/ReplyEditor.svelte';
   import ReplyRow from '#lib/components/modules/ReplyRow.svelte';
 
-  let { def, settings, loyaltyOn, action = 'gameSettings', locked = false, onSaved }: {
+  let { def, settings, loyaltyOn }: {
     def: ModuleDef;
     settings: { enabled: boolean; config: Record<string, string>; revision: number };
     loyaltyOn: boolean;
-    action?: string;
-    locked?: boolean;
-    onSaved?: () => Promise<void>;
   } = $props();
 
   const { t } = getI18n();
@@ -32,7 +29,7 @@
   let selectedReply = $state<ModuleReply | null>(null);
   let message = $state('');
   const on = $derived(loyaltyOn && enabled);
-  const disabled = $derived(locked || activeSave !== null);
+  const disabled = $derived(activeSave !== null);
 
   function syncSettings(incoming: typeof settings) {
     config = { ...incoming.config };
@@ -55,13 +52,12 @@
     activeSave = key;
     statuses[key] = 'saving';
     try {
-      const result = await postAction<ActionOk & { rev?: number; conflict?: boolean }>(action, form);
+      const result = await postAction<ActionOk & { rev?: number; conflict?: boolean }>('gameSettings', form);
       if (result?.ok) {
         rev = result.rev ?? rev;
         enabled = nextEnabled;
         config = { ...config, ...partial };
         statuses[key] = 'saved';
-        await onSaved?.();
         return true;
       }
       if (result?.conflict) {

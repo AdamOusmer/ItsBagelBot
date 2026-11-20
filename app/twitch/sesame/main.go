@@ -120,11 +120,9 @@ func main() {
 	svcboot.FatalIf(log, registerAutomationRPC(w, pipe, core.NR), "failed to subscribe automation rpc")
 	svcboot.FatalIf(log, registerGiveawayRPC(w, deps, loyalty, core.NR), "failed to subscribe giveaway rpc")
 
-	raffleRPC := engine.RaffleStatusRPC{Draw: deps.Draw, Watch: deps.LoyaltyTick, Log: log}
-	svcboot.FatalIf(log, raffleRPC.Subscribe(bus.RPCWiring{NC: w.in.nc, Queue: queueGroup, App: core.NR, Log: log}),
+	raffleStatusRPC := engine.RaffleStatusRPC{Draw: deps.Draw, Watch: deps.LoyaltyTick, Log: log}
+	svcboot.FatalIf(log, raffleStatusRPC.Subscribe(bus.RPCWiring{NC: w.in.nc, Queue: queueGroup, App: core.NR, Log: log}),
 		"failed to subscribe raffle status rpc")
-
-	svcboot.FatalIf(log, registerRaffleRPC(w, deps, core.NR), "failed to subscribe raffle rpc")
 
 	startTrialPromotion(w, recorder)
 
