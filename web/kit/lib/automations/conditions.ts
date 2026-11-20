@@ -6,6 +6,7 @@ import { register, type Table, type Wide } from './engine';
 import { COMPARE_OPS, needsSearchValue } from './compare';
 import { CODE, MAX_AGE_DAYS, MAX_COOLDOWN_SECONDS, MAX_LIST_ENTRIES, MAX_PATTERN_LENGTH, MAX_TEMPLATE_LENGTH, RECIPE_NAME_PATTERN } from './limits';
 import { isCounterChar } from './text';
+import { LOGIN_RE } from '../twitch-names';
 import { CMP_OPS, PERM_LEVELS, VAR_OPS, VAR_OPS_WITH_VALUE } from './values';
 import { checkRegex, commandName } from './triggers';
 import type {
@@ -24,7 +25,6 @@ import type {
   VarCondition,
 } from './types';
 
-const LOGIN_PATTERN = /^[a-z0-9_]{1,25}$/;
 const USER_ID_PATTERN = /^[0-9]{1,19}$/;
 const MAX_CATEGORY_ENTRIES = 50;
 const MAX_CATEGORY_LENGTH = 100;
@@ -36,7 +36,7 @@ export function counterName(c: Chk, field: string, name: string): void {
 
 function checkUsers(c: Chk, p: Wide<UsersCondition>): void {
   c.atLeastOne(p.allow.length + p.deny.length + p.allow_ids.length + p.deny_ids.length > 0);
-  const each = (f: string, s: string) => c.format(f, s, LOGIN_PATTERN);
+  const each = (f: string, s: string) => c.format(f, s, LOGIN_RE);
   c.stringList('allow', p.allow, MAX_LIST_ENTRIES, each);
   c.stringList('deny', p.deny, MAX_LIST_ENTRIES, each);
   const eachId = (f: string, s: string) => checkUserId(c, f, s);

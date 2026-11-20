@@ -135,7 +135,7 @@ func NewUsers(cfg UsersConfig) *Users {
 type displayName string
 
 func (d displayName) storable() displayName {
-	if len(d) > 64 {
+	if validate.DisplayName(string(d)) != nil {
 		return ""
 	}
 	return d
