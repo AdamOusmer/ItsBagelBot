@@ -15,7 +15,7 @@ import (
 func TestStoredTokenLoadFailure(t *testing.T) {
 	loadErr := errors.New("tokens get rpc: nats: timeout")
 	future := time.Now().Add(time.Hour)
-	stored := StoredLoad{AccessToken: "stored-access", AccessTokenExpiresAt: &future}
+	stored := StoredLoad{StoredToken: StoredToken{AccessToken: "stored-access", AccessTokenExpiresAt: &future}}
 
 	tests := []struct {
 		name     string
@@ -42,7 +42,7 @@ func TestStoredTokenLoadFailure(t *testing.T) {
 				Load: func(context.Context) StoredLoad {
 					return tc.loads[atomic.AddInt32(&loadCalls, 1)-1]
 				},
-				Persist: func(context.Context, string, string, time.Time) error {
+				Persist: func(context.Context, StoredToken) error {
 					atomic.AddInt32(&persists, 1)
 					return nil
 				},

@@ -141,16 +141,21 @@ func NewUserTokenSource(creds ClientCredentials, refreshToken string) *Source {
 	return s
 }
 
-type StoredLoad struct {
+type StoredToken struct {
 	RefreshToken         string
 	AccessToken          string
 	AccessTokenExpiresAt *time.Time
-	Err                  error
+	Scopes               []string
+}
+
+type StoredLoad struct {
+	StoredToken
+	Err error
 }
 
 type StoredTokenIO struct {
 	Load    func(ctx context.Context) StoredLoad
-	Persist func(ctx context.Context, accessToken, refreshToken string, expiresAt time.Time) error
+	Persist func(ctx context.Context, token StoredToken) error
 }
 
 type MintLease struct {
@@ -239,42 +244,36 @@ func (m minter) mintOnce(ctx context.Context) (oauthResponse, time.Duration, err
 	return res, time.Duration(res.ExpiresIn) * time.Second, nil
 }
 
-func (m minter) mintAndPersistAsync(ctx context.Context) (string, time.Duration, error) {
-	res, ttl, err := m.mintOnce(ctx)
-	if err != nil {
-		return "", 0, err
-	}
-	m.persistAsync(res.AccessToken, m.s.getCurrentRefresh(), time.Now().Add(ttl))
-	return res.AccessToken, ttl, nil
-}
-
 func (m minter) mintOrAdopt(ctx context.Context, forbid string) (string, time.Duration, error) {
 	if m.lease.Acquire == nil {
-		return m.mintAndPersistAsync(ctx)
+		return m.mintAndPersist(ctx, nil)
 	}
 
 	release, ok, unavailable := m.lease.Acquire(ctx)
 	if ok {
-		return m.mintLeased(ctx, release)
+		return m.mintAndPersist(ctx, release)
 	}
 	if unavailable {
-		return m.mintAndPersistAsync(ctx)
+		return m.mintAndPersist(ctx, nil)
 	}
 
 	if token, ttl, done, err := m.waitForLeaseOrAdoption(ctx, forbid); done {
 		return token, ttl, err
 	}
-	return m.mintAndPersistAsync(ctx)
+	return m.mintAndPersist(ctx, nil)
 }
 
 // Releases after the first Persist attempt: holding through retries can outlive mintLeaseTTL.
-func (m minter) mintLeased(ctx context.Context, release func()) (string, time.Duration, error) {
+func (m minter) mintAndPersist(ctx context.Context, release func()) (string, time.Duration, error) {
+	if release == nil {
+		release = func() {}
+	}
 	res, ttl, err := m.mintOnce(ctx)
 	if err != nil {
 		release()
 		return "", 0, err
 	}
-	m.persistAsyncThen(res.AccessToken, m.s.getCurrentRefresh(), time.Now().Add(ttl), release)
+	m.persistAsync(res, ttl, release)
 	return res.AccessToken, ttl, nil
 }
 
@@ -302,7 +301,7 @@ func waitTick(ctx context.Context) bool {
 func (m minter) pollLeaseOrAdoption(ctx context.Context, forbid string) (token string, ttl time.Duration, done bool, stop bool, err error) {
 	release, ok, unavailable := m.lease.Acquire(ctx)
 	if ok {
-		token, ttl, err := m.mintLeased(ctx, release)
+		token, ttl, err := m.mintAndPersist(ctx, release)
 		return token, ttl, true, false, err
 	}
 	if unavailable {
@@ -332,31 +331,30 @@ const (
 	persistRetryBackoff = 200 * time.Millisecond
 )
 
-func (m minter) persistAsync(accessToken, refreshToken string, expiresAt time.Time) {
-	m.persistAsyncThen(accessToken, refreshToken, expiresAt, nil)
+func (m minter) persistAsync(res oauthResponse, ttl time.Duration, release func()) {
+	expiresAt := time.Now().Add(ttl)
+	token := StoredToken{
+		AccessToken:          res.AccessToken,
+		RefreshToken:         m.s.getCurrentRefresh(),
+		AccessTokenExpiresAt: &expiresAt,
+		Scopes:               res.Scope,
+	}
+	go m.persist(token, release)
 }
 
-func (m minter) persistAsyncThen(accessToken, refreshToken string, expiresAt time.Time, onDone func()) {
-	go func() {
-		for attempt := 0; attempt < persistAttempts; attempt++ {
-			if attempt > 0 {
-				time.Sleep(persistRetryBackoff)
-			}
-			ok := persistOnce(m.io.Persist, accessToken, refreshToken, expiresAt)
-			if attempt == 0 && onDone != nil {
-				onDone()
-			}
-			if ok {
-				return
-			}
-		}
-	}()
+func (m minter) persist(token StoredToken, release func()) {
+	ok := m.persistOnce(token)
+	release()
+	for attempt := 1; !ok && attempt < persistAttempts; attempt++ {
+		time.Sleep(persistRetryBackoff)
+		ok = m.persistOnce(token)
+	}
 }
 
-func persistOnce(persist func(ctx context.Context, accessToken, refreshToken string, expiresAt time.Time) error, accessToken, refreshToken string, expiresAt time.Time) bool {
+func (m minter) persistOnce(token StoredToken) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), persistTimeout)
 	defer cancel()
-	return persist(ctx, accessToken, refreshToken, expiresAt) == nil
+	return m.io.Persist(ctx, token) == nil
 }
 
 func (s *Source) Token(ctx context.Context) (string, error) {
@@ -525,9 +523,10 @@ func (s *Source) ExpiresIn() time.Duration {
 }
 
 type oauthResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int    `json:"expires_in"`
+	AccessToken  string   `json:"access_token"`
+	RefreshToken string   `json:"refresh_token"`
+	ExpiresIn    int      `json:"expires_in"`
+	Scope        []string `json:"scope"`
 }
 
 func postToken(ctx context.Context, form url.Values) (oauthResponse, error) {

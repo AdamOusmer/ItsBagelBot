@@ -13,7 +13,6 @@ import (
 	catalog "ItsBagelBot/internal/domain/analytics"
 	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/outgress"
-	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/monitor"
@@ -175,105 +174,25 @@ func streamStatusDrop(err error) (string, bool) {
 }
 
 func (w *Worker) HandleStreamEvent(msg *bus.Message) error {
-	log := monitor.TxnLogger(msg.Context(), w.log)
+	ctx := msg.Context()
 	status, ok := eventtwitch.DecodeStreamStatus(msg.Payload)
-	if !ok {
-		return nil
-	}
-
-	if !status.Live {
+	if !ok || !status.Live {
 		return nil
 	}
 
 	broadcasterID := strconv.FormatUint(status.BroadcasterID, 10)
-
-	if !w.backgroundAllowed(msg.Context(), broadcasterID) {
+	fence, allowed := w.backgroundFence(ctx, broadcasterID)
+	if !allowed {
 		return nil
 	}
-	w.scheduleModStatus(msg.Context(), broadcasterID, "")
+	w.scheduleModStatus(ctx, broadcasterID, "")
 
-	log.Debug("mod status refresh scheduled on go-live",
-		zap.String("broadcaster_id", broadcasterID))
+	log := monitor.TxnLogger(ctx, w.log)
+	log.Debug("mod status refresh scheduled on go-live", zap.String("broadcaster_id", broadcasterID))
+	if err := w.postScopeNotice(ctx, broadcasterID, fence); err != nil {
+		log.Warn("Twitch scope notice failed", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+	}
 	return nil
-}
-
-const reauthBeaconTTL = 12 * time.Hour
-
-func (w *Worker) reauthBeaconOnLive(ctx context.Context, broadcasterID string) {
-	if w.reauth == nil {
-		return
-	}
-	n, episode, armed := w.armReauthBeacon(ctx, broadcasterID)
-	if !armed {
-		return
-	}
-
-	if n == noticeBanned && w.recoverFromBan(ctx, broadcasterID) {
-		return
-	}
-
-	w.sendReauthBeacon(ctx, broadcasterID, n, episode)
-}
-
-func (w *Worker) armReauthBeacon(ctx context.Context, broadcasterID string) (notice, time.Time, bool) {
-	ch, found, err := w.registry.Get(ctx, broadcasterID)
-	if err != nil || !found {
-		return notice{}, time.Time{}, false
-	}
-	n, episode, ok := liveNotice(ch)
-	if !ok {
-		return notice{}, time.Time{}, false
-	}
-	armed, err := w.registry.ArmReauthBeacon(ctx, broadcasterID, reauthBeaconTTL)
-	if err != nil || !armed {
-		return notice{}, time.Time{}, false
-	}
-	return n, episode, true
-}
-
-func (w *Worker) sendReauthBeacon(ctx context.Context, broadcasterID string, n notice, episode time.Time) {
-	locale := w.reauth.notifyKnown(ctx, broadcasterID, n, episode)
-	if err := w.sendReauthChat(ctx, broadcasterID, locale, n); err != nil {
-		w.log.Warn("reauth chat beacon failed",
-			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
-		return
-	}
-	if n.chat != "" {
-		w.log.Info("reauth chat beacon sent",
-			zap.String("broadcaster_id", broadcasterID),
-			zap.String("reason", n.request))
-	}
-}
-
-func (w *Worker) recoverFromBan(ctx context.Context, broadcasterID string) bool {
-	e, err := w.currentEnrollment(ctx, broadcasterID)
-	if err != nil {
-		return false
-	}
-	_ = w.enableEventSubs(ctx, e)
-
-	ch, found, err := w.registry.Get(ctx, broadcasterID)
-	return err == nil && found && ch.SubState == subStateOK
-}
-
-func liveNotice(ch manage.Channel) (notice, time.Time, bool) {
-	switch {
-	case ch.SubState == subStateRevoked:
-		return noticeRevoked, ch.BlockedAt, true
-	case ch.SubState == subStateBanned:
-		return noticeBanned, ch.BlockedAt, true
-	case ch.GrantState == manage.GrantDead:
-		return noticeGrantDead, ch.GrantCheckedAt, true
-	default:
-		return notice{}, time.Time{}, false
-	}
-}
-
-func (w *Worker) sendReauthChat(ctx context.Context, broadcasterID, locale string, n notice) error {
-	if n.chat == "" {
-		return nil
-	}
-	return w.sendBotChat(ctx, broadcasterID, w.reauth.ChatLine(locale, n))
 }
 
 func (w *Worker) checkLiveSeed(ctx context.Context, broadcasterID string) (bool, error) {

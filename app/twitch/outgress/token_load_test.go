@@ -20,14 +20,14 @@ func TestStoredLoadKeepsRefusalsAsNoToken(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		loaded      tokenstore.Loaded
+		loaded      tokenstore.Tokens
 		err         error
 		wantRefresh string
 		wantErr     error
 	}{
-		{"loaded token passes through", tokenstore.Loaded{RefreshToken: "refresh"}, nil, "refresh", nil},
-		{"refusal reads as no token stored", tokenstore.Loaded{}, refused, "", nil},
-		{"outage carries the error", tokenstore.Loaded{}, outage, "", outage},
+		{"loaded token passes through", tokenstore.Tokens{RefreshToken: "refresh"}, nil, "refresh", nil},
+		{"refusal reads as no token stored", tokenstore.Tokens{}, refused, "", nil},
+		{"outage carries the error", tokenstore.Tokens{}, outage, "", outage},
 	}
 
 	for _, tc := range tests {

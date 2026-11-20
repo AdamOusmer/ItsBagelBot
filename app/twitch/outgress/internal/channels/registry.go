@@ -14,6 +14,7 @@ import (
 
 	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/internal/domain/rpc/manage"
+	"ItsBagelBot/internal/domain/twitchauth"
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
@@ -357,15 +358,16 @@ func (r *Registry) EnrollCooldownActive(ctx context.Context, broadcasterID strin
 	return n > 0, nil
 }
 
-const reauthBeaconPrefix = "outgress:reauth:beacon:"
+const scopeNoticeTTL = 180 * 24 * time.Hour
 
 type namedLock struct {
 	key   string
 	owner string
 }
 
-func (r *Registry) ArmReauthBeacon(ctx context.Context, broadcasterID string, ttl time.Duration) (bool, error) {
-	return r.acquireLock(ctx, namedLock{key: reauthBeaconPrefix + broadcasterID, owner: "1"}, ttl)
+func (r *Registry) ClaimScopeNotice(ctx context.Context, broadcasterID string) (bool, error) {
+	key := "reauthScope:" + broadcasterID + ":" + twitchauth.SetVersion
+	return r.acquireLock(ctx, namedLock{key: key, owner: pkg_valkey.ClaimValue}, scopeNoticeTTL)
 }
 
 func (r *Registry) AcquireEnrollLock(ctx context.Context, broadcasterID, owner string, ttl time.Duration) (bool, error) {

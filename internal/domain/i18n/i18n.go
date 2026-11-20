@@ -22,14 +22,13 @@ const dashboardToken = "{dashboard_url}"
 const (
 	KeyReauthRevokedTitle = "reauth.revoked.title"
 	KeyReauthRevokedBody  = "reauth.revoked.body"
-	KeyReauthRevokedChat  = "reauth.revoked.chat"
 
 	KeyGrantDeadTitle = "grant.dead.title"
 	KeyGrantDeadBody  = "grant.dead.body"
-	KeyGrantDeadChat  = "grant.dead.chat"
 
 	KeyGrantScopeTitle = "grant.scope.title"
 	KeyGrantScopeBody  = "grant.scope.body"
+	KeyGrantScopeChat  = "grant.scope.chat"
 
 	KeyBotBannedTitle = "bot.banned.title"
 	KeyBotBannedBody  = "bot.banned.body"

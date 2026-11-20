@@ -21,7 +21,6 @@ import (
 type notice struct {
 	title   string
 	body    string
-	chat    string
 	request string
 }
 
@@ -29,13 +28,11 @@ var (
 	noticeRevoked = notice{
 		title:   i18n.KeyReauthRevokedTitle,
 		body:    i18n.KeyReauthRevokedBody,
-		chat:    i18n.KeyReauthRevokedChat,
 		request: "authz-revoked-",
 	}
 	noticeGrantDead = notice{
 		title:   i18n.KeyGrantDeadTitle,
 		body:    i18n.KeyGrantDeadBody,
-		chat:    i18n.KeyGrantDeadChat,
 		request: "grant-dead-",
 	}
 	noticeScope = notice{
@@ -84,18 +81,13 @@ type noticeEpisode struct {
 }
 
 func (r *ReauthNotifier) Notify(ctx context.Context, broadcasterID string, n notice, episode time.Time) {
-	r.notifyKnown(ctx, broadcasterID, n, episode)
-}
-
-func (r *ReauthNotifier) notifyKnown(ctx context.Context, broadcasterID string, n notice, episode time.Time) string {
 	locale, found := r.ResolveLocale(ctx, broadcasterID)
 	if !found {
 		r.log.Info("reauth notification skipped: broadcaster has no account",
 			zap.String("broadcaster_id", broadcasterID))
-		return locale
+		return
 	}
 	r.NotifyLocalized(ctx, broadcasterID, locale, noticeEpisode{notice: n, episode: episode})
-	return locale
 }
 
 func (r *ReauthNotifier) NotifyLocalized(ctx context.Context, broadcasterID, locale string, ne noticeEpisode) {
@@ -138,10 +130,6 @@ func (r *ReauthNotifier) logSendResult(broadcasterID string, reply notifications
 	default:
 		r.log.Info("reauth notification sent", zap.String("broadcaster_id", broadcasterID))
 	}
-}
-
-func (r *ReauthNotifier) ChatLine(locale string, n notice) string {
-	return i18n.T(locale, n.chat)
 }
 
 // "found" must mean the users lookup positively came back not_found, not that a transport error prevented asking.
