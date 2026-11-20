@@ -1,7 +1,7 @@
 # Giveaways, raffles and loyalty: decoupled design
 
 Date: 2026-11-19
-Status: Proposed. Design only; nothing here is implemented. Open decisions are in section 15.
+Status: Implemented in PR #1904. Open decisions are in section 15.
 
 ## 1. Outcome
 
@@ -13,7 +13,9 @@ Three separate tools on one reliable engine:
 
 A streamer runs any of them from one page or one chat line, and no round ever mixes an item with points.
 
-## 2. What is wrong today
+## 2. What was wrong before
+
+Code references in this section point at `origin/main` before this change; the old raffle files are deleted.
 
 Evidence from `origin/main` at 54b713b74. `engine/`, `module/` and `modules/` are under `app/twitch/sesame/`; `repo/` is `app/db/loyalty/repository/`.
 
@@ -66,7 +68,7 @@ Model rules
 | Concern | Owner |
 | --- | --- |
 | Round lifecycle, entries, selection, slots, claims, rerolls | Sesame `engine/draw` (new package) over new `pkg/valkey` operations |
-| Shared viewer commands `!join`, `!claim`, `!check`, `!winner` | One Sesame command owner registered before Queue. `!join` claims the command only while a round (new or legacy) is joinable, otherwise it falls through to Queue as today (`modules/all.go:29-30`, `engine/dispatch.go:73-90`). `!claim` and `!winner` keep working for settling rounds after their module is turned off |
+| Shared viewer commands `!join`, `!claim`, `!check`, `!winner` | One Sesame command owner registered before Queue. `!join` claims the command only while a round is joinable, otherwise it falls through to Queue as today (`modules/all.go:29-30`, `engine/dispatch.go:73-90`). `!claim` and `!winner` keep working for settling rounds after their module is turned off |
 | Giveaway mod commands and settings | Sesame `modules/giveaway.go`, new module `giveaway` (Play) |
 | Raffle mod commands and settings | Sesame `modules/raffle.go`, re-parented to Loyalty |
 | Participation rules | Sesame `engine/eligibility` (new package) |

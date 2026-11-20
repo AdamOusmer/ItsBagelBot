@@ -67,7 +67,8 @@ Generated Ent code is not the schema source.
   counter verbs can admit the reserved bot namespace `user_id="0"`.
 - `balance.credit` and `balance.debit` require a caller-prefixed key and account
   instance. Debit requires sufficient available points and records the outcome
-  for replays, including refusals for missing balances or insufficient points.- Grouped earned events accumulate in memory and bulk-add standings. Reads hit
+  for replays, including refusals for missing balances or insufficient points.
+- Grouped earned events accumulate in memory and bulk-add standings. Reads hit
   Ent directly; a just-accepted legacy delta may not yet appear in an RPC read.
 - Grouped counter events wait for `CounterProcessor.Process` before acknowledgment.
   Missing DTO BatchID falls back to transport UUID during rolling upgrades.
