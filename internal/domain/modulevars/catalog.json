@@ -709,15 +709,6 @@
           "entries"
         ],
         "message_key": "boardMessage"
-      },
-      {
-        "name": "shop",
-        "fields": [
-          "count",
-          "items",
-          "reset"
-        ],
-        "message_key": "shopMessage"
       }
     ]
   },

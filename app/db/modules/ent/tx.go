@@ -34,6 +34,8 @@ type Tx struct {
 	Modules *ModulesClient
 	// Quote is the client for interacting with the Quote builders.
 	Quote *QuoteClient
+	// RiotLink is the client for interacting with the RiotLink builders.
+	RiotLink *RiotLinkClient
 	// SpotifyCredential is the client for interacting with the SpotifyCredential builders.
 	SpotifyCredential *SpotifyCredentialClient
 	// Variable is the client for interacting with the Variable builders.
@@ -180,6 +182,7 @@ func (tx *Tx) init() {
 	tx.GoveeCredential = NewGoveeCredentialClient(tx.config)
 	tx.Modules = NewModulesClient(tx.config)
 	tx.Quote = NewQuoteClient(tx.config)
+	tx.RiotLink = NewRiotLinkClient(tx.config)
 	tx.SpotifyCredential = NewSpotifyCredentialClient(tx.config)
 	tx.Variable = NewVariableClient(tx.config)
 }

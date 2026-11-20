@@ -18,6 +18,8 @@ The session guard checks account and delegation state; `board.ts` selects the ef
 
 Data services own configuration and account state; Kit supplies shared catalogs and helpers.
 
+Riot Sign On is optional. Set `RIOT_RSO_CLIENT_ID` and `RIOT_RSO_REDIRECT_URI` together to enable it. The redirect URI uses the dashboard origin and the path `/riot/callback`. Gossip owns the client secret and exchanges authorization codes. The Dashboard uses `NATS_MODULES_RIOT_SUBJECT_PREFIX` for link storage RPCs, defaulting to `rpc.modules.riot.link`.
+
 ## Failure behavior
 
 Session, account and delegation guards restrict access before protected routes act.

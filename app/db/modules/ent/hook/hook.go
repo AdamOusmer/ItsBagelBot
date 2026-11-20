@@ -140,6 +140,18 @@ func (f QuoteFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.QuoteMutation", m)
 }
 
+// The RiotLinkFunc type is an adapter to allow the use of ordinary
+// function as RiotLink mutator.
+type RiotLinkFunc func(context.Context, *ent.RiotLinkMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f RiotLinkFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.RiotLinkMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.RiotLinkMutation", m)
+}
+
 // The SpotifyCredentialFunc type is an adapter to allow the use of ordinary
 // function as SpotifyCredential mutator.
 type SpotifyCredentialFunc func(context.Context, *ent.SpotifyCredentialMutation) (ent.Value, error)

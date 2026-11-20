@@ -66,7 +66,7 @@ func gossipVariables[C any, R any](d engine.Deps, route engine.GossipRoute,
 			return nil, err
 		}
 		req := request(call)
-		if !variableRequestHasTarget(route.Endpoint, req) {
+		if !variableRequestHasTarget(route, req) {
 			return nil, nil
 		}
 		var reply R
@@ -87,15 +87,19 @@ func variableStatsCall[C any](c *module.Context) (statsCall[C], error) {
 	return statsCall[C]{Ctx: c, Cfg: cfg}, nil
 }
 
-func variableRequestHasTarget(endpoint string, request gossiprpc.Request) bool {
-	switch endpoint {
+func variableRequestHasTarget(route engine.GossipRoute, request gossiprpc.Request) bool {
+	switch route.Endpoint {
 	case "shop", "leaderboard":
 		return true
 	case "versus":
 		return request.Account != "" && request.AccountB != ""
 	default:
-		return request.Account != ""
+		return request.Account != "" || linkedChannelRead(route, request)
 	}
+}
+
+func linkedChannelRead(route engine.GossipRoute, request gossiprpc.Request) bool {
+	return route.Provider == valModuleName && request.ChannelID != ""
 }
 
 // Decode provider state through the fleet codec instead of treating zero-valued

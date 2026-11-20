@@ -38,6 +38,7 @@
   import TriggerRuleEditor from '#lib/components/modules/TriggerRuleEditor.svelte';
   import { MATCH_KEY, TriggerRules } from '#lib/components/modules/trigger-rules.svelte';
   import TimezonePicker from '#lib/components/modules/TimezonePicker.svelte';
+  import RiotConnectionCard from '#lib/components/modules/RiotConnectionCard.svelte';
   import Divider from '@bagel/ui/svelte/Divider.svelte';
 
   let { data } = $props();
@@ -396,6 +397,10 @@
   </nav>
 
   <PageHead eyebrow={t('modules.detailEyebrow')} description={modDescription}>{modLabel}</PageHead>
+
+  {#if data.riot}
+    <div class="settings-card"><RiotConnectionCard connection={data.riot} /></div>
+  {/if}
 
   {#if data.degraded}
     <AlertBanner>{t('modules.degraded')}</AlertBanner>

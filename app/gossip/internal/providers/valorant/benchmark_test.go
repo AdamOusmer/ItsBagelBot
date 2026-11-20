@@ -12,10 +12,9 @@ import (
 	"time"
 
 	"ItsBagelBot/app/gossip/internal/providertest"
-	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 )
 
-// A cold auto-region rank lookup followed by the same player's account lookup.
+// A cold rank lookup followed by the same linked player's account lookup.
 // Every upstream call takes 50ms; each operation gets a new cache store.
 func BenchmarkValorantRankThenAccount(b *testing.B) {
 	var requests atomic.Int64
@@ -36,9 +35,9 @@ func BenchmarkValorantRankThenAccount(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		b.StopTimer()
-		p := New(Config{BaseURL: url, ContentBaseURL: url, APIKey: "benchmark-key"}, providertest.Deps(providertest.NewMemStore()))
+		p := New(Config{BaseURL: url, ContentBaseURL: url, APIKey: "benchmark-key"}, linkedDeps(providertest.NewMemStore()))
 		rank, account := providertest.Endpoint(b, p, "rank"), providertest.Endpoint(b, p, "account")
-		req := gossiprpc.Request{Account: "Frosty#EUW1"}
+		req := frosty("", "")
 		b.StartTimer()
 		if reply := providertest.Decode[rankReply](b, rank(context.Background(), req)); reply.Error != "" {
 			b.Fatal(reply.Error)

@@ -52,6 +52,7 @@ Provider packages under [internal/providers/](internal/providers/) cover Urchin,
 - Cache absence separately from infrastructure failure. Preserve deadline-based freshness for answers that expire at a real boundary such as a daily shop reset.
 - Never put decrypted fetch keys in projections, caches, or logs. Custom fetches revalidate destinations, bound extraction, and use channel/definition/host budgets.
 - Spotify credentials belong to each broadcaster's registered application and grant; do not introduce a fleet-wide Spotify application assumption.
+- Valorant reads only the channel's Riot link from Modules (`rpc.internal.riot.link.get`); never accept a typed Riot ID. `valorant.link` exchanges the Riot sign-in code with the fleet RSO client. With `RIOT_API_KEY` set, account, matches, PC leaderboard and (without a HenrikDev key) rank tier come from Riot; HenrikDev keeps RR, record and shop.
 - WARP health checks listener reachability, not successful external traffic. Its failure degrades this service because direct providers can still answer.
 
 ## Focused validation

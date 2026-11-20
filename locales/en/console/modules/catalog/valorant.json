@@ -1,7 +1,7 @@
 {
   "label": "Valorant Stats",
-  "tagline": "Valorant ranks, match history, leaderboards and the daily shop rotation in chat.",
-  "description": "One command, six looks: !val shows a player's competitive standing (tier, RR, last game's RR change, peak tier); !val record totals the ranked games and wins on their account; !val matches lists their recent ranked games as agent K/D/A results; !val account shows who a Riot ID resolves to, with their account level; !val lb prints the top 10 of any regional leaderboard, PC or console; !val shop shows today's global skin rotation with VP prices and the reset countdown. The squashed forms !valrank, !valrecord, !valmatches, !valaccount, !vallb and !valshop work too. Link your Riot ID below (\"Name#Tag\"). Viewers can also name any player, e.g. \"!val Frosty#EUW1\", and add a shard or ladder anywhere in the line to scope that one lookup (\"!val eu Frosty#EUW1\", \"!val lb console ap\"). Leave the region blank and the bot detects the shard from the account itself.",
+  "tagline": "Valorant stats in chat from your signed-in Riot account.",
+  "description": "Sign in with Riot to show your Valorant stats in chat. !val shows your competitive rank, !val matches shows your recent ranked games, and !val lb shows the top 10 of the act leaderboard. Player stats come only from the Riot account you linked.",
   "connection": {
     "title": "Riot account",
     "prompt": "Sign in to share your Valorant stats in chat.",
@@ -16,11 +16,6 @@
     "unlinkFailed": "Could not unlink your Riot account. Try again."
   },
   "settings": {
-    "account": {
-      "label": "Linked Riot ID",
-      "help": "Default player for every command, as \"Name#Tag\". Valorant has no name-only lookup, so the #tag is required.",
-      "placeholder": "Frosty#EUW1"
-    },
     "region": {
       "label": "Region shard",
       "help": "na, eu, ap, kr, br or latam. Leave blank and the bot detects the shard from the account itself.",
@@ -38,33 +33,28 @@
   },
   "replies": {
     "rank": {
-      "tagline": "Competitive standing: !val, !val rank or !valrank.",
+      "tagline": "Competitive rank for your linked account (also !val rank and !valrank).",
       "defaultMessage": "{player} · {tier} · {rr} RR ({lastchange}) · peak {peaktier}"
     },
     "record": {
-      "tagline": "Ranked games and wins on the account (also !valrecord).",
+      "tagline": "Ranked games and wins for your linked account (also !valrecord).",
       "event": "!val record",
       "defaultMessage": "{player} · {games} ranked games · {wins} wins ({winrate}%)"
     },
     "matches": {
-      "tagline": "Recent ranked games (also !valmatches).",
+      "tagline": "Recent ranked games for your linked account (also !valmatches).",
       "event": "!val matches",
       "defaultMessage": "{player}'s last {count}: {matches}"
     },
     "account": {
-      "tagline": "Who an ID resolves to, with account level (also !valaccount).",
+      "tagline": "Your linked Riot account and its level (also !valaccount).",
       "event": "!val account",
       "defaultMessage": "{player} · account level {level}"
     },
     "board": {
-      "tagline": "Regional top 10, PC or console (also !vallb).",
+      "tagline": "Act leaderboard for your linked account (also !vallb).",
       "event": "!val lb",
       "defaultMessage": "{board}: {entries}"
-    },
-    "shop": {
-      "tagline": "Today's global skin rotation with reset countdown (also !valshop).",
-      "event": "!val shop",
-      "defaultMessage": "Daily rotation ({count}): {items} · resets in {reset}"
     }
   }
 }

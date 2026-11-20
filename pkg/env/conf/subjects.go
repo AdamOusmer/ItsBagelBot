@@ -36,6 +36,7 @@ var (
 	ModulesPrefix        = Subject{"NATS_MODULES_SUBJECT_PREFIX", "rpc.modules"}
 	GoveeKeyPrefix       = Subject{"NATS_INTERNAL_GOVEE_KEY_SUBJECT_PREFIX", "rpc.internal.govee.key"}
 	SpotifyKeyPrefix     = Subject{"NATS_INTERNAL_SPOTIFY_KEY_SUBJECT_PREFIX", "rpc.internal.spotify.key"}
+	RiotLinkPrefix       = Subject{"NATS_INTERNAL_RIOT_LINK_SUBJECT_PREFIX", "rpc.internal.riot.link"}
 	LoyaltyPrefix        = Subject{"NATS_LOYALTY_SUBJECT_PREFIX", "rpc.loyalty"}
 	GossipPrefix         = Subject{"NATS_GOSSIP_SUBJECT_PREFIX", "rpc.gossip"}
 	BroadcasterLive      = Subject{"NATS_BROADCASTER_LIVE_SUBJECT", "rpc.broadcaster.live.get"}

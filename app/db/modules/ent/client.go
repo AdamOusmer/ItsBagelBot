@@ -22,6 +22,7 @@ import (
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/quote"
+	"ItsBagelBot/app/db/modules/ent/riotlink"
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
 	"ItsBagelBot/app/db/modules/ent/variable"
 
@@ -57,6 +58,8 @@ type Client struct {
 	Modules *ModulesClient
 	// Quote is the client for interacting with the Quote builders.
 	Quote *QuoteClient
+	// RiotLink is the client for interacting with the RiotLink builders.
+	RiotLink *RiotLinkClient
 	// SpotifyCredential is the client for interacting with the SpotifyCredential builders.
 	SpotifyCredential *SpotifyCredentialClient
 	// Variable is the client for interacting with the Variable builders.
@@ -83,6 +86,7 @@ func (c *Client) init() {
 	c.GoveeCredential = NewGoveeCredentialClient(c.config)
 	c.Modules = NewModulesClient(c.config)
 	c.Quote = NewQuoteClient(c.config)
+	c.RiotLink = NewRiotLinkClient(c.config)
 	c.SpotifyCredential = NewSpotifyCredentialClient(c.config)
 	c.Variable = NewVariableClient(c.config)
 }
@@ -188,6 +192,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		GoveeCredential:    NewGoveeCredentialClient(cfg),
 		Modules:            NewModulesClient(cfg),
 		Quote:              NewQuoteClient(cfg),
+		RiotLink:           NewRiotLinkClient(cfg),
 		SpotifyCredential:  NewSpotifyCredentialClient(cfg),
 		Variable:           NewVariableClient(cfg),
 	}, nil
@@ -220,6 +225,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		GoveeCredential:    NewGoveeCredentialClient(cfg),
 		Modules:            NewModulesClient(cfg),
 		Quote:              NewQuoteClient(cfg),
+		RiotLink:           NewRiotLinkClient(cfg),
 		SpotifyCredential:  NewSpotifyCredentialClient(cfg),
 		Variable:           NewVariableClient(cfg),
 	}, nil
@@ -253,7 +259,8 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.Automation, c.ChannelFeedCounter, c.CooldownClaim, c.Countdown,
 		c.CountdownDelivery, c.CountdownOperation, c.FeedCounter, c.FeedReceipt,
-		c.GoveeCredential, c.Modules, c.Quote, c.SpotifyCredential, c.Variable,
+		c.GoveeCredential, c.Modules, c.Quote, c.RiotLink, c.SpotifyCredential,
+		c.Variable,
 	} {
 		n.Use(hooks...)
 	}
@@ -265,7 +272,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.Automation, c.ChannelFeedCounter, c.CooldownClaim, c.Countdown,
 		c.CountdownDelivery, c.CountdownOperation, c.FeedCounter, c.FeedReceipt,
-		c.GoveeCredential, c.Modules, c.Quote, c.SpotifyCredential, c.Variable,
+		c.GoveeCredential, c.Modules, c.Quote, c.RiotLink, c.SpotifyCredential,
+		c.Variable,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -296,6 +304,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Modules.mutate(ctx, m)
 	case *QuoteMutation:
 		return c.Quote.mutate(ctx, m)
+	case *RiotLinkMutation:
+		return c.RiotLink.mutate(ctx, m)
 	case *SpotifyCredentialMutation:
 		return c.SpotifyCredential.mutate(ctx, m)
 	case *VariableMutation:
@@ -1768,6 +1778,139 @@ func (c *QuoteClient) mutate(ctx context.Context, m *QuoteMutation) (Value, erro
 	}
 }
 
+// RiotLinkClient is a client for the RiotLink schema.
+type RiotLinkClient struct {
+	config
+}
+
+// NewRiotLinkClient returns a client for the RiotLink from the given config.
+func NewRiotLinkClient(c config) *RiotLinkClient {
+	return &RiotLinkClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `riotlink.Hooks(f(g(h())))`.
+func (c *RiotLinkClient) Use(hooks ...Hook) {
+	c.hooks.RiotLink = append(c.hooks.RiotLink, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `riotlink.Intercept(f(g(h())))`.
+func (c *RiotLinkClient) Intercept(interceptors ...Interceptor) {
+	c.inters.RiotLink = append(c.inters.RiotLink, interceptors...)
+}
+
+// Create returns a builder for creating a RiotLink entity.
+func (c *RiotLinkClient) Create() *RiotLinkCreate {
+	mutation := newRiotLinkMutation(c.config, OpCreate)
+	return &RiotLinkCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of RiotLink entities.
+func (c *RiotLinkClient) CreateBulk(builders ...*RiotLinkCreate) *RiotLinkCreateBulk {
+	return &RiotLinkCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *RiotLinkClient) MapCreateBulk(slice any, setFunc func(*RiotLinkCreate, int)) *RiotLinkCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &RiotLinkCreateBulk{err: fmt.Errorf("calling to RiotLinkClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*RiotLinkCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &RiotLinkCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for RiotLink.
+func (c *RiotLinkClient) Update() *RiotLinkUpdate {
+	mutation := newRiotLinkMutation(c.config, OpUpdate)
+	return &RiotLinkUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *RiotLinkClient) UpdateOne(_m *RiotLink) *RiotLinkUpdateOne {
+	mutation := newRiotLinkMutation(c.config, OpUpdateOne, withRiotLink(_m))
+	return &RiotLinkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *RiotLinkClient) UpdateOneID(id int) *RiotLinkUpdateOne {
+	mutation := newRiotLinkMutation(c.config, OpUpdateOne, withRiotLinkID(id))
+	return &RiotLinkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for RiotLink.
+func (c *RiotLinkClient) Delete() *RiotLinkDelete {
+	mutation := newRiotLinkMutation(c.config, OpDelete)
+	return &RiotLinkDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *RiotLinkClient) DeleteOne(_m *RiotLink) *RiotLinkDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *RiotLinkClient) DeleteOneID(id int) *RiotLinkDeleteOne {
+	builder := c.Delete().Where(riotlink.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &RiotLinkDeleteOne{builder}
+}
+
+// Query returns a query builder for RiotLink.
+func (c *RiotLinkClient) Query() *RiotLinkQuery {
+	return &RiotLinkQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeRiotLink},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a RiotLink entity by its id.
+func (c *RiotLinkClient) Get(ctx context.Context, id int) (*RiotLink, error) {
+	return c.Query().Where(riotlink.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *RiotLinkClient) GetX(ctx context.Context, id int) *RiotLink {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *RiotLinkClient) Hooks() []Hook {
+	return c.hooks.RiotLink
+}
+
+// Interceptors returns the client interceptors.
+func (c *RiotLinkClient) Interceptors() []Interceptor {
+	return c.inters.RiotLink
+}
+
+func (c *RiotLinkClient) mutate(ctx context.Context, m *RiotLinkMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&RiotLinkCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&RiotLinkUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&RiotLinkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&RiotLinkDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown RiotLink mutation op: %q", m.Op())
+	}
+}
+
 // SpotifyCredentialClient is a client for the SpotifyCredential schema.
 type SpotifyCredentialClient struct {
 	config
@@ -2039,11 +2182,11 @@ type (
 	hooks struct {
 		Automation, ChannelFeedCounter, CooldownClaim, Countdown, CountdownDelivery,
 		CountdownOperation, FeedCounter, FeedReceipt, GoveeCredential, Modules, Quote,
-		SpotifyCredential, Variable []ent.Hook
+		RiotLink, SpotifyCredential, Variable []ent.Hook
 	}
 	inters struct {
 		Automation, ChannelFeedCounter, CooldownClaim, Countdown, CountdownDelivery,
 		CountdownOperation, FeedCounter, FeedReceipt, GoveeCredential, Modules, Quote,
-		SpotifyCredential, Variable []ent.Interceptor
+		RiotLink, SpotifyCredential, Variable []ent.Interceptor
 	}
 )

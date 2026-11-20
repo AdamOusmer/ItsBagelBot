@@ -2,21 +2,20 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { replyTokens, type ModuleDef } from './module-def';
-import { LINKED_ONLY_FIELD } from './shared-fields';
 
 export const VALORANT_MODULE_DEF: ModuleDef = {
   id: 'valorant',
   label: 'Valorant Stats',
-  tagline: 'Valorant ranks, match history, leaderboards and the daily shop rotation in chat.',
+  tagline: 'Valorant stats in chat from your signed-in Riot account.',
   description:
-    'One command, six looks: !val shows a player\'s competitive standing (tier, RR, last game\'s RR change, peak tier); !val record totals the ranked games and wins on their account; !val matches lists their recent ranked games as agent K/D/A results; !val account shows who a Riot ID resolves to, with their account level; !val lb prints the top 10 of any regional leaderboard, PC or console; !val shop shows today\'s global skin rotation with VP prices and the reset countdown. The squashed forms !valrank, !valrecord, !valmatches, !valaccount, !vallb and !valshop work too. Link your Riot ID below ("Name#Tag"). Viewers can also name any player, e.g. "!val Frosty#EUW1", and add a shard or ladder anywhere in the line to scope that one lookup ("!val eu Frosty#EUW1", "!val lb console ap"). Leave the region blank and the bot detects the shard from the account itself.',
+    'Sign in with Riot to show your Valorant stats in chat. !val shows your competitive rank, !val matches shows your recent ranked games, and !val lb shows the top 10 of the act leaderboard. Player stats come only from the Riot account you linked.',
   category: 'Stats',
   defaultEnabled: false,
   replies: [
     {
       key: 'rank',
       label: '!val',
-      tagline: 'Competitive standing: !val, !val rank or !valrank.',
+      tagline: 'Competitive rank for your linked account (also !val rank and !valrank).',
       event: '!val',
       command: 'val',
       enableKey: 'rankEnabled',
@@ -30,7 +29,7 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
     {
       key: 'record',
       label: '!val record',
-      tagline: 'Ranked games and wins on the account (also !valrecord).',
+      tagline: 'Ranked games and wins for your linked account (also !valrecord).',
       event: '!val record',
       command: 'val record',
       enableKey: 'recordEnabled',
@@ -43,7 +42,7 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
     {
       key: 'matches',
       label: '!val matches',
-      tagline: 'Recent ranked games (also !valmatches).',
+      tagline: 'Recent ranked games for your linked account (also !valmatches).',
       event: '!val matches',
       command: 'val matches',
       enableKey: 'matchesEnabled',
@@ -57,7 +56,7 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
     {
       key: 'account',
       label: '!val account',
-      tagline: 'Who an ID resolves to, with account level (also !valaccount).',
+      tagline: 'Your linked Riot account and its level (also !valaccount).',
       event: '!val account',
       command: 'val account',
       enableKey: 'accountEnabled',
@@ -71,39 +70,19 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
     {
       key: 'board',
       label: '!val lb',
-      tagline: 'Regional top 10, PC or console (also !vallb).',
+      tagline: 'Act leaderboard for your linked account (also !vallb).',
       event: '!val lb',
       command: 'val lb',
       enableKey: 'boardEnabled',
       messageKey: 'boardMessage',
       defaultMessage: '{board}: {entries}',
       tokens: replyTokens(['player', 'board', 'count', 'entries'], {
-        player: 'Frosty#EUW1', board: 'ap/console', count: '2',
-        entries: '#4 Zekken#5221 (431 RR), #5 Frosty#EUW1 (402 RR)'
-      })
-    },
-    {
-      key: 'shop',
-      label: '!val shop',
-      tagline: "Today's global skin rotation with reset countdown (also !valshop).",
-      event: '!val shop',
-      command: 'val shop',
-      enableKey: 'shopEnabled',
-      messageKey: 'shopMessage',
-      defaultMessage: 'Daily rotation ({count}): {items} · resets in {reset}',
-      tokens: replyTokens(['count', 'items', 'reset'], {
-        count: '2', items: 'Reaver Vandal (1775 VP), Ion Frenzy (875 VP)', reset: '2h 30m'
+        player: 'Frosty#EUW1', board: 'eu/pc', count: '2',
+        entries: '#1 Secret Agent (431 RR), #2 Frosty#EUW1 (402 RR)'
       })
     }
   ],
   settings: [
-    {
-      key: 'account',
-      label: 'Linked Riot ID',
-      type: 'text',
-      placeholder: 'Frosty#EUW1',
-      help: 'Default player for every command, as "Name#Tag". Valorant has no name-only lookup, so the #tag is required.'
-    },
     {
       key: 'region',
       label: 'Region shard',
@@ -121,7 +100,6 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
         { value: 'console', label: 'Console' }
       ],
       help: 'Ranks and leaderboards are tracked as separate ladders per platform; blank means PC.'
-    },
-    LINKED_ONLY_FIELD
+    }
   ]
 };

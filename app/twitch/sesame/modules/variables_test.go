@@ -74,14 +74,12 @@ func enabledVariables(name, config string) projection.ModuleView {
 func TestCustomRankCommandReadsValorantFactsOnce(t *testing.T) {
 	gossip := &fakeGossip{replies: map[string]any{"valorant.rank": valRankReply()}}
 	response := "{valorant:player}: {valorant:tier} ({valorant:rr} RR), {valorant:rank:rr}, {valorant:lastchange}"
-	view := enabledVariables("valorant", `{"account":"Frosty#EUW1","region":"eu","platform":"console","rankEnabled":"off"}`)
+	view := enabledVariables("valorant", `{"region":"eu","platform":"console","rankEnabled":"off"}`)
 	assert.Equal(t, "Frosty#EUW1: Immortal 2 (67 RR), 67, -12", runVariableCommand(t, response, []projection.ModuleView{view}, gossip))
 	require.Len(t, gossip.calls, 1)
-	assert.Equal(t, "valorant", gossip.calls[0].provider)
-	assert.Equal(t, "rank", gossip.calls[0].endpoint)
-	assert.Equal(t, "Frosty#EUW1", gossip.calls[0].req.Account)
-	assert.Equal(t, "eu", gossip.calls[0].req.Region)
-	assert.Equal(t, "console", gossip.calls[0].req.Platform)
+	assert.Equal(t, []string{"valorant", "rank"}, []string{gossip.calls[0].provider, gossip.calls[0].endpoint})
+	assert.Equal(t, gossiprpc.Request{ChannelID: gossip.calls[0].req.ChannelID, Region: "eu", Platform: "console"}, gossip.calls[0].req)
+	assert.NotEmpty(t, gossip.calls[0].req.ChannelID, "the signed-in link is found by channel")
 }
 
 func TestCustomModuleFactsRequireEnabledOptInModule(t *testing.T) {
@@ -107,7 +105,7 @@ func TestCustomModuleFactsSelectExplicitViewsAndMixModules(t *testing.T) {
 		"valorant.account": gossiprpc.ValorantAccountReply{Player: "Frosty#EUW1", AccountLevel: 201},
 		"codm.profile":     gossiprpc.CODMProfileReply{Player: "Toast", Level: 77},
 	}}
-	views := []projection.ModuleView{enabledVariables("valorant", `{"account":"Frosty#EUW1"}`), enabledVariables("codm", `{"account":"Toast"}`)}
+	views := []projection.ModuleView{enabledVariables("valorant", ""), enabledVariables("codm", `{"account":"Toast"}`)}
 	response := "{valorant:tier}, level {valorant:account:level}; {codm:player} level {codm:level}"
 	assert.Equal(t, "Immortal 2, level 201; Toast level 77", runVariableCommand(t, response, views, gossip))
 	assert.Len(t, gossip.calls, 3)
@@ -203,7 +201,7 @@ func variableGameReplyFixtures() map[string]any {
 	// Session replies without has_snapshot read as the empty state.
 	replies := make(map[string]any)
 	endpoints := map[string][]string{
-		"valorant": {"rank", "record", "matches", "account", "leaderboard", "shop"},
+		"valorant": {"rank", "record", "matches", "account", "leaderboard"},
 		"codm":     {"profile"}, "fortnite": {"stats", "session", "shop"},
 		"clashroyale": {"stats", "decks", "ranked", "trophy_road"},
 		"urchin":      {"daily", "weekly", "monthly", "sniper", "tags"}, "hypixel": {"stats"},

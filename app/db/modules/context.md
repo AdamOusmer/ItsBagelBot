@@ -7,7 +7,8 @@ and [app map](../../../CONTEXT-MAP.md).
 
 Owns broadcaster module enablement/config JSON, channel quote books, lifetime
 personality feed tallies, recipe variables, named countdowns, recipe cooldown windows over one day,
-and sealed Govee/Spotify credentials in the MySQL schema selected by `DB_SCHEMA`.
+sealed Govee/Spotify credentials, and each channel's Riot sign-in link in the MySQL
+schema selected by `DB_SCHEMA`.
 Sesame implements module behavior, Gossip contacts external integrations, and
 Projector maintains the shared configuration projection.
 Loyalty module configuration lives here, but balances/counters live in Loyalty.
@@ -29,6 +30,7 @@ Loyalty module configuration lives here, but balances/counters live in Loyalty.
 | Channel feed counter | Broadcaster-local lifetime feed total used for ranking. |
 | Credential custody | Separate sealed storage; secrets never enter projected config blobs. |
 | Spotify app / grant | Broadcaster-owned client credentials / granted refresh token and scopes. |
+| Riot link | The broadcaster's own Riot account (app-scoped puuid, Riot ID, shard) saved after Riot sign-in; it is the player's consent to be shown. |
 
 ## Where to start
 
@@ -51,6 +53,7 @@ Loyalty module configuration lives here, but balances/counters live in Loyalty.
 | [rpc/dashboard.go](rpc/dashboard.go) | Module list/upsert/patch and integration-custody wiring. |
 | [rpc/quotes.go](rpc/quotes.go), [personality.go](rpc/personality.go) | Quote and feed RPC surfaces. |
 | [rpc/govee.go](rpc/govee.go), [spotify.go](rpc/spotify.go) | Dashboard credential setup plus internal unseal verbs. |
+| [repository/riot.go](repository/riot.go), [rpc/riot.go](rpc/riot.go) | Riot link set/clear/status for the dashboard and `rpc.internal.riot.link.get` for Gossip. |
 | [ent/schema/](ent/schema/) | Seven durable entities, including FeedReceipt; other Ent files are generated. |
 
 Contracts: [modules RPC](../../../internal/domain/rpc/modules/),

@@ -309,6 +309,14 @@ type SpotifyQueueReply struct {
 	Error      string         `json:"error,omitempty"`
 }
 
+type ValorantLinkReply struct {
+	Puuid    string `json:"puuid,omitempty"`
+	GameName string `json:"game_name,omitempty"`
+	TagLine  string `json:"tag_line,omitempty"`
+	Shard    string `json:"shard,omitempty"`
+	Error    string `json:"error,omitempty"`
+}
+
 type SpotifyExchangeReply struct {
 	RefreshToken string   `json:"refresh_token,omitempty"`
 	Scopes       []string `json:"scopes,omitempty"`
@@ -589,22 +597,6 @@ type ValorantLeaderboardReply struct {
 	Entries []ValorantLeaderboardEntry `json:"entries"`
 	Empty   bool                       `json:"empty"`
 	Error   string                     `json:"error,omitempty"`
-}
-
-type ValorantShopItem struct {
-	Name  string `json:"name"`
-	Price int64  `json:"price"`
-	Tier  string `json:"tier,omitempty"`
-	Color string `json:"color,omitempty"`
-	Icon  string `json:"icon,omitempty"`
-}
-
-type ValorantShopReply struct {
-	ResetUnix int64              `json:"reset_unix"`
-	Items     []ValorantShopItem `json:"items"`
-	Count     int                `json:"count"`
-	Empty     bool               `json:"empty"`
-	Error     string             `json:"error,omitempty"`
 }
 
 type FetchDef struct {

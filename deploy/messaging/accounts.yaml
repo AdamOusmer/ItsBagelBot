@@ -496,6 +496,10 @@ accounts:
               from: GOSSIP_RPC
             - service: rpc.gossip.spotify.exchange.node.*
               from: GOSSIP_RPC
+            - service: rpc.gossip.valorant.link
+              from: GOSSIP_RPC
+            - service: rpc.gossip.valorant.link.node.*
+              from: GOSSIP_RPC
             - service: rpc.gossip.spotify.playerqueue
               from: GOSSIP_RPC
             - service: rpc.gossip.spotify.playerqueue.node.*
@@ -564,6 +568,8 @@ accounts:
               from: MODULES_RPC
             - service: rpc.internal.spotify.key.>
               from: MODULES_RPC
+            - service: rpc.internal.riot.link.>
+              from: MODULES_RPC
             - service: rpc.internal.projection.commands.fetches.get
               from: COMMANDS_RPC
             - service: rpc.internal.projection.commands.fetches.get.node.*
@@ -610,6 +616,7 @@ accounts:
             - service: rpc.internal.projection.modules.automations.get.node.*
             - service: rpc.internal.govee.key.>
             - service: rpc.internal.spotify.key.>
+            - service: rpc.internal.riot.link.>
             - stream: cache.invalidate.spotify
         imports:
             - service: rpc.internal.projection.users.get

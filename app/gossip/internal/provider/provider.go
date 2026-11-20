@@ -9,6 +9,7 @@ import (
 
 	"ItsBagelBot/app/gossip/internal/core"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	riotrpc "ItsBagelBot/internal/domain/rpc/riot"
 	"ItsBagelBot/pkg/ratelimit"
 
 	"go.uber.org/zap"
@@ -43,12 +44,17 @@ type DefSource interface {
 	FetchDef(ctx context.Context, broadcasterID, name string) (gossiprpc.FetchDef, bool, error)
 }
 
+type RiotLinkResolver interface {
+	RiotLink(ctx context.Context, broadcasterID string) (riotrpc.LinkReply, error)
+}
+
 type Deps struct {
 	Cache       *core.Cache
 	Limiter     *ratelimit.Limiter
 	Log         *zap.Logger
 	GoveeKeys   BroadcasterKeyResolver
 	SpotifyKeys SpotifyCredResolver
+	RiotLinks   RiotLinkResolver
 	FetchKeys   FetchKeyResolver
 	FetchDefs   DefSource
 }

@@ -42,6 +42,8 @@ if (!dev) throw new Error('DASHBOARD_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
 
 export const DEMO_BOARD_ID = 'demo';
 
+export const demoRiotAccount = { account: 'Frosty#EUW1', shard: 'eu' };
+
 export function demoSession(): Session {
   const now = Math.floor(Date.now() / 1000);
   return {

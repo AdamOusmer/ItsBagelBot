@@ -6,6 +6,7 @@ package valorant
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"ItsBagelBot/app/gossip/internal/providertest"
@@ -15,11 +16,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func liveProbeEnabled() bool {
+	return os.Getenv("VALORANT_LIVE") == "1" && os.Getenv("VALORANT_API_KEY") != ""
+}
+
 func TestLiveUpstream(t *testing.T) {
-	if os.Getenv("VALORANT_LIVE") != "1" || os.Getenv("VALORANT_API_KEY") == "" {
-		t.Skip("live probe: needs VALORANT_LIVE=1 and a real VALORANT_API_KEY")
+	name, tag, linked := strings.Cut(os.Getenv("VALORANT_LIVE_RIOT_ID"), "#")
+	if !liveProbeEnabled() || !linked {
+		t.Skip("live probe: needs VALORANT_LIVE=1, a real VALORANT_API_KEY and your own VALORANT_LIVE_RIOT_ID (Name#Tag)")
 	}
-	p := New(Config{APIKey: os.Getenv("VALORANT_API_KEY")}, providertest.Deps(providertest.NewMemStore()))
+	d := providertest.Deps(providertest.NewMemStore())
+	d.RiotLinks = fakeLinks{linkedChannel: {GameName: name, TagLine: tag, Shard: os.Getenv("VALORANT_LIVE_SHARD")}}
+	p := New(Config{APIKey: os.Getenv("VALORANT_API_KEY")}, d)
 
 	board := providertest.Call[leaderboardReply](t, p, "leaderboard", gossiprpc.Request{Region: "eu", Platform: "pc"})
 	require.Empty(t, board.Error, "leaderboard probe failed")
@@ -28,7 +36,7 @@ func TestLiveUpstream(t *testing.T) {
 	fmt.Printf("leaderboard: %s top=%s tier=%d rr=%d\n", board.Board, top.Player, top.Tier, top.RR)
 	require.Contains(t, top.Player, "#", "board row missing tagline")
 
-	player := gossiprpc.Request{Account: top.Player}
+	player := gossiprpc.Request{ChannelID: linkedChannel}
 
 	account := providertest.Call[accountReply](t, p, "account", player)
 	assert.Empty(t, account.Error)
@@ -44,15 +52,5 @@ func TestLiveUpstream(t *testing.T) {
 	for i, m := range matches.Matches {
 		fmt.Printf("match[%d]: %s on %s as %s %d/%d/%d acs=%.1f\n",
 			i, m.Result, m.Map, m.Agent, m.Kills, m.Deaths, m.Assists, m.ACS)
-	}
-
-	shop := providertest.Call[shopReply](t, p, "shop", gossiprpc.Request{})
-	assert.Empty(t, shop.Error)
-	if shop.Count > 0 {
-		fmt.Printf("shop: bundle=%q (%.1f%% off) price=%d vp items=%d first=%q expires_in=%.1fd\n",
-			shop.Bundle, shop.DiscountPct, shop.Price, shop.Count, shop.Items[0].Name,
-			float64(shop.ExpiresSeconds)/86400)
-	} else {
-		fmt.Println("shop: no featured bundle payload")
 	}
 }

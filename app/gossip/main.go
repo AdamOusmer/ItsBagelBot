@@ -116,6 +116,9 @@ func wireKeyResolvers(w gossipWiring, deps *provider.Deps) {
 	if cfg.GoveeKeySubjectPrefix != "" {
 		deps.GoveeKeys = core.NewGoveeKeyClient(nc, cfg.GoveeKeySubjectPrefix)
 	}
+	if cfg.RiotLinkSubjectPrefix != "" {
+		deps.RiotLinks = core.NewRiotLinkClient(nc, cfg.RiotLinkSubjectPrefix)
+	}
 	if cfg.SpotifyKeySubjectPrefix != "" {
 		deps.SpotifyKeys = core.NewSpotifyKeyClient(nc, cfg.SpotifyKeySubjectPrefix)
 	}
