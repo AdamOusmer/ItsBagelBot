@@ -47,6 +47,9 @@ func NewStore(client valkey_go.Client, cfg Config) *Store {
 	if cfg.Announcer == nil || cfg.Winners == nil {
 		panic("draw: announcer and winner sink are required")
 	}
+	if cfg.Phases == nil {
+		panic("draw: phase observer is required")
+	}
 	if cfg.Log == nil {
 		cfg.Log = zap.NewNop()
 	}
@@ -68,19 +71,23 @@ type OpenRequest struct {
 type OpenOutcome int64
 
 const (
-	Opened       OpenOutcome = OpenOutcome(valkey.RoundOpened)
-	JoinableBusy OpenOutcome = OpenOutcome(valkey.RoundJoinableBusy)
-	LegacyBusy   OpenOutcome = OpenOutcome(valkey.RoundLegacyBusy)
+	Opened        OpenOutcome = OpenOutcome(valkey.RoundOpened)
+	JoinableBusy  OpenOutcome = OpenOutcome(valkey.RoundJoinableBusy)
+	LegacyBusy    OpenOutcome = OpenOutcome(valkey.RoundLegacyBusy)
+	AlreadyOpened OpenOutcome = OpenOutcome(valkey.RoundAlreadyOpened)
 )
 
 func (s *Store) Open(ctx context.Context, req OpenRequest) (Round, OpenOutcome, error) {
+	if !req.validTarget() {
+		return Round{}, Opened, ErrInvalidTerms
+	}
 	now, err := valkey.ServerNow(ctx, s.client)
 	if err != nil {
 		return Round{}, Opened, err
 	}
-	terms, err := validateTerms(req, now)
+	terms, err := validateTerms(req.Terms, now)
 	if err != nil {
-		return Round{}, Opened, err
+		return s.replayInvalidOpen(ctx, req, err)
 	}
 	if req.ID == "" {
 		req.ID = NewRoundID()
@@ -90,16 +97,43 @@ func (s *Store) Open(ctx context.Context, req OpenRequest) (Round, OpenOutcome, 
 	if req.Actor != "" {
 		r.Actions = []Action{{Kind: "open", Actor: req.Actor, At: r.OpenedAt}}
 	}
-	spec, err := s.openSpec(r, now.UnixMicro())
+	return s.openRound(ctx, r, now.UnixMicro())
+}
+
+func (s *Store) replayInvalidOpen(ctx context.Context, req OpenRequest, invalid error) (Round, OpenOutcome, error) {
+	if req.ID == "" {
+		return Round{}, Opened, invalid
+	}
+	r, err := s.metadata(ctx, req.Channel, req.ID)
+	if err != nil {
+		return Round{}, Opened, err
+	}
+	if r.Channel == req.Channel {
+		return r, AlreadyOpened, nil
+	}
+	return Round{}, Opened, invalid
+}
+
+func (s *Store) openRound(ctx context.Context, r Round, openedOrder int64) (Round, OpenOutcome, error) {
+	spec, err := s.openSpec(r, openedOrder)
 	if err != nil {
 		return Round{}, Opened, err
 	}
 	keys := keysFor(r.Channel, r.ID)
 	code, err := keys.Open(ctx, s.client, spec)
-	if err != nil || OpenOutcome(code) != Opened {
-		return Round{}, OpenOutcome(code), err
+	outcome := OpenOutcome(code)
+	if err != nil {
+		return Round{}, outcome, err
 	}
-	return r, Opened, nil
+	switch outcome {
+	case AlreadyOpened:
+		r, err = s.metadata(ctx, r.Channel, r.ID)
+		return r, outcome, err
+	case Opened:
+		return r, outcome, nil
+	default:
+		return Round{}, outcome, nil
+	}
 }
 
 func (s *Store) openSpec(r Round, openedOrder int64) (valkey.RoundOpen, error) {
@@ -112,19 +146,22 @@ func (s *Store) openSpec(r Round, openedOrder int64) (valkey.RoundOpen, error) {
 		return valkey.RoundOpen{}, err
 	}
 	fields := []valkey.FieldValue{
-		{Field: "channel", Value: strconv.FormatUint(uint64(r.Channel), 10)},
 		{Field: "kind", Value: string(r.Terms.Kind)}, {Field: "terms", Value: string(terms)},
 		{Field: "phase", Value: string(r.Phase)}, timeField("opened_at", r.OpenedAt), timeField("closes_at", r.ClosesAt),
 	}
-	reminder := r.OpenedAt.Add(Pins.RemindInterval)
 	if len(r.Actions) != 0 {
 		fields = append(fields, valkey.FieldValue{Field: "actions", Value: string(actions)})
 	}
-	fields = append(fields, timeField("remind_at", reminder))
+	next := r.ClosesAt
+	if r.Terms.remindersEnabled() {
+		reminder := r.OpenedAt.Add(Pins.RemindInterval)
+		fields = append(fields, timeField("remind_at", reminder))
+		next = earlier(reminder, next)
+	}
 	return valkey.RoundOpen{
-		RoundID: string(r.ID), Legacy: roundLegacyKey(r.Channel, s.cfg.LegacyKey, legacyStateKey),
+		RoundID: string(r.ID), Channel: uint64(r.Channel), Legacy: roundLegacyKey(r.Channel, s.cfg.LegacyKey, legacyStateKey),
 		LegacyDeadline: roundLegacyKey(r.Channel, s.cfg.LegacyDeadlineKey, legacyDeadlineKey),
-		TTL:            roundTTL, Wake: valkey.DrawWake{Channel: wakeChannel, At: earlier(reminder, r.ClosesAt)}, OpenedMs: openedOrder,
+		TTL:            roundTTL, Wake: valkey.DrawWake{Channel: wakeChannel, At: next}, OpenedMs: openedOrder,
 		Fields: fields,
 	}, nil
 }
@@ -136,10 +173,9 @@ func roundLegacyKey(channel ChannelID, key, fallback func(ChannelID) string) str
 	return fallback(channel)
 }
 
-func validateTerms(req OpenRequest, now time.Time) (Terms, error) {
-	t := req.Terms
+func validateTerms(t Terms, now time.Time) (Terms, error) {
 	policy, ok := settlers[t.Kind]
-	if !ok || !req.validTarget() {
+	if !ok {
 		return Terms{}, ErrInvalidTerms
 	}
 	t.ClosesAt = t.ClosesAt.Truncate(time.Millisecond)
@@ -202,16 +238,23 @@ func (s *Store) joinableID(ctx context.Context, ch ChannelID) (RoundID, error) {
 }
 
 func (s *Store) Joinable(ctx context.Context, ch ChannelID) (Round, bool, error) {
-	id, err := s.joinableID(ctx, ch)
-	if err != nil || id == "" {
-		return Round{}, false, err
-	}
-	r, err := s.metadata(ctx, ch, id)
+	r, err := s.joinRound(ctx, ch)
 	if err != nil || r.Phase != PhaseOpen {
-		return Round{}, false, err
+		return r, false, err
 	}
 	now, err := valkey.ServerNow(ctx, s.client)
 	return r, err == nil && now.Before(r.ClosesAt), err
+}
+
+func (s *Store) joinRound(ctx context.Context, ch ChannelID) (Round, error) {
+	id, err := s.joinableID(ctx, ch)
+	if err != nil {
+		return Round{}, err
+	}
+	if id == "" {
+		return s.latest(ctx, ch, roundFilter{})
+	}
+	return s.metadata(ctx, ch, id)
 }
 
 func timeField(field string, at time.Time) valkey.FieldValue {

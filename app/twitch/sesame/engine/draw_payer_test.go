@@ -70,17 +70,17 @@ func TestDrawPayerRequiresRegisteredAccountInstance(t *testing.T) {
 	cases := []struct {
 		name     string
 		accounts payerAccount
+		want     error
 	}{
-		{"unregistered", payerAccount{Snapshot: channelruntime.Snapshot{AccountCreatedAt: 301}}},
-		{"zero instance", payerAccount{Snapshot: channelruntime.Snapshot{Registered: true}}},
-		{"lookup unavailable", payerAccount{err: context.DeadlineExceeded}},
+		{"unregistered", payerAccount{Snapshot: channelruntime.Snapshot{AccountCreatedAt: 301}}, draw.ErrAccountInstanceUnavailable},
+		{"zero instance", payerAccount{Snapshot: channelruntime.Snapshot{Registered: true}}, draw.ErrAccountInstanceUnavailable},
+		{"lookup unavailable", payerAccount{err: context.DeadlineExceeded}, context.DeadlineExceeded},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			p := engine.NewDrawPayer(&creditWallet{}, tc.accounts)
 			instance, err := p.Instance(t.Context(), 8, "17")
-			require.Error(t, err)
-			require.NotErrorIs(t, err, draw.ErrPaymentRejected)
+			require.ErrorIs(t, err, tc.want)
 			require.Zero(t, instance)
 		})
 	}

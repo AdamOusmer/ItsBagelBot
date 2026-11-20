@@ -30,7 +30,7 @@ func (p drawPayer) Instance(ctx context.Context, channel draw.ChannelID, _ draw.
 		return 0, err
 	}
 	if !account.Registered || account.AccountCreatedAt == 0 {
-		return 0, errors.New("draw: channel account instance unavailable")
+		return 0, draw.ErrAccountInstanceUnavailable
 	}
 	return account.AccountCreatedAt, nil
 }

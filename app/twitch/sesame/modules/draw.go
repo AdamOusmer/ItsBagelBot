@@ -71,14 +71,17 @@ func (d drawOwner) activeJoin(ctx context.Context, c *module.Context) (draw.Roun
 
 func (d drawOwner) resolveJoin(ctx context.Context, c *module.Context) drawCommandState {
 	r, found, err := d.activeJoin(ctx, c)
-	if r.ID != "" || err != nil {
+	if found || err != nil || r.Phase == draw.PhaseOpen {
 		return drawCommandState{round: r, found: found, err: err}
 	}
 	if d.deps.Raffle == nil {
-		return drawCommandState{}
+		return drawCommandState{round: r}
 	}
 	legacy, err := d.deps.Raffle.Status(ctx, c.BroadcasterID)
-	return drawCommandState{legacyFound: legacy.Open || wantsClosedRaffle(c), err: err}
+	if legacy.Open {
+		return drawCommandState{legacyFound: true, err: err}
+	}
+	return drawCommandState{round: r, legacyFound: wantsClosedRaffle(c), err: err}
 }
 
 func wantsClosedRaffle(c *module.Context) bool {

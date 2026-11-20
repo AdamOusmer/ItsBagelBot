@@ -21,7 +21,7 @@ import (
 type fakeDraw struct {
 	engine.DrawStore
 	joinable bool
-	closing  bool
+	phase    draw.Phase
 	lookups  int
 	joined   draw.JoinRequest
 	claims   draw.ClaimOutcome
@@ -31,8 +31,8 @@ type fakeDraw struct {
 
 func (d *fakeDraw) Joinable(context.Context, draw.ChannelID) (draw.Round, bool, error) {
 	d.lookups++
-	if d.joinable || d.closing {
-		return draw.Round{ID: "active"}, d.joinable, nil
+	if d.joinable || d.phase != "" {
+		return draw.Round{ID: "active", Phase: d.phase}, d.joinable, nil
 	}
 	return draw.Round{}, false, nil
 }
@@ -80,9 +80,14 @@ func TestDrawSharedCommandsProcess(t *testing.T) {
 	cases := []drawChatCase{
 		{name: "new round beats legacy and queue", command: "join", draw: fakeDraw{joinable: true}, raffle: legacy, views: queue,
 			want: drawChatResult{joined: draw.JoinRequest{Channel: 2, Round: "active", Viewer: "9", Login: "viewer", Weight: 100}}},
-		{name: "round past its deadline claims join before the sweep", command: "join", draw: fakeDraw{closing: true}, views: queue,
+		{name: "round past its deadline claims join before the sweep", command: "join", draw: fakeDraw{phase: draw.PhaseOpen}, views: queue,
 			want: drawChatResult{message: "The draw has closed."}},
-		{name: "legacy open beats queue even with raffle disabled", command: "join", raffle: legacy, views: queue,
+		{name: "closing claims join before queue", command: "join", draw: fakeDraw{phase: draw.PhaseClosing}, views: queue,
+			want: drawChatResult{message: "The draw has closed."}},
+		{name: "settling claims join before queue", command: "join", draw: fakeDraw{phase: draw.PhaseSettling}, views: queue,
+			want: drawChatResult{message: "The draw has closed."}},
+		{name: "legacy open beats settling and queue even with raffle disabled", command: "join",
+			draw: fakeDraw{phase: draw.PhaseSettling}, raffle: legacy, views: queue,
 			want: drawChatResult{legacyJoined: []string{"9"}}},
 		{name: "queue receives unclaimed join", command: "join", views: queue,
 			want: drawChatResult{message: "you joined the queue"}},

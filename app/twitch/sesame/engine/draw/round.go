@@ -51,6 +51,7 @@ type Terms struct {
 	Winners       WinnerPolicy
 	ClaimWindow   time.Duration
 	RerollNoShows bool
+	RemindEnabled bool            `json:",omitempty"`
 	Rules         codec.RawMessage `json:",omitempty"`
 	ClosesAt      time.Time
 }

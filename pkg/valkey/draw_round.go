@@ -19,6 +19,7 @@ type RoundKeys struct {
 type RoundOpen struct {
 	Wake           DrawWake
 	RoundID        string
+	Channel        uint64
 	Legacy         string
 	LegacyDeadline string
 	Fields         []FieldValue
@@ -32,6 +33,7 @@ const (
 	RoundOpened int64 = iota
 	RoundJoinableBusy
 	RoundLegacyBusy
+	RoundAlreadyOpened
 )
 
 const drawTimeLua = `
@@ -43,14 +45,16 @@ end
 
 var drawOpenScript = NewScript(drawTimeLua + `
 local joinable, round, due, active, legacy, seen_round, legacy_deadline = unpack(KEYS)
-local id, ttl, after, opened, seen, wake, at = unpack(ARGV, 1, 7)
+local id, ttl, after, opened, seen, wake, at, channel = unpack(ARGV, 1, 8)
+local exists = redis.call('EXISTS', round) == 1
+if exists and (redis.call('HGET', round, 'channel') or '0') == channel then return 3 end
+if exists then return 1 end
 local current = redis.call('GET', joinable) or ''
 if current ~= seen then return 1 end
 if seen ~= '' and redis.call('EXISTS', seen_round) == 1 then return 1 end
-if redis.call('EXISTS', round) == 1 then return 1 end
 if redis.call('EXISTS', legacy, legacy_deadline) > 0 then return 2 end
 redis.call('SET', joinable, id, 'PX', ttl)
-redis.call('HSET', round, unpack(ARGV, 8))
+redis.call('HSET', round, unpack(ARGV, 9))
 redis.call('PEXPIRE', round, ttl)
 redis.call('ZADD', active, opened, id)
 redis.call('PEXPIRE', active, ttl)
@@ -71,11 +75,16 @@ func (k RoundKeys) Open(ctx context.Context, client valkey_go.Client, o RoundOpe
 	o.Seen = seen
 	keys := []string{k.Joinable, k.Round, k.Due, k.Active, drawOptionalKey(o.Legacy, k.Round),
 		k.joinableRound(o), drawOptionalKey(o.LegacyDeadline, k.Round)}
+	channel := strconv.FormatUint(o.Channel, 10)
 	args := []string{
 		o.RoundID, strconv.FormatInt(o.TTL.Milliseconds(), 10), strconv.FormatInt(o.DueAt.Milliseconds(), 10),
-		strconv.FormatInt(o.OpenedMs, 10), o.Seen, o.Wake.Channel, strconv.FormatInt(o.Wake.At.UnixMilli(), 10),
+		strconv.FormatInt(o.OpenedMs, 10), o.Seen, o.Wake.Channel, strconv.FormatInt(o.Wake.At.UnixMilli(), 10), channel,
 	}
-	return drawOpenScript.Exec(ctx, client, keys, appendDrawFields(args, o.Fields)).AsInt64()
+	args = appendDrawFields(args, o.Fields)
+	if o.Channel != 0 {
+		args = append(args, "channel", channel)
+	}
+	return drawOpenScript.Exec(ctx, client, keys, args).AsInt64()
 }
 
 func drawOptionalKey(key, fallback string) string {
@@ -262,6 +271,7 @@ func appendDrawFields(args []string, fields []FieldValue) []string {
 type RoundRead struct {
 	Round, Slots, Labels map[string]string
 	Entries              []ScoredMember
+	EntryCount           int64
 	Found                bool
 	Refused              int64
 }
@@ -281,16 +291,18 @@ func (k RoundKeys) Read(ctx context.Context, client valkey_go.Client) (RoundRead
 
 func (k RoundKeys) read(ctx context.Context, client valkey_go.Client, withPool bool) (RoundRead, error) {
 	b := client.B()
-	commands := []valkey_go.Completed{b.Hgetall().Key(k.Round).Build(), b.Hgetall().Key(k.Slots).Build()}
+	commands := []valkey_go.Completed{
+		b.Hgetall().Key(k.Round).Build(), b.Hgetall().Key(k.Slots).Build(), b.Hlen().Key(k.Refused).Build(),
+	}
 	if withPool {
 		commands = append(commands, b.Hgetall().Key(k.Labels).Build(),
-			b.Zrange().Key(k.Entries).Min("0").Max("-1").Withscores().Build(),
-			b.Hlen().Key(k.Refused).Build())
+			b.Zrange().Key(k.Entries).Min("0").Max("-1").Withscores().Build())
+	} else {
+		commands = append(commands, b.Zcard().Key(k.Entries).Build())
 	}
 	results := client.DoMulti(ctx, commands...)
 	var read RoundRead
-	hashes := []*map[string]string{&read.Round, &read.Slots, &read.Labels}
-	for i, dst := range hashes[:min(len(hashes), len(results))] {
+	for i, dst := range []*map[string]string{&read.Round, &read.Slots} {
 		fields, err := results[i].AsStrMap()
 		if err != nil {
 			return RoundRead{}, err
@@ -298,27 +310,30 @@ func (k RoundKeys) read(ctx context.Context, client valkey_go.Client, withPool b
 		*dst = fields
 	}
 	read.Found = len(read.Round) != 0
-	if !withPool {
-		return read, nil
+	var err error
+	read.Refused, err = results[2].AsInt64()
+	if err != nil {
+		return RoundRead{}, err
 	}
-	err := read.decodePool(results[3:])
+	if withPool {
+		err = read.decodePool(results[3:])
+	} else {
+		read.EntryCount, err = results[3].AsInt64()
+	}
 	return read, err
 }
 
 func (r *RoundRead) decodePool(results []valkey_go.ValkeyResult) error {
-	if err := r.readScores(results[0]); err != nil {
-		return err
-	}
-	var err error
-	r.Refused, err = results[1].AsInt64()
-	return err
-}
-
-func (r *RoundRead) readScores(result valkey_go.ValkeyResult) error {
-	scores, err := result.AsZScores()
+	labels, err := results[0].AsStrMap()
 	if err != nil {
 		return err
 	}
+	scores, err := results[1].AsZScores()
+	if err != nil {
+		return err
+	}
+	r.Labels = labels
+	r.EntryCount = int64(len(scores))
 	r.Entries = make([]ScoredMember, 0, len(scores))
 	for _, entry := range scores {
 		r.Entries = append(r.Entries, ScoredMember{Member: entry.Member, Score: int64(entry.Score)})

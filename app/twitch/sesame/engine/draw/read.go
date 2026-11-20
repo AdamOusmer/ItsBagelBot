@@ -83,6 +83,9 @@ type roundFilter struct {
 }
 
 func (f roundFilter) matches(r Round) bool {
+	if f == (roundFilter{}) {
+		return livePhase(r.Phase)
+	}
 	return r.Phase == f.phase && (f.kind == "" || r.Terms.Kind == f.kind)
 }
 

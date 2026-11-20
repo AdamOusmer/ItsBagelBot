@@ -156,6 +156,66 @@ func TestDrawExplicitIDAndLiveRefusalCount(t *testing.T) {
 	require.Equal(t, draw.JoinableBusy, code)
 }
 
+func TestDrawOpenReplayReturnsStoredRound(t *testing.T) {
+	f := newFixture(t, draw.Config{})
+	r := f.open(431, draw.Terms{Kind: draw.KindGiveaway, Prize: draw.Prize{Item: "poster"}})
+	req := draw.OpenRequest{ID: r.ID, Channel: r.Channel, Terms: r.Terms}
+	for _, tc := range []struct {
+		name  string
+		phase draw.Phase
+		setup func()
+	}{
+		{"open", draw.PhaseOpen, func() {}},
+		{"closing alongside a newer open round", draw.PhaseClosing, func() {
+			f.close(r.Channel)
+			f.open(r.Channel, r.Terms)
+		}},
+		{"retry with elapsed deadline", draw.PhaseClosing, func() { req.Terms.ClosesAt = r.OpenedAt }},
+	} {
+		tc.setup()
+		got, code, err := f.Open(t.Context(), req)
+		require.NoError(t, err, tc.name)
+		type replay struct {
+			code  draw.OpenOutcome
+			id    draw.RoundID
+			phase draw.Phase
+			terms draw.Terms
+		}
+		require.Equal(t, replay{draw.AlreadyOpened, r.ID, tc.phase, r.Terms}, replay{code, got.ID, got.Phase, got.Terms}, tc.name)
+	}
+}
+
+func TestDrawJoinableReportsNewestActiveRound(t *testing.T) {
+	f := newFixture(t, draw.Config{})
+	older := f.open(432, draw.Terms{Kind: draw.KindGiveaway})
+	f.close(older.Channel)
+	r := f.open(older.Channel, older.Terms)
+	for _, tc := range []struct {
+		phase draw.Phase
+		enter func()
+	}{
+		{draw.PhaseOpen, func() {}},
+		{draw.PhaseClosing, func() { f.close(r.Channel) }},
+		{draw.PhaseSettling, func() {
+			ok, err := drawKeys(r).Shift(t.Context(), f.client, valkey.PhaseShift{
+				From: "closing", To: "settling", RoundID: string(r.ID), TTL: time.Hour,
+			})
+			require.NoError(t, err)
+			require.True(t, ok)
+		}},
+	} {
+		tc.enter()
+		got, found, err := f.Joinable(t.Context(), r.Channel)
+		require.NoError(t, err)
+		type active struct {
+			id    draw.RoundID
+			phase draw.Phase
+			open  bool
+		}
+		require.Equal(t, active{r.ID, tc.phase, tc.phase == draw.PhaseOpen}, active{got.ID, got.Phase, found})
+	}
+}
+
 func (f fixture) shiftFields(r draw.Round, at time.Time, fields ...valkey.FieldValue) {
 	f.t.Helper()
 	applied, err := drawKeys(r).Shift(f.t.Context(), f.client, valkey.PhaseShift{
@@ -171,10 +231,30 @@ func testTimeField(field string, at time.Time) valkey.FieldValue {
 }
 
 func TestDrawOpenReminderIncludesTimeAndEntries(t *testing.T) {
+	cases := []reminderCase{
+		{"raffle", draw.Terms{Kind: draw.KindRaffle, Prize: draw.Prize{Points: 50}}, true},
+		{"giveaway opted in", draw.Terms{Kind: draw.KindGiveaway, RemindEnabled: true}, true},
+		{"giveaway default", draw.Terms{Kind: draw.KindGiveaway}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, tc.run)
+	}
+}
+
+type reminderCase struct {
+	name  string
+	terms draw.Terms
+	on    bool
+}
+
+func (tc reminderCase) run(t *testing.T) {
 	ann := make(notices, 4)
 	phases := make(phaseTrace, 2)
 	f := newFixture(t, draw.Config{Announcer: ann, Phases: phases})
-	r := f.openFor(426, draw.Terms{Kind: draw.KindRaffle, Prize: draw.Prize{Points: 50}}, 12*time.Minute)
+	r := f.openFor(426, tc.terms, 12*time.Minute)
+	raw, err := drawKeys(r).Metadata(t.Context(), f.client)
+	require.NoError(t, err)
+	require.Equal(t, tc.on, raw["remind_at"] != "")
 	f.join(r, "11")
 	now := f.now()
 	f.shiftFields(r, now, testTimeField("remind_at", now.Add(-time.Second)))
@@ -184,22 +264,36 @@ func TestDrawOpenReminderIncludesTimeAndEntries(t *testing.T) {
 	r, _, err = f.Joinable(t.Context(), r.Channel)
 	require.NoError(t, err)
 	f.start(f.Store)
-	got := ann.next(t, draw.NoticeRemind)
-	require.Equal(t, draw.Notice{Event: draw.NoticeRemind, Round: r, Entries: 1, TimeLeft: got.TimeLeft}, got)
-	require.InDelta(t, r.ClosesAt.Sub(now).Seconds(), got.TimeLeft.Seconds(), 0.3)
-	keys := drawKeys(r)
-	raw, err := keys.Metadata(t.Context(), f.client)
-	require.NoError(t, err)
-	next, err := strconv.ParseInt(raw["remind_at"], 10, 64)
-	require.NoError(t, err)
-	require.InDelta(t, now.Add(draw.Pins.RemindInterval).UnixMilli(), next, 300)
+	if tc.on {
+		f.checkReminder(r, ann, now)
+	}
+	f.checkHintScheduled(r)
 	f.shiftFields(r, f.now(), testTimeField("closes_at", now))
 	require.Equal(t, r.ID, take(t, phases).ID)
-	waitRemoved(t, f.client, keys)
+	waitRemoved(t, f.client, drawKeys(r))
 	require.Empty(t, phases)
 	for len(ann) > 0 {
 		require.NotEqual(t, draw.NoticeRemind, (<-ann).Event)
 	}
+}
+
+func (f fixture) checkReminder(r draw.Round, ann notices, now time.Time) {
+	t := f.t
+	t.Helper()
+	got := ann.next(t, draw.NoticeRemind)
+	require.Equal(t, draw.Notice{Event: draw.NoticeRemind, Round: r, Entries: 1, TimeLeft: got.TimeLeft}, got)
+	require.InDelta(t, r.ClosesAt.Sub(now).Seconds(), got.TimeLeft.Seconds(), 0.3)
+	f.checkNextReminder(r, now.Add(draw.Pins.RemindInterval))
+}
+
+func (f fixture) checkNextReminder(r draw.Round, at time.Time) {
+	t := f.t
+	t.Helper()
+	raw, err := drawKeys(r).Metadata(t.Context(), f.client)
+	require.NoError(t, err)
+	next, err := strconv.ParseInt(raw["remind_at"], 10, 64)
+	require.NoError(t, err)
+	require.InDelta(t, at.UnixMilli(), next, 300)
 }
 
 func TestDrawVerifyingNoticeStartsWithRerollBatch(t *testing.T) {

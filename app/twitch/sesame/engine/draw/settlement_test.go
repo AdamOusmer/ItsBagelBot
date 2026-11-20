@@ -85,7 +85,7 @@ func TestDrawStuckVerification(t *testing.T) {
 		{draw.KindGiveaway, "timeout", draw.SlotEnded, "11"},
 		{draw.KindRaffle, "skip_rule", draw.SlotPaid, "11"},
 		{draw.KindRaffle, "reroll", draw.SlotPaid, "12"},
-		{draw.KindRaffle, "timeout", draw.SlotUnpaid, "11"},
+		{draw.KindRaffle, "timeout", draw.SlotEnded, "11"},
 	}
 	for _, tc := range cases {
 		t.Run(string(tc.kind)+"/"+tc.action, tc.run)
@@ -112,6 +112,11 @@ func (tc stuckCase) run(t *testing.T) {
 	f.close(r.Channel)
 	f.start(f.Store)
 	tc.resolve(f, r)
+	if tc.kind == draw.KindRaffle && tc.action == "timeout" {
+		waitRemoved(t, f.client, drawKeys(r))
+		require.Empty(t, ann)
+		return
+	}
 	slot := tc.finishedSlot(t, ann, recorded)
 	require.Equal(t, tc.want, slot.State)
 	require.Equal(t, tc.viewer, slot.Viewer)
@@ -144,7 +149,8 @@ func (tc stuckCase) resolveStuck(f fixture, r draw.Round, slot draw.Slot, req dr
 	now := f.now()
 	slot.Since = now.Add(-draw.Pins.VerifyStuck - time.Second)
 	if tc.action == "timeout" {
-		tc.expire(f, r, slot, now)
+		slot.Since = slot.Since.Add(-draw.Pins.ModActionTimeout)
+		f.rewriteSlots(r, []draw.Slot{slot}, now)
 		return
 	}
 	f.rewriteSlots(r, []draw.Slot{slot}, now)
@@ -154,25 +160,12 @@ func (tc stuckCase) resolveStuck(f fixture, r draw.Round, slot draw.Slot, req dr
 	require.Equal(f.t, 1, got)
 }
 
-func (tc stuckCase) expire(f fixture, r draw.Round, slot draw.Slot, now time.Time) {
-	if tc.kind == draw.KindRaffle {
-		f.ageRaffle(r)
-		return
-	}
-	slot.Since = slot.Since.Add(-draw.Pins.ModActionTimeout)
-	f.rewriteSlots(r, []draw.Slot{slot}, now)
-}
-
 func (tc stuckCase) finishedSlot(t *testing.T, ann notices, recorded <-chan []draw.Slot) draw.Slot {
 	t.Helper()
-	switch {
-	case tc.kind == draw.KindGiveaway:
+	if tc.kind == draw.KindGiveaway {
 		return take(t, recorded)[0]
-	case tc.action == "timeout":
-		return ann.next(t, draw.NoticeUnpaid).Slots[0]
-	default:
-		return ann.next(t, draw.NoticeWinners).Slots[0]
 	}
+	return ann.next(t, draw.NoticeWinners).Slots[0]
 }
 
 func (f fixture) checkHintScheduled(r draw.Round) {
@@ -199,24 +192,40 @@ func (f fixture) awaitSlot(r draw.Round, matches func(draw.Slot) bool) draw.Slot
 	return slot
 }
 
-func TestDrawStockCreatesUnfilledSlots(t *testing.T) {
-	for _, count := range []int{0, 1} {
-		t.Run(fmt.Sprint(count), func(t *testing.T) {
+func TestDrawEmptyRoundSkipsSlotsAndWinnerRecord(t *testing.T) {
+	for _, terms := range []draw.Terms{
+		{Kind: draw.KindGiveaway, Winners: draw.WinnerPolicy{Count: 3}},
+		{Kind: draw.KindRaffle, Prize: draw.Prize{Points: 50}, Winners: draw.WinnerPolicy{Auto: true}},
+	} {
+		t.Run(string(terms.Kind), func(t *testing.T) {
 			ann := make(notices, 8)
-			f := newFixture(t, draw.Config{Announcer: ann})
-			r := f.open(413, draw.Terms{Kind: draw.KindGiveaway, Winners: draw.WinnerPolicy{Count: 3}})
-			for n := range count {
-				f.join(r, draw.ViewerID(fmt.Sprint(n+11)))
-			}
+			records := make(chan []draw.Slot, 1)
+			f := newFixture(t, draw.Config{Announcer: ann, Winners: captureSlots(records)})
+			r := f.open(413, terms)
 			f.close(r.Channel)
 			f.start(f.Store)
-			unfilled := ann.next(t, draw.NoticeUnfilled)
-			require.Equal(t, 3, unfilled.Round.Winners)
-			require.Len(t, unfilled.Slots, 3-count)
-			require.Equal(t, count+1, unfilled.Slots[0].N)
+			got := take(t, ann)
+			require.Equal(t, draw.Notice{Event: draw.NoticeEmpty, Round: got.Round}, got)
+			require.Zero(t, got.Round.Winners)
 			waitRemoved(t, f.client, drawKeys(r))
+			require.Empty(t, ann)
+			require.Empty(t, records)
 		})
 	}
+}
+
+func TestDrawStockCreatesUnfilledSlots(t *testing.T) {
+	ann := make(notices, 4)
+	f := newFixture(t, draw.Config{Announcer: ann})
+	r := f.open(413, draw.Terms{Kind: draw.KindGiveaway, Winners: draw.WinnerPolicy{Count: 3}})
+	f.join(r, "11")
+	f.close(r.Channel)
+	f.start(f.Store)
+	unfilled := ann.next(t, draw.NoticeUnfilled)
+	require.Equal(t, 3, unfilled.Round.Winners)
+	require.Len(t, unfilled.Slots, 2)
+	require.Equal(t, 2, unfilled.Slots[0].N)
+	waitRemoved(t, f.client, drawKeys(r))
 }
 
 type recordAttempt struct {
