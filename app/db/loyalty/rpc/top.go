@@ -5,18 +5,16 @@ package rpc
 
 import (
 	"context"
-	"regexp"
 	"strings"
 
 	"ItsBagelBot/app/db/loyalty/repository"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+	"ItsBagelBot/internal/domain/validate"
 )
-
-var topLoginPattern = regexp.MustCompile(`^[a-z0-9_]{1,25}$`)
 
 func topLogin(raw string) string {
 	login := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(raw), "@"))
-	if topLoginPattern.MatchString(login) {
+	if validate.Login(login) == nil {
 		return login
 	}
 	return ""

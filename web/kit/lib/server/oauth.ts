@@ -27,6 +27,32 @@ export function isOAuthProtocolError(e: unknown): boolean {
 }
 export const generateState = generateRandomState;
 
+export type TwitchAccount = { login: string; displayName: string; email: string | null };
+
+type HelixUser = { login?: string; display_name?: string; email?: string };
+
+function accountFrom({ login = '', display_name = '', email = '' }: HelixUser = {}): TwitchAccount | null {
+  if (!login) return null;
+  const address = email.trim();
+  return { login: login.toLowerCase(), displayName: display_name || login, email: address.includes('@') ? address : null };
+}
+
+// The ID token's preferred_username is the display name, which may use any script; take the login from here.
+export async function readTwitchAccount(clientId: string, accessToken: string): Promise<TwitchAccount | null> {
+  if (!clientId) return null;
+  try {
+    const res = await fetch('https://api.twitch.tv/helix/users', {
+      headers: { Authorization: `Bearer ${accessToken}`, 'Client-Id': clientId },
+      signal: AbortSignal.timeout(2500)
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { data?: HelixUser[] };
+    return accountFrom(body.data?.[0]);
+  } catch {
+    return null;
+  }
+}
+
 const TWITCH_AS: AuthorizationServer = {
   issuer: 'https://id.twitch.tv/oauth2',
   authorization_endpoint: 'https://id.twitch.tv/oauth2/authorize',

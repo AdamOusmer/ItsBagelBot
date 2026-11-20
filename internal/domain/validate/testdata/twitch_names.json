@@ -1,0 +1,134 @@
+{
+  "source": "Twitch Get Users: login is the login name, display_name is the display name. OIDC preferred_username is the display name. Help: Display Names on Twitch (localized names for Arabic, Chinese, Korean, Japanese).",
+  "logins": [
+    {
+      "value": "twitchdev",
+      "login": true,
+      "username": true,
+      "note": "lowercase login"
+    },
+    {
+      "value": "a_b_9",
+      "login": true,
+      "username": true,
+      "note": "letters, digits, underscore"
+    },
+    {
+      "value": "abc",
+      "login": true,
+      "username": true,
+      "note": "older accounts can be shorter than 4"
+    },
+    {
+      "value": "a",
+      "login": true,
+      "username": true,
+      "note": "shortest legacy login"
+    },
+    {
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaa",
+      "login": true,
+      "username": true,
+      "note": "25 is the maximum"
+    },
+    {
+      "value": "TwitchDev",
+      "login": false,
+      "username": true,
+      "note": "logins are lowercase; usernames are matched case-insensitively"
+    },
+    {
+      "value": "",
+      "login": false,
+      "username": false,
+      "note": "empty"
+    },
+    {
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "login": false,
+      "username": false,
+      "note": "over 25"
+    },
+    {
+      "value": "with space",
+      "login": false,
+      "username": false,
+      "note": "no spaces"
+    },
+    {
+      "value": "dash-name",
+      "login": false,
+      "username": false,
+      "note": "no hyphen"
+    },
+    {
+      "value": "@twitchdev",
+      "login": false,
+      "username": false,
+      "note": "callers strip the mention"
+    },
+    {
+      "value": "ストリーマー",
+      "login": false,
+      "username": false,
+      "note": "localized display names are never logins"
+    }
+  ],
+  "display_names": [
+    {
+      "value": "TwitchDev",
+      "valid": true,
+      "note": "login with changed capitalization"
+    },
+    {
+      "value": "ストリーマー",
+      "valid": true,
+      "note": "Japanese"
+    },
+    {
+      "value": "스트리머",
+      "valid": true,
+      "note": "Korean"
+    },
+    {
+      "value": "主播",
+      "valid": true,
+      "note": "Chinese (Simplified)"
+    },
+    {
+      "value": "實況主",
+      "valid": true,
+      "note": "Chinese (Traditional)"
+    },
+    {
+      "value": "مذيع",
+      "valid": true,
+      "note": "Arabic"
+    },
+    {
+      "value": "配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配",
+      "valid": true,
+      "note": "64 characters is the storage limit"
+    },
+    {
+      "value": "配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配配",
+      "valid": false,
+      "note": "over the storage limit"
+    },
+    {
+      "value": "",
+      "valid": false,
+      "note": "empty"
+    },
+    {
+      "value": "bad\u0000name",
+      "valid": false,
+      "note": "control character"
+    },
+    {
+      "value": "line\nbreak",
+      "valid": false,
+      "note": "control character"
+    }
+  ]
+}

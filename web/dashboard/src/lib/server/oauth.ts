@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { safeReturnPath } from '@bagel/kit/return-path';
-import { Twitch } from '@bagel/kit/server/oauth';
+import { readTwitchAccount, Twitch, type TwitchAccount } from '@bagel/kit/server/oauth';
 import { env } from '@bagel/kit/server/env';
 import { scopeGap } from '@bagel/kit';
 
@@ -72,21 +72,8 @@ export function twitchScopeGap(granted: readonly string[] | undefined): boolean 
   return !!granted && scopeGap(scopes().filter((s) => s !== 'openid'), granted).length > 0;
 }
 
-export async function fetchAccountEmail(accessToken: string): Promise<string | null> {
-  const clientId = env.TWITCH_CLIENT_ID;
-  if (!clientId) return null;
-  try {
-    const res = await fetch('https://api.twitch.tv/helix/users', {
-      headers: { Authorization: `Bearer ${accessToken}`, 'Client-Id': clientId },
-      signal: AbortSignal.timeout(2500)
-    });
-    if (!res.ok) return null;
-    const body = (await res.json()) as { data?: Array<{ email?: string }> };
-    const email = body.data?.[0]?.email?.trim() ?? '';
-    return email.includes('@') ? email : null;
-  } catch {
-    return null;
-  }
+export function fetchTwitchAccount(accessToken: string): Promise<TwitchAccount | null> {
+  return readTwitchAccount(env.TWITCH_CLIENT_ID ?? '', accessToken);
 }
 
 export function safeNextPath(value: string | null | undefined): string | null {

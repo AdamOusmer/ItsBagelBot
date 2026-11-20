@@ -6,13 +6,14 @@ package automation
 import (
 	"regexp"
 	"strconv"
+
+	"ItsBagelBot/internal/domain/validate"
 )
 
 var (
 	cmpOps        = enum{"eq", "ne", "gt", "gte", "lt", "lte"}
 	permLevels    = enum{"everyone", "sub", "vip", "mod", "lead_mod", "broadcaster"}
 	liveStates    = enum{"live", "offline"}
-	loginPattern  = regexp.MustCompile(`^[a-z0-9_]{1,25}$`)
 	userIDPattern = regexp.MustCompile(`^[0-9]{1,19}$`)
 )
 
@@ -139,7 +140,7 @@ func checkCooldown(c chk, p CooldownCondition) {
 
 func checkUsers(c chk, p UsersCondition) {
 	c.atLeastOne(len(p.Allow)+len(p.Deny)+len(p.AllowIDs)+len(p.DenyIDs) > 0)
-	each := c.eachFormat(loginPattern)
+	each := c.eachFormat(validate.LoginPattern)
 	c.stringList("allow", p.Allow, MaxListEntries, each)
 	c.stringList("deny", p.Deny, MaxListEntries, each)
 	c.stringList("allow_ids", p.AllowIDs, MaxListEntries, c.eachUserID)

@@ -14,9 +14,8 @@ import (
 )
 
 var (
-	announceColors     = []string{"", "primary", "blue", "green", "orange", "purple"}
-	commercialLength   = []int{30, 60, 90, 120, 150, 180}
-	actionLoginPattern = regexp.MustCompile(`^[a-zA-Z0-9_]{4,25}$`)
+	announceColors   = []string{"", "primary", "blue", "green", "orange", "purple"}
+	commercialLength = []int{30, 60, 90, 120, 150, 180}
 
 	lightsModes        = enum{LightsModeColor, LightsModeScene, LightsModeWhite, LightsModeOn, LightsModeOff}
 	lightsColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -272,7 +271,7 @@ func (c chk) login(login string, bounds span) {
 	if login == "" || !isStaticText(login) {
 		return
 	}
-	if !actionLoginPattern.MatchString(strings.TrimPrefix(login, "@")) {
+	if validate.Username(strings.TrimPrefix(login, "@")) != nil {
 		c.add("login", CodeInvalidFormat)
 	}
 }
