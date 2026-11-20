@@ -379,6 +379,21 @@ func TestLifecycleGrantOrderingRejectsDelayedRestore(t *testing.T) {
 	require.True(t, changed)
 	require.Equal(t, lifecycle.Recovering, s.RuntimeState)
 }
+func TestLifecycleReplyCarriesTermsAcceptance(t *testing.T) {
+	_, repo := lifecycleSetup(t)
+	defer repo.Close(t.Context())
+	ctx := t.Context()
+	require.NoError(t, repo.Register(ctx, Registration{ID: 1001, Username: "mavey", DisplayName: "Mavey", Email: "mavey@example.com"}))
+	get := func() bool {
+		reply, err := repo.Lifecycle(ctx, usersrpc.LifecycleRequest{Action: "get", UserID: 1001})
+		require.NoError(t, err)
+		return reply.TermsAccepted
+	}
+	before := get()
+	require.NoError(t, repo.SetOnboarded(ctx, 1001, true))
+	require.Equal(t, []bool{false, true}, []bool{before, get()})
+}
+
 func TestLifecycleEngagementCoalescesAtAuthorityAcrossReplicas(t *testing.T) {
 	client, repo := lifecycleSetup(t)
 	defer repo.Close(t.Context())

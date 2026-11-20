@@ -103,7 +103,7 @@ func (a *statefulAuthority) recreate() {
 func (a *statefulAuthority) handle(_ context.Context, r usersrpc.LifecycleRequest) usersrpc.LifecycleReply {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	reply := usersrpc.LifecycleReply{AccountCreatedAt: a.incarnation, State: a.state}
+	reply := usersrpc.LifecycleReply{AccountCreatedAt: a.incarnation, State: a.state, TermsAccepted: true}
 	if r.AccountCreatedAt != 0 && r.AccountCreatedAt != a.incarnation {
 		return reply
 	}

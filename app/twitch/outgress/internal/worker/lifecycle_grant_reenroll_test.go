@@ -45,12 +45,12 @@ func (p *postedTypes) RoundTrip(r *http.Request) (*http.Response, error) {
 	return p.verifyTransport.RoundTrip(r)
 }
 
-func grantedAuthority(t *testing.T) *nats.Conn {
+func grantedAuthority(t *testing.T, termsAccepted bool) *nats.Conn {
 	t.Helper()
 	serving := servingSnapshot()
 	nc := testnats.Connect(t)
 	require.NoError(t, bus.Serve(bus.RPCWiring{NC: nc, Log: zap.NewNop(), Queue: "users"}, usersrpc.LifecycleSubject, func(_ context.Context, r usersrpc.LifecycleRequest) usersrpc.LifecycleReply {
-		return usersrpc.LifecycleReply{AccountCreatedAt: serving.AccountCreatedAt, State: serving.State, Applied: r.Action == "grant_restored"}
+		return usersrpc.LifecycleReply{AccountCreatedAt: serving.AccountCreatedAt, State: serving.State, Applied: r.Action == "grant_restored", TermsAccepted: termsAccepted}
 	}))
 	require.NoError(t, nc.Flush())
 	return nc
@@ -75,7 +75,7 @@ func TestGrantOnHealthyChannelPostsOnlyMissingSubscriptions(t *testing.T) {
 	transport := &postedTypes{verifyTransport: &verifyTransport{present: present}}
 	w := verifyWorker(t, transport, valkeytest.Spawn(t))
 	require.NoError(t, w.registry.SetSubState(t.Context(), testBroadcaster, subStateOK, ""))
-	w.lifecycleNC = grantedAuthority(t)
+	w.lifecycleNC = grantedAuthority(t, true)
 
 	require.NoError(t, w.HandleAuthzGranted(grantEvent(t)))
 
@@ -84,27 +84,39 @@ func TestGrantOnHealthyChannelPostsOnlyMissingSubscriptions(t *testing.T) {
 	assert.Equal(t, subStateOK, state)
 }
 
-func TestGrantWithEverySubscriptionPresentPostsNothing(t *testing.T) {
-	var present []string
+func TestGrantPostsNothing(t *testing.T) {
+	var everything []string
 	for _, spec := range append(twitch.ChannelSubscriptions(testBroadcaster, testBot), twitch.ChannelOptionalSubscriptions(testBroadcaster)...) {
-		present = append(present, spec.Type)
+		everything = append(everything, spec.Type)
 	}
-	transport := &postedTypes{verifyTransport: &verifyTransport{present: present}}
-	w := verifyWorker(t, transport, valkeytest.Spawn(t))
-	w.lifecycleNC = grantedAuthority(t)
+	cases := map[string]struct {
+		present       []string
+		termsAccepted bool
+		wantState     string
+	}{
+		"every subscription present": {present: everything, termsAccepted: true, wantState: subStateOK},
+		"terms not accepted":         {termsAccepted: false, wantState: ""},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			transport := &postedTypes{verifyTransport: &verifyTransport{present: tc.present}}
+			w := verifyWorker(t, transport, valkeytest.Spawn(t))
+			w.lifecycleNC = grantedAuthority(t, tc.termsAccepted)
 
-	require.NoError(t, w.HandleAuthzGranted(grantEvent(t)))
+			require.NoError(t, w.HandleAuthzGranted(grantEvent(t)))
 
-	assert.Empty(t, transport.kinds)
-	state, _ := storedSubState(t, w)
-	assert.Equal(t, subStateOK, state)
+			assert.Empty(t, transport.kinds)
+			state, _ := storedSubState(t, w)
+			assert.Equal(t, tc.wantState, state)
+		})
+	}
 }
 
 func TestGrantWithFailedListLeavesChannelForTheSweep(t *testing.T) {
 	transport := &postedTypes{verifyTransport: &verifyTransport{listErr: true}}
 	w := verifyWorker(t, transport, valkeytest.Spawn(t))
 	require.NoError(t, w.registry.SetSubState(t.Context(), testBroadcaster, subStateOK, ""))
-	w.lifecycleNC = grantedAuthority(t)
+	w.lifecycleNC = grantedAuthority(t, true)
 
 	require.NoError(t, w.HandleAuthzGranted(grantEvent(t)))
 

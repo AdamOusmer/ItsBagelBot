@@ -4,7 +4,7 @@
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { fail, redirect, type Cookies } from '@sveltejs/kit';
-import { setOnboarded } from '#lib/server/services';
+import { publishEventSub, setOnboarded, type AccountState } from '#lib/server/services';
 import { applyFeaturePreset } from '#lib/server/feature-presets';
 import { count } from '@bagel/kit/server/analytics';
 import { SERVER_STRATEGIES } from '#lib/server/importer';
@@ -22,9 +22,16 @@ type Counted = SetupPreset | 'import';
 
 const consented = (form: FormData) => form.get('consent') === 'yes';
 
-function termsAccepted(locals: App.Locals): boolean {
+function account(locals: App.Locals): AccountState | null {
   const state = locals.accountState;
-  return !!state && 'value' in state && state.value.onboarded;
+  return state && 'value' in state ? state.value : null;
+}
+
+const termsAccepted = (locals: App.Locals) => account(locals)?.onboarded === true;
+
+async function acceptTerms(uid: string, locals: App.Locals) {
+  await setOnboarded(uid, true);
+  if (account(locals)?.active) await publishEventSub(uid, true);
 }
 
 async function tourSession(locals: App.Locals): Promise<Session | null> {
@@ -112,7 +119,7 @@ export const actions: Actions = {
     if (DEMO) return { ok: true };
     const who = signer(locals);
     if ('failure' in who) return who.failure;
-    return (await markOnboarded(() => setOnboarded(who.uid, true))) ?? { ok: true };
+    return (await markOnboarded(() => acceptTerms(who.uid, locals))) ?? { ok: true };
   },
   done: async ({ locals, request }) => {
     const form = await request.formData();

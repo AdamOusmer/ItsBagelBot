@@ -75,16 +75,23 @@ func (w *Worker) reconcileGrantChange(ctx context.Context, uid uint64, action st
 	if changed.State.RuntimeState == lifecycle.Recovering {
 		return w.recoverLifecycle(ctx, uid, changed)
 	}
-	if action != "grant_restored" {
-		return nil
-	}
-	if !changed.State.DesiredEnabled {
+	if !grantEnrolls(action, changed) {
 		return nil
 	}
 	if changed.State.ChatRestriction == lifecycle.RestrictionNone {
 		return w.enrollAfterGrant(ctx, strconv.FormatUint(uid, 10))
 	}
 	return w.reconcileControlRepair(ctx, usersrpc.LifecycleWork{UserID: uid, AccountCreatedAt: changed.AccountCreatedAt, State: changed.State})
+}
+
+func grantEnrolls(action string, changed usersrpc.LifecycleReply) bool {
+	if action != "grant_restored" {
+		return false
+	}
+	if !changed.TermsAccepted {
+		return false
+	}
+	return changed.State.DesiredEnabled
 }
 
 // A redelivered grant no longer applies, so pending must be stored first for the unhealthy sweep to finish a failed enrollment.

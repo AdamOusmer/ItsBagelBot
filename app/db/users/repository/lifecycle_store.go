@@ -93,7 +93,7 @@ func (r *Users) publishCommittedLifecycle(ctx context.Context, m lifecycleMutati
 	if err != nil {
 		return usersrpc.LifecycleReply{}, err
 	}
-	return usersrpc.LifecycleReply{State: *committed.Lifecycle, AccountCreatedAt: committed.CreatedAt.UnixMicro(), StateRevision: committed.StateRevision, Applied: true}, nil
+	return usersrpc.LifecycleReply{State: *committed.Lifecycle, AccountCreatedAt: committed.CreatedAt.UnixMicro(), StateRevision: committed.StateRevision, Applied: true, TermsAccepted: committed.Onboarded}, nil
 }
 func (r *Users) publishLifecycleProjection(ctx context.Context, row *ent.User, revision int64) error {
 	if err := r.publishChanged(ctx, row.ID); err != nil {

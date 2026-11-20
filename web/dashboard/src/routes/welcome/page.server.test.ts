@@ -8,12 +8,16 @@ import { actionEvent, captureAnalytics } from '../../../test/analytics';
 stubSvelteKit();
 let saveFails = false;
 const saved: unknown[] = [];
+const published: unknown[] = [];
 const services = await import('../../lib/server/services');
 mock.module('#lib/server/services', () => ({
   ...services,
   setOnboarded: async (...args: unknown[]) => {
     if (saveFails) throw new Error('save failed');
     saved.push(args);
+  },
+  publishEventSub: async (...args: unknown[]) => {
+    published.push(args);
   }
 }));
 mock.module('#lib/server/feature-presets', () => ({ applyFeaturePreset: async () => {} }));
@@ -22,6 +26,7 @@ const recorded = captureAnalytics();
 beforeEach(() => {
   saveFails = false;
   saved.length = 0;
+  published.length = 0;
 });
 
 test('counts the welcome view once', async () => {
@@ -45,6 +50,16 @@ test.each([
     (e: { location?: string }) => ({ landing: e.location ?? null, accepted: undefined })
   );
   expect(got).toEqual(want);
+});
+
+test.each([
+  { name: 'active account', active: true, published: [['7', true]] },
+  { name: 'disabled account', active: false, published: [] }
+])('accepting the terms on an $name', async ({ active, published: want }) => {
+  const event = actionEvent({ consent: 'yes' }) as { locals: Record<string, unknown> };
+  event.locals.accountState = { value: { onboarded: false, active } };
+  await actions.consent(event as never);
+  expect({ saved, published }).toEqual({ saved: [['7', true]], published: [...want] });
 });
 
 test.each([
