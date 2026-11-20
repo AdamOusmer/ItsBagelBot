@@ -14,6 +14,7 @@ import (
 	catalog "ItsBagelBot/internal/domain/analytics"
 
 	domainrpc "ItsBagelBot/internal/domain/rpc"
+	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/pkg/codec"
 
@@ -196,6 +197,9 @@ func subscribeRPCs(w rpcWiring) string {
 	if err := rpc.SubscribeQuotes(wiring.RPCWiring, w.quotes, dashboardSubject+".quote"); err != nil {
 		w.log.Fatal("failed to subscribe quotes rpc", zap.Error(err))
 	}
+
+	winners := repository.NewGiveawayWinners(w.client)
+	svcboot.FatalIf(w.log, rpc.SubscribeGiveaways(wiring.RPCWiring, winners, dashboardSubject+modulesrpc.GiveawaySuffix), "failed to subscribe giveaway winners rpc")
 
 	if err := rpc.SubscribeRecipeState(wiring.RPCWiring, w.recipeState, dashboardSubject); err != nil {
 		w.log.Fatal("failed to subscribe recipe state rpc", zap.Error(err))

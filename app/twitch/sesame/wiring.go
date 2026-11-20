@@ -144,6 +144,8 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 
 		LeaderboardBaseURL: cfg.LeaderboardBaseURL,
 		QueueBaseURL:       cfg.QueueBaseURL,
+
+		GiveawayWinners: engine.NewGiveawayWinnersRPC(in.nc, cfg.ModulesRPCPrefix),
 	}
 }
 

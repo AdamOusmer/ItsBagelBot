@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/db/modules/ent/countdownoperation"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedreceipt"
+	"ItsBagelBot/app/db/modules/ent/giveawaywinner"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/quote"
@@ -340,6 +341,52 @@ func init() {
 	feedreceiptDescID := feedreceiptFields[0].Descriptor()
 	// feedreceipt.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	feedreceipt.IDValidator = feedreceiptDescID.Validators[0].(func(string) error)
+	giveawaywinnerFields := schema.GiveawayWinner{}.Fields()
+	_ = giveawaywinnerFields
+	// giveawaywinnerDescRoundID is the schema descriptor for round_id field.
+	giveawaywinnerDescRoundID := giveawaywinnerFields[1].Descriptor()
+	// giveawaywinner.RoundIDValidator is a validator for the "round_id" field. It is called by the builders before save.
+	giveawaywinner.RoundIDValidator = func() func(string) error {
+		validators := giveawaywinnerDescRoundID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(round_id string) error {
+			for _, fn := range fns {
+				if err := fn(round_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// giveawaywinnerDescPrize is the schema descriptor for prize field.
+	giveawaywinnerDescPrize := giveawaywinnerFields[3].Descriptor()
+	// giveawaywinner.PrizeValidator is a validator for the "prize" field. It is called by the builders before save.
+	giveawaywinner.PrizeValidator = func() func(string) error {
+		validators := giveawaywinnerDescPrize.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(prize string) error {
+			for _, fn := range fns {
+				if err := fn(prize); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// giveawaywinnerDescViewerLogin is the schema descriptor for viewer_login field.
+	giveawaywinnerDescViewerLogin := giveawaywinnerFields[6].Descriptor()
+	// giveawaywinner.ViewerLoginValidator is a validator for the "viewer_login" field. It is called by the builders before save.
+	giveawaywinner.ViewerLoginValidator = giveawaywinnerDescViewerLogin.Validators[0].(func(string) error)
+	// giveawaywinnerDescClaimed is the schema descriptor for claimed field.
+	giveawaywinnerDescClaimed := giveawaywinnerFields[7].Descriptor()
+	// giveawaywinner.DefaultClaimed holds the default value on creation for the claimed field.
+	giveawaywinner.DefaultClaimed = giveawaywinnerDescClaimed.Default.(bool)
 	goveecredentialFields := schema.GoveeCredential{}.Fields()
 	_ = goveecredentialFields
 	// goveecredentialDescUpdatedAt is the schema descriptor for updated_at field.

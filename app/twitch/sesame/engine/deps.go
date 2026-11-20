@@ -86,6 +86,8 @@ type Deps struct {
 
 	LeaderboardBaseURL string
 	QueueBaseURL       string
+
+	GiveawayWinners GiveawayWinnersStore
 }
 
 type FeedCounts struct {

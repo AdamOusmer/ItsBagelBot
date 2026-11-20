@@ -28,6 +28,8 @@ type Tx struct {
 	FeedCounter *FeedCounterClient
 	// FeedReceipt is the client for interacting with the FeedReceipt builders.
 	FeedReceipt *FeedReceiptClient
+	// GiveawayWinner is the client for interacting with the GiveawayWinner builders.
+	GiveawayWinner *GiveawayWinnerClient
 	// GoveeCredential is the client for interacting with the GoveeCredential builders.
 	GoveeCredential *GoveeCredentialClient
 	// Modules is the client for interacting with the Modules builders.
@@ -177,6 +179,7 @@ func (tx *Tx) init() {
 	tx.CountdownOperation = NewCountdownOperationClient(tx.config)
 	tx.FeedCounter = NewFeedCounterClient(tx.config)
 	tx.FeedReceipt = NewFeedReceiptClient(tx.config)
+	tx.GiveawayWinner = NewGiveawayWinnerClient(tx.config)
 	tx.GoveeCredential = NewGoveeCredentialClient(tx.config)
 	tx.Modules = NewModulesClient(tx.config)
 	tx.Quote = NewQuoteClient(tx.config)
