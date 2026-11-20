@@ -18,6 +18,7 @@ const (
 	GrantUnknown        = "unknown"
 	DormancyPeriod      = 30 * 24 * time.Hour
 	MaxRecoveryAttempts = 3
+	MaxDegradedRetries  = 3
 	ReasonScopeMissing  = "scope_missing"
 )
 
@@ -65,6 +66,7 @@ type State struct {
 	LastActivityID          string       `json:"last_activity_id,omitempty"`
 	OperationID             string       `json:"operation_id,omitempty"`
 	Attempts                int          `json:"attempts,omitempty"`
+	DegradedRetries         int          `json:"degraded_retries,omitempty"`
 	NextAttemptAt           time.Time    `json:"next_attempt_at,omitempty"`
 	LastFailure             string       `json:"last_failure,omitempty"`
 }
