@@ -28,7 +28,6 @@
   "won.plain": "Congrats {raffle:targets}, you won the raffle!",
   "won.points": "Congrats {raffle:targets}, you won the raffle! {raffle:amount} {raffle:points} just landed in your balance.",
   "won.points.claim": "Congrats {raffle:targets}, you won the raffle! {raffle:amount} {raffle:points} just landed in your balance. Type !claim within {raffle:claim} min to get {raffle:prize}.",
-  "open.frozen": "Raffles are paused while standings are frozen.",
   "open.loyalty_off": "Loyalty must be on to start a points raffle.",
   "verifying": "Drawing winners. One moment.",
   "won.paid": "{raffle:targets} each won {raffle:amount} {raffle:points}!",

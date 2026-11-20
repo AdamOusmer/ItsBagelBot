@@ -94,8 +94,8 @@ func (p freezeCopyProbe) start(t *testing.T, isolation string) {
 
 func (p freezeCopyProbe) run(ctx context.Context, isolation string) error {
 	if isolation == "READ-COMMITTED" {
-		_, err := p.repo.withFreezeRow(ctx, 1, func(ctx context.Context, tx *sql.Tx, _ FreezeState) (freezeChange, error) {
-			return freezeChange{}, p.holdCopy(ctx, tx, "READ-COMMITTED")
+		_, err := withStandingsRow(ctx, p.repo, 1, func(ctx context.Context, tx *sql.Tx, _ FreezeState) (struct{}, error) {
+			return struct{}{}, p.holdCopy(ctx, tx, "READ-COMMITTED")
 		})
 		return err
 	}
@@ -154,7 +154,10 @@ func runFreezeMySQLRace(t *testing.T, repo *Loyalty, channel uint64) {
 		run  func() error
 	}{
 		{"freeze", func() error {
-			_, _, err := repo.Freeze(ctx, FreezeRequest{UserID: channel, Holder: "mod", Minutes: 5})
+			_, err := repo.Freeze(ctx, FreezeRequest{UserID: channel, Minutes: 5})
+			if errors.Is(err, ErrStandingsAccountRetired) {
+				return nil
+			}
 			return err
 		}},
 		{"reset", func() error {

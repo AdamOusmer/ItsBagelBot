@@ -55,16 +55,23 @@ func (l *LoyaltyRPC) BalanceCredit(ctx context.Context, credit PointCredit) (Cre
 }
 
 func (l *LoyaltyRPC) BalanceCountAtLeast(ctx context.Context, broadcasterID uint64, mins BalanceMinimums) (loyaltyrpc.BalanceCount, error) {
-	req := loyaltyrpc.BalanceCountRequest{UserID: fmtID(broadcasterID), MinPoints: mins.Points, MinWatchSeconds: mins.WatchSeconds}
+	req := loyaltyrpc.BalanceCountRequest{UserID: fmtID(broadcasterID), MinPoints: mins.Points, MinWatchSeconds: mins.WatchSeconds, SnapshotID: mins.SnapshotID}
 	return requestLoyalty[loyaltyrpc.BalanceCount](ctx, l, loyaltyrpc.VerbBalanceCountAtLeast, req)
 }
 
 type BalanceMinimums struct {
 	Points, WatchSeconds int64
+	SnapshotID           string
 }
 
-func (l *LoyaltyRPC) BalanceSnapshot(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.BalanceSnapshot, error) {
-	return requestLoyalty[loyaltyrpc.BalanceSnapshot](ctx, l, loyaltyrpc.VerbBalanceSnapshot, loyaltyrpc.Request{UserID: fmtID(broadcasterID), ViewerID: fmtID(viewerID)})
+type BalanceSnapshotRequest struct {
+	BroadcasterID, ViewerID uint64
+	SnapshotID              string
+}
+
+func (l *LoyaltyRPC) BalanceSnapshot(ctx context.Context, req BalanceSnapshotRequest) (loyaltyrpc.BalanceSnapshot, error) {
+	wire := loyaltyrpc.BalanceSnapshotRequest{UserID: fmtID(req.BroadcasterID), ViewerID: fmtID(req.ViewerID), SnapshotID: req.SnapshotID}
+	return requestLoyalty[loyaltyrpc.BalanceSnapshot](ctx, l, loyaltyrpc.VerbBalanceSnapshot, wire)
 }
 
 func (l *LoyaltyRPC) WatchStatus(ctx context.Context) (loyaltyrpc.WatchStatus, error) {

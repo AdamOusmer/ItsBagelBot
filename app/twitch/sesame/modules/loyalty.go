@@ -353,10 +353,6 @@ func (lc loyaltyCmd) transferPoints(ctx context.Context, req pointsGiveRequest, 
 
 func (lc loyaltyCmd) applyTransfer(ctx context.Context, req pointsGiveRequest, cfg engine.LoyaltyModuleConfig) error {
 	bal, found, moved, err := lc.d.Loyalty.BalanceTransfer(ctx, engine.PointTransfer{BroadcasterID: lc.c.BroadcasterID, FromViewerID: req.senderID, TargetViewerID: req.targetID, TargetLogin: req.login, Amount: req.value})
-	if engine.LoyaltyFreezeRefusal(err, loyaltyrpc.RefusalFrozenTransfers) {
-		lc.reply("loyalty.points.frozen", "name", cfg.Name())
-		return nil
-	}
 	if err != nil {
 		lc.log.Warn("loyalty: balance transfer failed", lc.c.BID(), zap.Error(err))
 		lc.pointsFailure(ctx, err)

@@ -28,7 +28,6 @@
   "won.plain": "Parabéns {raffle:targets}, você ganhou o sorteio!",
   "won.points": "Parabéns {raffle:targets}, você ganhou o sorteio! {raffle:amount} {raffle:points} já estão no seu saldo.",
   "won.points.claim": "Parabéns {raffle:targets}, você ganhou o sorteio! {raffle:amount} {raffle:points} já estão no seu saldo. Digite !claim em até {raffle:claim} min para receber {raffle:prize}.",
-  "open.frozen": "Os sorteios ficam pausados enquanto o ranking estiver congelado.",
   "open.loyalty_off": "Ative a fidelidade para iniciar um sorteio de pontos.",
   "verifying": "Sorteando os ganhadores. Só um momento.",
   "won.paid": "{raffle:targets} ganharam {raffle:amount} {raffle:points} cada!",

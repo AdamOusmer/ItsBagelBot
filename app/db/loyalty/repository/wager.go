@@ -50,13 +50,11 @@ func (r *Loyalty) BalanceWager(ctx context.Context, wager Wager) (WagerOutcome, 
 }
 
 func (r *Loyalty) applyWager(ctx context.Context, wager Wager) (bool, error) {
-	var block freezeBlock
 	var updated int
 	err := db.WithExec(ctx, func(ctx context.Context) error {
 		return retryTx(ctx, func(ctx context.Context) error {
-			block = newFreezeBlock(wager.UserID, freezeGames)
 			var err error
-			updated, err = wager.update(ctx, r.client, block)
+			updated, err = wager.update(ctx, r.client)
 			return err
 		})
 	})
@@ -64,14 +62,14 @@ func (r *Loyalty) applyWager(ctx context.Context, wager Wager) (bool, error) {
 		return false, err
 	}
 	if updated == 0 {
-		return false, block.refusal(ctx, r)
+		return false, nil
 	}
 	r.publishBalanceChange(wager.UserID, wager.ViewerID)
 	return true, nil
 }
 
-func (wager Wager) update(ctx context.Context, client *ent.Client, block freezeBlock) (int, error) {
-	update := client.Balance.Update().Where(balance.UserIDEQ(wager.UserID), balance.ViewerIDEQ(wager.ViewerID), balance.PointsGTE(wager.Amount), block.allowed)
+func (wager Wager) update(ctx context.Context, client *ent.Client) (int, error) {
+	update := client.Balance.Update().Where(balance.UserIDEQ(wager.UserID), balance.ViewerIDEQ(wager.ViewerID), balance.PointsGTE(wager.Amount))
 	delta := -wager.Amount
 	if wager.Won {
 		update.Where(balance.PointsLTE(math.MaxInt64 - wager.Amount))

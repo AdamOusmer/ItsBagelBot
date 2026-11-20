@@ -10,7 +10,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 
 	"go.uber.org/zap"
 )
@@ -109,12 +108,7 @@ func duelRun(d engine.Deps, log *zap.Logger) module.RunFunc {
 			return dc.status(ctx, emit)
 		}
 		return d.Dedup.Effect(ctx, engine.EffectRef{Identity: engine.EventIdentity(&c.Env), Effect: "duel:mutation"}, func(ctx context.Context) error {
-			err := dc.route(ctx, args, emit)
-			if engine.LoyaltyFreezeRefusal(err, loyaltyrpc.RefusalFrozenGames) {
-				dc.reply(emit, "", "duel.frozen")
-				return nil
-			}
-			return err
+			return dc.route(ctx, args, emit)
 		})
 	}
 }

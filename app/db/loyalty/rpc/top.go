@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/app/db/loyalty/repository"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 )
@@ -71,7 +70,7 @@ type boardRoute struct {
 	repo   *repository.Loyalty
 	userID uint64
 	state  repository.FreezeState
-	pin    repository.FreezeID
+	pin    repository.SnapshotID
 }
 
 func (l *loyaltyRPC) resolveBoard(ctx context.Context, userID uint64, req loyaltyrpc.Request) (boardRoute, error) {
@@ -80,7 +79,7 @@ func (l *loyaltyRPC) resolveBoard(ctx context.Context, userID uint64, req loyalt
 	case req.Live:
 		return route, nil
 	case req.FreezeID != "":
-		route.pin = repository.FreezeID(req.FreezeID)
+		route.pin = repository.SnapshotID(req.FreezeID)
 		return route, nil
 	default:
 		state, err := l.repo.FreezeStatus(ctx, userID)
@@ -103,7 +102,7 @@ func (b boardRoute) stamp(ctx context.Context) (loyaltyrpc.FreezeStamp, error) {
 }
 
 func (b boardRoute) activeStamp() loyaltyrpc.FreezeStamp {
-	if b.state.FreezeID == "" {
+	if b.state.SnapshotID == "" {
 		return loyaltyrpc.FreezeStamp{}
 	}
 	return freezeStamp(b.state)
@@ -115,7 +114,7 @@ func (b boardRoute) page(ctx context.Context, query repository.TopQuery, searcha
 	}
 	id := b.pin
 	if id == "" {
-		id = b.state.FreezeID
+		id = b.state.SnapshotID
 	}
 	if id == "" {
 		return b.repo.TopPage(ctx, b.userID, query)
@@ -123,9 +122,6 @@ func (b boardRoute) page(ctx context.Context, query repository.TopQuery, searcha
 	return b.repo.FrozenTopPage(ctx, b.userID, id, query)
 }
 
-func (b boardRoute) balance(ctx context.Context, viewerID uint64) (*ent.Balance, bool, error) {
-	if b.state.FreezeID == "" {
-		return b.repo.BalanceGet(ctx, b.userID, viewerID)
-	}
-	return b.repo.FrozenBalance(ctx, b.userID, viewerID, b.state.FreezeID)
+func freezeStamp(state repository.FreezeState) loyaltyrpc.FreezeStamp {
+	return loyaltyrpc.FreezeStamp{FreezeID: string(state.SnapshotID), FrozenAsOf: state.AsOf.UnixMilli(), ExpiresAt: state.ExpiresAt.UnixMilli()}
 }

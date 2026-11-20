@@ -19,13 +19,12 @@ const (
 	VerbFreezeRelease       = "freeze.release"
 	VerbFreezeGet           = "freeze.get"
 
-	FreezeModHolder        = "mod"
-	FreezeRoundPrefix      = "round:"
-	RefusalFrozen          = "frozen"
-	RefusalHeldByRound     = "held_by_round"
-	RefusalStalePin        = "stale_pin"
-	RefusalFrozenTransfers = "frozen_transfers"
-	RefusalFrozenGames     = "frozen_games"
+	VerbSnapshotCreate = "snapshot.create"
+	VerbSnapshotDrop   = "snapshot.drop"
+
+	RefusalFrozen                = "frozen"
+	RefusalStalePin              = "stale_pin"
+	RefusalSnapshotGone rpc.Code = "snapshot_gone"
 )
 
 type Request struct {
@@ -45,11 +44,7 @@ type Request struct {
 	Limit            int    `json:"limit,omitempty"`
 	Offset           int    `json:"offset,omitempty"`
 	Query            string `json:"query,omitempty"`
-	Holder           string `json:"holder,omitempty"`
 	FreezeID         string `json:"freeze_id,omitempty"`
-	Minutes          int    `json:"minutes,omitempty"`
-	BlockTransfer    bool   `json:"block_transfer,omitempty"`
-	CloseGames       bool   `json:"close_games,omitempty"`
 	Live             bool   `json:"live,omitempty"`
 }
 
@@ -88,16 +83,67 @@ type FreezeStamp struct {
 	ExpiresAt  int64  `json:"expires_at,omitempty"`
 }
 
+type FreezeSetRequest struct {
+	UserID  string `json:"user_id"`
+	Minutes int    `json:"minutes"`
+	ActorID string `json:"actor_id"`
+}
+
+type FreezeReleaseRequest struct {
+	UserID  string `json:"user_id"`
+	ActorID string `json:"actor_id"`
+}
+
+type FreezeGetRequest struct {
+	UserID string `json:"user_id"`
+}
+
+type FreezeTimes struct {
+	FrozenAsOf int64 `json:"frozen_as_of"`
+	ExpiresAt  int64 `json:"expires_at"`
+	rpc.Refusal
+}
+
 type FreezeView struct {
-	FreezeStamp
-	Holders       []string `json:"holders"`
-	BlockTransfer bool     `json:"block_transfer"`
-	CloseGames    bool     `json:"close_games"`
+	Active bool `json:"active"`
+	FreezeTimes
+}
+
+type FreezeReleased struct {
+	Released bool `json:"released"`
+	rpc.Refusal
+}
+
+type SnapshotCreateRequest struct {
+	UserID    string `json:"user_id"`
+	Owner     string `json:"owner"`
+	ExpiresAt int64  `json:"expires_at"`
+}
+
+type SnapshotDropRequest struct {
+	UserID     string `json:"user_id"`
+	SnapshotID string `json:"snapshot_id"`
+}
+
+type SnapshotRef struct {
+	SnapshotID string `json:"snapshot_id"`
+	AsOf       int64  `json:"as_of"`
+	rpc.Refusal
+}
+
+type SnapshotDropped struct {
+	Dropped bool `json:"dropped"`
+	rpc.Refusal
+}
+
+type BalanceSnapshotRequest struct {
+	UserID     string `json:"user_id"`
+	ViewerID   string `json:"viewer_id"`
+	SnapshotID string `json:"snapshot_id,omitempty"`
 }
 
 type Reply struct {
 	FreezeStamp
-	Freeze        *FreezeView    `json:"freeze,omitempty"`
 	Balance       *Balance       `json:"balance,omitempty"`
 	TargetBalance *Balance       `json:"target_balance,omitempty"`
 	Top           []Balance      `json:"top,omitempty"`
@@ -122,6 +168,7 @@ type BalanceSnapshot struct {
 }
 
 type BalanceCountRequest struct {
+	SnapshotID      string `json:"snapshot_id,omitempty"`
 	UserID          string `json:"user_id"`
 	MinPoints       int64  `json:"min_points,omitempty"`
 	MinWatchSeconds int64  `json:"min_watch_seconds,omitempty"`

@@ -29,6 +29,5 @@
   "status.none": "Nenhum duelo em andamento. Abra um duelo coletivo com !duel <amount> ou desafie alguém com !duel @user <amount>.",
   "status.pot": "Duelo coletivo aberto: participantes: {duel:count}; total acumulado: {duel:pot} {duel:points}. Sorteio em ~{duel:secs}s. Digite !duel <amount> para entrar!",
   "usage": "Uso: !duel <amount|half|all>; !duel @user <amount|half|all>; !duel accept|decline|cancel",
-  "won": "As lâminas caem. @{duel:winner} derrota @{duel:loser} e leva {duel:pot} {duel:points}!",
-  "frozen": "@{duel:user} as apostas em duelos estão suspensas enquanto a classificação estiver em pausa."
+  "won": "As lâminas caem. @{duel:winner} derrota @{duel:loser} e leva {duel:pot} {duel:points}!"
 }

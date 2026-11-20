@@ -17,6 +17,6 @@
   "race.empty": "aucun temps soumis pour la course de cette semaine",
   "race.noplayer": "aucun temps pour la course de cette semaine",
   "record.usage": "Utilisation : !record <joueur> [joueur2]",
-  "session.started": "le suivi de session vient de démarrer (%s elo), redemandez après une partie !",
+  "session.started": "le suivi de session vient de démarrer (%s elo), redemande après une partie !",
   "unrated": "non classé"
 }

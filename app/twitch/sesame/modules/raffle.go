@@ -14,8 +14,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/module"
 	catalog "ItsBagelBot/internal/domain/analytics"
-
-	"go.uber.org/zap"
 )
 
 const raffleModuleName = engine.RaffleModuleName
@@ -110,18 +108,7 @@ func (rc raffleCommands) startRefusal(ctx context.Context) (replyKey, error) {
 	if !on {
 		return "raffle.open.loyalty_off", nil
 	}
-	if rc.deps.LoyaltyFreeze == nil {
-		return "", nil
-	}
-	freeze, err := rc.deps.LoyaltyFreeze.FreezeGet(ctx, channel)
-	if err != nil {
-		rc.deps.Log.Warn("raffle: freeze status unavailable", rc.c.BID(), zap.Error(err))
-		return "", nil
-	}
-	if !freeze.CloseGames {
-		return "", nil
-	}
-	return "raffle.open.frozen", nil
+	return "", nil
 }
 
 func (rc raffleCommands) open(ctx context.Context, req raffleStart, emit module.Emit) error {

@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 )
 
 type rafflePayCapture struct {
@@ -59,7 +58,6 @@ type raffleFixture struct {
 	draw   *draw.Store
 	kv     valkey.KV
 	freeze *freezeStore
-	logs   *observer.ObservedLogs
 	proj   *fakeProj
 	pay    *rafflePayCapture
 	notice *variablePublisher
@@ -67,10 +65,9 @@ type raffleFixture struct {
 	pipe   *engine.Pipeline
 }
 
-func newRaffleFixture(t *testing.T, loyaltyOn, closeGames bool) raffleFixture {
+func newRaffleFixture(t *testing.T, loyaltyOn, paused bool) raffleFixture {
 	t.Helper()
-	core, logs := observer.New(zap.WarnLevel)
-	log := zap.New(core)
+	log := zap.NewNop()
 	client := valkeytest.Spawn(t)
 	proj := &fakeProj{modules: []projection.ModuleView{
 		{Name: engine.LoyaltyModuleName, IsEnabled: loyaltyOn},
@@ -85,11 +82,11 @@ func newRaffleFixture(t *testing.T, loyaltyOn, closeGames bool) raffleFixture {
 		Phases:    draw.IgnorePhaseChanges{}})
 	events := &variablePublisher{}
 	legacy := engine.NewValkeyRaffleStore(client, engine.RaffleConfig{}, log)
-	freeze := &freezeStore{closeGames: closeGames}
+	freeze := &freezeStore{active: paused}
 	deps := engine.Deps{Draw: store, Eligibility: checker, Raffle: legacy, Proj: proj, Pub: events, Log: log, LoyaltyFreeze: freeze, Cooldown: engine.NoopCooldown{}}
 	pipe := engine.NewPipeline(deps, engine.NewRegistry(log, All(deps)...), engine.Config{OutgressStandard: "outgress.standard"})
 	t.Cleanup(pipe.Close)
-	return raffleFixture{t: t, draw: store, kv: valkey.NewKV(client), freeze: freeze, logs: logs,
+	return raffleFixture{t: t, draw: store, kv: valkey.NewKV(client), freeze: freeze,
 		proj: proj, pay: pay, notice: notice, events: events, pipe: pipe}
 }
 
@@ -107,15 +104,14 @@ func (f raffleFixture) run(channel draw.ChannelID, chatter *lane.Envelope, comma
 
 func TestRaffleProcessOpensOnlyValidPointsRounds(t *testing.T) {
 	for i, tc := range []struct {
-		command   string
-		want      draw.WinnerPolicy
-		reply     string
-		off       bool
-		frozen    bool
-		freezeErr bool
-		busy      draw.OpenOutcome
-		config    string
-		currency  string
+		command  string
+		want     draw.WinnerPolicy
+		reply    string
+		off      bool
+		paused   bool
+		busy     draw.OpenOutcome
+		config   string
+		currency string
 	}{
 		{command: "!raffle 5k 30", want: draw.WinnerPolicy{Count: 1}, reply: "5000 points"},
 		{command: "!raffle 5k 30", want: draw.WinnerPolicy{Count: 1}, reply: "5000 bagels", currency: "bagels"},
@@ -130,14 +126,13 @@ func TestRaffleProcessOpensOnlyValidPointsRounds(t *testing.T) {
 		{command: "!raffle", config: `{"prizePoints":0}`, want: draw.WinnerPolicy{Count: 1}, reply: "1000 points"},
 		{command: "!sraffle", config: `{"prizePoints":-25}`, want: draw.WinnerPolicy{Count: 1}, reply: "1000 points"},
 		{command: "!raffle", off: true, reply: "Loyalty must be on"},
-		{command: "!raffle", frozen: true, reply: "Raffles are paused while standings are frozen"},
-		{command: "!raffle", frozen: true, freezeErr: true, want: draw.WinnerPolicy{Count: 1}, reply: "1000 points"},
+		{command: "!raffle", paused: true, want: draw.WinnerPolicy{Count: 1}, reply: "1000 points"},
 		{command: "!raffle", busy: draw.JoinableBusy, reply: "A giveaway is already open"},
 		{command: "!raffle", busy: draw.LegacyBusy, reply: "A raffle is already running"},
 	} {
 		t.Run(tc.command+tc.reply, func(t *testing.T) {
-			f := newRaffleFixture(t, !tc.off, tc.frozen)
-			f.configure(raffleFixtureConfig{raffle: tc.config, currency: tc.currency, freezeErr: tc.freezeErr})
+			f := newRaffleFixture(t, !tc.off, tc.paused)
+			f.configure(raffleFixtureConfig{raffle: tc.config, currency: tc.currency})
 			ch := draw.ChannelID(80200 + i)
 			f.occupy(ch, tc.busy)
 			mod := chatCtx("42", "mod", "moderator").Env
@@ -147,22 +142,18 @@ func TestRaffleProcessOpensOnlyValidPointsRounds(t *testing.T) {
 			round, _, err := f.draw.Joinable(t.Context(), ch)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, rafflePolicy(round))
-			assert.Equal(t, tc.freezeErr, f.logs.FilterMessage("raffle: freeze status unavailable").Len() == 1)
+			assert.Zero(t, f.freeze.gets)
 		})
 	}
 }
 
 type raffleFixtureConfig struct {
 	raffle, currency string
-	freezeErr        bool
 }
 
 func (f raffleFixture) configure(cfg raffleFixtureConfig) {
 	f.proj.modules[1].Configs = []byte(cfg.raffle)
 	f.proj.modules[0].Configs = []byte(fmt.Sprintf(`{"pointsName":%q}`, cfg.currency))
-	if cfg.freezeErr {
-		f.freeze.err = fmt.Errorf("freeze lookup failed")
-	}
 }
 
 func (f raffleFixture) occupy(ch draw.ChannelID, busy draw.OpenOutcome) {

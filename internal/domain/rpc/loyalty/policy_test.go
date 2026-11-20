@@ -18,8 +18,6 @@ func TestFreezePolicy(t *testing.T) {
 	}{
 		{"maximum", loyaltyrpc.FreezeMaximum, 30 * time.Minute},
 		{"default minutes", loyaltyrpc.FreezeDefaultMinutes, 30},
-		{"default transfer block", loyaltyrpc.FreezeDefaultBlockTransfer, false},
-		{"default games closed", loyaltyrpc.FreezeDefaultCloseGames, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.want, tc.got)

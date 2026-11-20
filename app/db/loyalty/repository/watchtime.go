@@ -240,7 +240,7 @@ func (r *Loyalty) deleteLoyaltyRows(ctx context.Context, tx *sql.Tx, id uint64) 
 	if _, err := r.createFreezeRow(ctx, tx, id); err != nil {
 		return err
 	}
-	for _, table := range []string{"loyalty_freezes", "loyalty_freeze_epochs", "loyalty_freeze_balances", "balances", "counter_entries", "counters"} {
+	for _, table := range []string{"loyalty_freezes", "loyalty_snapshots", "loyalty_freeze_balances", "balances", "counter_entries", "counters"} {
 		if _, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE user_id=?", id); err != nil {
 			return err
 		}

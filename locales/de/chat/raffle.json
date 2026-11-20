@@ -28,7 +28,6 @@
   "won.plain": "Glückwunsch {raffle:targets} zum Gewinn der Verlosung!",
   "won.points": "Glückwunsch {raffle:targets} zum Gewinn der Verlosung! {raffle:amount} {raffle:points} sind bereits gutgeschrieben.",
   "won.points.claim": "Glückwunsch {raffle:targets} zum Gewinn der Verlosung! {raffle:amount} {raffle:points} sind bereits gutgeschrieben. Gib innerhalb von {raffle:claim} Min. !claim ein, um {raffle:prize} zu erhalten.",
-  "open.frozen": "Verlosungen sind pausiert, solange die Rangliste eingefroren ist.",
   "open.loyalty_off": "Aktiviere das Treueprogramm, um Punkte zu verlosen.",
   "verifying": "Die Gewinner werden gezogen. Einen Moment.",
   "won.paid": "{raffle:targets} haben jeweils {raffle:amount} {raffle:points} gewonnen!",

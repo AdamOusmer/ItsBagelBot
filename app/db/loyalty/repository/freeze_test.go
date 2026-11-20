@@ -16,11 +16,18 @@ import (
 const freezeChannel = 2
 const freezeViewer = 7
 
-func setFreeze(t *testing.T, r *loyaltyrepo.Loyalty, holder loyaltyrepo.FreezeHolder, flags loyaltyrepo.FreezeFlags) loyaltyrepo.FreezeState {
+func setFreeze(t *testing.T, r *loyaltyrepo.Loyalty) loyaltyrepo.FreezeState {
 	t.Helper()
-	state, changed, err := r.Freeze(t.Context(), loyaltyrepo.FreezeRequest{UserID: freezeChannel, Holder: holder, Minutes: 10, Flags: flags})
+	state, err := r.Freeze(t.Context(), loyaltyrepo.FreezeRequest{UserID: freezeChannel, Minutes: 10})
 	require.NoError(t, err)
-	require.True(t, changed)
+	return state
+}
+
+func takeSnapshot(t *testing.T, r *loyaltyrepo.Loyalty) loyaltyrepo.FreezeState {
+	t.Helper()
+	req := loyaltyrepo.SnapshotRequest{UserID: freezeChannel, Owner: "round:abc", ExpiresAt: time.Now().Add(time.Hour)}
+	state, err := r.CreateSnapshot(t.Context(), req)
+	require.NoError(t, err)
 	return state
 }
 
@@ -29,7 +36,7 @@ func TestFreezeSnapshotKeepsStandingsWhileBalancesChange(t *testing.T) {
 	ctx := t.Context()
 	award := watchAward(freezeChannel, freezeViewer, 100)
 	require.NoError(t, r.ApplyWatchAward(ctx, award))
-	state := setFreeze(t, r, "mod", loyaltyrepo.FreezeFlags{})
+	state := takeSnapshot(t, r)
 	award.WindowID = "next"
 	require.NoError(t, r.ApplyWatchAward(ctx, award))
 	_, _, err := r.BalanceAdjustViewer(ctx, loyaltyrepo.BalanceAdjustment{UserID: freezeChannel, ViewerID: freezeViewer, ViewerLogin: "viewer", Value: 5})
@@ -47,7 +54,7 @@ func TestFreezeSnapshotKeepsStandingsWhileBalancesChange(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			row, found, err := r.BalanceGet(ctx, freezeChannel, freezeViewer)
 			if tc.frozen {
-				row, found, err = r.FrozenBalance(ctx, freezeChannel, freezeViewer, state.FreezeID)
+				row, found, err = r.SnapshotBalance(ctx, freezeChannel, freezeViewer, state.SnapshotID)
 			}
 			require.NoError(t, err)
 			require.True(t, found)
@@ -56,69 +63,11 @@ func TestFreezeSnapshotKeepsStandingsWhileBalancesChange(t *testing.T) {
 	}
 }
 
-func TestFreezeHolderLifecycle(t *testing.T) {
-	r, _ := sqliteRetentionRepo(t)
-	ctx := t.Context()
-	flags := loyaltyrepo.FreezeFlags{BlockTransfer: true}
-	base := setFreeze(t, r, "mod", flags)
-	expected := map[loyaltyrepo.FreezeHolder]int64{"mod": base.ExpiresAt.UnixMilli()}
-	for _, tc := range []struct {
-		name    string
-		holder  loyaltyrepo.FreezeHolder
-		release bool
-		id      loyaltyrepo.FreezeID
-		changed bool
-		err     error
-	}{
-		{name: "mod retry", holder: "mod"},
-		{name: "round joins", holder: "round:abc", changed: true},
-		{name: "round retry", holder: "round:abc"},
-		{name: "stale release", holder: "round:abc", release: true, id: "older"},
-		{name: "round prevents mod release", holder: "mod", release: true, err: loyaltyrepo.ErrFreezeHeldByRound},
-		{name: "round releases without ending mod hold", holder: "round:abc", release: true, id: base.FreezeID, changed: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			var state loyaltyrepo.FreezeState
-			var changed bool
-			var err error
-			if tc.release {
-				state, changed, err = r.ReleaseFreeze(ctx, loyaltyrepo.FreezeRelease{UserID: freezeChannel, Holder: tc.holder, FreezeID: tc.id})
-			} else {
-				state, changed, err = r.Freeze(ctx, loyaltyrepo.FreezeRequest{UserID: freezeChannel, Holder: tc.holder, Minutes: 1, Flags: loyaltyrepo.FreezeFlags{CloseGames: true}})
-			}
-			require.ErrorIs(t, err, tc.err)
-			assert.Equal(t, tc.changed, changed)
-			if err != nil {
-				return
-			}
-			if tc.changed {
-				updateExpectedHolders(expected, tc.holder, tc.release, base.ExpiresAt)
-			}
-			want := base
-			want.Holders = expected
-			assert.Equal(t, want, state)
-		})
-	}
-}
-
-func updateExpectedHolders(holders map[loyaltyrepo.FreezeHolder]int64, holder loyaltyrepo.FreezeHolder, remove bool, end time.Time) {
-	if remove {
-		delete(holders, holder)
-		return
-	}
-
-	holders[holder] = end.UnixMilli()
-}
-
 func ageFreeze(t *testing.T, raw *sql.DB, state loyaltyrepo.FreezeState) {
 	t.Helper()
 	end := time.Now().Add(-3 * time.Minute).UnixMilli()
-	for _, table := range []string{"loyalty_freezes", "loyalty_freeze_epochs"} {
-		column := "ends_at_ms"
-		if table == "loyalty_freezes" {
-			column = "expires_at_ms"
-		}
-		_, err := raw.ExecContext(t.Context(), "UPDATE "+table+" SET "+column+"=? WHERE user_id=? AND freeze_id=?", end, freezeChannel, state.FreezeID)
+	for _, table := range []string{"loyalty_freezes", "loyalty_snapshots"} {
+		_, err := raw.ExecContext(t.Context(), "UPDATE "+table+" SET expires_at_ms=? WHERE user_id=? AND snapshot_id=?", end, freezeChannel, state.SnapshotID)
 		require.NoError(t, err)
 	}
 }
@@ -127,7 +76,7 @@ func TestFreezeExpiryAndReset(t *testing.T) {
 	r, raw := sqliteRetentionRepo(t)
 	ctx := t.Context()
 	require.NoError(t, r.ApplyWatchAward(ctx, watchAward(freezeChannel, freezeViewer, 100)))
-	state := setFreeze(t, r, "mod", loyaltyrepo.FreezeFlags{})
+	state := setFreeze(t, r)
 
 	for _, tc := range []struct {
 		name    string
@@ -158,14 +107,15 @@ func TestAccountCleanupRemovesFreeze(t *testing.T) {
 			r, raw := sqliteRetentionRepo(t)
 			ctx := t.Context()
 			require.NoError(t, r.ApplyWatchAward(ctx, watchAward(freezeChannel, freezeViewer, 100)))
-			setFreeze(t, r, "mod", loyaltyrepo.FreezeFlags{})
+			setFreeze(t, r)
+			takeSnapshot(t, r)
 			switch method {
 			case "delete":
 				require.NoError(t, r.DeleteAccount(ctx, freezeChannel, 100))
 			case "recreate":
 				require.NoError(t, r.RestoreUser(ctx, freezeChannel, 101))
 			}
-			for _, table := range []string{"loyalty_freezes", "loyalty_freeze_epochs", "loyalty_freeze_balances"} {
+			for _, table := range []string{"loyalty_freezes", "loyalty_snapshots", "loyalty_freeze_balances"} {
 				var n int
 				require.NoError(t, raw.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE user_id=?", freezeChannel).Scan(&n))
 				assert.Zero(t, n, table)
@@ -180,20 +130,20 @@ func TestPruneFreezeSnapshotsKeepsActiveEpoch(t *testing.T) {
 	_, err := raw.ExecContext(ctx, `WITH RECURSIVE ids(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM ids WHERE i<1001)
 		INSERT INTO balances (user_id,viewer_id,points,watch_seconds,created_at,updated_at) SELECT ?,i,100,0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP FROM ids`, freezeChannel)
 	require.NoError(t, err)
-	old := setFreeze(t, r, "mod", loyaltyrepo.FreezeFlags{})
+	old := setFreeze(t, r)
 	ageFreeze(t, raw, old)
-	active := setFreeze(t, r, "mod", loyaltyrepo.FreezeFlags{})
+	active := setFreeze(t, r)
 	require.NoError(t, r.PruneFreezeSnapshots(ctx))
 
 	for _, tc := range []struct {
-		id    loyaltyrepo.FreezeID
+		id    loyaltyrepo.SnapshotID
 		count int
 		err   error
-	}{{old.FreezeID, 0, loyaltyrepo.ErrStaleFreezePin}, {active.FreezeID, 1001, nil}} {
+	}{{old.SnapshotID, 0, loyaltyrepo.ErrStaleFreezePin}, {active.SnapshotID, 1001, nil}} {
 		_, err := r.FreezeEpoch(ctx, freezeChannel, tc.id)
 		require.ErrorIs(t, err, tc.err)
 		var count int
-		require.NoError(t, raw.QueryRowContext(ctx, "SELECT COUNT(*) FROM loyalty_freeze_balances WHERE user_id=? AND freeze_id=?", freezeChannel, tc.id).Scan(&count))
+		require.NoError(t, raw.QueryRowContext(ctx, "SELECT COUNT(*) FROM loyalty_freeze_balances WHERE user_id=? AND snapshot_id=?", freezeChannel, tc.id).Scan(&count))
 		assert.Equal(t, tc.count, count)
 	}
 }
@@ -210,7 +160,7 @@ func TestFrozenTopPage(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, found)
 	}
-	state := setFreeze(t, r, "mod", loyaltyrepo.FreezeFlags{})
+	state := setFreeze(t, r)
 	for _, tc := range []struct {
 		name  string
 		query loyaltyrepo.TopQuery
@@ -224,7 +174,7 @@ func TestFrozenTopPage(t *testing.T) {
 		{"unknown login", loyaltyrepo.TopQuery{ViewerLogin: "renamed"}, 0, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			page, err := r.FrozenTopPage(ctx, freezeChannel, state.FreezeID, tc.query)
+			page, err := r.FrozenTopPage(ctx, freezeChannel, state.SnapshotID, tc.query)
 			require.NoError(t, err)
 			var got []frozenRank
 			for _, row := range page.Rows {
@@ -240,40 +190,4 @@ type frozenRank struct {
 	viewer uint64
 	rank   int64
 	login  string
-}
-
-func TestFreezeFlagsGateLiveMutations(t *testing.T) {
-	for _, tc := range []struct {
-		name          string
-		flags         loyaltyrepo.FreezeFlags
-		expired       bool
-		amount        int64
-		transfer      error
-		wager         error
-		moved, played bool
-	}{
-		{name: "defaults", amount: 1, moved: true, played: true},
-		{name: "transfers blocked", flags: loyaltyrepo.FreezeFlags{BlockTransfer: true}, amount: 1, transfer: loyaltyrepo.ErrFrozenTransfers, played: true},
-		{name: "games closed", flags: loyaltyrepo.FreezeFlags{CloseGames: true}, amount: 1, wager: loyaltyrepo.ErrFrozenGames, moved: true},
-		{name: "insufficient funds", amount: 11},
-		{name: "freeze refusal takes precedence over shortfall", flags: loyaltyrepo.FreezeFlags{BlockTransfer: true, CloseGames: true}, amount: 11,
-			transfer: loyaltyrepo.ErrFrozenTransfers, wager: loyaltyrepo.ErrFrozenGames},
-		{name: "expired flags", flags: loyaltyrepo.FreezeFlags{BlockTransfer: true, CloseGames: true}, expired: true, amount: 1, moved: true, played: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			r, raw := sqliteRetentionRepo(t)
-			ctx := t.Context()
-			require.NoError(t, r.ApplyWatchAward(ctx, watchAward(freezeChannel, freezeViewer, 100)))
-			state := setFreeze(t, r, "mod", tc.flags)
-			if tc.expired {
-				ageFreeze(t, raw, state)
-			}
-			transfer, _, err := r.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: freezeChannel, FromViewerID: freezeViewer, TargetViewerID: 8, TargetLogin: "target", Amount: tc.amount})
-			require.ErrorIs(t, err, tc.transfer)
-			assert.Equal(t, tc.moved, transfer != nil && transfer.To != nil)
-			wager, err := r.BalanceWager(ctx, loyaltyrepo.Wager{UserID: freezeChannel, ViewerID: freezeViewer, Amount: tc.amount})
-			require.ErrorIs(t, err, tc.wager)
-			assert.Equal(t, tc.played, wager.Applied)
-		})
-	}
 }

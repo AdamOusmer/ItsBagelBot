@@ -5,95 +5,86 @@ package rpc
 
 import (
 	"context"
-	"regexp"
-	"slices"
+	"fmt"
 	"time"
 
 	"ItsBagelBot/app/db/loyalty/repository"
 	"ItsBagelBot/internal/domain/invalidate"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+	"ItsBagelBot/pkg/bus"
 )
 
-var roundHolder = regexp.MustCompile(`^round:[a-z0-9-]{1,64}$`)
-
-func validHolder(holder repository.FreezeHolder) bool {
-	return holder == loyaltyrpc.FreezeModHolder || roundHolder.MatchString(string(holder))
-}
-
-func (l *loyaltyRPC) freezeHandler(release bool) func(context.Context, loyaltyrpc.Request) loyaltyrpc.Reply {
-	return func(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-		userID, _, ok, reply := parseIDs(req, false)
-		if !ok {
-			return reply
-		}
-		holder := repository.FreezeHolder(req.Holder)
-		if !validHolder(holder) {
-			return refuse(domainrpc.CodeInvalid, "invalid holder")
-		}
-		return l.applyFreeze(ctx, req, freezeTarget{userID, holder}, release)
+func (l *loyaltyRPC) subscribeFreeze(w bus.RPCWiring, prefix string) error {
+	if err := bus.Serve(w, prefix+"."+loyaltyrpc.VerbFreezeSet, l.handleFreezeSet); err != nil {
+		return err
 	}
-}
-
-type freezeTarget struct {
-	userID uint64
-	holder repository.FreezeHolder
-}
-
-func (l *loyaltyRPC) applyFreeze(ctx context.Context, req loyaltyrpc.Request, target freezeTarget, release bool) loyaltyrpc.Reply {
-	var state repository.FreezeState
-	var changed bool
-	var err error
-	if release {
-		state, changed, err = l.repo.ReleaseFreeze(ctx, repository.FreezeRelease{UserID: target.userID, Holder: target.holder, FreezeID: repository.FreezeID(req.FreezeID)})
-	} else {
-		flags := repository.FreezeFlags{BlockTransfer: req.BlockTransfer, CloseGames: req.CloseGames}
-		state, changed, err = l.repo.Freeze(ctx, repository.FreezeRequest{UserID: target.userID, Holder: target.holder, Minutes: req.Minutes, Flags: flags})
+	if err := bus.Serve(w, prefix+"."+loyaltyrpc.VerbFreezeRelease, l.handleFreezeRelease); err != nil {
+		return err
 	}
-	return l.freezeResult(target.userID, state, changed, err)
+	return bus.Serve(w, prefix+"."+loyaltyrpc.VerbFreezeGet, l.handleFreezeGet)
 }
 
-func (l *loyaltyRPC) handleFreezeGet(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, _, ok, reply := parseIDs(req, false)
-	if !ok {
-		return reply
+type freezeIdentity struct {
+	channel, actor string
+}
+
+func (id freezeIdentity) channelID() (uint64, error) {
+	if _, err := bus.NonZeroUserID(id.actor); err != nil {
+		return 0, fmt.Errorf("actor_id: %w", err)
+	}
+	return bus.NonZeroUserID(id.channel)
+}
+
+func (l *loyaltyRPC) handleFreezeSet(ctx context.Context, req loyaltyrpc.FreezeSetRequest) loyaltyrpc.FreezeTimes {
+	userID, err := (freezeIdentity{req.UserID, req.ActorID}).channelID()
+	if err != nil {
+		return loyaltyrpc.FreezeTimes{Refusal: invalidStandings(err)}
+	}
+	state, err := l.repo.Freeze(ctx, repository.FreezeRequest{UserID: userID, Minutes: req.Minutes})
+	if err != nil {
+		return loyaltyrpc.FreezeTimes{Refusal: l.fail("loyalty freeze.set", err).Refusal}
+	}
+	l.freezeChanged(userID)
+	return freezeTimes(state)
+}
+
+func (l *loyaltyRPC) handleFreezeRelease(ctx context.Context, req loyaltyrpc.FreezeReleaseRequest) loyaltyrpc.FreezeReleased {
+	userID, err := (freezeIdentity{req.UserID, req.ActorID}).channelID()
+	if err != nil {
+		return loyaltyrpc.FreezeReleased{Refusal: invalidStandings(err)}
+	}
+	released, err := l.repo.ReleaseFreeze(ctx, userID)
+	if err != nil {
+		return loyaltyrpc.FreezeReleased{Refusal: l.fail("loyalty freeze.release", err).Refusal}
+	}
+	if released {
+		l.freezeChanged(userID)
+	}
+	return loyaltyrpc.FreezeReleased{Released: released}
+}
+
+func (l *loyaltyRPC) handleFreezeGet(ctx context.Context, req loyaltyrpc.FreezeGetRequest) loyaltyrpc.FreezeView {
+	userID, err := bus.NonZeroUserID(req.UserID)
+	if err != nil {
+		return loyaltyrpc.FreezeView{FreezeTimes: loyaltyrpc.FreezeTimes{Refusal: invalidStandings(err)}}
 	}
 	state, err := l.repo.FreezeStatus(ctx, userID)
 	if err != nil {
-		return l.fail("loyalty freeze.get", err)
+		return loyaltyrpc.FreezeView{FreezeTimes: loyaltyrpc.FreezeTimes{Refusal: l.fail("loyalty freeze.get", err).Refusal}}
 	}
-	now := time.Now()
-	return loyaltyrpc.Reply{Freeze: freezeView(state, now), Found: state.Active(now)}
+	if !state.Active(time.Now()) {
+		return loyaltyrpc.FreezeView{}
+	}
+	return loyaltyrpc.FreezeView{Active: true, FreezeTimes: freezeTimes(state)}
 }
 
-func (l *loyaltyRPC) freezeResult(userID uint64, state repository.FreezeState, changed bool, err error) loyaltyrpc.Reply {
-	if err != nil {
-		return l.fail("loyalty freeze", err)
-	}
-	if changed {
-		l.freezeChanged(userID)
-	}
-	return loyaltyrpc.Reply{Freeze: freezeView(state, time.Now()), Found: changed}
+func invalidStandings(err error) domainrpc.Refusal {
+	return domainrpc.Refused(domainrpc.CodeInvalid, err.Error())
 }
 
-func freezeStamp(state repository.FreezeState) loyaltyrpc.FreezeStamp {
-	return loyaltyrpc.FreezeStamp{FreezeID: string(state.FreezeID), FrozenAsOf: state.AsOf.UnixMilli(), ExpiresAt: state.ExpiresAt.UnixMilli()}
-}
-
-func freezeView(state repository.FreezeState, now time.Time) *loyaltyrpc.FreezeView {
-	view := &loyaltyrpc.FreezeView{Holders: []string{}}
-	if !state.Active(now) {
-		return view
-	}
-	view.FreezeStamp = freezeStamp(state)
-	view.BlockTransfer, view.CloseGames = state.Flags.BlockTransfer, state.Flags.CloseGames
-	for holder, end := range state.Holders {
-		if end > now.UnixMilli() {
-			view.Holders = append(view.Holders, string(holder))
-		}
-	}
-	slices.Sort(view.Holders)
-	return view
+func freezeTimes(state repository.FreezeState) loyaltyrpc.FreezeTimes {
+	return loyaltyrpc.FreezeTimes{FrozenAsOf: state.AsOf.UnixMilli(), ExpiresAt: state.ExpiresAt.UnixMilli()}
 }
 
 func (l *loyaltyRPC) freezeChanged(userID uint64) {

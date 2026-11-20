@@ -129,10 +129,11 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Timers:         rt.timers,
 		ChatLines:      rt.timers,
 
-		Loyalty:       rt.loyalty,
-		LoyaltyFreeze: rt.loyalty,
-		LoyaltyTick:   rt.tick,
-		Stats:         rt.stats,
+		Loyalty:            rt.loyalty,
+		LoyaltyFreeze:      rt.loyalty,
+		LoyaltyTick:        rt.tick,
+		Stats:              rt.stats,
+		StandingsSnapshots: rt.loyalty,
 
 		Personality: engine.NewValkeyPersonality(in.vc, engine.NewPersonalityRPC(in.nc, cfg.ModulesRPCPrefix), log),
 
@@ -249,7 +250,7 @@ func newDraw(w wireCtx, rt engineRuntime, ports drawPorts) *draw.Store {
 	store := draw.NewStore(w.in.vc, draw.Config{Log: log, LegacyKey: engine.RaffleStateKey,
 		LegacyDeadlineKey: engine.RaffleDeadlineKey, Payer: engine.NewDrawPayer(rt.loyalty, announce.Runtime),
 		Announcer: engine.NewDrawAnnouncer(announce, log, rt.analytics), Verifier: ports.verifier,
-		Winners: engine.GiveawayWinnerSink{Winners: ports.winners}, Phases: engine.GiveawayPhaseObserver{Freeze: rt.loyalty, Log: log}})
+		Winners: engine.GiveawayWinnerSink{Winners: ports.winners}, Phases: engine.GiveawayPhaseObserver{Snapshots: rt.loyalty, Log: log}})
 	go store.Run(w.ctx)
 	return store
 }

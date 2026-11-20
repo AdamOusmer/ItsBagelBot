@@ -15,11 +15,8 @@
   "points.self": "@{loyalty:user} no puedes darte {loyalty:name} a ti mismo.",
   "points.unknown": "@{loyalty:user} aún no he visto a {loyalty:target} en este canal.",
   "points.usage": "Uso: !points; o !points <set|add|remove> @user <amount>; o !points give @user <amount>",
-  "freeze.started": "Clasificación en pausa durante {loyalty:minutes} min. Los puntos y el tiempo de visualización siguen contando.",
-  "freeze.active": "@{loyalty:user} la clasificación ya está en pausa. Quedan {loyalty:minutes} min.",
+  "freeze.started": "Clasificación pausada a las {loyalty:time}. Los puntos y el tiempo de visualización siguen contando.",
   "freeze.usage": "Uso: !freeze [1-30]",
   "unfreeze.done": "La clasificación vuelve a actualizarse en directo.",
-  "unfreeze.none": "@{loyalty:user} la clasificación no está en pausa.",
-  "unfreeze.round": "@{loyalty:user} Un sorteo usa la clasificación en pausa. Elige al azar a los ganadores o cancela el sorteo para reanudarla.",
-  "points.frozen": "@{loyalty:user} no puedes regalar {loyalty:name} mientras la clasificación esté en pausa."
+  "unfreeze.none": "@{loyalty:user} la clasificación no está en pausa."
 }

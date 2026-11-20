@@ -15,8 +15,9 @@ import (
 
 type freezeChat struct {
 	chatReplier
-	store engine.LoyaltyFreeze
-	emit  module.Emit
+	store          engine.LoyaltyFreeze
+	emit           module.Emit
+	channel, actor uint64
 }
 
 func freezeRun(d engine.Deps, release bool) module.RunFunc {
@@ -24,36 +25,33 @@ func freezeRun(d engine.Deps, release bool) module.RunFunc {
 		if d.LoyaltyFreeze == nil {
 			return nil
 		}
-		chat := freezeChat{chatReplier: newChatReplier(c), store: d.LoyaltyFreeze, emit: emit}
+		actor, err := strconv.ParseUint(c.Env.ChatterUserID, 10, 64)
+		if err != nil {
+			return err
+		}
+		chat := freezeChat{chatReplier: newChatReplier(c), store: d.LoyaltyFreeze, emit: emit, channel: c.BroadcasterID, actor: actor}
 		ref := engine.EffectRef{Identity: engine.EventIdentity(&c.Env), Effect: engine.EffectLoyaltyFreeze}
 		return d.Dedup.Effect(ctx, ref, func(ctx context.Context) error {
-			command := engine.FreezeCommand{BroadcasterID: c.BroadcasterID, Holder: loyaltyrpc.FreezeModHolder,
-				BlockTransfer: loyaltyrpc.FreezeDefaultBlockTransfer, CloseGames: loyaltyrpc.FreezeDefaultCloseGames}
 			if release {
-				return chat.release(ctx, command)
+				return chat.release(ctx)
 			}
-			return chat.set(ctx, command, args)
+			return chat.set(ctx, args)
 		})
 	}
 }
 
-func (f freezeChat) set(ctx context.Context, command engine.FreezeCommand, args string) error {
+func (f freezeChat) set(ctx context.Context, args string) error {
 	minutes, ok := freezeMinutes(args)
 	if !ok {
 		f.reply(f.emit, "", "loyalty.freeze.usage")
 		return nil
 	}
-	command.Minutes = minutes
-	view, changed, err := f.store.FreezeSet(ctx, command)
+	view, err := f.store.FreezeSet(ctx, f.channel, minutes, f.actor)
 	if err != nil {
 		return err
 	}
-	key := replyKey("loyalty.freeze.active")
-	if changed {
-		key = "loyalty.freeze.started"
-	}
-	left := time.Until(time.UnixMilli(view.ExpiresAt))
-	f.reply(f.emit, "", key, "minutes", strconv.Itoa(int(max(0, (left+time.Minute-1)/time.Minute))))
+	at := time.UnixMilli(view.FrozenAsOf).UTC().Format("15:04")
+	f.reply(f.emit, "", "loyalty.freeze.started", "time", at)
 	return nil
 }
 
@@ -62,18 +60,16 @@ func freezeMinutes(args string) (int, bool) {
 		return loyaltyrpc.FreezeDefaultMinutes, true
 	}
 	minutes, err := strconv.Atoi(args)
-	return minutes, err == nil && minutes >= 1 && minutes <= int(loyaltyrpc.FreezeMaximum/time.Minute)
+	return minutes, err == nil && loyaltyrpc.ValidFreezeMinutes(minutes)
 }
 
-func (f freezeChat) release(ctx context.Context, command engine.FreezeCommand) error {
-	_, changed, err := f.store.FreezeRelease(ctx, command)
-	key := replyKey("loyalty.unfreeze.none")
-	switch {
-	case engine.LoyaltyFreezeRefusal(err, loyaltyrpc.RefusalHeldByRound):
-		key = "loyalty.unfreeze.round"
-	case err != nil:
+func (f freezeChat) release(ctx context.Context) error {
+	released, err := f.store.FreezeRelease(ctx, f.channel, f.actor)
+	if err != nil {
 		return err
-	case changed:
+	}
+	key := replyKey("loyalty.unfreeze.none")
+	if released {
 		key = "loyalty.unfreeze.done"
 	}
 	f.reply(f.emit, "", key)

@@ -28,7 +28,6 @@
   "won.plain": "{raffle:targets}, поздравляем с победой в розыгрыше!",
   "won.points": "{raffle:targets}, поздравляем с победой в розыгрыше! {raffle:amount} {raffle:points} уже на балансе.",
   "won.points.claim": "{raffle:targets}, поздравляем с победой в розыгрыше! {raffle:amount} {raffle:points} уже на балансе. Введите !claim в течение {raffle:claim} мин, чтобы получить {raffle:prize}.",
-  "open.frozen": "Розыгрыши приостановлены, пока рейтинг заморожен.",
   "open.loyalty_off": "Включите программу лояльности, чтобы разыграть баллы.",
   "verifying": "Выбираем победителей. Одну минуту.",
   "won.paid": "{raffle:targets} получают по {raffle:amount} {raffle:points}!",

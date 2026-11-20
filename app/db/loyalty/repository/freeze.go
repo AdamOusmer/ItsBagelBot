@@ -7,224 +7,135 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"maps"
-	"strings"
 	"time"
 
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
-	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/db"
-
-	"github.com/nats-io/nuid"
 )
 
-type FreezeHolder string
-type FreezeID string
-
-type FreezeFlags struct {
-	BlockTransfer bool
-	CloseGames    bool
-}
+type SnapshotID string
 
 type FreezeRequest struct {
 	UserID  uint64
-	Holder  FreezeHolder
 	Minutes int
-	Flags   FreezeFlags
-}
-
-type FreezeRelease struct {
-	UserID   uint64
-	Holder   FreezeHolder
-	FreezeID FreezeID
 }
 
 type FreezeState struct {
-	FreezeID  FreezeID
-	AsOf      time.Time
-	ExpiresAt time.Time
-	Holders   map[FreezeHolder]int64
-	Flags     FreezeFlags
+	SnapshotID SnapshotID
+	AsOf       time.Time
+	ExpiresAt  time.Time
 }
 
 func (s FreezeState) Active(now time.Time) bool {
-	return s.FreezeID != "" && now.Before(s.ExpiresAt)
-}
-
-func (s FreezeState) roundHeld(now time.Time) bool {
-	for holder, end := range s.Holders {
-		if holder.round() && end > now.UnixMilli() {
-			return true
-		}
-	}
-	return false
-}
-
-func (h FreezeHolder) round() bool {
-	return strings.HasPrefix(string(h), loyaltyrpc.FreezeRoundPrefix)
+	return s.SnapshotID != "" && now.Before(s.ExpiresAt)
 }
 
 var (
-	ErrFrozen            = errors.New(loyaltyrpc.RefusalFrozen)
-	ErrFreezeHeldByRound = errors.New(loyaltyrpc.RefusalHeldByRound)
-	ErrStaleFreezePin    = errors.New(loyaltyrpc.RefusalStalePin)
-	ErrFrozenTransfers   = errors.New(loyaltyrpc.RefusalFrozenTransfers)
-	ErrFrozenGames       = errors.New(loyaltyrpc.RefusalFrozenGames)
+	ErrFrozen                  = errors.New(loyaltyrpc.RefusalFrozen)
+	ErrStaleFreezePin          = errors.New(loyaltyrpc.RefusalStalePin)
+	ErrSnapshotGone            = errors.New(string(loyaltyrpc.RefusalSnapshotGone))
+	ErrStandingsAccountRetired = errors.New("loyalty account retired")
 )
 
-type freezeChange struct {
-	state   FreezeState
-	changed bool
-}
-
-type freezeMutation func(context.Context, *sql.Tx, FreezeState) (freezeChange, error)
-
-func (r *Loyalty) Freeze(ctx context.Context, req FreezeRequest) (FreezeState, bool, error) {
+func (r *Loyalty) Freeze(ctx context.Context, req FreezeRequest) (FreezeState, error) {
 	if !req.valid() {
-		return FreezeState{}, false, ErrInvalidInput
+		return FreezeState{}, ErrInvalidInput
 	}
-	change, err := r.withFreezeRow(ctx, req.UserID, func(ctx context.Context, tx *sql.Tx, state FreezeState) (freezeChange, error) {
-		now := time.Now().Truncate(time.Millisecond)
-		if state.Active(now) {
-			return state.join(now, req), nil
+	return withStandingsRow(ctx, r, req.UserID, func(ctx context.Context, tx *sql.Tx, prior FreezeState) (FreezeState, error) {
+		if err := closePublicSnapshot(ctx, tx, snapshotKey{req.UserID, prior.SnapshotID}); err != nil {
+			return FreezeState{}, err
 		}
-		return startFreeze(ctx, tx, req)
+		now := time.Now().Truncate(time.Millisecond)
+		state, err := copyStandings(ctx, tx, snapshotCopy{userID: req.UserID, asOf: now, expiresAt: now.Add(time.Duration(req.Minutes) * time.Minute)})
+		if err != nil {
+			return FreezeState{}, err
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE loyalty_freezes SET snapshot_id=?, as_of_ms=?, expires_at_ms=? WHERE user_id=?`,
+			state.SnapshotID, state.AsOf.UnixMilli(), state.ExpiresAt.UnixMilli(), req.UserID)
+		return state, err
 	})
-	return change.state, change.changed, err
 }
 
 func (req FreezeRequest) valid() bool {
-	return req.UserID != 0 && req.Holder != "" && req.validDuration()
+	return req.UserID != 0 && loyaltyrpc.ValidFreezeMinutes(req.Minutes)
 }
 
-func (req FreezeRequest) validDuration() bool {
-	return req.Minutes > 0 && req.Minutes <= int(loyaltyrpc.FreezeMaximum/time.Minute)
-}
-
-func (s FreezeState) join(now time.Time, req FreezeRequest) freezeChange {
-	if s.Holders[req.Holder] > now.UnixMilli() {
-		return freezeChange{state: s}
+func (r *Loyalty) ReleaseFreeze(ctx context.Context, userID uint64) (bool, error) {
+	if userID == 0 {
+		return false, ErrInvalidInput
 	}
-	end := s.ExpiresAt.UnixMilli()
-	if !req.Holder.round() {
-		end = min(end, now.Add(time.Duration(req.Minutes)*time.Minute).UnixMilli())
-	}
-	maps.DeleteFunc(s.Holders, func(_ FreezeHolder, end int64) bool { return end <= now.UnixMilli() })
-	s.Holders[req.Holder] = end
-	return freezeChange{state: s, changed: true}
-}
-
-func startFreeze(ctx context.Context, tx *sql.Tx, req FreezeRequest) (freezeChange, error) {
-	id := FreezeID(nuid.Next())
-	asOf := time.Now().Truncate(time.Millisecond)
-	if _, err := tx.ExecContext(ctx, freezeCopy, id, req.UserID); err != nil {
-		return freezeChange{}, err
-	}
-	duration := time.Duration(req.Minutes) * time.Minute
-	if req.Holder.round() {
-		duration = loyaltyrpc.FreezeMaximum
-	}
-	end := asOf.Add(duration)
-	state := FreezeState{FreezeID: id, AsOf: asOf, ExpiresAt: end, Flags: req.Flags, Holders: map[FreezeHolder]int64{req.Holder: end.UnixMilli()}}
-	_, err := tx.ExecContext(ctx, `INSERT INTO loyalty_freeze_epochs (user_id, freeze_id, ends_at_ms, as_of_ms) VALUES (?,?,?,?)`,
-		req.UserID, id, end.UnixMilli(), asOf.UnixMilli())
-	return freezeChange{state: state, changed: true}, err
-}
-
-func (r *Loyalty) ReleaseFreeze(ctx context.Context, req FreezeRelease) (FreezeState, bool, error) {
-	if req.UserID == 0 || !req.canCompare() {
-		return FreezeState{}, false, ErrInvalidInput
-	}
-	change, err := r.withFreezeRow(ctx, req.UserID, func(_ context.Context, _ *sql.Tx, state FreezeState) (freezeChange, error) {
-		return state.release(time.Now(), req)
+	return withStandingsRow(ctx, r, userID, func(ctx context.Context, tx *sql.Tx, state FreezeState) (bool, error) {
+		if !state.Active(time.Now()) {
+			return false, nil
+		}
+		if err := closePublicSnapshot(ctx, tx, snapshotKey{userID, state.SnapshotID}); err != nil {
+			return false, err
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE loyalty_freezes SET snapshot_id='', as_of_ms=0, expires_at_ms=0 WHERE user_id=?`, userID)
+		return err == nil, err
 	})
-	return change.state, change.changed, err
 }
 
-func (req FreezeRelease) canCompare() bool {
-	return req.Holder != "" && (req.FreezeID != "" || req.Holder == loyaltyrpc.FreezeModHolder)
+func closePublicSnapshot(ctx context.Context, tx *sql.Tx, key snapshotKey) error {
+	now := time.Now().UnixMilli()
+	_, err := tx.ExecContext(ctx, `UPDATE loyalty_snapshots SET expires_at_ms=? WHERE user_id=? AND snapshot_id=? AND expires_at_ms>?`,
+		now, key.userID, key.id)
+	return err
 }
 
-func (s FreezeState) release(now time.Time, req FreezeRelease) (freezeChange, error) {
-	if !s.Active(now) || s.mismatched(req.FreezeID) {
-		return freezeChange{state: s}, nil
-	}
-	if req.Holder == loyaltyrpc.FreezeModHolder && s.roundHeld(now) {
-		return freezeChange{}, ErrFreezeHeldByRound
-	}
-	if s.Holders[req.Holder] <= now.UnixMilli() {
-		return freezeChange{state: s}, nil
-	}
-	delete(s.Holders, req.Holder)
-	maps.DeleteFunc(s.Holders, func(_ FreezeHolder, end int64) bool { return end <= now.UnixMilli() })
-	end := now.UnixMilli()
-	for _, heldUntil := range s.Holders {
-		end = max(end, heldUntil)
-	}
-	s.ExpiresAt = time.UnixMilli(end)
-	return freezeChange{state: s, changed: true}, nil
-}
-
-func (s FreezeState) mismatched(id FreezeID) bool {
-	return id != "" && id != s.FreezeID
-}
-
-const freezeRow = `SELECT freeze_id, as_of_ms, expires_at_ms, holders, block_transfer, close_games FROM loyalty_freezes WHERE user_id=?`
+const freezeRow = `SELECT snapshot_id, as_of_ms, expires_at_ms FROM loyalty_freezes WHERE user_id=?`
 
 func (r *Loyalty) FreezeStatus(ctx context.Context, userID uint64) (FreezeState, error) {
 	return db.WithRead(ctx, func(ctx context.Context) (FreezeState, error) {
-		return scanFreeze(r.sqldb.QueryRowContext(ctx, freezeRow, userID))
+		state, err := scanStandingsState(r.sqldb.QueryRowContext(ctx, freezeRow, userID))
+		if errors.Is(err, sql.ErrNoRows) {
+			return FreezeState{}, nil
+		}
+		return state, err
 	})
 }
 
-func scanFreeze(row *sql.Row) (FreezeState, error) {
+func scanStandingsState(row *sql.Row) (FreezeState, error) {
 	var state FreezeState
 	var asOf, expires int64
-	var holders []byte
-	err := row.Scan(&state.FreezeID, &asOf, &expires, &holders, &state.Flags.BlockTransfer, &state.Flags.CloseGames)
-	if errors.Is(err, sql.ErrNoRows) {
-		return FreezeState{}, nil
-	}
-	if err != nil {
+	err := row.Scan(&state.SnapshotID, &asOf, &expires)
+	if err != nil || state.SnapshotID == "" {
 		return FreezeState{}, err
 	}
-	if state.FreezeID == "" {
-		return FreezeState{}, nil
-	}
 	state.AsOf, state.ExpiresAt = time.UnixMilli(asOf), time.UnixMilli(expires)
-	return state, codec.Unmarshal(holders, &state.Holders)
+	return state, nil
 }
 
-func (r *Loyalty) withFreezeRow(ctx context.Context, userID uint64, fn freezeMutation) (freezeChange, error) {
-	return db.WithQuery(ctx, func(ctx context.Context) (freezeChange, error) {
-		var change freezeChange
+type standingsMutation[T any] func(context.Context, *sql.Tx, FreezeState) (T, error)
+
+func withStandingsRow[T any](ctx context.Context, r *Loyalty, userID uint64, fn standingsMutation[T]) (T, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) (T, error) {
+		var result T
 		err := retryTx(ctx, func(ctx context.Context) error {
 			var err error
-			change, err = r.mutateFreezeRow(ctx, userID, fn)
+			result, err = mutateStandingsRow(ctx, r, userID, fn)
 			return err
 		})
-		return change, err
+		return result, err
 	})
 }
 
-func (r *Loyalty) mutateFreezeRow(ctx context.Context, userID uint64, fn freezeMutation) (freezeChange, error) {
+func mutateStandingsRow[T any](ctx context.Context, r *Loyalty, userID uint64, fn standingsMutation[T]) (T, error) {
+	var zero T
 	tx, err := r.sqldb.BeginTx(ctx, db.ReadCommittedTx(r.dialect))
 	if err != nil {
-		return freezeChange{}, err
+		return zero, err
 	}
 	defer tx.Rollback()
 	state, err := r.lockFreezeRow(ctx, tx, userID)
 	if err != nil {
-		return freezeChange{}, err
+		return zero, err
 	}
-	change, err := fn(ctx, tx, state)
+	result, err := fn(ctx, tx, state)
 	if err != nil {
-		return freezeChange{}, err
+		return zero, err
 	}
-	if err := change.save(ctx, tx, userID); err != nil {
-		return freezeChange{}, err
-	}
-	return change, tx.Commit()
+	return result, tx.Commit()
 }
 
 func (r *Loyalty) lockFreezeRow(ctx context.Context, tx *sql.Tx, userID uint64) (FreezeState, error) {
@@ -235,31 +146,13 @@ func (r *Loyalty) lockFreezeRow(ctx context.Context, tx *sql.Tx, userID uint64) 
 	if r.dialect != "sqlite3" {
 		query += " FOR UPDATE"
 	}
-	return scanFreeze(tx.QueryRowContext(ctx, query, userID))
+	return scanStandingsState(tx.QueryRowContext(ctx, query, userID))
 }
 
 func (r *Loyalty) createFreezeRow(ctx context.Context, tx *sql.Tx, userID uint64) (sql.Result, error) {
-	stmt := "INSERT INTO loyalty_freezes (user_id, holders) VALUES (?, '{}') ON DUPLICATE KEY UPDATE user_id=user_id"
+	stmt := "INSERT INTO loyalty_freezes (user_id) VALUES (?) ON DUPLICATE KEY UPDATE user_id=user_id"
 	if r.dialect == "sqlite3" {
-		stmt = "INSERT OR IGNORE INTO loyalty_freezes (user_id, holders) VALUES (?, '{}')"
+		stmt = "INSERT OR IGNORE INTO loyalty_freezes (user_id) VALUES (?)"
 	}
 	return tx.ExecContext(ctx, stmt, userID)
-}
-
-func (c freezeChange) save(ctx context.Context, tx *sql.Tx, userID uint64) error {
-	if !c.changed {
-		return nil
-	}
-	s := c.state
-	holders, err := codec.Marshal(s.Holders)
-	if err != nil {
-		return err
-	}
-	end := s.ExpiresAt.UnixMilli()
-	if _, err := tx.ExecContext(ctx, `UPDATE loyalty_freezes SET freeze_id=?, as_of_ms=?, expires_at_ms=?, holders=?, block_transfer=?, close_games=? WHERE user_id=?`,
-		s.FreezeID, s.AsOf.UnixMilli(), end, string(holders), s.Flags.BlockTransfer, s.Flags.CloseGames, userID); err != nil {
-		return err
-	}
-	_, err = tx.ExecContext(ctx, `UPDATE loyalty_freeze_epochs SET ends_at_ms=? WHERE user_id=? AND freeze_id=?`, end, userID, s.FreezeID)
-	return err
 }

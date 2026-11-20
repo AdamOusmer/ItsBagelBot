@@ -86,6 +86,7 @@ type Deps struct {
 	AutomationHook *AutomationHook
 	Analytics      *analytics.Recorder
 
+	StandingsSnapshots StandingsSnapshots
 	LeaderboardBaseURL string
 	QueueBaseURL       string
 
@@ -234,8 +235,13 @@ type WagerOutcome struct {
 
 type LoyaltyFreeze interface {
 	FreezeGet(context.Context, uint64) (loyaltyrpc.FreezeView, error)
-	FreezeSet(context.Context, FreezeCommand) (loyaltyrpc.FreezeView, bool, error)
-	FreezeRelease(context.Context, FreezeCommand) (loyaltyrpc.FreezeView, bool, error)
+	FreezeSet(ctx context.Context, channel uint64, minutes int, actor uint64) (loyaltyrpc.FreezeTimes, error)
+	FreezeRelease(ctx context.Context, channel, actor uint64) (bool, error)
+}
+
+type StandingsSnapshots interface {
+	SnapshotCreate(context.Context, SnapshotRequest) (SnapshotRef, error)
+	SnapshotDrop(ctx context.Context, channel uint64, snapshotID string) error
 }
 
 type LoyaltyStore interface {
@@ -245,7 +251,7 @@ type LoyaltyStore interface {
 	BalanceWager(ctx context.Context, wager PointWager) (WagerOutcome, error)
 	BalanceGet(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.Balance, error)
 	BalanceCredit(ctx context.Context, credit PointCredit) (CreditOutcome, error)
-	BalanceSnapshot(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.BalanceSnapshot, error)
+	BalanceSnapshot(ctx context.Context, req BalanceSnapshotRequest) (loyaltyrpc.BalanceSnapshot, error)
 	WatchStatus(ctx context.Context) (loyaltyrpc.WatchStatus, error)
 	BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error)
 	BalanceTransfer(ctx context.Context, transfer PointTransfer) (bal loyaltyrpc.Balance, found, moved bool, err error)

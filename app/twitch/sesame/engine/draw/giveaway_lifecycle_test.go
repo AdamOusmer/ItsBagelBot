@@ -12,7 +12,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/internal/domain/i18n"
-	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/codec"
 
@@ -29,58 +28,53 @@ func (giveawayLifecycleProjection) Module(context.Context, uint64, string) (proj
 	return projection.ModuleView{Name: engine.GiveawayModuleName, IsEnabled: true, Configs: raw}, true, nil
 }
 
-type giveawayLifecycleFreeze struct {
-	engine.LoyaltyFreeze
-	set       engine.FreezeCommand
-	release   chan engine.FreezeCommand
-	expiresAt int64
+type giveawayLifecycleSnapshots struct {
+	created engine.SnapshotRequest
+	dropped chan droppedSnapshot
 }
 
-func (s *giveawayLifecycleFreeze) FreezeSet(_ context.Context, req engine.FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {
-	s.set = req
-	return loyaltyrpc.FreezeView{FreezeStamp: loyaltyrpc.FreezeStamp{FreezeID: "snapshot", ExpiresAt: s.expiresAt}}, true, nil
+type droppedSnapshot struct {
+	channel uint64
+	id      string
 }
 
-func (s *giveawayLifecycleFreeze) FreezeRelease(_ context.Context, req engine.FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {
-	s.release <- req
-	return loyaltyrpc.FreezeView{}, true, nil
+func (s *giveawayLifecycleSnapshots) SnapshotCreate(_ context.Context, req engine.SnapshotRequest) (engine.SnapshotRef, error) {
+	s.created = req
+	return engine.SnapshotRef{SnapshotID: "snapshot"}, nil
+}
+
+func (s *giveawayLifecycleSnapshots) SnapshotDrop(_ context.Context, channel uint64, id string) error {
+	s.dropped <- droppedSnapshot{channel, id}
+	return nil
 }
 
 type giveawayLifecycleCase struct {
 	name   string
 	action func(*draw.Store, context.Context, draw.Round) (bool, error)
 	window time.Duration
-	refuse bool
 }
 
-func TestGiveawayFreezeLifecycle(t *testing.T) {
+func TestGiveawaySnapshotLifecycle(t *testing.T) {
 	for _, tc := range []giveawayLifecycleCase{
-		{name: "manual close", action: closeHeldGiveaway, window: 30 * time.Second},
-		{name: "cancel", action: cancelHeldGiveaway, window: 2 * time.Minute},
+		{name: "manual close", action: closeSnapshotGiveaway, window: 30 * time.Second},
+		{name: "cancel", action: cancelSnapshotGiveaway, window: 45 * time.Minute},
 		{name: "timer", window: 2 * time.Second},
-		{name: "expiring mod freeze", window: 500 * time.Millisecond, refuse: true},
-		{name: "expired mod freeze", window: -time.Second, refuse: true},
 	} {
 		t.Run(tc.name, tc.run)
 	}
 }
 
 func (tc giveawayLifecycleCase) run(t *testing.T) {
-	freeze := &giveawayLifecycleFreeze{release: make(chan engine.FreezeCommand, 2)}
-	f := newFixture(t, draw.Config{Phases: engine.GiveawayPhaseObserver{Freeze: freeze, Log: zap.NewNop()}})
-	freeze.expiresAt = f.now().Add(tc.window).UnixMilli()
-	deps := engine.Deps{Draw: f.Store, LoyaltyFreeze: freeze, Proj: giveawayLifecycleProjection{}, Automod: automod.New()}
-	outcome, err := engine.StartGiveaway(t.Context(), deps, engine.GiveawayStart{Channel: 42, Actor: "7"})
+	snapshots := &giveawayLifecycleSnapshots{dropped: make(chan droppedSnapshot, 2)}
+	f := newFixture(t, draw.Config{Phases: engine.GiveawayPhaseObserver{Snapshots: snapshots, Log: zap.NewNop()}})
+	deps := engine.Deps{Draw: f.Store, StandingsSnapshots: snapshots, Proj: giveawayLifecycleProjection{}, Automod: automod.New()}
+	outcome, err := engine.StartGiveaway(t.Context(), deps, engine.GiveawayStart{Channel: 42, Actor: "7", Window: tc.window})
 	require.NoError(t, err)
-	if tc.refuse {
-		require.Equal(t, "giveaway.open.window", outcome.Refusal)
-		require.Empty(t, outcome.Round.ID)
-		return
-	}
+
 	require.Empty(t, outcome.Refusal)
 	left := i18n.CompactDuration("en", outcome.Round.ClosesAt.Sub(outcome.Round.OpenedAt))
 	require.Contains(t, outcome.OpenedLine("en"), "Time: "+left+".")
-	tc.checkRound(f, outcome.Round, freeze)
+	tc.checkRound(f, outcome.Round, snapshots)
 }
 
 func TestGiveawayDrawRejectsTooShortFreeze(t *testing.T) {
@@ -95,12 +89,11 @@ func TestGiveawayDrawRejectsTooShortFreeze(t *testing.T) {
 	}
 }
 
-func (tc giveawayLifecycleCase) checkRound(f fixture, r draw.Round, freeze *giveawayLifecycleFreeze) {
+func (tc giveawayLifecycleCase) checkRound(f fixture, r draw.Round, snapshots *giveawayLifecycleSnapshots) {
 	f.t.Helper()
 	ctx := f.t.Context()
-	holder := loyaltyrpc.FreezeRoundPrefix + string(r.ID)
-	require.Equal(f.t, engine.FreezeCommand{BroadcasterID: 42, Holder: holder, Minutes: int(loyaltyrpc.FreezeMaximum / time.Minute)}, freeze.set)
-	require.Equal(f.t, freeze.expiresAt, r.ClosesAt.UnixMilli())
+	require.Equal(f.t, engine.SnapshotRequest{BroadcasterID: 42, Owner: "round:" + string(r.ID), ExpiresAt: r.ClosesAt}, snapshots.created)
+	require.Equal(f.t, "snapshot", r.Terms.FreezeID)
 	f.t.Cleanup(func() {
 		require.NoError(f.t, drawKeys(r).Teardown(context.Background(), f.client, string(r.ID)))
 	})
@@ -108,36 +101,34 @@ func (tc giveawayLifecycleCase) checkRound(f fixture, r draw.Round, freeze *give
 	if tc.action != nil {
 		tc.applyAction(f, ctx, r)
 	}
-	require.Equal(f.t, engine.FreezeCommand{BroadcasterID: 42, Holder: holder, FreezeID: "snapshot"}, take(f.t, freeze.release))
-	require.Empty(f.t, freeze.release)
+	require.Equal(f.t, droppedSnapshot{42, "snapshot"}, take(f.t, snapshots.dropped))
+	require.Empty(f.t, snapshots.dropped)
 }
 
-func closeHeldGiveaway(s *draw.Store, ctx context.Context, r draw.Round) (bool, error) {
+func closeSnapshotGiveaway(s *draw.Store, ctx context.Context, r draw.Round) (bool, error) {
 	return s.Close(ctx, draw.CloseRequest{Channel: r.Channel, Round: r.ID, Kind: draw.KindGiveaway})
 }
 
-func cancelHeldGiveaway(s *draw.Store, ctx context.Context, r draw.Round) (bool, error) {
+func cancelSnapshotGiveaway(s *draw.Store, ctx context.Context, r draw.Round) (bool, error) {
 	return s.Cancel(ctx, draw.ModAction{Channel: r.Channel, Round: r.ID, Kind: draw.KindGiveaway})
 }
 
 func (tc giveawayLifecycleCase) applyAction(f fixture, ctx context.Context, r draw.Round) {
 	f.t.Helper()
-	extended, extendErr := f.Extend(ctx, draw.ExtendRequest{Channel: r.Channel, Round: r.ID, Kind: draw.KindGiveaway})
-	applied, actionErr := tc.action(f.Store, ctx, r)
-	require.NoError(f.t, extendErr)
-	require.NoError(f.t, actionErr)
-	require.Equal(f.t, []bool{false, true}, []bool{extended, applied})
+	applied, err := tc.action(f.Store, ctx, r)
+	require.NoError(f.t, err)
+	require.True(f.t, applied)
 }
 
 func TestGiveawayRoundTargetRejectsStaleDashboardActions(t *testing.T) {
 	f := newFixture(t, draw.Config{})
 	prior := f.open(42, draw.Terms{Kind: draw.KindGiveaway})
-	closed, err := closeHeldGiveaway(f.Store, t.Context(), prior)
+	closed, err := closeSnapshotGiveaway(f.Store, t.Context(), prior)
 	require.NoError(t, err)
 	require.True(t, closed)
 	current := f.open(prior.Channel, prior.Terms)
 	actions := []func() (bool, error){
-		func() (bool, error) { return closeHeldGiveaway(f.Store, t.Context(), prior) },
+		func() (bool, error) { return closeSnapshotGiveaway(f.Store, t.Context(), prior) },
 		func() (bool, error) {
 			return f.Extend(t.Context(), draw.ExtendRequest{Channel: prior.Channel, Round: prior.ID, Kind: draw.KindGiveaway})
 		},

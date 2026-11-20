@@ -4,7 +4,7 @@
   "empty": "Personne n’a participé au tirage.",
   "join.closed": "Le tirage est terminé.",
   "no_show": "{draw:targets} n’a pas réclamé son prix à temps.",
-  "remind": "Il reste environ {draw:mins} min pour participer. {draw:count} inscriptions. Tapez !join.",
+  "remind": "Il reste environ {draw:mins} min pour participer. {draw:count} inscriptions. Tape !join.",
   "status.no_show": "Délai de réclamation dépassé : {draw:targets}.",
   "status.none": "Aucun gagnant pour le moment.",
   "status.paying": "Versement en attente : {draw:targets}.",
@@ -14,7 +14,7 @@
   "unpaid": "Certains prix n’ont pas pu être versés.",
   "verifying": "Vérification des gagnants en cours. Les résultats arrivent.",
   "winners": "{draw:targets} a gagné !",
-  "winners.claim": "{draw:targets} a gagné ! Tapez !claim pour réclamer votre prix.",
+  "winners.claim": "Bravo {draw:targets} pour cette victoire ! Tape !claim pour réclamer ton prix.",
   "winners.raffle": "{draw:targets} a remporté {draw:points} points par personne !",
-  "open.busy_giveaway": "Un concours est déjà ouvert. Tirez les gagnants ou annulez-le."
+  "open.busy_giveaway": "Un concours est déjà ouvert. Tire les gagnants ou annule-le."
 }

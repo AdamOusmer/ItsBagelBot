@@ -41,6 +41,13 @@ func Subscribe(w Wiring, prefix string) error {
 		return err
 	}
 
+	if err := l.subscribeFreeze(w.RPCWiring, prefix); err != nil {
+		return err
+	}
+	if err := l.subscribeSnapshots(w.RPCWiring, prefix); err != nil {
+		return err
+	}
+
 	return bus.ServeVerbs(w.RPCWiring, prefix,
 		bus.At("balance.get", l.handleBalanceGet),
 		bus.At(loyaltyrpc.VerbBalanceCredit, l.handleBalanceCredit),
@@ -51,9 +58,6 @@ func Subscribe(w Wiring, prefix string) error {
 		bus.At("balance.transfer", l.handleBalanceTransfer),
 		bus.At("balance.reset", l.handleBalanceReset),
 		bus.At("top.get", l.handleTopGet),
-		bus.At(loyaltyrpc.VerbFreezeSet, l.freezeHandler(false)),
-		bus.At(loyaltyrpc.VerbFreezeRelease, l.freezeHandler(true)),
-		bus.At(loyaltyrpc.VerbFreezeGet, l.handleFreezeGet),
 		bus.At("counter.get", l.handleCounterGet),
 		bus.At("counter.create", l.handleCounterCreate),
 		bus.At("counter.set", l.handleCounterSet),
@@ -109,12 +113,12 @@ func (l *loyaltyRPC) fail(op string, err error) loyaltyrpc.Reply {
 	refusal := domainrpc.Fail(err,
 		domainrpc.Is(repository.ErrInvalidInput, domainrpc.CodeInvalid),
 		domainrpc.Is(repository.ErrFrozen, domainrpc.CodeConflict),
-		domainrpc.Is(repository.ErrFreezeHeldByRound, domainrpc.CodeConflict),
 		domainrpc.Is(repository.ErrStaleFreezePin, domainrpc.CodeConflict),
-		domainrpc.Is(repository.ErrFrozenTransfers, domainrpc.CodeConflict),
-		domainrpc.Is(repository.ErrFrozenGames, domainrpc.CodeConflict),
+		domainrpc.Is(repository.ErrSnapshotGone, loyaltyrpc.RefusalSnapshotGone),
+		domainrpc.Is(repository.ErrStandingsAccountRetired, domainrpc.CodeForbidden),
 	)
-	if refusal.Code == domainrpc.CodeInvalid || refusal.Code == domainrpc.CodeConflict {
+	switch refusal.Code {
+	case domainrpc.CodeInvalid, domainrpc.CodeConflict, loyaltyrpc.RefusalSnapshotGone, domainrpc.CodeForbidden:
 		return loyaltyrpc.Reply{Refusal: refusal}
 	}
 	l.log.Warn(op+" failed", zap.Error(err))

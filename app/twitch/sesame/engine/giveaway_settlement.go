@@ -13,18 +13,16 @@ import (
 )
 
 type GiveawayPhaseObserver struct {
-	Freeze LoyaltyFreeze
-	Log    *zap.Logger
+	Snapshots StandingsSnapshots
+	Log       *zap.Logger
 }
 
 func (o GiveawayPhaseObserver) LeftOpen(ctx context.Context, round draw.Round) {
 	if round.Terms.Kind != draw.KindGiveaway || round.Terms.FreezeID == "" {
 		return
 	}
-	req := giveawayFreezeCommand(round.Channel, round.ID)
-	req.FreezeID, req.Minutes = round.Terms.FreezeID, 0
-	if _, _, err := o.Freeze.FreezeRelease(ctx, req); err != nil {
-		o.Log.Warn("giveaway: release standings hold failed", zap.String("round_id", string(round.ID)), zap.Error(err))
+	if err := o.Snapshots.SnapshotDrop(ctx, uint64(round.Channel), round.Terms.FreezeID); err != nil {
+		o.Log.Warn("giveaway: drop standings snapshot failed", zap.String("round_id", string(round.ID)), zap.Error(err))
 	}
 }
 

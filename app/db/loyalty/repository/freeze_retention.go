@@ -10,62 +10,59 @@ import (
 
 const freezePruneGrace = 2 * time.Minute
 
-type freezeEpochKey struct {
-	userID uint64
-	id     FreezeID
-}
-
 func (r *Loyalty) PruneFreezeSnapshots(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, watchHistoryPruneBudget)
 	defer cancel()
-	epochs, err := r.endedFreezeEpochs(ctx)
+	snapshots, err := r.expiredSnapshots(ctx)
 	if err != nil {
 		return err
 	}
-	for i := 0; i < len(epochs) && ctx.Err() == nil; i++ {
-		if err := r.pruneFreezeEpoch(ctx, epochs[i]); err != nil {
+	for i := 0; i < len(snapshots) && ctx.Err() == nil; i++ {
+		if err := r.pruneSnapshot(ctx, snapshots[i]); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (r *Loyalty) endedFreezeEpochs(ctx context.Context) ([]freezeEpochKey, error) {
-	rows, err := r.sqldb.QueryContext(ctx, `SELECT user_id, freeze_id FROM loyalty_freeze_epochs WHERE ends_at_ms<? ORDER BY ends_at_ms LIMIT 16`,
-		time.Now().Add(-freezePruneGrace).UnixMilli())
+func (r *Loyalty) expiredSnapshots(ctx context.Context) ([]snapshotKey, error) {
+	now := time.Now()
+	rows, err := r.sqldb.QueryContext(ctx, `SELECT user_id, snapshot_id FROM loyalty_snapshots WHERE expires_at_ms < ? AND (owner IS NOT NULL OR expires_at_ms < ?)
+		ORDER BY expires_at_ms LIMIT 16`,
+		now.UnixMilli(), now.Add(-freezePruneGrace).UnixMilli())
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var epochs []freezeEpochKey
+	var snapshots []snapshotKey
 	for rows.Next() {
-		var epoch freezeEpochKey
-		if err := rows.Scan(&epoch.userID, &epoch.id); err != nil {
+		var key snapshotKey
+		if err := rows.Scan(&key.userID, &key.id); err != nil {
 			return nil, err
 		}
-		epochs = append(epochs, epoch)
+		snapshots = append(snapshots, key)
 	}
-	return epochs, rows.Err()
+	return snapshots, rows.Err()
 }
 
-func (r *Loyalty) pruneFreezeEpoch(ctx context.Context, epoch freezeEpochKey) error {
-	if _, err := r.sqldb.ExecContext(ctx, `UPDATE loyalty_freeze_epochs SET pruning=1 WHERE user_id=? AND freeze_id=?`, epoch.userID, epoch.id); err != nil {
+func (r *Loyalty) pruneSnapshot(ctx context.Context, key snapshotKey) error {
+	if _, err := r.sqldb.ExecContext(ctx, `UPDATE loyalty_snapshots SET pruning=1 WHERE user_id=? AND snapshot_id=?`, key.userID, key.id); err != nil {
 		return err
 	}
-	prune := receiptPrune{table: "loyalty_freeze_balances", condition: "user_id=? AND freeze_id=? ORDER BY viewer_id", args: []any{epoch.userID, epoch.id}}
+	prune := receiptPrune{table: frozenBalances, condition: "user_id=? AND snapshot_id=? ORDER BY viewer_id", args: []any{key.userID, key.id}}
 	for ctx.Err() == nil {
 		more, err := r.pruneReceiptChunk(ctx, prune)
 		if err != nil {
 			return err
 		}
 		if !more {
-			return r.dropFreezeEpoch(ctx, epoch)
+			return r.deleteSnapshot(ctx, key)
 		}
 	}
 	return nil
 }
 
-func (r *Loyalty) dropFreezeEpoch(ctx context.Context, epoch freezeEpochKey) error {
-	_, err := r.sqldb.ExecContext(ctx, `DELETE FROM loyalty_freeze_epochs WHERE user_id=? AND freeze_id=?`, epoch.userID, epoch.id)
+func (r *Loyalty) deleteSnapshot(ctx context.Context, key snapshotKey) error {
+	_, err := r.sqldb.ExecContext(ctx, `DELETE FROM loyalty_snapshots WHERE user_id=? AND snapshot_id=?`, key.userID, key.id)
 	return err
 }

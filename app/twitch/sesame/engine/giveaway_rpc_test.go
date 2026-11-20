@@ -42,14 +42,12 @@ func (giveawayRPCProjection) Module(context.Context, uint64, string) (projection
 type giveawayRPCCalls struct {
 	engine.DrawStore
 	engine.GiveawayWinnersStore
-	engine.LoyaltyFreeze
+	engine.StandingsSnapshots
 	calls chan any
 }
 
-func (d giveawayRPCCalls) FreezeSet(context.Context, engine.FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {
-	return loyaltyrpc.FreezeView{FreezeStamp: loyaltyrpc.FreezeStamp{
-		FreezeID: "snapshot", ExpiresAt: time.Now().Add(500 * time.Millisecond).UnixMilli(),
-	}}, true, nil
+func (d giveawayRPCCalls) SnapshotCreate(context.Context, engine.SnapshotRequest) (engine.SnapshotRef, error) {
+	return engine.SnapshotRef{SnapshotID: "snapshot"}, nil
 }
 
 func (d giveawayRPCCalls) Live(_ context.Context, channel draw.ChannelID) ([]draw.RoundView, error) {
@@ -153,7 +151,7 @@ func TestGiveawayRPC(t *testing.T) {
 	log := zap.NewNop()
 	d := giveawayRPCCalls{calls: make(chan any, 1)}
 	server := engine.GiveawayRPC{Deps: engine.Deps{
-		Draw: d, GiveawayWinners: d, LoyaltyFreeze: d, Proj: giveawayRPCProjection{}, Automod: automod.New(), Log: log,
+		Draw: d, GiveawayWinners: d, StandingsSnapshots: d, Proj: giveawayRPCProjection{}, Automod: automod.New(), Log: log,
 	}, Standings: d}
 	require.NoError(t, server.Subscribe(bus.RPCWiring{NC: nc, Log: log}))
 	for _, tc := range giveawayRPCCases() {
@@ -186,7 +184,7 @@ func giveawayRPCCases() []giveawayRPCTest {
 		{verb: drawrpc.VerbGiveawayLive, edit: func(r *drawrpc.GiveawayRequest) { r.UserID = "0" }, refusal: rpc.CodeInvalid},
 		{verb: drawrpc.VerbGiveawayStart, edit: func(r *drawrpc.GiveawayRequest) { r.Prize, r.Winners, r.WindowSeconds = "Game", 2, 90 }, response: checkGiveawayStart},
 		{verb: drawrpc.VerbGiveawayStart, edit: func(r *drawrpc.GiveawayRequest) { r.Prize, r.Preset = "Game", "frozen" },
-			refusal: rpc.CodeInvalid, reason: "giveaway.open.window"},
+			response: checkGiveawaySnapshotStart},
 		{verb: drawrpc.VerbGiveawayStart, edit: func(r *drawrpc.GiveawayRequest) { r.Prize, r.WindowSeconds = "Game", -1 },
 			refusal: rpc.CodeInvalid, reason: "giveaway.open.window"},
 		{verb: drawrpc.VerbGiveawayStart, edit: func(r *drawrpc.GiveawayRequest) { r.Prize, r.WindowSeconds = "Game", 7201 },
@@ -262,6 +260,13 @@ func checkGiveawayStart(t *testing.T, reply drawrpc.GiveawayReply, observed any)
 		ClaimWindow: 2 * time.Minute, Rules: codec.RawMessage(`{}`),
 	}}, req)
 	require.Equal(t, []any{true, string(req.ID)}, []any{req.ID != "", reply.Round.ID})
+}
+
+func checkGiveawaySnapshotStart(t *testing.T, reply drawrpc.GiveawayReply, observed any) {
+	t.Helper()
+	req, ok := observed.(draw.OpenRequest)
+	require.True(t, ok)
+	require.Equal(t, []any{"snapshot", false, string(req.ID)}, []any{req.Terms.FreezeID, req.Terms.ClosesAt.IsZero(), reply.Round.ID})
 }
 
 func checkGiveawayCount(t *testing.T, reply drawrpc.GiveawayReply, observed any) {

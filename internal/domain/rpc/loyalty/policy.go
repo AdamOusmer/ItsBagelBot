@@ -6,8 +6,10 @@ package loyaltyrpc
 import "time"
 
 const (
-	FreezeMaximum              = 30 * time.Minute
-	FreezeDefaultMinutes       = 30
-	FreezeDefaultBlockTransfer = false
-	FreezeDefaultCloseGames    = false
+	FreezeMaximum        = 30 * time.Minute
+	FreezeDefaultMinutes = 30
 )
+
+func ValidFreezeMinutes(minutes int) bool {
+	return minutes >= 1 && minutes <= int(FreezeMaximum/time.Minute)
+}

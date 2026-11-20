@@ -5,86 +5,72 @@ package engine
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"time"
 
-	"ItsBagelBot/internal/domain/rpc"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
-	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 )
 
-type FreezeCommand struct {
+type SnapshotRequest struct {
 	BroadcasterID uint64
-	Holder        string
-	FreezeID      string
-	Minutes       int
-	BlockTransfer bool
-	CloseGames    bool
+	Owner         string
+	ExpiresAt     time.Time
 }
 
-func LoyaltyFreezeRefusal(err error, reason string) bool {
-	var reply bus.RPCReplyError
-	return errors.As(err, &reply) && matchesFreezeConflict(reply, reason)
-}
-
-func matchesFreezeConflict(reply bus.RPCReplyError, reason string) bool {
-	return reply.Code == rpc.CodeConflict && reply.Message == reason
-}
+type SnapshotRef = loyaltyrpc.SnapshotRef
 
 func (l *LoyaltyRPC) FreezeGet(ctx context.Context, channel uint64) (loyaltyrpc.FreezeView, error) {
-	reply, err := l.call(ctx, loyaltyrpc.VerbFreezeGet, loyaltyrpc.Request{UserID: fmtID(channel)})
-	if err != nil || !hasFreeze(&reply) {
-		return loyaltyrpc.FreezeView{}, err
+	return requestLoyalty[loyaltyrpc.FreezeView](ctx, l, loyaltyrpc.VerbFreezeGet, loyaltyrpc.FreezeGetRequest{UserID: fmtID(channel)})
+}
+
+func (l *LoyaltyRPC) FreezeSet(ctx context.Context, channel uint64, minutes int, actor uint64) (loyaltyrpc.FreezeTimes, error) {
+	req := loyaltyrpc.FreezeSetRequest{UserID: fmtID(channel), Minutes: minutes, ActorID: fmtID(actor)}
+	return requestLoyalty[loyaltyrpc.FreezeTimes](ctx, l, loyaltyrpc.VerbFreezeSet, req)
+}
+
+func (l *LoyaltyRPC) FreezeRelease(ctx context.Context, channel, actor uint64) (bool, error) {
+	req := loyaltyrpc.FreezeReleaseRequest{UserID: fmtID(channel), ActorID: fmtID(actor)}
+	reply, err := requestLoyalty[loyaltyrpc.FreezeReleased](ctx, l, loyaltyrpc.VerbFreezeRelease, req)
+	return reply.Released, err
+}
+
+func (l *LoyaltyRPC) SnapshotCreate(ctx context.Context, req SnapshotRequest) (SnapshotRef, error) {
+	wire := loyaltyrpc.SnapshotCreateRequest{UserID: fmtID(req.BroadcasterID), Owner: req.Owner, ExpiresAt: req.ExpiresAt.UnixMilli()}
+	return requestLoyalty[SnapshotRef](ctx, l, loyaltyrpc.VerbSnapshotCreate, wire)
+}
+
+func (l *LoyaltyRPC) SnapshotDrop(ctx context.Context, channel uint64, snapshotID string) error {
+	req := loyaltyrpc.SnapshotDropRequest{UserID: fmtID(channel), SnapshotID: snapshotID}
+	_, err := requestLoyalty[loyaltyrpc.SnapshotDropped](ctx, l, loyaltyrpc.VerbSnapshotDrop, req)
+	return err
+}
+
+func (s *ValkeyLoyaltyStore) FreezeSet(ctx context.Context, channel uint64, minutes int, actor uint64) (loyaltyrpc.FreezeTimes, error) {
+	view, err := s.rpc.FreezeSet(ctx, channel, minutes, actor)
+	if err == nil {
+		s.invalidateTop(cache.Event{ID: channel})
 	}
-	return *reply.Freeze, nil
-}
-
-func hasFreeze(reply *loyaltyrpc.Reply) bool {
-	return reply.Found && reply.Freeze != nil
-}
-
-func (l *LoyaltyRPC) FreezeSet(ctx context.Context, command FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {
-	return l.freeze(ctx, loyaltyrpc.VerbFreezeSet, command)
-}
-
-func (l *LoyaltyRPC) FreezeRelease(ctx context.Context, command FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {
-	return l.freeze(ctx, loyaltyrpc.VerbFreezeRelease, command)
-}
-
-func (l *LoyaltyRPC) freeze(ctx context.Context, verb loyaltyVerb, command FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {
-	reply, err := l.call(ctx, verb, loyaltyrpc.Request{
-		UserID: fmtID(command.BroadcasterID), Holder: command.Holder,
-		FreezeID: command.FreezeID, Minutes: command.Minutes, BlockTransfer: command.BlockTransfer, CloseGames: command.CloseGames,
-	})
-	if err != nil {
-		return loyaltyrpc.FreezeView{}, false, err
-	}
-	if reply.Freeze == nil {
-		return loyaltyrpc.FreezeView{}, false, fmt.Errorf("rpc %s.%s: empty freeze reply", l.prefix, verb)
-	}
-	return *reply.Freeze, reply.Found, nil
-}
-
-func (s *ValkeyLoyaltyStore) FreezeSet(ctx context.Context, command FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {
-	return s.freeze(ctx, loyaltyrpc.VerbFreezeSet, command)
+	return view, err
 }
 
 func (s *ValkeyLoyaltyStore) FreezeGet(ctx context.Context, channel uint64) (loyaltyrpc.FreezeView, error) {
 	return s.rpc.FreezeGet(ctx, channel)
 }
 
-func (s *ValkeyLoyaltyStore) FreezeRelease(ctx context.Context, command FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {
-	return s.freeze(ctx, loyaltyrpc.VerbFreezeRelease, command)
+func (s *ValkeyLoyaltyStore) FreezeRelease(ctx context.Context, channel, actor uint64) (bool, error) {
+	released, err := s.rpc.FreezeRelease(ctx, channel, actor)
+	if err == nil && released {
+		s.invalidateTop(cache.Event{ID: channel})
+	}
+	return released, err
 }
 
-func (s *ValkeyLoyaltyStore) freeze(ctx context.Context, verb loyaltyVerb, command FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {
-	view, changed, err := s.rpc.freeze(ctx, verb, command)
-	if err == nil && changed {
-		s.invalidateTop(cache.Event{ID: command.BroadcasterID})
-	}
-	return view, changed, err
+func (s *ValkeyLoyaltyStore) SnapshotCreate(ctx context.Context, req SnapshotRequest) (SnapshotRef, error) {
+	return s.rpc.SnapshotCreate(ctx, req)
+}
+
+func (s *ValkeyLoyaltyStore) SnapshotDrop(ctx context.Context, channel uint64, snapshotID string) error {
+	return s.rpc.SnapshotDrop(ctx, channel, snapshotID)
 }
 
 func freezeTTL(stamp loyaltyrpc.FreezeStamp, base time.Duration) time.Duration {

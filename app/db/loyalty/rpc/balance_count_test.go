@@ -41,20 +41,31 @@ func TestBalanceCountAtLeastRPC(t *testing.T) {
 	requireRPCCode(t, err, domainrpc.CodeInvalid)
 }
 
-func TestBalanceCountAtLeastRPCUsesActiveFreeze(t *testing.T) {
+func TestBalanceCountAtLeastRPCUsesOnlyRequestedSnapshot(t *testing.T) {
 	h := newHarness(t)
-	req := loyaltyrpc.Request{UserID: "2", Holder: "mod", Minutes: 1}
-	frozen := h.call(t, loyaltyrpc.VerbFreezeSet, req)
-	require.NotNil(t, frozen.Freeze)
-	req.FreezeID = frozen.Freeze.FreezeID
-	h.call(t, "balance.add", loyaltyrpc.Request{UserID: "2", TargetViewerID: "7", ViewerLogin: "sender", Value: 5})
-
 	client := engine.NewLoyaltyRPC(h.nc, "loyalty")
-	mins := engine.BalanceMinimums{Points: 1005}
-	withFreeze, frozenErr := client.BalanceCountAtLeast(t.Context(), 2, mins)
-	h.call(t, loyaltyrpc.VerbFreezeRelease, req)
-	live, liveErr := client.BalanceCountAtLeast(t.Context(), 2, mins)
-	require.NoError(t, frozenErr)
-	require.NoError(t, liveErr)
-	require.Equal(t, []loyaltyrpc.BalanceCount{{FreezeStamp: frozen.Freeze.FreezeStamp}, {Count: 1}}, []loyaltyrpc.BalanceCount{withFreeze, live})
+	_, err := client.FreezeSet(t.Context(), 2, 1, 7)
+	require.NoError(t, err)
+	snapshot := createRPCSnapshot(t, client)
+	h.call(t, "balance.add", loyaltyrpc.Request{UserID: "2", TargetViewerID: "7", ViewerLogin: "sender", Value: 5})
+	for _, tc := range []struct {
+		id    string
+		count int64
+		code  domainrpc.Code
+	}{
+		{id: "", count: 1},
+		{id: snapshot.SnapshotID, count: 0},
+		{id: "missing", code: loyaltyrpc.RefusalSnapshotGone},
+	} {
+		t.Run(tc.id, func(t *testing.T) {
+			mins := engine.BalanceMinimums{Points: 1005, SnapshotID: tc.id}
+			got, err := client.BalanceCountAtLeast(t.Context(), 2, mins)
+			if tc.code != "" {
+				requireRPCCode(t, err, tc.code)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, loyaltyrpc.BalanceCount{Count: tc.count}, got)
+		})
+	}
 }

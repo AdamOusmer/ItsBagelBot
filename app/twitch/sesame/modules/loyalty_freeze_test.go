@@ -10,7 +10,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/internal/domain/event/lane"
-	domainrpc "ItsBagelBot/internal/domain/rpc"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
@@ -21,26 +20,30 @@ import (
 )
 
 type freezeStore struct {
-	sets, releases []engine.FreezeCommand
+	sets, releases []freezeCall
 	changed        bool
-	closeGames     bool
-	err            error
+	active         bool
+	gets           int
+}
+
+type freezeCall struct {
+	channel, actor uint64
+	minutes        int
 }
 
 func (s *freezeStore) FreezeGet(context.Context, uint64) (loyaltyrpc.FreezeView, error) {
-	return loyaltyrpc.FreezeView{CloseGames: s.closeGames}, s.err
+	s.gets++
+	return loyaltyrpc.FreezeView{Active: s.active}, nil
 }
 
-func (s *freezeStore) FreezeSet(_ context.Context, command engine.FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {
-	s.sets = append(s.sets, command)
-	end := time.Now().Add(time.Duration(command.Minutes) * time.Minute)
-	view := loyaltyrpc.FreezeView{FreezeStamp: loyaltyrpc.FreezeStamp{ExpiresAt: end.UnixMilli()}}
-	return view, s.changed, s.err
+func (s *freezeStore) FreezeSet(_ context.Context, channel uint64, minutes int, actor uint64) (loyaltyrpc.FreezeTimes, error) {
+	s.sets = append(s.sets, freezeCall{channel: channel, actor: actor, minutes: minutes})
+	return loyaltyrpc.FreezeTimes{FrozenAsOf: time.Date(2026, 11, 20, 20, 14, 0, 0, time.UTC).UnixMilli()}, nil
 }
 
-func (s *freezeStore) FreezeRelease(_ context.Context, command engine.FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {
-	s.releases = append(s.releases, command)
-	return loyaltyrpc.FreezeView{}, s.changed, s.err
+func (s *freezeStore) FreezeRelease(_ context.Context, channel, actor uint64) (bool, error) {
+	s.releases = append(s.releases, freezeCall{channel: channel, actor: actor})
+	return s.changed, nil
 }
 
 type freezeChatCase struct {
@@ -48,27 +51,24 @@ type freezeChatCase struct {
 	badge                   string
 	minutes, sets, releases int
 	changed                 bool
-	err                     error
 }
 
 func TestLoyaltyFreezeCommandsProcess(t *testing.T) {
 	for _, tc := range []freezeChatCase{
-		{name: "bare freeze", command: "!freeze", badge: "moderator", minutes: 30, sets: 1, changed: true, reply: "Leaderboard paused for 30 min. Points and watch time are still counting."},
-		{name: "active freeze", command: "!freeze 6", badge: "moderator", minutes: 6, sets: 1, reply: "@viewer the leaderboard is already paused, 6 min left."},
+		{name: "bare freeze", command: "!freeze", badge: "moderator", minutes: 30, sets: 1, changed: true, reply: "Leaderboard paused at 20:14. Points and watch time are still counting."},
+		{name: "restart freeze", command: "!freeze 6", badge: "moderator", minutes: 6, sets: 1, reply: "Leaderboard paused at 20:14. Points and watch time are still counting."},
 		{name: "invalid minutes", command: "!freeze 31", badge: "moderator", reply: "Usage: !freeze [1-30]"},
 		{name: "viewer cannot freeze", command: "!freeze"},
 		{name: "released", command: "!unfreeze", badge: "moderator", releases: 1, changed: true, reply: "Leaderboard unpaused. Standings are live again."},
 		{name: "already live", command: "!unfreeze", badge: "moderator", releases: 1, reply: "@viewer the leaderboard is not paused."},
-		{name: "round still holds", command: "!unfreeze", badge: "moderator", releases: 1,
-			err:   bus.RPCReplyError{Code: domainrpc.CodeConflict, Message: loyaltyrpc.RefusalHeldByRound},
-			reply: "@viewer A giveaway is using the frozen standings; drawing or cancelling it unfreezes."},
+		{name: "viewer cannot unfreeze", command: "!unfreeze"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			store := &freezeStore{changed: tc.changed, err: tc.err}
+			store := &freezeStore{changed: tc.changed}
 			pub := processFreezeChat(t, store, tc)
 			require.Len(t, store.sets, tc.sets)
 			require.Len(t, store.releases, tc.releases)
-			want := engine.FreezeCommand{BroadcasterID: 2, Holder: loyaltyrpc.FreezeModHolder, Minutes: tc.minutes}
+			want := freezeCall{channel: 2, actor: 7, minutes: tc.minutes}
 			for _, command := range append(store.sets, store.releases...) {
 				assert.Equal(t, want, command)
 			}

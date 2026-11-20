@@ -108,7 +108,7 @@ func TestBalanceSnapshotRPC(t *testing.T) {
 		viewer uint64
 		want   loyaltyrpc.BalanceSnapshot
 	}{{7, loyaltyrpc.BalanceSnapshot{Points: 1000, WatchSeconds: 600, Found: true}}, {9, loyaltyrpc.BalanceSnapshot{}}} {
-		got, err := client.BalanceSnapshot(t.Context(), 2, tc.viewer)
+		got, err := client.BalanceSnapshot(t.Context(), engine.BalanceSnapshotRequest{BroadcasterID: 2, ViewerID: tc.viewer})
 		require.NoError(t, err)
 		require.Equal(t, tc.want, got)
 	}
@@ -117,7 +117,7 @@ func TestBalanceSnapshotRPC(t *testing.T) {
 func TestBalanceSnapshotRPCStorageUnavailable(t *testing.T) {
 	h := newHarness(t)
 	require.NoError(t, h.client.Close())
-	_, err := engine.NewLoyaltyRPC(h.nc, "loyalty").BalanceSnapshot(t.Context(), 2, 7)
+	_, err := engine.NewLoyaltyRPC(h.nc, "loyalty").BalanceSnapshot(t.Context(), engine.BalanceSnapshotRequest{BroadcasterID: 2, ViewerID: 7})
 	requireRPCCode(t, err, domainrpc.CodeUnavailable)
 }
 

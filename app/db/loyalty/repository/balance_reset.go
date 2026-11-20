@@ -14,18 +14,15 @@ func (r *Loyalty) BalanceReset(ctx context.Context, userID uint64) (int64, error
 	if userID == 0 {
 		return 0, fmt.Errorf("%w: user_id", ErrInvalidInput)
 	}
-	var reset int64
-	_, err := r.withFreezeRow(ctx, userID, func(ctx context.Context, tx *sql.Tx, state FreezeState) (freezeChange, error) {
+	return withStandingsRow(ctx, r, userID, func(ctx context.Context, tx *sql.Tx, state FreezeState) (int64, error) {
 		now := time.Now()
 		if state.Active(now) {
-			return freezeChange{}, ErrFrozen
+			return 0, ErrFrozen
 		}
 		result, err := tx.ExecContext(ctx, `UPDATE balances SET points=0, updated_at=? WHERE user_id=? AND points<>0`, now, userID)
 		if err != nil {
-			return freezeChange{}, err
+			return 0, err
 		}
-		reset, err = result.RowsAffected()
-		return freezeChange{}, err
+		return result.RowsAffected()
 	})
-	return reset, err
 }

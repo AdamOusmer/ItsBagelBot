@@ -28,7 +28,6 @@
   "won.plain": "¡Felicidades {raffle:targets}, ganaste el sorteo!",
   "won.points": "¡Felicidades {raffle:targets}, ganaste el sorteo! {raffle:amount} {raffle:points} ya están en tu saldo.",
   "won.points.claim": "¡Felicidades {raffle:targets}, ganaste el sorteo! {raffle:amount} {raffle:points} ya están en tu saldo. Escribe !claim en un plazo de {raffle:claim} min para recibir {raffle:prize}.",
-  "open.frozen": "Los sorteos se pausan mientras la clasificación está congelada.",
   "open.loyalty_off": "Activa la lealtad para iniciar un sorteo de puntos.",
   "verifying": "Estamos eligiendo a los ganadores. Un momento.",
   "won.paid": "¡{raffle:targets} ganaron {raffle:amount} {raffle:points} cada uno!",

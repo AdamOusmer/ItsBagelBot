@@ -5,7 +5,9 @@ package rpc
 
 import (
 	"context"
+	"errors"
 
+	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/app/db/loyalty/repository"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
@@ -46,27 +48,33 @@ func (l *loyaltyRPC) creditFailure(err error) loyaltyrpc.Reply {
 }
 
 func (l *loyaltyRPC) snapshotUnavailable(err error) loyaltyrpc.BalanceSnapshot {
+	if errors.Is(err, repository.ErrSnapshotGone) {
+		return loyaltyrpc.BalanceSnapshot{Refusal: domainrpc.Refused(loyaltyrpc.RefusalSnapshotGone, err.Error())}
+	}
 	l.log.Warn("balance.snapshot failed", zap.Error(err))
 	return loyaltyrpc.BalanceSnapshot{Refusal: domainrpc.Refused(domainrpc.CodeUnavailable, "loyalty snapshot unavailable")}
 }
 
-func (l *loyaltyRPC) handleBalanceSnapshot(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.BalanceSnapshot {
-	userID, viewerID, ok, reply := requireViewer(req)
+func (l *loyaltyRPC) handleBalanceSnapshot(ctx context.Context, req loyaltyrpc.BalanceSnapshotRequest) loyaltyrpc.BalanceSnapshot {
+	userID, viewerID, ok, reply := requireViewer(loyaltyrpc.Request{UserID: req.UserID, ViewerID: req.ViewerID})
 	if !ok {
 		return loyaltyrpc.BalanceSnapshot{Refusal: reply.Refusal}
 	}
-	route, err := l.resolveBoard(ctx, userID, loyaltyrpc.Request{})
-	if err != nil {
-		return l.snapshotUnavailable(err)
-	}
-	row, found, err := route.balance(ctx, viewerID)
+	row, found, err := l.snapshotBalance(ctx, userID, viewerID, repository.SnapshotID(req.SnapshotID))
 	if err != nil {
 		return l.snapshotUnavailable(err)
 	}
 	if !found {
-		return loyaltyrpc.BalanceSnapshot{FreezeStamp: route.activeStamp()}
+		return loyaltyrpc.BalanceSnapshot{}
 	}
-	return loyaltyrpc.BalanceSnapshot{Points: row.Points, WatchSeconds: row.WatchSeconds, Found: true, FreezeStamp: route.activeStamp()}
+	return loyaltyrpc.BalanceSnapshot{Points: row.Points, WatchSeconds: row.WatchSeconds, Found: true}
+}
+
+func (l *loyaltyRPC) snapshotBalance(ctx context.Context, userID, viewerID uint64, id repository.SnapshotID) (*ent.Balance, bool, error) {
+	if id == "" {
+		return l.repo.BalanceGet(ctx, userID, viewerID)
+	}
+	return l.repo.SnapshotBalance(ctx, userID, viewerID, id)
 }
 
 func (l *loyaltyRPC) handleWatchStatus(ctx context.Context, _ struct{}) loyaltyrpc.WatchStatus {

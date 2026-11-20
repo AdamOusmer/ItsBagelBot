@@ -15,11 +15,8 @@
   "points.self": "@{loyalty:user} нельзя передавать {loyalty:name} себе.",
   "points.unknown": "@{loyalty:user} я ещё не видел {loyalty:target} на этом канале.",
   "points.usage": "Использование: !points; или !points <set|add|remove> @user <amount>; или !points give @user <amount>",
-  "freeze.started": "Таблица лидеров заморожена на {loyalty:minutes} мин. Баллы и время просмотра продолжают начисляться.",
-  "freeze.active": "@{loyalty:user} таблица лидеров уже заморожена. Осталось {loyalty:minutes} мин.",
+  "freeze.started": "Рейтинг приостановлен в {loyalty:time}. Баллы и время просмотра продолжают начисляться.",
   "freeze.usage": "Использование: !freeze [1-30]",
   "unfreeze.done": "Таблица лидеров снова обновляется.",
-  "unfreeze.none": "@{loyalty:user} таблица лидеров не заморожена.",
-  "unfreeze.round": "@{loyalty:user} В розыгрыше используется замороженная таблица лидеров. Выбери победителей или отмени розыгрыш, чтобы возобновить обновления.",
-  "points.frozen": "@{loyalty:user} пока таблица лидеров заморожена, дарить {loyalty:name} нельзя."
+  "unfreeze.none": "@{loyalty:user} таблица лидеров не заморожена."
 }

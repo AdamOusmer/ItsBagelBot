@@ -328,8 +328,8 @@ func (s *ValkeyLoyaltyStore) BalanceCountAtLeast(ctx context.Context, broadcaste
 	return s.rpc.BalanceCountAtLeast(ctx, broadcasterID, mins)
 }
 
-func (s *ValkeyLoyaltyStore) BalanceSnapshot(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.BalanceSnapshot, error) {
-	return s.rpc.BalanceSnapshot(ctx, broadcasterID, viewerID)
+func (s *ValkeyLoyaltyStore) BalanceSnapshot(ctx context.Context, req BalanceSnapshotRequest) (loyaltyrpc.BalanceSnapshot, error) {
+	return s.rpc.BalanceSnapshot(ctx, req)
 }
 
 func (s *ValkeyLoyaltyStore) WatchStatus(ctx context.Context) (loyaltyrpc.WatchStatus, error) {

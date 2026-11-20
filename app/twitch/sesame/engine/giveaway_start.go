@@ -13,7 +13,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/engine/eligibility"
-	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/codec"
@@ -131,7 +130,7 @@ func openGiveaway(ctx context.Context, d Deps, req GiveawayStart, launch giveawa
 	if err != nil {
 		return GiveawayStartOutcome{}, err
 	}
-	if err := holdGiveawayFreeze(ctx, d.LoyaltyFreeze, launch.preset, &open); err != nil {
+	if err := takeGiveawaySnapshot(ctx, d.StandingsSnapshots, launch.preset, &open); err != nil {
 		return giveawayOpenError(err)
 	}
 	round, outcome, err := d.Draw.Open(ctx, open)
@@ -168,25 +167,20 @@ func giveawayOpenRequest(req GiveawayStart, launch giveawayLaunch) (draw.OpenReq
 		Actor: req.Actor, Terms: terms, Duration: req.Window}, err
 }
 
-func holdGiveawayFreeze(ctx context.Context, freeze LoyaltyFreeze, preset GiveawayPreset, req *draw.OpenRequest) error {
+func takeGiveawaySnapshot(ctx context.Context, standings StandingsSnapshots, preset GiveawayPreset, req *draw.OpenRequest) error {
 	if !preset.FreezeOn() {
 		return nil
 	}
-	view, _, err := freeze.FreezeSet(ctx, giveawayFreezeCommand(req.Channel, req.ID))
+	closesAt := time.Now().UTC().Add(req.Duration).Truncate(time.Millisecond)
+	ref, err := standings.SnapshotCreate(ctx, SnapshotRequest{
+		BroadcasterID: uint64(req.Channel), Owner: "round:" + string(req.ID), ExpiresAt: closesAt,
+	})
 	if err != nil {
 		return err
 	}
-	if time.Until(time.UnixMilli(view.ExpiresAt)) < draw.Pins.GiveawayMinEntryWindow {
-		return draw.ErrInvalidTerms
+	if ref.SnapshotID == "" {
+		return errors.New("giveaway: missing standings snapshot")
 	}
-	if view.FreezeID == "" {
-		return errors.New("giveaway: missing freeze stamp")
-	}
-	req.Terms.FreezeID, req.Terms.FreezeEndsMS = view.FreezeID, view.ExpiresAt
+	req.Terms.FreezeID, req.Terms.ClosesAt, req.Duration = ref.SnapshotID, closesAt, 0
 	return nil
-}
-
-func giveawayFreezeCommand(channel draw.ChannelID, id draw.RoundID) FreezeCommand {
-	return FreezeCommand{BroadcasterID: uint64(channel), Holder: loyaltyrpc.FreezeRoundPrefix + string(id),
-		Minutes: int(loyaltyrpc.FreezeMaximum / time.Minute)}
 }
