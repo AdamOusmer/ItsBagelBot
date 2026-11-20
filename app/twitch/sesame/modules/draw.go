@@ -9,6 +9,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
+	"ItsBagelBot/app/twitch/sesame/engine/eligibility"
 	"ItsBagelBot/app/twitch/sesame/module"
 
 	"go.uber.org/zap"
@@ -24,6 +25,7 @@ func Draw(d engine.Deps) module.Module {
 	owner := drawOwner{deps: d, log: log}
 	m := module.NewModule(drawModuleName, module.KindCore)
 	m.Command("join").Everyone().Yields().When(ownsDrawCommand(owner.resolveJoin)).Run(owner.join)
+	m.Command("check").Everyone().Yields().When(ownsDrawCommand(owner.resolveCheck)).UserCooldown(eligibility.Limits.CheckCooldown).Run(owner.check)
 	m.Command("claim").Everyone().Yields().When(ownsDrawCommand(owner.resolveClaim)).Run(owner.claim)
 	m.Command("winner").Everyone().Yields().When(ownsDrawCommand(owner.resolveWinner)).Cooldown(draw.Pins.WinnerCooldown).Run(owner.winner)
 	return m.Build()
@@ -104,12 +106,17 @@ func (d drawOwner) join(ctx context.Context, c *module.Context, _ string, emit m
 }
 
 func (d drawOwner) joinRound(ctx context.Context, c *module.Context, r draw.Round, emit module.Emit) error {
-	viewer := draw.ViewerID(c.Env.ChatterUserID)
-	if viewer == "" {
+	joiner, err := drawJoiner(c)
+	if err != nil {
 		return nil
 	}
+	viewer := drawViewerID(joiner.Viewer)
+	verdict := d.admit(ctx, roundRules(r), joiner)
+	if !verdict.Pass {
+		return d.refuseJoin(ctx, c, emit, refusedJoin{r, viewer, verdict})
+	}
 	joined, err := d.deps.Draw.Join(ctx, draw.JoinRequest{Channel: draw.ChannelID(c.BroadcasterID),
-		Round: r.ID, Viewer: viewer, Login: strings.ToLower(c.Env.ChatterUserLogin), Weight: draw.Pins.EntryWeight})
+		Round: r.ID, Viewer: viewer, Login: strings.ToLower(c.Env.ChatterUserLogin), Weight: verdict.Weight})
 	if err == nil && !joined.Open {
 		newChatReplier(c).reply(emit, "", "draw.join.closed")
 	}

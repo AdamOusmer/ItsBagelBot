@@ -16,6 +16,7 @@ import { CODM_MODULE } from './codm';
 import { COUNTERS_MODULE } from './counters';
 import { EMOTEPLAY_MODULE } from './emoteplay';
 import { FORTNITE_MODULE } from './fortnite';
+export { GIVEAWAY_LIMITS } from './giveaway-limits';
 import { GOVEE_MODULE } from './govee';
 import { LOYALTY_MODULE } from './loyalty';
 export { FREEZE_MAX_MINUTES } from './loyalty';

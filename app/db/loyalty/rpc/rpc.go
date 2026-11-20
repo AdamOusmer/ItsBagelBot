@@ -34,6 +34,9 @@ func Subscribe(w Wiring, prefix string) error {
 	if err := bus.Serve(w.RPCWiring, prefix+"."+loyaltyrpc.VerbBalanceSnapshot, l.handleBalanceSnapshot); err != nil {
 		return err
 	}
+	if err := bus.Serve(w.RPCWiring, prefix+"."+loyaltyrpc.VerbBalanceCountAtLeast, l.handleBalanceCount); err != nil {
+		return err
+	}
 	if err := bus.Serve(w.RPCWiring, prefix+"."+loyaltyrpc.VerbWatchStatus, l.handleWatchStatus); err != nil {
 		return err
 	}

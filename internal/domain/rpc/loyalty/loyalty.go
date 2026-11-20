@@ -11,12 +11,13 @@ import (
 const InvalidateScope = invalidate.ScopeLoyalty
 
 const (
-	VerbBalanceCredit   = "balance.credit"
-	VerbBalanceSnapshot = "balance.snapshot"
-	VerbWatchStatus     = "watch.status"
-	VerbFreezeSet       = "freeze.set"
-	VerbFreezeRelease   = "freeze.release"
-	VerbFreezeGet       = "freeze.get"
+	VerbBalanceCredit       = "balance.credit"
+	VerbBalanceSnapshot     = "balance.snapshot"
+	VerbBalanceCountAtLeast = "balance.count_at_least"
+	VerbWatchStatus         = "watch.status"
+	VerbFreezeSet           = "freeze.set"
+	VerbFreezeRelease       = "freeze.release"
+	VerbFreezeGet           = "freeze.get"
 
 	FreezeModHolder        = "mod"
 	FreezeRoundPrefix      = "round:"
@@ -116,6 +117,20 @@ type BalanceSnapshot struct {
 	Points       int64  `json:"points"`
 	WatchSeconds uint64 `json:"watch_seconds"`
 	Found        bool   `json:"found"`
+	FreezeStamp
+	rpc.Refusal
+}
+
+type BalanceCountRequest struct {
+	UserID          string `json:"user_id"`
+	MinPoints       int64  `json:"min_points,omitempty"`
+	MinWatchSeconds int64  `json:"min_watch_seconds,omitempty"`
+}
+
+func (r BalanceCountRequest) Requested() string { return r.UserID }
+
+type BalanceCount struct {
+	Count int64 `json:"count"`
 	FreezeStamp
 	rpc.Refusal
 }

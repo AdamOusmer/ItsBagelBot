@@ -73,6 +73,8 @@ func (e *RetryAfterError) Error() string {
 	return "lookup rate limited, retry after " + e.After.String()
 }
 
+func (e *RetryAfterError) RetryAfter() time.Duration { return e.After }
+
 func lookupReplyError(message string, retryAtUnixMilli int64) error {
 	if retryAtUnixMilli != 0 {
 		return &RetryAfterError{After: max(0, time.Until(time.UnixMilli(retryAtUnixMilli)))}

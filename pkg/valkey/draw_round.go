@@ -134,19 +134,26 @@ func (k RoundKeys) Join(ctx context.Context, client valkey_go.Client, e RoundEnt
 type Refusal struct {
 	Viewer, Reason string
 	TTL            time.Duration
+	Channel        uint64
 }
 
-var drawRefuseScript = NewScript(`
-local refused = KEYS[1]
-local viewer, reason, ttl = unpack(ARGV)
+var drawRefuseScript = NewScript(drawTimeLua + `
+local round, entries, refused = unpack(KEYS)
+local viewer, reason, ttl, channel = unpack(ARGV)
+if channel ~= '0' and redis.call('HGET', round, 'channel') ~= channel then return {0, 0} end
+local deadline = redis.call('HGET', round, 'closes_at')
+if redis.call('HGET', round, 'phase') ~= 'open' or (deadline and tonumber(deadline) <= now_ms()) then
+  return {0, redis.call('HLEN', refused)}
+end
+if redis.call('ZSCORE', entries, viewer) then return {0, redis.call('HLEN', refused)} end
 local first = redis.call('HSETNX', refused, viewer, reason)
 redis.call('PEXPIRE', refused, ttl)
 return {first, redis.call('HLEN', refused)}
 `)
 
 func (k RoundKeys) Refuse(ctx context.Context, client valkey_go.Client, r Refusal) (bool, int64, error) {
-	args := []string{r.Viewer, r.Reason, strconv.FormatInt(r.TTL.Milliseconds(), 10)}
-	reply, err := drawRefuseScript.Exec(ctx, client, []string{k.Refused}, args).AsIntSlice()
+	args := []string{r.Viewer, r.Reason, strconv.FormatInt(r.TTL.Milliseconds(), 10), strconv.FormatUint(r.Channel, 10)}
+	reply, err := drawRefuseScript.Exec(ctx, client, []string{k.Round, k.Entries, k.Refused}, args).AsIntSlice()
 	if err != nil {
 		return false, 0, err
 	}

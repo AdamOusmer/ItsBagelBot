@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
@@ -19,6 +20,8 @@ const (
 
 	followageCacheCapacity int64 = 8192
 )
+
+var errFollowageScope = errors.New("lookup failed")
 
 type FollowageResult struct {
 	TargetID   string
@@ -52,6 +55,9 @@ func NewFollowageRPC(nc *nats.Conn, prefix string) *FollowageRPC {
 }
 
 func decodeFollowage(reply outgressrpc.FollowageReply) (FollowageResult, time.Duration, error) {
+	if reply.MissingScope {
+		return FollowageResult{}, 0, errFollowageScope
+	}
 	result := FollowageResult{
 		TargetID: reply.TargetID, UserFound: reply.UserFound,
 		Following: reply.Following, FollowedAt: reply.FollowedAt,

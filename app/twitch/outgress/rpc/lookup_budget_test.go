@@ -27,7 +27,13 @@ type lookupBudgetRoute struct {
 	provider string
 	path     string
 	token    string
-	handle   func(context.Context, *Manage) (string, int64)
+	handle   func(context.Context, *Manage) lookupBudgetReply
+}
+
+type lookupBudgetReply struct {
+	message      string
+	retryAt      int64
+	missingScope bool
 }
 
 type lookupBudgetCase struct {
@@ -51,17 +57,17 @@ func ageLookupRoutes() []lookupBudgetRoute {
 		{
 			name: "followage", buckets: botLookupKeys, provider: "helix:bot:456",
 			path: "/helix/channels/followers?broadcaster_id=123&user_id=456", token: "Bearer bot",
-			handle: func(ctx context.Context, m *Manage) (string, int64) {
+			handle: func(ctx context.Context, m *Manage) lookupBudgetReply {
 				reply := m.handleFollowage(ctx, outgressrpc.FollowageRequest{BroadcasterID: "123", TargetID: "456"})
-				return reply.Error, reply.RetryAtUnixMilli
+				return lookupBudgetReply{reply.Error, reply.RetryAtUnixMilli, reply.MissingScope}
 			},
 		},
 		{
 			name: "accountage", buckets: appLookupKeys, provider: "helix:app",
 			path: "/helix/users?id=456", token: "Bearer app",
-			handle: func(ctx context.Context, m *Manage) (string, int64) {
+			handle: func(ctx context.Context, m *Manage) lookupBudgetReply {
 				reply := m.handleAccountAge(ctx, outgressrpc.AccountAgeRequest{TargetID: "456"})
-				return reply.Error, reply.RetryAtUnixMilli
+				return lookupBudgetReply{message: reply.Error, retryAt: reply.RetryAtUnixMilli}
 			},
 		},
 	}
@@ -137,11 +143,13 @@ func checkLookupBudget(t *testing.T, route lookupBudgetRoute, tc lookupBudgetCas
 	}))
 	m := newTestManage(api)
 	m.limiter = limiter
-	message, retryAt := route.handle(t.Context(), m)
-	require.Equal(t, tc.wantError, message)
+	reply := route.handle(t.Context(), m)
+	tc.checkRetryAt(t, reply.retryAt, started, reset)
+	reply.retryAt = 0
+	require.Equal(t, lookupBudgetReply{message: tc.wantError,
+		missingScope: route.name == "followage" && tc.name == "missing scope"}, reply)
 	require.Equal(t, len(tc.statuses), calls)
 	require.Equal(t, slices.Repeat([]lookupBucketKeys{route.buckets}, max(calls, tc.blockAt)), lookupCharges(&limiter.chatterFakeLimiter))
-	tc.checkRetryAt(t, retryAt, started, reset)
 }
 
 func (tc lookupBudgetCase) checkRetryAt(t *testing.T, retryAt int64, started, reset time.Time) {
@@ -179,8 +187,8 @@ func TestAgeLookupProviderCooldown(t *testing.T) {
 					m.limiter = limiter
 					m.cooldown = ProviderCooldown{RetryAt: fixture.retryAt, ObserveReset: fixture.observe}
 
-					_, retryAt := route.handle(t.Context(), m)
-					require.Equal(t, step.retryAt, retryAt)
+					reply := route.handle(t.Context(), m)
+					require.Equal(t, step.retryAt, reply.retryAt)
 					require.Equal(t, step.httpCalls, fixture.calls)
 					require.Len(t, limiter.pairs, step.newCharges)
 				})

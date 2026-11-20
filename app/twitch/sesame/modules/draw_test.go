@@ -9,6 +9,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
+	"ItsBagelBot/app/twitch/sesame/engine/eligibility"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
@@ -32,7 +33,7 @@ type fakeDraw struct {
 func (d *fakeDraw) Joinable(context.Context, draw.ChannelID) (draw.Round, bool, error) {
 	d.lookups++
 	if d.joinable || d.closing {
-		return draw.Round{ID: "active"}, d.joinable, nil
+		return draw.Round{ID: "active", Terms: draw.Terms{Kind: draw.KindRaffle}}, d.joinable, nil
 	}
 	return draw.Round{}, false, nil
 }
@@ -98,7 +99,7 @@ func TestDrawSharedCommandsProcess(t *testing.T) {
 		{name: "legacy winner works with raffle disabled", command: "winner", raffle: legacy,
 			want: drawChatResult{message: "Last raffle: @legacy"}},
 	}
-	for _, command := range []string{"join", "claim", "winner"} {
+	for _, command := range []string{"join", "check", "claim", "winner"} {
 		cases = append(cases, drawChatCase{name: "custom " + command + " runs after yield", command: command,
 			want: drawChatResult{message: "custom " + command}})
 	}
@@ -109,11 +110,13 @@ func TestDrawSharedCommandsProcess(t *testing.T) {
 
 func (tc drawChatCase) run(t *testing.T) {
 	pub := &variablePublisher{}
+	checker := eligibility.NewChecker(eligibility.Ports{})
+	t.Cleanup(checker.Close)
 	deps := engine.Deps{
 		Proj: &fakeProj{modules: tc.views, commands: map[string]projection.Command{
 			tc.command: {Name: tc.command, IsActive: true, Response: "custom " + tc.command, Perm: "everyone"},
 		}},
-		Draw: &tc.draw, Raffle: &tc.raffle, Queue: &fakeQueue{open: true}, Pub: pub,
+		Draw: &tc.draw, Eligibility: checker, Raffle: &tc.raffle, Queue: &fakeQueue{open: true}, Pub: pub,
 		Live: &fakeLive{live: true}, Greet: &fakeGreet{}, Cooldown: engine.NoopCooldown{},
 		Special: engine.NewSpecialSet(""), Log: zap.NewNop(),
 	}

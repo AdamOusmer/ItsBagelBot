@@ -183,19 +183,32 @@ func TestDrawRoundRefuse(t *testing.T) {
 	ctx := t.Context()
 	keys := testDrawKeys(t, testRoundID)
 	cleanDrawKeys(t, client, keys)
+	openTestDraw(t, client, keys)
+	_, err := keys.Join(ctx, client, RoundEntrant{Member: "entered", Weight: 100, TTL: testDrawTTL})
+	require.NoError(t, err)
+	type refusalResult struct {
+		first bool
+		count int64
+	}
 	for _, tc := range []struct {
 		viewer, reason string
 		first          bool
 		count          int64
+		close          bool
 	}{
-		{testViewer, "role", true, 1},
-		{testViewer, "points", false, 1},
-		{"other", "watch", true, 2},
+		{testViewer, "role", true, 1, false},
+		{testViewer, "points", false, 1, false},
+		{"other", "watch", true, 2, false},
+		{"entered", "points", false, 2, false},
+		{"late", "role", false, 2, true},
 	} {
+		if tc.close {
+			_, err := keys.Shift(ctx, client, PhaseShift{From: testOpenPhase, To: "closing", TTL: testDrawTTL})
+			require.NoError(t, err)
+		}
 		first, count, err := keys.Refuse(ctx, client, Refusal{Viewer: tc.viewer, Reason: tc.reason, TTL: testDrawTTL})
 		require.NoError(t, err)
-		require.Equal(t, tc.first, first)
-		require.Equal(t, tc.count, count)
+		require.Equal(t, refusalResult{tc.first, tc.count}, refusalResult{first, count})
 	}
 	fields, err := HashAll(ctx, client, keys.Refused)
 	require.NoError(t, err)
@@ -203,6 +216,36 @@ func TestDrawRoundRefuse(t *testing.T) {
 	ttl, err := TTLSeconds(ctx, client, keys.Refused)
 	require.NoError(t, err)
 	require.Greater(t, ttl, int64(0))
+}
+
+func TestDrawRoundRefuseChecksChannelAndDeadline(t *testing.T) {
+	client := valkeytest.Real(t)
+	for _, tc := range []struct {
+		name     string
+		channel  uint64
+		deadline string
+	}{
+		{"another channel", 43, "4102444800000"},
+		{"expired", 42, "1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			keys := testDrawKeys(t, testRoundID)
+			cleanDrawKeys(t, client, keys)
+			status, err := keys.Open(t.Context(), client, RoundOpen{
+				RoundID: testRoundID, TTL: testDrawTTL, Fields: []FieldValue{
+					{Field: "phase", Value: testOpenPhase}, {Field: "channel", Value: "42"}, {Field: "closes_at", Value: tc.deadline},
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, RoundOpened, status)
+			first, count, err := keys.Refuse(t.Context(), client, Refusal{
+				Viewer: testViewer, Reason: "role", TTL: testDrawTTL, Channel: tc.channel,
+			})
+			require.NoError(t, err)
+			require.False(t, first)
+			require.Zero(t, count)
+		})
+	}
 }
 
 func TestDrawPhaseRefreshesActiveExpiry(t *testing.T) {
@@ -229,6 +272,8 @@ func TestDrawRoundTeardown(t *testing.T) {
 	openTestDraw(t, client, keys)
 	_, err := keys.Join(ctx, client, RoundEntrant{Member: testViewer, Label: "login", Weight: 100, TTL: testDrawTTL})
 	require.NoError(t, err)
+	_, _, err = keys.Refuse(ctx, client, Refusal{Viewer: "refused", Reason: "role", TTL: testDrawTTL})
+	require.NoError(t, err)
 	_, err = keys.Shift(ctx, client, PhaseShift{
 		From: testOpenPhase, To: "closing", Release: true, RoundID: testRoundID, TTL: testDrawTTL,
 		Seed: []FieldValue{{Field: "1", Value: "pending"}},
@@ -242,8 +287,6 @@ func TestDrawRoundTeardown(t *testing.T) {
 	active, err := ActiveRounds(ctx, client, keys.Active)
 	require.NoError(t, err)
 	require.Equal(t, []string{testPeerID, testRoundID}, active)
-	_, _, err = keys.Refuse(ctx, client, Refusal{Viewer: testViewer, Reason: "role", TTL: testDrawTTL})
-	require.NoError(t, err)
 	require.NoError(t, NewKV(client).Set(ctx, Key{Name: keys.Lease, TTL: testDrawTTL}, "owner"))
 	for viewer, refs := range map[string]string{
 		testViewer: `["round-a:1:1","round-ab:1:1"]`, "old viewer": `["round-a:2:1"]`,

@@ -54,6 +54,15 @@ func (l *LoyaltyRPC) BalanceCredit(ctx context.Context, credit PointCredit) (Cre
 	return CreditOutcome{Balance: *reply.Balance, Replayed: reply.Replayed}, nil
 }
 
+func (l *LoyaltyRPC) BalanceCountAtLeast(ctx context.Context, broadcasterID uint64, mins BalanceMinimums) (loyaltyrpc.BalanceCount, error) {
+	req := loyaltyrpc.BalanceCountRequest{UserID: fmtID(broadcasterID), MinPoints: mins.Points, MinWatchSeconds: mins.WatchSeconds}
+	return requestLoyalty[loyaltyrpc.BalanceCount](ctx, l, loyaltyrpc.VerbBalanceCountAtLeast, req)
+}
+
+type BalanceMinimums struct {
+	Points, WatchSeconds int64
+}
+
 func (l *LoyaltyRPC) BalanceSnapshot(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.BalanceSnapshot, error) {
 	return requestLoyalty[loyaltyrpc.BalanceSnapshot](ctx, l, loyaltyrpc.VerbBalanceSnapshot, loyaltyrpc.Request{UserID: fmtID(broadcasterID), ViewerID: fmtID(viewerID)})
 }

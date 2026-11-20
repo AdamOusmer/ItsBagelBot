@@ -16,6 +16,8 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+const SkipStoreTTL time.Duration = -1
+
 type Option func(*options)
 
 type options struct {
@@ -170,6 +172,9 @@ func (c *Keyed[K, V]) SetFor(key K, value V, ttl time.Duration) {
 }
 
 func (c *Keyed[K, V]) setLoaded(key K, value V, ttl time.Duration) {
+	if ttl == SkipStoreTTL {
+		return
+	}
 	if ttl < c.ttl {
 		c.store(key, value, ttl)
 		return

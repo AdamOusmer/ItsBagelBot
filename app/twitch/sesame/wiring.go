@@ -66,7 +66,6 @@ type engineRuntime struct {
 	tick      *engine.ValkeyLoyaltyClock
 	stats     *engine.LoyaltyReporter
 	raffle    *engine.ValkeyRaffleStore
-	draw      *draw.Store
 	duel      *engine.ValkeyDuelStore
 	seq       *engine.Sequencer
 	emotes    *automod.EmoteFetcher
@@ -80,6 +79,10 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 	gossipRPC := engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix)
 	gossipRPC.SetAnalytics(rt.analytics)
 	accountsRPC := engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix)
+	followage := engine.NewFollowageRPC(in.nc, cfg.OutgressRPCPrefix)
+	winners := engine.NewGiveawayWinnersRPC(in.nc, cfg.ModulesRPCPrefix)
+	checker := engine.NewEligibility(rt.loyalty, followage, accountsRPC, winners)
+	checker.WatchFreezes(w.invalidations)
 	recipeState := engine.NewRecipeStateRPC(in.nc, cfg.ModulesRPCPrefix)
 	return engine.Deps{
 		AutomationHook: &engine.AutomationHook{},
@@ -106,7 +109,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Quotes:         engine.NewQuotesRPC(in.nc, cfg.ModulesRPCPrefix),
 		Gossip:         gossipRPC,
 		CustomFetch:    gossipRPC,
-		Followage:      engine.NewFollowageRPC(in.nc, cfg.OutgressRPCPrefix),
+		Followage:      followage,
 		AccountAge:     accountsRPC,
 		TwitchAccounts: accountsRPC,
 		Uptime:         engine.NewUptimeRPC(in.nc, cfg.OutgressRPCPrefix),
@@ -120,7 +123,8 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Queue:          engine.NewValkeyQueueStore(in.vc, 24*time.Hour, log),
 		SongQueue:      engine.NewValkeySongQueueStore(in.vc, 24*time.Hour, log),
 		Raffle:         rt.raffle,
-		Draw:           rt.draw,
+		Draw:           newDraw(w, rt.proj, rt.loyalty, checker),
+		Eligibility:    checker,
 		Duel:           rt.duel,
 		Timers:         rt.timers,
 		ChatLines:      rt.timers,
@@ -145,7 +149,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		LeaderboardBaseURL: cfg.LeaderboardBaseURL,
 		QueueBaseURL:       cfg.QueueBaseURL,
 
-		GiveawayWinners: engine.NewGiveawayWinnersRPC(in.nc, cfg.ModulesRPCPrefix),
+		GiveawayWinners: winners,
 	}
 }
 
@@ -234,12 +238,12 @@ func watchExpiry[T interface{ StartExpiryWatcher(context.Context) }](w wireCtx, 
 	return store
 }
 
-func newDraw(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *draw.Store {
+func newDraw(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore, verifier draw.Verifier) *draw.Store {
 	log := w.log.Named("draw")
 	announce := announcementConfig(w, proj)
 	store := draw.NewStore(w.in.vc, draw.Config{Log: log, LegacyKey: engine.RaffleStateKey,
 		LegacyDeadlineKey: engine.RaffleDeadlineKey, Payer: engine.NewDrawPayer(loyalty, announce.Runtime),
-		Announcer: engine.NewDrawAnnouncer(announce, log), Verifier: draw.PassAll{}, Winners: draw.DiscardWinnerRecords{}})
+		Announcer: engine.NewDrawAnnouncer(announce, log), Verifier: verifier, Winners: draw.DiscardWinnerRecords{}})
 	go store.Run(w.ctx)
 	return store
 }

@@ -83,7 +83,6 @@ func main() {
 	recorder := analytics.New(valkeyClient, log, nil)
 	defer recorder.Close()
 	raffle := newRaffle(w, proj, loyalty, recorder)
-	draw := newDraw(w, proj, loyalty)
 	duel := newDuel(w, proj, loyalty, recorder)
 
 	guard := automod.New()
@@ -98,9 +97,10 @@ func main() {
 	deps := buildDeps(w, engineRuntime{
 		analytics: recorder,
 		proj:      proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick,
-		stats: loyaltyReporter, raffle: raffle, draw: draw, duel: duel, emotes: emotes,
+		stats: loyaltyReporter, raffle: raffle, duel: duel, emotes: emotes,
 		seq: engine.NewSequencer(), chatters: chatters, runs: runs,
 	})
+	defer deps.Eligibility.Close()
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 	startRefreshers(w, guard, emotes)
 
