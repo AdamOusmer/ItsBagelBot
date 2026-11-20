@@ -36,12 +36,11 @@ async function winnerHistory(userId: string, url: URL) {
 export const load: PageServerLoad = async ({ locals, depends, url }) => {
   gateModulePage(locals.session, MOD.giveaway);
   depends('giveaways:live');
-  const serverNow = Date.now();
   if (DEMO) return {
     ...emptyGiveawaySettings,
     degraded: false,
     demo: true,
-    serverNow,
+    serverNow: Date.now(),
     live: { rounds: [], degraded: false },
     history: { page: 1, winners: [], more: false, degraded: false }
   };
@@ -52,7 +51,7 @@ export const load: PageServerLoad = async ({ locals, depends, url }) => {
     liveGiveaways(uid),
     winnerHistory(uid, url)
   ]);
-  return { ...settings, demo: false, serverNow, live, history };
+  return { ...settings, demo: false, serverNow: Date.now(), live, history };
 };
 
 const refusalCopy: Record<string, string> = {

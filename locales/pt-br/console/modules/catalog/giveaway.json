@@ -1,0 +1,73 @@
+{
+  "label": "Sorteios",
+  "tagline": "Sorteie prêmios para quem acompanha seu canal.",
+  "description": "Abra as inscrições no chat, sorteie os ganhadores e acompanhe o resgate e a entrega dos prêmios.",
+  "settings": {
+    "defaultPrize": {
+      "label": "Prêmio padrão"
+    },
+    "winners": {
+      "label": "Número padrão de ganhadores"
+    },
+    "windowSeconds": {
+      "label": "Prazo de inscrição (segundos)"
+    },
+    "claimSeconds": {
+      "label": "Prazo para resgatar o prêmio (segundos)",
+      "help": "Use 0 para dispensar o resgate."
+    },
+    "rerollNoShows": {
+      "label": "Novo sorteio automático para prêmios não resgatados"
+    },
+    "openedEnabled": {
+      "label": "Aviso de abertura"
+    },
+    "wonEnabled": {
+      "label": "Anúncio dos ganhadores"
+    },
+    "noShowEnabled": {
+      "label": "Aviso de prêmio não resgatado"
+    },
+    "refusalEnabled": {
+      "label": "Aviso de inscrição recusada"
+    },
+    "openedMessage": {
+      "label": "Mensagem de abertura",
+      "placeholder": "Sorteio: {giveaway:prize} | Ganhadores: {giveaway:count} | Tempo restante: {giveaway:left}. Digite !join para participar."
+    },
+    "wonMessage": {
+      "label": "Mensagem para os ganhadores",
+      "placeholder": "Prêmio de {giveaway:targets}: {giveaway:prize}!"
+    },
+    "defaultPreset": {
+      "label": "Predefinição padrão"
+    },
+    "presets": {
+      "label": "Predefinições de regras"
+    }
+  },
+  "replies": {
+    "opened": {
+      "label": "Aviso de abertura",
+      "tagline": "Quando as inscrições são abertas.",
+      "event": "!giveaway start",
+      "defaultMessage": "Sorteio: {giveaway:prize} | Ganhadores: {giveaway:count} | Tempo restante: {giveaway:left}. Digite !join para participar."
+    },
+    "won": {
+      "label": "Anúncio dos ganhadores",
+      "tagline": "Quando o sorteio revela os ganhadores.",
+      "event": "!giveaway draw",
+      "defaultMessage": "Prêmio de {giveaway:targets}: {giveaway:prize}!"
+    }
+  },
+  "commands": {
+    "giveaway_start_preset_prize": "Abra um sorteio com uma predefinição e um prêmio opcionais.",
+    "giveaway_draw": "Encerre as inscrições e sorteie os ganhadores.",
+    "giveaway_cancel": "Cancele o sorteio em andamento.",
+    "reroll_slot": "Substitua um candidato ou sorteie novamente todos os prêmios não resgatados.",
+    "join": "Entre no sorteio em andamento.",
+    "check": "Confira se você pode participar.",
+    "claim": "Resgate seu prêmio.",
+    "winner": "Veja os ganhadores do último sorteio."
+  }
+}

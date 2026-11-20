@@ -66,8 +66,14 @@ test.each<{
   { enabled: false, reply: {}, result: { winners: [], degraded: false }, calls: 0 },
   { enabled: true, reply: new Error('timeout'), result: { winners: [], degraded: true }, calls: 1 },
   {
-    enabled: true, reply: { winners: [winner] }, calls: 1,
-    result: { winners: [{ round_id: round, slot: 1, login: 'viewer', prize: 'A game', won_at: 1 }], degraded: false }
+    enabled: true, reply: { winners: [winner, { ...winner, slot: 2, viewer_id: '82', login: '' }] }, calls: 1,
+    result: {
+      winners: [
+        { round_id: round, slot: 1, login: 'viewer', prize: 'A game', won_at: 1 },
+        { round_id: round, slot: 2, login: '', prize: 'A game', won_at: 1 }
+      ],
+      degraded: false
+    }
   }
 ])('projects public winners for enabled=$enabled and $calls history reads', async ({ enabled, reply, result, calls }) => {
   spyOn(moduleBlob, 'readModuleBlob').mockResolvedValueOnce({ enabled, configs: {} });

@@ -98,7 +98,7 @@ export async function publicGiveawayWinners(userId: UserId) {
     if (!enabled) return { winners: [], degraded: false };
     const winners = await pastWinners(userId, 10);
     return {
-      winners: winners.map(({ round_id, slot, login, viewer_id, prize, won_at }) => ({ round_id, slot, login: login || viewer_id, prize, won_at })),
+      winners: winners.map(({ round_id, slot, login, prize, won_at }) => ({ round_id, slot, login, prize, won_at })),
       degraded: false
     };
   } catch {

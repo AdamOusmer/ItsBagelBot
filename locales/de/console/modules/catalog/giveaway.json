@@ -1,0 +1,73 @@
+{
+  "label": "Gewinnspiele",
+  "tagline": "Verlose Sachpreise an deine Zuschauer.",
+  "description": "Öffne die Anmeldung im Chat, lose die Gewinner aus und behalte Abholung und Versand der Preise im Blick.",
+  "settings": {
+    "defaultPrize": {
+      "label": "Standardpreis"
+    },
+    "winners": {
+      "label": "Standardanzahl der Gewinner"
+    },
+    "windowSeconds": {
+      "label": "Anmeldefrist (Sekunden)"
+    },
+    "claimSeconds": {
+      "label": "Abholfrist (Sekunden)",
+      "help": "Mit 0 entfällt die Abholfrist."
+    },
+    "rerollNoShows": {
+      "label": "Nicht abgeholte Preise automatisch neu verlosen"
+    },
+    "openedEnabled": {
+      "label": "Startankündigung"
+    },
+    "wonEnabled": {
+      "label": "Gewinnerankündigung"
+    },
+    "noShowEnabled": {
+      "label": "Hinweis auf nicht abgeholte Preise"
+    },
+    "refusalEnabled": {
+      "label": "Hinweis bei abgelehnter Teilnahme"
+    },
+    "openedMessage": {
+      "label": "Nachricht zum Start",
+      "placeholder": "Gewinnspiel: {giveaway:prize} | Gewinner: {giveaway:count} | Restzeit: {giveaway:left}. Tippe !join, um teilzunehmen."
+    },
+    "wonMessage": {
+      "label": "Nachricht für Gewinner",
+      "placeholder": "Preis für {giveaway:targets}: {giveaway:prize}!"
+    },
+    "defaultPreset": {
+      "label": "Standardvorlage"
+    },
+    "presets": {
+      "label": "Regelvorlagen"
+    }
+  },
+  "replies": {
+    "opened": {
+      "label": "Startankündigung",
+      "tagline": "Sobald die Anmeldung beginnt.",
+      "event": "!giveaway start",
+      "defaultMessage": "Gewinnspiel: {giveaway:prize} | Gewinner: {giveaway:count} | Restzeit: {giveaway:left}. Tippe !join, um teilzunehmen."
+    },
+    "won": {
+      "label": "Gewinnerankündigung",
+      "tagline": "Sobald die Gewinner feststehen.",
+      "event": "!giveaway draw",
+      "defaultMessage": "Preis für {giveaway:targets}: {giveaway:prize}!"
+    }
+  },
+  "commands": {
+    "giveaway_start_preset_prize": "Starte ein Gewinnspiel, auf Wunsch mit Vorlage und Preis.",
+    "giveaway_draw": "Beende die Anmeldung und lose die Gewinner aus.",
+    "giveaway_cancel": "Brich das laufende Gewinnspiel ab.",
+    "reroll_slot": "Ersetze einen Kandidaten oder verlose alle nicht abgeholten Preise neu.",
+    "join": "Nimm am laufenden Gewinnspiel teil.",
+    "check": "Prüfe, ob du teilnehmen kannst.",
+    "claim": "Fordere deinen Gewinn an.",
+    "winner": "Zeige die Gewinner des letzten Gewinnspiels."
+  }
+}

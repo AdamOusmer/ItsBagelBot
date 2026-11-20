@@ -22,7 +22,7 @@
   } = $props();
 
   const { t, locale } = getI18n();
-  const date = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
+  const date = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' });
   const cols = ['prize', 'winner', 'wonAt'] as const;
 </script>
 
@@ -41,8 +41,8 @@
           {#each winners as item (`${item.round_id}:${item.slot}`)}
             <tr>
               <td class="name">{item.prize}</td>
-              <td class="name">{item.login || item.viewer_id || t('giveaways.emptyCell')}</td>
-              <td><time datetime={new Date(item.won_at).toISOString()}>{date.format(item.won_at)} UTC</time></td>
+              <td class="name">{item.login || (submit && item.viewer_id) || t('giveaways.emptyCell')}</td>
+              <td><time datetime={new Date(item.won_at).toISOString()}>{date.format(item.won_at)}</time></td>
               {#if submit}
                 <td>
                   <form class="delivery" method="POST" action="?/deliver" use:enhance={submit}>

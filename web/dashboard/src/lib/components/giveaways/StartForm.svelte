@@ -10,12 +10,13 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import type { EligibleCount, GiveawayConfig } from '#lib/channel-giveaway';
 
-  let { config, enabled, blocked, busy, demo, submit }: {
+  let { config, enabled, blocked, busy, demo, clockSkewMs, submit }: {
     config: GiveawayConfig;
     enabled: boolean;
     blocked: boolean;
     busy: boolean;
     demo: boolean;
+    clockSkewMs: number;
     submit: SubmitFunction;
   } = $props();
 
@@ -49,7 +50,7 @@
       .then((reply) => {
         if (controller.signal.aborted) return;
         count = reply;
-        if (reply?.expires_at) timeout = setTimeout(() => { refresh += 1; }, Math.max(1000, reply.expires_at - Date.now()));
+        if (reply?.expires_at) timeout = setTimeout(() => { refresh += 1; }, Math.max(1000, reply.expires_at - (Date.now() + clockSkewMs)));
       });
     return () => {
       controller.abort();
@@ -74,7 +75,7 @@
         onchange={(event) => { chosen = event.currentTarget.value; }} fill disabled={blocked || busy} />
     </Field>
     <Field fitCopy label={t('giveaways.prize')}>
-      <Input name="prize" placeholder={config.fields.defaultPrize || t('giveaways.prize')} fill disabled={blocked || busy} />
+      <Input name="prize" maxlength={pins.giveawayPrizeMaxLen} placeholder={config.fields.defaultPrize || t('giveaways.prize')} fill disabled={blocked || busy} />
     </Field>
     <Field fitCopy label={t('giveaways.winners')}>
       <Input name="winners" type="number" min={1} max={pins.maxWinners} placeholder={config.fields.winners} fill disabled={blocked || busy} />

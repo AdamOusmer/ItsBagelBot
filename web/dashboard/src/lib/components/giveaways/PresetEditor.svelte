@@ -43,6 +43,8 @@
   let expected = $state(untrack(() => revision));
   const dirty = $derived(signature(preview, defaultPreset) !== baseline);
   const stale = $derived(saved !== baseline);
+  const invalidLuck = (value = 0) => value > 0 && value < pins.luckMin;
+  const invalidDraft = $derived(drafts.some(({ rules }) => invalidLuck(rules.sub_luck_percent)));
 
   $effect(() => {
     if (!stale) expected = revision;
@@ -112,16 +114,17 @@
 
     <div class="fields" class:faded={!active} inert={!active || locked || busy}>
       <Field fitCopy label={t('giveaways.presetName')}>
-        <Input value={draft.name} maxlength={pins.giveawayPresetNameMax} pattern="[a-zA-Z0-9\-]+"
-          oninput={(event) => { if (active) active.name = event.currentTarget.value; }} fill />
+        <Input bind:value={() => draft.name, (value) => { if (active) active.name = String(value ?? '').toLowerCase(); }}
+          maxlength={pins.giveawayPresetNameMax} pattern="[a-z0-9\-]+" fill />
       </Field>
       <Field fitCopy label={t('giveaways.role')}>
         <Select value={draft.rules.role ?? 'everyone'} options={roles.map((role) => ({ value: role, label: t(`perm.${role}`) }))}
           label={t('giveaways.role')} onchange={(event) => rule('role', roles.find((role) => role === event.currentTarget.value))} fill />
       </Field>
       {#each giveawayRuleNumbers as { key, max } (key)}
+        {@const invalid = key === 'sub_luck_percent' && invalidLuck(draft.rules[key])}
         <Field fitCopy label={t(`giveaways.rule.${key}`, { min: pins.luckMin, max: pins.luckMax })}>
-          <Input type="number" min={0} {max} value={draft.rules[key] ?? 0} fill
+          <Input type="number" min={0} {max} value={draft.rules[key] ?? 0} {invalid} aria-invalid={invalid || undefined} fill
             oninput={(event) => rule(key, Number(event.currentTarget.value))} />
         </Field>
       {/each}
@@ -145,7 +148,7 @@
       <Button variant="secondary" class={stale ? 'presetControl' : 'presetControl faded'} disabled={!stale || busy} onclick={reset}>
         <bb-fit><span data-fit="">{t('giveaways.reloadPresets')}</span></bb-fit>
       </Button>
-      <Button type="submit" {busy} disabled={!dirty || locked || stale}><bb-fit><span data-fit="">{t('giveaways.savePresets')}</span></bb-fit></Button>
+      <Button type="submit" {busy} disabled={!dirty || locked || stale || invalidDraft}><bb-fit><span data-fit="">{t('giveaways.savePresets')}</span></bb-fit></Button>
     </div>
   </form>
 </Card>

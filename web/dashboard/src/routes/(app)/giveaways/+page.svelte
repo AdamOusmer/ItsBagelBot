@@ -31,11 +31,13 @@
 
   let live = $derived(data.live);
   let now = $state(untrack(() => data.serverNow));
+  let clockSkewMs = $state(0);
   let busy = $state(false);
   let setting = $state('');
   let statuses = $state<Record<string, SaveState>>({});
   let poll: AbortController | undefined;
   const blocked = $derived(live.degraded || live.rounds.some((round) => round.phase === 'open'));
+  const activeNotice = $derived(form?.error ? 'form' : live.degraded ? 'live' : data.degraded ? 'settings' : null);
 
   const idle = () => !(busy || setting);
   const pollable = () => idle() && !document.hidden;
@@ -44,8 +46,9 @@
 
   onMount(() => {
     if (data.demo) return;
-    now = Date.now();
-    const clock = setInterval(() => { now = Date.now(); }, 1000);
+    const skew = data.serverNow - Date.now();
+    clockSkewMs = skew;
+    const clock = setInterval(() => { now = Date.now() + skew; }, 1000);
     const delay = () => live.rounds.length ? 2000 : 10_000;
     const stop = livePoll(async () => {
       if (pollable()) await pollLive();
@@ -122,20 +125,27 @@
 
 <svelte:head><title>{t('nav.giveaways')}</title></svelte:head>
 
+{#snippet notice(visible: boolean, copy: string)}
+  <div class="notice" class:hiddenNotice={!visible} inert={!visible} aria-hidden={!visible}>
+    <AlertBanner tone="warning" flush>
+      <span class="noticeCopy"><bb-fit mode="block">{copy}</bb-fit></span>
+    </AlertBanner>
+  </div>
+{/snippet}
+
 <div class="pageContent">
   <PageHead><bb-fit><span data-fit="">{t('nav.giveaways')}</span></bb-fit></PageHead>
 
-  {#if form?.error}
-    <AlertBanner tone="warning">{form.error}</AlertBanner>
-  {/if}
-  {#if live.degraded}
-    <AlertBanner tone="warning">{t('giveaways.liveUnavailable')}</AlertBanner>
-  {/if}
+  <div class="notices">
+    {@render notice(activeNotice === 'form', form?.error ?? '')}
+    {@render notice(activeNotice === 'live', t('giveaways.liveUnavailable'))}
+    {@render notice(activeNotice === 'settings', t('giveaways.settingsUnavailable'))}
+  </div>
 
   <Card>
     <div class="section">
       <CardHead title={t('giveaways.new')} headingLevel={2} />
-      <StartForm config={data.config} enabled={data.enabled} blocked={blocked || data.degraded} busy={busy || !!setting} demo={data.demo} {submit} />
+      <StartForm config={data.config} enabled={data.enabled} blocked={blocked || data.degraded} busy={busy || !!setting} demo={data.demo} {clockSkewMs} {submit} />
     </div>
   </Card>
 
@@ -150,7 +160,6 @@
       <CardHead title={t('giveaways.settings')} headingLevel={2} />
       <SwitchRow control="end" fitCopy label={t('giveaways.enabled')} checked={data.enabled}
         disabled={data.degraded || busy || !!setting} busy={setting === 'toggle'} onCheckedChange={(checked) => save('toggle', {}, checked)} />
-      {#if data.degraded}<AlertBanner tone="warning">{t('giveaways.settingsUnavailable')}</AlertBanner>{/if}
     </div>
     <ModuleSettingsForm {def} config={data.config.fields} modStatus={statuses} locked={data.degraded || busy || !!setting} {saveSetting} />
   </Card>
@@ -171,6 +180,13 @@
 
 <style>
   .pageContent { display: grid; min-width: 0; gap: var(--bb-space-5); }
+  .notices { display: grid; }
+  .notice { grid-area: 1 / 1; min-inline-size: 0; transition: opacity var(--bb-dur-fast); }
+  .hiddenNotice { opacity: 0; }
+  .noticeCopy { display: block; block-size: 2.75em; align-content: center; }
   .section, .settingsHead { display: grid; gap: var(--bb-space-3); min-width: 0; }
   .settingsHead { padding: var(--bb-space-4) var(--bb-space-5); }
+  @media (prefers-reduced-motion: reduce) {
+    .notice { transition: none; }
+  }
 </style>
