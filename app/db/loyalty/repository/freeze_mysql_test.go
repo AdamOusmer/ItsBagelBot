@@ -12,27 +12,58 @@ import (
 	"testing"
 	"time"
 
-	"ItsBagelBot/internal/domain/event/data"
-
+	"github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestFreezeMySQLCopyIsolation(t *testing.T) {
-	for _, isolation := range []string{"READ-COMMITTED", "REPEATABLE-READ"} {
-		t.Run(isolation, func(t *testing.T) {
-			raw := loyaltyMySQL(t, "loyalty_freeze_copy_")
+	for _, tc := range []struct {
+		isolation string
+		locks     balanceRecordLocks
+	}{
+		{"READ-COMMITTED", balanceRecordLocks{}},
+		{"REPEATABLE-READ", balanceRecordLocks{any: true, shared: true}},
+	} {
+		t.Run(tc.isolation, func(t *testing.T) {
+			raw := freezeMySQL(t, "loyalty_freeze_copy_")
 			repo := mysqlReplica(t, raw)
 			ctx := t.Context()
 			award := balanceWriter{channel: 1}.award(0)
 			require.NoError(t, repo.ApplyWatchAward(ctx, award))
 
 			probe := freezeCopyProbe{repo: repo, ready: make(chan struct{}), release: make(chan struct{})}
-			probe.start(t, isolation)
+			probe.start(t, tc.isolation)
+			require.Equal(t, tc.locks, readBalanceRecordLocks(t, raw))
+			if tc.locks.any {
+				return
+			}
 			award.WindowID = "after-copy"
-			assertFreezeCopyLocking(t, repo, award, isolation)
+			started := time.Now()
+			require.NoError(t, repo.ApplyWatchAward(ctx, award))
+			require.LessOrEqual(t, time.Since(started), time.Second, "watch award during copy")
 		})
 	}
+}
+
+func freezeMySQL(t *testing.T, prefix string) *sql.DB {
+	t.Helper()
+	return loyaltyMySQL(t, prefix, func(cfg *mysql.Config) {
+		cfg.Params["innodb_lock_wait_timeout"] = "5"
+	})
+}
+
+type balanceRecordLocks struct{ any, shared bool }
+
+func readBalanceRecordLocks(t *testing.T, raw *sql.DB) balanceRecordLocks {
+	t.Helper()
+	var locks balanceRecordLocks
+	err := raw.QueryRowContext(t.Context(), `SELECT COUNT(*) > 0, COUNT(CASE
+		WHEN LOCK_STATUS = 'GRANTED' AND LOCK_MODE IN ('S', 'S,REC_NOT_GAP') AND LOCK_DATA <> 'supremum pseudo-record' THEN 1 END) > 0
+		FROM performance_schema.data_locks
+		WHERE OBJECT_SCHEMA = DATABASE() AND OBJECT_NAME = 'balances' AND LOCK_TYPE = 'RECORD'`).Scan(&locks.any, &locks.shared)
+	require.NoError(t, err)
+	return locks
 }
 
 type freezeCopyProbe struct {
@@ -43,14 +74,12 @@ type freezeCopyProbe struct {
 
 func (p freezeCopyProbe) start(t *testing.T, isolation string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	done := make(chan error, 1)
 	go func() {
 		defer close(done)
-		done <- p.run(ctx, isolation)
+		done <- p.run(context.Background(), isolation)
 	}()
 	t.Cleanup(func() {
-		defer cancel()
 		close(p.release)
 		assert.NoError(t, <-done)
 	})
@@ -102,20 +131,8 @@ func (p freezeCopyProbe) holdCopy(ctx context.Context, tx *sql.Tx, isolation str
 	return nil
 }
 
-func assertFreezeCopyLocking(t *testing.T, repo *Loyalty, award data.WatchAwardDTO, isolation string) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
-	defer cancel()
-	err := repo.ApplyWatchAward(ctx, award)
-	if isolation == "REPEATABLE-READ" {
-		require.ErrorIs(t, err, context.DeadlineExceeded)
-		return
-	}
-	require.NoError(t, err)
-}
-
 func TestFreezeMySQLSerializesResetAndCleanup(t *testing.T) {
-	raw := loyaltyMySQL(t, "loyalty_freeze_race_")
+	raw := freezeMySQL(t, "loyalty_freeze_race_")
 	repo := mysqlReplica(t, raw)
 	before := readInnodbLocks(t, raw)
 	for round := range 20 {
@@ -128,8 +145,7 @@ func TestFreezeMySQLSerializesResetAndCleanup(t *testing.T) {
 
 func runFreezeMySQLRace(t *testing.T, repo *Loyalty, channel uint64) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-	defer cancel()
+	ctx := t.Context()
 	require.NoError(t, repo.ApplyWatchAward(ctx, balanceWriter{channel: channel}.award(0)))
 	start := make(chan struct{})
 	var workers sync.WaitGroup
