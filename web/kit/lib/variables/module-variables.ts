@@ -2,8 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { lex, parseCond, type Token, type VarToken } from '../engine/tmpl';
-import { MODULE_CATALOG } from '../catalog';
+import { MOD, MODULE_CATALOG } from '../catalog';
 import { BUILTIN_COMMANDS } from '../catalog/builtin-commands';
+import type { ModuleDef } from '../catalog/module-def';
 import type { VariableDef } from './types';
 
 // The same public reply palettes drive custom-command variables. The first
@@ -12,13 +13,18 @@ import type { VariableDef } from './types';
 export const MODULE_VARIABLE_SPECS = MODULE_CATALOG.map((mod) => ({
   id: mod.id,
   label: mod.label,
-  groups: mod.replies.filter((r) => r.tokens?.length).map((r) => ({
-    name: r.key.toLowerCase(),
-    messageKey: r.messageKey as string | undefined,
-    fields: r.tokens!.map((t) => t.name.replace(new RegExp(`^${mod.id}:`), '')),
-    samples: Object.fromEntries(r.tokens!.map((t) => [t.name.replace(new RegExp(`^${mod.id}:`), ''), t.sample]))
-  }))
+  groups: replyVariableGroups(mod)
 }));
+
+function replyVariableGroups(mod: ModuleDef) {
+  if (mod.id === MOD.giveaway) return [];
+  return mod.replies.flatMap((reply) => {
+    if (!reply.tokens?.length) return [];
+    const samples = Object.fromEntries(reply.tokens.map((token) => [token.name.slice(mod.id.length + 1), token.sample]));
+    if (mod.id === MOD.raffle && reply.key === 'opened') delete samples.points;
+    return [{ name: reply.key.toLowerCase(), messageKey: reply.messageKey as string | undefined, fields: Object.keys(samples), samples }];
+  });
+}
 
 for (const def of BUILTIN_COMMANDS) {
   if (MODULE_VARIABLE_SPECS.some((mod) => mod.id === def.id) || !def.tokens?.length) continue;
@@ -40,6 +46,7 @@ const extraGroups: Record<string, { name: string; samples: Record<string, string
   loyalty: [{ name: 'balance', samples: { points: '1280', pointsname: 'crumbs', watchtime: '2 hours, 15 minutes', duration: '2 hours, 15 minutes', user: 'SnackPackPanda', name: 'crumbs', hours: '2' } }],
   stream: [{ name: 'channel', samples: { uptime: '2 hours, 15 minutes', title: 'bagel baking and chill', game: 'Just Chatting', viewers: '128' } }],
   queue: [{ name: 'status', samples: { size: '12', entries: 'SnackPackPanda, MikanMeerkat', open: 'true' } }],
+  giveaway: [{ name: 'status', samples: { prize: 'a game key', count: '18', left: '180' } }],
   raffle: [
     { name: 'status', samples: { entrants: '18', seconds: '120', open: 'true' } },
     { name: 'won', samples: { claim: '15', prize: 'a game key' } },

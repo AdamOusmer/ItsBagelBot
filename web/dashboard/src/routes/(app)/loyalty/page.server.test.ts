@@ -16,13 +16,14 @@ const freezeStamp = { id: stamp.freeze_id, asOf: stamp.frozen_as_of, expiresAt: 
 const locals = { session: { user_id: user }, locale: 'en' };
 const calls: { subject: string; payload: unknown; timeoutMs: number }[] = [];
 let replies: Record<string, object | Error>;
+const loyaltyRow = { name: 'loyalty', is_enabled: true, configs: { pointsName: 'bagels' } };
 
 const valkey = await import('@bagel/kit/server/valkey-store');
 mock.module('@bagel/kit/server/valkey-store', () => ({
   ...valkey,
   getModules: async () => ({
     projected: true,
-    modules: [{ name: 'loyalty', is_enabled: true, configs: { pointsName: 'bagels' } }]
+    modules: [loyaltyRow]
   })
 }));
 
@@ -125,8 +126,8 @@ test.each([
 ])('gameSettings patches only a loyalty child ($name, conflict: $conflict)', async ({ name, conflict, want }) => {
   const subject = `${SUB.modules}.patch`;
   const projector = `${SUB.projector}.modules.replace`;
-  const row = { name: 'raffle', is_enabled: true, revision: 5, configs: { prizePoints: '3000' } };
-  replies = { [subject]: { rev: 5, conflict, modules: [row] }, [projector]: { modules: [row] } };
+  const modules = [loyaltyRow, { name: 'raffle', is_enabled: true, revision: 5, configs: { prizePoints: '3000' } }];
+  replies = { [subject]: { rev: 5, conflict, modules }, [projector]: { modules } };
   calls.length = 0;
   const cookies = { set: mock() };
   const url = new URL('https://dashboard.test/loyalty?/gameSettings');

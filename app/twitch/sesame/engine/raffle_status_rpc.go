@@ -25,8 +25,8 @@ func (s RaffleStatusRPC) Subscribe(w bus.RPCWiring) error {
 }
 
 func (s RaffleStatusRPC) status(ctx context.Context, req drawrpc.RaffleStatusRequest) drawrpc.RaffleStatus {
-	id, err := bus.UserID(req.UserID)
-	if err != nil || id == 0 || req.Source != "dashboard" {
+	id, err := bus.NonZeroUserID(req.UserID)
+	if err != nil || req.Source != "dashboard" {
 		return drawrpc.RaffleStatus{Refusal: rpc.Refused(rpc.CodeInvalid, "invalid user_id or source")}
 	}
 	rounds, err := s.Draw.Live(ctx, draw.ChannelID(id))

@@ -47,13 +47,20 @@ type drawCommandState struct {
 	err         error
 }
 
+func (s drawCommandState) ownsCommand() bool {
+	if s.round.ID != "" || s.found {
+		return true
+	}
+	return s.legacyFound || s.err != nil
+}
+
 type drawResolve func(context.Context, *module.Context) drawCommandState
 
 func ownsDrawCommand(resolve drawResolve) func(context.Context, *module.Context) bool {
 	return func(ctx context.Context, c *module.Context) bool {
 		state := resolve(ctx, c)
 		c.CommandState = state
-		return state.round.ID != "" || state.found || state.legacyFound || state.err != nil
+		return state.ownsCommand()
 	}
 }
 
@@ -73,7 +80,7 @@ func (d drawOwner) activeJoin(ctx context.Context, c *module.Context) (draw.Roun
 
 func (d drawOwner) resolveJoin(ctx context.Context, c *module.Context) drawCommandState {
 	r, found, err := d.activeJoin(ctx, c)
-	if found || err != nil || r.Phase == draw.PhaseOpen {
+	if err != nil || hasJoinRound(r.Phase, found) {
 		return drawCommandState{round: r, found: found, err: err}
 	}
 	if d.deps.Raffle == nil {
@@ -84,6 +91,10 @@ func (d drawOwner) resolveJoin(ctx context.Context, c *module.Context) drawComma
 		return drawCommandState{legacyFound: true, err: err}
 	}
 	return drawCommandState{round: r, legacyFound: wantsClosedRaffle(c), err: err}
+}
+
+func hasJoinRound(phase draw.Phase, found bool) bool {
+	return found || phase == draw.PhaseOpen
 }
 
 func wantsClosedRaffle(c *module.Context) bool {
@@ -203,8 +214,12 @@ func (d drawOwner) resolveWinner(ctx context.Context, c *module.Context) drawCom
 		return drawCommandState{round: r, slots: slots, found: found, err: err}
 	}
 	res, found, err := d.legacyResult(ctx, c)
-	owns := found || c.ModuleOn(raffleModuleName) || c.ModuleOn(engine.GiveawayModuleName)
+	owns := found || anyDrawModuleOn(c)
 	return drawCommandState{result: res, legacyFound: found, err: err, found: owns}
+}
+
+func anyDrawModuleOn(c *module.Context) bool {
+	return c.ModuleOn(raffleModuleName) || c.ModuleOn(engine.GiveawayModuleName)
 }
 
 func (d drawOwner) winner(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {

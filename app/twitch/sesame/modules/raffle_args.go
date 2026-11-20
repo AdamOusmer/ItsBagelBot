@@ -35,11 +35,15 @@ func parseRaffleStart(input raffleStartInput, cfg engine.RaffleModuleConfig) (ra
 		return raffleStart{}, false
 	}
 	duration, ok := raffleArg(secondsArg).durationOr(cfg.Duration())
-	if !ok || (rest != "" && !input.multi) {
+	if !ok || !input.allowsWinnerArg(rest) {
 		return raffleStart{}, false
 	}
 	winners, ok := parseWinners(rest, draw.WinnerPolicy{Count: input.winners})
 	return raffleStart{prize: prize, duration: duration, winners: winners, multi: input.multi}, ok
+}
+
+func (input raffleStartInput) allowsWinnerArg(arg string) bool {
+	return arg == "" || input.multi
 }
 
 func parseWinners(arg string, def draw.WinnerPolicy) (draw.WinnerPolicy, bool) {
@@ -50,8 +54,12 @@ func parseWinners(arg string, def draw.WinnerPolicy) (draw.WinnerPolicy, bool) {
 		return draw.WinnerPolicy{Auto: true}, true
 	default:
 		n, err := strconv.ParseUint(arg, 10, 16)
-		return draw.WinnerPolicy{Count: int(n)}, err == nil && n > 0 && n <= uint64(draw.Pins.MaxWinners)
+		return draw.WinnerPolicy{Count: int(n)}, err == nil && validRaffleWinnerCount(n)
 	}
+}
+
+func validRaffleWinnerCount(n uint64) bool {
+	return n > 0 && n <= uint64(draw.Pins.MaxWinners)
 }
 
 func (arg raffleArg) prizeOr(fallback int64) (int64, bool) {

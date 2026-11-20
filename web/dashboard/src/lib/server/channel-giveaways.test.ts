@@ -57,7 +57,12 @@ test('reports a degraded live read after a timeout', async () => {
   expect(await store.liveGiveaways(uid)).toEqual({ rounds: [], degraded: true });
 });
 
-test.each([
+test.each<{
+  enabled: boolean;
+  reply: object;
+  result: Awaited<ReturnType<typeof store.publicGiveawayWinners>>;
+  calls: number;
+}>([
   { enabled: false, reply: {}, result: { winners: [], degraded: false }, calls: 0 },
   { enabled: true, reply: new Error('timeout'), result: { winners: [], degraded: true }, calls: 1 },
   {

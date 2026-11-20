@@ -107,7 +107,9 @@ mock.module('#lib/server/viewer-lookup', () => ({
     return resolution;
   }
 }));
+const services = await import('#lib/server/services');
 mock.module('#lib/server/services', () => ({
+  ...services,
   resolveLogin: async (login: string) => (storedLogin ? { userId: '42', username: login } : null),
   userCommandsPage: (id: string) => commandsPageReply(id),
   userLeaderboardPage: (id: string) => leaderboardPageReply(id)
@@ -170,7 +172,7 @@ function arrange(setup: Setup): void {
   loyaltyEnabled = setup.loyaltyEnabled ?? true;
 }
 
-test.each([
+test.each<typeof giveawayHistory>([
   { degraded: false, winners: [{ round_id: 'round', slot: 1, login: 'viewer', prize: 'A game', won_at: 1 }] },
   { degraded: true, winners: [] }
 ])('keeps public standings available with giveaway history degraded=$degraded', async (history) => {

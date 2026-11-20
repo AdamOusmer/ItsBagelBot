@@ -26,15 +26,23 @@ type FreezeCommand struct {
 
 func LoyaltyFreezeRefusal(err error, reason string) bool {
 	var reply bus.RPCReplyError
-	return errors.As(err, &reply) && reply.Code == rpc.CodeConflict && reply.Message == reason
+	return errors.As(err, &reply) && matchesFreezeConflict(reply, reason)
+}
+
+func matchesFreezeConflict(reply bus.RPCReplyError, reason string) bool {
+	return reply.Code == rpc.CodeConflict && reply.Message == reason
 }
 
 func (l *LoyaltyRPC) FreezeGet(ctx context.Context, channel uint64) (loyaltyrpc.FreezeView, error) {
 	reply, err := l.call(ctx, loyaltyrpc.VerbFreezeGet, loyaltyrpc.Request{UserID: fmtID(channel)})
-	if err != nil || !reply.Found || reply.Freeze == nil {
+	if err != nil || !hasFreeze(&reply) {
 		return loyaltyrpc.FreezeView{}, err
 	}
 	return *reply.Freeze, nil
+}
+
+func hasFreeze(reply *loyaltyrpc.Reply) bool {
+	return reply.Found && reply.Freeze != nil
 }
 
 func (l *LoyaltyRPC) FreezeSet(ctx context.Context, command FreezeCommand) (loyaltyrpc.FreezeView, bool, error) {

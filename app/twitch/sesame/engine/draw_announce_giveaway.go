@@ -79,15 +79,13 @@ func (a drawAnnouncer) giveawaySlotNotice(ctx context.Context, locale module.Loc
 }
 
 func giveawaySlotLines(locale module.Locale, cfg GiveawayModuleConfig, notice draw.Notice) []string {
+	winner := notice.Event == draw.NoticeWinners
+	if !cfg.slotNoticeEnabled(winner) {
+		return nil
+	}
 	var key giveawayMessageKey = "giveaway.no_show"
 	override := ""
-	winner := notice.Event == draw.NoticeWinners
-	switch {
-	case winner && !bool(cfg.WonEnabled):
-		return nil
-	case !winner && !bool(cfg.NoShowEnabled):
-		return nil
-	case winner:
+	if winner {
 		key, override = giveawayWinKey(notice.Round), cfg.WonMessage
 	}
 	return chunkMentions(notice.Slots, func(slot draw.Slot) string { return slot.Login }, func(targets string) string {
@@ -95,6 +93,13 @@ func giveawaySlotLines(locale module.Locale, cfg GiveawayModuleConfig, notice dr
 			"targets", targets, "prize", notice.Round.Terms.Prize.Item, "count", strconv.Itoa(len(notice.Slots)),
 			"claim", i18n.CompactDuration(string(locale), notice.Round.Terms.ClaimWindow)))
 	})
+}
+
+func (cfg GiveawayModuleConfig) slotNoticeEnabled(winner bool) bool {
+	if winner {
+		return bool(cfg.WonEnabled)
+	}
+	return bool(cfg.NoShowEnabled)
 }
 
 func giveawayWinKey(r draw.Round) giveawayMessageKey {
