@@ -7,7 +7,9 @@ import (
 	"context"
 	"regexp"
 	"strings"
+	"time"
 
+	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/app/db/loyalty/repository"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 )
@@ -39,19 +41,91 @@ func (l *loyaltyRPC) handleTopGet(ctx context.Context, req loyaltyrpc.Request) l
 	if !ok {
 		return reply
 	}
-	query, searchable := topQuery(req, viewerID)
-	if !searchable {
-		return loyaltyrpc.Reply{Found: true}
-	}
-	page, err := l.repo.TopPage(ctx, userID, query)
+	route, err := l.resolveBoard(ctx, userID, req)
 	if err != nil {
 		return l.fail("loyalty top.get", err)
 	}
+	query, searchable := topQuery(req, viewerID)
+	page, err := route.page(ctx, query, searchable)
+	if err != nil {
+		return l.fail("loyalty top.get", err)
+	}
+	stamp, err := route.stamp(ctx)
+	if err != nil {
+		return l.fail("loyalty top.get", err)
+	}
+	return topReply(page, stamp)
+}
+
+func topReply(page repository.TopPage, stamp loyaltyrpc.FreezeStamp) loyaltyrpc.Reply {
 	top := make([]loyaltyrpc.Balance, 0, len(page.Rows))
 	for _, row := range page.Rows {
 		view := balanceView(row.Balance)
 		view.Rank = row.Rank
 		top = append(top, *view)
 	}
-	return loyaltyrpc.Reply{Top: top, Total: page.Total, Found: true}
+	return loyaltyrpc.Reply{Top: top, Total: page.Total, Found: true, FreezeStamp: stamp}
+}
+
+type boardRoute struct {
+	repo   *repository.Loyalty
+	userID uint64
+	state  repository.FreezeState
+	pin    repository.FreezeID
+}
+
+func (l *loyaltyRPC) resolveBoard(ctx context.Context, userID uint64, req loyaltyrpc.Request) (boardRoute, error) {
+	route := boardRoute{repo: l.repo, userID: userID}
+	switch {
+	case req.Live:
+		return route, nil
+	case req.FreezeID != "":
+		route.pin = repository.FreezeID(req.FreezeID)
+		return route, nil
+	default:
+		state, err := l.repo.FreezeStatus(ctx, userID)
+		if state.Active(time.Now()) {
+			route.state = state
+		}
+		return route, err
+	}
+}
+
+func (b boardRoute) stamp(ctx context.Context) (loyaltyrpc.FreezeStamp, error) {
+	if b.pin == "" {
+		return b.activeStamp(), nil
+	}
+	state, err := b.repo.FreezeEpoch(ctx, b.userID, b.pin)
+	if err != nil {
+		return loyaltyrpc.FreezeStamp{}, err
+	}
+	return freezeStamp(state), nil
+}
+
+func (b boardRoute) activeStamp() loyaltyrpc.FreezeStamp {
+	if b.state.FreezeID == "" {
+		return loyaltyrpc.FreezeStamp{}
+	}
+	return freezeStamp(b.state)
+}
+
+func (b boardRoute) page(ctx context.Context, query repository.TopQuery, searchable bool) (repository.TopPage, error) {
+	if !searchable {
+		return repository.TopPage{}, nil
+	}
+	id := b.pin
+	if id == "" {
+		id = b.state.FreezeID
+	}
+	if id == "" {
+		return b.repo.TopPage(ctx, b.userID, query)
+	}
+	return b.repo.FrozenTopPage(ctx, b.userID, id, query)
+}
+
+func (b boardRoute) balance(ctx context.Context, viewerID uint64) (*ent.Balance, bool, error) {
+	if b.state.FreezeID == "" {
+		return b.repo.BalanceGet(ctx, b.userID, viewerID)
+	}
+	return b.repo.FrozenBalance(ctx, b.userID, viewerID, b.state.FreezeID)
 }

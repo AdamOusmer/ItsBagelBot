@@ -14,5 +14,12 @@
   "points.insufficient": "@{loyalty:user} você só tem {loyalty:points} {loyalty:name}.",
   "points.self": "@{loyalty:user} você não pode dar {loyalty:name} a si mesmo.",
   "points.unknown": "@{loyalty:user} ainda não vi {loyalty:target} neste canal.",
-  "points.usage": "Uso: !points; ou !points <set|add|remove> @user <amount>; ou !points give @user <amount>"
+  "points.usage": "Uso: !points; ou !points <set|add|remove> @user <amount>; ou !points give @user <amount>",
+  "freeze.started": "Classificação pausada por {loyalty:minutes} min. Os pontos e o tempo de exibição continuam contando.",
+  "freeze.active": "@{loyalty:user} a classificação já está em pausa. Restam {loyalty:minutes} min.",
+  "freeze.usage": "Uso: !freeze [1-30]",
+  "unfreeze.done": "A classificação voltou a ser atualizada em tempo real.",
+  "unfreeze.none": "@{loyalty:user} a classificação não está em pausa.",
+  "unfreeze.round": "@{loyalty:user} Um sorteio está usando a classificação pausada. Sorteie os vencedores ou cancele o sorteio para retomar as atualizações.",
+  "points.frozen": "@{loyalty:user} não dá para presentear com {loyalty:name} enquanto a classificação estiver em pausa."
 }

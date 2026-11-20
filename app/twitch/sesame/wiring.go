@@ -62,7 +62,7 @@ type engineRuntime struct {
 	live      *engine.ValkeyLiveStore
 	timers    *engine.ValkeyTimerStore
 	guard     *automod.Gate
-	loyalty   engine.LoyaltyStore
+	loyalty   *engine.ValkeyLoyaltyStore
 	tick      *engine.ValkeyLoyaltyClock
 	stats     *engine.LoyaltyReporter
 	raffle    *engine.ValkeyRaffleStore
@@ -125,9 +125,10 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Timers:         rt.timers,
 		ChatLines:      rt.timers,
 
-		Loyalty:     rt.loyalty,
-		LoyaltyTick: rt.tick,
-		Stats:       rt.stats,
+		Loyalty:       rt.loyalty,
+		LoyaltyFreeze: rt.loyalty,
+		LoyaltyTick:   rt.tick,
+		Stats:         rt.stats,
 
 		Personality: engine.NewValkeyPersonality(in.vc, engine.NewPersonalityRPC(in.nc, cfg.ModulesRPCPrefix), log),
 

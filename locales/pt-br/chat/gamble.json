@@ -10,5 +10,6 @@
   "usage": "@{gamble:user} tenta !gamble <amount|half|all>",
   "unknown": "@{gamble:user} ainda não te vi por aqui. Fica um pouco para ganhar {gamble:points}.",
   "win": "@{gamble:user} apostou {gamble:amount} e ganhou {gamble:amount} {gamble:points}! Agora você tem {gamble:balance}.",
-  "win.all": "@{gamble:user} apostou tudo e ganhou {gamble:amount} {gamble:points}! Agora você tem {gamble:balance}."
+  "win.all": "@{gamble:user} apostou tudo e ganhou {gamble:amount} {gamble:points}! Agora você tem {gamble:balance}.",
+  "frozen": "@{gamble:user} as apostas estão suspensas enquanto a classificação estiver em pausa."
 }

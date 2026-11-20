@@ -10,5 +10,6 @@
   "usage": "@{gamble:user} попробуй !gamble <amount|half|all>",
   "unknown": "@{gamble:user} я тебя здесь ещё не видел. Побудь тут, чтобы заработать {gamble:points}.",
   "win": "@{gamble:user} ставка {gamble:amount}, выигрыш {gamble:amount} {gamble:points}! Теперь у тебя {gamble:balance}.",
-  "win.all": "@{gamble:user} ва-банк! Выигрыш {gamble:amount} {gamble:points}. Теперь у тебя {gamble:balance}."
+  "win.all": "@{gamble:user} ва-банк! Выигрыш {gamble:amount} {gamble:points}. Теперь у тебя {gamble:balance}.",
+  "frozen": "@{gamble:user} пока таблица лидеров заморожена, ставки приостановлены."
 }

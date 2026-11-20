@@ -35,10 +35,11 @@ func (r *Loyalty) BalanceTransfer(ctx context.Context, t Transfer) (*TransferOut
 		return nil, found, err
 	}
 
-	if sender.ID == 0 {
+	move := transferMove{sender: sender, recipient: recipient, amount: t.Amount}
+	err = r.moveBalance(ctx, move)
+	if sender.ID == 0 && err == nil {
 		return &TransferOutcome{From: sender}, true, nil
 	}
-	err = r.moveBalance(ctx, sender, recipient, t.Amount)
 	if errors.Is(err, errInsufficient) {
 		fresh, ferr := r.client.Balance.Get(ctx, sender.ID)
 		if ferr != nil {
@@ -94,28 +95,38 @@ func validTransfer(t Transfer) (string, error) {
 	return login, nil
 }
 
-func (r *Loyalty) moveBalance(ctx context.Context, sender, recipient *ent.Balance, amount int64) error {
-	return db.WithExec(ctx, func(ctx context.Context) error {
-		return retryTx(ctx, func(ctx context.Context) error {
-			return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
-				if err := r.lockTransferRows(ctx, tx, sender, recipient); err != nil {
-					return err
-				}
-				return transferMove{senderID: sender.ID, recipient: recipient, amount: amount}.apply(ctx, tx)
-			})
+func (r *Loyalty) moveBalance(ctx context.Context, move transferMove) error {
+	if move.sender.ID == 0 {
+		return newFreezeBlock(move.sender.UserID, freezeTransfers).refusal(ctx, r)
+	}
+	var block freezeBlock
+	err := db.WithExec(ctx, func(ctx context.Context) error {
+		return db.RetryWithTx(ctx, r.client, func(tx *ent.Tx) error {
+			if err := r.lockTransferRows(ctx, tx, move.sender, move.recipient); err != nil {
+				return err
+			}
+			block = newFreezeBlock(move.sender.UserID, freezeTransfers)
+			return move.apply(ctx, tx, block)
 		})
 	})
+	if !errors.Is(err, errInsufficient) {
+		return err
+	}
+	if refusal := block.refusal(ctx, r); refusal != nil {
+		return refusal
+	}
+	return errInsufficient
 }
 
 type transferMove struct {
-	senderID  int
+	sender    *ent.Balance
 	recipient *ent.Balance
 	amount    int64
 }
 
-func (m transferMove) apply(ctx context.Context, tx *ent.Tx) error {
+func (m transferMove) apply(ctx context.Context, tx *ent.Tx, block freezeBlock) error {
 	updated, err := tx.Balance.Update().
-		Where(balance.IDEQ(m.senderID), balance.PointsGTE(m.amount)).
+		Where(balance.IDEQ(m.sender.ID), balance.PointsGTE(m.amount), block.allowed).
 		AddPoints(-m.amount).
 		Save(ctx)
 	if err != nil {

@@ -14,6 +14,17 @@ const (
 	VerbBalanceCredit   = "balance.credit"
 	VerbBalanceSnapshot = "balance.snapshot"
 	VerbWatchStatus     = "watch.status"
+	VerbFreezeSet       = "freeze.set"
+	VerbFreezeRelease   = "freeze.release"
+	VerbFreezeGet       = "freeze.get"
+
+	FreezeModHolder        = "mod"
+	FreezeRoundPrefix      = "round:"
+	RefusalFrozen          = "frozen"
+	RefusalHeldByRound     = "held_by_round"
+	RefusalStalePin        = "stale_pin"
+	RefusalFrozenTransfers = "frozen_transfers"
+	RefusalFrozenGames     = "frozen_games"
 )
 
 type Request struct {
@@ -33,6 +44,12 @@ type Request struct {
 	Limit            int    `json:"limit,omitempty"`
 	Offset           int    `json:"offset,omitempty"`
 	Query            string `json:"query,omitempty"`
+	Holder           string `json:"holder,omitempty"`
+	FreezeID         string `json:"freeze_id,omitempty"`
+	Minutes          int    `json:"minutes,omitempty"`
+	BlockTransfer    bool   `json:"block_transfer,omitempty"`
+	CloseGames       bool   `json:"close_games,omitempty"`
+	Live             bool   `json:"live,omitempty"`
 }
 
 type Balance struct {
@@ -64,7 +81,22 @@ type CounterRank struct {
 	Value  int64  `json:"value,string"`
 }
 
+type FreezeStamp struct {
+	FreezeID   string `json:"freeze_id,omitempty"`
+	FrozenAsOf int64  `json:"frozen_as_of,omitempty"`
+	ExpiresAt  int64  `json:"expires_at,omitempty"`
+}
+
+type FreezeView struct {
+	FreezeStamp
+	Holders       []string `json:"holders"`
+	BlockTransfer bool     `json:"block_transfer"`
+	CloseGames    bool     `json:"close_games"`
+}
+
 type Reply struct {
+	FreezeStamp
+	Freeze        *FreezeView    `json:"freeze,omitempty"`
 	Balance       *Balance       `json:"balance,omitempty"`
 	TargetBalance *Balance       `json:"target_balance,omitempty"`
 	Top           []Balance      `json:"top,omitempty"`
@@ -84,9 +116,7 @@ type BalanceSnapshot struct {
 	Points       int64  `json:"points"`
 	WatchSeconds uint64 `json:"watch_seconds"`
 	Found        bool   `json:"found"`
-	FreezeID     string `json:"freeze_id"`
-	FrozenAsOf   int64  `json:"frozen_as_of"`
-	ExpiresAt    int64  `json:"expires_at"`
+	FreezeStamp
 	rpc.Refusal
 }
 

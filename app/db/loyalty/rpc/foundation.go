@@ -45,20 +45,28 @@ func (l *loyaltyRPC) creditFailure(err error) loyaltyrpc.Reply {
 	}
 }
 
+func (l *loyaltyRPC) snapshotUnavailable(err error) loyaltyrpc.BalanceSnapshot {
+	l.log.Warn("balance.snapshot failed", zap.Error(err))
+	return loyaltyrpc.BalanceSnapshot{Refusal: domainrpc.Refused(domainrpc.CodeUnavailable, "loyalty snapshot unavailable")}
+}
+
 func (l *loyaltyRPC) handleBalanceSnapshot(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.BalanceSnapshot {
 	userID, viewerID, ok, reply := requireViewer(req)
 	if !ok {
 		return loyaltyrpc.BalanceSnapshot{Refusal: reply.Refusal}
 	}
-	row, found, err := l.repo.BalanceGet(ctx, userID, viewerID)
+	route, err := l.resolveBoard(ctx, userID, loyaltyrpc.Request{})
 	if err != nil {
-		l.log.Warn("balance.snapshot failed", zap.Error(err))
-		return loyaltyrpc.BalanceSnapshot{Refusal: domainrpc.Refused(domainrpc.CodeUnavailable, "loyalty snapshot unavailable")}
+		return l.snapshotUnavailable(err)
+	}
+	row, found, err := route.balance(ctx, viewerID)
+	if err != nil {
+		return l.snapshotUnavailable(err)
 	}
 	if !found {
-		return loyaltyrpc.BalanceSnapshot{}
+		return loyaltyrpc.BalanceSnapshot{FreezeStamp: route.activeStamp()}
 	}
-	return loyaltyrpc.BalanceSnapshot{Points: row.Points, WatchSeconds: row.WatchSeconds, Found: true}
+	return loyaltyrpc.BalanceSnapshot{Points: row.Points, WatchSeconds: row.WatchSeconds, Found: true, FreezeStamp: route.activeStamp()}
 }
 
 func (l *loyaltyRPC) handleWatchStatus(ctx context.Context, _ struct{}) loyaltyrpc.WatchStatus {

@@ -5,6 +5,8 @@ package invalidate
 
 type Scope = string
 
+const LoyaltyFreezeMarker = "freeze"
+
 const (
 	ScopeStatus          Scope = "status"
 	ScopeGrant           Scope = "grant"

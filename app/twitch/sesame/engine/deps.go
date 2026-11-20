@@ -70,6 +70,7 @@ type Deps struct {
 	Duel           DuelStore
 	Quotes         QuotesStore
 	Loyalty        LoyaltyStore
+	LoyaltyFreeze  LoyaltyFreeze
 	LoyaltyTick    LoyaltyTicker
 	Stats          CounterBumper
 	PublicBaseURL  string
@@ -198,13 +199,6 @@ type PointTransfer struct {
 	Amount         int64
 }
 
-type PointSpend struct {
-	BroadcasterID uint64
-	ViewerID      uint64
-	Login         string
-	Amount        int64
-}
-
 type PointCredit struct {
 	BroadcasterID    uint64
 	ViewerID         uint64
@@ -234,6 +228,11 @@ type WagerOutcome struct {
 	LimitExceeded bool
 }
 
+type LoyaltyFreeze interface {
+	FreezeSet(context.Context, FreezeCommand) (loyaltyrpc.FreezeView, bool, error)
+	FreezeRelease(context.Context, FreezeCommand) (loyaltyrpc.FreezeView, bool, error)
+}
+
 type LoyaltyStore interface {
 	Earn(earning PointEarning)
 	CounterBump(ctx context.Context, b CounterBump) (int64, error)
@@ -244,7 +243,6 @@ type LoyaltyStore interface {
 	BalanceSnapshot(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.BalanceSnapshot, error)
 	WatchStatus(ctx context.Context) (loyaltyrpc.WatchStatus, error)
 	BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error)
-	BalanceSpend(ctx context.Context, spend PointSpend) (bal loyaltyrpc.Balance, found, spent bool, err error)
 	BalanceTransfer(ctx context.Context, transfer PointTransfer) (bal loyaltyrpc.Balance, found, moved bool, err error)
 	Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error)
 	CounterCreate(ctx context.Context, broadcasterID uint64, name, scope string) (loyaltyrpc.Counter, error)

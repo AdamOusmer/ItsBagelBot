@@ -28,5 +28,6 @@
   "status.none": "Дуэль не идёт. Откройте общий банк командой !duel <amount> или вызовите кого-нибудь командой !duel @user <amount>.",
   "status.pot": "Дуэль с общим банком идёт. Участников: {duel:count}, в банке: {duel:pot} {duel:points}. Розыгрыш через ~{duel:secs} сек. Введите !duel <amount>, чтобы участвовать!",
   "usage": "Использование: !duel <amount|half|all>; !duel @user <amount|half|all>; !duel accept|decline|cancel",
-  "won": "Клинки опускаются. @{duel:winner} побеждает @{duel:loser} и забирает {duel:pot} {duel:points}!"
+  "won": "Клинки опускаются. @{duel:winner} побеждает @{duel:loser} и забирает {duel:pot} {duel:points}!",
+  "frozen": "@{duel:user} пока таблица лидеров заморожена, ставки в дуэлях приостановлены."
 }

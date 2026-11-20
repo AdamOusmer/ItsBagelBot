@@ -14,5 +14,12 @@
   "points.insufficient": "@{loyalty:user} du hast nur {loyalty:points} {loyalty:name}.",
   "points.self": "@{loyalty:user} du kannst dir nicht selbst {loyalty:name} geben.",
   "points.unknown": "@{loyalty:user} ich habe {loyalty:target} in diesem Kanal noch nicht gesehen.",
-  "points.usage": "Verwendung: !points; oder !points <set|add|remove> @user <amount>; oder !points give @user <amount>"
+  "points.usage": "Verwendung: !points; oder !points <set|add|remove> @user <amount>; oder !points give @user <amount>",
+  "freeze.started": "Die Rangliste pausiert für {loyalty:minutes} Min. Punkte und Zuschauerzeit zählen weiter.",
+  "freeze.active": "@{loyalty:user} die Rangliste pausiert bereits, noch {loyalty:minutes} Min.",
+  "freeze.usage": "Verwendung: !freeze [1-30]",
+  "unfreeze.done": "Die Rangliste wird wieder live aktualisiert.",
+  "unfreeze.none": "@{loyalty:user} die Rangliste pausiert nicht.",
+  "unfreeze.round": "@{loyalty:user} Eine Verlosung verwendet die pausierte Rangliste. Ziehe die Gewinner oder brich die Verlosung ab, um die Pause zu beenden.",
+  "points.frozen": "@{loyalty:user} solange die Rangliste pausiert, kannst du keine {loyalty:name} verschenken."
 }
