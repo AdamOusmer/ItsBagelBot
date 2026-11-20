@@ -42,7 +42,11 @@ func invalidGiveaway(message string) (modulesrpc.GiveawayReply, error) {
 }
 
 func validWinnerRef(roundID string, slot int) bool {
-	return roundID != "" && len(roundID) <= modulesrpc.GiveawayRoundIDMaxLen && validWinnerSlot(slot)
+	return validWinnerRoundID(roundID) && validWinnerSlot(slot)
+}
+
+func validWinnerRoundID(roundID string) bool {
+	return roundID != "" && len(roundID) <= modulesrpc.GiveawayRoundIDMaxLen
 }
 
 func validWinnerSlot(slot int) bool {
@@ -50,11 +54,19 @@ func validWinnerSlot(slot int) bool {
 }
 
 func validWinnerDetails(w modulesrpc.GiveawayWinner) bool {
-	return w.Prize != "" && len(w.Prize) <= modulesrpc.GiveawayPrizeMaxLen && validWinnerMetadata(w)
+	return validWinnerPrize(w) && validWinnerMetadata(w)
+}
+
+func validWinnerPrize(w modulesrpc.GiveawayWinner) bool {
+	return w.Prize != "" && len(w.Prize) <= modulesrpc.GiveawayPrizeMaxLen
 }
 
 func validWinnerMetadata(w modulesrpc.GiveawayWinner) bool {
-	return w.WonAt > 0 && w.ClaimedAt >= 0 && len(w.Login) <= modulesrpc.GiveawayLoginMaxLen
+	return len(w.Login) <= modulesrpc.GiveawayLoginMaxLen && validWinnerTimes(w)
+}
+
+func validWinnerTimes(w modulesrpc.GiveawayWinner) bool {
+	return w.WonAt > 0 && w.ClaimedAt >= 0
 }
 
 func parseWinner(w modulesrpc.GiveawayWinner) (repository.WinnerRow, bool) {
@@ -81,11 +93,16 @@ func (g giveawayRPC) record(ctx context.Context, req modulesrpc.GiveawayRequest,
 		return invalidGiveaway("too many giveaway winners")
 	}
 	rows := make([]repository.WinnerRow, len(req.Winners))
+	slots := make(map[uint8]struct{}, len(req.Winners))
 	for i, winner := range req.Winners {
 		row, ok := parseWinner(winner)
 		if !ok || winner.RoundID != req.Winners[0].RoundID {
 			return invalidGiveaway("invalid giveaway winner")
 		}
+		if _, duplicate := slots[row.Slot]; duplicate {
+			return invalidGiveaway("duplicate giveaway winner slot")
+		}
+		slots[row.Slot] = struct{}{}
 		rows[i] = row
 	}
 	return modulesrpc.GiveawayReply{}, g.repo.Record(ctx, userID, rows)
@@ -97,7 +114,7 @@ func (g giveawayRPC) deliver(ctx context.Context, req modulesrpc.GiveawayRequest
 	}
 	delivery := repository.WinnerDelivery{
 		WinnerRef: repository.WinnerRef{RoundID: req.RoundID, Slot: uint8(req.Slot)},
-		Delivered: req.Delivered, Note: req.DeliveryNote,
+		Delivered: req.Delivered,
 	}
 	found, err := g.repo.MarkDelivered(ctx, userID, delivery)
 	return modulesrpc.GiveawayReply{Found: found}, err
@@ -113,7 +130,11 @@ func (g giveawayRPC) recent(ctx context.Context, req modulesrpc.GiveawayRequest,
 }
 
 func validRecentPage(req modulesrpc.GiveawayRequest) bool {
-	return req.Limit >= 0 && req.Limit <= modulesrpc.GiveawayMaxRecentPage && req.Offset >= 0
+	return req.Offset >= 0 && validRecentLimit(req.Limit)
+}
+
+func validRecentLimit(limit int) bool {
+	return limit >= 0 && limit <= modulesrpc.GiveawayMaxRecentPage
 }
 
 func (g giveawayRPC) wonWithin(ctx context.Context, req modulesrpc.GiveawayRequest, userID uint64) (modulesrpc.GiveawayReply, error) {

@@ -13,6 +13,8 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+const giveawayWinnersRPCTimeout = 3 * time.Second
+
 type GiveawayWinnersStore interface {
 	Record(ctx context.Context, broadcasterID uint64, rows []modulesrpc.GiveawayWinner) error
 	WonWithin(ctx context.Context, broadcasterID uint64, viewers []uint64, since time.Time) ([]uint64, error)
@@ -29,7 +31,7 @@ func NewGiveawayWinnersRPC(nc *nats.Conn, modulesPrefix string) *GiveawayWinners
 }
 
 func (c *GiveawayWinnersRPC) call(ctx context.Context, verb string, req modulesrpc.GiveawayRequest) (modulesrpc.GiveawayReply, error) {
-	return bus.RequestJSONTimeout[modulesrpc.GiveawayReply](ctx, c.nc, c.prefix+"."+verb, req, recipeStateRPCTimeout)
+	return bus.RequestJSONTimeout[modulesrpc.GiveawayReply](ctx, c.nc, c.prefix+"."+verb, req, giveawayWinnersRPCTimeout)
 }
 
 func (c *GiveawayWinnersRPC) Record(ctx context.Context, broadcasterID uint64, rows []modulesrpc.GiveawayWinner) error {

@@ -31,8 +31,6 @@ const (
 	FieldClaimedAt = "claimed_at"
 	// FieldDeliveredAt holds the string denoting the delivered_at field in the database.
 	FieldDeliveredAt = "delivered_at"
-	// FieldDeliveryNote holds the string denoting the delivery_note field in the database.
-	FieldDeliveryNote = "delivery_note"
 	// Table holds the table name of the giveawaywinner in the database.
 	Table = "giveaway_winners"
 )
@@ -50,7 +48,6 @@ var Columns = []string{
 	FieldClaimed,
 	FieldClaimedAt,
 	FieldDeliveredAt,
-	FieldDeliveryNote,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -130,9 +127,4 @@ func ByClaimedAt(opts ...sql.OrderTermOption) OrderOption {
 // ByDeliveredAt orders the results by the delivered_at field.
 func ByDeliveredAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDeliveredAt, opts...).ToFunc()
-}
-
-// ByDeliveryNote orders the results by the delivery_note field.
-func ByDeliveryNote(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldDeliveryNote, opts...).ToFunc()
 }

@@ -63,7 +63,7 @@ func TestGiveawayWinnerDeliveryAndReplay(t *testing.T) {
 	repo, _, cutoff := seedGiveawayWinners(t)
 	ctx := t.Context()
 	ref := repository.WinnerRef{RoundID: "round-b", Slot: 1}
-	delivery := repository.WinnerDelivery{WinnerRef: ref, Delivered: true, Note: "Handed over on stream"}
+	delivery := repository.WinnerDelivery{WinnerRef: ref, Delivered: true}
 	found, err := repo.MarkDelivered(ctx, 2, delivery)
 	require.NoError(t, err)
 	require.False(t, found)
@@ -71,14 +71,21 @@ func TestGiveawayWinnerDeliveryAndReplay(t *testing.T) {
 	found, err = repo.MarkDelivered(ctx, 1, delivery)
 	require.NoError(t, err)
 	require.True(t, found)
+	original := readRoundWinner(t, repo)
+	require.Positive(t, original.DeliveredAt)
+
+	time.Sleep(time.Millisecond)
+	found, err = repo.MarkDelivered(ctx, 1, delivery)
+	require.NoError(t, err)
+	require.True(t, found)
+
 	replay := repository.WinnerRow{WinnerRef: ref, ViewerID: 30, Login: "other", Prize: "other", WonAt: cutoff}
 	require.NoError(t, repo.Record(ctx, 1, []repository.WinnerRow{replay}))
 	winner := readRoundWinner(t, repo)
-	require.Positive(t, winner.DeliveredAt)
 	require.Equal(t, modulesrpc.GiveawayWinner{
 		RoundID: "round-b", Slot: 1, ViewerID: "20", Login: "renamed", Prize: "keyboard",
 		WonAt: cutoff.UnixMilli(), Claimed: true, ClaimedAt: cutoff.UnixMilli(),
-		DeliveredAt: winner.DeliveredAt, DeliveryNote: delivery.Note,
+		DeliveredAt: original.DeliveredAt,
 	}, winner)
 
 	found, err = repo.MarkDelivered(ctx, 1, repository.WinnerDelivery{WinnerRef: ref})
@@ -86,7 +93,6 @@ func TestGiveawayWinnerDeliveryAndReplay(t *testing.T) {
 	require.True(t, found)
 	winner = readRoundWinner(t, repo)
 	require.Zero(t, winner.DeliveredAt)
-	require.Empty(t, winner.DeliveryNote)
 }
 
 func readRoundWinner(t *testing.T, repo *repository.GiveawayWinners) modulesrpc.GiveawayWinner {

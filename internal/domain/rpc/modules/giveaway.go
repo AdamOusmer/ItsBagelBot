@@ -24,16 +24,15 @@ const (
 )
 
 type GiveawayWinner struct {
-	RoundID      string `json:"round_id"`
-	Slot         int    `json:"slot"`
-	ViewerID     string `json:"viewer_id"`
-	Login        string `json:"login"`
-	Prize        string `json:"prize"`
-	WonAt        int64  `json:"won_at"`
-	Claimed      bool   `json:"claimed"`
-	ClaimedAt    int64  `json:"claimed_at,omitempty"`
-	DeliveredAt  int64  `json:"delivered_at,omitempty"`
-	DeliveryNote string `json:"delivery_note,omitempty"`
+	RoundID     string `json:"round_id"`
+	Slot        int    `json:"slot"`
+	ViewerID    string `json:"viewer_id"`
+	Login       string `json:"login"`
+	Prize       string `json:"prize"`
+	WonAt       int64  `json:"won_at"`
+	Claimed     bool   `json:"claimed"`
+	ClaimedAt   int64  `json:"claimed_at,omitempty"`
+	DeliveredAt int64  `json:"delivered_at,omitempty"`
 }
 
 type GiveawayRecentQuery struct {
@@ -43,16 +42,15 @@ type GiveawayRecentQuery struct {
 }
 
 type GiveawayRequest struct {
-	UserID       string           `json:"user_id"`
-	Winners      []GiveawayWinner `json:"winners,omitempty"`
-	RoundID      string           `json:"round_id,omitempty"`
-	Slot         int              `json:"slot,omitempty"`
-	Delivered    bool             `json:"delivered,omitempty"`
-	DeliveryNote string           `json:"delivery_note,omitempty"`
-	ViewerIDs    []string         `json:"viewer_ids,omitempty"`
-	SinceMs      int64            `json:"since_ms,omitempty"`
-	Limit        int              `json:"limit,omitempty"`
-	Offset       int              `json:"offset,omitempty"`
+	UserID    string           `json:"user_id"`
+	Winners   []GiveawayWinner `json:"winners,omitempty"`
+	RoundID   string           `json:"round_id,omitempty"`
+	Slot      int              `json:"slot,omitempty"`
+	Delivered bool             `json:"delivered,omitempty"`
+	ViewerIDs []string         `json:"viewer_ids,omitempty"`
+	SinceMs   int64            `json:"since_ms,omitempty"`
+	Limit     int              `json:"limit,omitempty"`
+	Offset    int              `json:"offset,omitempty"`
 }
 
 type GiveawayReply struct {

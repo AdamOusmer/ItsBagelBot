@@ -4985,7 +4985,6 @@ type GiveawayWinnerMutation struct {
 	claimed       *bool
 	claimed_at    *time.Time
 	delivered_at  *time.Time
-	delivery_note *string
 	clearedFields map[string]struct{}
 	done          bool
 	oldValue      func(context.Context) (*GiveawayWinner, error)
@@ -5536,55 +5535,6 @@ func (m *GiveawayWinnerMutation) ResetDeliveredAt() {
 	delete(m.clearedFields, giveawaywinner.FieldDeliveredAt)
 }
 
-// SetDeliveryNote sets the "delivery_note" field.
-func (m *GiveawayWinnerMutation) SetDeliveryNote(s string) {
-	m.delivery_note = &s
-}
-
-// DeliveryNote returns the value of the "delivery_note" field in the mutation.
-func (m *GiveawayWinnerMutation) DeliveryNote() (r string, exists bool) {
-	v := m.delivery_note
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldDeliveryNote returns the old "delivery_note" field's value of the GiveawayWinner entity.
-// If the GiveawayWinner object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GiveawayWinnerMutation) OldDeliveryNote(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldDeliveryNote is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldDeliveryNote requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldDeliveryNote: %w", err)
-	}
-	return oldValue.DeliveryNote, nil
-}
-
-// ClearDeliveryNote clears the value of the "delivery_note" field.
-func (m *GiveawayWinnerMutation) ClearDeliveryNote() {
-	m.delivery_note = nil
-	m.clearedFields[giveawaywinner.FieldDeliveryNote] = struct{}{}
-}
-
-// DeliveryNoteCleared returns if the "delivery_note" field was cleared in this mutation.
-func (m *GiveawayWinnerMutation) DeliveryNoteCleared() bool {
-	_, ok := m.clearedFields[giveawaywinner.FieldDeliveryNote]
-	return ok
-}
-
-// ResetDeliveryNote resets all changes to the "delivery_note" field.
-func (m *GiveawayWinnerMutation) ResetDeliveryNote() {
-	m.delivery_note = nil
-	delete(m.clearedFields, giveawaywinner.FieldDeliveryNote)
-}
-
 // Where appends a list predicates to the GiveawayWinnerMutation builder.
 func (m *GiveawayWinnerMutation) Where(ps ...predicate.GiveawayWinner) {
 	m.predicates = append(m.predicates, ps...)
@@ -5619,7 +5569,7 @@ func (m *GiveawayWinnerMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GiveawayWinnerMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 10)
 	if m.user_id != nil {
 		fields = append(fields, giveawaywinner.FieldUserID)
 	}
@@ -5650,9 +5600,6 @@ func (m *GiveawayWinnerMutation) Fields() []string {
 	if m.delivered_at != nil {
 		fields = append(fields, giveawaywinner.FieldDeliveredAt)
 	}
-	if m.delivery_note != nil {
-		fields = append(fields, giveawaywinner.FieldDeliveryNote)
-	}
 	return fields
 }
 
@@ -5681,8 +5628,6 @@ func (m *GiveawayWinnerMutation) Field(name string) (ent.Value, bool) {
 		return m.ClaimedAt()
 	case giveawaywinner.FieldDeliveredAt:
 		return m.DeliveredAt()
-	case giveawaywinner.FieldDeliveryNote:
-		return m.DeliveryNote()
 	}
 	return nil, false
 }
@@ -5712,8 +5657,6 @@ func (m *GiveawayWinnerMutation) OldField(ctx context.Context, name string) (ent
 		return m.OldClaimedAt(ctx)
 	case giveawaywinner.FieldDeliveredAt:
 		return m.OldDeliveredAt(ctx)
-	case giveawaywinner.FieldDeliveryNote:
-		return m.OldDeliveryNote(ctx)
 	}
 	return nil, fmt.Errorf("unknown GiveawayWinner field %s", name)
 }
@@ -5793,13 +5736,6 @@ func (m *GiveawayWinnerMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetDeliveredAt(v)
 		return nil
-	case giveawaywinner.FieldDeliveryNote:
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetDeliveryNote(v)
-		return nil
 	}
 	return fmt.Errorf("unknown GiveawayWinner field %s", name)
 }
@@ -5875,9 +5811,6 @@ func (m *GiveawayWinnerMutation) ClearedFields() []string {
 	if m.FieldCleared(giveawaywinner.FieldDeliveredAt) {
 		fields = append(fields, giveawaywinner.FieldDeliveredAt)
 	}
-	if m.FieldCleared(giveawaywinner.FieldDeliveryNote) {
-		fields = append(fields, giveawaywinner.FieldDeliveryNote)
-	}
 	return fields
 }
 
@@ -5897,9 +5830,6 @@ func (m *GiveawayWinnerMutation) ClearField(name string) error {
 		return nil
 	case giveawaywinner.FieldDeliveredAt:
 		m.ClearDeliveredAt()
-		return nil
-	case giveawaywinner.FieldDeliveryNote:
-		m.ClearDeliveryNote()
 		return nil
 	}
 	return fmt.Errorf("unknown GiveawayWinner nullable field %s", name)
@@ -5938,9 +5868,6 @@ func (m *GiveawayWinnerMutation) ResetField(name string) error {
 		return nil
 	case giveawaywinner.FieldDeliveredAt:
 		m.ResetDeliveredAt()
-		return nil
-	case giveawaywinner.FieldDeliveryNote:
-		m.ResetDeliveryNote()
 		return nil
 	}
 	return fmt.Errorf("unknown GiveawayWinner field %s", name)

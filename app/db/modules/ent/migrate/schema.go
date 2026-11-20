@@ -208,7 +208,6 @@ var (
 		{Name: "claimed", Type: field.TypeBool, Default: false},
 		{Name: "claimed_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(3)"}},
 		{Name: "delivered_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(3)"}},
-		{Name: "delivery_note", Type: field.TypeString, Nullable: true, Size: 2147483647},
 	}
 	// GiveawayWinnersTable holds the schema information for the "giveaway_winners" table.
 	GiveawayWinnersTable = &schema.Table{
