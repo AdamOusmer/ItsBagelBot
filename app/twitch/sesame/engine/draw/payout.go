@@ -7,15 +7,10 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"time"
 )
 
 func payWin(ctx context.Context, s *Store, w slotWork) Slot {
 	slot := w.slot
-	if !w.now.Before(w.round.SettledAt.Add(Pins.PayoutHorizon)) {
-		slot.State = SlotUnpaid
-		return slot
-	}
 	err := s.cfg.Payer.Pay(ctx, Payment{
 		Channel: w.round.Channel, Viewer: slot.Viewer, Login: slot.Login, Instance: slot.Instance,
 		Points: w.round.Terms.Prize.Points / int64(w.round.Winners),
@@ -23,18 +18,14 @@ func payWin(ctx context.Context, s *Store, w slotWork) Slot {
 	})
 	switch {
 	case err == nil:
-		slot.State = SlotPaid
+		return finalSlot(slot, SlotPaid)
 	case errors.Is(err, ErrPaymentRejected):
-		slot.State = SlotUnpaid
+		return finalSlot(slot, SlotUnpaid)
 	default:
 		return retry(slot, w.now.Add(payoutRetry))
 	}
-	slot.RetryAt = time.Time{}
-	return slot
 }
 
 func expireWin(_ context.Context, _ *Store, w slotWork) Slot {
-	slot := w.slot
-	slot.State = SlotNoShow
-	return slot
+	return finalSlot(w.slot, SlotNoShow)
 }

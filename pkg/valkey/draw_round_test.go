@@ -27,13 +27,13 @@ func testDrawKeys(t *testing.T, id string) RoundKeys {
 	return RoundKeys{
 		Joinable: prefix + "joinable", Active: prefix + "active", Due: prefix + "due", Claimable: prefix + "claimable",
 		Round: prefix + "round:" + id, Entries: prefix + "entries:" + id, Labels: prefix + "labels:" + id,
-		Slots: prefix + "slots:" + id, Lease: prefix + "lease:" + id,
+		Slots: prefix + "slots:" + id, Lease: prefix + "lease:" + id, Refused: prefix + "refused:" + id,
 	}
 }
 
 func cleanDrawKeys(t *testing.T, client valkey_go.Client, keys RoundKeys) {
 	t.Helper()
-	cleanKeys(t, client, keys.Joinable, keys.Active, keys.Due, keys.Claimable, keys.Round, keys.Entries, keys.Labels, keys.Slots, keys.Lease)
+	cleanKeys(t, client, keys.Joinable, keys.Active, keys.Due, keys.Claimable, keys.Round, keys.Entries, keys.Labels, keys.Slots, keys.Lease, keys.Refused)
 }
 
 func openTestDraw(t *testing.T, client valkey_go.Client, keys RoundKeys) {
@@ -178,6 +178,48 @@ func TestDrawRoundShift(t *testing.T) {
 	}
 }
 
+func TestDrawRoundRefuse(t *testing.T) {
+	client := valkeytest.Real(t)
+	ctx := t.Context()
+	keys := testDrawKeys(t, testRoundID)
+	cleanDrawKeys(t, client, keys)
+	for _, tc := range []struct {
+		viewer, reason string
+		first          bool
+		count          int64
+	}{
+		{testViewer, "role", true, 1},
+		{testViewer, "points", false, 1},
+		{"other", "watch", true, 2},
+	} {
+		first, count, err := keys.Refuse(ctx, client, Refusal{Viewer: tc.viewer, Reason: tc.reason, TTL: testDrawTTL})
+		require.NoError(t, err)
+		require.Equal(t, tc.first, first)
+		require.Equal(t, tc.count, count)
+	}
+	fields, err := HashAll(ctx, client, keys.Refused)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{testViewer: "role", "other": "watch"}, fields)
+	ttl, err := TTLSeconds(ctx, client, keys.Refused)
+	require.NoError(t, err)
+	require.Greater(t, ttl, int64(0))
+}
+
+func TestDrawPhaseRefreshesActiveExpiry(t *testing.T) {
+	client := valkeytest.Real(t)
+	ctx := t.Context()
+	keys := testDrawKeys(t, testRoundID)
+	cleanDrawKeys(t, client, keys)
+	openTestDraw(t, client, keys)
+	require.NoError(t, Expire(ctx, client, keys.Active, 2*time.Second))
+	got, err := keys.Shift(ctx, client, PhaseShift{From: testOpenPhase, To: "closing", TTL: testDrawTTL})
+	require.NoError(t, err)
+	require.True(t, got)
+	ttl, err := TTLSeconds(ctx, client, keys.Active)
+	require.NoError(t, err)
+	require.Greater(t, ttl, int64(2))
+}
+
 func TestDrawRoundTeardown(t *testing.T) {
 	client := valkeytest.Real(t)
 	ctx := t.Context()
@@ -200,6 +242,8 @@ func TestDrawRoundTeardown(t *testing.T) {
 	active, err := ActiveRounds(ctx, client, keys.Active)
 	require.NoError(t, err)
 	require.Equal(t, []string{testPeerID, testRoundID}, active)
+	_, _, err = keys.Refuse(ctx, client, Refusal{Viewer: testViewer, Reason: "role", TTL: testDrawTTL})
+	require.NoError(t, err)
 	require.NoError(t, NewKV(client).Set(ctx, Key{Name: keys.Lease, TTL: testDrawTTL}, "owner"))
 	for viewer, refs := range map[string]string{
 		testViewer: `["round-a:1:1","round-ab:1:1"]`, "old viewer": `["round-a:2:1"]`,
@@ -217,7 +261,7 @@ func TestDrawRoundTeardown(t *testing.T) {
 func assertDrawTeardown(t *testing.T, client valkey_go.Client, keys RoundKeys) {
 	t.Helper()
 	ctx := t.Context()
-	remaining, err := client.Do(ctx, ExistsCmd(client, keys.Round, keys.Entries, keys.Labels, keys.Slots, keys.Lease)).AsInt64()
+	remaining, err := client.Do(ctx, ExistsCmd(client, keys.Round, keys.Entries, keys.Labels, keys.Slots, keys.Lease, keys.Refused)).AsInt64()
 	require.NoError(t, err)
 	claimable, err := HashAll(ctx, client, keys.Claimable)
 	require.NoError(t, err)

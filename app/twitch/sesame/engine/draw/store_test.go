@@ -32,7 +32,27 @@ type fixture struct {
 func newFixture(t *testing.T, cfg draw.Config) fixture {
 	t.Helper()
 	client := valkeytest.Real(t)
-	return fixture{Store: draw.NewStore(client, cfg), client: client, t: t}
+	return fixture{Store: draw.NewStore(client, testConfig(cfg)), client: client, t: t}
+}
+
+type ignoreNotices struct{}
+
+func (ignoreNotices) Announce(context.Context, draw.Notice) {}
+
+func testConfig(cfg draw.Config) draw.Config {
+	if cfg.Verifier == nil {
+		cfg.Verifier = draw.PassAll{}
+	}
+	if cfg.Payer == nil {
+		cfg.Payer = testPayer{}
+	}
+	if cfg.Announcer == nil {
+		cfg.Announcer = ignoreNotices{}
+	}
+	if cfg.Winners == nil {
+		cfg.Winners = draw.DiscardWinnerRecords{}
+	}
+	return cfg
 }
 
 func (f fixture) start(s *draw.Store) {
@@ -50,9 +70,14 @@ func (f fixture) start(s *draw.Store) {
 
 func (f fixture) open(channel draw.ChannelID, terms draw.Terms) draw.Round {
 	f.t.Helper()
+	return f.openFor(channel, terms, time.Minute)
+}
+
+func (f fixture) openFor(channel draw.ChannelID, terms draw.Terms, window time.Duration) draw.Round {
+	f.t.Helper()
 	now, err := valkey.ServerNow(f.t.Context(), f.client)
 	require.NoError(f.t, err)
-	terms.ClosesAt = now.Add(time.Minute)
+	terms.ClosesAt = now.Add(window)
 	r, result, err := f.Open(f.t.Context(), draw.OpenRequest{Channel: channel, Terms: terms})
 	require.NoError(f.t, err)
 	require.Equal(f.t, draw.Opened, result)
@@ -84,7 +109,7 @@ func drawKeys(r draw.Round) valkey.RoundKeys {
 	id := string(r.ID)
 	return valkey.RoundKeys{Joinable: draw.JoinableKey(r.Channel), Active: "draw:active:" + channel,
 		Round: "draw:round:" + id, Entries: "draw:entries:" + id, Labels: "draw:labels:" + id,
-		Slots: "draw:slots:" + id, Claimable: "draw:claimable:" + channel, Due: "draw:due", Lease: "draw:lease:" + id}
+		Refused: "draw:refused:" + id, Slots: "draw:slots:" + id, Claimable: "draw:claimable:" + channel, Due: "draw:due", Lease: "draw:lease:" + id}
 }
 
 func TestDrawCloseAndReopen(t *testing.T) {
@@ -113,7 +138,7 @@ func waitRemoved(t *testing.T, client valkey_go.Client, keys valkey.RoundKeys) {
 		raw, err := keys.Metadata(t.Context(), client)
 		require.NoError(check, err)
 		require.Empty(check, raw)
-		ids, _, err := (valkey.DueIndex{Key: keys.Due}).Lapsed(t.Context(), client, 100)
+		ids, err := valkey.ActiveRounds(t.Context(), client, keys.Due)
 		require.NoError(check, err)
 		require.NotContains(check, ids, id)
 	}, 8*time.Second, 10*time.Millisecond)
@@ -153,7 +178,9 @@ type testPayer struct {
 }
 
 func (p testPayer) Pay(_ context.Context, payment draw.Payment) error {
-	p.paid <- payment
+	if p.paid != nil {
+		p.paid <- payment
+	}
 	return p.err
 }
 
@@ -168,7 +195,7 @@ func TestDrawResumesPayoutFromDueIndex(t *testing.T) {
 	f.join(r, "11")
 	f.join(r, "12")
 	f.close(r.Channel)
-	f.start(draw.NewStore(f.client, draw.Config{Payer: payer, Random: func(int64) int64 { return 0 }}))
+	f.start(draw.NewStore(f.client, testConfig(draw.Config{Payer: payer, Random: func(int64) int64 { return 0 }})))
 	got := []draw.Payment{take(t, payer.paid), take(t, payer.paid)}
 	slices.SortFunc(got, func(a, b draw.Payment) int { return cmp.Compare(a.Viewer, b.Viewer) })
 	for n, viewer := range []draw.ViewerID{"11", "12"} {
@@ -242,19 +269,31 @@ func verifyReplacement(t *testing.T, first, second []draw.Slot) {
 
 func (f fixture) expireLine(r draw.Round, slots []draw.Slot) {
 	f.t.Helper()
-	ctx := f.t.Context()
-	now, err := valkey.ServerNow(ctx, f.client)
+	now := f.now()
+	for i := range slots {
+		slots[i].Deadline = now.Add(-time.Second)
+	}
+	f.rewriteSlots(r, slots, now)
+}
+
+func (f fixture) now() time.Time {
+	f.t.Helper()
+	now, err := valkey.ServerNow(f.t.Context(), f.client)
 	require.NoError(f.t, err)
+	return now
+}
+
+func (f fixture) rewriteSlots(r draw.Round, slots []draw.Slot, wake time.Time) {
+	f.t.Helper()
 	batch := valkey.SlotBatch{RoundID: string(r.ID), Phase: "settling",
-		Wake: valkey.DrawWake{Channel: "draw:due:wake", At: now.Add(30 * time.Millisecond)}}
+		Wake: valkey.DrawWake{Channel: "draw:due:wake", At: wake}}
 	for _, slot := range slots {
-		slot.Deadline = now.Add(-time.Second)
 		raw, err := json.Marshal(slot)
 		require.NoError(f.t, err)
 		batch.Shifts = append(batch.Shifts, valkey.SlotShift{Slot: strconv.Itoa(slot.N), Next: string(raw),
-			Expect: valkey.SlotStamp{State: "won", Generation: slot.Generation}})
+			Expect: valkey.SlotStamp{State: string(slot.State), Generation: slot.Generation}})
 	}
-	applied, err := drawKeys(r).ShiftSlotBatch(ctx, f.client, batch)
+	applied, err := drawKeys(r).ShiftSlotBatch(f.t.Context(), f.client, batch)
 	require.NoError(f.t, err)
 	require.True(f.t, applied)
 }
@@ -359,4 +398,23 @@ func (f fixture) ageRaffle(r draw.Round) {
 	})
 	require.NoError(f.t, err)
 	require.True(f.t, applied)
+}
+
+func TestDrawStoreRequiresPorts(t *testing.T) {
+	cases := []struct {
+		name   string
+		remove func(*draw.Config)
+	}{
+		{"verifier", func(cfg *draw.Config) { cfg.Verifier = nil }},
+		{"payer", func(cfg *draw.Config) { cfg.Payer = nil }},
+		{"announcer", func(cfg *draw.Config) { cfg.Announcer = nil }},
+		{"winner sink", func(cfg *draw.Config) { cfg.Winners = nil }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := testConfig(draw.Config{})
+			tc.remove(&cfg)
+			require.Panics(t, func() { draw.NewStore(nil, cfg) })
+		})
+	}
 }

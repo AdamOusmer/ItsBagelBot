@@ -101,11 +101,17 @@ func (s *Store) latest(ctx context.Context, ch ChannelID, filter roundFilter) (R
 }
 
 func (s *Store) Settling(ctx context.Context, ch ChannelID, kind Kind) (Round, []Slot, bool, error) {
-	r, err := s.latest(ctx, ch, roundFilter{phase: PhaseSettling, kind: kind})
-	if err != nil || r.ID == "" {
+	ids, err := valkey.ActiveRounds(ctx, s.client, activeKey(ch))
+	if err != nil {
 		return Round{}, nil, false, err
 	}
-	raw, err := keysFor(ch, r.ID).View(ctx, s.client)
-	data, err := decodeSnapshot(r.ID, raw, err)
-	return data.round, data.slots, data.round.Phase == PhaseSettling, err
+	filter := roundFilter{phase: PhaseSettling, kind: kind}
+	for _, id := range ids {
+		raw, err := keysFor(ch, RoundID(id)).View(ctx, s.client)
+		data, err := decodeSnapshot(RoundID(id), raw, err)
+		if err != nil || filter.matches(data.round) {
+			return data.round, data.slots, err == nil, err
+		}
+	}
+	return Round{}, nil, false, nil
 }

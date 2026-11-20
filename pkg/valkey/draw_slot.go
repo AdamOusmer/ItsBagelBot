@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
-	"time"
 
 	valkey_go "github.com/valkey-io/valkey-go"
 )
@@ -26,7 +25,6 @@ const (
 )
 
 type SlotShift struct {
-	Phase  string
 	Slot   string
 	Expect SlotStamp
 	Next   string
@@ -94,16 +92,6 @@ end
 
 const drawSlotLua = drawClaimIndexLua + drawStampedSlotLua + drawSlotUpdateLua
 
-var drawSlotShiftScript = NewScript(drawSlotLua + `
-local round, slots, claimable = unpack(KEYS)
-local phase = ARGV[1]
-if redis.call('HGET', round, 'phase') ~= phase then return 0 end
-local args = {unpack(ARGV, 2)}
-if not matches_slot(slots, args) then return 0 end
-update_slot(round, slots, claimable, args)
-return 1
-`)
-
 func (s SlotShift) args() []string {
 	return []string{s.Slot, s.Expect.State, strconv.FormatInt(s.Expect.Generation, 10), s.Prior,
 		s.Next, strconv.Itoa(int(s.Index)), s.Viewer, s.Ref}
@@ -112,22 +100,25 @@ func (s SlotShift) args() []string {
 type SlotBatch struct {
 	RoundID, Phase, Action string
 	Revision               *string
+	Fields                 []FieldValue
 	Wake                   DrawWake
 	Shifts                 []SlotShift
 }
 
 var drawSlotBatchScript = NewScript(drawSlotLua + drawActionLua + drawWakeLua + `
 local round, slots, claimable, due = unpack(KEYS)
-local id, phase, action, wake, at, check_revision, revision = unpack(ARGV, 1, 7)
+local id, phase, action, wake, at, check_revision, revision, fields = unpack(ARGV, 1, 8)
 if redis.call('HGET', round, 'phase') ~= phase then return 0 end
 if check_revision == 'true' and (redis.call('HGET', round, 'revision') or '') ~= revision then return 0 end
+local next_shift = 9 + 2 * tonumber(fields)
 local changes = {}
-for i = 8, #ARGV, 8 do
+for i = next_shift, #ARGV, 8 do
   local args = {unpack(ARGV, i, i + 7)}
   if not matches_slot(slots, args) then return 0 end
   changes[#changes + 1] = args
 end
 for _, args in ipairs(changes) do update_slot(round, slots, claimable, args) end
+if fields ~= '0' then redis.call('HSET', round, unpack(ARGV, 9, next_shift - 1)) end
 add_action(round, action)
 wake_draw(round, due, id, wake, at)
 return 1
@@ -140,33 +131,13 @@ func (k RoundKeys) ShiftSlotBatch(ctx context.Context, client valkey_go.Client, 
 		revision = *b.Revision
 	}
 	args := []string{b.RoundID, b.Phase, b.Action, b.Wake.Channel, strconv.FormatInt(b.Wake.At.UnixMilli(), 10),
-		strconv.FormatBool(b.Revision != nil), revision}
+		strconv.FormatBool(b.Revision != nil), revision, strconv.Itoa(len(b.Fields))}
+	args = appendDrawFields(args, b.Fields)
 	for _, shift := range b.Shifts {
 		args = append(args, shift.args()...)
 	}
 	n, err := drawSlotBatchScript.Exec(ctx, client, keys, args).AsInt64()
 	return n == 1, err
-}
-
-func (k RoundKeys) ShiftSlots(ctx context.Context, client valkey_go.Client, shifts []SlotShift) ([]bool, error) {
-	calls := make([]ScriptCall, 0, len(shifts))
-	for _, s := range shifts {
-		calls = append(calls, ScriptCall{
-			Script: drawSlotShiftScript,
-			Key:    k.Round,
-			Also:   []string{k.Slots, k.Claimable},
-			Args:   append([]string{s.Phase}, s.args()...),
-		})
-	}
-	applied := make([]bool, 0, len(shifts))
-	for _, result := range RunScripts(ctx, client, calls) {
-		n, err := result.AsInt64()
-		if err != nil {
-			return nil, err
-		}
-		applied = append(applied, n == 1)
-	}
-	return applied, nil
 }
 
 type ClaimRef struct {
@@ -178,7 +149,6 @@ type ClaimRef struct {
 type SlotClaim struct {
 	Claimable, Viewer string
 	Refs              []ClaimRef
-	Now               time.Time
 	Due, Wake         string
 }
 
@@ -199,7 +169,7 @@ for _, ref in ipairs(refs) do indexed[ref] = true end
 
 local function claim(slots, round, ref, field, generation)
   if not indexed[ref] then return 3 end
-  if wake ~= '' and redis.call('HGET', round, 'phase') ~= 'settling' then return 3 end
+  if redis.call('HGET', round, 'phase') ~= 'settling' then return 3 end
   local slot = stamped_slot(slots, field, 'won', generation)
   if not slot then return 3 end
   if slot.viewer_id and slot.viewer_id ~= viewer then return 3 end
@@ -227,7 +197,7 @@ func ClaimSlots(ctx context.Context, client valkey_go.Client, c SlotClaim) ([]in
 	keys := []string{c.Claimable, drawOptionalKey(c.Due, c.Claimable)}
 	args := []string{c.Viewer, c.Wake}
 	for _, ref := range c.Refs {
-		keys = append(keys, ref.Slots, drawOptionalKey(ref.Round, ref.Slots))
+		keys = append(keys, ref.Slots, ref.Round)
 		args = append(args, ref.Ref, ref.Slot, strconv.FormatInt(ref.Generation, 10), ref.RoundID)
 	}
 	return drawClaimSlotsScript.Exec(ctx, client, keys, args).AsIntSlice()

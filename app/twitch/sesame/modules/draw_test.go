@@ -21,6 +21,8 @@ import (
 type fakeDraw struct {
 	engine.DrawStore
 	joinable bool
+	closing  bool
+	lookups  int
 	joined   draw.JoinRequest
 	claims   draw.ClaimOutcome
 	claimed  draw.ViewerID
@@ -28,7 +30,11 @@ type fakeDraw struct {
 }
 
 func (d *fakeDraw) Joinable(context.Context, draw.ChannelID) (draw.Round, bool, error) {
-	return draw.Round{ID: "active"}, d.joinable, nil
+	d.lookups++
+	if d.joinable || d.closing {
+		return draw.Round{ID: "active"}, d.joinable, nil
+	}
+	return draw.Round{}, false, nil
 }
 
 func (d *fakeDraw) Join(_ context.Context, req draw.JoinRequest) (draw.JoinOutcome, error) {
@@ -36,17 +42,21 @@ func (d *fakeDraw) Join(_ context.Context, req draw.JoinRequest) (draw.JoinOutco
 	return draw.JoinOutcome{Open: true, Added: true}, nil
 }
 
-func (d *fakeDraw) CanClaim(context.Context, draw.ChannelID, draw.ViewerID) (bool, error) {
-	return d.claims != (draw.ClaimOutcome{}), nil
+func (d *fakeDraw) LookupClaims(_ context.Context, _ draw.ChannelID, viewer draw.ViewerID) (draw.ClaimLookup, error) {
+	d.lookups++
+	if d.claims != (draw.ClaimOutcome{}) {
+		d.claimed = viewer
+	}
+	return draw.ClaimLookup{Found: d.claims != (draw.ClaimOutcome{})}, nil
 }
 
-func (d *fakeDraw) Claim(_ context.Context, _ draw.ChannelID, viewer draw.ViewerID) (draw.ClaimOutcome, error) {
-	d.claimed = viewer
+func (d *fakeDraw) ClaimResolved(_ context.Context, _ draw.ClaimLookup) (draw.ClaimOutcome, error) {
 	return d.claims, nil
 }
 
 func (d *fakeDraw) Settling(context.Context, draw.ChannelID, draw.Kind) (draw.Round, []draw.Slot, bool, error) {
-	return draw.Round{Terms: draw.Terms{Kind: draw.KindRaffle}}, d.slots, len(d.slots) != 0, nil
+	d.lookups++
+	return draw.Round{ID: "settling", Terms: draw.Terms{Kind: draw.KindRaffle}}, d.slots, len(d.slots) != 0, nil
 }
 
 type drawChatResult struct {
@@ -70,6 +80,8 @@ func TestDrawSharedCommandsProcess(t *testing.T) {
 	cases := []drawChatCase{
 		{name: "new round beats legacy and queue", command: "join", draw: fakeDraw{joinable: true}, raffle: legacy, views: queue,
 			want: drawChatResult{joined: draw.JoinRequest{Channel: 2, Round: "active", Viewer: "9", Login: "viewer", Weight: 100}}},
+		{name: "round past its deadline claims join before the sweep", command: "join", draw: fakeDraw{closing: true}, views: queue,
+			want: drawChatResult{message: "The draw has closed."}},
 		{name: "legacy open beats queue even with raffle disabled", command: "join", raffle: legacy, views: queue,
 			want: drawChatResult{legacyJoined: []string{"9"}}},
 		{name: "queue receives unclaimed join", command: "join", views: queue,
@@ -79,7 +91,7 @@ func TestDrawSharedCommandsProcess(t *testing.T) {
 		{name: "legacy claim remains available with raffle disabled", command: "claim",
 			raffle: fakeRaffle{lastFound: true, lastResult: legacy.lastResult, claim: engine.ClaimOk},
 			views:  []projection.ModuleView{{Name: raffleModuleName, Configs: []byte(raffleClaimOn)}},
-			want:   drawChatResult{message: "your prize is confirmed", legacyClaim: "9", claimed: "9"}},
+			want:   drawChatResult{message: "your prize is confirmed", legacyClaim: "9"}},
 		{name: "new winner shows unpaid slots before legacy results", command: "winner", raffle: legacy,
 			draw: fakeDraw{slots: []draw.Slot{{Login: "new", State: draw.SlotUnpaid}}},
 			want: drawChatResult{message: "Could not pay: @new."}},
@@ -112,6 +124,7 @@ func (tc drawChatCase) run(t *testing.T) {
 	body, err := codec.Marshal(event)
 	require.NoError(t, err)
 	require.NoError(t, p.Process(bus.NewMessage("draw-command", body)))
+	require.Equal(t, 1, tc.draw.lookups)
 	tc.check(t, pub)
 }
 

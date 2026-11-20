@@ -296,7 +296,10 @@ type DrawStore interface {
 	Cancel(context.Context, draw.ModAction) (bool, error)
 	EndSlots(context.Context, draw.SlotAction) (int, error)
 	Reroll(context.Context, draw.SlotAction) (int, error)
-	CanClaim(context.Context, draw.ChannelID, draw.ViewerID) (bool, error)
+	SkipRule(context.Context, draw.SlotAction) (int, error)
+	LookupClaims(context.Context, draw.ChannelID, draw.ViewerID) (draw.ClaimLookup, error)
+	ClaimResolved(context.Context, draw.ClaimLookup) (draw.ClaimOutcome, error)
 	Claim(context.Context, draw.ChannelID, draw.ViewerID) (draw.ClaimOutcome, error)
 	Settling(context.Context, draw.ChannelID, draw.Kind) (draw.Round, []draw.Slot, bool, error)
+	Live(context.Context, draw.ChannelID) ([]draw.RoundView, error)
 }

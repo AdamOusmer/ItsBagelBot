@@ -17,24 +17,41 @@ type ClaimOutcome struct {
 	Late    int
 }
 
-func (s *Store) CanClaim(ctx context.Context, ch ChannelID, viewer ViewerID) (bool, error) {
-	refs, err := valkey.ReadClaimRefs(ctx, s.client, claimableKey(ch), string(viewer))
-	return len(refs) > 0, err
+type ClaimLookup struct {
+	Found bool
+	spec  valkey.SlotClaim
 }
 
-func (s *Store) Claim(ctx context.Context, ch ChannelID, viewer ViewerID) (ClaimOutcome, error) {
+func (s *Store) CanClaim(ctx context.Context, ch ChannelID, viewer ViewerID) (bool, error) {
+	lookup, err := s.LookupClaims(ctx, ch, viewer)
+	return lookup.Found, err
+}
+
+func (s *Store) LookupClaims(ctx context.Context, ch ChannelID, viewer ViewerID) (ClaimLookup, error) {
 	key := claimableKey(ch)
 	raw, err := valkey.ReadClaimRefs(ctx, s.client, key, string(viewer))
 	if err != nil || len(raw) == 0 {
-		return ClaimOutcome{}, err
+		return ClaimLookup{}, err
 	}
 	refs, err := decodeRefs(raw)
+	return ClaimLookup{Found: true, spec: valkey.SlotClaim{
+		Claimable: key, Viewer: string(viewer), Refs: refs, Due: dueKey, Wake: wakeChannel,
+	}}, err
+}
+
+func (s *Store) Claim(ctx context.Context, ch ChannelID, viewer ViewerID) (ClaimOutcome, error) {
+	lookup, err := s.LookupClaims(ctx, ch, viewer)
 	if err != nil {
 		return ClaimOutcome{}, err
 	}
-	codes, err := valkey.ClaimSlots(ctx, s.client, valkey.SlotClaim{
-		Claimable: key, Viewer: string(viewer), Refs: refs, Due: dueKey, Wake: wakeChannel,
-	})
+	return s.ClaimResolved(ctx, lookup)
+}
+
+func (s *Store) ClaimResolved(ctx context.Context, lookup ClaimLookup) (ClaimOutcome, error) {
+	if len(lookup.spec.Refs) == 0 {
+		return ClaimOutcome{}, nil
+	}
+	codes, err := valkey.ClaimSlots(ctx, s.client, lookup.spec)
 	var out ClaimOutcome
 	for _, code := range codes {
 		switch code {

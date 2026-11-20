@@ -11,9 +11,10 @@ import (
 	"ItsBagelBot/internal/valkeytest"
 
 	"github.com/stretchr/testify/require"
+	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-func TestDrawShiftSlots(t *testing.T) {
+func TestDrawSlotBatchClaimIndex(t *testing.T) {
 	client := valkeytest.Real(t)
 	ctx := t.Context()
 	keys := testDrawKeys(t, testRoundID)
@@ -30,7 +31,7 @@ func TestDrawShiftSlots(t *testing.T) {
 	require.True(t, ok)
 
 	type result struct {
-		applied []bool
+		applied bool
 		slot    string
 		refs    []string
 		expires bool
@@ -38,25 +39,28 @@ func TestDrawShiftSlots(t *testing.T) {
 	cases := []struct {
 		name   string
 		shifts []SlotShift
+		phase  string
 		want   result
 	}{
 		{"stale batch", []SlotShift{
-			{Phase: "settling", Expect: SlotStamp{State: "pending", Generation: 0}, Next: won, Index: ClaimAdd},
-			{Phase: "closing", Expect: SlotStamp{State: "pending", Generation: 1}, Next: won, Index: ClaimAdd},
-		}, result{[]bool{false, false}, pending, nil, false}},
+			{Expect: SlotStamp{State: "pending", Generation: 0}, Next: won, Index: ClaimAdd},
+		}, "settling", result{false, pending, nil, false}},
+		{"wrong phase", []SlotShift{
+			{Expect: SlotStamp{State: "pending", Generation: 1}, Next: won, Index: ClaimAdd},
+		}, "closing", result{false, pending, nil, false}},
 		{"add claim ref", []SlotShift{
-			{Phase: "settling", Expect: SlotStamp{State: "pending", Generation: 1}, Next: won, Index: ClaimAdd},
-		}, result{[]bool{true}, won, []string{ref}, true}},
+			{Expect: SlotStamp{State: "pending", Generation: 1}, Next: won, Index: ClaimAdd},
+		}, "settling", result{true, won, []string{ref}, true}},
 		{"drop claim ref", []SlotShift{
-			{Phase: "settling", Expect: SlotStamp{State: "won", Generation: 1}, Next: rerolled, Index: ClaimDrop},
-		}, result{[]bool{true}, rerolled, nil, false}},
+			{Expect: SlotStamp{State: "won", Generation: 1}, Next: rerolled, Index: ClaimDrop},
+		}, "settling", result{true, rerolled, nil, false}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			for i := range tc.shifts {
 				tc.shifts[i].Slot, tc.shifts[i].Viewer, tc.shifts[i].Ref = "1", testViewer, ref
 			}
-			applied, err := keys.ShiftSlots(ctx, client, tc.shifts)
+			applied, err := keys.ShiftSlotBatch(ctx, client, SlotBatch{Phase: tc.phase, Shifts: tc.shifts})
 			require.NoError(t, err)
 			read, err := keys.Read(ctx, client)
 			require.NoError(t, err)
@@ -66,6 +70,13 @@ func TestDrawShiftSlots(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.want, result{applied, read.Slots["1"], refs, ttl > 0})
 		})
+	}
+}
+
+func setDrawClaimPhases(t *testing.T, client valkey_go.Client, keys, peer RoundKeys) {
+	t.Helper()
+	for key, phase := range map[string]string{keys.Round: "settling", peer.Round: "closing"} {
+		require.NoError(t, (HashField{Key: key, Field: "phase"}).Set(t.Context(), client, phase))
 	}
 }
 
@@ -81,7 +92,8 @@ func TestDrawClaimSlots(t *testing.T) {
 	ctx := t.Context()
 	keys, peer := testDrawKeys(t, testRoundID), testDrawKeys(t, testPeerID)
 	cleanDrawKeys(t, client, keys)
-	cleanKeys(t, client, peer.Slots)
+	cleanKeys(t, client, peer.Slots, peer.Round)
+	setDrawClaimPhases(t, client, keys, peer)
 	now, err := ServerNow(ctx, client)
 	require.NoError(t, err)
 	future := now.Add(testDrawTTL).UnixMilli()
@@ -102,10 +114,10 @@ func TestDrawClaimSlots(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, claimField.Set(ctx, client, string(indexed)))
 	refs := []ClaimRef{
-		{Slots: keys.Slots, Ref: firstRef, Slot: "1", Generation: 1},
-		{Slots: peer.Slots, Ref: peerRef, Slot: "1", Generation: 1},
-		{Slots: keys.Slots, Ref: lateRef, Slot: "2", Generation: 1},
-		{Slots: keys.Slots, Ref: staleRef, Slot: "3", Generation: 1},
+		{Slots: keys.Slots, Round: keys.Round, Ref: firstRef, Slot: "1", Generation: 1},
+		{Slots: peer.Slots, Round: peer.Round, Ref: peerRef, Slot: "1", Generation: 1},
+		{Slots: keys.Slots, Round: keys.Round, Ref: lateRef, Slot: "2", Generation: 1},
+		{Slots: keys.Slots, Round: keys.Round, Ref: staleRef, Slot: "3", Generation: 1},
 	}
 	type result struct {
 		codes     []int64
@@ -116,26 +128,24 @@ func TestDrawClaimSlots(t *testing.T) {
 		want         result
 	}{
 		{"unindexed viewer", "other viewer", result{[]int64{SlotClaimGone, SlotClaimGone, SlotClaimGone, SlotClaimGone}, []string{firstRef, peerRef, lateRef, staleRef}}},
-		{"claim once", testViewer, result{[]int64{SlotClaimed, SlotClaimed, SlotClaimLate, SlotClaimGone}, []string{lateRef, staleRef}}},
-		{"replay", testViewer, result{[]int64{SlotClaimGone, SlotClaimGone, SlotClaimLate, SlotClaimGone}, []string{lateRef, staleRef}}},
+		{"claim once", testViewer, result{[]int64{SlotClaimed, SlotClaimGone, SlotClaimLate, SlotClaimGone}, []string{peerRef, lateRef, staleRef}}},
+		{"replay", testViewer, result{[]int64{SlotClaimGone, SlotClaimGone, SlotClaimLate, SlotClaimGone}, []string{peerRef, lateRef, staleRef}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			codes, err := ClaimSlots(ctx, client, SlotClaim{Claimable: keys.Claimable, Viewer: tc.viewer, Refs: refs, Now: now.Add(time.Hour)})
+			codes, err := ClaimSlots(ctx, client, SlotClaim{Claimable: keys.Claimable, Viewer: tc.viewer, Refs: refs})
 			require.NoError(t, err)
 			remaining, err := ReadClaimRefs(ctx, client, keys.Claimable, testViewer)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, result{codes, remaining})
 		})
 	}
-	for _, round := range []RoundKeys{keys, peer} {
-		read, err := round.Read(ctx, client)
-		require.NoError(t, err)
-		var claimed drawClaimTestSlot
-		require.NoError(t, json.Unmarshal([]byte(read.Slots["1"]), &claimed))
-		require.True(t, claimed.ClaimedAt >= now.UnixMilli() && claimed.ClaimedAt < future)
-		require.Equal(t, drawClaimTestSlot{State: "claimed", Generation: 1, Deadline: future, ClaimedAt: claimed.ClaimedAt}, claimed)
-	}
+	read, err := keys.Read(ctx, client)
+	require.NoError(t, err)
+	var claimed drawClaimTestSlot
+	require.NoError(t, json.Unmarshal([]byte(read.Slots["1"]), &claimed))
+	require.True(t, claimed.ClaimedAt >= now.UnixMilli() && claimed.ClaimedAt < future)
+	require.Equal(t, drawClaimTestSlot{State: "claimed", Generation: 1, Deadline: future, ClaimedAt: claimed.ClaimedAt}, claimed)
 }
 
 func TestDrawShiftSlotBatchIsAtomic(t *testing.T) {

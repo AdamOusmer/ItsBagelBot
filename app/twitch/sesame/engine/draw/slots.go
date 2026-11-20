@@ -6,6 +6,7 @@ package draw
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"strconv"
 	"time"
@@ -38,13 +39,14 @@ type slotWork struct {
 	now       time.Time
 	candidate ViewerID
 	login     string
+	entry     Entry
 }
 
 type slotStep func(context.Context, *Store, slotWork) Slot
 
 func slotSteps(r Round) map[SlotState]slotStep {
 	return map[SlotState]slotStep{
-		SlotPending: reservePick, SlotVerifying: verifyPick, SlotWon: settlers[r.Terms.Kind].afterWin, SlotNoShow: rerollNoShow,
+		SlotPending: reservePick, SlotVerifying: verifyPick, SlotWon: settlers[r.Terms.Kind].afterWin, SlotNoShow: stepNoShow,
 	}
 }
 
@@ -75,7 +77,7 @@ func (s *Store) slotChanges(ctx context.Context, data snapshot, now time.Time) [
 	var tasks errgroup.Group
 	for i, w := range work {
 		tasks.Go(func() error {
-			next := steps[w.slot.State](ctx, s, w)
+			next := s.stepSlot(ctx, w, steps[w.slot.State])
 			changes[i] = slotChange{prior: w.slot, next: next, index: claimIndex(w.slot, next)}
 			return nil
 		})
@@ -84,8 +86,22 @@ func (s *Store) slotChanges(ctx context.Context, data snapshot, now time.Time) [
 	return slices.DeleteFunc(changes, func(c slotChange) bool { return c.next.State == "" })
 }
 
+func (s *Store) stepSlot(ctx context.Context, w slotWork, step slotStep) Slot {
+	if w.now.Before(settlementDeadline(w.round)) {
+		return step(ctx, s, w)
+	}
+	if w.round.Terms.Kind == KindRaffle {
+		return finalSlot(w.slot, SlotUnpaid)
+	}
+	return finalSlot(w.slot, SlotEnded)
+}
+
 func (s *Store) prepareSlots(data snapshot, now time.Time) []slotWork {
 	drawn := drawnViewers(data.slots)
+	weights := make(map[ViewerID]int64, len(data.stored.Entries))
+	for _, entry := range data.stored.Entries {
+		weights[ViewerID(entry.Member)] = entry.Score
+	}
 	var work []slotWork
 	for _, slot := range data.slots {
 		at := slotDue(data.round, slot, now)
@@ -93,10 +109,13 @@ func (s *Store) prepareSlots(data snapshot, now time.Time) []slotWork {
 			continue
 		}
 		w := slotWork{round: data.round, slot: slot, now: now}
-		if slot.State == SlotPending {
+		switch slot.State {
+		case SlotPending:
 			w.candidate, _ = pick(data.stored.Entries, drawn, s.cfg.Random)
 			w.login = data.stored.Labels[string(w.candidate)]
 			drawn[w.candidate] = true
+		case SlotVerifying:
+			w.entry.Weight = weights[slot.Viewer]
 		}
 		work = append(work, w)
 	}
@@ -125,20 +144,32 @@ func reservePick(ctx context.Context, s *Store, w slotWork) Slot {
 func verifyPick(ctx context.Context, s *Store, w slotWork) Slot {
 	slot := w.slot
 	if !w.now.Before(slot.Since.Add(Pins.VerifyStuck)) {
-		return Slot{}
+		return finalSlot(slot, SlotEnded)
 	}
-	verdict, err := s.cfg.Verifier.Verify(ctx, Check{Round: w.round, Viewer: slot.Viewer, Login: slot.Login})
+	verdict, err := s.cfg.Verifier.Verify(ctx, Check{Round: w.round, Viewer: slot.Viewer, Login: slot.Login, Entry: w.entry})
 	if err != nil {
-		return retry(slot, earlier(w.now.Add(verifyRetry), slot.Since.Add(Pins.VerifyStuck)))
+		return retry(slot, w.now.Add(verifyDelay(err)))
 	}
-	slot.RetryAt = time.Time{}
 	if verdict.Pass {
-		slot.State = SlotWon
-		return slot
+		return finalSlot(slot, SlotWon)
 	}
 	slot.History = slices.Clone(slot.History)
-	slot.History[len(slot.History)-1].Reason = verdict.Reason
+	candidate := &slot.History[len(slot.History)-1]
+	candidate.Reason, candidate.Detail = verdict.Reason, verdict.Detail
 	return pendingSlot(slot, slot.Generation)
+}
+
+func verifyDelay(err error) time.Duration {
+	var hint interface{ RetryAfter() time.Duration }
+	if errors.As(err, &hint) {
+		return max(hint.RetryAfter(), time.Second)
+	}
+	return verifyRetry
+}
+
+func finalSlot(slot Slot, state SlotState) Slot {
+	slot.State, slot.RetryAt = state, time.Time{}
+	return slot
 }
 
 func retry(slot Slot, at time.Time) Slot {
@@ -154,12 +185,15 @@ func rerolled(slot Slot) Slot {
 	return pendingSlot(slot, slot.Generation+1)
 }
 
-func rerollNoShow(_ context.Context, _ *Store, w slotWork) Slot {
-	return rerolled(w.slot)
+func stepNoShow(_ context.Context, _ *Store, w slotWork) Slot {
+	if w.round.Terms.RerollNoShows && rerollableNoShow(w.slot, w.now) {
+		return rerolled(w.slot)
+	}
+	return finalSlot(w.slot, SlotEnded)
 }
 
 func claimIndex(prior, next Slot) valkey.ClaimIndex {
-	if next.State == SlotNoShow {
+	if next.State != SlotWon {
 		return claimDrop(prior)
 	}
 	return valkey.ClaimKeep
@@ -186,6 +220,7 @@ func (s *Store) commitSlots(ctx context.Context, data snapshot, batch slotBatch)
 	revision := data.stored.Round["revision"]
 	spec := valkey.SlotBatch{Revision: &revision, RoundID: string(r.ID), Phase: string(PhaseSettling), Action: batch.action,
 		Wake: valkey.DrawWake{Channel: wakeChannel, At: batch.now}}
+	spec.Fields = workingFields(data, batch)
 	for _, change := range batch.changes {
 		field := strconv.Itoa(change.prior.N)
 		raw, err := json.Marshal(change.next)
@@ -200,6 +235,18 @@ func (s *Store) commitSlots(ctx context.Context, data snapshot, batch slotBatch)
 	return keysFor(r.Channel, r.ID).ShiftSlotBatch(ctx, s.client, spec)
 }
 
+func workingFields(data snapshot, batch slotBatch) []valkey.FieldValue {
+	if hasWorkingSlots(data, batch.now) {
+		return nil
+	}
+	for _, change := range batch.changes {
+		if slotWorking(data.round, change.next, batch.now) {
+			return []valkey.FieldValue{timeField("working_since", batch.now), {Field: "verifying_notice"}}
+		}
+	}
+	return nil
+}
+
 func indexedSlot(change slotChange) Slot {
 	if change.index == valkey.ClaimAdd {
 		return change.next
@@ -209,7 +256,7 @@ func indexedSlot(change slotChange) Slot {
 
 func (s *Store) announceChanges(ctx context.Context, r Round, changes []slotChange) {
 	events := map[SlotState]NoticeEvent{
-		settlers[r.Terms.Kind].announceOn: NoticeWinners, SlotNoShow: NoticeNoShow, SlotUnfilled: NoticeUnfilled,
+		settlers[r.Terms.Kind].announceOn: NoticeWinners, SlotNoShow: NoticeNoShow, SlotUnfilled: NoticeUnfilled, SlotUnpaid: NoticeUnpaid,
 	}
 	notices := make(map[NoticeEvent][]Slot)
 	for _, change := range changes {
@@ -217,7 +264,7 @@ func (s *Store) announceChanges(ctx context.Context, r Round, changes []slotChan
 			notices[event] = append(notices[event], change.next)
 		}
 	}
-	for _, event := range []NoticeEvent{NoticeNoShow, NoticeWinners, NoticeUnfilled} {
+	for _, event := range []NoticeEvent{NoticeNoShow, NoticeWinners, NoticeUnfilled, NoticeUnpaid} {
 		if slots := notices[event]; len(slots) > 0 {
 			s.cfg.Announcer.Announce(ctx, Notice{Event: event, Round: r, Slots: slots})
 		}

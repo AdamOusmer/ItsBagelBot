@@ -34,6 +34,8 @@ type SlotAction struct {
 	Channel ChannelID
 	Actor   ViewerID
 	Slot    int
+	Round   RoundID
+	Kind    Kind
 }
 
 func (s *Store) Close(ctx context.Context, req CloseRequest) (bool, error) {
@@ -75,7 +77,7 @@ func (s *Store) Extend(ctx context.Context, req ExtendRequest) (bool, error) {
 	if next.After(bound) {
 		return false, nil
 	}
-	shift := phaseShift(r, PhaseOpen, next)
+	shift := phaseShift(r, PhaseOpen, now)
 	shift.Match = timeField("closes_at", r.ClosesAt)
 	shift.Fields = []valkey.FieldValue{timeField("closes_at", next)}
 	return s.amend(ctx, r, shift, Action{Kind: "extend", Actor: req.Actor, At: now, Value: shift.Fields[0].Value})
@@ -129,7 +131,21 @@ func (s *Store) amend(ctx context.Context, r Round, shift valkey.PhaseShift, act
 		return false, err
 	}
 	shift.Action = string(raw)
-	return keysFor(r.Channel, r.ID).Shift(ctx, s.client, shift)
+	return s.shiftPhase(ctx, r, shift)
+}
+
+func (s *Store) shiftPhase(ctx context.Context, r Round, shift valkey.PhaseShift) (bool, error) {
+	ok, err := keysFor(r.Channel, r.ID).Shift(ctx, s.client, shift)
+	if ok && shift.Release {
+		s.leftOpen(ctx, r)
+	}
+	return ok, err
+}
+
+func (s *Store) leftOpen(ctx context.Context, r Round) {
+	if s.cfg.Phases != nil {
+		s.cfg.Phases.LeftOpen(ctx, r)
+	}
 }
 
 func phaseShift(r Round, to Phase, at time.Time) valkey.PhaseShift {
@@ -145,22 +161,8 @@ func (s *Store) Reroll(ctx context.Context, action SlotAction) (int, error) {
 	return s.changeSlots(ctx, action, "reroll")
 }
 
-func (s *Store) changeSlots(ctx context.Context, req SlotAction, kind slotActionKind) (int, error) {
-	r, err := s.latest(ctx, req.Channel, roundFilter{phase: PhaseSettling, kind: KindGiveaway})
-	if err != nil || r.ID == "" {
-		return 0, err
-	}
-	data, err := s.read(ctx, r.ID)
-	if err != nil || data.round.Phase != PhaseSettling {
-		return 0, err
-	}
-	now, err := valkey.ServerNow(ctx, s.client)
-	if err != nil {
-		return 0, err
-	}
-	change := slotEdit{action: Action{Kind: string(kind), Actor: req.Actor, At: now, Value: strconv.Itoa(req.Slot)},
-		transitions: modTransitions(data, req, kind)}
-	return s.commitEdit(ctx, data, change)
+func (s *Store) SkipRule(ctx context.Context, action SlotAction) (int, error) {
+	return s.changeSlots(ctx, action, "skip_rule")
 }
 
 type slotActionKind string
@@ -170,22 +172,92 @@ type slotEdit struct {
 	transitions []slotChange
 }
 
-func modTransitions(data snapshot, req SlotAction, kind slotActionKind) []slotChange {
+func (s *Store) changeSlots(ctx context.Context, req SlotAction, kind slotActionKind) (int, error) {
+	data, err := s.slotActionRound(ctx, req, kind)
+	if err != nil || data.round.Phase != PhaseSettling {
+		return 0, err
+	}
+	now, err := valkey.ServerNow(ctx, s.client)
+	if err != nil || !now.Before(settlementDeadline(data.round)) {
+		return 0, err
+	}
+	action := Action{Kind: string(kind), Actor: req.Actor, At: now, Value: strconv.Itoa(req.Slot)}
+	edit := slotEdit{action: action, transitions: modTransitions(data, req, action)}
+	stampWinners(data, edit.transitions, now)
+	return s.commitEdit(ctx, data, edit)
+}
+
+func (s *Store) slotActionRound(ctx context.Context, req SlotAction, kind slotActionKind) (snapshot, error) {
+	id := req.Round
+	if id == "" {
+		r, err := s.latest(ctx, req.Channel, roundFilter{phase: PhaseSettling, kind: actionRoundKind(req, kind)})
+		if err != nil || r.ID == "" {
+			return snapshot{}, err
+		}
+		id = r.ID
+	}
+	data, err := s.read(ctx, id)
+	if data.round.Channel != req.Channel || !actionMatches(data.round, req, kind) {
+		return snapshot{}, err
+	}
+	return data, err
+}
+
+func actionRoundKind(req SlotAction, kind slotActionKind) Kind {
+	if kind == "end" {
+		return KindGiveaway
+	}
+	if kind == "reroll" && req.Kind == "" {
+		return KindGiveaway
+	}
+	return req.Kind
+}
+
+func actionMatches(r Round, req SlotAction, kind slotActionKind) bool {
+	if kind == "end" {
+		return r.Terms.Kind == KindGiveaway
+	}
+	return req.Kind == "" || r.Terms.Kind == req.Kind
+}
+
+func modTransitions(data snapshot, req SlotAction, action Action) []slotChange {
 	var changes []slotChange
 	for _, slot := range data.slots {
 		if req.Slot != 0 && slot.N != req.Slot {
 			continue
 		}
-		switch {
-		case kind == "reroll" && slot.State == SlotNoShow:
-			changes = append(changes, slotChange{prior: slot, next: rerolled(slot)})
-		case kind == "end" && !slotTerminal(data.round, slot):
-			next := slot
-			next.State = SlotEnded
-			changes = append(changes, slotChange{prior: slot, next: next, index: claimDrop(slot)})
+		if next := modSlot(data.round, slot, action); next.State != "" {
+			changes = append(changes, slotChange{prior: slot, next: next, index: claimIndex(slot, next)})
 		}
 	}
 	return changes
+}
+
+func modSlot(r Round, slot Slot, action Action) Slot {
+	stuck := verifiableByMod(r, slot, action.At)
+	switch action.Kind {
+	case "reroll":
+		if stuck || rerollableNoShow(slot, action.At) {
+			return rerolled(slot)
+		}
+	case "skip_rule":
+		if stuck {
+			return finalSlot(slot, SlotWon)
+		}
+	case "end":
+		if !slotTerminal(r, slot) {
+			return finalSlot(slot, SlotEnded)
+		}
+	}
+	return Slot{}
+}
+
+func verifiableByMod(r Round, slot Slot, now time.Time) bool {
+	return slot.State == SlotVerifying && !now.Before(slot.Since.Add(Pins.VerifyStuck)) && now.Before(verifyDue(r, slot, now))
+}
+
+func rerollableNoShow(slot Slot, now time.Time) bool {
+	return slot.State == SlotNoShow && now.Before(noShowDeadline(slot))
 }
 
 func (s *Store) commitEdit(ctx context.Context, data snapshot, edit slotEdit) (int, error) {
@@ -200,5 +272,6 @@ func (s *Store) commitEdit(ctx context.Context, data snapshot, edit slotEdit) (i
 	if err != nil || !ok {
 		return 0, err
 	}
+	s.announceChanges(ctx, data.round, edit.transitions)
 	return len(edit.transitions), nil
 }

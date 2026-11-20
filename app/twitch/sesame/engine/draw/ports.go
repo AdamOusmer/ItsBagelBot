@@ -6,6 +6,7 @@ package draw
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 type Verifier interface {
@@ -16,11 +17,17 @@ type Check struct {
 	Round  Round
 	Viewer ViewerID
 	Login  string
+	Entry  Entry
+}
+
+type Entry struct {
+	Weight int64
 }
 
 type Verdict struct {
 	Pass   bool
 	Reason string
+	Detail map[string]string
 }
 
 type PassAll struct{}
@@ -45,13 +52,6 @@ type Payer interface {
 	Instance(context.Context, ChannelID, ViewerID) (int64, error)
 }
 
-type rejectPayment struct{}
-
-func (rejectPayment) Pay(context.Context, Payment) error { return ErrPaymentRejected }
-func (rejectPayment) Instance(context.Context, ChannelID, ViewerID) (int64, error) {
-	return 0, nil
-}
-
 type NoticeEvent string
 
 const (
@@ -59,27 +59,31 @@ const (
 	NoticeVerifying NoticeEvent = "verifying"
 	NoticeNoShow    NoticeEvent = "no_show"
 	NoticeEmpty     NoticeEvent = "empty"
+	NoticeUnpaid    NoticeEvent = "unpaid"
+	NoticeRemind    NoticeEvent = "remind"
 	NoticeUnfilled  NoticeEvent = "unfilled"
 )
 
 type Notice struct {
-	Event NoticeEvent
-	Round Round
-	Slots []Slot
+	Event    NoticeEvent
+	Round    Round
+	Slots    []Slot
+	Entries  int
+	TimeLeft time.Duration
 }
 
 type Announcer interface {
 	Announce(context.Context, Notice)
 }
 
-type nopAnnouncer struct{}
-
-func (nopAnnouncer) Announce(context.Context, Notice) {}
-
 type WinnerSink interface {
 	Record(context.Context, Round, []Slot) error
 }
 
-type NopSink struct{}
+type DiscardWinnerRecords struct{}
 
-func (NopSink) Record(context.Context, Round, []Slot) error { return nil }
+func (DiscardWinnerRecords) Record(context.Context, Round, []Slot) error { return nil }
+
+type PhaseObserver interface {
+	LeftOpen(context.Context, Round)
+}

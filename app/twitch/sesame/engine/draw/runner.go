@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/pkg/valkey"
@@ -67,14 +69,27 @@ func (s *Store) sweep(ctx context.Context, steps map[Phase]roundStep) time.Durat
 	if next >= 0 {
 		delay = min(next+time.Millisecond, delay)
 	}
-	for _, raw := range ids {
-		progressed, err := s.runRound(ctx, RoundID(raw), steps)
-		s.logFailure(ctx, RoundID(raw), err)
-		if progressed {
-			delay = 0
-		}
+	if s.runDue(ctx, ids, steps) {
+		return 0
 	}
 	return delay
+}
+
+func (s *Store) runDue(ctx context.Context, ids []string, steps map[Phase]roundStep) bool {
+	var progress atomic.Bool
+	var work sync.WaitGroup
+	for _, raw := range ids {
+		work.Go(func() {
+			id := RoundID(raw)
+			advanced, err := s.runRound(ctx, id, steps)
+			s.logFailure(ctx, id, err)
+			if advanced {
+				progress.Store(true)
+			}
+		})
+	}
+	work.Wait()
+	return progress.Load()
 }
 
 func (s *Store) runRound(ctx context.Context, id RoundID, steps map[Phase]roundStep) (bool, error) {
@@ -86,7 +101,9 @@ func (s *Store) runRound(ctx context.Context, id RoundID, steps map[Phase]roundS
 		return false, err
 	}
 	err = s.stepRound(work, id, steps)
-	releaseErr := lock.Release(work)
+	release, stop := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	defer stop()
+	releaseErr := lock.Release(release)
 	return err == nil, errors.Join(err, releaseErr)
 }
 
@@ -108,7 +125,9 @@ func (s *Store) stepRound(ctx context.Context, id RoundID, steps map[Phase]round
 	}
 	err = step(ctx, s, data, now)
 	if err != nil {
-		err = errors.Join(err, s.schedule(ctx, data, sweepPoll))
+		retry, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+		defer cancel()
+		err = errors.Join(err, s.schedule(retry, data, sweepPoll))
 	}
 	return err
 }
@@ -116,7 +135,7 @@ func (s *Store) stepRound(ctx context.Context, id RoundID, steps map[Phase]round
 func (s *Store) schedule(ctx context.Context, data snapshot, delay time.Duration) error {
 	r := data.round
 	return keysFor(r.Channel, r.ID).Schedule(ctx, s.client, valkey.DrawSchedule{
-		RoundID: string(r.ID), Revision: data.stored.Round["revision"], After: max(delay, time.Millisecond),
+		RoundID: string(r.ID), Revision: data.stored.Round["revision"], After: max(delay, time.Millisecond), TTL: roundTTL,
 	})
 }
 

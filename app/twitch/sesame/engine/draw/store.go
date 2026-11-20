@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"ItsBagelBot/pkg/valkey"
@@ -26,6 +27,7 @@ type Config struct {
 	Payer             Payer
 	Announcer         Announcer
 	Winners           WinnerSink
+	Phases            PhaseObserver
 	LegacyKey         func(ChannelID) string
 	LegacyDeadlineKey func(ChannelID) string
 	Random            func(int64) int64
@@ -39,17 +41,11 @@ type Store struct {
 }
 
 func NewStore(client valkey_go.Client, cfg Config) *Store {
-	if cfg.Verifier == nil {
-		cfg.Verifier = PassAll{}
+	if cfg.Verifier == nil || cfg.Payer == nil {
+		panic("draw: verifier and payer are required")
 	}
-	if cfg.Payer == nil {
-		cfg.Payer = rejectPayment{}
-	}
-	if cfg.Announcer == nil {
-		cfg.Announcer = nopAnnouncer{}
-	}
-	if cfg.Winners == nil {
-		cfg.Winners = NopSink{}
+	if cfg.Announcer == nil || cfg.Winners == nil {
+		panic("draw: announcer and winner sink are required")
 	}
 	if cfg.Log == nil {
 		cfg.Log = zap.NewNop()
@@ -60,7 +56,10 @@ func NewStore(client valkey_go.Client, cfg Config) *Store {
 	return &Store{client: valkey.Primary(client), cfg: cfg, due: valkey.DueIndex{Key: dueKey}}
 }
 
+func NewRoundID() RoundID { return RoundID(uuid.NewString()) }
+
 type OpenRequest struct {
+	ID      RoundID
 	Channel ChannelID
 	Terms   Terms
 	Actor   ViewerID
@@ -83,7 +82,10 @@ func (s *Store) Open(ctx context.Context, req OpenRequest) (Round, OpenOutcome, 
 	if err != nil {
 		return Round{}, Opened, err
 	}
-	r := Round{ID: RoundID(uuid.NewString()), Channel: req.Channel, Terms: terms, Phase: PhaseOpen,
+	if req.ID == "" {
+		req.ID = NewRoundID()
+	}
+	r := Round{ID: req.ID, Channel: req.Channel, Terms: terms, Phase: PhaseOpen,
 		OpenedAt: now.Truncate(time.Millisecond), ClosesAt: terms.ClosesAt}
 	if req.Actor != "" {
 		r.Actions = []Action{{Kind: "open", Actor: req.Actor, At: r.OpenedAt}}
@@ -114,13 +116,15 @@ func (s *Store) openSpec(r Round, openedOrder int64) (valkey.RoundOpen, error) {
 		{Field: "kind", Value: string(r.Terms.Kind)}, {Field: "terms", Value: string(terms)},
 		{Field: "phase", Value: string(r.Phase)}, timeField("opened_at", r.OpenedAt), timeField("closes_at", r.ClosesAt),
 	}
+	reminder := r.OpenedAt.Add(Pins.RemindInterval)
 	if len(r.Actions) != 0 {
 		fields = append(fields, valkey.FieldValue{Field: "actions", Value: string(actions)})
 	}
+	fields = append(fields, timeField("remind_at", reminder))
 	return valkey.RoundOpen{
 		RoundID: string(r.ID), Legacy: roundLegacyKey(r.Channel, s.cfg.LegacyKey, legacyStateKey),
 		LegacyDeadline: roundLegacyKey(r.Channel, s.cfg.LegacyDeadlineKey, legacyDeadlineKey),
-		TTL:            roundTTL, Wake: valkey.DrawWake{Channel: wakeChannel, At: r.ClosesAt}, OpenedMs: openedOrder,
+		TTL:            roundTTL, Wake: valkey.DrawWake{Channel: wakeChannel, At: earlier(reminder, r.ClosesAt)}, OpenedMs: openedOrder,
 		Fields: fields,
 	}, nil
 }
@@ -135,9 +139,10 @@ func roundLegacyKey(channel ChannelID, key, fallback func(ChannelID) string) str
 func validateTerms(req OpenRequest, now time.Time) (Terms, error) {
 	t := req.Terms
 	policy, ok := settlers[t.Kind]
-	if !ok || req.Channel == 0 {
+	if !ok || !req.validTarget() {
 		return Terms{}, ErrInvalidTerms
 	}
+	t.ClosesAt = t.ClosesAt.Truncate(time.Millisecond)
 	if !t.ClosesAt.After(now) || t.ClosesAt.After(now.Add(Pins.MaxOpen)) {
 		return Terms{}, ErrInvalidTerms
 	}
@@ -147,8 +152,11 @@ func validateTerms(req OpenRequest, now time.Time) (Terms, error) {
 	if t.Winners == (WinnerPolicy{}) {
 		t.Winners.Count = policy.defaultWinners
 	}
-	t.ClosesAt = t.ClosesAt.Truncate(time.Millisecond)
 	return t, policy.validate(t)
+}
+
+func (r OpenRequest) validTarget() bool {
+	return r.Channel != 0 && !strings.ContainsRune(string(r.ID), ':')
 }
 
 func validClaimWindow(window time.Duration) bool {

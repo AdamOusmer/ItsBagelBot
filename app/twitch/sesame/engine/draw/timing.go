@@ -13,9 +13,9 @@ func earlier(a, b time.Time) time.Time {
 }
 
 func nextSlotDue(data snapshot, now time.Time) time.Time {
-	next := now.Add(roundTTL)
-	if data.stored.Round["verifying_notice"] == "" && hasWorkingSlots(data) {
-		next = earlier(next, data.round.SettledAt.Add(Pins.VerifyingNotice))
+	next := settlementDeadline(data.round)
+	if at := verifyingNoticeAt(data); !at.IsZero() && hasWorkingSlots(data, now) {
+		next = earlier(next, at)
 	}
 	for _, slot := range data.slots {
 		if at := slotDue(data.round, slot, now); !at.IsZero() {
@@ -25,32 +25,54 @@ func nextSlotDue(data snapshot, now time.Time) time.Time {
 	return next
 }
 
+func settlementDeadline(r Round) time.Time {
+	if r.Terms.Kind == KindRaffle {
+		return r.SettledAt.Add(Pins.PayoutHorizon)
+	}
+	return r.SettledAt.Add(Pins.GiveawayHorizon)
+}
+
 func slotDue(r Round, slot Slot, now time.Time) time.Time {
+	if slotTerminal(r, slot) {
+		return time.Time{}
+	}
+	deadline := settlementDeadline(r)
 	switch slot.State {
 	case SlotPending:
-		return retryAt(slot, now)
+		return earlier(retryAt(slot, now), deadline)
 	case SlotVerifying:
-		if now.Before(slot.Since.Add(Pins.VerifyStuck)) {
-			return retryAt(slot, now)
-		}
+		return earlier(verifyDue(r, slot, now), deadline)
 	case SlotWon:
-		return wonDue(r, slot, now)
+		return earlier(wonDue(r, slot, now), deadline)
 	case SlotNoShow:
 		if r.Terms.RerollNoShows {
 			return now
 		}
+		return earlier(noShowDeadline(slot), deadline)
 	}
-	return time.Time{}
+	return deadline
+}
+
+func verifyDue(r Round, slot Slot, now time.Time) time.Time {
+	stuckAt := slot.Since.Add(Pins.VerifyStuck)
+	if now.Before(stuckAt) {
+		return earlier(retryAt(slot, now), stuckAt)
+	}
+	if r.Terms.Kind == KindRaffle {
+		return settlementDeadline(r)
+	}
+	return stuckAt.Add(Pins.ModActionTimeout)
 }
 
 func wonDue(r Round, slot Slot, now time.Time) time.Time {
 	if r.Terms.Kind == KindRaffle {
-		return earlier(retryAt(slot, now), r.SettledAt.Add(Pins.PayoutHorizon))
+		return retryAt(slot, now)
 	}
-	if !slot.Deadline.IsZero() {
-		return slot.Deadline.Truncate(time.Millisecond).Add(time.Millisecond)
-	}
-	return time.Time{}
+	return slot.Deadline.Truncate(time.Millisecond).Add(time.Millisecond)
+}
+
+func noShowDeadline(slot Slot) time.Time {
+	return slot.Deadline.Add(Pins.ModActionTimeout)
 }
 
 func retryAt(slot Slot, now time.Time) time.Time {

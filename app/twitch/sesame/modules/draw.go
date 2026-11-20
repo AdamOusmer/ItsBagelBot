@@ -23,15 +23,43 @@ func Draw(d engine.Deps) module.Module {
 	}
 	owner := drawOwner{deps: d, log: log}
 	m := module.NewModule(drawModuleName, module.KindCore)
-	m.Command("join").Everyone().Yields().When(owner.ownsJoin).Run(owner.join)
-	m.Command("claim").Everyone().Yields().When(owner.ownsClaim).Run(owner.claim)
-	m.Command("winner").Everyone().Yields().When(owner.ownsWinner).Cooldown(draw.Pins.WinnerCooldown).Run(owner.winner)
+	m.Command("join").Everyone().Yields().When(ownsDrawCommand(owner.resolveJoin)).Run(owner.join)
+	m.Command("claim").Everyone().Yields().When(ownsDrawCommand(owner.resolveClaim)).Run(owner.claim)
+	m.Command("winner").Everyone().Yields().When(ownsDrawCommand(owner.resolveWinner)).Cooldown(draw.Pins.WinnerCooldown).Run(owner.winner)
 	return m.Build()
 }
 
 type drawOwner struct {
 	deps engine.Deps
 	log  *zap.Logger
+}
+
+type drawCommandState struct {
+	round       draw.Round
+	slots       []draw.Slot
+	claims      draw.ClaimLookup
+	found       bool
+	legacy      raffleCmd
+	legacyFound bool
+	result      *engine.RaffleResult
+	err         error
+}
+
+type drawResolve func(context.Context, *module.Context) drawCommandState
+
+func ownsDrawCommand(resolve drawResolve) func(context.Context, *module.Context) bool {
+	return func(ctx context.Context, c *module.Context) bool {
+		state := resolve(ctx, c)
+		c.CommandState = state
+		return state.round.ID != "" || state.found || state.legacyFound || state.err != nil
+	}
+}
+
+func drawState(ctx context.Context, c *module.Context, resolve drawResolve) drawCommandState {
+	if state, ok := c.CommandState.(drawCommandState); ok {
+		return state
+	}
+	return resolve(ctx, c)
 }
 
 func (d drawOwner) activeJoin(ctx context.Context, c *module.Context) (draw.Round, bool, error) {
@@ -41,16 +69,16 @@ func (d drawOwner) activeJoin(ctx context.Context, c *module.Context) (draw.Roun
 	return d.deps.Draw.Joinable(ctx, draw.ChannelID(c.BroadcasterID))
 }
 
-func (d drawOwner) ownsJoin(ctx context.Context, c *module.Context) bool {
-	_, found, err := d.activeJoin(ctx, c)
-	if found || err != nil {
-		return true
+func (d drawOwner) resolveJoin(ctx context.Context, c *module.Context) drawCommandState {
+	r, found, err := d.activeJoin(ctx, c)
+	if r.ID != "" || err != nil {
+		return drawCommandState{round: r, found: found, err: err}
 	}
 	if d.deps.Raffle == nil {
-		return false
+		return drawCommandState{}
 	}
 	legacy, err := d.deps.Raffle.Status(ctx, c.BroadcasterID)
-	return err != nil || legacy.Open || wantsClosedRaffle(c)
+	return drawCommandState{legacyFound: legacy.Open || wantsClosedRaffle(c), err: err}
 }
 
 func wantsClosedRaffle(c *module.Context) bool {
@@ -58,12 +86,16 @@ func wantsClosedRaffle(c *module.Context) bool {
 }
 
 func (d drawOwner) join(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-	r, found, err := d.activeJoin(ctx, c)
-	if err != nil {
-		return err
+	state := drawState(ctx, c, d.resolveJoin)
+	if state.err != nil {
+		return state.err
 	}
-	if found {
-		return d.joinRound(ctx, c, r, emit)
+	if state.found {
+		return d.joinRound(ctx, c, state.round, emit)
+	}
+	if state.round.ID != "" {
+		newChatReplier(c).reply(emit, "", "draw.join.closed")
+		return nil
 	}
 	if rc, ok := d.legacy(ctx, c); ok {
 		return rc.join(ctx, "", emit)
@@ -84,19 +116,34 @@ func (d drawOwner) joinRound(ctx context.Context, c *module.Context, r draw.Roun
 	return err
 }
 
-func (d drawOwner) ownsClaim(ctx context.Context, c *module.Context) bool {
-	if d.deps.Draw != nil {
-		found, err := d.deps.Draw.CanClaim(ctx, draw.ChannelID(c.BroadcasterID), draw.ViewerID(c.Env.ChatterUserID))
-		if found || err != nil {
-			return true
-		}
+func (d drawOwner) resolveClaim(ctx context.Context, c *module.Context) drawCommandState {
+	claims, err := d.lookupClaims(ctx, c)
+	if claims.Found || err != nil {
+		return drawCommandState{claims: claims, found: claims.Found, err: err}
 	}
-	_, found, err := d.legacyClaim(ctx, c)
-	return found || err != nil
+	rc, found, err := d.legacyClaim(ctx, c)
+	return drawCommandState{legacy: rc, legacyFound: found, err: err}
+}
+
+func (d drawOwner) lookupClaims(ctx context.Context, c *module.Context) (draw.ClaimLookup, error) {
+	if d.deps.Draw == nil {
+		return draw.ClaimLookup{}, nil
+	}
+	return d.deps.Draw.LookupClaims(ctx, draw.ChannelID(c.BroadcasterID), draw.ViewerID(c.Env.ChatterUserID))
 }
 
 func (d drawOwner) claim(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-	outcome, err := d.claimRound(ctx, c)
+	state := drawState(ctx, c, d.resolveClaim)
+	if state.err != nil {
+		return state.err
+	}
+	if state.legacyFound {
+		return state.legacy.claimConfirm(ctx, emit)
+	}
+	if !state.found {
+		return nil
+	}
+	outcome, err := d.deps.Draw.ClaimResolved(ctx, state.claims)
 	if err != nil {
 		return err
 	}
@@ -107,20 +154,17 @@ func (d drawOwner) claim(ctx context.Context, c *module.Context, _ string, emit 
 	case outcome.Late > 0:
 		reply.reply(emit, "", "draw.claim.late")
 	default:
-		rc, found, err := d.legacyClaim(ctx, c)
-		if err != nil || !found {
-			return err
-		}
-		return rc.claimConfirm(ctx, emit)
+		return d.claimLegacyFallback(ctx, c, emit)
 	}
 	return nil
 }
 
-func (d drawOwner) claimRound(ctx context.Context, c *module.Context) (draw.ClaimOutcome, error) {
-	if d.deps.Draw == nil {
-		return draw.ClaimOutcome{}, nil
+func (d drawOwner) claimLegacyFallback(ctx context.Context, c *module.Context, emit module.Emit) error {
+	rc, found, err := d.legacyClaim(ctx, c)
+	if err != nil || !found {
+		return err
 	}
-	return d.deps.Draw.Claim(ctx, draw.ChannelID(c.BroadcasterID), draw.ViewerID(c.Env.ChatterUserID))
+	return rc.claimConfirm(ctx, emit)
 }
 
 func (d drawOwner) settling(ctx context.Context, c *module.Context) (draw.Round, []draw.Slot, bool, error) {
@@ -130,28 +174,26 @@ func (d drawOwner) settling(ctx context.Context, c *module.Context) (draw.Round,
 	return d.deps.Draw.Settling(ctx, draw.ChannelID(c.BroadcasterID), "")
 }
 
-func (d drawOwner) ownsWinner(ctx context.Context, c *module.Context) bool {
-	_, _, found, err := d.settling(ctx, c)
+func (d drawOwner) resolveWinner(ctx context.Context, c *module.Context) drawCommandState {
+	r, slots, found, err := d.settling(ctx, c)
 	if found || err != nil {
-		return true
+		return drawCommandState{round: r, slots: slots, found: found, err: err}
 	}
-	if c.ModuleOn(raffleModuleName) || c.ModuleOn("giveaway") {
-		return true
-	}
-	_, found, err = d.legacyResult(ctx, c)
-	return found || err != nil
+	res, found, err := d.legacyResult(ctx, c)
+	owns := found || c.ModuleOn(raffleModuleName) || c.ModuleOn("giveaway")
+	return drawCommandState{result: res, legacyFound: found, err: err, found: owns}
 }
 
 func (d drawOwner) winner(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-	r, slots, found, err := d.settling(ctx, c)
-	if err != nil {
-		return err
+	state := drawState(ctx, c, d.resolveWinner)
+	if state.err != nil {
+		return state.err
 	}
-	if found {
-		replyDrawWinner(c, emit, r, slots)
+	if state.round.ID != "" {
+		replyDrawWinner(c, emit, state.round, state.slots)
 		return nil
 	}
-	return d.legacyWinner(ctx, c, emit)
+	return d.legacyWinner(ctx, c, emit, state)
 }
 
 func replyDrawWinner(c *module.Context, emit module.Emit, r draw.Round, slots []draw.Slot) {

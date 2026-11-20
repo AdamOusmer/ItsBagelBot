@@ -25,11 +25,14 @@ func NewDrawPayer(loyalty LoyaltyStore, accounts channelruntime.Reader) draw.Pay
 }
 
 func (p drawPayer) Instance(ctx context.Context, channel draw.ChannelID, _ draw.ViewerID) (int64, error) {
-	if p.accounts == nil {
-		return 0, nil
-	}
 	account, err := p.accounts.Get(ctx, uint64(channel))
-	return account.AccountCreatedAt, err
+	if err != nil {
+		return 0, err
+	}
+	if !account.Registered || account.AccountCreatedAt == 0 {
+		return 0, errors.New("draw: channel account instance unavailable")
+	}
+	return account.AccountCreatedAt, nil
 }
 
 func (p drawPayer) Pay(ctx context.Context, payment draw.Payment) error {

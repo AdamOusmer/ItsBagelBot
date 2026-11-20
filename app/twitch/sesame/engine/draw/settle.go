@@ -52,11 +52,11 @@ func phaseSteps() map[Phase]roundStep {
 func closeDue(ctx context.Context, s *Store, data snapshot, now time.Time) error {
 	r := data.round
 	if now.Before(r.ClosesAt) {
-		return s.schedule(ctx, data, r.ClosesAt.Sub(now))
+		return s.remind(ctx, data, now)
 	}
 	shift := phaseShift(r, PhaseClosing, now)
 	shift.Match = timeField("closes_at", r.ClosesAt)
-	_, err := keysFor(r.Channel, r.ID).Shift(ctx, s.client, shift)
+	_, err := s.shiftPhase(ctx, r, shift)
 	return err
 }
 
@@ -67,14 +67,17 @@ func seedSlots(ctx context.Context, s *Store, data snapshot, now time.Time) erro
 		return err
 	}
 	count := len(data.stored.Entries)
-	r.Winners = min(count, ResolveWinners(policy, count, r.Terms.Prize))
+	r.Winners = ResolveWinners(policy, count, r.Terms.Prize)
+	if r.Terms.Kind == KindRaffle {
+		r.Winners = min(count, r.Winners)
+	}
 	r.SettledAt = now
 	shift, err := seedShift(r)
 	if err != nil {
 		return err
 	}
 	ok, err := keysFor(r.Channel, r.ID).Shift(ctx, s.client, shift)
-	if ok && r.Winners == 0 {
+	if ok && count == 0 {
 		s.cfg.Announcer.Announce(ctx, Notice{Event: NoticeEmpty, Round: r})
 	}
 	return err
@@ -93,7 +96,10 @@ func seedShift(r Round) (valkey.PhaseShift, error) {
 		return phaseShift(r, PhaseDone, r.SettledAt), nil
 	}
 	shift := phaseShift(r, PhaseSettling, r.SettledAt)
-	shift.Fields = []valkey.FieldValue{{Field: "winners", Value: strconv.Itoa(r.Winners)}, timeField("settled_at", r.SettledAt)}
+	shift.Fields = []valkey.FieldValue{
+		{Field: "winners", Value: strconv.Itoa(r.Winners)},
+		timeField("settled_at", r.SettledAt), timeField("working_since", r.SettledAt),
+	}
 	for n := 1; n <= r.Winners; n++ {
 		raw, err := json.Marshal(Slot{N: n, Generation: 1, State: SlotPending})
 		if err != nil {
@@ -108,14 +114,29 @@ func settleSlots(ctx context.Context, s *Store, data snapshot, now time.Time) er
 	if allTerminal(data) {
 		return s.finish(ctx, data, now)
 	}
-	if verifyingNoticeDue(data, now) && hasWorkingSlots(data) {
-		return s.markVerifying(ctx, data.round, now)
+	if verifyingNoticeDue(data, now) {
+		return s.markVerifying(ctx, data, now)
 	}
 	return s.advanceSlots(ctx, data, now)
 }
 
 func verifyingNoticeDue(data snapshot, now time.Time) bool {
-	return data.stored.Round["verifying_notice"] == "" && !now.Before(data.round.SettledAt.Add(Pins.VerifyingNotice))
+	if !hasWorkingSlots(data, now) || !now.Before(settlementDeadline(data.round)) {
+		return false
+	}
+	at := verifyingNoticeAt(data)
+	return !at.IsZero() && !now.Before(at)
+}
+
+func verifyingNoticeAt(data snapshot) time.Time {
+	if data.stored.Round["verifying_notice"] != "" {
+		return time.Time{}
+	}
+	since := fromMillis(parseInt(data.stored.Round["working_since"]))
+	if since.IsZero() {
+		since = data.round.SettledAt
+	}
+	return since.Add(Pins.VerifyingNotice)
 }
 
 func allTerminal(data snapshot) bool {
@@ -127,19 +148,21 @@ func allTerminal(data snapshot) bool {
 	return true
 }
 
-func hasWorkingSlots(data snapshot) bool {
+func hasWorkingSlots(data snapshot, now time.Time) bool {
 	for _, slot := range data.slots {
-		if slotWorking(data.round, slot) {
+		if slotWorking(data.round, slot, now) {
 			return true
 		}
 	}
 	return false
 }
 
-func slotWorking(r Round, slot Slot) bool {
+func slotWorking(r Round, slot Slot, now time.Time) bool {
 	switch slot.State {
-	case SlotPending, SlotVerifying:
+	case SlotPending:
 		return true
+	case SlotVerifying:
+		return now.Before(slot.Since.Add(Pins.VerifyStuck))
 	case SlotWon:
 		return r.Terms.Kind == KindRaffle
 	default:
@@ -158,9 +181,10 @@ func slotTerminal(r Round, slot Slot) bool {
 	}
 }
 
-func (s *Store) markVerifying(ctx context.Context, r Round, now time.Time) error {
+func (s *Store) markVerifying(ctx context.Context, data snapshot, now time.Time) error {
+	r := data.round
 	shift := phaseShift(r, PhaseSettling, now)
-	shift.Match = valkey.FieldValue{Field: "verifying_notice"}
+	shift.Match = valkey.FieldValue{Field: "revision", Value: data.stored.Round["revision"]}
 	shift.Fields = []valkey.FieldValue{{Field: "verifying_notice", Value: "1"}}
 	ok, err := keysFor(r.Channel, r.ID).Shift(ctx, s.client, shift)
 	if ok {

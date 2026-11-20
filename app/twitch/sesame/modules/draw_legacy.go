@@ -90,13 +90,9 @@ func (d drawOwner) legacyClaim(ctx context.Context, c *module.Context) (raffleCm
 	return rc, found, err
 }
 
-func (d drawOwner) legacyWinner(ctx context.Context, c *module.Context, emit module.Emit) error {
-	res, found, err := d.legacyResult(ctx, c)
-	if err != nil {
-		return err
-	}
-	if rc, ok := d.legacy(ctx, c); ok && wantsLegacyWinner(c, found) {
-		rc.last(res, emit)
+func (d drawOwner) legacyWinner(ctx context.Context, c *module.Context, emit module.Emit, state drawCommandState) error {
+	if rc, ok := d.legacy(ctx, c); ok && wantsLegacyWinner(c, state.legacyFound) {
+		rc.last(state.result, emit)
 		return nil
 	}
 	if c.ModuleOn("giveaway") {

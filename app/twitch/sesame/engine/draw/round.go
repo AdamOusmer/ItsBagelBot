@@ -77,6 +77,7 @@ type Candidate struct {
 	Viewer     ViewerID
 	Generation int64
 	Reason     string
+	Detail     map[string]string `json:",omitempty"`
 }
 
 type Slot struct {

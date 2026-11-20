@@ -18,6 +18,7 @@ func TestDrawPolicyPins(t *testing.T) {
 		MultiRaffleDefaultWinners: 3, AutoDivisor: 10,
 		ClaimWindowMin: 30 * time.Second, ClaimWindowMax: 15 * time.Minute, ClaimWindowDefault: 2 * time.Minute,
 		PayoutHorizon: 24 * time.Hour, VerifyingNotice: 10 * time.Second, VerifyStuck: 2 * time.Minute,
+		ModActionTimeout: 30 * time.Minute, GiveawayHorizon: 24 * time.Hour, RemindInterval: 5 * time.Minute,
 		MaxOpen: 2 * time.Hour, WinnerCooldown: 5 * time.Second,
 	}, draw.Pins)
 }
