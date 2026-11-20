@@ -1,6 +1,6 @@
 {
   "usage": "Usa !giveaway start [preajuste] [premio], !giveaway draw o !giveaway cancel.",
-  "reroll.usage": "Usa !reroll para todos los premios sin reclamar o !reroll seguido de un número de puesto.",
+  "reroll.usage": "Usa !reroll para reemplazar a los ausentes o añade un número de puesto o @usuario.",
   "open.disabled": "Activa el módulo de sorteos antes de empezar.",
   "open.preset": "No se encontró ese preajuste de sorteo.",
   "open.prize": "Indica un premio para iniciar el sorteo.",
@@ -13,7 +13,6 @@
   "open.busy": "Ya hay un sorteo abierto. Elige a los ganadores o cancélalo.",
   "opened": "Sorteo: {giveaway:prize} | Ganadores: {giveaway:count} | Duración: {giveaway:left}. Escribe !join.",
   "opened.requirements": "Sorteo: {giveaway:prize} | Ganadores: {giveaway:count} | Duración: {giveaway:left}. Requisitos: {giveaway:requirements}. Escribe !join.",
-  "action.unavailable": "Esa acción no está disponible en este momento.",
   "cancelled": "Se canceló el sorteo.",
   "status.open": "Sorteo de {giveaway:prize}. Tiempo restante: {giveaway:left}. Escribe !join.",
   "status.closed": "No hay ningún sorteo abierto a inscripciones.",
@@ -23,5 +22,9 @@
   "empty": "Nadie se inscribió en el sorteo.",
   "unfilled": "No había suficientes participantes aptos para cubrir todas las plazas.",
   "verifying": "Estamos verificando a los ganadores. Un momento.",
-  "last": "Últimos ganadores de {giveaway:prize}: {giveaway:targets}."
+  "last": "Últimos ganadores de {giveaway:prize}: {giveaway:targets}.",
+  "action.settling": "El sorteo ya empezó. Usa la opción para cerrar los puestos pendientes en el panel.",
+  "action.claim_pending": "Podrás reemplazar a los ausentes cuando el plazo para reclamar termine en {giveaway:left}.",
+  "action.no_reroll": "Ahora mismo no hay ganadores que puedas reemplazar.",
+  "status.awaiting_draw": "Se cerró la inscripción para {giveaway:prize}. El sorteo está pendiente."
 }

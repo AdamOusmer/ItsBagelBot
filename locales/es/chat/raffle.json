@@ -16,8 +16,7 @@
   "last.empty": "El último sorteo terminó sin participaciones.",
   "last.none": "Aún no se celebró ningún sorteo aquí.",
   "open.already": "¡Ya hay un sorteo en curso! Escribe !join para participar.",
-  "opened": "¡Sorteo ABIERTO! Escribe !join para participar. ¡Se sortea en {raffle:mins} min! Premio: {raffle:amount} {raffle:points}.",
-  "opened.secs": "¡Sorteo ABIERTO! Escribe !join para participar. ¡Se sortea en {raffle:secs} s! Premio: {raffle:amount} {raffle:points}.",
+  "opened": "¡El sorteo ya está en marcha! 1 persona gana {raffle:amount} {raffle:points}. Escribe !join ({raffle:time}).",
   "payout.failed": "No se pudieron pagar algunos {raffle:points} del sorteo. Un moderador puede añadirlos con !points add.",
   "remind": "Recordatorio del sorteo: ¡quedan ~{raffle:mins} min! Participaciones hasta ahora: {raffle:count}. ¡Escribe !join!",
   "remind.claim": "Recordatorio del sorteo: ¡quedan ~{raffle:mins} min! Participaciones hasta ahora: {raffle:count}. ¡Escribe !join! Si ganas, debes usar !claim.",
@@ -31,5 +30,9 @@
   "open.loyalty_off": "Activa la lealtad para iniciar un sorteo de puntos.",
   "verifying": "Estamos eligiendo a los ganadores. Un momento.",
   "won.paid": "¡{raffle:targets} ganaron {raffle:amount} {raffle:points} cada uno!",
-  "won.paid.single": "¡{raffle:targets} ganó {raffle:amount} {raffle:points}!"
+  "won.paid.single": "¡{raffle:targets} ganó {raffle:amount} {raffle:points}!",
+  "opened.split": "¡El sorteo ya está en marcha! {raffle:count} personas se reparten {raffle:amount} {raffle:points}. Escribe !join ({raffle:time}).",
+  "opened.auto": "¡El sorteo ya está en marcha! Hay {raffle:amount} {raffle:points} en juego. Habrá 1 ganador por cada 10 participantes. Escribe !join ({raffle:time}).",
+  "mid_count": "Ya hay {raffle:count} participantes, quedan {raffle:time}. Escribe !join.",
+  "err.missing_space": "Pon un espacio entre la cantidad y los segundos: !raffle 5k 60."
 }

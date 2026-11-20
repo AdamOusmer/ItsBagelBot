@@ -15,6 +15,7 @@
   "verifying": "Estamos verificando a los ganadores. Pronto habrá resultados.",
   "winners": "¡Premio para {draw:targets}!",
   "winners.claim": "¡Premio para {draw:targets}! Escribe !claim para reclamarlo.",
-  "winners.raffle": "¡{draw:points} puntos para cada ganador: {draw:targets}!",
-  "open.busy_giveaway": "Ya hay un concurso abierto. Elige a sus ganadores o cancélalo primero."
+  "winners.raffle": "¡{draw:targets} ganaron {draw:amount} {draw:points} cada uno!",
+  "open.busy_giveaway": "Ya hay un concurso abierto. Elige a sus ganadores o cancélalo primero.",
+  "join.free": "Participar es gratis."
 }

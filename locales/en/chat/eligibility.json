@@ -1,12 +1,12 @@
 {
   "check.ok": "@{eligibility:user} you meet the entry requirements.",
-  "check.later": "Checked at the draw: {eligibility:requirements}.",
+  "check.later": "We check these when we draw the winners: {eligibility:requirements}.",
   "lookup_failed": "@{eligibility:user} eligibility could not be checked. Try again shortly.",
   "refused.role": "@{eligibility:user} your chat role does not meet the entry requirement.",
   "refused.broadcaster": "@{eligibility:user} the broadcaster cannot enter their own draw.",
   "refused.mod": "@{eligibility:user} moderators cannot enter this draw.",
-  "refused.points": "@{eligibility:user} you need {eligibility:need} points (you had {eligibility:had} at {eligibility:time} UTC).",
-  "refused.watch": "@{eligibility:user} you need {eligibility:need} of watch time (you had {eligibility:had} at {eligibility:time} UTC).",
+  "refused.points": "@{eligibility:user} you need {eligibility:need} {eligibility:points}. You had {eligibility:had} when entries opened.",
+  "refused.watch": "@{eligibility:user} you need {eligibility:need} of watch time. You had {eligibility:had} when entries opened.",
   "refused.follow": "@{eligibility:user} a channel follow could not be verified.",
   "refused.scope": "@{eligibility:user} the bot needs permission to read this channel's followers.",
   "refused.follow_age": "@{eligibility:user} you need at least {eligibility:need} days of following.",
@@ -24,5 +24,11 @@
   "req.account_days": "an account at least {eligibility:value} days old",
   "req.skip_winners_days": "no wins in the past {eligibility:value} days",
   "req.sub_luck": "{eligibility:value}% weight for subscribers and founders",
-  "req.list": "{eligibility:first} and {eligibility:last}"
+  "req.list": "{eligibility:first} and {eligibility:last}",
+  "check.draw_ok": "You also meet the draw requirements right now.",
+  "batch.role": "Not eligible yet: {eligibility:targets} need a different chat role. Type !check for details.",
+  "batch.broadcaster": "Not eligible: {eligibility:targets} cannot enter their own giveaway. Type !check for details.",
+  "batch.mod": "Not eligible: {eligibility:targets} are moderators. Type !check for details.",
+  "batch.points": "Not eligible yet: {eligibility:targets} need {eligibility:need} {eligibility:points}. Type !check for details.",
+  "batch.watch": "Not eligible yet: {eligibility:targets} need {eligibility:need} of watch time. Type !check for details."
 }

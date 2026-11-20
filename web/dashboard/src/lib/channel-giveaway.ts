@@ -18,7 +18,6 @@ export interface GiveawayRules {
 export interface GiveawayPreset {
   name: string;
   rules: GiveawayRules;
-  freezeWhileOpen?: boolean;
 }
 
 export interface GiveawayConfig {
@@ -56,11 +55,18 @@ export interface GiveawayRound {
   winners: number;
   opened_ms: number;
   closes_ms: number;
-  freeze_ends_ms?: number;
   entries: number;
   refused: number;
   slots: GiveawaySlot[];
   requirements: string[];
+}
+
+export interface RaffleRound {
+  kind: 'raffle';
+  id: string;
+  phase: GiveawayRound['phase'];
+  closes_ms: number;
+  entries: number;
 }
 
 export interface GiveawayWinner {
@@ -77,9 +83,6 @@ export interface GiveawayWinner {
 
 export interface EligibleCount {
   count: number;
-  freeze_id?: string;
-  frozen_as_of?: number;
-  expires_at?: number;
 }
 
 export const giveawayDefaults: GiveawayConfig = {

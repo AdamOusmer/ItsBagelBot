@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import type { LoyaltyConfig, LoyaltyStanding } from '@bagel/kit';
-import { blankLoyaltyConfig, catalogChildren, moduleDef } from '@bagel/kit';
+import { blankLoyaltyConfig, catalogChildren, MOD, moduleDef } from '@bagel/kit';
 import { FREEZE_MAX_MINUTES } from '@bagel/kit/catalog';
 import { RpcError } from '@bagel/kit/server/nats';
 import {
@@ -17,7 +17,7 @@ import {
   writeLoyalty
 } from '#lib/server/loyalty-store';
 import { listModules, listModulesForEditing, type ModuleView } from '#lib/server/commands-store';
-import { disableChildren, isChildOf } from '#lib/server/module-parent';
+import { disableChildren } from '#lib/server/module-parent';
 import { moduleLoad } from '#lib/server/module-page';
 import { storeMutator } from '#lib/server/reward-action';
 import { dev } from '$app/env';
@@ -25,6 +25,7 @@ import { env } from '@bagel/kit/server/env';
 import { fail, type Cookies } from '@sveltejs/kit';
 
 import { gateModulePage, moduleWriteDenial } from '#lib/server/module-gate';
+import { moduleAction } from '#lib/server/module-action';
 import { moduleEditState } from '#lib/server/module-edit-state';
 import { patchModuleSettings } from '#lib/server/module-patch';
 import { notSignedIn } from '#lib/server/action-context';
@@ -32,10 +33,11 @@ import { baseCookie } from '#lib/server/cookies';
 
 const DEMO = dev && env.DEMO === '1';
 
+const loyaltyGames = catalogChildren(MOD.loyalty).filter((def) => def.id !== MOD.raffle);
 const FRESH_GAME_COOKIE = 'bagel_loyalty_game_fresh';
 
 function gameSettings(rows: ModuleView[]) {
-  return catalogChildren('loyalty').map((def) => {
+  return loyaltyGames.map((def) => {
     const row = rows.find((r) => r.name === def.id);
     return { id: def.id, enabled: row?.is_enabled ?? def.defaultEnabled, ...moduleEditState(row) };
   });
@@ -130,11 +132,6 @@ function parseConfig(raw: string): LoyaltyConfig | null {
 
 const mutate = storeMutator('loyalty', DEMO, (uid) => uid);
 
-function freezeConflict(err: unknown, reason: 'frozen' | 'held_by_round') {
-  if (!(err instanceof RpcError) || err.code !== 'conflict') throw err;
-  return fail(409, { ok: false, reason });
-}
-
 function validFreezeMinutes(minutes: number): boolean {
   return Number.isInteger(minutes) && minutes >= 1 && minutes <= FREEZE_MAX_MINUTES;
 }
@@ -161,32 +158,23 @@ export const actions: Actions = {
     try {
       return String(await resetPoints(uid));
     } catch (err) {
-      return freezeConflict(err, 'frozen');
+      if (!(err instanceof RpcError) || err.code !== 'conflict') throw err;
+      return fail(409, { ok: false, reason: 'frozen' });
     }
   }),
 
-  freeze: mutate('freeze', 'Invalid request.', async (uid, f) => {
-    const minutes = Number(f.get('minutes'));
+  freeze: moduleAction(MOD.loyalty, 'freeze', async (uid, form, locals) => {
+    const minutes = Number(form.get('minutes'));
     if (!validFreezeMinutes(minutes)) return null;
-    const freeze = await freezeStandings(uid, {
-      minutes,
-      blockTransfer: f.get('block_transfer') === 'on',
-      closeGames: f.get('close_games') === 'on'
-    });
-    if (!freeze) throw new Error('empty freeze reply');
-    return freeze.id;
-  }),
+    const pause = await freezeStandings(uid, locals.session!.user_id, minutes);
+    if (!pause) throw new Error('empty leaderboard pause reply');
+    return String(minutes);
+  }, { demo: DEMO, invalid: 'Invalid request.' }),
 
-  unfreeze: mutate('unfreeze', 'Invalid request.', async (uid, f) => {
-    const id = f.get('freeze_id');
-    if (typeof id !== 'string' || !id.trim()) return null;
-    try {
-      const released = await unfreezeStandings(uid, id);
-      return released ? id : fail(409, { ok: false, reason: 'stale_pin' });
-    } catch (err) {
-      return freezeConflict(err, 'held_by_round');
-    }
-  }),
+  unfreeze: moduleAction(MOD.loyalty, 'unfreeze', async (uid, _form, locals) => {
+    await unfreezeStandings(uid, locals.session!.user_id);
+    return '';
+  }, { demo: DEMO }),
 
   gameSettings: async ({ request, locals, cookies, url }) => {
     gateModulePage(locals.session, 'loyalty');
@@ -194,7 +182,7 @@ export const actions: Actions = {
 
     const form = await request.formData();
     const def = moduleDef(String(form.get('name') ?? ''));
-    if (!def || !isChildOf(def, 'loyalty')) return fail(400, { ok: false });
+    if (!def || !loyaltyGames.includes(def)) return fail(400, { ok: false });
     const denied = await moduleWriteDenial(locals, def);
     if (denied) return denied;
 

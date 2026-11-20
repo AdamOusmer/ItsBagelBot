@@ -16,8 +16,7 @@
   "last.empty": "Последний розыгрыш завершился без заявок.",
   "last.none": "Здесь ещё не выбирали победителей розыгрыша.",
   "open.already": "Розыгрыш уже идёт! Введите !join, чтобы участвовать.",
-  "opened": "Розыгрыш НАЧАЛСЯ! Введите !join, чтобы участвовать. Выбор через {raffle:mins} мин! Приз: {raffle:amount} {raffle:points}.",
-  "opened.secs": "Розыгрыш НАЧАЛСЯ! Введите !join, чтобы участвовать. Выбор через {raffle:secs} сек! Приз: {raffle:amount} {raffle:points}.",
+  "opened": "Розыгрыш открыт! Один победитель получит {raffle:amount} {raffle:points}. Напиши !join ({raffle:time}).",
   "payout.failed": "Часть выигрыша ({raffle:points}) не удалось выплатить. Модератор может начислить её командой !points add.",
   "remind": "Напоминаем о розыгрыше: осталось ~{raffle:mins} мин! Участников: {raffle:count}. Введите !join!",
   "remind.claim": "Напоминаем о розыгрыше: осталось ~{raffle:mins} мин! Участников: {raffle:count}. Введите !join! Для получения приза нужно ввести !claim.",
@@ -31,5 +30,9 @@
   "open.loyalty_off": "Включите программу лояльности, чтобы разыграть баллы.",
   "verifying": "Выбираем победителей. Одну минуту.",
   "won.paid": "{raffle:targets} получают по {raffle:amount} {raffle:points}!",
-  "won.paid.single": "{raffle:targets} получает {raffle:amount} {raffle:points}!"
+  "won.paid.single": "{raffle:targets} получает {raffle:amount} {raffle:points}!",
+  "opened.split": "Розыгрыш открыт! Победители ({raffle:count}) разделят {raffle:amount} {raffle:points}. Напиши !join ({raffle:time}).",
+  "opened.auto": "Розыгрыш открыт! На кону {raffle:amount} {raffle:points}. Один победитель на каждые 10 участников. Напиши !join ({raffle:time}).",
+  "mid_count": "Участников: {raffle:count}. Осталось {raffle:time}. Напиши !join.",
+  "err.missing_space": "Поставь пробел между суммой и секундами: !raffle 5k 60."
 }

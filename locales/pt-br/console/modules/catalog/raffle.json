@@ -16,6 +16,18 @@
     "remindEnabled": {
       "label": "Lembretes de tempo restante",
       "help": "Publica a linha de lembrete do tempo restante enquanto um sorteio está em andamento."
+    },
+    "bareRaffle": {
+      "label": "Modo padrão do !raffle",
+      "help": "Escolha o que !raffle inicia quando usado sem subcomando.",
+      "options": {
+        "single": "Um ganhador",
+        "split": "Prêmio dividido"
+      }
+    },
+    "midCountEnabled": {
+      "label": "Contagem na metade da rifa",
+      "help": "Publica a contagem de participantes e o tempo restante na metade da rifa."
     }
   },
   "replies": {
@@ -51,7 +63,7 @@
     "join": "Entra no sorteio enquanto ele estiver em andamento (também !raffle join).",
     "winner": "Mostra os ganhadores e a situação do pagamento enquanto o sorteio é concluído.",
     "raffle_status": "Mostra se há um sorteio em andamento, as participações e o tempo restante (um espectador que digita !raffle recebe o mesmo).",
-    "raffle_amount_seconds": "Inicia um sorteio de um único vencedor, que leva o valor inteiro (também !sraffle, !singleraffle). Os valores aceitam k e m; padrões: 1000 pontos, 60 segundos.",
+    "raffle_amount_seconds": "Inicia uma rifa no modo configurado. Use !sraffle para um único ganhador. Os valores aceitam k e m.",
     "raffle_draw_winners": "Encerra o sorteio e anuncia os ganhadores após o pagamento. Informe uma quantidade ou use auto.",
     "raffle_close": "Igual a draw, com a quantidade de vencedores configurada.",
     "raffle_cancel": "Encerra sem sortear.",

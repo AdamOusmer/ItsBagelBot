@@ -1,12 +1,12 @@
 {
   "check.ok": "@{eligibility:user}, ты выполняешь условия участия.",
-  "check.later": "При розыгрыше проверим: {eligibility:requirements}.",
+  "check.later": "Эти условия проверим при выборе победителей: {eligibility:requirements}.",
   "lookup_failed": "@{eligibility:user}, не удалось проверить условия участия. Попробуй чуть позже.",
   "refused.role": "@{eligibility:user}, твоя роль в чате не соответствует условиям участия.",
   "refused.broadcaster": "@{eligibility:user}, ведущий не может участвовать в собственном розыгрыше.",
   "refused.mod": "@{eligibility:user}, модераторы не могут участвовать в этом розыгрыше.",
-  "refused.points": "@{eligibility:user}, нужно набрать {eligibility:need} баллов (в {eligibility:time} UTC у тебя было {eligibility:had}).",
-  "refused.watch": "@{eligibility:user}, нужно смотреть канал {eligibility:need} (в {eligibility:time} UTC у тебя было {eligibility:had}).",
+  "refused.points": "@{eligibility:user} тебе нужно {eligibility:need} {eligibility:points}. На момент открытия у тебя было {eligibility:had}.",
+  "refused.watch": "@{eligibility:user} тебе нужно {eligibility:need} просмотра. На момент открытия у тебя было {eligibility:had}.",
   "refused.follow": "@{eligibility:user}, не удалось проверить, следишь ли ты за каналом.",
   "refused.scope": "@{eligibility:user}, боту нужно разрешение на просмотр списка фолловеров канала.",
   "refused.follow_age": "@{eligibility:user}, нужно следить за каналом не менее {eligibility:need} дн.",
@@ -24,5 +24,11 @@
   "req.account_days": "аккаунт не моложе {eligibility:value} дн.",
   "req.skip_winners_days": "без побед за последние {eligibility:value} дн.",
   "req.sub_luck": "вес {eligibility:value}% для платных подписчиков и основателей",
-  "req.list": "{eligibility:first} и {eligibility:last}"
+  "req.list": "{eligibility:first} и {eligibility:last}",
+  "check.draw_ok": "Пока ты также соответствуешь условиям розыгрыша.",
+  "batch.role": "{eligibility:targets} нужна другая роль в чате для участия. Напиши !check, чтобы узнать подробности.",
+  "batch.broadcaster": "{eligibility:targets} не могут участвовать в своём розыгрыше. Напиши !check, чтобы узнать подробности.",
+  "batch.mod": "{eligibility:targets} не могут участвовать, потому что они модераторы. Напиши !check, чтобы узнать подробности.",
+  "batch.points": "{eligibility:targets} нужно {eligibility:need} {eligibility:points} для участия. Напиши !check, чтобы узнать подробности.",
+  "batch.watch": "{eligibility:targets} нужно {eligibility:need} просмотра для участия. Напиши !check, чтобы узнать подробности."
 }

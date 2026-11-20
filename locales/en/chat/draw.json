@@ -15,6 +15,7 @@
   "verifying": "Verifying winners. Results are coming.",
   "winners": "{draw:targets} won!",
   "winners.claim": "{draw:targets} won! Type !claim to claim your prize.",
-  "winners.raffle": "{draw:targets} each won {draw:points} points!",
-  "open.busy_giveaway": "A giveaway is already open. Draw or cancel it first."
+  "winners.raffle": "{draw:targets} each won {draw:amount} {draw:points}!",
+  "open.busy_giveaway": "A giveaway is already open. Draw or cancel it first.",
+  "join.free": "Entry is free."
 }

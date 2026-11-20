@@ -24,7 +24,6 @@
 
   const { t } = getI18n();
   const roles = ['everyone', 'sub', 'vip'] as const;
-  const freezeChoices = ['auto', 'on', 'off'] as const;
   type Draft = GiveawayPreset & { id: string };
   const empty: GiveawayPreset = { name: '', rules: {} };
 
@@ -128,13 +127,6 @@
             oninput={(event) => rule(key, Number(event.currentTarget.value))} />
         </Field>
       {/each}
-      <Field fitCopy label={t('giveaways.freeze')}>
-        <Select value={draft.freezeWhileOpen === undefined ? 'auto' : draft.freezeWhileOpen ? 'on' : 'off'}
-          options={freezeChoices.map((value) => ({ value, label: t(`giveaways.freezeMode.${value}`) }))}
-          label={t('giveaways.freeze')} onchange={(event) => {
-            if (active) active.freezeWhileOpen = event.currentTarget.value === 'auto' ? undefined : event.currentTarget.value === 'on';
-          }} fill />
-      </Field>
       {#each giveawayRuleToggles as key (key)}
         <SwitchRow label={t(`giveaways.rule.${key}`)} fitCopy checked={draft.rules[key] ?? false}
           onCheckedChange={(checked) => rule(key, checked)} />

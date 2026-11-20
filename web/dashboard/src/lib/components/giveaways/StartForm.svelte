@@ -10,39 +10,35 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import type { EligibleCount, GiveawayConfig } from '#lib/channel-giveaway';
 
-  let { config, enabled, blocked, busy, demo, clockSkewMs, submit }: {
+  let { config, enabled, blocked, busy, demo, active, submit }: {
     config: GiveawayConfig;
     enabled: boolean;
     blocked: boolean;
     busy: boolean;
     demo: boolean;
-    clockSkewMs: number;
+    active: boolean;
     submit: SubmitFunction;
   } = $props();
 
   const { t, locale } = getI18n();
   const number = new Intl.NumberFormat(locale);
-  const date = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' });
 
   let chosen = $state('');
   let count = $state<EligibleCount | null>();
-  let refresh = $state(0);
   const preset = $derived(config.presets.some((item) => item.name === chosen) ? chosen : '');
   const presets = $derived([
     { value: '', label: config.defaultPreset ? t('giveaways.useDefault', { preset: config.defaultPreset }) : t('giveaways.noPreset') },
     ...config.presets.map((item) => ({ value: item.name, label: item.name }))
   ]);
 
-  const countable = () => enabled && !(demo || blocked);
+  const countable = () => active && enabled && !demo && !blocked;
 
   $effect(() => {
     const selected = preset;
     void config.defaultPreset;
     void config.presets;
-    void refresh;
     if (!countable()) return;
     const controller = new AbortController();
-    let timeout: ReturnType<typeof setTimeout> | undefined;
     count = undefined;
     void fetch(`/giveaways/eligible?preset=${encodeURIComponent(selected)}`, { signal: controller.signal })
       .then(async (response) => response.ok ? await response.json() as EligibleCount | null : null)
@@ -50,21 +46,15 @@
       .then((reply) => {
         if (controller.signal.aborted) return;
         count = reply;
-        if (reply?.expires_at) timeout = setTimeout(() => { refresh += 1; }, Math.max(1000, reply.expires_at - (Date.now() + clockSkewMs)));
       });
-    return () => {
-      controller.abort();
-      clearTimeout(timeout);
-    };
+    return () => controller.abort();
   });
 
   function eligibleCopy(value: EligibleCount | null | undefined) {
     if (!enabled) return t('giveaways.disabled');
     if (blocked) return t('giveaways.eligibleLabel');
     if (!value) return t(value === undefined ? 'giveaways.eligibleLoading' : 'giveaways.eligibleUnavailable');
-    const params = { count: number.format(value.count) };
-    if (!value.frozen_as_of) return t('giveaways.eligibleCount', params);
-    return t('giveaways.eligibleFrozen', { ...params, time: date.format(value.frozen_as_of) });
+    return t('giveaways.eligibleCount', { count: number.format(value.count) });
   }
 </script>
 
@@ -86,7 +76,7 @@
   </div>
   <div class="footer">
     <div class="count" role="status"><Text tone="muted" size="sm"><bb-fit><span data-fit="">{eligibleCopy(count)}</span></bb-fit></Text></div>
-    <Button type="submit" disabled={!enabled || blocked} {busy}><bb-fit><span data-fit="">{t('giveaways.start')}</span></bb-fit></Button>
+    <Button type="submit" disabled={!enabled || blocked} {busy}><bb-fit><span data-fit="">{t('giveaways.startGiveaway')}</span></bb-fit></Button>
   </div>
 </form>
 

@@ -15,6 +15,7 @@
   "verifying": "Vérification des gagnants en cours. Les résultats arrivent.",
   "winners": "{draw:targets} a gagné !",
   "winners.claim": "Bravo {draw:targets} pour cette victoire ! Tape !claim pour réclamer ton prix.",
-  "winners.raffle": "{draw:targets} a remporté {draw:points} points par personne !",
-  "open.busy_giveaway": "Un concours est déjà ouvert. Tire les gagnants ou annule-le."
+  "winners.raffle": "{draw:targets} ont gagné {draw:amount} {draw:points} chacun !",
+  "open.busy_giveaway": "Un concours est déjà ouvert. Tire les gagnants ou annule-le.",
+  "join.free": "La participation est gratuite."
 }

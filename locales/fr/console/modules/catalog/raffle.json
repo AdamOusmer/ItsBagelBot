@@ -16,6 +16,18 @@
     "remindEnabled": {
       "label": "Rappels du temps restant",
       "help": "Poste la ligne de rappel du temps restant pendant qu'un tirage est en cours."
+    },
+    "bareRaffle": {
+      "label": "Mode par défaut de !raffle",
+      "help": "Choisis ce que !raffle lance sans sous-commande.",
+      "options": {
+        "single": "Un seul gagnant",
+        "split": "Cagnotte partagée"
+      }
+    },
+    "midCountEnabled": {
+      "label": "Nombre de participants à mi-parcours",
+      "help": "Publie le nombre de participants et le temps restant à mi-parcours."
     }
   },
   "replies": {
@@ -51,7 +63,7 @@
     "join": "Participer au tirage pendant qu'il est ouvert (aussi !raffle join).",
     "winner": "Affiche les gagnants et l’état du versement pendant le tirage.",
     "raffle_status": "Voir si un tirage tourne, les inscriptions et le temps restant (un viewer qui tape !raffle obtient la même chose).",
-    "raffle_amount_seconds": "Lancer un tirage à un seul gagnant : il empoche tout le montant (aussi !sraffle, !singleraffle). Les montants acceptent k et m ; défauts 1000 points, 60 secondes.",
+    "raffle_amount_seconds": "Lance une tombola dans le mode configuré. Utilise !sraffle pour un seul gagnant. Les montants acceptent k et m.",
     "raffle_draw_winners": "Clôture le tirage et annonce les gagnants après le versement. Indiquez un nombre de gagnants ou auto.",
     "raffle_close": "Identique à draw avec le nombre de gagnants configuré.",
     "raffle_cancel": "Annuler sans tirer.",

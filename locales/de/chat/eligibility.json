@@ -1,12 +1,12 @@
 {
   "check.ok": "@{eligibility:user} du erfüllst die Teilnahmebedingungen.",
-  "check.later": "Bei der Auslosung wird Folgendes geprüft: {eligibility:requirements}.",
+  "check.later": "Diese Bedingungen prüfen wir bei der Ziehung: {eligibility:requirements}.",
   "lookup_failed": "@{eligibility:user} die Teilnahmebedingungen konnten nicht geprüft werden. Versuche es gleich noch einmal.",
   "refused.role": "@{eligibility:user} deine Chat-Rolle erfüllt die Teilnahmebedingung nicht.",
   "refused.broadcaster": "@{eligibility:user} der Streamer kann am eigenen Gewinnspiel nicht teilnehmen.",
   "refused.mod": "@{eligibility:user} Moderatoren können an diesem Gewinnspiel nicht teilnehmen.",
-  "refused.points": "@{eligibility:user} du brauchst {eligibility:need} Punkte (um {eligibility:time} UTC hattest du {eligibility:had}).",
-  "refused.watch": "@{eligibility:user} du brauchst {eligibility:need} Wiedergabezeit (um {eligibility:time} UTC hattest du {eligibility:had}).",
+  "refused.points": "@{eligibility:user} du brauchst {eligibility:need} {eligibility:points}. Beim Start hattest du {eligibility:had}.",
+  "refused.watch": "@{eligibility:user} du brauchst {eligibility:need} Wiedergabezeit. Beim Start hattest du {eligibility:had}.",
   "refused.follow": "@{eligibility:user} es konnte nicht geprüft werden, ob du dem Kanal folgst.",
   "refused.scope": "@{eligibility:user} der Bot braucht Zugriff auf die Follower dieses Kanals.",
   "refused.follow_age": "@{eligibility:user} du musst dem Kanal seit mindestens {eligibility:need} Tagen folgen.",
@@ -24,5 +24,11 @@
   "req.account_days": "Konto mindestens {eligibility:value} Tage alt",
   "req.skip_winners_days": "kein Gewinn in den letzten {eligibility:value} Tagen",
   "req.sub_luck": "{eligibility:value} % Gewicht für Abonnenten und Gründer",
-  "req.list": "{eligibility:first} und {eligibility:last}"
+  "req.list": "{eligibility:first} und {eligibility:last}",
+  "check.draw_ok": "Du erfüllst aktuell auch die Bedingungen für die Ziehung.",
+  "batch.role": "{eligibility:targets} brauchen eine andere Chatrolle, um teilzunehmen. Schreib !check für Details.",
+  "batch.broadcaster": "{eligibility:targets} können am eigenen Gewinnspiel nicht teilnehmen. Schreib !check für Details.",
+  "batch.mod": "{eligibility:targets} sind Mods und können nicht teilnehmen. Schreib !check für Details.",
+  "batch.points": "{eligibility:targets} brauchen {eligibility:need} {eligibility:points}, um teilzunehmen. Schreib !check für Details.",
+  "batch.watch": "{eligibility:targets} brauchen {eligibility:need} Wiedergabezeit, um teilzunehmen. Schreib !check für Details."
 }

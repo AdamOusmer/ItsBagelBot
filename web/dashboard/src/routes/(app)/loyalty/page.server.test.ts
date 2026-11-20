@@ -14,6 +14,7 @@ const user = raffleWire.request.user_id;
 const stamp = { freeze_id: 'epoch', frozen_as_of: 100, expires_at: 200 };
 const freezeStamp = { id: stamp.freeze_id, asOf: stamp.frozen_as_of, expiresAt: stamp.expires_at };
 const locals = { session: { user_id: user }, locale: 'en' };
+const moderator = { user_id: '95', delegate_of: user, sections: ['modules'] };
 const calls: { subject: string; payload: unknown; timeoutMs: number }[] = [];
 let replies: Record<string, object | Error>;
 const loyaltyRow = { name: 'loyalty', is_enabled: true, configs: { pointsName: 'bagels' } };
@@ -43,27 +44,24 @@ const { eligibleCount } = await import('#lib/server/loyalty-store');
 const ok = { ok: true };
 const invalid = { status: 400, data: { ok: false } };
 const conflict = (reason: string) => ({ status: 409, data: { ok: false, reason } });
-const set = { user_id: user, holder: 'mod', minutes: FREEZE_MAX_MINUTES, block_transfer: true, close_games: false };
-const release = { user_id: user, holder: 'mod', freeze_id: stamp.freeze_id };
+const times = { frozen_as_of: stamp.frozen_as_of, expires_at: stamp.expires_at };
+const identity = { user_id: user, actor_id: moderator.user_id };
+const set = { ...identity, minutes: FREEZE_MAX_MINUTES };
 
 const cases = [
-  { action: 'freeze', fields: { minutes: String(FREEZE_MAX_MINUTES), block_transfer: 'on' },
-    reply: { freeze: stamp }, want: ok, verb: 'freeze.set', payload: set },
-  { action: 'freeze', fields: { minutes: '1', close_games: 'on' },
-    reply: { freeze: stamp }, want: ok, verb: 'freeze.set', payload: { ...set, minutes: 1, block_transfer: false, close_games: true } },
-  { action: 'freeze', fields: { minutes: String(FREEZE_MAX_MINUTES), block_transfer: 'on' },
+  { action: 'freeze', fields: { minutes: String(FREEZE_MAX_MINUTES) },
+    reply: times, want: ok, verb: 'freeze.set', payload: set },
+  { action: 'freeze', fields: { minutes: '1' },
+    reply: times, want: ok, verb: 'freeze.set', payload: { ...set, minutes: 1 } },
+  { action: 'freeze', fields: { minutes: String(FREEZE_MAX_MINUTES) },
     reply: new Error('RPC timed out'),
     want: { status: 502, data: { ok: false } }, verb: 'freeze.set', payload: set },
   ...['', '0', '1.5', String(FREEZE_MAX_MINUTES + 1)].map((minutes) => ({
     action: 'freeze', fields: { minutes }, reply: {}, want: invalid, verb: '', payload: null
   })),
-  { action: 'unfreeze', fields: { freeze_id: stamp.freeze_id }, reply: { found: true },
-    want: ok, verb: 'freeze.release', payload: release },
-  { action: 'unfreeze', fields: { freeze_id: stamp.freeze_id }, reply: {},
-    want: conflict('stale_pin'), verb: 'freeze.release', payload: release },
-  { action: 'unfreeze', fields: { freeze_id: stamp.freeze_id }, reply: new RpcError('held_by_round', 'conflict'),
-    want: conflict('held_by_round'), verb: 'freeze.release', payload: release },
-  { action: 'unfreeze', fields: { freeze_id: '' }, reply: {}, want: invalid, verb: '', payload: null },
+  ...[true, false].map((released) => ({
+    action: 'unfreeze', fields: {}, reply: { released }, want: ok, verb: 'freeze.release', payload: identity
+  })),
   { action: 'reset', fields: { confirm: 'reset' }, reply: new RpcError('frozen', 'conflict'),
     want: conflict('frozen'), verb: 'balance.reset', payload: { user_id: user } }
 ];
@@ -75,7 +73,7 @@ test.each(cases)('$action with $fields answers $want', async ({ action, fields, 
     method: 'POST',
     body: new URLSearchParams(fields as Record<string, string>)
   });
-  const result = await actions[action]({ request, locals } as never);
+  const result = await actions[action]({ request, locals: { ...locals, session: moderator } } as never);
   const timeoutMs = verb === 'freeze.set' ? 30_000 : 4000;
   expect({ result, calls }).toMatchObject({
     result: want,
@@ -85,12 +83,8 @@ test.each(cases)('$action with $fields answers $want', async ({ action, fields, 
 
 test.each([
   { name: 'a failed freeze read', reply: new Error('freeze unavailable'), expected: null },
-  { name: 'an empty freeze view', reply: { freeze: { holders: [] } }, expected: null },
-  {
-    name: 'an active freeze',
-    reply: { freeze: { ...stamp, holders: ['round:one'], block_transfer: true } },
-    expected: { ...freezeStamp, holders: ['round:one'], blockTransfer: true, closeGames: false }
-  }
+  { name: 'an inactive freeze', reply: { active: false }, expected: null },
+  { name: 'an active freeze', reply: { active: true, ...times }, expected: { asOf: freezeStamp.asOf, expiresAt: freezeStamp.expiresAt } }
 ])('load handles $name independently of the top standings', async ({ reply, expected }) => {
   replies = { 'freeze.get': reply, 'top.get': { ...stamp } };
   const page = await load({ locals, cookies: { get: () => undefined } } as never);
@@ -120,13 +114,14 @@ test.each([
 });
 
 test.each([
-  { name: 'raffle', conflict: false, want: { ok: true, conflict: false, rev: 5 } },
-  { name: 'raffle', conflict: true, want: { ok: false, conflict: true, rev: 5 } },
+  { name: 'gamble', conflict: false, want: { ok: true, conflict: false, rev: 5 } },
+  { name: 'gamble', conflict: true, want: { ok: false, conflict: true, rev: 5 } },
+  { name: 'raffle', conflict: false, want: invalid },
   { name: 'loyalty', conflict: false, want: invalid }
 ])('gameSettings patches only a loyalty child ($name, conflict: $conflict)', async ({ name, conflict, want }) => {
   const subject = `${SUB.modules}.patch`;
   const projector = `${SUB.projector}.modules.replace`;
-  const modules = [loyaltyRow, { name: 'raffle', is_enabled: true, revision: 5, configs: { prizePoints: '3000' } }];
+  const modules = [loyaltyRow, { name: 'gamble', is_enabled: true, revision: 5, configs: { winPercent: '55' } }];
   replies = { [subject]: { rev: 5, conflict, modules }, [projector]: { modules } };
   calls.length = 0;
   const cookies = { set: mock() };
@@ -135,7 +130,7 @@ test.each([
     method: 'POST',
     body: new URLSearchParams({
       name, is_enabled: 'on', expected_rev: '4',
-      partial: JSON.stringify({ prizePoints: '3000', claimPrize: 'legacy' })
+      partial: JSON.stringify({ winPercent: '55', claimPrize: 'legacy' })
     })
   });
   const result = await actions.gameSettings({ request, locals, cookies, url } as never);
@@ -145,8 +140,8 @@ test.each([
     refresh: cookies.set.mock.calls.length
   }).toEqual({
     result: want,
-    rpc: name === 'raffle'
-      ? { user_id: user, name, is_enabled: true, expected_rev: 4, configs: { prizePoints: '3000' } }
+    rpc: name === 'gamble'
+      ? { user_id: user, name, is_enabled: true, expected_rev: 4, configs: { winPercent: '55' } }
       : undefined,
     refresh: conflict ? 1 : 0
   });

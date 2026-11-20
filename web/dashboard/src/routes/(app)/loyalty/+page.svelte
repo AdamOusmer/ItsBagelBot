@@ -29,7 +29,7 @@
   reseedOnChange(() => data.raffle, (next) => { raffle = next; });
 
   let tab = $state(untrack(() => page.url.hash === '#games' ? 'games' : 'status'));
-  const pollStatus = $derived(tab === 'status' || tab === 'games');
+  const pollStatus = $derived(tab === 'status');
   const statusInterval = 5000;
   const options = $derived([
     { value: 'status', label: t('loyalty.statusTitle'), attrs: { 'aria-controls': 'loyalty-status' } },
@@ -107,7 +107,7 @@
       <LoyaltyStandings top={data.top} topFreeze={data.topFreeze} pointsName={data.config.pointsName} onEarning={() => (tab = 'earning')} />
     </div>
     <div id="games" class="panel" class:inactive={tab !== 'games'} inert={tab !== 'games'}>
-      <LoyaltyGames games={data.games} unpaid={raffle?.unpaid} {enabled} />
+      <LoyaltyGames games={data.games} {enabled} />
     </div>
   </div>
 </section>

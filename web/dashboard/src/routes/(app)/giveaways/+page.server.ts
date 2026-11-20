@@ -3,16 +3,18 @@
 
 import { fail } from '@sveltejs/kit';
 import { dev } from '$app/env';
-import { GIVEAWAY_LIMITS as pins, MOD, translate } from '@bagel/kit';
+import { GIVEAWAY_LIMITS as pins, MOD, moduleDef, translate } from '@bagel/kit';
 import { env } from '@bagel/kit/server/env';
 import { RpcError } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { mutateAction, thrownStatus } from '@bagel/kit/server/form-action';
 import { effectiveId } from '#lib/server/board';
 import {
-  GiveawayRefusal, emptyGiveawaySettings, giveawayDef, giveawaySettings, liveGiveaways, mutateGiveaway, pastWinners,
+  DrawRefusal, emptyGiveawaySettings, giveawayDef, giveawaySettings, mutateGiveaway, pastWinners,
   type DrawMutation
 } from '#lib/server/channel-giveaways';
+import { emptyLiveRaffles, liveDraws, mutateRaffle, raffleInput } from '#lib/server/channel-raffles';
+import { patchModuleSettings } from '#lib/server/module-patch';
 import { patchModule } from '#lib/server/commands-store';
 import { drawInput, presetPatch, settingPatch } from '#lib/server/giveaway-input';
 import { assertModuleWritable, gateModulePage } from '#lib/server/module-gate';
@@ -21,6 +23,7 @@ import type { Actions, PageServerLoad } from './$types';
 
 const DEMO = dev && env.DEMO === '1';
 const WINNERS_PER_PAGE = 20;
+const raffleDef = moduleDef(MOD.raffle)!;
 
 async function winnerHistory(userId: string, url: URL) {
   const selected = Number(url.searchParams.get('winners'));
@@ -41,14 +44,14 @@ export const load: PageServerLoad = async ({ locals, depends, url }) => {
     degraded: false,
     demo: true,
     serverNow: Date.now(),
-    live: { rounds: [], degraded: false },
+    live: { rounds: [], degraded: false, raffles: emptyLiveRaffles },
     history: { page: 1, winners: [], more: false, degraded: false }
   };
 
   const uid = effectiveId(locals.session);
   const [settings, live, history] = await Promise.all([
     giveawaySettings(uid),
-    liveGiveaways(uid),
+    liveDraws(uid),
     winnerHistory(uid, url)
   ]);
   return { ...settings, demo: false, serverNow: Date.now(), live, history };
@@ -65,42 +68,61 @@ const refusalCopy: Record<string, string> = {
   'giveaway.open.loyalty_off': 'loyaltyOff',
   'giveaway.open.stalled': 'loyaltyStalled',
   'giveaway.open.busy': 'busy',
-  'draw.open.busy_giveaway': 'busy'
+  'draw.open.busy_giveaway': 'busy',
+  'draw.open.busy_raffle': 'busyRaffle',
+  busy_giveaway: 'busy',
+  busy_raffle: 'busyRaffle',
+  loyalty_off: 'raffleLoyaltyOff',
+  invalid: 'invalidInput'
 };
 
 type Action = Actions[string];
 
 function failedDraw(err: unknown, locals: App.Locals) {
-  const status = thrownStatus(err instanceof GiveawayRefusal ? err.refusal : err);
+  const status = thrownStatus(err instanceof DrawRefusal ? err.refusal : err);
   const fallback = status === 409 ? 'changed' : 'actionFailed';
-  const key = err instanceof GiveawayRefusal && err.reason ? refusalCopy[err.reason] ?? fallback : fallback;
+  const key = err instanceof DrawRefusal && err.reason ? refusalCopy[err.reason] ?? fallback : fallback;
   return fail(status, { ok: false as const, error: translate(locals.locale, `giveaways.${key}`) });
 }
 
-function drawAction(verb: DrawMutation): Action {
+type RaffleVerb = Parameters<typeof raffleInput>[0];
+type DrawAction = { kind: 'giveaway'; verb: DrawMutation } | { kind: 'raffle'; verb: RaffleVerb };
+
+function drawAction(action: DrawAction): Action {
+  const { kind, verb } = action;
   return (event) => {
     const { locals } = event;
-    const session = authorizedSession(locals);
+    const def = kind === 'raffle' ? raffleDef : giveawayDef;
     return mutateAction(event, {
-      gate: () => session,
+      gate: () => authorizedSession(locals, def),
       refusal: () => denied(locals),
       demo: DEMO,
       invalid: translate(locals.locale, 'giveaways.invalidInput'),
-      run: async (actor, form) => {
-        const input = drawInput(verb, form);
-        if (!input) return null;
-        await mutateGiveaway(verb, { userId: effectiveId(actor), actorId: actor.user_id }, input);
-        return input.round_id ?? '';
-      },
+      run: (session, form) => runDraw(action, { userId: effectiveId(session), actorId: session.user_id }, form),
       failed: (err) => failedDraw(err, locals),
-      audited: (actor, detail) => auditDashboardImpersonation(actor, `giveaway:${verb}`, detail)
+      audited: (actor, detail) => auditDashboardImpersonation(actor, `${kind}:${verb}`, detail)
     });
   };
 }
 
-function authorizedSession(locals: App.Locals) {
+async function runDraw(action: DrawAction, actor: Parameters<typeof mutateRaffle>[0], form: FormData) {
+  if (action.kind === 'raffle') return runRaffle(action.verb, actor, form);
+  const input = drawInput(action.verb, form);
+  if (!input) return null;
+  await mutateGiveaway(action.verb, actor, input);
+  return input.round_id ?? '';
+}
+
+async function runRaffle(verb: RaffleVerb, actor: Parameters<typeof mutateRaffle>[0], form: FormData) {
+  const mutation = raffleInput(verb, form);
+  if (!mutation) return null;
+  const reply = await mutateRaffle(actor, mutation);
+  return mutation.verb === 'start' ? reply.round_id ?? '' : mutation.input.round_id;
+}
+
+function authorizedSession(locals: App.Locals, def = giveawayDef) {
   const session = locals.session;
-  return session && assertModuleWritable(session, giveawayDef) ? session : null;
+  return session && assertModuleWritable(session, def) ? session : null;
 }
 
 function denied(locals: App.Locals) {
@@ -152,15 +174,27 @@ function save(kind: SettingsChange): Action {
   };
 }
 
+function giveawayAction(verb: DrawMutation) {
+  return drawAction({ kind: 'giveaway', verb });
+}
+
 export const actions: Actions = {
-  start: drawAction('start'),
-  close: drawAction('close'),
-  extend: drawAction('extend'),
-  cancel: drawAction('cancel'),
-  reroll: drawAction('reroll'),
-  end: drawAction('end_slots'),
-  skip: drawAction('skip_rule'),
-  deliver: drawAction('mark_delivered'),
+  raffleStart: drawAction({ kind: 'raffle', verb: 'start' }),
+  raffleDraw: drawAction({ kind: 'raffle', verb: 'draw' }),
+  raffleCancel: drawAction({ kind: 'raffle', verb: 'cancel' }),
+  raffleSettings: async ({ locals, request }) => {
+    if (!authorizedSession(locals, raffleDef)) return denied(locals);
+    const { result } = await patchModuleSettings(raffleDef, await request.formData(), locals, DEMO);
+    return result;
+  },
+  start: giveawayAction('start'),
+  close: giveawayAction('close'),
+  extend: giveawayAction('extend'),
+  cancel: giveawayAction('cancel'),
+  reroll: giveawayAction('reroll'),
+  end: giveawayAction('end_slots'),
+  skip: giveawayAction('skip_rule'),
+  deliver: giveawayAction('mark_delivered'),
   savePresets: save('presets'),
   saveSettings: save('settings'),
   toggle: save('toggle')

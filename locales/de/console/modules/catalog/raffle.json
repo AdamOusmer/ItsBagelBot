@@ -16,6 +16,18 @@
     "remindEnabled": {
       "label": "Restzeit-Erinnerungen",
       "help": "Postet die Erinnerung an die verbleibende Zeit, solange eine Verlosung läuft."
+    },
+    "bareRaffle": {
+      "label": "Standardmodus für !raffle",
+      "help": "Wähle, was !raffle ohne Unterbefehl startet.",
+      "options": {
+        "single": "Ein Gewinner",
+        "split": "Geteilter Pot"
+      }
+    },
+    "midCountEnabled": {
+      "label": "Teilnehmerzahl zur Halbzeit",
+      "help": "Postet zur Halbzeit die Teilnehmerzahl und die verbleibende Zeit."
     }
   },
   "replies": {
@@ -51,7 +63,7 @@
     "join": "Nimmt an der laufenden Verlosung teil (auch !raffle join).",
     "winner": "Zeigt die Gewinner und den Auszahlungsstatus während der Abwicklung.",
     "raffle_status": "Zeigt, ob eine Verlosung läuft, die Teilnahmen und die Restzeit (Zuschauer, die !raffle eingeben, erhalten dasselbe).",
-    "raffle_amount_seconds": "Startet eine Verlosung mit einem Gewinner, der den gesamten Betrag erhält (auch !sraffle, !singleraffle). Beträge erlauben k und m; Standard: 1000 Punkte, 60 Sekunden.",
+    "raffle_amount_seconds": "Startet eine Verlosung im eingestellten Modus. !sraffle zieht einen Gewinner. Beträge können k und m verwenden.",
     "raffle_draw_winners": "Schließt die Verlosung und nennt die Gewinner nach der Auszahlung. Gib eine Anzahl oder auto ein.",
     "raffle_close": "Wie draw mit der eingestellten Gewinneranzahl.",
     "raffle_cancel": "Bricht ohne Ziehung ab.",

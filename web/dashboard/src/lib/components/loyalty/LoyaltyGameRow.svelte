@@ -13,10 +13,13 @@
   import ReplyEditor from '#lib/components/modules/ReplyEditor.svelte';
   import ReplyRow from '#lib/components/modules/ReplyRow.svelte';
 
-  let { def, settings, loyaltyOn }: {
+  let { def, settings, loyaltyOn, action = 'gameSettings', locked = false, onSaved }: {
     def: ModuleDef;
     settings: { enabled: boolean; config: Record<string, string>; revision: number };
     loyaltyOn: boolean;
+    action?: string;
+    locked?: boolean;
+    onSaved?: () => Promise<void>;
   } = $props();
 
   const { t } = getI18n();
@@ -29,6 +32,7 @@
   let selectedReply = $state<ModuleReply | null>(null);
   let message = $state('');
   const on = $derived(loyaltyOn && enabled);
+  const disabled = $derived(locked || activeSave !== null);
 
   function syncSettings(incoming: typeof settings) {
     config = { ...incoming.config };
@@ -42,7 +46,7 @@
   });
 
   async function save(key: string, partial: Record<string, string>, nextEnabled = on) {
-    if (activeSave) return false;
+    if (disabled) return false;
     const form = new FormData();
     form.set('name', def.id);
     form.set('expected_rev', String(rev));
@@ -51,12 +55,13 @@
     activeSave = key;
     statuses[key] = 'saving';
     try {
-      const result = await postAction<ActionOk & { rev?: number; conflict?: boolean }>('gameSettings', form);
+      const result = await postAction<ActionOk & { rev?: number; conflict?: boolean }>(action, form);
       if (result?.ok) {
         rev = result.rev ?? rev;
         enabled = nextEnabled;
         config = { ...config, ...partial };
         statuses[key] = 'saved';
+        await onSaved?.();
         return true;
       }
       if (result?.conflict) {
@@ -104,14 +109,14 @@
     hint={tModuleTagline(t, def)}
     hintId={`${def.id}-game-hint`}
     checked={on}
-    disabled={!loyaltyOn || activeSave !== null}
+    disabled={!loyaltyOn || disabled}
     busy={activeSave === 'module'}
     onCheckedChange={(checked) => save('module', {}, checked)}
   />
   <ModuleSettingsForm
     {def} {config}
     modStatus={statuses}
-    locked={activeSave !== null}
+    locked={disabled}
     {saveSetting}
   />
   {#each def.replies as reply (reply.key)}
@@ -122,7 +127,7 @@
       status={statuses[reply.key] ?? 'idle'}
       expanded={selectedReply === reply}
       enabled={reply.enableKey ? replyOn(reply) : undefined}
-      disabled={activeSave !== null}
+      {disabled}
       onExpand={() => openReply(reply)}
       onToggle={() => reply.enableKey && save(reply.key, { [reply.enableKey]: replyOn(reply) ? 'off' : 'on' })}
     />

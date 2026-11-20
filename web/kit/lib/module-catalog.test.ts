@@ -176,11 +176,11 @@ describe('module catalog', () => {
     expect(listed.every(catalogIndexable)).toBe(true);
   });
 
-  test('point games link to Loyalty Games and use its currency', () => {
+  test('point games link to their dashboard settings and use Loyalty currency', () => {
     for (const id of ['gamble', 'duel', 'raffle'] as const) {
       const def = moduleDef(id);
       expect(def?.parent).toBe('loyalty');
-      expect(def?.href).toBe('/loyalty#games');
+      expect(def?.href).toBe(id === 'raffle' ? '/giveaways' : '/loyalty#games');
       expect(def?.settings?.some((s) => s.key === 'pointsName')).toBe(false);
     }
   });

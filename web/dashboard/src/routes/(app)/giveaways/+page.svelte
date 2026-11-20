@@ -11,33 +11,43 @@
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import Pager from '@bagel/ui/svelte/Pager.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
   import { postAction } from '#lib/client-actions.svelte';
   import ModuleSettingsForm from '#lib/components/modules/ModuleSettingsForm.svelte';
+  import LoyaltyGameRow from '#lib/components/loyalty/LoyaltyGameRow.svelte';
+  import RaffleStartForm from '#lib/components/giveaways/RaffleStartForm.svelte';
   import LivePanel from '#lib/components/giveaways/LivePanel.svelte';
   import PastWinners from '#lib/components/giveaways/PastWinners.svelte';
   import PresetEditor from '#lib/components/giveaways/PresetEditor.svelte';
   import StartForm from '#lib/components/giveaways/StartForm.svelte';
-  import type { LiveGiveaways } from '#lib/server/channel-giveaways';
+  import type { LiveDraws } from '#lib/server/channel-raffles';
   import type { ActionData, PageData } from './$types';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
   const { t } = getI18n();
   const def = moduleDef(MOD.giveaway)!;
+  const raffleDef = moduleDef(MOD.raffle)!;
   const loadKey = 'giveaways:live';
 
-  let live = $derived(data.live);
+  let live: LiveDraws = $derived(data.live);
   let now = $state(untrack(() => data.serverNow));
-  let clockSkewMs = $state(0);
   let busy = $state(false);
   let setting = $state('');
   let statuses = $state<Record<string, SaveState>>({});
   let poll: AbortController | undefined;
-  const blocked = $derived(live.degraded || live.rounds.some((round) => round.phase === 'open'));
-  const activeNotice = $derived(form?.error ? 'form' : live.degraded ? 'live' : data.degraded ? 'settings' : null);
+  let startKind = $state('raffle');
+  const startOptions = $derived([
+    { value: 'raffle', label: t('giveaways.pointsRaffle'), attrs: { 'aria-controls': 'start-raffle' } },
+    { value: 'giveaway', label: t('giveaways.itemGiveaway'), attrs: { 'aria-controls': 'start-giveaway' } }
+  ]);
+  const liveUnavailable = $derived(live.degraded || live.raffles.degraded);
+  const openRound = $derived([...live.rounds, ...live.raffles.rounds].some((round) => round.phase === 'open'));
+  const blocked = $derived(liveUnavailable || openRound || data.degraded);
+  const activeNotice = $derived(form?.error ? 'form' : liveUnavailable ? 'live' : data.degraded ? 'settings' : null);
 
   const idle = () => !(busy || setting);
   const pollable = () => idle() && !document.hidden;
@@ -47,9 +57,8 @@
   onMount(() => {
     if (data.demo) return;
     const skew = data.serverNow - Date.now();
-    clockSkewMs = skew;
     const clock = setInterval(() => { now = Date.now() + skew; }, 1000);
-    const delay = () => live.rounds.length ? 2000 : 10_000;
+    const delay = () => (live.rounds.length || live.raffles.rounds.length || live.raffles.unpaid.length) ? 2000 : 10_000;
     const stop = livePoll(async () => {
       if (pollable()) await pollLive();
       return false;
@@ -61,7 +70,7 @@
     };
   });
 
-  function completed(next: LiveGiveaways): boolean {
+  function completed(next: LiveDraws): boolean {
     return !next.degraded && live.rounds.some((round) => !next.rounds.some((item) => item.id === round.id));
   }
 
@@ -70,17 +79,21 @@
     poll = request;
     try {
       const response = await fetch('/giveaways/live', { signal: request.signal });
-      if (!response.ok) throw new Error('Giveaway status unavailable');
-      const next: LiveGiveaways = await response.json();
+      if (!response.ok) throw new Error('Draw status unavailable');
+      const next: LiveDraws = await response.json();
       if (request.signal.aborted) return;
       if (completed(next)) {
         await invalidate(loadKey);
         return;
       }
-      live = next.degraded ? { ...live, degraded: true } : next;
+      live = {
+        ...next,
+        rounds: next.degraded ? live.rounds : next.rounds,
+        raffles: next.raffles.degraded ? { ...live.raffles, degraded: true } : next.raffles
+      };
     } catch {
       if (request.signal.aborted) return;
-      live = { ...live, degraded: true };
+      live = { ...live, degraded: true, raffles: { ...live.raffles, degraded: true } };
     }
   }
 
@@ -145,13 +158,36 @@
   <Card>
     <div class="section">
       <CardHead title={t('giveaways.new')} headingLevel={2} />
-      <StartForm config={data.config} enabled={data.enabled} blocked={blocked || data.degraded} busy={busy || !!setting} demo={data.demo} {clockSkewMs} {submit} />
+      <SegmentedControl options={startOptions} bind:value={startKind} label={t('giveaways.new')} />
+      <div class="startForms">
+        <div id="start-raffle" class="startForm" class:hiddenNotice={startKind !== 'raffle'} inert={startKind !== 'raffle'}>
+          <RaffleStartForm config={data.raffleSettings.config}
+            loyaltyEnabled={data.loyaltyEnabled} {blocked} busy={busy || !!setting} {submit} />
+        </div>
+        <div id="start-giveaway" class="startForm" class:hiddenNotice={startKind !== 'giveaway'} inert={startKind !== 'giveaway'}>
+          <StartForm config={data.config} enabled={data.enabled} {blocked} busy={busy || !!setting} demo={data.demo}
+            active={startKind === 'giveaway'} {submit} />
+        </div>
+      </div>
     </div>
   </Card>
 
+  {#each live.raffles.rounds as round (round.id)}
+    <LivePanel {round} {now} busy={busy || !!setting || live.raffles.degraded} {submit} />
+  {/each}
+  {#if live.raffles.unpaid.length}
+    <AlertBanner tone="warning" role="status">
+      {t('loyalty.raffleUnpaid', { viewers: live.raffles.unpaid.map((name) => '@' + name).join(', ') })}
+    </AlertBanner>
+  {/if}
   {#each live.rounds as round (round.id)}
     <LivePanel {round} {now} busy={busy || !!setting || live.degraded} {submit} />
   {/each}
+
+  <Card>
+    <LoyaltyGameRow def={raffleDef} settings={data.raffleSettings} loyaltyOn={data.loyaltyEnabled}
+      action="raffleSettings" locked={data.degraded || busy || !!setting} onSaved={() => invalidate(loadKey)} />
+  </Card>
 
   <PresetEditor config={data.config} revision={data.revision} enabled={data.enabled} {busy} locked={data.degraded || !!setting} {submit} />
 
@@ -180,13 +216,14 @@
 
 <style>
   .pageContent { display: grid; min-width: 0; gap: var(--bb-space-5); }
-  .notices { display: grid; }
+  .notices, .startForms { display: grid; }
+  .startForm { grid-area: 1 / 1; min-inline-size: 0; transition: opacity var(--bb-dur-fast); }
   .notice { grid-area: 1 / 1; min-inline-size: 0; transition: opacity var(--bb-dur-fast); }
   .hiddenNotice { opacity: 0; }
   .noticeCopy { display: block; block-size: 2.75em; align-content: center; }
   .section, .settingsHead { display: grid; gap: var(--bb-space-3); min-width: 0; }
   .settingsHead { padding: var(--bb-space-4) var(--bb-space-5); }
   @media (prefers-reduced-motion: reduce) {
-    .notice { transition: none; }
+    .notice, .startForm { transition: none; }
   }
 </style>

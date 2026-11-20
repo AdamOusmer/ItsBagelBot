@@ -22,11 +22,11 @@ test.each([
   { verb: 'live', input: {}, response: { rounds: [] }, run: () => store.liveGiveaways(uid), expected: { rounds: [], degraded: false } },
   {
     verb: 'eligible_count', input: { preset: 'regulars' }, response: { count: 0, frozen_as_of: 10, expires_at: 99 },
-    run: () => store.eligibleCount(uid, 'regulars'), expected: { count: 0, frozen_as_of: 10, expires_at: 99 }
+    run: () => store.eligibleCount(uid, 'regulars'), expected: { count: 0 }
   }
 ])('reads draw $verb with dashboard identity', async ({ verb, input, response, run, expected }) => {
   const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce(response);
-  expect(await run()).toMatchObject(expected);
+  expect(await run()).toEqual(expected);
   expect(rpc).toHaveBeenCalledWith(`rpc.draw.giveaway.${verb}`, { user_id: uid, source: 'dashboard', ...input }, 10_000);
 });
 

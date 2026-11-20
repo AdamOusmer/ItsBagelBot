@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import type { RaffleRound } from '#lib/channel-giveaway';
 import { rpc } from '@bagel/kit/server/nats';
 import type { CounterDef, CounterEntryView, CounterScope, LoyaltyConfig, LoyaltyStanding } from '@bagel/kit';
 import { blankLoyaltyConfig, COUNTER_SCOPES, MOD } from '@bagel/kit';
@@ -50,12 +51,6 @@ interface FreezeStampWire {
   expires_at?: number;
 }
 
-interface FreezeViewWire extends FreezeStampWire {
-  holders?: string[];
-  block_transfer?: boolean;
-  close_games?: boolean;
-}
-
 interface LoyaltyReplyWire extends FreezeStampWire {
   balance?: BalanceWire;
   top?: BalanceWire[];
@@ -64,7 +59,7 @@ interface LoyaltyReplyWire extends FreezeStampWire {
   counter?: CounterWire;
   counters?: CounterWire[];
   entries?: EntryWire[];
-  freeze?: FreezeViewWire;
+  active?: boolean;
   found?: boolean;
   error?: string;
 }
@@ -221,15 +216,7 @@ export interface FreezeStamp {
   expiresAt: number;
 }
 
-export interface FreezeOptions {
-  minutes: number;
-  blockTransfer: boolean;
-  closeGames: boolean;
-}
-
-export interface FreezeView extends FreezeStamp, Omit<FreezeOptions, 'minutes'> {
-  holders: string[];
-}
+export type FreezeView = Omit<FreezeStamp, 'id'>;
 
 function freezeStamp(wire: FreezeStampWire): FreezeStamp | null {
   const id = wire.freeze_id ?? '';
@@ -238,36 +225,23 @@ function freezeStamp(wire: FreezeStampWire): FreezeStamp | null {
   return id ? { id, asOf, expiresAt } : null;
 }
 
-function freezeView(wire: FreezeViewWire = {}): FreezeView | null {
-  const stamp = freezeStamp(wire);
-  if (!stamp) return null;
-  return {
-    ...stamp,
-    holders: wire.holders ?? [],
-    blockTransfer: wire.block_transfer ?? false,
-    closeGames: wire.close_games ?? false
-  };
+function freezeView(wire: FreezeStampWire): FreezeView | null {
+  const { frozen_as_of: asOf, expires_at: expiresAt } = wire;
+  return asOf && expiresAt ? { asOf, expiresAt } : null;
 }
 
 export async function readFreeze(userId: BroadcasterId): Promise<FreezeView | null> {
   const reply = await callLoyalty('freeze.get', { user_id: userId });
-  return freezeView(reply.freeze);
+  return reply.active ? freezeView(reply) : null;
 }
 
-export async function freezeStandings(userId: BroadcasterId, options: FreezeOptions): Promise<FreezeView | null> {
-  const reply = await callLoyalty('freeze.set', {
-    user_id: userId,
-    holder: 'mod',
-    minutes: options.minutes,
-    block_transfer: options.blockTransfer,
-    close_games: options.closeGames
-  }, FREEZE_SET_TIMEOUT_MS);
-  return freezeView(reply.freeze);
+export async function freezeStandings(userId: BroadcasterId, actorId: BroadcasterId, minutes: number): Promise<FreezeView | null> {
+  const reply = await callLoyalty('freeze.set', { user_id: userId, actor_id: actorId, minutes }, FREEZE_SET_TIMEOUT_MS);
+  return freezeView(reply);
 }
 
-export async function unfreezeStandings(userId: BroadcasterId, freezeId: FreezeStamp['id']): Promise<boolean> {
-  const reply = await callLoyalty('freeze.release', { user_id: userId, holder: 'mod', freeze_id: freezeId });
-  return reply.found === true;
+export async function unfreezeStandings(userId: BroadcasterId, actorId: BroadcasterId): Promise<void> {
+  await callLoyalty('freeze.release', { user_id: userId, actor_id: actorId });
 }
 
 export interface StandingsMinimums {
@@ -323,6 +297,7 @@ export async function standingsPage(userId: BroadcasterId, req: StandingsPageReq
 export interface RaffleStatus {
   accrual_health: 'healthy' | 'starting' | 'offline' | 'stalled';
   unpaid?: string[];
+  rounds?: Omit<RaffleRound, 'kind'>[];
 }
 
 export function raffleStatus(userId: BroadcasterId): Promise<RaffleStatus> {

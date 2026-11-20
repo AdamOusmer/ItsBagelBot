@@ -1,12 +1,12 @@
 {
   "check.ok": "@{eligibility:user} você atende aos requisitos de participação.",
-  "check.later": "No sorteio, será verificado o seguinte: {eligibility:requirements}.",
+  "check.later": "Vamos conferir estes requisitos na hora do sorteio: {eligibility:requirements}.",
   "lookup_failed": "@{eligibility:user} não foi possível verificar os requisitos. Tente novamente em breve.",
   "refused.role": "@{eligibility:user} seu cargo no chat não atende ao requisito de participação.",
   "refused.broadcaster": "@{eligibility:user} quem transmite não pode participar do próprio sorteio.",
   "refused.mod": "@{eligibility:user} moderadores não podem participar deste sorteio.",
-  "refused.points": "@{eligibility:user} você precisa de {eligibility:need} pontos (tinha {eligibility:had} às {eligibility:time} UTC).",
-  "refused.watch": "@{eligibility:user} você precisa de {eligibility:need} de tempo assistido (tinha {eligibility:had} às {eligibility:time} UTC).",
+  "refused.points": "@{eligibility:user} você precisa de {eligibility:need} {eligibility:points}. Na abertura, você tinha {eligibility:had}.",
+  "refused.watch": "@{eligibility:user} você precisa de {eligibility:need} de tempo assistido. Na abertura, você tinha {eligibility:had}.",
   "refused.follow": "@{eligibility:user} não foi possível verificar se você segue o canal.",
   "refused.scope": "@{eligibility:user} o bot precisa de permissão para consultar os seguidores deste canal.",
   "refused.follow_age": "@{eligibility:user} você precisa seguir o canal há pelo menos {eligibility:need} dias.",
@@ -24,5 +24,11 @@
   "req.account_days": "conta com pelo menos {eligibility:value} dias",
   "req.skip_winners_days": "nenhuma vitória nos últimos {eligibility:value} dias",
   "req.sub_luck": "peso de {eligibility:value}% para inscritos e fundadores",
-  "req.list": "{eligibility:first} e {eligibility:last}"
+  "req.list": "{eligibility:first} e {eligibility:last}",
+  "check.draw_ok": "No momento, você também atende aos requisitos do sorteio.",
+  "batch.role": "{eligibility:targets} precisam de outra função no chat para participar. Digite !check para saber mais.",
+  "batch.broadcaster": "{eligibility:targets} não podem participar do próprio sorteio. Digite !check para saber mais.",
+  "batch.mod": "{eligibility:targets} não podem participar por serem moderadores. Digite !check para saber mais.",
+  "batch.points": "{eligibility:targets} precisam de {eligibility:need} {eligibility:points} para participar. Digite !check para saber mais.",
+  "batch.watch": "{eligibility:targets} precisam de {eligibility:need} de tempo assistido para participar. Digite !check para saber mais."
 }

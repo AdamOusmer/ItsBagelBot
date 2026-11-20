@@ -70,9 +70,7 @@ function readPreset(value: unknown): GiveawayPreset | null {
   const name = obj.name.trim().toLowerCase();
   const rules = readRules(obj.rules ?? {});
   if (!isPresetName(name) || !rules) return null;
-  const freezeWhileOpen = obj.freezeWhileOpen;
-  if (freezeWhileOpen == null) return { name, rules };
-  return typeof freezeWhileOpen === 'boolean' ? { name, rules, freezeWhileOpen } : null;
+  return { name, rules };
 }
 
 function readPresets(value: unknown): GiveawayPreset[] | null {
@@ -166,10 +164,15 @@ function slotInput(verb: DrawMutation, form: FormData): DrawInput | null {
   return delivered === undefined ? null : { slot, delivered };
 }
 
+export function drawRoundID(form: FormData) {
+  const id = text(form, 'round_id');
+  return id.length === pins.giveawayRoundIDMaxLen && uuidPattern.test(id) ? id : null;
+}
+
 export function drawInput(verb: DrawMutation, form: FormData): DrawInput | null {
   if (verb === 'start') return startInput(form);
-  const round_id = text(form, 'round_id');
-  if (!uuidPattern.test(round_id) || round_id.length > pins.giveawayRoundIDMaxLen) return null;
+  const round_id = drawRoundID(form);
+  if (!round_id) return null;
   if (roundOnlyMutations.has(verb)) return { round_id };
   const input = slotInput(verb, form);
   return input ? { round_id, ...input } : null;

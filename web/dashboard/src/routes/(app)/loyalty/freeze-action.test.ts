@@ -13,19 +13,20 @@ mock.module('@bagel/ui/svelte/toast', () => ({ toast }));
 const { finishFreezeAction } = await import('./freeze-action');
 
 const unavailable = { type: 'failure', status: 502, data: { ok: false }, location: '/loyalty' } as const;
-const heldByRound = { type: 'failure', status: 409, data: { reason: 'held_by_round' }, location: '/loyalty' } as const;
+const success = { type: 'success', status: 200, data: { ok: true } } as const;
 const cases = [
-  { releasing: false, result: unavailable, key: 'loyalty.toastFreezeFailed' },
-  { releasing: true, result: unavailable, key: 'loyalty.toastFreezeFailed' },
-  { releasing: true, result: heldByRound, key: 'loyalty.toastUnfreezeRound' }
-] satisfies { releasing: boolean; result: ActionResult; key: string }[];
+  { releasing: false, result: unavailable, tone: 'danger', key: 'loyalty.toastFreezeFailed' },
+  { releasing: true, result: unavailable, tone: 'danger', key: 'loyalty.toastFreezeFailed' },
+  { releasing: false, result: success, tone: 'success', key: 'loyalty.toastFrozen' },
+  { releasing: true, result: success, tone: 'success', key: 'loyalty.toastUnfrozen' }
+] satisfies { releasing: boolean; result: ActionResult; tone: string; key: string }[];
 
-test.each(cases)('refreshes after $key (unfreeze: $releasing)', async ({ result, releasing, key }) => {
+test.each(cases)('refreshes after $key (unfreeze: $releasing)', async ({ result, releasing, tone, key }) => {
   invalidateAll.mockClear();
   toast.mockClear();
   await finishFreezeAction(result, releasing, (message) => message);
   expect({ refreshes: invalidateAll.mock.calls.length, toasts: toast.mock.calls }).toEqual({
     refreshes: 1,
-    toasts: [['danger', key]]
+    toasts: [[tone, key]]
   });
 });

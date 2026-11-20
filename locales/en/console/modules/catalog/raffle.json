@@ -16,6 +16,18 @@
     "remindEnabled": {
       "label": "Time-left reminders",
       "help": "Posts the time-left reminder line while a raffle runs."
+    },
+    "bareRaffle": {
+      "label": "Default !raffle mode",
+      "help": "Choose what !raffle starts when you use it without a subcommand.",
+      "options": {
+        "single": "Single winner",
+        "split": "Split pot"
+      }
+    },
+    "midCountEnabled": {
+      "label": "Halfway entry count",
+      "help": "Post the entry count and time left halfway through the raffle."
     }
   },
   "replies": {
@@ -51,7 +63,7 @@
     "join": "Enter the raffle while one is running (also !raffle join).",
     "winner": "Show the winners and payout status while the raffle settles.",
     "raffle_status": "Show whether a raffle is running, entries and time left (a viewer typing !raffle gets the same).",
-    "raffle_amount_seconds": "Start a single-winner raffle: one winner takes the whole amount (also !sraffle, !singleraffle). Amounts take k and m; defaults 1000 points, 60 seconds.",
+    "raffle_amount_seconds": "Start a raffle in the configured mode. Use !sraffle for one winner. Amounts accept k and m.",
     "raffle_draw_winners": "Close now and announce winners after payout. You can enter a winner count or auto.",
     "raffle_close": "Same as draw with the configured winner count.",
     "raffle_cancel": "Tear down without drawing.",

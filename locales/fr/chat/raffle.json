@@ -16,8 +16,7 @@
   "last.empty": "La dernière loterie s'est fermée sans participant.",
   "last.none": "Aucune loterie n'a encore été tirée ici.",
   "open.already": "Une loterie est déjà en cours ! Tape !join pour y participer.",
-  "opened": "La loterie est LANCÉE ! Tape !join pour participer. Tirage dans {raffle:mins} min ! Prix : {raffle:amount} {raffle:points}.",
-  "opened.secs": "La loterie est LANCÉE ! Tape !join pour participer. Tirage dans {raffle:secs} s ! Prix : {raffle:amount} {raffle:points}.",
+  "opened": "Le tirage est lancé ! 1 personne gagne {raffle:amount} {raffle:points}. Tape !join ({raffle:time}).",
   "payout.failed": "Certains gains en {raffle:points} de la loterie n'ont pas pu être versés. Un modo peut les ajouter avec !points add.",
   "remind": "Rappel loterie : ~{raffle:mins} min restantes ! {raffle:count} inscrits. Tape !join !",
   "remind.claim": "Rappel loterie : ~{raffle:mins} min restantes ! {raffle:count} inscrits. Tape !join ! Les gagnants doivent taper !claim.",
@@ -31,5 +30,9 @@
   "open.loyalty_off": "Active la fidélité pour lancer un tirage de points.",
   "verifying": "Tirage des gagnants en cours. Un instant.",
   "won.paid": "{raffle:targets} remportent chacun {raffle:amount} {raffle:points} !",
-  "won.paid.single": "{raffle:targets} remporte {raffle:amount} {raffle:points} !"
+  "won.paid.single": "{raffle:targets} remporte {raffle:amount} {raffle:points} !",
+  "opened.split": "Le tirage est lancé ! {raffle:count} personnes se partagent {raffle:amount} {raffle:points}. Tape !join ({raffle:time}).",
+  "opened.auto": "Le tirage est lancé ! {raffle:amount} {raffle:points} en jeu. 1 gagnant par tranche de 10 participations. Tape !join ({raffle:time}).",
+  "mid_count": "{raffle:count} participations, il reste {raffle:time}. Tape !join.",
+  "err.missing_space": "Mets un espace entre le montant et les secondes : !raffle 5k 60."
 }

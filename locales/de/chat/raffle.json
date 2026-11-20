@@ -16,8 +16,7 @@
   "last.empty": "Die letzte Verlosung ist ohne Teilnahmen beendet.",
   "last.none": "Hier wurde noch keine Verlosung ausgelost.",
   "open.already": "Es läuft bereits eine Verlosung! Gib !join ein, um teilzunehmen.",
-  "opened": "Die Verlosung läuft! Gib !join ein, um teilzunehmen. Auslosung in {raffle:mins} Min.! Preis: {raffle:amount} {raffle:points}.",
-  "opened.secs": "Die Verlosung läuft! Gib !join ein, um teilzunehmen. Auslosung in {raffle:secs} Sek.! Preis: {raffle:amount} {raffle:points}.",
+  "opened": "Die Verlosung läuft! 1 Person gewinnt {raffle:amount} {raffle:points}. Schreib !join ({raffle:time}).",
   "payout.failed": "Einige {raffle:points} aus der Verlosung konnten nicht ausgezahlt werden. Mods können sie mit !points add nachtragen.",
   "remind": "Erinnerung an die Verlosung: noch ~{raffle:mins} Min.! Bisherige Teilnehmerzahl: {raffle:count}. Gib !join ein!",
   "remind.claim": "Erinnerung an die Verlosung: noch ~{raffle:mins} Min.! Bisherige Teilnehmerzahl: {raffle:count}. Gib !join ein! Gewinne müssen mit !claim bestätigt werden.",
@@ -31,5 +30,9 @@
   "open.loyalty_off": "Aktiviere das Treueprogramm, um Punkte zu verlosen.",
   "verifying": "Die Gewinner werden gezogen. Einen Moment.",
   "won.paid": "{raffle:targets} haben jeweils {raffle:amount} {raffle:points} gewonnen!",
-  "won.paid.single": "{raffle:targets} hat {raffle:amount} {raffle:points} gewonnen!"
+  "won.paid.single": "{raffle:targets} hat {raffle:amount} {raffle:points} gewonnen!",
+  "opened.split": "Die Verlosung läuft! {raffle:count} Personen teilen sich {raffle:amount} {raffle:points}. Schreib !join ({raffle:time}).",
+  "opened.auto": "Die Verlosung läuft! Es gibt {raffle:amount} {raffle:points} zu gewinnen. Pro 10 Teilnahmen gewinnt eine Person. Schreib !join ({raffle:time}).",
+  "mid_count": "{raffle:count} machen mit, noch {raffle:time}. Schreib !join.",
+  "err.missing_space": "Setz ein Leerzeichen zwischen den Betrag und die Sekunden: !raffle 5k 60."
 }

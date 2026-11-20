@@ -16,8 +16,7 @@
   "last.empty": "The last raffle closed with no entries.",
   "last.none": "No raffle has been drawn here yet.",
   "open.already": "A raffle is already running! Type !join to enter it.",
-  "opened": "Raffle is LIVE! Type !join to enter. Drawing in {raffle:mins} min! Prize: {raffle:amount} {raffle:points}.",
-  "opened.secs": "Raffle is LIVE! Type !join to enter. Drawing in {raffle:secs} sec! Prize: {raffle:amount} {raffle:points}.",
+  "opened": "Raffle is LIVE! 1 winner takes {raffle:amount} {raffle:points}. Type !join ({raffle:time}).",
   "payout.failed": "Some raffle {raffle:points} could not be paid. A mod can add them with !points add.",
   "remind": "Raffle reminder: ~{raffle:mins} min left! {raffle:count} entered so far. Type !join!",
   "remind.claim": "Raffle reminder: ~{raffle:mins} min left! {raffle:count} entered so far. Type !join! Winners must !claim.",
@@ -31,5 +30,9 @@
   "open.loyalty_off": "Loyalty must be on to start a points raffle.",
   "verifying": "Drawing winners. One moment.",
   "won.paid": "{raffle:targets} each won {raffle:amount} {raffle:points}!",
-  "won.paid.single": "{raffle:targets} won {raffle:amount} {raffle:points}!"
+  "won.paid.single": "{raffle:targets} won {raffle:amount} {raffle:points}!",
+  "opened.split": "Raffle is LIVE! {raffle:count} winners split {raffle:amount} {raffle:points}. Type !join ({raffle:time}).",
+  "opened.auto": "Raffle is LIVE! {raffle:amount} {raffle:points} up for grabs. Winners: 1 per 10 entries. Type !join ({raffle:time}).",
+  "mid_count": "{raffle:count} entered, {raffle:time} left. Type !join.",
+  "err.missing_space": "Put a space between the amount and the seconds: !raffle 5k 60."
 }

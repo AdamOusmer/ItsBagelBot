@@ -15,6 +15,7 @@
   "verifying": "Проверяем победителей. Скоро объявим результат.",
   "winners": "Выигрыш получает {draw:targets}!",
   "winners.claim": "Выигрыш получает {draw:targets}! Чтобы забрать приз, введите !claim.",
-  "winners.raffle": "По {draw:points} баллов получают {draw:targets}!",
-  "open.busy_giveaway": "Уже идёт конкурс. Сначала выберите победителей или отмените его."
+  "winners.raffle": "{draw:targets} получили по {draw:amount} {draw:points}!",
+  "open.busy_giveaway": "Уже идёт конкурс. Сначала выберите победителей или отмените его.",
+  "join.free": "Участие бесплатное."
 }

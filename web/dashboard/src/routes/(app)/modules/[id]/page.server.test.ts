@@ -69,8 +69,12 @@ beforeEach(() => {
   synced = true;
 });
 
-test.each(['raffle', 'gamble', 'duel'])('%s redirects to Loyalty Games', async (id) => {
-  await expect(load({ params: { id }, locals } as never)).rejects.toMatchObject({ status: 302, location: '/loyalty#games' });
+test.each([
+  { id: 'raffle', location: '/giveaways' },
+  { id: 'gamble', location: '/loyalty#games' },
+  { id: 'duel', location: '/loyalty#games' }
+])('$id redirects to $location', async ({ id, location }) => {
+  await expect(load({ params: { id }, locals } as never)).rejects.toMatchObject({ status: 302, location });
 });
 
 describe('module editor load', () => {
