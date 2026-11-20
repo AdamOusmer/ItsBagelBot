@@ -3,11 +3,7 @@
 
 package engine
 
-import (
-	"strconv"
-	"strings"
-	"time"
-)
+import "time"
 
 const (
 	gambleDefaultMinBet     = int64(1)
@@ -47,59 +43,6 @@ func ClampGambleSettings(minBet, maxBet, winPercent, cooldownSeconds int64) Gamb
 		s.CooldownSeconds = min(cooldownSeconds, gambleMaxCooldown)
 	}
 	return s
-}
-
-type GambleBetOutcome int
-
-const (
-	BetEmpty GambleBetOutcome = iota
-	BetInvalid
-	BetBelowMin
-	BetAboveMax
-	BetOverBalance
-	BetOK
-)
-
-type gambleStake struct {
-	amount  int64
-	derived bool
-}
-
-func parseGambleStake(arg string, balance int64) (gambleStake, GambleBetOutcome) {
-	switch arg {
-	case "":
-		return gambleStake{}, BetEmpty
-	case "all":
-		return gambleStake{amount: balance, derived: true}, BetOK
-	case "half":
-		return gambleStake{amount: balance / 2, derived: true}, BetOK
-	}
-	n, err := strconv.ParseInt(strings.TrimPrefix(arg, "@"), 10, 64)
-	if err != nil || n <= 0 {
-		return gambleStake{}, BetInvalid
-	}
-	return gambleStake{amount: n}, BetOK
-}
-
-func ResolveGambleBet(arg string, balance, minBet, maxBet int64) (int64, GambleBetOutcome) {
-	arg = strings.ToLower(strings.TrimSpace(arg))
-	stake, outcome := parseGambleStake(arg, balance)
-	if outcome != BetOK {
-		return 0, outcome
-	}
-	bet := stake.amount
-	if stake.derived {
-		bet = min(bet, maxBet)
-	}
-	switch {
-	case bet < minBet:
-		return 0, BetBelowMin
-	case !stake.derived && bet > maxBet:
-		return 0, BetAboveMax
-	case bet > balance:
-		return 0, BetOverBalance
-	}
-	return bet, BetOK
 }
 
 var RollGamble = func() (int64, error) {

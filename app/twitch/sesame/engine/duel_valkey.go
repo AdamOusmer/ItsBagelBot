@@ -77,7 +77,7 @@ type DuelReceipt struct {
 
 type DuelWallet interface {
 	Debit(ctx context.Context, broadcasterID uint64, entry DuelStake) (found, spent bool, err error)
-	Credit(ctx context.Context, broadcasterID uint64, entry DuelStake) error
+	Credit(ctx context.Context, broadcasterID uint64, entry DuelStake) (balance int64, err error)
 }
 
 type DuelOpenSpec struct {
@@ -120,6 +120,7 @@ type DuelAcceptResult struct {
 	Loser     string
 	Pot       int64
 	Stake     int64
+	Balance   int64
 }
 
 type DuelDeclineResult struct {
@@ -259,7 +260,7 @@ func (s *ValkeyDuelStore) writeInstall(ctx context.Context, broadcasterID uint64
 }
 
 func (s *ValkeyDuelStore) compensateOpen(ctx context.Context, broadcasterID uint64, state DuelState) {
-	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, state.openerStake()); err != nil {
+	if _, err := s.cfg.Wallet.Credit(ctx, broadcasterID, state.openerStake()); err != nil {
 		s.log.Warn("duel: open rollback refund failed", module.BIDField(broadcasterID),
 			zap.String("login", state.Opener), zap.Int64("amount", state.OpenerStake), zap.Error(err))
 	}
@@ -408,16 +409,15 @@ func (s *ValkeyDuelStore) Accept(ctx context.Context, broadcasterID uint64, who 
 		return res, nil
 	}
 
-	receipt, payErr := s.settleChallenge(ctx, broadcasterID, st)
-	if payErr != nil {
-		res.Unpaid = true
-	}
+	receipt, balance, payErr := s.settleChallenge(ctx, broadcasterID, st)
+	res.Unpaid = payErr != nil
 	res.Accepted = true
 	res.Winner, res.Loser, res.Pot, res.Stake = receipt.Winner, receipt.Loser, receipt.Pot, st.OpenerStake
+	res.Balance = balance
 	return res, nil
 }
 
-func (s *ValkeyDuelStore) settleChallenge(ctx context.Context, broadcasterID uint64, st *DuelState) (DuelReceipt, error) {
+func (s *ValkeyDuelStore) settleChallenge(ctx context.Context, broadcasterID uint64, st *DuelState) (DuelReceipt, int64, error) {
 	winner, loser, pot := st.challengedParty(), st.openerParty(), st.OpenerStake*2
 	if FlipDuelCoin() {
 		winner, loser = loser, winner
@@ -427,16 +427,17 @@ func (s *ValkeyDuelStore) settleChallenge(ctx context.Context, broadcasterID uin
 		ResolvedAt: time.Now().UnixMilli(),
 	}
 	s.teardown(ctx, broadcasterID, &receipt, true)
-	return receipt, s.payWinner(ctx, broadcasterID, winner.stake(pot))
+	balance, err := s.payWinner(ctx, broadcasterID, winner.stake(pot))
+	return receipt, balance, err
 }
 
-func (s *ValkeyDuelStore) payWinner(ctx context.Context, broadcasterID uint64, entry DuelStake) error {
-	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
+func (s *ValkeyDuelStore) payWinner(ctx context.Context, broadcasterID uint64, entry DuelStake) (int64, error) {
+	balance, err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry)
+	if err != nil {
 		s.log.Warn("duel: winner credit failed", module.BIDField(broadcasterID),
 			zap.String("winner", entry.Login), zap.Int64("pot", entry.Stake), zap.Error(err))
-		return err
 	}
-	return nil
+	return balance, err
 }
 
 func challengeAddressed(st *DuelState, who DuelParty) bool {
@@ -535,7 +536,7 @@ func (s *ValkeyDuelStore) escrowedStakes(ctx context.Context, broadcasterID uint
 
 func (s *ValkeyDuelStore) refundAll(ctx context.Context, broadcasterID uint64, entries []DuelStake) (refunded int64) {
 	for _, entry := range entries {
-		if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
+		if _, err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
 			s.log.Warn("duel: cancel refund failed", module.BIDField(broadcasterID),
 				zap.String("login", entry.Login), zap.Int64("amount", entry.Stake), zap.Error(err))
 			continue
@@ -546,7 +547,7 @@ func (s *ValkeyDuelStore) refundAll(ctx context.Context, broadcasterID uint64, e
 }
 
 func (s *ValkeyDuelStore) refund(ctx context.Context, broadcasterID uint64, entry DuelStake) {
-	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
+	if _, err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
 		s.log.Warn("duel: refund failed", module.BIDField(broadcasterID),
 			zap.String("login", entry.Login), zap.Int64("amount", entry.Stake), zap.Error(err))
 	}
@@ -689,11 +690,12 @@ func (s *ValkeyDuelStore) autoDraw(ctx context.Context, broadcasterID uint64, st
 	s.teardownWithSnapshot(ctx, broadcasterID, &receipt)
 
 	payout.Stake = total
-	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, payout); err != nil {
-		s.log.Warn("duel: pot payout failed", module.BIDField(broadcasterID),
-			zap.String("winner", winner), zap.Int64("pot", total), zap.Error(err))
+	balance, err := s.payWinner(ctx, broadcasterID, payout)
+	balanceToken := ""
+	if err == nil {
+		balanceToken = strconv.FormatInt(balance, 10)
 	}
-	s.announce(ctx, broadcasterID, func(v duelVoice) string { return duelAutoWonText(v, winner, total) })
+	s.announce(ctx, broadcasterID, func(v duelVoice) string { return duelAutoWonText(v, payout, balanceToken) })
 }
 
 func (s *ValkeyDuelStore) autoNoShow(ctx context.Context, broadcasterID uint64, st *DuelState) {

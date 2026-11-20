@@ -316,6 +316,7 @@ func TestRaffleStartArgs(t *testing.T) {
 		{"!raffle 1.5k 90", "", spec(1500, 90, false)},
 		{"!raffle 2M", "", spec(1_000_000, 60, false)},
 		{"!raffle 99999999m", "", spec(1_000_000, 60, false)},
+		{"!raffle 9223372036854775808", "", spec(1_000_000, 60, false)},
 		{"!raffle 0", "", spec(0, 60, false)},
 		{"!raffle 100 2", "", spec(100, 5, false)},
 		{"!raffle 100 0", "", spec(100, 5, false)},
@@ -342,7 +343,11 @@ func TestRaffleStartArgs(t *testing.T) {
 }
 
 func TestRaffleRejectsMalformedArgs(t *testing.T) {
-	for _, text := range []string{"!raffle k", "!raffle 1.5", "!raffle -5", "!raffle 5%", "!raffle all", "!raffle 1e3", "!raffle 100 -1", "!raffle 100 1.5", "!mraffle abc"} {
+	cases := []string{
+		"!raffle k", "!raffle 1.5", "!raffle -5", "!raffle +5", "!raffle 5%", "!raffle 1e3",
+		"!raffle 100 -1", "!raffle 100 1.5", "!mraffle abc", "!raffle Half 90", "!mraffle ALL",
+	}
+	for _, text := range cases {
 		t.Run(text, func(t *testing.T) {
 			r := &fakeRaffle{}
 			out := runChat(t, Raffle(raffleDeps(r)), chatCtx("42", "mod", "moderator"), text)

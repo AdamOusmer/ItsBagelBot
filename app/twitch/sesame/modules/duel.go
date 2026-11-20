@@ -128,14 +128,14 @@ func (dc duelCmd) route(ctx context.Context, args string, emit module.Emit) erro
 	first, rest := splitFirst(args)
 
 	handled, err := dc.routeKeyword(ctx, who, first, emit)
-	switch {
-	case handled || err != nil:
+	if handled || err != nil {
 		return err
-	case isChallengeShape(first):
-		return dc.challenge(ctx, who, splitChallenge(first, rest), emit)
-	default:
-		return dc.stake(ctx, who, first, emit)
 	}
+	amount := parseWagerAmount(first)
+	if isChallengeShape(amount, rest) {
+		return dc.challenge(ctx, who, splitChallenge(first, rest), emit)
+	}
+	return dc.stake(ctx, who, amount, emit)
 }
 
 func (dc duelCmd) routeKeyword(ctx context.Context, who engine.DuelParty, first string, emit module.Emit) (handled bool, err error) {
@@ -152,17 +152,20 @@ func (dc duelCmd) routeKeyword(ctx context.Context, who engine.DuelParty, first 
 	return false, nil
 }
 
-func isChallengeShape(first string) bool {
-	if first == "" || isDerivedStake(first) {
-		return false
+func isChallengeShape(amount PointsAmount, rest string) bool {
+	switch amount.kind {
+	case pointsInteger:
+		return amount.overflow
+	case pointsScaled:
+		return rest != ""
+	default:
+		return !amount.Valid()
 	}
-	_, err := strconv.ParseInt(strings.TrimPrefix(first, "@"), 10, 64)
-	return err != nil
 }
 
 type challengeReq struct {
 	target     string
-	stake      string
+	stake      PointsAmount
 	atPrefixed bool
 }
 
@@ -170,7 +173,7 @@ func splitChallenge(first, rest string) challengeReq {
 	stakeArg, _ := splitFirst(rest)
 	return challengeReq{
 		target:     strings.TrimPrefix(strings.ToLower(first), "@"),
-		stake:      stakeArg,
+		stake:      parseWagerAmount(stakeArg),
 		atPrefixed: strings.HasPrefix(first, "@"),
 	}
 }
@@ -201,8 +204,8 @@ func (dc duelCmd) status(ctx context.Context, emit module.Emit) error {
 	return nil
 }
 
-func (dc duelCmd) stake(ctx context.Context, who engine.DuelParty, raw string, emit module.Emit) error {
-	stake, ok, err := dc.resolveStake(ctx, who, raw, emit)
+func (dc duelCmd) stake(ctx context.Context, who engine.DuelParty, amount PointsAmount, emit module.Emit) error {
+	stake, ok, err := dc.resolveStake(ctx, who, amount, emit)
 	if !ok {
 		return err
 	}
@@ -369,7 +372,8 @@ func (dc duelCmd) replySettled(res engine.DuelAcceptResult, emit module.Emit) {
 	dc.reply(emit, dc.t.WonMessage, "duel.won",
 		"winner", res.Winner,
 		"loser", res.Loser,
-		"pot", strconv.FormatInt(res.Pot, 10))
+		"pot", strconv.FormatInt(res.Pot, 10),
+		"balance", strconv.FormatInt(res.Balance, 10))
 }
 
 func (dc duelCmd) decline(ctx context.Context, who engine.DuelParty, emit module.Emit) error {
@@ -424,14 +428,14 @@ const (
 	refShort    stakeRefusal = "duel.stake.short"
 )
 
-func (dc duelCmd) resolveStake(ctx context.Context, who engine.DuelParty, raw string, emit module.Emit) (stake int64, ok bool, err error) {
+func (dc duelCmd) resolveStake(ctx context.Context, who engine.DuelParty, amount PointsAmount, emit module.Emit) (stake int64, ok bool, err error) {
 	bal, err := dc.loyalty.BalanceGet(ctx, dc.c.BroadcasterID, who.ID)
 	if err != nil {
 		dc.log.Warn("duel: balance read failed", dc.c.BID(), zap.Error(err))
 		return 0, false, err
 	}
-	stake, outcome := engine.ResolveGambleBet(raw, bal.Points, dc.cfg.MinStake, dc.cfg.MaxStake)
-	refused := stakeRefusalFor(outcome, isDerivedStake(raw) && bal.Points < dc.cfg.MinStake)
+	stake, outcome := amount.wager(bal.Points, dc.cfg.MinStake, dc.cfg.MaxStake)
+	refused := stakeRefusalFor(outcome, amount.relative() && bal.Points < dc.cfg.MinStake)
 	if refused != "" {
 		dc.refuseReply(emit, refused, bal.Points)
 		return 0, false, nil
@@ -439,26 +443,18 @@ func (dc duelCmd) resolveStake(ctx context.Context, who engine.DuelParty, raw st
 	return stake, true, nil
 }
 
-func isDerivedStake(raw string) bool {
-	switch strings.ToLower(raw) {
-	case "all", "half":
-		return true
-	}
-	return false
-}
-
-func stakeRefusalFor(outcome engine.GambleBetOutcome, cannotCoverMin bool) stakeRefusal {
+func stakeRefusalFor(outcome wagerAmountOutcome, cannotCoverMin bool) stakeRefusal {
 	switch outcome {
-	case engine.BetOK:
+	case wagerOK:
 		return ""
-	case engine.BetEmpty, engine.BetInvalid:
+	case wagerInvalid:
 		return refUsage
-	case engine.BetBelowMin:
+	case wagerBelowMin:
 		if cannotCoverMin {
 			return refShort
 		}
 		return refMinStake
-	case engine.BetAboveMax:
+	case wagerAboveMax:
 		return refMaxStake
 	}
 	return refShort

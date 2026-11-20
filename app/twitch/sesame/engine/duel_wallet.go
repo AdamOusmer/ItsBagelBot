@@ -9,7 +9,6 @@ import (
 
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
-	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 )
 
 type LoyaltyWallet struct {
@@ -27,20 +26,16 @@ func (w *LoyaltyWallet) Debit(ctx context.Context, broadcasterID uint64, entry D
 	return out.Found, out.Applied, err
 }
 
-func (w *LoyaltyWallet) Credit(ctx context.Context, broadcasterID uint64, entry DuelStake) error {
+func (w *LoyaltyWallet) Credit(ctx context.Context, broadcasterID uint64, entry DuelStake) (int64, error) {
 	if entry.Stake <= 0 {
-		return nil
+		return 0, nil
 	}
-	bal, found, err := w.credit(ctx, broadcasterID, entry)
+	bal, found, err := w.loyalty.BalanceAdjustViewer(ctx, BalanceAdjustment{BroadcasterID: broadcasterID, ViewerID: entry.ViewerID, ViewerLogin: entry.Login, Value: entry.Stake})
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if !found {
-		return fmt.Errorf("duel: credit target %q unseen by loyalty (bal %+v)", entry.Login, bal)
+		return 0, fmt.Errorf("duel: credit target %q unseen by loyalty (bal %+v)", entry.Login, bal)
 	}
-	return nil
-}
-
-func (w *LoyaltyWallet) credit(ctx context.Context, broadcasterID uint64, entry DuelStake) (loyaltyrpc.Balance, bool, error) {
-	return w.loyalty.BalanceAdjustViewer(ctx, BalanceAdjustment{BroadcasterID: broadcasterID, ViewerID: entry.ViewerID, ViewerLogin: entry.Login, Value: entry.Stake})
+	return bal.Points, nil
 }

@@ -45,7 +45,7 @@ func (r *recordingLoyalty) BalanceWager(_ context.Context, spend PointWager) (Wa
 
 func (r *recordingLoyalty) BalanceAdjustViewer(_ context.Context, a BalanceAdjustment) (loyaltyrpc.Balance, bool, error) {
 	r.viewers = append(r.viewers, a)
-	return loyaltyrpc.Balance{}, true, nil
+	return loyaltyrpc.Balance{Points: 110}, true, nil
 }
 
 func TestLoyaltyWalletActsOnViewerID(t *testing.T) {
@@ -55,8 +55,10 @@ func TestLoyaltyWalletActsOnViewerID(t *testing.T) {
 
 	_, _, err := wallet.Debit(t.Context(), 2, renamed)
 	require.NoError(t, err)
-	require.NoError(t, wallet.Credit(t.Context(), 2, renamed))
+	balance, err := wallet.Credit(t.Context(), 2, renamed)
+	require.NoError(t, err)
 
+	assert.EqualValues(t, 110, balance)
 	assert.Equal(t, []PointWager{{BroadcasterID: 2, ViewerID: 42, Login: "newname", Amount: 10}}, store.spends)
 	assert.Equal(t, []BalanceAdjustment{{BroadcasterID: 2, ViewerID: 42, ViewerLogin: "newname", Value: 10}}, store.viewers)
 }

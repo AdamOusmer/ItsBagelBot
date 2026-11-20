@@ -43,38 +43,6 @@ func TestClampGambleSettings(t *testing.T) {
 	}
 }
 
-func TestResolveGambleBet(t *testing.T) {
-	cases := []struct {
-		name           string
-		arg            string
-		balance        int64
-		minBet, maxBet int64
-		wantBet        int64
-		wantOutcome    GambleBetOutcome
-	}{
-		{"a number is the stake", "100", 1234, 1, 1000, 100, BetOK},
-		{"no argument is empty", "", 1234, 1, 1000, 0, BetEmpty},
-		{"words are invalid", "lots", 1234, 1, 1000, 0, BetInvalid},
-		{"zero is invalid", "0", 1234, 1, 1000, 0, BetInvalid},
-		{"a negative number is invalid", "-5", 1234, 1, 1000, 0, BetInvalid},
-		{"below the minimum is refused", "5", 1234, 10, 1000, 0, BetBelowMin},
-		{"above the house maximum is refused", "2000", 1234, 1, 1000, 0, BetAboveMax},
-		{"within the cap but over the standing is refused", "2000", 1234, 1, 5000, 0, BetOverBalance},
-		{"all caps at the house maximum instead of refusing", "all", 1234, 1, 1000, 1000, BetOK},
-		{"half stakes half the balance rounded up", "half", 1234, 1, 1000, 617, BetOK},
-		{"all stakes a small balance in full", "all", 40, 1, 1000, 40, BetOK},
-		{"all with nothing to stake is below the minimum", "all", 0, 1, 1000, 0, BetBelowMin},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			bet, outcome := ResolveGambleBet(tc.arg, tc.balance, tc.minBet, tc.maxBet)
-
-			assert.Equal(t, tc.wantOutcome, outcome)
-			assert.Equal(t, tc.wantBet, bet)
-		})
-	}
-}
-
 func TestGambleWinsBoundaries(t *testing.T) {
 	cases := []struct {
 		name         string

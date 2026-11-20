@@ -156,14 +156,15 @@ func (rc raffleCmd) start(ctx context.Context, launch raffleLaunch, emit module.
 		rc.reply(emit, "", "raffle.err.usage")
 		return nil
 	}
+	prize := req.prize
 	if _, on := rc.loyalty(ctx); !on {
-		req.prize = 0
+		prize = 0
 	}
 
 	opened, err := rc.r.Open(ctx, rc.c.BroadcasterID, engine.RaffleOpenSpec{
 		OpenedBy: strings.ToLower(rc.c.Env.ChatterUserLogin),
 		Duration: req.duration,
-		Prize:    req.prize,
+		Prize:    prize,
 		Multi:    launch.multi,
 	})
 	if err != nil {
