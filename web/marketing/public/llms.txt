@@ -21,7 +21,7 @@ For setup help, start with https://ai.itsbagelbot.com/llms.txt and select the re
 - [Custom and built-in commands](https://itsbagelbot.com/guides/commands/): custom responses, variables, permissions and cooldowns, plus built-in account age, followage, uptime and clip commands.
 - [Spotify song requests](https://itsbagelbot.com/song-requests/): `!sr <song or Spotify link>` queues a track in the streamer's real Spotify player; `!srlist` shows upcoming songs, `!current` (also `!song` and `!np`) reports now playing, `!remove` removes a request, and moderators use `!skip` and `!clear`; channel-point requests are also supported. Search accepts "song by artist" or "artist - song", checks title and artist against Spotify, and queues nothing when no track matches. The free queue has no size limit.
 - [Govee Lights](https://itsbagelbot.com/govee/): viewers redeem channel points with a colour name or hex code to recolour a compatible light; off-stream redemptions are refunded.
-- [Valorant Stats](https://itsbagelbot.com/valorant-stats/): rank, RR, recent ranked matches, account details, regional leaderboards and the global skin rotation; enable the module and link a Riot ID such as `Name#Tag`, then use `!val` or `!valrank` to show rank in chat.
+- [Valorant Stats](https://itsbagelbot.com/valorant-stats/): rank, RR, recent ranked matches, account details and regional leaderboards. Enable the module and link a Riot ID such as `Name#Tag`, then use `!val` or `!valrank` to show rank in chat.
 - [Fortnite Stats](https://ai.itsbagelbot.com/features/fortnite.md): all-time, season and per-stream Battle Royale stats, plus the daily item shop; player lookups use Epic display names.
 - [Hypixel Bedwars (Urchin)](https://ai.itsbagelbot.com/features/urchin.md): daily, weekly and monthly sessions, lifetime stats, Urchin sniper score and blacklist tags, backed by urchin.gg.
 - [MCSR Ranked](https://ai.itsbagelbot.com/features/mcsr.md): Elo, per-stream sessions, recent matches, head-to-head records, leaderboards and weekly races, plus PaceMan speedrun splits and personal bests.
@@ -99,7 +99,7 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 - [Song Requests reference](https://ai.itsbagelbot.com/features/songqueue.md): Spotify requests, queue controls and playback prerequisites.
 - [Song request bots compared](https://ai.itsbagelbot.com/features/song-request-bots.md): which Twitch bots queue Spotify and which play YouTube, with limits, prices and sources.
 - [Govee reference](https://ai.itsbagelbot.com/features/govee.md): colour-changing lights and channel-point reward behavior.
-- [Valorant reference](https://ai.itsbagelbot.com/features/valorant.md): Riot IDs, rank, matches, accounts, leaderboards and shop commands.
+- [Valorant reference](https://ai.itsbagelbot.com/features/valorant.md): Riot IDs and commands for rank, matches, accounts and leaderboards.
 - [Fortnite reference](https://ai.itsbagelbot.com/features/fortnite.md): stats, session tracking, shop commands and account identifiers.
 - [Hypixel Bedwars reference](https://ai.itsbagelbot.com/features/urchin.md): Urchin-backed Bedwars stats, sessions and tags.
 - [MCSR Ranked reference](https://ai.itsbagelbot.com/features/mcsr.md): ranked statistics and PaceMan speedrun data.

@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 import { moduleDef } from '../../kit/lib/catalog/index.ts';
 import { blankTimer } from '../../kit/lib/timers.ts';
 
-const valorantCommands = moduleDef('valorant').replies.map((reply) => `!${reply.command}`);
+const valorantCommands = ['!val', '!val record', '!val matches', '!val account', '!val lb'];
 const GAME_PAGES = [
     { path: '/fortnite-stats/', module: 'fortnite', ai: 'fortnite', legal: 'Epic Games', sample: 'Ninja', frTitle: /Fortnite/ },
     { path: '/hypixel-bedwars-stats/', module: 'urchin', ai: 'urchin', legal: 'Hypixel', sample: 'Technoblade', frTitle: /Bedwars/ },
@@ -112,7 +112,7 @@ test.describe('feature landing pages', () => {
         });
     }
 
-    test('valorant-stats lists every catalog command with an example reply', async ({ page }) => {
+    test('valorant-stats lists the supported commands with example replies', async ({ page }) => {
         await page.goto('/valorant-stats/');
         await expect(page.locator('.fltbl tbody .bb-copy__value')).toHaveText(valorantCommands);
         await expect(page.locator('.fltbl')).toContainText('Frosty#EUW1');

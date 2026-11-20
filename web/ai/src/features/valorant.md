@@ -109,18 +109,6 @@ Assistants answering game-stat questions or helping a streamer configure this mo
 
 </command>
 
-<command name="!val shop">
-
-### `!val shop`
-
-- Syntax: `!val shop`
-- Aliases: `!valshop`, `!valrotation`, `!val rotation`
-- Who can run it: Everyone, while the module and the relevant reply are enabled.
-- Behaviour: Global skin rotation, VP prices, and reset countdown.
-- Example reply template: "{{console:modules.catalog.valorant.replies.shop.defaultMessage}}". Runtime values replace the braces.
-
-</command>
-
 </commands>
 
 <related>

@@ -169,11 +169,11 @@ const modules = [
   },
   {
     name: 'Valorant Stats',
-    tagline: 'Valorant ranks, match history, leaderboards and the daily shop rotation in chat.',
+    tagline: 'Valorant ranks, match history and leaderboards in chat.',
     cat: 'Stats',
     start: 'Off by default',
     needs: 'A Riot account linked with Sign in with Riot.',
-    commands: '!val, !val record, !val matches, !val lb, !val account, !val shop, !valrank, !valrecord, !valmatches, !valhistory, !valaccount, !valwho, !vallb, !valleaderboard, !valshop, !valrotation',
+    commands: '!val, !val record, !val matches, !val lb, !val account, !valrank, !valrecord, !valmatches, !valhistory, !valaccount, !valwho, !vallb, !valleaderboard',
   },
 ];
 
@@ -493,7 +493,7 @@ const guide: GuideContent = {
               title: 'Valorant Stats',
               html: `
                 <p>Link your account with Sign in with Riot. The bot detects your region. PC is the default platform.</p>
-                <p><code>!val</code> <code>!valrank</code> <code>!valmatches</code> <code>!vallb</code> <code>!valshop</code></p>
+                <p><code>!val</code> <code>!valrank</code> <code>!valmatches</code> <code>!vallb</code></p>
                 <p>Frosty#EUW1 · Immortal 2 · 143 RR (+21) · peak Immortal 3</p>`,
               chips: ['Riot'],
             },

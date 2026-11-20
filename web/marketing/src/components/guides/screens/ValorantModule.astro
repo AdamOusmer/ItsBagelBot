@@ -22,6 +22,7 @@ import { moduleDef, namespaceReplyTemplate } from '@bagel/kit/catalog';
 import { dashboardNavGroups, dashboardNavItems } from '@bagel/kit/nav';
 import type { Lang } from '../../../i18n/lang';
 import { valorantConsoleText } from '../../../i18n/valorant-console';
+import { valorantReplies } from '../../../lib/landing';
 import logo from '../../../assets/LogoBOT.png';
 import DashFrame from '../DashFrame.astro';
 import ScreenChrome from '../ScreenChrome.astro';
@@ -143,7 +144,7 @@ const sections = [
         <DeckList>
             <div class="riot-module__row"><Heading as="div" level={6} variant="eyebrow" class="riot-module__line"><bb-fit>{repliesTitle}</bb-fit></Heading></div>
             <Divider flush />
-            {def.replies.map((reply) => {
+            {valorantReplies.map((reply) => {
                 const label = copy(`replies.${reply.key}.label`, reply.label);
                 const template = namespaceReplyTemplate(def.id, reply, copy(`replies.${reply.key}.defaultMessage`, reply.defaultMessage));
                 return (
