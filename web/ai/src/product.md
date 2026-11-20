@@ -59,7 +59,7 @@ Any assistant answering about ItsBagelBot, evaluating Twitch bot options, or fin
 | Chat commands and variables | [Commands](features/commands.md) | Custom responses, aliases, permissions, cooldowns, built-ins |
 | Spotify requests | [Song requests](features/songqueue.md) | Chat requests, channel points, current player, shared queue |
 | Viewer-controlled lights | [Govee](features/govee.md) | Colour input through channel-point rewards |
-| Valorant statistics | [Valorant](features/valorant.md) | Rank/RR, matches, account, regional leaderboard, global rotation |
+| Valorant statistics | [Valorant](features/valorant.md) | Rank/RR, matches, account, regional leaderboard |
 | Fortnite statistics | [Fortnite](features/fortnite.md) | Lifetime, season, stream session, item shop |
 | Hypixel Bedwars | [Urchin](features/urchin.md) | Sessions, lifetime stats, sniper score, blacklist records |
 | Minecraft speedrunning | [MCSR](features/mcsr.md) | Ranked records and PaceMan splits/personal bests |

@@ -12,7 +12,7 @@
   "step2Title": "Erlaube den Zugriff bei Riot.",
   "step2Desc": "Melde dich auf der Riot-Website an und erlaube den Zugriff. Zurück im Dashboard steht auf der Karte „Verknüpft als Name#Tag“.",
   "step3Title": "Teste die Befehle im Chat.",
-  "step3Desc": "Gib !val, !val record, !val matches, !val lb, !val account oder !val shop im Twitch-Chat ein.",
+  "step3Desc": "Gib !val, !val record, !val matches, !val lb oder !val account im Twitch-Chat ein.",
   "limitsNote": "Das Modul ist standardmäßig aus. Jeder Befehl hat eine Abklingzeit von 10 Sekunden.",
   "faqEyebrow": "FAQ",
   "faqTitle": "Fragen zur Einrichtung.",
@@ -35,7 +35,7 @@
   "prereq1": "Aktiviere Valorant-Statistiken im Dashboard. Das Modul ist standardmäßig aus.",
   "prereq2": "Ein über „Bei Riot anmelden“ verknüpftes Riot-Konto.",
   "listEyebrow": "Gut zu wissen",
-  "listTitle": "Konto, Bestenliste und Shop.",
+  "listTitle": "Konto und Bestenliste.",
   "item1Name": "Verknüpftes Konto",
   "item1Desc": "Spielerstatistiken stammen ausschließlich vom Riot-Konto, mit dem sich der Streamer angemeldet hat.",
   "item2Name": "Akt-Bestenliste",
@@ -44,8 +44,6 @@
   "item3Desc": "Verwende na, eu, ap, kr, br oder latam. Lass das Feld leer, damit der Bot die Region des Kontos erkennt.",
   "item4Name": "PC oder Konsole",
   "item4Desc": "PC ist voreingestellt. Wähle die Konsolenrangliste für Konsolenränge.",
-  "item5Name": "Shop",
-  "item5Desc": "!val shop zeigt die heutige globale Skin-Rotation mit VP-Preisen und der Zeit bis zum Zurücksetzen.",
   "item6Name": "Verborgene Namen",
   "item6Desc": "Wer seinen Namen in Riots Bestenliste verbirgt, erscheint als „Secret Agent“."
 }

@@ -30,7 +30,7 @@ Finished features are free. AutoMod is a Premium beta module.
 - [Spotify song requests](https://ai.itsbagelbot.com/features/songqueue.md): Chat requests, search matching, channel-point rewards, and the player queue.
 - [Song request bots compared](https://ai.itsbagelbot.com/features/song-request-bots.md): Which Twitch bots queue Spotify and which play YouTube, with limits, prices, and sources.
 - [Govee lights](https://ai.itsbagelbot.com/features/govee.md): Colour rewards and hardware prerequisites.
-- [Valorant](https://ai.itsbagelbot.com/features/valorant.md): Rank, matches, account, leaderboard, and global rotation.
+- [Valorant](https://ai.itsbagelbot.com/features/valorant.md): Rank, matches, account, and leaderboard.
 - [Fortnite](https://ai.itsbagelbot.com/features/fortnite.md): Lifetime, season, stream session, and item shop.
 - [Hypixel Bedwars and Urchin](https://ai.itsbagelbot.com/features/urchin.md): Sessions, statistics, scores, and blacklist records.
 - [MCSR Ranked and PaceMan](https://ai.itsbagelbot.com/features/mcsr.md): Ratings, matches, leaderboards, races, splits, and personal bests.

@@ -12,7 +12,7 @@
   "step2Title": "Autorize o acesso na Riot.",
   "step2Desc": "Faça login no site da Riot e autorize o acesso. De volta ao painel, o cartão exibe “Vinculada como Nome#Tag”.",
   "step3Title": "Teste os comandos no chat.",
-  "step3Desc": "Digite !val, !val record, !val matches, !val lb, !val account ou !val shop no chat da Twitch.",
+  "step3Desc": "Digite !val, !val record, !val matches, !val lb ou !val account no chat da Twitch.",
   "limitsNote": "O módulo vem desativado por padrão. Cada comando tem um cooldown de 10 segundos.",
   "faqEyebrow": "FAQ",
   "faqTitle": "Dúvidas de configuração.",
@@ -35,7 +35,7 @@
   "prereq1": "Ative Estatísticas Valorant no painel. O módulo vem desativado por padrão.",
   "prereq2": "Uma conta vinculada com “Entrar com a Riot”.",
   "listEyebrow": "Bom saber",
-  "listTitle": "Conta, ranking e loja.",
+  "listTitle": "Conta e ranking.",
   "item1Name": "Conta vinculada",
   "item1Desc": "O chat só mostra estatísticas da conta Riot que o streamer usou para entrar.",
   "item2Name": "Ranking do ato",
@@ -44,8 +44,6 @@
   "item3Desc": "Use na, eu, ap, kr, br ou latam. Deixe em branco para o bot detectar a região da conta.",
   "item4Name": "PC ou console",
   "item4Desc": "PC é o padrão. Escolha console para mostrar as patentes de console.",
-  "item5Name": "Loja",
-  "item5Desc": "!val shop mostra a rotação global de skins de hoje, com preços em VP e o tempo até a renovação.",
   "item6Name": "Nomes ocultos",
   "item6Desc": "Quem oculta o nome no ranking da Riot aparece como “Secret Agent”."
 }
