@@ -18,18 +18,19 @@ import { dashboardNavItems as clientNavItems } from './nav-dashboard';
 import { groupsWithLockedHints } from './nav-core';
 
 describe('nav registry', () => {
-  test('every bespoke page prefix resolves to its owning section', () => {
-    expect(sectionForPath('/')).toBe('overview');
-    expect(sectionForPath('/commands')).toBe('commands');
-    expect(sectionForPath('/commands/new')).toBe('commands');
-    for (const p of ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/loyalty']) {
-      expect(sectionForPath(p)).toBe('modules');
-    }
-    expect(sectionForPath('/songqueue')).toBe('songqueue');
-    expect(sectionForPath('/billing')).toBe('billing');
-    expect(sectionForPath('/settings')).toBe('settings');
-    expect(sectionForPath('/access')).toBe('settings');
-    expect(sectionForPath('/nowhere')).toBe('overview');
+  test.each([
+    ['/', 'overview'],
+    ['/commands', 'commands'],
+    ['/commands/new', 'commands'],
+    ...['modules', 'counters', 'quotes', 'govee', 'channelpoints', 'timers', 'loyalty'].map((path) => [`/${path}`, 'modules']),
+    ['/giveaways', 'giveaways'],
+    ['/songqueue', 'songqueue'],
+    ['/billing', 'billing'],
+    ['/settings', 'settings'],
+    ['/access', 'settings'],
+    ['/nowhere', 'overview']
+  ])('%s resolves to the %s section', (path, section) => {
+    expect(sectionForPath(path)).toBe(section);
   });
 
   test('dock order and hrefs match the registry', () => {
@@ -38,6 +39,7 @@ describe('nav registry', () => {
       '/commands',
       '/flows',
       '/modules',
+      '/giveaways',
       '/songqueue',
       '/billing',
       '/settings'
@@ -73,11 +75,12 @@ describe('nav registry', () => {
       'en:nav.commands',
       'en:nav.flows',
       'en:nav.modules',
+      'en:nav.giveaways',
       'en:nav.songqueue',
       'en:nav.billing',
       'en:nav.settings'
     ]);
-    expect(items.map((i) => i.current)).toEqual([false, false, false, false, false, true, false]);
+    expect(items.map((i) => i.current)).toEqual([false, false, false, false, false, false, true, false]);
   });
 
   test('a delegate sees only granted sections, never owner-only ones', () => {
@@ -90,8 +93,8 @@ describe('nav registry', () => {
       sections: [...GRANTABLE_SECTIONS],
       section: 'modules'
     });
-    expect(full.map((i) => i.href)).toEqual(['/commands', '/modules', '/songqueue', '/billing']);
-    expect(full.map((i) => i.current)).toEqual([false, true, false, false]);
+    expect(full.map((i) => i.href)).toEqual(['/commands', '/modules', '/giveaways', '/songqueue', '/billing']);
+    expect(full.map((i) => i.current)).toEqual([false, true, false, false, false]);
   });
 
   test.each([
@@ -145,7 +148,7 @@ describe('nav registry', () => {
     );
     expect(groups).toHaveLength(1);
     expect(groups[0].label).toBe('en:nav.manage');
-    expect(groups[0].items).toHaveLength(7);
+    expect(groups[0].items).toHaveLength(8);
   });
 });
 
@@ -161,10 +164,10 @@ describe('delegateAllowedPaths', () => {
   test.each([
     ['commands', ['/commands', '/counters/list', '/quotes', '/timers'], ['/billing', '/settings', '/channelpoints']],
     ['channelpoints', ['/channelpoints', '/songqueue'], ['/commands', '/billing', '/counters/list']],
-    ['modules', ['/modules', '/counters', '/loyalty', '/quotes', '/timers'], ['/billing', '/settings']]
+    ['modules', ['/modules', '/counters', '/loyalty', '/quotes', '/timers', '/giveaways', '/giveaways/live', '/giveaways/eligible'], ['/billing', '/settings']]
   ] as [string, string[], string[]][])('the %s grant opens its own pages and no others', (section, open, shut) => {
     const allowed = delegateAllowedPaths([section]);
-    for (const path of open) expect(allowed).toContain(path);
+    for (const path of open) expect(pathnameAllowed(path, allowed, [section])).toBe(true);
     for (const path of shut) expect(allowed).not.toContain(path);
   });
 });

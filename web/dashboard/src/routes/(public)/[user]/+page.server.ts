@@ -16,6 +16,7 @@ import {
 	type StandingsPageRequest,
 	type StandingsPin
 } from '#lib/server/loyalty-store';
+import { publicGiveawayWinners } from '#lib/server/channel-giveaways';
 import { resolveCurrentViewer } from '#lib/server/viewer-lookup';
 import {
 	boardParams,
@@ -149,7 +150,8 @@ async function demoPage(login: string, params: BoardParams) {
 		...(await loadBoard(params, async (req) => d.demoStandingsPage(req))),
 		degraded: false,
 		busy: false,
-		commandsPage: true
+		commandsPage: true,
+		giveawayWinners: []
 	};
 }
 
@@ -179,8 +181,9 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	]);
 	if (boardVisible === false || loyaltyEnabled === false) hideChannel(locals);
 
-	const standing = await board;
-	markEdge(locals, pageOutcome([boardVisible, commandsPage], standing.degraded || standing.busy));
+	const [standing, giveaways] = await Promise.all([board, publicGiveawayWinners(channel.userId)]);
+	const degraded = standing.degraded || standing.busy || giveaways.degraded;
+	markEdge(locals, pageOutcome([boardVisible, commandsPage], degraded));
 	const freeze = standing.freeze;
 	if (freeze) locals.edgeTtlCapSec = Math.max(1, Math.floor((freeze.expiresAt - Date.now()) / 1000));
 
@@ -193,6 +196,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		...standing.board,
 		degraded: standing.degraded,
 		busy: standing.busy,
-		commandsPage: commandsPage !== false
+		commandsPage: commandsPage !== false,
+		giveawayWinners: giveaways.winners
 	};
 };

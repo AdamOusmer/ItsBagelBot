@@ -22,6 +22,7 @@ type Page = {
   busy: boolean;
   commandsPage: boolean;
   frozen: { asOf: number } | null;
+  giveawayWinners: { round_id: string; slot: number; login: string; prize: string; won_at: number }[];
 };
 
 type PageRequest = { limit: number; offset: number; viewerId?: string; viewerLogin?: string };
@@ -112,6 +113,10 @@ mock.module('#lib/server/services', () => ({
   userLeaderboardPage: (id: string) => leaderboardPageReply(id)
 }));
 
+let giveawayHistory: { winners: Page['giveawayWinners']; degraded: boolean } = { winners: [], degraded: false };
+const giveawayStore = await import('#lib/server/channel-giveaways');
+mock.module('#lib/server/channel-giveaways', () => ({ ...giveawayStore, publicGiveawayWinners: async () => giveawayHistory }));
+
 mock.module('#lib/server/identity-heal', () => ({ healLogin: async () => healReply }));
 
 const { load } = await import('./+page.server');
@@ -148,6 +153,7 @@ type Setup = {
 };
 
 function arrange(setup: Setup): void {
+  giveawayHistory = { winners: [], degraded: false };
   pageRequests.length = 0;
   resolverCalls.length = 0;
   reconciled.clear();
@@ -163,6 +169,17 @@ function arrange(setup: Setup): void {
   loyaltyFails = setup.loyaltyFails ?? false;
   loyaltyEnabled = setup.loyaltyEnabled ?? true;
 }
+
+test.each([
+  { degraded: false, winners: [{ round_id: 'round', slot: 1, login: 'viewer', prize: 'A game', won_at: 1 }] },
+  { degraded: true, winners: [] }
+])('keeps public standings available with giveaway history degraded=$degraded', async (history) => {
+  arrange({});
+  giveawayHistory = history;
+  const result = await loadPage();
+  expect(result.page).toMatchObject({ degraded: false, giveawayWinners: history.winners });
+  expect(result.edge).toBe(history.degraded ? 'skip' : 'page');
+});
 
 const cases: {
   name: string;

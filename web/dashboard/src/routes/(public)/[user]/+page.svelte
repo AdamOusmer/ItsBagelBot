@@ -3,6 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
+  import PastWinners from '#lib/components/giveaways/PastWinners.svelte';
   import PublicStreamerHeader from '#lib/components/public/PublicStreamerHeader.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import Pager from '@bagel/ui/svelte/Pager.svelte';
@@ -239,9 +240,15 @@
 
   <p class="lb-earn"><bb-fit mode="block">{t('leaderboard.earnNote')}</bb-fit></p>
 
+  {#if data.giveawayWinners.length}
+    <section class="giveaway-history" aria-label={t('giveaways.history')}>
+      <PastWinners winners={data.giveawayWinners} />
+    </section>
+  {/if}
 </main>
 
 <style>
+  .giveaway-history { margin-top: var(--bb-space-6); }
   .sky {
     position: fixed;
     inset: 0;

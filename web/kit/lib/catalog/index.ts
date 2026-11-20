@@ -16,7 +16,8 @@ import { CODM_MODULE } from './codm';
 import { COUNTERS_MODULE } from './counters';
 import { EMOTEPLAY_MODULE } from './emoteplay';
 import { FORTNITE_MODULE } from './fortnite';
-export { GIVEAWAY_LIMITS } from './giveaway-limits';
+import { GIVEAWAY_MODULE } from './giveaway';
+export { GIVEAWAY_LIMITS, giveawayRuleNumbers, giveawayRuleToggles } from './giveaway';
 import { GOVEE_MODULE } from './govee';
 import { LOYALTY_MODULE } from './loyalty';
 export { FREEZE_MAX_MINUTES } from './loyalty';
@@ -58,6 +59,7 @@ export const MOD = {
   raffle: 'raffle',
   quotes: 'quotes',
   govee: 'govee',
+  giveaway: 'giveaway',
   songqueue: 'songqueue',
   stream: 'stream',
   cmd: 'cmd'
@@ -87,6 +89,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = ([
   VALORANT_MODULE_DEF,
   QUEUE_MODULE,
   RAFFLE_MODULE,
+  GIVEAWAY_MODULE,
   QUOTES_MODULE,
   GOVEE_MODULE,
   SONGQUEUE_MODULE

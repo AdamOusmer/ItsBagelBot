@@ -119,7 +119,7 @@ export interface ModulePatch {
   userId: string;
   name: string;
   isEnabled: boolean;
-  partial: Record<string, string>;
+  partial: Record<string, unknown>;
   expectedRev: number;
 }
 

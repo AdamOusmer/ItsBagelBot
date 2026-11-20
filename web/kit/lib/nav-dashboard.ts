@@ -9,7 +9,7 @@ import { navGroups, navItems, resolveSection, type SectionDef } from './nav-core
 export const GRANTABLE_SECTIONS = ['commands', 'modules', 'channelpoints', 'billing'] as const;
 export type GrantSection = (typeof GRANTABLE_SECTIONS)[number];
 
-export type SectionId = 'overview' | 'commands' | 'flows' | 'modules' | 'songqueue' | 'billing' | 'settings';
+export type SectionId = 'overview' | 'commands' | 'flows' | 'modules' | 'giveaways' | 'songqueue' | 'billing' | 'settings';
 
 export interface DashboardSectionDef extends SectionDef {
   id: SectionId;
@@ -18,6 +18,7 @@ export interface DashboardSectionDef extends SectionDef {
     | 'nav.commands'
     | 'nav.flows'
     | 'nav.modules'
+    | 'nav.giveaways'
     | 'nav.songqueue'
     | 'nav.billing'
     | 'nav.settings';
@@ -64,6 +65,14 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     icon: 'modules',
     href: '/modules',
     match: ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/automations', '/loyalty'],
+    grant: 'modules'
+  },
+  {
+    id: 'giveaways',
+    labelKey: 'nav.giveaways',
+    icon: 'gamepad',
+    href: '/giveaways',
+    match: ['/giveaways'],
     grant: 'modules'
   },
   {

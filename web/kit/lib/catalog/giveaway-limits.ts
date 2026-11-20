@@ -8,5 +8,19 @@ export const GIVEAWAY_LIMITS = {
   maxAccountDays: 3650,
   maxSkipDays: 90,
   luckMin: 100,
-  luckMax: 300
+  luckMax: 300,
+  refusalEnabled: true,
+  maxWinners: 100,
+  giveawayDefaultWinners: 1,
+  giveawayEntryWindow: 180,
+  giveawayMinEntryWindow: 1,
+  giveawayMaxPresets: 10,
+  giveawayPresetNameMax: 24,
+  giveawayPrizeMaxLen: 100,
+  claimWindowMin: 30,
+  claimWindowMax: 900,
+  claimWindowDefault: 120,
+  maxOpen: 7200,
+  giveawayRoundIDMaxLen: 36,
+  giveawayMaxRecentPage: 50
 } as const;

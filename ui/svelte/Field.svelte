@@ -8,6 +8,7 @@
 
   type Own = {
     label: string;
+    fitCopy?: boolean;
     tag?: string;
     hint?: string;
     error?: string;
@@ -19,6 +20,7 @@
 
   let {
     label,
+    fitCopy = false,
     tag,
     hint,
     error,
@@ -32,7 +34,7 @@
 </script>
 
 <label class={['bb-field', className]} for={htmlFor} {...rest}>
-  <span class="bb-field__label">{label}{#if tag}<small class="bb-tag bb-tag--quiet bb-field__tag">{tag}</small>{/if}</span>
+  <span class="bb-field__label">{#if fitCopy}<bb-fit><span data-fit="">{label}</span></bb-fit>{:else}{label}{/if}{#if tag}<small class="bb-tag bb-tag--quiet bb-field__tag">{tag}</small>{/if}</span>
   {@render children()}
   {#if hint}<small class="bb-field__hint" id={hintId}>{hint}</small>{/if}
   {#if error}<small class="bb-field__error" role="alert" id={errorId}>{error}</small>{/if}

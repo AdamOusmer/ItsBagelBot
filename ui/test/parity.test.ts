@@ -457,6 +457,16 @@ const PAIRS: {
       ' control <small class="bb-field__hint" id="h1">Seconds.</small></label>',
   },
   {
+    name: 'Field with fitted copy',
+    svelte: SvelteField,
+    astro: AstroField,
+    props: { label: 'Cooldown', fitCopy: true, hint: 'Seconds.', hintId: 'h1' },
+    slot: 'control',
+    html:
+      '<label class="bb-field"><span class="bb-field__label"><bb-fit><span data-fit>Cooldown</span></bb-fit></span>' +
+      ' control <small class="bb-field__hint" id="h1">Seconds.</small></label>',
+  },
+  {
     name: 'SearchInput',
     svelte: SvelteSearchInput,
     astro: AstroSearchInput,
@@ -478,6 +488,16 @@ const PAIRS: {
       '<span class="bb-stat__label">Messages</span></div>' +
       '<div class="bb-stat__value"><span>12,904</span><small>msg</small></div>' +
       '<div class="bb-stat__delta">+4.1%</div></div>',
+  },
+  {
+    name: 'StatTile with fitted copy',
+    svelte: SvelteStatTile,
+    astro: AstroStatTile,
+    props: { label: 'Messages', value: '12,904', fitCopy: true },
+    html:
+      '<div class="bb-stat"><div class="bb-stat__head">' +
+      '<span class="bb-stat__label bb-fit-box"><bb-fit><span data-fit>Messages</span></bb-fit></span></div>' +
+      '<div class="bb-stat__value"><span>12,904</span></div></div>',
   },
   {
     name: 'Switch',

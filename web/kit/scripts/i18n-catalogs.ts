@@ -4,7 +4,7 @@
 import { createHash } from 'node:crypto';
 import type { Plugin } from 'vite';
 import type { MessageTree } from '../lib/i18n/types.ts';
-import { LOCALES_DIR, consoleLocales, readConsoleTree } from '../lib/i18n/tree-fs.ts';
+import { CONSOLE_FRAGMENTS_DIR, LOCALES_DIR, consoleLocales, readConsoleTree } from '../lib/i18n/tree-fs.ts';
 
 const VIRTUAL = 'virtual:bagel-i18n';
 const DATA = `${VIRTUAL}/data/`;
@@ -139,9 +139,10 @@ export function i18nCatalogs({ exclude = [], source = { locales: consoleLocales,
       for (const [fileName, source] of Object.entries(catalogs().files)) this.emitFile({ type: 'asset', fileName, source });
     },
     configureServer(server) {
-      server.watcher.add(LOCALES_DIR);
+      const directories = [LOCALES_DIR, CONSOLE_FRAGMENTS_DIR];
+      server.watcher.add(directories);
       server.watcher.on('change', (file) => {
-        if (!file.startsWith(LOCALES_DIR)) return;
+        if (!directories.some((directory) => file.startsWith(directory))) return;
         cached = undefined;
         for (const module of server.moduleGraph.idToModuleMap.values()) {
           if (module.id?.startsWith(`\0${VIRTUAL}`)) server.moduleGraph.invalidateModule(module);
