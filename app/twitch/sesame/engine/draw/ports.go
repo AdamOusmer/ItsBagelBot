@@ -46,6 +46,7 @@ type Payment struct {
 }
 
 var ErrPaymentRejected = errors.New("draw: payment rejected")
+var ErrAccountInstanceUnavailable = errors.New("draw: channel account instance unavailable")
 
 type Payer interface {
 	Pay(context.Context, Payment) error
@@ -87,3 +88,7 @@ func (DiscardWinnerRecords) Record(context.Context, Round, []Slot) error { retur
 type PhaseObserver interface {
 	LeftOpen(context.Context, Round)
 }
+
+type IgnorePhaseChanges struct{}
+
+func (IgnorePhaseChanges) LeftOpen(context.Context, Round) {}

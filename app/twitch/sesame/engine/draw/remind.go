@@ -10,8 +10,13 @@ import (
 	"ItsBagelBot/pkg/valkey"
 )
 
+func (t Terms) remindersEnabled() bool { return t.Kind == KindRaffle || t.RemindEnabled }
+
 func (s *Store) remind(ctx context.Context, data snapshot, now time.Time) error {
 	r := data.round
+	if !r.Terms.remindersEnabled() {
+		return s.schedule(ctx, data, r.ClosesAt.Sub(now))
+	}
 	raw := data.stored.Round["remind_at"]
 	at := fromMillis(parseInt(raw))
 	if at.IsZero() {

@@ -236,7 +236,8 @@ func newDraw(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *d
 	announce := announcementConfig(w, proj)
 	store := draw.NewStore(w.in.vc, draw.Config{Log: log, LegacyKey: engine.RaffleStateKey,
 		LegacyDeadlineKey: engine.RaffleDeadlineKey, Payer: engine.NewDrawPayer(loyalty, announce.Runtime),
-		Announcer: engine.NewDrawAnnouncer(announce, log), Verifier: draw.PassAll{}, Winners: draw.DiscardWinnerRecords{}})
+		Announcer: engine.NewDrawAnnouncer(announce, log), Verifier: draw.PassAll{}, Winners: draw.DiscardWinnerRecords{},
+		Phases: draw.IgnorePhaseChanges{}})
 	go store.Run(w.ctx)
 	return store
 }

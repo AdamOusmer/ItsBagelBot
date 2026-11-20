@@ -53,6 +53,9 @@ func TestDrawRoundOpen(t *testing.T) {
 		want int64
 	}{
 		{"free", func(*testing.T, RoundKeys) {}, RoundOpened},
+		{"same caller", func(t *testing.T, _ RoundKeys) {
+			openTestDraw(t, client, testDrawKeys(t, testRoundID))
+		}, RoundAlreadyOpened},
 		{"live", func(t *testing.T, keys RoundKeys) {
 			code, err := keys.Open(t.Context(), client, RoundOpen{
 				RoundID: testPeerID, Fields: []FieldValue{{Field: "phase", Value: testOpenPhase}}, TTL: testDrawTTL,
@@ -92,7 +95,7 @@ func TestDrawRoundOpen(t *testing.T) {
 				code       int64
 				found, due bool
 			}
-			opened := tc.want == RoundOpened
+			opened := tc.want == RoundOpened || tc.want == RoundAlreadyOpened
 			require.Equal(t, result{tc.want, opened, opened}, result{code, read.Found, slices.Contains(lapsed, testRoundID)})
 		})
 	}
@@ -131,8 +134,28 @@ func TestDrawRoundJoin(t *testing.T) {
 	require.Equal(t, RoundRead{
 		Round: map[string]string{"phase": "closing"}, Slots: map[string]string{},
 		Labels:  map[string]string{testViewer: "renamed", "other": "other login"},
-		Entries: []ScoredMember{{Member: "other", Score: 100}, {Member: testViewer, Score: 120}}, Found: true,
+		Entries: []ScoredMember{{Member: "other", Score: 100}, {Member: testViewer, Score: 120}}, EntryCount: 2, Found: true,
 	}, read)
+}
+
+func TestDrawRoundViewCountsWithoutPool(t *testing.T) {
+	client := valkeytest.Real(t)
+	keys := testDrawKeys(t, testRoundID)
+	cleanDrawKeys(t, client, keys)
+	openTestDraw(t, client, keys)
+	for _, count := range []int64{0, 1} {
+		ctx := t.Context()
+		if count != 0 {
+			_, err := keys.Join(ctx, client, RoundEntrant{Member: testViewer, Label: "login", Weight: 100, TTL: testDrawTTL})
+			require.NoError(t, err)
+			_, _, err = keys.Refuse(ctx, client, Refusal{Viewer: "other", Reason: "role", TTL: testDrawTTL})
+			require.NoError(t, err)
+		}
+		view, err := keys.View(ctx, client)
+		require.NoError(t, err)
+		require.Equal(t, RoundRead{Round: map[string]string{"phase": testOpenPhase}, Slots: map[string]string{},
+			EntryCount: count, Refused: count, Found: true}, view)
+	}
 }
 
 func TestDrawRoundShift(t *testing.T) {

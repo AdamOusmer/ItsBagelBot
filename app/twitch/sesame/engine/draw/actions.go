@@ -137,15 +137,9 @@ func (s *Store) amend(ctx context.Context, r Round, shift valkey.PhaseShift, act
 func (s *Store) shiftPhase(ctx context.Context, r Round, shift valkey.PhaseShift) (bool, error) {
 	ok, err := keysFor(r.Channel, r.ID).Shift(ctx, s.client, shift)
 	if ok && shift.Release {
-		s.leftOpen(ctx, r)
-	}
-	return ok, err
-}
-
-func (s *Store) leftOpen(ctx context.Context, r Round) {
-	if s.cfg.Phases != nil {
 		s.cfg.Phases.LeftOpen(ctx, r)
 	}
+	return ok, err
 }
 
 func phaseShift(r Round, to Phase, at time.Time) valkey.PhaseShift {
@@ -234,7 +228,7 @@ func modTransitions(data snapshot, req SlotAction, action Action) []slotChange {
 }
 
 func modSlot(r Round, slot Slot, action Action) Slot {
-	stuck := verifiableByMod(r, slot, action.At)
+	stuck := verifiableByMod(slot, action.At)
 	switch action.Kind {
 	case "reroll":
 		if stuck || rerollableNoShow(slot, action.At) {
@@ -252,8 +246,8 @@ func modSlot(r Round, slot Slot, action Action) Slot {
 	return Slot{}
 }
 
-func verifiableByMod(r Round, slot Slot, now time.Time) bool {
-	return slot.State == SlotVerifying && !now.Before(slot.Since.Add(Pins.VerifyStuck)) && now.Before(verifyDue(r, slot, now))
+func verifiableByMod(slot Slot, now time.Time) bool {
+	return slot.State == SlotVerifying && !now.Before(verifyStuckAt(slot)) && now.Before(verifyDeadline(slot))
 }
 
 func rerollableNoShow(slot Slot, now time.Time) bool {

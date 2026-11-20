@@ -52,6 +52,9 @@ func testConfig(cfg draw.Config) draw.Config {
 	if cfg.Winners == nil {
 		cfg.Winners = draw.DiscardWinnerRecords{}
 	}
+	if cfg.Phases == nil {
+		cfg.Phases = draw.IgnorePhaseChanges{}
+	}
 	return cfg
 }
 
@@ -173,8 +176,9 @@ func TestDrawConcurrentClose(t *testing.T) {
 }
 
 type testPayer struct {
-	paid chan draw.Payment
-	err  error
+	paid        chan draw.Payment
+	err         error
+	instanceErr error
 }
 
 func (p testPayer) Pay(_ context.Context, payment draw.Payment) error {
@@ -184,8 +188,8 @@ func (p testPayer) Pay(_ context.Context, payment draw.Payment) error {
 	return p.err
 }
 
-func (testPayer) Instance(context.Context, draw.ChannelID, draw.ViewerID) (int64, error) {
-	return 901, nil
+func (p testPayer) Instance(context.Context, draw.ChannelID, draw.ViewerID) (int64, error) {
+	return 901, p.instanceErr
 }
 
 func TestDrawResumesPayoutFromDueIndex(t *testing.T) {
@@ -358,31 +362,69 @@ func TestDrawExtendKeepsOpeningTermsAndHonorsFreeze(t *testing.T) {
 
 func TestDrawTransientPaymentStopsAtHorizon(t *testing.T) {
 	payer := testPayer{paid: make(chan draw.Payment, 3), err: errors.New("credits unavailable")}
-	f := newFixture(t, draw.Config{Payer: payer})
-	r := f.open(408, draw.Terms{Kind: draw.KindRaffle, Prize: draw.Prize{Points: 11}})
+	ann := make(notices, 4)
+	f := newFixture(t, draw.Config{Payer: payer, Announcer: ann, Verifier: verifyWith(verifyFirstCandidate)})
+	r := f.open(408, draw.Terms{Kind: draw.KindRaffle, Prize: draw.Prize{Points: 11}, Winners: draw.WinnerPolicy{Count: 2}})
 	f.join(r, "11")
+	f.join(r, "12")
 	f.close(r.Channel)
 	f.start(f.Store)
 	attempt := take(t, payer.paid)
-	require.Equal(t, draw.PaymentKey("raffle:"+string(r.ID)+":1"), attempt.Key)
-	f.awaitPaymentRetry(r.Channel)
+	require.Equal(t, draw.ViewerID("12"), attempt.Viewer)
+	f.awaitRaffleRetries(r.Channel)
 	f.ageRaffle(r)
+	unpaid := ann.next(t, draw.NoticeUnpaid).Slots
+	require.Len(t, unpaid, 1)
+	require.Equal(t, attempt.Viewer, unpaid[0].Viewer)
 	waitRemoved(t, f.client, drawKeys(r))
 	require.Empty(t, payer.paid)
 }
 
-func (f fixture) awaitPaymentRetry(channel draw.ChannelID) {
+func (f fixture) awaitRaffleRetries(channel draw.ChannelID) {
 	f.t.Helper()
 	require.EventuallyWithT(f.t, func(check *assert.CollectT) {
 		_, slots, found, err := f.Settling(f.t.Context(), channel, draw.KindRaffle)
 		require.NoError(check, err)
-		require.Len(check, slots, 1)
+		require.Len(check, slots, 2)
 		type observed struct {
-			state        draw.SlotState
-			found, retry bool
+			byState map[draw.SlotState]bool
+			found   bool
 		}
-		require.Equal(check, observed{draw.SlotWon, true, true}, observed{slots[0].State, found, !slots[0].RetryAt.IsZero()})
+		byState := make(map[draw.SlotState]bool)
+		for _, slot := range slots {
+			byState[slot.State] = !slot.RetryAt.IsZero()
+		}
+		require.Equal(check, observed{map[draw.SlotState]bool{draw.SlotWon: true, draw.SlotVerifying: true}, true}, observed{byState, found})
 	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestDrawAccountInstanceFailure(t *testing.T) {
+	cases := []struct {
+		name      string
+		err       error
+		permanent bool
+	}{
+		{"retired account", fmt.Errorf("lookup: %w", draw.ErrAccountInstanceUnavailable), true},
+		{"transient lookup error", context.DeadlineExceeded, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			payer := testPayer{instanceErr: tc.err, paid: make(chan draw.Payment, 1)}
+			ann := make(notices, 4)
+			f := newFixture(t, draw.Config{Payer: payer, Announcer: ann})
+			r := f.open(409, draw.Terms{Kind: draw.KindRaffle, Prize: draw.Prize{Points: 11}})
+			f.join(r, "11")
+			f.close(r.Channel)
+			f.start(f.Store)
+			if tc.permanent {
+				waitRemoved(t, f.client, drawKeys(r))
+				require.Empty(t, ann)
+			} else {
+				f.awaitSlot(r, func(slot draw.Slot) bool { return slot.State == draw.SlotPending && !slot.RetryAt.IsZero() })
+			}
+			require.Empty(t, payer.paid)
+		})
+	}
 }
 
 func (f fixture) ageRaffle(r draw.Round) {
@@ -409,6 +451,7 @@ func TestDrawStoreRequiresPorts(t *testing.T) {
 		{"payer", func(cfg *draw.Config) { cfg.Payer = nil }},
 		{"announcer", func(cfg *draw.Config) { cfg.Announcer = nil }},
 		{"winner sink", func(cfg *draw.Config) { cfg.Winners = nil }},
+		{"phase observer", func(cfg *draw.Config) { cfg.Phases = nil }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

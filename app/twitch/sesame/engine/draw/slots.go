@@ -91,9 +91,16 @@ func (s *Store) stepSlot(ctx context.Context, w slotWork, step slotStep) Slot {
 		return step(ctx, s, w)
 	}
 	if w.round.Terms.Kind == KindRaffle {
-		return finalSlot(w.slot, SlotUnpaid)
+		return stopRaffleSlot(w.slot)
 	}
 	return finalSlot(w.slot, SlotEnded)
+}
+
+func stopRaffleSlot(slot Slot) Slot {
+	if slot.State == SlotWon {
+		return finalSlot(slot, SlotUnpaid)
+	}
+	return finalSlot(slot, SlotEnded)
 }
 
 func (s *Store) prepareSlots(data snapshot, now time.Time) []slotWork {
@@ -129,12 +136,26 @@ func reservePick(ctx context.Context, s *Store, w slotWork) Slot {
 		return slot
 	}
 	if w.round.Terms.Kind == KindRaffle {
-		instance, err := s.cfg.Payer.Instance(ctx, w.round.Channel, w.candidate)
-		if err != nil {
-			return retry(slot, w.now.Add(verifyRetry))
-		}
-		slot.Instance = instance
+		return reserveRafflePick(ctx, s.cfg.Payer, w)
 	}
+	return startVerification(w, slot)
+}
+
+func reserveRafflePick(ctx context.Context, payer Payer, w slotWork) Slot {
+	slot := w.slot
+	instance, err := payer.Instance(ctx, w.round.Channel, w.candidate)
+	switch {
+	case errors.Is(err, ErrAccountInstanceUnavailable):
+		return stopRaffleSlot(slot)
+	case err != nil:
+		return retry(slot, w.now.Add(verifyRetry))
+	default:
+		slot.Instance = instance
+		return startVerification(w, slot)
+	}
+}
+
+func startVerification(w slotWork, slot Slot) Slot {
 	slot.State, slot.Viewer, slot.Login = SlotVerifying, w.candidate, w.login
 	slot.Since, slot.RetryAt = w.now, time.Time{}
 	slot.History = append(slices.Clone(slot.History), Candidate{Viewer: slot.Viewer, Generation: slot.Generation})
@@ -143,7 +164,7 @@ func reservePick(ctx context.Context, s *Store, w slotWork) Slot {
 
 func verifyPick(ctx context.Context, s *Store, w slotWork) Slot {
 	slot := w.slot
-	if !w.now.Before(slot.Since.Add(Pins.VerifyStuck)) {
+	if !w.now.Before(verifyStuckAt(slot)) {
 		return finalSlot(slot, SlotEnded)
 	}
 	verdict, err := s.cfg.Verifier.Verify(ctx, Check{Round: w.round, Viewer: slot.Viewer, Login: slot.Login, Entry: w.entry})

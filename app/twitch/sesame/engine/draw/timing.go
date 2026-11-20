@@ -41,7 +41,7 @@ func slotDue(r Round, slot Slot, now time.Time) time.Time {
 	case SlotPending:
 		return earlier(retryAt(slot, now), deadline)
 	case SlotVerifying:
-		return earlier(verifyDue(r, slot, now), deadline)
+		return earlier(verifyDue(slot, now), deadline)
 	case SlotWon:
 		return earlier(wonDue(r, slot, now), deadline)
 	case SlotNoShow:
@@ -53,16 +53,17 @@ func slotDue(r Round, slot Slot, now time.Time) time.Time {
 	return deadline
 }
 
-func verifyDue(r Round, slot Slot, now time.Time) time.Time {
-	stuckAt := slot.Since.Add(Pins.VerifyStuck)
+func verifyDue(slot Slot, now time.Time) time.Time {
+	stuckAt := verifyStuckAt(slot)
 	if now.Before(stuckAt) {
 		return earlier(retryAt(slot, now), stuckAt)
 	}
-	if r.Terms.Kind == KindRaffle {
-		return settlementDeadline(r)
-	}
-	return stuckAt.Add(Pins.ModActionTimeout)
+	return verifyDeadline(slot)
 }
+
+func verifyStuckAt(slot Slot) time.Time { return slot.Since.Add(Pins.VerifyStuck) }
+
+func verifyDeadline(slot Slot) time.Time { return verifyStuckAt(slot).Add(Pins.ModActionTimeout) }
 
 func wonDue(r Round, slot Slot, now time.Time) time.Time {
 	if r.Terms.Kind == KindRaffle {

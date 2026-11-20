@@ -67,10 +67,7 @@ func seedSlots(ctx context.Context, s *Store, data snapshot, now time.Time) erro
 		return err
 	}
 	count := len(data.stored.Entries)
-	r.Winners = ResolveWinners(policy, count, r.Terms.Prize)
-	if r.Terms.Kind == KindRaffle {
-		r.Winners = min(count, r.Winners)
-	}
+	r.Winners = roundWinners(r.Terms, policy, count)
 	r.SettledAt = now
 	shift, err := seedShift(r)
 	if err != nil {
@@ -81,6 +78,17 @@ func seedSlots(ctx context.Context, s *Store, data snapshot, now time.Time) erro
 		s.cfg.Announcer.Announce(ctx, Notice{Event: NoticeEmpty, Round: r})
 	}
 	return err
+}
+
+func roundWinners(terms Terms, policy WinnerPolicy, count int) int {
+	if count == 0 {
+		return 0
+	}
+	winners := ResolveWinners(policy, count, terms.Prize)
+	if terms.Kind == KindRaffle {
+		return min(count, winners)
+	}
+	return winners
 }
 
 func decodeOverride(data snapshot, p *WinnerPolicy) error {
@@ -162,7 +170,7 @@ func slotWorking(r Round, slot Slot, now time.Time) bool {
 	case SlotPending:
 		return true
 	case SlotVerifying:
-		return now.Before(slot.Since.Add(Pins.VerifyStuck))
+		return now.Before(verifyStuckAt(slot))
 	case SlotWon:
 		return r.Terms.Kind == KindRaffle
 	default:
