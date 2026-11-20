@@ -96,7 +96,8 @@ const metrics = [
   { metric: 'import.runs', dims: [['streamelements', 'fossabot', 'moobot', 'nightbot', 'streamlabs_desktop', 'wizebot'],
     ['preview_ok', 'preview_failed', 'committed', 'commit_failed']] },
   { metric: 'onboarding.steps', dims: [['viewed', 'consent_missing', 'save_failed']] },
-  { metric: 'signup.via', dims: [[...VIA], ['started', 'signup']] }
+  { metric: 'signup.via', dims: [[...VIA], ['started', 'signup']] },
+  { metric: 'upsell.clicks', dims: [['overview']] }
 ];
 
 it.each(metrics)('accepts every catalog enum combination for $metric', async ({ metric, dims }) => {

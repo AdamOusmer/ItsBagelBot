@@ -54,6 +54,13 @@
     --card-shadow: var(--bb-surface-raised-shadow), 0 0 40px rgba(var(--bb-halo-gold-rgb), 0.08);
   }
 
+  .bb-card--gold {
+    --card-bg:
+      radial-gradient(60% 160% at 0% 50%, rgba(var(--bb-tan-rgb), 0.16), transparent 70%),
+      linear-gradient(90deg, rgba(var(--bb-tan-rgb), 0.05), transparent 60%),
+      var(--bb-surface-raised);
+  }
+
   .bb-card--danger {
     border-color: transparent;
     background: var(--bb-status-danger-bg);
