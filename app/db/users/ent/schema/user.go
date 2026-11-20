@@ -27,7 +27,7 @@ func (User) Fields() []ent.Field {
 
 		field.String("username").NotEmpty(),
 
-		field.String("display_name").Default("").MaxLen(64),
+		field.String("display_name").Default("").MaxRuneLen(64),
 
 		field.String("email").NotEmpty().Unique().Sensitive(),
 

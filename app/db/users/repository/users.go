@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/predicate"
@@ -135,7 +136,7 @@ func NewUsers(cfg UsersConfig) *Users {
 type displayName string
 
 func (d displayName) storable() displayName {
-	if len(d) > 64 {
+	if utf8.RuneCountInString(string(d)) > 64 {
 		return ""
 	}
 	return d
