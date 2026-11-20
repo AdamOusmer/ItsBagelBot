@@ -119,6 +119,16 @@ function settingsPatch(kind: SettingsChange, form: FormData) {
   }
 }
 
+function settingsInput(kind: SettingsChange, form: FormData) {
+  const partial = settingsPatch(kind, form);
+  const expectedRev = Number(form.get('expected_rev') ?? NaN);
+  if (!partial) return null;
+  if (!Number.isSafeInteger(expectedRev) || expectedRev < 0) return null;
+  const enabled = form.get('is_enabled');
+  if (enabled !== 'on' && enabled !== 'off') return null;
+  return { partial, expectedRev, isEnabled: enabled === 'on' };
+}
+
 function save(kind: SettingsChange): Action {
   return (event) => {
     const { locals } = event;
@@ -128,13 +138,9 @@ function save(kind: SettingsChange): Action {
       demo: DEMO,
       invalid: translate(locals.locale, kind === 'presets' ? 'giveaways.invalidPresets' : 'giveaways.invalidInput'),
       run: async (session, form) => {
-        const partial = settingsPatch(kind, form);
-        const expectedRev = Number(form.get('expected_rev'));
-        const enabled = form.get('is_enabled');
-        if (!partial || !form.has('expected_rev')) return null;
-        if (!Number.isSafeInteger(expectedRev) || expectedRev < 0) return null;
-        if (enabled !== 'on' && enabled !== 'off') return null;
-        const result = await patchModule({ userId: effectiveId(session), name: MOD.giveaway, isEnabled: enabled === 'on', partial, expectedRev });
+        const input = settingsInput(kind, form);
+        if (!input) return null;
+        const result = await patchModule({ userId: effectiveId(session), name: MOD.giveaway, ...input });
         if (result.conflict) return failedDraw(new RpcError('module revision changed', 'conflict'), locals);
         return kind;
       },

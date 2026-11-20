@@ -13,7 +13,16 @@ const roles = new Set(['everyone', 'sub', 'vip']);
 
 const configFields = (moduleDef(MOD.giveaway)?.settings ?? []).filter((field) => !field.hidden);
 const allowedFields = new Map(configFields.map((field) => [field.key, field]));
-const boolFields = new Set<string>(giveawayRuleToggles);
+const toggleFormText = new Map([['true', 'on'], ['false', 'off']]);
+const roundOnlyMutations = new Set<DrawMutation>(['close', 'extend', 'cancel']);
+const slotRequiredMutations = new Set<DrawMutation>(['mark_delivered', 'skip_rule']);
+const deliveredValues = new Map([['true', true], ['false', false]]);
+
+const numberSettingValidators = new Map<string, (value: number) => boolean>([
+  ['winners', (value) => integer(value, 1, pins.maxWinners)],
+  ['windowSeconds', (value) => integer(value, pins.giveawayMinEntryWindow, pins.maxOpen)],
+  ['claimSeconds', (value) => value === 0 || integer(value, pins.claimWindowMin, pins.claimWindowMax)]
+]);
 
 export function isPresetName(name: string): boolean {
   return name.length <= pins.giveawayPresetNameMax && namePattern.test(name);
@@ -25,24 +34,29 @@ function text(form: FormData, key: string): string {
 }
 
 function integer(value: unknown, min: number, max: number): value is number {
-  if (typeof value !== 'number') return false;
-  return Number.isInteger(value) && value >= min && value <= max;
+  if (typeof value !== 'number' || !Number.isInteger(value)) return false;
+  return value >= min && value <= max;
 }
 
 function parseObject(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+  if (value === null || typeof value !== 'object') return null;
+  return Array.isArray(value) ? null : value as Record<string, unknown>;
 }
 
-function validLuck(value: number): boolean {
+function validNumericRule(value: unknown, rule: (typeof giveawayRuleNumbers)[number]): boolean {
+  if (!integer(value, 0, rule.max)) return false;
+  if (rule.key !== 'sub_luck_percent') return true;
   return value === 0 || value >= pins.luckMin;
 }
 
+const ruleValidators = new Map<string, (value: unknown) => boolean>([
+  ['role', (value) => typeof value === 'string' && roles.has(value)],
+  ...giveawayRuleToggles.map((key) => [key, (value: unknown) => typeof value === 'boolean'] as const),
+  ...giveawayRuleNumbers.map((rule) => [rule.key, (value: unknown) => validNumericRule(value, rule)] as const)
+]);
+
 function validRule([key, value]: [string, unknown]): boolean {
-  if (boolFields.has(key)) return typeof value === 'boolean';
-  if (key === 'role') return typeof value === 'string' && roles.has(value);
-  const pin = giveawayRuleNumbers.find((rule) => rule.key === key);
-  if (!pin || !integer(value, 0, pin.max)) return false;
-  return key !== 'sub_luck_percent' || validLuck(value);
+  return ruleValidators.get(key)?.(value) ?? false;
 }
 
 function readRules(value: unknown): GiveawayRules | null {
@@ -68,21 +82,33 @@ function readPresets(value: unknown): GiveawayPreset[] | null {
   return new Set(presets.map((preset) => preset.name)).size === presets.length ? presets : null;
 }
 
+function stringSetting(value: string, toggle: boolean): string {
+  if (!toggle) return value;
+  return toggleFormText.get(value) ?? value;
+}
+
 function formSetting(value: unknown, toggle: boolean): string | null {
-  if (typeof value === 'number') return String(value);
-  if (toggle && (value === 'true' || value === 'false')) return value === 'true' ? 'on' : 'off';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'boolean') return value ? 'on' : 'off';
-  return null;
+  if (typeof value === 'string') return stringSetting(value, toggle);
+  if (typeof value === 'boolean') return stringSetting(String(value), true);
+  return typeof value === 'number' ? String(value) : null;
+}
+
+function readFields(config: Record<string, unknown>): GiveawayConfig['fields'] {
+  const fields = { ...giveawayDefaults.fields };
+  for (const { key, type } of configFields) fields[key] = formSetting(config[key], type === 'toggle') ?? fields[key] ?? '';
+  return fields;
+}
+
+function hasPreset(presets: GiveawayPreset[], name: string): boolean {
+  return presets.some((preset) => preset.name === name);
 }
 
 export function readGiveawayConfig(raw: unknown): GiveawayConfig {
   const config = parseObject(raw) ?? {};
-  const fields = { ...giveawayDefaults.fields };
-  for (const { key, type } of configFields) fields[key] = formSetting(config[key], type === 'toggle') ?? fields[key] ?? '';
+  const fields = readFields(config);
   const presets = readPresets(config.presets) ?? [];
   const defaultPreset = String(config.defaultPreset ?? '').trim().toLowerCase();
-  return { fields, presets, defaultPreset: presets.some((preset) => preset.name === defaultPreset) ? defaultPreset : '' };
+  return { fields, presets, defaultPreset: hasPreset(presets, defaultPreset) ? defaultPreset : '' };
 }
 
 export function presetPatch(form: FormData): Pick<GiveawayConfig, 'presets' | 'defaultPreset'> | null {
@@ -90,7 +116,7 @@ export function presetPatch(form: FormData): Pick<GiveawayConfig, 'presets' | 'd
     const presets = readPresets(JSON.parse(text(form, 'presets')));
     const defaultPreset = text(form, 'default_preset').toLowerCase();
     if (!presets) return null;
-    if (defaultPreset && !presets.some((preset) => preset.name === defaultPreset)) return null;
+    if (defaultPreset && !hasPreset(presets, defaultPreset)) return null;
     return { presets, defaultPreset };
   } catch {
     return null;
@@ -99,13 +125,7 @@ export function presetPatch(form: FormData): Pick<GiveawayConfig, 'presets' | 'd
 
 function validNumberSetting(key: string, value: string): boolean {
   if (value === '') return true;
-  const number = Number(value);
-  switch (key) {
-    case 'winners': return integer(number, 1, pins.maxWinners);
-    case 'windowSeconds': return integer(number, pins.giveawayMinEntryWindow, pins.maxOpen);
-    case 'claimSeconds': return number === 0 || integer(number, pins.claimWindowMin, pins.claimWindowMax);
-    default: return false;
-  }
+  return numberSettingValidators.get(key)?.(Number(value)) ?? false;
 }
 
 function fieldValue(field: (typeof configFields)[number], value: string): string | number | null {
@@ -139,25 +159,18 @@ function startInput(form: FormData): DrawInput | null {
 
 function slotInput(verb: DrawMutation, form: FormData): DrawInput | null {
   const slot = Number(text(form, 'slot'));
-  const min = verb === 'mark_delivered' || verb === 'skip_rule' ? 1 : 0;
+  const min = slotRequiredMutations.has(verb) ? 1 : 0;
   if (!integer(slot, min, pins.maxWinners)) return null;
   if (verb !== 'mark_delivered') return { slot };
-  const delivered = text(form, 'delivered');
-  return delivered === 'true' || delivered === 'false' ? { slot, delivered: delivered === 'true' } : null;
+  const delivered = deliveredValues.get(text(form, 'delivered'));
+  return delivered === undefined ? null : { slot, delivered };
 }
 
 export function drawInput(verb: DrawMutation, form: FormData): DrawInput | null {
   if (verb === 'start') return startInput(form);
   const round_id = text(form, 'round_id');
   if (!uuidPattern.test(round_id) || round_id.length > pins.giveawayRoundIDMaxLen) return null;
-  switch (verb) {
-    case 'close':
-    case 'extend':
-    case 'cancel':
-      return { round_id };
-    default: {
-      const input = slotInput(verb, form);
-      return input ? { round_id, ...input } : null;
-    }
-  }
+  if (roundOnlyMutations.has(verb)) return { round_id };
+  const input = slotInput(verb, form);
+  return input ? { round_id, ...input } : null;
 }
