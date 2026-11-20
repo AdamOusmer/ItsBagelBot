@@ -37,13 +37,18 @@
   let poll: AbortController | undefined;
   const blocked = $derived(live.degraded || live.rounds.some((round) => round.phase === 'open'));
 
+  const idle = () => !(busy || setting);
+  const pollable = () => idle() && !document.hidden;
+  const conflicted = (result: { type: string; status?: number }) => result.type === 'failure' && result.status === 409;
+  const refreshAfter = (result: { type: string; status?: number }) => result.type === 'success' || conflicted(result);
+
   onMount(() => {
     if (data.demo) return;
     now = Date.now();
     const clock = setInterval(() => { now = Date.now(); }, 1000);
     const delay = () => live.rounds.length ? 2000 : 10_000;
     const stop = livePoll(async () => {
-      if (!busy && !setting && !document.hidden) await pollLive();
+      if (pollable()) await pollLive();
       return false;
     }, { firstDelayMs: delay(), delayMs: delay, timeoutMs: Infinity, hiddenDelayMs: 10_000, refreshOnVisible: true });
     return () => {
@@ -83,7 +88,7 @@
     return async ({ result, update }) => {
       try {
         await update({ reset: false, invalidateAll: false });
-        if (result.type === 'success' || (result.type === 'failure' && result.status === 409)) await invalidate(loadKey);
+        if (refreshAfter(result)) await invalidate(loadKey);
       } finally {
         busy = false;
       }

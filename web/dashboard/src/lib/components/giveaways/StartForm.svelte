@@ -32,12 +32,14 @@
     ...config.presets.map((item) => ({ value: item.name, label: item.name }))
   ]);
 
+  const countable = () => enabled && !(demo || blocked);
+
   $effect(() => {
     const selected = preset;
     void config.defaultPreset;
     void config.presets;
     void refresh;
-    if (demo || !enabled || blocked) return;
+    if (!countable()) return;
     const controller = new AbortController();
     let timeout: ReturnType<typeof setTimeout> | undefined;
     count = undefined;
