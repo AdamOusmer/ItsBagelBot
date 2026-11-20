@@ -13,13 +13,21 @@ function returnTo(url: URL): string {
   return path === '/consent' ? '/' : next;
 }
 
+function loginPath(next: string): string {
+  return `/login?next=${encodeURIComponent(`/consent?next=${encodeURIComponent(next)}`)}`;
+}
+
+function accepted(locals: App.Locals): boolean {
+  const account = currentAccount(locals);
+  return !!account && !needsTerms(account.termsVersion);
+}
+
 export const load: PageServerLoad = async ({ locals, url }) => {
   const { session } = locals;
   const next = returnTo(url);
-  if (!session) throw redirect(302, `/login?next=${encodeURIComponent(`/consent?next=${encodeURIComponent(next)}`)}`);
+  if (!session) throw redirect(302, loginPath(next));
   if (!isOwnerSession(session)) throw redirect(303, '/');
-  const account = currentAccount(locals);
-  if (account && !needsTerms(account.termsVersion)) throw redirect(303, next);
+  if (accepted(locals)) throw redirect(303, next);
   return consentFields(session);
 };
 
