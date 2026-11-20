@@ -3757,7 +3757,6 @@ export type KnownMessageKey =
   | 'loyalty.freezeStatusPaused'
   | 'loyalty.freezeTitle'
   | 'loyalty.gameSetup'
-  | 'loyalty.gamesHint'
   | 'loyalty.gamesNeedsOn'
   | 'loyalty.gamesTitle'
   | 'loyalty.hoursShort'

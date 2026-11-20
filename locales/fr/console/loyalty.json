@@ -56,7 +56,6 @@
   "permTransfersHint": "!points give @utilisateur <montant> transfère les points de l'expéditeur. S'applique aux mods comme aux viewers.",
   "countersLink": "Gérer les compteurs",
   "gamesTitle": "Jeux",
-  "gamesHint": "Gère les paris et les duels ici.",
   "gamesNeedsOn": "Activez la fidélité avant de pouvoir lancer ces jeux.",
   "gameSetup": "Régler",
   "toastGameToggleFailed": "Impossible de mettre à jour {label}.",

@@ -56,7 +56,6 @@
   "permTransfersHint": "!points give @user <amount> moves the sender's own points. Applies to mods and viewers alike.",
   "countersLink": "Manage counters",
   "gamesTitle": "Games",
-  "gamesHint": "Manage Gamble and Duels here.",
   "gamesNeedsOn": "Turn loyalty on before these games can run.",
   "gameSetup": "Set up",
   "toastGameToggleFailed": "Could not update {label}.",

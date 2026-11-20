@@ -56,7 +56,6 @@
   "permTransfersHint": "!points give @user <amount> überträgt die eigenen Punkte des Absenders. Gilt gleichermaßen für Mods und Zuschauer.",
   "countersLink": "Zähler verwalten",
   "gamesTitle": "Spiele",
-  "gamesHint": "Verwalte Glücksspiel und Duelle hier.",
   "gamesNeedsOn": "Aktiviere Treuepunkte, bevor diese Spiele laufen können.",
   "gameSetup": "Einrichten",
   "toastGameToggleFailed": "{label} konnte nicht aktualisiert werden.",

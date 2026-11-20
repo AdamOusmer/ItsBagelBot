@@ -56,7 +56,6 @@
   "permTransfersHint": "!points give @user <amount> transfiere los puntos del propio remitente. Se aplica tanto a moderadores como a espectadores.",
   "countersLink": "Gestionar contadores",
   "gamesTitle": "Juegos",
-  "gamesHint": "Gestiona las apuestas y los duelos aquí.",
   "gamesNeedsOn": "Activa la fidelidad para que estos juegos puedan funcionar.",
   "gameSetup": "Configurar",
   "toastGameToggleFailed": "No se pudo actualizar {label}.",
