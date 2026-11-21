@@ -4,7 +4,7 @@
 package providers_test
 
 import (
-	"encoding/json"
+	"ItsBagelBot/pkg/codec"
 	"net/http"
 	"slices"
 	"testing"
@@ -88,7 +88,7 @@ func (tc ttsSelectionCase) gemini(t *testing.T) http.HandlerFunc {
 				Temperature float64 `json:"temperature"`
 			} `json:"generation_config"`
 		}
-		if assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+		if assert.NoError(t, codec.NewDecoder(r.Body).Decode(&body)) {
 			assert.Equal(t, 0.75, body.GenerationConfig.Temperature)
 		}
 		providertest.Respond(http.StatusOK, "{}")(w, r)

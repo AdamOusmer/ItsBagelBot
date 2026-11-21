@@ -4,6 +4,7 @@
 package tts
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"cmp"
 	"context"
 	"crypto"
@@ -12,7 +13,6 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -53,7 +53,7 @@ func parseServiceAccount(raw string) (serviceAccount, error) {
 		Email      string `json:"client_email"`
 		TokenURI   string `json:"token_uri"`
 	}
-	if err := json.Unmarshal([]byte(raw), &fields); err != nil {
+	if err := codec.Unmarshal([]byte(raw), &fields); err != nil {
 		return serviceAccount{}, errInvalidServiceAccount
 	}
 	if fields.Type != "service_account" || fields.Email == "" {
@@ -110,7 +110,7 @@ type vertexClaims struct {
 }
 
 func (a serviceAccount) assertion(now time.Time) (string, error) {
-	claims, err := json.Marshal(vertexClaims{
+	claims, err := codec.Marshal(vertexClaims{
 		Issuer:   a.email,
 		Scope:    vertexScope,
 		Audience: a.tokenURI.String(),

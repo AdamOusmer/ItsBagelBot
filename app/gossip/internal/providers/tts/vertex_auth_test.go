@@ -4,6 +4,7 @@
 package tts
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"cmp"
 	"crypto"
 	"crypto/rand"
@@ -11,7 +12,6 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -50,7 +50,7 @@ func newVertexTestKey(t *testing.T) vertexTestKey {
 
 func (key vertexTestKey) credentials(t *testing.T, tokenURI string) string {
 	t.Helper()
-	raw, err := json.Marshal(map[string]string{
+	raw, err := codec.Marshal(map[string]string{
 		"type": "service_account", "project_id": "key-project", "client_email": vertexTestEmail,
 		"private_key": key.pem, "token_uri": tokenURI,
 	})
@@ -124,7 +124,7 @@ func (check vertexTokenCheck) verifyClaims(t *testing.T, body []byte) {
 	var claims struct {
 		IssuedAt int64 `json:"iat"`
 	}
-	if assert.NoError(t, json.Unmarshal(body, &claims)) {
+	if assert.NoError(t, codec.Unmarshal(body, &claims)) {
 		assert.InDelta(t, time.Now().Unix(), claims.IssuedAt, 10)
 		want := fmt.Sprintf(`{"iss":%q,"scope":"https://www.googleapis.com/auth/cloud-platform","aud":%q,"iat":%d,"exp":%d}`,
 			vertexTestEmail, check.audience, claims.IssuedAt, claims.IssuedAt+3600)
