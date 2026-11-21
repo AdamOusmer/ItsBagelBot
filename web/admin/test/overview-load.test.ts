@@ -37,7 +37,6 @@ const SESSION: Session = {
 };
 
 let failing: readonly string[];
-let count: number | null;
 let spies: { mockRestore(): void }[];
 
 const read = <T>(name: string, value: T) => async (): Promise<T> => {
@@ -47,7 +46,7 @@ const read = <T>(name: string, value: T) => async (): Promise<T> => {
 
 const readEnrollment = read('enrollment', ENROLLMENT);
 const userEnrollment = mock((..._args: Parameters<typeof services.userEnrollment>) => readEnrollment());
-const readLiveCount = mock((..._args: Parameters<typeof liveCount.liveUserCount>) => read('liveCount', count)());
+const readLiveCount = mock<typeof liveCount.liveUserCount>(async () => 2);
 
 const PANELS = ['accountStats', 'enrollment', 'fleet', 'trials', 'health', 'feed', 'audit', 'bot', 'giveawayAlerts'] as const;
 const previousBotId = privateEnv.TWITCH_BOT_USER_ID;
@@ -83,7 +82,6 @@ afterAll(() => {
 
 beforeEach(() => {
   failing = [];
-  count = 2;
   userEnrollment.mockClear();
   readLiveCount.mockClear();
 });
@@ -165,18 +163,17 @@ describe('admin overview load', () => {
 
 describe('admin layout load', () => {
   test.each([
-    ['no live users', 0, [], 0],
-    ['unavailable live count', null, [], null],
-    ['failed live count', 2, ['liveCount'], null]
-  ] as const)('streams one live count for %s', async (_case, value, unavailable, expected) => {
-    count = value;
-    failing = unavailable;
+    ['live users', 2],
+    ['no live users', 0],
+    ['unavailable live count', null]
+  ] as const)('streams one live count for %s', async (_case, count) => {
+    readLiveCount.mockResolvedValue(count);
     const data = await loadLayout({ locals: { session: SESSION } } as Parameters<typeof loadLayout>[0]);
     expect({
       streamed: data?.liveCount instanceof Promise,
       value: await data?.liveCount,
       reads: readLiveCount.mock.calls
-    }).toEqual({ streamed: true, value: expected, reads: [[SESSION.user_id]] });
+    }).toEqual({ streamed: true, value: count, reads: [[SESSION.user_id]] });
   });
 });
 

@@ -230,7 +230,7 @@ export function demoStaffHistory(actorId: number): AuditEntry[] {
   ];
 }
 
-export type DemoSecretsBundle = {
+type DemoSecretsBundle = {
   services: DbCredentialStatus[];
   scope: ScopeReport;
 };
@@ -259,16 +259,6 @@ export function demoSecretsBundle(ids: readonly SecretServiceId[]): DemoSecretsB
       }
     }
   };
-}
-
-const secretNotices = {
-  db_credential_rotate: 'credential rotated (demo)',
-  db_credential_set: 'credential set (demo)',
-  db_credential_revoke: 'credential revoked (demo)'
-} as const;
-
-export function demoSecretNotice(action: keyof typeof secretNotices): string {
-  return secretNotices[action];
 }
 
 export function demoFeedEvent(sequence: number, statusPrefix: string, at: string): FeedRecord {

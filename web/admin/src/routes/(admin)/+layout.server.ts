@@ -29,6 +29,6 @@ export const load: LayoutServerLoad = async ({ locals }) => {
     login: admin.login,
     role: admin.role,
     recentNotifications,
-    liveCount: liveUserCount(admin.id).catch(() => null)
+    liveCount: liveUserCount(admin.id)
   };
 };
