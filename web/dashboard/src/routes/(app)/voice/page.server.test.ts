@@ -85,8 +85,7 @@ function save(fields: Record<string, string> = {}, session: typeof owner | null 
 
 function mockSaveReplies(moduleReply: { conflict?: boolean; rev: number; modules?: unknown[] }) {
   return spyOn(bus, 'rpc').mockResolvedValueOnce(allowance).mockResolvedValueOnce({ modules: [alertRow] })
-    .mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce(moduleReply)
-    .mockResolvedValueOnce({ modules: moduleReply.modules });
+    .mockResolvedValueOnce(moduleReply);
 }
 
 test.each([
@@ -94,7 +93,8 @@ test.each([
   { voice: 'Kore', enabled: false, maxSeconds: 45 },
   { voice: 'Kore', enabled: true, maxSeconds: 120 }
 ])('saves $voice, $maxSeconds seconds, and only the permitted alert fields', async ({ voice, enabled, maxSeconds }) => {
-  const rpc = mockSaveReplies({ rev: 10, modules: [alertRow] });
+  const rpc = mockSaveReplies({ rev: 10, modules: [alertRow] })
+    .mockResolvedValueOnce({ modules: [alertRow] }).mockResolvedValueOnce({ ok: true });
   const fields = {
     voice, enabled: String(enabled), max_seconds: String(maxSeconds), actor_id: '97',
     broadcaster_user_id: '95', followMessage: 'must stay as stored', is_enabled: 'true', ttsMinBits: '0'
@@ -103,21 +103,28 @@ test.each([
   expect(await save(fields)).toEqual({ ok: true });
   expect(rpc.mock.calls).toMatchObject([
     usersRead, modulesRead,
-    [`${SUB.dashboard}.voice_set`, { ...actor, voice, enabled, max_seconds: maxSeconds }, WRITE_TIMEOUT_MS],
     [`${SUB.modules}.patch`, {
-      user_id: '42', name: 'alerts', is_enabled: false, expected_rev: 9, configs: expect.any(Object)
+      user_id: '42', name: 'alerts', is_enabled: false, expected_rev: 9, configs: { ...alertFields, ttsMinBits: '0' }
     }],
-    [`${SUB.projector}.modules.replace`, { user_id: '42', modules: [alertRow] }, 2000]
+    [`${SUB.projector}.modules.replace`, { user_id: '42', modules: [alertRow] }, 2000],
+    [`${SUB.dashboard}.voice_set`, { ...actor, voice, enabled, max_seconds: maxSeconds }, WRITE_TIMEOUT_MS]
   ]);
-  expect(rpc.mock.calls[3]?.[1]).toHaveProperty('configs', { ...alertFields, ttsMinBits: '0' });
 });
 
 test('returns a conflict when Chat Alerts changed after the voice page loaded', async () => {
   const rpc = mockSaveReplies({ rev: 10, conflict: true });
-  expect(await save()).toMatchObject({ status: 409, data: { conflict: true } });
-  expect(rpc.mock.calls.map(([subject]) => subject)).toEqual([
-    `${SUB.dashboard}.voice_get`, `${SUB.modules}.list`, `${SUB.dashboard}.voice_set`, `${SUB.modules}.patch`
+  expect(await save({ expected_rev: '8' })).toMatchObject({ status: 409, data: { conflict: true } });
+  expect(rpc.mock.calls).toEqual([
+    usersRead, modulesRead, [`${SUB.modules}.patch`, expect.objectContaining({ expected_rev: 8 })]
   ]);
+});
+
+test('returns the committed Alerts revision when the Users write fails', async () => {
+  mockSaveReplies({ rev: 10, modules: [alertRow] })
+    .mockResolvedValueOnce({ modules: [alertRow] }).mockRejectedValueOnce(new Error('Users timeout'));
+  expect(await save()).toMatchObject({
+    status: 503, data: { error: 'Could not save voice settings. Try again.', revision: 10 }
+  });
 });
 
 test('blocks saves for a free owner before either write', async () => {
@@ -149,6 +156,10 @@ const invalidSaves: {
   { name: 'missing minimum bits', fields: { ttsMinBits: '' }, status: 400 },
   { name: 'unsafe minimum bits', fields: { ttsMinBits: '9007199254740992' }, status: 400 },
   { name: 'invalid revision', fields: { expected_rev: '-1' }, status: 400 },
+  { name: 'newline in a spoken template', fields: { followTtsMessage: 'Hello\nthere' }, status: 400,
+    error: 'Response cannot contain control characters.' },
+  { name: 'tab in a spoken template', fields: { cheerTtsMessage: 'Thanks\t' }, status: 400 },
+  { name: 'C1 control in a spoken template', fields: { raidTtsMessage: '\u0085Welcome' }, status: 400 },
   { name: 'delegate', session: delegate, status: 403 },
   { name: 'view-as', session: viewAs, status: 403 },
   { name: 'signed out', session: null, status: 401 }

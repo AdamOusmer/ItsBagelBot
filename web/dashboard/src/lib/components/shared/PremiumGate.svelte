@@ -4,6 +4,7 @@
   import { getI18n } from '@bagel/kit';
   import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
 
@@ -14,8 +15,9 @@
     title = t('billing.premiumGateTitle'),
     body = t('billing.premiumGateBody'),
     cta = t('billing.premiumGateCta'),
-    link = t('billing.premiumGateLink')
-  }:{ label?: string; title?: string; body?: string; cta?: string; link?: string } = $props();
+    link = t('billing.premiumGateLink'),
+    tag
+  }:{ label?: string; title?: string; body?: string; cta?: string; link?: string; tag?: string } = $props();
 
   const TAN = { head: '#eadbbd', eye: '#111113' };
 
@@ -29,7 +31,10 @@
   <div class="inner">
     <div class="layout">
       <div class="copy">
-        <span class="glow">{label}</span>
+        <div class="gate-label" class:tagged={!!tag}>
+          <span class="glow">{label}</span>
+          {#if tag}<Chip as="span" pressed>{tag}</Chip>{/if}
+        </div>
         <h1 id="premium-gate-title" class="title" tabindex="-1" aria-label={title}>
           {#each titleWords as word, i (`${i}:${word}`)}
             {#if i > 0}{' '}{/if}<span class="word" aria-hidden="true" style="--w: {i}">{word}</span>
@@ -113,6 +118,13 @@
       order: -1;
       justify-self: center;
     }
+  }
+  .gate-label { display: contents; }
+  .gate-label.tagged {
+    display: flex;
+    align-items: center;
+    gap: var(--bb-space-2);
+    white-space: nowrap;
   }
   .glow {
     font-size: clamp(15px, 2.1vh, 18px);

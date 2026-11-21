@@ -94,10 +94,12 @@ export const actions: Actions = {
     const requested = f.get('is_enabled') === 'on';
     if (DEMO) return { ok: true, enabled: requested };
 
+    const expectedRev = formRevision(f);
+    if (def.id === MOD.alerts && Number.isNaN(expectedRev)) return fail(400, { ok: false });
     const enabled = await gatedEnabled(uid, def, requested);
     const config = await attachLinkedUUID(def, buildConfig(def, f), locals);
 
-    const result = await saveModule(uid, def, { enabled, config });
+    const result = await saveModule(uid, def, { enabled, config, expectedRev });
     if (!result) return fail(400, { ok: false });
     if (!result.synced) requestFreshRead(cookies, def.id, url);
     if (result.conflict) return fail(409, { ok: false, conflict: true });
@@ -116,7 +118,14 @@ export const actions: Actions = {
   }
 };
 
-type ModuleDraft = { enabled: boolean; config: Record<string, string> };
+function formRevision(form: FormData): number {
+  const raw = form.get('expected_rev');
+  if (typeof raw !== 'string' || !/^\d+$/.test(raw)) return NaN;
+  const revision = Number(raw);
+  return Number.isSafeInteger(revision) ? revision : NaN;
+}
+
+type ModuleDraft = { enabled: boolean; config: Record<string, string>; expectedRev: number };
 
 async function saveModule(
   uid: string,
@@ -133,14 +142,12 @@ async function saveModule(
 }
 
 async function saveChatAlerts(uid: string, def: ModuleDef, draft: ModuleDraft) {
-  const rows = await listModulesForEditing(uid);
-  const { revision } = moduleEditState(rows.find((row) => row.name === def.id));
   const keys = [...valueKeys(def), ...enableKeys(def)];
   return patchModule({
     userId: uid,
     name: def.id,
     isEnabled: draft.enabled,
     partial: Object.fromEntries(keys.map((key) => [key, draft.config[key] ?? ''])),
-    expectedRev: revision
+    expectedRev: draft.expectedRev
   });
 }

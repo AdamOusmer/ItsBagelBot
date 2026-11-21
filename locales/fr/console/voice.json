@@ -13,6 +13,7 @@
   "enable": "Utiliser une voix Premium pour les alertes",
   "fallback": "Les alertes utilisent la voix locale gratuite si cette option est désactivée ou si vos minutes sont épuisées.",
   "choose": "Voix par défaut",
+  "clipLimit": "Durée max. par alerte",
   "readOnly": "Seul le propriétaire de la chaîne peut consulter l’utilisation ou modifier les réglages de la voix.",
   "inactive": "La voix en ligne est en pause tant que le bot est désactivé.",
   "banned": "La voix en ligne est indisponible.",
@@ -51,7 +52,7 @@
   "invalidStyle": "Choisissez un style dans la liste.",
   "invalidMessage": "Limitez le message lu à {max} caractères.",
   "saveUnavailable": "Les réglages de la voix Premium sont indisponibles pour ce compte.",
-  "conflict": "Préférences vocales enregistrées. Les alertes ont changé ailleurs. Annulez pour charger les derniers réglages.",
+  "conflict": "Les alertes ont changé ailleurs. Annulez pour charger les derniers réglages.",
   "character": {
     "bright": "Lumineuse",
     "upbeat": "Enjouée",
@@ -77,10 +78,10 @@
     "warm": "Chaleureuse"
   },
   "group": {
-    "energetic": "Énergiques",
-    "warm": "Chaleureuses et douces",
-    "calm": "Calmes et fluides",
-    "authoritative": "Assurées"
+    "energetic": "Pleines d’énergie",
+    "warm": "Chaleureuses et amicales",
+    "calm": "Décontractées",
+    "authoritative": "Affirmées et posées"
   },
   "style": {
     "warm": "Chaleureux",
@@ -88,6 +89,13 @@
     "calm": "Calme",
     "playful": "Espiègle",
     "cozy": "Feutré"
+  },
+  "styleDescription": {
+    "warm": "Amical et enjoué",
+    "hype": "Enthousiaste et festif",
+    "calm": "Doux et détendu",
+    "playful": "Léger et amusé",
+    "cozy": "Doux et intime"
   },
   "kind": {
     "follow": "Follow",

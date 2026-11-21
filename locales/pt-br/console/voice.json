@@ -13,6 +13,7 @@
   "enable": "Usar voz Premium nos alertas",
   "fallback": "Os alertas usam a voz local gratuita se a opção estiver desativada ou se seus minutos acabarem.",
   "choose": "Voz padrão",
+  "clipLimit": "Duração máx. por alerta",
   "readOnly": "Só o dono do canal pode consultar o uso ou alterar a voz.",
   "inactive": "A voz na nuvem fica pausada enquanto o bot está desligado.",
   "banned": "A voz na nuvem está indisponível.",
@@ -51,7 +52,7 @@
   "invalidStyle": "Escolha um estilo na lista.",
   "invalidMessage": "A mensagem falada pode ter até {max} caracteres.",
   "saveUnavailable": "As configurações de voz Premium estão indisponíveis para esta conta.",
-  "conflict": "Preferências de voz salvas. Os alertas mudaram em outro lugar. Cancele para carregar as últimas configurações.",
+  "conflict": "Os alertas mudaram em outro lugar. Cancele para carregar as últimas configurações.",
   "character": {
     "bright": "Brilhante",
     "upbeat": "Animada",
@@ -77,10 +78,10 @@
     "warm": "Calorosa"
   },
   "group": {
-    "energetic": "Energéticas",
-    "warm": "Calorosas e suaves",
-    "calm": "Calmas e fluidas",
-    "authoritative": "Com autoridade"
+    "energetic": "Cheias de energia",
+    "warm": "Calorosas e amigáveis",
+    "calm": "Descontraídas",
+    "authoritative": "Firmes e confiantes"
   },
   "style": {
     "warm": "Caloroso",
@@ -88,6 +89,13 @@
     "calm": "Calmo",
     "playful": "Brincalhão",
     "cozy": "Aconchegante"
+  },
+  "styleDescription": {
+    "warm": "Amigável e animado",
+    "hype": "Empolgado e festivo",
+    "calm": "Suave e relaxado",
+    "playful": "Leve e bem-humorado",
+    "cozy": "Suave e íntimo"
   },
   "kind": {
     "follow": "Novo seguidor",

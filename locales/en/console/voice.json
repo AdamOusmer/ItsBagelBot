@@ -13,6 +13,7 @@
   "enable": "Use premium voice for alerts",
   "fallback": "Alerts use the free local voice when this is off or your minutes run out.",
   "choose": "Default voice",
+  "clipLimit": "Max per alert",
   "readOnly": "Only the channel owner can view usage or change voice settings.",
   "inactive": "Cloud voice is paused while the bot is switched off.",
   "banned": "Cloud voice is unavailable.",
@@ -51,7 +52,7 @@
   "invalidStyle": "Choose a style from the list.",
   "invalidMessage": "Keep the spoken message to {max} characters or fewer.",
   "saveUnavailable": "Premium voice settings are unavailable for this account.",
-  "conflict": "Voice preferences saved. Alerts changed elsewhere. Cancel to reload the latest settings.",
+  "conflict": "Alerts changed elsewhere. Cancel to reload the latest settings.",
   "character": {
     "bright": "Bright",
     "upbeat": "Upbeat",
@@ -77,10 +78,10 @@
     "warm": "Warm"
   },
   "group": {
-    "energetic": "Energetic",
-    "warm": "Warm and soft",
-    "calm": "Calm and smooth",
-    "authoritative": "Authoritative"
+    "energetic": "High energy",
+    "warm": "Warm and friendly",
+    "calm": "Laid-back",
+    "authoritative": "Bold and steady"
   },
   "style": {
     "warm": "Warm",
@@ -88,6 +89,13 @@
     "calm": "Calm",
     "playful": "Playful",
     "cozy": "Cozy"
+  },
+  "styleDescription": {
+    "warm": "Friendly and upbeat",
+    "hype": "Excited and celebratory",
+    "calm": "Gentle and relaxed",
+    "playful": "Light and amused",
+    "cozy": "Soft and intimate"
   },
   "kind": {
     "follow": "Follow",

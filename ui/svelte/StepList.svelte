@@ -43,6 +43,7 @@
     onSelect?: (id: string) => void;
     label?: string;
     fitCopy?: boolean;
+    checklist?: boolean;
     class?: string;
   };
   type Navigable = { onSelect: (id: string) => void; label: string };
@@ -57,6 +58,7 @@
     onSelect,
     label,
     fitCopy = false,
+    checklist = false,
     class: className = '',
     ...rest
   }: Own & Rest & (Navigable | Plain) = $props();
@@ -100,7 +102,7 @@
 
   const labels = $derived({ ...DEFAULT_LABELS, ...stateLabels });
 
-  const classes = $derived(['bb-steps', fitCopy && 'bb-steps--fit-copy', className].filter(Boolean).join(' '));
+  const classes = $derived(['bb-steps', fitCopy && 'bb-steps--fit-copy', checklist && 'bb-steps--checklist', className].filter(Boolean).join(' '));
   const navClasses = $derived(['bb-steps', 'bb-steps--nav', className || null].filter(Boolean).join(' '));
   const at = $derived(Math.max(steps.findIndex((s) => s.id === selected), 0));
 
@@ -169,7 +171,14 @@
         aria-current={step.state === 'running' ? 'step' : undefined}
       >
         <div class="bb-step__row">
-          <i class={MARK[step.state]} aria-hidden="true"></i>
+          {#if !checklist}
+            <i class={MARK[step.state]} aria-hidden="true"></i>
+          {:else if step.state === 'succeeded'}
+            <span class="bb-step__check">
+              <Icon name="check" size={14} />
+              <VisuallyHidden>{labels.succeeded}</VisuallyHidden>
+            </span>
+          {/if}
           <span class="bb-step__text">
             {#if step.href}
               <a class="bb-step__label" href={step.href}>{step.label}</a>
@@ -185,7 +194,7 @@
               <ProgressBar value={step.value} tone={TONE[step.state]} label={step.label} size="sm" />
             {/if}
           </div>
-          <span class="bb-step__state">{labels[step.state]}</span>
+          {#if !checklist}<span class="bb-step__state">{labels[step.state]}</span>{/if}
           {#if step.state === 'running'}<i class="bb-sweep" aria-hidden="true"></i>{/if}
         </div>
         {#if detail}<div class="bb-step__detail">{@render detail(step)}</div>{/if}

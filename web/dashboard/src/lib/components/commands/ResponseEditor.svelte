@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { untrack } from 'svelte';
+  import { untrack, type Snippet } from 'svelte';
   import { page } from '$app/state';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
@@ -36,6 +36,7 @@
     fetchDefs = [],
     fetchKeys = [],
     onFetchDefsChanged,
+    extraActions,
     onblur
   }: {
     value: string;
@@ -50,6 +51,7 @@
     fetchDefs?: SourceDef[];
     fetchKeys?: { label: string }[];
     onFetchDefsChanged?: (defs: SourceDef[]) => void;
+    extraActions?: Snippet<[(token: string) => void]>;
     onblur?: () => void;
   } = $props();
 
@@ -234,7 +236,7 @@
 <VisuallyHidden role="status" aria-live="polite">{announcement}</VisuallyHidden>
 
 <div role="toolbar" aria-label={i18n.t('commandEditor.insertVariable')}>
-  <VariablePalette {surface} {moduleFlags} {insert} {fetchDefs} {fetchKeys} {onFetchDefsChanged} />
+  <VariablePalette {surface} {moduleFlags} {insert} {fetchDefs} {fetchKeys} {onFetchDefsChanged} {extraActions} />
 </div>
 
 {#if requiredModules.length}

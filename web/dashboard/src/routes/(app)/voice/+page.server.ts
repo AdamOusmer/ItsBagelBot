@@ -45,13 +45,13 @@ export const actions = {
       }) });
     }
 
+    let revision: number | undefined;
     try {
       const allowance = await voiceGet(session);
       if (allowance.reason !== 'ok') return fail(403, { error: translate(locale, 'voice.saveUnavailable') });
 
       const userId = session.user_id;
       const alerts = await readAlerts(userId);
-      await voiceSet(session, save.settings);
       const result = await patchModule({
         userId,
         name: 'alerts',
@@ -60,9 +60,11 @@ export const actions = {
         expectedRev: save.expectedRev
       });
       if (result.conflict) return fail(409, { conflict: true });
+      revision = result.rev;
+      await voiceSet(session, save.settings);
       return { ok: true };
     } catch {
-      return fail(503, { error: translate(locale, 'voice.saveFailed') });
+      return fail(503, { error: translate(locale, 'voice.saveFailed'), revision });
     }
   },
   rotateOverlay: async ({ locals: { session, locale }, setHeaders }) => {

@@ -104,7 +104,7 @@
     if (pending) return;
     pending = 'refresh';
     try {
-      if (conflict) await invalidateAll();
+      if (conflict || draft.revision !== loaded.revision) await invalidateAll();
       adopt(loaded);
       conflict = false;
       saveError = undefined;
@@ -129,6 +129,7 @@
     saved = result.type === 'success' && result.data?.ok === true;
     conflict = failure?.conflict === true;
     saveError = typeof failure?.error === 'string' ? failure.error : undefined;
+    if (typeof failure?.revision === 'number') draft.revision = failure.revision;
   }
 
   const submitSave: SubmitFunction = ({ cancel }) => {
@@ -164,12 +165,12 @@
 <svelte:head><title>{t('nav.voice')}</title></svelte:head>
 
 {#if data.locked}
-  <PremiumGate title={t('voice.gateTitle')} body={t('voice.gateBody')} />
+  <PremiumGate title={t('voice.gateTitle')} body={t('voice.gateBody')} tag={t('nav.beta')} />
 {:else}
   <section class="screen active">
     <PageHead>
       <span class="page-title">
-        <bb-fit><span data-fit="">{t('nav.voice')}</span></bb-fit>
+        <bb-fit class="page-title-copy"><span data-fit="">{t('nav.voice')}</span></bb-fit>
         <Chip as="span" pressed>{t('modules.betaChip')}</Chip>
       </span>
     </PageHead>
@@ -218,9 +219,11 @@
                 <SwitchRow control="end" fitCopy bind:checked={draft.enabled}
                   label={t('voice.enable')} hint={t('voice.fallback')} hintId="voice-fallback" />
                 <input type="hidden" name="enabled" value={String(draft.enabled)} />
-                <Field label={t('voice.choose')} fitCopy>
-                  <Select name="voice" label={t('voice.choose')} bind:value={draft.voice} {options} searchable required fill />
-                </Field>
+                <div class="default-voice">
+                  <Field label={t('voice.choose')} fitCopy>
+                    <Select name="voice" label={t('voice.choose')} bind:value={draft.voice} {options} searchable required fill />
+                  </Field>
+                </div>
                 <SwitchRow control="end" fitCopy checked={draft.config.ttsLiveOnly === 'true'} label={t('voice.liveOnly')}
                   onCheckedChange={(checked) => (draft.config.ttsLiveOnly = String(checked))} />
                 <input type="hidden" name="ttsLiveOnly" value={draft.config.ttsLiveOnly} />
@@ -272,13 +275,14 @@
 {/if}
 
 <style>
-  .page-title { display: inline-flex; align-items: center; gap: var(--bb-space-3); max-inline-size: 100%; }
+  .page-title { display: flex; align-items: center; gap: var(--bb-space-3); white-space: nowrap; }
+  .page-title-copy { min-inline-size: 0; }
   .paths, .settings, .alert-grid, .global, .alert-section, .limits, .status-head {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--bb-space-4);
   }
-  .paths { align-items: start; }
+  .default-voice { inline-size: min(100%, 28rem); }
   .settings { margin-block-start: var(--bb-space-4); }
   .settings > .settings { margin-block-start: 0; }
   .global, .alert-section, .limits, .status-head { gap: var(--bb-space-3); }

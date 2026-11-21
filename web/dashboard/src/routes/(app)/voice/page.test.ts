@@ -63,16 +63,45 @@ test.each([
 
 test('shows the shared Premium gate for an owner without a plan', () => {
   const html = renderVoice({ allowance: { ...allowance, plan: 'free', reason: 'no_plan' }, locked: true, alerts: null });
-  expect(html).toContain('Give your alerts a voice with Premium');
+  expect(html).toContain('aria-label="Give your alerts a voice with Premium"');
+  expect(html).toMatch(/class="bb-chip is-pressed"[^>]*>(?:\s|<!--[^>]*-->)*Beta/);
   expect(html).not.toContain('action="?/save"');
 });
 
-test('renders usage, the alert editors and their initial states for a Premium owner', () => {
+test('renders usage, the alert editors and their initial states for a Premium owner', async () => {
   const html = renderVoice();
+  const offLabels = { follow: '', sub: '' };
+  const rewriter = new HTMLRewriter();
+  for (const kind of ['follow', 'sub'] as const) {
+    rewriter.on(`section[aria-labelledby="voice-kind-${kind}"] .off-label.visible`, {
+      text(chunk) { offLabels[kind] += chunk.text; }
+    });
+  }
+  await rewriter.transform(new Response(html)).text();
+
   expect([
     '38 min 12 s of 60 min', '21 min 48 s left', 'bb-progress--inset',
-    'name="followTts" value="false"', 'name="subTts" value="true"', 'Plays at 100 bits or more'
+    'name="followTts" value="false"', 'name="subTts" value="true"', 'Plays at 100 bits or more',
+    'Max per alert', '120 s'
   ].filter((text) => !html.includes(text))).toEqual([]);
+  expect(offLabels).toEqual({ follow: 'Off', sub: '' });
+});
+
+test('renders the shared style picker and the short pause alongside All variables', async () => {
+  const styleValues: string[] = [];
+  const helpers: string[] = [];
+  const rewriter = new HTMLRewriter()
+    .on('.bb-select__fallback select[name="subTtsStyle"] option', {
+      element(option) { styleValues.push(option.getAttribute('value') ?? ''); }
+    })
+    .on('section[aria-labelledby="voice-kind-sub"] .vp-actions.with-extra > button', {
+      element(button) { helpers.push(button.getAttribute('aria-label') ?? button.getAttribute('aria-haspopup') ?? ''); }
+    });
+  await rewriter.transform(new Response(renderVoice())).text();
+  expect({ styleValues, helpers }).toEqual({
+    styleValues: ['warm', 'hype', 'calm', 'playful', 'cozy'],
+    helpers: ['dialog', 'Insert a short pause']
+  });
 });
 
 const obsURL = 'https://overlay.itsbagelbot.com/tts#AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
@@ -96,6 +125,10 @@ test.each([
 
   const buttonLabel = configured ? 'Make a new link' : 'Create link';
   expect(submitLabel.trim()).toBe(visible ? buttonLabel : '');
-  expect(html.includes('itsbagelbot.com/guides/premium-voice')).toBe(visible);
-  expect(html.includes(obsURL)).toBe(Boolean(url));
+  expect({
+    guide: html.includes('itsbagelbot.com/guides/premium-voice'),
+    link: html.includes(obsURL),
+    done: html.includes('bb-step__check'),
+    stateLabel: html.includes('bb-step__state')
+  }).toEqual({ guide: visible, link: Boolean(url), done: visible && configured, stateLabel: false });
 });

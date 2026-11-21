@@ -129,20 +129,25 @@ describe('module editor load', () => {
   });
 });
 
-test('saving Chat Alerts never replaces stored spoken settings or accepts spoken fields', async () => {
+test.each([
+  { revision: '8', stale: false, outcome: { ok: true, enabled: true } },
+  { revision: '7', stale: true, outcome: { status: 409, data: { ok: false, conflict: true } } }
+])('saving Chat Alerts with form revision $revision only patches chat settings', async ({ revision, stale, outcome }) => {
+  conflict = stale;
   const url = new URL('/modules/alerts', 'https://dashboard.itsbagelbot.com');
   const body = new URLSearchParams({
-    is_enabled: 'on', 'cfg.followMessage': 'Hello {user}!', 'cfg.cheerMessage': '', 'cfg.followTts': 'false'
+    expected_rev: revision, is_enabled: 'on',
+    'cfg.followMessage': 'Hello {user}!', 'cfg.cheerMessage': '', 'cfg.followTts': 'false'
   });
   const request = new Request(`${url}?/save`, { method: 'POST', body });
   const result = await actions.save({ request, params: { id: 'alerts' }, locals, cookies: cookieJar(new Map()), url } as never);
   const [patch] = patchModule.mock.calls[0] ?? [];
 
-  expect(result).toEqual({ ok: true, enabled: true });
-  expect(upsertModule).not.toHaveBeenCalled();
-  expect(patch).toMatchObject({
-    name: 'alerts', userId: '7', isEnabled: true, expectedRev: 8,
-    partial: { followMessage: 'Hello {user}!', cheerMessage: '' }
+  expect(result).toMatchObject(outcome);
+  expect({ reads, upserts: upsertModule.mock.calls }).toEqual({ reads: [], upserts: [] });
+  expect(patch).toEqual({
+    name: 'alerts', userId: '7', isEnabled: true, expectedRev: Number(revision),
+    partial: expect.objectContaining({ followMessage: 'Hello {user}!', cheerMessage: '' })
   });
   const spokenKeys = Object.keys(patch!.partial).filter((key) => /tts/i.test(key));
   expect(spokenKeys).toEqual([]);

@@ -21,9 +21,14 @@ const isSwitch = (value: FormDataEntryValue | null) => value === 'true' || value
 const isVoice = (value: unknown): value is (typeof CLOUD_VOICES)[number] => CLOUD_VOICES.some((name) => name === value);
 type FieldValidator = (value: string) => string | null;
 
+function messageError(value: string) {
+  if (/\p{Cc}/u.test(value)) return 'serverErrors.responseControl';
+  return value.length <= MAX_SPEECH_RUNES ? null : 'voice.invalidMessage';
+}
+
 const validators = {
   enabled: (value) => isSwitch(value) ? null : 'serverErrors.invalidInput',
-  message: (value) => value.length <= MAX_SPEECH_RUNES ? null : 'voice.invalidMessage',
+  message: messageError,
   style: (value) => Object.hasOwn(VOICE_STYLES, value) ? null : 'voice.invalidStyle',
   voice: (value) => value === '' || isVoice(value) ? null : 'voice.invalidVoice',
   bits: (value) => Number.isNaN(unsignedInteger(value)) ? 'voice.invalidMinBits' : null

@@ -10,6 +10,7 @@ export const icons = {
   commands: '<path d="M12 19h8M4 17l6-6l-6-6"/>', // lucide:terminal
   modules: '<g><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></g>', // lucide:layout-grid
   music: '<g><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></g>', // lucide:music
+  waveform: '<path d="M2 10v3m4-7v11m4-14v18m4-13v7m4-10v13m4-8v3"/>', // lucide:audio-lines
   card: '<g><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></g>', // lucide:credit-card
   settings: '<path d="M10 5H3m9 14H3M14 3v4m2 10v4m5-9h-9m9 7h-5m5-14h-7m-6 5v4m0-2H3"/>', // lucide:sliders-horizontal
   gear: '<g><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0a2.34 2.34 0 0 0 3.319 1.915a2.34 2.34 0 0 1 2.33 4.033a2.34 2.34 0 0 0 0 3.831a2.34 2.34 0 0 1-2.33 4.033a2.34 2.34 0 0 0-3.319 1.915a2.34 2.34 0 0 1-4.659 0a2.34 2.34 0 0 0-3.32-1.915a2.34 2.34 0 0 1-2.33-4.033a2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></g>', // lucide:settings

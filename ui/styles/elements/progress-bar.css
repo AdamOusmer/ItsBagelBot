@@ -21,10 +21,18 @@
   }
 
   .bb-progress--inset {
-    height: 10px;
+    height: 14px;
     border-radius: var(--bb-radius-pill);
     background: var(--bb-inset-bg);
-    box-shadow: var(--bb-depth-0);
+    box-shadow:
+      inset 0 0 0 1px rgba(var(--bb-white-pure-rgb), 0.12),
+      inset 0 3px 6px rgba(var(--bb-shadow-rgb), 0.85);
+  }
+
+  .bb-progress--inset .bb-progress__fill {
+    box-shadow:
+      inset 0 1px 1px rgba(var(--bb-white-pure-rgb), 0.3),
+      inset 0 -2px 3px rgba(var(--bb-shadow-rgb), 0.24);
   }
 
   .bb-progress__seg--neutral {

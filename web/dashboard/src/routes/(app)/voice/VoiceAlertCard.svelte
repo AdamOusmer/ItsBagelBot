@@ -10,7 +10,6 @@
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
-  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -31,9 +30,12 @@
   const surface = $derived({ module: 'alerts', reply: kind });
   const label = $derived(t(`voice.kind.${kind}`));
   const enabled = $derived(config[keys.enabled] === 'true');
-  const styles = Object.keys(VOICE_STYLES).map((value) => ({ value, label: t(`voice.style.${value}`) }));
+  const styles = Object.keys(VOICE_STYLES).map((value) => ({
+    value,
+    label: t(`voice.style.${value}`),
+    description: t(`voice.styleDescription.${value}`)
+  }));
   const pause = '<short pause>';
-  let editor = $state<ReturnType<typeof ResponseEditor>>();
 </script>
 
 <Card as="section" aria-labelledby="voice-kind-{kind}">
@@ -41,7 +43,10 @@
     <Heading as="h3" level={6} id="voice-kind-{kind}">
       <bb-fit><span data-fit="">{label}</span></bb-fit>
     </Heading>
-    <Switch checked={enabled} {label} onCheckedChange={(checked) => (config[keys.enabled] = String(checked))} />
+    <div class="kind-toggle">
+      <span class="off-label" class:visible={!enabled} aria-hidden="true">{t('commandEditor.off')}</span>
+      <Switch checked={enabled} {label} onCheckedChange={(checked) => (config[keys.enabled] = String(checked))} />
+    </div>
     <input type="hidden" name={keys.enabled} value={config[keys.enabled]} />
   </div>
 
@@ -56,22 +61,21 @@
     <div>
       <Field label={t('voice.spokenMessage')} fitCopy>
         {#key resetKey}
-          <ResponseEditor bind:this={editor} name={keys.message} bind:value={config[keys.message]}
-            {surface} placeholder={t(`voice.template.${kind}`)} maxlength={MAX_SPEECH_RUNES} />
+          <ResponseEditor name={keys.message} bind:value={config[keys.message]}
+            {surface} placeholder={t(`voice.template.${kind}`)} maxlength={MAX_SPEECH_RUNES}>
+            {#snippet extraActions(insert)}
+              <Chip tone="muted" aria-label={t('voice.insertPause')} title={t('voice.insertPause')} onclick={() => insert(pause)}>
+                <span class="pause-text">{pause}</span>
+              </Chip>
+            {/snippet}
+          </ResponseEditor>
         {/key}
       </Field>
       <ReplyTokenList chips={chipsFor(surface)} />
-      <div class="pause-row">
-        <Chip aria-label={t('voice.insertPause')} title={t('voice.insertPause')} onclick={() => editor?.insert(pause)}>
-          {pause}
-        </Chip>
-      </div>
     </div>
-    <div class="style">
-      <Text as="div" size="sm"><bb-fit><span data-fit="">{t('voice.styleLabel')}</span></bb-fit></Text>
-      <SegmentedControl even label={t('voice.styleLabel')} options={styles} bind:value={config[keys.style]} />
-      <input type="hidden" name={keys.style} value={config[keys.style]} />
-    </div>
+    <Field label={t('voice.styleLabel')} fitCopy>
+      <Select name={keys.style} label={t('voice.styleLabel')} options={styles} bind:value={config[keys.style]} fill />
+    </Field>
     <Field label={t('voice.voiceOverride')} fitCopy>
       <Select name={keys.voice} label={t('voice.voiceOverride')} bind:value={config[keys.voice]} {options} searchable fill />
     </Field>
@@ -86,16 +90,26 @@
     gap: var(--bb-space-2);
     margin-block-end: var(--bb-space-3);
   }
-  .kind-body, .style {
+  .kind-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--bb-space-2);
+  }
+  .off-label {
+    color: var(--bb-muted);
+    font-size: var(--bb-text-xs);
+    opacity: 0;
+  }
+  .off-label.visible { opacity: 1; }
+  .pause-text { white-space: nowrap; }
+  .kind-body {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--bb-space-3);
   }
-  .style { gap: var(--bb-space-1); }
   .threshold { block-size: 1.25rem; }
-  .pause-row { margin-block-start: var(--bb-space-2); }
-  .kind-body.muted { opacity: 0.5; }
+  .kind-body.muted { opacity: 0.72; }
   @media (prefers-reduced-motion: no-preference) {
-    .kind-body { transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo); }
+    .kind-body, .off-label { transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo); }
   }
 </style>

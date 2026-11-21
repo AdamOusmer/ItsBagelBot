@@ -13,6 +13,7 @@
   "enable": "Premium-Stimme für Hinweise verwenden",
   "fallback": "Ist die Option aus oder sind deine Minuten aufgebraucht, wird die kostenlose lokale Stimme verwendet.",
   "choose": "Standardstimme",
+  "clipLimit": "Höchstdauer pro Alert",
   "readOnly": "Nur der Kanalinhaber kann die Nutzung einsehen oder die Stimmeinstellungen ändern.",
   "inactive": "Die Cloud-Stimme pausiert, solange der Bot ausgeschaltet ist.",
   "banned": "Die Cloud-Stimme ist nicht verfügbar.",
@@ -51,7 +52,7 @@
   "invalidStyle": "Wähle einen Stil aus der Liste.",
   "invalidMessage": "Die gesprochene Nachricht darf höchstens {max} Zeichen enthalten.",
   "saveUnavailable": "Für dieses Konto sind die Premium-Spracheinstellungen nicht verfügbar.",
-  "conflict": "Spracheinstellungen gespeichert. Alerts wurden an anderer Stelle geändert. Brich ab, um die aktuellen Einstellungen zu laden.",
+  "conflict": "Alerts wurden an anderer Stelle geändert. Brich ab, um die aktuellen Einstellungen zu laden.",
   "character": {
     "bright": "Hell",
     "upbeat": "Schwungvoll",
@@ -77,10 +78,10 @@
     "warm": "Warm"
   },
   "group": {
-    "energetic": "Energiegeladen",
-    "warm": "Warm und sanft",
-    "calm": "Ruhig und geschmeidig",
-    "authoritative": "Souverän"
+    "energetic": "Voller Energie",
+    "warm": "Warm und freundlich",
+    "calm": "Locker und entspannt",
+    "authoritative": "Kraftvoll und souverän"
   },
   "style": {
     "warm": "Warm",
@@ -88,6 +89,13 @@
     "calm": "Ruhig",
     "playful": "Verspielt",
     "cozy": "Gemütlich"
+  },
+  "styleDescription": {
+    "warm": "Freundlich und lebhaft",
+    "hype": "Begeistert und ausgelassen",
+    "calm": "Sanft und gelassen",
+    "playful": "Leicht und vergnügt",
+    "cozy": "Sanft und vertraut"
   },
   "kind": {
     "follow": "Follow",

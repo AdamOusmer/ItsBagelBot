@@ -87,7 +87,7 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
   {
     id: 'voice',
     labelKey: 'nav.voice',
-    icon: 'bell',
+    icon: 'waveform',
     href: '/voice',
     match: ['/voice'],
     beta: true,

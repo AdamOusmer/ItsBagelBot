@@ -4,6 +4,7 @@
 
   import { page } from '$app/state';
   import { getI18n, moduleDef, builtinDef } from '@bagel/kit';
+  import type { Snippet } from 'svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Divider from '@bagel/ui/svelte/Divider.svelte';
@@ -28,7 +29,8 @@
     insert,
     fetchDefs = [],
     fetchKeys = [],
-    onFetchDefsChanged
+    onFetchDefsChanged,
+    extraActions
   }: {
     surface: VariableSurface;
     moduleFlags?: Record<string, boolean>;
@@ -36,6 +38,7 @@
     fetchDefs?: SourceDef[];
     fetchKeys?: { label: string }[];
     onFetchDefsChanged?: (defs: SourceDef[]) => void;
+    extraActions?: Snippet<[(token: string) => void]>;
   } = $props();
 
   const isCustom = $derived(surface === 'custom');
@@ -156,8 +159,8 @@
       {/each}
     </div>
 
-    {#if isCustom || !sheetEmpty}
-      <div class="vp-actions">
+    {#if isCustom || !sheetEmpty || extraActions}
+      <div class="vp-actions" class:with-extra={!!extraActions}>
         {#if isCustom}
           <CounterPicker onInsert={insert} />
           <FetchSourcePicker defs={fetchDefs} keys={fetchKeys} canManageKeys={!page.data.delegateOf} onInsert={insert} onDefsChanged={onFetchDefsChanged} />
@@ -169,6 +172,7 @@
             {t('commandEditor.allVariables')}
           </Chip>
         {/if}
+        {@render extraActions?.(insert)}
       </div>
     {/if}
     <div class="vp-desc"><Text size="xs" tone="muted" id={descId}>{descriptionText}</Text></div>
@@ -240,6 +244,7 @@
   }
 
   .vp-desc { min-height: 18px; }
+  .vp-actions.with-extra { flex-wrap: nowrap; }
 
   .vp-token { min-width: 0; overflow-wrap: anywhere; text-align: left; }
 
