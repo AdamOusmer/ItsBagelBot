@@ -9,15 +9,15 @@ const HEADER = 'id,username,status,active,banned,creator_code,created_at,updated
 export function usersCsv(rows: readonly AdminUserWire[]): string {
   return csvDocument(
     HEADER,
-    rows.map((u) => [
-      String(u.id),
-      u.username,
-      u.status,
-      String(u.is_active),
-      String(u.banned),
-      u.creator_code ?? '',
-      u.created_at ?? '',
-      u.updated_at ?? ''
+    rows.map((user) => [
+      String(user.id),
+      user.username,
+      user.status,
+      String(user.is_active),
+      String(user.banned),
+      user.creator_code ?? '',
+      user.created_at ?? '',
+      user.updated_at ?? ''
     ])
   );
 }

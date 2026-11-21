@@ -4,17 +4,20 @@
 // @ts-ignore Bun supplies this module at test runtime; it is not a production dependency.
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { stubSvelteKit } from './sveltekit';
+import type { GrantEmailOutcome, UserRef } from '../src/lib/server/services';
 
 stubSvelteKit();
 
 const endDay = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
 const expiresAt = `${endDay}T23:59:59.999Z`;
-const grantedUser = { id: 21, username: 'crumbs', status: 'paid', is_active: true, banned: false, subscription_expires_at: expiresAt };
+const storedExpiry = new Date(Date.now() + 31 * 864e5).toISOString();
+const grantedUser = { id: 21, username: 'crumbs', status: 'paid', is_active: true, banned: false, subscription_expires_at: storedExpiry };
+const ref: UserRef = { actorId: '10', userId: '21' };
 
-let emailReply: () => Promise<string> = async () => 'sent';
+let emailReply: () => Promise<GrantEmailOutcome> = async () => 'sent';
 
-const userSetStatus = mock(async () => grantedUser);
-const premiumGrantEmail = mock((..._args: unknown[]) => emailReply());
+const userSetStatus = mock(async (_ref: UserRef, _status: string, _expiresAt?: string) => grantedUser);
+const premiumGrantEmail = mock((_ref: UserRef, _expiresAt: string) => emailReply());
 
 const services = await import('../src/lib/server/services');
 mock.module('#lib/server/services', () => ({ ...services, userSetStatus, premiumGrantEmail }));
@@ -33,7 +36,7 @@ function setStatus(fields: Record<string, string>) {
   const body = new FormData();
   for (const [key, value] of Object.entries(fields)) body.set(key, value);
   const request = new Request('https://admin.example/users?/setStatus', { method: 'POST', body });
-  return actions.setStatus({ request, locals: { locale: 'en' } } as never) as Promise<{ action: { ok: boolean; notice: string } }>;
+  return actions.setStatus({ request, locals: { locale: 'en' } } as never);
 }
 
 beforeEach(() => {
@@ -59,10 +62,14 @@ describe('paid grant email', () => {
       calls: 1,
       suffix: ' · admin.users.grantEmail.failed'
     }
-  ])('$label', async ({ fields, reply, calls, suffix }) => {
+  ] satisfies { label: string; fields: Record<string, string>; reply: () => Promise<GrantEmailOutcome>; calls: number; suffix: string }[])('$label', async ({ fields, reply, calls, suffix }) => {
     emailReply = reply;
     const result = await setStatus(fields);
-    expect(result.action).toEqual({ ok: true, notice: `admin.users.statusSetUntil until ${endDay}${suffix}` });
-    expect(premiumGrantEmail.mock.calls).toEqual(calls ? [[{ actorId: '10', userId: '21' }, expiresAt]] : []);
+    expect(result).toEqual({
+      action: { ok: true, notice: `admin.users.statusSetUntil until ${storedExpiry.slice(0, 10)}${suffix}` },
+      lookup: { user: grantedUser }
+    });
+    expect(userSetStatus.mock.calls).toEqual([[ref, 'paid', expiresAt]]);
+    expect(premiumGrantEmail.mock.calls).toEqual(calls ? [[ref, storedExpiry]] : []);
   });
 });

@@ -1,6 +1,6 @@
 <script lang="ts">
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
   import Input from '@bagel/ui/svelte/Input.svelte';
   import { enhance, type SubmitFunction } from '$app/forms';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
@@ -25,6 +25,8 @@
   } = $props();
 
   const { t } = getI18n();
+  const uid = $props.id();
+  const formId = `message-user-${uid}`;
 
   const LEVELS = [
     { value: 'info', label: 'admin.users.messageLevelInfo' },
@@ -32,20 +34,18 @@
     { value: 'warning', label: 'admin.users.messageLevelWarning' },
     { value: 'critical', label: 'admin.users.messageLevelCritical' }
   ] as const;
+  const levelOptions = $derived(LEVELS.map(({ value, label }) => ({ value, label: t(label) })));
 
   let title = $state('');
   let body = $state('');
   let level = $state('info');
-  let form = $state<HTMLFormElement | null>(null);
+  let form = $state<HTMLFormElement>();
 
-  let wasOpen = false;
   $effect(() => {
-    if (open && !wasOpen) {
-      title = '';
-      body = '';
-      level = 'info';
-    }
-    wasOpen = open;
+    if (open) return;
+    title = '';
+    body = '';
+    level = 'info';
   });
 </script>
 
@@ -61,26 +61,23 @@
 >
   <div class="fields">
     <Stack gap={3}>
-      <Field label={t('admin.users.messageFieldTitle')}>
-        <Input fill mono type="text" maxlength={120} bind:value={title} />
+      <Field fit label={t('admin.users.messageFieldTitle')}>
+        <Input fill name="title" form={formId} maxlength={120} bind:value={title} />
       </Field>
-      <Field label={t('admin.users.messageFieldBody')}>
-        <Textarea rows={3} maxlength={2000} fill mono bind:value={body} />
+      <Field fit label={t('admin.users.messageFieldBody')}>
+        <Textarea rows={3} maxlength={2000} fill name="body" form={formId} bind:value={body} />
       </Field>
-      <Field label={t('admin.users.messageFieldLevel')}>
-        <Select fill options={LEVELS.map((lvl) => ({ value: lvl.value, label: t(lvl.label) }))} bind:value={level} />
+      <Field fit label={t('admin.users.messageFieldLevel')}>
+        <Select fill name="level" form={formId} options={levelOptions} bind:value={level} />
       </Field>
     </Stack>
   </div>
 </ConfirmDialog>
 
-<form method="POST" action="/notifications?/send" use:enhance={onSubmit} bind:this={form} hidden>
+<form id={formId} method="POST" action="/notifications?/send" use:enhance={onSubmit} bind:this={form} hidden>
   <input type="hidden" name="scope" value="direct" />
   <input type="hidden" name="target_user_id" value={userId} />
   <input type="hidden" name="target_username" value="" />
-  <input type="hidden" name="title" value={title} />
-  <input type="hidden" name="body" value={body} />
-  <input type="hidden" name="level" value={level} />
   <input type="hidden" name="expires_at" value="" />
 </form>
 

@@ -4,6 +4,7 @@
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
+  import { tick, untrack } from 'svelte';
   import { enhance, type SubmitFunction } from '$app/forms';
   import { goto } from '$app/navigation';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
@@ -29,12 +30,12 @@
   import { livePoll } from '@bagel/kit/live-poll';
   import { allows, type AccessKey } from '#lib/access';
   import { getLiveCount } from '#lib/live-count-context';
-  import type { AdminUserWire, AuditEntry, ChannelSubState } from '#lib/server/services';
-  import type { GiveawayWinnerWire } from '#lib/server/giveaways';
+  import type { AdminUserWire, ChannelSubState } from '#lib/server/services';
   import UserRow from '#lib/components/users/UserRow.svelte';
   import UserInspector from '#lib/components/users/UserInspector.svelte';
   import MessageDialog from '#lib/components/users/MessageDialog.svelte';
   import { usersCsv } from '#lib/components/users/csv';
+  import { EMPTY_HISTORY, inspectAudit, inspectPrizes } from '#lib/components/users/user-history';
   import { downloadCsv } from '@bagel/ui/lib/csv';
   import { USER_STATES, USER_STATE_LABEL, type UserStateFilter } from '#lib/components/users/user-state';
   import { USER_ACTIONS, type UserActionDef } from '#lib/components/users/user-actions';
@@ -79,8 +80,7 @@
     });
   });
 
-  // svelte-ignore state_referenced_locally
-  let search = $state(data.search);
+  let search = $state(untrack(() => data.search));
   $effect(() => {
     search = data.search;
   });
@@ -133,65 +133,49 @@
   let tokenPresent = $state<boolean | null>(null);
   let subState = $state<ChannelSubState | null>(null);
   let viewAsUrl = $state('');
-  let history = $state<AuditEntry[] | null>(null);
-  let historyError = $state('');
-  let prizeHistory = $state<GiveawayWinnerWire[] | null>(null);
-  let prizeHistoryError = $state('');
+  let audit = $state.raw<Awaited<ReturnType<typeof inspectAudit>>>(EMPTY_HISTORY);
+  let prizes = $state.raw<Awaited<ReturnType<typeof inspectPrizes>>>(EMPTY_HISTORY);
+  let inspectorRequest: AbortController | undefined;
 
   let lookupForm = $state<HTMLFormElement | null>(null);
-  let lookupQ = $state('');
+
+  $effect(() => () => inspectorRequest?.abort());
 
   function closeInspector() {
+    inspectorRequest?.abort();
     selectedId = null;
     detached = null;
     viewAsUrl = '';
-    prizeHistory = null;
-    prizeHistoryError = '';
   }
 
-  function openUser(u: AdminUserWire) {
-    if (selectedId === String(u.id)) {
+  function openUser(user: AdminUserWire) {
+    const id = String(user.id);
+    if (selectedId === id) {
       closeInspector();
       return;
     }
+    inspectorRequest?.abort();
+    const { signal } = (inspectorRequest = new AbortController());
     detached = null;
-    selectedId = String(u.id);
+    selectedId = id;
     tokenPresent = null;
     subState = null;
     viewAsUrl = '';
-    lookupQ = String(u.id);
-    queueMicrotask(() => lookupForm?.requestSubmit());
-    if (can('audit.read')) loadHistory(String(u.id));
-    loadPrizeHistory(String(u.id));
+    audit = EMPTY_HISTORY;
+    prizes = EMPTY_HISTORY;
+    loadInspector(id, signal);
   }
 
-  async function loadPrizeHistory(id: string) {
-    prizeHistory = null;
-    prizeHistoryError = '';
-    try {
-      const response = await fetch(`/users/prizes?q=${encodeURIComponent(id)}`);
-      const body = (await response.json()) as { awards?: GiveawayWinnerWire[]; error?: string };
-      if (!response.ok || body.error) throw new Error(body.error ?? `history fetch failed (${response.status})`);
-      prizeHistory = body.awards ?? [];
-    } catch (error) {
-      prizeHistoryError = error instanceof Error ? error.message : String(error);
-      prizeHistory = [];
-    }
-  }
-
-  async function loadHistory(id: string) {
-    history = null;
-    historyError = '';
-    try {
-      const res = await fetch(`/audit/data?q=${encodeURIComponent(id)}`);
-      if (!res.ok) throw new Error(`history fetch failed (${res.status})`);
-      const body = (await res.json()) as { entries?: AuditEntry[]; error?: string };
-      if (body.error) throw new Error(body.error);
-      history = (body.entries ?? []).filter((e) => e.target === id).slice(0, 5);
-    } catch (e) {
-      historyError = (e as Error).message;
-      history = [];
-    }
+  function loadInspector(id: string, signal: AbortSignal) {
+    void tick().then(() => {
+      if (!signal.aborted) lookupForm?.requestSubmit();
+    });
+    if (can('audit.read')) void inspectAudit(id, signal).then((next) => {
+      if (!signal.aborted) audit = next;
+    });
+    if (can('giveaways.manage')) void inspectPrizes(id, signal).then((next) => {
+      if (!signal.aborted) prizes = next;
+    });
   }
 
   type LookupResult = {
@@ -208,8 +192,14 @@
     error?: string;
   };
 
-  const lookupSubmit: SubmitFunction = () => {
+  const lookupSubmit: SubmitFunction = ({ controller, cancel }) => {
+    const signal = inspectorRequest?.signal;
+    if (!signal || signal.aborted) return cancel();
+    const abortLookup = () => controller.abort();
+    signal.addEventListener('abort', abortLookup, { once: true });
     return async ({ result }) => {
+      signal.removeEventListener('abort', abortLookup);
+      if (signal.aborted) return;
       const lk = actionPayload<ActionPayload>(result)?.lookup;
       if (!lk || lk.error) {
         tokenPresent = null;
@@ -527,10 +517,10 @@
           {tokenPresent}
           {subState}
           {viewAsUrl}
-          {history}
-          {historyError}
-          {prizeHistory}
-          {prizeHistoryError}
+          history={audit.entries}
+          historyError={audit.error}
+          prizeHistory={prizes.entries}
+          prizeHistoryError={prizes.error}
           canReadHistory={can('audit.read')}
           {busy}
           {can}
@@ -545,7 +535,7 @@
 </section>
 
 <form method="POST" action="?/lookup" use:enhance={lookupSubmit} bind:this={lookupForm} hidden>
-  <input type="hidden" name="q" value={lookupQ} />
+  <input type="hidden" name="q" value={selectedId ?? ''} />
 </form>
 
 {#each USER_ACTIONS as def (def.id)}

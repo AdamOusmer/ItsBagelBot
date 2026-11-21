@@ -1,0 +1,11 @@
+{
+  "backHome": "Accueil de la console",
+  "notFoundTitle": "Page introuvable",
+  "notFoundBody": "Vérifiez l’adresse ou revenez à la console d’administration.",
+  "accessTitle": "Accès réservé au personnel",
+  "accessBody": "Connectez-vous avec un compte autorisé pour le personnel.",
+  "serverTitle": "Page indisponible",
+  "serverBody": "Patientez un instant, puis rechargez la page.",
+  "unexpectedTitle": "Impossible de charger la page",
+  "unexpectedBody": "Essayez de recharger la page."
+}

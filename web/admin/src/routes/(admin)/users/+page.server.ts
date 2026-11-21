@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { Actions, PageServerLoad } from './$types';
+import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import { fail } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import {
@@ -45,15 +45,18 @@ import { env } from '@bagel/kit/server/env';
 import { directoryQuery, loadUserDirectory } from '#lib/server/user-directory';
 
 const CREATOR_CODE_MAX_LENGTH = 64;
+const LOOKUP_MAX_LENGTH = 128;
 const DEMO = dev && process.env.DEMO === '1';
+const STATUSES = new Set(['free', 'paid', 'vip']);
+const UNKNOWN_SUB_STATE: ChannelSubState = { state: 'unknown', error: '', checkedAt: null };
+const DEMO_SUB_STATE: ChannelSubState = { state: 'ok', error: '', checkedAt: null };
+type Locale = App.Locals['locale'];
 
 export const load: PageServerLoad = async ({ url, parent }) => {
   const { id } = await parent();
-  const q = directoryQuery(url);
-  return { directory: loadUserDirectory(id, q), ...q };
+  const query = directoryQuery(url);
+  return { directory: loadUserDirectory(id, query), ...query };
 };
-
-const STATUSES = new Set(['free', 'paid', 'vip']);
 
 function dashboardOrigin(url: URL): string {
   const configured = (env.DASHBOARD_PUBLIC_ORIGIN ?? '').trim().replace(/\/+$/, '');
@@ -62,93 +65,111 @@ function dashboardOrigin(url: URL): string {
   throw new Error('DASHBOARD_PUBLIC_ORIGIN not set');
 }
 
-const unknownSubState: ChannelSubState = { state: 'unknown', error: '', checkedAt: null };
-
-function demoLookup(q: string, sampleUsers: AdminUserWire[], locale: App.Locals['locale']) {
-  const u = sampleUsers.find((s) => s.username === q || String(s.id) === q);
-  if (!u) return { lookup: { error: adminText(locale, 'admin.users.notFound'), q } };
+function demoLookup(query: LookupQuery, sampleUsers: AdminUserWire[]) {
+  const user = sampleUsers.find((sample) => sample.username === query.q || String(sample.id) === query.q);
+  if (!user) return { lookup: { error: adminText(query.locale, 'admin.users.notFound'), q: query.q } };
   return {
     lookup: {
-      user: u,
-      tokenPresent: u.status !== 'free',
-      subState: { state: 'ok', error: '', checkedAt: null } as ChannelSubState
+      user,
+      tokenPresent: user.status !== 'free',
+      subState: DEMO_SUB_STATE
     }
   };
 }
 
-type LookupRef = {
-  actorId: string;
+type LookupQuery = {
+  actorId: UserRef['actorId'];
   q: string;
+  locale: Locale;
 };
 
-async function probeUser(ref: LookupRef) {
-  const user = await userLookup(ref.actorId, ref.q);
-  const uid = String(user.id);
-  const [tokenRes, subRes] = await Promise.allSettled([
-    tokenStatus({ actorId: ref.actorId, userId: uid }),
-    channelSubState(uid, { verify: true })
+async function probeUser({ actorId, q }: LookupQuery) {
+  const user = await userLookup(actorId, q);
+  const userId = String(user.id);
+  const [token, subscription] = await Promise.allSettled([
+    tokenStatus({ actorId, userId }),
+    channelSubState(userId, { verify: true })
   ]);
   return {
     user,
-    tokenPresent: tokenRes.status === 'fulfilled' ? tokenRes.value.present : false,
-    subState: subRes.status === 'fulfilled' ? subRes.value : unknownSubState
+    tokenPresent: token.status === 'fulfilled' ? token.value.present : false,
+    subState: subscription.status === 'fulfilled' ? subscription.value : UNKNOWN_SUB_STATE
   };
 }
 
-const noFields = () => ({ value: null });
-
-type ActionCtx<P> = {
+type UserTarget = {
   admin: AdminIdentity;
   ref: UserRef;
-  payload: P;
-  locale: App.Locals['locale'];
+  locale: Locale;
 };
 
-type UserActionSpec<P> = {
+type UserMutation<P> = {
   name: string;
   key: AccessKey;
-  parse: (f: FormData) => ParseResult<P>;
-  demo: (ctx: ActionCtx<P>) => unknown;
-  notice: (user: AdminUserWire | null, payload: P, locale: App.Locals['locale']) => string;
-  detail?: (payload: P) => string;
-  run: (ref: UserRef, payload: P) => Promise<AdminUserWire | null>;
+  parse: (form: FormData) => ParseResult<P>;
+  demo?: (target: UserTarget, input: P) => unknown;
+  notice: (user: AdminUserWire | null, input: P, locale: Locale) => string;
+  detail?: (input: P) => string;
+  run: (ref: UserRef, input: P) => Promise<AdminUserWire | null>;
 };
 
-function runUserAction<P>(ctx: ActionCtx<P>, spec: UserActionSpec<P>) {
-  return audited(
-    {
-      admin: ctx.admin,
-      action: spec.name,
-      target: ctx.ref.userId,
-      detail: spec.detail?.(ctx.payload)
-    },
-    () => spec.run(ctx.ref, ctx.payload),
-    (user) => {
-      const reply = okReply(spec.notice(user, ctx.payload, ctx.locale));
-      return user ? { ...reply, lookup: { user } } : reply;
-    }
-  );
+function formField(form: FormData, name: string): string {
+  return String(form.get(name) ?? '').trim();
 }
 
-function userAction<P>(spec: UserActionSpec<P>) {
-  return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
-    const admin = await requireRole({ locals }, spec.key);
-    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
-    const f = await request.formData();
-    const userId = String(f.get('user_id') ?? '').trim();
-    if (!userId) return fail(400, { error: actionError(locals.locale, 'user_id required') });
+function withUserTarget<R>(
+  key: AccessKey,
+  run: (target: UserTarget, form: FormData, url: URL) => R
+) {
+  return async ({ request, locals, url }: RequestEvent) => {
+    const { locale } = locals;
+    const admin = await requireRole({ locals }, key);
+    if (!admin) return fail(403, { error: actionError(locale, 'forbidden') });
 
-    const parsed = spec.parse(f);
-    if ('refuse' in parsed) return refusalReply(parsed, locals.locale);
-
-    const ctx: ActionCtx<P> = { admin, ref: { actorId: admin.id, userId }, payload: parsed.value, locale: locals.locale };
-    if (DEMO) return spec.demo(ctx);
-    return runUserAction(ctx, spec);
+    const form = await request.formData();
+    const userId = formField(form, 'user_id');
+    if (!userId) return fail(400, { error: actionError(locale, 'user_id required') });
+    return run({ admin, ref: { actorId: admin.id, userId }, locale }, form, url);
   };
 }
 
-function parsePaidGrant(f: FormData): { expiresAt: string; detail: string } | ParseRefusal {
-  const raw = String(f.get('expires_at') ?? '').trim();
+function userReply(notice: string, user: AdminUserWire | null) {
+  const reply = okReply(notice);
+  return user ? { ...reply, lookup: { user } } : reply;
+}
+
+function userAction<P>(mutation: UserMutation<P>) {
+  return withUserTarget(mutation.key, (target, form) => {
+    const { admin, ref, locale } = target;
+    const input = mutation.parse(form);
+    if ('refuse' in input) return refusalReply(input, locale);
+    if (DEMO && mutation.demo) return mutation.demo(target, input.value);
+    return audited(
+      { admin, action: mutation.name, target: ref.userId, detail: mutation.detail?.(input.value) },
+      () => mutation.run(ref, input.value),
+      (user) => userReply(mutation.notice(user, input.value, locale), user)
+    );
+  });
+}
+
+type FixedNoticeMutation = Pick<UserMutation<null>, 'name' | 'key' | 'run'> & {
+  notice: string;
+  demoNotice: string;
+};
+
+function fixedNoticeAction({ name, key, run, notice, demoNotice }: FixedNoticeMutation) {
+  return userAction({
+    name,
+    key,
+    run,
+    parse: () => ({ value: null }),
+    demo: ({ locale }) => okReply(adminText(locale, demoNotice)),
+    notice: (_user, _input, locale) => adminText(locale, notice)
+  });
+}
+
+function parsePaidGrant(form: FormData): { expiresAt: string; detail: string } | ParseRefusal {
+  const raw = formField(form, 'expires_at');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
     return softNotice('paid grant needs an end date');
   }
@@ -173,13 +194,13 @@ const GRANT_EMAIL_NOTICE: Record<GrantEmailResult, string> = {
   failed: 'admin.users.grantEmail.failed'
 };
 
-function parseStatus(f: FormData): ParseResult<StatusGrant> {
-  const status = String(f.get('status') ?? '').trim();
+function parseStatus(form: FormData): ParseResult<StatusGrant> {
+  const status = formField(form, 'status');
   if (!STATUSES.has(status)) return badRequest('invalid status');
   if (status !== 'paid') return { value: { status, detail: `status=${status}`, notify: false } };
-  const grant = parsePaidGrant(f);
+  const grant = parsePaidGrant(form);
   if ('refuse' in grant) return grant;
-  const notify = f.get('notify_email') === 'on';
+  const notify = form.get('notify_email') === 'on';
   const detail = notify ? `${grant.detail} email=requested` : grant.detail;
   return { value: { status, expiresAt: grant.expiresAt, detail, notify } };
 }
@@ -199,7 +220,7 @@ async function applyStatus(ref: UserRef, grant: StatusGrant): Promise<AdminUserW
   return user;
 }
 
-function statusNotice(user: AdminUserWire | null, grant: StatusGrant, locale: App.Locals['locale']): string {
+function statusNotice(user: AdminUserWire | null, grant: StatusGrant, locale: Locale): string {
   if (!user) return adminText(locale, 'admin.users.statusSet', { status: grant.status });
   const until = user.subscription_expires_at
     ? ` until ${user.subscription_expires_at.slice(0, 10)}`
@@ -210,105 +231,156 @@ function statusNotice(user: AdminUserWire | null, grant: StatusGrant, locale: Ap
 
 type CreatorCode = { code: string; detail: string };
 
-function parseCreatorCode(f: FormData): ParseResult<CreatorCode> {
-  const code = String(f.get('creator_code') ?? '').trim();
+function parseCreatorCode(form: FormData): ParseResult<CreatorCode> {
+  const code = formField(form, 'creator_code');
   if (code.length > CREATOR_CODE_MAX_LENGTH) {
     return softNotice(`creator code must be ${CREATOR_CODE_MAX_LENGTH} characters or fewer`);
   }
   return { value: { code, detail: code ? `creator_code=${code}` : 'creator_code=cleared' } };
 }
 
-function creatorCodeNotice(user: AdminUserWire | null, _payload: CreatorCode, locale: App.Locals['locale']): string {
+function creatorCodeNotice(user: AdminUserWire | null, _input: CreatorCode, locale: Locale): string {
   return user?.creator_code
     ? adminText(locale, 'admin.users.creatorCodeSet', { code: user.creator_code })
     : adminText(locale, 'admin.users.creatorCodeCleared');
 }
 
-function creatorCodeDemoNotice(ctx: ActionCtx<CreatorCode>) {
-  const { code } = ctx.payload;
-  return okReply(code ? adminText(ctx.locale, 'admin.users.creatorCodeSetDemo', { code }) : adminText(ctx.locale, 'admin.users.creatorCodeClearedDemo'));
-}
-
-async function demoCreatorCode(ctx: ActionCtx<CreatorCode>) {
+async function demoCreatorCode({ ref, locale }: UserTarget, { code }: CreatorCode) {
   const { sampleUsers } = await import('#lib/server/demo-data');
-  const user = sampleUsers.find((u) => String(u.id) === ctx.ref.userId);
-  const { code } = ctx.payload;
-  return {
-    ...creatorCodeDemoNotice(ctx),
-    lookup: user ? { user: { ...user, creator_code: code || null } } : undefined
-  };
+  const user = sampleUsers.find((sample) => String(sample.id) === ref.userId);
+  const notice = code
+    ? adminText(locale, 'admin.users.creatorCodeSetDemo', { code })
+    : adminText(locale, 'admin.users.creatorCodeClearedDemo');
+  return { ...okReply(notice), lookup: user ? { user: { ...user, creator_code: code || null } } : undefined };
 }
 
-function parseActive(f: FormData): ParseResult<{ active: boolean }> {
-  return { value: { active: String(f.get('active') ?? '').trim() === 'true' } };
+function parseActive(form: FormData): ParseResult<boolean> {
+  return { value: formField(form, 'active') === 'true' };
 }
 
-type EnrollmentSyncedMutation<T> = {
-  userId: string;
-  sync: 'unenroll-first' | 'enroll-after';
-  mutate: () => Promise<T>;
-};
-
-function served(user: AdminUserWire | null): boolean {
+function needsEnrollment(user: AdminUserWire | null): boolean {
   return user !== null && user.is_active && !user.banned;
 }
 
 async function withEnrollmentSync<T extends AdminUserWire | null>(
-  m: EnrollmentSyncedMutation<T>
+  userId: UserRef['userId'],
+  sync: 'unenroll-first' | 'enroll-after',
+  mutate: () => Promise<T>
 ): Promise<T> {
-  if (m.sync === 'unenroll-first') {
-    await publishUserEventSub(m.userId, false);
-    return m.mutate();
+  if (sync === 'unenroll-first') {
+    await publishUserEventSub(userId, false);
+    return mutate();
   }
-  const user = await m.mutate();
-  if (served(user)) await publishUserEventSub(m.userId, true);
+  const user = await mutate();
+  if (needsEnrollment(user)) await publishUserEventSub(userId, true);
   return user;
 }
 
-export const actions: Actions = {
-  lookup: async ({ request, locals }) => {
-    const admin = await requireRole({ locals }, 'users.read');
-    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
-    const q = String((await request.formData()).get('q') ?? '').trim();
-    if (!q) return fail(400, { error: actionError(locals.locale, 'query required') });
-    if (q.length > 128) return fail(400, { error: actionError(locals.locale, 'query too long') });
-    if (DEMO) {
-      const { sampleUsers } = await import('#lib/server/demo-data');
-      return demoLookup(q, sampleUsers, locals.locale);
-    }
-    try {
-      return { lookup: await probeUser({ actorId: admin.id, q }) };
-    } catch (e) {
-      if (isForbidden(e)) return refused(e);
-      return { lookup: { error: (e as Error).message, q } };
-    }
-  },
+async function lookupUser({ request, locals }: RequestEvent) {
+  const { locale } = locals;
+  const admin = await requireRole({ locals }, 'users.read');
+  if (!admin) return fail(403, { error: actionError(locale, 'forbidden') });
+  const q = formField(await request.formData(), 'q');
+  if (!q) return fail(400, { error: actionError(locale, 'query required') });
+  if (q.length > LOOKUP_MAX_LENGTH) return fail(400, { error: actionError(locale, 'query too long') });
+  const query: LookupQuery = { actorId: admin.id, q, locale };
+  if (DEMO) {
+    const { sampleUsers } = await import('#lib/server/demo-data');
+    return demoLookup(query, sampleUsers);
+  }
+  try {
+    return { lookup: await probeUser(query) };
+  } catch (error) {
+    if (isForbidden(error)) return refused(error);
+    return { lookup: { error: (error as Error).message, q } };
+  }
+}
 
-  setStatus: userAction<StatusGrant>({
+function actionNotice(error: unknown) {
+  return { action: { ok: false, notice: (error as Error).message } };
+}
+
+async function restartForUser({ admin, ref, locale }: UserTarget) {
+  if (DEMO) {
+    return { ...okReply(adminText(locale, 'admin.users.restartDemo')), subState: DEMO_SUB_STATE };
+  }
+  try {
+    await restartUserEventSub(ref.userId);
+    audit(admin, { action: 'restart', target: ref.userId, ok: true });
+    const subState = await channelSubState(ref.userId).catch(() => UNKNOWN_SUB_STATE);
+    return { ...okReply(adminText(locale, 'admin.users.restartQueued')), subState };
+  } catch (error) {
+    audit(admin, { action: 'restart', target: ref.userId, ok: false, error: (error as Error).message });
+    return actionNotice(error);
+  }
+}
+
+type ViewAsSubject = { id: string; login: string; displayName: string };
+
+function makeViewAsUrl(origin: string, admin: AdminIdentity, subject: ViewAsSubject): string {
+  const token = signViewAs({
+    sub: subject.id,
+    login: subject.login,
+    display_name: subject.displayName,
+    by_id: admin.id,
+    by_login: admin.login
+  });
+  return `${origin}/auth/impersonate?t=${token}`;
+}
+
+async function impersonateUser({ admin, ref, locale }: UserTarget, _: FormData, url: URL) {
+  let origin: string;
+  try {
+    origin = dashboardOrigin(url);
+  } catch (error) {
+    return actionNotice(error);
+  }
+  if (DEMO) {
+    const viewAsUrl = makeViewAsUrl(origin, admin, { id: ref.userId, login: 'demo', displayName: 'Demo' });
+    return { ...okReply(adminText(locale, 'admin.users.viewAsDemo')), viewAsUrl };
+  }
+  try {
+    const user = await userLookup(admin.id, ref.userId);
+    const viewAsUrl = makeViewAsUrl(origin, admin, {
+      id: String(user.id),
+      login: user.username,
+      displayName: user.username
+    });
+    audit(admin, { action: 'impersonate', target: ref.userId, ok: true });
+    return { ...okReply(adminText(locale, 'admin.users.viewAs')), viewAsUrl };
+  } catch (error) {
+    audit(admin, { action: 'impersonate', target: ref.userId, ok: false, error: (error as Error).message });
+    if (isForbidden(error)) return refused(error);
+    return actionNotice(error);
+  }
+}
+
+export const actions: Actions = {
+  lookup: lookupUser,
+
+  setStatus: userAction({
     name: 'set_status',
     key: 'users.grant',
     parse: parseStatus,
-    demo: (ctx) => okReply(`status set to ${ctx.payload.status} (demo)`),
-    detail: (p) => p.detail,
+    demo: (_target, grant) => okReply(`status set to ${grant.status} (demo)`),
+    detail: (grant) => grant.detail,
     notice: statusNotice,
     run: applyStatus
   }),
 
-  reset: userAction({
+  reset: fixedNoticeAction({
     name: 'reset',
     key: 'users.grant',
-    parse: noFields,
-    demo: (ctx) => okReply(adminText(ctx.locale, 'admin.users.userResetDemo')),
-    notice: (_user, _payload, locale) => adminText(locale, 'admin.users.userReset'),
-    run: (ref) => userReset(ref)
+    demoNotice: 'admin.users.userResetDemo',
+    notice: 'admin.users.userReset',
+    run: userReset
   }),
 
-  clearToken: userAction({
+  clearToken: fixedNoticeAction({
     name: 'clear_token',
     key: 'users.token',
-    parse: noFields,
-    demo: (ctx) => okReply(adminText(ctx.locale, 'admin.users.tokenClearedDemo')),
-    notice: (_user, _payload, locale) => adminText(locale, 'admin.users.tokenCleared'),
+    demoNotice: 'admin.users.tokenClearedDemo',
+    notice: 'admin.users.tokenCleared',
     run: async (ref) => {
       await tokenClear(ref);
       return null;
@@ -319,142 +391,60 @@ export const actions: Actions = {
     name: 'set_active',
     key: 'users.grant',
     parse: parseActive,
-    demo: (ctx) => okReply(adminText(ctx.locale, 'admin.users.activeSetDemo')),
-    notice: (user, _payload, locale) => adminText(locale, 'admin.users.active', { active: user?.is_active ? 'true' : 'false' }),
-    detail: (p) => String(p.active),
-    run: (ref, p) =>
-      withEnrollmentSync({
-        userId: ref.userId,
-        sync: p.active ? 'enroll-after' : 'unenroll-first',
-        mutate: () => userSetActive(ref, p.active)
-      })
+    demo: ({ locale }) => okReply(adminText(locale, 'admin.users.activeSetDemo')),
+    notice: (user, _active, locale) => adminText(locale, 'admin.users.active', { active: user?.is_active ? 'true' : 'false' }),
+    detail: String,
+    run: (ref, active) =>
+      withEnrollmentSync(ref.userId, active ? 'enroll-after' : 'unenroll-first', () => userSetActive(ref, active))
   }),
 
-  setTestAccount: userAction<{ active: boolean }>({
+  setTestAccount: userAction({
     name: 'set_test_account',
     key: 'users.test',
     parse: parseActive,
-    demo: (ctx) => okReply(adminText(ctx.locale, 'admin.users.testAccountDemo', { active: String(ctx.payload.active) })),
-    notice: (user, _payload, locale) => adminText(locale, 'admin.users.testAccount', { active: user?.test_account ? 'on' : 'off' }),
-    run: (ref, p) => userSetTestAccount(ref, p.active)
+    demo: ({ locale }, active) => okReply(adminText(locale, 'admin.users.testAccountDemo', { active: String(active) })),
+    notice: (user, _active, locale) => adminText(locale, 'admin.users.testAccount', { active: user?.test_account ? 'on' : 'off' }),
+    run: userSetTestAccount
   }),
 
-  setCreatorCode: userAction<CreatorCode>({
+  setCreatorCode: userAction({
     name: 'set_creator_code',
     key: 'users.grant',
     parse: parseCreatorCode,
-    demo: DEMO ? demoCreatorCode : creatorCodeDemoNotice,
-    detail: (p) => p.detail,
+    demo: DEMO ? demoCreatorCode : undefined,
+    detail: (input) => input.detail,
     notice: creatorCodeNotice,
-    run: (ref, p) => userSetCreatorCode(ref, p.code)
+    run: (ref, input) => userSetCreatorCode(ref, input.code)
   }),
 
-  ban: userAction({
+  ban: fixedNoticeAction({
     name: 'ban',
     key: 'users.ban',
-    parse: noFields,
-    demo: (ctx) => okReply(adminText(ctx.locale, 'admin.users.userBannedDemo')),
-    notice: (_user, _payload, locale) => adminText(locale, 'admin.users.userBanned'),
-    run: (ref) =>
-      withEnrollmentSync({
-        userId: ref.userId,
-        sync: 'unenroll-first',
-        mutate: () => userBan(ref)
-      })
+    demoNotice: 'admin.users.userBannedDemo',
+    notice: 'admin.users.userBanned',
+    run: (ref) => withEnrollmentSync(ref.userId, 'unenroll-first', () => userBan(ref))
   }),
 
-  unban: userAction({
+  unban: fixedNoticeAction({
     name: 'unban',
     key: 'users.ban',
-    parse: noFields,
-    demo: (ctx) => okReply(adminText(ctx.locale, 'admin.users.userUnbannedDemo')),
-    notice: (_user, _payload, locale) => adminText(locale, 'admin.users.userUnbanned'),
-    run: (ref) =>
-      withEnrollmentSync({
-        userId: ref.userId,
-        sync: 'enroll-after',
-        mutate: () => userUnban(ref)
-      })
+    demoNotice: 'admin.users.userUnbannedDemo',
+    notice: 'admin.users.userUnbanned',
+    run: (ref) => withEnrollmentSync(ref.userId, 'enroll-after', () => userUnban(ref))
   }),
 
-  restart: async ({ request, locals }) => {
-    const admin = await requireRole({ locals }, 'users.restart');
-    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
-    const userId = String((await request.formData()).get('user_id') ?? '').trim();
-    if (!userId) return fail(400, { error: actionError(locals.locale, 'user_id required') });
-    if (DEMO) {
-      return {
-        action: { ok: true, notice: adminText(locals.locale, 'admin.users.restartDemo') },
-        subState: { state: 'ok', error: '', checkedAt: null } as ChannelSubState
-      };
-    }
-    try {
-      await restartUserEventSub(userId);
-      audit(admin, { action: 'restart', target: userId, ok: true });
-      const subState: ChannelSubState = await channelSubState(userId).catch(() => unknownSubState);
-      return { action: { ok: true, notice: adminText(locals.locale, 'admin.users.restartQueued') }, subState };
-    } catch (e) {
-      audit(admin, { action: 'restart', target: userId, ok: false, error: (e as Error).message });
-      return { action: { ok: false, notice: (e as Error).message } };
-    }
-  },
+  restart: withUserTarget('users.restart', restartForUser),
 
-  impersonate: async ({ request, locals, url }) => {
-    const admin = await requireRole({ locals }, 'users.impersonate');
-    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
-    const userId = String((await request.formData()).get('user_id') ?? '').trim();
-    if (!userId) return fail(400, { error: actionError(locals.locale, 'user_id required') });
-    let origin: string;
-    try {
-      origin = dashboardOrigin(url);
-    } catch (e) {
-      return { action: { ok: false, notice: (e as Error).message } };
-    }
-    if (DEMO) {
-      const token = signViewAs({
-        sub: userId,
-        login: 'demo',
-        display_name: 'Demo',
-        by_id: admin.id,
-        by_login: admin.login
-      });
-      return { action: { ok: true, notice: adminText(locals.locale, 'admin.users.viewAsDemo') }, viewAsUrl: `${origin}/auth/impersonate?t=${token}` };
-    }
-    try {
-      const user = await userLookup(admin.id, userId);
-      const token = signViewAs({
-        sub: String(user.id),
-        login: user.username,
-        display_name: user.username,
-        by_id: admin.id,
-        by_login: admin.login
-      });
-      audit(admin, { action: 'impersonate', target: userId, ok: true });
-      return {
-        action: { ok: true, notice: adminText(locals.locale, 'admin.users.viewAs') },
-        viewAsUrl: `${origin}/auth/impersonate?t=${token}`
-      };
-    } catch (e) {
-      audit(admin, { action: 'impersonate', target: userId, ok: false, error: (e as Error).message });
-      if (isForbidden(e)) return refused(e);
-      return { action: { ok: false, notice: (e as Error).message } };
-    }
-  },
+  impersonate: withUserTarget('users.impersonate', impersonateUser),
 
-  delete: userAction({
+  delete: fixedNoticeAction({
     name: 'delete',
     key: 'users.delete',
-    parse: noFields,
-    demo: (ctx) => okReply(adminText(ctx.locale, 'admin.users.userDeletedDemo')),
-    notice: (_user, _payload, locale) => adminText(locale, 'admin.users.userDeleted'),
-    run: (ref) =>
-      withEnrollmentSync({
-        userId: ref.userId,
-        sync: 'unenroll-first',
-        mutate: async () => {
-          await userDelete(ref);
-          return null;
-        }
-      })
+    demoNotice: 'admin.users.userDeletedDemo',
+    notice: 'admin.users.userDeleted',
+    run: (ref) => withEnrollmentSync(ref.userId, 'unenroll-first', async () => {
+      await userDelete(ref);
+      return null;
+    })
   })
 };
