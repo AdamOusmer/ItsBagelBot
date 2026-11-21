@@ -86,7 +86,7 @@ export const demoAuthorizedDashboards = [
 
 export const demoAccountState: AccountState = {
   active: true,
-  status: 'vip',
+  status: process.env.DEMO_PLAN === 'free' ? 'free' : 'vip',
   onboarded: true,
   creatorCode: null,
   username: 'demo',

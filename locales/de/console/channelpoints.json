@@ -81,5 +81,8 @@
   "errLimit": "Gib eine ganze Zahl von mindestens 1 ein.",
   "errCooldown": "Gib eine Abklingzeit zwischen 1 Sekunde und 7 Tagen ein.",
   "unsavedChanges": "Ungespeicherte Änderungen",
-  "saved": "Gespeichert"
+  "saved": "Gespeichert",
+  "speakToggle": "Nachricht des Zuschauers vorlesen",
+  "speakHint": "Nutzt deine Premium-Sprachminuten. Die Punkte werden erstattet, wenn nichts vorgelesen werden kann.",
+  "speakPrefix": "Zuerst den Namen des Zuschauers sagen"
 }

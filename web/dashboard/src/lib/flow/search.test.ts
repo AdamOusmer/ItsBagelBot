@@ -51,7 +51,7 @@ test.each([
   ['modules', []],
   ['zzzz', []],
   ['send zzzz', []],
-  ['wa', ['reply.wait', 'reply.lights', 'cond.cooldown']],
+  ['wa', ['reply.wait', 'reply.lights', 'cond.cooldown', 'reply.speak']],
   ['wi', ['reply.counter', 'reply.prediction_end', 'cond.counter', 'cond.compare', 'cond.var', 'reply.text', 'reply.poll']],
   ['waaitt', []],
   ['?!', []]

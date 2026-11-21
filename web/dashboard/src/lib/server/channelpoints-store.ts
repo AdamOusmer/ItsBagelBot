@@ -66,7 +66,10 @@ function mergeTwitch(tw: RewardWire, local: ChannelPointReward): ChannelPointRew
     counter: local.counter,
     counterScope: local.counterScope,
     points: local.points,
-    liveOnly: local.liveOnly
+    liveOnly: local.liveOnly,
+    voice: local.voice,
+    style: local.style,
+    prefixName: local.prefixName
   };
 }
 

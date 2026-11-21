@@ -73,5 +73,12 @@
       "!marker",
       "!marker <description>"
     ]
+  },
+  "tts": {
+    "label": "Texto para fala",
+    "summary": "Lê em voz alta a mensagem de um espectador na live.",
+    "usage": [
+      "!tts <mensagem>"
+    ]
   }
 }

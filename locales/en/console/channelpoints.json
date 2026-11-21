@@ -81,5 +81,8 @@
   "errLimit": "Enter a whole number, at least 1.",
   "errCooldown": "Enter a cooldown between 1 second and 7 days.",
   "unsavedChanges": "Unsaved changes",
-  "saved": "Saved"
+  "saved": "Saved",
+  "speakToggle": "Read the viewer's message aloud",
+  "speakHint": "Uses your Premium voice minutes. Points are refunded when nothing can be read.",
+  "speakPrefix": "Say the viewer's name first"
 }

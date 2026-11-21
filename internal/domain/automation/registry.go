@@ -280,6 +280,7 @@ func init() {
 		"chat":            register(checkText),
 		"pin":             register(checkText),
 		"announce":        register(checkAnnounce),
+		"speak":           register(checkSpeak),
 		"reply":           register(checkReply),
 		"timeout":         register(checkTimeout),
 		"ban":             register(checkBan),

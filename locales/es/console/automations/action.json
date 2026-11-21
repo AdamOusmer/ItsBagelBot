@@ -56,5 +56,6 @@
   "branded_content": "Indicar contenido de marca",
   "points_spend": "Gastar puntos",
   "countdown_stop": "Detener la cuenta atrás",
-  "cooldown_reset": "Restablecer el enfriamiento"
+  "cooldown_reset": "Restablecer el enfriamiento",
+  "speak": "Leer en voz alta"
 }

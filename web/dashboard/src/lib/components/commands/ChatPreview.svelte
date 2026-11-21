@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import type { Snippet } from 'svelte';
   import { page } from '$app/state';
   import { translate, type Locale } from '@bagel/kit/i18n';
   import {
@@ -29,7 +30,8 @@
     broadcasterName = undefined as string | undefined,
     locale = undefined as Locale | undefined,
     samples = undefined as Record<string, string> | undefined,
-    dynamic = true
+    dynamic = true,
+    after = undefined as Snippet | undefined
   }: {
     name?: string;
     response?: string;
@@ -42,6 +44,7 @@
     locale?: Locale;
     samples?: Record<string, string>;
     dynamic?: boolean;
+    after?: Snippet;
   } = $props();
   const t = (key: string, params?: Record<string, string | number>) => translate(locale ?? i18n.locale, key, params);
 
@@ -82,7 +85,7 @@
 <ChatPreview
   title={t('chatPreview.rehearsal')}
   kind={tag}
-  label={t('chatPreview.ariaPreview')}
+  label={after ? undefined : t('chatPreview.ariaPreview')}
   class="chat-preview"
   onpointerenter={() => (hovered = true)}
   onpointerleave={() => (hovered = false)}
@@ -110,6 +113,7 @@
       <RehearsedLineRow line={v} index={li} seed={botSeed} active={typing || hovered} {locale} />
     {/each}
   {/if}
+  {@render after?.()}
 </ChatPreview>
 
 <style>

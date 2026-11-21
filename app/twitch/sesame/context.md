@@ -97,6 +97,26 @@ configured overlay link. Sesame applies blocked terms and discards the entire
 utterance on a match. It strips control characters and cheermotes from viewer
 text. Trial events never enqueue a voice job.
 
+## Premium speech from chat, rewards and recipes
+
+Three more surfaces queue the same speech jobs, and each needs a Premium channel
+in the projection, even where the surface itself is free (`engine.SpeechQueue`):
+
+- `!tts <message>` is an opt-in built-in backed by the `tts` module row. It is
+  live-only and takes permission, `cooldown`, `userCooldown`, `maxChars`,
+  `prefixName`, `voice`, `style` and `replyDenied` from that row. An off or
+  non-Premium channel yields the name to a custom `!tts` command. A viewer
+  refused for having no minutes still uses their cooldown.
+- The `speak` channel points action reads the redemption text. It follows
+  `alerts.ttsLiveOnly` and refunds the redemption when offline, when the text is
+  blocked or empty, or when there is no Premium or allowance. Accepted
+  redemptions default to fulfill once queued; a later worker refusal cannot refund.
+- The `speak` recipe step reads its expanded text. It reports `premium_required`,
+  `voice_unavailable` or `speech_blocked` in the run record.
+
+These jobs use the kinds `chat`, `reward` and `recipe`, keyed by SHA-256 over the
+kind, the originating trace ID and the event, message or recipe step identity.
+
 Sesame deduplicates speech handlers by event identity. The `TTS_JOBS` work queue
 deduplicates by the originating trace ID, which survives redelivery in the headers.
 Without an originating trace, the job ID uses the first 32 hex characters of

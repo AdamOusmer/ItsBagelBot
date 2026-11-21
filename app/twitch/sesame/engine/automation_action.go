@@ -107,7 +107,8 @@ func effectActions(b *actionTableBuilder) *actionTableBuilder {
 		Step("countdown_add", typed((*actionExec).countdownAdd)).
 		Step("points_spend", typed((*actionExec).pointsSpend)).
 		Step("countdown_stop", typed((*actionExec).countdownStop)).
-		Step("cooldown_reset", typed((*actionExec).cooldownReset))
+		Step("cooldown_reset", typed((*actionExec).cooldownReset)).
+		Step("speak", typed((*actionExec).speak))
 }
 
 func flowActions(b *actionTableBuilder) *actionTableBuilder {

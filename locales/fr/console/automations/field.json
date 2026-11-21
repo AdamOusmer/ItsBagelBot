@@ -94,5 +94,7 @@
   "brightness": "Luminosité",
   "hold_s": "Rétablir après",
   "paused": "En pause",
-  "cooldown_s": "Délai global (s)"
+  "cooldown_s": "Délai global (s)",
+  "voice": "Voix",
+  "style": "Style"
 }

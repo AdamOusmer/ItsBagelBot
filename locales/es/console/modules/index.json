@@ -76,11 +76,10 @@
   "noTriggersTitle": "Aún no hay palabras activadoras.",
   "offBanner": "Este módulo está desactivado, así que el bot lo ignora en el chat.",
   "turnOn": "Activarlo",
-  "offConfigurable":"Este módulo está desactivado. Puedes configurarlo ahora; los cambios tendrán efecto cuando lo actives.",
+  "offConfigurable": "Este módulo está desactivado. Puedes configurarlo ahora; los cambios tendrán efecto cuando lo actives.",
   "patchConflict": "Otra persona cambió este módulo. Se recargó la versión más reciente, así que vuelve a hacer tu cambio.",
   "permLeadMods": "Moderadores principales",
   "permMods": "Moderadores",
-  "readPremiumVoice": "Leer en voz alta con la voz Premium",
   "repliesLabel": "Respuestas",
   "replyBlankHint": "Déjalo en blanco para usar el mensaje predeterminado.",
   "replyIdle": "Selecciona un mensaje para editarlo aquí.",
@@ -134,5 +133,19 @@
   "statusFilterLabel": "Filtrar por estado",
   "filterAll": "Todos",
   "filterOn": "Activados",
-  "lockedHint": "Solo Premium. Mejora tu plan para cambiar esto."
+  "lockedHint": "Solo Premium. Mejora tu plan para cambiar esto.",
+  "voiceEvent": {
+    "tts": "TTS",
+    "toggleAria": "TTS en {event}",
+    "sub": {
+      "label": "Mensajes de resuscripción",
+      "hint": "Lee el mensaje que un espectador añade al resuscribirse."
+    },
+    "cheer": {
+      "label": "Mensajes de cheer",
+      "hint": "Lee el mensaje enviado con bits, sin la cantidad de bits."
+    },
+    "chatOff": "Mensaje del chat apagado",
+    "withoutChat": "El mensaje del chat está apagado. El TTS se sigue oyendo en el directo."
+  }
 }

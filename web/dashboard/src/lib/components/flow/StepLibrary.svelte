@@ -15,6 +15,9 @@
   import type { FlowKind, NodeSpec } from '#lib/flow/model';
   import { stepSections } from '#lib/flow/search';
   import { stepFocus } from '#lib/flow/keyboard';
+  import { page } from '$app/state';
+  import PremiumMark from '#lib/components/shared/PremiumMark.svelte';
+  import { premiumLocked } from '#lib/components/shared/premium-lock';
 
   export type LibraryMode = FlowKind | 'search';
 
@@ -56,6 +59,13 @@
     reply: 'var(--bb-muted-light)'
   };
 
+  const locked = $derived(premiumLocked(page.data));
+  const lockedSpec = (spec: NodeSpec) => spec.premium === true && locked;
+
+  function add(spec: NodeSpec) {
+    if (!lockedSpec(spec)) onAdd(spec.type);
+  }
+
   let query = $state('');
   let searchEl = $state<HTMLInputElement>();
   let root = $state<HTMLElement>();
@@ -84,11 +94,14 @@
     if (!first) return;
     event.preventDefault();
     event.stopPropagation();
-    onAdd(first.type);
+    add(first);
   }
 
   function onDragStart(e: DragEvent, spec: NodeSpec) {
-    if (!e.dataTransfer) return;
+    if (!e.dataTransfer || lockedSpec(spec)) {
+      e.preventDefault();
+      return;
+    }
     e.dataTransfer.setData('application/x-flow-node', spec.type);
     e.dataTransfer.effectAllowed = 'copy';
   }
@@ -124,7 +137,8 @@
             draggable="true"
             ondragstart={(e) => onDragStart(e, spec)}
             ondragend={onClose}
-            onclick={() => onAdd(spec.type)}
+            aria-disabled={lockedSpec(spec) || undefined}
+            onclick={() => add(spec)}
           >
             <IconTile size="sm" style="--tile: 32px; color: {TINTS[spec.kind]}"><Icon name={spec.icon} size={16} /></IconTile>
             <span class="copy">
@@ -136,6 +150,7 @@
                 {/if}
               </span>
             </span>
+            {#if spec.premium}<PremiumMark size={32} />{/if}
             {#if requirement}
               <span class="requirement">
                 <Chip as="span" tone="muted" class="bb-fit-box" style="display: flex; padding: 4px 6px"><bb-fit>{requirementText(t, requirement)}</bb-fit></Chip>
@@ -247,6 +262,8 @@
     flex: 1;
     min-width: 0;
   }
+  .row[aria-disabled='true'] { cursor: not-allowed; }
+  .row[aria-disabled='true'] .copy { opacity: 0.6; }
   .name {
     font-size: 15px;
     line-height: 19px;

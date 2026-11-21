@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { afterEach, expect, mock, spyOn, test } from 'bun:test';
-import { ALERT_VOICE_CONFIG_DEFAULTS } from '@bagel/kit/voice-plan';
+import { ALERT_VOICE_CONFIG_DEFAULTS, TTS_COMMAND_CONFIG_DEFAULTS } from '@bagel/kit/voice-plan';
 import type { VoiceAllowance } from '#lib/server/services/voice';
 import { stubSvelteKit } from '../../../../test/sveltekit';
 
@@ -69,9 +69,10 @@ test.each([
   const alerts = reply?.reason === 'ok'
     ? { config: { ...ALERT_VOICE_CONFIG_DEFAULTS, cheerTtsStyle: 'calm' }, revision: 9 }
     : null;
+  const command = alerts ? { config: { ...TTS_COMMAND_CONFIG_DEFAULTS }, enabled: false, revision: 0 } : null;
 
   expect(await load({ locals: { session, locale: 'en' } } as never)).toEqual({
-    readOnly, allowance: reply, locked: reply?.reason === 'no_plan', alerts
+    readOnly, allowance: reply, locked: reply?.reason === 'no_plan', alerts, command
   });
   expect(rpc.mock.calls).toEqual([...(readOnly ? [] : [usersRead]), ...(alerts ? [modulesRead] : [])]);
 });
@@ -79,7 +80,7 @@ test.each([
 test('an unavailable allowance degrades without inventing a free plan', async () => {
   spyOn(bus, 'rpc').mockRejectedValueOnce(new Error('timeout'));
   expect(await load({ locals: { session: owner, locale: 'en' } } as never)).toEqual({
-    readOnly: false, allowance: null, locked: false, alerts: null
+    readOnly: false, allowance: null, locked: false, alerts: null, command: null
   });
 });
 
@@ -284,4 +285,16 @@ test.each([
 ])('reports a failed OBS rotation when $name', async ({ error, status }) => {
   spyOn(bus, 'rpc').mockRejectedValueOnce(error);
   expect(await rotateOverlay(owner)).toMatchObject({ status, data: { overlayError: expect.any(String) } });
+});
+
+test.each<Record<string, string>>([
+  { maxChars: '0' }, { maxChars: '501' }, { userCooldown: '-1' }, { cooldown: '86401' }, { permission: 'owner' }, { style: 'loud' }, { voice: 'Nobody' }
+])('chat command saves reject %o', async (fields) => {
+  const rpc = spyOn(bus, 'rpc');
+  const result = await actions.saveCommand({
+    request: new Request(`${voiceUrl}?/saveCommand`, { method: 'POST', body: new URLSearchParams({ ...fields, expected_rev: '0' }) }),
+    locals: { session: owner, locale: 'en' }
+  } as never);
+  expect(result).toMatchObject({ status: 400 });
+  expect(rpc).not.toHaveBeenCalled();
 });

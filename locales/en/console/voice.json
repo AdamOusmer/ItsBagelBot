@@ -19,7 +19,8 @@
   "banned": "Cloud voice is unavailable.",
   "unavailable": "Voice usage and settings are unavailable. Reload the page to try again.",
   "invalidVoice": "Choose a voice from the list.",
-  "saveFailed": "Could not save voice settings. Try again.",  "overlayTitle": "OBS browser source",
+  "saveFailed": "Could not save voice settings. Try again.",
+  "overlayTitle": "OBS browser source",
   "overlayHint": "Creating a new link disables the old one.",
   "overlayCreate": "Create link",
   "overlayReplace": "Make a new link",
@@ -101,5 +102,26 @@
   "sample": {
     "sub": "PrincessBarney said: Happy 7 months, love the stream!",
     "cheer": "PrincessBarney said: Great play!"
+  },
+  "channelVoice": "Channel voice",
+  "styleDefault": "Default style",
+  "invalidCooldown": "Enter a whole number of seconds from 0 to 86400.",
+  "invalidMaxChars": "Enter a whole number from 1 to 500.",
+  "chat": {
+    "title": "Chat command",
+    "enable": "Turn on !tts",
+    "enableHint": "Viewers type !tts and a message to hear it on stream. Works only while live.",
+    "prefix": "Say the viewer's name first",
+    "replyDenied": "Reply when a message can't be read",
+    "replyDeniedHint": "Blocked text and empty minutes stay silent when this is off.",
+    "permission": "Who can use !tts",
+    "userCooldown": "Cooldown per viewer (seconds)",
+    "cooldown": "Cooldown for everyone (seconds)",
+    "maxChars": "Max characters read"
+  },
+  "rewards": {
+    "title": "Channel point rewards",
+    "body": "Turn on read aloud for any reward and its redeem text plays through your voice source.",
+    "open": "Open channel points"
   }
 }

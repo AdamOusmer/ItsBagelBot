@@ -99,6 +99,7 @@ var shippedContract = map[string]moduleSpec{
 		command("commercial", roleLeadModerator, "ad").live(), command("marker", roleLeadModerator).live(),
 	}},
 	"~clip":         {module.KindCore, []commandSpec{command("clip", roleEveryone).live()}},
+	"~tts":          {module.KindCore, []commandSpec{command("tts", roleEveryone).live()}},
 	"~followage":    {module.KindCore, []commandSpec{command("followage", roleEveryone), command("accountage", roleEveryone)}},
 	"~uptime":       {module.KindCore, []commandSpec{command("uptime", roleEveryone)}},
 	"shoutout":      {module.KindOptIn, nil},

@@ -212,6 +212,12 @@ export interface ClipAction {
   quiet?: boolean;
 }
 
+export interface SpeakAction {
+  text: string;
+  voice?: string;
+  style?: string;
+}
+
 export interface MarkerAction {
   description?: string;
   quiet?: boolean;

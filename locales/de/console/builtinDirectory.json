@@ -73,5 +73,12 @@
       "!marker",
       "!marker <description>"
     ]
+  },
+  "tts": {
+    "label": "Text zu Sprache",
+    "summary": "Liest die Nachricht eines Zuschauers im Stream vor.",
+    "usage": [
+      "!tts <Nachricht>"
+    ]
   }
 }

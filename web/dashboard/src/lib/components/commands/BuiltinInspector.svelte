@@ -19,6 +19,10 @@
     type Perm
   } from '@bagel/kit';
   import Divider from '@bagel/ui/svelte/Divider.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
+  import { page } from '$app/state';
+  import PremiumMark from '#lib/components/shared/PremiumMark.svelte';
+  import { premiumSwitchLocked } from '#lib/components/shared/premium-lock';
   import ChatPreview from './ChatPreview.svelte';
   import ResponseEditor from './ResponseEditor.svelte';
 
@@ -40,6 +44,7 @@
 
   const { t } = getI18n();
   const c = $derived(command);
+  const locked = $derived(premiumSwitchLocked(def.premium, command.is_active, page.data));
 
   let message = $state('');
   let access = $state<Perm>('everyone');
@@ -77,7 +82,7 @@
     <input type="hidden" name="perm" value={c.perm ?? def.defaultPerm} />
     <input type="hidden" name="response" value={c.response} />
     <input type="hidden" name="is_active" value={c.is_active ? '' : 'on'} />
-    <SwitchRow
+    <span class="toggle-main"><SwitchRow
       control="end"
       type="submit"
       checked={c.is_active}
@@ -85,11 +90,16 @@
       hint={t('builtinInspector.enabledHelp')}
       hintId="builtin-enabled-hint"
       switchLabel={t('commandRow.toggleAria', { name: c.name })}
-    />
+      disabled={locked}
+    /></span>
+    {#if def.premium}<span class="premium"><PremiumMark /></span>{/if}
   </form>
   <Divider flush />
 
-  <div class="desc"><Text size="sm" tone="muted">{def.description}</Text></div>
+  <div class="desc">
+    <Text size="sm" tone="muted">{def.description}</Text>
+    {#if def.settingsHref}<TextLink href={def.settingsHref} label={t('builtinInspector.openSettings')} />{/if}
+  </div>
 
   <Field label={t('builtinInspector.usage')}>
     <ul class="usage">
@@ -156,9 +166,11 @@
     font-family: var(--bb-font-body);
   }
 
-  .toggle-row { padding-bottom: 16px; }
+  .toggle-row { display: flex; align-items: center; gap: var(--bb-space-2); padding-bottom: 16px; }
+  .toggle-main { flex: 1; min-width: 0; }
+  .premium { flex: none; }
 
-  .desc { margin: 16px 0; }
+  .desc { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin: 16px 0; }
 
   .reply-form { margin-bottom: 16px; }
   .reply-actions { display: flex; justify-content: flex-end; margin-top: 12px; }

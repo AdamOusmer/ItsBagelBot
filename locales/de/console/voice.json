@@ -19,7 +19,8 @@
   "banned": "Die Cloud-Stimme ist nicht verfügbar.",
   "unavailable": "Nutzung und Stimmeinstellungen sind nicht verfügbar. Lade die Seite neu.",
   "invalidVoice": "Wähle eine Stimme aus der Liste.",
-  "saveFailed": "Stimmeinstellungen konnten nicht gespeichert werden. Versuche es erneut.",  "overlayTitle": "OBS-Browserquelle",
+  "saveFailed": "Stimmeinstellungen konnten nicht gespeichert werden. Versuche es erneut.",
+  "overlayTitle": "OBS-Browserquelle",
   "overlayHint": "Ein neuer Link macht den alten ungültig.",
   "overlayCreate": "Link erstellen",
   "overlayReplace": "Neuen Link erstellen",
@@ -101,5 +102,26 @@
   "sample": {
     "sub": "PrincessBarney sagte: Schon 7 Monate dabei, toller Stream!",
     "cheer": "PrincessBarney sagte: Stark gespielt!"
+  },
+  "channelVoice": "Kanalstimme",
+  "styleDefault": "Standardstil",
+  "invalidCooldown": "Gib eine ganze Zahl an Sekunden von 0 bis 86400 ein.",
+  "invalidMaxChars": "Gib eine ganze Zahl von 1 bis 500 ein.",
+  "chat": {
+    "title": "Chatbefehl",
+    "enable": "!tts einschalten",
+    "enableHint": "Zuschauer tippen !tts und eine Nachricht, um sie im Stream zu hören. Funktioniert nur live.",
+    "prefix": "Zuerst den Namen des Zuschauers sagen",
+    "replyDenied": "Antworten, wenn eine Nachricht nicht vorgelesen werden kann",
+    "replyDeniedHint": "Ist das aus, bleiben blockierter Text und leere Minuten stumm.",
+    "permission": "Wer !tts nutzen darf",
+    "userCooldown": "Abklingzeit pro Zuschauer (Sekunden)",
+    "cooldown": "Abklingzeit für alle (Sekunden)",
+    "maxChars": "Maximal vorgelesene Zeichen"
+  },
+  "rewards": {
+    "title": "Kanalpunkte-Belohnungen",
+    "body": "Wähle bei einer Belohnung Nachricht des Zuschauers vorlesen, dann läuft ihr Text über deine Sprachquelle.",
+    "open": "Kanalpunkte öffnen"
   }
 }

@@ -3,7 +3,8 @@
   // Proprietary. No license granted. See LICENSE.md.
 
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { alertVoiceKeys, VOICE_STYLES, type VoiceAlertKind } from '@bagel/kit/voice-plan';
+  import { alertVoiceKeys, type VoiceAlertKind } from '@bagel/kit/voice-plan';
+  import { styleOptions } from '#lib/components/voice/voice-options';
   import type { SelectOption } from '@bagel/ui/lib/select';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
@@ -23,11 +24,7 @@
   const note = $derived(kind === 'cheer'
     ? t('voice.cheerThreshold', { n: numbers.format(Number(values.ttsMinBits ?? 0)) })
     : t('voice.subMessageOnly'));
-  const styles = Object.keys(VOICE_STYLES).map((value) => ({
-    value,
-    label: t(`voice.style.${value}`),
-    description: t(`voice.styleDescription.${value}`)
-  }));
+  const styles = styleOptions(t);
 </script>
 
 <div class="editor">

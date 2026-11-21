@@ -8,5 +8,6 @@
   "cooldown": "Cooldown",
   "replyMessage": "Reply message",
   "replyHint": "Leave blank for the default. {clip} = the clip link, {user} = the clipper, {target} = the title.",
-  "saveReply": "Save reply"
+  "saveReply": "Save reply",
+  "openSettings": "Open voice settings"
 }
