@@ -61,10 +61,11 @@
   .stage {
     position: relative;
     justify-self: center;
-    inline-size: min(100%, var(--preview-max-h, 100vh) * 16 / 9);
+    inline-size: 100%;
     aspect-ratio: 16 / 9;
     overflow: hidden;
     border-radius: var(--bb-radius-md);
+    background-color: color-mix(in srgb, var(--bb-gray-4-dark) 55%, var(--bb-gray-5-dark));
     box-shadow: inset 0 0 0 1px rgba(var(--bb-white-rgb), 0.08), 0 16px 48px rgba(var(--bb-shadow-rgb), 0.55);
   }
   .frame {

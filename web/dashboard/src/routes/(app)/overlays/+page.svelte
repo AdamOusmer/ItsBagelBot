@@ -144,7 +144,6 @@
     --card-pad: var(--bb-space-4) var(--bb-space-5);
   }
   @media (min-width: 1024px) {
-    .studio { --preview-max-h: max(240px, 100dvh - 548px); }
     .intro { block-size: 1.55em; }
   }
   @media (max-width: 1023px) {
