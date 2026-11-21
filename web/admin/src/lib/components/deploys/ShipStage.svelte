@@ -5,8 +5,8 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import { mediaQuery } from '@bagel/ui/lib/motion-query';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
-  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
@@ -89,26 +89,24 @@
   </div>
 
   <footer class="footer">
-    <PageToolbar style="margin: 0; gap: var(--bb-space-2);">
-      {#snippet leading()}
-        <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-        <div class="feedback" class:with-issue={Boolean(issue)} role={issue ? 'region' : undefined} aria-label={issue || undefined} tabindex={issue ? 0 : undefined}>
-          {#if issue}
-            <AlertBanner tone="danger" flush>{issue}</AlertBanner>
-          {:else}
-            <div class="status" role="status">
-              {#if pending}
-                <Skeleton width="min(100%, 10rem)" />
-                <VisuallyHidden>{feedback}</VisuallyHidden>
-              {:else}
-                <Text as="div" size="sm" tone="pale"><bb-fit mode="block"><span data-fit>{feedback}</span></bb-fit></Text>
-              {/if}
-            </div>
-          {/if}
-        </div>
-      {/snippet}
-      {#snippet trailing()}<div class="buttons">{@render actions()}</div>{/snippet}
-    </PageToolbar>
+    <Cluster justify="between" gap={3}>
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+      <div class="feedback" class:with-issue={Boolean(issue)} role={issue ? 'region' : undefined} aria-label={issue || undefined} tabindex={issue ? 0 : undefined}>
+        {#if issue}
+          <AlertBanner tone="danger" flush>{issue}</AlertBanner>
+        {:else}
+          <div class="status" role="status">
+            {#if pending}
+              <Skeleton width="min(100%, 10rem)" />
+              <VisuallyHidden>{feedback}</VisuallyHidden>
+            {:else}
+              <Text as="div" size="sm" tone="pale"><bb-fit mode="block"><span data-fit>{feedback}</span></bb-fit></Text>
+            {/if}
+          </div>
+        {/if}
+      </div>
+      <div class="buttons">{@render actions()}</div>
+    </Cluster>
   </footer>
 </div>
 

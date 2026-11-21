@@ -4,3 +4,14 @@
 @import '@bagel/kit/styles/tokens.css';
 @import '@bagel/kit/styles/console.css';
 @import '@bagel/kit/styles/ui-console.css';
+
+:root {
+  --bb-space-2: 12px;
+  --bb-space-3: 16px;
+  --bb-space-4: 24px;
+  --bb-space-5: 32px;
+  --card-pad: clamp(16px, 6vw, var(--bb-space-5));
+  --btn-min-h: clamp(40px, calc(var(--bb-space-5) + var(--bb-space-2)), 48px);
+  --page-toolbar-gap: var(--bb-space-3);
+  --page-toolbar-after: var(--bb-space-3);
+}

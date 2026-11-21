@@ -5,7 +5,7 @@
   import { page } from '$app/state';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
-  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
   import StatTile from '@bagel/ui/svelte/StatTile.svelte';
   import AreaSeries from '@bagel/ui/svelte/AreaSeries.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
@@ -97,12 +97,14 @@
     {/snippet}
   </CardHead>
 
-  <SegmentedControl
-    {options}
-    label={t('admin.overview.enrollmentWindow')}
-    bind:value={() => String(selected.days), selectWindow}
-    even
-  />
+  <div class="window-picker">
+    <Select
+      fill
+      {options}
+      aria-label={t('admin.overview.enrollmentWindow')}
+      bind:value={() => String(selected.days), selectWindow}
+    />
+  </div>
 
   <div class="enrollment-body" style:--chart-height={`${CHART_HEIGHT}px`}>
     {#await selected.result}
@@ -131,6 +133,10 @@
 </Card>
 
 <style>
+  .window-picker {
+    inline-size: min(100%, 12rem);
+  }
+
   .enrollment-body {
     margin-block-start: var(--bb-space-4);
   }

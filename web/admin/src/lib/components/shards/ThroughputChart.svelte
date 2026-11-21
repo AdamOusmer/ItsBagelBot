@@ -61,7 +61,7 @@
     <Disclosure size="sm" summary={t('admin.shards.throughputData')} bind:open={readingsOpen}>
       {#if readings.length}
         <Scroller maxHeight="14rem">
-          <Table label={t('admin.shards.throughputHistory')} compact>
+          <Table label={t('admin.shards.throughputHistory')}>
             <caption><VisuallyHidden>{t('admin.shards.throughputHistory')}</VisuallyHidden></caption>
             <thead>
               <tr>

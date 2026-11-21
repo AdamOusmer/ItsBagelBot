@@ -6,7 +6,6 @@
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SectionNav from '@bagel/ui/svelte/SectionNav.svelte';
-  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -87,7 +86,7 @@
   }
 
   function focusWindow() {
-    document.querySelector<HTMLElement>('#analytics-window [aria-checked="true"]')?.focus({ preventScroll: true });
+    document.getElementById('analytics-window')?.focus({ preventScroll: true });
   }
 
   function jump(section: string) {
@@ -106,7 +105,14 @@
       <PageToolbar>
         {#snippet leading()}
           <div class="window-picker">
-            <SegmentedControl id="analytics-window" options={windowOptions} label={t('admin.analytics.windowLabel')} value={String(data.days)} onValueChange={pick} even />
+            <Select
+              fill
+              id="analytics-window"
+              aria-label={t('admin.analytics.windowLabel')}
+              options={windowOptions}
+              value={String(data.days)}
+              onchange={(event) => pick(event.currentTarget.value)}
+            />
           </div>
         {/snippet}
         {#snippet trailing()}
@@ -148,7 +154,7 @@
 
 <style>
   .window-picker {
-    inline-size: min(100%, 30rem);
+    inline-size: min(100%, 12rem);
     min-inline-size: 0;
   }
   .period {
@@ -163,6 +169,5 @@
   @media (max-width: 760px) {
     .section-links { display: none; }
     .section-picker { display: block; }
-    .window-picker, .period { flex-basis: 100%; }
   }
 </style>

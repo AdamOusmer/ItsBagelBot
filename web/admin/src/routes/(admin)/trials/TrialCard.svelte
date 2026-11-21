@@ -52,7 +52,7 @@
   }
 </script>
 
-<Card as="li" style="--card-pad: var(--bb-space-4); min-block-size: var(--trial-card-size); box-sizing: border-box">
+<Card as="li" style="min-block-size: var(--trial-card-size);">
   <div class="trial-heading">
     <Heading id={`trial-name-${trial.broadcaster_id}`} level={2} variant="title" class="trial-name" title={name}>
       <bb-fit><span data-fit>{name}</span></bb-fit>
@@ -105,7 +105,7 @@
         class="trial-remove" class:concealed={stopping} inert={stopping} aria-hidden={stopping}
       >
         <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
-        <Button type="submit" variant="ghost" tone="danger" size="sm" block aria-disabled={locked}
+        <Button type="submit" variant="ghost" tone="danger" block aria-disabled={locked}
           aria-describedby={`trial-name-${trial.broadcaster_id}`}>
           <bb-fit><span data-fit>{t('admin.trials.remove')}</span></bb-fit>
         </Button>

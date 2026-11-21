@@ -3,16 +3,17 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { getI18n } from '@bagel/kit/i18n/context';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
-  import Chip from '@bagel/ui/svelte/Chip.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
-  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Badge from '@bagel/ui/svelte/Badge.svelte';
+  import FilterTabs from '#lib/components/FilterTabs.svelte';
   import { applyStreamed } from '#lib/streamed-load';
   import { CAMPAIGN_STATUS, campaignCounts, giveawayDate, giveawayPrize, type CampaignFilter } from '#lib/giveaway-workflow';
   import type { GiveawayWire } from '#lib/server/giveaways';
@@ -29,26 +30,33 @@
   let filter = $state<CampaignFilter>('all');
   const giveaways = $derived(result?.giveaways ?? []);
   const counts = $derived(campaignCounts(giveaways));
+  const filtersDisabled = $derived(!result || result.degraded);
+  const filterOptions = $derived(statuses.map((value) => ({
+    value,
+    label: t(CAMPAIGN_STATUS[value].label),
+    count: filtersDisabled ? '' : number.format(counts[value])
+  })));
   const visible = $derived(filter === 'all' ? giveaways : giveaways.filter((giveaway) => giveaway.status === filter));
 
   $effect(() => applyStreamed(history, (value) => { result = value; }));
 </script>
 
-<PageToolbar class="history-toolbar">
-  {#snippet leading()}
-    <div class="filters" role="group" aria-label={t('admin.giveaways.state')}>
-      {#each statuses as status (status)}
-        <Chip pressed={filter === status} disabled={!result || result.degraded} onclick={() => { filter = status; }}>
-          <span class="filter-label"><bb-fit><span data-fit>{t(CAMPAIGN_STATUS[status].label)}</span></bb-fit></span>
-          <span class="filter-count" aria-hidden={!result || result.degraded}>{result && !result.degraded ? number.format(counts[status]) : '·'}</span>
-        </Chip>
-      {/each}
-    </div>
-  {/snippet}
-  {#snippet trailing()}
-    <TextLink href="#giveaway-draft" variant="arrow">{t('admin.giveaways.create')}</TextLink>
-  {/snippet}
-</PageToolbar>
+<Stack gap={3}>
+  <FilterTabs
+    options={filterOptions}
+    bind:value={() => filter, (value) => (filter = value as CampaignFilter)}
+    label={t('admin.giveaways.state')}
+    disabled={filtersDisabled}
+    countWidth="3ch"
+  />
+  <PageToolbar>
+    {#snippet trailing()}
+      <ButtonLink href="#giveaway-draft" variant="secondary" block style="--btn-w: min(100%, 12rem)">
+        <bb-fit><span data-fit>{t('admin.giveaways.create')}</span></bb-fit>
+      </ButtonLink>
+    {/snippet}
+  </PageToolbar>
+</Stack>
 
 <DeckList>
   <div class="history-head">
@@ -92,30 +100,6 @@
 </DeckList>
 
 <style>
-  :global(.history-toolbar) {
-    flex-wrap: wrap;
-  }
-
-  .filters {
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: var(--bb-space-2);
-    inline-size: min(100%, 42rem);
-    min-inline-size: 0;
-  }
-
-  .filter-label {
-    flex: 1;
-    min-inline-size: 0;
-  }
-
-  .filter-count {
-    min-inline-size: 3ch;
-    text-align: end;
-    font-variant-numeric: tabular-nums;
-    opacity: 0.75;
-  }
-
   .history-head {
     padding: var(--bb-space-3) var(--bb-space-4);
     border-block-end: 1px solid var(--bb-border);
@@ -148,23 +132,5 @@
   .campaign-status {
     display: inline-grid;
     inline-size: 6rem;
-  }
-
-  @media (max-width: 1100px) {
-    .filters {
-      inline-size: 100%;
-    }
-  }
-
-  @media (max-width: 820px) {
-    .filters {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
-
-  @media (max-width: 460px) {
-    .filters {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
   }
 </style>

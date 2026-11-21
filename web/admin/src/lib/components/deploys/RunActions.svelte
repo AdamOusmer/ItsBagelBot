@@ -104,7 +104,7 @@
       {#each Object.entries(verb.fields) as [name, value] (name)}
         <input type="hidden" {name} {value} />
       {/each}
-      <Button type="submit" variant={verb.variant} size="sm" block disabled={busy || !verb.available}>
+      <Button type="submit" variant={verb.variant} block disabled={busy || !verb.available}>
         <bb-fit><span data-fit>{verb.label}</span></bb-fit>
       </Button>
     </form>
@@ -120,7 +120,7 @@
   >
     <input type="hidden" name="kind" value="rollback" />
     <input type="hidden" name="rollback_to" value={rollbackTo} />
-    <Button size="sm" block disabled={busy || !canRollback} onclick={() => (rollbackOpen = true)} tone="danger">
+    <Button block disabled={busy || !canRollback} onclick={() => (rollbackOpen = true)} tone="danger">
       <bb-fit><span data-fit>{t('admin.deploys.act.rollback', { version: rollbackTo })}</span></bb-fit>
     </Button>
   </form>
@@ -146,9 +146,10 @@
     align-items: center;
     gap: var(--bb-space-2);
     min-inline-size: 0;
-    block-size: 3rem;
+    block-size: calc(var(--btn-min-h) + var(--bb-space-2));
     padding-inline: var(--bb-space-1);
     overflow: auto hidden;
+    scrollbar-width: thin;
   }
   .verb {
     flex: 0 1 7rem;

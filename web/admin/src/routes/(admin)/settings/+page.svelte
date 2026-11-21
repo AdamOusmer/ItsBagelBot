@@ -10,6 +10,7 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import LanguageSwitcher from '@bagel/ui/svelte/LanguageSwitcher.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
@@ -82,10 +83,10 @@
   <div class="preferences">
     <Card>
       <div class="setting-row language-row">
-        <div class="setting-copy">
+        <Stack gap={1} style="justify-self: stretch">
           <Text size="sm"><bb-fit><span data-fit>{t('admin.settings.language')}</span></bb-fit></Text>
           <Text size="sm" tone="muted"><bb-fit><span data-fit>{t('admin.settings.languageHint')}</span></bb-fit></Text>
-        </div>
+        </Stack>
         <LanguageSwitcher
           action="/lang"
           name="to"
@@ -99,10 +100,10 @@
         />
       </div>
       <div class="setting-row">
-        <div>
+        <Stack gap={1}>
           <Text size="sm"><bb-fit><span data-fit>{t('admin.settings.customCursor')}</span></bb-fit></Text>
           <Text size="sm" tone="muted" id="cursor-hint"><bb-fit><span data-fit>{t('admin.settings.customCursorHint')}</span></bb-fit></Text>
-        </div>
+        </Stack>
         <Switch
           bind:checked={$customCursor}
           label={t('admin.settings.customCursor')}
@@ -126,7 +127,7 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: var(--bb-space-3);
-    min-block-size: 2.75rem;
+    min-block-size: var(--btn-min-h);
   }
 
   .setting-row + .setting-row {
@@ -140,10 +141,6 @@
     .language-row {
       grid-template-columns: minmax(0, 1fr);
       justify-items: start;
-    }
-
-    .setting-copy {
-      inline-size: 100%;
     }
   }
 </style>

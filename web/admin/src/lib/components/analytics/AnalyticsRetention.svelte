@@ -16,7 +16,7 @@
   <AnalyticsPanel id="cohorts" height="20rem" loading={!retention} empty={retention?.rows.length === 0}>
     {#if retention}
       <div class="cohort-viewport">
-        <Table label={t('admin.analytics.card.cohorts')} compact minWidth="880px">
+        <Table label={t('admin.analytics.card.cohorts')} minWidth="880px">
           <thead>
             <tr>
               <th scope="col">{t('admin.analytics.column.signupWeek')}</th>

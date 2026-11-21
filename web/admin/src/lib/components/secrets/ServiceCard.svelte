@@ -35,7 +35,7 @@
   );
 </script>
 
-<Card as="article" style="--card-pad: var(--bb-space-4); block-size: 100%;">
+<Card as="article" style="block-size: 100%;">
   <div class="service-content">
     <CardHead title={service.label} headingLevel={2}>
       {#snippet actions()}

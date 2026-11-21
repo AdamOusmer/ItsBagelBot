@@ -11,7 +11,6 @@
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
-  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
@@ -92,19 +91,15 @@
     <span class="run-title">{t(KIND_KEY[run.kind])} <em>{name}</em></span>
   </PageHead>
 
-  <PageToolbar class="detail-toolbar">
-    {#snippet leading()}
-      <RunStatus {run} conn={stream.conn} />
-    {/snippet}
-    {#snippet trailing()}
-      <div class="toolbar-actions">
-        <RunActions {run} onrun={(next) => stream.accept(next)} />
-        <ButtonLink href="/deploys" variant="secondary" size="sm" block>
-          <bb-fit><span data-fit>{t('admin.deploys.back')}</span></bb-fit>
-        </ButtonLink>
-      </div>
-    {/snippet}
-  </PageToolbar>
+  <Cluster justify="between" gap={3} style="margin-block-end: var(--bb-space-3);">
+    <RunStatus {run} conn={stream.conn} />
+    <div class="toolbar-actions">
+      <RunActions {run} onrun={(next) => stream.accept(next)} />
+      <ButtonLink href="/deploys" variant="secondary" block>
+        <bb-fit><span data-fit>{t('admin.deploys.back')}</span></bb-fit>
+      </ButtonLink>
+    </div>
+  </Cluster>
 
   <div class="run-notice" class:unavailable={!notice} inert={!notice}>
     <Scroller maxHeight="3.375rem" role="region" aria-label={t('admin.deploys.runEyebrow')} tabindex={notice ? 0 : undefined}>
@@ -135,7 +130,7 @@
           <Select id="deploy-stage-picker" label={t('admin.deploys.stages')} value={selected.id} {options} fill onchange={(event) => select(event.currentTarget.value)} />
         </div>
         <div class="follow" class:unavailable={pinned === null} inert={pinned === null}>
-          <Button variant="secondary" size="sm" block disabled={pinned === null} onclick={() => select(live, true)}>
+          <Button variant="secondary" block disabled={pinned === null} onclick={() => select(live, true)}>
             <bb-fit><span data-fit>{t('admin.deploys.run.follow')}</span></bb-fit>
           </Button>
         </div>
@@ -216,15 +211,6 @@
     }
     .follow {
       max-width: 10rem;
-    }
-  }
-
-  @media (max-width: 880px) {
-    .screen :global(.detail-toolbar) {
-      display: block;
-    }
-    .toolbar-actions {
-      margin-block-start: var(--bb-space-2);
     }
   }
 

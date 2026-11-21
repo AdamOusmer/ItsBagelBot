@@ -10,9 +10,9 @@
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
-  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
-  import Chip from '@bagel/ui/svelte/Chip.svelte';
-  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
   import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
@@ -31,6 +31,7 @@
   import { allows, type AccessKey } from '#lib/access';
   import { getLiveCount } from '#lib/live-count-context';
   import type { AdminUserWire, ChannelSubState } from '#lib/server/services';
+  import FilterTabs from '#lib/components/FilterTabs.svelte';
   import UserRow from '#lib/components/users/UserRow.svelte';
   import UserInspector from '#lib/components/users/UserInspector.svelte';
   import type { TokenStatus } from '#lib/components/users/UserConnection.svelte';
@@ -48,6 +49,8 @@
   const numberFormat = new Intl.NumberFormat(locale);
   const liveCounter = getLiveCount();
   const liveCount = $derived(liveCounter.value);
+  const liveNow = $derived(t('admin.users.liveNow'));
+  const liveLabel = $derived(liveCount === null ? liveNow : `${liveNow} ${numberFormat.format(liveCount)}`);
   const failed = adminToastFailure(toast);
   const can = (key: AccessKey) => allows(data.role, key);
   const LIVE_REFRESH_MS = 5_000;
@@ -87,6 +90,10 @@
   });
 
   const stateFilter = $derived(data.state || 'all');
+  const stateOptions = $derived(USER_STATES.map((state) => {
+    const count = state === 'all' ? stats?.total_users : stats?.directory_counts?.[state];
+    return { value: state, label: t(USER_STATE_LABEL[state]), count: count == null ? '' : numberFormat.format(count) };
+  }));
 
   const orderOptions = $derived([
     { value: 'newest', label: t('admin.users.orderNewest') },
@@ -386,52 +393,54 @@
     {t('admin.users.titlePre')}<em>{t('admin.users.titleEm')}</em>
   </PageHead>
 
-  <PageToolbar class="directory-toolbar">
-    {#snippet leading()}
-      <form class="searchbar" onsubmit={submitSearch}>
-        <SearchInput
-          fill
-          bind:value={search}
-          placeholder={t('admin.users.searchPlaceholder')}
-          aria-label={t('admin.users.searchPlaceholder')}
-        />
-      </form>
-    {/snippet}
-    {#snippet trailing()}
-      <SegmentedControl
-        class="directory-order"
-        even
-        options={orderOptions}
-        label={t('admin.users.orderFilter')}
-        value={data.order}
-        onValueChange={(order) => navigate({ order: order === 'oldest' ? 'oldest' : 'newest' })}
-      />
-      <Button class="export-button" variant="ghost" onclick={exportCsv} disabled={rows.length === 0}>
-        <bb-fit>{t('admin.users.exportCsv')}</bb-fit>
-      </Button>
-    {/snippet}
-  </PageToolbar>
-
-  <Cluster class="filters" gap={3}>
-    <Cluster role="group" aria-label={t('admin.users.stateFilter')}>
-      {#each USER_STATES as state (state)}
-        {@const count = state === 'all' ? stats?.total_users : stats?.directory_counts?.[state]}
-        <Chip tone={state === 'all' ? undefined : state} pressed={stateFilter === state} onclick={() => toggleState(state)}>
-          <span class="chip-label"><bb-fit>{t(USER_STATE_LABEL[state])}</bb-fit></span>
-          <span class="chip-count" class:unavailable={count == null}>
-            <bb-fit>{count == null ? '' : numberFormat.format(count)}</bb-fit>
-          </span>
-        </Chip>
-      {/each}
-    </Cluster>
-    <Chip pressed={data.live} onclick={() => navigate({ live: !data.live })}>
-      <StatusDot tone={liveCount ? 'success' : 'neutral'} flat />
-      <span class="chip-label"><bb-fit>{t('admin.users.liveNow')}</bb-fit></span>
-      <span class="chip-count" class:unavailable={liveCount === null}>
-        <bb-fit>{liveCount === null ? '' : numberFormat.format(liveCount)}</bb-fit>
-      </span>
-    </Chip>
-  </Cluster>
+  <Stack gap={3}>
+    <FilterTabs
+      options={stateOptions}
+      value={stateFilter}
+      label={t('admin.users.stateFilter')}
+      countWidth="6ch"
+      onValueChange={(state) => toggleState(state as UserStateFilter)}
+    />
+    <PageToolbar>
+      {#snippet leading()}
+        <Cluster gap={2} style="min-inline-size: 0;">
+          <form class="searchbar" onsubmit={submitSearch}>
+            <SearchInput
+              fill
+              tall
+              bind:value={search}
+              placeholder={t('admin.users.searchPlaceholder')}
+              aria-label={t('admin.users.searchPlaceholder')}
+            />
+          </form>
+          <Cluster gap={2} nowrap>
+            <Switch
+              label={liveLabel}
+              checked={data.live}
+              onCheckedChange={(live) => navigate({ live })}
+            />
+            <Text as="span" size="sm" aria-hidden="true" style="inline-size: 9rem;">
+              <bb-fit>{liveLabel}</bb-fit>
+            </Text>
+          </Cluster>
+          <div style="--input-w: 8rem;">
+            <Select
+              options={orderOptions}
+              label={t('admin.users.orderFilter')}
+              aria-label={t('admin.users.orderFilter')}
+              value={data.order}
+              onchange={({ currentTarget }) => navigate({ order: currentTarget.value === 'oldest' ? 'oldest' : 'newest' })}
+            />
+          </div>
+        </Cluster>
+      {/snippet}
+      {#snippet trailing()}
+        <Button variant="secondary" onclick={exportCsv} disabled={rows.length === 0} style="--btn-w: 9rem; --btn-justify: center;">
+          <bb-fit>{t('admin.users.exportCsv')}</bb-fit>
+        </Button>
+      {/snippet}
+    </PageToolbar>
+  </Stack>
 
   {#if dir?.degraded}
     <AlertBanner>{t('admin.users.degraded')}</AlertBanner>
@@ -475,7 +484,7 @@
         prevLabel={t('admin.users.pagerPrev')}
         nextLabel={t('admin.users.pagerNext')}
       />
-      <Cluster class="pager-detail" justify="center" nowrap>
+      <Cluster class="pager-detail" justify="center">
         <Text class="match-count" as="span" size="xs" tone="muted" mono>
           <bb-fit>{dir?.total != null ? t('admin.users.pagerTotal', { total: numberFormat.format(dir.total) }) : ''}</bb-fit>
         </Text>
@@ -492,7 +501,7 @@
             value={currentPage}
             aria-label={t('admin.users.pagerJump')}
           />
-          <Button class="jump-button" variant="secondary" type="submit" size="sm">
+          <Button class="jump-button" variant="secondary" type="submit">
             <bb-fit>{t('admin.users.pagerGo')}</bb-fit>
           </Button>
         </form>
@@ -611,39 +620,11 @@
 {/if}
 
 <style>
-  .users-directory :global(.directory-toolbar) {
-    flex-wrap: wrap;
-  }
-
   .searchbar {
-    flex: 1 1 14rem;
-    max-inline-size: 24rem;
+    inline-size: 15rem;
+    max-inline-size: 100%;
   }
 
-  .users-directory :global(.directory-order) {
-    inline-size: 12rem;
-  }
-
-  .users-directory :global(.export-button) {
-    inline-size: 7rem;
-    justify-content: center;
-  }
-
-  .users-directory :global(.filters) {
-    margin-bottom: var(--bb-space-3);
-  }
-
-  .chip-label {
-    inline-size: 8ch;
-    text-align: start;
-  }
-
-  .chip-count {
-    inline-size: 6ch;
-    text-align: end;
-  }
-
-  .chip-count,
   .pager-jump {
     transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo);
   }
@@ -664,7 +645,7 @@
   .pager-jump {
     display: flex;
     align-items: center;
-    gap: var(--bb-space-2);
+    gap: var(--bb-space-1);
   }
 
   .pager-jump :global(.jump-input),
@@ -673,15 +654,7 @@
     justify-content: center;
   }
 
-  @media (max-width: 680px) {
-    .searchbar {
-      flex-basis: 100%;
-      max-inline-size: none;
-    }
-  }
-
   @media (prefers-reduced-motion: reduce) {
-    .chip-count,
     .pager-jump {
       transition: none;
     }
