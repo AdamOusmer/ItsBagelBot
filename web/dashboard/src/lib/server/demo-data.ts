@@ -21,6 +21,7 @@ import { DEFAULT_LOCALE } from '@bagel/kit/i18n';
 import type { Session } from './session';
 import type { AccountState, BillingState, DeviceGrantView, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';
+import type { VoiceAllowance } from './services/voice';
 import type { GoveeDevice, GoveeView } from './govee-store';
 import type { FetchDefView, FetchKeyView } from './fetches-store';
 import type { PublicStats } from './public-stats';
@@ -661,4 +662,29 @@ export function demoSongQueue(now: number): SongQueuePublicView {
     joinedAt: (step - size + 1 + i) * DEMO_QUEUE_STEP_MS - DEMO_QUEUE_HEAD_START_MS
   }));
   return { open: step % 20 < 16, current, up, total: up.length, degraded: false };
+}
+
+const demoVoiceState = {
+  settings: { enabled: true, voice: 'Kore', max_seconds: 30 },
+  config: {} as Record<string, string>,
+  revision: 1
+};
+
+export function demoVoiceView() {
+  const allowance: VoiceAllowance = {
+    ...demoVoiceState.settings,
+    voice: demoVoiceState.settings.voice as VoiceAllowance['voice'],
+    plan: 'premium', period: '2026-11', limit_tokens: 90_000, used_tokens: 57_300, remaining_tokens: 32_700,
+    resets_at: '2026-12-01T00:00:00Z', reason: 'ok', overlay_configured: true
+  };
+  return { allowance, config: demoVoiceState.config, revision: demoVoiceState.revision };
+}
+
+export function demoVoiceSave(settings: Partial<typeof demoVoiceState.settings>, partial: Record<string, string>): number {
+  Object.assign(demoVoiceState.settings, settings);
+  if (Object.keys(partial).length > 0) {
+    Object.assign(demoVoiceState.config, partial);
+    demoVoiceState.revision += 1;
+  }
+  return demoVoiceState.revision;
 }
