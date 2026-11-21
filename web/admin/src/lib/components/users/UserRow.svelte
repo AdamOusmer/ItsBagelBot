@@ -43,10 +43,10 @@
   {#snippet marks()}
     <span class="marks">
       {@render stateBadge(tier)}
-      {#if state !== tier}
-        {@render stateBadge(state)}
-      {/if}
-      {#if user.creator_code}{@render badge('neutral', t('admin.users.rowCode'))}{/if}
+      <span class="slot" class:empty={state === tier} aria-hidden={state === tier}>{@render stateBadge(state)}</span>
+      <span class="slot" class:empty={!user.creator_code} aria-hidden={!user.creator_code}>
+        {@render badge('neutral', t('admin.users.rowCode'))}
+      </span>
     </span>
   {/snippet}
   {#snippet actions()}
@@ -66,7 +66,19 @@
 
 <style>
   .marks {
+    display: inline-grid;
+    grid-auto-flow: column;
+    align-items: center;
+    gap: var(--bb-space-2);
+  }
+
+  .slot {
     display: contents;
+  }
+
+  .slot.empty {
+    display: block;
+    visibility: hidden;
   }
 
   .badge-label {
