@@ -56,6 +56,15 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
+              kubernetes.io/metadata.name: app
+          podSelector:
+            matchLabels:
+              app: controls-gateway
+      ports:
+        - port: 4000
+    - to:
+        - namespaceSelector:
+            matchLabels:
               kubernetes.io/metadata.name: db
       ports:
         - port: 8080

@@ -21,6 +21,7 @@ defmodule ControlsGateway.Application do
   defp base_children do
     [
       ControlsGateway.Metrics,
+      ControlsGateway.Tts.Throttle,
       {Registry, keys: :unique, name: ControlsGateway.Connections}
     ]
   end

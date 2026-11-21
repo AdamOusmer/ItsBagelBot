@@ -450,6 +450,37 @@ accounts:
             - service: rpc.internal.commands.fetchkey.get.node.*
         roles:
             commands_rpc: {}
+    CONTROLS_GATEWAY_RPC:
+        jetstream:
+            cluster_traffic: owner
+        mappings: hub-domain
+        imports:
+            - service: rpc.internal.users.voice.overlay.resolve
+              from: USERS_RPC
+            - service: rpc.internal.users.voice.overlay.resolve.node.*
+              from: USERS_RPC
+            - service: rpc.internal.users.voice.overlay.check
+              from: USERS_RPC
+            - service: rpc.internal.users.voice.overlay.check.node.*
+              from: USERS_RPC
+            - stream: controls.tts.revoked.*
+              from: USERS_RPC
+        roles:
+            controls_gateway_rpc:
+                publish:
+                    allow:
+                        - rpc.internal.users.voice.overlay.resolve
+                        - rpc.internal.users.voice.overlay.resolve.node.*
+                        - rpc.internal.users.voice.overlay.check
+                        - rpc.internal.users.voice.overlay.check.node.*
+                        - $JS.API.CONSUMER.CREATE.OVERLAY_TTS.*.overlay.tts.*
+                        - $JS.FC.OVERLAY_TTS.*.*
+                        - $JS.FC.*.*.OVERLAY_TTS.*.*
+                        - $JS.API.STREAM.MSG.GET.OBJ_TTS_CLIPS
+                subscribe:
+                    allow:
+                        - controls.tts.revoked.*
+                        - _INBOX.>
     DASHBOARD_RPC:
         imports:
             - service: rpc.dashboard.>
@@ -818,6 +849,16 @@ accounts:
             twitch_ingress_rpc: {}
     USERS_RPC:
         exports:
+            - service: rpc.internal.users.voice.overlay.resolve
+              accounts: [CONTROLS_GATEWAY_RPC]
+            - service: rpc.internal.users.voice.overlay.resolve.node.*
+              accounts: [CONTROLS_GATEWAY_RPC]
+            - service: rpc.internal.users.voice.overlay.check
+              accounts: [CONTROLS_GATEWAY_RPC]
+            - service: rpc.internal.users.voice.overlay.check.node.*
+              accounts: [CONTROLS_GATEWAY_RPC]
+            - stream: controls.tts.revoked.*
+              accounts: [CONTROLS_GATEWAY_RPC]
             - service: rpc.internal.users.analytics.levels
             - service: rpc.internal.users.analytics.levels.node.*
             - service: rpc.internal.users.lifecycle

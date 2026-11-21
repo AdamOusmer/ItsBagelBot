@@ -2,33 +2,16 @@
      Proprietary. No license granted. See LICENSE.md. -->
 # Controls Gateway
 
-Elixir/Cowboy WebSocket server the desktop app connects to at `GET /v1/connect`.
-Verifies access tokens, relays device events to core NATS, and delivers
-commands and revocation back to the right connection. No Twitch logic
-here, and no BEAM cluster: pods route to each other through NATS, not
-distribution.
+The Elixir/Cowboy gateway serves the TTS beta OBS browser source at
+`https://overlay.itsbagelbot.com/tts#<token>`. It exchanges the fragment token
+for a signed session, delivers clip notifications over SSE and streams audio
+from JetStream Object Store. Users owns token issuance and revocation.
 
-## What it does
+The beta mounts `/tts`, `/tts/session`, `/tts/events`, `/tts/clip/<event_id>`,
+`/healthz` and `/readyz`. The desktop WebSocket handler is unmounted.
 
-- Upgrades `GET /v1/connect` to a WebSocket only after checking an
-  `Authorization: Bearer` header against an Ed25519-signed access token
-  (verification only; Users owns issuance). A bad signature, wrong audience,
-  or expired token gets a 401 before any upgrade.
-- Hibernates the connection process on every callback return to keep idle
-  memory low (measured on Cowboy: about 15 KB per idle connection against
-  Bandit's default). `compress: false`, a 64 KiB hard frame limit, a 25 s
-  application-level ping/pong, and cowboy's own 60 s idle timeout.
-- Forwards device-to-server JSON frames to `controls.device.<device_id>.evt`
-  with the server-authenticated `device_id`/user id stamped in, never the
-  client's. Delivers `controls.device.<device_id>.cmd` back as a text frame.
-- Newest connection wins per device (`controls.device.<device_id>.takeover`);
-  revocation closes a device's connection promptly
-  (`controls.revoked.<device_id>`).
-- SIGTERM fails `/readyz` first, then closes open sockets with a going-away
-  code plus jitter so clients don't all reconnect at once.
-
-See [context.md](context.md) for the token wire format, subjects, close codes,
-and what's still required before this ships.
+See [context.md](context.md) for the protocol, JetStream resources and deployment
+dependencies.
 
 ## Running
 
@@ -38,6 +21,5 @@ mix test
 MIX_ENV=prod mix release
 ```
 
-`mix test` needs a real local `nats-server` on `PATH` (integration tests spawn
-one per test on a free port). No deploy manifest, NATS account, or CI job
-exists for this service yet; see context.md.
+Integration tests need `nats-server` on `PATH`. The TTS tests create their own
+file-backed stream and Object Store bucket in a local JetStream server.

@@ -14,6 +14,7 @@ resources:
   - ../../../k8s/sesame.yaml
   - ../../../k8s/automod.yaml
   - ../../../k8s/twitch-ingress.yaml
+  - ../../../k8s/controls-gateway.yaml
   - ../../../k8s/console-dashboard.yaml
   - ../../../k8s/console-admin.yaml
 
