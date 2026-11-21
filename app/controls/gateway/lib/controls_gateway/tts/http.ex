@@ -5,10 +5,12 @@ defmodule ControlsGateway.Tts.Http do
   @behaviour :cowboy_loop
   require Logger
 
+  alias ControlsGateway.Drain
   alias ControlsGateway.Tts.{Clips, Events, Nats, Page, Session, Throttle}
 
   @headers %{"cache-control" => "no-store", "referrer-policy" => "no-referrer"}
   @max_body 256
+  @drain_retry_after "5"
 
   @impl true
   def init(req, route) do
@@ -21,20 +23,26 @@ defmodule ControlsGateway.Tts.Http do
   defp dispatch("GET", :page, req), do: Page.reply(req, @headers)
   defp dispatch("POST", :session, req), do: exchange(req)
 
-  defp dispatch("GET", route, req) when route in [:events, :clip] do
-    case Session.read(req) do
-      {:ok, session} -> serve(route, req, session)
-      :error -> reply(req, 401)
+  defp dispatch("GET", :events, req) do
+    case Drain.track_connection() do
+      :ok -> serve(req, &Events.open/3)
+      :draining -> reply(req, 503, Map.put(@headers, "retry-after", @drain_retry_after))
     end
   end
+
+  defp dispatch("GET", :clip, req), do: serve(req, &Clips.reply/3)
 
   defp dispatch(_method, route, req) do
     allow = if route == :session, do: "POST", else: "GET"
     reply(req, 405, Map.put(@headers, "allow", allow))
   end
 
-  defp serve(:events, req, session), do: Events.open(req, session, @headers)
-  defp serve(:clip, req, session), do: Clips.reply(req, session, @headers)
+  defp serve(req, handler) do
+    case Session.read(req) do
+      {:ok, session} -> handler.(req, session, @headers)
+      :error -> reply(req, 401)
+    end
+  end
 
   defp exchange(req) do
     case Throttle.reserve(client_ip(req)) do

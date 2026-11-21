@@ -142,15 +142,21 @@ defmodule ControlsGateway.TtsTest do
     ]
 
     audio = IO.iodata_to_binary(chunks)
+    expected_length = Integer.to_string(byte_size(audio))
     upload("#{@user_id}/clip", "clip-nuid_abc123", chunks)
     upload("42/foreign", "ForeignClip12345", chunks)
     headers = [cookie(port)]
 
-    assert %{status: 200, body: ^audio, headers: response_headers} =
-             HttpClient.request(port, "GET", "/tts/clip/clip", headers: headers)
+    assert %{
+             status: 200,
+             body: ^audio,
+             headers: %{
+               "content-type" => "audio/wav",
+               "content-length" => ^expected_length,
+               "cache-control" => "no-store"
+             }
+           } = HttpClient.request(port, "GET", "/tts/clip/clip", headers: headers)
 
-    assert response_headers["content-type"] == "audio/wav"
-    assert response_headers["cache-control"] == "no-store"
     assert %{status: 404} = HttpClient.request(port, "GET", "/tts/clip/foreign", headers: headers)
   end
 
@@ -161,6 +167,44 @@ defmodule ControlsGateway.TtsTest do
     HttpClient.close(live)
   end
 
+  @tag timeout: 15_000
+  test "drain closes every open event stream cleanly and rejects new opens", %{http_port: port} do
+    on_exit(&ControlsGateway.Drain.reset!/0)
+    cookie = cookie(port)
+    streams = [events(port, [cookie]), events(port, [cookie])]
+
+    assert :ok = ControlsGateway.Drain.run()
+
+    for stream <- streams do
+      closed = HttpClient.await(stream, & &1.done)
+      assert closed.done
+      HttpClient.close(closed)
+    end
+
+    assert %{status: 503} = HttpClient.request(port, "GET", "/readyz")
+
+    for headers <- [[cookie], []] do
+      assert %{status: 503, headers: %{"retry-after" => retry_after}} =
+               HttpClient.request(port, "GET", "/tts/events", headers: headers)
+
+      assert String.to_integer(retry_after) > 0
+    end
+  end
+
+  test "event stream sends a 15-30s retry field when NATS is unavailable", %{http_port: port} do
+    cookie = cookie(port)
+    stop_supervised!(:gnat)
+
+    assert %{
+             status: 200,
+             headers: %{"content-type" => "text/event-stream"},
+             body: body,
+             done: true
+           } = HttpClient.request(port, "GET", "/tts/events", headers: [cookie])
+
+    assert_retry_range(body, 15_000..30_000)
+  end
+
   @tag no_streams: true
   test "missing JetStream resources leave readiness up and the event stream empty", %{
     http_port: port
@@ -168,9 +212,13 @@ defmodule ControlsGateway.TtsTest do
     assert %{status: 200} = HttpClient.request(port, "GET", "/readyz")
     cookie = cookie(port)
     client = events(port, [cookie])
-    assert client.body == ": ping\n\n"
     assert %{status: 404} = HttpClient.request(port, "GET", "/tts/clip/clip", headers: [cookie])
     HttpClient.close(client)
+  end
+
+  defp assert_retry_range(body, range) do
+    assert [_, ms_text] = Regex.run(~r/\Aretry: (\d+)\n: ping\n\n\z/, body)
+    assert String.to_integer(ms_text) in range
   end
 
   defp events(port, headers) do
@@ -179,8 +227,9 @@ defmodule ControlsGateway.TtsTest do
       |> HttpClient.open("GET", "/tts/events", headers: headers)
       |> HttpClient.await(&String.contains?(&1.body, ": ping\n\n"))
 
-    assert response.status == 200
-    assert response.headers["content-type"] == "text/event-stream"
+    assert %{status: 200, headers: %{"content-type" => "text/event-stream"}, done: false} =
+             response
+    assert_retry_range(response.body, 3_000..8_000)
     response
   end
 

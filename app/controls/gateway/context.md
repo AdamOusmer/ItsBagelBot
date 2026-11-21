@@ -25,12 +25,18 @@ Its ordered ephemeral consumer filters `OVERLAY_TTS` to
 starts after `Last-Event-ID` when present, or receives new events when absent.
 Each event carries `clip_key`, `event_id`, `kind`, `duration_ms` and
 `expires_at`. When the originating event carries a trace, its ID is also in
-`trace_id`. Idle connections receive a comment every 15 seconds.
+`trace_id`. Event requests register with the shared drain before opening
+the stream. A stream starts with a jittered SSE `retry:` field of 3 to 8
+seconds and receives a comment every 15 seconds while idle. When the initial
+NATS or Users RPC check is unavailable, the response sends a retry of 15 to 30
+seconds and ends. Drain rejects new `/tts/events` requests with `503` and
+`Retry-After: 5`. It closes open streams cleanly with the shared drain jitter.
 
-`GET /tts/clip/<event_id>` streams a WAV from `TTS_CLIPS` using the cookie
-user ID and the event ID as the object key. Missing and expired objects return
-404. The transparent browser source queues audio in arrival order and skips
-expired events. The sound hint appears when autoplay is blocked.
+`GET /tts/clip/<event_id>` streams a WAV from `TTS_CLIPS` with `Content-Length`
+from the object metadata size, using the cookie user ID and the event ID as the
+object key. Missing and expired objects return 404. The transparent browser
+source queues audio in arrival order and skips expired events. The sound hint
+appears when autoplay is blocked.
 
 The worker provisions both JetStream resources in `CONTROLS_GATEWAY_RPC`.
 `OVERLAY_TTS` is a file-backed stream with a five-minute max age.
@@ -59,13 +65,14 @@ hibernates between messages and resubscribes when Gnat reconnects.
 Desktop close codes are 4000 for expiry, 4001 for takeover, 4003 for
 revocation, 1001 for graceful shutdown, 1007 for malformed frames and 1009
 for frames over 64 KiB. Draining marks readiness unavailable before closing
-the desktop connections.
+open desktop and TTS SSE connections.
 
 ## Code map
 
 | Change | Read first |
 | --- | --- |
 | Listener and beta routes | [http_server.ex](lib/controls_gateway/http_server.ex) |
+| Graceful drain | [drain.ex](lib/controls_gateway/drain.ex) |
 | Browser page and token exchange | [page.ex](lib/controls_gateway/tts/page.ex), [http.ex](lib/controls_gateway/tts/http.ex) |
 | Session and rate limit | [session.ex](lib/controls_gateway/tts/session.ex), [throttle.ex](lib/controls_gateway/tts/throttle.ex) |
 | Event and clip streams | [events.ex](lib/controls_gateway/tts/events.ex), [clips.ex](lib/controls_gateway/tts/clips.ex) |

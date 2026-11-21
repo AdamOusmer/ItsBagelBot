@@ -13,6 +13,9 @@ defmodule ControlsGateway.Tts.Events do
   @heartbeat_ns 5_000_000_000
   @idle_ns 30_000_000_000
   @max_resume_id 18_446_744_073_709_551_614
+  @retry_ms 3_000..8_000
+  @unavailable_retry_ms 15_000..30_000
+  @ping_frame ": ping\n\n"
 
   def open(req, session, headers) do
     with conn when is_pid(conn) <- Nats.connection(),
@@ -40,19 +43,25 @@ defmodule ControlsGateway.Tts.Events do
 
       start(req, headers, state)
     else
-      false -> {:ok, :cowboy_req.reply(204, headers, req), nil}
-      _ -> {:ok, :cowboy_req.reply(200, event_headers(headers), ": ping\n\n", req), nil}
+      false ->
+        {:ok, :cowboy_req.reply(204, headers, req), nil}
+
+      _ ->
+        body = initial_frame(@unavailable_retry_ms)
+        {:ok, :cowboy_req.reply(200, event_headers(headers), body, req), nil}
     end
   end
 
   defp start(req, headers, state) do
     state = attach(state)
     req = :cowboy_req.stream_reply(200, event_headers(headers), req)
-    :ok = :cowboy_req.stream_body(": ping\n\n", :nofin, req)
+    :ok = :cowboy_req.stream_body(initial_frame(@retry_ms), :nofin, req)
     Process.send_after(self(), :ping, @ping_ms)
     schedule_check(state.session)
     {:cowboy_loop, req, state, :hibernate}
   end
+
+  defp initial_frame(retry_ms), do: "retry: #{Enum.random(retry_ms)}\n" <> @ping_frame
 
   defp attach(state) do
     name = "tts-" <> List.last(String.split(state.inbox, "."))
@@ -91,11 +100,9 @@ defmodule ControlsGateway.Tts.Events do
   def info({:msg, %{sid: sid, gnat: conn} = message}, req, %{event_sid: sid, conn: conn} = state),
     do: deliver(message, req, state)
 
-  def info({:DOWN, ref, :process, _pid, _reason}, req, %{monitor: ref} = state),
-    do: stop(req, state)
-
-  def info({:DOWN, ref, :process, _pid, _reason}, req, %{rpc_monitor: ref} = state),
-    do: stop(req, state)
+  def info({:DOWN, ref, :process, _pid, _reason}, req, state)
+      when ref == state.monitor or ref == state.rpc_monitor,
+      do: stop(req, state)
 
   def info(:ping, req, state) do
     case ping(state) do
@@ -103,7 +110,7 @@ defmodule ControlsGateway.Tts.Events do
         stop(req, state)
 
       state ->
-        :ok = :cowboy_req.stream_body(": ping\n\n", :nofin, req)
+        :ok = :cowboy_req.stream_body(@ping_frame, :nofin, req)
         Process.send_after(self(), :ping, @ping_ms)
         continue(req, state)
     end
@@ -117,6 +124,8 @@ defmodule ControlsGateway.Tts.Events do
       stop(req, state)
     end
   end
+
+  def info(:shutdown_close, req, state), do: stop(req, state)
 
   def info(_message, req, state), do: continue(req, state)
 
