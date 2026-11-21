@@ -31,6 +31,7 @@
   import ReplyRow from '#lib/components/modules/ReplyRow.svelte';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import ReplyEditor from '#lib/components/modules/ReplyEditor.svelte';
+  import PremiumMark from '#lib/components/shared/PremiumMark.svelte';
   import ModuleCommandList from '#lib/components/modules/ModuleCommandList.svelte';
   import ModuleCommandEditor, { commandLevel } from '#lib/components/modules/ModuleCommandEditor.svelte';
   import TriggerRuleEditor from '#lib/components/modules/TriggerRuleEditor.svelte';
@@ -427,7 +428,8 @@
           <Text as="span" size="xs" tone="muted">{t('modules.enabledHelp')}</Text>
         </div>
         {#if data.locked}
-          <Tag tone="quiet" mark="hollow">{t('modules.betaLocked')}</Tag>
+          <PremiumMark />
+          <Switch checked={false} disabled label={t('modules.toggleAria', { label: modLabel })} />
         {:else}
           <Tag tone={enabled ? 'live' : 'quiet'} mark={enabled ? 'solid' : 'hollow'}>
             {enabled ? t('modules.statusOn') : t('modules.statusOff')}
@@ -460,7 +462,7 @@
         <div class="section-head">
           <Heading level={6} as="h2" variant="eyebrow">{t('modules.settingsTitle')}</Heading>
           {#if locked}
-            <span class="lock-hint"><Tag tone="quiet">{t('modules.betaPremium')}</Tag></span>
+            <span class="lock-hint"><PremiumMark /></span>
           {:else}
             <span class="autosave"><Text as="span" size="xs" tone="muted">{t('modules.autoSaveNote')}</Text></span>
           {/if}
@@ -482,7 +484,7 @@
               <Heading level={6} as="h2" variant="eyebrow">{t('modules.triggerRulesTitle')}</Heading>
               <Text as="span" size="xs" tone="muted">{t('modules.triggerRulesHint')}</Text>
             </div>
-            {#if locked}<span class="lock-hint"><Tag tone="quiet">{t('modules.betaPremium')}</Tag></span>{/if}
+            {#if locked}<span class="lock-hint"><PremiumMark /></span>{/if}
             <Button variant="ghost" onclick={() => rulesCtl.add()} disabled={locked}>{t('modules.addTrigger')}</Button>
           </div>
           <Divider flush />
@@ -511,7 +513,7 @@
         {:else if hasReplies}
           <div class="section-head rules-head anchor" id="mod-replies" tabindex="-1">
             <div class="rh-text"><Heading level={6} as="h2" variant="eyebrow">{t('modules.repliesLabel')}</Heading></div>
-            {#if locked}<span class="lock-hint"><Tag tone="quiet">{t('modules.betaPremium')}</Tag></span>{/if}
+            {#if locked}<span class="lock-hint"><PremiumMark /></span>{/if}
             {#if showReplyFilter}
               <div class="reply-filter">
                 <SearchInput bind:value={replyQuery} placeholder={t('modules.replyFilterPh')} aria-label={t('modules.replyFilterLabel')} clearLabel={t('modules.searchClear')} autocomplete="off" fill />

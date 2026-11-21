@@ -5,8 +5,8 @@
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import SaveStatus from '@bagel/ui/svelte/SaveStatus.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
+  import PremiumMark from '#lib/components/shared/PremiumMark.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
-  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n, moduleHref, tModuleLabel, type ModuleState } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
@@ -42,7 +42,8 @@
   <span class="mrow__side">
     <SaveStatus state={status} compact />
     {#if locked}
-      <TextLink href="/billing" label={t('modules.betaPremium')} />
+      <a class="mrow__lock" href="/billing" aria-label={t('modules.betaPremium')}><PremiumMark size={32} /></a>
+      <Switch checked={false} disabled label={t('modules.enableAria', { label: tModuleLabel(t, def) })} />
     {:else if toggleable}
       <form method="POST" action="?/toggle" use:enhance={toggleSubmit}>
         <input type="hidden" name="name" value={def.id} />
@@ -133,6 +134,7 @@
     color: var(--bb-tan-light);
   }
 
+  .mrow__lock { display: inline-flex; border-radius: var(--bb-radius-pill); }
   .mrow__side {
     display: flex;
     align-items: center;
