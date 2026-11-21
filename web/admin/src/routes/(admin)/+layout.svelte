@@ -11,6 +11,7 @@
   import type { NotificationWire } from '#lib/server/services';
   import {
     adminNavGroups,
+    adminNavItems,
     adminSectionForPath,
     adminSectionLabelKey
   } from '@bagel/kit/nav-admin';
@@ -55,6 +56,7 @@
   });
 
   const groups = $derived(adminNavGroups({ role, section, t, liveCount }));
+  const mobileItems = $derived(adminNavItems({ role, section, t, liveCount }));
 
   afterNavigate(({ type }) => {
     document.title = `${crumb} · ItsBagelBot Admin`;
@@ -101,7 +103,7 @@
   accountName={data.displayName}
   accountRole={roleLabel}
   {groups}
-  mobileItems={[]}
+  {mobileItems}
   rail
 >
   {#snippet topActions()}

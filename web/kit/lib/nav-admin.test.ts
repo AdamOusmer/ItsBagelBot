@@ -41,10 +41,11 @@ describe('admin nav registry', () => {
     expect(adminSectionForPath(path)).toBe(section);
   });
 
+  const links = (role: StaffRole, section: ReturnType<typeof adminSectionForPath> = 'overview') =>
+    adminNavGroups({ role, section }).flatMap((group) => group.items);
+
   const hrefs = (role: StaffRole) =>
-    adminNavGroups({ role, section: 'overview' })
-      .flatMap((group) => group.items)
-      .map((item) => item.href);
+    links(role).flatMap((item) => (item.children ?? [item]).map((link) => link.href));
 
   test.each<[string, StaffRole[]]>([
     ['/staff', ['admin', 'owner']],
@@ -56,18 +57,24 @@ describe('admin nav registry', () => {
     expect(ROLES.filter((role) => hrefs(role).includes(path))).toEqual(roles);
   });
 
-  test('groups follow ADMIN_GROUP_ORDER and drop empty ones', () => {
-    const labels = (role: StaffRole) =>
-      adminNavGroups({ role, section: 'overview' }).map((group) => group.label);
-    expect(labels('moderator')).toEqual([ADMIN_GROUP_LABEL.operate, ADMIN_GROUP_LABEL.accounts]);
-    expect(labels('owner')).toEqual(ADMIN_GROUP_ORDER.map((id) => ADMIN_GROUP_LABEL[id]));
-    expect(hrefs('owner')).toHaveLength(ADMIN_SECTIONS.length);
+  test.each<[StaffRole, string[]]>([
+    ['moderator', ['adminNav.overview', ADMIN_GROUP_LABEL.operate, ADMIN_GROUP_LABEL.accounts, 'adminNav.settings']],
+    ['owner', ['adminNav.overview', ...ADMIN_GROUP_ORDER.map((id) => ADMIN_GROUP_LABEL[id]), 'adminNav.settings']]
+  ])('%s sees overview, the collapsible groups in order, then settings', (role, labels) => {
+    expect(links(role).map((item) => item.label)).toEqual(labels);
   });
 
-  test('the active section is marked in exactly one group', () => {
-    const groups = adminNavGroups({ role: 'moderator', section: 'settings' });
-    const active = groups.flatMap((g) => g.items).filter((item) => item.current);
-    expect(active.map((item) => item.href)).toEqual(['/settings']);
+  test('owners reach every section exactly once', () => {
+    expect(hrefs('owner').toSorted()).toEqual(ADMIN_SECTIONS.map((def) => def.href).toSorted());
+  });
+
+  test.each<[ReturnType<typeof adminSectionForPath>, string]>([
+    ['settings', 'adminNav.settings'],
+    ['lanes', ADMIN_GROUP_LABEL.operate],
+    ['users', ADMIN_GROUP_LABEL.accounts]
+  ])('the %s section marks only %s as current', (section, label) => {
+    const active = links('owner', section).filter((item) => item.current);
+    expect(active.map((item) => item.label)).toEqual([label]);
   });
 
   test.each<[number | null, string]>([
@@ -78,11 +85,13 @@ describe('admin nav registry', () => {
   ])('only Users receives the display value for %p', (liveCount, count) => {
     const opts = { role: 'moderator', section: 'overview', liveCount } as const;
     const items = adminNavItems(opts);
-    const grouped = adminNavGroups(opts).flatMap((group) => group.items);
+    const children = adminNavGroups(opts)
+      .flatMap((group) => group.items)
+      .flatMap((item) => item.children ?? []);
     expect(items.filter((item) => item.count !== undefined)).toEqual([
       expect.objectContaining({ href: '/users', count })
     ]);
-    expect(grouped).toEqual(items);
+    expect(children.filter((child) => child.count !== undefined)).toEqual([{ href: '/users', label: 'adminNav.users', count }]);
   });
 
   test('every label key is a real English leaf, and the breadcrumb key is the section label', () => {

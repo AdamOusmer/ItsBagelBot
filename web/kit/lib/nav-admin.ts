@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { navGroups, navItems, resolveSection, identity, type SectionDef } from './nav-core';
+import { navItems, resolveSection, identity, type SectionDef } from './nav-core';
 import { staffAtLeast, type StaffRole } from './staff-role';
-import type { NavGroupDef, NavLink } from './types';
+import type { NavChild, NavGroupDef, NavLink } from './types';
+import type { IconName } from '@bagel/ui/lib/icons';
 import type { MessageKey } from './i18n/keys';
 
 export type AdminSectionId =
@@ -109,12 +110,42 @@ export function adminNavItems(opts: AdminNavOptions): NavLink[] {
   return adminLinks(opts, ADMIN_SECTIONS);
 }
 
-export function adminNavGroups(opts: AdminNavOptions): NavGroupDef[] {
+const STANDALONE: ReadonlySet<AdminSectionId> = new Set(['overview', 'settings']);
+
+const ADMIN_GROUP_ICON: Record<AdminGroupId, IconName> = {
+  operate: 'server',
+  accounts: 'users',
+  access: 'moderation'
+};
+
+function branchSections(id: AdminGroupId): AdminSectionDef[] {
+  return ADMIN_SECTIONS.filter((def) => def.group === id && !STANDALONE.has(def.id));
+}
+
+function asChild({ href, label, count }: NavLink): NavChild {
+  return count === undefined ? { href, label } : { href, label, count };
+}
+
+function adminBranch(opts: AdminNavOptions, id: AdminGroupId): NavLink[] {
+  const links = adminLinks(opts, branchSections(id));
+  if (!links.length) return [];
   const label = opts.t ?? identity;
-  const groups: NavGroupDef[] = [];
-  for (const id of ADMIN_GROUP_ORDER) {
-    const items = adminLinks(opts, ADMIN_SECTIONS.filter((def) => def.group === id));
-    if (items.length) groups.push(...navGroups(label(ADMIN_GROUP_LABEL[id]), items));
-  }
-  return groups;
+  return [
+    {
+      href: links[0].href,
+      icon: ADMIN_GROUP_ICON[id],
+      label: label(ADMIN_GROUP_LABEL[id]),
+      current: links.some((link) => link.current),
+      children: links.map(asChild)
+    }
+  ];
+}
+
+function standaloneLinks(opts: AdminNavOptions, id: AdminSectionId): NavLink[] {
+  return adminLinks(opts, ADMIN_SECTIONS.filter((def) => def.id === id));
+}
+
+export function adminNavGroups(opts: AdminNavOptions): NavGroupDef[] {
+  const branches = ADMIN_GROUP_ORDER.flatMap((id) => adminBranch(opts, id));
+  return [{ items: [...standaloneLinks(opts, 'overview'), ...branches, ...standaloneLinks(opts, 'settings')] }];
 }
