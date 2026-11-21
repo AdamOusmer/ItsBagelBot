@@ -53,7 +53,7 @@ type Publisher struct {
 }
 
 func (p Publisher) Enabled(ctx context.Context, id string) (bool, error) {
-	reply, err := check(ctx, p.RPC, id)
+	reply, err := Check(ctx, p.RPC, id)
 	return reply.Allowed, err
 }
 
@@ -92,7 +92,7 @@ func validJob(job voiceplan.AlertJob) bool {
 	return err == nil && job.Kind.Valid()
 }
 
-func check(ctx context.Context, nc *nats.Conn, id string) (usersrpc.VoiceCheckReply, error) {
+func Check(ctx context.Context, nc *nats.Conn, id string) (usersrpc.VoiceCheckReply, error) {
 	req := usersrpc.VoiceCheckRequest{UserID: id}
 	reply, err := bus.RequestJSONTimeout[usersrpc.VoiceCheckReply](ctx, nc, usersrpc.VoiceCheckSubject, req, usersTimeout)
 	if bus.NotFoundReply(err) {
@@ -107,7 +107,7 @@ func (w Worker) findOrSynthesize(ctx context.Context, job voiceplan.AlertJob) (b
 	if err != nil || clip.Key != "" {
 		return clip, err
 	}
-	allowance, err := check(ctx, w.RPC, job.BroadcasterID)
+	allowance, err := Check(ctx, w.RPC, job.BroadcasterID)
 	if err != nil {
 		return bus.TTSClip{}, err
 	}

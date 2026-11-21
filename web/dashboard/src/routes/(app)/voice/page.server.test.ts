@@ -287,6 +287,53 @@ test.each([
   expect(await rotateOverlay(owner)).toMatchObject({ status, data: { overlayError: expect.any(String) } });
 });
 
+const testAlertSubject = 'rpc.voice.test';
+
+function sendTestAlert(session: typeof owner | null) {
+  return actions.testAlert({
+    request: new Request(`${voiceUrl}?/testAlert`, {
+      method: 'POST',
+      body: new URLSearchParams({ actor_id: '97', broadcaster_user_id: '95', display_name: 'Forged' })
+    }),
+    locals: { session: session && { ...session, display_name: 'Streamer' }, locale: 'en' }
+  } as never);
+}
+
+test.each([{ name: 'owner', session: owner }, { name: 'view-as staff', session: viewAs }])(
+  'queues a test alert for $name with identity from the session',
+  async ({ session }) => {
+    const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce({ status: 'queued' });
+    expect(await sendTestAlert(session)).toEqual({ testAlertSent: true });
+    expect(rpc.mock.calls).toEqual([[testAlertSubject, { ...actor, display_name: 'Streamer' }, WRITE_TIMEOUT_MS]]);
+  }
+);
+
+test.each([
+  { name: 'delegate', session: delegate, status: 403 },
+  { name: 'signed out', session: null, status: 401 }
+])('rejects a test alert for $name before calling Sesame', async ({ session, status }) => {
+  const rpc = spyOn(bus, 'rpc');
+  expect(await sendTestAlert(session)).toMatchObject({ status, data: { testAlertError: expect.any(String) } });
+  expect(rpc).not.toHaveBeenCalled();
+});
+
+test.each([
+  { result: 'no_link', status: 409, message: 'Create an OBS link before sending a test alert.' },
+  { result: 'no_minutes', status: 409, message: 'You have no Premium voice minutes left.' },
+  { result: 'rate_limited', status: 429, message: 'Wait 10 seconds between test alerts.' },
+  { result: 'disabled', status: 403, message: 'Premium voice is unavailable or turned off.' }
+])('reports the test alert refusal $result', async ({ result, status, message }) => {
+  spyOn(bus, 'rpc').mockResolvedValueOnce({ status: result });
+  expect(await sendTestAlert(owner)).toMatchObject({ status, data: { testAlertError: message } });
+});
+
+test('reports a failed test alert when Sesame is unavailable', async () => {
+  spyOn(bus, 'rpc').mockRejectedValueOnce(new Error('timeout'));
+  expect(await sendTestAlert(owner)).toMatchObject({
+    status: 503, data: { testAlertError: 'Could not send the test alert. Try again.' }
+  });
+});
+
 test.each<Record<string, string>>([
   { maxChars: '0' }, { maxChars: '501' }, { userCooldown: '-1' }, { cooldown: '86401' }, { permission: 'owner' }, { style: 'loud' }, { voice: 'Nobody' }
 ])('chat command saves reject %o', async (fields) => {

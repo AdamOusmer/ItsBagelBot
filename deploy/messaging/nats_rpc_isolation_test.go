@@ -10,24 +10,47 @@ import (
 
 	drawrpc "ItsBagelBot/internal/domain/rpc/draw"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
+	sesamerpc "ItsBagelBot/internal/domain/rpc/sesame"
 	"ItsBagelBot/internal/natsacl"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDrawRPCIsolation(t *testing.T) {
-	grant := rpcGrant{kind: "service", subject: "rpc.draw.>"}
-	wantExports := map[string]rpcGrant{"WORKER_RPC": grant}
-	wantImports := map[string]rpcImport{"DASHBOARD_RPC": {rpcGrant: grant, account: "WORKER_RPC"}}
+type workerGrantCase struct {
+	subject string
+	grant   rpcGrant
+	private bool
+}
+
+func TestDashboardWorkerRPCIsolation(t *testing.T) {
+	draw := rpcGrant{kind: "service", subject: "rpc.draw.>"}
+	voice := rpcGrant{kind: "service", subject: sesamerpc.VoiceTestSubject}
+	localVoice := rpcGrant{kind: "service", subject: sesamerpc.VoiceTestSubject + ".node.*"}
+	cases := []workerGrantCase{
+		{drawrpc.RaffleStatusSubject, draw, false},
+		{drawrpc.RaffleStatusSubject + ".node.n1", draw, false},
+		{sesamerpc.VoiceTestSubject, voice, true},
+		{sesamerpc.VoiceTestSubject + ".node.n1", localVoice, true},
+	}
 	for _, account := range loadRPCCatalog(t).accounts {
-		for _, suffix := range []string{"", ".node.n1"} {
-			subject := drawrpc.RaffleStatusSubject + suffix
-			export, _ := account.exportCovering(subject)
-			imp, _ := account.importCovering(subject)
-			assert.Equal(t, wantExports[account.name], export, "%s export: %s", account.name, subject)
-			assert.Equal(t, wantImports[account.name], imp, "%s import: %s", account.name, subject)
+		for _, tc := range cases {
+			tc.assertGrant(t, account)
 		}
 	}
+}
+
+func (tc workerGrantCase) assertGrant(t *testing.T, account rpcAccount) {
+	t.Helper()
+	subject, grant := tc.subject, tc.grant
+	wantImports := map[string]rpcImport{"DASHBOARD_RPC": {rpcGrant: grant, account: "WORKER_RPC"}}
+	if tc.private {
+		grant.accounts = []string{"DASHBOARD_RPC"}
+	}
+	wantExports := map[string]rpcGrant{"WORKER_RPC": grant}
+	export, _ := account.exportCovering(subject)
+	imp, _ := account.importCovering(subject)
+	assert.Equal(t, wantExports[account.name], export, "%s export: %s", account.name, subject)
+	assert.Equal(t, wantImports[account.name], imp, "%s import: %s", account.name, subject)
 }
 
 func TestChannelGiveawayWinnersRPCIsolation(t *testing.T) {

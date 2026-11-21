@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	sesamerpc "ItsBagelBot/internal/domain/rpc/sesame"
+
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/stretchr/testify/assert"
@@ -76,6 +78,8 @@ func TestLiveACLPermissions(t *testing.T) {
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "rpc.admin.user.auth.check"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "rpc.internal.admin.audit.append"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, "rpc.admin.user.audit.append"},
+			{roleEndpoint{"WORKER_RPC", "worker_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, sesamerpc.VoiceTestSubject},
+			{roleEndpoint{"WORKER_RPC", "worker_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, sesamerpc.VoiceTestSubject + ".node.n1"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"ADMIN_RPC", "admin_rpc"}, "rpc.admin.analytics"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "rpc.internal.admin.staff.active"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, "rpc.health.admin"},

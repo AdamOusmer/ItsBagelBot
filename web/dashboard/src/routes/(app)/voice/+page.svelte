@@ -21,6 +21,7 @@
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import { toast } from '@bagel/ui/svelte/toast';
   import PageNotice from '#lib/components/shared/PageNotice.svelte';
   import PremiumGate from '#lib/components/shared/PremiumGate.svelte';
   import { voiceOptions } from '#lib/components/voice/voice-options';
@@ -58,7 +59,8 @@
 
   let commandValues = $state(untrack(loadedCommand));
   let selected = $state<VoiceAlertKind | null>(null);
-  let pending = $state<'rotateOverlay' | null>(null);
+  type VoiceAction = 'rotateOverlay' | 'testAlert';
+  let pending = $state<VoiceAction | null>(null);
   let overlayUrl = $state(untrack(() => form?.overlayUrl));
   let overlayError = $state(untrack(() => form?.overlayError));
 
@@ -119,20 +121,31 @@
     void commandSave.flush();
   });
 
-  const submitOverlay: SubmitFunction = ({ cancel }) => {
+  $effect(() => {
+    if (form?.testAlertSent) toast('success', untrack(() => t('voice.testSent')));
+    if (form?.testAlertError) toast('danger', form.testAlertError);
+  });
+
+  const submitVoice = (action: VoiceAction): SubmitFunction => ({ cancel }) => {
     if (pending) return cancel();
-    pending = 'rotateOverlay';
-    overlayError = undefined;
+    pending = action;
+    if (action === 'rotateOverlay') overlayError = undefined;
     return async ({ update, result }) => {
       try {
         if (result.type === 'success' && typeof result.data?.overlayUrl === 'string') overlayUrl = result.data.overlayUrl;
         if (result.type === 'failure' && typeof result.data?.overlayError === 'string') overlayError = result.data.overlayError;
+        if (result.type === 'error' && action === 'testAlert') {
+          toast('danger', t('voice.testFailed'));
+          return;
+        }
         await update({ reset: false, invalidateAll: false });
       } finally {
         pending = null;
       }
     };
   };
+  const submitOverlay = submitVoice('rotateOverlay');
+  const submitTestAlert = submitVoice('testAlert');
 </script>
 
 <svelte:head><title>{t('nav.voice')}</title></svelte:head>
@@ -176,7 +189,8 @@
         <VoiceUsageCard {allowance} />
         {#if allowance.limit_tokens > 0}
           <VoiceOverlayCard configured={!!overlayUrl || allowance.overlay_configured === true} url={overlayUrl}
-            error={overlayError} busy={pending === 'rotateOverlay'} disabled={pending !== null} submit={submitOverlay} />
+            error={overlayError} busy={pending === 'rotateOverlay'} disabled={pending !== null} submit={submitOverlay}
+            testBusy={pending === 'testAlert'} {submitTestAlert} />
         {/if}
 
         {#if data.alerts}

@@ -6,5 +6,6 @@
   "raid.default": "{alerts:user} raidet den Kanal! Zuschauerzahl: {alerts:viewers}. Willkommen zusammen!",
   "ads.default": "Werbung läuft für {alerts:duration} Sek. Bleib dran, wir sind gleich zurück!",
   "voice.said": "%s sagte: %s",
+  "voice.test": "Dies ist ein Test deiner Premium-Stimme.",
   "voice.anonymous": "Anonym"
 }

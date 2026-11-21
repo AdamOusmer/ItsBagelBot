@@ -68,6 +68,8 @@ Preserve variable/token/form/surface wording in editors and help copy.
 - `commands/`, `modules/`, `modules/[id]/`, `quotes/`, `timers/`, `counters/`, `channelpoints/`
   cover configuration; dedicated module pages coexist with generic module forms.
 - `songqueue/`, `govee/`, `loyalty/`, and Spotify connect/callback handle their integrations.
+- [`voice/`](src/routes/(app)/voice/) reads Premium voice allowance and manages OBS links through Users.
+  Its owner-only test alert action calls Sesame to queue a sample for the OBS browser source.
 - `settings/` and `settings/import/` handle preferences, deletion and supported bot imports.
 - `welcome/` and `welcome/import/` complete onboarding before ordinary use.
 - `billing/` reads entitlement state and obtains Tebex-hosted checkout through transactions RPC.

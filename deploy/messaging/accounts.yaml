@@ -607,6 +607,10 @@ accounts:
               from: WORKER_RPC
             - service: rpc.automations.runs.node.*
               from: WORKER_RPC
+            - service: rpc.voice.test
+              from: WORKER_RPC
+            - service: rpc.voice.test.node.*
+              from: WORKER_RPC
             - service: rpc.draw.>
               from: WORKER_RPC
             - stream: cache.invalidate.loyalty
@@ -954,6 +958,10 @@ accounts:
             - service: rpc.automations.run.node.*
             - service: rpc.automations.runs
             - service: rpc.automations.runs.node.*
+            - service: rpc.voice.test
+              accounts: [DASHBOARD_RPC]
+            - service: rpc.voice.test.node.*
+              accounts: [DASHBOARD_RPC]
             - service: rpc.draw.>
         imports:
             - service: rpc.internal.users.voice.check

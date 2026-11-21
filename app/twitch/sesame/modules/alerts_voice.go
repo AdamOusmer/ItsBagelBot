@@ -141,7 +141,10 @@ func (s alertSpeech) handle(ctx context.Context, in alertSpeechInput) error {
 	if reason := s.skipReason(ctx, in); reason != "" {
 		return s.skip(ctx, reason)
 	}
-	job := s.job(in)
+	return s.publish(ctx, s.job(in, s.jobID()))
+}
+
+func (s alertSpeech) publish(ctx context.Context, job voiceplan.AlertJob) error {
 	if err := s.d.AlertVoice.Publish(ctx, job); err != nil {
 		return fmt.Errorf("publish voice job %s: %w", job.EventID, err)
 	}
@@ -237,14 +240,14 @@ func blockedSpeech(c *module.Context, text string) bool {
 	return c.BlocksText != nil && c.BlocksText(text)
 }
 
-func (s alertSpeech) job(in alertSpeechInput) voiceplan.AlertJob {
+func (s alertSpeech) job(in alertSpeechInput, jobID string) voiceplan.AlertJob {
 	key := s.configKey()
 	defaults, _ := s.kind.Defaults()
 	style := cmp.Or(voiceplan.Style(s.cfg[key+"Style"]), voiceplan.Style(defaults.Style))
 	displayName := cmp.Or(voiceplan.PlainText(in.speaker), i18n.T(s.c.Locale, "alerts.voice.anonymous"))
 	text := fmt.Sprintf(i18n.T(s.c.Locale, "alerts.voice.said"), displayName, in.message)
 	return voiceplan.AlertJob{
-		EventID: s.jobID(), TraceID: s.traceID, BroadcasterID: s.broadcasterID(), Kind: s.kind,
+		EventID: jobID, TraceID: s.traceID, BroadcasterID: s.broadcasterID(), Kind: s.kind,
 		Text: voiceplan.StripControls(text), Style: style, Voice: speechVoice(s.cfg[key+"Voice"]), CreatedAt: time.Now().UTC(),
 	}
 }
