@@ -1,0 +1,14 @@
+{
+  "title": "Voix Premium",
+  "usage": "{used} minutes utilisées sur {limit} ce mois-ci",
+  "resets": "Réinitialisation le {date} (UTC)",
+  "reset": "Réinitialiser l’utilisation",
+  "set": "Définir l’utilisation",
+  "resetConfirm": "Remettre à zéro l’utilisation de la voix Premium de @{login} pour le mois UTC en cours ?",
+  "setConfirm": "Indiquez la part du quota de voix Premium déjà utilisée par @{login} pour le mois UTC en cours.",
+  "percent": "Quota utilisé (%)",
+  "resetDone": "Utilisation de la voix Premium réinitialisée.",
+  "setDone": "Utilisation de la voix Premium mise à jour.",
+  "invalidChange": "Choisissez la réinitialisation ou saisissez un pourcentage entier de 0 à 100.",
+  "noAllowance": "Ce compte n’a pas de quota de voix Premium."
+}

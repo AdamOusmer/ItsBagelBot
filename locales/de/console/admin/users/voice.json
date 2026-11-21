@@ -1,0 +1,14 @@
+{
+  "title": "Premium-Stimme",
+  "usage": "{used} von {limit} Minuten diesen Monat genutzt",
+  "resets": "Wird am {date} zurückgesetzt (UTC)",
+  "reset": "Nutzung zurücksetzen",
+  "set": "Nutzung festlegen",
+  "resetConfirm": "Nutzung der Premium-Stimme für @{login} im aktuellen UTC-Monat auf null setzen?",
+  "setConfirm": "Lege fest, welchen Anteil des Kontingents für die Premium-Stimme @{login} im aktuellen UTC-Monat bereits genutzt hat.",
+  "percent": "Genutztes Kontingent (%)",
+  "resetDone": "Nutzung der Premium-Stimme zurückgesetzt.",
+  "setDone": "Nutzung der Premium-Stimme aktualisiert.",
+  "invalidChange": "Wähle „Zurücksetzen“ oder gib einen ganzzahligen Prozentwert von 0 bis 100 ein.",
+  "noAllowance": "Dieses Konto hat kein Kontingent für die Premium-Stimme."
+}

@@ -11,6 +11,7 @@ import (
 )
 
 const VoiceRequestIDMaxBytes = 255
+const AdminVoiceUsageAuditAction = "voice_usage_set"
 
 const (
 	VoiceCheckSubject  = "rpc.internal.users.voice.check"

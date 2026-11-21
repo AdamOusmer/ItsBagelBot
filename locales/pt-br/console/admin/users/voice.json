@@ -1,0 +1,14 @@
+{
+  "title": "Voz Premium",
+  "usage": "{used} de {limit} minutos usados neste mês",
+  "resets": "Reinicia em {date} (UTC)",
+  "reset": "Zerar uso",
+  "set": "Definir uso",
+  "resetConfirm": "Zerar o uso de voz Premium de @{login} no mês atual em UTC?",
+  "setConfirm": "Defina quanto da cota de voz Premium @{login} já usou no mês atual em UTC.",
+  "percent": "Cota usada (%)",
+  "resetDone": "Uso de voz Premium zerado.",
+  "setDone": "Uso de voz Premium atualizado.",
+  "invalidChange": "Escolha zerar o uso ou informe uma porcentagem inteira de 0 a 100.",
+  "noAllowance": "Este usuário não tem cota de voz Premium."
+}

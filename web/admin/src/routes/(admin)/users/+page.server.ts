@@ -7,6 +7,7 @@ import { dev } from '$app/env';
 import {
   userLookup,
   userSetStatus,
+  userSetVoiceUsage,
   userSetActive,
   userSetTestAccount,
   userSetCreatorCode,
@@ -24,7 +25,8 @@ import {
   type AdminUserWire,
   type GrantEmailOutcome,
   type ChannelSubState,
-  type UserRef
+  type UserRef,
+  type VoiceUsageChange
 } from '#lib/server/services';
 import { requireRole, type AccessKey, type AdminIdentity } from '#lib/server/access';
 import {
@@ -84,7 +86,7 @@ type LookupQuery = {
 };
 
 async function probeUser({ actorId, q }: LookupQuery) {
-  const user = await userLookup(actorId, q);
+  const user = await userLookup(actorId, q, true);
   const userId = String(user.id);
   const [token, subscription] = await Promise.allSettled([
     tokenStatus({ actorId, userId }),
@@ -260,6 +262,28 @@ function parseActive(form: FormData): ParseResult<boolean> {
   return { value: formField(form, 'active') === 'true' };
 }
 
+function parseVoiceUsage(form: FormData): ParseResult<VoiceUsageChange> {
+  const reset = form.get('reset');
+  if (reset === 'true' && !form.has('used_percent')) return { value: { reset: true } };
+  const percent = formField(form, 'used_percent');
+  if (reset === null && /^(?:[0-9]{1,2}|100)$/.test(percent)) return { value: { used_percent: Number(percent) } };
+  return badRequest('choose reset or a whole usage percentage from 0 to 100');
+}
+
+async function setVoiceUsageForUser({ ref, locale }: UserTarget, form: FormData) {
+  const input = parseVoiceUsage(form);
+  if ('refuse' in input) return refusalReply(input, locale);
+  if (DEMO) return fail(403, { error: actionError(locale, 'forbidden') });
+  try {
+    const user = await userSetVoiceUsage(ref, input.value);
+    const notice = input.value.reset ? 'admin.users.voice.resetDone' : 'admin.users.voice.setDone';
+    return userReply(adminText(locale, notice), user);
+  } catch (error) {
+    if (isForbidden(error)) return refused(error);
+    return { action: { ok: false, notice: actionError(locale, (error as Error).message) } };
+  }
+}
+
 function needsEnrollment(user: AdminUserWire | null): boolean {
   return user !== null && user.is_active && !user.banned;
 }
@@ -359,6 +383,8 @@ async function impersonateUser({ admin, ref, locale }: UserTarget, _: FormData, 
 
 export const actions: Actions = {
   lookup: lookupUser,
+
+  setVoiceUsage: withUserTarget('users.grant', setVoiceUsageForUser),
 
   setStatus: userAction({
     name: 'set_status',

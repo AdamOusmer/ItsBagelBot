@@ -15,6 +15,7 @@
   import type { AccessKey } from '#lib/access';
   import type { GiveawayWinnerWire } from '#lib/server/giveaways';
   import type { AdminUserWire, AuditEntry, ChannelSubState } from '#lib/server/services';
+  import UserVoiceUsage from './UserVoiceUsage.svelte';
   import StatePill from '../StatePill.svelte';
   import ChannelLink from './ChannelLink.svelte';
   import UserAccount from './UserAccount.svelte';
@@ -67,6 +68,7 @@
   const serviceActions = $derived(actionsFor('service', user, can));
   const supportActions = $derived(actionsFor('support', user, can));
   const dangerActions = $derived(actionsFor('danger', user, can));
+  const voiceActions = $derived(actionsFor('voice', user, can));
   const canMessage = $derived(can('notifications.send'));
   const auditRows = $derived(history?.map((entry) => ({
     id: entry.id,
@@ -116,6 +118,14 @@
     </FactList>
 
     <UserTier {user} {onStatus} {date} disabled={busy !== null || !can('users.grant')} />
+
+    {#if user.voice_allowance?.limit_tokens}
+      <UserVoiceUsage allowance={user.voice_allowance}>
+        {#if voiceActions.length}
+          <UserInspectorActions actions={voiceActions} {user} {busy} {onAction} />
+        {/if}
+      </UserVoiceUsage>
+    {/if}
 
     <UserConnection {user} {tokenStatus} {subState} {ago}>
       {#if serviceActions.length}
