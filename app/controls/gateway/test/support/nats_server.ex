@@ -7,6 +7,8 @@ defmodule ControlsGateway.TestSupport.NatsServer do
   auth: just core pub/sub, which is all this service uses).
   """
 
+  @supervisor ~S("$0" "$@" & server=$!; trap 'kill $server 2>/dev/null; exit' TERM INT; read -r line; kill $server 2>/dev/null; wait $server)
+
   @spec free_port() :: :inet.port_number()
   def free_port do
     {:ok, socket} = :gen_tcp.listen(0, [])
@@ -20,10 +22,10 @@ defmodule ControlsGateway.TestSupport.NatsServer do
     exe = System.find_executable("nats-server") || raise "nats-server not found on PATH"
 
     server =
-      Port.open({:spawn_executable, exe}, [
+      Port.open({:spawn_executable, "/bin/sh"}, [
         :binary,
         :exit_status,
-        args: ["-p", Integer.to_string(port), "-a", "127.0.0.1"]
+        args: ["-c", @supervisor, exe, "-p", Integer.to_string(port), "-a", "127.0.0.1"]
       ])
 
     {:os_pid, os_pid} = :erlang.port_info(server, :os_pid)
