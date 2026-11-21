@@ -84,7 +84,7 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
 {{if .Giveaway.Subscriber}}
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
             <tr><td bgcolor="` + colorInset + `" style="background-color:` + colorInset + `;border-radius:8px;padding:16px 18px;">
-              <div style="font-family:` + fontMono + `;font-size:10px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:` + colorTan + `;padding-bottom:8px;">{{.SubscriptionLabel}}</div>
+              <div style="font-family:` + fontMono + `;font-size:11px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:` + colorTan + `;padding-bottom:8px;">{{.SubscriptionLabel}}</div>
               <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.65;color:` + colorBody + `;">{{.Giveaway.Situation}}</div>
             </td></tr>
           </table>
@@ -101,7 +101,7 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
           <!-- personal note from the buyer -->
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
             <tr><td bgcolor="` + colorInset + `" style="background-color:` + colorInset + `;border-radius:8px;padding:16px 18px;">
-              <div style="font-family:` + fontMono + `;font-size:10px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:` + colorTan + `;padding-bottom:8px;">{{.Gift.NoteLabel}}</div>
+              <div style="font-family:` + fontMono + `;font-size:11px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:` + colorTan + `;padding-bottom:8px;">{{.Gift.NoteLabel}}</div>
               <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.6;color:` + colorSoft + `;font-style:italic;">&ldquo;{{.Gift.Message}}&rdquo;</div>
             </td></tr>
           </table>
