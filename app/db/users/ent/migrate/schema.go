@@ -279,6 +279,11 @@ var (
 		{Name: "commands_page_hidden", Type: field.TypeBool, Default: false},
 		{Name: "leaderboard_page_hidden", Type: field.TypeBool, Default: false},
 		{Name: "songqueue_page_hidden", Type: field.TypeBool, Default: false},
+		{Name: "tts_enabled", Type: field.TypeBool, Default: true},
+		{Name: "tts_voice", Type: field.TypeString, Default: ""},
+		{Name: "tts_max_seconds", Type: field.TypeInt, Default: 120},
+		{Name: "tts_overlay_token_hash", Type: field.TypeString, Unique: true, Nullable: true, Size: 64},
+		{Name: "tts_overlay_generation", Type: field.TypeInt, Default: 0},
 		{Name: "creator_code", Type: field.TypeString, Nullable: true, Size: 64},
 		{Name: "subscription_source", Type: field.TypeString, Default: ""},
 		{Name: "subscription_expires_at", Type: field.TypeTime, Nullable: true},
@@ -302,7 +307,7 @@ var (
 			{
 				Name:    "user_status_subscription_source_subscription_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[15], UsersColumns[22], UsersColumns[23]},
+				Columns: []*schema.Column{UsersColumns[15], UsersColumns[27], UsersColumns[28]},
 			},
 			{
 				Name:    "user_username",
@@ -336,6 +341,73 @@ var (
 			},
 		},
 	}
+	// VoiceUsageColumns holds the columns for the "voice_usage" table.
+	VoiceUsageColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "period", Type: field.TypeString, Size: 7},
+		{Name: "audio_tokens", Type: field.TypeInt64},
+		{Name: "duration_ms", Type: field.TypeInt64},
+		{Name: "requests", Type: field.TypeInt},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeUint64},
+	}
+	// VoiceUsageTable holds the schema information for the "voice_usage" table.
+	VoiceUsageTable = &schema.Table{
+		Name:       "voice_usage",
+		Columns:    VoiceUsageColumns,
+		PrimaryKey: []*schema.Column{VoiceUsageColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "voice_usage_users_voice_usage",
+				Columns:    []*schema.Column{VoiceUsageColumns[6]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "voiceusage_user_id_period",
+				Unique:  true,
+				Columns: []*schema.Column{VoiceUsageColumns[6], VoiceUsageColumns[1]},
+			},
+		},
+	}
+	// VoiceUsageReceiptColumns holds the columns for the "voice_usage_receipt" table.
+	VoiceUsageReceiptColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "request_id", Type: field.TypeString, Size: 255, SchemaType: map[string]string{"mysql": "varbinary(255)"}},
+		{Name: "period", Type: field.TypeString, Size: 7},
+		{Name: "audio_tokens", Type: field.TypeInt64},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "allowance", Type: field.TypeJSON},
+		{Name: "user_id", Type: field.TypeUint64},
+	}
+	// VoiceUsageReceiptTable holds the schema information for the "voice_usage_receipt" table.
+	VoiceUsageReceiptTable = &schema.Table{
+		Name:       "voice_usage_receipt",
+		Columns:    VoiceUsageReceiptColumns,
+		PrimaryKey: []*schema.Column{VoiceUsageReceiptColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "voice_usage_receipt_users_voice_usage_receipts",
+				Columns:    []*schema.Column{VoiceUsageReceiptColumns[6]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "voiceusagereceipt_user_id_request_id",
+				Unique:  true,
+				Columns: []*schema.Column{VoiceUsageReceiptColumns[6], VoiceUsageReceiptColumns[1]},
+			},
+			{
+				Name:    "voiceusagereceipt_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{VoiceUsageReceiptColumns[4]},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		AdminAuditDeliveriesTable,
@@ -347,6 +419,8 @@ var (
 		PremiumGrantsTable,
 		TokensTable,
 		UsersTable,
+		VoiceUsageTable,
+		VoiceUsageReceiptTable,
 	}
 )
 
@@ -358,4 +432,12 @@ func init() {
 	DeviceGrantsTable.ForeignKeys[0].RefTable = UsersTable
 	PremiumGrantsTable.ForeignKeys[0].RefTable = UsersTable
 	TokensTable.ForeignKeys[0].RefTable = UsersTable
+	VoiceUsageTable.ForeignKeys[0].RefTable = UsersTable
+	VoiceUsageTable.Annotation = &entsql.Annotation{
+		Table: "voice_usage",
+	}
+	VoiceUsageReceiptTable.ForeignKeys[0].RefTable = UsersTable
+	VoiceUsageReceiptTable.Annotation = &entsql.Annotation{
+		Table: "voice_usage_receipt",
+	}
 }

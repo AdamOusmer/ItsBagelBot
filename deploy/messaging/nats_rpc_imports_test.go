@@ -73,6 +73,8 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.health.notifications", "app/projector/main.go healthSet"},
 	},
 	"worker_rpc": {
+		{"rpc.internal.users.voice.check", "app/twitch/sesame/internal/voice/worker.go"},
+		{"rpc.internal.users.voice.record", "app/twitch/sesame/internal/voice/worker.go"},
 		{"rpc.internal.projection.users.get", "app/twitch/sesame/internal/config ProjectionUsersSubject"},
 		{"rpc.projector.dashboard.modules.get", "app/twitch/sesame/internal/config ProjectionModulesSubject"},
 		{"rpc.projector.dashboard.commands.get", "app/twitch/sesame/internal/config ProjectionCommandsSubject"},
@@ -155,6 +157,10 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.internal.spotify.key.dead", "app/gossip/internal/core/spotifykeys.go"},
 		{"rpc.internal.commands.fetchkey.get", "app/gossip/internal/core/fetchkeys.go"},
 		{"rpc.internal.projection.commands.fetches.get", "app/gossip/main.go newFetchProjection"},
+	},
+	"controls_gateway_rpc": {
+		{"rpc.internal.users.voice.overlay.resolve", "app/controls/gateway/lib/controls_gateway/tts/nats.ex"},
+		{"rpc.internal.users.voice.overlay.check", "app/controls/gateway/lib/controls_gateway/tts/nats.ex"},
 	},
 	"twitch_ingress_rpc": {
 		{"rpc.broadcaster.status.get", "app/twitch/ingress broadcaster status lookup"},

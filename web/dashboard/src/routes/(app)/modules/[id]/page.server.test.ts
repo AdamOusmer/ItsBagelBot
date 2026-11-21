@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import type { ModulePatch } from '#lib/server/commands-store';
 import { stubSvelteKit } from '../../../../../test/sveltekit';
 
 stubSvelteKit();
@@ -12,6 +13,16 @@ const def = MODULE_CATALOG.find((d) => catalogIndexable(d) && !d.href && !d.hidd
 const reads: string[] = [];
 let conflict = false;
 let synced = true;
+const alerts = {
+  name: 'alerts',
+  is_enabled: true,
+  revision: 8,
+  configs: { followTts: 'true', cheerTtsStyle: 'playful', raidTtsMessage: 'Welcome {user}!', cheerMessage: 'Old' }
+};
+
+const upsertModule = mock(async () => ({ modules: [], synced }));
+const patchModule = mock(async (p: ModulePatch) =>
+  conflict ? { rev: 5, conflict: true, synced: false } : { rev: p.expectedRev + 1, conflict: false, synced });
 
 mock.module('#lib/server/commands-store', () => ({
   listModules: async () => {
@@ -20,11 +31,10 @@ mock.module('#lib/server/commands-store', () => ({
   },
   listModulesForEditing: async () => {
     reads.push('service');
-    return [{ name: def.id, is_enabled: true, revision: 5, configs: {} }];
+    return [{ name: def.id, is_enabled: true, revision: 5, configs: {} }, alerts];
   },
-  upsertModule: async () => ({ modules: [], synced }),
-  patchModule: async (p: { expectedRev: number }) =>
-    conflict ? { rev: 5, conflict: true, synced: false } : { rev: p.expectedRev + 1, conflict: false, synced }
+  upsertModule,
+  patchModule
 }));
 mock.module('#lib/server/module-gate', () => ({
   gateSection: () => {},
@@ -67,6 +77,8 @@ beforeEach(() => {
   reads.length = 0;
   conflict = false;
   synced = true;
+  upsertModule.mockClear();
+  patchModule.mockClear();
 });
 
 test.each([
@@ -115,4 +127,28 @@ describe('module editor load', () => {
     await view(jar);
     expect(reads).toEqual(['service']);
   });
+});
+
+test.each([
+  { revision: '8', stale: false, outcome: { ok: true, enabled: true } },
+  { revision: '7', stale: true, outcome: { status: 409, data: { ok: false, conflict: true } } }
+])('saving Chat Alerts with form revision $revision only patches chat settings', async ({ revision, stale, outcome }) => {
+  conflict = stale;
+  const url = new URL('/modules/alerts', 'https://dashboard.itsbagelbot.com');
+  const body = new URLSearchParams({
+    expected_rev: revision, is_enabled: 'on',
+    'cfg.followMessage': 'Hello {user}!', 'cfg.cheerMessage': '', 'cfg.followTts': 'false'
+  });
+  const request = new Request(`${url}?/save`, { method: 'POST', body });
+  const result = await actions.save({ request, params: { id: 'alerts' }, locals, cookies: cookieJar(new Map()), url } as never);
+  const [patch] = patchModule.mock.calls[0] ?? [];
+
+  expect(result).toMatchObject(outcome);
+  expect({ reads, upserts: upsertModule.mock.calls }).toEqual({ reads: [], upserts: [] });
+  expect(patch).toEqual({
+    name: 'alerts', userId: '7', isEnabled: true, expectedRev: Number(revision),
+    partial: expect.objectContaining({ followMessage: 'Hello {user}!', cheerMessage: '' })
+  });
+  const spokenKeys = Object.keys(patch!.partial).filter((key) => /tts/i.test(key));
+  expect(spokenKeys).toEqual([]);
 });

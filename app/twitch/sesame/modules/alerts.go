@@ -14,26 +14,11 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/activity"
 	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
-
-type alertsConfig struct {
-	FollowEnabled string `json:"followEnabled"`
-	FollowMessage string `json:"followMessage"`
-	SubEnabled    string `json:"subEnabled"`
-	SubMessage    string `json:"subMessage"`
-	GiftEnabled   string `json:"giftEnabled"`
-	GiftMessage   string `json:"giftMessage"`
-	CheerEnabled  string `json:"cheerEnabled"`
-	CheerMessage  string `json:"cheerMessage"`
-	RaidEnabled   string `json:"raidEnabled"`
-	RaidMessage   string `json:"raidMessage"`
-	AdsEnabled    string `json:"adsEnabled"`
-	AdsMessage    string `json:"adsMessage"`
-}
 
 const followAlertWindow = 72 * time.Hour
 
@@ -80,6 +65,9 @@ type subscribeEvent struct {
 	BroadcasterUserID string `json:"broadcaster_user_id"`
 	Tier              string `json:"tier"`
 	IsGift            bool   `json:"is_gift"`
+	Message           struct {
+		Text string `json:"text"`
+	} `json:"message"`
 }
 
 type giftEvent struct {
@@ -97,6 +85,7 @@ type cheerEvent struct {
 	UserLogin         string `json:"user_login"`
 	BroadcasterUserID string `json:"broadcaster_user_id"`
 	Bits              int    `json:"bits"`
+	Message           string `json:"message"`
 }
 
 type adBreakEvent struct {
@@ -117,104 +106,85 @@ func tokenPairs(m map[string]string) []string {
 	return out
 }
 
-func onAlert[T any](pick func(alertsConfig) (bool, string), fallbackKey string, render func(context.Context, *module.Context, T) (alertLine, bool)) module.EventHandler {
+func onAlert[T any](d engine.Deps, kind voiceplan.AlertKind, render func(context.Context, *module.Context, T) (alertLine, bool)) module.EventHandler {
 	return func(ctx context.Context, c *module.Context, emit module.Emit) error {
-		var cfg alertsConfig
+		if len(c.Env.Event) == 0 {
+			return nil
+		}
+		var cfg alertConfig
 		_ = c.Decode(&cfg)
-		enabled, text := pick(cfg)
-		if !enabled || len(c.Env.Event) == 0 {
+		chat := cfg.chatEnabled(kind)
+		audio, wantsAudio := newAlertSpeech(d, c, cfg, kind)
+		if skipAlertOutputs(chat, wantsAudio) {
 			return nil
 		}
 		var ev T
 		if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
 			return err
 		}
-		line, ok := render(ctx, c, ev)
-		if !ok {
-			return nil
+		output := alertOutputs{
+			c: c, d: d, cfg: cfg, audio: audio, chat: chat,
+			wantsSpeech: wantsAudio, input: speechInput(any(ev)),
 		}
-		if text == "" {
-			text = i18n.T(c.Locale, fallbackKey)
-		}
-		msg := c.Palette("alerts", tokenPairs(line.tokens)...).ExpandString(text)
-		emit(&module.Output{
-			Type:          outgress.TypeChat,
-			BroadcasterID: line.broadcasterID,
-			Text:          msg,
-		})
+		output.send(ctx, emit, func() (alertLine, bool) { return render(ctx, c, ev) })
 		return nil
 	}
 }
 
+func skipAlertOutputs(chat, speak bool) bool { return !chat && !speak }
+
 func Alerts(d engine.Deps) module.Module {
 	m := module.NewModule("alerts", module.KindDefault)
 
-	m.On("channel.follow", onAlert(
-		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.FollowEnabled), cfg.FollowMessage },
-		"alerts.follow.default",
-		claimedLine[followEvent](d.Cooldown, moduleLog(d))))
-
-	subAlert := onAlert(
-		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.SubEnabled), cfg.SubMessage },
-		"alerts.sub.default",
-		claimedLine[subscribeEvent](d.Cooldown, moduleLog(d)))
+	m.On("channel.follow", onAlert(d, "follow", claimedLine[followEvent](d.Cooldown, moduleLog(d))))
+	subAlert := onAlert(d, "sub", claimedLine[subscribeEvent](d.Cooldown, moduleLog(d)))
 	m.On("channel.subscribe", subAlert)
 	m.On("channel.subscription.message", subAlert)
-
-	m.On("channel.subscription.gift", onAlert(
-		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.GiftEnabled), cfg.GiftMessage },
-		"alerts.gift.default",
-		giftLine))
-
-	m.On("channel.cheer", onAlert(
-		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.CheerEnabled), cfg.CheerMessage },
-		"alerts.cheer.default",
-		func(_ context.Context, _ *module.Context, ev cheerEvent) (alertLine, bool) {
-			if ev.BroadcasterUserID == "" {
-				return alertLine{}, false
-			}
-			cheerer := "An anonymous cheerer"
-			if !ev.IsAnonymous {
-				cheerer = displayName(ev.UserName, ev.UserLogin)
-			}
-			return alertLine{ev.BroadcasterUserID, map[string]string{
-				"user": strings.TrimPrefix(cheerer, "@"),
-				"bits": strconv.Itoa(ev.Bits),
-			}}, true
-		}))
-
-	m.On("channel.raid", onAlert(
-		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.RaidEnabled), cfg.RaidMessage },
-		"alerts.raid.default",
-		func(ctx context.Context, c *module.Context, ev raidEvent) (alertLine, bool) {
-			if ev.FromBroadcasterUserLogin == "" {
-				return alertLine{}, false
-			}
-			user := chatName(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin)
-			activity.Emit(ctx, ev.ToBroadcasterUserID, activity.Row{
-				Kind: activity.KindEvent,
-				Text: fmt.Sprintf(i18n.T(c.Locale, "activity.event.raid"), user, ev.Viewers),
-				At:   time.Now(),
-			})
-			return alertLine{ev.ToBroadcasterUserID, map[string]string{
-				"user":    user,
-				"viewers": strconv.Itoa(ev.Viewers),
-			}}, true
-		}))
-
-	m.On("channel.ad_break.begin", onAlert(
-		func(cfg alertsConfig) (bool, string) { return explicitOn(cfg.AdsEnabled), cfg.AdsMessage },
-		"alerts.ads.default",
-		func(_ context.Context, _ *module.Context, ev adBreakEvent) (alertLine, bool) {
-			if ev.BroadcasterUserID == "" {
-				return alertLine{}, false
-			}
-			return alertLine{ev.BroadcasterUserID, map[string]string{
-				"duration": strconv.Itoa(ev.DurationSeconds),
-			}}, true
-		}))
+	m.On("channel.subscription.gift", onAlert(d, "gift", giftLine))
+	m.On("channel.cheer", onAlert(d, "cheer", cheerLine))
+	m.On("channel.raid", onAlert(d, "raid", raidLine))
+	m.On("channel.ad_break.begin", onAlert(d, "ads", adBreakLine))
 
 	return m.Build()
+}
+
+func cheerLine(_ context.Context, _ *module.Context, ev cheerEvent) (alertLine, bool) {
+	if ev.BroadcasterUserID == "" {
+		return alertLine{}, false
+	}
+	cheerer := "An anonymous cheerer"
+	if !ev.IsAnonymous {
+		cheerer = displayName(ev.UserName, ev.UserLogin)
+	}
+	return alertLine{ev.BroadcasterUserID, map[string]string{
+		"user": strings.TrimPrefix(cheerer, "@"),
+		"bits": strconv.Itoa(ev.Bits),
+	}}, true
+}
+
+func raidLine(ctx context.Context, c *module.Context, ev raidEvent) (alertLine, bool) {
+	if ev.FromBroadcasterUserLogin == "" {
+		return alertLine{}, false
+	}
+	user := chatName(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin)
+	activity.Emit(ctx, ev.ToBroadcasterUserID, activity.Row{
+		Kind: activity.KindEvent,
+		Text: fmt.Sprintf(i18n.T(c.Locale, "activity.event.raid"), user, ev.Viewers),
+		At:   time.Now(),
+	})
+	return alertLine{ev.ToBroadcasterUserID, map[string]string{
+		"user":    user,
+		"viewers": strconv.Itoa(ev.Viewers),
+	}}, true
+}
+
+func adBreakLine(_ context.Context, _ *module.Context, ev adBreakEvent) (alertLine, bool) {
+	if ev.BroadcasterUserID == "" {
+		return alertLine{}, false
+	}
+	return alertLine{ev.BroadcasterUserID, map[string]string{
+		"duration": strconv.Itoa(ev.DurationSeconds),
+	}}, true
 }
 
 type claimedEvent interface {

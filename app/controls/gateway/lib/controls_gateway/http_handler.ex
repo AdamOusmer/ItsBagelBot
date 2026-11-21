@@ -2,10 +2,10 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.HttpHandler do
-  @moduledoc "GET /healthz, /readyz, /metrics."
+  @moduledoc "GET /healthz and /readyz."
   @behaviour :cowboy_handler
 
-  alias ControlsGateway.{Drain, Metrics}
+  alias ControlsGateway.Drain
 
   @impl true
   def init(req, route), do: {:ok, respond(route, req), route}
@@ -18,10 +18,5 @@ defmodule ControlsGateway.HttpHandler do
     else
       :cowboy_req.reply(503, %{}, "not ready\n", req)
     end
-  end
-
-  defp respond(:metrics, req) do
-    body = Jason.encode!(Metrics.snapshot())
-    :cowboy_req.reply(200, %{"content-type" => "application/json"}, body, req)
   end
 end

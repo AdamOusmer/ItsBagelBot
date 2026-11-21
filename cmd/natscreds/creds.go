@@ -22,33 +22,35 @@ var ErrDuplicateRoleName = errors.New("natscreds: duplicate role name")
 // servicesProjects maps a stem that owns its own Doppler project to that
 // project's slug.
 var servicesProjects = map[string]string{
-	"users":          "users",
-	"commands":       "commands",
-	"loyalty":        "loyalty",
-	"modules":        "modules",
-	"projector":      "projector",
-	"outgress":       "outgress",
-	"worker":         "sesame",
-	"twitch_ingress": "twitch-ingress",
-	"automod":        "automod",
-	"dashboard":      "dashboard",
-	"admin":          "admin",
-	"admin_service":  "admin-db",
-	"transactions":   "transactions",
-	"notifications":  "notifications",
-	"gossip":         "gossip",
-	"deployer":       "deployer",
+	"users":            "users",
+	"commands":         "commands",
+	"loyalty":          "loyalty",
+	"modules":          "modules",
+	"projector":        "projector",
+	"outgress":         "outgress",
+	"worker":           "sesame",
+	"twitch_ingress":   "twitch-ingress",
+	"automod":          "automod",
+	"dashboard":        "dashboard",
+	"admin":            "admin",
+	"admin_service":    "admin-db",
+	"transactions":     "transactions",
+	"notifications":    "notifications",
+	"gossip":           "gossip",
+	"controls_gateway": "controls-gateway",
+	"deployer":         "deployer",
 }
 
 // sharedProjects holds stems whose credentials share one Doppler project and
 // so need a per-stem env prefix.
-var sharedProjects = map[string]string{}
+var sharedProjects = map[string]string{"worker_tts": "sesame"}
 
 // noBus holds stems with no worker-bus role; every stem has an RPC role.
 var noBus = map[string]bool{
-	"gossip":        true,
-	"notifications": true,
-	"transactions":  true,
+	"controls_gateway": true,
+	"gossip":           true,
+	"notifications":    true,
+	"transactions":     true,
 }
 
 // roleRef names one role inside its account, e.g. account BUS, role

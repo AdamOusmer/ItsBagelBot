@@ -12,6 +12,18 @@ build and its CI image target have been removed. This file
 records what the broker can actually do, because the number is lower than it
 looks and the way past it is not a broker setting.
 
+## TTS overlay account
+
+`CONTROLS_GATEWAY_RPC` owns the JetStream namespace for `OVERLAY_TTS` and
+`TTS_CLIPS`. The worker creates both with file storage, five-minute retention,
+and three replicas each. The `controls_gateway_rpc` reader can create filtered
+ephemeral consumers on `OVERLAY_TTS` and read messages from `OBJ_TTS_CLIPS`.
+
+`USERS_RPC` restricts the overlay resolve and check RPCs, their node-specific
+subjects, and `controls.tts.revoked.*` to this account. The committed resolver
+preload needs the signed claims and import activations for these grants.
+`cmd/natscreds` maps the reader role to the `controls-gateway` Doppler project.
+
 ## Stock replacement, 2026-11-08
 
 Stock upstream 2.15.2 passed the 20k messages/s requirement with 2x tested

@@ -2,8 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { moduleDef, type ModuleDef } from '@bagel/kit';
-import { listModules, listModulesForEditing, upsertModule, type ModuleView } from '#lib/server/commands-store';
+import { MOD, moduleDef, type ModuleDef } from '@bagel/kit';
+import { listModules, listModulesForEditing, patchModule, upsertModule, type ModuleView } from '#lib/server/commands-store';
 import { auditDashboardImpersonation } from '#lib/server/services';
 import { logger } from '@bagel/kit/server/logger';
 import { gateSection, moduleLocked, moduleWriteDenial } from '#lib/server/module-gate';
@@ -94,12 +94,15 @@ export const actions: Actions = {
     const requested = f.get('is_enabled') === 'on';
     if (DEMO) return { ok: true, enabled: requested };
 
+    const expectedRev = formRevision(f);
+    if (def.id === MOD.alerts && Number.isNaN(expectedRev)) return fail(400, { ok: false });
     const enabled = await gatedEnabled(uid, def, requested);
     const config = await attachLinkedUUID(def, buildConfig(def, f), locals);
 
-    const synced = await upsertSynced(uid, def, { enabled, config });
-    if (synced === null) return fail(400, { ok: false });
-    if (!synced) requestFreshRead(cookies, def.id, url);
+    const result = await saveModule(uid, def, { enabled, config, expectedRev });
+    if (!result) return fail(400, { ok: false });
+    if (!result.synced) requestFreshRead(cookies, def.id, url);
+    if (result.conflict) return fail(409, { ok: false, conflict: true });
 
     auditDashboardImpersonation(locals.session, 'module:update', `${def.id}=${enabled}`);
     return { ok: true, enabled };
@@ -115,15 +118,36 @@ export const actions: Actions = {
   }
 };
 
-async function upsertSynced(
+function formRevision(form: FormData): number {
+  const raw = form.get('expected_rev');
+  if (typeof raw !== 'string' || !/^\d+$/.test(raw)) return NaN;
+  const revision = Number(raw);
+  return Number.isSafeInteger(revision) ? revision : NaN;
+}
+
+type ModuleDraft = { enabled: boolean; config: Record<string, string>; expectedRev: number };
+
+async function saveModule(
   uid: string,
   def: ModuleDef,
-  draft: { enabled: boolean; config: Record<string, string> }
-): Promise<boolean | null> {
+  draft: ModuleDraft
+): Promise<{ synced: boolean; conflict?: boolean } | null> {
   try {
-    return (await upsertModule(uid, def.id, draft.enabled, draft.config)).synced;
+    if (def.id === MOD.alerts) return await saveChatAlerts(uid, def, draft);
+    return await upsertModule(uid, def.id, draft.enabled, draft.config);
   } catch (e) {
     logger.error({ err: e }, `[modules] save ${def.id} failed`);
     return null;
   }
+}
+
+async function saveChatAlerts(uid: string, def: ModuleDef, draft: ModuleDraft) {
+  const keys = [...valueKeys(def), ...enableKeys(def)];
+  return patchModule({
+    userId: uid,
+    name: def.id,
+    isEnabled: draft.enabled,
+    partial: Object.fromEntries(keys.map((key) => [key, draft.config[key] ?? ''])),
+    expectedRev: draft.expectedRev
+  });
 }

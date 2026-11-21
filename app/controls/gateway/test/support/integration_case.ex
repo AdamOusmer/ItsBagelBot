@@ -17,10 +17,11 @@ defmodule ControlsGateway.IntegrationCase do
     end
   end
 
-  setup do
+  setup tags do
     {public_key, private_key} = TokenFixture.keypair()
     nats_port = NatsServer.free_port()
-    nats_server = NatsServer.start(nats_port)
+    nats_server = NatsServer.start(nats_port, if(tags[:jetstream], do: tags[:tmp_dir]))
+    on_exit(fn -> NatsServer.stop(nats_server) end)
     http_port = NatsServer.free_port()
 
     nats_settings = [%{host: "127.0.0.1", port: nats_port, no_responders: true}]
@@ -33,12 +34,15 @@ defmodule ControlsGateway.IntegrationCase do
     )
 
     await_gnat_connected()
-    start_supervised!({ControlsGateway.HttpServer, port: http_port})
-
-    on_exit(fn -> NatsServer.stop(nats_server) end)
+    start_supervised!({ControlsGateway.HttpServer, [port: http_port] ++ listener_opts(tags)})
 
     %{http_port: http_port, private_key: private_key, public_key: public_key}
   end
+
+  defp listener_opts(%{routes: :desktop}),
+    do: [routes: [{"/v1/connect", ControlsGateway.WsHandler, []}]]
+
+  defp listener_opts(_tags), do: []
 
   defp await_gnat_connected(attempts \\ 50) do
     cond do

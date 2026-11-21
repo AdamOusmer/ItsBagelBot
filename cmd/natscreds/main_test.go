@@ -23,8 +23,8 @@ import (
 const realAccountsYAML = "../../deploy/messaging/accounts.yaml"
 
 const (
-	wantAccounts  = 16
-	wantRoles     = 26
+	wantAccounts  = 17
+	wantRoles     = 28
 	wantKeySeeds  = 2 + wantAccounts + wantRoles
 	wantRoleCreds = wantRoles - 1
 )
@@ -136,7 +136,57 @@ func TestFirstRunCreatesEveryKeyAndCredential(t *testing.T) {
 	assert.Equal(t, wantKeySeeds+wantRoleCreds*2, h.store.setCalls)
 	keys := h.keys(t)
 	assert.Len(t, keys.Accounts, wantAccounts)
-	assert.Empty(t, keys.Activations, "no export is restricted to named accounts any more")
+
+	assertVoiceActivations(t, keys)
+	assertVoiceWriterCredential(t, h, keys)
+}
+
+func assertVoiceWriterCredential(t *testing.T, h *harness, keys *natsacl.Keys) {
+	t.Helper()
+	claims, err := jwt.DecodeUserClaims(h.secret("sesame", "WORKER_TTS_BUS_JWT"))
+	require.NoError(t, err)
+	assert.NotEmpty(t, h.secret("sesame", "WORKER_TTS_BUS_NKEY_SEED"))
+
+	const accountName = "CONTROLS_GATEWAY_RPC"
+	account := preloadedAccount(t, h.cfg.PreloadPath, keys.Accounts[accountName])
+	require.NotNil(t, account)
+	scope, ok := account.SigningKeys[claims.Issuer].(*jwt.UserScope)
+	require.True(t, ok)
+	assert.Contains(t, scope.Template.Pub.Allow, "$JS.API.STREAM.PURGE.OBJ_TTS_CLIPS")
+}
+
+func assertVoiceActivations(t *testing.T, keys *natsacl.Keys) {
+	t.Helper()
+	want := map[string][]string{
+		"WORKER_RPC": {
+			"rpc.internal.users.voice.check",
+			"rpc.internal.users.voice.check.node.*",
+			"rpc.internal.users.voice.record",
+			"rpc.internal.users.voice.record.node.*",
+		},
+		"CONTROLS_GATEWAY_RPC": {
+			"rpc.internal.users.voice.overlay.resolve",
+			"rpc.internal.users.voice.overlay.resolve.node.*",
+			"rpc.internal.users.voice.overlay.check",
+			"rpc.internal.users.voice.overlay.check.node.*",
+			"controls.tts.revoked.*",
+		},
+	}
+	require.Len(t, keys.Activations, len(want))
+	for account, subjects := range want {
+		assert.ElementsMatch(t, subjects, voiceActivationSubjects(t, keys.Activations[account]))
+	}
+}
+
+func voiceActivationSubjects(t *testing.T, activations []natsacl.Activation) []string {
+	t.Helper()
+	var subjects []string
+	for _, activation := range activations {
+		assert.Equal(t, "USERS_RPC", activation.From)
+		assert.NotEmpty(t, activation.Token)
+		subjects = append(subjects, activation.Subject)
+	}
+	return subjects
 }
 
 func TestSecondRunChangesOnlyWhatWasRotated(t *testing.T) {
@@ -203,8 +253,9 @@ func TestDryRunPlansEveryWriteWithoutMutatingTheStore(t *testing.T) {
 
 	assert.Zero(t, h.store.setCalls)
 	assert.Empty(t, h.store.projects)
-	assert.Contains(t, h.out.String(), "create nats-operator/NATS_OPERATOR_SEED")
-	assert.Contains(t, h.out.String(), "write "+h.cfg.KeysPath)
+	for _, planned := range []string{"create nats-operator/NATS_OPERATOR_SEED", "write " + h.cfg.KeysPath} {
+		assert.Contains(t, h.out.String(), planned)
+	}
 
 	h.cfg.DryRun, h.cfg.Rotate = false, ""
 	h.apply(t)

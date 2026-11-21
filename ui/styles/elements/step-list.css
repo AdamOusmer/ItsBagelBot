@@ -110,6 +110,44 @@
     margin-bottom: 14px;
   }
 
+  .bb-steps--fit-copy .bb-step__row {
+    grid-template-columns: 8px minmax(0, 1fr) minmax(0, 21%);
+  }
+
+  .bb-steps--fit-copy .bb-step__label {
+    block-size: 2.5rem;
+    align-content: center;
+    white-space: normal;
+  }
+
+  :is(.bb-steps--fit-copy, .bb-steps--checklist) .bb-step__text {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .bb-steps--fit-copy .bb-step__state {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  :is(.bb-steps--fit-copy, .bb-steps--checklist) .bb-step__bar {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: end;
+  }
+
+  .bb-steps--checklist .bb-step__row {
+    grid-template-columns: 1rem minmax(0, 1fr);
+    height: 44px;
+  }
+
+  .bb-step__check {
+    display: grid;
+    grid-area: 1 / 1;
+    place-items: center;
+    color: var(--step-tone);
+  }
+
   .bb-steps--numbered {
     gap: 14px;
     counter-reset: bb-step;

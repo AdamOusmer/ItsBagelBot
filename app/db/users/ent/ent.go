@@ -12,6 +12,8 @@ import (
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/app/db/users/ent/voiceusage"
+	"ItsBagelBot/app/db/users/ent/voiceusagereceipt"
 	"context"
 	"errors"
 	"fmt"
@@ -90,6 +92,8 @@ func checkColumn(t, c string) error {
 			premiumgrant.Table:       premiumgrant.ValidColumn,
 			tokens.Table:             tokens.ValidColumn,
 			user.Table:               user.ValidColumn,
+			voiceusage.Table:         voiceusage.ValidColumn,
+			voiceusagereceipt.Table:  voiceusagereceipt.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

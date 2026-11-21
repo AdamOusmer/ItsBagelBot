@@ -3,8 +3,9 @@
 
 import { replyTokens, type ModuleDef } from './module-def';
 
-export const ALERTS_MODULE: ModuleDef = 
-{
+export { ALERT_VOICE_CONFIG_DEFAULTS } from '../voice-plan';
+
+export const ALERTS_MODULE: ModuleDef = {
   id: 'alerts',
   label: 'Chat Alerts',
   tagline: 'Announce follows, subs, cheers, raids and ad breaks in chat.',

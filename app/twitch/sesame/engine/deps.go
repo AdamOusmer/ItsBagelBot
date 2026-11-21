@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/internal/channelruntime"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
+	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
@@ -38,7 +39,13 @@ type QuotesStore interface {
 	QuoteRemove(ctx context.Context, broadcasterID, number uint64) (bool, error)
 }
 
+type AlertVoicePublisher interface {
+	Enabled(ctx context.Context, broadcasterID string) (bool, error)
+	Publish(context.Context, voiceplan.AlertJob) error
+}
+
 type Deps struct {
+	AlertVoice     AlertVoicePublisher
 	Eligibility    *eligibility.Checker
 	Runtime        *channelruntime.Client
 	TrialStore     valkey.Client

@@ -35,6 +35,7 @@ on:
           - gossip
           - warp
           - twitch-ingress
+          - controls-gateway
           - console-dashboard
           - console-admin
 
@@ -156,6 +157,13 @@ jobs:
               "description": "ItsBagelBot Twitch ingress service"
             },
             {
+              "image": "controls-gateway",
+              "context": "app/controls/gateway",
+              "containerfile": "app/controls/gateway/Containerfile",
+              "layer_cache": false,
+              "description": "ItsBagelBot TTS overlay gateway"
+            },
+            {
               "image": "console-dashboard",
               "context": ".",
               "containerfile": "web/dashboard/Containerfile",
@@ -220,6 +228,7 @@ jobs:
             add "gossip"
             add "warp"
             add "twitch-ingress"
+            add "controls-gateway"
             add "console-dashboard"
             add "console-admin"
           }
@@ -266,6 +275,9 @@ jobs:
                 ;;
               app/twitch/ingress/*)
                 add "twitch-ingress"
+                ;;
+              app/controls/gateway/*)
+                add "controls-gateway"
                 ;;
               app/db/loyalty/*)
                 add "loyalty"
@@ -476,7 +488,7 @@ jobs:
           # has to be inside their context) and each needs its OWN whitelist of
           # that root, which the shared .containerignore cannot express: one
           # file, two different trees to admit. Every other image leaves the key
-          # unset and falls through to the root .containerignore.
+          # unset and uses the build context's .containerignore.
           ignore_args=()
           if [[ -n "${IGNOREFILE:-}" ]]; then
             ignore_args+=(--ignorefile "$IGNOREFILE")

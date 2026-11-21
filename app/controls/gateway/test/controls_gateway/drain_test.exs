@@ -4,6 +4,8 @@
 defmodule ControlsGateway.DrainTest do
   use ControlsGateway.IntegrationCase, async: false
 
+  @moduletag routes: :desktop
+
   alias ControlsGateway.Drain
 
   @device_id "11111111-1111-4111-8111-111111111111"

@@ -6,6 +6,7 @@ package core
 import (
 	"context"
 	"math"
+	"net/http"
 
 	"ItsBagelBot/pkg/ratelimit"
 )
@@ -51,30 +52,35 @@ func (b Buckets) WithKey(key string) Buckets {
 	return b
 }
 
+func (b Buckets) EnforceGeneralPair(ctx context.Context, limiter *ratelimit.Limiter, other Buckets) error {
+	return enforceOrdered(ctx, limiter, [2]ratelimit.Request{b.general.ForKey(b.key), other.general.ForKey(other.key)}, "")
+}
+
 func (b Buckets) Enforce(ctx context.Context, limiter *ratelimit.Limiter, isPremium bool) error {
 	if limiter == nil {
 		return nil
 	}
-	generalReq := ratelimit.Request{Key: b.key, Spec: b.general}
-
-	if isPremium {
-		ok, err := limiter.Allow(ctx, generalReq)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return &UpstreamError{Status: 429, Message: "premium rate limit exceeded", LocalDeny: true}
-		}
-		return nil
+	general := b.general.ForKey(b.key)
+	if !isPremium {
+		standard := b.standard.ForKey(b.key + ":standard")
+		return enforceOrdered(ctx, limiter, [2]ratelimit.Request{standard, general}, "standard rate limit exceeded")
 	}
-
-	standardReq := ratelimit.Request{Key: b.key + ":standard", Spec: b.standard}
-	deniedIdx, err := limiter.AllowOrdered(ctx, standardReq, generalReq)
-	if err != nil {
+	ok, err := limiter.Allow(ctx, general)
+	if err != nil || ok {
 		return err
 	}
-	if deniedIdx != 0 {
-		return &UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true}
+	return &UpstreamError{Status: http.StatusTooManyRequests, Message: "premium rate limit exceeded", LocalDeny: true}
+}
+
+func enforceOrdered(ctx context.Context, limiter *ratelimit.Limiter, pair [2]ratelimit.Request, message string) error {
+	if limiter == nil {
+		return nil
 	}
-	return nil
+	denied, retryAfter, err := limiter.AllowOrderedWithRetry(ctx, pair[0], pair[1])
+	if err != nil || denied == 0 {
+		return err
+	}
+	return &UpstreamError{
+		Status: http.StatusTooManyRequests, Message: message, LocalDeny: true, RetryAfter: retryAfter,
+	}
 }

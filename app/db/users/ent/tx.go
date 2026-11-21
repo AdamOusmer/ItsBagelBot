@@ -30,6 +30,10 @@ type Tx struct {
 	Tokens *TokensClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
+	// VoiceUsage is the client for interacting with the VoiceUsage builders.
+	VoiceUsage *VoiceUsageClient
+	// VoiceUsageReceipt is the client for interacting with the VoiceUsageReceipt builders.
+	VoiceUsageReceipt *VoiceUsageReceiptClient
 
 	// lazily loaded.
 	client     *Client
@@ -170,6 +174,8 @@ func (tx *Tx) init() {
 	tx.PremiumGrant = NewPremiumGrantClient(tx.config)
 	tx.Tokens = NewTokensClient(tx.config)
 	tx.User = NewUserClient(tx.config)
+	tx.VoiceUsage = NewVoiceUsageClient(tx.config)
+	tx.VoiceUsageReceipt = NewVoiceUsageReceiptClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

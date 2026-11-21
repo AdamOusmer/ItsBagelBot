@@ -37,21 +37,15 @@ func wireErasure(ctx context.Context, repo *repository.Users, log *zap.Logger) {
 }
 
 func replayErasures(ctx context.Context, repo *repository.Users, log *zap.Logger) {
-	const timeout = 2 * time.Minute
-	runCtx, cancel := context.WithTimeout(ctx, timeout)
-	count, err := repo.ReplayErasures(runCtx, time.Now())
-	cancel()
-	logReplay(log, count, err)
-	runPeriodicSweep(ctx, log, env.GetDuration("USERS_ERASURE_REPLAY_INTERVAL", 15*time.Minute), timeout,
-		"failed to replay erasures", "replayed erasures", repo.ReplayErasures)
-}
-
-func logReplay(log *zap.Logger, count int, err error) {
-	if err != nil {
-		log.Error("failed to replay erasures", zap.Error(err))
-	} else if count > 0 {
-		log.Info("replayed erasures", zap.Int("count", count))
+	spec := sweepSpec{
+		interval:       env.GetDuration("USERS_ERASURE_REPLAY_INTERVAL", 15*time.Minute),
+		timeout:        2 * time.Minute,
+		errorMessage:   "failed to replay erasures",
+		successMessage: "replayed erasures",
+		run:            repo.ReplayErasures,
 	}
+	spec.runOnce(ctx, log, time.Now())
+	runPeriodicSweep(ctx, log, spec)
 }
 
 type twitchRevoker struct {

@@ -32,6 +32,7 @@ type Context struct {
 	LocaleLookup func(context.Context, uint64) (string, error)
 
 	ModuleLookup func(name string) bool
+	BlocksText   func(text string) bool
 
 	Config codec.RawMessage
 
@@ -135,6 +136,7 @@ func (c *Context) Reset() {
 	c.LocaleLoaded = false
 	c.LocaleLookup = nil
 	c.ModuleLookup = nil
+	c.BlocksText = nil
 	c.Config = nil
 	c.Num = ""
 	c.Command = ""

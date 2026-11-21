@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/pkg/bus"
+
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
@@ -15,7 +17,18 @@ import (
 
 func NATS(t *testing.T) *nats.Conn {
 	t.Helper()
-	s, err := server.NewServer(&server.Options{Host: "127.0.0.1", Port: -1, NoLog: true, NoSigs: true})
+	return startNATS(t, server.Options{})
+}
+
+func JetStream(t *testing.T) *nats.Conn {
+	t.Helper()
+	return startNATS(t, server.Options{JetStream: true, JetStreamDomain: bus.JSDomain(), StoreDir: t.TempDir()})
+}
+
+func startNATS(t *testing.T, opts server.Options) *nats.Conn {
+	t.Helper()
+	opts.Host, opts.Port, opts.NoLog, opts.NoSigs = "127.0.0.1", -1, true, true
+	s, err := server.NewServer(&opts)
 	require.NoError(t, err)
 	s.Start()
 	require.True(t, s.ReadyForConnections(5*time.Second))

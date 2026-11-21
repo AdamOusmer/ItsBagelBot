@@ -15,6 +15,7 @@ const ICONS = {
   commands: 'lucide:terminal',
   modules: 'lucide:layout-grid',
   music: 'lucide:music',
+  waveform: 'lucide:audio-lines',
   card: 'lucide:credit-card',
   settings: 'lucide:sliders-horizontal',
   gear: 'lucide:settings',

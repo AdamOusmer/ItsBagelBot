@@ -100,6 +100,7 @@ func main() {
 		seq: engine.NewSequencer(), chatters: chatters, runs: runs,
 	})
 	defer deps.Eligibility.Close()
+	defer startVoice(w, &deps)()
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 	startRefreshers(w, guard, emotes)
 

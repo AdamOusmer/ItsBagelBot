@@ -46,7 +46,7 @@ export type WidgetName =
 export type Block =
   | { kind: 'prose'; html: string }
   | { kind: 'callout'; tone: 'tip' | 'warn' | 'note'; html: string }
-  | { kind: 'table'; head: string[]; rows: string[][]; caption?: string; id?: string }
+  | { kind: 'table'; head: string[]; rows: (string | number)[][]; caption?: string; id?: string }
   | { kind: 'chat'; title?: string; caption?: string; lines: ChatLine[] }
   | { kind: 'dash'; screen: ScreenName; path?: string; caption?: string; notes?: Note[]; labels?: Record<string, string> }
   | { kind: 'steps'; items: { title: string; html: string }[] }

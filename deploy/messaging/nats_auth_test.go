@@ -46,6 +46,7 @@ type streamGrants struct {
 	pullFetch       []string
 	paused          []string
 	stepdown        []string
+	extra           []string
 }
 
 func expectedJetStreamSubjects(grants streamGrants) []string {
@@ -78,7 +79,20 @@ func expectedJetStreamSubjects(grants streamGrants) []string {
 		set[jetStreamAPI+"STREAM.CREATE."+stream] = struct{}{}
 		set[jetStreamAPI+"STREAM.UPDATE."+stream] = struct{}{}
 	}
+	for _, subject := range grants.extra {
+		set[subject] = struct{}{}
+	}
 	return sortedKeys(set)
+}
+
+var exactLaneGrants = map[string][]string{
+	"worker_bus": {
+		"$JS.API.CONSUMER.CREATE.TTS_JOBS.tts-worker",
+		"$JS.API.CONSUMER.INFO.TTS_JOBS.tts-worker",
+		"$JS.API.CONSUMER.MSG.NEXT.TTS_JOBS.tts-worker",
+		"$JS.ACK.TTS_JOBS.tts-worker.>",
+		"$JS.ACK.*.*.TTS_JOBS.tts-worker.>",
+	},
 }
 
 func coordinationSubjects(user string) []string {
@@ -121,7 +135,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 	owners := map[string][]string{
 		"automod_bus":   {"TWITCH_AUTOMOD_TRIAL"},
 		"users_bus":     {"DATA", "DATA_DLQ"},
-		"worker_bus":    {"INGRESS_DLQ", "TWITCH_INGRESS", "TWITCH_INGRESS_PREMIUM", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
+		"worker_bus":    {"TTS_JOBS", "INGRESS_DLQ", "TWITCH_INGRESS", "TWITCH_INGRESS_PREMIUM", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 		"projector_bus": {"DATA", "DATA_DLQ"},
 		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
 	}
@@ -142,6 +156,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 				pullFetch:       pullFetchStreams[user],
 				paused:          pausedConsumerStreams[user],
 				stepdown:        stepdownStreams[user],
+				extra:           exactLaneGrants[user],
 			}), coordinationSubjects(user)...)
 			slices.Sort(want)
 

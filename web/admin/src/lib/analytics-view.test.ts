@@ -888,6 +888,7 @@ describe('extended analytics blocks', () => {
       row('2026-11-03', 'dashboard.views', ['commands', 'owner'], 8),
       row('2026-11-03', 'dashboard.views', ['commands', 'delegate'], 2),
       row('2026-11-04', 'dashboard.views', ['overview', 'delegate'], 3),
+      row('2026-11-04', 'dashboard.views', ['voice', 'owner'], 2),
       row('2026-11-03', 'billing.checkout', ['monthly', 'redirected'], 10),
       row('2026-11-03', 'billing.checkout', ['monthly', 'blocked'], 2),
       row('2026-11-04', 'billing.checkout', ['gift', 'unavailable'], 1),
@@ -966,8 +967,10 @@ describe('extended analytics blocks', () => {
   });
 
   it('splits dashboard section views by owner and delegate', () => {
-    expect(extended.features.dashboard.slice(0, 2).map((b) => [b.id, b.value, b.secondary?.params])).toEqual([
-      ['commands', 10, { owner: '8', delegate: '2' }], ['overview', 3, { owner: '0', delegate: '3' }]
+    expect(extended.features.dashboard.slice(0, 3).map((b) => [b.id, b.value, b.secondary?.params])).toEqual([
+      ['commands', 10, { owner: '8', delegate: '2' }],
+      ['overview', 3, { owner: '0', delegate: '3' }],
+      ['voice', 2, { owner: '2', delegate: '0' }]
     ]);
   });
 

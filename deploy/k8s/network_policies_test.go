@@ -173,6 +173,23 @@ func assertIngressHasClusterSources(t *testing.T, label string, rules []policyRu
 	}
 }
 
+func TestControlsGatewayNetworkPolicyIsExact(t *testing.T) {
+	policy := requirePolicy(t, loadNetworkPolicies(t, appPolicies), "controls-gateway")
+	assert.Equal(t, "app=controls-gateway", policy.Spec.PodSelector.render())
+	assert.Equal(t, sorted("Egress", "Ingress"), sorted(policy.Spec.PolicyTypes...))
+	assert.Equal(t, []string{
+		"kubernetes.io/metadata.name=networking | app.kubernetes.io/name=traefik | 4000/TCP",
+	}, ruleSummary(policy.Spec.Ingress))
+	assert.Equal(t, []string{
+		"kubernetes.io/metadata.name=kube-system | any | 53/UDP,53/TCP",
+		"kubernetes.io/metadata.name=messaging | app=nats | 4222/TCP",
+	}, ruleSummary(policy.Spec.Egress))
+
+	networking := requirePolicy(t, loadNetworkPolicies(t, "../networking/network-policies.yaml"), "default-deny-networking")
+	assert.Contains(t, ruleSummary(networking.Spec.Egress),
+		"kubernetes.io/metadata.name=app | app=controls-gateway | 4000/TCP")
+}
+
 func TestDefaultPolicyHasNoBlanketExternalEgress(t *testing.T) {
 	base := requirePolicy(t, loadNetworkPolicies(t, appPolicies), "default-deny-apps")
 
