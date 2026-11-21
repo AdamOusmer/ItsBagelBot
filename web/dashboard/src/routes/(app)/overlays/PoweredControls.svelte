@@ -7,16 +7,14 @@
     MAX_EVERY_MINUTES, MAX_SHOW_SECONDS, MIN_EVERY_MINUTES, MIN_SHOW_SECONDS, POWERED_ALIGNS, POWERED_DIRECTIONS,
     type PoweredAlign, type PoweredConfig, type PoweredDirection
   } from '@bagel/kit/overlays';
-  import Chip from '@bagel/ui/svelte/Chip.svelte';
-  import Divider from '@bagel/ui/svelte/Divider.svelte';
-  import SaveStatus, { type SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
+  import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import Slider from '@bagel/ui/svelte/Slider.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
 
-  let { config, status, onChange }: {
+  let { config, onChange }: {
     config: PoweredConfig;
-    status: Record<string, SaveState>;
     onChange: (key: keyof PoweredConfig, next: PoweredConfig) => void;
   } = $props();
 
@@ -35,7 +33,6 @@
     }
   ] as const);
   const aligns = $derived(POWERED_ALIGNS.map((value) => ({ value, label: t(`overlays.alignOption.${value}`) })));
-  const stateOf = (key: keyof PoweredConfig) => status[key] ?? 'idle';
   const lastEdge = (dir: PoweredDirection) => config.directions.length === 1 && config.directions[0] === dir;
 
   function slide(key: 'every_minutes' | 'show_seconds', value: number) {
@@ -60,75 +57,76 @@
   const numeric = (event: Event) => Number((event.currentTarget as HTMLInputElement).value);
 </script>
 
-{#each sliders as slider (slider.key)}
-  <div class="row">
-    <div class="row-head">
-      <label class="row-label" for="powered-{slider.key}">
-        <Text as="span" size="sm"><bb-fit><span data-fit="">{slider.label}</span></bb-fit></Text>
-      </label>
-      <SaveStatus state={stateOf(slider.key)} />
-      <span class="row-value"><Text as="span" size="sm" tone="muted"><bb-fit><span data-fit="">{slider.value}</span></bb-fit></Text></span>
-    </div>
-    <Slider id="powered-{slider.key}" name={slider.key} min={slider.min} max={slider.max} step={1} value={slider.draft}
-      aria-valuetext={slider.value} oninput={(event) => slide(slider.key, numeric(event))}
-      onchange={(event) => commit(slider.key, numeric(event))} />
-  </div>
-  <Divider flush />
-{/each}
+<div class="fields">
+  {#each sliders as slider (slider.key)}
+    <Field fit label={slider.label} for="powered-{slider.key}">
+      <div class="slider-row">
+        <Slider id="powered-{slider.key}" name={slider.key} min={slider.min} max={slider.max} step={1} value={slider.draft}
+          aria-valuetext={slider.value} oninput={(event) => slide(slider.key, numeric(event))}
+          onchange={(event) => commit(slider.key, numeric(event))} />
+        <span class="slider-value bb-fit-box" aria-hidden="true"><bb-fit>{slider.value}</bb-fit></span>
+      </div>
+    </Field>
+  {/each}
+</div>
 
-<div class="row" role="group" aria-labelledby="powered-from">
-  <div class="row-head">
-    <span class="row-label" id="powered-from">
-      <Text as="span" size="sm"><bb-fit><span data-fit="">{t('overlays.from')}</span></bb-fit></Text>
-    </span>
-    <SaveStatus state={stateOf('directions')} />
-  </div>
+<div class="bb-field group" role="group" aria-labelledby="powered-from" aria-describedby="powered-from-hint">
+  <span class="bb-field__label bb-fit-box" id="powered-from"><bb-fit mode="block">{t('overlays.from')}</bb-fit></span>
   <div class="edges">
     {#each POWERED_DIRECTIONS as dir (dir)}
-      <Chip pressed={config.directions.includes(dir)} disabled={lastEdge(dir)} onclick={() => toggle(dir)}>
-        <bb-fit class="edge-label"><span data-fit="">{t(`overlays.edge.${dir}`)}</span></bb-fit>
-      </Chip>
+      <Checkbox checked={config.directions.includes(dir)} disabled={lastEdge(dir)} onchange={() => toggle(dir)}>
+        <span class="edge-label bb-fit-box"><bb-fit>{t(`overlays.edge.${dir}`)}</bb-fit></span>
+      </Checkbox>
     {/each}
   </div>
-  <div class="row-hint bb-fit-box">
+  <div class="hint bb-fit-box" id="powered-from-hint">
     <Text as="div" size="xs" tone="muted"><bb-fit mode="block">{t('overlays.fromHint')}</bb-fit></Text>
   </div>
 </div>
-<Divider flush />
 
-<div class="row">
-  <div class="row-head">
-    <span class="row-label" id="powered-align">
-      <Text as="span" size="sm"><bb-fit><span data-fit="">{t('overlays.align')}</span></bb-fit></Text>
-    </span>
-    <SaveStatus state={stateOf('align')} />
-  </div>
-  <SegmentedControl options={aligns} value={config.align} label={t('overlays.align')} even onValueChange={align} />
+<div class="bb-field group">
+  <span class="bb-field__label bb-fit-box" id="powered-align"><bb-fit mode="block">{t('overlays.align')}</bb-fit></span>
+  <SegmentedControl class="bb-tabs--plain" options={aligns} value={config.align} label={t('overlays.align')} even
+    onValueChange={align} />
 </div>
 
 <style>
-  .row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--bb-space-2);
-    padding: 14px 18px;
+  .fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-4);
+    --field-mb: 0;
+    --field-gap: var(--bb-space-2);
   }
-  .row-head {
+  .group {
+    --field-mb: 0;
+    --field-gap: var(--bb-space-2);
+  }
+  .slider-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 7rem);
+    grid-template-columns: minmax(0, 1fr) var(--bb-space-7);
     align-items: center;
     gap: var(--bb-space-2);
+    min-block-size: var(--field-control-h, 36px);
   }
-  .row-label, .row-value { min-inline-size: 0; }
-  .row-value { grid-column: 3; justify-self: end; text-align: end; }
+  .slider-value {
+    font-size: var(--bb-text-xs);
+    color: var(--bb-muted-light);
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+    white-space: nowrap;
+  }
   .edges {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--bb-space-2);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--bb-space-3) var(--bb-space-4);
   }
-  .edge-label { min-inline-size: 0; }
-  .row-hint { block-size: 1.5rem; min-inline-size: 0; align-content: center; }
-  @media (max-width: 560px) {
-    .edges { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .edge-label {
+    display: block;
+    inline-size: 100%;
+    font-size: var(--bb-text-sm);
+    color: var(--bb-white);
+    white-space: nowrap;
   }
+  .hint { block-size: 1.5rem; min-inline-size: 0; align-content: center; }
 </style>

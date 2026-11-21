@@ -69,9 +69,9 @@ test.each([
 
 test('the only selected edge cannot be switched off', async () => {
   const html = renderPage({ readOnly: false, powered, isPremium: false });
-  const chips = await attributes(html, 'button.bb-chip');
-  expect(chips.map((chip) => [chip['aria-pressed'], 'disabled' in chip])).toEqual([
-    ['false', false], ['false', false], ['true', true], ['false', false]
+  const edges = await attributes(html, 'input.bb-check__input');
+  expect(edges.map((edge) => ['checked' in edge, 'disabled' in edge])).toEqual([
+    [false, false], [false, false], [true, true], [false, false]
   ]);
 });
 
