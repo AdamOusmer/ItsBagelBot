@@ -20,7 +20,9 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/voiceplan"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/monitor"
 
 	"go.uber.org/zap"
 )
@@ -43,11 +45,13 @@ type alertSpeech struct {
 	c        *module.Context
 	kind     voiceplan.AlertKind
 	identity string
+	traceID  string
 	cfg      alertConfig
 }
 
 func AlertVoice(d engine.Deps) module.Module {
 	return module.NewModule("", module.KindCore).
+		ProtectReplay().
 		On("channel.cheer", onAlertSpeech(d, "cheer", cheerSpeechInput)).
 		On("channel.subscription.message", onAlertSpeech(d, "sub", subSpeechInput)).
 		Build()
@@ -55,27 +59,30 @@ func AlertVoice(d engine.Deps) module.Module {
 
 func onAlertSpeech[T any](d engine.Deps, kind voiceplan.AlertKind, input func(*module.Context, T) alertSpeechInput) module.EventHandler {
 	return func(ctx context.Context, c *module.Context, _ module.Emit) error {
-		s := alertSpeech{d: &d, c: c, kind: kind, identity: cmp.Or(c.Env.EventID, engine.EventIdentity(&c.Env))}
+		monitor.Keep(ctx)
+		s := alertSpeech{
+			d: &d, c: c, kind: kind, traceID: bus.OriginTraceID(ctx),
+			identity: cmp.Or(c.Env.EventID, c.Env.MsgID),
+		}
 		if reason := s.preflight(); reason != "" {
-			return s.skip(reason)
+			return s.skip(ctx, reason)
 		}
 		if err := s.loadConfig(ctx); err != nil {
 			c.Log.Warn("voice alert settings could not be loaded", c.BID(), zap.Error(err))
-			return s.skip(speechUnavailable)
+			return s.skip(ctx, speechUnavailable)
 		}
 		defaults, _ := kind.Defaults()
 		if !settingBool(s.cfg[s.configKey()], defaults.Enabled) {
-			return s.skip(speechToggleOff)
+			return s.skip(ctx, speechToggleOff)
 		}
 		var ev T
 		if len(c.Env.Event) == 0 {
-			return s.skip(speechEmpty)
+			return s.skip(ctx, speechEmpty)
 		}
 		if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
 			return err
 		}
-		s.handle(ctx, input(c, ev))
-		return nil
+		return s.handle(ctx, input(c, ev))
 	}
 }
 
@@ -85,7 +92,7 @@ func (s alertSpeech) preflight() speechSkipReason {
 		return speechTrial
 	case s.d.AlertVoice == nil:
 		return speechUnavailable
-	case s.identity == "":
+	case s.identity == "" && s.traceID == "":
 		return speechNoIdentity
 	default:
 		return ""
@@ -107,23 +114,24 @@ func (s alertSpeech) broadcasterID() string {
 	return strconv.FormatUint(s.c.BroadcasterID, 10)
 }
 
-func (s alertSpeech) skip(reason speechSkipReason) error {
-	s.c.Log.Info("voice alert skipped", s.c.BID(), zap.String("kind", string(s.kind)), zap.String("reason", string(reason)))
+func (s alertSpeech) skip(ctx context.Context, reason speechSkipReason) error {
+	monitor.TxnLogger(ctx, s.c.Log).Info("voice alert skipped", s.c.BID(), zap.String("kind", string(s.kind)),
+		zap.String("reason", string(reason)), zap.String("trace_id", s.traceID))
 	return nil
 }
 
-func (s alertSpeech) handle(ctx context.Context, in alertSpeechInput) {
+func (s alertSpeech) handle(ctx context.Context, in alertSpeechInput) error {
 	in.message = s.viewerMessage(in.message)
 	if reason := s.skipReason(ctx, in); reason != "" {
-		s.skip(reason)
-		return
+		return s.skip(ctx, reason)
 	}
 	job := s.job(in)
 	if err := s.d.AlertVoice.Publish(ctx, job); err != nil {
-		s.c.Log.Warn("voice job publication failed", s.c.BID(), zap.String("event_id", job.EventID), zap.Error(err))
-		return
+		return fmt.Errorf("publish voice job %s: %w", job.EventID, err)
 	}
-	s.c.Log.Info("voice job published", s.c.BID(), zap.String("kind", string(job.Kind)), zap.String("event_id", job.EventID))
+	monitor.TxnLogger(ctx, s.c.Log).Info("voice job published", s.c.BID(), zap.String("kind", string(job.Kind)),
+		zap.String("event_id", job.EventID), zap.String("trace_id", job.TraceID))
+	return nil
 }
 
 func settingBool(value string, fallback bool) bool {
@@ -227,11 +235,18 @@ func (s alertSpeech) job(in alertSpeechInput) voiceplan.AlertJob {
 	style := cmp.Or(voiceplan.Style(s.cfg[key+"Style"]), voiceplan.Style(defaults.Style))
 	displayName := cmp.Or(speechPlainText(in.speaker), i18n.T(s.c.Locale, "alerts.voice.anonymous"))
 	text := fmt.Sprintf(i18n.T(s.c.Locale, "alerts.voice.said"), displayName, in.message)
-	digest := sha256.Sum256([]byte(s.identity))
 	return voiceplan.AlertJob{
-		EventID: hex.EncodeToString(digest[:16]), BroadcasterID: s.broadcasterID(), Kind: s.kind,
+		EventID: s.jobID(), TraceID: s.traceID, BroadcasterID: s.broadcasterID(), Kind: s.kind,
 		Text: stripSpeechControls(text), Style: style, Voice: speechVoice(s.cfg[key+"Voice"]), CreatedAt: time.Now().UTC(),
 	}
+}
+
+func (s alertSpeech) jobID() string {
+	if s.traceID != "" {
+		return s.traceID
+	}
+	digest := sha256.Sum256([]byte(s.identity))
+	return hex.EncodeToString(digest[:16])
 }
 
 func speechVoice(voice string) string {

@@ -128,7 +128,10 @@ func publishTTS(ctx context.Context, js jsapi.JetStream, pub ttsPublication) err
 	}
 	subject := pub.prefix + pub.msg.BroadcasterID
 	segment := startMessagingSegment(ctx, messagingSpan{name: "nats.publish", operation: "publish", destination: subject})
-	_, err = js.Publish(ctx, subject, body, jsapi.WithMsgID(pub.msg.EventID), jsapi.WithExpectStream(pub.stream))
+	msg := nats.NewMsg(subject)
+	msg.Data = body
+	insertQueueTraceHeaders(ctx, msg)
+	_, err = js.PublishMsg(ctx, msg, jsapi.WithMsgID(pub.msg.EventID), jsapi.WithExpectStream(pub.stream))
 	endMessagingSegment(segment, err)
 	return err
 }
@@ -153,7 +156,9 @@ func (s *TTSOverlay) GetClip(ctx context.Context, ref TTSClip) (TTSClip, error) 
 }
 
 func (s *TTSOverlay) PutClip(ctx context.Context, data TTSClipData) (TTSClip, error) {
+	segment := startMessagingSegment(ctx, messagingSpan{name: "nats.object.put", operation: "put", destination: TTSClipBucket})
 	info, err := s.bucket.Put(ctx, jsapi.ObjectMeta{Name: data.Key, Metadata: data.Metadata}, bytes.NewReader(data.WAV))
+	endMessagingSegment(segment, err)
 	return storedTTSClip(info, err)
 }
 

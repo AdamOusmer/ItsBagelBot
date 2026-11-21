@@ -19,6 +19,7 @@ import (
 	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -69,7 +70,7 @@ type Worker struct {
 func (w Worker) Process(ctx context.Context, payload []byte) error {
 	var job voiceplan.AlertJob
 	if codec.Unmarshal(payload, &job) != nil || !validJob(job) {
-		w.logDrop(job.BroadcasterID, job.EventID, jobInvalid)
+		w.logDrop(ctx, job, jobInvalid)
 		return nil
 	}
 
@@ -110,13 +111,13 @@ func (w Worker) findOrSynthesize(ctx context.Context, job voiceplan.AlertJob) (b
 	}
 	req := synthesisRequest(job, allowance.VoiceAllowance)
 	if !allowance.Allowed || req.Text == "" {
-		w.logDrop(job.BroadcasterID, job.EventID, jobNotAllowed)
+		w.logDrop(ctx, job, jobNotAllowed)
 		return bus.TTSClip{}, nil
 	}
-	return w.synthesize(ctx, ref, req)
+	return w.synthesize(ctx, ref, req, job)
 }
 
-func (w Worker) synthesize(ctx context.Context, ref bus.TTSClip, req gossiprpc.Request) (bus.TTSClip, error) {
+func (w Worker) synthesize(ctx context.Context, ref bus.TTSClip, req gossiprpc.Request, job voiceplan.AlertJob) (bus.TTSClip, error) {
 	rpcCtx, cancel := context.WithTimeout(ctx, gossipTimeout)
 	defer cancel()
 	var reply gossiprpc.TTSSynthesizeReply
@@ -124,20 +125,20 @@ func (w Worker) synthesize(ctx context.Context, ref bus.TTSClip, req gossiprpc.R
 	if err != nil {
 		return bus.TTSClip{}, err
 	}
-	if audio, err := w.synthesisOutcome(req, reply); !audio {
+	if audio, err := w.synthesisOutcome(ctx, job, reply); !audio {
 		return bus.TTSClip{}, err
 	}
 	return w.saveClip(ctx, ref, reply)
 }
 
-func (w Worker) synthesisOutcome(req gossiprpc.Request, reply gossiprpc.TTSSynthesizeReply) (bool, error) {
+func (w Worker) synthesisOutcome(ctx context.Context, job voiceplan.AlertJob, reply gossiprpc.TTSSynthesizeReply) (bool, error) {
 	reason := cmp.Or(reply.Reason, reply.Error)
 	if reply.RateLimited {
 		err := errors.New(cmp.Or(reason, "speech synthesis rate limited"))
 		return false, bus.TTSRetryError{Delay: time.Duration(reply.RetryAfterMS) * time.Millisecond, Err: err}
 	}
 	if drop := synthesisDropReason(reply); drop != "" {
-		w.logDrop(req.ChannelID, req.RequestID, drop)
+		w.logDrop(ctx, job, drop)
 		return false, nil
 	}
 	if reason != "" {
@@ -161,12 +162,12 @@ func synthesisDropReason(reply gossiprpc.TTSSynthesizeReply) jobDropReason {
 	return providerJobDrops[reply.Error]
 }
 
-func (w Worker) logDrop(broadcasterID, eventID string, reason jobDropReason) {
+func (w Worker) logDrop(ctx context.Context, job voiceplan.AlertJob, reason jobDropReason) {
 	if w.Log == nil {
 		return
 	}
-	w.Log.Info("voice job dropped", zap.String("broadcaster_id", broadcasterID),
-		zap.String("event_id", eventID), zap.String("reason", string(reason)))
+	monitor.TxnLogger(ctx, w.Log).Info("voice job dropped", zap.String("broadcaster_id", job.BroadcasterID),
+		zap.String("event_id", job.EventID), zap.String("trace_id", job.TraceID), zap.String("reason", string(reason)))
 }
 
 func synthesisRequest(job voiceplan.AlertJob, allowance usersrpc.VoiceAllowance) gossiprpc.Request {
@@ -224,7 +225,7 @@ func validAudio(reply gossiprpc.TTSSynthesizeReply) bool {
 
 func (w Worker) deliver(ctx context.Context, job voiceplan.AlertJob, clip bus.TTSClip) error {
 	expires := clip.StoredAt.Add(bus.TTSClipTTL)
-	if w.clipExpired(job, expires) {
+	if w.clipExpired(ctx, job, expires) {
 		return nil
 	}
 	duration, durErr := strconv.ParseInt(clip.Metadata[durationKey], 10, 64)
@@ -238,19 +239,19 @@ func (w Worker) deliver(ctx context.Context, job voiceplan.AlertJob, clip bus.TT
 	if _, err := bus.RequestJSONTimeout[usersrpc.VoiceReply](ctx, w.RPC, usersrpc.VoiceRecordSubject, req, usersTimeout); err != nil {
 		return err
 	}
-	if w.clipExpired(job, expires) {
+	if w.clipExpired(ctx, job, expires) {
 		return nil
 	}
 	event := voiceplan.OverlayEvent{
-		ClipKey: clip.Key, EventID: job.EventID, Kind: job.Kind, DurationMS: duration, ExpiresAt: expires,
+		ClipKey: clip.Key, EventID: job.EventID, TraceID: job.TraceID, Kind: job.Kind, DurationMS: duration, ExpiresAt: expires,
 	}
 	return w.Overlay.Publish(ctx, bus.TTSMessage{BroadcasterID: job.BroadcasterID, EventID: job.EventID, Value: event})
 }
 
-func (w Worker) clipExpired(job voiceplan.AlertJob, expires time.Time) bool {
+func (w Worker) clipExpired(ctx context.Context, job voiceplan.AlertJob, expires time.Time) bool {
 	expired := !time.Now().Before(expires)
 	if expired {
-		w.logDrop(job.BroadcasterID, job.EventID, jobExpired)
+		w.logDrop(ctx, job, jobExpired)
 	}
 	return expired
 }

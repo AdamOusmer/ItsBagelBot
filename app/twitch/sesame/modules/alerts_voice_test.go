@@ -190,9 +190,14 @@ func TestResubVoiceSpeaksEvenAfterSubscribeDedupesChat(t *testing.T) {
 
 func processAlertEnvelope(t *testing.T, p *engine.Pipeline, env lane.Envelope) {
 	t.Helper()
+	require.NoError(t, p.Process(alertEnvelopeMessage(t, env)))
+}
+
+func alertEnvelopeMessage(t *testing.T, env lane.Envelope) *bus.Message {
+	t.Helper()
 	data, err := codec.Marshal(env)
 	require.NoError(t, err)
-	require.NoError(t, p.Process(bus.NewMessage(env.MsgID, data)))
+	return bus.NewMessage(env.MsgID, data)
 }
 
 func alertTestRegistry(d engine.Deps) *engine.Registry {

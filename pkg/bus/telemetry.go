@@ -213,6 +213,12 @@ func normalizedDestination(subject string) string {
 		return normalizedRPCDestination(subject)
 	case strings.HasPrefix(subject, cacheDestinationPrefix):
 		return cacheDestinationPrefix
+	case strings.HasPrefix(subject, ttsJobsSubject):
+		return TTSJobsStream
+	case strings.HasPrefix(subject, ttsOverlaySubject):
+		return TTSOverlayStream
+	case subject == TTSClipBucket:
+		return TTSClipBucket
 	}
 	for _, entry := range familyDestinations {
 		if strings.HasPrefix(subject, entry.prefix) {

@@ -39,6 +39,7 @@ func (kind AlertKind) Defaults() (AlertDefaults, bool) {
 
 type AlertJob struct {
 	EventID       string    `json:"event_id"`
+	TraceID       string    `json:"trace_id,omitempty"`
 	BroadcasterID string    `json:"broadcaster_id"`
 	Kind          AlertKind `json:"kind"`
 	Text          string    `json:"text"`
@@ -50,6 +51,7 @@ type AlertJob struct {
 type OverlayEvent struct {
 	ClipKey    string    `json:"clip_key"`
 	EventID    string    `json:"event_id"`
+	TraceID    string    `json:"trace_id,omitempty"`
 	Kind       AlertKind `json:"kind"`
 	DurationMS int64     `json:"duration_ms"`
 	ExpiresAt  time.Time `json:"expires_at"`

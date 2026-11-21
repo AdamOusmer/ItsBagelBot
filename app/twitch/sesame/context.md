@@ -97,17 +97,18 @@ configured overlay link. Sesame applies blocked terms and discards the entire
 utterance on a match. It strips control characters and cheermotes from viewer
 text. Trial events never enqueue a voice job.
 
-Sesame hashes the event ID, falling back to the notification message ID, and
-uses the first 32 lowercase hex characters as the job ID. That ID deduplicates
-publication to the file-backed `TTS_JOBS` work queue. The shared `tts-worker`
-durable allows three deliveries.
+Sesame deduplicates speech handlers by event identity. The `TTS_JOBS` work queue
+deduplicates by the originating trace ID, which survives redelivery in the headers.
+Without an originating trace, the job ID uses the first 32 hex characters of
+SHA-256 over the event ID or, when absent, the notification message ID.
+The `tts-worker` durable continues the distributed trace and allows three deliveries.
 `SESAME_TTS_WORKERS` controls parallel jobs per pod and defaults to four.
 Workers send progress acknowledgements, recheck Users allowance, and trim by
 the clip and remaining-token budgets before calling Gossip. Rejected requests
 are acknowledged, rate limits use the returned retry delay when given, and
 unavailable replies retry after two seconds. The clip's
 object metadata preserves duration and usage across delivery retries.
-Users records usage by event ID. The overlay stream deduplicates the
+Users records usage by job ID. The overlay stream deduplicates the
 playback event by the same ID. Clips and playback events expire after five
 minutes in the gateway's NATS account. Sesame has a separate writer role
 in that account.
