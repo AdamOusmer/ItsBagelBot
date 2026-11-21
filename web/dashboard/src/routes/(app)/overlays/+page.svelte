@@ -7,7 +7,6 @@
   import { beforeNavigate, invalidateAll } from '$app/navigation';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { defaultPoweredConfig, poweredPreviewUrl, type PoweredConfig } from '@bagel/kit/overlays';
-  import Heading from '@bagel/ui/svelte/Heading.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import SaveStatus, { type SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -87,22 +86,25 @@
   </section>
 {:else}
   <section class="screen active studio" aria-labelledby="powered-title">
-    <PoweredPreview src={previewSrc} describedBy="powered-intro">
-      {#snippet head()}
-        <Heading level={6} as="h1" id="powered-title" class="studio-title" tabindex={-1}>
-          <bb-fit><span data-fit="">{t('overlays.poweredTitle')}</span></bb-fit>
-        </Heading>
-        <span class="intro bb-fit-box" id="powered-intro">
-          <Text as="span" size="xs" tone="muted"><bb-fit mode="block">{t('overlays.poweredIntro')}</bb-fit></Text>
-        </span>
-      {/snippet}
-      {#snippet status()}
+    <PageHead compact class="studio-head">
+      <span class="page-title">
+        <bb-fit class="page-title-copy"><span data-fit="" id="powered-title">{t('overlays.poweredTitle')}</span></bb-fit>
+      </span>
+      {#snippet trailing()}
         <SaveStatus state={saveState} />
       {/snippet}
-    </PoweredPreview>
-    <div class="docks">
-      <PoweredLink {url} error={rotateError} busy={rotating} submit={submitRotate} />
-      <PoweredControls {config} onChange={change} />
+    </PageHead>
+    <div class="intro bb-fit-box">
+      <Text as="p" size="sm" tone="muted"><bb-fit mode="block">{t('overlays.poweredIntro')}</bb-fit></Text>
+    </div>
+    <div class="studio-grid">
+      <div class="studio-main">
+        <PoweredPreview src={previewSrc} />
+        <PoweredLink {url} error={rotateError} busy={rotating} submit={submitRotate} />
+      </div>
+      <div class="studio-side">
+        <PoweredControls {config} onChange={change} />
+      </div>
     </div>
   </section>
 {/if}
@@ -110,56 +112,48 @@
 <style>
   .page-title { display: flex; align-items: center; gap: var(--bb-space-3); white-space: nowrap; }
   .page-title-copy { min-inline-size: 0; }
-  .studio {
-    --studio-gap: var(--bb-space-3);
-    --docks-h: 138px;
-    display: flex;
-    flex-direction: column;
-    gap: var(--studio-gap);
-  }
-  .studio > :global(.scene) {
-    --scene-head-h: 22px;
-    --scene-gap: var(--bb-space-2);
-    --card-pad: var(--bb-space-2) var(--bb-space-3) var(--bb-space-3);
-    --scene-chrome: calc(var(--bb-space-2) + var(--scene-head-h) + var(--scene-gap) + var(--bb-space-3) + 2px);
-  }
-  .studio :global(.studio-title) { flex: none; margin: 0; }
+  .studio :global(.studio-head) { margin-block-end: var(--bb-space-2); }
   .intro {
-    flex: 1;
+    block-size: 1.5rem;
     min-inline-size: 0;
-    block-size: var(--scene-head-h);
+    margin-block-end: var(--bb-space-5);
     align-content: center;
     white-space: nowrap;
   }
-  .docks {
+  .studio-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.8fr) minmax(0, 1.2fr);
-    gap: var(--studio-gap);
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--bb-space-4);
   }
-  .docks > :global(.dock) {
+  .studio-main {
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    gap: var(--bb-space-1);
-    --card-pad: var(--bb-space-3) var(--bb-space-4);
+    gap: var(--bb-space-4);
+    min-inline-size: 0;
+  }
+  .studio-side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--bb-space-4);
   }
   @media (min-width: 1024px) {
-    .studio :global(.studio-title) { max-inline-size: 40%; }
-    .docks { block-size: var(--docks-h); }
-    .studio > :global(.scene) {
-      --stage-max-inline: max(
-        20rem,
-        calc((100dvh - var(--bb-topbar-height, 54px) - 10px - var(--gutter, 28px) - 6px - var(--bb-dock-clearance, 52px)
-          - var(--scene-chrome) - var(--studio-gap) - var(--docks-h)) * 16 / 9)
-      );
+    .studio {
+      display: flex;
+      flex-direction: column;
+      block-size: calc(100dvh - var(--bb-topbar-height, 54px) - 10px - var(--gutter, 28px) - 6px - var(--bb-dock-clearance, 52px));
     }
-  }
-  @media (max-width: 1023px) {
-    .intro { flex-basis: 100%; block-size: calc(2 * 1.5em); line-height: 1.5; white-space: normal; align-content: start; }
-    .docks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .docks > :global(.dock-wide) { grid-column: 1 / -1; }
+    .studio-grid {
+      flex: 1;
+      min-block-size: 0;
+      grid-template-columns: minmax(0, 2fr) minmax(20rem, 1fr);
+    }
+    .studio-main { min-block-size: 0; }
+    .studio-main > :global(.scene) { flex: 1; min-block-size: 0; }
+    .studio-side { display: flex; flex-direction: column; }
+    .studio-side > :global(.dock) { display: flex; flex: 1; flex-direction: column; }
   }
   @media (max-width: 640px) {
-    .docks { grid-template-columns: minmax(0, 1fr); }
+    .intro { block-size: 3em; line-height: 1.5; white-space: normal; align-content: start; }
+    .studio-side { grid-template-columns: minmax(0, 1fr); }
   }
 </style>

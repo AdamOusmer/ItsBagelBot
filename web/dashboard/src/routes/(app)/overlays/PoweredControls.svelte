@@ -11,6 +11,7 @@
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import Slider from '@bagel/ui/svelte/Slider.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
 
   let { config, onChange }: {
     config: PoweredConfig;
@@ -58,15 +59,19 @@
   <Heading level={6} as="h2" id="powered-timing">
     <bb-fit><span data-fit="">{t('overlays.timing')}</span></bb-fit>
   </Heading>
-  <div class="sliders">
+  <div class="fields">
     {#each sliders as slider (slider.key)}
-      <div class="slider-head">
-        <label class="row-label bb-field__label bb-fit-box" for="powered-{slider.key}"><bb-fit group="powered-timing">{slider.label}</bb-fit></label>
-        <span class="slider-value bb-fit-box" aria-hidden="true"><bb-fit>{slider.value}</bb-fit></span>
+      <div class="field">
+        <div class="field-head">
+          <label class="field-label bb-fit-box" for="powered-{slider.key}">
+            <Text as="span" size="sm"><bb-fit group="powered-timing">{slider.label}</bb-fit></Text>
+          </label>
+          <span class="field-value" aria-hidden="true"><Text as="span" size="sm" tone="muted">{slider.value}</Text></span>
+        </div>
+        <Slider id="powered-{slider.key}" name={slider.key} min={slider.min} max={slider.max} step={1} value={slider.draft}
+          aria-valuetext={slider.value} oninput={(event) => slide(slider.key, numeric(event))}
+          onchange={(event) => commit(slider.key, numeric(event))} />
       </div>
-      <Slider id="powered-{slider.key}" name={slider.key} min={slider.min} max={slider.max} step={1} value={slider.draft}
-        aria-valuetext={slider.value} oninput={(event) => slide(slider.key, numeric(event))}
-        onchange={(event) => commit(slider.key, numeric(event))} />
     {/each}
   </div>
 </Card>
@@ -75,46 +80,50 @@
   <Heading level={6} as="h2" id="powered-placement">
     <bb-fit><span data-fit="">{t('overlays.placement')}</span></bb-fit>
   </Heading>
-  <div class="rows">
-    <span class="row-label bb-field__label bb-fit-box" id="powered-from"><bb-fit group="powered-placement">{t('overlays.from')}</bb-fit></span>
-    <SegmentedControl class="bb-tabs--plain" options={edges} value={config.directions[0] ?? ''} label={t('overlays.from')} even
-      onValueChange={direction} />
-    <span class="row-label bb-field__label bb-fit-box" id="powered-align"><bb-fit group="powered-placement">{t('overlays.align')}</bb-fit></span>
-    <SegmentedControl class="bb-tabs--plain" options={aligns} value={config.align} label={t('overlays.align')} even
-      onValueChange={align} />
+  <div class="fields">
+    <div class="field">
+      <span class="field-label bb-fit-box" id="powered-from">
+        <Text as="span" size="sm"><bb-fit group="powered-placement">{t('overlays.from')}</bb-fit></Text>
+      </span>
+      <SegmentedControl class="bb-tabs--plain" options={edges} value={config.directions[0] ?? ''} label={t('overlays.from')} even
+        onValueChange={direction} />
+    </div>
+    <div class="field">
+      <span class="field-label bb-fit-box" id="powered-align">
+        <Text as="span" size="sm"><bb-fit group="powered-placement">{t('overlays.align')}</bb-fit></Text>
+      </span>
+      <SegmentedControl class="bb-tabs--plain" options={aligns} value={config.align} label={t('overlays.align')} even
+        onValueChange={align} />
+    </div>
   </div>
 </Card>
 
 <style>
-  .rows {
-    display: grid;
-    grid-template-columns: minmax(0, 7rem) minmax(0, 1fr);
-    align-items: center;
-    gap: var(--bb-space-1) var(--bb-space-3);
-  }
-  .sliders {
+  .fields {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    row-gap: var(--bb-space-1);
+    flex: 1;
+    align-content: space-evenly;
+    gap: var(--bb-space-5);
+    margin-block-start: var(--bb-space-4);
   }
-  .slider-head {
+  .field {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) var(--bb-space-7);
-    align-items: center;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--bb-space-2);
   }
-  .slider-head:not(:first-child) { margin-block-start: var(--bb-space-2); }
-  .row-label {
+  .field-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: var(--bb-space-3);
+  }
+  .field-label {
     min-inline-size: 0;
-    margin: 0;
     white-space: nowrap;
   }
-  .slider-value {
-    min-inline-size: 0;
-    font-size: var(--bb-text-xs);
-    color: var(--bb-muted-light);
+  .field-value {
     font-variant-numeric: tabular-nums;
-    text-align: end;
     white-space: nowrap;
   }
 </style>
