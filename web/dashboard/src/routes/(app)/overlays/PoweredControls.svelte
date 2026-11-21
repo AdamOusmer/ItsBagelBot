@@ -50,10 +50,7 @@
 
   function align(value: string) {
     if (value !== config.align) onChange('align', { ...config, align: value as PoweredAlign });
-  }
-
-  const numeric = (event: Event) => Number((event.currentTarget as HTMLInputElement).value);
-</script>
+  }</script>
 
 <Card as="section" class="dock" aria-labelledby="powered-timing">
   <Heading level={6} as="h2" id="powered-timing">
@@ -69,8 +66,8 @@
           <span class="field-value" aria-hidden="true"><Text as="span" size="sm" tone="muted">{slider.value}</Text></span>
         </div>
         <Slider id="powered-{slider.key}" name={slider.key} min={slider.min} max={slider.max} step={1} value={slider.draft}
-          aria-valuetext={slider.value} oninput={(event) => slide(slider.key, numeric(event))}
-          onchange={(event) => commit(slider.key, numeric(event))} />
+          aria-valuetext={slider.value} oninput={(next) => slide(slider.key, next)}
+          onchange={(next) => commit(slider.key, next)} />
       </div>
     {/each}
   </div>

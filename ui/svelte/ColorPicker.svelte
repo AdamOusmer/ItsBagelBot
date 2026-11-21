@@ -76,16 +76,17 @@
 
   function press(area: 'plane' | 'hue') {
     return (event: PointerEvent) => {
-      const target = event.currentTarget as HTMLElement;
-      target.setPointerCapture(event.pointerId);
+      const knob = (event.currentTarget as HTMLElement).querySelector<HTMLElement>('[role="slider"]')!;
+      knob.setPointerCapture(event.pointerId);
       fromPointer(area, event);
-      target.querySelector<HTMLElement>('[role="slider"]')?.focus({ preventScroll: true });
+      knob.focus({ preventScroll: true });
     };
   }
 
   function drag(area: 'plane' | 'hue') {
     return (event: PointerEvent) => {
-      if ((event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) fromPointer(area, event);
+      const knob = (event.currentTarget as HTMLElement).querySelector<HTMLElement>('[role="slider"]');
+      if (knob?.hasPointerCapture(event.pointerId)) fromPointer(area, event);
     };
   }
 

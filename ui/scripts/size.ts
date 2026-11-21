@@ -122,6 +122,15 @@ const ENTRIES: {
              globalThis.x = [tween, bezier];`,
   },
   {
+    // Astro slider drag, keys and label wiring: 1214 B gzip measured 2026-11-21,
+    // +150 B platform delta and ~10% room.
+    name: "slider",
+    budget: 1500,
+    external: [],
+    source: `import { enhanceSliders } from "../../lib/slider";
+             globalThis.x = enhanceSliders;`,
+  },
+  {
     name: "glide",
     budget: 560,
     external: [],
@@ -315,7 +324,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/avatar-plate", budget: 500 }, // 295 B: aurora circle behind small bolotas (2026-11-03)
   { name: "elements/timeline", budget: 960 }, // 720 B: rail, drawn rail and marker dot (2026-10-28)
   { name: "elements/radio-group", budget: 1700 }, // 1395 B: fixed columns, rails and card height hook (2026-09-29)
-  { name: "elements/slider", budget: 640 }, // 515 B: ProgressBar inset well, green fill and white knob for WebKit and Gecko (2026-11-21)
+  { name: "elements/slider", budget: 700 }, // 634 B: colour-picker rail on the inset well, green fill and gradient thumb (2026-11-21)
   { name: "elements/file-drop", budget: 740 }, // 514 B
   { name: "elements/picker-panel", budget: 1360 }, // 1081 B
   { name: "elements/stepper", budget: 1590 }, // 1287 B: compact narrow-screen label (2026-09-29)
