@@ -3,7 +3,14 @@
 
 // @ts-ignore Bun supplies this module at test runtime.
 import { describe, expect, test } from 'bun:test';
-import { allPages, consumerActivity, deliveryRate, formatDeliveryRate, type ConsumerTelemetry } from '../src/lib/server/lane-telemetry';
+import {
+  allPages,
+  consumerActivity,
+  deliveryRate,
+  formatDeliveryRate,
+  type ConsumerTelemetry,
+  type DeliverySample
+} from '../src/lib/server/lane-telemetry';
 
 function consumer(overrides: Partial<ConsumerTelemetry> = {}): ConsumerTelemetry {
   return {
@@ -17,49 +24,62 @@ function consumer(overrides: Partial<ConsumerTelemetry> = {}): ConsumerTelemetry
 }
 
 describe('lane telemetry', () => {
-  test('low activity never rounds to an idle-looking zero', () => {
-    expect(formatDeliveryRate(null)).toBe('-');
-    expect(formatDeliveryRate(0)).toBe('0 msg/s');
-    expect(formatDeliveryRate(1 / 60)).toBe('<0.1 msg/s');
-    expect(formatDeliveryRate(0.049)).toBe('<0.1 msg/s');
-    expect(formatDeliveryRate(0.1)).toBe('0.1 msg/s');
-    expect(formatDeliveryRate(5.25)).toBe('5.3 msg/s');
-    expect(formatDeliveryRate(100)).toBe('100 msg/s');
+  test.each([
+    [null, '-'],
+    [0, '0 msg/s'],
+    [1 / 60, '<0.1 msg/s'],
+    [0.049, '<0.1 msg/s'],
+    [0.1, '0.1 msg/s'],
+    [5.25, '5.3 msg/s'],
+    [100, '100 msg/s']
+  ])('formats the delivery rate %s', (rate: number | null, expected: string) => {
+    expect(formatDeliveryRate(rate)).toBe(expected);
   });
+
   test('zero ACK occupancy can accompany substantial activity', () => {
     const activity = consumerActivity(consumer());
-    expect(activity.ackPending).toBe(0);
-    expect(activity.maxAckPending).toBe(2000);
-    expect(activity.delivered).toBe(25_000);
+    expect(activity).toMatchObject({ ackPending: 0, maxAckPending: 2000, delivered: 25_000 });
     expect(deliveryRate(
       { delivered: 20_000, at: 0, created: 'one' },
       { delivered: activity.delivered, at: 5000, created: 'one' }
     )).toBe(1000);
   });
 
-  test('pull consumers are never declared orphan from push binding', () => {
-    expect(consumerActivity(consumer())).toMatchObject({ mode: 'pull', connection: 'unknown', orphan: false });
-    expect(consumerActivity(consumer({ num_waiting: 8 }))).toMatchObject({ mode: 'pull', connection: 'waiting', waiting: 8, orphan: false });
-  });
+  const push = { deliver_subject: '_INBOX.worker' };
 
-  test('push orphan detection requires an explicitly absent binding', () => {
-    const config = { deliver_subject: '_INBOX.worker' };
-    expect(consumerActivity(consumer({ config }))).toMatchObject({ mode: 'push', connection: 'unbound', orphan: true });
-    expect(consumerActivity(consumer({ config, push_bound: true }))).toMatchObject({ connection: 'bound', orphan: false });
-    expect(consumerActivity(consumer({ config, push_bound: undefined }))).toMatchObject({ connection: 'unknown', orphan: false });
+  test.each([
+    ['pull with no waiting requests', {}, { mode: 'pull', connection: 'unknown', orphan: false }],
+    ['pull with waiting requests', { num_waiting: 8 }, { mode: 'pull', connection: 'waiting', waiting: 8, orphan: false }],
+    ['unbound push', { config: push }, { mode: 'push', connection: 'unbound', orphan: true }],
+    ['bound push', { config: push, push_bound: true }, { mode: 'push', connection: 'bound', orphan: false }],
+    ['unbound push with an omitted flag', { config: push, push_bound: undefined }, { mode: 'push', connection: 'unbound', orphan: true }]
+  ])('classifies a %s consumer', (
+    _label: string,
+    overrides: Partial<ConsumerTelemetry>,
+    expected: Partial<ReturnType<typeof consumerActivity>>
+  ) => {
+    expect(consumerActivity(consumer(overrides))).toMatchObject(expected);
   });
 
   test('ack-none consumers have no artificial ACK capacity', () => {
     expect(consumerActivity(consumer({ config: { ack_policy: 'none' } }))).toMatchObject({ ackPolicy: 'none', maxAckPending: 0 });
   });
 
-  test('idle is zero, while missing or reset rate samples are unavailable', () => {
-    const sample = { delivered: 100, at: 5000, created: 'one' };
-    expect(deliveryRate(undefined, sample)).toBeNull();
-    expect(deliveryRate(sample, { ...sample, at: 10000 })).toBe(0);
-    expect(deliveryRate(sample, { ...sample, delivered: 10, at: 10000 })).toBeNull();
-    expect(deliveryRate(sample, { ...sample, created: 'two', at: 10000 })).toBeNull();
-    expect(deliveryRate(sample, sample)).toBeNull();
+  const sample = { delivered: 100, at: 5000, created: 'one' };
+
+  test.each([
+    ['missing baseline', undefined, sample, null],
+    ['idle consumer', sample, { ...sample, at: 10000 }, 0],
+    ['reset counter', sample, { ...sample, delivered: 10, at: 10000 }, null],
+    ['replacement consumer', sample, { ...sample, created: 'two', at: 10000 }, null],
+    ['repeated time', sample, sample, null]
+  ])('calculates the rate with %s', (
+    _label: string,
+    previous: DeliverySample | undefined,
+    current: DeliverySample,
+    expected: number | null
+  ) => {
+    expect(deliveryRate(previous, current)).toBe(expected);
   });
 
   test('collects every NATS API page', async () => {
@@ -74,5 +94,17 @@ describe('lane telemetry', () => {
       if (count++ === 0) return ['first'];
       throw new Error('consumer listing failed');
     } })).rejects.toThrow('consumer listing failed');
+  });
+
+  test('a successful page that omits offline consumers still fails the listing', async () => {
+    const pageInfo = { missing: [] as string[] };
+    const lister = {
+      pageInfo,
+      next: async () => {
+        pageInfo.missing.push('offline');
+        return ['available'];
+      }
+    };
+    await expect(allPages(lister)).rejects.toThrow('JetStream listing omitted unavailable entries');
   });
 });

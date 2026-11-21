@@ -11,17 +11,20 @@ import { allPages, consumerActivity, deliveryRate, formatDeliveryRate, type Deli
 const DEMO = dev && process.env.DEMO === '1';
 
 type LaneManager = Awaited<ReturnType<typeof jsm>>;
+type LaneClient = Awaited<ReturnType<typeof js>>;
 type ConsumerInfo = Awaited<ReturnType<LaneManager['consumers']['info']>>;
 type LaneStream = ConsumerInfo['stream_name'];
 type ConsumerName = ConsumerInfo['name'];
-type LaneCategory = 'system' | 'projection' | 'ephemeral';
+export type LaneCategory = 'system' | 'projection' | 'ephemeral';
 
 export interface LaneView {
   stream: LaneStream;
   consumer: ConsumerName;
   display: string;
+  alias?: string;
+  defaultDisplay?: string;
   subject: string;
-  category: string;
+  category: LaneCategory;
   ephemeral: boolean;
   orphan: boolean;
   pending: number;
@@ -46,7 +49,6 @@ export interface LanesResult {
 
 export interface LaneMutationResult {
   ok: boolean;
-  notice?: string;
   error?: string;
 }
 
@@ -54,33 +56,48 @@ const LANE_BUCKET = 'admin_lanes';
 const LANE_STREAM = `KV_${LANE_BUCKET}`;
 const NATS_REPLICAS = 3;
 
-let kvStore: KV | null = null;
+const stores = new WeakMap<LaneClient, Promise<KV>>();
 
-async function ensureLaneReplicas(manager: LaneManager) {
-  const { config } = await manager.streams.info(LANE_STREAM);
-  if (config.num_replicas === NATS_REPLICAS) return;
-  await manager.streams.update(LANE_STREAM, { ...config, num_replicas: NATS_REPLICAS });
+async function laneStoreInfo(manager: LaneManager) {
+  try {
+    return await manager.streams.info(LANE_STREAM);
+  } catch (error) {
+    if (error instanceof Error && error.name === 'StreamNotFoundError') return undefined;
+    throw error;
+  }
 }
 
-async function getKV(): Promise<KV> {
-  if (kvStore) return kvStore;
-  const client = await js();
+async function openLaneStore(client: LaneClient): Promise<KV> {
   const manager = await jsm();
-  try {
-    await ensureLaneReplicas(manager);
-    kvStore = await new Kvm(client).create(LANE_BUCKET, { history: 1, replicas: NATS_REPLICAS });
-  } catch (err: any) {
-    if (err.code !== '404' && !err.message?.includes('not found')) throw err;
-    kvStore = await new Kvm(client).create(LANE_BUCKET, {
+  const kvm = new Kvm(client);
+  const info = await laneStoreInfo(manager);
+  if (!info) {
+    return kvm.create(LANE_BUCKET, {
       history: 1,
       replicas: NATS_REPLICAS,
       description: 'admin lane display aliases'
     });
   }
-  return kvStore;
+  if (info.config.num_replicas !== NATS_REPLICAS) {
+    await manager.streams.update(LANE_STREAM, { num_replicas: NATS_REPLICAS });
+  }
+  return kvm.open(LANE_BUCKET, { allow_direct: info.config.allow_direct });
+}
+
+async function getKV(): Promise<KV> {
+  const client = await js();
+  const existing = stores.get(client);
+  if (existing) return existing;
+  const store = openLaneStore(client).catch((error) => {
+    stores.delete(client);
+    throw error;
+  });
+  stores.set(client, store);
+  return store;
 }
 
 export async function ensureLaneStoreHA(): Promise<void> {
+  if (DEMO) return;
   await getKV();
 }
 
@@ -95,17 +112,15 @@ function laneAliasKey(lane: LaneIdentity) {
 }
 
 const deliverySamples = new Map<string, DeliverySample>();
-let currentLanes: LaneView[] = [];
-let lastError = '';
+let current: LanesResult | undefined;
 let samplerTimer: ReturnType<typeof setInterval> | null = null;
 let sampling: Promise<void> | null = null;
 let lastLoadAt = 0;
-let lastCollectionAt = 0;
+let lastCollectionAt = Number.NEGATIVE_INFINITY;
 
 const SAMPLE_INTERVAL_MS = 5_000;
 const SAMPLE_IDLE_MS = 60_000;
 const ALIAS_CACHE_TTL_MS = 30_000;
-const ALIAS_READ_BATCH_SIZE = 50;
 
 let aliasCache = new Map<string, string>();
 let aliasCacheExpires = 0;
@@ -114,11 +129,11 @@ function subjectToken(subject: string) {
   return subject.replace(/[.*>]/g, '_');
 }
 
-function laneGroup(consumer: ConsumerName, subject: string, ephemeral: boolean) {
-  if (ephemeral) return '';
+function laneGroup(consumer: ConsumerName, subject: string) {
   if (!subject) return consumer;
   const suffix = `_${subjectToken(subject)}`;
-  return consumer.endsWith(suffix) ? consumer.slice(0, -suffix.length) : consumer;
+  if (!consumer.endsWith(suffix)) return consumer;
+  return consumer.slice(0, -suffix.length) || consumer;
 }
 
 function laneCategory(stream: LaneStream, ephemeral: boolean): LaneCategory {
@@ -135,27 +150,9 @@ function categoryRank(category: LaneCategory) {
   }
 }
 
-function displayName(row: LaneRow, alias: string | undefined) {
-  if (alias) return alias;
-  if (row.ephemeral) return 'ephemeral';
-  return row.group || row.consumer;
-}
-
 function inFlightText({ ackPending, maxAckPending }: LaneActivity) {
   if (maxAckPending > 0) return `${ackPending} / ${maxAckPending}`;
   return `${ackPending}`;
-}
-
-function refreshAliases() {
-  aliasCacheExpires = 0;
-  collectLanes(true);
-}
-
-async function addAliasEntries(aliases: Map<string, string>, kv: KV, keys: string[]) {
-  const entries = await Promise.all(keys.map((key) => kv.get(key)));
-  entries.forEach((entry, index) => {
-    if (entry) aliases.set(keys[index], entry.string());
-  });
 }
 
 async function loadAliases(): Promise<Map<string, string>> {
@@ -163,18 +160,10 @@ async function loadAliases(): Promise<Map<string, string>> {
 
   const kv = await getKV();
   const aliases = new Map<string, string>();
-  try {
-    const keys: string[] = [];
-    const keysIter = await kv.keys();
-    for await (const key of keysIter) keys.push(key);
-    for (let start = 0; start < keys.length; start += ALIAS_READ_BATCH_SIZE) {
-      await addAliasEntries(aliases, kv, keys.slice(start, start + ALIAS_READ_BATCH_SIZE));
-    }
-  } catch (err: any) {
-    if (err.code !== '404') {
-      logger.warn({ err }, 'lane alias fetch error');
-      throw err;
-    }
+  const entries = await kv.history();
+  for await (const entry of entries) {
+    if (entry.operation === 'PUT') aliases.set(entry.key, entry.string());
+    else aliases.delete(entry.key);
   }
 
   aliasCache = aliases;
@@ -183,7 +172,6 @@ async function loadAliases(): Promise<Map<string, string>> {
 }
 
 function hasFreshLaneSample() {
-  if (currentLanes.length === 0) return false;
   return Date.now() - lastCollectionAt < SAMPLE_INTERVAL_MS;
 }
 
@@ -199,31 +187,21 @@ async function collectLanes(force = false) {
 
 type LaneActivity = ReturnType<typeof consumerActivity>;
 
-interface LaneRow extends LaneIdentity {
-  subject: string;
-  ephemeral: boolean;
-  category: LaneCategory;
-  group: string;
-  pending: number;
-  redelivered: number;
-  rate: number | null;
-  activity: LaneActivity;
-}
-
 async function listStreamConsumers(manager: LaneManager) {
-  const streams = await allPages(manager.streams.list());
+  const streamNames = await allPages(manager.streams.names());
   const listed = await Promise.allSettled(
-    streams.map(async (stream) => ({
-      streamName: stream.config.name,
-      consumers: await allPages(manager.consumers.list(stream.config.name))
+    streamNames.map(async (streamName) => ({
+      streamName,
+      consumers: await allPages(manager.consumers.list(streamName))
     }))
   );
-  const fulfilled = listed.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
-  return {
-    streamsSeen: streams.length,
-    failures: listed.length - fulfilled.length,
-    fulfilled
-  };
+  const fulfilled: { streamName: LaneStream; consumers: ConsumerInfo[] }[] = [];
+  const failedStreams = new Set<LaneStream>();
+  listed.forEach((result, index) => {
+    if (result.status === 'fulfilled') fulfilled.push(result.value);
+    else failedStreams.add(streamNames[index]);
+  });
+  return { streamsSeen: streamNames.length, failedStreams, fulfilled };
 }
 
 function sampleRate(lane: LaneIdentity, current: DeliverySample): number | null {
@@ -233,25 +211,30 @@ function sampleRate(lane: LaneIdentity, current: DeliverySample): number | null 
   return deliveryRate(previous, current);
 }
 
-function laneRowOf(stream: LaneStream, info: ConsumerInfo, at: number): LaneRow {
+function laneViewOf(stream: LaneStream, info: ConsumerInfo, at: number): LaneView {
   const subject = info.config.filter_subject || info.config.filter_subjects?.join(', ') || '';
   const ephemeral = !info.config.durable_name;
   const activity = consumerActivity(info);
   const identity = { stream, consumer: info.name };
+  const display = ephemeral ? 'ephemeral' : laneGroup(info.name, subject);
+  const rate = sampleRate(identity, { delivered: activity.delivered, created: info.created, at });
   return {
     ...identity,
+    display,
+    defaultDisplay: display,
     subject,
     ephemeral,
     category: laneCategory(stream, ephemeral),
-    group: laneGroup(info.name, subject, ephemeral),
     pending: info.num_pending,
     redelivered: info.num_redelivered,
-    rate: sampleRate(identity, { delivered: activity.delivered, created: info.created, at }),
-    activity
+    inFlight: inFlightText(activity),
+    rate: formatDeliveryRate(rate),
+    ratePerSecond: rate,
+    ...activity
   };
 }
 
-function compareLanes(a: LaneRow, b: LaneRow): number {
+function compareLanes(a: LaneView, b: LaneView): number {
   return (
     categoryRank(a.category) - categoryRank(b.category) ||
     a.stream.localeCompare(b.stream) ||
@@ -260,20 +243,12 @@ function compareLanes(a: LaneRow, b: LaneRow): number {
   );
 }
 
-function laneViewOf(row: LaneRow, aliases: Map<string, string>): LaneView {
+function withAlias(lane: LaneView, aliases: Map<string, string>): LaneView {
+  const alias = aliases.get(laneAliasKey(lane)) ?? '';
   return {
-    stream: row.stream,
-    consumer: row.consumer,
-    display: displayName(row, aliases.get(laneAliasKey(row))),
-    subject: row.subject,
-    category: row.category,
-    ephemeral: row.ephemeral,
-    pending: row.pending,
-    inFlight: inFlightText(row.activity),
-    rate: formatDeliveryRate(row.rate),
-    redelivered: row.redelivered,
-    ...row.activity,
-    ratePerSecond: row.rate
+    ...lane,
+    alias,
+    display: alias || lane.defaultDisplay || lane.display
   };
 }
 
@@ -283,38 +258,63 @@ function pruneStaleBaselines(seen: Set<string>) {
   });
 }
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function readAliases() {
+  try {
+    return { aliases: await loadAliases(), error: '' };
+  } catch (error) {
+    logger.warn({ err: error }, 'lane alias fetch error');
+    return { aliases: aliasCache, error: `display aliases unavailable: ${errorMessage(error)}` };
+  }
+}
+
+function laneSnapshot(lanes: LaneView[], ...errors: string[]): LanesResult {
+  const notice = errors.filter(Boolean).join(' · ');
+  return { lanes, degraded: Boolean(notice), notice };
+}
+
+type LaneListing = Awaited<ReturnType<typeof listStreamConsumers>>;
+
+function listingSnapshot(listing: LaneListing, aliases: Map<string, string>, aliasError: string) {
+  const { streamsSeen, failedStreams, fulfilled } = listing;
+  const failures = failedStreams.size;
+  const listingError = failures > 0 ? `partial listing: ${failures} of ${streamsSeen} streams unreadable` : '';
+  const now = Date.now();
+  const freshLanes = fulfilled.flatMap(({ streamName, consumers }) =>
+    consumers.map((info) => laneViewOf(streamName, info, now))
+  );
+  const cachedLanes = current?.lanes.filter((lane) => failedStreams.has(lane.stream)) ?? [];
+  const lanes = [...freshLanes, ...cachedLanes].map((lane) => withAlias(lane, aliases));
+  pruneStaleBaselines(new Set(lanes.map(laneKey)));
+  return laneSnapshot(lanes.sort(compareLanes), listingError, aliasError);
+}
+
 async function collectLanesOnce() {
   try {
-    const manager = await jsm();
-    let aliasError = '';
-    const [aliases, listing] = await Promise.all([
-      loadAliases().catch((err: any) => {
-        aliasError = 'display aliases unavailable: ' + (err.message || String(err));
-        return aliasCache;
-      }),
-      listStreamConsumers(manager)
+    const [aliasResult, listing] = await Promise.allSettled([
+      readAliases(),
+      jsm().then(listStreamConsumers)
     ]);
-    const { streamsSeen, failures, fulfilled } = listing;
-
-    if (streamsSeen === 0) {
-      lastError = "JetStream API unreachable: no streams returned (broker unreachable or account lacks $JS.API access)";
+    if (aliasResult.status === 'rejected') throw aliasResult.reason;
+    const { aliases, error } = aliasResult.value;
+    if (listing.status === 'rejected') {
+      const lanes = current?.lanes.map((lane) => withAlias(lane, aliases)) ?? [];
+      current = laneSnapshot(lanes, errorMessage(listing.reason), error);
       return;
     }
-
-    const now = Date.now();
-    const rows = fulfilled.flatMap(({ streamName, consumers }) =>
-      consumers.map((info) => laneRowOf(streamName, info, now))
-    );
-    if (failures === 0) {
-      pruneStaleBaselines(new Set(rows.map(laneKey)));
-    }
-
-    rows.sort(compareLanes);
-    currentLanes = rows.map((r) => laneViewOf(r, aliases));
-    lastError = [failures > 0 ? `partial listing: ${failures} of ${streamsSeen} streams unreadable` : '', aliasError].filter(Boolean).join('; ');
-  } catch (err: any) {
-    lastError = err.message || String(err);
+    current = listingSnapshot(listing.value, aliases, error);
+  } catch (error) {
+    current = laneSnapshot(current?.lanes ?? [], errorMessage(error));
   }
+}
+
+async function refreshLanes(aliasesChanged: boolean) {
+  await sampling;
+  if (aliasesChanged) aliasCacheExpires = 0;
+  await collectLanes(true);
 }
 
 function ensureSampler() {
@@ -326,77 +326,59 @@ function ensureSampler() {
       samplerTimer = null;
       return;
     }
-    collectLanes();
+    void collectLanes();
   }, SAMPLE_INTERVAL_MS);
 }
 
 export async function loadLanes(): Promise<LanesResult> {
   if (DEMO) {
     const { sampleLanes } = await import('./demo-data');
-    return { lanes: sampleLanes, degraded: false, notice: '' };
+    return laneSnapshot(sampleLanes);
   }
   ensureSampler();
   const pending = collectLanes();
-  if (currentLanes.length === 0) await pending;
-  if (lastError) {
-    return {
-      lanes: currentLanes,
-      degraded: true,
-      notice: 'Lane telemetry error: ' + lastError
-    };
-  }
-  return { lanes: currentLanes, degraded: false, notice: '' };
+  if (!current || current.degraded) await pending;
+  return current ?? laneSnapshot([]);
 }
 
 export async function laneAlias(stream: LaneStream, consumer: ConsumerName, alias: string): Promise<LaneMutationResult> {
-  try {
-    const kv = await getKV();
-    const key = laneAliasKey({ stream, consumer });
-    if (alias) await kv.put(key, new TextEncoder().encode(alias.slice(0, 48)));
-    else await kv.delete(key);
-    refreshAliases();
-    return { ok: true, notice: alias ? 'renamed to ' + alias : 'alias cleared' };
-  } catch (err: any) {
-    return { ok: false, error: 'rename failed: ' + err.message };
-  }
+  const kv = await getKV();
+  const key = laneAliasKey({ stream, consumer });
+  const name = alias.trim().slice(0, 48);
+  if (name) await kv.put(key, new TextEncoder().encode(name));
+  else await kv.delete(key);
+  await refreshLanes(true);
+  return { ok: true };
 }
 
 export async function laneDurable(stream: LaneStream, consumer: ConsumerName): Promise<LaneMutationResult> {
-  try {
-    const manager = await jsm();
-    const info = await manager.consumers.info(stream, consumer);
-    if (info.config.durable_name) {
-      return { ok: false, error: 'lane is already durable' };
-    }
-    const name = "adminperm_" + subjectToken(info.config.filter_subject || '');
-    await manager.consumers.add(stream, {
-      ...info.config,
-      durable_name: name,
-      description: "operator-pinned permanent lane (admin)"
-    });
-    collectLanes(true);
-    return { ok: true, notice: `created permanent lane ${name}` };
-  } catch (err: any) {
-    return { ok: false, error: 'make-permanent failed: ' + err.message };
-  }
+  const manager = await jsm();
+  const info = await manager.consumers.info(stream, consumer);
+  if (info.config.durable_name) return { ok: false, error: 'lane is already durable' };
+  const name = `adminperm_${subjectToken(info.config.filter_subject || '')}`;
+  await manager.consumers.add(stream, {
+    ...info.config,
+    name,
+    durable_name: name,
+    inactive_threshold: 0,
+    description: 'operator-pinned permanent lane (admin)'
+  });
+  await refreshLanes(false);
+  return { ok: true };
 }
 
 export async function laneDelete(stream: LaneStream, consumer: ConsumerName): Promise<LaneMutationResult> {
-  try {
-    const manager = await jsm();
-    const info = await manager.consumers.info(stream, consumer);
-    if (!info.config.deliver_subject) {
-      return { ok: false, error: 'refused: pull consumer activity cannot be proven absent from JetStream telemetry' };
-    }
-    if (info.push_bound) {
-      return { ok: false, error: 'refused: lane is bound to a running consumer, not an orphan' };
-    }
-    await manager.consumers.delete(stream, consumer);
-    const kv = await getKV();
-    await kv.delete(laneAliasKey({ stream, consumer })).catch(() => {});
-    refreshAliases();
-    return { ok: true, notice: `deleted orphan lane ${consumer}` };
-  } catch (err: any) {
-    return { ok: false, error: 'delete failed: ' + err.message };
+  const manager = await jsm();
+  const info = await manager.consumers.info(stream, consumer);
+  if (!consumerActivity(info).orphan) {
+    return { ok: false, error: 'JetStream has not confirmed an unbound push consumer' };
   }
+  if (!(await manager.consumers.delete(stream, consumer))) {
+    return { ok: false, error: 'JetStream did not delete the consumer' };
+  }
+  await getKV().then((kv) => kv.delete(laneAliasKey({ stream, consumer }))).catch((error) => {
+    logger.warn({ err: error }, 'lane alias cleanup error');
+  });
+  await refreshLanes(true);
+  return { ok: true };
 }
