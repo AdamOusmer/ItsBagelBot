@@ -209,7 +209,7 @@
     role="region"
     aria-label={t('admin.trials.titlePre') + t('admin.trials.titleEm')}
     aria-busy={awaiting || busy}
-    tabindex={-1}
+    tabindex="-1"
     bind:this={results}
   >
     {#if !snapshot && !degraded}

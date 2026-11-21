@@ -4,8 +4,10 @@
 import { dev } from '$app/env';
 import { trialList } from '#lib/server/services';
 
-export const trialDemo = dev && process.env.DEMO === '1';
+const DEMO = dev && process.env.DEMO === '1';
+
+export const trialDemo = DEMO;
 
 export function readTrialSnapshot() {
-  return trialDemo ? import('#lib/server/demo-data').then(({ sampleTrials }) => sampleTrials) : trialList();
+  return DEMO ? import('#lib/server/demo-data').then(({ sampleTrials }) => sampleTrials) : trialList();
 }

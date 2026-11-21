@@ -34,7 +34,7 @@ mock.module('#lib/server/access', () => ({
 const loadDeployRun = mock(async () => ({ run: {} }));
 const listRuns = mock(async (): Promise<DeployRuns> => ({ runs: [], activeRunId: null }));
 const getRun = mock(async () => params);
-const readPlan = mock(async (): Promise<DeployPlan | null> => plan);
+const readPlan = mock(async (_actor: { actor_id: string }): Promise<DeployPlan | null> => plan);
 const fluxTiers = mock(async (): Promise<FluxTier[]> => []);
 const deployApi = mock(async () => ({ list: listRuns, get: getRun, plan: readPlan }));
 

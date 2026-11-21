@@ -47,7 +47,7 @@ describe('lane telemetry', () => {
 
   const push = { deliver_subject: '_INBOX.worker' };
 
-  test.each([
+  test.each<[string, Partial<ConsumerTelemetry>, Partial<ReturnType<typeof consumerActivity>>]>([
     ['pull with no waiting requests', {}, { mode: 'pull', connection: 'unknown', orphan: false }],
     ['pull with waiting requests', { num_waiting: 8 }, { mode: 'pull', connection: 'waiting', waiting: 8, orphan: false }],
     ['unbound push', { config: push }, { mode: 'push', connection: 'unbound', orphan: true }],

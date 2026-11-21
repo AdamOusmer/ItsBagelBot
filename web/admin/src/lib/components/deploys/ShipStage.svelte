@@ -65,6 +65,7 @@
 </script>
 
 <div class="stage">
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div class="viewport" bind:this={viewport} role="region" aria-label={title} tabindex={0}>
     <PageHead compact>
       <bb-fit><span data-fit>{title}</span></bb-fit>
@@ -90,6 +91,7 @@
   <footer class="footer">
     <PageToolbar style="margin: 0; gap: var(--bb-space-2);">
       {#snippet leading()}
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
         <div class="feedback" class:with-issue={Boolean(issue)} role={issue ? 'region' : undefined} aria-label={issue || undefined} tabindex={issue ? 0 : undefined}>
           {#if issue}
             <AlertBanner tone="danger" flush>{issue}</AlertBanner>

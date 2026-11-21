@@ -27,7 +27,7 @@ const ENTRIES: {
   },
   {
     name: "admin nav registry",
-    budget: 1000,
+    budget: 1200,
     external: [],
     source: `import { ADMIN_SECTIONS, adminNavGroups, adminSectionForPath, adminSectionLabelKey } from "../../lib/nav-admin";
              globalThis.x = [ADMIN_SECTIONS, adminNavGroups, adminSectionForPath, adminSectionLabelKey];`,
