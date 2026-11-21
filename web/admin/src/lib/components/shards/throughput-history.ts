@@ -4,22 +4,19 @@
 import type { Shard, ShardSnapshot } from '@bagel/kit';
 import type { TrialChannel, TrialSnapshot } from '#lib/server/services';
 import { eventsPerSecond, resolveCapacity } from '../../throughput';
+import { activeTrial } from './shard-topology';
 
-export interface ThroughputPoint {
+export type ThroughputPoint = {
   at: number;
   production: number | null;
   trials: number | null;
-}
+};
 
 const HISTORY_MS = 10 * 60_000;
 const MAX_HISTORY_POINTS = 600;
 const MAX_SAMPLE_GAP_MS = 30_000;
 type TrialBaseline = { at: number; counts: Map<string, number> };
 type TrialSample = TrialBaseline & { activeIds: Set<string> };
-
-function activeTrial(row: TrialChannel): boolean {
-  return row.state !== 'removed' && row.state !== 'promoted';
-}
 
 function validLoad(value: number): boolean {
   return Number.isFinite(value) && value >= 0;
@@ -84,12 +81,13 @@ function rollingTrialRate(snapshot: ShardSnapshot | null, fallback: number | nul
   return loads.reduce((sum, load) => sum + eventsPerSecond(load, window), 0);
 }
 
-function unavailableShard(shard: Shard): boolean {
-  return (shard.state === 'unresponsive' || shard.state === 'unknown') && shard.load == null;
+function unavailableShard({ state, load }: Shard): boolean {
+  if (load != null) return !validLoad(load);
+  return state === 'unresponsive' || state === 'unknown';
 }
 
 function productionRate(snapshot: ShardSnapshot | null): number | null {
-  if (!snapshot) return null;
+  if (!snapshot || snapshot.inventory === 'unavailable') return null;
   if (snapshot.shards.some(unavailableShard)) return null;
   const window = resolveCapacity(snapshot).load_window_seconds;
   return snapshot.shards.reduce((sum, shard) => sum + eventsPerSecond(shard.load, window), 0);
