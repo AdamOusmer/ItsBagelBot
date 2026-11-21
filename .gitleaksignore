@@ -1,1 +1,9 @@
 74665690b9f7d4a09f7c7171618f469f8ed96a1e:web/kit/lib/automations/cooldown-left.test.ts:github-pat:73
+292d0dc9363c8359fc06fa51dd7faa3a3f3ff95a:app/desktop/internal/bridge/transport/transport.go:generic-api-key:185
+292d0dc9363c8359fc06fa51dd7faa3a3f3ff95a:pkg/websocket/authorization_test.go:generic-api-key:56
+292d0dc9363c8359fc06fa51dd7faa3a3f3ff95a:pkg/websocket/authorization_test.go:generic-api-key:81
+df2cee8532f2f71fc2471c2a2dddddd123178dd3:web/kit/lib/automations/flow-share.test.ts:github-pat:147
+df2cee8532f2f71fc2471c2a2dddddd123178dd3:web/kit/lib/automations/flow-share.test.ts:jwt:149
+df2cee8532f2f71fc2471c2a2dddddd123178dd3:web/kit/lib/automations/flow-share-secrets.test.ts:github-pat:104
+df2cee8532f2f71fc2471c2a2dddddd123178dd3:web/kit/lib/automations/flow-share-secrets.test.ts:jwt:109
+df2cee8532f2f71fc2471c2a2dddddd123178dd3:web/kit/lib/automations/flow-share-secrets.test.ts:generic-api-key:108
