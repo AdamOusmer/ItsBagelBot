@@ -105,7 +105,17 @@ func (s *alertSpeech) loadConfig(ctx context.Context) error {
 	if err != nil || len(view.Configs) == 0 {
 		return err
 	}
-	return codec.Unmarshal(view.Configs, &s.cfg)
+	var raw map[string]any
+	if err := codec.Unmarshal(view.Configs, &raw); err != nil {
+		return err
+	}
+	s.cfg = alertConfig{}
+	for key, value := range raw {
+		if text, ok := value.(string); ok {
+			s.cfg[key] = text
+		}
+	}
+	return nil
 }
 
 func (s alertSpeech) configKey() string { return string(s.kind) + "Tts" }

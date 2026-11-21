@@ -79,7 +79,7 @@ func TestProcessAlertVoiceOutputs(t *testing.T) {
 		{name: "resub in french locale", locale: "fr", event: eventInput{"channel.subscription.message", resubJSON, `{"subEnabled":"off"}`},
 			wantChecks: 1, wantSpeech: speechExpectation{"CoolViewer a dit : 7 months!", "excited, energetic, celebratory", ""}},
 		{name: "resub without message skips speech without checking allowance", wantSkip: speechEmpty, event: eventInput{"channel.subscription.message", resubEmptyMsg, ""}, wantChat: true},
-		{name: "cheer strips cheermotes and skips bits amount", event: eventInput{"channel.cheer", cheerWithViewerText, `{"cheerTtsVoice":"Zephyr","cheerTtsStyle":"calm"}`},
+		{name: "cheer strips cheermotes and skips bits amount", event: eventInput{"channel.cheer", cheerWithViewerText, `{"__rev":10,"cheerTtsVoice":"Zephyr","cheerTtsStyle":"calm"}`},
 			wantChat: true, wantChecks: 1, wantSpeech: speechExpectation{"Cool laugh Viewer said: whispers {user}!", "calm, gentle, relaxed", "Zephyr"}},
 		{name: "cheer with only cheermotes skips speech without checking allowance", wantSkip: speechEmpty, event: eventInput{"channel.cheer", cheerOnlyBits, ""}, wantChat: true},
 		{name: "blocked cheer message drops speech completely", wantSkip: speechBlocked, blocked: `{"block_terms":"whispers"}`, event: eventInput{"channel.cheer", cheerWithViewerText, ""}, wantChat: true},
