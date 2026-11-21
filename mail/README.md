@@ -24,28 +24,23 @@ the mail (Resend dashboard, Gmail with an HTML-paste add-on, a help desk).
 
 ## Recognising us / anti-phishing
 
-Support mail is a prime phishing target, so every template carries the same two
-fixed pieces. **Do not edit, personalise, or remove them.** Their whole value is
-that they are identical on every email in that language, so users learn the
-pattern. The English and French templates each keep their own locked wording;
-translate the meaning faithfully when adding another language, but do not vary
-the security copy between messages in that language.
+Support mail is a prime phishing target, so every template carries the same
+fixed anti-phishing footer. **Do not edit, personalise, or remove it.** Its whole
+value is that it is identical on every email in that language, so users learn the
+pattern.
 
-1. **Verified-sender strip** (header, under the wordmark): a green `✓ Official
-   ItsBagelBot email · itsbagelbot.com`. This is the at-a-glance "it's really
-   us" cue. Same tick, same wording, same place, always.
-2. **Anti-phishing footer**: the Resend shell's wording for the file's
+- **Anti-phishing footer**: the Resend shell's wording for the file's
    language, the i18n strings `mail.safety.label` and `mail.safety.body`
    followed by " itsbagelbot.com.", with `itsbagelbot.com` linking to
    https://itsbagelbot.com. Copy it from the shell's catalog, never reword it.
 
-Together with the locked visual identity (logo + wordmark, verified strip,
+Together with the locked visual identity (logo + wordmark,
 safety footer, Caveat signature, the green to gold line on top of the card (#62a593 to #d8bf91, as the ui's reading-progress bar); no bagel stamp, no emoji) these give the mail a look that is easy to
 recognise and awkward to fake convincingly.
 
-### The strip is not real authentication, the domain is
+### The look is not real authentication, the domain is
 
-A tick in the body proves nothing on its own, anyone can copy pixels. What
+Branding in the body proves nothing on its own, anyone can copy pixels. What
 actually stops spoofing is the sending domain (SPF, DKIM and DMARC), which is
 configured on the DNS and mail-provider side, not in this directory.
 
