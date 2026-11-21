@@ -25,7 +25,6 @@
   "linkTitle": "Lien",
   "timing": "Minutage",
   "placement": "Emplacement",
-  "preview": "Aperçu",
   "previewFrame": "Aperçu du badge",
   "readOnly": "Seul le propriétaire de la chaîne peut modifier les overlays.",
   "unavailable": "Les réglages des overlays sont indisponibles. Rechargez la page pour réessayer.",

@@ -25,7 +25,6 @@
   "linkTitle": "Link",
   "timing": "Zeitsteuerung",
   "placement": "Platzierung",
-  "preview": "Vorschau",
   "previewFrame": "Vorschau des Badges",
   "readOnly": "Nur der Kanalinhaber kann Overlays ändern.",
   "unavailable": "Overlay-Einstellungen sind nicht verfügbar. Lade die Seite neu.",
