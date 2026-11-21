@@ -6,6 +6,7 @@
 @layer bb.elements {
     .bb-slider {
         --slider-fill: var(--bb-green-glow);
+        --slider-knob: var(--bb-white);
         --slider-thumb: 14px;
         --slider-fill-w: calc(var(--slider-thumb) / 2 + var(--slider-progress, 0) * (100% - var(--slider-thumb)));
 
@@ -47,7 +48,8 @@
         height: var(--slider-thumb);
         border: 0;
         border-radius: 50%;
-        background: var(--slider-fill);
+        background: var(--slider-knob);
+        box-shadow: 0 1px 3px rgba(var(--bb-shadow-rgb), 0.6);
     }
 
     .bb-slider::-moz-range-thumb {
@@ -55,7 +57,8 @@
         height: var(--slider-thumb);
         border: 0;
         border-radius: 50%;
-        background: var(--slider-fill);
+        background: var(--slider-knob);
+        box-shadow: 0 1px 3px rgba(var(--bb-shadow-rgb), 0.6);
     }
 
     .bb-slider:focus-visible {
