@@ -28,8 +28,6 @@
   "overlayFailed": "No se pudo crear el enlace. Inténtalo de nuevo.",
   "overlayUnavailable": "La voz en la nube no está disponible para esta cuenta.",
   "overlayCopyFailed": "No se pudo copiar el enlace. Inténtalo de nuevo.",
-  "gateTitle": "Pon voz a tus alertas con Premium",
-  "gateBody": "Elige voces y estilos para tus alertas y reprodúcelas en OBS con una fuente de navegador.",
   "liveOnly": "Solo en directo",
   "minBits": "Bits mínimos",
   "maxLengthHint": "Unos {chars} caracteres",

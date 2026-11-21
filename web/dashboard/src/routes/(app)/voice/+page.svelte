@@ -138,7 +138,7 @@
 <svelte:head><title>{t('nav.voice')}</title></svelte:head>
 
 {#if data.locked}
-  <PremiumGate title={t('voice.gateTitle')} body={t('voice.gateBody')} tag={t('nav.beta')} />
+  <PremiumGate />
 {:else}
   <section class="screen active">
     <PageHead>
