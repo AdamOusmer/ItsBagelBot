@@ -10,7 +10,6 @@
   "show": "Zeit im Bild",
   "showValue": "{seconds} s",
   "from": "Kommt von",
-  "fromHint": "Wähle mindestens einen Rand.",
   "edge": {
     "top": "Oben",
     "bottom": "Unten",
@@ -34,6 +33,6 @@
   "copyFailed": "Der Link konnte nicht kopiert werden. Versuche es erneut.",
   "invalidEvery": "Wähle {everyMin} bis {everyMax} Minuten.",
   "invalidShow": "Wähle {showMin} bis {showMax} Sekunden.",
-  "invalidFrom": "Wähle mindestens einen Rand.",
+  "invalidFrom": "Wähle einen Rand.",
   "invalidAlign": "Wähle eine Position am Rand."
 }

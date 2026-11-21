@@ -55,7 +55,7 @@ func TestGetCreatesTheDefaultOverlayOnce(t *testing.T) {
 }
 
 func TestSaveChecksConfigAndRevision(t *testing.T) {
-	valid := overlaysrpc.PoweredConfig{EveryMinutes: 30, ShowSeconds: 10, Directions: []overlaysrpc.Direction{overlaysrpc.DirectionLeft, overlaysrpc.DirectionTop}, Align: overlaysrpc.AlignStart}
+	valid := overlaysrpc.PoweredConfig{EveryMinutes: 30, ShowSeconds: 10, Directions: []overlaysrpc.Direction{overlaysrpc.DirectionLeft}, Align: overlaysrpc.AlignStart}
 	invalid := valid
 	invalid.ShowSeconds = 99
 
@@ -69,7 +69,7 @@ func TestSaveChecksConfigAndRevision(t *testing.T) {
 	}{
 		{"invalid config", invalid, 1, repository.ErrInvalidConfig, overlaysrpc.DefaultPoweredConfig(), 1},
 		{"stale revision", valid, 7, repository.ErrRevisionConflict, overlaysrpc.DefaultPoweredConfig(), 1},
-		{"saved in canonical order", valid, 1, nil, overlaysrpc.PoweredConfig{EveryMinutes: 30, ShowSeconds: 10, Directions: []overlaysrpc.Direction{overlaysrpc.DirectionTop, overlaysrpc.DirectionLeft}, Align: overlaysrpc.AlignStart}, 2},
+		{"saved", valid, 1, nil, valid, 2},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

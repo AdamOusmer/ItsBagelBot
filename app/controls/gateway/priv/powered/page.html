@@ -470,7 +470,7 @@
       const GLINT_MS = 520;
       const FIRST_DELAY_MS = 3000;
       const PREVIEW_DELAY_MS = 400;
-      const PREVIEW_EVERY_MS = 12000;
+      const PREVIEW_GAP_MS = 900;
       const GONE_RETRY_MS = 5 * 60 * 1000;
 
       const VERTICAL_IN = [
@@ -868,7 +868,7 @@
 
       function previewCycle() {
         const runMs = play(undefined);
-        later(previewCycle, Math.max(PREVIEW_EVERY_MS, runMs + 1200));
+        later(previewCycle, runMs + PREVIEW_GAP_MS);
       }
 
       function warmLogos() {

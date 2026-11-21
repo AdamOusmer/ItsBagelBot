@@ -15,6 +15,7 @@ interface Props extends Omit<HTMLAttributes<'input'>, 'value' | 'min' | 'max' | 
 
 const { value = 0, min = 0, max = 100, step = 1, class: className = '', ...rest } = Astro.props;
 const classes = ['bb-slider', className].filter(Boolean).join(' ');
+const progress = max > min ? Math.min(1, Math.max(0, (Number(value) - min) / (max - min))) : 0;
 ---
 
-<input type="range" class={classes} min={min} max={max} step={step} value={value} {...rest} />
+<input type="range" class={classes} min={min} max={max} step={step} value={value} {...rest} style={`--slider-progress: ${progress};`} />

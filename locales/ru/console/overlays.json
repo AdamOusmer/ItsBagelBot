@@ -10,7 +10,6 @@
   "show": "Время на экране",
   "showValue": "{seconds} с",
   "from": "Появляется с",
-  "fromHint": "Выберите хотя бы один край.",
   "edge": {
     "top": "Сверху",
     "bottom": "Снизу",
@@ -34,6 +33,6 @@
   "copyFailed": "Не удалось скопировать ссылку. Попробуйте снова.",
   "invalidEvery": "Выберите от {everyMin} до {everyMax} минут.",
   "invalidShow": "Выберите от {showMin} до {showMax} секунд.",
-  "invalidFrom": "Выберите хотя бы один край.",
+  "invalidFrom": "Выберите край.",
   "invalidAlign": "Выберите положение на краю."
 }

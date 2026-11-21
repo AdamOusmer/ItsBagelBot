@@ -13,6 +13,7 @@ import {
 import { hasOwnerAccess } from '#lib/server/owner';
 import { auditDashboardImpersonation } from '#lib/server/services/audit';
 import { poweredGet, poweredRotate, poweredSave } from '#lib/server/services/overlays';
+import { POWERED_ORIGIN } from '@bagel/kit/overlays';
 import { parsePoweredSave } from './powered-form';
 import type { Session } from '#lib/server/session';
 import type { Actions, PageServerLoad } from './$types';
@@ -61,15 +62,18 @@ const demoActions = {
   rotate: async () => (await import('#lib/server/demo-data')).demoPoweredRotate()
 } satisfies Actions;
 
+const previewOrigin = env.OVERLAY_ORIGIN ?? POWERED_ORIGIN;
+
 const demoLoad = (async () => ({
   readOnly: false,
+  previewOrigin,
   powered: (await import('#lib/server/demo-data')).demoPoweredView()
 })) satisfies PageServerLoad;
 
 const liveLoad = (async ({ locals: { session } }) => {
   if (!session) throw redirect(302, '/login?next=%2Foverlays');
-  if (!hasOwnerAccess(session)) return { readOnly: true, powered: null };
-  return { readOnly: false, powered: await bestEffort(poweredGet(session), null) };
+  if (!hasOwnerAccess(session)) return { readOnly: true, previewOrigin, powered: null };
+  return { readOnly: false, previewOrigin, powered: await bestEffort(poweredGet(session), null) };
 }) satisfies PageServerLoad;
 
 export const load: PageServerLoad = DEMO ? demoLoad : liveLoad;

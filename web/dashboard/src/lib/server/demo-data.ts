@@ -696,7 +696,7 @@ const DEMO_POWERED_REPLACED_URL = `${DEMO_POWERED_URL}-replaced`;
 
 const demoPoweredState: PoweredView = {
   url: DEMO_POWERED_URL,
-  config: { every_minutes: 15, show_seconds: 8, directions: ['top', 'bottom', 'left', 'right'], align: 'end' },
+  config: { every_minutes: 15, show_seconds: 8, directions: ['right'], align: 'end' },
   revision: 1
 };
 

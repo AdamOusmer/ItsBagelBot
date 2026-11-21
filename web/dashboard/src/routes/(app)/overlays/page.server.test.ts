@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { afterEach, expect, mock, spyOn, test } from 'bun:test';
-import { defaultPoweredConfig } from '@bagel/kit/overlays';
+import { POWERED_ORIGIN, defaultPoweredConfig } from '@bagel/kit/overlays';
 import { stubSvelteKit } from '../../../../test/sveltekit';
 
 stubSvelteKit();
@@ -18,9 +18,9 @@ const { actions, load } = await import('./+page.server');
 const owner = { user_id: '42' };
 const delegate = { user_id: '95', delegate_of: '42', sections: ['modules'] };
 const pageUrl = 'https://dashboard.test/overlays';
-const config = { ...defaultPoweredConfig(), every_minutes: 30, directions: ['left', 'bottom'], align: 'center' };
+const config = { ...defaultPoweredConfig(), every_minutes: 30, directions: ['left'], align: 'center' };
 const view = { url: 'https://overlay.itsbagelbot.com/powered#AAAA', config, revision: 9 };
-const form = { every_minutes: '30', show_seconds: '8', directions: 'left,bottom', align: 'center', expected_rev: '9' };
+const form = { every_minutes: '30', show_seconds: '8', directions: 'left', align: 'center', expected_rev: '9' };
 
 afterEach(() => mock.restore());
 
@@ -33,9 +33,9 @@ function post(action: 'save' | 'rotate', session: object | null, fields: Record<
 }
 
 test.each([
-  { name: 'an owner', session: owner, read: () => Promise.resolve(view), want: { readOnly: false, powered: view }, calls: 1 },
-  { name: 'an owner whose read fails', session: owner, read: () => Promise.reject(new Error('timeout')), want: { readOnly: false, powered: null }, calls: 1 },
-  { name: 'a delegate', session: delegate, read: () => Promise.resolve(view), want: { readOnly: true, powered: null }, calls: 0 }
+  { name: 'an owner', session: owner, read: () => Promise.resolve(view), want: { readOnly: false, previewOrigin: POWERED_ORIGIN, powered: view }, calls: 1 },
+  { name: 'an owner whose read fails', session: owner, read: () => Promise.reject(new Error('timeout')), want: { readOnly: false, previewOrigin: POWERED_ORIGIN, powered: null }, calls: 1 },
+  { name: 'a delegate', session: delegate, read: () => Promise.resolve(view), want: { readOnly: true, previewOrigin: POWERED_ORIGIN, powered: null }, calls: 0 }
 ])('loads the powered badge for $name', async ({ session, read, want, calls }) => {
   const rpc = spyOn(bus, 'rpc').mockImplementationOnce(read as never);
   expect(await load({ locals: { session, locale: 'en' } } as never)).toEqual(want);
@@ -52,8 +52,9 @@ test.each([
   { name: 'a wait under the floor', fields: { every_minutes: '4' }, error: 'Choose from 5 to 120 minutes.' },
   { name: 'a wait over the cap', fields: { every_minutes: '121' }, error: 'Choose from 5 to 120 minutes.' },
   { name: 'a show over the cap', fields: { show_seconds: '21' }, error: 'Choose from 6 to 20 seconds.' },
-  { name: 'no edges', fields: { directions: '' }, error: 'Pick at least one edge.' },
-  { name: 'an unknown edge', fields: { directions: 'top,middle' }, error: 'Pick at least one edge.' },
+  { name: 'no edges', fields: { directions: '' }, error: 'Pick an edge.' },
+  { name: 'two edges', fields: { directions: 'top,left' }, error: 'Pick an edge.' },
+  { name: 'an unknown edge', fields: { directions: 'middle' }, error: 'Pick an edge.' },
   { name: 'an unknown position', fields: { align: 'middle' }, error: 'Choose a position on the edge.' }
 ])('refuses $name before calling the owner', async ({ fields, error }) => {
   const rpc = spyOn(bus, 'rpc');

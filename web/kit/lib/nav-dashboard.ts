@@ -88,7 +88,7 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
   {
     id: 'overlays',
     labelKey: 'nav.overlays',
-    icon: 'share',
+    icon: 'overlay',
     href: '/overlays',
     match: ['/overlays'],
     ownerOnly: true

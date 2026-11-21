@@ -63,7 +63,7 @@ func DefaultPoweredConfig() PoweredConfig {
 	return PoweredConfig{
 		EveryMinutes: DefaultEveryMinutes,
 		ShowSeconds:  DefaultShowSeconds,
-		Directions:   slices.Clone(Directions),
+		Directions:   []Direction{DirectionRight},
 		Align:        AlignEnd,
 	}
 }
@@ -71,7 +71,7 @@ func DefaultPoweredConfig() PoweredConfig {
 var (
 	ErrEveryRange = errors.New("every_minutes out of range")
 	ErrShowRange  = errors.New("show_seconds out of range")
-	ErrDirections = errors.New("directions must be a non-empty set of top, bottom, left, right")
+	ErrDirections = errors.New("directions must be exactly one of top, bottom, left, right")
 	ErrAlign      = errors.New("align must be start, center or end")
 )
 
@@ -92,17 +92,7 @@ func (c PoweredConfig) Validate() error {
 }
 
 func validDirections(list []Direction) bool {
-	if len(list) == 0 || len(list) > len(Directions) {
-		return false
-	}
-	seen := make(map[Direction]bool, len(list))
-	for _, d := range list {
-		if seen[d] || !slices.Contains(Directions, d) {
-			return false
-		}
-		seen[d] = true
-	}
-	return true
+	return len(list) == 1 && slices.Contains(Directions, list[0])
 }
 
 type PoweredOverlay struct {

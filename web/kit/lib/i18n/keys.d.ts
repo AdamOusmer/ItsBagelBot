@@ -5575,7 +5575,6 @@ export type KnownMessageKey =
   | 'overlays.every'
   | 'overlays.everyValue'
   | 'overlays.from'
-  | 'overlays.fromHint'
   | 'overlays.invalidAlign'
   | 'overlays.invalidEvery'
   | 'overlays.invalidFrom'

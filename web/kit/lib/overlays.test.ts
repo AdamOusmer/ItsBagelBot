@@ -4,7 +4,7 @@
 import { expect, test } from 'bun:test';
 import {
   DEFAULT_EVERY_MINUTES, DEFAULT_POWERED_ALIGN, DEFAULT_SHOW_SECONDS, MAX_EVERY_MINUTES, MAX_SHOW_SECONDS,
-  MIN_EVERY_MINUTES, MIN_SHOW_SECONDS, POWERED_ALIGNS, POWERED_DIRECTIONS, POWERED_PAGE_URL,
+  MIN_EVERY_MINUTES, MIN_SHOW_SECONDS, POWERED_ALIGNS, POWERED_DIRECTIONS, POWERED_ORIGIN,
   defaultPoweredConfig, poweredConfigError, poweredPreviewUrl, type PoweredConfig
 } from './overlays';
 
@@ -24,7 +24,8 @@ test('powered overlay limits match the Go contract', () => {
     Direction: POWERED_DIRECTIONS,
     Align: POWERED_ALIGNS,
     DefaultAlign: DEFAULT_POWERED_ALIGN,
-    PageURL: POWERED_PAGE_URL
+    DefaultDirections: defaultPoweredConfig().directions,
+    PageURL: `${POWERED_ORIGIN}/powered`
   }).toEqual({
     MinEveryMinutes: goInt('MinEveryMinutes'),
     MaxEveryMinutes: goInt('MaxEveryMinutes'),
@@ -35,6 +36,7 @@ test('powered overlay limits match the Go contract', () => {
     Direction: goValues('Direction'),
     Align: goValues('Align'),
     DefaultAlign: source.match(/Align:\s+Align(\w+),/)?.[1]?.toLowerCase(),
+    DefaultDirections: [source.match(/Directions:\s+\[\]Direction\{Direction(\w+)\}/)?.[1]?.toLowerCase()],
     PageURL: source.match(/PoweredURLPrefix = "([^"#]+)#"/)?.[1]
   });
 });
@@ -50,7 +52,7 @@ test.each([
   { name: 'the longest show', config: { ...base, show_seconds: 20 }, error: null },
   { name: 'a show under the floor', config: { ...base, show_seconds: 5 }, error: 'overlays.invalidShow' },
   { name: 'no edges', config: { ...base, directions: [] }, error: 'overlays.invalidFrom' },
-  { name: 'a repeated edge', config: { ...base, directions: ['top', 'top'] }, error: 'overlays.invalidFrom' },
+  { name: 'two edges', config: { ...base, directions: ['top', 'left'] }, error: 'overlays.invalidFrom' },
   { name: 'an unknown edge', config: { ...base, directions: ['middle'] }, error: 'overlays.invalidFrom' },
   { name: 'an unknown position', config: { ...base, align: 'middle' }, error: 'overlays.invalidAlign' }
 ])('validates $name', ({ config, error }) => {
@@ -58,8 +60,8 @@ test.each([
 });
 
 test('the preview link carries the look and the plan, never a token', () => {
-  const url = new URL(poweredPreviewUrl({ ...base, show_seconds: 12, directions: ['left', 'bottom'], align: 'center' }, true));
+  const url = new URL(poweredPreviewUrl({ ...base, show_seconds: 12, directions: ['left'], align: 'center' }, true));
   expect([url.origin + url.pathname, Object.fromEntries(url.searchParams), url.hash]).toEqual([
-    POWERED_PAGE_URL, { preview: '1', show: '12', from: 'left,bottom', align: 'center', premium: '1' }, ''
+    `${POWERED_ORIGIN}/powered`, { preview: '1', show: '12', from: 'left', align: 'center', premium: '1' }, ''
   ]);
 });

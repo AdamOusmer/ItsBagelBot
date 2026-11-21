@@ -10,7 +10,6 @@
   "show": "Temps à l’écran",
   "showValue": "{seconds} s",
   "from": "Arrive par",
-  "fromHint": "Choisissez au moins un bord.",
   "edge": {
     "top": "Haut",
     "bottom": "Bas",
@@ -34,6 +33,6 @@
   "copyFailed": "Impossible de copier le lien. Réessayez.",
   "invalidEvery": "Choisissez entre {everyMin} et {everyMax} minutes.",
   "invalidShow": "Choisissez entre {showMin} et {showMax} secondes.",
-  "invalidFrom": "Choisissez au moins un bord.",
+  "invalidFrom": "Choisissez un bord.",
   "invalidAlign": "Choisissez une position sur le bord."
 }
