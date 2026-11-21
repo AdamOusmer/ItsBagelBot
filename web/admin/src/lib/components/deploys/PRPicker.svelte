@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
@@ -35,12 +36,12 @@
 
 {#if prs.length === 0}
   <Card flush>
-    <div class="empty"><Text size="sm" tone="muted">{t('admin.deploys.prsEmpty')}</Text></div>
+    <EmptyState title={t('admin.deploys.prsEmpty')} />
   </Card>
 {:else}
   <DeckList as="ul" aria-label={t('admin.deploys.prs')}>
     {#each prs as pr (pr.number)}
-      <ManagementRow as="li" selectable={false}>
+      <ManagementRow as="li" selectable={false} stackActions>
         {#snippet primary()}
           <span class="pick" class:blocked={!tickable(pr)}>
             <Checkbox
@@ -61,7 +62,15 @@
           <span class="author"><Text as="span" size="xs" mono tone="muted">{pr.author}</Text></span>
           <CheckDot tone={checkTone(pr.checks)} label={checkLabel(pr)} />
           <CheckDot tone={checkTone(pr.codescene)} label={codeSceneLabel(pr)} />
-          <Text as="span" size="xs" mono tone="muted"><TextLink variant="inline" href={pr.url} external>{t('admin.deploys.prOpen')}</TextLink></Text>
+          <Text as="span" size="xs" mono tone="muted">
+            <TextLink
+              variant="inline"
+              href={pr.url}
+              external
+              label={t('admin.deploys.prOpen')}
+              aria-label={`${t('admin.deploys.prOpen')} #${pr.number}`}
+            />
+          </Text>
         {/snippet}
       </ManagementRow>
     {/each}
@@ -69,9 +78,6 @@
 {/if}
 
 <style>
-  .empty {
-    padding: var(--bb-space-2) var(--bb-space-4);
-  }
   .pick {
     --bb-check-flex: 1;
     --bb-check-label-min-width: 0;
@@ -86,6 +92,7 @@
   .title {
     display: -webkit-box;
     overflow: hidden;
+    overflow-wrap: anywhere;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     line-clamp: 2;

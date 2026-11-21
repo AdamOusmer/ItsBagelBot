@@ -2,7 +2,7 @@
   "eyebrow": "Implantações",
   "titlePre": "Esteira de ",
   "titleEm": "versões",
-  "description": "Publique uma versão, um hotfix, uma atualização de imagens, uma reversão ou uma reaplicação. As etapas seguem uma ordem fixa e param na primeira falha. Nada é revertido automaticamente.",
+  "description": "Inicie implantações e acompanhe o progresso.",
   "statusLive": "Em produção",
   "statusCluster": "Cluster",
   "statusLastRun": "Última execução",
@@ -83,5 +83,13 @@
   "rollbackTitle": "Reverter o cluster?",
   "rollbackBody": "Inicia uma nova execução que fixa as imagens de {version} e implanta cada serviço alterado.",
   "manifest": "Manifesto",
-  "logLabel": "Log de {stage}"
+  "logLabel": "Log de {stage}",
+  "filterAll": "Todos",
+  "filterActive": "Em andamento",
+  "filterFinished": "Concluídos",
+  "filterLabel": "Filtrar implantações",
+  "filterEmpty": "Nenhuma implantação corresponde a este filtro.",
+  "historyError": "O histórico está indisponível: {error}",
+  "historyUnavailable": "O histórico está indisponível.",
+  "planUnavailable": "O plano de implantação está indisponível."
 }

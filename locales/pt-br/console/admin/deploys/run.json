@@ -25,5 +25,8 @@
   "nowOf": "{n} de {total}",
   "nowAllBuilt": "Todas as imagens foram geradas: {total}.",
   "jobs": "Jobs concluídos: {done} de {total}",
-  "openJob": "Abrir job"
+  "openJob": "Abrir job",
+  "noStages": "Ainda não há etapas",
+  "noStagesBody": "As etapas aparecem quando a implantação começa.",
+  "loadFailed": "Não foi possível carregar esta implantação."
 }

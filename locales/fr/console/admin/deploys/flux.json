@@ -16,5 +16,7 @@
   "tag": "Tag de l’image",
   "pin": "Épingler",
   "clear": "Retirer",
-  "error": "Statut Flux indisponible : {error}"
+  "error": "Statut Flux indisponible : {error}",
+  "unavailable": "L’état de Flux est indisponible.",
+  "noTiers": "Aucun niveau du cluster trouvé."
 }

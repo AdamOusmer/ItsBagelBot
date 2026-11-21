@@ -1,101 +1,161 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// @ts-ignore Bun supplies this module at test runtime; it is not a production dependency.
+// @ts-ignore Bun supplies this module at test runtime.
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { allows, type AccessKey, type AdminRole } from '../src/lib/access';
+import type { DeployPlan, FluxTier } from '../src/lib/deploys/types';
+import type { DeployRuns } from '../src/lib/server/release';
+import { stubSvelteKit } from './sveltekit';
 
-type Admin = { id: string; login: string; display_name: string; role: 'moderator' | 'admin' | 'owner' };
+stubSvelteKit();
 
-let adminReply: Admin | null = { id: '1', login: 'mod', display_name: 'Mod', role: 'admin' };
-let allowsReply = false;
+type Session = { user_id: string } | null;
 
-const requireAdmin = mock(async () => adminReply);
-const allows = mock(() => allowsReply);
-const requireRole = mock(async () => (allowsReply ? adminReply : null));
+const session = { user_id: '1' };
+const params = { id: 'run-1' };
+const admin = { id: session.user_id, login: 'mod', display_name: 'Mod' };
+const plan = { in_sync: true } satisfies DeployPlan;
+const pinnable = ['users'];
 
-mock.module('#lib/server/access', () => ({ requireAdmin, allows, requireRole }));
+let role: AdminRole = 'admin';
 
-const loadDeploys = mock(async () => ({ planned: Promise.resolve({ plan: null, planError: null }), runs: [], active: null, runsError: null }));
-const loadDeployRun = mock(async () => ({ run: {} }));
-const deployApi = mock(async () => ({ get: mock(async () => ({})), watch: mock(() => () => {}) }));
-const deployStatus = () => 503;
-class RunRelay {
-  offer() {}
-  open() {}
-  keepalive() {}
+function adminFor(session: Session) {
+  return session ? { ...admin, role } : null;
 }
 
+mock.module('#lib/server/access', () => ({
+  requireAdmin: async (session: Session) => adminFor(session),
+  allows,
+  requireRole: async ({ locals }: { locals: { session: Session } }, key: AccessKey) =>
+    allows(role, key) ? adminFor(locals.session) : null
+}));
+
+const loadDeployRun = mock(async () => ({ run: {} }));
+const listRuns = mock(async (): Promise<DeployRuns> => ({ runs: [], activeRunId: null }));
+const getRun = mock(async () => params);
+const readPlan = mock(async (): Promise<DeployPlan | null> => plan);
+const fluxTiers = mock(async (): Promise<FluxTier[]> => []);
+const deployApi = mock(async () => ({ list: listRuns, get: getRun, plan: readPlan }));
+
 mock.module('#lib/server/deploys', () => ({
-  loadDeploys,
+  deployActions: {},
   loadDeployRun,
   runActions: {},
   deployApi,
-  deployStatus,
-  RunRelay
+  deployStatus: () => 503,
+  RunRelay: class {}
 }));
+mock.module('#lib/server/flux', () => ({ fluxTiers, PINNABLE: pinnable }));
 
+const { load: indexLoad } = await import('../src/routes/(admin)/deploys/+page.server');
 const { load: newLoad } = await import('../src/routes/(admin)/deploys/new/+page.server');
 const { load: runLoad } = await import('../src/routes/(admin)/deploys/[id]/+page.server');
 const { GET: streamGET } = await import('../src/routes/(admin)/deploys/[id]/stream/+server');
 
 beforeEach(() => {
-  adminReply = { id: '1', login: 'mod', display_name: 'Mod', role: 'admin' };
-  allowsReply = false;
-  requireAdmin.mockClear();
-  allows.mockClear();
-  requireRole.mockClear();
-  loadDeploys.mockClear();
-  loadDeployRun.mockClear();
-  deployApi.mockClear();
+  role = 'admin';
+  for (const read of [deployApi, loadDeployRun, listRuns, getRun, readPlan, fluxTiers]) read.mockClear();
 });
 
-type Session = { user_id: string } | null;
+function openIndex() {
+  return indexLoad({ parent: async () => ({ id: admin.id, role }) } as Parameters<typeof indexLoad>[0]);
+}
+
+function openNew(session: Session) {
+  return newLoad({ locals: { session } } as Parameters<typeof newLoad>[0]);
+}
 
 type RouteCase = {
   label: string;
-  admin: boolean;
+  session: Session;
   call: (session: Session) => unknown;
-  refusal: Record<string, unknown>;
-  untouched: ReturnType<typeof mock>;
+  refusal: { status: number; location?: string };
+  untouched: () => unknown;
 };
 
-const params = { id: 'run-1' };
-
 const routes = [
-  { name: 'new deploy page', call: (session: Session) => newLoad({ locals: { session } } as never), loader: loadDeploys, kind: 'page' },
-  { name: 'deploy run page', call: (session: Session) => runLoad({ locals: { session }, params } as never), loader: loadDeployRun, kind: 'page' },
-  { name: 'deploy run stream', call: (session: Session) => streamGET({ locals: { session }, params } as never), loader: deployApi, kind: 'stream' }
+  { name: 'new deploy page', call: openNew, loader: deployApi, kind: 'page' },
+  {
+    name: 'deploy run page',
+    call: (session: Session) => runLoad({ locals: { session }, params } as Parameters<typeof runLoad>[0]),
+    loader: loadDeployRun,
+    kind: 'page'
+  },
+  {
+    name: 'deploy run stream',
+    call: (session: Session) => streamGET({ locals: { session }, params } as Parameters<typeof streamGET>[0]),
+    loader: deployApi,
+    kind: 'stream'
+  }
 ] as const;
 
-function refusalFor(kind: 'page' | 'stream', admin: boolean): Record<string, unknown> {
+function refusalFor(kind: 'page' | 'stream', session: Session) {
   if (kind === 'stream') return { status: 403 };
-  return { status: 302, location: admin ? '/' : '/login' };
+  return { status: 302, location: session ? '/' : '/login' };
 }
 
-const cases: RouteCase[] = routes.flatMap((route) =>
-  [true, false].map((admin) => ({
-    label: `${route.name} refuses ${admin ? 'an admin without deploys.manage' : 'a session with no admin'}`,
-    admin,
-    call: route.call,
-    refusal: refusalFor(route.kind, admin),
-    untouched: route.loader
+const cases: RouteCase[] = routes.flatMap(({ name, call, loader, kind }) =>
+  [session, null].map((requestSession) => ({
+    label: `${name} refuses ${requestSession ? 'an admin without deploys.manage' : 'an anonymous session'}`,
+    session: requestSession,
+    call,
+    refusal: refusalFor(kind, requestSession),
+    untouched: loader
   }))
 );
 
-async function outcome(run: () => unknown): Promise<unknown> {
-  try {
-    await run();
-    return null;
-  } catch (e) {
-    return e;
-  }
-}
-
 describe('deploy routes require deploys.manage', () => {
-  test.each(cases)('$label', async ({ admin, call, refusal, untouched }: RouteCase) => {
-    if (!admin) adminReply = null;
-    const refused = await outcome(() => call(admin ? { user_id: '1' } : null));
-    expect(refused).toMatchObject(refusal);
+  test.each(cases)('$label', async ({ session, call, refusal, untouched }: RouteCase) => {
+    await expect(call(session)).rejects.toMatchObject(refusal);
     expect(untouched).not.toHaveBeenCalled();
   });
+
+  test('refuses an admin on the deploy index before starting reads', async () => {
+    await expect(openIndex()).rejects.toMatchObject({ status: 302, location: '/' });
+    expect(deployApi).not.toHaveBeenCalled();
+    expect(fluxTiers).not.toHaveBeenCalled();
+  });
+});
+
+describe('new deploy page', () => {
+  beforeEach(() => {
+    role = 'owner';
+  });
+
+  test('returns the pending plan in page data', async () => {
+    const pending = Promise.withResolvers<DeployPlan | null>();
+    readPlan.mockImplementationOnce(() => pending.promise);
+
+    const data = await openNew(session);
+
+    expect({ planned: data?.planned instanceof Promise, planReads: readPlan.mock.calls }).toEqual({
+      planned: true,
+      planReads: [[{ actor_id: admin.id }]]
+    });
+    pending.resolve(plan);
+    expect(await data?.planned).toEqual({ plan, planError: null });
+  });
+
+  test('redirects to an active run', async () => {
+    listRuns.mockResolvedValueOnce({ runs: [], activeRunId: params.id });
+    await expect(openNew(session)).rejects.toMatchObject({ status: 303, location: '/deploys/run-1' });
+    expect(getRun).toHaveBeenCalledWith({ actor_id: admin.id, run_id: params.id });
+  });
+});
+
+test('the deploy index streams the plan and Flux while history is pending', async () => {
+  role = 'owner';
+  const pending = Promise.withResolvers<DeployRuns>();
+  listRuns.mockImplementationOnce(() => pending.promise);
+
+  const data = await openIndex();
+
+  expect([data?.runs, data?.planned, data?.flux].every((read) => read instanceof Promise)).toBe(true);
+  expect(await Promise.all([data?.planned, data?.flux])).toEqual([
+    { plan, planError: null },
+    { tiers: [], pinnable, fluxError: null }
+  ]);
+  pending.resolve({ runs: [], activeRunId: null });
+  expect(await data?.runs).toEqual({ runs: [], active: null, runsError: null });
 });
