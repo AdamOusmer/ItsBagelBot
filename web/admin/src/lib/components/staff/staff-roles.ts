@@ -16,7 +16,10 @@ export type StaffDraft = {
   role: AdminRole;
 };
 
+export type AccessFilter = 'all' | 'active' | 'inactive';
+
 export const NEW_MEMBER = '__new__';
+export const STAFF_ROSTER = 'admin:staff-roster';
 
 export function blankDraft(role: AdminRole): StaffDraft {
   return { userId: '', login: '', displayName: '', role };

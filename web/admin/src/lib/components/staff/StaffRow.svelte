@@ -1,9 +1,9 @@
 <script lang="ts">
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
+
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Bolota from '@bagel/ui/svelte/Bolota.svelte';
-  import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AdminAcct } from '#lib/server/services';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
@@ -14,13 +14,13 @@
     member,
     isSelf,
     selected,
-    controls,
+    expanded,
     onselect
   }: {
     member: AdminAcct;
     isSelf: boolean;
     selected: boolean;
-    controls: string;
+    expanded: boolean;
     onselect: () => void;
   } = $props();
 
@@ -28,43 +28,60 @@
 </script>
 
 {#snippet you()}
-  <Tag tone="quiet">{t('admin.staff.you')}</Tag>
+  <Tag tone="quiet"><bb-fit><span data-fit>{t('admin.staff.you')}</span></bb-fit></Tag>
 {/snippet}
 
-<ManagementRow
-  wrap
-  {selected}
-  expanded={selected}
-  {controls}
-  onSelect={onselect}
-  badge={isSelf ? you : undefined}
-  title={member.display_name || member.login}
-  meta={t('admin.staff.rowMeta', {
-    login: member.login,
-    id: String(member.id),
-    when: ago(member.created_at)
-  })}
->
-  {#snippet leading()}
-    <Bolota name={member.display_name || member.login} size={28} active={selected} />
-  {/snippet}
-  {#snippet marks()}
-    <StatePill tone={member.role}>{t(ROLE_LABEL[member.role])}</StatePill>
-    <span class="access">
-      <StatePill tone={member.active ? 'free' : 'inactive'}>
-        {member.active ? t('admin.staff.activeChip') : t('admin.staff.inactiveChip')}
-      </StatePill>
-    </span>
-  {/snippet}
-</ManagementRow>
+<li class="member">
+  <ManagementRow
+    {selected}
+    {expanded}
+    controls={expanded ? 'staff-inspector' : undefined}
+    onSelect={onselect}
+    style="min-block-size: var(--staff-row-height)"
+    badge={isSelf ? you : undefined}
+    title={member.display_name || member.login}
+    meta={t('admin.staff.rowMeta', { login: member.login, id: String(member.id) })}
+  >
+    {#snippet leading()}
+      <Bolota name={member.display_name || member.login} size={28} active={selected} cycle={false} />
+    {/snippet}
+    {#snippet marks()}
+      <span class="marks">
+        <span class="mark bb-fit-box">
+          <StatePill tone={member.role}><bb-fit><span data-fit>{t(ROLE_LABEL[member.role])}</span></bb-fit></StatePill>
+        </span>
+        <span class="mark bb-fit-box">
+          <StatePill tone={member.active ? 'free' : 'inactive'}>
+            <bb-fit><span data-fit>{t(member.active ? 'admin.staff.activeChip' : 'admin.staff.inactiveChip')}</span></bb-fit>
+          </StatePill>
+        </span>
+      </span>
+    {/snippet}
+  </ManagementRow>
+</li>
 
 <style>
-  .access {
-    display: contents;
+  .member {
+    container-type: inline-size;
   }
-  @media (max-width: 560px) {
-    .access {
-      display: none;
+
+  .marks {
+    display: inline-grid;
+    grid-template-columns: 7.5rem 5.25rem;
+    gap: var(--bb-space-1);
+    align-items: center;
+  }
+
+  .mark {
+    display: inline-grid;
+    justify-items: end;
+    min-inline-size: 0;
+  }
+
+  @container (max-width: 28rem) {
+    .marks {
+      grid-template-columns: 6.75rem;
+      gap: 2px;
     }
   }
 </style>
