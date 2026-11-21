@@ -134,8 +134,6 @@
   }
 
   type FilterChoice<Value> = { value: Value; label: string };
-  const optionLayout = 'display: grid; grid-template-columns: minmax(0, 1fr) auto; overflow: clip;';
-
   function countedOptions<Value extends string>(
     options: readonly FilterChoice<Value>[],
     candidates: LaneView[],
@@ -144,8 +142,7 @@
     return options.map(({ value, label }) => ({
       value,
       label,
-      count: result === null ? '\u00a0' : candidates.filter((lane) => matches(lane, value)).length.toLocaleString(locale),
-      attrs: { style: optionLayout }
+      count: result === null ? '\u00a0' : candidates.filter((lane) => matches(lane, value)).length.toLocaleString(locale)
     }));
   }
 
@@ -324,12 +321,11 @@
                   <Label mono as="span">{filter.label}</Label>
                   <SegmentedControl
                     even
-                    class="bb-tabs--plain"
+                    class="bb-tabs--plain lane-segments"
                     label={filter.label}
                     options={filter.options}
                     value={filter.value}
                     onValueChange={filter.onValueChange}
-                    style="grid-auto-columns: minmax(5.5rem, 1fr); overflow-x: auto; scrollbar-width: thin;"
                   />
                 </Stack>
               {/each}
@@ -338,8 +334,7 @@
                 <Grid min="8rem" gap={2} class="lane-categories" role="group" aria-labelledby="lane-category-filter">
                   {#each categoryOptions as option (option.value)}
                     <Chip
-                      class="bb-chip--cell"
-                      style={optionLayout}
+                      class="bb-chip--cell lane-category"
                       pressed={option.value === 'all' ? categories.size === 0 : categories.has(option.value)}
                       onclick={() => toggleCategory(option.value)}
                     >
@@ -516,7 +511,19 @@
   }
 
   .toolbar-filters {
-    max-inline-size: 42rem;
+    max-inline-size: 56rem;
+  }
+
+  .toolbar-filters :global(.lane-segments) {
+    grid-auto-columns: minmax(11rem, 1fr);
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .toolbar-filters :global(.lane-category) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    overflow: clip;
   }
 
   @container (max-width: 42rem) {

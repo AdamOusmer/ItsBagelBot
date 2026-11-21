@@ -20,6 +20,7 @@
   import AuditRow from '#lib/components/audit/AuditRow.svelte';
   import AuditDetail from '#lib/components/audit/AuditDetail.svelte';
   import { auditCsv } from '#lib/components/audit/csv';
+  import { applyStreamed } from '#lib/streamed-load';
   import { downloadCsv } from '@bagel/ui/lib/csv';
   import { AUDIT_KINDS, KIND_LABEL, auditKind, auditKindCounts, type AuditKind } from '#lib/components/audit/audit-kinds';
 
@@ -50,10 +51,25 @@
 
   let localSearch = $state.raw<SearchRead>();
   let trail = $state.raw<Trail>();
+  let resolved = $state.raw<{ source: Promise<AuditResult>; value: AuditResult }>();
   const searchRead = $derived(localSearch?.base === data.firstPage ? localSearch : undefined);
   const firstPage = $derived(searchRead?.result ?? data.firstPage);
+  const first = $derived(resolved?.source === firstPage ? resolved.value : undefined);
   const term = $derived(searchRead?.term ?? data.search);
   const more = $derived(trail?.firstPage === firstPage ? trail : undefined);
+  const loaded = $derived(first ? [...first.entries, ...(more?.entries ?? [])] : []);
+  const rows = $derived(kinds.length ? loaded.filter((entry) => kinds.includes(auditKind(entry.action))) : loaded);
+  const counts = $derived(auditKindCounts(loaded));
+  const selected = $derived(rows.find((entry) => entry.id === selectedId));
+  const page = $derived(more?.page ?? first?.page);
+  const hasMore = $derived(more?.hasMore ?? first?.has_more);
+  const issue = $derived(more?.error || first?.error);
+  const atCap = $derived(page === data.maxPages && !issue);
+
+  $effect(() => {
+    const source = firstPage;
+    applyStreamed(source, (value) => { resolved = { source, value }; });
+  });
 
   function loadSearch(value: string) {
     const q = value.trim();
@@ -109,14 +125,6 @@
     kinds = kinds.includes(kind) ? kinds.filter((active) => active !== kind) : [...kinds, kind];
   }
 
-  function loadedEntries(first?: AuditResult): AuditEntry[] {
-    return first ? [...first.entries, ...(more?.entries ?? [])] : [];
-  }
-
-  function filterEntries(entries: AuditEntry[]): AuditEntry[] {
-    return kinds.length ? entries.filter((entry) => kinds.includes(auditKind(entry.action))) : entries;
-  }
-
   function closeInspector() {
     selectedId = null;
   }
@@ -132,25 +140,24 @@
   }
 </script>
 
-{#snippet exportAction(rows: AuditEntry[])}
-  <Button variant="ghost" onclick={() => exportCsv(rows)} disabled={rows.length === 0}>
-    <bb-fit><span data-fit>{t('admin.audit.exportCsv')}</span></bb-fit>
-  </Button>
-{/snippet}
+<section class="screen active">
+  <PageHead eyebrow={t('admin.audit.eyebrow')} description={t('admin.audit.description')}>
+    {t('admin.audit.titlePre')}<em>{t('admin.audit.titleEm')}</em>
+  </PageHead>
 
-{#snippet auditBody(first?: AuditResult)}
-  {@const loaded = loadedEntries(first)}
-  {@const rows = filterEntries(loaded)}
-  {@const counts = auditKindCounts(loaded)}
-  {@const selected = rows.find((entry) => entry.id === selectedId)}
-  {@const page = more?.page ?? first?.page}
-  {@const hasMore = more?.hasMore ?? first?.has_more}
-  {@const issue = more?.error || first?.error}
-  {@const atCap = page === data.maxPages && !issue}
-
-  <PageToolbar style="display: block">
+  <PageToolbar class="audit-toolbar">
     {#snippet leading()}
       <div class="filter-toolbar">
+        <div class="toolbar-search">
+          <SearchInput
+            bind:value={search}
+            placeholder={t('admin.audit.searchPlaceholder')}
+            aria-label={t('admin.audit.searchPlaceholder')}
+            debounceMs={350}
+            onValueChange={loadSearch}
+            fill
+          />
+        </div>
         <div class="filter-meta">
           <div class="fit-label">
             <Text as="div" id="audit-kinds" size="xs" tone="muted">
@@ -183,6 +190,13 @@
             </Chip>
           {/each}
         </div>
+      </div>
+    {/snippet}
+    {#snippet trailing()}
+      <div class="toolbar-export">
+        <Button block variant="ghost" onclick={() => exportCsv(rows)} disabled={rows.length === 0}>
+          <bb-fit><span data-fit>{t('admin.audit.exportCsv')}</span></bb-fit>
+        </Button>
       </div>
     {/snippet}
   </PageToolbar>
@@ -251,47 +265,11 @@
       </InspectorSurface>
     {/if}
   </DeckLayout>
-{/snippet}
-
-<section class="screen active">
-  <PageHead eyebrow={t('admin.audit.eyebrow')} description={t('admin.audit.description')}>
-    {t('admin.audit.titlePre')}<em>{t('admin.audit.titleEm')}</em>
-  </PageHead>
-
-  <PageToolbar style="display: block">
-    {#snippet leading()}
-      <div class="query-toolbar">
-        <div class="toolbar-search">
-          <SearchInput
-            bind:value={search}
-            placeholder={t('admin.audit.searchPlaceholder')}
-            debounceMs={350}
-            onValueChange={loadSearch}
-            fill
-          />
-        </div>
-        {#await firstPage}
-          {@render exportAction([])}
-        {:then first}
-          {@render exportAction(filterEntries(loadedEntries(first)))}
-        {/await}
-      </div>
-    {/snippet}
-  </PageToolbar>
-
-  {#await firstPage}
-    {@render auditBody()}
-  {:then first}
-    {@render auditBody(first)}
-  {/await}
 </section>
 
 <style>
-  .query-toolbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 10rem;
-    align-items: center;
-    gap: var(--bb-space-3);
+  .screen :global(.audit-toolbar) {
+    align-items: flex-start;
   }
 
   .toolbar-search {
@@ -300,8 +278,15 @@
 
   .filter-toolbar {
     display: grid;
+    flex: 1 1 100%;
+    min-width: 0;
     gap: var(--bb-space-2);
     container-type: inline-size;
+  }
+
+  .toolbar-export {
+    flex: 0 0 9rem;
+    margin-inline-start: auto;
   }
 
   .filter-meta {
@@ -381,10 +366,6 @@
   }
 
   @media (max-width: 600px) {
-    .query-toolbar {
-      grid-template-columns: 1fr;
-    }
-
     .toolbar-search {
       width: 100%;
     }

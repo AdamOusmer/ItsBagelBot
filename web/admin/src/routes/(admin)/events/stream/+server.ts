@@ -1,7 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { randomUUID } from 'node:crypto';
 import type { RequestHandler } from './$types';
 import { error } from '@sveltejs/kit';
 import { dev } from '$app/env';
@@ -12,7 +11,6 @@ import { FeedHistory, type FeedRecord } from '#lib/server/feed-history';
 import { STATUS_PREFIX } from '#lib/server/services';
 
 const enc = new TextEncoder();
-const processId = randomUUID();
 const DEMO = dev && process.env.DEMO === '1';
 const DEMO_INTERVAL_MS = 3_000;
 const DEMO_HISTORY_SIZE = 40;
@@ -37,20 +35,26 @@ function demoStatusHistory(makeEvent: DemoEvent): FeedHistory {
   return history;
 }
 
-function sse(event: 'history' | 'feed', data: unknown): Uint8Array {
-  const id = event === 'history' ? `id: ${processId}\n` : '';
-  return enc.encode(`${id}event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+function sse(event: 'history' | 'feed' | 'unavailable', data: unknown, id?: string): Uint8Array {
+  const cursor = id ? `id: ${id}\n` : '';
+  return enc.encode(`${cursor}event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
 function startStream(controller: ReadableStreamDefaultController, source: FeedSource): () => void {
-  controller.enqueue(enc.encode(': connected\n\n'));
   let stopped = false;
   let unsubscribe: (() => void) | undefined;
-  const heartbeat = setInterval(() => controller.enqueue(enc.encode(': keepalive\n\n')), 20_000);
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
   const stop = () => {
     stopped = true;
     clearInterval(heartbeat);
     unsubscribe?.();
+  };
+  const send = (data: Uint8Array) => {
+    try {
+      controller.enqueue(data);
+    } catch {
+      stop();
+    }
   };
   const close = () => {
     stop();
@@ -59,15 +63,18 @@ function startStream(controller: ReadableStreamDefaultController, source: FeedSo
   void source().then((history) => {
     if (stopped) return;
     unsubscribe = history.listen({
-      history: (events) => controller.enqueue(sse('history', events)),
-      feed: (event) => controller.enqueue(sse('feed', event)),
+      history: (events) => send(sse('history', events, history.generation)),
+      feed: (event) => send(sse('feed', event)),
       close
     });
+    if (stopped) return unsubscribe();
+    const keepalive = enc.encode(': keepalive\n\n');
+    heartbeat = setInterval(() => send(keepalive), 20_000);
   }, (err) => {
     if (stopped) return;
     logger.warn({ err }, 'admin event stream unavailable');
-    controller.enqueue(sse('history', []));
-    close();
+    send(sse('unavailable', null));
+    if (!stopped) close();
   });
   return stop;
 }

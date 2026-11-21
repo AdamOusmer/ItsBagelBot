@@ -40,6 +40,7 @@
   "auditTitle": "Recent operator actions",
   "auditAll": "Full audit",
   "auditEmpty": "No actions recorded yet.",
+  "auditUnavailable": "Recent operator actions are temporarily unavailable.",
   "auditFailed": "failed",
   "quickTitle": "Quick actions",
   "quickLookup": "Find a user",

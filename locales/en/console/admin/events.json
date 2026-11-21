@@ -11,6 +11,8 @@
   "streaming": "Streaming",
   "connecting": "Connecting…",
   "reconnecting": "Reconnecting…",
+  "unavailable": "Unavailable",
+  "unavailableBody": "The live event subscription is unavailable. Retrying…",
   "paused": "Paused",
   "listLabel": "Lifecycle events",
   "idleBody": "Waiting for the next status update.",

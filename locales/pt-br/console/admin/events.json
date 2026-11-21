@@ -11,6 +11,8 @@
   "streaming": "Transmitindo",
   "connecting": "Conectando…",
   "reconnecting": "Reconectando…",
+  "unavailable": "Indisponível",
+  "unavailableBody": "O feed de eventos ao vivo está indisponível. Tentando novamente…",
   "paused": "Pausado",
   "listLabel": "Eventos do ciclo de vida",
   "idleBody": "Aguardando a próxima atualização de status.",

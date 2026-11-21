@@ -21,7 +21,7 @@
 </script>
 
 {#snippet loading()}
-  <div aria-hidden="true" class="placeholder">
+  <div role="status" aria-label={t('common.loading')} aria-busy="true" class="placeholder">
     <Skeleton variant="block" height="100%" />
   </div>
 {/snippet}

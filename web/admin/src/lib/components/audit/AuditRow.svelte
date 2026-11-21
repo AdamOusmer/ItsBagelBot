@@ -53,7 +53,7 @@
     align-items: center;
     gap: 10px;
     min-width: 0;
-    height: 38px;
+    min-height: 38px;
   }
   .who {
     display: flex;

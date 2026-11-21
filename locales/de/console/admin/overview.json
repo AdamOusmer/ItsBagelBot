@@ -40,6 +40,7 @@
   "auditTitle": "Letzte Betreiberaktionen",
   "auditAll": "Vollständiges Audit",
   "auditEmpty": "Noch keine Aktionen erfasst.",
+  "auditUnavailable": "Die letzten Aktionen des Teams sind vorübergehend nicht verfügbar.",
   "auditFailed": "fehlgeschlagen",
   "quickTitle": "Schnellaktionen",
   "quickLookup": "Nutzer suchen",

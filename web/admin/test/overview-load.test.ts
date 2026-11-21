@@ -12,6 +12,7 @@ const services = await import('../src/lib/server/services');
 const giveaways = await import('../src/lib/server/giveaways');
 const liveCount = await import('../src/lib/server/live-count');
 const { emptyShardSnapshot } = await import('../src/lib/server/fallback');
+const { load: loadLayout } = await import('../src/routes/(admin)/+layout.server');
 const { load } = await import('../src/routes/(admin)/+page.server');
 const { GET } = await import('../src/routes/(admin)/overview/enrollment/+server');
 
@@ -46,6 +47,7 @@ const read = <T>(name: string, value: T) => async (): Promise<T> => {
 
 const readEnrollment = read('enrollment', ENROLLMENT);
 const userEnrollment = mock((..._args: Parameters<typeof services.userEnrollment>) => readEnrollment());
+const readLiveCount = mock((..._args: Parameters<typeof liveCount.liveUserCount>) => read('liveCount', count)());
 
 const PANELS = ['accountStats', 'enrollment', 'fleet', 'trials', 'health', 'feed', 'audit', 'bot', 'giveawayAlerts'] as const;
 const previousBotId = privateEnv.TWITCH_BOT_USER_ID;
@@ -63,7 +65,14 @@ beforeAll(() => {
     spyOn(services, 'auditList').mockImplementation(read('audit', [])),
     spyOn(services, 'tokenStatus').mockImplementation(read('bot', { present: true })),
     spyOn(giveaways, 'giveawayAlerts').mockImplementation(read('giveawayAlerts', [])),
-    spyOn(liveCount, 'liveUserCount').mockImplementation(() => read('liveCount', count)())
+    spyOn(services, 'notificationsList').mockResolvedValue({
+      notifications: [],
+      page: 1,
+      page_size: 20,
+      max_pages: 1,
+      has_more: false
+    }),
+    spyOn(liveCount, 'liveUserCount').mockImplementation(readLiveCount)
   ];
 });
 
@@ -76,6 +85,7 @@ beforeEach(() => {
   failing = [];
   count = 2;
   userEnrollment.mockClear();
+  readLiveCount.mockClear();
 });
 
 function readOverview(query = '', role: AdminRole = 'owner') {
@@ -95,23 +105,24 @@ function getEnrollment(query: string, session: Session | null = SESSION) {
 describe('admin overview load', () => {
   test('streams KPI data and preserves the initial enrollment window', async () => {
     const data = await readOverview('?days=7');
-    const kpis = [data.accountStats, data.liveCount, data.health];
+    const kpis = [data.accountStats, data.health];
     expect(kpis.every((kpi) => kpi instanceof Promise)).toBe(true);
     expect(await Promise.all(kpis)).toEqual([
       { ok: true, value: STATS },
-      2,
       { ok: true, value: PROBES }
     ]);
     expect({
       days: data.days,
       enrollment: await data.enrollment,
       botLink: data.botLink,
-      reads: userEnrollment.mock.calls
+      enrollmentReads: userEnrollment.mock.calls,
+      liveCountReads: readLiveCount.mock.calls
     }).toEqual({
       days: 7,
       enrollment: { ok: true, value: ENROLLMENT },
       botLink: 'https://admin.example/auth/bot/login',
-      reads: [[SESSION.user_id, 7]]
+      enrollmentReads: [[SESSION.user_id, 7]],
+      liveCountReads: []
     });
   });
 
@@ -139,17 +150,6 @@ describe('admin overview load', () => {
   });
 
   test.each([
-    ['no live users', 0, [], 0],
-    ['unavailable live count', null, [], null],
-    ['failed live count', 2, ['liveCount'], null]
-  ] as const)('keeps zero and missing live counts distinct for %s', async (_case, value, unavailable, expected) => {
-    count = value;
-    failing = unavailable;
-    const data = await readOverview();
-    expect(await data.liveCount).toBe(expected);
-  });
-
-  test.each([
     ['owner', true, false],
     ['admin', true, false],
     ['moderator', false, true]
@@ -160,6 +160,23 @@ describe('admin overview load', () => {
       canViewGiveaways,
       panel: { ok, value: [] }
     });
+  });
+});
+
+describe('admin layout load', () => {
+  test.each([
+    ['no live users', 0, [], 0],
+    ['unavailable live count', null, [], null],
+    ['failed live count', 2, ['liveCount'], null]
+  ] as const)('streams one live count for %s', async (_case, value, unavailable, expected) => {
+    count = value;
+    failing = unavailable;
+    const data = await loadLayout({ locals: { session: SESSION } } as Parameters<typeof loadLayout>[0]);
+    expect({
+      streamed: data?.liveCount instanceof Promise,
+      value: await data?.liveCount,
+      reads: readLiveCount.mock.calls
+    }).toEqual({ streamed: true, value: expected, reads: [[SESSION.user_id]] });
   });
 });
 

@@ -71,6 +71,29 @@ describe('feed history', () => {
   });
 
   test.each([
+    { phase: 'history', expected: [] },
+    { phase: 'feed', expected: ['history'] },
+    { phase: 'close', expected: ['history', 'feed', 'feed'] }
+  ] as const)('isolates a failing $phase listener', ({ phase, expected }) => {
+    const hub = new FeedHistory();
+    const delivered: string[] = [];
+    const failing: FeedListener = {
+      history: () => delivered.push('history'),
+      feed: () => delivered.push('feed'),
+      close: () => delivered.push('close')
+    };
+    failing[phase] = () => { throw new Error('closed controller'); };
+    hub.listen(failing);
+    const { deliveries } = listening(hub);
+    hub.add(record(1));
+    hub.add(record(2));
+    hub.disconnect();
+
+    expect(delivered).toEqual([...expected]);
+    expect(deliveries.map(([kind]) => kind)).toEqual(['history', 'feed', 'feed', 'close']);
+  });
+
+  test.each([
     { name: 'available', replay: [record(-5, 'same'), record(1, 'same'), record(2, 'seed only')], expected: ['new', 'seed only', 'same', 'same'] },
     { name: 'empty', replay: [], expected: ['new', 'same'] },
     { name: 'unavailable', replay: null, expected: ['new', 'same'] }
@@ -85,11 +108,11 @@ describe('feed history', () => {
       if (!replay) throw new Error('seed unavailable');
       return [...replay];
     };
-    const initial = hub.seed(instant(0), load);
-    hub.add(record(1, 'same'));
-    hub.add(record(3, 'new'));
-    await Promise.all([initial, hub.seed(instant(4), load)]);
-    await hub.seed(instant(5), load);
+    const initial = hub.seed(load);
+    hub.add(record(-10, 'same'));
+    hub.add(record(-9, 'new'));
+    await Promise.all([initial, hub.seed(load)]);
+    await hub.seed(load);
 
     const { deliveries } = listening(hub);
     hub.add(record(6, 'latest'));

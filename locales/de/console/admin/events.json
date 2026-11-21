@@ -11,6 +11,8 @@
   "streaming": "Live",
   "connecting": "Verbindung wird hergestellt…",
   "reconnecting": "Verbindung wird wiederhergestellt…",
+  "unavailable": "Nicht verfügbar",
+  "unavailableBody": "Der Live-Ereignisfeed ist nicht verfügbar. Neuer Versuch…",
   "paused": "Pausiert",
   "listLabel": "Lebenszyklus-Ereignisse",
   "idleBody": "Warten auf die nächste Statusmeldung.",

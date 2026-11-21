@@ -7,6 +7,7 @@
   import NotificationBell from '@bagel/kit/components/NotificationBell.svelte';
   import ToastHost from '@bagel/ui/svelte/ToastHost.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import { provideLiveCount } from '#lib/live-count-context';
   import type { NotificationWire } from '#lib/server/services';
   import {
     adminNavGroups,
@@ -32,13 +33,24 @@
   };
   const roleLabel = $derived(t(ROLE_LABEL[role]));
 
-  let liveCount = $state<number | null>(null);
+  let liveSnapshot = $state<{ request: Promise<number | null>; count: number | null }>();
+  const liveCount = $derived(liveSnapshot?.request === data.liveCount ? liveSnapshot.count : null);
+
+  function updateLiveCount(request: Promise<number | null>, count: number | null) {
+    if (request === data.liveCount) liveSnapshot = { request, count };
+  }
+
+  provideLiveCount({
+    get value() {
+      return liveCount;
+    },
+    update: updateLiveCount
+  });
 
   $effect(() => {
     const request = data.liveCount;
-    liveCount = null;
     void request.then((count) => {
-      if (request === data.liveCount) liveCount = count;
+      if (liveSnapshot?.request !== request) updateLiveCount(request, count);
     });
   });
 
@@ -50,10 +62,8 @@
     const id = page.url.hash.slice(1);
     requestAnimationFrame(() => {
       const target = id ? document.getElementById(id) : null;
-      if (target) {
-        target.focus();
-        if (document.activeElement === target) return;
-      }
+      target?.focus();
+      if (target && document.activeElement === target) return;
       document.querySelector<HTMLElement>('#main-content h1')?.focus();
     });
   });

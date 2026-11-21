@@ -40,6 +40,7 @@
   "auditTitle": "Ações recentes de operadores",
   "auditAll": "Auditoria completa",
   "auditEmpty": "Nenhuma ação registrada ainda.",
+  "auditUnavailable": "As ações recentes da equipe estão temporariamente indisponíveis.",
   "auditFailed": "falhou",
   "quickTitle": "Ações rápidas",
   "quickLookup": "Encontrar usuário",

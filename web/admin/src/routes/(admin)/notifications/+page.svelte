@@ -49,6 +49,7 @@
 
   const inspector = createInspector<ComposeDraft>();
   let draft = $state<ComposeDraft | null>(null);
+  let selected = $state.raw<NotificationWire | null>(null);
   let busy = $state(false);
 
   $effect(() => {
@@ -62,6 +63,7 @@
   function resetInspector() {
     inspector.reset();
     draft = null;
+    selected = null;
   }
 
   const discard = createDiscardGuard(() => inspector.dirty, resetInspector);
@@ -71,6 +73,7 @@
       const blank = blankCompose();
       inspector.open(NEW_NOTIFICATION, blank);
       draft = { ...blank };
+      selected = null;
     });
   }
 
@@ -82,6 +85,7 @@
     discard.guard(() => {
       inspector.open(String(n.id), blankCompose());
       draft = null;
+      selected = n;
     });
   }
 
@@ -229,24 +233,21 @@
       {/await}
     </DeckList>
 
-    {#await data.history then history}
-      {@const selected = history.notifications.find((n) => String(n.id) === inspector.selectedId)}
-      {#if selected}
-        <InspectorSurface
-          open
-          title={selected.title}
-          controls="notification-inspector"
-          closeLabel={t('admin.close')}
-          onClose={close}
-        >
-          <NotificationDetail
-            notification={selected}
-            {busy}
-            onRetract={() => (retractTarget = selected)}
-          />
-        </InspectorSurface>
-      {/if}
-    {/await}
+    {#if selected}
+      <InspectorSurface
+        open
+        title={selected.title}
+        controls="notification-inspector"
+        closeLabel={t('admin.close')}
+        onClose={close}
+      >
+        <NotificationDetail
+          notification={selected}
+          {busy}
+          onRetract={() => (retractTarget = selected)}
+        />
+      </InspectorSurface>
+    {/if}
 
     {#if composing && draft}
       <InspectorSurface

@@ -25,7 +25,6 @@ import { env } from '@bagel/kit/server/env';
 import type { ShardSnapshot, UserStats } from '@bagel/kit';
 import { parseEnrollmentWindow, type EnrollmentWindow } from '#lib/enrollment-window';
 import { giveawayAlerts, type GiveawayAlertWire } from '#lib/server/giveaways';
-import { liveUserCount } from '#lib/server/live-count';
 
 const AUDIT_PEEK = 6;
 const DEMO = dev && process.env.DEMO === '1';
@@ -41,7 +40,6 @@ function panel<T>(read: Promise<T>, fallback: T): Promise<Panel<T>> {
 
 type OverviewReads = {
   accountStats: Promise<Panel<UserStats>>;
-  liveCount: Promise<number | null>;
   enrollment: Promise<Panel<EnrollmentWire>>;
   fleet: Promise<Panel<ShardSnapshot>>;
   trials: Promise<Panel<TrialSnapshot>>;
@@ -68,7 +66,6 @@ function liveReads(
   const botId = env.TWITCH_BOT_USER_ID ?? '';
   return {
     accountStats: panel(userStats(actorId), EMPTY_USER_STATS),
-    liveCount: bestEffort(liveUserCount(actorId), null),
     enrollment: panel(userEnrollment(actorId, days), emptyEnrollment(days)),
     fleet: panel(shardSnapshot(), emptyShardSnapshot()),
     trials: panel(withTrials ? trialList() : Promise.resolve(EMPTY_TRIALS), EMPTY_TRIALS),
@@ -89,7 +86,6 @@ function demoReads(days: EnrollmentWindow, withAudit: boolean): OverviewReads {
     fixtures.then((f) => ({ value: pick(f), ok: true }));
   return {
     accountStats: from((f) => f.sampleStats),
-    liveCount: fixtures.then((f) => f.sampleLiveUserIDs.size),
     enrollment: from((f) => f.demoEnrollment(days)),
     fleet: from((f) => f.sampleSnapshot),
     trials: from(() => EMPTY_TRIALS),

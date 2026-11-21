@@ -4,7 +4,7 @@
   "titleEm": "auditoría",
   "description": "Cada acción de los operadores, quién la ejecutó y si tuvo éxito.",
   "searchPlaceholder": "Autor, acción, destino…",
-  "kindFilter": "Filtrar registros cargados",
+  "kindFilter": "Tipo de acción",
   "kindAll": "Todo",
   "kindUsers": "Usuarios",
   "kindStaff": "Personal",

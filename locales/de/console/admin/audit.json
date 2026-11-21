@@ -4,7 +4,7 @@
   "titleEm": "protokoll",
   "description": "Jede Bedienaktion, wer sie ausgeführt hat und ob sie erfolgreich war.",
   "searchPlaceholder": "Ausführender, Aktion, Ziel…",
-  "kindFilter": "Geladene Einträge filtern",
+  "kindFilter": "Aktionsart",
   "kindAll": "Alle",
   "kindUsers": "Benutzer",
   "kindStaff": "Team",

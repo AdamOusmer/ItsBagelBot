@@ -2,6 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import '@bagel/ui/styles/elements/feed.css';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
@@ -13,7 +14,7 @@
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
 
-  let { entries }: { entries: AuditEntry[] } = $props();
+  let { entries, ok }: { entries: AuditEntry[]; ok: boolean } = $props();
 
   const { t } = getI18n();
 
@@ -29,7 +30,9 @@
     {/snippet}
   </CardHead>
 
-  {#if entries.length}
+  {#if !ok}
+    <AlertBanner>{t('admin.overview.auditUnavailable')}</AlertBanner>
+  {:else if entries.length}
     <Scroller fill role="region" aria-label={t('admin.overview.auditTitle')} tabindex={0}>
       <div class="bb-node-list bb-stagger">
         {#each entries as e (e.id)}

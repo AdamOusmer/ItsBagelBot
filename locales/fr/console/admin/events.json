@@ -11,6 +11,8 @@
   "streaming": "En diffusion",
   "connecting": "Connexion…",
   "reconnecting": "Reconnexion…",
+  "unavailable": "Indisponible",
+  "unavailableBody": "Le flux d’événements en direct est indisponible. Nouvelle tentative…",
   "paused": "En pause",
   "listLabel": "Événements du cycle de vie",
   "idleBody": "En attente de la prochaine mise à jour.",

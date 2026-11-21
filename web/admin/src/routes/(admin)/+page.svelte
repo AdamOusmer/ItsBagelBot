@@ -1,6 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import Grid from '@bagel/ui/svelte/Grid.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import OverviewGrid from '@bagel/ui/svelte/OverviewGrid.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
@@ -20,16 +21,6 @@
   const { t } = getI18n();
 </script>
 
-{#snippet healthPanel()}
-  <div class="slot slot-operations">
-    {#await data.health}
-      <Skeleton variant="block" height="100%" />
-    {:then p}
-      <HealthPanel probes={p.value} ok={p.ok} />
-    {/await}
-  </div>
-{/snippet}
-
 <section class="screen active">
   <PageHead compact description={t('admin.overview.description')}>
     {t('admin.overview.titlePre')}<em>{t('admin.overview.titleEm')}</em>
@@ -39,33 +30,6 @@
 
   <OverviewGrid>
     {#snippet main()}
-      {#if data.canViewGiveaways}
-        <div class="slot slot-alerts">
-          {#await data.giveawayAlerts}
-            <Skeleton variant="block" height="100%" />
-          {:then p}
-            <GiveawayAlerts alerts={p.value} ok={p.ok} />
-          {/await}
-        </div>
-      {/if}
-
-      {#if data.canLinkBot}
-        <div class="slot bot-slot">
-          {#await data.bot}
-            <Skeleton variant="block" height="100%" />
-          {:then p}
-            <BotCard present={p.value} botLink={data.botLink} />
-          {/await}
-        </div>
-      {:else}
-        {@render healthPanel()}
-      {/if}
-    {/snippet}
-
-    {#snippet side()}
-      {#if data.canLinkBot}
-        {@render healthPanel()}
-      {/if}
       <div class="slot slot-operations">
         {#await data.fleet}
           <Skeleton variant="block" height="100%" />
@@ -74,7 +38,43 @@
         {/await}
       </div>
     {/snippet}
+
+    {#snippet side()}
+      <div class="slot slot-operations">
+        {#await data.health}
+          <Skeleton variant="block" height="100%" />
+        {:then p}
+          <HealthPanel probes={p.value} ok={p.ok} />
+        {/await}
+      </div>
+    {/snippet}
   </OverviewGrid>
+
+  {#if data.canViewGiveaways || data.canLinkBot}
+    <div class="tools">
+      <Grid min="24rem">
+        {#if data.canViewGiveaways}
+          <div class="slot" class:slot-tool={data.canLinkBot} class:slot-alerts={!data.canLinkBot}>
+            {#await data.giveawayAlerts}
+              <Skeleton variant="block" height="100%" />
+            {:then p}
+              <GiveawayAlerts alerts={p.value} ok={p.ok} />
+            {/await}
+          </div>
+        {/if}
+
+        {#if data.canLinkBot}
+          <div class="slot slot-tool bot-slot">
+            {#await data.bot}
+              <Skeleton variant="block" height="100%" />
+            {:then p}
+              <BotCard present={p.value} botLink={data.botLink} />
+            {/await}
+          </div>
+        {/if}
+      </Grid>
+    </div>
+  {/if}
 
   <OverviewGrid>
     {#snippet main()}
@@ -88,7 +88,7 @@
           {#await data.audit}
             <Skeleton variant="block" height="100%" />
           {:then p}
-            <AuditPeek entries={p.value} />
+            <AuditPeek entries={p.value} ok={p.ok} />
           {/await}
         </div>
       {/if}
@@ -110,6 +110,10 @@
     grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   }
 
+  .tools {
+    margin-block-end: var(--row-gap);
+  }
+
   .slot-alerts {
     block-size: 11rem;
   }
@@ -124,11 +128,14 @@
 
   .bot-slot {
     container-type: inline-size;
+  }
+
+  .slot-tool {
     block-size: 17rem;
   }
 
   @media (max-width: 520px) {
-    .bot-slot {
+    .slot-tool {
       block-size: 19rem;
     }
   }

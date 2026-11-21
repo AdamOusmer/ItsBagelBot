@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { randomUUID } from 'node:crypto';
 import { logger } from '@bagel/kit/server/logger';
 
 export interface FeedRecord {
@@ -49,16 +50,15 @@ function overlapCounts(events: FeedRecord[]): Map<string, number> {
   return counts;
 }
 
-function unobservedReplay(replay: FeedRecord[], live: FeedRecord[], since: string): FeedRecord[] {
-  const overlap = overlapCounts(live);
-  const unobserved: FeedRecord[] = [];
-  for (const event of [...replay].reverse()) {
+function unrecordedLive(replay: FeedRecord[], live: FeedRecord[]): FeedRecord[] {
+  const overlap = overlapCounts(replay);
+  return live.filter((event) => {
     const key = recordKey(event);
-    const copies = event.at >= since ? overlap.get(key) : undefined;
-    if (copies) overlap.set(key, copies - 1);
-    else unobserved.push(event);
-  }
-  return unobserved.reverse();
+    const copies = overlap.get(key) ?? 0;
+    if (!copies) return true;
+    overlap.set(key, copies - 1);
+    return false;
+  });
 }
 
 function preview(payload: string): string {
@@ -67,18 +67,19 @@ function preview(payload: string): string {
 }
 
 export class FeedHistory {
+  readonly generation = randomUUID();
   private readonly events = new FeedRing<FeedEvent>();
   private readonly listeners = new Set<FeedListener>();
   private pending?: FeedRing<FeedRecord>;
   private seeding?: Promise<void>;
   private sequence = 0;
 
-  seed(since: string, load: () => Promise<FeedRecord[]>): Promise<void> {
-    this.seeding ??= this.loadSeed(since, load);
+  seed(load: () => Promise<FeedRecord[]>): Promise<void> {
+    this.seeding ??= this.loadSeed(load);
     return this.seeding;
   }
 
-  private async loadSeed(since: string, load: () => Promise<FeedRecord[]>): Promise<void> {
+  private async loadSeed(load: () => Promise<FeedRecord[]>): Promise<void> {
     const pending = new FeedRing<FeedRecord>();
     this.pending = pending;
     let replay: FeedRecord[] = [];
@@ -88,9 +89,7 @@ export class FeedHistory {
       logger.warn({ err }, 'admin event history unavailable');
     }
     this.pending = undefined;
-    const live = pending.values();
-    const merged = [...unobservedReplay(replay, live, since), ...live];
-    for (const event of merged.sort((a, b) => a.at.localeCompare(b.at))) this.add(event);
+    for (const event of [...replay, ...unrecordedLive(replay, pending.values())]) this.add(event);
   }
 
   add(record: FeedRecord): void {
@@ -100,17 +99,26 @@ export class FeedHistory {
     }
     const event = { ...record, id: ++this.sequence, payload: preview(record.payload) };
     this.events.add(event);
-    for (const listener of this.listeners) listener.feed(event);
+    for (const listener of this.listeners) this.notify(listener, () => listener.feed(event));
   }
 
   listen(listener: FeedListener): () => void {
-    listener.history(this.events.values().reverse());
     this.listeners.add(listener);
+    this.notify(listener, () => listener.history(this.events.values().reverse()));
     return () => this.listeners.delete(listener);
   }
 
   disconnect(): void {
-    for (const listener of this.listeners) listener.close();
+    for (const listener of this.listeners) this.notify(listener, () => listener.close());
     this.listeners.clear();
+  }
+
+  private notify(listener: FeedListener, deliver: () => void): void {
+    try {
+      deliver();
+    } catch (err) {
+      this.listeners.delete(listener);
+      logger.warn({ err }, 'admin event listener failed');
+    }
   }
 }

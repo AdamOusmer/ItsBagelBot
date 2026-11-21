@@ -31,7 +31,7 @@
   {#if !ok}
     <AlertBanner>{t('admin.giveaways.alertsUnavailable')}</AlertBanner>
   {:else if alerts.length}
-    <Scroller fill>
+    <Scroller fill role="region" aria-label={t('admin.giveaways.alerts')} tabindex={0}>
       <Stack as="ul" class="overview-award-list" gap={0}>
         {#each alerts as alert (alert.id)}
           <li>

@@ -28,6 +28,7 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import { livePoll } from '@bagel/kit/live-poll';
   import { allows, type AccessKey } from '#lib/access';
+  import { getLiveCount } from '#lib/live-count-context';
   import type { AdminUserWire, AuditEntry, ChannelSubState } from '#lib/server/services';
   import type { GiveawayWinnerWire } from '#lib/server/giveaways';
   import UserRow from '#lib/components/users/UserRow.svelte';
@@ -35,7 +36,7 @@
   import MessageDialog from '#lib/components/users/MessageDialog.svelte';
   import { usersCsv } from '#lib/components/users/csv';
   import { downloadCsv } from '@bagel/ui/lib/csv';
-  import { USER_STATES, USER_STATE_LABEL } from '#lib/components/users/user-state';
+  import { USER_STATES, USER_STATE_LABEL, type UserStateFilter } from '#lib/components/users/user-state';
   import { USER_ACTIONS, type UserActionDef } from '#lib/components/users/user-actions';
   import type { UserDirectory } from '#lib/server/user-directory';
 
@@ -43,6 +44,8 @@
 
   const { t, locale } = getI18n();
   const numberFormat = new Intl.NumberFormat(locale);
+  const liveCounter = getLiveCount();
+  const liveCount = $derived(liveCounter.value);
   const failed = adminToastFailure(toast);
   const can = (key: AccessKey) => allows(data.role, key);
   const LIVE_REFRESH_MS = 5_000;
@@ -67,16 +70,13 @@
   const currentPage = $derived(dir?.page ?? 1);
   const maxPages = $derived(dir?.maxPages ?? 1);
   const showJump = $derived(maxPages > 5);
-  let liveCount = $state<number | null>(null);
-
-  $effect(() => {
-    let alive = true;
-    data.liveCount.then((count) => {
-      if (alive) liveCount = count;
+  const pagerLabel = $derived.by(() => {
+    if (!dir) return t('common.loading');
+    if (dir.degraded) return t('admin.overview.kpi.unavailable');
+    return t('admin.users.pagerLabel', {
+      page: numberFormat.format(currentPage),
+      max: numberFormat.format(maxPages)
     });
-    return () => {
-      alive = false;
-    };
   });
 
   // svelte-ignore state_referenced_locally
@@ -106,6 +106,11 @@
 
   function navigate(overrides: Partial<DirectoryParams>) {
     void goto(href(overrides), { reset: false });
+  }
+
+  function toggleState(state: UserStateFilter) {
+    const next = stateFilter === state ? 'all' : state;
+    if (next !== stateFilter) navigate({ state: next });
   }
 
   function submitSearch(event: SubmitEvent) {
@@ -232,26 +237,27 @@
     if (keep && !next.recent.some((u) => u.id === keep.id)) detached = keep;
   }
 
-  async function pollDirectory(url: string, signal: AbortSignal): Promise<boolean> {
+  async function pollDirectory(url: string, signal: AbortSignal, request: Promise<number | null>): Promise<boolean> {
     if (document.hidden) return false;
     try {
       const res = await fetch(url, { signal });
       if (!res.ok) throw new Error(`directory fetch failed (${res.status})`);
       const next = (await res.json()) as DirectoryRefresh;
       if (signal.aborted) return false;
-      liveCount = next.liveCount;
+      liveCounter.update(request, next.liveCount);
       if (next.directory && !next.directory.degraded) replaceDirectory(next.directory);
     } catch {
-      if (!signal.aborted) liveCount = null;
+      if (!signal.aborted) liveCounter.update(request, null);
     }
     return false;
   }
 
   $effect(() => {
-    if (busy) return;
+    if (busy || !data.live) return;
     const url = href({ page: data.page }, '/users/directory');
+    const request = data.liveCount;
     const abort = new AbortController();
-    const stop = livePoll(() => pollDirectory(url, abort.signal), {
+    const stop = livePoll(() => pollDirectory(url, abort.signal, request), {
       firstDelayMs: LIVE_REFRESH_MS,
       delayMs: () => LIVE_REFRESH_MS,
       timeoutMs: Number.POSITIVE_INFINITY,
@@ -425,7 +431,7 @@
     <Cluster role="group" aria-label={t('admin.users.stateFilter')}>
       {#each USER_STATES as state (state)}
         {@const count = state === 'all' ? stats?.total_users : stats?.directory_counts?.[state]}
-        <Chip tone={state === 'all' ? undefined : state} pressed={stateFilter === state} onclick={() => navigate({ state })}>
+        <Chip tone={state === 'all' ? undefined : state} pressed={stateFilter === state} onclick={() => toggleState(state)}>
           <span class="chip-label"><bb-fit>{t(USER_STATE_LABEL[state])}</bb-fit></span>
           <span class="chip-count" class:unavailable={count == null}>
             <bb-fit>{count == null ? '' : numberFormat.format(count)}</bb-fit>
@@ -475,7 +481,8 @@
 
       <Pager
         fixed fit
-        label={stats ? t('admin.users.pagerLabel', { page: numberFormat.format(currentPage), max: numberFormat.format(maxPages) }) : ''}
+        label={pagerLabel}
+        aria-busy={dir === null}
         prevHref={href({ page: currentPage - 1 })}
         nextHref={href({ page: currentPage + 1 })}
         hasPrev={currentPage > 1}
@@ -568,7 +575,7 @@
     <input type="hidden" name="status" value={st} />
     {#if st === 'paid'}
       <input type="hidden" name="expires_at" value={grantDate} />
-      {#if grantNotify}<input type="hidden" name="notify_email" value="on" />{/if}
+      <input type="hidden" name="notify_email" value="on" disabled={!grantNotify} />
     {/if}
   </form>
 {/each}

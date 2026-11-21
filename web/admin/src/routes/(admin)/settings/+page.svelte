@@ -83,8 +83,8 @@
     <Card>
       <div class="setting-row language-row">
         <div class="setting-copy">
-          <Text size="sm"><bb-fit data-fit>{t('admin.settings.language')}</bb-fit></Text>
-          <Text size="sm" tone="muted"><bb-fit data-fit>{t('admin.settings.languageHint')}</bb-fit></Text>
+          <Text size="sm"><bb-fit><span data-fit>{t('admin.settings.language')}</span></bb-fit></Text>
+          <Text size="sm" tone="muted"><bb-fit><span data-fit>{t('admin.settings.languageHint')}</span></bb-fit></Text>
         </div>
         <LanguageSwitcher
           action="/lang"
@@ -100,8 +100,8 @@
       </div>
       <div class="setting-row">
         <div>
-          <Text size="sm"><bb-fit data-fit>{t('admin.settings.customCursor')}</bb-fit></Text>
-          <Text size="sm" tone="muted" id="cursor-hint"><bb-fit data-fit>{t('admin.settings.customCursorHint')}</bb-fit></Text>
+          <Text size="sm"><bb-fit><span data-fit>{t('admin.settings.customCursor')}</span></bb-fit></Text>
+          <Text size="sm" tone="muted" id="cursor-hint"><bb-fit><span data-fit>{t('admin.settings.customCursorHint')}</span></bb-fit></Text>
         </div>
         <Switch
           bind:checked={$customCursor}

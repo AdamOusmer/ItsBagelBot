@@ -11,6 +11,8 @@
   "streaming": "Transmitiendo",
   "connecting": "Conectando…",
   "reconnecting": "Reconectando…",
+  "unavailable": "No disponible",
+  "unavailableBody": "El flujo de eventos en directo no está disponible. Reintentando…",
   "paused": "En pausa",
   "listLabel": "Eventos del ciclo de vida",
   "idleBody": "Esperando la próxima actualización de estado.",

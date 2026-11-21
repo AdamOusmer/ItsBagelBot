@@ -25,7 +25,7 @@
   import type { FeedEvent } from '#lib/server/feed';
 
   type EventTone = FeedEvent['tone'];
-  type Connection = 'connecting' | 'live' | 'reconnecting';
+  type Connection = 'connecting' | 'live' | 'reconnecting' | 'unavailable';
 
   const { locale, t } = getI18n();
   const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: 'long' });
@@ -45,6 +45,7 @@
     connecting: { label: 'admin.events.connecting', tone: 'warning' },
     live: { label: 'admin.events.streaming', tone: 'success' },
     reconnecting: { label: 'admin.events.reconnecting', tone: 'warning' },
+    unavailable: { label: 'admin.events.unavailable', tone: 'danger' },
     paused: { label: 'admin.events.paused', tone: 'neutral' }
   } as const;
   const TONE_LABEL = {
@@ -70,12 +71,13 @@
   let search = $state('');
   let density = $state('detailed');
 
-  let processId = '';
+  let generationId = '';
   let clearedThrough = 0;
   let scroller: HTMLDivElement | undefined;
 
-  const status = $derived(STATUS[paused ? 'paused' : conn]);
+  const status = $derived(STATUS[paused && conn === 'live' ? 'paused' : conn]);
   const statusLabel = $derived(t(status.label));
+  const unavailable = $derived(conn === 'unavailable');
   const queuedLabel = $derived(t('admin.events.pauseLabelBuffered', { n: numberFormat.format(pending.length) }));
   const resumeLabel = $derived(pending.length ? queuedLabel : t('admin.events.resumeLabel'));
   const pauseLabel = $derived(paused ? resumeLabel : t('admin.events.pauseLabel'));
@@ -105,7 +107,7 @@
   const rows = $derived.by(() => {
     const query = search.trim().toLocaleLowerCase(locale);
     let previousDay = '';
-    let previousLive = true;
+    let previousLive = false;
     return events.filter((event) => matches(event, query)).map((event) => {
       const at = new Date(event.at);
       const day = dateFormat.format(at);
@@ -132,7 +134,7 @@
     const matchesTone = tone === 'all' || event.tone === tone;
     const matchesSource = source === ALL_SOURCES || sourceOf(event) === source;
     return matchesTone && matchesSource &&
-      [event.subject, event.payload].some((text) => text.toLocaleLowerCase(locale).includes(query));
+      [event.label, event.subject, event.payload].some((text) => text.toLocaleLowerCase(locale).includes(query));
   }
 
   function mergeEvents(existing: FeedEvent[], incoming: FeedEvent[]): FeedEvent[] {
@@ -155,11 +157,11 @@
 
   function receiveHistory(incoming: FeedEvent[], generation: string) {
     conn = 'live';
-    if (hasHistory && processId === generation) {
+    if (hasHistory && generationId === generation) {
       receive(incoming);
       return;
     }
-    processId = generation;
+    generationId = generation;
     clearedThrough = 0;
     liveAfter = incoming[0]?.id ?? 0;
     events = mergeEvents([], incoming);
@@ -176,18 +178,25 @@
     }
   }
 
+  function receiveEvent(message: MessageEvent<string>) {
+    const event = parseMessage<FeedEvent>(message);
+    if (!event) return;
+    conn = 'live';
+    receive([event]);
+  }
+
   onMount(() => {
     density = localStorage.getItem(DENSITY_KEY) === 'compact' ? 'compact' : 'detailed';
     const stream = new EventSource('/events/stream');
-    stream.onerror = () => (conn = 'reconnecting');
+    stream.onerror = () => {
+      if (conn !== 'unavailable') conn = 'reconnecting';
+    };
     stream.addEventListener('history', (message: MessageEvent<string>) => {
       const history = parseMessage<FeedEvent[]>(message);
       if (history) receiveHistory(history, message.lastEventId);
     });
-    stream.addEventListener('feed', (message: MessageEvent<string>) => {
-      const event = parseMessage<FeedEvent>(message);
-      if (event) receive([event]);
-    });
+    stream.addEventListener('feed', receiveEvent);
+    stream.addEventListener('unavailable', () => (conn = 'unavailable'));
     return () => stream.close();
   });
 
@@ -250,7 +259,7 @@
             <Chip
               pressed={tone === option.value}
               style="justify-content: center; padding-inline: var(--bb-space-2); gap: var(--bb-space-1)"
-              onclick={() => (tone = option.value)}
+              onclick={() => (tone = tone === option.value ? 'all' : option.value)}
             >
               <span class="tone-label"><bb-fit>{option.label}</bb-fit></span>
               <span class="tone-count">{option.count}</span>
@@ -269,14 +278,19 @@
   </PageToolbar>
 
   <Card>
-    <CardHead title={t('admin.events.subject')} headingLevel={2}>
-      {#snippet actions()}
-        <Tag bare status>
-          <StatusDot tone={status.tone} />
-          <span class="feed-status"><bb-fit>{statusLabel}</bb-fit></span>
-        </Tag>
-      {/snippet}
-    </CardHead>
+    <div class="feed-head">
+      <CardHead title={t('admin.events.subject')} headingLevel={2}>
+        {#snippet actions()}
+          <Tag bare status aria-describedby={unavailable ? 'feed-outage' : undefined}>
+            <StatusDot tone={status.tone} />
+            <span class="feed-status"><bb-fit>{statusLabel}</bb-fit></span>
+          </Tag>
+        {/snippet}
+      </CardHead>
+      <span id="feed-outage" class="feed-reason" class:shown={unavailable} aria-hidden={!unavailable}>
+        <bb-fit>{t('admin.events.unavailableBody')}</bb-fit>
+      </span>
+    </div>
 
     <div class="feed-actions">
       <SegmentedControl
@@ -314,7 +328,7 @@
       {:else if !rows.length}
         <EmptyState
           title={events.length ? t('admin.events.emptyMatch') : statusLabel}
-          body={events.length ? undefined : t('admin.events.idleBody')}
+          body={events.length || unavailable ? undefined : t('admin.events.idleBody')}
         />
       {:else}
         <ul class="bb-feed" role="list">
@@ -378,8 +392,32 @@
     text-align: center;
   }
 
+  .feed-head {
+    display: flow-root;
+    position: relative;
+    margin-block-end: var(--bb-space-1);
+    overflow-wrap: anywhere;
+  }
+
   .feed-status {
     inline-size: 6rem;
+  }
+
+  .feed-reason {
+    position: absolute;
+    inset-block-end: 1px;
+    inset-inline: 0;
+    font-size: var(--bb-text-xs);
+    line-height: 1;
+    text-align: end;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--bb-dur-base) ease;
+  }
+
+  .feed-reason.shown {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .feed-actions {
@@ -519,6 +557,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .feed-reason,
     .new-pill {
       transition: none;
     }
