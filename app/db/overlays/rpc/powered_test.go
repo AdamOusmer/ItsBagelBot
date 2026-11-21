@@ -4,7 +4,6 @@
 package rpc_test
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	"ItsBagelBot/internal/testdb"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/bustest"
+	"ItsBagelBot/pkg/codec"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/nats-io/nats.go"
@@ -40,12 +40,12 @@ func serve(t *testing.T) *nats.Conn {
 
 func request[Rep any](t *testing.T, nc *nats.Conn, subject string, req any) Rep {
 	t.Helper()
-	body, err := json.Marshal(req)
+	body, err := codec.Marshal(req)
 	require.NoError(t, err)
 	msg, err := nc.Request(subject, body, time.Second)
 	require.NoError(t, err)
 	var reply Rep
-	require.NoError(t, json.Unmarshal(msg.Data, &reply))
+	require.NoError(t, codec.Unmarshal(msg.Data, &reply))
 	return reply
 }
 

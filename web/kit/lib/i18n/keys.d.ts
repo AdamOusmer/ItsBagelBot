@@ -252,6 +252,7 @@ export type KnownMessageKey =
   | 'admin.analytics.dim.section.govee'
   | 'admin.analytics.dim.section.loyalty'
   | 'admin.analytics.dim.section.modules'
+  | 'admin.analytics.dim.section.overlays'
   | 'admin.analytics.dim.section.overview'
   | 'admin.analytics.dim.section.quotes'
   | 'admin.analytics.dim.section.settings'
