@@ -68,6 +68,8 @@
     "raffle_close": "Same as draw with the configured winner count.",
     "raffle_cancel": "Tear down without drawing.",
     "cancelraffle": "Same as !raffle cancel.",
-    "mraffle_amount_seconds_winners": "Start a raffle for 3 winners by default. Enter a winner count or use auto for one winner per 10 entries, rounded up."
+    "mraffle_amount_seconds_winners": "Start a raffle for 3 winners by default. Enter a winner count or use auto for one winner per 10 entries, rounded up.",
+    "enter": "Enter the open raffle with an alternate trigger.",
+    "sraffle_amount_seconds": "Start a single-winner raffle."
   }
 }

@@ -15,7 +15,7 @@ import {
   type DrawActor, type DrawInput, type DrawMutation
 } from '#lib/server/channel-giveaways';
 import { patchModule } from '#lib/server/commands-store';
-import { drawInput, presetPatch, settingPatch } from '#lib/server/giveaway-input';
+import { drawInput, presetPatch, settingPatch, triggersPatch } from '#lib/server/giveaway-input';
 import { assertModuleWritable, gateModulePage } from '#lib/server/module-gate';
 import { auditDashboardImpersonation } from '#lib/server/services';
 import type { Actions, PageServerLoad } from './$types';
@@ -141,13 +141,14 @@ function denied(locals: App.Locals) {
   return fail(locals.session ? 403 : 401, { ok: false as const, error: translate(locals.locale, key) });
 }
 
-type SettingsChange = 'settings' | 'presets' | 'toggle';
+type SettingsChange = 'settings' | 'presets' | 'toggle' | 'triggers';
 
 function settingsPatch(kind: SettingsChange, form: FormData) {
   switch (kind) {
     case 'settings': return settingPatch(form);
     case 'presets': return presetPatch(form);
     case 'toggle': return {};
+    case 'triggers': return triggersPatch(form);
   }
 }
 
@@ -196,5 +197,6 @@ export const actions: Actions = {
   deliver: giveawayAction('mark_delivered'),
   savePresets: save('presets'),
   saveSettings: save('settings'),
+  saveTriggers: save('triggers'),
   toggle: save('toggle')
 };

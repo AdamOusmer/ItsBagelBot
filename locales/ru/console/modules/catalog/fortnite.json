@@ -39,5 +39,12 @@
       "event": "!fn store",
       "defaultMessage": "Магазин предметов {date}: {items}"
     }
+  },
+  "commands": {
+    "fn": "Ищет статистику Fortnite Battle Royale или выполняет подкоманду.",
+    "fnstats": "Ищет статистику Fortnite Battle Royale за всё время.",
+    "fnseason": "Ищет статистику Fortnite за текущий сезон.",
+    "fnsession": "Показывает статистику Fortnite с начала трансляции.",
+    "fnstore": "Показывает сегодняшний магазин предметов Fortnite."
   }
 }

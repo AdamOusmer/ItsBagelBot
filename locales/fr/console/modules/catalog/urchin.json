@@ -38,5 +38,15 @@
       "tagline": "Tags de blacklist avec leurs raisons.",
       "defaultMessage": "{player}: {tags}"
     }
+  },
+  "commands": {
+    "bw": "Consulte les stats Hypixel Bedwars ou les tags de blacklist.",
+    "daily": "Affiche les stats Bedwars depuis le reset quotidien.",
+    "weekly": "Affiche les stats Bedwars depuis le reset hebdomadaire.",
+    "monthly": "Affiche les stats Bedwars depuis le reset mensuel.",
+    "bwstats": "Affiche les stats Hypixel Bedwars à vie.",
+    "sniper": "Affiche le score sniper Urchin d'un joueur.",
+    "bwtag": "Affiche les tags de blacklist Urchin actifs.",
+    "tagdescription": "Affiche les tags de blacklist Urchin avec leurs raisons."
   }
 }

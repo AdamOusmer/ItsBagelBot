@@ -16,6 +16,7 @@ test('load supplies the loyalty demo shape without a freeze', async () => {
   expect(page).toEqual({
     enabled: true,
     config: blankLoyaltyConfig(),
+    disabledTriggers: '',
     top: demoStandings(),
     topFreeze: null,
     freeze: null,

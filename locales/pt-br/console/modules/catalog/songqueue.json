@@ -5,10 +5,10 @@
   "commands": {
     "sr": "Mostre o que toca ou adicione uma faixa pelo nome, \"artista - música\" ou link do Spotify.",
     "remove": "Retire seu pedido da fila ou, como moderador, remova uma posição.",
-    "skip": "Marque a faixa atual como tocada e passe à próxima (também !next).",
+    "skip": "Marque a faixa atual como tocada e passe à próxima.",
     "clear": "Esvazie a fila.",
-    "srlist": "Mostre as próximas cinco músicas da fila (também !songlist).",
-    "current": "Informe o que seu Spotify toca agora (também !song, !np)."
+    "srlist": "Mostre as próximas cinco músicas da fila.",
+    "current": "Informe o que seu Spotify toca agora."
   },
   "replies": {
     "redeem": {

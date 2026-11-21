@@ -38,5 +38,15 @@
       "tagline": "Etiquetas de la lista de bloqueados con sus motivos.",
       "defaultMessage": "{player}: {tags}"
     }
+  },
+  "commands": {
+    "bw": "Consulta estadísticas de Hypixel Bedwars o etiquetas de la lista de bloqueados.",
+    "daily": "Muestra estadísticas de Bedwars desde el reinicio diario.",
+    "weekly": "Muestra estadísticas de Bedwars desde el reinicio semanal.",
+    "monthly": "Muestra estadísticas de Bedwars desde el reinicio mensual.",
+    "bwstats": "Muestra estadísticas históricas de Hypixel Bedwars.",
+    "sniper": "Muestra la puntuación de sniper de Urchin de un jugador.",
+    "bwtag": "Muestra etiquetas activas de la lista de bloqueados de Urchin.",
+    "tagdescription": "Muestra etiquetas de la lista de bloqueados de Urchin con sus motivos."
   }
 }

@@ -151,5 +151,12 @@ export const FORTNITE_MODULE: ModuleDef =
       help: 'Only Epic display names resolve right now; PlayStation and Xbox lookups come later. Console players: your Epic display name works.'
     },
     LINKED_ONLY_FIELD
+  ],
+  commands: [
+    { trigger: '!fn', enableKey: 'statsEnabled', summary: 'Look up Fortnite Battle Royale stats or a subcommand.' },
+    { trigger: '!fnstats', aliases: ['!fortnitestats'], enableKey: 'statsEnabled', summary: 'Look up all-time Fortnite Battle Royale stats.' },
+    { trigger: '!fnseason', enableKey: 'seasonEnabled', summary: 'Look up current-season Fortnite stats.' },
+    { trigger: '!fnsession', enableKey: 'sessionEnabled', summary: 'Show Fortnite stats since the stream started.' },
+    { trigger: '!fnstore', aliases: ['!itemshop', '!fnshop'], enableKey: 'storeEnabled', summary: "Show today's Fortnite item shop." }
   ]
 };

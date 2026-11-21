@@ -5,10 +5,10 @@
   "commands": {
     "sr": "Zeige den laufenden Song oder reihe einen Titel per Name, \"artist - song\" oder Spotify-Link ein.",
     "remove": "Ziehe deinen eingereihten Wunsch zurück oder entferne als Mod einen Platz.",
-    "skip": "Markiere den aktuellen Titel als gespielt und rücke den nächsten vor (auch !next).",
+    "skip": "Markiere den aktuellen Titel als gespielt und rücke den nächsten vor.",
     "clear": "Leere die Warteschlange.",
-    "srlist": "Zeige die nächsten fünf Songs in der Warteschlange (auch !songlist).",
-    "current": "Sage, was dein Spotify gerade spielt (auch !song, !np)."
+    "srlist": "Zeige die nächsten fünf Songs in der Warteschlange.",
+    "current": "Sage, was dein Spotify gerade spielt."
   },
   "replies": {
     "redeem": {

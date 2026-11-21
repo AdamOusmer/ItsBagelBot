@@ -29,5 +29,12 @@
       "event": "!cr road",
       "defaultMessage": "{player}: {trophies} trophies · best {besttrophies} · {arena}"
     }
+  },
+  "commands": {
+    "cr": "Look up a Clash Royale profile or a subcommand.",
+    "crstats": "Look up a Clash Royale lifetime profile.",
+    "crdecks": "Show the current Clash Royale battle deck.",
+    "crranked": "Show Path of Legends standing.",
+    "crroad": "Show Trophy Road record and arena."
   }
 }

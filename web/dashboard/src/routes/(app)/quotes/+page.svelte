@@ -39,6 +39,7 @@
   import QuoteRow from '#lib/components/quotes/QuoteRow.svelte';
   import QuoteEditor from '#lib/components/quotes/QuoteEditor.svelte';
   import ModuleCommandList from '#lib/components/modules/ModuleCommandList.svelte';
+  import { createTriggerToggle } from '#lib/client-actions.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -65,6 +66,10 @@
   });
 
   const quoteCommands = QUOTES_MODULE.commands ?? [];
+  const triggers = createTriggerToggle(
+    () => data.disabledTriggers ?? '',
+    () => toast('danger', t('modules.saveFailed'))
+  );
 
   const permOptions = [
     { value: 'mod', label: t('quotes.permMod') },
@@ -400,7 +405,14 @@
   {#if quoteCommands.length}
     <div class="cmd-block">
       <DeckList>
-        <ModuleCommandList moduleId="quotes" commands={quoteCommands} headingId="quotes-cmds-h" />
+        <ModuleCommandList
+          moduleId="quotes"
+          commands={quoteCommands}
+          headingId="quotes-cmds-h"
+          disabledTriggers={triggers.value}
+          status={triggers.status}
+          onDisabledTriggersChange={triggers.save}
+        />
       </DeckList>
     </div>
   {/if}

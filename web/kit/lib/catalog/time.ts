@@ -64,5 +64,8 @@ export const TIME_MODULE: ModuleDef =
         { value: '24', label: '24-hour (14:30)' }
       ]
     }
+  ],
+  commands: [
+    { trigger: '!time', summary: "Show the channel's current local time, or look up another place." }
   ]
 };

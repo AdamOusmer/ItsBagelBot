@@ -26,5 +26,8 @@
       "tagline": "Votre heure locale actuelle.",
       "defaultMessage": "Il est actuellement {time} pour le streamer."
     }
+  },
+  "commands": {
+    "time": "Affiche l'heure locale actuelle de la chaîne ou consulte un autre lieu."
   }
 }

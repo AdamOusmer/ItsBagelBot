@@ -29,5 +29,12 @@
       "event": "!cr road",
       "defaultMessage": "{player}: трофеи — {trophies} · Рекорд: {besttrophies} · {arena}"
     }
+  },
+  "commands": {
+    "cr": "Ищет профиль Clash Royale или выполняет подкоманду.",
+    "crstats": "Ищет профиль Clash Royale за всё время.",
+    "crdecks": "Показывает текущую боевую колоду Clash Royale.",
+    "crranked": "Показывает позицию в Path of Legends.",
+    "crroad": "Показывает рекорд трофеев и арену."
   }
 }

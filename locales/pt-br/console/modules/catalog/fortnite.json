@@ -39,5 +39,12 @@
       "event": "!fn store",
       "defaultMessage": "Loja de itens {date}: {items}"
     }
+  },
+  "commands": {
+    "fn": "Consulta estatísticas de Fortnite Battle Royale ou um subcomando.",
+    "fnstats": "Consulta estatísticas históricas de Fortnite Battle Royale.",
+    "fnseason": "Consulta estatísticas da temporada atual de Fortnite.",
+    "fnsession": "Mostra estatísticas de Fortnite desde o início da transmissão.",
+    "fnstore": "Mostra a loja de itens de Fortnite de hoje."
   }
 }

@@ -68,6 +68,8 @@
     "raffle_close": "Wie draw mit der eingestellten Gewinneranzahl.",
     "raffle_cancel": "Bricht ohne Ziehung ab.",
     "cancelraffle": "Wie !raffle cancel.",
-    "mraffle_amount_seconds_winners": "Startet eine Verlosung mit normalerweise 3 Gewinnern. Gib eine Anzahl oder auto für einen Gewinner je angefangene 10 Teilnahmen an."
+    "mraffle_amount_seconds_winners": "Startet eine Verlosung mit normalerweise 3 Gewinnern. Gib eine Anzahl oder auto für einen Gewinner je angefangene 10 Teilnahmen an.",
+    "enter": "Mit einem alternativen Auslöser an der offenen Verlosung teilnehmen.",
+    "sraffle_amount_seconds": "Startet eine Verlosung mit einem Gewinner."
   }
 }

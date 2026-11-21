@@ -26,5 +26,8 @@
       "tagline": "Uhrzeit an einem anderen Ort.",
       "defaultMessage": "In {place} ist es gerade {time}."
     }
+  },
+  "commands": {
+    "time": "Zeigt die aktuelle Ortszeit des Kanals oder schlägt einen anderen Ort nach."
   }
 }

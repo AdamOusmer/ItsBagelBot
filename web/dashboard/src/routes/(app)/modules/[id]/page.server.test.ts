@@ -23,7 +23,7 @@ const alerts = {
 
 const upsertModule = mock(async () => ({ modules: [], synced }));
 const patchModule = mock(async (p: ModulePatch) =>
-  conflict ? { rev: 5, conflict: true, synced: false } : { rev: p.expectedRev + 1, conflict: false, synced });
+  conflict ? { rev: 5, conflict: true, synced: false } : { rev: (p.expectedRev ?? 0) + 1, conflict: false, synced });
 
 mock.module('#lib/server/commands-store', () => ({
   listModules: async () => {
@@ -188,4 +188,41 @@ test.each([
     name: 'alerts', userId: '7', isEnabled: false, expectedRev: 8,
     partial: { subTts: 'false', cheerTts: 'true' }
   }]] : []);
+});
+
+test.each([
+  {
+    name: 'normalizes and filters disabledTriggers for a module with commands',
+    id: 'urchin',
+    raw: ' !BWTAGS, bogus, !daily , bwtags ',
+    expectedPartial: { disabledTriggers: 'bwtags,daily' }
+  },
+  {
+    name: 'clears disabledTriggers when all entries are unknown',
+    id: 'urchin',
+    raw: 'notacommand, other',
+    expectedPartial: { disabledTriggers: '' }
+  },
+  {
+    name: 'strips disabledTriggers on a module with no toggleable commands',
+    id: 'alerts',
+    raw: '!follow',
+    expectedPartial: {}
+  }
+])('module patch $name', async ({ id, raw, expectedPartial }) => {
+  const targetURL = new URL(`/modules/${id}`, url);
+  const body = new URLSearchParams({
+    is_enabled: 'on',
+    expected_rev: '4',
+    partial: JSON.stringify({ disabledTriggers: raw })
+  });
+  const request = new Request(`${targetURL}?/patch`, { method: 'POST', body });
+  const result = await actions.patch({
+    request, params: { id }, locals, cookies: cookieJar(new Map()), url: targetURL
+  } as never);
+
+  expect(result).toEqual({ ok: true, rev: 5, conflict: false });
+  expect(patchModule.mock.calls).toEqual([[{
+    name: id, userId: '7', isEnabled: true, expectedRev: 4, partial: expectedPartial
+  }]]);
 });

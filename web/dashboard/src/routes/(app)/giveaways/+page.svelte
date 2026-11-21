@@ -5,15 +5,17 @@
   import type { SubmitFunction } from '$app/forms';
   import { onMount, untrack } from 'svelte';
   import { livePoll } from '@bagel/ui/lib/live-poll';
-  import { getI18n, MOD, moduleDef, type ModuleField } from '@bagel/kit';
+  import { DISABLED_TRIGGERS_KEY, getI18n, MOD, moduleDef, type ModuleField } from '@bagel/kit';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
+  import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import Pager from '@bagel/ui/svelte/Pager.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
   import { postAction } from '#lib/client-actions.svelte';
+  import ModuleCommandList from '#lib/components/modules/ModuleCommandList.svelte';
   import ModuleSettingsForm from '#lib/components/modules/ModuleSettingsForm.svelte';
   import LivePanel from '#lib/components/giveaways/LivePanel.svelte';
   import PastWinners from '#lib/components/giveaways/PastWinners.svelte';
@@ -98,7 +100,7 @@
     };
   };
 
-  async function save(action: 'toggle' | 'saveSettings', fields: Record<string, string>, nextEnabled = data.enabled) {
+  async function save(action: 'toggle' | 'saveSettings' | 'saveTriggers', fields: Record<string, string>, nextEnabled = data.enabled) {
     if (busy || setting) return;
     const key = fields.key ? `setting:${fields.key}` : action;
     const body = new FormData();
@@ -151,6 +153,18 @@
     </div>
     <ModuleSettingsForm {def} config={data.config.fields} modStatus={statuses} locked={data.degraded || busy || !!setting} {saveSetting} />
   </Card>
+
+  <DeckList>
+    <ModuleCommandList
+      moduleId={MOD.giveaway}
+      commands={def.commands ?? []}
+      headingId="giveaway-cmds-h"
+      disabledTriggers={data.disabledTriggers}
+      locked={data.degraded || busy || !!setting}
+      status={statuses['saveTriggers'] ?? 'idle'}
+      onDisabledTriggersChange={(next) => void save('saveTriggers', { [DISABLED_TRIGGERS_KEY]: next })}
+    />
+  </DeckList>
 
   <section id="giveaway-history" aria-label={t('giveaways.history')}>
     <PastWinners winners={data.history.winners} degraded={data.history.degraded} busy={busy || !!setting} {submit}>

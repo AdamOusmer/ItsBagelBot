@@ -1,7 +1,14 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { MOD, type ModuleDef } from '@bagel/kit';
+import {
+  DISABLED_TRIGGERS_KEY,
+  formatDisabledTriggers,
+  MOD,
+  moduleAllowedTriggers,
+  parseDisabledTriggers,
+  type ModuleDef
+} from '@bagel/kit';
 import { alertVoiceKeys } from '@bagel/kit/voice-plan';
 import { fail } from '@sveltejs/kit';
 import { logger } from '@bagel/kit/server/logger';
@@ -30,10 +37,13 @@ export async function gatedEnabled(uid: string, def: ModuleDef, requested: boole
 }
 
 export async function patchModuleSettings(def: ModuleDef, form: FormData, locals: App.Locals, demo: boolean) {
+  const allowedTriggers = moduleAllowedTriggers(def);
+  const triggerKeys = allowedTriggers.size > 0 ? [DISABLED_TRIGGERS_KEY] : [];
   const voiceKeys = def.replies.flatMap((r) => r.voiceAlert ? [alertVoiceKeys(r.voiceAlert).enabled] : []);
-  const allowed = new Set([...valueKeys(def), ...enableKeys(def), ...voiceKeys]);
+  const allowed = new Set([...valueKeys(def), ...enableKeys(def), ...voiceKeys, ...triggerKeys]);
   const partial = parsePartial(form.get('partial'), allowed);
   if (!partial) return { result: fail(400, { ok: false, error: actionError(locals.locale, 'Invalid patch.') }), freshRead: false };
+  normalizeTriggerPatch(partial, allowedTriggers);
   const denial = await voicePatchDenial(voiceKeys, partial, locals);
   if (denial) return { result: denial, freshRead: false };
 
@@ -45,6 +55,11 @@ export async function patchModuleSettings(def: ModuleDef, form: FormData, locals
   const enabled = await gatedEnabled(uid, def, requested);
   const config = await attachLinkedUUID(def, partial, locals);
   return applyPatch(def, uid, { enabled, expectedRev, partial: config }, locals.session);
+}
+
+function normalizeTriggerPatch(partial: Record<string, string>, allowed: ReadonlySet<string>): void {
+  if (!Object.hasOwn(partial, DISABLED_TRIGGERS_KEY)) return;
+  partial[DISABLED_TRIGGERS_KEY] = formatDisabledTriggers(parseDisabledTriggers(partial[DISABLED_TRIGGERS_KEY]), allowed);
 }
 
 async function applyPatch(

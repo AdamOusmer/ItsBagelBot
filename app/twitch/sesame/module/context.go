@@ -13,6 +13,10 @@ import (
 	"go.uber.org/zap"
 )
 
+type ModuleName string
+
+type TriggerName string
+
 // Pooled by the engine: modules must not retain it past the call.
 type Context struct {
 	EffectScope   string
@@ -31,8 +35,9 @@ type Context struct {
 	// only when a matched reply requires the broadcaster's language.
 	LocaleLookup func(context.Context, uint64) (string, error)
 
-	ModuleLookup func(name string) bool
-	BlocksText   func(text string) bool
+	ModuleLookup          func(name string) bool
+	TriggerDisabledLookup func(moduleName ModuleName, trigger TriggerName) bool
+	BlocksText            func(text string) bool
 
 	Config codec.RawMessage
 
@@ -77,6 +82,10 @@ func (c *Context) EnsureLocale(ctx context.Context) {
 
 func (c *Context) ModuleOn(name string) bool {
 	return c.ModuleLookup != nil && c.ModuleLookup(name)
+}
+
+func (c *Context) TriggerDisabled(mod ModuleName, trigger TriggerName) bool {
+	return c.TriggerDisabledLookup != nil && c.TriggerDisabledLookup(mod, trigger)
 }
 
 func (c *Context) Chatter() Role {
@@ -136,6 +145,7 @@ func (c *Context) Reset() {
 	c.LocaleLoaded = false
 	c.LocaleLookup = nil
 	c.ModuleLookup = nil
+	c.TriggerDisabledLookup = nil
 	c.BlocksText = nil
 	c.Config = nil
 	c.Num = ""
