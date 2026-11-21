@@ -12,7 +12,6 @@
   import Button from '@bagel/ui/svelte/Button.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
@@ -42,7 +41,7 @@
 
 <Stack as="section" gap={2} aria-labelledby="staff-history-title">
   <Heading id="staff-history-title" level={3} variant="label">{t('admin.staff.historyTitle')}</Heading>
-  <Scroller id="staff-history" class="staff-history-scroll" role="region" tabindex={0} aria-labelledby="staff-history-title">
+  <div id="staff-history" class="staff-history" tabindex="-1">
     {#if pending}
       {#await pending}
         {@render loading()}
@@ -79,13 +78,12 @@
     {:else}
       {@render loading()}
     {/if}
-  </Scroller>
+  </div>
 </Stack>
 
 <style>
-  :global(.staff-history-scroll) {
-    block-size: 9rem;
-    scrollbar-gutter: stable;
+  .staff-history {
+    min-block-size: 9rem;
   }
 
   .history-list {

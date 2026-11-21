@@ -213,8 +213,7 @@
   }
 
   .operation-notice {
-    block-size: 3rem;
-    overflow: auto;
+    min-block-size: 3rem;
   }
 
   @media (max-width: 600px) {
@@ -229,7 +228,7 @@
     }
 
     .operation-notice {
-      block-size: 4.5rem;
+      min-block-size: 4.5rem;
     }
   }
 </style>

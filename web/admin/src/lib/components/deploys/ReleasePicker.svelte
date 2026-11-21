@@ -30,5 +30,5 @@
 {#if releases.length === 0}
   <EmptyState title={t('admin.deploys.flow.releasesEmpty')} />
 {:else}
-  <RadioGroup variant="rows" maxHeight="360px" name="ship-release" bind:value {options} label={t('admin.deploys.rollbackTo')} />
+  <RadioGroup variant="rows" name="ship-release" bind:value {options} label={t('admin.deploys.rollbackTo')} />
 {/if}

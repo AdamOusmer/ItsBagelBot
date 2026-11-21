@@ -8,7 +8,6 @@
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import LineSeries from '@bagel/ui/svelte/LineSeries.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Table from '@bagel/ui/svelte/Table.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
@@ -60,27 +59,25 @@
 
     <Disclosure size="sm" summary={t('admin.shards.throughputData')} bind:open={readingsOpen}>
       {#if readings.length}
-        <Scroller maxHeight="14rem">
-          <Table label={t('admin.shards.throughputHistory')}>
-            <caption><VisuallyHidden>{t('admin.shards.throughputHistory')}</VisuallyHidden></caption>
-            <thead>
+        <Table label={t('admin.shards.throughputHistory')}>
+          <caption><VisuallyHidden>{t('admin.shards.throughputHistory')}</VisuallyHidden></caption>
+          <thead>
+            <tr>
+              <th scope="col">{t('admin.shards.throughputTime')}</th>
+              <th scope="col">{t('admin.shards.throughputProduction')}</th>
+              {#if showTrials}<th scope="col">{t('admin.shards.throughputTrials')}</th>{/if}
+            </tr>
+          </thead>
+          <tbody>
+            {#each readings as point (point.at)}
               <tr>
-                <th scope="col">{t('admin.shards.throughputTime')}</th>
-                <th scope="col">{t('admin.shards.throughputProduction')}</th>
-                {#if showTrials}<th scope="col">{t('admin.shards.throughputTrials')}</th>{/if}
+                <th scope="row">{time.format(point.at)}</th>
+                <td>{formatRate(point.production)}</td>
+                {#if showTrials}<td>{formatRate(point.trials)}</td>{/if}
               </tr>
-            </thead>
-            <tbody>
-              {#each readings as point (point.at)}
-                <tr>
-                  <th scope="row">{time.format(point.at)}</th>
-                  <td>{formatRate(point.production)}</td>
-                  {#if showTrials}<td>{formatRate(point.trials)}</td>{/if}
-                </tr>
-              {/each}
-            </tbody>
-          </Table>
-        </Scroller>
+            {/each}
+          </tbody>
+        </Table>
       {:else if readingsOpen}
         <EmptyState title={t('admin.shards.throughputSampling')} />
       {/if}

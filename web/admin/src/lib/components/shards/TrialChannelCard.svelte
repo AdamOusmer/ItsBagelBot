@@ -116,9 +116,8 @@
   }
 
   .channel-error {
-    block-size: 1.5rem;
+    min-block-size: 1.5rem;
     overflow-wrap: anywhere;
-    overflow: auto;
   }
 
   @container (max-width: 21rem) {

@@ -4,7 +4,6 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import LogTail from '@bagel/ui/svelte/LogTail.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
@@ -33,8 +32,7 @@
     {/if}
 
     {#if items.length > 0}
-      <Scroller maxHeight="330px" role="region" aria-label={t(STAGE_KEY[stage.id])} tabindex={0}>
-        <ul class="items">
+      <ul class="items">
           {#each items as item (item.key)}
             <ItemRow {item}>
               {#snippet extra()}
@@ -47,8 +45,7 @@
               {/snippet}
             </ItemRow>
           {/each}
-        </ul>
-      </Scroller>
+      </ul>
     {/if}
 
     {#if log.length > 0}

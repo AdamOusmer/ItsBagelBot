@@ -12,7 +12,6 @@
   import Label from '@bagel/ui/svelte/Label.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import StepList from '@bagel/ui/svelte/StepList.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -102,9 +101,7 @@
   </Cluster>
 
   <div class="run-notice" class:unavailable={!notice} inert={!notice}>
-    <Scroller maxHeight="3.375rem" role="region" aria-label={t('admin.deploys.runEyebrow')} tabindex={notice ? 0 : undefined}>
-      <AlertBanner tone={failure ? 'danger' : 'warning'} role={failure ? 'alert' : 'status'} flush>{notice}</AlertBanner>
-    </Scroller>
+    <AlertBanner tone={failure ? 'danger' : 'warning'} role={failure ? 'alert' : 'status'} flush>{notice}</AlertBanner>
   </div>
 
   {#if selected}
@@ -167,11 +164,6 @@
   }
   .stage-picker {
     display: none;
-  }
-  .stage-list {
-    max-height: max(11rem, calc(100svh - 29rem));
-    overflow-y: auto;
-    scrollbar-width: thin;
   }
   .run-progress {
     display: grid;

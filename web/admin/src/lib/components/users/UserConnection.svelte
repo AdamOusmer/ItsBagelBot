@@ -20,7 +20,6 @@
   import Fact from '@bagel/ui/svelte/Fact.svelte';
   import FactList from '@bagel/ui/svelte/FactList.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -99,16 +98,14 @@
   </Stack>
 
   <div class="verification">
-    <Scroller maxHeight="100%" aria-labelledby={heading} role="region" tabindex={diagnostic || verification?.missing?.length ? 0 : undefined}>
-      <FactList>
-        <Fact term={t('admin.users.liveCheck')}>{check}</Fact>
-      </FactList>
-      {#if diagnostic}
-        <div class="diagnostic">
-          <AlertBanner tone="danger" flush>{diagnostic}</AlertBanner>
-        </div>
-      {/if}
-    </Scroller>
+    <FactList>
+      <Fact term={t('admin.users.liveCheck')}>{check}</Fact>
+    </FactList>
+    {#if diagnostic}
+      <div class="diagnostic">
+        <AlertBanner tone="danger" flush>{diagnostic}</AlertBanner>
+      </div>
+    {/if}
   </div>
   {@render children?.()}
 </Stack>
@@ -128,7 +125,8 @@
   }
 
   .verification {
-    block-size: 3.5rem;
+    min-block-size: 3.5rem;
+    overflow-wrap: anywhere;
   }
 
   .diagnostic {

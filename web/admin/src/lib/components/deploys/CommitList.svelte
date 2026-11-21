@@ -2,7 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import Disclosure from '@bagel/ui/svelte/Disclosure.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -24,8 +23,7 @@
 
 <Disclosure size="sm" {summary} {open}>
   {#if commits.length > 0}
-    <Scroller maxHeight="240px" role="region" aria-label={summary} tabindex={0}>
-      <ul class="commits">
+    <ul class="commits">
         {#each commits as c (c.sha)}
           <li class="commit" title={c.title}>
             <Text as="span" size="xs" mono tone="muted">
@@ -35,8 +33,7 @@
             <span class="author"><Text as="span" size="xs" mono tone="muted" truncate>{c.author}</Text></span>
           </li>
         {/each}
-      </ul>
-    </Scroller>
+    </ul>
   {/if}
 </Disclosure>
 

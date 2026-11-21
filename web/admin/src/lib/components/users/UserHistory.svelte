@@ -4,7 +4,6 @@
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
@@ -34,7 +33,6 @@
   const VISIBLE_ROWS = 4;
   const pending = $derived(rows === null);
   const hasRows = $derived(Boolean(rows?.length));
-  const scrollable = $derived(Boolean(error) || (rows?.length ?? 0) > VISIBLE_ROWS);
   const showMore = $derived(hasRows && !error);
 </script>
 
@@ -42,13 +40,7 @@
   <Heading id={heading} level={3} variant="label">{title}</Heading>
   {#if pending}<VisuallyHidden role="status">{loading}</VisuallyHidden>{/if}
   <div class="history" style:--history-rows={VISIBLE_ROWS}>
-    <Scroller
-      style="block-size: 100%; scrollbar-gutter: stable"
-      role="region"
-      aria-labelledby={heading}
-      aria-busy={pending}
-      tabindex={scrollable ? 0 : undefined}
-    >
+    <div aria-busy={pending}>
       {#if pending}
         <SkeletonStack rows={VISIBLE_ROWS} height="var(--history-row-size)" />
       {:else if error}
@@ -75,7 +67,7 @@
           {/each}
         </ul>
       {/if}
-    </Scroller>
+    </div>
   </div>
 
   {#if more}
@@ -91,7 +83,7 @@
   .history {
     --history-row-size: 1.25rem;
     --history-row-gap: 10px;
-    block-size: calc(var(--history-row-size) * var(--history-rows) + var(--history-row-gap) * (var(--history-rows) - 1));
+    min-block-size: calc(var(--history-row-size) * var(--history-rows) + var(--history-row-gap) * (var(--history-rows) - 1));
   }
 
   .error {

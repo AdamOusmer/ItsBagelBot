@@ -10,7 +10,6 @@
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
@@ -80,7 +79,7 @@
   }
 </script>
 
-<Scroller class="deploy-flux-scroll" role="region" aria-labelledby="flux-title" tabindex={0}>
+<div class="flux">
   <Card as="section">
     <Stack gap={4}>
       <Stack gap={1}>
@@ -176,13 +175,12 @@
       </Stack>
     </Stack>
   </Card>
-</Scroller>
+</div>
 
 <style>
-  :global(.deploy-flux-scroll) {
+  .flux {
     container-type: inline-size;
     min-inline-size: 0;
-    scrollbar-gutter: stable;
     overflow-wrap: anywhere;
   }
 

@@ -9,7 +9,6 @@
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Badge from '@bagel/ui/svelte/Badge.svelte';
@@ -76,24 +75,22 @@
       <EmptyState title={t(giveaways.length ? 'admin.giveaways.noMatches' : 'admin.giveaways.empty')} />
     {:else}
       {#key filter}
-        <Scroller maxHeight="100%" role="region" tabindex={0} aria-label={t('admin.giveaways.history')}>
-          <ul class="campaigns">
-            {#each visible as giveaway (giveaway.id)}
-              <ManagementRow
-                as="li"
-                href={`/giveaways/${encodeURIComponent(giveaway.id)}`}
-                title={giveaway.title}
-                meta={`${giveawayPrize(giveaway, number, t)} · ${giveawayDate(giveaway.createdAt, formatter, t)}`}
-              >
-                {#snippet marks()}
-                  <span class="campaign-status">
-                    <Badge shape="status" tone={CAMPAIGN_STATUS[giveaway.status].tone}><bb-fit><span data-fit>{t(CAMPAIGN_STATUS[giveaway.status].label)}</span></bb-fit></Badge>
-                  </span>
-                {/snippet}
-              </ManagementRow>
-            {/each}
-          </ul>
-        </Scroller>
+        <ul class="campaigns">
+          {#each visible as giveaway (giveaway.id)}
+            <ManagementRow
+              as="li"
+              href={`/giveaways/${encodeURIComponent(giveaway.id)}`}
+              title={giveaway.title}
+              meta={`${giveawayPrize(giveaway, number, t)} · ${giveawayDate(giveaway.createdAt, formatter, t)}`}
+            >
+              {#snippet marks()}
+                <span class="campaign-status">
+                  <Badge shape="status" tone={CAMPAIGN_STATUS[giveaway.status].tone}><bb-fit><span data-fit>{t(CAMPAIGN_STATUS[giveaway.status].label)}</span></bb-fit></Badge>
+                </span>
+              {/snippet}
+            </ManagementRow>
+          {/each}
+        </ul>
       {/key}
     {/if}
   </div>
@@ -106,7 +103,7 @@
   }
 
   .history-body {
-    block-size: 14.75rem;
+    min-block-size: 14.75rem;
   }
 
   .history-placeholder {

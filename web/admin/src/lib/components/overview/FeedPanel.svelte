@@ -5,7 +5,6 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import StatTile from '@bagel/ui/svelte/StatTile.svelte';
   import { formatCounterValue } from '@bagel/kit/validation';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -32,7 +31,6 @@
     />
 
     {#if board.entries.length}
-      <Scroller fill role="region" aria-label={t('admin.overview.feedTitle')} tabindex={0}>
         <ol class="bb-node-list board">
           {#each board.entries as entry, i (entry.id)}
             <li class="bb-node-list__row">
@@ -42,7 +40,6 @@
             </li>
           {/each}
         </ol>
-      </Scroller>
     {:else}
       <EmptyState title={t('admin.overview.feedEmpty')} />
     {/if}
