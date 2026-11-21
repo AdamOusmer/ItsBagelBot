@@ -14,6 +14,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import type { InspectorStatus } from '@bagel/ui/lib/inspector-machine';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import '@bagel/ui/styles/elements/collapse.css';
   import type { LaneView } from '#lib/server/lanes';
   import { ALIAS_MAX, type LaneDraft } from './lane-view';
 
@@ -178,26 +179,30 @@
 
         {#if canMutate}
           <div class="action-panels">
-            <div class="action-panel" class:available={!lane.orphan} inert={lane.orphan}>
-              {@render operation({
-                key: 'durable-hint',
-                title: t('admin.lanes.durableLabel'),
-                hint: t(lane.ephemeral ? 'admin.lanes.durableHint' : 'admin.lanes.durableAlready'),
-                label: t('admin.lanes.makePermanent'),
-                available: lane.ephemeral,
-                onclick: onDurable
-              })}
+            <div class="bb-collapse" class:is-open={!lane.orphan} inert={lane.orphan} aria-hidden={lane.orphan}>
+              <div>
+                {@render operation({
+                  key: 'durable-hint',
+                  title: t('admin.lanes.durableLabel'),
+                  hint: t(lane.ephemeral ? 'admin.lanes.durableHint' : 'admin.lanes.durableAlready'),
+                  label: t('admin.lanes.makePermanent'),
+                  available: lane.ephemeral,
+                  onclick: onDurable
+                })}
+              </div>
             </div>
-            <div class="action-panel" class:available={lane.orphan} inert={!lane.orphan}>
-              {@render operation({
-                key: 'delete-hint',
-                title: t('admin.lanes.dangerTitle'),
-                hint: t('admin.lanes.deleteHint'),
-                label: t('common.delete'),
-                available: true,
-                danger: true,
-                onclick: onDelete
-              })}
+            <div class="bb-collapse" class:is-open={lane.orphan} inert={!lane.orphan} aria-hidden={!lane.orphan}>
+              <div>
+                {@render operation({
+                  key: 'delete-hint',
+                  title: t('admin.lanes.dangerTitle'),
+                  hint: t('admin.lanes.deleteHint'),
+                  label: t('common.delete'),
+                  available: true,
+                  danger: true,
+                  onclick: onDelete
+                })}
+              </div>
             </div>
           </div>
         {/if}
@@ -252,7 +257,7 @@
     block-size: 3.3rem;
   }
 
-  .action-panels, .action-heading {
+  .action-heading {
     display: grid;
   }
 
@@ -262,12 +267,7 @@
     align-items: center;
   }
 
-  .action-panel {
-    grid-area: 1 / 1;
-    min-inline-size: 0;
-  }
-
-  .action, .action-panel {
+  .action {
     opacity: 0;
     transition: opacity var(--bb-dur-fast) ease;
   }

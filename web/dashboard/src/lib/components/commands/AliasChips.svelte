@@ -62,5 +62,5 @@
 {/if}
 
 <style>
-  .aliases { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .aliases { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 </style>

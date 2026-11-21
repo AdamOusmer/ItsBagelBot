@@ -233,7 +233,7 @@
     position: relative;
     display: grid;
     min-width: 0;
-    gap: 6px;
+    gap: 8px;
     margin-top: 8px;
   }
 
@@ -243,7 +243,7 @@
     flex-wrap: wrap;
     align-items: center;
     min-width: 0;
-    gap: 6px;
+    gap: 8px;
   }
 
   .vp-desc {
@@ -265,21 +265,21 @@
 
   .vp-token { min-width: 0; overflow-wrap: anywhere; text-align: left; }
 
-  .sheet { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .sheet { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 
   .sheet-scroll {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
     overflow-y: auto;
     max-height: 340px;
     padding-right: 2px;
   }
 
-  .sec { display: flex; flex-direction: column; gap: 6px; }
+  .sec { display: flex; flex-direction: column; gap: 8px; }
 
-  .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-  .row-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .row-tags { display: flex; flex-wrap: wrap; gap: 8px; }
 
-  .sheet-foot { display: flex; flex-direction: column; gap: 6px; }
+  .sheet-foot { display: flex; flex-direction: column; gap: 8px; }
 </style>

@@ -4,7 +4,7 @@
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
-  import Label from '@bagel/ui/svelte/Label.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n, type MessageKey } from '@bagel/kit';
   import { STARTER_IDS, type Starter, type StarterId } from './starters';
 
@@ -23,7 +23,7 @@
   <Button variant="primary" onclick={onNew}>{t('commands.newCommand')}</Button>
 </EmptyState>
 <div class="starters" role="group" aria-label={t('commands.startersTitle')}>
-  <Label mono as="span">{t('commands.startersTitle')}</Label>
+  <Text as="span" size="sm" tone="muted">{t('commands.startersTitle')}</Text>
   <div class="starters-row">
     {#each starters as s (s.name)}
       <span class="starter"><Chip tone="muted" onclick={() => onPick(s)}>!{s.name}</Chip></span>
@@ -36,7 +36,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     padding: 0 16px 24px;
   }
   .starters-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }

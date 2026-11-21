@@ -36,7 +36,6 @@
       {#if beta}<span class="mrow__beta"><Tag tone="alpha">{t('modules.betaChip')}</Tag></span>{/if}
     </span>
     <span class="mrow__go" aria-hidden="true">
-      <span class="mrow__go-text bb-fit-box"><bb-fit>{t('modules.openSettings')}</bb-fit></span>
       <Icon name="chevron" size={14} class="mrow__chev" />
     </span>
   </a>
@@ -80,7 +79,7 @@
 
   .mrow__main {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 9.5rem;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: var(--bb-space-4);
     align-self: stretch;
@@ -105,7 +104,7 @@
 
   .mrow__name {
     overflow: hidden;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--bb-tier-inactive);
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -123,14 +122,6 @@
     font-size: var(--bb-text-sm);
     color: var(--bb-muted);
     transition: color var(--bb-dur-fast) ease;
-  }
-
-  .mrow__go-text {
-    display: block;
-    width: 8rem;
-    overflow: hidden;
-    text-align: right;
-    white-space: nowrap;
   }
 
   .mrow__go :global(.mrow__chev) {
@@ -152,6 +143,5 @@
   @media (max-width: 760px) {
     .mrow { grid-template-columns: minmax(0, 1fr) auto; }
     .mrow__main { grid-template-columns: minmax(0, 1fr) auto; }
-    .mrow__go-text { display: none; }
   }
 </style>

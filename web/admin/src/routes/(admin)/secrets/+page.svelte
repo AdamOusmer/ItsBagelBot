@@ -147,7 +147,6 @@
 
   .service-inventory {
     --credential-card-size: 16rem;
-    min-block-size: var(--credential-card-size);
   }
 
   .service-slot {

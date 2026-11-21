@@ -194,11 +194,11 @@
 
   .cmd { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
   .cmd-name { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
-  .lock { display: inline-flex; color: var(--bb-muted); margin-left: 6px; vertical-align: middle; }
+  .lock { display: inline-flex; color: var(--bb-muted); margin-left: 8px; vertical-align: middle; }
 
   .name-tag { margin-left: 8px; display: inline-flex; }
 
-  .aliases { display: flex; flex-wrap: nowrap; gap: 12px; min-width: 0; overflow: hidden; }
+  .aliases { display: flex; flex-wrap: nowrap; gap: 8px; min-width: 0; overflow: hidden; }
   .alias { display: inline-flex; }
   .aliases .extra { display: none; }
   .aliases .more { flex: none; }
@@ -214,7 +214,7 @@
 
   .m-perm { display: inline-flex; align-items: center; min-width: 0; justify-self: start; }
 
-  .m-uses { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .m-uses { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .u-line { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
   .u-track { display: block; }
@@ -223,11 +223,8 @@
 
   .m-lbl {
     font-family: var(--bb-font-body);
-    font-size: 10px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    font-size: var(--bb-text-xs);
     color: var(--bb-muted);
-    opacity: 0.7;
     white-space: nowrap;
   }
   .state { min-width: 0; }
@@ -249,8 +246,8 @@
         'cmd cmd'
         'resp resp'
         'perm uses';
-      row-gap: 6px;
-      column-gap: 14px;
+      row-gap: 8px;
+      column-gap: 16px;
       align-items: center;
     }
     .prow.selecting {

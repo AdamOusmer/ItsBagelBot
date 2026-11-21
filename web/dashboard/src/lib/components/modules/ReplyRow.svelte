@@ -108,7 +108,7 @@
 <style>
   .prow { --row-cols: 28px minmax(0, 1fr) auto; }
 
-  .cmd { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .cmd { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .state { min-width: 0; }
   .mini-spacer { width: 38px; }
   .voice-copy { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--bb-space-1); }

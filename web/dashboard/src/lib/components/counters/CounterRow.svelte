@@ -67,6 +67,6 @@
 <style>
   .prow { --row-cols: 28px minmax(0, 1fr) auto; }
 
-  .name { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+  .name { display: inline-flex; align-items: center; gap: var(--bb-space-2); min-width: 0; }
   .name :global(.c-tag) { flex: none; }
 </style>

@@ -17,6 +17,7 @@
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import '@bagel/ui/styles/elements/collapse.css';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
@@ -902,12 +903,16 @@
           {#if rows.length === 0 && !showStarters}
             <EmptyState title={t('commands.noneMatch')} body={t('commands.noneMatchSub')} />
           {/if}
-          <div class="create-hint" class:on={canCreateTyped}>
-            <Button variant="add" onclick={createTyped} aria-label={t('commands.createHintAria', { name: typedName })}>
-              <span class="ch-name">!{typedName}</span>
-              <Text as="span" size="sm" tone="muted">{t('commands.createHint')}</Text>
-              {t('commands.createHintCta')}
-            </Button>
+          <div class="bb-collapse create-hint" class:is-open={canCreateTyped} aria-hidden={!canCreateTyped} inert={!canCreateTyped}>
+            <div>
+              <div class="create-hint-body">
+                <Button variant="add" onclick={createTyped} aria-label={t('commands.createHintAria', { name: typedName })}>
+                  <span class="ch-name">!{typedName}</span>
+                  <Text as="span" size="sm" tone="muted">{t('commands.createHint')}</Text>
+                  {t('commands.createHintCta')}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </DeckList>
@@ -1036,18 +1041,18 @@
   .compose-meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 14px;
+    gap: 8px 16px;
     margin-bottom: 4px;
   }
 
   .deck-stats {
     display: flex;
-    gap: 26px;
+    gap: 24px;
     margin: 0;
-    padding: 14px 0;
+    padding: 16px 0;
   }
   .ds-cell { white-space: nowrap; }
-  .deck-stats dt { margin-bottom: 6px; }
+  .deck-stats dt { margin-bottom: 8px; }
   .deck-stats dd { margin: 0; display: flex; align-items: baseline; gap: 4px; }
   .deck-stats .big {
     font-family: var(--bb-font-display);
@@ -1070,19 +1075,17 @@
   .create-hint {
     --btn-w: 100%;
     --btn-min-h: 52px;
-    margin: 14px;
-    visibility: hidden;
-    opacity: 0;
+    margin-inline: 16px;
   }
-  .create-hint.on { visibility: visible; opacity: 1; }
+  .create-hint-body { padding-block-start: 16px; }
   .ch-name { font-family: var(--bb-font-mono); }
 
-  .group + .group { margin-top: 26px; }
+  .group + .group { margin-top: 24px; }
   .group-head {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 0 14px 9px;
+    padding: 0 16px 8px;
   }
   .g-rule { flex: 1; height: 1px; background: var(--bb-border); }
 
@@ -1091,8 +1094,8 @@
   .keys {
     display: none;
     font-family: var(--bb-font-body);
-    font-weight: 600;
-    font-size: 11px;
+    font-weight: 500;
+    font-size: var(--bb-text-xs);
     color: var(--bb-muted);
     align-items: center;
     gap: 6px;

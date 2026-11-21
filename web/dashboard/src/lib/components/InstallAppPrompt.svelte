@@ -156,7 +156,7 @@
 <style>
   .steps {
     list-style: none;
-    margin: 0 0 14px;
+    margin: 0 0 16px;
     padding: 0;
     display: flex;
     flex-direction: column;
@@ -165,6 +165,6 @@
   .steps li {
     display: flex;
     align-items: center;
-    gap: 11px;
+    gap: 12px;
   }
 </style>

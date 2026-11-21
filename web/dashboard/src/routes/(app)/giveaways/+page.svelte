@@ -128,7 +128,7 @@
 <div class="pageContent">
   <PageHead><bb-fit><span data-fit="">{t('nav.giveaways')}</span></bb-fit></PageHead>
 
-  <PageNotice tone="warning" visible={!!notice}>{notice}</PageNotice>
+  <PageNotice tone="warning" visible={!!notice} gap="var(--bb-space-5)">{notice}</PageNotice>
 
   <Card>
     <div class="section">
@@ -167,8 +167,8 @@
 </div>
 
 <style>
-  .pageContent { display: grid; min-width: 0; gap: var(--bb-space-5); }
-  .pageContent, .section, .settingsHead { grid-template-columns: minmax(0, 1fr); }
+  .pageContent { display: flex; flex-direction: column; min-width: 0; gap: var(--bb-space-5); }
+  .section, .settingsHead { grid-template-columns: minmax(0, 1fr); }
   .section, .settingsHead { display: grid; gap: var(--bb-space-3); min-width: 0; }
   .settingsHead { padding: var(--bb-space-4) var(--bb-space-5); }
 </style>

@@ -66,7 +66,6 @@
 
 <section class="ov-stream" class:ov-stream--slim={slim} class:ov-stream--stale={stale} aria-labelledby="ov-stream-h">
   <Card flush raised>
-    <div class="ov-stream__glow" aria-hidden="true"></div>
     <div class="ov-stream__grid">
       <div class="ov-stream__main">
         <div class="ov-stream__eyebrow">
@@ -139,18 +138,12 @@
   .ov-stream {
     margin-bottom: var(--row-gap);
   }
-  .ov-stream__glow {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: radial-gradient(circle at 92% 0%, rgba(var(--bb-green-glow-rgb), 0.14), transparent 55%);
-  }
   .ov-stream__grid {
     position: relative;
     display: grid;
     grid-template-columns: 420px 1fr;
-    gap: 30px;
-    padding: 22px 24px 20px;
+    gap: 32px;
+    padding: 24px;
   }
   .ov-stream__main,
   .ov-stream__side {
@@ -159,7 +152,7 @@
     flex-direction: column;
   }
   .ov-stream__eyebrow {
-    margin-bottom: 14px;
+    margin-bottom: 16px;
   }
   .ov-stream__big {
     font-family: var(--bb-font-display);
@@ -175,7 +168,7 @@
   .ov-stream__title {
     margin: 12px 0 0;
     font-family: var(--bb-font-body);
-    font-size: 14.5px;
+    font-size: 14px;
     line-height: 1.45;
     color: var(--bb-white);
     max-width: 34ch;
@@ -192,7 +185,7 @@
   }
   .ov-stream__stats {
     display: flex;
-    gap: 22px;
+    gap: 24px;
   }
 
   .ov-stream--slim .ov-stream__grid {
@@ -215,7 +208,7 @@
   @media (max-width: 900px) {
     .ov-stream__grid {
       grid-template-columns: 1fr;
-      gap: 22px;
+      gap: 24px;
     }
     .ov-stream__big {
       font-size: 52px;
@@ -224,7 +217,7 @@
   @media (max-width: 560px) {
     .ov-stream__stats {
       flex-wrap: wrap;
-      gap: 16px 22px;
+      gap: 16px 24px;
     }
   }
 </style>

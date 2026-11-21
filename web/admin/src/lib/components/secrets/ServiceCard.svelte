@@ -58,20 +58,22 @@
       </Fact>
     </FactList>
 
-    <div class="credential-actions" class:visible={canManage} class:refreshing inert={!canManage}>
-      {#each actions as verb (verb)}
-        <Button
-          block
-          variant="ghost"
-          tone={SECRET_DIALOGS[verb].danger ? 'danger' : 'neutral'}
-          aria-label={t('admin.secrets.credentialAction', { action: t(SECRET_DIALOGS[verb].label), service: service.label })}
-          aria-disabled={refreshing}
-          onclick={() => { if (!refreshing) onAction(verb); }}
-        >
-          <bb-fit><span data-fit>{t(SECRET_DIALOGS[verb].label)}</span></bb-fit>
-        </Button>
-      {/each}
-    </div>
+    {#if canManage}
+      <div class="credential-actions" class:refreshing>
+        {#each actions as verb (verb)}
+          <Button
+            block
+            variant="ghost"
+            tone={SECRET_DIALOGS[verb].danger ? 'danger' : 'neutral'}
+            aria-label={t('admin.secrets.credentialAction', { action: t(SECRET_DIALOGS[verb].label), service: service.label })}
+            aria-disabled={refreshing}
+            onclick={() => { if (!refreshing) onAction(verb); }}
+          >
+            <bb-fit><span data-fit>{t(SECRET_DIALOGS[verb].label)}</span></bb-fit>
+          </Button>
+        {/each}
+      </div>
+    {/if}
   </div>
 </Card>
 
@@ -94,15 +96,10 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--bb-space-1);
     margin-block-start: auto;
-    opacity: 0;
     transition: opacity var(--bb-dur-fast) ease;
   }
 
-  .credential-actions.visible {
-    opacity: 1;
-  }
-
-  .credential-actions.visible.refreshing {
+  .credential-actions.refreshing {
     opacity: 0.6;
   }
 </style>

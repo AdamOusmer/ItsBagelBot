@@ -146,7 +146,7 @@
     overflow: hidden;
     color: var(--bb-white);
     font-size: var(--bb-text-sm);
-    font-weight: 600;
+    font-weight: 500;
     line-height: 16px;
     text-overflow: ellipsis;
     white-space: nowrap;

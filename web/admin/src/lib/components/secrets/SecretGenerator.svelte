@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { getI18n } from '@bagel/kit/i18n/context';
   import { copyText } from '@bagel/ui/lib/clipboard';
+  import '@bagel/ui/styles/elements/collapse.css';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Modal from '@bagel/ui/svelte/Modal.svelte';
@@ -60,16 +61,18 @@
     <Field label={t('admin.secrets.genFormat')} fit style="--field-mb: 0">
       <Select fill {options} bind:value={() => format, selectFormat} />
     </Field>
-    <div role="status" class="copy-feedback">
-      <Text size="sm" tone={copyResult === 'failed' ? 'danger' : 'muted'}>
-        {#if copyResult === 'failed'}
-          {t('admin.secrets.genCopyFailed')}
-        {:else if copyResult === 'copied'}
-          {t('common.copied')}
-        {:else if generated}
-          {t('admin.secrets.generatedValue')}
-        {/if}
-      </Text>
+    <div role="status" class="bb-collapse" class:is-open={Boolean(generated)} style="--bb-collapse-gap: var(--bb-space-4)">
+      <div>
+        <Text size="sm" tone={copyResult === 'failed' ? 'danger' : 'muted'}>
+          {#if copyResult === 'failed'}
+            {t('admin.secrets.genCopyFailed')}
+          {:else if copyResult === 'copied'}
+            {t('common.copied')}
+          {:else}
+            {t('admin.secrets.generatedValue')}
+          {/if}
+        </Text>
+      </div>
     </div>
     <div class="generator-actions">
       <Button block variant="ghost" onclick={onClose}>
@@ -86,10 +89,6 @@
 </Modal>
 
 <style>
-  .copy-feedback {
-    min-block-size: 2lh;
-  }
-
   .generator-actions {
     --btn-pad: 0 var(--bb-space-2);
     display: grid;

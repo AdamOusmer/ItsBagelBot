@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { enhance, type SubmitFunction } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
+  import '@bagel/ui/styles/elements/collapse.css';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
@@ -62,7 +63,7 @@
 </script>
 
 <section class="block" aria-labelledby="loy-freeze-h">
-  <PageNotice role="status" tone={enabled && health === 'stalled' ? 'warning' : 'info'}>
+  <PageNotice role="status" gap="var(--bb-space-3)" tone={enabled && health === 'stalled' ? 'warning' : 'info'}>
     {t(!enabled ? 'loyalty.accrualOff' : health ? healthCopy[health] : 'loyalty.accrualUnavailable')}
   </PageNotice>
   <Heading level={6} as="h2" variant="title" id="loy-freeze-h">{t('loyalty.freezeTitle')}</Heading>
@@ -74,7 +75,7 @@
       <Text as="span" size="xs" tone="muted"><bb-fit mode="block">{t('loyalty.freezeHint')}</bb-fit></Text>
     </div>
     <form method="POST" action={freeze ? '?/unfreeze' : '?/freeze'} use:enhance={freezeSubmit} class="actions">
-      <div class="minutes" class:faded={!!freeze} inert={!!freeze}>
+      <div class="minutes" class:folded={!!freeze} inert={!!freeze} aria-hidden={!!freeze}>
         <Field fitCopy label={t('loyalty.freezeMinutes')}>
           <Input type="number" name="minutes" min={1} max={FREEZE_MAX_MINUTES} value={FREEZE_MAX_MINUTES}
             required disabled={freezeBusy || !!freeze} fill />
@@ -90,11 +91,21 @@
 </section>
 
 <style>
-  .block { display: grid; gap: var(--bb-space-3); margin-bottom: 26px; }
+  .block { display: flex; flex-direction: column; gap: var(--bb-space-3); margin-bottom: var(--bb-space-5); }
   .freeze-copy { display: grid; block-size: 2.5em; }
   .actions { display: flex; flex-wrap: wrap; align-items: end; gap: var(--bb-space-3); }
-  .minutes { flex: 1 0 9rem; max-inline-size: 12rem; transition: opacity var(--bb-dur-fast); }
-  .faded { opacity: 0; }
+  .minutes {
+    flex: 1 0 9rem;
+    min-inline-size: 0;
+    max-inline-size: 12rem;
+    overflow: clip;
+    overflow-clip-margin: 4px;
+    transition:
+      max-inline-size var(--bb-dur-base) var(--bb-ease-out-expo),
+      margin-inline-end var(--bb-dur-base) var(--bb-ease-out-expo),
+      opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+  .minutes.folded { max-inline-size: 0; margin-inline-end: calc(-1 * var(--bb-space-3)); opacity: 0; }
   .freeze-button { inline-size: 13rem; max-inline-size: 100%; }
   @media (prefers-reduced-motion: reduce) {
     .minutes { transition: none; }

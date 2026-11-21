@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
 
   import { enhance, type SubmitFunction } from '$app/forms';
+  import '@bagel/ui/styles/elements/collapse.css';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
@@ -101,8 +102,12 @@
               (value) => (draft = { ...draft, role: value as AdminRole })} />
         </Field>
         {#if member}
-          <div class="role-hint bb-fit-box" class:visible={!canEditRole} aria-hidden={canEditRole} id="staff-role-hint">
-            <Text as="span" size="xs" tone="muted"><bb-fit><span data-fit>{t('admin.staff.roleRestricted')}</span></bb-fit></Text>
+          <div class="bb-collapse" style="--bb-collapse-gap: var(--bb-space-1)" class:is-open={!canEditRole} aria-hidden={canEditRole} inert={canEditRole} id="staff-role-hint">
+            <div>
+              <div class="role-hint bb-fit-box">
+                <Text as="span" size="xs" tone="muted"><bb-fit><span data-fit>{t('admin.staff.roleRestricted')}</span></bb-fit></Text>
+              </div>
+            </div>
           </div>
         {/if}
       </Stack>
@@ -157,22 +162,7 @@
     overflow-wrap: anywhere;
   }
 
-  .role-hint {
-    opacity: 0;
-    transition: opacity var(--bb-dur-fast) ease;
-  }
-
-  .role-hint.visible {
-    opacity: 1;
-  }
-
   .access-hint {
     block-size: 2.25rem;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .role-hint {
-      transition: none;
-    }
   }
 </style>

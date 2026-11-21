@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import '@bagel/ui/styles/elements/collapse.css';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import HaloPanel from '@bagel/ui/svelte/HaloPanel.svelte';
   import MarkBadge from '@bagel/ui/svelte/MarkBadge.svelte';
@@ -367,8 +368,8 @@
               </Button>
             </form>
           </div>
-          <div class="launch-note" role="status" class:is-on={launching !== null}>
-            <Text size="sm" tone="accent">{launching ? t('billing.takingToCheckout') : ''}</Text>
+          <div class="launch-note bb-collapse" role="status" class:is-open={launching !== null}>
+            <div><Text size="sm" tone="accent">{launching ? t('billing.takingToCheckout') : ''}</Text></div>
           </div>
           <p class="plan-fine" id="premium-fine">{t('billing.premiumFine')} &middot; {t('billing.tebexNote')}</p>
           </div>
@@ -586,9 +587,9 @@
     z-index: 1;
   }
 
-  .prize { margin: 18px 0 22px; }
-  .prize-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:14px; }
-  .prize-cell { display:flex; flex-direction:column; gap:5px; }
+  .prize { margin: 16px 0 24px; }
+  .prize-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:16px; }
+  .prize-cell { display:flex; flex-direction:column; gap:4px; }
   .prize-mark { color:var(--bb-tan-pale); font-size:24px; }
 
   .hero {
@@ -611,7 +612,6 @@
     font-size: var(--bb-text-md);
     font-weight: 700;
     color: var(--bb-green-glow);
-    text-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.45);
   }
   .beacon {
     flex: none;
@@ -619,7 +619,6 @@
     height: 8px;
     border-radius: 50%;
     background: var(--bb-green-glow);
-    box-shadow: 0 0 10px var(--bb-green-glow);
   }
   .hero-title {
     margin: 0;
@@ -628,12 +627,6 @@
     font-weight: 500;
     letter-spacing: var(--bb-tracking-display);
     line-height: 1.06;
-  }
-  .hero-word {
-    background: linear-gradient(180deg, var(--bb-white) 40%, rgba(var(--bb-tan-light-rgb), 0.55));
-    background-clip: text;
-    -webkit-background-clip: text;
-    color: transparent;
   }
   .hero-lede {
     margin: 0;
@@ -700,7 +693,7 @@
     font-family: var(--bb-font-display);
     font-size: clamp(2.5rem, 4vw, 3.25rem);
     font-weight: 500;
-    letter-spacing: -0.05em;
+    letter-spacing: var(--bb-tracking-tight);
     line-height: 1;
     color: var(--bb-paper);
     font-variant-numeric: tabular-nums;
@@ -746,6 +739,7 @@
     align-self: end;
     display: flex;
     flex-direction: column;
+    gap: var(--bb-space-2);
   }
   .plan-buttons {
     display: grid;
@@ -753,15 +747,7 @@
     gap: var(--bb-space-3);
   }
   .launch-note {
-    min-height: calc(var(--bb-text-sm) * 1.5);
-    margin: var(--bb-space-2) 0 0;
-    visibility: hidden;
-    opacity: 0;
-    transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
-  }
-  .launch-note.is-on {
-    visibility: visible;
-    opacity: 1;
+    --bb-collapse-gap: var(--bb-space-2);
   }
   .plan-fine {
     margin: 0;
@@ -819,10 +805,6 @@
     letter-spacing: var(--bb-tracking-display);
     color: var(--bb-white);
     margin: 0;
-    background: linear-gradient(135deg, var(--bb-white) 0%, var(--bb-tan-pale) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
   }
   .premium-price {
     gap: 3px 8px;
@@ -834,7 +816,7 @@
   }
   .premium-hint {
     font-family: var(--bb-font-body);
-    font-size: 14.5px;
+    font-size: 14px;
     line-height: 1.5;
     color: var(--bb-muted-light);
     max-width: 46ch;
@@ -872,7 +854,7 @@
   }
 
   .premium-includes {
-    margin-top: 22px;
+    margin-top: 24px;
   }
   .includes-h {
     margin: 0 0 4px;
@@ -890,24 +872,24 @@
   }
 
   .gift-card {
-    margin-top: 18px;
+    margin-top: 16px;
   }
   .gift-cta {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 18px;
+    gap: 16px;
   }
   .gift-copy {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     max-width: 52ch;
   }
 
   .form-error {
     text-align: center;
-    margin-top: 14px;
+    margin-top: 16px;
   }
 
   .gift-form {

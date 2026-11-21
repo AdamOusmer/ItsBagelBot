@@ -4,6 +4,7 @@
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import '@bagel/ui/styles/elements/collapse.css';
   import AnalyticsSection from './AnalyticsSection.svelte';
   import AnalyticsStat from './AnalyticsStat.svelte';
   import type { Kpi } from '#lib/analytics-page';
@@ -16,12 +17,16 @@
 
 <AnalyticsSection id="overview">
   <div class="overview-body" aria-busy={!metrics}>
-    <div class="metrics" class:hidden={showStatus} aria-hidden={showStatus}>
-      {#if metrics}
-        {#each metrics as metric (metric.key)}<AnalyticsStat {metric} />{/each}
-      {:else}
-        {#each placeholders as slot (slot)}<AnalyticsStat />{/each}
-      {/if}
+    <div class="bb-collapse" class:is-open={!showStatus} aria-hidden={showStatus} inert={showStatus}>
+      <div>
+        <div class="metrics">
+          {#if metrics}
+            {#each metrics as metric (metric.key)}<AnalyticsStat {metric} />{/each}
+          {:else}
+            {#each placeholders as slot (slot)}<AnalyticsStat />{/each}
+          {/if}
+        </div>
+      </div>
     </div>
     <div class="status" aria-live="polite">
       {#if degraded}
@@ -34,10 +39,6 @@
 </AnalyticsSection>
 
 <style>
-  .overview-body { display: grid; grid-template-columns: minmax(0, 1fr); }
-  .metrics, .status { grid-area: 1 / 1; }
-  .hidden { visibility: hidden; }
-  .status { align-self: start; }
   .metrics {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));

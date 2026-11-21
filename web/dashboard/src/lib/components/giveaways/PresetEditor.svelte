@@ -4,6 +4,7 @@
   import { untrack } from 'svelte';
   import { enhance, type SubmitFunction } from '$app/forms';
   import { getI18n, GIVEAWAY_LIMITS as pins, giveawayRuleNumbers, giveawayRuleToggles } from '@bagel/kit';
+  import '@bagel/ui/styles/elements/collapse.css';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
@@ -111,7 +112,9 @@
       </Field>
     </div>
 
-    <div class="fields" class:faded={!active} inert={!active || locked || busy}>
+    <div class="bb-collapse rules" class:is-open={!!active} inert={!active || locked || busy} aria-hidden={!active}>
+    <div>
+    <div class="fields">
       <Field fitCopy label={t('giveaways.presetName')}>
         <Input bind:value={() => draft.name, (value) => { if (active) active.name = String(value ?? '').toLowerCase(); }}
           maxlength={pins.giveawayPresetNameMax} pattern="[a-z0-9\-]+" fill />
@@ -132,6 +135,8 @@
           onCheckedChange={(checked) => rule(key, checked)} />
       {/each}
     </div>
+    </div>
+    </div>
 
     <div class="actions">
       <Button variant="ghost" class={active ? 'presetControl' : 'presetControl faded'} disabled={!active || locked || busy} onclick={remove}>
@@ -146,7 +151,7 @@
 </Card>
 
 <style>
-  .editor { display: grid; gap: var(--bb-space-4); }
+  .editor { display: flex; flex-direction: column; gap: var(--bb-space-4); }
   .fields { display: grid; gap: var(--bb-space-3); grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .actions {
     --btn-w: 100%;
@@ -155,8 +160,9 @@
     grid-template-columns: repeat(3, minmax(0, 9rem));
     justify-content: end;
   }
-  .fields, .actions :global(.presetControl) { transition: opacity var(--bb-dur-fast); }
-  .faded, .actions :global(.faded) { opacity: 0; pointer-events: none; }
+  .rules { --bb-collapse-gap: var(--bb-space-4); }
+  .actions :global(.presetControl) { transition: opacity var(--bb-dur-fast); }
+  .actions :global(.faded) { opacity: 0; pointer-events: none; }
   @media (max-width: 850px) {
     .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }

@@ -129,9 +129,7 @@
   .glow {
     font-size: clamp(15px, 2.1vh, 18px);
     font-weight: 700;
-    letter-spacing: 0.02em;
     color: var(--bb-tier-paid);
-    text-shadow: 0 0 18px rgba(var(--bb-tan-rgb), 0.45);
     animation: fade 800ms 150ms var(--bb-ease-out-expo) both;
   }
   .title {
@@ -149,10 +147,6 @@
   .word {
     display: inline-block;
     transform-origin: 20% 90%;
-    background: linear-gradient(180deg, var(--bb-white) 40%, rgba(var(--bb-tan-light-rgb), 0.55));
-    background-clip: text;
-    -webkit-background-clip: text;
-    color: transparent;
     animation: word-in 900ms calc(300ms + var(--w, 0) * 90ms) cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   .lead {

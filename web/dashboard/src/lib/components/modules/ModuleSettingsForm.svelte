@@ -144,10 +144,10 @@
 {/each}
 
 <style>
-  .tr-text { display: flex; flex-direction: column; gap: 3px; margin-right: auto; min-width: 0; }
+  .tr-text { display: flex; flex-direction: column; gap: 4px; margin-right: auto; min-width: 0; }
 
   .disabled-note {
-    padding: 12px 18px 16px;
+    padding: 12px 16px 16px;
   }
 
   .setting-row {
@@ -155,7 +155,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 14px 18px;
+    padding: 16px;
   }
   .setting-picker { width: min(260px, 44vw); }
 
@@ -168,7 +168,7 @@
   }
 
   .tz-suggest {
-    padding: 0 18px;
+    padding: 0 16px;
   }
 
 </style>
