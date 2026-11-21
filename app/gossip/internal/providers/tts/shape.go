@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	maxSpeechRunes    = 500
 	maxTags           = 4
 	maxPauseTags      = 3
 	maxLongPauses     = 1

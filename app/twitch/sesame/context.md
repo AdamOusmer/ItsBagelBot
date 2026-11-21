@@ -43,6 +43,7 @@ floor check is also in Sesame; there is no separate Outgress reply-safety layer.
 | Add/change a module | [modules/all.go](modules/all.go), [module/builder.go](module/builder.go), [module/module.go](module/module.go), [module/context.go](module/context.go) |
 | Reply variables | [engine/vars.go](engine/vars.go), [engine/scope/token_catalog.go](engine/scope/token_catalog.go), [modules/variables.go](modules/variables.go), [module/vars.go](module/vars.go) |
 | Outgoing routing and slash verbs | [engine/outgress_build.go](engine/outgress_build.go), [engine/slash.go](engine/slash.go), [shared slash grammar](../../../internal/domain/outgress/slash.go) |
+| Premium voice alert output | [modules/alerts_voice.go](modules/alerts_voice.go), [voice.go](voice.go), [internal/voice/worker.go](internal/voice/worker.go) |
 | Consumers and retry lanes | [internal/consumer/consumer.go](internal/consumer/consumer.go) |
 | Cooldowns/dedup/counters | [engine/cooldown_valkey.go](engine/cooldown_valkey.go), [engine/cooldown_long_marker.go](engine/cooldown_long_marker.go), [engine/cooldown_left.go](engine/cooldown_left.go), [engine/dedup.go](engine/dedup.go), [engine/use_reporter.go](engine/use_reporter.go) |
 | Loyalty and watch windows | [engine/loyalty_tick.go](engine/loyalty_tick.go), [engine/loyalty_schedule.go](engine/loyalty_schedule.go), [engine/loyalty_reporter.go](engine/loyalty_reporter.go), [modules/loyalty.go](modules/loyalty.go) |
@@ -84,6 +85,24 @@ Premium/standard lane choice preserves ingress `Regress`; system jobs use the
 system subject. Slash verbs are converted to typed actions before final delivery.
 Variable expansion can call cached RPC readers or the Gossip custom-fetch endpoint;
 a bare variable token is not necessarily a pure formatting operation.
+
+## Premium voice alerts
+
+Alert handlers share event decoding, token values, and follow/subscription
+cooldowns. Chat and speech use separate templates and per-kind switches.
+Speech additionally checks the channel's live state, cheer threshold, and
+Users allowance. Viewer names and messages are plain text. Trial events
+never enqueue a voice job.
+
+Sesame publishes event-ID-deduplicated jobs to the file-backed `TTS_JOBS`
+work queue. The shared `tts-worker` durable allows three deliveries.
+Each replica processes one job at a time. It rechecks Users allowance,
+trims by the clip and remaining-token budgets, and calls Gossip. The clip's
+object metadata preserves duration and usage across delivery retries.
+Users records usage by event ID. The overlay stream deduplicates the
+playback event by the same ID. Clips and playback events expire after five
+minutes in the gateway's NATS account. Sesame has a separate writer role
+in that account. `SESAME_TTS_ENABLED` gates the publisher and worker.
 
 ## Invariants and pitfalls
 

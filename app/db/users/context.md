@@ -119,9 +119,8 @@ Edit schemas rather than generated Ent code.
 - Premium voice usage accumulates per account and calendar month in UTC.
   The owner-only dashboard verbs `voice_get` and `voice_set` require matching
   authenticated actor and broadcaster IDs from Dashboard. The internal voice
-  `check` and `record` handlers exist for `rpc.internal.users.voice.*` and are
-  not served yet. Enabling them requires a caller and regeneration of the NATS
-  operator JWT. A check reads the balance without reserving it, so concurrent
+  `check` and `record` handlers serve Sesame under `rpc.internal.users.voice.*`.
+  A check reads the balance without reserving it, so concurrent
   checks can overshoot by the usage from in-flight requests. A replay returns
   the stored plan, reason, and usage for the per-user request ID with the
   channel's current enabled setting, voice and `max_seconds`.
@@ -139,11 +138,10 @@ Edit schemas rather than generated Ent code.
   the generation. The gateway resolves a digest with
   `rpc.internal.users.voice.overlay.resolve` and verifies the cookie generation
   with `rpc.internal.users.voice.overlay.check`. Both reject banned and
-  inactive accounts. Keep `SubscribeVoiceOverlay` unwired in `main.go` until
-  the NATS operator JWT is regenerated to grant gateway access. Rotation
-  publishes core NATS `controls.tts.revoked.<user_id>` in `USERS_RPC` using the
-  same connection as desktop revocation. A gateway in another account needs
-  a stream export/import for this core subject before it can receive the signal.
+  inactive accounts. Rotation publishes core NATS
+  `controls.tts.revoked.<user_id>` in `USERS_RPC` using the same connection as
+  desktop revocation. The gateway receives it through its account's stream
+  import.
 - Banned and inactive accounts receive zero cloud voice minutes. A committed
   giveaway covering the current time raises an admin grant from 30 to 60 minutes.
   Lapsed subscriptions intentionally keep their voice minutes until the expiry

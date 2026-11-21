@@ -19,6 +19,8 @@ const (
 )
 
 const TokensPerSecond = 25
+const CharsPerSecond = 14
+const MaxSpeechRunes = 500
 const DefaultVoice = "Kore"
 const MinClipSeconds = 5
 const MaxClipSeconds = 120
@@ -31,37 +33,42 @@ var monthlyMinutes = map[Plan]int64{
 	VIP:        120,
 }
 
-var voices = []string{
-	"Zephyr",
-	"Puck",
-	"Charon",
-	"Kore",
-	"Fenrir",
-	"Leda",
-	"Orus",
-	"Aoede",
-	"Callirrhoe",
-	"Autonoe",
-	"Enceladus",
-	"Iapetus",
-	"Umbriel",
-	"Algieba",
-	"Despina",
-	"Erinome",
-	"Algenib",
-	"Rasalgethi",
-	"Laomedeia",
-	"Achernar",
-	"Alnilam",
-	"Schedar",
-	"Gacrux",
-	"Pulcherrima",
-	"Achird",
-	"Zubenelgenubi",
-	"Vindemiatrix",
-	"Sadachbia",
-	"Sadaltager",
-	"Sulafat",
+type Voice struct {
+	Name      string
+	Character string
+}
+
+var voices = []Voice{
+	{"Zephyr", "Bright"},
+	{"Puck", "Upbeat"},
+	{"Charon", "Informative"},
+	{"Kore", "Firm"},
+	{"Fenrir", "Excitable"},
+	{"Leda", "Youthful"},
+	{"Orus", "Firm"},
+	{"Aoede", "Breezy"},
+	{"Callirrhoe", "Easy-going"},
+	{"Autonoe", "Bright"},
+	{"Enceladus", "Breathy"},
+	{"Iapetus", "Clear"},
+	{"Umbriel", "Easy-going"},
+	{"Algieba", "Smooth"},
+	{"Despina", "Smooth"},
+	{"Erinome", "Clear"},
+	{"Algenib", "Gravelly"},
+	{"Rasalgethi", "Informative"},
+	{"Laomedeia", "Upbeat"},
+	{"Achernar", "Soft"},
+	{"Alnilam", "Firm"},
+	{"Schedar", "Even"},
+	{"Gacrux", "Mature"},
+	{"Pulcherrima", "Forward"},
+	{"Achird", "Friendly"},
+	{"Zubenelgenubi", "Casual"},
+	{"Vindemiatrix", "Gentle"},
+	{"Sadachbia", "Lively"},
+	{"Sadaltager", "Knowledgeable"},
+	{"Sulafat", "Warm"},
 }
 
 func PlanFor(status, source string, active, banned bool) Plan {
@@ -95,7 +102,15 @@ func SecondsToTokens(seconds int64) int64 {
 }
 
 func ValidVoice(voice string) bool {
-	return slices.Contains(voices, voice)
+	return slices.ContainsFunc(voices, func(entry Voice) bool { return entry.Name == voice })
+}
+
+func VoiceNames() []string {
+	names := make([]string, 0, len(voices))
+	for _, voice := range voices {
+		names = append(names, voice.Name)
+	}
+	return names
 }
 
 func Period(t time.Time) string {

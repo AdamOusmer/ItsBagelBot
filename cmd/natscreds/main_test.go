@@ -24,7 +24,7 @@ const realAccountsYAML = "../../deploy/messaging/accounts.yaml"
 
 const (
 	wantAccounts  = 17
-	wantRoles     = 27
+	wantRoles     = 28
 	wantKeySeeds  = 2 + wantAccounts + wantRoles
 	wantRoleCreds = wantRoles - 1
 )
@@ -136,21 +136,45 @@ func TestFirstRunCreatesEveryKeyAndCredential(t *testing.T) {
 	assert.Equal(t, wantKeySeeds+wantRoleCreds*2, h.store.setCalls)
 	keys := h.keys(t)
 	assert.Len(t, keys.Accounts, wantAccounts)
-	require.Len(t, keys.Activations, 1)
-	activations := keys.Activations["CONTROLS_GATEWAY_RPC"]
-	subjects := make([]string, 0, len(activations))
+	assert.Contains(t, serviceCredentialSecrets(h), "sesame/WORKER_TTS_BUS_JWT")
+	assert.Contains(t, serviceCredentialSecrets(h), "sesame/WORKER_TTS_BUS_NKEY_SEED")
+
+	assertVoiceActivations(t, keys)
+
+}
+
+func assertVoiceActivations(t *testing.T, keys *natsacl.Keys) {
+	t.Helper()
+	want := map[string][]string{
+		"WORKER_RPC": {
+			"rpc.internal.users.voice.check",
+			"rpc.internal.users.voice.check.node.*",
+			"rpc.internal.users.voice.record",
+			"rpc.internal.users.voice.record.node.*",
+		},
+		"CONTROLS_GATEWAY_RPC": {
+			"rpc.internal.users.voice.overlay.resolve",
+			"rpc.internal.users.voice.overlay.resolve.node.*",
+			"rpc.internal.users.voice.overlay.check",
+			"rpc.internal.users.voice.overlay.check.node.*",
+			"controls.tts.revoked.*",
+		},
+	}
+	require.Len(t, keys.Activations, len(want))
+	for account, subjects := range want {
+		assert.ElementsMatch(t, subjects, voiceActivationSubjects(t, keys.Activations[account]))
+	}
+}
+
+func voiceActivationSubjects(t *testing.T, activations []natsacl.Activation) []string {
+	t.Helper()
+	var subjects []string
 	for _, activation := range activations {
 		assert.Equal(t, "USERS_RPC", activation.From)
 		assert.NotEmpty(t, activation.Token)
 		subjects = append(subjects, activation.Subject)
 	}
-	assert.ElementsMatch(t, []string{
-		"rpc.internal.users.voice.overlay.resolve",
-		"rpc.internal.users.voice.overlay.resolve.node.*",
-		"rpc.internal.users.voice.overlay.check",
-		"rpc.internal.users.voice.overlay.check.node.*",
-		"controls.tts.revoked.*",
-	}, subjects)
+	return subjects
 }
 
 func TestSecondRunChangesOnlyWhatWasRotated(t *testing.T) {

@@ -2,11 +2,15 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { expect, test } from 'bun:test';
+import { ALERTS_MODULE, ALERT_VOICE_CONFIG_DEFAULTS } from './catalog/alerts';
 import {
-  CLOUD_VOICES, DEFAULT_VOICE, MAX_CLIP_SECONDS, MIN_CLIP_SECONDS, MONTHLY_VOICE_MINUTES, VOICE_TOKENS_PER_SECOND
+  ALERT_VOICE_DEFAULTS, CLOUD_VOICE_CATALOG, CLOUD_VOICES, DEFAULT_TTS_MIN_BITS, DEFAULT_VOICE,
+  MAX_CLIP_SECONDS, MAX_SPEECH_RUNES, MIN_CLIP_SECONDS, MONTHLY_VOICE_MINUTES,
+  VOICE_CHARS_PER_SECOND, VOICE_STYLES, VOICE_TOKENS_PER_SECOND
 } from './voice-plan';
 
 const source = await Bun.file(new URL('../../../internal/domain/voiceplan/voiceplan.go', import.meta.url)).text();
+const alerts = await Bun.file(new URL('../../../internal/domain/voiceplan/alerts.go', import.meta.url)).text();
 
 test('monthly voice minutes match the Go policy', () => {
   const planNames = new Map([...source.matchAll(/^\s*(\w+)\s+Plan\s*=\s*"([a-z_]+)"$/gm)].map((match) => [match[1]!, match[2]!]));
@@ -19,20 +23,46 @@ test('monthly voice minutes match the Go policy', () => {
   expect(goMinutes).toEqual(MONTHLY_VOICE_MINUTES);
 });
 
-test('the cloud voice list matches the Go policy', () => {
-  const list = source.match(/var voices = \[\]string\{([^}]+)\}/)?.[1] ?? '';
-  const goVoices = [...list.matchAll(/"([^"]+)"/g)].map((match) => match[1]!);
+test('cloud voices and character names match the Go catalog', () => {
+  const list = source.match(/var voices = \[\]Voice\{\n([\s\S]*?)\n\}/)?.[1] ?? '';
+  const entries = [...list.matchAll(/\{"([^"]+)", "([^"]+)"\}/g)].map(([, name, character]) => [name, character]);
 
-  expect(new Set(goVoices).size).toBe(30);
-  expect(goVoices).toEqual([...CLOUD_VOICES]);
+  expect(new Set(CLOUD_VOICES).size).toBe(30);
+  expect(entries).toEqual([...CLOUD_VOICE_CATALOG]);
+});
+
+test('style presets and spoken alert defaults match the Go policy', () => {
+  const styles = alerts.match(/var styles = map\[string\]string\{([^}]+)\}/)?.[1] ?? '';
+  const goStyles = Object.fromEntries([...styles.matchAll(/"([^"]+)":\s*"([^"]+)"/g)].map(([, id, style]) => [id, style]));
+  const rows = [...alerts.matchAll(/^\s*"([a-z]+)":\s*\{(true|false), "([^"]+)", "([^"]+)"\},$/gm)];
+  const goDefaults = Object.fromEntries(rows.map(([, id, enabled, message, style]) =>
+    [id, { enabled: enabled === 'true', message, style }]));
+
+  expect(goStyles).toEqual(VOICE_STYLES);
+  expect(goDefaults).toEqual(ALERT_VOICE_DEFAULTS);
+});
+
+test('voice config is separate from the Chat Alerts form', () => {
+  const genericKeys = [
+    ...(ALERTS_MODULE.settings ?? []).map(({ key }) => key),
+    ...ALERTS_MODULE.replies.flatMap(({ enableKey, messageKey }) => [enableKey, messageKey])
+  ];
+  const voiceKeys = Object.keys(ALERT_VOICE_CONFIG_DEFAULTS);
+  expect(voiceKeys).toHaveLength(23);
+  expect(genericKeys.filter((key) => key && voiceKeys.includes(key))).toEqual([]);
 });
 
 test.each([
   { name: 'DefaultVoice', value: `"${DEFAULT_VOICE}"` },
   { name: 'TokensPerSecond', value: String(VOICE_TOKENS_PER_SECOND) },
   { name: 'MinClipSeconds', value: String(MIN_CLIP_SECONDS) },
-  { name: 'MaxClipSeconds', value: String(MAX_CLIP_SECONDS) }
+  { name: 'MaxClipSeconds', value: String(MAX_CLIP_SECONDS) },
+  { name: 'CharsPerSecond', value: String(VOICE_CHARS_PER_SECOND) },
+  { name: 'MaxSpeechRunes', value: String(MAX_SPEECH_RUNES) },
+  { name: 'DefaultMinBits', value: String(DEFAULT_TTS_MIN_BITS) },
+  { name: 'DefaultLiveOnly', value: ALERT_VOICE_CONFIG_DEFAULTS.ttsLiveOnly },
+  { name: 'DefaultReadMessages', value: ALERT_VOICE_CONFIG_DEFAULTS.ttsReadMessages }
 ])('$name matches the Go policy', ({ name, value }) => {
-  const literal = source.match(new RegExp(`^\\s*(?:const\\s+)?${name}\\s*=\\s*(\\S+)$`, 'm'))?.[1];
+  const literal = (source + alerts).match(new RegExp(`^\\s*(?:const\\s+)?${name}\\s*=\\s*(\\S+)$`, 'm'))?.[1];
   expect(literal).toBe(value);
 });

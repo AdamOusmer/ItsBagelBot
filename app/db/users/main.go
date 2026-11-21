@@ -20,6 +20,7 @@ import (
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/event/data"
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/crypto"
 	"ItsBagelBot/pkg/env"
@@ -195,6 +196,8 @@ func subscribeRPCs(wiring rpc.Wiring, log *zap.Logger) rpcSubjects {
 		"failed to subscribe counts rpc")
 	svcboot.FatalIf(log, rpc.SubscribeDelegation(wiring, env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "rpc.delegation")),
 		"failed to subscribe delegation rpc")
+	svcboot.FatalIf(log, rpc.SubscribeVoice(wiring, usersrpc.VoiceCheckSubject, usersrpc.VoiceRecordSubject), "failed to subscribe voice rpc")
+	svcboot.FatalIf(log, rpc.SubscribeVoiceOverlay(wiring), "failed to subscribe voice overlay rpc")
 	svcboot.FatalIf(log, rpc.SubscribeDeviceAuth(wiring, s.device), "failed to subscribe device authorization rpc")
 
 	return s

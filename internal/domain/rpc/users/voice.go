@@ -12,6 +12,11 @@ import (
 
 const VoiceRequestIDMaxBytes = 255
 
+const (
+	VoiceCheckSubject  = "rpc.internal.users.voice.check"
+	VoiceRecordSubject = "rpc.internal.users.voice.record"
+)
+
 type VoiceAllowance struct {
 	Plan              voiceplan.Plan `json:"plan"`
 	Period            string         `json:"period"`

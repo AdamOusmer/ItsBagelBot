@@ -378,6 +378,15 @@ accounts:
                         - data.commands.used
                         - data.loyalty.>
                         - ingress.dlq.>
+                        - tts.jobs.*
+                        - $JS.API.STREAM.INFO.TTS_JOBS
+                        - $JS.API.STREAM.CREATE.TTS_JOBS
+                        - $JS.API.STREAM.UPDATE.TTS_JOBS
+                        - $JS.API.CONSUMER.CREATE.TTS_JOBS.tts-worker
+                        - $JS.API.CONSUMER.INFO.TTS_JOBS.tts-worker
+                        - $JS.API.CONSUMER.MSG.NEXT.TTS_JOBS.tts-worker
+                        - $JS.ACK.TTS_JOBS.tts-worker.>
+                        - $JS.ACK.*.*.TTS_JOBS.tts-worker.>
                         - $JS.API.STREAM.INFO.INGRESS_DLQ
                         - $JS.API.STREAM.CREATE.INGRESS_DLQ
                         - $JS.API.STREAM.UPDATE.INGRESS_DLQ
@@ -480,6 +489,22 @@ accounts:
                 subscribe:
                     allow:
                         - controls.tts.revoked.*
+                        - _INBOX.>
+            worker_tts_bus:
+                publish:
+                    allow:
+                        - overlay.tts.*
+                        - $O.TTS_CLIPS.C.*
+                        - $O.TTS_CLIPS.M.*
+                        - $JS.API.STREAM.INFO.OVERLAY_TTS
+                        - $JS.API.STREAM.CREATE.OVERLAY_TTS
+                        - $JS.API.STREAM.UPDATE.OVERLAY_TTS
+                        - $JS.API.STREAM.INFO.OBJ_TTS_CLIPS
+                        - $JS.API.STREAM.CREATE.OBJ_TTS_CLIPS
+                        - $JS.API.STREAM.UPDATE.OBJ_TTS_CLIPS
+                        - $JS.API.DIRECT.GET.OBJ_TTS_CLIPS.$O.TTS_CLIPS.M.*
+                subscribe:
+                    allow:
                         - _INBOX.>
     DASHBOARD_RPC:
         imports:
@@ -849,6 +874,14 @@ accounts:
             twitch_ingress_rpc: {}
     USERS_RPC:
         exports:
+            - service: rpc.internal.users.voice.check
+              accounts: [WORKER_RPC]
+            - service: rpc.internal.users.voice.check.node.*
+              accounts: [WORKER_RPC]
+            - service: rpc.internal.users.voice.record
+              accounts: [WORKER_RPC]
+            - service: rpc.internal.users.voice.record.node.*
+              accounts: [WORKER_RPC]
             - service: rpc.internal.users.voice.overlay.resolve
               accounts: [CONTROLS_GATEWAY_RPC]
             - service: rpc.internal.users.voice.overlay.resolve.node.*
@@ -922,6 +955,14 @@ accounts:
             - service: rpc.automations.runs.node.*
             - service: rpc.draw.>
         imports:
+            - service: rpc.internal.users.voice.check
+              from: USERS_RPC
+            - service: rpc.internal.users.voice.check.node.*
+              from: USERS_RPC
+            - service: rpc.internal.users.voice.record
+              from: USERS_RPC
+            - service: rpc.internal.users.voice.record.node.*
+              from: USERS_RPC
             - service: rpc.internal.projection.modules.automations.get
               from: MODULES_RPC
             - service: rpc.internal.projection.modules.automations.get.node.*

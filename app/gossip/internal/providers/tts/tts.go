@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -19,6 +18,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/ratelimit"
 
@@ -28,7 +28,7 @@ import (
 
 const (
 	bucketPrefix  = "ratelimit:gossip:{tts}:"
-	defaultVoice  = "Kore"
+	defaultVoice  = voiceplan.DefaultVoice
 	channelPrefix = bucketPrefix + "channel:"
 	speechTimeout = 20 * time.Second
 )
@@ -42,13 +42,6 @@ var (
 	errUnavailable  = errors.New("speech synthesis is unavailable right now")
 	errInternal     = errors.New("internal error")
 )
-
-var voices = []string{
-	"Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede",
-	"Callirrhoe", "Autonoe", "Enceladus", "Iapetus", "Umbriel", "Algieba", "Despina",
-	"Erinome", "Algenib", "Rasalgethi", "Laomedeia", "Achernar", "Alnilam", "Schedar",
-	"Gacrux", "Pulcherrima", "Achird", "Zubenelgenubi", "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat",
-}
 
 type Config struct {
 	BaseURL          string
@@ -119,7 +112,7 @@ func (cfg Config) backend(b *provider.Builder, log *zap.Logger) backend {
 }
 
 func (cfg Config) withValidDefaults(log *zap.Logger) Config {
-	if !slices.Contains(voices, cfg.Voice) {
+	if !voiceplan.ValidVoice(cfg.Voice) {
 		log.Warn("invalid GEMINI_TTS_VOICE, using default", zap.String("voice", defaultVoice))
 		cfg.Voice = defaultVoice
 	}
@@ -135,7 +128,7 @@ func validModel(model gossiprpc.TTSModel) bool {
 }
 
 func (s *synthesizer) listVoices(context.Context, gossiprpc.Request) any {
-	return gossiprpc.TTSVoicesReply{Voices: slices.Clone(voices), Model: s.model}
+	return gossiprpc.TTSVoicesReply{Voices: voiceplan.VoiceNames(), Model: s.model}
 }
 
 func (s *synthesizer) synthesize(ctx context.Context, req gossiprpc.Request) any {
@@ -193,10 +186,10 @@ func (s speech) reply(req gossiprpc.Request) gossiprpc.TTSSynthesizeReply {
 func validate(req gossiprpc.Request) string {
 	switch {
 	case !validTextLength(req.Text):
-		return fmt.Sprintf("invalid text: expected 1 to %d characters", maxSpeechRunes)
+		return fmt.Sprintf("invalid text: expected 1 to %d characters", voiceplan.MaxSpeechRunes)
 	case strings.ContainsFunc(req.Text, forbiddenSpeechRune):
 		return "invalid text: control characters are not allowed"
-	case !slices.Contains(voices, req.Voice):
+	case !voiceplan.ValidVoice(req.Voice):
 		return "unknown voice"
 	case utf8.RuneCountInString(req.Style) > 200:
 		return "invalid style: expected at most 200 characters"
@@ -211,7 +204,7 @@ func validate(req gossiprpc.Request) string {
 }
 
 func validTextLength(text string) bool {
-	return text != "" && utf8.RuneCountInString(text) <= maxSpeechRunes
+	return text != "" && utf8.RuneCountInString(text) <= voiceplan.MaxSpeechRunes
 }
 
 func validRequestID(id string) bool {
