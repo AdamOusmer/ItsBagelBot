@@ -114,9 +114,9 @@ playback event by the same ID. Clips and playback events expire after five
 minutes in the gateway's NATS account. Sesame has a separate writer role
 in that account.
 
-The deployment ships with `SESAME_TTS_ENABLED=false`. Enable the publisher and
-worker only after the signed NATS account claims and Sesame credentials with
-the voice grants are live.
+`SESAME_TTS_ENABLED` turns the publisher and worker on. Keep it `false` in any
+environment where the signed NATS account claims and the Sesame TTS writer
+credentials are not live: startup fails without them.
 
 ## Invariants and pitfalls
 
