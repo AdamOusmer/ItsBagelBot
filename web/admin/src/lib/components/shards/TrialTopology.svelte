@@ -218,7 +218,7 @@
   }
 
   .channel-list {
-    --trial-channel-height: 15rem;
+    --trial-channel-height: calc(13rem + 2 * var(--card-pad));
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
     gap: var(--bb-space-3);

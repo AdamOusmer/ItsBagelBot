@@ -215,7 +215,7 @@
       grid-template-columns: minmax(0, 1fr) 9.75rem;
       grid-template-rows: repeat(2, 32px);
       align-content: center;
-      gap: 6px var(--bb-space-3);
+      gap: var(--bb-space-2) var(--bb-space-3);
     }
   }
 
@@ -223,7 +223,7 @@
     .row {
       grid-template-areas: "identity" "marks" "metrics";
       grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: 32px 20px 64px;
+      grid-template-rows: 32px 20px calc(64px + var(--bb-space-2));
     }
 
     .marks {
@@ -232,7 +232,6 @@
 
     .metrics {
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      row-gap: 0;
     }
   }
 </style>

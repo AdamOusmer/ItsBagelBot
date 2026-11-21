@@ -68,7 +68,7 @@
     </div>
   {/snippet}
   {#snippet trail()}
-    <ButtonLink href={closeHref} variant="secondary" size="sm">
+    <ButtonLink href={closeHref} variant="secondary">
       <span class="close-copy"><bb-fit><span data-fit>{closeLabel}</span></bb-fit></span>
     </ButtonLink>
   {/snippet}
@@ -202,7 +202,7 @@
     }
 
     .close-copy {
-      inline-size: 6rem;
+      inline-size: min(6rem, 25vw);
     }
   }
 </style>

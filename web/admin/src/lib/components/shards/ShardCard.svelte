@@ -36,7 +36,7 @@
   const target = $derived(t('admin.shards.targetLoad', { pct: String(targetUtilization) }));
 </script>
 
-<Card as="article" aria-labelledby={headingId} style="--card-pad: var(--bb-space-3); --bb-cursor: quiet; block-size: var(--socket-height)">
+<Card as="article" aria-labelledby={headingId} style="--bb-cursor: quiet; block-size: var(--socket-height)">
   <Stack gap={2}>
     <header class="socket-heading">
       <Heading level={6} as="h5" id={headingId}>

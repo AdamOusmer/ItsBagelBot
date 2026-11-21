@@ -180,6 +180,7 @@
       <div class="search">
         <SearchInput
           fill
+          tall
           bind:value={search}
           bind:element={searchInput}
           placeholder={t('admin.counters.search')}

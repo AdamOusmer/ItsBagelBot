@@ -225,7 +225,7 @@
   }
 
   .socket-list {
-    --socket-height: 12rem;
+    --socket-height: calc(9rem + 2 * var(--card-pad) + 3 * var(--bb-space-2));
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 15.5rem), 1fr));
     gap: var(--bb-space-3);

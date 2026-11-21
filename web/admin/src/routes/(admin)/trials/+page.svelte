@@ -13,12 +13,11 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
-  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
-  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
+  import FilterTabs from '#lib/components/FilterTabs.svelte';
   import type { TrialChannel, TrialSnapshot } from '#lib/server/services';
   import { applyStreamed } from '#lib/streamed-load';
   import type { PageProps } from './$types';
@@ -143,43 +142,37 @@
     <bb-fit><span data-fit>{t('admin.trials.titlePre')}<em>{t('admin.trials.titleEm')}</em></span></bb-fit>
   </PageHead>
 
-  <PageToolbar class="trial-toolbar">
-    {#snippet leading()}
-      <div class="trial-filters">
-        <SegmentedControl
-          even
-          label={t('admin.trials.filterLabel')}
-          aria-controls="trial-results"
-          {options}
-          value={filter}
-          onValueChange={(value) => (filter = value as TrialFilter)}
-        />
-      </div>
-    {/snippet}
-    {#snippet trailing()}
-      <form method="POST" action="?/add" use:enhance={submit} class="trial-add">
-        <Label htmlFor="trial-broadcaster-id" class="trial-add-label">
-          <bb-fit><span data-fit>{t('admin.trials.idLabel')}</span></bb-fit>
-        </Label>
-        <Input
-          id="trial-broadcaster-id"
-          name="broadcaster_id"
-          inputmode="numeric"
-          pattern="[1-9][0-9]*"
-          maxlength={20}
-          autocomplete="off"
-          aria-describedby="trial-help"
-          readonly={busy}
-          fill
-          mono
-          required
-        />
-        <Button type="submit" aria-disabled={locked || atCapacity} block>
-          <bb-fit><span data-fit>{t('admin.trials.add')}</span></bb-fit>
-        </Button>
-      </form>
-    {/snippet}
-  </PageToolbar>
+  <Stack gap={3} style="margin-block-end: var(--bb-space-3);">
+    <FilterTabs
+      label={t('admin.trials.filterLabel')}
+      aria-controls="trial-results"
+      {options}
+      value={filter}
+      onValueChange={(value) => (filter = value as TrialFilter)}
+      countWidth="5ch"
+    />
+    <form method="POST" action="?/add" use:enhance={submit} class="trial-add">
+      <Label htmlFor="trial-broadcaster-id" class="trial-add-label">
+        <bb-fit><span data-fit>{t('admin.trials.idLabel')}</span></bb-fit>
+      </Label>
+      <Input
+        id="trial-broadcaster-id"
+        name="broadcaster_id"
+        inputmode="numeric"
+        pattern="[1-9][0-9]*"
+        maxlength={20}
+        autocomplete="off"
+        aria-describedby="trial-help"
+        readonly={busy}
+        fill
+        mono
+        required
+      />
+      <Button type="submit" aria-disabled={locked || atCapacity} block>
+        <bb-fit><span data-fit>{t('admin.trials.add')}</span></bb-fit>
+      </Button>
+    </form>
+  </Stack>
 
   <div class="trial-summary">
     <div class="trial-capacity" class:concealed={degraded} aria-hidden={degraded}>
@@ -231,26 +224,16 @@
 
 <style>
   .trials {
-    --trial-card-size: 8rem;
+    --trial-card-size: 10.5rem;
     --trial-head-size: 7rem;
-  }
-
-  .trials :global(.trial-toolbar) {
-    align-items: end;
-  }
-
-  .trial-filters {
-    flex: 0 1 24rem;
-    min-inline-size: min(19rem, 100%);
   }
 
   .trial-add {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 8.75rem;
-    align-items: end;
+    align-items: stretch;
     gap: var(--bb-space-1) var(--bb-space-2);
-    flex: 0 1 24rem;
-    min-inline-size: min(19rem, 100%);
+    inline-size: min(100%, 24rem);
   }
 
   .trial-add :global(.trial-add-label) {
@@ -294,37 +277,15 @@
     outline-offset: var(--bb-space-1);
   }
 
-  @media (max-width: 1100px) {
-    .trials :global(.trial-toolbar) {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 0;
-      column-gap: 0;
-    }
-
-    .trial-filters,
-    .trial-add {
-      inline-size: min(100%, 30rem);
-      grid-column: 1;
-    }
-
-    .trial-filters {
-      grid-row: 1;
-    }
-
-    .trial-add {
-      grid-row: 2;
-    }
-  }
-
   @media (max-width: 980px) {
     .trials {
-      --trial-card-size: 12.5rem;
+      --trial-card-size: 15rem;
     }
   }
 
   @media (max-width: 680px) {
     .trials {
-      --trial-card-size: 13.75rem;
+      --trial-card-size: 15.5rem;
       --trial-head-size: 7.25rem;
     }
 

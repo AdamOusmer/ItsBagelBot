@@ -8,20 +8,20 @@
   import type { StatusTone } from '@bagel/kit/status-tone';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
-  import CardHead from '@bagel/ui/svelte/CardHead.svelte';
-  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
-  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
-  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import FilterTabs from '#lib/components/FilterTabs.svelte';
   import type { FeedEvent } from '#lib/server/feed';
 
   type EventTone = FeedEvent['tone'];
@@ -54,10 +54,10 @@
     down: 'admin.events.toneDown',
     neutral: 'admin.events.toneNeutral'
   } as const;
-  const densityOptions = [
+  const densityOptions = $derived([
     { value: 'compact', label: t('admin.events.compact') },
     { value: 'detailed', label: t('admin.events.detailed') }
-  ];
+  ]);
 
   let conn = $state<Connection>('connecting');
   let events = $state.raw<FeedEvent[]>([]);
@@ -96,11 +96,17 @@
   });
 
   const sourceOptions = $derived.by(() => {
-    const groups = new Set(loaded.map(sourceOf));
-    if (source !== ALL_SOURCES) groups.add(source);
+    const counts = new Map<string, number>();
+    if (source !== ALL_SOURCES) counts.set(source, 0);
+    for (const event of loaded) {
+      const group = sourceOf(event);
+      counts.set(group, (counts.get(group) ?? 0) + 1);
+    }
     return [
-      { value: ALL_SOURCES, label: t('admin.events.sourceAll') },
-      ...[...groups].sort(sourceOrder.compare).map((group) => ({ value: group, label: group }))
+      { value: ALL_SOURCES, label: `${t('admin.events.sourceAll')} (${numberFormat.format(loaded.length)})` },
+      ...[...counts.keys()].sort(sourceOrder.compare).map((group) => ({
+        value: group, label: `${group} (${numberFormat.format(counts.get(group) ?? 0)})`
+      }))
     ];
   });
 
@@ -251,138 +257,118 @@
     {t('admin.events.titlePre')}<em>{t('admin.events.titleEm')}</em>
   </PageHead>
 
-  <PageToolbar style="display: block">
-    {#snippet leading()}
-      <div class="feed-filters">
-        <div class="feed-tones" role="group" aria-label={t('admin.events.toneFilter')}>
-          {#each toneOptions as option (option.value)}
-            <Chip
-              pressed={tone === option.value}
-              style="justify-content: center; padding-inline: var(--bb-space-2); gap: var(--bb-space-1)"
-              onclick={() => (tone = tone === option.value ? 'all' : option.value)}
-            >
-              <span class="tone-label"><bb-fit>{option.label}</bb-fit></span>
-              <span class="tone-count">{option.count}</span>
-            </Chip>
-          {/each}
-        </div>
-        <Select fill options={sourceOptions} bind:value={source} label={t('admin.events.sourceFilter')} />
-        <SearchInput
-          fill
-          bind:value={search}
-          placeholder={t('admin.events.searchPlaceholder')}
-          aria-label={t('admin.events.searchPlaceholder')}
-        />
-      </div>
-    {/snippet}
-  </PageToolbar>
-
   <Card>
-    <div class="feed-head">
-      <CardHead title={t('admin.events.subject')} headingLevel={2}>
-        {#snippet actions()}
+    <Stack gap={3}>
+      <div>
+        <Cluster justify="between" gap={2}>
+          <Heading level={2} variant="card">{t('admin.events.subject')}</Heading>
           <Tag bare status aria-describedby={unavailable ? 'feed-outage' : undefined}>
             <StatusDot tone={status.tone} />
             <span class="feed-status"><bb-fit>{statusLabel}</bb-fit></span>
           </Tag>
-        {/snippet}
-      </CardHead>
-      <span id="feed-outage" class="feed-reason" class:shown={unavailable} aria-hidden={!unavailable}>
-        <bb-fit>{t('admin.events.unavailableBody')}</bb-fit>
-      </span>
-    </div>
-
-    <div class="feed-actions">
-      <SegmentedControl
-        even
-        options={densityOptions}
-        bind:value={density}
-        onValueChange={saveDensity}
-        label={t('admin.events.densityLabel')}
-      />
-      <div class="feed-actions-right">
-        <span class="new-pill" class:shown={showNew} aria-hidden={!showNew}>
-          <Chip style="border-radius: var(--bb-radius-pill)" disabled={!showNew} onclick={jumpToLatest}>
-            <span class="new-label"><bb-fit>{newLabel}</bb-fit></span>
-          </Chip>
-        </span>
-        <Button size="sm" variant="secondary" onclick={togglePause}>
-          <span class="pause-label"><bb-fit>{pauseLabel}</bb-fit></span>
-        </Button>
-        <Button size="sm" variant="ghost" onclick={clearFeed} disabled={!loaded.length}>
-          <span class="clear-label"><bb-fit>{t('admin.events.clear')}</bb-fit></span>
-        </Button>
+        </Cluster>
+        <div id="feed-outage" class="feed-reason" class:shown={unavailable} aria-hidden={!unavailable}>
+          <bb-fit>{t('admin.events.unavailableBody')}</bb-fit>
+        </div>
       </div>
-    </div>
 
-    <Scroller
-      style="block-size: min(60vh, 34rem); scrollbar-gutter: stable"
-      role="region"
-      tabindex={0}
-      aria-label={t('admin.events.listLabel')}
-      aria-busy={!hasHistory && conn === 'connecting'}
-      onscroll={trackScroll}
-    >
-      {#if !hasHistory && conn === 'connecting'}
-        <SkeletonStack rows={8} height={density === 'compact' ? '2.25rem' : '3.5rem'} />
-      {:else if !rows.length}
-        <EmptyState
-          title={events.length ? t('admin.events.emptyMatch') : statusLabel}
-          body={events.length || unavailable ? undefined : t('admin.events.idleBody')}
-        />
-      {:else}
-        <ul class="bb-feed" role="list">
-          {#each rows as row (row.event.id)}
-            {#if row.liveDivider}{@render liveDivider()}{/if}
-            {#if row.dateDivider}
-              <li class="feed-divider"><Label as="span">{row.day}</Label></li>
-            {/if}
-            <li class="bb-feed__row event-row" class:compact={density === 'compact'}>
-              <span class="feed-dot" aria-label={t(TONE_LABEL[row.event.tone])} role="img">
-                <StatusDot tone={TONE_DOT[row.event.tone]} />
-              </span>
-              <span class="bb-feed__body">
-                <span class="bb-feed__title">{row.event.label}</span>
-                {#if density === 'detailed' && row.event.payload}
-                  <span class="feed-payload">
-                    <Text as="span" size="xs" tone="muted" mono>{row.event.payload}</Text>
-                  </span>
-                {/if}
-              </span>
-              <time class="bb-feed__trail" datetime={row.event.at}>{row.time}</time>
-            </li>
-          {/each}
-          {#if rows.at(-1)?.live}{@render liveDivider()}{/if}
-        </ul>
-      {/if}
-    </Scroller>
+      <FilterTabs
+        options={toneOptions}
+        value={tone}
+        label={t('admin.events.toneFilter')}
+        countWidth="3ch"
+        onValueChange={(value) => (tone = value === tone ? 'all' : value)}
+      />
+      <Cluster justify="between" gap={3}>
+        <Cluster gap={2} style="min-inline-size: 0;">
+          <div style="inline-size: min(15rem, 100%);">
+            <SearchInput
+              fill
+              tall
+              bind:value={search}
+              placeholder={t('admin.events.searchPlaceholder')}
+              aria-label={t('admin.events.searchPlaceholder')}
+            />
+          </div>
+          <div style="--input-w: 10rem;">
+            <Select
+              options={sourceOptions}
+              bind:value={source}
+              label={t('admin.events.sourceFilter')}
+              aria-label={t('admin.events.sourceFilter')}
+            />
+          </div>
+          <div style="--input-w: 9rem;">
+            <Select
+              options={densityOptions}
+              bind:value={density}
+              label={t('admin.events.densityLabel')}
+              aria-label={t('admin.events.densityLabel')}
+              onchange={({ currentTarget }) => saveDensity(currentTarget.value)}
+            />
+          </div>
+        </Cluster>
+        <Cluster gap={2}>
+          <Button variant="secondary" aria-pressed={paused} onclick={togglePause}>
+            <span class="pause-label"><bb-fit>{pauseLabel}</bb-fit></span>
+          </Button>
+          <Button variant="ghost" onclick={clearFeed} disabled={!loaded.length}>
+            <span class="clear-label"><bb-fit>{t('admin.events.clear')}</bb-fit></span>
+          </Button>
+          <span class="new-action" class:shown={showNew} aria-hidden={!showNew}>
+            <Button variant="secondary" disabled={!showNew} onclick={jumpToLatest}>
+              <span class="new-label"><bb-fit>{newLabel}</bb-fit></span>
+            </Button>
+          </span>
+        </Cluster>
+      </Cluster>
+
+      <Scroller
+        style="block-size: min(60vh, 34rem); scrollbar-gutter: stable"
+        role="region"
+        tabindex={0}
+        aria-label={t('admin.events.listLabel')}
+        aria-busy={!hasHistory && conn === 'connecting'}
+        onscroll={trackScroll}
+      >
+        {#if !hasHistory && conn === 'connecting'}
+          <SkeletonStack rows={8} height={density === 'compact' ? '2.25rem' : '3.5rem'} />
+        {:else if !rows.length}
+          <EmptyState
+            title={events.length ? t('admin.events.emptyMatch') : statusLabel}
+            body={events.length || unavailable ? undefined : t('admin.events.idleBody')}
+          />
+        {:else}
+          <ul class="bb-feed" role="list">
+            {#each rows as row (row.event.id)}
+              {#if row.liveDivider}{@render liveDivider()}{/if}
+              {#if row.dateDivider}
+                <li class="feed-divider"><Label as="span">{row.day}</Label></li>
+              {/if}
+              <li class="bb-feed__row event-row" class:compact={density === 'compact'}>
+                <span class="feed-dot" aria-label={t(TONE_LABEL[row.event.tone])} role="img">
+                  <StatusDot tone={TONE_DOT[row.event.tone]} />
+                </span>
+                <span class="bb-feed__body">
+                  <span class="bb-feed__title">{row.event.label}</span>
+                  {#if density === 'detailed' && row.event.payload}
+                    <span class="feed-payload">
+                      <Text as="span" size="xs" tone="muted" mono>{row.event.payload}</Text>
+                    </span>
+                  {/if}
+                </span>
+                <time class="bb-feed__trail" datetime={row.event.at}>{row.time}</time>
+              </li>
+            {/each}
+            {#if rows.at(-1)?.live}{@render liveDivider()}{/if}
+          </ul>
+        {/if}
+      </Scroller>
+    </Stack>
   </Card>
 </section>
 
 <style>
-  .feed-filters {
-    display: grid;
-    grid-template-columns: minmax(23rem, 1.5fr) minmax(8rem, 0.7fr) minmax(10rem, 1fr);
-    align-items: center;
-    gap: var(--bb-space-3);
-  }
-
-  .feed-tones {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--bb-space-1);
-  }
-
-  .tone-label {
-    min-inline-size: 0;
-  }
-
-  .tone-count {
-    flex: 0 0 3ch;
-    text-align: end;
-    font-size: var(--bb-text-xs);
-  }
-
   .feed-status,
   .new-label,
   .pause-label,
@@ -392,21 +378,11 @@
     text-align: center;
   }
 
-  .feed-head {
-    display: flow-root;
-    position: relative;
-    margin-block-end: var(--bb-space-1);
-    overflow-wrap: anywhere;
-  }
-
   .feed-status {
     inline-size: 6rem;
   }
 
   .feed-reason {
-    position: absolute;
-    inset-block-end: 1px;
-    inset-inline: 0;
     font-size: var(--bb-text-xs);
     line-height: 1;
     text-align: end;
@@ -420,28 +396,13 @@
     pointer-events: auto;
   }
 
-  .feed-actions {
-    display: grid;
-    grid-template-columns: minmax(9rem, 13rem) auto;
-    justify-content: space-between;
-    gap: var(--bb-space-2);
-    margin-block-end: var(--bb-space-3);
-  }
-
-  .feed-actions-right {
-    display: flex;
-    align-items: center;
-    justify-content: end;
-    gap: var(--bb-space-2);
-  }
-
-  .new-pill {
+  .new-action {
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--bb-dur-base) ease;
   }
 
-  .new-pill.shown {
+  .new-action.shown {
     opacity: 1;
     pointer-events: auto;
   }
@@ -495,40 +456,7 @@
     margin-block-start: 2px;
   }
 
-  @media (max-width: 1100px) {
-    .feed-filters {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .feed-tones {
-      grid-column: 1 / -1;
-    }
-  }
-
-  @media (max-width: 760px) {
-    .feed-actions {
-      grid-template-columns: 1fr;
-    }
-
-    .feed-actions-right {
-      flex-wrap: wrap;
-    }
-  }
-
   @media (max-width: 460px) {
-    .feed-filters {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .feed-tones {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .feed-actions-right {
-      justify-content: space-between;
-      gap: var(--bb-space-1);
-    }
-
     .new-label {
       inline-size: 3rem;
     }
@@ -558,7 +486,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .feed-reason,
-    .new-pill {
+    .new-action {
       transition: none;
     }
   }

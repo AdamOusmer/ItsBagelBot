@@ -5,16 +5,17 @@
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
-  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
-  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Table from '@bagel/ui/svelte/Table.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { DeployRunSummary, DeployRunsResult } from '#lib/deploys/types';
+  import FilterTabs from '#lib/components/FilterTabs.svelte';
   import StatePill from '#lib/components/StatePill.svelte';
   import { KIND_KEY, RUN_STATE_KEY, STAGE_KEY, isTerminal, runName, runPill } from './view';
 
@@ -69,7 +70,7 @@
 {#snippet history(runs: DeployRunSummary[])}
   {@const rows = runs.filter(matches)}
   {#if rows.length}
-    <Table label={t('admin.deploys.history')} compact zebra class="deploy-history-table">
+    <Table label={t('admin.deploys.history')} zebra class="deploy-history-table">
       <thead>
         <tr>
           <th class="run-name" scope="col">{t('admin.deploys.col.run')}</th>
@@ -116,20 +117,16 @@
   {/if}
 {/snippet}
 
-<PageToolbar>
-  {#snippet leading()}
-    <div class="filters">
-      <SegmentedControl even options={filters} bind:value={filter} label={t('admin.deploys.filterLabel')} />
-    </div>
-  {/snippet}
-  {#snippet trailing()}
+<Stack gap={3}>
+  <FilterTabs options={filters} bind:value={filter} label={t('admin.deploys.filterLabel')} countWidth="5ch" />
+  <Cluster justify="end">
     <div class="run-action">
       <ButtonLink block tone="success" disabled={pending} href={active ? `/deploys/${encodeURIComponent(active.id)}` : '/deploys/new'}>
         <span class="control-copy"><bb-fit><span data-fit>{t(active ? 'admin.deploys.openRun' : 'admin.deploys.start.cta')}</span></bb-fit></span>
       </ButtonLink>
     </div>
-  {/snippet}
-</PageToolbar>
+  </Cluster>
+</Stack>
 
 <Card>
   <CardHead title={t('admin.deploys.history')} headingLevel={2} />
@@ -149,17 +146,8 @@
 </Card>
 
 <style>
-  .filters,
   .run-action {
-    min-inline-size: 0;
-  }
-
-  .filters {
-    inline-size: 24rem;
-  }
-
-  .run-action {
-    inline-size: 10rem;
+    inline-size: min(100%, 10rem);
   }
 
   .control-copy {
@@ -209,12 +197,6 @@
 
     .run-state {
       inline-size: 8.5rem;
-    }
-  }
-
-  @media (max-width: 600px) {
-    .filters {
-      inline-size: 100%;
     }
   }
 </style>

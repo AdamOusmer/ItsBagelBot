@@ -58,7 +58,7 @@
                   use:enhance={submit}
                 >
                   <input type="hidden" name="user_id" value={account.userId} />
-                  <Button type="submit" variant="secondary" size="sm" block disabled={!actionable || busy} aria-label={`${actionLabel} · @${account.login}`}>
+                  <Button type="submit" variant="secondary" block disabled={!actionable || busy} aria-label={`${actionLabel} · @${account.login}`}>
                     <bb-fit><span data-fit>{actionLabel}</span></bb-fit>
                   </Button>
                 </form>

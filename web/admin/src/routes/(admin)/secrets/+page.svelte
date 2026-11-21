@@ -5,13 +5,14 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
-  import Chip from '@bagel/ui/svelte/Chip.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Grid from '@bagel/ui/svelte/Grid.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
   import { allows } from '#lib/access';
+  import FilterTabs from '#lib/components/FilterTabs.svelte';
   import CredentialDialog from '#lib/components/secrets/CredentialDialog.svelte';
   import SecretGenerator from '#lib/components/secrets/SecretGenerator.svelte';
   import ServiceCard from '#lib/components/secrets/ServiceCard.svelte';
@@ -57,6 +58,10 @@
     readable: groups.readable?.length,
     unavailable: groups.unavailable?.length
   });
+  const filterOptions = $derived(statusFilters.map((value) => {
+    const count = counts[value];
+    return { value, label: t(STATUS_LABELS[value]), count: count === undefined ? '' : numberFormat.format(count) };
+  }));
 
   async function refresh() {
     if (refreshing) return;
@@ -70,27 +75,23 @@
     {t('admin.secrets.titlePre')}<em>{t('admin.secrets.titleEm')}</em>
   </PageHead>
 
-  <PageToolbar style="flex-wrap: wrap">
-    {#snippet leading()}
-      <div class="status-filters" role="group" aria-label={t('admin.secrets.filterLabel')}>
-        {#each statusFilters as value (value)}
-          {@const count = counts[value]}
-          <Chip pressed={statusFilter === value} onclick={() => (statusFilter = value)}
-            style="min-inline-size: 0; justify-content: space-between; padding-inline: var(--bb-space-2); gap: var(--bb-space-1)">
-            <span class="filter-name"><bb-fit><span data-fit>{t(STATUS_LABELS[value])}</span></bb-fit></span>
-            <span class="filter-count">{count === undefined ? '' : numberFormat.format(count)}</span>
-          </Chip>
-        {/each}
-      </div>
-    {/snippet}
-    {#snippet trailing()}
-      <div class="generator-action">
-        <Button variant="ghost" onclick={() => (generatorOpen = true)} block>
-          <bb-fit><span data-fit>{t('admin.secrets.genTitle')}</span></bb-fit>
-        </Button>
-      </div>
-    {/snippet}
-  </PageToolbar>
+  <Stack gap={3}>
+    <FilterTabs
+      options={filterOptions}
+      bind:value={() => statusFilter, (value) => (statusFilter = value as StatusFilter)}
+      label={t('admin.secrets.filterLabel')}
+      countWidth="2ch"
+    />
+    <PageToolbar>
+      {#snippet trailing()}
+        <div class="generator-action">
+          <Button variant="ghost" onclick={() => (generatorOpen = true)} block>
+            <bb-fit><span data-fit>{t('admin.secrets.genTitle')}</span></bb-fit>
+          </Button>
+        </div>
+      {/snippet}
+    </PageToolbar>
+  </Stack>
 
   <div class="service-inventory" aria-busy={statuses === undefined || refreshing}>
     {#if statuses === undefined}
@@ -105,7 +106,7 @@
       <AlertBanner>
         {t('admin.secrets.statusFailed')}
         {#snippet actions()}
-          <Button variant="ghost" size="sm" onclick={refresh} busy={refreshing}>{t('common.retry')}</Button>
+          <Button variant="ghost" onclick={refresh} busy={refreshing}>{t('common.retry')}</Button>
         {/snippet}
       </AlertBanner>
     {:else if services?.length}
@@ -140,46 +141,17 @@
 {/if}
 
 <style>
-  .status-filters {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--bb-space-1);
-    flex: 1 1 21rem;
-    max-inline-size: 25rem;
-    min-inline-size: 0;
-  }
-
-  .filter-name {
-    flex: 1;
-    min-inline-size: 0;
-    text-align: start;
-  }
-
-  .filter-count {
-    flex: 0 0 2ch;
-    text-align: end;
-    font-variant-numeric: tabular-nums;
-  }
-
   .generator-action {
-    flex: 0 0 13rem;
-    margin-inline-start: auto;
+    inline-size: min(100%, 13rem);
   }
 
   .service-inventory {
-    --credential-card-size: 14rem;
+    --credential-card-size: 16rem;
     min-block-size: var(--credential-card-size);
   }
 
   .service-slot {
     block-size: var(--credential-card-size);
     min-inline-size: 0;
-  }
-
-  @media (max-width: 600px) {
-    .status-filters {
-      flex-basis: 100%;
-      max-inline-size: none;
-    }
   }
 </style>

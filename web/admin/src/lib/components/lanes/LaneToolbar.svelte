@@ -4,13 +4,15 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
-  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
-  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import FilterTabs from '#lib/components/FilterTabs.svelte';
   import type { LaneCategory, LanesResult } from '#lib/server/lanes';
   import type { filterLanes, PipelineStageFilter, PipelineTrafficFilter } from './lane-pipeline';
 
@@ -68,6 +70,11 @@
     }));
   }
 
+  const trafficOptions = $derived(options(TRAFFIC, filtered.trafficCounts).map(({ value, label, count }) => ({
+    value,
+    label: ready ? `${label} (${count})` : label
+  })));
+
   const summary = $derived.by(() => {
     const lanes = result?.lanes ?? [];
     return t('admin.lanes.stats', {
@@ -78,124 +85,91 @@
   });
 </script>
 
-<div class="toolbar-region">
-  <PageToolbar class="lane-toolbar">
-    {#snippet leading()}
-      <div class="search-slot">
+<Stack gap={3} style="margin-block-end: var(--bb-space-4);">
+  <FilterTabs
+    label={t('admin.lanes.pipelineFilter')}
+    options={options(STAGE, filtered.stageCounts)}
+    value={stage}
+    onValueChange={(value) => (stage = value as PipelineStageFilter)}
+    countWidth="6ch"
+  />
+
+  <Cluster justify="between" gap={3}>
+    <Cluster gap={2}>
+      <div class="search">
         <SearchInput
           id="lane-search"
           fill
+          tall
           bind:value={search}
           placeholder={t('admin.lanes.searchPlaceholder')}
           aria-label={t('admin.lanes.searchPlaceholder')}
         />
       </div>
-    {/snippet}
-    {#snippet trailing()}
-      <div class="toolbar-meta">
-        <div class="summary-text" aria-busy={result === null}>
-          {#if ready}
-            <Text as="div" size="xs" tone="muted" mono>
-              <bb-fit><span data-fit>{summary}</span></bb-fit>
-            </Text>
-          {:else if result === null}
-            <Skeleton width="min(100%, 20ch)" height="1rem" />
-          {/if}
-        </div>
-        <div class="toolbar-actions">
-          <div class="live-status" class:visible={result !== null} aria-hidden={result === null}>
-            <Tag tone={delayed ? 'warning' : 'live'} bare status style="display: flex;">
-              <bb-fit><span data-fit>{t(delayed ? 'admin.lanes.delayed' : 'admin.lanes.live')}</span></bb-fit>
-            </Tag>
-          </div>
-          <Button block variant="ghost" onclick={onRefresh} disabled={result === null}>
-            <bb-fit><span data-fit>{t('admin.lanes.refresh')}</span></bb-fit>
-          </Button>
-        </div>
+      <div class="traffic">
+        <Select
+          aria-label={t('admin.lanes.trafficFilter')}
+          options={trafficOptions}
+          value={traffic}
+          onchange={(event) => (traffic = event.currentTarget.value as PipelineTrafficFilter)}
+          fill
+        />
       </div>
-    {/snippet}
-  </PageToolbar>
-
-  <div class="filter-groups">
-    <div class="pipeline-filter">
-      <Label as="span"><bb-fit><span data-fit>{t('admin.lanes.pipelineFilter')}</span></bb-fit></Label>
-      <SegmentedControl
-        even
-        class="bb-tabs--plain lane-segments"
-        label={t('admin.lanes.pipelineFilter')}
-        options={options(STAGE, filtered.stageCounts)}
-        value={stage}
-        onValueChange={(value) => { stage = value as PipelineStageFilter; }}
-      />
-    </div>
-
-    <div class="traffic-filter">
-      <Label as="span"><bb-fit><span data-fit>{t('admin.lanes.trafficFilter')}</span></bb-fit></Label>
-      <SegmentedControl
-        even
-        class="bb-tabs--plain lane-segments"
-        label={t('admin.lanes.trafficFilter')}
-        options={options(TRAFFIC, filtered.trafficCounts)}
-        value={traffic}
-        onValueChange={(value) => { traffic = value as PipelineTrafficFilter; }}
-      />
-    </div>
-
-    <div>
-      <Label as="span" id="lane-category-filter"><bb-fit><span data-fit>{t('admin.lanes.categoryFilter')}</span></bb-fit></Label>
-      <div class="categories" role="group" aria-labelledby="lane-category-filter">
-        {#each options(CATEGORY, filtered.categoryCounts) as option (option.value)}
-          <Chip
-            pressed={option.value === 'all' ? categories.size === 0 : categories.has(option.value)}
-            onclick={() => toggleCategory(option.value)}
-            style="min-width: 0; justify-content: space-between; min-block-size: var(--lane-filter-height); padding-inline: var(--lane-chip-padding); gap: var(--lane-chip-gap)"
-          >
-            <span class="category-label"><bb-fit><span data-fit>{option.label}</span></bb-fit></span>
-            <span class="category-count">{option.count}</span>
-          </Chip>
-        {/each}
+    </Cluster>
+    <Cluster gap={2}>
+      <div class="summary-text" aria-busy={result === null}>
+        {#if ready}
+          <Text as="div" size="xs" tone="muted" mono>
+            <bb-fit><span data-fit>{summary}</span></bb-fit>
+          </Text>
+        {:else if result === null}
+          <Skeleton width="min(100%, 20ch)" height="1rem" />
+        {/if}
       </div>
+      <Cluster gap={2} nowrap>
+        <div class="live-status" class:visible={result !== null} aria-hidden={result === null}>
+          <Tag tone={delayed ? 'warning' : 'live'} bare status style="display: flex;">
+            <bb-fit><span data-fit>{t(delayed ? 'admin.lanes.delayed' : 'admin.lanes.live')}</span></bb-fit>
+          </Tag>
+        </div>
+        <Button variant="ghost" onclick={onRefresh} disabled={result === null} --btn-w="7rem">
+          <bb-fit><span data-fit>{t('admin.lanes.refresh')}</span></bb-fit>
+        </Button>
+      </Cluster>
+    </Cluster>
+  </Cluster>
+
+  <Stack gap={1}>
+    <Label as="span" id="lane-category-filter"><bb-fit><span data-fit>{t('admin.lanes.categoryFilter')}</span></bb-fit></Label>
+    <div class="categories" role="group" aria-labelledby="lane-category-filter">
+      {#each options(CATEGORY, filtered.categoryCounts) as option (option.value)}
+        <Chip
+          pressed={option.value === 'all' ? categories.size === 0 : categories.has(option.value)}
+          onclick={() => toggleCategory(option.value)}
+          style="min-block-size: var(--btn-min-h); min-inline-size: 0; justify-content: space-between;"
+        >
+          <span class="category-label"><bb-fit><span data-fit>{option.label}</span></bb-fit></span>
+          <span class="category-count">{option.count}</span>
+        </Chip>
+      {/each}
     </div>
-  </div>
-</div>
+  </Stack>
+</Stack>
 
 <style>
-  .toolbar-region {
-    container-type: inline-size;
-    margin-block-end: var(--bb-space-4);
-    --lane-filter-height: 2.5rem;
-    --lane-chip-padding: 14px;
-    --lane-chip-gap: 9px;
-  }
-
-  .toolbar-region :global(.lane-toolbar) {
-    display: grid;
-    grid-template-columns: minmax(14rem, 21rem) minmax(0, 1fr) minmax(22rem, 35rem);
-  }
-
-  .toolbar-meta {
-    grid-column: 3;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--bb-space-2);
-    text-align: end;
-  }
-
-  .toolbar-actions {
-    display: grid;
-    grid-template-columns: 8rem 6rem;
-    align-items: center;
-    gap: var(--bb-space-1);
-  }
+  .search { inline-size: min(100%, 15rem); }
+  .traffic { inline-size: min(100%, 11rem); }
 
   .summary-text {
-    min-inline-size: 0;
-    text-align: end;
+    display: grid;
+    align-items: center;
+    inline-size: min(100%, 17rem);
+    block-size: 1.25rem;
   }
 
   .live-status {
     display: grid;
+    inline-size: 8rem;
     opacity: 0;
     transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo);
   }
@@ -204,72 +178,18 @@
     opacity: 1;
   }
 
-  .filter-groups {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--bb-space-3) var(--bb-space-4);
-  }
-
-  .pipeline-filter { grid-column: 1 / -1; }
-
-  .filter-groups :global(.lane-segments),
-  .categories { margin-block-start: var(--bb-space-1); }
-
-  .filter-groups :global(.lane-segments) {
-    grid-auto-rows: var(--lane-filter-height);
-  }
-
   .categories {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--bb-space-1);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr));
+    gap: var(--bb-space-2);
   }
 
   .category-label { min-inline-size: 0; }
 
   .category-count {
     flex: none;
+    min-inline-size: 6ch;
+    text-align: end;
     font-variant-numeric: tabular-nums;
-  }
-
-  @container (max-width: 55rem) {
-    .filter-groups { grid-template-columns: minmax(0, 1fr); }
-  }
-
-  @container (max-width: 42rem) {
-    .toolbar-region :global(.lane-toolbar) { grid-template-columns: minmax(0, 1fr) 0; column-gap: 0; }
-    .toolbar-meta { grid-column: 1 / -1; }
-    .summary-text { text-align: start; }
-  }
-
-  @container (max-width: 31rem) {
-    .pipeline-filter :global(.lane-segments) {
-      grid-auto-flow: row;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .categories {
-      --lane-chip-padding: 7px;
-      --lane-chip-gap: 4px;
-    }
-  }
-
-  @container (max-width: 21rem) {
-    .toolbar-meta {
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: 1rem auto;
-    }
-
-    .toolbar-actions { grid-template-columns: minmax(0, 1fr) 6rem; }
-
-    .traffic-filter :global(.lane-segments) {
-      grid-auto-flow: row;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .categories { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  }
-
-  @media (pointer: coarse) {
-    .toolbar-region { --lane-filter-height: 2.75rem; }
   }
 </style>

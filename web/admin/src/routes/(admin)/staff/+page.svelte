@@ -276,7 +276,7 @@
             <AlertBanner>
               {t('admin.staff.degraded')}
               {#snippet actions()}
-                <Button size="sm" variant="ghost" onclick={retryRoster}>{t('common.retry')}</Button>
+                <Button variant="ghost" onclick={retryRoster}>{t('common.retry')}</Button>
               {/snippet}
             </AlertBanner>
           </div>

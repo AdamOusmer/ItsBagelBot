@@ -44,7 +44,7 @@
   }
 </script>
 
-<Card as="article" dashed aria-label={name} style="--card-pad: var(--bb-space-3); --card-border: var(--bb-rule); --card-shadow: none; block-size: var(--trial-channel-height)">
+<Card as="article" dashed aria-label={name} style="--card-border: var(--bb-rule); --card-shadow: none; block-size: var(--trial-channel-height)">
   <Stack gap={1}>
     <div class="channel-heading">
       <Heading level={6} as="h5" title={name}><bb-fit><span data-fit>{name}</span></bb-fit></Heading>

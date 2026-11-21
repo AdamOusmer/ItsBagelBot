@@ -6,6 +6,9 @@
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import Grid from '@bagel/ui/svelte/Grid.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
   import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
@@ -145,61 +148,61 @@
     {t('admin.audit.titlePre')}<em>{t('admin.audit.titleEm')}</em>
   </PageHead>
 
-  <PageToolbar class="audit-toolbar">
-    {#snippet leading()}
-      <div class="filter-toolbar">
-        <div class="toolbar-search">
+  <Stack gap={3}>
+    <Stack gap={2}>
+      <Cluster justify="between" nowrap>
+        <Text as="span" id="audit-kinds" size="xs" tone="muted" style="inline-size: min(10rem, 45%);">
+          <bb-fit><span data-fit>{t('admin.audit.kindFilter')}</span></bb-fit>
+        </Text>
+        <div class="stats">
+          <Text as="span" size="xs" tone="muted" mono>
+            {#if first}
+              <bb-fit><span data-fit>{t('admin.audit.stats', {
+                loaded: String(loaded.length),
+                failed: String(loaded.filter((entry) => !entry.ok).length)
+              })}</span></bb-fit>
+            {:else}
+              <Skeleton width="min(19ch, 100%)" />
+            {/if}
+          </Text>
+        </div>
+      </Cluster>
+      <Grid min="8rem" gap={2} role="group" aria-labelledby="audit-kinds">
+        {#each FILTERS as kind (kind)}
+          {@const count = kind === 'all' ? loaded.length : counts.get(kind) ?? 0}
+          <Chip
+            pressed={kind === 'all' ? kinds.length === 0 : kinds.includes(kind)}
+            onclick={() => toggleKind(kind)}
+            disabled={!first}
+            style="min-inline-size: 0; justify-content: space-between;"
+          >
+            <span class="kind-label"><bb-fit><span data-fit>{t(KIND_LABEL[kind])}</span></bb-fit></span>
+            <span class="kind-count"><bb-fit>{first ? count : ''}</bb-fit></span>
+          </Chip>
+        {/each}
+      </Grid>
+    </Stack>
+    <PageToolbar>
+      {#snippet leading()}
+        <div style="inline-size: min(15rem, 100%);">
           <SearchInput
+            tall
+            fill
             bind:value={search}
             placeholder={t('admin.audit.searchPlaceholder')}
             aria-label={t('admin.audit.searchPlaceholder')}
             debounceMs={350}
             onValueChange={loadSearch}
-            fill
           />
         </div>
-        <div class="filter-meta">
-          <div class="fit-label">
-            <Text as="div" id="audit-kinds" size="xs" tone="muted">
-              <bb-fit><span data-fit>{t('admin.audit.kindFilter')}</span></bb-fit>
-            </Text>
-          </div>
-          <div class="fit-label stats">
-            <Text as="div" size="xs" tone="muted" mono>
-              {#if first}
-                <bb-fit><span data-fit>{t('admin.audit.stats', {
-                  loaded: String(loaded.length),
-                  failed: String(loaded.filter((entry) => !entry.ok).length)
-                })}</span></bb-fit>
-              {:else}
-                <Skeleton width="min(19ch, 100%)" />
-              {/if}
-            </Text>
-          </div>
-        </div>
-        <div class="kind-grid" role="group" aria-labelledby="audit-kinds">
-          {#each FILTERS as kind (kind)}
-            <Chip
-              pressed={kind === 'all' ? kinds.length === 0 : kinds.includes(kind)}
-              onclick={() => toggleKind(kind)}
-              disabled={!first}
-              style="min-width: 0; justify-content: space-between"
-            >
-              <span class="kind-label"><bb-fit><span data-fit>{t(KIND_LABEL[kind])}</span></bb-fit></span>
-              <span class="kind-count">{first ? (kind === 'all' ? loaded.length : counts.get(kind) ?? 0) : ''}</span>
-            </Chip>
-          {/each}
-        </div>
-      </div>
-    {/snippet}
-    {#snippet trailing()}
-      <div class="toolbar-export">
-        <Button block variant="ghost" onclick={() => exportCsv(rows)} disabled={rows.length === 0}>
+      {/snippet}
+      {#snippet trailing()}
+        <Button variant="secondary" onclick={() => exportCsv(rows)} disabled={rows.length === 0} style="--btn-w: 9rem; --btn-justify: center;">
           <bb-fit><span data-fit>{t('admin.audit.exportCsv')}</span></bb-fit>
         </Button>
-      </div>
-    {/snippet}
-  </PageToolbar>
+      {/snippet}
+    </PageToolbar>
+  </Stack>
 
   {#if issue}
     <AlertBanner>{t('admin.audit.unreachable', { error: issue })}</AlertBanner>
@@ -268,46 +271,9 @@
 </section>
 
 <style>
-  .screen :global(.audit-toolbar) {
-    align-items: flex-start;
-  }
-
-  .toolbar-search {
-    width: min(100%, 22rem);
-  }
-
-  .filter-toolbar {
-    display: grid;
-    flex: 1 1 100%;
-    min-width: 0;
-    gap: var(--bb-space-2);
-    container-type: inline-size;
-  }
-
-  .toolbar-export {
-    flex: 0 0 9rem;
-    margin-inline-start: auto;
-  }
-
-  .filter-meta {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: center;
-    gap: var(--bb-space-2);
-  }
-
-  .fit-label {
-    min-width: 0;
-  }
-
   .stats {
+    inline-size: min(19ch, 50%);
     text-align: end;
-  }
-
-  .kind-grid {
-    display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: var(--bb-space-2);
   }
 
   .kind-label {
@@ -316,7 +282,7 @@
   }
 
   .kind-count {
-    min-width: 3ch;
+    flex: 0 0 4ch;
     text-align: end;
     font-variant-numeric: tabular-nums;
   }
@@ -345,29 +311,5 @@
 
   .page-control.visible {
     opacity: 1;
-  }
-
-  @container (max-width: 62rem) {
-    .kind-grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-  }
-
-  @container (max-width: 34rem) {
-    .kind-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
-
-  @container (max-width: 26rem) {
-    .kind-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  @media (max-width: 600px) {
-    .toolbar-search {
-      width: 100%;
-    }
   }
 </style>
