@@ -42,9 +42,8 @@ Other `ent/` files are generated from the schema.
   with a fresh token and default settings on first read; `.save` validates with
   `PoweredConfig.Validate` (`invalid`) and the read revision (`conflict`);
   `.rotate` issues a new token. Each returns `PoweredView` with the full link.
-- Owner reads for Projector: `rpc.internal.overlays.powered.get` (`user_id`) and
-  `rpc.internal.overlays.powered.by_token` (`token`) return `OwnerPoweredReply`,
-  refusing `not_found` when absent.
+- Owner read for Projector: `rpc.internal.overlays.powered.by_token` (`token`)
+  returns `OwnerPoweredReply`, refusing `not_found` when absent.
 - Creation, save and rotate publish `data.overlays.powered.changed` with the
   whole overlay; rotate also sets `previous_token`. Account deletion
   (`data.users.deleted`) deletes the row and publishes `deleted` with the

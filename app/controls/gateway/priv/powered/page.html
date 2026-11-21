@@ -115,10 +115,10 @@
     .plate-mask {
       position: absolute;
       top: -22px;
-      bottom: -28px;
+      bottom: -51px;
       left: 57px;
-      width: 432px;
-      padding: 31px 28px 37px 0;
+      width: 444px;
+      padding: 31px 40px 60px 0;
       overflow: hidden;
       z-index: 2;
     }
@@ -126,7 +126,7 @@
     .slot.is-mirrored .plate-mask {
       left: auto;
       right: 57px;
-      padding: 31px 0 37px 28px;
+      padding: 31px 0 60px 40px;
     }
 
     .plate {
@@ -371,7 +371,6 @@
       box-shadow:
         0 14px 28px rgba(17, 17, 19, 0.54),
         0 4px 10px rgba(17, 17, 19, 0.36),
-        0 0 18px rgba(232, 196, 110, 0.2),
         inset 0 1.5px 1px rgba(255, 246, 222, 0.9);
     }
 
@@ -669,7 +668,7 @@
             { offset: 0.24, transform: 'scale(1.06)', opacity: 0.72, easing: 'ease-out' },
             { offset: 1, transform: 'scale(1.48)', opacity: 0 }
           ],
-          { delay: 340, duration: 560, fill: 'both' }
+          { delay: 410, duration: 560, fill: 'both' }
         ));
       }
 
@@ -871,7 +870,7 @@
       if (previewMode) {
         config = sanitize({ show_seconds: params.get('show'), directions: (params.get('from') || '').split(','), align: params.get('align') }, config);
         premium = params.get('premium') === '1';
-        later(previewCycle, PREVIEW_DELAY_MS);
+        document.fonts.ready.then(() => later(previewCycle, PREVIEW_DELAY_MS));
       } else if (linkToken) {
         later(liveCycle, FIRST_DELAY_MS);
       }

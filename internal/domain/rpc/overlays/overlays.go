@@ -15,7 +15,6 @@ const (
 	PoweredSaveSubject   = "rpc.overlays.powered.save"
 	PoweredRotateSubject = "rpc.overlays.powered.rotate"
 
-	OwnerPoweredSubject        = "rpc.internal.overlays.powered.get"
 	OwnerPoweredByTokenSubject = "rpc.internal.overlays.powered.by_token"
 
 	PoweredResolveSubject = "rpc.internal.projector.overlays.powered.resolve"
@@ -132,10 +131,6 @@ type PoweredSaveRequest struct {
 
 type PoweredRotateRequest struct {
 	UserID string `json:"user_id"`
-}
-
-type OwnerPoweredRequest struct {
-	UserID uint64 `json:"user_id"`
 }
 
 type OwnerPoweredByTokenRequest struct {

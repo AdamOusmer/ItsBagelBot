@@ -21,7 +21,10 @@ const (
 	poweredTokenPrefix = "overlay:powered:token:"
 )
 
-var poweredTTLSeconds = strconv.FormatInt(int64(DefaultTTL/time.Second), 10)
+var (
+	poweredTTLSeconds       = strconv.FormatInt(int64(DefaultTTL/time.Second), 10)
+	poweredTombstoneSeconds = strconv.FormatInt(int64(10*time.Minute/time.Second), 10)
+)
 
 var poweredWriteScript = pkg_valkey.NewScript(`
 local current = tonumber(redis.call('HGET', KEYS[1], 'revision') or '-1')
@@ -87,7 +90,7 @@ func (v *Store) DeletePoweredOverlay(ctx context.Context, r PoweredRemoval) ([]s
 	for _, token := range r.Tokens {
 		keys = append(keys, poweredTokenKey(token))
 	}
-	stored, err := poweredDeleteScript.Exec(ctx, v.primary, keys, []string{strconv.FormatUint(r.Revision, 10), poweredTTLSeconds}).ToString()
+	stored, err := poweredDeleteScript.Exec(ctx, v.primary, keys, []string{strconv.FormatUint(r.Revision, 10), poweredTombstoneSeconds}).ToString()
 	if err != nil || stored == "" {
 		return r.Tokens, err
 	}

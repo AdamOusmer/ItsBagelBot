@@ -173,6 +173,10 @@ func assertActivations(t *testing.T, keys *natsacl.Keys) {
 			"PROJECTOR_RPC rpc.internal.projector.overlays.powered.resolve",
 			"PROJECTOR_RPC rpc.internal.projector.overlays.powered.resolve.node.*",
 		},
+		"PROJECTOR_RPC": {
+			"OVERLAYS_RPC rpc.internal.overlays.powered.by_token",
+			"OVERLAYS_RPC rpc.internal.overlays.powered.by_token.node.*",
+		},
 	}
 	require.Len(t, keys.Activations, len(want))
 	for account, grants := range want {

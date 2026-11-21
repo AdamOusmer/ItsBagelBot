@@ -30,7 +30,7 @@ func serve(t *testing.T) *nats.Conn {
 	nc := bustest.NATS(t)
 	w := rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop(), Queue: "test"},
-		Repo:      repository.New(client, bustest.NewPublisher(), zap.NewNop()),
+		Repo:      repository.New(client, bustest.NewPublisher()),
 	}
 	require.NoError(t, rpc.SubscribeDashboard(w))
 	require.NoError(t, rpc.SubscribeOwner(w))
@@ -90,8 +90,7 @@ func TestOwnerLookupsFollowTheCurrentLink(t *testing.T) {
 		req     any
 		want    domainrpc.Code
 	}{
-		{"by user", overlaysrpc.OwnerPoweredSubject, overlaysrpc.OwnerPoweredRequest{UserID: 1001}, domainrpc.CodeOK},
-		{"unknown user", overlaysrpc.OwnerPoweredSubject, overlaysrpc.OwnerPoweredRequest{UserID: 2002}, domainrpc.CodeNotFound},
+		{"unknown token", overlaysrpc.OwnerPoweredByTokenSubject, overlaysrpc.OwnerPoweredByTokenRequest{Token: "missing"}, domainrpc.CodeNotFound},
 		{"current token", overlaysrpc.OwnerPoweredByTokenSubject, overlaysrpc.OwnerPoweredByTokenRequest{Token: token(rotated)}, domainrpc.CodeOK},
 		{"replaced token", overlaysrpc.OwnerPoweredByTokenSubject, overlaysrpc.OwnerPoweredByTokenRequest{Token: token(created)}, domainrpc.CodeNotFound},
 	}
