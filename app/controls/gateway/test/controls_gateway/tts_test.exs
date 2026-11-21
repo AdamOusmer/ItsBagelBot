@@ -201,7 +201,7 @@ defmodule ControlsGateway.TtsTest do
       Jason.encode!(%{
         clip_key: "#{user_id}/#{event_id}",
         event_id: event_id,
-        kind: "follow",
+        kind: "cheer",
         duration_ms: 1234,
         expires_at: DateTime.utc_now() |> DateTime.add(300) |> DateTime.to_iso8601()
       })

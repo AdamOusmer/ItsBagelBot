@@ -30,18 +30,16 @@
   "gateTitle": "Pon voz a tus alertas con Premium",
   "gateBody": "Elige voces y estilos para tus alertas y reprodúcelas en OBS con una fuente de navegador.",
   "liveOnly": "Solo en directo",
-  "readMessages": "Leer el mensaje del espectador",
-  "readMessagesHint": "Incluye los mensajes de los Cheers y las resuscripciones.",
   "minBits": "Bits mínimos",
   "maxLengthHint": "Unos {chars} caracteres",
   "alertsTitle": "Alertas leídas en voz alta",
-  "spokenMessage": "Mensaje hablado",
+  "alertsHint": "Lee el mensaje del espectador como «Usuario dijo: ...», sin mencionar los bits. Los eventos sin mensaje permanecen en silencio.",
   "rehearsal": "Leído en voz alta",
   "styleLabel": "Estilo",
   "voiceOverride": "Voz de esta alerta",
   "useDefault": "Predeterminada ({voice})",
-  "insertPause": "Insertar una pausa breve",
   "cheerThreshold": "Se reproduce a partir de {n} bits",
+  "subMessageOnly": "Se reproduce en resuscripciones con mensaje",
   "remaining": "Quedan {time}",
   "exhausted": "Has agotado tus minutos. Las alertas usan la voz local gratuita hasta el {date}.",
   "overlayStepCreate": "Genera un enlace privado y cópialo cuando aparezca.",
@@ -50,7 +48,6 @@
   "overlayGuide": "Guía completa",
   "invalidMinBits": "Introduce un número entero de bits a partir de 0.",
   "invalidStyle": "Elige un estilo de la lista.",
-  "invalidMessage": "El mensaje hablado puede tener hasta {max} caracteres.",
   "saveUnavailable": "Los ajustes de voz Premium no están disponibles para esta cuenta.",
   "conflict": "Las alertas cambiaron en otro lugar. Se cargaron los últimos ajustes. Inténtalo de nuevo.",
   "character": {
@@ -98,17 +95,11 @@
     "cozy": "Suave e íntimo"
   },
   "kind": {
-    "follow": "Nuevo seguidor",
     "sub": "Suscripción",
-    "gift": "Suscripciones regaladas",
-    "cheer": "Cheer",
-    "raid": "Raid"
+    "cheer": "Cheer"
   },
-  "template": {
-    "follow": "{user}, <short pause> ¡gracias por seguir el canal!",
-    "sub": "¡{user} acaba de suscribirse! <short pause> ¡Te damos la bienvenida al equipo!",
-    "gift": "¡{user} regaló {count} suscripciones! <short pause> ¡Muchísimas gracias!",
-    "cheer": "¡{user} envió {bits} bits!",
-    "raid": "¡{user} llega con un raid de {viewers} espectadores! <short pause> ¡Les damos la bienvenida!"
+  "sample": {
+    "sub": "PrincessBarney dijo: ¡Felices 7 meses, me encanta el directo!",
+    "cheer": "PrincessBarney dijo: ¡Buenísima jugada!"
   }
 }

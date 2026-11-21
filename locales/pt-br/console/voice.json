@@ -30,18 +30,16 @@
   "gateTitle": "Dê voz aos seus alertas com Premium",
   "gateBody": "Escolha vozes e estilos para os alertas e reproduza-os no OBS com uma fonte de navegador.",
   "liveOnly": "Só durante a live",
-  "readMessages": "Ler a mensagem do espectador",
-  "readMessagesHint": "Inclui mensagens enviadas com Cheers e reinscrições.",
   "minBits": "Mínimo de bits",
   "maxLengthHint": "Cerca de {chars} caracteres",
   "alertsTitle": "Alertas lidos em voz alta",
-  "spokenMessage": "Mensagem falada",
+  "alertsHint": "Lê a mensagem do espectador como “Usuário disse: ...”, sem anunciar os bits. Eventos sem mensagem ficam em silêncio.",
   "rehearsal": "Lido em voz alta",
   "styleLabel": "Estilo",
   "voiceOverride": "Voz deste alerta",
   "useDefault": "Padrão ({voice})",
-  "insertPause": "Inserir uma pausa curta",
   "cheerThreshold": "Toca a partir de {n} bits",
+  "subMessageOnly": "Toca em reinscrições com mensagem",
   "remaining": "Restam {time}",
   "exhausted": "Seus minutos acabaram. Os alertas usam a voz local gratuita até {date}.",
   "overlayStepCreate": "Gere um link privado e copie assim que ele aparecer.",
@@ -50,7 +48,6 @@
   "overlayGuide": "Guia completo",
   "invalidMinBits": "Digite um número inteiro de bits a partir de 0.",
   "invalidStyle": "Escolha um estilo na lista.",
-  "invalidMessage": "A mensagem falada pode ter até {max} caracteres.",
   "saveUnavailable": "As configurações de voz Premium estão indisponíveis para esta conta.",
   "conflict": "Os alertas mudaram em outro lugar. As últimas configurações foram carregadas. Tente de novo.",
   "character": {
@@ -98,17 +95,11 @@
     "cozy": "Suave e íntimo"
   },
   "kind": {
-    "follow": "Novo seguidor",
     "sub": "Inscrição",
-    "gift": "Inscrições de presente",
-    "cheer": "Cheer",
-    "raid": "Raid"
+    "cheer": "Cheer"
   },
-  "template": {
-    "follow": "{user}, <short pause> valeu por seguir o canal!",
-    "sub": "{user} acaba de se inscrever! <short pause> Boas-vindas à turma!",
-    "gift": "{user} deu {count} inscrições de presente! <short pause> Valeu demais!",
-    "cheer": "{user} mandou {bits} bits!",
-    "raid": "{user} chegou com uma raid de {viewers} espectadores! <short pause> Boas-vindas a todos!"
+  "sample": {
+    "sub": "PrincessBarney disse: 7 meses já, adoro a live!",
+    "cheer": "PrincessBarney disse: Jogou muito!"
   }
 }

@@ -30,6 +30,7 @@ export const ALERTS_MODULE: ModuleDef = {
       tagline: 'When someone subscribes or resubscribes.',
       event: 'on subscribe',
       enableKey: 'subEnabled',
+      voiceAlert: 'sub',
       messageKey: 'subMessage',
       defaultMessage: 'Welcome to the community, {user}! Thank you for subscribing!',
       tokens: replyTokens(['user', 'tier'], { user: 'PrincessBarney', tier: '1000' }, 'alerts.sub')
@@ -50,6 +51,7 @@ export const ALERTS_MODULE: ModuleDef = {
       tagline: 'When someone cheers bits.',
       event: 'on cheer',
       enableKey: 'cheerEnabled',
+      voiceAlert: 'cheer',
       messageKey: 'cheerMessage',
       defaultMessage: 'Thank you for the {bits} bits, {user}!',
       tokens: replyTokens(['user', 'bits'], { user: 'PrincessBarney', bits: '500' }, 'alerts.cheer')

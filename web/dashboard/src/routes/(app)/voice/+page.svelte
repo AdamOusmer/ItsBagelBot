@@ -81,11 +81,6 @@
     if (await autosave.save(key, { [key]: value }) === 'failed') values[key] = before;
   }
 
-  function typeMessage(key: string, value: string) {
-    values[key] = value;
-    autosave.schedule(key, { [key]: value });
-  }
-
   function alertStatus(kind: VoiceAlertKind): SaveState {
     const states = Object.values(alertVoiceKeys(kind)).map((key) => autosave.status[key] ?? 'idle');
     return (['saving', 'error', 'saved'] as const).find((state) => states.includes(state)) ?? 'idle';
@@ -172,13 +167,14 @@
                 <Heading level={6} as="h2" variant="eyebrow" id="voice-alerts">
                   <bb-fit><span data-fit="">{t('voice.alertsTitle')}</span></bb-fit>
                 </Heading>
+                <Text as="p" size="xs" tone="muted">{t('voice.alertsHint')}</Text>
               </div>
               <Divider flush />
               <ul class="list" aria-labelledby="voice-alerts">
                 {#each VOICE_ALERT_KINDS as kind, i (kind)}
                   {@const keys = alertVoiceKeys(kind)}
                   <li>
-                    <VoiceAlertRow {kind} index={i + 1} message={values[keys.message] ?? ''}
+                    <VoiceAlertRow {kind} index={i + 1} minBits={Number(values.ttsMinBits ?? 0)}
                       enabled={values[keys.enabled] === 'true'} status={alertStatus(kind)} expanded={selected === kind}
                       onExpand={() => openAlert(kind)} onToggle={(checked) => change(keys.enabled, String(checked))} />
                   </li>
@@ -191,8 +187,7 @@
                 closeLabel={t('modules.closeEditor')} onClose={closeAlert}>
                 <Scroller fill padding="16px" smooth>
                   {#key selected}
-                    <VoiceAlertEditor kind={selected} {values} options={overrides} status={autosave.status}
-                      onChange={change} onMessage={typeMessage} onFlush={() => void autosave.flush()} />
+                    <VoiceAlertEditor kind={selected} {values} options={overrides} onChange={change} />
                   {/key}
                 </Scroller>
               </InspectorSurface>
@@ -217,6 +212,6 @@
   .status-head { grid-template-columns: minmax(0, 1fr) minmax(0, 48%); align-items: center; gap: var(--bb-space-3); }
   .status-tag { justify-self: end; min-inline-size: 0; max-inline-size: 100%; }
   .status-copy { block-size: 2.75rem; min-inline-size: 0; align-content: center; }
-  .section-head { display: flex; align-items: center; gap: 12px; padding: 12px 18px; }
+  .section-head { display: flex; flex-direction: column; gap: var(--bb-space-1); padding: 12px 18px; }
   .list { list-style: none; margin: 0; padding: 0; }
 </style>

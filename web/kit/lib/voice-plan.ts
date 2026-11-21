@@ -79,11 +79,8 @@ export const VOICE_STYLES = {
 } as const;
 
 export const ALERT_VOICE_DEFAULTS = {
-  follow: { enabled: false, message: '{user}, <short pause> thanks for the follow!', style: 'warm' },
-  sub: { enabled: true, message: '{user} just subscribed! <short pause> Welcome to the crew!', style: 'hype' },
-  gift: { enabled: true, message: '{user} gifted {count} subs! <short pause> Thank you so much!', style: 'hype' },
-  cheer: { enabled: true, message: '{user} cheered {bits} bits!', style: 'playful' },
-  raid: { enabled: true, message: '{user} is raiding with {viewers} viewers! <short pause> Welcome in!', style: 'hype' }
+  sub: { enabled: true, style: 'hype' },
+  cheer: { enabled: true, style: 'playful' }
 } as const;
 
 export const DEFAULT_TTS_MIN_BITS = 100;
@@ -95,7 +92,6 @@ export const VOICE_ALERT_KINDS = Object.keys(ALERT_VOICE_DEFAULTS) as VoiceAlert
 export function alertVoiceKeys(kind: VoiceAlertKind) {
   return {
     enabled: `${kind}Tts`,
-    message: `${kind}TtsMessage`,
     style: `${kind}TtsStyle`,
     voice: `${kind}TtsVoice`
   } as const;
@@ -103,14 +99,12 @@ export function alertVoiceKeys(kind: VoiceAlertKind) {
 
 export const ALERT_VOICE_CONFIG_DEFAULTS = {
   ttsLiveOnly: 'true',
-  ttsReadMessages: 'true',
   ttsMinBits: String(DEFAULT_TTS_MIN_BITS),
   ...Object.fromEntries(VOICE_ALERT_KINDS.flatMap((kind) => {
     const keys = alertVoiceKeys(kind);
     const defaults = ALERT_VOICE_DEFAULTS[kind];
     return [
       [keys.enabled, String(defaults.enabled)],
-      [keys.message, defaults.message],
       [keys.style, defaults.style],
       [keys.voice, '']
     ];

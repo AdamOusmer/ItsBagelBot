@@ -4,5 +4,7 @@
   "gift.default": "{alerts:user} just gifted {alerts:count} subs to the community! Thank you!",
   "cheer.default": "Thank you for the {alerts:bits} bits, {alerts:user}!",
   "raid.default": "{alerts:user} is raiding the channel with {alerts:viewers} viewers! Welcome everyone!",
-  "ads.default": "Ads are rolling for {alerts:duration} seconds. Hang tight, we'll be right back!"
+  "ads.default": "Ads are rolling for {alerts:duration} seconds. Hang tight, we'll be right back!",
+  "voice.said": "%s said: %s",
+  "voice.anonymous": "Anonymous"
 }

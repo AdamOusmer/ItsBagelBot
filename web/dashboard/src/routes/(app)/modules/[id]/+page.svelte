@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { namespaceReplyTemplate, type ActionOk } from '@bagel/kit';
+  import { ALERT_VOICE_DEFAULTS, alertVoiceKeys } from '@bagel/kit/voice-plan';
   import { postAction, reseedOnChange } from '#lib/client-actions.svelte';
   import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
   import Card from '@bagel/ui/svelte/Card.svelte';
@@ -187,6 +188,19 @@
     if (v === 'on') return true;
     if (v === 'off') return false;
     return !reply.defaultOff;
+  }
+
+  function voiceControl(reply: ModuleReply) {
+    const kind = reply.voiceAlert;
+    if (!kind) return undefined;
+    const key = alertVoiceKeys(kind).enabled;
+    const value = config[key];
+    return {
+      checked: value === 'true' || (value !== 'false' && ALERT_VOICE_DEFAULTS[kind].enabled),
+      allowed: data.voiceAllowed,
+      status: modStatus[`setting:${key}`] ?? 'idle',
+      onToggle: (checked: boolean) => void saveConfigValue(key, String(checked))
+    };
   }
 
   async function toggleReply(reply: ModuleReply) {
@@ -514,6 +528,7 @@
                   status={modStatus[reply.key] ?? 'idle'}
                   expanded={expanded === reply.key}
                   enabled={reply.enableKey ? replyOn(reply) : undefined}
+                  voice={voiceControl(reply)}
                   disabled={locked}
                   onExpand={() => openReply(reply)}
                   onToggle={() => toggleReply(reply)}

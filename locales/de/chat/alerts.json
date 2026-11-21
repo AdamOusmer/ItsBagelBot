@@ -4,5 +4,7 @@
   "gift.default": "{alerts:user} hat gerade Abos an die Community verschenkt: {alerts:count}! Vielen Dank!",
   "cheer.default": "Danke für die Bits, {alerts:user}: {alerts:bits}!",
   "raid.default": "{alerts:user} raidet den Kanal! Zuschauerzahl: {alerts:viewers}. Willkommen zusammen!",
-  "ads.default": "Werbung läuft für {alerts:duration} Sek. Bleib dran, wir sind gleich zurück!"
+  "ads.default": "Werbung läuft für {alerts:duration} Sek. Bleib dran, wir sind gleich zurück!",
+  "voice.said": "%s sagte: %s",
+  "voice.anonymous": "Anonym"
 }

@@ -24,7 +24,8 @@ Its ordered ephemeral consumer filters `OVERLAY_TTS` to
 `overlay.tts.<user_id>`. The SSE ID is the stream sequence. A reconnect
 starts after `Last-Event-ID` when present, or receives new events when absent.
 Each event carries `clip_key`, `event_id`, `kind`, `duration_ms` and
-`expires_at`. Idle connections receive a comment every 15 seconds.
+`expires_at`. When the originating event carries a trace, its ID is also in
+`trace_id`. Idle connections receive a comment every 15 seconds.
 
 `GET /tts/clip/<event_id>` streams a WAV from `TTS_CLIPS` using the cookie
 user ID and the event ID as the object key. Missing and expired objects return

@@ -1,20 +1,14 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { translate, type Locale } from '@bagel/kit/i18n';
 import {
   ALERT_VOICE_CONFIG_DEFAULTS, ALERT_VOICE_CONFIG_KEYS, alertVoiceKeys, CLOUD_VOICES,
-  MAX_CLIP_SECONDS, MAX_SPEECH_RUNES, MIN_CLIP_SECONDS, VOICE_ALERT_KINDS, VOICE_STYLES
+  MAX_CLIP_SECONDS, MIN_CLIP_SECONDS, VOICE_ALERT_KINDS, VOICE_STYLES
 } from '@bagel/kit/voice-plan';
 
-export function voiceAlertConfig(stored: Record<string, string>, locale: Locale): Record<string, string> {
+export function voiceAlertConfig(stored: Record<string, string>): Record<string, string> {
   const defaults: Record<string, string> = ALERT_VOICE_CONFIG_DEFAULTS;
-  const config = Object.fromEntries(ALERT_VOICE_CONFIG_KEYS.map((key) => [key, stored[key] ?? defaults[key]]));
-  for (const kind of VOICE_ALERT_KINDS) {
-    const { message } = alertVoiceKeys(kind);
-    config[message] = stored[message] ?? translate(locale, `voice.template.${kind}`);
-  }
-  return config;
+  return Object.fromEntries(ALERT_VOICE_CONFIG_KEYS.map((key) => [key, stored[key] ?? defaults[key]]));
 }
 
 function unsignedInteger(value: FormDataEntryValue | null): number {
@@ -27,14 +21,8 @@ const isSwitch = (value: FormDataEntryValue | null) => value === 'true' || value
 const isVoice = (value: unknown): value is (typeof CLOUD_VOICES)[number] => CLOUD_VOICES.some((name) => name === value);
 type FieldValidator = (value: string) => string | null;
 
-function messageError(value: string) {
-  if (/\p{Cc}/u.test(value)) return 'serverErrors.responseControl';
-  return value.length <= MAX_SPEECH_RUNES ? null : 'voice.invalidMessage';
-}
-
 const validators = {
   enabled: (value) => isSwitch(value) ? null : 'serverErrors.invalidInput',
-  message: messageError,
   style: (value) => Object.hasOwn(VOICE_STYLES, value) ? null : 'voice.invalidStyle',
   voice: (value) => value === '' || isVoice(value) ? null : 'voice.invalidVoice',
   bits: (value) => Number.isNaN(unsignedInteger(value)) ? 'voice.invalidMinBits' : null
@@ -42,7 +30,6 @@ const validators = {
 
 const alertValidators = new Map<string, FieldValidator>([
   ['ttsLiveOnly', validators.enabled],
-  ['ttsReadMessages', validators.enabled],
   ['ttsMinBits', validators.bits],
   ...VOICE_ALERT_KINDS.flatMap((kind) => Object.entries(alertVoiceKeys(kind)).map(([field, key]) =>
     [key, validators[field as keyof ReturnType<typeof alertVoiceKeys>]] as const))

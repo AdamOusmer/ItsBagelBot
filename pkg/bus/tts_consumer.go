@@ -10,7 +10,10 @@ import (
 	"sync"
 	"time"
 
+	"ItsBagelBot/pkg/monitor"
+
 	jsapi "github.com/nats-io/nats.go/jetstream"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
 
@@ -30,6 +33,7 @@ type ttsJobPump struct {
 	sub    jsapi.MessagesContext
 	handle TTSJobHandler
 	log    *zap.Logger
+	app    *newrelic.Application
 }
 
 func (s *TTSJobs) Consume(ctx context.Context, handle TTSJobHandler, workers int, log *zap.Logger) (func(), error) {
@@ -37,7 +41,7 @@ func (s *TTSJobs) Consume(ctx context.Context, handle TTSJobHandler, workers int
 	if err != nil {
 		return nil, fmt.Errorf("bus: consume TTS jobs: %w", err)
 	}
-	pump := ttsJobPump{sub: sub, handle: handle, log: log}
+	pump := ttsJobPump{sub: sub, handle: handle, log: log, app: monitor.Resolve(nil)}
 	intake, stop := context.WithCancel(ctx)
 	var pool sync.WaitGroup
 	for range workers {
@@ -71,7 +75,7 @@ func (p ttsJobPump) process(parent context.Context, msg jsapi.Msg) {
 	ctx, cancel := context.WithTimeout(parent, ttsHandleTimeout)
 	defer cancel()
 	stopProgress := p.trackProgress(ctx, msg)
-	err := p.handle(ctx, msg.Data())
+	err := p.handleTraced(ctx, msg)
 	stopProgress()
 	if err != nil {
 		p.retry(msg, err)
@@ -80,6 +84,17 @@ func (p ttsJobPump) process(parent context.Context, msg jsapi.Msg) {
 	if err := msg.DoubleAck(parent); err != nil {
 		p.log.Warn("TTS job acknowledgement failed", zap.Error(err))
 	}
+}
+
+func (p ttsJobPump) handleTraced(ctx context.Context, msg jsapi.Msg) error {
+	txn := p.app.StartTransaction("consume " + TTSJobsStream)
+	defer txn.End()
+	acceptTraceHeaders(txn, msg.Headers())
+	addMessagingTransactionAttributes(txn, messagingAttributes{operation: "process", destination: msg.Subject()})
+	err := p.handle(newrelic.NewContext(ctx, txn), msg.Data())
+	monitor.NoticeError(txn, err)
+	txn.AddAttribute(resultAttribute, messagingResult(err))
+	return err
 }
 
 func (p ttsJobPump) trackProgress(ctx context.Context, msg jsapi.Msg) func() {

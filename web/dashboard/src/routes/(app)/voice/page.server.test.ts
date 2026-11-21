@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { afterEach, expect, mock, spyOn, test } from 'bun:test';
-import { ALERT_VOICE_CONFIG_DEFAULTS, alertVoiceKeys, VOICE_ALERT_KINDS } from '@bagel/kit/voice-plan';
+import { ALERT_VOICE_CONFIG_DEFAULTS } from '@bagel/kit/voice-plan';
 import type { VoiceAllowance } from '#lib/server/services/voice';
 import { stubSvelteKit } from '../../../../test/sveltekit';
 
@@ -22,7 +22,6 @@ mock.module('#lib/server/edge-purge', () => ({
 }));
 
 const bus = await import('@bagel/kit/server/nats');
-const { translate } = await import('@bagel/kit/i18n');
 const { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS } = await import('@bagel/kit/server/service');
 const { SUB } = await import('#lib/server/services/subjects');
 const { actions, load } = await import('./+page.server');
@@ -45,10 +44,11 @@ const overlayUrl = 'https://overlay.itsbagelbot.com/tts#AAAAAAAAAAAAAAAAAAAAAAAA
 afterEach(() => mock.restore());
 
 const alertRow = {
-  name: 'alerts', is_enabled: false, revision: 9, configs: { cheerTtsStyle: 'calm', followMessage: 'Chat only' }
+  name: 'alerts', is_enabled: false, revision: 9,
+  configs: { cheerTtsStyle: 'calm', followMessage: 'Chat only', followTts: 'true', cheerTtsMessage: 'Legacy' }
 };
 const alertFields: Record<string, string> = {
-  ...ALERT_VOICE_CONFIG_DEFAULTS, followTts: 'true', cheerTtsStyle: 'calm', raidTtsVoice: 'Charon'
+  ...ALERT_VOICE_CONFIG_DEFAULTS, subTts: 'false', cheerTtsStyle: 'calm', subTtsVoice: 'Charon'
 };
 type RpcCall = Parameters<typeof bus.rpc>;
 const usersRead: RpcCall = [`${SUB.dashboard}.voice_get`, actor, READ_TIMEOUT_MS];
@@ -104,28 +104,6 @@ function mockSaveReplies(moduleReply: { conflict?: boolean; rev: number; modules
   return spyOn(bus, 'rpc').mockResolvedValueOnce(allowance).mockResolvedValueOnce({ modules: [alertRow] })
     .mockResolvedValueOnce(moduleReply);
 }
-
-test.each(['en', 'fr', 'es', 'de', 'pt-br', 'ru'])('loads and saves spoken templates for %s', async (locale) => {
-  const row = {
-    ...alertRow, configs: { ...alertRow.configs, followTtsMessage: 'My custom follow alert', raidTtsMessage: '' }
-  };
-  const rpc = spyOn(bus, 'rpc')
-    .mockResolvedValueOnce(allowance).mockResolvedValueOnce({ modules: [row] })
-    .mockResolvedValueOnce(allowance).mockResolvedValueOnce({ modules: [row] })
-    .mockResolvedValueOnce({ rev: 10, modules: [row] })
-    .mockResolvedValueOnce({ modules: [row] }).mockResolvedValueOnce({ ok: true });
-  const { alerts } = (await load({ locals: { session: owner, locale } } as never)) as {
-    alerts?: { config: Record<string, string> };
-  };
-  const messages = Object.fromEntries(VOICE_ALERT_KINDS.map((kind) => [
-    alertVoiceKeys(kind).message, translate(locale, `voice.template.${kind}`)
-  ]));
-  expect(alerts?.config).toMatchObject({ ...messages, followTtsMessage: row.configs.followTtsMessage, raidTtsMessage: '' });
-  expect(await save(alerts?.config)).toEqual({ ok: true, rev: 10 });
-  expect(rpc).toHaveBeenCalledWith(
-    `${SUB.modules}.patch`, expect.objectContaining({ configs: alerts?.config })
-  );
-});
 
 test.each([
   { voice: 'Puck', enabled: true, maxSeconds: 5 },
@@ -239,17 +217,13 @@ const invalidSaves: {
   { name: 'above the maximum', fields: { max_seconds: '121' }, status: 400, error: limitError },
   { name: 'fractional seconds', fields: { max_seconds: '5.5' }, status: 400, error: limitError },
   { name: 'empty limit', fields: { max_seconds: '' }, status: 400, error: limitError },
-  { name: 'invalid override', fields: { raidTtsVoice: 'Unknown' }, status: 400, error: 'Choose a voice from the list.' },
-  { name: 'invalid style', fields: { raidTtsStyle: 'toString' }, status: 400, error: 'Choose a style from the list.' },
+  { name: 'invalid override', fields: { subTtsVoice: 'Unknown' }, status: 400, error: 'Choose a voice from the list.' },
+  { name: 'invalid style', fields: { subTtsStyle: 'toString' }, status: 400, error: 'Choose a style from the list.' },
   { name: 'negative bits', fields: { ttsMinBits: '-1' }, status: 400, error: 'Enter a whole number of bits, starting at 0.' },
   { name: 'fractional bits', fields: { ttsMinBits: '1.5' }, status: 400 },
   { name: 'missing minimum bits', fields: { ttsMinBits: '' }, status: 400 },
   { name: 'unsafe minimum bits', fields: { ttsMinBits: '9007199254740992' }, status: 400 },
   { name: 'invalid revision', fields: { expected_rev: '-1' }, status: 400 },
-  { name: 'newline in a spoken template', fields: { followTtsMessage: 'Hello\nthere' }, status: 400,
-    error: 'Response cannot contain control characters.' },
-  { name: 'tab in a spoken template', fields: { cheerTtsMessage: 'Thanks\t' }, status: 400 },
-  { name: 'C1 control in a spoken template', fields: { raidTtsMessage: '\u0085Welcome' }, status: 400 },
   { name: 'delegate', session: delegate, status: 403 },
   { name: 'signed out', session: null, status: 401 }
 ];

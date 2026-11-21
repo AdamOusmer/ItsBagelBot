@@ -203,6 +203,10 @@ func (p *Pipeline) Process(msg *bus.Message) (err error) {
 		traceResult(ctx, "invalid")
 		return p.dropPoison(ctx, msg.UUID, err)
 	}
+	switch env.Type {
+	case "channel.cheer", "channel.subscription.message":
+		ctx = bus.WithOriginTrace(ctx, msg.Metadata)
+	}
 	if !p.completionNeeded {
 		return p.processAcknowledged(ctx, env)
 	}

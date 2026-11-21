@@ -27,9 +27,9 @@
   "setup.b0.items.2.title": "Ajouter une source Navigateur dans OBS",
   "setup.b0.items.2.html": "<p>Dans votre scène, ajoutez une source <b>Navigateur</b> et collez le lien dans le champ <b>URL</b>. Choisissez une petite largeur et une petite hauteur, par exemple 320 × 80. Cochez <b>Contrôler l’audio via OBS</b>, puis enregistrez la source.</p>",
   "setup.b0.items.3.title": "Choisir ce que la voix lit",
-  "setup.b0.items.3.html": "<p>Choisissez une voix par défaut. Activez les alertes à lire : nouveaux followers, abonnements, abonnements offerts, Cheers ou raids. Pour chaque alerte, vous pouvez modifier le texte lu, choisir un style et garder la voix par défaut ou en sélectionner une autre. Réglez le seuil de Bits pour les Cheers et choisissez si les messages de Cheer et de réabonnement doivent être lus. Gardez l’option de lecture en direct activée pour que les alertes soient lues uniquement pendant vos streams, puis enregistrez.</p>",
+  "setup.b0.items.3.html": "<p>Choisissez une voix par défaut. Activez les alertes avec message à lire : Cheers et réabonnements. Chaque alerte vocale lit le message du spectateur sous la forme « Utilisateur a dit : … », sans annoncer les bits. Pour chaque alerte, choisissez un style et gardez la voix par défaut ou sélectionnez-en une autre. Réglez le seuil de Bits pour les Cheers, gardez l’option de lecture en direct activée pour que les alertes soient lues uniquement pendant vos streams, puis enregistrez.</p>",
   "setup.b0.items.4.title": "Tester une alerte",
-  "setup.b0.items.4.html": "<p>Activez la scène dans OBS et déclenchez l’un des types d’alertes que vous avez activés. Si la lecture est réservée aux directs, votre chaîne doit être en direct pour le test. Vérifiez que vous entendez la voix et que le niveau de la source bouge dans le mixeur audio d’OBS.</p>",
+  "setup.b0.items.4.html": "<p>Activez la scène dans OBS et déclenchez l’un des types d’alertes activés avec un message. Si la lecture est réservée aux directs, votre chaîne doit être en direct pour le test. Vérifiez que vous entendez la voix et que le niveau de la source bouge dans le mixeur audio d’OBS.</p>",
   "setup.b1.html": "<b>Gardez le lien OBS privé.</b> S’il a été divulgué, choisissez <b>Créer un nouveau lien</b> dans le tableau de bord. L’ancien lien est alors révoqué. Collez le nouveau dans chaque source OBS qui utilisait l’ancien.",
   "troubleshooting.heading": "Résoudre les problèmes d’alertes vocales",
   "troubleshooting.b0.head.0": "Ce que vous constatez",
@@ -41,5 +41,5 @@
   "troubleshooting.b0.rows.2.0": "Vous avez utilisé toutes vos minutes",
   "troubleshooting.b0.rows.2.1": "Consultez la date de renouvellement sur la page Voix Premium. La lecture en ligne reprendra au renouvellement de votre quota mensuel.",
   "troubleshooting.b0.rows.3.0": "Une alerte se termine trop tôt",
-  "troubleshooting.b0.rows.3.1": "Raccourcissez le texte lu ou augmentez la durée maximale par alerte. La limite est réglable de 5 à 120 secondes. Un quota mensuel presque épuisé peut aussi raccourcir un extrait."
+  "troubleshooting.b0.rows.3.1": "Augmentez la durée maximale par alerte. La limite est réglable de 5 à 120 secondes. Un quota mensuel presque épuisé peut aussi raccourcir un extrait."
 }

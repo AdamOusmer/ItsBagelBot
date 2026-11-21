@@ -13,11 +13,12 @@ const def = MODULE_CATALOG.find((d) => catalogIndexable(d) && !d.href && !d.hidd
 const reads: string[] = [];
 let conflict = false;
 let synced = true;
+let premium = false;
 const alerts = {
   name: 'alerts',
-  is_enabled: true,
+  is_enabled: false,
   revision: 8,
-  configs: { followTts: 'true', cheerTtsStyle: 'playful', raidTtsMessage: 'Welcome {user}!', cheerMessage: 'Old' }
+  configs: { subTts: 'true', cheerTtsStyle: 'playful', subTtsVoice: 'Charon', cheerMessage: 'Old' }
 };
 
 const upsertModule = mock(async () => ({ modules: [], synced }));
@@ -27,7 +28,7 @@ const patchModule = mock(async (p: ModulePatch) =>
 mock.module('#lib/server/commands-store', () => ({
   listModules: async () => {
     reads.push('projection');
-    return [{ name: def.id, is_enabled: true, revision: 4, configs: {} }];
+    return [{ name: def.id, is_enabled: true, revision: 4, configs: {} }, alerts];
   },
   listModulesForEditing: async () => {
     reads.push('service');
@@ -37,6 +38,7 @@ mock.module('#lib/server/commands-store', () => ({
   patchModule
 }));
 mock.module('#lib/server/module-gate', () => ({
+  broadcasterPremium: async () => premium,
   gateSection: () => {},
   gateModulePage: () => {},
   moduleLocked: async () => false,
@@ -77,6 +79,7 @@ beforeEach(() => {
   reads.length = 0;
   conflict = false;
   synced = true;
+  premium = false;
   upsertModule.mockClear();
   patchModule.mockClear();
 });
@@ -137,7 +140,7 @@ test.each([
   const url = new URL('/modules/alerts', 'https://dashboard.itsbagelbot.com');
   const body = new URLSearchParams({
     expected_rev: revision, is_enabled: 'on',
-    'cfg.followMessage': 'Hello {user}!', 'cfg.cheerMessage': '', 'cfg.followTts': 'false'
+    'cfg.followMessage': 'Hello {user}!', 'cfg.cheerMessage': '', 'cfg.subTts': 'false'
   });
   const request = new Request(`${url}?/save`, { method: 'POST', body });
   const result = await actions.save({ request, params: { id: 'alerts' }, locals, cookies: cookieJar(new Map()), url } as never);
@@ -151,4 +154,38 @@ test.each([
   });
   const spokenKeys = Object.keys(patch!.partial).filter((key) => /tts/i.test(key));
   expect(spokenKeys).toEqual([]);
+});
+
+const alertsURL = new URL('/modules/alerts', url);
+
+test.each([true, false])('Chat Alerts load returns voice access %s on a disabled row', async (allowed) => {
+  premium = allowed;
+  const result = await load({
+    params: { id: 'alerts' }, locals, cookies: cookieJar(new Map()), url: alertsURL
+  } as never);
+  expect(result).toMatchObject({
+    enabled: false, voiceAllowed: allowed, revision: 8, config: { subTts: 'true' }
+  });
+});
+
+test.each([
+  { name: 'a Premium edit', allowed: true, value: 'false', saved: true, outcome: { ok: true, rev: 9 } },
+  { name: 'a free account edit', allowed: false, value: 'false', saved: false, outcome: { status: 403 } },
+  { name: 'an invalid toggle value', allowed: true, value: 'off', saved: false, outcome: { status: 400 } }
+])('Chat Alerts handles $name', async ({ allowed, value, saved, outcome }) => {
+  premium = allowed;
+  const body = new URLSearchParams({
+    expected_rev: '8',
+    partial: JSON.stringify({ subTts: value, cheerTts: 'true', subTtsVoice: 'Kore', followTts: 'true' })
+  });
+  const request = new Request(`${alertsURL}?/patch`, { method: 'POST', body });
+  const result = await actions.patch({
+    request, params: { id: 'alerts' }, locals, cookies: cookieJar(new Map()), url: alertsURL
+  } as never);
+
+  expect(result).toMatchObject(outcome);
+  expect(patchModule.mock.calls).toEqual(saved ? [[{
+    name: 'alerts', userId: '7', isEnabled: false, expectedRev: 8,
+    partial: { subTts: 'false', cheerTts: 'true' }
+  }]] : []);
 });

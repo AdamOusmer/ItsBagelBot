@@ -12,10 +12,10 @@
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
 
-  let { kind, index, message, enabled, status, expanded, onExpand, onToggle }: {
+  let { kind, index, minBits, enabled, status, expanded, onExpand, onToggle }: {
     kind: VoiceAlertKind;
     index: number;
-    message: string;
+    minBits: number;
     enabled: boolean;
     status: SaveState;
     expanded: boolean;
@@ -23,9 +23,12 @@
     onToggle: (enabled: boolean) => void;
   } = $props();
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
+  const numbers = new Intl.NumberFormat(locale);
   const label = $derived(t(`voice.kind.${kind}`));
-  const preview = $derived(message.trim() || t(`voice.template.${kind}`));
+  const summary = $derived(kind === 'cheer'
+    ? t('voice.cheerThreshold', { n: numbers.format(minBits) })
+    : t('voice.subMessageOnly'));
 </script>
 
 <div class="row-wrap" class:flash-save={status === 'saved'}>
@@ -35,7 +38,7 @@
         <span class="bb-row-body__idx" aria-hidden="true"><Label mono as="span">{String(index).padStart(2, '0')}</Label></span>
         <span class="alert">
           <Heading level={6} as="span" id="voice-kind-{kind}">{label}</Heading>
-          <Text as="span" size="xs" tone="muted" truncate>{preview}</Text>
+          <Text as="span" size="xs" tone="muted" truncate>{summary}</Text>
         </span>
         <span class="state"><SaveStatus state={status} /></span>
       </span>

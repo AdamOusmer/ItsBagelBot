@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { MOD, type ModuleDef } from '@bagel/kit';
+import { alertVoiceKeys } from '@bagel/kit/voice-plan';
 import { fail } from '@sveltejs/kit';
 import { logger } from '@bagel/kit/server/logger';
 import { thrownStatus } from '@bagel/kit/server/form-action';
@@ -11,6 +12,7 @@ import { parentIsEnabled } from './module-parent';
 import { attachLinkedUUID } from './minecraft-uuid';
 import { effectiveId } from './board';
 import { actionError } from './action-errors';
+import { broadcasterPremium } from './module-gate';
 import type { Session } from './session';
 
 export function valueKeys(def: ModuleDef): string[] {
@@ -28,8 +30,13 @@ export async function gatedEnabled(uid: string, def: ModuleDef, requested: boole
 }
 
 export async function patchModuleSettings(def: ModuleDef, form: FormData, locals: App.Locals, demo: boolean) {
-  const partial = parsePartial(form.get('partial'), def);
+  const voiceKeys = def.replies.flatMap((r) => r.voiceAlert ? [alertVoiceKeys(r.voiceAlert).enabled] : []);
+  const allowed = new Set([...valueKeys(def), ...enableKeys(def), ...voiceKeys]);
+  const partial = parsePartial(form.get('partial'), allowed);
   if (!partial) return { result: fail(400, { ok: false, error: actionError(locals.locale, 'Invalid patch.') }), freshRead: false };
+  const denial = await voicePatchDenial(voiceKeys, partial, locals);
+  if (denial) return { result: denial, freshRead: false };
+
   const requested = form.get('is_enabled') === 'on';
   const expectedRev = Number(form.get('expected_rev') ?? '0') || 0;
   if (demo) return { result: { ok: true, rev: expectedRev + 1, conflict: false }, freshRead: false };
@@ -63,11 +70,22 @@ async function applyPatch(
   }
 }
 
-function parsePartial(raw: FormDataEntryValue | null, def: ModuleDef): Record<string, string> | null {
+async function voicePatchDenial(keys: readonly string[], partial: Record<string, string>, locals: App.Locals) {
+  const values = keys.filter((key) => Object.hasOwn(partial, key)).map((key) => partial[key]);
+  if (values.length === 0) return null;
+  if (!(await broadcasterPremium(locals))) {
+    return fail(403, { ok: false, error: actionError(locals.locale, 'Premium only while in beta.') });
+  }
+  if (values.some((value) => value !== 'true' && value !== 'false')) {
+    return fail(400, { ok: false, error: actionError(locals.locale, 'Invalid patch.') });
+  }
+  return null;
+}
+
+function parsePartial(raw: FormDataEntryValue | null, allowed: ReadonlySet<string>): Record<string, string> | null {
   try {
     const obj = JSON.parse(String(raw ?? '{}'));
     if (!obj || typeof obj !== 'object') return {};
-    const allowed = new Set([...valueKeys(def), ...enableKeys(def)]);
     const entries = Object.entries(obj as Record<string, unknown>).filter(([k]) => allowed.has(k));
     return Object.fromEntries(entries.map(([k, v]) => [k, v == null ? '' : String(v)]));
   } catch {

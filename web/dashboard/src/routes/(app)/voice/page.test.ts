@@ -51,8 +51,7 @@ function renderVoice(overrides: Record<string, unknown> = {}, form: Record<strin
 
 function renderEditor(config: Record<string, string> = ALERT_VOICE_CONFIG_DEFAULTS) {
   const props = {
-    kind: 'sub', values: { ...config }, options: [], status: {},
-    onChange: () => {}, onMessage: () => {}, onFlush: () => {}
+    kind: 'sub', values: { ...config }, options: [], onChange: () => {}
   };
   return render(VoiceAlertEditor, { props: props as never }).body;
 }
@@ -83,8 +82,9 @@ test('shows the shared Premium gate for an owner without a plan', () => {
   expect(html).not.toContain('name="max_seconds"');
 });
 
-test('renders usage, autosaved settings rows and one alert row per kind with its switch state', async () => {
-  const html = renderVoice();
+test('renders usage, autosaved settings rows and one alert row per message-carrying kind', async () => {
+  const config = { ...ALERT_VOICE_CONFIG_DEFAULTS, cheerTts: 'false' };
+  const html = renderVoice({ alerts: { config, revision: 9 } });
   const switches: Record<string, string> = {};
   const rows: string[] = [];
   const rewriter = new HTMLRewriter()
@@ -98,47 +98,39 @@ test('renders usage, autosaved settings rows and one alert row per kind with its
 
   expect([
     '38 min 12 s of 60 min', '21 min 48 s left', 'bb-progress--inset', 'Changes save automatically',
+    'Plays at 100 bits or more', 'Plays on resubs with a message',
     'Max per alert', '120 s'
   ].filter((text) => !html.includes(text))).toEqual([]);
-  expect(html).not.toContain('Save changes');
-  expect(rows).toEqual(['follow', 'sub', 'gift', 'cheer', 'raid'].map((kind) => `voice-kind-${kind}`));
-  expect(['Follow', 'Subscription'].map((label) => switches[translate('en', 'modules.toggleAria', { label })]))
+  expect(['Save changes', 'voice-kind-follow', 'voice-kind-gift', 'voice-kind-raid', 'Read the viewer']
+    .filter((text) => html.includes(text))).toEqual([]);
+  expect(rows).toEqual(['sub', 'cheer'].map((kind) => `voice-kind-${kind}`));
+  expect(['Cheer', 'Subscription'].map((label) => switches[translate('en', 'modules.toggleAria', { label })]))
     .toEqual(['false', 'true']);
 });
 
-test('renders the shared style picker, the rehearsal and both editor helpers for an alert', async () => {
+test('renders the shared style picker and viewer-message rehearsal without spoken message textareas', async () => {
   const styleValues: string[] = [];
-  const helpers: string[] = [];
-  const helperButtons = '.vp-actions.with-extra > button';
-  let fittedLabels = 0;
+  let textareas = 0;
   const rewriter = new HTMLRewriter()
     .on('.bb-select__fallback select[name="subTtsStyle"] option', {
       element(option) { styleValues.push(option.getAttribute('value') ?? ''); }
     })
-    .on(helperButtons, {
-      element(button) { helpers.push(button.getAttribute('aria-label') ?? button.getAttribute('aria-haspopup') ?? ''); }
-    })
-    .on(`${helperButtons} > bb-fit > [data-fit]`, {
-      element() { fittedLabels += 1; }
+    .on('textarea', {
+      element() { textareas += 1; }
     });
   const html = renderEditor();
   await rewriter.transform(new Response(html)).text();
-  expect({ styleValues, helpers, fittedLabels, rehearsal: html.includes('Read aloud') }).toEqual({
+  expect({
+    styleValues,
+    textareas,
+    rehearsal: html.includes('Read aloud'),
+    sample: html.includes('PrincessBarney said: Happy 7 months, love the stream!')
+  }).toEqual({
     styleValues: ['warm', 'hype', 'calm', 'playful', 'cozy'],
-    helpers: ['dialog', 'Insert a short pause'],
-    fittedLabels: 2,
-    rehearsal: true
+    textareas: 0,
+    rehearsal: true,
+    sample: true
   });
-});
-
-test('renders the loaded spoken template as the editable textarea value', async () => {
-  const spoken = translate('fr', 'voice.template.sub');
-  let value = '';
-  const rewriter = new HTMLRewriter().on('textarea[name="subTtsMessage"]', {
-    text(chunk) { value += chunk.text; }
-  });
-  await rewriter.transform(new Response(renderEditor({ ...ALERT_VOICE_CONFIG_DEFAULTS, subTtsMessage: spoken }))).text();
-  expect(value.replaceAll('&lt;', '<')).toBe(spoken);
 });
 
 const obsURL = 'https://overlay.itsbagelbot.com/tts#AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';

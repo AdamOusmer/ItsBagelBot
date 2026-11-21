@@ -88,28 +88,27 @@ a bare variable token is not necessarily a pure formatting operation.
 
 ## Premium voice alerts
 
-Alert handlers share event decoding, token values, and follow/subscription
-cooldowns. Chat and speech use separate templates and per-kind switches.
-The dashboard prefills unset spoken templates in its current locale and saves
-the text when the broadcaster saves voice settings. Sesame uses the built-in
-English template when the stored spoken template is missing or empty.
-Speech additionally checks the channel's live state, cheer threshold, and
-Users allowance, which requires a configured overlay link. Viewer names and
-messages are plain text, and rendered speech is stripped of control characters.
-Sesame applies the channel's AutoMod blocked terms to the cheer or resub message
-and drops that part on a match. The cheer event only carries a plain message,
-so Sesame removes whitespace-delimited tokens made up of letters followed by
-digits. Trial events never enqueue a voice job.
+Chat Alerts controls chat lines and their follow/subscription cooldowns.
+A core handler reads the same Alerts row for Premium voice regardless of the
+row's enabled flag. Voice reads only viewer messages from cheers and resubs,
+using the localized format "{user} said: {message}". Speech checks the per-kind
+toggle, live state, cheer threshold, and Users allowance, which requires a
+configured overlay link. Sesame applies blocked terms and discards the entire
+utterance on a match. It strips control characters and cheermotes from viewer
+text. Trial events never enqueue a voice job.
 
-Sesame publishes event-ID-deduplicated jobs to the file-backed `TTS_JOBS`
-work queue. The shared `tts-worker` durable allows three deliveries.
+Sesame deduplicates speech handlers by event identity. The `TTS_JOBS` work queue
+deduplicates by the originating trace ID, which survives redelivery in the headers.
+Without an originating trace, the job ID uses the first 32 hex characters of
+SHA-256 over the event ID or, when absent, the notification message ID.
+The `tts-worker` durable continues the distributed trace and allows three deliveries.
 `SESAME_TTS_WORKERS` controls parallel jobs per pod and defaults to four.
 Workers send progress acknowledgements, recheck Users allowance, and trim by
 the clip and remaining-token budgets before calling Gossip. Rejected requests
 are acknowledged, rate limits use the returned retry delay when given, and
 unavailable replies retry after two seconds. The clip's
 object metadata preserves duration and usage across delivery retries.
-Users records usage by event ID. The overlay stream deduplicates the
+Users records usage by job ID. The overlay stream deduplicates the
 playback event by the same ID. Clips and playback events expire after five
 minutes in the gateway's NATS account. Sesame has a separate writer role
 in that account.

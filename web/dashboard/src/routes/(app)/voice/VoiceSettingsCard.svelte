@@ -26,8 +26,7 @@
   const approxChars = $derived(numbers.format((Number(values.max_seconds) || 0) * VOICE_CHARS_PER_SECOND));
   const toggles = $derived([
     { key: 'enabled', label: t('voice.enable'), hint: t('voice.fallback') },
-    { key: 'ttsLiveOnly', label: t('voice.liveOnly'), hint: undefined },
-    { key: 'ttsReadMessages', label: t('voice.readMessages'), hint: t('voice.readMessagesHint') }
+    { key: 'ttsLiveOnly', label: t('voice.liveOnly'), hint: undefined }
   ]);
   const numberFields = $derived([
     { key: 'ttsMinBits', label: t('voice.minBits'), hint: undefined, min: 0, max: Number.MAX_SAFE_INTEGER },
