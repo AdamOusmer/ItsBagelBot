@@ -6,7 +6,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import { allows, requireRole } from '#lib/server/access';
 import { actionError, adminText, audited, okReply } from '#lib/server/admin-action';
-import { giveawayGet, giveawayAlerts, giveawayPreview, giveawayFreeze, giveawayDraw, giveawayRetry, giveawayInclusion, type GiveawayDetailWire } from '#lib/server/giveaways';
+import { giveawayGet, giveawayAlerts, giveawayPreview, giveawayFreeze, giveawayDraw, giveawayRetry, giveawayInclusion, type GiveawayAlertWire, type GiveawayDetailWire } from '#lib/server/giveaways';
 
 const DEMO = dev && process.env.DEMO === '1';
 
@@ -18,26 +18,38 @@ function operationFields(form: FormData): { version: number; key: string } | nul
   return { version, key };
 }
 
-type DetailLoad = { giveaway: GiveawayDetailWire | null; degraded: boolean; alertsDegraded: boolean };
+type DetailLoad = {
+  giveaway: GiveawayDetailWire | null;
+  alerts: Promise<GiveawayAlertWire[] | null>;
+};
 
 async function loadLiveDetail(actorId: string, campaignId: string): Promise<DetailLoad> {
-  try {
-    const [giveaway, alerts] = await Promise.all([
-      giveawayGet({ actorId, campaignId }),
-      giveawayAlerts({ actorId }).catch(() => null)
-    ]);
-    const awardIds = new Set(giveaway.winners.map((winner) => winner.id));
-    return {
-      giveaway: { ...giveaway, alerts: alerts?.filter((alert) => awardIds.has(alert.awardId)) ?? [] },
-      degraded: false,
-      alertsDegraded: alerts === null
-    };
-  } catch {
-    return { giveaway: null, degraded: true, alertsDegraded: false };
-  }
+  const campaign = giveawayGet({ actorId, campaignId }).catch(() => null);
+  const unresolved = giveawayAlerts({ actorId }).catch(() => null);
+  const giveaway = await campaign;
+  const alerts = giveaway ? unresolved.then((rows) => campaignAlerts(giveaway, rows)) : Promise.resolve(null);
+  return { giveaway, alerts };
+}
+
+function campaignAlerts(campaign: GiveawayDetailWire, rows: GiveawayAlertWire[] | null): GiveawayAlertWire[] | null {
+  const awardIds = new Set(campaign.winners.map((winner) => winner.id));
+  return rows?.filter((row) => awardIds.has(row.awardId)) ?? null;
 }
 
 type OperationEvent = { request: Request; locals: App.Locals; params: { id: string } };
+
+const campaignOperations = {
+  freeze: {
+    run: giveawayFreeze,
+    notice: 'admin.giveaway.snapshotFrozen',
+    demoNotice: 'admin.giveaway.snapshotFrozenDemo'
+  },
+  draw: {
+    run: giveawayDraw,
+    notice: 'admin.giveaway.drawCommitted',
+    demoNotice: 'admin.giveaway.drawCommittedDemo'
+  }
+};
 
 async function operationContext(event: OperationEvent, needsDigest: boolean) {
   const admin = await requireRole({ locals: event.locals }, 'giveaways.manage');
@@ -50,6 +62,25 @@ async function operationContext(event: OperationEvent, needsDigest: boolean) {
   return { admin, digest, operation } as const;
 }
 
+async function changeCampaign(event: OperationEvent, kind: keyof typeof campaignOperations) {
+  const context = await operationContext(event, kind === 'freeze');
+  if ('error' in context) return context.error;
+  const { admin, digest, operation } = context;
+  const { run, notice, demoNotice } = campaignOperations[kind];
+  const reply = okReply(adminText(event.locals.locale, DEMO ? demoNotice : notice));
+  if (DEMO) return reply;
+  const target = event.params.id;
+  const input = {
+    actorId: admin.id, campaignId: target, poolDigest: digest,
+    expectedVersion: operation.version, idempotencyKey: operation.key
+  };
+  return audited(
+    { admin, action: `giveaway_${kind}`, target },
+    async () => { await run(input); },
+    () => reply
+  );
+}
+
 async function inclusion(event: OperationEvent, include: boolean) {
   const admin = await requireRole({ locals: event.locals }, 'giveaways.manage');
   if (!admin) return fail(403, { error: actionError(event.locals.locale, 'forbidden') });
@@ -57,21 +88,23 @@ async function inclusion(event: OperationEvent, include: boolean) {
   if (!/^\d+$/.test(userId)) return fail(400, { error: adminText(event.locals.locale, 'admin.giveaway.userIdRequired') });
   if (DEMO) {
     const { demoGiveawayPreview } = await import('#lib/server/demo-giveaways');
-    return { preview: demoGiveawayPreview() };
+    return { preview: demoGiveawayPreview({ userId, include }) };
   }
   const action = include ? 'giveaway_include' : 'giveaway_exclude';
   return audited({ admin, action, target: event.params.id, detail: userId }, () => giveawayInclusion({ actorId: admin.id, campaignId: event.params.id, userId, include }), (preview) => ({ preview }));
 }
 
-export const load: PageServerLoad = async ({ params, parent, url }) => {
+export const load: PageServerLoad = async ({ params, parent, url, depends }) => {
+  depends('admin:giveaway');
   const layout = await parent();
   if (!allows(layout.role, 'giveaways.manage')) throw redirect(302, '/');
-  const campaignId = params.id;
-  const demoStatus = DEMO ? url.searchParams.get('demo') : null;
-  const detail: Promise<DetailLoad> = DEMO
-    ? import('#lib/server/demo-giveaways').then(({ demoGiveawayDetail }) => demoGiveawayDetail(campaignId, demoStatus))
-    : loadLiveDetail(layout.id, campaignId);
-  return { detail };
+  const id = params.id;
+  if (DEMO) {
+    const status = url.searchParams.get('demo');
+    const { demoGiveawayDetail } = await import('#lib/server/demo-giveaways');
+    return { id, ...demoGiveawayDetail(id, status) };
+  }
+  return { id, ...await loadLiveDetail(layout.id, id) };
 };
 
 export const actions: Actions = {
@@ -89,20 +122,8 @@ export const actions: Actions = {
       return fail(502, { error: (e as Error).message });
     }
   },
-  freeze: async (event) => {
-    const context = await operationContext(event, true);
-    if ('error' in context) return context.error;
-    const { admin, digest, operation } = context;
-    if (DEMO) return okReply(adminText(event.locals.locale, 'admin.giveaway.snapshotFrozenDemo'));
-    return audited({ admin, action: 'giveaway_freeze', target: event.params.id }, () => giveawayFreeze({ actorId: admin.id, campaignId: event.params.id, poolDigest: digest, expectedVersion: operation.version, idempotencyKey: operation.key }), () => okReply(adminText(event.locals.locale, 'admin.giveaway.snapshotFrozen')));
-  },
-  draw: async (event) => {
-    const context = await operationContext(event, false);
-    if ('error' in context) return context.error;
-    const { admin, operation } = context;
-    if (DEMO) return okReply(adminText(event.locals.locale, 'admin.giveaway.drawCommittedDemo'));
-    return audited({ admin, action: 'giveaway_draw', target: event.params.id }, () => giveawayDraw({ actorId: admin.id, campaignId: event.params.id, expectedVersion: operation.version, idempotencyKey: operation.key }), () => okReply(adminText(event.locals.locale, 'admin.giveaway.drawCommitted')));
-  },
+  freeze: (event) => changeCampaign(event, 'freeze'),
+  draw: (event) => changeCampaign(event, 'draw'),
   include: (event) => inclusion(event, true),
   exclude: (event) => inclusion(event, false),
   retry: async ({ request, locals }) => {

@@ -52,52 +52,81 @@ const drawnAwards = {
   ]
 } satisfies Pick<GiveawayDetailWire, 'drawnAt' | 'pendingAwards' | 'winners' | 'alerts'>;
 
+const history = [
+  { id: 'demo-draft', status: 'draft', title: 'Winter welcome giveaway' },
+  { id: 'demo-frozen', status: 'frozen', title: 'Creator milestone giveaway' },
+  { id: 'demo-drawn', status: 'drawn', title: 'September community giveaway' },
+  { id: 'demo-september', status: 'complete', title: 'Summer wrap-up giveaway' }
+] as const;
+
 function previewStatus(value: string | null): 'draft' | 'frozen' | null {
   return value === 'draft' || value === 'frozen' ? value : null;
 }
 
 export function demoGiveawayHistory(statusParam: string | null): { giveaways: GiveawayWire[]; degraded: false } {
+  const status = previewStatus(statusParam);
   return {
-    giveaways: [{
-      ...campaign,
-      id: 'demo-september',
-      status: previewStatus(statusParam) ?? 'complete',
-      summary: giveawaySummary(campaign.winnerCount, campaign.prizeMonths),
-      pendingAwards: 0
-    }],
+    giveaways: history
+      .filter((entry) => !status || entry.status === status)
+      .map((entry) => ({
+        ...campaign,
+        ...entry,
+        summary: giveawaySummary(campaign.winnerCount, campaign.prizeMonths)
+      })),
     degraded: false
   };
 }
 
+const demoDraw = {
+  eligible,
+  selectionMethod: 'random_draw',
+  algorithmVersion: 'crypto-rand-partial-fisher-yates-v1',
+  drawnAt: drawnAwards.drawnAt,
+  winners: drawnAwards.winners
+} satisfies Partial<GiveawayDetailWire>;
+
+const demoDraft = { drawnAt: null, winners: [] };
+const demoFrozen = { ...demoDraft, eligible };
+
+const demoOutcomes = {
+  draft: demoDraft,
+  frozen: demoFrozen,
+  drawn: demoDraw,
+  complete: demoDraw
+};
+
 export function demoGiveawayDetail(id: string, statusParam: string | null) {
-  const status = previewStatus(statusParam) ?? 'drawn';
+  const entry = history.find((row) => row.id === id);
+  const status = previewStatus(statusParam) ?? entry?.status ?? 'drawn';
   const giveaway: GiveawayDetailWire = {
     ...campaign,
+    title: entry?.title ?? campaign.title,
     id,
     status,
-    eligible,
-    selectionMethod: 'random_draw',
-    algorithmVersion: 'crypto-rand-partial-fisher-yates-v1',
-    poolDigest: 'demo',
-    capabilities,
-    ...(status === 'drawn' ? drawnAwards : { drawnAt: null, pendingAwards: 0, winners: [], alerts: [] })
+    ...demoOutcomes[status],
+    excluded: status === 'draft' ? [] : demoGiveawayPreview().excluded,
+    capabilities
   };
-  return { giveaway, degraded: false, alertsDegraded: false };
+  return { giveaway, alerts: Promise.resolve(status === 'drawn' ? drawnAwards.alerts : []) };
 }
 
-export function demoGiveawayDraftPreview(winnerCount: number, prizeMonths: number) {
-  return { eligible, exclusions, summary: giveawaySummary(winnerCount, prizeMonths), capabilities };
+export function demoGiveawayDraftPreview(winnerCount: number, prizeMonths: number): GiveawayPreviewWire {
+  return { eligible, exclusions, summary: giveawaySummary(winnerCount, prizeMonths), capabilities, excluded: [], included: 0 };
 }
 
-export function demoGiveawayPreview(): GiveawayPreviewWire {
+export function demoGiveawayPreview(override?: { userId: string; include: boolean }): GiveawayPreviewWire {
+  const excluded = [
+    { userId: '2001', login: 'paused_streamer', reason: 'inactive', included: true, includable: true },
+    { userId: '2002', login: 'staff_tester', reason: 'current_staff', included: false, includable: true },
+    { userId: '2003', login: 'banned_account', reason: 'banned', included: false, includable: false }
+  ].map((row) => row.userId === override?.userId && row.includable ? { ...row, included: override.include } : row);
+  const included = excluded.filter((row) => row.included).length;
+  const count = eligible.eligible + included - 1;
   return {
     ...demoGiveawayDraftPreview(campaign.winnerCount, campaign.prizeMonths),
-    excluded: [
-      { userId: '2001', login: 'paused_streamer', reason: 'inactive', included: true, includable: true },
-      { userId: '2002', login: 'staff_tester', reason: 'current_staff', included: false, includable: true },
-      { userId: '2003', login: 'banned_account', reason: 'banned', included: false, includable: false }
-    ],
-    included: 1,
+    eligible: { ...eligible, eligible: count },
+    excluded,
+    included,
     poolDigest: 'demo-preview'
   };
 }

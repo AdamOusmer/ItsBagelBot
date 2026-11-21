@@ -8,7 +8,6 @@ import {
   byDim,
   cohorts,
   dailySeries,
-  dateLabel,
   daysIn,
   decimal,
   fmt,
@@ -752,7 +751,7 @@ export function buildAnalytics(r: AnalyticsReads): AnalyticsView {
   const c = context(r);
   return {
     empty: isEmpty(r),
-    period: { start: dateLabel(c.cur.from), end: dateLabel(c.cur.to) },
+    period: { start: c.cur.from, end: c.cur.to },
     kpis: kpis(c),
     growth: growth(c),
     engagement: engagement(c),

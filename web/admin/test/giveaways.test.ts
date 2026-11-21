@@ -6,7 +6,7 @@ import { staticText } from '@bagel/kit/i18n/static';
 import { actionPayload } from '../../kit/lib/action-result';
 import { allows } from '../src/lib/access';
 import { freezePoolDigest, giveawayExclusionLabel } from '../src/lib/giveaway-workflow';
-import type { GiveawayDetailWire } from '../src/lib/server/giveaways';
+import type { GiveawayAlertWire, GiveawayDetailWire } from '../src/lib/server/giveaways';
 import { stubSvelteKit } from './sveltekit';
 
 stubSvelteKit();
@@ -181,39 +181,40 @@ async function loadDetail() {
   return await loadGiveaway({
     params: { id: campaign.id },
     parent: async () => admin,
+    depends: () => {},
     url: new URL(`https://admin.example/giveaways/${campaign.id}`)
-  } as never) as { detail: Promise<{ giveaway: GiveawayDetailWire | null; degraded: boolean; alertsDegraded: boolean }> };
+  } as never) as { giveaway: GiveawayDetailWire | null; alerts: Promise<GiveawayAlertWire[] | null> };
 }
 
 describe('giveaway detail load', () => {
-  it('starts alerts while the giveaway RPC is pending', async () => {
-    const pending = Promise.withResolvers<{ campaign: typeof campaign }>();
-    replies.set(getSubject, pending.promise);
-    const { detail } = await loadDetail();
+  it('returns the campaign while the alerts RPC is pending', async () => {
+    const pending = Promise.withResolvers<{ alerts: typeof liveAlert[] }>();
+    replies.set(getSubject, { campaign, awards: [award] });
+    replies.set(alertsSubject, pending.promise);
+    const { giveaway, alerts } = await loadDetail();
     const started = requests.map(({ subject }) => subject).sort();
-    pending.resolve({ campaign });
-    await detail;
-    expect(started).toEqual([alertsSubject, getSubject]);
+    pending.resolve({ alerts: [liveAlert] });
+    expect({ started, campaign: giveaway?.id, alerts: await alerts }).toMatchObject({
+      started: [alertsSubject, getSubject],
+      campaign: campaign.id,
+      alerts: [{ awardId: award.id }]
+    });
   });
 
   it.each([
     { name: 'both reads answer', getFails: false, alertsFail: false, awardIds: ['a-1'] },
-    { name: 'alerts fail', getFails: false, alertsFail: true, awardIds: [] },
-    { name: 'the giveaway fails', getFails: true, alertsFail: false, awardIds: undefined }
+    { name: 'alerts fail', getFails: false, alertsFail: true, awardIds: null },
+    { name: 'the giveaway fails', getFails: true, alertsFail: false, awardIds: null }
   ])('preserves the detail state when $name', async ({ getFails, alertsFail, awardIds }) => {
     replies.set(getSubject, getFails ? new Error('unavailable') : { campaign, awards: [award] });
     replies.set(alertsSubject, alertsFail ? new Error('unavailable') : {
       alerts: [liveAlert, { ...liveAlert, id: 'other-incident', award_id: 'a-2' }]
     });
-    const { detail } = await loadDetail();
-    const result = await detail;
-    const projectedAwardIds: readonly string[] | undefined = result.giveaway?.alerts?.map((alert) => alert.awardId);
+    const { giveaway, alerts } = await loadDetail();
     expect({
-      id: result.giveaway?.id,
-      awardIds: projectedAwardIds,
-      degraded: result.degraded,
-      alertsDegraded: result.alertsDegraded
-    }).toEqual({ id: getFails ? undefined : campaign.id, awardIds, degraded: getFails, alertsDegraded: alertsFail });
+      id: giveaway?.id,
+      awardIds: (await alerts)?.map((alert) => alert.awardId) ?? null
+    }).toEqual({ id: getFails ? undefined : campaign.id, awardIds: awardIds ? [...awardIds] : null });
   });
 });
 

@@ -10,7 +10,7 @@ const READ_TIMEOUT = 5000;
 type GiveawayStatus = 'draft' | 'frozen' | 'drawn' | 'cancelled' | 'complete';
 type AwardState = 'selected' | 'preparing' | 'needs_review' | 'scheduled' | 'active' | 'completed' | 'voided';
 type BillingState = 'not_required' | 'pending' | 'protected' | 'uncertain' | 'incident' | 'reconciled';
-type EmailState = 'queued' | 'accepted' | 'missing_contact' | 'failed' | 'uncertain';
+type EmailState = 'queued' | 'accepted' | 'missing_contact' | 'failed' | 'uncertain' | 'needs_review';
 
 type GiveawayCapabilities = {
   newAwardsEnabled: boolean;
