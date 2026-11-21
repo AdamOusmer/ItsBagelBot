@@ -25,7 +25,6 @@
   "linkTitle": "Link",
   "timing": "Tempo",
   "placement": "Posição",
-  "preview": "Prévia",
   "previewFrame": "Prévia do selo",
   "readOnly": "Só o dono do canal pode alterar os overlays.",
   "unavailable": "As configurações de overlays estão indisponíveis. Recarregue a página para tentar de novo.",

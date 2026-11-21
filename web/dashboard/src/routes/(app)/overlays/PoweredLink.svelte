@@ -28,7 +28,7 @@
       <bb-fit><span data-fit="">{t('overlays.linkTitle')}</span></bb-fit>
     </Heading>
     <form class="link-action" method="POST" action="?/rotate" use:enhance={submit}>
-      <Button variant="secondary" size="sm" type="submit" {busy} disabled={busy}>
+      <Button variant="secondary" size="sm" type="submit" {busy} disabled={busy} title={t('overlays.replaceHint')}>
         <bb-fit class="link-action-label"><span data-fit="">{t('overlays.replace')}</span></bb-fit>
       </Button>
     </form>
@@ -39,10 +39,10 @@
   </div>
   <div class="link-feedback">
     <div class="feedback-text bb-fit-box" class:visible={busy || !status} aria-hidden={!busy && !!status}>
-      <Text as="div" size="xs" tone="muted"><bb-fit mode="block">{t('overlays.obsHint')} {t('overlays.replaceHint')}</bb-fit></Text>
+      <Text as="div" size="xs" tone="muted"><bb-fit>{t('overlays.obsHint')}</bb-fit></Text>
     </div>
     <div class="feedback-text bb-fit-box" class:visible={!busy && !!status} role="status">
-      <Text as="div" size="xs" tone="danger"><bb-fit mode="block">{busy ? '' : status}</bb-fit></Text>
+      <Text as="div" size="xs" tone="danger"><bb-fit>{busy ? '' : status}</bb-fit></Text>
     </div>
   </div>
 </Card>
@@ -59,17 +59,17 @@
     --btn-justify: center;
   }
   .link-action-label { line-height: 1.4; }
-  .link-copy { align-self: end; min-inline-size: 0; }
+  .link-copy { min-inline-size: 0; }
   .link-feedback {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    align-self: end;
   }
   .feedback-text {
     grid-area: 1 / 1;
-    block-size: 2.75rem;
+    block-size: 1rem;
     min-inline-size: 0;
-    align-content: end;
+    align-content: center;
+    white-space: nowrap;
     opacity: 0;
   }
   .feedback-text.visible { opacity: 1; }

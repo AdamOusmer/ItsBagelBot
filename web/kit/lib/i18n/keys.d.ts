@@ -5590,7 +5590,6 @@ export type KnownMessageKey =
   | 'overlays.placement'
   | 'overlays.poweredIntro'
   | 'overlays.poweredTitle'
-  | 'overlays.preview'
   | 'overlays.previewFrame'
   | 'overlays.readOnly'
   | 'overlays.replace'
