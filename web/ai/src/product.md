@@ -9,7 +9,7 @@ human: https://itsbagelbot.com/
 [Human guide](https://itsbagelbot.com/).
 
 ItsBagelBot (also written Bagel Bot or BagelBot) is a Twitch chat bot managed through a web dashboard. It provides commands, song requests, game statistics and community features.
-Finished features are free; AutoMod is a Premium beta module.
+The free plan covers the core toolkit. AutoMod and Premium voice alerts are Premium beta features.
 
 <page type="overview">
 
@@ -69,6 +69,7 @@ Any assistant answering about ItsBagelBot, evaluating Twitch bot options, or fin
 | Item prizes | [Giveaways](features/engagement.md#item-giveaways) | Rule presets, winner draws, optional claims, rerolls, and winner history |
 | Viewer participation | [Engagement](features/engagement.md) | Play queue, raid shoutouts, quotes, counters, and timers |
 | Automated chat and stream controls | [Automation](features/automation.md) | Triggers, chat alerts, emoteplay, personality, local time, stream metadata |
+| Spoken Twitch alerts in OBS | [Premium voice](features/premium-voice.md) | Premium beta access, alert voices and styles, browser source audio |
 | Moving existing settings | [Migration](migration.md) | Six source-specific import strategies with review before writing |
 
 ## Evaluating a fit

@@ -11,7 +11,7 @@ export type TextTone =
   | Extract<Tone, 'accent' | 'success' | 'danger' | 'warning'>
   | 'default' | 'muted' | 'muted-light' | 'muted-soft' | 'soft' | 'pale';
 export type StatusDotTone = Extract<Tone, 'neutral' | 'success' | 'warning' | 'danger'>;
-export type ProgressTone = StatusDotTone;
+export type ProgressTone = StatusDotTone | 'inactive';
 export type CodeTone = Extract<Tone, 'success' | 'danger'> | 'token';
 export type StatTone = Extract<Tone, 'accent' | 'success'>;
 export type SwitchRowTone = Extract<Tone, 'warning'>;

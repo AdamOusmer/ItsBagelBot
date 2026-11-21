@@ -6,11 +6,24 @@ import { ALERTS_MODULE, ALERT_VOICE_CONFIG_DEFAULTS } from './catalog/alerts';
 import {
   ALERT_VOICE_DEFAULTS, CLOUD_VOICE_CATALOG, CLOUD_VOICES, DEFAULT_TTS_MIN_BITS, DEFAULT_VOICE,
   MAX_CLIP_SECONDS, MAX_SPEECH_RUNES, MIN_CLIP_SECONDS, MONTHLY_VOICE_MINUTES,
-  VOICE_CHARS_PER_SECOND, VOICE_STYLES, VOICE_TOKENS_PER_SECOND
+  usageTone, VOICE_CHARS_PER_SECOND, VOICE_STYLES, VOICE_TOKENS_PER_SECOND
 } from './voice-plan';
 
 const source = await Bun.file(new URL('../../../internal/domain/voiceplan/voiceplan.go', import.meta.url)).text();
 const alerts = await Bun.file(new URL('../../../internal/domain/voiceplan/alerts.go', import.meta.url)).text();
+
+test.each([
+  { used: 0, limit: 0, tone: 'success' },
+  { used: 74, limit: 100, tone: 'success' },
+  { used: 75, limit: 100, tone: 'warning' },
+  { used: 89, limit: 100, tone: 'warning' },
+  { used: 90, limit: 100, tone: 'danger' },
+  { used: 99, limit: 100, tone: 'danger' },
+  { used: 100, limit: 100, tone: 'inactive' },
+  { used: 101, limit: 100, tone: 'inactive' }
+])('maps $used of $limit tokens to $tone', ({ used, limit, tone }) => {
+  expect(usageTone(used, limit)).toBe(tone);
+});
 
 test('monthly voice minutes match the Go policy', () => {
   const planNames = new Map([...source.matchAll(/^\s*(\w+)\s+Plan\s*=\s*"([a-z_]+)"$/gm)].map((match) => [match[1]!, match[2]!]));

@@ -7,7 +7,7 @@ import Table from '@bagel/ui/astro/Table.astro';
 
 interface Props {
     head: string[];
-    rows: string[][];
+    rows: (string | number)[][];
     caption?: string;
     id?: string;
 }
@@ -21,7 +21,7 @@ const { head, rows, caption, id } = Astro.props;
         <thead><tr>{head.map((cell) => <th scope="col" set:html={cell} />)}</tr></thead>
         <tbody>
             {rows.map((row) => (
-                <tr>{row.map((cell) => <td set:html={cell} />)}</tr>
+                <tr>{row.map((cell) => <td set:html={String(cell)} />)}</tr>
             ))}
         </tbody>
     </Table>

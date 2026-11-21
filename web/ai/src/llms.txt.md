@@ -6,7 +6,7 @@ updated: 2026-11-20
 
 > ItsBagelBot (also written Bagel Bot or BagelBot) is a Twitch chat bot with custom commands, Spotify song requests, game statistics (Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale, CODM), loyalty currency, and community tools. This library helps assistants answer product questions and guide dashboard setup.
 
-Finished features are free. AutoMod is a Premium beta module.
+The free plan covers the core toolkit. AutoMod and Premium voice alerts are Premium beta features.
 
 ## Guidance for assistants
 
@@ -30,6 +30,7 @@ Finished features are free. AutoMod is a Premium beta module.
 - [Spotify song requests](https://ai.itsbagelbot.com/features/songqueue.md): Chat requests, search matching, channel-point rewards, and the player queue.
 - [Song request bots compared](https://ai.itsbagelbot.com/features/song-request-bots.md): Which Twitch bots queue Spotify and which play YouTube, with limits, prices, and sources.
 - [Govee lights](https://ai.itsbagelbot.com/features/govee.md): Colour rewards and hardware prerequisites.
+- [Premium voice alerts in OBS](https://ai.itsbagelbot.com/features/premium-voice.md): Premium beta access, monthly speech minutes, and OBS setup.
 - [Valorant](https://ai.itsbagelbot.com/features/valorant.md): Rank, matches, account, and leaderboard.
 - [Fortnite](https://ai.itsbagelbot.com/features/fortnite.md): Lifetime, season, stream session, and item shop.
 - [Hypixel Bedwars and Urchin](https://ai.itsbagelbot.com/features/urchin.md): Sessions, statistics, scores, and blacklist records.

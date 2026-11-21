@@ -6,6 +6,7 @@ import type { ProgressTone } from '../lib/tone';
 
 import { uiI18n } from './i18n';
 import ProgressBar from './ProgressBar.astro';
+import '../styles/elements/fit.css';
 import '../styles/elements/mark.css';
 import '../styles/elements/step-list.css';
 
@@ -20,14 +21,15 @@ type StepItem = {
     href?: string;
 };
 
-interface Props extends Omit<HTMLAttributes<'ol'>, 'steps' | 'stateLabels' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'ol'>, 'steps' | 'stateLabels' | 'fitCopy' | 'class'> {
     steps: StepItem[];
     stateLabels?: Partial<Record<StepState, string>>;
+    fitCopy?: boolean;
     class?: string;
 }
 
 const { t } = uiI18n(Astro);
-const { steps, stateLabels = {}, class: className = '', ...rest } = Astro.props;
+const { steps, stateLabels = {}, fitCopy = false, class: className = '', ...rest } = Astro.props;
 
 const DEFAULT_LABELS: Record<StepState, string> = {
     pending: t('steps.pending'),
@@ -60,7 +62,7 @@ const MARK: Record<StepState, string> = {
 };
 
 const labels = { ...DEFAULT_LABELS, ...stateLabels };
-const classes = ['bb-steps', className || null].filter(Boolean).join(' ');
+const classes = ['bb-steps', fitCopy && 'bb-steps--fit-copy', className].filter(Boolean).join(' ');
 const hasDetail = Astro.slots.has('default');
 
 const rows = await Promise.all(
@@ -77,7 +79,9 @@ const rows = await Promise.all(
             <div class="bb-step__row">
                 <i class={MARK[step.state]} aria-hidden="true"></i>
                 <span class="bb-step__text">
-                    {step.href ? <a class="bb-step__label" href={step.href}>{step.label}</a> : <span class="bb-step__label">{step.label}</span>}
+                    {step.href ? <a class="bb-step__label" href={step.href}>{step.label}</a> : fitCopy
+                        ? <span class="bb-step__label bb-fit-box"><bb-fit mode="block">{step.label}</bb-fit></span>
+                        : <span class="bb-step__label">{step.label}</span>}
                     {step.meta && <span class="bb-step__meta">{step.meta}</span>}
                 </span>
                 <div class="bb-step__bar">

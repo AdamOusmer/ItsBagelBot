@@ -62,7 +62,10 @@ describe('nav registry', () => {
       moduleLinks: [],
       t: (key) => `en:${key}`
     });
-    expect(items.filter((i) => i.count !== undefined).map((i) => [i.href, i.count])).toEqual([['/flows', 'en:nav.beta']]);
+    expect(items.filter((i) => i.count !== undefined).map((i) => [i.href, i.count])).toEqual([
+      ['/flows', 'en:nav.beta'],
+      ['/voice', 'en:nav.beta']
+    ]);
   });
 
   test('an owner sees every entry with active following the section', () => {

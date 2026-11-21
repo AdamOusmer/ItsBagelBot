@@ -295,6 +295,11 @@ describe('ProgressBar', () => {
       html: bar('bb-progress--danger', 'aria-valuenow="100" style="--progress: 1;"'),
     },
     {
+      name: 'opts into the inset track and inactive fill',
+      props: { value: 1, inset: true, tone: 'inactive', label: 'Load' },
+      html: bar('bb-progress--inactive bb-progress--inset', 'aria-valuenow="100" style="--progress: 1;"'),
+    },
+    {
       name: 'NaN renders empty rather than aria-valuenow="NaN"',
       props: { value: Number.NaN, tone: 'warning', label: 'Load' },
       html: bar('bb-progress--warning', 'aria-valuenow="0" style="--progress: 0;"'),

@@ -94,7 +94,7 @@
 
   const describedFor = (i: number) => [describedby, countId(i)].filter(Boolean).join(' ');
 
-  function insert(token: string) {
+  export function insert(token: string) {
     const i = Math.min(focused, fields.length - 1);
     const el = areas[i];
     const cur = fields[i] ?? '';
@@ -140,10 +140,11 @@
   }
 
   function onKeydown(e: KeyboardEvent, i: number) {
+    const emptyExtraLine = fields.length > 1 && fields[i] === '';
     if (e.key === 'Enter') {
       e.preventDefault();
       addLine(i);
-    } else if (e.key === 'Backspace' && fields.length > 1 && fields[i] === '') {
+    } else if (e.key === 'Backspace' && emptyExtraLine) {
       e.preventDefault();
       removeLine(i);
     }

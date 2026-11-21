@@ -31,6 +31,7 @@
   import ProgressBar from './ProgressBar.svelte';
   import VisuallyHidden from './VisuallyHidden.svelte';
   import { getUiI18n } from './i18n';
+  import '../styles/elements/fit.css';
   import '../styles/elements/mark.css';
   import '../styles/elements/step-list.css';
 
@@ -41,6 +42,7 @@
     selected?: string;
     onSelect?: (id: string) => void;
     label?: string;
+    fitCopy?: boolean;
     class?: string;
   };
   type Navigable = { onSelect: (id: string) => void; label: string };
@@ -54,6 +56,7 @@
     selected,
     onSelect,
     label,
+    fitCopy = false,
     class: className = '',
     ...rest
   }: Own & Rest & (Navigable | Plain) = $props();
@@ -97,7 +100,7 @@
 
   const labels = $derived({ ...DEFAULT_LABELS, ...stateLabels });
 
-  const classes = $derived(['bb-steps', className || null].filter(Boolean).join(' '));
+  const classes = $derived(['bb-steps', fitCopy && 'bb-steps--fit-copy', className].filter(Boolean).join(' '));
   const navClasses = $derived(['bb-steps', 'bb-steps--nav', className || null].filter(Boolean).join(' '));
   const at = $derived(Math.max(steps.findIndex((s) => s.id === selected), 0));
 
@@ -170,6 +173,8 @@
           <span class="bb-step__text">
             {#if step.href}
               <a class="bb-step__label" href={step.href}>{step.label}</a>
+            {:else if fitCopy}
+              <span class="bb-step__label bb-fit-box"><bb-fit mode="block">{step.label}</bb-fit></span>
             {:else}
               <span class="bb-step__label">{step.label}</span>
             {/if}

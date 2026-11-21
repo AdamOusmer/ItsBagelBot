@@ -2,66 +2,158 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  import { enhance, type SubmitFunction } from '$app/forms';
+  import { untrack } from 'svelte';
+  import { enhance, type ActionResult, type SubmitFunction } from '$app/forms';
+  import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { CLOUD_VOICES, DEFAULT_VOICE, MAX_CLIP_SECONDS, MIN_CLIP_SECONDS, VOICE_TOKENS_PER_SECOND } from '@bagel/kit/voice-plan';
-  import Button from '@bagel/ui/svelte/Button.svelte';
-  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import {
+    CLOUD_VOICE_CATALOG, DEFAULT_VOICE, MAX_CLIP_SECONDS, MIN_CLIP_SECONDS,
+    VOICE_ALERT_KINDS, VOICE_CHARS_PER_SECOND, VOICE_GROUPS
+  } from '@bagel/kit/voice-plan';
   import Card from '@bagel/ui/svelte/Card.svelte';
-  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
+  import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
+  import EditorFooter from '@bagel/ui/svelte/EditorFooter.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
-  import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import PageNotice from '#lib/components/shared/PageNotice.svelte';
+  import PremiumGate from '#lib/components/shared/PremiumGate.svelte';
+  import VoiceAlertCard from './VoiceAlertCard.svelte';
   import VoiceOverlayCard from './VoiceOverlayCard.svelte';
+  import VoiceUsageCard from './VoiceUsageCard.svelte';
   import type { ActionData, PageData } from './$types';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
   const { t, locale } = getI18n();
-  const dates = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' });
   const numbers = new Intl.NumberFormat(locale);
-  const options = CLOUD_VOICES.map((name) => ({ value: name, label: name }));
-  const plans = {
-    free: { label: t('planLabel.free'), tone: 'free' },
-    premium: { label: t('voice.planPremium'), tone: 'paid' },
-    giveaway: { label: t('voice.planGiveaway'), tone: 'paid' },
-    admin_grant: { label: t('voice.planAdmin'), tone: 'paid' },
-    vip: { label: t('planLabel.vip'), tone: 'vip' }
-  } as const;
+  const groups = ['energetic', 'warm', 'calm', 'authoritative'] as const;
+  const options = groups.flatMap((group) => CLOUD_VOICE_CATALOG
+    .filter(([, character]) => VOICE_GROUPS[character] === group)
+    .map(([name, character]) => ({
+      value: name,
+      label: name,
+      description: t(`voice.character.${character.toLowerCase()}`),
+      group: t(`voice.group.${group}`),
+      searchText: character
+    })));
 
-  function duration(tokens: number): string {
-    const total = Math.floor(tokens / VOICE_TOKENS_PER_SECOND);
-    const minutes = t('common.duration.minutes', { n: numbers.format(Math.floor(total / 60)) });
-    const seconds = t('common.duration.seconds', { n: numbers.format(total % 60) });
-    return `${minutes} ${seconds}`;
+  type Draft = {
+    enabled: boolean;
+    voice: string;
+    maxSeconds: number | string | null | undefined;
+    config: Record<string, string>;
+    revision: number;
+  };
+  const allowance = $derived(data.readOnly ? null : data.allowance);
+  const loaded: Draft = $derived({
+    enabled: allowance?.enabled ?? false,
+    voice: allowance?.voice || DEFAULT_VOICE,
+    maxSeconds: allowance?.max_seconds ?? MAX_CLIP_SECONDS,
+    config: data.alerts?.config ?? {},
+    revision: data.alerts?.revision ?? 0
+  });
+  const fingerprint = (settings: Draft) => JSON.stringify(settings);
+
+  let draft = $state<Draft>(untrack(() => ({ ...loaded, config: { ...loaded.config } })));
+  let baseline = $state(untrack(() => fingerprint(loaded)));
+  let resetKey = $state(0);
+  let pending = $state<'save' | 'rotateOverlay' | 'refresh' | null>(null);
+  let overlayUrl = $state(untrack(() => form?.overlayUrl));
+  let overlayError = $state(untrack(() => form?.overlayError));
+  let conflict = $state(untrack(() => form?.conflict === true));
+  let saveError = $state(untrack(() => form?.error));
+  let saved = $state(untrack(() => form?.ok === true));
+  const dirty = $derived(fingerprint(draft) !== baseline);
+  const saving = $derived(pending === 'save');
+  const status = $derived.by(() => {
+    if (saving) return 'saving';
+    if (conflict) return 'conflict';
+    if (saveError) return 'error';
+    return saved && !dirty ? 'saved' : 'idle';
+  });
+  const errorLabel = $derived(conflict ? t('voice.conflict') : saveError);
+  const overrides = $derived([{ value: '', label: t('voice.useDefault', { voice: draft.voice }) }, ...options]);
+  const minBits = $derived(Number(draft.config.ttsMinBits ?? 0));
+  const approxChars = $derived(numbers.format((Number(draft.maxSeconds) || 0) * VOICE_CHARS_PER_SECOND));
+
+  function adopt(settings: Draft) {
+    draft = { ...settings, config: { ...settings.config } };
+    baseline = fingerprint(settings);
+    resetKey += 1;
   }
 
-  const allowance = $derived(data.readOnly ? null : data.allowance);
-  const showUsage = $derived(allowance?.reason === 'ok' || allowance?.reason === 'no_plan');
-  let enabled = $derived(allowance?.enabled ?? false);
-  let voice: string = $derived(allowance?.voice ?? DEFAULT_VOICE);
-  let pending = $state<'save' | 'rotateOverlay' | null>(null);
-  let overlayIssued = $state(false);
-  const saving = $derived(pending === 'save');
-  const saveMessage = $derived(form?.ok ? t('voice.saved') : form?.error);
+  $effect(() => {
+    const settings = loaded;
+    untrack(() => {
+      if (dirty || pending) return;
+      if (fingerprint(settings) === baseline) return;
+      adopt(settings);
+    });
+  });
 
-  const submit: SubmitFunction = ({ action, cancel }) => {
-    if (pending) {
-      cancel();
-      return;
+  const discard = createDiscardGuard(() => dirty);
+
+  async function resetDraft() {
+    if (pending) return;
+    pending = 'refresh';
+    try {
+      if (conflict) await invalidateAll();
+      adopt(loaded);
+      conflict = false;
+      saveError = undefined;
+      saved = false;
+    } finally {
+      pending = null;
     }
-    const rotating = action.search === '?/rotateOverlay';
-    pending = rotating ? 'rotateOverlay' : 'save';
+  }
+
+  beforeNavigate(({ cancel, to, willUnload }) => {
+    if (!dirty) return;
+    cancel();
+    if (willUnload || !to) return;
+    discard.guard(() => {
+      adopt(loaded);
+      void goto(to.url);
+    });
+  });
+
+  function applySaveResult(result: ActionResult) {
+    const failure = result.type === 'failure' ? result.data : undefined;
+    saved = result.type === 'success' && result.data?.ok === true;
+    conflict = failure?.conflict === true;
+    saveError = typeof failure?.error === 'string' ? failure.error : undefined;
+  }
+
+  const submitSave: SubmitFunction = ({ cancel }) => {
+    if (pending || conflict) return cancel();
+    pending = 'save';
     return async ({ update, result }) => {
       try {
-        if (rotating && result.type === 'success') overlayIssued = true;
-        await update({ reset: false, invalidateAll: !rotating });
+        applySaveResult(result);
+        await update({ reset: false, invalidateAll: saved });
+        if (saved) adopt(loaded);
+      } finally {
+        pending = null;
+      }
+    };
+  };
+
+  const submitOverlay: SubmitFunction = ({ cancel }) => {
+    if (pending) return cancel();
+    pending = 'rotateOverlay';
+    overlayError = undefined;
+    return async ({ update, result }) => {
+      try {
+        if (result.type === 'success' && typeof result.data?.overlayUrl === 'string') overlayUrl = result.data.overlayUrl;
+        if (result.type === 'failure' && typeof result.data?.overlayError === 'string') overlayError = result.data.overlayError;
+        await update({ reset: false, invalidateAll: false });
       } finally {
         pending = null;
       }
@@ -71,10 +163,17 @@
 
 <svelte:head><title>{t('nav.voice')}</title></svelte:head>
 
-<section class="screen active">
-  <PageHead><bb-fit><span data-fit="">{t('nav.voice')}</span></bb-fit></PageHead>
+{#if data.locked}
+  <PremiumGate title={t('voice.gateTitle')} body={t('voice.gateBody')} />
+{:else}
+  <section class="screen active">
+    <PageHead>
+      <span class="page-title">
+        <bb-fit><span data-fit="">{t('nav.voice')}</span></bb-fit>
+        <Chip as="span" pressed>{t('modules.betaChip')}</Chip>
+      </span>
+    </PageHead>
 
-  <div class="paths" class:split={showUsage}>
     {#if data.readOnly}
       <PageNotice tone="info" role="note">{t('voice.readOnly')}</PageNotice>
     {:else if !allowance}
@@ -82,11 +181,11 @@
     {:else if allowance.reason === 'inactive' || allowance.reason === 'banned'}
       {@const inactive = allowance.reason === 'inactive'}
       <Card as="section" aria-labelledby="voice-status">
-        <div class="card-head">
+        <div class="status-head">
           <Heading level={6} as="h2" id="voice-status">
             <bb-fit><span data-fit="">{t('voice.settingsTitle')}</span></bb-fit>
           </Heading>
-          <div class="plan">
+          <div class="status-tag">
             <Tag tone={allowance.reason} bare contain>
               <bb-fit><span data-fit="">{inactive ? t('voice.inactiveLabel') : t('voice.bannedLabel')}</span></bb-fit>
             </Tag>
@@ -99,103 +198,103 @@
         </div>
       </Card>
     {:else}
-      {@const plan = plans[allowance.plan]}
-      {@const usage = t('voice.usage', {
-        used: duration(allowance.used_tokens),
-        limit: numbers.format(allowance.limit_tokens / (VOICE_TOKENS_PER_SECOND * 60))
-      })}
-      <Card as="section" aria-labelledby="voice-usage">
-        <div class="card-head">
-          <Heading level={6} as="h2" id="voice-usage">
-            <bb-fit><span data-fit="">{t('voice.usageTitle')}</span></bb-fit>
-          </Heading>
-          <div class="plan">
-            <Tag tone={plan.tone} bare contain><bb-fit><span data-fit="">{plan.label}</span></bb-fit></Tag>
-          </div>
-        </div>
-        <div class="meter">
-          <Text as="div" size="lg"><bb-fit><span data-fit="">{usage}</span></bb-fit></Text>
-          <ProgressBar size="sm" label={t('voice.usageTitle')} aria-valuetext={usage}
-            value={allowance.limit_tokens ? allowance.used_tokens / allowance.limit_tokens : 0} />
-          <Text as="div" size="sm" tone="muted"><bb-fit><span data-fit="">
-            {t('voice.resets', { date: dates.format(new Date(allowance.resets_at)) })}
-          </span></bb-fit></Text>
-        </div>
-      </Card>
-    {/if}
+      <div class="paths">
+        <VoiceUsageCard {allowance} />
+        {#if allowance.limit_tokens > 0}
+          <VoiceOverlayCard configured={!!overlayUrl || allowance.overlay_configured === true} url={overlayUrl}
+            error={overlayError} busy={pending === 'rotateOverlay'} disabled={pending !== null} submit={submitOverlay} />
+        {/if}
+      </div>
 
-    {#if allowance?.reason === 'ok'}
-      <Card as="section" aria-labelledby="voice-settings">
-        <div class="card-head">
-          <Heading level={6} as="h2" id="voice-settings">
-            <bb-fit><span data-fit="">{t('voice.settingsTitle')}</span></bb-fit>
-          </Heading>
-        </div>
-        <form method="POST" action="?/save" use:enhance={submit}>
-          <div class="enable-row">
-            <SwitchRow control="end" fitCopy bind:checked={enabled} disabled={saving}
-              label={t('voice.enable')} hint={t('voice.fallback')} hintId="voice-fallback" />
-            <input type="hidden" name="enabled" value={String(enabled)} />
+      {#if data.alerts}
+        <form class="settings" method="POST" action="?/save" use:enhance={submitSave} aria-busy={saving}>
+          <div class="settings" inert={saving || pending === 'refresh'}>
+            <input type="hidden" name="expected_rev" value={draft.revision} />
+            <Card as="section" aria-labelledby="voice-settings">
+              <div class="global">
+                <Heading level={6} as="h2" id="voice-settings">
+                  <bb-fit><span data-fit="">{t('voice.settingsTitle')}</span></bb-fit>
+                </Heading>
+                <SwitchRow control="end" fitCopy bind:checked={draft.enabled}
+                  label={t('voice.enable')} hint={t('voice.fallback')} hintId="voice-fallback" />
+                <input type="hidden" name="enabled" value={String(draft.enabled)} />
+                <Field label={t('voice.choose')} fitCopy>
+                  <Select name="voice" label={t('voice.choose')} bind:value={draft.voice} {options} searchable required fill />
+                </Field>
+                <SwitchRow control="end" fitCopy checked={draft.config.ttsLiveOnly === 'true'} label={t('voice.liveOnly')}
+                  onCheckedChange={(checked) => (draft.config.ttsLiveOnly = String(checked))} />
+                <input type="hidden" name="ttsLiveOnly" value={draft.config.ttsLiveOnly} />
+                <SwitchRow control="end" fitCopy checked={draft.config.ttsReadMessages === 'true'} label={t('voice.readMessages')}
+                  hint={t('voice.readMessagesHint')} hintId="voice-read-messages"
+                  onCheckedChange={(checked) => (draft.config.ttsReadMessages = String(checked))} />
+                <input type="hidden" name="ttsReadMessages" value={draft.config.ttsReadMessages} />
+                <div class="limits">
+                  <Field label={t('voice.minBits')} fitCopy>
+                    <Input name="ttsMinBits" type="number" min={0} max={Number.MAX_SAFE_INTEGER} step={1}
+                      value={draft.config.ttsMinBits}
+                      oninput={(event) => (draft.config.ttsMinBits = event.currentTarget.value)} required fill />
+                  </Field>
+                  <Field label={t('voice.maxLength')} fitCopy>
+                    <Input name="max_seconds" type="number" min={MIN_CLIP_SECONDS} max={MAX_CLIP_SECONDS} step={1}
+                      bind:value={draft.maxSeconds} aria-describedby="voice-approx-length" required fill />
+                  </Field>
+                  <div class="length-hint" id="voice-approx-length">
+                    <Text as="div" size="sm" tone="muted">
+                      <bb-fit><span data-fit="">{t('voice.maxLengthHint', { chars: approxChars })}</span></bb-fit>
+                    </Text>
+                  </div>
+                </div>
+              </div>
+            </Card>
+            <section class="alert-section" aria-labelledby="voice-alerts">
+              <Heading level={6} as="h2" id="voice-alerts">
+                <bb-fit><span data-fit="">{t('voice.alertsTitle')}</span></bb-fit>
+              </Heading>
+              <div class="alert-grid">
+                {#each VOICE_ALERT_KINDS as kind (kind)}
+                  <VoiceAlertCard {kind} bind:config={draft.config} options={overrides} {minBits} {resetKey} />
+                {/each}
+              </div>
+            </section>
           </div>
-          <Field label={t('voice.choose')} fitCopy>
-            <Select name="voice" label={t('voice.choose')} bind:value={voice} {options} disabled={saving} required fill />
-          </Field>
-          <Field label={t('voice.maxLength')} fitCopy>
-            <Input name="max_seconds" type="number" min={MIN_CLIP_SECONDS} max={MAX_CLIP_SECONDS} step={1}
-              value={allowance.max_seconds ?? MAX_CLIP_SECONDS} disabled={saving} required fill />
-          </Field>
-          <div class="save-row">
-            <Button variant="secondary" type="submit" size="sm" busy={saving} disabled={pending === 'rotateOverlay'}>
-              <bb-fit><span data-fit="">{t('common.save')}</span></bb-fit>
-            </Button>
-            <div class="status-copy bb-fit-box" role="status">
-              <Text as="div" size="sm" tone={form?.ok ? 'success' : 'danger'}>
-                <bb-fit mode="block">{saving ? '' : saveMessage}</bb-fit>
-              </Text>
-            </div>
-          </div>
+          <EditorFooter class="voice-footer" {dirty} {status} canSave={dirty && !pending && !conflict}
+            {errorLabel} title={errorLabel} savedLabel={t('voice.saved')} onCancel={() => discard.guard(() => void resetDraft())} />
         </form>
-      </Card>
-    {:else if allowance?.reason === 'no_plan'}
-      <Card flush>
-        <EmptyState class="local-voice" title={t('voice.settingsTitle')} body={t('voice.free')}>
-          <ButtonLink href="/billing?from=voice" variant="secondary" size="sm">
-            <bb-fit><span data-fit="">{t('voice.viewPremium')}</span></bb-fit>
-          </ButtonLink>
-        </EmptyState>
-      </Card>
+      {:else}
+        <div class="settings"><PageNotice tone="warning">{t('voice.unavailable')}</PageNotice></div>
+      {/if}
     {/if}
+  </section>
 
-    {#if allowance?.reason === 'ok' && allowance.limit_tokens > 0}
-      <VoiceOverlayCard configured={overlayIssued || allowance.overlay_configured === true} url={form?.overlayUrl}
-        error={form?.overlayError} busy={pending === 'rotateOverlay'} disabled={saving} {submit} />
-    {/if}
-  </div>
-</section>
+  <ConfirmDialog open={discard.open} title={t('modules.discardTitle')} body={t('modules.discardBody')}
+    confirmLabel={t('modules.discard')} cancelLabel={t('modules.keepEditing')}
+    onCancel={discard.cancel} onConfirm={discard.confirm} tone="danger" />
+{/if}
 
 <style>
-  .paths {
+  .page-title { display: inline-flex; align-items: center; gap: var(--bb-space-3); max-inline-size: 100%; }
+  .paths, .settings, .alert-grid, .global, .alert-section, .limits, .status-head {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    align-items: start;
     gap: var(--bb-space-4);
   }
-  .card-head, .save-row { align-items: center; gap: var(--bb-space-3); }
-  .card-head { display: grid; margin-bottom: var(--bb-space-3); }
-  .card-head:has(.plan) { grid-template-columns: minmax(0, 1fr) minmax(0, 48%); }
-  .plan { justify-self: end; min-inline-size: 0; max-inline-size: 100%; }
-  .meter { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--bb-space-2); }
-  .enable-row { margin-bottom: var(--bb-space-3); }
+  .paths { align-items: start; }
+  .settings { margin-block-start: var(--bb-space-4); }
+  .settings > .settings { margin-block-start: 0; }
+  .global, .alert-section, .limits, .status-head { gap: var(--bb-space-3); }
+  .alert-grid { grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); }
+  .length-hint { block-size: 1.25rem; margin-block-start: calc(-1 * var(--bb-space-1)); }
+  .status-head { grid-template-columns: minmax(0, 1fr) minmax(0, 48%); align-items: center; }
+  .status-tag { justify-self: end; min-inline-size: 0; max-inline-size: 100%; }
   .status-copy { block-size: 2.75rem; min-inline-size: 0; align-content: center; }
-  .save-row { display: flex; --btn-w: 7rem; --btn-justify: center; }
-  .save-row .status-copy { flex: 1; }
-  .paths :global(.local-voice) {
-    display: grid;
-    grid-template-rows: 1.5rem 3.75rem auto;
-    --btn-w: 10rem;
-    --btn-justify: center;
+  :global(.voice-footer) { z-index: 2; }
+
+  @media (min-width: 600px) {
+    .limits { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .length-hint { grid-column: 2; }
   }
+
   @media (min-width: 1080px) {
-    .paths.split { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .paths { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 </style>

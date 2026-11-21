@@ -110,6 +110,32 @@
     margin-bottom: 14px;
   }
 
+  .bb-steps--fit-copy .bb-step__row {
+    grid-template-columns: 8px minmax(0, 1fr) minmax(0, 21%);
+  }
+
+  .bb-steps--fit-copy .bb-step__label {
+    block-size: 2.5rem;
+    align-content: center;
+    white-space: normal;
+  }
+
+  .bb-steps--fit-copy .bb-step__text {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .bb-steps--fit-copy .bb-step__state {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .bb-steps--fit-copy .bb-step__bar {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: end;
+  }
+
   .bb-steps--numbered {
     gap: 14px;
     counter-reset: bb-step;

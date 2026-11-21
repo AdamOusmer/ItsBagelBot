@@ -90,6 +90,7 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     icon: 'bell',
     href: '/voice',
     match: ['/voice'],
+    beta: true,
     ownerOnly: true
   },
   {

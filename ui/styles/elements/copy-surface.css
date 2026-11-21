@@ -161,6 +161,10 @@
   }
 
   .bb-copy--well .bb-copy__value {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     color: var(--bb-tan-pale);
     font-family: var(--bb-font-mono);
     font-size: 15px;

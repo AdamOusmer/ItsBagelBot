@@ -20,6 +20,13 @@
     height: 4px;
   }
 
+  .bb-progress--inset {
+    height: 10px;
+    border-radius: var(--bb-radius-pill);
+    background: var(--bb-inset-bg);
+    box-shadow: var(--bb-depth-0);
+  }
+
   .bb-progress__seg--neutral {
     --progress-fill: var(--bb-white);
   }
@@ -37,6 +44,11 @@
   .bb-progress--danger,
   .bb-progress__seg--danger {
     --progress-fill: var(--bb-status-danger);
+  }
+
+  .bb-progress--inactive,
+  .bb-progress__seg--inactive {
+    --progress-fill: var(--bb-tier-inactive);
   }
 
   .bb-progress--success.bb-progress--ramp-2 {
@@ -103,7 +115,8 @@
     .bb-progress__seg--neutral,
     .bb-progress__seg--success,
     .bb-progress__seg--warning,
-    .bb-progress__seg--danger
+    .bb-progress__seg--danger,
+    .bb-progress__seg--inactive
   ) {
     background: var(--progress-fill);
   }

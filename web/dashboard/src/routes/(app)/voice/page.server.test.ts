@@ -2,10 +2,15 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { afterEach, expect, mock, spyOn, test } from 'bun:test';
+import { ALERT_VOICE_CONFIG_DEFAULTS } from '@bagel/kit/voice-plan';
 import type { VoiceAllowance } from '#lib/server/services/voice';
 import { stubSvelteKit } from '../../../../test/sveltekit';
 
 stubSvelteKit();
+mock.module('#lib/server/edge-purge', () => ({
+  schedulePurgeChannel: () => {},
+  scheduleLeaderboardPurge: () => {}
+}));
 
 const bus = await import('@bagel/kit/server/nats');
 const { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS } = await import('@bagel/kit/server/service');
@@ -29,63 +34,128 @@ const overlayUrl = 'https://overlay.itsbagelbot.com/tts#AAAAAAAAAAAAAAAAAAAAAAAA
 
 afterEach(() => mock.restore());
 
+const alertRow = {
+  name: 'alerts', is_enabled: false, revision: 9, configs: { cheerTtsStyle: 'calm', followMessage: 'Chat only' }
+};
+const alertFields: Record<string, string> = {
+  ...ALERT_VOICE_CONFIG_DEFAULTS, followTts: 'true', cheerTtsStyle: 'calm', raidTtsVoice: 'Charon'
+};
+type RpcCall = Parameters<typeof bus.rpc>;
+const usersRead: RpcCall = [`${SUB.dashboard}.voice_get`, actor, READ_TIMEOUT_MS];
+const modulesRead: RpcCall = [`${SUB.modules}.list`, { user_id: '42' }, 2000];
+
 test.each([
-  { name: 'Premium owner', session: owner, reply: allowance, readOnly: false },
-  { name: 'free owner', session: owner, reply: free, readOnly: false },
-  { name: 'inactive owner', session: owner, reply: { ...free, reason: 'inactive' }, readOnly: false },
-  { name: 'banned owner', session: owner, reply: { ...free, reason: 'banned' }, readOnly: false },
+  { name: 'paid', session: owner, reply: allowance, readOnly: false },
+  { name: 'giveaway', session: owner, reply: { ...allowance, plan: 'giveaway' }, readOnly: false },
+  { name: 'admin grant', session: owner, reply: { ...allowance, plan: 'admin_grant' }, readOnly: false },
+  { name: 'VIP', session: owner, reply: { ...allowance, plan: 'vip' }, readOnly: false },
+  { name: 'free', session: owner, reply: free, readOnly: false },
+  { name: 'inactive', session: owner, reply: { ...free, reason: 'inactive' }, readOnly: false },
+  { name: 'banned', session: owner, reply: { ...free, reason: 'banned' }, readOnly: false },
   { name: 'delegate', session: delegate, reply: null, readOnly: true },
   { name: 'view-as', session: viewAs, reply: null, readOnly: true }
 ])('loads voice data for $name', async ({ session, reply, readOnly }) => {
-  const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce(reply);
-  expect(await load({ locals: { session } } as never)).toEqual({ readOnly, allowance: reply });
-  expect(rpc.mock.calls).toEqual(readOnly ? [] : [[`${SUB.dashboard}.voice_get`, actor, READ_TIMEOUT_MS]]);
+  const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce(reply).mockResolvedValueOnce({ modules: [alertRow] });
+  const alerts = reply?.reason === 'ok'
+    ? { config: { ...ALERT_VOICE_CONFIG_DEFAULTS, cheerTtsStyle: 'calm' }, revision: 9 }
+    : null;
+
+  expect(await load({ locals: { session } } as never)).toEqual({
+    readOnly, allowance: reply, locked: reply?.reason === 'no_plan', alerts
+  });
+  expect(rpc.mock.calls).toEqual([...(readOnly ? [] : [usersRead]), ...(alerts ? [modulesRead] : [])]);
 });
 
 test('an unavailable allowance degrades without inventing a free plan', async () => {
   spyOn(bus, 'rpc').mockRejectedValueOnce(new Error('timeout'));
-  expect(await load({ locals: { session: owner } } as never)).toEqual({ readOnly: false, allowance: null });
+  expect(await load({ locals: { session: owner } } as never)).toEqual({
+    readOnly: false, allowance: null, locked: false, alerts: null
+  });
 });
 
-function save(fields: Record<string, string>, session: typeof owner | null = owner) {
-  const body = new URLSearchParams(fields);
+function save(fields: Record<string, string> = {}, session: typeof owner | null = owner) {
+  const body = new URLSearchParams({
+    ...alertFields, enabled: 'true', voice: 'Kore', max_seconds: '120', expected_rev: '9', ...fields
+  });
   return actions.save({
     request: new Request(`${voiceUrl}?/save`, { method: 'POST', body }),
     locals: { session, locale: 'en' }
   } as never);
 }
 
+function mockSaveReplies(moduleReply: { conflict?: boolean; rev: number; modules?: unknown[] }) {
+  return spyOn(bus, 'rpc').mockResolvedValueOnce(allowance).mockResolvedValueOnce({ modules: [alertRow] })
+    .mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce(moduleReply)
+    .mockResolvedValueOnce({ modules: moduleReply.modules });
+}
+
 test.each([
   { voice: 'Puck', enabled: true, maxSeconds: 5 },
   { voice: 'Kore', enabled: false, maxSeconds: 45 },
   { voice: 'Kore', enabled: true, maxSeconds: 120 }
-])('saves $voice with a $maxSeconds-second limit using the owner session', async ({ voice, enabled, maxSeconds }) => {
-  const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce({ ok: true });
-  const fields = { voice, enabled: String(enabled), max_seconds: String(maxSeconds), actor_id: '97', broadcaster_user_id: '95' };
+])('saves $voice, $maxSeconds seconds, and only the permitted alert fields', async ({ voice, enabled, maxSeconds }) => {
+  const rpc = mockSaveReplies({ rev: 10, modules: [alertRow] });
+  const fields = {
+    voice, enabled: String(enabled), max_seconds: String(maxSeconds), actor_id: '97',
+    broadcaster_user_id: '95', followMessage: 'must stay as stored', is_enabled: 'true', ttsMinBits: '0'
+  };
+
   expect(await save(fields)).toEqual({ ok: true });
-  expect(rpc.mock.calls).toEqual([[
-    `${SUB.dashboard}.voice_set`, { ...actor, voice, enabled, max_seconds: maxSeconds }, WRITE_TIMEOUT_MS
-  ]]);
+  expect(rpc.mock.calls).toMatchObject([
+    usersRead, modulesRead,
+    [`${SUB.dashboard}.voice_set`, { ...actor, voice, enabled, max_seconds: maxSeconds }, WRITE_TIMEOUT_MS],
+    [`${SUB.modules}.patch`, {
+      user_id: '42', name: 'alerts', is_enabled: false, expected_rev: 9, configs: expect.any(Object)
+    }],
+    [`${SUB.projector}.modules.replace`, { user_id: '42', modules: [alertRow] }, 2000]
+  ]);
+  expect(rpc.mock.calls[3]?.[1]).toHaveProperty('configs', { ...alertFields, ttsMinBits: '0' });
+});
+
+test('returns a conflict when Chat Alerts changed after the voice page loaded', async () => {
+  const rpc = mockSaveReplies({ rev: 10, conflict: true });
+  expect(await save()).toMatchObject({ status: 409, data: { conflict: true } });
+  expect(rpc.mock.calls.map(([subject]) => subject)).toEqual([
+    `${SUB.dashboard}.voice_get`, `${SUB.modules}.list`, `${SUB.dashboard}.voice_set`, `${SUB.modules}.patch`
+  ]);
+});
+
+test('blocks saves for a free owner before either write', async () => {
+  const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce(free);
+  expect(await save()).toMatchObject({ status: 403 });
+  expect(rpc.mock.calls).toEqual([usersRead]);
 });
 
 const limitError = 'Enter a whole number from 5 to 120 seconds.';
 
-test.each([
-  { name: 'wrong voice casing', voice: 'kore', status: 400 },
-  { name: 'missing voice', voice: '', status: 400 },
-  { name: 'invalid switch value', enabled: 'yes', status: 400 },
-  { name: 'below the minimum', maxSeconds: '4', status: 400, error: limitError },
-  { name: 'above the maximum', maxSeconds: '121', status: 400, error: limitError },
-  { name: 'fractional seconds', maxSeconds: '5.5', status: 400, error: limitError },
-  { name: 'zero seconds', maxSeconds: '0', status: 400, error: limitError },
-  { name: 'omitted limit', maxSeconds: null, status: 400, error: limitError },
+const invalidSaves: {
+  name: string;
+  fields?: Record<string, string>;
+  session?: typeof owner | null;
+  status: number;
+  error?: string;
+}[] = [
+  { name: 'wrong voice casing', fields: { voice: 'kore' }, status: 400 },
+  { name: 'missing voice', fields: { voice: '' }, status: 400 },
+  { name: 'invalid switch', fields: { enabled: 'yes' }, status: 400 },
+  { name: 'below the minimum', fields: { max_seconds: '4' }, status: 400, error: limitError },
+  { name: 'above the maximum', fields: { max_seconds: '121' }, status: 400, error: limitError },
+  { name: 'fractional seconds', fields: { max_seconds: '5.5' }, status: 400, error: limitError },
+  { name: 'empty limit', fields: { max_seconds: '' }, status: 400, error: limitError },
+  { name: 'invalid override', fields: { raidTtsVoice: 'Unknown' }, status: 400, error: 'Choose a voice from the list.' },
+  { name: 'invalid style', fields: { raidTtsStyle: 'toString' }, status: 400, error: 'Choose a style from the list.' },
+  { name: 'negative bits', fields: { ttsMinBits: '-1' }, status: 400, error: 'Enter a whole number of bits, starting at 0.' },
+  { name: 'fractional bits', fields: { ttsMinBits: '1.5' }, status: 400 },
+  { name: 'missing minimum bits', fields: { ttsMinBits: '' }, status: 400 },
+  { name: 'unsafe minimum bits', fields: { ttsMinBits: '9007199254740992' }, status: 400 },
+  { name: 'invalid revision', fields: { expected_rev: '-1' }, status: 400 },
   { name: 'delegate', session: delegate, status: 403 },
   { name: 'view-as', session: viewAs, status: 403 },
   { name: 'signed out', session: null, status: 401 }
-])('rejects $name with $status without calling Users', async (row) => {
-  const { voice = 'Kore', enabled = 'true', maxSeconds = '120', session = owner, status, error } = row;
-  const fields: Record<string, string> = { voice, enabled };
-  if (maxSeconds !== null) fields.max_seconds = maxSeconds;
+];
+
+test.each(invalidSaves)('rejects $name without making service requests', async (row) => {
+  const { fields, session = owner, status, error } = row;
   const rpc = spyOn(bus, 'rpc');
   expect(await save(fields, session)).toMatchObject({ status, data: { error: error ?? expect.any(String) } });
   expect(rpc).not.toHaveBeenCalled();
@@ -93,7 +163,7 @@ test.each([
 
 test('reports a failed save without claiming it succeeded', async () => {
   spyOn(bus, 'rpc').mockRejectedValueOnce(new Error('timeout'));
-  expect(await save({ voice: 'Kore', enabled: 'false', max_seconds: '120' })).toMatchObject({
+  expect(await save()).toMatchObject({
     status: 503, data: { error: 'Could not save voice settings. Try again.' }
   });
 });

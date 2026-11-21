@@ -6,11 +6,12 @@ import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/progress-bar.css';
 import type { ProgressTone } from '../lib/tone';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'value' | 'tone' | 'label' | 'size' | 'gradient' | 'ramp' | 'target' | 'segments' | 'current' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'value' | 'tone' | 'label' | 'size' | 'inset' | 'gradient' | 'ramp' | 'target' | 'segments' | 'current' | 'class'> {
     value: number | null;
     tone?: ProgressTone;
     label: string;
     size?: 'sm' | 'md';
+    inset?: boolean;
     gradient?: boolean;
     ramp?: 1 | 2 | 3;
     target?: number;
@@ -24,6 +25,7 @@ const {
     tone = 'neutral',
     label,
     size = 'md',
+    inset = false,
     gradient = false,
     ramp = 1,
     target,
@@ -42,6 +44,7 @@ const classes = [
     'bb-progress',
     `bb-progress--${tone}`,
     size === 'sm' ? 'bb-progress--sm' : null,
+    inset ? 'bb-progress--inset' : null,
     gradient ? 'bb-progress--gradient' : null,
     ramp > 1 ? `bb-progress--ramp-${ramp}` : null,
     fraction === null ? 'bb-progress--indeterminate' : null,

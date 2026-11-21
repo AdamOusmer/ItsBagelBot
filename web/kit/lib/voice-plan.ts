@@ -45,6 +45,31 @@ export const CLOUD_VOICE_CATALOG = [
 export const CLOUD_VOICES: ReadonlyArray<(typeof CLOUD_VOICE_CATALOG)[number][0]> =
   CLOUD_VOICE_CATALOG.map(([name]) => name);
 
+export const VOICE_GROUPS = {
+  Bright: 'energetic',
+  Upbeat: 'energetic',
+  Excitable: 'energetic',
+  Lively: 'energetic',
+  Youthful: 'energetic',
+  Forward: 'energetic',
+  Warm: 'warm',
+  Soft: 'warm',
+  Gentle: 'warm',
+  Breathy: 'warm',
+  Breezy: 'warm',
+  Friendly: 'warm',
+  Smooth: 'calm',
+  'Easy-going': 'calm',
+  Casual: 'calm',
+  Even: 'calm',
+  Clear: 'calm',
+  Firm: 'authoritative',
+  Informative: 'authoritative',
+  Knowledgeable: 'authoritative',
+  Mature: 'authoritative',
+  Gravelly: 'authoritative'
+} as const satisfies Record<(typeof CLOUD_VOICE_CATALOG)[number][1], string>;
+
 export const VOICE_STYLES = {
   warm: 'warm, friendly, upbeat',
   hype: 'excited, energetic, celebratory',
@@ -64,18 +89,43 @@ export const ALERT_VOICE_DEFAULTS = {
 export const DEFAULT_TTS_MIN_BITS = 100;
 export const VOICE_CHARS_PER_SECOND = 14;
 export const MAX_SPEECH_RUNES = 500;
+export type VoiceAlertKind = keyof typeof ALERT_VOICE_DEFAULTS;
+export const VOICE_ALERT_KINDS = Object.keys(ALERT_VOICE_DEFAULTS) as VoiceAlertKind[];
+
+export function alertVoiceKeys(kind: VoiceAlertKind) {
+  return {
+    enabled: `${kind}Tts`,
+    message: `${kind}TtsMessage`,
+    style: `${kind}TtsStyle`,
+    voice: `${kind}TtsVoice`
+  } as const;
+}
 
 export const ALERT_VOICE_CONFIG_DEFAULTS = {
   ttsLiveOnly: 'true',
   ttsReadMessages: 'true',
   ttsMinBits: String(DEFAULT_TTS_MIN_BITS),
-  ...Object.fromEntries(Object.entries(ALERT_VOICE_DEFAULTS).flatMap(([kind, defaults]) => [
-    [`${kind}Tts`, String(defaults.enabled)],
-    [`${kind}TtsMessage`, defaults.message],
-    [`${kind}TtsStyle`, defaults.style],
-    [`${kind}TtsVoice`, '']
-  ]))
+  ...Object.fromEntries(VOICE_ALERT_KINDS.flatMap((kind) => {
+    const keys = alertVoiceKeys(kind);
+    const defaults = ALERT_VOICE_DEFAULTS[kind];
+    return [
+      [keys.enabled, String(defaults.enabled)],
+      [keys.message, defaults.message],
+      [keys.style, defaults.style],
+      [keys.voice, '']
+    ];
+  }))
 } as const;
+
+export const ALERT_VOICE_CONFIG_KEYS = Object.keys(ALERT_VOICE_CONFIG_DEFAULTS) as readonly string[];
+
+export function usageTone(used: number, limit: number) {
+  const fraction = limit > 0 ? used / limit : 0;
+  if (fraction >= 1) return 'inactive';
+  if (fraction >= 0.9) return 'danger';
+  if (fraction >= 0.75) return 'warning';
+  return 'success';
+}
 
 export const DEFAULT_VOICE = 'Kore' satisfies (typeof CLOUD_VOICES)[number];
 export const VOICE_TOKENS_PER_SECOND = 25;
