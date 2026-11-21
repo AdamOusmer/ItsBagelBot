@@ -196,6 +196,7 @@
     const key = alertVoiceKeys(kind).enabled;
     const value = config[key];
     return {
+      kind,
       checked: value === 'true' || (value !== 'false' && ALERT_VOICE_DEFAULTS[kind].enabled),
       allowed: data.voiceAllowed,
       status: modStatus[`setting:${key}`] ?? 'idle',
@@ -528,7 +529,6 @@
                   status={modStatus[reply.key] ?? 'idle'}
                   expanded={expanded === reply.key}
                   enabled={reply.enableKey ? replyOn(reply) : undefined}
-                  voice={voiceControl(reply)}
                   disabled={locked}
                   onExpand={() => openReply(reply)}
                   onToggle={() => toggleReply(reply)}
@@ -582,7 +582,8 @@
           {:else if selectedReply}
             <Scroller fill padding="16px" smooth>
               {#key selectedReply.key}
-                <ReplyEditor moduleId={def.id} reply={selectedReply} bind:message={editMessage} {busy} onCancel={closeInspector} onSave={saveReply} />
+                <ReplyEditor moduleId={def.id} reply={selectedReply} bind:message={editMessage} {busy}
+                  voice={voiceControl(selectedReply)} voiceDisabled={locked} onCancel={closeInspector} onSave={saveReply} />
               {/key}
             </Scroller>
           {:else if selectedCommand}

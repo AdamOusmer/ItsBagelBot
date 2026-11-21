@@ -76,11 +76,10 @@
   "noTriggersTitle": "Noch keine Auslösewörter.",
   "offBanner": "Dieses Modul ist aus, daher ignoriert der Bot es im Chat.",
   "turnOn": "Einschalten",
-  "offConfigurable":"Dieses Modul ist aus. Du kannst es jetzt konfigurieren; Änderungen gelten beim Aktivieren.",
+  "offConfigurable": "Dieses Modul ist aus. Du kannst es jetzt konfigurieren; Änderungen gelten beim Aktivieren.",
   "patchConflict": "Jemand anderes hat dieses Modul geändert. Die neueste Version wurde geladen; wiederhole deine Änderung.",
   "permLeadMods": "Leitende Mods",
   "permMods": "Mods",
-  "readPremiumVoice": "Mit Premium-Stimme vorlesen",
   "repliesLabel": "Antworten",
   "replyBlankHint": "Leer lassen, um die Standardnachricht zu verwenden.",
   "replyIdle": "Wähle eine Nachricht aus, um sie hier zu bearbeiten.",
@@ -134,5 +133,17 @@
   "statusFilterLabel": "Nach Status filtern",
   "filterAll": "Alle",
   "filterOn": "Ein",
-  "lockedHint": "Nur Premium. Für Änderungen ist ein Upgrade erforderlich."
+  "lockedHint": "Nur Premium. Für Änderungen ist ein Upgrade erforderlich.",
+  "voiceEvent": {
+    "tts": "TTS",
+    "toggleAria": "TTS für {event}",
+    "sub": {
+      "label": "Resub-Nachrichten",
+      "hint": "Liest die Nachricht vor, die ein Zuschauer beim Resub schreibt."
+    },
+    "cheer": {
+      "label": "Cheer-Nachrichten",
+      "hint": "Liest die Nachricht zu den Bits vor, ohne die Anzahl der Bits."
+    }
+  }
 }

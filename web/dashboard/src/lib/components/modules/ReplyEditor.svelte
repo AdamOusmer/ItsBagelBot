@@ -8,12 +8,15 @@
   import ResponseEditor from '#lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '#lib/components/commands/ChatPreview.svelte';
   import ReplyTokenList from '#lib/components/variables/ReplyTokenList.svelte';
+  import VoiceRehearsalLine, { type VoiceControl } from './VoiceRehearsalLine.svelte';
 
   let {
     moduleId,
     reply,
     message = $bindable(''),
     busy = false,
+    voice,
+    voiceDisabled = false,
     onCancel,
     onSave
   }: {
@@ -21,6 +24,8 @@
     reply: ModuleReply;
     message: string;
     busy?: boolean;
+    voice?: VoiceControl;
+    voiceDisabled?: boolean;
     onCancel: () => void;
     onSave: () => void;
   } = $props();
@@ -56,8 +61,13 @@
       tag={tModuleReplyPart(t, moduleId, reply, 'event')}
       samples={rehearsalSamples}
       response={effectiveMessage}
+      after={voice ? voiceLine : undefined}
     />
   {/if}
+
+  {#snippet voiceLine()}
+    {#if voice}<VoiceRehearsalLine {voice} disabled={voiceDisabled} />{/if}
+  {/snippet}
 
   <ReplyTokenList chips={ownTokens} />
 

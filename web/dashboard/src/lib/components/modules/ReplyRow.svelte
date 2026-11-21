@@ -7,7 +7,6 @@
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import SaveStatus from '@bagel/ui/svelte/SaveStatus.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
-  import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import {
     getI18n,
@@ -29,7 +28,6 @@
     expanded = false,
     enabled = undefined as boolean | undefined,
     disabled = false,
-    voice,
     onExpand,
     onToggle
   }: {
@@ -41,7 +39,6 @@
     expanded?: boolean;
     enabled?: boolean;
     disabled?: boolean;
-    voice?: { checked: boolean; allowed: boolean; status: SaveState; onToggle: (checked: boolean) => void };
     onExpand: () => void;
     onToggle?: () => void;
   } = $props();
@@ -77,32 +74,6 @@
       {/if}
     {/snippet}
   </ManagementRow>
-  {#if voice}
-    {@const voiceLabel = t('modules.readPremiumVoice')}
-    <ManagementRow selectable={false}>
-      {#snippet primary()}
-        <span class="voice-copy">
-          <Text as="span" size="xs" class="bb-fit-box">
-            <bb-fit><span data-fit="">{voiceLabel}</span></bb-fit>
-          </Text>
-          <span class="voice-tags">
-            <Tag tone="alpha">{t('nav.beta')}</Tag>
-            {#if !voice.allowed}<Tag tone="quiet">{t('billing.premium')}</Tag>{/if}
-          </span>
-        </span>
-      {/snippet}
-      {#snippet actions()}
-        <span class="voice-status"><SaveStatus state={voice.status} compact /></span>
-        <Switch
-          checked={voice.allowed && voice.checked}
-          label={`${voiceLabel} (${replyLabel})`}
-          disabled={disabled || !voice.allowed}
-          busy={voice.status === 'saving'}
-          onCheckedChange={voice.onToggle}
-        />
-      {/snippet}
-    </ManagementRow>
-  {/if}
 </div>
 
 <style>
@@ -111,9 +82,6 @@
   .cmd { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .state { min-width: 0; }
   .mini-spacer { width: 38px; }
-  .voice-copy { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--bb-space-1); }
-  .voice-tags { display: inline-flex; gap: var(--bb-space-1); }
-  .voice-status { width: 20px; }
 
   @media (max-width: 760px) {
     .prow { grid-template-columns: minmax(0, 1fr) auto; }
