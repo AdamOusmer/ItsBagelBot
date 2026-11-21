@@ -1,10 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 import type { Session } from './session';
 import { adminCheck } from './services';
 import { dev } from '$app/env';
+import { allows, type AccessKey, type AdminRole } from '#lib/access';
+
 export {
   ROLE_FOR,
   allows,
@@ -14,8 +15,6 @@ export {
   type AccessKey,
   type AdminRole
 } from '#lib/access';
-import { allows, type AccessKey } from '#lib/access';
-import type { AdminRole } from '#lib/access';
 
 export interface AdminIdentity {
   id: string;
@@ -24,8 +23,8 @@ export interface AdminIdentity {
   role: AdminRole;
 }
 
-// Inline the build-time check: a helper call is not folded out of the production server entries.
 const DEMO = dev && process.env.DEMO === '1';
+const adminLookups = new WeakMap<Session, Promise<AdminIdentity | null>>();
 
 export async function requireAdmin(session: Session | null): Promise<AdminIdentity | null> {
   if (DEMO) {
@@ -34,6 +33,15 @@ export async function requireAdmin(session: Session | null): Promise<AdminIdenti
   }
   if (!session) return null;
 
+  const cached = adminLookups.get(session);
+  if (cached) return cached;
+
+  const pending = lookupAdmin(session);
+  adminLookups.set(session, pending);
+  return pending;
+}
+
+async function lookupAdmin(session: Session): Promise<AdminIdentity | null> {
   try {
     const r = await adminCheck(session.user_id, session.login, session.display_name);
     if (!r.admin) return null;

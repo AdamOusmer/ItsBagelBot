@@ -1,102 +1,87 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { randomUUID } from 'node:crypto';
 import type { RequestHandler } from './$types';
 import { error } from '@sveltejs/kit';
 import { dev } from '$app/env';
+import { logger } from '@bagel/kit/server/logger';
 import { requireAdmin } from '#lib/server/access';
-import { subscribeStatus, decode, type FeedEvent } from '#lib/server/feed';
+import { statusHistory } from '#lib/server/feed';
+import { FeedHistory, type FeedRecord } from '#lib/server/feed-history';
 import { STATUS_PREFIX } from '#lib/server/services';
 
 const enc = new TextEncoder();
+const processId = randomUUID();
 const DEMO = dev && process.env.DEMO === '1';
+const DEMO_INTERVAL_MS = 3_000;
+const DEMO_HISTORY_SIZE = 40;
+let demoHistory: FeedHistory | undefined;
 
-function sse(event: string, data: unknown): Uint8Array {
-  return enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+type DemoEvent = (sequence: number, prefix: string, at: string) => FeedRecord;
+type FeedSource = () => Promise<FeedHistory>;
+
+function demoStatusHistory(makeEvent: DemoEvent): FeedHistory {
+  if (demoHistory) return demoHistory;
+  const history = new FeedHistory();
+  const now = Date.now();
+  let sequence = 0;
+  for (; sequence < DEMO_HISTORY_SIZE; sequence++) {
+    const at = new Date(now - (DEMO_HISTORY_SIZE - sequence) * DEMO_INTERVAL_MS).toISOString();
+    history.add(makeEvent(sequence, STATUS_PREFIX, at));
+  }
+  setInterval(() => {
+    history.add(makeEvent(sequence++, STATUS_PREFIX, new Date().toISOString()));
+  }, DEMO_INTERVAL_MS).unref();
+  demoHistory = history;
+  return history;
 }
 
-export const GET: RequestHandler = async ({ locals }) => {
-  if (!(await requireAdmin(locals.session))) throw error(403, 'forbidden');
+function sse(event: 'history' | 'feed', data: unknown): Uint8Array {
+  const id = event === 'history' ? `id: ${processId}\n` : '';
+  return enc.encode(`${id}event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
 
-  if (DEMO) {
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(enc.encode(': connected\n\n'));
-        let n = 0;
-        const fixture = import('#lib/server/demo-data');
-        // Writing to a closed controller throws ERR_INVALID_STATE; uncaught in a timer it kills the server.
-        const push = (chunk: Uint8Array) => {
-          try {
-            controller.enqueue(chunk);
-          } catch {}
-        };
-        const tick = setInterval(() => {
-          fixture.then(({ demoFeedEvent }) => {
-            push(sse('feed', demoFeedEvent(n, STATUS_PREFIX)));
-            n++;
-          });
-        }, 3000);
-        const hb = setInterval(() => push(enc.encode(': keepalive\n\n')), 20000);
-        // @ts-expect-error stash for cancel
-        controller._cleanup = () => {
-          clearInterval(tick);
-          clearInterval(hb);
-        };
-      },
-      cancel() {
-        // @ts-expect-error stash
-        this._cleanup?.();
-      }
+function startStream(controller: ReadableStreamDefaultController, source: FeedSource): () => void {
+  controller.enqueue(enc.encode(': connected\n\n'));
+  let stopped = false;
+  let unsubscribe: (() => void) | undefined;
+  const heartbeat = setInterval(() => controller.enqueue(enc.encode(': keepalive\n\n')), 20_000);
+  const stop = () => {
+    stopped = true;
+    clearInterval(heartbeat);
+    unsubscribe?.();
+  };
+  const close = () => {
+    stop();
+    controller.close();
+  };
+  void source().then((history) => {
+    if (stopped) return;
+    unsubscribe = history.listen({
+      history: (events) => controller.enqueue(sse('history', events)),
+      feed: (event) => controller.enqueue(sse('feed', event)),
+      close
     });
-    return streamResponse(stream);
-  }
+  }, (err) => {
+    if (stopped) return;
+    logger.warn({ err }, 'admin event stream unavailable');
+    controller.enqueue(sse('history', []));
+    close();
+  });
+  return stop;
+}
 
-  let sub: Awaited<ReturnType<typeof subscribeStatus>>;
-  try {
-    sub = await subscribeStatus(STATUS_PREFIX);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(enc.encode(': connected\n\n'));
-        controller.enqueue(
-          sse('feed', {
-            subject: `${STATUS_PREFIX}.stream.error`,
-            label: 'stream.error',
-            tone: 'down',
-            payload: `status stream unavailable: ${message}`,
-            time: new Date().toLocaleTimeString('en-GB', { hour12: false })
-          } satisfies FeedEvent)
-        );
-      }
-    });
-    return streamResponse(stream);
-  }
-
+function streamResponse(source: FeedSource): Response {
+  let stop: () => void;
   const stream = new ReadableStream({
-    async start(controller) {
-      controller.enqueue(enc.encode(': connected\n\n'));
-      const hb = setInterval(() => {
-        try {
-          controller.enqueue(enc.encode(': keepalive\n\n'));
-        } catch {}
-      }, 20000);
-      try {
-        for await (const m of sub) {
-          controller.enqueue(sse('feed', decode(STATUS_PREFIX, m.subject, m.data)));
-        }
-      } catch {} finally {
-        clearInterval(hb);
-      }
+    start(controller) {
+      stop = startStream(controller, source);
     },
     cancel() {
-      sub.unsubscribe();
+      stop();
     }
   });
-  return streamResponse(stream);
-};
-
-function streamResponse(stream: ReadableStream): Response {
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
@@ -105,3 +90,13 @@ function streamResponse(stream: ReadableStream): Response {
     }
   });
 }
+
+export const GET: RequestHandler = async ({ locals }) => {
+  if (!(await requireAdmin(locals.session))) throw error(403, 'forbidden');
+
+  if (DEMO) {
+    const { demoFeedEvent } = await import('#lib/server/demo-data');
+    return streamResponse(async () => demoStatusHistory(demoFeedEvent));
+  }
+  return streamResponse(() => statusHistory(STATUS_PREFIX));
+};
