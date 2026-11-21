@@ -8,6 +8,7 @@ defmodule ControlsGateway.Tts.Http do
   alias ControlsGateway.Tts.{Clips, Events, Nats, Page, Session, Throttle}
 
   @headers %{"cache-control" => "no-store", "referrer-policy" => "no-referrer"}
+  @allow %{session: "POST", events: "GET, HEAD"}
   @max_body 256
 
   @impl true
@@ -20,21 +21,33 @@ defmodule ControlsGateway.Tts.Http do
 
   defp dispatch("GET", :page, req), do: Page.reply(req, @headers)
   defp dispatch("POST", :session, req), do: exchange(req)
+  defp dispatch("HEAD", :events, req), do: authorized(:events_status, req)
 
-  defp dispatch("GET", route, req) when route in [:events, :clip] do
+  defp dispatch("GET", route, req) when route in [:events, :clip],
+    do: authorized(route, req)
+
+  defp dispatch(_method, route, req) do
+    allow = Map.get(@allow, route, "GET")
+    reply(req, 405, Map.put(@headers, "allow", allow))
+  end
+
+  defp authorized(route, req) do
     case Session.read(req) do
       {:ok, session} -> serve(route, req, session)
       :error -> reply(req, 401)
     end
   end
 
-  defp dispatch(_method, route, req) do
-    allow = if route == :session, do: "POST", else: "GET"
-    reply(req, 405, Map.put(@headers, "allow", allow))
-  end
-
   defp serve(:events, req, session), do: Events.open(req, session, @headers)
   defp serve(:clip, req, session), do: Clips.reply(req, session, @headers)
+
+  defp serve(:events_status, req, session) do
+    case Nats.check(Nats.rpc_connection(), session) do
+      true -> reply(req, 200)
+      false -> reply(req, 204)
+      :unavailable -> reply(req, 503)
+    end
+  end
 
   defp exchange(req) do
     case Throttle.reserve(client_ip(req)) do

@@ -6,9 +6,11 @@ for neighboring owners.
 ## TTS browser source beta
 
 OBS opens `https://overlay.itsbagelbot.com/tts#<token>`. The token is 32 random
-bytes encoded as unpadded base64url. The page sends it in one JSON
-`POST /tts/session`, then clears the fragment. Keep the token out of paths,
-queries and logs. Session, event and clip responses are uncached.
+bytes encoded as unpadded base64url. The page holds the token in memory after
+clearing the fragment and sends it in JSON `POST /tts/session`, retrying
+network errors, 429 (`Retry-After`) and 5xx with jittered exponential backoff
+and stopping only on 404. Keep the token out of paths, queries and logs.
+Session, event and clip responses are uncached.
 
 Users owns overlay tokens and generations. The gateway calls
 `rpc.internal.users.voice.overlay.resolve` with the lowercase SHA-256 hex of
@@ -22,15 +24,22 @@ minutes via `rpc.internal.users.voice.overlay.check`. It subscribes to
 `controls.tts.revoked.<user_id>` so it can also close immediately on revocation.
 Its ordered ephemeral consumer filters `OVERLAY_TTS` to
 `overlay.tts.<user_id>`. The SSE ID is the stream sequence. A reconnect
-starts after `Last-Event-ID` when present, or receives new events when absent.
+starts after `Last-Event-ID` or the `after` cursor sent by a replacement
+`EventSource`. With neither cursor the consumer receives new events.
 Each event carries `clip_key`, `event_id`, `kind`, `duration_ms` and
 `expires_at`. When the originating event carries a trace, its ID is also in
 `trace_id`. Idle connections receive a comment every 15 seconds.
 
 `GET /tts/clip/<event_id>` streams a WAV from `TTS_CLIPS` using the cookie
 user ID and the event ID as the object key. Missing and expired objects return
-404. The transparent browser source queues audio in arrival order and skips
-expired events. The sound hint appears when autoplay is blocked.
+404. The transparent browser source deduplicates `event_id` with a bounded set,
+queues audio in arrival order, skips expired events, and aborts stuck clips after
+`duration_ms + 5 s`. Outside OBS the sound hint appears when autoplay is
+blocked. In OBS the hint stays hidden and audio pauses while the source is
+inactive or hidden. On `EventSource` `CLOSED`, the page backs off with jitter
+and uses `HEAD /tts/events` to check the same session without opening a stream.
+A 204 ends the retry loop and clears queued audio. Otherwise the page renews
+the session with any held token and reopens the stream.
 
 The worker provisions both JetStream resources in `CONTROLS_GATEWAY_RPC`.
 `OVERLAY_TTS` is a file-backed stream with a five-minute max age.

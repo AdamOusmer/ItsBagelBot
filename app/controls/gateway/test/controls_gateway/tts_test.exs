@@ -26,8 +26,12 @@ defmodule ControlsGateway.TtsTest do
       Application.put_env(:controls_gateway, :overlay_cookie_key, key)
     end)
 
-    known_hash = :crypto.hash(:sha256, @token) |> Base.encode16(case: :lower)
-    responder = start_supervised!({Task, fn -> respond(known_hash) end})
+    overlay = %{
+      hash: :crypto.hash(:sha256, @token) |> Base.encode16(case: :lower),
+      check: tags[:overlay_check]
+    }
+
+    responder = start_supervised!({Task, fn -> respond(overlay) end})
     {:ok, _} = Gnat.sub(:gnat_rpc, responder, @overlay <> "resolve")
     {:ok, _} = Gnat.sub(:gnat_rpc, responder, @overlay <> "check")
 
@@ -53,10 +57,25 @@ defmodule ControlsGateway.TtsTest do
       assert %{status: 404} = HttpClient.request(port, "GET", path)
     end
 
-    assert %{status: 200, headers: headers, body: body} = HttpClient.request(port, "GET", "/tts")
-    assert headers["referrer-policy"] == "no-referrer"
-    assert headers["content-security-policy"] =~ "default-src 'none'"
-    assert body =~ "location.hash"
+    assert %{
+             status: 200,
+             headers: %{
+               "cache-control" => "no-store",
+               "referrer-policy" => "no-referrer",
+               "content-security-policy" => csp
+             },
+             body: body
+           } = HttpClient.request(port, "GET", "/tts")
+
+    assert [["style", style], ["script", script]] =
+             Regex.scan(~r{<(style|script)>(.*?)</\1>}s, body,
+               capture: :all_but_first
+             )
+
+    assert csp ==
+             "default-src 'none'; script-src '#{csp_hash(script)}'; " <>
+               "style-src '#{csp_hash(style)}'; connect-src 'self'; media-src 'self'; " <>
+               "base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
   end
 
   test "unknown tokens are 404 and never appear in logs", %{http_port: port} do
@@ -110,8 +129,37 @@ defmodule ControlsGateway.TtsTest do
       assert %{status: 404} = exchange(port, @unknown, [ip])
     end
 
-    assert %{status: 429} = exchange(port, @token, [ip])
+    assert %{status: 429, headers: %{"retry-after" => "60"}} = exchange(port, @token, [ip])
     assert %{status: 204} = exchange(port, @token, [{"cf-connecting-ip", "192.0.2.2"}])
+  end
+
+  test "event status requires a session and returns no stream for a valid session", %{
+    http_port: port
+  } do
+    assert %{status: 401} = HttpClient.request(port, "HEAD", "/tts/events")
+
+    assert %{status: 200, body: "", headers: %{"cache-control" => "no-store"} = headers} =
+             HttpClient.request(port, "HEAD", "/tts/events", headers: [cookie(port)])
+
+    refute headers["content-type"] == "text/event-stream"
+  end
+
+  @tag overlay_check: %{valid: false}
+  test "revoked sessions return 204 for the stream and its status check", %{http_port: port} do
+    headers = [cookie(port)]
+
+    for method <- ["GET", "HEAD"] do
+      assert %{status: 204, body: ""} =
+               HttpClient.request(port, method, "/tts/events", headers: headers)
+    end
+  end
+
+  @tag overlay_check: %{error: "unavailable"}
+  test "event status reports a transient error when revocation cannot be checked", %{
+    http_port: port
+  } do
+    assert %{status: 503} =
+             HttpClient.request(port, "HEAD", "/tts/events", headers: [cookie(port)])
   end
 
   test "SSE sends new clips in order and resumes after a stream sequence", %{http_port: port} do
@@ -127,12 +175,18 @@ defmodule ControlsGateway.TtsTest do
     refute data.body =~ "id: #{old}\n"
     HttpClient.close(data)
 
-    next = publish_clip("second")
-    resumed = events(port, [cookie, {"last-event-id", Integer.to_string(first)}])
-    data = HttpClient.await(resumed, &String.contains?(&1.body, "event_id"))
-    assert data.body =~ "id: #{next}\ndata: "
-    refute data.body =~ "id: #{first}\n"
-    HttpClient.close(data)
+    second = publish_clip("second")
+    third = publish_clip("third")
+
+    for {headers, cursor, wanted} <- [
+          {[cookie], first, second},
+          {[cookie, {"last-event-id", Integer.to_string(second)}], second, third}
+        ] do
+      resumed = events(port, headers, "/tts/events?after=#{first}")
+      data = HttpClient.await(resumed, &String.contains?(&1.body, "id: #{wanted}\ndata: "))
+      refute data.body =~ "id: #{cursor}\n"
+      HttpClient.close(data)
+    end
   end
 
   test "clip reads stream multiple chunks and isolate accounts", %{http_port: port} do
@@ -146,11 +200,12 @@ defmodule ControlsGateway.TtsTest do
     upload("42/foreign", "ForeignClip12345", chunks)
     headers = [cookie(port)]
 
-    assert %{status: 200, body: ^audio, headers: response_headers} =
-             HttpClient.request(port, "GET", "/tts/clip/clip", headers: headers)
+    assert %{
+             status: 200,
+             body: ^audio,
+             headers: %{"content-type" => "audio/wav", "cache-control" => "no-store"}
+           } = HttpClient.request(port, "GET", "/tts/clip/clip", headers: headers)
 
-    assert response_headers["content-type"] == "audio/wav"
-    assert response_headers["cache-control"] == "no-store"
     assert %{status: 404} = HttpClient.request(port, "GET", "/tts/clip/foreign", headers: headers)
   end
 
@@ -173,10 +228,12 @@ defmodule ControlsGateway.TtsTest do
     HttpClient.close(client)
   end
 
-  defp events(port, headers) do
+  defp csp_hash(content), do: "sha256-" <> Base.encode64(:crypto.hash(:sha256, content))
+
+  defp events(port, headers, path \\ "/tts/events") do
     response =
       port
-      |> HttpClient.open("GET", "/tts/events", headers: headers)
+      |> HttpClient.open("GET", path, headers: headers)
       |> HttpClient.await(&String.contains?(&1.body, ": ping\n\n"))
 
     assert response.status == 200
@@ -234,20 +291,20 @@ defmodule ControlsGateway.TtsTest do
     assert is_integer(seq) and seq > 0
   end
 
-  defp respond(known_hash) do
+  defp respond(overlay) do
     receive do
       {:msg, %{topic: topic, reply_to: reply, body: body}} ->
-        payload = response(topic, Jason.decode!(body), known_hash)
+        payload = response(topic, Jason.decode!(body), overlay)
         :ok = Gnat.pub(:gnat_rpc, reply, Jason.encode!(payload))
-        respond(known_hash)
+        respond(overlay)
     end
   end
 
-  defp response(@overlay <> "resolve", %{"token_hash" => hash}, hash),
+  defp response(@overlay <> "resolve", %{"token_hash" => hash}, %{hash: hash}),
     do: %{user_id: @user_id, generation: @generation}
 
-  defp response(@overlay <> "resolve", _params, _hash), do: %{code: "not_found"}
+  defp response(@overlay <> "resolve", _params, _overlay), do: %{code: "not_found"}
 
-  defp response(@overlay <> "check", params, _hash),
-    do: %{valid: params == %{"user_id" => @user_id, "generation" => @generation}}
+  defp response(@overlay <> "check", params, %{check: check}),
+    do: check || %{valid: params == %{"user_id" => @user_id, "generation" => @generation}}
 end
