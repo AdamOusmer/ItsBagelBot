@@ -29,6 +29,7 @@ const (
 	ttsJobTTL         = 10 * time.Minute
 	ttsAckWait        = 60 * time.Second
 	ttsHandleTimeout  = 40 * time.Second
+	ttsMaxDeliver     = 3
 )
 
 type TTSJobs struct {
@@ -72,7 +73,7 @@ func OpenTTSJobs(ctx context.Context, nc *nats.Conn, replicas int) (*TTSJobs, er
 	}
 	consumer, err := stream.CreateOrUpdateConsumer(ctx, jsapi.ConsumerConfig{
 		Durable: TTSWorkerDurable, AckPolicy: jsapi.AckExplicitPolicy,
-		AckWait: ttsAckWait, MaxDeliver: 3, MaxAckPending: -1,
+		AckWait: ttsAckWait, MaxDeliver: ttsMaxDeliver, MaxAckPending: -1,
 	})
 	if err != nil {
 		return nil, err

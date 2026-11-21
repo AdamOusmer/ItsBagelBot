@@ -100,6 +100,10 @@ config :controls_gateway,
   nats: [nats_settings.(nats_host, nats_port)],
   rpc_nats: [nats_settings.(nats_rpc_host, nats_rpc_port)]
 
+if config_env() == :prod do
+  config :logger, :default_formatter, format: {ControlsGateway.LogFormatter, :format}
+end
+
 if level = System.get_env("LOG_LEVEL") do
   config :logger, level: String.to_existing_atom(level)
 end

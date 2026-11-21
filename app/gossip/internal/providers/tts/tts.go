@@ -22,6 +22,7 @@ import (
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/ratelimit"
 
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"
 )
@@ -167,7 +168,17 @@ func (s *synthesizer) call(ctx context.Context, req gossiprpc.Request) gossiprpc
 	if err != nil {
 		return s.failure(ctx, err)
 	}
-	return sample.reply(req)
+	reply := sample.reply(req)
+	recordSpeech(ctx, reply)
+	return reply
+}
+
+func recordSpeech(ctx context.Context, reply gossiprpc.TTSSynthesizeReply) {
+	txn := newrelic.FromContext(ctx)
+	txn.AddAttribute("tts.model", string(reply.Model))
+	txn.AddAttribute("tts.duration_ms", reply.DurationMS)
+	txn.AddAttribute("tts.audio_tokens", reply.AudioTokens)
+	txn.AddAttribute("tts.characters", reply.BilledCharacters)
 }
 
 func (s speech) reply(req gossiprpc.Request) gossiprpc.TTSSynthesizeReply {
@@ -217,6 +228,21 @@ func forbiddenSpeechRune(r rune) bool {
 
 func (s *synthesizer) failure(ctx context.Context, err error) gossiprpc.TTSSynthesizeReply {
 	core.RecordFetchError(ctx, err)
+	reply := s.failureReply(ctx, err)
+	monitor.TxnLogger(ctx, s.log).Warn("TTS synthesis failed", zap.String("reason", cmp.Or(reply.Reason, reply.Error)),
+		zap.Int("status", upstreamStatus(err)), zap.Error(monitor.ScrubError(err)))
+	return reply
+}
+
+func upstreamStatus(err error) int {
+	var upstream *core.UpstreamError
+	if errors.As(err, &upstream) {
+		return upstream.Status
+	}
+	return 0
+}
+
+func (s *synthesizer) failureReply(ctx context.Context, err error) gossiprpc.TTSSynthesizeReply {
 	var upstream *core.UpstreamError
 	if errors.As(err, &upstream) {
 		return s.upstreamFailure(ctx, upstream, err)

@@ -75,8 +75,12 @@ defmodule ControlsGateway.Tts.Events do
       {:ok, %{"name" => ^name}} ->
         %{state | consumer: name, seen_at: now()}
 
-      _ ->
-        Logger.warning("TTS events consumer unavailable")
+      other ->
+        Logger.warning("TTS events consumer unavailable",
+          user_id: state.session.user_id,
+          reason: inspect(other, limit: 5)
+        )
+
         state
     end
   end
@@ -136,7 +140,7 @@ defmodule ControlsGateway.Tts.Events do
     case Message.metadata(message) do
       {:ok, %{consumer: consumer, stream_seq: stream_seq, consumer_seq: ^next}}
       when consumer == state.consumer ->
-        send_event(req, stream_seq, body)
+        send_event(req, stream_seq, body, state.session)
         continue(req, %{state | seq: next, seen_at: now()})
 
       _ ->
@@ -146,7 +150,7 @@ defmodule ControlsGateway.Tts.Events do
 
   defp deliver(_message, req, state), do: stop(req, state)
 
-  defp send_event(req, seq, body) do
+  defp send_event(req, seq, body, session) do
     case Jason.decode(body) do
       {:ok, event} when is_map(event) ->
         :cowboy_req.stream_body(
@@ -155,8 +159,14 @@ defmodule ControlsGateway.Tts.Events do
           req
         )
 
+        Logger.info("TTS event delivered",
+          user_id: session.user_id,
+          event_id: event["event_id"],
+          trace_id: event["trace_id"]
+        )
+
       _ ->
-        Logger.warning("TTS event payload invalid")
+        Logger.warning("TTS event payload invalid", user_id: session.user_id)
     end
   end
 

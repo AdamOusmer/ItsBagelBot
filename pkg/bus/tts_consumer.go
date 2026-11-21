@@ -17,7 +17,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const ttsRetryDelay = 2 * time.Second
+const (
+	ttsRetryDelay     = 2 * time.Second
+	deliveryAttribute = "messaging.delivery"
+)
 
 type TTSJobHandler func(context.Context, []byte) error
 
@@ -74,27 +77,37 @@ func (p ttsJobPump) subscriptionError(ctx context.Context, err error) {
 func (p ttsJobPump) process(parent context.Context, msg jsapi.Msg) {
 	ctx, cancel := context.WithTimeout(parent, ttsHandleTimeout)
 	defer cancel()
+	txn := p.startTransaction(msg)
+	defer txn.End()
+	log := monitor.TraceLogger(txn, p.log)
 	stopProgress := p.trackProgress(ctx, msg)
-	err := p.handleTraced(ctx, msg)
+	err := p.handle(newrelic.NewContext(ctx, txn), msg.Data())
 	stopProgress()
+	monitor.NoticeError(txn, err)
+	txn.AddAttribute(resultAttribute, messagingResult(err))
 	if err != nil {
-		p.retry(msg, err)
+		p.retry(msg, err, log)
 		return
 	}
 	if err := msg.DoubleAck(parent); err != nil {
-		p.log.Warn("TTS job acknowledgement failed", zap.Error(err))
+		log.Warn("TTS job acknowledgement failed", zap.Error(err))
 	}
 }
 
-func (p ttsJobPump) handleTraced(ctx context.Context, msg jsapi.Msg) error {
+func (p ttsJobPump) startTransaction(msg jsapi.Msg) *newrelic.Transaction {
 	txn := p.app.StartTransaction("consume " + TTSJobsStream)
-	defer txn.End()
-	acceptTraceHeaders(txn, msg.Headers())
+	acceptTraceHeaders(txn, alwaysSampledTrace(msg.Headers()))
 	addMessagingTransactionAttributes(txn, messagingAttributes{operation: "process", destination: msg.Subject()})
-	err := p.handle(newrelic.NewContext(ctx, txn), msg.Data())
-	monitor.NoticeError(txn, err)
-	txn.AddAttribute(resultAttribute, messagingResult(err))
-	return err
+	txn.AddAttribute(deliveryAttribute, deliveryCount(msg))
+	return txn
+}
+
+func deliveryCount(msg jsapi.Msg) uint64 {
+	meta, err := msg.Metadata()
+	if err != nil {
+		return 0
+	}
+	return meta.NumDelivered
 }
 
 func (p ttsJobPump) trackProgress(ctx context.Context, msg jsapi.Msg) func() {
@@ -126,14 +139,20 @@ func (p ttsJobPump) progress(msg jsapi.Msg) {
 	}
 }
 
-func (p ttsJobPump) retry(msg jsapi.Msg, err error) {
+func (p ttsJobPump) retry(msg jsapi.Msg, err error, log *zap.Logger) {
 	delay := ttsRetryDelay
 	var retry TTSRetryError
 	if errors.As(err, &retry) && retry.Delay > 0 {
 		delay = retry.Delay
 	}
-	p.log.Warn("TTS job failed", zap.Error(err))
+	delivery := deliveryCount(msg)
+	fields := []zap.Field{zap.String("subject", msg.Subject()), zap.Uint64("delivery", delivery), zap.Error(err)}
+	if delivery >= ttsMaxDeliver {
+		log.Error("TTS job abandoned after final delivery", fields...)
+	} else {
+		log.Warn("TTS job failed, retrying", append(fields, zap.Duration("retry_in", delay))...)
+	}
 	if err := msg.NakWithDelay(delay); err != nil {
-		p.log.Warn("TTS job retry acknowledgement failed", zap.Error(err))
+		log.Warn("TTS job retry acknowledgement failed", zap.Error(err))
 	}
 }

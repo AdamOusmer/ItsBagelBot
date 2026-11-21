@@ -50,6 +50,33 @@ func insertQueueTraceHeaders(ctx context.Context, msg *nats.Msg) {
 	}
 }
 
+// The Go agent ignores the W3C sampled flag; only a New Relic tracestate entry forces sampling.
+func alwaysSampledTrace(headers nats.Header) nats.Header {
+	state := headers.Get("Tracestate")
+	if state == "" {
+		return headers
+	}
+	sampled := make(nats.Header, len(headers))
+	for key, values := range headers {
+		sampled[key] = values
+	}
+	sampled.Set("Tracestate", sampledTraceState(state))
+	return sampled
+}
+
+func sampledTraceState(state string) string {
+	entries := strings.Split(state, ",")
+	for i, entry := range entries {
+		key, value, found := strings.Cut(entry, "@nr=")
+		fields := strings.Split(value, "-")
+		if found && len(fields) >= 9 {
+			fields[6], fields[7] = "1", "2"
+			entries[i] = key + "@nr=" + strings.Join(fields, "-")
+		}
+	}
+	return strings.Join(entries, ",")
+}
+
 func traceMetadataHeader(metadata Metadata, key string) string {
 	return cmp.Or(metadata[key], metadata[strings.ToLower(key)])
 }
