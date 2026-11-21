@@ -12,6 +12,8 @@ import (
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/schema"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/app/db/users/ent/voiceusage"
+	"ItsBagelBot/app/db/users/ent/voiceusagereceipt"
 	"time"
 
 	"github.com/google/uuid"
@@ -311,44 +313,126 @@ func init() {
 	userDescSongqueuePageHidden := userFields[20].Descriptor()
 	// user.DefaultSongqueuePageHidden holds the default value on creation for the songqueue_page_hidden field.
 	user.DefaultSongqueuePageHidden = userDescSongqueuePageHidden.Default.(bool)
+	// userDescTtsEnabled is the schema descriptor for tts_enabled field.
+	userDescTtsEnabled := userFields[21].Descriptor()
+	// user.DefaultTtsEnabled holds the default value on creation for the tts_enabled field.
+	user.DefaultTtsEnabled = userDescTtsEnabled.Default.(bool)
+	// userDescTtsVoice is the schema descriptor for tts_voice field.
+	userDescTtsVoice := userFields[22].Descriptor()
+	// user.DefaultTtsVoice holds the default value on creation for the tts_voice field.
+	user.DefaultTtsVoice = userDescTtsVoice.Default.(string)
+	// userDescTtsMaxSeconds is the schema descriptor for tts_max_seconds field.
+	userDescTtsMaxSeconds := userFields[23].Descriptor()
+	// user.DefaultTtsMaxSeconds holds the default value on creation for the tts_max_seconds field.
+	user.DefaultTtsMaxSeconds = userDescTtsMaxSeconds.Default.(int)
+	// user.TtsMaxSecondsValidator is a validator for the "tts_max_seconds" field. It is called by the builders before save.
+	user.TtsMaxSecondsValidator = func() func(int) error {
+		validators := userDescTtsMaxSeconds.Validators
+		fns := [...]func(int) error{
+			validators[0].(func(int) error),
+			validators[1].(func(int) error),
+		}
+		return func(tts_max_seconds int) error {
+			for _, fn := range fns {
+				if err := fn(tts_max_seconds); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// userDescTtsOverlayTokenHash is the schema descriptor for tts_overlay_token_hash field.
+	userDescTtsOverlayTokenHash := userFields[24].Descriptor()
+	// user.TtsOverlayTokenHashValidator is a validator for the "tts_overlay_token_hash" field. It is called by the builders before save.
+	user.TtsOverlayTokenHashValidator = userDescTtsOverlayTokenHash.Validators[0].(func(string) error)
+	// userDescTtsOverlayGeneration is the schema descriptor for tts_overlay_generation field.
+	userDescTtsOverlayGeneration := userFields[25].Descriptor()
+	// user.DefaultTtsOverlayGeneration holds the default value on creation for the tts_overlay_generation field.
+	user.DefaultTtsOverlayGeneration = userDescTtsOverlayGeneration.Default.(int)
 	// userDescCreatorCode is the schema descriptor for creator_code field.
-	userDescCreatorCode := userFields[21].Descriptor()
+	userDescCreatorCode := userFields[26].Descriptor()
 	// user.CreatorCodeValidator is a validator for the "creator_code" field. It is called by the builders before save.
 	user.CreatorCodeValidator = userDescCreatorCode.Validators[0].(func(string) error)
 	// userDescSubscriptionSource is the schema descriptor for subscription_source field.
-	userDescSubscriptionSource := userFields[22].Descriptor()
+	userDescSubscriptionSource := userFields[27].Descriptor()
 	// user.DefaultSubscriptionSource holds the default value on creation for the subscription_source field.
 	user.DefaultSubscriptionSource = userDescSubscriptionSource.Default.(string)
 	// userDescSubscriptionCancelPending is the schema descriptor for subscription_cancel_pending field.
-	userDescSubscriptionCancelPending := userFields[25].Descriptor()
+	userDescSubscriptionCancelPending := userFields[30].Descriptor()
 	// user.DefaultSubscriptionCancelPending holds the default value on creation for the subscription_cancel_pending field.
 	user.DefaultSubscriptionCancelPending = userDescSubscriptionCancelPending.Default.(bool)
 	// userDescSubscriptionPaymentFailed is the schema descriptor for subscription_payment_failed field.
-	userDescSubscriptionPaymentFailed := userFields[26].Descriptor()
+	userDescSubscriptionPaymentFailed := userFields[31].Descriptor()
 	// user.DefaultSubscriptionPaymentFailed holds the default value on creation for the subscription_payment_failed field.
 	user.DefaultSubscriptionPaymentFailed = userDescSubscriptionPaymentFailed.Default.(bool)
 	// userDescGiftsSent is the schema descriptor for gifts_sent field.
-	userDescGiftsSent := userFields[29].Descriptor()
+	userDescGiftsSent := userFields[34].Descriptor()
 	// user.DefaultGiftsSent holds the default value on creation for the gifts_sent field.
 	user.DefaultGiftsSent = userDescGiftsSent.Default.(uint32)
 	// userDescOnboarded is the schema descriptor for onboarded field.
-	userDescOnboarded := userFields[30].Descriptor()
+	userDescOnboarded := userFields[35].Descriptor()
 	// user.DefaultOnboarded holds the default value on creation for the onboarded field.
 	user.DefaultOnboarded = userDescOnboarded.Default.(bool)
 	// userDescTestAccount is the schema descriptor for test_account field.
-	userDescTestAccount := userFields[31].Descriptor()
+	userDescTestAccount := userFields[36].Descriptor()
 	// user.DefaultTestAccount holds the default value on creation for the test_account field.
 	user.DefaultTestAccount = userDescTestAccount.Default.(bool)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[32].Descriptor()
+	userDescCreatedAt := userFields[37].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[33].Descriptor()
+	userDescUpdatedAt := userFields[38].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	user.UpdateDefaultUpdatedAt = userDescUpdatedAt.UpdateDefault.(func() time.Time)
+	voiceusageFields := schema.VoiceUsage{}.Fields()
+	_ = voiceusageFields
+	// voiceusageDescPeriod is the schema descriptor for period field.
+	voiceusageDescPeriod := voiceusageFields[1].Descriptor()
+	// voiceusage.PeriodValidator is a validator for the "period" field. It is called by the builders before save.
+	voiceusage.PeriodValidator = voiceusageDescPeriod.Validators[0].(func(string) error)
+	// voiceusageDescAudioTokens is the schema descriptor for audio_tokens field.
+	voiceusageDescAudioTokens := voiceusageFields[2].Descriptor()
+	// voiceusage.AudioTokensValidator is a validator for the "audio_tokens" field. It is called by the builders before save.
+	voiceusage.AudioTokensValidator = voiceusageDescAudioTokens.Validators[0].(func(int64) error)
+	// voiceusageDescDurationMs is the schema descriptor for duration_ms field.
+	voiceusageDescDurationMs := voiceusageFields[3].Descriptor()
+	// voiceusage.DurationMsValidator is a validator for the "duration_ms" field. It is called by the builders before save.
+	voiceusage.DurationMsValidator = voiceusageDescDurationMs.Validators[0].(func(int64) error)
+	// voiceusageDescRequests is the schema descriptor for requests field.
+	voiceusageDescRequests := voiceusageFields[4].Descriptor()
+	// voiceusage.RequestsValidator is a validator for the "requests" field. It is called by the builders before save.
+	voiceusage.RequestsValidator = voiceusageDescRequests.Validators[0].(func(int) error)
+	voiceusagereceiptFields := schema.VoiceUsageReceipt{}.Fields()
+	_ = voiceusagereceiptFields
+	// voiceusagereceiptDescRequestID is the schema descriptor for request_id field.
+	voiceusagereceiptDescRequestID := voiceusagereceiptFields[0].Descriptor()
+	// voiceusagereceipt.RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
+	voiceusagereceipt.RequestIDValidator = func() func(string) error {
+		validators := voiceusagereceiptDescRequestID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(request_id string) error {
+			for _, fn := range fns {
+				if err := fn(request_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// voiceusagereceiptDescPeriod is the schema descriptor for period field.
+	voiceusagereceiptDescPeriod := voiceusagereceiptFields[2].Descriptor()
+	// voiceusagereceipt.PeriodValidator is a validator for the "period" field. It is called by the builders before save.
+	voiceusagereceipt.PeriodValidator = voiceusagereceiptDescPeriod.Validators[0].(func(string) error)
+	// voiceusagereceiptDescAudioTokens is the schema descriptor for audio_tokens field.
+	voiceusagereceiptDescAudioTokens := voiceusagereceiptFields[3].Descriptor()
+	// voiceusagereceipt.AudioTokensValidator is a validator for the "audio_tokens" field. It is called by the builders before save.
+	voiceusagereceipt.AudioTokensValidator = voiceusagereceiptDescAudioTokens.Validators[0].(func(int64) error)
 }
 
 const (

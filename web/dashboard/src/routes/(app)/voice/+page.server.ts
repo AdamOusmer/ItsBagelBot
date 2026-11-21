@@ -1,0 +1,64 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import { fail, redirect } from '@sveltejs/kit';
+import { translate } from '@bagel/kit/i18n';
+import { bestEffort } from '@bagel/kit/server/best-effort';
+import { RpcError } from '@bagel/kit/server/nats';
+import { CLOUD_VOICES, MAX_CLIP_SECONDS, MIN_CLIP_SECONDS } from '@bagel/kit/voice-plan';
+import { isOwnerSession } from '#lib/server/owner';
+import { voiceGet, voiceOverlayRotate, voiceSet, type VoiceAllowance } from '#lib/server/services/voice';
+import type { Actions, PageServerLoad } from './$types';
+
+export const load: PageServerLoad = async ({ locals: { session } }) => {
+  if (!session) throw redirect(302, '/login?next=%2Fvoice');
+  if (!isOwnerSession(session)) return { readOnly: true, allowance: null };
+  return { readOnly: false, allowance: await bestEffort<VoiceAllowance | null>(voiceGet(session), null) };
+};
+
+function clipSeconds(fields: FormData): number | null {
+  const seconds = Number(fields.get('max_seconds'));
+  if (!Number.isInteger(seconds)) return null;
+  return seconds >= MIN_CLIP_SECONDS && seconds <= MAX_CLIP_SECONDS ? seconds : null;
+}
+
+export const actions = {
+  save: async ({ locals: { session, locale }, request }) => {
+    if (!session) return fail(401, { error: translate(locale, 'serverErrors.notSignedIn') });
+    if (!isOwnerSession(session)) return fail(403, { error: translate(locale, 'serverErrors.ownerOnly') });
+
+    const fields = await request.formData();
+    const selectedVoice = fields.get('voice');
+    const voice = CLOUD_VOICES.find((name) => name === selectedVoice);
+    if (!voice) return fail(400, { error: translate(locale, 'voice.invalidVoice') });
+
+    const enabled = fields.get('enabled');
+    if (enabled !== 'true' && enabled !== 'false') {
+      return fail(400, { error: translate(locale, 'serverErrors.invalidInput') });
+    }
+    const maxSeconds = clipSeconds(fields);
+    if (maxSeconds === null) {
+      return fail(400, { error: translate(locale, 'voice.invalidMaxLength', { min: MIN_CLIP_SECONDS, max: MAX_CLIP_SECONDS }) });
+    }
+    try {
+      await voiceSet(session, { enabled: enabled === 'true', voice, max_seconds: maxSeconds });
+      return { ok: true };
+    } catch {
+      return fail(503, { error: translate(locale, 'voice.saveFailed') });
+    }
+  },
+  rotateOverlay: async ({ locals: { session, locale }, setHeaders }) => {
+    if (!session) return fail(401, { overlayError: translate(locale, 'serverErrors.notSignedIn') });
+    if (!isOwnerSession(session)) return fail(403, { overlayError: translate(locale, 'serverErrors.ownerOnly') });
+
+    setHeaders({ 'cache-control': 'no-store' });
+    try {
+      return { overlayUrl: await voiceOverlayRotate(session) };
+    } catch (err) {
+      if (err instanceof RpcError && err.code === 'forbidden') {
+        return fail(403, { overlayError: translate(locale, 'voice.overlayUnavailable') });
+      }
+      return fail(503, { overlayError: translate(locale, 'voice.overlayFailed') });
+    }
+  }
+} satisfies Actions;

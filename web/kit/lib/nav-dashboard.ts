@@ -9,7 +9,7 @@ import { navGroups, navItems, resolveSection, type SectionDef } from './nav-core
 export const GRANTABLE_SECTIONS = ['commands', 'modules', 'channelpoints', 'billing'] as const;
 export type GrantSection = (typeof GRANTABLE_SECTIONS)[number];
 
-export type SectionId = 'overview' | 'commands' | 'flows' | 'modules' | 'giveaways' | 'songqueue' | 'billing' | 'settings';
+export type SectionId = 'overview' | 'commands' | 'flows' | 'modules' | 'giveaways' | 'songqueue' | 'voice' | 'billing' | 'settings';
 
 export interface DashboardSectionDef extends SectionDef {
   id: SectionId;
@@ -20,6 +20,7 @@ export interface DashboardSectionDef extends SectionDef {
     | 'nav.modules'
     | 'nav.giveaways'
     | 'nav.songqueue'
+    | 'nav.voice'
     | 'nav.billing'
     | 'nav.settings';
   icon: IconName;
@@ -82,6 +83,14 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     href: '/songqueue',
     match: ['/songqueue'],
     grantsAny: ['modules', 'channelpoints']
+  },
+  {
+    id: 'voice',
+    labelKey: 'nav.voice',
+    icon: 'bell',
+    href: '/voice',
+    match: ['/voice'],
+    ownerOnly: true
   },
   {
     id: 'billing',
