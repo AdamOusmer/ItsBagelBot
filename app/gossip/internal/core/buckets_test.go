@@ -5,6 +5,7 @@ package core
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"testing"
 
@@ -122,7 +123,9 @@ func TestBucketsAdmitOnlyTheirLaneBurstBeforeDenying(t *testing.T) {
 			assert.Equal(t, tc.wantAdmitted, admitted)
 			var upstream *UpstreamError
 			require.ErrorAs(t, denial, &upstream)
-			assert.Equal(t, UpstreamError{Status: 429, Message: tc.wantDenial, LocalDeny: true}, *upstream)
+			assert.Equal(t, !tc.premium, upstream.RetryAfter > 0)
+			upstream.RetryAfter = 0
+			assert.Equal(t, UpstreamError{Status: http.StatusTooManyRequests, Message: tc.wantDenial, LocalDeny: true}, *upstream)
 		})
 	}
 }
