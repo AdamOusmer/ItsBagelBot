@@ -75,6 +75,10 @@ Production uses the `controls-gateway` Doppler project for the shared
 `OVERLAY_COOKIE_KEY` (at least 32 bytes) and the dedicated
 `controls_gateway_rpc` NATS credentials. Traefik forwards the overlay hostname
 to the HTTPS listener. The gateway takes the client IP from the Cloudflare
-header on this route, and defaults to the socket peer locally. The NATS
-account declarations require operator-signed claims before rollout, and the
-workload requires its first published image digest.
+header on this route, and defaults to the socket peer locally.
+
+The gateway holds two NATS connections with the same credentials. `:gnat` goes
+to the hub (`NATS_HOST`), where `OVERLAY_TTS` and `TTS_CLIPS` live. `:gnat_rpc`
+goes to the node-local leaf cluster (`NATS_RPC_HOST`), where Users serves the
+overlay resolve and check RPCs and publishes revocations. The two clusters are
+not bridged, so an RPC sent to the hub gets no responders.
