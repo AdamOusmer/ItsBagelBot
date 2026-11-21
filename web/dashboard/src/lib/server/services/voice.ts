@@ -10,6 +10,7 @@ import { SUB } from './subjects';
 type VoiceSettings = {
   enabled: boolean;
   voice: (typeof CLOUD_VOICES)[number];
+  max_seconds: number;
 };
 
 export type VoiceAllowance = VoiceSettings & {

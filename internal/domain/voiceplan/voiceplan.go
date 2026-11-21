@@ -20,6 +20,8 @@ const (
 
 const TokensPerSecond = 25
 const DefaultVoice = "Kore"
+const MinClipSeconds = 5
+const MaxClipSeconds = 120
 
 var monthlyMinutes = map[Plan]int64{
 	Free:       0,

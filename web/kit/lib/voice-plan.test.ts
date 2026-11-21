@@ -2,7 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { expect, test } from 'bun:test';
-import { CLOUD_VOICES, DEFAULT_VOICE, MONTHLY_VOICE_MINUTES, VOICE_TOKENS_PER_SECOND } from './voice-plan';
+import {
+  CLOUD_VOICES, DEFAULT_VOICE, MAX_CLIP_SECONDS, MIN_CLIP_SECONDS, MONTHLY_VOICE_MINUTES, VOICE_TOKENS_PER_SECOND
+} from './voice-plan';
 
 const source = await Bun.file(new URL('../../../internal/domain/voiceplan/voiceplan.go', import.meta.url)).text();
 
@@ -17,15 +19,20 @@ test('monthly voice minutes match the Go policy', () => {
   expect(goMinutes).toEqual(MONTHLY_VOICE_MINUTES);
 });
 
-test('the cloud voice list and default match the Go policy', () => {
+test('the cloud voice list matches the Go policy', () => {
   const list = source.match(/var voices = \[\]string\{([^}]+)\}/)?.[1] ?? '';
   const goVoices = [...list.matchAll(/"([^"]+)"/g)].map((match) => match[1]!);
 
   expect(new Set(goVoices).size).toBe(30);
   expect(goVoices).toEqual([...CLOUD_VOICES]);
-  expect(source.match(/^const DefaultVoice = "([^"]+)"$/m)?.[1]).toBe(DEFAULT_VOICE);
 });
 
-test('audio tokens per second match the Go policy', () => {
-  expect(Number(source.match(/^const TokensPerSecond = (\d+)$/m)?.[1])).toBe(VOICE_TOKENS_PER_SECOND);
+test.each([
+  { name: 'DefaultVoice', value: `"${DEFAULT_VOICE}"` },
+  { name: 'TokensPerSecond', value: String(VOICE_TOKENS_PER_SECOND) },
+  { name: 'MinClipSeconds', value: String(MIN_CLIP_SECONDS) },
+  { name: 'MaxClipSeconds', value: String(MAX_CLIP_SECONDS) }
+])('$name matches the Go policy', ({ name, value }) => {
+  const literal = source.match(new RegExp(`^\\s*(?:const\\s+)?${name}\\s*=\\s*(\\S+)$`, 'm'))?.[1];
+  expect(literal).toBe(value);
 });

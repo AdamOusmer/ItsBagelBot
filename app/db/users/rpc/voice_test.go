@@ -56,7 +56,7 @@ func TestDashboardVoiceOwnerOnly(t *testing.T) {
 			req := owner
 			req.ActorID = tc.actor
 			set := call[voiceSettingsReply](t, h, testVoiceDashboard+".voice_set", usersrpc.VoiceSetRequest{
-				VoiceGetRequest: req, Enabled: false, Voice: "Leda",
+				VoiceGetRequest: req, Enabled: false, Voice: "Leda", MaxSeconds: voiceplan.MaxClipSeconds,
 			})
 			assert.Equal(t, tc.code, set.Code)
 			assert.Equal(t, tc.code == domainrpc.CodeOK, set.OK)
@@ -67,6 +67,39 @@ func TestDashboardVoiceOwnerOnly(t *testing.T) {
 			settings := call[usersrpc.VoiceReply](t, h, testVoiceDashboard+".voice_get", owner)
 			assert.Equal(t, tc.voice, settings.Voice)
 			assert.Equal(t, tc.enabled, settings.Enabled)
+		})
+	}
+}
+
+func TestDashboardVoiceMaxSeconds(t *testing.T) {
+	h := newVoiceHarness(t)
+	owner := usersrpc.VoiceGetRequest{ActorID: testVoiceOwner, BroadcasterUserID: testVoiceOwner}
+	subject := testVoiceDashboard + ".voice_set"
+	omitted := call[voiceSettingsReply](t, h, subject, owner)
+	assert.Equal(t, domainrpc.CodeInvalid, omitted.Code)
+
+	cases := []struct {
+		name    string
+		seconds int
+		code    domainrpc.Code
+		stored  int
+	}{
+		{"zero", 0, domainrpc.CodeInvalid, 120},
+		{"below minimum", 4, domainrpc.CodeInvalid, 120},
+		{"at minimum", 5, domainrpc.CodeOK, 5},
+		{"above maximum", 121, domainrpc.CodeInvalid, 5},
+		{"at maximum", 120, domainrpc.CodeOK, 120},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			set := call[voiceSettingsReply](t, h, subject, usersrpc.VoiceSetRequest{
+				VoiceGetRequest: owner, Enabled: true, Voice: voiceplan.DefaultVoice, MaxSeconds: tc.seconds,
+			})
+			assert.Equal(t, tc.code, set.Code)
+
+			settings := call[usersrpc.VoiceReply](t, h, testVoiceDashboard+".voice_get", owner)
+			check := call[usersrpc.VoiceCheckReply](t, h, testVoiceCheckSubject, usersrpc.VoiceCheckRequest{UserID: testVoiceOwner})
+			assert.Equal(t, [2]int{tc.stored, tc.stored}, [2]int{settings.MaxSeconds, check.MaxSeconds})
 		})
 	}
 }
@@ -115,20 +148,29 @@ func TestDashboardVoiceInactiveReason(t *testing.T) {
 
 func TestInternalVoiceRecord(t *testing.T) {
 	h := newVoiceHarness(t)
+	const capTokens = 3_000
 	limit := voiceplan.SecondsToTokens(voiceplan.MonthlySeconds(voiceplan.VIP))
-	subject := testVoiceRecordSubject
-	req := usersrpc.VoiceRecordRequest{UserID: testVoiceOwner, RequestID: "first", AudioTokens: 15_000, DurationMS: 600_000}
-	first := call[usersrpc.VoiceReply](t, h, subject, req)
-	require.Empty(t, first.Refusal)
-	assert.Equal(t, [2]int64{req.AudioTokens, limit - req.AudioTokens}, [2]int64{first.UsedTokens, first.RemainingTokens})
-	assert.Equal(t, first, call[usersrpc.VoiceReply](t, h, subject, req))
-
-	for _, usage := range []usersrpc.VoiceRecordRequest{
-		{UserID: testVoiceOwner, RequestID: "negative-duration", DurationMS: -1},
-		{UserID: testVoiceOwner, RequestID: "excess-tokens", AudioTokens: 15_001},
-		{UserID: testVoiceOwner, RequestID: "excess-duration", DurationMS: 600_001},
-	} {
-		invalid := call[usersrpc.VoiceReply](t, h, subject, usage)
-		assert.Equal(t, domainrpc.CodeInvalid, invalid.Code, "request %s", usage.RequestID)
+	cases := []struct {
+		name            string
+		tokens          int64
+		durationMS      int64
+		code            domainrpc.Code
+		used, remaining int64
+	}{
+		{"at cap", capTokens, 120_000, domainrpc.CodeOK, capTokens, limit - capTokens},
+		{"excess tokens", 3_001, 120_000, domainrpc.CodeInvalid, 0, 0},
+		{"excess duration", capTokens, 120_001, domainrpc.CodeInvalid, 0, 0},
+		{"negative duration", 0, -1, domainrpc.CodeInvalid, 0, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := usersrpc.VoiceRecordRequest{
+				UserID: testVoiceOwner, RequestID: tc.name, AudioTokens: tc.tokens, DurationMS: tc.durationMS,
+			}
+			got := call[usersrpc.VoiceReply](t, h, testVoiceRecordSubject, req)
+			assert.Equal(t, tc.code, got.Code)
+			assert.Equal(t, [2]int64{tc.used, tc.remaining}, [2]int64{got.UsedTokens, got.RemainingTokens})
+			assert.Equal(t, got, call[usersrpc.VoiceReply](t, h, testVoiceRecordSubject, req))
+		})
 	}
 }

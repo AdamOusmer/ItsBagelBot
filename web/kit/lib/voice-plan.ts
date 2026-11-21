@@ -44,3 +44,5 @@ export const CLOUD_VOICES = [
 
 export const DEFAULT_VOICE = 'Kore' satisfies (typeof CLOUD_VOICES)[number];
 export const VOICE_TOKENS_PER_SECOND = 25;
+export const MIN_CLIP_SECONDS = 5;
+export const MAX_CLIP_SECONDS = 120;

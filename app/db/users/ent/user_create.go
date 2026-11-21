@@ -305,6 +305,20 @@ func (_c *UserCreate) SetNillableTtsVoice(v *string) *UserCreate {
 	return _c
 }
 
+// SetTtsMaxSeconds sets the "tts_max_seconds" field.
+func (_c *UserCreate) SetTtsMaxSeconds(v int) *UserCreate {
+	_c.mutation.SetTtsMaxSeconds(v)
+	return _c
+}
+
+// SetNillableTtsMaxSeconds sets the "tts_max_seconds" field if the given value is not nil.
+func (_c *UserCreate) SetNillableTtsMaxSeconds(v *int) *UserCreate {
+	if v != nil {
+		_c.SetTtsMaxSeconds(*v)
+	}
+	return _c
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (_c *UserCreate) SetCreatorCode(v string) *UserCreate {
 	_c.mutation.SetCreatorCode(v)
@@ -680,6 +694,10 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultTtsVoice
 		_c.mutation.SetTtsVoice(v)
 	}
+	if _, ok := _c.mutation.TtsMaxSeconds(); !ok {
+		v := user.DefaultTtsMaxSeconds
+		_c.mutation.SetTtsMaxSeconds(v)
+	}
 	if _, ok := _c.mutation.SubscriptionSource(); !ok {
 		v := user.DefaultSubscriptionSource
 		_c.mutation.SetSubscriptionSource(v)
@@ -803,6 +821,14 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.TtsVoice(); !ok {
 		return &ValidationError{Name: "tts_voice", err: errors.New(`ent: missing required field "User.tts_voice"`)}
+	}
+	if _, ok := _c.mutation.TtsMaxSeconds(); !ok {
+		return &ValidationError{Name: "tts_max_seconds", err: errors.New(`ent: missing required field "User.tts_max_seconds"`)}
+	}
+	if v, ok := _c.mutation.TtsMaxSeconds(); ok {
+		if err := user.TtsMaxSecondsValidator(v); err != nil {
+			return &ValidationError{Name: "tts_max_seconds", err: fmt.Errorf(`ent: validator failed for field "User.tts_max_seconds": %w`, err)}
+		}
 	}
 	if v, ok := _c.mutation.CreatorCode(); ok {
 		if err := user.CreatorCodeValidator(v); err != nil {
@@ -953,6 +979,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.TtsVoice(); ok {
 		_spec.SetField(user.FieldTtsVoice, field.TypeString, value)
 		_node.TtsVoice = value
+	}
+	if value, ok := _c.mutation.TtsMaxSeconds(); ok {
+		_spec.SetField(user.FieldTtsMaxSeconds, field.TypeInt, value)
+		_node.TtsMaxSeconds = value
 	}
 	if value, ok := _c.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
@@ -1451,6 +1481,24 @@ func (u *UserUpsert) SetTtsVoice(v string) *UserUpsert {
 // UpdateTtsVoice sets the "tts_voice" field to the value that was provided on create.
 func (u *UserUpsert) UpdateTtsVoice() *UserUpsert {
 	u.SetExcluded(user.FieldTtsVoice)
+	return u
+}
+
+// SetTtsMaxSeconds sets the "tts_max_seconds" field.
+func (u *UserUpsert) SetTtsMaxSeconds(v int) *UserUpsert {
+	u.Set(user.FieldTtsMaxSeconds, v)
+	return u
+}
+
+// UpdateTtsMaxSeconds sets the "tts_max_seconds" field to the value that was provided on create.
+func (u *UserUpsert) UpdateTtsMaxSeconds() *UserUpsert {
+	u.SetExcluded(user.FieldTtsMaxSeconds)
+	return u
+}
+
+// AddTtsMaxSeconds adds v to the "tts_max_seconds" field.
+func (u *UserUpsert) AddTtsMaxSeconds(v int) *UserUpsert {
+	u.Add(user.FieldTtsMaxSeconds, v)
 	return u
 }
 
@@ -2041,6 +2089,27 @@ func (u *UserUpsertOne) SetTtsVoice(v string) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateTtsVoice() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateTtsVoice()
+	})
+}
+
+// SetTtsMaxSeconds sets the "tts_max_seconds" field.
+func (u *UserUpsertOne) SetTtsMaxSeconds(v int) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTtsMaxSeconds(v)
+	})
+}
+
+// AddTtsMaxSeconds adds v to the "tts_max_seconds" field.
+func (u *UserUpsertOne) AddTtsMaxSeconds(v int) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddTtsMaxSeconds(v)
+	})
+}
+
+// UpdateTtsMaxSeconds sets the "tts_max_seconds" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateTtsMaxSeconds() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTtsMaxSeconds()
 	})
 }
 
@@ -2829,6 +2898,27 @@ func (u *UserUpsertBulk) SetTtsVoice(v string) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateTtsVoice() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateTtsVoice()
+	})
+}
+
+// SetTtsMaxSeconds sets the "tts_max_seconds" field.
+func (u *UserUpsertBulk) SetTtsMaxSeconds(v int) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTtsMaxSeconds(v)
+	})
+}
+
+// AddTtsMaxSeconds adds v to the "tts_max_seconds" field.
+func (u *UserUpsertBulk) AddTtsMaxSeconds(v int) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddTtsMaxSeconds(v)
+	})
+}
+
+// UpdateTtsMaxSeconds sets the "tts_max_seconds" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateTtsMaxSeconds() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTtsMaxSeconds()
 	})
 }
 

@@ -4,7 +4,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { translate } from '@bagel/kit/i18n';
 import { bestEffort } from '@bagel/kit/server/best-effort';
-import { CLOUD_VOICES } from '@bagel/kit/voice-plan';
+import { CLOUD_VOICES, MAX_CLIP_SECONDS, MIN_CLIP_SECONDS } from '@bagel/kit/voice-plan';
 import { isOwnerSession } from '#lib/server/owner';
 import { voiceGet, voiceSet, type VoiceAllowance } from '#lib/server/services/voice';
 import type { Actions, PageServerLoad } from './$types';
@@ -14,6 +14,12 @@ export const load: PageServerLoad = async ({ locals: { session } }) => {
   if (!isOwnerSession(session)) return { readOnly: true, allowance: null };
   return { readOnly: false, allowance: await bestEffort<VoiceAllowance | null>(voiceGet(session), null) };
 };
+
+function clipSeconds(fields: FormData): number | null {
+  const seconds = Number(fields.get('max_seconds'));
+  if (!Number.isInteger(seconds)) return null;
+  return seconds >= MIN_CLIP_SECONDS && seconds <= MAX_CLIP_SECONDS ? seconds : null;
+}
 
 export const actions = {
   save: async ({ locals: { session, locale }, request }) => {
@@ -29,8 +35,12 @@ export const actions = {
     if (enabled !== 'true' && enabled !== 'false') {
       return fail(400, { error: translate(locale, 'serverErrors.invalidInput') });
     }
+    const maxSeconds = clipSeconds(fields);
+    if (maxSeconds === null) {
+      return fail(400, { error: translate(locale, 'voice.invalidMaxLength', { min: MIN_CLIP_SECONDS, max: MAX_CLIP_SECONDS }) });
+    }
     try {
-      await voiceSet(session, { enabled: enabled === 'true', voice });
+      await voiceSet(session, { enabled: enabled === 'true', voice, max_seconds: maxSeconds });
       return { ok: true };
     } catch {
       return fail(503, { error: translate(locale, 'voice.saveFailed') });

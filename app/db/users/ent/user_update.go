@@ -364,6 +364,27 @@ func (_u *UserUpdate) SetNillableTtsVoice(v *string) *UserUpdate {
 	return _u
 }
 
+// SetTtsMaxSeconds sets the "tts_max_seconds" field.
+func (_u *UserUpdate) SetTtsMaxSeconds(v int) *UserUpdate {
+	_u.mutation.ResetTtsMaxSeconds()
+	_u.mutation.SetTtsMaxSeconds(v)
+	return _u
+}
+
+// SetNillableTtsMaxSeconds sets the "tts_max_seconds" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableTtsMaxSeconds(v *int) *UserUpdate {
+	if v != nil {
+		_u.SetTtsMaxSeconds(*v)
+	}
+	return _u
+}
+
+// AddTtsMaxSeconds adds value to the "tts_max_seconds" field.
+func (_u *UserUpdate) AddTtsMaxSeconds(v int) *UserUpdate {
+	_u.mutation.AddTtsMaxSeconds(v)
+	return _u
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (_u *UserUpdate) SetCreatorCode(v string) *UserUpdate {
 	_u.mutation.SetCreatorCode(v)
@@ -870,6 +891,11 @@ func (_u *UserUpdate) check() error {
 			return &ValidationError{Name: "locale", err: fmt.Errorf(`ent: validator failed for field "User.locale": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.TtsMaxSeconds(); ok {
+		if err := user.TtsMaxSecondsValidator(v); err != nil {
+			return &ValidationError{Name: "tts_max_seconds", err: fmt.Errorf(`ent: validator failed for field "User.tts_max_seconds": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.CreatorCode(); ok {
 		if err := user.CreatorCodeValidator(v); err != nil {
 			return &ValidationError{Name: "creator_code", err: fmt.Errorf(`ent: validator failed for field "User.creator_code": %w`, err)}
@@ -973,6 +999,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.TtsVoice(); ok {
 		_spec.SetField(user.FieldTtsVoice, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.TtsMaxSeconds(); ok {
+		_spec.SetField(user.FieldTtsMaxSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedTtsMaxSeconds(); ok {
+		_spec.AddField(user.FieldTtsMaxSeconds, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
@@ -1650,6 +1682,27 @@ func (_u *UserUpdateOne) SetNillableTtsVoice(v *string) *UserUpdateOne {
 	return _u
 }
 
+// SetTtsMaxSeconds sets the "tts_max_seconds" field.
+func (_u *UserUpdateOne) SetTtsMaxSeconds(v int) *UserUpdateOne {
+	_u.mutation.ResetTtsMaxSeconds()
+	_u.mutation.SetTtsMaxSeconds(v)
+	return _u
+}
+
+// SetNillableTtsMaxSeconds sets the "tts_max_seconds" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableTtsMaxSeconds(v *int) *UserUpdateOne {
+	if v != nil {
+		_u.SetTtsMaxSeconds(*v)
+	}
+	return _u
+}
+
+// AddTtsMaxSeconds adds value to the "tts_max_seconds" field.
+func (_u *UserUpdateOne) AddTtsMaxSeconds(v int) *UserUpdateOne {
+	_u.mutation.AddTtsMaxSeconds(v)
+	return _u
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (_u *UserUpdateOne) SetCreatorCode(v string) *UserUpdateOne {
 	_u.mutation.SetCreatorCode(v)
@@ -2169,6 +2222,11 @@ func (_u *UserUpdateOne) check() error {
 			return &ValidationError{Name: "locale", err: fmt.Errorf(`ent: validator failed for field "User.locale": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.TtsMaxSeconds(); ok {
+		if err := user.TtsMaxSecondsValidator(v); err != nil {
+			return &ValidationError{Name: "tts_max_seconds", err: fmt.Errorf(`ent: validator failed for field "User.tts_max_seconds": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.CreatorCode(); ok {
 		if err := user.CreatorCodeValidator(v); err != nil {
 			return &ValidationError{Name: "creator_code", err: fmt.Errorf(`ent: validator failed for field "User.creator_code": %w`, err)}
@@ -2289,6 +2347,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.TtsVoice(); ok {
 		_spec.SetField(user.FieldTtsVoice, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.TtsMaxSeconds(); ok {
+		_spec.SetField(user.FieldTtsMaxSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedTtsMaxSeconds(); ok {
+		_spec.AddField(user.FieldTtsMaxSeconds, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)

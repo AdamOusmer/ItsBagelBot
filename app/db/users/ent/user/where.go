@@ -155,6 +155,11 @@ func TtsVoice(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldTtsVoice, v))
 }
 
+// TtsMaxSeconds applies equality check predicate on the "tts_max_seconds" field. It's identical to TtsMaxSecondsEQ.
+func TtsMaxSeconds(v int) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTtsMaxSeconds, v))
+}
+
 // CreatorCode applies equality check predicate on the "creator_code" field. It's identical to CreatorCodeEQ.
 func CreatorCode(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatorCode, v))
@@ -968,6 +973,46 @@ func TtsVoiceEqualFold(v string) predicate.User {
 // TtsVoiceContainsFold applies the ContainsFold predicate on the "tts_voice" field.
 func TtsVoiceContainsFold(v string) predicate.User {
 	return predicate.User(sql.FieldContainsFold(FieldTtsVoice, v))
+}
+
+// TtsMaxSecondsEQ applies the EQ predicate on the "tts_max_seconds" field.
+func TtsMaxSecondsEQ(v int) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTtsMaxSeconds, v))
+}
+
+// TtsMaxSecondsNEQ applies the NEQ predicate on the "tts_max_seconds" field.
+func TtsMaxSecondsNEQ(v int) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldTtsMaxSeconds, v))
+}
+
+// TtsMaxSecondsIn applies the In predicate on the "tts_max_seconds" field.
+func TtsMaxSecondsIn(vs ...int) predicate.User {
+	return predicate.User(sql.FieldIn(FieldTtsMaxSeconds, vs...))
+}
+
+// TtsMaxSecondsNotIn applies the NotIn predicate on the "tts_max_seconds" field.
+func TtsMaxSecondsNotIn(vs ...int) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldTtsMaxSeconds, vs...))
+}
+
+// TtsMaxSecondsGT applies the GT predicate on the "tts_max_seconds" field.
+func TtsMaxSecondsGT(v int) predicate.User {
+	return predicate.User(sql.FieldGT(FieldTtsMaxSeconds, v))
+}
+
+// TtsMaxSecondsGTE applies the GTE predicate on the "tts_max_seconds" field.
+func TtsMaxSecondsGTE(v int) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldTtsMaxSeconds, v))
+}
+
+// TtsMaxSecondsLT applies the LT predicate on the "tts_max_seconds" field.
+func TtsMaxSecondsLT(v int) predicate.User {
+	return predicate.User(sql.FieldLT(FieldTtsMaxSeconds, v))
+}
+
+// TtsMaxSecondsLTE applies the LTE predicate on the "tts_max_seconds" field.
+func TtsMaxSecondsLTE(v int) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldTtsMaxSeconds, v))
 }
 
 // CreatorCodeEQ applies the EQ predicate on the "creator_code" field.

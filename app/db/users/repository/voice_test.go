@@ -4,6 +4,7 @@
 package repository_test
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -73,7 +74,7 @@ func TestVoiceAllowancePlans(t *testing.T) {
 			assert.Equal(t, usersrpc.VoiceAllowance{
 				Plan: tc.plan, Period: "2026-12", LimitTokens: limit, RemainingTokens: limit,
 				ResetsAt: time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC),
-				Enabled:  true, Voice: voiceplan.DefaultVoice, Reason: tc.reason,
+				Enabled:  true, Voice: voiceplan.DefaultVoice, MaxSeconds: voiceplan.MaxClipSeconds, Reason: tc.reason,
 			}, voiceAllowanceAt(t, repo, at))
 		})
 	}
@@ -116,21 +117,26 @@ func TestVoiceUsageAccumulatesAndResets(t *testing.T) {
 	newMonth := monthEnd.Add(time.Minute)
 	first := repository.VoiceUsageRecord{RequestID: "first", AudioTokens: 100, DurationMS: 4000}
 	start := recordVoiceAt(t, repo, first, monthEnd)
-	batch := repository.VoiceUsageRecord{AudioTokens: 15_000, DurationMS: 600_000}
+	batch := repository.VoiceUsageRecord{
+		AudioTokens: voiceplan.SecondsToTokens(voiceplan.MaxClipSeconds),
+		DurationMS:  (voiceplan.MaxClipSeconds * time.Second).Milliseconds(),
+	}
+	fullClips := start.LimitTokens / batch.AudioTokens
 	exhausted := start
-	for _, id := range []string{"second", "third", "fourth"} {
-		batch.RequestID = id
+	for i := range fullClips {
+		batch.RequestID = strconv.FormatInt(i, 10)
 		exhausted = recordVoiceAt(t, repo, batch, monthEnd)
 	}
 	wantExhausted := start
-	wantExhausted.UsedTokens = first.AudioTokens + 3*batch.AudioTokens
+	wantExhausted.UsedTokens = first.AudioTokens + fullClips*batch.AudioTokens
 	wantExhausted.RemainingTokens = 0
 	assert.Equal(t, wantExhausted, exhausted)
 	assert.Equal(t, exhausted, voiceAllowanceAt(t, repo, monthEnd))
 
-	require.NoError(t, repo.SetVoiceSettings(t.Context(), voiceOwnerID, false, "Puck"))
+	settings := repository.VoiceSettings{Enabled: false, Voice: "Puck", MaxSeconds: 30}
+	require.NoError(t, repo.SetVoiceSettings(t.Context(), voiceOwnerID, settings))
 	wantReplay := start
-	wantReplay.Enabled, wantReplay.Voice = false, "Puck"
+	wantReplay.Enabled, wantReplay.Voice, wantReplay.MaxSeconds = settings.Enabled, settings.Voice, settings.MaxSeconds
 	assert.Equal(t, wantReplay, recordVoiceAt(t, repo, first, newMonth))
 	assert.Zero(t, voiceAllowanceAt(t, repo, newMonth).UsedTokens)
 
@@ -139,7 +145,7 @@ func TestVoiceUsageAccumulatesAndResets(t *testing.T) {
 	assert.Equal(t, "2027-01", reset.Period)
 	assert.Equal(t, next.AudioTokens, reset.UsedTokens)
 	assertVoiceLedgerTotals(t, client, [][3]int64{
-		{wantExhausted.UsedTokens, first.DurationMS + 3*batch.DurationMS, 4},
+		{wantExhausted.UsedTokens, first.DurationMS + fullClips*batch.DurationMS, fullClips + 1},
 		{next.AudioTokens, next.DurationMS, 1},
 	})
 }
@@ -159,8 +165,8 @@ func TestVoiceUsageRejectsInvalidInput(t *testing.T) {
 	cases := map[string]repository.VoiceUsageRecord{
 		"negative tokens":   {RequestID: "tokens", AudioTokens: -1},
 		"negative duration": {RequestID: "duration", DurationMS: -1},
-		"excess tokens":     {RequestID: "tokens", AudioTokens: 15_001},
-		"excess duration":   {RequestID: "duration", DurationMS: 600_001},
+		"excess tokens":     {RequestID: "tokens", AudioTokens: voiceplan.SecondsToTokens(voiceplan.MaxClipSeconds) + 1},
+		"excess duration":   {RequestID: "duration", DurationMS: (voiceplan.MaxClipSeconds * time.Second).Milliseconds() + 1},
 		"missing ID":        {},
 		"long ID":           {RequestID: strings.Repeat("x", usersrpc.VoiceRequestIDMaxBytes+1)},
 	}
@@ -190,7 +196,9 @@ func TestVoiceSettingsValidation(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := repo.SetVoiceSettings(t.Context(), voiceOwnerID, tc.enabled, tc.voice)
+			err := repo.SetVoiceSettings(t.Context(), voiceOwnerID, repository.VoiceSettings{
+				Enabled: tc.enabled, Voice: tc.voice, MaxSeconds: voiceplan.MaxClipSeconds,
+			})
 			require.ErrorIs(t, err, tc.wantErr)
 			allowance := voiceAllowanceAt(t, repo, time.Now())
 			assert.Equal(t, tc.wantVoice, allowance.Voice)

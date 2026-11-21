@@ -63,6 +63,8 @@ type User struct {
 	TtsEnabled bool `json:"tts_enabled,omitempty"`
 	// TtsVoice holds the value of the "tts_voice" field.
 	TtsVoice string `json:"tts_voice,omitempty"`
+	// TtsMaxSeconds holds the value of the "tts_max_seconds" field.
+	TtsMaxSeconds int `json:"tts_max_seconds,omitempty"`
 	// CreatorCode holds the value of the "creator_code" field.
 	CreatorCode *string `json:"creator_code,omitempty"`
 	// SubscriptionSource holds the value of the "subscription_source" field.
@@ -177,7 +179,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case user.FieldIsActive, user.FieldLifecycleProjectionPending, user.FieldLifecycleMigrationPending, user.FieldBanned, user.FieldCustomCursor, user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldSongqueuePageHidden, user.FieldTtsEnabled, user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldOnboarded, user.FieldTestAccount:
 			values[i] = new(sql.NullBool)
-		case user.FieldID, user.FieldStateRevision, user.FieldGiftsSent:
+		case user.FieldID, user.FieldStateRevision, user.FieldTtsMaxSeconds, user.FieldGiftsSent:
 			values[i] = new(sql.NullInt64)
 		case user.FieldUsername, user.FieldDisplayName, user.FieldEmail, user.FieldLifecycleState, user.FieldStatus, user.FieldLocale, user.FieldTtsVoice, user.FieldCreatorCode, user.FieldSubscriptionSource, user.FieldSubscriptionRef, user.FieldBillingEventID:
 			values[i] = new(sql.NullString)
@@ -340,6 +342,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field tts_voice", values[i])
 			} else if value.Valid {
 				_m.TtsVoice = value.String
+			}
+		case user.FieldTtsMaxSeconds:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field tts_max_seconds", values[i])
+			} else if value.Valid {
+				_m.TtsMaxSeconds = int(value.Int64)
 			}
 		case user.FieldCreatorCode:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -559,6 +567,9 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("tts_voice=")
 	builder.WriteString(_m.TtsVoice)
+	builder.WriteString(", ")
+	builder.WriteString("tts_max_seconds=")
+	builder.WriteString(fmt.Sprintf("%v", _m.TtsMaxSeconds))
 	builder.WriteString(", ")
 	if v := _m.CreatorCode; v != nil {
 		builder.WriteString("creator_code=")

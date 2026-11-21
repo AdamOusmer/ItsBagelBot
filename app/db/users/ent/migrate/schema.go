@@ -281,6 +281,7 @@ var (
 		{Name: "songqueue_page_hidden", Type: field.TypeBool, Default: false},
 		{Name: "tts_enabled", Type: field.TypeBool, Default: true},
 		{Name: "tts_voice", Type: field.TypeString, Default: ""},
+		{Name: "tts_max_seconds", Type: field.TypeInt, Default: 120},
 		{Name: "creator_code", Type: field.TypeString, Nullable: true, Size: 64},
 		{Name: "subscription_source", Type: field.TypeString, Default: ""},
 		{Name: "subscription_expires_at", Type: field.TypeTime, Nullable: true},
@@ -304,7 +305,7 @@ var (
 			{
 				Name:    "user_status_subscription_source_subscription_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[15], UsersColumns[24], UsersColumns[25]},
+				Columns: []*schema.Column{UsersColumns[15], UsersColumns[25], UsersColumns[26]},
 			},
 			{
 				Name:    "user_username",

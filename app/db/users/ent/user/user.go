@@ -60,6 +60,8 @@ const (
 	FieldTtsEnabled = "tts_enabled"
 	// FieldTtsVoice holds the string denoting the tts_voice field in the database.
 	FieldTtsVoice = "tts_voice"
+	// FieldTtsMaxSeconds holds the string denoting the tts_max_seconds field in the database.
+	FieldTtsMaxSeconds = "tts_max_seconds"
 	// FieldCreatorCode holds the string denoting the creator_code field in the database.
 	FieldCreatorCode = "creator_code"
 	// FieldSubscriptionSource holds the string denoting the subscription_source field in the database.
@@ -169,6 +171,7 @@ var Columns = []string{
 	FieldSongqueuePageHidden,
 	FieldTtsEnabled,
 	FieldTtsVoice,
+	FieldTtsMaxSeconds,
 	FieldCreatorCode,
 	FieldSubscriptionSource,
 	FieldSubscriptionExpiresAt,
@@ -239,6 +242,10 @@ var (
 	DefaultTtsEnabled bool
 	// DefaultTtsVoice holds the default value on creation for the "tts_voice" field.
 	DefaultTtsVoice string
+	// DefaultTtsMaxSeconds holds the default value on creation for the "tts_max_seconds" field.
+	DefaultTtsMaxSeconds int
+	// TtsMaxSecondsValidator is a validator for the "tts_max_seconds" field. It is called by the builders before save.
+	TtsMaxSecondsValidator func(int) error
 	// CreatorCodeValidator is a validator for the "creator_code" field. It is called by the builders before save.
 	CreatorCodeValidator func(string) error
 	// DefaultSubscriptionSource holds the default value on creation for the "subscription_source" field.
@@ -394,6 +401,11 @@ func ByTtsEnabled(opts ...sql.OrderTermOption) OrderOption {
 // ByTtsVoice orders the results by the tts_voice field.
 func ByTtsVoice(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldTtsVoice, opts...).ToFunc()
+}
+
+// ByTtsMaxSeconds orders the results by the tts_max_seconds field.
+func ByTtsMaxSeconds(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTtsMaxSeconds, opts...).ToFunc()
 }
 
 // ByCreatorCode orders the results by the creator_code field.

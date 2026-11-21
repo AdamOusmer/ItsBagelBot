@@ -20,14 +20,20 @@ import (
 
 const (
 	voiceReceiptRetention  = 40 * 24 * time.Hour
-	maxVoiceRecordDuration = 10 * time.Minute
-	maxVoiceRecordTokens   = int64(maxVoiceRecordDuration/time.Second) * voiceplan.TokensPerSecond
+	maxVoiceRecordDuration = voiceplan.MaxClipSeconds * time.Second
 )
 
 var (
-	ErrInvalidVoice      = errors.New("invalid voice")
-	ErrInvalidVoiceUsage = errors.New("invalid voice usage")
+	ErrInvalidVoice           = errors.New("invalid voice")
+	ErrInvalidVoiceClipLength = errors.New("invalid voice clip length")
+	ErrInvalidVoiceUsage      = errors.New("invalid voice usage")
 )
+
+type VoiceSettings struct {
+	Enabled    bool
+	Voice      string
+	MaxSeconds int
+}
 
 type VoiceUsageRecord struct {
 	RequestID   string
@@ -70,12 +76,15 @@ func (r *Users) voiceTransaction(ctx context.Context, run func(*ent.Tx) (usersrp
 	})
 }
 
-func (r *Users) SetVoiceSettings(ctx context.Context, id uint64, enabled bool, voice string) error {
-	if voice != "" && !voiceplan.ValidVoice(voice) {
+func (r *Users) SetVoiceSettings(ctx context.Context, id uint64, settings VoiceSettings) error {
+	if settings.Voice != "" && !voiceplan.ValidVoice(settings.Voice) {
 		return ErrInvalidVoice
 	}
+	if settings.MaxSeconds < voiceplan.MinClipSeconds || settings.MaxSeconds > voiceplan.MaxClipSeconds {
+		return ErrInvalidVoiceClipLength
+	}
 	return r.updateAndPublish(ctx, id, func(update *ent.UserUpdateOne) {
-		update.SetTtsEnabled(enabled).SetTtsVoice(voice)
+		update.SetTtsEnabled(settings.Enabled).SetTtsVoice(settings.Voice).SetTtsMaxSeconds(settings.MaxSeconds)
 	})
 }
 
@@ -91,7 +100,7 @@ func (r VoiceUsageRecord) valid() bool {
 	if length == 0 || length > usersrpc.VoiceRequestIDMaxBytes {
 		return false
 	}
-	validTokens := r.AudioTokens >= 0 && r.AudioTokens <= maxVoiceRecordTokens
+	validTokens := r.AudioTokens >= 0 && r.AudioTokens <= voiceplan.SecondsToTokens(voiceplan.MaxClipSeconds)
 	validDuration := r.DurationMS >= 0 && r.DurationMS <= maxVoiceRecordDuration.Milliseconds()
 	return validTokens && validDuration
 }
@@ -163,6 +172,7 @@ func loadVoiceAllowance(ctx context.Context, tx *ent.Tx, owner *ent.User, now ti
 func withVoiceSettings(allowance usersrpc.VoiceAllowance, owner *ent.User) usersrpc.VoiceAllowance {
 	allowance.Enabled = owner.TtsEnabled
 	allowance.Voice = owner.TtsVoice
+	allowance.MaxSeconds = owner.TtsMaxSeconds
 	if allowance.Voice == "" {
 		allowance.Voice = voiceplan.DefaultVoice
 	}

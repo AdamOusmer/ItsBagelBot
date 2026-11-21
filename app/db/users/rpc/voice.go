@@ -78,8 +78,10 @@ func (d *dashboardRPC) handleVoiceSet(ctx context.Context, msg *nats.Msg) {
 	if !ok {
 		return
 	}
-	err := d.repo.SetVoiceSettings(ctx, id, req.Enabled, req.Voice)
-	if errors.Is(err, repository.ErrInvalidVoice) {
+	err := d.repo.SetVoiceSettings(ctx, id, repository.VoiceSettings{
+		Enabled: req.Enabled, Voice: req.Voice, MaxSeconds: req.MaxSeconds,
+	})
+	if errors.Is(err, repository.ErrInvalidVoice) || errors.Is(err, repository.ErrInvalidVoiceClipLength) {
 		respondErr(msg, "bad request")
 		return
 	}

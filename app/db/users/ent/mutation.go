@@ -6200,6 +6200,8 @@ type UserMutation struct {
 	songqueue_page_hidden        *bool
 	tts_enabled                  *bool
 	tts_voice                    *string
+	tts_max_seconds              *int
+	addtts_max_seconds           *int
 	creator_code                 *string
 	subscription_source          *string
 	subscription_expires_at      *time.Time
@@ -7219,6 +7221,62 @@ func (m *UserMutation) ResetTtsVoice() {
 	m.tts_voice = nil
 }
 
+// SetTtsMaxSeconds sets the "tts_max_seconds" field.
+func (m *UserMutation) SetTtsMaxSeconds(i int) {
+	m.tts_max_seconds = &i
+	m.addtts_max_seconds = nil
+}
+
+// TtsMaxSeconds returns the value of the "tts_max_seconds" field in the mutation.
+func (m *UserMutation) TtsMaxSeconds() (r int, exists bool) {
+	v := m.tts_max_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTtsMaxSeconds returns the old "tts_max_seconds" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldTtsMaxSeconds(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTtsMaxSeconds is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTtsMaxSeconds requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTtsMaxSeconds: %w", err)
+	}
+	return oldValue.TtsMaxSeconds, nil
+}
+
+// AddTtsMaxSeconds adds i to the "tts_max_seconds" field.
+func (m *UserMutation) AddTtsMaxSeconds(i int) {
+	if m.addtts_max_seconds != nil {
+		*m.addtts_max_seconds += i
+	} else {
+		m.addtts_max_seconds = &i
+	}
+}
+
+// AddedTtsMaxSeconds returns the value that was added to the "tts_max_seconds" field in this mutation.
+func (m *UserMutation) AddedTtsMaxSeconds() (r int, exists bool) {
+	v := m.addtts_max_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTtsMaxSeconds resets all changes to the "tts_max_seconds" field.
+func (m *UserMutation) ResetTtsMaxSeconds() {
+	m.tts_max_seconds = nil
+	m.addtts_max_seconds = nil
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (m *UserMutation) SetCreatorCode(s string) {
 	m.creator_code = &s
@@ -8130,7 +8188,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 35)
+	fields := make([]string, 0, 36)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -8196,6 +8254,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.tts_voice != nil {
 		fields = append(fields, user.FieldTtsVoice)
+	}
+	if m.tts_max_seconds != nil {
+		fields = append(fields, user.FieldTtsMaxSeconds)
 	}
 	if m.creator_code != nil {
 		fields = append(fields, user.FieldCreatorCode)
@@ -8288,6 +8349,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.TtsEnabled()
 	case user.FieldTtsVoice:
 		return m.TtsVoice()
+	case user.FieldTtsMaxSeconds:
+		return m.TtsMaxSeconds()
 	case user.FieldCreatorCode:
 		return m.CreatorCode()
 	case user.FieldSubscriptionSource:
@@ -8367,6 +8430,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldTtsEnabled(ctx)
 	case user.FieldTtsVoice:
 		return m.OldTtsVoice(ctx)
+	case user.FieldTtsMaxSeconds:
+		return m.OldTtsMaxSeconds(ctx)
 	case user.FieldCreatorCode:
 		return m.OldCreatorCode(ctx)
 	case user.FieldSubscriptionSource:
@@ -8556,6 +8621,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetTtsVoice(v)
 		return nil
+	case user.FieldTtsMaxSeconds:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTtsMaxSeconds(v)
+		return nil
 	case user.FieldCreatorCode:
 		v, ok := value.(string)
 		if !ok {
@@ -8658,6 +8730,9 @@ func (m *UserMutation) AddedFields() []string {
 	if m.addstate_revision != nil {
 		fields = append(fields, user.FieldStateRevision)
 	}
+	if m.addtts_max_seconds != nil {
+		fields = append(fields, user.FieldTtsMaxSeconds)
+	}
 	if m.addgifts_sent != nil {
 		fields = append(fields, user.FieldGiftsSent)
 	}
@@ -8671,6 +8746,8 @@ func (m *UserMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case user.FieldStateRevision:
 		return m.AddedStateRevision()
+	case user.FieldTtsMaxSeconds:
+		return m.AddedTtsMaxSeconds()
 	case user.FieldGiftsSent:
 		return m.AddedGiftsSent()
 	}
@@ -8688,6 +8765,13 @@ func (m *UserMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddStateRevision(v)
+		return nil
+	case user.FieldTtsMaxSeconds:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTtsMaxSeconds(v)
 		return nil
 	case user.FieldGiftsSent:
 		v, ok := value.(int32)
@@ -8851,6 +8935,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldTtsVoice:
 		m.ResetTtsVoice()
+		return nil
+	case user.FieldTtsMaxSeconds:
+		m.ResetTtsMaxSeconds()
 		return nil
 	case user.FieldCreatorCode:
 		m.ResetCreatorCode()

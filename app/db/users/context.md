@@ -123,9 +123,14 @@ Edit schemas rather than generated Ent code.
   operator JWT. A check reads the balance without reserving it, so concurrent
   checks can overshoot by the usage from in-flight requests. A replay returns
   the stored plan, reason, and usage for the per-user request ID with the
-  channel's current enabled setting and voice. Once the sweep removes a receipt
-  after 40 days, replaying that request ID counts as new usage. Account erasure
-  cascades to usage and receipts.
+  channel's current enabled setting, voice and `max_seconds`.
+  The channel's maximum clip length defaults to 120 seconds. `voice_set` must
+  supply a `max_seconds` value from 5 through 120, which `voice_get` and the
+  internal `check` return. The caller must trim the input text or cut synthesized
+  playback to stay within `max_seconds`. The ledger refuses any record above
+  two minutes (3,000 audio tokens or 120,000 milliseconds).
+  Once the sweep removes a receipt after 40 days, replaying that request ID
+  counts as new usage. Account erasure cascades to usage and receipts.
 - Banned and inactive accounts receive zero cloud voice minutes. A committed
   giveaway covering the current time raises an admin grant from 30 to 60 minutes.
   Lapsed subscriptions intentionally keep their voice minutes until the expiry
