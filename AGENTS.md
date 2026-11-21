@@ -37,6 +37,7 @@ This repository is public. Keep operator runbooks, host scripts, benchmark resul
 - The firehose JetStream streams (`TWITCH_*`) and their consumers stay on memory storage, including in recovery fixes.
 - No defensive scaffolding: no rollback-on-partial-failure loops, guard wrappers or cleanup-on-error unwinds. Let errors propagate to the coarse failure path. Remove such code when touching it.
 - No fixed global or per-channel internal capacity caps. Rate limits toward Twitch and outside APIs stay, and outgress and gossip own their buckets. Never change their rates without a stated number.
+- Staff view-as sessions have full owner access on the dashboard. Gate owner actions with `hasOwnerAccess` (`web/dashboard/src/lib/server/owner.ts`); use `isSelfSignIn` only for the account holder's own Twitch grant, terms consent or device sign-in, and never check `impersonator_id` directly.
 - Viewer identity is the Twitch user id. Chat commands use ids from event data only. Dashboard search may match names and reconcile a stored login on a miss. Add no other login resolution.
 - Recipe tokens use a colon (`{cooldown:left}`, `{var:points}`). Variable names are one lowercase word, with no `_`, `:` or `-`.
 - Comments are limited to license headers, tool directives, type-bearing JSDoc, and one-line warnings where a wrong edit causes an outage, a security hole, data loss or a cross-service break. Removing comments can expose CodeScene duplication.

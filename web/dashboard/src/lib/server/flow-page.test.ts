@@ -3,6 +3,8 @@
 
 import { describe, expect, test } from 'bun:test';
 import { MAX_DEFINITION_BYTES, MAX_EDITOR_PAYLOAD_BYTES } from '@bagel/kit/automations/limits';
+import type { Locale } from '@bagel/kit/i18n';
+import { staticText } from '../../../../kit/lib/i18n/static';
 import { largeEditorFlow, sizedRecipe } from '../../../../kit/lib/automations/testdata/large-recipe';
 import type { SaveReply } from '../flow/replies';
 import { stubSvelteKit } from '../../../test/sveltekit';
@@ -119,15 +121,20 @@ describe('saveReply', () => {
     expect(saveReply({ ok: true, flow, warnings: ['shadowed_by_command'] })).toMatchObject({ ok: true, id: 'c-hug', revision: 'r1', warnings: ['shadowed_by_command'] });
   });
 
-  const refusals: [SaveFlowResult, SaveReply][] = [
-    [{ ok: false, reason: 'conflict', issues: [issue] }, { ok: false, reason: 'conflict', issues: [issue] }],
-    [{ ok: false, reason: 'not_found' }, { ok: false, reason: 'not_found' }],
-    [{ ok: false, reason: 'failed', error: 'rpc down at 10.0.0.4' }, { ok: false, reason: 'failed' }],
-    [{ ok: false, reason: 'denied', error: 'no' }, { ok: false, reason: 'denied', error: 'no' }]
+  const refusals: { result: SaveFlowResult; expected: SaveReply; locale?: Locale }[] = [
+    { result: { ok: false, reason: 'conflict', issues: [issue] }, expected: { ok: false, reason: 'conflict', issues: [issue] } },
+    { result: { ok: false, reason: 'not_found' }, expected: { ok: false, reason: 'not_found' } },
+    { result: { ok: false, reason: 'failed', error: 'rpc down at 10.0.0.4' }, expected: { ok: false, reason: 'failed' } },
+    { result: { ok: false, reason: 'failed', error: 'duplicate_title' }, expected: { ok: false, reason: 'failed', error: staticText('en', 'channelpoints.toastDuplicateTitle') } },
+    { result: { ok: false, reason: 'failed', error: 'duplicate_title' }, expected: { ok: false, reason: 'failed', error: staticText('fr', 'channelpoints.toastDuplicateTitle') }, locale: 'fr' },
+    { result: { ok: false, reason: 'failed', error: 'not_affiliate' }, expected: { ok: false, reason: 'failed', error: staticText('en', 'channelpoints.toastNotAffiliate') } },
+    { result: { ok: false, reason: 'failed', error: 'missing_scope' }, expected: { ok: false, reason: 'failed', error: staticText('en', 'serverErrors.rewardScope') } },
+    { result: { ok: false, reason: 'failed', error: 'reward_failed' }, expected: { ok: false, reason: 'failed', error: staticText('en', 'serverErrors.rewardFailed') } },
+    { result: { ok: false, reason: 'denied', error: 'no' }, expected: { ok: false, reason: 'denied', error: 'no' } }
   ];
 
-  test.each(refusals)('maps %o', (result, expected) => {
-    expect(saveReply(result)).toEqual(expected);
+  test.each(refusals)('maps $result.reason', ({ result, expected, locale }) => {
+    expect(saveReply(result, locale)).toEqual(expected);
   });
 });
 

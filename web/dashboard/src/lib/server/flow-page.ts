@@ -16,6 +16,7 @@ import {
   type Issue
 } from '@bagel/kit/automations';
 import { MOD, moduleDef } from '@bagel/kit/catalog';
+import type { Locale } from '@bagel/kit/i18n';
 import { cardFromSummary, type FlowCard } from '#lib/flow/cards';
 import { newFlow } from '#lib/flow/model';
 import { NEW_FLOW_ID, flowRouteId, parseFlowRouteId, type FlowRef } from '#lib/flow/ref';
@@ -138,7 +139,31 @@ export function lowerSaveRequest(text: string): { ok: true; lowered: Lowered } |
   return { ok: true, lowered: { ...parsed, definition: lowered.value, preview: previewOf(parsed.flow) } };
 }
 
-export function saveReply(result: SaveFlowResult): SaveReply {
+const USER_FAILURE_CODES: ReadonlySet<string> = new Set(['missing_scope', 'duplicate_title', 'not_affiliate', 'reward_failed']);
+
+function userFailure(result: { error?: string }, locale: Locale): string | undefined {
+  if (!result.error || !USER_FAILURE_CODES.has(result.error)) return undefined;
+  return actionError(locale, result.error);
+}
+
+function failedReply(result: { error?: string }, locale: Locale = 'en'): { ok: false; reason: 'failed'; error?: string } {
+  const error = userFailure(result, locale);
+  return error ? { ok: false, reason: 'failed', error } : { ok: false, reason: 'failed' };
+}
+
+function actionRefusal<R extends string>(
+  result: { ok: false; reason: R; error?: string },
+  locale: Locale
+): { ok: false; reason: R; error?: string } {
+  if (result.reason === 'denied') return { ok: false, reason: result.reason, error: result.error };
+  if (result.reason === 'failed') {
+    const error = userFailure(result, locale);
+    return error ? { ok: false, reason: result.reason, error } : { ok: false, reason: result.reason };
+  }
+  return { ok: false, reason: result.reason };
+}
+
+export function saveReply(result: SaveFlowResult, locale: Locale = 'en'): SaveReply {
   if (result.ok) {
     const { flow } = result;
     return { ok: true, id: flowRouteId(flow.ref), name: flow.name, enabled: flow.enabled, revision: flow.revision, warnings: result.warnings, upgrade: result.upgrade, rewardId: managedReward(flow.definition)?.rewardId };
@@ -152,7 +177,7 @@ export function saveReply(result: SaveFlowResult): SaveReply {
     case 'denied':
       return { ok: false, reason: 'denied', error: result.error };
     case 'failed':
-      return { ok: false, reason: 'failed' };
+      return failedReply(result, locale);
     default:
       return { ok: false, reason: 'not_found' };
   }
@@ -177,7 +202,7 @@ export async function liveSave(locals: App.Locals, { request, flow, definition, 
     expectedRevision: request.expectedRevision,
     confirmUpgrade: request.confirmUpgrade
   });
-  return withLatestRevision(locals, request.ref, saveReply(result));
+  return withLatestRevision(locals, request.ref, saveReply(result, locals.locale));
 }
 
 const REWARD_REFUSAL_STATUS: Record<string, number> = { missing_scope: 403, duplicate_title: 409, not_affiliate: 403 };
@@ -194,13 +219,13 @@ export async function liveRewardSave(locals: App.Locals, draft: ManagedReward): 
 export async function liveToggle(locals: App.Locals, ref: FlowRef, enabled: boolean, revision?: string): Promise<ToggleReply> {
   const result = await setFlowEnabled(locals, ref, enabled, revision);
   if (result.ok) return { ok: true, enabled: result.enabled, revision: result.revision, warnings: result.warnings };
-  return result.reason === 'denied' ? { ok: false, reason: 'denied', error: result.error } : { ok: false, reason: result.reason };
+  return actionRefusal(result, locals.locale);
 }
 
 export async function liveDelete(locals: App.Locals, ref: FlowRef): Promise<DeleteReply> {
   const result = await deleteFlow(locals, ref);
   if (result.ok) return { ok: true };
-  return result.reason === 'denied' ? { ok: false, reason: 'denied', error: result.error } : { ok: false, reason: result.reason };
+  return actionRefusal(result, locals.locale);
 }
 
 export const newEditor = (): EditorData => ({ routeId: NEW_FLOW_ID, ref: null, revision: null, name: '', flow: newFlow('') });
