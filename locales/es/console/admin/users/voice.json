@@ -1,0 +1,14 @@
+{
+  "title": "Voz Premium",
+  "usage": "{used} de {limit} minutos usados este mes",
+  "resets": "Se restablece el {date} (UTC)",
+  "reset": "Restablecer uso",
+  "set": "Establecer uso",
+  "resetConfirm": "¿Poner a cero el uso de voz Premium de @{login} para el mes en curso en UTC?",
+  "setConfirm": "Indica qué parte del cupo de voz Premium ya ha usado @{login} este mes en UTC.",
+  "percent": "Cupo usado (%)",
+  "resetDone": "Se restableció el uso de voz Premium.",
+  "setDone": "Se actualizó el uso de voz Premium.",
+  "invalidChange": "Elige restablecer el uso o introduce un porcentaje entero de 0 a 100.",
+  "noAllowance": "Este usuario no tiene cupo de voz Premium."
+}

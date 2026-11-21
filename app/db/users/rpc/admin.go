@@ -54,6 +54,7 @@ func (a *adminRPC) verbs() []adminVerb {
 		{"ban", mod, a.ban},
 		{"unban", mod, a.unban},
 		{"set_status", admin, a.setStatus},
+		{"voice_usage_set", admin, a.setVoiceUsage},
 		{"set_active", admin, a.setActive},
 		{"set_creator_code", admin, a.setCreatorCode},
 		{"test.set", admin, a.setTestAccount},
@@ -110,7 +111,7 @@ func SubscribeAdmin(w Wiring, cfg AdminConfig) error {
 		return err
 	}
 
-	return bus.Serve(w.Within(adminBudget), cfg.InternalGetSubject, a.get)
+	return bus.Serve(w.Within(adminBudget), cfg.InternalGetSubject, a.getInternal)
 }
 
 var storeRules = []domainrpc.Rule{
@@ -159,11 +160,27 @@ func idRequest(id uint64) usersrpc.AdminRequest {
 }
 
 func (a *adminRPC) get(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
+	return a.getUser(ctx, req, true)
+}
+
+func (a *adminRPC) getInternal(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
+	return a.getUser(ctx, req, false)
+}
+
+func (a *adminRPC) getUser(ctx context.Context, req usersrpc.AdminRequest, withVoice bool) usersrpc.AdminReply {
 	u, err := a.findUser(ctx, req)
 	if err != nil {
 		return adminError(refusal(err))
 	}
 	view := viewOf(u)
+	if !withVoice {
+		return usersrpc.AdminReply{User: &view}
+	}
+	allowance, err := a.repo.VoiceAllowance(ctx, u.ID, time.Now())
+	if err != nil {
+		return adminError(refusal(err))
+	}
+	view.VoiceAllowance = &allowance
 	return usersrpc.AdminReply{User: &view}
 }
 

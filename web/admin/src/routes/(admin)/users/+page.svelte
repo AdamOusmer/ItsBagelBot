@@ -4,6 +4,7 @@
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
   import { tick, untrack } from 'svelte';
   import { enhance, type SubmitFunction } from '$app/forms';
   import { goto } from '$app/navigation';
@@ -47,6 +48,7 @@
 
   const { t, locale } = getI18n();
   const numberFormat = new Intl.NumberFormat(locale);
+  const percentFormat = new Intl.NumberFormat(locale, { style: 'percent' });
   const liveCounter = getLiveCount();
   const liveCount = $derived(liveCounter.value);
   const liveNow = $derived(t('admin.users.liveNow'));
@@ -151,6 +153,7 @@
 
   function closeInspector() {
     inspectorRequest?.abort();
+    pending = null;
     selectedId = null;
     detached = null;
     viewAsUrl = '';
@@ -232,7 +235,10 @@
   function replaceDirectory(next: UserDirectory) {
     const keep = selected;
     dir = next;
-    if (keep && !next.recent.some((u) => u.id === keep.id)) detached = keep;
+    if (!keep) return;
+    const current = dir.recent.find((u) => u.id === keep.id);
+    if (current) current.voice_allowance = keep.voice_allowance;
+    else detached = keep;
   }
 
   async function pollDirectory(url: string, signal: AbortSignal, request: Promise<number | null>): Promise<boolean> {
@@ -268,6 +274,7 @@
   });
   let forms = $state<Record<string, HTMLFormElement | null>>({});
   let pending = $state<UserActionDef | null>(null);
+  let voicePercent = $state<string | number | null>('');
 
   function applied(p: ActionPayload) {
     toast('success', p.action?.notice ?? '');
@@ -285,6 +292,7 @@
 
   function submitFor(def: UserActionDef): SubmitFunction {
     return ({ formData }) => {
+      pending = null;
       const userId = String(formData.get('user_id') ?? '');
       const optimistic = def.optimistic;
       const before = selectedId === userId ? selected : null;
@@ -309,6 +317,7 @@
   }
 
   function request(def: UserActionDef) {
+    voicePercent = '';
     if (def.confirm) {
       pending = def;
       return;
@@ -317,9 +326,7 @@
   }
 
   function confirmPending() {
-    const def = pending;
-    pending = null;
-    if (def) forms[def.id]?.requestSubmit();
+    if (pending) forms[pending.id]?.requestSubmit();
   }
 
   let statusForms = $state<Record<string, HTMLFormElement | null>>({});
@@ -544,6 +551,7 @@
 
 {#each USER_ACTIONS as def (def.id)}
   <form
+    id={def.id === 'setVoiceUsage' ? 'set-voice-usage' : undefined}
     method="POST"
     action="?/{def.action}"
     use:enhance={submitFor(def)}
@@ -553,6 +561,8 @@
     <input type="hidden" name="user_id" value={selected?.id ?? ''} />
     {#if def.id === 'toggleActive'}
       <input type="hidden" name="active" value={selected?.is_active ? 'false' : 'true'} />
+    {:else if def.id === 'resetVoiceUsage'}
+      <input type="hidden" name="reset" value="true" />
     {/if}
   </form>
 {/each}
@@ -586,7 +596,31 @@
   onCancel={() => (pending = null)}
   onConfirm={confirmPending}
   tone={pending?.danger ? 'danger' : 'neutral'}
-/>
+>
+  {#if pending?.id === 'setVoiceUsage'}
+    <Stack gap={2}>
+      <Field label={t('admin.users.voice.percent')}>
+        <Input
+          fill
+          name="used_percent"
+          form="set-voice-usage"
+          inputmode="numeric"
+          pattern={'[0-9]{1,2}|100'}
+          maxlength={3}
+          required
+          bind:value={voicePercent}
+        />
+      </Field>
+      <Cluster gap={2} role="group" aria-label={t('admin.users.voice.percent')}>
+        {#each [0, 25, 50, 75, 100] as percent (percent)}
+          <Chip pressed={String(voicePercent) === String(percent)} onclick={() => (voicePercent = String(percent))}>
+            {percentFormat.format(percent / 100)}
+          </Chip>
+        {/each}
+      </Cluster>
+    </Stack>
+  {/if}
+</ConfirmDialog>
 
 <ConfirmDialog
   open={grantOpen}

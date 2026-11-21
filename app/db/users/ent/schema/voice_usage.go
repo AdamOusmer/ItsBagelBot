@@ -24,7 +24,7 @@ func (VoiceUsage) Fields() []ent.Field {
 		field.String("period").MaxLen(7).Immutable(),
 		field.Int64("audio_tokens").NonNegative(),
 		field.Int64("duration_ms").NonNegative(),
-		field.Int("requests").Positive(),
+		field.Int("requests").NonNegative(),
 		field.Time("updated_at"),
 	}
 }

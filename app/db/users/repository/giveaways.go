@@ -17,7 +17,6 @@ import (
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/db"
-	"go.uber.org/zap"
 )
 
 const giveawayRuleVersion = "eligibility-v1"
@@ -163,9 +162,7 @@ func (r *Users) SetTestAccount(ctx context.Context, targetID uint64, enabled boo
 		return err
 	}
 
-	if err := r.deliverAdminAudit(ctx, delivery); err != nil {
-		r.log.Warn("admin audit delivery pending", zap.String("operation_id", delivery.ID.String()), zap.Error(err))
-	}
+	r.tryDeliverAdminAudit(ctx, delivery)
 	return nil
 }
 
