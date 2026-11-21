@@ -22,18 +22,31 @@ defmodule ControlsGateway.IntegrationCase do
     nats_port = NatsServer.free_port()
     nats_server = NatsServer.start(nats_port, if(tags[:jetstream], do: tags[:tmp_dir]))
     on_exit(fn -> NatsServer.stop(nats_server) end)
+    rpc_port = NatsServer.free_port()
+    rpc_server = NatsServer.start(rpc_port, nil)
+    on_exit(fn -> NatsServer.stop(rpc_server) end)
     http_port = NatsServer.free_port()
 
     nats_settings = [%{host: "127.0.0.1", port: nats_port, no_responders: true}]
+    rpc_settings = [%{host: "127.0.0.1", port: rpc_port, no_responders: true}]
     Application.put_env(:controls_gateway, :nats, nats_settings)
+    Application.put_env(:controls_gateway, :rpc_nats, rpc_settings)
     Application.put_env(:controls_gateway, :token_public_keys, %{"test" => public_key})
 
     start_supervised!(
       {Gnat.ConnectionSupervisor,
-       %{name: :gnat, backoff_period: 300, connection_settings: nats_settings}}
+       %{name: :gnat, backoff_period: 300, connection_settings: nats_settings}},
+      id: :gnat
     )
 
-    await_gnat_connected()
+    start_supervised!(
+      {Gnat.ConnectionSupervisor,
+       %{name: :gnat_rpc, backoff_period: 300, connection_settings: rpc_settings}},
+      id: :gnat_rpc
+    )
+
+    await_gnat_connected(:gnat)
+    await_gnat_connected(:gnat_rpc)
     start_supervised!({ControlsGateway.HttpServer, [port: http_port] ++ listener_opts(tags)})
 
     %{http_port: http_port, private_key: private_key, public_key: public_key}
@@ -44,17 +57,17 @@ defmodule ControlsGateway.IntegrationCase do
 
   defp listener_opts(_tags), do: []
 
-  defp await_gnat_connected(attempts \\ 50) do
+  defp await_gnat_connected(name, attempts \\ 50) do
     cond do
       attempts == 0 ->
         raise "gnat did not connect to the test nats-server"
 
-      is_pid(Process.whereis(:gnat)) ->
+      is_pid(Process.whereis(name)) ->
         :ok
 
       true ->
         Process.sleep(50)
-        await_gnat_connected(attempts - 1)
+        await_gnat_connected(name, attempts - 1)
     end
   end
 end

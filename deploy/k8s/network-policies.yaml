@@ -192,3 +192,12 @@ spec:
               app: nats
       ports:
         - port: 4222
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: messaging
+          podSelector:
+            matchLabels:
+              app: nats-leaf
+      ports:
+        - port: 4223

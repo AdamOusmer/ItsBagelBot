@@ -28,8 +28,8 @@ defmodule ControlsGateway.TtsTest do
 
     known_hash = :crypto.hash(:sha256, @token) |> Base.encode16(case: :lower)
     responder = start_supervised!({Task, fn -> respond(known_hash) end})
-    {:ok, _} = Gnat.sub(:gnat, responder, @overlay <> "resolve")
-    {:ok, _} = Gnat.sub(:gnat, responder, @overlay <> "check")
+    {:ok, _} = Gnat.sub(:gnat_rpc, responder, @overlay <> "resolve")
+    {:ok, _} = Gnat.sub(:gnat_rpc, responder, @overlay <> "check")
 
     if !tags[:no_streams] do
       {:ok, _} =
@@ -156,7 +156,7 @@ defmodule ControlsGateway.TtsTest do
 
   test "revocation closes an open event stream", %{http_port: port} do
     live = events(port, [cookie(port)])
-    :ok = Gnat.pub(:gnat, "controls.tts.revoked.#{@user_id}", "")
+    :ok = Gnat.pub(:gnat_rpc, "controls.tts.revoked.#{@user_id}", "")
     assert HttpClient.await(live, & &1.done).done
     HttpClient.close(live)
   end
@@ -238,7 +238,7 @@ defmodule ControlsGateway.TtsTest do
     receive do
       {:msg, %{topic: topic, reply_to: reply, body: body}} ->
         payload = response(topic, Jason.decode!(body), known_hash)
-        :ok = Gnat.pub(:gnat, reply, Jason.encode!(payload))
+        :ok = Gnat.pub(:gnat_rpc, reply, Jason.encode!(payload))
         respond(known_hash)
     end
   end

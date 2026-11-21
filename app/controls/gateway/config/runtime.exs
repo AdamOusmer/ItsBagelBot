@@ -64,12 +64,15 @@ if config_env() == :prod and (nats_auth == %{} or is_nil(nats_cacerts)) do
   raise "production requires NATS_JWT, NATS_NKEY_SEED and NATS_CA_PEM"
 end
 
-nats_tls =
+nats_rpc_host = System.get_env("NATS_RPC_HOST", nats_host)
+nats_rpc_port = String.to_integer(System.get_env("NATS_RPC_PORT", Integer.to_string(nats_port)))
+
+nats_tls = fn host ->
   if nats_cacerts do
     ssl_opts = [
       verify: :verify_peer,
       cacerts: nats_cacerts,
-      server_name_indication: String.to_charlist(nats_host),
+      server_name_indication: String.to_charlist(host),
       depth: 3
     ]
 
@@ -86,14 +89,16 @@ nats_tls =
   else
     %{}
   end
+end
 
+nats_settings = fn host, port ->
+  Map.merge(%{host: host, port: port, no_responders: true}, Map.merge(nats_auth, nats_tls.(host)))
+end
+
+# JetStream (TTS streams and clips) lives on the hub; RPC handlers live on the node-local leaf cluster.
 config :controls_gateway,
-  nats: [
-    Map.merge(
-      %{host: nats_host, port: nats_port, no_responders: true},
-      Map.merge(nats_auth, nats_tls)
-    )
-  ]
+  nats: [nats_settings.(nats_host, nats_port)],
+  rpc_nats: [nats_settings.(nats_rpc_host, nats_rpc_port)]
 
 if level = System.get_env("LOG_LEVEL") do
   config :logger, level: String.to_existing_atom(level)

@@ -28,7 +28,11 @@ defmodule ControlsGateway.Application do
 
   defp server_children do
     if Config.server?() do
-      [connection_child(:gnat_connection, :gnat, Config.nats()), ControlsGateway.HttpServer]
+      [
+        connection_child(:gnat_connection, :gnat, Config.nats()),
+        connection_child(:gnat_rpc_connection, :gnat_rpc, Config.rpc_nats()),
+        ControlsGateway.HttpServer
+      ]
     else
       []
     end
