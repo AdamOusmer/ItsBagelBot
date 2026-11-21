@@ -21,7 +21,7 @@ type CheckoutFailure = 'unavailable' | 'rejected' | 'blocked';
 const PREMIUM_HELD_ERRORS = new Set(['that user already has premium', 'that account already has premium coverage']);
 
 function billingActor(s: Session | null | undefined): { id: string; login: string } | null {
-  if (!s || s.impersonator_id) return null;
+  if (!s) return null;
   if (s.delegate_of && !(s.sections ?? []).includes('billing')) return null;
   if (s.delegate_of) {
     return { id: s.delegate_of, login: s.delegate_login ?? s.login };

@@ -26,7 +26,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { overviewLanes } from '#lib/server/overview-lanes';
 import { broadcasterPremium } from '#lib/server/module-gate';
 import { twitchScopeGap } from '#lib/server/oauth';
-import { isOwnerSession } from '#lib/server/owner';
+import { isSelfSignIn } from '#lib/server/owner';
 import { shareRecent } from '#lib/server/recent-share';
 
 const DEMO = dev && env.DEMO === '1';
@@ -141,7 +141,7 @@ function delegateLanding(s: App.Locals['session']): string | null {
 }
 
 function ownerScopeGap(s: App.Locals['session']): boolean {
-  return isOwnerSession(s) && twitchScopeGap(s.scopes);
+  return isSelfSignIn(s) && twitchScopeGap(s.scopes);
 }
 
 function boardUid(locals: App.Locals): string | null {

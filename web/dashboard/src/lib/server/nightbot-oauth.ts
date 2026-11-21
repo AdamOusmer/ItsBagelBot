@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { env } from '@bagel/kit/server/env';
-import { isOwnerSession } from './owner';
+import { hasOwnerAccess } from './owner';
 
 const AUTHORIZE_URL = 'https://api.nightbot.tv/oauth2/authorize';
 const TOKEN_URL = 'https://api.nightbot.tv/oauth2/token';
@@ -45,7 +45,7 @@ export function nightbotConfigured(): boolean {
 }
 
 export function importOwner(locals: App.Locals): boolean {
-  return isOwnerSession(locals.session);
+  return hasOwnerAccess(locals.session);
 }
 
 export function nightbotAuthURL(state: string): URL {

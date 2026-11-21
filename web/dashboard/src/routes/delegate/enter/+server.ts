@@ -6,7 +6,7 @@ import { redirect } from '@sveltejs/kit';
 import { delegationAccess } from '#lib/server/services';
 import { COOKIE, seal } from '#lib/server/session';
 import { cookieOptions } from '#lib/server/cookies';
-import { isOwnerSession } from '#lib/server/owner';
+import { isSelfSignIn } from '#lib/server/owner';
 
 async function findGrant(userId: string, owner: string | null) {
   if (!owner) throw redirect(302, '/settings?e=access');
@@ -21,7 +21,7 @@ async function findGrant(userId: string, owner: string | null) {
 // Normal sessions only: re-sealing a view-as session would drop its 1h cap and audit trail.
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
   const s = locals.session;
-  if (!isOwnerSession(s)) throw redirect(302, '/login');
+  if (!isSelfSignIn(s)) throw redirect(302, '/login');
 
   const owner = url.searchParams.get('owner');
   const grant = await findGrant(s.user_id, owner);
