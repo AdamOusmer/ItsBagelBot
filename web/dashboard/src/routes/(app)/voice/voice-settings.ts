@@ -1,14 +1,20 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { translate, type Locale } from '@bagel/kit/i18n';
 import {
   ALERT_VOICE_CONFIG_DEFAULTS, ALERT_VOICE_CONFIG_KEYS, alertVoiceKeys, CLOUD_VOICES,
   MAX_CLIP_SECONDS, MAX_SPEECH_RUNES, MIN_CLIP_SECONDS, VOICE_ALERT_KINDS, VOICE_STYLES
 } from '@bagel/kit/voice-plan';
 
-export function voiceAlertConfig(stored: Record<string, string>): Record<string, string> {
+export function voiceAlertConfig(stored: Record<string, string>, locale: Locale): Record<string, string> {
   const defaults: Record<string, string> = ALERT_VOICE_CONFIG_DEFAULTS;
-  return Object.fromEntries(ALERT_VOICE_CONFIG_KEYS.map((key) => [key, stored[key] ?? defaults[key]]));
+  const config = Object.fromEntries(ALERT_VOICE_CONFIG_KEYS.map((key) => [key, stored[key] ?? defaults[key]]));
+  for (const kind of VOICE_ALERT_KINDS) {
+    const { message } = alertVoiceKeys(kind);
+    config[message] = stored[message] ?? translate(locale, `voice.template.${kind}`);
+  }
+  return config;
 }
 
 function unsignedInteger(value: FormDataEntryValue | null): number {

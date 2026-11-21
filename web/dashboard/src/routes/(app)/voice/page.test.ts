@@ -104,6 +104,17 @@ test('renders the shared style picker and the short pause alongside All variable
   });
 });
 
+test('renders the loaded spoken template as the editable textarea value', async () => {
+  const spoken = translate('fr', 'voice.template.cheer');
+  const config = { ...data.alerts.config, cheerTtsMessage: spoken };
+  let value = '';
+  const rewriter = new HTMLRewriter().on('textarea[name="cheerTtsMessage"]', {
+    text(chunk) { value += chunk.text; }
+  });
+  await rewriter.transform(new Response(renderVoice({ alerts: { ...data.alerts, config } }))).text();
+  expect(value).toBe(spoken);
+});
+
 const obsURL = 'https://overlay.itsbagelbot.com/tts#AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
 test.each([
@@ -116,19 +127,27 @@ test.each([
   const form = url ? { overlayUrl: url } : null;
   const html = renderVoice({ readOnly, allowance: { ...allowance, limit_tokens: limit, overlay_configured: configured } }, form);
   let submitLabel = '';
-  const rewriter = new HTMLRewriter().on('form[action="?/rotateOverlay"] button[type="submit"]', {
-    text(chunk) {
-      submitLabel += chunk.text;
-    }
-  });
+  let firstStep = '';
+  const rewriter = new HTMLRewriter()
+    .on('form[action="?/rotateOverlay"] button[type="submit"]', {
+      text(chunk) { submitLabel += chunk.text; }
+    })
+    .on('.bb-steps--checklist > li:first-child .bb-step__label', {
+      text(chunk) { firstStep += chunk.text; }
+    });
   await rewriter.transform(new Response(html)).text();
 
   const buttonLabel = configured ? 'Make a new link' : 'Create link';
-  expect(submitLabel.trim()).toBe(visible ? buttonLabel : '');
   expect({
+    button: submitLabel.trim(),
+    firstStep: firstStep.trim(),
     guide: html.includes('itsbagelbot.com/guides/premium-voice'),
     link: html.includes(obsURL),
     done: html.includes('bb-step__check'),
     stateLabel: html.includes('bb-step__state')
-  }).toEqual({ guide: visible, link: Boolean(url), done: visible && configured, stateLabel: false });
+  }).toEqual({
+    button: visible ? buttonLabel : '',
+    firstStep: visible ? 'Generate a private link and copy it when it appears.' : '',
+    guide: visible, link: Boolean(url), done: visible && configured, stateLabel: false
+  });
 });

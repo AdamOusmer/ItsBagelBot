@@ -24,7 +24,7 @@
 
   const { t } = getI18n();
   const steps: StepItem[] = $derived([
-    { id: 'create', label: t('voice.overlayCreate'), state: configured ? 'succeeded' : 'pending' },
+    { id: 'create', label: t('voice.overlayStepCreate'), state: configured ? 'succeeded' : 'pending' },
     { id: 'add', label: t('voice.overlayStepAdd'), state: 'pending' },
     { id: 'keep', label: t('voice.overlayStepKeep'), state: 'pending' }
   ]);

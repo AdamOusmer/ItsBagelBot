@@ -80,12 +80,13 @@ const rows = await Promise.all(
     {rows.map(({ step, detail }) => (
         <li class={`bb-step bb-step--${step.state}`} aria-current={step.state === 'running' ? 'step' : undefined}>
             <div class="bb-step__row">
-                {!checklist && <i class={MARK[step.state]} aria-hidden="true"></i>}
-                {checklist && step.state === 'succeeded' && (
+                {checklist && step.state === 'succeeded' ? (
                     <span class="bb-step__check">
                         <Icon name="check" size={14} />
                         <VisuallyHidden>{labels.succeeded}</VisuallyHidden>
                     </span>
+                ) : (
+                    <i class={checklist ? MARK.pending : MARK[step.state]} aria-hidden="true"></i>
                 )}
                 <span class="bb-step__text">
                     {step.href ? <a class="bb-step__label" href={step.href}>{step.label}</a> : fitCopy

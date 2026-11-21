@@ -175,7 +175,9 @@
         {@render extraActions?.(insert)}
       </div>
     {/if}
-    <div class="vp-desc"><Text size="xs" tone="muted" id={descId}>{descriptionText}</Text></div>
+    <div class="vp-desc" class:visible={!!descriptionText}>
+      <Text size="xs" id={descId}>{descriptionText}</Text>
+    </div>
   </div>
 
   <PickerPanel {open} anchor={btnEl} label={t('commandEditor.allVariables')} width={380} maxHeight={480} onClose={closeSheet}>
@@ -228,6 +230,7 @@
   .vp { display: contents; }
 
   .vp-row {
+    position: relative;
     display: grid;
     min-width: 0;
     gap: 6px;
@@ -243,7 +246,21 @@
     gap: 6px;
   }
 
-  .vp-desc { min-height: 18px; }
+  .vp-desc {
+    position: absolute;
+    z-index: var(--bb-z-float);
+    inset-block-end: calc(100% + var(--bb-space-1));
+    inset-inline-start: 0;
+    max-inline-size: 100%;
+    padding: var(--bb-space-1) var(--bb-space-2);
+    border: 1px solid var(--bb-border-strong);
+    border-radius: var(--bb-radius-sm);
+    background: var(--bb-card-bg);
+    overflow-wrap: anywhere;
+    pointer-events: none;
+    visibility: hidden;
+  }
+  .vp-desc.visible { visibility: visible; }
   .vp-actions.with-extra { flex-wrap: nowrap; }
 
   .vp-token { min-width: 0; overflow-wrap: anywhere; text-align: left; }

@@ -90,6 +90,9 @@ a bare variable token is not necessarily a pure formatting operation.
 
 Alert handlers share event decoding, token values, and follow/subscription
 cooldowns. Chat and speech use separate templates and per-kind switches.
+The dashboard prefills unset spoken templates in its current locale and saves
+the text when the broadcaster saves voice settings. Sesame uses the built-in
+English template when the stored spoken template is missing or empty.
 Speech additionally checks the channel's live state, cheer threshold, and
 Users allowance, which requires a configured overlay link. Viewer names and
 messages are plain text, and rendered speech is stripped of control characters.

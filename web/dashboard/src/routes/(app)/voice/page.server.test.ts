@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { afterEach, expect, mock, spyOn, test } from 'bun:test';
-import { ALERT_VOICE_CONFIG_DEFAULTS } from '@bagel/kit/voice-plan';
+import { ALERT_VOICE_CONFIG_DEFAULTS, alertVoiceKeys, VOICE_ALERT_KINDS } from '@bagel/kit/voice-plan';
 import type { VoiceAllowance } from '#lib/server/services/voice';
 import { stubSvelteKit } from '../../../../test/sveltekit';
 
@@ -13,6 +13,7 @@ mock.module('#lib/server/edge-purge', () => ({
 }));
 
 const bus = await import('@bagel/kit/server/nats');
+const { translate } = await import('@bagel/kit/i18n');
 const { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS } = await import('@bagel/kit/server/service');
 const { SUB } = await import('#lib/server/services/subjects');
 const { actions, load } = await import('./+page.server');
@@ -60,7 +61,7 @@ test.each([
     ? { config: { ...ALERT_VOICE_CONFIG_DEFAULTS, cheerTtsStyle: 'calm' }, revision: 9 }
     : null;
 
-  expect(await load({ locals: { session } } as never)).toEqual({
+  expect(await load({ locals: { session, locale: 'en' } } as never)).toEqual({
     readOnly, allowance: reply, locked: reply?.reason === 'no_plan', alerts
   });
   expect(rpc.mock.calls).toEqual([...(readOnly ? [] : [usersRead]), ...(alerts ? [modulesRead] : [])]);
@@ -68,7 +69,7 @@ test.each([
 
 test('an unavailable allowance degrades without inventing a free plan', async () => {
   spyOn(bus, 'rpc').mockRejectedValueOnce(new Error('timeout'));
-  expect(await load({ locals: { session: owner } } as never)).toEqual({
+  expect(await load({ locals: { session: owner, locale: 'en' } } as never)).toEqual({
     readOnly: false, allowance: null, locked: false, alerts: null
   });
 });
@@ -87,6 +88,28 @@ function mockSaveReplies(moduleReply: { conflict?: boolean; rev: number; modules
   return spyOn(bus, 'rpc').mockResolvedValueOnce(allowance).mockResolvedValueOnce({ modules: [alertRow] })
     .mockResolvedValueOnce(moduleReply);
 }
+
+test.each(['en', 'fr', 'es', 'de', 'pt-br', 'ru'])('loads and saves spoken templates for %s', async (locale) => {
+  const row = {
+    ...alertRow, configs: { ...alertRow.configs, followTtsMessage: 'My custom follow alert', raidTtsMessage: '' }
+  };
+  const rpc = spyOn(bus, 'rpc')
+    .mockResolvedValueOnce(allowance).mockResolvedValueOnce({ modules: [row] })
+    .mockResolvedValueOnce(allowance).mockResolvedValueOnce({ modules: [row] })
+    .mockResolvedValueOnce({ rev: 10, modules: [row] })
+    .mockResolvedValueOnce({ modules: [row] }).mockResolvedValueOnce({ ok: true });
+  const { alerts } = (await load({ locals: { session: owner, locale } } as never)) as {
+    alerts?: { config: Record<string, string> };
+  };
+  const messages = Object.fromEntries(VOICE_ALERT_KINDS.map((kind) => [
+    alertVoiceKeys(kind).message, translate(locale, `voice.template.${kind}`)
+  ]));
+  expect(alerts?.config).toMatchObject({ ...messages, followTtsMessage: row.configs.followTtsMessage, raidTtsMessage: '' });
+  expect(await save(alerts?.config)).toEqual({ ok: true });
+  expect(rpc).toHaveBeenCalledWith(
+    `${SUB.modules}.patch`, expect.objectContaining({ configs: alerts?.config })
+  );
+});
 
 test.each([
   { voice: 'Puck', enabled: true, maxSeconds: 5 },

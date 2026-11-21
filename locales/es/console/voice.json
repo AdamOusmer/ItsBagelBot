@@ -45,6 +45,7 @@
   "cheerThreshold": "Se reproduce a partir de {n} bits",
   "remaining": "Quedan {time}",
   "exhausted": "Has agotado tus minutos. Las alertas usan la voz local gratuita hasta el {date}.",
+  "overlayStepCreate": "Genera un enlace privado y cópialo cuando aparezca.",
   "overlayStepAdd": "Añade una fuente de navegador en OBS, pega el enlace y ajusta el tamaño a 800 × 200.",
   "overlayStepKeep": "Déjala activa en cada escena. Las alertas solo suenan mientras la fuente esté abierta.",
   "overlayGuide": "Guía completa",
@@ -92,7 +93,7 @@
   },
   "styleDescription": {
     "warm": "Amable y animado",
-    "hype": "Entusiasta y festivo",
+    "hype": "Mucha energía para los grandes momentos",
     "calm": "Suave y relajado",
     "playful": "Ligero y risueño",
     "cozy": "Suave e íntimo"

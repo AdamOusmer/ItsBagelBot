@@ -7087,6 +7087,7 @@ export type KnownMessageKey =
   | 'voice.overlayLink'
   | 'voice.overlayReplace'
   | 'voice.overlayStepAdd'
+  | 'voice.overlayStepCreate'
   | 'voice.overlayStepKeep'
   | 'voice.overlayTitle'
   | 'voice.overlayUnavailable'

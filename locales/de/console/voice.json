@@ -45,6 +45,7 @@
   "cheerThreshold": "Wird ab {n} Bits abgespielt",
   "remaining": "Noch {time}",
   "exhausted": "Minuten aufgebraucht. Bis zum {date} nutzen Alerts die kostenlose lokale Stimme.",
+  "overlayStepCreate": "Erstelle einen privaten Link und kopiere ihn, sobald er erscheint.",
   "overlayStepAdd": "Füge in OBS eine Browserquelle hinzu, füge den Link ein und stelle die Größe auf 800 × 200.",
   "overlayStepKeep": "Lass die Quelle in jeder Szene aktiv. Alerts werden nur bei geöffneter Quelle abgespielt.",
   "overlayGuide": "Vollständige Anleitung",
@@ -92,7 +93,7 @@
   },
   "styleDescription": {
     "warm": "Freundlich und lebhaft",
-    "hype": "Begeistert und ausgelassen",
+    "hype": "Viel Energie für große Momente",
     "calm": "Sanft und gelassen",
     "playful": "Leicht und vergnügt",
     "cozy": "Sanft und vertraut"

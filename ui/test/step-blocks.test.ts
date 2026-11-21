@@ -148,16 +148,17 @@ describe('StepList Astro adapter', () => {
     );
   });
 
-  test('uses a single completion check and hides visible state labels in a checklist', async () => {
+  test('marks every checklist row while keeping visible state labels hidden', async () => {
     const steps = CHECKLIST.map(({ id, label, state }) => ({ id, label, state }));
     const props = { steps, fitCopy: true, checklist: true, stateLabels: { succeeded: 'Complete' } };
     const html = svelteHtml(SvelteStepList, props);
     expect(await astroHtml(AstroStepList, props)).toBe(html);
     expect({
       checks: html.match(/class="bb-step__check"/g)?.length,
+      hollowMarks: html.match(/class="bb-mark bb-mark--hollow" aria-hidden="true"/g)?.length,
       announcesCompletion: html.includes('class="bb-sr-only">Complete</span>'),
       showsStateLabel: html.includes('bb-step__state')
-    }).toEqual({ checks: 1, announcesCompletion: true, showsStateLabel: false });
+    }).toEqual({ checks: 1, hollowMarks: 3, announcesCompletion: true, showsStateLabel: false });
   });
 
   test('a function child renders per-row detail like the Svelte snippet', async () => {

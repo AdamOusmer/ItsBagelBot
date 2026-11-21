@@ -171,13 +171,13 @@
         aria-current={step.state === 'running' ? 'step' : undefined}
       >
         <div class="bb-step__row">
-          {#if !checklist}
-            <i class={MARK[step.state]} aria-hidden="true"></i>
-          {:else if step.state === 'succeeded'}
+          {#if checklist && step.state === 'succeeded'}
             <span class="bb-step__check">
               <Icon name="check" size={14} />
               <VisuallyHidden>{labels.succeeded}</VisuallyHidden>
             </span>
+          {:else}
+            <i class={checklist ? MARK.pending : MARK[step.state]} aria-hidden="true"></i>
           {/if}
           <span class="bb-step__text">
             {#if step.href}

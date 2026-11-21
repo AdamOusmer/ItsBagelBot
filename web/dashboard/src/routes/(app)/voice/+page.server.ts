@@ -18,7 +18,7 @@ async function readAlerts(userId: string) {
   return rows.find(({ name }) => name === 'alerts');
 }
 
-export const load: PageServerLoad = async ({ locals: { session } }) => {
+export const load: PageServerLoad = async ({ locals: { session, locale } }) => {
   if (!session) throw redirect(302, '/login?next=%2Fvoice');
   if (!isOwnerSession(session)) return { readOnly: true, locked: false, allowance: null, alerts: null };
 
@@ -28,7 +28,7 @@ export const load: PageServerLoad = async ({ locals: { session } }) => {
 
   const alerts = await bestEffort(readAlerts(session.user_id).then((row) => {
     const { config, revision } = moduleEditState(row);
-    return { config: voiceAlertConfig(config), revision };
+    return { config: voiceAlertConfig(config, locale), revision };
   }), null);
   return { ...view, alerts };
 };
