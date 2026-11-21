@@ -107,7 +107,7 @@
 </div>
 
 <style>
-  .duration-row { display: flex; align-items: center; gap: 10px; }
+  .duration-row { display: flex; align-items: center; gap: 8px; }
   .num { display: block; width: 100px; flex: none; }
   .unit { flex: 1; min-width: 130px; }
   .help { display: block; margin-top: 2px; opacity: 0.7; }

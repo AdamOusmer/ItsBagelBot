@@ -390,7 +390,7 @@
 
   .opts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 
-  .build { display: flex; flex-direction: column; gap: 12px; width: 100%; min-width: 0; --field-gap: 5px; --field-mb: 0; }
+  .build { display: flex; flex-direction: column; gap: 12px; width: 100%; min-width: 0; --field-gap: 4px; --field-mb: 0; }
 
   .sample-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 

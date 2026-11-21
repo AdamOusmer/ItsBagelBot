@@ -32,7 +32,6 @@
     flex: none;
     width: 48px;
     height: 48px;
-    filter: drop-shadow(0 0 12px rgba(var(--bb-tan-rgb), 0.35));
   }
   .ov-premium__copy {
     display: grid;

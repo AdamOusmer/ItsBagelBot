@@ -626,7 +626,7 @@
 />
 
 <style>
-  .crumbs { margin-bottom: 10px; }
+  .crumbs { margin-bottom: 8px; }
   .crumbs ol {
     display: flex;
     align-items: center;
@@ -639,14 +639,14 @@
   .crumb-sep { opacity: 0.5; }
 
   .settings-card { margin-bottom: 16px; }
-  .master-row { display: flex; align-items: center; gap: 12px; padding: 16px 18px; }
-  .tr-text { display: flex; flex-direction: column; gap: 3px; margin-right: auto; min-width: 0; }
+  .master-row { display: flex; align-items: center; gap: 12px; padding: 16px; }
+  .tr-text { display: flex; flex-direction: column; gap: 4px; margin-right: auto; min-width: 0; }
 
   .section-head {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 18px;
+    padding: 12px 16px;
   }
 
   .list { list-style: none; margin: 0; padding: 0; }
@@ -656,6 +656,6 @@
   .lock-hint { flex: none; }
   .autosave { margin-left: auto; }
   .reply-filter { width: min(260px, 44vw); flex: none; }
-  .reply-none { padding: 16px 18px; }
-  .rh-text { display: flex; flex-direction: column; gap: 2px; margin-right: auto; min-width: 0; }
+  .reply-none { padding: 16px; }
+  .rh-text { display: flex; flex-direction: column; gap: 4px; margin-right: auto; min-width: 0; }
 </style>

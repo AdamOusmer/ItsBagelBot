@@ -160,7 +160,7 @@
 
   .desc { margin: 16px 0; }
 
-  .reply-form { margin-bottom: 14px; }
+  .reply-form { margin-bottom: 16px; }
   .reply-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
   @media (max-width: 480px) {
     .reply-actions { --btn-w: 100%; --btn-justify: center; --btn-min-h: 44px; }
@@ -172,7 +172,7 @@
     gap: 12px;
     --field-mb: 0;
   }
-  .access-form { display: flex; flex-direction: column; gap: 10px; }
+  .access-form { display: flex; flex-direction: column; gap: 8px; }
   .access-save { align-self: flex-end; }
 
   .usage {
@@ -181,6 +181,6 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
 </style>

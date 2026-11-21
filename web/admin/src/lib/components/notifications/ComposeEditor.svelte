@@ -14,6 +14,7 @@
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import type { InspectorStatus } from '@bagel/ui/lib/inspector-machine';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import '@bagel/ui/styles/elements/collapse.css';
   import {
     LEVEL_LABEL,
     LEVELS,
@@ -64,32 +65,38 @@
         </Stack>
 
         <div class="recipients">
-          <div class="recipient-options" class:active={direct} inert={!direct} aria-hidden={!direct}>
-            <Field fit label={t('admin.notifications.fieldUserId')}>
-              <Input
-                fill
-                mono
-                name="target_user_id"
-                inputmode="numeric"
-                autocomplete="off"
-                placeholder={t('admin.notifications.fieldUserIdPlaceholder')}
-                disabled={!direct}
-                bind:value={() => draft.targetUserId, (value) => edit('targetUserId', String(value ?? ''))}
-              />
-            </Field>
-            <Field fit label={t('admin.notifications.fieldUsername')}>
-              <Input
-                fill
-                name="target_username"
-                autocomplete="off"
-                placeholder={t('admin.notifications.fieldUsernamePlaceholder')}
-                disabled={!direct}
-                bind:value={() => draft.targetUsername, (value) => edit('targetUsername', String(value ?? ''))}
-              />
-            </Field>
+          <div class="bb-collapse" class:is-open={direct} inert={!direct} aria-hidden={!direct}>
+            <div>
+              <div class="recipient-options">
+                <Field fit label={t('admin.notifications.fieldUserId')}>
+                  <Input
+                    fill
+                    mono
+                    name="target_user_id"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    placeholder={t('admin.notifications.fieldUserIdPlaceholder')}
+                    disabled={!direct}
+                    bind:value={() => draft.targetUserId, (value) => edit('targetUserId', String(value ?? ''))}
+                  />
+                </Field>
+                <Field fit label={t('admin.notifications.fieldUsername')}>
+                  <Input
+                    fill
+                    name="target_username"
+                    autocomplete="off"
+                    placeholder={t('admin.notifications.fieldUsernamePlaceholder')}
+                    disabled={!direct}
+                    bind:value={() => draft.targetUsername, (value) => edit('targetUsername', String(value ?? ''))}
+                  />
+                </Field>
+              </div>
+            </div>
           </div>
-          <div class="broadcast-hint" class:active={!direct} aria-hidden={direct}>
-            <Text size="sm" tone="muted"><bb-fit mode="block">{t('admin.notifications.broadcastHint')}</bb-fit></Text>
+          <div class="bb-collapse" class:is-open={!direct} aria-hidden={direct}>
+            <div>
+              <Text size="sm" tone="muted"><bb-fit mode="block">{t('admin.notifications.broadcastHint')}</bb-fit></Text>
+            </div>
           </div>
         </div>
 
@@ -175,42 +182,13 @@
     border: 0;
   }
 
-  .recipients {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: center;
-  }
-
-  .recipient-options,
-  .broadcast-hint {
-    grid-area: 1 / 1;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity var(--bb-dur-fast) ease,
-      visibility 0s linear var(--bb-dur-fast);
-  }
-
   .recipient-options {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--bb-space-3);
   }
 
-  .recipient-options.active,
-  .broadcast-hint.active {
-    opacity: 1;
-    visibility: visible;
-    transition-delay: 0s;
-  }
-
   :global(.compose-fields .expiry-hint) {
     block-size: 2rem;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .recipient-options,
-    .broadcast-hint {
-      transition: none;
-    }
   }
 </style>

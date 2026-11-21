@@ -41,7 +41,6 @@
         <circle class="progress" cx="90" cy="90" r="77" pathLength="100" />
         <path class="check" d="m69 63 13 13 28-29" />
       </svg>
-      <span class="inner-glow"></span>
       <span class="ripple"></span>
       {#each Array.from({ length: 8 }) as _, i (i)}
         <span class="spark" style="--a: {i * 45 + 22.5}deg; --d: {i % 2 ? 1 : 0.78};"></span>
@@ -105,7 +104,6 @@
     margin: -2.5px 0 0 -2.5px;
     border-radius: var(--bb-radius-pill);
     background: var(--bb-green-glow);
-    box-shadow: 0 0 10px rgba(var(--bb-green-glow-rgb), .8);
     opacity: 0;
     transform: rotate(var(--a)) translateX(70px) scale(.4);
   }
@@ -156,17 +154,6 @@
     animation: draw-check var(--bb-dur-slow) var(--bb-ease-out-expo) forwards;
   }
 
-  .inner-glow {
-    position: absolute;
-    inset: 24px;
-    border-radius: var(--bb-radius-pill);
-    box-shadow: 0 0 55px rgba(var(--bb-green-glow-rgb), .16);
-    opacity: 0;
-    transition: opacity var(--bb-dur-slow) ease;
-  }
-  .done .inner-glow,
-  .leaving .inner-glow { opacity: 1; }
-
   .label {
     position: relative;
     display: block;
@@ -203,7 +190,6 @@
   @media (prefers-reduced-motion: reduce) {
     .completion,
     .moment,
-    .inner-glow,
     .label { transition: none; }
     .aura,
     .progress,

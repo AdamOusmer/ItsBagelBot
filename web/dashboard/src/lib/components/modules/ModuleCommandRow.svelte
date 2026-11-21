@@ -120,11 +120,11 @@
     display: grid;
     grid-template-columns: 28px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 14px;
+    gap: 16px;
   }
   .idx { opacity: 0.55; }
 
-  .cmd { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .cmd { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 
   .mini-spacer { width: 0; }
 

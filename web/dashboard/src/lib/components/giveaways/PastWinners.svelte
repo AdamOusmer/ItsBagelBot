@@ -30,14 +30,11 @@
   <div class="history">
     <CardHead title={t('giveaways.history')} headingLevel={2} />
     {#if degraded || !winners.length}
-      <div class="historyState">
-        <div class="stateMessage">
-          <PageNotice tone="warning" visible={degraded}>{t('giveaways.historyUnavailable')}</PageNotice>
-        </div>
-        <div class="stateMessage empty" class:faded={degraded} inert={degraded} aria-hidden={degraded}>
-          <Text as="span" size="sm" tone="muted"><bb-fit mode="block">{t('giveaways.noWinners')}</bb-fit></Text>
-        </div>
-      </div>
+      {#if degraded}
+        <PageNotice tone="warning">{t('giveaways.historyUnavailable')}</PageNotice>
+      {:else}
+        <Text as="span" size="sm" tone="muted"><bb-fit mode="block">{t('giveaways.noWinners')}</bb-fit></Text>
+      {/if}
     {:else}
       <Table label={t('giveaways.history')} minWidth={submit ? '34rem' : undefined} compact>
         <thead><tr>
@@ -73,13 +70,6 @@
 
 <style>
   .history { display: grid; gap: var(--bb-space-3); min-width: 0; }
-  .historyState { display: grid; }
-  .stateMessage { grid-area: 1 / 1; min-inline-size: 0; }
-  .empty { display: grid; align-content: center; transition: opacity var(--bb-dur-fast); }
-  .faded { opacity: 0; }
   .delivery { --btn-w: 10rem; }
   .name { overflow-wrap: anywhere; }
-  @media (prefers-reduced-motion: reduce) {
-    .empty { transition: none; }
-  }
 </style>

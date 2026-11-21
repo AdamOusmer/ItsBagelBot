@@ -138,7 +138,7 @@
 </script>
 
 <section class="screen active trials">
-  <PageHead description={t('admin.trials.description')} style="min-block-size: var(--trial-head-size)">
+  <PageHead description={t('admin.trials.description')}>
     <bb-fit><span data-fit>{t('admin.trials.titlePre')}<em>{t('admin.trials.titleEm')}</em></span></bb-fit>
   </PageHead>
 
@@ -224,8 +224,7 @@
 
 <style>
   .trials {
-    --trial-card-size: 10.5rem;
-    --trial-head-size: 7rem;
+    --trial-card-size: 8rem;
   }
 
   .trial-add {
@@ -268,10 +267,6 @@
     pointer-events: none;
   }
 
-  .trial-results {
-    min-block-size: calc(2 * var(--trial-card-size) + var(--bb-space-3));
-  }
-
   .trial-results:focus-visible {
     outline: 2px solid var(--bb-focus);
     outline-offset: var(--bb-space-1);
@@ -279,23 +274,17 @@
 
   @media (max-width: 980px) {
     .trials {
-      --trial-card-size: 15rem;
+      --trial-card-size: 12rem;
     }
   }
 
   @media (max-width: 680px) {
     .trials {
-      --trial-card-size: 15.5rem;
-      --trial-head-size: 7.25rem;
+      --trial-card-size: 12rem;
     }
 
     .trial-add {
       grid-template-columns: minmax(0, 1fr) 7.75rem;
-    }
-
-    .trial-capacity {
-      min-block-size: 4.5rem;
-      align-content: center;
     }
   }
 </style>

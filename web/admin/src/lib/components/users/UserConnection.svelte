@@ -137,7 +137,8 @@
 
   .gapped {
     --bb-collapse-gap: var(--bb-space-2);
-    display: grid;
+    display: flex;
+    flex-direction: column;
     gap: var(--bb-space-2);
   }
 

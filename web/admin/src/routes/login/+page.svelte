@@ -1,6 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import '@bagel/ui/styles/elements/collapse.css';
   import { page } from '$app/state';
   import PublicShell from '@bagel/kit/components/PublicShell.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -76,10 +77,14 @@
           </Stack>
         </Card>
 
-        <div class="login-notice" class:visible={notice} inert={!notice} aria-hidden={!notice}>
-          <AlertBanner id="signin-notice" tone="danger" strong flush>
-            <span class="login-copy"><bb-fit mode="block">{notice ? t(notice) : ''}</bb-fit></span>
-          </AlertBanner>
+        <div class="bb-collapse" class:is-open={Boolean(notice)} inert={!notice} aria-hidden={!notice}>
+          <div>
+            <div class="login-notice">
+              <AlertBanner id="signin-notice" tone="danger" strong flush>
+                <span class="login-copy"><bb-fit mode="block">{notice ? t(notice) : ''}</bb-fit></span>
+              </AlertBanner>
+            </div>
+          </div>
         </div>
       </Container>
     </main>
@@ -104,17 +109,5 @@
 
   .login-notice {
     margin-block-start: var(--bb-space-3);
-    opacity: 0;
-    transition: opacity var(--bb-dur-fast) ease;
-  }
-
-  .login-notice.visible {
-    opacity: 1;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .login-notice {
-      transition: none;
-    }
   }
 </style>

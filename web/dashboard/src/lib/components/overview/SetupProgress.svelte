@@ -82,8 +82,8 @@
   .ov-setup__row {
     display: flex;
     align-items: center;
-    gap: 13px;
-    padding: 14px 2px;
+    gap: 12px;
+    padding: 12px 0;
   }
   .ov-setup__ico {
     display: inline-flex;

@@ -448,15 +448,15 @@
 <style>
   .toolbar-actions { display: flex; align-items: center; gap: 12px; }
 
-  .block { display: grid; gap: 12px; margin-bottom: 26px; }
+  .block { display: grid; gap: var(--bb-space-3); margin-bottom: var(--bb-space-5); }
   .perm-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 280px));
-    gap: 16px;
-    margin-top: 14px;
+    gap: var(--bb-space-4);
+    margin-top: var(--bb-space-4);
   }
 
-  .cmd-block { margin-top: 26px; }
+  .cmd-block { margin-top: var(--bb-space-5); }
 
   .toolbar-search { width: 220px; --input-w: 100%; }
 

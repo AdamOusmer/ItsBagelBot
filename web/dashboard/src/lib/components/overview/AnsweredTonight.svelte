@@ -63,20 +63,20 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 17px 20px 14px;
+    padding: 16px 20px 12px;
   }
   .ov-ans__list {
     list-style: none;
     margin: 0;
-    padding: 16px 20px 18px;
+    padding: 16px 20px;
     display: flex;
     flex-direction: column;
-    gap: 13px;
+    gap: 12px;
   }
   .ov-ans__row {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
   .ov-ans__line {
     display: flex;
@@ -85,6 +85,6 @@
     gap: 10px;
   }
   .ov-ans__empty {
-    padding: 16px 20px 20px;
+    padding: 16px 20px;
   }
 </style>

@@ -195,7 +195,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 9px 2px;
+    padding: 8px 4px;
     flex-wrap: wrap;
   }
   .label { min-width: 120px; }
@@ -208,5 +208,5 @@
   .add-key { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
   .add-key-field { display: flex; flex: 1; min-width: 140px; }
 
-  .ref-list { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .ref-list { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
 </style>

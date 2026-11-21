@@ -296,18 +296,16 @@
   </section>
 
 <style>
-  .block { display: grid; gap: 12px; margin-bottom: 26px; }
-  .hint { margin-bottom: 14px; }
-  .perm-title { margin: 18px 0 6px; }
-  .perm {
-    padding: 9px 0;
-  }
+  .block { display: grid; gap: var(--bb-space-3); margin-bottom: var(--bb-space-5); }
+  .hint { margin-bottom: var(--bb-space-4); }
+  .perm-title { margin: var(--bb-space-4) 0 var(--bb-space-2); }
+  .perm { padding: var(--bb-space-2) 0; }
 
   .rate { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; }
   .rate-switch { padding-top: 26px; min-height: 44px; display: inline-flex; align-items: flex-start; }
-  .rate-input { display: flex; align-items: center; gap: 10px; }
+  .rate-input { display: flex; align-items: center; gap: var(--bb-space-2); }
   .num { width: 100%; max-width: 160px; }
-  .tiers { display: grid; gap: 12px; padding: 12px 0 9px; }
+  .tiers { display: grid; gap: 12px; padding: var(--bb-space-3) 0 var(--bb-space-2); }
 
   .actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 4px; }
 </style>

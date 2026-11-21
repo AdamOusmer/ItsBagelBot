@@ -338,7 +338,7 @@
   }
   .open-existing.on { visibility: visible; opacity: 1; }
 
-  .check { margin: 4px 0 14px; --bb-check-align: center; }
+  .check { margin: 4px 0 16px; --bb-check-align: center; }
   .live-active {
     display: flex;
     align-items: center;

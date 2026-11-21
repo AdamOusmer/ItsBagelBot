@@ -827,7 +827,7 @@
 
   .layout {
     display: grid;
-    gap: 18px 40px;
+    gap: 16px 40px;
     --bb-tabs-sticky-top: calc(var(--bb-topbar-height) + 68px);
   }
   @media (min-width: 761px) {
@@ -844,7 +844,7 @@
       --bb-tabs-max-height: none;
     }
   }
-  .rail { display: grid; align-content: start; gap: 22px; min-width: 0; }
+  .rail { display: grid; align-content: start; gap: 24px; min-width: 0; }
   .board { display: none; }
   @media (min-width: 761px) {
     .board { display: block; }
@@ -852,12 +852,12 @@
   .board-body {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 14px 16px;
+    gap: 8px;
+    padding: 12px 16px;
   }
   .board-row { display: flex; align-items: center; gap: 8px; }
 
-  .stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
   .sec-title { margin-bottom: 6px; }
   .hint { margin: 0 0 12px; }
@@ -869,20 +869,20 @@
     gap: 16px;
     flex-wrap: wrap;
   }
-  .sec-head:not(:last-child) { margin-bottom: 18px; }
+  .sec-head:not(:last-child) { margin-bottom: 16px; }
   .sec-intro { display: grid; gap: 4px; }
 
-  .group-label { margin: 22px 0 10px; }
+  .group-label { margin: 24px 0 8px; }
   .sub-block .group-label { margin-top: 0; }
 
   .identity {
     display: flex;
     align-items: center;
-    gap: 18px;
+    gap: 16px;
   }
   .identity-face { flex: none; display: flex; }
-  .identity-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-  .identity-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .identity-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .identity-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .row {
     display: flex;
     align-items: center;
@@ -891,19 +891,19 @@
     padding: 12px 0 0;
   }
   .row-text { display: grid; gap: 4px; }
-  .create-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
+  .create-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
 
   .grants { display: flex; flex-direction: column; gap: 8px; list-style: none; margin: 0; padding: 0; }
   .grant {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 14px;
+    gap: 16px;
   }
   .grant.device-grant { grid-template-columns: minmax(0, 1fr) auto; }
 
   .face { flex: none; display: flex; }
-  .grant-main { min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+  .grant-main { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
   .grant-link {
     min-width: 0;
     overflow: hidden;
@@ -912,21 +912,21 @@
     font-size: var(--bb-text-xs);
   }
 
-  .grant-sections { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .grant-sections { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .grant.pending .grant-sections { grid-column: 1 / -1; }
   .grant-edit { grid-column: 1 / -1; margin-top: 4px; display: flex; flex-direction: column; gap: 12px; }
-  .grant-edit-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .grant-edit-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
   .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
-  .notif-list { display: flex; flex-direction: column; gap: 10px; list-style: none; margin: 0; padding: 0; }
+  .notif-list { display: flex; flex-direction: column; gap: 12px; list-style: none; margin: 0; padding: 0; }
   .notif-item {
     display: flex; align-items: flex-start; gap: 12px;
   }
   .notif-text { flex: 1; min-width: 0; display: grid; gap: 4px; }
   .notif-more { margin-top: 12px; }
 
-  .danger-section { margin-top: 28px; }
+  .danger-section { margin-top: 32px; }
 
   @media (max-width: 760px) {
     .row, .identity { flex-direction: column; align-items: stretch; }

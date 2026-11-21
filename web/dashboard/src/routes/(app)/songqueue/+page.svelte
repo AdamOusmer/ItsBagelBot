@@ -52,6 +52,7 @@
   import { createTriggerToggle } from '#lib/client-actions.svelte';
   import { warmOnIntent } from '#lib/warm-on-intent';
   import Divider from '@bagel/ui/svelte/Divider.svelte';
+  import '@bagel/ui/styles/elements/collapse.css';
   const loadSpotifyRewardEditor = () => import('#lib/components/spotify/SpotifyRewardEditor.svelte');
   import {
     spotifyDraftFor,
@@ -540,7 +541,9 @@
               onchange={srChanged}
             />
           </Field>
-          <div class="reserved-hint" class:hidden={sr.enabled}><Text size="xs" tone="muted">{t('spotify.sr.permOffHint')}</Text></div>
+          <div class="bb-collapse" class:is-open={!sr.enabled} aria-hidden={sr.enabled} inert={sr.enabled}>
+            <div><div class="perm-hint"><Text size="xs" tone="muted">{t('spotify.sr.permOffHint')}</Text></div></div>
+          </div>
         </form>
 
         <form method="POST" action="?/quotas" use:enhance={quotasSubmit}>
@@ -753,8 +756,7 @@
     .paths.inspecting { grid-template-columns: minmax(0, 1fr); }
   }
 
-  .reserved-hint { min-height: 16px; margin: -6px 0 14px; }
-  .reserved-hint.hidden { visibility: hidden; opacity: 0; }
+  .perm-hint { padding-block: 8px 14px; }
 
   .inspector-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import '@bagel/ui/styles/elements/collapse.css';
   import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
@@ -87,6 +88,8 @@
     set(on ? [...current.filter((v) => v !== value), value] : current.filter((v) => v !== value));
   }
 
+  const filterCode = (name: string) => issueAt(issues, `${path}.${name}`);
+
   function filterValue(name: string): string {
     return String((params[field.name] as Record<string, string> | undefined)?.[name] ?? '');
   }
@@ -123,8 +126,10 @@
         {#each kindFields as name (name)}
           <label class="pf-filter">
             <Text as="span" size="xs" mono tone="muted" truncate>{name}</Text>
-            <Input fill value={filterValue(name)} {disabled} invalid={!!issueAt(issues, `${path}.${name}`)} oninput={(e: Event) => setFilter(name, (e.currentTarget as HTMLInputElement).value)} />
-            <span class="pf-filter-err"><Text as="span" size="xs" tone="danger">{issueAt(issues, `${path}.${name}`) ? t(`automations.issue.${issueAt(issues, `${path}.${name}`)}` as MessageKey) : ''}</Text></span>
+            <Input fill value={filterValue(name)} {disabled} invalid={!!filterCode(name)} oninput={(e: Event) => setFilter(name, (e.currentTarget as HTMLInputElement).value)} />
+            <div class="bb-collapse pf-filter-err" class:is-open={!!filterCode(name)} aria-hidden={!filterCode(name)} inert={!filterCode(name)}>
+              <div><Text as="span" size="xs" tone="danger">{filterCode(name) ? t(`automations.issue.${filterCode(name)}` as MessageKey) : ''}</Text></div>
+            </div>
           </label>
         {/each}
       </div>
@@ -157,17 +162,18 @@
     </Field>
   {/if}
   {#if field.kind !== 'map'}
-    <span class="pf-err" id={errId} role={code ? 'alert' : undefined}><Text as="span" size="xs" tone="danger">{errorText}</Text></span>
+    <div class="bb-collapse" class:is-open={!!code} aria-hidden={!code} inert={!code}>
+      <div id={errId} role={code ? 'alert' : undefined}><Text as="span" size="xs" tone="danger">{errorText}</Text></div>
+    </div>
   {/if}
 </div>
 
 <style>
-  .pf { display: flex; flex-direction: column; gap: 2px; min-width: 0; --field-mb: 0; }
+  .pf { display: flex; flex-direction: column; gap: 4px; min-width: 0; --field-mb: 0; --bb-collapse-gap: 4px; }
   .pf.wide { grid-column: 1 / -1; }
-  .pf-err, .pf-filter-err { display: block; min-height: 18px; line-height: 18px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .pf-check { display: flex; align-items: center; min-height: 40px; --bb-check-align: center; }
   .pf-checks { display: flex; align-items: center; gap: 16px; min-height: 40px; }
   .pf-filters { display: flex; flex-direction: column; gap: 4px; }
   .pf-filter { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; column-gap: 12px; }
-  .pf-filter-err { grid-column: 2; }
+  .pf-filter-err { grid-column: 2; --bb-collapse-gap: 0px; }
 </style>

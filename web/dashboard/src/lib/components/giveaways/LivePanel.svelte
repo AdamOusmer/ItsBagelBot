@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { enhance, type SubmitFunction } from '$app/forms';
   import { getI18n, GIVEAWAY_LIMITS as pins } from '@bagel/kit';
+  import '@bagel/ui/styles/elements/collapse.css';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
@@ -37,8 +38,10 @@
       <StatTile fitCopy label={t('giveaways.rejected')} value={format.format(round.refused)} static text />
       <StatTile fitCopy label={t('giveaways.timeLeft')} value={open ? giveawayCountdown(round.closes_ms, now) : t('giveaways.emptyCell')} static text />
     </div>
-    <form method="POST" action="?/close" use:enhance={submit} class="commands">
+    <form method="POST" action="?/close" use:enhance={submit} class="bb-collapse commands" class:is-open={open || settling} inert={!(open || settling)} aria-hidden={!(open || settling)}>
+      <div>
       <input type="hidden" name="round_id" value={round.id} />
+      <div class="phases">
       <div class="phaseButtons" class:faded={!open} inert={!open}>
         <Button type="submit" disabled={!open || busy}><bb-fit><span data-fit="">{t('giveaways.close')}</span></bb-fit></Button>
         <Button type="submit" formaction="?/extend" variant="secondary" disabled={!canExtend || busy}><bb-fit><span data-fit="">{t('giveaways.extend')}</span></bb-fit></Button>
@@ -47,6 +50,8 @@
       <div class="phaseButtons" class:faded={!settling} inert={!settling}>
         <Button type="submit" formaction="?/reroll" variant="secondary" disabled={!hasNoShows || busy}><bb-fit><span data-fit="">{t('giveaways.rerollAll')}</span></bb-fit></Button>
         <Button type="submit" formaction="?/end" variant="ghost" disabled={!unfinished || busy}><bb-fit><span data-fit="">{t('giveaways.endSlots')}</span></bb-fit></Button>
+      </div>
+      </div>
       </div>
     </form>
     {#if round.slots.length}
@@ -67,9 +72,10 @@
 </Card>
 
 <style>
-  .stack { display: grid; gap: var(--bb-space-3); min-width: 0; }
+  .stack { display: flex; flex-direction: column; gap: var(--bb-space-3); min-width: 0; }
   .stats { display: grid; gap: var(--bb-space-2); grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .commands { display: grid; }
+  .commands { --bb-collapse-gap: var(--bb-space-3); }
+  .phases { display: grid; }
   .phaseButtons { --btn-w: 10rem; grid-area: 1 / 1; display: flex; flex-wrap: wrap; gap: var(--bb-space-2); align-content: start; }
   .phaseButtons { transition: opacity var(--bb-dur-fast); }
   .faded { opacity: 0; pointer-events: none; }

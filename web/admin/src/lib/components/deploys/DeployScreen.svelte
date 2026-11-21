@@ -159,8 +159,6 @@
   .pct {
     font-family: var(--bb-font-mono);
     font-size: var(--bb-text-xs);
-    letter-spacing: var(--bb-tracking-eyebrow);
-    text-transform: uppercase;
     color: var(--bb-muted);
     font-variant-numeric: tabular-nums;
   }

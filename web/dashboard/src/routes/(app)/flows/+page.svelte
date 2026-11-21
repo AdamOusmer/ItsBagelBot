@@ -238,7 +238,7 @@
   .open {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
     flex: 1;
     border-radius: var(--bb-radius-sm);
     color: inherit;
@@ -250,7 +250,7 @@
   }
   .diagram {
     display: block;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
   }
   .card.off .diagram {
@@ -259,7 +259,7 @@
   .name {
     font-family: var(--bb-font-body);
     font-size: 16px;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--bb-white);
   }
   .description {

@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
 
   import { enhance, type SubmitFunction } from '$app/forms';
+  import '@bagel/ui/styles/elements/collapse.css';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { SITE } from '@bagel/kit/site-links';
   import Button from '@bagel/ui/svelte/Button.svelte';
@@ -38,65 +39,42 @@
       <bb-fit><span data-fit="">{t('voice.overlayTitle')}</span></bb-fit>
     </Heading>
     <StepList {steps} fitCopy checklist />
-    <div class="guide">
-      <TextLink href={`${SITE.web}/guides/premium-voice`} variant="quiet" label={t('voice.overlayGuide')} fit />
-    </div>
-    <form method="POST" action="?/rotateOverlay" use:enhance={submit}>
+    <TextLink href={`${SITE.web}/guides/premium-voice`} variant="quiet" label={t('voice.overlayGuide')} fit />
+    <form class="overlay-form" method="POST" action="?/rotateOverlay" use:enhance={submit}>
       <div class="overlay-actions">
         <Button variant="secondary" size="sm" type="submit" {busy} {disabled}>
           <bb-fit class="overlay-action-label"><span data-fit="">{configured ? t('voice.overlayReplace') : t('voice.overlayCreate')}</span></bb-fit>
         </Button>
-        <div class="overlay-link" class:available={!!url} inert={!url}>
+      </div>
+      <div class="bb-collapse" class:is-open={!!url} aria-hidden={!url} inert={!url}>
+        <div>
           <CopySurface variant="well" text={url ?? ''} aria-label={t('voice.overlayLink')}
             disabled={busy} legacyFallback onCopy={(copied) => (failedUrl = copied ? undefined : url)} />
         </div>
       </div>
     </form>
-    <div class="overlay-feedback">
-      <div class="feedback-text bb-fit-box" class:visible={busy || !status} aria-hidden={!busy && !!status}>
-        <Text as="div" size="sm" tone="muted"><bb-fit mode="block">{t('voice.overlayHint')}</bb-fit></Text>
-      </div>
-      <div class="feedback-text bb-fit-box" class:visible={!busy && !!status} role="status">
-        <Text as="div" size="sm" tone="danger"><bb-fit mode="block">{busy ? '' : status}</bb-fit></Text>
+    <Text as="div" size="sm" tone="muted"><bb-fit mode="block">{t('voice.overlayHint')}</bb-fit></Text>
+    <div class="bb-collapse" class:is-open={!busy && !!status} aria-hidden={busy || !status} role="status">
+      <div>
+        <Text as="div" size="sm" tone="danger"><bb-fit mode="block">{status}</bb-fit></Text>
       </div>
     </div>
   </div>
 </Card>
 
 <style>
-  .overlay {
-    display: grid;
+  .overlay,
+  .overlay-form {
+    --bb-collapse-gap: var(--bb-space-2);
+    display: flex;
+    flex-direction: column;
     gap: var(--bb-space-2);
-    grid-template-columns: minmax(0, 1fr);
   }
-  .overlay-feedback {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .feedback-text {
-    grid-area: 1 / 1;
-    block-size: 2rem;
-    min-inline-size: 0;
-    align-content: center;
-    opacity: 0;
-  }
-  .feedback-text.visible { opacity: 1; }
   .overlay-actions {
     display: grid;
-    grid-template-columns: minmax(0, min(50%, 11rem)) minmax(0, 1fr);
-    align-items: center;
-    gap: var(--bb-space-2);
+    grid-template-columns: minmax(0, min(50%, 11rem));
     --btn-w: 100%;
     --btn-justify: center;
   }
   .overlay-action-label { line-height: 1.4; }
-  .overlay-link {
-    min-inline-size: 0;
-    opacity: 0;
-  }
-  .overlay-link.available { opacity: 1; }
-  .guide { block-size: 1.5rem; }
-  @media (prefers-reduced-motion: no-preference) {
-    .overlay-link, .feedback-text { transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo); }
-  }
 </style>

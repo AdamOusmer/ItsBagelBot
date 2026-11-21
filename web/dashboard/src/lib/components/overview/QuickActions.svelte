@@ -26,7 +26,7 @@
   .ov-quick__row {
     --btn-min-h: 44px;
     display: flex;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
   }
   @media (max-width: 480px) {

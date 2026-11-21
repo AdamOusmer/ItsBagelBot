@@ -144,7 +144,7 @@
     />
   </Field>
 
-  <Card style="--card-pad: 14px; margin-bottom: 14px">
+  <Card style="--card-pad: 16px; margin-bottom: 16px">
   <section class="hooks">
     <header class="hooks-head">
       <Text as="span" size="sm" tone="muted">{t('channelpoints.loyaltyTitle')}</Text>
@@ -218,7 +218,7 @@
   </section>
   </Card>
 
-  <Card style="--card-pad: 14px; margin-bottom: 14px">
+  <Card style="--card-pad: 16px; margin-bottom: 16px">
   <div class="limits">
     <Text as="span" size="sm" tone="muted">{t('channelpoints.limits')}</Text>
 
@@ -308,32 +308,32 @@
   .cost-field { flex: 1; min-width: 0; }
   .color-field { flex: none; }
 
-  .check { margin: 4px 0 14px; --bb-check-align: center; }
+  .check { margin: 4px 0 16px; --bb-check-align: center; }
 
   .hooks {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
   .hooks-head {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     margin-bottom: 4px;
   }
   .hook { display: flex; flex-direction: column; --bb-check-align: center; }
-  .hook + .hook { padding-top: 12px; margin-top: 6px; }
+  .hook + .hook { padding-top: 12px; margin-top: 8px; }
 
   .hook-body {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
     margin: 12px 0 4px;
   }
   .hook-body { --field-mb: 0; }
 
-  .gate { --bb-collapse-gap: 6px; }
-  .live-gate { gap: 4px; padding-block-start: 18px; }
+  .gate { --bb-collapse-gap: 8px; }
+  .live-gate { gap: 4px; padding-block-start: 16px; }
   .live-hint { margin: 2px 0 0 26px; }
 
   .points-field { max-width: 220px; }
@@ -351,10 +351,10 @@
     flex-direction: column;
     gap: 12px;
   }
-  .limit { display: flex; align-items: center; gap: 10px; --bb-check-flex: 1; --bb-check-align: center; }
+  .limit { display: flex; align-items: center; gap: 8px; --bb-check-flex: 1; --bb-check-align: center; }
   .limit-num { display: block; width: 88px; flex: none; }
   .limit-num.off { visibility: hidden; opacity: 0; }
-  .limit-group { display: flex; flex-direction: column; gap: 6px; --bb-collapse-gap: 6px; }
+  .limit-group { display: flex; flex-direction: column; gap: 8px; --bb-collapse-gap: 8px; }
   .limit-note { padding-inline-start: 26px; }
 
   @media (max-width: 480px) {

@@ -4,6 +4,7 @@
   import { untrack, type Snippet } from 'svelte';
   import { page } from '$app/state';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
+  import '@bagel/ui/styles/elements/collapse.css';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import IconButton from '@bagel/ui/svelte/IconButton.svelte';
@@ -208,7 +209,7 @@
       + {i18n.t('commandEditor.addLine')}
     </Button>
     <Text as="small" size="xs" tone="muted">{i18n.t('commandEditor.linesHint', { max: String(maxLines) })}</Text>
-    <span class="lines-cap" class:on={capped}><Text as="small" size="xs" tone="accent" id={capId}>{cappedLabel}</Text></span>
+    <div class="bb-collapse lines-cap" class:is-open={capped} aria-hidden={!capped} inert={!capped}><div><div class="lines-cap-copy"><Text as="small" size="xs" tone="accent" id={capId}>{cappedLabel}</Text></div></div></div>
   </div>
 {:else}
   <div class="resp-wrap">
@@ -250,7 +251,7 @@
 {/if}
 
 <style>
-  .module-requirements { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+  .module-requirements { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 
   .resp-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 
@@ -277,16 +278,12 @@
   .lines-foot {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     margin-top: 8px;
     flex-wrap: wrap;
+    row-gap: 0;
   }
 
-  .lines-cap {
-    flex-basis: 100%;
-    min-height: 16px;
-    visibility: hidden;
-    opacity: 0;
-  }
-  .lines-cap.on { visibility: visible; opacity: 1; }
+  .lines-cap { flex-basis: 100%; }
+  .lines-cap-copy { padding-block-start: 8px; }
 </style>

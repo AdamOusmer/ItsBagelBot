@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { enhance, type SubmitFunction } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
+  import '@bagel/ui/styles/elements/collapse.css';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
@@ -68,8 +69,12 @@
           <Button variant="ghost" onclick={onEarning}>{t('loyalty.topEmptyCta')}</Button>
         </EmptyState>
       {:else}
-        <div class="freeze-copy" class:freeze-inactive={!topFreeze} aria-hidden={!topFreeze}>
-          <Text as="span" size="xs" tone="muted"><bb-fit mode="block">{topCaption}</bb-fit></Text>
+        <div class="bb-collapse" class:is-open={!!topFreeze} aria-hidden={!topFreeze}>
+          <div>
+            <div class="freeze-copy">
+              <Text as="span" size="xs" tone="muted"><bb-fit mode="block">{topCaption}</bb-fit></Text>
+            </div>
+          </div>
         </div>
         <Table label={topCaption}>
           <caption class="bb-sr-only">{topCaption}</caption>
@@ -122,10 +127,9 @@
 />
 
 <style>
-  .block { display: grid; gap: 12px; margin-bottom: 26px; }
-  .hint { margin-bottom: 14px; }
+  .block { display: grid; gap: var(--bb-space-3); margin-bottom: var(--bb-space-5); }
+  .hint { margin-bottom: var(--bb-space-4); }
   .actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 4px; }
   .freeze-copy { display: grid; block-size: 2.5em; }
-  .freeze-inactive { opacity: 0; }
   .rank { font-variant-numeric: tabular-nums; }
 </style>

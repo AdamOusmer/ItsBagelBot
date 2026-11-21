@@ -58,7 +58,7 @@
   .who {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: var(--bb-space-1);
     min-width: 0;
     flex: 1;
   }
@@ -68,7 +68,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-family: var(--bb-font-body);
-    font-weight: 600;
+    font-weight: 500;
     font-size: var(--bb-text-sm);
     color: var(--bb-white);
   }

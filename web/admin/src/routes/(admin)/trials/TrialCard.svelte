@@ -52,7 +52,7 @@
   }
 </script>
 
-<Card as="li" style="min-block-size: var(--trial-card-size);">
+<Card as="li">
   <div class="trial-heading">
     <Heading id={`trial-name-${trial.broadcaster_id}`} level={2} variant="title" class="trial-name" title={name}>
       <bb-fit><span data-fit>{name}</span></bb-fit>
@@ -63,14 +63,16 @@
     </Tag>
   </div>
 
-  <div class="trial-meta" class:with-id={displayName}>
-    {#if displayName}
-      <Text as="div" size="xs" tone="muted" mono>
-        <bb-fit><span data-fit>{t('admin.trials.broadcasterId', { id: trial.broadcaster_id })}</span></bb-fit>
-      </Text>
-    {/if}
-    <Text as="div" size="xs" tone="danger" truncate title={trial.error}>{trial.error}</Text>
-  </div>
+  {#if displayName || trial.error}
+    <div class="trial-meta" class:with-id={displayName}>
+      {#if displayName}
+        <Text as="div" size="xs" tone="muted" mono>
+          <bb-fit><span data-fit>{t('admin.trials.broadcasterId', { id: trial.broadcaster_id })}</span></bb-fit>
+        </Text>
+      {/if}
+      <Text as="div" size="xs" tone="danger" truncate title={trial.error}>{trial.error}</Text>
+    </div>
+  {/if}
 
   <div class="trial-body">
     <ul class="bb-list trial-metrics">
@@ -83,34 +85,36 @@
       {/each}
     </ul>
 
-    <div class="trial-actions" class:concealed={!current} inert={!current} aria-hidden={!current}>
-      <form method="POST" action="?/set_enabled" use:enhance={submit} class="trial-toggle">
-        <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
-        <input type="hidden" name="enabled" value={trial.enabled ? 'false' : 'true'} />
-        <Text as="span" size="sm" aria-hidden="true" class="trial-switch-label">
-          <bb-fit><span data-fit>{t(trial.enabled ? 'admin.trials.on' : 'admin.trials.off')}</span></bb-fit>
-        </Text>
-        <Switch
-          type="submit"
-          checked={trial.enabled}
-          label={t('admin.trials.toggleLabel', { name })}
-          aria-disabled={locked || stopping}
-          class="trial-switch"
-          onclick={(event) => { if (locked || stopping) event.preventDefault(); }}
-        />
-      </form>
+    {#if current}
+      <div class="trial-actions">
+        <form method="POST" action="?/set_enabled" use:enhance={submit} class="trial-toggle">
+          <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
+          <input type="hidden" name="enabled" value={trial.enabled ? 'false' : 'true'} />
+          <Text as="span" size="sm" aria-hidden="true" class="trial-switch-label">
+            <bb-fit><span data-fit>{t(trial.enabled ? 'admin.trials.on' : 'admin.trials.off')}</span></bb-fit>
+          </Text>
+          <Switch
+            type="submit"
+            checked={trial.enabled}
+            label={t('admin.trials.toggleLabel', { name })}
+            aria-disabled={locked || stopping}
+            class="trial-switch"
+            onclick={(event) => { if (locked || stopping) event.preventDefault(); }}
+          />
+        </form>
 
-      <form
-        method="POST" action="?/remove" use:enhance={submit}
-        class="trial-remove" class:concealed={stopping} inert={stopping} aria-hidden={stopping}
-      >
-        <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
-        <Button type="submit" variant="ghost" tone="danger" block aria-disabled={locked}
-          aria-describedby={`trial-name-${trial.broadcaster_id}`}>
-          <bb-fit><span data-fit>{t('admin.trials.remove')}</span></bb-fit>
-        </Button>
-      </form>
-    </div>
+        <form
+          method="POST" action="?/remove" use:enhance={submit}
+          class="trial-remove" class:concealed={stopping} inert={stopping} aria-hidden={stopping}
+        >
+          <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
+          <Button type="submit" variant="ghost" tone="danger" block aria-disabled={locked}
+            aria-describedby={`trial-name-${trial.broadcaster_id}`}>
+            <bb-fit><span data-fit>{t('admin.trials.remove')}</span></bb-fit>
+          </Button>
+        </form>
+      </div>
+    {/if}
   </div>
 </Card>
 
@@ -140,7 +144,6 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--bb-space-2);
-    min-block-size: 1.2rem;
   }
 
   .trial-meta.with-id {
@@ -192,7 +195,6 @@
     inline-size: 6rem;
   }
 
-  .trial-actions,
   .trial-remove {
     transition: opacity var(--bb-dur-fast) ease;
   }
