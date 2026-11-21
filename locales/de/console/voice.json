@@ -28,8 +28,6 @@
   "overlayFailed": "Der Link konnte nicht erstellt werden. Versuche es erneut.",
   "overlayUnavailable": "Für dieses Konto ist keine Cloud-Stimme verfügbar.",
   "overlayCopyFailed": "Der Link konnte nicht kopiert werden. Versuche es erneut.",
-  "gateTitle": "Gib deinen Alerts mit Premium eine Stimme",
-  "gateBody": "Wähle Stimmen und Stile für deine Alerts und spiele sie über eine Browserquelle in OBS ab.",
   "liveOnly": "Nur während des Streams",
   "minBits": "Mindestanzahl an Bits",
   "maxLengthHint": "Etwa {chars} Zeichen",

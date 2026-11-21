@@ -48,7 +48,7 @@
   const cards = $derived(
     data.flows.filter((flow) => !gone.includes(flow.id)).map((flow) => ({ ...flow, ...changes[flow.id] }))
   );
-  const showIntro = $derived(cards.length === 0 || (!data.introSeen && !introDismissed));
+  const showIntro = $derived(!data.introSeen && !introDismissed);
 
   let query = $state('');
   const needle = $derived(query.trim().toLowerCase());
@@ -122,7 +122,7 @@
 {#if data.locked}
   <PremiumGate />
 {:else if showIntro}
-  <FlowsIntro name={data.navLabels['nav.flows']} canDismiss={cards.length > 0} ondismiss={() => (introDismissed = true)} />
+  <FlowsIntro name={data.navLabels['nav.flows']} ondismiss={() => (introDismissed = true)} />
 {:else}
 <div class="landing" data-sveltekit-preload-code="eager">
   <PageHead

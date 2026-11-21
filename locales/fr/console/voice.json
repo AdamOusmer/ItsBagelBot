@@ -28,8 +28,6 @@
   "overlayFailed": "Impossible de créer un lien. Réessayez.",
   "overlayUnavailable": "La voix cloud est indisponible pour ce compte.",
   "overlayCopyFailed": "Impossible de copier le lien. Réessayez.",
-  "gateTitle": "Donnez une voix à vos alertes avec Premium",
-  "gateBody": "Choisissez des voix et des styles pour vos alertes et diffusez-les dans OBS via une source navigateur.",
   "liveOnly": "Seulement en direct",
   "minBits": "Minimum de bits",
   "maxLengthHint": "Environ {chars} caractères",

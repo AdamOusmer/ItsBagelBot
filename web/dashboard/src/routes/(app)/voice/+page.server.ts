@@ -113,11 +113,15 @@ const demoActions = {
   rotateOverlay: async () => ({ overlayUrl: 'https://overlay.itsbagelbot.com/tts#demo' })
 } satisfies Actions;
 
-const demoLoad = (async () => {
-  const { allowance, config, revision } = (await import('#lib/server/demo-data')).demoVoiceView();
+const demoLoad = (async ({ url }) => {
+  const { allowance, config, revision } = (await import('#lib/server/demo-data')).demoVoiceView(url.searchParams.get('locked') === '1');
+  const locked = allowance.reason === 'no_plan';
   return {
-    readOnly: false, locked: false, allowance, alerts: { config: voiceAlertConfig(config), revision },
-    command: { config: ttsCommandConfig({}), enabled: false, revision: 0 }
+    readOnly: false,
+    locked,
+    allowance,
+    alerts: locked ? null : { config: voiceAlertConfig(config), revision },
+    command: locked ? null : { config: ttsCommandConfig({}), enabled: false, revision: 0 }
   };
 }) satisfies PageServerLoad;
 

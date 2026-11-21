@@ -28,8 +28,6 @@
   "overlayFailed": "Could not create a link. Try again.",
   "overlayUnavailable": "Cloud voice is unavailable for this account.",
   "overlayCopyFailed": "Could not copy the link. Try again.",
-  "gateTitle": "Give your alerts a voice with Premium",
-  "gateBody": "Choose cloud voices and styles for your alerts and play them through an OBS browser source.",
   "liveOnly": "Only while live",
   "minBits": "Minimum bits",
   "maxLengthHint": "About {chars} characters",
