@@ -43,6 +43,7 @@ import { audit } from '#lib/server/audit';
 import { signViewAs } from '@bagel/kit/server/impersonation';
 import { env } from '@bagel/kit/server/env';
 import { directoryQuery, loadUserDirectory } from '#lib/server/user-directory';
+import { liveUserCount } from '#lib/server/live-count';
 
 const CREATOR_CODE_MAX_LENGTH = 64;
 const DEMO = dev && process.env.DEMO === '1';
@@ -50,7 +51,7 @@ const DEMO = dev && process.env.DEMO === '1';
 export const load: PageServerLoad = async ({ url, parent }) => {
   const { id } = await parent();
   const q = directoryQuery(url);
-  return { directory: loadUserDirectory(id, q), ...q };
+  return { directory: loadUserDirectory(id, q), liveCount: liveUserCount(id), ...q };
 };
 
 const STATUSES = new Set(['free', 'paid', 'vip']);

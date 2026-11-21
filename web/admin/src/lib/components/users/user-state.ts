@@ -11,7 +11,7 @@ export function stateOf(u: AdminUserWire): UserState {
   return (u.status as UserState) ?? 'free';
 }
 
-export const USER_STATES = ['all', 'vip', 'paid', 'free', 'banned', 'inactive'] as const;
+export const USER_STATES = ['all', 'paid', 'vip', 'free', 'inactive', 'banned'] as const;
 
 export type UserStateFilter = (typeof USER_STATES)[number];
 

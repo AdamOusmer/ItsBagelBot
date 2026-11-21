@@ -10,6 +10,8 @@
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
@@ -17,7 +19,6 @@
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
-  import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Pager from '@bagel/ui/svelte/Pager.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -25,6 +26,7 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import { livePoll } from '@bagel/kit/live-poll';
   import { allows, type AccessKey } from '#lib/access';
   import type { AdminUserWire, AuditEntry, ChannelSubState } from '#lib/server/services';
   import type { GiveawayWinnerWire } from '#lib/server/giveaways';
@@ -33,15 +35,20 @@
   import MessageDialog from '#lib/components/users/MessageDialog.svelte';
   import { usersCsv } from '#lib/components/users/csv';
   import { downloadCsv } from '@bagel/ui/lib/csv';
-  import { USER_STATES, USER_STATE_LABEL, type UserStateFilter } from '#lib/components/users/user-state';
+  import { USER_STATES, USER_STATE_LABEL } from '#lib/components/users/user-state';
   import { USER_ACTIONS, type UserActionDef } from '#lib/components/users/user-actions';
   import type { UserDirectory } from '#lib/server/user-directory';
 
   let { data } = $props();
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
+  const numberFormat = new Intl.NumberFormat(locale);
   const failed = adminToastFailure(toast);
   const can = (key: AccessKey) => allows(data.role, key);
+  const LIVE_REFRESH_MS = 5_000;
+
+  type DirectoryParams = Pick<typeof data, 'state' | 'order' | 'live' | 'page'> & { q: string };
+  type DirectoryRefresh = { directory: UserDirectory | null; liveCount: number | null };
 
   let dir = $state<UserDirectory | null>(null);
   $effect(() => {
@@ -56,6 +63,21 @@
   });
 
   const rows = $derived(dir?.recent ?? []);
+  const stats = $derived(dir?.degraded ? null : dir?.stats);
+  const currentPage = $derived(dir?.page ?? 1);
+  const maxPages = $derived(dir?.maxPages ?? 1);
+  const showJump = $derived(maxPages > 5);
+  let liveCount = $state<number | null>(null);
+
+  $effect(() => {
+    let alive = true;
+    data.liveCount.then((count) => {
+      if (alive) liveCount = count;
+    });
+    return () => {
+      alive = false;
+    };
+  });
 
   // svelte-ignore state_referenced_locally
   let search = $state(data.search);
@@ -63,56 +85,38 @@
     search = data.search;
   });
 
-  const stateFilter = $derived((data.state || 'all') as UserStateFilter);
-  const stateLabels = $derived(USER_STATES.map((s) => t(USER_STATE_LABEL[s])));
-  const stateLabel = $derived(stateLabels[USER_STATES.indexOf(stateFilter)]);
+  const stateFilter = $derived(data.state || 'all');
 
   const orderOptions = $derived([
     { value: 'newest', label: t('admin.users.orderNewest') },
     { value: 'oldest', label: t('admin.users.orderOldest') }
   ]);
-  const liveChoice = $derived(data.live ? 'live' : 'any');
-  const liveOptions = $derived([
-    { value: 'any', label: t('admin.users.liveAny') },
-    { value: 'live', label: t('admin.users.liveNow') }
-  ]);
 
-  // How often the live filter re-reads who is on air. The first paint is the
-  // scan at page load; this keeps that set current while the filter stays on.
-  // Five seconds is short enough to see someone go offline, and long enough
-  // that the live-key scan is not a request per second.
-  const LIVE_REFRESH_MS = 5_000;
-
-  function queryOf(params: { q?: string; state?: string; order?: string; page?: number; live?: boolean }): string {
+  function href(overrides: Partial<DirectoryParams> = {}, path = '/users'): string {
+    const params = { q: data.search, state: data.state, order: data.order, live: data.live, page: 1, ...overrides };
     const p = new URLSearchParams();
     if (params.q) p.set('q', params.q);
     if (params.state && params.state !== 'all') p.set('state', params.state);
     if (params.order === 'oldest') p.set('order', params.order);
     if (params.live) p.set('live', '1');
-    if (params.page && params.page > 1) p.set('page', String(params.page));
-    return p.toString();
+    if (params.page > 1) p.set('page', String(params.page));
+    const qs = p.toString();
+    return qs ? `${path}?${qs}` : path;
   }
 
-  function href(params: { q?: string; state?: string; order?: string; page?: number; live?: boolean }): string {
-    const qs = queryOf(params);
-    return qs ? `/users?${qs}` : '/users';
+  function navigate(overrides: Partial<DirectoryParams>) {
+    void goto(href(overrides), { reset: false });
   }
 
-  function pickState(label: string) {
-    const next = USER_STATES[stateLabels.indexOf(label)];
-    if (next) goto(href({ q: data.search, state: next, order: data.order, live: data.live }), { reset: false });
+  function submitSearch(event: SubmitEvent) {
+    event.preventDefault();
+    navigate({ q: search.trim() });
   }
 
-  function pickOrder(order: string) {
-    goto(href({ q: data.search, state: data.state, order, live: data.live }), { reset: false });
-  }
-
-  function pickLive(choice: string) {
-    goto(href({ q: data.search, state: data.state, order: data.order, live: choice === 'live' }), { reset: false });
-  }
-
-  function submitSearch() {
-    goto(href({ q: search.trim(), state: stateFilter, order: data.order, live: data.live }), { reset: false });
+  function submitJump(event: SubmitEvent & { currentTarget: HTMLFormElement }) {
+    event.preventDefault();
+    const page = Number(new FormData(event.currentTarget).get('page'));
+    navigate({ page });
   }
 
   let selectedId = $state<string | null>(null);
@@ -225,24 +229,37 @@
   function replaceDirectory(next: UserDirectory) {
     const keep = selected;
     dir = next;
-    if (selectedId && keep && !next.recent.some((u) => String(u.id) === selectedId)) detached = keep;
+    if (keep && !next.recent.some((u) => u.id === keep.id)) detached = keep;
+  }
+
+  async function pollDirectory(url: string, signal: AbortSignal): Promise<boolean> {
+    if (document.hidden) return false;
+    try {
+      const res = await fetch(url, { signal });
+      if (!res.ok) throw new Error(`directory fetch failed (${res.status})`);
+      const next = (await res.json()) as DirectoryRefresh;
+      if (signal.aborted) return false;
+      liveCount = next.liveCount;
+      if (next.directory && !next.directory.degraded) replaceDirectory(next.directory);
+    } catch {
+      if (!signal.aborted) liveCount = null;
+    }
+    return false;
   }
 
   $effect(() => {
-    if (!data.live || busy) return;
-    const qs = queryOf({ q: data.search, state: data.state, order: data.order, page: data.page, live: true });
-    let alive = true;
-    const timer = setInterval(() => {
-      void fetch(`/users/directory?${qs}`).then(async (res) => {
-        if (!alive || !res.ok) return;
-        const next = (await res.json()) as UserDirectory;
-        if (!alive || next.degraded) return;
-        replaceDirectory(next);
-      }).catch(() => {});
-    }, LIVE_REFRESH_MS);
+    if (busy) return;
+    const url = href({ page: data.page }, '/users/directory');
+    const abort = new AbortController();
+    const stop = livePoll(() => pollDirectory(url, abort.signal), {
+      firstDelayMs: LIVE_REFRESH_MS,
+      delayMs: () => LIVE_REFRESH_MS,
+      timeoutMs: Number.POSITIVE_INFINITY,
+      refreshOnVisible: true
+    });
     return () => {
-      alive = false;
-      clearInterval(timer);
+      stop();
+      abort.abort();
     };
   });
   let forms = $state<Record<string, HTMLFormElement | null>>({});
@@ -255,27 +272,32 @@
     if (p.viewAsUrl) viewAsUrl = p.viewAsUrl;
   }
 
+  function updateOptimistically(def: UserActionDef) {
+    const update = def.optimistic;
+    if (!selectedId) return;
+    if (!update || !dir) return;
+    const index = dir.recent.findIndex((user) => String(user.id) === selectedId);
+    if (index >= 0) dir.recent[index] = update(dir.recent[index]);
+    if (detached) detached = update(detached);
+  }
+
+  function applyUserAction(def: UserActionDef, payload: ActionPayload) {
+    applied(payload);
+    if (def.id === 'delete') dropSelected();
+    if (def.id === 'clearToken' || def.id === 'reset') tokenPresent = false;
+  }
+
   function submitFor(def: UserActionDef): SubmitFunction {
     return () => {
       busy = def.id;
-      const id = selectedId;
       const before = dir ? dir.recent.map((r) => ({ ...r })) : [];
       const beforeDetached = detached ? { ...detached } : null;
-      if (def.optimistic && id && dir) {
-        const i = dir.recent.findIndex((r) => String(r.id) === id);
-        if (i >= 0) dir.recent[i] = def.optimistic(dir.recent[i]);
-        if (detached) detached = def.optimistic(detached);
-      }
+      updateOptimistically(def);
       if (def.id === 'restart') subState = null;
       return async ({ result }) => {
         busy = null;
         const p = actionPayload<ActionPayload>(result);
-        if (result.type === 'success' && p?.action?.ok) {
-          applied(p);
-          if (def.id === 'delete') dropSelected();
-          if (def.id === 'clearToken' || def.id === 'reset') tokenPresent = false;
-          return;
-        }
+        if (result.type === 'success' && p?.action?.ok) return applyUserAction(def, p);
         if (dir) dir.recent = before;
         detached = beforeDetached;
         failed(p, t('admin.users.actionFailed', { verb: t(def.label) }));
@@ -368,72 +390,66 @@
   }
 </script>
 
-<section class="screen active">
+<section class="screen active users-directory">
   <PageHead eyebrow={t('admin.users.eyebrow')} description={t('admin.users.description')}>
     {t('admin.users.titlePre')}<em>{t('admin.users.titleEm')}</em>
   </PageHead>
 
-  <PageToolbar>
+  <PageToolbar class="directory-toolbar">
     {#snippet leading()}
-      {#if dir}
-        <Text as="span" size="sm" tone="muted">
-          {t('admin.users.stats', {
-            total: dir.stats.total_users.toLocaleString(),
-            active: dir.stats.active_users.toLocaleString(),
-            premium: dir.stats.premium_users.toLocaleString()
-          })}
-        </Text>
-      {:else}
-        <Skeleton variant="pill" width="220px" />
-      {/if}
+      <form class="searchbar" onsubmit={submitSearch}>
+        <SearchInput
+          fill
+          bind:value={search}
+          placeholder={t('admin.users.searchPlaceholder')}
+          aria-label={t('admin.users.searchPlaceholder')}
+        />
+      </form>
     {/snippet}
     {#snippet trailing()}
-      <form
-        class="searchbar"
-        onsubmit={(e) => {
-          e.preventDefault();
-          submitSearch();
-        }}
-      >
-        <Cluster gap={2} nowrap>
-          <SearchInput fill bind:value={search} placeholder={t('admin.users.searchPlaceholder')} />
-          <Button variant="ghost" type="submit">{t('admin.overview.quickLookupCta')}</Button>
-        </Cluster>
-      </form>
-      <Button variant="ghost" onclick={exportCsv} disabled={rows.length === 0}>
-        {t('admin.users.exportCsv')}
+      <SegmentedControl
+        class="directory-order"
+        even
+        options={orderOptions}
+        label={t('admin.users.orderFilter')}
+        value={data.order}
+        onValueChange={(order) => navigate({ order: order === 'oldest' ? 'oldest' : 'newest' })}
+      />
+      <Button class="export-button" variant="ghost" onclick={exportCsv} disabled={rows.length === 0}>
+        <bb-fit>{t('admin.users.exportCsv')}</bb-fit>
       </Button>
     {/snippet}
   </PageToolbar>
 
-  <div class="filters">
-    <SegmentedControl
-      options={stateLabels}
-      label={t('admin.users.stateFilter')}
-      bind:value={() => stateLabel, pickState}
-    />
-    <Cluster gap={3}>
-      <SegmentedControl
-        options={orderOptions}
-        label={t('admin.users.orderFilter')}
-        bind:value={() => data.order, pickOrder}
-      />
-      <SegmentedControl
-        options={liveOptions}
-        label={t('admin.users.liveFilter')}
-        bind:value={() => liveChoice, pickLive}
-      />
+  <Cluster class="filters" gap={3}>
+    <Cluster role="group" aria-label={t('admin.users.stateFilter')}>
+      {#each USER_STATES as state (state)}
+        {@const count = state === 'all' ? stats?.total_users : stats?.directory_counts?.[state]}
+        <Chip tone={state === 'all' ? undefined : state} pressed={stateFilter === state} onclick={() => navigate({ state })}>
+          <span class="chip-label"><bb-fit>{t(USER_STATE_LABEL[state])}</bb-fit></span>
+          <span class="chip-count" class:unavailable={count == null}>
+            <bb-fit>{count == null ? '' : numberFormat.format(count)}</bb-fit>
+          </span>
+        </Chip>
+      {/each}
     </Cluster>
-  </div>
+    <Chip pressed={data.live} onclick={() => navigate({ live: !data.live })}>
+      <StatusDot tone={liveCount ? 'success' : 'neutral'} flat />
+      <span class="chip-label"><bb-fit>{t('admin.users.liveNow')}</bb-fit></span>
+      <span class="chip-count" class:unavailable={liveCount === null}>
+        <bb-fit>{liveCount === null ? '' : numberFormat.format(liveCount)}</bb-fit>
+      </span>
+    </Chip>
+  </Cluster>
 
   {#if dir?.degraded}
     <AlertBanner>{t('admin.users.degraded')}</AlertBanner>
   {/if}
 
   <DeckLayout inspecting={selected !== null} width="380px">
-    <DeckList>
+    <DeckList aria-busy={dir === null}>
       {#if dir === null}
-        <SkeletonStack rows={6} height="56px" />
+        <SkeletonStack rows={6} height="48px" />
       {:else if rows.length}
         <ul class="bb-list" aria-label={t('admin.users.listLabel')}>
           {#each rows as u (u.id)}
@@ -457,17 +473,38 @@
         <EmptyState title={t('admin.users.empty')} />
       {/if}
 
-      {#if dir && (dir.page > 1 || dir.hasMore)}
-        <Pager
-          label={t('admin.users.pagerLabel', { page: String(dir.page), max: String(dir.maxPages) })}
-          prevHref={href({ q: data.search, state: data.state, order: data.order, live: data.live, page: dir.page - 1 })}
-          nextHref={href({ q: data.search, state: data.state, order: data.order, live: data.live, page: dir.page + 1 })}
-          hasPrev={dir.page > 1}
-          hasNext={dir.hasMore}
-          prevLabel={t('admin.users.pagerPrev')}
-          nextLabel={t('admin.users.pagerNext')}
-        />
-      {/if}
+      <Pager
+        fixed fit
+        label={stats ? t('admin.users.pagerLabel', { page: numberFormat.format(currentPage), max: numberFormat.format(maxPages) }) : ''}
+        prevHref={href({ page: currentPage - 1 })}
+        nextHref={href({ page: currentPage + 1 })}
+        hasPrev={currentPage > 1}
+        hasNext={currentPage < maxPages}
+        prevLabel={t('admin.users.pagerPrev')}
+        nextLabel={t('admin.users.pagerNext')}
+      />
+      <Cluster class="pager-detail" justify="center" nowrap>
+        <Text class="match-count" as="span" size="xs" tone="muted" mono>
+          <bb-fit>{dir?.total != null ? t('admin.users.pagerTotal', { total: numberFormat.format(dir.total) }) : ''}</bb-fit>
+        </Text>
+        <form class="pager-jump" class:unavailable={!showJump} inert={!showJump} onsubmit={submitJump}>
+          <Input
+            class="jump-input"
+            type="number"
+            min={1}
+            max={maxPages}
+            step={1}
+            required
+            mono
+            name="page"
+            value={currentPage}
+            aria-label={t('admin.users.pagerJump')}
+          />
+          <Button class="jump-button" variant="secondary" type="submit" size="sm">
+            <bb-fit>{t('admin.users.pagerGo')}</bb-fit>
+          </Button>
+        </form>
+      </Cluster>
     </DeckList>
 
     {#if selected}
@@ -582,17 +619,79 @@
 {/if}
 
 <style>
-  .filters {
-    display: flex;
+  .users-directory :global(.directory-toolbar) {
     flex-wrap: wrap;
-    justify-content: space-between;
-    gap: var(--bb-space-3);
+  }
+
+  .searchbar {
+    flex: 1 1 14rem;
+    max-inline-size: 24rem;
+  }
+
+  .users-directory :global(.directory-order) {
+    inline-size: 12rem;
+  }
+
+  .users-directory :global(.export-button) {
+    inline-size: 7rem;
+    justify-content: center;
+  }
+
+  .users-directory :global(.filters) {
     margin-bottom: var(--bb-space-3);
+  }
+
+  .chip-label {
+    inline-size: 8ch;
+    text-align: start;
+  }
+
+  .chip-count {
+    inline-size: 6ch;
+    text-align: end;
+  }
+
+  .chip-count,
+  .pager-jump {
+    transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo);
+  }
+
+  .unavailable {
+    opacity: 0;
+  }
+
+  .users-directory :global(.pager-detail) {
+    padding: 0 var(--bb-space-3) var(--bb-space-3);
+  }
+
+  .users-directory :global(.match-count) {
+    inline-size: 16ch;
+    text-align: end;
+  }
+
+  .pager-jump {
+    display: flex;
+    align-items: center;
+    gap: var(--bb-space-2);
+  }
+
+  .pager-jump :global(.jump-input),
+  .pager-jump :global(.jump-button) {
+    inline-size: 4rem;
+    justify-content: center;
   }
 
   @media (max-width: 680px) {
     .searchbar {
-      width: 100%;
+      flex-basis: 100%;
+      max-inline-size: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chip-count,
+    .pager-jump {
+      transition: none;
     }
   }
 </style>

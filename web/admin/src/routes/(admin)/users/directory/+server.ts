@@ -4,14 +4,15 @@
 import { error, json } from '@sveltejs/kit';
 import { requireAdmin } from '#lib/server/access';
 import { directoryQuery, loadUserDirectory } from '#lib/server/user-directory';
+import { liveUserCount } from '#lib/server/live-count';
 
-// Refresh target for the users page while the live filter is on. The page
-// load is a snapshot; this is the same query read again so the list tracks
-// who goes on and off air while it stays open.
 export async function GET({ locals, url }) {
   const admin = await requireAdmin(locals.session);
   if (!admin) throw error(403, 'forbidden');
   const q = directoryQuery(url);
-  if (!q.live) throw error(400, 'live filter required');
-  return json(await loadUserDirectory(admin.id, q));
+  const [directory, liveCount] = await Promise.all([
+    q.live ? loadUserDirectory(admin.id, q) : null,
+    liveUserCount(admin.id)
+  ]);
+  return json({ directory, liveCount });
 }
