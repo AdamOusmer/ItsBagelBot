@@ -209,11 +209,15 @@ var templateTag = regexp.MustCompile(`<[^<>]*>|[<>]`)
 
 func speechTemplate(text string) string {
 	return templateTag.ReplaceAllStringFunc(text, func(tag string) string {
-		if len(tag) > 2 && !strings.ContainsAny(tag, "{}") {
+		if len(tag) > 2 && !hasTemplateVar(tag) {
 			return tag
 		}
 		return strings.Trim(tag, "<>")
 	})
+}
+
+func hasTemplateVar(text string) bool {
+	return slices.ContainsFunc(tmpl.Lex(text), func(tok tmpl.Token) bool { return tok.Kind == tmpl.KindVar })
 }
 
 func stripSpeechControls(text string) string {
