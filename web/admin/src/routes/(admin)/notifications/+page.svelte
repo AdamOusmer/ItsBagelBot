@@ -1,8 +1,9 @@
 <script lang="ts">
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
-	import '@bagel/ui/styles/elements/layout.css';
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
+  import '@bagel/ui/styles/elements/layout.css';
   import { untrack } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import { enhance, type SubmitFunction } from '$app/forms';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
@@ -42,29 +43,6 @@
   const { t } = getI18n();
   const failed = adminToastFailure(toast);
 
-  let notifications = $state<NotificationWire[]>([]);
-  let loaded = $state(false);
-  let degraded = $state(false);
-  let page = $state(1);
-  let maxPages = $state(25);
-  let hasMore = $state(false);
-  $effect(() => {
-    let alive = true;
-    loaded = false;
-    data.history.then((h) => {
-      if (!alive) return;
-      notifications = h.notifications;
-      degraded = h.degraded;
-      page = h.page;
-      maxPages = h.maxPages;
-      hasMore = h.hasMore;
-      loaded = true;
-    });
-    return () => {
-      alive = false;
-    };
-  });
-
   function pageHref(pageNo: number): string {
     return pageNo > 1 ? `/notifications?page=${pageNo}` : '/notifications';
   }
@@ -79,20 +57,14 @@
   });
 
   const composing = $derived(inspector.selectedId === NEW_NOTIFICATION);
-  const selected = $derived(
-    composing
-      ? null
-      : (notifications.find((n) => String(n.id) === inspector.selectedId) ?? null)
-  );
   const canSend = $derived(inspector.dirty && !!draft && composeComplete(draft));
 
-  const discard = createDiscardGuard(
-    () => inspector.dirty,
-    () => {
-      inspector.reset();
-      draft = null;
-    }
-  );
+  function resetInspector() {
+    inspector.reset();
+    draft = null;
+  }
+
+  const discard = createDiscardGuard(() => inspector.dirty, resetInspector);
 
   function openCompose() {
     discard.guard(() => {
@@ -114,10 +86,7 @@
   }
 
   function close() {
-    discard.guard(() => {
-      inspector.reset();
-      draft = null;
-    });
+    discard.guard(resetInspector);
   }
 
   const sendSubmit: SubmitFunction = () => {
@@ -135,37 +104,57 @@
         return;
       }
       toast('success', p!.action!.notice ?? t('admin.notifications.sent'));
-      if (applied) {
-        inspector.reset();
-        draft = null;
-      }
+      if (applied) resetInspector();
       await update({ reset: false });
     };
   };
 
   let retractTarget = $state<NotificationWire | null>(null);
   let retractForm = $state<HTMLFormElement | null>(null);
+  let retracting = $state<number>();
+  const retracted = new SvelteSet<number>();
 
-  const retractSubmit: SubmitFunction = () => {
-    const target = retractTarget;
-    const before = notifications.map((n) => ({ ...n }));
+  function visibleNotifications(notifications: NotificationWire[]) {
+    return notifications.filter(({ id }) => id !== retracting && !retracted.has(id));
+  }
+
+  const retractSubmit: SubmitFunction = ({ cancel }) => {
+    if (!retractTarget || busy) {
+      cancel();
+      return;
+    }
+    const targetId = retractTarget.id;
+    retracting = targetId;
     busy = true;
-    if (target) notifications = notifications.filter((n) => n.id !== target.id);
-    return async ({ result }) => {
-      busy = false;
-      retractTarget = null;
+    return ({ result }) => {
       const p = actionPayload<AdminActionOk>(result);
       if (result.type === 'success' && p?.action?.ok) {
-        inspector.reset();
-        draft = null;
+        retracted.add(targetId);
+        resetInspector();
         toast('success', p.action.notice ?? t('admin.notifications.retracted'));
-        return;
+      } else {
+        failed(p, t('admin.notifications.retractFailed'));
       }
-      notifications = before;
-      failed(p, t('admin.notifications.retractFailed'));
+      busy = false;
+      retractTarget = null;
+      retracting = undefined;
     };
   };
 </script>
+
+{#snippet historyPager(page: number, hasMore: boolean, loading = false)}
+  <Pager
+    label={t('admin.notifications.pagerLabel', { page: String(page) })}
+    prevHref={pageHref(page - 1)}
+    nextHref={pageHref(page + 1)}
+    hasPrev={!loading && page > 1}
+    hasNext={hasMore}
+    prevLabel={t('admin.notifications.pagerPrev')}
+    nextLabel={t('admin.notifications.pagerNext')}
+    fixed
+    fit
+  />
+{/snippet}
 
 <section class="screen active">
   <PageHead
@@ -175,21 +164,22 @@
     {t('admin.notifications.titlePre')}<em>{t('admin.notifications.titleEm')}</em>
   </PageHead>
 
-  {#if degraded}
-    <AlertBanner>{t('admin.notifications.degraded')}</AlertBanner>
-  {/if}
-
   <PageToolbar>
     {#snippet leading()}
-      {#if loaded}
-        <Text as="span" size="xs" tone="muted" mono>
-          {notifications.length === 1
-            ? t('admin.notifications.countOne')
-            : t('admin.notifications.count', { n: String(notifications.length) })}
-        </Text>
-      {:else}
-        <Skeleton variant="pill" width="130px" />
-      {/if}
+      <div class="history-count" aria-live="polite">
+        {#await data.history}
+          <Skeleton variant="pill" width="100%" height="1.25rem" />
+        {:then history}
+          {#if !history.degraded}
+            {@const count = visibleNotifications(history.notifications).length}
+            <Text as="span" size="xs" tone="muted" mono>
+              <bb-fit>{count === 1
+                ? t('admin.notifications.countOne')
+                : t('admin.notifications.count', { n: String(count) })}</bb-fit>
+            </Text>
+          {/if}
+        {/await}
+      </div>
     {/snippet}
     {#snippet trailing()}
       <Button variant="primary" onclick={openCompose}>{t('admin.notifications.compose')}</Button>
@@ -198,84 +188,85 @@
 
   <DeckLayout inspecting={inspector.isOpen} width="380px">
     <DeckList>
-      {#if !loaded}
+      {#await data.history}
         <SkeletonStack rows={4} height="60px" />
-      {:else if notifications.length}
-        <ul class="bb-list" aria-label={t('admin.notifications.listLabel')}>
-          {#each notifications as n (n.id)}
-            {@const audience = audienceOf(n)}
-            <li>
-              <ManagementRow
-                selected={inspector.selectedId === String(n.id)}
-                expanded={inspector.selectedId === String(n.id)}
-                controls="notification-inspector"
-                onSelect={() => openNotification(n)}
-                title={n.title}
-                meta={t('admin.notifications.rowMeta', {
-                  who: n.created_by_login,
-                  when: ago(n.created_at)
-                })}
-              >
-                {#snippet marks()}
-                  <StatePill tone={LEVEL_TONE[n.level]}>{t(LEVEL_LABEL[n.level])}</StatePill>
-                  <span class="audience"><StatePill tone="neutral">{t(audience.key, audience.params)}</StatePill></span>
-                {/snippet}
-              </ManagementRow>
-            </li>
-          {/each}
-        </ul>
-      {:else}
-        <EmptyState
-          title={t('admin.notifications.empty')}
-          body={t('admin.notifications.emptyBody')}
-        />
-      {/if}
-
-      {#if loaded && (page > 1 || hasMore)}
-        <Pager
-          label={t('admin.notifications.pagerLabel', {
-            page: String(page),
-            max: String(maxPages)
-          })}
-          prevHref={pageHref(page - 1)}
-          nextHref={pageHref(page + 1)}
-          hasPrev={page > 1}
-          hasNext={hasMore}
-          prevLabel={t('admin.notifications.pagerPrev')}
-          nextLabel={t('admin.notifications.pagerNext')}
-        />
-      {/if}
+        {@render historyPager(data.page, false, true)}
+      {:then history}
+        {@const notifications = visibleNotifications(history.notifications)}
+        {#if history.degraded}
+          <AlertBanner>{t('admin.notifications.degraded')}</AlertBanner>
+        {:else if notifications.length}
+          <ul class="bb-list" aria-label={t('admin.notifications.listLabel')}>
+            {#each notifications as n (n.id)}
+              {@const audience = audienceOf(n)}
+              <li>
+                <ManagementRow
+                  selected={inspector.selectedId === String(n.id)}
+                  expanded={inspector.selectedId === String(n.id)}
+                  controls="notification-inspector"
+                  onSelect={() => openNotification(n)}
+                  title={n.title}
+                  meta={t('admin.notifications.rowMeta', {
+                    who: n.created_by_login,
+                    when: ago(n.created_at)
+                  })}
+                >
+                  {#snippet marks()}
+                    <StatePill tone={LEVEL_TONE[n.level]}>{t(LEVEL_LABEL[n.level])}</StatePill>
+                    <span class="audience"><StatePill tone="neutral">{t(audience.key, audience.params)}</StatePill></span>
+                  {/snippet}
+                </ManagementRow>
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <EmptyState
+            title={t('admin.notifications.empty')}
+            body={t('admin.notifications.emptyBody')}
+          />
+        {/if}
+        {@render historyPager(history.page, history.hasMore)}
+      {/await}
     </DeckList>
 
-    {#if inspector.isOpen}
+    {#await data.history then history}
+      {@const selected = history.notifications.find((n) => String(n.id) === inspector.selectedId)}
+      {#if selected}
+        <InspectorSurface
+          open
+          title={selected.title}
+          controls="notification-inspector"
+          closeLabel={t('admin.close')}
+          onClose={close}
+        >
+          <NotificationDetail
+            notification={selected}
+            {busy}
+            onRetract={() => (retractTarget = selected)}
+          />
+        </InspectorSurface>
+      {/if}
+    {/await}
+
+    {#if composing && draft}
       <InspectorSurface
         open
-        title={composing ? t('admin.notifications.composeTitle') : (selected?.title ?? '')}
+        title={t('admin.notifications.composeTitle')}
         controls="notification-inspector"
         closeLabel={t('admin.close')}
         onClose={close}
       >
-        {#key inspector.selectedId}
-          {#if composing && draft}
-            <ComposeEditor
-              bind:draft={
-                () => draft!,
-                (v) => (draft = v)
-              }
-              status={inspector.status}
-              dirty={inspector.dirty}
-              canSave={canSend}
-              onCancel={close}
-              onSubmit={sendSubmit}
-            />
-          {:else if selected}
-            <NotificationDetail
-              notification={selected}
-              {busy}
-              onRetract={() => (retractTarget = selected)}
-            />
-          {/if}
-        {/key}
+        <ComposeEditor
+          bind:draft={
+            () => draft!,
+            (v) => (draft = v)
+          }
+          status={inspector.status}
+          dirty={inspector.dirty}
+          canSave={canSend}
+          onCancel={close}
+          onSubmit={sendSubmit}
+        />
       </InspectorSurface>
     {/if}
   </DeckLayout>
@@ -306,6 +297,15 @@
 />
 
 <style>
+  .history-count {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    inline-size: 10rem;
+    min-inline-size: 0;
+    min-block-size: 1.25rem;
+  }
+
   @media (max-width: 560px) {
     .audience {
       display: none;

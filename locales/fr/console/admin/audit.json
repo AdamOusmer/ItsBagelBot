@@ -4,7 +4,7 @@
   "titleEm": "d’audit",
   "description": "Chaque action d’opérateur, qui l’a lancée, et si elle a abouti.",
   "searchPlaceholder": "Auteur, action, cible…",
-  "kindFilter": "Type d’action",
+  "kindFilter": "Filtrer les entrées chargées",
   "kindAll": "Toutes",
   "kindUsers": "Utilisateurs",
   "kindStaff": "Personnel",

@@ -4,7 +4,7 @@
   "titleEm": "trail",
   "description": "Every operator action, who ran it, and whether it worked.",
   "searchPlaceholder": "Actor, action, target…",
-  "kindFilter": "Action kind",
+  "kindFilter": "Filter loaded entries",
   "kindAll": "All",
   "kindUsers": "Users",
   "kindStaff": "Staff",

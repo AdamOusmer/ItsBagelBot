@@ -4,6 +4,7 @@
   import { goto, invalidate } from '$app/navigation';
   import type { ComponentProps, Snippet } from 'svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
@@ -24,11 +25,13 @@
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { ANALYTICS_LIVE, ANALYTICS_REFRESH_MS, type AnalyticsView, type Bar, type DataTable, type Fact as ViewFact, type Flow, type GainLoss, type Name, type Phrase, type Series } from '#lib/analytics-page';
+  import { ANALYTICS_DATA, ANALYTICS_REFRESH_MS, type Bar, type DataTable, type Fact as ViewFact, type Flow, type GainLoss, type Name, type Phrase, type Series } from '#lib/analytics-page';
   import { dateLabel, signed } from '#lib/analytics-view';
-  import type { DonationsView } from '#lib/donations-view';
+  import { applyStreamed } from '#lib/streamed-load';
+  import type { AnalyticsBundle } from './+page.server';
+  import type { PageProps } from './$types';
 
-  let { data } = $props();
+  let { data }: PageProps = $props();
   const { t } = getI18n();
 
   const SECTIONS = ['overview', 'growth', 'engagement', 'retention', 'revenue', 'features', 'community', 'recipes', 'reliability', 'commands', 'audience'] as const;
@@ -59,24 +62,19 @@
   const formatCount = (value: number) => number.format(value);
   const formatDay = (at: number) => dateLabel(new Date(at).toISOString().slice(0, 10));
 
-  let view = $state<AnalyticsView | null>(null);
-  let donations = $state<DonationsView | null>(null);
-  let degraded = $state(false);
+  let bundle = $state.raw<AnalyticsBundle | null>(null);
+  const view = $derived(bundle?.view);
+  const donations = $derived(bundle?.donations);
+
   $effect(() => {
-    let alive = true;
-    data.bundle.then((bundle: { view: AnalyticsView; donations: DonationsView; degraded: boolean }) => {
-      if (!alive) return;
-      view = bundle.view;
-      donations = bundle.donations;
-      degraded = bundle.degraded;
+    applyStreamed(data.bundle, (resolved) => {
+      bundle = resolved;
     });
-    return () => {
-      alive = false;
-    };
   });
+
   $effect(() => {
     const refresh = () => {
-      if (!document.hidden) invalidate(ANALYTICS_LIVE);
+      if (!document.hidden) void invalidate(ANALYTICS_DATA);
     };
     const timer = setInterval(refresh, ANALYTICS_REFRESH_MS);
     document.addEventListener('visibilitychange', refresh);
@@ -86,9 +84,10 @@
     };
   });
 
-  const labels = $derived(data.windows.map((d: number) =>
-    d === 1 ? t('admin.analytics.daily') : t('admin.analytics.window', { days: String(d) })));
-  const current = $derived(labels[data.windows.indexOf(data.days)] ?? labels[0]);
+  const windowOptions = $derived(data.windows.map((days) => ({
+    value: String(days),
+    label: days === 1 ? t('admin.analytics.daily') : t('admin.analytics.window', { days: String(days) })
+  })));
   const navItems = $derived(SECTIONS.map((id) => ({ href: `#${id}`, label: t(`admin.analytics.nav.${id}`) })));
   const gainLossSeries = $derived<LineSeriesSpec[]>([
     { key: 'gained', label: t('admin.analytics.chart.gained'), tone: 'accent' },
@@ -96,9 +95,9 @@
   ]);
   const weekColumns = $derived(Array.from({ length: view?.retention.horizon ?? 0 }, (_, week) => week));
 
-  function pick(label: string) {
-    const days = data.windows[labels.indexOf(label)];
-    if (days) goto(days === data.defaultDays ? '/analytics' : `/analytics?days=${days}`, { reset: false });
+  function pick(days: string) {
+    if (days === String(data.days)) return;
+    void goto(days === String(data.defaultDays) ? '/analytics' : `/analytics?days=${days}`, { reset: false });
   }
 
   const phrase = (p: Phrase) => t(p.key, p.params);
@@ -116,6 +115,14 @@
 {#snippet head(id: string, actions?: Snippet)}
   <CardHead title={t(`admin.analytics.card.${id}`)} {actions} />
   <Text as="p" size="sm" tone="muted">{t(`admin.analytics.hint.${id}`)}</Text>
+{/snippet}
+
+{#snippet factTiles(items: ViewFact[])}
+  <FactList layout="tiles">
+    {#each items as fact (fact.key)}
+      <Fact term={t(`admin.analytics.fact.${fact.key}`)}>{fact.value}</Fact>
+    {/each}
+  </FactList>
 {/snippet}
 
 {#snippet loadingCard(id: string, height: string)}
@@ -217,22 +224,14 @@
       {:else}
         <div class="chart-box"><EmptyState title={t('admin.analytics.noRows')} /></div>
       {/if}
-      <FactList layout="tiles">
-        {#each flow.facts as fact (fact.key)}
-          <Fact term={t(`admin.analytics.fact.${fact.key}`)}>{fact.value}</Fact>
-        {/each}
-      </FactList>
+      {@render factTiles(flow.facts)}
     </Card>
   {/if}
 {/snippet}
 
 {#snippet barCard(id: string, bars: Bar[] | undefined, facts?: ViewFact[])}
   {#snippet footer()}
-    <FactList layout="tiles">
-      {#each facts ?? [] as fact (fact.key)}
-        <Fact term={t(`admin.analytics.fact.${fact.key}`)}>{fact.value}</Fact>
-      {/each}
-    </FactList>
+    {@render factTiles(facts ?? [])}
   {/snippet}
   {#if !bars}
     {@render loadingCard(id, SKELETON_HEIGHT.bars)}
@@ -254,11 +253,7 @@
   {:else}
     <Card as="section">
       {@render head(id)}
-      <FactList layout="tiles">
-        {#each facts as fact (fact.key)}
-          <Fact term={t(`admin.analytics.fact.${fact.key}`)}>{fact.value}</Fact>
-        {/each}
-      </FactList>
+      {@render factTiles(facts)}
     </Card>
   {/if}
 {/snippet}
@@ -288,13 +283,7 @@
             {/each}
           </tbody>
         </Table>
-        {#if facts}
-          <FactList layout="tiles">
-            {#each facts as fact (fact.key)}
-              <Fact term={t(`admin.analytics.fact.${fact.key}`)}>{fact.value}</Fact>
-            {/each}
-          </FactList>
-        {/if}
+        {#if facts}{@render factTiles(facts)}{/if}
       {:else}
         <div class="chart-box"><EmptyState title={t('admin.analytics.noRows')} /></div>
       {/if}
@@ -350,19 +339,23 @@
 {/snippet}
 
 <section class="screen active analytics">
-  <PageHead eyebrow={t('admin.analytics.eyebrow')} title={t('admin.analytics.title')} description={t('admin.analytics.description')}>
-    {#snippet trailing()}
-      <SegmentedControl options={labels} label={t('admin.analytics.windowLabel')} bind:value={() => current, pick} />
-    {/snippet}
-  </PageHead>
-
-  <Text as="p" size="sm" tone="muted">
-    {view ? t('admin.analytics.period', view.period) : ''} {t('admin.analytics.exactNote')}
-  </Text>
+  <div>
+    <PageHead eyebrow={t('admin.analytics.eyebrow')} title={t('admin.analytics.title')} description={t('admin.analytics.description')} />
+    <PageToolbar>
+      {#snippet leading()}
+        <div class="window-picker">
+          <SegmentedControl options={windowOptions} label={t('admin.analytics.windowLabel')} value={String(data.days)} onValueChange={pick} even />
+        </div>
+      {/snippet}
+    </PageToolbar>
+    <Text as="p" size="sm" tone="muted">
+      {view ? t('admin.analytics.period', view.period) : ''} {t('admin.analytics.exactNote')}
+    </Text>
+  </div>
 
   <SectionNav label={t('admin.analytics.nav.label')} items={navItems} orientation="horizontal" />
 
-  {#if degraded}<AlertBanner>{t('admin.analytics.degraded')}</AlertBanner>{/if}
+  {#if bundle?.degraded}<AlertBanner>{t('admin.analytics.degraded')}</AlertBanner>{/if}
   {#if view?.empty}<EmptyState title={t('admin.analytics.empty')} />{/if}
 
   <section id="overview" class="block">
@@ -528,6 +521,10 @@
   .analytics {
     display: grid;
     gap: var(--bb-space-7);
+  }
+  .window-picker {
+    inline-size: min(100%, 30rem);
+    min-inline-size: 0;
   }
   .block {
     display: grid;

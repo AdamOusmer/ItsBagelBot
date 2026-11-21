@@ -6,12 +6,12 @@ import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import { allows } from '#lib/server/access';
 import { analyticsSeries, type AnalyticsWindow } from '#lib/server/services';
-import { ANALYTICS_LIVE, ANALYTICS_WINDOWS, DEFAULT_ANALYTICS_WINDOW, buildAnalytics, type AnalyticsReads, type AnalyticsView } from '#lib/analytics-page';
+import { ANALYTICS_DATA, ANALYTICS_WINDOWS, DEFAULT_ANALYTICS_WINDOW, buildAnalytics, type AnalyticsReads, type AnalyticsView } from '#lib/analytics-page';
 import { currentDay, type AnalyticsRow } from '#lib/analytics-view';
 import { buildDonations, type DonationsView } from '#lib/donations-view';
 import { donationsSummary } from '#lib/server/donations';
 
-type AnalyticsBundle = { view: AnalyticsView; donations: DonationsView; degraded: boolean };
+export type AnalyticsBundle = { view: AnalyticsView; donations: DonationsView; degraded: boolean };
 
 const DEMO = dev && process.env.DEMO === '1';
 const COHORT_DAYS = 120;
@@ -42,7 +42,7 @@ function windowDays(raw: string | null): number {
   return ANALYTICS_WINDOWS.find((d) => d === n) ?? DEFAULT_ANALYTICS_WINDOW;
 }
 
-async function read(actorId: string, days: number): Promise<AnalyticsReads> {
+async function readAnalytics(actorId: string, days: number): Promise<AnalyticsReads> {
   const series = (w: AnalyticsWindow, metrics: string[], span: number) =>
     analyticsSeries(actorId, w, metrics, span);
   const [counters, levels, week, month, cohortWeeks, cohortDays] = await Promise.all([
@@ -69,13 +69,13 @@ const emptyReads = (days: number): AnalyticsReads => ({
 });
 
 export const load: PageServerLoad = async ({ parent, url, depends }) => {
-  depends(ANALYTICS_LIVE);
+  depends(ANALYTICS_DATA);
   const layout = await parent();
   if (!allows(layout.role, 'analytics.read')) throw redirect(302, '/');
   const days = windowDays(url.searchParams.get('days'));
   const reads = DEMO
     ? import('#lib/server/demo-data').then(({ demoAnalytics }) => demoAnalytics(days))
-    : read(layout.id, days);
+    : readAnalytics(layout.id, days);
   const ledger = DEMO
     ? import('#lib/server/demo-data').then(({ demoDonations }) => demoDonations(days))
     : donationsSummary(layout.id, days);
@@ -90,5 +90,5 @@ export const load: PageServerLoad = async ({ parent, url, depends }) => {
     donations: d.view,
     degraded: a.degraded || d.degraded
   }));
-  return { days: days as number, defaultDays: DEFAULT_ANALYTICS_WINDOW, windows: [...ANALYTICS_WINDOWS] as number[], bundle };
+  return { days, defaultDays: DEFAULT_ANALYTICS_WINDOW, windows: ANALYTICS_WINDOWS, bundle };
 };
