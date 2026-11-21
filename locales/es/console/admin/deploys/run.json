@@ -25,5 +25,8 @@
   "nowOf": "{n} de {total}",
   "nowAllBuilt": "Imágenes construidas: {total}; todas listas",
   "jobs": "Tareas terminadas: {done} de {total}",
-  "openJob": "Abrir tarea"
+  "openJob": "Abrir tarea",
+  "noStages": "Aún no hay etapas",
+  "noStagesBody": "Las etapas aparecen cuando comienza el despliegue.",
+  "loadFailed": "No se pudo cargar este despliegue."
 }

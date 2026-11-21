@@ -1,72 +1,55 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import { allows, requireRole } from '#lib/server/access';
-import { audited, okReply } from '#lib/server/admin-action';
-import { actionError, adminText } from '#lib/server/admin-action';
-import { giveawayGet, giveawayAlerts, giveawayPreview, giveawayFreeze, giveawayDraw, giveawayRetry, giveawayInclusion, type GiveawayDetailWire, type GiveawayExcludedWire, type GiveawayPreviewWire } from '#lib/server/giveaways';
+import { actionError, adminText, audited, okReply } from '#lib/server/admin-action';
+import { giveawayGet, giveawayAlerts, giveawayPreview, giveawayFreeze, giveawayDraw, giveawayRetry, giveawayInclusion, type GiveawayAlertWire, type GiveawayDetailWire } from '#lib/server/giveaways';
 
 const DEMO = dev && process.env.DEMO === '1';
 
-function operationFields(form: FormData): { version: number; key: string } | { error: string } {
+function operationFields(form: FormData): { version: number; key: string } | null {
   const version = Number(String(form.get('expected_version') ?? ''));
   const key = String(form.get('idempotency_key') ?? '').trim();
-  if (!Number.isSafeInteger(version) || version < 1) return { error: 'snapshot version and operation key required' };
-  if (!key) return { error: 'snapshot version and operation key required' };
+  if (!Number.isSafeInteger(version) || version < 1) return null;
+  if (!key) return null;
   return { version, key };
 }
 
-function demoDetail(id: string, status: GiveawayDetailWire['status'] = 'drawn'): GiveawayDetailWire {
-  const detail: GiveawayDetailWire = {
-    id, title: 'September community giveaway', reason: 'Launch celebration', status, winnerCount: 2, prizeMonths: 3,
-    createdAt: '2026-09-01T12:00:00Z', drawnAt: '2026-09-03T12:00:00Z', pendingAwards: 1, version: 2,
-    eligible: { eligible: 42, free: 25, premium: 9, subscribers: 8, excluded: 17 }, selectionMethod: 'random_draw', algorithmVersion: 'crypto-rand-partial-fisher-yates-v1', poolDigest: 'demo', capabilities: { newAwardsEnabled: true, schedulingEnabled: false, providerMutationsEnabled: false, intervalRuleVerified: false, reason: 'demo pending protection' },
-    winners: [
-      { id: 'award-1', userId: '1001', login: 'bagel_friend', selectedAt: '2026-09-03T12:00:00Z', prizeMonths: 3, awardState: 'completed', billingState: 'not_required', startAt: '2026-09-03T12:00:00Z', endAt: '2026-12-03T12:00:00Z', paidThroughAt: null, nextChargeAt: null, providerVerifiedAt: null, emailState: 'accepted', emailWarning: null, failureReason: null, retryCount: 0 },
-      { id: 'award-2', userId: '1002', login: 'monthly_winner', selectedAt: '2026-09-03T12:00:00Z', prizeMonths: 3, awardState: 'needs_review', billingState: 'pending', startAt: null, endAt: null, paidThroughAt: null, nextChargeAt: null, providerVerifiedAt: null, emailState: 'missing_contact', emailWarning: 'No contact email', failureReason: 'Provider pause not verified', retryCount: 1 }
-    ], alerts: [{ id: 'alert-1', awardId: 'award-2', reason: 'Provider pause not verified', pendingSince: '2026-09-03T12:00:00Z', upcomingChargeAt: '2026-09-20T12:00:00Z', urgent: true }]
-  };
-  if (status === 'drawn' || status === 'complete') return detail;
-  return { ...detail, drawnAt: null, pendingAwards: 0, winners: [], alerts: [] };
-}
-
-const DEMO_EXCLUDED: GiveawayExcludedWire[] = [
-  { userId: '2001', login: 'paused_streamer', reason: 'inactive', included: true, includable: true },
-  { userId: '2002', login: 'staff_tester', reason: 'current_staff', included: false, includable: true },
-  { userId: '2003', login: 'banned_account', reason: 'banned', included: false, includable: false }
-];
-
-function demoPreview(id: string): GiveawayPreviewWire {
-  const detail = demoDetail(id);
-  return {
-    excluded: DEMO_EXCLUDED, included: 1,
-    eligible: detail.eligible ?? { eligible: 0, free: 0, premium: 0, subscribers: 0, excluded: 0 },
-    exclusions: { banned: 0, inactive: 6, not_onboarded: 2, test_account: 4, vip: 3, current_staff: 2 },
-    summary: { winners: detail.winnerCount, months: detail.prizeMonths, totalMonths: detail.winnerCount * detail.prizeMonths },
-    poolDigest: 'demo-preview', capabilities: detail.capabilities
-  };
-}
-
-type DetailLoad = { giveaway: GiveawayDetailWire | null; degraded: boolean; alertsDegraded: boolean };
+type DetailLoad = {
+  giveaway: GiveawayDetailWire | null;
+  alerts: Promise<GiveawayAlertWire[] | null>;
+};
 
 async function loadLiveDetail(actorId: string, campaignId: string): Promise<DetailLoad> {
-  try {
-    const giveaway = await giveawayGet({ actorId, campaignId });
-    let alerts: Awaited<ReturnType<typeof giveawayAlerts>> = [];
-    let alertsDegraded = false;
-    try {
-      alerts = await giveawayAlerts({ actorId });
-    } catch {
-      alertsDegraded = true;
-    }
-    const awardIds = new Set(giveaway.winners.map((winner) => winner.id));
-    return { giveaway: { ...giveaway, alerts: alerts.filter((alert) => awardIds.has(alert.awardId)) }, degraded: false, alertsDegraded };
-  } catch {
-    return { giveaway: null, degraded: true, alertsDegraded: false };
-  }
+  const campaign = giveawayGet({ actorId, campaignId }).catch(() => null);
+  const unresolved = giveawayAlerts({ actorId }).catch(() => null);
+  const giveaway = await campaign;
+  const alerts = giveaway ? unresolved.then((rows) => campaignAlerts(giveaway, rows)) : Promise.resolve(null);
+  return { giveaway, alerts };
+}
+
+function campaignAlerts(campaign: GiveawayDetailWire, rows: GiveawayAlertWire[] | null): GiveawayAlertWire[] | null {
+  const awardIds = new Set(campaign.winners.map((winner) => winner.id));
+  return rows?.filter((row) => awardIds.has(row.awardId)) ?? null;
 }
 
 type OperationEvent = { request: Request; locals: App.Locals; params: { id: string } };
+
+const campaignOperations = {
+  freeze: {
+    run: giveawayFreeze,
+    notice: 'admin.giveaway.snapshotFrozen',
+    demoNotice: 'admin.giveaway.snapshotFrozenDemo'
+  },
+  draw: {
+    run: giveawayDraw,
+    notice: 'admin.giveaway.drawCommitted',
+    demoNotice: 'admin.giveaway.drawCommittedDemo'
+  }
+};
 
 async function operationContext(event: OperationEvent, needsDigest: boolean) {
   const admin = await requireRole({ locals: event.locals }, 'giveaways.manage');
@@ -75,8 +58,27 @@ async function operationContext(event: OperationEvent, needsDigest: boolean) {
   const digest = String(form.get('pool_digest') ?? '').trim();
   if (needsDigest && !digest) return { error: fail(400, { error: adminText(event.locals.locale, 'admin.giveaway.poolDigestRequired') }) } as const;
   const operation = operationFields(form);
-  if ('error' in operation) return { error: fail(400, { error: actionError(event.locals.locale, operation.error) }) } as const;
+  if (!operation) return { error: fail(400, { error: adminText(event.locals.locale, 'admin.giveaway.operationRequired') }) } as const;
   return { admin, digest, operation } as const;
+}
+
+async function changeCampaign(event: OperationEvent, kind: keyof typeof campaignOperations) {
+  const context = await operationContext(event, kind === 'freeze');
+  if ('error' in context) return context.error;
+  const { admin, digest, operation } = context;
+  const { run, notice, demoNotice } = campaignOperations[kind];
+  const reply = okReply(adminText(event.locals.locale, DEMO ? demoNotice : notice));
+  if (DEMO) return reply;
+  const target = event.params.id;
+  const input = {
+    actorId: admin.id, campaignId: target, poolDigest: digest,
+    expectedVersion: operation.version, idempotencyKey: operation.key
+  };
+  return audited(
+    { admin, action: `giveaway_${kind}`, target },
+    async () => { await run(input); },
+    () => reply
+  );
 }
 
 async function inclusion(event: OperationEvent, include: boolean) {
@@ -84,27 +86,35 @@ async function inclusion(event: OperationEvent, include: boolean) {
   if (!admin) return fail(403, { error: actionError(event.locals.locale, 'forbidden') });
   const userId = String((await event.request.formData()).get('user_id') ?? '').trim();
   if (!/^\d+$/.test(userId)) return fail(400, { error: adminText(event.locals.locale, 'admin.giveaway.userIdRequired') });
-  if (DEMO) return { preview: demoPreview(event.params.id) };
+  if (DEMO) {
+    const { demoGiveawayPreview } = await import('#lib/server/demo-giveaways');
+    return { preview: demoGiveawayPreview({ userId, include }) };
+  }
   const action = include ? 'giveaway_include' : 'giveaway_exclude';
   return audited({ admin, action, target: event.params.id, detail: userId }, () => giveawayInclusion({ actorId: admin.id, campaignId: event.params.id, userId, include }), (preview) => ({ preview }));
 }
 
-export const load: PageServerLoad = async ({ params, parent, url }) => {
+export const load: PageServerLoad = async ({ params, parent, url, depends }) => {
+  depends('admin:giveaway');
   const layout = await parent();
   if (!allows(layout.role, 'giveaways.manage')) throw redirect(302, '/');
   const id = params.id;
-  const demoStatus = url.searchParams.get('demo') === 'draft' ? 'draft' : url.searchParams.get('demo') === 'frozen' ? 'frozen' : 'drawn';
-  const detail: Promise<DetailLoad> = DEMO
-    ? Promise.resolve({ giveaway: demoDetail(id, demoStatus), degraded: false, alertsDegraded: false })
-    : loadLiveDetail(layout.id, id);
-  return { detail };
+  if (DEMO) {
+    const status = url.searchParams.get('demo');
+    const { demoGiveawayDetail } = await import('#lib/server/demo-giveaways');
+    return { id, ...demoGiveawayDetail(id, status) };
+  }
+  return { id, ...await loadLiveDetail(layout.id, id) };
 };
 
 export const actions: Actions = {
   preview: async ({ locals, params }) => {
     const admin = await requireRole({ locals }, 'giveaways.manage');
     if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
-    if (DEMO) return { preview: demoPreview(params.id) };
+    if (DEMO) {
+      const { demoGiveawayPreview } = await import('#lib/server/demo-giveaways');
+      return { preview: demoGiveawayPreview() };
+    }
     try {
       const preview = await giveawayPreview({ actorId: admin.id, campaignId: params.id });
       return { preview };
@@ -112,20 +122,8 @@ export const actions: Actions = {
       return fail(502, { error: (e as Error).message });
     }
   },
-  freeze: async (event) => {
-    const context = await operationContext(event, true);
-    if ('error' in context) return context.error;
-    const { admin, digest, operation } = context;
-    if (DEMO) return okReply(adminText(event.locals.locale, 'admin.giveaway.snapshotFrozenDemo'));
-    return audited({ admin, action: 'giveaway_freeze', target: event.params.id }, () => giveawayFreeze({ actorId: admin.id, campaignId: event.params.id, poolDigest: digest, expectedVersion: operation.version, idempotencyKey: operation.key }), () => okReply(adminText(event.locals.locale, 'admin.giveaway.snapshotFrozen')));
-  },
-  draw: async (event) => {
-    const context = await operationContext(event, false);
-    if ('error' in context) return context.error;
-    const { admin, operation } = context;
-    if (DEMO) return okReply(adminText(event.locals.locale, 'admin.giveaway.drawCommittedDemo'));
-    return audited({ admin, action: 'giveaway_draw', target: event.params.id }, () => giveawayDraw({ actorId: admin.id, campaignId: event.params.id, expectedVersion: operation.version, idempotencyKey: operation.key }), () => okReply(adminText(event.locals.locale, 'admin.giveaway.drawCommitted')));
-  },
+  freeze: (event) => changeCampaign(event, 'freeze'),
+  draw: (event) => changeCampaign(event, 'draw'),
   include: (event) => inclusion(event, true),
   exclude: (event) => inclusion(event, false),
   retry: async ({ request, locals }) => {

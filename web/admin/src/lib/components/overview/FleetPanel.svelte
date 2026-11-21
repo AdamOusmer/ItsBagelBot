@@ -6,6 +6,7 @@
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -44,39 +45,29 @@
       timeoutMs: Number.POSITIVE_INFINITY
     };
 
-    async function pollFleet(): Promise<boolean> {
+    async function poll<T>(route: string, update: (snapshot: T) => void): Promise<boolean> {
       try {
-        const res = await fetch('/shards/snapshot');
+        const res = await fetch(route);
         if (!res.ok) return false;
-        const body = (await res.json()) as { snapshot?: ShardSnapshot | null };
-        if (alive && body.snapshot) polled = body.snapshot;
+        const body = (await res.json()) as { snapshot?: T | null };
+        if (alive && body.snapshot) update(body.snapshot);
       } catch {
         return false;
       }
       return false;
     }
 
-    async function pollTrials(): Promise<boolean> {
-      try {
-        const res = await fetch('/trials/snapshot');
-        if (!res.ok) return false;
-        const body = (await res.json()) as { snapshot?: TrialSnapshot | null };
-        if (alive && body.snapshot) {
-          trialsPolled = true;
-          trials = { ok: true, value: body.snapshot };
-        }
-      } catch {
-        return false;
-      }
-      return false;
+    function showPolledTrials(snapshot: TrialSnapshot) {
+      trialsPolled = true;
+      trials = { ok: true, value: snapshot };
     }
 
-    const stopFleet = livePoll(pollFleet, options);
-    const stopTrials = showTrials ? livePoll(pollTrials, options) : () => {};
+    const stopFleet = livePoll(() => poll<ShardSnapshot>('/shards/snapshot', (snapshot) => (polled = snapshot)), options);
+    const stopTrials = showTrials ? livePoll(() => poll('/trials/snapshot', showPolledTrials), options) : null;
     return () => {
       alive = false;
       stopFleet();
-      stopTrials();
+      stopTrials?.();
     };
   });
 
@@ -87,8 +78,8 @@
   );
 </script>
 
-<Card as="section">
-  <CardHead title={t('admin.overview.fleetTitle')}>
+<Card as="section" class="overview-fleet-panel">
+  <CardHead title={t('admin.overview.fleetTitle')} headingLevel={2}>
     {#snippet actions()}
       <a class="bb-card-head__more" href="/shards">{t('admin.overview.fleetAll')}</a>
     {/snippet}
@@ -113,48 +104,55 @@
     {/if}
   </p>
 
-  {#if view.shards.length}
-    <div class="bb-node-list bb-stagger">
-      {#each view.shards as s (s.shard_id)}
-        <div class="bb-node-list__row">
-          <StatusDot tone={statusTone(s.state === 'connected' ? 'online' : 'degraded')} />
-          <span class="bb-node-list__name">{t('admin.overview.fleetShard', { id: String(s.shard_id) })}</span>
-          <span class="bb-node-list__meta">{s.state} · {s.host || '-'}</span>
-          <span class="bb-node-list__trail">{t('admin.overview.fleetAttempts', { n: String(s.attempts ?? 0) })}</span>
-        </div>
-      {/each}
-    </div>
-  {:else}
-    <EmptyState title={t('admin.overview.fleetEmpty')} />
-  {/if}
-
-  {#if showTrials}
-    {#if trials === null}
-      <div class="trial-hint"><Text size="xs" tone="muted">{t('admin.shards.trialLoading')}</Text></div>
-    {:else if !trials.ok}
-      <div class="trial-hint"><Text size="xs" tone="muted">{t('admin.shards.trialUnavailable')}</Text></div>
-    {:else}
-      {@const activeTrials = trials.value.trials.filter((row) => row.state !== 'removed' && row.state !== 'promoted')}
-      {#if activeTrials.length}
-        <div class="trials">
-          <Heading level={6} as="h3">{t('admin.shards.trialConnections')}</Heading>
-          <div class="bb-node-list bb-stagger">
-            {#each [...activeTrials].sort((a, b) => (a.display_name || a.broadcaster_id).localeCompare(b.display_name || b.broadcaster_id)) as trial (trial.broadcaster_id)}
-              <div class="bb-node-list__row">
-                <StatusDot tone={statusTone(!trial.enabled ? 'unavailable' : trial.state === 'receiving' ? 'online' : 'degraded')} />
-                <span class="bb-node-list__name">{trial.display_name?.trim() || trial.broadcaster_id}</span>
-                <span class="bb-node-list__meta">{trial.display_name?.trim() ? t('admin.shards.trialBroadcasterId', { id: trial.broadcaster_id }) : ''}</span>
-                <span class="bb-node-list__trail">{trial.enabled ? t(`admin.trials.state.${trial.state}`) : t('admin.trials.off')}</span>
-              </div>
-            {/each}
+  <Scroller fill role="region" aria-label={t('admin.overview.fleetTitle')} tabindex={0}>
+    {#if view.shards.length}
+      <div class="bb-node-list bb-stagger">
+        {#each view.shards as s (s.shard_id)}
+          <div class="bb-node-list__row">
+            <StatusDot tone={statusTone(s.state === 'connected' ? 'online' : 'degraded')} />
+            <span class="bb-node-list__name">{t('admin.overview.fleetShard', { id: String(s.shard_id) })}</span>
+            <span class="bb-node-list__meta">{s.state} · {s.host || '-'}</span>
+            <span class="bb-node-list__trail">{t('admin.overview.fleetAttempts', { n: String(s.attempts ?? 0) })}</span>
           </div>
-        </div>
+        {/each}
+      </div>
+    {:else}
+      <EmptyState title={t('admin.overview.fleetEmpty')} />
+    {/if}
+
+    {#if showTrials}
+      {#if trials === null}
+        <div class="trial-hint"><Text size="xs" tone="muted">{t('admin.shards.trialLoading')}</Text></div>
+      {:else if !trials.ok}
+        <div class="trial-hint"><Text size="xs" tone="muted">{t('admin.shards.trialUnavailable')}</Text></div>
+      {:else}
+        {@const activeTrials = trials.value.trials.filter((row) => row.state !== 'removed' && row.state !== 'promoted')}
+        {#if activeTrials.length}
+          <div class="trials">
+            <Heading level={6} as="h3">{t('admin.shards.trialConnections')}</Heading>
+            <div class="bb-node-list bb-stagger">
+              {#each [...activeTrials].sort((a, b) => (a.display_name || a.broadcaster_id).localeCompare(b.display_name || b.broadcaster_id)) as trial (trial.broadcaster_id)}
+                <div class="bb-node-list__row">
+                  <StatusDot tone={statusTone(!trial.enabled ? 'unavailable' : trial.state === 'receiving' ? 'online' : 'degraded')} />
+                  <span class="bb-node-list__name">{trial.display_name?.trim() || trial.broadcaster_id}</span>
+                  <span class="bb-node-list__meta">{trial.display_name?.trim() ? t('admin.shards.trialBroadcasterId', { id: trial.broadcaster_id }) : ''}</span>
+                  <span class="bb-node-list__trail">{trial.enabled ? t(`admin.trials.state.${trial.state}`) : t('admin.trials.off')}</span>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
       {/if}
     {/if}
-  {/if}
+  </Scroller>
 </Card>
 
 <style>
+  :global(.overview-fleet-panel) {
+    display: flex;
+    flex-direction: column;
+  }
+
   .summary {
     display: flex;
     align-items: center;

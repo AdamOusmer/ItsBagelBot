@@ -4,36 +4,29 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
-import { allows, requireRole, canManage, type AdminIdentity } from '#lib/server/access';
-import { staffUpsert, staffRemove, adminListAccts, type AdminRole } from '#lib/server/services';
-import type { AdminAcct } from '#lib/server/services';
+import { allows, requireRole, canManage } from '#lib/server/access';
+import { staffUpsert, staffRemove, adminListAccts, type AdminAcct, type AdminRole } from '#lib/server/services';
 import { actionError, adminText, audited } from '#lib/server/admin-action';
+import { STAFF_ROSTER } from '#lib/components/staff/staff-roles';
 
 const ROLES = new Set<AdminRole>(['moderator', 'admin', 'owner']);
 const DEMO = dev && process.env.DEMO === '1';
 
 export type RosterBundle = { staff: AdminAcct[]; degraded: boolean };
 
-export const load: PageServerLoad = async ({ parent }) => {
-  const layout = await parent();
-  const admin: AdminIdentity = {
-    id: layout.id,
-    login: layout.login,
-    display_name: layout.displayName,
-    role: layout.role
-  };
-  if (!allows(admin.role, 'staff.manage')) throw redirect(302, '/');
+export const load: PageServerLoad = async ({ parent, depends }) => {
+  const { id, role } = await parent();
+  if (!allows(role, 'staff.manage')) throw redirect(302, '/');
+  depends(STAFF_ROSTER);
 
-  const roster: Promise<RosterBundle> = DEMO
-    ? import('#lib/server/demo-data').then(({ demoStaff }) => ({
-        staff: demoStaff(),
-        degraded: false
-      }))
-    : adminListAccts()
-        .then((staff) => ({ staff, degraded: false }))
-        .catch(() => ({ staff: [], degraded: true }));
+  const staff = DEMO
+    ? import('#lib/server/demo-data').then(({ demoStaff }) => demoStaff())
+    : adminListAccts();
+  const roster: Promise<RosterBundle> = staff
+    .then((staff) => ({ staff, degraded: false }))
+    .catch(() => ({ staff: [], degraded: true }));
 
-  return { roster, me: admin };
+  return { roster, me: { id, role } };
 };
 
 export const actions: Actions = {

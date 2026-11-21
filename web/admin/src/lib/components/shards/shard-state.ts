@@ -8,6 +8,21 @@ const RESTARTING = new Set(['connecting', 'reconnecting', 'binding', 'migrating'
 
 export type ShardBadge = { label: string; tone: StatusTone };
 
+export function conduitStatus(state?: string): ShardBadge {
+  switch (state) {
+    case 'running':
+    case 'leader':
+    case 'ready':
+      return { label: 'admin.shards.conduitRunning', tone: 'success' };
+    case 'down':
+      return { label: 'admin.shards.conduitDown', tone: 'danger' };
+    case 'unresponsive':
+      return { label: 'admin.shards.conduitUnresponsive', tone: 'warning' };
+    default:
+      return { label: 'admin.shards.unknownState', tone: 'neutral' };
+  }
+}
+
 export function shardBadge(shard: Shard): ShardBadge {
   if (shard.state === 'unknown') return { label: 'admin.shards.stateUnknown', tone: 'neutral' };
   if (shard.state === 'unregistered') {

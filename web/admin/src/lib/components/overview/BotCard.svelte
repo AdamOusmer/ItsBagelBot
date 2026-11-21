@@ -1,7 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { onMount } from 'svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
@@ -17,21 +16,17 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
 
-  let { present }: { present: boolean } = $props();
+  let { present, botLink }: { present: boolean; botLink: string } = $props();
 
   const { t } = getI18n();
 
-  let botLink = $state('');
   let copied = $state(false);
-  onMount(() => {
-    botLink = `${location.origin}/auth/bot/login`;
-  });
 
   const copy = () => copyFlash(botLink, (on) => (copied = on));
 </script>
 
 <Card as="section">
-  <CardHead title={t('admin.overview.botTitle')} />
+  <CardHead title={t('admin.overview.botTitle')} headingLevel={2} />
 
   <div class="row">
     <MarkBadge src="/logo.png" size="sm" />
@@ -51,52 +46,71 @@
     </span>
   </div>
 
-  {#if botLink}
-    <div class="link">
-      <Text size="sm" tone="muted">{t('admin.overview.botHint')}</Text>
-      <Cluster gap={2} nowrap>
-        <Input
-          fill mono
-          type="text"
-          readonly
-          value={botLink}
-          aria-label={t('admin.overview.botLinkLabel')}
-        />
-        <Button variant="ghost" type="button" onclick={copy}>
-          {copied ? t('common.copied') : t('common.copy')}
-        </Button>
-      </Cluster>
-    </div>
-  {/if}
+  <div class="link">
+    <Text size="sm" tone="muted">{t('admin.overview.botHint')}</Text>
+    <Cluster gap={2} nowrap>
+      <Input
+        fill mono
+        type="text"
+        readonly
+        value={botLink}
+        aria-label={t('admin.overview.botLinkLabel')}
+      />
+      <Button variant="ghost" type="button" onclick={copy}>
+        <span class="copy-status" aria-live="polite">
+          <span class="copy-label" class:visible={!copied} aria-hidden={copied}>{t('common.copy')}</span>
+          <span class="copy-label" class:visible={copied} aria-hidden={!copied}>{t('common.copied')}</span>
+        </span>
+      </Button>
+    </Cluster>
+  </div>
 </Card>
 
 <style>
   .row {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 14px;
+    gap: var(--bb-space-3);
   }
   .cta {
-    margin-left: auto;
     white-space: nowrap;
   }
 
   .link {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    margin-top: 14px;
+    gap: var(--bb-space-2);
+    margin-top: var(--bb-space-3);
   }
 
-  @media (max-width: 760px) {
+  .copy-status {
+    display: grid;
+  }
+
+  .copy-label {
+    grid-area: 1 / 1;
+    opacity: 0;
+    transition: opacity var(--bb-dur-fast) ease;
+  }
+
+  .copy-label.visible {
+    opacity: 1;
+  }
+
+  @container (max-width: 28rem) {
     .row {
-      flex-wrap: wrap;
+      grid-template-columns: auto minmax(0, 1fr);
     }
     .cta {
-      --btn-w: 100%;
-      --btn-justify: center;
-      width: 100%;
-      margin-left: 0;
+      grid-column: 2;
+      justify-self: start;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .copy-label {
+      transition: none;
     }
   }
 </style>

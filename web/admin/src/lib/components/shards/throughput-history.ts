@@ -4,21 +4,19 @@
 import type { Shard, ShardSnapshot } from '@bagel/kit';
 import type { TrialChannel, TrialSnapshot } from '#lib/server/services';
 import { eventsPerSecond, resolveCapacity } from '../../throughput';
+import { activeTrial } from './shard-topology';
 
-export interface ThroughputPoint {
+export type ThroughputPoint = {
   at: number;
   production: number | null;
   trials: number | null;
-}
+};
 
 const HISTORY_MS = 10 * 60_000;
+const MAX_HISTORY_POINTS = 600;
 const MAX_SAMPLE_GAP_MS = 30_000;
 type TrialBaseline = { at: number; counts: Map<string, number> };
 type TrialSample = TrialBaseline & { activeIds: Set<string> };
-
-function activeTrial(row: TrialChannel): boolean {
-  return row.state !== 'removed' && row.state !== 'promoted';
-}
 
 function validLoad(value: number): boolean {
   return Number.isFinite(value) && value >= 0;
@@ -36,7 +34,6 @@ function trialSample(snapshot: TrialSnapshot | null, at: number): TrialSample | 
   if (!snapshot) return null;
   const active = snapshot.trials.filter(activeTrial);
   if (!active.every(hasCounter)) return null;
-  // Terminal rows retain the last events received before promotion/removal.
   const counts = new Map(snapshot.trials.filter(hasCounter).map((row) => [trialId(row), row.received]));
   return { at, counts, activeIds: new Set(active.map(trialId)) };
 }
@@ -84,25 +81,23 @@ function rollingTrialRate(snapshot: ShardSnapshot | null, fallback: number | nul
   return loads.reduce((sum, load) => sum + eventsPerSecond(load, window), 0);
 }
 
-function unavailableShard(shard: Shard): boolean {
-  return (shard.state === 'unresponsive' || shard.state === 'unknown') && shard.load == null;
+function unavailableShard({ state, load }: Shard): boolean {
+  if (load != null) return !validLoad(load);
+  return state === 'unresponsive' || state === 'unknown';
 }
 
 function productionRate(snapshot: ShardSnapshot | null): number | null {
-  if (!snapshot) return null;
+  if (!snapshot || snapshot.inventory === 'unavailable') return null;
   if (snapshot.shards.some(unavailableShard)) return null;
   const window = resolveCapacity(snapshot).load_window_seconds;
   return snapshot.shards.reduce((sum, shard) => sum + eventsPerSecond(shard.load, window), 0);
 }
 
 function appendPoint(points: ThroughputPoint[], point: ThroughputPoint): ThroughputPoint[] {
-  // Bound memory even if visibility events cause unusually frequent reads.
   const recent = points.filter((row) => row.at > point.at - HISTORY_MS && row.at < point.at);
-  return [...recent, point].slice(-600);
+  return [...recent, point].slice(-MAX_HISTORY_POINTS);
 }
 
-/** Current reporters supply rolling loads for both series. Older trial reporters
- * use cumulative counters; outages, resets and new generations need a fresh baseline. */
 export class ThroughputHistory {
   private baseline: TrialBaseline | null = null;
   private points: ThroughputPoint[] = [];

@@ -4,11 +4,12 @@
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { mutateAction, thrownStatus } from '@bagel/kit/server/form-action';
-import { normalizeCounterName, parseCounterValue } from '@bagel/kit/validation';
+import { parseCounterValue } from '@bagel/kit/validation';
 import { dev } from '$app/env';
 import { allows, requireRole, type AdminIdentity } from '#lib/server/access';
 import { audit } from '#lib/server/audit';
 import { actionError, adminText } from '#lib/server/admin-action';
+import { COUNTERS_DATA, counterName } from '#lib/components/counters/counter-draft';
 import {
   botCounterList,
   botCounterCreate,
@@ -21,17 +22,14 @@ const DEMO = dev && process.env.DEMO === '1';
 
 export type BotCountersBundle = { counters: BotCounter[]; degraded: boolean };
 
-function validName(name: string): boolean {
-  return name.length > 0 && !name.includes(':');
-}
-
-export const load: PageServerLoad = async ({ parent }) => {
+export const load: PageServerLoad = async ({ depends, parent }) => {
   const layout = await parent();
-  // The only gate: the loyalty service checks no role for bot-global counters.
+  // The loyalty service trusts this gate for bot-global counters.
   if (!allows(layout.role, 'counters.manage')) throw redirect(302, '/');
+  depends(COUNTERS_DATA);
 
   const bundle: Promise<BotCountersBundle> = DEMO
-    ? Promise.resolve({ counters: [{ name: 'feeds', scope: 'bot', value: '12873' }], degraded: false })
+    ? import('#lib/server/demo-giveaways').then(({ demoBotCounters }) => ({ counters: demoBotCounters, degraded: false }))
     : botCounterList()
         .then((counters) => ({ counters, degraded: false }))
         .catch(() => ({ counters: [], degraded: true }));
@@ -39,16 +37,38 @@ export const load: PageServerLoad = async ({ parent }) => {
   return { bundle };
 };
 
-type Mutation = (f: FormData) => Promise<string | null>;
+type CounterOperation = 'create' | 'set' | 'delete';
+type MutationOutcome = { detail: string; counter?: BotCounter };
 
-function mutate(op: string, run: Mutation) {
+export type CounterAction = { ok: boolean; error?: string; counter?: BotCounter };
+
+async function mutateCounter(op: CounterOperation, form: FormData): Promise<MutationOutcome | null> {
+  const name = counterName(form.get('name'));
+  if (name === null) return null;
+  if (op === 'create') return { detail: name, counter: await botCounterCreate(name) };
+  if (op === 'delete') {
+    await botCounterDelete(name);
+    return { detail: name };
+  }
+  const value = parseCounterValue(form.get('value'));
+  if (value === null) return null;
+  await botCounterSet(name, value);
+  return { detail: `${name}=${value}` };
+}
+
+function mutate(op: CounterOperation) {
   const action = `bot_counter_${op}`;
-  return (event: RequestEvent) =>
-    mutateAction<AdminIdentity>(event, {
+  return async (event: RequestEvent) => {
+    let counter: BotCounter | undefined;
+    const result = await mutateAction<AdminIdentity>(event, {
       gate: () => requireRole(event, 'counters.manage'),
       refusal: () => fail(403, { ok: false, error: actionError(event.locals.locale, 'forbidden') }),
       demo: DEMO,
-      run: (_admin, f) => run(f),
+      run: async (_admin, f) => {
+        const outcome = await mutateCounter(op, f);
+        counter = outcome?.counter;
+        return outcome?.detail ?? null;
+      },
       failed: (e, f, admin) => {
         const error = (e as Error).message;
         audit(admin, { action, target: 'bot', detail: String(f.get('name') ?? ''), ok: false, error });
@@ -57,28 +77,12 @@ function mutate(op: string, run: Mutation) {
       audited: (admin, detail) => audit(admin, { action, target: 'bot', detail, ok: true }),
       invalid: adminText(event.locals.locale, 'admin.counters.invalid')
     });
+    return counter ? { ...result, counter } : result;
+  };
 }
 
 export const actions: Actions = {
-  create: mutate('create', async (f) => {
-    const name = normalizeCounterName(f.get('name'));
-    if (!validName(name)) return null;
-    await botCounterCreate(name);
-    return name;
-  }),
-
-  set: mutate('set', async (f) => {
-    const name = normalizeCounterName(f.get('name'));
-		const value = parseCounterValue(f.get('value'));
-		if (!validName(name) || value === null) return null;
-    await botCounterSet(name, value);
-    return `${name}=${value}`;
-  }),
-
-  delete: mutate('delete', async (f) => {
-    const name = normalizeCounterName(f.get('name'));
-    if (!validName(name)) return null;
-    await botCounterDelete(name);
-    return name;
-  })
+  create: mutate('create'),
+  set: mutate('set'),
+  delete: mutate('delete')
 };

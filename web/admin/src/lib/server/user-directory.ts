@@ -2,18 +2,18 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { dev } from '$app/env';
+import { stateOf } from '#lib/components/users/user-state';
 import { EMPTY_USER_STATS } from '#lib/server/fallback';
 import { currentLiveBroadcasterIDs } from '#lib/server/live-broadcasters';
 import { parsePage, normalizeSearch } from '#lib/server/paging';
 import {
   userOverview,
-  USER_MAX_PAGES,
   USER_PAGE_SIZE,
   type AdminUserWire,
+  type DirectoryStats,
   type UserDirectoryQuery,
   type UserOrder
 } from '#lib/server/services';
-import type { UserStats } from '@bagel/kit';
 
 const DEMO = dev && process.env.DEMO === '1';
 
@@ -23,17 +23,17 @@ export type DirectoryQuery = UserDirectoryQuery;
 
 export type UserDirectory = {
   recent: AdminUserWire[];
-  stats: UserStats;
+  stats: DirectoryStats;
   page: number;
   pageSize: number;
   maxPages: number;
   hasMore: boolean;
+  total: number | null;
   degraded: boolean;
 };
 
 type DemoDirectoryFixtures = {
   sampleUsers: AdminUserWire[];
-  sampleStats: UserStats;
   sampleLiveUserIDs: ReadonlySet<number>;
 };
 
@@ -52,7 +52,7 @@ function parseLive(raw: string | null): boolean {
 
 export function directoryQuery(url: URL): DirectoryQuery {
   return {
-    page: parsePage(url.searchParams.get('page'), USER_MAX_PAGES),
+    page: parsePage(url.searchParams.get('page'), Number.MAX_SAFE_INTEGER),
     search: normalizeSearch(url.searchParams.get('q')),
     state: parseState(url.searchParams.get('state')),
     order: parseOrder(url.searchParams.get('order')),
@@ -66,60 +66,70 @@ function matchesSearch(user: AdminUserWire, search: string): boolean {
   return user.username.toLowerCase().includes(q) || String(user.id).includes(q);
 }
 
-function matchesState(user: AdminUserWire, state: string): boolean {
-  if (!state) return true;
-  if (user.banned) return state === 'banned';
-  if (!user.is_active) return state === 'inactive';
-  return user.status === state;
-}
-
 function byJoined(order: UserOrder) {
   const sign = order === 'oldest' ? 1 : -1;
   return (a: AdminUserWire, b: AdminUserWire) => sign * (a.created_at ?? '').localeCompare(b.created_at ?? '');
 }
 
-function demoPage(q: DirectoryQuery, fixtures: DemoDirectoryFixtures) {
+function demoStats(users: AdminUserWire[]): DirectoryStats {
+  const counts = { paid: 0, vip: 0, free: 0, inactive: 0, banned: 0 };
+  const stats = { ...EMPTY_USER_STATS, total_users: users.length, directory_counts: counts };
+  for (const user of users) {
+    counts[stateOf(user)]++;
+    stats.active_users += Number(user.is_active);
+    stats.paid_users += Number(user.status === 'paid');
+    stats.vip_users += Number(user.status === 'vip');
+    stats.granted_users += Number(user.status === 'paid' && ['admin', 'giveaway'].includes(user.subscription_source ?? ''));
+  }
+  stats.premium_users = stats.paid_users + stats.vip_users;
+  stats.paid_users -= stats.granted_users;
+  return stats;
+}
+
+function demoPage(q: DirectoryQuery, fixtures: DemoDirectoryFixtures): UserDirectory {
   const filtered = fixtures.sampleUsers
     .filter((user) => kept(user, q, fixtures.sampleLiveUserIDs))
     .sort(byJoined(q.order));
-  const start = (q.page - 1) * USER_PAGE_SIZE;
-  const users = filtered.slice(start, start + USER_PAGE_SIZE);
-  const cappedTotal = Math.min(filtered.length, USER_PAGE_SIZE * USER_MAX_PAGES);
+  const total = filtered.length;
+  const maxPages = Math.max(1, Math.ceil(total / USER_PAGE_SIZE));
+  const page = Math.min(q.page, maxPages);
+  const start = (page - 1) * USER_PAGE_SIZE;
   return {
-    recent: users,
-    stats: fixtures.sampleStats,
-    page: q.page,
+    recent: filtered.slice(start, start + USER_PAGE_SIZE),
+    stats: demoStats(fixtures.sampleUsers),
+    page,
     pageSize: USER_PAGE_SIZE,
-    maxPages: USER_MAX_PAGES,
-    hasMore: start + USER_PAGE_SIZE < cappedTotal,
-    search: q.search,
+    maxPages,
+    hasMore: page < maxPages,
+    total,
     degraded: false
   };
 }
 
 function kept(user: AdminUserWire, q: DirectoryQuery, liveIDs: ReadonlySet<number>): boolean {
   if (!matchesSearch(user, q.search)) return false;
-  if (!matchesState(user, q.state)) return false;
+  if (q.state && stateOf(user) !== q.state) return false;
   if (!q.live) return true;
   return liveIDs.has(user.id);
 }
 
-function degradedDirectory(q: DirectoryQuery): UserDirectory {
+function degradedDirectory(): UserDirectory {
   return {
     recent: [],
     stats: { ...EMPTY_USER_STATS },
-    page: q.page,
+    page: 1,
     pageSize: USER_PAGE_SIZE,
-    maxPages: USER_MAX_PAGES,
+    maxPages: 1,
     hasMore: false,
+    total: null,
     degraded: true
   };
 }
 
 async function loadDirectory(actorId: string, q: DirectoryQuery): Promise<UserDirectory> {
   try {
-    const liveIDs = await liveIDsFor(q);
-    if (q.live && !liveIDs) return degradedDirectory(q);
+    const liveIDs = q.live ? await currentLiveBroadcasterIDs() : undefined;
+    if (liveIDs === null) return degradedDirectory();
     const overview = await userOverview({ actorId, ...q, liveIDs });
     return {
       recent: overview.users,
@@ -128,17 +138,12 @@ async function loadDirectory(actorId: string, q: DirectoryQuery): Promise<UserDi
       pageSize: overview.page_size,
       maxPages: overview.max_pages,
       hasMore: overview.has_more,
+      total: overview.total,
       degraded: false
     };
   } catch {
-    return degradedDirectory(q);
+    return degradedDirectory();
   }
-}
-
-async function liveIDsFor(q: DirectoryQuery): Promise<number[] | undefined> {
-  if (!q.live) return undefined;
-  const ids = await currentLiveBroadcasterIDs();
-  return ids ?? undefined;
 }
 
 export function loadUserDirectory(actorId: string, q: DirectoryQuery): Promise<UserDirectory> {

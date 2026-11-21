@@ -1,6 +1,6 @@
 <script lang="ts">
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import { ago } from '@bagel/kit';
@@ -31,9 +31,9 @@
       <StatusDot tone={entry.ok ? 'success' : 'danger'} />
       <Bolota name={entry.actor_login} size={26} active={selected} />
       <span class="who">
-        <Cluster as="span" gap={2} align="baseline">
+        <Cluster as="span" gap={2} align="baseline" nowrap>
           <span class="actor">@{entry.actor_login}</span>
-          <Text as="span" size="xs" mono tone="accent">{entry.action}</Text>
+          <Text as="span" size="xs" mono tone="accent" truncate>{entry.action}</Text>
           {#if entry.target}<Text as="span" size="xs" mono tone="muted" truncate>{t('admin.audit.arrow')} {entry.target}</Text>{/if}
         </Cluster>
         {#if !entry.ok && entry.error}
@@ -53,6 +53,7 @@
     align-items: center;
     gap: 10px;
     min-width: 0;
+    min-height: 38px;
   }
   .who {
     display: flex;
@@ -62,6 +63,10 @@
     flex: 1;
   }
   .actor {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-family: var(--bb-font-body);
     font-weight: 600;
     font-size: var(--bb-text-sm);

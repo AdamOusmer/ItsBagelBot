@@ -162,7 +162,7 @@ export function dailySeries(rows: AnalyticsRow[], range: DateRange, tracked: Day
   const basis = averaged(range, tracked);
   return {
     values,
-    labels: days.map(dateLabel),
+    labels: days,
     ticks: days.flatMap((d, i) => (isTick(d, monthly) ? [i] : [])),
     average: averageText(sum(inRange(inside, basis)) / daysIn(basis).length),
     peak: fmt(Math.max(...values))

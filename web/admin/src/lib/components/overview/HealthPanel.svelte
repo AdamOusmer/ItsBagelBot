@@ -24,21 +24,21 @@
   );
 </script>
 
-<Card as="section">
-  <CardHead title={t('admin.overview.healthTitle')} />
+<Card as="section" class="overview-health-panel">
+  <CardHead title={t('admin.overview.healthTitle')} headingLevel={2} />
 
   <p class="summary">
     <StatusDot {tone} />
     <Text as="span" size="sm">
-      {t('admin.overview.healthSummary', {
+      {ok ? t('admin.overview.healthSummary', {
         ok: String(responding),
         total: String(probes.length)
-      })}
+      }) : t('admin.overview.kpi.unavailable')}
     </Text>
   </p>
 
   {#if probes.length}
-    <Scroller maxHeight="220px">
+    <Scroller fill role="region" aria-label={t('admin.overview.healthTitle')} tabindex={0}>
       <div class="bb-node-list bb-stagger">
         {#each probes as p (p.id)}
           <div class="bb-node-list__row">
@@ -59,6 +59,11 @@
 </Card>
 
 <style>
+  :global(.overview-health-panel) {
+    display: flex;
+    flex-direction: column;
+  }
+
   .summary {
     display: flex;
     align-items: center;

@@ -56,16 +56,3 @@ export function pctLabel(pct: number): string {
   if (pct < 1) return pct.toFixed(2);
   return pct.toFixed(1);
 }
-
-export function barWidth(utilization: number): number {
-  return Math.min(100, Math.max(0, Math.round(utilization)));
-}
-
-export function utilizationTone(
-  utilization: number,
-  targetUtilization: number
-): 'success' | 'warning' | 'danger' {
-  if (utilization >= targetUtilization) return 'danger';
-  if (utilization >= targetUtilization * 0.8) return 'warning';
-  return 'success';
-}

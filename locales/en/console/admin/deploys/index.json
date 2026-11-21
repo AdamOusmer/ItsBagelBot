@@ -2,7 +2,7 @@
   "eyebrow": "Deploys",
   "titlePre": "Release ",
   "titleEm": "train",
-  "description": "Ship a release, hotfix, image bump, rollback or re-apply. Stages run in a fixed order and stop at the first failure. Nothing rolls back on its own.",
+  "description": "Start deploys and follow their progress.",
   "statusLive": "Live",
   "statusCluster": "Cluster",
   "statusLastRun": "Last run",
@@ -83,5 +83,13 @@
   "rollbackTitle": "Roll back the cluster?",
   "rollbackBody": "Starts a new run that pins the {version} images and rolls every changed service.",
   "manifest": "Manifest",
-  "logLabel": "Log for {stage}"
+  "logLabel": "Log for {stage}",
+  "filterAll": "All",
+  "filterActive": "In progress",
+  "filterFinished": "Finished",
+  "filterLabel": "Filter deploy runs",
+  "filterEmpty": "No runs match this filter.",
+  "historyError": "Run history is unavailable: {error}",
+  "historyUnavailable": "Run history is unavailable.",
+  "planUnavailable": "The deploy plan is unavailable."
 }

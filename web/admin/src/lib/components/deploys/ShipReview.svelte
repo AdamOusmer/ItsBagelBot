@@ -24,7 +24,8 @@
     seen: string[];
   } = $props();
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
+  const number = new Intl.NumberFormat(locale);
 
   const stages = $derived(STAGES_FOR[ship.kind]);
 
@@ -35,47 +36,49 @@
 
   function prsValue(): string {
     if (pickedCount === 0) return t('admin.deploys.flow.reviewPrsNone');
-    return t(countKey(pickedCount, 'admin.deploys.flow.picked'), { n: String(pickedCount) });
+    return t(countKey(pickedCount, 'admin.deploys.flow.picked'), { n: number.format(pickedCount) });
   }
 </script>
 
-<Stack gap={5}>
-  <FactList layout="tiles">
-    <Fact term={t('admin.deploys.flow.reviewKind')}>{t(KIND_KEY[ship.kind])}</Fact>
+<Stack gap={3}>
+  <FactList layout="tiles" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
+    <Fact fit term={t('admin.deploys.flow.reviewKind')}>{t(KIND_KEY[ship.kind])}</Fact>
     {#if ship.uses.version || ship.uses.rollback}
-      <Fact term={ship.uses.rollback ? t('admin.deploys.rollbackTo') : t('admin.deploys.version')} mono>{shipVersion(ship) || '-'}</Fact>
+      <Fact fit term={ship.uses.rollback ? t('admin.deploys.rollbackTo') : t('admin.deploys.version')} mono>{shipVersion(ship) || '-'}</Fact>
     {/if}
     {#if ship.uses.target}
-      <Fact term={t('admin.deploys.target')} mono>{shortSha(ship.targetSha) || '-'}</Fact>
+      <Fact fit term={t('admin.deploys.target')} mono>{shortSha(ship.targetSha) || '-'}</Fact>
     {/if}
     {#if ship.uses.prs}
-      <Fact term={t('admin.deploys.flow.reviewPrs')}>{prsValue()}</Fact>
+      <Fact fit term={t('admin.deploys.flow.reviewPrs')}>{prsValue()}</Fact>
     {/if}
     {#if ship.uses.changelog}
-      <Fact term={t('admin.deploys.flow.reviewChangelog')} wide>{ship.titleEn.trim() || '-'}</Fact>
+      <Fact fit term={t('admin.deploys.flow.reviewChangelog')} wide>{ship.titleEn.trim() || '-'}</Fact>
     {/if}
   </FactList>
 
   <Stack as="section" gap={2} aria-labelledby="ship-review-stages">
-    <Heading level={3} variant="label" id="ship-review-stages">{t('admin.deploys.stages')}</Heading>
-    <ol class="pipeline">
-      {#each stages as s, i (s)}
+    <Heading variant="label" id="ship-review-stages">{t('admin.deploys.stages')}</Heading>
+    <ol class="pipeline" role="list">
+      {#each stages as stage (stage)}
         <li>
-          <Badge shape="pill" tone="neutral"><span class="n" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>{t(STAGE_KEY[s])}</Badge>
+          <Badge shape="pill" tone="neutral"><bb-fit><span data-fit>{t(STAGE_KEY[stage])}</span></bb-fit></Badge>
         </li>
       {/each}
     </ol>
   </Stack>
 
   <Stack as="section" gap={2} aria-labelledby="ship-review-services">
-    <Heading level={3} variant="label" id="ship-review-services">
+    <Heading variant="label" id="ship-review-services">
       {t('admin.deploys.services')}
       <span class="aside">{servicesNote()}</span>
     </Heading>
     <div class="chips">
       {#each seen as s (s)}
         {@const rolls = services.includes(s)}
-        <Chip as="span" pressed={rolls} class={rolls ? '' : 'bb-chip--off'} aria-hidden={!rolls}>{s}</Chip>
+        <span class="service" class:omitted={!rolls} aria-hidden={!rolls}>
+          <Chip as="span" pressed={rolls}>{s}</Chip>
+        </span>
       {/each}
     </div>
   </Stack>
@@ -90,19 +93,30 @@
   .pipeline {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--bb-space-2);
+    gap: var(--bb-space-1) var(--bb-space-2);
     margin: 0;
     padding: 0;
     list-style: none;
-  }
-  .n {
-    margin-right: var(--bb-space-2);
-    color: var(--bb-tan);
+    line-height: 1.3;
   }
   .chips {
     display: flex;
     flex-wrap: wrap;
     gap: var(--bb-space-2);
     min-height: 28px;
+  }
+
+  .service {
+    transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo);
+  }
+
+  .service.omitted {
+    opacity: 0.45;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .service {
+      transition: none;
+    }
   }
 </style>

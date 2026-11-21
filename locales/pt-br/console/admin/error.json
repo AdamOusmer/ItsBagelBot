@@ -1,0 +1,11 @@
+{
+  "backHome": "Início do console",
+  "notFoundTitle": "Página não encontrada",
+  "notFoundBody": "Confira o endereço ou volte ao console de administração.",
+  "accessTitle": "Acesso restrito à equipe",
+  "accessBody": "Entre com uma conta que tenha acesso de equipe.",
+  "serverTitle": "Página indisponível",
+  "serverBody": "Aguarde um momento e recarregue a página.",
+  "unexpectedTitle": "Não foi possível carregar a página",
+  "unexpectedBody": "Tente carregar a página novamente."
+}

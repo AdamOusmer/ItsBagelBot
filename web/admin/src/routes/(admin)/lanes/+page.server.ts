@@ -17,13 +17,14 @@ import { adminText } from '#lib/server/admin-action';
 
 const DEMO = dev && process.env.DEMO === '1';
 
-export const load: PageServerLoad = () => {
+export const load = (({ depends }) => {
+  depends('admin:lanes');
   return { lanes: loadLanes() };
-};
+}) satisfies PageServerLoad;
 
 type LaneOp = {
   action: string;
-  verb: string;
+  failureKey: string;
   run: (stream: string, consumer: string, f: FormData) => Promise<LaneMutationResult>;
 };
 
@@ -40,12 +41,12 @@ function laneAction(op: LaneOp) {
     const target = `${stream}/${consumer}`;
     try {
       const result = await op.run(stream, consumer, form);
-      audit(admin, { action: op.action, target, ok: true });
-      return result;
-    } catch (e) {
-      const error = (e as Error).message;
+      audit(admin, { action: op.action, target, ok: result.ok, error: result.error });
+      return result.ok ? result : fail(409, { notice: adminText(locals.locale, op.failureKey) });
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
       audit(admin, { action: op.action, target, ok: false, error });
-      return fail(502, { notice: adminText(locals.locale, 'admin.action.laneFailed', { verb: op.verb, error }) });
+      return fail(502, { notice: adminText(locals.locale, op.failureKey) });
     }
   };
 }
@@ -53,17 +54,17 @@ function laneAction(op: LaneOp) {
 export const actions: Actions = {
   alias: laneAction({
     action: 'lane_alias',
-    verb: 'rename',
+    failureKey: 'admin.lanes.renameFailed',
     run: (stream, consumer, f) => laneAlias(stream, consumer, String(f.get('alias') ?? ''))
   }),
   durable: laneAction({
     action: 'lane_durable',
-    verb: 'make-permanent',
-    run: (stream, consumer) => laneDurable(stream, consumer)
+    failureKey: 'admin.lanes.durableFailed',
+    run: laneDurable
   }),
   delete: laneAction({
     action: 'lane_delete',
-    verb: 'delete',
-    run: (stream, consumer) => laneDelete(stream, consumer)
+    failureKey: 'admin.lanes.deleteFailed',
+    run: laneDelete
   })
 };

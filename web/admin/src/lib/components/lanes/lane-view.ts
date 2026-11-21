@@ -24,24 +24,31 @@ export function laneTone(lane: LaneView): StatusTone {
 export type LaneDraft = { alias: string };
 
 export const ALIAS_MAX = 48;
+const laneNameOrder = new Intl.Collator(undefined, { numeric: true });
 
 export function normalizeAlias(raw: string): string {
   return raw.trim().slice(0, ALIAS_MAX);
 }
 
 export function currentAlias(lane: LaneView): string {
+  if (lane.alias !== undefined) return lane.alias;
   if (lane.display === lane.consumer) return '';
   if (lane.display === 'ephemeral') return '';
   return lane.display;
 }
 
-/** Put consumers that need attention first without losing their stream context. */
-export function compareLaneAttention(a: LaneView, b: LaneView): number {
+export function renameLane(lane: LaneView, rawAlias: string): LaneView {
+  const alias = normalizeAlias(rawAlias);
+  const defaultDisplay = lane.defaultDisplay ?? (lane.ephemeral ? 'ephemeral' : lane.consumer);
+  return { ...lane, alias, display: alias || defaultDisplay };
+}
+
+function compareLaneAttention(a: LaneView, b: LaneView): number {
   return Number(b.orphan) - Number(a.orphan) ||
     b.pending - a.pending ||
     b.redelivered - a.redelivered ||
     (b.ratePerSecond ?? 0) - (a.ratePerSecond ?? 0) ||
-    a.display.localeCompare(b.display, undefined, { numeric: true }) ||
+    laneNameOrder.compare(a.display, b.display) ||
     a.consumer.localeCompare(b.consumer);
 }
 

@@ -6,6 +6,16 @@ import type { NotificationWire } from '#lib/server/services';
 export type NotificationLevel = NotificationWire['level'];
 export type NotificationScope = NotificationWire['scope'];
 
+export type HistoryResult = {
+  notifications: NotificationWire[];
+  page: number;
+  hasMore: boolean;
+  degraded: boolean;
+};
+
+export const MAX_TITLE_LENGTH = 120;
+export const MAX_BODY_LENGTH = 2000;
+
 export const LEVELS: readonly NotificationLevel[] = ['info', 'success', 'warning', 'critical'];
 
 export const LEVEL_LABEL = {
@@ -26,6 +36,12 @@ export const SCOPE_LABEL = {
   broadcast: 'admin.notifications.scopeBroadcast',
   direct: 'admin.notifications.scopeDirect'
 } as const satisfies Record<NotificationScope, string>;
+
+export const AUDIENCE_FILTERS = [
+  { value: 'all', label: 'admin.notifications.filterAll' },
+  { value: 'broadcast', label: 'admin.notifications.filterBroadcast' },
+  { value: 'direct', label: 'admin.notifications.filterDirect' }
+] as const;
 
 export type ComposeDraft = {
   scope: NotificationScope;

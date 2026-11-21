@@ -20,38 +20,53 @@
 
 <li class="item">
   <CheckDot tone={stageTone(item.state)} label={t(STEP_STATE_KEY[item.state])} />
-  <Text as="span" size="xs" mono truncate>
-    {#if item.url}<TextLink variant="inline" href={item.url} external>{item.label}</TextLink>{:else}{item.label}{/if}
-  </Text>
+  <span class="label">
+    <Text as="span" size="xs" mono>
+      {#if item.url}<TextLink variant="inline" href={item.url} external>{item.label}</TextLink>{:else}{item.label}{/if}
+    </Text>
+  </span>
   <span class="bar">
     {#if hasBar}<ProgressBar {value} tone={stageTone(item.state)} label={item.label} size="sm" />{/if}
   </span>
   <span class="extra">{#if extra}{@render extra()}{/if}</span>
-  <span class="detail"><Text as="span" size="xs" tone="muted" truncate title={item.detail}>{item.detail ?? ''}</Text></span>
+  {#if item.detail}
+    <span class="detail"><Text as="span" size="xs" tone="muted">{item.detail}</Text></span>
+  {/if}
 </li>
 
 <style>
   .item {
     display: grid;
-    grid-template-columns: 12px minmax(120px, 200px) 120px minmax(0, auto) minmax(0, 1fr);
+    grid-template-columns: 12px minmax(0, 1.1fr) minmax(0, .7fr) minmax(0, auto) minmax(0, 1fr);
     align-items: center;
     gap: var(--bb-space-3);
-    height: 32px;
+    min-height: 40px;
   }
   .extra {
     display: inline-flex;
     min-width: 0;
   }
+  .label,
   .detail {
     min-width: 0;
+    overflow-wrap: anywhere;
   }
-  @media (max-width: 760px) {
+  .detail {
+    grid-column: 5;
+  }
+  .extra:empty {
+    display: none;
+  }
+  @container (max-width: 36rem) {
     .item {
-      grid-template-columns: 12px minmax(0, 1fr) 80px;
+      grid-template-columns: 12px minmax(0, 1fr) minmax(0, 4rem);
+      column-gap: var(--bb-space-3);
+      row-gap: var(--bb-space-1);
+      padding-block: var(--bb-space-2);
     }
     .extra,
     .detail {
-      display: none;
+      grid-column: 2 / -1;
     }
   }
 </style>

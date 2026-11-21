@@ -2,7 +2,7 @@
   "eyebrow": "Bereitstellungen",
   "titlePre": "Release-",
   "titleEm": "Abfolge",
-  "description": "Liefere ein Release, einen Hotfix, eine Image-Aktualisierung, eine Rücksetzung oder eine erneute Anwendung aus. Phasen laufen in fester Reihenfolge und stoppen beim ersten Fehler. Es gibt keine automatische Rücksetzung.",
+  "description": "Starte Bereitstellungen und verfolge ihren Fortschritt.",
   "statusLive": "Live",
   "statusCluster": "Cluster",
   "statusLastRun": "Letzter Durchlauf",
@@ -83,5 +83,13 @@
   "rollbackTitle": "Cluster zurücksetzen?",
   "rollbackBody": "Startet einen neuen Durchlauf, der die Images von {version} festlegt und jeden geänderten Dienst neu ausrollt.",
   "manifest": "Manifest",
-  "logLabel": "Protokoll für {stage}"
+  "logLabel": "Protokoll für {stage}",
+  "filterAll": "Alle",
+  "filterActive": "In Arbeit",
+  "filterFinished": "Beendet",
+  "filterLabel": "Durchläufe filtern",
+  "filterEmpty": "Keine Durchläufe für diesen Filter.",
+  "historyError": "Der Verlauf ist nicht verfügbar: {error}",
+  "historyUnavailable": "Der Verlauf ist nicht verfügbar.",
+  "planUnavailable": "Der Bereitstellungsplan ist nicht verfügbar."
 }

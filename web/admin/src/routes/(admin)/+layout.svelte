@@ -7,8 +7,11 @@
   import NotificationBell from '@bagel/kit/components/NotificationBell.svelte';
   import ToastHost from '@bagel/ui/svelte/ToastHost.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import { provideLiveCount } from '#lib/live-count-context';
+  import type { NotificationWire } from '#lib/server/services';
   import {
     adminNavGroups,
+    adminNavItems,
     adminSectionForPath,
     adminSectionLabelKey
   } from '@bagel/kit/nav-admin';
@@ -31,7 +34,29 @@
   };
   const roleLabel = $derived(t(ROLE_LABEL[role]));
 
-  const groups = $derived(adminNavGroups({ role, section, t }));
+  let liveSnapshot = $state<{ request: Promise<number | null>; count: number | null }>();
+  const liveCount = $derived(liveSnapshot?.request === data.liveCount ? liveSnapshot.count : null);
+
+  function updateLiveCount(request: Promise<number | null>, count: number | null) {
+    if (request === data.liveCount) liveSnapshot = { request, count };
+  }
+
+  provideLiveCount({
+    get value() {
+      return liveCount;
+    },
+    update: updateLiveCount
+  });
+
+  $effect(() => {
+    const request = data.liveCount;
+    void request.then((count) => {
+      if (liveSnapshot?.request !== request) updateLiveCount(request, count);
+    });
+  });
+
+  const groups = $derived(adminNavGroups({ role, section, t, liveCount }));
+  const mobileItems = $derived(adminNavItems({ role, section, t, liveCount }));
 
   afterNavigate(({ type }) => {
     document.title = `${crumb} · ItsBagelBot Admin`;
@@ -39,10 +64,8 @@
     const id = page.url.hash.slice(1);
     requestAnimationFrame(() => {
       const target = id ? document.getElementById(id) : null;
-      if (target) {
-        target.focus();
-        if (document.activeElement === target) return;
-      }
+      target?.focus();
+      if (target && document.activeElement === target) return;
       document.querySelector<HTMLElement>('#main-content h1')?.focus();
     });
   });
@@ -56,6 +79,23 @@
   <meta name="robots" content="noindex, nofollow" />
 </svelte:head>
 
+{#snippet notificationBell(notifications: NotificationWire[], emptyLabel: string)}
+  <NotificationBell
+    {notifications}
+    viewAllHref="/notifications"
+    title={t('bell.title')}
+    viewAllLabel={t('bell.viewAll')}
+    {emptyLabel}
+    unreadLabel={(count) => t('bell.unread', { count })}
+    levelLabels={{
+      info: t('bell.levelInfo'),
+      success: t('bell.levelSuccess'),
+      warning: t('bell.levelWarning'),
+      critical: t('bell.levelCritical')
+    }}
+  />
+{/snippet}
+
 <ConsoleShell
   brandSub={t('admin.title')}
   crumbRoot={t('admin.title')}
@@ -63,40 +103,14 @@
   accountName={data.displayName}
   accountRole={roleLabel}
   {groups}
-  mobileItems={[]}
+  {mobileItems}
   rail
 >
   {#snippet topActions()}
     {#await data.recentNotifications}
-      <NotificationBell
-        notifications={[]}
-        viewAllHref="/notifications"
-        title={t('bell.title')}
-        viewAllLabel={t('bell.viewAll')}
-        emptyLabel={t('common.loading')}
-        unreadLabel={(count) => t('bell.unread', { count })}
-        levelLabels={{
-          info: t('bell.levelInfo'),
-          success: t('bell.levelSuccess'),
-          warning: t('bell.levelWarning'),
-          critical: t('bell.levelCritical')
-        }}
-      />
+      {@render notificationBell([], t('common.loading'))}
     {:then list}
-      <NotificationBell
-        notifications={list}
-        viewAllHref="/notifications"
-        title={t('bell.title')}
-        viewAllLabel={t('bell.viewAll')}
-        emptyLabel={t('bell.empty')}
-        unreadLabel={(count) => t('bell.unread', { count })}
-        levelLabels={{
-          info: t('bell.levelInfo'),
-          success: t('bell.levelSuccess'),
-          warning: t('bell.levelWarning'),
-          critical: t('bell.levelCritical')
-        }}
-      />
+      {@render notificationBell(list, t('bell.empty'))}
     {/await}
   {/snippet}
   {@render children()}

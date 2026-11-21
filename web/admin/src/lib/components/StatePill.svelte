@@ -1,20 +1,12 @@
 <script lang="ts">
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
   import Badge from '@bagel/ui/svelte/Badge.svelte';
-  import type { Snippet } from 'svelte';
+  import type { ComponentProps, Snippet } from 'svelte';
 
-  type RoleTone = 'moderator' | 'admin' | 'owner';
-  type BadgeTone =
-    | 'free'
-    | 'paid'
-    | 'vip'
-    | 'banned'
-    | 'inactive'
-    | 'neutral'
-    | 'success'
-    | 'warning'
-    | 'danger';
+  type BadgeTone = NonNullable<ComponentProps<typeof Badge>['tone']>;
+  const ROLE_TONE = { moderator: 'neutral', admin: 'paid', owner: 'vip' } as const;
+  type RoleTone = keyof typeof ROLE_TONE;
 
   let {
     tone,
@@ -26,9 +18,9 @@
     children: Snippet;
   } = $props();
 
-  const ROLE_TONE: Record<RoleTone, BadgeTone> = { moderator: 'neutral', admin: 'paid', owner: 'vip' };
-
-  const isRole = (value: BadgeTone | RoleTone): value is RoleTone => value in ROLE_TONE;
+  function isRole(value: BadgeTone | RoleTone): value is RoleTone {
+    return Object.hasOwn(ROLE_TONE, value);
+  }
 
   const badgeTone = $derived(isRole(tone) ? ROLE_TONE[tone] : tone);
 </script>
