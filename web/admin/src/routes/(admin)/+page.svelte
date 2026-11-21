@@ -30,6 +30,33 @@
 
   <OverviewGrid>
     {#snippet main()}
+      <EnrollmentPanel enrollment={data.enrollment} days={data.days} />
+      <QuickActions canNotify={data.canNotify} />
+    {/snippet}
+
+    {#snippet side()}
+      {#if data.canReadAudit}
+        <div class="slot slot-detail">
+          {#await data.audit}
+            <Skeleton variant="block" height="100%" />
+          {:then p}
+            <AuditPeek entries={p.value} ok={p.ok} />
+          {/await}
+        </div>
+      {/if}
+
+      <div class="slot slot-detail">
+        {#await data.feed}
+          <Skeleton variant="block" height="100%" />
+        {:then p}
+          <FeedPanel board={p.value} ok={p.ok} />
+        {/await}
+      </div>
+    {/snippet}
+  </OverviewGrid>
+
+  <OverviewGrid>
+    {#snippet main()}
       <div class="slot slot-operations">
         {#await data.fleet}
           <Skeleton variant="block" height="100%" />
@@ -76,32 +103,6 @@
     </div>
   {/if}
 
-  <OverviewGrid>
-    {#snippet main()}
-      <EnrollmentPanel enrollment={data.enrollment} days={data.days} />
-      <QuickActions canNotify={data.canNotify} />
-    {/snippet}
-
-    {#snippet side()}
-      {#if data.canReadAudit}
-        <div class="slot slot-detail">
-          {#await data.audit}
-            <Skeleton variant="block" height="100%" />
-          {:then p}
-            <AuditPeek entries={p.value} ok={p.ok} />
-          {/await}
-        </div>
-      {/if}
-
-      <div class="slot slot-detail">
-        {#await data.feed}
-          <Skeleton variant="block" height="100%" />
-        {:then p}
-          <FeedPanel board={p.value} ok={p.ok} />
-        {/await}
-      </div>
-    {/snippet}
-  </OverviewGrid>
 </section>
 
 <style>
