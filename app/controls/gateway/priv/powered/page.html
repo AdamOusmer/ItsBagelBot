@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=1920, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex">
   <title>Powered by ItsBagelBot</title>
@@ -34,8 +34,8 @@
     }
 
     html, body {
-      width: 1920px;
-      height: 1080px;
+      width: 100%;
+      height: 100%;
       overflow: hidden;
       background: transparent;
       -webkit-font-smoothing: antialiased;
@@ -43,11 +43,14 @@
     }
 
     .canvas {
-      position: relative;
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 1920px;
       height: 1080px;
       overflow: hidden;
       background: transparent;
+      transform-origin: 0 0;
     }
 
     .slot {
@@ -441,6 +444,20 @@
   </div>
   <script>
     (function () {
+      const CANVAS_WIDTH = 1920;
+      const CANVAS_HEIGHT = 1080;
+      const canvas = document.querySelector('.canvas');
+
+      function fitCanvas() {
+        const scale = Math.min(innerWidth / CANVAS_WIDTH, innerHeight / CANVAS_HEIGHT) || 1;
+        canvas.style.width = innerWidth / scale + 'px';
+        canvas.style.height = innerHeight / scale + 'px';
+        canvas.style.transform = 'scale(' + scale + ')';
+      }
+
+      fitCanvas();
+      addEventListener('resize', fitCanvas);
+
       const DIRS = ['top', 'bottom', 'left', 'right'];
       const ALIGNS = ['start', 'center', 'end'];
       const ENTRANCE_MS = 1120;
