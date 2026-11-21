@@ -4,7 +4,6 @@
 package schema
 
 import (
-	"ItsBagelBot/app/db/users/voice"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 
 	"entgo.io/ent"
@@ -30,7 +29,7 @@ func (VoiceUsageReceipt) Fields() []ent.Field {
 		field.String("period").MaxLen(7).Immutable(),
 		field.Int64("audio_tokens").NonNegative().Immutable(),
 		field.Time("created_at").Immutable(),
-		field.JSON("allowance", voice.Allowance{}).Immutable(),
+		field.JSON("allowance", usersrpc.VoiceAllowance{}).Immutable(),
 	}
 }
 

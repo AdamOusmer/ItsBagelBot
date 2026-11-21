@@ -12,6 +12,8 @@
   "fallback": "Las alertas usan la voz local gratuita si esta opción está desactivada o se agotan tus minutos.",
   "choose": "Voz",
   "readOnly": "Solo el propietario del canal puede consultar el uso o cambiar la voz.",
+  "inactive": "La voz en la nube está en pausa mientras el bot está desactivado.",
+  "banned": "La voz en la nube no está disponible.",
   "unavailable": "El uso y los ajustes de voz no están disponibles. Recarga la página para volver a intentarlo.",
   "invalidVoice": "Elige una voz de la lista.",
   "saveFailed": "No se pudieron guardar los ajustes de voz. Inténtalo de nuevo.",

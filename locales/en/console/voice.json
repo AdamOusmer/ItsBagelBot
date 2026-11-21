@@ -12,6 +12,8 @@
   "fallback": "Alerts use the free local voice when this is off or your minutes run out.",
   "choose": "Voice",
   "readOnly": "Only the channel owner can view usage or change voice settings.",
+  "inactive": "Cloud voice is paused while the bot is switched off.",
+  "banned": "Cloud voice is unavailable.",
   "unavailable": "Voice usage and settings are unavailable. Reload the page to try again.",
   "invalidVoice": "Choose a voice from the list.",
   "saveFailed": "Could not save voice settings. Try again.",

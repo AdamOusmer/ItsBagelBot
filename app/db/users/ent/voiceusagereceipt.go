@@ -5,7 +5,7 @@ package ent
 import (
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/ent/voiceusagereceipt"
-	"ItsBagelBot/app/db/users/voice"
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -31,7 +31,7 @@ type VoiceUsageReceipt struct {
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// Allowance holds the value of the "allowance" field.
-	Allowance voice.Allowance `json:"allowance,omitempty"`
+	Allowance usersrpc.VoiceAllowance `json:"allowance,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the VoiceUsageReceiptQuery when eager-loading is set.
 	Edges        VoiceUsageReceiptEdges `json:"edges"`

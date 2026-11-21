@@ -13,7 +13,6 @@ import (
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/ent/voiceusage"
 	"ItsBagelBot/app/db/users/repository"
-	"ItsBagelBot/app/db/users/voice"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/voiceplan"
 
@@ -32,14 +31,14 @@ func newVoiceAccount(t *testing.T) (*ent.Client, *repository.Users) {
 	return client, repo
 }
 
-func voiceAllowanceAt(t *testing.T, repo *repository.Users, at time.Time) voice.Allowance {
+func voiceAllowanceAt(t *testing.T, repo *repository.Users, at time.Time) usersrpc.VoiceAllowance {
 	t.Helper()
 	allowance, err := repo.VoiceAllowance(t.Context(), voiceOwnerID, at)
 	require.NoError(t, err)
 	return allowance
 }
 
-func recordVoiceAt(t *testing.T, repo *repository.Users, record repository.VoiceUsageRecord, at time.Time) voice.Allowance {
+func recordVoiceAt(t *testing.T, repo *repository.Users, record repository.VoiceUsageRecord, at time.Time) usersrpc.VoiceAllowance {
 	t.Helper()
 	allowance, err := repo.RecordVoiceUsage(t.Context(), voiceOwnerID, record, at)
 	require.NoError(t, err)
@@ -71,13 +70,10 @@ func TestVoiceAllowancePlans(t *testing.T) {
 			client.User.UpdateOneID(voiceOwnerID).
 				SetStatus(tc.status).SetSubscriptionSource(tc.source).SetIsActive(tc.active).SetBanned(tc.banned).ExecX(t.Context())
 			limit := voiceplan.SecondsToTokens(voiceplan.MonthlySeconds(tc.plan))
-			assert.Equal(t, voice.Allowance{
-				VoiceAllowance: usersrpc.VoiceAllowance{
-					Plan: tc.plan, Period: "2026-12", LimitTokens: limit, RemainingTokens: limit,
-					ResetsAt: time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC),
-					Enabled:  true, Voice: voiceplan.DefaultVoice,
-				},
-				Reason: tc.reason,
+			assert.Equal(t, usersrpc.VoiceAllowance{
+				Plan: tc.plan, Period: "2026-12", LimitTokens: limit, RemainingTokens: limit,
+				ResetsAt: time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC),
+				Enabled:  true, Voice: voiceplan.DefaultVoice, Reason: tc.reason,
 			}, voiceAllowanceAt(t, repo, at))
 		})
 	}
@@ -241,10 +237,10 @@ func TestVoiceUsageReplaysLegacyReceipt(t *testing.T) {
 	client, repo := newVoiceAccount(t)
 	now := time.Date(2026, 12, 15, 0, 0, 0, 0, time.UTC)
 	record := repository.VoiceUsageRecord{RequestID: "legacy", AudioTokens: 25}
-	snapshot := voice.Allowance{VoiceAllowance: usersrpc.VoiceAllowance{
+	snapshot := usersrpc.VoiceAllowance{
 		Plan: voiceplan.Free, Period: "2026-12", UsedTokens: record.AudioTokens, ResetsAt: voiceplan.ResetsAt(now),
 		Enabled: true, Voice: voiceplan.DefaultVoice,
-	}}
+	}
 	client.VoiceUsageReceipt.Create().SetUserID(voiceOwnerID).SetRequestID(record.RequestID).
 		SetPeriod(snapshot.Period).SetAudioTokens(record.AudioTokens).SetCreatedAt(now).SetAllowance(snapshot).ExecX(t.Context())
 

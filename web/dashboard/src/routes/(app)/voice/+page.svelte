@@ -64,6 +64,12 @@
     <AlertBanner tone="info" role="note">
       <span class="noticeCopy"><bb-fit mode="block">{t('voice.readOnly')}</bb-fit></span>
     </AlertBanner>
+  {:else if allowance?.reason === 'inactive' || allowance?.reason === 'banned'}
+    <AlertBanner tone="info" role="note">
+      <span class="noticeCopy"><bb-fit mode="block">
+        {allowance.reason === 'inactive' ? t('voice.inactive') : t('voice.banned')}
+      </bb-fit></span>
+    </AlertBanner>
   {:else if allowance}
     {@const plan = plans[allowance.plan]}
     {@const hasAllowance = allowance.limit_tokens > 0}
@@ -71,8 +77,8 @@
     <Card>
       <div class="voicePanel">
         <div class="usageHead">
-          <Text as="div" size="lg" class="usageCopy"><bb-fit><span data-fit="">{usage}</span></bb-fit></Text>
-          <Tag tone={plan.tone} class="planLabel" contain><bb-fit><span data-fit="">{plan.label}</span></bb-fit></Tag>
+          <Text as="div" size="lg"><bb-fit><span data-fit="">{usage}</span></bb-fit></Text>
+          <Tag tone={plan.tone} contain><bb-fit><span data-fit="">{plan.label}</span></bb-fit></Tag>
         </div>
         <ProgressBar size="sm" label={usage} value={hasAllowance ? allowance.used_tokens / allowance.limit_tokens : 0} />
         <div class="usageDetails">
@@ -97,13 +103,13 @@
             <Select id="alert-voice" name="voice" label={t('voice.choose')} bind:value={voice} {options}
               disabled={saving} required fill />
           </div>
-          <Button class="saveButton" type="submit" size="sm" busy={saving}>{t('common.save')}</Button>
+          <Button type="submit" size="sm" busy={saving}>{t('common.save')}</Button>
           <PageNotice visible={!!form} role="status" tone={form?.ok ? 'success' : 'warning'}>
             {form?.ok ? t('voice.saved') : form?.error}
           </PageNotice>
         </form>
       </Card>
-    {:else}
+    {:else if allowance.reason === 'no_plan' || !allowance.reason}
       <Card>
         <div class="voicePanel">
           <Text class="noticeCopy"><bb-fit mode="block"><span data-fit="">{t('voice.free')}</span></bb-fit></Text>
@@ -129,8 +135,5 @@
   .usageHead, .usageDetails { display: grid; align-items: center; gap: var(--bb-space-2); }
   .usageHead { grid-template-columns: minmax(0, 1fr) minmax(5.75rem, 27%); }
   .usageDetails { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .usageCopy { font-variant-numeric: tabular-nums; }
-  .planLabel { justify-content: center; min-inline-size: 0; }
   .noticeCopy { display: block; block-size: 2.75em; }
-  .saveButton { justify-self: start; }
 </style>

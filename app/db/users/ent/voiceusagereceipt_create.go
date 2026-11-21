@@ -5,7 +5,7 @@ package ent
 import (
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/ent/voiceusagereceipt"
-	"ItsBagelBot/app/db/users/voice"
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"context"
 	"errors"
 	"fmt"
@@ -55,7 +55,7 @@ func (_c *VoiceUsageReceiptCreate) SetCreatedAt(v time.Time) *VoiceUsageReceiptC
 }
 
 // SetAllowance sets the "allowance" field.
-func (_c *VoiceUsageReceiptCreate) SetAllowance(v voice.Allowance) *VoiceUsageReceiptCreate {
+func (_c *VoiceUsageReceiptCreate) SetAllowance(v usersrpc.VoiceAllowance) *VoiceUsageReceiptCreate {
 	_c.mutation.SetAllowance(v)
 	return _c
 }

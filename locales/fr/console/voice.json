@@ -12,6 +12,8 @@
   "fallback": "Les alertes utilisent la voix locale gratuite si cette option est désactivée ou si vos minutes sont épuisées.",
   "choose": "Voix",
   "readOnly": "Seul le propriétaire de la chaîne peut consulter l’utilisation ou modifier les réglages de la voix.",
+  "inactive": "La voix en ligne est en pause tant que le bot est désactivé.",
+  "banned": "La voix en ligne est indisponible.",
   "unavailable": "L’utilisation et les réglages de la voix sont indisponibles. Rechargez la page pour réessayer.",
   "invalidVoice": "Choisissez une voix dans la liste.",
   "saveFailed": "Impossible d’enregistrer les réglages de la voix. Réessayez.",

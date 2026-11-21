@@ -19,6 +19,7 @@ export type VoiceAllowance = VoiceSettings & {
   used_tokens: number;
   remaining_tokens: number;
   resets_at: string;
+  reason?: 'ok' | 'no_plan' | 'inactive' | 'banned';
 };
 
 function voiceActor(session: Session) {
