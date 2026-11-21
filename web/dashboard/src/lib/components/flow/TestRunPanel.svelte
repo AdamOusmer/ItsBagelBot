@@ -9,6 +9,7 @@
   import IconButton from '@bagel/ui/svelte/IconButton.svelte';
   import IconTile from '@bagel/ui/svelte/IconTile.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import '@bagel/ui/styles/elements/collapse.css';
   import Icon from './FlowIcon.svelte';
   import ScenarioInputs from './ScenarioInputs.svelte';
   import RehearsalTimeline from './RehearsalTimeline.svelte';
@@ -40,6 +41,18 @@
   const stoppedNode = $derived(!view.issue && view.state === 'stopped' ? view.stoppedAt ?? null : null);
   const hasTrigger = $derived(view.steps.some((step) => step.kind === 'trigger'));
 
+  const actionOpen = $derived(Boolean(issueNode || stoppedNode));
+  const noticeOpen = $derived(Boolean(view.definitionNotice));
+  let shownFix = $state(false);
+  let shownNotice = $state('');
+  $effect(() => {
+    if (issueNode) shownFix = true;
+    else if (stoppedNode) shownFix = false;
+  });
+  $effect(() => {
+    if (view.definitionNotice) shownNotice = view.definitionNotice;
+  });
+
   function showStep() {
     if (issueNode) onSelect(issueNode, view.issue?.fieldKey);
     else if (stoppedNode) onSelect(stoppedNode);
@@ -47,10 +60,16 @@
 </script>
 
 {#snippet event()}
-  <ScenarioInputs fields={view.fields} scenario={view.scenario} onChange={onScenario} />
-  <div class="start" class:off={!canStart} inert={!canStart}>
-    <Button variant="secondary" size="sm" disabled={!canStart} onclick={makeStart}><bb-fit>{t('flows.test.makeStart')}</bb-fit></Button>
-    <Text as="span" size="xs" tone="warning" class="start-rejected" role="status">{rejectedStart ? t('flows.test.repairBlocked') : ''}</Text>
+  <div class="event-body">
+    <ScenarioInputs fields={view.fields} scenario={view.scenario} onChange={onScenario} />
+    <div class="bb-collapse" class:is-open={canStart} aria-hidden={!canStart} inert={!canStart}>
+      <div>
+        <div class="start">
+          <Button variant="secondary" size="sm" disabled={!canStart} onclick={makeStart}><bb-fit>{t('flows.test.makeStart')}</bb-fit></Button>
+          <Text as="span" size="xs" tone="warning" class="start-rejected" role="status">{rejectedStart ? t('flows.test.repairBlocked') : ''}</Text>
+        </div>
+      </div>
+    </div>
   </div>
 {/snippet}
 
@@ -63,11 +82,17 @@
   <div class="scroll">
     <div class="intro">
       <Text size="sm" class="run-headline bb-fit-box" role="status" aria-live="polite"><bb-fit mode="block">{headline}</bb-fit></Text>
-      <div class="intro-action" class:off={!issueNode && !stoppedNode} inert={!issueNode && !stoppedNode}>
-        <Button variant="ghost" size="sm" onclick={showStep}><bb-fit>{t(issueNode ? 'flows.test.fixStep' : 'flows.test.showStep')}</bb-fit></Button>
+      <div class="bb-collapse intro-collapse" class:is-open={actionOpen} aria-hidden={!actionOpen} inert={!actionOpen}>
+        <div>
+          <Button variant="ghost" size="sm" onclick={showStep}><bb-fit>{t(shownFix ? 'flows.test.fixStep' : 'flows.test.showStep')}</bb-fit></Button>
+        </div>
       </div>
       <Text size="xs" tone="muted" class="run-pretend bb-fit-box"><bb-fit mode="block">{t('flows.test.pretend')}</bb-fit></Text>
-      <Text size="xs" tone="warning" class="run-definition bb-fit-box" role="status"><bb-fit mode="block">{view.definitionNotice ?? ''}</bb-fit></Text>
+      <div class="bb-collapse intro-collapse" class:is-open={noticeOpen} aria-hidden={!noticeOpen} inert={!noticeOpen}>
+        <div>
+          <Text size="xs" tone="warning" class="run-definition bb-fit-box" role="status"><bb-fit mode="block">{shownNotice}</bb-fit></Text>
+        </div>
+      </div>
     </div>
     {#if !hasTrigger}
       <Card class="event-card">
@@ -121,15 +146,12 @@
     padding: var(--bb-space-4) var(--panel-pad) var(--bb-space-5);
   }
   .intro {
-    display: grid;
+    display: flex;
     flex: none;
-    grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: var(--bb-space-3);
-    row-gap: var(--bb-space-1);
-    align-items: center;
+    flex-direction: column;
+    gap: var(--bb-space-1);
   }
-  .intro > :global(:not(.intro-action)) { grid-column: 1 / -1; }
-  .intro > :global(:first-child) { grid-column: 1; }
+  .intro-collapse { --bb-collapse-gap: var(--bb-space-1); }
   .intro :global(.run-headline) {
     height: var(--bb-space-6);
     margin: 0;
@@ -138,7 +160,6 @@
   }
   .intro :global(.run-pretend) { height: var(--bb-space-5); margin: 0; }
   .intro :global(.run-definition) { height: var(--bb-space-5); margin: 0; }
-  .intro-action { max-width: var(--bb-space-9); }
   .scroll :global(.event-card) {
     --card-pad: var(--bb-space-4);
     --card-bg: var(--bb-elev-2);
@@ -151,17 +172,19 @@
     height: calc(var(--bb-space-5) + var(--bb-space-4));
     margin: 0;
   }
+  .event-body {
+    --bb-collapse-gap: var(--bb-space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-3);
+  }
   .start {
     display: flex;
     align-items: center;
     gap: var(--bb-space-1);
-    margin-block-start: var(--bb-space-3);
-    transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
   }
   .start :global(.start-rejected) { flex: 1; min-width: 0; }
-  .off { visibility: hidden; opacity: 0; }
   @media (max-width: 760px) {
     .panel { --panel-pad: var(--bb-space-4); }
   }
-  @media (prefers-reduced-motion: reduce) { .start { transition: none; } }
 </style>

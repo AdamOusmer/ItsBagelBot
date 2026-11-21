@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import type { LoyaltyConfig, LoyaltyStanding } from '@bagel/kit';
-import { blankLoyaltyConfig, catalogChildren, MOD, moduleDef } from '@bagel/kit';
+import { blankLoyaltyConfig, catalogChildren, DISABLED_TRIGGERS_KEY, MOD, moduleDef } from '@bagel/kit';
 import { FREEZE_MAX_MINUTES } from '@bagel/kit/catalog';
 import { RpcError } from '@bagel/kit/server/nats';
 import {
@@ -14,7 +14,8 @@ import {
   resetPoints,
   topStandings,
   unfreezeStandings,
-  writeLoyalty
+  writeLoyalty,
+  writeLoyaltyTriggers
 } from '#lib/server/loyalty-store';
 import { listModules, listModulesForEditing, type ModuleView } from '#lib/server/commands-store';
 import { disableChildren } from '#lib/server/module-parent';
@@ -62,6 +63,7 @@ export const load: PageServerLoad = ({ locals, cookies, url }) =>
       ? async () => ({
           enabled: true,
           config: blankLoyaltyConfig(),
+          disabledTriggers: '',
           top: (await import('#lib/server/demo-data')).demoStandings(),
           topFreeze: null,
           freeze: null,
@@ -82,6 +84,7 @@ export const load: PageServerLoad = ({ locals, cookies, url }) =>
     blank: () => ({
       enabled: false,
       config: blankLoyaltyConfig(),
+      disabledTriggers: '',
       top: [] as LoyaltyStanding[],
       topFreeze: null,
       freeze: null,
@@ -147,7 +150,7 @@ export const actions: Actions = {
   toggle: mutate('toggle', 'Invalid settings.', async (uid, f) => {
     const enabled = f.get('is_enabled') === 'on';
     const cur = await readLoyalty(uid);
-    await writeLoyalty(uid, enabled, cur.config);
+    await writeLoyalty(uid, enabled, cur.config, cur.disabledTriggers);
     if (!enabled) await disableChildren(uid, 'loyalty');
     return String(enabled);
   }),
@@ -156,8 +159,13 @@ export const actions: Actions = {
     const config = parseConfig(String(f.get('config') ?? ''));
     if (!config) return null;
     const cur = await readLoyalty(uid);
-    await writeLoyalty(uid, cur.enabled, config);
+    await writeLoyalty(uid, cur.enabled, config, cur.disabledTriggers);
     return config.pointsName || 'points';
+  }),
+
+  triggers: mutate('triggers', 'Invalid settings.', async (uid, f) => {
+    const saved = await writeLoyaltyTriggers(uid, String(f.get(DISABLED_TRIGGERS_KEY) ?? ''));
+    return saved || 'all-on';
   }),
 
   reset: mutate('reset', 'Invalid request.', async (uid, f) => {

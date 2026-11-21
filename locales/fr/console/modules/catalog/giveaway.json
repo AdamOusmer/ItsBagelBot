@@ -68,6 +68,7 @@
     "join": "Inscrivez-vous au tirage au sort en cours.",
     "check": "Vérifiez si vous pouvez participer.",
     "claim": "Réclamez votre lot.",
-    "winner": "Affichez les gagnants du dernier tirage au sort."
+    "winner": "Affichez les gagnants du dernier tirage au sort.",
+    "enter": "Participer au tirage au sort ouvert avec un autre déclencheur."
   }
 }

@@ -29,5 +29,12 @@
       "event": "!cr road",
       "defaultMessage": "{player}: troféus: {trophies} · recorde: {besttrophies} · {arena}"
     }
+  },
+  "commands": {
+    "cr": "Consulta um perfil de Clash Royale ou um subcomando.",
+    "crstats": "Consulta um perfil histórico de Clash Royale.",
+    "crdecks": "Mostra o deck de batalha atual de Clash Royale.",
+    "crranked": "Mostra a classificação no Caminho das Lendas.",
+    "crroad": "Mostra o histórico no Caminho de Troféus e arena."
   }
 }

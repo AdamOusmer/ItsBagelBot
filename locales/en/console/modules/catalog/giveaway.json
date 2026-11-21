@@ -68,6 +68,7 @@
     "join": "Enter the open giveaway.",
     "check": "Check giveaway eligibility.",
     "claim": "Claim a winning slot.",
-    "winner": "Show the latest giveaway winners."
+    "winner": "Show the latest giveaway winners.",
+    "enter": "Enter the open giveaway with an alternate trigger."
   }
 }

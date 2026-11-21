@@ -68,6 +68,7 @@
     "join": "Inscríbete en el sorteo en curso.",
     "check": "Comprueba si puedes participar.",
     "claim": "Reclama tu premio.",
-    "winner": "Muestra los ganadores del último sorteo."
+    "winner": "Muestra los ganadores del último sorteo.",
+    "enter": "Participa en el sorteo abierto con un activador alternativo."
   }
 }

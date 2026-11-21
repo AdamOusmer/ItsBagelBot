@@ -66,5 +66,14 @@
       "event": "!val shop",
       "defaultMessage": "Rotation quotidienne ({count}) : {items} · renouvellement dans {reset}"
     }
+  },
+  "commands": {
+    "val": "Consulte le standing compétitif Valorant ou une sous-commande.",
+    "valrank": "Consulte le rang compétitif et les RR Valorant.",
+    "valrecord": "Affiche les parties classées et le taux de victoire Valorant.",
+    "valmatches": "Affiche les parties classées Valorant récentes.",
+    "valaccount": "Affiche les détails et le niveau du compte Riot.",
+    "vallb": "Affiche le top 10 régional Valorant.",
+    "valshop": "Affiche la rotation quotidienne de skins Valorant du jour."
   }
 }

@@ -19,6 +19,8 @@ const FIXED_ACTION_KEYS: Record<string, string> = {
   'invalid role': 'admin.action.invalidRole',
   'cannot remove this member': 'admin.action.cannotRemoveMember',
   'user_id required': 'admin.action.userIdRequired',
+  'choose reset or a whole usage percentage from 0 to 100': 'admin.users.voice.invalidChange',
+  'user has no Premium voice allowance': 'admin.users.voice.noAllowance',
   'query required': 'admin.action.queryRequired',
   'query too long': 'admin.action.queryTooLong',
   'id required': 'admin.action.idRequired',

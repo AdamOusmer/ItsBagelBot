@@ -53,5 +53,17 @@
       "event": "!pb [daily|weekly|monthly|ranked] [player]",
       "defaultMessage": "{player}: {time} (личный рекорд: {window})"
     }
+  },
+  "commands": {
+    "elo": "Показывает elo, место и результаты сезона MCSR Ranked.",
+    "session": "Показывает elo и результаты MCSR Ranked с начала трансляции.",
+    "lastmatch": "Показывает последний матч MCSR Ranked.",
+    "record": "Сравнивает победы в личных встречах MCSR Ranked.",
+    "lb": "Показывает топ-5 рейтинга MCSR Ranked.",
+    "race": "Показывает лидера недельной гонки и ваше время.",
+    "pb": "Показывает личный рекорд PaceMan или MCSR Ranked.",
+    "pace": "Показывает средние отсечки сессии PaceMan.",
+    "nethers": "Показывает число входов в Незер и темп сессии.",
+    "lastfort": "Показывает отсечки последнего забега, достигшего структуры."
   }
 }

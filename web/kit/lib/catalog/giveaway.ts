@@ -62,6 +62,7 @@ export const GIVEAWAY_MODULE: ModuleDef = {
     { trigger: '!giveaway cancel', summary: 'Cancel the open giveaway.', perm: 'mod' },
     { trigger: '!reroll [slot]', summary: 'Replace a candidate or reroll all no-shows.', perm: 'mod' },
     { trigger: '!join', summary: 'Enter the open giveaway.' },
+    { trigger: '!enter', aliases: ['!ticket'], summary: 'Enter the open giveaway with an alternate trigger.' },
     { trigger: '!check', summary: 'Check giveaway eligibility.' },
     { trigger: '!claim', summary: 'Claim a winning slot.' },
     { trigger: '!winner', summary: 'Show the latest giveaway winners.' }

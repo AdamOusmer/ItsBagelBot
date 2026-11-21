@@ -12,11 +12,13 @@ export type UserActionId =
   | 'unban'
   | 'restart'
   | 'reset'
+  | 'resetVoiceUsage'
+  | 'setVoiceUsage'
   | 'clearToken'
   | 'impersonate'
   | 'delete';
 
-export type UserActionGroup = 'service' | 'support' | 'danger';
+export type UserActionGroup = 'service' | 'support' | 'danger' | 'voice';
 
 export type UserActionDef = {
   id: UserActionId;
@@ -84,6 +86,22 @@ export const USER_ACTIONS: readonly UserActionDef[] = [
     group: 'danger',
     label: 'admin.users.reset',
     confirm: { title: 'admin.users.confirmResetTitle', body: 'admin.users.confirmResetBody' }
+  },
+  {
+    id: 'resetVoiceUsage',
+    action: 'setVoiceUsage',
+    key: 'users.grant',
+    group: 'voice',
+    label: 'admin.users.voice.reset',
+    confirm: { title: 'admin.users.voice.reset', body: 'admin.users.voice.resetConfirm' }
+  },
+  {
+    id: 'setVoiceUsage',
+    action: 'setVoiceUsage',
+    key: 'users.grant',
+    group: 'voice',
+    label: 'admin.users.voice.set',
+    confirm: { title: 'admin.users.voice.set', body: 'admin.users.voice.setConfirm' }
   },
   {
     id: 'clearToken',

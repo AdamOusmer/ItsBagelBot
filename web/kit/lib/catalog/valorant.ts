@@ -123,5 +123,14 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
       help: 'Ranks and leaderboards are tracked as separate ladders per platform; blank means PC.'
     },
     LINKED_ONLY_FIELD
+  ],
+  commands: [
+    { trigger: '!val', enableKey: 'rankEnabled', summary: 'Look up Valorant competitive standing or a subcommand.' },
+    { trigger: '!valrank', enableKey: 'rankEnabled', summary: 'Look up Valorant competitive rank and RR.' },
+    { trigger: '!valrecord', enableKey: 'recordEnabled', summary: 'Show Valorant ranked games and win rate.' },
+    { trigger: '!valmatches', aliases: ['!valhistory'], enableKey: 'matchesEnabled', summary: 'Show recent Valorant ranked matches.' },
+    { trigger: '!valaccount', aliases: ['!valwho'], enableKey: 'accountEnabled', summary: 'Show Riot account details and level.' },
+    { trigger: '!vallb', aliases: ['!valleaderboard'], enableKey: 'boardEnabled', summary: 'Show the regional Valorant top 10 leaderboard.' },
+    { trigger: '!valshop', aliases: ['!valrotation'], enableKey: 'shopEnabled', summary: "Show today's Valorant daily skin rotation." }
   ]
 };

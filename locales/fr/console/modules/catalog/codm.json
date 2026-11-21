@@ -18,5 +18,8 @@
       "event": "!codm [UID/pseudo exact]",
       "defaultMessage": "{player} · niveau {level} · multijoueur {rank} · score {rating} · {country}"
     }
+  },
+  "commands": {
+    "codm": "Consulte un profil CODM Global."
   }
 }

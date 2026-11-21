@@ -9,9 +9,19 @@ import type {
   RewardOnRedeem,
   SpotifySrPerm
 } from '@bagel/kit';
-import { blankSpotifyRedeem, blankSpotifySr, blankSpotifyQuotas } from '@bagel/kit';
+import {
+  blankSpotifyRedeem,
+  blankSpotifySr,
+  blankSpotifyQuotas,
+  DISABLED_TRIGGERS_KEY,
+  formatDisabledTriggers,
+  MOD,
+  moduleAllowedTriggers,
+  moduleDef,
+  parseDisabledTriggers
+} from '@bagel/kit';
 import { SUB } from './services';
-import { upsertModule } from './commands-store';
+import { patchModuleConfig, upsertModule } from './commands-store';
 import { readModuleBlob } from './module-blob';
 import { deleteRemoteReward, saveRewardFlow } from './reward-wire';
 import type { RewardCore } from './reward-form';
@@ -25,7 +35,8 @@ export type {
   SpotifyQuotas
 };
 
-const SONGQUEUE_MODULE = 'songqueue';
+const SONGQUEUE_MODULE = MOD.songqueue;
+const SONGQUEUE_ALLOWED_TRIGGERS = moduleAllowedTriggers(moduleDef(SONGQUEUE_MODULE)!);
 
 const REWARD_PROMPT = 'Type a song: a name like Never Gonna Give You Up, "artist - song", or paste a Spotify link';
 
@@ -35,6 +46,7 @@ export interface SpotifyView {
   redeem: SpotifyRedeemConfig;
   quotas: SpotifyQuotas;
   maxDepth: number | null;
+  disabledTriggers: string;
 }
 
 export interface SpotifyLimits {
@@ -148,13 +160,15 @@ function readView(configs: unknown): SpotifyView {
     redeem?: Partial<SpotifyRedeemConfig> & { reward?: Partial<SpotifyReward> | null };
     quotas?: Partial<SpotifyQuotas>;
     maxDepth?: unknown;
+    disabledTriggers?: unknown;
   };
   return {
     enabled: false,
     sr: readSr(c.sr),
     redeem: readRedeem(c.redeem),
     quotas: readQuotas(c.quotas),
-    maxDepth: positiveCount(c.maxDepth)
+    maxDepth: positiveCount(c.maxDepth),
+    disabledTriggers: String(c[DISABLED_TRIGGERS_KEY] ?? '')
   };
 }
 
@@ -172,6 +186,7 @@ export interface SpotifyStore {
   setEnabled(enabled: boolean): Promise<SpotifyResult>;
   saveSr(sr: SpotifySrConfig): Promise<SpotifyResult>;
   saveLimits(limits: SpotifyLimits): Promise<SpotifyResult>;
+  saveDisabledTriggers(raw: string): Promise<SpotifyResult>;
   setRedeemPath(path: { enabled: boolean; allowOffline: boolean }): Promise<SpotifyResult>;
   saveReward(draft: RewardDraft): Promise<SpotifyResult>;
   deleteReward(): Promise<SpotifyResult>;
@@ -269,6 +284,12 @@ export function spotifyStore(userId: string): SpotifyStore {
   const setRedeemPath = (path: { enabled: boolean; allowOffline: boolean }) =>
     patch((cur) => ({ redeem: { ...cur.redeem, ...path } }));
 
+  async function saveDisabledTriggers(raw: string): Promise<SpotifyResult> {
+    const normalized = formatDisabledTriggers(parseDisabledTriggers(raw), SONGQUEUE_ALLOWED_TRIGGERS);
+    await patchModuleConfig({ userId, name: SONGQUEUE_MODULE, partial: { [DISABLED_TRIGGERS_KEY]: normalized } });
+    return { ok: true };
+  }
+
   async function saveReward(draft: RewardDraft): Promise<SpotifyResult> {
     const cur = await read();
     return saveRewardFlow(userId, { draft, prompt: REWARD_PROMPT, existingId: cur.redeem.rewardId }, (reward) =>
@@ -312,6 +333,7 @@ export function spotifyStore(userId: string): SpotifyStore {
     setEnabled,
     saveSr,
     saveLimits,
+    saveDisabledTriggers,
     setRedeemPath,
     saveReward,
     deleteReward,

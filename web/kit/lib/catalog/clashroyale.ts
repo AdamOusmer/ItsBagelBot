@@ -79,5 +79,12 @@ export const CLASHROYALE_MODULE: ModuleDef =
       help: 'Default player for every command. Clash Royale has no name lookup, so this must be a player tag; leave blank only if you always type one.'
     },
     LINKED_ONLY_FIELD
+  ],
+  commands: [
+    { trigger: '!cr', enableKey: 'statsEnabled', summary: 'Look up a Clash Royale profile or a subcommand.' },
+    { trigger: '!crstats', aliases: ['!clashroyale'], enableKey: 'statsEnabled', summary: 'Look up a Clash Royale lifetime profile.' },
+    { trigger: '!crdecks', aliases: ['!crdeck'], enableKey: 'decksEnabled', summary: 'Show the current Clash Royale battle deck.' },
+    { trigger: '!crranked', aliases: ['!crpol'], enableKey: 'rankedEnabled', summary: 'Show Path of Legends standing.' },
+    { trigger: '!crroad', aliases: ['!crtrophy'], enableKey: 'roadEnabled', summary: 'Show Trophy Road record and arena.' }
   ]
 };

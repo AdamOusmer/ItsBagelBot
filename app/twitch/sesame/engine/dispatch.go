@@ -37,7 +37,6 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 		return nil
 	}
 	c.Command = name
-	c.ModuleLookup = p.moduleLookup(views, c)
 	if bc, ok := p.claimOwner(ctx, owners, views, c); ok {
 		emittedBefore := c.Emitted
 		err := p.runBaked(ctx, c, bakedCommand{cmd: bc.Cmd, num: num, args: input.args}, emit)
@@ -72,9 +71,14 @@ func trialCommand(owners []BoundCommand, name string) bool {
 }
 
 func (p *Pipeline) claimOwner(ctx context.Context, owners []BoundCommand, views map[string]projection.ModuleView, c *module.Context) (BoundCommand, bool) {
+	if len(owners) == 0 {
+		return BoundCommand{}, false
+	}
+	c.ModuleLookup = p.moduleLookup(views, c)
+	c.TriggerDisabledLookup = p.triggerDisabledLookup(views)
 	declined := -1
 	for i, bc := range owners {
-		if !p.enabled(bc.Owner, views, c) {
+		if !p.ownerActive(bc.Owner, views, c) {
 			continue
 		}
 		if bc.Cmd.When == nil || bc.Cmd.When(ctx, c) {
@@ -85,6 +89,13 @@ func (p *Pipeline) claimOwner(ctx context.Context, owners []BoundCommand, views 
 		}
 	}
 	return p.fallbackOwner(owners, views, c, declined)
+}
+
+func (p *Pipeline) ownerActive(owner module.Module, views map[string]projection.ModuleView, c *module.Context) bool {
+	if !p.enabled(owner, views, c) {
+		return false
+	}
+	return owner.Kind == module.KindCore || !triggerDisabled(c.Config, module.TriggerName(c.Command))
 }
 
 func (p *Pipeline) fallbackOwner(owners []BoundCommand, views map[string]projection.ModuleView, c *module.Context, declined int) (BoundCommand, bool) {
@@ -105,6 +116,13 @@ func (p *Pipeline) moduleLookup(views map[string]projection.ModuleView, c *modul
 		on := p.enabled(m, views, c)
 		c.Config = config
 		return on
+	}
+}
+
+func (p *Pipeline) triggerDisabledLookup(views map[string]projection.ModuleView) func(module.ModuleName, module.TriggerName) bool {
+	return func(name module.ModuleName, trigger module.TriggerName) bool {
+		mv, ok := views[string(name)]
+		return ok && triggerDisabled(mv.Configs, trigger)
 	}
 }
 

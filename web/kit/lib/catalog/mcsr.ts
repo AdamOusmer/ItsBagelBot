@@ -212,5 +212,17 @@ export const MCSR_MODULE: ModuleDef =
     },
     MINECRAFT_UUID_FIELD,
     LINKED_ONLY_FIELD
+  ],
+  commands: [
+    { trigger: '!elo', aliases: ['!mcsr', '!ranked'], enableKey: 'eloEnabled', summary: 'Show MCSR Ranked elo, rank and season record.' },
+    { trigger: '!session', aliases: ['!mcsrsession'], enableKey: 'sessionEnabled', summary: 'Show MCSR Ranked elo and record since stream start.' },
+    { trigger: '!lastmatch', aliases: ['!rankedmatch'], enableKey: 'lastMatchEnabled', summary: 'Show the most recent MCSR Ranked match.' },
+    { trigger: '!record', aliases: ['!matchrecord'], enableKey: 'recordEnabled', summary: 'Compare head-to-head MCSR Ranked wins.' },
+    { trigger: '!lb', aliases: ['!rankedlb', '!mcsrlb'], enableKey: 'lbEnabled', summary: 'Show the top 5 MCSR Ranked leaderboard.' },
+    { trigger: '!race', aliases: ['!weeklyrace'], enableKey: 'raceEnabled', summary: 'Show the weekly race leader and your time.' },
+    { trigger: '!pb', aliases: ['!personalbest'], enableKey: 'pbEnabled', summary: 'Show PaceMan or MCSR Ranked personal best time.' },
+    { trigger: '!pace', aliases: ['!pacesession', '!splits'], enableKey: 'paceEnabled', summary: 'Show PaceMan session split averages.' },
+    { trigger: '!nethers', aliases: ['!nph'], enableKey: 'nethersEnabled', summary: 'Show session nether count and pace.' },
+    { trigger: '!lastfort', aliases: ['!lastpace', '!previousfort'], enableKey: 'lastFortEnabled', summary: 'Show splits for the last run reaching a structure.' }
   ]
 };

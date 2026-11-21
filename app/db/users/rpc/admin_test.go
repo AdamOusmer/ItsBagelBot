@@ -266,6 +266,7 @@ func TestAdminVerbsRequireTheirMinimumRole(t *testing.T) {
 		{"get", 0}, {"list", 0}, {"stats", 0}, {"enrollment", 0}, {"overview", 0},
 		{"token_status", 0}, {"ban", 0}, {"unban", 0},
 		{"set_status", 1}, {"set_active", 1}, {"set_creator_code", 1}, {"test.set", 1},
+		{"voice_usage_set", 1},
 		{"reset", 1}, {"token_set", 1}, {"token_clear", 1},
 		{"delete", 2},
 	} {

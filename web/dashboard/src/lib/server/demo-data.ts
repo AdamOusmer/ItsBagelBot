@@ -197,7 +197,7 @@ export function demoQuotes(): QuoteView[] {
 }
 
 export function demoQuotesView() {
-  return { enabled: true, addPerm: 'mod' as const, editPerm: 'mod' as const, quotes: demoQuotes() };
+  return { enabled: true, addPerm: 'mod' as const, editPerm: 'mod' as const, disabledTriggers: '', quotes: demoQuotes() };
 }
 
 export function demoTimersView() {
@@ -304,6 +304,7 @@ export function demoGoveeDevices(): GoveeDevice[] {
 export function demoSpotifyView() {
   return {
     enabled: true,
+    disabledTriggers: '',
     sr: { ...blankSpotifySr(), enabled: true },
     redeem: {
       ...blankSpotifyRedeem(),
