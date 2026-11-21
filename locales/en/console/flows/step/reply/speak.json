@@ -1,0 +1,17 @@
+{
+  "label": "Speak aloud",
+  "summary": "Read text through your voice source",
+  "keywords": "speak tts voice read aloud audio obs",
+  "line": "Speak: {text}",
+  "field": {
+    "text": {
+      "label": "Text to read"
+    },
+    "style": {
+      "label": "Style"
+    },
+    "voice": {
+      "label": "Voice"
+    }
+  }
+}

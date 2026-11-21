@@ -15,6 +15,10 @@
   import ResponseEditor from '#lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '#lib/components/commands/ChatPreview.svelte';
   import HeldText from '#lib/components/shared/HeldText.svelte';
+  import PremiumMark from '#lib/components/shared/PremiumMark.svelte';
+  import { premiumLocked } from '#lib/components/shared/premium-lock';
+  import VoiceOverrideFields from '#lib/components/voice/VoiceOverrideFields.svelte';
+  import { page } from '$app/state';
   import { REWARD_ERROR_KEYS, rewardErrors, type RewardErrorField } from './reward-draft';
 
   let {
@@ -60,6 +64,12 @@
   const scopeDesc = $derived(SCOPES.find((s) => s.value === draft.counterScope)?.desc ?? '');
 
   const replyOn = $derived(draft.action === 'chat');
+  const speakOn = $derived(draft.action === 'speak');
+  const speakLocked = $derived(premiumLocked(page.data) && !speakOn);
+
+  $effect(() => {
+    if (speakOn && !draft.isUserInputRequired) draft.isUserInputRequired = true;
+  });
   const gateOn = $derived(counterOn || pointsOn);
 
   const errors = $derived(rewardErrors(draft, counterOn, pointsOn));
@@ -112,7 +122,7 @@
   </Field>
 
   <div class="check">
-    <Checkbox bind:checked={draft.isUserInputRequired}>{t('channelpoints.requireInput')}</Checkbox>
+    <Checkbox bind:checked={draft.isUserInputRequired} disabled={speakOn}>{t('channelpoints.requireInput')}</Checkbox>
   </div>
 
   <div class="check">
@@ -133,6 +143,23 @@
         tag={t('channelpoints.previewTag')}
         {samples}
       />
+    </div>
+  </div>
+
+  <div class="check speak">
+    <Checkbox bind:checked={() => speakOn, (on: boolean) => (draft.action = on ? 'speak' : 'none')} disabled={speakLocked}>
+      {t('channelpoints.speakToggle')}
+    </Checkbox>
+    <span class="speak-lock"><PremiumMark size={32} /></span>
+  </div>
+
+  <div class="bb-collapse" class:is-open={speakOn} aria-hidden={!speakOn} inert={!speakOn}>
+    <div>
+      <div class="speak-body">
+        <Text as="p" size="xs" tone="muted">{t('channelpoints.speakHint')}</Text>
+        <VoiceOverrideFields bind:voice={draft.voice} bind:style={draft.style} />
+        <Checkbox bind:checked={draft.prefixName}>{t('channelpoints.speakPrefix')}</Checkbox>
+      </div>
     </div>
   </div>
 
@@ -309,6 +336,9 @@
   .color-field { flex: none; }
 
   .check { margin: 4px 0 16px; --bb-check-align: center; }
+  .check.speak { display: flex; align-items: center; gap: var(--bb-space-2); }
+  .speak-lock { display: inline-flex; margin-left: auto; }
+  .speak-body { display: flex; flex-direction: column; gap: 12px; margin: 0 0 14px 26px; --field-mb: 0; }
 
   .hooks {
     display: flex;

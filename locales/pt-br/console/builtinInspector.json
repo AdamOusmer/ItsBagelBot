@@ -8,5 +8,6 @@
   "cooldown": "Intervalo entre usos",
   "replyMessage": "Mensagem de resposta",
   "replyHint": "Deixe em branco para usar o padrão. {clip} = link do clipe, {user} = quem criou o clipe, {target} = título.",
-  "saveReply": "Salvar resposta"
+  "saveReply": "Salvar resposta",
+  "openSettings": "Abrir ajustes de voz"
 }

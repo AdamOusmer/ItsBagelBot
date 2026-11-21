@@ -96,5 +96,6 @@
   "activating": "Activating",
   "paymentFailed": "Your last renewal payment failed. Update your payment method on Tebex to keep Premium going.",
   "updatePayment": "Update payment method",
-  "receiptsEmailed": "Tebex emails a receipt to your purchase email after every payment."
+  "receiptsEmailed": "Tebex emails a receipt to your purchase email after every payment.",
+  "premiumOnly": "Premium only"
 }

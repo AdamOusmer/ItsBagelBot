@@ -32,14 +32,19 @@ function premiumStatus(acc: AccountState | null | undefined): boolean {
   return !!acc && (acc.status === 'vip' || acc.status === 'paid');
 }
 
-export async function broadcasterPremium(locals: App.Locals): Promise<boolean> {
+export async function accountPremium(userId: string): Promise<boolean> {
   if (DEMO) return premiumStatus((await import('#lib/server/demo-data')).demoAccountState);
+  return accountState(userId).then(premiumStatus).catch(() => false);
+}
+
+export async function broadcasterPremium(locals: App.Locals): Promise<boolean> {
+  if (DEMO) return accountPremium('');
   const s = locals.session;
   if (!s) return false;
-  if (s.delegate_of) return accountState(s.delegate_of).then(premiumStatus).catch(() => false);
+  if (s.delegate_of) return accountPremium(s.delegate_of);
   const cached = locals.accountState;
   if (cached && 'value' in cached) return premiumStatus(cached.value);
-  return accountState(s.user_id).then(premiumStatus).catch(() => false);
+  return accountPremium(s.user_id);
 }
 
 export async function moduleLocked(locals: App.Locals, def: ModuleDef): Promise<boolean> {

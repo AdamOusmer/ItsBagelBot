@@ -19,7 +19,8 @@
   "banned": "La voix en ligne est indisponible.",
   "unavailable": "L’utilisation et les réglages de la voix sont indisponibles. Rechargez la page pour réessayer.",
   "invalidVoice": "Choisissez une voix dans la liste.",
-  "saveFailed": "Impossible d’enregistrer les réglages de la voix. Réessayez.",  "overlayTitle": "Source navigateur OBS",
+  "saveFailed": "Impossible d’enregistrer les réglages de la voix. Réessayez.",
+  "overlayTitle": "Source navigateur OBS",
   "overlayHint": "Créer un nouveau lien désactive le précédent.",
   "overlayCreate": "Créer un lien",
   "overlayReplace": "Créer un nouveau lien",
@@ -27,8 +28,6 @@
   "overlayFailed": "Impossible de créer un lien. Réessayez.",
   "overlayUnavailable": "La voix cloud est indisponible pour ce compte.",
   "overlayCopyFailed": "Impossible de copier le lien. Réessayez.",
-  "gateTitle": "Donnez une voix à vos alertes avec Premium",
-  "gateBody": "Choisissez des voix et des styles pour vos alertes et diffusez-les dans OBS via une source navigateur.",
   "liveOnly": "Seulement en direct",
   "minBits": "Minimum de bits",
   "maxLengthHint": "Environ {chars} caractères",
@@ -101,5 +100,26 @@
   "sample": {
     "sub": "PrincessBarney a dit : Déjà 7 mois, super stream !",
     "cheer": "PrincessBarney a dit : Bien joué !"
+  },
+  "channelVoice": "Voix de la chaîne",
+  "styleDefault": "Style par défaut",
+  "invalidCooldown": "Saisis un nombre entier de secondes entre 0 et 86400.",
+  "invalidMaxChars": "Saisis un nombre entier entre 1 et 500.",
+  "chat": {
+    "title": "Commande du chat",
+    "enable": "Activer !tts",
+    "enableHint": "Les viewers tapent !tts suivi d'un message pour l'entendre en stream. Fonctionne seulement en live.",
+    "prefix": "Dire d'abord le nom du viewer",
+    "replyDenied": "Répondre quand un message ne peut pas être lu",
+    "replyDeniedHint": "Quand c'est désactivé, un texte bloqué ou des minutes épuisées restent silencieux.",
+    "permission": "Qui peut utiliser !tts",
+    "userCooldown": "Délai par viewer (secondes)",
+    "cooldown": "Délai pour tout le monde (secondes)",
+    "maxChars": "Caractères lus au maximum"
+  },
+  "rewards": {
+    "title": "Récompenses de points de chaîne",
+    "body": "Choisis Lire le message du viewer à voix haute sur une récompense et son texte passe par ta source vocale.",
+    "open": "Ouvrir les points de chaîne"
   }
 }

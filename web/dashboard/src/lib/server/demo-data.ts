@@ -86,7 +86,7 @@ export const demoAuthorizedDashboards = [
 
 export const demoAccountState: AccountState = {
   active: true,
-  status: 'vip',
+  status: process.env.DEMO_PLAN === 'free' ? 'free' : 'vip',
   onboarded: true,
   creatorCode: null,
   username: 'demo',
@@ -671,13 +671,12 @@ const demoVoiceState = {
   revision: 1
 };
 
-export function demoVoiceView() {
-  const allowance: VoiceAllowance = {
-    ...demoVoiceState.settings,
-    voice: demoVoiceState.settings.voice as VoiceAllowance['voice'],
-    plan: 'premium', period: '2026-11', limit_tokens: 90_000, used_tokens: 57_300, remaining_tokens: 32_700,
-    resets_at: '2026-12-01T00:00:00Z', reason: 'ok', overlay_configured: true
-  };
+export function demoVoiceView(forceLocked = false) {
+  const locked = forceLocked || demoAccountState.status === 'free';
+  const voice = demoVoiceState.settings.voice as VoiceAllowance['voice'];
+  const allowance: VoiceAllowance = locked
+    ? { ...demoVoiceState.settings, voice, plan: 'free', period: '2026-11', limit_tokens: 0, used_tokens: 0, remaining_tokens: 0, resets_at: '2026-12-01T00:00:00Z', enabled: false, reason: 'no_plan', overlay_configured: false }
+    : { ...demoVoiceState.settings, voice, plan: 'premium', period: '2026-11', limit_tokens: 90_000, used_tokens: 57_300, remaining_tokens: 32_700, resets_at: '2026-12-01T00:00:00Z', reason: 'ok', overlay_configured: true };
   return { allowance, config: demoVoiceState.config, revision: demoVoiceState.revision };
 }
 

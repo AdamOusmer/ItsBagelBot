@@ -11,7 +11,6 @@ import {
   validateCommand,
   firstError,
   BUILTIN_COMMANDS,
-  BUILTIN_NAMES,
   builtinDef,
   DEFS_PER_BROADCASTER,
   parseJsonPath,
@@ -33,7 +32,7 @@ import { logger } from '@bagel/kit/server/logger';
 import { actionError, actionErrorBody } from '#lib/server/action-errors';
 import { effectiveId } from '#lib/server/board';
 import { parsePerm, signedInAction } from '#lib/server/action-context';
-import { gateSection } from '#lib/server/module-gate';
+import { accountPremium, gateSection } from '#lib/server/module-gate';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
@@ -59,7 +58,8 @@ function builtinView(def: (typeof BUILTIN_COMMANDS)[number], row?: ModuleView): 
     perm: parseKitPerm(savedPerm, def.defaultPerm),
     cooldown: def.defaultCooldown,
     stream_online_only: def.liveOnly,
-    builtin: true
+    builtin: true,
+    premium: def.premium
   } satisfies CommandView;
 }
 
@@ -74,9 +74,15 @@ function builtinViews(modules: ModuleView[]): CommandView[] {
   return BUILTIN_COMMANDS.map((def) => builtinView(def, byName.get(def.id)));
 }
 
+function yieldsTo(custom: CommandView[], view: CommandView): boolean {
+  if (view.is_active || builtinDef(view.name)?.yields !== true) return false;
+  return custom.some((c) => c.name === view.name);
+}
+
 function mergeCommands(custom: CommandView[], modules: ModuleView[]): CommandView[] {
-  const builtins = builtinViews(modules);
-  const customs = custom.filter((c) => !BUILTIN_NAMES.has(c.name));
+  const builtins = builtinViews(modules).filter((view) => !yieldsTo(custom, view));
+  const shown = new Set(builtins.map((view) => view.name));
+  const customs = custom.filter((c) => !shown.has(c.name));
   return [...builtins, ...customs];
 }
 
@@ -346,6 +352,10 @@ export const actions: Actions = {
     const isActive = f.get('is_active') === 'on';
     const perm = parseKitPerm(f.get('perm'), def.defaultPerm);
     const view = builtinRow(def, String(f.get('response') ?? def.summary), isActive, perm);
+    const needsPremium = def.premium === true && isActive;
+    if (needsPremium && !(await accountPremium(ctx.uid))) {
+      return fail(403, { ok: false, error: actionError(ctx.locale, 'Premium only.') });
+    }
 
     if (DEMO) {
       return { ok: true, action: 'updated', name, commands: [view], silent: true };

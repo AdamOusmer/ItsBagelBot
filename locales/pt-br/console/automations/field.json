@@ -94,5 +94,7 @@
   "brightness": "Brilho",
   "hold_s": "Voltar após",
   "paused": "Pausada",
-  "cooldown_s": "Intervalo global (s)"
+  "cooldown_s": "Intervalo global (s)",
+  "voice": "Voz",
+  "style": "Estilo"
 }

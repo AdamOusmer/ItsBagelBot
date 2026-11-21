@@ -76,11 +76,10 @@
   "noTriggersTitle": "Aucun mot déclencheur pour l’instant.",
   "offBanner": "Ce module est désactivé, le bot l’ignore donc dans le chat.",
   "turnOn": "L’activer",
-  "offConfigurable":"Ce module est désactivé. Vous pouvez le configurer maintenant ; les changements prendront effet une fois activé.",
+  "offConfigurable": "Ce module est désactivé. Vous pouvez le configurer maintenant ; les changements prendront effet une fois activé.",
   "patchConflict": "Quelqu'un d'autre a modifié ce module. La dernière version a été rechargée : refaites votre modification.",
   "permLeadMods": "Lead modos",
   "permMods": "Modérateurs",
-  "readPremiumVoice": "Lire à voix haute avec la voix Premium",
   "repliesLabel": "Réponses",
   "replyBlankHint": "Laissez vide pour utiliser le message par défaut.",
   "replyIdle": "Sélectionnez un message pour le modifier ici.",
@@ -134,5 +133,19 @@
   "statusFilterLabel": "Filtrer par statut",
   "filterAll": "Tous",
   "filterOn": "Activés",
-  "lockedHint": "Réservé à Premium. Passez à Premium pour modifier."
+  "lockedHint": "Réservé à Premium. Passez à Premium pour modifier.",
+  "voiceEvent": {
+    "tts": "TTS",
+    "toggleAria": "TTS sur {event}",
+    "sub": {
+      "label": "Messages de réabonnement",
+      "hint": "Lit le message qu'un viewer ajoute à son réabonnement."
+    },
+    "cheer": {
+      "label": "Messages de cheer",
+      "hint": "Lit le message envoyé avec les bits, sans le nombre de bits."
+    },
+    "chatOff": "Message du chat désactivé",
+    "withoutChat": "Le message du chat est désactivé. Le TTS joue quand même en stream."
+  }
 }

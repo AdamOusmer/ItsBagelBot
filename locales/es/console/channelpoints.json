@@ -81,5 +81,8 @@
   "errLimit": "Escribe un número entero, como mínimo 1.",
   "errCooldown": "Introduce una espera de entre 1 segundo y 7 días.",
   "unsavedChanges": "Cambios sin guardar",
-  "saved": "Guardado"
+  "saved": "Guardado",
+  "speakToggle": "Leer en voz alta el mensaje del espectador",
+  "speakHint": "Usa tus minutos de voz Premium. Los puntos se devuelven cuando no se puede leer nada.",
+  "speakPrefix": "Decir primero el nombre del espectador"
 }

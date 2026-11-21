@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/codec"
 )
 
@@ -71,6 +72,12 @@ type ClipAction struct {
 	Seconds float64 `json:"seconds"`
 	Reply   string  `json:"reply"`
 	Quiet   bool    `json:"quiet,omitempty"`
+}
+
+type SpeakAction struct {
+	Text  string `json:"text"`
+	Voice string `json:"voice"`
+	Style string `json:"style"`
 }
 
 type MarkerAction struct {
@@ -236,6 +243,16 @@ var (
 func checkText(c chk, p TextAction) { c.template("text", p.Text) }
 
 func checkReply(c chk, p ReplyAction) { checkText(c, TextAction{Text: p.Text}) }
+
+func checkSpeak(c chk, p SpeakAction) {
+	c.template("text", p.Text)
+	if p.Voice != "" && !voiceplan.ValidVoice(p.Voice) {
+		c.add("voice", CodeInvalidEnum)
+	}
+	if p.Style != "" && voiceplan.Style(p.Style) == "" {
+		c.add("style", CodeInvalidEnum)
+	}
+}
 
 func checkAnnounce(c chk, p AnnounceAction) {
 	c.template("text", p.Text)

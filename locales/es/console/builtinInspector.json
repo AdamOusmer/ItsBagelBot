@@ -8,5 +8,6 @@
   "cooldown": "Tiempo de espera",
   "replyMessage": "Mensaje de respuesta",
   "replyHint": "Déjalo en blanco para usar la respuesta predeterminada. {clip} = enlace del clip, {user} = quien creó el clip, {target} = título.",
-  "saveReply": "Guardar respuesta"
+  "saveReply": "Guardar respuesta",
+  "openSettings": "Abrir ajustes de voz"
 }

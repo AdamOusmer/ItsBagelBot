@@ -21,6 +21,9 @@ export interface BuiltinCommandDef {
   replyKey?: string;
   tokens?: readonly ReplyToken[];
   aliases?: string[];
+  premium?: boolean;
+  yields?: boolean;
+  settingsHref?: string;
 }
 
 export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = ([
@@ -83,6 +86,23 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = ([
     editable: true,
     replyKey: 'reply',
     tokens: replyTokens(['clip', 'user', 'target'], { user: 'PrincessBarney', target: 'That is amazing', clip: 'clips.twitch.tv/AbCdEf' }, 'builtin.clip')
+  },
+  {
+    id: 'tts',
+    label: 'Text to speech',
+    summary: 'Built-in · reads a viewer message aloud on stream.',
+    description:
+      'Viewers type !tts with a message and the bot reads it aloud through your OBS voice source. Voice, style, length and cooldowns are set on the Voice page. Only works while you are live.',
+    usage: ['!tts <message>'],
+    preview: 'PrincessBarney said: that was a clean play!',
+    previewArgs: 'that was a clean play!',
+    defaultActive: false,
+    defaultPerm: 'everyone',
+    defaultCooldown: 0,
+    liveOnly: true,
+    premium: true,
+    yields: true,
+    settingsHref: '/voice'
   },
   {
     id: 'title',

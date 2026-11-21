@@ -1,0 +1,17 @@
+{
+  "label": "Vorlesen",
+  "summary": "Text über deine Sprachquelle vorlesen",
+  "keywords": "vorlesen stimme tts audio obs sprechen",
+  "line": "Vorlesen: {text}",
+  "field": {
+    "text": {
+      "label": "Vorzulesender Text"
+    },
+    "style": {
+      "label": "Stil"
+    },
+    "voice": {
+      "label": "Stimme"
+    }
+  }
+}

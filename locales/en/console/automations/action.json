@@ -56,5 +56,6 @@
   "branded_content": "Set branded content",
   "points_spend": "Spend points",
   "countdown_stop": "Stop countdown",
-  "cooldown_reset": "Reset cooldown"
+  "cooldown_reset": "Reset cooldown",
+  "speak": "Speak aloud"
 }

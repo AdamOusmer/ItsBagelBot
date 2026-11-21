@@ -77,8 +77,8 @@ test.each([
 
 test('shows the shared Premium gate for an owner without a plan', () => {
   const html = renderVoice({ allowance: { ...allowance, plan: 'free', reason: 'no_plan' }, locked: true, alerts: null });
-  expect(html).toContain('aria-label="Give your alerts a voice with Premium"');
-  expect(html).toMatch(/class="bb-chip is-pressed"[^>]*>(?:\s|<!--[^>]*-->)*Beta/);
+  expect(html).toContain(`aria-label="${translate('en', 'billing.premiumGateTitle')}"`);
+  expect(html).not.toContain('bb-chip');
   expect(html).not.toContain('name="max_seconds"');
 });
 

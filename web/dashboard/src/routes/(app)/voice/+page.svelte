@@ -7,8 +7,7 @@
   import { beforeNavigate, invalidateAll } from '$app/navigation';
   import { getI18n } from '@bagel/kit/i18n/context';
   import {
-    alertVoiceKeys, CLOUD_VOICE_CATALOG, DEFAULT_VOICE, MAX_CLIP_SECONDS, VOICE_ALERT_KINDS, VOICE_GROUPS,
-    type VoiceAlertKind
+    alertVoiceKeys, DEFAULT_VOICE, MAX_CLIP_SECONDS, VOICE_ALERT_KINDS, type VoiceAlertKind
   } from '@bagel/kit/voice-plan';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
@@ -24,8 +23,11 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import PageNotice from '#lib/components/shared/PageNotice.svelte';
   import PremiumGate from '#lib/components/shared/PremiumGate.svelte';
+  import { voiceOptions } from '#lib/components/voice/voice-options';
   import { VoiceAutosave } from './voice-autosave.svelte';
   import VoiceAlertEditor from './VoiceAlertEditor.svelte';
+  import VoiceChannelPointsCard from './VoiceChannelPointsCard.svelte';
+  import VoiceChatCommandCard from './VoiceChatCommandCard.svelte';
   import VoiceAlertRow from './VoiceAlertRow.svelte';
   import VoiceOverlayCard from './VoiceOverlayCard.svelte';
   import VoiceSettingsCard from './VoiceSettingsCard.svelte';
@@ -34,16 +36,7 @@
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
   const { t } = getI18n();
-  const groups = ['energetic', 'warm', 'calm', 'authoritative'] as const;
-  const options = groups.flatMap((group) => CLOUD_VOICE_CATALOG
-    .filter(([, character]) => VOICE_GROUPS[character] === group)
-    .map(([name, character]) => ({
-      value: name,
-      label: name,
-      description: t(`voice.character.${character.toLowerCase()}`),
-      group: t(`voice.group.${group}`),
-      searchText: character
-    })));
+  const options = voiceOptions(t);
 
   const allowance = $derived(data.readOnly ? null : data.allowance);
 
@@ -57,6 +50,13 @@
   }
 
   let values = $state(untrack(loadedValues));
+
+  function loadedCommand(): Record<string, string> {
+    const command = data.readOnly ? null : data.command;
+    return { ...command?.config, enabled: String(command?.enabled ?? false) };
+  }
+
+  let commandValues = $state(untrack(loadedCommand));
   let selected = $state<VoiceAlertKind | null>(null);
   let pending = $state<'rotateOverlay' | null>(null);
   let overlayUrl = $state(untrack(() => form?.overlayUrl));
@@ -71,6 +71,24 @@
     },
     text: { failed: () => t('voice.saveFailed'), conflict: () => t('voice.conflict') }
   });
+
+  const commandSave = new VoiceAutosave({
+    action: 'saveCommand',
+    revision: untrack(() => (data.readOnly ? null : data.command)?.revision ?? 0),
+    onConflict: async () => {
+      await invalidateAll();
+      commandValues = loadedCommand();
+      commandSave.reset((data.readOnly ? null : data.command)?.revision ?? 0);
+    },
+    text: { failed: () => t('voice.saveFailed'), conflict: () => t('voice.conflict') }
+  });
+
+  async function changeCommand(key: string, value: string) {
+    const before = commandValues[key] ?? '';
+    if (value === before) return;
+    commandValues[key] = value;
+    if (await commandSave.save(key, { [key]: value }) === 'failed') commandValues[key] = before;
+  }
 
   const overrides = $derived([{ value: '', label: t('voice.useDefault', { voice: values.voice }) }, ...options]);
 
@@ -96,7 +114,10 @@
     selected = null;
   }
 
-  beforeNavigate(() => void autosave.flush());
+  beforeNavigate(() => {
+    void autosave.flush();
+    void commandSave.flush();
+  });
 
   const submitOverlay: SubmitFunction = ({ cancel }) => {
     if (pending) return cancel();
@@ -117,7 +138,7 @@
 <svelte:head><title>{t('nav.voice')}</title></svelte:head>
 
 {#if data.locked}
-  <PremiumGate title={t('voice.gateTitle')} body={t('voice.gateBody')} tag={t('nav.beta')} />
+  <PremiumGate />
 {:else}
   <section class="screen active">
     <PageHead>
@@ -193,6 +214,11 @@
               </InspectorSurface>
             {/if}
           </DeckLayout>
+
+          {#if data.command}
+            <VoiceChatCommandCard values={commandValues} status={commandSave.status} onChange={changeCommand} />
+          {/if}
+          <VoiceChannelPointsCard />
         {:else}
           <PageNotice tone="warning">{t('voice.unavailable')}</PageNotice>
         {/if}

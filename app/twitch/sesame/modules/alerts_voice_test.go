@@ -97,6 +97,10 @@ func TestProcessAlertVoiceOutputs(t *testing.T) {
 			wantChat: true, wantChecks: 1, wantSpeech: speechExpectation{"Anonyme a dit : hello stream!", "playful, light, amused", ""}},
 		{name: "trial stays silent", trial: true, wantSkip: speechTrial, event: eventInput{"channel.subscription.message", resubJSON, ""}, wantChat: true},
 		{name: "per-kind opt out", wantSkip: speechToggleOff, event: eventInput{"channel.cheer", cheerWithViewerText, `{"cheerTts":"false"}`}, wantChat: true},
+		{name: "disabled chat alerts still speak", chatOff: true, event: eventInput{"channel.subscription.message", resubJSON, ""},
+			wantChecks: 1, wantSpeech: speechExpectation{"CoolViewer said: 7 months!", "excited, energetic, celebratory", ""}},
+		{name: "chat line and speech both run for one event", event: eventInput{"channel.subscription.message", resubJSON, ""},
+			wantChat: true, wantChecks: 1, wantSpeech: speechExpectation{"CoolViewer said: 7 months!", "excited, energetic, celebratory", ""}},
 		{name: "opt out is read from a disabled row", chatOff: true, wantSkip: speechToggleOff, event: eventInput{"channel.subscription.message", resubJSON, `{"subTts":"false"}`}},
 		{name: "missing identity skips speech", missingID: true, wantSkip: speechNoIdentity, event: eventInput{"channel.subscription.message", resubJSON, ""}, wantChat: true},
 	}

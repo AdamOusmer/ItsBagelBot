@@ -19,7 +19,8 @@
   "banned": "A voz na nuvem está indisponível.",
   "unavailable": "O uso e as configurações de voz estão indisponíveis. Recarregue a página para tentar de novo.",
   "invalidVoice": "Escolha uma voz na lista.",
-  "saveFailed": "Não foi possível salvar as configurações de voz. Tente de novo.",  "overlayTitle": "Fonte de navegador do OBS",
+  "saveFailed": "Não foi possível salvar as configurações de voz. Tente de novo.",
+  "overlayTitle": "Fonte de navegador do OBS",
   "overlayHint": "Criar outro link desativa o anterior.",
   "overlayCreate": "Criar link",
   "overlayReplace": "Criar outro link",
@@ -27,8 +28,6 @@
   "overlayFailed": "Não foi possível criar o link. Tente novamente.",
   "overlayUnavailable": "A voz na nuvem não está disponível para esta conta.",
   "overlayCopyFailed": "Não foi possível copiar o link. Tente novamente.",
-  "gateTitle": "Dê voz aos seus alertas com Premium",
-  "gateBody": "Escolha vozes e estilos para os alertas e reproduza-os no OBS com uma fonte de navegador.",
   "liveOnly": "Só durante a live",
   "minBits": "Mínimo de bits",
   "maxLengthHint": "Cerca de {chars} caracteres",
@@ -101,5 +100,26 @@
   "sample": {
     "sub": "PrincessBarney disse: 7 meses já, adoro a live!",
     "cheer": "PrincessBarney disse: Jogou muito!"
+  },
+  "channelVoice": "Voz do canal",
+  "styleDefault": "Estilo padrão",
+  "invalidCooldown": "Digite um número inteiro de segundos entre 0 e 86400.",
+  "invalidMaxChars": "Digite um número inteiro entre 1 e 500.",
+  "chat": {
+    "title": "Comando do chat",
+    "enable": "Ativar !tts",
+    "enableHint": "Os espectadores digitam !tts e uma mensagem para ouvi-la na live. Só funciona ao vivo.",
+    "prefix": "Falar primeiro o nome do espectador",
+    "replyDenied": "Responder quando uma mensagem não puder ser lida",
+    "replyDeniedHint": "Desativado, texto bloqueado ou minutos esgotados ficam em silêncio.",
+    "permission": "Quem pode usar !tts",
+    "userCooldown": "Espera por espectador (segundos)",
+    "cooldown": "Espera para todos (segundos)",
+    "maxChars": "Máximo de caracteres lidos"
+  },
+  "rewards": {
+    "title": "Recompensas de pontos do canal",
+    "body": "Escolha Ler a mensagem do espectador em voz alta em qualquer recompensa e o texto toca pela sua fonte de voz.",
+    "open": "Abrir pontos do canal"
   }
 }
