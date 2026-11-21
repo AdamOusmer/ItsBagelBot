@@ -9,6 +9,7 @@ This repository is public. Keep operator runbooks, host scripts, benchmark resul
 - Start each task in its own worktree cut from a fresh `origin/main`: `git worktree add .claude/worktrees/<type>+<name> -b <type>/<name> origin/main`. Branch from an unmerged PR only when the work depends on it. A fresh worktree needs `bun install` in `web`, then in `ui`.
 - Never edit in another session's worktree or PR branch, and never use `git stash`. The stash is shared across worktrees. For a baseline, add a throwaway worktree of `origin/main`.
 - Back claims with the code on `origin/main` and with real runs. Cite `file:line`.
+- Work from another model or agent gets a full diff review against this file before it merges, never a read of its summary and checks alone. Green CI and CodeScene prove the gates, not the design. Report only checks you ran, with the command.
 - Stage explicit paths. A single-package `go build` writes a binary into the current directory, so compile-check with `go build -o /dev/null ./app/<svc>/` or `go vet`.
 
 ## Branches and pull requests
@@ -33,6 +34,9 @@ This repository is public. Keep operator runbooks, host scripts, benchmark resul
 - Service code never calls Valkey, or any other backend a shared package owns, directly. Use the shared packages (`pkg/valkey`, `pkg/bus`, `pkg/db`, `pkg/ratelimit` and the rest). No raw client commands or Lua scripts in `app/`.
 - If a shared package lacks the operation you need, add it to that package and call it from there. Extend the package; do not work around it.
 - Declare things through the existing builders, so timeouts, metrics and identity checks stay in place.
+- Before adding a control, config key, save path or helper, find the one that already does the job and extend it. A second switch for the same behavior, a parallel write path or a one-line wrapper around an existing function is a defect.
+- Dashboard module config writes send a partial through `patchModule` (`web/dashboard/src/lib/server/commands-store.ts`). Never read a module's configs and write the whole blob back to change one key.
+- Export a symbol only when another package imports it, through one path. Go helpers stay unexported until a caller outside the package exists.
 - A service owns exactly one MySQL schema. The Elixir ingress (`app/ingress`) never opens a database connection; it fetches data over NATS request-reply from the owning Go service.
 - The firehose JetStream streams (`TWITCH_*`) and their consumers stay on memory storage, including in recovery fixes.
 - No defensive scaffolding: no rollback-on-partial-failure loops, guard wrappers or cleanup-on-error unwinds. Let errors propagate to the coarse failure path. Remove such code when touching it.
@@ -73,5 +77,7 @@ This repository is public. Keep operator runbooks, host scripts, benchmark resul
 - Every translated key falls back to English; a raw key on screen is a bug. Never split catalogs with hand-kept route tables.
 - Layout is identical in every locale. Boxes keep a fixed size and text scales down inside `data-fit` spans (`ui/lib/text-fit.ts`). Never grow a container per language. Check every locale at desktop, tablet and phone sizes before merging.
 - Every English change is mirrored in the other locales and passes `web/kit/scripts/check-i18n.mjs`.
+- Every added key has a caller in the same change, and a change removes the keys it stops using.
+- When data gains a field such as aliases, triggers or limits, rewrite the copy that restates it so the two cannot drift.
 - Brand lines such as "Baked late, served fresh." are never rewritten.
 - No em dashes anywhere in `web/` or `ui/`. Avoid "no X, no Y, no Z" lists, "Not X. Y." pivots and numeric parallel headlines. Each card carries one concrete fact and stays short.
