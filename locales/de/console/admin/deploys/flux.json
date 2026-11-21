@@ -16,5 +16,7 @@
   "tag": "Image-Tag",
   "pin": "Festlegen",
   "clear": "Entfernen",
-  "error": "Flux-Status nicht verfügbar: {error}"
+  "error": "Flux-Status nicht verfügbar: {error}",
+  "unavailable": "Der Flux-Status ist nicht verfügbar.",
+  "noTiers": "Keine Cluster-Ebenen gefunden."
 }

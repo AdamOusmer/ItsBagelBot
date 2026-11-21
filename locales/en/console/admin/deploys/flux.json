@@ -16,5 +16,7 @@
   "tag": "Image tag",
   "pin": "Pin",
   "clear": "Clear",
-  "error": "Flux status unavailable: {error}"
+  "error": "Flux status unavailable: {error}",
+  "unavailable": "Flux status is unavailable.",
+  "noTiers": "No cluster tiers found."
 }

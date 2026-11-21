@@ -16,5 +16,7 @@
   "tag": "Tag da imagem",
   "pin": "Fixar",
   "clear": "Remover",
-  "error": "Status do Flux indisponível: {error}"
+  "error": "Status do Flux indisponível: {error}",
+  "unavailable": "O status do Flux está indisponível.",
+  "noTiers": "Nenhuma camada do cluster encontrada."
 }

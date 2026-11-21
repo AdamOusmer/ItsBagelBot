@@ -2,7 +2,7 @@
   "eyebrow": "Despliegues",
   "titlePre": "Ciclo de ",
   "titleEm": "versiones",
-  "description": "Despliega una versión, una corrección urgente, una actualización de imágenes, una reversión o una reaplicación. Las etapas siguen un orden fijo y se detienen ante el primer fallo. Nada se revierte por sí solo.",
+  "description": "Inicia despliegues y sigue su progreso.",
   "statusLive": "En vivo",
   "statusCluster": "Clúster",
   "statusLastRun": "Última ejecución",
@@ -83,5 +83,13 @@
   "rollbackTitle": "¿Revertir el clúster?",
   "rollbackBody": "Inicia una nueva ejecución que fija las imágenes de {version} y despliega cada servicio modificado.",
   "manifest": "Manifiesto",
-  "logLabel": "Registro de {stage}"
+  "logLabel": "Registro de {stage}",
+  "filterAll": "Todos",
+  "filterActive": "En curso",
+  "filterFinished": "Finalizados",
+  "filterLabel": "Filtrar despliegues",
+  "filterEmpty": "Ningún despliegue coincide con el filtro.",
+  "historyError": "El historial no está disponible: {error}",
+  "historyUnavailable": "El historial no está disponible.",
+  "planUnavailable": "El plan de despliegue no está disponible."
 }

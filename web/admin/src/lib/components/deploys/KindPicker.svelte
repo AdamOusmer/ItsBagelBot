@@ -1,39 +1,44 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
   import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { RUN_KINDS, STAGES_FOR } from '#lib/deploys/types';
   import type { RunKind } from '#lib/deploys/types';
   import { KIND_HINT_KEY, KIND_KEY } from './view';
 
-  let { kind, onpick }: { kind: RunKind; onpick: (k: RunKind) => void } = $props();
+  let {
+    kind,
+    disabled,
+    onpick
+  }: {
+    kind: RunKind;
+    disabled: boolean;
+    onpick: (kind: RunKind) => void;
+  } = $props();
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
+  const number = new Intl.NumberFormat(locale);
 
   const options = $derived(
     RUN_KINDS.map((k) => ({
       value: k,
       label: t(KIND_KEY[k]),
       description: t(KIND_HINT_KEY[k]),
-      meta: t('admin.deploys.flow.stagesCount', { n: String(STAGES_FOR[k].length) })
+      meta: t('admin.deploys.flow.stagesCount', { n: number.format(STAGES_FOR[k].length) }),
+      disabled
     }))
   );
-  const position = (value: string) => String(RUN_KINDS.indexOf(value as RunKind) + 1).padStart(2, '0');
 </script>
 
 <RadioGroup
   variant="cards"
-  cols={5}
   rail="md"
-  min="168px"
-  --choice-min-h="196px"
+  min="9.5rem"
+  --choice-min-h="11.25rem"
   name="ship-kind"
   value={kind}
   {options}
   label={t('admin.deploys.kindLabel')}
   onSelect={(value) => onpick(value as RunKind)}
->
-  {#snippet leading(option)}<Eyebrow aria-hidden="true">{position(option.value)}</Eyebrow>{/snippet}
-</RadioGroup>
+/>

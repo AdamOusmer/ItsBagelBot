@@ -147,6 +147,12 @@ export type DeployRunSummary = {
   updated_at: string;
 };
 
+export type DeployRunsResult = {
+  runs: DeployRunSummary[];
+  active: DeployRun | null;
+  runsError: string | null;
+};
+
 export type CheckState = 'none' | 'pending' | 'success' | 'failure';
 
 export type DeployPRInfo = {
@@ -180,6 +186,8 @@ export type DeployPlan = {
   active_run_id?: string;
 };
 
+export type DeployPlanResult = { plan: DeployPlan | null; planError: string | null };
+
 export type ImageOverride = { name: string; newTag?: string; digest?: string };
 
 export type FluxTier = {
@@ -195,7 +203,7 @@ export type FluxTier = {
 
 export type FluxResult = { tiers: FluxTier[]; pinnable: string[]; fluxError: string | null };
 
-export type PlanRequest ={ actor_id: string; kind?: RunKind; rollback_to?: string };
+export type PlanRequest = { actor_id: string; kind?: RunKind; rollback_to?: string };
 
 export type StartRequest = {
   actor_id: string;
