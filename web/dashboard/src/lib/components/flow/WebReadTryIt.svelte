@@ -62,8 +62,9 @@
 
 <style>
   .try-it {
-    display: grid;
-    row-gap: var(--field-gap);
+    display: flex;
+    flex-direction: column;
+    gap: var(--field-gap);
     margin-block-start: var(--field-gap);
     --bb-collapse-gap: var(--field-gap);
   }

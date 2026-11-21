@@ -14,6 +14,7 @@
   import Label from '@bagel/ui/svelte/Label.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import '@bagel/ui/styles/elements/collapse.css';
   import FlowIcon from './FlowIcon.svelte';
   import RunOutcome from './RunOutcome.svelte';
   import RehearsedLineRow from '#lib/components/commands/RehearsedLineRow.svelte';
@@ -54,6 +55,11 @@
       remaining -= rows.length;
       return { ...group, rows };
     }).filter((group) => group.rows.length > 0);
+  });
+  const remaining = $derived(Math.max(0, totalRows - shown));
+  let shownRemaining = $state(0);
+  $effect(() => {
+    if (remaining > 0) shownRemaining = remaining;
   });
   const yesNo = $derived([{ value: 'yes', label: t('flows.test.yes') }, { value: 'no', label: t('flows.test.no') }]);
   const choices = $derived({
@@ -174,9 +180,11 @@
               <Button variant="secondary" size="sm" onclick={() => step.id && onSelect(step.id, fixField(step))}><bb-fit>{t('flows.test.fixStep')}</bb-fit></Button>
             </div>
           {:else if step.kind === 'check' && !pretend}
-            <div class="action" class:off={!step.repair} inert={!step.repair}>
-              <Button variant="secondary" size="sm" disabled={!step.repair} onclick={() => applyRepair(step)}><bb-fit>{t('flows.test.makePass')}</bb-fit></Button>
-              <Text as="span" size="xs" tone="warning" class="run-rejected" role="status">{rejected === step.key ? t('flows.test.repairBlocked') : ''}</Text>
+            <div class="bb-collapse" class:is-open={Boolean(step.repair)} aria-hidden={!step.repair} inert={!step.repair}>
+              <div class="action">
+                <Button variant="secondary" size="sm" disabled={!step.repair} onclick={() => applyRepair(step)}><bb-fit>{t('flows.test.makePass')}</bb-fit></Button>
+                <Text as="span" size="xs" tone="warning" class="run-rejected" role="status">{rejected === step.key ? t('flows.test.repairBlocked') : ''}</Text>
+              </div>
             </div>
           {/if}
           {#if row.more}<Text as="span" size="xs" tone="muted" class="run-context">{t('flows.test.moreRows', { count: row.more })}</Text>{/if}
@@ -185,8 +193,10 @@
     {/each}
   {/each}
 </ol>
-<div class="more" class:off={shown >= totalRows} inert={shown >= totalRows}>
-  <Button variant="ghost" size="sm" onclick={() => shown += 40}><bb-fit>{t('flows.test.moreRows', { count: Math.max(0, totalRows - shown) })}</bb-fit></Button>
+<div class="bb-collapse more" class:is-open={remaining > 0} aria-hidden={remaining <= 0} inert={remaining <= 0}>
+  <div>
+    <Button variant="ghost" size="sm" onclick={() => shown += 40}><bb-fit>{t('flows.test.moreRows', { count: shownRemaining })}</bb-fit></Button>
+  </div>
 </div>
 
 <style>
@@ -210,6 +220,7 @@
     background: var(--bb-rule-strong);
   }
   .cards :global(.run-card) {
+    --bb-collapse-gap: var(--bb-space-3);
     --card-pad: var(--bb-space-4);
     --card-bg: var(--bb-elev-2);
     display: flex;
@@ -271,12 +282,7 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--bb-space-1);
-    min-height: calc(var(--bb-space-6) + var(--bb-space-2));
-    transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
   }
-  .action :global(.run-rejected) { min-height: var(--bb-space-4); }
-  .more { flex: none; min-height: var(--bb-space-6); }
-  .off { visibility: hidden; opacity: 0; }
-  @media (prefers-reduced-motion: reduce) { .action { transition: none; } }
+  .action :global(.run-rejected:not(:empty)) { margin-block-start: var(--bb-space-1); }
+  .more { --bb-collapse-gap: var(--bb-space-4); flex: none; }
 </style>
