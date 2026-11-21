@@ -1,13 +1,15 @@
 {
-  "eyebrow": "Produktanalysen",
-  "title": "Nutzung und Wachstum",
-  "description": "Wie viele Kanäle den Bot nutzen, wie neue Streamer die Einrichtung durchlaufen, welche Funktionen sie aktivieren und wie die bezahlten Tarife laufen.",
-  "exactNote": "Die Zahlen sind exakte Summen über alle Kanäle, und keine Zeile nennt einen Kanal.",
+  "titlePre": "Nutzung und ",
+  "titleEm": "Wachstum",
+  "description": "Bot-Aktivität, Einrichtung, Funktionsnutzung und kostenpflichtige Tarife.",
+  "exactNote": "Die Summen umfassen alle Kanäle.",
   "windowLabel": "Zeitraum",
   "daily": "Täglich",
   "window": "{days} Tage",
   "period": "Zeitraum: {start} bis {end} (UTC).",
-  "degraded": "Analysedaten sind derzeit nicht verfügbar; die Bereiche unten zeigen leere Werte.",
-  "empty": "Noch keine aggregierten Daten. Jeder Tag erscheint kurz nach seinem Ende in UTC.",
-  "noRows": "Keine Daten für diesen Zeitraum."
+  "degraded": "Analysedaten sind derzeit nicht verfügbar.",
+  "empty": "Keine Analysedaten für diesen Zeitraum.",
+  "noRows": "Keine Daten für diesen Zeitraum.",
+  "jumpToSection": "Zum Abschnitt",
+  "donationsUnavailable": "Spendendaten sind derzeit nicht verfügbar."
 }

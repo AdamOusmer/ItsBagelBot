@@ -9,5 +9,7 @@
   "banned": "Banidas",
   "revoked": "Revogadas",
   "disabled": "Desligados",
-  "other": "Outros"
+  "other": "Outros",
+  "showData": "Ver dados",
+  "date": "Data"
 }

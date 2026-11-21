@@ -8,8 +8,7 @@ import {
   notificationsList,
   notificationSend,
   notificationDelete,
-  NOTIFICATIONS_MAX_PAGES,
-  type NotificationWire
+  NOTIFICATIONS_MAX_PAGES
 } from '#lib/server/services';
 import { requireRole, type AdminIdentity } from '#lib/server/access';
 import {
@@ -22,20 +21,16 @@ import {
   type ParseResult
 } from '#lib/server/admin-action';
 import { parsePage } from '#lib/server/paging';
+import {
+  LEVELS,
+  MAX_TITLE_LENGTH,
+  MAX_BODY_LENGTH,
+  type HistoryResult
+} from '#lib/components/notifications/notification-compose';
 
-const LEVELS = new Set(['info', 'success', 'warning', 'critical']);
-const MAX_TITLE_LENGTH = 120;
-const MAX_BODY_LENGTH = 2000;
 const DEMO = dev && process.env.DEMO === '1';
 
-type HistoryBundle = {
-  notifications: NotificationWire[];
-  page: number;
-  hasMore: boolean;
-  degraded: boolean;
-};
-
-async function loadHistory(page: number): Promise<HistoryBundle> {
+async function loadHistory(page: number): Promise<HistoryResult> {
   try {
     const result = await notificationsList(page);
     return {
@@ -56,9 +51,9 @@ async function loadHistory(page: number): Promise<HistoryBundle> {
 
 export const load: PageServerLoad = ({ url }) => {
   const page = parsePage(url.searchParams.get('page'), NOTIFICATIONS_MAX_PAGES);
-  const history: Promise<HistoryBundle> = DEMO
+  const history: Promise<HistoryResult> = DEMO
     ? import('#lib/server/demo-data').then(({ sampleNotifications }) => ({
-        notifications: sampleNotifications,
+        notifications: page === 1 ? sampleNotifications : [],
         page,
         hasMore: false,
         degraded: false
@@ -74,11 +69,14 @@ type SendForm = {
   title: string;
   body: string;
   level: string;
-  expiresAtRaw: string;
+  expiresAt?: string;
   target: string;
 };
 
-type SendFields = Omit<SendForm, 'scope' | 'target'> & { scope: string };
+type SendFields = Omit<SendForm, 'scope' | 'target' | 'expiresAt'> & {
+  scope: string;
+  expiresAtRaw: string;
+};
 
 function sendFields(f: FormData): SendFields {
   return {
@@ -104,34 +102,36 @@ const SEND_RULES: { bad: (v: SendFields) => boolean; error: string }[] = [
   { bad: (v) => v.scope !== 'broadcast' && v.scope !== 'direct', error: 'invalid scope' },
   { bad: missingDirectTarget, error: 'target user id or username required' },
   { bad: (v) => !v.title || !v.body, error: 'title and body are required' },
-  { bad: (v) => !LEVELS.has(v.level), error: 'invalid level' }
+  { bad: (v) => !LEVELS.some((level) => level === v.level), error: 'invalid level' }
 ];
 
-function sendFormError(v: SendFields): string {
-  return SEND_RULES.find((rule) => rule.bad(v))?.error ?? '';
-}
-
-function parseSendForm(f: FormData): ParseResult<SendForm> {
-  const v = sendFields(f);
-  const error = sendFormError(v);
+function parseSendForm(f: FormData, locale: App.Locals['locale']): ParseResult<SendForm> {
+  const fields = sendFields(f);
+  const error = SEND_RULES.find((rule) => rule.bad(fields))?.error;
   if (error) return badRequest(error);
-  const scope = v.scope as SendForm['scope'];
+
+  const expiresAt = Date.parse(fields.expiresAtRaw);
+  if (fields.expiresAtRaw && !Number.isFinite(expiresAt)) {
+    return badRequest(adminText(locale, 'admin.notifications.invalidExpiry'));
+  }
+
+  const scope = fields.scope as SendForm['scope'];
   return {
     value: {
-      ...v,
+      ...fields,
       scope,
-      target: scope === 'direct' ? v.targetUserId || v.targetUsername : 'all users'
+      expiresAt: fields.expiresAtRaw ? new Date(expiresAt).toISOString() : undefined,
+      target: scope === 'direct' ? fields.targetUserId || fields.targetUsername : 'all users'
     }
   };
 }
 
 function parseDeleteId(f: FormData): ParseResult<number> {
   const id = Number(String(f.get('id') ?? ''));
-  if (!Number.isFinite(id) || id <= 0) return badRequest('id required');
+  if (!Number.isSafeInteger(id) || id <= 0) return badRequest('id required');
   return { value: id };
 }
 
-// Drop targets on a broadcast: a present-but-blank target_user_id silently sends to nobody.
 function sendPayload(v: SendForm, admin: AdminIdentity) {
   const direct = v.scope === 'direct';
   return {
@@ -141,7 +141,7 @@ function sendPayload(v: SendForm, admin: AdminIdentity) {
     title: v.title,
     body: v.body,
     level: v.level,
-    expiresAt: v.expiresAtRaw ? new Date(v.expiresAtRaw).toISOString() : undefined,
+    expiresAt: v.expiresAt,
     actorId: admin.id,
     actorLogin: admin.login
   };
@@ -149,7 +149,7 @@ function sendPayload(v: SendForm, admin: AdminIdentity) {
 
 type NotifActionSpec<P> = {
   name: string;
-  parse: (f: FormData) => ParseResult<P>;
+  parse: (f: FormData, locale: App.Locals['locale']) => ParseResult<P>;
   target: (payload: P) => string;
   detail?: (payload: P) => string;
   demoNotice: (payload: P, locale: App.Locals['locale']) => string;
@@ -162,7 +162,7 @@ function notifAction<P>(spec: NotifActionSpec<P>) {
     const admin = await requireRole({ locals }, 'notifications.send');
     if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
 
-    const parsed = spec.parse(await request.formData());
+    const parsed = spec.parse(await request.formData(), locals.locale);
     if ('refuse' in parsed) return refusalReply(parsed, locals.locale);
     const payload = parsed.value;
 
@@ -175,14 +175,18 @@ function notifAction<P>(spec: NotifActionSpec<P>) {
   };
 }
 
+function recipientLabel(v: SendForm, locale: App.Locals['locale']): string {
+  return v.scope === 'broadcast' ? adminText(locale, 'admin.notifications.audienceAll') : v.target;
+}
+
 export const actions: Actions = {
   send: notifAction<SendForm>({
     name: 'send_notification',
     parse: parseSendForm,
     target: (v) => v.target,
     detail: (v) => v.title,
-    demoNotice: (v, locale) => adminText(locale, 'admin.notifications.sentDemo', { target: v.target }),
-    notice: (v, locale) => adminText(locale, 'admin.notifications.sentToTarget', { target: v.target }),
+    demoNotice: (v, locale) => adminText(locale, 'admin.notifications.sentDemo', { target: recipientLabel(v, locale) }),
+    notice: (v, locale) => adminText(locale, 'admin.notifications.sentToTarget', { target: recipientLabel(v, locale) }),
     run: (v, admin) => notificationSend(sendPayload(v, admin))
   }),
 

@@ -6,12 +6,13 @@ import { fail, redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import { allows, requireRole } from '#lib/server/access';
 import { audited, okReply, actionError, adminText } from '#lib/server/admin-action';
-import { giveawayCreate, giveawayDraw, giveawayPreview, giveawaysList } from '#lib/server/giveaways';
+import { giveawayCreate, giveawayPreview, giveawaysList } from '#lib/server/giveaways';
 import { parsePrizeMonths, parseWinnerCount } from '@bagel/kit/giveaway';
 
 const DEMO = dev && process.env.DEMO === '1';
 
-export const load: PageServerLoad = async ({ parent, url }) => {
+export const load: PageServerLoad = async ({ parent, url, depends }) => {
+  depends('admin:giveaways');
   const layout = await parent();
   if (!allows(layout.role, 'giveaways.manage')) throw redirect(302, '/');
 
@@ -61,24 +62,11 @@ export const actions: Actions = {
     if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
     const parsed = fields(await request.formData());
     if ('error' in parsed) return fail(400, { error: actionError(locals.locale, parsed.error) });
-    if (DEMO) return okReply(adminText(locals.locale, 'admin.giveaway.draftCreatedDemo'));
+    if (DEMO) return { ...okReply(adminText(locals.locale, 'admin.giveaway.draftCreatedDemo')), giveaway: { id: 'demo-draft' } };
     return audited(
       { admin, action: 'giveaway_create', target: parsed.title, detail: `${parsed.winnerCount}×${parsed.prizeMonths}` },
       () => giveawayCreate({ actorId: admin.id, ...parsed }),
       (created) => ({ ...okReply(adminText(locals.locale, 'admin.giveaway.draftCreated')), giveaway: created })
-    );
-  },
-
-  draw: async ({ request, locals }) => {
-    const admin = await requireRole({ locals }, 'giveaways.manage');
-    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
-    const id = String((await request.formData()).get('giveaway_id') ?? '').trim();
-    if (!id) return fail(400, { error: adminText(locals.locale, 'admin.giveaway.idRequired') });
-    if (DEMO) return okReply(adminText(locals.locale, 'admin.giveaway.drawCommittedDemo'));
-    return audited(
-      { admin, action: 'giveaway_draw', target: id },
-      () => giveawayDraw({ actorId: admin.id, campaignId: id, expectedVersion: 1, idempotencyKey: `giveaway:${id}:draw` }),
-      (detail) => ({ ...okReply(adminText(locals.locale, 'admin.giveaway.drawCommitted')), detail })
     );
   }
 };
