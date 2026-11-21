@@ -8,5 +8,5 @@ import { loadLanes } from '#lib/server/lanes';
 
 export const GET: RequestHandler = async ({ locals }) => {
   if (!(await requireAdmin(locals.session))) throw error(403, 'forbidden');
-  return json(await loadLanes());
+  return json(await loadLanes(), { headers: { 'Cache-Control': 'private, no-store' } });
 };

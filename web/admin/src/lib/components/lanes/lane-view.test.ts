@@ -2,8 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 // @ts-ignore Bun supplies this module at test runtime.
 import { describe, expect, test } from 'bun:test';
+import type { StatusTone } from '@bagel/kit/status-tone';
 import type { LaneView } from '#lib/server/lanes';
-import { groupLanes, laneTone } from './lane-view';
+import { currentAlias, groupLanes, laneTone, renameLane } from './lane-view';
 
 const lane = (stream: string, consumer: string, changes: Partial<LaneView> = {}): LaneView => ({
   stream, consumer, display: consumer, subject: 'events.>', category: 'projection',
@@ -21,22 +22,34 @@ describe('lane presentation', () => {
       lane('busy', 'traffic', { ratePerSecond: 12 })
     ];
     const groups = groupLanes(source);
-    expect(groups.map((group) => group.stream)).toEqual(['attention', 'busy', 'quiet']);
-    expect(groups[1].lanes.map((row) => row.consumer)).toEqual(['backlog', 'redelivery', 'traffic', 'healthy']);
-    expect(groups[1].pending).toBe(20);
-    expect(groups[2].lanes.map((row) => row.consumer)).toEqual(['consumer2', 'consumer10']);
+    expect(groups.map(({ stream, lanes, pending }) => [stream, lanes.map((row) => row.consumer), pending])).toEqual([
+      ['attention', ['orphan'], 0],
+      ['busy', ['backlog', 'redelivery', 'traffic', 'healthy'], 20],
+      ['quiet', ['consumer2', 'consumer10'], 0]
+    ]);
     expect(source[0].consumer).toBe('consumer10');
     expect(groupLanes([])).toEqual([]);
   });
 
-  test('does not mark pull consumers with unknown connection as confirmed healthy', () => {
-    expect(laneTone(lane('stream', 'pull', { connection: 'unknown' }))).toBe('neutral');
-    expect(laneTone(lane('stream', 'backlog', { pending: 5 }))).toBe('warning');
-    expect(laneTone(lane('stream', 'orphan', { orphan: true }))).toBe('danger');
-    expect(laneTone(lane('stream', 'healthy'))).toBe('success');
-    expect(laneTone(lane('stream', 'temporary', { ephemeral: true }))).toBe('warning');
-    expect(laneTone(lane('stream', 'redelivery', { redelivered: 1 }))).toBe('warning');
-    expect(laneTone(lane('stream', 'unknown-backlog', { pending: 1, connection: 'unknown' }))).toBe('warning');
-    expect(laneTone(lane('stream', 'unbound-temporary', { orphan: true, ephemeral: true }))).toBe('danger');
+  test.each([
+    [{ connection: 'unknown' }, 'neutral'],
+    [{ pending: 5 }, 'warning'],
+    [{ orphan: true }, 'danger'],
+    [{}, 'success'],
+    [{ ephemeral: true }, 'warning'],
+    [{ redelivered: 1 }, 'warning'],
+    [{ pending: 1, connection: 'unknown' }, 'warning'],
+    [{ orphan: true, ephemeral: true }, 'danger']
+  ] satisfies [Partial<LaneView>, StatusTone][])('gives lane attention precedence for %j', (changes, tone) => {
+    expect(laneTone(lane('stream', 'consumer', changes))).toBe(tone);
+  });
+
+  test.each([
+    ['', 'Group'],
+    ['  operator alias  ', 'operator alias']
+  ])('preserves the synthesized display when editing an alias (%j)', (input, display) => {
+    const original = lane('stream', 'consumer', { display: 'Group', alias: '', defaultDisplay: 'Group' });
+    expect(currentAlias(original)).toBe('');
+    expect(renameLane(original, input)).toMatchObject({ alias: input.trim(), display });
   });
 });
