@@ -5,8 +5,8 @@
 
 @layer bb.elements {
     .bb-slider {
-        --slider-fill: var(--bb-white);
-        --slider-thumb: 18px;
+        --slider-fill: var(--bb-green-glow);
+        --slider-thumb: 14px;
         --slider-fill-w: calc(var(--slider-thumb) / 2 + var(--slider-progress, 0) * (100% - var(--slider-thumb)));
 
         appearance: none;
@@ -14,6 +14,7 @@
         width: 100%;
         height: 14px;
         margin: 0;
+        overflow: hidden;
         border-radius: var(--bb-radius-pill);
         background: var(--bb-inset-bg);
         box-shadow:
@@ -25,10 +26,7 @@
     .bb-slider::-webkit-slider-runnable-track {
         height: 100%;
         border-radius: inherit;
-        background:
-            linear-gradient(rgba(var(--bb-white-pure-rgb), 0.3), transparent 2px calc(100% - 4px), rgba(var(--bb-shadow-rgb), 0.24))
-                0 0 / var(--slider-fill-w) 100% no-repeat,
-            linear-gradient(var(--slider-fill), var(--slider-fill)) 0 0 / var(--slider-fill-w) 100% no-repeat;
+        background: linear-gradient(var(--slider-fill), var(--slider-fill)) 0 0 / var(--slider-fill-w) 100% no-repeat;
     }
 
     .bb-slider::-moz-range-track {
@@ -41,22 +39,15 @@
         height: 100%;
         border-radius: inherit;
         background: var(--slider-fill);
-        box-shadow:
-            inset 0 1px 1px rgba(var(--bb-white-pure-rgb), 0.3),
-            inset 0 -2px 3px rgba(var(--bb-shadow-rgb), 0.24);
     }
 
     .bb-slider::-webkit-slider-thumb {
         appearance: none;
         width: var(--slider-thumb);
         height: var(--slider-thumb);
-        margin-top: calc((14px - var(--slider-thumb)) / 2);
         border: 0;
         border-radius: 50%;
         background: var(--slider-fill);
-        box-shadow:
-            0 0 0 1px rgba(var(--bb-shadow-rgb), 0.35),
-            0 2px 4px rgba(var(--bb-shadow-rgb), 0.5);
     }
 
     .bb-slider::-moz-range-thumb {
@@ -65,9 +56,6 @@
         border: 0;
         border-radius: 50%;
         background: var(--slider-fill);
-        box-shadow:
-            0 0 0 1px rgba(var(--bb-shadow-rgb), 0.35),
-            0 2px 4px rgba(var(--bb-shadow-rgb), 0.5);
     }
 
     .bb-slider:focus-visible {
