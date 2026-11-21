@@ -85,7 +85,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: sesame
-          image: ghcr.io/adamousmer/itsbagelbot/sesame:main-1795259557-e64749bd466a@sha256:10c365b84d3ae2133e7ab96250503de2261b55149129799f5ece993007cc47b2
+          image: ghcr.io/adamousmer/itsbagelbot/sesame:main-1795269608-04455fe683d2@sha256:81ec3290810e77060ee4ee1bf134bb0e03109e907edd8dfeda19bb3cc08310ed
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
