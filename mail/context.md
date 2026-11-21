@@ -60,6 +60,7 @@ An acknowledgment means the message arrived; it does not claim resolution or imm
 - Safety footer wording is the Resend shell's i18n strings `mail.safety.label` and `mail.safety.body`
   plus " itsbagelbot.com.", linking https://itsbagelbot.com.
 - Locked visual identity: logo + wordmark, verified strip, safety footer, Caveat signature.
+- Sign-off: every email ends with "the folks behind the bagel" in every language. Hand-sent replies put the sender's handwritten name and role above it ([[SIGNER NAME]], [[SIGNER ROLE]]).
   No accent bar, bagel stamp, emoji or signature gradient.
 - Colours follow `ui/styles/brand.css` (token table in README): card `#18181b` and inset `#121214`
   without borders, primary button `#f4f4f5` on `#111113` with radius 8.

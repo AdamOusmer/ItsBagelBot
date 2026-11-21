@@ -156,7 +156,7 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
             <tr>
               <td valign="middle">
                 <span style="display:inline-block;">
-                  <span style="font-family:'Caveat',cursive;font-size:26px;font-weight:600;line-height:1;color:` + colorTanLt + `;">{{.Signature}}</span>
+                  <span style="font-family:'Caveat','Segoe Script','Bradley Hand','Snell Roundhand',cursive;font-size:26px;font-weight:600;line-height:1;color:` + colorTanLt + `;">{{.Signature}}</span>
                 </span>
               </td>
             </tr>

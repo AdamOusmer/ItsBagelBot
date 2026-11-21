@@ -10,7 +10,7 @@ personne va le lire et vous répondre pendant nos heures d'ouverture.
 Heures d'ouverture : 10 h – 17 h pendant nos journées les plus actives. Les
 messages envoyés en dehors de ces heures recevront une réponse à notre retour.
 
-l'équipe support ItsBagelBot
+the folks behind the bagel
 
 Restez en sécurité. ItsBagelBot ne vous demandera jamais votre mot de passe,
 vos paiements ou données de carte, ni vos codes de connexion ou de vérification

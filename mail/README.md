@@ -95,7 +95,7 @@ Email clients are not browsers. The rules that keep this rendering right:
   | Display font | Syne |
   | Body font | DM Sans |
   | Label / mono | DM Mono |
-  | Signature | Caveat |
+  | Signature | Caveat, with Segoe Script / Bradley Hand / Snell Roundhand fallbacks for clients that skip web fonts |
 
   The `@import` loads Syne, DM Sans, DM Mono and Caveat. Translucent ui tokens
   are pre-blended to solid hex because email clients drop rgba and shadows.

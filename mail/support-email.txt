@@ -13,7 +13,9 @@ paragraphs. No markup, this is the text-only version.]]
 
 [[OPTIONAL CTA LABEL]]: [[CTA URL — https://...   Delete both if unused.]]
 
-the ItsBagelBot support team
+[[SIGNER NAME — e.g. ItsMavey]]
+[[SIGNER ROLE — e.g. Founder]] · ItsBagelBot
+the folks behind the bagel
 
 Staying safe: ItsBagelBot will never ask for your password, payment or card
 details, or login and verification codes by email. We only send from
