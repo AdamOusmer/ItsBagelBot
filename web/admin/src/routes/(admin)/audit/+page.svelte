@@ -1,105 +1,121 @@
 <script lang="ts">
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
-  import { onMount } from 'svelte';
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
+  import { untrack } from 'svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
-  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
   import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
-  import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
+  import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AuditEntry } from '#lib/server/services';
+  import type { AuditPageResult } from '#lib/components/audit/audit-page.server';
   import AuditRow from '#lib/components/audit/AuditRow.svelte';
   import AuditDetail from '#lib/components/audit/AuditDetail.svelte';
   import { auditCsv } from '#lib/components/audit/csv';
   import { downloadCsv } from '@bagel/ui/lib/csv';
-  import { AUDIT_KINDS, KIND_LABEL, inKind, type AuditKind } from '#lib/components/audit/audit-kinds';
+  import { AUDIT_KINDS, KIND_LABEL, auditKind, auditKindCounts, type AuditKind } from '#lib/components/audit/audit-kinds';
 
   let { data } = $props();
 
   const { t } = getI18n();
+  const FILTERS = ['all', ...AUDIT_KINDS] as const;
 
-  let entries = $state<AuditEntry[] | null>(null);
-  let page = $state(1);
-  let hasMore = $state(false);
-  let loadingMore = $state(false);
-  let fetchError = $state('');
-  // svelte-ignore state_referenced_locally
-  let search = $state(data.search);
+  let search = $state(untrack(() => data.search));
+  let kinds = $state<AuditKind[]>([]);
+  let selectedId = $state<number | null>(null);
 
-  type AuditWire = {
-    entries?: AuditEntry[];
-    page?: number;
-    has_more?: boolean;
-    error?: string;
+  $effect(() => {
+    search = data.search;
+    closeInspector();
+  });
+
+  type AuditResult = Pick<AuditPageResult, 'entries' | 'page' | 'has_more' | 'error'>;
+  type SearchRead = { base: Promise<AuditPageResult>; term: string; result: Promise<AuditResult> };
+  type Trail = {
+    firstPage: Promise<AuditResult>;
+    entries: AuditEntry[];
+    page: number;
+    hasMore: boolean;
+    busy: boolean;
+    error: string;
   };
 
-  let seq = 0;
+  let localSearch = $state.raw<SearchRead>();
+  let trail = $state.raw<Trail>();
+  const searchRead = $derived(localSearch?.base === data.firstPage ? localSearch : undefined);
+  const firstPage = $derived(searchRead?.result ?? data.firstPage);
+  const term = $derived(searchRead?.term ?? data.search);
+  const more = $derived(trail?.firstPage === firstPage ? trail : undefined);
 
-  async function fetchPage(wanted: number, q: string, append: boolean) {
-    const mine = ++seq;
-    if (append) loadingMore = true;
-    else entries = null;
-    fetchError = '';
+  function loadSearch(value: string) {
+    const q = value.trim();
+    const searchPage = searchRead ? 1 : data.page;
+    if (q === term && searchPage === 1) return;
+    closeInspector();
+    localSearch = { base: data.firstPage, term: q, result: fetchPage(1, q) };
+  }
+
+  async function fetchPage(page: number, q: string): Promise<AuditResult> {
     try {
-      const params = new URLSearchParams();
-      if (wanted > 1) params.set('page', String(wanted));
-      if (q) params.set('q', q);
-      const res = await fetch(`/audit/data?${params}`);
-      if (!res.ok) throw new Error(`audit fetch failed (${res.status})`);
-      const body = (await res.json()) as AuditWire;
-      if (mine !== seq) return;
-      if (body.error) fetchError = body.error;
-      apply(body, wanted, append);
-    } catch (e) {
-      if (mine !== seq) return;
-      fetchError = (e as Error).message;
-      entries = entries ?? [];
-    } finally {
-      if (mine === seq) loadingMore = false;
+      const query = new URLSearchParams({ page: String(page), q });
+      const response = await fetch('/audit/data?' + query);
+      if (!response.ok) throw new Error(String(response.status));
+      return await response.json();
+    } catch (error) {
+      return {
+        entries: [],
+        page,
+        has_more: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
     }
   }
 
-  function apply(body: AuditWire, wanted: number, append: boolean) {
-    const next = body.entries ?? [];
-    entries = append ? [...(entries ?? []), ...next] : next;
-    page = body.page ?? wanted;
-    hasMore = Boolean(body.has_more);
+  async function loadMore(page: number, loaded: AuditEntry[]) {
+    if (more?.busy) return;
+    const current = more ?? {
+      firstPage,
+      entries: [],
+      page,
+      hasMore: true
+    };
+    trail = { ...current, busy: true, error: '' };
+    const next = await fetchPage(page + 1, term);
+    if (current.firstPage !== firstPage) return;
+    const seen = new Set(loaded.map((entry) => entry.id));
+    const settled = next.error ? current : {
+      firstPage,
+      entries: [...current.entries, ...next.entries.filter((entry) => !seen.has(entry.id))],
+      page: next.page,
+      hasMore: next.has_more
+    };
+    trail = { ...settled, busy: false, error: next.error ?? '' };
   }
 
-  onMount(() => {
-    fetchPage(1, search.trim(), false);
-  });
-
-  function submitSearch(q: string) {
-    search = q;
+  function toggleKind(kind: AuditKind | 'all') {
     closeInspector();
-    fetchPage(1, q.trim(), false);
+    if (kind === 'all') {
+      kinds = [];
+      return;
+    }
+    kinds = kinds.includes(kind) ? kinds.filter((active) => active !== kind) : [...kinds, kind];
   }
 
-  const kindLabels = $derived(AUDIT_KINDS.map((k) => t(KIND_LABEL[k])));
-  let kind = $state<AuditKind>('all');
-  const kindLabel = $derived(kindLabels[AUDIT_KINDS.indexOf(kind)]);
-
-  function pickKind(label: string) {
-    const next = AUDIT_KINDS[kindLabels.indexOf(label)];
-    if (next) kind = next;
+  function loadedEntries(first?: AuditResult): AuditEntry[] {
+    return first ? [...first.entries, ...(more?.entries ?? [])] : [];
   }
 
-  const loaded = $derived(entries ?? []);
-  const rows = $derived(loaded.filter((e) => inKind(e, kind)));
-  const failCount = $derived(loaded.filter((e) => !e.ok).length);
-
-  let selectedId = $state<number | null>(null);
-  const selected = $derived(loaded.find((e) => e.id === selectedId) ?? null);
+  function filterEntries(entries: AuditEntry[]): AuditEntry[] {
+    return kinds.length ? entries.filter((entry) => kinds.includes(auditKind(entry.action))) : entries;
+  }
 
   function closeInspector() {
     selectedId = null;
@@ -109,59 +125,83 @@
     selectedId = selectedId === entry.id ? null : entry.id;
   }
 
-  function exportCsv() {
-    const suffix = search.trim() ? `-${search.trim()}` : '';
-    downloadCsv(`audit-${kind}${suffix}.csv`, auditCsv(rows));
+  function exportCsv(rows: AuditEntry[]) {
+    const suffix = term ? '-' + term : '';
+    const filter = kinds.length ? kinds.join('-') : 'all';
+    downloadCsv('audit-' + filter + suffix + '.csv', auditCsv(rows));
   }
 </script>
 
-<section class="screen active">
-  <PageHead eyebrow={t('admin.audit.eyebrow')} description={t('admin.audit.description')}>
-    {t('admin.audit.titlePre')}<em>{t('admin.audit.titleEm')}</em>
-  </PageHead>
+{#snippet exportAction(rows: AuditEntry[])}
+  <Button variant="ghost" onclick={() => exportCsv(rows)} disabled={rows.length === 0}>
+    <bb-fit><span data-fit>{t('admin.audit.exportCsv')}</span></bb-fit>
+  </Button>
+{/snippet}
 
-  <PageToolbar>
+{#snippet auditBody(first?: AuditResult)}
+  {@const loaded = loadedEntries(first)}
+  {@const rows = filterEntries(loaded)}
+  {@const counts = auditKindCounts(loaded)}
+  {@const selected = rows.find((entry) => entry.id === selectedId)}
+  {@const page = more?.page ?? first?.page}
+  {@const hasMore = more?.hasMore ?? first?.has_more}
+  {@const issue = more?.error || first?.error}
+  {@const atCap = page === data.maxPages && !issue}
+
+  <PageToolbar style="display: block">
     {#snippet leading()}
-      {#if entries}
-        <Text as="span" size="xs" tone="muted" mono>
-          {t('admin.audit.stats', {
-            loaded: String(loaded.length),
-            failed: String(failCount)
-          })}
-        </Text>
-      {/if}
-    {/snippet}
-    {#snippet trailing()}
-      <div class="toolbar-search">
-        <SearchInput
-          bind:value={search}
-          placeholder={t('admin.audit.searchPlaceholder')}
-          debounceMs={350}
-          onValueChange={submitSearch}
-        />
+      <div class="filter-toolbar">
+        <div class="filter-meta">
+          <div class="fit-label">
+            <Text as="div" id="audit-kinds" size="xs" tone="muted">
+              <bb-fit><span data-fit>{t('admin.audit.kindFilter')}</span></bb-fit>
+            </Text>
+          </div>
+          <div class="fit-label stats">
+            <Text as="div" size="xs" tone="muted" mono>
+              {#if first}
+                <bb-fit><span data-fit>{t('admin.audit.stats', {
+                  loaded: String(loaded.length),
+                  failed: String(loaded.filter((entry) => !entry.ok).length)
+                })}</span></bb-fit>
+              {:else}
+                <Skeleton width="min(19ch, 100%)" />
+              {/if}
+            </Text>
+          </div>
+        </div>
+        <div class="kind-grid" role="group" aria-labelledby="audit-kinds">
+          {#each FILTERS as kind (kind)}
+            <Chip
+              pressed={kind === 'all' ? kinds.length === 0 : kinds.includes(kind)}
+              onclick={() => toggleKind(kind)}
+              disabled={!first}
+              style="min-width: 0; justify-content: space-between"
+            >
+              <span class="kind-label"><bb-fit><span data-fit>{t(KIND_LABEL[kind])}</span></bb-fit></span>
+              <span class="kind-count">{first ? (kind === 'all' ? loaded.length : counts.get(kind) ?? 0) : ''}</span>
+            </Chip>
+          {/each}
+        </div>
       </div>
-      <Button variant="ghost" onclick={exportCsv} disabled={rows.length === 0}>
-        {t('admin.audit.exportCsv')}
-      </Button>
     {/snippet}
   </PageToolbar>
 
-  <div class="filters">
-    <SegmentedControl
-      options={kindLabels}
-      label={t('admin.audit.kindFilter')}
-      bind:value={() => kindLabel, pickKind}
-    />
-  </div>
-
-  {#if fetchError}
-    <AlertBanner>{t('admin.audit.unreachable', { error: fetchError })}</AlertBanner>
+  {#if issue}
+    <AlertBanner>{t('admin.audit.unreachable', { error: issue })}</AlertBanner>
   {/if}
 
-  <DeckLayout inspecting={selected !== null} width="380px">
+  <DeckLayout inspecting={selected !== undefined} width="380px">
     <DeckList>
-      {#if entries === null}
-        <SkeletonStack rows={6} height="52px" />
+      {#if !first}
+        <div aria-hidden="true">
+          {#each Array(data.pageSize) as _, i (i)}
+            <div class="row-skeleton">
+              <Skeleton variant="block" width="26px" height="26px" />
+              <Skeleton width="18ch" />
+            </div>
+          {/each}
+        </div>
       {:else if rows.length}
         <ul class="bb-list" aria-label={t('admin.audit.listLabel')}>
           {#each rows as entry (entry.id)}
@@ -177,29 +217,26 @@
         </ul>
       {:else if loaded.length}
         <EmptyState title={t('admin.audit.emptyKind')} body={t('admin.audit.emptyKindBody')} />
-      {:else if search.trim()}
+      {:else if term && !issue}
         <EmptyState title={t('admin.audit.emptyMatch')} body={t('admin.audit.emptyMatchBody')} />
-      {:else}
+      {:else if !issue}
         <EmptyState title={t('admin.audit.empty')} />
       {/if}
 
-      {#if entries && hasMore}
-        <div class="more">
-          <Cluster justify="center">
-            <Button
-              variant="ghost"
-              busy={loadingMore}
-              onclick={() => fetchPage(page + 1, search.trim(), true)}
-            >
-              {t('admin.audit.loadMore')}
-            </Button>
-          </Cluster>
+      <div class="page-controls">
+        <div class="page-control" class:visible={hasMore} inert={!hasMore} aria-hidden={!hasMore}>
+          <Button
+            variant="ghost"
+            busy={more?.busy}
+            onclick={() => page !== undefined && loadMore(page, loaded)}
+          >
+            {t('admin.audit.loadMore')}
+          </Button>
         </div>
-      {:else if entries && page >= data.maxPages}
-        <div class="cap">
+        <div class="page-control" class:visible={atCap} inert={!atCap} aria-hidden={!atCap}>
           <Text size="xs" tone="muted" mono>{t('admin.audit.pageCap', { max: String(data.maxPages) })}</Text>
         </div>
-      {/if}
+      </div>
     </DeckList>
 
     {#if selected}
@@ -214,26 +251,140 @@
       </InspectorSurface>
     {/if}
   </DeckLayout>
+{/snippet}
+
+<section class="screen active">
+  <PageHead eyebrow={t('admin.audit.eyebrow')} description={t('admin.audit.description')}>
+    {t('admin.audit.titlePre')}<em>{t('admin.audit.titleEm')}</em>
+  </PageHead>
+
+  <PageToolbar style="display: block">
+    {#snippet leading()}
+      <div class="query-toolbar">
+        <div class="toolbar-search">
+          <SearchInput
+            bind:value={search}
+            placeholder={t('admin.audit.searchPlaceholder')}
+            debounceMs={350}
+            onValueChange={loadSearch}
+            fill
+          />
+        </div>
+        {#await firstPage}
+          {@render exportAction([])}
+        {:then first}
+          {@render exportAction(filterEntries(loadedEntries(first)))}
+        {/await}
+      </div>
+    {/snippet}
+  </PageToolbar>
+
+  {#await firstPage}
+    {@render auditBody()}
+  {:then first}
+    {@render auditBody(first)}
+  {/await}
 </section>
 
 <style>
+  .query-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 10rem;
+    align-items: center;
+    gap: var(--bb-space-3);
+  }
+
   .toolbar-search {
-    width: 260px;
+    width: min(100%, 22rem);
   }
 
-  .filters {
-    margin-bottom: var(--bb-space-3);
+  .filter-toolbar {
+    display: grid;
+    gap: var(--bb-space-2);
+    container-type: inline-size;
   }
 
-  .more {
-    padding: var(--bb-space-3);
+  .filter-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: center;
+    gap: var(--bb-space-2);
   }
-  .cap {
-    padding: var(--bb-space-3);
+
+  .fit-label {
+    min-width: 0;
+  }
+
+  .stats {
+    text-align: end;
+  }
+
+  .kind-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: var(--bb-space-2);
+  }
+
+  .kind-label {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .kind-count {
+    min-width: 3ch;
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .row-skeleton {
+    display: flex;
+    align-items: center;
+    gap: var(--bb-space-3);
+    padding-inline: 14px;
+    min-height: 63px;
+    border-bottom: 1px solid var(--bb-border);
+  }
+
+  .page-controls {
+    display: grid;
+    place-items: center;
+    padding: var(--bb-space-2);
     text-align: center;
   }
 
-  @media (max-width: 680px) {
+  .page-control {
+    grid-area: 1 / 1;
+    opacity: 0;
+    transition: opacity var(--bb-dur-base);
+  }
+
+  .page-control.visible {
+    opacity: 1;
+  }
+
+  @container (max-width: 62rem) {
+    .kind-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  @container (max-width: 34rem) {
+    .kind-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @container (max-width: 26rem) {
+    .kind-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 600px) {
+    .query-toolbar {
+      grid-template-columns: 1fr;
+    }
+
     .toolbar-search {
       width: 100%;
     }

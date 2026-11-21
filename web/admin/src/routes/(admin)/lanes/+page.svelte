@@ -1,15 +1,18 @@
 <script lang="ts">
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
   import { untrack, onMount } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import { enhance, type SubmitFunction } from '$app/forms';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
   import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
+  import Grid from '@bagel/ui/svelte/Grid.svelte';
   import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -28,10 +31,15 @@
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { allows } from '#lib/access';
+  import { applyStreamed } from '#lib/streamed-load';
   import type { LaneView, LanesResult } from '#lib/server/lanes';
   import LaneRow from '#lib/components/lanes/LaneRow.svelte';
   import LaneEditor from '#lib/components/lanes/LaneEditor.svelte';
-  import { matchesPipeline } from '#lib/components/lanes/lane-pipeline';
+  import {
+    matchesPipeline,
+    type PipelineStageFilter,
+    type PipelineTrafficFilter
+  } from '#lib/components/lanes/lane-pipeline';
   import {
     currentAlias,
     groupLanes,
@@ -42,21 +50,15 @@
 
   let { data } = $props();
 
-  const { t } = getI18n();
+  const { locale, t } = getI18n();
   const failed = adminToastFailure(toast);
   const canMutate = $derived(allows(data.role, 'lanes.mutate'));
 
-  let result = $state<LanesResult | null>(null);
+  let result = $state.raw<LanesResult | null>(null);
   let live = $state(false);
-  $effect(() => {
-    let alive = true;
-    data.lanes.then((r: LanesResult) => {
-      if (alive && result === null) result = r;
-    });
-    return () => {
-      alive = false;
-    };
-  });
+  $effect(() => applyStreamed(data.lanes, (snapshot) => {
+    if (result === null) result = snapshot;
+  }));
 
   const POLL_MS = 5000;
 
@@ -85,53 +87,91 @@
     })
   );
 
-  const CATEGORIES = ['all', 'system', 'projection', 'ephemeral'] as const;
-  let category = $state<string>('all');
+  const categoryChoices = [
+    { value: 'all', label: t('admin.lanes.categoryAll') },
+    { value: 'system', label: t('admin.lanes.categorySystem') },
+    { value: 'projection', label: t('admin.lanes.categoryProjection') },
+    { value: 'ephemeral', label: t('admin.lanes.categoryEphemeral') }
+  ] as const;
+  const pipelineChoices = [
+    { value: 'all', label: t('admin.lanes.pipelineAll') },
+    { value: 'twitch', label: t('admin.lanes.pipelineTwitch') },
+    { value: 'ingress', label: t('admin.lanes.pipelineIngress') },
+    { value: 'outgress', label: t('admin.lanes.pipelineOutgress') },
+    { value: 'system', label: t('admin.lanes.pipelineSystem') }
+  ] as const;
+  const trafficChoices = [
+    { value: 'all', label: t('admin.lanes.trafficAll') },
+    { value: 'stream', label: t('admin.lanes.trafficStream') },
+    { value: 'standard', label: t('admin.lanes.trafficStandard') },
+    { value: 'premium', label: t('admin.lanes.trafficPremium') }
+  ] as const;
+
+  const categories = new SvelteSet<string>();
   let search = $state('');
-  const PIPELINE_STAGES = ['all', 'twitch', 'ingress', 'outgress', 'system'] as const;
-  const TRAFFIC_TIERS = ['all', 'stream', 'standard', 'premium'] as const;
-  let pipelineStage = $state<(typeof PIPELINE_STAGES)[number]>('all');
-  let trafficTier = $state<(typeof TRAFFIC_TIERS)[number]>('all');
-  const pipelineOptions = $derived([
-    t('admin.lanes.pipelineAll'), t('admin.lanes.pipelineTwitch'),
-    t('admin.lanes.pipelineIngress'), t('admin.lanes.pipelineOutgress'),
-    t('admin.lanes.pipelineSystem')
-  ]);
-  const trafficOptions = $derived([
-    t('admin.lanes.trafficAll'), t('admin.lanes.trafficStream'),
-    t('admin.lanes.trafficStandard'), t('admin.lanes.trafficPremium')
-  ]);
-
-  function selectPipeline(label: string) {
-    pipelineStage = PIPELINE_STAGES[pipelineOptions.indexOf(label)] ?? 'all';
-    category = 'all';
-  }
-
-  function selectTraffic(label: string) {
-    trafficTier = TRAFFIC_TIERS[trafficOptions.indexOf(label)] ?? 'all';
-    category = 'all';
-  }
+  let pipelineStage = $state<PipelineStageFilter>('all');
+  let trafficTier = $state<PipelineTrafficFilter>('all');
 
   const lanes = $derived(result?.lanes ?? []);
+  const query = $derived(search.trim().toLowerCase());
 
-  function matchesSearch(lane: LaneView, q: string): boolean {
-    if (!q) return true;
-    return (
-      lane.display.toLowerCase().includes(q) ||
-      lane.stream.toLowerCase().includes(q) ||
-      lane.consumer.toLowerCase().includes(q) ||
-      lane.subject.toLowerCase().includes(q)
-    );
+  function matchesSearch(lane: LaneView): boolean {
+    if (!query) return true;
+    return [lane.display, lane.stream, lane.consumer, lane.subject]
+      .some((field) => field.toLowerCase().includes(query));
   }
 
-  const rows = $derived.by(() => {
-    const q = search.trim().toLowerCase();
-    return lanes.filter(
-      (l) => (category === 'all' || l.category === category) &&
-        matchesPipeline(l, pipelineStage, trafficTier) && matchesSearch(l, q)
-    );
-  });
+  function matchesCategory(lane: LaneView): boolean {
+    return categories.size === 0 || categories.has(lane.category);
+  }
 
+  function toggleCategory(category: string) {
+    if (category === 'all') {
+      categories.clear();
+      return;
+    }
+    if (!categories.delete(category)) categories.add(category);
+  }
+
+  type FilterChoice<Value> = { value: Value; label: string };
+  const optionLayout = 'display: grid; grid-template-columns: minmax(0, 1fr) auto; overflow: clip;';
+
+  function countedOptions<Value extends string>(
+    options: readonly FilterChoice<Value>[],
+    candidates: LaneView[],
+    matches: (lane: LaneView, choice: Value) => boolean
+  ) {
+    return options.map(({ value, label }) => ({
+      value,
+      label,
+      count: result === null ? '\u00a0' : candidates.filter((lane) => matches(lane, value)).length.toLocaleString(locale),
+      attrs: { style: optionLayout }
+    }));
+  }
+
+  const searched = $derived(lanes.filter(matchesSearch));
+  const categoryCandidates = $derived(searched.filter((lane) => matchesPipeline(lane, pipelineStage, trafficTier)));
+  const pipelineCandidates = $derived(searched.filter(matchesCategory));
+  const categoryOptions = $derived(countedOptions(
+    categoryChoices, categoryCandidates, (lane, value) => value === 'all' || value === lane.category
+  ));
+  const segmentFilters = $derived([
+    {
+      id: 'pipeline',
+      label: t('admin.lanes.pipelineFilter'),
+      options: countedOptions(pipelineChoices, pipelineCandidates, (lane, value) => matchesPipeline(lane, value, trafficTier)),
+      value: pipelineStage,
+      onValueChange: (value: string) => { pipelineStage = value as PipelineStageFilter; }
+    },
+    {
+      id: 'traffic',
+      label: t('admin.lanes.trafficFilter'),
+      options: countedOptions(trafficChoices, pipelineCandidates, (lane, value) => matchesPipeline(lane, pipelineStage, value)),
+      value: trafficTier,
+      onValueChange: (value: string) => { trafficTier = value as PipelineTrafficFilter; }
+    }
+  ]);
+  const rows = $derived(categoryCandidates.filter(matchesCategory));
   const groups = $derived(groupLanes(rows));
 
   const orphanCount = $derived(lanes.filter((l) => l.orphan).length);
@@ -178,17 +218,21 @@
 
   type LaneActionPayload = { ok?: boolean; notice?: string; error?: string };
 
+  function renameInSnapshot(before: LanesResult | null, key: string | null, alias: string) {
+    if (!before) return before;
+    const next = normalizeAlias(alias);
+    const lanes = before.lanes.map((lane) =>
+      laneKey(lane) === key ? { ...lane, display: next || lane.consumer } : lane
+    );
+    return { ...before, lanes };
+  }
+
   const aliasSubmit: SubmitFunction = () => {
     const begun = inspector.beginSave();
-    const key = inspector.selectedId;
-    const before = result ? result.lanes.map((l) => ({ ...l })) : null;
+    const before = result;
+    const optimistic = begun ? renameInSnapshot(before, inspector.selectedId, begun.snapshot.alias) : before;
+    result = optimistic;
     busy = true;
-    if (result && begun) {
-      const next = normalizeAlias(begun.snapshot.alias);
-      result.lanes = result.lanes.map((l) =>
-        laneKey(l) === key ? { ...l, display: next || l.consumer } : l
-      );
-    }
     return async ({ result: r }) => {
       busy = false;
       const p = actionPayload<LaneActionPayload>(r);
@@ -198,7 +242,7 @@
         toast('success', p!.notice ?? t('admin.lanes.renamed'));
         return;
       }
-      if (result && before) result.lanes = before;
+      if (result === optimistic) result = before;
       failed(p, t('admin.lanes.renameFailed'));
     };
   };
@@ -245,60 +289,74 @@
     <AlertBanner>{result.notice}</AlertBanner>
   {/if}
 
-  <PageToolbar>
-    {#snippet leading()}
-      {#if result}
-        <Cluster gap={2}>
-          <Text as="span" size="xs" tone="muted" mono>
-            {t('admin.lanes.stats', {
-              lanes: String(lanes.length),
-              orphans: String(orphanCount),
-              pending: totalPending.toLocaleString()
-            })}
-          </Text>
-          {#if live}<Tag tone="live">{t('admin.lanes.live')}</Tag>{/if}
-        </Cluster>
-      {:else}
-        <Skeleton variant="pill" width="220px" />
-      {/if}
-    {/snippet}
-    {#snippet trailing()}
-      <div class="toolbar-search">
-        <SearchInput fill bind:value={search} placeholder={t('admin.lanes.searchPlaceholder')} />
-      </div>
-    {/snippet}
-  </PageToolbar>
+  <div class="lane-toolbar">
+    <PageToolbar style="display: block;">
+      {#snippet leading()}
+        <Stack gap={3}>
+          <div class="toolbar-top">
+            <div class="toolbar-summary" aria-busy={result === null}>
+              {#if result}
+                <Text as="div" size="xs" tone="muted" mono>
+                  <bb-fit>{t('admin.lanes.stats', {
+                    lanes: lanes.length.toLocaleString(locale),
+                    orphans: orphanCount.toLocaleString(locale),
+                    pending: totalPending.toLocaleString(locale)
+                  })}</bb-fit>
+                </Text>
+              {:else}
+                <Skeleton variant="pill" width="min(100%, 220px)" height="16px" />
+              {/if}
+              <span class="live-indicator" class:live aria-hidden={!live}>
+                <Tag tone="live" bare style="display: flex;"><bb-fit>{t('admin.lanes.live')}</bb-fit></Tag>
+              </span>
+            </div>
+            <SearchInput
+              fill
+              bind:value={search}
+              placeholder={t('admin.lanes.searchPlaceholder')}
+              aria-label={t('admin.lanes.searchPlaceholder')}
+            />
+          </div>
+          <div class="toolbar-filters">
+            <Stack gap={3}>
+              {#each segmentFilters as filter (filter.id)}
+                <Stack gap={1}>
+                  <Label mono as="span">{filter.label}</Label>
+                  <SegmentedControl
+                    even
+                    class="bb-tabs--plain"
+                    label={filter.label}
+                    options={filter.options}
+                    value={filter.value}
+                    onValueChange={filter.onValueChange}
+                    style="grid-auto-columns: minmax(5.5rem, 1fr); overflow-x: auto; scrollbar-width: thin;"
+                  />
+                </Stack>
+              {/each}
+              <Stack gap={1}>
+                <Label mono as="span" id="lane-category-filter">{t('admin.lanes.categoryFilter')}</Label>
+                <Grid min="8rem" gap={2} class="lane-categories" role="group" aria-labelledby="lane-category-filter">
+                  {#each categoryOptions as option (option.value)}
+                    <Chip
+                      class="bb-chip--cell"
+                      style={optionLayout}
+                      pressed={option.value === 'all' ? categories.size === 0 : categories.has(option.value)}
+                      onclick={() => toggleCategory(option.value)}
+                    >
+                      <bb-fit>{option.label}</bb-fit>
+                      <Text as="span" size="xs" tone="muted" mono>{option.count}</Text>
+                    </Chip>
+                  {/each}
+                </Grid>
+              </Stack>
+            </Stack>
+          </div>
+        </Stack>
+      {/snippet}
+    </PageToolbar>
+  </div>
 
   <Stack gap={4}>
-    <Stack gap={3}>
-      <Stack gap={2} align="start">
-        <Label mono as="span">{t('admin.lanes.pipelineFilter')}</Label>
-        <SegmentedControl
-          options={pipelineOptions}
-          label={t('admin.lanes.pipelineFilter')}
-          bind:value={() => pipelineOptions[PIPELINE_STAGES.indexOf(pipelineStage)], selectPipeline}
-        />
-      </Stack>
-      <Stack gap={2} align="start">
-        <Label mono as="span">{t('admin.lanes.trafficFilter')}</Label>
-        <SegmentedControl
-          options={trafficOptions}
-          label={t('admin.lanes.trafficFilter')}
-          bind:value={() => trafficOptions[TRAFFIC_TIERS.indexOf(trafficTier)], selectTraffic}
-        />
-      </Stack>
-      {#if pipelineStage === 'all' && trafficTier === 'all'}
-        <Stack gap={2} align="start">
-          <Label mono as="span">{t('admin.lanes.categoryFilter')}</Label>
-          <SegmentedControl
-            options={CATEGORIES}
-            label={t('admin.lanes.categoryFilter')}
-            bind:value={category}
-          />
-        </Stack>
-      {/if}
-    </Stack>
-
     <DeckLayout inspecting={inspector.isOpen} width="380px">
       <DeckList>
         {#if result === null}
@@ -428,13 +486,54 @@
     overflow-wrap: anywhere;
   }
 
-  .toolbar-search {
-    width: 240px;
+  .lane-toolbar {
+    container-type: inline-size;
   }
 
-  @media (max-width: 680px) {
-    .toolbar-search {
-      width: 100%;
+  .toolbar-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 15rem);
+    align-items: center;
+    gap: var(--bb-space-3);
+  }
+
+  .toolbar-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 5.5rem;
+    align-items: center;
+    gap: var(--bb-space-2);
+    min-block-size: 22px;
+  }
+
+  .live-indicator {
+    max-inline-size: 5.5rem;
+    opacity: 0;
+    transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo);
+  }
+
+  .live-indicator.live {
+    opacity: 1;
+  }
+
+  .toolbar-filters {
+    max-inline-size: 42rem;
+  }
+
+  @container (max-width: 42rem) {
+    .toolbar-top {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @container (max-width: 34rem) {
+    .toolbar-filters :global(.lane-categories) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @container (max-width: 20rem) {
+    .toolbar-summary {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 </style>

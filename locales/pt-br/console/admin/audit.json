@@ -4,7 +4,7 @@
   "titleEm": "auditoria",
   "description": "Cada ação de operador, quem a executou e se funcionou.",
   "searchPlaceholder": "Autor, ação, alvo…",
-  "kindFilter": "Tipo de ação",
+  "kindFilter": "Filtrar registros carregados",
   "kindAll": "Todas",
   "kindUsers": "Usuários",
   "kindStaff": "Equipe",

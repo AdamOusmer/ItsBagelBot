@@ -8,7 +8,6 @@ import {
   notificationsList,
   notificationSend,
   notificationDelete,
-  NOTIFICATIONS_PAGE_SIZE,
   NOTIFICATIONS_MAX_PAGES,
   type NotificationWire
 } from '#lib/server/services';
@@ -29,25 +28,12 @@ const MAX_TITLE_LENGTH = 120;
 const MAX_BODY_LENGTH = 2000;
 const DEMO = dev && process.env.DEMO === '1';
 
-export type HistoryBundle = {
+type HistoryBundle = {
   notifications: NotificationWire[];
   page: number;
-  pageSize: number;
-  maxPages: number;
   hasMore: boolean;
   degraded: boolean;
 };
-
-function demoPage(page: number, notifications: NotificationWire[]): HistoryBundle {
-  return {
-    notifications,
-    page,
-    pageSize: NOTIFICATIONS_PAGE_SIZE,
-    maxPages: NOTIFICATIONS_MAX_PAGES,
-    hasMore: false,
-    degraded: false
-  };
-}
 
 async function loadHistory(page: number): Promise<HistoryBundle> {
   try {
@@ -55,8 +41,6 @@ async function loadHistory(page: number): Promise<HistoryBundle> {
     return {
       notifications: result.notifications,
       page: result.page,
-      pageSize: result.page_size,
-      maxPages: result.max_pages,
       hasMore: result.has_more,
       degraded: false
     };
@@ -64,8 +48,6 @@ async function loadHistory(page: number): Promise<HistoryBundle> {
     return {
       notifications: [],
       page,
-      pageSize: NOTIFICATIONS_PAGE_SIZE,
-      maxPages: NOTIFICATIONS_MAX_PAGES,
       hasMore: false,
       degraded: true
     };
@@ -75,11 +57,14 @@ async function loadHistory(page: number): Promise<HistoryBundle> {
 export const load: PageServerLoad = ({ url }) => {
   const page = parsePage(url.searchParams.get('page'), NOTIFICATIONS_MAX_PAGES);
   const history: Promise<HistoryBundle> = DEMO
-    ? import('#lib/server/demo-data').then(({ sampleNotifications }) =>
-        demoPage(page, sampleNotifications)
-      )
+    ? import('#lib/server/demo-data').then(({ sampleNotifications }) => ({
+        notifications: sampleNotifications,
+        page,
+        hasMore: false,
+        degraded: false
+      }))
     : loadHistory(page);
-  return { history };
+  return { page, history };
 };
 
 type SendForm = {
