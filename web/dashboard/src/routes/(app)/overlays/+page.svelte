@@ -80,27 +80,13 @@
 <svelte:head><title>{t('nav.overlays')}</title></svelte:head>
 <svelte:window onresize={measureBoard} />
 
-{#snippet topStart()}
-  <span class="crumbs">
-    <span class="crumb bb-fit-box"><Text as="span" size="sm" tone="muted"><bb-fit>{t('nav.overlays')}</bb-fit></Text></span>
-    <span class="crumb-sep" aria-hidden="true">/</span>
-    <h1 class="title bb-fit-box"><bb-fit>{t('overlays.poweredTitle')}</bb-fit></h1>
-  </span>
-{/snippet}
-
-{#snippet topEnd()}
-  <span class="save-slot">
-    <span class="save-note bb-fit-box" class:quiet={saveState !== 'idle'}>
-      <Text as="div" size="xs" tone="muted"><bb-fit mode="block">{t('modules.autoSaveNote')}</bb-fit></Text>
-    </span>
-    <span class="save-state"><SaveStatus state={saveState} /></span>
-  </span>
-{/snippet}
-
 {#snippet rightPanel()}
   <aside class="panel" aria-labelledby="powered-title">
     <header class="head">
-      <h2 class="name bb-fit-box" id="powered-title"><bb-fit>{t('overlays.poweredTitle')}</bb-fit></h2>
+      <div class="title-row">
+        <h1 class="name bb-fit-box" id="powered-title"><bb-fit>{t('overlays.poweredTitle')}</bb-fit></h1>
+        <SaveStatus state={saveState} />
+      </div>
       <div class="intro bb-fit-box">
         <Text as="div" size="xs" tone="muted"><bb-fit mode="block">{t('overlays.poweredIntro')}</bb-fit></Text>
       </div>
@@ -134,8 +120,6 @@
     height="100dvh"
     topInset="calc(var(--bb-topbar-height) + var(--overlays-top-gap, 6px))"
     bottomRoom="var(--overlays-bottom-room, 0px)"
-    {topStart}
-    {topEnd}
     {rightPanel}
   >
     <PoweredPreview src={previewSrc} />
@@ -163,37 +147,6 @@
       --overlays-scene-bottom: calc(var(--overlays-bottom-room) + min(var(--overlays-sheet-h), 100dvh - 64px) + 16px);
     }
   }
-  .crumbs {
-    display: flex;
-    align-items: center;
-    gap: var(--bb-space-2);
-    min-inline-size: 0;
-    padding-inline-start: var(--bb-space-3);
-  }
-  .crumb { flex: none; max-inline-size: 8rem; white-space: nowrap; }
-  .crumb-sep { flex: none; color: var(--bb-muted); }
-  .title {
-    flex: 1;
-    min-inline-size: 0;
-    margin: 0;
-    font: 600 var(--bb-text-md)/1.25 var(--bb-font-body);
-    color: var(--bb-white);
-    white-space: nowrap;
-  }
-  .save-slot {
-    display: grid;
-    align-items: center;
-    inline-size: 11rem;
-    padding-inline: var(--bb-space-2);
-  }
-  .save-note, .save-state {
-    grid-area: 1 / 1;
-    align-self: center;
-    min-inline-size: 0;
-  }
-  .save-note { block-size: 2.5em; align-content: center; text-align: end; }
-  .save-state { justify-self: end; white-space: nowrap; }
-  .save-note.quiet { opacity: 0; }
   .panel {
     display: flex;
     flex-direction: column;
@@ -212,7 +165,14 @@
     padding: var(--bb-space-4) var(--panel-pad);
     border-block-end: 1px solid var(--bb-rule);
   }
+  .title-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--bb-space-3);
+  }
   .name {
+    min-inline-size: 0;
     block-size: var(--bb-space-5);
     margin: 0;
     font: 600 var(--bb-text-md)/1.25 var(--bb-font-body);
@@ -231,11 +191,5 @@
     padding: var(--bb-space-5) var(--panel-pad);
   }
   .scroll > :global(*) { flex: none; }
-  @media (max-width: 760px) {
-    .save-slot { inline-size: 8rem; }
-    .crumb, .crumb-sep { display: none; }
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    .save-note { transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo); }
-  }
+
 </style>

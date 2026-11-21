@@ -45,7 +45,7 @@
 <style>
   .scene {
     position: absolute;
-    inset-block: calc(var(--stage-top, 0px) + 80px) var(--overlays-scene-bottom, 16px);
+    inset-block: calc(var(--stage-top, 0px) + 16px) var(--overlays-scene-bottom, 16px);
     inset-inline: 16px calc(var(--editor-panel-right, 360px) + 32px);
     display: grid;
     place-items: center;
