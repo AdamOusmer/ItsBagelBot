@@ -21,7 +21,7 @@ type VoiceAllowance struct {
 	ResetsAt        time.Time      `json:"resets_at"`
 	Enabled         bool           `json:"enabled"`
 	Voice           string         `json:"voice"`
-	Reason          string         `json:"reason,omitempty"`
+	Reason          string         `json:"reason"`
 }
 
 type VoiceGetRequest struct {

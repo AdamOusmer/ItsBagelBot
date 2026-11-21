@@ -109,7 +109,7 @@
           </PageNotice>
         </form>
       </Card>
-    {:else if allowance.reason === 'no_plan' || !allowance.reason}
+    {:else if allowance.reason === 'no_plan'}
       <Card>
         <div class="voicePanel">
           <Text class="noticeCopy"><bb-fit mode="block"><span data-fit="">{t('voice.free')}</span></bb-fit></Text>

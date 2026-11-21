@@ -117,17 +117,20 @@ Edit schemas rather than generated Ent code.
   receipts indefinitely.
 - Premium voice usage accumulates per account and calendar month in UTC.
   The owner-only dashboard verbs `voice_get` and `voice_set` require matching
-  authenticated actor and broadcaster IDs from Dashboard. Internal voice
-  `check` and `record` use `rpc.internal.users.voice.*`. A check reads the
-  balance without reserving it, so concurrent checks can overshoot by the usage
-  from in-flight requests. Recording stores the original allowance reply with
-  the per-user request ID for replay. Once the sweep removes a receipt after
-  40 days, replaying that request ID counts as new usage. Account erasure cascades
-  to usage and receipts.
+  authenticated actor and broadcaster IDs from Dashboard. The internal voice
+  `check` and `record` handlers exist for `rpc.internal.users.voice.*` and are
+  not served yet. Enabling them requires a caller and regeneration of the NATS
+  operator JWT. A check reads the balance without reserving it, so concurrent
+  checks can overshoot by the usage from in-flight requests. A replay returns
+  the stored plan, reason, and usage for the per-user request ID with the
+  channel's current enabled setting and voice. Once the sweep removes a receipt
+  after 40 days, replaying that request ID counts as new usage. Account erasure
+  cascades to usage and receipts.
 - Banned and inactive accounts receive zero cloud voice minutes. A committed
   giveaway covering the current time raises an admin grant from 30 to 60 minutes.
-  Allowance replies include a `reason` of `banned`, `inactive`, `no_plan` or
-  `ok`. Receipts created before this field was added can omit it on replay.
+  Lapsed subscriptions intentionally keep their voice minutes until the expiry
+  sweep updates the plan, with a 24-hour grace period for Tebex. Successful
+  allowance replies include a `reason` of `banned`, `inactive`, `no_plan` or `ok`.
 
 Lifecycle authority: `repository/lifecycle.go` owns immediate intent, independent bot moderation/grant facts, admission generations, incident suppression, bounded recovery and indexed due replay. `lifecycle_projection_pending` persists publication failures without changing read revision on acknowledgment. Legacy seeds run 200 per due pass and unknown access stays degraded. `LifecycleErasure` retains incarnation-fenced cleanup after deletion; completed markers expire after seven days only once the deletion event has been published.
 

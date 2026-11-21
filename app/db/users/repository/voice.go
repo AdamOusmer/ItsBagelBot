@@ -108,7 +108,7 @@ func (v voiceRecording) apply(ctx context.Context, tx *ent.Tx) (usersrpc.VoiceAl
 		voiceusagereceipt.RequestIDEQ(v.record.RequestID),
 	).Only(ctx)
 	if err == nil {
-		return receipt.Allowance, nil
+		return withVoiceSettings(receipt.Allowance, v.owner), nil
 	}
 	if !ent.IsNotFound(err) {
 		return usersrpc.VoiceAllowance{}, err
@@ -152,15 +152,21 @@ func loadVoiceAllowance(ctx context.Context, tx *ent.Tx, owner *ent.User, now ti
 		return usersrpc.VoiceAllowance{}, err
 	}
 	limit := voiceplan.SecondsToTokens(voiceplan.MonthlySeconds(plan))
-	name := owner.TtsVoice
-	if name == "" {
-		name = voiceplan.DefaultVoice
-	}
-	return usersrpc.VoiceAllowance{
+	allowance := usersrpc.VoiceAllowance{
 		Plan: plan, Period: period, LimitTokens: limit, UsedTokens: used, RemainingTokens: max(0, limit-used),
-		ResetsAt: voiceplan.ResetsAt(now), Enabled: owner.TtsEnabled, Voice: name,
-		Reason: voiceAllowanceReason(owner, plan),
-	}, nil
+		ResetsAt: voiceplan.ResetsAt(now),
+		Reason:   voiceAllowanceReason(owner, plan),
+	}
+	return withVoiceSettings(allowance, owner), nil
+}
+
+func withVoiceSettings(allowance usersrpc.VoiceAllowance, owner *ent.User) usersrpc.VoiceAllowance {
+	allowance.Enabled = owner.TtsEnabled
+	allowance.Voice = owner.TtsVoice
+	if allowance.Voice == "" {
+		allowance.Voice = voiceplan.DefaultVoice
+	}
+	return allowance
 }
 
 func voiceAllowanceReason(owner *ent.User, plan voiceplan.Plan) string {

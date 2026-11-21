@@ -129,7 +129,9 @@ func TestVoiceUsageAccumulatesAndResets(t *testing.T) {
 	assert.Equal(t, exhausted, voiceAllowanceAt(t, repo, monthEnd))
 
 	require.NoError(t, repo.SetVoiceSettings(t.Context(), voiceOwnerID, false, "Puck"))
-	assert.Equal(t, start, recordVoiceAt(t, repo, first, newMonth))
+	wantReplay := start
+	wantReplay.Enabled, wantReplay.Voice = false, "Puck"
+	assert.Equal(t, wantReplay, recordVoiceAt(t, repo, first, newMonth))
 	assert.Zero(t, voiceAllowanceAt(t, repo, newMonth).UsedTokens)
 
 	next := repository.VoiceUsageRecord{RequestID: "next", AudioTokens: 25, DurationMS: 1000}
@@ -231,19 +233,4 @@ func TestVoiceReceiptRetention(t *testing.T) {
 
 	assert.Equal(t, int64(75), voiceAllowanceAt(t, repo, cutoff).UsedTokens)
 	assert.Equal(t, expired.AudioTokens, recordVoiceAt(t, repo, expired, now).UsedTokens)
-}
-
-func TestVoiceUsageReplaysLegacyReceipt(t *testing.T) {
-	client, repo := newVoiceAccount(t)
-	now := time.Date(2026, 12, 15, 0, 0, 0, 0, time.UTC)
-	record := repository.VoiceUsageRecord{RequestID: "legacy", AudioTokens: 25}
-	snapshot := usersrpc.VoiceAllowance{
-		Plan: voiceplan.Free, Period: "2026-12", UsedTokens: record.AudioTokens, ResetsAt: voiceplan.ResetsAt(now),
-		Enabled: true, Voice: voiceplan.DefaultVoice,
-	}
-	client.VoiceUsageReceipt.Create().SetUserID(voiceOwnerID).SetRequestID(record.RequestID).
-		SetPeriod(snapshot.Period).SetAudioTokens(record.AudioTokens).SetCreatedAt(now).SetAllowance(snapshot).ExecX(t.Context())
-
-	assert.Equal(t, snapshot, recordVoiceAt(t, repo, record, now))
-	assert.Zero(t, voiceAllowanceAt(t, repo, now).UsedTokens)
 }

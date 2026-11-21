@@ -18,21 +18,21 @@ const viewAs = { user_id: '42', impersonator_id: '97' };
 const actor = { actor_id: '42', broadcaster_user_id: '42' };
 const allowance: VoiceAllowance = {
   plan: 'premium', period: '2026-11', limit_tokens: 90_000, used_tokens: 20_025,
-  remaining_tokens: 69_975, resets_at: '2026-12-01T00:00:00Z', enabled: true, voice: 'Puck'
+  remaining_tokens: 69_975, resets_at: '2026-12-01T00:00:00Z', enabled: true, voice: 'Puck', reason: 'ok'
 };
 const free: VoiceAllowance = {
-  ...allowance, plan: 'free', limit_tokens: 0, used_tokens: 0, remaining_tokens: 0, enabled: false, voice: 'Kore'
+  ...allowance, plan: 'free', limit_tokens: 0, used_tokens: 0, remaining_tokens: 0,
+  enabled: false, voice: 'Kore', reason: 'no_plan'
 };
 const voiceUrl = 'https://dashboard.test/voice';
 
 afterEach(() => mock.restore());
 
 test.each([
-  { name: 'Premium owner', session: owner, reply: { ...allowance, reason: 'ok' }, readOnly: false },
-  { name: 'free owner', session: owner, reply: { ...free, reason: 'no_plan' }, readOnly: false },
+  { name: 'Premium owner', session: owner, reply: allowance, readOnly: false },
+  { name: 'free owner', session: owner, reply: free, readOnly: false },
   { name: 'inactive owner', session: owner, reply: { ...free, reason: 'inactive' }, readOnly: false },
   { name: 'banned owner', session: owner, reply: { ...free, reason: 'banned' }, readOnly: false },
-  { name: 'owner with a reply without a reason', session: owner, reply: free, readOnly: false },
   { name: 'delegate', session: delegate, reply: null, readOnly: true },
   { name: 'view-as', session: viewAs, reply: null, readOnly: true }
 ])('loads voice data for $name', async ({ session, reply, readOnly }) => {

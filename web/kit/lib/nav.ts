@@ -6,7 +6,7 @@ import type { MessageKey } from './i18n/keys';
 import { MODULE_CATALOG, moduleDelegateSections } from './types';
 import { MODULE_CATEGORY_I18N, MODULE_CATEGORY_ORDER, categoryHref } from './module-index';
 import { identity } from './nav-core';
-import { GRANTABLE_SECTIONS, dashboardDelegateShortcuts, dashboardNavItems as clientNavItems } from './nav-dashboard';
+import { GRANTABLE_SECTIONS, dashboardNavItems as clientNavItems } from './nav-dashboard';
 
 export { navGroups, navItems, resolveSection, type SectionDef } from './nav-core';
 export {
@@ -41,7 +41,7 @@ export function delegateAllowedPaths(sections: readonly string[]): string[] {
     }
   }
   if (sections.includes('commands')) allowed.push('/counters/list');
-  return [...new Set([...allowed, ...dashboardDelegateShortcuts(sections)])];
+  return allowed;
 }
 
 export function pathnameAllowed(pathname: string, allowed: string[], sections: readonly string[]): boolean {

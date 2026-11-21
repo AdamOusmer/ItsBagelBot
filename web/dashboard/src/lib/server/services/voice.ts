@@ -19,12 +19,12 @@ export type VoiceAllowance = VoiceSettings & {
   used_tokens: number;
   remaining_tokens: number;
   resets_at: string;
-  reason?: 'ok' | 'no_plan' | 'inactive' | 'banned';
+  reason: 'ok' | 'no_plan' | 'inactive' | 'banned';
 };
 
 function voiceActor(session: Session) {
   return {
-    actor_id: session.impersonator_id ?? session.user_id,
+    actor_id: session.user_id,
     broadcaster_user_id: effectiveId(session)
   };
 }

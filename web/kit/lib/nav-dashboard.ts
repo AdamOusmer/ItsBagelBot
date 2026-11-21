@@ -90,7 +90,7 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     icon: 'bell',
     href: '/voice',
     match: ['/voice'],
-    grantsAny: ['modules']
+    ownerOnly: true
   },
   {
     id: 'billing',
@@ -125,10 +125,6 @@ type NavOpts = {
 function grantedTo(def: DashboardSectionDef, sections: readonly string[]): boolean {
   if (def.grantsAny) return def.grantsAny.some((grant) => sections.includes(grant));
   return !def.grant || sections.includes(def.grant);
-}
-
-export function dashboardDelegateShortcuts(sections: readonly string[]): string[] {
-  return DASHBOARD_SECTIONS.filter((def) => def.grantsAny && grantedTo(def, sections)).map((def) => def.href);
 }
 
 function sectionVisible(def: DashboardSectionDef, opts: NavOpts): boolean {
