@@ -10,7 +10,6 @@
   "show": "Tempo na tela",
   "showValue": "{seconds} s",
   "from": "Entra por",
-  "fromHint": "Escolha pelo menos uma borda.",
   "edge": {
     "top": "Topo",
     "bottom": "Base",
@@ -34,6 +33,6 @@
   "copyFailed": "Não foi possível copiar o link. Tente de novo.",
   "invalidEvery": "Escolha de {everyMin} a {everyMax} minutos.",
   "invalidShow": "Escolha de {showMin} a {showMax} segundos.",
-  "invalidFrom": "Escolha pelo menos uma borda.",
+  "invalidFrom": "Escolha uma borda.",
   "invalidAlign": "Escolha uma posição na borda."
 }

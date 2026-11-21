@@ -7,11 +7,9 @@
     MAX_EVERY_MINUTES, MAX_SHOW_SECONDS, MIN_EVERY_MINUTES, MIN_SHOW_SECONDS, POWERED_ALIGNS, POWERED_DIRECTIONS,
     type PoweredAlign, type PoweredConfig, type PoweredDirection
   } from '@bagel/kit/overlays';
-  import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import Slider from '@bagel/ui/svelte/Slider.svelte';
-  import Text from '@bagel/ui/svelte/Text.svelte';
 
   let { config, onChange }: {
     config: PoweredConfig;
@@ -33,7 +31,7 @@
     }
   ] as const);
   const aligns = $derived(POWERED_ALIGNS.map((value) => ({ value, label: t(`overlays.alignOption.${value}`) })));
-  const lastEdge = (dir: PoweredDirection) => config.directions.length === 1 && config.directions[0] === dir;
+  const edges = $derived(POWERED_DIRECTIONS.map((value) => ({ value, label: t(`overlays.edge.${value}`) })));
 
   function slide(key: 'every_minutes' | 'show_seconds', value: number) {
     if (key === 'every_minutes') every = value;
@@ -44,10 +42,8 @@
     if (config[key] !== value) onChange(key, { ...config, [key]: value });
   }
 
-  function toggle(dir: PoweredDirection) {
-    const on = !config.directions.includes(dir);
-    const directions = POWERED_DIRECTIONS.filter((d) => (d === dir ? on : config.directions.includes(d)));
-    if (directions.length > 0) onChange('directions', { ...config, directions });
+  function direction(value: string) {
+    if (value !== config.directions[0]) onChange('directions', { ...config, directions: [value as PoweredDirection] });
   }
 
   function align(value: string) {
@@ -70,18 +66,10 @@
   {/each}
 </div>
 
-<div class="bb-field group" role="group" aria-labelledby="powered-from" aria-describedby="powered-from-hint">
+<div class="bb-field group">
   <span class="bb-field__label bb-fit-box" id="powered-from"><bb-fit mode="block">{t('overlays.from')}</bb-fit></span>
-  <div class="edges">
-    {#each POWERED_DIRECTIONS as dir (dir)}
-      <Checkbox checked={config.directions.includes(dir)} disabled={lastEdge(dir)} onchange={() => toggle(dir)}>
-        <span class="edge-label bb-fit-box"><bb-fit>{t(`overlays.edge.${dir}`)}</bb-fit></span>
-      </Checkbox>
-    {/each}
-  </div>
-  <div class="hint bb-fit-box" id="powered-from-hint">
-    <Text as="div" size="xs" tone="muted"><bb-fit mode="block">{t('overlays.fromHint')}</bb-fit></Text>
-  </div>
+  <SegmentedControl class="bb-tabs--plain" options={edges} value={config.directions[0] ?? ''} label={t('overlays.from')} even
+    onValueChange={direction} />
 </div>
 
 <div class="bb-field group">
@@ -116,17 +104,4 @@
     text-align: end;
     white-space: nowrap;
   }
-  .edges {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--bb-space-3) var(--bb-space-4);
-  }
-  .edge-label {
-    display: block;
-    inline-size: 100%;
-    font-size: var(--bb-text-sm);
-    color: var(--bb-white);
-    white-space: nowrap;
-  }
-  .hint { block-size: 1.5rem; min-inline-size: 0; align-content: center; }
 </style>

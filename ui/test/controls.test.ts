@@ -380,8 +380,8 @@ describe('Slider and FileDrop', () => {
   contracts(SvelteSlider, AstroSlider, [
     {
       name: 'Slider is a range input',
-      props: { value: 12, min: 1, max: 60, name: 'runs' },
-      html: '<input type="range" class="bb-slider" min="1" max="60" step="1" value="12" name="runs">',
+      props: { value: 16, min: 1, max: 61, name: 'runs' },
+      html: '<input type="range" class="bb-slider" min="1" max="61" step="1" value="16" name="runs" style="--slider-progress: 0.25;">',
     },
   ]);
 

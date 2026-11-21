@@ -67,12 +67,11 @@ test.each([
   ]);
 });
 
-test('the only selected edge cannot be switched off', async () => {
+test('the entry edge is a single choice with the saved edge checked', async () => {
   const html = renderPage({ readOnly: false, powered, isPremium: false });
-  const edges = await attributes(html, 'input.bb-check__input');
-  expect(edges.map((edge) => ['checked' in edge, 'disabled' in edge])).toEqual([
-    [false, false], [false, false], [true, true], [false, false]
-  ]);
+  const [group] = await attributes(html, '[role="radiogroup"][aria-label="Comes in from"]');
+  const edges = await attributes(html, '[role="radiogroup"][aria-label="Comes in from"] button[role="radio"]');
+  expect([Boolean(group), edges.map((edge) => edge['aria-checked'])]).toEqual([true, ['false', 'false', 'true', 'false']]);
 });
 
 test.each([

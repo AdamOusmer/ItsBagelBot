@@ -39,7 +39,7 @@
     text: { failed: () => t('overlays.saveFailed'), conflict: () => t('overlays.conflict') }
   });
 
-  const previewSrc = $derived(poweredPreviewUrl(config, data.isPremium === true));
+  const previewSrc = $derived(poweredPreviewUrl(config, data.isPremium === true, data.previewOrigin));
   const SAVE_PRIORITY: SaveState[] = ['error', 'saving', 'saved'];
   const saveState = $derived(SAVE_PRIORITY.find((state) => Object.values(autosave.status).includes(state)) ?? 'idle');
 

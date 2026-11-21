@@ -10,7 +10,6 @@
   "show": "Time on screen",
   "showValue": "{seconds} s",
   "from": "Comes in from",
-  "fromHint": "Pick at least one edge.",
   "edge": {
     "top": "Top",
     "bottom": "Bottom",
@@ -34,6 +33,6 @@
   "copyFailed": "Could not copy the link. Try again.",
   "invalidEvery": "Choose from {everyMin} to {everyMax} minutes.",
   "invalidShow": "Choose from {showMin} to {showMax} seconds.",
-  "invalidFrom": "Pick at least one edge.",
+  "invalidFrom": "Pick an edge.",
   "invalidAlign": "Choose a position on the edge."
 }

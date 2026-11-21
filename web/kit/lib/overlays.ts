@@ -12,7 +12,7 @@ export const POWERED_DIRECTIONS = ['top', 'bottom', 'left', 'right'] as const;
 export const POWERED_ALIGNS = ['start', 'center', 'end'] as const;
 export const DEFAULT_POWERED_ALIGN: PoweredAlign = 'end';
 
-export const POWERED_PAGE_URL = 'https://overlay.itsbagelbot.com/powered';
+export const POWERED_ORIGIN = 'https://overlay.itsbagelbot.com';
 
 export type PoweredDirection = (typeof POWERED_DIRECTIONS)[number];
 export type PoweredAlign = (typeof POWERED_ALIGNS)[number];
@@ -30,7 +30,7 @@ export function defaultPoweredConfig(): PoweredConfig {
   return {
     every_minutes: DEFAULT_EVERY_MINUTES,
     show_seconds: DEFAULT_SHOW_SECONDS,
-    directions: [...POWERED_DIRECTIONS],
+    directions: ['right'],
     align: DEFAULT_POWERED_ALIGN
   };
 }
@@ -38,9 +38,7 @@ export function defaultPoweredConfig(): PoweredConfig {
 const inRange = (value: number, min: number, max: number) => Number.isInteger(value) && Math.min(Math.max(value, min), max) === value;
 
 function validDirections(list: readonly string[]): boolean {
-  const known = list.every((item) => (POWERED_DIRECTIONS as readonly string[]).includes(item));
-  const unique = list.length > 0 && new Set(list).size === list.length;
-  return known && unique;
+  return list.length === 1 && (POWERED_DIRECTIONS as readonly string[]).includes(list[0]!);
 }
 
 export function poweredConfigError(config: PoweredConfig): PoweredConfigError | null {
@@ -51,7 +49,7 @@ export function poweredConfigError(config: PoweredConfig): PoweredConfigError | 
   return null;
 }
 
-export function poweredPreviewUrl(config: PoweredConfig, premium: boolean): string {
+export function poweredPreviewUrl(config: PoweredConfig, premium: boolean, origin: string = POWERED_ORIGIN): string {
   const query = new URLSearchParams({
     preview: '1',
     show: String(config.show_seconds),
@@ -59,5 +57,5 @@ export function poweredPreviewUrl(config: PoweredConfig, premium: boolean): stri
     align: config.align,
     premium: premium ? '1' : '0'
   });
-  return `${POWERED_PAGE_URL}?${query}`;
+  return `${origin}/powered?${query}`;
 }

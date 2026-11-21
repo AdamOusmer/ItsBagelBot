@@ -10,7 +10,6 @@
   "show": "Tiempo en pantalla",
   "showValue": "{seconds} s",
   "from": "Entra desde",
-  "fromHint": "Elige al menos un borde.",
   "edge": {
     "top": "Arriba",
     "bottom": "Abajo",
@@ -34,6 +33,6 @@
   "copyFailed": "No se pudo copiar el enlace. Inténtalo de nuevo.",
   "invalidEvery": "Elige entre {everyMin} y {everyMax} minutos.",
   "invalidShow": "Elige entre {showMin} y {showMax} segundos.",
-  "invalidFrom": "Elige al menos un borde.",
+  "invalidFrom": "Elige un borde.",
   "invalidAlign": "Elige una posición en el borde."
 }

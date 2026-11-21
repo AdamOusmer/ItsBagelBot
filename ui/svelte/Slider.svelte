@@ -22,6 +22,7 @@
   }: Own & Omit<SvelteHTMLElements['input'], keyof Own> = $props();
 
   const classes = $derived(['bb-slider', className || null].filter(Boolean).join(' '));
+  const progress = $derived(max > min ? Math.min(1, Math.max(0, (Number(value) - min) / (max - min))) : 0);
 </script>
 
-<input type="range" class={classes} {min} {max} {step} bind:value {...rest} />
+<input type="range" class={classes} {min} {max} {step} bind:value style:--slider-progress={progress} {...rest} />
