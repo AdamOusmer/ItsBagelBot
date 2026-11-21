@@ -1,0 +1,11 @@
+{
+  "backHome": "Inicio de la consola",
+  "notFoundTitle": "Página no encontrada",
+  "notFoundBody": "Comprueba la dirección o vuelve a la consola de administración.",
+  "accessTitle": "Acceso de personal requerido",
+  "accessBody": "Inicia sesión con una cuenta que tenga acceso de personal.",
+  "serverTitle": "Página no disponible",
+  "serverBody": "Espera un momento y vuelve a cargar la página.",
+  "unexpectedTitle": "No se pudo cargar la página",
+  "unexpectedBody": "Intenta cargar la página de nuevo."
+}

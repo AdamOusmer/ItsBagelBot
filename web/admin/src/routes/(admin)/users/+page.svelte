@@ -4,6 +4,7 @@
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
+  import { tick, untrack } from 'svelte';
   import { enhance, type SubmitFunction } from '$app/forms';
   import { goto } from '$app/navigation';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
@@ -29,12 +30,13 @@
   import { livePoll } from '@bagel/kit/live-poll';
   import { allows, type AccessKey } from '#lib/access';
   import { getLiveCount } from '#lib/live-count-context';
-  import type { AdminUserWire, AuditEntry, ChannelSubState } from '#lib/server/services';
-  import type { GiveawayWinnerWire } from '#lib/server/giveaways';
+  import type { AdminUserWire, ChannelSubState } from '#lib/server/services';
   import UserRow from '#lib/components/users/UserRow.svelte';
   import UserInspector from '#lib/components/users/UserInspector.svelte';
+  import type { TokenStatus } from '#lib/components/users/UserConnection.svelte';
   import MessageDialog from '#lib/components/users/MessageDialog.svelte';
   import { usersCsv } from '#lib/components/users/csv';
+  import { EMPTY_HISTORY, inspectAudit, inspectPrizes } from '#lib/components/users/user-history';
   import { downloadCsv } from '@bagel/ui/lib/csv';
   import { USER_STATES, USER_STATE_LABEL, type UserStateFilter } from '#lib/components/users/user-state';
   import { USER_ACTIONS, type UserActionDef } from '#lib/components/users/user-actions';
@@ -79,8 +81,7 @@
     });
   });
 
-  // svelte-ignore state_referenced_locally
-  let search = $state(data.search);
+  let search = $state(untrack(() => data.search));
   $effect(() => {
     search = data.search;
   });
@@ -130,68 +131,52 @@
     selectedId === null ? null : (rows.find((u) => String(u.id) === selectedId) ?? detached)
   );
 
-  let tokenPresent = $state<boolean | null>(null);
+  let tokenStatus = $state<TokenStatus>('checking');
   let subState = $state<ChannelSubState | null>(null);
   let viewAsUrl = $state('');
-  let history = $state<AuditEntry[] | null>(null);
-  let historyError = $state('');
-  let prizeHistory = $state<GiveawayWinnerWire[] | null>(null);
-  let prizeHistoryError = $state('');
+  let audit = $state.raw<Awaited<ReturnType<typeof inspectAudit>>>(EMPTY_HISTORY);
+  let prizes = $state.raw<Awaited<ReturnType<typeof inspectPrizes>>>(EMPTY_HISTORY);
+  let inspectorRequest: AbortController | undefined;
 
   let lookupForm = $state<HTMLFormElement | null>(null);
-  let lookupQ = $state('');
+
+  $effect(() => () => inspectorRequest?.abort());
 
   function closeInspector() {
+    inspectorRequest?.abort();
     selectedId = null;
     detached = null;
     viewAsUrl = '';
-    prizeHistory = null;
-    prizeHistoryError = '';
   }
 
-  function openUser(u: AdminUserWire) {
-    if (selectedId === String(u.id)) {
+  function openUser(user: AdminUserWire) {
+    const id = String(user.id);
+    if (selectedId === id) {
       closeInspector();
       return;
     }
+    inspectorRequest?.abort();
+    const { signal } = (inspectorRequest = new AbortController());
     detached = null;
-    selectedId = String(u.id);
-    tokenPresent = null;
+    selectedId = id;
+    tokenStatus = 'checking';
     subState = null;
     viewAsUrl = '';
-    lookupQ = String(u.id);
-    queueMicrotask(() => lookupForm?.requestSubmit());
-    if (can('audit.read')) loadHistory(String(u.id));
-    loadPrizeHistory(String(u.id));
+    audit = EMPTY_HISTORY;
+    prizes = EMPTY_HISTORY;
+    loadInspector(id, signal);
   }
 
-  async function loadPrizeHistory(id: string) {
-    prizeHistory = null;
-    prizeHistoryError = '';
-    try {
-      const response = await fetch(`/users/prizes?q=${encodeURIComponent(id)}`);
-      const body = (await response.json()) as { awards?: GiveawayWinnerWire[]; error?: string };
-      if (!response.ok || body.error) throw new Error(body.error ?? `history fetch failed (${response.status})`);
-      prizeHistory = body.awards ?? [];
-    } catch (error) {
-      prizeHistoryError = error instanceof Error ? error.message : String(error);
-      prizeHistory = [];
-    }
-  }
-
-  async function loadHistory(id: string) {
-    history = null;
-    historyError = '';
-    try {
-      const res = await fetch(`/audit/data?q=${encodeURIComponent(id)}`);
-      if (!res.ok) throw new Error(`history fetch failed (${res.status})`);
-      const body = (await res.json()) as { entries?: AuditEntry[]; error?: string };
-      if (body.error) throw new Error(body.error);
-      history = (body.entries ?? []).filter((e) => e.target === id).slice(0, 5);
-    } catch (e) {
-      historyError = (e as Error).message;
-      history = [];
-    }
+  function loadInspector(id: string, signal: AbortSignal) {
+    void tick().then(() => {
+      if (!signal.aborted) lookupForm?.requestSubmit();
+    });
+    if (can('audit.read')) void inspectAudit(id, signal).then((next) => {
+      if (!signal.aborted) audit = next;
+    });
+    if (can('giveaways.manage')) void inspectPrizes(id, signal).then((next) => {
+      if (!signal.aborted) prizes = next;
+    });
   }
 
   type LookupResult = {
@@ -208,16 +193,22 @@
     error?: string;
   };
 
-  const lookupSubmit: SubmitFunction = () => {
+  const lookupSubmit: SubmitFunction = ({ controller, cancel }) => {
+    const signal = inspectorRequest?.signal;
+    if (!signal || signal.aborted) return cancel();
+    const abortLookup = () => controller.abort();
+    signal.addEventListener('abort', abortLookup, { once: true });
     return async ({ result }) => {
+      signal.removeEventListener('abort', abortLookup);
+      if (signal.aborted) return;
       const lk = actionPayload<ActionPayload>(result)?.lookup;
       if (!lk || lk.error) {
-        tokenPresent = null;
+        tokenStatus = 'unavailable';
         subState = { state: 'unknown', error: lk?.error ?? t('admin.users.lookupFailed'), checkedAt: null };
         return;
       }
       if (lk.user) reconcile(lk.user);
-      tokenPresent = lk.tokenPresent ?? null;
+      tokenStatus = lk.tokenPresent === undefined ? 'unavailable' : lk.tokenPresent ? 'present' : 'absent';
       subState = lk.subState ?? null;
     };
   };
@@ -274,46 +265,40 @@
   function applied(p: ActionPayload) {
     toast('success', p.action?.notice ?? '');
     if (p.lookup?.user) reconcile(p.lookup.user);
-    if (p.subState) subState = p.subState;
-    if (p.viewAsUrl) viewAsUrl = p.viewAsUrl;
   }
 
-  function updateOptimistically(def: UserActionDef) {
-    const update = def.optimistic;
-    if (!selectedId) return;
-    if (!update || !dir) return;
-    const index = dir.recent.findIndex((user) => String(user.id) === selectedId);
-    if (index >= 0) dir.recent[index] = update(dir.recent[index]);
-    if (detached) detached = update(detached);
-  }
-
-  function applyUserAction(def: UserActionDef, payload: ActionPayload) {
+  function applyUserAction(def: UserActionDef, payload: ActionPayload, userId: string) {
     applied(payload);
-    if (def.id === 'delete') dropSelected();
-    if (def.id === 'clearToken' || def.id === 'reset') tokenPresent = false;
+    if (def.id === 'delete') dropUser(userId);
+    if (selectedId !== userId) return;
+    if (payload.subState) subState = payload.subState;
+    if (payload.viewAsUrl) viewAsUrl = payload.viewAsUrl;
+    if (def.id === 'clearToken' || def.id === 'reset') tokenStatus = 'absent';
   }
 
   function submitFor(def: UserActionDef): SubmitFunction {
-    return () => {
+    return ({ formData }) => {
+      const userId = String(formData.get('user_id') ?? '');
+      const optimistic = def.optimistic;
+      const before = selectedId === userId ? selected : null;
+      const beforeSubState = subState;
       busy = def.id;
-      const before = dir ? dir.recent.map((r) => ({ ...r })) : [];
-      const beforeDetached = detached ? { ...detached } : null;
-      updateOptimistically(def);
+      if (before && optimistic) reconcile(optimistic(before));
       if (def.id === 'restart') subState = null;
       return async ({ result }) => {
         busy = null;
         const p = actionPayload<ActionPayload>(result);
-        if (result.type === 'success' && p?.action?.ok) return applyUserAction(def, p);
-        if (dir) dir.recent = before;
-        detached = beforeDetached;
+        if (result.type === 'success' && p?.action?.ok) return applyUserAction(def, p, userId);
+        if (before && optimistic) reconcile(before);
+        if (def.id === 'restart' && selectedId === userId && subState === null) subState = beforeSubState;
         failed(p, t('admin.users.actionFailed', { verb: t(def.label) }));
       };
     };
   }
 
-  function dropSelected() {
-    if (dir && selectedId) dir.recent = dir.recent.filter((r) => String(r.id) !== selectedId);
-    closeInspector();
+  function dropUser(userId: string) {
+    if (dir) dir.recent = dir.recent.filter((row) => String(row.id) !== userId);
+    if (selectedId === userId) closeInspector();
   }
 
   function request(def: UserActionDef) {
@@ -524,13 +509,13 @@
       >
         <UserInspector
           user={selected}
-          {tokenPresent}
+          {tokenStatus}
           {subState}
           {viewAsUrl}
-          {history}
-          {historyError}
-          {prizeHistory}
-          {prizeHistoryError}
+          history={audit.entries}
+          historyError={audit.error}
+          prizeHistory={prizes.entries}
+          prizeHistoryError={prizes.error}
           canReadHistory={can('audit.read')}
           {busy}
           {can}
@@ -545,7 +530,7 @@
 </section>
 
 <form method="POST" action="?/lookup" use:enhance={lookupSubmit} bind:this={lookupForm} hidden>
-  <input type="hidden" name="q" value={lookupQ} />
+  <input type="hidden" name="q" value={selectedId ?? ''} />
 </form>
 
 {#each USER_ACTIONS as def (def.id)}
