@@ -5,7 +5,7 @@ import Config
 
 config :logger, :default_formatter,
   format: "$time [$level] $metadata$message\n",
-  metadata: [:device_id]
+  metadata: [:device_id, :user_id, :event_id, :trace_id, :reason]
 
 # Network listeners (HTTP/WS, NATS) stay off for plain `mix test`; integration
 # tests start them explicitly against a test-local NATS and a test port.

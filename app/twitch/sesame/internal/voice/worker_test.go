@@ -276,6 +276,7 @@ func (tc workerCase) assertDrop(t *testing.T, logs *observer.ObservedLogs, job v
 	drops := logs.FilterMessage("voice job dropped").All()
 	if tc.wantDrop == "" {
 		assert.Empty(t, drops)
+		assert.Equal(t, 1, logs.FilterMessage("voice job delivered").Len())
 		return
 	}
 	require.Len(t, drops, 1)

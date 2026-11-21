@@ -102,6 +102,10 @@ deduplicates by the originating trace ID, which survives redelivery in the heade
 Without an originating trace, the job ID uses the first 32 hex characters of
 SHA-256 over the event ID or, when absent, the notification message ID.
 The `tts-worker` durable continues the distributed trace and allows three deliveries.
+Every job transaction is sampled, even when the alert that queued it was not, so
+the worker, Gossip and Users spans always reach New Relic. Each job logs
+`voice job delivered` or `voice job dropped` with `trace.id`, and the final failed
+delivery logs `TTS job abandoned after final delivery` at error level.
 `SESAME_TTS_WORKERS` controls parallel jobs per pod and defaults to four.
 Workers send progress acknowledgements, recheck Users allowance, and trim by
 the clip and remaining-token budgets before calling Gossip. Rejected requests

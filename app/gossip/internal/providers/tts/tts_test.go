@@ -230,6 +230,7 @@ func checkUpstreamFailure(t *testing.T, tc upstreamFailureCase) {
 	got := providertest.Call[gossiprpc.TTSSynthesizeReply](t, p, "synthesize", gossiprpc.Request{ChannelID: "42", Text: testText})
 	assert.Equal(t, tc.want, got)
 	assert.Equal(t, tc.warn, logs.FilterMessage("Gemini TTS API key rejected").Len() > 0)
+	assert.Equal(t, 1, logs.FilterMessage("TTS synthesis failed").Len())
 	assertLogsExclude(t, fmt.Sprint(logs.All()), []string{testKey, testText})
 }
 
