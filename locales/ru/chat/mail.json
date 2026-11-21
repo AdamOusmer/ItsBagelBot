@@ -39,7 +39,7 @@
   "giveaway.pending_situation": "У вас уже есть подписка с автоматическим продлением. Защита от списаний ещё проверяется, поэтому за ближайшее продление всё ещё могут списать оплату. Ваш приз в полном объёме остаётся за вами.",
   "giveaway.confirmed_period": "Начало действия приза: %s, окончание: %s.",
   "giveaway.intro": "Вы выиграли",
-  "signature": "команда бейгла",
+  "signature": "the folks behind the bagel",
   "gift.footer": "ItsBagelBot отправил это письмо, потому что вам подарили Premium.",
   "giveaway.footer": "ItsBagelBot отправил это письмо, потому что вы выиграли Premium в розыгрыше.",
   "month.one": "месяц",

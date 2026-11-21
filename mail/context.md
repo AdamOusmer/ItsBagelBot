@@ -23,7 +23,6 @@ This directory holds English/French support mail artifacts; it is not an executa
 | Marker / placeholder | `[[ ... ]]` text that must be replaced before sending. |
 | CTA | Optional call-to-action link/button with its own URL and label. |
 | Plain-text twin | Alternative body preserving the HTML message's actual information. |
-| Verified-sender strip | Fixed branded recognition copy; not cryptographic sender authentication. |
 | Anti-phishing footer | Fixed notice about information ItsBagelBot will never request by email. |
 
 Premium gifts/awards and Tebex subscriptions remain distinct under the root glossary.
@@ -55,8 +54,15 @@ An acknowledgment means the message arrived; it does not claim resolution or imm
 
 ## Design and content invariants
 
-- Preserve fixed verified-sender strip and anti-phishing copy within each language; README prohibits
+- Preserve the fixed anti-phishing copy within each language; README prohibits
   personalization and requires faithful meaning when adding another language.
+- Safety footer wording is the Resend shell's i18n strings `mail.safety.label` and `mail.safety.body`
+  plus " itsbagelbot.com.", linking https://itsbagelbot.com.
+- Locked visual identity: logo + wordmark, safety footer, Caveat signature. No verified-sender strip.
+- Sign-off: every email ends with "the folks behind the bagel" in every language. Hand-sent replies put the sender's handwritten name and role above it ([[SIGNER NAME]], [[SIGNER ROLE]]).
+  The signature keeps a 2px green to gold underline (#62a593 to #d8bf91). No bagel stamp, emoji or signature gradient.
+- Colours follow `ui/styles/brand.css` (token table in README): card `#18181b` and inset `#121214`
+  without borders, primary button `#f4f4f5` on `#111113` with radius 8.
 - Use email-compatible tables/inline styles; avoid converting layout into browser-only grids/components.
 - Fonts have fallback stacks because clients can discard imported webfonts.
 - The remote logo can be blocked; the message must remain understandable with images disabled.

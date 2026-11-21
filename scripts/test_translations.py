@@ -416,7 +416,7 @@ class StaticMailTranslations(unittest.TestCase):
                     self.assertEqual(markers(french), markers(english))
                     self.assertIn('@itsbagelbot.com', french)
                     for template in (english, french):
-                        self.assertIn('https://itsbagelbot.com/contact', template)
+                        self.assertIn('https://itsbagelbot.com', template)
                     if extension == 'html':
                         self.assertIn('lang="fr"', french)
                         a, b = Tags(), Tags()

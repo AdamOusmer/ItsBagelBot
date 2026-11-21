@@ -11,14 +11,19 @@ import (
 )
 
 const (
-	colorBlack  = "#111113"
-	colorCard   = "#1a1a1d"
-	colorBorder = "#2a2a2e"
-	colorTan    = "#d8bf91"
-	colorTanLt  = "#eadbbd"
-	colorWhite  = "#f4f4f5"
-	colorMuted  = "#a1a1aa"
-	colorGreen  = "#62a593"
+	colorBlack = "#111113"
+	colorCard  = "#18181b"
+	colorInset = "#121214"
+	colorRule  = "#2e2e32"
+	colorFoot  = "#232325"
+	colorBody  = "#b4b4bc"
+	colorSoft  = "#c2c2c9"
+	colorPaid  = "#eadbbd"
+	colorTan   = "#d8bf91"
+	colorTanLt = "#eadbbd"
+	colorWhite = "#f4f4f5"
+	colorMuted = "#a1a1aa"
+	colorGreen = "#62a593"
 
 	fontDisplay = "'Syne','Avenir Next','Helvetica Neue',Arial,sans-serif"
 	fontBody    = "'DM Sans','Helvetica Neue',Arial,sans-serif"
@@ -39,7 +44,7 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
 <meta name="color-scheme" content="dark">
 <meta name="supported-color-schemes" content="dark">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Caveat:wght@600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&family=Caveat:wght@600&display=swap');
 </style>
 <title>{{.Title}}</title>
 </head>
@@ -54,43 +59,40 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
     <!-- logo + wordmark, centered -->
     <tr><td align="center" style="padding:0 0 24px;">
       <img src="` + logoSrc + `" width="52" height="52" alt="ItsBagelBot" style="display:inline-block;width:52px;height:52px;vertical-align:middle;">
-      <span style="font-family:` + fontDisplay + `;font-size:20px;font-weight:800;letter-spacing:0.01em;color:` + colorWhite + `;vertical-align:middle;padding-left:12px;">ItsBagelBot</span>
+      <span style="font-family:` + fontDisplay + `;font-size:20px;font-weight:800;letter-spacing:-0.01em;color:` + colorWhite + `;vertical-align:middle;padding-left:12px;">ItsBagelBot</span>
     </td></tr>
 
     <!-- card -->
-    <tr><td style="background-color:` + colorCard + `;border:1px solid ` + colorBorder + `;border-radius:16px;overflow:hidden;">
+    <tr><td bgcolor="` + colorCard + `" style="background-color:` + colorCard + `;border-radius:16px;overflow:hidden;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-
-        <!-- accent bar -->
-        <tr><td height="3" bgcolor="` + colorTan + `" style="height:3px;background:linear-gradient(90deg,` + colorTan + `,` + colorGreen + `);font-size:0;line-height:0;">&nbsp;</td></tr>
 
         <tr><td style="padding:40px 40px 36px;">
 
-          <div style="font-family:` + fontMono + `;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:` + colorTan + `;padding-bottom:18px;">
+          <div style="font-family:` + fontMono + `;font-size:12px;line-height:1.4;letter-spacing:0.18em;text-transform:uppercase;color:` + colorTan + `;padding-bottom:16px;">
             Premium &middot; {{.Category}}
           </div>
 
-          <div style="font-family:` + fontDisplay + `;font-size:30px;line-height:1.15;font-weight:800;color:` + colorWhite + `;padding-bottom:16px;">
+          <div style="font-family:` + fontDisplay + `;font-size:28px;line-height:1.15;font-weight:600;letter-spacing:-0.02em;color:` + colorWhite + `;padding-bottom:16px;">
             {{.Heading}}
           </div>
 
 {{if .Giveaway}}
-          <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.65;color:#b4b4bc;padding-bottom:20px;">
+          <div style="font-family:` + fontBody + `;font-size:16px;line-height:1.7;color:` + colorBody + `;padding-bottom:20px;">
             {{.GiveawayIntro}} <strong style="color:` + colorTanLt + `;font-weight:600;">{{.ProductPeriod}}</strong>.
           </div>
-          <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.65;color:#d4d4d8;padding-bottom:18px;">{{.Giveaway.PeriodText}}</div>
+          <div style="font-family:` + fontBody + `;font-size:16px;line-height:1.7;color:` + colorSoft + `;padding-bottom:18px;">{{.Giveaway.PeriodText}}</div>
 {{if .Giveaway.Subscriber}}
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
-            <tr><td style="background-color:#161618;border:1px solid ` + colorBorder + `;border-radius:8px;padding:16px 18px;">
-              <div style="font-family:` + fontMono + `;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:` + colorTan + `;padding-bottom:9px;">{{.SubscriptionLabel}}</div>
-              <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.65;color:#b4b4bc;">{{.Giveaway.Situation}}</div>
+            <tr><td bgcolor="` + colorInset + `" style="background-color:` + colorInset + `;border-radius:8px;padding:16px 18px;">
+              <div style="font-family:` + fontMono + `;font-size:11px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:` + colorTan + `;padding-bottom:8px;">{{.SubscriptionLabel}}</div>
+              <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.65;color:` + colorBody + `;">{{.Giveaway.Situation}}</div>
             </td></tr>
           </table>
 {{else if .Giveaway.Situation}}
-          <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.65;color:#b4b4bc;padding-bottom:24px;">{{.Giveaway.Situation}}</div>
+          <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.65;color:` + colorBody + `;padding-bottom:24px;">{{.Giveaway.Situation}}</div>
 {{end}}
 {{else}}
-          <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.65;color:#b4b4bc;padding-bottom:20px;">
+          <div style="font-family:` + fontBody + `;font-size:16px;line-height:1.7;color:` + colorBody + `;padding-bottom:20px;">
             {{if .Gift.Gifter}}<strong style="color:` + colorTanLt + `;font-weight:600;">{{.Gift.Gifter}}</strong> {{.GiftIntro}}{{else}}{{.GiftIntro}}{{end}}
             <strong style="color:` + colorTanLt + `;font-weight:600;">{{.ProductPeriod}}</strong>.
             {{.GiftNoStrings}}
@@ -98,24 +100,24 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
 {{if .Gift.Message}}
           <!-- personal note from the buyer -->
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
-            <tr><td style="background-color:#161618;border:1px solid ` + colorBorder + `;border-radius:8px;padding:16px 18px;">
-              <div style="font-family:` + fontMono + `;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:` + colorTan + `;padding-bottom:9px;">{{.Gift.NoteLabel}}</div>
-              <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.6;color:#d4d4d8;font-style:italic;">&ldquo;{{.Gift.Message}}&rdquo;</div>
+            <tr><td bgcolor="` + colorInset + `" style="background-color:` + colorInset + `;border-radius:8px;padding:16px 18px;">
+              <div style="font-family:` + fontMono + `;font-size:11px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:` + colorTan + `;padding-bottom:8px;">{{.Gift.NoteLabel}}</div>
+              <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.6;color:` + colorSoft + `;font-style:italic;">&ldquo;{{.Gift.Message}}&rdquo;</div>
             </td></tr>
           </table>
 {{end}}
 {{end}}
           <!-- fulfillment status -->
           <div style="padding-bottom:26px;">
-            <div style="font-family:` + fontMono + `;font-size:12px;line-height:1.6;letter-spacing:0.5px;color:{{.StatusColor}};">{{.StatusLine}}</div>
+            <div style="font-family:` + fontMono + `;font-size:12px;line-height:1.6;letter-spacing:0.04em;color:{{.StatusColor}};">{{.StatusLine}}</div>
 {{if .StatusDetail}}
-            <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.6;color:{{.StatusColor}};padding-top:7px;">{{.StatusDetail}}</div>
+            <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.6;color:` + colorBody + `;padding-top:7px;">{{.StatusDetail}}</div>
 {{end}}
           </div>
 
           <!-- divider -->
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr><td height="1" style="height:1px;background-color:` + colorBorder + `;font-size:0;line-height:0;">&nbsp;</td></tr>
+            <tr><td height="1" bgcolor="` + colorRule + `" style="height:1px;background-color:` + colorRule + `;font-size:0;line-height:0;">&nbsp;</td></tr>
           </table>
 
           <!-- perks -->
@@ -142,24 +144,20 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
 
           <!-- CTA -->
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:30px;">
-            <tr><td bgcolor="` + colorTan + `" style="border-radius:100px;">
-              <a href="{{.DashboardURL}}" style="display:inline-block;padding:13px 30px;font-family:` + fontBody + `;font-size:14px;font-weight:700;color:` + colorBlack + `;text-decoration:none;border-radius:100px;">
+            <tr><td bgcolor="` + colorWhite + `" style="background-color:` + colorWhite + `;border-radius:8px;">
+              <a href="{{.DashboardURL}}" style="display:inline-block;padding:13px 20px;font-family:` + fontBody + `;font-size:14px;font-weight:500;line-height:1;letter-spacing:-0.005em;color:` + colorBlack + `;text-decoration:none;border-radius:8px;">
                 {{.ActionLabel}} &rarr;
               </a>
             </td></tr>
           </table>
 
-          <!-- sign-off: the letter signature + bagel stamp from the site's story section -->
+          <!-- sign-off -->
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:36px;">
             <tr>
               <td valign="middle">
                 <span style="display:inline-block;">
-                  <span style="font-family:'Caveat',cursive;font-size:26px;font-weight:600;line-height:1;color:` + colorTanLt + `;">{{.Signature}}</span>
-                  <span style="display:block;height:2px;margin-top:8px;border-radius:2px;background-color:` + colorTan + `;background-image:linear-gradient(90deg,rgba(216,191,145,0.7),rgba(98,165,147,0.5));font-size:0;line-height:0;">&nbsp;</span>
+                  <span style="font-family:'Caveat','Segoe Script','Bradley Hand','Snell Roundhand',cursive;font-size:26px;font-weight:600;line-height:1;color:` + colorTanLt + `;"><span style="display:inline-block;">{{.Signature}}<span style="display:block;height:2px;margin-top:8px;border-radius:2px;background-color:#62a593;background-image:linear-gradient(90deg,#62a593,#d8bf91);font-size:0;line-height:0;">&nbsp;</span></span></span>
                 </span>
-              </td>
-              <td valign="middle" align="right" width="66">
-                <div style="display:inline-block;width:55px;height:55px;line-height:55px;text-align:center;font-size:24px;border:1.5px dashed rgba(216,191,145,0.4);border-radius:50%;transform:rotate(8deg);">&#129391;</div>
               </td>
             </tr>
           </table>
@@ -170,13 +168,13 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
 
     <!-- footer -->
     <tr><td align="center" style="padding:26px 20px 0;font-family:` + fontBody + `;font-size:12px;line-height:1.7;color:` + colorMuted + `;">
-      <div style="border-top:1px solid ` + colorBorder + `;padding-top:16px;padding-bottom:18px;">
-        <strong style="color:` + colorTan + `;">&#128274; {{.SafetyLabel}}</strong>
+      <div style="border-top:1px solid ` + colorFoot + `;padding-top:16px;padding-bottom:18px;">
+        <strong style="color:` + colorTanLt + `;font-weight:600;">{{.SafetyLabel}}</strong>
         {{.SafetyBody}}
-        <a href="` + supportURL + `" style="color:` + colorTan + `;text-decoration:none;">itsbagelbot.com</a>.
+        <a href="` + supportURL + `" style="color:` + colorTanLt + `;text-decoration:none;">itsbagelbot.com</a>.
       </div>
       {{.Footer}}<br>
-      <a href="https://itsbagelbot.com" style="color:` + colorTan + `;text-decoration:none;">itsbagelbot.com</a>
+      <a href="https://itsbagelbot.com" style="color:` + colorTanLt + `;text-decoration:none;">itsbagelbot.com</a>
     </td></tr>
 
   </table>

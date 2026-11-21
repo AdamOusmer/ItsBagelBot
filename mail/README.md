@@ -24,28 +24,23 @@ the mail (Resend dashboard, Gmail with an HTML-paste add-on, a help desk).
 
 ## Recognising us / anti-phishing
 
-Support mail is a prime phishing target, so every template carries the same two
-fixed pieces. **Do not edit, personalise, or remove them.** Their whole value is
-that they are identical on every email in that language, so users learn the
-pattern. The English and French templates each keep their own locked wording;
-translate the meaning faithfully when adding another language, but do not vary
-the security copy between messages in that language.
+Support mail is a prime phishing target, so every template carries the same
+fixed anti-phishing footer. **Do not edit, personalise, or remove it.** Its whole
+value is that it is identical on every email in that language, so users learn the
+pattern.
 
-1. **Verified-sender strip** (header, under the wordmark): a green `✓ Official
-   ItsBagelBot email · itsbagelbot.com`. This is the at-a-glance "it's really
-   us" cue. Same tick, same wording, same place, always.
-2. **Anti-phishing footer**: "ItsBagelBot will never ask for your password,
-   payment or card details, or login and verification codes by email. We only
-   send from @itsbagelbot.com..." with a contact-page link to verify anything
-   suspicious.
+- **Anti-phishing footer**: the Resend shell's wording for the file's
+   language, the i18n strings `mail.safety.label` and `mail.safety.body`
+   followed by " itsbagelbot.com.", with `itsbagelbot.com` linking to
+   https://itsbagelbot.com. Copy it from the shell's catalog, never reword it.
 
-Together with the locked visual identity (logo + wordmark, the tan→green accent
-bar, the bagel-stamp signature) these give the mail a look that is easy to
+Together with the locked visual identity (logo + wordmark,
+safety footer, Caveat signature, the green to gold line under the signature (#62a593 to #d8bf91, as the ui's reading-progress bar); no bagel stamp, no emoji) these give the mail a look that is easy to
 recognise and awkward to fake convincingly.
 
-### The strip is not real authentication, the domain is
+### The look is not real authentication, the domain is
 
-A tick in the body proves nothing on its own, anyone can copy pixels. What
+Branding in the body proves nothing on its own, anyone can copy pixels. What
 actually stops spoofing is the sending domain (SPF, DKIM and DMARC), which is
 configured on the DNS and mail-provider side, not in this directory.
 
@@ -80,17 +75,25 @@ Email clients are not browsers. The rules that keep this rendering right:
   | Token | Value |
   | --- | --- |
   | Canvas | `#111113` |
-  | Card | `#1a1a1d` |
-  | Border | `#2a2a2e` |
-  | Tan (accent) | `#d8bf91` |
-  | Tan light | `#eadbbd` |
-  | Text | `#f4f4f5` / body `#b4b4bc` |
+  | Card (no border) | `#18181b`, radius 16 |
+  | Inset / note box (no border) | `#121214`, radius 8 |
+  | Rule | `#2e2e32` (footer rule `#232325`) |
+  | Tan (eyebrow) | `#d8bf91`, 12px, tracking 0.18em |
+  | Tan light (emphasis, links) | `#eadbbd` |
+  | Text | `#f4f4f5` / body `#b4b4bc`, 16px |
+  | Secondary text | `#c2c2c9` |
   | Muted | `#a1a1aa` |
   | Green (done) | `#62a593` |
+  | Primary button | bg `#f4f4f5`, text `#111113`, radius 8, DM Sans 500 |
+  | Heading | Syne 600, tracking -0.02em |
+  | Wordmark | Syne 800, tracking -0.01em |
   | Display font | Syne |
   | Body font | DM Sans |
   | Label / mono | DM Mono |
-  | Signature | Caveat |
+  | Signature | Caveat, with Segoe Script / Bradley Hand / Snell Roundhand fallbacks for clients that skip web fonts |
+
+  The `@import` loads Syne, DM Sans, DM Mono and Caveat. Translucent ui tokens
+  are pre-blended to solid hex because email clients drop rgba and shadows.
 
 If the styling ever changes on the site or in the transactional emails, update these
 files to match so support mail does not drift.

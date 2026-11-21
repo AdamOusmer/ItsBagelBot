@@ -1,5 +1,3 @@
-[ Official ItsBagelBot email - itsbagelbot.com ]
-
 [[EYEBROW — e.g. Support reply]]
 
 [[HEADING — e.g. We sorted that out.]]
@@ -13,12 +11,14 @@ paragraphs. No markup, this is the text-only version.]]
 
 [[OPTIONAL CTA LABEL]]: [[CTA URL — https://...   Delete both if unused.]]
 
-the ItsBagelBot support team
+[[SIGNER NAME — e.g. ItsMavey]]
+[[SIGNER ROLE — e.g. Founder]] · ItsBagelBot
+the folks behind the bagel
 
 Staying safe: ItsBagelBot will never ask for your password, payment or card
 details, or login and verification codes by email. We only send from
 @itsbagelbot.com. If a message asks for any of that, it isn't us. Ignore it and
-reach the real team through the contact page: https://itsbagelbot.com/contact
+reach the real team on itsbagelbot.com.
 
 Sent by ItsBagelBot support in reply to your message. Just reply to reach us again.
 https://itsbagelbot.com
