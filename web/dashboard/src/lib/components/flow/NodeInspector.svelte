@@ -61,6 +61,7 @@
   }: { flow: Flow; selectedId?: string | null; fallbackId?: string; active?: boolean; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; permissionRank?: number; onclose?: () => void; onremove: (id: string, keepYes?: boolean) => void; oncheck?: () => void; ontest?: () => void; onResponseSample?: (nodeId: FlowNode['id'], sample: string) => void } = $props();
 
   const { t } = getI18n();
+  const ROLE_NOTE_FIELDS: ReadonlySet<string> = new Set(['who', 'scope']);
   type FieldKey = FieldSpec['key'];
   type Token = VariableChip['token'];
   type Hint = string | undefined;
@@ -121,6 +122,8 @@
   const passingNote = $derived(patternSample ?? checkNote(t, node, flow));
   const canAddCheck = $derived(roleLevel ? incoming.length > 0 && !addedCheck : false);
   const checkAction = $derived(canAddCheck || Boolean(removeCheck));
+  const togglesRoleNote = $derived(Boolean(spec?.fields.some((field) => ROLE_NOTE_FIELDS.has(field.key))));
+  const roleNoteSlot = $derived([roleNote, checkAction, togglesRoleNote].some(Boolean));
   const automaticComparisons = new Map<FlowNode['id'], boolean>();
   const legacyTake = $derived(node?.type === 'reply.points' && node.config.change === undefined && pointsChange(node.config) === 'take');
 
@@ -577,15 +580,19 @@
         </div>
       {/if}
 
-      <div class="role-note" class:faded={!roleNote}>
-        <p class="note role-warning bb-fit-box" role="status"><bb-fit mode="block">{roleNote ?? ''}</bb-fit></p>
-        <div class="check-action" class:faded={!checkAction} inert={!checkAction}>
-          <Button variant="ghost" onclick={changeCheck}><bb-fit>{t(removeCheck ? 'flows.step.condition.role.remove' : 'flows.step.requirement.addCheck')}</bb-fit></Button>
+      {#if roleNoteSlot}
+        <div class="role-note" class:faded={!roleNote}>
+          <p class="note role-warning bb-fit-box" role="status"><bb-fit mode="block">{roleNote ?? ''}</bb-fit></p>
+          <div class="check-action" class:faded={!checkAction} inert={!checkAction}>
+            <Button variant="ghost" onclick={changeCheck}><bb-fit>{t(removeCheck ? 'flows.step.condition.role.remove' : 'flows.step.requirement.addCheck')}</bb-fit></Button>
+          </div>
         </div>
-      </div>
+      {/if}
       {#if hasCheckNote(node) || node.type === 'cond.pattern'}
         <p class="note check-note bb-fit-box" class:faded={!passingNote} role="status"><bb-fit mode="block">{passingNote ?? ''}</bb-fit></p>
       {/if}
+
+      <FlowRehearsal steps={spec.kind === 'condition' ? [] : rehearsal.steps} focusId={node.id} {summary} />
 
       {#if branches.length}
         <section class="group">
@@ -631,7 +638,6 @@
           {/if}
         </section>
       {/if}
-      <FlowRehearsal steps={spec.kind === 'condition' ? [] : rehearsal.steps} focusId={node.id} {summary} />
     </div>
 
     <footer class="foot">

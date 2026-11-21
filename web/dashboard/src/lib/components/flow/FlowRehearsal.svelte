@@ -40,10 +40,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--bb-space-2);
-    padding: var(--bb-space-3);
-    border-radius: var(--bb-radius-md);
-    background: var(--bb-inset-bg);
-    box-shadow: var(--bb-depth-0);
   }
   .preview :global(.preview-label) { height: var(--bb-space-4); line-height: 1.34; }
   .preview :global(.preview-summary) {
