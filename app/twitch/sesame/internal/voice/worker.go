@@ -32,6 +32,15 @@ const (
 	tokensKey      = "audio_tokens"
 )
 
+type jobDropReason string
+
+const (
+	jobRefused    jobDropReason = "refused"
+	jobInvalid    jobDropReason = "invalid"
+	jobExpired    jobDropReason = "expired"
+	jobNotAllowed jobDropReason = "not_allowed"
+)
+
 var eventIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 type Publisher struct {
@@ -60,6 +69,7 @@ type Worker struct {
 func (w Worker) Process(ctx context.Context, payload []byte) error {
 	var job voiceplan.AlertJob
 	if codec.Unmarshal(payload, &job) != nil || !validJob(job) {
+		w.logDrop(job.BroadcasterID, job.EventID, jobInvalid)
 		return nil
 	}
 
@@ -95,11 +105,12 @@ func (w Worker) findOrSynthesize(ctx context.Context, job voiceplan.AlertJob) (b
 		return clip, err
 	}
 	allowance, err := check(ctx, w.RPC, job.BroadcasterID)
-	if err != nil || !allowance.Allowed {
+	if err != nil {
 		return bus.TTSClip{}, err
 	}
 	req := synthesisRequest(job, allowance.VoiceAllowance)
-	if req.Text == "" {
+	if !allowance.Allowed || req.Text == "" {
+		w.logDrop(job.BroadcasterID, job.EventID, jobNotAllowed)
 		return bus.TTSClip{}, nil
 	}
 	return w.synthesize(ctx, ref, req)
@@ -121,30 +132,41 @@ func (w Worker) synthesize(ctx context.Context, ref bus.TTSClip, req gossiprpc.R
 
 func (w Worker) synthesisOutcome(req gossiprpc.Request, reply gossiprpc.TTSSynthesizeReply) (bool, error) {
 	reason := cmp.Or(reply.Reason, reply.Error)
-	switch {
-	case reply.RateLimited:
+	if reply.RateLimited {
 		err := errors.New(cmp.Or(reason, "speech synthesis rate limited"))
 		return false, bus.TTSRetryError{Delay: time.Duration(reply.RetryAfterMS) * time.Millisecond, Err: err}
-	case terminalSynthesisFailure(reply):
-		w.Log.Debug("TTS synthesis rejected", zap.String("event_id", req.RequestID), zap.String("reason", reason))
-		return false, nil
-	case reason != "":
-		return false, fmt.Errorf("TTS synthesis failed: %s", reason)
-	default:
-		return true, nil
 	}
+	if drop := synthesisDropReason(reply); drop != "" {
+		w.logDrop(req.ChannelID, req.RequestID, drop)
+		return false, nil
+	}
+	if reason != "" {
+		return false, fmt.Errorf("TTS synthesis failed: %s", reason)
+	}
+	return true, nil
 }
 
-func terminalSynthesisFailure(reply gossiprpc.TTSSynthesizeReply) bool {
-	switch reply.Reason {
-	case "invalid", "refused":
-		return true
+var providerJobDrops = map[string]jobDropReason{
+	"refused": jobRefused, "invalid": jobInvalid, "unknown voice": jobInvalid, "unknown model": jobInvalid,
+}
+
+func synthesisDropReason(reply gossiprpc.TTSSynthesizeReply) jobDropReason {
+	switch jobDropReason(reply.Reason) {
+	case jobRefused, jobInvalid:
+		return jobDropReason(reply.Reason)
 	}
-	switch reply.Error {
-	case "invalid", "refused", "unknown voice", "unknown model":
-		return true
+	if strings.HasPrefix(reply.Error, "invalid ") {
+		return jobInvalid
 	}
-	return strings.HasPrefix(reply.Error, "invalid ")
+	return providerJobDrops[reply.Error]
+}
+
+func (w Worker) logDrop(broadcasterID, eventID string, reason jobDropReason) {
+	if w.Log == nil {
+		return
+	}
+	w.Log.Info("voice job dropped", zap.String("broadcaster_id", broadcasterID),
+		zap.String("event_id", eventID), zap.String("reason", string(reason)))
 }
 
 func synthesisRequest(job voiceplan.AlertJob, allowance usersrpc.VoiceAllowance) gossiprpc.Request {
@@ -228,7 +250,7 @@ func (w Worker) deliver(ctx context.Context, job voiceplan.AlertJob, clip bus.TT
 func (w Worker) clipExpired(job voiceplan.AlertJob, expires time.Time) bool {
 	expired := !time.Now().Before(expires)
 	if expired {
-		w.Log.Debug("TTS clip expired before delivery", zap.String("event_id", job.EventID), zap.Time("expires_at", expires))
+		w.logDrop(job.BroadcasterID, job.EventID, jobExpired)
 	}
 	return expired
 }

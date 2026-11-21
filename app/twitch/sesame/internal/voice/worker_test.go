@@ -25,9 +25,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
-const gossipSubject = "rpc.gossip.tts.synthesize"
+const (
+	gossipSubject = "rpc.gossip.tts.synthesize"
+	workerJobID   = "52321f6ed12e5e17e61656395631563a"
+	workerClipKey = "42/" + workerJobID
+)
 
 var fakeWAV = []byte("RIFF\x28\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\xc0\x5d\x00\x00\x80\xbb\x00\x00\x02\x00\x10\x00data\x04\x00\x00\x00\x00\x00\x00\x00")
 
@@ -105,9 +110,10 @@ func newTestVoiceRig(t *testing.T) testVoiceRig {
 	return testVoiceRig{nc: nc, jobs: jobs, overlay: overlay, js: js}
 }
 
-func (r testVoiceRig) process(t *testing.T, job voiceplan.AlertJob) {
+func (r testVoiceRig) process(t *testing.T, job voiceplan.AlertJob) *observer.ObservedLogs {
 	t.Helper()
-	log := zap.NewNop()
+	core, logs := observer.New(zap.InfoLevel)
+	log := zap.New(core)
 	worker := voice.Worker{RPC: r.nc, Gossip: gossipSubject, Overlay: r.overlay, Log: log}
 	stop, err := r.jobs.Consume(t.Context(), worker.Process, 4, log)
 	require.NoError(t, err)
@@ -123,10 +129,12 @@ func (r testVoiceRig) process(t *testing.T, job voiceplan.AlertJob) {
 		info, err := stream.Info(t.Context())
 		return err == nil && info.State.Msgs == 0 && info.State.LastSeq == 1
 	}, 10*time.Second, 20*time.Millisecond)
+	return logs
 }
 
 type workerCase struct {
 	name      string
+	wantDrop  string
 	allowed   bool
 	max       int
 	remaining int64
@@ -141,13 +149,13 @@ type workerCase struct {
 func TestWorkerProcessesJetStreamVoiceJobs(t *testing.T) {
 	const rateLimitDelay = 3 * time.Second
 	cases := []workerCase{
-		{name: "denied", max: 5, remaining: 500},
-		{name: "remaining below one second", allowed: true, max: 5, remaining: 24},
+		{name: "denied", wantDrop: "not_allowed", max: 5, remaining: 500},
+		{name: "remaining below one second", wantDrop: "not_allowed", allowed: true, max: 5, remaining: 24},
 		{name: "remaining budget and record retry", allowed: true, max: 5, remaining: 50, wantVoice: "Puck", wantRunes: 28, retry: true},
 		{name: "clip length and override", allowed: true, max: 5, remaining: 500, override: "Zephyr", wantVoice: "Zephyr", wantRunes: 70},
-		{name: "refused is acknowledged", allowed: true, max: 5, remaining: 500,
+		{name: "refused is acknowledged", wantDrop: "refused", allowed: true, max: 5, remaining: 500,
 			failure: &gossiprpc.TTSSynthesizeReply{Error: "the speech provider refused this request", Reason: "refused"}},
-		{name: "invalid text is acknowledged", allowed: true, max: 5, remaining: 500,
+		{name: "invalid text is acknowledged", wantDrop: "invalid", allowed: true, max: 5, remaining: 500,
 			failure: &gossiprpc.TTSSynthesizeReply{Error: "invalid text: control characters are not allowed"}},
 		{name: "rate limit honors retry after", allowed: true, max: 5, remaining: 500, wantVoice: "Puck", wantRunes: 70,
 			failure: &gossiprpc.TTSSynthesizeReply{Error: "busy", RateLimited: true, RetryAfterMS: rateLimitDelay.Milliseconds()}, delay: rateLimitDelay},
@@ -171,10 +179,11 @@ func (tc workerCase) run(t *testing.T) {
 	}
 	rig.serve(t, fakes)
 	job := voiceplan.AlertJob{
-		EventID: "ev-12", BroadcasterID: "42", Kind: "sub", Text: strings.Repeat("é", 90),
+		EventID: workerJobID, BroadcasterID: "42", Kind: "sub", Text: strings.Repeat("é", 90),
 		Style: "warm, friendly, upbeat", Voice: tc.override, CreatedAt: time.Now(),
 	}
-	rig.process(t, job)
+	logs := rig.process(t, job)
+	tc.assertDrop(t, logs)
 	tc.assertSynthesis(t, fakes, job)
 	if tc.wantRunes == 0 {
 		rig.assertNoClip(t, fakes)
@@ -183,6 +192,31 @@ func (tc workerCase) run(t *testing.T) {
 
 	tc.assertRecord(t, fakes, job)
 	rig.assertDelivery(t, job)
+}
+
+func TestWorkerDropsInvalidNotificationID(t *testing.T) {
+	core, logs := observer.New(zap.InfoLevel)
+	job := voiceplan.AlertJob{EventID: "legacy/msg+==", BroadcasterID: "42", Kind: "cheer", Text: "Hello"}
+	payload, err := codec.Marshal(job)
+	require.NoError(t, err)
+	worker := voice.Worker{Log: zap.New(core)}
+	require.NoError(t, worker.Process(t.Context(), payload))
+
+	entries := logs.FilterMessage("voice job dropped").All()
+	require.Len(t, entries, 1)
+	assert.Equal(t, "invalid", entries[0].ContextMap()["reason"])
+}
+
+func (tc workerCase) assertDrop(t *testing.T, logs *observer.ObservedLogs) {
+	t.Helper()
+	drops := logs.FilterMessage("voice job dropped").All()
+	if tc.wantDrop == "" {
+		assert.Empty(t, drops)
+		return
+	}
+	require.Len(t, drops, 1)
+	fields := drops[0].ContextMap()
+	assert.Equal(t, []any{tc.wantDrop, "42", workerJobID}, []any{fields["reason"], fields["broadcaster_id"], fields["event_id"]})
 }
 
 func checkReply(tc workerCase) usersrpc.VoiceCheckReply {
@@ -197,7 +231,7 @@ func checkReply(tc workerCase) usersrpc.VoiceCheckReply {
 
 func (r testVoiceRig) assertNoClip(t *testing.T, f *voiceRPCs) {
 	t.Helper()
-	clip, err := r.overlay.GetClip(t.Context(), bus.TTSClip{Key: "42/ev-12"})
+	clip, err := r.overlay.GetClip(t.Context(), bus.TTSClip{Key: workerClipKey})
 	require.NoError(t, err)
 	assert.Empty(t, clip.Key)
 	assert.Zero(t, f.attempts.Load())
@@ -254,7 +288,7 @@ func (r testVoiceRig) assertDelivery(t *testing.T, job voiceplan.AlertJob) {
 	ctx := t.Context()
 	bucket, err := r.js.ObjectStore(ctx, "TTS_CLIPS")
 	require.NoError(t, err)
-	wav, err := bucket.GetBytes(ctx, "42/ev-12")
+	wav, err := bucket.GetBytes(ctx, workerClipKey)
 	require.NoError(t, err)
 	assert.Equal(t, fakeWAV, wav)
 
@@ -268,7 +302,7 @@ func (r testVoiceRig) assertDelivery(t *testing.T, job voiceplan.AlertJob) {
 	require.NoError(t, codec.Unmarshal(msg.Data, &event))
 
 	assert.Equal(t, voiceplan.OverlayEvent{
-		ClipKey: "42/ev-12", EventID: job.EventID, Kind: job.Kind, DurationMS: 1, ExpiresAt: event.ExpiresAt,
+		ClipKey: workerClipKey, EventID: job.EventID, Kind: job.Kind, DurationMS: 1, ExpiresAt: event.ExpiresAt,
 	}, event)
 	assert.WithinDuration(t, time.Now().Add(5*time.Minute), event.ExpiresAt, 15*time.Second)
 }

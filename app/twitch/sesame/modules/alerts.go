@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/activity"
 	"ItsBagelBot/internal/domain/i18n"
+	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/codec"
 
@@ -106,44 +107,65 @@ func tokenPairs(m map[string]string) []string {
 	return out
 }
 
-func onAlert[T any](d engine.Deps, kind voiceplan.AlertKind, render func(context.Context, *module.Context, T) (alertLine, bool)) module.EventHandler {
+type alertConfig map[string]string
+
+func (cfg alertConfig) chatEnabled(kind voiceplan.AlertKind) bool {
+	value := cfg[string(kind)+"Enabled"]
+	if kind == "ads" {
+		return explicitOn(value)
+	}
+	return alertOn(value)
+}
+
+func onAlert[T any](kind voiceplan.AlertKind, render func(context.Context, *module.Context, T) (alertLine, bool)) module.EventHandler {
 	return func(ctx context.Context, c *module.Context, emit module.Emit) error {
 		if len(c.Env.Event) == 0 {
 			return nil
 		}
 		var cfg alertConfig
 		_ = c.Decode(&cfg)
-		chat := cfg.chatEnabled(kind)
-		audio, wantsAudio := newAlertSpeech(d, c, cfg, kind)
-		if skipAlertOutputs(chat, wantsAudio) {
+		if !cfg.chatEnabled(kind) {
 			return nil
 		}
 		var ev T
 		if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
 			return err
 		}
-		output := alertOutputs{
-			c: c, d: d, cfg: cfg, audio: audio, chat: chat,
-			wantsSpeech: wantsAudio, input: speechInput(c, any(ev)),
+		line, ok := render(ctx, c, ev)
+		if !ok {
+			return nil
 		}
-		output.send(ctx, emit, func() (alertLine, bool) { return render(ctx, c, ev) })
+		emitAlertChat(c, line, cfg.chatMessage(c, kind), emit)
 		return nil
 	}
 }
 
-func skipAlertOutputs(chat, speak bool) bool { return !chat && !speak }
+func (cfg alertConfig) chatMessage(c *module.Context, kind voiceplan.AlertKind) string {
+	if text := cfg[string(kind)+"Message"]; text != "" {
+		return text
+	}
+	return i18n.T(c.Locale, "alerts."+string(kind)+".default")
+}
+
+func emitAlertChat(c *module.Context, line alertLine, text string, emit module.Emit) {
+	emit(&module.Output{
+		Type:          outgress.TypeChat,
+		BroadcasterID: line.broadcasterID,
+		Text:          c.Palette("alerts", tokenPairs(line.tokens)...).ExpandString(text),
+	})
+}
 
 func Alerts(d engine.Deps) module.Module {
 	m := module.NewModule("alerts", module.KindDefault)
 
-	m.On("channel.follow", onAlert(d, "follow", claimedLine[followEvent](d.Cooldown, moduleLog(d))))
-	subAlert := onAlert(d, "sub", claimedLine[subscribeEvent](d.Cooldown, moduleLog(d)))
+	m.On("channel.follow", onAlert("follow", claimedLine[followEvent](d.Cooldown, moduleLog(d))))
+	subAlert := onAlert("sub", claimedLine[subscribeEvent](d.Cooldown, moduleLog(d)))
 	m.On("channel.subscribe", subAlert)
 	m.On("channel.subscription.message", subAlert)
-	m.On("channel.subscription.gift", onAlert(d, "gift", giftLine))
-	m.On("channel.cheer", onAlert(d, "cheer", cheerLine))
-	m.On("channel.raid", onAlert(d, "raid", raidLine))
-	m.On("channel.ad_break.begin", onAlert(d, "ads", adBreakLine))
+	m.On("channel.subscription.gift", onAlert("gift", giftLine))
+	m.On("channel.cheer", onAlert("cheer", cheerLine))
+	m.On("channel.raid", onAlert("raid", raidLine))
+	m.On("channel.ad_break.begin", onAlert("ads", adBreakLine))
 
 	return m.Build()
 }

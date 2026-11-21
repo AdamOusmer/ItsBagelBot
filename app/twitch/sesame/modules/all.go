@@ -17,6 +17,7 @@ func All(d engine.Deps) []module.Module {
 		StreamEditors(d),
 		Shoutout(d),
 		Alerts(d),
+		AlertVoice(d),
 		Clip(d),
 		Followage(d),
 		Uptime(d),

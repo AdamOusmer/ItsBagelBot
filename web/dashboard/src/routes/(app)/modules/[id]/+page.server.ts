@@ -6,7 +6,7 @@ import { MOD, moduleDef, type ModuleDef } from '@bagel/kit';
 import { listModules, listModulesForEditing, patchModule, upsertModule, type ModuleView } from '#lib/server/commands-store';
 import { auditDashboardImpersonation } from '#lib/server/services';
 import { logger } from '@bagel/kit/server/logger';
-import { gateSection, moduleLocked, moduleWriteDenial } from '#lib/server/module-gate';
+import { broadcasterPremium, gateSection, moduleLocked, moduleWriteDenial } from '#lib/server/module-gate';
 import { moduleLoad } from '#lib/server/module-page';
 import { attachLinkedUUID } from '#lib/server/minecraft-uuid';
 import { effectiveId } from '#lib/server/board';
@@ -44,14 +44,21 @@ function requiredModulesOff(def: ModuleDef, rows: ModuleView[]): string[] {
   return [...required].filter((id) => rows.find((r) => r.name === id)?.is_enabled !== true);
 }
 
+function voiceAllowedFor(locals: App.Locals, def: ModuleDef) {
+  return def.replies.some((reply) => reply.voiceAlert) && broadcasterPremium(locals);
+}
+
 export const load: PageServerLoad = async ({ params, locals, cookies, url }) => {
   gateSection(locals.session, 'modules');
   const def = moduleDef(params.id);
   if (!def || def.hidden) throw error(404, actionError(locals.locale, 'Unknown module'));
   if (def.href) throw redirect(302, def.href);
 
-  const locked = await moduleLocked(locals, def);
-  const blank = () => ({ def, locked, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0, requiresOff: [] as string[] });
+  const [locked, voiceAllowed] = await Promise.all([
+    moduleLocked(locals, def),
+    voiceAllowedFor(locals, def)
+  ]);
+  const blank = () => ({ def, locked, voiceAllowed, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0, requiresOff: [] as string[] });
 
   return moduleLoad(def.id, locals.session, {
     demo: DEMO ? async () => blank() : undefined,
@@ -59,7 +66,7 @@ export const load: PageServerLoad = async ({ params, locals, cookies, url }) => 
       const rows = await editorRows(uid, def.id, cookies, url);
       const row = rows.find((r) => r.name === def.id);
       const { config, revision } = moduleEditState(row);
-      return { def, locked, enabled: row ? row.is_enabled : def.defaultEnabled, config, revision, requiresOff: requiredModulesOff(def, rows) };
+      return { def, locked, voiceAllowed, enabled: row ? row.is_enabled : def.defaultEnabled, config, revision, requiresOff: requiredModulesOff(def, rows) };
     },
     blank
   });

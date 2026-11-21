@@ -77,6 +77,7 @@
   "patchConflict": "Quelqu'un d'autre a modifié ce module. La dernière version a été rechargée : refaites votre modification.",
   "permLeadMods": "Lead modos",
   "permMods": "Modérateurs",
+  "readPremiumVoice": "Lire à voix haute avec la voix Premium",
   "repliesLabel": "Réponses",
   "replyBlankHint": "Laissez vide pour utiliser le message par défaut.",
   "replyIdle": "Sélectionnez un message pour le modifier ici.",

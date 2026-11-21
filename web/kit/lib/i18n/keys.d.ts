@@ -5299,6 +5299,7 @@ export type KnownMessageKey =
   | 'modules.permLeadMods'
   | 'modules.permMods'
   | 'modules.quickAccess'
+  | 'modules.readPremiumVoice'
   | 'modules.repliesLabel'
   | 'modules.replyBlankHint'
   | 'modules.replyFilterLabel'

@@ -6,6 +6,8 @@ package modules
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"regexp"
 	"slices"
@@ -17,103 +19,111 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/voiceplan"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
 
-type alertConfig map[string]string
+type speechSkipReason string
 
-func (cfg alertConfig) chatEnabled(kind voiceplan.AlertKind) bool {
-	value := cfg[string(kind)+"Enabled"]
-	if kind == "ads" {
-		return explicitOn(value)
-	}
-	return alertOn(value)
-}
-
-type alertOutputs struct {
-	c           *module.Context
-	d           engine.Deps
-	cfg         alertConfig
-	audio       alertSpeech
-	input       alertSpeechInput
-	chat        bool
-	wantsSpeech bool
-}
-
-func (a alertOutputs) send(ctx context.Context, emit module.Emit, render func() (alertLine, bool)) {
-	a.sendChat(emit, render)
-	if a.admitSpeech(ctx) {
-		a.audio.publish(ctx, a.c)
-	}
-}
-
-func (a alertOutputs) sendChat(emit module.Emit, render func() (alertLine, bool)) {
-	if !a.chat {
-		return
-	}
-	if line, ok := render(); ok {
-		a.emitChat(emit, line)
-	}
-}
-
-func (a *alertOutputs) admitSpeech(ctx context.Context) bool {
-	return a.wantsSpeech && a.audio.admit(ctx, a.d, a.c, a.input)
-}
-
-func (a alertOutputs) emitChat(emit module.Emit, line alertLine) {
-	kind := string(a.audio.kind)
-	text := a.cfg[kind+"Message"]
-	if text == "" {
-		text = i18n.T(a.c.Locale, "alerts."+kind+".default")
-	}
-	emit(&module.Output{
-		Type:          outgress.TypeChat,
-		BroadcasterID: line.broadcasterID,
-		Text:          a.c.Palette("alerts", tokenPairs(line.tokens)...).ExpandString(text),
-	})
-}
+const (
+	speechUnavailable speechSkipReason = "no_link_or_not_allowed"
+	speechOffline     speechSkipReason = "offline"
+	speechMinBits     speechSkipReason = "min_bits"
+	speechEmpty       speechSkipReason = "empty_message"
+	speechBlocked     speechSkipReason = "blocked"
+	speechTrial       speechSkipReason = "trial"
+	speechToggleOff   speechSkipReason = "toggle_off"
+	speechNoIdentity  speechSkipReason = "missing_identity"
+)
 
 type alertSpeech struct {
+	d        *engine.Deps
+	c        *module.Context
 	kind     voiceplan.AlertKind
-	pub      engine.AlertVoicePublisher
-	style    string
-	voice    string
-	speaker  string
-	message  string
-	liveOnly bool
-	minBits  int
+	identity string
+	cfg      alertConfig
 }
 
-func spokenEvent(eventType string) bool {
-	return eventType == "channel.cheer" || eventType == "channel.subscription.message"
+func AlertVoice(d engine.Deps) module.Module {
+	return module.NewModule("", module.KindCore).
+		On("channel.cheer", onAlertSpeech(d, "cheer", cheerSpeechInput)).
+		On("channel.subscription.message", onAlertSpeech(d, "sub", subSpeechInput)).
+		Build()
 }
 
-func newAlertSpeech(d engine.Deps, c *module.Context, cfg alertConfig, kind voiceplan.AlertKind) (alertSpeech, bool) {
-	s := alertSpeech{kind: kind, pub: d.AlertVoice}
-	defaults, known := kind.Defaults()
-	if !known || s.pub == nil {
-		return s, false
+func onAlertSpeech[T any](d engine.Deps, kind voiceplan.AlertKind, input func(*module.Context, T) alertSpeechInput) module.EventHandler {
+	return func(ctx context.Context, c *module.Context, _ module.Emit) error {
+		s := alertSpeech{d: &d, c: c, kind: kind, identity: cmp.Or(c.Env.EventID, engine.EventIdentity(&c.Env))}
+		if reason := s.preflight(); reason != "" {
+			return s.skip(reason)
+		}
+		if err := s.loadConfig(ctx); err != nil {
+			c.Log.Warn("voice alert settings could not be loaded", c.BID(), zap.Error(err))
+			return s.skip(speechUnavailable)
+		}
+		defaults, _ := kind.Defaults()
+		if !settingBool(s.cfg[s.configKey()], defaults.Enabled) {
+			return s.skip(speechToggleOff)
+		}
+		var ev T
+		if len(c.Env.Event) == 0 {
+			return s.skip(speechEmpty)
+		}
+		if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
+			return err
+		}
+		s.handle(ctx, input(c, ev))
+		return nil
 	}
-	if !spokenEvent(c.Env.Type) || c.Env.Origin == "trial" {
-		return s, false
+}
+
+func (s alertSpeech) preflight() speechSkipReason {
+	switch {
+	case s.c.Env.Origin == "trial":
+		return speechTrial
+	case s.d.AlertVoice == nil:
+		return speechUnavailable
+	case s.identity == "":
+		return speechNoIdentity
+	default:
+		return ""
 	}
-	if c.Env.EventID == "" {
-		return s, false
+}
+
+func (s *alertSpeech) loadConfig(ctx context.Context) error {
+	lookup := engine.ModuleLookup{Proj: s.d.Proj, BroadcasterID: s.c.BroadcasterID, Name: "alerts"}
+	view, _, err := lookup.Resolve(ctx)
+	if err != nil || len(view.Configs) == 0 {
+		return err
 	}
-	key := string(kind) + "Tts"
-	if !settingBool(cfg[key], defaults.Enabled) {
-		return s, false
+	return codec.Unmarshal(view.Configs, &s.cfg)
+}
+
+func (s alertSpeech) configKey() string { return string(s.kind) + "Tts" }
+
+func (s alertSpeech) broadcasterID() string {
+	return strconv.FormatUint(s.c.BroadcasterID, 10)
+}
+
+func (s alertSpeech) skip(reason speechSkipReason) error {
+	s.c.Log.Info("voice alert skipped", s.c.BID(), zap.String("kind", string(s.kind)), zap.String("reason", string(reason)))
+	return nil
+}
+
+func (s alertSpeech) handle(ctx context.Context, in alertSpeechInput) {
+	in.message = s.viewerMessage(in.message)
+	if reason := s.skipReason(ctx, in); reason != "" {
+		s.skip(reason)
+		return
 	}
-	s.style = cmp.Or(voiceplan.Style(cfg[key+"Style"]), voiceplan.Style(defaults.Style))
-	if voice := cfg[key+"Voice"]; voiceplan.ValidVoice(voice) {
-		s.voice = voice
+	job := s.job(in)
+	if err := s.d.AlertVoice.Publish(ctx, job); err != nil {
+		s.c.Log.Warn("voice job publication failed", s.c.BID(), zap.String("event_id", job.EventID), zap.Error(err))
+		return
 	}
-	s.liveOnly = settingBool(cfg["ttsLiveOnly"], voiceplan.DefaultLiveOnly)
-	s.minBits = minimumBits(cfg)
-	return s, true
+	s.c.Log.Info("voice job published", s.c.BID(), zap.String("kind", string(job.Kind)), zap.String("event_id", job.EventID))
 }
 
 func settingBool(value string, fallback bool) bool {
@@ -141,17 +151,6 @@ type alertSpeechInput struct {
 	bits    int
 }
 
-func speechInput(c *module.Context, ev any) alertSpeechInput {
-	switch ev := ev.(type) {
-	case cheerEvent:
-		return cheerSpeechInput(c, ev)
-	case subscribeEvent:
-		return subSpeechInput(c, ev)
-	default:
-		return alertSpeechInput{}
-	}
-}
-
 func cheerSpeechInput(c *module.Context, ev cheerEvent) alertSpeechInput {
 	if ev.BroadcasterUserID == "" {
 		return alertSpeechInput{}
@@ -163,46 +162,45 @@ func cheerSpeechInput(c *module.Context, ev cheerEvent) alertSpeechInput {
 	return alertSpeechInput{speaker: speaker, message: ev.Message, bits: ev.Bits}
 }
 
-func subSpeechInput(c *module.Context, ev subscribeEvent) alertSpeechInput {
-	if c.Env.Type != "channel.subscription.message" || ev.skip() {
-		return alertSpeechInput{}
-	}
-	if ev.BroadcasterUserID == "" {
+func subSpeechInput(_ *module.Context, ev subscribeEvent) alertSpeechInput {
+	if ev.skip() || ev.BroadcasterUserID == "" {
 		return alertSpeechInput{}
 	}
 	return alertSpeechInput{speaker: ev.user(), message: ev.Message.Text}
 }
 
-func (s *alertSpeech) admit(ctx context.Context, d engine.Deps, c *module.Context, in alertSpeechInput) bool {
-	if s.kind == "cheer" && in.bits < s.minBits {
-		return false
+func (s alertSpeech) skipReason(ctx context.Context, in alertSpeechInput) speechSkipReason {
+	switch {
+	case s.kind == "cheer" && in.bits < minimumBits(s.cfg):
+		return speechMinBits
+	case !hasSpokenContent(in.message):
+		return speechEmpty
+	case blockedSpeech(s.c, in.message):
+		return speechBlocked
+	case !loyaltyLive(ctx, *s.d, s.c.BroadcasterID, settingBool(s.cfg["ttsLiveOnly"], voiceplan.DefaultLiveOnly)):
+		return speechOffline
+	default:
+		return s.allowanceReason(ctx)
 	}
-	s.message = s.viewerMessage(c, in.message)
-	if s.message == "" {
-		return false
-	}
-	if !loyaltyLive(ctx, d, c.BroadcasterID, s.liveOnly) {
-		return false
-	}
-	enabled, err := s.pub.Enabled(ctx, c.Env.BroadcasterUserID)
+}
+
+func (s alertSpeech) allowanceReason(ctx context.Context) speechSkipReason {
+	enabled, err := s.d.AlertVoice.Enabled(ctx, s.broadcasterID())
 	if err != nil {
-		moduleLog(d).Warn("voice allowance check failed", c.BID(), zap.Error(err))
-		return false
+		s.c.Log.Warn("voice allowance check failed", s.c.BID(), zap.Error(err))
 	}
-	s.speaker = in.speaker
-	return enabled
+	if err != nil || !enabled {
+		return speechUnavailable
+	}
+	return ""
 }
 
 var cheermoteToken = regexp.MustCompile(`^[A-Za-z]+[0-9]+$`)
 
-func (s *alertSpeech) viewerMessage(c *module.Context, message string) string {
+func (s alertSpeech) viewerMessage(message string) string {
 	text := speechPlainText(message)
 	if s.kind == "cheer" {
-		words := slices.DeleteFunc(strings.Fields(text), isCheermoteWord)
-		text = strings.Join(words, " ")
-	}
-	if !hasSpokenContent(text) || blockedSpeech(c, text) {
-		return ""
+		return strings.Join(slices.DeleteFunc(strings.Fields(text), isCheermoteWord), " ")
 	}
 	return text
 }
@@ -220,22 +218,27 @@ func isSpokenRune(r rune) bool {
 }
 
 func blockedSpeech(c *module.Context, text string) bool {
-	if text == "" || c.BlocksText == nil {
-		return false
-	}
-	return c.BlocksText(text)
+	return c.BlocksText != nil && c.BlocksText(text)
 }
 
-func (s alertSpeech) publish(ctx context.Context, c *module.Context) {
-	speaker := cmp.Or(speechPlainText(s.speaker), i18n.T(c.Locale, "alerts.voice.anonymous"))
-	text := fmt.Sprintf(i18n.T(c.Locale, "alerts.voice.said"), speaker, s.message)
-	job := voiceplan.AlertJob{
-		EventID: c.Env.EventID, BroadcasterID: c.Env.BroadcasterUserID, Kind: s.kind,
-		Text: stripSpeechControls(text), Style: s.style, Voice: s.voice, CreatedAt: time.Now().UTC(),
+func (s alertSpeech) job(in alertSpeechInput) voiceplan.AlertJob {
+	key := s.configKey()
+	defaults, _ := s.kind.Defaults()
+	style := cmp.Or(voiceplan.Style(s.cfg[key+"Style"]), voiceplan.Style(defaults.Style))
+	displayName := cmp.Or(speechPlainText(in.speaker), i18n.T(s.c.Locale, "alerts.voice.anonymous"))
+	text := fmt.Sprintf(i18n.T(s.c.Locale, "alerts.voice.said"), displayName, in.message)
+	digest := sha256.Sum256([]byte(s.identity))
+	return voiceplan.AlertJob{
+		EventID: hex.EncodeToString(digest[:16]), BroadcasterID: s.broadcasterID(), Kind: s.kind,
+		Text: stripSpeechControls(text), Style: style, Voice: speechVoice(s.cfg[key+"Voice"]), CreatedAt: time.Now().UTC(),
 	}
-	if err := s.pub.Publish(ctx, job); err != nil {
-		c.Log.Warn("voice job publication failed", c.BID(), zap.Error(err))
+}
+
+func speechVoice(voice string) string {
+	if voiceplan.ValidVoice(voice) {
+		return voice
 	}
+	return ""
 }
 
 func stripSpeechControls(text string) string {
