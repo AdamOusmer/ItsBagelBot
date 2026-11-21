@@ -4,8 +4,10 @@
 import { describe, expect, test } from 'bun:test';
 import {
   ADMIN_GROUP_ORDER,
+  ADMIN_GROUP_LABEL,
   ADMIN_SECTIONS,
   adminNavGroups,
+  adminNavItems,
   adminSectionForPath,
   adminSectionLabelKey
 } from './nav-admin';
@@ -33,7 +35,8 @@ describe('admin nav registry', () => {
     ['/users/12345', 'users'],
     ['/events/stream', 'events'],
     ['/deploys/abc123/stream', 'deploys'],
-    ['/analytics', 'analytics']
+    ['/analytics', 'analytics'],
+    ['/settings', 'settings']
   ])('%s resolves to the %s section', (path, section) => {
     expect(adminSectionForPath(path)).toBe(section);
   });
@@ -43,33 +46,43 @@ describe('admin nav registry', () => {
       .flatMap((group) => group.items)
       .map((item) => item.href);
 
-  test('minRole hides Access rows from the roles their routes bounce', () => {
-    expect(hrefs('moderator')).not.toContain('/staff');
-    expect(hrefs('moderator')).not.toContain('/counters');
-    expect(hrefs('moderator')).not.toContain('/trials');
-    expect(hrefs('admin')).toContain('/staff');
-    expect(hrefs('admin')).toContain('/trials');
-    expect(hrefs('admin')).not.toContain('/counters');
-    expect(hrefs('owner')).toContain('/counters');
-    expect(hrefs('owner').length).toBe(ADMIN_SECTIONS.length);
-  });
-
-  test('/deploys is offered to owners only', () => {
-    const offered = ROLES.filter((role) => hrefs(role).includes('/deploys'));
-    expect(offered).toEqual(['owner']);
+  test.each<[string, StaffRole[]]>([
+    ['/staff', ['admin', 'owner']],
+    ['/counters', ['owner']],
+    ['/trials', ['admin', 'owner']],
+    ['/deploys', ['owner']],
+    ['/settings', ROLES]
+  ])('%s is visible to the permitted staff roles', (path, roles) => {
+    expect(ROLES.filter((role) => hrefs(role).includes(path))).toEqual(roles);
   });
 
   test('groups follow ADMIN_GROUP_ORDER and drop empty ones', () => {
-    expect(adminNavGroups({ role: 'moderator', section: 'overview' })).toHaveLength(2);
-    expect(adminNavGroups({ role: 'owner', section: 'overview' })).toHaveLength(
-      ADMIN_GROUP_ORDER.length
-    );
+    const labels = (role: StaffRole) =>
+      adminNavGroups({ role, section: 'overview' }).map((group) => group.label);
+    expect(labels('moderator')).toEqual([ADMIN_GROUP_LABEL.operate, ADMIN_GROUP_LABEL.accounts]);
+    expect(labels('owner')).toEqual(ADMIN_GROUP_ORDER.map((id) => ADMIN_GROUP_LABEL[id]));
+    expect(hrefs('owner')).toHaveLength(ADMIN_SECTIONS.length);
   });
 
   test('the active section is marked in exactly one group', () => {
-    const groups = adminNavGroups({ role: 'owner', section: 'secrets' });
+    const groups = adminNavGroups({ role: 'moderator', section: 'settings' });
     const active = groups.flatMap((g) => g.items).filter((item) => item.current);
-    expect(active.map((item) => item.href)).toEqual(['/secrets']);
+    expect(active.map((item) => item.href)).toEqual(['/settings']);
+  });
+
+  test.each<[number | null, string]>([
+    [null, ''],
+    [0, '0'],
+    [17, '17'],
+    [4_294_967_295, '4294967295']
+  ])('only Users receives the display value for %p', (liveCount, count) => {
+    const opts = { role: 'moderator', section: 'overview', liveCount } as const;
+    const items = adminNavItems(opts);
+    const grouped = adminNavGroups(opts).flatMap((group) => group.items);
+    expect(items.filter((item) => item.count !== undefined)).toEqual([
+      expect.objectContaining({ href: '/users', count })
+    ]);
+    expect(grouped).toEqual(items);
   });
 
   test('every label key is a real English leaf, and the breadcrumb key is the section label', () => {
@@ -77,10 +90,8 @@ describe('admin nav registry', () => {
       expect(typeof leaf(def.labelKey)).toBe('string');
       expect(adminSectionLabelKey(def.id)).toBe(def.labelKey);
     }
-    for (const role of ROLES) {
-      for (const group of adminNavGroups({ role, section: 'overview' })) {
-        expect(typeof leaf(group.label ?? '')).toBe('string');
-      }
+    for (const key of Object.values(ADMIN_GROUP_LABEL)) {
+      expect(typeof leaf(key)).toBe('string');
     }
   });
 });

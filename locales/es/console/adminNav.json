@@ -15,5 +15,6 @@
   "secrets": "Secretos",
   "counters": "Contadores del bot",
   "trials": "Canales de prueba",
-  "deploys": "Despliegues"
+  "deploys": "Despliegues",
+  "settings": "Ajustes"
 }

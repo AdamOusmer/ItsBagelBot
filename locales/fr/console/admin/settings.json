@@ -1,0 +1,9 @@
+{
+  "title": "Paramètres",
+  "language": "Langue",
+  "languageHint": "Choisissez la langue du panneau d’administration.",
+  "customCursor": "Curseur personnalisé",
+  "customCursorHint": "Utilisez le curseur personnalisé dans ce navigateur.",
+  "cursorSaveError": "Impossible d’enregistrer la préférence de curseur.",
+  "languageSaveError": "Impossible de changer la langue."
+}
