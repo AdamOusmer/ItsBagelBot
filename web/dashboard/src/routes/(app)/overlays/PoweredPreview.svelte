@@ -12,7 +12,6 @@
   let { src }: { src: string } = $props();
 
   const { t } = getI18n();
-  const STAGE_WIDTH = 1920;
   let width = $state(0);
   let loadedSrc = $state('');
   const ready = $derived(width > 0 && loadedSrc === src);
@@ -38,7 +37,7 @@
     </div>
     <div class="stage bb-dot-canvas" bind:clientWidth={width}>
       <iframe bind:this={frame} class="frame" class:ready title={t('overlays.previewFrame')}
-        {src} style:transform="scale({width / STAGE_WIDTH})" loading="lazy" referrerpolicy="no-referrer"
+        {src} loading="lazy" referrerpolicy="no-referrer"
         sandbox="allow-scripts allow-same-origin" tabindex="-1"></iframe>
     </div>
   </div>
@@ -76,11 +75,10 @@
     position: absolute;
     inset-block-start: 0;
     inset-inline-start: 0;
-    inline-size: 1920px;
-    block-size: 1080px;
+    inline-size: 100%;
+    block-size: 100%;
     border: 0;
     color-scheme: light;
-    transform-origin: 0 0;
     pointer-events: none;
     opacity: 0;
   }

@@ -40,6 +40,7 @@
       background: transparent;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      text-rendering: geometricPrecision;
     }
 
     .canvas {
@@ -50,7 +51,6 @@
       height: 1080px;
       overflow: hidden;
       background: transparent;
-      transform-origin: 0 0;
     }
 
     .slot {
@@ -452,7 +452,7 @@
         const scale = Math.min(innerWidth / CANVAS_WIDTH, innerHeight / CANVAS_HEIGHT) || 1;
         canvas.style.width = innerWidth / scale + 'px';
         canvas.style.height = innerHeight / scale + 'px';
-        canvas.style.transform = 'scale(' + scale + ')';
+        canvas.style.zoom = scale;
       }
 
       fitCanvas();
