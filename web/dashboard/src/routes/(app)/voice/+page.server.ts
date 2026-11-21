@@ -10,7 +10,8 @@ import { RpcError } from '@bagel/kit/server/nats';
 import { MAX_CLIP_SECONDS, MAX_SPEECH_RUNES, MIN_CLIP_SECONDS } from '@bagel/kit/voice-plan';
 import { listModulesForEditing, patchModule } from '#lib/server/commands-store';
 import { moduleEditState } from '#lib/server/module-edit-state';
-import { isOwnerSession } from '#lib/server/owner';
+import { hasOwnerAccess } from '#lib/server/owner';
+import { auditDashboardImpersonation } from '#lib/server/services/audit';
 import { voiceGet, voiceOverlayRotate, voiceSet } from '#lib/server/services/voice';
 import { parseVoiceSave, voiceAlertConfig } from './voice-settings';
 import type { Session } from '#lib/server/session';
@@ -60,6 +61,7 @@ async function persistVoice(session: Session, save: ParsedSave, locale: Locale) 
       const { voice, enabled, max_seconds } = allowance;
       await voiceSet(session, { voice, enabled, max_seconds, ...save.settings });
     }
+    auditDashboardImpersonation(session, 'voice:save');
     return { ok: true, rev: alerts.rev };
   } catch {
     return fail(503, { error: translate(locale, 'voice.saveFailed'), revision });
@@ -84,7 +86,7 @@ const demoLoad = (async ({ locals: { locale } }) => {
 
 const liveLoad = (async ({ locals: { session, locale } }) => {
   if (!session) throw redirect(302, '/login?next=%2Fvoice');
-  if (!isOwnerSession(session)) return { readOnly: true, locked: false, allowance: null, alerts: null };
+  if (!hasOwnerAccess(session)) return { readOnly: true, locked: false, allowance: null, alerts: null };
 
   const allowance = await bestEffort(voiceGet(session), null);
   const view = { readOnly: false, locked: allowance?.reason === 'no_plan', allowance };
@@ -102,7 +104,7 @@ export const load: PageServerLoad = DEMO ? demoLoad : liveLoad;
 const liveActions = {
   save: async ({ locals: { session, locale }, request }) => {
     if (!session) return fail(401, { error: translate(locale, 'serverErrors.notSignedIn') });
-    if (!isOwnerSession(session)) return fail(403, { error: translate(locale, 'serverErrors.ownerOnly') });
+    if (!hasOwnerAccess(session)) return fail(403, { error: translate(locale, 'serverErrors.ownerOnly') });
 
     const save = parseVoiceSave(await request.formData());
     if (save.error !== null) return invalidSave(locale, save.error);
@@ -110,11 +112,13 @@ const liveActions = {
   },
   rotateOverlay: async ({ locals: { session, locale }, setHeaders }) => {
     if (!session) return fail(401, { overlayError: translate(locale, 'serverErrors.notSignedIn') });
-    if (!isOwnerSession(session)) return fail(403, { overlayError: translate(locale, 'serverErrors.ownerOnly') });
+    if (!hasOwnerAccess(session)) return fail(403, { overlayError: translate(locale, 'serverErrors.ownerOnly') });
 
     setHeaders({ 'cache-control': 'no-store' });
     try {
-      return { overlayUrl: await voiceOverlayRotate(session) };
+      const overlayUrl = await voiceOverlayRotate(session);
+      auditDashboardImpersonation(session, 'voice:overlay_rotate');
+      return { overlayUrl };
     } catch (err) {
       if (err instanceof RpcError && err.code === 'forbidden') {
         return fail(403, { overlayError: translate(locale, 'voice.overlayUnavailable') });

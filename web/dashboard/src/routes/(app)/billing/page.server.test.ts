@@ -84,6 +84,13 @@ test.each(['subscribe', 'gift'])('%s rejects an unauthorized checkout once', asy
   });
 });
 
+test('staff view-as opens checkout for the viewed account', async () => {
+  const event = actionEvent({ plan: 'monthly' });
+  const viewAs = { ...event, locals: { ...event.locals, session: { ...event.locals.session, impersonator_id: '9', impersonator_login: 'staff' } } };
+  const response = await Promise.resolve().then(() => actions.subscribe(viewAs as never)).catch((err) => err);
+  expect({ status: response.status, requests }).toMatchObject({ status: 303, requests: [{ userId: '7', username: 'streamer' }] });
+});
+
 test('gift rejection preserves the submitted form payload', async () => {
   basketError = new RpcError('refused', 'conflict');
   const response = await actions.gift(actionEvent({ recipient: 'recipient', message: 'a gift' }) as never);

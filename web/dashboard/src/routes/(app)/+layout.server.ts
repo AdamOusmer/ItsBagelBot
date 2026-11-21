@@ -14,7 +14,7 @@ import { accountState, notificationsForUser, delegationAccess, type AccountState
 import { DEFAULT_MODULE_FLAGS, DEMO_MODULE_FLAGS, moduleFlags, withBetaLocks } from '#lib/server/module-flags';
 import { broadcasterPremium } from '#lib/server/module-gate';
 import { twitchScopeGap } from '#lib/server/oauth';
-import { isOwnerSession } from '#lib/server/owner';
+import { isSelfSignIn } from '#lib/server/owner';
 import { count } from '@bagel/kit/server/analytics';
 
 const DEMO = dev && env.DEMO === '1';
@@ -69,7 +69,7 @@ async function requireSession(locals: App.Locals, url: URL): Promise<Session> {
 }
 
 function requireTwitchScopes(s: Session, url: URL): void {
-  if (!isOwnerSession(s) || !twitchScopeGap(s.scopes)) return;
+  if (!isSelfSignIn(s) || !twitchScopeGap(s.scopes)) return;
   throw redirect(302, `/auth/login?reauth=1&next=${encodeURIComponent(url.pathname + url.search)}`);
 }
 
