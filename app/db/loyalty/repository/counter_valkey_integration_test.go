@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/internal/testproc"
+
 	"github.com/stretchr/testify/require"
 	valkey_go "github.com/valkey-io/valkey-go"
 )
@@ -29,9 +31,7 @@ func counterRealValkey(t *testing.T) valkey_go.Client {
 	port := listener.Addr().(*net.TCPAddr).Port
 	require.NoError(t, listener.Close())
 	dir := t.TempDir()
-	server := exec.Command(binary, "--bind", "127.0.0.1", "--port", strconv.Itoa(port), "--save", "", "--appendonly", "no", "--dir", dir, "--logfile", filepath.Join(dir, "valkey.log"))
-	require.NoError(t, server.Start())
-	t.Cleanup(func() { _ = server.Process.Kill(); _ = server.Wait() })
+	testproc.StartT(t, binary, "--bind", "127.0.0.1", "--port", strconv.Itoa(port), "--save", "", "--appendonly", "no", "--dir", dir, "--logfile", filepath.Join(dir, "valkey.log"))
 	address := fmt.Sprintf("127.0.0.1:%d", port)
 	deadline := time.Now().Add(3 * time.Second)
 	for {

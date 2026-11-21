@@ -19,6 +19,7 @@ import (
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/internal/testnats"
+	"ItsBagelBot/internal/testproc"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
@@ -151,9 +152,7 @@ func testValkey(t *testing.T) valkey.Client {
 	port := listener.Addr().(*net.TCPAddr).Port
 	require.NoError(t, listener.Close())
 	dir := t.TempDir()
-	server := exec.Command(binary, "--bind", "127.0.0.1", "--port", strconv.Itoa(port), "--save", "", "--appendonly", "no", "--dir", dir, "--logfile", filepath.Join(dir, "valkey.log"))
-	require.NoError(t, server.Start())
-	t.Cleanup(func() { _ = server.Process.Kill(); _ = server.Wait() })
+	testproc.StartT(t, binary, "--bind", "127.0.0.1", "--port", strconv.Itoa(port), "--save", "", "--appendonly", "no", "--dir", dir, "--logfile", filepath.Join(dir, "valkey.log"))
 	require.Eventually(t, func() bool {
 		conn, err := net.DialTimeout("tcp", address, 50*time.Millisecond)
 		if err != nil {
