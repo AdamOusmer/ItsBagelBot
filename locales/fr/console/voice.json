@@ -30,18 +30,16 @@
   "gateTitle": "Donnez une voix à vos alertes avec Premium",
   "gateBody": "Choisissez des voix et des styles pour vos alertes et diffusez-les dans OBS via une source navigateur.",
   "liveOnly": "Seulement en direct",
-  "readMessages": "Lire le message du spectateur",
-  "readMessagesHint": "Inclut les messages envoyés avec les Cheers et les réabonnements.",
   "minBits": "Minimum de bits",
   "maxLengthHint": "Environ {chars} caractères",
   "alertsTitle": "Alertes lues à voix haute",
-  "spokenMessage": "Message lu",
+  "alertsHint": "Lit le message du spectateur sous la forme « Utilisateur a dit : ... », sans annoncer les bits. Les événements sans message restent silencieux.",
   "rehearsal": "Lu à voix haute",
   "styleLabel": "Style",
   "voiceOverride": "Voix de cette alerte",
   "useDefault": "Par défaut ({voice})",
-  "insertPause": "Insérer une courte pause",
   "cheerThreshold": "Se déclenche à partir de {n} bits",
+  "subMessageOnly": "Se déclenche lors des réabonnements avec message",
   "remaining": "Il reste {time}",
   "exhausted": "Minutes épuisées. Les alertes utilisent la voix locale gratuite jusqu’au {date}.",
   "overlayStepCreate": "Générez un lien privé et copiez-le dès qu’il s’affiche.",
@@ -50,7 +48,6 @@
   "overlayGuide": "Guide complet",
   "invalidMinBits": "Saisissez un nombre entier de bits à partir de 0.",
   "invalidStyle": "Choisissez un style dans la liste.",
-  "invalidMessage": "Limitez le message lu à {max} caractères.",
   "saveUnavailable": "Les réglages de la voix Premium sont indisponibles pour ce compte.",
   "conflict": "Les alertes ont changé ailleurs. Les derniers réglages ont été chargés. Réessayez.",
   "character": {
@@ -98,17 +95,11 @@
     "cozy": "Un ton feutré et chaleureux"
   },
   "kind": {
-    "follow": "Follow",
     "sub": "Abonnement",
-    "gift": "Abonnements offerts",
-    "cheer": "Cheer",
-    "raid": "Raid"
+    "cheer": "Cheer"
   },
-  "template": {
-    "follow": "{user}, <short pause> merci pour le follow !",
-    "sub": "{user} vient de s’abonner ! <short pause> Bienvenue dans l’équipe !",
-    "gift": "{user} a offert {count} abonnements ! <short pause> Merci beaucoup !",
-    "cheer": "{user} a envoyé {bits} bits !",
-    "raid": "{user} lance un raid avec {viewers} spectateurs ! <short pause> Bienvenue tout le monde !"
+  "sample": {
+    "sub": "PrincessBarney a dit : Déjà 7 mois, super stream !",
+    "cheer": "PrincessBarney a dit : Bien joué !"
   }
 }

@@ -6,6 +6,7 @@ package modules
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"regexp"
 	"slices"
 	"strconv"
@@ -18,7 +19,6 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/voiceplan"
-	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -44,20 +44,18 @@ type alertOutputs struct {
 }
 
 func (a alertOutputs) send(ctx context.Context, emit module.Emit, render func() (alertLine, bool)) {
-	speak := !a.chat && a.admitSpeech(ctx)
-	if skipAlertOutputs(a.chat, speak) {
+	a.sendChat(emit, render)
+	if a.admitSpeech(ctx) {
+		a.audio.publish(ctx, a.c)
+	}
+}
+
+func (a alertOutputs) sendChat(emit module.Emit, render func() (alertLine, bool)) {
+	if !a.chat {
 		return
 	}
-	line, ok := render()
-	if !ok {
-		return
-	}
-	if a.chat {
+	if line, ok := render(); ok {
 		a.emitChat(emit, line)
-		speak = a.admitSpeech(ctx)
-	}
-	if speak {
-		a.audio.publish(ctx, a.c, line)
 	}
 }
 
@@ -79,15 +77,18 @@ func (a alertOutputs) emitChat(emit module.Emit, line alertLine) {
 }
 
 type alertSpeech struct {
-	kind         voiceplan.AlertKind
-	pub          engine.AlertVoicePublisher
-	text         string
-	style        string
-	voice        string
-	message      string
-	liveOnly     bool
-	readMessages bool
-	minBits      int
+	kind     voiceplan.AlertKind
+	pub      engine.AlertVoicePublisher
+	style    string
+	voice    string
+	speaker  string
+	message  string
+	liveOnly bool
+	minBits  int
+}
+
+func spokenEvent(eventType string) bool {
+	return eventType == "channel.cheer" || eventType == "channel.subscription.message"
 }
 
 func newAlertSpeech(d engine.Deps, c *module.Context, cfg alertConfig, kind voiceplan.AlertKind) (alertSpeech, bool) {
@@ -96,20 +97,21 @@ func newAlertSpeech(d engine.Deps, c *module.Context, cfg alertConfig, kind voic
 	if !known || s.pub == nil {
 		return s, false
 	}
-	if c.Env.Origin == "trial" || c.Env.EventID == "" {
+	if !spokenEvent(c.Env.Type) || c.Env.Origin == "trial" {
+		return s, false
+	}
+	if c.Env.EventID == "" {
 		return s, false
 	}
 	key := string(kind) + "Tts"
 	if !settingBool(cfg[key], defaults.Enabled) {
 		return s, false
 	}
-	s.text = cmp.Or(cfg[key+"Message"], defaults.Message)
 	s.style = cmp.Or(voiceplan.Style(cfg[key+"Style"]), voiceplan.Style(defaults.Style))
 	if voice := cfg[key+"Voice"]; voiceplan.ValidVoice(voice) {
 		s.voice = voice
 	}
 	s.liveOnly = settingBool(cfg["ttsLiveOnly"], voiceplan.DefaultLiveOnly)
-	s.readMessages = settingBool(cfg["ttsReadMessages"], voiceplan.DefaultReadMessages)
 	s.minBits = minimumBits(cfg)
 	return s, true
 }
@@ -134,23 +136,49 @@ func minimumBits(cfg alertConfig) int {
 }
 
 type alertSpeechInput struct {
-	bits    int
+	speaker string
 	message string
+	bits    int
 }
 
-func speechInput(ev any) alertSpeechInput {
+func speechInput(c *module.Context, ev any) alertSpeechInput {
 	switch ev := ev.(type) {
 	case cheerEvent:
-		return alertSpeechInput{bits: ev.Bits, message: ev.Message}
+		return cheerSpeechInput(c, ev)
 	case subscribeEvent:
-		return alertSpeechInput{message: ev.Message.Text}
+		return subSpeechInput(c, ev)
 	default:
 		return alertSpeechInput{}
 	}
 }
 
+func cheerSpeechInput(c *module.Context, ev cheerEvent) alertSpeechInput {
+	if ev.BroadcasterUserID == "" {
+		return alertSpeechInput{}
+	}
+	speaker := i18n.T(c.Locale, "alerts.voice.anonymous")
+	if !ev.IsAnonymous {
+		speaker = chatName(ev.UserName, ev.UserLogin)
+	}
+	return alertSpeechInput{speaker: speaker, message: ev.Message, bits: ev.Bits}
+}
+
+func subSpeechInput(c *module.Context, ev subscribeEvent) alertSpeechInput {
+	if c.Env.Type != "channel.subscription.message" || ev.skip() {
+		return alertSpeechInput{}
+	}
+	if ev.BroadcasterUserID == "" {
+		return alertSpeechInput{}
+	}
+	return alertSpeechInput{speaker: ev.user(), message: ev.Message.Text}
+}
+
 func (s *alertSpeech) admit(ctx context.Context, d engine.Deps, c *module.Context, in alertSpeechInput) bool {
 	if s.kind == "cheer" && in.bits < s.minBits {
+		return false
+	}
+	s.message = s.viewerMessage(c, in.message)
+	if s.message == "" {
 		return false
 	}
 	if !loyaltyLive(ctx, d, c.BroadcasterID, s.liveOnly) {
@@ -161,9 +189,7 @@ func (s *alertSpeech) admit(ctx context.Context, d engine.Deps, c *module.Contex
 		moduleLog(d).Warn("voice allowance check failed", c.BID(), zap.Error(err))
 		return false
 	}
-	if enabled && s.readMessages {
-		s.message = s.viewerMessage(c, in.message)
-	}
+	s.speaker = in.speaker
 	return enabled
 }
 
@@ -172,13 +198,25 @@ var cheermoteToken = regexp.MustCompile(`^[A-Za-z]+[0-9]+$`)
 func (s *alertSpeech) viewerMessage(c *module.Context, message string) string {
 	text := speechPlainText(message)
 	if s.kind == "cheer" {
-		words := slices.DeleteFunc(strings.Fields(text), cheermoteToken.MatchString)
+		words := slices.DeleteFunc(strings.Fields(text), isCheermoteWord)
 		text = strings.Join(words, " ")
 	}
-	if blockedSpeech(c, text) {
+	if !hasSpokenContent(text) || blockedSpeech(c, text) {
 		return ""
 	}
 	return text
+}
+
+func isCheermoteWord(word string) bool {
+	return cheermoteToken.MatchString(strings.TrimFunc(word, unicode.IsPunct))
+}
+
+func hasSpokenContent(text string) bool {
+	return strings.ContainsFunc(text, isSpokenRune)
+}
+
+func isSpokenRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
 func blockedSpeech(c *module.Context, text string) bool {
@@ -188,14 +226,9 @@ func blockedSpeech(c *module.Context, text string) bool {
 	return c.BlocksText(text)
 }
 
-func (s alertSpeech) publish(ctx context.Context, c *module.Context, line alertLine) {
-	text := tmpl.Expand(speechTemplate(s.text), func(tok tmpl.Token) (string, bool) {
-		input, ok := line.tokens[tmpl.TokenKey(tok, "alerts")]
-		return speechPlainText(input), ok
-	})
-	if s.message != "" {
-		text += " " + s.message
-	}
+func (s alertSpeech) publish(ctx context.Context, c *module.Context) {
+	speaker := cmp.Or(speechPlainText(s.speaker), i18n.T(c.Locale, "alerts.voice.anonymous"))
+	text := fmt.Sprintf(i18n.T(c.Locale, "alerts.voice.said"), speaker, s.message)
 	job := voiceplan.AlertJob{
 		EventID: c.Env.EventID, BroadcasterID: c.Env.BroadcasterUserID, Kind: s.kind,
 		Text: stripSpeechControls(text), Style: s.style, Voice: s.voice, CreatedAt: time.Now().UTC(),
@@ -203,21 +236,6 @@ func (s alertSpeech) publish(ctx context.Context, c *module.Context, line alertL
 	if err := s.pub.Publish(ctx, job); err != nil {
 		c.Log.Warn("voice job publication failed", c.BID(), zap.Error(err))
 	}
-}
-
-var templateTag = regexp.MustCompile(`<[^<>]*>|[<>]`)
-
-func speechTemplate(text string) string {
-	return templateTag.ReplaceAllStringFunc(text, func(tag string) string {
-		if len(tag) > 2 && !hasTemplateVar(tag) {
-			return tag
-		}
-		return strings.Trim(tag, "<>")
-	})
-}
-
-func hasTemplateVar(text string) bool {
-	return slices.ContainsFunc(tmpl.Lex(text), func(tok tmpl.Token) bool { return tok.Kind == tmpl.KindVar })
 }
 
 func stripSpeechControls(text string) string {

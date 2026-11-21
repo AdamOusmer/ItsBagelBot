@@ -7,7 +7,7 @@ import { env } from '@bagel/kit/server/env';
 import { translate, type Locale } from '@bagel/kit/i18n';
 import { bestEffort } from '@bagel/kit/server/best-effort';
 import { RpcError } from '@bagel/kit/server/nats';
-import { MAX_CLIP_SECONDS, MAX_SPEECH_RUNES, MIN_CLIP_SECONDS } from '@bagel/kit/voice-plan';
+import { MAX_CLIP_SECONDS, MIN_CLIP_SECONDS } from '@bagel/kit/voice-plan';
 import { listModulesForEditing, patchModule } from '#lib/server/commands-store';
 import { moduleEditState } from '#lib/server/module-edit-state';
 import { isOwnerSession } from '#lib/server/owner';
@@ -40,9 +40,7 @@ async function saveAlerts(userId: string, save: { partial: Record<string, string
 }
 
 function invalidSave(locale: Locale, error: string) {
-  return fail(400, { error: translate(locale, error, {
-    min: MIN_CLIP_SECONDS, max: error === 'voice.invalidMessage' ? MAX_SPEECH_RUNES : MAX_CLIP_SECONDS
-  }) });
+  return fail(400, { error: translate(locale, error, { min: MIN_CLIP_SECONDS, max: MAX_CLIP_SECONDS }) });
 }
 
 type ParsedSave = Extract<ReturnType<typeof parseVoiceSave>, { error: null }>;
@@ -77,12 +75,12 @@ const demoActions = {
   rotateOverlay: async () => ({ overlayUrl: 'https://overlay.itsbagelbot.com/tts#demo' })
 } satisfies Actions;
 
-const demoLoad = (async ({ locals: { locale } }) => {
+const demoLoad = (async () => {
   const { allowance, config, revision } = (await import('#lib/server/demo-data')).demoVoiceView();
-  return { readOnly: false, locked: false, allowance, alerts: { config: voiceAlertConfig(config, locale), revision } };
+  return { readOnly: false, locked: false, allowance, alerts: { config: voiceAlertConfig(config), revision } };
 }) satisfies PageServerLoad;
 
-const liveLoad = (async ({ locals: { session, locale } }) => {
+const liveLoad = (async ({ locals: { session } }) => {
   if (!session) throw redirect(302, '/login?next=%2Fvoice');
   if (!isOwnerSession(session)) return { readOnly: true, locked: false, allowance: null, alerts: null };
 
@@ -92,7 +90,7 @@ const liveLoad = (async ({ locals: { session, locale } }) => {
 
   const alerts = await bestEffort(readAlerts(session.user_id).then((row) => {
     const { config, revision } = moduleEditState(row);
-    return { config: voiceAlertConfig(config, locale), revision };
+    return { config: voiceAlertConfig(config), revision };
   }), null);
   return { ...view, alerts };
 }) satisfies PageServerLoad;

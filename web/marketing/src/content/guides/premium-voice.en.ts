@@ -61,11 +61,11 @@ const guide: GuideContent = {
             },
             {
               title: 'Choose what the voice reads',
-              html: '<p>Pick a default voice. Enable the alerts you want spoken: follows, subscriptions, gifted subs, Cheers, or raids. For each alert, you can edit the spoken message, pick a style, and keep the default voice or choose another. Set the minimum Bits for Cheers and decide whether to read messages from Cheers and resubs. Keep live-only on to speak alerts only while streaming, then save.</p>'
+              html: '<p>Pick a default voice. Enable the message alerts you want spoken: Cheers and resubscriptions. Each spoken alert reads the viewer’s message as “User said: …” and skips bit counts. For each alert, pick a style and keep the default voice or choose another. Set the minimum Bits for Cheers, keep live-only on to speak alerts only while streaming, then save.</p>'
             },
             {
               title: 'Test one alert',
-              html: '<p>Activate the scene in OBS and trigger one of the alert types you enabled. If live-only is on, your channel needs to be live for the test. Check that you hear the voice and see the source’s level move in the OBS Audio Mixer.</p>'
+              html: '<p>Activate the scene in OBS and trigger an enabled alert with a message. If live-only is on, your channel needs to be live for the test. Check that you hear the voice and see the source’s level move in the OBS Audio Mixer.</p>'
             }
           ]
         },
@@ -87,7 +87,7 @@ const guide: GuideContent = {
             ['OBS is silent', 'Confirm that Control audio via OBS is checked and the source is unmuted in the Audio Mixer. If autoplay is blocked, right-click the source, choose Interact, and select Click to enable sound when it appears.'],
             ['Alerts stopped after you made a new link', 'Replace the URL in OBS with the full new link. The previous link has been revoked.'],
             ['You have used all your minutes', 'Check the reset date on Premium voice. Cloud speech resumes when your monthly allowance resets.'],
-            ['An alert ends early', 'Shorten its spoken message or raise Max length per alert. You can set the limit from 5 to 120 seconds. A low remaining monthly balance can also shorten a clip.']
+            ['An alert ends early', 'Raise Max length per alert. You can set the limit from 5 to 120 seconds. A low remaining monthly balance can also shorten a clip.']
           ]
         }
       ]

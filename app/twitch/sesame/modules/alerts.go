@@ -124,7 +124,7 @@ func onAlert[T any](d engine.Deps, kind voiceplan.AlertKind, render func(context
 		}
 		output := alertOutputs{
 			c: c, d: d, cfg: cfg, audio: audio, chat: chat,
-			wantsSpeech: wantsAudio, input: speechInput(any(ev)),
+			wantsSpeech: wantsAudio, input: speechInput(c, any(ev)),
 		}
 		output.send(ctx, emit, func() (alertLine, bool) { return render(ctx, c, ev) })
 		return nil

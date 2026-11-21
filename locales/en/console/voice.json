@@ -30,18 +30,16 @@
   "gateTitle": "Give your alerts a voice with Premium",
   "gateBody": "Choose cloud voices and styles for your alerts and play them through an OBS browser source.",
   "liveOnly": "Only while live",
-  "readMessages": "Read the viewer's message",
-  "readMessagesHint": "Includes messages sent with cheers and resubs.",
   "minBits": "Minimum bits",
   "maxLengthHint": "About {chars} characters",
   "alertsTitle": "Alerts read aloud",
-  "spokenMessage": "Spoken message",
+  "alertsHint": "Reads each viewer's message aloud as \"User said: ...\" and skips bit counts. Events with no message stay silent.",
   "rehearsal": "Read aloud",
   "styleLabel": "Style",
   "voiceOverride": "Voice override",
   "useDefault": "Default ({voice})",
-  "insertPause": "Insert a short pause",
   "cheerThreshold": "Plays at {n} bits or more",
+  "subMessageOnly": "Plays on resubs with a message",
   "remaining": "{time} left",
   "exhausted": "Minutes used up. Alerts use the free local voice until {date}.",
   "overlayStepCreate": "Generate a private link and copy it when it appears.",
@@ -50,7 +48,6 @@
   "overlayGuide": "Full guide",
   "invalidMinBits": "Enter a whole number of bits, starting at 0.",
   "invalidStyle": "Choose a style from the list.",
-  "invalidMessage": "Keep the spoken message to {max} characters or fewer.",
   "saveUnavailable": "Premium voice settings are unavailable for this account.",
   "conflict": "Alerts changed elsewhere. The latest settings were loaded. Try again.",
   "character": {
@@ -98,17 +95,11 @@
     "cozy": "Soft and intimate"
   },
   "kind": {
-    "follow": "Follow",
     "sub": "Subscription",
-    "gift": "Gift subs",
-    "cheer": "Cheer",
-    "raid": "Raid"
+    "cheer": "Cheer"
   },
-  "template": {
-    "follow": "{user}, <short pause> thanks for the follow!",
-    "sub": "{user} just subscribed! <short pause> Welcome to the crew!",
-    "gift": "{user} gifted {count} subs! <short pause> Thank you so much!",
-    "cheer": "{user} cheered {bits} bits!",
-    "raid": "{user} is raiding with {viewers} viewers! <short pause> Welcome in!"
+  "sample": {
+    "sub": "PrincessBarney said: Happy 7 months, love the stream!",
+    "cheer": "PrincessBarney said: Great play!"
   }
 }

@@ -17,7 +17,7 @@ const alerts = {
   name: 'alerts',
   is_enabled: true,
   revision: 8,
-  configs: { followTts: 'true', cheerTtsStyle: 'playful', raidTtsMessage: 'Welcome {user}!', cheerMessage: 'Old' }
+  configs: { subTts: 'true', cheerTtsStyle: 'playful', subTtsVoice: 'Charon', cheerMessage: 'Old' }
 };
 
 const upsertModule = mock(async () => ({ modules: [], synced }));
@@ -137,7 +137,7 @@ test.each([
   const url = new URL('/modules/alerts', 'https://dashboard.itsbagelbot.com');
   const body = new URLSearchParams({
     expected_rev: revision, is_enabled: 'on',
-    'cfg.followMessage': 'Hello {user}!', 'cfg.cheerMessage': '', 'cfg.followTts': 'false'
+    'cfg.followMessage': 'Hello {user}!', 'cfg.cheerMessage': '', 'cfg.subTts': 'false'
   });
   const request = new Request(`${url}?/save`, { method: 'POST', body });
   const result = await actions.save({ request, params: { id: 'alerts' }, locals, cookies: cookieJar(new Map()), url } as never);
