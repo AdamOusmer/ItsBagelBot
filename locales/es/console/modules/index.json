@@ -144,6 +144,8 @@
     "cheer": {
       "label": "Mensajes de cheer",
       "hint": "Lee el mensaje enviado con bits, sin la cantidad de bits."
-    }
+    },
+    "chatOff": "Mensaje del chat apagado",
+    "withoutChat": "El mensaje del chat está apagado. El TTS se sigue oyendo en el directo."
   }
 }

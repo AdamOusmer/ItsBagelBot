@@ -110,7 +110,6 @@
                 <Tag tone="bare" title={t('commandRow.builtinTitle')}>{t('commandRow.builtin')}</Tag>
               </span>
             {/if}
-            {#if c.premium}<PremiumMark />{/if}
             {#if unsaved}
               <span class="name-tag">
                 <Tag tone="alpha" title={t('commandRow.unsavedTitle')}>{t('commandRow.unsaved')}</Tag>
@@ -148,7 +147,7 @@
       </span>
     {/snippet}
     {#snippet actions()}
-      <form method="POST" action={c.builtin ? '?/toggleBuiltin' : '?/toggle'} use:enhance={toggleSubmit}>
+      <form class="toggle-form" method="POST" action={c.builtin ? '?/toggleBuiltin' : '?/toggle'} use:enhance={toggleSubmit}>
         <input type="hidden" name="name" value={c.name} />
         {#each c.aliases ?? [] as a}<input type="hidden" name="aliases" value={a} />{/each}
         <input type="hidden" name="response" value={c.response} />
@@ -159,6 +158,7 @@
         <input type="hidden" name="bump_counter" value={c.bump_counter ?? ''} />
         <input type="hidden" name="stream_online_only" value={c.stream_online_only ? 'on' : ''} />
         <input type="hidden" name="is_active" value={c.is_active ? '' : 'on'} />
+        <span class="premium-lock">{#if c.premium}<PremiumMark size={30} />{/if}</span>
         <Switch type="submit" checked={c.is_active} busy={saving} disabled={locked} label={t('commandRow.toggleAria', { name: c.name })} />
       </form>
       <span class="state-compact"><SaveStatus state={status} compact aria-label={statusLabel} {...statusLabels} /></span>
@@ -202,6 +202,8 @@
   .lock { display: inline-flex; color: var(--bb-muted); margin-left: 8px; vertical-align: middle; }
 
   .name-tag { margin-left: 8px; display: inline-flex; }
+  .toggle-form { display: inline-flex; align-items: center; gap: 10px; }
+  .premium-lock { display: inline-flex; justify-content: center; width: 30px; }
 
   .aliases { display: flex; flex-wrap: nowrap; gap: 8px; min-width: 0; overflow: hidden; }
   .alias { display: inline-flex; }

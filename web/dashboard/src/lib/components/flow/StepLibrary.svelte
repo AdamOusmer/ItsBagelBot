@@ -142,10 +142,7 @@
           >
             <IconTile size="sm" style="--tile: 32px; color: {TINTS[spec.kind]}"><Icon name={spec.icon} size={16} /></IconTile>
             <span class="copy">
-              <span class="name-line">
-                <span class="name bb-fit-box"><bb-fit>{stepLabel(t, spec)}</bb-fit></span>
-                {#if spec.premium}<PremiumMark />{/if}
-              </span>
+              <span class="name bb-fit-box"><bb-fit>{stepLabel(t, spec)}</bb-fit></span>
               <span class="details">
                 <span class="summary bb-fit-box"><bb-fit>{stepSummary(t, spec)}</bb-fit></span>
                 {#if searching}
@@ -153,6 +150,7 @@
                 {/if}
               </span>
             </span>
+            {#if spec.premium}<PremiumMark size={32} />{/if}
             {#if requirement}
               <span class="requirement">
                 <Chip as="span" tone="muted" class="bb-fit-box" style="display: flex; padding: 4px 6px"><bb-fit>{requirementText(t, requirement)}</bb-fit></Chip>
@@ -264,14 +262,6 @@
     flex: 1;
     min-width: 0;
   }
-  .name-line {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 19px;
-    min-width: 0;
-  }
-  .name-line .name { flex: 0 1 auto; min-width: 0; }
   .row[aria-disabled='true'] { cursor: not-allowed; }
   .row[aria-disabled='true'] .copy { opacity: 0.6; }
   .name {

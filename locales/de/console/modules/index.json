@@ -144,6 +144,8 @@
     "cheer": {
       "label": "Cheer-Nachrichten",
       "hint": "Liest die Nachricht zu den Bits vor, ohne die Anzahl der Bits."
-    }
+    },
+    "chatOff": "Chatzeile aus",
+    "withoutChat": "Die Chatzeile ist aus. TTS läuft trotzdem im Stream."
   }
 }

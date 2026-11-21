@@ -7,16 +7,13 @@
   import MarkBadge from '@bagel/ui/svelte/MarkBadge.svelte';
   import { premiumLocked } from './premium-lock';
 
+  let { size = 36 }: { size?: number } = $props();
+
   const { t } = getI18n();
   const locked = $derived(premiumLocked(page.data));
 </script>
 
 {#if locked}
-  <span class="premium-mark">
-    <MarkBadge src="/premium-logo.png" size="xs" tone="premium" role="img" aria-label={t('billing.premium')} title={t('billing.premiumOnly')} />
-  </span>
+  <MarkBadge src="/premium-logo.png" size="xs" tone="premium" style="--badge: {size}px; --badge-fill: 0.86"
+    role="img" aria-label={t('billing.premium')} title={t('billing.premiumOnly')} />
 {/if}
-
-<style>
-  .premium-mark { display: inline-flex; flex: none; vertical-align: middle; }
-</style>

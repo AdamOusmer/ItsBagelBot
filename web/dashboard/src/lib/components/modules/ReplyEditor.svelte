@@ -58,7 +58,7 @@
       kind="reply"
       name=""
       showViewer={false}
-      tag={tModuleReplyPart(t, moduleId, reply, 'event')}
+      tag={voice && !voice.chatOn ? t('modules.voiceEvent.chatOff') : tModuleReplyPart(t, moduleId, reply, 'event')}
       samples={rehearsalSamples}
       response={effectiveMessage}
       after={voice ? voiceLine : undefined}

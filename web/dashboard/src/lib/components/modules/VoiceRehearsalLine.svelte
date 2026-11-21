@@ -5,9 +5,7 @@
   import { getI18n } from '@bagel/kit';
   import type { VoiceAlertKind } from '@bagel/kit/voice-plan';
   import SaveStatus, { type SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
-  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
-  import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import PremiumMark from '#lib/components/shared/PremiumMark.svelte';
 
@@ -16,6 +14,7 @@
     checked: boolean;
     allowed: boolean;
     status: SaveState;
+    chatOn: boolean;
     onToggle: (checked: boolean) => void;
   };
 
@@ -24,38 +23,41 @@
   const { t } = getI18n();
   const on = $derived(voice.allowed && voice.checked);
   const eventLabel = $derived(t(`modules.voiceEvent.${voice.kind}.label`));
+  const hint = $derived(voice.chatOn ? t(`modules.voiceEvent.${voice.kind}.hint`) : t('modules.voiceEvent.withoutChat'));
 </script>
 
-<div class="voice-rule"><Divider flush /></div>
-<div class="voice-line">
-  <span class="voice-tag"><Tag tone="alpha">{t('modules.voiceEvent.tts')}</Tag></span>
-  <span class="voice-copy" class:off={!on}>
-    <Text as="span" size="sm">{t(`voice.sample.${voice.kind}`)}</Text>
-    <Text as="span" size="xs" tone="muted">{t(`modules.voiceEvent.${voice.kind}.hint`)}</Text>
-  </span>
-  <span class="voice-controls">
+<div class="voice">
+  <div class="voice-say" class:off={!on}>
+    <div class="bb-chat__line">
+      <span class="bb-chat__name bb-chat__name--bot">{t('modules.voiceEvent.tts')}</span>
+      <span class="bb-chat__msg">{t(`voice.sample.${voice.kind}`)}</span>
+    </div>
+  </div>
+  <div class="voice-controls">
     <PremiumMark />
-    <span class="voice-status"><SaveStatus state={voice.status} compact /></span>
-    <Switch checked={on} label={t('modules.voiceEvent.toggleAria', { event: eventLabel })}
-      disabled={disabled || !voice.allowed} busy={voice.status === 'saving'} onCheckedChange={voice.onToggle} />
-  </span>
+    <span class="voice-hint"><Text as="span" size="xs" tone="muted">{hint}</Text></span>
+    <span class="voice-toggle">
+      <span class="voice-status"><SaveStatus state={voice.status} compact /></span>
+      <Switch checked={on} label={t('modules.voiceEvent.toggleAria', { event: eventLabel })}
+        disabled={disabled || !voice.allowed} busy={voice.status === 'saving'} onCheckedChange={voice.onToggle} />
+    </span>
+  </div>
 </div>
 
 <style>
-  .voice-line {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+  .voice { display: grid; gap: var(--bb-space-3); margin-top: var(--bb-space-3); }
+  .voice-say { transition: opacity 0.15s ease; }
+  .voice-say.off { opacity: 0.45; }
+  .voice-controls {
+    display: flex;
     align-items: center;
     gap: var(--bb-space-3);
-    padding-top: var(--bb-space-3);
+    padding: var(--bb-space-1) var(--bb-space-2) var(--bb-space-2);
   }
-  .voice-rule { margin-top: var(--bb-space-2); }
-  .voice-tag { display: inline-flex; }
-  .voice-copy { display: grid; gap: 3px; min-width: 0; transition: opacity 0.15s ease; }
-  .voice-copy.off { opacity: 0.45; }
-  .voice-controls { display: inline-flex; align-items: center; gap: var(--bb-space-2); }
+  .voice-hint { flex: 1; min-width: 0; }
+  .voice-toggle { display: inline-flex; align-items: center; gap: var(--bb-space-2); flex: none; }
   .voice-status { width: 20px; }
   @media (prefers-reduced-motion: reduce) {
-    .voice-copy { transition: none; }
+    .voice-say { transition: none; }
   }
 </style>

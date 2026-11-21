@@ -20,8 +20,8 @@
   }
 
   .bb-mark-badge > img {
-    width: calc(var(--badge) * 0.66);
-    height: calc(var(--badge) * 0.66);
+    width: calc(var(--badge) * var(--badge-fill, 0.66));
+    height: calc(var(--badge) * var(--badge-fill, 0.66));
     border-radius: var(--bb-radius-pill);
     object-fit: contain;
   }

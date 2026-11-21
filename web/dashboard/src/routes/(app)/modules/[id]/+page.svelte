@@ -197,6 +197,7 @@
     const value = config[key];
     return {
       kind,
+      chatOn: enabled && replyOn(reply),
       checked: value === 'true' || (value !== 'false' && ALERT_VOICE_DEFAULTS[kind].enabled),
       allowed: data.voiceAllowed,
       status: modStatus[`setting:${key}`] ?? 'idle',

@@ -144,6 +144,8 @@
     "cheer": {
       "label": "Cheer messages",
       "hint": "Reads the message sent with bits, without the bit count."
-    }
+    },
+    "chatOff": "Chat line off",
+    "withoutChat": "The chat line is off. TTS still plays on stream."
   }
 }

@@ -150,7 +150,7 @@
     <Checkbox bind:checked={() => speakOn, (on: boolean) => (draft.action = on ? 'speak' : 'none')} disabled={speakLocked}>
       {t('channelpoints.speakToggle')}
     </Checkbox>
-    <PremiumMark />
+    <span class="speak-lock"><PremiumMark size={32} /></span>
   </div>
 
   <div class="bb-collapse" class:is-open={speakOn} aria-hidden={!speakOn} inert={!speakOn}>
@@ -337,6 +337,7 @@
 
   .check { margin: 4px 0 16px; --bb-check-align: center; }
   .check.speak { display: flex; align-items: center; gap: var(--bb-space-2); }
+  .speak-lock { display: inline-flex; margin-left: auto; }
   .speak-body { display: flex; flex-direction: column; gap: 12px; margin: 0 0 14px 26px; --field-mb: 0; }
 
   .hooks {
