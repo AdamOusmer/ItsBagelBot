@@ -60,7 +60,6 @@
     "./variables/preview-values": "./lib/variables/preview-values.ts",
     "./catalog": "./lib/catalog/index.ts",
     "./catalog/module-def": "./lib/catalog/module-def.ts",
-    "./catalog/module-triggers": "./lib/catalog/module-triggers.ts",
     "./catalog/builtin-commands": "./lib/catalog/builtin-commands.ts",
     "./catalog/channelpoints": "./lib/catalog/channelpoints.ts",
     "./catalog/govee": "./lib/catalog/govee.ts",

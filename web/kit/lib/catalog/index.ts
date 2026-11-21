@@ -10,7 +10,6 @@ export {
   commandHeadTrigger,
   parseDisabledTriggers,
   formatDisabledTriggers,
-  toggleTriggerInList,
   toggleTriggersInList,
   moduleCommandTriggerMap,
   moduleAllowedTriggers

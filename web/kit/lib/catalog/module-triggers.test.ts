@@ -11,7 +11,6 @@ import {
   moduleDef,
   normalizeTrigger,
   parseDisabledTriggers,
-  toggleTriggerInList,
   toggleTriggersInList
 } from './index';
 import type { ModuleDef } from './module-def';
@@ -49,24 +48,19 @@ describe('parseDisabledTriggers and formatDisabledTriggers', () => {
   });
 });
 
-describe('toggleTriggerInList and toggleTriggersInList', () => {
+describe('toggleTriggersInList', () => {
   const allowed = new Set(['bagels', 'fed', 'bagelcount', 'bagelboard']);
 
   test.each([
-    { raw: undefined, trigger: '!fed', enabled: false, want: 'fed' },
-    { raw: 'fed', trigger: '!bagelcount', enabled: false, want: 'bagelcount,fed' },
-    { raw: 'bagelcount,fed', trigger: 'fed', enabled: true, want: 'bagelcount' },
-    { raw: 'fed', trigger: '!fed', enabled: true, want: '' },
-    { raw: 'stale,fed', trigger: 'bagels', enabled: false, want: 'bagels,fed' }
-  ])('toggles single $trigger (enabled=$enabled)', ({ raw, trigger, enabled, want }) => {
-    expect(toggleTriggerInList(raw, trigger, enabled, allowed)).toBe(want);
-  });
-
-  test.each([
+    { raw: undefined, triggers: ['!fed'], enabled: false, want: 'fed' },
+    { raw: 'fed', triggers: ['!bagelcount'], enabled: false, want: 'bagelcount,fed' },
+    { raw: 'bagelcount,fed', triggers: ['fed'], enabled: true, want: 'bagelcount' },
+    { raw: 'fed', triggers: ['!fed'], enabled: true, want: '' },
+    { raw: 'stale,fed', triggers: ['bagels'], enabled: false, want: 'bagels,fed' },
     { raw: undefined, triggers: ['!bagels', '!fed', '!bagelcount'], enabled: false, want: 'bagelcount,bagels,fed' },
     { raw: 'bagelboard,bagelcount,bagels,fed', triggers: ['bagels', 'fed'], enabled: true, want: 'bagelboard,bagelcount' },
     { raw: 'bagels', triggers: ['!bagels', ''], enabled: true, want: '' }
-  ])('toggles group $triggers (enabled=$enabled)', ({ raw, triggers, enabled, want }) => {
+  ])('toggles $triggers (enabled=$enabled)', ({ raw, triggers, enabled, want }) => {
     expect(toggleTriggersInList(raw, triggers, enabled, allowed)).toBe(want);
   });
 

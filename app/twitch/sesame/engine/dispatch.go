@@ -95,7 +95,7 @@ func (p *Pipeline) ownerActive(owner module.Module, views map[string]projection.
 	if !p.enabled(owner, views, c) {
 		return false
 	}
-	return owner.Kind == module.KindCore || !TriggerDisabled(c.Config, module.TriggerName(c.Command))
+	return owner.Kind == module.KindCore || !triggerDisabled(c.Config, module.TriggerName(c.Command))
 }
 
 func (p *Pipeline) fallbackOwner(owners []BoundCommand, views map[string]projection.ModuleView, c *module.Context, declined int) (BoundCommand, bool) {
@@ -122,7 +122,7 @@ func (p *Pipeline) moduleLookup(views map[string]projection.ModuleView, c *modul
 func (p *Pipeline) triggerDisabledLookup(views map[string]projection.ModuleView) func(module.ModuleName, module.TriggerName) bool {
 	return func(name module.ModuleName, trigger module.TriggerName) bool {
 		mv, ok := views[string(name)]
-		return ok && TriggerDisabled(mv.Configs, trigger)
+		return ok && triggerDisabled(mv.Configs, trigger)
 	}
 }
 

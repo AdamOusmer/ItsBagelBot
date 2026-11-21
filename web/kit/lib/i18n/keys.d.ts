@@ -5390,7 +5390,6 @@ export type KnownMessageKey =
   | 'modules.triggerRulesHint'
   | 'modules.triggerRulesTitle'
   | 'modules.triggerToggleAria'
-  | 'modules.triggersCount'
   | 'modules.triggersGroupAria'
   | 'modules.turnOn'
   | 'modules.tzApply'

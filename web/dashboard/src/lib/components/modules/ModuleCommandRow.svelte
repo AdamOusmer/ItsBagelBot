@@ -26,6 +26,7 @@
     triggers = [] as readonly string[],
     disabledTriggers = EMPTY_SET,
     parentOff = false,
+    replyOff = false,
     locked = false,
     status = 'idle' as SaveState,
     onToggleTrigger = undefined,
@@ -40,6 +41,7 @@
     triggers?: readonly string[];
     disabledTriggers?: ReadonlySet<string>;
     parentOff?: boolean;
+    replyOff?: boolean;
     locked?: boolean;
     status?: SaveState;
     onToggleTrigger?: (trigger: string, enabled: boolean) => void;
@@ -48,18 +50,21 @@
 
   const idx = $derived(String(index).padStart(2, '0'));
   const anyOn = $derived(triggers.length > 0 ? triggers.some((tr) => !disabledTriggers.has(tr)) : !parentOff);
-  const canToggleAll = $derived(triggers.length > 0 && !!onToggleAll);
+  const hasToggles = $derived(triggers.length > 0 && !!onToggleAll);
+  const ownsSwitch = $derived(hasToggles && !command.enableKey);
   const showChips = $derived(triggers.length > 1 && !!onToggleTrigger);
 </script>
 
 {#snippet toggleActions()}
   <SaveStatus state={status} />
-  <Switch
-    checked={anyOn}
-    label={t('modules.commandToggleAria', { trigger: command.trigger })}
-    disabled={locked}
-    onCheckedChange={(checked) => onToggleAll?.(triggers, checked)}
-  />
+  {#if ownsSwitch}
+    <Switch
+      checked={anyOn}
+      label={t('modules.commandToggleAria', { trigger: command.trigger })}
+      disabled={locked}
+      onCheckedChange={(checked) => onToggleAll?.(triggers, checked)}
+    />
+  {/if}
 {/snippet}
 
 <div class="row-wrap">
@@ -67,9 +72,9 @@
     selectable={!!onExpand}
     selected={expanded}
     {expanded}
-    disabled={!anyOn}
+    disabled={replyOff || !anyOn}
     onSelect={onExpand}
-    actions={canToggleAll ? toggleActions : undefined}
+    actions={hasToggles ? toggleActions : undefined}
   >
     {#snippet primary()}
       <span class="crow">

@@ -38,15 +38,15 @@ export const SONGQUEUE_MODULE: ModuleDef = {
     {
       trigger: '!skip',
       aliases: ['!next'],
-      summary: 'Mark the current track played and promote the next (also !next).',
+      summary: 'Mark the current track played and promote the next.',
       perm: 'mod'
     },
     { trigger: '!clear', summary: 'Empty the queue.', perm: 'mod' },
-    { trigger: '!srlist', aliases: ['!songlist'], summary: 'Show the next five songs in the queue (also !songlist).' },
+    { trigger: '!srlist', aliases: ['!songlist'], summary: 'Show the next five songs in the queue.' },
     {
       trigger: '!current',
       aliases: ['!song', '!nowplaying', '!np'],
-      summary: 'Say what your Spotify is playing right now (also !song, !np).'
+      summary: 'Say what your Spotify is playing right now.'
     }
   ]
 };

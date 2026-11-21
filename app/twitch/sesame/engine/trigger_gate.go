@@ -10,7 +10,7 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-func TriggerDisabled(raw codec.RawMessage, trigger module.TriggerName) bool {
+func triggerDisabled(raw codec.RawMessage, trigger module.TriggerName) bool {
 	if len(raw) == 0 || trigger == "" {
 		return false
 	}

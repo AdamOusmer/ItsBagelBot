@@ -22,7 +22,7 @@ import {
 } from '@bagel/kit';
 import { SUB } from './services';
 import { upsertModule } from './commands-store';
-import { readModuleBlob } from './module-blob';
+import { patchModuleConfig, readModuleBlob } from './module-blob';
 import { deleteRemoteReward, saveRewardFlow } from './reward-wire';
 import type { RewardCore } from './reward-form';
 
@@ -286,11 +286,7 @@ export function spotifyStore(userId: string): SpotifyStore {
 
   async function saveDisabledTriggers(raw: string): Promise<SpotifyResult> {
     const normalized = formatDisabledTriggers(parseDisabledTriggers(raw), SONGQUEUE_ALLOWED_TRIGGERS);
-    const { enabled, configs } = await readModuleBlob<Record<string, unknown>>(userId, SONGQUEUE_MODULE);
-    const next = { ...configs };
-    if (normalized) next[DISABLED_TRIGGERS_KEY] = normalized;
-    else delete next[DISABLED_TRIGGERS_KEY];
-    await upsertModule(userId, SONGQUEUE_MODULE, enabled, next);
+    await patchModuleConfig({ userId, name: SONGQUEUE_MODULE, partial: { [DISABLED_TRIGGERS_KEY]: normalized } });
     return { ok: true };
   }
 

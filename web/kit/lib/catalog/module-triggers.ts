@@ -46,15 +46,6 @@ function applyTriggerState(disabled: Set<string>, raw: string, enabled: boolean)
   else disabled.add(name);
 }
 
-export function toggleTriggerInList(
-  raw: string | undefined,
-  trigger: string,
-  enabled: boolean,
-  allowed?: ReadonlySet<string>
-): string {
-  return toggleTriggersInList(raw, [trigger], enabled, allowed);
-}
-
 export function toggleTriggersInList(
   raw: string | undefined,
   triggers: readonly string[],

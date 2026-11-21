@@ -120,7 +120,7 @@ export interface ModulePatch {
   name: string;
   isEnabled: boolean;
   partial: Record<string, unknown>;
-  expectedRev: number;
+  expectedRev?: number;
 }
 
 export async function patchModule(p: ModulePatch): Promise<{ rev: number; conflict: boolean; synced: boolean }> {
@@ -134,11 +134,11 @@ export async function patchModule(p: ModulePatch): Promise<{ rev: number; confli
   });
   if (reply.conflict) {
     invalidate(cacheKey('modules', p.userId));
-    return { rev: reply.rev ?? p.expectedRev, conflict: true, synced: false };
+    return { rev: reply.rev ?? p.expectedRev ?? 0, conflict: true, synced: false };
   }
   afterLoyaltyWrite();
   const synced = await replaceProjectedModules(p.userId, reply.modules);
-  return { rev: reply.rev ?? p.expectedRev + 1, conflict: false, synced };
+  return { rev: reply.rev ?? (p.expectedRev ?? 0) + 1, conflict: false, synced };
 }
 
 export interface CommandInput {

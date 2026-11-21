@@ -16,10 +16,10 @@ export const QUOTES_MODULE: ModuleDef =
   delegateSections: ['modules', 'commands'],
   replies: [],
   commands: [
-    { trigger: '!quote', aliases: ['!quotes'], summary: 'Post a random saved quote (also !quotes).' },
+    { trigger: '!quote', aliases: ['!quotes'], summary: 'Post a random saved quote.' },
     { trigger: '!quote <number>', summary: 'Post that exact quote.' },
     { trigger: '!quote <word>', summary: 'Post a random quote containing that word.' },
-    { trigger: '!addquote <text>', aliases: ['!quoteadd'], summary: 'Save a new quote (also !quoteadd or !quote "text"; who can save is set above); the save date is kept with it.' },
+    { trigger: '!addquote <text>', aliases: ['!quoteadd'], summary: 'Save a new quote (also !quote "text"; who can save is set above); the save date is kept with it.' },
     { trigger: '!quote edit <number> <text>', summary: 'Rewrite a saved quote in place (who can edit is set above); its number and date stay.' },
     { trigger: '!quote remove <number>', summary: 'Delete a quote; its number is retired.', perm: 'mod' }
   ]

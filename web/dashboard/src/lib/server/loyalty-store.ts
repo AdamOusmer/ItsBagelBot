@@ -16,7 +16,7 @@ import {
 import { SUB } from './services';
 import { upsertModule } from './commands-store';
 import { scheduleLeaderboardPurge } from './edge-purge';
-import { readModuleBlob } from './module-blob';
+import { patchModuleConfig, readModuleBlob } from './module-blob';
 import { parseCounterValue, readPointBalance } from '@bagel/kit/validation';
 
 const LOYALTY_MODULE = MOD.loyalty;
@@ -114,17 +114,15 @@ export async function writeLoyalty(
   userId: BroadcasterId,
   enabled: boolean,
   config: LoyaltyConfig,
-  disabledTriggers?: string
+  disabledTriggers: string
 ): Promise<void> {
-  const existing = disabledTriggers === undefined ? (await readLoyalty(userId)).disabledTriggers : disabledTriggers;
-  const payload = existing ? { ...config, [DISABLED_TRIGGERS_KEY]: existing } : config;
+  const payload = disabledTriggers ? { ...config, [DISABLED_TRIGGERS_KEY]: disabledTriggers } : config;
   await upsertModule(userId, LOYALTY_MODULE, enabled, payload);
 }
 
 export async function writeLoyaltyTriggers(userId: BroadcasterId, raw: string): Promise<string> {
   const normalized = formatDisabledTriggers(parseDisabledTriggers(raw), LOYALTY_ALLOWED_TRIGGERS);
-  const cur = await readLoyalty(userId);
-  await writeLoyalty(userId, cur.enabled, cur.config, normalized);
+  await patchModuleConfig({ userId, name: LOYALTY_MODULE, partial: { [DISABLED_TRIGGERS_KEY]: normalized } });
   return normalized;
 }
 

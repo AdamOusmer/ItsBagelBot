@@ -12,7 +12,7 @@ import {
 } from '@bagel/kit';
 import { SUB } from './services';
 import { upsertModule } from './commands-store';
-import { readModuleBlob, setModuleEnabled } from './module-blob';
+import { patchModuleConfig, readModuleBlob, setModuleEnabled } from './module-blob';
 
 const QUOTES_MODULE = MOD.quotes;
 const QUOTES_ALLOWED_TRIGGERS = moduleAllowedTriggers(moduleDef(QUOTES_MODULE)!);
@@ -141,7 +141,6 @@ export async function setPerm(userId: BroadcasterId, kind: keyof QuotePerms, per
 
 export async function setDisabledTriggers(userId: BroadcasterId, raw: TriggerList): Promise<string> {
   const normalized = formatDisabledTriggers(parseDisabledTriggers(raw), QUOTES_ALLOWED_TRIGGERS);
-  const state = await readModuleState(userId);
-  await upsertModule(userId, QUOTES_MODULE, state.enabled, configFor({ ...state, disabledTriggers: normalized }));
+  await patchModuleConfig({ userId, name: QUOTES_MODULE, partial: { [DISABLED_TRIGGERS_KEY]: normalized } });
   return normalized;
 }

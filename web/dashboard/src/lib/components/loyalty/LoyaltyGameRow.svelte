@@ -141,5 +141,6 @@
     locked={disabled}
     status={statuses['triggers'] ?? 'idle'}
     onDisabledTriggersChange={(next) => void save('triggers', { [DISABLED_TRIGGERS_KEY]: next })}
+    {replyOn}
   />
 </Disclosure>

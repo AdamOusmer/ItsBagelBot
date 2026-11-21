@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // A module with NO row is disabled: `?? true` would silently turn it on for every broadcaster.
-import { listModules, upsertModule, type ModuleView } from './commands-store';
+import { listModules, listModulesForEditing, patchModule, upsertModule, type ModuleView } from './commands-store';
 
 export type ModuleBlob<T> = { enabled: boolean; configs: T };
 
@@ -16,4 +16,16 @@ export async function setModuleEnabled(userId: string, modId: string, enabled: b
   const { configs } = await readModuleBlob<Record<string, unknown>>(userId, modId);
   const { modules } = await upsertModule(userId, modId, enabled, configs);
   return modules.find((row) => row.name === modId);
+}
+
+export interface ModuleConfigPatch {
+  userId: string;
+  name: string;
+  partial: Record<string, unknown>;
+}
+
+export async function patchModuleConfig(p: ModuleConfigPatch): Promise<void> {
+  const rows = await listModulesForEditing(p.userId);
+  const enabled = rows.find((r) => r.name === p.name)?.is_enabled ?? false;
+  await patchModule({ userId: p.userId, name: p.name, isEnabled: enabled, partial: p.partial });
 }

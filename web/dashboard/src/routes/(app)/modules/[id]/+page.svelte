@@ -552,6 +552,7 @@
           {locked}
           status={modStatus[`setting:${DISABLED_TRIGGERS_KEY}`] ?? 'idle'}
           onDisabledTriggersChange={(next) => saveConfigValue(DISABLED_TRIGGERS_KEY, next)}
+          {replyOn}
         />
       </DeckList>
 

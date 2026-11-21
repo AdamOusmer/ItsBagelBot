@@ -13,9 +13,9 @@
     moduleCommandTriggerMap,
     moduleDef,
     parseDisabledTriggers,
-    toggleTriggerInList,
     toggleTriggersInList,
     type ModuleCommandInfo,
+    type ModuleReply,
     type Perm
   } from '@bagel/kit';
   import ModuleCommandRow from './ModuleCommandRow.svelte';
@@ -33,7 +33,8 @@
     disabledTriggers = '',
     locked = false,
     status = 'idle' as SaveState,
-    onDisabledTriggersChange = undefined
+    onDisabledTriggersChange = undefined,
+    replyOn = undefined
   }: {
     commands: readonly ModuleCommandInfo[];
     moduleId: string;
@@ -46,6 +47,7 @@
     locked?: boolean;
     status?: SaveState;
     onDisabledTriggersChange?: (next: string) => void;
+    replyOn?: (reply: ModuleReply) => boolean;
   } = $props();
 
   let activeRow = $state<string | null>(null);
@@ -69,13 +71,13 @@
     return headOff.get(commandHeadTrigger(command)) === true;
   }
 
-  function toggleOne(rowTrigger: string, trigger: string, enabled: boolean) {
-    if (!onDisabledTriggersChange) return;
-    activeRow = rowTrigger;
-    onDisabledTriggersChange(toggleTriggerInList(disabledTriggers, trigger, enabled, allowed));
+  function replyOff(command: ModuleCommandInfo): boolean {
+    if (!command.enableKey || !replyOn) return false;
+    const reply = def?.replies.find((r) => r.enableKey === command.enableKey);
+    return reply ? !replyOn(reply) : false;
   }
 
-  function toggleAll(rowTrigger: string, triggers: readonly string[], enabled: boolean) {
+  function toggle(rowTrigger: string, triggers: readonly string[], enabled: boolean) {
     if (!onDisabledTriggersChange) return;
     activeRow = rowTrigger;
     onDisabledTriggersChange(toggleTriggersInList(disabledTriggers, triggers, enabled, allowed));
@@ -102,10 +104,11 @@
           triggers={interactive ? owned : []}
           disabledTriggers={disabledSet}
           parentOff={isParentOff(command, owned)}
+          replyOff={replyOff(command)}
           {locked}
           status={activeRow === command.trigger ? status : 'idle'}
-          onToggleTrigger={interactive ? (tr, on) => toggleOne(command.trigger, tr, on) : undefined}
-          onToggleAll={interactive ? (trs, on) => toggleAll(command.trigger, trs, on) : undefined}
+          onToggleTrigger={interactive ? (tr, on) => toggle(command.trigger, [tr], on) : undefined}
+          onToggleAll={interactive ? (trs, on) => toggle(command.trigger, trs, on) : undefined}
         />
       </li>
     {/each}
