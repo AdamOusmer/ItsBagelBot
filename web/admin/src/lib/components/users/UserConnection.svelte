@@ -24,6 +24,7 @@
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import '@bagel/ui/styles/elements/collapse.css';
   import type { AdminUserWire, ChannelSubState, SubVerification } from '#lib/server/services';
 
   let { user, tokenStatus, subState, ago, children }: {
@@ -57,9 +58,20 @@
     : t('admin.users.eventsubChecking'));
   const verification = $derived(subState?.verification);
   const check = $derived(checkSummary(verification));
+  const checkedLabel = $derived(subState?.checkedAt ? t('admin.users.eventsubChecked', { when: ago(subState.checkedAt) }) : '');
   const diagnostic = $derived(
     [...new Set([subState?.error, verification?.error].filter(Boolean))].join(' · ')
   );
+  let shownChecked = $state('');
+  let shownDiagnostic = $state('');
+
+  $effect(() => {
+    if (checkedLabel) shownChecked = checkedLabel;
+  });
+
+  $effect(() => {
+    if (diagnostic) shownDiagnostic = diagnostic;
+  });
 
   function checkSummary(result?: SubVerification) {
     if (!result) return t('admin.users.liveCheckNone');
@@ -87,25 +99,31 @@
   <Stack gap={1} aria-live="polite" aria-busy={subState === null}>
     {@render status(serving.tone, t(serving.label))}
     {@render status(token.tone, t(token.label))}
-    <div class="event-status">
+    <div class="gapped">
       {@render status(subTone, subLabel)}
-      <div class="status-copy">
-        <Text as="div" size="xs" tone="muted">
-          <bb-fit><span data-fit>{subState?.checkedAt ? t('admin.users.eventsubChecked', { when: ago(subState.checkedAt) }) : ''}</span></bb-fit>
-        </Text>
+      <div class="bb-collapse" class:is-open={Boolean(checkedLabel)} aria-hidden={!checkedLabel} inert={!checkedLabel}>
+        <div>
+          <div class="status-copy">
+            <Text as="div" size="xs" tone="muted">
+              <bb-fit><span data-fit>{shownChecked}</span></bb-fit>
+            </Text>
+          </div>
+        </div>
       </div>
     </div>
   </Stack>
 
-  <div class="verification">
+  <div class="verification gapped">
     <FactList>
       <Fact term={t('admin.users.liveCheck')}>{check}</Fact>
     </FactList>
-    {#if diagnostic}
-      <div class="diagnostic">
-        <AlertBanner tone="danger" flush>{diagnostic}</AlertBanner>
+    <div class="bb-collapse" class:is-open={Boolean(diagnostic)} aria-hidden={!diagnostic} inert={!diagnostic}>
+      <div>
+        <div class="diagnostic">
+          <AlertBanner tone="danger" flush>{shownDiagnostic}</AlertBanner>
+        </div>
       </div>
-    {/if}
+    </div>
   </div>
   {@render children?.()}
 </Stack>
@@ -117,20 +135,17 @@
     overflow: hidden;
   }
 
-  .event-status {
+  .gapped {
+    --bb-collapse-gap: var(--bb-space-2);
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);
     gap: var(--bb-space-2);
-    align-items: center;
   }
 
   .verification {
-    min-block-size: 3.5rem;
     overflow-wrap: anywhere;
   }
 
   .diagnostic {
-    margin-block-start: var(--bb-space-2);
     overflow-wrap: anywhere;
   }
 </style>

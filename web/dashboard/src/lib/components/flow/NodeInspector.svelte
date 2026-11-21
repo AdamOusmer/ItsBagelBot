@@ -8,6 +8,7 @@
   import Icon from './FlowIcon.svelte';
   import UiIcon from '@bagel/ui/svelte/Icon.svelte';
   import '@bagel/ui/styles/elements/field-sheet.css';
+  import '@bagel/ui/styles/elements/collapse.css';
   import IconButton from '@bagel/ui/svelte/IconButton.svelte';
   import IconTile from '@bagel/ui/svelte/IconTile.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
@@ -27,6 +28,7 @@
   import type { RehearsalView } from '#lib/flow/rehearse';
   import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import DurationField from '#lib/components/shared/DurationField.svelte';
+  import HeldText from '#lib/components/shared/HeldText.svelte';
   import { checkNote, durationOutside, durationRange, fieldHint, fieldIssueMessage, fieldLabel, fieldOptions, fieldPlaceholder, fieldUnit, hasCheckNote, requirementText, requirementTrigger, roleWarning, scopeWarning, stepLabel, stepNote, stepRequirementFor, stepSummary, targetOptions, variableLabel } from '#lib/flow/copy';
   import { defaultComparison } from '#lib/flow/comparison';
   import { fieldMounted, fieldVisible, flowTrigger, migrateCooldownConfig, NODE_SPECS, outputsFor, specFor, storedVariable, targetFieldFor, targetModesFor, variablesFor, type FieldSpec, type Flow, type FlowKind, type FlowNode, type NodeSpec } from '#lib/flow/model';
@@ -61,7 +63,6 @@
   }: { flow: Flow; selectedId?: string | null; fallbackId?: string; active?: boolean; rehearsal: RehearsalView; focusToken?: number; focusField?: string; issues?: FieldIssue[]; permissionRank?: number; onclose?: () => void; onremove: (id: string, keepYes?: boolean) => void; oncheck?: () => void; ontest?: () => void; onResponseSample?: (nodeId: FlowNode['id'], sample: string) => void } = $props();
 
   const { t } = getI18n();
-  const ROLE_NOTE_FIELDS: ReadonlySet<string> = new Set(['who', 'scope']);
   type FieldKey = FieldSpec['key'];
   type Token = VariableChip['token'];
   type Hint = string | undefined;
@@ -122,8 +123,7 @@
   const passingNote = $derived(patternSample ?? checkNote(t, node, flow));
   const canAddCheck = $derived(roleLevel ? incoming.length > 0 && !addedCheck : false);
   const checkAction = $derived(canAddCheck || Boolean(removeCheck));
-  const togglesRoleNote = $derived(Boolean(spec?.fields.some((field) => ROLE_NOTE_FIELDS.has(field.key))));
-  const roleNoteSlot = $derived([roleNote, checkAction, togglesRoleNote].some(Boolean));
+  const roleOpen = $derived(Boolean(roleNote) || checkAction);
   const automaticComparisons = new Map<FlowNode['id'], boolean>();
   const legacyTake = $derived(node?.type === 'reply.points' && node.config.change === undefined && pointsChange(node.config) === 'take');
 
@@ -380,15 +380,13 @@
         <Label as="span" class="last-test-label bb-fit-box"><bb-fit>{t('flows.test.lastTest')}</bb-fit></Label>
         <RunOutcome outcome={stepOutcome(lastStep)} />
       </div>
-      <Text size="sm" tone="muted-light" class="last-test-text bb-fit-box" role="status">
-        <bb-fit mode="block">{lastText}</bb-fit>
-      </Text>
+      <Text size="sm" tone="muted-light" class="last-test-text" role="status">{lastText}</Text>
       <Button class="last-test-button" variant="ghost" size="sm" onclick={ontest} disabled={!ontest}><bb-fit>{t('flows.test.test')}</bb-fit></Button>
     </div>
 
     <div class="scroll">
       {#if staticNote}
-        <p class="note static-note bb-fit-box"><bb-fit mode="block">{staticNote}</bb-fit></p>
+        <p class="note">{staticNote}</p>
       {/if}
       {#if awaiting}
         <p class="note">{t('flows.setup.stepNote')}</p>
@@ -405,7 +403,7 @@
             {@const tag = required ? t('flows.clarity.required') : undefined}
             {@const inNote = sharesNote(field, hint)}
             {@const placeholder = node.config[field.key] === SETUP_URL ? t('flows.setup.addUrl') : fieldPlaceholder(t, spec, field, node)}
-            <fieldset class="field bb-field-row" class:bb-field-row--stack={field.type === 'reward'} class:inactive={disabled} {disabled} inert={disabled} name={field.key} bind:this={fieldElements[field.key]} aria-label={label} tabindex="-1">
+            <fieldset class="field bb-field-row" class:bb-field-row--stack={field.type === 'reward'} class:stack={field.type === 'reward'} class:inactive={disabled} {disabled} inert={disabled} name={field.key} bind:this={fieldElements[field.key]} aria-label={label} tabindex="-1">
             {#if field.type === 'color'}
               <Field fit {label} {tag} error={inNote ? undefined : error} for="{uid}-{field.key}">
                 <ColorPicker
@@ -513,7 +511,9 @@
                   aria-activedescendant={completion?.key === field.key ? `${uid}-suggestion-${activeSuggestion}` : undefined}
                 />
                 {#if targetInput}
-                  <small class="bb-field__error bb-fit-box target-error" class:faded={!shown} id="{uid}-{field.key}-error" role="alert"><bb-fit mode="block">{shown ?? ''}</bb-fit></small>
+                  <div class="bb-collapse target-error" class:is-open={Boolean(shown)} aria-hidden={!shown} inert={!shown}>
+                    <div><small class="bb-field__error" id="{uid}-{field.key}-error" role="alert"><HeldText text={shown} /></small></div>
+                  </div>
                 {/if}
               </Field>
             {:else if field.type === 'template'}
@@ -557,9 +557,9 @@
               </Field>
             {/if}
             {#if inNote && error}
-              <small class="bb-field__error bb-fit-box field-hint" role="alert" id="{uid}-{field.key}-error"><bb-fit mode="block">{error}</bb-fit></small>
+              <small class="bb-field__error" role="alert" id="{uid}-{field.key}-error">{error}</small>
             {:else if hint}
-              <small class="bb-field__hint bb-fit-box field-hint"><bb-fit mode="block">{hint}</bb-fit></small>
+              <small class="bb-field__hint">{hint}</small>
             {/if}
             {#if node.type === 'reply.http_get' && field.key === 'url'}
               {@const url = textOf(field.key).trim()}
@@ -571,8 +571,8 @@
               {/key}
             {/if}
             {#if node.type === 'reply.var' && field.key === 'name'}
-              <div class="variable-preview" class:faded={!variableToken} aria-hidden={!variableToken}>
-                <VarCard token={variableToken ?? '\u00a0'} title={variableToken} />
+              <div class="bb-collapse" class:is-open={Boolean(variableToken)} aria-hidden={!variableToken} inert={!variableToken}>
+                <div><VarCard token={variableToken ?? '\u00a0'} title={variableToken} /></div>
               </div>
             {/if}
             </fieldset>
@@ -580,16 +580,22 @@
         </div>
       {/if}
 
-      {#if roleNoteSlot}
-        <div class="role-note" class:faded={!roleNote}>
-          <p class="note role-warning bb-fit-box" role="status"><bb-fit mode="block">{roleNote ?? ''}</bb-fit></p>
-          <div class="check-action" class:faded={!checkAction} inert={!checkAction}>
-            <Button variant="ghost" onclick={changeCheck}><bb-fit>{t(removeCheck ? 'flows.step.condition.role.remove' : 'flows.step.requirement.addCheck')}</bb-fit></Button>
+      <div class="bb-collapse" class:is-open={roleOpen} aria-hidden={!roleOpen} inert={!roleOpen}>
+        <div>
+          <div class="role-note">
+            <p class="note" role="status"><HeldText text={roleNote} /></p>
+            <div class="bb-collapse" class:is-open={checkAction} aria-hidden={!checkAction} inert={!checkAction}>
+              <div>
+                <Button variant="ghost" onclick={changeCheck}><bb-fit>{t(removeCheck ? 'flows.step.condition.role.remove' : 'flows.step.requirement.addCheck')}</bb-fit></Button>
+              </div>
+            </div>
           </div>
         </div>
-      {/if}
+      </div>
       {#if hasCheckNote(node) || node.type === 'cond.pattern'}
-        <p class="note check-note bb-fit-box" class:faded={!passingNote} role="status"><bb-fit mode="block">{passingNote ?? ''}</bb-fit></p>
+        <div class="bb-collapse" class:is-open={Boolean(passingNote)} aria-hidden={!passingNote} inert={!passingNote}>
+          <div><p class="note" role="status"><HeldText text={passingNote} /></p></div>
+        </div>
       {/if}
 
       <FlowRehearsal steps={spec.kind === 'condition' ? [] : rehearsal.steps} focusId={node.id} {summary} />
@@ -598,7 +604,7 @@
         <section class="group">
           <h3 class="group-title">{t('flows.board.branchesTitle')}</h3>
           {#if compareExample}
-            <p class="note compare-example bb-fit-box"><bb-fit mode="block">{compareExample}</bb-fit></p>
+            <p class="note">{compareExample}</p>
           {/if}
           <ul class="branches">
             {#each branches as b (b.id)}
@@ -727,7 +733,11 @@
   }
   .last-test :global(.last-test-text) {
     grid-column: 1;
-    height: calc(var(--bb-space-5) + var(--bb-space-4));
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
     margin: 0;
     overflow-wrap: anywhere;
   }
@@ -743,8 +753,11 @@
     display: flex;
     flex-direction: column;
     gap: var(--bb-space-5);
+    --bb-collapse-gap: var(--bb-space-5);
     padding: var(--bb-space-5) var(--panel-pad);
   }
+  .field { --bb-collapse-gap: 0px; }
+  .target-error { --bb-collapse-gap: var(--bb-space-1); }
   .scroll > :global(*) {
     flex: none;
   }
@@ -754,11 +767,8 @@
     --field-gap: var(--bb-space-2);
   }
   .field,
-  .variable-group,
-  .target-error { transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo); }
+  .variable-group { transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo); }
   .inactive { opacity: 0.45; }
-  .target-error { height: var(--bb-space-6); }
-  .field-hint { height: var(--bb-space-7); }
   .unit {
     font-size: var(--bb-text-xs);
     color: var(--bb-muted);
@@ -829,24 +839,11 @@
     gap: var(--bb-space-1);
   }
   .role-note {
-    display: grid;
-    grid-template-rows: minmax(0, 1fr) var(--bb-space-6);
-    gap: var(--bb-space-1);
-    height: calc(var(--bb-space-8) + var(--bb-space-4));
-  }
-  .role-note,
-  .variable-preview,
-  .check-note,
-  .check-action { transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo); }
-  .check-note { height: var(--bb-space-6); }
-  .check-action {
     display: flex;
-    align-items: center;
-    min-width: 0;
+    flex-direction: column;
+    gap: var(--bb-space-1);
+    --bb-collapse-gap: var(--bb-space-1);
   }
-  .role-warning { min-width: 0; }
-  .static-note,
-  .compare-example { height: var(--bb-space-7); }
   .faded { opacity: 0; }
   .note {
     margin: 0;
@@ -891,15 +888,12 @@
   }
   @media (max-width: 760px) {
     .panel { --panel-pad: var(--bb-space-4); }
+    .field { --bb-collapse-gap: var(--bb-space-2); }
   }
+  .field.stack { --bb-collapse-gap: var(--bb-space-2); }
   @media (prefers-reduced-motion: reduce) {
     .field,
     .variable-group,
-    .target-error,
-    .role-note,
-    .variable-preview,
-    .check-note,
-    .check-action,
     .run-note { transition: none; }
   }
 </style>

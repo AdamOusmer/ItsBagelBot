@@ -2,6 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import '@bagel/ui/styles/elements/collapse.css';
   import FieldError from '@bagel/ui/svelte/FieldError.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { buildJsonPath, getI18n, type ActionOk } from '@bagel/kit';
@@ -17,6 +18,7 @@
   let loading = $state(false);
   let sample = $state('');
   let error = $state('');
+  const resultOpen = $derived(loading || Boolean(error) || Boolean(sample));
 
   async function tryRead() {
     loading = true;
@@ -41,39 +43,39 @@
     <Button variant="ghost" size="sm" disabled={!eligible} busy={loading} aria-describedby={eligible ? undefined : hintId} onclick={tryRead}>
       <bb-fit>{t('flows.step.reply.httpGet.tryIt.label')}</bb-fit>
     </Button>
-    <small class="bb-field__hint bb-fit-box fixed-hint" class:faded={eligible} aria-hidden={eligible} id={hintId}>
-      <bb-fit mode="block">{t('flows.step.reply.httpGet.tryIt.fixedAddress')}</bb-fit>
-    </small>
-  </div>
-  <div class="result" class:faded={!loading && !error && !sample}>
-    <div role="status">
-      {#if loading}
-        <Text size="xs" tone="muted">{t('flows.step.reply.httpGet.tryIt.loading')}</Text>
-      {/if}
+    <div class="bb-collapse" class:is-open={!eligible} aria-hidden={eligible} inert={eligible}>
+      <div><small class="bb-field__hint" id={hintId}>{t('flows.step.reply.httpGet.tryIt.fixedAddress')}</small></div>
     </div>
-    <FieldError message={error} />
-    <JsonTree json={sample} onPick={(segments) => onPick({ path: buildJsonPath(segments), sample })} />
+  </div>
+  <div class="bb-collapse" class:is-open={resultOpen} aria-hidden={!resultOpen} inert={!resultOpen}>
+    <div class="result">
+      <div role="status">
+        {#if loading}
+          <Text size="xs" tone="muted">{t('flows.step.reply.httpGet.tryIt.loading')}</Text>
+        {/if}
+      </div>
+      <FieldError message={error} />
+      <JsonTree json={sample} onPick={(segments) => onPick({ path: buildJsonPath(segments), sample })} />
+    </div>
   </div>
 </div>
 
 <style>
   .try-it {
+    display: grid;
+    row-gap: var(--field-gap);
     margin-block-start: var(--field-gap);
+    --bb-collapse-gap: var(--field-gap);
   }
   .controls {
+    --bb-collapse-gap: 0px;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
     gap: var(--field-gap);
   }
-  .fixed-hint {
-    block-size: 2.5rem;
-  }
   .result {
-    block-size: 8rem;
+    max-block-size: 8rem;
     overflow: auto;
-  }
-  .faded {
-    opacity: 0;
   }
 </style>

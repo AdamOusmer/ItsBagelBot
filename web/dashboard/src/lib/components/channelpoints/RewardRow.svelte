@@ -87,7 +87,7 @@
   .reward { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .reward-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 
-  .tags { display: flex; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap; }
+  .tags { display: flex; gap: 8px; min-width: 0; min-block-size: 12px; overflow: hidden; white-space: nowrap; }
   .resp {
     font-family: var(--bb-font-body);
     font-size: var(--bb-text-sm);

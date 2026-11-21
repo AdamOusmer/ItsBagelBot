@@ -20,7 +20,7 @@
 
 <section class="preview" aria-label={t('flows.board.whatHappens')}>
   <Label as="span" class="preview-label bb-fit-box"><bb-fit>{t('flows.board.whatHappens')}</bb-fit></Label>
-  <Text size="sm" tone="muted-light" class="preview-summary bb-fit-box"><bb-fit mode="block">{summary}</bb-fit></Text>
+  <Text size="sm" tone="muted-light" class="preview-summary">{summary}</Text>
   {#if lines.length}
     <ChatPreview title={t('chatPreview.rehearsal')}>
       <div class="chat-lines">
@@ -43,7 +43,6 @@
   }
   .preview :global(.preview-label) { height: var(--bb-space-4); line-height: 1.34; }
   .preview :global(.preview-summary) {
-    height: calc(var(--bb-space-5) + var(--bb-space-4));
     margin: 0;
     overflow-wrap: anywhere;
   }

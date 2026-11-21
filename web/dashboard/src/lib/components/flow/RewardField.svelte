@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { invalidate } from '$app/navigation';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import '@bagel/ui/styles/elements/collapse.css';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
@@ -131,8 +132,10 @@
       <Select fill id="{id}-{source}-after" options={afterOptions} value={settledByStep ? 'leave' : draft.onRedeem} disabled={settledByStep}
         onchange={(event) => (draft.onRedeem = event.currentTarget.value)} />
     </div>
-    <small class="after-note bb-fit-box" class:faded={!settledByStep} aria-hidden={!settledByStep}><bb-fit mode="block">{t('flows.reward.afterSettledByStep')}</bb-fit></small>
-    <small class="after-note bb-fit-box"><bb-fit mode="block">{t('flows.reward.afterRefundSkipped')}</bb-fit></small>
+    <div class="bb-collapse after-settled" class:is-open={settledByStep} aria-hidden={!settledByStep} inert={!settledByStep}>
+      <div><small class="after-note">{t('flows.reward.afterSettledByStep')}</small></div>
+    </div>
+    <small class="after-note">{t('flows.reward.afterRefundSkipped')}</small>
   </Field>
 {/snippet}
 
@@ -188,19 +191,17 @@
     visibility: hidden;
     pointer-events: none;
   }
-  .after-choice,
-  .after-note {
+  .after-choice {
     transition: opacity 0.2s ease;
   }
   .after-note {
     display: block;
-    block-size: calc(2 * var(--bb-space-4));
     min-inline-size: 0;
+  }
+  .after-settled {
+    --bb-collapse-gap: var(--field-gap, 6px);
   }
   .faded {
     opacity: 0.45;
-  }
-  .after-note.faded {
-    opacity: 0;
   }
 </style>

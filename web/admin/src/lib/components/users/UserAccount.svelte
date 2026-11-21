@@ -26,15 +26,11 @@
 {#if can('users.test')}
   <Stack as="section" gap={2}>
     <Heading level={3} variant="label">{t('admin.users.testAccountTitle')}</Heading>
-    <div class="test-hint">
-      <Text size="xs" tone="muted" style="block-size: 100%">
-        <bb-fit mode="block"><span data-fit>{t('admin.users.testAccountHint')}</span></bb-fit>
-      </Text>
-    </div>
+    <Text size="xs" tone="muted">{t('admin.users.testAccountHint')}</Text>
     <form class="test-form" method="POST" action="?/setTestAccount" use:enhance>
       <input type="hidden" name="user_id" value={user.id} />
       <input type="hidden" name="active" value={user.test_account ? 'false' : 'true'} />
-      <Button variant="ghost" type="submit" disabled={locked} busy={busy === 'setTestAccount'} block>
+      <Button variant="ghost" type="submit" disabled={locked} busy={busy === 'setTestAccount'}>
         <bb-fit><span data-fit>{user.test_account ? t('admin.users.markOrdinary') : t('admin.users.markTest')}</span></bb-fit>
       </Button>
     </form>
@@ -63,14 +59,6 @@
 {/if}
 
 <style>
-  .test-hint {
-    block-size: 3.25rem;
-  }
-
-  .test-form {
-    inline-size: min(100%, 13rem);
-  }
-
   .code-form {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 7rem;
