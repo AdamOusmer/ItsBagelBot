@@ -5,7 +5,7 @@ import type { LaneView } from '#lib/server/lanes';
 
 type PipelineStage = 'ingress' | 'outgress' | 'system';
 type PipelineTraffic = 'stream' | 'standard' | 'premium' | 'system';
-type PipelineStageFilter = 'all' | 'twitch' | PipelineStage;
+export type PipelineStageFilter = 'all' | 'twitch' | PipelineStage;
 export type PipelineTrafficFilter = 'all' | Exclude<PipelineTraffic, 'system'>;
 
 type TokenPair = readonly [left: string, right: string];
