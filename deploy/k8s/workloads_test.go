@@ -40,6 +40,15 @@ func TestBotIdentityComesFromTheRightSecret(t *testing.T) {
 	}
 }
 
+func TestControlsGatewayUsesItsOwnDopplerSecrets(t *testing.T) {
+	deployment := findDeployment(t, "controls-gateway.yaml", "controls-gateway")
+	assert.Equal(t, map[string]string{
+		"OVERLAY_COOKIE_KEY": "controls-gateway-env/OVERLAY_COOKIE_KEY",
+		"NATS_JWT":           "controls-gateway-env/NATS_RPC_JWT",
+		"NATS_NKEY_SEED":     "controls-gateway-env/NATS_RPC_NKEY_SEED",
+	}, deployment.secretEnv().Refs)
+}
+
 func TestReloaderRunsOneRoller(t *testing.T) {
 	ops := findDeployment(t, reloaderManifest, "reloader")
 
@@ -55,6 +64,7 @@ func TestSpreadIsHardWithoutMinDomains(t *testing.T) {
 		{"notifications.yaml", "notifications"},
 		{"transactions.yaml", "transactions"},
 		{"twitch-ingress.yaml", "twitch-ingress"},
+		{"controls-gateway.yaml", "controls-gateway"},
 		{"outgress.yaml", "outgress"},
 		{"sesame.yaml", "sesame"},
 	}

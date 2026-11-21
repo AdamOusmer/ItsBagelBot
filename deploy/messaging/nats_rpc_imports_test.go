@@ -156,6 +156,10 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.internal.commands.fetchkey.get", "app/gossip/internal/core/fetchkeys.go"},
 		{"rpc.internal.projection.commands.fetches.get", "app/gossip/main.go newFetchProjection"},
 	},
+	"controls_gateway_rpc": {
+		{"rpc.internal.users.voice.overlay.resolve", "app/controls/gateway/lib/controls_gateway/tts/nats.ex"},
+		{"rpc.internal.users.voice.overlay.check", "app/controls/gateway/lib/controls_gateway/tts/nats.ex"},
+	},
 	"twitch_ingress_rpc": {
 		{"rpc.broadcaster.status.get", "app/twitch/ingress broadcaster status lookup"},
 		{"rpc.internal.users.get", "app/twitch/ingress/lib/ingress/trial_rpc.ex"},
