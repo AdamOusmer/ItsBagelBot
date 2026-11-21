@@ -13,6 +13,7 @@ import { moduleEditState } from '#lib/server/module-edit-state';
 import { isOwnerSession } from '#lib/server/owner';
 import { voiceGet, voiceOverlayRotate, voiceSet } from '#lib/server/services/voice';
 import { parseVoiceSave, voiceAlertConfig } from './voice-settings';
+import type { Session } from '#lib/server/session';
 import type { Actions, PageServerLoad } from './$types';
 
 const DEMO = dev && env.DEMO === '1';
@@ -22,10 +23,13 @@ async function readAlerts(userId: string) {
   return rows.find(({ name }) => name === 'alerts');
 }
 
+async function currentRevision(userId: string) {
+  return moduleEditState(await readAlerts(userId)).revision;
+}
+
 async function saveAlerts(userId: string, save: { partial: Record<string, string>; expectedRev: number | null }) {
-  if (Object.keys(save.partial).length === 0 && save.expectedRev !== null) return { conflict: false, rev: save.expectedRev };
+  if (Object.keys(save.partial).length === 0) return { conflict: false, rev: save.expectedRev ?? await currentRevision(userId) };
   const alerts = await readAlerts(userId);
-  if (Object.keys(save.partial).length === 0) return { conflict: false, rev: moduleEditState(alerts).revision };
   return patchModule({
     userId,
     name: 'alerts',
@@ -41,17 +45,44 @@ function invalidSave(locale: Locale, error: string) {
   }) });
 }
 
+type ParsedSave = Extract<ReturnType<typeof parseVoiceSave>, { error: null }>;
+
+async function persistVoice(session: Session, save: ParsedSave, locale: Locale) {
+  let revision = save.expectedRev ?? undefined;
+  try {
+    const allowance = await voiceGet(session);
+    if (allowance.reason !== 'ok') return fail(403, { error: translate(locale, 'voice.saveUnavailable') });
+
+    const alerts = await saveAlerts(session.user_id, save);
+    if (alerts.conflict) return fail(409, { conflict: true });
+    revision = alerts.rev;
+    if (Object.keys(save.settings).length > 0) {
+      const { voice, enabled, max_seconds } = allowance;
+      await voiceSet(session, { voice, enabled, max_seconds, ...save.settings });
+    }
+    return { ok: true, rev: alerts.rev };
+  } catch {
+    return fail(503, { error: translate(locale, 'voice.saveFailed'), revision });
+  }
+}
+
 async function demoSave(fields: FormData, locale: Locale) {
   const save = parseVoiceSave(fields);
   if (save.error !== null) return invalidSave(locale, save.error);
   return { ok: true, rev: (await import('#lib/server/demo-data')).demoVoiceSave(save.settings, save.partial) };
 }
 
-export const load: PageServerLoad = async ({ locals: { session, locale } }) => {
-  if (DEMO) {
-    const { allowance, config, revision } = (await import('#lib/server/demo-data')).demoVoiceView();
-    return { readOnly: false, locked: false, allowance, alerts: { config: voiceAlertConfig(config, locale), revision } };
-  }
+const demoActions = {
+  save: async ({ locals: { locale }, request }) => demoSave(await request.formData(), locale),
+  rotateOverlay: async () => ({ overlayUrl: 'https://overlay.itsbagelbot.com/tts#demo' })
+} satisfies Actions;
+
+const demoLoad = (async ({ locals: { locale } }) => {
+  const { allowance, config, revision } = (await import('#lib/server/demo-data')).demoVoiceView();
+  return { readOnly: false, locked: false, allowance, alerts: { config: voiceAlertConfig(config, locale), revision } };
+}) satisfies PageServerLoad;
+
+const liveLoad = (async ({ locals: { session, locale } }) => {
   if (!session) throw redirect(302, '/login?next=%2Fvoice');
   if (!isOwnerSession(session)) return { readOnly: true, locked: false, allowance: null, alerts: null };
 
@@ -64,36 +95,20 @@ export const load: PageServerLoad = async ({ locals: { session, locale } }) => {
     return { config: voiceAlertConfig(config, locale), revision };
   }), null);
   return { ...view, alerts };
-};
+}) satisfies PageServerLoad;
 
-export const actions = {
+export const load: PageServerLoad = DEMO ? demoLoad : liveLoad;
+
+const liveActions = {
   save: async ({ locals: { session, locale }, request }) => {
-    if (DEMO) return demoSave(await request.formData(), locale);
     if (!session) return fail(401, { error: translate(locale, 'serverErrors.notSignedIn') });
     if (!isOwnerSession(session)) return fail(403, { error: translate(locale, 'serverErrors.ownerOnly') });
 
     const save = parseVoiceSave(await request.formData());
     if (save.error !== null) return invalidSave(locale, save.error);
-
-    let revision = save.expectedRev ?? undefined;
-    try {
-      const allowance = await voiceGet(session);
-      if (allowance.reason !== 'ok') return fail(403, { error: translate(locale, 'voice.saveUnavailable') });
-
-      const alerts = await saveAlerts(session.user_id, save);
-      if (alerts.conflict) return fail(409, { conflict: true });
-      revision = alerts.rev;
-      if (Object.keys(save.settings).length > 0) {
-        const { voice, enabled, max_seconds } = allowance;
-        await voiceSet(session, { voice, enabled, max_seconds, ...save.settings });
-      }
-      return { ok: true, rev: alerts.rev };
-    } catch {
-      return fail(503, { error: translate(locale, 'voice.saveFailed'), revision });
-    }
+    return persistVoice(session, save, locale);
   },
   rotateOverlay: async ({ locals: { session, locale }, setHeaders }) => {
-    if (DEMO) return { overlayUrl: 'https://overlay.itsbagelbot.com/tts#demo' };
     if (!session) return fail(401, { overlayError: translate(locale, 'serverErrors.notSignedIn') });
     if (!isOwnerSession(session)) return fail(403, { overlayError: translate(locale, 'serverErrors.ownerOnly') });
 
@@ -108,3 +123,5 @@ export const actions = {
     }
   }
 } satisfies Actions;
+
+export const actions = DEMO ? demoActions : liveActions;
