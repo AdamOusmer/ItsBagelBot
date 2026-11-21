@@ -47,7 +47,8 @@ export async function installAutomationsRpcFake(): Promise<AutomationsRpcFake> {
     setModuleEnabled: async (_uid: string, _mod: string, enabled: boolean) => {
       fake.moduleWrites.push(enabled);
       return undefined;
-    }
+    },
+    patchModuleConfig: async () => {}
   }));
   const { fabric } = await import('../src/lib/server/services');
   evict = () => fabric.cache.invalidate('automations:7');

@@ -23,7 +23,7 @@ const alerts = {
 
 const upsertModule = mock(async () => ({ modules: [], synced }));
 const patchModule = mock(async (p: ModulePatch) =>
-  conflict ? { rev: 5, conflict: true, synced: false } : { rev: p.expectedRev + 1, conflict: false, synced });
+  conflict ? { rev: 5, conflict: true, synced: false } : { rev: (p.expectedRev ?? 0) + 1, conflict: false, synced });
 
 mock.module('#lib/server/commands-store', () => ({
   listModules: async () => {

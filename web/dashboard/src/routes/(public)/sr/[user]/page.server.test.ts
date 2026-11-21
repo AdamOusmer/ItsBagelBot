@@ -35,7 +35,8 @@ mock.module('#lib/server/module-blob', () => ({
   readModuleBlob: async (userId: string, modId: string) => {
     moduleReads.push(`${userId}:${modId}`);
     return { enabled: await moduleEnabled(), configs: srEnabled === undefined ? {} : { sr: { enabled: srEnabled } } };
-  }
+  },
+  patchModuleConfig: async () => {}
 }));
 mock.module('#lib/server/songqueue-public-store', () => ({
   readPublicSongQueue: async (userId: string) => {

@@ -21,7 +21,8 @@ mock.module('#lib/server/module-blob', () => ({
   readModuleBlob: async (userId: string, modId: string) => {
     moduleReads.push(`${userId}:${modId}`);
     return { enabled: await moduleEnabled(), configs: {} };
-  }
+  },
+  patchModuleConfig: async () => {}
 }));
 mock.module('#lib/server/queue-store', () => ({
   readQueue: async (userId: string) => {
