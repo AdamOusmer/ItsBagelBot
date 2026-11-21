@@ -57,17 +57,21 @@ func validateAuditDelivery(req usersrpc.AuthRequest) error {
 	if _, err := parseID(req.Target); err != nil {
 		return fmt.Errorf("target must be a user id")
 	}
-	if !validTestAccountAudit(req) {
-		return fmt.Errorf("successful set_test_account action required")
+	if !req.OK || req.Err != "" {
+		return fmt.Errorf("successful admin action required")
 	}
-	if !slices.Contains([]string{"enabled=true", "enabled=false"}, req.Detail) {
-		return fmt.Errorf("test-account detail required")
-	}
-	return nil
+	return validateAuditDeliveryAction(req)
 }
 
-func validTestAccountAudit(req usersrpc.AuthRequest) bool {
-	return req.Action == "set_test_account" && req.OK && req.Err == ""
+func validateAuditDeliveryAction(req usersrpc.AuthRequest) error {
+	switch {
+	case req.Action == "set_test_account" && slices.Contains([]string{"enabled=true", "enabled=false"}, req.Detail):
+		return nil
+	case req.Action == usersrpc.AdminVoiceUsageAuditAction && req.Detail != "":
+		return nil
+	default:
+		return fmt.Errorf("unsupported admin audit action or detail")
+	}
 }
 
 func (a *adminAuthRPC) appendAudit(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {

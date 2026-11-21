@@ -10,7 +10,15 @@ import (
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/adminauditdelivery"
 	"ItsBagelBot/pkg/db"
+
+	"go.uber.org/zap"
 )
+
+func (r *Users) tryDeliverAdminAudit(ctx context.Context, delivery *ent.AdminAuditDelivery) {
+	if err := r.deliverAdminAudit(ctx, delivery); err != nil {
+		r.log.Warn("admin audit delivery pending", zap.String("operation_id", delivery.ID.String()), zap.Error(err))
+	}
+}
 
 func (r *Users) deliverAdminAudit(ctx context.Context, delivery *ent.AdminAuditDelivery) error {
 	req := delivery.Payload

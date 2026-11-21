@@ -31,10 +31,13 @@ type AdminRequest struct {
 	TestAccount  bool     `json:"test_account,omitempty"`
 	Metrics      []string `json:"metrics,omitempty"`
 	Window       string   `json:"window,omitempty"`
+	Reset        bool     `json:"reset,omitempty"`
+	UsedPercent  *int     `json:"used_percent,omitempty"`
 }
 
 type AdminUserView struct {
 	Lifecycle                 *lifecycle.State `json:"lifecycle,omitempty"`
+	VoiceAllowance            *VoiceAllowance  `json:"voice_allowance,omitempty"`
 	ID                        uint64           `json:"id"`
 	Username                  string           `json:"username"`
 	IsActive                  bool             `json:"is_active"`
