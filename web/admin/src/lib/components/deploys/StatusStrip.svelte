@@ -3,7 +3,6 @@
   // Proprietary. No license granted. See LICENSE.md.
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Grid from '@bagel/ui/svelte/Grid.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import StatTile from '@bagel/ui/svelte/StatTile.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
@@ -36,9 +35,7 @@
 
 {#snippet planAlert(message: string)}
   <div class="tile-alert">
-    <Scroller maxHeight="100%" role="region" aria-label={t('admin.deploys.statusLive')} tabindex={0}>
-      <AlertBanner tone="danger" flush>{message}</AlertBanner>
-    </Scroller>
+    <AlertBanner tone="danger" flush>{message}</AlertBanner>
   </div>
 {/snippet}
 
@@ -116,7 +113,7 @@
     display: grid;
     grid-template: minmax(0, 1fr) / minmax(0, 1fr);
     min-inline-size: 0;
-    block-size: 8.25rem;
+    min-block-size: 8.25rem;
   }
   .tile-alert {
     min-block-size: 0;

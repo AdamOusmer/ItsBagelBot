@@ -14,7 +14,6 @@
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
@@ -258,15 +257,7 @@
 
   <DeckLayout {inspecting} width="380px">
     <DeckList>
-      <Scroller
-        id="staff-roster"
-        class="staff-roster"
-        style="--staff-roster-rows: {SKELETON_ROWS}"
-        role="region"
-        tabindex={0}
-        aria-label={t('admin.staff.listLabel')}
-        aria-busy={!roster}
-      >
+      <div id="staff-roster" class="staff-roster" aria-busy={!roster}>
         {#if !roster}
           <div class="roster-loading" role="status" aria-label={t('common.loading')}>
             <SkeletonStack rows={SKELETON_ROWS} height="calc(var(--staff-row-height) - 10px)" />
@@ -298,7 +289,7 @@
         {:else}
           <EmptyState title={t('admin.staff.empty')} body={t('admin.staff.emptyBody')} />
         {/if}
-      </Scroller>
+      </div>
     </DeckList>
 
     <InspectorSurface
@@ -370,8 +361,6 @@
 <style>
   .screen :global(.staff-roster) {
     --staff-row-height: 4rem;
-    block-size: calc(var(--staff-roster-rows) * var(--staff-row-height));
-    scrollbar-gutter: stable;
   }
 
   .roster-loading {

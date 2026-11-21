@@ -6,7 +6,6 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -33,7 +32,6 @@
   {#if !ok}
     <AlertBanner>{t('admin.overview.auditUnavailable')}</AlertBanner>
   {:else if entries.length}
-    <Scroller fill role="region" aria-label={t('admin.overview.auditTitle')} tabindex={0}>
       <div class="bb-node-list bb-stagger">
         {#each entries as e (e.id)}
           {@const action = line(e)}
@@ -53,7 +51,6 @@
           </div>
         {/each}
       </div>
-    </Scroller>
   {:else}
     <EmptyState title={t('admin.overview.auditEmpty')} />
   {/if}

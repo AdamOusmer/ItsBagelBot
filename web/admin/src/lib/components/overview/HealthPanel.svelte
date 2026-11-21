@@ -5,7 +5,6 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -38,7 +37,6 @@
   </p>
 
   {#if probes.length}
-    <Scroller fill role="region" aria-label={t('admin.overview.healthTitle')} tabindex={0}>
       <div class="bb-node-list bb-stagger">
         {#each probes as p (p.id)}
           <div class="bb-node-list__row">
@@ -52,7 +50,6 @@
           </div>
         {/each}
       </div>
-    </Scroller>
   {:else}
     <EmptyState title={t('admin.overview.healthEmpty')} />
   {/if}

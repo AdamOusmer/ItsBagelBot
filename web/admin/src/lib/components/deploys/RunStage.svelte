@@ -107,7 +107,6 @@
   }
   .meta {
     block-size: 2.5rem;
-    overflow: auto;
     overflow-wrap: anywhere;
   }
   .meta,

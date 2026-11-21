@@ -4,7 +4,6 @@
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import StatePill from '#lib/components/StatePill.svelte';
@@ -31,7 +30,6 @@
   {#if !ok}
     <AlertBanner>{t('admin.giveaways.alertsUnavailable')}</AlertBanner>
   {:else if alerts.length}
-    <Scroller fill role="region" aria-label={t('admin.giveaways.alerts')} tabindex={0}>
       <Stack as="ul" class="overview-award-list" gap={0}>
         {#each alerts as alert (alert.id)}
           <li>
@@ -42,7 +40,6 @@
           </li>
         {/each}
       </Stack>
-    </Scroller>
   {:else}
     <Text size="sm" tone="muted">{t('admin.overview.giveawaysClear')}</Text>
   {/if}

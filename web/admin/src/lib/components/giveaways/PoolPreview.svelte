@@ -9,7 +9,6 @@
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Fact from '@bagel/ui/svelte/Fact.svelte';
   import FactList from '@bagel/ui/svelte/FactList.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import StatTile from '@bagel/ui/svelte/StatTile.svelte';
   import { giveawayExclusionLabel } from '#lib/giveaway-workflow';
@@ -30,7 +29,6 @@
     <CardHead title={t('admin.giveaways.poolTitle')} headingLevel={2} />
     <div class="pool" aria-live="polite">
       {#if preview}
-        <Scroller maxHeight="100%" role="region" tabindex={0} aria-label={t('admin.giveaways.poolTitle')}>
           <Stack gap={3}>
             <StatTile label={t('admin.giveaways.eligible')} value={number.format(preview.eligible.eligible)} fitCopy static />
             <FactList>
@@ -50,7 +48,6 @@
               <AlertBanner tone="warning" role="note" flush>{t('admin.giveaways.protectionWarning')}</AlertBanner>
             {/if}
           </Stack>
-        </Scroller>
       {:else}
         <EmptyState title={t('admin.giveaways.previewEmpty')} body={t('admin.giveaways.notLive')} />
       {/if}
@@ -60,6 +57,6 @@
 
 <style>
   .pool {
-    block-size: 24rem;
+    min-block-size: 24rem;
   }
 </style>

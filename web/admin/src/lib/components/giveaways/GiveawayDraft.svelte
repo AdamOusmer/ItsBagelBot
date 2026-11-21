@@ -167,7 +167,6 @@
   }
 
   .action-feedback {
-    block-size: 4.5rem;
-    overflow: auto;
+    min-block-size: 4.5rem;
   }
 </style>

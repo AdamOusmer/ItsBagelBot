@@ -8,7 +8,6 @@
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Fact from '@bagel/ui/svelte/Fact.svelte';
   import FactList from '@bagel/ui/svelte/FactList.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -34,7 +33,6 @@
         {:else if rows.length === 0}
           <EmptyState title={t('admin.giveaways.noAlerts')} />
         {:else}
-          <Scroller maxHeight="100%" role="region" tabindex={0} aria-label={t('admin.giveaways.alerts')}>
             <Stack as="ul" gap={3} class="giveaway-alert-list">
               {#each rows as alert (alert.id)}
                 <li class="alert-row">
@@ -47,7 +45,6 @@
                 </li>
               {/each}
             </Stack>
-          </Scroller>
         {/if}
       {/await}
     </div>
@@ -56,7 +53,7 @@
 
 <style>
   .alert-window {
-    block-size: 11rem;
+    min-block-size: 11rem;
   }
 
   :global(.giveaway-alert-list) {

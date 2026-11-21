@@ -41,7 +41,7 @@
   .cluster-slot {
     display: grid;
     grid-template: minmax(0, 1fr) / minmax(0, 1fr);
-    block-size: 35rem;
+    min-block-size: 35rem;
   }
 
   .cluster-loading {
@@ -50,7 +50,7 @@
 
   @media (max-width: 42rem) {
     .cluster-slot {
-      block-size: 30rem;
+      min-block-size: 30rem;
     }
   }
 </style>

@@ -13,7 +13,6 @@
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
@@ -73,7 +72,7 @@
 
   let generationId = '';
   let clearedThrough = 0;
-  let scroller: HTMLDivElement | undefined;
+  let listTop = $state<HTMLDivElement>();
 
   const status = $derived(STATUS[paused && conn === 'live' ? 'paused' : conn]);
   const statusLabel = $derived(t(status.label));
@@ -193,6 +192,8 @@
 
   onMount(() => {
     density = localStorage.getItem(DENSITY_KEY) === 'compact' ? 'compact' : 'detailed';
+    const observer = new IntersectionObserver(trackTop);
+    if (listTop) observer.observe(listTop);
     const stream = new EventSource('/events/stream');
     stream.onerror = () => {
       if (conn !== 'unavailable') conn = 'reconnecting';
@@ -203,7 +204,10 @@
     });
     stream.addEventListener('feed', receiveEvent);
     stream.addEventListener('unavailable', () => (conn = 'unavailable'));
-    return () => stream.close();
+    return () => {
+      observer.disconnect();
+      stream.close();
+    };
   });
 
   function flushPending() {
@@ -213,19 +217,13 @@
   }
 
   function scrollToLatest() {
-    if (scroller) scroller.scrollTop = 0;
+    if (away) listTop?.scrollIntoView({ block: 'start' });
     away = false;
     flushPending();
   }
 
-  function jumpToLatest() {
-    scroller?.focus({ preventScroll: true });
-    scrollToLatest();
-  }
-
-  function trackScroll(event: Event & { currentTarget: HTMLDivElement }) {
-    scroller = event.currentTarget;
-    away = scroller.scrollTop > 1;
+  function trackTop([entry]: IntersectionObserverEntry[]) {
+    away = !entry.isIntersecting && entry.boundingClientRect.top < 0;
     flushPending();
   }
 
@@ -316,21 +314,15 @@
             <span class="clear-label"><bb-fit>{t('admin.events.clear')}</bb-fit></span>
           </Button>
           <span class="new-action" class:shown={showNew} aria-hidden={!showNew}>
-            <Button variant="secondary" disabled={!showNew} onclick={jumpToLatest}>
+            <Button variant="secondary" disabled={!showNew} onclick={scrollToLatest}>
               <span class="new-label"><bb-fit>{newLabel}</bb-fit></span>
             </Button>
           </span>
         </Cluster>
       </Cluster>
 
-      <Scroller
-        style="block-size: min(60vh, 34rem); scrollbar-gutter: stable"
-        role="region"
-        tabindex={0}
-        aria-label={t('admin.events.listLabel')}
-        aria-busy={!hasHistory && conn === 'connecting'}
-        onscroll={trackScroll}
-      >
+      <div class="list-top" bind:this={listTop}></div>
+      <div aria-busy={!hasHistory && conn === 'connecting'}>
         {#if !hasHistory && conn === 'connecting'}
           <SkeletonStack rows={8} height={density === 'compact' ? '2.25rem' : '3.5rem'} />
         {:else if !rows.length}
@@ -339,7 +331,7 @@
             body={events.length || unavailable ? undefined : t('admin.events.idleBody')}
           />
         {:else}
-          <ul class="bb-feed" role="list">
+          <ul class="bb-feed" role="list" aria-label={t('admin.events.listLabel')}>
             {#each rows as row (row.event.id)}
               {#if row.liveDivider}{@render liveDivider()}{/if}
               {#if row.dateDivider}
@@ -363,12 +355,17 @@
             {#if rows.at(-1)?.live}{@render liveDivider()}{/if}
           </ul>
         {/if}
-      </Scroller>
+      </div>
     </Stack>
   </Card>
 </section>
 
 <style>
+  .list-top {
+    block-size: 1px;
+    margin-block-end: -1px;
+  }
+
   .feed-status,
   .new-label,
   .pause-label,

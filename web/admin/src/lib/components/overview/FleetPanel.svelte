@@ -6,7 +6,6 @@
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -104,7 +103,6 @@
     {/if}
   </p>
 
-  <Scroller fill role="region" aria-label={t('admin.overview.fleetTitle')} tabindex={0}>
     {#if view.shards.length}
       <div class="bb-node-list bb-stagger">
         {#each view.shards as s (s.shard_id)}
@@ -144,7 +142,6 @@
         {/if}
       {/if}
     {/if}
-  </Scroller>
 </Card>
 
 <style>

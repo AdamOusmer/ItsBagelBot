@@ -116,15 +116,15 @@
   }
 
   .slot-alerts {
-    block-size: 11rem;
+    min-block-size: 11rem;
   }
 
   .slot-operations {
-    block-size: 14rem;
+    min-block-size: 14rem;
   }
 
   .slot-detail {
-    block-size: 17.5rem;
+    min-block-size: 17.5rem;
   }
 
   .bot-slot {
@@ -132,12 +132,12 @@
   }
 
   .slot-tool {
-    block-size: 17rem;
+    min-block-size: 17rem;
   }
 
   @media (max-width: 520px) {
     .slot-tool {
-      block-size: 19rem;
+      min-block-size: 19rem;
     }
   }
 </style>

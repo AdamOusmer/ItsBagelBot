@@ -6,7 +6,6 @@
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Pager from '@bagel/ui/svelte/Pager.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
@@ -44,13 +43,7 @@
 </script>
 
 <DeckList class="notification-history">
-  <Scroller
-    class="history-scroll"
-    role="region"
-    aria-label={t('admin.notifications.listLabel')}
-    aria-busy={!history}
-    tabindex={rows.length ? 0 : undefined}
-  >
+  <div aria-busy={!history}>
     {#if !history}
       <div aria-hidden="true">
         {#each Array(6) as _, i (i)}
@@ -92,7 +85,7 @@
         body={t(filtered ? 'admin.notifications.filterEmptyBody' : 'admin.notifications.emptyBody')}
       />
     {/if}
-  </Scroller>
+  </div>
 
   <Pager
     label={t('admin.notifications.pagerLabel', { page: numberFormat.format(currentPage) })}
@@ -110,11 +103,6 @@
 <style>
   :global(.notification-history) {
     --notification-row-height: 3.75rem;
-  }
-
-  :global(.notification-history .history-scroll) {
-    block-size: clamp(11.25rem, 37dvh, 22.5rem);
-    scrollbar-gutter: stable;
   }
 
   :global(.notification-history .history-list) {

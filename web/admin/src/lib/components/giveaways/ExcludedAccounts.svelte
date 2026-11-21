@@ -8,7 +8,6 @@
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Badge from '@bagel/ui/svelte/Badge.svelte';
   import { giveawayExclusionLabel } from '#lib/giveaway-workflow';
   import type { GiveawayExcludedWire } from '#lib/server/giveaways';
@@ -29,7 +28,6 @@
   </div>
   <div class="accounts">
     {#if accounts.length}
-      <Scroller maxHeight="100%" role="region" tabindex={0} aria-label={t('admin.giveaways.excludedAccounts')}>
         <ul class="account-list">
           {#each accounts as account (account.userId)}
             {@const actionable = editable && account.includable}
@@ -66,7 +64,6 @@
             </ManagementRow>
           {/each}
         </ul>
-      </Scroller>
     {:else}
       <EmptyState title={t(ready ? 'admin.giveaways.noExcluded' : 'admin.giveaways.excludedPreviewHint')} />
     {/if}
@@ -80,7 +77,7 @@
   }
 
   .accounts {
-    block-size: 13rem;
+    min-block-size: 13rem;
   }
 
   .account-list {
