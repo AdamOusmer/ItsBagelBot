@@ -18,7 +18,6 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 const userID = 1001
@@ -27,7 +26,7 @@ func setup(t *testing.T) (*bustest.Publisher, *repository.Overlays) {
 	t.Helper()
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	pub := bustest.NewPublisher()
-	return pub, repository.New(client, pub, zap.NewNop())
+	return pub, repository.New(client, pub)
 }
 
 func changes(t *testing.T, pub *bustest.Publisher) []data.PoweredOverlayChangedDTO {
@@ -136,7 +135,7 @@ func TestDeleteAccountKeepsRowsOfAReregisteredAccount(t *testing.T) {
 
 			want := data.PoweredOverlayChangedDTO{UserID: userID, Overlay: &created}
 			if tc.deleted {
-				want = data.PoweredOverlayChangedDTO{UserID: userID, PreviousToken: created.Token, Deleted: true}
+				want = data.PoweredOverlayChangedDTO{UserID: userID, PreviousToken: created.Token, Deleted: true, Overlay: &created}
 			}
 			_, err = repo.Find(t.Context(), userID)
 			require.Equal(t, tc.deleted, err != nil)

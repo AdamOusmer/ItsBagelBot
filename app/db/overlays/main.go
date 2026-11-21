@@ -38,7 +38,7 @@ func main() {
 	defer func() { _ = n.Pub.Close() }()
 	defer closeIntake()
 
-	repo := repository.New(client, n.Pub, log)
+	repo := repository.New(client, n.Pub)
 
 	deleted := consumers.OnUserDeleted(serviceName, log, repo.DeleteAccount)
 	svcboot.FatalIf(log, bus.Consume(core.Ctx, core.NR, n.Grouped, data.SubjectUserDeleted, deleted, log), "failed to subscribe to user deleted events")

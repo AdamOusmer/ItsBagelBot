@@ -71,7 +71,6 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.health.modules", "app/projector/main.go healthSet"},
 		{"rpc.health.loyalty", "app/projector/main.go healthSet"},
 		{"rpc.health.notifications", "app/projector/main.go healthSet"},
-		{"rpc.internal.overlays.powered.get", "internal/domain/rpc/overlays OwnerPoweredSubject"},
 		{"rpc.internal.overlays.powered.by_token", "internal/domain/rpc/overlays OwnerPoweredByTokenSubject"},
 	},
 	"worker_rpc": {

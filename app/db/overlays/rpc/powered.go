@@ -42,12 +42,6 @@ func SubscribeDashboard(w Wiring) error {
 
 func SubscribeOwner(w Wiring) error {
 	read := w.Within(readBudget)
-	if err := bus.Serve(read, overlaysrpc.OwnerPoweredSubject,
-		func(ctx context.Context, req overlaysrpc.OwnerPoweredRequest) overlaysrpc.OwnerPoweredReply {
-			return ownerOf(w.Repo.Find(ctx, req.UserID))
-		}); err != nil {
-		return err
-	}
 	return bus.Serve(read, overlaysrpc.OwnerPoweredByTokenSubject,
 		func(ctx context.Context, req overlaysrpc.OwnerPoweredByTokenRequest) overlaysrpc.OwnerPoweredReply {
 			return ownerOf(w.Repo.ByToken(ctx, req.Token))

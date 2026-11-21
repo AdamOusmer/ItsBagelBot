@@ -730,10 +730,10 @@ accounts:
             - service: rpc.health.overlays
             - service: rpc.health.overlays.node.*
             - service: rpc.overlays.>
-            - service: rpc.internal.overlays.powered.get
-            - service: rpc.internal.overlays.powered.get.node.*
             - service: rpc.internal.overlays.powered.by_token
+              accounts: [PROJECTOR_RPC]
             - service: rpc.internal.overlays.powered.by_token.node.*
+              accounts: [PROJECTOR_RPC]
         roles:
             overlays_rpc: {}
     OUTGRESS_RPC:
@@ -836,10 +836,6 @@ accounts:
             - service: rpc.health.overlays
               from: OVERLAYS_RPC
             - service: rpc.health.overlays.node.*
-              from: OVERLAYS_RPC
-            - service: rpc.internal.overlays.powered.get
-              from: OVERLAYS_RPC
-            - service: rpc.internal.overlays.powered.get.node.*
               from: OVERLAYS_RPC
             - service: rpc.internal.overlays.powered.by_token
               from: OVERLAYS_RPC

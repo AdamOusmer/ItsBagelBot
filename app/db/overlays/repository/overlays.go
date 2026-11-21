@@ -18,8 +18,6 @@ import (
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
-
-	"go.uber.org/zap"
 )
 
 var (
@@ -33,11 +31,10 @@ const tokenBytes = 32
 type Overlays struct {
 	client *ent.Client
 	pub    bus.Publisher
-	log    *zap.Logger
 }
 
-func New(client *ent.Client, pub bus.Publisher, log *zap.Logger) *Overlays {
-	return &Overlays{client: client, pub: pub, log: log}
+func New(client *ent.Client, pub bus.Publisher) *Overlays {
+	return &Overlays{client: client, pub: pub}
 }
 
 func MigrateSchema(ctx context.Context, client *ent.Client) error {
@@ -81,10 +78,10 @@ func (r *Overlays) create(ctx context.Context, userID uint64) (overlaysrpc.Power
 	if err != nil {
 		return overlaysrpc.PoweredOverlay{}, err
 	}
-	if overlay.Token == token {
-		r.announce(ctx, data.PoweredOverlayChangedDTO{UserID: userID, Overlay: &overlay})
+	if overlay.Token != token {
+		return overlay, nil
 	}
-	return overlay, nil
+	return overlay, r.announce(ctx, data.PoweredOverlayChangedDTO{UserID: userID, Overlay: &overlay})
 }
 
 func (r *Overlays) Save(ctx context.Context, userID uint64, cfg overlaysrpc.PoweredConfig, expected uint64) (overlaysrpc.PoweredOverlay, error) {
@@ -133,8 +130,7 @@ func (r *Overlays) write(ctx context.Context, current overlaysrpc.PoweredOverlay
 	if err != nil {
 		return overlaysrpc.PoweredOverlay{}, err
 	}
-	r.announce(ctx, changeOf(current, saved))
-	return saved, nil
+	return saved, r.announce(ctx, changeOf(current, saved))
 }
 
 func changeOf(previous, saved overlaysrpc.PoweredOverlay) data.PoweredOverlayChangedDTO {
@@ -180,16 +176,14 @@ func (r *Overlays) DeleteAccount(ctx context.Context, userID uint64, cutoff time
 	if err != nil {
 		return err
 	}
-	n, err := db.WithQuery(ctx, r.client.PoweredOverlay.Delete().Where(poweredoverlay.ID(row.ID)).Exec)
-	if err != nil || n == 0 {
+	last := overlayOf(row)
+	if err := r.announce(ctx, data.PoweredOverlayChangedDTO{UserID: userID, PreviousToken: row.Token, Deleted: true, Overlay: &last}); err != nil {
 		return err
 	}
-	r.announce(ctx, data.PoweredOverlayChangedDTO{UserID: userID, PreviousToken: row.Token, Deleted: true})
-	return nil
+	_, err = db.WithQuery(ctx, r.client.PoweredOverlay.Delete().Where(poweredoverlay.ID(row.ID)).Exec)
+	return err
 }
 
-func (r *Overlays) announce(ctx context.Context, dto data.PoweredOverlayChangedDTO) {
-	if err := bus.PublishJSON(ctx, r.pub, data.SubjectPoweredOverlayChanged, dto); err != nil {
-		r.log.Error("failed to publish powered overlay change", zap.Uint64("user_id", dto.UserID), zap.Error(err))
-	}
+func (r *Overlays) announce(ctx context.Context, dto data.PoweredOverlayChangedDTO) error {
+	return bus.PublishJSON(ctx, r.pub, data.SubjectPoweredOverlayChanged, dto)
 }
