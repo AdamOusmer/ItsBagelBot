@@ -1,7 +1,14 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 
 import type { Actions, PageServerLoad } from './$types';
-import { SPOTIFY_SR_PERMS, SPOTIFY_QUOTA_TIERS, blankSpotifySr, blankSpotifyRedeem, blankSpotifyQuotas } from '@bagel/kit';
+import {
+  DISABLED_TRIGGERS_KEY,
+  SPOTIFY_SR_PERMS,
+  SPOTIFY_QUOTA_TIERS,
+  blankSpotifySr,
+  blankSpotifyRedeem,
+  blankSpotifyQuotas
+} from '@bagel/kit';
 import type { SpotifySrPerm } from '#lib/server/spotify-store';
 import { positiveCount, spotifyStore } from '#lib/server/spotify-store';
 import { done, storeMutator } from '#lib/server/reward-action';
@@ -82,6 +89,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
       redeem: blankSpotifyRedeem(),
       quotas: blankSpotifyQuotas(),
       maxDepth: null,
+      disabledTriggers: '',
       queue: { current: null, up: [] } as QueueView,
       connected: false,
       scopeGap: [] as string[],
@@ -151,5 +159,10 @@ export const actions: Actions = {
 
   disconnect: mutate('disconnect', 'Invalid request.', async (store) => done(await store.disconnect(), '')),
 
-  skip: mutate('skip', 'Invalid request.', async (store) => done(await store.skip(), ''))
+  skip: mutate('skip', 'Invalid request.', async (store) => done(await store.skip(), '')),
+
+  triggers: mutate('triggers', 'Invalid request.', async (store, f) => {
+    const raw = String(f.get(DISABLED_TRIGGERS_KEY) ?? '');
+    return done(await store.saveDisabledTriggers(raw), raw || 'all-on');
+  })
 };

@@ -10,19 +10,24 @@
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import { toast } from '@bagel/ui/svelte/toast';
   import ModuleCommandList from '#lib/components/modules/ModuleCommandList.svelte';
   import LoyaltyStatus from '#lib/components/loyalty/LoyaltyStatus.svelte';
   import LoyaltyEarning from '#lib/components/loyalty/LoyaltyEarning.svelte';
   import LoyaltyStandings from '#lib/components/loyalty/LoyaltyStandings.svelte';
   import LoyaltyGames from '#lib/components/loyalty/LoyaltyGames.svelte';
   import PageNotice from '#lib/components/shared/PageNotice.svelte';
-  import { reseedOnChange } from '#lib/client-actions.svelte';
+  import { createTriggerToggle, reseedOnChange } from '#lib/client-actions.svelte';
   import { getI18n, MasterToggle, moduleDef } from '@bagel/kit';
   import type { RaffleStatus } from '#lib/server/loyalty-store';
 
   let { data } = $props();
   const { t } = getI18n();
   const loyaltyCommands = moduleDef('loyalty')?.commands ?? [];
+  const triggers = createTriggerToggle(
+    () => data.disabledTriggers ?? '',
+    () => toast('danger', t('modules.saveFailed'))
+  );
   let enabled = $state(untrack(() => data.enabled));
   reseedOnChange(() => data.enabled, (next) => { enabled = next; });
   let raffle = $state<RaffleStatus | null>(untrack(() => data.raffle));
@@ -94,7 +99,14 @@
       <LoyaltyStatus freeze={data.freeze} health={raffle?.accrual_health} {enabled} />
       {#if loyaltyCommands.length}
         <DeckList>
-          <ModuleCommandList moduleId="loyalty" commands={loyaltyCommands} headingId="loy-chat-h" />
+          <ModuleCommandList
+            moduleId="loyalty"
+            commands={loyaltyCommands}
+            headingId="loy-chat-h"
+            disabledTriggers={triggers.value}
+            status={triggers.status}
+            onDisabledTriggersChange={triggers.save}
+          />
         </DeckList>
       {/if}
     </div>

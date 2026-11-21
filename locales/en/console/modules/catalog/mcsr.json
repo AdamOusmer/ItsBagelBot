@@ -53,5 +53,17 @@
       "event": "!pb [daily|weekly|monthly|ranked] [player]",
       "defaultMessage": "{player}: {time} ({window} PB)"
     }
+  },
+  "commands": {
+    "elo": "Show MCSR Ranked elo, rank and season record.",
+    "session": "Show MCSR Ranked elo and record since stream start.",
+    "lastmatch": "Show the most recent MCSR Ranked match.",
+    "record": "Compare head-to-head MCSR Ranked wins.",
+    "lb": "Show the top 5 MCSR Ranked leaderboard.",
+    "race": "Show the weekly race leader and your time.",
+    "pb": "Show PaceMan or MCSR Ranked personal best time.",
+    "pace": "Show PaceMan session split averages.",
+    "nethers": "Show session nether count and pace.",
+    "lastfort": "Show splits for the last run reaching a structure."
   }
 }

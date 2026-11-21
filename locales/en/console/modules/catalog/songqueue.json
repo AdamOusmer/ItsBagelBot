@@ -5,10 +5,10 @@
   "commands": {
     "sr": "Show now playing, or queue a track by name, \"artist - song\", or a Spotify link.",
     "remove": "Take back your queued request, or drop a position as a mod.",
-    "skip": "Mark the current track played and promote the next (also !next).",
+    "skip": "Mark the current track played and promote the next.",
     "clear": "Empty the queue.",
-    "srlist": "Show the next five songs in the queue (also !songlist).",
-    "current": "Say what your Spotify is playing right now (also !song, !np)."
+    "srlist": "Show the next five songs in the queue.",
+    "current": "Say what your Spotify is playing right now."
   },
   "replies": {
     "redeem": {

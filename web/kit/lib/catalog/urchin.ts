@@ -133,5 +133,15 @@ export const URCHIN_MODULE: ModuleDef =
     },
     MINECRAFT_UUID_FIELD,
     LINKED_ONLY_FIELD
+  ],
+  commands: [
+    { trigger: '!bw', aliases: ['!bedwars'], enableKey: 'statsEnabled', summary: 'Look up Hypixel Bedwars stats or blacklist tags.' },
+    { trigger: '!daily', aliases: ['!bwdaily'], enableKey: 'dailyEnabled', summary: 'Show Bedwars stats since the daily reset.' },
+    { trigger: '!weekly', aliases: ['!bwweekly'], enableKey: 'weeklyEnabled', summary: 'Show Bedwars stats since the weekly reset.' },
+    { trigger: '!monthly', aliases: ['!bwmonthly'], enableKey: 'monthlyEnabled', summary: 'Show Bedwars stats since the monthly reset.' },
+    { trigger: '!bwstats', enableKey: 'statsEnabled', summary: 'Show lifetime Hypixel Bedwars stats.' },
+    { trigger: '!sniper', aliases: ['!urchin'], enableKey: 'sniperEnabled', summary: 'Show the Urchin sniper score for a player.' },
+    { trigger: '!bwtag', aliases: ['!bwtags'], enableKey: 'tagsEnabled', summary: 'Show active Urchin blacklist tags.' },
+    { trigger: '!tagdescription', enableKey: 'tagDescriptionEnabled', summary: 'Show Urchin blacklist tags with their reasons.' }
   ]
 };

@@ -49,6 +49,7 @@
   import SpotifyQueueCard from '#lib/components/spotify/SpotifyQueueCard.svelte';
   import SpotifyRewardRow from '#lib/components/spotify/SpotifyRewardRow.svelte';
   import ModuleCommandList from '#lib/components/modules/ModuleCommandList.svelte';
+  import { createTriggerToggle } from '#lib/client-actions.svelte';
   import { warmOnIntent } from '#lib/warm-on-intent';
   import Divider from '@bagel/ui/svelte/Divider.svelte';
   const loadSpotifyRewardEditor = () => import('#lib/components/spotify/SpotifyRewardEditor.svelte');
@@ -66,6 +67,10 @@
   const failed = toastFailure(toast);
 
   const songCommands = SONGQUEUE_MODULE.commands ?? [];
+  const triggers = createTriggerToggle(
+    () => data.disabledTriggers ?? '',
+    () => toast('danger', t('modules.saveFailed'))
+  );
 
   type QuotaDraft = Record<(typeof SPOTIFY_QUOTA_TIERS)[number], string>;
   const quotaStrings = (q: SpotifyQuotas): QuotaDraft =>
@@ -660,7 +665,14 @@
   {#if songCommands.length}
     <div class="cmd-block">
       <DeckList>
-        <ModuleCommandList moduleId="songqueue" commands={songCommands} headingId="spotify-cmds-h" />
+        <ModuleCommandList
+          moduleId="songqueue"
+          commands={songCommands}
+          headingId="spotify-cmds-h"
+          disabledTriggers={triggers.value}
+          status={triggers.status}
+          onDisabledTriggersChange={triggers.save}
+        />
       </DeckList>
     </div>
   {/if}

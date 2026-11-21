@@ -48,3 +48,4 @@ export * from './action-result';
 export * from './format';
 
 export * from './catalog/template-namespaces';
+export * from './catalog/module-triggers';

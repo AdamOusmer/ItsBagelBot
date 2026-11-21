@@ -66,5 +66,14 @@
       "event": "!val shop",
       "defaultMessage": "Daily rotation ({count}): {items} · resets in {reset}"
     }
+  },
+  "commands": {
+    "val": "Look up Valorant competitive standing or a subcommand.",
+    "valrank": "Look up Valorant competitive rank and RR.",
+    "valrecord": "Show Valorant ranked games and win rate.",
+    "valmatches": "Show recent Valorant ranked matches.",
+    "valaccount": "Show Riot account details and level.",
+    "vallb": "Show the regional Valorant top 10 leaderboard.",
+    "valshop": "Show today's Valorant daily skin rotation."
   }
 }

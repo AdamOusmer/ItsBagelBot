@@ -91,9 +91,8 @@ describe('module command chips', () => {
   });
 
   test('promotes a reply command when the module has no command list', () => {
-    const time = moduleDef('time')!;
-    expect(time.commands).toBeUndefined();
-    expect(moduleCommandChips(time).chips).toEqual(['!time']);
+    const replyOnly = { ...moduleDef('time')!, commands: undefined };
+    expect(moduleCommandChips(replyOnly).chips).toEqual(['!time']);
   });
 });
 

@@ -7,8 +7,9 @@
   import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
-  import { getI18n, namespaceReplyTemplate, tModuleLabel, tModuleTagline, type ActionOk, type ModuleDef, type ModuleField, type ModuleReply } from '@bagel/kit';
+  import { DISABLED_TRIGGERS_KEY, getI18n, namespaceReplyTemplate, tModuleLabel, tModuleTagline, type ActionOk, type ModuleDef, type ModuleField, type ModuleReply } from '@bagel/kit';
   import { postAction } from '#lib/client-actions.svelte';
+  import ModuleCommandList from '#lib/components/modules/ModuleCommandList.svelte';
   import ModuleSettingsForm from '#lib/components/modules/ModuleSettingsForm.svelte';
   import ReplyEditor from '#lib/components/modules/ReplyEditor.svelte';
   import ReplyRow from '#lib/components/modules/ReplyRow.svelte';
@@ -132,4 +133,14 @@
         onCancel={() => (selectedReply = null)} onSave={() => saveReply(reply)} />
     {/if}
   {/each}
+  <ModuleCommandList
+    moduleId={def.id}
+    commands={def.commands ?? []}
+    headingId={`${def.id}-cmds-h`}
+    disabledTriggers={config[DISABLED_TRIGGERS_KEY] ?? ''}
+    locked={disabled}
+    status={statuses['triggers'] ?? 'idle'}
+    onDisabledTriggersChange={(next) => void save('triggers', { [DISABLED_TRIGGERS_KEY]: next })}
+    {replyOn}
+  />
 </Disclosure>

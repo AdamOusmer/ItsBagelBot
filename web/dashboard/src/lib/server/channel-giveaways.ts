@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { giveawayDefaults, type EligibleCount, type GiveawayRound, type GiveawayWinner } from '#lib/channel-giveaway';
-import { MOD, moduleDef } from '@bagel/kit';
+import { DISABLED_TRIGGERS_KEY, MOD, moduleDef } from '@bagel/kit';
 import { logger } from '@bagel/kit/server/logger';
 import { rpc, rpcRefusal, rpcReply, type RpcError } from '@bagel/kit/server/nats';
 import { listModulesForEditing } from './commands-store';
@@ -46,7 +46,13 @@ export interface LiveGiveaways {
 
 export const giveawayDef = moduleDef(MOD.giveaway)!;
 export const unavailableGiveaways: LiveGiveaways = { rounds: [], degraded: true };
-export const emptyGiveawaySettings = { enabled: false, revision: 0, config: giveawayDefaults, degraded: true };
+export const emptyGiveawaySettings = {
+  enabled: false,
+  revision: 0,
+  config: giveawayDefaults,
+  disabledTriggers: '',
+  degraded: true
+};
 
 const drawSubject = (verb: DrawRead | DrawMutation) => `rpc.draw.giveaway.${verb}`;
 const drawIdentity = (userId: UserId) => ({ user_id: userId, source: 'dashboard' });
@@ -105,6 +111,12 @@ export async function publicGiveawayWinners(userId: UserId) {
   }
 }
 
+function readDisabledTriggers(raw: unknown): string {
+  if (!raw || typeof raw !== 'object') return '';
+  const value = (raw as Record<string, unknown>)[DISABLED_TRIGGERS_KEY];
+  return typeof value === 'string' ? value : '';
+}
+
 export async function giveawaySettings(userId: UserId) {
   try {
     const rows = await listModulesForEditing(userId);
@@ -113,6 +125,7 @@ export async function giveawaySettings(userId: UserId) {
       enabled: row?.is_enabled ?? false,
       revision: row?.revision ?? 0,
       config: readGiveawayConfig(row?.configs),
+      disabledTriggers: readDisabledTriggers(row?.configs),
       degraded: false
     };
   } catch (err) {

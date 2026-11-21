@@ -4,6 +4,16 @@
 import type { ModuleDef } from './module-def';
 import { namespacedModuleDef } from './template-namespaces';
 export { namespaceReplyTemplate } from './template-namespaces';
+export {
+  DISABLED_TRIGGERS_KEY,
+  normalizeTrigger,
+  commandHeadTrigger,
+  parseDisabledTriggers,
+  formatDisabledTriggers,
+  toggleTriggersInList,
+  moduleCommandTriggerMap,
+  moduleAllowedTriggers
+} from './module-triggers';
 import { GAME_MODULE_DEFS } from './games';
 import { VALORANT_MODULE_DEF } from './valorant';
 import { ALERTS_MODULE } from './alerts';

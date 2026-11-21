@@ -81,7 +81,7 @@ func (d drawOwner) refuseJoin(ctx context.Context, c *module.Context, refusal re
 
 func (d drawOwner) resolveCheck(ctx context.Context, c *module.Context) drawCommandState {
 	round, found, err := d.activeJoin(ctx, c)
-	if !found {
+	if !found || !drawTriggerAllowed(c, round.Terms.Kind) {
 		return drawCommandState{err: err}
 	}
 	return drawCommandState{round: round, found: true, err: err}

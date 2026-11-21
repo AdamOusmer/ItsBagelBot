@@ -25,7 +25,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
-  import { getI18n, moduleDef, tModuleLabel, tModuleDescription, tModuleReplyPart, type ModuleCommandInfo, type ModuleField, type ModuleReply, type Perm, MOD } from '@bagel/kit';
+  import { DISABLED_TRIGGERS_KEY, getI18n, moduleDef, tModuleLabel, tModuleDescription, tModuleReplyPart, type ModuleCommandInfo, type ModuleField, type ModuleReply, type Perm, MOD } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import ModuleSettingsForm from '#lib/components/modules/ModuleSettingsForm.svelte';
   import ReplyRow from '#lib/components/modules/ReplyRow.svelte';
@@ -548,6 +548,11 @@
           expanded={expandedCommand}
           roleOf={commandRole}
           onExpand={rehearsable ? openCommand : undefined}
+          disabledTriggers={config[DISABLED_TRIGGERS_KEY] ?? ''}
+          {locked}
+          status={modStatus[`setting:${DISABLED_TRIGGERS_KEY}`] ?? 'idle'}
+          onDisabledTriggersChange={(next) => saveConfigValue(DISABLED_TRIGGERS_KEY, next)}
+          {replyOn}
         />
       </DeckList>
 

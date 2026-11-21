@@ -53,5 +53,17 @@
       "event": "!pb [daily|weekly|monthly|ranked] [joueur]",
       "defaultMessage": "{player} : {time} (record personnel, {window})"
     }
+  },
+  "commands": {
+    "elo": "Affiche elo, rang et bilan de saison MCSR Ranked.",
+    "session": "Affiche elo et bilan MCSR Ranked depuis le début du stream.",
+    "lastmatch": "Affiche le match MCSR Ranked le plus récent.",
+    "record": "Compare les victoires en face-à-face MCSR Ranked.",
+    "lb": "Affiche le top 5 du classement MCSR Ranked.",
+    "race": "Affiche le leader de la course de la semaine et votre temps.",
+    "pb": "Affiche le meilleur temps PaceMan ou MCSR Ranked.",
+    "pace": "Affiche les moyennes de splits de la session PaceMan.",
+    "nethers": "Affiche le nombre d'entrées Nether et le rythme de la session.",
+    "lastfort": "Affiche les splits de la dernière run atteignant une structure."
   }
 }
