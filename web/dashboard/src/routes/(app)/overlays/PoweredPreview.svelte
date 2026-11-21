@@ -5,6 +5,7 @@
   import { untrack } from 'svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import '@bagel/ui/styles/elements/dot-canvas.css';
 
   let { src }: { src: string } = $props();
 
@@ -33,7 +34,7 @@
       </span>
       <Text as="span" size="xs" tone="muted" mono>1920 × 1080</Text>
     </figcaption>
-    <div class="stage" bind:clientWidth={width}>
+    <div class="stage bb-dot-canvas" bind:clientWidth={width}>
       <iframe bind:this={frame} class="frame" class:ready title={t('overlays.previewFrame')} aria-describedby="powered-preview"
         {src} style:transform="scale({width / STAGE_WIDTH})" loading="lazy" referrerpolicy="no-referrer"
         sandbox="allow-scripts allow-same-origin" tabindex="-1"></iframe>
@@ -70,7 +71,6 @@
     aspect-ratio: 16 / 9;
     overflow: hidden;
     border-radius: var(--bb-radius-sm);
-    background: var(--bb-bg-0);
     box-shadow: inset 0 0 0 1px rgba(var(--bb-white-rgb), 0.08), 0 16px 48px rgba(var(--bb-shadow-rgb), 0.55);
   }
   .frame {
