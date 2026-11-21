@@ -3,5 +3,6 @@
 
 import type { Session } from './session';
 
-export const isOwnerSession = (s: Session | null | undefined): s is Session =>
-  !!s && !s.delegate_of && !s.impersonator_id;
+export const hasOwnerAccess = (s: Session | null | undefined): s is Session => !!s && !s.delegate_of;
+
+export const isSelfSignIn = (s: Session | null | undefined): s is Session => hasOwnerAccess(s) && !s.impersonator_id;

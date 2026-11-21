@@ -7,6 +7,15 @@ import type { VoiceAllowance } from '#lib/server/services/voice';
 import { stubSvelteKit } from '../../../../test/sveltekit';
 
 stubSvelteKit();
+const { auditDashboardImpersonation, auditImpersonation } = await import('#lib/server/services/audit');
+const audits: [unknown, string][] = [];
+mock.module('#lib/server/services/audit', () => ({
+  auditImpersonation,
+  auditDashboardImpersonation: (...args: Parameters<typeof auditDashboardImpersonation>) => {
+    audits.push([args[0], args[1]]);
+    auditDashboardImpersonation(...args);
+  }
+}));
 mock.module('#lib/server/edge-purge', () => ({
   schedulePurgeChannel: () => {},
   scheduleLeaderboardPurge: () => {}
@@ -54,7 +63,7 @@ test.each([
   { name: 'inactive', session: owner, reply: { ...free, reason: 'inactive' }, readOnly: false },
   { name: 'banned', session: owner, reply: { ...free, reason: 'banned' }, readOnly: false },
   { name: 'delegate', session: delegate, reply: null, readOnly: true },
-  { name: 'view-as', session: viewAs, reply: null, readOnly: true }
+  { name: 'view-as', session: viewAs, reply: allowance, readOnly: false }
 ])('loads voice data for $name', async ({ session, reply, readOnly }) => {
   const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce(reply).mockResolvedValueOnce({ modules: [alertRow] });
   const alerts = reply?.reason === 'ok'
@@ -216,7 +225,6 @@ const invalidSaves: {
   { name: 'unsafe minimum bits', fields: { ttsMinBits: '9007199254740992' }, status: 400 },
   { name: 'invalid revision', fields: { expected_rev: '-1' }, status: 400 },
   { name: 'delegate', session: delegate, status: 403 },
-  { name: 'view-as', session: viewAs, status: 403 },
   { name: 'signed out', session: null, status: 401 }
 ];
 
@@ -254,9 +262,15 @@ test('returns the new OBS URL to the owner with caching disabled', async () => {
   ]]);
 });
 
+test('view-as staff rotate the OBS link like the owner and the rotation is audited under their id', async () => {
+  spyOn(bus, 'rpc').mockResolvedValue({ url: overlayUrl });
+  audits.length = 0;
+  expect(await rotateOverlay(viewAs)).toEqual({ overlayUrl });
+  expect(audits).toEqual([[viewAs, 'voice:overlay_rotate']]);
+});
+
 test.each([
   { name: 'delegate', session: delegate, status: 403 },
-  { name: 'view-as', session: viewAs, status: 403 },
   { name: 'signed out', session: null, status: 401 }
 ])('rejects OBS link rotation for $name before calling Users', async ({ session, status }) => {
   const rpc = spyOn(bus, 'rpc');

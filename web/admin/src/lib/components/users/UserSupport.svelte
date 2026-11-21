@@ -8,6 +8,7 @@
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import '@bagel/ui/styles/elements/collapse.css';
   import { copyFlash } from '@bagel/ui/lib/clipboard';
 
   let { viewAsUrl, showLink, children }: {
@@ -37,23 +38,23 @@
   <Heading level={3} variant="label">{t(showLink ? 'admin.users.viewAsTitle' : 'admin.users.actionsTitle')}</Heading>
   {@render children()}
   {#if showLink}
-    <div class="link-slot" class:unavailable={notMinted} inert={notMinted}>
-      <div class="link">
-        <Input
-          fill mono
-          readonly
-          value={viewAsUrl}
-          aria-label={t('admin.users.viewAsLinkLabel')}
-          aria-describedby={noteId}
-        />
-        <Button variant="ghost" onclick={copyLink} block aria-label={t('common.copy')}>
-          <bb-fit><span data-fit>{copied ? t('common.copied') : t('common.copy')}</span></bb-fit>
-        </Button>
-      </div>
-      <div class="note">
-        <Text id={noteId} size="xs" tone="muted" style="block-size: 100%">
-          <bb-fit mode="block"><span data-fit>{t('admin.users.viewAsNote')}</span></bb-fit>
-        </Text>
+    <div class="bb-collapse" style="--bb-collapse-gap: var(--bb-space-2)" class:is-open={!notMinted} aria-hidden={notMinted} inert={notMinted}>
+      <div>
+        <div class="reveal">
+          <div class="link">
+            <Input
+              fill mono
+              readonly
+              value={viewAsUrl}
+              aria-label={t('admin.users.viewAsLinkLabel')}
+              aria-describedby={noteId}
+            />
+            <Button variant="ghost" onclick={copyLink} block aria-label={t('common.copy')}>
+              <bb-fit><span data-fit>{copied ? t('common.copied') : t('common.copy')}</span></bb-fit>
+            </Button>
+          </div>
+          <Text id={noteId} size="xs" tone="muted">{t('admin.users.viewAsNote')}</Text>
+        </div>
       </div>
     </div>
     <span class="bb-sr-only" role="status">{copied ? t('common.copied') : ''}</span>
@@ -61,14 +62,9 @@
 </Stack>
 
 <style>
-  .note {
-    block-size: 1.75rem;
-  }
-
-  .link-slot {
+  .reveal {
     display: grid;
     gap: var(--bb-space-2);
-    transition: opacity var(--bb-dur-fast) ease;
   }
 
   .link {
@@ -78,13 +74,4 @@
     align-items: stretch;
   }
 
-  .unavailable {
-    opacity: 0;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .link-slot {
-      transition: none;
-    }
-  }
 </style>

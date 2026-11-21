@@ -80,7 +80,8 @@
 </script>
 
 <ChatPreview
-  title={tag ?? t('chatPreview.rehearsal')}
+  title={t('chatPreview.rehearsal')}
+  kind={tag}
   label={t('chatPreview.ariaPreview')}
   class="chat-preview"
   onpointerenter={() => (hovered = true)}

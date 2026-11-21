@@ -9,7 +9,7 @@ import { applyFeaturePreset } from '#lib/server/feature-presets';
 import { count } from '@bagel/kit/server/analytics';
 import { SERVER_STRATEGIES } from '#lib/server/importer';
 import { actionError } from '#lib/server/action-errors';
-import { isOwnerSession } from '#lib/server/owner';
+import { hasOwnerAccess } from '#lib/server/owner';
 import type { Session } from '#lib/server/session';
 import { IMPORT_SOURCES, type ImportSource } from '@bagel/kit';
 import type { Actions, PageServerLoad } from './$types';
@@ -60,7 +60,7 @@ function signedIn(locals: App.Locals, permitted: (s: Session) => boolean) {
 }
 
 const notImpersonated = (s: Session) => !s.impersonator_id;
-const owner = (locals: App.Locals) => signedIn(locals, isOwnerSession);
+const owner = (locals: App.Locals) => signedIn(locals, hasOwnerAccess);
 const signer = (locals: App.Locals) => signedIn(locals, notImpersonated);
 
 function welcomeClosed(s: Session, locals: App.Locals): boolean {

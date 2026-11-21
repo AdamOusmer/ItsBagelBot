@@ -7,6 +7,7 @@
   import { actionPayload, getI18n, type ActionOk, type GoveeDevice } from '@bagel/kit';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import '@bagel/ui/styles/elements/collapse.css';
   import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
@@ -15,6 +16,7 @@
   import Spinner from '@bagel/ui/svelte/Spinner.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import type { FlowNode } from '#lib/flow/model';
+  import HeldText from '#lib/components/shared/HeldText.svelte';
   import { configText } from '#lib/flow/setup';
 
   let keySaved = $state(false);
@@ -134,10 +136,7 @@
     {#if notice}<AlertBanner tone="warning">{notice}</AlertBanner>{/if}
     {#if options.length}
       {@const mismatch = lookMismatch(devices.find((light) => light.device === device))}
-      {@const hints = [
-        { look: 'color', text: t('flows.step.reply.lights.noColors') },
-        { look: 'white', text: t('flows.step.reply.lights.noWarmth') }
-      ]}
+      {@const lookText = mismatch === 'white' ? t('flows.step.reply.lights.noWarmth') : t('flows.step.reply.lights.noColors')}
       {@const others = lights.filter((light) => light.device !== device)}
       <Field fit label={t('flows.lightField')} {tag} error={fieldError} errorId="{id}-error" for={id}>
         <Select
@@ -150,13 +149,8 @@
           onchange={(e) => choose(lights, e.currentTarget.value)}
         />
       </Field>
-      <div id="{id}-look" class="look-hint">
-        {#each hints as hint (hint.look)}
-          {@const hidden = hint.look !== mismatch}
-          <span class="look-hint-text bb-fit-box" class:faded={hidden} aria-hidden={hidden}>
-            <Text as="small" size="xs" tone="muted"><bb-fit mode="block">{hint.text}</bb-fit></Text>
-          </span>
-        {/each}
+      <div id="{id}-look" class="bb-collapse" class:is-open={Boolean(mismatch)} aria-hidden={!mismatch} inert={!mismatch}>
+        <div><div class="look-text"><Text as="small" size="xs" tone="muted"><HeldText text={lookText} /></Text></div></div>
       </div>
       {#if device && others.length}
         <fieldset class="more">
@@ -187,21 +181,9 @@
     align-items: center;
     gap: 8px;
   }
-  .look-hint {
-    display: grid;
-    grid-template-rows: minmax(0, 1fr);
-    height: 32px;
-    padding-top: 4px;
-  }
-  .look-hint-text {
-    grid-area: 1 / 1;
-    min-width: 0;
-  }
-  .look-hint-text,
+  .look-text { padding-block-start: var(--bb-space-1); }
   .more :global(.light-option) { transition: opacity 0.15s ease; }
-  .faded { opacity: 0; }
   @media (prefers-reduced-motion: reduce) {
-    .look-hint-text,
     .more :global(.light-option) { transition: none; }
   }
   .more {

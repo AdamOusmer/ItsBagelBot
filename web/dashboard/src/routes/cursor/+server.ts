@@ -2,14 +2,11 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { json } from '@sveltejs/kit';
-import { CURSOR_COOKIE, type Session } from '#lib/server/session';
+import { CURSOR_COOKIE } from '#lib/server/session';
+import { isSelfSignIn } from '#lib/server/owner';
 import { setCursor } from '#lib/server/services';
 import { cookieOptions, YEAR_SECONDS } from '#lib/server/cookies';
 import type { RequestHandler } from './$types';
-
-function isOwner(s: Session | null): s is Session {
-  return !!s?.user_id && !s.delegate_of && !s.impersonator_id;
-}
 
 export const POST: RequestHandler = async ({ request, url, cookies, locals }) => {
   const body = (await request.json().catch(() => null)) as { enabled?: unknown } | null;
@@ -18,7 +15,7 @@ export const POST: RequestHandler = async ({ request, url, cookies, locals }) =>
   cookies.set(CURSOR_COOKIE, on ? '1' : '0', cookieOptions(url, YEAR_SECONDS));
 
   const s = locals.session;
-  if (isOwner(s)) {
+  if (isSelfSignIn(s)) {
     try {
       await setCursor(s.user_id, on);
     } catch {
