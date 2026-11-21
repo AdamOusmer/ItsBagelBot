@@ -31,7 +31,7 @@ export const load: PageServerLoad = async ({ parent }) => {
   if (!allows(layout.role, 'counters.manage')) throw redirect(302, '/');
 
   const bundle: Promise<BotCountersBundle> = DEMO
-    ? Promise.resolve({ counters: [{ name: 'feeds', scope: 'bot', value: '12873' }], degraded: false })
+    ? import('#lib/server/demo-giveaways').then(({ demoBotCounters }) => ({ counters: demoBotCounters, degraded: false }))
     : botCounterList()
         .then((counters) => ({ counters, degraded: false }))
         .catch(() => ({ counters: [], degraded: true }));
@@ -69,8 +69,8 @@ export const actions: Actions = {
 
   set: mutate('set', async (f) => {
     const name = normalizeCounterName(f.get('name'));
-		const value = parseCounterValue(f.get('value'));
-		if (!validName(name) || value === null) return null;
+    const value = parseCounterValue(f.get('value'));
+    if (!validName(name) || value === null) return null;
     await botCounterSet(name, value);
     return `${name}=${value}`;
   }),

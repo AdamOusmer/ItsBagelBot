@@ -1,22 +1,52 @@
-// @ts-ignore Bun supplies this module at test runtime; it is not a production dependency.
-import { describe, expect, it, mock } from 'bun:test';
-import { actionPayload } from '../../kit/lib/action-result';
-import { freezePoolDigest } from '../src/lib/giveaway-workflow';
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
 
-process.env.NEW_RELIC_ENABLED = 'false';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { staticText } from '@bagel/kit/i18n/static';
+import { actionPayload } from '../../kit/lib/action-result';
+import { allows } from '../src/lib/access';
+import { freezePoolDigest, giveawayExclusionLabel } from '../src/lib/giveaway-workflow';
+import type { GiveawayDetailWire } from '../src/lib/server/giveaways';
+import { stubSvelteKit } from './sveltekit';
+
+stubSvelteKit();
+
+mock.module('virtual:bagel-i18n', () => ({ locales: ['en', 'fr'], urls: {}, loaders: {}, localeNames: {}, sliced: false }));
+const i18n = await import('@bagel/kit/i18n');
+const access = await import('../src/lib/server/access');
+const audit = await import('../src/lib/server/audit');
+const nats = await import('@bagel/kit/server/nats');
+const allowsForRole = allows;
 
 const requests: { subject: string; body: unknown }[] = [];
+const replies = new Map<string, unknown>();
 let reply: unknown = {};
-const nats = await import('@bagel/kit/server/nats');
-mock.module('@bagel/kit/server/nats', () => ({
-  ...nats,
-  rpc: async (subject: string, body: unknown) => {
-    requests.push({ subject, body });
-    return reply;
-  }
-}));
+const admin = { id: 'admin-1', login: 'mod', display_name: 'Mod', role: 'admin' } as const;
+let admitted = true;
 
-const { giveawayFreeze, giveawayGet, giveawayInclusion, giveawayPreview, mapDrawMetadata, persistedEligibleCount, selectionMethodForAlgorithm } = await import('../src/lib/server/giveaways');
+async function rpcReply<T>(subject: string, body: unknown): Promise<T> {
+  requests.push({ subject, body });
+  const response = replies.get(subject) ?? reply;
+  if (response instanceof Error) throw response;
+  return response as T;
+}
+
+function stubDependencies() {
+  return [
+    spyOn(nats, 'rpc').mockImplementation(rpcReply),
+    spyOn(access, 'allows').mockImplementation(allowsForRole),
+    spyOn(access, 'requireRole').mockImplementation(async () => admitted ? admin : null),
+    spyOn(audit, 'audit').mockImplementation(() => {}),
+    spyOn(i18n, 'translate').mockImplementation((locale, key, params = {}) =>
+      Object.entries(params).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), staticText(locale, key)))
+  ];
+}
+
+let spies: ReturnType<typeof stubDependencies>;
+
+const { giveawayFreeze, giveawayGet, giveawayInclusion, giveawayPreview } = await import('../src/lib/server/giveaways');
+const { load: loadGiveaway } = await import('../src/routes/(admin)/giveaways/[id]/+page.server');
+const { actions: trialActions } = await import('../src/routes/(admin)/trials/+page.server');
 
 const campaign = {
   id: 'c-1', title: 'Launch', reason: 'Internal', rules_version: 'v1', winner_count: 2, prize_months: 3,
@@ -27,6 +57,18 @@ const award = {
   interval_rule: 'after_current_term', state: 'needs_review', billing_state: 'uncertain', email_state: 'missing_contact',
   retry_count: 1, version: 2, selected_at: '2026-09-02T00:00:00Z', updated_at: '2026-09-02T00:00:00Z'
 };
+
+beforeEach(() => {
+  admitted = true;
+  reply = {};
+  replies.clear();
+  requests.length = 0;
+  spies = stubDependencies();
+});
+
+afterEach(() => {
+  for (const spy of spies) spy.mockRestore();
+});
 
 describe('giveaway RPC wire mapping', () => {
   it.each([
@@ -50,6 +92,18 @@ describe('giveaway RPC wire mapping', () => {
   it('carries the authoritative preview digest into freeze and rejects a missing snapshot', () => {
     expect(freezePoolDigest({ poolDigest: 'sha256:preview' })).toBe('sha256:preview');
     expect(freezePoolDigest({ poolDigest: '  ' })).toBeNull();
+  });
+
+  it.each([
+    ['banned', 'Banni'],
+    ['inactive', 'Inactif'],
+    ['not_onboarded', 'Configuration non terminée'],
+    ['test_account', 'Compte de test'],
+    ['vip', 'VIP'],
+    ['current_staff', 'Équipe actuelle'],
+    ['future_reason', 'Future Reason']
+  ])('shows a readable label for %s', (reason, label) => {
+    expect(giveawayExclusionLabel(reason, (key) => staticText('fr', key))).toBe(label);
   });
 
   it('maps the authoritative exclusion breakdown instead of counting eligible candidates', async () => {
@@ -93,21 +147,111 @@ describe('giveaway RPC wire mapping', () => {
     expect(requests.at(-1)?.subject).toBe('rpc.admin.giveaways.exclude');
   });
 
-  it('keeps draw algorithm metadata separate from the selection method', () => {
-    expect(mapDrawMetadata({ pool_digest: 'sha256:draw', algorithm_version: 'fisher-yates-v1' })).toEqual({
-      poolDigest: 'sha256:draw', algorithmVersion: 'fisher-yates-v1', selectionMethod: undefined
-    });
-    expect(selectionMethodForAlgorithm('crypto-rand-partial-fisher-yates-v1')).toBe('random_draw');
-    expect(selectionMethodForAlgorithm('unknown')).toBeUndefined();
+  it.each([
+    { algorithmVersion: 'crypto-rand-partial-fisher-yates-v1', selectionMethod: 'random_draw' },
+    { algorithmVersion: 'fisher-yates-v1', selectionMethod: undefined },
+    { algorithmVersion: 'unknown', selectionMethod: undefined }
+  ])('keeps $algorithmVersion draw metadata separate from the selection method', async ({ algorithmVersion, selectionMethod }) => {
+    reply = { campaign, draw: { pool_digest: 'sha256:draw', algorithm_version: algorithmVersion } };
+    const detail = await giveawayGet({ actorId: admin.id, campaignId: campaign.id });
+    expect(detail).toMatchObject({ poolDigest: 'sha256:draw', algorithmVersion, selectionMethod });
   });
 
-  it('projects the persisted eligible count only for a saved pool', () => {
-    expect(persistedEligibleCount('frozen', [{ eligible: true }, { eligible: false }, { eligible: true }])).toBe(2);
-    expect(persistedEligibleCount('draft', [{ eligible: true }])).toBeUndefined();
+  it.each([
+    { status: 'frozen', candidates: [{ user_id: 41, eligible: true }, { user_id: 42, eligible: false }, { user_id: 43, eligible: true }], count: 2 },
+    { status: 'draft', candidates: [{ user_id: 41, eligible: true }], count: undefined },
+    { status: 'frozen', candidates: [], count: undefined }
+  ])('projects $count eligible users for a $status giveaway', async ({ status, candidates, count }) => {
+    reply = { campaign: { ...campaign, status }, candidates };
+    const detail = await giveawayGet({ actorId: admin.id, campaignId: campaign.id });
+    expect(detail.eligibleCount).toBe(count);
   });
 
   it('consumes the SvelteKit enhanced form result envelope', () => {
     const result = { type: 'success', data: { preview: { poolDigest: 'sha256:preview' } } };
     expect(actionPayload<typeof result.data>(result)?.preview.poolDigest).toBe('sha256:preview');
+  });
+});
+
+const getSubject = 'rpc.admin.giveaways.get';
+const alertsSubject = 'rpc.admin.giveaways.alerts';
+const liveAlert = { id: 'incident', award_id: 'a-1', message: 'Payment pending', first_seen_at: '2026-09-03T00:00:00Z' };
+
+async function loadDetail() {
+  return await loadGiveaway({
+    params: { id: campaign.id },
+    parent: async () => admin,
+    url: new URL(`https://admin.example/giveaways/${campaign.id}`)
+  } as never) as { detail: Promise<{ giveaway: GiveawayDetailWire | null; degraded: boolean; alertsDegraded: boolean }> };
+}
+
+describe('giveaway detail load', () => {
+  it('starts alerts while the giveaway RPC is pending', async () => {
+    const pending = Promise.withResolvers<{ campaign: typeof campaign }>();
+    replies.set(getSubject, pending.promise);
+    const { detail } = await loadDetail();
+    const started = requests.map(({ subject }) => subject).sort();
+    pending.resolve({ campaign });
+    await detail;
+    expect(started).toEqual([alertsSubject, getSubject]);
+  });
+
+  it.each([
+    { name: 'both reads answer', getFails: false, alertsFail: false, awardIds: ['a-1'] },
+    { name: 'alerts fail', getFails: false, alertsFail: true, awardIds: [] },
+    { name: 'the giveaway fails', getFails: true, alertsFail: false, awardIds: undefined }
+  ])('preserves the detail state when $name', async ({ getFails, alertsFail, awardIds }) => {
+    replies.set(getSubject, getFails ? new Error('unavailable') : { campaign, awards: [award] });
+    replies.set(alertsSubject, alertsFail ? new Error('unavailable') : {
+      alerts: [liveAlert, { ...liveAlert, id: 'other-incident', award_id: 'a-2' }]
+    });
+    const { detail } = await loadDetail();
+    const result = await detail;
+    const projectedAwardIds: readonly string[] | undefined = result.giveaway?.alerts?.map((alert) => alert.awardId);
+    expect({
+      id: result.giveaway?.id,
+      awardIds: projectedAwardIds,
+      degraded: result.degraded,
+      alertsDegraded: result.alertsDegraded
+    }).toEqual({ id: getFails ? undefined : campaign.id, awardIds, degraded: getFails, alertsDegraded: alertsFail });
+  });
+});
+
+function submitTrial(action: keyof typeof trialActions, fields: { broadcaster_id: string; enabled?: string }, locale = 'fr') {
+  const body = new FormData();
+  for (const [key, value] of Object.entries(fields)) body.set(key, value);
+  const request = new Request(`https://admin.example/trials?/${action}`, { method: 'POST', body });
+  return trialActions[action]({ request, locals: { locale } } as never);
+}
+
+const trial = { broadcaster_id: '42' };
+
+describe('trial action localization', () => {
+  it.each([
+    { action: 'add', fields: trial, locale: 'en', notice: 'Added 42. Waiting for Twitch chat subscription.' },
+    { action: 'add', fields: trial, locale: 'fr', notice: 'Essai ajouté pour 42. Abonnement au clavardage Twitch en attente.' },
+    { action: 'remove', fields: trial, locale: 'fr', notice: 'Arrêt de l’essai pour 42.' },
+    { action: 'set_enabled', fields: { ...trial, enabled: 'true' }, locale: 'fr', notice: 'Essai activé pour 42.' },
+    { action: 'set_enabled', fields: { ...trial, enabled: 'false' }, locale: 'fr', notice: 'Essai désactivé pour 42.' }
+  ])('returns the $locale $action confirmation with the broadcaster ID', async ({ action, fields, locale, notice }) => {
+    expect(await submitTrial(action, fields, locale)).toEqual({ ok: true, notice });
+  });
+
+  it.each([
+    { action: 'add', fields: trial, admit: false, status: 403, error: 'accès interdit' },
+    { action: 'remove', fields: { broadcaster_id: 'crumbs' }, admit: true, status: 400, error: 'Identifiant du diffuseur invalide.' },
+    { action: 'set_enabled', fields: { ...trial, enabled: 'maybe' }, admit: true, status: 400, error: 'Valeur d’activation invalide.' }
+  ])('localizes $action rejection with status $status before calling the service', async ({ action, fields, admit, status, error }) => {
+    admitted = admit;
+    expect(await submitTrial(action, fields)).toMatchObject({ status, data: { error } });
+    expect(requests).toEqual([]);
+  });
+
+  it.each([
+    { rpcError: 'full', error: 'Toutes les places d’essai sont prises.' },
+    { rpcError: 'TIMEOUT', error: 'Les commandes d’essai sont indisponibles.' }
+  ])('localizes the trial service error $rpcError', async ({ rpcError, error }) => {
+    reply = new Error(rpcError);
+    expect(await submitTrial('add', trial)).toMatchObject({ status: 400, data: { error } });
   });
 });

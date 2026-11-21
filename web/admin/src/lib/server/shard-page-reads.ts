@@ -5,7 +5,6 @@ import type { ShardSnapshot } from '@bagel/kit';
 import type { TrialSnapshot } from './services';
 import { emptyShardSnapshot } from './fallback';
 
-/** Stream fleet health independently of trial counters and their RPC timeouts. */
 export function shardPageReads(
   readFleet: () => Promise<ShardSnapshot>,
   readTrials: () => Promise<TrialSnapshot | null>

@@ -1,6 +1,7 @@
 {
   "eyebrow": "Observation",
-  "title": "Trial channels",
+  "titlePre": "Trial ",
+  "titleEm": "channels",
   "description": "Process chat from up to {max} unregistered broadcasters, spread across up to three trial sockets. Twitch output stays blocked while they are in a trial.",
   "degraded": "Trial state is unavailable. Controls may fail until ingress reconnects.",
   "idLabel": "Twitch broadcaster ID",
@@ -20,6 +21,21 @@
   "retried": "{count} retried",
   "blocked": "{count} blocked actions",
   "latency": "{duration} average processing",
+  "action": {
+    "idRequired": "Enter a numeric Twitch broadcaster ID.",
+    "invalidId": "Invalid broadcaster ID.",
+    "invalidEnabled": "Invalid enabled value.",
+    "demoUnavailable": "Trial observation is unavailable in demo mode.",
+    "added": "Added {id}. Waiting for Twitch chat subscription.",
+    "removed": "Stopping trial for {id}.",
+    "enabled": "Trial {id} turned on.",
+    "disabled": "Trial {id} turned off.",
+    "alreadyRegistered": "This broadcaster is already registered.",
+    "full": "All trial slots are in use.",
+    "notFound": "Trial channel not found.",
+    "stopping": "This trial is already stopping.",
+    "unavailable": "Trial controls are unavailable."
+  },
   "state": {
     "pending": "Pending",
     "receiving": "Receiving",

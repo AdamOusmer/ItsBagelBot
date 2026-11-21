@@ -1,66 +1,37 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import { allows, requireRole } from '#lib/server/access';
-import { audited, okReply } from '#lib/server/admin-action';
-import { actionError, adminText } from '#lib/server/admin-action';
-import { giveawayGet, giveawayAlerts, giveawayPreview, giveawayFreeze, giveawayDraw, giveawayRetry, giveawayInclusion, type GiveawayDetailWire, type GiveawayExcludedWire, type GiveawayPreviewWire } from '#lib/server/giveaways';
+import { actionError, adminText, audited, okReply } from '#lib/server/admin-action';
+import { giveawayGet, giveawayAlerts, giveawayPreview, giveawayFreeze, giveawayDraw, giveawayRetry, giveawayInclusion, type GiveawayDetailWire } from '#lib/server/giveaways';
 
 const DEMO = dev && process.env.DEMO === '1';
 
-function operationFields(form: FormData): { version: number; key: string } | { error: string } {
+function operationFields(form: FormData): { version: number; key: string } | null {
   const version = Number(String(form.get('expected_version') ?? ''));
   const key = String(form.get('idempotency_key') ?? '').trim();
-  if (!Number.isSafeInteger(version) || version < 1) return { error: 'snapshot version and operation key required' };
-  if (!key) return { error: 'snapshot version and operation key required' };
+  if (!Number.isSafeInteger(version) || version < 1) return null;
+  if (!key) return null;
   return { version, key };
-}
-
-function demoDetail(id: string, status: GiveawayDetailWire['status'] = 'drawn'): GiveawayDetailWire {
-  const detail: GiveawayDetailWire = {
-    id, title: 'September community giveaway', reason: 'Launch celebration', status, winnerCount: 2, prizeMonths: 3,
-    createdAt: '2026-09-01T12:00:00Z', drawnAt: '2026-09-03T12:00:00Z', pendingAwards: 1, version: 2,
-    eligible: { eligible: 42, free: 25, premium: 9, subscribers: 8, excluded: 17 }, selectionMethod: 'random_draw', algorithmVersion: 'crypto-rand-partial-fisher-yates-v1', poolDigest: 'demo', capabilities: { newAwardsEnabled: true, schedulingEnabled: false, providerMutationsEnabled: false, intervalRuleVerified: false, reason: 'demo pending protection' },
-    winners: [
-      { id: 'award-1', userId: '1001', login: 'bagel_friend', selectedAt: '2026-09-03T12:00:00Z', prizeMonths: 3, awardState: 'completed', billingState: 'not_required', startAt: '2026-09-03T12:00:00Z', endAt: '2026-12-03T12:00:00Z', paidThroughAt: null, nextChargeAt: null, providerVerifiedAt: null, emailState: 'accepted', emailWarning: null, failureReason: null, retryCount: 0 },
-      { id: 'award-2', userId: '1002', login: 'monthly_winner', selectedAt: '2026-09-03T12:00:00Z', prizeMonths: 3, awardState: 'needs_review', billingState: 'pending', startAt: null, endAt: null, paidThroughAt: null, nextChargeAt: null, providerVerifiedAt: null, emailState: 'missing_contact', emailWarning: 'No contact email', failureReason: 'Provider pause not verified', retryCount: 1 }
-    ], alerts: [{ id: 'alert-1', awardId: 'award-2', reason: 'Provider pause not verified', pendingSince: '2026-09-03T12:00:00Z', upcomingChargeAt: '2026-09-20T12:00:00Z', urgent: true }]
-  };
-  if (status === 'drawn' || status === 'complete') return detail;
-  return { ...detail, drawnAt: null, pendingAwards: 0, winners: [], alerts: [] };
-}
-
-const DEMO_EXCLUDED: GiveawayExcludedWire[] = [
-  { userId: '2001', login: 'paused_streamer', reason: 'inactive', included: true, includable: true },
-  { userId: '2002', login: 'staff_tester', reason: 'current_staff', included: false, includable: true },
-  { userId: '2003', login: 'banned_account', reason: 'banned', included: false, includable: false }
-];
-
-function demoPreview(id: string): GiveawayPreviewWire {
-  const detail = demoDetail(id);
-  return {
-    excluded: DEMO_EXCLUDED, included: 1,
-    eligible: detail.eligible ?? { eligible: 0, free: 0, premium: 0, subscribers: 0, excluded: 0 },
-    exclusions: { banned: 0, inactive: 6, not_onboarded: 2, test_account: 4, vip: 3, current_staff: 2 },
-    summary: { winners: detail.winnerCount, months: detail.prizeMonths, totalMonths: detail.winnerCount * detail.prizeMonths },
-    poolDigest: 'demo-preview', capabilities: detail.capabilities
-  };
 }
 
 type DetailLoad = { giveaway: GiveawayDetailWire | null; degraded: boolean; alertsDegraded: boolean };
 
 async function loadLiveDetail(actorId: string, campaignId: string): Promise<DetailLoad> {
   try {
-    const giveaway = await giveawayGet({ actorId, campaignId });
-    let alerts: Awaited<ReturnType<typeof giveawayAlerts>> = [];
-    let alertsDegraded = false;
-    try {
-      alerts = await giveawayAlerts({ actorId });
-    } catch {
-      alertsDegraded = true;
-    }
+    const [giveaway, alerts] = await Promise.all([
+      giveawayGet({ actorId, campaignId }),
+      giveawayAlerts({ actorId }).catch(() => null)
+    ]);
     const awardIds = new Set(giveaway.winners.map((winner) => winner.id));
-    return { giveaway: { ...giveaway, alerts: alerts.filter((alert) => awardIds.has(alert.awardId)) }, degraded: false, alertsDegraded };
+    return {
+      giveaway: { ...giveaway, alerts: alerts?.filter((alert) => awardIds.has(alert.awardId)) ?? [] },
+      degraded: false,
+      alertsDegraded: alerts === null
+    };
   } catch {
     return { giveaway: null, degraded: true, alertsDegraded: false };
   }
@@ -75,7 +46,7 @@ async function operationContext(event: OperationEvent, needsDigest: boolean) {
   const digest = String(form.get('pool_digest') ?? '').trim();
   if (needsDigest && !digest) return { error: fail(400, { error: adminText(event.locals.locale, 'admin.giveaway.poolDigestRequired') }) } as const;
   const operation = operationFields(form);
-  if ('error' in operation) return { error: fail(400, { error: actionError(event.locals.locale, operation.error) }) } as const;
+  if (!operation) return { error: fail(400, { error: adminText(event.locals.locale, 'admin.giveaway.operationRequired') }) } as const;
   return { admin, digest, operation } as const;
 }
 
@@ -84,7 +55,10 @@ async function inclusion(event: OperationEvent, include: boolean) {
   if (!admin) return fail(403, { error: actionError(event.locals.locale, 'forbidden') });
   const userId = String((await event.request.formData()).get('user_id') ?? '').trim();
   if (!/^\d+$/.test(userId)) return fail(400, { error: adminText(event.locals.locale, 'admin.giveaway.userIdRequired') });
-  if (DEMO) return { preview: demoPreview(event.params.id) };
+  if (DEMO) {
+    const { demoGiveawayPreview } = await import('#lib/server/demo-giveaways');
+    return { preview: demoGiveawayPreview() };
+  }
   const action = include ? 'giveaway_include' : 'giveaway_exclude';
   return audited({ admin, action, target: event.params.id, detail: userId }, () => giveawayInclusion({ actorId: admin.id, campaignId: event.params.id, userId, include }), (preview) => ({ preview }));
 }
@@ -92,11 +66,11 @@ async function inclusion(event: OperationEvent, include: boolean) {
 export const load: PageServerLoad = async ({ params, parent, url }) => {
   const layout = await parent();
   if (!allows(layout.role, 'giveaways.manage')) throw redirect(302, '/');
-  const id = params.id;
-  const demoStatus = url.searchParams.get('demo') === 'draft' ? 'draft' : url.searchParams.get('demo') === 'frozen' ? 'frozen' : 'drawn';
+  const campaignId = params.id;
+  const demoStatus = DEMO ? url.searchParams.get('demo') : null;
   const detail: Promise<DetailLoad> = DEMO
-    ? Promise.resolve({ giveaway: demoDetail(id, demoStatus), degraded: false, alertsDegraded: false })
-    : loadLiveDetail(layout.id, id);
+    ? import('#lib/server/demo-giveaways').then(({ demoGiveawayDetail }) => demoGiveawayDetail(campaignId, demoStatus))
+    : loadLiveDetail(layout.id, campaignId);
   return { detail };
 };
 
@@ -104,7 +78,10 @@ export const actions: Actions = {
   preview: async ({ locals, params }) => {
     const admin = await requireRole({ locals }, 'giveaways.manage');
     if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
-    if (DEMO) return { preview: demoPreview(params.id) };
+    if (DEMO) {
+      const { demoGiveawayPreview } = await import('#lib/server/demo-giveaways');
+      return { preview: demoGiveawayPreview() };
+    }
     try {
       const preview = await giveawayPreview({ actorId: admin.id, campaignId: params.id });
       return { preview };

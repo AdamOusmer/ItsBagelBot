@@ -21,18 +21,18 @@
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import StatePill from '#lib/components/StatePill.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { actionPayload } from '@bagel/kit';
   import { fmtDateTime } from '@bagel/kit/format';
-  import { giveawaySummary, MAX_PRIZE_MONTHS } from '@bagel/kit/giveaway';
+  import { giveawayDrawState, giveawaySummary, MAX_PRIZE_MONTHS } from '@bagel/kit/giveaway';
+  import { giveawayExclusionLabel } from '#lib/giveaway-workflow';
   import type { GiveawayPreviewWire, GiveawayWire } from '#lib/server/giveaways';
 
   let { data, form } = $props();
   const errorMessage = $derived((form as { error?: string } | null)?.error);
   const { t } = getI18n();
-  let history = $state<GiveawayWire[]>([]);
-  let degraded = $state(false);
   let title = $state('');
   let reason = $state('');
   let winnerCount = $state(1);
@@ -41,16 +41,6 @@
   let createdId = $state<string | null>(null);
   let actionMessage = $state<string | null>(null);
   let actionFailed = $state(false);
-
-  $effect(() => {
-    let alive = true;
-    data.history.then((bundle) => {
-      if (!alive) return;
-      history = bundle.giveaways;
-      degraded = bundle.degraded;
-    });
-    return () => { alive = false; };
-  });
 
   type GiveawayActionPayload = {
     preview?: GiveawayPreviewWire;
@@ -71,7 +61,9 @@
 
   const summary = $derived(giveawaySummary(winnerCount, prizeMonths));
   const winnerCountOverPool = $derived(preview !== null && winnerCount > preview.eligible.eligible);
-  const previewPending = $derived(preview?.capabilities ? !preview.capabilities.newAwardsEnabled || !preview.capabilities.schedulingEnabled || !preview.capabilities.providerMutationsEnabled || !preview.capabilities.intervalRuleVerified : false);
+  const drawState = $derived(giveawayDrawState(preview?.capabilities));
+  const showProtectionWarning = $derived(Boolean(preview?.durationProtectionWarnings?.length) || drawState.blocked || drawState.pending);
+  const exclusions = $derived(Object.entries(preview?.exclusions ?? {}));
   const messageFailed = $derived(actionFailed || Boolean(errorMessage));
 
   function date(value?: string | null): string {
@@ -93,16 +85,18 @@
     {t('admin.giveaways.titlePre')}<em>{t('admin.giveaways.titleEm')}</em>
   </PageHead>
 
-  {#if degraded}<AlertBanner>{t('admin.giveaways.degraded')}</AlertBanner>{/if}
+  {#await data.history then { degraded }}
+    {#if degraded}<AlertBanner>{t('admin.giveaways.degraded')}</AlertBanner>{/if}
+  {/await}
 
-  <div class="giveaway-grid">
+  <Grid cols={2} gap={4} stackAt="md" style="margin-block-start: var(--bb-space-5)">
     <Card as="article">
       <Stack gap={4}>
         <Stack gap={2}>
           <Heading level={5} as="h2">{t('admin.giveaways.newTitle')}</Heading>
           <Text size="sm" tone="muted">{t('admin.giveaways.oneEntry')}</Text>
         </Stack>
-        <form method="POST" action="?/preview" use:enhance={submit} class="giveaway-form">
+        <form method="POST" action="?/preview" use:enhance={submit} style="--field-mb: 0">
           <Stack gap={3}>
             <Field label={t('admin.giveaways.fieldTitle')}>
               <Input name="title" bind:value={title} required placeholder={t('admin.giveaways.fieldTitlePlaceholder')} />
@@ -153,68 +147,53 @@
             <Fact term={t('admin.giveaways.subscribers')}>{preview.eligible.subscribers}</Fact>
             <Fact term={t('admin.giveaways.excluded')}>{preview.eligible.excluded}</Fact>
           </FactList>
-          {#if Object.entries(preview.exclusions).length}
+          {#if exclusions.length}
             <Stack gap={2}>
               <Heading level={3} variant="eyebrow">{t('admin.giveaways.exclusionReasons')}</Heading>
               <FactList>
-                {#each Object.entries(preview.exclusions) as [key, count]}<Fact term={key}>{count}</Fact>{/each}
+                {#each exclusions as [reason, count] (reason)}
+                  <Fact term={giveawayExclusionLabel(reason, t)}>{count}</Fact>
+                {/each}
               </FactList>
             </Stack>
           {/if}
-          {#if preview.durationProtectionWarnings?.length || previewPending}
-            <div class="warning"><Card role="status"><Text size="sm" tone="warning">{t('admin.giveaways.protectionWarning')}</Text></Card></div>
+          {#if showProtectionWarning}
+            <AlertBanner tone="warning" role="status">{t('admin.giveaways.protectionWarning')}</AlertBanner>
           {/if}
         {:else}
           <Text size="sm" tone="muted">{t('admin.giveaways.notLive')}</Text>
         {/if}
       </Stack>
     </Card>
-  </div>
+  </Grid>
 
   <PageToolbar>
     {#snippet leading()}<span>{t('admin.giveaways.history')}</span>{/snippet}
   </PageToolbar>
   <DeckList>
-    {#if history.length === 0}
-      <EmptyState title={t('admin.giveaways.empty')} />
-    {:else}
-      <ul class="bb-list" aria-label={t('admin.giveaways.history')}>
-        {#each history as giveaway (giveaway.id)}
-          <li>
-            <ManagementRow
-              href={`/giveaways/${encodeURIComponent(giveaway.id)}`}
-              title={giveaway.title}
-              meta={`${giveaway.winnerCount} × ${giveaway.prizeMonths} · ${date(giveaway.createdAt)}`}
-            >
-              {#snippet marks()}
-                <StatePill tone={STATUS_TONE[giveaway.status] ?? 'neutral'}>{statusLabel(giveaway.status)}</StatePill>
-                {#if giveaway.pendingAwards}<StatePill tone="warning">{giveaway.pendingAwards}</StatePill>{/if}
-              {/snippet}
-            </ManagementRow>
-          </li>
-        {/each}
-      </ul>
-    {/if}
+    {#await data.history}
+      <SkeletonStack rows={3} height="60px" />
+    {:then { giveaways }}
+      {#if giveaways.length === 0}
+        <EmptyState title={t('admin.giveaways.empty')} />
+      {:else}
+        <ul class="bb-list" aria-label={t('admin.giveaways.history')}>
+          {#each giveaways as giveaway (giveaway.id)}
+            <li>
+              <ManagementRow
+                href={`/giveaways/${encodeURIComponent(giveaway.id)}`}
+                title={giveaway.title}
+                meta={`${giveaway.winnerCount} × ${giveaway.prizeMonths} · ${date(giveaway.createdAt)}`}
+              >
+                {#snippet marks()}
+                  <StatePill tone={STATUS_TONE[giveaway.status] ?? 'neutral'}>{statusLabel(giveaway.status)}</StatePill>
+                  {#if giveaway.pendingAwards}<StatePill tone="warning">{giveaway.pendingAwards}</StatePill>{/if}
+                {/snippet}
+              </ManagementRow>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    {/await}
   </DeckList>
 </section>
-
-<style>
-  .giveaway-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
-    gap: var(--bb-space-4);
-    margin-top: var(--bb-space-5);
-  }
-  .giveaway-form {
-    --field-mb: 0;
-  }
-  .warning {
-    --card-bg: color-mix(in srgb, var(--bb-warn) 12%, transparent);
-    --card-pad: var(--bb-space-3);
-  }
-  @media (max-width: 760px) {
-    .giveaway-grid {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  }
-</style>

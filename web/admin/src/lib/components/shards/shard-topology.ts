@@ -3,13 +3,12 @@
 
 import type { Shard } from '@bagel/kit';
 
-export interface ShardNode {
+interface ShardNode {
   node: string;
   pod: string;
   shards: Shard[];
 }
 
-/** Keep empty pods and orphaned sockets visible; never hide a socket because its registry node is missing. */
 export function groupShardNodes(nodes: readonly string[], shards: readonly Shard[]): ShardNode[] {
   const names = [...new Set([...nodes, ...shards.map((shard) => shard.node || '')])].sort((a, b) => {
     if (!a) return 1;

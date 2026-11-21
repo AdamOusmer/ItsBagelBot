@@ -1,6 +1,7 @@
 {
   "eyebrow": "Observation",
-  "title": "Chaînes d'essai",
+  "titlePre": "Chaînes ",
+  "titleEm": "d’essai",
   "description": "Traiter le clavardage de {max} diffuseurs non inscrits au maximum, répartis sur trois sockets d'essai au plus. Les actions Twitch restent bloquées pendant l'essai.",
   "degraded": "L'état des essais est indisponible. Les commandes peuvent échouer jusqu'au rétablissement de l'entrée.",
   "idLabel": "Identifiant Twitch du diffuseur",
@@ -20,6 +21,21 @@
   "retried": "{count} reprises",
   "blocked": "{count} actions bloquées",
   "latency": "{duration} de traitement moyen",
+  "action": {
+    "idRequired": "Saisissez l’identifiant Twitch numérique du diffuseur.",
+    "invalidId": "Identifiant du diffuseur invalide.",
+    "invalidEnabled": "Valeur d’activation invalide.",
+    "demoUnavailable": "L’observation des essais est indisponible en mode démo.",
+    "added": "Essai ajouté pour {id}. Abonnement au clavardage Twitch en attente.",
+    "removed": "Arrêt de l’essai pour {id}.",
+    "enabled": "Essai activé pour {id}.",
+    "disabled": "Essai désactivé pour {id}.",
+    "alreadyRegistered": "Ce diffuseur est déjà inscrit.",
+    "full": "Toutes les places d’essai sont prises.",
+    "notFound": "Chaîne d’essai introuvable.",
+    "stopping": "L’arrêt de cet essai est déjà en cours.",
+    "unavailable": "Les commandes d’essai sont indisponibles."
+  },
   "state": {
     "pending": "En attente",
     "receiving": "En réception",
