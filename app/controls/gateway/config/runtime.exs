@@ -38,6 +38,7 @@ config :controls_gateway,
   listener_tls: listener_tls,
   overlay_cookie_key: cookie_key,
   overlay_trust_cloudflare_ip: System.get_env("OVERLAY_TRUST_CLOUDFLARE_IP") == "true",
+  powered_dev_frame_ancestors: System.get_env("OVERLAY_POWERED_DEV_FRAME_ANCESTORS") == "true",
   port: String.to_integer(System.get_env("CONTROLS_GATEWAY_PORT", "4000")),
   token_public_keys: parse_keys.(System.get_env("CONTROLS_TOKEN_PUBLIC_KEYS"))
 

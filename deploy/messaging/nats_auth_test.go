@@ -127,6 +127,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"commands_bus":  {"DATA"},
 		"modules_bus":   {"DATA"},
 		"loyalty_bus":   {"DATA"},
+		"overlays_bus":  {"DATA"},
 		"projector_bus": {"DATA", "TWITCH_INGRESS"},
 		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_PREMIUM", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
@@ -140,7 +141,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
 	}
 	serviceUsers := []string{
-		"users_bus", "commands_bus", "modules_bus", "loyalty_bus",
+		"users_bus", "commands_bus", "modules_bus", "loyalty_bus", "overlays_bus",
 		"projector_bus", "worker_bus", "outgress_bus",
 		"twitch_ingress_bus", "dashboard_bus", "automod_bus",
 	}

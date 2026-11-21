@@ -161,6 +161,7 @@ func TestFirstPartyContainersAreHardened(t *testing.T) {
 		"db/modules/modules":                      hardened(),
 		"db/notifications/notifications":          hardened(),
 		"db/notifications-cleanup/cleanup":        hardened(),
+		"db/overlays/overlays":                    hardened(),
 		"app/outgress/outgress":                   hardened(),
 		"db/projector/projector":                  hardened(),
 		"app/sesame/sesame":                       hardened(),

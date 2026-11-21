@@ -1,0 +1,881 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1920, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>Powered by ItsBagelBot</title>
+  <link rel="preload" href="/powered/assets/logo.webp" as="image" type="image/webp">
+  <link rel="preload" href="/powered/assets/premium-logo.webp" as="image" type="image/webp">
+  <link rel="preload" href="/powered/assets/syne-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/powered/assets/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <style>
+    @font-face {
+      font-family: 'Syne';
+      src: url('/powered/assets/syne-latin.woff2') format('woff2');
+      font-weight: 400 800;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: 'DM Sans';
+      src: url('/powered/assets/dm-sans-latin.woff2') format('woff2');
+      font-weight: 400 700;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .canvas {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    .slot {
+      position: absolute;
+      width: 461px;
+      height: 114px;
+      opacity: 0;
+      pointer-events: none;
+      will-change: opacity;
+    }
+
+    .slot.dir-top {
+      top: 48px;
+    }
+
+    .slot.dir-bottom {
+      bottom: 48px;
+    }
+
+    .slot.dir-left {
+      left: 48px;
+    }
+
+    .slot.dir-right {
+      right: 48px;
+    }
+
+    .slot.dir-top.align-start,
+    .slot.dir-bottom.align-start {
+      left: 48px;
+    }
+
+    .slot.dir-top.align-center,
+    .slot.dir-bottom.align-center {
+      left: calc(50% - 230px);
+    }
+
+    .slot.dir-top.align-end,
+    .slot.dir-bottom.align-end {
+      right: 48px;
+    }
+
+    .slot.dir-left.align-start,
+    .slot.dir-right.align-start {
+      top: 48px;
+    }
+
+    .slot.dir-left.align-center,
+    .slot.dir-right.align-center {
+      top: calc(50% - 57px);
+    }
+
+    .slot.dir-left.align-end,
+    .slot.dir-right.align-end {
+      bottom: 48px;
+    }
+
+    .badge-float {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      will-change: transform;
+    }
+
+    .plate-mask {
+      position: absolute;
+      top: -22px;
+      bottom: -28px;
+      left: 57px;
+      width: 432px;
+      padding: 31px 28px 37px 0;
+      overflow: hidden;
+      z-index: 2;
+    }
+
+    .slot.is-mirrored .plate-mask {
+      left: auto;
+      right: 57px;
+      padding: 31px 0 37px 28px;
+    }
+
+    .plate {
+      position: relative;
+      width: 404px;
+      height: 96px;
+      padding: 0 30px 0 76px;
+      border-radius: 14px 48px 48px 14px;
+      background:
+        radial-gradient(70% 130% at 35% -30%, rgba(216, 191, 145, 0.13), rgba(216, 191, 145, 0) 70%),
+        linear-gradient(180deg, rgba(31, 31, 35, 0.96), rgba(17, 17, 19, 0.97));
+      border: 1px solid rgba(244, 244, 245, 0.12);
+      box-shadow:
+        0 22px 44px -14px rgba(0, 0, 0, 0.7),
+        0 4px 10px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(244, 244, 245, 0.12),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+      will-change: transform, opacity;
+    }
+
+    .slot.is-mirrored .plate {
+      margin-left: auto;
+      padding: 0 76px 0 30px;
+      border-radius: 48px 14px 14px 48px;
+      text-align: right;
+    }
+
+    .plate-sheen {
+      position: absolute;
+      top: -24%;
+      left: 0;
+      width: 68px;
+      height: 148%;
+      background: linear-gradient(
+        90deg,
+        rgba(246, 239, 225, 0) 0%,
+        rgba(246, 239, 225, 0.07) 50%,
+        rgba(246, 239, 225, 0) 100%
+      );
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+
+    .copy {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      height: 100%;
+    }
+
+    .eyebrow {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      color: #eadbbd;
+      line-height: 1.1;
+      will-change: transform, opacity;
+    }
+
+    .wordmark {
+      font-family: 'Syne', sans-serif;
+      font-size: 31px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      color: #f4f4f5;
+      line-height: 1.04;
+      margin-top: 3px;
+      white-space: nowrap;
+      will-change: transform, opacity;
+    }
+
+    .url {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      color: #b4b4bc;
+      line-height: 1.15;
+      margin-top: 5px;
+      will-change: transform, opacity;
+    }
+
+    .medallion-anchor {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 114px;
+      height: 114px;
+      z-index: 3;
+    }
+
+    .slot.is-mirrored .medallion-anchor {
+      left: auto;
+      right: 0;
+    }
+
+    .pop-ring {
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      border: 2px solid #eadbbd;
+      box-shadow: 0 0 10px rgba(216, 191, 145, 0.15);
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+
+    .medallion-shell {
+      position: relative;
+      width: 114px;
+      height: 114px;
+      transform-origin: 50% 50%;
+      will-change: transform, opacity;
+    }
+
+    .halo {
+      position: absolute;
+      inset: -40px;
+      border-radius: 50%;
+      background: radial-gradient(
+        circle,
+        rgba(216, 191, 145, 0.16) 0%,
+        rgba(216, 191, 145, 0.07) 40%,
+        rgba(216, 191, 145, 0) 60%,
+        rgba(17, 17, 19, 0) 74%
+      );
+      filter: blur(8px);
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+
+    .medallion-bob {
+      position: relative;
+      width: 114px;
+      height: 114px;
+      transform-origin: 50% 50%;
+      perspective: 560px;
+      will-change: transform;
+    }
+
+    .coin {
+      position: relative;
+      width: 114px;
+      height: 114px;
+      transform-style: preserve-3d;
+      will-change: transform;
+    }
+
+    .coin-edge {
+      position: absolute;
+      inset: 1px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, #e2c27a 0%, #b08a3e 52%, #7d5c22 100%);
+    }
+
+    .coin-edge:nth-child(1) {
+      transform: translateZ(-2.4px);
+    }
+
+    .coin-edge:nth-child(2) {
+      transform: translateZ(-1.2px);
+    }
+
+    .coin-edge:nth-child(3) {
+      transform: translateZ(0px);
+    }
+
+    .coin-edge:nth-child(4) {
+      transform: translateZ(1.2px);
+    }
+
+    .coin-edge:nth-child(5) {
+      transform: translateZ(2.4px);
+    }
+
+    .medallion {
+      position: relative;
+      width: 114px;
+      height: 114px;
+      padding: 4px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, #f3e6cb, #bfa27a);
+      box-shadow:
+        0 14px 28px rgba(17, 17, 19, 0.54),
+        0 4px 10px rgba(17, 17, 19, 0.36),
+        0 0 16px rgba(216, 191, 145, 0.1),
+        inset 0 1.5px 1px rgba(246, 239, 225, 0.85);
+    }
+
+    .medallion-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      overflow: hidden;
+      background: #111113;
+      border: 2px solid #24584a;
+    }
+
+    .medallion-inner::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: radial-gradient(
+        circle at 30% 22%,
+        rgba(246, 239, 225, 0.1) 0%,
+        rgba(246, 239, 225, 0.03) 38%,
+        rgba(17, 17, 19, 0) 68%
+      );
+    }
+
+    .logo {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+      transform: scale(1.04);
+    }
+    .coin-face {
+      position: absolute;
+      top: 0;
+      left: 0;
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+    }
+
+    .coin-front {
+      transform: translateZ(3px);
+    }
+
+    .coin-back {
+      transform: rotateY(180deg) translateZ(3px);
+    }
+
+    .medallion.is-premium {
+      background: linear-gradient(180deg, #f8e8b8 0%, #d9ad55 52%, #9a7129 100%);
+      box-shadow:
+        0 14px 28px rgba(17, 17, 19, 0.54),
+        0 4px 10px rgba(17, 17, 19, 0.36),
+        0 0 18px rgba(232, 196, 110, 0.2),
+        inset 0 1.5px 1px rgba(255, 246, 222, 0.9);
+    }
+
+    .is-premium .medallion-inner {
+      border-color: #7a5a1e;
+    }
+
+    .coin-glint {
+      position: absolute;
+      top: -20%;
+      left: 0;
+      width: 44px;
+      height: 140%;
+      background: linear-gradient(
+        90deg,
+        rgba(255, 234, 186, 0) 0%,
+        rgba(255, 234, 186, 0.5) 50%,
+        rgba(255, 234, 186, 0) 100%
+      );
+      opacity: 0;
+      transform: translate3d(-70px, 0, 0) rotate(18deg);
+      will-change: transform, opacity;
+    }
+  </style>
+</head>
+<body>
+  <div class="canvas">
+    <div class="slot" id="slot" aria-hidden="true">
+      <div class="badge-float" id="badgeFloat">
+        <div class="plate-mask" id="plateMask">
+          <div class="plate" id="plate">
+            <div class="plate-sheen" id="plateSheen"></div>
+            <div class="copy">
+              <div class="eyebrow" id="eyebrow">Powered by</div>
+              <div class="wordmark" id="wordmark">ItsBagelBot</div>
+              <div class="url" id="url">itsbagelbot.com</div>
+            </div>
+          </div>
+        </div>
+        <div class="medallion-anchor">
+          <div class="pop-ring" id="popRing"></div>
+          <div class="medallion-shell" id="medallionShell">
+            <div class="halo" id="halo"></div>
+            <div class="medallion-bob" id="medallionBob">
+              <div class="coin" id="coin">
+                <div class="coin-edge"></div>
+                <div class="coin-edge"></div>
+                <div class="coin-edge"></div>
+                <div class="coin-edge"></div>
+                <div class="coin-edge"></div>
+                    <div class="medallion coin-face coin-front">
+                      <div class="medallion-inner">
+                        <img class="logo" src="/powered/assets/logo.webp" alt="ItsBagelBot" width="110" height="110" loading="eager">
+                      </div>
+                    </div>
+                    <div class="medallion coin-face coin-back is-premium">
+                      <div class="medallion-inner">
+                        <img class="logo" src="/powered/assets/premium-logo.webp" alt="ItsBagelBot Premium" width="110" height="110" loading="eager">
+                        <div class="coin-glint" id="coinGlint"></div>
+                      </div>
+                    </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const DIRS = ['top', 'bottom', 'left', 'right'];
+      const ALIGNS = ['start', 'center', 'end'];
+      const ENTRANCE_MS = 1120;
+      const EXIT_MS = 760;
+      const REDUCED_IN_MS = 650;
+      const REDUCED_OUT_MS = 550;
+      const FLIP_AT_MS = 1090;
+      const FLIP_MS = 900;
+      const GLINT_DELAY_MS = 430;
+      const GLINT_MS = 520;
+      const FIRST_DELAY_MS = 3000;
+      const PREVIEW_DELAY_MS = 400;
+      const PREVIEW_EVERY_MS = 12000;
+      const GONE_RETRY_MS = 5 * 60 * 1000;
+
+      const VERTICAL_IN = [
+        [0, 0, 195, 0.82, 1.24, 0, 0, 'cubic-bezier(0.16, 1, 0.3, 1)'],
+        [0.13, 0, 108, 0.8, 1.28, -4, 1, 'cubic-bezier(0.22, 0.88, 0.36, 1)'],
+        [0.35, 12, -36, 0.92, 1.12, -8, 1, 'cubic-bezier(0.55, 0.06, 0.72, 0.92)'],
+        [0.55, 0, 6, 1.15, 0.86, 4, 1, 'cubic-bezier(0.24, 0.92, 0.38, 1)'],
+        [0.73, 0, -8, 0.95, 1.06, -2, 1, 'ease-in-out'],
+        [0.87, 0, 2, 1.03, 0.97, 0.8, 1, 'ease-out'],
+        [1, 0, 0, 1, 1, 0, 1, 'linear']
+      ];
+      const HORIZONTAL_IN = [
+        [0, 195, 20, 1.24, 0.82, 14, 0, 'cubic-bezier(0.16, 1, 0.3, 1)'],
+        [0.14, 96, -6, 1.26, 0.8, 6, 1, 'cubic-bezier(0.22, 0.88, 0.36, 1)'],
+        [0.36, -30, -28, 1.08, 0.94, -9, 1, 'cubic-bezier(0.55, 0.06, 0.72, 0.92)'],
+        [0.56, 6, 5, 0.87, 1.14, 4, 1, 'cubic-bezier(0.24, 0.92, 0.38, 1)'],
+        [0.74, -6, -4, 1.05, 0.95, -2, 1, 'ease-in-out'],
+        [0.88, 2, 1, 0.98, 1.02, 0.6, 1, 'ease-out'],
+        [1, 0, 0, 1, 1, 0, 1, 'linear']
+      ];
+      const VERTICAL_OUT = [
+        [0, 0, 0, 1, 1, 0, 1, 'cubic-bezier(0.3, 0, 0.4, 1)'],
+        [0.24, 0, -14, 0.93, 1.1, -5, 1, 'cubic-bezier(0.55, 0.04, 0.82, 0.25)'],
+        [0.42, 0, 8, 1.1, 0.9, 2, 1, 'cubic-bezier(0.55, 0, 0.9, 0.4)'],
+        [0.88, 10, 155, 0.84, 1.24, 8, 0.9, 'linear'],
+        [1, 0, 198, 0.82, 1.26, 10, 0, 'linear']
+      ];
+      const HORIZONTAL_OUT = [
+        [0, 0, 0, 1, 1, 0, 1, 'cubic-bezier(0.3, 0, 0.4, 1)'],
+        [0.24, -14, -8, 0.93, 1.09, -5, 1, 'cubic-bezier(0.55, 0.04, 0.82, 0.25)'],
+        [0.44, 8, 4, 1.1, 0.9, 3, 1, 'cubic-bezier(0.55, 0, 0.9, 0.4)'],
+        [0.88, 155, 14, 1.24, 0.84, 10, 0.9, 'linear'],
+        [1, 198, 22, 1.26, 0.82, 14, 0, 'linear']
+      ];
+      const COIN_FLIP = [
+        [0, 0, 0, 1, 1, 'cubic-bezier(0.3, 0, 0.4, 1)'],
+        [0.12, 2, -14, 0.98, 1.02, 'cubic-bezier(0.2, 0.7, 0.3, 1)'],
+        [0.58, -14, 198, 1.06, 1.06, 'cubic-bezier(0.4, 0, 0.6, 1)'],
+        [0.76, -2, 174, 1.01, 1.01, 'ease-in-out'],
+        [0.89, 0.5, 182, 0.995, 0.995, 'ease-out'],
+        [1, 0, 180, 1, 1, 'linear']
+      ];
+
+      const params = new URLSearchParams(window.location.search);
+      const previewMode = params.get('preview') === '1';
+      const linkToken = previewMode ? '' : window.location.hash.slice(1);
+      if (!previewMode) {
+        window.history.replaceState(null, '', '/powered');
+      }
+
+      const byId = function (id) { return document.getElementById(id); };
+      const slot = byId('slot');
+      const badgeFloat = byId('badgeFloat');
+      const plate = byId('plate');
+      const plateSheen = byId('plateSheen');
+      const eyebrow = byId('eyebrow');
+      const wordmark = byId('wordmark');
+      const urlLine = byId('url');
+      const popRing = byId('popRing');
+      const medallionShell = byId('medallionShell');
+      const halo = byId('halo');
+      const medallionBob = byId('medallionBob');
+      const coin = byId('coin');
+      const coinGlint = byId('coinGlint');
+      const resettable = [plate, eyebrow, wordmark, urlLine, medallionShell, halo, popRing, plateSheen, coin, coinGlint];
+
+      let config = { every: 15, show: 8, dirs: DIRS.slice(), align: 'end' };
+      let premium = false;
+      let activeAnims = [];
+      let activeTimers = [];
+      let cycleIndex = 0;
+      let nextTimer = 0;
+
+      function clampNumber(value, min, max, fallback) {
+        const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+        if (typeof n !== 'number' || !Number.isFinite(n)) return fallback;
+        return Math.min(max, Math.max(min, Math.round(n)));
+      }
+
+      function pickDirs(list, fallback) {
+        if (!Array.isArray(list)) return fallback;
+        const picked = [];
+        list.forEach(function (entry) {
+          const dir = String(entry).trim().toLowerCase();
+          if (DIRS.includes(dir) && !picked.includes(dir)) picked.push(dir);
+        });
+        return picked.length > 0 ? picked : fallback;
+      }
+
+      function pickAlign(value, fallback) {
+        const align = String(value).trim().toLowerCase();
+        return ALIGNS.includes(align) ? align : fallback;
+      }
+
+      function sanitize(raw, base) {
+        return {
+          every: clampNumber(raw.every_minutes, 5, 120, base.every),
+          show: clampNumber(raw.show_seconds, 6, 20, base.show),
+          dirs: pickDirs(raw.directions, base.dirs),
+          align: pickAlign(raw.align, base.align)
+        };
+      }
+
+      function trackAnim(anim) {
+        activeAnims.push(anim);
+        return anim;
+      }
+
+      function trackTimer(fn, ms) {
+        activeTimers.push(window.setTimeout(fn, ms));
+      }
+
+      function clearRun() {
+        activeTimers.forEach(function (id) { window.clearTimeout(id); });
+        activeTimers = [];
+        activeAnims.forEach(function (anim) { anim.cancel(); });
+        activeAnims = [];
+        resettable.forEach(function (node) {
+          node.style.opacity = '';
+          node.style.transform = '';
+        });
+        slot.style.opacity = '0';
+      }
+
+      function isMirrored(dir) {
+        const horizontalEdge = dir === 'top' || dir === 'bottom';
+        return dir === 'right' || (horizontalEdge && config.align === 'end');
+      }
+
+      function axisOf(dir, mirrored) {
+        if (dir === 'top' || dir === 'bottom') {
+          const m = mirrored ? -1 : 1;
+          const v = dir === 'bottom' ? 1 : -1;
+          return { x: m, y: v, r: m * v, vertical: true };
+        }
+        const s = dir === 'right' ? 1 : -1;
+        return { x: s, y: 1, r: s, vertical: false };
+      }
+
+      function medallionFrames(rows, axis) {
+        return rows.map(function (row) {
+          return {
+            offset: row[0],
+            transform: 'translate3d(' + row[1] * axis.x + 'px, ' + row[2] * axis.y + 'px, 0) scale(' + row[3] + ', ' + row[4] + ') rotate(' + row[5] * axis.r + 'deg)',
+            opacity: row[6],
+            easing: row[7]
+          };
+        });
+      }
+
+      function coinFrames(sign) {
+        return COIN_FLIP.map(function (row) {
+          return {
+            offset: row[0],
+            transform: 'translate3d(0px, ' + row[1] + 'px, 0) rotateY(' + row[2] * sign + 'deg) scale(' + row[3] + ', ' + row[4] + ')',
+            easing: row[5]
+          };
+        });
+      }
+
+      function nextDir() {
+        const dir = config.dirs[cycleIndex % config.dirs.length];
+        cycleIndex = (cycleIndex + 1) % config.dirs.length;
+        return dir;
+      }
+
+      function placement(dir) {
+        const mirrored = isMirrored(dir);
+        slot.className = 'slot dir-' + dir + ' align-' + config.align + (mirrored ? ' is-mirrored' : '');
+        return { dir: dir, mirrored: mirrored, sign: mirrored ? -1 : 1, axis: axisOf(dir, mirrored) };
+      }
+
+      function prefersReduced() {
+        return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      }
+
+      function fadeSlot(from, to, ms, easing) {
+        trackAnim(slot.animate([{ opacity: from }, { opacity: to }], { duration: ms, easing: easing, fill: 'forwards' }));
+      }
+
+      function runReduced(showMs) {
+        halo.style.opacity = '0.78';
+        popRing.style.opacity = '0';
+        plateSheen.style.opacity = '0';
+        coin.style.transform = premium ? 'rotateY(180deg)' : '';
+        fadeSlot(0, 1, REDUCED_IN_MS, 'ease-out');
+        trackTimer(function () {
+          fadeSlot(1, 0, REDUCED_OUT_MS, 'ease-in');
+          trackTimer(clearRun, REDUCED_OUT_MS + 40);
+        }, REDUCED_IN_MS + showMs);
+        return REDUCED_IN_MS + showMs + REDUCED_OUT_MS;
+      }
+
+      function enterMedallion(p) {
+        trackAnim(medallionShell.animate(
+          medallionFrames(p.axis.vertical ? VERTICAL_IN : HORIZONTAL_IN, p.axis),
+          { duration: 740, fill: 'both' }
+        ));
+
+        trackAnim(halo.animate(
+          [
+            { offset: 0, transform: 'scale(0.36)', opacity: 0, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1)' },
+            { offset: 0.45, transform: 'scale(1.16)', opacity: 0.96, easing: 'ease-in-out' },
+            { offset: 1, transform: 'scale(1)', opacity: 0.82 }
+          ],
+          { delay: 240, duration: 640, fill: 'both' }
+        ));
+
+        trackAnim(popRing.animate(
+          [
+            { offset: 0, transform: 'scale(0.84)', opacity: 0, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+            { offset: 0.24, transform: 'scale(1.06)', opacity: 0.72, easing: 'ease-out' },
+            { offset: 1, transform: 'scale(1.48)', opacity: 0 }
+          ],
+          { delay: 340, duration: 560, fill: 'both' }
+        ));
+      }
+
+      function textIn(node, from, to, timing) {
+        trackAnim(node.animate(
+          [
+            { transform: from, opacity: 0 },
+            { transform: to, opacity: 1 }
+          ],
+          { delay: timing[0], duration: timing[1], easing: timing[2], fill: 'both' }
+        ));
+      }
+
+      function enterPlate(sign) {
+        trackAnim(plate.animate(
+          [
+            { offset: 0, transform: 'translate3d(' + (sign * -106) + '%, 0, 0) scale(0.92, 0.96)', opacity: 0, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+            { offset: 0.12, transform: 'translate3d(' + (sign * -80) + '%, 0, 0) scale(0.98, 0.98)', opacity: 1, easing: 'cubic-bezier(0.2, 0.95, 0.35, 1)' },
+            { offset: 0.58, transform: 'translate3d(' + (sign * 4.5) + '%, 0, 0) scale(1.03, 0.985)', opacity: 1, easing: 'ease-in-out' },
+            { offset: 0.8, transform: 'translate3d(' + (sign * -1.4) + '%, 0, 0) scale(0.992, 1.008)', opacity: 1, easing: 'ease-out' },
+            { offset: 1, transform: 'translate3d(0%, 0, 0) scale(1, 1)', opacity: 1 }
+          ],
+          { delay: 390, duration: 620, fill: 'both' }
+        ));
+
+        const rest = 'translate3d(0, 0, 0)';
+        textIn(eyebrow, 'translate3d(' + (sign * -12) + 'px, 0, 0)', rest, [540, 360, 'cubic-bezier(0.22, 1, 0.36, 1)']);
+        textIn(wordmark, 'translate3d(' + (sign * -14) + 'px, 2px, 0) scale(0.96)', rest + ' scale(1)', [610, 420, 'cubic-bezier(0.22, 1.12, 0.36, 1)']);
+        textIn(urlLine, 'translate3d(' + (sign * -10) + 'px, 0, 0)', rest, [700, 380, 'cubic-bezier(0.22, 1, 0.36, 1)']);
+      }
+
+      function startIdle(mirrored, showMs) {
+        const cycles = Math.max(1, Math.round(showMs / 4000));
+        const loop = { duration: showMs / cycles, iterations: cycles };
+
+        trackAnim(badgeFloat.animate(
+          [
+            { offset: 0, transform: 'translate3d(0px, 0px, 0)', easing: 'ease-in-out' },
+            { offset: 0.45, transform: 'translate3d(0px, -3.5px, 0)', easing: 'ease-in-out' },
+            { offset: 0.78, transform: 'translate3d(0px, 1.2px, 0)', easing: 'ease-in-out' },
+            { offset: 1, transform: 'translate3d(0px, 0px, 0)' }
+          ],
+          loop
+        ));
+
+        trackAnim(medallionBob.animate(
+          [
+            { offset: 0, transform: 'rotate(0deg) scale(1)', easing: 'ease-in-out' },
+            { offset: 0.35, transform: 'rotate(' + (mirrored ? 2.2 : -2.2) + 'deg) scale(1.015)', easing: 'ease-in-out' },
+            { offset: 0.72, transform: 'rotate(' + (mirrored ? -1.8 : 1.8) + 'deg) scale(0.992)', easing: 'ease-in-out' },
+            { offset: 1, transform: 'rotate(0deg) scale(1)' }
+          ],
+          loop
+        ));
+
+        trackAnim(halo.animate(
+          [
+            { offset: 0, transform: 'scale(1)', opacity: 0.82, easing: 'ease-in-out' },
+            { offset: 0.5, transform: 'scale(1.08)', opacity: 0.96, easing: 'ease-in-out' },
+            { offset: 1, transform: 'scale(1)', opacity: 0.82 }
+          ],
+          loop
+        ));
+
+        trackAnim(plateSheen.animate(
+          [
+            { offset: 0, transform: 'translate3d(-110px, 0, 0) skewX(-22deg)', opacity: 0 },
+            { offset: 0.34, transform: 'translate3d(-110px, 0, 0) skewX(-22deg)', opacity: 0, easing: 'ease-out' },
+            { offset: 0.45, transform: 'translate3d(60px, 0, 0) skewX(-22deg)', opacity: 0.72, easing: 'ease-in' },
+            { offset: 0.62, transform: 'translate3d(440px, 0, 0) skewX(-22deg)', opacity: 0 },
+            { offset: 1, transform: 'translate3d(440px, 0, 0) skewX(-22deg)', opacity: 0 }
+          ],
+          loop
+        ));
+      }
+
+      function flipCoin(sign) {
+        trackAnim(coin.animate(coinFrames(sign), { duration: FLIP_MS, fill: 'forwards' }));
+        trackAnim(coinGlint.animate(
+          [
+            { offset: 0, transform: 'translate3d(-70px, 0, 0) rotate(18deg)', opacity: 0 },
+            { offset: 0.45, transform: 'translate3d(30px, 0, 0) rotate(18deg)', opacity: 0.55 },
+            { offset: 1, transform: 'translate3d(150px, 0, 0) rotate(18deg)', opacity: 0 }
+          ],
+          { delay: GLINT_DELAY_MS, duration: GLINT_MS, easing: 'ease-in-out', fill: 'both' }
+        ));
+      }
+
+      function leave(p) {
+        const textOut = [
+          { transform: 'translate3d(0, 0, 0)', opacity: 1 },
+          { transform: 'translate3d(' + (p.sign * -8) + 'px, 0, 0)', opacity: 0 }
+        ];
+        trackAnim(eyebrow.animate(textOut, { duration: 180, easing: 'ease-in', fill: 'forwards' }));
+        trackAnim(wordmark.animate(textOut, { duration: 190, easing: 'ease-in', fill: 'forwards' }));
+        trackAnim(urlLine.animate(textOut, { duration: 160, easing: 'ease-in', fill: 'forwards' }));
+
+        trackAnim(plate.animate(
+          [
+            { offset: 0, transform: 'translate3d(0%, 0, 0) scale(1, 1)', opacity: 1, easing: 'cubic-bezier(0.4, 0, 0.6, 1)' },
+            { offset: 0.22, transform: 'translate3d(' + (p.sign * 3.5) + '%, 0, 0) scale(1.02, 0.99)', opacity: 1, easing: 'cubic-bezier(0.55, 0, 0.85, 0.35)' },
+            { offset: 0.86, transform: 'translate3d(' + (p.sign * -98) + '%, 0, 0) scale(0.94, 0.97)', opacity: 1 },
+            { offset: 1, transform: 'translate3d(' + (p.sign * -108) + '%, 0, 0) scale(0.92, 0.96)', opacity: 0 }
+          ],
+          { delay: 40, duration: 300, fill: 'forwards' }
+        ));
+
+        trackAnim(medallionShell.animate(
+          medallionFrames(p.axis.vertical ? VERTICAL_OUT : HORIZONTAL_OUT, p.axis),
+          { delay: 240, duration: 520, fill: 'forwards' }
+        ));
+
+        trackAnim(halo.animate(
+          [
+            { transform: 'scale(1)', opacity: 0.82 },
+            { transform: 'scale(0.45)', opacity: 0 }
+          ],
+          { delay: 260, duration: 420, easing: 'ease-in', fill: 'forwards' }
+        ));
+
+        trackTimer(clearRun, EXIT_MS + 40);
+      }
+
+      function runFull(p, showMs) {
+        enterMedallion(p);
+        enterPlate(p.sign);
+        slot.style.opacity = '1';
+        trackTimer(function () { startIdle(p.mirrored, showMs); }, ENTRANCE_MS);
+        if (premium) {
+          trackTimer(function () { flipCoin(p.sign); }, FLIP_AT_MS);
+        }
+        trackTimer(function () { leave(p); }, ENTRANCE_MS + showMs);
+        return ENTRANCE_MS + showMs + EXIT_MS;
+      }
+
+      function play(dir) {
+        clearRun();
+        const p = placement(DIRS.includes(dir) ? dir : nextDir());
+        const showMs = config.show * 1000;
+        return prefersReduced() ? runReduced(showMs) : runFull(p, showMs);
+      }
+
+      function later(fn, ms) {
+        window.clearTimeout(nextTimer);
+        nextTimer = window.setTimeout(fn, Math.max(0, ms));
+      }
+
+      function applyReply(body) {
+        if (!body || typeof body !== 'object') return;
+        config = sanitize(body.config || {}, config);
+        premium = body.premium === true;
+      }
+
+      async function refreshConfig() {
+        try {
+          const res = await fetch('/powered/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: linkToken }),
+            credentials: 'same-origin',
+            redirect: 'error',
+            cache: 'no-store'
+          });
+          if (res.status === 404) return false;
+          if (res.ok) applyReply(await res.json());
+        } catch (_) {}
+        return true;
+      }
+
+      async function liveCycle() {
+        const started = Date.now();
+        if (!(await refreshConfig())) {
+          clearRun();
+          later(liveCycle, GONE_RETRY_MS);
+          return;
+        }
+        play(undefined);
+        later(liveCycle, config.every * 60000 - (Date.now() - started));
+      }
+
+      function previewCycle() {
+        const runMs = play(undefined);
+        later(previewCycle, Math.max(PREVIEW_EVERY_MS, runMs + 1200));
+      }
+
+      function warmLogos() {
+        Array.prototype.forEach.call(document.querySelectorAll('.logo'), function (img) {
+          img.decode().catch(function () {});
+        });
+      }
+
+      window.__powered = {
+        play: function (dir) {
+          play(typeof dir === 'string' ? dir.trim().toLowerCase() : undefined);
+        }
+      };
+
+      warmLogos();
+      if (previewMode) {
+        config = sanitize({ show_seconds: params.get('show'), directions: (params.get('from') || '').split(','), align: params.get('align') }, config);
+        premium = params.get('premium') === '1';
+        later(previewCycle, PREVIEW_DELAY_MS);
+      } else if (linkToken) {
+        later(liveCycle, FIRST_DELAY_MS);
+      }
+    })();
+  </script>
+</body>
+</html>

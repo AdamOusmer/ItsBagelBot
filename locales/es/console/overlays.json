@@ -1,0 +1,39 @@
+{
+  "poweredTitle": "Insignia Powered by",
+  "poweredIntro": "Una pequeña insignia de ItsBagelBot entra en tu stream de vez en cuando y luego se va.",
+  "link": "Enlace de la fuente de navegador",
+  "replace": "Reemplazar enlace",
+  "replaceHint": "Al reemplazar el enlace, el anterior deja de funcionar.",
+  "obsHint": "En OBS, añádelo como fuente de Navegador a 1920 por 1080.",
+  "every": "Tiempo entre apariciones",
+  "everyValue": "{minutes} min",
+  "show": "Tiempo en pantalla",
+  "showValue": "{seconds} s",
+  "from": "Entra desde",
+  "fromHint": "Elige al menos un borde.",
+  "edge": {
+    "top": "Arriba",
+    "bottom": "Abajo",
+    "left": "Izquierda",
+    "right": "Derecha"
+  },
+  "align": "Posición en el borde",
+  "alignOption": {
+    "start": "Inicio",
+    "center": "Centro",
+    "end": "Final"
+  },
+  "preview": "Vista previa",
+  "previewFrame": "Vista previa de la insignia",
+  "readOnly": "Solo el propietario del canal puede cambiar los overlays.",
+  "unavailable": "Los ajustes de overlays no están disponibles. Recarga la página para volver a intentarlo.",
+  "saveFailed": "No se pudieron guardar los ajustes del overlay. Inténtalo de nuevo.",
+  "saveInvalid": "Se rechazaron estos ajustes. Recarga la página e inténtalo de nuevo.",
+  "conflict": "Los ajustes del overlay cambiaron en otro lugar. Se cargaron los últimos ajustes. Inténtalo de nuevo.",
+  "replaceFailed": "No se pudo reemplazar el enlace. Inténtalo de nuevo.",
+  "copyFailed": "No se pudo copiar el enlace. Inténtalo de nuevo.",
+  "invalidEvery": "Elige entre {everyMin} y {everyMax} minutos.",
+  "invalidShow": "Elige entre {showMin} y {showMax} segundos.",
+  "invalidFrom": "Elige al menos un borde.",
+  "invalidAlign": "Elige una posición en el borde."
+}

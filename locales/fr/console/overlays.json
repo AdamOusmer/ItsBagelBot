@@ -1,0 +1,39 @@
+{
+  "poweredTitle": "Badge Powered by",
+  "poweredIntro": "Un petit badge ItsBagelBot glisse sur votre stream de temps en temps, puis repart.",
+  "link": "Lien de la source navigateur",
+  "replace": "Remplacer le lien",
+  "replaceHint": "Remplacer le lien désactive l’ancien.",
+  "obsHint": "Dans OBS, ajoutez-le comme source Navigateur en 1920 sur 1080.",
+  "every": "Temps entre deux apparitions",
+  "everyValue": "{minutes} min",
+  "show": "Temps à l’écran",
+  "showValue": "{seconds} s",
+  "from": "Arrive par",
+  "fromHint": "Choisissez au moins un bord.",
+  "edge": {
+    "top": "Haut",
+    "bottom": "Bas",
+    "left": "Gauche",
+    "right": "Droite"
+  },
+  "align": "Position sur le bord",
+  "alignOption": {
+    "start": "Début",
+    "center": "Centre",
+    "end": "Fin"
+  },
+  "preview": "Aperçu",
+  "previewFrame": "Aperçu du badge",
+  "readOnly": "Seul le propriétaire de la chaîne peut modifier les overlays.",
+  "unavailable": "Les réglages des overlays sont indisponibles. Rechargez la page pour réessayer.",
+  "saveFailed": "Impossible d’enregistrer les réglages de l’overlay. Réessayez.",
+  "saveInvalid": "Ces réglages ont été refusés. Rechargez la page et réessayez.",
+  "conflict": "Les réglages de l’overlay ont changé ailleurs. Les derniers réglages ont été chargés. Réessayez.",
+  "replaceFailed": "Impossible de remplacer le lien. Réessayez.",
+  "copyFailed": "Impossible de copier le lien. Réessayez.",
+  "invalidEvery": "Choisissez entre {everyMin} et {everyMax} minutes.",
+  "invalidShow": "Choisissez entre {showMin} et {showMax} secondes.",
+  "invalidFrom": "Choisissez au moins un bord.",
+  "invalidAlign": "Choisissez une position sur le bord."
+}
