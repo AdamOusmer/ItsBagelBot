@@ -34,16 +34,18 @@ type vertexSynthesisCase struct {
 	req                             gossiprpc.Request
 	requestJSON, usageJSON, media   string
 	rate                            uint32
+	temperature                     float64
 	want                            gossiprpc.TTSSynthesizeReply
 }
 
 func vertexSynthesisCases() []vertexSynthesisCase {
 	const plain = `{"contents":[{"role":"user","parts":[{"text":"aé界🙂"}]}],"generationConfig":{
-		"responseModalities":["AUDIO"],"speechConfig":{"voiceConfig":{"prebuiltVoiceConfig":{"voiceName":"Kore"}}}}}`
-	const styled = `{"contents":[{"role":"user","parts":[{"text":"aé界🙂"}]}],"generationConfig":{"responseModalities":["AUDIO"],"speechConfig":{"voiceConfig":{"prebuiltVoiceConfig":{"voiceName":"Zephyr"}}}}}`
+		"responseModalities":["AUDIO"],"temperature":1.5,"speechConfig":{"voiceConfig":{"prebuiltVoiceConfig":{"voiceName":"Kore"}}}}}`
+	const styled = `{"contents":[{"role":"user","parts":[{"text":"aé界🙂","speechMetadata":{"style":"amical 🙂"}}]}],
+		"generationConfig":{"responseModalities":["AUDIO"],"temperature":0,"speechConfig":{"voiceConfig":{"prebuiltVoiceConfig":{"voiceName":"Zephyr"}}}}}`
 	return []vertexSynthesisCase{
 		{
-			name: "global defaults", origin: vertexGlobalOrigin,
+			name: "global defaults", origin: vertexGlobalOrigin, temperature: 1.5,
 			req:         gossiprpc.Request{ChannelID: "42", Text: "\n " + vertexSynthesisPrompt + " \t", Style: "  "},
 			requestJSON: plain, media: "audio/L16;codec=pcm", rate: 24000,
 			usageJSON: `{"promptTokenCount":8,"candidatesTokenCount":18,"totalTokenCount":26}`,
@@ -52,7 +54,7 @@ func vertexSynthesisCases() []vertexSynthesisCase {
 			},
 		},
 		{
-			name: "regional model override ignores style", location: "us-central1", origin: "https://us-central1-aiplatform.googleapis.com",
+			name: "regional model override with style and zero temperature", location: "us-central1", origin: "https://us-central1-aiplatform.googleapis.com",
 			project: "billing-project", media: "audio/L16;codec=pcm;rate=16000", rate: 16000,
 			req:         gossiprpc.Request{ChannelID: "42", Text: vertexSynthesisPrompt, Style: "\t amical 🙂 \n", Voice: "Zephyr", Model: gossiprpc.TTSFlashLite},
 			requestJSON: styled,
@@ -63,7 +65,7 @@ func vertexSynthesisCases() []vertexSynthesisCase {
 			},
 		},
 		{
-			name: "US multi-region", location: "us", origin: "https://aiplatform.us.rep.googleapis.com",
+			name: "US multi-region", location: "us", origin: "https://aiplatform.us.rep.googleapis.com", temperature: 1.5,
 			req:         gossiprpc.Request{ChannelID: "42", Text: vertexSynthesisPrompt},
 			requestJSON: plain, media: "audio/L16;codec=pcm;rate=24000", rate: 24000,
 			usageJSON: `{"promptTokenCount":9,"candidatesTokenCount":2,"candidatesTokensDetails":[{"modality":"TEXT","tokenCount":2}]}`,
@@ -72,7 +74,7 @@ func vertexSynthesisCases() []vertexSynthesisCase {
 			},
 		},
 		{
-			name: "EU multi-region", location: "eu", origin: "https://aiplatform.eu.rep.googleapis.com",
+			name: "EU multi-region", location: "eu", origin: "https://aiplatform.eu.rep.googleapis.com", temperature: 1.5,
 			req:         gossiprpc.Request{ChannelID: "42", Text: vertexSynthesisPrompt},
 			requestJSON: plain, media: "audio/L16", rate: 24000, usageJSON: `{}`,
 			want: gossiprpc.TTSSynthesizeReply{MimeType: "audio/wav", DurationMS: 20, BilledCharacters: 4, Model: gossiprpc.TTSFlash},
@@ -107,6 +109,7 @@ func checkVertexSynthesis(t *testing.T, credentials string, tc vertexSynthesisCa
 	upstream := tc.upstream(t, response)
 	cfg := vertexTestConfig(t, credentials, vertexTestUpstreams{origin: tc.origin, model: upstream})
 	cfg.Vertex.Project, cfg.Vertex.Location = tc.project, tc.location
+	cfg.Temperature = tc.temperature
 	p := New(cfg, providertest.Deps(nil))
 	got := providertest.Call[gossiprpc.TTSSynthesizeReply](t, p, "synthesize", tc.req)
 	checkVertexWAV(t, got.Audio, pcm, tc.rate)
@@ -139,11 +142,16 @@ func (tc vertexSynthesisCase) upstream(t *testing.T, response string) http.Handl
 func checkVertexWAV(t *testing.T, wav, pcm []byte, rate uint32) {
 	t.Helper()
 	require.Len(t, wav, 44+len(pcm))
-	assert.Equal(t, []string{"RIFF", "WAVEfmt ", "data"}, []string{string(wav[:4]), string(wav[8:16]), string(wav[36:40])})
 	le := binary.LittleEndian
-	assert.Equal(t, []uint32{uint32(len(wav) - 8), 16, rate, rate * 2, uint32(len(pcm))},
-		[]uint32{le.Uint32(wav[4:]), le.Uint32(wav[16:]), le.Uint32(wav[24:]), le.Uint32(wav[28:]), le.Uint32(wav[40:])})
-	assert.Equal(t, []uint16{1, 1, 2, 16}, []uint16{le.Uint16(wav[20:]), le.Uint16(wav[22:]), le.Uint16(wav[32:]), le.Uint16(wav[34:])})
+	assert.Equal(t, []any{
+		"RIFF", "WAVEfmt ", "data",
+		uint32(len(wav) - 8), uint32(16), rate, rate * 2, uint32(len(pcm)),
+		uint16(1), uint16(1), uint16(2), uint16(16),
+	}, []any{
+		string(wav[:4]), string(wav[8:16]), string(wav[36:40]),
+		le.Uint32(wav[4:]), le.Uint32(wav[16:]), le.Uint32(wav[24:]), le.Uint32(wav[28:]), le.Uint32(wav[40:]),
+		le.Uint16(wav[20:]), le.Uint16(wav[22:]), le.Uint16(wav[32:]), le.Uint16(wav[34:]),
+	})
 	assert.Equal(t, pcm, wav[44:])
 }
 

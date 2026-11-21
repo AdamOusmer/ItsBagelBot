@@ -40,6 +40,7 @@ func configFor(t testing.TB, upstream http.Handler) tts.Config {
 		APIKey:           testKey,
 		Model:            gossiprpc.TTSFlash,
 		Voice:            "Kore",
+		Temperature:      1.5,
 		RateLimit:        60,
 		ChannelRateLimit: 12,
 	}
@@ -50,37 +51,38 @@ func TestSynthesize(t *testing.T) {
 		name        string
 		req         gossiprpc.Request
 		requestJSON string
-		wantModel   gossiprpc.TTSModel
-		durationMS  int64
-		styleRunes  int
+		want        gossiprpc.TTSSynthesizeReply
+		temperature float64
 	}{
 		{
-			name: "configured defaults and trimmed Unicode text",
-			req:  gossiprpc.Request{ChannelID: "42", Text: "\n aé界🙂 \t", Style: "\t \n"},
-			requestJSON: `{"model":"gemini-3.8-flash-tts","input":[{"type":"user_input","content":[{"type":"text","text":"aé界🙂"}]}],
-				"response_format":{"type":"audio","mime_type":"audio/wav"},"generation_config":{"speech_config":[{"voice":"Kore"}]}}`,
-			wantModel: gossiprpc.TTSFlash, durationMS: 125,
+			name: "shapes Unicode text before validation and billing",
+			req:  gossiprpc.Request{ChannelID: "42", Text: "\n aé界🙂" + strings.Repeat(".", 501) + "\t\nbye <long pause>", Style: "\t \n"},
+			requestJSON: `{"model":"gemini-3.8-flash-tts","input":[{"type":"user_input","content":[{"type":"text","text":"aé界🙂... bye"}]}],
+				"response_format":{"type":"audio","mime_type":"audio/wav"},"generation_config":{"speech_config":[{"voice":"Kore"}],"temperature":1.5}}`,
+			want:        gossiprpc.TTSSynthesizeReply{MimeType: "audio/wav", DurationMS: 125, BilledCharacters: 11, Model: gossiprpc.TTSFlash},
+			temperature: 1.5,
 		},
 		{
 			name: "style annotation and overrides with a minute of WAV",
 			req:  gossiprpc.Request{ChannelID: "42", Text: "aé界🙂", Voice: "Zephyr", Style: "\t amical 🙂 \n", Model: gossiprpc.TTSFlashLite},
 			requestJSON: `{"model":"gemini-3.8-flash-lite-tts","input":[{"type":"user_input","content":[{"type":"text","text":"aé界🙂",
 				"annotations":[{"type":"speech_metadata","style":"amical 🙂"}]}]}],
-				"response_format":{"type":"audio","mime_type":"audio/wav"},"generation_config":{"speech_config":[{"voice":"Zephyr"}]}}`,
-			wantModel: gossiprpc.TTSFlashLite, durationMS: 60000, styleRunes: 8,
+				"response_format":{"type":"audio","mime_type":"audio/wav"},"generation_config":{"speech_config":[{"voice":"Zephyr"}],"temperature":2}}`,
+			want:        gossiprpc.TTSSynthesizeReply{MimeType: "audio/wav", DurationMS: 60000, BilledCharacters: 4, StyleCharacters: 8, Model: gossiprpc.TTSFlashLite},
+			temperature: 2,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			wav := testWAV(int(tc.durationMS * 48))
+			wav := testWAV(int(tc.want.DurationMS * 48))
 			response := audioOutput(base64.StdEncoding.EncodeToString(wav))
 			upstream := checkedRequest(t, tc.requestJSON, response)
-			p := tts.New(configFor(t, upstream), providertest.Deps(nil))
+			cfg := configFor(t, upstream)
+			cfg.Temperature = tc.temperature
+			p := tts.New(cfg, providertest.Deps(nil))
 			got := providertest.Call[gossiprpc.TTSSynthesizeReply](t, p, "synthesize", tc.req)
 			assert.True(t, bytes.Equal(wav, got.Audio), "expected unchanged WAV bytes")
 			got.Audio = nil
-			assert.Equal(t, gossiprpc.TTSSynthesizeReply{
-				MimeType: "audio/wav", DurationMS: tc.durationMS, BilledCharacters: 4, StyleCharacters: tc.styleRunes, Model: tc.wantModel,
-			}, got)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
@@ -110,7 +112,8 @@ func TestSynthesizeRejectsInvalidRequests(t *testing.T) {
 		{"missing channel", gossiprpc.Request{Text: "hi"}, "missing channel"},
 		{"empty text", gossiprpc.Request{ChannelID: "42", Text: "  "}, "invalid text"},
 		{"overlong text", gossiprpc.Request{ChannelID: "42", Text: strings.Repeat("é", 501)}, "invalid text"},
-		{"text control character", gossiprpc.Request{ChannelID: "42", Text: "hi\nthere"}, "invalid text: control characters"},
+		{"tags only", gossiprpc.Request{ChannelID: "42", Text: "<laugh> <long pause> ..."}, "invalid text: expected 1 to 500 characters"},
+		{"text control character", gossiprpc.Request{ChannelID: "42", Text: "hi\x00there"}, "invalid text: control characters"},
 		{"text format character", gossiprpc.Request{ChannelID: "42", Text: "\u200bhi"}, "invalid text: control characters"},
 		{"unknown voice", gossiprpc.Request{ChannelID: "42", Text: "hi", Voice: "kore"}, "unknown voice"},
 		{"overlong style", gossiprpc.Request{ChannelID: "42", Text: "hi", Style: strings.Repeat("é", 201)}, "invalid style"},
@@ -321,7 +324,7 @@ func TestSynthesizeInvalidConfiguredDefaults(t *testing.T) {
 			deps := providertest.Deps(nil)
 			deps.Log = zap.New(observed)
 			requestJSON := fmt.Sprintf(`{"model":%q,"input":[{"type":"user_input","content":[{"type":"text","text":"hi"}]}],
-				"response_format":{"type":"audio","mime_type":"audio/wav"},"generation_config":{"speech_config":[{"voice":%q}]}}`, tc.wantModel, tc.wantVoice)
+				"response_format":{"type":"audio","mime_type":"audio/wav"},"generation_config":{"speech_config":[{"voice":%q}],"temperature":1.5}}`, tc.wantModel, tc.wantVoice)
 			response := audioOutput(base64.StdEncoding.EncodeToString(testWAV(48)))
 			cfg := configFor(t, checkedRequest(t, requestJSON, response))
 			cfg.Voice, cfg.Model = tc.voice, tc.model

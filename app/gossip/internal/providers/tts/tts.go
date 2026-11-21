@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"slices"
@@ -54,6 +55,7 @@ type Config struct {
 	APIKey           string
 	Model            gossiprpc.TTSModel
 	Voice            string
+	Temperature      float64
 	RateLimit        float64
 	ChannelRateLimit float64
 	Vertex           VertexConfig
@@ -106,9 +108,9 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 func (cfg Config) backend(b *provider.Builder, log *zap.Logger) backend {
 	if cfg.Vertex.Credentials == "" {
 		client := b.Trusted().Client(strings.TrimRight(cfg.BaseURL, "/"), map[string]string{"x-goog-api-key": cfg.APIKey}, speechTimeout)
-		return geminiBackend{client: client}
+		return geminiBackend{client: client, temperature: cfg.Temperature}
 	}
-	vertex, err := newVertexBackend(b, cfg.Vertex)
+	vertex, err := newVertexBackend(b, cfg.Vertex, cfg.Temperature)
 	if err != nil {
 		log.Warn("invalid Vertex TTS configuration", zap.Error(err))
 		return nil
@@ -144,7 +146,7 @@ func (s *synthesizer) synthesize(ctx context.Context, req gossiprpc.Request) any
 	req.ChannelID = id.Key
 	req.Voice = cmp.Or(req.Voice, s.voice)
 	req.Model = cmp.Or(req.Model, s.model)
-	req.Text = strings.TrimSpace(req.Text)
+	req.Text = Shape(req.Text)
 	req.Style = strings.TrimSpace(req.Style)
 	if reject := validate(req); reject != "" {
 		return gossiprpc.TTSSynthesizeReply{Error: reject}
@@ -191,7 +193,7 @@ func (s speech) reply(req gossiprpc.Request) gossiprpc.TTSSynthesizeReply {
 func validate(req gossiprpc.Request) string {
 	switch {
 	case !validTextLength(req.Text):
-		return "invalid text: expected 1 to 500 characters"
+		return fmt.Sprintf("invalid text: expected 1 to %d characters", maxSpeechRunes)
 	case strings.ContainsFunc(req.Text, forbiddenSpeechRune):
 		return "invalid text: control characters are not allowed"
 	case !slices.Contains(voices, req.Voice):
@@ -209,7 +211,7 @@ func validate(req gossiprpc.Request) string {
 }
 
 func validTextLength(text string) bool {
-	return text != "" && utf8.RuneCountInString(text) <= 500
+	return text != "" && utf8.RuneCountInString(text) <= maxSpeechRunes
 }
 
 func validRequestID(id string) bool {

@@ -168,6 +168,7 @@ func appendTTS(out []provider.Provider, cfg *config.Config, d provider.Deps, log
 		APIKey:           cfg.GeminiAPIKey,
 		Model:            cfg.GeminiTTSModel,
 		Voice:            cfg.GeminiTTSVoice,
+		Temperature:      cfg.GeminiTTSTemperature,
 		RateLimit:        cfg.GeminiTTSRateLimit,
 		ChannelRateLimit: cfg.GeminiTTSChannelRateLimit,
 		Vertex: tts.VertexConfig{

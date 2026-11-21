@@ -4,6 +4,9 @@
 package config
 
 import (
+	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
@@ -73,6 +76,7 @@ type Config struct {
 	GeminiAPIKey              string
 	GeminiTTSModel            gossiprpc.TTSModel
 	GeminiTTSVoice            string
+	GeminiTTSTemperature      float64
 	GeminiTTSRateLimit        float64
 	GeminiTTSChannelRateLimit float64
 	VertexCredentials         string
@@ -93,7 +97,11 @@ type Config struct {
 	ListenAddr string
 }
 
-func Load() *Config {
+func Load() (*Config, error) {
+	temperature, err := loadTTSTemperature()
+	if err != nil {
+		return nil, err
+	}
 	return &Config{
 		Infra: svcboot.LoadInfra(),
 
@@ -155,6 +163,7 @@ func Load() *Config {
 		GeminiAPIKey:              env.Get("GEMINI_API_KEY", ""),
 		GeminiTTSModel:            gossiprpc.TTSModel(env.Get("GEMINI_TTS_MODEL", string(gossiprpc.TTSFlash))),
 		GeminiTTSVoice:            env.Get("GEMINI_TTS_VOICE", "Kore"),
+		GeminiTTSTemperature:      temperature,
 		GeminiTTSRateLimit:        env.GetFloat("GEMINI_TTS_RATE_LIMIT", 60),
 		GeminiTTSChannelRateLimit: env.GetFloat("GEMINI_TTS_CHANNEL_RATE_LIMIT", 12),
 		VertexCredentials:         env.Get("GOOGLE_VERTEX_CREDENTIALS", ""),
@@ -173,5 +182,25 @@ func Load() *Config {
 		CustomPositiveTTL:            env.GetDuration("CUSTOM_FETCH_POSITIVE_TTL", 30*time.Second),
 
 		ListenAddr: env.Get("LISTEN_ADDR", ":8080"),
+	}, nil
+}
+
+const (
+	ttsTemperatureEnv     = "GEMINI_TTS_TEMPERATURE"
+	defaultTTSTemperature = 1.5
+	minTTSTemperature     = 0
+	maxTTSTemperature     = 2
+)
+
+func loadTTSTemperature() (float64, error) {
+	raw, set := os.LookupEnv(ttsTemperatureEnv)
+	if !set {
+		return defaultTTSTemperature, nil
 	}
+	value, err := strconv.ParseFloat(raw, 64)
+	inRange := value >= minTTSTemperature && value <= maxTTSTemperature
+	if err != nil || !inRange {
+		return 0, fmt.Errorf("%s must be a number between %d and %d", ttsTemperatureEnv, minTTSTemperature, maxTTSTemperature)
+	}
+	return value, nil
 }

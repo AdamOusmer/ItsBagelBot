@@ -36,7 +36,9 @@ Read the [shared vocabulary](../../CONTEXT.md) and [context map](../../CONTEXT-M
 
 Provider packages under [internal/providers/](internal/providers/) cover Urchin, Hypixel/Mojang, MCSR Ranked, Paceman, Fortnite, CODM, Govee, Clash Royale, Valorant, Spotify, Gemini text-to-speech (`tts`), and custom URL fetches. Open the named package for endpoint declarations and reply parsing; registration is centralized in `all.go`.
 
-The `tts` provider selects Vertex AI when `GOOGLE_VERTEX_CREDENTIALS` contains a service-account JSON key. `GOOGLE_VERTEX_PROJECT` defaults to the key's project ID and `GOOGLE_VERTEX_LOCATION` defaults to `global`. Without Vertex credentials it uses Gemini Interactions with `GEMINI_API_KEY` or disables itself when the key is absent. Vertex ignores `style` (Gemini 3.8 TTS on Vertex rejects `systemInstruction`) and may return either WAV or raw L16 PCM.
+The `tts` provider selects Vertex AI when `GOOGLE_VERTEX_CREDENTIALS` contains a service-account JSON key. `GOOGLE_VERTEX_PROJECT` defaults to the key's project ID and `GOOGLE_VERTEX_LOCATION` defaults to `global`. Without Vertex credentials it uses Gemini Interactions with `GEMINI_API_KEY` or disables itself when the key is absent. Vertex sends style as `speechMetadata.style` on the text part and may return either WAV or raw L16 PCM. Both backends use `GEMINI_TTS_TEMPERATURE`, which defaults to `1.5` and accepts values from `0` through `2`. An invalid value fails Gossip startup.
+
+Synthesis shapes text before applying the 500-rune limit and counting billable characters. It normalizes whitespace and long punctuation runs, reads unknown angle-bracket tags as plain text, and requires a letter or digit outside recognized tags. It keeps up to four expressive tags, including up to three pauses and at most one long pause. It drops consecutive duplicate tags separated only by whitespace or punctuation and removes pauses outside the first and last spoken text.
 
 ## Request and ownership flow
 

@@ -4,6 +4,7 @@
 package providers_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"slices"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -51,10 +53,13 @@ func checkTTSSelection(t *testing.T, tc ttsSelectionCase) {
 	t.Setenv("GOOGLE_VERTEX_CREDENTIALS", tc.credentials)
 	t.Setenv("GEMINI_API_KEY", tc.apiKey)
 	t.Setenv("GEMINI_BASE_URL", providertest.Upstream(t, tc.gemini(t)))
+	t.Setenv("GEMINI_TTS_TEMPERATURE", "0.75")
 	deps := providertest.Deps(nil)
 	observed, logs := observer.New(zap.WarnLevel)
 	deps.Log = zap.New(observed)
-	providerList := providers.All(config.Load(), deps)
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	providerList := providers.All(cfg, deps)
 	idx := slices.IndexFunc(providerList, func(p provider.Provider) bool { return p.Name() == "tts" })
 	if tc.warning != "" {
 		assert.Equal(t, 1, logs.FilterMessage(tc.warning).Len())
@@ -78,6 +83,14 @@ func (tc ttsSelectionCase) gemini(t *testing.T) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/v1beta/interactions", r.URL.Path)
 		assert.Equal(t, tc.apiKey, r.Header.Get("x-goog-api-key"))
+		var body struct {
+			GenerationConfig struct {
+				Temperature float64 `json:"temperature"`
+			} `json:"generation_config"`
+		}
+		if assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+			assert.Equal(t, 0.75, body.GenerationConfig.Temperature)
+		}
 		providertest.Respond(http.StatusOK, "{}")(w, r)
 	}
 }
@@ -90,7 +103,9 @@ func TestVertexConfigFromEnv(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("GOOGLE_VERTEX_PROJECT", tc.project)
 			t.Setenv("GOOGLE_VERTEX_LOCATION", tc.location)
-			cfg := config.Load()
+			t.Setenv("GEMINI_TTS_TEMPERATURE", "1.5")
+			cfg, err := config.Load()
+			require.NoError(t, err)
 			assert.Equal(t, []string{tc.project, tc.wantLocation}, []string{cfg.VertexProject, cfg.VertexLocation})
 		})
 	}

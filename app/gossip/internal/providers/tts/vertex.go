@@ -31,12 +31,13 @@ var (
 )
 
 type vertexBackend struct {
-	client *core.HTTPClient
-	auth   *vertexAuth
-	path   string
+	client      *core.HTTPClient
+	auth        *vertexAuth
+	path        string
+	temperature float64
 }
 
-func newVertexBackend(b *provider.Builder, cfg VertexConfig) (*vertexBackend, error) {
+func newVertexBackend(b *provider.Builder, cfg VertexConfig, temperature float64) (*vertexBackend, error) {
 	account, err := parseServiceAccount(cfg.Credentials)
 	if err != nil {
 		return nil, err
@@ -57,7 +58,8 @@ func newVertexBackend(b *provider.Builder, cfg VertexConfig) (*vertexBackend, er
 			client:  b.Client(cfg.clientOrigin(tokenOrigin), nil, speechTimeout),
 			account: account,
 		},
-		path: "/v1/projects/" + url.PathEscape(project) + "/locations/" + location + "/publishers/google/models/",
+		path:        "/v1/projects/" + url.PathEscape(project) + "/locations/" + location + "/publishers/google/models/",
+		temperature: temperature,
 	}, nil
 }
 
@@ -84,7 +86,7 @@ func (v *vertexBackend) generate(ctx context.Context, req gossiprpc.Request) (sp
 	if err != nil {
 		return speech{}, err
 	}
-	body, err := codec.Marshal(vertexRequestFor(req))
+	body, err := codec.Marshal(v.requestFor(req))
 	if err != nil {
 		return speech{}, errInternal
 	}
@@ -124,12 +126,18 @@ type vertexContent struct {
 }
 
 type vertexTextPart struct {
-	Text string `json:"text"`
+	Text           string                `json:"text"`
+	SpeechMetadata *vertexSpeechMetadata `json:"speechMetadata,omitempty"`
+}
+
+type vertexSpeechMetadata struct {
+	Style string `json:"style"`
 }
 
 type vertexGenerationConfig struct {
 	ResponseModalities []string           `json:"responseModalities"`
 	SpeechConfig       vertexSpeechConfig `json:"speechConfig"`
+	Temperature        float64            `json:"temperature"`
 }
 
 type vertexSpeechConfig struct {
@@ -144,15 +152,19 @@ type vertexPrebuiltVoice struct {
 	VoiceName string `json:"voiceName"`
 }
 
-func vertexRequestFor(req gossiprpc.Request) vertexRequest {
-	request := vertexRequest{
-		Contents: []vertexContent{{Role: "user", Parts: []vertexTextPart{{Text: req.Text}}}},
+func (v *vertexBackend) requestFor(req gossiprpc.Request) vertexRequest {
+	part := vertexTextPart{Text: req.Text}
+	if req.Style != "" {
+		part.SpeechMetadata = &vertexSpeechMetadata{Style: req.Style}
+	}
+	return vertexRequest{
+		Contents: []vertexContent{{Role: "user", Parts: []vertexTextPart{part}}},
 		GenerationConfig: vertexGenerationConfig{
 			ResponseModalities: []string{"AUDIO"},
+			Temperature:        v.temperature,
 			SpeechConfig: vertexSpeechConfig{VoiceConfig: vertexVoiceConfig{
 				PrebuiltVoiceConfig: vertexPrebuiltVoice{VoiceName: req.Voice},
 			}},
 		},
 	}
-	return request
 }

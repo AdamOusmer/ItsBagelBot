@@ -17,7 +17,8 @@ import (
 )
 
 type geminiBackend struct {
-	client *core.HTTPClient
+	client      *core.HTTPClient
+	temperature float64
 }
 
 type interaction struct {
@@ -50,13 +51,14 @@ type responseFormat struct {
 
 type generationConfig struct {
 	SpeechConfig []speechVoice `json:"speech_config"`
+	Temperature  float64       `json:"temperature"`
 }
 
 type speechVoice struct {
 	Voice string `json:"voice"`
 }
 
-func interactionFor(req gossiprpc.Request) interaction {
+func (g geminiBackend) interactionFor(req gossiprpc.Request) interaction {
 	content := textContent{Type: "text", Text: req.Text}
 	if req.Style != "" {
 		content.Annotations = []speechMetadata{{Type: "speech_metadata", Style: req.Style}}
@@ -65,7 +67,7 @@ func interactionFor(req gossiprpc.Request) interaction {
 		Model:            req.Model,
 		Input:            []inputStep{{Type: "user_input", Content: []textContent{content}}},
 		ResponseFormat:   responseFormat{Type: "audio", MimeType: wavMIME},
-		GenerationConfig: generationConfig{SpeechConfig: []speechVoice{{Voice: req.Voice}}},
+		GenerationConfig: generationConfig{SpeechConfig: []speechVoice{{Voice: req.Voice}}, Temperature: g.temperature},
 	}
 }
 
@@ -108,7 +110,7 @@ func (s responseStep) audio() string {
 }
 
 func (g geminiBackend) generate(ctx context.Context, req gossiprpc.Request) (speech, error) {
-	body, err := codec.Marshal(interactionFor(req))
+	body, err := codec.Marshal(g.interactionFor(req))
 	if err != nil {
 		return speech{}, errInternal
 	}
