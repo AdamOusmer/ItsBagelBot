@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"context"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -160,10 +161,31 @@ func (s *alertSpeech) admit(ctx context.Context, d engine.Deps, c *module.Contex
 		moduleLog(d).Warn("voice allowance check failed", c.BID(), zap.Error(err))
 		return false
 	}
-	if s.readMessages {
-		s.message = speechPlainText(in.message)
+	if enabled && s.readMessages {
+		s.message = s.viewerMessage(c, in.message)
 	}
 	return enabled
+}
+
+var cheermoteToken = regexp.MustCompile(`^[A-Za-z]+[0-9]+$`)
+
+func (s *alertSpeech) viewerMessage(c *module.Context, message string) string {
+	text := speechPlainText(message)
+	if s.kind == "cheer" {
+		words := slices.DeleteFunc(strings.Fields(text), cheermoteToken.MatchString)
+		text = strings.Join(words, " ")
+	}
+	if blockedSpeech(c, text) {
+		return ""
+	}
+	return text
+}
+
+func blockedSpeech(c *module.Context, text string) bool {
+	if text == "" || c.BlocksText == nil {
+		return false
+	}
+	return c.BlocksText(text)
 }
 
 func (s alertSpeech) publish(ctx context.Context, c *module.Context, line alertLine) {
@@ -176,7 +198,7 @@ func (s alertSpeech) publish(ctx context.Context, c *module.Context, line alertL
 	}
 	job := voiceplan.AlertJob{
 		EventID: c.Env.EventID, BroadcasterID: c.Env.BroadcasterUserID, Kind: s.kind,
-		Text: text, Style: s.style, Voice: s.voice, CreatedAt: time.Now().UTC(),
+		Text: stripSpeechControls(text), Style: s.style, Voice: s.voice, CreatedAt: time.Now().UTC(),
 	}
 	if err := s.pub.Publish(ctx, job); err != nil {
 		c.Log.Warn("voice job publication failed", c.BID(), zap.Error(err))
@@ -194,16 +216,22 @@ func speechTemplate(text string) string {
 	})
 }
 
-func speechPlainText(value string) string {
-	value = strings.Map(func(r rune) rune {
+func stripSpeechControls(text string) string {
+	return strings.Map(func(r rune) rune {
 		switch {
-		case r == '<', r == '>', unicode.IsSpace(r):
+		case unicode.IsControl(r) && unicode.IsSpace(r):
 			return ' '
 		case unicode.IsControl(r), unicode.Is(unicode.Cf, r):
 			return -1
 		default:
 			return r
 		}
-	}, value)
+	}, text)
+}
+
+var speechAngleBrackets = strings.NewReplacer("<", " ", ">", " ")
+
+func speechPlainText(value string) string {
+	value = speechAngleBrackets.Replace(stripSpeechControls(value))
 	return strings.Join(strings.Fields(value), " ")
 }

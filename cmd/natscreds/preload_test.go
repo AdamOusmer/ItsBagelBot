@@ -40,16 +40,25 @@ var preloadAccountEntry = regexp.MustCompile(`(?m)^\s*(A[A-Z2-7]{55}):\s*"([^"]+
 
 func preloadedExports(t *testing.T, path, accountPub string) int {
 	t.Helper()
+	if claims := preloadedAccount(t, path, accountPub); claims != nil {
+		return len(claims.Exports)
+	}
+	return -1
+}
+
+func preloadedAccount(t *testing.T, path, accountPub string) *jwt.AccountClaims {
+	t.Helper()
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	for _, entry := range preloadAccountEntry.FindAllStringSubmatch(string(data), -1) {
-		if entry[1] == accountPub {
-			claims, err := jwt.DecodeAccountClaims(entry[2])
-			require.NoError(t, err)
-			return len(claims.Exports)
+		if entry[1] != accountPub {
+			continue
 		}
+		claims, err := jwt.DecodeAccountClaims(entry[2])
+		require.NoError(t, err)
+		return claims
 	}
-	return -1
+	return nil
 }
 
 func TestPreloadRewritesOnlyWhenAnAccountChanges(t *testing.T) {

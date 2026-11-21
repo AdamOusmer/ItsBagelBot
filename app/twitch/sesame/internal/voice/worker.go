@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/nats-io/nats.go"
+	"go.uber.org/zap"
 )
 
 const (
@@ -52,6 +54,7 @@ type Worker struct {
 	RPC     *nats.Conn
 	Gossip  string
 	Overlay *bus.TTSOverlay
+	Log     *zap.Logger
 }
 
 func (w Worker) Process(ctx context.Context, payload []byte) error {
@@ -99,11 +102,49 @@ func (w Worker) findOrSynthesize(ctx context.Context, job voiceplan.AlertJob) (b
 	if req.Text == "" {
 		return bus.TTSClip{}, nil
 	}
-	reply, err := bus.RequestJSONTimeout[gossiprpc.TTSSynthesizeReply](ctx, w.RPC, w.Gossip, req, gossipTimeout)
+	return w.synthesize(ctx, ref, req)
+}
+
+func (w Worker) synthesize(ctx context.Context, ref bus.TTSClip, req gossiprpc.Request) (bus.TTSClip, error) {
+	rpcCtx, cancel := context.WithTimeout(ctx, gossipTimeout)
+	defer cancel()
+	var reply gossiprpc.TTSSynthesizeReply
+	err := bus.RequestInto(rpcCtx, w.RPC, bus.RPCRequest{Subject: w.Gossip, Body: req, DecodeErrorReply: true}, &reply)
 	if err != nil {
 		return bus.TTSClip{}, err
 	}
+	if audio, err := w.synthesisOutcome(req, reply); !audio {
+		return bus.TTSClip{}, err
+	}
 	return w.saveClip(ctx, ref, reply)
+}
+
+func (w Worker) synthesisOutcome(req gossiprpc.Request, reply gossiprpc.TTSSynthesizeReply) (bool, error) {
+	reason := cmp.Or(reply.Reason, reply.Error)
+	switch {
+	case reply.RateLimited:
+		err := errors.New(cmp.Or(reason, "speech synthesis rate limited"))
+		return false, bus.TTSRetryError{Delay: time.Duration(reply.RetryAfterMS) * time.Millisecond, Err: err}
+	case terminalSynthesisFailure(reply):
+		w.Log.Debug("TTS synthesis rejected", zap.String("event_id", req.RequestID), zap.String("reason", reason))
+		return false, nil
+	case reason != "":
+		return false, fmt.Errorf("TTS synthesis failed: %s", reason)
+	default:
+		return true, nil
+	}
+}
+
+func terminalSynthesisFailure(reply gossiprpc.TTSSynthesizeReply) bool {
+	switch reply.Reason {
+	case "invalid", "refused":
+		return true
+	}
+	switch reply.Error {
+	case "invalid", "refused", "unknown voice", "unknown model":
+		return true
+	}
+	return strings.HasPrefix(reply.Error, "invalid ")
 }
 
 func synthesisRequest(job voiceplan.AlertJob, allowance usersrpc.VoiceAllowance) gossiprpc.Request {
@@ -161,7 +202,7 @@ func validAudio(reply gossiprpc.TTSSynthesizeReply) bool {
 
 func (w Worker) deliver(ctx context.Context, job voiceplan.AlertJob, clip bus.TTSClip) error {
 	expires := clip.StoredAt.Add(bus.TTSClipTTL)
-	if !time.Now().Before(expires) {
+	if w.clipExpired(job, expires) {
 		return nil
 	}
 	duration, durErr := strconv.ParseInt(clip.Metadata[durationKey], 10, 64)
@@ -175,8 +216,19 @@ func (w Worker) deliver(ctx context.Context, job voiceplan.AlertJob, clip bus.TT
 	if _, err := bus.RequestJSONTimeout[usersrpc.VoiceReply](ctx, w.RPC, usersrpc.VoiceRecordSubject, req, usersTimeout); err != nil {
 		return err
 	}
+	if w.clipExpired(job, expires) {
+		return nil
+	}
 	event := voiceplan.OverlayEvent{
 		ClipKey: clip.Key, EventID: job.EventID, Kind: job.Kind, DurationMS: duration, ExpiresAt: expires,
 	}
 	return w.Overlay.Publish(ctx, bus.TTSMessage{BroadcasterID: job.BroadcasterID, EventID: job.EventID, Value: event})
+}
+
+func (w Worker) clipExpired(job voiceplan.AlertJob, expires time.Time) bool {
+	expired := !time.Now().Before(expires)
+	if expired {
+		w.Log.Debug("TTS clip expired before delivery", zap.String("event_id", job.EventID), zap.Time("expires_at", expires))
+	}
+	return expired
 }

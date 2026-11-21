@@ -34,8 +34,9 @@ func startVoice(w wireCtx, deps *engine.Deps) func() {
 	deps.AlertVoice = voice.Publisher{RPC: w.in.nc, Jobs: jobs}
 	worker := voice.Worker{
 		RPC: w.in.nc, Gossip: gossiprpc.Subject(w.cfg.GossipRPCPrefix, "tts", "synthesize"), Overlay: overlay,
+		Log: w.log,
 	}
-	stop, err := jobs.Consume(w.ctx, worker.Process, w.log)
+	stop, err := jobs.Consume(w.ctx, worker.Process, w.cfg.TTSWorkers, w.log)
 	svcboot.FatalIf(w.log, err, "failed to subscribe TTS worker")
 	return func() {
 		stop()

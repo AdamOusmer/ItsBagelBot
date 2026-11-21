@@ -115,22 +115,29 @@ func TestInternalVoiceCheck(t *testing.T) {
 		name                    string
 		status                  user.Status
 		active, enabled, banned bool
-		allowed                 bool
+		configured, allowed     bool
 		reason                  string
 	}{
-		{"vip enabled", user.StatusVip, true, true, false, true, "ok"},
-		{"vip disabled", user.StatusVip, true, false, false, false, "ok"},
-		{"inactive", user.StatusVip, false, true, false, false, "inactive"},
-		{"free", user.StatusFree, true, true, false, false, "no_plan"},
-		{"banned", user.StatusVip, true, true, true, false, "banned"},
+		{"vip without overlay", user.StatusVip, true, true, false, false, false, "ok"},
+		{"vip enabled", user.StatusVip, true, true, false, true, true, "ok"},
+		{"vip disabled", user.StatusVip, true, false, false, true, false, "ok"},
+		{"inactive", user.StatusVip, false, true, false, true, false, "inactive"},
+		{"free", user.StatusFree, true, true, false, true, false, "no_plan"},
+		{"banned", user.StatusVip, true, true, true, true, false, "banned"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			h.client.User.UpdateOneID(9000).SetStatus(tc.status).SetIsActive(tc.active).
-				SetTtsEnabled(tc.enabled).SetBanned(tc.banned).ExecX(t.Context())
+			update := h.client.User.UpdateOneID(9000).SetStatus(tc.status).SetIsActive(tc.active).
+				SetTtsEnabled(tc.enabled).SetBanned(tc.banned)
+			if tc.configured {
+				update.SetTtsOverlayTokenHash("544c376dabaa4041eeefdaed35305dac00e5a6e07c24ff9ebd2d3dfd213c3d83")
+			} else {
+				update.ClearTtsOverlayTokenHash()
+			}
+			update.ExecX(t.Context())
 			got := call[usersrpc.VoiceCheckReply](t, h, testVoiceCheckSubject, usersrpc.VoiceCheckRequest{UserID: testVoiceOwner})
 			assert.Empty(t, got.Refusal)
-			assert.Equal(t, [2]bool{tc.allowed, tc.enabled}, [2]bool{got.Allowed, got.Enabled})
+			assert.Equal(t, [3]bool{tc.allowed, tc.enabled, tc.configured}, [3]bool{got.Allowed, got.Enabled, got.OverlayConfigured})
 			assert.Equal(t, [2]string{voiceplan.DefaultVoice, tc.reason}, [2]string{got.Voice, got.Reason})
 		})
 	}

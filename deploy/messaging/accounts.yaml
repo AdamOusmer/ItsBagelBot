@@ -502,6 +502,7 @@ accounts:
                         - $JS.API.STREAM.INFO.OBJ_TTS_CLIPS
                         - $JS.API.STREAM.CREATE.OBJ_TTS_CLIPS
                         - $JS.API.STREAM.UPDATE.OBJ_TTS_CLIPS
+                        - $JS.API.STREAM.PURGE.OBJ_TTS_CLIPS
                         - $JS.API.DIRECT.GET.OBJ_TTS_CLIPS.$O.TTS_CLIPS.M.*
                 subscribe:
                     allow:

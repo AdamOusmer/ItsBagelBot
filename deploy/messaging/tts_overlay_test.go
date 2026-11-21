@@ -68,7 +68,6 @@ func TestTTSOverlayReaderPermissionsAreExact(t *testing.T) {
 	assert.NotNil(t, account.JetStream)
 	assert.Empty(t, account.Exports)
 	require.Len(t, account.Imports, 5)
-	require.Contains(t, account.Roles, "controls_gateway_rpc")
 
 	role := account.Roles["controls_gateway_rpc"]
 	assert.Equal(t, natsacl.RoleSpec{
@@ -100,6 +99,7 @@ func TestTTSWriterPermissionsAreExact(t *testing.T) {
 			"$JS.API.STREAM.INFO.OBJ_TTS_CLIPS",
 			"$JS.API.STREAM.CREATE.OBJ_TTS_CLIPS",
 			"$JS.API.STREAM.UPDATE.OBJ_TTS_CLIPS",
+			"$JS.API.STREAM.PURGE.OBJ_TTS_CLIPS",
 			"$JS.API.DIRECT.GET.OBJ_TTS_CLIPS.$O.TTS_CLIPS.M.*",
 		}},
 		Subscribe: &natsacl.PermissionSpec{Allow: []string{"_INBOX.>"}},

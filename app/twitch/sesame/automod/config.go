@@ -198,6 +198,14 @@ func (c *Config) hasBlockTerms() bool {
 	return c != nil && !c.Disabled && len(c.blockTerms) > 0
 }
 
+func (c *Config) BlocksText(text string) bool {
+	if !c.hasBlockTerms() {
+		return false
+	}
+	skel := moderation.Normalize(nil, text)
+	return !c.allows(skel) && containsAny(skel, c.blockTerms)
+}
+
 func (c *Config) clipsOnlyOn() bool {
 	return c.resolved().clipsOnly
 }

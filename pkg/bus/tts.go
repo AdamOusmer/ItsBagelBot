@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"ItsBagelBot/pkg/codec"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/nats-io/nats.go"
 	jsapi "github.com/nats-io/nats.go/jetstream"
-	"go.uber.org/zap"
 )
 
 const (
@@ -164,34 +162,4 @@ func storedTTSClip(info *jsapi.ObjectInfo, err error) (TTSClip, error) {
 		return TTSClip{}, err
 	}
 	return TTSClip{Key: info.Name, Metadata: info.Metadata, StoredAt: info.ModTime}, nil
-}
-
-type TTSJobHandler func(context.Context, []byte) error
-
-func (s *TTSJobs) Consume(ctx context.Context, handle TTSJobHandler, log *zap.Logger) (func(), error) {
-	sub, err := s.consumer.Consume(func(msg jsapi.Msg) {
-		handleTTSJob(ctx, msg, handle, log)
-	}, jsapi.PullMaxMessages(1), jsapi.ConsumeErrHandler(func(_ jsapi.ConsumeContext, err error) {
-		log.Warn("TTS job subscription", zap.Error(err))
-	}))
-	if err != nil {
-		return nil, fmt.Errorf("bus: consume TTS jobs: %w", err)
-	}
-	return func() {
-		sub.Stop()
-		<-sub.Closed()
-	}, nil
-}
-
-func handleTTSJob(parent context.Context, msg jsapi.Msg, handle TTSJobHandler, log *zap.Logger) {
-	ctx, cancel := context.WithTimeout(parent, ttsHandleTimeout)
-	defer cancel()
-	if err := handle(ctx, msg.Data()); err != nil {
-		log.Warn("TTS job failed", zap.Error(err))
-		_ = msg.NakWithDelay(2 * time.Second)
-		return
-	}
-	if err := msg.DoubleAck(ctx); err != nil {
-		log.Warn("TTS job acknowledgement failed", zap.Error(err))
-	}
 }

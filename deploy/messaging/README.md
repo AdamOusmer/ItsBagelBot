@@ -15,10 +15,9 @@ looks and the way past it is not a broker setting.
 ## TTS overlay account
 
 `CONTROLS_GATEWAY_RPC` owns the JetStream namespace for `OVERLAY_TTS` and
-`TTS_CLIPS`. The worker creates the file-backed stream and bucket with
-five-minute retention, with three replicas for the bucket. The
-`controls_gateway_rpc` reader can create filtered ephemeral consumers on
-`OVERLAY_TTS` and read messages from `OBJ_TTS_CLIPS`.
+`TTS_CLIPS`. The worker creates both with file storage, five-minute retention,
+and three replicas each. The `controls_gateway_rpc` reader can create filtered
+ephemeral consumers on `OVERLAY_TTS` and read messages from `OBJ_TTS_CLIPS`.
 
 `USERS_RPC` restricts the overlay resolve and check RPCs, their node-specific
 subjects, and `controls.tts.revoked.*` to this account. The committed resolver

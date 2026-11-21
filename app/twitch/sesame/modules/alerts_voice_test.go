@@ -38,6 +38,7 @@ type alertVoiceCase struct {
 	event      eventInput
 	masterOff  bool
 	offline    bool
+	blocked    string
 	wantChat   bool
 	wantSpeech speechExpectation
 }
@@ -49,7 +50,7 @@ type speechExpectation struct {
 }
 
 func TestProcessAlertVoiceOutputs(t *testing.T) {
-	const cheerWithViewerText = `{"user_name":"Cool <laugh> Viewer","broadcaster_user_id":"2","bits":100,"message":"<whispers> {user}!"}`
+	const cheerWithViewerText = `{"user_name":"Cool <laugh> Viewer","broadcaster_user_id":"2","bits":100,"message":"Cheer100 <whispers> BibleThump100 {user}!"}`
 	cases := []alertVoiceCase{
 		{name: "chat only when master off", event: eventInput{"channel.subscribe", subscribeJSON, ""}, masterOff: true, wantChat: true},
 		{name: "chat only for follow by default", event: eventInput{"channel.follow", followJSON, ""}, wantChat: true},
@@ -57,6 +58,14 @@ func TestProcessAlertVoiceOutputs(t *testing.T) {
 			wantSpeech: speechExpectation{"CoolViewer just subscribed! <short pause> Welcome to the crew! 7 months!", "excited, energetic, celebratory", ""}},
 		{name: "chat and speech", event: eventInput{"channel.cheer", cheerWithViewerText, `{"cheerTtsVoice":"Zephyr","cheerTtsStyle":"calm","cheerTtsMessage":"{alerts:user}: {bits} <sigh>"}`},
 			wantChat: true, wantSpeech: speechExpectation{"Cool laugh Viewer: 100 <sigh> whispers {user}!", "calm, gentle, relaxed", "Zephyr"}},
+		{name: "blocked cheer message", blocked: `{"block_terms":"whispers"}`, event: eventInput{"channel.cheer", cheerWithViewerText, ""},
+			wantChat: true, wantSpeech: speechExpectation{"Cool laugh Viewer cheered 100 bits!", "playful, light, amused", ""}},
+		{name: "blocked resub message", blocked: `{"block_terms":"months"}`, event: eventInput{"channel.subscription.message", resubJSON, ""},
+			wantChat: true, wantSpeech: speechExpectation{"CoolViewer just subscribed! <short pause> Welcome to the crew!", "excited, energetic, celebratory", ""}},
+		{name: "control characters in template and tokens", event: eventInput{
+			"channel.cheer", `{"user_name":"Cool\u0001Viewer","broadcaster_user_id":"2","bits":100,"message":"Great\tstream!"}`,
+			`{"cheerTtsMessage":"Hey\n{user}\u202e!\u0000 <short pause> {bits} bits!"}`,
+		}, wantChat: true, wantSpeech: speechExpectation{"Hey CoolViewer! <short pause> 100 bits! Great stream!", "playful, light, amused", ""}},
 		{name: "template placeholders cannot create speech tags", event: eventInput{
 			"channel.follow", `{"user_id":"7","user_login":"laugh","broadcaster_user_id":"2"}`,
 			`{"followTts":"true","followTtsMessage":"Welcome <<{user}>> <short pause> today!"}`,
@@ -83,9 +92,12 @@ func (tc alertVoiceCase) run(t *testing.T) {
 	pub := bustest.NewPublisher()
 	d := engine.Deps{
 		AlertVoice: voice, Live: &fakeLive{live: !tc.offline}, Pub: pub, Log: log,
-		Proj: &fakeProj{modules: []projection.ModuleView{{Name: "alerts", IsEnabled: true, Configs: []byte(tc.event.cfg)}}},
+		Proj: &fakeProj{modules: []projection.ModuleView{
+			{Name: "alerts", IsEnabled: true, Configs: []byte(tc.event.cfg)},
+			{Name: "automod", IsEnabled: true, Configs: []byte(tc.blocked)},
+		}},
 	}
-	p := engine.NewPipeline(d, engine.NewRegistry(log, Alerts(d)), engine.Config{OutgressStandard: "out"})
+	p := engine.NewPipeline(d, engine.NewRegistry(log, Alerts(d), Automod(d)), engine.Config{OutgressStandard: "out"})
 	t.Cleanup(p.Close)
 	data, err := codec.Marshal(lane.Envelope{
 		Type: tc.event.event, Lane: "standard", BroadcasterUserID: "2",

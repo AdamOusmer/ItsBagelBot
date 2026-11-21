@@ -120,9 +120,10 @@ Edit schemas rather than generated Ent code.
   The owner-only dashboard verbs `voice_get` and `voice_set` require matching
   authenticated actor and broadcaster IDs from Dashboard. The internal voice
   `check` and `record` handlers serve Sesame under `rpc.internal.users.voice.*`.
-  A check reads the balance without reserving it, so concurrent
-  checks can overshoot by the usage from in-flight requests. A replay returns
-  the stored plan, reason, and usage for the per-user request ID with the
+  A check allows speech when voice is enabled, an overlay link exists, and the
+  channel has audio tokens remaining. It reads the balance without reserving it,
+  so concurrent checks can overshoot by the usage from in-flight requests. A
+  replay returns the stored plan, reason, and usage for the per-user request ID with the
   channel's current enabled setting, voice and `max_seconds`.
   The channel's maximum clip length defaults to 120 seconds. `voice_set` must
   supply a `max_seconds` value from 5 through 120, which `voice_get` and the

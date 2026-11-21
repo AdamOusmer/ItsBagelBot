@@ -91,18 +91,29 @@ a bare variable token is not necessarily a pure formatting operation.
 Alert handlers share event decoding, token values, and follow/subscription
 cooldowns. Chat and speech use separate templates and per-kind switches.
 Speech additionally checks the channel's live state, cheer threshold, and
-Users allowance. Viewer names and messages are plain text. Trial events
-never enqueue a voice job.
+Users allowance, which requires a configured overlay link. Viewer names and
+messages are plain text, and rendered speech is stripped of control characters.
+Sesame applies the channel's AutoMod blocked terms to the cheer or resub message
+and drops that part on a match. The cheer event only carries a plain message,
+so Sesame removes whitespace-delimited tokens made up of letters followed by
+digits. Trial events never enqueue a voice job.
 
 Sesame publishes event-ID-deduplicated jobs to the file-backed `TTS_JOBS`
 work queue. The shared `tts-worker` durable allows three deliveries.
-Each replica processes one job at a time. It rechecks Users allowance,
-trims by the clip and remaining-token budgets, and calls Gossip. The clip's
+`SESAME_TTS_WORKERS` controls parallel jobs per pod and defaults to four.
+Workers send progress acknowledgements, recheck Users allowance, and trim by
+the clip and remaining-token budgets before calling Gossip. Rejected requests
+are acknowledged, rate limits use the returned retry delay when given, and
+unavailable replies retry after two seconds. The clip's
 object metadata preserves duration and usage across delivery retries.
 Users records usage by event ID. The overlay stream deduplicates the
 playback event by the same ID. Clips and playback events expire after five
 minutes in the gateway's NATS account. Sesame has a separate writer role
-in that account. `SESAME_TTS_ENABLED` gates the publisher and worker.
+in that account.
+
+The deployment ships with `SESAME_TTS_ENABLED=false`. Enable the publisher and
+worker only after the signed NATS account claims and Sesame credentials with
+the voice grants are live.
 
 ## Invariants and pitfalls
 

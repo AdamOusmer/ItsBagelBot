@@ -36,7 +36,7 @@ func (v voiceRPC) check(ctx context.Context, _ usersrpc.VoiceCheckRequest, id ui
 	allowance, err := v.repo.VoiceAllowance(ctx, id, time.Now())
 	return usersrpc.VoiceCheckReply{
 		VoiceReply: voiceReply(allowance, err),
-		Allowed:    allowance.Enabled && allowance.RemainingTokens > 0,
+		Allowed:    allowance.Enabled && allowance.OverlayConfigured && allowance.RemainingTokens > 0,
 	}, nil
 }
 

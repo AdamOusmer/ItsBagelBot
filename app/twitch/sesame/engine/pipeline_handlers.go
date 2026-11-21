@@ -37,6 +37,10 @@ func (p *Pipeline) dispatch(ctx context.Context, mctx *module.Context, views map
 func (p *Pipeline) runHandlers(ctx context.Context, views map[string]projection.ModuleView, mctx *module.Context, emit module.Emit) {
 	ctx = p.prepareHandlerEffects(ctx, mctx, views)
 	eventType := mctx.Env.Type
+	switch eventType {
+	case "channel.cheer", "channel.subscription.message":
+		mctx.BlocksText = automodConfigFrom(views, false).BlocksText
+	}
 	for ordinal, m := range p.registry.For(eventType) {
 		if !p.enabled(m, views, mctx) {
 			continue

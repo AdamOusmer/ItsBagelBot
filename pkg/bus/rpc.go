@@ -50,8 +50,9 @@ func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, requ
 
 // RPCRequest is one request and where it goes.
 type RPCRequest struct {
-	Subject string
-	Body    any
+	Subject          string
+	Body             any
+	DecodeErrorReply bool
 }
 
 // RequestInto is RequestJSON for a caller holding the reply as an untyped pointer.
@@ -79,8 +80,8 @@ func RequestInto(ctx context.Context, nc *nats.Conn, request RPCRequest, reply a
 		return fmt.Errorf("rpc %s request: %w", subject, err)
 	}
 
-	if refusal := replyRefusal(msg.Data); refusal.Error != "" {
-		return RPCReplyError{Subject: subject, Message: refusal.Error, Code: refusal.Code}
+	if err := checkRPCReply(request, msg.Data); err != nil {
+		return err
 	}
 
 	decodeSegment := startMessagingSegment(ctx, messagingSpan{
@@ -92,6 +93,17 @@ func RequestInto(ctx context.Context, nc *nats.Conn, request RPCRequest, reply a
 	}
 	endMessagingSegment(decodeSegment, nil)
 	return nil
+}
+
+func checkRPCReply(request RPCRequest, data []byte) error {
+	if request.DecodeErrorReply {
+		return nil
+	}
+	refusal := replyRefusal(data)
+	if refusal.Error == "" {
+		return nil
+	}
+	return RPCReplyError{Subject: request.Subject, Message: refusal.Error, Code: refusal.Code}
 }
 
 func RequestJSONTimeout[T any](ctx context.Context, nc *nats.Conn, subject string, request any, timeout time.Duration) (T, error) {
