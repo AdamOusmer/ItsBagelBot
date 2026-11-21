@@ -204,7 +204,7 @@
       const lk = actionPayload<ActionPayload>(result)?.lookup;
       if (!lk || lk.error) {
         tokenStatus = 'unavailable';
-        subState = { state: 'unknown', error: lk?.error ?? t('admin.users.lookupFailed'), checkedAt: null };
+        subState = { state: 'unknown', error: lk?.error ?? t('admin.users.actionResults.lookupFailed'), checkedAt: null };
         return;
       }
       if (lk.user) reconcile(lk.user);
@@ -291,7 +291,7 @@
         if (result.type === 'success' && p?.action?.ok) return applyUserAction(def, p, userId);
         if (before && optimistic) reconcile(before);
         if (def.id === 'restart' && selectedId === userId && subState === null) subState = beforeSubState;
-        failed(p, t('admin.users.actionFailed', { verb: t(def.label) }));
+        failed(p, t('admin.users.actionResults.actionFailed', { verb: t(def.label) }));
       };
     };
   }
@@ -342,7 +342,7 @@
           applied(p);
           return;
         }
-        failed(p, t('admin.users.actionFailed', { verb: status }));
+        failed(p, t('admin.users.actionResults.actionFailed', { verb: status }));
       };
     };
   }
@@ -356,7 +356,7 @@
         applied(p);
         return;
       }
-      failed(p, t('admin.users.actionFailed', { verb: t('admin.users.creatorTitle') }));
+      failed(p, t('admin.users.actionResults.actionFailed', { verb: t('admin.users.creatorTitle') }));
     };
   };
 
@@ -372,7 +372,7 @@
         toast('success', p.action.notice);
         return;
       }
-      failed(p, t('admin.users.sendFailed'));
+      failed(p, t('admin.users.actionResults.sendFailed'));
     };
   };
 

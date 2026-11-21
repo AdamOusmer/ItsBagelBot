@@ -66,7 +66,7 @@ describe('paid grant email', () => {
     emailReply = reply;
     const result = await setStatus(fields);
     expect(result).toEqual({
-      action: { ok: true, notice: `admin.users.statusSetUntil until ${storedExpiry.slice(0, 10)}${suffix}` },
+      action: { ok: true, notice: `admin.users.actionResults.statusSetUntil until ${storedExpiry.slice(0, 10)}${suffix}` },
       lookup: { user: grantedUser }
     });
     expect(userSetStatus.mock.calls).toEqual([[ref, 'paid', expiresAt]]);

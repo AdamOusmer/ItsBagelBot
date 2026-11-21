@@ -51,6 +51,7 @@
   let busy = $state(false);
   let operation = $state<Operation | null>(null);
   let operationForm: HTMLFormElement;
+  let surface = $state<ReturnType<typeof InspectorSurface>>();
   let returnFocus: HTMLButtonElement | null = null;
   const selected = $derived(result?.lanes.find((lane) => laneKey(lane) === inspector.selectedId));
   const canSave = $derived(canMutate && inspector.dirty);
@@ -94,9 +95,7 @@
       returnFocus = trigger;
       inspector.open(laneKey(lane), seed);
       draft = { ...seed };
-      void tick().then(() => {
-        document.querySelector<HTMLButtonElement>('aside[data-lane-inspector] button')?.focus({ preventScroll: true });
-      });
+      void tick().then(() => surface?.focusDockedClose());
     });
   }
 
@@ -149,7 +148,7 @@
       open
       title={selected.display}
       controls={CONTROLS}
-      data-lane-inspector
+      bind:this={surface}
       closeLabel={t('admin.close')}
       onClose={close}
     >

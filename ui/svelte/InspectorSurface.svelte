@@ -62,6 +62,11 @@
   });
 
   let sheetEl = $state<HTMLDivElement>();
+  let closeButton: HTMLButtonElement | undefined;
+
+  export function focusDockedClose() {
+    if (!isSheet) closeButton?.focus({ preventScroll: true });
+  }
 
   $effect(() => {
     if (open && isSheet) {
@@ -112,7 +117,7 @@
 {#snippet body(content: Snippet | undefined)}
   <div class="bb-surface__head">
     <span class="bb-surface__tag bb-tag bb-tag--bare">{title}</span>
-    <button class="bb-surface__close" type="button" aria-label={closeLabel} onclick={requestClose}>
+    <button class="bb-surface__close" type="button" aria-label={closeLabel} onclick={requestClose} bind:this={closeButton}>
       <Icon name="x" size={14} />
     </button>
   </div>
