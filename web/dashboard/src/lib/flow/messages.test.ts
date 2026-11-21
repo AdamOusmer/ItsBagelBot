@@ -3,7 +3,7 @@
 import { describe, expect, test } from 'bun:test';
 import { FLOW_ISSUE } from '@bagel/kit/automations';
 import { cardFromSummary } from './cards';
-import { issueMessage, saveMessage, stepOf, toggleMessage, upgradeNotes, type Translate } from './messages';
+import { deleteMessage, issueMessage, saveMessage, stepOf, toggleMessage, upgradeNotes, type Translate } from './messages';
 import type { SaveReply } from './replies';
 
 const t: Translate = (key, params) => (params ? `${key} ${JSON.stringify(params)}` : key);
@@ -50,15 +50,20 @@ describe('save refusals', () => {
     { reply: { ok: false, reason: 'not_found' }, expected: 'flows.saveNotFound' },
     { reply: { ok: false, reason: 'denied', error: 'Premium only while in beta.' }, expected: 'Premium only while in beta.' },
     { reply: { ok: false, reason: 'failed' }, expected: 'flows.saveFailed' },
+    { reply: { ok: false, reason: 'failed', error: 'A reward with this title already exists on your channel. Pick another title.' }, expected: 'A reward with this title already exists on your channel. Pick another title.' },
     { reply: { ok: false, reason: 'invalid', issues: [{ path: 'nodes.b', code: 'cycle' }] }, expected: 'flows.issue.cycle' },
     { reply: { ok: false, reason: 'invalid', issues: [{ path: 'nodes.b.type', code: 'perm_required' }] }, expected: 'flows.issue.permRequired' }
   ])('picks a message for $expected', ({ reply, expected }) => {
     expect(saveMessage(t, reply)).toBe(expected);
   });
 
-  test('toggle refusals say what changed', () => {
-    expect(toggleMessage(t, { ok: false, reason: 'conflict' })).toBe('flows.toggleStale');
-    expect(toggleMessage(t, { ok: false, reason: 'failed' })).toBe('flows.toggleFailed');
+  test.each([
+    ['stale toggle', toggleMessage(t, { ok: false, reason: 'conflict' }), 'flows.toggleStale'],
+    ['plain toggle failure', toggleMessage(t, { ok: false, reason: 'failed' }), 'flows.toggleFailed'],
+    ['reward toggle failure', toggleMessage(t, { ok: false, reason: 'failed', error: 'Duplicate title' }), 'Duplicate title'],
+    ['reward delete failure', deleteMessage(t, { ok: false, reason: 'failed', error: 'Reconnect required' }), 'Reconnect required']
+  ])('formats %s', (_name, actual, expected) => {
+    expect(actual).toBe(expected);
   });
 
   test('upgrade notes list only what the move loses', () => {
