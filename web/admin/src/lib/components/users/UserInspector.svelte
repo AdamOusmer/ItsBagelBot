@@ -132,7 +132,7 @@
         <UserSupport {viewAsUrl} showLink={can('users.impersonate')}>
           <UserInspectorActions actions={supportActions} {user} {busy} {onAction}>
             {#if canMessage}
-              <Button variant="ghost" disabled={busy !== null} onclick={onMessage} block>
+              <Button variant="ghost" disabled={busy !== null} onclick={onMessage}>
                 <bb-fit><span data-fit>{t('admin.users.messageCta')}</span></bb-fit>
               </Button>
             {/if}
