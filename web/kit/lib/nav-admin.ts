@@ -20,7 +20,8 @@ export type AdminSectionId =
   | 'staff'
   | 'audit'
   | 'secrets'
-  | 'counters';
+  | 'counters'
+  | 'settings';
 
 export type AdminGroupId = 'operate' | 'accounts' | 'access';
 
@@ -64,6 +65,7 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     match: ['/giveaways'],
     minRole: 'admin'
   },
+  { id: 'settings', group: 'accounts', labelKey: 'adminNav.settings', icon: 'settings', href: '/settings', match: ['/settings'] },
   { id: 'staff', group: 'access', labelKey: 'adminNav.staff', icon: 'moderation', href: '/staff', match: ['/staff'], minRole: 'admin' },
   { id: 'audit', group: 'access', labelKey: 'adminNav.audit', icon: 'audit', href: '/audit', match: ['/audit'], minRole: 'admin' },
   { id: 'secrets', group: 'access', labelKey: 'adminNav.secrets', icon: 'lock', href: '/secrets', match: ['/secrets'], minRole: 'owner' },
@@ -82,33 +84,36 @@ export function adminSectionLabelKey(id: AdminSectionId): MessageKey {
   return ADMIN_SECTIONS.find((def) => def.id === id)?.labelKey ?? 'adminNav.overview';
 }
 
-export function adminNavItems(opts: {
+type AdminNavOptions = {
   role: StaffRole;
   section: AdminSectionId;
   t?: (key: MessageKey) => string;
-}): NavLink[] {
-  return navItems({
-    sections: ADMIN_SECTIONS,
+  liveCount?: number | null;
+};
+
+function adminLinks(opts: AdminNavOptions, sections: readonly AdminSectionDef[]): NavLink[] {
+  const links = navItems({
+    sections,
     visible: (def) => adminSectionVisible(def, opts.role),
     current: (def) => def.id === opts.section,
     t: opts.t
   });
+  const users = links.find((link) => link.href === '/users');
+  if (users && opts.liveCount !== undefined) {
+    users.count = String(opts.liveCount ?? '');
+  }
+  return links;
 }
 
-export function adminNavGroups(opts: {
-  role: StaffRole;
-  section: AdminSectionId;
-  t?: (key: MessageKey) => string;
-}): NavGroupDef[] {
+export function adminNavItems(opts: AdminNavOptions): NavLink[] {
+  return adminLinks(opts, ADMIN_SECTIONS);
+}
+
+export function adminNavGroups(opts: AdminNavOptions): NavGroupDef[] {
   const label = opts.t ?? identity;
   const groups: NavGroupDef[] = [];
   for (const id of ADMIN_GROUP_ORDER) {
-    const items = navItems({
-      sections: ADMIN_SECTIONS.filter((def) => def.group === id),
-      visible: (def) => adminSectionVisible(def, opts.role),
-      current: (def) => def.id === opts.section,
-      t: opts.t
-    });
+    const items = adminLinks(opts, ADMIN_SECTIONS.filter((def) => def.group === id));
     if (items.length) groups.push(...navGroups(label(ADMIN_GROUP_LABEL[id]), items));
   }
   return groups;

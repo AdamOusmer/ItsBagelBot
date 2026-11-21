@@ -1,0 +1,9 @@
+{
+  "title": "Settings",
+  "language": "Language",
+  "languageHint": "Choose the language for the admin panel.",
+  "customCursor": "Custom cursor",
+  "customCursorHint": "Use the custom pointer in this browser.",
+  "cursorSaveError": "Could not save the cursor preference.",
+  "languageSaveError": "Could not change the language."
+}

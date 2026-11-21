@@ -12,4 +12,8 @@
   <title>{DEFAULT_TITLE}</title>
 </svelte:head>
 
-<RootShell locale={data.locale}>{@render children()}</RootShell>
+{#key data.locale}
+  <RootShell locale={data.locale} cursorEnabled={data.cursorEnabled}>
+    {@render children()}
+  </RootShell>
+{/key}

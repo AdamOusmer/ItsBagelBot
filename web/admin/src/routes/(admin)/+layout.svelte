@@ -7,6 +7,7 @@
   import NotificationBell from '@bagel/kit/components/NotificationBell.svelte';
   import ToastHost from '@bagel/ui/svelte/ToastHost.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import type { NotificationWire } from '#lib/server/services';
   import {
     adminNavGroups,
     adminSectionForPath,
@@ -31,7 +32,17 @@
   };
   const roleLabel = $derived(t(ROLE_LABEL[role]));
 
-  const groups = $derived(adminNavGroups({ role, section, t }));
+  let liveCount = $state<number | null>(null);
+
+  $effect(() => {
+    const request = data.liveCount;
+    liveCount = null;
+    void request.then((count) => {
+      if (request === data.liveCount) liveCount = count;
+    });
+  });
+
+  const groups = $derived(adminNavGroups({ role, section, t, liveCount }));
 
   afterNavigate(({ type }) => {
     document.title = `${crumb} · ItsBagelBot Admin`;
@@ -56,6 +67,23 @@
   <meta name="robots" content="noindex, nofollow" />
 </svelte:head>
 
+{#snippet notificationBell(notifications: NotificationWire[], emptyLabel: string)}
+  <NotificationBell
+    {notifications}
+    viewAllHref="/notifications"
+    title={t('bell.title')}
+    viewAllLabel={t('bell.viewAll')}
+    {emptyLabel}
+    unreadLabel={(count) => t('bell.unread', { count })}
+    levelLabels={{
+      info: t('bell.levelInfo'),
+      success: t('bell.levelSuccess'),
+      warning: t('bell.levelWarning'),
+      critical: t('bell.levelCritical')
+    }}
+  />
+{/snippet}
+
 <ConsoleShell
   brandSub={t('admin.title')}
   crumbRoot={t('admin.title')}
@@ -68,35 +96,9 @@
 >
   {#snippet topActions()}
     {#await data.recentNotifications}
-      <NotificationBell
-        notifications={[]}
-        viewAllHref="/notifications"
-        title={t('bell.title')}
-        viewAllLabel={t('bell.viewAll')}
-        emptyLabel={t('common.loading')}
-        unreadLabel={(count) => t('bell.unread', { count })}
-        levelLabels={{
-          info: t('bell.levelInfo'),
-          success: t('bell.levelSuccess'),
-          warning: t('bell.levelWarning'),
-          critical: t('bell.levelCritical')
-        }}
-      />
+      {@render notificationBell([], t('common.loading'))}
     {:then list}
-      <NotificationBell
-        notifications={list}
-        viewAllHref="/notifications"
-        title={t('bell.title')}
-        viewAllLabel={t('bell.viewAll')}
-        emptyLabel={t('bell.empty')}
-        unreadLabel={(count) => t('bell.unread', { count })}
-        levelLabels={{
-          info: t('bell.levelInfo'),
-          success: t('bell.levelSuccess'),
-          warning: t('bell.levelWarning'),
-          critical: t('bell.levelCritical')
-        }}
-      />
+      {@render notificationBell(list, t('bell.empty'))}
     {/await}
   {/snippet}
   {@render children()}
