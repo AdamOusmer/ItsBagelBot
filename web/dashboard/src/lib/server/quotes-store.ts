@@ -11,8 +11,8 @@ import {
   parseDisabledTriggers
 } from '@bagel/kit';
 import { SUB } from './services';
-import { upsertModule } from './commands-store';
-import { patchModuleConfig, readModuleBlob, setModuleEnabled } from './module-blob';
+import { patchModuleConfig, upsertModule } from './commands-store';
+import { readModuleBlob, setModuleEnabled } from './module-blob';
 
 const QUOTES_MODULE = MOD.quotes;
 const QUOTES_ALLOWED_TRIGGERS = moduleAllowedTriggers(moduleDef(QUOTES_MODULE)!);

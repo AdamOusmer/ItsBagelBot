@@ -14,14 +14,12 @@ const commandsStore = await import('./commands-store');
 mock.module('./commands-store', () => ({
   ...commandsStore,
   listModules: async () => [{ name: 'songqueue', is_enabled: true, configs: stored }],
-  listModulesForEditing: async () => [{ name: 'songqueue', is_enabled: true, configs: stored }],
   upsertModule: async (_userId: string, _name: string, _enabled: boolean, configs: Record<string, unknown>) => {
     stored = configs;
     return { modules: [] };
   },
-  patchModule: async (p: { partial: Record<string, unknown> }) => {
+  patchModuleConfig: async (p: { partial: Record<string, unknown> }) => {
     stored = { ...stored, ...p.partial };
-    return { rev: 1, conflict: false, synced: true };
   }
 }));
 

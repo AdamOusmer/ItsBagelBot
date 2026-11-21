@@ -21,8 +21,8 @@ import {
   parseDisabledTriggers
 } from '@bagel/kit';
 import { SUB } from './services';
-import { upsertModule } from './commands-store';
-import { patchModuleConfig, readModuleBlob } from './module-blob';
+import { patchModuleConfig, upsertModule } from './commands-store';
+import { readModuleBlob } from './module-blob';
 import { deleteRemoteReward, saveRewardFlow } from './reward-wire';
 import type { RewardCore } from './reward-form';
 

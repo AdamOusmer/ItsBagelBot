@@ -141,6 +141,18 @@ export async function patchModule(p: ModulePatch): Promise<{ rev: number; confli
   return { rev: reply.rev ?? (p.expectedRev ?? 0) + 1, conflict: false, synced };
 }
 
+export interface ModuleConfigPatch {
+  userId: UserId;
+  name: string;
+  partial: Record<string, unknown>;
+}
+
+export async function patchModuleConfig(p: ModuleConfigPatch): Promise<void> {
+  const rows = await listModulesForEditing(p.userId);
+  const isEnabled = rows.find((row) => row.name === p.name)?.is_enabled ?? false;
+  await patchModule({ userId: p.userId, name: p.name, isEnabled, partial: p.partial });
+}
+
 export interface CommandInput {
   name: string;
   aliases: string[];

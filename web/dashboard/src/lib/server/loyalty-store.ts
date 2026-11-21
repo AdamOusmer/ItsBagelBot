@@ -14,9 +14,9 @@ import {
   parseDisabledTriggers
 } from '@bagel/kit';
 import { SUB } from './services';
-import { upsertModule } from './commands-store';
+import { patchModuleConfig, upsertModule } from './commands-store';
 import { scheduleLeaderboardPurge } from './edge-purge';
-import { patchModuleConfig, readModuleBlob } from './module-blob';
+import { readModuleBlob } from './module-blob';
 import { parseCounterValue, readPointBalance } from '@bagel/kit/validation';
 
 const LOYALTY_MODULE = MOD.loyalty;
