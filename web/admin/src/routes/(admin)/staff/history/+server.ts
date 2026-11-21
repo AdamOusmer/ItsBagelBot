@@ -19,16 +19,20 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
   const page = parsePage(url.searchParams.get('page'), AUDIT_MAX_PAGES);
 
-  if (DEMO) {
-    const { demoStaffHistory } = await import('#lib/server/demo-data');
-    const entries = page === 1 ? demoStaffHistory(Number(actorId)) : [];
-    return json({ entries, page, page_size: AUDIT_PAGE_SIZE, max_pages: AUDIT_MAX_PAGES, has_more: false });
-  }
-
-  try {
-    const audit = await auditPage(page, '', actorId);
-    return json(audit);
-  } catch (e) {
-    return json({ entries: [], page, page_size: AUDIT_PAGE_SIZE, max_pages: AUDIT_MAX_PAGES, has_more: false, error: (e as Error).message });
-  }
+  const pagination = { page, page_size: AUDIT_PAGE_SIZE, max_pages: AUDIT_MAX_PAGES, has_more: false };
+  const read = DEMO
+    ? import('#lib/server/demo-data').then(({ demoStaffHistory }) => ({
+        ...pagination,
+        entries: page === 1 ? demoStaffHistory(Number(actorId)) : []
+      }))
+    : auditPage(page, '', actorId);
+  const audit = await read.catch(() => ({
+    ...pagination,
+    entries: [],
+    error: 'staff_history_unavailable'
+  }));
+  const entries = audit.entries.map((entry) => entry.action.startsWith('db_credential_')
+    ? { ...entry, error: undefined }
+    : entry);
+  return json({ ...audit, entries });
 };

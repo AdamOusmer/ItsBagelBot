@@ -1,251 +1,185 @@
 <script lang="ts">
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
-  import Input from '@bagel/ui/svelte/Input.svelte';
-  import { enhance, type SubmitFunction } from '$app/forms';
-  import { invalidateAll } from '$app/navigation';
-  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
-  import Card from '@bagel/ui/svelte/Card.svelte';
-  import CardHead from '@bagel/ui/svelte/CardHead.svelte';
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
+  import { invalidate } from '$app/navigation';
+  import { getI18n } from '@bagel/kit/i18n/context';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
-  import Field from '@bagel/ui/svelte/Field.svelte';
-  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
-  import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Grid from '@bagel/ui/svelte/Grid.svelte';
-  import Stack from '@bagel/ui/svelte/Stack.svelte';
-  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
-  import Text from '@bagel/ui/svelte/Text.svelte';
-  import { toast } from '@bagel/ui/svelte/toast';
-  import { actionPayload, adminToastFailure } from '@bagel/kit';
-  import { copyFlash } from '@bagel/ui/lib/clipboard';
-  import { getI18n } from '@bagel/kit/i18n/context';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
+  import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import { allows } from '#lib/access';
-  import type { DbCredentialStatus } from '#lib/server/secrets';
-  import StatePill from '#lib/components/StatePill.svelte';
+  import CredentialDialog from '#lib/components/secrets/CredentialDialog.svelte';
+  import SecretGenerator from '#lib/components/secrets/SecretGenerator.svelte';
   import ServiceCard from '#lib/components/secrets/ServiceCard.svelte';
-  import { SECRET_DIALOGS, type SecretVerb } from '#lib/components/secrets/secret-dialogs';
-  import type { SecretsBundle } from './+page.server';
+  import type { SecretVerb } from '#lib/components/secrets/secret-dialogs';
+  import type { DbCredentialStatus } from '#lib/server/secrets';
+  import { applyStreamed } from '#lib/streamed-load';
 
   let { data } = $props();
 
-  const { t } = getI18n();
-  const failed = adminToastFailure(toast);
+  const { locale, t } = getI18n();
+  const numberFormat = new Intl.NumberFormat(locale);
   const canManage = $derived(allows(data.role, 'secrets.manage'));
 
-  let bundle = $state<SecretsBundle | null>(null);
+  const STATUS_LABELS = {
+    all: 'admin.secrets.filterAll',
+    readable: 'admin.secrets.filterReadable',
+    unavailable: 'admin.secrets.filterUnavailable'
+  } as const;
+  type StatusFilter = keyof typeof STATUS_LABELS;
+  const statusFilters = Object.keys(STATUS_LABELS) as StatusFilter[];
+
+  let statuses = $state.raw<DbCredentialStatus[] | null>();
+  let statusFilter = $state<StatusFilter>('all');
+  let pending = $state.raw<{ verb: SecretVerb; service: DbCredentialStatus } | null>(null);
+  let generatorOpen = $state(false);
+  let refreshing = $state(false);
+
   $effect(() => {
-    let alive = true;
-    data.bundle.then((b: SecretsBundle) => {
-      if (alive) bundle = b;
+    applyStreamed(data.statuses, (value) => {
+      statuses = value;
+      refreshing = false;
     });
-    return () => {
-      alive = false;
-    };
   });
 
-  const services = $derived(bundle?.services ?? []);
+  const groups = $derived({
+    all: statuses,
+    readable: statuses?.filter((service) => service.canReadDoppler),
+    unavailable: statuses?.filter((service) => !service.canReadDoppler)
+  });
+  const services = $derived(groups[statusFilter]);
+  const counts = $derived({
+    all: statuses?.length ?? data.serviceCount,
+    readable: groups.readable?.length,
+    unavailable: groups.unavailable?.length
+  });
 
-  let pendingVerb = $state<SecretVerb | null>(null);
-  let pendingService = $state<DbCredentialStatus | null>(null);
-  let confirmText = $state('');
-  let dbUser = $state('');
-  let dbPass = $state('');
-  let busy = $state(false);
-  let dialogForm = $state<HTMLFormElement | null>(null);
-
-  const dialog = $derived(pendingVerb ? SECRET_DIALOGS[pendingVerb] : null);
-  const phrase = $derived(dialog && pendingService ? dialog.phrase(pendingService, dbUser) : '');
-  const phraseMatches = $derived(confirmText.trim() === phrase && phrase !== '');
-
-  function open(verb: SecretVerb, service: DbCredentialStatus) {
-    pendingVerb = verb;
-    pendingService = service;
-    confirmText = '';
-    dbUser = '';
-    dbPass = '';
+  async function refresh() {
+    if (refreshing) return;
+    refreshing = true;
+    await invalidate('admin:secrets');
   }
-
-  function close() {
-    pendingVerb = null;
-    pendingService = null;
-  }
-
-  const dialogSubmit: SubmitFunction = () => {
-    busy = true;
-    return async ({ result }) => {
-      busy = false;
-      const p = actionPayload<{ action?: { ok: boolean; notice: string }; error?: string }>(result);
-      if (result.type === 'success' && p?.action?.ok) {
-        toast('success', p.action.notice);
-        close();
-        bundle = null;
-        await invalidateAll();
-        return;
-      }
-      failed(p, t('admin.secrets.actionFailed'));
-    };
-  };
-
-  const GEN_KINDS = ['base64', 'hex', 'password'] as const;
-  type GenKind = (typeof GEN_KINDS)[number];
-
-  const GEN_LABEL = {
-    base64: 'admin.secrets.genBase64',
-    hex: 'admin.secrets.genHex',
-    password: 'admin.secrets.genPassword'
-  } as const satisfies Record<GenKind, string>;
-
-  const ESCAPE_FREE_PASSWORD_ALPHABET =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!*';
-  const BYTES = 32;
-  const PASSWORD_LENGTH = 40;
-
-  let genKind = $state<GenKind>('base64');
-  let generated = $state('');
-  let genCopied = $state(false);
-
-  function randomBytes(n: number): Uint8Array {
-    return crypto.getRandomValues(new Uint8Array(n));
-  }
-
-  function generateValue(kind: GenKind): string {
-    if (kind === 'password') {
-      return [...randomBytes(PASSWORD_LENGTH)]
-        .map((b) => ESCAPE_FREE_PASSWORD_ALPHABET[b % ESCAPE_FREE_PASSWORD_ALPHABET.length])
-        .join('');
-    }
-    const bytes = randomBytes(BYTES);
-    if (kind === 'hex') return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
-    return btoa(String.fromCharCode(...bytes));
-  }
-
-  function generate() {
-    generated = generateValue(genKind);
-    genCopied = false;
-  }
-
-  const copyGenerated = () => copyFlash(generated, (on: boolean) => (genCopied = on));
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow={t('admin.secrets.eyebrow')} description={t('admin.secrets.description')}>
+  <PageHead description={t('admin.secrets.description')}>
     {t('admin.secrets.titlePre')}<em>{t('admin.secrets.titleEm')}</em>
   </PageHead>
 
-  {#if bundle === null}
-    <SkeletonStack rows={4} height="220px" columns={2} />
-  {:else}
-    <Grid min="340px" gap={4}>
-      {#each services as service (service.id)}
-        <ServiceCard
-          {service}
-          {canManage}
-          onRotate={() => open('rotate', service)}
-          onSet={() => open('set', service)}
-          onRevoke={() => open('revoke', service)}
-        />
-      {/each}
+  <PageToolbar style="flex-wrap: wrap">
+    {#snippet leading()}
+      <div class="status-filters" role="group" aria-label={t('admin.secrets.filterLabel')}>
+        {#each statusFilters as value (value)}
+          {@const count = counts[value]}
+          <Chip pressed={statusFilter === value} onclick={() => (statusFilter = value)}
+            style="min-inline-size: 0; justify-content: space-between; padding-inline: var(--bb-space-2); gap: var(--bb-space-1)">
+            <span class="filter-name"><bb-fit><span data-fit>{t(STATUS_LABELS[value])}</span></bb-fit></span>
+            <span class="filter-count">{count === undefined ? '' : numberFormat.format(count)}</span>
+          </Chip>
+        {/each}
+      </div>
+    {/snippet}
+    {#snippet trailing()}
+      <div class="generator-action">
+        <Button variant="ghost" onclick={() => (generatorOpen = true)} block>
+          <bb-fit><span data-fit>{t('admin.secrets.genTitle')}</span></bb-fit>
+        </Button>
+      </div>
+    {/snippet}
+  </PageToolbar>
 
-      <Card dashed>
-        <CardHead title={t('admin.secrets.genTitle')}>
-          {#snippet actions()}
-            <StatePill tone="free">{t('admin.secrets.genLocal')}</StatePill>
-          {/snippet}
-        </CardHead>
-        <Stack gap={3}>
-          <Text size="sm" tone="muted">{t('admin.secrets.genNote')}</Text>
-          <Cluster gap={2}>
-            {#each GEN_KINDS as kind (kind)}
-              <Chip pressed={genKind === kind} onclick={() => (genKind = kind)}>
-                {t(GEN_LABEL[kind])}
-              </Chip>
-            {/each}
-          </Cluster>
-          <Cluster gap={2}>
-            <Button variant="primary" onclick={generate}>{t('admin.secrets.generate')}</Button>
-            {#if generated}
-              <Input fill mono type="text" readonly aria-label={t('admin.secrets.generatedValue')} value={generated} />
-              <Button variant="ghost" onclick={copyGenerated}>
-                {genCopied ? t('common.copied') : t('common.copy')}
-              </Button>
-            {/if}
-          </Cluster>
-        </Stack>
-      </Card>
-    </Grid>
-  {/if}
+  <div class="service-inventory" aria-busy={statuses === undefined || refreshing}>
+    {#if statuses === undefined}
+      <Grid min="19rem">
+        {#each Array(data.serviceCount) as _, i (i)}
+          <div class="service-slot" aria-hidden="true">
+            <Skeleton variant="block" height="100%" />
+          </div>
+        {/each}
+      </Grid>
+    {:else if statuses === null}
+      <AlertBanner>
+        {t('admin.secrets.statusFailed')}
+        {#snippet actions()}
+          <Button variant="ghost" size="sm" onclick={refresh} busy={refreshing}>{t('common.retry')}</Button>
+        {/snippet}
+      </AlertBanner>
+    {:else if services?.length}
+      <Grid min="19rem">
+        {#each services as service (service.id)}
+          <div class="service-slot">
+            <ServiceCard {service} {canManage} {refreshing} onAction={(verb) => (pending = { verb, service })} />
+          </div>
+        {/each}
+      </Grid>
+    {:else}
+      <EmptyState
+        title={t('admin.secrets.empty')}
+        body={statusFilter === 'all' ? undefined : t('admin.secrets.emptyFilter')}
+        role="status"
+      />
+    {/if}
+  </div>
 </section>
 
-<ConfirmDialog
-  open={dialog !== null}
-  title={dialog ? t(dialog.title) : ''}
-  confirmLabel={dialog ? t(dialog.cta) : t('common.done')}
-  cancelLabel={t('common.cancel')}
-  {busy}
-  onCancel={close}
-  onConfirm={() => dialogForm?.requestSubmit()}
-  tone={dialog?.danger ? 'danger' : 'neutral'}
->
-  {#if dialog && pendingService}
-    <div class="fields">
-      <Stack gap={4}>
-        <Text size="sm" tone="muted">
-          {t(dialog.body, {
-            schema: pendingService.schema,
-            project: pendingService.project,
-            config: pendingService.config,
-            service: pendingService.label
-          })}
-        </Text>
+{#if pending}
+  <CredentialDialog
+    service={pending.service}
+    verb={pending.verb}
+    onClose={() => (pending = null)}
+    onSaved={refresh}
+  />
+{/if}
 
-        {#if dialog.needsUser}
-          <Field label={t('admin.secrets.fieldDbUser')}>
-            <Input
-              fill mono
-              type="text"
-              autocomplete="off"
-              placeholder={`${pendingService.expectedUserPrefix}_…`}
-              bind:value={dbUser}
-            />
-          </Field>
-        {/if}
-
-        {#if dialog.needsPassword}
-          <Field label={t('admin.secrets.fieldDbPass')}>
-            <Input fill mono type="password" autocomplete="new-password" bind:value={dbPass} />
-          </Field>
-        {/if}
-
-        <Field label={t('admin.secrets.fieldConfirm', { phrase })}>
-          <Input fill mono type="text" autocomplete="off" bind:value={confirmText} />
-        </Field>
-        {#if !phraseMatches}
-          <Text size="sm" tone="muted">{t('admin.secrets.confirmHint')}</Text>
-        {/if}
-      </Stack>
-    </div>
-  {/if}
-</ConfirmDialog>
-
-{#if dialog && pendingService}
-  <form
-    method="POST"
-    action={dialog.action}
-    use:enhance={dialogSubmit}
-    bind:this={dialogForm}
-    hidden
-  >
-    <input type="hidden" name="service" value={pendingService.id} />
-    <input type="hidden" name="confirm" value={confirmText} />
-    <input type="hidden" name="db_user" value={dbUser} />
-    <input type="hidden" name="db_pass" value={dbPass} />
-  </form>
+{#if generatorOpen}
+  <SecretGenerator onClose={() => (generatorOpen = false)} />
 {/if}
 
 <style>
-  .fields {
-    --field-mb: 0;
-    margin: var(--bb-space-3) 0 var(--bb-space-1);
+  .status-filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--bb-space-1);
+    flex: 1 1 21rem;
+    max-inline-size: 25rem;
+    min-inline-size: 0;
+  }
+
+  .filter-name {
+    flex: 1;
+    min-inline-size: 0;
+    text-align: start;
+  }
+
+  .filter-count {
+    flex: 0 0 2ch;
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .generator-action {
+    flex: 0 0 13rem;
+    margin-inline-start: auto;
+  }
+
+  .service-inventory {
+    --credential-card-size: 14rem;
+    min-block-size: var(--credential-card-size);
+  }
+
+  .service-slot {
+    block-size: var(--credential-card-size);
+    min-inline-size: 0;
+  }
+
+  @media (max-width: 600px) {
+    .status-filters {
+      flex-basis: 100%;
+      max-inline-size: none;
+    }
   }
 </style>

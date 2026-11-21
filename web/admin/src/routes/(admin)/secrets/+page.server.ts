@@ -11,37 +11,26 @@ import {
   credentialStatuses,
   revokeCredential,
   rotateCredential,
-  scopeReport,
   serviceIds,
   serviceOf,
   setCredential,
-  type DbCredentialStatus,
-  type ScopeReport,
   type SecretServiceId
 } from '#lib/server/secrets';
 
-export type SecretsBundle = {
-  services: DbCredentialStatus[];
-  scope: ScopeReport;
-};
-
 const DEMO = dev && process.env.DEMO === '1';
 
-async function loadBundle(): Promise<SecretsBundle> {
-  const [services, scope] = await Promise.all([credentialStatuses(), scopeReport()]);
-  return { services, scope };
-}
-
-export const load: PageServerLoad = async ({ parent }) => {
+export const load: PageServerLoad = async ({ parent, depends }) => {
   const layout = await parent();
   if (!allows(layout.role, 'secrets.manage')) throw redirect(302, '/');
 
-  const bundle: Promise<SecretsBundle> = DEMO
+  depends('admin:secrets');
+  const ids = serviceIds();
+  const statuses = DEMO
     ? import('#lib/server/demo-data').then(({ demoSecretsBundle }) =>
-        demoSecretsBundle(serviceIds())
+        demoSecretsBundle(ids).services
       )
-    : loadBundle();
-  return { bundle };
+    : credentialStatuses();
+  return { statuses: statuses.catch(() => null), serviceCount: ids.length };
 };
 
 function serviceFromForm(form: FormData): SecretServiceId {
@@ -78,8 +67,8 @@ function secretAction(spec: SecretSpec) {
       const { dbUser } = await spec.run(service, form);
       audit(admin, { action: spec.name, target: `${service}:${dbUser}`, ok: true });
       return { action: { ok: true, notice: adminText(locals.locale, `admin.secrets.${spec.name}`, { service, dbUser }) } };
-    } catch (e) {
-      const message = (e as Error).message;
+    } catch {
+      const message = adminText(locals.locale, 'admin.secrets.actionFailed');
       audit(admin, { action: spec.name, target: String(service ?? ''), ok: false, error: message });
       return fail(400, { error: message });
     }

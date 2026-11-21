@@ -8,14 +8,18 @@ export type CounterDraft = {
   value: string;
 };
 
-export const NEW_COUNTER = '__new__';
+export const NEW_COUNTER = '';
+export const COUNTERS_DATA = 'admin:counters';
 
 export function blankCounter(): CounterDraft {
   return { name: '', value: '0' };
 }
 
+export function counterName(raw: unknown): string | null {
+  const name = normalizeCounterName(raw);
+  return name.length > 0 && !name.includes(':') ? name : null;
+}
+
 export function counterComplete(draft: CounterDraft): boolean {
-  const name = normalizeCounterName(draft.name);
-  if (!name || name.includes(':')) return false;
-  return isCounterValue(draft.value);
+  return counterName(draft.name) !== null && isCounterValue(draft.value);
 }
