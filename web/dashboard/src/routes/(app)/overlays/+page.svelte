@@ -140,7 +140,7 @@
     .studio {
       display: flex;
       flex-direction: column;
-      block-size: calc(100dvh - var(--bb-topbar-height, 54px) - 10px - var(--gutter, 28px) - 6px - var(--bb-dock-clearance, 52px));
+      block-size: calc(100dvh - var(--bb-topbar-height) - 10px - var(--gutter, 28px) - 6px - var(--bb-dock-clearance));
     }
     .studio-grid {
       flex: 1;

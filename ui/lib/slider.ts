@@ -108,11 +108,12 @@ export function mountSlider(rail: HTMLElement, host: SliderHost): () => void {
 function domHost(rail: HTMLElement): SliderHost {
   const thumb = rail.querySelector<HTMLElement>('[role="slider"]')!;
   const input = rail.querySelector<HTMLInputElement>('input');
+  const step = Number(getComputedStyle(rail).getPropertyValue('--slider-step')) || 1;
   const read = (name: string): number => Number(thumb.getAttribute(name));
   const range = (): SliderRange => ({
     min: read('aria-valuemin'),
     max: read('aria-valuemax'),
-    step: Number(rail.dataset.step) || 1,
+    step,
     disabled: thumb.getAttribute('aria-disabled') === 'true',
   });
   const emit = (type: string): boolean => rail.dispatchEvent(new Event(type, { bubbles: true }));
@@ -129,9 +130,12 @@ function domHost(rail: HTMLElement): SliderHost {
   };
 }
 
+const enhanced = new WeakSet<HTMLElement>();
+
 export function enhanceSliders(root: ParentNode = document): void {
-  for (const rail of root.querySelectorAll<HTMLElement>('.bb-slider:not([data-slider-ready])')) {
-    rail.dataset.sliderReady = '';
+  for (const rail of root.querySelectorAll<HTMLElement>('.bb-slider')) {
+    if (enhanced.has(rail)) continue;
+    enhanced.add(rail);
     const thumb = rail.querySelector<HTMLElement>('[role="slider"]')!;
     const named = thumb.hasAttribute('aria-label') || thumb.hasAttribute('aria-labelledby');
     const ids = named ? undefined : sliderLabelIds(thumb);

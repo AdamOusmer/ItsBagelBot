@@ -56,7 +56,7 @@
   });
 </script>
 
-<div bind:this={rail} class={classes} data-step={step} style:--slider-progress={progress}>
+<div bind:this={rail} class={classes} style:--slider-progress={progress} style:--slider-step={step}>
   {#if name}<input type="hidden" {name} {form} {value} />{/if}
   <span class="bb-slider__fill" aria-hidden="true"></span>
   <span class="bb-slider__thumb" role="slider" tabindex={disabled ? -1 : 0} {id}

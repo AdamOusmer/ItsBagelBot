@@ -22,7 +22,7 @@ const classes = ['bb-slider', disabled ? 'bb-slider--disabled' : null, className
 const progress = sliderFraction(value, { min, max });
 ---
 
-<div class={classes} data-step={step} style={`--slider-progress: ${progress};`}>{name && <input type="hidden" name={name} form={form} value={value} />}<span class="bb-slider__fill" aria-hidden="true"></span><span class="bb-slider__thumb" role="slider" tabindex={disabled ? -1 : 0} id={id} aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} aria-disabled={disabled ? 'true' : undefined} {...rest}></span></div>
+<div class={classes} style={`--slider-progress: ${progress}; --slider-step: ${step};`}>{name && <input type="hidden" name={name} form={form} value={value} />}<span class="bb-slider__fill" aria-hidden="true"></span><span class="bb-slider__thumb" role="slider" tabindex={disabled ? -1 : 0} id={id} aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} aria-disabled={disabled ? 'true' : undefined} {...rest}></span></div>
 
 <script>
     import { enhanceSliders } from '../lib/slider';
