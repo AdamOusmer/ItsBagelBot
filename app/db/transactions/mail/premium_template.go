@@ -65,6 +65,8 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
     <!-- card -->
     <tr><td bgcolor="` + colorCard + `" style="background-color:` + colorCard + `;border-radius:16px;overflow:hidden;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <!-- green to gold line -->
+        <tr><td height="3" bgcolor="#62a593" style="height:3px;background-color:#62a593;background-image:linear-gradient(90deg,#62a593,#d8bf91);font-size:0;line-height:0;">&nbsp;</td></tr>
 
         <tr><td style="padding:40px 40px 36px;">
 
