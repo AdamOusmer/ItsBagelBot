@@ -4,9 +4,9 @@
   import { tick } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import { enhance, type SubmitFunction } from '$app/forms';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
-  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
-  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
   import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
   import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
@@ -20,6 +20,7 @@
   import { allows } from '#lib/access';
   import { applyStreamed } from '#lib/streamed-load';
   import type { NotificationWire } from '#lib/server/services';
+  import FilterTabs from '#lib/components/FilterTabs.svelte';
   import ComposeEditor from '#lib/components/notifications/ComposeEditor.svelte';
   import NotificationDetail from '#lib/components/notifications/NotificationDetail.svelte';
   import NotificationHistory from '#lib/components/notifications/NotificationHistory.svelte';
@@ -174,72 +175,69 @@
   };
 </script>
 
-<section class="screen active notifications-screen">
+<section class="screen active">
   <PageHead description={t('admin.notifications.description')}>
     {t('admin.notifications.titlePre')}<em>{t('admin.notifications.titleEm')}</em>
   </PageHead>
 
-  <PageToolbar>
-    {#snippet leading()}
-      <SegmentedControl
-        id="notification-filters"
-        even
-        class="audience-filters"
-        label={t('admin.notifications.filterLabel')}
-        options={audienceOptions}
-        value={audience}
-        onValueChange={setAudience}
-      />
-    {/snippet}
-    {#snippet trailing()}
-      {#if canSend}
-        <Button class="compose-button" onclick={openCompose} disabled={busy} aria-expanded={drafting}
+  <Stack gap={3}>
+    <FilterTabs
+      id="notification-filters"
+      label={t('admin.notifications.filterLabel')}
+      options={audienceOptions}
+      countWidth="3ch"
+      value={audience}
+      onValueChange={setAudience}
+    />
+    {#if canSend}
+      <Cluster justify="end" gap={2}>
+        <Button style="inline-size: 7.5rem" onclick={openCompose} disabled={busy} aria-expanded={drafting}
           aria-controls={drafting ? surfaceId : undefined}>
           <bb-fit>{t('admin.notifications.compose')}</bb-fit>
         </Button>
-      {/if}
-    {/snippet}
-  </PageToolbar>
+      </Cluster>
+    {/if}
 
-  <DeckLayout inspecting={!!draft || !!selected} width="380px">
-    <NotificationHistory
-      {history}
-      {rows}
-      page={data.page}
-      filtered={audience !== 'all'}
-      selectedId={selected?.id}
-      controls={surfaceId}
-      onSelect={openNotification}
-    />
+    <DeckLayout inspecting={!!draft || !!selected} width="380px">
+      <NotificationHistory
+        {history}
+        {rows}
+        page={data.page}
+        filtered={audience !== 'all'}
+        selectedId={selected?.id}
+        controls={surfaceId}
+        onSelect={openNotification}
+      />
 
-    <InspectorSurface
-      open={!!draft || !!selected}
-      title={t(selected ? 'admin.notifications.detailTitle' : 'admin.notifications.composeTitle')}
-      tabindex={-1}
-      controls={surfaceId}
-      closeLabel={t('admin.close')}
-      onClose={close}
-    >
-      {#if selected}
-        <NotificationDetail
-          notification={selected}
-          {canSend}
-          {busy}
-          onRetract={() => (retractTarget = selected ?? null)}
-        />
-      {:else if draft}
-        <ComposeEditor
-          {draft}
-          status={inspector.status}
-          dirty={inspector.dirty}
-          canSave={complete}
-          onChange={inspector.edit}
-          onCancel={close}
-          onSubmit={sendSubmit}
-        />
-      {/if}
-    </InspectorSurface>
-  </DeckLayout>
+      <InspectorSurface
+        open={!!draft || !!selected}
+        title={t(selected ? 'admin.notifications.detailTitle' : 'admin.notifications.composeTitle')}
+        tabindex={-1}
+        controls={surfaceId}
+        closeLabel={t('admin.close')}
+        onClose={close}
+      >
+        {#if selected}
+          <NotificationDetail
+            notification={selected}
+            {canSend}
+            {busy}
+            onRetract={() => (retractTarget = selected ?? null)}
+          />
+        {:else if draft}
+          <ComposeEditor
+            {draft}
+            status={inspector.status}
+            dirty={inspector.dirty}
+            canSave={complete}
+            onChange={inspector.edit}
+            onCancel={close}
+            onSubmit={sendSubmit}
+          />
+        {/if}
+      </InspectorSurface>
+    </DeckLayout>
+  </Stack>
 </section>
 
 <ConfirmDialog
@@ -265,20 +263,3 @@
   onConfirm={discard.confirm}
   onCancel={discard.cancel}
 />
-
-<style>
-  .notifications-screen :global(.audience-filters) {
-    inline-size: 22rem;
-    min-inline-size: 0;
-  }
-
-  .notifications-screen :global(.compose-button) {
-    inline-size: 7.5rem;
-  }
-
-  @media (max-width: 600px) {
-    .notifications-screen :global(.audience-filters) {
-      flex-basis: 100%;
-    }
-  }
-</style>

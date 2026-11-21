@@ -67,7 +67,7 @@
     <Disclosure summary={t('admin.analytics.chart.showData')} size="sm" bind:open={showData}>
       {#if showData}
         <div class="data">
-          <Table label={title} compact>
+          <Table label={title}>
             <thead>
               <tr>
                 <th scope="col">{t('admin.analytics.chart.date')}</th>

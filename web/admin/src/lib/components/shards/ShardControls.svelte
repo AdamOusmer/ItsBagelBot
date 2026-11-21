@@ -153,6 +153,7 @@
   }
 
   .scale-form {
+    flex-wrap: wrap;
     transition: opacity var(--bb-dur-fast) ease;
   }
 

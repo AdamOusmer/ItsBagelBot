@@ -121,7 +121,6 @@
       <div class="action" class:available={action.available} inert={!action.available}>
         <Button
           block
-          size="sm"
           variant={action.danger ? 'primary' : 'secondary'}
           tone={action.danger ? 'danger' : 'neutral'}
           disabled={busy}

@@ -17,7 +17,6 @@
 
 <ButtonLink
   variant="ghost"
-  size="sm"
   class="bb-btn--icon"
   {href}
   target="_blank"

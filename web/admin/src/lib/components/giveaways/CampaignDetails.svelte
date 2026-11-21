@@ -188,7 +188,6 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--bb-space-2);
     inline-size: min(100%, 26rem);
-    --btn-pad: 0 10px;
   }
 
   .preview-action,
@@ -219,6 +218,16 @@
   }
 
   @media (max-width: 600px) {
+    .campaign-actions {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .freeze-action,
+    .draw-action {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
     .operation-notice {
       block-size: 4.5rem;
     }

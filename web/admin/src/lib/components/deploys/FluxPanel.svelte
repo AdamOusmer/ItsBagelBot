@@ -113,7 +113,7 @@
               <Cluster gap={2} class="tier-actions">
                 <form method="POST" action="?/fluxSync" use:enhance={submit(`sync-${tier.name}`)}>
                   <input type="hidden" name="tier" value={tier.name} />
-                  <Button type="submit" size="sm" variant="secondary" aria-describedby={tierLabel} busy={pending.includes(`sync-${tier.name}`)}>
+                  <Button type="submit" variant="secondary" aria-describedby={tierLabel} busy={pending.includes(`sync-${tier.name}`)}>
                     <span class="tier-copy"><bb-fit><span data-fit>{t('admin.deploys.flux.sync')}</span></bb-fit></span>
                   </Button>
                 </form>
@@ -123,7 +123,7 @@
                   use:enhance={submit(`suspend-${tier.name}`)}
                 >
                   <input type="hidden" name="tier" value={tier.name} />
-                  <Button type="submit" size="sm" variant="ghost" aria-describedby={tierLabel} busy={pending.includes(`suspend-${tier.name}`)}>
+                  <Button type="submit" variant="ghost" aria-describedby={tierLabel} busy={pending.includes(`suspend-${tier.name}`)}>
                     <span class="tier-copy"><bb-fit><span data-fit>{t(tier.suspended ? 'admin.deploys.flux.resume' : 'admin.deploys.flux.pause')}</span></bb-fit></span>
                   </Button>
                 </form>
@@ -147,7 +147,7 @@
                 <Text as="span" size="xs" mono truncate title={pin.newTag ?? pin.digest}>{pin.newTag ?? pin.digest}</Text>
                 <form method="POST" action="?/fluxUnpin" use:enhance={submit(`unpin-${pin.name}`)}>
                   <input type="hidden" name="service" value={shortService(pin.name)} />
-                  <Button type="submit" size="sm" variant="ghost" aria-describedby={pinLabel} busy={pending.includes(`unpin-${pin.name}`)}>
+                  <Button type="submit" variant="ghost" aria-describedby={pinLabel} busy={pending.includes(`unpin-${pin.name}`)}>
                     {t('admin.deploys.flux.clear')}
                   </Button>
                 </form>
@@ -169,7 +169,7 @@
           <Field fit label={t('admin.deploys.flux.tag')} class="pin-field">
             <Input name="tag" bind:value={tag} mono required fill />
           </Field>
-          <Button type="submit" size="sm" busy={pending.includes('pin')} disabled={!service || !tag}>
+          <Button type="submit" busy={pending.includes('pin')} disabled={!service || !tag}>
             {t('admin.deploys.flux.pin')}
           </Button>
         </form>

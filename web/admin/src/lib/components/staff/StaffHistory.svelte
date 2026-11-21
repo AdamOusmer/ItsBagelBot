@@ -51,7 +51,7 @@
           <AlertBanner>
             {t('admin.staff.historyError')}
             {#snippet actions()}
-              <Button size="sm" variant="ghost" onclick={retry}>{t('common.retry')}</Button>
+              <Button variant="ghost" onclick={retry}>{t('common.retry')}</Button>
             {/snippet}
           </AlertBanner>
         {:else if result.entries.length}

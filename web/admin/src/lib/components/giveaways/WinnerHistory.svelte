@@ -52,7 +52,7 @@
               use:enhance={submit}
             >
               <input type="hidden" name="award_id" value={winner.id} />
-              <Button type="submit" variant="secondary" size="sm" block disabled={!canRetry || busy} aria-label={`${t('admin.giveaways.retry')} · @${winner.login}`}>
+              <Button type="submit" variant="secondary" block disabled={!canRetry || busy} aria-label={`${t('admin.giveaways.retry')} · @${winner.login}`}>
                 <bb-fit><span data-fit>{t('admin.giveaways.retry')}</span></bb-fit>
               </Button>
             </form>

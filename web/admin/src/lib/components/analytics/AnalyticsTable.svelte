@@ -30,7 +30,7 @@
   {/snippet}
   {#if table}
     <div class="table-viewport">
-      <Table label={title} compact {minWidth}>
+      <Table label={title} {minWidth}>
         <thead>
           <tr>
             <th scope="col">{t(`admin.analytics.column.${firstColumn}`)}</th>

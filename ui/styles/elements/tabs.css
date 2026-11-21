@@ -10,18 +10,19 @@
         gap: 4px;
     }
 
-    .bb-tabs--wrap { display: flex; flex-wrap: wrap; }
+    .bb-tabs--wrap {
+        display: flex;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
 
-    @media (max-width: 760px) {
-        .bb-tabs--wrap {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            flex-wrap: nowrap;
-            scrollbar-width: none;
-        }
+    .bb-tabs--wrap::-webkit-scrollbar { display: none; }
+    .bb-tabs--wrap > .bb-tab { flex-shrink: 0; }
 
-        .bb-tabs--wrap::-webkit-scrollbar { display: none; }
-        .bb-tabs--wrap > .bb-tab { flex-shrink: 0; }
+    @media (width > 760px) {
+        .bb-tabs--wrap:not(.bb-tabs--scroll) { flex-wrap: wrap; overflow-x: visible; }
+        .bb-tabs--wrap:not(.bb-tabs--scroll) > .bb-tab { flex-shrink: 1; }
     }
 
     .bb-tabs--even {
@@ -79,8 +80,14 @@
 
     .bb-tab.is-active::before { background: var(--bb-green-glow); }
 
-    .bb-tab:hover { color: var(--bb-tan-light); background: rgba(var(--bb-white-pure-rgb), 0.025); }
+    .bb-tab:not(:disabled):hover { color: var(--bb-tan-light); background: rgba(var(--bb-white-pure-rgb), 0.025); }
     .bb-tab.is-active { color: var(--bb-white); }
+    .bb-tab:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .bb-tabs--scroll > .bb-tab:focus-visible {
+        outline: 2px solid var(--bb-focus);
+        outline-offset: -2px;
+    }
 
     /* The selection is a Glide block that slides between tabs. Until it is
        measured (or without script) the active tab carries the same block. */
@@ -97,6 +104,8 @@
     }
 
     .bb-tab__count {
+        min-inline-size: var(--tab-count-w, auto);
+        text-align: end;
         font-size: 10px;
         letter-spacing: 0.04em;
         color: var(--bb-muted);

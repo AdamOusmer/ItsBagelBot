@@ -92,7 +92,7 @@
 
 <style>
   .directory {
-    --lane-row-size: 58px;
+    --lane-row-size: 64px;
     min-block-size: calc(44px + 4 * var(--lane-row-size));
   }
 
@@ -110,11 +110,11 @@
   }
 
   @container lane-directory (width < 54rem) {
-    .directory { --lane-row-size: 96px; }
+    .directory { --lane-row-size: 104px; }
   }
 
   @container lane-directory (width < 28rem) {
-    .directory { --lane-row-size: 154px; }
+    .directory { --lane-row-size: 180px; }
     .stream-heading { grid-template-columns: minmax(0, 1fr) minmax(0, 8rem); }
   }
 </style>

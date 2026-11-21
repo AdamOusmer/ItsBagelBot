@@ -3,9 +3,8 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { untrack } from 'svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
-  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
-  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Grid from '@bagel/ui/svelte/Grid.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
@@ -19,6 +18,7 @@
   import { RATE_NOW_SECONDS } from '@bagel/kit/rates';
   import type { TrialSnapshot } from '#lib/server/services';
   import { allows } from '#lib/access';
+  import FilterTabs from '#lib/components/FilterTabs.svelte';
   import ShardControls from '#lib/components/shards/ShardControls.svelte';
   import ShardTopology from '#lib/components/shards/ShardTopology.svelte';
   import ThroughputChart from '#lib/components/shards/ThroughputChart.svelte';
@@ -200,39 +200,35 @@
   </PageHead>
 
   <div class="fleet-content">
-    <PageToolbar class="shards-toolbar">
-      {#snippet leading()}
-        <Stack gap={2}>
-          <div class="fleet-status">
-            {#if fleetLoading}
-              <div aria-hidden="true"><Skeleton variant="pill" width="min(16rem, 100%)" /></div>
-            {:else if !snapshot}
-              <AlertBanner flush role="status">{t('admin.shards.degraded')}</AlertBanner>
-            {:else}
-              <div class="conduit-status">
-                <StatusDot tone={conduit.tone} flat />
-                <Text as="span" size="xs" tone="muted" mono>
-                  <bb-fit><span data-fit>{t('admin.shards.conduit', { state: t(conduit.label) })}</span></bb-fit>
-                </Text>
-                <span class="live-state" role="status">
-                  <Tag tone={stale || inventoryUnavailable ? 'warning' : 'success'} contain title={fleetStatus}>
-                    <bb-fit><span data-fit>{fleetStatus}</span></bb-fit>
-                  </Tag>
-                </span>
-              </div>
-            {/if}
-          </div>
-          {#if data.canViewTrials}
-            <SegmentedControl options={views} bind:value={view} label={t('admin.shards.topologyTitle')} even />
+    <Stack gap={3}>
+      {#if data.canViewTrials}
+        <FilterTabs options={views} bind:value={view} label={t('admin.shards.topologyTitle')} countWidth="5ch" />
+      {/if}
+      <Cluster justify="between" gap={3}>
+        <div class="fleet-status">
+          {#if fleetLoading}
+            <div aria-hidden="true"><Skeleton variant="pill" width="min(16rem, 100%)" /></div>
+          {:else if !snapshot}
+            <AlertBanner flush role="status">{t('admin.shards.degraded')}</AlertBanner>
+          {:else}
+            <div class="conduit-status">
+              <StatusDot tone={conduit.tone} flat />
+              <Text as="span" size="xs" tone="muted" mono>
+                <bb-fit><span data-fit>{t('admin.shards.conduit', { state: t(conduit.label) })}</span></bb-fit>
+              </Text>
+              <span class="live-state" role="status">
+                <Tag tone={stale || inventoryUnavailable ? 'warning' : 'success'} contain title={fleetStatus}>
+                  <bb-fit><span data-fit>{fleetStatus}</span></bb-fit>
+                </Tag>
+              </span>
+            </div>
           {/if}
-        </Stack>
-      {/snippet}
-      {#snippet trailing()}
+        </div>
         {#if canScale}
           <ShardControls {snapshot} {minShards} {maxShards} {changing} {stale} {beginChange} {finishChange} />
         {/if}
-      {/snippet}
-    </PageToolbar>
+      </Cluster>
+    </Stack>
 
     <Grid cols={3} gap={3} aria-busy={fleetLoading} class="shard-metrics">
       {#if fleetLoading}
@@ -273,18 +269,12 @@
     gap: var(--bb-space-4);
   }
 
-  .fleet-content > :global(.shards-toolbar) {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 0 auto;
-    align-items: start;
-    margin-bottom: 0;
-  }
-
   .fleet-status {
     display: grid;
     align-items: center;
     min-block-size: 44px;
     min-inline-size: 0;
+    flex: 1 0 min(100%, 17rem);
   }
 
   .conduit-status {
@@ -303,14 +293,6 @@
     grid-template-columns: minmax(0, 1fr);
     block-size: 9rem;
     min-inline-size: 0;
-  }
-
-  @container (max-width: 740px) {
-    .fleet-content > :global(.shards-toolbar) {
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: auto 0 auto;
-      row-gap: var(--bb-space-2);
-    }
   }
 
   @container (max-width: 39rem) {
