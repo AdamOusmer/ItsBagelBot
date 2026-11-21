@@ -49,6 +49,7 @@ permissions:
   contents: read
 
 env:
+  GO_VERSION: '1.27.4'
   REGISTRY: ghcr.io
   IMAGE_REPOSITORY: itsbagelbot
 
@@ -69,9 +70,24 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - name: Restore Go module cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/go/pkg/mod
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+
       - name: Build image matrix from changed paths
         id: plan
         shell: bash
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
         run: |
           set -euo pipefail
 
@@ -180,6 +196,7 @@ jobs:
           ]'
 
           declare -A selected=()
+          shared_go=()
 
           add() {
             selected["$1"]=1
@@ -192,45 +209,50 @@ jobs:
           # signed with the same build provenance as a real service. A benchmark
           # belongs in an operator's working copy, not in the registry the
           # cluster pulls from.
+          root_go_services=(admin commands loyalty modules notifications outgress projector transactions users sesame gossip)
+
           add_root_go_services() {
-            add "admin"
-            add "commands"
-            add "loyalty"
-            add "modules"
-            add "notifications"
-
-
-
-
-            add "outgress"
-            add "projector"
-            add "transactions"
-            add "users"
-            add "sesame"
-            add "gossip"
+            local service
+            for service in "${root_go_services[@]}"; do
+              add "$service"
+            done
           }
 
           add_all_services() {
-            add "admin"
-            add "commands"
-            add "loyalty"
-            add "modules"
-            add "notifications"
-
-
-
-
-            add "outgress"
-            add "projector"
-            add "transactions"
-            add "users"
-            add "sesame"
-            add "gossip"
+            add_root_go_services
             add "warp"
             add "twitch-ingress"
             add "controls-gateway"
             add "console-dashboard"
             add "console-admin"
+          }
+
+          # The source files and package directories a service binary is built
+          # from, as Go resolves them for the image's GOOS and CGO setting.
+          go_sources() {
+            go list -deps -f '{{if and .Module .Module.Main}}{{$d := .Dir}}{{$d}}/{{"\n"}}{{range .GoFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}{{range .EmbedFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}{{end}}' "./$1" \
+              | sed "s|^$PWD/||"
+          }
+
+          # A changed shared file selects only the services whose binary
+          # compiles or embeds it. A non-test .go file also matches by its
+          # directory, so an added or deleted file in an imported package counts.
+          add_go_importers() {
+            local service containerfile path
+            for path in "${shared_go[@]}"; do
+              printf '%s\n' "$path"
+              if [[ "$path" == *.go && "$path" != *_test.go ]]; then
+                printf '%s/\n' "$(dirname "$path")"
+              fi
+            done > "$RUNNER_TEMP/shared-keys"
+            for service in "${root_go_services[@]}"; do
+              containerfile=$(jq -r --arg s "$service" '.[] | select(.image == $s) | .containerfile' <<< "$all_services")
+              go_sources "$(dirname "$containerfile")" > "$RUNNER_TEMP/$service.sources"
+              if grep -qxFf "$RUNNER_TEMP/shared-keys" "$RUNNER_TEMP/$service.sources"; then
+                echo "$service builds from a changed shared file"
+                add "$service"
+              fi
+            done
           }
 
           select_for_path() {
@@ -246,22 +268,14 @@ jobs:
               pkg/elixir/*)
                 # Other BEAM boundaries are not dependencies of root Go images.
                 ;;
-              .containerignore|go.mod|go.sum|pkg/*)
+              .containerignore|go.mod|go.sum)
                 add_root_go_services
                 ;;
-              # Any shared internal package rebuilds every root Go service: a
-              # narrower list already missed internal/projection (imported by
-              # projector, sesame and the data services), which shipped a
-              # sesame image without its matching projector.
-              internal/*)
-                add_root_go_services
-                ;;
-              # Images whose binaries import internal/domain/i18n; a new importer must be added here.
-              locales/embed.go|locales/manifest.json|locales/*/chat/*)
-                add "outgress"
-                add "transactions"
-                add "users"
-                add "sesame"
+              # Importers are resolved with go list after the loop, never kept
+              # by hand: a hand list once missed internal/projection and shipped
+              # a sesame image without its matching projector.
+              pkg/*|internal/*|locales/embed.go|locales/manifest.json|locales/*/chat/*)
+                shared_go+=("$path")
                 ;;
               locales/*/console/*)
                 add "console-dashboard"
@@ -343,10 +357,13 @@ jobs:
             if [[ "$base" =~ ^0+$ ]] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
               add_all_services
             else
-              mapfile -t changed_files < <(git diff --name-only "$base" "$head")
+              mapfile -t changed_files < <(git diff --no-renames --name-only "$base" "$head")
               for path in "${changed_files[@]}"; do
                 select_for_path "$path"
               done
+              if (( ${#shared_go[@]} )); then
+                add_go_importers
+              fi
             fi
           fi
 
