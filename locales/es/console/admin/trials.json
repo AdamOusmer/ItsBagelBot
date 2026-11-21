@@ -1,6 +1,7 @@
 {
   "eyebrow": "Observación",
-  "title": "Canales de prueba",
+  "titlePre": "Canales ",
+  "titleEm": "de prueba",
   "description": "Procesa el chat de hasta {max} streamers no registrados, distribuidos entre hasta tres sockets de prueba. El envío a Twitch permanece bloqueado mientras están en una prueba.",
   "degraded": "El estado de las pruebas no está disponible. Los controles pueden fallar hasta que Ingress se reconecte.",
   "idLabel": "ID del streamer de Twitch",
@@ -20,6 +21,21 @@
   "retried": "Reintentados: {count}",
   "blocked": "Acciones bloqueadas: {count}",
   "latency": "Procesamiento medio: {duration}",
+  "action": {
+    "idRequired": "Introduce el ID numérico del streamer de Twitch.",
+    "invalidId": "ID del streamer no válido.",
+    "invalidEnabled": "Valor de activación no válido.",
+    "demoUnavailable": "La observación de pruebas no está disponible en el modo de demostración.",
+    "added": "Prueba añadida para {id}. La suscripción al chat de Twitch está pendiente.",
+    "removed": "Se está deteniendo la prueba de {id}.",
+    "enabled": "Prueba de {id} activada.",
+    "disabled": "Prueba de {id} desactivada.",
+    "alreadyRegistered": "Este streamer ya está registrado.",
+    "full": "Todas las plazas de prueba están ocupadas.",
+    "notFound": "No se encontró el canal de prueba.",
+    "stopping": "Esta prueba ya se está deteniendo.",
+    "unavailable": "Los controles de prueba no están disponibles."
+  },
   "state": {
     "pending": "Pendiente",
     "receiving": "Recibiendo",

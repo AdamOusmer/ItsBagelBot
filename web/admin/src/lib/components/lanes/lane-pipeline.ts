@@ -3,9 +3,9 @@
 
 import type { LaneView } from '#lib/server/lanes';
 
-export type PipelineStage = 'ingress' | 'outgress' | 'system';
-export type PipelineTraffic = 'stream' | 'standard' | 'premium' | 'system';
-export type PipelineStageFilter = 'all' | 'twitch' | PipelineStage;
+type PipelineStage = 'ingress' | 'outgress' | 'system';
+type PipelineTraffic = 'stream' | 'standard' | 'premium' | 'system';
+type PipelineStageFilter = 'all' | 'twitch' | PipelineStage;
 export type PipelineTrafficFilter = 'all' | Exclude<PipelineTraffic, 'system'>;
 
 type TokenPair = readonly [left: string, right: string];
@@ -18,8 +18,6 @@ function compatibleTokens(pair: TokenPair): boolean {
   return left === right;
 }
 
-/** Whether two NATS subject filters share a possible subject. A terminal >
- * matches one or more tokens; * matches exactly one token. */
 function overlaps(pair: SubjectPair): boolean {
   const [subject, filter] = pair;
   const left = subject.split('.');
@@ -47,8 +45,6 @@ const STANDARD: TrafficRule = {
   traffic: 'standard', subjects: ['twitch.ingress.event.standard', 'twitch.ingress.v2.standard.>']
 };
 
-// Sesame retains the worker durable group. Subject tokens and optional pod
-// identity follow it (pkg/bus/durableName).
 const STREAM_PIPELINES: Record<string, StreamPipeline> = {
   TWITCH_INGRESS: {
     stage: 'ingress', owner: /^(worker|sesame)(?:_|$)/,
@@ -90,37 +86,18 @@ function ownedPipeline(lane: LaneView): StreamPipeline | null {
 
 function consumerSubjects(subject: string): string[] {
   const subjects = subject.split(',').map((value) => value.trim()).filter(Boolean);
-  // No filter means the consumer sees its entire stream.
   return subjects.length > 0 ? subjects : ['>'];
 }
 
-interface SubjectFilters {
-  subjects: readonly string[];
-  filters: readonly string[];
-}
-
-function subjectsOverlap(comparison: SubjectFilters): boolean {
-  return comparison.subjects.some((subject) => comparison.filters.some((filter) => overlaps([subject, filter])));
-}
-
-export function pipelineTraffic(lane: LaneView): PipelineTraffic[] {
-  const pipeline = ownedPipeline(lane);
-  if (!pipeline) return [];
-  const subjects = consumerSubjects(lane.subject);
-  return pipeline.traffic
-    .filter((rule) => subjectsOverlap({ subjects, filters: rule.subjects }))
-    .map((rule) => rule.traffic);
-}
-
-export function pipelineStage(lane: LaneView): PipelineStage | null {
-  if (pipelineTraffic(lane).length === 0) return null;
-  return ownedPipeline(lane)?.stage ?? null;
+function subjectsOverlap(subjects: readonly string[], filters: readonly string[]): boolean {
+  return subjects.some((subject) => filters.some((filter) => overlaps([subject, filter])));
 }
 
 export function matchesPipeline(lane: LaneView, stage: PipelineStageFilter, traffic: PipelineTrafficFilter): boolean {
   if (stage === 'all' && traffic === 'all') return true;
-  const laneStage = pipelineStage(lane);
-  if (!laneStage) return false;
-  if (!STAGE_FILTERS[stage].includes(laneStage)) return false;
-  return traffic === 'all' || pipelineTraffic(lane).includes(traffic);
+  const pipeline = ownedPipeline(lane);
+  if (!pipeline || !STAGE_FILTERS[stage].includes(pipeline.stage)) return false;
+  const subjects = consumerSubjects(lane.subject);
+  const rules = traffic === 'all' ? pipeline.traffic : pipeline.traffic.filter((rule) => rule.traffic === traffic);
+  return rules.some((rule) => subjectsOverlap(subjects, rule.subjects));
 }

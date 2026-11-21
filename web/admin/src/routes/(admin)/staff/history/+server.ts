@@ -5,6 +5,7 @@ import type { RequestHandler } from './$types';
 import { json, error } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import { requireRole } from '#lib/server/access';
+import { parsePage } from '#lib/server/paging';
 import { auditPage, AUDIT_MAX_PAGES, AUDIT_PAGE_SIZE } from '#lib/server/services';
 
 const DEMO = dev && process.env.DEMO === '1';
@@ -16,10 +17,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   const actorId = (url.searchParams.get('actor_id') ?? '').trim();
   if (!/^[0-9]+$/.test(actorId)) throw error(400, 'actor_id required');
 
-  const pageStr = url.searchParams.get('page') ?? '1';
-  let page = Number(pageStr);
-  if (!Number.isFinite(page)) page = 1;
-  page = Math.min(Math.max(Math.trunc(page), 1), AUDIT_MAX_PAGES);
+  const page = parsePage(url.searchParams.get('page'), AUDIT_MAX_PAGES);
 
   if (DEMO) {
     const { demoStaffHistory } = await import('#lib/server/demo-data');

@@ -22,10 +22,9 @@ function pushConnection(bound: boolean | undefined): ConsumerConnection {
   return 'unknown';
 }
 
-/** Push binding has no meaning for a pull consumer. Zero waiting requests
- * can also mean a pull worker is processing a batch, so it is not an orphan. */
 function consumerConnection(ci: ConsumerTelemetry, mode: ConsumerMode): ConsumerConnection {
   if (mode === 'push') return pushConnection(ci.push_bound);
+  // A pull worker with no waiting requests can still be active and must remain protected from deletion.
   return ci.num_waiting > 0 ? 'waiting' : 'unknown';
 }
 
@@ -70,7 +69,6 @@ export function formatDeliveryRate(rate: number | null): string {
   return `${Math.round(rate)} msg/s`;
 }
 
-/** A JetStream Lister's next() returns one page, not the whole listing. */
 export async function allPages<T>(lister: { next(): Promise<T[]> }): Promise<T[]> {
   const items: T[] = [];
   for (;;) {

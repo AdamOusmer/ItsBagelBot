@@ -35,8 +35,7 @@ export function currentAlias(lane: LaneView): string {
   return lane.display;
 }
 
-/** Put consumers that need attention first without losing their stream context. */
-export function compareLaneAttention(a: LaneView, b: LaneView): number {
+function compareLaneAttention(a: LaneView, b: LaneView): number {
   return Number(b.orphan) - Number(a.orphan) ||
     b.pending - a.pending ||
     b.redelivered - a.redelivered ||

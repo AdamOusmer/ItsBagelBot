@@ -10,9 +10,15 @@ import { allPages, consumerActivity, deliveryRate, formatDeliveryRate, type Deli
 // Do not import access.ts: it pulls in services.ts, an import cycle through hooks.server.ts at boot.
 const DEMO = dev && process.env.DEMO === '1';
 
+type LaneManager = Awaited<ReturnType<typeof jsm>>;
+type ConsumerInfo = Awaited<ReturnType<LaneManager['consumers']['info']>>;
+type LaneStream = ConsumerInfo['stream_name'];
+type ConsumerName = ConsumerInfo['name'];
+type LaneCategory = 'system' | 'projection' | 'ephemeral';
+
 export interface LaneView {
-  stream: string;
-  consumer: string;
+  stream: LaneStream;
+  consumer: ConsumerName;
   display: string;
   subject: string;
   category: string;
@@ -47,31 +53,29 @@ export interface LaneMutationResult {
 const LANE_BUCKET = 'admin_lanes';
 const LANE_STREAM = `KV_${LANE_BUCKET}`;
 const NATS_REPLICAS = 3;
+
 let kvStore: KV | null = null;
+
+async function ensureLaneReplicas(manager: LaneManager) {
+  const { config } = await manager.streams.info(LANE_STREAM);
+  if (config.num_replicas === NATS_REPLICAS) return;
+  await manager.streams.update(LANE_STREAM, { ...config, num_replicas: NATS_REPLICAS });
+}
 
 async function getKV(): Promise<KV> {
   if (kvStore) return kvStore;
   const client = await js();
   const manager = await jsm();
   try {
-    const info = await manager.streams.info(LANE_STREAM);
-    if (info.config.num_replicas !== NATS_REPLICAS) {
-      await manager.streams.update(LANE_STREAM, {
-        ...info.config,
-        num_replicas: NATS_REPLICAS
-      });
-    }
+    await ensureLaneReplicas(manager);
     kvStore = await new Kvm(client).create(LANE_BUCKET, { history: 1, replicas: NATS_REPLICAS });
   } catch (err: any) {
-    if (err.code === '404' || err.message?.includes('not found')) {
-      kvStore = await new Kvm(client).create(LANE_BUCKET, {
-        history: 1,
-        replicas: NATS_REPLICAS,
-        description: 'admin lane display aliases'
-      });
-    } else {
-      throw err;
-    }
+    if (err.code !== '404' && !err.message?.includes('not found')) throw err;
+    kvStore = await new Kvm(client).create(LANE_BUCKET, {
+      history: 1,
+      replicas: NATS_REPLICAS,
+      description: 'admin lane display aliases'
+    });
   }
   return kvStore;
 }
@@ -80,15 +84,17 @@ export async function ensureLaneStoreHA(): Promise<void> {
   await getKV();
 }
 
-function laneKey(stream: string, consumer: string) {
-  return `${stream}\x00${consumer}`;
+type LaneIdentity = Pick<LaneView, 'stream' | 'consumer'>;
+
+function laneKey(lane: LaneIdentity) {
+  return `${lane.stream}\x00${lane.consumer}`;
 }
 
-function laneAliasKey(stream: string, consumer: string) {
-  return `${stream}.${consumer}`;
+function laneAliasKey(lane: LaneIdentity) {
+  return `${lane.stream}.${lane.consumer}`;
 }
 
-const prevSamples = new Map<string, DeliverySample>();
+const deliverySamples = new Map<string, DeliverySample>();
 let currentLanes: LaneView[] = [];
 let lastError = '';
 let samplerTimer: ReturnType<typeof setInterval> | null = null;
@@ -99,6 +105,7 @@ let lastCollectionAt = 0;
 const SAMPLE_INTERVAL_MS = 5_000;
 const SAMPLE_IDLE_MS = 60_000;
 const ALIAS_CACHE_TTL_MS = 30_000;
+const ALIAS_READ_BATCH_SIZE = 50;
 
 let aliasCache = new Map<string, string>();
 let aliasCacheExpires = 0;
@@ -107,24 +114,20 @@ function subjectToken(subject: string) {
   return subject.replace(/[.*>]/g, '_');
 }
 
-function laneGroup(name: string, filter: string, ephemeral: boolean) {
+function laneGroup(consumer: ConsumerName, subject: string, ephemeral: boolean) {
   if (ephemeral) return '';
-  if (filter) {
-    const token = subjectToken(filter);
-    if (name.endsWith(`_${token}`)) {
-      return name.slice(0, -token.length - 1);
-    }
-  }
-  return name;
+  if (!subject) return consumer;
+  const suffix = `_${subjectToken(subject)}`;
+  return consumer.endsWith(suffix) ? consumer.slice(0, -suffix.length) : consumer;
 }
 
-function laneCategory(stream: string, ephemeral: boolean) {
+function laneCategory(stream: LaneStream, ephemeral: boolean): LaneCategory {
   if (ephemeral) return 'ephemeral';
   if (stream.startsWith('TWITCH_OUTGRESS')) return 'system';
   return 'projection';
 }
 
-function categoryRank(category: string) {
+function categoryRank(category: LaneCategory) {
   switch (category) {
     case 'system': return 0;
     case 'projection': return 1;
@@ -132,24 +135,27 @@ function categoryRank(category: string) {
   }
 }
 
-function displayName(alias: string | undefined, group: string, consumer: string, ephemeral: boolean) {
+function displayName(row: LaneRow, alias: string | undefined) {
   if (alias) return alias;
-  if (ephemeral) return 'ephemeral';
-  if (group) return group;
-  return consumer;
+  if (row.ephemeral) return 'ephemeral';
+  return row.group || row.consumer;
 }
 
-function inFlightText(ackPending: number, maxAckPend: number) {
-  if (maxAckPend > 0) return `${ackPending} / ${maxAckPend}`;
+function inFlightText({ ackPending, maxAckPending }: LaneActivity) {
+  if (maxAckPending > 0) return `${ackPending} / ${maxAckPending}`;
   return `${ackPending}`;
 }
 
-function rateText(rate: number, hasRate: boolean) {
-  return formatDeliveryRate(hasRate ? rate : null);
+function refreshAliases() {
+  aliasCacheExpires = 0;
+  collectLanes(true);
 }
 
-function markAliasesDirty() {
-  aliasCacheExpires = 0;
+async function addAliasEntries(aliases: Map<string, string>, kv: KV, keys: string[]) {
+  const entries = await Promise.all(keys.map((key) => kv.get(key)));
+  entries.forEach((entry, index) => {
+    if (entry) aliases.set(keys[index], entry.string());
+  });
 }
 
 async function loadAliases(): Promise<Map<string, string>> {
@@ -160,14 +166,9 @@ async function loadAliases(): Promise<Map<string, string>> {
   try {
     const keys: string[] = [];
     const keysIter = await kv.keys();
-    for await (const k of keysIter) keys.push(k);
-    const CHUNK = 50;
-    for (let i = 0; i < keys.length; i += CHUNK) {
-      const chunk = keys.slice(i, i + CHUNK);
-      const entries = await Promise.all(chunk.map((k) => kv.get(k)));
-      entries.forEach((e, j) => {
-        if (e) aliases.set(chunk[j], e.string());
-      });
+    for await (const key of keysIter) keys.push(key);
+    for (let start = 0; start < keys.length; start += ALIAS_READ_BATCH_SIZE) {
+      await addAliasEntries(aliases, kv, keys.slice(start, start + ALIAS_READ_BATCH_SIZE));
     }
   } catch (err: any) {
     if (err.code !== '404') {
@@ -186,16 +187,9 @@ function hasFreshLaneSample() {
   return Date.now() - lastCollectionAt < SAMPLE_INTERVAL_MS;
 }
 
-function reuseLaneSample(force: boolean) {
-  if (force) return false;
-  return hasFreshLaneSample();
-}
-
 async function collectLanes(force = false) {
   if (sampling) return sampling;
-  // Polling clients and the timer share one cadence. Sampling every warm read
-  // creates tiny rate windows and makes a steady consumer look bursty.
-  if (reuseLaneSample(force)) return;
+  if (!force && hasFreshLaneSample()) return;
   lastCollectionAt = Date.now();
   sampling = collectLanesOnce().finally(() => {
     sampling = null;
@@ -203,24 +197,20 @@ async function collectLanes(force = false) {
   return sampling;
 }
 
-interface LaneRow {
-  stream: string;
-  consumer: string;
-  filter: string;
+type LaneActivity = ReturnType<typeof consumerActivity>;
+
+interface LaneRow extends LaneIdentity {
+  subject: string;
   ephemeral: boolean;
-  category: string;
+  category: LaneCategory;
   group: string;
   pending: number;
-  ackPending: number;
-  maxAckPend: number;
   redelivered: number;
-  rate: number;
-  hasRate: boolean;
-  activity: ReturnType<typeof consumerActivity>;
+  rate: number | null;
+  activity: LaneActivity;
 }
 
-// Fetch every page concurrently across streams and report partial failures.
-async function listStreamConsumers(manager: Awaited<ReturnType<typeof jsm>>) {
+async function listStreamConsumers(manager: LaneManager) {
   const streams = await allPages(manager.streams.list());
   const listed = await Promise.allSettled(
     streams.map(async (stream) => ({
@@ -228,41 +218,35 @@ async function listStreamConsumers(manager: Awaited<ReturnType<typeof jsm>>) {
       consumers: await allPages(manager.consumers.list(stream.config.name))
     }))
   );
+  const fulfilled = listed.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
   return {
     streamsSeen: streams.length,
-    failures: listed.filter((r) => r.status === 'rejected').length,
-    fulfilled: listed
-      .filter((r) => r.status === 'fulfilled')
-      .map((r) => (r as PromiseFulfilledResult<{ streamName: string; consumers: any[] }>).value)
+    failures: listed.length - fulfilled.length,
+    fulfilled
   };
 }
 
-function sampleRate(key: string, deliveredSeq: number, created: string, now: number): { rate: number; hasRate: boolean } {
-  const prev = prevSamples.get(key);
-  const current = { delivered: deliveredSeq, created, at: now };
-  prevSamples.set(key, current);
-  const rate = deliveryRate(prev, current);
-  return { rate: rate ?? 0, hasRate: rate !== null };
+function sampleRate(lane: LaneIdentity, current: DeliverySample): number | null {
+  const key = laneKey(lane);
+  const previous = deliverySamples.get(key);
+  deliverySamples.set(key, current);
+  return deliveryRate(previous, current);
 }
 
-function laneRowOf(streamName: string, ci: any, now: number): LaneRow {
-  const filter = ci.config.filter_subject || ci.config.filter_subjects?.join(', ') || '';
-  const ephemeral = !ci.config.durable_name;
-  const activity = consumerActivity(ci);
-  const { rate, hasRate } = sampleRate(laneKey(streamName, ci.name), ci.delivered.consumer_seq, ci.created, now);
+function laneRowOf(stream: LaneStream, info: ConsumerInfo, at: number): LaneRow {
+  const subject = info.config.filter_subject || info.config.filter_subjects?.join(', ') || '';
+  const ephemeral = !info.config.durable_name;
+  const activity = consumerActivity(info);
+  const identity = { stream, consumer: info.name };
   return {
-    stream: streamName,
-    consumer: ci.name,
-    filter,
+    ...identity,
+    subject,
     ephemeral,
-    category: laneCategory(streamName, ephemeral),
-    group: laneGroup(ci.name, filter, ephemeral),
-    pending: ci.num_pending,
-    ackPending: ci.num_ack_pending,
-    maxAckPend: ci.config.max_ack_pending || 0,
-    redelivered: ci.num_redelivered,
-    rate,
-    hasRate,
+    category: laneCategory(stream, ephemeral),
+    group: laneGroup(info.name, subject, ephemeral),
+    pending: info.num_pending,
+    redelivered: info.num_redelivered,
+    rate: sampleRate(identity, { delivered: activity.delivered, created: info.created, at }),
     activity
   };
 }
@@ -271,32 +255,32 @@ function compareLanes(a: LaneRow, b: LaneRow): number {
   return (
     categoryRank(a.category) - categoryRank(b.category) ||
     a.stream.localeCompare(b.stream) ||
-    a.filter.localeCompare(b.filter) ||
+    a.subject.localeCompare(b.subject) ||
     a.consumer.localeCompare(b.consumer)
   );
 }
 
-function laneViewOf(r: LaneRow, aliases: Map<string, string>): LaneView {
+function laneViewOf(row: LaneRow, aliases: Map<string, string>): LaneView {
   return {
-    stream: r.stream,
-    consumer: r.consumer,
-    display: displayName(aliases.get(laneAliasKey(r.stream, r.consumer)), r.group, r.consumer, r.ephemeral),
-    subject: r.filter,
-    category: r.category,
-    ephemeral: r.ephemeral,
-    pending: r.pending,
-    inFlight: inFlightText(r.ackPending, r.maxAckPend),
-    rate: rateText(r.rate, r.hasRate),
-    redelivered: r.redelivered,
-    ...r.activity,
-    ratePerSecond: r.hasRate ? r.rate : null
+    stream: row.stream,
+    consumer: row.consumer,
+    display: displayName(row, aliases.get(laneAliasKey(row))),
+    subject: row.subject,
+    category: row.category,
+    ephemeral: row.ephemeral,
+    pending: row.pending,
+    inFlight: inFlightText(row.activity),
+    rate: formatDeliveryRate(row.rate),
+    redelivered: row.redelivered,
+    ...row.activity,
+    ratePerSecond: row.rate
   };
 }
 
 function pruneStaleBaselines(seen: Set<string>) {
-  for (const key of prevSamples.keys()) {
-    if (!seen.has(key)) prevSamples.delete(key);
-  }
+  deliverySamples.forEach((_, key) => {
+    if (!seen.has(key)) deliverySamples.delete(key);
+  });
 }
 
 async function collectLanesOnce() {
@@ -319,10 +303,10 @@ async function collectLanesOnce() {
 
     const now = Date.now();
     const rows = fulfilled.flatMap(({ streamName, consumers }) =>
-      consumers.map((ci) => laneRowOf(streamName, ci, now))
+      consumers.map((info) => laneRowOf(streamName, info, now))
     );
     if (failures === 0) {
-      pruneStaleBaselines(new Set(rows.map((r) => laneKey(r.stream, r.consumer))));
+      pruneStaleBaselines(new Set(rows.map(laneKey)));
     }
 
     rows.sort(compareLanes);
@@ -338,7 +322,7 @@ function ensureSampler() {
   if (samplerTimer) return;
   samplerTimer = setInterval(() => {
     if (Date.now() - lastLoadAt > SAMPLE_IDLE_MS) {
-      if (samplerTimer) clearInterval(samplerTimer);
+      clearInterval(samplerTimer ?? undefined);
       samplerTimer = null;
       return;
     }
@@ -364,26 +348,20 @@ export async function loadLanes(): Promise<LanesResult> {
   return { lanes: currentLanes, degraded: false, notice: '' };
 }
 
-export async function laneAlias(stream: string, consumer: string, alias: string): Promise<LaneMutationResult> {
+export async function laneAlias(stream: LaneStream, consumer: ConsumerName, alias: string): Promise<LaneMutationResult> {
   try {
     const kv = await getKV();
-    const key = laneAliasKey(stream, consumer);
-    if (!alias) {
-      await kv.delete(key);
-      markAliasesDirty();
-      collectLanes(true);
-      return { ok: true, notice: 'alias cleared' };
-    }
-    await kv.put(key, new TextEncoder().encode(alias.slice(0, 48)));
-    markAliasesDirty();
-    collectLanes(true);
-    return { ok: true, notice: 'renamed to ' + alias };
+    const key = laneAliasKey({ stream, consumer });
+    if (alias) await kv.put(key, new TextEncoder().encode(alias.slice(0, 48)));
+    else await kv.delete(key);
+    refreshAliases();
+    return { ok: true, notice: alias ? 'renamed to ' + alias : 'alias cleared' };
   } catch (err: any) {
     return { ok: false, error: 'rename failed: ' + err.message };
   }
 }
 
-export async function laneDurable(stream: string, consumer: string): Promise<LaneMutationResult> {
+export async function laneDurable(stream: LaneStream, consumer: ConsumerName): Promise<LaneMutationResult> {
   try {
     const manager = await jsm();
     const info = await manager.consumers.info(stream, consumer);
@@ -403,7 +381,7 @@ export async function laneDurable(stream: string, consumer: string): Promise<Lan
   }
 }
 
-export async function laneDelete(stream: string, consumer: string): Promise<LaneMutationResult> {
+export async function laneDelete(stream: LaneStream, consumer: ConsumerName): Promise<LaneMutationResult> {
   try {
     const manager = await jsm();
     const info = await manager.consumers.info(stream, consumer);
@@ -415,9 +393,8 @@ export async function laneDelete(stream: string, consumer: string): Promise<Lane
     }
     await manager.consumers.delete(stream, consumer);
     const kv = await getKV();
-    await kv.delete(laneAliasKey(stream, consumer)).catch(() => {});
-    markAliasesDirty();
-    collectLanes(true);
+    await kv.delete(laneAliasKey({ stream, consumer })).catch(() => {});
+    refreshAliases();
     return { ok: true, notice: `deleted orphan lane ${consumer}` };
   } catch (err: any) {
     return { ok: false, error: 'delete failed: ' + err.message };

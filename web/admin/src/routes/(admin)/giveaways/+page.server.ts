@@ -1,28 +1,26 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import { allows, requireRole } from '#lib/server/access';
 import { audited, okReply, actionError, adminText } from '#lib/server/admin-action';
-import { giveawayCreate, giveawayDraw, giveawayPreview, giveawaysList, type GiveawayWire } from '#lib/server/giveaways';
-import { giveawaySummary, parsePrizeMonths, parseWinnerCount } from '@bagel/kit/giveaway';
+import { giveawayCreate, giveawayDraw, giveawayPreview, giveawaysList } from '#lib/server/giveaways';
+import { parsePrizeMonths, parseWinnerCount } from '@bagel/kit/giveaway';
 
 const DEMO = dev && process.env.DEMO === '1';
-
-const demoGiveaways: GiveawayWire[] = [
-  {
-    id: 'demo-september', title: 'September community giveaway', reason: 'Launch celebration', status: 'complete', winnerCount: 2, prizeMonths: 3,
-    summary: { winners: 2, months: 3, totalMonths: 6 }, createdAt: '2026-09-01T12:00:00Z', drawnAt: '2026-09-03T12:00:00Z', pendingAwards: 0, version: 2
-  }
-];
 
 export const load: PageServerLoad = async ({ parent, url }) => {
   const layout = await parent();
   if (!allows(layout.role, 'giveaways.manage')) throw redirect(302, '/');
-  const demoStatus: GiveawayWire['status'] | null = url.searchParams.get('demo') === 'draft' ? 'draft' : url.searchParams.get('demo') === 'frozen' ? 'frozen' : null;
-  const demoHistory = demoStatus ? demoGiveaways.map((giveaway) => ({ ...giveaway, status: demoStatus })) : demoGiveaways;
-  const history: Promise<{ giveaways: GiveawayWire[]; degraded: boolean }> = DEMO
-    ? Promise.resolve({ giveaways: demoHistory, degraded: false })
-    : giveawaysList({ actorId: layout.id }).then((giveaways) => ({ giveaways, degraded: false })).catch(() => ({ giveaways: [], degraded: true }));
+
+  const demoStatus = DEMO ? url.searchParams.get('demo') : null;
+  const history = DEMO
+    ? import('#lib/server/demo-giveaways').then(({ demoGiveawayHistory }) => demoGiveawayHistory(demoStatus))
+    : giveawaysList({ actorId: layout.id })
+        .then((giveaways) => ({ giveaways, degraded: false }))
+        .catch(() => ({ giveaways: [], degraded: true }));
   return { history };
 };
 
@@ -47,14 +45,8 @@ export const actions: Actions = {
     const parsed = fields(await request.formData());
     if ('error' in parsed) return fail(400, { error: actionError(locals.locale, parsed.error) });
     if (DEMO) {
-      return {
-        preview: {
-          eligible: { eligible: 42, free: 25, premium: 9, subscribers: 8, excluded: 17 },
-          exclusions: { banned: 0, inactive: 6, not_onboarded: 2, test_account: 4, vip: 3, current_staff: 2 },
-          summary: giveawaySummary(parsed.winnerCount, parsed.prizeMonths),
-          capabilities: { newAwardsEnabled: true, schedulingEnabled: false, providerMutationsEnabled: false, intervalRuleVerified: false, reason: 'demo pending protection' }
-        }
-      };
+      const { demoGiveawayDraftPreview } = await import('#lib/server/demo-giveaways');
+      return { preview: demoGiveawayDraftPreview(parsed.winnerCount, parsed.prizeMonths) };
     }
     try {
       const preview = await giveawayPreview({ actorId: admin.id, winnerCount: parsed.winnerCount, prizeMonths: parsed.prizeMonths });

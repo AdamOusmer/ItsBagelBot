@@ -20,7 +20,7 @@
   import { actionPayload } from '@bagel/kit';
   import { fmtDateTime } from '@bagel/kit/format';
   import { giveawayDrawState } from '@bagel/kit/giveaway';
-  import { freezePoolDigest } from '#lib/giveaway-workflow';
+  import { freezePoolDigest, giveawayExclusionLabel } from '#lib/giveaway-workflow';
   import type { GiveawayDetailWire, GiveawayExcludedWire, GiveawayWinnerWire } from '#lib/server/giveaways';
 
   let { data, form } = $props();
@@ -36,7 +36,12 @@
 
   $effect(() => {
     let alive = true;
-    data.detail.then((bundle) => { if (alive) { giveaway = bundle.giveaway; degraded = bundle.degraded; alertsDegraded = bundle.alertsDegraded; } });
+    data.detail.then((bundle) => {
+      if (!alive) return;
+      giveaway = bundle.giveaway;
+      degraded = bundle.degraded;
+      alertsDegraded = bundle.alertsDegraded;
+    });
     return () => { alive = false; };
   });
 
@@ -47,7 +52,7 @@
     error?: string;
   };
 
-  const previewSubmit: SubmitFunction = () => async ({ result, update }) => {
+  const submit: SubmitFunction = () => async ({ result, update }) => {
     const payload = actionPayload<GiveawayActionPayload>(result);
     if (payload?.preview?.eligible) {
       preview = {
@@ -61,13 +66,6 @@
       };
       previewExcluded = payload.preview.excluded ?? [];
     }
-    actionMessage = payload?.action?.notice ?? payload?.notice ?? payload?.error ?? null;
-    actionFailed = result.type === 'failure' || payload?.action?.ok === false || Boolean(payload?.error);
-    await update({ reset: false });
-  };
-
-  const mutationSubmit: SubmitFunction = () => async ({ result, update }) => {
-    const payload = actionPayload<GiveawayActionPayload>(result);
     actionMessage = payload?.action?.notice ?? payload?.notice ?? payload?.error ?? null;
     actionFailed = result.type === 'failure' || payload?.action?.ok === false || Boolean(payload?.error);
     await update({ reset: false });
@@ -109,14 +107,6 @@
   });
   const editable = $derived(giveaway?.status === 'draft' || giveaway?.status === 'frozen');
   const excludedAccounts = $derived(previewExcluded ?? giveaway?.excluded ?? []);
-  const REASON_KEYS: Record<string, string> = {
-    banned: 'admin.giveaways.reasonBanned', inactive: 'admin.giveaways.reasonInactive', not_onboarded: 'admin.giveaways.reasonNotOnboarded',
-    test_account: 'admin.giveaways.reasonTestAccount', vip: 'admin.giveaways.reasonVip', current_staff: 'admin.giveaways.reasonCurrentStaff'
-  };
-  function reasonLabel(reason: string): string {
-    const key = REASON_KEYS[reason];
-    return key ? t(key) : label(reason);
-  }
 </script>
 
 <section class="screen active giveaway">
@@ -124,7 +114,6 @@
     <PageHead eyebrow={t('admin.giveaways.detail')} description={giveaway.reason}>
       {giveaway.title}
     </PageHead>
-    {#if degraded}<AlertBanner>{t('admin.giveaways.degraded')}</AlertBanner>{/if}
     {#if alertsDegraded}<AlertBanner>{t('admin.giveaways.alertsUnavailable')}</AlertBanner>{/if}
     {#if actionMessage || errorMessage}<AlertBanner tone={actionFailed || Boolean(errorMessage) ? 'danger' : 'warning'}>{actionMessage ?? errorMessage}</AlertBanner>{/if}
 
@@ -140,15 +129,15 @@
         <Card>
           <Stack gap={3}>
             <Cluster gap={3}>
-              <form method="POST" action="?/preview" use:enhance={previewSubmit}><Button type="submit" variant="secondary">{t('admin.giveaways.preview')}</Button></form>
+              <form method="POST" action="?/preview" use:enhance={submit}><Button type="submit" variant="secondary">{t('admin.giveaways.preview')}</Button></form>
               {#if preview}
                 <Text as="span" size="sm" tone="muted">{preview.eligible} {t('admin.giveaways.eligible')} · {preview.free} {t('admin.giveaways.free')} · {preview.premium} {t('admin.giveaways.premium')} · {preview.subscribers} {t('admin.giveaways.subscribers')} · {preview.excluded} {t('admin.giveaways.excluded')}{#if preview.included}{` · ${preview.included} ${t('admin.giveaways.addedBack')}`}{/if}</Text>
-                <form method="POST" action="?/freeze" use:enhance={mutationSubmit}><input type="hidden" name="pool_digest" value={preview.poolDigest ?? ''} /><input type="hidden" name="expected_version" value={giveaway.version} /><input type="hidden" name="idempotency_key" value={operationKey('freeze')} /><Button type="submit" variant="secondary" disabled={!preview.poolDigest}>{t('admin.giveaways.freeze')}</Button></form>
+                <form method="POST" action="?/freeze" use:enhance={submit}><input type="hidden" name="pool_digest" value={preview.poolDigest ?? ''} /><input type="hidden" name="expected_version" value={giveaway.version} /><input type="hidden" name="idempotency_key" value={operationKey('freeze')} /><Button type="submit" variant="secondary" disabled={!preview.poolDigest}>{t('admin.giveaways.freeze')}</Button></form>
               {/if}
             </Cluster>
             {#if giveaway.status === 'frozen'}
               <Text size="xs" tone="warning" role="status">{drawWarning}</Text>
-              <form method="POST" action="?/draw" use:enhance={mutationSubmit}><input type="hidden" name="expected_version" value={giveaway.version} /><input type="hidden" name="idempotency_key" value={operationKey('draw')} /><Button type="submit" variant="primary" disabled={drawState.blocked}>{t('admin.giveaways.draw')}</Button></form>
+              <form method="POST" action="?/draw" use:enhance={submit}><input type="hidden" name="expected_version" value={giveaway.version} /><input type="hidden" name="idempotency_key" value={operationKey('draw')} /><Button type="submit" variant="primary" disabled={drawState.blocked}>{t('admin.giveaways.draw')}</Button></form>
             {/if}
           </Stack>
         </Card>
@@ -167,9 +156,9 @@
                     {#each excludedAccounts as account (account.userId)}
                       <tr>
                         <td><Stack gap={1} align="start"><TextLink variant="inline" href={`/users?q=${encodeURIComponent(account.userId)}`}>@{account.login}</TextLink><Text as="small" size="xs" tone="muted">{account.userId}</Text></Stack></td>
-                        <td>{reasonLabel(account.reason)}</td>
+                        <td>{giveawayExclusionLabel(account.reason, t)}</td>
                         <td><StatePill tone={account.included ? 'success' : 'neutral'}>{account.included ? t('admin.giveaways.addedBack') : t('admin.giveaways.stillExcluded')}</StatePill></td>
-                        <td>{#if giveaway.status === 'draft' && account.includable}<form method="POST" action={account.included ? '?/exclude' : '?/include'} use:enhance={previewSubmit}><input type="hidden" name="user_id" value={account.userId} /><Button type="submit" variant="secondary">{account.included ? t('admin.giveaways.undoAddBack') : t('admin.giveaways.addBack')}</Button></form>{/if}</td>
+                        <td>{#if giveaway.status === 'draft' && account.includable}<form method="POST" action={account.included ? '?/exclude' : '?/include'} use:enhance={submit}><input type="hidden" name="user_id" value={account.userId} /><Button type="submit" variant="secondary">{account.included ? t('admin.giveaways.undoAddBack') : t('admin.giveaways.addBack')}</Button></form>{/if}</td>
                       </tr>
                     {/each}
                   </tbody>
@@ -218,7 +207,7 @@
                     <td><Stack gap={1} align="start"><StatePill tone={tone(winner.billingState)}>{winner.billingState === 'not_required' ? t('admin.giveaways.notRequired') : label(winner.billingState)}</StatePill><Text as="small" size="xs" tone="muted">{t('admin.giveaways.nextCharge')}: {date(winner.nextChargeAt)}</Text></Stack></td>
                     <td><Stack gap={1} align="start"><StatePill tone={tone(winner.emailState)}>{winner.emailState === 'missing_contact' ? t('admin.giveaways.missingEmail') : label(winner.emailState)}</StatePill>{#if winner.emailState === 'missing_contact'}<Text as="small" size="xs" tone="muted">{t('admin.giveaways.missingEmail')}</Text>{:else if winner.emailWarning}<Text as="small" size="xs" tone="muted">{winner.emailWarning}</Text>{/if}</Stack></td>
                     <td><Stack gap={1} align="start"><Text as="small" size="xs" tone="muted">{date(winner.selectedAt)}</Text><Text as="small" size="xs" tone="muted">{t('admin.giveaways.providerVerified')}: {date(winner.providerVerifiedAt)}</Text></Stack></td>
-                    <td>{#if needsRetry(winner)}<form method="POST" action="?/retry" use:enhance={mutationSubmit}><input type="hidden" name="award_id" value={winner.id} /><Button type="submit" variant="secondary">{t('admin.giveaways.retry')}</Button></form>{/if}</td>
+                    <td>{#if needsRetry(winner)}<form method="POST" action="?/retry" use:enhance={submit}><input type="hidden" name="award_id" value={winner.id} /><Button type="submit" variant="secondary">{t('admin.giveaways.retry')}</Button></form>{/if}</td>
                   </tr>
                 {/each}
               </tbody>

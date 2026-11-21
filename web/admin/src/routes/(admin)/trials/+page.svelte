@@ -2,11 +2,12 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
+  import { enhance } from '$app/forms';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
-  import Field from '@bagel/ui/svelte/Field.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
@@ -19,21 +20,21 @@
   import { livePoll } from '@bagel/ui/lib/live-poll';
   import type { TrialChannel, TrialSnapshot } from '#lib/server/services';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { TrialsBundle } from './+page.server';
+  import type { PageProps } from './$types';
   import { durationLabel } from '#lib/duration';
 
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
   const { t } = getI18n();
   let snapshot = $state<TrialSnapshot | null>(null);
-  const active = $derived(snapshot?.trials.filter((row) => row.state !== 'removed' && row.state !== 'promoted') ?? []);
-  const history = $derived(snapshot?.trials.filter((row) => row.state === 'removed' || row.state === 'promoted') ?? []);
+  const trials = $derived([...(snapshot?.trials ?? [])].sort((a, b) => a.broadcaster_id.localeCompare(b.broadcaster_id)));
+  const active = $derived(trials.filter((trial) => !completed(trial)));
+  const history = $derived(trials.filter(completed));
   const activeCount = $derived(snapshot?.active_count ?? active.length);
   const maxChannels = $derived(snapshot?.max_channels ?? 30);
   let degraded = $state(false);
-  let broadcasterId = $state('');
   $effect(() => {
     let alive = true;
-    data.bundle.then((bundle: TrialsBundle) => {
+    data.bundle.then((bundle) => {
       if (!alive) return;
       snapshot = bundle.snapshot;
       degraded = bundle.degraded;
@@ -72,11 +73,11 @@
     failed: 'danger'
   };
 
-  const byId = (a: TrialChannel, b: TrialChannel) => a.broadcaster_id.localeCompare(b.broadcaster_id);
-  const sortedActive = $derived([...active].sort(byId));
-  const sortedHistory = $derived([...history].sort(byId));
-
   const count = (value?: number) => String(value ?? 0);
+
+  function completed(trial: TrialChannel): boolean {
+    return trial.state === 'removed' || trial.state === 'promoted';
+  }
 
   function trialName(trial: TrialChannel): string {
     return trial.display_name?.trim() || trial.broadcaster_id;
@@ -113,29 +114,35 @@
 <section class="screen active trials">
   <PageHead
     eyebrow={t('admin.trials.eyebrow')}
-    title={t('admin.trials.title')}
     description={t('admin.trials.description', { max: String(maxChannels) })}
-  />
+  >
+    <bb-fit><span data-fit="">{t('admin.trials.titlePre')}<em>{t('admin.trials.titleEm')}</em></span></bb-fit>
+  </PageHead>
 
   {#if degraded}<AlertBanner>{t('admin.trials.degraded')}</AlertBanner>{/if}
   {#if form?.error}<AlertBanner>{form.error}</AlertBanner>{/if}
   {#if form?.notice}<AlertBanner tone="warning" role="status">{form.notice}</AlertBanner>{/if}
 
   <Stack gap={4}>
-    <form method="POST" action="?/add" class="trial-add">
-      <Field label={t('admin.trials.idLabel')}>
-        <Input
-          name="broadcaster_id"
-          type="text"
-          inputmode="numeric"
-          pattern="[1-9][0-9]*"
-          maxlength={20}
-          autocomplete="off"
-          required
-          bind:value={broadcasterId}
-        />
-      </Field>
-      <Button type="submit" disabled={degraded || activeCount >= maxChannels}>{t('admin.trials.add')}</Button>
+    <form method="POST" action="?/add" use:enhance>
+      <Stack gap={1}>
+        <Label htmlFor="trial-broadcaster-id">{t('admin.trials.idLabel')}</Label>
+        <Cluster gap={3}>
+          <Input
+            id="trial-broadcaster-id"
+            name="broadcaster_id"
+            type="text"
+            inputmode="numeric"
+            pattern="[1-9][0-9]*"
+            maxlength={20}
+            autocomplete="off"
+            required
+          />
+          <Button type="submit" disabled={degraded || activeCount >= maxChannels} style="--btn-w: 10rem; --btn-justify: center">
+            <bb-fit><span data-fit="">{t('admin.trials.add')}</span></bb-fit>
+          </Button>
+        </Cluster>
+      </Stack>
     </form>
     <Text tone="muted">{t('admin.trials.note', { max: String(maxChannels) })}</Text>
 
@@ -147,28 +154,33 @@
         <EmptyState title={t('admin.trials.empty')} />
       {:else}
         <Stack as="ul" gap={3} class="bb-list">
-          {#each sortedActive as trial (trial.broadcaster_id)}
+          {#each active as trial (trial.broadcaster_id)}
+            {@const stopping = trial.state === 'stopping'}
             <Card as="li">
               <Cluster justify="between" gap={4}>
                 {@render trialSummary(trial, true)}
                 <Cluster gap={3}>
-                  <Cluster as="form" gap={3} method="POST" action="?/set_enabled">
-                    <Text as="span" size="sm" aria-hidden="true">{trial.enabled ? t('admin.trials.on') : t('admin.trials.off')}</Text>
+                  <form method="POST" action="?/set_enabled" use:enhance>
                     <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
                     <input type="hidden" name="enabled" value={trial.enabled ? 'false' : 'true'} />
-                    <Switch
-                      type="submit"
-                      checked={trial.enabled}
-                      label={t('admin.trials.toggleLabel', { name: trialName(trial) })}
-                      disabled={degraded || trial.state === 'stopping'}
-                    />
-                  </Cluster>
-                  {#if trial.state !== 'stopping'}
-                    <form method="POST" action="?/remove">
-                      <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
-                      <Button type="submit" tone="danger">{t('admin.trials.remove')}</Button>
-                    </form>
-                  {/if}
+                    <Cluster gap={3}>
+                      <Text as="span" size="sm" aria-hidden="true" style="inline-size: 6rem">
+                        <bb-fit><span data-fit="">{trial.enabled ? t('admin.trials.on') : t('admin.trials.off')}</span></bb-fit>
+                      </Text>
+                      <Switch
+                        type="submit"
+                        checked={trial.enabled}
+                        label={t('admin.trials.toggleLabel', { name: trialName(trial) })}
+                        disabled={degraded || stopping}
+                      />
+                    </Cluster>
+                  </form>
+                  <form method="POST" action="?/remove" use:enhance class="trial-remove" class:stopping inert={stopping}>
+                    <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
+                    <Button type="submit" tone="danger" style="--btn-w: 7rem; --btn-justify: center">
+                      <bb-fit><span data-fit="">{t('admin.trials.remove')}</span></bb-fit>
+                    </Button>
+                  </form>
                 </Cluster>
               </Cluster>
             </Card>
@@ -178,7 +190,7 @@
       {#if history.length > 0}
         <Heading level={3} as="h2">{t('admin.trials.history')}</Heading>
         <Stack as="ul" gap={3} class="bb-list">
-          {#each sortedHistory as trial (trial.broadcaster_id)}
+          {#each history as trial (trial.broadcaster_id)}
             <Card as="li">{@render trialSummary(trial, false)}</Card>
           {/each}
         </Stack>
@@ -191,11 +203,10 @@
   .trials {
     --card-pad: var(--bb-space-4);
   }
-  .trial-add {
-    --field-mb: 0;
-    display: flex;
-    align-items: end;
-    flex-wrap: wrap;
-    gap: var(--bb-space-3);
+  .trial-remove {
+    transition: opacity var(--bb-dur-fast) ease;
+  }
+  .stopping {
+    opacity: 0;
   }
 </style>

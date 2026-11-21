@@ -12,6 +12,7 @@ export interface ThroughputPoint {
 }
 
 const HISTORY_MS = 10 * 60_000;
+const MAX_HISTORY_POINTS = 600;
 const MAX_SAMPLE_GAP_MS = 30_000;
 type TrialBaseline = { at: number; counts: Map<string, number> };
 type TrialSample = TrialBaseline & { activeIds: Set<string> };
@@ -36,7 +37,6 @@ function trialSample(snapshot: TrialSnapshot | null, at: number): TrialSample | 
   if (!snapshot) return null;
   const active = snapshot.trials.filter(activeTrial);
   if (!active.every(hasCounter)) return null;
-  // Terminal rows retain the last events received before promotion/removal.
   const counts = new Map(snapshot.trials.filter(hasCounter).map((row) => [trialId(row), row.received]));
   return { at, counts, activeIds: new Set(active.map(trialId)) };
 }
@@ -96,13 +96,10 @@ function productionRate(snapshot: ShardSnapshot | null): number | null {
 }
 
 function appendPoint(points: ThroughputPoint[], point: ThroughputPoint): ThroughputPoint[] {
-  // Bound memory even if visibility events cause unusually frequent reads.
   const recent = points.filter((row) => row.at > point.at - HISTORY_MS && row.at < point.at);
-  return [...recent, point].slice(-600);
+  return [...recent, point].slice(-MAX_HISTORY_POINTS);
 }
 
-/** Current reporters supply rolling loads for both series. Older trial reporters
- * use cumulative counters; outages, resets and new generations need a fresh baseline. */
 export class ThroughputHistory {
   private baseline: TrialBaseline | null = null;
   private points: ThroughputPoint[] = [];

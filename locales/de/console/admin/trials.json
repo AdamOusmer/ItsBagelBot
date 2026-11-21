@@ -1,6 +1,7 @@
 {
   "eyebrow": "Beobachtung",
-  "title": "Testkanäle",
+  "titlePre": "Test",
+  "titleEm": "kanäle",
   "description": "Verarbeite den Chat von bis zu {max} nicht registrierten Streamern, verteilt auf bis zu drei Test-Sockets. Twitch-Ausgaben bleiben während des Tests blockiert.",
   "degraded": "Der Teststatus ist nicht verfügbar. Steuerelemente können fehlschlagen, bis Ingress wieder verbunden ist.",
   "idLabel": "Twitch-Streamer-ID",
@@ -20,6 +21,21 @@
   "retried": "{count} erneut versucht",
   "blocked": "Blockierte Aktionen: {count}",
   "latency": "Durchschnittliche Verarbeitung: {duration}",
+  "action": {
+    "idRequired": "Gib eine numerische Twitch-Streamer-ID ein.",
+    "invalidId": "Ungültige Streamer-ID.",
+    "invalidEnabled": "Ungültiger Wert für die Aktivierung.",
+    "demoUnavailable": "Die Testbeobachtung ist im Demomodus nicht verfügbar.",
+    "added": "Test für {id} hinzugefügt. Das Twitch-Chat-Abonnement steht aus.",
+    "removed": "Der Test für {id} wird beendet.",
+    "enabled": "Test für {id} aktiviert.",
+    "disabled": "Test für {id} deaktiviert.",
+    "alreadyRegistered": "Dieser Streamer ist bereits registriert.",
+    "full": "Alle Testplätze sind belegt.",
+    "notFound": "Der Testkanal wurde nicht gefunden.",
+    "stopping": "Dieser Test wird bereits beendet.",
+    "unavailable": "Die Teststeuerung ist nicht verfügbar."
+  },
   "state": {
     "pending": "Ausstehend",
     "receiving": "Empfängt",
