@@ -621,7 +621,8 @@
 
 <style>
   .searchbar {
-    inline-size: min(15rem, 100%);
+    inline-size: 15rem;
+    max-inline-size: 100%;
   }
 
   .pager-jump {

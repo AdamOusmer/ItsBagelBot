@@ -155,7 +155,7 @@
           <bb-fit><span data-fit>{t('admin.audit.kindFilter')}</span></bb-fit>
         </Text>
         <div class="stats">
-          <Text as="span" size="xs" tone="muted" mono>
+          <Text as="div" size="xs" tone="muted" mono>
             {#if first}
               <bb-fit><span data-fit>{t('admin.audit.stats', {
                 loaded: String(loaded.length),
@@ -184,7 +184,7 @@
     </Stack>
     <PageToolbar>
       {#snippet leading()}
-        <div style="inline-size: min(15rem, 100%);">
+        <div style="inline-size: 15rem; max-inline-size: 100%;">
           <SearchInput
             tall
             fill

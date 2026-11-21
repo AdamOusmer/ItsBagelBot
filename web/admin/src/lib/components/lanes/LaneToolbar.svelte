@@ -157,13 +157,14 @@
 </Stack>
 
 <style>
-  .search { inline-size: min(100%, 15rem); }
-  .traffic { inline-size: min(100%, 11rem); }
+  .search { inline-size: 15rem; max-inline-size: 100%; }
+  .traffic { inline-size: 11rem; max-inline-size: 100%; }
 
   .summary-text {
     display: grid;
     align-items: center;
-    inline-size: min(100%, 17rem);
+    inline-size: 17rem;
+    max-inline-size: 100%;
     block-size: 1.25rem;
   }
 

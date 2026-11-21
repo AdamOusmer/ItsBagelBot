@@ -281,7 +281,7 @@
       />
       <Cluster justify="between" gap={3}>
         <Cluster gap={2} style="min-inline-size: 0;">
-          <div style="inline-size: min(15rem, 100%);">
+          <div style="inline-size: 15rem; max-inline-size: 100%;">
             <SearchInput
               fill
               tall
