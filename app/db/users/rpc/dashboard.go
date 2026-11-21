@@ -60,6 +60,7 @@ func SubscribeDashboard(w Wiring, prefix string) error {
 		"songqueue_page_set":   d.handleSongQueuePageSet,
 		"voice_get":            d.handleVoiceGet,
 		"voice_set":            d.handleVoiceSet,
+		"voice_overlay_rotate": d.handleVoiceOverlayRotate,
 		"delete_self":          d.handleDeleteSelf,
 	}
 	return serveMsgVerbs(w.Within(dashboardTimeout), prefix, verbs)

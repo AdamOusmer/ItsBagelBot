@@ -21,5 +21,13 @@
   "unavailable": "El uso y los ajustes de voz no están disponibles. Recarga la página para volver a intentarlo.",
   "invalidVoice": "Elige una voz de la lista.",
   "saveFailed": "No se pudieron guardar los ajustes de voz. Inténtalo de nuevo.",
-  "saved": "Ajustes de voz guardados."
+  "saved": "Ajustes de voz guardados.",
+  "overlayTitle": "Fuente de navegador de OBS",
+  "overlayHint": "Pega este enlace en OBS como fuente de navegador. Al crear otro, el anterior deja de funcionar.",
+  "overlayCreate": "Crear enlace",
+  "overlayReplace": "Crear otro enlace",
+  "overlayLink": "Enlace de la fuente de navegador (se muestra una vez)",
+  "overlayFailed": "No se pudo crear el enlace. Inténtalo de nuevo.",
+  "overlayUnavailable": "La voz en la nube no está disponible para esta cuenta.",
+  "overlayCopyFailed": "No se pudo copiar el enlace. Selecciónalo y cópialo manualmente."
 }

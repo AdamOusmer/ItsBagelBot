@@ -62,6 +62,10 @@ const (
 	FieldTtsVoice = "tts_voice"
 	// FieldTtsMaxSeconds holds the string denoting the tts_max_seconds field in the database.
 	FieldTtsMaxSeconds = "tts_max_seconds"
+	// FieldTtsOverlayTokenHash holds the string denoting the tts_overlay_token_hash field in the database.
+	FieldTtsOverlayTokenHash = "tts_overlay_token_hash"
+	// FieldTtsOverlayGeneration holds the string denoting the tts_overlay_generation field in the database.
+	FieldTtsOverlayGeneration = "tts_overlay_generation"
 	// FieldCreatorCode holds the string denoting the creator_code field in the database.
 	FieldCreatorCode = "creator_code"
 	// FieldSubscriptionSource holds the string denoting the subscription_source field in the database.
@@ -172,6 +176,8 @@ var Columns = []string{
 	FieldTtsEnabled,
 	FieldTtsVoice,
 	FieldTtsMaxSeconds,
+	FieldTtsOverlayTokenHash,
+	FieldTtsOverlayGeneration,
 	FieldCreatorCode,
 	FieldSubscriptionSource,
 	FieldSubscriptionExpiresAt,
@@ -246,6 +252,10 @@ var (
 	DefaultTtsMaxSeconds int
 	// TtsMaxSecondsValidator is a validator for the "tts_max_seconds" field. It is called by the builders before save.
 	TtsMaxSecondsValidator func(int) error
+	// TtsOverlayTokenHashValidator is a validator for the "tts_overlay_token_hash" field. It is called by the builders before save.
+	TtsOverlayTokenHashValidator func(string) error
+	// DefaultTtsOverlayGeneration holds the default value on creation for the "tts_overlay_generation" field.
+	DefaultTtsOverlayGeneration int
 	// CreatorCodeValidator is a validator for the "creator_code" field. It is called by the builders before save.
 	CreatorCodeValidator func(string) error
 	// DefaultSubscriptionSource holds the default value on creation for the "subscription_source" field.
@@ -406,6 +416,16 @@ func ByTtsVoice(opts ...sql.OrderTermOption) OrderOption {
 // ByTtsMaxSeconds orders the results by the tts_max_seconds field.
 func ByTtsMaxSeconds(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldTtsMaxSeconds, opts...).ToFunc()
+}
+
+// ByTtsOverlayTokenHash orders the results by the tts_overlay_token_hash field.
+func ByTtsOverlayTokenHash(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTtsOverlayTokenHash, opts...).ToFunc()
+}
+
+// ByTtsOverlayGeneration orders the results by the tts_overlay_generation field.
+func ByTtsOverlayGeneration(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTtsOverlayGeneration, opts...).ToFunc()
 }
 
 // ByCreatorCode orders the results by the creator_code field.

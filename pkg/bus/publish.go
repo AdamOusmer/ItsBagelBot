@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -54,6 +55,15 @@ func PublishJSON(ctx context.Context, pub Publisher, subject string, payload any
 func PublishRaw(ctx context.Context, pub Publisher, subject string, payload []byte) error {
 	body := append([]byte(nil), payload...)
 	return publishOwned(ctx, pub, subject, body)
+}
+
+func PublishCore(ctx context.Context, nc *nats.Conn, subject string, payload []byte) error {
+	segment := startMessagingSegment(ctx, messagingSpan{
+		name: "nats.publish", operation: "publish", destination: subject,
+	})
+	err := nc.Publish(subject, payload)
+	endMessagingSegment(segment, err)
+	return err
 }
 
 type Publication struct {

@@ -170,6 +170,7 @@ func loadVoiceAllowance(ctx context.Context, tx *ent.Tx, owner *ent.User, now ti
 }
 
 func withVoiceSettings(allowance usersrpc.VoiceAllowance, owner *ent.User) usersrpc.VoiceAllowance {
+	allowance.OverlayConfigured = owner.TtsOverlayTokenHash != nil
 	allowance.Enabled = owner.TtsEnabled
 	allowance.Voice = owner.TtsVoice
 	allowance.MaxSeconds = owner.TtsMaxSeconds

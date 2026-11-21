@@ -36,3 +36,26 @@ test.each([
     type: 'number', min: '5', max: '120', step: '1', required: '', value: displayed
   })]);
 });
+
+const premiumAllowance = {
+  plan: 'premium', reason: 'ok', limit_tokens: 90_000, used_tokens: 20_025,
+  resets_at: '2026-12-01T00:00:00Z', enabled: true, voice: 'Kore', max_seconds: 120
+};
+const obsURL = 'https://overlay.itsbagelbot.com/tts#AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+
+test.each([
+  { name: 'owner before creation', readOnly: false, configured: false, limit: 90_000, url: undefined, visible: true },
+  { name: 'owner revisiting', readOnly: false, configured: true, limit: 90_000, url: undefined, visible: true },
+  { name: 'owner after rotation', readOnly: false, configured: true, limit: 90_000, url: obsURL, visible: true },
+  { name: 'zero allowance', readOnly: false, configured: false, limit: 0, url: undefined, visible: false },
+  { name: 'read-only session', readOnly: true, configured: true, limit: 90_000, url: undefined, visible: false }
+])('renders the appropriate OBS controls for $name', ({ readOnly, configured, limit, url, visible }) => {
+  const allowance = { ...premiumAllowance, limit_tokens: limit, overlay_configured: configured };
+  const form = url ? { overlayUrl: url } : null;
+  const html = render(VoicePage, { props: { data: { readOnly, allowance }, form } as never }).body;
+
+  expect(html.includes('action="?/rotateOverlay"')).toBe(visible);
+  const buttonLabel = configured ? 'Make a new link' : 'Create link';
+  expect(html.includes(buttonLabel)).toBe(visible);
+  expect(html.includes(obsURL)).toBe(Boolean(url));
+});

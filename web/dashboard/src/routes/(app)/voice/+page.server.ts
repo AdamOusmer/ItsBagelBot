@@ -4,9 +4,10 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { translate } from '@bagel/kit/i18n';
 import { bestEffort } from '@bagel/kit/server/best-effort';
+import { RpcError } from '@bagel/kit/server/nats';
 import { CLOUD_VOICES, MAX_CLIP_SECONDS, MIN_CLIP_SECONDS } from '@bagel/kit/voice-plan';
 import { isOwnerSession } from '#lib/server/owner';
-import { voiceGet, voiceSet, type VoiceAllowance } from '#lib/server/services/voice';
+import { voiceGet, voiceOverlayRotate, voiceSet, type VoiceAllowance } from '#lib/server/services/voice';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals: { session } }) => {
@@ -44,6 +45,20 @@ export const actions = {
       return { ok: true };
     } catch {
       return fail(503, { error: translate(locale, 'voice.saveFailed') });
+    }
+  },
+  rotateOverlay: async ({ locals: { session, locale }, setHeaders }) => {
+    if (!session) return fail(401, { overlayError: translate(locale, 'serverErrors.notSignedIn') });
+    if (!isOwnerSession(session)) return fail(403, { overlayError: translate(locale, 'serverErrors.ownerOnly') });
+
+    setHeaders({ 'cache-control': 'no-store' });
+    try {
+      return { overlayUrl: await voiceOverlayRotate(session) };
+    } catch (err) {
+      if (err instanceof RpcError && err.code === 'forbidden') {
+        return fail(403, { overlayError: translate(locale, 'voice.overlayUnavailable') });
+      }
+      return fail(503, { overlayError: translate(locale, 'voice.overlayFailed') });
     }
   }
 } satisfies Actions;

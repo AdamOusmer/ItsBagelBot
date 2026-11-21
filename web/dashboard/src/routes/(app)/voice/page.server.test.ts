@@ -25,6 +25,7 @@ const free: VoiceAllowance = {
   enabled: false, voice: 'Kore', max_seconds: 120, reason: 'no_plan'
 };
 const voiceUrl = 'https://dashboard.test/voice';
+const overlayUrl = 'https://overlay.itsbagelbot.com/tts#AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
 afterEach(() => mock.restore());
 
@@ -95,4 +96,42 @@ test('reports a failed save without claiming it succeeded', async () => {
   expect(await save({ voice: 'Kore', enabled: 'false', max_seconds: '120' })).toMatchObject({
     status: 503, data: { error: 'Could not save voice settings. Try again.' }
   });
+});
+
+function rotateOverlay(session: typeof owner | null, setHeaders = mock()) {
+  return actions.rotateOverlay({
+    request: new Request(`${voiceUrl}?/rotateOverlay`, {
+      method: 'POST', body: new URLSearchParams({ actor_id: '97', broadcaster_user_id: '95' })
+    }),
+    locals: { session, locale: 'en' },
+    setHeaders
+  } as never);
+}
+
+test('returns the new OBS URL to the owner with caching disabled', async () => {
+  const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce({ url: overlayUrl });
+  const setHeaders = mock();
+  expect(await rotateOverlay(owner, setHeaders)).toEqual({ overlayUrl });
+  expect(setHeaders.mock.calls).toEqual([[{ 'cache-control': 'no-store' }]]);
+  expect(rpc.mock.calls).toEqual([[
+    `${SUB.dashboard}.voice_overlay_rotate`, actor, WRITE_TIMEOUT_MS
+  ]]);
+});
+
+test.each([
+  { name: 'delegate', session: delegate, status: 403 },
+  { name: 'view-as', session: viewAs, status: 403 },
+  { name: 'signed out', session: null, status: 401 }
+])('rejects OBS link rotation for $name before calling Users', async ({ session, status }) => {
+  const rpc = spyOn(bus, 'rpc');
+  expect(await rotateOverlay(session)).toMatchObject({ status, data: { overlayError: expect.any(String) } });
+  expect(rpc).not.toHaveBeenCalled();
+});
+
+test.each([
+  { name: 'plan refused', error: new bus.RpcError('forbidden', 'forbidden'), status: 403 },
+  { name: 'Users unavailable', error: new Error('timeout'), status: 503 }
+])('reports a failed OBS rotation when $name', async ({ error, status }) => {
+  spyOn(bus, 'rpc').mockRejectedValueOnce(error);
+  expect(await rotateOverlay(owner)).toMatchObject({ status, data: { overlayError: expect.any(String) } });
 });

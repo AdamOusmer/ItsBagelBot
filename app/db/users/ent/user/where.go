@@ -160,6 +160,16 @@ func TtsMaxSeconds(v int) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldTtsMaxSeconds, v))
 }
 
+// TtsOverlayTokenHash applies equality check predicate on the "tts_overlay_token_hash" field. It's identical to TtsOverlayTokenHashEQ.
+func TtsOverlayTokenHash(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTtsOverlayTokenHash, v))
+}
+
+// TtsOverlayGeneration applies equality check predicate on the "tts_overlay_generation" field. It's identical to TtsOverlayGenerationEQ.
+func TtsOverlayGeneration(v int) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTtsOverlayGeneration, v))
+}
+
 // CreatorCode applies equality check predicate on the "creator_code" field. It's identical to CreatorCodeEQ.
 func CreatorCode(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatorCode, v))
@@ -1013,6 +1023,121 @@ func TtsMaxSecondsLT(v int) predicate.User {
 // TtsMaxSecondsLTE applies the LTE predicate on the "tts_max_seconds" field.
 func TtsMaxSecondsLTE(v int) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldTtsMaxSeconds, v))
+}
+
+// TtsOverlayTokenHashEQ applies the EQ predicate on the "tts_overlay_token_hash" field.
+func TtsOverlayTokenHashEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTtsOverlayTokenHash, v))
+}
+
+// TtsOverlayTokenHashNEQ applies the NEQ predicate on the "tts_overlay_token_hash" field.
+func TtsOverlayTokenHashNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldTtsOverlayTokenHash, v))
+}
+
+// TtsOverlayTokenHashIn applies the In predicate on the "tts_overlay_token_hash" field.
+func TtsOverlayTokenHashIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldTtsOverlayTokenHash, vs...))
+}
+
+// TtsOverlayTokenHashNotIn applies the NotIn predicate on the "tts_overlay_token_hash" field.
+func TtsOverlayTokenHashNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldTtsOverlayTokenHash, vs...))
+}
+
+// TtsOverlayTokenHashGT applies the GT predicate on the "tts_overlay_token_hash" field.
+func TtsOverlayTokenHashGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldTtsOverlayTokenHash, v))
+}
+
+// TtsOverlayTokenHashGTE applies the GTE predicate on the "tts_overlay_token_hash" field.
+func TtsOverlayTokenHashGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldTtsOverlayTokenHash, v))
+}
+
+// TtsOverlayTokenHashLT applies the LT predicate on the "tts_overlay_token_hash" field.
+func TtsOverlayTokenHashLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldTtsOverlayTokenHash, v))
+}
+
+// TtsOverlayTokenHashLTE applies the LTE predicate on the "tts_overlay_token_hash" field.
+func TtsOverlayTokenHashLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldTtsOverlayTokenHash, v))
+}
+
+// TtsOverlayTokenHashContains applies the Contains predicate on the "tts_overlay_token_hash" field.
+func TtsOverlayTokenHashContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldTtsOverlayTokenHash, v))
+}
+
+// TtsOverlayTokenHashHasPrefix applies the HasPrefix predicate on the "tts_overlay_token_hash" field.
+func TtsOverlayTokenHashHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldTtsOverlayTokenHash, v))
+}
+
+// TtsOverlayTokenHashHasSuffix applies the HasSuffix predicate on the "tts_overlay_token_hash" field.
+func TtsOverlayTokenHashHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldTtsOverlayTokenHash, v))
+}
+
+// TtsOverlayTokenHashIsNil applies the IsNil predicate on the "tts_overlay_token_hash" field.
+func TtsOverlayTokenHashIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldTtsOverlayTokenHash))
+}
+
+// TtsOverlayTokenHashNotNil applies the NotNil predicate on the "tts_overlay_token_hash" field.
+func TtsOverlayTokenHashNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldTtsOverlayTokenHash))
+}
+
+// TtsOverlayTokenHashEqualFold applies the EqualFold predicate on the "tts_overlay_token_hash" field.
+func TtsOverlayTokenHashEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldTtsOverlayTokenHash, v))
+}
+
+// TtsOverlayTokenHashContainsFold applies the ContainsFold predicate on the "tts_overlay_token_hash" field.
+func TtsOverlayTokenHashContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldTtsOverlayTokenHash, v))
+}
+
+// TtsOverlayGenerationEQ applies the EQ predicate on the "tts_overlay_generation" field.
+func TtsOverlayGenerationEQ(v int) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTtsOverlayGeneration, v))
+}
+
+// TtsOverlayGenerationNEQ applies the NEQ predicate on the "tts_overlay_generation" field.
+func TtsOverlayGenerationNEQ(v int) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldTtsOverlayGeneration, v))
+}
+
+// TtsOverlayGenerationIn applies the In predicate on the "tts_overlay_generation" field.
+func TtsOverlayGenerationIn(vs ...int) predicate.User {
+	return predicate.User(sql.FieldIn(FieldTtsOverlayGeneration, vs...))
+}
+
+// TtsOverlayGenerationNotIn applies the NotIn predicate on the "tts_overlay_generation" field.
+func TtsOverlayGenerationNotIn(vs ...int) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldTtsOverlayGeneration, vs...))
+}
+
+// TtsOverlayGenerationGT applies the GT predicate on the "tts_overlay_generation" field.
+func TtsOverlayGenerationGT(v int) predicate.User {
+	return predicate.User(sql.FieldGT(FieldTtsOverlayGeneration, v))
+}
+
+// TtsOverlayGenerationGTE applies the GTE predicate on the "tts_overlay_generation" field.
+func TtsOverlayGenerationGTE(v int) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldTtsOverlayGeneration, v))
+}
+
+// TtsOverlayGenerationLT applies the LT predicate on the "tts_overlay_generation" field.
+func TtsOverlayGenerationLT(v int) predicate.User {
+	return predicate.User(sql.FieldLT(FieldTtsOverlayGeneration, v))
+}
+
+// TtsOverlayGenerationLTE applies the LTE predicate on the "tts_overlay_generation" field.
+func TtsOverlayGenerationLTE(v int) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldTtsOverlayGeneration, v))
 }
 
 // CreatorCodeEQ applies the EQ predicate on the "creator_code" field.

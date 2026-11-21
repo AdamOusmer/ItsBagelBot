@@ -21,5 +21,13 @@
   "unavailable": "Nutzung und Stimmeinstellungen sind nicht verfügbar. Lade die Seite neu.",
   "invalidVoice": "Wähle eine Stimme aus der Liste.",
   "saveFailed": "Stimmeinstellungen konnten nicht gespeichert werden. Versuche es erneut.",
-  "saved": "Stimmeinstellungen gespeichert."
+  "saved": "Stimmeinstellungen gespeichert.",
+  "overlayTitle": "OBS-Browserquelle",
+  "overlayHint": "Füge diesen Link in OBS als Browserquelle ein. Ein neuer Link macht den alten ungültig.",
+  "overlayCreate": "Link erstellen",
+  "overlayReplace": "Neuen Link erstellen",
+  "overlayLink": "Link zur Browserquelle (wird einmal angezeigt)",
+  "overlayFailed": "Der Link konnte nicht erstellt werden. Versuche es erneut.",
+  "overlayUnavailable": "Für dieses Konto ist keine Cloud-Stimme verfügbar.",
+  "overlayCopyFailed": "Der Link konnte nicht kopiert werden. Markiere und kopiere ihn manuell."
 }

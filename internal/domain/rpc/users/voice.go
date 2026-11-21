@@ -13,16 +13,17 @@ import (
 const VoiceRequestIDMaxBytes = 255
 
 type VoiceAllowance struct {
-	Plan            voiceplan.Plan `json:"plan"`
-	Period          string         `json:"period"`
-	LimitTokens     int64          `json:"limit_tokens"`
-	UsedTokens      int64          `json:"used_tokens"`
-	RemainingTokens int64          `json:"remaining_tokens"`
-	ResetsAt        time.Time      `json:"resets_at"`
-	Enabled         bool           `json:"enabled"`
-	Voice           string         `json:"voice"`
-	MaxSeconds      int            `json:"max_seconds"`
-	Reason          string         `json:"reason"`
+	Plan              voiceplan.Plan `json:"plan"`
+	Period            string         `json:"period"`
+	LimitTokens       int64          `json:"limit_tokens"`
+	UsedTokens        int64          `json:"used_tokens"`
+	RemainingTokens   int64          `json:"remaining_tokens"`
+	ResetsAt          time.Time      `json:"resets_at"`
+	Enabled           bool           `json:"enabled"`
+	Voice             string         `json:"voice"`
+	MaxSeconds        int            `json:"max_seconds"`
+	Reason            string         `json:"reason"`
+	OverlayConfigured bool           `json:"overlay_configured,omitempty"`
 }
 
 type VoiceGetRequest struct {

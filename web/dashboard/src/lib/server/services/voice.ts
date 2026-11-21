@@ -21,6 +21,7 @@ export type VoiceAllowance = VoiceSettings & {
   remaining_tokens: number;
   resets_at: string;
   reason: 'ok' | 'no_plan' | 'inactive' | 'banned';
+  overlay_configured?: boolean;
 };
 
 function voiceActor(session: Session) {
@@ -42,4 +43,10 @@ export const voiceSet = defineWrite({
   map: (reply: { ok?: boolean }) => {
     if (reply.ok !== true) throw new Error('voice settings write was not acknowledged');
   }
+});
+
+export const voiceOverlayRotate = defineWrite({
+  subject: `${SUB.dashboard}.voice_overlay_rotate`,
+  request: voiceActor,
+  map: (reply: { url: string }) => reply.url
 });

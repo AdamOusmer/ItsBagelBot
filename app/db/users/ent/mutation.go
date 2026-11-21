@@ -6202,6 +6202,9 @@ type UserMutation struct {
 	tts_voice                    *string
 	tts_max_seconds              *int
 	addtts_max_seconds           *int
+	tts_overlay_token_hash       *string
+	tts_overlay_generation       *int
+	addtts_overlay_generation    *int
 	creator_code                 *string
 	subscription_source          *string
 	subscription_expires_at      *time.Time
@@ -7277,6 +7280,111 @@ func (m *UserMutation) ResetTtsMaxSeconds() {
 	m.addtts_max_seconds = nil
 }
 
+// SetTtsOverlayTokenHash sets the "tts_overlay_token_hash" field.
+func (m *UserMutation) SetTtsOverlayTokenHash(s string) {
+	m.tts_overlay_token_hash = &s
+}
+
+// TtsOverlayTokenHash returns the value of the "tts_overlay_token_hash" field in the mutation.
+func (m *UserMutation) TtsOverlayTokenHash() (r string, exists bool) {
+	v := m.tts_overlay_token_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTtsOverlayTokenHash returns the old "tts_overlay_token_hash" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldTtsOverlayTokenHash(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTtsOverlayTokenHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTtsOverlayTokenHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTtsOverlayTokenHash: %w", err)
+	}
+	return oldValue.TtsOverlayTokenHash, nil
+}
+
+// ClearTtsOverlayTokenHash clears the value of the "tts_overlay_token_hash" field.
+func (m *UserMutation) ClearTtsOverlayTokenHash() {
+	m.tts_overlay_token_hash = nil
+	m.clearedFields[user.FieldTtsOverlayTokenHash] = struct{}{}
+}
+
+// TtsOverlayTokenHashCleared returns if the "tts_overlay_token_hash" field was cleared in this mutation.
+func (m *UserMutation) TtsOverlayTokenHashCleared() bool {
+	_, ok := m.clearedFields[user.FieldTtsOverlayTokenHash]
+	return ok
+}
+
+// ResetTtsOverlayTokenHash resets all changes to the "tts_overlay_token_hash" field.
+func (m *UserMutation) ResetTtsOverlayTokenHash() {
+	m.tts_overlay_token_hash = nil
+	delete(m.clearedFields, user.FieldTtsOverlayTokenHash)
+}
+
+// SetTtsOverlayGeneration sets the "tts_overlay_generation" field.
+func (m *UserMutation) SetTtsOverlayGeneration(i int) {
+	m.tts_overlay_generation = &i
+	m.addtts_overlay_generation = nil
+}
+
+// TtsOverlayGeneration returns the value of the "tts_overlay_generation" field in the mutation.
+func (m *UserMutation) TtsOverlayGeneration() (r int, exists bool) {
+	v := m.tts_overlay_generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTtsOverlayGeneration returns the old "tts_overlay_generation" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldTtsOverlayGeneration(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTtsOverlayGeneration is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTtsOverlayGeneration requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTtsOverlayGeneration: %w", err)
+	}
+	return oldValue.TtsOverlayGeneration, nil
+}
+
+// AddTtsOverlayGeneration adds i to the "tts_overlay_generation" field.
+func (m *UserMutation) AddTtsOverlayGeneration(i int) {
+	if m.addtts_overlay_generation != nil {
+		*m.addtts_overlay_generation += i
+	} else {
+		m.addtts_overlay_generation = &i
+	}
+}
+
+// AddedTtsOverlayGeneration returns the value that was added to the "tts_overlay_generation" field in this mutation.
+func (m *UserMutation) AddedTtsOverlayGeneration() (r int, exists bool) {
+	v := m.addtts_overlay_generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTtsOverlayGeneration resets all changes to the "tts_overlay_generation" field.
+func (m *UserMutation) ResetTtsOverlayGeneration() {
+	m.tts_overlay_generation = nil
+	m.addtts_overlay_generation = nil
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (m *UserMutation) SetCreatorCode(s string) {
 	m.creator_code = &s
@@ -8188,7 +8296,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 36)
+	fields := make([]string, 0, 38)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -8257,6 +8365,12 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.tts_max_seconds != nil {
 		fields = append(fields, user.FieldTtsMaxSeconds)
+	}
+	if m.tts_overlay_token_hash != nil {
+		fields = append(fields, user.FieldTtsOverlayTokenHash)
+	}
+	if m.tts_overlay_generation != nil {
+		fields = append(fields, user.FieldTtsOverlayGeneration)
 	}
 	if m.creator_code != nil {
 		fields = append(fields, user.FieldCreatorCode)
@@ -8351,6 +8465,10 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.TtsVoice()
 	case user.FieldTtsMaxSeconds:
 		return m.TtsMaxSeconds()
+	case user.FieldTtsOverlayTokenHash:
+		return m.TtsOverlayTokenHash()
+	case user.FieldTtsOverlayGeneration:
+		return m.TtsOverlayGeneration()
 	case user.FieldCreatorCode:
 		return m.CreatorCode()
 	case user.FieldSubscriptionSource:
@@ -8432,6 +8550,10 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldTtsVoice(ctx)
 	case user.FieldTtsMaxSeconds:
 		return m.OldTtsMaxSeconds(ctx)
+	case user.FieldTtsOverlayTokenHash:
+		return m.OldTtsOverlayTokenHash(ctx)
+	case user.FieldTtsOverlayGeneration:
+		return m.OldTtsOverlayGeneration(ctx)
 	case user.FieldCreatorCode:
 		return m.OldCreatorCode(ctx)
 	case user.FieldSubscriptionSource:
@@ -8628,6 +8750,20 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetTtsMaxSeconds(v)
 		return nil
+	case user.FieldTtsOverlayTokenHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTtsOverlayTokenHash(v)
+		return nil
+	case user.FieldTtsOverlayGeneration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTtsOverlayGeneration(v)
+		return nil
 	case user.FieldCreatorCode:
 		v, ok := value.(string)
 		if !ok {
@@ -8733,6 +8869,9 @@ func (m *UserMutation) AddedFields() []string {
 	if m.addtts_max_seconds != nil {
 		fields = append(fields, user.FieldTtsMaxSeconds)
 	}
+	if m.addtts_overlay_generation != nil {
+		fields = append(fields, user.FieldTtsOverlayGeneration)
+	}
 	if m.addgifts_sent != nil {
 		fields = append(fields, user.FieldGiftsSent)
 	}
@@ -8748,6 +8887,8 @@ func (m *UserMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedStateRevision()
 	case user.FieldTtsMaxSeconds:
 		return m.AddedTtsMaxSeconds()
+	case user.FieldTtsOverlayGeneration:
+		return m.AddedTtsOverlayGeneration()
 	case user.FieldGiftsSent:
 		return m.AddedGiftsSent()
 	}
@@ -8772,6 +8913,13 @@ func (m *UserMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddTtsMaxSeconds(v)
+		return nil
+	case user.FieldTtsOverlayGeneration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTtsOverlayGeneration(v)
 		return nil
 	case user.FieldGiftsSent:
 		v, ok := value.(int32)
@@ -8802,6 +8950,9 @@ func (m *UserMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(user.FieldNoticeDueAt) {
 		fields = append(fields, user.FieldNoticeDueAt)
+	}
+	if m.FieldCleared(user.FieldTtsOverlayTokenHash) {
+		fields = append(fields, user.FieldTtsOverlayTokenHash)
 	}
 	if m.FieldCleared(user.FieldCreatorCode) {
 		fields = append(fields, user.FieldCreatorCode)
@@ -8846,6 +8997,9 @@ func (m *UserMutation) ClearField(name string) error {
 		return nil
 	case user.FieldNoticeDueAt:
 		m.ClearNoticeDueAt()
+		return nil
+	case user.FieldTtsOverlayTokenHash:
+		m.ClearTtsOverlayTokenHash()
 		return nil
 	case user.FieldCreatorCode:
 		m.ClearCreatorCode()
@@ -8938,6 +9092,12 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldTtsMaxSeconds:
 		m.ResetTtsMaxSeconds()
+		return nil
+	case user.FieldTtsOverlayTokenHash:
+		m.ResetTtsOverlayTokenHash()
+		return nil
+	case user.FieldTtsOverlayGeneration:
+		m.ResetTtsOverlayGeneration()
 		return nil
 	case user.FieldCreatorCode:
 		m.ResetCreatorCode()

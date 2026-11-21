@@ -65,6 +65,10 @@ type User struct {
 	TtsVoice string `json:"tts_voice,omitempty"`
 	// TtsMaxSeconds holds the value of the "tts_max_seconds" field.
 	TtsMaxSeconds int `json:"tts_max_seconds,omitempty"`
+	// TtsOverlayTokenHash holds the value of the "tts_overlay_token_hash" field.
+	TtsOverlayTokenHash *string `json:"-"`
+	// TtsOverlayGeneration holds the value of the "tts_overlay_generation" field.
+	TtsOverlayGeneration int `json:"tts_overlay_generation,omitempty"`
 	// CreatorCode holds the value of the "creator_code" field.
 	CreatorCode *string `json:"creator_code,omitempty"`
 	// SubscriptionSource holds the value of the "subscription_source" field.
@@ -179,9 +183,9 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case user.FieldIsActive, user.FieldLifecycleProjectionPending, user.FieldLifecycleMigrationPending, user.FieldBanned, user.FieldCustomCursor, user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldSongqueuePageHidden, user.FieldTtsEnabled, user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldOnboarded, user.FieldTestAccount:
 			values[i] = new(sql.NullBool)
-		case user.FieldID, user.FieldStateRevision, user.FieldTtsMaxSeconds, user.FieldGiftsSent:
+		case user.FieldID, user.FieldStateRevision, user.FieldTtsMaxSeconds, user.FieldTtsOverlayGeneration, user.FieldGiftsSent:
 			values[i] = new(sql.NullInt64)
-		case user.FieldUsername, user.FieldDisplayName, user.FieldEmail, user.FieldLifecycleState, user.FieldStatus, user.FieldLocale, user.FieldTtsVoice, user.FieldCreatorCode, user.FieldSubscriptionSource, user.FieldSubscriptionRef, user.FieldBillingEventID:
+		case user.FieldUsername, user.FieldDisplayName, user.FieldEmail, user.FieldLifecycleState, user.FieldStatus, user.FieldLocale, user.FieldTtsVoice, user.FieldTtsOverlayTokenHash, user.FieldCreatorCode, user.FieldSubscriptionSource, user.FieldSubscriptionRef, user.FieldBillingEventID:
 			values[i] = new(sql.NullString)
 		case user.FieldDormantAfter, user.FieldLifecycleDueAt, user.FieldNoticeDueAt, user.FieldSubscriptionExpiresAt, user.FieldBillingEventAt, user.FieldCreatedAt, user.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -348,6 +352,19 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field tts_max_seconds", values[i])
 			} else if value.Valid {
 				_m.TtsMaxSeconds = int(value.Int64)
+			}
+		case user.FieldTtsOverlayTokenHash:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field tts_overlay_token_hash", values[i])
+			} else if value.Valid {
+				_m.TtsOverlayTokenHash = new(string)
+				*_m.TtsOverlayTokenHash = value.String
+			}
+		case user.FieldTtsOverlayGeneration:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field tts_overlay_generation", values[i])
+			} else if value.Valid {
+				_m.TtsOverlayGeneration = int(value.Int64)
 			}
 		case user.FieldCreatorCode:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -570,6 +587,11 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("tts_max_seconds=")
 	builder.WriteString(fmt.Sprintf("%v", _m.TtsMaxSeconds))
+	builder.WriteString(", ")
+	builder.WriteString("tts_overlay_token_hash=<sensitive>")
+	builder.WriteString(", ")
+	builder.WriteString("tts_overlay_generation=")
+	builder.WriteString(fmt.Sprintf("%v", _m.TtsOverlayGeneration))
 	builder.WriteString(", ")
 	if v := _m.CreatorCode; v != nil {
 		builder.WriteString("creator_code=")

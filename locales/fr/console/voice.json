@@ -21,5 +21,13 @@
   "unavailable": "L’utilisation et les réglages de la voix sont indisponibles. Rechargez la page pour réessayer.",
   "invalidVoice": "Choisissez une voix dans la liste.",
   "saveFailed": "Impossible d’enregistrer les réglages de la voix. Réessayez.",
-  "saved": "Réglages de la voix enregistrés."
+  "saved": "Réglages de la voix enregistrés.",
+  "overlayTitle": "Source navigateur OBS",
+  "overlayHint": "Collez ce lien dans OBS comme source navigateur. Un nouveau lien désactive le précédent.",
+  "overlayCreate": "Créer un lien",
+  "overlayReplace": "Créer un nouveau lien",
+  "overlayLink": "Lien de la source navigateur (affiché une seule fois)",
+  "overlayFailed": "Impossible de créer un lien. Réessayez.",
+  "overlayUnavailable": "La voix cloud est indisponible pour ce compte.",
+  "overlayCopyFailed": "Impossible de copier le lien. Sélectionnez-le et copiez-le manuellement."
 }

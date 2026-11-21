@@ -19,6 +19,7 @@
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import PageNotice from '#lib/components/shared/PageNotice.svelte';
+  import VoiceOverlayCard from './VoiceOverlayCard.svelte';
   import type { ActionData, PageData } from './$types';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -45,16 +46,24 @@
   const showUsage = $derived(allowance?.reason === 'ok' || allowance?.reason === 'no_plan');
   let enabled = $derived(allowance?.enabled ?? false);
   let voice: string = $derived(allowance?.voice ?? DEFAULT_VOICE);
-  let saving = $state(false);
+  let pending = $state<'save' | 'rotateOverlay' | null>(null);
+  let overlayIssued = $state(false);
+  const saving = $derived(pending === 'save');
   const saveMessage = $derived(form?.ok ? t('voice.saved') : form?.error);
 
-  const submit: SubmitFunction = () => {
-    saving = true;
-    return async ({ update }) => {
+  const submit: SubmitFunction = ({ action, cancel }) => {
+    if (pending) {
+      cancel();
+      return;
+    }
+    const rotating = action.search === '?/rotateOverlay';
+    pending = rotating ? 'rotateOverlay' : 'save';
+    return async ({ update, result }) => {
       try {
-        await update({ reset: false });
+        if (rotating && result.type === 'success') overlayIssued = true;
+        await update({ reset: false, invalidateAll: !rotating });
       } finally {
-        saving = false;
+        pending = null;
       }
     };
   };
@@ -136,7 +145,7 @@
               value={allowance.max_seconds ?? MAX_CLIP_SECONDS} disabled={saving} required fill />
           </Field>
           <div class="save-row">
-            <Button variant="secondary" type="submit" size="sm" busy={saving}>
+            <Button variant="secondary" type="submit" size="sm" busy={saving} disabled={pending === 'rotateOverlay'}>
               <bb-fit><span data-fit="">{t('common.save')}</span></bb-fit>
             </Button>
             <div class="status-copy bb-fit-box" role="status">
@@ -155,6 +164,11 @@
           </ButtonLink>
         </EmptyState>
       </Card>
+    {/if}
+
+    {#if allowance?.reason === 'ok' && allowance.limit_tokens > 0}
+      <VoiceOverlayCard configured={overlayIssued || allowance.overlay_configured === true} url={form?.overlayUrl}
+        error={form?.overlayError} busy={pending === 'rotateOverlay'} disabled={saving} {submit} />
     {/if}
   </div>
 </section>

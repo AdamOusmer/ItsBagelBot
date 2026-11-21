@@ -21,5 +21,13 @@
   "unavailable": "Voice usage and settings are unavailable. Reload the page to try again.",
   "invalidVoice": "Choose a voice from the list.",
   "saveFailed": "Could not save voice settings. Try again.",
-  "saved": "Voice settings saved."
+  "saved": "Voice settings saved.",
+  "overlayTitle": "OBS browser source",
+  "overlayHint": "Paste this link into OBS as a Browser Source. Creating a new link disables the old one.",
+  "overlayCreate": "Create link",
+  "overlayReplace": "Make a new link",
+  "overlayLink": "Browser source link (shown once)",
+  "overlayFailed": "Could not create a link. Try again.",
+  "overlayUnavailable": "Cloud voice is unavailable for this account.",
+  "overlayCopyFailed": "Could not copy the link. Select and copy it manually."
 }

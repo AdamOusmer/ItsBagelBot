@@ -319,6 +319,34 @@ func (_c *UserCreate) SetNillableTtsMaxSeconds(v *int) *UserCreate {
 	return _c
 }
 
+// SetTtsOverlayTokenHash sets the "tts_overlay_token_hash" field.
+func (_c *UserCreate) SetTtsOverlayTokenHash(v string) *UserCreate {
+	_c.mutation.SetTtsOverlayTokenHash(v)
+	return _c
+}
+
+// SetNillableTtsOverlayTokenHash sets the "tts_overlay_token_hash" field if the given value is not nil.
+func (_c *UserCreate) SetNillableTtsOverlayTokenHash(v *string) *UserCreate {
+	if v != nil {
+		_c.SetTtsOverlayTokenHash(*v)
+	}
+	return _c
+}
+
+// SetTtsOverlayGeneration sets the "tts_overlay_generation" field.
+func (_c *UserCreate) SetTtsOverlayGeneration(v int) *UserCreate {
+	_c.mutation.SetTtsOverlayGeneration(v)
+	return _c
+}
+
+// SetNillableTtsOverlayGeneration sets the "tts_overlay_generation" field if the given value is not nil.
+func (_c *UserCreate) SetNillableTtsOverlayGeneration(v *int) *UserCreate {
+	if v != nil {
+		_c.SetTtsOverlayGeneration(*v)
+	}
+	return _c
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (_c *UserCreate) SetCreatorCode(v string) *UserCreate {
 	_c.mutation.SetCreatorCode(v)
@@ -698,6 +726,10 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultTtsMaxSeconds
 		_c.mutation.SetTtsMaxSeconds(v)
 	}
+	if _, ok := _c.mutation.TtsOverlayGeneration(); !ok {
+		v := user.DefaultTtsOverlayGeneration
+		_c.mutation.SetTtsOverlayGeneration(v)
+	}
 	if _, ok := _c.mutation.SubscriptionSource(); !ok {
 		v := user.DefaultSubscriptionSource
 		_c.mutation.SetSubscriptionSource(v)
@@ -829,6 +861,14 @@ func (_c *UserCreate) check() error {
 		if err := user.TtsMaxSecondsValidator(v); err != nil {
 			return &ValidationError{Name: "tts_max_seconds", err: fmt.Errorf(`ent: validator failed for field "User.tts_max_seconds": %w`, err)}
 		}
+	}
+	if v, ok := _c.mutation.TtsOverlayTokenHash(); ok {
+		if err := user.TtsOverlayTokenHashValidator(v); err != nil {
+			return &ValidationError{Name: "tts_overlay_token_hash", err: fmt.Errorf(`ent: validator failed for field "User.tts_overlay_token_hash": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.TtsOverlayGeneration(); !ok {
+		return &ValidationError{Name: "tts_overlay_generation", err: errors.New(`ent: missing required field "User.tts_overlay_generation"`)}
 	}
 	if v, ok := _c.mutation.CreatorCode(); ok {
 		if err := user.CreatorCodeValidator(v); err != nil {
@@ -983,6 +1023,14 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.TtsMaxSeconds(); ok {
 		_spec.SetField(user.FieldTtsMaxSeconds, field.TypeInt, value)
 		_node.TtsMaxSeconds = value
+	}
+	if value, ok := _c.mutation.TtsOverlayTokenHash(); ok {
+		_spec.SetField(user.FieldTtsOverlayTokenHash, field.TypeString, value)
+		_node.TtsOverlayTokenHash = &value
+	}
+	if value, ok := _c.mutation.TtsOverlayGeneration(); ok {
+		_spec.SetField(user.FieldTtsOverlayGeneration, field.TypeInt, value)
+		_node.TtsOverlayGeneration = value
 	}
 	if value, ok := _c.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
@@ -1499,6 +1547,42 @@ func (u *UserUpsert) UpdateTtsMaxSeconds() *UserUpsert {
 // AddTtsMaxSeconds adds v to the "tts_max_seconds" field.
 func (u *UserUpsert) AddTtsMaxSeconds(v int) *UserUpsert {
 	u.Add(user.FieldTtsMaxSeconds, v)
+	return u
+}
+
+// SetTtsOverlayTokenHash sets the "tts_overlay_token_hash" field.
+func (u *UserUpsert) SetTtsOverlayTokenHash(v string) *UserUpsert {
+	u.Set(user.FieldTtsOverlayTokenHash, v)
+	return u
+}
+
+// UpdateTtsOverlayTokenHash sets the "tts_overlay_token_hash" field to the value that was provided on create.
+func (u *UserUpsert) UpdateTtsOverlayTokenHash() *UserUpsert {
+	u.SetExcluded(user.FieldTtsOverlayTokenHash)
+	return u
+}
+
+// ClearTtsOverlayTokenHash clears the value of the "tts_overlay_token_hash" field.
+func (u *UserUpsert) ClearTtsOverlayTokenHash() *UserUpsert {
+	u.SetNull(user.FieldTtsOverlayTokenHash)
+	return u
+}
+
+// SetTtsOverlayGeneration sets the "tts_overlay_generation" field.
+func (u *UserUpsert) SetTtsOverlayGeneration(v int) *UserUpsert {
+	u.Set(user.FieldTtsOverlayGeneration, v)
+	return u
+}
+
+// UpdateTtsOverlayGeneration sets the "tts_overlay_generation" field to the value that was provided on create.
+func (u *UserUpsert) UpdateTtsOverlayGeneration() *UserUpsert {
+	u.SetExcluded(user.FieldTtsOverlayGeneration)
+	return u
+}
+
+// AddTtsOverlayGeneration adds v to the "tts_overlay_generation" field.
+func (u *UserUpsert) AddTtsOverlayGeneration(v int) *UserUpsert {
+	u.Add(user.FieldTtsOverlayGeneration, v)
 	return u
 }
 
@@ -2110,6 +2194,48 @@ func (u *UserUpsertOne) AddTtsMaxSeconds(v int) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateTtsMaxSeconds() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateTtsMaxSeconds()
+	})
+}
+
+// SetTtsOverlayTokenHash sets the "tts_overlay_token_hash" field.
+func (u *UserUpsertOne) SetTtsOverlayTokenHash(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTtsOverlayTokenHash(v)
+	})
+}
+
+// UpdateTtsOverlayTokenHash sets the "tts_overlay_token_hash" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateTtsOverlayTokenHash() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTtsOverlayTokenHash()
+	})
+}
+
+// ClearTtsOverlayTokenHash clears the value of the "tts_overlay_token_hash" field.
+func (u *UserUpsertOne) ClearTtsOverlayTokenHash() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearTtsOverlayTokenHash()
+	})
+}
+
+// SetTtsOverlayGeneration sets the "tts_overlay_generation" field.
+func (u *UserUpsertOne) SetTtsOverlayGeneration(v int) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTtsOverlayGeneration(v)
+	})
+}
+
+// AddTtsOverlayGeneration adds v to the "tts_overlay_generation" field.
+func (u *UserUpsertOne) AddTtsOverlayGeneration(v int) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddTtsOverlayGeneration(v)
+	})
+}
+
+// UpdateTtsOverlayGeneration sets the "tts_overlay_generation" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateTtsOverlayGeneration() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTtsOverlayGeneration()
 	})
 }
 
@@ -2919,6 +3045,48 @@ func (u *UserUpsertBulk) AddTtsMaxSeconds(v int) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateTtsMaxSeconds() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateTtsMaxSeconds()
+	})
+}
+
+// SetTtsOverlayTokenHash sets the "tts_overlay_token_hash" field.
+func (u *UserUpsertBulk) SetTtsOverlayTokenHash(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTtsOverlayTokenHash(v)
+	})
+}
+
+// UpdateTtsOverlayTokenHash sets the "tts_overlay_token_hash" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateTtsOverlayTokenHash() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTtsOverlayTokenHash()
+	})
+}
+
+// ClearTtsOverlayTokenHash clears the value of the "tts_overlay_token_hash" field.
+func (u *UserUpsertBulk) ClearTtsOverlayTokenHash() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearTtsOverlayTokenHash()
+	})
+}
+
+// SetTtsOverlayGeneration sets the "tts_overlay_generation" field.
+func (u *UserUpsertBulk) SetTtsOverlayGeneration(v int) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTtsOverlayGeneration(v)
+	})
+}
+
+// AddTtsOverlayGeneration adds v to the "tts_overlay_generation" field.
+func (u *UserUpsertBulk) AddTtsOverlayGeneration(v int) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddTtsOverlayGeneration(v)
+	})
+}
+
+// UpdateTtsOverlayGeneration sets the "tts_overlay_generation" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateTtsOverlayGeneration() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTtsOverlayGeneration()
 	})
 }
 
