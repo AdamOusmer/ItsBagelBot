@@ -3,38 +3,34 @@
 
 package usersrpc
 
-import "ItsBagelBot/internal/domain/lifecycle"
+import (
+	"time"
 
-import "ItsBagelBot/internal/domain/rpc"
-
-import "time"
+	"ItsBagelBot/internal/domain/lifecycle"
+	"ItsBagelBot/internal/domain/rpc"
+)
 
 type AdminRequest struct {
-	ActorID      string `json:"actor_id"`
-	UserID       string `json:"user_id"`
-	Username     string `json:"username"`
-	Status       string `json:"status"`
-	Active       bool   `json:"active"`
-	Limit        int    `json:"limit"`
-	Page         int    `json:"page"`
-	Search       string `json:"search"`
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresAt    string `json:"expires_at,omitempty"`
-	CreatorCode  string `json:"creator_code,omitempty"`
-	Days         int    `json:"days,omitempty"`
-	State        string `json:"state,omitempty"`
-	Order        string `json:"order,omitempty"`
-	// OnlyLive restricts list and overview to LiveIDs. The admin console
-	// fills LiveIDs from the live:<id> keys at the moment the operator is
-	// looking; this service does not read Valkey. An empty list matches
-	// nobody. LiveIDs is ignored unless OnlyLive is set, so ids without the
-	// flag still return the unfiltered directory.
-	OnlyLive    bool     `json:"only_live,omitempty"`
-	LiveIDs     []uint64 `json:"live_ids,omitempty"`
-	TestAccount bool     `json:"test_account,omitempty"`
-	Metrics     []string `json:"metrics,omitempty"`
-	Window      string   `json:"window,omitempty"`
+	ActorID      string   `json:"actor_id"`
+	UserID       string   `json:"user_id"`
+	Username     string   `json:"username"`
+	Status       string   `json:"status"`
+	Active       bool     `json:"active"`
+	Limit        int      `json:"limit"`
+	Page         int      `json:"page"`
+	Search       string   `json:"search"`
+	AccessToken  string   `json:"access_token"`
+	RefreshToken string   `json:"refresh_token"`
+	ExpiresAt    string   `json:"expires_at,omitempty"`
+	CreatorCode  string   `json:"creator_code,omitempty"`
+	Days         int      `json:"days,omitempty"`
+	State        string   `json:"state,omitempty"`
+	Order        string   `json:"order,omitempty"`
+	OnlyLive     bool     `json:"only_live,omitempty"`
+	LiveIDs      []uint64 `json:"live_ids,omitempty"`
+	TestAccount  bool     `json:"test_account,omitempty"`
+	Metrics      []string `json:"metrics,omitempty"`
+	Window       string   `json:"window,omitempty"`
 }
 
 type AdminUserView struct {
@@ -56,12 +52,21 @@ type AdminUserView struct {
 }
 
 type AdminStats struct {
-	TotalUsers   int `json:"total_users"`
-	ActiveUsers  int `json:"active_users"`
-	PremiumUsers int `json:"premium_users"`
-	VIPUsers     int `json:"vip_users"`
-	PaidUsers    int `json:"paid_users"`
-	GrantedUsers int `json:"granted_users"`
+	TotalUsers      int                  `json:"total_users"`
+	ActiveUsers     int                  `json:"active_users"`
+	PremiumUsers    int                  `json:"premium_users"`
+	VIPUsers        int                  `json:"vip_users"`
+	PaidUsers       int                  `json:"paid_users"`
+	GrantedUsers    int                  `json:"granted_users"`
+	DirectoryCounts AdminDirectoryCounts `json:"directory_counts"`
+}
+
+type AdminDirectoryCounts struct {
+	Paid     int `json:"paid"`
+	VIP      int `json:"vip"`
+	Free     int `json:"free"`
+	Inactive int `json:"inactive"`
+	Banned   int `json:"banned"`
 }
 
 type AdminEnrollmentDay struct {
@@ -101,6 +106,7 @@ type AdminReply struct {
 	PageSize   int                  `json:"page_size,omitempty"`
 	MaxPages   int                  `json:"max_pages,omitempty"`
 	HasMore    bool                 `json:"has_more,omitempty"`
+	Total      int                  `json:"total"`
 	rpc.Refusal
 }
 
@@ -171,7 +177,6 @@ type UpsertUserRequest struct {
 	Email       string `json:"email,omitempty"`
 }
 
-// IdentitySyncRequest refreshes a registered account's login after a Twitch rename; it never creates accounts.
 type IdentitySyncRequest struct {
 	UserID      string `json:"user_id"`
 	Username    string `json:"username"`

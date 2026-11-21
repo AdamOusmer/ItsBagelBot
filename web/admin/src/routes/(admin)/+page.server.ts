@@ -6,6 +6,7 @@ import {
   shardSnapshot,
   trialList,
   userEnrollment,
+  userStats,
   tokenStatus,
   auditList,
   serviceHealth,
@@ -17,11 +18,11 @@ import {
   type TrialSnapshot
 } from '#lib/server/services';
 import { dev } from '$app/env';
-import { allows } from '#lib/server/access';
+import { allows } from '#lib/access';
 import { bestEffort } from '@bagel/kit/server/best-effort';
-import { emptyEnrollment, emptyFeedBoard, emptyShardSnapshot } from '#lib/server/fallback';
+import { EMPTY_USER_STATS, emptyEnrollment, emptyFeedBoard, emptyShardSnapshot } from '#lib/server/fallback';
 import { env } from '@bagel/kit/server/env';
-import type { ShardSnapshot } from '@bagel/kit';
+import type { ShardSnapshot, UserStats } from '@bagel/kit';
 import { parseEnrollmentWindow, type EnrollmentWindow } from '#lib/enrollment-window';
 import { giveawayAlerts, type GiveawayAlertWire } from '#lib/server/giveaways';
 
@@ -38,6 +39,7 @@ function panel<T>(read: Promise<T>, fallback: T): Promise<Panel<T>> {
 }
 
 type OverviewReads = {
+  accountStats: Promise<Panel<UserStats>>;
   enrollment: Promise<Panel<EnrollmentWire>>;
   fleet: Promise<Panel<ShardSnapshot>>;
   trials: Promise<Panel<TrialSnapshot>>;
@@ -63,7 +65,8 @@ function liveReads(
 ): OverviewReads {
   const botId = env.TWITCH_BOT_USER_ID ?? '';
   return {
-    enrollment: panel(userEnrollment(actorId, days), emptyEnrollment()),
+    accountStats: panel(userStats(actorId), EMPTY_USER_STATS),
+    enrollment: panel(userEnrollment(actorId, days), emptyEnrollment(days)),
     fleet: panel(shardSnapshot(), emptyShardSnapshot()),
     trials: panel(withTrials ? trialList() : Promise.resolve(EMPTY_TRIALS), EMPTY_TRIALS),
     health: panel(serviceHealth(), []),
@@ -82,6 +85,7 @@ function demoReads(days: EnrollmentWindow, withAudit: boolean): OverviewReads {
   const from = <T>(pick: (f: Awaited<typeof fixtures>) => T): Promise<Panel<T>> =>
     fixtures.then((f) => ({ value: pick(f), ok: true }));
   return {
+    accountStats: from((f) => f.sampleStats),
     enrollment: from((f) => f.demoEnrollment(days)),
     fleet: from((f) => f.sampleSnapshot),
     trials: from(() => EMPTY_TRIALS),
@@ -93,7 +97,7 @@ function demoReads(days: EnrollmentWindow, withAudit: boolean): OverviewReads {
   };
 }
 
-export const load: PageServerLoad = async ({ url, parent }) => {
+export const load = (async ({ url, parent }) => {
   const { id, role } = await parent();
   const withAudit = allows(role, 'audit.read');
   const withGiveaways = allows(role, 'giveaways.manage');
@@ -105,9 +109,11 @@ export const load: PageServerLoad = async ({ url, parent }) => {
     ...(DEMO
       ? demoReads(days, withAudit)
       : liveReads(id, days, { withAudit, withGiveaways, withTrials })),
+    botLink: `${url.origin}/auth/bot/login`,
     canReadAudit: withAudit,
     canLinkBot: allows(role, 'bot.token'),
     canNotify: allows(role, 'notifications.send'),
+    canViewGiveaways: withGiveaways,
     canViewTrials: withTrials
   };
-};
+}) satisfies PageServerLoad;

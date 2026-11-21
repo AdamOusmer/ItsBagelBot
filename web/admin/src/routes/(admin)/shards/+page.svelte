@@ -1,412 +1,325 @@
 <script lang="ts">
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
-  import { onMount } from 'svelte';
-  import { enhance, type SubmitFunction } from '$app/forms';
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
+  import { untrack } from 'svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
-  import StatTile from '@bagel/ui/svelte/StatTile.svelte';
-  import Switch from '@bagel/ui/svelte/Switch.svelte';
-  import Input from '@bagel/ui/svelte/Input.svelte';
-  import IconButton from '@bagel/ui/svelte/IconButton.svelte';
-  import Button from '@bagel/ui/svelte/Button.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
-  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
-  import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
+  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Grid from '@bagel/ui/svelte/Grid.svelte';
-  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
-  import Label from '@bagel/ui/svelte/Label.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
+  import StatTile from '@bagel/ui/svelte/StatTile.svelte';
+  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import { livePoll } from '@bagel/ui/lib/live-poll';
-  import { toast } from '@bagel/ui/svelte/toast';
-  import { actionPayload, adminToastFailure } from '@bagel/kit';
+  import { livePoll } from '@bagel/kit/live-poll';
   import type { ShardSnapshot } from '@bagel/kit';
-  import type { TrialSnapshot } from '#lib/server/services';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import { RATE_NOW_SECONDS } from '@bagel/kit/rates';
+  import type { TrialSnapshot } from '#lib/server/services';
   import { allows } from '#lib/access';
-  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
+  import ShardControls from '#lib/components/shards/ShardControls.svelte';
   import ShardTopology from '#lib/components/shards/ShardTopology.svelte';
   import ThroughputChart from '#lib/components/shards/ThroughputChart.svelte';
   import { ThroughputHistory, type ThroughputPoint } from '#lib/components/shards/throughput-history';
   import { ReadOrder } from '#lib/components/shards/read-order';
-  import { rateLabel } from '#lib/components/shards/shard-state';
+  import { conduitStatus, rateLabel } from '#lib/components/shards/shard-state';
+  import { activeTrial } from '#lib/components/shards/shard-topology';
   import { eventsPerSecond, pctLabel, resolveCapacity, utilizationPct } from '#lib/throughput';
-  import { RATE_NOW_SECONDS } from '@bagel/kit/rates';
 
   let { data } = $props();
-
-  const { t } = getI18n();
-  const failed = adminToastFailure(toast);
+  const { t, locale } = getI18n();
+  const formatCount = new Intl.NumberFormat(locale);
   const canScale = $derived(allows(data.role, 'shards.scale'));
 
-  let snap = $state<ShardSnapshot | null>(null);
-  let trialSnapshot = $state<TrialSnapshot | null>(null);
-  const fleetOrder = new ReadOrder();
-  const trialOrder = new ReadOrder();
-  const throughputHistory = new ThroughputHistory();
-  let throughputPoints = $state<ThroughputPoint[]>([]);
-  let degraded = $state(false);
-  let live = $state(false);
-  let pollingActive = true;
-  let initialTrialsPending = true;
-  $effect(() => {
-    let alive = true;
-    initialTrialsPending = true;
-    data.fleet.then((fleet) => {
-      if (!alive || !fleetOrder.accept(0)) return;
-      snap = fleet.snapshot;
-      degraded = fleet.degraded;
-      throughputPoints = throughputHistory.record(fleet.degraded ? null : fleet.snapshot, trialSnapshot);
-    });
-    data.trials.then((trials) => {
-      if (!alive) return;
-      initialTrialsPending = false;
-      if (trialOrder.accept(0)) trialSnapshot = trials;
-    }).catch(() => {
-      if (!alive) return;
-      initialTrialsPending = false;
-      if (trialOrder.accept(0)) trialSnapshot = null;
-    });
-    return () => {
-      alive = false;
-    };
-  });
-
-  const FAST_MS = 2000;
-  const SLOW_MS = 8000;
+  const POLL_MS = 8000;
+  const SETTLE_POLL_MS = 2000;
   const SETTLE_WINDOW_MS = 30_000;
+
+  let snapshot = $state.raw<ShardSnapshot | null>(null);
+  let trials = $state.raw<TrialSnapshot | null>(null);
+  let fleetLoading = $state(true);
+  let trialsLoading = $state(true);
+  let stale = $state(false);
+  let trialsStale = $state(false);
+  let points = $state.raw<ThroughputPoint[]>([]);
+  let changing = $state(false);
+  let view = $state('all');
   let fastUntil = 0;
+  const fleetOrder = new ReadOrder();
+  const history = new ThroughputHistory();
 
-  const HIDDEN_MS = 15_000;
-
-  function fleetUnavailable(ticket: number) {
-    if (!pollingActive || !fleetOrder.current(ticket)) return;
-    live = false;
-    throughputPoints = throughputHistory.record(null, trialSnapshot);
+  function receiveFleet(next: ShardSnapshot | null, ticket: number) {
+    if (!fleetOrder.accept(ticket)) return;
+    stale = next === null;
+    if (next) snapshot = next;
   }
 
-  async function pollSnapshot(): Promise<boolean> {
-    if (busy) return false;
+  function receiveTrials(next: TrialSnapshot | null) {
+    trialsStale = next === null;
+    if (next) trials = next;
+  }
+
+  async function readSnapshot<T>(route: string, signal: AbortSignal): Promise<T | null> {
+    try {
+      const response = await fetch(route, { signal, cache: 'no-store' });
+      if (!response.ok) return null;
+      const body: { snapshot?: T } = await response.json();
+      return body.snapshot ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function refreshFleet(ticket: number, signal: AbortSignal) {
+    if (fleetLoading || changing) return undefined;
+    const next = await readSnapshot<ShardSnapshot>('/shards/snapshot', signal);
+    if (!signal.aborted) receiveFleet(next, ticket);
+    return next;
+  }
+
+  async function refreshTrials(signal: AbortSignal) {
+    if (!data.canViewTrials || trialsLoading) return null;
+    const next = await readSnapshot<TrialSnapshot>('/trials/snapshot', signal);
+    if (!signal.aborted) receiveTrials(next);
+    return next;
+  }
+
+  async function refreshSnapshots(signal: AbortSignal): Promise<boolean> {
+    if (document.hidden) return false;
     const ticket = fleetOrder.start();
-    try {
-      const res = await fetch('/shards/snapshot');
-      if (!res.ok) {
-        fleetUnavailable(ticket);
-        return false;
-      }
-      const body = (await res.json()) as { snapshot?: ShardSnapshot | null };
-      if (!body.snapshot) {
-        fleetUnavailable(ticket);
-        return false;
-      }
-      if (!pollingActive || !fleetOrder.accept(ticket)) return false;
-      snap = body.snapshot;
-      throughputPoints = throughputHistory.record(body.snapshot, trialSnapshot);
-      degraded = false;
-      live = true;
-    } catch {
-      fleetUnavailable(ticket);
-    }
+    const [next, trial] = await Promise.all([refreshFleet(ticket, signal), refreshTrials(signal)]);
+    if (next !== undefined && !signal.aborted) recordPoint(ticket, next, trial);
     return false;
   }
 
-  async function pollTrials(): Promise<boolean> {
-    if (initialTrialsPending) return false;
-    const ticket = trialOrder.start();
-    try {
-      const res = await fetch('/trials/snapshot');
-      if (!res.ok) throw new Error('Trial snapshot unavailable');
-      const body = (await res.json()) as { snapshot?: TrialSnapshot | null };
-      if (!pollingActive || !trialOrder.current(ticket)) return false;
-      if (body.snapshot) trialOrder.accept(ticket);
-      trialSnapshot = body.snapshot ?? null;
-    } catch {
-      if (pollingActive && trialOrder.current(ticket)) trialSnapshot = null;
-    }
-    return false;
+  function recordPoint(ticket: number, next: ShardSnapshot | null, trial: TrialSnapshot | null) {
+    if (fleetOrder.current(ticket)) points = history.record(next, trial);
   }
 
-  onMount(() => {
+  $effect(() => {
+    const { fleet, trials: initialTrials, canViewTrials } = data;
+    const controller = new AbortController();
+    const { signal } = controller;
+    const ticket = fleetOrder.start();
+    fleetLoading = untrack(() => snapshot === null);
+    trialsLoading = canViewTrials;
+    if (!canViewTrials) trials = null;
+
+    const firstFleet = fleet.then((read) => read.degraded ? null : read.snapshot, () => null);
+    const firstTrials = initialTrials.catch(() => null);
+    void firstFleet.then((next) => {
+      if (signal.aborted) return;
+      fleetLoading = false;
+      receiveFleet(next, ticket);
+    });
+    void firstTrials.then((next) => {
+      if (signal.aborted) return;
+      trialsLoading = false;
+      receiveTrials(next);
+    });
+    void Promise.all([firstFleet, firstTrials]).then(([next, trial]) => {
+      if (!signal.aborted) recordPoint(ticket, next, trial);
+    });
+
     const options = {
-      firstDelayMs: 1500,
-      delayMs: () => (Date.now() < fastUntil ? FAST_MS : SLOW_MS),
+      firstDelayMs: POLL_MS,
+      delayMs: () => Date.now() < fastUntil ? SETTLE_POLL_MS : POLL_MS,
       timeoutMs: Number.POSITIVE_INFINITY,
-      hiddenDelayMs: HIDDEN_MS,
+      hiddenDelayMs: POLL_MS,
       refreshOnVisible: true
     };
-    const stopFleet = livePoll(pollSnapshot, options);
-    const stopTrials = data.canViewTrials ? livePoll(pollTrials, options) : () => {};
+    const stop = livePoll(() => refreshSnapshots(signal), options);
     return () => {
-      pollingActive = false;
-      stopFleet();
-      stopTrials();
+      controller.abort();
+      stop();
     };
   });
 
-  const capacity = $derived(snap ? resolveCapacity(snap) : null);
-  const shards = $derived(snap?.shards ?? []);
-  const connected = $derived(shards.filter((s) => s.state === 'connected').length);
-  const minShards = $derived(snap?.min_shards ?? 1);
-  const maxShards = $derived(
-    snap?.max_shards ?? capacity?.websocket_autoscale_max_shards ?? 11
-  );
-  const autoscaleOn = $derived(snap?.autoscale ?? false);
-
-  function evRate(load?: number): number {
-    return capacity ? eventsPerSecond(load, capacity.load_window_seconds) : 0;
+  function beginChange() {
+    changing = true;
+    fleetOrder.invalidate();
   }
 
-  function burstRate(load?: number): number {
-    return capacity ? eventsPerSecond(load, capacity.burst_window_seconds ?? RATE_NOW_SECONDS) : 0;
-  }
-
-  const trialLoads = $derived(snap?.trial_loads ?? {});
-  const trialBursts = $derived(snap?.trial_burst_loads ?? {});
-  const aggregateBurst = $derived(
-    shards.reduce((sum, s) => sum + burstRate(s.burst_load), 0) +
-      Object.values(trialBursts).reduce((sum, load) => sum + burstRate(load), 0)
-  );
-  const aggregateEps = $derived(
-    shards.reduce((sum, s) => sum + evRate(s.load), 0) +
-      Object.values(trialLoads).reduce((sum, load) => sum + evRate(load), 0)
-  );
-  const aggregateUtilization = $derived(
-    capacity ? utilizationPct(aggregateEps, capacity.effective_rated_eps) : 0
-  );
-  const conduit = $derived(snap?.conduit_manager);
-  const conduitReady = $derived(conduit?.state === 'ready' || conduit?.state === 'leader');
-
-  const scaleBase = $derived(snap?.desired_count ?? snap?.shard_count ?? 1);
-  let scaleOffset = $state(0);
-  const scaleCount = $derived(scaleBase + scaleOffset);
-  let seedBase = -1;
-  $effect(() => {
-    if (seedBase === scaleBase) return;
-    seedBase = scaleBase;
-    scaleOffset = 0;
-  });
-
-  function stepScale(by: number) {
-    const next = Math.min(maxShards, Math.max(minShards, scaleCount + by));
-    scaleOffset = next - scaleBase;
-  }
-
-  function typeScale(raw: string) {
-    const v = parseInt(raw, 10);
-    if (Number.isNaN(v)) return;
-    scaleOffset = v - scaleBase;
-  }
-
-  type ActionPayload = {
-    action?: { ok: boolean; notice: string };
-    snapshot?: ShardSnapshot;
-    error?: string;
-  };
-
-  let busy = $state(false);
-  let scaleForm = $state<HTMLFormElement | null>(null);
-  let autoscaleForm = $state<HTMLFormElement | null>(null);
-  let confirmScaleDown = $state(false);
-
-  function requestScale() {
-    if (scaleCount < scaleBase) {
-      confirmScaleDown = true;
-      return;
+  function finishChange(next?: ShardSnapshot) {
+    fleetOrder.invalidate();
+    if (next) {
+      snapshot = next;
+      stale = false;
     }
-    scaleForm?.requestSubmit();
+    fastUntil = Date.now() + SETTLE_WINDOW_MS;
+    changing = false;
   }
 
-  const scaleSubmit: SubmitFunction = ({ formData }) => {
-    formData.set('count', String(scaleCount));
-    fleetOrder.invalidate();
-    busy = true;
-    confirmScaleDown = false;
-    return async ({ result }) => {
-      fleetOrder.invalidate();
-      busy = false;
-      fastUntil = Date.now() + SETTLE_WINDOW_MS;
-      const p = actionPayload<ActionPayload>(result);
-      if (result.type === 'success' && p?.action?.ok) {
-        if (p.snapshot) snap = p.snapshot;
-        toast('success', p.action.notice);
-        return;
-      }
-      failed(p, t('admin.shards.scaleFailed'));
-    };
-  };
+  const capacity = $derived(snapshot ? resolveCapacity(snapshot) : null);
+  const shards = $derived(snapshot?.shards ?? []);
+  const inventoryUnavailable = $derived(snapshot?.inventory === 'unavailable');
+  const showFleetMetrics = $derived(snapshot !== null && !inventoryUnavailable);
+  const connected = $derived(shards.filter((shard) => shard.state === 'connected').length);
+  const reported = $derived(snapshot?.shard_count || shards.length);
+  const minShards = $derived(snapshot?.min_shards ?? 1);
+  const maxShards = $derived(snapshot?.max_shards ?? capacity?.websocket_autoscale_max_shards ?? 11);
+  const conduit = $derived(conduitStatus(snapshot?.conduit_manager?.state));
+  const fleetStatus = $derived.by(() => {
+    if (stale) return t('admin.shards.stale');
+    if (inventoryUnavailable) return t('admin.shards.inventoryUnavailable');
+    return t('admin.shards.live');
+  });
+  const productionCount = $derived(showFleetMetrics ? shards.length : null);
+  const trialCount = $derived(trials?.trials.filter(activeTrial).length ?? null);
+  const allCount = $derived(productionCount === null || trialCount === null ? null : productionCount + trialCount);
+  const views = $derived([
+    { value: 'all', label: t('admin.shards.allConnections'), count: countLabel(allCount) },
+    { value: 'production', label: t('admin.shards.production'), count: countLabel(productionCount) },
+    { value: 'trials', label: t('admin.shards.trialConnections'), count: countLabel(trialCount) }
+  ]);
 
-  const autoscaleSubmit: SubmitFunction = () => {
-    fleetOrder.invalidate();
-    busy = true;
-    const before = snap ? { ...snap } : null;
-    if (snap) snap = { ...snap, autoscale: !snap.autoscale };
-    return async ({ result }) => {
-      fleetOrder.invalidate();
-      busy = false;
-      fastUntil = Date.now() + SETTLE_WINDOW_MS;
-      const p = actionPayload<ActionPayload>(result);
-      if (result.type === 'success' && p?.action?.ok) {
-        if (p.snapshot) snap = p.snapshot;
-        toast('success', p.action.notice);
-        return;
-      }
-      if (before) snap = before;
-      failed(p, t('admin.shards.autoscaleFailed'));
-    };
-  };
+  function countLabel(count: number | null): string {
+    return count === null ? '–' : formatCount.format(count);
+  }
+
+  function totalRate(loads: (number | undefined)[], window: number): number {
+    return loads.reduce<number>((sum, load) => sum + eventsPerSecond(load, window), 0);
+  }
+
+  const fleetRate = $derived(totalRate(
+    [...shards.map((shard) => shard.load), ...Object.values(snapshot?.trial_loads ?? {})],
+    capacity?.load_window_seconds ?? 0
+  ));
+  const burstRate = $derived(totalRate(
+    [...shards.map((shard) => shard.burst_load), ...Object.values(snapshot?.trial_burst_loads ?? {})],
+    capacity?.burst_window_seconds ?? RATE_NOW_SECONDS
+  ));
+  const utilization = $derived(capacity ? utilizationPct(fleetRate, capacity.effective_rated_eps) : 0);
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow={t('admin.shards.eyebrow')} description={t('admin.shards.description')}>
+  <PageHead compact description={t('admin.shards.description')}>
     {t('admin.shards.titlePre')}<em>{t('admin.shards.titleEm')}</em>
   </PageHead>
 
-  {#if degraded}
-    <AlertBanner>{t('admin.shards.degraded')}</AlertBanner>
-  {/if}
-
-  {#if snap === null}
-    <SkeletonStack rows={3} height="96px" />
-  {:else}
-    <div class="tiles">
-      <Grid min="200px" gap={3}>
-        <StatTile
-          label={t('admin.shards.tileShards')}
-          value={`${connected}/${snap.shard_count || shards.length}`}
-          delta={t('admin.shards.tileShardsDelta', { nodes: String(snap.nodes.length) })}
-        />
-        <StatTile
-          label={t('admin.shards.tileThroughput')}
-          value={rateLabel(aggregateEps)}
-          unit={t('admin.shards.eps')}
-          delta={t('admin.shards.tileThroughputDeltaBurst', {
-            now: rateLabel(aggregateBurst),
-            pct: pctLabel(aggregateUtilization)
-          })}
-        />
-        <StatTile
-          label={t('admin.shards.tileAutoscale')}
-          value={autoscaleOn ? t('admin.shards.on') : t('admin.shards.off')}
-          delta={t('admin.shards.tileAutoscaleDelta', {
-            min: String(minShards),
-            max: String(maxShards)
-          })}
-        />
-      </Grid>
-    </div>
-
-    <PageToolbar>
+  <div class="fleet-content">
+    <PageToolbar class="shards-toolbar">
       {#snippet leading()}
-        <Cluster gap={2}>
-          <StatusDot tone={conduitReady ? 'success' : 'warning'} />
-          <Text as="span" size="xs" tone="muted" mono>
-            {t('admin.shards.conduit', {
-              state: conduit?.state ?? t('admin.shards.unknownState'),
-              node: conduit?.node ?? '-'
-            })}
-          </Text>
-          {#if live}<Tag tone="live">{t('admin.shards.live')}</Tag>{/if}
-        </Cluster>
+        <Stack gap={2}>
+          <div class="fleet-status">
+            {#if fleetLoading}
+              <div aria-hidden="true"><Skeleton variant="pill" width="min(16rem, 100%)" /></div>
+            {:else if !snapshot}
+              <AlertBanner flush role="status">{t('admin.shards.degraded')}</AlertBanner>
+            {:else}
+              <div class="conduit-status">
+                <StatusDot tone={conduit.tone} flat />
+                <Text as="span" size="xs" tone="muted" mono>
+                  <bb-fit><span data-fit>{t('admin.shards.conduit', { state: t(conduit.label) })}</span></bb-fit>
+                </Text>
+                <span class="live-state" role="status">
+                  <Tag tone={stale || inventoryUnavailable ? 'warning' : 'success'} contain title={fleetStatus}>
+                    <bb-fit><span data-fit>{fleetStatus}</span></bb-fit>
+                  </Tag>
+                </span>
+              </div>
+            {/if}
+          </div>
+          {#if data.canViewTrials}
+            <SegmentedControl options={views} bind:value={view} label={t('admin.shards.topologyTitle')} even />
+          {/if}
+        </Stack>
       {/snippet}
       {#snippet trailing()}
         {#if canScale}
-          <Cluster gap={2} nowrap>
-            <Label mono as="span">{t('admin.shards.autoscaleLabel')}</Label>
-            <Switch
-              checked={autoscaleOn}
-              label={t('admin.shards.autoscaleLabel')}
-              describedby="shards-autoscale-hint"
-              busy={busy}
-              onCheckedChange={() => autoscaleForm?.requestSubmit()}
-            />
-          </Cluster>
-          <span class="stepper" class:dim={autoscaleOn}>
-            <IconButton
-              size="sm"
-              label={t('admin.shards.decrease')}
-              disabled={scaleCount <= minShards}
-              onclick={() => stepScale(-1)}>&minus;</IconButton>
-            <Input
-              mono
-              type="number"
-              min={minShards}
-              max={maxShards}
-              value={scaleCount}
-              aria-label={t('admin.shards.countLabel')}
-              oninput={(e: Event) => typeScale((e.target as HTMLInputElement).value)}
-            />
-            <IconButton
-              size="sm"
-              label={t('admin.shards.increase')}
-              disabled={scaleCount >= maxShards}
-              onclick={() => stepScale(1)}>+</IconButton>
-          </span>
-          <Button
-            variant="secondary"
-            disabled={autoscaleOn || busy || scaleCount === scaleBase}
-            onclick={requestScale}
-          >
-            {t('admin.shards.apply')}
-          </Button>
+          <ShardControls {snapshot} {minShards} {maxShards} {changing} {stale} {beginChange} {finishChange} />
         {/if}
       {/snippet}
     </PageToolbar>
 
-    {#if canScale}
-      <Text size="sm" tone="muted" id="shards-autoscale-hint">
-        {autoscaleOn ? t('admin.shards.autoscaleOnHint') : t('admin.shards.autoscaleOffHint')}
-      </Text>
-    {/if}
+    <Grid cols={3} gap={3} aria-busy={fleetLoading} class="shard-metrics">
+      {#if fleetLoading}
+        {#each [0, 1, 2] as tile (tile)}
+          <div class="metric-slot" aria-hidden="true"><Skeleton variant="block" height="100%" /></div>
+        {/each}
+      {:else}
+        <div class="metric-slot">
+          <StatTile static flat fitCopy label={t('admin.shards.tileShards')}
+            value={showFleetMetrics ? `${countLabel(connected)}/${countLabel(reported)}` : '–'}
+            delta={showFleetMetrics ? t('admin.shards.tileShardsDelta', { nodes: countLabel(snapshot?.nodes.length ?? 0) }) : undefined} />
+        </div>
+        <div class="metric-slot">
+          <StatTile static flat fitCopy label={t('admin.shards.tileThroughput')}
+            value={showFleetMetrics ? rateLabel(fleetRate) : '–'} unit={showFleetMetrics ? t('admin.shards.eps') : undefined}
+            delta={showFleetMetrics ? t('admin.shards.tileThroughputDeltaBurst', { now: rateLabel(burstRate), pct: pctLabel(utilization) }) : undefined} />
+        </div>
+        <div class="metric-slot">
+          <StatTile static flat fitCopy text label={t('admin.shards.tileAutoscale')}
+            value={snapshot ? t(snapshot.autoscale ? 'admin.shards.on' : 'admin.shards.off') : '–'}
+            delta={snapshot ? t('admin.shards.tileAutoscaleDelta', { min: countLabel(minShards), max: countLabel(maxShards) }) : undefined} />
+        </div>
+      {/if}
+    </Grid>
 
-    <ThroughputChart points={throughputPoints} showTrials={data.canViewTrials} />
-    {#if capacity}
-      <ShardTopology snapshot={snap} {capacity} trials={trialSnapshot} showTrials={data.canViewTrials} />
-    {/if}
-  {/if}
+    <ThroughputChart {points} showTrials={data.canViewTrials} />
+    <ShardTopology {snapshot} {capacity} {trials} {fleetLoading} {trialsStale}
+      showProduction={!data.canViewTrials || view !== 'trials'} showTrials={data.canViewTrials && view !== 'production'}
+      trialsLoading={trialsLoading && trials === null} />
+  </div>
 </section>
 
-<ConfirmDialog
-  open={confirmScaleDown}
-  title={t('admin.shards.confirmScaleDownTitle')}
-  body={t('admin.shards.confirmScaleDownBody', {
-    from: String(scaleBase),
-    to: String(scaleCount)
-  })}
-  confirmLabel={t('admin.shards.apply')}
-  cancelLabel={t('common.cancel')}
-  {busy}
-  onCancel={() => (confirmScaleDown = false)}
-  onConfirm={() => scaleForm?.requestSubmit()}
-  tone="danger"
-/>
-
-<form method="POST" action="?/scale" use:enhance={scaleSubmit} bind:this={scaleForm} hidden>
-  <input type="hidden" name="count" value={scaleCount} />
-</form>
-<form
-  method="POST"
-  action="?/autoscale"
-  use:enhance={autoscaleSubmit}
-  bind:this={autoscaleForm}
-  hidden
->
-  <input type="hidden" name="enabled" value={autoscaleOn ? 'false' : 'true'} />
-</form>
-
 <style>
-  .tiles {
-    margin-bottom: var(--bb-space-4);
+  .fleet-content {
+    container-type: inline-size;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--bb-space-4);
   }
 
-  .stepper {
-    --input-w: 76px;
-    display: inline-flex;
-    align-items: center;
-    gap: var(--bb-space-1);
-    transition: opacity var(--bb-dur-fast) ease;
+  .fleet-content > :global(.shards-toolbar) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 0 auto;
+    align-items: start;
+    margin-bottom: 0;
   }
-  .stepper.dim {
-    opacity: 0.45;
+
+  .fleet-status {
+    display: grid;
+    align-items: center;
+    min-block-size: 44px;
+    min-inline-size: 0;
+  }
+
+  .conduit-status {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) 8rem;
+    align-items: center;
+    gap: var(--bb-space-2);
+  }
+
+  .live-state {
+    display: grid;
+  }
+
+  .metric-slot {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    block-size: 9rem;
+    min-inline-size: 0;
+  }
+
+  @container (max-width: 740px) {
+    .fleet-content > :global(.shards-toolbar) {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto 0 auto;
+      row-gap: var(--bb-space-2);
+    }
+  }
+
+  @container (max-width: 39rem) {
+    .fleet-content > :global(.shard-metrics) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .metric-slot:last-child {
+      grid-column: 1 / -1;
+    }
   }
 </style>

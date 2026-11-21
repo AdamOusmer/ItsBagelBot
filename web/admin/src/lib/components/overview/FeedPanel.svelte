@@ -5,6 +5,7 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import StatTile from '@bagel/ui/svelte/StatTile.svelte';
   import { formatCounterValue } from '@bagel/kit/validation';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -17,8 +18,8 @@
   const count = (raw: string) => formatCounterValue(raw, locale);
 </script>
 
-<Card as="section">
-  <CardHead title={t('admin.overview.feedTitle')} />
+<Card as="section" class="overview-feed-panel">
+  <CardHead title={t('admin.overview.feedTitle')} headingLevel={2} />
 
   {#if !ok}
     <EmptyState title={t('admin.overview.feedUnavailable')} />
@@ -31,15 +32,17 @@
     />
 
     {#if board.entries.length}
-      <ol class="bb-node-list board">
-        {#each board.entries as entry, i (entry.id)}
-          <li class="bb-node-list__row">
-            <span class="rank">{i + 1}</span>
-            <span class="bb-node-list__name">{entry.name || t('admin.overview.feedUnnamed')}</span>
-            <span class="bb-node-list__trail">{count(entry.count)}</span>
-          </li>
-        {/each}
-      </ol>
+      <Scroller fill role="region" aria-label={t('admin.overview.feedTitle')} tabindex={0}>
+        <ol class="bb-node-list board">
+          {#each board.entries as entry, i (entry.id)}
+            <li class="bb-node-list__row">
+              <span class="rank">{i + 1}</span>
+              <span class="bb-node-list__name">{entry.name || t('admin.overview.feedUnnamed')}</span>
+              <span class="bb-node-list__trail">{count(entry.count)}</span>
+            </li>
+          {/each}
+        </ol>
+      </Scroller>
     {:else}
       <EmptyState title={t('admin.overview.feedEmpty')} />
     {/if}
@@ -47,6 +50,11 @@
 </Card>
 
 <style>
+  :global(.overview-feed-panel) {
+    display: flex;
+    flex-direction: column;
+  }
+
   .board {
     list-style: none;
     padding: 0;

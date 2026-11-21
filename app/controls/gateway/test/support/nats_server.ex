@@ -4,6 +4,8 @@
 defmodule ControlsGateway.TestSupport.NatsServer do
   @moduledoc "Spawns a real local nats-server for integration tests."
 
+  @supervisor ~S("$0" "$@" & server=$!; trap 'kill $server 2>/dev/null; exit' TERM INT; read -r line; kill $server 2>/dev/null; wait $server)
+
   @spec free_port() :: :inet.port_number()
   def free_port do
     {:ok, socket} = :gen_tcp.listen(0, [])
@@ -20,10 +22,10 @@ defmodule ControlsGateway.TestSupport.NatsServer do
     args = if store_dir, do: args ++ ["-js", "-sd", store_dir], else: args
 
     server =
-      Port.open({:spawn_executable, exe}, [
+      Port.open({:spawn_executable, "/bin/sh"}, [
         :binary,
         :exit_status,
-        args: args
+        args: ["-c", @supervisor, exe | args]
       ])
 
     {:os_pid, os_pid} = :erlang.port_info(server, :os_pid)

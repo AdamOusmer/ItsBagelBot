@@ -1,0 +1,9 @@
+{
+  "title": "Ajustes",
+  "language": "Idioma",
+  "languageHint": "Elige el idioma del panel de administración.",
+  "customCursor": "Cursor personalizado",
+  "customCursorHint": "Usa el cursor personalizado en este navegador.",
+  "cursorSaveError": "No se pudo guardar la preferencia del cursor.",
+  "languageSaveError": "No se pudo cambiar el idioma."
+}

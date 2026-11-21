@@ -1,65 +1,204 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// @ts-ignore Bun supplies this module at test runtime; it is not a production dependency.
-import { describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import { privateEnv, stubSvelteKit } from './sveltekit';
+import type { AdminRole } from '../src/lib/access';
+import type { Session } from '../src/lib/server/session';
 
 stubSvelteKit();
-privateEnv.TWITCH_BOT_USER_ID = 'bot';
 
-const failing = new Set<string>();
+const services = await import('../src/lib/server/services');
+const giveaways = await import('../src/lib/server/giveaways');
+const liveCount = await import('../src/lib/server/live-count');
+const { emptyShardSnapshot } = await import('../src/lib/server/fallback');
+const { load: loadLayout } = await import('../src/routes/(admin)/+layout.server');
+const { load } = await import('../src/routes/(admin)/+page.server');
+const { GET } = await import('../src/routes/(admin)/overview/enrollment/+server');
+
+const STATS = {
+  total_users: 9,
+  active_users: 8,
+  premium_users: 4,
+  vip_users: 1,
+  paid_users: 2,
+  granted_users: 1
+};
+const ENROLLMENT = { days: [{ date: '2026-09-30', count: 4 }], stats: STATS };
+const PROBES = [{ id: 'users', label: 'Users', ok: true, ms: 4 }];
+const FEED = { total: '12', ranked: '2', entries: [{ id: '7', name: 'crumbs', count: '9' }] };
+const SESSION: Session = {
+  user_id: '1',
+  login: 'owner',
+  display_name: 'Owner',
+  role: 'mod',
+  iat: 0,
+  expires_at: 0
+};
+
+let failing: readonly string[];
+let spies: { mockRestore(): void }[];
+
 const read = <T>(name: string, value: T) => async (): Promise<T> => {
-  if (failing.has(name)) throw new Error(`${name} unavailable`);
+  if (failing.includes(name)) throw new Error(`${name} unavailable`);
   return value;
 };
 
-const services = await import('../src/lib/server/services');
-mock.module('#lib/server/services', () => ({
-  ...services,
-  userEnrollment: read('enrollment', { days: [{ date: '2026-09-30', count: 4 }], stats: { total_users: 9, active_users: 8, premium_users: 1, vip_users: 0, paid_users: 1, granted_users: 0 } }),
-  shardSnapshot: read('fleet', { shard_count: 3 }),
-  trialList: read('trials', { version: 1, trials: [] }),
-  serviceHealth: read('health', [{ service: 'users', ok: true }]),
-  feedBoard: read('feed', { total: '12', ranked: '2', entries: [{ id: '7', name: 'crumbs', count: '9' }] }),
-  auditList: read('audit', []),
-  tokenStatus: read('bot', { present: true })
-}));
-mock.module('#lib/server/giveaways', () => ({ giveawayAlerts: read('giveawayAlerts', []) }));
+const readEnrollment = read('enrollment', ENROLLMENT);
+const userEnrollment = mock((..._args: Parameters<typeof services.userEnrollment>) => readEnrollment());
+const readLiveCount = mock<typeof liveCount.liveUserCount>(async () => 2);
 
-const { load } = await import('../src/routes/(admin)/+page.server');
+const PANELS = ['accountStats', 'enrollment', 'fleet', 'trials', 'health', 'feed', 'audit', 'bot', 'giveawayAlerts'] as const;
+const previousBotId = privateEnv.TWITCH_BOT_USER_ID;
 
-const READS = ['enrollment', 'fleet', 'trials', 'health', 'feed', 'audit', 'bot', 'giveawayAlerts'] as const;
+beforeAll(() => {
+  privateEnv.TWITCH_BOT_USER_ID = 'bot';
+  spies = [
+    spyOn(services, 'adminCheck').mockResolvedValue({ admin: true, role: 'owner' }),
+    spyOn(services, 'userStats').mockImplementation(read('accountStats', STATS)),
+    spyOn(services, 'userEnrollment').mockImplementation(userEnrollment),
+    spyOn(services, 'shardSnapshot').mockImplementation(read('fleet', { ...emptyShardSnapshot(), shard_count: 3 })),
+    spyOn(services, 'trialList').mockImplementation(read('trials', { version: 1, trials: [] })),
+    spyOn(services, 'serviceHealth').mockImplementation(read('health', PROBES)),
+    spyOn(services, 'feedBoard').mockImplementation(read('feed', FEED)),
+    spyOn(services, 'auditList').mockImplementation(read('audit', [])),
+    spyOn(services, 'tokenStatus').mockImplementation(read('bot', { present: true })),
+    spyOn(giveaways, 'giveawayAlerts').mockImplementation(read('giveawayAlerts', [])),
+    spyOn(services, 'notificationsList').mockResolvedValue({
+      notifications: [],
+      page: 1,
+      page_size: 20,
+      max_pages: 1,
+      has_more: false
+    }),
+    spyOn(liveCount, 'liveUserCount').mockImplementation(readLiveCount)
+  ];
+});
 
-async function panels(): Promise<Record<(typeof READS)[number], { ok: boolean; value: any }>> {
-  const data = (await load({ url: new URL('https://admin.example/'), parent: async () => ({ id: '1', role: 'owner' }) } as never)) as any;
-  const settled = await Promise.all(READS.map((name) => data[name]));
-  return Object.fromEntries(READS.map((name, i) => [name, settled[i]])) as never;
+afterAll(() => {
+  for (const spy of spies) spy.mockRestore();
+  privateEnv.TWITCH_BOT_USER_ID = previousBotId;
+});
+
+beforeEach(() => {
+  failing = [];
+  userEnrollment.mockClear();
+  readLiveCount.mockClear();
+});
+
+function readOverview(query = '', role: AdminRole = 'owner') {
+  return load({
+    url: new URL(`https://admin.example/${query}`),
+    parent: async () => ({ id: SESSION.user_id, role })
+  } as Parameters<typeof load>[0]);
+}
+
+function getEnrollment(query: string, session: Session | null = SESSION) {
+  return GET({
+    locals: { session },
+    url: new URL(`https://admin.example/overview/enrollment${query}`)
+  } as Parameters<typeof GET>[0]);
 }
 
 describe('admin overview load', () => {
-  test('every read answering fills its panel', async () => {
-    failing.clear();
-    const all = await panels();
-    expect(READS.map((name) => all[name].ok)).toEqual(READS.map(() => true));
-  });
-
-  test('an outage degrades each panel to an empty fallback instead of failing the page', async () => {
-    for (const name of READS) failing.add(name);
-    const all = await panels();
-    expect(READS.map((name) => all[name].ok)).toEqual(READS.map(() => false));
-    expect({ days: all.enrollment.value.days.length, users: all.enrollment.value.stats.total_users, shards: all.fleet.value.shard_count, feed: all.feed.value }).toEqual({
-      days: 30,
-      users: 0,
-      shards: 0,
-      feed: { total: '0', ranked: '0', entries: [] }
+  test('streams KPI data and preserves the initial enrollment window', async () => {
+    const data = await readOverview('?days=7');
+    const kpis = [data.accountStats, data.health];
+    expect(kpis.every((kpi) => kpi instanceof Promise)).toBe(true);
+    expect(await Promise.all(kpis)).toEqual([
+      { ok: true, value: STATS },
+      { ok: true, value: PROBES }
+    ]);
+    expect({
+      days: data.days,
+      enrollment: await data.enrollment,
+      botLink: data.botLink,
+      enrollmentReads: userEnrollment.mock.calls,
+      liveCountReads: readLiveCount.mock.calls
+    }).toEqual({
+      days: 7,
+      enrollment: { ok: true, value: ENROLLMENT },
+      botLink: 'https://admin.example/auth/bot/login',
+      enrollmentReads: [[SESSION.user_id, 7]],
+      liveCountReads: []
     });
   });
 
-  test('one failing read does not take the other panels down', async () => {
-    failing.clear();
-    failing.add('fleet');
-    const all = await panels();
-    expect(READS.map((name) => all[name].ok)).toEqual([true, false, true, true, true, true, true, true]);
+  test.each([
+    ['available', []],
+    ['one failing read', ['fleet']],
+    ['all failing reads', PANELS]
+  ] as const)('marks each panel independently when %s', async (_case, unavailable) => {
+    failing = unavailable;
+    const data = await readOverview();
+    const results = await Promise.all(PANELS.map((name) => data[name]));
+    expect(PANELS.filter((_, index) => !results[index].ok)).toEqual([...unavailable]);
+  });
+
+  test('the selected enrollment window and other panels retain their fallback shapes', async () => {
+    failing = ['enrollment', 'fleet', 'feed'];
+    const data = await readOverview('?days=90');
+    const [enrollment, fleet, feed] = await Promise.all([data.enrollment, data.fleet, data.feed]);
+    expect({
+      days: enrollment.value.days.length,
+      users: enrollment.value.stats.total_users,
+      shards: fleet.value.shard_count,
+      feed: feed.value
+    }).toEqual({ days: 90, users: 0, shards: 0, feed: { total: '0', ranked: '0', entries: [] } });
+  });
+
+  test.each([
+    ['owner', true, false],
+    ['admin', true, false],
+    ['moderator', false, true]
+  ] as const)('applies giveaway access for %s', async (role, canViewGiveaways, ok) => {
+    failing = ['giveawayAlerts'];
+    const data = await readOverview('', role);
+    expect({ canViewGiveaways: data.canViewGiveaways, panel: await data.giveawayAlerts }).toEqual({
+      canViewGiveaways,
+      panel: { ok, value: [] }
+    });
+  });
+});
+
+describe('admin layout load', () => {
+  test.each([
+    ['live users', 2],
+    ['no live users', 0],
+    ['unavailable live count', null]
+  ] as const)('streams one live count for %s', async (_case, count) => {
+    readLiveCount.mockResolvedValue(count);
+    const data = await loadLayout({ locals: { session: SESSION } } as Parameters<typeof loadLayout>[0]);
+    expect({
+      streamed: data?.liveCount instanceof Promise,
+      value: await data?.liveCount,
+      reads: readLiveCount.mock.calls
+    }).toEqual({ streamed: true, value: count, reads: [[SESSION.user_id]] });
+  });
+});
+
+describe('overview enrollment endpoint', () => {
+  test.each([
+    ['?days=7', 7],
+    ['?days=30', 30],
+    ['?days=90', 90],
+    ['?days=1', 30],
+    ['', 30]
+  ] as const)('returns enrollment data for %j', async (query, expected) => {
+    const response = await getEnrollment(query);
+    expect({ status: response.status, enrollment: await response.json(), reads: userEnrollment.mock.calls }).toEqual({
+      status: 200,
+      enrollment: ENROLLMENT,
+      reads: [[SESSION.user_id, expected]]
+    });
+  });
+
+  test.each([
+    { name: 'unauthenticated requests', session: null, unavailable: [], status: 403, reads: 0 },
+    { name: 'upstream failures', session: SESSION, unavailable: ['enrollment'], status: 503, reads: 1 }
+  ])('returns the endpoint error for $name', async ({ session, unavailable, status, reads }) => {
+    failing = unavailable;
+    await expect(getEnrollment('?days=7', session)).rejects.toMatchObject({ status });
+    expect(userEnrollment.mock.calls).toHaveLength(reads);
   });
 });

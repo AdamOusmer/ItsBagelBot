@@ -15,5 +15,6 @@
   "secrets": "Secrets",
   "counters": "Compteurs du bot",
   "trials": "Chaînes d'essai",
-  "deploys": "Déploiements"
+  "deploys": "Déploiements",
+  "settings": "Paramètres"
 }

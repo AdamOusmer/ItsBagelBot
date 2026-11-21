@@ -16,16 +16,9 @@ export interface ConsumerTelemetry {
 type ConsumerMode = 'push' | 'pull';
 type ConsumerConnection = 'bound' | 'unbound' | 'waiting' | 'unknown';
 
-function pushConnection(bound: boolean | undefined): ConsumerConnection {
-  if (bound === true) return 'bound';
-  if (bound === false) return 'unbound';
-  return 'unknown';
-}
-
-/** Push binding has no meaning for a pull consumer. Zero waiting requests
- * can also mean a pull worker is processing a batch, so it is not an orphan. */
 function consumerConnection(ci: ConsumerTelemetry, mode: ConsumerMode): ConsumerConnection {
-  if (mode === 'push') return pushConnection(ci.push_bound);
+  if (mode === 'push') return ci.push_bound ? 'bound' : 'unbound';
+  // A pull worker with no waiting requests can still be active and must remain protected from deletion.
   return ci.num_waiting > 0 ? 'waiting' : 'unknown';
 }
 
@@ -70,11 +63,16 @@ export function formatDeliveryRate(rate: number | null): string {
   return `${Math.round(rate)} msg/s`;
 }
 
-/** A JetStream Lister's next() returns one page, not the whole listing. */
-export async function allPages<T>(lister: { next(): Promise<T[]> }): Promise<T[]> {
+type LaneLister<T> = {
+  next(): Promise<T[]>;
+  pageInfo?: { missing?: string[] };
+};
+
+export async function allPages<T>(lister: LaneLister<T>): Promise<T[]> {
   const items: T[] = [];
   for (;;) {
     const page = await lister.next();
+    if (lister.pageInfo?.missing?.length) throw new Error('JetStream listing omitted unavailable entries');
     if (page.length === 0) return items;
     items.push(...page);
   }

@@ -6,12 +6,10 @@ import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import { allows } from '#lib/server/access';
 import { analyticsSeries, type AnalyticsWindow } from '#lib/server/services';
-import { ANALYTICS_LIVE, ANALYTICS_WINDOWS, DEFAULT_ANALYTICS_WINDOW, buildAnalytics, type AnalyticsReads, type AnalyticsView } from '#lib/analytics-page';
-import { currentDay, type AnalyticsRow } from '#lib/analytics-view';
-import { buildDonations, type DonationsView } from '#lib/donations-view';
+import { ANALYTICS_DATA, ANALYTICS_WINDOWS, DEFAULT_ANALYTICS_WINDOW, buildAnalytics, type AnalyticsReads } from '#lib/analytics-page';
+import { addDays, currentDay, inRange, pick, windows, type AnalyticsRow, type Day } from '#lib/analytics-view';
+import { buildDonations } from '#lib/donations-view';
 import { donationsSummary } from '#lib/server/donations';
-
-type AnalyticsBundle = { view: AnalyticsView; donations: DonationsView; degraded: boolean };
 
 const DEMO = dev && process.env.DEMO === '1';
 const COHORT_DAYS = 120;
@@ -42,23 +40,28 @@ function windowDays(raw: string | null): number {
   return ANALYTICS_WINDOWS.find((d) => d === n) ?? DEFAULT_ANALYTICS_WINDOW;
 }
 
-async function read(actorId: string, days: number): Promise<AnalyticsReads> {
+async function readAnalytics(actorId: string, days: number, end: Day): Promise<AnalyticsReads> {
+  const counterSpan = Math.min(Math.max(2 * days, TWO_FULL_MONTHS), MAX_SPAN);
   const series = (w: AnalyticsWindow, metrics: string[], span: number) =>
     analyticsSeries(actorId, w, metrics, span);
+  const dailyCounters = series('d', COUNTERS, counterSpan);
+  const cohortLifecycle = counterSpan < COHORT_DAYS
+    ? series('d', ['lifecycle'], COHORT_DAYS)
+    : dailyCounters.then((rows) => inRange(pick(rows, 'lifecycle'), { from: addDays(end, -COHORT_DAYS), to: end }));
   const [counters, levels, week, month, cohortWeeks, cohortDays] = await Promise.all([
-    series('d', COUNTERS, Math.min(Math.max(2 * days, TWO_FULL_MONTHS), MAX_SPAN)),
+    dailyCounters,
     series('d', LEVELS, days),
     series('w', WEEKLY, WEEK_SPAN),
     series('m', MONTHLY, MONTH_SPAN),
     series('w', ['cohort.active'], COHORT_DAYS),
-    series('d', ['lifecycle'], COHORT_DAYS)
+    cohortLifecycle
   ]);
-  return { end: currentDay(new Date()), days, counters, levels, week, month, cohortWeeks, cohortDays };
+  return { end, days, counters, levels, week, month, cohortWeeks, cohortDays };
 }
 
 const NONE: AnalyticsRow[] = [];
-const emptyReads = (days: number): AnalyticsReads => ({
-  end: currentDay(new Date()),
+const emptyReads = (days: number, end: Day): AnalyticsReads => ({
+  end,
   days,
   counters: NONE,
   levels: NONE,
@@ -69,26 +72,23 @@ const emptyReads = (days: number): AnalyticsReads => ({
 });
 
 export const load: PageServerLoad = async ({ parent, url, depends }) => {
-  depends(ANALYTICS_LIVE);
+  depends(ANALYTICS_DATA);
   const layout = await parent();
   if (!allows(layout.role, 'analytics.read')) throw redirect(302, '/');
   const days = windowDays(url.searchParams.get('days'));
+  const end = currentDay(new Date());
+  const { cur: period } = windows(end, days);
   const reads = DEMO
     ? import('#lib/server/demo-data').then(({ demoAnalytics }) => demoAnalytics(days))
-    : read(layout.id, days);
+    : readAnalytics(layout.id, days, end);
   const ledger = DEMO
     ? import('#lib/server/demo-data').then(({ demoDonations }) => demoDonations(days))
     : donationsSummary(layout.id, days);
   const analytics = reads
     .then((r) => ({ view: buildAnalytics(r), degraded: false }))
-    .catch(() => ({ view: buildAnalytics(emptyReads(days)), degraded: true }));
+    .catch(() => ({ view: buildAnalytics(emptyReads(days, end)), degraded: true }));
   const donations = ledger
     .then((reply) => ({ view: buildDonations(reply), degraded: false }))
     .catch(() => ({ view: buildDonations({}), degraded: true }));
-  const bundle: Promise<AnalyticsBundle> = Promise.all([analytics, donations]).then(([a, d]) => ({
-    view: a.view,
-    donations: d.view,
-    degraded: a.degraded || d.degraded
-  }));
-  return { days: days as number, defaultDays: DEFAULT_ANALYTICS_WINDOW, windows: [...ANALYTICS_WINDOWS] as number[], bundle };
+  return { days, defaultDays: DEFAULT_ANALYTICS_WINDOW, windows: ANALYTICS_WINDOWS, period, analytics, donations };
 };

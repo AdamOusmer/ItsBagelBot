@@ -25,5 +25,8 @@
   "nowOf": "{n} sur {total}",
   "nowAllBuilt": "Les {total} images sont construites",
   "jobs": "{done} jobs terminés sur {total}",
-  "openJob": "Ouvrir le job"
+  "openJob": "Ouvrir le job",
+  "noStages": "Aucune étape",
+  "noStagesBody": "Les étapes apparaissent au démarrage du déploiement.",
+  "loadFailed": "Ce déploiement n’a pas pu être chargé."
 }

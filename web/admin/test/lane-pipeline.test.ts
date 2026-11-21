@@ -4,74 +4,112 @@
 // @ts-ignore Bun supplies this module at test runtime.
 import { describe, expect, test } from 'bun:test';
 import type { LaneView } from '../src/lib/server/lanes';
-import { matchesPipeline, type PipelineTrafficFilter } from '../src/lib/components/lanes/lane-pipeline';
+import {
+  filterLanes,
+  matchesPipeline,
+  type LaneFilters,
+  type PipelineStageFilter,
+  type PipelineTrafficFilter
+} from '../src/lib/components/lanes/lane-pipeline';
 
 function lane(stream: string, consumer: string, subject: string): LaneView {
   return { stream, consumer, subject, display: 'operator alias', category: 'projection', ephemeral: false, orphan: false, pending: 0, inFlight: '0', rate: '-', redelivered: 0 };
 }
 
-const TRAFFIC: Exclude<PipelineTrafficFilter, 'all'>[] = ['stream', 'standard', 'premium'];
-const trafficOf = (row: LaneView) => TRAFFIC.filter((traffic) => matchesPipeline(row, 'twitch', traffic));
-const inTwitchPipeline = (row: LaneView) => matchesPipeline(row, 'twitch', 'all');
+type Traffic = Exclude<PipelineTrafficFilter, 'all'>;
+const TRAFFIC: Traffic[] = ['stream', 'standard', 'premium'];
+const INGRESS = 'TWITCH_INGRESS';
+const STANDARD_INGRESS = 'TWITCH_INGRESS_STANDARD';
+const OUTGRESS = 'TWITCH_OUTGRESS';
+const SYSTEM = 'TWITCH_OUTGRESS_SYSTEM';
 
 describe('Twitch processing pipeline filters', () => {
-  test('Sesame retains worker-owned legacy and v2 premium/standard lanes', () => {
-    for (const traffic of ['premium', 'standard'] as const) {
-      for (const subject of [`twitch.ingress.event.${traffic}`, `twitch.ingress.v2.${traffic}.>`, `twitch.ingress.v2.${traffic}.42`]) {
-        const row = lane(traffic === 'standard' ? 'TWITCH_INGRESS_STANDARD' : 'TWITCH_INGRESS', `worker_${subject.replace(/[.*>]/g, '_')}_sesame-pod`, subject);
-        expect(matchesPipeline(row, 'ingress', 'all')).toBe(true);
-        expect(trafficOf(row)).toEqual([traffic]);
-        expect(matchesPipeline(row, 'ingress', traffic)).toBe(true);
-      }
-    }
-    expect(matchesPipeline(lane('TWITCH_INGRESS', 'sesame_twitch_ingress_event_standard', 'twitch.ingress.event.standard'), 'ingress', 'standard')).toBe(true);
+  test.each([
+    [INGRESS, 'worker_premium', 'twitch.ingress.event.premium', ['premium']],
+    [INGRESS, 'worker_premium', 'twitch.ingress.v2.premium.>', ['premium']],
+    [INGRESS, 'worker_premium', 'twitch.ingress.v2.premium.42', ['premium']],
+    [STANDARD_INGRESS, 'worker_standard', 'twitch.ingress.event.standard', ['standard']],
+    [STANDARD_INGRESS, 'worker_standard', 'twitch.ingress.v2.standard.>', ['standard']],
+    [STANDARD_INGRESS, 'worker_standard', 'twitch.ingress.v2.standard.42', ['standard']],
+    [INGRESS, 'sesame_standard', 'twitch.ingress.event.standard', ['standard']],
+    [INGRESS, 'worker_stream', 'twitch.ingress.event.stream', ['stream']],
+    [INGRESS, 'worker_stream', 'twitch.ingress.status.>', ['stream']],
+    [INGRESS, 'worker_stream', 'twitch.ingress.status.authz.granted', ['stream']],
+    [INGRESS, 'worker_multi', ' twitch.ingress.v2.premium.*, twitch.ingress.event.standard, twitch.ingress.status.> ', TRAFFIC],
+    [INGRESS, 'worker_all', 'twitch.ingress.>', TRAFFIC],
+    [STANDARD_INGRESS, 'worker_all', '', ['standard']],
+    [OUTGRESS, 'outgress-standard_main', 'twitch.outgress.standard', ['standard']],
+    [OUTGRESS, 'outgress-premium_main', 'twitch.outgress.premium', ['premium']],
+    [OUTGRESS, 'outgress-premium_all', 'twitch.outgress.*', ['standard', 'premium']]
+  ] satisfies [string, string, string, Traffic[]][])('classifies traffic for %s / %s / %s', (stream, consumer, subject, expected) => {
+    const row = lane(stream, consumer, subject);
+    const stage = stream === OUTGRESS ? 'outgress' : 'ingress';
+    expect(TRAFFIC.filter((traffic) => matchesPipeline(row, stage, traffic))).toEqual(expected);
+    expect(matchesPipeline(row, 'twitch', 'all')).toBe(true);
   });
 
-  test('stream and status lanes are stream traffic when owned by Sesame', () => {
-    for (const subject of ['twitch.ingress.event.stream', 'twitch.ingress.status.>', 'twitch.ingress.status.authz.granted']) {
-      expect(trafficOf(lane('TWITCH_INGRESS', 'worker_stream', subject))).toEqual(['stream']);
-    }
+  test.each([
+    [INGRESS, 'outgress_twitch_ingress_event_stream', 'twitch.ingress.>'],
+    [INGRESS, 'projector_twitch_ingress_event_standard', 'twitch.ingress.>'],
+    [INGRESS, 'automod_twitch_ingress_v2_premium__', 'twitch.ingress.>'],
+    [INGRESS, 'worker-metrics_twitch_ingress_event_premium', 'twitch.ingress.>'],
+    [INGRESS, 'sesame-backup_twitch_ingress_event_standard', 'twitch.ingress.>'],
+    ['TWITCH_INGRESS_RETRY', 'worker_retry', 'twitch.ingress.retry.premium'],
+    ['TWITCH_OUTGRESS_SYSTEM_EXTRA', 'outgress-system_job', 'twitch.outgress.system'],
+    ['TWITCH_AUTOMOD_ACTION', 'automod-action_job', 'twitch.automod.action.>'],
+    [OUTGRESS, 'projector_job', 'twitch.outgress.premium'],
+    [INGRESS, 'worker_invalid', 'twitch.ingress.v2.premium'],
+    [INGRESS, 'worker_invalid', 'twitch.ingress.status'],
+    [INGRESS, 'worker_invalid', 'twitch.ingress.event.premium-extra'],
+    [INGRESS, 'worker_invalid', 'other.twitch.ingress.event.premium']
+  ])('excludes nonpipeline consumer %s / %s / %s', (stream, consumer, subject) => {
+    expect(matchesPipeline(lane(stream, consumer, subject), 'twitch', 'all')).toBe(false);
   });
 
-  test('excludes outgress observers, automod, projection and lookalike groups', () => {
-    for (const consumer of ['outgress_twitch_ingress_event_stream', 'projector_twitch_ingress_event_standard', 'automod_twitch_ingress_v2_premium__', 'worker-metrics_twitch_ingress_event_premium', 'sesame-backup_twitch_ingress_event_standard']) {
-      expect(inTwitchPipeline(lane('TWITCH_INGRESS', consumer, 'twitch.ingress.>'))).toBe(false);
+  const system = lane(SYSTEM, 'outgress-system_main', 'twitch.outgress.system');
+  const premium = lane(INGRESS, 'worker_premium', 'twitch.ingress.event.premium');
+  const unrelated = lane('DATA', 'projector_changes', 'data.>');
+
+  test.each([
+    [system, 'system', 'all', true],
+    [system, 'outgress', 'all', true],
+    [system, 'outgress', 'standard', false],
+    [system, 'twitch', 'premium', false],
+    [premium, 'all', 'premium', true],
+    [premium, 'system', 'all', false],
+    [unrelated, 'all', 'all', true],
+    [unrelated, 'all', 'standard', false]
+  ] satisfies [LaneView, PipelineStageFilter, PipelineTrafficFilter, boolean][])(
+    'combines stage and traffic for %j / %s / %s',
+    (row, stage, traffic, expected) => {
+      expect(matchesPipeline(row, stage, traffic)).toBe(expected);
     }
-    expect(inTwitchPipeline(lane('TWITCH_INGRESS_RETRY', 'worker_retry', 'twitch.ingress.retry.premium'))).toBe(false);
+  );
+});
+
+describe('lane filter counts', () => {
+  const stream = lane('TWITCH_INGRESS', 'worker_stream', 'twitch.ingress.event.stream');
+  const premium = lane('TWITCH_INGRESS', 'worker_premium', 'twitch.ingress.event.premium');
+  const outgress: LaneView = { ...lane('TWITCH_OUTGRESS', 'outgress-premium_main', 'twitch.outgress.premium'), category: 'system' };
+  const unrelated: LaneView = { ...lane('DATA', 'projector_changes', 'data.>'), category: 'ephemeral' };
+  const lanes = [stream, premium, outgress, unrelated];
+  const defaults: LaneFilters = { query: '', categories: new Set(), stage: 'all', traffic: 'all' };
+
+  test('counts each choice against only the other active filters', () => {
+    expect(filterLanes(lanes, { ...defaults, stage: 'ingress', traffic: 'premium', categories: new Set(['system', 'projection']) })).toEqual({
+      rows: [premium],
+      categoryCounts: { all: 1, projection: 1, system: 0, ephemeral: 0 },
+      stageCounts: { all: 2, twitch: 2, ingress: 1, outgress: 1, system: 0 },
+      trafficCounts: { all: 2, stream: 1, standard: 0, premium: 1 }
+    });
   });
 
-  test('scopes the outgoing lanes to actual outgress owners and exact streams', () => {
-    for (const traffic of ['premium', 'standard'] as const) {
-      const row = lane('TWITCH_OUTGRESS', `outgress-${traffic}_twitch_outgress_${traffic}`, `twitch.outgress.${traffic}`);
-      expect(matchesPipeline(row, 'outgress', traffic)).toBe(true);
-    }
-    const system = lane('TWITCH_OUTGRESS_SYSTEM', 'outgress-system_twitch_outgress_system', 'twitch.outgress.system');
-    expect(matchesPipeline(system, 'system', 'all')).toBe(true);
-    expect(matchesPipeline(system, 'outgress', 'all')).toBe(true);
-    expect(matchesPipeline(system, 'outgress', 'standard')).toBe(false);
-    expect(matchesPipeline(system, 'twitch', 'premium')).toBe(false);
-    for (const row of [lane('TWITCH_OUTGRESS_SYSTEM_EXTRA', 'outgress-system_job', 'twitch.outgress.system'), lane('TWITCH_OUTGRESS', 'projector_job', 'twitch.outgress.premium'), lane('TWITCH_AUTOMOD_ACTION', 'automod-action_job', 'twitch.automod.action.>')]) {
-      expect(inTwitchPipeline(row)).toBe(false);
-    }
-  });
-
-  test('supports comma-separated filters and wildcards without substring matches', () => {
-    expect(trafficOf(lane('TWITCH_INGRESS', 'worker_multi', ' twitch.ingress.v2.premium.*, twitch.ingress.event.standard, twitch.ingress.status.> '))).toEqual(['stream', 'standard', 'premium']);
-    expect(trafficOf(lane('TWITCH_INGRESS', 'worker_all', 'twitch.ingress.>'))).toEqual(['stream', 'standard', 'premium']);
-    expect(trafficOf(lane('TWITCH_INGRESS_STANDARD', 'worker_all', ''))).toEqual(['standard']);
-    expect(trafficOf(lane('TWITCH_OUTGRESS', 'outgress-premium_all', 'twitch.outgress.*'))).toEqual(['standard', 'premium']);
-    for (const subject of ['twitch.ingress.v2.premium', 'twitch.ingress.status', 'twitch.ingress.event.premium-extra', 'other.twitch.ingress.event.premium']) {
-      expect(inTwitchPipeline(lane('TWITCH_INGRESS', 'worker_invalid', subject))).toBe(false);
-    }
-  });
-
-  test('all preserves unrelated lanes while traffic selections target the pipeline', () => {
-    const unrelated = lane('DATA', 'projector_changes', 'data.>');
-    expect(matchesPipeline(unrelated, 'all', 'all')).toBe(true);
-    expect(matchesPipeline(unrelated, 'all', 'standard')).toBe(false);
-    const premium = lane('TWITCH_INGRESS', 'worker_premium', 'twitch.ingress.event.premium');
-    expect(matchesPipeline(premium, 'twitch', 'all')).toBe(true);
-    expect(matchesPipeline(premium, 'all', 'premium')).toBe(true);
-    expect(matchesPipeline(premium, 'system', 'all')).toBe(false);
+  test.each([
+    [defaults, lanes],
+    [{ ...defaults, query: ' OUTGRESS ' }, [outgress]],
+    [{ ...defaults, categories: new Set(['system', 'ephemeral']) }, [outgress, unrelated]],
+    [{ ...defaults, stage: 'twitch' }, [stream, premium, outgress]]
+  ] satisfies [LaneFilters, LaneView[]][])('applies search and category selection to rows (%j)', (filters, rows) => {
+    expect(filterLanes(lanes, filters).rows).toEqual(rows);
   });
 });

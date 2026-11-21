@@ -8,7 +8,6 @@ import {
   byDim,
   cohorts,
   dailySeries,
-  dateLabel,
   daysIn,
   decimal,
   fmt,
@@ -45,8 +44,8 @@ import {
 
 export const ANALYTICS_WINDOWS = [1, 7, 30, 90, 365] as const;
 export const DEFAULT_ANALYTICS_WINDOW = 30;
-export const ANALYTICS_LIVE = 'admin:analytics';
-export const ANALYTICS_REFRESH_MS = 15_000;
+export const ANALYTICS_DATA = 'admin:analytics';
+export const ANALYTICS_REFRESH_MS = 60_000;
 
 export type AnalyticsReads = {
   end: string;
@@ -73,7 +72,7 @@ export type FlowTone = 'accent' | 'warm' | 'danger';
 export type FlowLine = { key: string; name: Phrase; tone: FlowTone; dashed?: boolean };
 export type FlowPoint = { at: number; [key: string]: number };
 export type Flow = { lines: FlowLine[]; points: FlowPoint[]; facts: Fact[] };
-export type TableCell ={ text: string };
+export type TableCell = { text: string };
 export type TableRow = { id: string; name: Name; cells: TableCell[] };
 export type DataTable = { columns: string[]; rows: TableRow[] };
 export type CohortCell = { percent: string; count: string; heat: number };
@@ -176,13 +175,10 @@ const SORTS = {
   keep: (): number => 0
 };
 
-// Stored lifecycle history starts months before every other metric, so it cannot mark when recording began.
-const isRecorded = (row: AnalyticsRow): boolean => row.metric !== 'lifecycle';
-
 function context(r: AnalyticsReads): Ctx {
   const { cur, prev } = windows(r.end, r.days);
   const first = bounds(r.counters)?.first;
-  const tracked = bounds(r.counters.filter(isRecorded))?.first ?? cur.from;
+  const tracked = bounds(r.counters.filter((row) => row.metric !== 'lifecycle'))?.first ?? cur.from;
   return { r, days: r.days, cur, prev, prevComplete: first !== undefined && first <= prev.from, tracked };
 }
 
@@ -755,7 +751,7 @@ export function buildAnalytics(r: AnalyticsReads): AnalyticsView {
   const c = context(r);
   return {
     empty: isEmpty(r),
-    period: { start: dateLabel(c.cur.from), end: dateLabel(c.cur.to) },
+    period: { start: c.cur.from, end: c.cur.to },
     kpis: kpis(c),
     growth: growth(c),
     engagement: engagement(c),

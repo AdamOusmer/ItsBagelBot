@@ -5,12 +5,11 @@ import type { DbCredentialStatus } from '#lib/server/secrets';
 
 export type SecretVerb = 'rotate' | 'set' | 'revoke';
 
-/** `action` is the server form-action name: a rename silently 404s the POST. */
-export type SecretDialog = {
-  verb: SecretVerb;
-  action: string;
+type SecretDialog = {
+  action: `?/${SecretVerb}`;
   title: string;
   body: string;
+  label: string;
   cta: string;
   danger: boolean;
   needsUser: boolean;
@@ -20,10 +19,10 @@ export type SecretDialog = {
 
 export const SECRET_DIALOGS = {
   rotate: {
-    verb: 'rotate',
     action: '?/rotate',
     title: 'admin.secrets.rotateTitle',
     body: 'admin.secrets.rotateBody',
+    label: 'admin.secrets.rotate',
     cta: 'admin.secrets.rotate',
     danger: false,
     needsUser: false,
@@ -31,10 +30,10 @@ export const SECRET_DIALOGS = {
     phrase: (service) => `rotate ${service.id}`
   },
   set: {
-    verb: 'set',
     action: '?/set',
     title: 'admin.secrets.setTitle',
     body: 'admin.secrets.setBody',
+    label: 'admin.secrets.set',
     cta: 'admin.secrets.setCta',
     danger: false,
     needsUser: true,
@@ -42,11 +41,11 @@ export const SECRET_DIALOGS = {
     phrase: (service) => `set ${service.id}`
   },
   revoke: {
-    verb: 'revoke',
     action: '?/revoke',
     title: 'admin.secrets.revokeTitle',
     body: 'admin.secrets.revokeBody',
-    cta: 'admin.secrets.revoke',
+    label: 'admin.secrets.revoke',
+    cta: 'common.revoke',
     danger: true,
     needsUser: true,
     needsPassword: false,

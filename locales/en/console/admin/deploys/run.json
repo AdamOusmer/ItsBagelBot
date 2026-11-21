@@ -25,5 +25,8 @@
   "nowOf": "{n} of {total}",
   "nowAllBuilt": "All {total} images built",
   "jobs": "{done} of {total} jobs done",
-  "openJob": "Open job"
+  "openJob": "Open job",
+  "noStages": "No stages yet",
+  "noStagesBody": "Stages appear here once the run starts.",
+  "loadFailed": "This run could not load."
 }

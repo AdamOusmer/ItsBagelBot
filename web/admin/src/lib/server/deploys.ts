@@ -27,7 +27,6 @@ import {
   type StartRequest
 } from '#lib/deploys/types';
 
-// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 const DEMO = dev && process.env.DEMO === '1';
 
 export interface DeployApi {
@@ -76,11 +75,9 @@ function deployFailure(e: unknown): ActionError {
 
 type Actor = Pick<AdminIdentity, 'id'>;
 
-export type PlanResult = { plan: DeployPlan | null; planError: string | null };
+type PlanResult = { plan: DeployPlan | null; planError: string | null };
 
-// The plan is streamed: it reads GitHub, the registry and the cluster, and
-// awaiting it here held the whole page (and the sidebar click) for seconds.
-export type DeploysPageData = {
+type DeploysPageData = {
   planned: Promise<PlanResult>;
   flux: Promise<FluxResult>;
   runs: DeployRunSummary[];
@@ -100,19 +97,16 @@ async function fluxResult(): Promise<FluxResult> {
   }
 }
 
-type RunsAndActive = { list: DeployRuns; active: DeployRun | null };
-
-const NO_RUNS: RunsAndActive = { list: { runs: [], activeRunId: null }, active: null };
+type RunsAndActive = Pick<DeploysPageData, 'runs' | 'active' | 'runsError'>;
 
 async function runsAndActive(api: DeployApi, actor: Actor): Promise<RunsAndActive> {
-  const list = await api.list({ actor_id: actor.id });
-  if (!list.activeRunId) return { list, active: null };
-  return { list, active: await api.get({ actor_id: actor.id, run_id: list.activeRunId }) };
-}
-
-function firstRejection(results: PromiseSettledResult<unknown>[]): string | null {
-  const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
-  return failed ? message(failed.reason) : null;
+  try {
+    const { runs, activeRunId } = await api.list({ actor_id: actor.id });
+    const active = activeRunId ? await api.get({ actor_id: actor.id, run_id: activeRunId }) : null;
+    return { runs, active, runsError: null };
+  } catch (err) {
+    return { runs: [], active: null, runsError: message(err) };
+  }
 }
 
 async function planResult(api: DeployApi, actor: Actor): Promise<PlanResult> {
@@ -126,15 +120,8 @@ async function planResult(api: DeployApi, actor: Actor): Promise<PlanResult> {
 export async function loadDeploys(actor: Actor): Promise<DeploysPageData> {
   const api = await deployApi();
   const planned = planResult(api, actor);
-  const [runs] = await Promise.allSettled([runsAndActive(api, actor)]);
-  const listed = runs.status === 'fulfilled' ? runs.value : NO_RUNS;
-  return {
-    planned,
-    flux: fluxResult(),
-    runs: listed.list.runs,
-    active: listed.active,
-    runsError: firstRejection([runs])
-  };
+  const flux = fluxResult();
+  return { planned, flux, ...(await runsAndActive(api, actor)) };
 }
 
 export async function loadDeployRun(actor: Actor, runId: DeployRunId): Promise<{ run: DeployRun }> {

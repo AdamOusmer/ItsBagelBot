@@ -12,6 +12,7 @@ import type { ShardSnapshot, UserStats } from '@bagel/kit';
 import { parseCounterValue } from '@bagel/kit/validation';
 import { adminL1CacheCapacity } from './config-sanity';
 import type { AnalyticsRow } from '#lib/analytics-view';
+import type { UserState } from '#lib/components/users/user-state';
 
 const SUB = {
   shards: process.env.NATS_ADMIN_SUBJECT || 'twitch.ingress.admin.shards.get',
@@ -127,13 +128,18 @@ export interface TokenStatus {
   present: boolean;
 }
 
+export interface DirectoryStats extends UserStats {
+  directory_counts?: Record<UserState, number>;
+}
+
 export interface UserPage {
   users: AdminUserWire[];
-  stats: UserStats;
+  stats: DirectoryStats;
   page: number;
   page_size: number;
   max_pages: number;
   has_more: boolean;
+  total: number | null;
 }
 
 export const shardSnapshot = defineRead({
@@ -314,7 +320,13 @@ export const analyticsSeries = defineRead({
     metrics,
     days
   }),
-  map: (reply: { analytics?: { rows?: AnalyticsRow[] } }) => reply.analytics?.rows ?? []
+  map: (reply: { analytics?: { rows?: AnalyticsRow[] } }) => reply.analytics?.rows ?? [],
+  cache: {
+    fabric,
+    key: (_actorId: ActorId, window: AnalyticsWindow, metrics: string[], days: number) =>
+      `analytics:series:${window}:${days}:${metrics.join(',')}`,
+    policy: POLICY.adminPage
+  }
 });
 
 export const USER_PAGE_SIZE = 15;
@@ -328,7 +340,18 @@ export type UserDirectoryQuery = {
   live: boolean;
   liveIDs?: number[];
 };
-export const USER_MAX_PAGES = 25;
+
+export const userLiveTotal = defineRead({
+  subject: `${SUB.user}.list`,
+  request: (actorId: ActorId, liveIDs: number[]) => ({
+    actor_id: actorId,
+    page: 1,
+    limit: 1,
+    only_live: true,
+    live_ids: liveIDs
+  }),
+  map: (reply: { total?: number }) => reply.total ?? null
+});
 
 interface PageMetaWire {
   page?: number;
@@ -362,7 +385,7 @@ function overviewKey(q: UserDirectoryQuery): string {
 export async function userOverview(q: UserDirectoryQuery & { actorId: string }): Promise<UserPage> {
   const { actorId, page, search, state, order, live, liveIDs } = q;
   const load = async () => {
-    const r = await rpc<PageMetaWire & { users?: AdminUserWire[]; stats: UserStats }>(
+    const r = await rpc<PageMetaWire & { users?: AdminUserWire[]; stats: DirectoryStats; total?: number }>(
       `${SUB.user}.overview`,
       {
         actor_id: actorId,
@@ -377,7 +400,8 @@ export async function userOverview(q: UserDirectoryQuery & { actorId: string }):
     return {
       users: r.users ?? [],
       stats: r.stats,
-      ...pageMetaOf(r, { page, pageSize: USER_PAGE_SIZE, maxPages: USER_MAX_PAGES })
+      total: r.total ?? null,
+      ...pageMetaOf(r, { page, pageSize: USER_PAGE_SIZE, maxPages: 1 })
     };
   };
   if (live) return load();
