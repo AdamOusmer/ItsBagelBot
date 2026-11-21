@@ -2,10 +2,7 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.TestSupport.NatsServer do
-  @moduledoc """
-  Spawns a real local nats-server for integration tests (no JetStream, no
-  auth: just core pub/sub, which is all this service uses).
-  """
+  @moduledoc "Spawns a real local nats-server for integration tests."
 
   @supervisor ~S("$0" "$@" & server=$!; trap 'kill $server 2>/dev/null; exit' TERM INT; read -r line; kill $server 2>/dev/null; wait $server)
 
@@ -17,15 +14,18 @@ defmodule ControlsGateway.TestSupport.NatsServer do
     port
   end
 
-  @spec start(:inet.port_number()) :: non_neg_integer()
-  def start(port) do
+  @spec start(:inet.port_number(), String.t() | nil) :: non_neg_integer()
+  def start(port, store_dir) do
     exe = System.find_executable("nats-server") || raise "nats-server not found on PATH"
+
+    args = ["-p", Integer.to_string(port), "-a", "127.0.0.1"]
+    args = if store_dir, do: args ++ ["-js", "-sd", store_dir], else: args
 
     server =
       Port.open({:spawn_executable, "/bin/sh"}, [
         :binary,
         :exit_status,
-        args: ["-c", @supervisor, exe, "-p", Integer.to_string(port), "-a", "127.0.0.1"]
+        args: ["-c", @supervisor, exe | args]
       ])
 
     {:os_pid, os_pid} = :erlang.port_info(server, :os_pid)

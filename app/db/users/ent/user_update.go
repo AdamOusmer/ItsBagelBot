@@ -9,6 +9,8 @@ import (
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/app/db/users/ent/voiceusage"
+	"ItsBagelBot/app/db/users/ent/voiceusagereceipt"
 	"ItsBagelBot/internal/domain/lifecycle"
 	"context"
 	"errors"
@@ -334,6 +336,96 @@ func (_u *UserUpdate) SetNillableSongqueuePageHidden(v *bool) *UserUpdate {
 	return _u
 }
 
+// SetTtsEnabled sets the "tts_enabled" field.
+func (_u *UserUpdate) SetTtsEnabled(v bool) *UserUpdate {
+	_u.mutation.SetTtsEnabled(v)
+	return _u
+}
+
+// SetNillableTtsEnabled sets the "tts_enabled" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableTtsEnabled(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetTtsEnabled(*v)
+	}
+	return _u
+}
+
+// SetTtsVoice sets the "tts_voice" field.
+func (_u *UserUpdate) SetTtsVoice(v string) *UserUpdate {
+	_u.mutation.SetTtsVoice(v)
+	return _u
+}
+
+// SetNillableTtsVoice sets the "tts_voice" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableTtsVoice(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetTtsVoice(*v)
+	}
+	return _u
+}
+
+// SetTtsMaxSeconds sets the "tts_max_seconds" field.
+func (_u *UserUpdate) SetTtsMaxSeconds(v int) *UserUpdate {
+	_u.mutation.ResetTtsMaxSeconds()
+	_u.mutation.SetTtsMaxSeconds(v)
+	return _u
+}
+
+// SetNillableTtsMaxSeconds sets the "tts_max_seconds" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableTtsMaxSeconds(v *int) *UserUpdate {
+	if v != nil {
+		_u.SetTtsMaxSeconds(*v)
+	}
+	return _u
+}
+
+// AddTtsMaxSeconds adds value to the "tts_max_seconds" field.
+func (_u *UserUpdate) AddTtsMaxSeconds(v int) *UserUpdate {
+	_u.mutation.AddTtsMaxSeconds(v)
+	return _u
+}
+
+// SetTtsOverlayTokenHash sets the "tts_overlay_token_hash" field.
+func (_u *UserUpdate) SetTtsOverlayTokenHash(v string) *UserUpdate {
+	_u.mutation.SetTtsOverlayTokenHash(v)
+	return _u
+}
+
+// SetNillableTtsOverlayTokenHash sets the "tts_overlay_token_hash" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableTtsOverlayTokenHash(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetTtsOverlayTokenHash(*v)
+	}
+	return _u
+}
+
+// ClearTtsOverlayTokenHash clears the value of the "tts_overlay_token_hash" field.
+func (_u *UserUpdate) ClearTtsOverlayTokenHash() *UserUpdate {
+	_u.mutation.ClearTtsOverlayTokenHash()
+	return _u
+}
+
+// SetTtsOverlayGeneration sets the "tts_overlay_generation" field.
+func (_u *UserUpdate) SetTtsOverlayGeneration(v int) *UserUpdate {
+	_u.mutation.ResetTtsOverlayGeneration()
+	_u.mutation.SetTtsOverlayGeneration(v)
+	return _u
+}
+
+// SetNillableTtsOverlayGeneration sets the "tts_overlay_generation" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableTtsOverlayGeneration(v *int) *UserUpdate {
+	if v != nil {
+		_u.SetTtsOverlayGeneration(*v)
+	}
+	return _u
+}
+
+// AddTtsOverlayGeneration adds value to the "tts_overlay_generation" field.
+func (_u *UserUpdate) AddTtsOverlayGeneration(v int) *UserUpdate {
+	_u.mutation.AddTtsOverlayGeneration(v)
+	return _u
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (_u *UserUpdate) SetCreatorCode(v string) *UserUpdate {
 	_u.mutation.SetCreatorCode(v)
@@ -605,6 +697,36 @@ func (_u *UserUpdate) AddAuthorizationCodes(v ...*AuthorizationCode) *UserUpdate
 	return _u.AddAuthorizationCodeIDs(ids...)
 }
 
+// AddVoiceUsageIDs adds the "voice_usage" edge to the VoiceUsage entity by IDs.
+func (_u *UserUpdate) AddVoiceUsageIDs(ids ...int) *UserUpdate {
+	_u.mutation.AddVoiceUsageIDs(ids...)
+	return _u
+}
+
+// AddVoiceUsage adds the "voice_usage" edges to the VoiceUsage entity.
+func (_u *UserUpdate) AddVoiceUsage(v ...*VoiceUsage) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddVoiceUsageIDs(ids...)
+}
+
+// AddVoiceUsageReceiptIDs adds the "voice_usage_receipts" edge to the VoiceUsageReceipt entity by IDs.
+func (_u *UserUpdate) AddVoiceUsageReceiptIDs(ids ...int) *UserUpdate {
+	_u.mutation.AddVoiceUsageReceiptIDs(ids...)
+	return _u
+}
+
+// AddVoiceUsageReceipts adds the "voice_usage_receipts" edges to the VoiceUsageReceipt entity.
+func (_u *UserUpdate) AddVoiceUsageReceipts(v ...*VoiceUsageReceipt) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddVoiceUsageReceiptIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -694,6 +816,48 @@ func (_u *UserUpdate) RemoveAuthorizationCodes(v ...*AuthorizationCode) *UserUpd
 	return _u.RemoveAuthorizationCodeIDs(ids...)
 }
 
+// ClearVoiceUsage clears all "voice_usage" edges to the VoiceUsage entity.
+func (_u *UserUpdate) ClearVoiceUsage() *UserUpdate {
+	_u.mutation.ClearVoiceUsage()
+	return _u
+}
+
+// RemoveVoiceUsageIDs removes the "voice_usage" edge to VoiceUsage entities by IDs.
+func (_u *UserUpdate) RemoveVoiceUsageIDs(ids ...int) *UserUpdate {
+	_u.mutation.RemoveVoiceUsageIDs(ids...)
+	return _u
+}
+
+// RemoveVoiceUsage removes "voice_usage" edges to VoiceUsage entities.
+func (_u *UserUpdate) RemoveVoiceUsage(v ...*VoiceUsage) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveVoiceUsageIDs(ids...)
+}
+
+// ClearVoiceUsageReceipts clears all "voice_usage_receipts" edges to the VoiceUsageReceipt entity.
+func (_u *UserUpdate) ClearVoiceUsageReceipts() *UserUpdate {
+	_u.mutation.ClearVoiceUsageReceipts()
+	return _u
+}
+
+// RemoveVoiceUsageReceiptIDs removes the "voice_usage_receipts" edge to VoiceUsageReceipt entities by IDs.
+func (_u *UserUpdate) RemoveVoiceUsageReceiptIDs(ids ...int) *UserUpdate {
+	_u.mutation.RemoveVoiceUsageReceiptIDs(ids...)
+	return _u
+}
+
+// RemoveVoiceUsageReceipts removes "voice_usage_receipts" edges to VoiceUsageReceipt entities.
+func (_u *UserUpdate) RemoveVoiceUsageReceipts(v ...*VoiceUsageReceipt) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveVoiceUsageReceiptIDs(ids...)
+}
+
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (_u *UserUpdate) Save(ctx context.Context) (int, error) {
 	if err := _u.defaults(); err != nil {
@@ -766,6 +930,16 @@ func (_u *UserUpdate) check() error {
 	if v, ok := _u.mutation.Locale(); ok {
 		if err := user.LocaleValidator(v); err != nil {
 			return &ValidationError{Name: "locale", err: fmt.Errorf(`ent: validator failed for field "User.locale": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.TtsMaxSeconds(); ok {
+		if err := user.TtsMaxSecondsValidator(v); err != nil {
+			return &ValidationError{Name: "tts_max_seconds", err: fmt.Errorf(`ent: validator failed for field "User.tts_max_seconds": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.TtsOverlayTokenHash(); ok {
+		if err := user.TtsOverlayTokenHashValidator(v); err != nil {
+			return &ValidationError{Name: "tts_overlay_token_hash", err: fmt.Errorf(`ent: validator failed for field "User.tts_overlay_token_hash": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.CreatorCode(); ok {
@@ -865,6 +1039,30 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.SongqueuePageHidden(); ok {
 		_spec.SetField(user.FieldSongqueuePageHidden, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.TtsEnabled(); ok {
+		_spec.SetField(user.FieldTtsEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.TtsVoice(); ok {
+		_spec.SetField(user.FieldTtsVoice, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.TtsMaxSeconds(); ok {
+		_spec.SetField(user.FieldTtsMaxSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedTtsMaxSeconds(); ok {
+		_spec.AddField(user.FieldTtsMaxSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.TtsOverlayTokenHash(); ok {
+		_spec.SetField(user.FieldTtsOverlayTokenHash, field.TypeString, value)
+	}
+	if _u.mutation.TtsOverlayTokenHashCleared() {
+		_spec.ClearField(user.FieldTtsOverlayTokenHash, field.TypeString)
+	}
+	if value, ok := _u.mutation.TtsOverlayGeneration(); ok {
+		_spec.SetField(user.FieldTtsOverlayGeneration, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedTtsOverlayGeneration(); ok {
+		_spec.AddField(user.FieldTtsOverlayGeneration, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
@@ -1096,6 +1294,96 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(authorizationcode.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.VoiceUsageCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageTable,
+			Columns: []string{user.VoiceUsageColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusage.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedVoiceUsageIDs(); len(nodes) > 0 && !_u.mutation.VoiceUsageCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageTable,
+			Columns: []string{user.VoiceUsageColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusage.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.VoiceUsageIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageTable,
+			Columns: []string{user.VoiceUsageColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusage.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.VoiceUsageReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageReceiptsTable,
+			Columns: []string{user.VoiceUsageReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusagereceipt.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedVoiceUsageReceiptsIDs(); len(nodes) > 0 && !_u.mutation.VoiceUsageReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageReceiptsTable,
+			Columns: []string{user.VoiceUsageReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusagereceipt.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.VoiceUsageReceiptsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageReceiptsTable,
+			Columns: []string{user.VoiceUsageReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusagereceipt.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -1424,6 +1712,96 @@ func (_u *UserUpdateOne) SetNillableSongqueuePageHidden(v *bool) *UserUpdateOne 
 	return _u
 }
 
+// SetTtsEnabled sets the "tts_enabled" field.
+func (_u *UserUpdateOne) SetTtsEnabled(v bool) *UserUpdateOne {
+	_u.mutation.SetTtsEnabled(v)
+	return _u
+}
+
+// SetNillableTtsEnabled sets the "tts_enabled" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableTtsEnabled(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetTtsEnabled(*v)
+	}
+	return _u
+}
+
+// SetTtsVoice sets the "tts_voice" field.
+func (_u *UserUpdateOne) SetTtsVoice(v string) *UserUpdateOne {
+	_u.mutation.SetTtsVoice(v)
+	return _u
+}
+
+// SetNillableTtsVoice sets the "tts_voice" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableTtsVoice(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetTtsVoice(*v)
+	}
+	return _u
+}
+
+// SetTtsMaxSeconds sets the "tts_max_seconds" field.
+func (_u *UserUpdateOne) SetTtsMaxSeconds(v int) *UserUpdateOne {
+	_u.mutation.ResetTtsMaxSeconds()
+	_u.mutation.SetTtsMaxSeconds(v)
+	return _u
+}
+
+// SetNillableTtsMaxSeconds sets the "tts_max_seconds" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableTtsMaxSeconds(v *int) *UserUpdateOne {
+	if v != nil {
+		_u.SetTtsMaxSeconds(*v)
+	}
+	return _u
+}
+
+// AddTtsMaxSeconds adds value to the "tts_max_seconds" field.
+func (_u *UserUpdateOne) AddTtsMaxSeconds(v int) *UserUpdateOne {
+	_u.mutation.AddTtsMaxSeconds(v)
+	return _u
+}
+
+// SetTtsOverlayTokenHash sets the "tts_overlay_token_hash" field.
+func (_u *UserUpdateOne) SetTtsOverlayTokenHash(v string) *UserUpdateOne {
+	_u.mutation.SetTtsOverlayTokenHash(v)
+	return _u
+}
+
+// SetNillableTtsOverlayTokenHash sets the "tts_overlay_token_hash" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableTtsOverlayTokenHash(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetTtsOverlayTokenHash(*v)
+	}
+	return _u
+}
+
+// ClearTtsOverlayTokenHash clears the value of the "tts_overlay_token_hash" field.
+func (_u *UserUpdateOne) ClearTtsOverlayTokenHash() *UserUpdateOne {
+	_u.mutation.ClearTtsOverlayTokenHash()
+	return _u
+}
+
+// SetTtsOverlayGeneration sets the "tts_overlay_generation" field.
+func (_u *UserUpdateOne) SetTtsOverlayGeneration(v int) *UserUpdateOne {
+	_u.mutation.ResetTtsOverlayGeneration()
+	_u.mutation.SetTtsOverlayGeneration(v)
+	return _u
+}
+
+// SetNillableTtsOverlayGeneration sets the "tts_overlay_generation" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableTtsOverlayGeneration(v *int) *UserUpdateOne {
+	if v != nil {
+		_u.SetTtsOverlayGeneration(*v)
+	}
+	return _u
+}
+
+// AddTtsOverlayGeneration adds value to the "tts_overlay_generation" field.
+func (_u *UserUpdateOne) AddTtsOverlayGeneration(v int) *UserUpdateOne {
+	_u.mutation.AddTtsOverlayGeneration(v)
+	return _u
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (_u *UserUpdateOne) SetCreatorCode(v string) *UserUpdateOne {
 	_u.mutation.SetCreatorCode(v)
@@ -1695,6 +2073,36 @@ func (_u *UserUpdateOne) AddAuthorizationCodes(v ...*AuthorizationCode) *UserUpd
 	return _u.AddAuthorizationCodeIDs(ids...)
 }
 
+// AddVoiceUsageIDs adds the "voice_usage" edge to the VoiceUsage entity by IDs.
+func (_u *UserUpdateOne) AddVoiceUsageIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.AddVoiceUsageIDs(ids...)
+	return _u
+}
+
+// AddVoiceUsage adds the "voice_usage" edges to the VoiceUsage entity.
+func (_u *UserUpdateOne) AddVoiceUsage(v ...*VoiceUsage) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddVoiceUsageIDs(ids...)
+}
+
+// AddVoiceUsageReceiptIDs adds the "voice_usage_receipts" edge to the VoiceUsageReceipt entity by IDs.
+func (_u *UserUpdateOne) AddVoiceUsageReceiptIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.AddVoiceUsageReceiptIDs(ids...)
+	return _u
+}
+
+// AddVoiceUsageReceipts adds the "voice_usage_receipts" edges to the VoiceUsageReceipt entity.
+func (_u *UserUpdateOne) AddVoiceUsageReceipts(v ...*VoiceUsageReceipt) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddVoiceUsageReceiptIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -1784,6 +2192,48 @@ func (_u *UserUpdateOne) RemoveAuthorizationCodes(v ...*AuthorizationCode) *User
 	return _u.RemoveAuthorizationCodeIDs(ids...)
 }
 
+// ClearVoiceUsage clears all "voice_usage" edges to the VoiceUsage entity.
+func (_u *UserUpdateOne) ClearVoiceUsage() *UserUpdateOne {
+	_u.mutation.ClearVoiceUsage()
+	return _u
+}
+
+// RemoveVoiceUsageIDs removes the "voice_usage" edge to VoiceUsage entities by IDs.
+func (_u *UserUpdateOne) RemoveVoiceUsageIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.RemoveVoiceUsageIDs(ids...)
+	return _u
+}
+
+// RemoveVoiceUsage removes "voice_usage" edges to VoiceUsage entities.
+func (_u *UserUpdateOne) RemoveVoiceUsage(v ...*VoiceUsage) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveVoiceUsageIDs(ids...)
+}
+
+// ClearVoiceUsageReceipts clears all "voice_usage_receipts" edges to the VoiceUsageReceipt entity.
+func (_u *UserUpdateOne) ClearVoiceUsageReceipts() *UserUpdateOne {
+	_u.mutation.ClearVoiceUsageReceipts()
+	return _u
+}
+
+// RemoveVoiceUsageReceiptIDs removes the "voice_usage_receipts" edge to VoiceUsageReceipt entities by IDs.
+func (_u *UserUpdateOne) RemoveVoiceUsageReceiptIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.RemoveVoiceUsageReceiptIDs(ids...)
+	return _u
+}
+
+// RemoveVoiceUsageReceipts removes "voice_usage_receipts" edges to VoiceUsageReceipt entities.
+func (_u *UserUpdateOne) RemoveVoiceUsageReceipts(v ...*VoiceUsageReceipt) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveVoiceUsageReceiptIDs(ids...)
+}
+
 // Where appends a list predicates to the UserUpdate builder.
 func (_u *UserUpdateOne) Where(ps ...predicate.User) *UserUpdateOne {
 	_u.mutation.Where(ps...)
@@ -1869,6 +2319,16 @@ func (_u *UserUpdateOne) check() error {
 	if v, ok := _u.mutation.Locale(); ok {
 		if err := user.LocaleValidator(v); err != nil {
 			return &ValidationError{Name: "locale", err: fmt.Errorf(`ent: validator failed for field "User.locale": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.TtsMaxSeconds(); ok {
+		if err := user.TtsMaxSecondsValidator(v); err != nil {
+			return &ValidationError{Name: "tts_max_seconds", err: fmt.Errorf(`ent: validator failed for field "User.tts_max_seconds": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.TtsOverlayTokenHash(); ok {
+		if err := user.TtsOverlayTokenHashValidator(v); err != nil {
+			return &ValidationError{Name: "tts_overlay_token_hash", err: fmt.Errorf(`ent: validator failed for field "User.tts_overlay_token_hash": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.CreatorCode(); ok {
@@ -1985,6 +2445,30 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.SongqueuePageHidden(); ok {
 		_spec.SetField(user.FieldSongqueuePageHidden, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.TtsEnabled(); ok {
+		_spec.SetField(user.FieldTtsEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.TtsVoice(); ok {
+		_spec.SetField(user.FieldTtsVoice, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.TtsMaxSeconds(); ok {
+		_spec.SetField(user.FieldTtsMaxSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedTtsMaxSeconds(); ok {
+		_spec.AddField(user.FieldTtsMaxSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.TtsOverlayTokenHash(); ok {
+		_spec.SetField(user.FieldTtsOverlayTokenHash, field.TypeString, value)
+	}
+	if _u.mutation.TtsOverlayTokenHashCleared() {
+		_spec.ClearField(user.FieldTtsOverlayTokenHash, field.TypeString)
+	}
+	if value, ok := _u.mutation.TtsOverlayGeneration(); ok {
+		_spec.SetField(user.FieldTtsOverlayGeneration, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedTtsOverlayGeneration(); ok {
+		_spec.AddField(user.FieldTtsOverlayGeneration, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
@@ -2216,6 +2700,96 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(authorizationcode.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.VoiceUsageCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageTable,
+			Columns: []string{user.VoiceUsageColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusage.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedVoiceUsageIDs(); len(nodes) > 0 && !_u.mutation.VoiceUsageCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageTable,
+			Columns: []string{user.VoiceUsageColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusage.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.VoiceUsageIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageTable,
+			Columns: []string{user.VoiceUsageColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusage.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.VoiceUsageReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageReceiptsTable,
+			Columns: []string{user.VoiceUsageReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusagereceipt.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedVoiceUsageReceiptsIDs(); len(nodes) > 0 && !_u.mutation.VoiceUsageReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageReceiptsTable,
+			Columns: []string{user.VoiceUsageReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusagereceipt.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.VoiceUsageReceiptsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageReceiptsTable,
+			Columns: []string{user.VoiceUsageReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusagereceipt.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

@@ -10,6 +10,7 @@ export const guideSlugs = [
   'spotify-song-requests',
   'govee-lights',
   'share-access',
+  'premium-voice',
   'setup-errors',
 ] as const;
 

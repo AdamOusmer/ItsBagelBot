@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { untrack } from 'svelte';
+  import { untrack, type Snippet } from 'svelte';
   import { page } from '$app/state';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
@@ -36,6 +36,7 @@
     fetchDefs = [],
     fetchKeys = [],
     onFetchDefsChanged,
+    extraActions,
     onblur
   }: {
     value: string;
@@ -50,6 +51,7 @@
     fetchDefs?: SourceDef[];
     fetchKeys?: { label: string }[];
     onFetchDefsChanged?: (defs: SourceDef[]) => void;
+    extraActions?: Snippet<[(token: string) => void]>;
     onblur?: () => void;
   } = $props();
 
@@ -94,7 +96,7 @@
 
   const describedFor = (i: number) => [describedby, countId(i)].filter(Boolean).join(' ');
 
-  function insert(token: string) {
+  export function insert(token: string) {
     const i = Math.min(focused, fields.length - 1);
     const el = areas[i];
     const cur = fields[i] ?? '';
@@ -140,10 +142,11 @@
   }
 
   function onKeydown(e: KeyboardEvent, i: number) {
+    const emptyExtraLine = fields.length > 1 && fields[i] === '';
     if (e.key === 'Enter') {
       e.preventDefault();
       addLine(i);
-    } else if (e.key === 'Backspace' && fields.length > 1 && fields[i] === '') {
+    } else if (e.key === 'Backspace' && emptyExtraLine) {
       e.preventDefault();
       removeLine(i);
     }
@@ -233,7 +236,7 @@
 <VisuallyHidden role="status" aria-live="polite">{announcement}</VisuallyHidden>
 
 <div role="toolbar" aria-label={i18n.t('commandEditor.insertVariable')}>
-  <VariablePalette {surface} {moduleFlags} {insert} {fetchDefs} {fetchKeys} {onFetchDefsChanged} />
+  <VariablePalette {surface} {moduleFlags} {insert} {fetchDefs} {fetchKeys} {onFetchDefsChanged} {extraActions} />
 </div>
 
 {#if requiredModules.length}

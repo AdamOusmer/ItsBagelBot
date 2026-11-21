@@ -32,3 +32,9 @@ type Tokens func(*sql.Selector)
 
 // User is the predicate function for user builders.
 type User func(*sql.Selector)
+
+// VoiceUsage is the predicate function for voiceusage builders.
+type VoiceUsage func(*sql.Selector)
+
+// VoiceUsageReceipt is the predicate function for voiceusagereceipt builders.
+type VoiceUsageReceipt func(*sql.Selector)

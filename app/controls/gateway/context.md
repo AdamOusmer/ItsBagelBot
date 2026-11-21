@@ -1,115 +1,80 @@
 # Controls gateway context
 
-Agent guide for the desktop controls WebSocket gateway. Read [shared language](../../../CONTEXT.md)
-and the [app map](../../../CONTEXT-MAP.md) for neighboring owners.
+Read [shared language](../../../CONTEXT.md) and the [app map](../../../CONTEXT-MAP.md)
+for neighboring owners.
 
-## Purpose and boundary
+## TTS browser source beta
 
-The gateway is the WebSocket server the desktop app connects to at `GET /v1/connect`.
-It verifies access tokens, relays device events to core NATS, and delivers
-commands and revocation back to the right connection. It never issues tokens
-(Users owns device grants and signing; see the device-authorization contract),
-never runs Twitch logic, and never clusters with other pods: routing
-across pods goes through core NATS, not BEAM distribution
-(`RELEASE_DISTRIBUTION=none`).
+OBS opens `https://overlay.itsbagelbot.com/tts#<token>`. The token is 32 random
+bytes encoded as unpadded base64url. The page sends it in one JSON
+`POST /tts/session`, then clears the fragment. Keep the token out of paths,
+queries and logs. Session, event and clip responses are uncached.
 
-## Local nomenclature
+Users owns overlay tokens and generations. The gateway calls
+`rpc.internal.users.voice.overlay.resolve` with the lowercase SHA-256 hex of
+the encoded token. Successful exchange sets the host-only `bb_tts` cookie
+with `user_id`, `generation` and `exp`, signed using HMAC-SHA256. The cookie is
+HttpOnly, Secure, SameSite=Lax and scoped to `/tts` for 30 days. Failed attempts
+are limited per client IP on each gateway replica.
 
-- **Device:** one desktop app installation, identified by `device_id` from a
-  verified token, never from client input.
-- **Takeover:** a newer connection for the same device displacing an older one,
-  anywhere in the fleet, over `controls.device.<device_id>.takeover`.
-- **Revocation:** Users ends a device grant and the gateway closes that
-  device's connection, over `controls.revoked.<device_id>`.
-- **conn_id:** a random id a connection generates for itself at connect time,
-  used only to tell its own takeover publish apart from someone else's.
+`GET /tts/events` checks the session generation when opening and every five
+minutes via `rpc.internal.users.voice.overlay.check`. It subscribes to
+`controls.tts.revoked.<user_id>` so it can also close immediately on revocation.
+Its ordered ephemeral consumer filters `OVERLAY_TTS` to
+`overlay.tts.<user_id>`. The SSE ID is the stream sequence. A reconnect
+starts after `Last-Event-ID` when present, or receives new events when absent.
+Each event carries `clip_key`, `event_id`, `kind`, `duration_ms` and
+`expires_at`. Idle connections receive a comment every 15 seconds.
 
-## Start with these files
+`GET /tts/clip/<event_id>` streams a WAV from `TTS_CLIPS` using the cookie
+user ID and the event ID as the object key. Missing and expired objects return
+404. The transparent browser source queues audio in arrival order and skips
+expired events. The sound hint appears when autoplay is blocked.
+
+The worker provisions both JetStream resources in `CONTROLS_GATEWAY_RPC`.
+`OVERLAY_TTS` is a file-backed stream with a five-minute max age.
+`TTS_CLIPS` is a three-replica file-backed Object Store bucket with a
+five-minute TTL. The gateway creates ephemeral readers for events and reads
+Object Store metadata and chunks through the stream message API. Missing
+resources leave readiness available.
+
+## Desktop WebSocket
+
+The desktop handler `ws_handler.ex` and its tests remain in the tree.
+`GET /v1/connect` and the desktop bridge are unmounted in the beta. The
+integration harness can mount the desktop WebSocket in isolation.
+
+The desktop handler verifies `v1.<base64url(payload)>.<base64url(signature)>`
+over the ASCII bytes of the first two segments. The Ed25519 key comes from
+`CONTROLS_TOKEN_PUBLIC_KEYS`. Users owns token signing and device grants.
+The verified token supplies the device and user IDs.
+
+Core NATS carries device events, commands and takeover messages over
+`controls.device.<device_id>.evt`, `.cmd` and `.takeover`. A newer connection
+publishes its randomly generated connection ID to displace an older one.
+`controls.revoked.<device_id>` closes that device's connection. The handler
+hibernates between messages and resubscribes when Gnat reconnects.
+
+Desktop close codes are 4000 for expiry, 4001 for takeover, 4003 for
+revocation, 1001 for graceful shutdown, 1007 for malformed frames and 1009
+for frames over 64 KiB. Draining marks readiness unavailable before closing
+the desktop connections.
+
+## Code map
 
 | Change | Read first |
 | --- | --- |
-| Boot/supervision | [application.ex](lib/controls_gateway/application.ex) |
-| Auth, frames, takeover/revocation/commands | [ws_handler.ex](lib/controls_gateway/ws_handler.ex) |
-| Token verification | [token.ex](lib/controls_gateway/token.ex), [token/ed25519.ex](lib/controls_gateway/token/ed25519.ex) |
-| NATS publish/subscribe | [nats.ex](lib/controls_gateway/nats.ex), [subjects.ex](lib/controls_gateway/subjects.ex) |
-| HTTP/health/metrics | [http_server.ex](lib/controls_gateway/http_server.ex), [http_handler.ex](lib/controls_gateway/http_handler.ex) |
-| Graceful shutdown | [drain.ex](lib/controls_gateway/drain.ex) |
-| Effective configuration | [config.ex](lib/controls_gateway/config.ex), [runtime.exs](config/runtime.exs) |
+| Listener and beta routes | [http_server.ex](lib/controls_gateway/http_server.ex) |
+| Browser page and token exchange | [page.ex](lib/controls_gateway/tts/page.ex), [http.ex](lib/controls_gateway/tts/http.ex) |
+| Session and rate limit | [session.ex](lib/controls_gateway/tts/session.ex), [throttle.ex](lib/controls_gateway/tts/throttle.ex) |
+| Event and clip streams | [events.ex](lib/controls_gateway/tts/events.ex), [clips.ex](lib/controls_gateway/tts/clips.ex) |
+| Users RPC | [tts/nats.ex](lib/controls_gateway/tts/nats.ex) |
+| Listener and credentials | [runtime.exs](config/runtime.exs), [controls-gateway.yaml](../../../deploy/k8s/controls-gateway.yaml) |
 
-## Token format (verification only; Users owns signing)
-
-`v1.<base64url(payload JSON, no padding)>.<base64url(Ed25519 signature, no padding)>`.
-The signed message is the ASCII bytes of `v1.<base64url(payload)>` (the first
-two dot-separated segments, not the decoded payload bytes).
-
-Payload fields: `kid` (selects the public key), `iss` (must be
-`itsbagelbot-users`), `aud` (must be `controls-gateway`), `sub` (user id),
-`device_id`, `grant_id`, `iat`, `exp` (unix seconds), `jti`. Unknown fields are
-ignored. The gateway rejects a bad signature, wrong `iss`/`aud`, an expired
-`exp`, or an unknown `kid`, and never trusts `device_id`/`sub` from anywhere
-but a verified token. `CONTROLS_TOKEN_PUBLIC_KEYS` holds `kid:base64key` pairs
-(comma-separated) for rotation; no private key, and no secrets, live here.
-
-## NATS subjects (core, no JetStream)
-
-- `controls.device.<device_id>.evt`: device to server, published with the
-  server-authenticated `device_id`/`sub` stamped in, never the client's.
-- `controls.device.<device_id>.cmd`: server to device, subscribed only while
-  that device is connected on this pod, one subscription per connection.
-- `controls.device.<device_id>.takeover`: a new connection publishes its
-  `conn_id` here; any older connection for that device (any pod) that is not
-  that `conn_id` closes with code 4001. Near-simultaneous double connects for
-  the same device are not deduplicated (core NATS has no delivery guarantee
-  across a race that tight); this is an accepted gap, not a fix target.
-- `controls.revoked.<device_id>`: closes that device's connection with 4003.
-
-## Close codes
-
-4000 token expired (client refreshes and reconnects), 4001 takeover, 4003
-revoked, 1001 going away (graceful shutdown, with jitter), 1007 malformed
-frame, 1009 oversized frame (cowboy's `max_frame_size`, 64 KiB).
-
-## Invariants and pitfalls
-
-- Hibernate on every `websocket_handle`/`websocket_info` return: per-connection
-  state must stay small, since it all survives hibernation.
-- A NATS connection drop does not close sockets; each connection resubscribes
-  itself once the connection is back (`Process.monitor` on the `:gnat` pid).
-- Draining (SIGTERM) sets a flag that fails `/readyz` and 503s new
-  `/v1/connect` attempts at the handler; it does not suspend the shared Ranch
-  listener, so `/healthz` and `/readyz` stay reachable through the whole drain.
-- No New Relic: that dependency is outside this service's allowed list.
-  `/metrics` returns the in-process ETS counters as JSON instead.
-
-## Local verification
-
-Run from `app/controls/gateway`:
-
-```sh
-mix deps.get
-mix format --check-formatted
-mix compile --warnings-as-errors
-mix test
-```
-
-Integration tests open real sockets against a real local `nats-server`
-(spawned per test on a free port; install it first, e.g. `brew install
-nats-server`, or see `deploy/messaging/nats-server`). `test/controls_gateway/`
-covers auth rejection, expiry close, echo/ping, oversized/malformed frames,
-connection isolation, takeover, revocation, command delivery, device-event
-identity stamping, and drain. `test/controls_gateway/users_shared_vector_test.exs`
-pins a fixed cross-service token vector shared with Users' `tokensign` tests.
-
-`MIX_ENV=prod mix release` builds the release; the [Containerfile](Containerfile)
-mirrors Twitch ingress's base images.
-
-## Not yet wired (required before deploy)
-
-No deploy manifest, NATS account, or permission exists for this service yet.
-Before deploying: a NATS account/identity for `controls-gateway` with publish
-on `controls.device.*.evt` and `controls.device.*.takeover`, subscribe on
-`controls.device.*.cmd`, `controls.device.*.takeover`, and `controls.revoked.*`;
-an image build/publish entry; a `deploy/k8s` manifest (HTTP port, `/healthz`
-and `/readyz` probes, `RELEASE_DISTRIBUTION=none`, `ERL_FLAGS` sized from the
-pod's CPU request/limit the way [twitch-ingress.yaml](../../../deploy/k8s/twitch-ingress.yaml)
-does); and a Release-train entry. None of that is set up by this change.
+Production uses the `controls-gateway` Doppler project for the shared
+`OVERLAY_COOKIE_KEY` (at least 32 bytes) and the dedicated
+`controls_gateway_rpc` NATS credentials. Traefik forwards the overlay hostname
+to the HTTPS listener. The gateway takes the client IP from the Cloudflare
+header on this route, and defaults to the socket peer locally. The NATS
+account declarations require operator-signed claims before rollout, and the
+workload requires its first published image digest.

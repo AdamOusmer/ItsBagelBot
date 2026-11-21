@@ -154,6 +154,7 @@ func TestFirstPartyContainersAreHardened(t *testing.T) {
 		"db/commands/commands":                    hardened(),
 		"app/console-admin/console-admin":         hardened(),
 		"app/console-dashboard/console-dashboard": hardened(),
+		"app/controls-gateway/controls-gateway":   hardened(),
 		"app/gossip/gossip":                       hardened(),
 		"app/gossip/warp":                         warp,
 		"db/loyalty/loyalty":                      hardened(),

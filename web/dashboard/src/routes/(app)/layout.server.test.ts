@@ -80,6 +80,8 @@ test.each([
   { route: '/(app)', method: 'GET', delegate: false, field: 'dashboard.views|overview|owner' },
   { route: '/(app)/settings/import', method: 'GET', delegate: true, field: 'dashboard.views|settings|delegate' },
   { route: '/(app)/modules/[id]', method: 'GET', delegate: false, field: 'dashboard.views|modules|owner' },
+  { route: '/(app)/voice', method: 'GET', delegate: false, field: 'dashboard.views|voice|owner' },
+  { route: '/(app)/voice', method: 'GET', delegate: true, field: 'dashboard.views|voice|delegate' },
   { route: '/(app)/unknown', method: 'GET', delegate: false, field: null },
   { route: null, method: 'GET', delegate: false, field: null },
   { route: '/(app)/commands', method: 'POST', delegate: false, field: null }

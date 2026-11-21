@@ -160,6 +160,8 @@ spec:
             # Every twitch-ingress pod must stage per-subject cohorts first, or mixed batches are silently rejected.
             - name: NATS_INGRESS_PARTITION
               value: "on"
+            - name: SESAME_TTS_ENABLED
+              value: "false"
             - name: SESAME_CONSUMER_NAME
               value: worker
             - name: SESAME_MIN_ROUTINES

@@ -84,6 +84,49 @@ func (h correctnessHarness) billingState(t *testing.T) billingState {
 	return billingState{h.client.User.GetX(ctx, 7102).Status, h.client.User.GetX(ctx, 7101).GiftsSent, h.client.BillingReceipt.Query().CountX(ctx)}
 }
 
+func TestVoiceUsageMySQLConcurrentRecords(t *testing.T) {
+	at := time.Date(2026, 12, 15, 0, 0, 0, 0, time.UTC)
+	first := repository.VoiceUsageRecord{RequestID: "first", AudioTokens: 100, DurationMS: 4_000}
+	second := repository.VoiceUsageRecord{RequestID: "second", AudioTokens: 50, DurationMS: 2_000}
+	cases := []struct {
+		name       string
+		second     repository.VoiceUsageRecord
+		tokens     int64
+		durationMS int64
+		requests   int
+	}{
+		{"same request ID", first, 100, 4_000, 1},
+		{"distinct request IDs", second, 150, 6_000, 2},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newCorrectnessHarness(t, "mysql")
+			require.NoError(t, h.repo.Register(t.Context(), repository.Registration{
+				ID: voiceOwnerID, Username: "voiceowner", Email: "voiceowner@example.invalid",
+			}))
+			recordVoiceConcurrently(t, h.repo, [2]repository.VoiceUsageRecord{first, tc.second}, at)
+			assertVoiceLedgerTotals(t, h.client, [][3]int64{{tc.tokens, tc.durationMS, int64(tc.requests)}})
+			assert.Equal(t, tc.requests, h.client.VoiceUsageReceipt.Query().CountX(t.Context()))
+		})
+	}
+}
+
+func recordVoiceConcurrently(t *testing.T, repo *repository.Users, records [2]repository.VoiceUsageRecord, at time.Time) {
+	t.Helper()
+	ctx := t.Context()
+	start := make(chan struct{})
+	errs := make(chan error, len(records))
+	for _, record := range records {
+		go func() {
+			<-start
+			_, err := repo.RecordVoiceUsage(ctx, voiceOwnerID, record, at)
+			errs <- err
+		}()
+	}
+	close(start)
+	require.NoError(t, errors.Join(<-errs, <-errs))
+}
+
 func TestBillingDurableReceiptSurvivesInterveningEqualTimeEvent(t *testing.T) {
 	forUsersStorage(t, func(t *testing.T, h correctnessHarness) {
 		gift := h.registerGiftPair(t)

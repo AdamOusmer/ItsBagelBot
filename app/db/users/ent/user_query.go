@@ -9,6 +9,8 @@ import (
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/app/db/users/ent/voiceusage"
+	"ItsBagelBot/app/db/users/ent/voiceusagereceipt"
 	"context"
 	"database/sql/driver"
 	"fmt"
@@ -32,6 +34,8 @@ type UserQuery struct {
 	withPremiumGrants      *PremiumGrantQuery
 	withDeviceGrants       *DeviceGrantQuery
 	withAuthorizationCodes *AuthorizationCodeQuery
+	withVoiceUsage         *VoiceUsageQuery
+	withVoiceUsageReceipts *VoiceUsageReceiptQuery
 	modifiers              []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -150,6 +154,50 @@ func (_q *UserQuery) QueryAuthorizationCodes() *AuthorizationCodeQuery {
 			sqlgraph.From(user.Table, user.FieldID, selector),
 			sqlgraph.To(authorizationcode.Table, authorizationcode.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, user.AuthorizationCodesTable, user.AuthorizationCodesColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryVoiceUsage chains the current query on the "voice_usage" edge.
+func (_q *UserQuery) QueryVoiceUsage() *VoiceUsageQuery {
+	query := (&VoiceUsageClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(voiceusage.Table, voiceusage.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.VoiceUsageTable, user.VoiceUsageColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryVoiceUsageReceipts chains the current query on the "voice_usage_receipts" edge.
+func (_q *UserQuery) QueryVoiceUsageReceipts() *VoiceUsageReceiptQuery {
+	query := (&VoiceUsageReceiptClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(voiceusagereceipt.Table, voiceusagereceipt.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.VoiceUsageReceiptsTable, user.VoiceUsageReceiptsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -353,6 +401,8 @@ func (_q *UserQuery) Clone() *UserQuery {
 		withPremiumGrants:      _q.withPremiumGrants.Clone(),
 		withDeviceGrants:       _q.withDeviceGrants.Clone(),
 		withAuthorizationCodes: _q.withAuthorizationCodes.Clone(),
+		withVoiceUsage:         _q.withVoiceUsage.Clone(),
+		withVoiceUsageReceipts: _q.withVoiceUsageReceipts.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -400,6 +450,28 @@ func (_q *UserQuery) WithAuthorizationCodes(opts ...func(*AuthorizationCodeQuery
 		opt(query)
 	}
 	_q.withAuthorizationCodes = query
+	return _q
+}
+
+// WithVoiceUsage tells the query-builder to eager-load the nodes that are connected to
+// the "voice_usage" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithVoiceUsage(opts ...func(*VoiceUsageQuery)) *UserQuery {
+	query := (&VoiceUsageClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withVoiceUsage = query
+	return _q
+}
+
+// WithVoiceUsageReceipts tells the query-builder to eager-load the nodes that are connected to
+// the "voice_usage_receipts" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithVoiceUsageReceipts(opts ...func(*VoiceUsageReceiptQuery)) *UserQuery {
+	query := (&VoiceUsageReceiptClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withVoiceUsageReceipts = query
 	return _q
 }
 
@@ -481,11 +553,13 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [4]bool{
+		loadedTypes = [6]bool{
 			_q.withTokens != nil,
 			_q.withPremiumGrants != nil,
 			_q.withDeviceGrants != nil,
 			_q.withAuthorizationCodes != nil,
+			_q.withVoiceUsage != nil,
+			_q.withVoiceUsageReceipts != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -535,6 +609,22 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			func(n *User) { n.Edges.AuthorizationCodes = []*AuthorizationCode{} },
 			func(n *User, e *AuthorizationCode) {
 				n.Edges.AuthorizationCodes = append(n.Edges.AuthorizationCodes, e)
+			}); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withVoiceUsage; query != nil {
+		if err := _q.loadVoiceUsage(ctx, query, nodes,
+			func(n *User) { n.Edges.VoiceUsage = []*VoiceUsage{} },
+			func(n *User, e *VoiceUsage) { n.Edges.VoiceUsage = append(n.Edges.VoiceUsage, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withVoiceUsageReceipts; query != nil {
+		if err := _q.loadVoiceUsageReceipts(ctx, query, nodes,
+			func(n *User) { n.Edges.VoiceUsageReceipts = []*VoiceUsageReceipt{} },
+			func(n *User, e *VoiceUsageReceipt) {
+				n.Edges.VoiceUsageReceipts = append(n.Edges.VoiceUsageReceipts, e)
 			}); err != nil {
 			return nil, err
 		}
@@ -648,6 +738,66 @@ func (_q *UserQuery) loadAuthorizationCodes(ctx context.Context, query *Authoriz
 	}
 	query.Where(predicate.AuthorizationCode(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(user.AuthorizationCodesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadVoiceUsage(ctx context.Context, query *VoiceUsageQuery, nodes []*User, init func(*User), assign func(*User, *VoiceUsage)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uint64]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(voiceusage.FieldUserID)
+	}
+	query.Where(predicate.VoiceUsage(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.VoiceUsageColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadVoiceUsageReceipts(ctx context.Context, query *VoiceUsageReceiptQuery, nodes []*User, init func(*User), assign func(*User, *VoiceUsageReceipt)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uint64]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(voiceusagereceipt.FieldUserID)
+	}
+	query.Where(predicate.VoiceUsageReceipt(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.VoiceUsageReceiptsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

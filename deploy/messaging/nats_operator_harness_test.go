@@ -282,6 +282,11 @@ type liveACLServer struct {
 
 func newLiveACLServer(t *testing.T, acl *natsacl.ACL) liveACLServer {
 	t.Helper()
+	return startLiveACLServer(t, acl, false)
+}
+
+func startLiveACLServer(t *testing.T, acl *natsacl.ACL, jetStream bool) liveACLServer {
+	t.Helper()
 	ring := newACLKeyring(t, acl)
 	tokens := signedAccountJWTs(t, acl, ring)
 	var preload strings.Builder
@@ -291,6 +296,9 @@ func newLiveACLServer(t *testing.T, acl *natsacl.ACL) liveACLServer {
 	node := buildTopology(t, 1)[0]
 	conf := fmt.Sprintf("\nserver_name: %s\nlisten: 127.0.0.1:%d\noperator: %q\nsystem_account: %q\nresolver: MEMORY\nresolver_preload: {\n%s}\n",
 		node.name, node.clientPort, signedOperatorJWT(t, ring), ring.keys.Accounts["SYS"], preload.String())
+	if jetStream {
+		conf += fmt.Sprintf("jetstream { domain: hub, store_dir: %q }\n", node.storeDir)
+	}
 	s := startNodeFromConf(t, node, conf)
 	t.Cleanup(s.Shutdown)
 	require.True(t, s.ReadyForConnections(5*time.Second), "live ACL server did not become ready")

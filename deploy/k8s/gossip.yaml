@@ -176,6 +176,10 @@ spec:
           image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1794960856-ff8e0c24deef@sha256:73ed8f5ad3d01129a49fcfae244fc516c264d973839a79258f1b029ff5cc82a5
           imagePullPolicy: IfNotPresent
           env:
+            - name: GEMINI_TTS_TEMPERATURE
+              value: "1.5"
+            - name: GEMINI_TTS_MODEL
+              value: gemini-3.8-flash-lite-tts
             - name: NATS_URL
               value: tls://nats-leaf.messaging:4222
             - name: NATS_CA_PEM

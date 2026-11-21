@@ -21,7 +21,23 @@ parse_keys = fn
     end)
 end
 
+listener_tls =
+  case {System.get_env("TLS_CERT_FILE", ""), System.get_env("TLS_KEY_FILE", "")} do
+    {"", ""} -> []
+    {cert, key} when cert != "" and key != "" -> [certfile: cert, keyfile: key]
+    _ -> raise "TLS_CERT_FILE and TLS_KEY_FILE must both be set or both unset"
+  end
+
+cookie_key = System.get_env("OVERLAY_COOKIE_KEY")
+
+if config_env() == :prod and (is_nil(cookie_key) or byte_size(cookie_key) < 32) do
+  raise "production requires OVERLAY_COOKIE_KEY with at least 32 bytes"
+end
+
 config :controls_gateway,
+  listener_tls: listener_tls,
+  overlay_cookie_key: cookie_key,
+  overlay_trust_cloudflare_ip: System.get_env("OVERLAY_TRUST_CLOUDFLARE_IP") == "true",
   port: String.to_integer(System.get_env("CONTROLS_GATEWAY_PORT", "4000")),
   token_public_keys: parse_keys.(System.get_env("CONTROLS_TOKEN_PUBLIC_KEYS"))
 

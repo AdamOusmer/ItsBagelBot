@@ -46,6 +46,8 @@ func TestLiveACLPermissions(t *testing.T) {
 		}{
 			{roleEndpoint{"BUS", "users_bus"}, "$JS.API.STREAM.DELETE.DATA"},
 			{roleEndpoint{"BUS", "outgress_bus"}, "twitch.ingress.event.premium"},
+			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "overlay.tts.42"},
+			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "$JS.API.STREAM.CREATE.OVERLAY_TTS"},
 		} {
 			err := server.publishOutcome(t, probe.role, probe.subject, 500*time.Millisecond)
 
@@ -69,6 +71,8 @@ func TestLiveACLPermissions(t *testing.T) {
 	t.Run("serves a request across an account import", func(t *testing.T) {
 		for _, probe := range []crossAccountProbe{
 			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{"OUTGRESS_RPC", "outgress_rpc"}, "rpc.internal.tokens.get"},
+			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "rpc.internal.users.voice.overlay.resolve"},
+			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "rpc.internal.users.voice.overlay.check"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "rpc.admin.user.auth.check"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "rpc.internal.admin.audit.append"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, "rpc.admin.user.audit.append"},

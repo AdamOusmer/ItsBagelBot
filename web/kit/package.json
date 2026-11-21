@@ -101,6 +101,7 @@
     "./twitch-names": "./lib/twitch-names.ts",
     "./status-tone": "./lib/status-tone.ts",
     "./giveaway": "./lib/giveaway.ts",
+    "./voice-plan": "./lib/voice-plan.ts",
     "./format": "./lib/format.ts",
     "./live-poll": "./lib/live-poll.ts",
     "./rates": "./lib/rates.ts",

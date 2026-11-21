@@ -29,7 +29,9 @@ func (r *Users) applyGrantAccess(ctx context.Context, u *ent.User, now time.Time
 	if u.Status == user.StatusVip {
 		return nil
 	}
-	covering, err := r.hasCoveringGrant(ctx, u.ID, now)
+	covering, err := db.WithQuery(ctx, func(ctx context.Context) (bool, error) {
+		return hasCoveringGrant(ctx, r.client.PremiumGrant, u.ID, now)
+	})
 	if err != nil {
 		return err
 	}
@@ -60,15 +62,13 @@ func billingOwnsAccess(u *ent.User) bool {
 	return u.SubscriptionSource == "tebex" || u.SubscriptionSource == "admin"
 }
 
-func (r *Users) hasCoveringGrant(ctx context.Context, userID uint64, now time.Time) (bool, error) {
-	return db.WithQuery(ctx, func(ctx context.Context) (bool, error) {
-		return r.client.PremiumGrant.Query().Where(
-			premiumgrant.UserIDEQ(userID),
-			premiumgrant.StateEQ(premiumgrant.StateCommitted),
-			premiumgrant.StartAtLTE(now),
-			premiumgrant.EndAtGT(now),
-		).Exist(ctx)
-	})
+func hasCoveringGrant(ctx context.Context, grants *ent.PremiumGrantClient, userID uint64, now time.Time) (bool, error) {
+	return grants.Query().Where(
+		premiumgrant.UserIDEQ(userID),
+		premiumgrant.StateEQ(premiumgrant.StateCommitted),
+		premiumgrant.StartAtLTE(now),
+		premiumgrant.EndAtGT(now),
+	).Exist(ctx)
 }
 
 func (r *Users) writeAccessStatus(ctx context.Context, u *ent.User, status user.Status) error {

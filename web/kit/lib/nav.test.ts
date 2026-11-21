@@ -25,6 +25,7 @@ describe('nav registry', () => {
     ...['modules', 'counters', 'quotes', 'govee', 'channelpoints', 'timers', 'loyalty'].map((path) => [`/${path}`, 'modules']),
     ['/giveaways', 'giveaways'],
     ['/songqueue', 'songqueue'],
+    ['/voice', 'voice'],
     ['/billing', 'billing'],
     ['/settings', 'settings'],
     ['/access', 'settings'],
@@ -41,6 +42,7 @@ describe('nav registry', () => {
       '/modules',
       '/giveaways',
       '/songqueue',
+      '/voice',
       '/billing',
       '/settings'
     ]);
@@ -60,7 +62,10 @@ describe('nav registry', () => {
       moduleLinks: [],
       t: (key) => `en:${key}`
     });
-    expect(items.filter((i) => i.count !== undefined).map((i) => [i.href, i.count])).toEqual([['/flows', 'en:nav.beta']]);
+    expect(items.filter((i) => i.count !== undefined).map((i) => [i.href, i.count])).toEqual([
+      ['/flows', 'en:nav.beta'],
+      ['/voice', 'en:nav.beta']
+    ]);
   });
 
   test('an owner sees every entry with active following the section', () => {
@@ -77,10 +82,11 @@ describe('nav registry', () => {
       'en:nav.modules',
       'en:nav.giveaways',
       'en:nav.songqueue',
+      'en:nav.voice',
       'en:nav.billing',
       'en:nav.settings'
     ]);
-    expect(items.map((i) => i.current)).toEqual([false, false, false, false, false, false, true, false]);
+    expect(items.filter((i) => i.current).map((i) => i.href)).toEqual(['/billing']);
   });
 
   test('a delegate sees only granted sections, never owner-only ones', () => {
@@ -94,7 +100,7 @@ describe('nav registry', () => {
       section: 'modules'
     });
     expect(full.map((i) => i.href)).toEqual(['/commands', '/modules', '/giveaways', '/songqueue', '/billing']);
-    expect(full.map((i) => i.current)).toEqual([false, true, false, false, false]);
+    expect(full.filter((i) => i.current).map((i) => i.href)).toEqual(['/modules']);
   });
 
   test.each([
@@ -148,7 +154,7 @@ describe('nav registry', () => {
     );
     expect(groups).toHaveLength(1);
     expect(groups[0].label).toBe('en:nav.manage');
-    expect(groups[0].items).toHaveLength(8);
+    expect(groups[0].items).toHaveLength(DASHBOARD_SECTIONS.length);
   });
 });
 
@@ -162,9 +168,9 @@ describe('delegateAllowedPaths', () => {
   });
 
   test.each([
-    ['commands', ['/commands', '/counters/list', '/quotes', '/timers'], ['/billing', '/settings', '/channelpoints']],
-    ['channelpoints', ['/channelpoints', '/songqueue'], ['/commands', '/billing', '/counters/list']],
-    ['modules', ['/modules', '/counters', '/loyalty', '/quotes', '/timers', '/giveaways', '/giveaways/live', '/giveaways/eligible'], ['/billing', '/settings']]
+    ['commands', ['/commands', '/counters/list', '/quotes', '/timers'], ['/billing', '/settings', '/channelpoints', '/voice']],
+    ['channelpoints', ['/channelpoints', '/songqueue'], ['/commands', '/billing', '/counters/list', '/voice']],
+    ['modules', ['/modules', '/counters', '/loyalty', '/quotes', '/timers', '/giveaways', '/giveaways/live', '/giveaways/eligible', '/songqueue'], ['/billing', '/settings', '/voice']]
   ] as [string, string[], string[]][])('the %s grant opens its own pages and no others', (section, open, shut) => {
     const allowed = delegateAllowedPaths([section]);
     for (const path of open) expect(pathnameAllowed(path, allowed, [section])).toBe(true);
@@ -176,7 +182,7 @@ describe('pathnameAllowed', () => {
   test('owner-only paths stay denied even to a delegate holding every grant', () => {
     const sections = ['commands', 'modules', 'channelpoints', 'billing'];
     const allowed = delegateAllowedPaths(sections);
-    for (const path of ['/', '/settings', '/settings/import', '/substate', '/overview/stream', '/events']) {
+    for (const path of ['/', '/settings', '/settings/import', '/substate', '/overview/stream', '/events', '/voice']) {
       expect(pathnameAllowed(path, allowed, sections)).toBe(false);
     }
   });

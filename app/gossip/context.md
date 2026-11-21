@@ -34,7 +34,12 @@ Read the [shared vocabulary](../../CONTEXT.md) and [context map](../../CONTEXT-M
 | [internal/core/](internal/core/) | Credential RPC clients, error/reply helpers, and limiter helpers shared by providers. |
 | [shared Gossip contracts](../../internal/domain/rpc/gossip/gossip.go) | Request, reply, and subject naming shared with callers. |
 
-Provider packages under [internal/providers/](internal/providers/) cover Urchin, Hypixel/Mojang, MCSR Ranked, Paceman, Fortnite, CODM, Govee, Clash Royale, Valorant, Spotify, and custom URL fetches. Open the named package for endpoint declarations and reply parsing; registration is centralized in `all.go`.
+Provider packages under [internal/providers/](internal/providers/) cover Urchin, Hypixel/Mojang, MCSR Ranked, Paceman, Fortnite, CODM, Govee, Clash Royale, Valorant, Spotify, Gemini text-to-speech (`tts`), and custom URL fetches. Open the named package for endpoint declarations and reply parsing; registration is centralized in `all.go`.
+
+The `tts` provider selects Vertex AI when `GOOGLE_VERTEX_CREDENTIALS` contains a service-account JSON key. `GOOGLE_VERTEX_PROJECT` defaults to the key's project ID and `GOOGLE_VERTEX_LOCATION` defaults to `global`. Without Vertex credentials it uses Gemini Interactions with `GEMINI_API_KEY` or disables itself when the key is absent. Vertex sends style as `speechMetadata.style` on the text part and may return either WAV or raw L16 PCM. Both backends use `GEMINI_TTS_TEMPERATURE`, which defaults to `1.5` and accepts values from `0` through `2`. An invalid value fails Gossip startup.
+
+The Kubernetes workload selects the Flash-Lite speech model. Voice names and the
+text limit come from `internal/domain/voiceplan`. Synthesis shapes text before applying the 500-rune limit and counting billable characters. It normalizes whitespace and long punctuation runs, reads unknown angle-bracket tags as plain text, and requires a letter or digit outside recognized tags. It keeps up to four expressive tags, including up to three pauses and at most one long pause. It drops consecutive duplicate tags separated only by whitespace or punctuation and removes pauses outside the first and last spoken text.
 
 ## Request and ownership flow
 
@@ -49,6 +54,7 @@ Provider packages under [internal/providers/](internal/providers/) cover Urchin,
 - Add a provider package plus registration in `providers.All`; keep `main.go` focused on infrastructure. Add shared contracts and caller wiring when introducing new verbs.
 - Declare `.Trusted()` before constructing clients. Without it, the builder selects WARP. Custom user URLs must keep the guarded WARP route; a dead sidecar fails closed rather than falling back to direct egress.
 - Endpoints run concurrently with themselves. Guard captured mutable state and retain per-subject budgets so slow endpoints cannot block unrelated cache hits.
+- Set caller timeouts for `tts.synthesize` above its 25 s endpoint timeout.
 - Cache absence separately from infrastructure failure. Preserve deadline-based freshness for answers that expire at a real boundary such as a daily shop reset.
 - Never put decrypted fetch keys in projections, caches, or logs. Custom fetches revalidate destinations, bound extraction, and use channel/definition/host budgets.
 - Spotify credentials belong to each broadcaster's registered application and grant; do not introduce a fleet-wide Spotify application assumption.

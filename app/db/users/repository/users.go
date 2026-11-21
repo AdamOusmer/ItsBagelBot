@@ -335,13 +335,20 @@ func (r *Users) SetActiveNow(ctx context.Context, id uint64, active bool) error 
 
 // Commit bans and revoke desktop grants even if the revocation publish fails.
 func (r *Users) SetBanned(ctx context.Context, id uint64, banned bool) error {
-	if err := r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetBanned(banned) }); err != nil {
+	apply := func(u *ent.UserUpdateOne) {
+		u.SetBanned(banned)
+		if banned {
+			clearOverlayToken(u)
+		}
+	}
+	if err := r.updateAndPublish(ctx, id, apply); err != nil {
 		return err
 	}
-	if banned {
-		if _, err := r.RevokeAllDeviceGrants(ctx, id, "ban"); err != nil {
-			r.log.Warn("device grant revoke on ban failed", zap.Uint64("user_id", id), zap.Error(err))
-		}
+	if !banned {
+		return nil
+	}
+	if _, err := r.RevokeAllDeviceGrants(ctx, id, "ban"); err != nil {
+		r.log.Warn("device grant revoke on ban failed", zap.Uint64("user_id", id), zap.Error(err))
 	}
 	return nil
 }
@@ -398,14 +405,7 @@ func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error
 				return err
 			}
 			deleted.DeletedAt = erasure.DeletedAt
-			n, err := tx.User.Delete().Where(user.IDEQ(id), user.CreatedAtEQ(createdAt)).Exec(ctx)
-			if err != nil {
-				return err
-			}
-			if n != 1 {
-				return fmt.Errorf("user account changed during deletion")
-			}
-			return nil
+			return eraseAccountRow(ctx, tx, id, createdAt)
 		})
 	}); err != nil {
 		return err
@@ -415,6 +415,14 @@ func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error
 	r.analytics.Count(catalog.Lifecycle, "account_deleted")
 
 	return r.publishDeletions(ctx, []data.UserDeletedDTO{deleted})
+}
+
+func eraseAccountRow(ctx context.Context, tx *ent.Tx, id uint64, createdAt time.Time) error {
+	update := tx.User.UpdateOneID(id).Where(user.CreatedAtEQ(createdAt))
+	if err := clearOverlayToken(update).Exec(ctx); err != nil {
+		return err
+	}
+	return tx.User.DeleteOneID(id).Exec(ctx)
 }
 
 func (r *Users) publishDeleted(ctx context.Context, deleted data.UserDeletedDTO) error {

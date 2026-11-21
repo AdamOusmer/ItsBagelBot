@@ -10,6 +10,7 @@
     tone?: ProgressTone;
     label: string;
     size?: 'sm' | 'md';
+    inset?: boolean;
     gradient?: boolean;
     ramp?: 1 | 2 | 3;
     target?: number;
@@ -23,6 +24,7 @@
     tone = 'neutral',
     label,
     size = 'md',
+    inset = false,
     gradient = false,
     ramp = 1,
     target,
@@ -42,6 +44,7 @@
       'bb-progress',
       `bb-progress--${tone}`,
       size === 'sm' ? 'bb-progress--sm' : null,
+      inset ? 'bb-progress--inset' : null,
       gradient ? 'bb-progress--gradient' : null,
       ramp > 1 ? `bb-progress--ramp-${ramp}` : null,
       fraction === null ? 'bb-progress--indeterminate' : null,

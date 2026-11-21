@@ -80,6 +80,10 @@ Contracts: [modules RPC](../../../internal/domain/rpc/modules/),
   requests republish persisted rows, and grouped account deletion sweeps owned data.
 - `rpc.internal.projection.modules.get` serves secret-free repair views.
   Loyalty config resolves Users' current account creation timestamp before writes.
+- The Alerts row stores both Chat Alerts and Premium voice settings in flat
+  string-valued JSON. The voice page owns the output-specific TTS keys. Sesame
+  applies defaults for missing keys on existing rows. Users owns the master
+  voice switch and allowance.
 - Govee/Spotify use optional `TINK_KEYSET_PATH` custody, with distinct internal
   decrypt surfaces for Gossip. Read the RPC files for subject environment overrides.
 

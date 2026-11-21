@@ -1,0 +1,159 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import { expect, mock, test } from 'bun:test';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import * as svelte from 'svelte';
+import { render } from 'svelte/server';
+import { ALERT_VOICE_CONFIG_DEFAULTS } from '@bagel/kit/voice-plan';
+import { stubSvelteKit } from '../../../../test/sveltekit';
+
+stubSvelteKit();
+const { translate } = await import('@bagel/kit/i18n');
+const english = {
+  t: (key: string, params?: Record<string, string | number>) => translate('en', key, params),
+  tl: () => [],
+  locale: 'en'
+};
+mock.module('@bagel/kit/i18n/context', () => ({
+  getI18n: () => english,
+  setI18n: () => english
+}));
+mock.module('@bagel/ui/svelte/discard-guard', () => ({
+  createDiscardGuard: () => ({ open: false, guard: () => {}, confirm: () => {}, cancel: () => {} })
+}));
+
+const uiSvelte = createRequire(import.meta.resolve('@bagel/ui/svelte/Input.svelte')).resolve('svelte');
+if (uiSvelte !== fileURLToPath(import.meta.resolve('svelte'))) mock.module(uiSvelte, () => svelte);
+
+const { default: VoicePage } = await import('./+page.svelte');
+
+const allowance = {
+  plan: 'premium', reason: 'ok', limit_tokens: 90_000, used_tokens: 57_300, remaining_tokens: 32_700,
+  resets_at: '2026-12-01T00:00:00Z', enabled: true, voice: 'Kore', max_seconds: 120
+};
+
+const data = {
+  readOnly: false, locked: false, allowance, alerts: { config: ALERT_VOICE_CONFIG_DEFAULTS, revision: 9 }
+};
+
+function renderVoice(overrides: Record<string, unknown> = {}, form: Record<string, unknown> | null = null) {
+  return render(VoicePage, { props: { data: { ...data, ...overrides }, form } as never }).body;
+}
+
+test.each([
+  { stored: undefined, displayed: '120' },
+  { stored: 5, displayed: '5' },
+  { stored: 45, displayed: '45' },
+  { stored: 120, displayed: '120' }
+])('renders a required whole-second input from 5 to 120 with $displayed selected', async ({ stored, displayed }) => {
+  const html = renderVoice({ allowance: { ...allowance, max_seconds: stored } });
+  const inputs: Record<string, string>[] = [];
+  const rewriter = new HTMLRewriter().on('form[action="?/save"]:not([novalidate]) input[name="max_seconds"]', {
+    element(input) {
+      inputs.push(Object.fromEntries(input.attributes));
+    }
+  });
+  await rewriter.transform(new Response(html)).text();
+  expect(inputs).toEqual([expect.objectContaining({
+    type: 'number', min: '5', max: '120', step: '1', required: '', value: displayed
+  })]);
+});
+
+test('shows the shared Premium gate for an owner without a plan', () => {
+  const html = renderVoice({ allowance: { ...allowance, plan: 'free', reason: 'no_plan' }, locked: true, alerts: null });
+  expect(html).toContain('aria-label="Give your alerts a voice with Premium"');
+  expect(html).toMatch(/class="bb-chip is-pressed"[^>]*>(?:\s|<!--[^>]*-->)*Beta/);
+  expect(html).not.toContain('action="?/save"');
+});
+
+test('renders usage, the alert editors and their initial states for a Premium owner', async () => {
+  const html = renderVoice();
+  const offLabels = { follow: '', sub: '' };
+  const rewriter = new HTMLRewriter();
+  for (const kind of ['follow', 'sub'] as const) {
+    rewriter.on(`section[aria-labelledby="voice-kind-${kind}"] .off-label.visible`, {
+      text(chunk) { offLabels[kind] += chunk.text; }
+    });
+  }
+  await rewriter.transform(new Response(html)).text();
+
+  expect([
+    '38 min 12 s of 60 min', '21 min 48 s left', 'bb-progress--inset',
+    'name="followTts" value="false"', 'name="subTts" value="true"', 'Plays at 100 bits or more',
+    'Max per alert', '120 s'
+  ].filter((text) => !html.includes(text))).toEqual([]);
+  expect(offLabels).toEqual({ follow: 'Off', sub: '' });
+});
+
+test('renders the shared style picker and fits both alert editor actions', async () => {
+  const styleValues: string[] = [];
+  const helpers: string[] = [];
+  const helperButtons = 'section[aria-labelledby="voice-kind-sub"] .vp-actions.with-extra > button';
+  let fittedLabels = 0;
+  const rewriter = new HTMLRewriter()
+    .on('.bb-select__fallback select[name="subTtsStyle"] option', {
+      element(option) { styleValues.push(option.getAttribute('value') ?? ''); }
+    })
+    .on(helperButtons, {
+      element(button) { helpers.push(button.getAttribute('aria-label') ?? button.getAttribute('aria-haspopup') ?? ''); }
+    })
+    .on(`${helperButtons} > bb-fit > [data-fit]`, {
+      element() { fittedLabels += 1; }
+    });
+  await rewriter.transform(new Response(renderVoice())).text();
+  expect({ styleValues, helpers, fittedLabels }).toEqual({
+    styleValues: ['warm', 'hype', 'calm', 'playful', 'cozy'],
+    helpers: ['dialog', 'Insert a short pause'],
+    fittedLabels: 2
+  });
+});
+
+test('renders the loaded spoken template as the editable textarea value', async () => {
+  const spoken = translate('fr', 'voice.template.cheer');
+  const config = { ...data.alerts.config, cheerTtsMessage: spoken };
+  let value = '';
+  const rewriter = new HTMLRewriter().on('textarea[name="cheerTtsMessage"]', {
+    text(chunk) { value += chunk.text; }
+  });
+  await rewriter.transform(new Response(renderVoice({ alerts: { ...data.alerts, config } }))).text();
+  expect(value).toBe(spoken);
+});
+
+const obsURL = 'https://overlay.itsbagelbot.com/tts#AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+
+test.each([
+  { name: 'owner before creation', readOnly: false, configured: false, limit: 90_000, url: undefined, visible: true },
+  { name: 'owner revisiting', readOnly: false, configured: true, limit: 90_000, url: undefined, visible: true },
+  { name: 'owner after rotation', readOnly: false, configured: true, limit: 90_000, url: obsURL, visible: true },
+  { name: 'zero allowance', readOnly: false, configured: false, limit: 0, url: undefined, visible: false },
+  { name: 'read-only session', readOnly: true, configured: true, limit: 90_000, url: undefined, visible: false }
+])('renders the appropriate OBS controls for $name', async ({ readOnly, configured, limit, url, visible }) => {
+  const form = url ? { overlayUrl: url } : null;
+  const html = renderVoice({ readOnly, allowance: { ...allowance, limit_tokens: limit, overlay_configured: configured } }, form);
+  let submitLabel = '';
+  let firstStep = '';
+  const rewriter = new HTMLRewriter()
+    .on('form[action="?/rotateOverlay"] button[type="submit"]', {
+      text(chunk) { submitLabel += chunk.text; }
+    })
+    .on('.bb-steps--checklist > li:first-child .bb-step__label', {
+      text(chunk) { firstStep += chunk.text; }
+    });
+  await rewriter.transform(new Response(html)).text();
+
+  const buttonLabel = configured ? 'Make a new link' : 'Create link';
+  expect({
+    button: submitLabel.trim(),
+    firstStep: firstStep.trim(),
+    guide: html.includes('itsbagelbot.com/guides/premium-voice'),
+    link: html.includes(obsURL),
+    done: html.includes('bb-step__check'),
+    stateLabel: html.includes('bb-step__state')
+  }).toEqual({
+    button: visible ? buttonLabel : '',
+    firstStep: visible ? 'Generate a private link and copy it when it appears.' : '',
+    guide: visible, link: Boolean(url), done: visible && configured, stateLabel: false
+  });
+});

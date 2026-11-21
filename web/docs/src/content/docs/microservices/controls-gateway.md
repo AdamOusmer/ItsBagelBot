@@ -2,32 +2,30 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Controls gateway
-description: "Accepts desktop controls WebSocket connections at GET /v1/connect."
+description: "Serves the TTS overlay browser source for OBS."
 docType: reference
 ---
 
 ## Responsibilities
 
-It verifies signed access tokens issued by Users, relays device events and commands over core NATS, and closes connections on revocation or takeover. Device identity comes from the verified token. It does not issue tokens or run Twitch logic.
+The beta serves the OBS browser source at `https://overlay.itsbagelbot.com/tts#<token>`.
+The page exchanges the fragment for a signed cookie and plays audio clips in
+event order. Users owns token issuance and revocation.
 
 ## Interfaces
 
-The WebSocket endpoint is `GET /v1/connect`. Core NATS carries device events on `controls.device.<device_id>.evt`, commands on `.cmd`, takeover on `.takeover`, and revocation on `controls.revoked.<device_id>`.
-
-The gateway verifies the signature, issuer, audience and expiry before using device identity. Core NATS routes device events and commands across instances. A newer connection publishes a takeover for the same device; a revocation closes its connection. Users owns signing and device grants, not this gateway.
+`POST /tts/session` opens the session. `GET /tts/events` delivers clip events
+and resumes after the last event ID on reconnect. `GET /tts/clip/<event_id>`
+streams WAV audio scoped to the session's user. The gateway serves
+`/healthz` and `/readyz`. The desktop WebSocket is unmounted.
 
 ## State and dependencies
 
-Users signs tokens and owns grants. Core NATS routes device messages and connection lifecycle events across gateway instances.
+JetStream keeps clip events and audio for five minutes. Revocation closes the
+event stream. Missing or expired audio returns 404.
 
-## Failure behavior
+## Code and validation
 
-Invalid, expired or unverifiable tokens are rejected. A takeover or revocation closes the affected connection.
-
-## Code map
-
-Source: [app/controls/gateway/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/controls/gateway). See `lib/controls_gateway/ws_handler.ex`, `token.ex`, `nats.ex`, and `subjects.ex`; tests are in `test/`.
-
-## Validation
-
-From `app/controls/gateway/`, run `mix test`. See `lib/controls_gateway/ws_handler.ex` and `token.ex`.
+See [app/controls/gateway](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/controls/gateway).
+Run `mix deps.get` and `mix test` from that directory with `nats-server` on
+your PATH.

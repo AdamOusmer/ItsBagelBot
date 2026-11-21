@@ -18,6 +18,8 @@ type Config struct {
 
 	// A name other than the existing durable's replays the whole DeliverAll stream.
 	ConsumerName string
+	TTSEnabled   bool
+	TTSWorkers   int
 
 	conf.Lanes
 
@@ -70,6 +72,8 @@ func Load() *Config {
 		Infra: svcboot.LoadInfra(),
 
 		ConsumerName: env.Get("SESAME_CONSUMER_NAME", "worker"),
+		TTSEnabled:   env.GetBool("SESAME_TTS_ENABLED", false),
+		TTSWorkers:   max(1, env.GetInt("SESAME_TTS_WORKERS", 4)),
 
 		Lanes:      conf.LoadLanes(),
 		Projection: conf.LoadProjectionViaProjector(),
