@@ -90,7 +90,7 @@ const metrics = [
   { metric: 'auth.login', dims: [['started', 'ok', 'declined', 'oauth', 'state', 'bot', 'scope', 'link', 'retry', 'banned']] },
   { metric: 'dashboard.views', dims: [
     ['overview', 'commands', 'flows', 'automations', 'modules', 'timers', 'loyalty', 'counters',
-      'quotes', 'songqueue', 'channelpoints', 'govee', 'billing', 'settings', 'access'], ['owner', 'delegate']
+      'quotes', 'songqueue', 'channelpoints', 'govee', 'voice', 'billing', 'settings', 'access'], ['owner', 'delegate']
   ] },
   { metric: 'billing.checkout', dims: [['monthly', 'single', 'gift'], ['redirected', 'blocked', 'unavailable', 'rejected']] },
   { metric: 'import.runs', dims: [['streamelements', 'fossabot', 'moobot', 'nightbot', 'streamlabs_desktop', 'wizebot'],

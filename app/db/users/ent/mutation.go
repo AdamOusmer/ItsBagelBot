@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/ent/voiceusage"
 	"ItsBagelBot/app/db/users/ent/voiceusagereceipt"
+	"ItsBagelBot/app/db/users/voice"
 	"ItsBagelBot/internal/domain/lifecycle"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"context"
@@ -9872,7 +9873,7 @@ type VoiceUsageReceiptMutation struct {
 	audio_tokens    *int64
 	addaudio_tokens *int64
 	created_at      *time.Time
-	allowance       *usersrpc.VoiceAllowance
+	allowance       *voice.Allowance
 	clearedFields   map[string]struct{}
 	user            *uint64
 	cleareduser     bool
@@ -10180,12 +10181,12 @@ func (m *VoiceUsageReceiptMutation) ResetCreatedAt() {
 }
 
 // SetAllowance sets the "allowance" field.
-func (m *VoiceUsageReceiptMutation) SetAllowance(ua usersrpc.VoiceAllowance) {
-	m.allowance = &ua
+func (m *VoiceUsageReceiptMutation) SetAllowance(v voice.Allowance) {
+	m.allowance = &v
 }
 
 // Allowance returns the value of the "allowance" field in the mutation.
-func (m *VoiceUsageReceiptMutation) Allowance() (r usersrpc.VoiceAllowance, exists bool) {
+func (m *VoiceUsageReceiptMutation) Allowance() (r voice.Allowance, exists bool) {
 	v := m.allowance
 	if v == nil {
 		return
@@ -10196,7 +10197,7 @@ func (m *VoiceUsageReceiptMutation) Allowance() (r usersrpc.VoiceAllowance, exis
 // OldAllowance returns the old "allowance" field's value of the VoiceUsageReceipt entity.
 // If the VoiceUsageReceipt object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *VoiceUsageReceiptMutation) OldAllowance(ctx context.Context) (v usersrpc.VoiceAllowance, err error) {
+func (m *VoiceUsageReceiptMutation) OldAllowance(ctx context.Context) (v voice.Allowance, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldAllowance is only allowed on UpdateOne operations")
 	}
@@ -10381,7 +10382,7 @@ func (m *VoiceUsageReceiptMutation) SetField(name string, value ent.Value) error
 		m.SetCreatedAt(v)
 		return nil
 	case voiceusagereceipt.FieldAllowance:
-		v, ok := value.(usersrpc.VoiceAllowance)
+		v, ok := value.(voice.Allowance)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}

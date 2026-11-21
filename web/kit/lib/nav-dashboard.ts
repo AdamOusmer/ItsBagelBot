@@ -9,7 +9,7 @@ import { navGroups, navItems, resolveSection, type SectionDef } from './nav-core
 export const GRANTABLE_SECTIONS = ['commands', 'modules', 'channelpoints', 'billing'] as const;
 export type GrantSection = (typeof GRANTABLE_SECTIONS)[number];
 
-export type SectionId = 'overview' | 'commands' | 'flows' | 'modules' | 'giveaways' | 'songqueue' | 'billing' | 'settings';
+export type SectionId = 'overview' | 'commands' | 'flows' | 'modules' | 'giveaways' | 'songqueue' | 'voice' | 'billing' | 'settings';
 
 export interface DashboardSectionDef extends SectionDef {
   id: SectionId;
@@ -20,6 +20,7 @@ export interface DashboardSectionDef extends SectionDef {
     | 'nav.modules'
     | 'nav.giveaways'
     | 'nav.songqueue'
+    | 'nav.voice'
     | 'nav.billing'
     | 'nav.settings';
   icon: IconName;
@@ -84,6 +85,14 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     grantsAny: ['modules', 'channelpoints']
   },
   {
+    id: 'voice',
+    labelKey: 'nav.voice',
+    icon: 'bell',
+    href: '/voice',
+    match: ['/voice'],
+    grantsAny: ['modules']
+  },
+  {
     id: 'billing',
     labelKey: 'nav.billing',
     icon: 'card',
@@ -116,6 +125,10 @@ type NavOpts = {
 function grantedTo(def: DashboardSectionDef, sections: readonly string[]): boolean {
   if (def.grantsAny) return def.grantsAny.some((grant) => sections.includes(grant));
   return !def.grant || sections.includes(def.grant);
+}
+
+export function dashboardDelegateShortcuts(sections: readonly string[]): string[] {
+  return DASHBOARD_SECTIONS.filter((def) => def.grantsAny && grantedTo(def, sections)).map((def) => def.href);
 }
 
 function sectionVisible(def: DashboardSectionDef, opts: NavOpts): boolean {

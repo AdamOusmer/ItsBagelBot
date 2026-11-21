@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/db/users/repository"
+	"ItsBagelBot/app/db/users/voice"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/validate"
@@ -20,36 +21,46 @@ import (
 const voiceBudget = 3 * time.Second
 
 func SubscribeVoice(w Wiring, checkSubject, recordSubject string) error {
-	voice := voiceRPC{repo: w.Repo}
+	handler := voiceRPC{repo: w.Repo}
 	rpc := w.Within(voiceBudget)
-	if err := bus.ServeForUser[usersrpc.VoiceCheckRequest, usersrpc.VoiceCheckReply](rpc, checkSubject, voice.check); err != nil {
+	if err := bus.ServeForUser[usersrpc.VoiceCheckRequest, voiceCheckResponse](rpc, checkSubject, handler.check); err != nil {
 		return err
 	}
-	return bus.ServeForUser[usersrpc.VoiceRecordRequest, usersrpc.VoiceReply](rpc, recordSubject, voice.record)
+	return bus.ServeForUser[usersrpc.VoiceRecordRequest, voiceResponse](rpc, recordSubject, handler.record)
 }
 
 type voiceRPC struct {
 	repo *repository.Users
 }
 
-func (v voiceRPC) check(ctx context.Context, _ usersrpc.VoiceCheckRequest, id uint64) (usersrpc.VoiceCheckReply, error) {
+type voiceResponse struct {
+	voice.Allowance
+	domainrpc.Refusal
+}
+
+type voiceCheckResponse struct {
+	voiceResponse
+	Allowed bool `json:"allowed"`
+}
+
+func (v voiceRPC) check(ctx context.Context, _ usersrpc.VoiceCheckRequest, id uint64) (voiceCheckResponse, error) {
 	allowance, err := v.repo.VoiceAllowance(ctx, id, time.Now())
-	return usersrpc.VoiceCheckReply{
-		VoiceReply: voiceReply(allowance, err),
-		Allowed:    allowance.Enabled && allowance.RemainingTokens > 0,
+	return voiceCheckResponse{
+		voiceResponse: voiceReply(allowance, err),
+		Allowed:       allowance.Enabled && allowance.RemainingTokens > 0,
 	}, nil
 }
 
-func (v voiceRPC) record(ctx context.Context, req usersrpc.VoiceRecordRequest, id uint64) (usersrpc.VoiceReply, error) {
+func (v voiceRPC) record(ctx context.Context, req usersrpc.VoiceRecordRequest, id uint64) (voiceResponse, error) {
 	allowance, err := v.repo.RecordVoiceUsage(ctx, id, repository.VoiceUsageRecord{
 		RequestID: req.RequestID, AudioTokens: req.AudioTokens, DurationMS: req.DurationMS,
 	}, time.Now())
 	return voiceReply(allowance, err), nil
 }
 
-func voiceReply(allowance usersrpc.VoiceAllowance, err error) usersrpc.VoiceReply {
-	return usersrpc.VoiceReply{
-		VoiceAllowance: allowance,
+func voiceReply(allowance voice.Allowance, err error) voiceResponse {
+	return voiceResponse{
+		Allowance: allowance,
 		Refusal: bus.Classify(err, entNotFound,
 			domainrpc.Is(validate.ErrUserIDZero, domainrpc.CodeInvalid),
 			domainrpc.Is(repository.ErrInvalidVoiceUsage, domainrpc.CodeInvalid)),

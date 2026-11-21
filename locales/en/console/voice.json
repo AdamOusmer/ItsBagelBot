@@ -1,0 +1,19 @@
+{
+  "usage": "{used} of {limit} min this month",
+  "resets": "Resets {date}",
+  "minutesLeft": "{minutes} min left",
+  "secondsLeft": "{seconds} sec left",
+  "planPremium": "Premium",
+  "planGiveaway": "Giveaway Premium",
+  "planAdmin": "Admin grant",
+  "free": "Cloud voices come with Premium. Alerts use the free local voice.",
+  "viewPremium": "View Premium",
+  "enable": "Use premium voice for alerts",
+  "fallback": "Alerts use the free local voice when this is off or your minutes run out.",
+  "choose": "Voice",
+  "readOnly": "Only the channel owner can view usage or change voice settings.",
+  "unavailable": "Voice usage and settings are unavailable. Reload the page to try again.",
+  "invalidVoice": "Choose a voice from the list.",
+  "saveFailed": "Could not save voice settings. Try again.",
+  "saved": "Voice settings saved."
+}

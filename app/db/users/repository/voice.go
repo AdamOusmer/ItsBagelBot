@@ -12,13 +12,18 @@ import (
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/ent/voiceusage"
 	"ItsBagelBot/app/db/users/ent/voiceusagereceipt"
+	"ItsBagelBot/app/db/users/voice"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/db"
 )
 
-const voiceReceiptRetention = 40 * 24 * time.Hour
+const (
+	voiceReceiptRetention  = 40 * 24 * time.Hour
+	maxVoiceRecordDuration = 10 * time.Minute
+	maxVoiceRecordTokens   = int64(maxVoiceRecordDuration/time.Second) * voiceplan.TokensPerSecond
+)
 
 var (
 	ErrInvalidVoice      = errors.New("invalid voice")
@@ -31,37 +36,37 @@ type VoiceUsageRecord struct {
 	DurationMS  int64
 }
 
-func (r *Users) VoiceAllowance(ctx context.Context, id uint64, now time.Time) (usersrpc.VoiceAllowance, error) {
+func (r *Users) VoiceAllowance(ctx context.Context, id uint64, now time.Time) (voice.Allowance, error) {
 	if err := validate.UserID(id); err != nil {
-		return usersrpc.VoiceAllowance{}, err
+		return voice.Allowance{}, err
 	}
-	return r.voiceTransaction(ctx, func(tx *ent.Tx) (usersrpc.VoiceAllowance, error) {
+	return r.voiceTransaction(ctx, func(tx *ent.Tx) (voice.Allowance, error) {
 		owner, err := tx.User.Get(ctx, id)
 		if err != nil {
-			return usersrpc.VoiceAllowance{}, err
+			return voice.Allowance{}, err
 		}
 		return loadVoiceAllowance(ctx, tx, owner, now)
 	})
 }
 
-func (r *Users) RecordVoiceUsage(ctx context.Context, id uint64, record VoiceUsageRecord, now time.Time) (usersrpc.VoiceAllowance, error) {
+func (r *Users) RecordVoiceUsage(ctx context.Context, id uint64, record VoiceUsageRecord, now time.Time) (voice.Allowance, error) {
 	if err := validate.UserID(id); err != nil {
-		return usersrpc.VoiceAllowance{}, err
+		return voice.Allowance{}, err
 	}
 	if !record.valid() {
-		return usersrpc.VoiceAllowance{}, ErrInvalidVoiceUsage
+		return voice.Allowance{}, ErrInvalidVoiceUsage
 	}
-	return r.voiceTransaction(ctx, func(tx *ent.Tx) (usersrpc.VoiceAllowance, error) {
+	return r.voiceTransaction(ctx, func(tx *ent.Tx) (voice.Allowance, error) {
 		owner, err := tx.User.Query().Where(user.IDEQ(id), lockOwnerRow).Only(ctx)
 		if err != nil {
-			return usersrpc.VoiceAllowance{}, err
+			return voice.Allowance{}, err
 		}
 		return voiceRecording{record: record, now: now.UTC(), owner: owner}.apply(ctx, tx)
 	})
 }
 
-func (r *Users) voiceTransaction(ctx context.Context, run func(*ent.Tx) (usersrpc.VoiceAllowance, error)) (usersrpc.VoiceAllowance, error) {
-	return db.WithQuery(ctx, func(ctx context.Context) (usersrpc.VoiceAllowance, error) {
+func (r *Users) voiceTransaction(ctx context.Context, run func(*ent.Tx) (voice.Allowance, error)) (voice.Allowance, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) (voice.Allowance, error) {
 		return db.RetryWithTxResult(ctx, r.client, run)
 	})
 }
@@ -84,9 +89,12 @@ func (r *Users) CleanupVoiceUsageReceipts(ctx context.Context, now time.Time) (i
 
 func (r VoiceUsageRecord) valid() bool {
 	length := len(r.RequestID)
-	validID := length > 0 && length <= usersrpc.VoiceRequestIDMaxBytes
-	validUsage := r.AudioTokens >= 0 && r.DurationMS >= 0
-	return validID && validUsage
+	if length == 0 || length > usersrpc.VoiceRequestIDMaxBytes {
+		return false
+	}
+	validTokens := r.AudioTokens >= 0 && r.AudioTokens <= maxVoiceRecordTokens
+	validDuration := r.DurationMS >= 0 && r.DurationMS <= maxVoiceRecordDuration.Milliseconds()
+	return validTokens && validDuration
 }
 
 type voiceRecording struct {
@@ -95,7 +103,7 @@ type voiceRecording struct {
 	owner  *ent.User
 }
 
-func (v voiceRecording) apply(ctx context.Context, tx *ent.Tx) (usersrpc.VoiceAllowance, error) {
+func (v voiceRecording) apply(ctx context.Context, tx *ent.Tx) (voice.Allowance, error) {
 	receipt, err := tx.VoiceUsageReceipt.Query().Where(
 		voiceusagereceipt.UserIDEQ(v.owner.ID),
 		voiceusagereceipt.RequestIDEQ(v.record.RequestID),
@@ -104,14 +112,14 @@ func (v voiceRecording) apply(ctx context.Context, tx *ent.Tx) (usersrpc.VoiceAl
 		return receipt.Allowance, nil
 	}
 	if !ent.IsNotFound(err) {
-		return usersrpc.VoiceAllowance{}, err
+		return voice.Allowance{}, err
 	}
 	if err := v.addUsage(ctx, tx); err != nil {
-		return usersrpc.VoiceAllowance{}, err
+		return voice.Allowance{}, err
 	}
 	allowance, err := loadVoiceAllowance(ctx, tx, v.owner, v.now)
 	if err != nil {
-		return usersrpc.VoiceAllowance{}, err
+		return voice.Allowance{}, err
 	}
 	err = tx.VoiceUsageReceipt.Create().
 		SetUserID(v.owner.ID).SetRequestID(v.record.RequestID).SetPeriod(allowance.Period).
@@ -130,24 +138,55 @@ func (v voiceRecording) addUsage(ctx context.Context, tx *ent.Tx) error {
 		}).Exec(ctx)
 }
 
-func loadVoiceAllowance(ctx context.Context, tx *ent.Tx, owner *ent.User, now time.Time) (usersrpc.VoiceAllowance, error) {
+func loadVoiceAllowance(ctx context.Context, tx *ent.Tx, owner *ent.User, now time.Time) (voice.Allowance, error) {
 	period := voiceplan.Period(now)
 	usage, err := tx.VoiceUsage.Query().Where(voiceusage.UserIDEQ(owner.ID), voiceusage.PeriodEQ(period)).Only(ctx)
 	if err != nil && !ent.IsNotFound(err) {
-		return usersrpc.VoiceAllowance{}, err
+		return voice.Allowance{}, err
 	}
 	var used int64
 	if usage != nil {
 		used = usage.AudioTokens
 	}
-	plan := voiceplan.PlanFor(string(owner.Status), owner.SubscriptionSource, owner.IsActive)
-	limit := voiceplan.SecondsToTokens(voiceplan.MonthlySeconds(plan))
-	voice := owner.TtsVoice
-	if voice == "" {
-		voice = voiceplan.DefaultVoice
+	plan, err := loadVoicePlan(ctx, tx, owner, now)
+	if err != nil {
+		return voice.Allowance{}, err
 	}
-	return usersrpc.VoiceAllowance{
-		Plan: plan, Period: period, LimitTokens: limit, UsedTokens: used, RemainingTokens: max(0, limit-used),
-		ResetsAt: voiceplan.ResetsAt(now), Enabled: owner.TtsEnabled, Voice: voice,
+	limit := voiceplan.SecondsToTokens(voiceplan.MonthlySeconds(plan))
+	name := owner.TtsVoice
+	if name == "" {
+		name = voiceplan.DefaultVoice
+	}
+	return voice.Allowance{
+		VoiceAllowance: usersrpc.VoiceAllowance{
+			Plan: plan, Period: period, LimitTokens: limit, UsedTokens: used, RemainingTokens: max(0, limit-used),
+			ResetsAt: voiceplan.ResetsAt(now), Enabled: owner.TtsEnabled, Voice: name,
+		},
+		Reason: voiceAllowanceReason(owner, plan),
 	}, nil
+}
+
+func voiceAllowanceReason(owner *ent.User, plan voiceplan.Plan) string {
+	switch {
+	case owner.Banned:
+		return "banned"
+	case !owner.IsActive:
+		return "inactive"
+	case plan == voiceplan.Free:
+		return "no_plan"
+	default:
+		return "ok"
+	}
+}
+
+func loadVoicePlan(ctx context.Context, tx *ent.Tx, owner *ent.User, now time.Time) (voiceplan.Plan, error) {
+	plan := voiceplan.PlanFor(string(owner.Status), owner.SubscriptionSource, owner.IsActive, owner.Banned)
+	if plan != voiceplan.AdminGrant {
+		return plan, nil
+	}
+	covering, err := hasCoveringGrant(ctx, tx.PremiumGrant, owner.ID, now.UTC())
+	if !covering || err != nil {
+		return plan, err
+	}
+	return voiceplan.Giveaway, nil
 }

@@ -1,0 +1,19 @@
+{
+  "usage": "{used} von {limit} Min. diesen Monat",
+  "resets": "Wird am {date} zurückgesetzt",
+  "minutesLeft": "Noch {minutes} Min.",
+  "secondsLeft": "Noch {seconds} Sek.",
+  "planPremium": "Premium",
+  "planGiveaway": "Gewonnenes Premium",
+  "planAdmin": "Vom Team gewährt",
+  "free": "Cloud-Stimmen sind in Premium enthalten. Für Hinweise wird die kostenlose lokale Stimme verwendet.",
+  "viewPremium": "Premium ansehen",
+  "enable": "Premium-Stimme für Hinweise verwenden",
+  "fallback": "Ist die Option aus oder sind deine Minuten aufgebraucht, wird die kostenlose lokale Stimme verwendet.",
+  "choose": "Stimme",
+  "readOnly": "Nur der Kanalinhaber kann die Nutzung einsehen oder die Stimmeinstellungen ändern.",
+  "unavailable": "Nutzung und Stimmeinstellungen sind nicht verfügbar. Lade die Seite neu.",
+  "invalidVoice": "Wähle eine Stimme aus der Liste.",
+  "saveFailed": "Stimmeinstellungen konnten nicht gespeichert werden. Versuche es erneut.",
+  "saved": "Stimmeinstellungen gespeichert."
+}

@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { expect, test } from 'bun:test';
-import { CLOUD_VOICES, DEFAULT_VOICE, MONTHLY_VOICE_MINUTES } from './voice-plan';
+import { CLOUD_VOICES, DEFAULT_VOICE, MONTHLY_VOICE_MINUTES, VOICE_TOKENS_PER_SECOND } from './voice-plan';
 
 const source = await Bun.file(new URL('../../../internal/domain/voiceplan/voiceplan.go', import.meta.url)).text();
 
@@ -24,4 +24,8 @@ test('the cloud voice list and default match the Go policy', () => {
   expect(new Set(goVoices).size).toBe(30);
   expect(goVoices).toEqual([...CLOUD_VOICES]);
   expect(source.match(/^const DefaultVoice = "([^"]+)"$/m)?.[1]).toBe(DEFAULT_VOICE);
+});
+
+test('audio tokens per second match the Go policy', () => {
+  expect(Number(source.match(/^const TokensPerSecond = (\d+)$/m)?.[1])).toBe(VOICE_TOKENS_PER_SECOND);
 });

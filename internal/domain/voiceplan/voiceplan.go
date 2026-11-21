@@ -62,8 +62,8 @@ var voices = []string{
 	"Sulafat",
 }
 
-func PlanFor(status, source string, active bool) Plan {
-	if !active {
+func PlanFor(status, source string, active, banned bool) Plan {
+	if !active || banned {
 		return Free
 	}
 	if status == "vip" {
@@ -90,10 +90,6 @@ func MonthlySeconds(plan Plan) int64 {
 
 func SecondsToTokens(seconds int64) int64 {
 	return seconds * TokensPerSecond
-}
-
-func TokensToSeconds(tokens int64) int64 {
-	return tokens / TokensPerSecond
 }
 
 func ValidVoice(voice string) bool {

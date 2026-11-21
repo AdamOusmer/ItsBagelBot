@@ -206,11 +206,15 @@ func subscriptionSweepInterval() time.Duration {
 
 func expireSubscriptions(ctx context.Context, repo *repository.Users, log *zap.Logger) {
 	const tebexGrace = 24 * time.Hour
-	runPeriodicSweep(ctx, log, subscriptionSweepInterval(), 30*time.Second,
-		"failed to expire subscriptions", "expired subscriptions",
-		func(runCtx context.Context, now time.Time) (int, error) {
+	runPeriodicSweep(ctx, log, sweepSpec{
+		interval:       subscriptionSweepInterval(),
+		timeout:        30 * time.Second,
+		errorMessage:   "failed to expire subscriptions",
+		successMessage: "expired subscriptions",
+		run: func(runCtx context.Context, now time.Time) (int, error) {
 			return repo.ExpireSubscriptions(runCtx, now, tebexGrace)
-		})
+		},
+	})
 }
 
 func premiumGrantSweepInterval() time.Duration {
@@ -218,53 +222,82 @@ func premiumGrantSweepInterval() time.Duration {
 }
 
 func expirePremiumGrants(ctx context.Context, repo *repository.Users, log *zap.Logger) {
-	runPeriodicSweep(ctx, log, premiumGrantSweepInterval(), 10*time.Second,
-		"failed to expire premium grants", "expired premium grants",
-		func(runCtx context.Context, now time.Time) (int, error) {
-			return repo.ExpirePremiumGrants(runCtx, now)
-		})
+	runPeriodicSweep(ctx, log, sweepSpec{
+		interval:       premiumGrantSweepInterval(),
+		timeout:        10 * time.Second,
+		errorMessage:   "failed to expire premium grants",
+		successMessage: "expired premium grants",
+		run:            repo.ExpirePremiumGrants,
+	})
 }
 
 func deliverAdminAudits(ctx context.Context, repo *repository.Users, log *zap.Logger) {
-	runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	spec := sweepSpec{
+		interval:       env.GetDuration("USERS_ADMIN_AUDIT_DELIVERY_INTERVAL", 30*time.Second),
+		timeout:        30 * time.Second,
+		errorMessage:   "failed to deliver admin audit records",
+		successMessage: "delivered admin audit records",
+		run:            repo.DeliverAdminAudits,
+	}
+	runCtx, cancel := context.WithTimeout(ctx, spec.timeout)
 	_, err := repo.DeliverAdminAudits(runCtx, time.Now().UTC())
 	cancel()
 	if err != nil {
-		log.Error("failed to deliver admin audit records", zap.Error(err))
+		log.Error(spec.errorMessage, zap.Error(err))
 	}
-	runPeriodicSweep(ctx, log, env.GetDuration("USERS_ADMIN_AUDIT_DELIVERY_INTERVAL", 30*time.Second), 30*time.Second,
-		"failed to deliver admin audit records", "delivered admin audit records", repo.DeliverAdminAudits)
+	runPeriodicSweep(ctx, log, spec)
 }
 
 func cleanupDeviceAuth(ctx context.Context, repo *repository.Users, log *zap.Logger) {
-	interval := env.GetDuration("USERS_DEVICE_AUTH_SWEEP_INTERVAL", 5*time.Minute)
-	runPeriodicSweep(ctx, log, interval, 10*time.Second,
-		"failed to clean up device authorization", "cleaned up device authorization",
-		repo.CleanupDeviceAuth)
+	runPeriodicSweep(ctx, log, sweepSpec{
+		interval:       env.GetDuration("USERS_DEVICE_AUTH_SWEEP_INTERVAL", 5*time.Minute),
+		timeout:        10 * time.Second,
+		errorMessage:   "failed to clean up device authorization",
+		successMessage: "cleaned up device authorization",
+		run:            repo.CleanupDeviceAuth,
+	})
 }
 
 func cleanupVoiceUsageReceipts(ctx context.Context, repo *repository.Users, log *zap.Logger) {
-	runPeriodicSweep(ctx, log, 5*time.Minute, 10*time.Second,
-		"failed to clean up voice usage receipts", "cleaned up voice usage receipts",
-		repo.CleanupVoiceUsageReceipts)
+	runPeriodicSweep(ctx, log, sweepSpec{
+		interval:       5 * time.Minute,
+		timeout:        10 * time.Second,
+		errorMessage:   "failed to clean up voice usage receipts",
+		successMessage: "cleaned up voice usage receipts",
+		run:            repo.CleanupVoiceUsageReceipts,
+	})
 }
 
-func runPeriodicSweep(ctx context.Context, log *zap.Logger, interval, timeout time.Duration, errorMessage, successMessage string, sweep func(context.Context, time.Time) (int, error)) {
-	ticker := time.NewTicker(interval)
+type sweepSpec struct {
+	interval       time.Duration
+	timeout        time.Duration
+	errorMessage   string
+	successMessage string
+	run            func(context.Context, time.Time) (int, error)
+}
+
+func runPeriodicSweep(ctx context.Context, log *zap.Logger, spec sweepSpec) {
+	ticker := time.NewTicker(spec.interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case now := <-ticker.C:
-			runCtx, cancel := context.WithTimeout(ctx, timeout)
-			count, err := sweep(runCtx, now)
-			cancel()
-			if err != nil {
-				log.Error(errorMessage, zap.Error(err))
-			} else if count > 0 {
-				log.Info(successMessage, zap.Int("count", count))
-			}
+			spec.runOnce(ctx, log, now)
 		}
+	}
+}
+
+func (s sweepSpec) runOnce(ctx context.Context, log *zap.Logger, now time.Time) {
+	runCtx, cancel := context.WithTimeout(ctx, s.timeout)
+	count, err := s.run(runCtx, now)
+	cancel()
+	if err != nil {
+		log.Error(s.errorMessage, zap.Error(err))
+		return
+	}
+	if count > 0 {
+		log.Info(s.successMessage, zap.Int("count", count))
 	}
 }

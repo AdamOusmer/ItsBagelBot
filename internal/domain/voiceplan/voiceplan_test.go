@@ -14,27 +14,31 @@ import (
 func TestMonthlyAllowance(t *testing.T) {
 	tests := []struct {
 		name, status, source string
-		active               bool
+		active, banned       bool
 		plan                 voiceplan.Plan
 		minutes              int64
 	}{
-		{"free", "free", "", true, voiceplan.Free, 0},
-		{"purchase", "paid", "tebex", true, voiceplan.Premium, 60},
-		{"giveaway", "paid", "giveaway", true, voiceplan.Giveaway, 60},
-		{"admin grant", "paid", "admin", true, voiceplan.AdminGrant, 30},
-		{"vip takes precedence", "vip", "tebex", true, voiceplan.VIP, 120},
-		{"inactive purchase", "paid", "tebex", false, voiceplan.Free, 0},
-		{"inactive giveaway", "paid", "giveaway", false, voiceplan.Free, 0},
-		{"inactive admin grant", "paid", "admin", false, voiceplan.Free, 0},
-		{"inactive vip", "vip", "", false, voiceplan.Free, 0},
-		{"missing source", "paid", "", true, voiceplan.Free, 0},
-		{"unknown source", "paid", "other", true, voiceplan.Free, 0},
-		{"free with source", "free", "admin", true, voiceplan.Free, 0},
-		{"unknown status", "other", "tebex", true, voiceplan.Free, 0},
+		{"free", "free", "", true, false, voiceplan.Free, 0},
+		{"purchase", "paid", "tebex", true, false, voiceplan.Premium, 60},
+		{"giveaway", "paid", "giveaway", true, false, voiceplan.Giveaway, 60},
+		{"admin grant", "paid", "admin", true, false, voiceplan.AdminGrant, 30},
+		{"vip takes precedence", "vip", "tebex", true, false, voiceplan.VIP, 120},
+		{"inactive purchase", "paid", "tebex", false, false, voiceplan.Free, 0},
+		{"inactive giveaway", "paid", "giveaway", false, false, voiceplan.Free, 0},
+		{"inactive admin grant", "paid", "admin", false, false, voiceplan.Free, 0},
+		{"inactive vip", "vip", "", false, false, voiceplan.Free, 0},
+		{"banned purchase", "paid", "tebex", true, true, voiceplan.Free, 0},
+		{"banned giveaway", "paid", "giveaway", true, true, voiceplan.Free, 0},
+		{"banned admin grant", "paid", "admin", true, true, voiceplan.Free, 0},
+		{"banned vip", "vip", "", true, true, voiceplan.Free, 0},
+		{"missing source", "paid", "", true, false, voiceplan.Free, 0},
+		{"unknown source", "paid", "other", true, false, voiceplan.Free, 0},
+		{"free with source", "free", "admin", true, false, voiceplan.Free, 0},
+		{"unknown status", "other", "tebex", true, false, voiceplan.Free, 0},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			plan := voiceplan.PlanFor(tc.status, tc.source, tc.active)
+			plan := voiceplan.PlanFor(tc.status, tc.source, tc.active, tc.banned)
 			assert.Equal(t, tc.plan, plan)
 			assert.Equal(t, tc.minutes*60, voiceplan.MonthlySeconds(plan))
 		})
@@ -54,8 +58,6 @@ func TestTokenConversions(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.tokens, voiceplan.SecondsToTokens(tc.seconds))
-			assert.Equal(t, tc.seconds, voiceplan.TokensToSeconds(tc.tokens))
-			assert.Equal(t, tc.seconds, voiceplan.TokensToSeconds(tc.tokens+24))
 		})
 	}
 }

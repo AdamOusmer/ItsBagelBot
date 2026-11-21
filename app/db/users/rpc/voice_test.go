@@ -76,41 +76,68 @@ type voiceSettingsReply struct {
 	domainrpc.Refusal
 }
 
+type voiceCheckResult struct {
+	usersrpc.VoiceCheckReply
+	Reason string `json:"reason"`
+}
+
 func TestInternalVoiceCheck(t *testing.T) {
 	h := newVoiceHarness(t)
 	cases := []struct {
-		name            string
-		status          user.Status
-		active, enabled bool
-		allowed         bool
+		name                    string
+		status                  user.Status
+		active, enabled, banned bool
+		allowed                 bool
+		reason                  string
 	}{
-		{"vip enabled", user.StatusVip, true, true, true},
-		{"vip disabled", user.StatusVip, true, false, false},
-		{"inactive", user.StatusVip, false, true, false},
-		{"free", user.StatusFree, true, true, false},
+		{"vip enabled", user.StatusVip, true, true, false, true, "ok"},
+		{"vip disabled", user.StatusVip, true, false, false, false, "ok"},
+		{"inactive", user.StatusVip, false, true, false, false, "inactive"},
+		{"free", user.StatusFree, true, true, false, false, "no_plan"},
+		{"banned", user.StatusVip, true, true, true, false, "banned"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			h.client.User.UpdateOneID(9000).SetStatus(tc.status).SetIsActive(tc.active).SetTtsEnabled(tc.enabled).ExecX(t.Context())
-			got := call[usersrpc.VoiceCheckReply](t, h, testVoiceCheckSubject, usersrpc.VoiceCheckRequest{UserID: testVoiceOwner})
+			h.client.User.UpdateOneID(9000).SetStatus(tc.status).SetIsActive(tc.active).
+				SetTtsEnabled(tc.enabled).SetBanned(tc.banned).ExecX(t.Context())
+			got := call[voiceCheckResult](t, h, testVoiceCheckSubject, usersrpc.VoiceCheckRequest{UserID: testVoiceOwner})
 			assert.Empty(t, got.Refusal)
 			assert.Equal(t, [2]bool{tc.allowed, tc.enabled}, [2]bool{got.Allowed, got.Enabled})
-			assert.Equal(t, voiceplan.DefaultVoice, got.Voice)
+			assert.Equal(t, [2]string{voiceplan.DefaultVoice, tc.reason}, [2]string{got.Voice, got.Reason})
 		})
 	}
+}
+
+func TestDashboardVoiceInactiveReason(t *testing.T) {
+	h := newVoiceHarness(t)
+	h.client.User.UpdateOneID(9000).SetIsActive(false).ExecX(t.Context())
+	type result struct {
+		usersrpc.VoiceReply
+		Reason string `json:"reason"`
+	}
+	req := usersrpc.VoiceGetRequest{ActorID: testVoiceOwner, BroadcasterUserID: testVoiceOwner}
+	reply := call[result](t, h, testVoiceDashboard+".voice_get", req)
+	assert.Empty(t, reply.Refusal)
+	assert.Equal(t, voiceplan.Free, reply.Plan)
+	assert.Equal(t, "inactive", reply.Reason)
 }
 
 func TestInternalVoiceRecord(t *testing.T) {
 	h := newVoiceHarness(t)
 	limit := voiceplan.SecondsToTokens(voiceplan.MonthlySeconds(voiceplan.VIP))
 	subject := testVoiceRecordSubject
-	req := usersrpc.VoiceRecordRequest{UserID: testVoiceOwner, RequestID: "first", AudioTokens: limit + 25, DurationMS: 1000}
+	req := usersrpc.VoiceRecordRequest{UserID: testVoiceOwner, RequestID: "first", AudioTokens: 15_000, DurationMS: 600_000}
 	first := call[usersrpc.VoiceReply](t, h, subject, req)
 	require.Empty(t, first.Refusal)
-	assert.Equal(t, [2]int64{req.AudioTokens, 0}, [2]int64{first.UsedTokens, first.RemainingTokens})
+	assert.Equal(t, [2]int64{req.AudioTokens, limit - req.AudioTokens}, [2]int64{first.UsedTokens, first.RemainingTokens})
 	assert.Equal(t, first, call[usersrpc.VoiceReply](t, h, subject, req))
 
-	req.RequestID, req.DurationMS = "second", -1
-	invalid := call[usersrpc.VoiceReply](t, h, subject, req)
-	assert.Equal(t, domainrpc.CodeInvalid, invalid.Code)
+	for _, usage := range []usersrpc.VoiceRecordRequest{
+		{UserID: testVoiceOwner, RequestID: "negative-duration", DurationMS: -1},
+		{UserID: testVoiceOwner, RequestID: "excess-tokens", AudioTokens: 15_001},
+		{UserID: testVoiceOwner, RequestID: "excess-duration", DurationMS: 600_001},
+	} {
+		invalid := call[usersrpc.VoiceReply](t, h, subject, usage)
+		assert.Equal(t, domainrpc.CodeInvalid, invalid.Code, "request %s", usage.RequestID)
+	}
 }

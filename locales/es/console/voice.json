@@ -1,0 +1,19 @@
+{
+  "usage": "{used} de {limit} min este mes",
+  "resets": "Se renueva el {date}",
+  "minutesLeft": "Quedan {minutes} min",
+  "secondsLeft": "Quedan {seconds} s",
+  "planPremium": "Premium",
+  "planGiveaway": "Premium de sorteo",
+  "planAdmin": "Acceso concedido por el equipo",
+  "free": "Las voces en la nube se incluyen con Premium. Las alertas usan la voz local gratuita.",
+  "viewPremium": "Ver Premium",
+  "enable": "Usar voz Premium para las alertas",
+  "fallback": "Las alertas usan la voz local gratuita si esta opción está desactivada o se agotan tus minutos.",
+  "choose": "Voz",
+  "readOnly": "Solo el propietario del canal puede consultar el uso o cambiar la voz.",
+  "unavailable": "El uso y los ajustes de voz no están disponibles. Recarga la página para volver a intentarlo.",
+  "invalidVoice": "Elige una voz de la lista.",
+  "saveFailed": "No se pudieron guardar los ajustes de voz. Inténtalo de nuevo.",
+  "saved": "Ajustes de voz guardados."
+}
