@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/lifecycle"
 	contract "ItsBagelBot/internal/domain/rpc/projection"
+	"ItsBagelBot/internal/domain/voiceplan"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +19,7 @@ import (
 
 var fullUser = UserProjection{
 	Lifecycle:          &lifecycle.State{Version: 1, DesiredEnabled: true, RuntimeState: lifecycle.Active, ChatRestriction: lifecycle.RestrictionNone, GrantHealth: lifecycle.GrantHealthy, AdmissionGeneration: 3},
+	VoicePlan:          string(voiceplan.Premium),
 	StateRevision:      7,
 	AccountCreatedAt:   101,
 	Status:             "paid",
@@ -42,6 +44,7 @@ func TestUserMappersCopyEveryField(t *testing.T) {
 	mapped := map[string]UserProjection{
 		"reply": UserFromReply(contract.UserReply{
 			Lifecycle:          fullUser.Lifecycle,
+			VoicePlan:          fullUser.VoicePlan,
 			StateRevision:      7,
 			AccountCreatedAt:   101,
 			UserID:             "42",
@@ -57,6 +60,7 @@ func TestUserMappersCopyEveryField(t *testing.T) {
 		}),
 		"changed": UserFromChanged(data.UserChangedDTO{
 			Lifecycle:          fullUser.Lifecycle,
+			VoicePlan:          fullUser.VoicePlan,
 			StateRevision:      7,
 			UserID:             42,
 			AccountCreatedAt:   101,

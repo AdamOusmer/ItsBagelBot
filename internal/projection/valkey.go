@@ -35,6 +35,7 @@ func NewStore(client valkey.Client) *Store {
 }
 
 type UserProjection struct {
+	VoicePlan        string
 	Lifecycle        *lifecycle.State
 	StateRevision    int64
 	AccountCreatedAt int64
@@ -79,7 +80,7 @@ func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, u UserProject
 	if u.Lifecycle != nil {
 		background = background && u.Lifecycle.AllowsBackground()
 	}
-	args = append(args, utils.BoolField(background), utils.BoolField(u.LeaderboardPageHidden), u.CreatorCode, utils.BoolField(u.SongQueuePageHidden))
+	args = append(args, utils.BoolField(background), utils.BoolField(u.LeaderboardPageHidden), u.CreatorCode, utils.BoolField(u.SongQueuePageHidden), u.VoicePlan)
 	return pkg_valkey.RunHashRevisionGateUser(ctx, v.primary, []string{key, watchtime.AdmissionKey(userID)}, args).Error()
 }
 

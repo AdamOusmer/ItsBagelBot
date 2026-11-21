@@ -4,6 +4,10 @@
 package rpc_test
 
 import (
+	"context"
+	"crypto/sha256"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +17,8 @@ import (
 	"ItsBagelBot/app/db/overlays/rpc"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
+	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/internal/testdb"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/bustest"
@@ -34,8 +40,18 @@ func serve(t *testing.T) *nats.Conn {
 	}
 	require.NoError(t, rpc.SubscribeDashboard(w))
 	require.NoError(t, rpc.SubscribeOwner(w))
+	require.NoError(t, rpc.SubscribeTts(w))
+	require.NoError(t, bus.Serve(w.RPCWiring, usersrpc.VoiceCheckSubject, ttsQuota))
 	require.NoError(t, nc.Flush())
 	return nc
+}
+
+func ttsQuota(_ context.Context, req usersrpc.VoiceCheckRequest) usersrpc.VoiceCheckReply {
+	plan := voiceplan.Free
+	if req.UserID == "1001" {
+		plan = voiceplan.Premium
+	}
+	return usersrpc.VoiceCheckReply{VoiceReply: usersrpc.VoiceReply{VoiceAllowance: usersrpc.VoiceAllowance{Plan: plan}}}
 }
 
 func request[Rep any](t *testing.T, nc *nats.Conn, subject string, req any) Rep {
@@ -101,4 +117,40 @@ func TestOwnerLookupsFollowTheCurrentLink(t *testing.T) {
 			require.Equal(t, tc.want == domainrpc.CodeOK, reply.Overlay != nil)
 		})
 	}
+}
+
+func TestTtsRPCUsesARevisionAndTheUsersPlan(t *testing.T) {
+	nc := serve(t)
+	for _, tc := range []struct {
+		user string
+		open bool
+	}{
+		{"1001", true},
+		{"1002", false},
+	} {
+		req := overlaysrpc.TtsUserRequest{UserID: tc.user}
+		get := request[overlaysrpc.TtsView](t, nc, overlaysrpc.TtsGetSubject, req)
+		require.Empty(t, get.Refusal)
+		require.Equal(t, overlaysrpc.DefaultTtsSettings(), get.Settings)
+		stale := overlaysrpc.TtsSaveRequest{TtsUserRequest: req, Settings: get.Settings, Revision: get.Revision + 1}
+		got := request[overlaysrpc.TtsView](t, nc, overlaysrpc.TtsSaveSubject, stale)
+		require.Equal(t, domainrpc.CodeConflict, got.Code)
+
+		rotated := request[overlaysrpc.TtsView](t, nc, overlaysrpc.TtsRotateSubject, req)
+		assertTtsRotation(t, nc, rotated, tc.open)
+	}
+}
+
+func assertTtsRotation(t *testing.T, nc *nats.Conn, rotated overlaysrpc.TtsView, open bool) {
+	t.Helper()
+	if !open {
+		require.Equal(t, domainrpc.CodeForbidden, rotated.Code)
+		return
+	}
+	plaintext, found := strings.CutPrefix(rotated.URL, overlaysrpc.TtsURLPrefix)
+	require.True(t, found)
+	hash := overlaysrpc.TtsTokenHash(fmt.Sprintf("%x", sha256.Sum256([]byte(plaintext))))
+	owner := request[overlaysrpc.OwnerTtsReply](t, nc, overlaysrpc.OwnerTtsByHashSubject, overlaysrpc.TtsResolveRequest{TokenHash: hash})
+	require.NotNil(t, owner.Overlay)
+	require.Equal(t, rotated.Revision, owner.Overlay.Revision)
 }

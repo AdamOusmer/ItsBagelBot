@@ -5,6 +5,7 @@ package ent
 import (
 	"ItsBagelBot/app/db/overlays/ent/poweredoverlay"
 	"ItsBagelBot/app/db/overlays/ent/schema"
+	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
 	"time"
 )
 
@@ -42,4 +43,52 @@ func init() {
 	poweredoverlay.DefaultUpdatedAt = poweredoverlayDescUpdatedAt.Default.(func() time.Time)
 	// poweredoverlay.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	poweredoverlay.UpdateDefaultUpdatedAt = poweredoverlayDescUpdatedAt.UpdateDefault.(func() time.Time)
+	ttsoverlayFields := schema.TtsOverlay{}.Fields()
+	_ = ttsoverlayFields
+	// ttsoverlayDescEnabled is the schema descriptor for enabled field.
+	ttsoverlayDescEnabled := ttsoverlayFields[1].Descriptor()
+	// ttsoverlay.DefaultEnabled holds the default value on creation for the enabled field.
+	ttsoverlay.DefaultEnabled = ttsoverlayDescEnabled.Default.(bool)
+	// ttsoverlayDescVoice is the schema descriptor for voice field.
+	ttsoverlayDescVoice := ttsoverlayFields[2].Descriptor()
+	// ttsoverlay.DefaultVoice holds the default value on creation for the voice field.
+	ttsoverlay.DefaultVoice = ttsoverlayDescVoice.Default.(string)
+	// ttsoverlayDescMaxSeconds is the schema descriptor for max_seconds field.
+	ttsoverlayDescMaxSeconds := ttsoverlayFields[3].Descriptor()
+	// ttsoverlay.DefaultMaxSeconds holds the default value on creation for the max_seconds field.
+	ttsoverlay.DefaultMaxSeconds = ttsoverlayDescMaxSeconds.Default.(int)
+	// ttsoverlay.MaxSecondsValidator is a validator for the "max_seconds" field. It is called by the builders before save.
+	ttsoverlay.MaxSecondsValidator = func() func(int) error {
+		validators := ttsoverlayDescMaxSeconds.Validators
+		fns := [...]func(int) error{
+			validators[0].(func(int) error),
+			validators[1].(func(int) error),
+		}
+		return func(max_seconds int) error {
+			for _, fn := range fns {
+				if err := fn(max_seconds); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// ttsoverlayDescTokenHash is the schema descriptor for token_hash field.
+	ttsoverlayDescTokenHash := ttsoverlayFields[4].Descriptor()
+	// ttsoverlay.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
+	ttsoverlay.TokenHashValidator = ttsoverlayDescTokenHash.Validators[0].(func(string) error)
+	// ttsoverlayDescGeneration is the schema descriptor for generation field.
+	ttsoverlayDescGeneration := ttsoverlayFields[5].Descriptor()
+	// ttsoverlay.DefaultGeneration holds the default value on creation for the generation field.
+	ttsoverlay.DefaultGeneration = ttsoverlayDescGeneration.Default.(int)
+	// ttsoverlayDescCreatedAt is the schema descriptor for created_at field.
+	ttsoverlayDescCreatedAt := ttsoverlayFields[7].Descriptor()
+	// ttsoverlay.DefaultCreatedAt holds the default value on creation for the created_at field.
+	ttsoverlay.DefaultCreatedAt = ttsoverlayDescCreatedAt.Default.(func() time.Time)
+	// ttsoverlayDescUpdatedAt is the schema descriptor for updated_at field.
+	ttsoverlayDescUpdatedAt := ttsoverlayFields[8].Descriptor()
+	// ttsoverlay.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	ttsoverlay.DefaultUpdatedAt = ttsoverlayDescUpdatedAt.Default.(func() time.Time)
+	// ttsoverlay.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	ttsoverlay.UpdateDefaultUpdatedAt = ttsoverlayDescUpdatedAt.UpdateDefault.(func() time.Time)
 }

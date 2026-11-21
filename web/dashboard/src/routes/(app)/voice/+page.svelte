@@ -39,13 +39,14 @@
   const options = voiceOptions(t);
 
   const allowance = $derived(data.readOnly ? null : data.allowance);
+  const overlay = $derived(data.readOnly ? null : data.overlay);
 
   function loadedValues(): Record<string, string> {
     return {
       ...data.alerts?.config,
-      enabled: String(allowance?.enabled ?? false),
-      voice: allowance?.voice || DEFAULT_VOICE,
-      max_seconds: String(allowance?.max_seconds ?? MAX_CLIP_SECONDS)
+      enabled: String(overlay?.settings.enabled ?? false),
+      voice: overlay?.settings.voice || DEFAULT_VOICE,
+      max_seconds: String(overlay?.settings.max_seconds ?? MAX_CLIP_SECONDS)
     };
   }
 
@@ -173,9 +174,9 @@
       </Card>
     {:else}
       <div class="stack">
-        <VoiceUsageCard {allowance} />
-        {#if allowance.limit_tokens > 0}
-          <VoiceOverlayCard configured={!!overlayUrl || allowance.overlay_configured === true} url={overlayUrl}
+        <VoiceUsageCard {allowance} settings={overlay?.settings} />
+        {#if allowance.limit_tokens > 0 && overlay}
+          <VoiceOverlayCard configured={!!overlayUrl || overlay.configured} url={overlayUrl}
             error={overlayError} busy={pending === 'rotateOverlay'} disabled={pending !== null} submit={submitOverlay} />
         {/if}
 

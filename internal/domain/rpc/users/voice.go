@@ -19,29 +19,18 @@ const (
 )
 
 type VoiceAllowance struct {
-	Plan              voiceplan.Plan `json:"plan"`
-	Period            string         `json:"period"`
-	LimitTokens       int64          `json:"limit_tokens"`
-	UsedTokens        int64          `json:"used_tokens"`
-	RemainingTokens   int64          `json:"remaining_tokens"`
-	ResetsAt          time.Time      `json:"resets_at"`
-	Enabled           bool           `json:"enabled"`
-	Voice             string         `json:"voice"`
-	MaxSeconds        int            `json:"max_seconds"`
-	Reason            string         `json:"reason"`
-	OverlayConfigured bool           `json:"overlay_configured,omitempty"`
+	Plan            voiceplan.Plan `json:"plan"`
+	Period          string         `json:"period"`
+	LimitTokens     int64          `json:"limit_tokens"`
+	UsedTokens      int64          `json:"used_tokens"`
+	RemainingTokens int64          `json:"remaining_tokens"`
+	ResetsAt        time.Time      `json:"resets_at"`
+	Reason          string         `json:"reason"`
 }
 
 type VoiceGetRequest struct {
 	ActorID           string `json:"actor_id"`
 	BroadcasterUserID string `json:"broadcaster_user_id"`
-}
-
-type VoiceSetRequest struct {
-	VoiceGetRequest
-	Enabled    bool   `json:"enabled"`
-	Voice      string `json:"voice"`
-	MaxSeconds int    `json:"max_seconds"`
 }
 
 type VoiceCheckRequest struct {

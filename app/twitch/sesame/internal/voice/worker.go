@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/bus"
@@ -53,8 +54,8 @@ type Publisher struct {
 }
 
 func (p Publisher) Enabled(ctx context.Context, id string) (bool, error) {
-	reply, err := check(ctx, p.RPC, id)
-	return reply.Allowed, err
+	access, err := check(ctx, p.RPC, id)
+	return access.allowed(), err
 }
 
 func (p Publisher) Publish(ctx context.Context, job voiceplan.AlertJob) error {
@@ -92,13 +93,30 @@ func validJob(job voiceplan.AlertJob) bool {
 	return err == nil && job.Kind.Valid()
 }
 
-func check(ctx context.Context, nc *nats.Conn, id string) (usersrpc.VoiceCheckReply, error) {
+type voiceAccess struct {
+	settings  overlaysrpc.TtsSettings
+	remaining int64
+}
+
+func (a voiceAccess) allowed() bool {
+	return a.settings.Enabled && a.remaining > 0
+}
+
+func check(ctx context.Context, nc *nats.Conn, id string) (voiceAccess, error) {
+	settings, err := bus.RequestJSONTimeout[overlaysrpc.TtsSettingsReply](ctx, nc,
+		overlaysrpc.TtsSettingsSubject, overlaysrpc.TtsUserRequest{UserID: id}, usersTimeout)
+	if err != nil {
+		return voiceAccess{}, err
+	}
+	if !settings.Configured || !settings.Settings.Enabled {
+		return voiceAccess{}, nil
+	}
 	req := usersrpc.VoiceCheckRequest{UserID: id}
 	reply, err := bus.RequestJSONTimeout[usersrpc.VoiceCheckReply](ctx, nc, usersrpc.VoiceCheckSubject, req, usersTimeout)
 	if bus.NotFoundReply(err) {
-		return usersrpc.VoiceCheckReply{}, nil
+		return voiceAccess{}, nil
 	}
-	return reply, err
+	return voiceAccess{settings: settings.Settings, remaining: reply.RemainingTokens}, err
 }
 
 func (w Worker) findOrSynthesize(ctx context.Context, job voiceplan.AlertJob) (bus.TTSClip, error) {
@@ -111,8 +129,8 @@ func (w Worker) findOrSynthesize(ctx context.Context, job voiceplan.AlertJob) (b
 	if err != nil {
 		return bus.TTSClip{}, err
 	}
-	req := synthesisRequest(job, allowance.VoiceAllowance)
-	if !allowance.Allowed || req.Text == "" {
+	req := synthesisRequest(job, allowance)
+	if !allowance.allowed() || req.Text == "" {
 		w.logDrop(ctx, job, jobNotAllowed)
 		return bus.TTSClip{}, nil
 	}
@@ -189,13 +207,13 @@ func jobFields(job voiceplan.AlertJob, extra zap.Field) []zap.Field {
 	}
 }
 
-func synthesisRequest(job voiceplan.AlertJob, allowance usersrpc.VoiceAllowance) gossiprpc.Request {
-	seconds := min(int64(allowance.MaxSeconds), allowance.RemainingTokens/voiceplan.TokensPerSecond)
+func synthesisRequest(job voiceplan.AlertJob, access voiceAccess) gossiprpc.Request {
+	seconds := min(int64(access.settings.MaxSeconds), access.remaining/voiceplan.TokensPerSecond)
 	runeLimit := min(max(seconds, 0)*voiceplan.CharsPerSecond, voiceplan.MaxSpeechRunes)
 	return gossiprpc.Request{
 		ChannelID: job.BroadcasterID, RequestID: job.EventID,
 		Text: trimSpeech(job.Text, int(runeLimit)), Style: job.Style,
-		Voice: cmp.Or(job.Voice, allowance.Voice, voiceplan.DefaultVoice),
+		Voice: cmp.Or(job.Voice, access.settings.Voice, voiceplan.DefaultVoice),
 	}
 }
 

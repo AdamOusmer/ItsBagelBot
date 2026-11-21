@@ -63,7 +63,7 @@ func seedOrders(t *testing.T, js jetstream.JetStream) {
 		msgs, err := cons.Fetch(1, jetstream.FetchMaxWait(2*time.Second))
 		require.NoError(t, err)
 		for msg := range msgs.Messages() {
-			require.NoError(t, msg.Ack())
+			require.NoError(t, msg.DoubleAck(ctx))
 		}
 	}
 }

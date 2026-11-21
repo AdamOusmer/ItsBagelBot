@@ -5,7 +5,6 @@ package rpc
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"ItsBagelBot/app/db/users/repository"
@@ -36,7 +35,7 @@ func (v voiceRPC) check(ctx context.Context, _ usersrpc.VoiceCheckRequest, id ui
 	allowance, err := v.repo.VoiceAllowance(ctx, id, time.Now())
 	return usersrpc.VoiceCheckReply{
 		VoiceReply: voiceReply(allowance, err),
-		Allowed:    allowance.Enabled && allowance.OverlayConfigured && allowance.RemainingTokens > 0,
+		Allowed:    allowance.RemainingTokens > 0,
 	}, nil
 }
 
@@ -69,29 +68,6 @@ func (d *dashboardRPC) handleVoiceGet(ctx context.Context, msg *nats.Msg) {
 	bus.Respond(msg, voiceReply(allowance, err))
 }
 
-func (d *dashboardRPC) handleVoiceSet(ctx context.Context, msg *nats.Msg) {
-	req, ok := decodeRequest[usersrpc.VoiceSetRequest](msg)
-	if !ok {
-		return
-	}
-	id, ok := dashboardVoiceOwner(msg, req.VoiceGetRequest)
-	if !ok {
-		return
-	}
-	err := d.repo.SetVoiceSettings(ctx, id, repository.VoiceSettings{
-		Enabled: req.Enabled, Voice: req.Voice, MaxSeconds: req.MaxSeconds,
-	})
-	if errors.Is(err, repository.ErrInvalidVoice) || errors.Is(err, repository.ErrInvalidVoiceClipLength) {
-		respondErr(msg, "bad request")
-		return
-	}
-	if err != nil {
-		respondFail(msg, err)
-		return
-	}
-	respondOK(msg)
-}
-
 func dashboardVoiceOwner(msg *nats.Msg, req usersrpc.VoiceGetRequest) (uint64, bool) {
 	id, err := bus.NonZeroUserID(req.BroadcasterUserID)
 	if err != nil {
@@ -104,4 +80,13 @@ func dashboardVoiceOwner(msg *nats.Msg, req usersrpc.VoiceGetRequest) (uint64, b
 		return 0, false
 	}
 	return id, true
+}
+
+func SubscribeVoiceExport(w Wiring) error {
+	return bus.Serve(w.Within(voiceBudget), usersrpc.VoiceExportSubject,
+		func(ctx context.Context, req usersrpc.VoiceExportRequest) usersrpc.VoiceExportReply {
+			reply, err := w.Repo.ExportLegacyVoice(ctx, req.AfterID)
+			reply.Refusal = bus.Classify(err)
+			return reply
+		})
 }

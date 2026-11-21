@@ -21,22 +21,36 @@ import (
 const controlsGatewayAccount = "CONTROLS_GATEWAY_RPC"
 
 type ttsGrant struct {
-	subject string
-	account string
+	subject  string
+	owner    string
+	accounts []string
 }
 
 func TestTTSGrantIsolation(t *testing.T) {
 	catalog := loadRPCCatalog(t)
+	worker := []string{"WORKER_RPC"}
+	gateway := []string{controlsGatewayAccount}
+	overlays := []string{"OVERLAYS_RPC"}
+	projector := []string{"PROJECTOR_RPC"}
+	quota := []string{"WORKER_RPC", "OVERLAYS_RPC"}
 	for _, grant := range []ttsGrant{
-		{"rpc.internal.users.voice.overlay.resolve", controlsGatewayAccount},
-		{"rpc.internal.users.voice.overlay.resolve.node.n1", controlsGatewayAccount},
-		{"rpc.internal.users.voice.overlay.check", controlsGatewayAccount},
-		{"rpc.internal.users.voice.overlay.check.node.n1", controlsGatewayAccount},
-		{"controls.tts.revoked.42", controlsGatewayAccount},
-		{"rpc.internal.users.voice.check", "WORKER_RPC"},
-		{"rpc.internal.users.voice.check.node.n1", "WORKER_RPC"},
-		{"rpc.internal.users.voice.record", "WORKER_RPC"},
-		{"rpc.internal.users.voice.record.node.n1", "WORKER_RPC"},
+		{"rpc.internal.projector.overlays.tts.resolve", "projector_rpc", gateway},
+		{"rpc.internal.projector.overlays.tts.resolve.node.n1", "projector_rpc", gateway},
+		{"rpc.internal.projector.overlays.tts.check", "projector_rpc", gateway},
+		{"rpc.internal.projector.overlays.tts.check.node.n1", "projector_rpc", gateway},
+		{"controls.tts.revoked.42", "projector_rpc", gateway},
+		{"rpc.internal.projector.overlays.tts.settings", "projector_rpc", worker},
+		{"rpc.internal.projector.overlays.tts.settings.node.n1", "projector_rpc", worker},
+		{"rpc.internal.users.voice.check", "users_rpc", quota},
+		{"rpc.internal.users.voice.check.node.n1", "users_rpc", quota},
+		{"rpc.internal.users.voice.record", "users_rpc", worker},
+		{"rpc.internal.users.voice.record.node.n1", "users_rpc", worker},
+		{"rpc.internal.users.voice.export", "users_rpc", overlays},
+		{"rpc.internal.users.voice.export.node.n1", "users_rpc", overlays},
+		{"rpc.internal.overlays.tts.by_user", "overlays_rpc", projector},
+		{"rpc.internal.overlays.tts.by_user.node.n1", "overlays_rpc", projector},
+		{"rpc.internal.overlays.tts.by_hash", "overlays_rpc", projector},
+		{"rpc.internal.overlays.tts.by_hash.node.n1", "overlays_rpc", projector},
 	} {
 		assertTTSGrant(t, catalog, grant)
 	}
@@ -44,21 +58,21 @@ func TestTTSGrantIsolation(t *testing.T) {
 
 func assertTTSGrant(t *testing.T, catalog rpcCatalog, grant ttsGrant) {
 	t.Helper()
-	users := catalog.byUser["users_rpc"]
+	owner := catalog.byUser[grant.owner]
 	match := func(candidate string) bool { return server.SubjectsCollide(candidate, grant.subject) }
-	index := slices.IndexFunc(users.exports, func(export rpcGrant) bool { return match(export.subject) })
-	require.NotEqual(t, -1, index, "Users does not export %s", grant.subject)
-	export := users.exports[index]
-	assert.Equal(t, []string{grant.account}, export.accounts)
+	index := slices.IndexFunc(owner.exports, func(export rpcGrant) bool { return match(export.subject) })
+	require.NotEqual(t, -1, index, "Owner does not export %s", grant.subject)
+	export := owner.exports[index]
+	assert.ElementsMatch(t, grant.accounts, export.accounts)
 
 	for _, account := range catalog.accounts {
 		got := slices.IndexFunc(account.imports, func(imp rpcImport) bool { return match(imp.subject) })
-		if account.name != grant.account {
+		if !slices.Contains(grant.accounts, account.name) {
 			assert.Equal(t, -1, got, "%s imports %s", account.name, grant.subject)
 			continue
 		}
 		require.NotEqual(t, -1, got, "%s must import %s", account.name, grant.subject)
-		want := rpcImport{rpcGrant: rpcGrant{kind: export.kind, subject: export.subject}, account: users.name}
+		want := rpcImport{rpcGrant: rpcGrant{kind: export.kind, subject: export.subject}, account: owner.name}
 		assert.Equal(t, want, account.imports[got])
 	}
 }
@@ -72,10 +86,10 @@ func TestTTSOverlayReaderPermissionsAreExact(t *testing.T) {
 	role := account.Roles["controls_gateway_rpc"]
 	assert.Equal(t, natsacl.RoleSpec{
 		Publish: &natsacl.PermissionSpec{Allow: []string{
-			"rpc.internal.users.voice.overlay.resolve",
-			"rpc.internal.users.voice.overlay.resolve.node.*",
-			"rpc.internal.users.voice.overlay.check",
-			"rpc.internal.users.voice.overlay.check.node.*",
+			"rpc.internal.projector.overlays.tts.resolve",
+			"rpc.internal.projector.overlays.tts.resolve.node.*",
+			"rpc.internal.projector.overlays.tts.check",
+			"rpc.internal.projector.overlays.tts.check.node.*",
 			"rpc.internal.projector.overlays.powered.resolve",
 			"rpc.internal.projector.overlays.powered.resolve.node.*",
 			"$JS.API.CONSUMER.CREATE.OVERLAY_TTS.*.overlay.tts.*",

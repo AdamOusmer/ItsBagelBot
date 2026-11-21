@@ -58,7 +58,13 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.admin.user.audit.append", "app/db/users audit writer"},
 		{"rpc.internal.admin.staff.active", "app/db/users giveaway eligibility"},
 	},
+	"overlays_rpc": {
+		{"rpc.internal.users.voice.check", "app/db/overlays/rpc/tts.go"},
+		{"rpc.internal.users.voice.export", "app/db/overlays/tts.go"},
+	},
 	"projector_rpc": {
+		{"rpc.internal.overlays.tts.by_user", "app/projector/rpc/tts.go"},
+		{"rpc.internal.overlays.tts.by_hash", "app/projector/rpc/tts.go"},
 		{"rpc.internal.projection.users.get", "internal/projection/hydration"},
 		{"rpc.internal.projection.modules.get", "internal/projection/hydration"},
 		{"rpc.internal.projection.commands.get", "internal/projection/hydration"},
@@ -74,6 +80,7 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.internal.overlays.powered.by_token", "internal/domain/rpc/overlays OwnerPoweredByTokenSubject"},
 	},
 	"worker_rpc": {
+		{"rpc.internal.projector.overlays.tts.settings", "app/twitch/sesame/internal/voice/worker.go"},
 		{"rpc.internal.users.voice.check", "app/twitch/sesame/internal/voice/worker.go"},
 		{"rpc.internal.users.voice.record", "app/twitch/sesame/internal/voice/worker.go"},
 		{"rpc.internal.projection.users.get", "app/twitch/sesame/internal/config ProjectionUsersSubject"},
@@ -160,8 +167,8 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.internal.projection.commands.fetches.get", "app/gossip/main.go newFetchProjection"},
 	},
 	"controls_gateway_rpc": {
-		{"rpc.internal.users.voice.overlay.resolve", "app/controls/gateway/lib/controls_gateway/tts/nats.ex"},
-		{"rpc.internal.users.voice.overlay.check", "app/controls/gateway/lib/controls_gateway/tts/nats.ex"},
+		{"rpc.internal.projector.overlays.tts.resolve", "app/controls/gateway/lib/controls_gateway/tts/nats.ex"},
+		{"rpc.internal.projector.overlays.tts.check", "app/controls/gateway/lib/controls_gateway/tts/nats.ex"},
 		{"rpc.internal.projector.overlays.powered.resolve", "app/controls/gateway/lib/controls_gateway/powered/nats.ex"},
 	},
 	"twitch_ingress_rpc": {
@@ -171,6 +178,9 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.outgress.trial_subscription.delete", "app/twitch/ingress/lib/ingress/trial_receiver.ex"},
 	},
 	"dashboard_rpc": {
+		{"rpc.overlays.tts.get", "web/dashboard/src/lib/server/services/voice.ts"},
+		{"rpc.overlays.tts.save", "web/dashboard/src/lib/server/services/voice.ts"},
+		{"rpc.overlays.tts.rotate", "web/dashboard/src/lib/server/services/voice.ts"},
 		{"rpc.automations.run", "web/dashboard/src/lib/server/automations-store.ts runNow"},
 		{"rpc.automations.runs", "web/dashboard/src/lib/server/automations-store.ts listRuns"},
 		{"rpc.draw.raffle.status", "web/dashboard/src/lib/server/loyalty-store.ts raffleStatus"},

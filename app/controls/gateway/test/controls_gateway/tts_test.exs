@@ -13,7 +13,7 @@ defmodule ControlsGateway.TtsTest do
 
   @user_id 18_446_744_073_709_551_615
   @generation 7
-  @overlay "rpc.internal.users.voice.overlay."
+  @overlay "rpc.internal.projector.overlays.tts."
   @token Base.url_encode64(:binary.copy(<<33>>, 32), padding: false)
   @unknown Base.url_encode64(:binary.copy(<<34>>, 32), padding: false)
   @ttl_ns 300_000_000_000
@@ -246,7 +246,8 @@ defmodule ControlsGateway.TtsTest do
   defp response(@overlay <> "resolve", %{"token_hash" => hash}, hash),
     do: %{user_id: @user_id, generation: @generation}
 
-  defp response(@overlay <> "resolve", _params, _hash), do: %{code: "not_found"}
+  defp response(@overlay <> "resolve", _params, _hash),
+    do: %{code: "not_found", error: "overlay token not found"}
 
   defp response(@overlay <> "check", params, _hash),
     do: %{valid: params == %{"user_id" => @user_id, "generation" => @generation}}

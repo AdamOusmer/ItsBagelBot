@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"ItsBagelBot/app/db/users/ent"
-	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/ent/voiceusage"
 	"ItsBagelBot/internal/adminauth"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
@@ -93,7 +92,7 @@ func (change VoiceUsageChange) valid() bool {
 }
 
 func (a voiceAdjustment) apply(ctx context.Context, tx *ent.Tx) (voiceAdjustmentResult, error) {
-	owner, err := tx.User.Query().Where(user.IDEQ(a.userID), lockOwnerRow).Only(ctx)
+	owner, err := voiceOwnerQuery(tx, a.userID).Where(lockOwnerRow).Only(ctx)
 	if err != nil {
 		return voiceAdjustmentResult{}, err
 	}

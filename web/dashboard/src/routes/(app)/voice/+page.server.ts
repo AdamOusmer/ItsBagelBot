@@ -12,7 +12,7 @@ import { listModulesForEditing, patchModule, type ModuleView } from '#lib/server
 import { moduleEditState } from '#lib/server/module-edit-state';
 import { hasOwnerAccess } from '#lib/server/owner';
 import { auditDashboardImpersonation } from '#lib/server/services/audit';
-import { voiceGet, voiceOverlayRotate, voiceSet } from '#lib/server/services/voice';
+import { voiceGet, voiceOverlayGet, voiceOverlayRotate, voiceSet } from '#lib/server/services/voice';
 import { TTS_COMMAND } from '@bagel/kit/voice-plan';
 import { parseCommandSave, parseVoiceSave, ttsCommandConfig, voiceAlertConfig } from './voice-settings';
 import type { Session } from '#lib/server/session';
@@ -87,12 +87,13 @@ async function persistVoice(session: Session, save: ParsedSave, locale: Locale) 
     if (alerts.conflict) return fail(409, { conflict: true });
     revision = alerts.rev;
     if (Object.keys(save.settings).length > 0) {
-      const { voice, enabled, max_seconds } = allowance;
-      await voiceSet(session, { voice, enabled, max_seconds, ...save.settings });
+      const { settings, revision } = await voiceOverlayGet(session);
+      await voiceSet(session, { settings: { ...settings, ...save.settings }, revision });
     }
     auditDashboardImpersonation(session, 'voice:save');
     return { ok: true, rev: alerts.rev };
-  } catch {
+  } catch (err) {
+    if (err instanceof RpcError && err.code === 'conflict') return fail(409, { conflict: true });
     return fail(503, { error: translate(locale, 'voice.saveFailed'), revision });
   }
 }
@@ -114,12 +115,13 @@ const demoActions = {
 } satisfies Actions;
 
 const demoLoad = (async ({ url }) => {
-  const { allowance, config, revision } = (await import('#lib/server/demo-data')).demoVoiceView(url.searchParams.get('locked') === '1');
+  const { allowance, overlay, config, revision } = (await import('#lib/server/demo-data')).demoVoiceView(url.searchParams.get('locked') === '1');
   const locked = allowance.reason === 'no_plan';
   return {
     readOnly: false,
     locked,
     allowance,
+    overlay,
     alerts: locked ? null : { config: voiceAlertConfig(config), revision },
     command: locked ? null : { config: ttsCommandConfig({}), enabled: false, revision: 0 }
   };
@@ -127,16 +129,19 @@ const demoLoad = (async ({ url }) => {
 
 const liveLoad = (async ({ locals: { session } }) => {
   if (!session) throw redirect(302, '/login?next=%2Fvoice');
-  if (!hasOwnerAccess(session)) return { readOnly: true, locked: false, allowance: null, alerts: null, command: null };
+  if (!hasOwnerAccess(session)) return { readOnly: true, locked: false, allowance: null, overlay: null, alerts: null, command: null };
 
   const allowance = await bestEffort(voiceGet(session), null);
   const view = { readOnly: false, locked: allowance?.reason === 'no_plan', allowance };
-  if (allowance?.reason !== 'ok') return { ...view, alerts: null, command: null };
+  if (allowance?.reason !== 'ok') return { ...view, overlay: null, alerts: null, command: null };
 
-  const rows = await bestEffort(listModulesForEditing(session.user_id), null);
-  if (!rows) return { ...view, alerts: null, command: null };
+  const [overlay, rows] = await Promise.all([
+    bestEffort(voiceOverlayGet(session), null),
+    bestEffort(listModulesForEditing(session.user_id), null)
+  ]);
+  if (!rows || !overlay) return { ...view, overlay, alerts: null, command: null };
   const byName = (module: string) => rows.find(({ name }) => name === module);
-  return { ...view, alerts: alertsView(byName('alerts')), command: commandView(byName(TTS_COMMAND)) };
+  return { ...view, overlay, alerts: alertsView(byName('alerts')), command: commandView(byName(TTS_COMMAND)) };
 }) satisfies PageServerLoad;
 
 export const load: PageServerLoad = DEMO ? demoLoad : liveLoad;
