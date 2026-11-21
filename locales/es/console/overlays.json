@@ -22,6 +22,9 @@
     "center": "Centro",
     "end": "Final"
   },
+  "linkTitle": "Enlace",
+  "timing": "Tiempos",
+  "placement": "Ubicación",
   "preview": "Vista previa",
   "previewFrame": "Vista previa de la insignia",
   "readOnly": "Solo el propietario del canal puede cambiar los overlays.",

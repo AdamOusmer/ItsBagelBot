@@ -22,6 +22,9 @@
     "center": "Centro",
     "end": "Fim"
   },
+  "linkTitle": "Link",
+  "timing": "Tempo",
+  "placement": "Posição",
   "preview": "Prévia",
   "previewFrame": "Prévia do selo",
   "readOnly": "Só o dono do canal pode alterar os overlays.",

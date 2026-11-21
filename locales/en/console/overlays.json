@@ -22,6 +22,9 @@
     "center": "Center",
     "end": "End"
   },
+  "linkTitle": "Link",
+  "timing": "Timing",
+  "placement": "Placement",
   "preview": "Preview",
   "previewFrame": "Badge preview",
   "readOnly": "Only the channel owner can change overlays.",
