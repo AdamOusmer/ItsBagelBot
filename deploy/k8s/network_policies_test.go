@@ -183,6 +183,7 @@ func TestControlsGatewayNetworkPolicyIsExact(t *testing.T) {
 	assert.Equal(t, []string{
 		"kubernetes.io/metadata.name=kube-system | any | 53/UDP,53/TCP",
 		"kubernetes.io/metadata.name=messaging | app=nats | 4222/TCP",
+		"kubernetes.io/metadata.name=messaging | app=nats-leaf | 4223/TCP",
 	}, ruleSummary(policy.Spec.Egress))
 
 	networking := requirePolicy(t, loadNetworkPolicies(t, "../networking/network-policies.yaml"), "default-deny-networking")

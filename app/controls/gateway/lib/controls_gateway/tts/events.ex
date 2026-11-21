@@ -16,14 +16,17 @@ defmodule ControlsGateway.Tts.Events do
 
   def open(req, session, headers) do
     with conn when is_pid(conn) <- Nats.connection(),
-         {:ok, revoked_sid} <- Nats.subscribe(conn, "controls.tts.revoked.#{session.user_id}"),
-         true <- Nats.check(conn, session),
+         rpc when is_pid(rpc) <- Nats.rpc_connection(),
+         {:ok, revoked_sid} <- Nats.subscribe(rpc, "controls.tts.revoked.#{session.user_id}"),
+         true <- Nats.check(rpc, session),
          inbox <-
            "_INBOX.tts." <> Base.url_encode64(:crypto.strong_rand_bytes(18), padding: false),
          {:ok, event_sid} <- Nats.subscribe(conn, inbox) do
       state = %{
         conn: conn,
+        rpc: rpc,
         monitor: Process.monitor(conn),
+        rpc_monitor: Process.monitor(rpc),
         session: session,
         revoked_sid: revoked_sid,
         event_sid: event_sid,
@@ -78,12 +81,16 @@ defmodule ControlsGateway.Tts.Events do
     end
   end
 
-  def info({:msg, %{sid: sid}}, req, %{revoked_sid: sid} = state), do: stop(req, state)
+  def info({:msg, %{sid: sid, gnat: rpc}}, req, %{revoked_sid: sid, rpc: rpc} = state),
+    do: stop(req, state)
 
-  def info({:msg, %{sid: sid} = message}, req, %{event_sid: sid} = state),
+  def info({:msg, %{sid: sid, gnat: conn} = message}, req, %{event_sid: sid, conn: conn} = state),
     do: deliver(message, req, state)
 
   def info({:DOWN, ref, :process, _pid, _reason}, req, %{monitor: ref} = state),
+    do: stop(req, state)
+
+  def info({:DOWN, ref, :process, _pid, _reason}, req, %{rpc_monitor: ref} = state),
     do: stop(req, state)
 
   def info(:ping, req, state) do
@@ -166,7 +173,7 @@ defmodule ControlsGateway.Tts.Events do
   end
 
   defp valid?(state),
-    do: state.session.exp > Session.now() and Nats.check(state.conn, state.session) == true
+    do: state.session.exp > Session.now() and Nats.check(state.rpc, state.session) == true
 
   defp schedule_check(session) do
     delay = min(@check_ms, max(0, session.exp - Session.now()) * 1_000)
