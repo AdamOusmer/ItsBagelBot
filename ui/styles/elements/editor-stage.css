@@ -166,6 +166,9 @@
     .bb-editor-stage--slim-bar .bb-editor-stage__panel {
       top: calc(var(--stage-top, 0px) + 56px);
     }
+    .bb-editor-stage--no-bar .bb-editor-stage__panel {
+      top: calc(var(--stage-top, 0px) + 16px);
+    }
   }
 
   .bb-shell:has(.bb-editor-stage) {

@@ -58,10 +58,12 @@
     ...rest
   }: Own & Omit<HTMLAttributes<HTMLDivElement>, keyof Own> = $props();
 
+  const hasBar = $derived(Boolean(topStart ?? topCenter ?? topEnd));
   const classes = $derived(
     [
       'bb-editor-stage',
       slimBar ? 'bb-editor-stage--slim-bar' : null,
+      hasBar ? null : 'bb-editor-stage--no-bar',
       stackBar ? 'bb-editor-stage--stack-bar' : null,
       rail ? 'bb-editor-stage--has-rail' : null,
       className || null,
@@ -79,15 +81,17 @@
   bind:this={editorEl}
   {...rest}
 >
-  <header class="bb-editor-stage__bar" bind:this={barEl}>
-    {#if topStart}
-      <div class="bb-editor-stage__bar-start">{@render topStart()}</div>
-    {/if}
-    {#if topCenter}
-      <div class="bb-editor-stage__bar-center">{@render topCenter()}</div>
-    {/if}
-    <div class="bb-editor-stage__bar-end">{@render topEnd?.()}</div>
-  </header>
+  {#if hasBar}
+    <header class="bb-editor-stage__bar" bind:this={barEl}>
+      {#if topStart}
+        <div class="bb-editor-stage__bar-start">{@render topStart()}</div>
+      {/if}
+      {#if topCenter}
+        <div class="bb-editor-stage__bar-center">{@render topCenter()}</div>
+      {/if}
+      <div class="bb-editor-stage__bar-end">{@render topEnd?.()}</div>
+    </header>
+  {/if}
 
   <div class="bb-editor-stage__body">
     {#if rail}
