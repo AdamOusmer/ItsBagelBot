@@ -57,6 +57,12 @@ An acknowledgment means the message arrived; it does not claim resolution or imm
 
 - Preserve fixed verified-sender strip and anti-phishing copy within each language; README prohibits
   personalization and requires faithful meaning when adding another language.
+- Safety footer wording is the Resend shell's i18n strings `mail.safety.label` and `mail.safety.body`
+  plus " itsbagelbot.com.", linking https://itsbagelbot.com.
+- Locked visual identity: logo + wordmark, verified strip, safety footer, Caveat signature.
+  No accent bar, bagel stamp, emoji or signature gradient.
+- Colours follow `ui/styles/brand.css` (token table in README): card `#18181b` and inset `#121214`
+  without borders, primary button `#f4f4f5` on `#111113` with radius 8.
 - Use email-compatible tables/inline styles; avoid converting layout into browser-only grids/components.
 - Fonts have fallback stacks because clients can discard imported webfonts.
 - The remote logo can be blocked; the message must remain understandable with images disabled.
