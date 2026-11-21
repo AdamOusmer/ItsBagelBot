@@ -10,6 +10,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/internal/domain/rpc"
+	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	sesamerpc "ItsBagelBot/internal/domain/rpc/sesame"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/voiceplan"
@@ -36,6 +37,7 @@ func (jobs voiceTestJobs) Publish(_ context.Context, job voiceplan.AlertJob) err
 
 type voiceTestFixture struct {
 	allowance usersrpc.VoiceCheckReply
+	settings  overlaysrpc.TtsSettingsReply
 	config    []byte
 	limit     voiceTestLimit
 }
@@ -46,6 +48,7 @@ func (f voiceTestFixture) serve(t *testing.T) (*nats.Conn, voiceTestJobs) {
 	log := zap.NewNop()
 	wiring := bus.RPCWiring{NC: nc, Queue: "test-voice", Log: log}
 	require.NoError(t, bus.Serve(wiring, usersrpc.VoiceCheckSubject, f.check))
+	require.NoError(t, bus.Serve(wiring, overlaysrpc.TtsSettingsSubject, f.ttsSettings))
 	jobs := make(voiceTestJobs, 3)
 	d := engine.Deps{
 		AlertVoice: jobs, Log: log, Live: &fakeLive{live: false},
@@ -65,6 +68,13 @@ func (f voiceTestFixture) check(_ context.Context, req usersrpc.VoiceCheckReques
 	return f.allowance
 }
 
+func (f voiceTestFixture) ttsSettings(_ context.Context, req overlaysrpc.TtsUserRequest) overlaysrpc.TtsSettingsReply {
+	if req.UserID != "2" && req.UserID != "3" {
+		return overlaysrpc.TtsSettingsReply{}
+	}
+	return f.settings
+}
+
 func requestVoiceTest(t *testing.T, nc *nats.Conn, req sesamerpc.VoiceTestRequest) sesamerpc.VoiceTestReply {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
@@ -79,8 +89,12 @@ func allowVoiceTest(context.Context, ratelimit.Request) (bool, error) { return t
 
 func voiceTestAllowance() usersrpc.VoiceCheckReply {
 	return usersrpc.VoiceCheckReply{Allowed: true, VoiceReply: usersrpc.VoiceReply{
-		VoiceAllowance: usersrpc.VoiceAllowance{Reason: "ok", OverlayConfigured: true, Enabled: true, RemainingTokens: 3000, Voice: "Puck"},
+		VoiceAllowance: usersrpc.VoiceAllowance{Reason: "ok", RemainingTokens: 3000},
 	}}
+}
+
+func voiceTestSettings() overlaysrpc.TtsSettingsReply {
+	return overlaysrpc.TtsSettingsReply{Configured: true, Settings: overlaysrpc.TtsSettings{Enabled: true, Voice: "Puck", MaxSeconds: 30}}
 }
 
 func voiceTestOwnerRequest() sesamerpc.VoiceTestRequest {
@@ -88,7 +102,7 @@ func voiceTestOwnerRequest() sesamerpc.VoiceTestRequest {
 }
 
 func TestVoiceTestAlertRPCQueuesLocalizedCheerWhileOffline(t *testing.T) {
-	fixture := voiceTestFixture{allowance: voiceTestAllowance(), limit: allowVoiceTest,
+	fixture := voiceTestFixture{allowance: voiceTestAllowance(), settings: voiceTestSettings(), limit: allowVoiceTest,
 		config: []byte(`{"ttsLiveOnly":"true","cheerTts":"false","cheerTtsVoice":"Kore","cheerTtsStyle":"calm"}`)}
 	nc, jobs := fixture.serve(t)
 
@@ -123,10 +137,10 @@ func TestVoiceTestAlertRPCRefusesWithoutQueueing(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			allowance := voiceTestAllowance()
-			allowance.OverlayConfigured, allowance.RemainingTokens, allowance.Enabled = tc.overlay, tc.tokens, tc.enabled
-			allowance.Allowed = tc.overlay && tc.tokens > 0 && tc.enabled
-			fixture := voiceTestFixture{allowance: allowance, limit: allowVoiceTest}
+			allowance, settings := voiceTestAllowance(), voiceTestSettings()
+			allowance.RemainingTokens, allowance.Allowed = tc.tokens, tc.tokens > 0
+			settings.Configured, settings.Settings.Enabled = tc.overlay, tc.enabled
+			fixture := voiceTestFixture{allowance: allowance, settings: settings, limit: allowVoiceTest}
 			nc, jobs := fixture.serve(t)
 			req := voiceTestOwnerRequest()
 			req.ActorID = tc.actor
@@ -137,7 +151,7 @@ func TestVoiceTestAlertRPCRefusesWithoutQueueing(t *testing.T) {
 }
 
 func TestVoiceTestAlertRPCRateLimitsEachChannel(t *testing.T) {
-	fixture := voiceTestFixture{allowance: voiceTestAllowance(), limit: ratelimit.New(valkeytest.Spawn(t)).Allow}
+	fixture := voiceTestFixture{allowance: voiceTestAllowance(), settings: voiceTestSettings(), limit: ratelimit.New(valkeytest.Spawn(t)).Allow}
 	nc, jobs := fixture.serve(t)
 	owner := voiceTestOwnerRequest()
 	other := sesamerpc.VoiceTestRequest{BroadcasterUserID: "3", ActorID: "3", DisplayName: "Other"}

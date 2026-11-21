@@ -26,6 +26,7 @@ const (
 )
 
 type UserChangedDTO struct {
+	VoicePlan     string           `json:"voice_plan,omitempty"`
 	Lifecycle     *lifecycle.State `json:"lifecycle,omitempty"`
 	StateRevision int64            `json:"state_revision,omitempty"`
 	UserID        uint64           `json:"user_id"`
@@ -120,4 +121,18 @@ type CommandUsedDTO struct {
 	UserID  uint64 `json:"user_id"`
 	Name    string `json:"name"`
 	Count   int64  `json:"count,omitempty"`
+}
+
+const SubjectTtsOverlayChanged = "data.overlays.tts.changed"
+const SubjectUserBanned = "data.users.banned"
+
+type TtsOverlayChangedDTO struct {
+	Overlay overlaysrpc.TtsOverlay `json:"overlay"`
+	Deleted bool                   `json:"deleted,omitempty"`
+	Revoked bool                   `json:"revoked,omitempty"`
+}
+
+type UserBannedDTO struct {
+	UserID   uint64    `json:"user_id"`
+	BannedAt time.Time `json:"banned_at"`
 }

@@ -88,6 +88,12 @@ a bare variable token is not necessarily a pure formatting operation.
 
 ## Premium voice alerts
 
+The alert publisher and voice worker read account settings and link
+configuration through Projector's `rpc.internal.projector.overlays.tts.settings`.
+Users supplies the monthly allowance and records clip usage. Sesame combines
+those inputs with per-alert or chat-command overrides and sends the selected
+voice to Gossip.
+
 Chat Alerts controls chat lines and their follow/subscription cooldowns.
 A core handler reads the same Alerts row for Premium voice regardless of the
 row's enabled flag. Voice reads only viewer messages from cheers and resubs,

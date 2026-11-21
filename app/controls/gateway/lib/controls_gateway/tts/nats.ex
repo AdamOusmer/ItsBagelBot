@@ -5,14 +5,14 @@ defmodule ControlsGateway.Tts.Nats do
   alias ControlsGateway.OverlayRequest
   alias ControlsGateway.Tts.Session
 
-  @resolve "rpc.internal.users.voice.overlay.resolve"
-  @check "rpc.internal.users.voice.overlay.check"
+  @resolve "rpc.internal.projector.overlays.tts.resolve"
+  @check "rpc.internal.projector.overlays.tts.check"
 
   def connection, do: Process.whereis(:gnat)
   def rpc_connection, do: Process.whereis(:gnat_rpc)
 
   def resolve(hash) do
-    case request(rpc_connection(), @resolve, %{token_hash: hash}) do
+    case OverlayRequest.request(rpc_connection(), @resolve, %{token_hash: hash}) do
       {:ok, %{"code" => "not_found"}} -> :not_found
       {:ok, %{"code" => code}} when code not in [nil, ""] -> :unavailable
       {:ok, %{"user_id" => id, "generation" => generation}} -> identity(id, generation)

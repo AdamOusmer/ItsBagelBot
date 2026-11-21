@@ -190,6 +190,7 @@ func registerConsumers(ctx context.Context, rt consumerRuntime, projector *Proje
 		{data.SubjectFetchChanged, projector.HandleFetchChanged},
 		{data.SubjectAutomationChanged, projector.HandleAutomationChanged},
 		{data.SubjectPoweredOverlayChanged, projector.HandlePoweredOverlayChanged},
+		{data.SubjectTtsOverlayChanged, projector.handleTtsChanged},
 		{data.SubjectLoyaltyCounters, projector.HandleCounterBumps},
 		{streamTopic, projector.HandleStreamEvent},
 	}
@@ -225,4 +226,6 @@ func subscribeRPCs(rt rpcRuntime, topics projectorTopics) {
 	}), "failed to subscribe stream info rpc")
 	svcboot.FatalIf(rt.log, rpc.SubscribePowered(bus.RPCWiring{NC: rt.nc, Queue: queueGroup, App: rt.nrApp, Log: rt.log}, rpc.PoweredConfig{Store: rt.store, Invalidations: rt.invalidations}),
 		"failed to subscribe powered overlay rpc")
+	svcboot.FatalIf(rt.log, rpc.SubscribeTts(bus.RPCWiring{NC: rt.nc, Queue: queueGroup, App: rt.nrApp, Log: rt.log}, rt.store, topics.users),
+		"failed to subscribe tts overlay rpc")
 }

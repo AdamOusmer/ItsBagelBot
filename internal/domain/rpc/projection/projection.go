@@ -40,6 +40,7 @@ type ModuleView struct {
 
 // internal/projection.Client decodes this into projection.User; keep the tags in sync.
 type UserReply struct {
+	VoicePlan        string           `json:"voice_plan,omitempty"`
 	Lifecycle        *lifecycle.State `json:"lifecycle,omitempty"`
 	StateRevision    int64            `json:"state_revision,omitempty"`
 	AccountCreatedAt int64            `json:"account_created_at,omitempty"`

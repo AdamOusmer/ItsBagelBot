@@ -74,7 +74,7 @@ func TestVoiceAllowancePlans(t *testing.T) {
 			assert.Equal(t, usersrpc.VoiceAllowance{
 				Plan: tc.plan, Period: "2026-12", LimitTokens: limit, RemainingTokens: limit,
 				ResetsAt: time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC),
-				Enabled:  true, Voice: voiceplan.DefaultVoice, MaxSeconds: voiceplan.MaxClipSeconds, Reason: tc.reason,
+				Reason:   tc.reason,
 			}, voiceAllowanceAt(t, repo, at))
 		})
 	}
@@ -133,11 +133,7 @@ func TestVoiceUsageAccumulatesAndResets(t *testing.T) {
 	assert.Equal(t, wantExhausted, exhausted)
 	assert.Equal(t, exhausted, voiceAllowanceAt(t, repo, monthEnd))
 
-	settings := repository.VoiceSettings{Enabled: false, Voice: "Puck", MaxSeconds: 30}
-	require.NoError(t, repo.SetVoiceSettings(t.Context(), voiceOwnerID, settings))
-	wantReplay := start
-	wantReplay.Enabled, wantReplay.Voice, wantReplay.MaxSeconds = settings.Enabled, settings.Voice, settings.MaxSeconds
-	assert.Equal(t, wantReplay, recordVoiceAt(t, repo, first, newMonth))
+	assert.Equal(t, start, recordVoiceAt(t, repo, first, newMonth))
 	assert.Zero(t, voiceAllowanceAt(t, repo, newMonth).UsedTokens)
 
 	next := repository.VoiceUsageRecord{RequestID: "next", AudioTokens: 25, DurationMS: 1000}
@@ -178,33 +174,6 @@ func TestVoiceUsageRejectsInvalidInput(t *testing.T) {
 	}
 	assert.Zero(t, client.VoiceUsage.Query().CountX(t.Context()))
 	assert.Zero(t, client.VoiceUsageReceipt.Query().CountX(t.Context()))
-}
-
-func TestVoiceSettingsValidation(t *testing.T) {
-	_, repo := newVoiceAccount(t)
-	cases := []struct {
-		name, voice string
-		enabled     bool
-		wantErr     error
-		wantVoice   string
-		wantEnabled bool
-	}{
-		{"prebuilt voice", "Zubenelgenubi", false, nil, "Zubenelgenubi", false},
-		{"wrong case", "kore", true, repository.ErrInvalidVoice, "Zubenelgenubi", false},
-		{"unknown voice", "Desktop", true, repository.ErrInvalidVoice, "Zubenelgenubi", false},
-		{"reset to default", "", true, nil, voiceplan.DefaultVoice, true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := repo.SetVoiceSettings(t.Context(), voiceOwnerID, repository.VoiceSettings{
-				Enabled: tc.enabled, Voice: tc.voice, MaxSeconds: voiceplan.MaxClipSeconds,
-			})
-			require.ErrorIs(t, err, tc.wantErr)
-			allowance := voiceAllowanceAt(t, repo, time.Now())
-			assert.Equal(t, tc.wantVoice, allowance.Voice)
-			assert.Equal(t, tc.wantEnabled, allowance.Enabled)
-		})
-	}
 }
 
 func TestVoiceUsageErasure(t *testing.T) {

@@ -23,17 +23,7 @@ const (
 	maxVoiceRecordDuration = voiceplan.MaxClipSeconds * time.Second
 )
 
-var (
-	ErrInvalidVoice           = errors.New("invalid voice")
-	ErrInvalidVoiceClipLength = errors.New("invalid voice clip length")
-	ErrInvalidVoiceUsage      = errors.New("invalid voice usage")
-)
-
-type VoiceSettings struct {
-	Enabled    bool
-	Voice      string
-	MaxSeconds int
-}
+var ErrInvalidVoiceUsage = errors.New("invalid voice usage")
 
 type VoiceUsageRecord struct {
 	RequestID   string
@@ -46,7 +36,7 @@ func (r *Users) VoiceAllowance(ctx context.Context, id uint64, now time.Time) (u
 		return usersrpc.VoiceAllowance{}, err
 	}
 	return r.voiceTransaction(ctx, func(tx *ent.Tx) (usersrpc.VoiceAllowance, error) {
-		owner, err := tx.User.Get(ctx, id)
+		owner, err := voiceOwnerQuery(tx, id).Only(ctx)
 		if err != nil {
 			return usersrpc.VoiceAllowance{}, err
 		}
@@ -62,7 +52,7 @@ func (r *Users) RecordVoiceUsage(ctx context.Context, id uint64, record VoiceUsa
 		return usersrpc.VoiceAllowance{}, ErrInvalidVoiceUsage
 	}
 	return r.voiceTransaction(ctx, func(tx *ent.Tx) (usersrpc.VoiceAllowance, error) {
-		owner, err := tx.User.Query().Where(user.IDEQ(id), lockOwnerRow).Only(ctx)
+		owner, err := voiceOwnerQuery(tx, id).Where(lockOwnerRow).Only(ctx)
 		if err != nil {
 			return usersrpc.VoiceAllowance{}, err
 		}
@@ -70,21 +60,15 @@ func (r *Users) RecordVoiceUsage(ctx context.Context, id uint64, record VoiceUsa
 	})
 }
 
+func voiceOwnerQuery(tx *ent.Tx, id uint64) *ent.UserSelect {
+	return tx.User.Query().Where(user.IDEQ(id)).Select(
+		user.FieldID, user.FieldStatus, user.FieldSubscriptionSource, user.FieldIsActive, user.FieldBanned,
+	)
+}
+
 func (r *Users) voiceTransaction(ctx context.Context, run func(*ent.Tx) (usersrpc.VoiceAllowance, error)) (usersrpc.VoiceAllowance, error) {
 	return db.WithQuery(ctx, func(ctx context.Context) (usersrpc.VoiceAllowance, error) {
 		return db.RetryWithTxResult(ctx, r.client, run)
-	})
-}
-
-func (r *Users) SetVoiceSettings(ctx context.Context, id uint64, settings VoiceSettings) error {
-	if settings.Voice != "" && !voiceplan.ValidVoice(settings.Voice) {
-		return ErrInvalidVoice
-	}
-	if settings.MaxSeconds < voiceplan.MinClipSeconds || settings.MaxSeconds > voiceplan.MaxClipSeconds {
-		return ErrInvalidVoiceClipLength
-	}
-	return r.updateAndPublish(ctx, id, func(update *ent.UserUpdateOne) {
-		update.SetTtsEnabled(settings.Enabled).SetTtsVoice(settings.Voice).SetTtsMaxSeconds(settings.MaxSeconds)
 	})
 }
 
@@ -117,7 +101,7 @@ func (v voiceRecording) apply(ctx context.Context, tx *ent.Tx) (usersrpc.VoiceAl
 		voiceusagereceipt.RequestIDEQ(v.record.RequestID),
 	).Only(ctx)
 	if err == nil {
-		return withVoiceSettings(receipt.Allowance, v.owner), nil
+		return receipt.Allowance, nil
 	}
 	if !ent.IsNotFound(err) {
 		return usersrpc.VoiceAllowance{}, err
@@ -166,18 +150,7 @@ func loadVoiceAllowance(ctx context.Context, tx *ent.Tx, owner *ent.User, now ti
 		ResetsAt: voiceplan.ResetsAt(now),
 		Reason:   voiceAllowanceReason(owner, plan),
 	}
-	return withVoiceSettings(allowance, owner), nil
-}
-
-func withVoiceSettings(allowance usersrpc.VoiceAllowance, owner *ent.User) usersrpc.VoiceAllowance {
-	allowance.OverlayConfigured = owner.TtsOverlayTokenHash != nil
-	allowance.Enabled = owner.TtsEnabled
-	allowance.Voice = owner.TtsVoice
-	allowance.MaxSeconds = owner.TtsMaxSeconds
-	if allowance.Voice == "" {
-		allowance.Voice = voiceplan.DefaultVoice
-	}
-	return allowance
+	return allowance, nil
 }
 
 func voiceAllowanceReason(owner *ent.User, plan voiceplan.Plan) string {

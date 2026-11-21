@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/db/overlays/ent/migrate"
 
 	"ItsBagelBot/app/db/overlays/ent/poweredoverlay"
+	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
@@ -25,6 +26,8 @@ type Client struct {
 	Schema *migrate.Schema
 	// PoweredOverlay is the client for interacting with the PoweredOverlay builders.
 	PoweredOverlay *PoweredOverlayClient
+	// TtsOverlay is the client for interacting with the TtsOverlay builders.
+	TtsOverlay *TtsOverlayClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -37,6 +40,7 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.PoweredOverlay = NewPoweredOverlayClient(c.config)
+	c.TtsOverlay = NewTtsOverlayClient(c.config)
 }
 
 type (
@@ -130,6 +134,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ctx:            ctx,
 		config:         cfg,
 		PoweredOverlay: NewPoweredOverlayClient(cfg),
+		TtsOverlay:     NewTtsOverlayClient(cfg),
 	}, nil
 }
 
@@ -150,6 +155,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ctx:            ctx,
 		config:         cfg,
 		PoweredOverlay: NewPoweredOverlayClient(cfg),
+		TtsOverlay:     NewTtsOverlayClient(cfg),
 	}, nil
 }
 
@@ -179,12 +185,14 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	c.PoweredOverlay.Use(hooks...)
+	c.TtsOverlay.Use(hooks...)
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	c.PoweredOverlay.Intercept(interceptors...)
+	c.TtsOverlay.Intercept(interceptors...)
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -192,6 +200,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *PoweredOverlayMutation:
 		return c.PoweredOverlay.mutate(ctx, m)
+	case *TtsOverlayMutation:
+		return c.TtsOverlay.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -330,12 +340,145 @@ func (c *PoweredOverlayClient) mutate(ctx context.Context, m *PoweredOverlayMuta
 	}
 }
 
+// TtsOverlayClient is a client for the TtsOverlay schema.
+type TtsOverlayClient struct {
+	config
+}
+
+// NewTtsOverlayClient returns a client for the TtsOverlay from the given config.
+func NewTtsOverlayClient(c config) *TtsOverlayClient {
+	return &TtsOverlayClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `ttsoverlay.Hooks(f(g(h())))`.
+func (c *TtsOverlayClient) Use(hooks ...Hook) {
+	c.hooks.TtsOverlay = append(c.hooks.TtsOverlay, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `ttsoverlay.Intercept(f(g(h())))`.
+func (c *TtsOverlayClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TtsOverlay = append(c.inters.TtsOverlay, interceptors...)
+}
+
+// Create returns a builder for creating a TtsOverlay entity.
+func (c *TtsOverlayClient) Create() *TtsOverlayCreate {
+	mutation := newTtsOverlayMutation(c.config, OpCreate)
+	return &TtsOverlayCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TtsOverlay entities.
+func (c *TtsOverlayClient) CreateBulk(builders ...*TtsOverlayCreate) *TtsOverlayCreateBulk {
+	return &TtsOverlayCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TtsOverlayClient) MapCreateBulk(slice any, setFunc func(*TtsOverlayCreate, int)) *TtsOverlayCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TtsOverlayCreateBulk{err: fmt.Errorf("calling to TtsOverlayClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TtsOverlayCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TtsOverlayCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TtsOverlay.
+func (c *TtsOverlayClient) Update() *TtsOverlayUpdate {
+	mutation := newTtsOverlayMutation(c.config, OpUpdate)
+	return &TtsOverlayUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TtsOverlayClient) UpdateOne(_m *TtsOverlay) *TtsOverlayUpdateOne {
+	mutation := newTtsOverlayMutation(c.config, OpUpdateOne, withTtsOverlay(_m))
+	return &TtsOverlayUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TtsOverlayClient) UpdateOneID(id int) *TtsOverlayUpdateOne {
+	mutation := newTtsOverlayMutation(c.config, OpUpdateOne, withTtsOverlayID(id))
+	return &TtsOverlayUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TtsOverlay.
+func (c *TtsOverlayClient) Delete() *TtsOverlayDelete {
+	mutation := newTtsOverlayMutation(c.config, OpDelete)
+	return &TtsOverlayDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TtsOverlayClient) DeleteOne(_m *TtsOverlay) *TtsOverlayDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TtsOverlayClient) DeleteOneID(id int) *TtsOverlayDeleteOne {
+	builder := c.Delete().Where(ttsoverlay.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TtsOverlayDeleteOne{builder}
+}
+
+// Query returns a query builder for TtsOverlay.
+func (c *TtsOverlayClient) Query() *TtsOverlayQuery {
+	return &TtsOverlayQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTtsOverlay},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TtsOverlay entity by its id.
+func (c *TtsOverlayClient) Get(ctx context.Context, id int) (*TtsOverlay, error) {
+	return c.Query().Where(ttsoverlay.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TtsOverlayClient) GetX(ctx context.Context, id int) *TtsOverlay {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *TtsOverlayClient) Hooks() []Hook {
+	return c.hooks.TtsOverlay
+}
+
+// Interceptors returns the client interceptors.
+func (c *TtsOverlayClient) Interceptors() []Interceptor {
+	return c.inters.TtsOverlay
+}
+
+func (c *TtsOverlayClient) mutate(ctx context.Context, m *TtsOverlayMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TtsOverlayCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TtsOverlayUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TtsOverlayUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TtsOverlayDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TtsOverlay mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		PoweredOverlay []ent.Hook
+		PoweredOverlay, TtsOverlay []ent.Hook
 	}
 	inters struct {
-		PoweredOverlay []ent.Interceptor
+		PoweredOverlay, TtsOverlay []ent.Interceptor
 	}
 )

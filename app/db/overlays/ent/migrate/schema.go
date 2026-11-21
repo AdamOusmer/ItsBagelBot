@@ -28,9 +28,29 @@ var (
 		Columns:    PoweredOverlaysColumns,
 		PrimaryKey: []*schema.Column{PoweredOverlaysColumns[0]},
 	}
+	// TtsOverlayColumns holds the columns for the "tts_overlay" table.
+	TtsOverlayColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeUint64, Unique: true},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "voice", Type: field.TypeString, Default: ""},
+		{Name: "max_seconds", Type: field.TypeInt, Default: 120},
+		{Name: "token_hash", Type: field.TypeString, Unique: true, Nullable: true, Size: 64},
+		{Name: "generation", Type: field.TypeInt, Default: 0},
+		{Name: "revision", Type: field.TypeUint64},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// TtsOverlayTable holds the schema information for the "tts_overlay" table.
+	TtsOverlayTable = &schema.Table{
+		Name:       "tts_overlay",
+		Columns:    TtsOverlayColumns,
+		PrimaryKey: []*schema.Column{TtsOverlayColumns[0]},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		PoweredOverlaysTable,
+		TtsOverlayTable,
 	}
 )
 
@@ -38,5 +58,8 @@ func init() {
 	PoweredOverlaysTable.Annotation = &entsql.Annotation{
 		Charset:   "utf8mb4",
 		Collation: "utf8mb4_bin",
+	}
+	TtsOverlayTable.Annotation = &entsql.Annotation{
+		Table: "tts_overlay",
 	}
 }
