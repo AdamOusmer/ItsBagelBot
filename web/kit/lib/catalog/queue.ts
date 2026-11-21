@@ -83,7 +83,7 @@ export const QUEUE_MODULE: ModuleDef =
   commands: [
     { trigger: '!join', summary: 'Get in line to play (also !queue join).' },
     { trigger: '!leave', summary: 'Step out of the line (also !queue leave).' },
-    { trigger: '!list', summary: 'Show the next 10 players waiting (also !queue list).' },
+    { trigger: '!list', aliases: ['!queuelist'], summary: 'Show the next 10 players waiting (also !queue list).' },
     { trigger: '!queue', summary: 'Show whether the queue is open and how many are waiting.' },
     { trigger: '!queue full', summary: 'Link the public page with the whole line.' },
     { trigger: '!queue open', summary: 'Start accepting joins.', perm: 'mod' },

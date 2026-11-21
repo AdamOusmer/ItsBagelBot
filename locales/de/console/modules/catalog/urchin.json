@@ -38,5 +38,15 @@
       "tagline": "Sperrlisten-Tags mit ihren Gründen.",
       "defaultMessage": "{player}: {tags}"
     }
+  },
+  "commands": {
+    "bw": "Schlägt Hypixel Bedwars-Statistiken oder Sperrlisten-Tags nach.",
+    "daily": "Zeigt Bedwars-Statistiken seit dem täglichen Zurücksetzen.",
+    "weekly": "Zeigt Bedwars-Statistiken seit dem wöchentlichen Zurücksetzen.",
+    "monthly": "Zeigt Bedwars-Statistiken seit dem monatlichen Zurücksetzen.",
+    "bwstats": "Zeigt gesamte Hypixel Bedwars-Statistiken.",
+    "sniper": "Zeigt die Urchin-Sniper-Wertung für einen Spieler.",
+    "bwtag": "Zeigt aktive Urchin-Sperrlisten-Tags.",
+    "tagdescription": "Zeigt Urchin-Sperrlisten-Tags mit ihren Gründen."
   }
 }

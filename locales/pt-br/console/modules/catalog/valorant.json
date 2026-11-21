@@ -66,5 +66,14 @@
       "event": "!val shop",
       "defaultMessage": "Rotação diária ({count}): {items} · tempo até renovar: {reset}"
     }
+  },
+  "commands": {
+    "val": "Consulta a classificação competitiva de Valorant ou um subcomando.",
+    "valrank": "Consulta o ranque competitivo e RR de Valorant.",
+    "valrecord": "Mostra partidas ranqueadas e taxa de vitória de Valorant.",
+    "valmatches": "Mostra partidas ranqueadas recentes de Valorant.",
+    "valaccount": "Mostra detalhes e nível da conta Riot.",
+    "vallb": "Mostra o top 10 regional de Valorant.",
+    "valshop": "Mostra a rotação diária de skins de Valorant de hoje."
   }
 }

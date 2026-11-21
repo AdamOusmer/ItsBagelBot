@@ -18,5 +18,8 @@
       "event": "!codm [UID/exact nickname]",
       "defaultMessage": "{player} · nivel {level} · MJ {rank} · puntuación {rating} · {country}"
     }
+  },
+  "commands": {
+    "codm": "Consulta un perfil de CODM Global."
   }
 }

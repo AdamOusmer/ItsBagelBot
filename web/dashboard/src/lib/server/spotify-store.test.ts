@@ -42,3 +42,20 @@ describe('song queue length', () => {
     expect((await spotifyStore('1').read()).maxDepth).toBe(read);
   });
 });
+
+describe('song queue disabled triggers', () => {
+  test('normalizes disabledTriggers and preserves them across limit saves', async () => {
+    stored = { maxDepth: 10 };
+    const store = spotifyStore('1');
+    await store.saveDisabledTriggers(' !SONG, bogus, sr ');
+    expect({ written: stored.disabledTriggers, read: (await store.read()).disabledTriggers }).toEqual({
+      written: 'song,sr',
+      read: 'song,sr'
+    });
+    await store.saveLimits({ quotas: blankSpotifyQuotas(), maxDepth: 20 });
+    expect({ maxDepth: stored.maxDepth, disabledTriggers: stored.disabledTriggers }).toEqual({
+      maxDepth: 20,
+      disabledTriggers: 'song,sr'
+    });
+  });
+});

@@ -39,5 +39,12 @@
       "event": "!fn store",
       "defaultMessage": "Item-Shop {date}: {items}"
     }
+  },
+  "commands": {
+    "fn": "Schlägt Fortnite Battle Royale-Statistiken oder einen Unterbefehl nach.",
+    "fnstats": "Schlägt gesamte Fortnite Battle Royale-Statistiken nach.",
+    "fnseason": "Schlägt Fortnite-Statistiken der aktuellen Saison nach.",
+    "fnsession": "Zeigt Fortnite-Statistiken seit Stream-Beginn.",
+    "fnstore": "Zeigt den heutigen Fortnite-Item-Shop."
   }
 }

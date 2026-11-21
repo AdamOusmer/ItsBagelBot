@@ -31,18 +31,21 @@ export const SONGQUEUE_MODULE: ModuleDef = {
   commands: [
     {
       trigger: '!sr',
+      aliases: ['!songrequest', '!songreq'],
       summary: 'Show now playing, or queue a track by name, "artist - song", or a Spotify link.'
     },
     { trigger: '!remove', summary: 'Take back your queued request, or drop a position as a mod.' },
     {
       trigger: '!skip',
+      aliases: ['!next'],
       summary: 'Mark the current track played and promote the next (also !next).',
       perm: 'mod'
     },
     { trigger: '!clear', summary: 'Empty the queue.', perm: 'mod' },
-    { trigger: '!srlist', summary: 'Show the next five songs in the queue (also !songlist).' },
+    { trigger: '!srlist', aliases: ['!songlist'], summary: 'Show the next five songs in the queue (also !songlist).' },
     {
       trigger: '!current',
+      aliases: ['!song', '!nowplaying', '!np'],
       summary: 'Say what your Spotify is playing right now (also !song, !np).'
     }
   ]

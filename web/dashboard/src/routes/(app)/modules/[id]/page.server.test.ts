@@ -189,3 +189,40 @@ test.each([
     partial: { subTts: 'false', cheerTts: 'true' }
   }]] : []);
 });
+
+test.each([
+  {
+    name: 'normalizes and filters disabledTriggers for a module with commands',
+    id: 'urchin',
+    raw: ' !BWTAGS, bogus, !daily , bwtags ',
+    expectedPartial: { disabledTriggers: 'bwtags,daily' }
+  },
+  {
+    name: 'clears disabledTriggers when all entries are unknown',
+    id: 'urchin',
+    raw: 'notacommand, other',
+    expectedPartial: { disabledTriggers: '' }
+  },
+  {
+    name: 'strips disabledTriggers on a module with no toggleable commands',
+    id: 'alerts',
+    raw: '!follow',
+    expectedPartial: {}
+  }
+])('module patch $name', async ({ id, raw, expectedPartial }) => {
+  const targetURL = new URL(`/modules/${id}`, url);
+  const body = new URLSearchParams({
+    is_enabled: 'on',
+    expected_rev: '4',
+    partial: JSON.stringify({ disabledTriggers: raw })
+  });
+  const request = new Request(`${targetURL}?/patch`, { method: 'POST', body });
+  const result = await actions.patch({
+    request, params: { id }, locals, cookies: cookieJar(new Map()), url: targetURL
+  } as never);
+
+  expect(result).toEqual({ ok: true, rev: 5, conflict: false });
+  expect(patchModule.mock.calls).toEqual([[{
+    name: id, userId: '7', isEnabled: true, expectedRev: 4, partial: expectedPartial
+  }]]);
+});

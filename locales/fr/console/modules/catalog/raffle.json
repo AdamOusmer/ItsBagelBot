@@ -68,6 +68,8 @@
     "raffle_close": "Identique à draw avec le nombre de gagnants configuré.",
     "raffle_cancel": "Annuler sans tirer.",
     "cancelraffle": "Identique à !raffle cancel.",
-    "mraffle_amount_seconds_winners": "Lance un tirage pour 3 gagnants par défaut. Indiquez un nombre ou utilisez auto pour un gagnant par tranche de 10 participations, arrondie au supérieur."
+    "mraffle_amount_seconds_winners": "Lance un tirage pour 3 gagnants par défaut. Indiquez un nombre ou utilisez auto pour un gagnant par tranche de 10 participations, arrondie au supérieur.",
+    "enter": "Participer au tirage ouvert avec un autre déclencheur.",
+    "sraffle_amount_seconds": "Lance un tirage avec un seul gagnant."
   }
 }
