@@ -65,7 +65,7 @@
             {surface} placeholder={t(`voice.template.${kind}`)} maxlength={MAX_SPEECH_RUNES}>
             {#snippet extraActions(insert)}
               <Chip tone="muted" aria-label={t('voice.insertPause')} title={t('voice.insertPause')} onclick={() => insert(pause)}>
-                <span class="pause-text">{pause}</span>
+                <bb-fit><span data-fit="">{pause}</span></bb-fit>
               </Chip>
             {/snippet}
           </ResponseEditor>
@@ -101,7 +101,6 @@
     opacity: 0;
   }
   .off-label.visible { opacity: 1; }
-  .pause-text { white-space: nowrap; }
   .kind-body {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

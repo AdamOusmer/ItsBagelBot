@@ -77,6 +77,10 @@
     line-height: 1.06;
   }
 
+  .bb-page-head h1:has(bb-fit) {
+    line-height: 1.25;
+  }
+
   .bb-page-head--compact .bb-page-head__description {
     font-size: 14px;
     line-height: 1.5;

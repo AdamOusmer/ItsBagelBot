@@ -87,20 +87,26 @@ test('renders usage, the alert editors and their initial states for a Premium ow
   expect(offLabels).toEqual({ follow: 'Off', sub: '' });
 });
 
-test('renders the shared style picker and the short pause alongside All variables', async () => {
+test('renders the shared style picker and fits both alert editor actions', async () => {
   const styleValues: string[] = [];
   const helpers: string[] = [];
+  const helperButtons = 'section[aria-labelledby="voice-kind-sub"] .vp-actions.with-extra > button';
+  let fittedLabels = 0;
   const rewriter = new HTMLRewriter()
     .on('.bb-select__fallback select[name="subTtsStyle"] option', {
       element(option) { styleValues.push(option.getAttribute('value') ?? ''); }
     })
-    .on('section[aria-labelledby="voice-kind-sub"] .vp-actions.with-extra > button', {
+    .on(helperButtons, {
       element(button) { helpers.push(button.getAttribute('aria-label') ?? button.getAttribute('aria-haspopup') ?? ''); }
+    })
+    .on(`${helperButtons} > bb-fit > [data-fit]`, {
+      element() { fittedLabels += 1; }
     });
   await rewriter.transform(new Response(renderVoice())).text();
-  expect({ styleValues, helpers }).toEqual({
+  expect({ styleValues, helpers, fittedLabels }).toEqual({
     styleValues: ['warm', 'hype', 'calm', 'playful', 'cozy'],
-    helpers: ['dialog', 'Insert a short pause']
+    helpers: ['dialog', 'Insert a short pause'],
+    fittedLabels: 2
   });
 });
 

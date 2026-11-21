@@ -169,7 +169,7 @@
 
         {#if !sheetEmpty}
           <Chip tone="muted" aria-haspopup="dialog" aria-expanded={open} onclick={toggle} {@attach setAnchor}>
-            {t('commandEditor.allVariables')}
+            <bb-fit><span data-fit="">{t('commandEditor.allVariables')}</span></bb-fit>
           </Chip>
         {/if}
         {@render extraActions?.(insert)}

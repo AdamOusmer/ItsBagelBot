@@ -44,7 +44,7 @@
     <form method="POST" action="?/rotateOverlay" use:enhance={submit}>
       <div class="overlay-actions">
         <Button variant="secondary" size="sm" type="submit" {busy} {disabled}>
-          <bb-fit><span data-fit="">{configured ? t('voice.overlayReplace') : t('voice.overlayCreate')}</span></bb-fit>
+          <bb-fit class="overlay-action-label"><span data-fit="">{configured ? t('voice.overlayReplace') : t('voice.overlayCreate')}</span></bb-fit>
         </Button>
         <div class="overlay-link" class:available={!!url} inert={!url}>
           <CopySurface variant="well" text={url ?? ''} aria-label={t('voice.overlayLink')}
@@ -89,6 +89,7 @@
     --btn-w: 100%;
     --btn-justify: center;
   }
+  .overlay-action-label { line-height: 1.4; }
   .overlay-link {
     min-inline-size: 0;
     opacity: 0;

@@ -35,6 +35,14 @@
                     color var(--bb-dur-base) var(--bb-ease-out-expo);
     }
 
+    .bb-chip:has(> bb-fit > [data-fit]) {
+        display: inline-grid;
+        grid-template: 1lh / minmax(0, auto);
+        justify-items: start;
+        min-inline-size: 0;
+        line-height: 1.4;
+    }
+
     .bb-chip:hover { background: rgba(var(--bb-tan-rgb), 0.08); border-color: rgba(var(--bb-tan-rgb), 0.50); color: var(--bb-tan-pale); }
 
     @media (pointer: coarse) {
