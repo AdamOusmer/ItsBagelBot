@@ -1,7 +1,17 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { GIVEAWAY_LIMITS as pins, giveawayRuleNumbers, giveawayRuleToggles, MOD, moduleDef } from '@bagel/kit';
+import {
+  DISABLED_TRIGGERS_KEY,
+  formatDisabledTriggers,
+  GIVEAWAY_LIMITS as pins,
+  giveawayRuleNumbers,
+  giveawayRuleToggles,
+  MOD,
+  moduleAllowedTriggers,
+  moduleDef,
+  parseDisabledTriggers
+} from '@bagel/kit';
 import {
   giveawayDefaults, type GiveawayConfig, type GiveawayPreset, type GiveawayRules
 } from '#lib/channel-giveaway';
@@ -11,7 +21,9 @@ const namePattern = /^[a-z0-9-]+$/;
 const uuidPattern = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const roles = new Set(['everyone', 'sub', 'vip']);
 
-const configFields = (moduleDef(MOD.giveaway)?.settings ?? []).filter((field) => !field.hidden);
+const giveawayModule = moduleDef(MOD.giveaway)!;
+const giveawayAllowedTriggers = moduleAllowedTriggers(giveawayModule);
+const configFields = (giveawayModule.settings ?? []).filter((field) => !field.hidden);
 const allowedFields = new Map(configFields.map((field) => [field.key, field]));
 const toggleFormText = new Map([['true', 'on'], ['false', 'off']]);
 const roundOnlyMutations = new Set<DrawMutation>(['close', 'extend', 'cancel']);
@@ -142,6 +154,11 @@ export function settingPatch(form: FormData): Record<string, string | number> | 
   if (!field) return null;
   const value = fieldValue(field, text(form, 'value'));
   return value === null ? null : { [field.key]: value };
+}
+
+export function triggersPatch(form: FormData): Record<string, string> {
+  const normalized = formatDisabledTriggers(parseDisabledTriggers(text(form, DISABLED_TRIGGERS_KEY)), giveawayAllowedTriggers);
+  return { [DISABLED_TRIGGERS_KEY]: normalized };
 }
 
 function startInput(form: FormData): DrawInput | null {

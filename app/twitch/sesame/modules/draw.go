@@ -79,9 +79,32 @@ func (d drawOwner) activeJoin(ctx context.Context, c *module.Context) (draw.Roun
 	return d.deps.Draw.Joinable(ctx, draw.ChannelID(c.BroadcasterID))
 }
 
+func drawTriggerAllowed(c *module.Context, kind draw.Kind) bool {
+	switch kind {
+	case draw.KindRaffle:
+		return !c.TriggerDisabled(raffleModuleName, module.TriggerName(c.Command))
+	case draw.KindGiveaway:
+		return !c.TriggerDisabled(engine.GiveawayModuleName, module.TriggerName(c.Command))
+	default:
+		return true
+	}
+}
+
+func hasActiveRound(s drawCommandState) bool {
+	return s.found || s.round.ID != ""
+}
+
+func giveawayWinnerAllowed(c *module.Context) bool {
+	return c.ModuleOn(engine.GiveawayModuleName) && !c.TriggerDisabled(engine.GiveawayModuleName, module.TriggerName(c.Command))
+}
+
 func (d drawOwner) resolveJoin(ctx context.Context, c *module.Context) drawCommandState {
 	r, found, err := d.activeJoin(ctx, c)
-	return drawCommandState{round: r, found: found, err: err}
+	state := drawCommandState{round: r, found: found, err: err}
+	if hasActiveRound(state) && !drawTriggerAllowed(c, r.Terms.Kind) {
+		return drawCommandState{err: err}
+	}
+	return state
 }
 
 func (d drawOwner) resolveEntryAlias(ctx context.Context, c *module.Context) drawCommandState {
@@ -123,6 +146,9 @@ func (o joinOutput) reply(c *module.Context, accepted bool, send func(module.Emi
 }
 
 func wantsClosedRaffle(c *module.Context) bool {
+	if c.TriggerDisabled(raffleModuleName, module.TriggerName(c.Command)) {
+		return false
+	}
 	return c.ModuleOn(raffleModuleName) && !c.ModuleOn(queueModuleName)
 }
 
@@ -195,6 +221,9 @@ func (d drawOwner) enterRound(ctx context.Context, c *module.Context, output joi
 }
 
 func (d drawOwner) resolveClaim(ctx context.Context, c *module.Context) drawCommandState {
+	if c.TriggerDisabled(engine.GiveawayModuleName, module.TriggerName(c.Command)) {
+		return drawCommandState{}
+	}
 	claims, err := d.lookupClaims(ctx, c)
 	return drawCommandState{claims: claims, found: claims.Found, err: err}
 }
@@ -237,7 +266,13 @@ func (d drawOwner) settling(ctx context.Context, c *module.Context) (draw.Round,
 
 func (d drawOwner) resolveWinner(ctx context.Context, c *module.Context) drawCommandState {
 	r, slots, found, err := d.settling(ctx, c)
-	return drawCommandState{round: r, slots: slots, found: found || c.ModuleOn(engine.GiveawayModuleName), err: err}
+	if r.ID == "" {
+		return drawCommandState{found: giveawayWinnerAllowed(c), err: err}
+	}
+	if !drawTriggerAllowed(c, r.Terms.Kind) {
+		return drawCommandState{err: err}
+	}
+	return drawCommandState{round: r, slots: slots, found: found, err: err}
 }
 
 func (d drawOwner) winner(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
@@ -249,7 +284,7 @@ func (d drawOwner) winner(ctx context.Context, c *module.Context, _ string, emit
 		replyDrawWinner(c, emit, state.round, state.slots)
 		return nil
 	}
-	if !c.ModuleOn(engine.GiveawayModuleName) {
+	if !giveawayWinnerAllowed(c) {
 		return nil
 	}
 	replied, err := d.lastGiveaway(ctx, c, emit)

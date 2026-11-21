@@ -46,5 +46,13 @@ export const CODM_MODULE: ModuleDef = {
       ...LINKED_ONLY_FIELD,
       help: 'When on, every lookup uses your linked CODM account and ignores viewer-supplied names. Link a CODM UID or exact nickname first.'
     }
+  ],
+  commands: [
+    {
+      trigger: '!codm',
+      aliases: ['!codmprofile', '!codmrank'],
+      enableKey: 'profileEnabled',
+      summary: 'Look up a CODM Global profile.'
+    }
   ]
 };

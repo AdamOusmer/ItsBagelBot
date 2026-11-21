@@ -88,10 +88,12 @@ export const RAFFLE_MODULE: ModuleDef = {
   ],
   commands: [
     { trigger: '!join', summary: 'Enter the raffle while one is running (also !raffle join).' },
+    { trigger: '!enter', aliases: ['!ticket'], summary: 'Enter the open raffle with an alternate trigger.' },
     { trigger: '!winner', summary: "Show the winners and payout status while the raffle settles." },
     { trigger: '!raffle status', summary: 'Show whether a raffle is running, entries and time left (a viewer typing !raffle gets the same).' },
     { trigger: '!raffle [amount] [seconds]', summary: 'Start a raffle in the configured mode. Use !sraffle for one winner. Amounts accept k and m.', perm: 'mod' },
-    { trigger: '!mraffle [amount] [seconds] [winners]', summary: 'Start a raffle for 3 winners by default. Enter a winner count or use auto for one winner per 10 entries, rounded up.', perm: 'mod' },
+    { trigger: '!sraffle [amount] [seconds]', aliases: ['!singleraffle'], summary: 'Start a single-winner raffle.', perm: 'mod' },
+    { trigger: '!mraffle [amount] [seconds] [winners]', aliases: ['!multiraffle'], summary: 'Start a raffle for 3 winners by default. Enter a winner count or use auto for one winner per 10 entries, rounded up.', perm: 'mod' },
     { trigger: '!raffle draw [winners]', summary: 'Close now and announce winners after payout. You can enter a winner count or auto.', perm: 'mod' },
     { trigger: '!raffle close', summary: 'Same as draw with the configured winner count.', perm: 'mod' },
     { trigger: '!raffle cancel', summary: 'Tear down without drawing.', perm: 'mod' },

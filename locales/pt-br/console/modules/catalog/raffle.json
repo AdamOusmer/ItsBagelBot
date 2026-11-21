@@ -68,6 +68,8 @@
     "raffle_close": "Igual a draw, com a quantidade de vencedores configurada.",
     "raffle_cancel": "Encerra sem sortear.",
     "cancelraffle": "Igual a !raffle cancel.",
-    "mraffle_amount_seconds_winners": "Inicia um sorteio para 3 ganhadores por padrão. Informe uma quantidade ou use auto para um ganhador a cada 10 inscrições, arredondando para cima."
+    "mraffle_amount_seconds_winners": "Inicia um sorteio para 3 ganhadores por padrão. Informe uma quantidade ou use auto para um ganhador a cada 10 inscrições, arredondando para cima.",
+    "enter": "Entra no sorteio aberto com um gatilho alternativo.",
+    "sraffle_amount_seconds": "Inicia um sorteio com um único ganhador."
   }
 }

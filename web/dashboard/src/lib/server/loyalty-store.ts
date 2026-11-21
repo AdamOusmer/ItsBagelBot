@@ -3,14 +3,24 @@
 
 import { rpc } from '@bagel/kit/server/nats';
 import type { CounterDef, CounterEntryView, CounterScope, LoyaltyConfig, LoyaltyStanding } from '@bagel/kit';
-import { blankLoyaltyConfig, COUNTER_SCOPES, MOD } from '@bagel/kit';
+import {
+  blankLoyaltyConfig,
+  COUNTER_SCOPES,
+  DISABLED_TRIGGERS_KEY,
+  formatDisabledTriggers,
+  MOD,
+  moduleAllowedTriggers,
+  moduleDef,
+  parseDisabledTriggers
+} from '@bagel/kit';
 import { SUB } from './services';
-import { upsertModule } from './commands-store';
+import { patchModuleConfig, upsertModule } from './commands-store';
 import { scheduleLeaderboardPurge } from './edge-purge';
 import { readModuleBlob } from './module-blob';
 import { parseCounterValue, readPointBalance } from '@bagel/kit/validation';
 
 const LOYALTY_MODULE = MOD.loyalty;
+const LOYALTY_ALLOWED_TRIGGERS = moduleAllowedTriggers(moduleDef(LOYALTY_MODULE)!);
 const FREEZE_SET_TIMEOUT_MS = 30_000;
 
 type BroadcasterId = string;
@@ -18,6 +28,7 @@ type BroadcasterId = string;
 export interface LoyaltyView {
   enabled: boolean;
   config: LoyaltyConfig;
+  disabledTriggers: string;
 }
 
 interface BalanceWire {
@@ -86,18 +97,33 @@ function rate(v: unknown): number {
 }
 
 export async function readLoyalty(userId: BroadcasterId): Promise<LoyaltyView> {
-  const { enabled, configs: raw } = await readModuleBlob<Partial<LoyaltyConfig>>(userId, LOYALTY_MODULE);
+  const { enabled, configs: raw } = await readModuleBlob<Partial<LoyaltyConfig & Record<typeof DISABLED_TRIGGERS_KEY, string>>>(
+    userId,
+    LOYALTY_MODULE
+  );
   const config: LoyaltyConfig = {
     ...blankLoyaltyConfig(),
     pointsName: String(raw.pointsName ?? ''),
     watchSubBonus: raw.watchSubBonus === true
   };
   for (const key of RATE_KEYS) config[key] = rate(raw[key]);
-  return { enabled, config };
+  return { enabled, config, disabledTriggers: String(raw[DISABLED_TRIGGERS_KEY] ?? '') };
 }
 
-export async function writeLoyalty(userId: BroadcasterId, enabled: boolean, config: LoyaltyConfig): Promise<void> {
-  await upsertModule(userId, LOYALTY_MODULE, enabled, config);
+export async function writeLoyalty(
+  userId: BroadcasterId,
+  enabled: boolean,
+  config: LoyaltyConfig,
+  disabledTriggers: string
+): Promise<void> {
+  const payload = disabledTriggers ? { ...config, [DISABLED_TRIGGERS_KEY]: disabledTriggers } : config;
+  await upsertModule(userId, LOYALTY_MODULE, enabled, payload);
+}
+
+export async function writeLoyaltyTriggers(userId: BroadcasterId, raw: string): Promise<string> {
+  const normalized = formatDisabledTriggers(parseDisabledTriggers(raw), LOYALTY_ALLOWED_TRIGGERS);
+  await patchModuleConfig({ userId, name: LOYALTY_MODULE, partial: { [DISABLED_TRIGGERS_KEY]: normalized } });
+  return normalized;
 }
 
 function toScope(raw: string | undefined): CounterScope {

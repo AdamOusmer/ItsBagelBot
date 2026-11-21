@@ -71,7 +71,7 @@ describe('loyalty writes and the leaderboard tag purge', () => {
   ])('the loyalty page turning loyalty $before -> $after purges the commands URLs and the leaderboard tag', async ({ before, after }) => {
     const user = freshUser();
     storedLoyalty = before;
-    await writeLoyalty(user, after, blankLoyaltyConfig());
+    await writeLoyalty(user, after, blankLoyaltyConfig(), '');
     expect({ pages: pagePurges, boards: boardPurges }).toEqual({ pages: [user], boards: [user] });
   });
 
@@ -85,7 +85,7 @@ describe('loyalty writes and the leaderboard tag purge', () => {
   test('a loyalty settings save that keeps it on never tag-purges', async () => {
     const user = freshUser();
     storedLoyalty = true;
-    await writeLoyalty(user, true, blankLoyaltyConfig());
+    await writeLoyalty(user, true, blankLoyaltyConfig(), '');
     expect({ pages: pagePurges, boards: boardPurges }).toEqual({ pages: [user], boards: [] });
   });
 

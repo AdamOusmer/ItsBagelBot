@@ -68,6 +68,7 @@
     "join": "Entre no sorteio em andamento.",
     "check": "Confira se você pode participar.",
     "claim": "Resgate seu prêmio.",
-    "winner": "Veja os ganhadores do último sorteio."
+    "winner": "Veja os ganhadores do último sorteio.",
+    "enter": "Entra no sorteio aberto com um gatilho alternativo."
   }
 }

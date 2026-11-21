@@ -111,6 +111,15 @@ test.each([
   }] : []);
 });
 
+test('saveTriggers normalizes and filters disabledTriggers for giveaways', async () => {
+  const patch = spyOn(moduleStore, 'patchModule').mockResolvedValueOnce({ rev: 8, conflict: false, synced: true });
+  const fields = { expected_rev: '7', is_enabled: 'on', disabledTriggers: '!TICKET, unknown, claim, ticket' };
+  expect(await invoke('saveTriggers', fields)).toEqual({ ok: true });
+  expect(patch).toHaveBeenCalledWith({
+    userId: '42', name: 'giveaway', isEnabled: true, expectedRev: 7, partial: { disabledTriggers: 'claim,ticket' }
+  });
+});
+
 test.each([false, true])('loads settings even when live is degraded ($s)', async (degraded) => {
   const modules = spyOn(moduleStore, 'listModulesForEditing').mockResolvedValueOnce([
     { name: 'giveaway', is_enabled: false, revision: 7, configs: { defaultPrize: 'A game', refusalEnabled: false } }

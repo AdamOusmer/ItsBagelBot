@@ -66,5 +66,14 @@
       "event": "!val shop",
       "defaultMessage": "Tägliche Rotation ({count}): {items} · Zurücksetzen in {reset}"
     }
+  },
+  "commands": {
+    "val": "Schlägt den Valorant-Wettbewerbsstand oder einen Unterbefehl nach.",
+    "valrank": "Schlägt Valorant-Wettbewerbsrang und RR nach.",
+    "valrecord": "Zeigt Valorant-Ranglistenspiele und Siegrate.",
+    "valmatches": "Zeigt kürzliche Valorant-Ranglistenspiele.",
+    "valaccount": "Zeigt Details und Level eines Riot-Kontos.",
+    "vallb": "Zeigt die regionalen Valorant-Top-10.",
+    "valshop": "Zeigt die heutige tägliche Valorant-Skin-Rotation."
   }
 }

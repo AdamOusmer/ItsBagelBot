@@ -69,6 +69,7 @@ export interface ModuleCommandInfo {
   perm?: 'mod' | 'lead_mod';
   aliases?: string[];
   permKey?: string;
+  enableKey?: string;
   previewArgs?: string;
   preview?: string;
 }

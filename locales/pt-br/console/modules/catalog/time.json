@@ -26,5 +26,8 @@
       "tagline": "Hora em outro lugar.",
       "defaultMessage": "Horário atual em {place}: {time}."
     }
+  },
+  "commands": {
+    "time": "Mostra a hora local atual do canal ou consulta outro lugar."
   }
 }

@@ -5,10 +5,10 @@
   "commands": {
     "sr": "Muestra lo que suena o añade una canción por nombre, \"artist - song\" o enlace de Spotify.",
     "remove": "Retira tu solicitud en cola o elimina una posición como moderador.",
-    "skip": "Marca la canción actual como reproducida y pasa a la siguiente (también !next).",
+    "skip": "Marca la canción actual como reproducida y pasa a la siguiente.",
     "clear": "Vacía la cola.",
-    "srlist": "Muestra las siguientes cinco canciones de la cola (también !songlist).",
-    "current": "Dice qué suena ahora mismo en tu Spotify (también !song, !np)."
+    "srlist": "Muestra las siguientes cinco canciones de la cola.",
+    "current": "Dice qué suena ahora mismo en tu Spotify."
   },
   "replies": {
     "redeem": {
