@@ -60,7 +60,7 @@ An acknowledgment means the message arrived; it does not claim resolution or imm
   plus " itsbagelbot.com.", linking https://itsbagelbot.com.
 - Locked visual identity: logo + wordmark, safety footer, Caveat signature. No verified-sender strip.
 - Sign-off: every email ends with "the folks behind the bagel" in every language. Hand-sent replies put the sender's handwritten name and role above it ([[SIGNER NAME]], [[SIGNER ROLE]]).
-  The card keeps the 3px green to gold line on top (#62a593 to #d8bf91). No bagel stamp, emoji or signature gradient.
+  The signature keeps a 2px green to gold underline (#62a593 to #d8bf91). No bagel stamp, emoji or signature gradient.
 - Colours follow `ui/styles/brand.css` (token table in README): card `#18181b` and inset `#121214`
   without borders, primary button `#f4f4f5` on `#111113` with radius 8.
 - Use email-compatible tables/inline styles; avoid converting layout into browser-only grids/components.

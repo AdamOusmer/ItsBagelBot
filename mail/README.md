@@ -35,7 +35,7 @@ pattern.
    https://itsbagelbot.com. Copy it from the shell's catalog, never reword it.
 
 Together with the locked visual identity (logo + wordmark,
-safety footer, Caveat signature, the green to gold line on top of the card (#62a593 to #d8bf91, as the ui's reading-progress bar); no bagel stamp, no emoji) these give the mail a look that is easy to
+safety footer, Caveat signature, the green to gold line under the signature (#62a593 to #d8bf91, as the ui's reading-progress bar); no bagel stamp, no emoji) these give the mail a look that is easy to
 recognise and awkward to fake convincingly.
 
 ### The look is not real authentication, the domain is
