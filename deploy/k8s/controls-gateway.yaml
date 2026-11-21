@@ -71,6 +71,7 @@ spec:
           - {name: single-request-reopen}
           - {name: timeout, value: "1"}
           - {name: attempts, value: "3"}
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 999

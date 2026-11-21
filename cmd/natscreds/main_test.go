@@ -136,7 +136,21 @@ func TestFirstRunCreatesEveryKeyAndCredential(t *testing.T) {
 	assert.Equal(t, wantKeySeeds+wantRoleCreds*2, h.store.setCalls)
 	keys := h.keys(t)
 	assert.Len(t, keys.Accounts, wantAccounts)
-	assert.Empty(t, keys.Activations, "no export is restricted to named accounts any more")
+	require.Len(t, keys.Activations, 1)
+	activations := keys.Activations["CONTROLS_GATEWAY_RPC"]
+	subjects := make([]string, 0, len(activations))
+	for _, activation := range activations {
+		assert.Equal(t, "USERS_RPC", activation.From)
+		assert.NotEmpty(t, activation.Token)
+		subjects = append(subjects, activation.Subject)
+	}
+	assert.ElementsMatch(t, []string{
+		"rpc.internal.users.voice.overlay.resolve",
+		"rpc.internal.users.voice.overlay.resolve.node.*",
+		"rpc.internal.users.voice.overlay.check",
+		"rpc.internal.users.voice.overlay.check.node.*",
+		"controls.tts.revoked.*",
+	}, subjects)
 }
 
 func TestSecondRunChangesOnlyWhatWasRotated(t *testing.T) {

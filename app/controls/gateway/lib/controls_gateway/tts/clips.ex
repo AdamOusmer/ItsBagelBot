@@ -42,7 +42,9 @@ defmodule ControlsGateway.Tts.Clips do
             "digest" => "SHA-256=" <> digest
           } = meta} <- Jason.decode(data),
          false <- Map.get(meta, "deleted", false),
-         true <- valid_metadata?(nuid, size, chunks),
+         true <- nuid?(nuid),
+         true <- positive?(size),
+         true <- positive?(chunks),
          {:ok, hash} when byte_size(hash) == 32 <- Base.url_decode64(digest, padding: false) do
       {:ok, %{topic: "$O.#{@bucket}.C.#{nuid}", size: size, left: chunks, digest: hash}}
     else
@@ -50,12 +52,11 @@ defmodule ControlsGateway.Tts.Clips do
     end
   end
 
-  defp valid_metadata?(nuid, size, chunks)
-       when is_binary(nuid) and is_integer(size) and is_integer(chunks) do
-    size > 0 and chunks > 0 and Regex.match?(~r/\A[A-Za-z0-9]+\z/, nuid)
-  end
+  defp nuid?(nuid) when is_binary(nuid), do: Regex.match?(~r/\A[A-Za-z0-9_-]+\z/, nuid)
+  defp nuid?(_nuid), do: false
 
-  defp valid_metadata?(_nuid, _size, _chunks), do: false
+  defp positive?(n) when is_integer(n), do: n > 0
+  defp positive?(_n), do: false
 
   defp get(conn, query, subject) do
     with {:ok, %{"message" => %{"data" => data, "seq" => seq, "subject" => ^subject}}} <-

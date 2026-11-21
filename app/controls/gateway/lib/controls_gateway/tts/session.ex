@@ -21,7 +21,8 @@ defmodule ControlsGateway.Tts.Session do
   end
 
   def read(req) do
-    with key when is_binary(key) and byte_size(key) >= 32 <- key(),
+    with key <- key(),
+         true <- usable_key?(key),
          {_, cookie} <- List.keyfind(:cowboy_req.parse_cookies(req), @cookie, 0),
          [payload, signature] <- :binary.split(cookie, "."),
          {:ok, mac} when byte_size(mac) == 32 <- Base.url_decode64(signature, padding: false),
@@ -30,7 +31,7 @@ defmodule ControlsGateway.Tts.Session do
          {:ok, %{"user_id" => user_id, "generation" => generation, "exp" => exp}} <-
            Jason.decode(json),
          true <- valid_identity?(user_id, generation),
-         true <- is_integer(exp) and exp > now() do
+         true <- unexpired?(exp) do
       {:ok, %{user_id: user_id, generation: generation, exp: exp}}
     else
       _ -> :error
@@ -38,6 +39,12 @@ defmodule ControlsGateway.Tts.Session do
   catch
     :exit, {:request_error, _, _} -> :error
   end
+
+  defp usable_key?(key) when is_binary(key), do: byte_size(key) >= 32
+  defp usable_key?(_key), do: false
+
+  defp unexpired?(exp) when is_integer(exp), do: exp > now()
+  defp unexpired?(_exp), do: false
 
   def valid_identity?(user_id, generation) do
     valid_user_id?(user_id) and is_integer(generation) and generation >= 0

@@ -136,9 +136,14 @@ defmodule ControlsGateway.TtsTest do
   end
 
   test "clip reads stream multiple chunks and isolate accounts", %{http_port: port} do
-    audio = "RIFF" <> :binary.copy(<<1, 2, 3, 4>>, 50_000)
-    upload("#{@user_id}/clip", audio)
-    upload("42/foreign", audio)
+    chunks = [
+      "RIFF" <> :binary.copy(<<1, 2, 3, 4>>, 32_767),
+      :binary.copy(<<5, 6, 7, 8>>, 17_233)
+    ]
+
+    audio = IO.iodata_to_binary(chunks)
+    upload("#{@user_id}/clip", "clip-nuid_abc123", chunks)
+    upload("42/foreign", "ForeignClip12345", chunks)
     headers = [cookie(port)]
 
     assert %{status: 200, body: ^audio, headers: response_headers} =
@@ -206,10 +211,27 @@ defmodule ControlsGateway.TtsTest do
     seq
   end
 
-  defp upload(key, bytes) do
-    {:ok, io} = StringIO.open(bytes)
-    {:ok, _} = Object.put(:gnat, "TTS_CLIPS", key, io)
-    StringIO.close(io)
+  defp upload(key, nuid, chunks) do
+    Enum.each(chunks, &publish_object_message("$O.TTS_CLIPS.C.#{nuid}", &1))
+
+    meta = %Object.Meta{
+      name: key,
+      bucket: "TTS_CLIPS",
+      nuid: nuid,
+      size: IO.iodata_length(chunks),
+      chunks: length(chunks),
+      digest: "SHA-256=" <> Base.url_encode64(:crypto.hash(:sha256, chunks))
+    }
+
+    publish_object_message("$O.TTS_CLIPS.M." <> Base.url_encode64(key), Jason.encode!(meta),
+      headers: [{"Nats-Rollup", "sub"}]
+    )
+  end
+
+  defp publish_object_message(subject, body, opts \\ []) do
+    assert {:ok, %{body: ack}} = Gnat.request(:gnat, subject, body, opts)
+    assert %{"stream" => "OBJ_TTS_CLIPS", "seq" => seq} = Jason.decode!(ack)
+    assert is_integer(seq) and seq > 0
   end
 
   defp respond(known_hash) do
