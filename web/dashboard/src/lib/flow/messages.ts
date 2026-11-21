@@ -76,7 +76,7 @@ export function saveMessage(t: Translate, reply: Extract<SaveReply, { ok: false 
     case 'denied':
       return reply.error ?? t('flows.saveDenied');
     default:
-      return t('flows.saveFailed');
+      return reply.error ?? t('flows.saveFailed');
   }
 }
 
@@ -101,13 +101,13 @@ export function toggleMessage(t: Translate, reply: Extract<ToggleReply, { ok: fa
   if (reply.reason === 'conflict') return t('flows.toggleStale');
   if (reply.reason === 'not_found') return t('flows.toggleNotFound');
   if (reply.reason === 'needs_setup') return t('flows.setup.refused');
-  return reply.reason === 'denied' && reply.error ? reply.error : t('flows.toggleFailed');
+  return reply.error ?? t('flows.toggleFailed');
 }
 
 export function deleteMessage(t: Translate, reply: Extract<DeleteReply, { ok: false }>): string {
   if (reply.reason === 'not_found') return t('flows.deleteGone');
   if (reply.reason === 'not_deletable') return t('flows.deleteBuiltin');
-  return reply.reason === 'denied' && reply.error ? reply.error : t('flows.deleteFailed');
+  return reply.error ?? t('flows.deleteFailed');
 }
 
 const when = (condition: unknown, text: () => string) => (condition ? [text()] : []);
