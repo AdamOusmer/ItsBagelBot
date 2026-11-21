@@ -2,6 +2,7 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.Tts.Nats do
+  alias ControlsGateway.OverlayRequest
   alias ControlsGateway.Tts.Session
 
   @resolve "rpc.internal.users.voice.overlay.resolve"
@@ -26,19 +27,11 @@ defmodule ControlsGateway.Tts.Nats do
     end
   end
 
-  def request(nil, _subject, _body), do: {:error, :not_connected}
-
   def request(conn, subject, body) do
-    with {:ok, %{body: json}} <-
-           Gnat.request(conn, subject, Jason.encode!(body), receive_timeout: 2_000),
-         {:ok, message} <- Jason.decode(json) do
-      case message do
-        %{"error" => error} -> {:error, error}
-        _ -> {:ok, message}
-      end
+    case OverlayRequest.request(conn, subject, body) do
+      {:ok, %{"error" => error}} -> {:error, error}
+      result -> result
     end
-  catch
-    :exit, _ -> {:error, :not_connected}
   end
 
   def subscribe(conn, subject) do

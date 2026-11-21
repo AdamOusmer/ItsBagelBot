@@ -48,6 +48,7 @@ func TestLiveACLPermissions(t *testing.T) {
 			{roleEndpoint{"BUS", "outgress_bus"}, "twitch.ingress.event.premium"},
 			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "overlay.tts.42"},
 			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "$JS.API.STREAM.CREATE.OVERLAY_TTS"},
+			{roleEndpoint{"BUS", "overlays_bus"}, "data.users.changed"},
 		} {
 			err := server.publishOutcome(t, probe.role, probe.subject, 500*time.Millisecond)
 
@@ -64,6 +65,8 @@ func TestLiveACLPermissions(t *testing.T) {
 			{roleEndpoint{"BUS", "outgress_bus"}, "data.twitch.clip.created"},
 			{roleEndpoint{"BUS", "commands_bus"}, "dlq.data.users.deleted"},
 			{roleEndpoint{"BUS", "modules_bus"}, "dlq.data.users.deleted"},
+			{roleEndpoint{"BUS", "overlays_bus"}, "data.overlays.powered.changed"},
+			{roleEndpoint{"BUS", "overlays_bus"}, "dlq.data.users.deleted"},
 		} {
 			assert.NoError(t, server.publishOutcome(t, probe.role, probe.subject, 50*time.Millisecond), "%s should publish %s", probe.role.role, probe.subject)
 		}
@@ -73,6 +76,10 @@ func TestLiveACLPermissions(t *testing.T) {
 			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{"OUTGRESS_RPC", "outgress_rpc"}, "rpc.internal.tokens.get"},
 			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "rpc.internal.users.voice.overlay.resolve"},
 			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "rpc.internal.users.voice.overlay.check"},
+			{roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "rpc.internal.projector.overlays.powered.resolve"},
+			{roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, "rpc.internal.overlays.powered.get"},
+			{roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, "rpc.internal.overlays.powered.by_token"},
+			{roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, "rpc.overlays.powered.save"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "rpc.admin.user.auth.check"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "rpc.internal.admin.audit.append"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, "rpc.admin.user.audit.append"},

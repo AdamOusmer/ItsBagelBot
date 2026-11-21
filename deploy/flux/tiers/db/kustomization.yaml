@@ -9,6 +9,7 @@ resources:
   - ../../../k8s/loyalty.yaml
   - ../../../k8s/modules.yaml
   - ../../../k8s/notifications.yaml
+  - ../../../k8s/overlays.yaml
   - ../../../k8s/projector.yaml
   - ../../../k8s/transactions.yaml
   - ../../../k8s/users.yaml

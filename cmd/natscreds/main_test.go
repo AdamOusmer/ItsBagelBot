@@ -23,8 +23,8 @@ import (
 const realAccountsYAML = "../../deploy/messaging/accounts.yaml"
 
 const (
-	wantAccounts  = 17
-	wantRoles     = 28
+	wantAccounts  = 18
+	wantRoles     = 30
 	wantKeySeeds  = 2 + wantAccounts + wantRoles
 	wantRoleCreds = wantRoles - 1
 )
@@ -137,7 +137,7 @@ func TestFirstRunCreatesEveryKeyAndCredential(t *testing.T) {
 	keys := h.keys(t)
 	assert.Len(t, keys.Accounts, wantAccounts)
 
-	assertVoiceActivations(t, keys)
+	assertActivations(t, keys)
 	assertVoiceWriterCredential(t, h, keys)
 }
 
@@ -155,38 +155,39 @@ func assertVoiceWriterCredential(t *testing.T, h *harness, keys *natsacl.Keys) {
 	assert.Contains(t, scope.Template.Pub.Allow, "$JS.API.STREAM.PURGE.OBJ_TTS_CLIPS")
 }
 
-func assertVoiceActivations(t *testing.T, keys *natsacl.Keys) {
+func assertActivations(t *testing.T, keys *natsacl.Keys) {
 	t.Helper()
 	want := map[string][]string{
 		"WORKER_RPC": {
-			"rpc.internal.users.voice.check",
-			"rpc.internal.users.voice.check.node.*",
-			"rpc.internal.users.voice.record",
-			"rpc.internal.users.voice.record.node.*",
+			"USERS_RPC rpc.internal.users.voice.check",
+			"USERS_RPC rpc.internal.users.voice.check.node.*",
+			"USERS_RPC rpc.internal.users.voice.record",
+			"USERS_RPC rpc.internal.users.voice.record.node.*",
 		},
 		"CONTROLS_GATEWAY_RPC": {
-			"rpc.internal.users.voice.overlay.resolve",
-			"rpc.internal.users.voice.overlay.resolve.node.*",
-			"rpc.internal.users.voice.overlay.check",
-			"rpc.internal.users.voice.overlay.check.node.*",
-			"controls.tts.revoked.*",
+			"USERS_RPC rpc.internal.users.voice.overlay.resolve",
+			"USERS_RPC rpc.internal.users.voice.overlay.resolve.node.*",
+			"USERS_RPC rpc.internal.users.voice.overlay.check",
+			"USERS_RPC rpc.internal.users.voice.overlay.check.node.*",
+			"USERS_RPC controls.tts.revoked.*",
+			"PROJECTOR_RPC rpc.internal.projector.overlays.powered.resolve",
+			"PROJECTOR_RPC rpc.internal.projector.overlays.powered.resolve.node.*",
 		},
 	}
 	require.Len(t, keys.Activations, len(want))
-	for account, subjects := range want {
-		assert.ElementsMatch(t, subjects, voiceActivationSubjects(t, keys.Activations[account]))
+	for account, grants := range want {
+		assert.ElementsMatch(t, grants, activationGrants(t, keys.Activations[account]))
 	}
 }
 
-func voiceActivationSubjects(t *testing.T, activations []natsacl.Activation) []string {
+func activationGrants(t *testing.T, activations []natsacl.Activation) []string {
 	t.Helper()
-	var subjects []string
+	var grants []string
 	for _, activation := range activations {
-		assert.Equal(t, "USERS_RPC", activation.From)
 		assert.NotEmpty(t, activation.Token)
-		subjects = append(subjects, activation.Subject)
+		grants = append(grants, activation.From+" "+activation.Subject)
 	}
-	return subjects
+	return grants
 }
 
 func TestSecondRunChangesOnlyWhatWasRotated(t *testing.T) {

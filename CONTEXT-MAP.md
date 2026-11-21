@@ -28,6 +28,7 @@ Each service owns its schema. Its repository, RPC handlers, and `ent/schema` are
 | Loyalty | Viewer loyalty balances, watchtime, and channel counters/entries. | [app/db/loyalty](app/db/loyalty/context.md) |
 | Transactions | Billing/Tebex integration and webhook audits, giveaway orchestration, winners and award delivery. | [app/db/transactions](app/db/transactions/context.md) |
 | Notifications | Account-facing notification records and their cleanup. | [app/db/notifications](app/db/notifications/context.md) |
+| Overlays | Powered-by overlay links (rotatable tokens) and their display settings. | [app/db/overlays](app/db/overlays/context.md) |
 
 ### Shared runtime and scaffolds
 
