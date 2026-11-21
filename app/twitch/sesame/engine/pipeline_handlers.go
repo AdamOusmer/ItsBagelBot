@@ -38,7 +38,7 @@ func (p *Pipeline) runHandlers(ctx context.Context, views map[string]projection.
 	ctx = p.prepareHandlerEffects(ctx, mctx, views)
 	eventType := mctx.Env.Type
 	switch eventType {
-	case "channel.cheer", "channel.subscription.message":
+	case "channel.cheer", "channel.subscription.message", RedemptionAddType:
 		mctx.BlocksText = automodConfigFrom(views, false).BlocksText
 	}
 	for ordinal, m := range p.registry.For(eventType) {

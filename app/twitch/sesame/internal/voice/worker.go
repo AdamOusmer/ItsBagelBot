@@ -89,8 +89,7 @@ func validJob(job voiceplan.AlertJob) bool {
 		return false
 	}
 	_, err := bus.NonZeroUserID(job.BroadcasterID)
-	_, known := job.Kind.Defaults()
-	return err == nil && known
+	return err == nil && job.Kind.Valid()
 }
 
 func check(ctx context.Context, nc *nats.Conn, id string) (usersrpc.VoiceCheckReply, error) {

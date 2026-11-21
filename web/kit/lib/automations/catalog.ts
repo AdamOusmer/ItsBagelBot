@@ -20,7 +20,6 @@ import {
 import { CHAT_MODE_NAMES } from './stream-types';
 import { LIGHTS_MODES, TARGET_MODES, TEXT_OPS } from './types';
 import { CMP_OPS, PERM_LEVELS, VAR_OPS } from './values';
-
 export type FieldKind = 'text' | 'template' | 'login' | 'int' | 'number' | 'bool' | 'enum' | 'list' | 'actions' | 'condition' | 'branches' | 'map';
 
 export interface FieldDef {
@@ -180,6 +179,7 @@ export const ACTION_TYPES: TypeDef[] = [
   action('chat', [textReq]),
   action('pin', [textReq]),
   action('announce', [textReq, f('color', 'enum', { values: ['', 'primary', 'blue', 'green', 'orange', 'purple'] })]),
+  action('speak', [textReq, f('voice', 'text', { max: 32 }), f('style', 'text', { max: 16 })]),
   action('reply', [textReq, f('thread', 'bool')]),
   action('timeout', [...targetFields, f('seconds', 'int', { required: true, min: 1, max: 1209600 }), reasonOpt]),
   action('ban', [...targetFields, reasonOpt]),

@@ -56,5 +56,6 @@
   "branded_content": "Définir le contenu sponsorisé",
   "points_spend": "Dépenser des points",
   "countdown_stop": "Arrêter le compte à rebours",
-  "cooldown_reset": "Réinitialiser le délai de récupération"
+  "cooldown_reset": "Réinitialiser le délai de récupération",
+  "speak": "Lire à voix haute"
 }

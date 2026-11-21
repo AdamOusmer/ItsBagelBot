@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { PERMS } from '@bagel/kit';
 import {
-  ALERT_VOICE_CONFIG_DEFAULTS, ALERT_VOICE_CONFIG_KEYS, alertVoiceKeys, CLOUD_VOICES,
-  MAX_CLIP_SECONDS, MIN_CLIP_SECONDS, VOICE_ALERT_KINDS, VOICE_STYLES
+  ALERT_VOICE_CONFIG_DEFAULTS, ALERT_VOICE_CONFIG_KEYS, alertVoiceKeys, CLOUD_VOICES, MAX_CLIP_SECONDS, MAX_SPEECH_RUNES,
+  MIN_CLIP_SECONDS, TTS_COMMAND_CONFIG_DEFAULTS, TTS_COMMAND_CONFIG_KEYS, VOICE_ALERT_KINDS, VOICE_STYLES
 } from '@bagel/kit/voice-plan';
 
 export function voiceAlertConfig(stored: Record<string, string>): Record<string, string> {
@@ -81,6 +82,46 @@ function trimmed(values: Record<string, string>) {
 function validRevision(expectedRev: number | null, hasAlerts: boolean) {
   if (expectedRev === null) return !hasAlerts;
   return !Number.isNaN(expectedRev);
+}
+
+export function ttsCommandConfig(stored: Record<string, string>): Record<string, string> {
+  const defaults: Record<string, string> = TTS_COMMAND_CONFIG_DEFAULTS;
+  return Object.fromEntries(TTS_COMMAND_CONFIG_KEYS.map((key) => [key, stored[key] ?? defaults[key]]));
+}
+
+const MAX_COOLDOWN_SECONDS = 86_400;
+
+const inRange = (min: number, max: number, error: string): FieldValidator => (value) => {
+  const integer = unsignedInteger(value);
+  return integer >= min && integer <= max ? null : error;
+};
+
+const commandValidators = new Map<string, FieldValidator>([
+  ['enabled', validators.enabled],
+  ['permission', (value) => PERMS.some((perm) => perm === value) ? null : 'serverErrors.invalidInput'],
+  ['cooldown', inRange(0, MAX_COOLDOWN_SECONDS, 'voice.invalidCooldown')],
+  ['userCooldown', inRange(0, MAX_COOLDOWN_SECONDS, 'voice.invalidCooldown')],
+  ['maxChars', inRange(1, MAX_SPEECH_RUNES, 'voice.invalidMaxChars')],
+  ['prefixName', validators.enabled],
+  ['replyDenied', validators.enabled],
+  ['voice', validators.voice],
+  ['style', validators.style]
+]);
+
+const COMMAND_KEYS = [...commandValidators.keys()];
+
+export function parseCommandSave(fields: FormData) {
+  const values = trimmed(presentFields(fields, COMMAND_KEYS));
+  const revision = fields.get('expected_rev');
+  const expectedRev = revision === null ? null : unsignedInteger(revision);
+  const badRevision = expectedRev === null || Number.isNaN(expectedRev);
+  if (Object.keys(values).length === 0 || badRevision) {
+    return { error: 'serverErrors.invalidInput' } as const;
+  }
+  const error = firstError(values, (key) => commandValidators.get(key));
+  if (error) return { error } as const;
+  const { enabled, ...partial } = values;
+  return { error: null, enabled: enabled === undefined ? null : enabled === 'true', expectedRev, partial } as const;
 }
 
 export function parseVoiceSave(fields: FormData) {

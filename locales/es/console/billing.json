@@ -73,7 +73,7 @@
   "premiumGateCta": "Hazte Premium",
   "premiumGateLink": "Ver qué incluye",
   "premiumGateTitle": "Función Premium durante la beta",
-  "premiumIncludes":"Premium incluye",
+  "premiumIncludes": "Premium incluye",
   "priceForever": "/mes, para siempre",
   "priorityLane": "Cola prioritaria",
   "staffGrantHint": "Premium concedido por ItsBagelBot{until}. No tienes que pagar nada y no se te cobrará nada mientras la concesión esté activa.",
@@ -96,5 +96,6 @@
   "activating": "Activando",
   "paymentFailed": "El último pago de renovación falló. Actualiza tu método de pago en Tebex para mantener Premium.",
   "updatePayment": "Actualizar método de pago",
-  "receiptsEmailed": "Tebex envía un recibo al correo de tu compra después de cada pago."
+  "receiptsEmailed": "Tebex envía un recibo al correo de tu compra después de cada pago.",
+  "premiumOnly": "Solo Premium"
 }

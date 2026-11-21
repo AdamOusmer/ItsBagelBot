@@ -56,5 +56,6 @@
   "branded_content": "Definir conteúdo de marca",
   "points_spend": "Gastar pontos",
   "countdown_stop": "Parar a contagem regressiva",
-  "cooldown_reset": "Redefinir o intervalo de uso"
+  "cooldown_reset": "Redefinir o intervalo de uso",
+  "speak": "Falar em voz alta"
 }

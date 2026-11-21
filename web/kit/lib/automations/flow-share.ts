@@ -207,6 +207,7 @@ export const SHARE_REVIEWED = {
     'chat',
     'pin',
     'announce',
+    'speak',
     'reply',
     'timeout',
     'ban',

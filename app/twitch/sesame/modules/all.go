@@ -19,6 +19,7 @@ func All(d engine.Deps) []module.Module {
 		Alerts(d),
 		AlertVoice(d),
 		Clip(d),
+		TTS(d),
 		Followage(d),
 		Uptime(d),
 		Urchin(d),

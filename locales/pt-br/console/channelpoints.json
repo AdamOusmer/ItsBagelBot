@@ -81,5 +81,8 @@
   "errLimit": "Informe um número inteiro, no mínimo 1.",
   "errCooldown": "Informe um intervalo entre 1 segundo e 7 dias.",
   "unsavedChanges": "Alterações não salvas",
-  "saved": "Salvo"
+  "saved": "Salvo",
+  "speakToggle": "Ler a mensagem do espectador em voz alta",
+  "speakHint": "Usa seus minutos de voz Premium. Os pontos são devolvidos quando nada pode ser lido.",
+  "speakPrefix": "Falar primeiro o nome do espectador"
 }

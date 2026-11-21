@@ -15,6 +15,9 @@
   import type { FlowKind, NodeSpec } from '#lib/flow/model';
   import { stepSections } from '#lib/flow/search';
   import { stepFocus } from '#lib/flow/keyboard';
+  import { page } from '$app/state';
+  import PremiumMark from '#lib/components/shared/PremiumMark.svelte';
+  import { premiumLocked } from '#lib/components/shared/premium-lock';
 
   export type LibraryMode = FlowKind | 'search';
 
@@ -56,6 +59,13 @@
     reply: 'var(--bb-muted-light)'
   };
 
+  const locked = $derived(premiumLocked(page.data));
+  const lockedSpec = (spec: NodeSpec) => spec.premium === true && locked;
+
+  function add(spec: NodeSpec) {
+    if (!lockedSpec(spec)) onAdd(spec.type);
+  }
+
   let query = $state('');
   let searchEl = $state<HTMLInputElement>();
   let root = $state<HTMLElement>();
@@ -84,11 +94,14 @@
     if (!first) return;
     event.preventDefault();
     event.stopPropagation();
-    onAdd(first.type);
+    add(first);
   }
 
   function onDragStart(e: DragEvent, spec: NodeSpec) {
-    if (!e.dataTransfer) return;
+    if (!e.dataTransfer || lockedSpec(spec)) {
+      e.preventDefault();
+      return;
+    }
     e.dataTransfer.setData('application/x-flow-node', spec.type);
     e.dataTransfer.effectAllowed = 'copy';
   }
@@ -124,11 +137,15 @@
             draggable="true"
             ondragstart={(e) => onDragStart(e, spec)}
             ondragend={onClose}
-            onclick={() => onAdd(spec.type)}
+            aria-disabled={lockedSpec(spec) || undefined}
+            onclick={() => add(spec)}
           >
             <IconTile size="sm" style="--tile: 32px; color: {TINTS[spec.kind]}"><Icon name={spec.icon} size={16} /></IconTile>
             <span class="copy">
-              <span class="name bb-fit-box"><bb-fit>{stepLabel(t, spec)}</bb-fit></span>
+              <span class="name-line">
+                <span class="name bb-fit-box"><bb-fit>{stepLabel(t, spec)}</bb-fit></span>
+                {#if spec.premium}<PremiumMark />{/if}
+              </span>
               <span class="details">
                 <span class="summary bb-fit-box"><bb-fit>{stepSummary(t, spec)}</bb-fit></span>
                 {#if searching}
@@ -247,6 +264,16 @@
     flex: 1;
     min-width: 0;
   }
+  .name-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 19px;
+    min-width: 0;
+  }
+  .name-line .name { flex: 0 1 auto; min-width: 0; }
+  .row[aria-disabled='true'] { cursor: not-allowed; }
+  .row[aria-disabled='true'] .copy { opacity: 0.6; }
   .name {
     font-size: 15px;
     line-height: 19px;

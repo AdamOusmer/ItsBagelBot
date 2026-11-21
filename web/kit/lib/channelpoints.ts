@@ -3,10 +3,10 @@
 
 import type { CounterScope } from './loyalty';
 
-export type RewardActionKind = 'chat' | 'none';
+export type RewardActionKind = 'chat' | 'speak' | 'none';
 export type RewardOnRedeem = 'fulfill' | 'cancel' | 'leave';
 
-export const REWARD_ACTIONS: readonly RewardActionKind[] = ['chat', 'none'];
+export const REWARD_ACTIONS: readonly RewardActionKind[] = ['chat', 'speak', 'none'];
 export const REWARD_ON_REDEEM: readonly RewardOnRedeem[] = ['fulfill', 'cancel', 'leave'];
 
 export interface ChannelPointReward {
@@ -31,6 +31,9 @@ export interface ChannelPointReward {
   counterScope: CounterScope;
   points: number;
   liveOnly: boolean;
+  voice: string;
+  style: string;
+  prefixName: boolean;
 }
 
 export function blankReward(): ChannelPointReward {
@@ -55,6 +58,9 @@ export function blankReward(): ChannelPointReward {
     counter: '',
     counterScope: 'viewer_command',
     points: 0,
-    liveOnly: false
+    liveOnly: false,
+    voice: '',
+    style: '',
+    prefixName: true
   };
 }

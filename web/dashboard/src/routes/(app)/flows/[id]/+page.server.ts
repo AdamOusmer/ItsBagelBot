@@ -8,6 +8,7 @@ import { LOGIN_RE } from '@bagel/kit/twitch-names';
 import { env } from '@bagel/kit/server/env';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { NEW_FLOW_ID } from '#lib/flow/ref';
+import { usesPremiumSteps } from '#lib/flow/model';
 import type { ChoiceList } from '#lib/flow/choices';
 import { effectiveId } from '#lib/server/board';
 import { lookupTwitchUser } from '#lib/server/identity-heal';
@@ -130,6 +131,9 @@ export const actions: Actions = {
     if (denied) return denied;
     const lowered = lowerSaveRequest(String((await request.formData()).get('payload') ?? ''));
     if (!lowered.ok) return lowered.reply;
+    if (usesPremiumSteps(lowered.lowered.flow) && !(await broadcasterPremium(locals))) {
+      return { ok: false, reason: 'denied', error: actionError(locals.locale, 'Premium only.') };
+    }
     return DEMO ? (await import('#lib/flow/demo')).demoSave(lowered.lowered) : liveSave(locals, lowered.lowered);
   },
   run: async ({ request, locals }) => {

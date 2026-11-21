@@ -1,0 +1,17 @@
+{
+  "label": "Lire à voix haute",
+  "summary": "Lire un texte via ta source vocale",
+  "keywords": "lire voix tts audio obs parler",
+  "line": "Lire : {text}",
+  "field": {
+    "text": {
+      "label": "Texte à lire"
+    },
+    "style": {
+      "label": "Style"
+    },
+    "voice": {
+      "label": "Voix"
+    }
+  }
+}

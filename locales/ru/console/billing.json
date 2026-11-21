@@ -73,7 +73,7 @@
   "premiumGateCta": "Подключить Premium",
   "premiumGateLink": "Что входит",
   "premiumGateTitle": "Функция Premium на время беты",
-  "premiumIncludes":"Premium включает",
+  "premiumIncludes": "Premium включает",
   "priceForever": "/месяц, навсегда",
   "priorityLane": "Приоритетная очередь",
   "staffGrantHint": "Premium предоставлен ItsBagelBot{until}. Пока предоставленный доступ активен, платить не нужно и списаний не будет.",
@@ -96,5 +96,6 @@
   "activating": "Активация",
   "paymentFailed": "Последний платёж за продление не прошёл. Обновите способ оплаты на Tebex, чтобы сохранить Premium.",
   "updatePayment": "Обновить способ оплаты",
-  "receiptsEmailed": "После каждого платежа Tebex отправляет чек на email, указанный при покупке."
+  "receiptsEmailed": "После каждого платежа Tebex отправляет чек на email, указанный при покупке.",
+  "premiumOnly": "Только с Premium"
 }

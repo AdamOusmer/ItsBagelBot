@@ -21,8 +21,8 @@ import (
 const channelPointsModuleName = "channelpoints"
 
 const (
-	rewardActionChat = "chat"
-	rewardActionNone = "none"
+	rewardActionChat  = "chat"
+	rewardActionSpeak = "speak"
 )
 
 const (
@@ -45,51 +45,72 @@ type rewardBinding struct {
 	Counter  string `json:"counter"`
 	Points   int64  `json:"points"`
 	LiveOnly bool   `json:"liveOnly"`
+	Voice    string `json:"voice"`
+	Style    string `json:"style"`
+	Prefix   *bool  `json:"prefixName"`
 }
 
 func ChannelPoints(d engine.Deps) module.Module {
 	m := module.NewModule(channelPointsModuleName, module.KindOptIn).ProtectReplay()
 
-	m.On(engine.RedemptionAddType, func(ctx context.Context, c *module.Context, emit module.Emit) error {
-		var cfg channelPointsConfig
-		_ = c.Decode(&cfg)
-		if len(cfg.Rewards) == 0 || len(c.Env.Event) == 0 {
-			return nil
-		}
-
-		var ev engine.RedemptionEvent
-		if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
-			return err
-		}
-		if ev.Reward.ID == "" || ev.BroadcasterUserID == "" {
-			return nil
-		}
-
-		binding, ok := findBinding(cfg.Rewards, ev.Reward.ID)
-		if !ok {
-			return nil
-		}
-
-		var counterValue string
-		result := "offline"
-		if loyaltyLive(ctx, d, c.BroadcasterID, binding.LiveOnly) {
-			result = "ok"
-			award := rewardAward{d: d, c: c, binding: binding, ev: ev}
-			award.grant(ctx)
-			counterValue = award.bumpCounter(ctx)
-		}
-		d.Analytics.AddContext(ctx, catalog.RewardsRedeems, 1, "channelpoints", result)
-		emitRewardAction(rewardChatParams{
-			locale:       c.Locale,
-			binding:      binding,
-			event:        ev,
-			counterValue: counterValue,
-		}, emit)
-		emitRedemptionResolution(binding, ev, emit)
-		return nil
-	})
-
+	m.On(engine.RedemptionAddType, rewardHandler{d: d}.run)
 	return m.Build()
+}
+
+type rewardHandler struct {
+	d engine.Deps
+}
+
+type redemptionAction func(rewardAward, context.Context, module.Emit) error
+
+var rewardActions = map[string]redemptionAction{rewardActionSpeak: rewardAward.speak}
+
+func (h rewardHandler) run(ctx context.Context, c *module.Context, emit module.Emit) error {
+	var cfg channelPointsConfig
+	_ = c.Decode(&cfg)
+	if len(cfg.Rewards) == 0 || len(c.Env.Event) == 0 {
+		return nil
+	}
+	var ev engine.RedemptionEvent
+	if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
+		return err
+	}
+	if ev.Reward.ID == "" || ev.BroadcasterUserID == "" {
+		return nil
+	}
+	binding, ok := findBinding(cfg.Rewards, ev.Reward.ID)
+	if !ok {
+		return nil
+	}
+	run := rewardActions[binding.Action]
+	if run == nil {
+		run = rewardAward.standard
+	}
+	return run(rewardAward{d: h.d, c: c, binding: binding, ev: ev}, ctx, emit)
+}
+
+func (a rewardAward) standard(ctx context.Context, emit module.Emit) error {
+	var counterValue string
+	result := rewardResult("offline")
+	if loyaltyLive(ctx, a.d, a.c.BroadcasterID, a.binding.LiveOnly) {
+		result = "ok"
+		counterValue = a.award(ctx)
+	}
+	a.record(ctx, result)
+	emitRewardAction(rewardChatParams{locale: a.c.Locale, binding: a.binding, event: a.ev, counterValue: counterValue}, emit)
+	emitRedemptionResolution(a.binding, a.ev, emit)
+	return nil
+}
+
+func (a rewardAward) award(ctx context.Context) string {
+	a.grant(ctx)
+	return a.bumpCounter(ctx)
+}
+
+type rewardResult string
+
+func (a rewardAward) record(ctx context.Context, result rewardResult) {
+	a.d.Analytics.AddContext(ctx, catalog.RewardsRedeems, 1, "channelpoints", string(result))
 }
 
 func loyaltyLive(ctx context.Context, d engine.Deps, broadcasterID uint64, liveOnly bool) bool {

@@ -121,6 +121,27 @@ export function usageTone(used: number, limit: number) {
   return 'success';
 }
 
+export const TTS_COMMAND = 'tts';
+
+export const TTS_COMMAND_DEFAULTS = {
+  userCooldown: 30,
+  maxChars: 200,
+  prefixName: true,
+  style: 'warm'
+} as const;
+
+export const TTS_COMMAND_CONFIG_DEFAULTS = {
+  cooldown: '0',
+  userCooldown: String(TTS_COMMAND_DEFAULTS.userCooldown),
+  maxChars: String(TTS_COMMAND_DEFAULTS.maxChars),
+  prefixName: String(TTS_COMMAND_DEFAULTS.prefixName),
+  voice: '',
+  style: TTS_COMMAND_DEFAULTS.style,
+  replyDenied: 'false'
+} as const;
+
+export const TTS_COMMAND_CONFIG_KEYS = Object.keys(TTS_COMMAND_CONFIG_DEFAULTS) as readonly string[];
+
 export const DEFAULT_VOICE = 'Kore' satisfies (typeof CLOUD_VOICES)[number];
 export const VOICE_TOKENS_PER_SECOND = 25;
 export const MIN_CLIP_SECONDS = 5;

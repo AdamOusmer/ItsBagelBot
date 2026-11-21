@@ -20,6 +20,9 @@
   } from '@bagel/kit';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import RowDeleteButton from '#lib/components/shared/RowDeleteButton.svelte';
+  import PremiumMark from '#lib/components/shared/PremiumMark.svelte';
+  import { premiumSwitchLocked } from '#lib/components/shared/premium-lock';
+  import { page } from '$app/state';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
@@ -61,6 +64,7 @@
   const aliasList = $derived(c.aliases ?? []);
   const aliasAll = $derived(aliasList.join(', '));
   const saving = $derived(status === 'saving');
+  const locked = $derived(premiumSwitchLocked(c.premium, c.is_active, page.data));
   const statusLabels = $derived({
     savingLabel: t('commandEditor.saving'),
     savedLabel: t('commands.saved'),
@@ -106,6 +110,7 @@
                 <Tag tone="bare" title={t('commandRow.builtinTitle')}>{t('commandRow.builtin')}</Tag>
               </span>
             {/if}
+            {#if c.premium}<PremiumMark />{/if}
             {#if unsaved}
               <span class="name-tag">
                 <Tag tone="alpha" title={t('commandRow.unsavedTitle')}>{t('commandRow.unsaved')}</Tag>
@@ -154,7 +159,7 @@
         <input type="hidden" name="bump_counter" value={c.bump_counter ?? ''} />
         <input type="hidden" name="stream_online_only" value={c.stream_online_only ? 'on' : ''} />
         <input type="hidden" name="is_active" value={c.is_active ? '' : 'on'} />
-        <Switch type="submit" checked={c.is_active} busy={saving} label={t('commandRow.toggleAria', { name: c.name })} />
+        <Switch type="submit" checked={c.is_active} busy={saving} disabled={locked} label={t('commandRow.toggleAria', { name: c.name })} />
       </form>
       <span class="state-compact"><SaveStatus state={status} compact aria-label={statusLabel} {...statusLabels} /></span>
       {#if !c.builtin}

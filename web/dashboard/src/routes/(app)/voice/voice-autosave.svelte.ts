@@ -18,6 +18,7 @@ export class VoiceAutosave {
   status = $state<Record<string, SaveState>>({});
   revision = $state(0);
 
+  #action: string;
   #onConflict: () => Promise<void>;
   #text: { failed: () => string; conflict: () => string };
   #chain: Promise<unknown> = Promise.resolve();
@@ -26,11 +27,13 @@ export class VoiceAutosave {
   #resets = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(options: {
+    action?: string;
     revision: number;
     onConflict: () => Promise<void>;
     text: { failed: () => string; conflict: () => string };
   }) {
     this.revision = options.revision;
+    this.#action = options.action ?? 'save';
     this.#onConflict = options.onConflict;
     this.#text = options.text;
   }
@@ -48,7 +51,7 @@ export class VoiceAutosave {
     const body = new FormData();
     for (const [name, value] of Object.entries(fields)) body.set(name, value);
     body.set('expected_rev', String(this.revision));
-    const payload = await postAction<SaveReply>('save', body);
+    const payload = await postAction<SaveReply>(this.#action, body);
     if (payload?.ok) {
       if (typeof payload.rev === 'number') this.revision = payload.rev;
       return 'saved';

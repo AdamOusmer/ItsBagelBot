@@ -4,6 +4,9 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { ChannelPointReward } from '@bagel/kit';
 import { COUNTER_SCOPES, REWARD_ACTIONS, REWARD_ON_REDEEM } from '@bagel/kit';
+import { CLOUD_VOICES, VOICE_STYLES } from '@bagel/kit/voice-plan';
+import { fail } from '@sveltejs/kit';
+import { accountPremium } from '#lib/server/module-gate';
 import {
   readRewards,
   createReward,
@@ -57,7 +60,10 @@ const NORMALISERS: Normalisers = {
   counter: (v) => normalizeCounterName(trimmed(v)),
   counterScope: oneOf(COUNTER_SCOPES, 'viewer_command'),
   points: int(0, 100_000_000, 0),
-  liveOnly: flag(false)
+  liveOnly: flag(false),
+  voice: oneOf(['', ...CLOUD_VOICES], ''),
+  style: oneOf(['', ...Object.keys(VOICE_STYLES)], ''),
+  prefixName: flag(true)
 };
 
 function normaliseReward(obj: Record<string, unknown>): ChannelPointReward {
@@ -65,7 +71,9 @@ function normaliseReward(obj: Record<string, unknown>): ChannelPointReward {
   for (const key of Object.keys(NORMALISERS) as (keyof ChannelPointReward)[]) {
     out[key] = NORMALISERS[key](obj[key]);
   }
-  return out as unknown as ChannelPointReward;
+  const reward = out as unknown as ChannelPointReward;
+  if (reward.action === 'speak') reward.isUserInputRequired = true;
+  return reward;
 }
 
 function parseReward(raw: string): ChannelPointReward | null {
@@ -89,18 +97,23 @@ function parseRewardForm(form: FormData): ChannelPointReward | null {
 
 const mutate = storeMutator('channelpoints', DEMO, (uid) => uid);
 
+async function speechRefusal(uid: string, draft: ChannelPointReward) {
+  if (draft.action !== 'speak' || await accountPremium(uid)) return null;
+  return fail(403, { ok: false, code: 'premium_required' });
+}
+
 export const actions: Actions = {
   create: mutate('create', 'Invalid reward.', async (uid, f) => {
     const draft = parseRewardForm(f);
     if (!draft) return null;
-    return done(await createReward(uid, draft), draft.title);
+    return await speechRefusal(uid, draft) ?? done(await createReward(uid, draft), draft.title);
   }),
 
   update: mutate('update', 'Invalid reward.', async (uid, f) => {
     const draft = parseRewardForm(f);
     if (!draft) return null;
     if (!draft.id) return null;
-    return done(await updateReward(uid, draft), draft.title);
+    return await speechRefusal(uid, draft) ?? done(await updateReward(uid, draft), draft.title);
   }),
 
   delete: mutate('delete', 'Missing reward id.', async (uid, f) => {

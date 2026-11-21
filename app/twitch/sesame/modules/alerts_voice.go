@@ -100,22 +100,28 @@ func (s alertSpeech) preflight() speechSkipReason {
 }
 
 func (s *alertSpeech) loadConfig(ctx context.Context) error {
-	lookup := engine.ModuleLookup{Proj: s.d.Proj, BroadcasterID: s.c.BroadcasterID, Name: "alerts"}
+	cfg, err := readAlertConfig(ctx, s.d, s.c.BroadcasterID)
+	s.cfg = cfg
+	return err
+}
+
+func readAlertConfig(ctx context.Context, d *engine.Deps, broadcasterID uint64) (alertConfig, error) {
+	lookup := engine.ModuleLookup{Proj: d.Proj, BroadcasterID: broadcasterID, Name: "alerts"}
 	view, _, err := lookup.Resolve(ctx)
 	if err != nil || len(view.Configs) == 0 {
-		return err
+		return nil, err
 	}
 	var raw map[string]any
 	if err := codec.Unmarshal(view.Configs, &raw); err != nil {
-		return err
+		return nil, err
 	}
-	s.cfg = alertConfig{}
+	cfg := alertConfig{}
 	for key, value := range raw {
 		if text, ok := value.(string); ok {
-			s.cfg[key] = text
+			cfg[key] = text
 		}
 	}
-	return nil
+	return cfg, nil
 }
 
 func (s alertSpeech) configKey() string { return string(s.kind) + "Tts" }
@@ -191,7 +197,7 @@ func (s alertSpeech) skipReason(ctx context.Context, in alertSpeechInput) speech
 	switch {
 	case s.kind == "cheer" && in.bits < minimumBits(s.cfg):
 		return speechMinBits
-	case !hasSpokenContent(in.message):
+	case !voiceplan.HasSpokenContent(in.message):
 		return speechEmpty
 	case blockedSpeech(s.c, in.message):
 		return speechBlocked
@@ -216,7 +222,7 @@ func (s alertSpeech) allowanceReason(ctx context.Context) speechSkipReason {
 var cheermoteToken = regexp.MustCompile(`^[A-Za-z]+[0-9]+$`)
 
 func (s alertSpeech) viewerMessage(message string) string {
-	text := speechPlainText(message)
+	text := voiceplan.PlainText(message)
 	if s.kind == "cheer" {
 		return strings.Join(slices.DeleteFunc(strings.Fields(text), isCheermoteWord), " ")
 	}
@@ -227,14 +233,6 @@ func isCheermoteWord(word string) bool {
 	return cheermoteToken.MatchString(strings.TrimFunc(word, unicode.IsPunct))
 }
 
-func hasSpokenContent(text string) bool {
-	return strings.ContainsFunc(text, isSpokenRune)
-}
-
-func isSpokenRune(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r)
-}
-
 func blockedSpeech(c *module.Context, text string) bool {
 	return c.BlocksText != nil && c.BlocksText(text)
 }
@@ -243,11 +241,11 @@ func (s alertSpeech) job(in alertSpeechInput) voiceplan.AlertJob {
 	key := s.configKey()
 	defaults, _ := s.kind.Defaults()
 	style := cmp.Or(voiceplan.Style(s.cfg[key+"Style"]), voiceplan.Style(defaults.Style))
-	displayName := cmp.Or(speechPlainText(in.speaker), i18n.T(s.c.Locale, "alerts.voice.anonymous"))
+	displayName := cmp.Or(voiceplan.PlainText(in.speaker), i18n.T(s.c.Locale, "alerts.voice.anonymous"))
 	text := fmt.Sprintf(i18n.T(s.c.Locale, "alerts.voice.said"), displayName, in.message)
 	return voiceplan.AlertJob{
 		EventID: s.jobID(), TraceID: s.traceID, BroadcasterID: s.broadcasterID(), Kind: s.kind,
-		Text: stripSpeechControls(text), Style: style, Voice: speechVoice(s.cfg[key+"Voice"]), CreatedAt: time.Now().UTC(),
+		Text: voiceplan.StripControls(text), Style: style, Voice: speechVoice(s.cfg[key+"Voice"]), CreatedAt: time.Now().UTC(),
 	}
 }
 
@@ -264,24 +262,4 @@ func speechVoice(voice string) string {
 		return voice
 	}
 	return ""
-}
-
-func stripSpeechControls(text string) string {
-	return strings.Map(func(r rune) rune {
-		switch {
-		case unicode.IsControl(r) && unicode.IsSpace(r):
-			return ' '
-		case unicode.IsControl(r), unicode.Is(unicode.Cf, r):
-			return -1
-		default:
-			return r
-		}
-	}, text)
-}
-
-var speechAngleBrackets = strings.NewReplacer("<", " ", ">", " ")
-
-func speechPlainText(value string) string {
-	value = speechAngleBrackets.Replace(stripSpeechControls(value))
-	return strings.Join(strings.Fields(value), " ")
 }

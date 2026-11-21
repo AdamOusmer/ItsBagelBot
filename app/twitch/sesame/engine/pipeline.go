@@ -103,6 +103,7 @@ type Pipeline struct {
 	countdownDone    chan struct{}
 	completionNeeded bool
 	completions      completionSet
+	speech           SpeechQueue
 }
 
 func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
@@ -149,6 +150,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		analytics:         d.Analytics,
 		queueWaiters:      newQueueWaiters(),
 		queueTiming:       defaultQueueTiming,
+		speech:            d.Speech(),
 	}
 	p.localeLookup = p.readLocale
 	p.completionNeeded = needsCompletion(d, cfg)

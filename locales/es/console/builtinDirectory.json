@@ -73,5 +73,12 @@
       "!marker",
       "!marker <description>"
     ]
+  },
+  "tts": {
+    "label": "Texto a voz",
+    "summary": "Lee en voz alta el mensaje de un espectador en el directo.",
+    "usage": [
+      "!tts <mensaje>"
+    ]
   }
 }

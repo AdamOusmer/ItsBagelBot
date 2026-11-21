@@ -73,5 +73,12 @@
       "!marker",
       "!marker <description>"
     ]
+  },
+  "tts": {
+    "label": "Synthèse vocale",
+    "summary": "Lit à voix haute le message d'un viewer en stream.",
+    "usage": [
+      "!tts <message>"
+    ]
   }
 }

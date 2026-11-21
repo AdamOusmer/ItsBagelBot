@@ -16,6 +16,7 @@ const TARGET_FIELDS = { who: 'text', user_id: 'text', login: 'text' } as const s
 const STREAM_FIELDS: Record<string, Fields> = {
   shoutout: { login: 'text' },
   announce: { text: 'text', color: 'text' },
+  speak: { text: 'text', voice: 'text', style: 'text' },
   timeout: { ...TARGET_FIELDS, seconds: 'number', reason: 'text' },
   ban: { ...TARGET_FIELDS, reason: 'text' },
   unban: { ...TARGET_FIELDS },

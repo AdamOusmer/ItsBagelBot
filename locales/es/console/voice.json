@@ -19,7 +19,8 @@
   "banned": "La voz en la nube no está disponible.",
   "unavailable": "El uso y los ajustes de voz no están disponibles. Recarga la página para volver a intentarlo.",
   "invalidVoice": "Elige una voz de la lista.",
-  "saveFailed": "No se pudieron guardar los ajustes de voz. Inténtalo de nuevo.",  "overlayTitle": "Fuente de navegador de OBS",
+  "saveFailed": "No se pudieron guardar los ajustes de voz. Inténtalo de nuevo.",
+  "overlayTitle": "Fuente de navegador de OBS",
   "overlayHint": "Al crear un enlace, se desactiva el anterior.",
   "overlayCreate": "Crear enlace",
   "overlayReplace": "Crear otro enlace",
@@ -101,5 +102,26 @@
   "sample": {
     "sub": "PrincessBarney dijo: ¡Felices 7 meses, me encanta el directo!",
     "cheer": "PrincessBarney dijo: ¡Buenísima jugada!"
+  },
+  "channelVoice": "Voz del canal",
+  "styleDefault": "Estilo predeterminado",
+  "invalidCooldown": "Escribe un número entero de segundos entre 0 y 86400.",
+  "invalidMaxChars": "Escribe un número entero entre 1 y 500.",
+  "chat": {
+    "title": "Comando del chat",
+    "enable": "Activar !tts",
+    "enableHint": "Los espectadores escriben !tts y un mensaje para oírlo en el directo. Solo funciona en directo.",
+    "prefix": "Decir primero el nombre del espectador",
+    "replyDenied": "Responder cuando un mensaje no se puede leer",
+    "replyDeniedHint": "Si está desactivado, el texto bloqueado o los minutos agotados quedan en silencio.",
+    "permission": "Quién puede usar !tts",
+    "userCooldown": "Espera por espectador (segundos)",
+    "cooldown": "Espera para todos (segundos)",
+    "maxChars": "Máximo de caracteres leídos"
+  },
+  "rewards": {
+    "title": "Recompensas de puntos del canal",
+    "body": "Elige Leer en voz alta el mensaje del espectador en cualquier recompensa y su texto suena por tu fuente de voz.",
+    "open": "Abrir puntos del canal"
   }
 }

@@ -79,6 +79,7 @@ export const STEP_PLACEMENT = {
   'reply.http_post': { kind: 'reply', group: 'logic' },
   'reply.commercial': { kind: 'reply', group: 'stream' },
   'reply.marker': { kind: 'reply', group: 'stream' },
+  'reply.speak': { kind: 'reply', group: 'stream' },
   'reply.clip': { kind: 'reply', group: 'stream' },
   'reply.stop': { kind: 'reply', group: 'logic' },
   'reply.random': { kind: 'reply', group: 'logic' },
@@ -107,7 +108,7 @@ export type FieldSpec = { when?: FieldGate | readonly FieldGate[]; whenTrigger?:
   | (Typed & { type: 'number'; min?: number; max?: number; step?: number; unit?: true })
   | { key: string; type: 'slider'; min: number; max: number; step: number; unit?: string }
   | { key: string; type: 'duration'; min: number; max: number }
-  | { key: string; type: 'select'; options: readonly string[]; fallback?: string; optionGroup?: 'comparison' | 'loyalty' | 'redemption' }
+  | { key: string; type: 'select'; options: readonly string[]; fallback?: string; optionGroup?: 'comparison' | 'loyalty' | 'redemption' | 'voice' | 'style' }
   | { key: string; type: 'toggle' }
   | { key: string; type: 'color' }
   | (Typed & { type: 'login' })
@@ -131,6 +132,7 @@ export type NodeSpec = {
   icon: IconName;
   fields: readonly FieldSpec[];
   hidden?: true;
+  premium?: true;
   lineBy?: string;
   provides?: readonly VariableSpec[];
   providesFor?(config: FlowNode['config']): readonly VariableSpec[];
@@ -691,6 +693,8 @@ export function fieldVisible(spec: NodeSpec, node: Pick<FlowNode, 'config'>, fie
 }
 
 export const specFor = (type: string): NodeSpec | undefined => NODE_SPECS.find((s) => s.type === type);
+
+export const usesPremiumSteps = (flow: Pick<Flow, 'nodes'>): boolean => flow.nodes.some((node) => specFor(node.type)?.premium === true);
 
 export const flowTrigger = (flow: Flow): FlowNode | undefined => flow.nodes.find((node) => specFor(node.type)?.kind === 'trigger');
 

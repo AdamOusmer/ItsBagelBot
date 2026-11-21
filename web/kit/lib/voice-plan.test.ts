@@ -5,12 +5,13 @@ import { expect, test } from 'bun:test';
 import { ALERTS_MODULE, ALERT_VOICE_CONFIG_DEFAULTS } from './catalog/alerts';
 import {
   ALERT_VOICE_DEFAULTS, CLOUD_VOICE_CATALOG, CLOUD_VOICES, DEFAULT_TTS_MIN_BITS, DEFAULT_VOICE,
-  MAX_CLIP_SECONDS, MAX_SPEECH_RUNES, MIN_CLIP_SECONDS, MONTHLY_VOICE_MINUTES,
+  MAX_CLIP_SECONDS, MAX_SPEECH_RUNES, MIN_CLIP_SECONDS, MONTHLY_VOICE_MINUTES, TTS_COMMAND, TTS_COMMAND_DEFAULTS,
   usageTone, VOICE_CHARS_PER_SECOND, VOICE_STYLES, VOICE_TOKENS_PER_SECOND
 } from './voice-plan';
 
 const source = await Bun.file(new URL('../../../internal/domain/voiceplan/voiceplan.go', import.meta.url)).text();
 const alerts = await Bun.file(new URL('../../../internal/domain/voiceplan/alerts.go', import.meta.url)).text();
+const speech = await Bun.file(new URL('../../../internal/domain/voiceplan/speech.go', import.meta.url)).text();
 
 test.each([
   { used: 0, limit: 0, tone: 'success' },
@@ -77,4 +78,15 @@ test.each([
 ])('$name matches the Go policy', ({ name, value }) => {
   const literal = (source + alerts).match(new RegExp(`^\\s*(?:const\\s+)?${name}\\s*=\\s*(\\S+)$`, 'm'))?.[1];
   expect(literal).toBe(value);
+});
+
+test('chat command defaults match the Go policy', () => {
+  const value = (name: string) => speech.match(new RegExp(`\\b${name}\\s*=\\s*("?[\\w]+"?)`))?.[1]?.replaceAll('"', '');
+  expect({
+    command: value('ChatCommand'),
+    userCooldown: Number(value('ChatDefaultUserCooldown')),
+    maxChars: Number(value('ChatDefaultMaxChars')),
+    prefixName: value('DefaultPrefixName') === 'true',
+    style: value('DefaultSpeechStyle')
+  }).toEqual({ command: TTS_COMMAND, ...TTS_COMMAND_DEFAULTS });
 });

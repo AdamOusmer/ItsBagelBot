@@ -1,0 +1,17 @@
+{
+  "label": "Leer en voz alta",
+  "summary": "Lee un texto por tu fuente de voz",
+  "keywords": "leer voz tts audio obs hablar",
+  "line": "Leer: {text}",
+  "field": {
+    "text": {
+      "label": "Texto a leer"
+    },
+    "style": {
+      "label": "Estilo"
+    },
+    "voice": {
+      "label": "Voz"
+    }
+  }
+}
