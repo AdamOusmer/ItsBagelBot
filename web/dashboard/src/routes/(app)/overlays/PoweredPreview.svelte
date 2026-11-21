@@ -4,6 +4,7 @@
 
   import { untrack } from 'svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import Card from '@bagel/ui/svelte/Card.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import '@bagel/ui/styles/elements/dot-canvas.css';
 
@@ -26,7 +27,7 @@
   });
 </script>
 
-<div class="scene">
+<Card class="scene">
   <figure class="scene-frame">
     <figcaption class="scene-label">
       <span class="scene-name bb-fit-box" id="powered-preview">
@@ -40,22 +41,13 @@
         sandbox="allow-scripts allow-same-origin" tabindex="-1"></iframe>
     </div>
   </figure>
-</div>
+</Card>
 
 <style>
-  .scene {
-    position: absolute;
-    inset-block: calc(var(--stage-top, 0px) + 16px) var(--overlays-scene-bottom, 16px);
-    inset-inline: 16px calc(var(--editor-panel-right, 360px) + 32px);
-    display: grid;
-    place-items: center;
-    container-type: size;
-  }
   .scene-frame {
     display: grid;
     grid-template-rows: 20px auto;
-    gap: var(--bb-space-2);
-    inline-size: min(100cqw, (100cqh - 28px) * 16 / 9);
+    gap: var(--bb-space-3);
     margin: 0;
   }
   .scene-label {
@@ -68,9 +60,11 @@
   .scene-name { flex: 1; min-inline-size: 0; }
   .stage {
     position: relative;
+    justify-self: center;
+    inline-size: min(100%, var(--preview-max-h, 100vh) * 16 / 9);
     aspect-ratio: 16 / 9;
     overflow: hidden;
-    border-radius: var(--bb-radius-sm);
+    border-radius: var(--bb-radius-md);
     box-shadow: inset 0 0 0 1px rgba(var(--bb-white-rgb), 0.08), 0 16px 48px rgba(var(--bb-shadow-rgb), 0.55);
   }
   .frame {
@@ -86,9 +80,6 @@
     opacity: 0;
   }
   .frame.ready { opacity: 1; }
-  @media (max-width: 760px), (pointer: coarse) and (max-width: 1023px) {
-    .scene { inset-inline: 16px; }
-  }
   @media (prefers-reduced-motion: no-preference) {
     .frame { transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo); }
   }
