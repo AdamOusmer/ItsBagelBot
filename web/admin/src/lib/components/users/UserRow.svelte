@@ -42,7 +42,7 @@
   {/snippet}
   {#snippet marks()}
     <span class="marks">
-      {@render stateBadge(tier)}
+      <span class="slot" class:empty={tier === 'free'} aria-hidden={tier === 'free'}>{@render stateBadge(tier)}</span>
       <span class="slot" class:empty={state === tier} aria-hidden={state === tier}>{@render stateBadge(state)}</span>
       <span class="slot" class:empty={!user.creator_code} aria-hidden={!user.creator_code}>
         {@render badge('neutral', t('admin.users.rowCode'))}
