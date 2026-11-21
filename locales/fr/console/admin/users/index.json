@@ -54,6 +54,7 @@
   "tokenChecking": "Vérification du jeton…",
   "tokenPresent": "Jeton OAuth enregistré",
   "tokenAbsent": "Aucun jeton enregistré",
+  "tokenUnavailable": "État du jeton indisponible",
   "termsLabel": "Conditions",
   "termsAccepted": "Acceptées",
   "termsPending": "Pas encore acceptées",

@@ -25,8 +25,6 @@
   } = $props();
 
   const { t } = getI18n();
-  const uid = $props.id();
-  const formId = `message-user-${uid}`;
 
   const LEVELS = [
     { value: 'info', label: 'admin.users.messageLevelInfo' },
@@ -62,22 +60,25 @@
   <div class="fields">
     <Stack gap={3}>
       <Field fit label={t('admin.users.messageFieldTitle')}>
-        <Input fill name="title" form={formId} maxlength={120} bind:value={title} />
+        <Input fill maxlength={120} bind:value={title} />
       </Field>
       <Field fit label={t('admin.users.messageFieldBody')}>
-        <Textarea rows={3} maxlength={2000} fill name="body" form={formId} bind:value={body} />
+        <Textarea fill rows={3} maxlength={2000} bind:value={body} />
       </Field>
       <Field fit label={t('admin.users.messageFieldLevel')}>
-        <Select fill name="level" form={formId} options={levelOptions} bind:value={level} />
+        <Select fill label={t('admin.users.messageFieldLevel')} options={levelOptions} bind:value={level} />
       </Field>
     </Stack>
   </div>
 </ConfirmDialog>
 
-<form id={formId} method="POST" action="/notifications?/send" use:enhance={onSubmit} bind:this={form} hidden>
+<form method="POST" action="/notifications?/send" use:enhance={onSubmit} bind:this={form} hidden>
   <input type="hidden" name="scope" value="direct" />
   <input type="hidden" name="target_user_id" value={userId} />
   <input type="hidden" name="target_username" value="" />
+  <input type="hidden" name="title" value={title} />
+  <input type="hidden" name="body" value={body} />
+  <input type="hidden" name="level" value={level} />
   <input type="hidden" name="expires_at" value="" />
 </form>
 

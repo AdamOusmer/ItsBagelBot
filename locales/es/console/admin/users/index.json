@@ -54,6 +54,7 @@
   "tokenChecking": "Comprobando token…",
   "tokenPresent": "Token OAuth guardado",
   "tokenAbsent": "No hay token guardado",
+  "tokenUnavailable": "Estado del token no disponible",
   "termsLabel": "Términos",
   "termsAccepted": "Aceptados",
   "termsPending": "Aún no aceptados",

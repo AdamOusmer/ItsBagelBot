@@ -8,7 +8,7 @@
   import StatePill from '../StatePill.svelte';
   import ChannelLink from './ChannelLink.svelte';
   import { userDates } from './user-dates';
-  import { stateOf, tierOf, USER_BADGE_LABEL } from './user-state';
+  import { stateOf, tierOf, USER_BADGE_LABEL, type UserState } from './user-state';
 
   let {
     user,
@@ -23,10 +23,10 @@
   } = $props();
 
   const { locale, t } = getI18n();
-  const dates = userDates(locale);
+  const { ago } = userDates(locale);
   const tier = $derived(tierOf(user));
   const state = $derived(stateOf(user));
-  const meta = $derived(t('admin.users.rowMeta', { id: String(user.id), joined: dates.ago(user.created_at) }));
+  const meta = $derived(t('admin.users.rowMeta', { id: String(user.id), joined: ago(user.created_at) }));
 </script>
 
 <ManagementRow
@@ -46,9 +46,7 @@
       {#if state !== tier}
         {@render stateBadge(state)}
       {/if}
-      {#if user.creator_code}
-        <StatePill tone="neutral">{t('admin.users.rowCode')}</StatePill>
-      {/if}
+      {#if user.creator_code}{@render badge('neutral', t('admin.users.rowCode'))}{/if}
     </span>
   {/snippet}
   {#snippet actions()}
@@ -56,9 +54,13 @@
   {/snippet}
 </ManagementRow>
 
-{#snippet stateBadge(value: typeof state)}
-  <StatePill tone={value}>
-    <span class="badge-label"><bb-fit><span data-fit>{t(USER_BADGE_LABEL[value])}</span></bb-fit></span>
+{#snippet stateBadge(value: UserState)}
+  {@render badge(value, t(USER_BADGE_LABEL[value]))}
+{/snippet}
+
+{#snippet badge(tone: UserState | 'neutral', label: string)}
+  <StatePill {tone}>
+    <span class="badge-label" class:code={tone === 'neutral'}><bb-fit><span data-fit>{label}</span></bb-fit></span>
   </StatePill>
 {/snippet}
 
@@ -69,8 +71,12 @@
 
   .badge-label {
     display: block;
-    inline-size: 6.25rem;
+    inline-size: 4.75rem;
     text-align: center;
+  }
+
+  .code {
+    inline-size: 2.5rem;
   }
 
   @media (max-width: 560px) {

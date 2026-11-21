@@ -10,6 +10,7 @@
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
+  import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import type { StatusTone } from '@bagel/kit/status-tone';
 
   type HistoryRow = {
@@ -33,32 +34,37 @@
   const VISIBLE_ROWS = 4;
   const pending = $derived(rows === null);
   const hasRows = $derived(Boolean(rows?.length));
-  const hasMoreRows = $derived((rows?.length ?? 0) > 5);
+  const scrollable = $derived(Boolean(error) || (rows?.length ?? 0) > VISIBLE_ROWS);
+  const showMore = $derived(hasRows && !error);
 </script>
 
-<Stack as="section" gap={2} aria-labelledby={heading}>
+<Stack as="section" gap={2}>
   <Heading id={heading} level={3} variant="label">{title}</Heading>
-  <div class="history">
-    {#if pending}
-      <span class="bb-sr-only" role="status">{loading}</span>
-      <SkeletonStack rows={VISIBLE_ROWS} height="1rem" />
-    {:else if error}
-      <Scroller maxHeight="100%" role="region" aria-labelledby={heading} tabindex={0}>
+  {#if pending}<VisuallyHidden role="status">{loading}</VisuallyHidden>{/if}
+  <div class="history" style:--history-rows={VISIBLE_ROWS}>
+    <Scroller
+      style="block-size: 100%; scrollbar-gutter: stable"
+      role="region"
+      aria-labelledby={heading}
+      aria-busy={pending}
+      tabindex={scrollable ? 0 : undefined}
+    >
+      {#if pending}
+        <SkeletonStack rows={VISIBLE_ROWS} height="var(--history-row-size)" />
+      {:else if error}
         <div class="error">
           <AlertBanner tone="danger" flush>{error}</AlertBanner>
         </div>
-      </Scroller>
-    {:else if !hasRows}
-      <EmptyState style="--empty-pad: var(--bb-space-6) 0" title={empty} />
-    {:else}
-      <Scroller maxHeight="100%" role="region" aria-labelledby={heading} tabindex={hasMoreRows ? 0 : undefined}>
+      {:else if !hasRows}
+        <EmptyState style="--empty-pad: var(--bb-space-6) 0" title={empty} />
+      {:else}
         <ul class="rows">
           {#each rows ?? [] as row (row.id)}
             <li class="row">
               <StatusDot tone={row.tone} />
               <Text as="span" size="xs" mono truncate title={row.outcome ? `${row.label} · ${row.outcome}` : row.label}>
                 {row.label}
-                {#if row.outcome}<span class="bb-sr-only">{row.outcome}</span>{/if}
+                {#if row.outcome}<VisuallyHidden>{row.outcome}</VisuallyHidden>{/if}
               </Text>
               <div class="when" title={row.when}>
                 <Text as="div" size="xs" mono tone="muted">
@@ -68,20 +74,24 @@
             </li>
           {/each}
         </ul>
-      </Scroller>
-    {/if}
+      {/if}
+    </Scroller>
   </div>
 
   {#if more}
-    <div class="more" class:quiet={!hasRows || Boolean(error)} inert={!hasRows || Boolean(error)}>
-      <Text size="xs"><TextLink variant="inline" href={more.href}>{more.label}</TextLink></Text>
+    <div class="more" class:quiet={!showMore} inert={!showMore}>
+      <Text size="xs">
+        <bb-fit><TextLink variant="inline" href={more.href}><span data-fit>{more.label}</span></TextLink></bb-fit>
+      </Text>
     </div>
   {/if}
 </Stack>
 
 <style>
   .history {
-    block-size: 6rem;
+    --history-row-size: 1.25rem;
+    --history-row-gap: 10px;
+    block-size: calc(var(--history-row-size) * var(--history-rows) + var(--history-row-gap) * (var(--history-rows) - 1));
   }
 
   .error {
@@ -90,7 +100,7 @@
 
   .rows {
     display: grid;
-    gap: var(--bb-space-2);
+    gap: var(--history-row-gap);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -101,7 +111,7 @@
     grid-template-columns: auto minmax(0, 1fr) 6.5rem;
     gap: var(--bb-space-2);
     align-items: center;
-    min-block-size: 1rem;
+    block-size: var(--history-row-size);
   }
 
   .when {

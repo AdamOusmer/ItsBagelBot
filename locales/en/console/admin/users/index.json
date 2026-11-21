@@ -54,6 +54,7 @@
   "tokenChecking": "Checking token…",
   "tokenPresent": "OAuth token stored",
   "tokenAbsent": "No token stored",
+  "tokenUnavailable": "Token status unavailable",
   "termsLabel": "Terms",
   "termsAccepted": "Accepted",
   "termsPending": "Not accepted yet",

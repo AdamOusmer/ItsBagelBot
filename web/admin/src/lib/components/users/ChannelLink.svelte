@@ -16,9 +16,9 @@
 </script>
 
 <ButtonLink
-  variant="secondary"
+  variant="ghost"
   size="sm"
-  class="bb-btn--icon channel-link"
+  class="bb-btn--icon"
   {href}
   target="_blank"
   rel="noopener noreferrer"
@@ -27,9 +27,3 @@
 >
   <Icon name="twitch" size={14} />
 </ButtonLink>
-
-<style>
-  :global(.channel-link) {
-    flex: none;
-  }
-</style>

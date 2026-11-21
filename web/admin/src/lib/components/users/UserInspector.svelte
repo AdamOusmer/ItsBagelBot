@@ -18,7 +18,7 @@
   import StatePill from '../StatePill.svelte';
   import ChannelLink from './ChannelLink.svelte';
   import UserAccount from './UserAccount.svelte';
-  import UserConnection from './UserConnection.svelte';
+  import UserConnection, { type TokenStatus } from './UserConnection.svelte';
   import UserHistory from './UserHistory.svelte';
   import UserInspectorActions from './UserInspectorActions.svelte';
   import UserSupport from './UserSupport.svelte';
@@ -29,7 +29,7 @@
 
   let {
     user,
-    tokenPresent,
+    tokenStatus,
     subState,
     viewAsUrl,
     history,
@@ -45,7 +45,7 @@
     creatorSubmit
   }: {
     user: AdminUserWire;
-    tokenPresent: boolean | null;
+    tokenStatus: TokenStatus;
     subState: ChannelSubState | null;
     viewAsUrl: string;
     history: AuditEntry[] | null;
@@ -117,7 +117,7 @@
 
     <UserTier {user} {onStatus} {date} disabled={busy !== null || !can('users.grant')} />
 
-    <UserConnection {user} {tokenPresent} {subState} {ago}>
+    <UserConnection {user} {tokenStatus} {subState} {ago}>
       {#if serviceActions.length}
         <UserInspectorActions actions={serviceActions} {user} {busy} {onAction} />
       {/if}
@@ -197,5 +197,20 @@
   .state-label {
     inline-size: 5.25rem;
     text-align: center;
+  }
+
+  @media (max-width: 380px) {
+    .identity {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .state {
+      grid-area: 2 / 2;
+      justify-self: start;
+    }
+
+    .identity-meta {
+      grid-row: 3;
+    }
   }
 </style>

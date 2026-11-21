@@ -33,6 +33,7 @@
   import type { AdminUserWire, ChannelSubState } from '#lib/server/services';
   import UserRow from '#lib/components/users/UserRow.svelte';
   import UserInspector from '#lib/components/users/UserInspector.svelte';
+  import type { TokenStatus } from '#lib/components/users/UserConnection.svelte';
   import MessageDialog from '#lib/components/users/MessageDialog.svelte';
   import { usersCsv } from '#lib/components/users/csv';
   import { EMPTY_HISTORY, inspectAudit, inspectPrizes } from '#lib/components/users/user-history';
@@ -130,7 +131,7 @@
     selectedId === null ? null : (rows.find((u) => String(u.id) === selectedId) ?? detached)
   );
 
-  let tokenPresent = $state<boolean | null>(null);
+  let tokenStatus = $state<TokenStatus>('checking');
   let subState = $state<ChannelSubState | null>(null);
   let viewAsUrl = $state('');
   let audit = $state.raw<Awaited<ReturnType<typeof inspectAudit>>>(EMPTY_HISTORY);
@@ -158,7 +159,7 @@
     const { signal } = (inspectorRequest = new AbortController());
     detached = null;
     selectedId = id;
-    tokenPresent = null;
+    tokenStatus = 'checking';
     subState = null;
     viewAsUrl = '';
     audit = EMPTY_HISTORY;
@@ -202,12 +203,12 @@
       if (signal.aborted) return;
       const lk = actionPayload<ActionPayload>(result)?.lookup;
       if (!lk || lk.error) {
-        tokenPresent = null;
+        tokenStatus = 'unavailable';
         subState = { state: 'unknown', error: lk?.error ?? t('admin.users.lookupFailed'), checkedAt: null };
         return;
       }
       if (lk.user) reconcile(lk.user);
-      tokenPresent = lk.tokenPresent ?? null;
+      tokenStatus = lk.tokenPresent === undefined ? 'unavailable' : lk.tokenPresent ? 'present' : 'absent';
       subState = lk.subState ?? null;
     };
   };
@@ -264,46 +265,40 @@
   function applied(p: ActionPayload) {
     toast('success', p.action?.notice ?? '');
     if (p.lookup?.user) reconcile(p.lookup.user);
-    if (p.subState) subState = p.subState;
-    if (p.viewAsUrl) viewAsUrl = p.viewAsUrl;
   }
 
-  function updateOptimistically(def: UserActionDef) {
-    const update = def.optimistic;
-    if (!selectedId) return;
-    if (!update || !dir) return;
-    const index = dir.recent.findIndex((user) => String(user.id) === selectedId);
-    if (index >= 0) dir.recent[index] = update(dir.recent[index]);
-    if (detached) detached = update(detached);
-  }
-
-  function applyUserAction(def: UserActionDef, payload: ActionPayload) {
+  function applyUserAction(def: UserActionDef, payload: ActionPayload, userId: string) {
     applied(payload);
-    if (def.id === 'delete') dropSelected();
-    if (def.id === 'clearToken' || def.id === 'reset') tokenPresent = false;
+    if (def.id === 'delete') dropUser(userId);
+    if (selectedId !== userId) return;
+    if (payload.subState) subState = payload.subState;
+    if (payload.viewAsUrl) viewAsUrl = payload.viewAsUrl;
+    if (def.id === 'clearToken' || def.id === 'reset') tokenStatus = 'absent';
   }
 
   function submitFor(def: UserActionDef): SubmitFunction {
-    return () => {
+    return ({ formData }) => {
+      const userId = String(formData.get('user_id') ?? '');
+      const optimistic = def.optimistic;
+      const before = selectedId === userId ? selected : null;
+      const beforeSubState = subState;
       busy = def.id;
-      const before = dir ? dir.recent.map((r) => ({ ...r })) : [];
-      const beforeDetached = detached ? { ...detached } : null;
-      updateOptimistically(def);
+      if (before && optimistic) reconcile(optimistic(before));
       if (def.id === 'restart') subState = null;
       return async ({ result }) => {
         busy = null;
         const p = actionPayload<ActionPayload>(result);
-        if (result.type === 'success' && p?.action?.ok) return applyUserAction(def, p);
-        if (dir) dir.recent = before;
-        detached = beforeDetached;
+        if (result.type === 'success' && p?.action?.ok) return applyUserAction(def, p, userId);
+        if (before && optimistic) reconcile(before);
+        if (def.id === 'restart' && selectedId === userId && subState === null) subState = beforeSubState;
         failed(p, t('admin.users.actionFailed', { verb: t(def.label) }));
       };
     };
   }
 
-  function dropSelected() {
-    if (dir && selectedId) dir.recent = dir.recent.filter((r) => String(r.id) !== selectedId);
-    closeInspector();
+  function dropUser(userId: string) {
+    if (dir) dir.recent = dir.recent.filter((row) => String(row.id) !== userId);
+    if (selectedId === userId) closeInspector();
   }
 
   function request(def: UserActionDef) {
@@ -514,7 +509,7 @@
       >
         <UserInspector
           user={selected}
-          {tokenPresent}
+          {tokenStatus}
           {subState}
           {viewAsUrl}
           history={audit.entries}

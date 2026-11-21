@@ -1,6 +1,19 @@
-<script lang="ts">
+<script module lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import { statusTone, type StatusTone } from '@bagel/kit/status-tone';
+
+  const TOKEN = {
+    checking: { tone: statusTone('connecting'), label: 'admin.users.tokenChecking' },
+    present: { tone: statusTone('online'), label: 'admin.users.tokenPresent' },
+    absent: { tone: statusTone('auth_required'), label: 'admin.users.tokenAbsent' },
+    unavailable: { tone: statusTone('degraded'), label: 'admin.users.tokenUnavailable' }
+  } as const;
+
+  export type TokenStatus = keyof typeof TOKEN;
+</script>
+
+<script lang="ts">
   import type { Snippet } from 'svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Cluster from '@bagel/ui/svelte/Cluster.svelte';
@@ -12,12 +25,11 @@
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { statusTone, type StatusTone } from '@bagel/kit/status-tone';
   import type { AdminUserWire, ChannelSubState, SubVerification } from '#lib/server/services';
 
-  let { user, tokenPresent, subState, ago, children }: {
+  let { user, tokenStatus, subState, ago, children }: {
     user: AdminUserWire;
-    tokenPresent: boolean | null;
+    tokenStatus: TokenStatus;
     subState: ChannelSubState | null;
     ago: (value?: string | null) => string;
     children?: Snippet;
@@ -30,11 +42,6 @@
     active: { tone: statusTone('online'), label: 'admin.users.connectionServing' },
     inactive: { tone: statusTone('disabled'), label: 'admin.users.connectionInactive' }
   } as const;
-  const TOKEN = {
-    checking: { tone: statusTone('connecting'), label: 'admin.users.tokenChecking' },
-    present: { tone: statusTone('online'), label: 'admin.users.tokenPresent' },
-    absent: { tone: statusTone('auth_required'), label: 'admin.users.tokenAbsent' }
-  } as const;
   const SUB_TONE = {
     ok: 'online',
     pending: 'connecting',
@@ -44,7 +51,7 @@
     unknown: 'sub_unknown'
   } as const;
   const serving = $derived(SERVICE[user.banned ? 'banned' : user.is_active ? 'active' : 'inactive']);
-  const token = $derived(TOKEN[tokenPresent === null ? 'checking' : tokenPresent ? 'present' : 'absent']);
+  const token = $derived(TOKEN[tokenStatus]);
   const subTone = $derived(statusTone(subState ? SUB_TONE[subState.state] : 'connecting'));
   const subLabel = $derived(subState
     ? t('admin.users.eventsubState', { state: subState.state })
@@ -76,7 +83,7 @@
   </Cluster>
 {/snippet}
 
-<Stack as="section" gap={2} aria-labelledby={heading}>
+<Stack as="section" gap={2}>
   <Heading id={heading} level={3} variant="label">{t('admin.users.connectionTitle')}</Heading>
   <Stack gap={1} aria-live="polite" aria-busy={subState === null}>
     {@render status(serving.tone, t(serving.label))}

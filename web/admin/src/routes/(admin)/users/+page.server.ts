@@ -103,11 +103,13 @@ type UserTarget = {
   locale: Locale;
 };
 
+type UserActionReply = ReturnType<typeof okReply> & { lookup?: { user: AdminUserWire } };
+
 type UserMutation<P> = {
   name: string;
   key: AccessKey;
   parse: (form: FormData) => ParseResult<P>;
-  demo?: (target: UserTarget, input: P) => unknown;
+  demo?: (target: UserTarget, input: P) => UserActionReply | Promise<UserActionReply>;
   notice: (user: AdminUserWire | null, input: P, locale: Locale) => string;
   detail?: (input: P) => string;
   run: (ref: UserRef, input: P) => Promise<AdminUserWire | null>;
@@ -133,7 +135,7 @@ function withUserTarget<R>(
   };
 }
 
-function userReply(notice: string, user: AdminUserWire | null) {
+function userReply(notice: string, user: AdminUserWire | null): UserActionReply {
   const reply = okReply(notice);
   return user ? { ...reply, lookup: { user } } : reply;
 }
@@ -148,7 +150,7 @@ function userAction<P>(mutation: UserMutation<P>) {
       { admin, action: mutation.name, target: ref.userId, detail: mutation.detail?.(input.value) },
       () => mutation.run(ref, input.value),
       (user) => userReply(mutation.notice(user, input.value, locale), user)
-    );
+    ) as Promise<UserActionReply | ReturnType<typeof refused>>;
   });
 }
 

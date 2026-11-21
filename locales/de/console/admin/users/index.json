@@ -54,6 +54,7 @@
   "tokenChecking": "Token wird geprüft…",
   "tokenPresent": "OAuth-Token gespeichert",
   "tokenAbsent": "Kein Token gespeichert",
+  "tokenUnavailable": "Tokenstatus nicht verfügbar",
   "termsLabel": "Nutzungsbedingungen",
   "termsAccepted": "Akzeptiert",
   "termsPending": "Noch nicht akzeptiert",
