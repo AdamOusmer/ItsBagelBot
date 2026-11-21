@@ -7,7 +7,6 @@
   import { beforeNavigate, invalidateAll } from '$app/navigation';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { defaultPoweredConfig, poweredPreviewUrl, type PoweredConfig } from '@bagel/kit/overlays';
-  import EditorStage from '@bagel/ui/svelte/EditorStage.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import SaveStatus, { type SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -50,13 +49,6 @@
 
   beforeNavigate(() => void autosave.flush());
 
-  let boardEl = $state<HTMLDivElement>();
-  let boardLeft = $state(0);
-  function measureBoard() {
-    boardLeft = boardEl?.getBoundingClientRect().left ?? 0;
-  }
-  $effect(measureBoard);
-
   const submitRotate: SubmitFunction = async ({ cancel }) => {
     if (rotating) return cancel();
     rotating = true;
@@ -78,25 +70,6 @@
 </script>
 
 <svelte:head><title>{t('nav.overlays')}</title></svelte:head>
-<svelte:window onresize={measureBoard} />
-
-{#snippet rightPanel()}
-  <aside class="panel" aria-labelledby="powered-title">
-    <header class="head">
-      <div class="title-row">
-        <h1 class="name bb-fit-box" id="powered-title"><bb-fit>{t('overlays.poweredTitle')}</bb-fit></h1>
-        <SaveStatus state={saveState} />
-      </div>
-      <div class="intro bb-fit-box">
-        <Text as="div" size="xs" tone="muted"><bb-fit mode="block">{t('overlays.poweredIntro')}</bb-fit></Text>
-      </div>
-    </header>
-    <div class="scroll">
-      <PoweredLink {url} error={rotateError} busy={rotating} submit={submitRotate} />
-      <PoweredControls {config} onChange={change} />
-    </div>
-  </aside>
-{/snippet}
 
 {#if data.readOnly || !data.powered}
   <section class="screen active">
@@ -112,84 +85,75 @@
     {/if}
   </section>
 {:else}
-  <EditorStage
-    class="overlays-stage"
-    style="--stage-board-left: {boardLeft}px"
-    bind:boardEl
-    label={t('overlays.previewFrame')}
-    height="100dvh"
-    topInset="calc(var(--bb-topbar-height) + var(--overlays-top-gap, 6px))"
-    bottomRoom="var(--overlays-bottom-room, 0px)"
-    {rightPanel}
-  >
-    <PoweredPreview src={previewSrc} />
-  </EditorStage>
+  <section class="screen active studio" aria-labelledby="powered-title">
+    <PageHead compact class="studio-head">
+      <span class="page-title">
+        <bb-fit class="page-title-copy"><span data-fit="" id="powered-title">{t('overlays.poweredTitle')}</span></bb-fit>
+      </span>
+      {#snippet trailing()}
+        <SaveStatus state={saveState} />
+      {/snippet}
+    </PageHead>
+    <div class="intro bb-fit-box">
+      <Text as="p" size="sm" tone="muted"><bb-fit mode="block">{t('overlays.poweredIntro')}</bb-fit></Text>
+    </div>
+    <div class="studio-grid">
+      <div class="studio-main">
+        <PoweredPreview src={previewSrc} />
+        <PoweredLink {url} error={rotateError} busy={rotating} submit={submitRotate} />
+      </div>
+      <div class="studio-side">
+        <PoweredControls {config} onChange={change} />
+      </div>
+    </div>
+  </section>
 {/if}
 
 <style>
   .page-title { display: flex; align-items: center; gap: var(--bb-space-3); white-space: nowrap; }
   .page-title-copy { min-inline-size: 0; }
-  :global(.overlays-stage) {
-    --overlays-top-gap: 6px;
-    --overlays-bottom-room: 0px;
-    --overlays-sheet-h: 50dvh;
-    --stage-kb: var(--overlays-bottom-room);
-    --stage-sheet-h: var(--overlays-sheet-h);
-  }
-  @media (max-width: 760px) {
-    :global(.overlays-stage) { --overlays-top-gap: 10px; --overlays-sheet-h: 46dvh; }
-  }
-  @media (max-width: 760px), (pointer: coarse) and (max-height: 520px) {
-    :global(.overlays-stage) { --overlays-bottom-room: calc(81px + 8px + env(safe-area-inset-bottom, 0px)); }
-  }
-  @media (max-width: 760px), (pointer: coarse) and (max-width: 1023px) {
-    :global(.overlays-stage) {
-      --overlays-scene-bottom: calc(var(--overlays-bottom-room) + min(var(--overlays-sheet-h), 100dvh - 64px) + 16px);
-    }
-  }
-  .panel {
-    display: flex;
-    flex-direction: column;
-    block-size: 100%;
-    min-block-size: 0;
-    overflow: hidden;
-    border-radius: var(--bb-radius-md);
-    background: var(--bb-bg-1);
-    box-shadow: var(--bb-depth-1), 0 16px 48px rgba(var(--bb-shadow-rgb), 0.55);
-    --panel-pad: var(--bb-space-5);
-  }
-  .head {
-    display: grid;
-    flex: none;
-    gap: var(--bb-space-1);
-    padding: var(--bb-space-4) var(--panel-pad);
-    border-block-end: 1px solid var(--bb-rule);
-  }
-  .title-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--bb-space-3);
-  }
-  .name {
+  .studio :global(.studio-head) { margin-block-end: var(--bb-space-2); }
+  .intro {
+    block-size: 1.5rem;
     min-inline-size: 0;
-    block-size: var(--bb-space-5);
-    margin: 0;
-    font: 600 var(--bb-text-md)/1.25 var(--bb-font-body);
-    color: var(--bb-white);
+    margin-block-end: var(--bb-space-5);
+    align-content: center;
+    white-space: nowrap;
   }
-  .intro { block-size: 2.5em; min-inline-size: 0; align-content: center; }
-  .scroll {
-    flex: 1;
-    min-block-size: 0;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    overscroll-behavior: contain;
+  .studio-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--bb-space-4);
+  }
+  .studio-main {
     display: flex;
     flex-direction: column;
-    gap: var(--bb-space-6);
-    padding: var(--bb-space-5) var(--panel-pad);
+    gap: var(--bb-space-4);
+    min-inline-size: 0;
   }
-  .scroll > :global(*) { flex: none; }
-
+  .studio-side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--bb-space-4);
+  }
+  @media (min-width: 1024px) {
+    .studio {
+      display: flex;
+      flex-direction: column;
+      block-size: calc(100dvh - var(--bb-topbar-height, 54px) - 10px - var(--gutter, 28px) - 6px - var(--bb-dock-clearance, 52px));
+    }
+    .studio-grid {
+      flex: 1;
+      min-block-size: 0;
+      grid-template-columns: minmax(0, 2fr) minmax(20rem, 1fr);
+    }
+    .studio-main { min-block-size: 0; }
+    .studio-main > :global(.scene) { flex: 1; min-block-size: 0; }
+    .studio-side { display: flex; flex-direction: column; }
+    .studio-side > :global(.dock) { display: flex; flex: 1; flex-direction: column; }
+  }
+  @media (max-width: 640px) {
+    .intro { block-size: 3em; line-height: 1.5; white-space: normal; align-content: start; }
+    .studio-side { grid-template-columns: minmax(0, 1fr); }
+  }
 </style>

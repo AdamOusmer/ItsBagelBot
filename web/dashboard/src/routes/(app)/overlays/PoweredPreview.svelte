@@ -4,6 +4,8 @@
 
   import { untrack } from 'svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import '@bagel/ui/styles/elements/dot-canvas.css';
 
@@ -26,52 +28,49 @@
   });
 </script>
 
-<div class="scene">
-  <figure class="scene-frame">
-    <figcaption class="scene-label">
-      <span class="scene-name bb-fit-box" id="powered-preview">
-        <Text as="span" size="xs" tone="muted"><bb-fit>{t('overlays.preview')}</bb-fit></Text>
-      </span>
+<Card as="section" class="scene" aria-labelledby="powered-preview">
+  <div class="scene-frame">
+    <div class="scene-label">
+      <Heading level={6} as="h2" id="powered-preview">
+        <bb-fit><span data-fit="">{t('overlays.previewFrame')}</span></bb-fit>
+      </Heading>
       <Text as="span" size="xs" tone="muted" mono>1920 × 1080</Text>
-    </figcaption>
+    </div>
     <div class="stage bb-dot-canvas" bind:clientWidth={width}>
-      <iframe bind:this={frame} class="frame" class:ready title={t('overlays.previewFrame')} aria-describedby="powered-preview"
+      <iframe bind:this={frame} class="frame" class:ready title={t('overlays.previewFrame')}
         {src} style:transform="scale({width / STAGE_WIDTH})" loading="lazy" referrerpolicy="no-referrer"
         sandbox="allow-scripts allow-same-origin" tabindex="-1"></iframe>
     </div>
-  </figure>
-</div>
+  </div>
+</Card>
 
 <style>
-  .scene {
-    position: absolute;
-    inset-block: calc(var(--stage-top, 0px) + 16px) var(--overlays-scene-bottom, 16px);
-    inset-inline: 16px calc(var(--editor-panel-right, 360px) + 32px);
-    display: grid;
-    place-items: center;
-    container-type: size;
-  }
   .scene-frame {
+    --scene-head-h: 1.5rem;
+    --scene-gap: var(--bb-space-3);
     display: grid;
-    grid-template-rows: 20px auto;
-    gap: var(--bb-space-2);
-    inline-size: min(100cqw, (100cqh - 28px) * 16 / 9);
-    margin: 0;
+    grid-template-rows: var(--scene-head-h) auto;
+    gap: var(--scene-gap);
   }
   .scene-label {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    justify-content: space-between;
     gap: var(--bb-space-3);
-    min-inline-size: 0;
   }
-  .scene-name { flex: 1; min-inline-size: 0; }
   .stage {
     position: relative;
+    justify-self: center;
+    inline-size: 100%;
     aspect-ratio: 16 / 9;
     overflow: hidden;
     border-radius: var(--bb-radius-sm);
+    background-color: color-mix(in srgb, var(--bb-gray-4-dark) 55%, var(--bb-gray-5-dark));
     box-shadow: inset 0 0 0 1px rgba(var(--bb-white-rgb), 0.08), 0 16px 48px rgba(var(--bb-shadow-rgb), 0.55);
+  }
+  @media (min-width: 1024px) {
+    :global(.scene) { container-type: size; }
+    .stage { inline-size: min(100cqi, (100cqb - var(--scene-head-h) - var(--scene-gap)) * 16 / 9); }
   }
   .frame {
     position: absolute;
@@ -86,9 +85,6 @@
     opacity: 0;
   }
   .frame.ready { opacity: 1; }
-  @media (max-width: 760px), (pointer: coarse) and (max-width: 1023px) {
-    .scene { inset-inline: 16px; }
-  }
   @media (prefers-reduced-motion: no-preference) {
     .frame { transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo); }
   }
