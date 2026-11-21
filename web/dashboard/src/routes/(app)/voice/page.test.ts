@@ -20,14 +20,21 @@ mock.module('@bagel/kit/i18n/context', () => ({
   getI18n: () => english,
   setI18n: () => english
 }));
-mock.module('@bagel/ui/svelte/discard-guard', () => ({
-  createDiscardGuard: () => ({ open: false, guard: () => {}, confirm: () => {}, cancel: () => {} })
+mock.module('./voice-autosave.svelte', () => ({
+  VoiceAutosave: class {
+    status = {};
+    save() {}
+    schedule() {}
+    flush() {}
+    reset() {}
+  }
 }));
 
 const uiSvelte = createRequire(import.meta.resolve('@bagel/ui/svelte/Input.svelte')).resolve('svelte');
 if (uiSvelte !== fileURLToPath(import.meta.resolve('svelte'))) mock.module(uiSvelte, () => svelte);
 
 const { default: VoicePage } = await import('./+page.svelte');
+const { default: VoiceAlertEditor } = await import('./VoiceAlertEditor.svelte');
 
 const allowance = {
   plan: 'premium', reason: 'ok', limit_tokens: 90_000, used_tokens: 57_300, remaining_tokens: 32_700,
@@ -42,6 +49,14 @@ function renderVoice(overrides: Record<string, unknown> = {}, form: Record<strin
   return render(VoicePage, { props: { data: { ...data, ...overrides }, form } as never }).body;
 }
 
+function renderEditor(config: Record<string, string> = ALERT_VOICE_CONFIG_DEFAULTS) {
+  const props = {
+    kind: 'sub', values: { ...config }, options: [], status: {},
+    onChange: () => {}, onMessage: () => {}, onFlush: () => {}
+  };
+  return render(VoiceAlertEditor, { props: props as never }).body;
+}
+
 test.each([
   { stored: undefined, displayed: '120' },
   { stored: 5, displayed: '5' },
@@ -50,7 +65,7 @@ test.each([
 ])('renders a required whole-second input from 5 to 120 with $displayed selected', async ({ stored, displayed }) => {
   const html = renderVoice({ allowance: { ...allowance, max_seconds: stored } });
   const inputs: Record<string, string>[] = [];
-  const rewriter = new HTMLRewriter().on('form[action="?/save"]:not([novalidate]) input[name="max_seconds"]', {
+  const rewriter = new HTMLRewriter().on('input[name="max_seconds"]', {
     element(input) {
       inputs.push(Object.fromEntries(input.attributes));
     }
@@ -65,32 +80,36 @@ test('shows the shared Premium gate for an owner without a plan', () => {
   const html = renderVoice({ allowance: { ...allowance, plan: 'free', reason: 'no_plan' }, locked: true, alerts: null });
   expect(html).toContain('aria-label="Give your alerts a voice with Premium"');
   expect(html).toMatch(/class="bb-chip is-pressed"[^>]*>(?:\s|<!--[^>]*-->)*Beta/);
-  expect(html).not.toContain('action="?/save"');
+  expect(html).not.toContain('name="max_seconds"');
 });
 
-test('renders usage, the alert editors and their initial states for a Premium owner', async () => {
+test('renders usage, autosaved settings rows and one alert row per kind with its switch state', async () => {
   const html = renderVoice();
-  const offLabels = { follow: '', sub: '' };
-  const rewriter = new HTMLRewriter();
-  for (const kind of ['follow', 'sub'] as const) {
-    rewriter.on(`section[aria-labelledby="voice-kind-${kind}"] .off-label.visible`, {
-      text(chunk) { offLabels[kind] += chunk.text; }
+  const switches: Record<string, string> = {};
+  const rows: string[] = [];
+  const rewriter = new HTMLRewriter()
+    .on('[role="switch"][aria-label]', {
+      element(control) { switches[control.getAttribute('aria-label') ?? ''] = control.getAttribute('aria-checked') ?? ''; }
+    })
+    .on('ul[aria-labelledby="voice-alerts"] [id^="voice-kind-"]', {
+      element(heading) { rows.push(heading.getAttribute('id') ?? ''); }
     });
-  }
   await rewriter.transform(new Response(html)).text();
 
   expect([
-    '38 min 12 s of 60 min', '21 min 48 s left', 'bb-progress--inset',
-    'name="followTts" value="false"', 'name="subTts" value="true"', 'Plays at 100 bits or more',
+    '38 min 12 s of 60 min', '21 min 48 s left', 'bb-progress--inset', 'Changes save automatically',
     'Max per alert', '120 s'
   ].filter((text) => !html.includes(text))).toEqual([]);
-  expect(offLabels).toEqual({ follow: 'Off', sub: '' });
+  expect(html).not.toContain('Save changes');
+  expect(rows).toEqual(['follow', 'sub', 'gift', 'cheer', 'raid'].map((kind) => `voice-kind-${kind}`));
+  expect(['Follow', 'Subscription'].map((label) => switches[translate('en', 'modules.toggleAria', { label })]))
+    .toEqual(['false', 'true']);
 });
 
-test('renders the shared style picker and fits both alert editor actions', async () => {
+test('renders the shared style picker, the rehearsal and both editor helpers for an alert', async () => {
   const styleValues: string[] = [];
   const helpers: string[] = [];
-  const helperButtons = 'section[aria-labelledby="voice-kind-sub"] .vp-actions.with-extra > button';
+  const helperButtons = '.vp-actions.with-extra > button';
   let fittedLabels = 0;
   const rewriter = new HTMLRewriter()
     .on('.bb-select__fallback select[name="subTtsStyle"] option', {
@@ -102,23 +121,24 @@ test('renders the shared style picker and fits both alert editor actions', async
     .on(`${helperButtons} > bb-fit > [data-fit]`, {
       element() { fittedLabels += 1; }
     });
-  await rewriter.transform(new Response(renderVoice())).text();
-  expect({ styleValues, helpers, fittedLabels }).toEqual({
+  const html = renderEditor();
+  await rewriter.transform(new Response(html)).text();
+  expect({ styleValues, helpers, fittedLabels, rehearsal: html.includes('Read aloud') }).toEqual({
     styleValues: ['warm', 'hype', 'calm', 'playful', 'cozy'],
     helpers: ['dialog', 'Insert a short pause'],
-    fittedLabels: 2
+    fittedLabels: 2,
+    rehearsal: true
   });
 });
 
 test('renders the loaded spoken template as the editable textarea value', async () => {
-  const spoken = translate('fr', 'voice.template.cheer');
-  const config = { ...data.alerts.config, cheerTtsMessage: spoken };
+  const spoken = translate('fr', 'voice.template.sub');
   let value = '';
-  const rewriter = new HTMLRewriter().on('textarea[name="cheerTtsMessage"]', {
+  const rewriter = new HTMLRewriter().on('textarea[name="subTtsMessage"]', {
     text(chunk) { value += chunk.text; }
   });
-  await rewriter.transform(new Response(renderVoice({ alerts: { ...data.alerts, config } }))).text();
-  expect(value).toBe(spoken);
+  await rewriter.transform(new Response(renderEditor({ ...ALERT_VOICE_CONFIG_DEFAULTS, subTtsMessage: spoken }))).text();
+  expect(value.replaceAll('&lt;', '<')).toBe(spoken);
 });
 
 const obsURL = 'https://overlay.itsbagelbot.com/tts#AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';

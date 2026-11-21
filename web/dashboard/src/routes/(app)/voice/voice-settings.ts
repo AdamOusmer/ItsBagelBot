@@ -48,32 +48,64 @@ const alertValidators = new Map<string, FieldValidator>([
     [key, validators[field as keyof ReturnType<typeof alertVoiceKeys>]] as const))
 ]);
 
-function parseAlerts(fields: FormData): { error: string } | { partial: Record<string, string> } {
-  const partial: Record<string, string> = {};
-  for (const key of ALERT_VOICE_CONFIG_KEYS) {
+function maxSecondsError(value: string) {
+  const seconds = unsignedInteger(value);
+  return seconds >= MIN_CLIP_SECONDS && seconds <= MAX_CLIP_SECONDS ? null : 'voice.invalidMaxLength';
+}
+
+const accountValidators = {
+  voice: (value) => isVoice(value) ? null : 'voice.invalidVoice',
+  enabled: validators.enabled,
+  max_seconds: maxSecondsError
+} satisfies Record<string, FieldValidator>;
+
+type AccountKey = keyof typeof accountValidators;
+const ACCOUNT_KEYS = Object.keys(accountValidators) as AccountKey[];
+
+function presentFields(fields: FormData, keys: readonly string[]): Record<string, string> {
+  const present: Record<string, string> = {};
+  for (const key of keys) {
     const value = fields.get(key);
-    if (typeof value !== 'string') return { error: 'serverErrors.invalidInput' };
-    const error = alertValidators.get(key)?.(value);
-    if (error) return { error };
-    partial[key] = value.trim();
+    if (typeof value === 'string') present[key] = value;
   }
-  return { partial };
+  return present;
+}
+
+function firstError(values: Record<string, string>, validatorFor: (key: string) => FieldValidator | undefined) {
+  for (const [key, value] of Object.entries(values)) {
+    const error = validatorFor(key)?.(value);
+    if (error) return error;
+  }
+  return null;
+}
+
+function accountSettings(values: Record<string, string>) {
+  const settings: { voice?: (typeof CLOUD_VOICES)[number]; enabled?: boolean; max_seconds?: number } = {};
+  if (isVoice(values.voice)) settings.voice = values.voice;
+  if ('enabled' in values) settings.enabled = values.enabled === 'true';
+  if ('max_seconds' in values) settings.max_seconds = Number(values.max_seconds);
+  return settings;
+}
+
+function trimmed(values: Record<string, string>) {
+  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value.trim()]));
+}
+
+function validRevision(expectedRev: number | null, hasAlerts: boolean) {
+  if (expectedRev === null) return !hasAlerts;
+  return !Number.isNaN(expectedRev);
 }
 
 export function parseVoiceSave(fields: FormData) {
-  const voice = fields.get('voice');
-  if (!isVoice(voice)) return { error: 'voice.invalidVoice' } as const;
-  const enabled = fields.get('enabled');
-  const expectedRev = unsignedInteger(fields.get('expected_rev'));
-  if (!isSwitch(enabled) || Number.isNaN(expectedRev)) return { error: 'serverErrors.invalidInput' } as const;
-  const seconds = unsignedInteger(fields.get('max_seconds'));
-  if (!(seconds >= MIN_CLIP_SECONDS && seconds <= MAX_CLIP_SECONDS)) return { error: 'voice.invalidMaxLength' } as const;
-  const alerts = parseAlerts(fields);
-  if ('error' in alerts) return alerts;
-  return {
-    error: null,
-    settings: { voice, enabled: enabled === 'true', max_seconds: seconds },
-    expectedRev,
-    partial: alerts.partial
-  } as const;
+  const account = presentFields(fields, ACCOUNT_KEYS);
+  const alerts = presentFields(fields, ALERT_VOICE_CONFIG_KEYS);
+  const hasAlerts = Object.keys(alerts).length > 0;
+  const revision = fields.get('expected_rev');
+  const expectedRev = revision === null ? null : unsignedInteger(revision);
+  const hasFields = hasAlerts || Object.keys(account).length > 0;
+  if (!hasFields || !validRevision(expectedRev, hasAlerts)) return { error: 'serverErrors.invalidInput' } as const;
+  const error = firstError(account, (key) => accountValidators[key as AccountKey])
+    ?? firstError(alerts, (key) => alertValidators.get(key));
+  if (error) return { error } as const;
+  return { error: null, settings: accountSettings(account), expectedRev, partial: trimmed(alerts) } as const;
 }

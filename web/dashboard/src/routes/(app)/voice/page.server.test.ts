@@ -84,6 +84,13 @@ function save(fields: Record<string, string> = {}, session: typeof owner | null 
   } as never);
 }
 
+function savePartial(fields: object) {
+  return actions.save({
+    request: new Request(`${voiceUrl}?/save`, { method: 'POST', body: new URLSearchParams(fields as Record<string, string>) }),
+    locals: { session: owner, locale: 'en' }
+  } as never);
+}
+
 function mockSaveReplies(moduleReply: { conflict?: boolean; rev: number; modules?: unknown[] }) {
   return spyOn(bus, 'rpc').mockResolvedValueOnce(allowance).mockResolvedValueOnce({ modules: [alertRow] })
     .mockResolvedValueOnce(moduleReply);
@@ -105,7 +112,7 @@ test.each(['en', 'fr', 'es', 'de', 'pt-br', 'ru'])('loads and saves spoken templ
     alertVoiceKeys(kind).message, translate(locale, `voice.template.${kind}`)
   ]));
   expect(alerts?.config).toMatchObject({ ...messages, followTtsMessage: row.configs.followTtsMessage, raidTtsMessage: '' });
-  expect(await save(alerts?.config)).toEqual({ ok: true });
+  expect(await save(alerts?.config)).toEqual({ ok: true, rev: 10 });
   expect(rpc).toHaveBeenCalledWith(
     `${SUB.modules}.patch`, expect.objectContaining({ configs: alerts?.config })
   );
@@ -123,7 +130,7 @@ test.each([
     broadcaster_user_id: '95', followMessage: 'must stay as stored', is_enabled: 'true', ttsMinBits: '0'
   };
 
-  expect(await save(fields)).toEqual({ ok: true });
+  expect(await save(fields)).toEqual({ ok: true, rev: 10 });
   expect(rpc.mock.calls).toMatchObject([
     usersRead, modulesRead,
     [`${SUB.modules}.patch`, {
@@ -132,6 +139,57 @@ test.each([
     [`${SUB.projector}.modules.replace`, { user_id: '42', modules: [alertRow] }, 2000],
     [`${SUB.dashboard}.voice_set`, { ...actor, voice, enabled, max_seconds: maxSeconds }, WRITE_TIMEOUT_MS]
   ]);
+});
+
+const settingsWrite = (settings: object): RpcCall => [
+  `${SUB.dashboard}.voice_set`, { ...actor, ...settings }, WRITE_TIMEOUT_MS
+];
+const currentSettings = { voice: 'Puck', enabled: true, max_seconds: 45 };
+
+test.each([
+  { name: 'voice', fields: { voice: 'Charon' }, rev: 9, merged: { voice: 'Charon' } },
+  { name: 'switch', fields: { enabled: 'false', expected_rev: '9' }, rev: 9, merged: { enabled: false } },
+  { name: 'limit', fields: { max_seconds: '60', expected_rev: '7' }, rev: 7, merged: { max_seconds: 60 } }
+])('saves only the $name and keeps the rest of the allowance', async ({ fields, rev, merged }) => {
+  const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce(allowance);
+  if (!('expected_rev' in fields)) rpc.mockResolvedValueOnce({ modules: [alertRow] });
+  rpc.mockResolvedValueOnce({ ok: true });
+
+  expect(await savePartial(fields)).toEqual({ ok: true, rev });
+  expect(rpc.mock.calls.at(-1)).toEqual(settingsWrite({ ...currentSettings, ...merged }));
+  expect(rpc.mock.calls.some(([subject]) => subject === `${SUB.modules}.patch`)).toBe(false);
+});
+
+test('saves only the sent alert keys without touching the allowance', async () => {
+  const rpc = mockSaveReplies({ rev: 10, modules: [alertRow] }).mockResolvedValueOnce({ modules: [alertRow] });
+
+  expect(await savePartial({ ttsMinBits: '100', cheerTtsStyle: 'calm', expected_rev: '9' })).toEqual({ ok: true, rev: 10 });
+  expect(rpc.mock.calls).toMatchObject([
+    usersRead, modulesRead,
+    [`${SUB.modules}.patch`, { expected_rev: 9, configs: { ttsMinBits: '100', cheerTtsStyle: 'calm' } }],
+    [`${SUB.projector}.modules.replace`, { user_id: '42' }, 2000]
+  ]);
+  expect(rpc.mock.calls.some(([subject]) => subject === `${SUB.dashboard}.voice_set`)).toBe(false);
+});
+
+test('writes alerts and settings together when both are sent', async () => {
+  const rpc = mockSaveReplies({ rev: 10, modules: [alertRow] })
+    .mockResolvedValueOnce({ modules: [alertRow] }).mockResolvedValueOnce({ ok: true });
+
+  expect(await savePartial({ ttsLiveOnly: 'true', voice: 'Zephyr', expected_rev: '9' })).toEqual({ ok: true, rev: 10 });
+  expect(rpc.mock.calls.at(-1)).toEqual(settingsWrite({ ...currentSettings, voice: 'Zephyr' }));
+});
+
+test.each([
+  { name: 'an empty body', fields: {} },
+  { name: 'only unknown fields', fields: { actor_id: '97', expected_rev: '9' } },
+  { name: 'alert keys without a revision', fields: { ttsLiveOnly: 'true' } },
+  { name: 'a malformed revision', fields: { voice: 'Kore', expected_rev: 'x' } },
+  { name: 'one bad value among valid ones', fields: { voice: 'Kore', ttsMinBits: '-1', expected_rev: '9' } }
+])('rejects $name before any service request', async ({ fields }) => {
+  const rpc = spyOn(bus, 'rpc');
+  expect(await savePartial(fields)).toMatchObject({ status: 400, data: { error: expect.any(String) } });
+  expect(rpc).not.toHaveBeenCalled();
 });
 
 test('returns a conflict when Chat Alerts changed after the voice page loaded', async () => {

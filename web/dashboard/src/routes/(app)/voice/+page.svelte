@@ -3,36 +3,37 @@
   // Proprietary. No license granted. See LICENSE.md.
 
   import { untrack } from 'svelte';
-  import { enhance, type ActionResult, type SubmitFunction } from '$app/forms';
-  import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
+  import { type SubmitFunction } from '$app/forms';
+  import { beforeNavigate, invalidateAll } from '$app/navigation';
   import { getI18n } from '@bagel/kit/i18n/context';
   import {
-    CLOUD_VOICE_CATALOG, DEFAULT_VOICE, MAX_CLIP_SECONDS, MIN_CLIP_SECONDS,
-    VOICE_ALERT_KINDS, VOICE_CHARS_PER_SECOND, VOICE_GROUPS
+    alertVoiceKeys, CLOUD_VOICE_CATALOG, DEFAULT_VOICE, MAX_CLIP_SECONDS, VOICE_ALERT_KINDS, VOICE_GROUPS,
+    type VoiceAlertKind
   } from '@bagel/kit/voice-plan';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
-  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
-  import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
-  import EditorFooter from '@bagel/ui/svelte/EditorFooter.svelte';
-  import Field from '@bagel/ui/svelte/Field.svelte';
+  import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
+  import DeckList from '@bagel/ui/svelte/DeckList.svelte';
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
-  import Input from '@bagel/ui/svelte/Input.svelte';
+  import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
-  import Select from '@bagel/ui/svelte/Select.svelte';
-  import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
+  import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import PageNotice from '#lib/components/shared/PageNotice.svelte';
   import PremiumGate from '#lib/components/shared/PremiumGate.svelte';
-  import VoiceAlertCard from './VoiceAlertCard.svelte';
+  import { VoiceAutosave } from './voice-autosave.svelte';
+  import VoiceAlertEditor from './VoiceAlertEditor.svelte';
+  import VoiceAlertRow from './VoiceAlertRow.svelte';
   import VoiceOverlayCard from './VoiceOverlayCard.svelte';
+  import VoiceSettingsCard from './VoiceSettingsCard.svelte';
   import VoiceUsageCard from './VoiceUsageCard.svelte';
   import type { ActionData, PageData } from './$types';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
-  const { t, locale } = getI18n();
-  const numbers = new Intl.NumberFormat(locale);
+  const { t } = getI18n();
   const groups = ['energetic', 'warm', 'calm', 'authoritative'] as const;
   const options = groups.flatMap((group) => CLOUD_VOICE_CATALOG
     .filter(([, character]) => VOICE_GROUPS[character] === group)
@@ -44,107 +45,63 @@
       searchText: character
     })));
 
-  type Draft = {
-    enabled: boolean;
-    voice: string;
-    maxSeconds: number | string | null | undefined;
-    config: Record<string, string>;
-    revision: number;
-  };
   const allowance = $derived(data.readOnly ? null : data.allowance);
-  const loaded: Draft = $derived({
-    enabled: allowance?.enabled ?? false,
-    voice: allowance?.voice || DEFAULT_VOICE,
-    maxSeconds: allowance?.max_seconds ?? MAX_CLIP_SECONDS,
-    config: data.alerts?.config ?? {},
-    revision: data.alerts?.revision ?? 0
-  });
-  const fingerprint = (settings: Draft) => JSON.stringify(settings);
 
-  let draft = $state<Draft>(untrack(() => ({ ...loaded, config: { ...loaded.config } })));
-  let baseline = $state(untrack(() => fingerprint(loaded)));
-  let resetKey = $state(0);
-  let pending = $state<'save' | 'rotateOverlay' | 'refresh' | null>(null);
+  function loadedValues(): Record<string, string> {
+    return {
+      ...data.alerts?.config,
+      enabled: String(allowance?.enabled ?? false),
+      voice: allowance?.voice || DEFAULT_VOICE,
+      max_seconds: String(allowance?.max_seconds ?? MAX_CLIP_SECONDS)
+    };
+  }
+
+  let values = $state(untrack(loadedValues));
+  let selected = $state<VoiceAlertKind | null>(null);
+  let pending = $state<'rotateOverlay' | null>(null);
   let overlayUrl = $state(untrack(() => form?.overlayUrl));
   let overlayError = $state(untrack(() => form?.overlayError));
-  let conflict = $state(untrack(() => form?.conflict === true));
-  let saveError = $state(untrack(() => form?.error));
-  let saved = $state(untrack(() => form?.ok === true));
-  const dirty = $derived(fingerprint(draft) !== baseline);
-  const saving = $derived(pending === 'save');
-  const status = $derived.by(() => {
-    if (saving) return 'saving';
-    if (conflict) return 'conflict';
-    if (saveError) return 'error';
-    return saved && !dirty ? 'saved' : 'idle';
-  });
-  const errorLabel = $derived(conflict ? t('voice.conflict') : saveError);
-  const overrides = $derived([{ value: '', label: t('voice.useDefault', { voice: draft.voice }) }, ...options]);
-  const minBits = $derived(Number(draft.config.ttsMinBits ?? 0));
-  const approxChars = $derived(numbers.format((Number(draft.maxSeconds) || 0) * VOICE_CHARS_PER_SECOND));
 
-  function adopt(settings: Draft) {
-    draft = { ...settings, config: { ...settings.config } };
-    baseline = fingerprint(settings);
-    resetKey += 1;
-  }
-
-  $effect(() => {
-    const settings = loaded;
-    untrack(() => {
-      if (dirty || pending) return;
-      if (fingerprint(settings) === baseline) return;
-      adopt(settings);
-    });
+  const autosave = new VoiceAutosave({
+    revision: untrack(() => data.alerts?.revision ?? 0),
+    onConflict: async () => {
+      await invalidateAll();
+      values = loadedValues();
+      autosave.reset(data.alerts?.revision ?? 0);
+    },
+    text: { failed: () => t('voice.saveFailed'), conflict: () => t('voice.conflict') }
   });
 
-  const discard = createDiscardGuard(() => dirty);
+  const overrides = $derived([{ value: '', label: t('voice.useDefault', { voice: values.voice }) }, ...options]);
 
-  async function resetDraft() {
-    if (pending) return;
-    pending = 'refresh';
-    try {
-      if (conflict || draft.revision !== loaded.revision) await invalidateAll();
-      adopt(loaded);
-      conflict = false;
-      saveError = undefined;
-      saved = false;
-    } finally {
-      pending = null;
-    }
+  async function change(key: string, value: string) {
+    const before = values[key] ?? '';
+    if (value === before) return;
+    values[key] = value;
+    if (await autosave.save(key, { [key]: value }) === 'failed') values[key] = before;
   }
 
-  beforeNavigate(({ cancel, to, willUnload }) => {
-    if (!dirty) return;
-    cancel();
-    if (willUnload || !to) return;
-    discard.guard(() => {
-      adopt(loaded);
-      void goto(to.url);
-    });
-  });
-
-  function applySaveResult(result: ActionResult) {
-    const failure = result.type === 'failure' ? result.data : undefined;
-    saved = result.type === 'success' && result.data?.ok === true;
-    conflict = failure?.conflict === true;
-    saveError = typeof failure?.error === 'string' ? failure.error : undefined;
-    if (typeof failure?.revision === 'number') draft.revision = failure.revision;
+  function typeMessage(key: string, value: string) {
+    values[key] = value;
+    autosave.schedule(key, { [key]: value });
   }
 
-  const submitSave: SubmitFunction = ({ cancel }) => {
-    if (pending || conflict) return cancel();
-    pending = 'save';
-    return async ({ update, result }) => {
-      try {
-        applySaveResult(result);
-        await update({ reset: false, invalidateAll: saved });
-        if (saved) adopt(loaded);
-      } finally {
-        pending = null;
-      }
-    };
-  };
+  function alertStatus(kind: VoiceAlertKind): SaveState {
+    const states = Object.values(alertVoiceKeys(kind)).map((key) => autosave.status[key] ?? 'idle');
+    return (['saving', 'error', 'saved'] as const).find((state) => states.includes(state)) ?? 'idle';
+  }
+
+  function openAlert(kind: VoiceAlertKind) {
+    void autosave.flush();
+    selected = selected === kind ? null : kind;
+  }
+
+  function closeAlert() {
+    void autosave.flush();
+    selected = null;
+  }
+
+  beforeNavigate(() => void autosave.flush());
 
   const submitOverlay: SubmitFunction = ({ cancel }) => {
     if (pending) return cancel();
@@ -199,106 +156,67 @@
         </div>
       </Card>
     {:else}
-      <div class="paths">
+      <div class="stack">
         <VoiceUsageCard {allowance} />
         {#if allowance.limit_tokens > 0}
           <VoiceOverlayCard configured={!!overlayUrl || allowance.overlay_configured === true} url={overlayUrl}
             error={overlayError} busy={pending === 'rotateOverlay'} disabled={pending !== null} submit={submitOverlay} />
         {/if}
-      </div>
 
-      {#if data.alerts}
-        <form class="settings" method="POST" action="?/save" use:enhance={submitSave} aria-busy={saving}>
-          <div class="settings" inert={saving || pending === 'refresh'}>
-            <input type="hidden" name="expected_rev" value={draft.revision} />
-            <Card as="section" aria-labelledby="voice-settings">
-              <div class="global">
-                <Heading level={6} as="h2" id="voice-settings">
-                  <bb-fit><span data-fit="">{t('voice.settingsTitle')}</span></bb-fit>
+        {#if data.alerts}
+          <VoiceSettingsCard {values} status={autosave.status} {options} onChange={change} />
+
+          <DeckLayout inspecting={selected !== null}>
+            <DeckList>
+              <div class="section-head">
+                <Heading level={6} as="h2" variant="eyebrow" id="voice-alerts">
+                  <bb-fit><span data-fit="">{t('voice.alertsTitle')}</span></bb-fit>
                 </Heading>
-                <SwitchRow control="end" fitCopy bind:checked={draft.enabled}
-                  label={t('voice.enable')} hint={t('voice.fallback')} hintId="voice-fallback" />
-                <input type="hidden" name="enabled" value={String(draft.enabled)} />
-                <div class="default-voice">
-                  <Field label={t('voice.choose')} fitCopy>
-                    <Select name="voice" label={t('voice.choose')} bind:value={draft.voice} {options} searchable required fill />
-                  </Field>
-                </div>
-                <SwitchRow control="end" fitCopy checked={draft.config.ttsLiveOnly === 'true'} label={t('voice.liveOnly')}
-                  onCheckedChange={(checked) => (draft.config.ttsLiveOnly = String(checked))} />
-                <input type="hidden" name="ttsLiveOnly" value={draft.config.ttsLiveOnly} />
-                <SwitchRow control="end" fitCopy checked={draft.config.ttsReadMessages === 'true'} label={t('voice.readMessages')}
-                  hint={t('voice.readMessagesHint')} hintId="voice-read-messages"
-                  onCheckedChange={(checked) => (draft.config.ttsReadMessages = String(checked))} />
-                <input type="hidden" name="ttsReadMessages" value={draft.config.ttsReadMessages} />
-                <div class="limits">
-                  <Field label={t('voice.minBits')} fitCopy>
-                    <Input name="ttsMinBits" type="number" min={0} max={Number.MAX_SAFE_INTEGER} step={1}
-                      value={draft.config.ttsMinBits}
-                      oninput={(event) => (draft.config.ttsMinBits = event.currentTarget.value)} required fill />
-                  </Field>
-                  <Field label={t('voice.maxLength')} fitCopy>
-                    <Input name="max_seconds" type="number" min={MIN_CLIP_SECONDS} max={MAX_CLIP_SECONDS} step={1}
-                      bind:value={draft.maxSeconds} aria-describedby="voice-approx-length" required fill />
-                  </Field>
-                  <div class="length-hint" id="voice-approx-length">
-                    <Text as="div" size="sm" tone="muted">
-                      <bb-fit><span data-fit="">{t('voice.maxLengthHint', { chars: approxChars })}</span></bb-fit>
-                    </Text>
-                  </div>
-                </div>
               </div>
-            </Card>
-            <section class="alert-section" aria-labelledby="voice-alerts">
-              <Heading level={6} as="h2" id="voice-alerts">
-                <bb-fit><span data-fit="">{t('voice.alertsTitle')}</span></bb-fit>
-              </Heading>
-              <div class="alert-grid">
-                {#each VOICE_ALERT_KINDS as kind (kind)}
-                  <VoiceAlertCard {kind} bind:config={draft.config} options={overrides} {minBits} {resetKey} />
+              <Divider flush />
+              <ul class="list" aria-labelledby="voice-alerts">
+                {#each VOICE_ALERT_KINDS as kind, i (kind)}
+                  {@const keys = alertVoiceKeys(kind)}
+                  <li>
+                    <VoiceAlertRow {kind} index={i + 1} message={values[keys.message] ?? ''}
+                      enabled={values[keys.enabled] === 'true'} status={alertStatus(kind)} expanded={selected === kind}
+                      onExpand={() => openAlert(kind)} onToggle={(checked) => change(keys.enabled, String(checked))} />
+                  </li>
                 {/each}
-              </div>
-            </section>
-          </div>
-          <EditorFooter class="voice-footer" {dirty} {status} canSave={dirty && !pending && !conflict}
-            {errorLabel} title={errorLabel} savedLabel={t('voice.saved')} onCancel={() => discard.guard(() => void resetDraft())} />
-        </form>
-      {:else}
-        <div class="settings"><PageNotice tone="warning">{t('voice.unavailable')}</PageNotice></div>
-      {/if}
+              </ul>
+            </DeckList>
+
+            {#if selected}
+              <InspectorSurface open title={t(`voice.kind.${selected}`)} controls="voice-editor"
+                closeLabel={t('modules.closeEditor')} onClose={closeAlert}>
+                <Scroller fill padding="16px" smooth>
+                  {#key selected}
+                    <VoiceAlertEditor kind={selected} {values} options={overrides} status={autosave.status}
+                      onChange={change} onMessage={typeMessage} onFlush={() => void autosave.flush()} />
+                  {/key}
+                </Scroller>
+              </InspectorSurface>
+            {/if}
+          </DeckLayout>
+        {:else}
+          <PageNotice tone="warning">{t('voice.unavailable')}</PageNotice>
+        {/if}
+      </div>
     {/if}
   </section>
-
-  <ConfirmDialog open={discard.open} title={t('modules.discardTitle')} body={t('modules.discardBody')}
-    confirmLabel={t('modules.discard')} cancelLabel={t('modules.keepEditing')}
-    onCancel={discard.cancel} onConfirm={discard.confirm} tone="danger" />
 {/if}
 
 <style>
   .page-title { display: flex; align-items: center; gap: var(--bb-space-3); white-space: nowrap; }
   .page-title-copy { min-inline-size: 0; }
-  .paths, .settings, .alert-grid, .global, .alert-section, .limits, .status-head {
+  .stack, .status-head {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--bb-space-4);
   }
-  .default-voice { inline-size: min(100%, 28rem); }
-  .settings { margin-block-start: var(--bb-space-4); }
-  .settings > .settings { margin-block-start: 0; }
-  .global, .alert-section, .limits, .status-head { gap: var(--bb-space-3); }
-  .alert-grid { grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); }
-  .length-hint { block-size: 1.25rem; margin-block-start: calc(-1 * var(--bb-space-1)); }
-  .status-head { grid-template-columns: minmax(0, 1fr) minmax(0, 48%); align-items: center; }
+  .status-head { grid-template-columns: minmax(0, 1fr) minmax(0, 48%); align-items: center; gap: var(--bb-space-3); }
   .status-tag { justify-self: end; min-inline-size: 0; max-inline-size: 100%; }
   .status-copy { block-size: 2.75rem; min-inline-size: 0; align-content: center; }
-  :global(.voice-footer) { z-index: 2; }
-
-  @media (min-width: 600px) {
-    .limits { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .length-hint { grid-column: 2; }
-  }
-
-  @media (min-width: 1080px) {
-    .paths { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
-  }
+  .section-head { display: flex; align-items: center; gap: 12px; padding: 12px 18px; }
+  .list { list-style: none; margin: 0; padding: 0; }
 </style>
