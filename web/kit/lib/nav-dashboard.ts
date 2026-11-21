@@ -9,7 +9,7 @@ import { navGroups, navItems, resolveSection, type SectionDef } from './nav-core
 export const GRANTABLE_SECTIONS = ['commands', 'modules', 'channelpoints', 'billing'] as const;
 export type GrantSection = (typeof GRANTABLE_SECTIONS)[number];
 
-export type SectionId = 'overview' | 'commands' | 'flows' | 'modules' | 'giveaways' | 'songqueue' | 'voice' | 'billing' | 'settings';
+export type SectionId = 'overview' | 'commands' | 'flows' | 'modules' | 'songqueue' | 'voice' | 'billing' | 'settings';
 
 export interface DashboardSectionDef extends SectionDef {
   id: SectionId;
@@ -18,7 +18,6 @@ export interface DashboardSectionDef extends SectionDef {
     | 'nav.commands'
     | 'nav.flows'
     | 'nav.modules'
-    | 'nav.giveaways'
     | 'nav.songqueue'
     | 'nav.voice'
     | 'nav.billing'
@@ -65,15 +64,7 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     labelKey: 'nav.modules',
     icon: 'modules',
     href: '/modules',
-    match: ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/automations', '/loyalty'],
-    grant: 'modules'
-  },
-  {
-    id: 'giveaways',
-    labelKey: 'nav.giveaways',
-    icon: 'gamepad',
-    href: '/giveaways',
-    match: ['/giveaways'],
+    match: ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/automations', '/loyalty', '/giveaways'],
     grant: 'modules'
   },
   {

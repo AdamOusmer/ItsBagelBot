@@ -22,8 +22,7 @@ describe('nav registry', () => {
     ['/', 'overview'],
     ['/commands', 'commands'],
     ['/commands/new', 'commands'],
-    ...['modules', 'counters', 'quotes', 'govee', 'channelpoints', 'timers', 'loyalty'].map((path) => [`/${path}`, 'modules']),
-    ['/giveaways', 'giveaways'],
+    ...['modules', 'counters', 'quotes', 'govee', 'channelpoints', 'timers', 'loyalty', 'giveaways'].map((path) => [`/${path}`, 'modules']),
     ['/songqueue', 'songqueue'],
     ['/voice', 'voice'],
     ['/billing', 'billing'],
@@ -40,7 +39,6 @@ describe('nav registry', () => {
       '/commands',
       '/flows',
       '/modules',
-      '/giveaways',
       '/songqueue',
       '/voice',
       '/billing',
@@ -80,7 +78,6 @@ describe('nav registry', () => {
       'en:nav.commands',
       'en:nav.flows',
       'en:nav.modules',
-      'en:nav.giveaways',
       'en:nav.songqueue',
       'en:nav.voice',
       'en:nav.billing',
@@ -99,7 +96,7 @@ describe('nav registry', () => {
       sections: [...GRANTABLE_SECTIONS],
       section: 'modules'
     });
-    expect(full.map((i) => i.href)).toEqual(['/commands', '/modules', '/giveaways', '/songqueue', '/billing']);
+    expect(full.map((i) => i.href)).toEqual(['/commands', '/modules', '/songqueue', '/billing']);
     expect(full.filter((i) => i.current).map((i) => i.href)).toEqual(['/modules']);
   });
 
