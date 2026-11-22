@@ -33,6 +33,12 @@ defmodule ControlsGateway.RuntimeConfigTest do
     assert_raise RuntimeError, ~r/production requires NATS_JWT/, fn -> read(:prod) end
   end
 
+  test "the sandbox origin must be a bare origin" do
+    System.put_env("OVERLAY_SANDBOX_ORIGIN", "https://widgets.example.test/path")
+    on_exit(fn -> System.delete_env("OVERLAY_SANDBOX_ORIGIN") end)
+    assert_raise RuntimeError, ~r/OVERLAY_SANDBOX_ORIGIN/, fn -> read(:test) end
+  end
+
   test "half-set NATS credentials are refused in every environment" do
     System.put_env("NATS_JWT", "jwt-without-seed")
     assert_raise RuntimeError, ~r/must both be set/, fn -> read(:test) end

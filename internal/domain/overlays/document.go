@@ -82,6 +82,7 @@ type Asset struct {
 	H          int       `json:"h"`
 	DurationMS int       `json:"duration_ms"`
 	SHA256     string    `json:"sha256"`
+	URL        string    `json:"url"`
 }
 
 func Parse(data []byte) (Document, error) {

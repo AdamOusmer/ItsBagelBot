@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { OVERLAY_CDN_PREFIX } from './overlay-cdn';
 import { poweredConfigError, type PoweredConfig } from './overlays';
 
 export const OVERLAY_VERSION = 2;
@@ -84,6 +85,7 @@ export interface OverlayAsset {
   h: number;
   duration_ms: number;
   sha256: string;
+  url: string;
 }
 
 export interface OverlayWidget {
@@ -143,7 +145,7 @@ const LEGACY_MEDIA = /^\/media\/[a-f0-9]{64}\.(?:png|jpe?g|gif|webp|mp4|webm|mp3
 
 const DOCUMENT_KEYS = ['version', 'kind', 'id', 'name', 'width', 'height', 'rev', 'template', 'config', 'widgets', 'assets'];
 const WIDGET_KEYS = ['id', 'name', 'kind', 'x', 'y', 'w', 'h', 'rotation', 'opacity', 'hidden', 'locked', 'settings'];
-const ASSET_KEYS = ['type', 'bytes', 'w', 'h', 'duration_ms', 'sha256'];
+const ASSET_KEYS = ['type', 'bytes', 'w', 'h', 'duration_ms', 'sha256', 'url'];
 const CONFIG_KEYS = ['every_minutes', 'show_seconds', 'directions', 'align'];
 const ZERO: Record<Primitive, string | number | boolean> = { string: '', number: 0, boolean: false };
 
@@ -269,7 +271,8 @@ function decodeAsset(value: unknown, scope: Scope): OverlayAsset {
     w: reader.integer('w'),
     h: reader.integer('h'),
     duration_ms: reader.integer('duration_ms'),
-    sha256: reader.text('sha256')
+    sha256: reader.text('sha256'),
+    url: reader.text('url')
   };
 }
 
@@ -360,7 +363,7 @@ function hasSizes(asset: OverlayAsset): boolean {
 }
 
 function wellFormed(asset: OverlayAsset): boolean {
-  return HASH_PATTERN.test(asset.sha256) && hasSizes(asset);
+  return HASH_PATTERN.test(asset.sha256) && asset.url.startsWith(OVERLAY_CDN_PREFIX) && hasSizes(asset);
 }
 
 function checkAsset(asset: OverlayAsset, scope: Scope): void {

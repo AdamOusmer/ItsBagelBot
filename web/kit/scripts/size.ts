@@ -40,6 +40,13 @@ const ENTRIES: {
              globalThis.x = parseStreamElements;`,
   },
   {
+    name: "overlay runtime page",
+    budget: 12250,
+    external: [],
+    source: `import { OverlayRuntime } from "../../overlay-runtime";
+             globalThis.x = OverlayRuntime;`,
+  },
+  {
     name: "streamlabs desktop parser",
     budget: 10750,
     external: ["sql.js", "node:module"],
