@@ -20,6 +20,8 @@ type stored struct {
 	body []byte
 }
 
+type ObjectKey = string
+
 type Memory struct {
 	mu      sync.Mutex
 	objects map[string]stored
@@ -46,7 +48,7 @@ func (m *Memory) Put(_ context.Context, obj objectstore.Object) error {
 	return nil
 }
 
-func (m *Memory) Get(_ context.Context, key string) (io.ReadCloser, objectstore.Info, error) {
+func (m *Memory) Get(_ context.Context, key ObjectKey) (io.ReadCloser, objectstore.Info, error) {
 	o, err := m.lookup(key)
 	if err != nil {
 		return nil, objectstore.Info{}, err
@@ -54,19 +56,19 @@ func (m *Memory) Get(_ context.Context, key string) (io.ReadCloser, objectstore.
 	return io.NopCloser(bytes.NewReader(o.body)), o.info, nil
 }
 
-func (m *Memory) Head(_ context.Context, key string) (objectstore.Info, error) {
+func (m *Memory) Head(_ context.Context, key ObjectKey) (objectstore.Info, error) {
 	o, err := m.lookup(key)
 	return o.info, err
 }
 
-func (m *Memory) Delete(_ context.Context, key string) error {
+func (m *Memory) Delete(_ context.Context, key ObjectKey) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.objects, key)
 	return nil
 }
 
-func (m *Memory) DeletePrefix(_ context.Context, prefix string) error {
+func (m *Memory) DeletePrefix(_ context.Context, prefix ObjectKey) error {
 	if prefix == "" {
 		return fmt.Errorf("objectstoretest: delete prefix must not be empty")
 	}
@@ -80,7 +82,7 @@ func (m *Memory) DeletePrefix(_ context.Context, prefix string) error {
 	return nil
 }
 
-func (m *Memory) Copy(_ context.Context, src, dst string) error {
+func (m *Memory) Copy(_ context.Context, src, dst ObjectKey) error {
 	o, err := m.lookup(src)
 	if err != nil {
 		return err
@@ -103,7 +105,7 @@ func (m *Memory) Keys() []string {
 	return keys
 }
 
-func (m *Memory) lookup(key string) (stored, error) {
+func (m *Memory) lookup(key ObjectKey) (stored, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	o, ok := m.objects[key]
