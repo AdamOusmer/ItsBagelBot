@@ -4,6 +4,7 @@ package ent
 
 import (
 	"ItsBagelBot/app/db/overlays/ent/poweredoverlay"
+	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
 	"context"
 	"errors"
 	"fmt"
@@ -74,6 +75,7 @@ func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			poweredoverlay.Table: poweredoverlay.ValidColumn,
+			ttsoverlay.Table:     ttsoverlay.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

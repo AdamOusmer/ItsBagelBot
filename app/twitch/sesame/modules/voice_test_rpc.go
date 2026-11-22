@@ -17,7 +17,6 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/rpc"
 	sesamerpc "ItsBagelBot/internal/domain/rpc/sesame"
-	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/ratelimit"
@@ -71,21 +70,21 @@ func (h *voiceTestRPC) trySend(ctx context.Context, id uint64, displayName strin
 	if status := testAllowanceStatus(allowance); status != "" {
 		return sesamerpc.VoiceTestReply{Status: status}, nil
 	}
-	if err := h.publish(ctx, id, testSpeechSettings{speaker: displayName, voice: allowance.Voice}); err != nil {
+	if err := h.publish(ctx, id, testSpeechSettings{speaker: displayName, voice: allowance.Settings.Voice}); err != nil {
 		return sesamerpc.VoiceTestReply{}, err
 	}
 	return sesamerpc.VoiceTestReply{Status: sesamerpc.VoiceTestQueued}, nil
 }
 
-func testAllowanceStatus(reply usersrpc.VoiceCheckReply) sesamerpc.VoiceTestStatus {
+func testAllowanceStatus(access voice.Access) sesamerpc.VoiceTestStatus {
 	switch {
-	case reply.Reason != "ok":
+	case access.Allowance.Reason != "ok":
 		return sesamerpc.VoiceTestDisabled
-	case !reply.OverlayConfigured:
+	case !access.Configured:
 		return sesamerpc.VoiceTestNoLink
-	case reply.RemainingTokens < voiceplan.TokensPerSecond:
+	case access.Allowance.RemainingTokens < voiceplan.TokensPerSecond:
 		return sesamerpc.VoiceTestNoMinutes
-	case !reply.Allowed:
+	case !access.Allowed():
 		return sesamerpc.VoiceTestDisabled
 	default:
 		return ""

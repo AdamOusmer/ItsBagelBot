@@ -6,11 +6,11 @@ defmodule ControlsGateway.Tts.Nats do
   alias ControlsGateway.Tts.Session
   alias Platform.Nats.Planes
 
-  @resolve "rpc.internal.users.voice.overlay.resolve"
-  @check "rpc.internal.users.voice.overlay.check"
+  @resolve "rpc.internal.projector.overlays.tts.resolve"
+  @check "rpc.internal.projector.overlays.tts.check"
 
   def resolve(hash) do
-    case request(&Planes.request/1, @resolve, %{token_hash: hash}) do
+    case OverlayRequest.request(&Planes.request/1, @resolve, %{token_hash: hash}) do
       {:ok, %{"code" => "not_found"}} -> :not_found
       {:ok, %{"code" => code}} when code not in [nil, ""] -> :unavailable
       {:ok, %{"user_id" => id, "generation" => generation}} -> identity(id, generation)

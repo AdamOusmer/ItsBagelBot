@@ -150,6 +150,28 @@ func TestArmAllSkipsCappedAndEndedTimersButArmsAPlainOne(t *testing.T) {
 	assert.True(t, f.scheduleKeyExists(t, "plain"), "ArmAll must still arm an ungated, unstopped timer")
 }
 
+func TestArmAllAddsTheTimerRandomExtra(t *testing.T) {
+	blob := []byte(`{"timers":[{"id":"plain","message":"hi","intervalSeconds":60,"enabled":true,"jitterSeconds":3600}]}`)
+	proj := fakeReader{modules: map[string]projection.ModuleView{
+		timersModuleName: {Name: timersModuleName, IsEnabled: true, Configs: blob},
+	}}
+	f := newGateStoreFixture(t, proj)
+	ctx := context.Background()
+	key := f.ref("plain").scheduleKey()
+
+	var longest int64
+	for range 5 {
+		f.store.ArmAll(ctx, f.bid)
+		ttl, err := f.store.client.Do(ctx, f.store.client.B().Ttl().Key(key).Build()).AsInt64()
+		require.NoError(t, err)
+		require.NoError(t, pkg_valkey.DelKeys(ctx, f.store.client, key))
+		assert.GreaterOrEqual(t, ttl, int64(60))
+		longest = max(longest, ttl)
+	}
+	assert.Greater(t, longest, int64(60+timerFirstFireJitter.Seconds()), "jitterSeconds must reach the schedule")
+	assert.LessOrEqual(t, longest, int64(60+timerFirstFireJitter.Seconds()+maxJitterSeconds))
+}
+
 func TestTimerTickGateIgnoresLinesOlderThanTheWindow(t *testing.T) {
 	f := newGateStoreFixture(t, fakeReader{})
 	ctx := context.Background()

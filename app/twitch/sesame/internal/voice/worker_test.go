@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/internal/voice"
 	"ItsBagelBot/internal/domain/rpc"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/bus"
@@ -42,6 +43,7 @@ var fakeWAV = []byte("RIFF\x28\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x
 
 type voiceRPCs struct {
 	allowance usersrpc.VoiceCheckReply
+	settings  overlaysrpc.TtsSettingsReply
 	loseReply bool
 	failure   *gossiprpc.TTSSynthesizeReply
 	synthesis chan synthesisAttempt
@@ -62,6 +64,7 @@ func (r testVoiceRig) serve(t *testing.T, fake *voiceRPCs) {
 	t.Helper()
 	fake.synthesis = make(chan synthesisAttempt, 4)
 	fakeServe(t, r.nc, usersrpc.VoiceCheckSubject, fake.check)
+	fakeServe(t, r.nc, overlaysrpc.TtsSettingsSubject, fake.readSettings)
 	fakeServe(t, r.nc, usersrpc.VoiceRecordSubject, fake.record)
 	fakeServe(t, r.nc, gossipSubject, fake.synthesize)
 }
@@ -70,6 +73,11 @@ func fakeServe[Req, Resp any](t *testing.T, nc *nats.Conn, subject string, handl
 	t.Helper()
 	err := bus.QueueSubscribeJSONConcurrent(nc, bus.RPCSubscription{Subject: subject, QueueGroup: "fake-voice"}, time.Second, nil, zap.NewNop(), handle)
 	require.NoError(t, err)
+}
+
+func (f *voiceRPCs) readSettings(ctx context.Context, _ overlaysrpc.TtsUserRequest) overlaysrpc.TtsSettingsReply {
+	f.captureTrace(ctx, overlaysrpc.TtsSettingsSubject)
+	return f.settings
 }
 
 func (f *voiceRPCs) check(ctx context.Context, _ usersrpc.VoiceCheckRequest) usersrpc.VoiceCheckReply {
@@ -117,9 +125,10 @@ func (f *voiceRPCs) assertTraces(t *testing.T, traceID string) {
 		return true
 	})
 	assert.Equal(t, map[voiceRPCTrace]bool{
-		{subject: gossipSubject, id: traceID}:               true,
-		{subject: usersrpc.VoiceCheckSubject, id: traceID}:  true,
-		{subject: usersrpc.VoiceRecordSubject, id: traceID}: true,
+		{subject: overlaysrpc.TtsSettingsSubject, id: traceID}: true,
+		{subject: gossipSubject, id: traceID}:                  true,
+		{subject: usersrpc.VoiceCheckSubject, id: traceID}:     true,
+		{subject: usersrpc.VoiceRecordSubject, id: traceID}:    true,
 	}, got)
 }
 
@@ -232,7 +241,7 @@ func tracedVoiceContext(t *testing.T) context.Context {
 func (tc workerCase) run(t *testing.T, ctx context.Context) {
 	rig := newTestVoiceRig(t)
 	fakes := &voiceRPCs{
-		allowance: checkReply(tc),
+		allowance: checkReply(tc), settings: settingsReply(tc),
 		loseReply: tc.retry,
 		failure:   tc.failure,
 	}
@@ -285,12 +294,17 @@ func (tc workerCase) assertDrop(t *testing.T, logs *observer.ObservedLogs, job v
 		[]any{fields["reason"], fields["broadcaster_id"], fields["event_id"], fields["trace_id"]})
 }
 
+func settingsReply(tc workerCase) overlaysrpc.TtsSettingsReply {
+	return overlaysrpc.TtsSettingsReply{Configured: true,
+		Settings: overlaysrpc.TtsSettings{Enabled: tc.allowed, Voice: "Puck", MaxSeconds: tc.max},
+	}
+}
+
 func checkReply(tc workerCase) usersrpc.VoiceCheckReply {
 	return usersrpc.VoiceCheckReply{
 		Allowed: tc.allowed,
 		VoiceReply: usersrpc.VoiceReply{VoiceAllowance: usersrpc.VoiceAllowance{
-			Enabled: tc.allowed, OverlayConfigured: tc.allowed, MaxSeconds: tc.max,
-			RemainingTokens: tc.remaining, Voice: "Puck",
+			RemainingTokens: tc.remaining,
 		}},
 	}
 }
@@ -317,7 +331,11 @@ func (tc workerCase) wantSynthesisCalls() int {
 func (tc workerCase) assertSynthesis(t *testing.T, f *voiceRPCs, job voiceplan.AlertJob) {
 	t.Helper()
 	calls := tc.wantSynthesisCalls()
-	assert.EqualValues(t, max(1, calls), f.checks.Load())
+	checks := 0
+	if tc.allowed {
+		checks = max(1, calls)
+	}
+	assert.EqualValues(t, checks, f.checks.Load())
 	require.Len(t, f.synthesis, calls)
 	if tc.wantRunes == 0 {
 		return

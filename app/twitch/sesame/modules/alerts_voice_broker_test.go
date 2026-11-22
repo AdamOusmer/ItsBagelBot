@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/internal/voice"
 	"ItsBagelBot/internal/domain/event/lane"
+	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/internal/projection"
@@ -93,6 +94,8 @@ func openAlertTestStream(t *testing.T, log *zap.Logger) (voice.Publisher, jetstr
 	nc := bustest.JetStream(t)
 	sub := bus.RPCSubscription{Subject: usersrpc.VoiceCheckSubject, QueueGroup: "test-voice"}
 	require.NoError(t, bus.QueueSubscribeJSONConcurrent(nc, sub, time.Second, nil, log, allowTestVoice))
+	sub.Subject = overlaysrpc.TtsSettingsSubject
+	require.NoError(t, bus.QueueSubscribeJSONConcurrent(nc, sub, time.Second, nil, log, allowTestVoiceSettings))
 	jobs, err := bus.OpenTTSJobs(ctx, nc, 1)
 	require.NoError(t, err)
 	js, err := jetstream.NewWithDomain(nc, bus.JSDomain())
@@ -103,7 +106,11 @@ func openAlertTestStream(t *testing.T, log *zap.Logger) (voice.Publisher, jetstr
 }
 
 func allowTestVoice(_ context.Context, req usersrpc.VoiceCheckRequest) usersrpc.VoiceCheckReply {
-	return usersrpc.VoiceCheckReply{Allowed: req.UserID == "2"}
+	return usersrpc.VoiceCheckReply{Allowed: req.UserID == "2", VoiceReply: usersrpc.VoiceReply{VoiceAllowance: usersrpc.VoiceAllowance{RemainingTokens: 100}}}
+}
+
+func allowTestVoiceSettings(_ context.Context, req overlaysrpc.TtsUserRequest) overlaysrpc.TtsSettingsReply {
+	return overlaysrpc.TtsSettingsReply{Configured: req.UserID == "2", Settings: overlaysrpc.DefaultTtsSettings()}
 }
 
 func (tc alertBrokerCase) assertJob(t *testing.T, stream jetstream.Stream) {

@@ -19,7 +19,7 @@ looks and the way past it is not a broker setting.
 and three replicas each. The `controls_gateway_rpc` reader can create filtered
 ephemeral consumers on `OVERLAY_TTS` and read messages from `OBJ_TTS_CLIPS`.
 
-`USERS_RPC` restricts the overlay resolve and check RPCs, their node-specific
+`PROJECTOR_RPC` restricts the overlay resolve and check RPCs, their node-specific
 subjects, and `controls.tts.revoked.*` to this account. The committed resolver
 preload needs the signed claims and import activations for these grants.
 `cmd/natscreds` maps the reader role to the `controls-gateway` Doppler project.

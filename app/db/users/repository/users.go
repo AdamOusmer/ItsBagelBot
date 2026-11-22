@@ -25,6 +25,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/batch"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
@@ -335,13 +336,8 @@ func (r *Users) SetActiveNow(ctx context.Context, id uint64, active bool) error 
 
 // Commit bans and revoke desktop grants even if the revocation publish fails.
 func (r *Users) SetBanned(ctx context.Context, id uint64, banned bool) error {
-	apply := func(u *ent.UserUpdateOne) {
-		u.SetBanned(banned)
-		if banned {
-			clearOverlayToken(u)
-		}
-	}
-	if err := r.updateAndPublish(ctx, id, apply); err != nil {
+	banTime := time.Now()
+	if err := r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetBanned(banned) }); err != nil {
 		return err
 	}
 	if !banned {
@@ -350,7 +346,7 @@ func (r *Users) SetBanned(ctx context.Context, id uint64, banned bool) error {
 	if _, err := r.RevokeAllDeviceGrants(ctx, id, "ban"); err != nil {
 		r.log.Warn("device grant revoke on ban failed", zap.Uint64("user_id", id), zap.Error(err))
 	}
-	return nil
+	return bus.PublishJSON(ctx, r.pub, data.SubjectUserBanned, data.UserBannedDTO{UserID: id, BannedAt: banTime})
 }
 
 type PublicPage string
@@ -418,11 +414,7 @@ func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error
 }
 
 func eraseAccountRow(ctx context.Context, tx *ent.Tx, id uint64, createdAt time.Time) error {
-	update := tx.User.UpdateOneID(id).Where(user.CreatedAtEQ(createdAt))
-	if err := clearOverlayToken(update).Exec(ctx); err != nil {
-		return err
-	}
-	return tx.User.DeleteOneID(id).Exec(ctx)
+	return tx.User.DeleteOneID(id).Where(user.CreatedAtEQ(createdAt)).Exec(ctx)
 }
 
 func (r *Users) publishDeleted(ctx context.Context, deleted data.UserDeletedDTO) error {
@@ -460,6 +452,7 @@ func (r *Users) publishChanged(ctx context.Context, id uint64) error {
 func changedDTO(view UserView) data.UserChangedDTO {
 	return data.UserChangedDTO{
 		Lifecycle:          view.Lifecycle,
+		VoicePlan:          string(voiceplan.PlanFor(view.Status, view.SubscriptionSource, view.IsActive, view.Banned)),
 		UserID:             view.ID,
 		AccountCreatedAt:   view.AccountCreatedAt,
 		StateRevision:      view.StateRevision,
@@ -518,6 +511,7 @@ func (r *Users) publishReprojectedPage(ctx context.Context, rows []*ent.User) er
 func (r *Users) publishReprojectedUser(ctx context.Context, row *ent.User) error {
 	return bus.PublishJSON(ctx, r.pub, data.SubjectUserChanged, data.UserChangedDTO{
 		Lifecycle: row.Lifecycle,
+		VoicePlan: string(voiceplan.PlanFor(string(row.Status), row.SubscriptionSource, row.IsActive, row.Banned)),
 		UserID:    row.ID, Username: row.Username, IsActive: row.IsActive,
 		AccountCreatedAt: row.CreatedAt.UnixMicro(),
 		StateRevision:    row.StateRevision,

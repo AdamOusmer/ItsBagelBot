@@ -37,6 +37,20 @@ See the [shared vocabulary](../../CONTEXT.md) and [context map](../../CONTEXT-MA
 | [shared projection storage/client](../../internal/projection/) | Actual key layout, serialization, revision checks, TTLs, read-client caches, and fetch definitions. |
 | [projection contracts](../../internal/domain/rpc/projection/projection.go), [Projector contracts](../../internal/domain/rpc/projector/) | Owner snapshot and Projector-facing RPC shapes. |
 
+## TTS overlay
+
+Projector folds `data.overlays.tts.changed` by account and revision, with a
+hash index for OBS link redemption. Rotation removes the old hash. Deletion
+leaves a tombstone against stale events and owner replies. Missing or expired
+entries load through Overlays and fill Valkey. The gateway calls
+`rpc.internal.projector.overlays.tts.resolve` and `.check`. Sesame calls
+`.settings` before checking its quota with Users.
+
+Resolve and check use the projected account's active, banned and voice-plan
+state. A missing account projection loads through Users' account snapshot RPC.
+Projector broadcasts `controls.tts.revoked.<user_id>` after folding a
+rotation, ban revocation or deletion.
+
 ## Flow and service boundaries
 
 1. Users, Commands, Modules, and Overlays publish `data.*` changes. One Projector fleet durable group consumes those, Loyalty counter bumps and Twitch stream-status events.

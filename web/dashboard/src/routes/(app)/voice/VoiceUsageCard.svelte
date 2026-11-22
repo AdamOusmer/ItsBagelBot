@@ -9,9 +9,9 @@
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import type { VoiceAllowance } from '#lib/server/services/voice';
+  import type { VoiceAllowance, VoiceSettings } from '#lib/server/services/voice';
 
-  let { allowance }: { allowance: VoiceAllowance } = $props();
+  let { allowance, settings }: { allowance: VoiceAllowance; settings?: VoiceSettings } = $props();
   const { t, locale } = getI18n();
   const dates = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' });
   const numbers = new Intl.NumberFormat(locale);
@@ -38,8 +38,8 @@
   const usage = $derived(t('voice.usage', { used: duration(allowance.used_tokens), limit: duration(allowance.limit_tokens) }));
   const exhausted = $derived(tone === 'inactive');
   const facts = $derived([
-    { label: t('voice.choose'), value: allowance.voice || DEFAULT_VOICE },
-    { label: t('voice.clipLimit'), value: t('common.duration.seconds', { n: numbers.format(allowance.max_seconds ?? MAX_CLIP_SECONDS) }) }
+    { label: t('voice.choose'), value: settings?.voice || DEFAULT_VOICE },
+    { label: t('voice.clipLimit'), value: t('common.duration.seconds', { n: numbers.format(settings?.max_seconds ?? MAX_CLIP_SECONDS) }) }
   ]);
 </script>
 

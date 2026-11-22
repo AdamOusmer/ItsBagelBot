@@ -23,6 +23,8 @@
   "fieldMessagePh": "ex. Suivez-moi pour savoir quand je passe en direct.",
   "fieldInterval": "Répéter toutes les",
   "fieldIntervalHint": "Minimum 1 minute, maximum 24 heures.",
+  "fieldJitter": "Délai aléatoire supplémentaire",
+  "fieldJitterHint": "Ajoute à chaque message un délai aléatoire jusqu'à cette durée, pour que les messages au même intervalle ne partent pas ensemble. 0 le désactive.",
   "unitMinutes": "minutes",
   "fieldMinChatLines": "Lignes de chat",
   "fieldMinChatLinesHint": "Passe un tour tant que ce nombre de lignes de chat n'est pas atteint dans la fenêtre ci-dessous.",

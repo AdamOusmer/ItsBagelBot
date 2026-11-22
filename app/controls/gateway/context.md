@@ -12,15 +12,15 @@ network errors, 429 (`Retry-After`) and 5xx with jittered exponential backoff
 and stopping only on 404. Keep the token out of paths, queries and logs.
 Session, event and clip responses are uncached.
 
-Users owns overlay tokens and generations. The gateway calls
-`rpc.internal.users.voice.overlay.resolve` with the lowercase SHA-256 hex of
+Overlays owns token hashes and generations. The gateway calls
+`rpc.internal.projector.overlays.tts.resolve` with the lowercase SHA-256 hex of
 the encoded token on the RPC leaf. Successful exchange sets the host-only
 `bb_tts` cookie with `user_id`, `generation` and `exp`, signed using HMAC-SHA256.
 The cookie is HttpOnly, Secure, SameSite=Lax and scoped to `/tts` for 30 days.
 Failed attempts are limited per client IP on each gateway replica.
 
 `GET /tts/events` checks the session generation when opening and every five
-minutes via `rpc.internal.users.voice.overlay.check`. It subscribes to
+minutes via `rpc.internal.projector.overlays.tts.check`. It subscribes to
 `controls.tts.revoked.<user_id>` on the RPC leaf so it can close immediately on
 revocation.
 Its ordered ephemeral consumer filters `OVERLAY_TTS` to
@@ -104,7 +104,7 @@ open desktop and TTS SSE connections.
 | Browser page and token exchange | [page.ex](lib/controls_gateway/tts/page.ex), [http.ex](lib/controls_gateway/tts/http.ex) |
 | Session and rate limit | [session.ex](lib/controls_gateway/tts/session.ex), [throttle.ex](lib/controls_gateway/tts/throttle.ex) |
 | Event and clip streams | [events.ex](lib/controls_gateway/tts/events.ex), [clips.ex](lib/controls_gateway/tts/clips.ex) |
-| Users RPC | [tts/nats.ex](lib/controls_gateway/tts/nats.ex) |
+| Projector TTS RPC | [tts/nats.ex](lib/controls_gateway/tts/nats.ex) |
 | Powered page, assets and config | [powered/http.ex](lib/controls_gateway/powered/http.ex), [powered/page.ex](lib/controls_gateway/powered/page.ex) |
 | Projector RPC | [powered/nats.ex](lib/controls_gateway/powered/nats.ex) |
 | Leaf and hub routing | [Platform.Nats.Planes](../../../pkg/elixir/nats/lib/platform/nats/planes.ex) |
@@ -119,7 +119,7 @@ header on this route, and defaults to the socket peer locally.
 `Platform.Nats.Planes` starts `:gnat_rpc` on the node-local leaf
 (`NATS_RPC_HOST`, `NATS_RPC_PORT`) and `:gnat_jetstream` on the hub (`NATS_HOST`,
 `NATS_PORT`). Both use the gateway credentials and verify TLS against their
-own host. The RPC connection serves Users and Projector requests and carries
+own host. The RPC connection serves Projector requests and carries
 TTS revocations. The hub connection carries `OVERLAY_TTS`, `TTS_CLIPS`, and
 desktop subjects. The clusters are separate, so a hub request for a leaf RPC
 gets no responders. Build the gateway image from the repository root so the

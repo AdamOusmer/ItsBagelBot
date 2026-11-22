@@ -27,7 +27,7 @@ func completionFixture(t *testing.T) busFixture {
 	js := jetStreamOf(t, url)
 	spec := TwitchIngressPremiumStream
 	spec.Replicas = 1
-	require.NoError(t, EnsureStreams(context.Background(), url, []StreamSpec{spec}, zap.NewNop()))
+	require.NoError(t, EnsureStreams(t.Context(), url, []StreamSpec{spec}, zap.NewNop()))
 	return busFixture{url: url, js: js}
 }
 
@@ -106,7 +106,7 @@ func TestHotPoisonNeedsDeadLetterPubAck(t *testing.T) {
 			require.Equal(t, uint64(1), f.messageCount(TwitchIngressPremiumStream), "failed DLQ transfer must retain source")
 			spec := IngressDeadLetterStream
 			spec.Replicas = 1
-			require.NoError(t, EnsureStreams(context.Background(), f.url, []StreamSpec{spec}, zap.NewNop()))
+			require.NoError(t, EnsureStreams(t.Context(), f.url, []StreamSpec{spec}, zap.NewNop()))
 			require.Eventually(t, func() bool { return f.messageCount(TwitchIngressPremiumStream) == 0 }, 8*time.Second, 20*time.Millisecond)
 			letter, err := f.js.GetLastMsg(IngressDeadLetterStream.Name, IngressDeadLetterPrefix+hotLane)
 			require.NoError(t, err)
@@ -125,7 +125,7 @@ func TestStreamReconcileAppliesInterestAndDiscardOld(t *testing.T) {
 	require.NoError(t, err)
 	spec := TwitchIngressPremiumStream
 	spec.Replicas = 1
-	require.NoError(t, EnsureStreams(context.Background(), f.url, []StreamSpec{spec}, zap.NewNop()))
+	require.NoError(t, EnsureStreams(t.Context(), f.url, []StreamSpec{spec}, zap.NewNop()))
 	info, err = f.js.StreamInfo(spec.Name)
 	require.NoError(t, err)
 	assert.Equal(t, [2]any{nats.InterestPolicy, nats.DiscardOld}, [2]any{info.Config.Retention, info.Config.Discard})

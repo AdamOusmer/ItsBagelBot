@@ -28,6 +28,7 @@ const (
 )
 
 type User struct {
+	VoicePlan          string           `json:"voice_plan,omitempty"`
 	AccountCreatedAt   int64            `json:"account_created_at,omitempty"`
 	Lifecycle          *lifecycle.State `json:"lifecycle,omitempty"`
 	Banned             bool             `json:"banned"`
