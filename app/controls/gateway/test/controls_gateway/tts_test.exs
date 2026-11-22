@@ -68,9 +68,7 @@ defmodule ControlsGateway.TtsTest do
            } = HttpClient.request(port, "GET", "/tts")
 
     assert [["style", style], ["script", script]] =
-             Regex.scan(~r{<(style|script)>(.*?)</\1>}s, body,
-               capture: :all_but_first
-             )
+             Regex.scan(~r{<(style|script)>(.*?)</\1>}s, body, capture: :all_but_first)
 
     assert csp ==
              "default-src 'none'; script-src '#{csp_hash(script)}'; " <>
