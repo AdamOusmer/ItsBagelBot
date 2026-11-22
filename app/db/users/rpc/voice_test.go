@@ -4,15 +4,12 @@
 package rpc_test
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 	"time"
 
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/rpc"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
-	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/bus"
@@ -38,7 +35,6 @@ func newVoiceHarness(t *testing.T) harness {
 	w := rpc.Wiring{RPCWiring: bus.RPCWiring{NC: h.nc, Log: zap.NewNop()}, Repo: h.repo}
 	require.NoError(t, rpc.SubscribeDashboard(w, testVoiceDashboard))
 	require.NoError(t, rpc.SubscribeVoice(w, testVoiceCheckSubject, testVoiceRecordSubject))
-	require.NoError(t, rpc.SubscribeVoiceExport(w))
 	return h
 }
 
@@ -72,27 +68,6 @@ func TestInternalVoiceCheck(t *testing.T) {
 			assert.Equal(t, tc.reason, got.Reason)
 		})
 	}
-}
-
-func TestLegacyVoiceExportSkipsDefaultAccountsAndPagesByID(t *testing.T) {
-	h := newVoiceHarness(t)
-	now := time.Now().UTC()
-	for id := uint64(9001); id <= 9251; id++ {
-		h.client.User.Create().SetID(id).SetUsername(fmt.Sprint(id)).SetEmail(fmt.Sprintf("%d@example.invalid", id)).SetCreatedAt(now).
-			SetTtsVoice("Puck").SetTtsMaxSeconds(30).SetTtsEnabled(false).ExecX(t.Context())
-	}
-	hash := overlaysrpc.TtsTokenHash(strings.Repeat("a", 64))
-	h.client.User.UpdateOneID(9251).SetTtsOverlayTokenHash(string(hash)).SetTtsOverlayGeneration(42).ExecX(t.Context())
-	first := call[usersrpc.VoiceExportReply](t, h, usersrpc.VoiceExportSubject, usersrpc.VoiceExportRequest{})
-	require.Len(t, first.Overlays, 250)
-	assert.Equal(t, []uint64{9001, 9250}, []uint64{first.Overlays[0].UserID, first.NextID})
-	last := call[usersrpc.VoiceExportReply](t, h, usersrpc.VoiceExportSubject, usersrpc.VoiceExportRequest{AfterID: first.NextID})
-	require.Len(t, last.Overlays, 1)
-	assert.Equal(t, overlaysrpc.TtsOverlay{
-		UserID: 9251, CreatedAt: now.UnixMicro(), Generation: 42, TokenHash: hash,
-		Settings: overlaysrpc.TtsSettings{Voice: "Puck", MaxSeconds: 30},
-	}, last.Overlays[0])
-	assert.Zero(t, last.NextID)
 }
 
 func TestDashboardVoiceInactiveReason(t *testing.T) {

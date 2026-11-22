@@ -30,7 +30,6 @@ func TestTTSGrantIsolation(t *testing.T) {
 	catalog := loadRPCCatalog(t)
 	worker := []string{"WORKER_RPC"}
 	gateway := []string{controlsGatewayAccount}
-	overlays := []string{"OVERLAYS_RPC"}
 	projector := []string{"PROJECTOR_RPC"}
 	quota := []string{"WORKER_RPC", "OVERLAYS_RPC"}
 	for _, grant := range []ttsGrant{
@@ -45,8 +44,6 @@ func TestTTSGrantIsolation(t *testing.T) {
 		{"rpc.internal.users.voice.check.node.n1", "users_rpc", quota},
 		{"rpc.internal.users.voice.record", "users_rpc", worker},
 		{"rpc.internal.users.voice.record.node.n1", "users_rpc", worker},
-		{"rpc.internal.users.voice.export", "users_rpc", overlays},
-		{"rpc.internal.users.voice.export.node.n1", "users_rpc", overlays},
 		{"rpc.internal.overlays.tts.by_user", "overlays_rpc", projector},
 		{"rpc.internal.overlays.tts.by_user.node.n1", "overlays_rpc", projector},
 		{"rpc.internal.overlays.tts.by_hash", "overlays_rpc", projector},

@@ -66,7 +66,6 @@ Overlays owns account voice settings and OBS links.
 | [rpc/deviceauth.go](rpc/deviceauth.go) | Desktop device-authorization RPCs (`rpc.dashboard.device.*`); OAuth-error mapping for the token endpoint. |
 | [repository/deviceauth_codes.go](repository/deviceauth_codes.go), [deviceauth_refresh.go](repository/deviceauth_refresh.go), [deviceauth_grants.go](repository/deviceauth_grants.go), [deviceauth_cleanup.go](repository/deviceauth_cleanup.go) | Code issuance/exchange, refresh rotation with reuse detection, grant listing/revocation, and the expired-code/stale-grant sweep. |
 | [repository/voice.go](repository/voice.go), [rpc/voice.go](rpc/voice.go) | Voice allowance reads, idempotent recording and receipt cleanup. |
-| [repository/voice_export.go](repository/voice_export.go) | Paged legacy settings and hashed OBS links for the Overlays backfill. |
 | [tokensign/tokensign.go](tokensign/tokensign.go) | Ed25519 access-token signing/verification (`v1.<payload>.<sig>`), keyed by `kid`. |
 | [ent/schema/](ent/schema/) | User, Tokens, PremiumGrant, Delegation, LifecycleErasure, DeviceGrant, AuthorizationCode, AdminAuditDelivery, VoiceUsage and VoiceUsageReceipt definitions. |
 
@@ -125,8 +124,7 @@ Edit schemas rather than generated Ent code.
   The ledger accepts at most 3,000 audio tokens or 120,000 milliseconds
   per record. After the 40-day receipt retention period, replaying that
   request ID counts as new usage. Account erasure cascades to usage and receipts.
-- The legacy user TTS columns are read by `rpc.internal.users.voice.export`
-  for Overlays' boot backfill. Users emits `data.users.banned` for Overlays
+- Users emits `data.users.banned` for Overlays
   to revoke the configured link. Projector's account snapshot carries the
   voice plan for OBS eligibility checks.
 - Banned and inactive accounts receive zero cloud voice minutes. A committed
