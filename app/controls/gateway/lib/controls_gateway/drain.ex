@@ -2,12 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.Drain do
-  @moduledoc """
-  SIGTERM handling: fail /readyz first, reject new /v1/connect upgrades at
-  the handler (the shared listener keeps serving /healthz and /readyz), then
-  close open sockets with "going away" plus jitter so clients don't all
-  reconnect in the same instant.
-  """
   require Logger
 
   @draining_key {__MODULE__, :draining}
@@ -21,9 +15,12 @@ defmodule ControlsGateway.Drain do
   @spec draining?() :: boolean()
   def draining?, do: :persistent_term.get(@draining_key, false)
 
-  # Test-only counterpart to run/0: draining is permanent for a real process
-  # (it is shutting down anyway), but the flag is a VM-wide persistent_term
-  # and must not leak into the next test.
+  @spec track_connection() :: :ok | :draining
+  def track_connection do
+    {:ok, _} = Registry.register(ControlsGateway.Connections, self(), nil)
+    if draining?(), do: :draining, else: :ok
+  end
+
   @doc false
   @spec reset!() :: :ok
   def reset! do
@@ -44,9 +41,9 @@ defmodule ControlsGateway.Drain do
   end
 
   defp close_all_with_jitter do
-    for pid <- connected_pids() do
-      send(pid, {:shutdown_close, :rand.uniform(@jitter_max_ms)})
-    end
+    Enum.each(connected_pids(), fn pid ->
+      Process.send_after(pid, :shutdown_close, :rand.uniform(@jitter_max_ms))
+    end)
   end
 
   defp connected_pids do
