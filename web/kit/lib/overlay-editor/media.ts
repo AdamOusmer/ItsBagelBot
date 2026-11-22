@@ -12,6 +12,8 @@ export type UploadedAsset = {
   h: number;
   duration_ms: number;
   bytes: number;
+  sha256: string;
+  display_name?: string;
 };
 
 export interface MediaAdapter {
@@ -42,16 +44,9 @@ export const slotMaxBytes = (slot: MediaSlot): number => Math.max(...slotTypes[s
 
 export const acceptsType = (slot: MediaSlot, type: AssetType): boolean => slotTypes[slot].includes(type);
 
-const HEX_RADIX = 16;
-const HEX_WIDTH = 2;
-
-export async function sha256Hex(file: Blob): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(HEX_RADIX).padStart(HEX_WIDTH, '0')).join('');
-}
-
-export function describeUpload(uploaded: UploadedAsset, sha256: string): OverlayAsset {
-  return { type: uploaded.type, bytes: uploaded.bytes, w: uploaded.w, h: uploaded.h, duration_ms: uploaded.duration_ms, sha256 };
+export function describeUpload(uploaded: UploadedAsset): OverlayAsset {
+  const { type, bytes, w, h, duration_ms, sha256, url } = uploaded;
+  return { type, bytes, w, h, duration_ms, sha256, url };
 }
 
 export const UPLOAD_ERRORS = [
@@ -60,6 +55,17 @@ export const UPLOAD_ERRORS = [
 ] as const;
 export type UploadError = (typeof UPLOAD_ERRORS)[number];
 
+const SERVER_CODES: Record<string, UploadError> = {
+  too_large: 'asset_too_large',
+  unsupported_svg: 'unsupported_media',
+  unsupported_mp4: 'unsupported_media',
+  unsupported_html: 'unsupported_media',
+  unsupported_codec: 'unsupported_media',
+  asset_frames: 'asset_dimensions',
+  size_mismatch: 'invalid_asset'
+};
+
 export function uploadError(code: string): UploadError {
+  if (Object.hasOwn(SERVER_CODES, code)) return SERVER_CODES[code]!;
   return (UPLOAD_ERRORS as readonly string[]).includes(code) ? (code as UploadError) : 'failed';
 }

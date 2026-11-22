@@ -17,9 +17,9 @@
   import type { OverlayDocument, OverlayWidget } from '../../lib/overlay-document';
   import type { MediaBinding, SaveOutcome } from '../../lib/overlay-editor/binding';
   import { newWidget, type EditableKind } from '../../lib/overlay-editor/defaults';
-  import { assetRef, toWireDocument, type AssetUrls } from '../../lib/overlay-editor/document';
+  import { assetRef, toWireDocument } from '../../lib/overlay-editor/document';
   import type { MediaSlot } from '../../lib/overlay-editor/fields';
-  import { acceptsType, describeUpload, MediaFailure, sha256Hex, slotMaxBytes, type MediaAdapter } from '../../lib/overlay-editor/media';
+  import { acceptsType, describeUpload, MediaFailure, slotMaxBytes, type MediaAdapter } from '../../lib/overlay-editor/media';
   import { addWidget, copyOf, removeWidget, reorderWidget, replaceWidget } from '../../lib/overlay-editor/ops';
   import { resizeCanvas, resolutions } from '../../lib/overlay-editor/resolutions';
   import { EditorSession } from '../../lib/overlay-editor/session';
@@ -27,11 +27,10 @@
   import Inspector from './Inspector.svelte';
   import LayersPanel, { type LayerActions } from './LayersPanel.svelte';
   import Notice from './Notice.svelte';
-  import WidgetPreview from './WidgetPreview.svelte';
+  import RuntimePreview from './RuntimePreview.svelte';
 
-  let { initial, urls: initialUrls = {}, media, preview = false, onsave, ondirty }: {
+  let { initial, media, preview = false, onsave, ondirty }: {
     initial: OverlayDocument;
-    urls?: AssetUrls;
     media?: MediaAdapter;
     preview?: boolean;
     onsave?: (doc: OverlayDocument) => Promise<SaveOutcome>;
@@ -44,7 +43,6 @@
 
   let doc = $state.raw(untrack(() => initial));
   let saved = $state.raw(untrack(() => initial));
-  let urls = $state.raw<AssetUrls>(untrack(() => initialUrls));
   let selected = $state('');
   let zoom = $state(0);
   let busy = $state(false);
@@ -124,10 +122,9 @@
   async function upload(file: File, slot: MediaSlot): Promise<string> {
     if (!media) throw new MediaFailure('premium_required');
     if (file.size > slotMaxBytes(slot)) throw new MediaFailure('asset_too_large');
-    const [uploaded, sha256] = await Promise.all([media.upload(file), sha256Hex(file)]);
+    const uploaded = await media.upload(file);
     if (!acceptsType(slot, uploaded.type)) throw new MediaFailure('unsupported_media');
-    urls = { ...urls, [uploaded.asset_id]: uploaded.url };
-    apply({ ...doc, assets: { ...doc.assets, [uploaded.asset_id]: describeUpload(uploaded, sha256) } });
+    apply({ ...doc, assets: { ...doc.assets, [uploaded.asset_id]: describeUpload(uploaded) } });
     return assetRef(uploaded.asset_id);
   }
 
@@ -163,7 +160,7 @@
 
 {#snippet canvasPreview(box: { id: string }, scale: number)}
   {@const item = doc.widgets.find((candidate) => candidate.id === box.id)}
-  {#if item}<WidgetPreview widget={item} {scale} {urls} />{/if}
+  {#if item}<RuntimePreview widget={item} assets={doc.assets} {scale} />{/if}
 {/snippet}
 
 <Stack gap={4}>

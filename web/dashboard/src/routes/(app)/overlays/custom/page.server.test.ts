@@ -22,7 +22,7 @@ const stored = { id: 8, kind: 'custom', name: 'Alerts', revision: 3, document };
 
 afterEach(() => mock.restore());
 
-function visit(session: object | null, query: string, isPremium: boolean) {
+async function visit(session: object | null, query: string, isPremium: boolean) {
   return load({
     locals: { session, locale: 'en' },
     url: new URL(`https://dashboard.test/overlays/custom${query}`),

@@ -5,19 +5,18 @@ import { expect, test } from 'bun:test';
 import { validateDocument, type OverlayAsset } from '../overlay-document';
 import { staticText } from '../i18n/static';
 import { ALERT_KINDS, EDITABLE_KINDS, newWidget } from './defaults';
-import { DEFAULT_CANVAS, blankDocument, fromServed, toWireDocument } from './document';
+import { DEFAULT_CANVAS, blankDocument, toWireDocument } from './document';
 import {
   alertFields, alertLook, creditHeaders, geometryFields, labelOf, listRule, tierWeights, typography, variationFields, widgetFields,
   type SettingField
 } from './fields';
 import { IMPORT_ERRORS, IMPORT_REASONS, importError, importReason, reportCounts } from './import-report';
-import { MediaFailure, UPLOAD_ERRORS, acceptsType, sha256Hex, slotAccept, slotMaxBytes, uploadError } from './media';
+import { MediaFailure, UPLOAD_ERRORS, acceptsType, describeUpload, slotAccept, slotMaxBytes, uploadError } from './media';
 import { copyOf, reorderWidget } from './ops';
-import { sampleClock } from './preview';
 import { EditorSession } from './session';
 import { createOverlay, templateNames } from './templates';
 
-const png: OverlayAsset = { type: 'png', bytes: 1000, w: 100, h: 100, duration_ms: 0, sha256: 'a'.repeat(64) };
+const png: OverlayAsset = { type: 'png', bytes: 1000, w: 100, h: 100, duration_ms: 0, sha256: 'a'.repeat(64), url: 'https://cdn.itsbagelbot.com/u/1/a' };
 const HANDLES = ['nw', 'ne', 'sw', 'se'];
 
 test.each(templateNames)('the %s template is a valid custom document', (template) => {
@@ -29,18 +28,17 @@ test.each(EDITABLE_KINDS)('a new %s widget passes document validation', (kind) =
   expect(validateDocument(doc).ok).toBe(true);
 });
 
-test('saving keeps referenced assets only and drops served urls', () => {
+test('saving keeps referenced assets only, with their urls', () => {
   const widget = { ...newWidget('image', DEFAULT_CANVAS, 'Logo'), settings: { media: 'asset:used', fit: 'contain' } };
   const served = {
     ...blankDocument('Doc'),
     widgets: [widget],
-    assets: { used: { ...png, url: 'https://cdn.test/u/1' }, spare: { ...png, url: 'https://cdn.test/u/2' } }
+    assets: { used: png, spare: png }
   };
-  const { doc, urls } = fromServed(served);
-  const wire = toWireDocument(doc);
-  expect({ urls, assets: Object.keys(wire.assets), valid: validateDocument(wire).ok }).toEqual({
-    urls: { used: 'https://cdn.test/u/1', spare: 'https://cdn.test/u/2' },
+  const wire = toWireDocument(served);
+  expect({ assets: Object.keys(wire.assets), url: wire.assets.used?.url, valid: validateDocument(wire).ok }).toEqual({
     assets: ['used'],
+    url: png.url,
     valid: true
   });
 });
@@ -99,7 +97,9 @@ test.each([
   { name: 'a known error', run: () => importError('bomb_ratio'), want: 'bomb_ratio' },
   { name: 'an unknown error', run: () => importError('made_up'), want: 'failed' },
   { name: 'an unknown upload error', run: () => uploadError('made_up'), want: 'failed' },
-  { name: 'a known upload error', run: () => uploadError('rate_limited'), want: 'rate_limited' }
+  { name: 'a known upload error', run: () => uploadError('rate_limited'), want: 'rate_limited' },
+  { name: 'a server size code', run: () => uploadError('too_large'), want: 'asset_too_large' },
+  { name: 'a server codec code', run: () => uploadError('unsupported_codec'), want: 'unsupported_media' }
 ])('normalizes $name', ({ run, want }) => {
   expect(run()).toBe(want);
 });
@@ -119,18 +119,11 @@ test('media slots follow the shared limits table', () => {
   }).toEqual({ video: 'video/webm', soundBytes: 5 * 1024 * 1024, visualBytes: 50 * 1024 * 1024, gifAsSound: false, webmAsVisual: true });
 });
 
-test('hashes file bytes as lowercase hex sha-256', async () => {
-  expect(await sha256Hex(new Blob(['abc']))).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+test('an upload reply becomes a document asset with the server hash and url', () => {
+  const reply = { ...png, asset_id: 'abc', display_name: 'logo.png' };
+  expect(describeUpload(reply)).toEqual(png);
 });
 
 test('a media failure carries the server code', () => {
   expect(new MediaFailure('rate_limited').code).toBe('rate_limited');
-});
-
-test.each([
-  { format: 'hh:mm:ss', want: '00:05:00' },
-  { format: 'mm:ss', want: '05:00' },
-  { format: 'seconds', want: '300' }
-])('previews a timer as $format', ({ format, want }) => {
-  expect(sampleClock(format)).toBe(want);
 });

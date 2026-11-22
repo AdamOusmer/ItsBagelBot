@@ -7,9 +7,7 @@ import type { Canvas } from './defaults';
 export const ASSET_PREFIX = 'asset:';
 export const DEFAULT_CANVAS: Canvas = { width: 1920, height: 1080 };
 
-export type ServedAsset = OverlayAsset & { url?: string };
-export type ServedDocument = Omit<OverlayDocument, 'assets'> & { assets?: Record<string, ServedAsset> | null };
-export type AssetUrls = Record<string, string>;
+export type ServedDocument = Omit<OverlayDocument, 'assets'> & { assets?: Record<string, OverlayAsset> | null };
 
 export const assetRef = (id: string): string => `${ASSET_PREFIX}${id}`;
 
@@ -35,25 +33,9 @@ export function pruneAssets(doc: OverlayDocument): OverlayDocument {
   return { ...doc, assets };
 }
 
-export function toWireDocument(doc: OverlayDocument): OverlayDocument {
-  const pruned = pruneAssets(doc);
-  const assets = Object.fromEntries(
-    Object.entries(pruned.assets).map(([id, asset]) => [id, withoutUrl(asset)])
-  );
-  return { ...pruned, assets };
-}
+export const toWireDocument = pruneAssets;
 
-function withoutUrl(asset: ServedAsset): OverlayAsset {
-  const { url: _url, ...rest } = asset;
-  return rest;
-}
-
-export function fromServed(served: ServedDocument): { doc: OverlayDocument; urls: AssetUrls } {
-  const entries = Object.entries(served.assets ?? {});
-  const urls = Object.fromEntries(entries.flatMap(([id, asset]) => (asset.url ? [[id, asset.url]] : [])));
-  const assets = Object.fromEntries(entries.map(([id, asset]) => [id, withoutUrl(asset)]));
-  return { doc: { ...served, assets }, urls };
-}
+export const fromServed = (served: ServedDocument): OverlayDocument => ({ ...served, assets: served.assets ?? {} });
 
 export function blankDocument(name: string, canvas: Canvas = DEFAULT_CANVAS): OverlayDocument {
   return {

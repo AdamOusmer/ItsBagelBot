@@ -3,6 +3,6 @@
 
 export async function failureCode(response: Response, byStatus: Record<number, string>): Promise<string> {
   const body: unknown = await response.json().catch(() => null);
-  const code = (body as { code?: unknown } | null)?.code;
+  const code = (body as { error?: unknown } | null)?.error;
   return typeof code === 'string' ? code : (byStatus[response.status] ?? 'failed');
 }

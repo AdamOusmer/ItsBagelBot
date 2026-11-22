@@ -8,7 +8,7 @@
   import OverlayEditor from '@bagel/kit/components/overlay-editor/OverlayEditor.svelte';
   import type { OverlayDocument } from '@bagel/kit/overlay-document';
   import {
-    blankDocument, createOverlay, fromServed, templateNames, type AssetUrls, type SaveOutcome, type Template
+    blankDocument, createOverlay, fromServed, templateNames, type SaveOutcome, type Template
   } from '@bagel/kit/overlay-editor';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
@@ -31,14 +31,11 @@
   const PREVIEW_URL = '/overlays/custom?preview=1';
 
   let seed = $state.raw<OverlayDocument>(blankDocument(t('overlayEditor.page.newName')));
-  let urls = $state.raw<AssetUrls>({});
   let overlayId = $state(0);
   let dirty = $state(false);
 
   function adopt(overlay: PageData['overlay']): void {
-    const served = overlay?.document ? fromServed(overlay.document) : null;
-    seed = served?.doc ?? blankDocument(t('overlayEditor.page.newName'));
-    urls = served?.urls ?? {};
+    seed = overlay?.document ? fromServed(overlay.document) : blankDocument(t('overlayEditor.page.newName'));
     overlayId = overlay?.id ?? 0;
   }
 
@@ -62,7 +59,7 @@
   async function save(doc: OverlayDocument): Promise<SaveOutcome> {
     const reply = await postSave(overlayId, doc);
     if (!reply.ok) return { ok: false, error: reply.error || t('overlayEditor.save.failed') };
-    if (overlayId === 0) void goto(`/overlays/custom?id=${reply.id}`, { replaceState: true, keepFocus: true, noScroll: true });
+    if (overlayId === 0) void goto(`/overlays/custom?id=${reply.id}`, { replaceState: true });
     overlayId = reply.id;
     return reply;
   }
@@ -108,7 +105,7 @@
           </Cluster>
         {/if}
         {#key seed.id}
-          <OverlayEditor initial={seed} {urls} {media} preview={locked} onsave={save} ondirty={(value) => (dirty = value)} />
+          <OverlayEditor initial={seed} {media} preview={locked} onsave={save} ondirty={(value) => (dirty = value)} />
         {/key}
       </Stack>
     {/if}

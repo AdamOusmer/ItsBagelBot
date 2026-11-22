@@ -4,7 +4,7 @@
 export type { MediaBinding, SaveOutcome } from './binding';
 export { failureCode } from './http';
 export { DEFAULT_CANVAS, blankDocument, fromServed, toWireDocument } from './document';
-export type { AssetUrls, ServedDocument } from './document';
+export type { ServedDocument } from './document';
 export { createOverlay, templateNames } from './templates';
 export type { Template } from './templates';
 export { MediaFailure, UPLOAD_ERRORS, uploadError } from './media';

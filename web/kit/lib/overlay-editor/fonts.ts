@@ -9,14 +9,4 @@ export const googleFonts = [
   'Spectral', 'Work Sans'
 ] as const;
 
-const stacks: Record<string, string> = {
-  'System sans': 'system-ui, sans-serif',
-  'System serif': 'Georgia, serif',
-  'System mono': 'ui-monospace, monospace'
-};
-
-export const fontFamilies: readonly string[] = [...Object.keys(stacks), ...googleFonts];
-
-export function fontStack(name: string): string {
-  return stacks[name] ?? `"${name}", system-ui, sans-serif`;
-}
+export const fontFamilies: readonly string[] = ['System sans', 'System serif', 'System mono', ...googleFonts];

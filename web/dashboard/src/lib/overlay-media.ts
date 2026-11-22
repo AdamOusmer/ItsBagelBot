@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { failureCode, MediaFailure, type MediaAdapter, type UploadedAsset } from '@bagel/kit/overlay-editor';
+import { sendParts } from './overlay-parts';
 
 export const ASSET_ENDPOINT = '/overlays/assets';
 const NAME_LIMIT = 80;
@@ -17,14 +18,7 @@ const STATUS_CODES: Record<number, string> = {
 export function dashboardMedia(send: typeof fetch = fetch): MediaAdapter {
   return {
     async upload(file: File): Promise<UploadedAsset> {
-      const response = await send(ASSET_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'content-type': file.type || 'application/octet-stream',
-          'x-asset-name': encodeURIComponent(file.name.slice(0, NAME_LIMIT))
-        },
-        body: file
-      });
+      const response = await sendParts(ASSET_ENDPOINT, file, { name: file.name.slice(0, NAME_LIMIT) }, send);
       if (!response.ok) throw new MediaFailure(await failureCode(response, STATUS_CODES));
       return (await response.json()) as UploadedAsset;
     }

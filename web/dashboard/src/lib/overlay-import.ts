@@ -2,16 +2,12 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { failureCode, importError, ImportFailure, type ImportResult } from '@bagel/kit/overlay-editor';
+import { sendParts } from './overlay-parts';
 
 export const IMPORT_ENDPOINT = '/overlays/imports';
 
 export async function importArchive(file: File, dryRun: boolean, send: typeof fetch = fetch): Promise<ImportResult> {
-  const query = dryRun ? '?dry_run=1' : '';
-  const response = await send(`${IMPORT_ENDPOINT}${query}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/zip' },
-    body: file
-  });
+  const response = await sendParts(IMPORT_ENDPOINT, file, { dry_run: dryRun }, send);
   if (!response.ok) throw new ImportFailure(importError(await failureCode(response, { 402: 'premium_required' })));
   return (await response.json()) as ImportResult;
 }

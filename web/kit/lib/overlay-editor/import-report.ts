@@ -23,7 +23,7 @@ export class ImportFailure extends Error {
 
 export type ImportItem = { subject: string; reason?: string };
 export type ImportReport = { mapped: ImportItem[]; approximated: ImportItem[]; unsupported: ImportItem[] };
-export type ImportResult = { report: ImportReport; id?: number };
+export type ImportResult = { report: ImportReport; overlay_id?: number; overlay_ids?: number[]; url?: string };
 
 export const REPORT_GROUPS = ['mapped', 'approximated', 'unsupported'] as const;
 export type ReportGroup = (typeof REPORT_GROUPS)[number];

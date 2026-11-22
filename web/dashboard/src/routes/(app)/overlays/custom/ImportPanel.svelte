@@ -50,7 +50,7 @@
     if (!chosen || !premium) return Promise.resolve();
     return run(async () => {
       const result = await importArchive(chosen, false);
-      if (result.id) onimported(result.id);
+      if (result.overlay_id) onimported(result.overlay_id);
     });
   }
 </script>
