@@ -5,8 +5,9 @@ defmodule ControlsGateway.TtsTest do
   use ControlsGateway.IntegrationCase, async: false
   import ExUnit.CaptureLog
 
+  alias ControlsGateway.Overlays.{Handle, Puller, Tiers}
   alias ControlsGateway.TestSupport.HttpClient
-  alias Gnat.Jetstream.API.{Object, Stream}
+  alias Gnat.Jetstream.API.{Consumer, Object, Stream}
 
   @moduletag :tmp_dir
   @moduletag jetstream: true
@@ -17,6 +18,8 @@ defmodule ControlsGateway.TtsTest do
   @token Base.url_encode64(:binary.copy(<<33>>, 32), padding: false)
   @unknown Base.url_encode64(:binary.copy(<<34>>, 32), padding: false)
   @ttl_ns 300_000_000_000
+  @ack_wait_ns 30_000_000_000
+  @json [{"content-type", "application/json"}]
 
   setup tags do
     key = Application.get_env(:controls_gateway, :overlay_cookie_key)
@@ -35,18 +38,8 @@ defmodule ControlsGateway.TtsTest do
     {:ok, _} = Gnat.sub(:gnat_rpc, responder, @overlay <> "resolve")
     {:ok, _} = Gnat.sub(:gnat_rpc, responder, @overlay <> "check")
 
-    if !tags[:no_streams] do
-      {:ok, _} =
-        Stream.create(:gnat_jetstream, %Stream{
-          name: "OVERLAY_TTS",
-          subjects: ["overlay.tts.*"],
-          storage: :file,
-          max_age: @ttl_ns
-        })
-
-      {:ok, _} = Object.create_bucket(:gnat_jetstream, "TTS_CLIPS", storage: :file, ttl: @ttl_ns)
-    end
-
+    if !tags[:no_streams], do: provision(tags[:ack_wait_ns] || @ack_wait_ns)
+    for tier <- Tiers.all(), do: start_supervised!({Puller, tier})
     :ok
   end
 
@@ -201,31 +194,128 @@ defmodule ControlsGateway.TtsTest do
     for line <- expected, do: assert(log =~ line)
   end
 
-  test "SSE sends new clips in order and resumes after a stream sequence", %{http_port: port} do
+  test "a published clip reaches an open stream with a handle until it is acked", %{
+    http_port: port
+  } do
     cookie = cookie(port)
-    old = publish_clip("old")
     live = events(port, [cookie])
-    other = publish_clip("different-account", 42)
-    first = publish_clip("first")
+    publish_clip("first")
+    publish_clip("different-account", 42)
 
-    data = HttpClient.await(live, &String.contains?(&1.body, "event_id"))
-    assert data.body =~ "id: #{first}\ndata: "
-    refute data.body =~ "id: #{other}\n"
-    refute data.body =~ "id: #{old}\n"
-    HttpClient.close(data)
+    live = await_clips(live, 1)
+    assert [%{"event_id" => "first", "handle" => handle} = clip] = clips(live)
+    assert clip["clip_key"] == "#{@user_id}/first"
+    refute Map.has_key?(clip, "ack")
+    assert 2 == stored()
 
-    second = publish_clip("second")
-    third = publish_clip("third")
+    assert %{status: 204} = post(port, "/tts/progress", %{handles: [handle]}, cookie)
+    assert %{status: 204} = post(port, "/tts/ack", %{handle: handle}, cookie)
+    eventually(fn -> stored() == 1 end)
+    HttpClient.close(live)
+  end
 
-    for {headers, cursor, wanted} <- [
-          {[cookie], first, second},
-          {[cookie, {"last-event-id", Integer.to_string(second)}], second, third}
+  test "handles must be signed for the session user and name an overlay consumer", %{
+    http_port: port
+  } do
+    cookie = cookie(port)
+    live = events(port, [cookie])
+    publish_clip("guarded")
+    live = await_clips(live, 1)
+    [%{"handle" => handle}] = clips(live)
+    [ack_part, _mac] = String.split(handle, ".")
+    ack = Base.url_decode64!(ack_part, padding: false)
+    zero_mac = Base.url_encode64(:binary.copy(<<0>>, 32), padding: false)
+
+    foreign_subject = "$JS.ACK.OTHER.durable.1.1.1.1.1"
+
+    for bad <- [
+          "nope",
+          ack_part <> "." <> zero_mac,
+          Handle.sign(42, ack),
+          Handle.sign(@user_id, foreign_subject)
         ] do
-      resumed = events(port, headers, "/tts/events?after=#{first}")
-      data = HttpClient.await(resumed, &String.contains?(&1.body, "id: #{wanted}\ndata: "))
-      refute data.body =~ "id: #{cursor}\n"
-      HttpClient.close(data)
+      assert %{status: 404} = post(port, "/tts/ack", %{handle: bad}, cookie)
+      assert %{status: 404} = post(port, "/tts/progress", %{handles: [handle, bad]}, cookie)
     end
+
+    assert %{status: 404} = post(port, "/tts/ack", %{other: handle}, cookie)
+
+    assert %{status: 404} =
+             post(port, "/tts/progress", %{handles: List.duplicate(handle, 33)}, cookie)
+
+    assert %{status: 401} =
+             HttpClient.request(port, "POST", "/tts/ack",
+               headers: @json,
+               body: Jason.encode!(%{handle: handle})
+             )
+
+    assert 1 == stored()
+    HttpClient.close(live)
+  end
+
+  test "a clip without an open session waits and is delivered when a session opens", %{
+    http_port: port
+  } do
+    cookie = cookie(port)
+    publish_clip("late")
+    Process.sleep(300)
+
+    live = port |> events([cookie]) |> await_clips(1)
+    assert [%{"event_id" => "late"}] = clips(live)
+    HttpClient.close(live)
+  end
+
+  test "closing a stream returns its unacked clips to the other open streams", %{http_port: port} do
+    cookie = cookie(port)
+    first = events(port, [cookie])
+    second = events(port, [cookie])
+    publish_clip("shared")
+
+    first = await_clips(first, 1)
+    second = await_clips(second, 1)
+    HttpClient.close(first)
+
+    second = await_clips(second, 2)
+    assert [%{"event_id" => "shared"}, %{"event_id" => "shared"}] = clips(second)
+    HttpClient.close(second)
+  end
+
+  for {name, progress} <- [
+        {"progress keeps a clip past the ack wait", true},
+        {"a clip without progress is redelivered after the ack wait", false}
+      ] do
+    @tag ack_wait_ns: 1_000_000_000
+    test name, %{http_port: port} do
+      cookie = cookie(port)
+      live = events(port, [cookie])
+      publish_clip("slow")
+      live = await_clips(live, 1)
+      [%{"handle" => handle}] = clips(live)
+
+      for _ <- 1..6 do
+        if unquote(progress), do: post(port, "/tts/progress", %{handles: [handle]}, cookie)
+        Process.sleep(400)
+      end
+
+      live = HttpClient.drain(live, 200)
+      assert length(clips(live)) > 1 == unquote(!progress)
+      HttpClient.close(live)
+    end
+  end
+
+  test "invalid overlay messages are terminated", %{http_port: port} do
+    valid = Jason.encode!(%{event_id: "x"})
+
+    for {subject, body} <- [
+          {"overlays.premium.tts.#{@user_id}", "not json"},
+          {"overlays.premium.tts.abc", valid},
+          {"overlays.premium.tts.0", valid}
+        ] do
+      assert {:ok, _} = Gnat.request(:gnat_jetstream, subject, body)
+    end
+
+    eventually(fn -> stored() == 0 end)
+    assert %{status: 200} = HttpClient.request(port, "GET", "/readyz")
   end
 
   test "clip reads stream multiple chunks and isolate accounts", %{http_port: port} do
@@ -355,41 +445,104 @@ defmodule ControlsGateway.TtsTest do
     {"cookie", set_cookie |> String.split(";", parts: 2) |> hd()}
   end
 
+  defp provision(ack_wait_ns) do
+    for tier <- Tiers.all() do
+      stream = Tiers.stream(tier)
+
+      {:ok, _} =
+        Stream.create(:gnat_jetstream, %Stream{
+          name: stream,
+          subjects: ["overlays.#{tier}.>"],
+          retention: :workqueue,
+          storage: :file,
+          max_age: @ttl_ns,
+          duplicate_window: @ttl_ns
+        })
+
+      {:ok, _} =
+        Consumer.create(:gnat_jetstream, %Consumer{
+          stream_name: stream,
+          durable_name: Tiers.durable(tier),
+          ack_wait: ack_wait_ns,
+          max_deliver: -1,
+          max_ack_pending: -1
+        })
+    end
+
+    {:ok, _} =
+      Object.create_bucket(:gnat_jetstream, "OVERLAYS_MEDIA", storage: :file, ttl: @ttl_ns)
+  end
+
   defp publish_clip(event_id, user_id \\ @user_id) do
     body =
       Jason.encode!(%{
         clip_key: "#{user_id}/#{event_id}",
         event_id: event_id,
-        kind: "cheer",
+        kind: "tts",
         duration_ms: 1234,
         expires_at: DateTime.utc_now() |> DateTime.add(300) |> DateTime.to_iso8601()
       })
 
-    {:ok, %{body: reply}} = Gnat.request(:gnat_jetstream, "overlay.tts.#{user_id}", body)
+    {:ok, %{body: reply}} =
+      Gnat.request(:gnat_jetstream, "overlays.premium.tts.#{user_id}", body,
+        headers: [{"Nats-Msg-Id", event_id}]
+      )
+
     %{"seq" => seq} = Jason.decode!(reply)
     seq
   end
 
+  defp stored(tier \\ :premium) do
+    {:ok, %{state: %{messages: messages}}} = Stream.info(:gnat_jetstream, Tiers.stream(tier))
+    messages
+  end
+
+  defp clips(client) do
+    ~r/event: clip\ndata: (.*)\n\n/
+    |> Regex.scan(client.body, capture: :all_but_first)
+    |> Enum.map(fn [json] -> Jason.decode!(json) end)
+  end
+
+  defp await_clips(client, count), do: HttpClient.await(client, &(length(clips(&1)) >= count))
+
+  defp post(port, path, body, cookie) do
+    HttpClient.request(port, "POST", path, headers: [cookie | @json], body: Jason.encode!(body))
+  end
+
+  defp eventually(fun, attempts \\ 40) do
+    cond do
+      fun.() ->
+        :ok
+
+      attempts == 0 ->
+        flunk("condition not met")
+
+      true ->
+        Process.sleep(100)
+        eventually(fun, attempts - 1)
+    end
+  end
+
   defp upload(key, nuid, chunks) do
-    Enum.each(chunks, &publish_object_message("$O.TTS_CLIPS.C.#{nuid}", &1))
+    Enum.each(chunks, &publish_object_message("$O.OVERLAYS_MEDIA.C.#{nuid}", &1))
 
     meta = %Object.Meta{
       name: key,
-      bucket: "TTS_CLIPS",
+      bucket: "OVERLAYS_MEDIA",
       nuid: nuid,
       size: IO.iodata_length(chunks),
       chunks: length(chunks),
       digest: "SHA-256=" <> Base.url_encode64(:crypto.hash(:sha256, chunks))
     }
 
-    publish_object_message("$O.TTS_CLIPS.M." <> Base.url_encode64(key), Jason.encode!(meta),
+    publish_object_message("$O.OVERLAYS_MEDIA.M." <> Base.url_encode64(key), Jason.encode!(meta),
       headers: [{"Nats-Rollup", "sub"}]
     )
   end
 
   defp publish_object_message(subject, body, opts \\ []) do
     assert {:ok, %{body: ack}} = Gnat.request(:gnat_jetstream, subject, body, opts)
-    assert %{"stream" => "OBJ_TTS_CLIPS", "seq" => seq} = Jason.decode!(ack)
+    assert %{"stream" => "OBJ_OVERLAYS_MEDIA", "seq" => seq} = Jason.decode!(ack)
     assert is_integer(seq) and seq > 0
   end
 

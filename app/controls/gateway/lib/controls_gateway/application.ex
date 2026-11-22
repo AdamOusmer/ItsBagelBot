@@ -5,6 +5,7 @@ defmodule ControlsGateway.Application do
   use Application
 
   alias ControlsGateway.{Config, Drain}
+  alias ControlsGateway.Overlays.{Puller, Tiers}
   alias Platform.Nats.Planes
 
   @impl true
@@ -27,9 +28,11 @@ defmodule ControlsGateway.Application do
     ]
   end
 
+  defp pullers, do: Enum.map(Tiers.all(), &{Puller, &1})
+
   defp server_children do
     if Config.server?() do
-      Planes.children(Config.nats()) ++ [ControlsGateway.HttpServer]
+      Planes.children(Config.nats()) ++ pullers() ++ [ControlsGateway.HttpServer]
     else
       []
     end
