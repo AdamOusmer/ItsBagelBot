@@ -11,7 +11,6 @@ import (
 
 	"ItsBagelBot/app/twitch/outgress/internal/action"
 	"ItsBagelBot/app/twitch/outgress/internal/channels"
-	"ItsBagelBot/app/twitch/outgress/internal/conduit"
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/invalidate"
@@ -76,7 +75,7 @@ type Worker struct {
 	twitch      *twitch.Client
 	botID       string
 	owner       string
-	conduit     *conduit.Resolver
+	conduitID   string
 	lane        Lane
 	batch       BatchStore
 	actions     action.Registry
@@ -108,7 +107,7 @@ type Config struct {
 	Twitch      *twitch.Client
 	BotID       string
 	Owner       string
-	Conduit     *conduit.Resolver
+	ConduitID   string
 	Lane        Lane
 	Batch       BatchStore
 	UserIDs     *cache.Cache[string]
@@ -136,7 +135,7 @@ func New(cfg Config) *Worker {
 		twitch:     cfg.Twitch,
 		botID:      cfg.BotID,
 		owner:      cfg.Owner,
-		conduit:    cfg.Conduit,
+		conduitID:  cfg.ConduitID,
 		lane:       cfg.Lane,
 		batch:      cfg.Batch,
 		userIDs:    userIDs,

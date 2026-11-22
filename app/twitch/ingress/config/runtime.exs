@@ -82,7 +82,6 @@ config :ingress,
   scale_subject: System.get_env("NATS_SCALE_SUBJECT", "twitch.ingress.admin.shards.scale"),
   autoscale_subject:
     System.get_env("NATS_AUTOSCALE_SUBJECT", "twitch.ingress.admin.shards.autoscale"),
-  conduit_subject: System.get_env("NATS_CONDUIT_SUBJECT", "rpc.ingress.conduit.get"),
   rpc_health_subject: System.get_env("NATS_RPC_HEALTH_SUBJECT", "rpc.health.ingress"),
   max_shards: String.to_integer(System.get_env("TWITCH_CONDUIT_MAX_SHARDS", "11")),
   capacity_pod_rated_eps:
