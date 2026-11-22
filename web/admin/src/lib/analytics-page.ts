@@ -122,7 +122,7 @@ const ENUMS = {
   drop: ['auth', 'rejected', 'exhausted', 'chat_dropped'],
   plan: ['monthly', 'single', 'gift'],
   onboard: ['viewed', 'consent_missing', 'save_failed'],
-  section: ['overview', 'commands', 'flows', 'automations', 'modules', 'timers', 'loyalty', 'counters', 'quotes', 'songqueue', 'channelpoints', 'govee', 'voice', 'billing', 'settings', 'access']
+  section: ['overview', 'commands', 'flows', 'automations', 'modules', 'timers', 'loyalty', 'counters', 'quotes', 'songqueue', 'channelpoints', 'govee', 'voice', 'overlays', 'billing', 'settings', 'access']
 } as const;
 
 const FUNNEL = ['signup', 'onboarded', 'bot_enabled'] as const;

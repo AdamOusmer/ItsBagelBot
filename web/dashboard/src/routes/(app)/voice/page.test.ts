@@ -20,8 +20,8 @@ mock.module('@bagel/kit/i18n/context', () => ({
   getI18n: () => english,
   setI18n: () => english
 }));
-mock.module('./voice-autosave.svelte', () => ({
-  VoiceAutosave: class {
+mock.module('#lib/autosave.svelte', () => ({
+  Autosave: class {
     status = {};
     save() {}
     schedule() {}

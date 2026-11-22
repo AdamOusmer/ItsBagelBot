@@ -14,6 +14,7 @@ export const SUB = {
   outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX || 'rpc.outgress',
   gossip: process.env.NATS_GOSSIP_SUBJECT_PREFIX || 'rpc.gossip',
   loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX || 'rpc.loyalty',
+  overlays: process.env.NATS_OVERLAYS_SUBJECT_PREFIX || 'rpc.overlays',
   goveeKey: process.env.NATS_MODULES_GOVEE_SUBJECT_PREFIX || 'rpc.modules.govee',
   spotifyKey: process.env.NATS_MODULES_SPOTIFY_SUBJECT_PREFIX || 'rpc.modules.spotify',
   audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX || 'rpc.admin.user.audit',

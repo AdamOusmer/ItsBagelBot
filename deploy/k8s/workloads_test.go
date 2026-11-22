@@ -62,6 +62,7 @@ func TestSpreadIsHardWithoutMinDomains(t *testing.T) {
 		{"console-admin.yaml", "console-admin"},
 		{"console-dashboard.yaml", "console-dashboard"},
 		{"notifications.yaml", "notifications"},
+		{"overlays.yaml", "overlays"},
 		{"transactions.yaml", "transactions"},
 		{"twitch-ingress.yaml", "twitch-ingress"},
 		{"controls-gateway.yaml", "controls-gateway"},

@@ -8,6 +8,7 @@ import (
 
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/lifecycle"
+	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/pkg/codec"
 )
 
@@ -97,6 +98,15 @@ type FetchChangedDTO struct {
 }
 
 const SubjectAutomationChanged = "data.modules.automations.changed"
+
+const SubjectPoweredOverlayChanged = "data.overlays.powered.changed"
+
+type PoweredOverlayChangedDTO struct {
+	UserID        uint64                      `json:"user_id"`
+	PreviousToken string                      `json:"previous_token,omitempty"`
+	Deleted       bool                        `json:"deleted,omitempty"`
+	Overlay       *overlaysrpc.PoweredOverlay `json:"overlay,omitempty"`
+}
 
 type AutomationChangedDTO struct {
 	UserID     uint64                 `json:"user_id"`

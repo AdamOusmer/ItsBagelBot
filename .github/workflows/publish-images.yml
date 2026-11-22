@@ -23,6 +23,7 @@ on:
           - loyalty
           - modules
           - notifications
+          - overlays
 
 
 
@@ -123,6 +124,12 @@ jobs:
               "description": "ItsBagelBot notifications data service"
             },
             {
+              "image": "overlays",
+              "context": ".",
+              "containerfile": "app/db/overlays/Containerfile",
+              "description": "ItsBagelBot overlays data service"
+            },
+            {
               "image": "outgress",
               "context": ".",
               "containerfile": "app/twitch/outgress/Containerfile",
@@ -209,7 +216,7 @@ jobs:
           # signed with the same build provenance as a real service. A benchmark
           # belongs in an operator's working copy, not in the registry the
           # cluster pulls from.
-          root_go_services=(admin commands loyalty modules notifications outgress projector transactions users sesame gossip)
+          root_go_services=(admin commands loyalty modules notifications overlays outgress projector transactions users sesame gossip)
 
           add_root_go_services() {
             local service
@@ -301,6 +308,9 @@ jobs:
                 ;;
               app/db/notifications/*)
                 add "notifications"
+                ;;
+              app/db/overlays/*)
+                add "overlays"
                 ;;
               app/twitch/outgress/*)
                 add "outgress"
