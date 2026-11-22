@@ -55,6 +55,7 @@ type AssetView struct {
 	W           int    `json:"w"`
 	H           int    `json:"h"`
 	DurationMS  int    `json:"duration_ms"`
+	SHA256      string `json:"sha256"`
 	DisplayName string `json:"display_name,omitempty"`
 }
 
