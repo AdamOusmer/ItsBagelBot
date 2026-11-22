@@ -36,6 +36,7 @@ var servicesProjects = map[string]string{
 	"admin_service":    "admin-db",
 	"transactions":     "transactions",
 	"notifications":    "notifications",
+	"overlays":         "overlays",
 	"gossip":           "gossip",
 	"controls_gateway": "controls-gateway",
 	"deployer":         "deployer",

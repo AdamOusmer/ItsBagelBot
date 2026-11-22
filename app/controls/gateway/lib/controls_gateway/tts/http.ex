@@ -5,6 +5,7 @@ defmodule ControlsGateway.Tts.Http do
   @behaviour :cowboy_loop
   require Logger
 
+  alias ControlsGateway.OverlayRequest
   alias ControlsGateway.Tts.{Clips, Events, Nats, Page, Session, Throttle}
 
   @headers %{"cache-control" => "no-store", "referrer-policy" => "no-referrer"}
@@ -50,7 +51,7 @@ defmodule ControlsGateway.Tts.Http do
   end
 
   defp exchange(req) do
-    case Throttle.reserve(client_ip(req)) do
+    case Throttle.reserve(OverlayRequest.client_ip(req)) do
       {:ok, reservation} -> exchange(req, reservation)
       :limited -> reply(req, 429, Map.put(@headers, "retry-after", "60"))
     end
@@ -95,29 +96,12 @@ defmodule ControlsGateway.Tts.Http do
   end
 
   defp resolve_body(body) do
-    with {:ok, %{"token" => token}} when is_binary(token) and byte_size(token) == 43 <-
-           Jason.decode(body),
-         {:ok, raw} when byte_size(raw) == 32 <- Base.url_decode64(token, padding: false),
-         ^token <- Base.url_encode64(raw, padding: false) do
-      hash = :crypto.hash(:sha256, token) |> Base.encode16(case: :lower)
-      Nats.resolve(hash)
-    else
-      _ -> :not_found
-    end
-  end
+    case OverlayRequest.token(body) do
+      {:ok, token} ->
+        :crypto.hash(:sha256, token) |> Base.encode16(case: :lower) |> Nats.resolve()
 
-  defp client_ip(req) do
-    {peer, _port} = :cowboy_req.peer(req)
-
-    if Application.get_env(:controls_gateway, :overlay_trust_cloudflare_ip, false) do
-      address = :cowboy_req.header("cf-connecting-ip", req, "")
-
-      case :inet.parse_strict_address(:binary.bin_to_list(address)) do
-        {:ok, ip} -> ip
-        {:error, :einval} -> peer
-      end
-    else
-      peer
+      :error ->
+        :not_found
     end
   end
 

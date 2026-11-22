@@ -67,7 +67,7 @@ func OpenTTSJobs(ctx context.Context, nc *nats.Conn, replicas int) (*TTSJobs, er
 		Name: TTSJobsStream, Subjects: []string{ttsJobsSubject + "*"}, Storage: nats.FileStorage,
 		Retention: nats.WorkQueuePolicy, Replicas: replicas, MaxAge: ttsJobTTL, Duplicates: ttsJobTTL,
 	}
-	stream, err := js.CreateOrUpdateStream(ctx, streamConfig(spec))
+	stream, err := createOrGetTTSStream(ctx, js, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -90,16 +90,27 @@ func OpenTTSOverlay(ctx context.Context, nc *nats.Conn, replicas int) (*TTSOverl
 		Name: TTSOverlayStream, Subjects: []string{ttsOverlaySubject + "*"}, Storage: nats.FileStorage,
 		Replicas: replicas, MaxAge: TTSClipTTL, Duplicates: TTSClipTTL,
 	}
-	if _, err := js.CreateOrUpdateStream(ctx, streamConfig(spec)); err != nil {
+	if _, err := createOrGetTTSStream(ctx, js, spec); err != nil {
 		return nil, err
 	}
 	bucket, err := js.CreateOrUpdateObjectStore(ctx, jsapi.ObjectStoreConfig{
 		Bucket: TTSClipBucket, TTL: TTSClipTTL, Storage: jsapi.FileStorage, Replicas: replicas,
 	})
+	if errors.Is(err, jsapi.ErrBucketExists) {
+		bucket, err = js.ObjectStore(ctx, TTSClipBucket)
+	}
 	if err != nil {
 		return nil, err
 	}
 	return &TTSOverlay{js: js, bucket: bucket}, nil
+}
+
+func createOrGetTTSStream(ctx context.Context, js jsapi.JetStream, spec StreamSpec) (jsapi.Stream, error) {
+	stream, err := js.CreateOrUpdateStream(ctx, streamConfig(spec))
+	if errors.Is(err, jsapi.ErrStreamNameAlreadyInUse) {
+		return js.Stream(ctx, spec.Name)
+	}
+	return stream, err
 }
 
 type TTSMessage struct {

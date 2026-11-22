@@ -48,6 +48,23 @@ five-minute TTL. The gateway creates ephemeral readers for events and reads
 Object Store metadata and chunks through the stream message API. Missing
 resources leave readiness available.
 
+## Powered by overlay
+
+OBS opens `https://overlay.itsbagelbot.com/powered#<token>`. Overlays owns the
+token, 32 random bytes as unpadded base64url, stored in plaintext and
+rotatable. The page posts it once as JSON to `POST /powered/config`. The
+gateway forwards the token to `rpc.internal.projector.overlays.powered.resolve`
+on `:gnat_rpc` and replies `{"config": ..., "premium": bool}` uncached. A
+`not_found` refusal is 404, any other refusal or a missing responder is 503.
+Failed attempts share the TTS per-IP throttle. Keep the token out of logs.
+
+`GET /powered` serves `priv/powered/page.html`, read at compile time. The page
+holds exactly one `<style>` and one `<script>` tag without attributes, and
+the CSP carries their SHA-256 hashes. Only the dashboard origin may frame it.
+`powered_dev_frame_ancestors` adds localhost origins for dashboard
+development. `GET /powered/assets/<file>` serves only the `.webp` and `.woff2`
+files present in `priv/powered/assets` at compile time, cached as immutable.
+
 ## Desktop WebSocket
 
 The desktop handler `ws_handler.ex` and its tests remain in the tree.
@@ -79,6 +96,8 @@ the desktop connections.
 | Session and rate limit | [session.ex](lib/controls_gateway/tts/session.ex), [throttle.ex](lib/controls_gateway/tts/throttle.ex) |
 | Event and clip streams | [events.ex](lib/controls_gateway/tts/events.ex), [clips.ex](lib/controls_gateway/tts/clips.ex) |
 | Users RPC | [tts/nats.ex](lib/controls_gateway/tts/nats.ex) |
+| Powered page, assets and config | [powered/http.ex](lib/controls_gateway/powered/http.ex), [powered/page.ex](lib/controls_gateway/powered/page.ex) |
+| Projector RPC | [powered/nats.ex](lib/controls_gateway/powered/nats.ex) |
 | Listener and credentials | [runtime.exs](config/runtime.exs), [controls-gateway.yaml](../../../deploy/k8s/controls-gateway.yaml) |
 
 Production uses the `controls-gateway` Doppler project for the shared

@@ -66,6 +66,7 @@ export const SCOPES: ScopeMap = {
   'loyalty-counters': noKeys,
   'user-projection': noKeys,
   fetches: noKeys,
+  overlays: noKeys,
   user: userKeys,
   '*': userKeys
 };

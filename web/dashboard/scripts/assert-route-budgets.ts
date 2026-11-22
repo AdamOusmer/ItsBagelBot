@@ -33,7 +33,9 @@ const BUDGETS: Record<string, Budget> = {
   // CI measured 22849, ~2% room.
   // js raised from 100900 (2026-11-08): shared cursor pointer sampling changed the shell bundle;
   // CI measured 100926 B gzip after integration, ~0.3% room.
-  '/(public)/login': { js: 101200, css: 23300, catalog: 2900, lazy: 0 },
+  // js raised from 101200 (2026-11-21): the cursor ring snaps to its target while a button is held (slider drag);
+  // CI measured 101217 B gzip, ~0.1% room.
+  '/(public)/login': { js: 101300, css: 23300, catalog: 2900, lazy: 0 },
   // js raised from 118700 (2026-10-29) for the shared Glide rail selector (+128 B): measured 118765, ~2% room.
   // css raised from 44700 (2026-10-29) for the aurora footer in the shared stylesheet (+413 B): measured 44682, ~1% room.
   // css raised from 45200 (2026-10-29) for the shared .bb-prose style in typography.css (+213 B gzip there): CI measured 45295, ~1% room.

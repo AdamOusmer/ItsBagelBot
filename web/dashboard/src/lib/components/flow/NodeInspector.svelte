@@ -444,7 +444,7 @@
                     aria-valuetext={valueText}
                     aria-invalid={Boolean(error)}
                     aria-describedby={error ? `${uid}-${field.key}-error` : undefined}
-                    oninput={(e) => (node.config[field.key] = e.currentTarget.valueAsNumber)}
+                    oninput={(next) => (node.config[field.key] = next)}
                   />
                   <span class="unit slider-value bb-fit-box" aria-hidden="true"><bb-fit>{valueText}</bb-fit></span>
                 </div>

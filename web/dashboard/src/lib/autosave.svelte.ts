@@ -6,15 +6,15 @@ import type { ActionOk } from '@bagel/kit';
 import { toast } from '@bagel/ui/svelte/toast';
 import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
-export type VoiceSaveOutcome = 'saved' | 'conflict' | 'failed';
-type WriteOutcome = VoiceSaveOutcome | 'dropped';
+export type SaveOutcome = 'saved' | 'conflict' | 'failed';
+type WriteOutcome = SaveOutcome | 'dropped';
 type SaveReply = ActionOk & { rev?: number; conflict?: boolean };
 
 const SAVED_RESET_MS = 3000;
 const ERROR_RESET_MS = 4000;
 const DEFAULT_DEBOUNCE_MS = 700;
 
-export class VoiceAutosave {
+export class Autosave {
   status = $state<Record<string, SaveState>>({});
   revision = $state(0);
 
@@ -65,14 +65,14 @@ export class VoiceAutosave {
     return 'failed';
   }
 
-  #settle(key: string, outcome: WriteOutcome): VoiceSaveOutcome {
+  #settle(key: string, outcome: WriteOutcome): SaveOutcome {
     if (outcome === 'saved') this.#setStatus(key, 'saved', SAVED_RESET_MS);
     else if (outcome === 'dropped') this.#setStatus(key, 'idle');
     else this.#setStatus(key, 'error', ERROR_RESET_MS);
     return outcome === 'dropped' ? 'conflict' : outcome;
   }
 
-  save(key: string, fields: Record<string, string>): Promise<VoiceSaveOutcome> {
+  save(key: string, fields: Record<string, string>): Promise<SaveOutcome> {
     this.#setStatus(key, 'saving');
     const generation = this.#generation;
     const result = this.#chain.then((): Promise<WriteOutcome> | WriteOutcome =>

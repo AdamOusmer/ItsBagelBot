@@ -118,6 +118,7 @@ export function mountCursor(options: CursorOptions): () => void {
     let overText = false;
     let lastFrame = 0;
     let active = false;
+    let held = false;
     let radius = FALLBACK_RADIUS;
 
     function setTarget(next: HTMLElement | null, style?: CSSStyleDeclaration): void {
@@ -144,7 +145,7 @@ export function mountCursor(options: CursorOptions): () => void {
     function advance(shape: Box, el: HTMLElement | null, now: number): boolean {
         const to = el ? warpBox(shape) : shape;
         const elapsed = lastFrame ? now - lastFrame : FRAME_MS;
-        const speed = el ? ease.hover : ease.release;
+        const speed = !el ? ease.release : held ? 1 : ease.hover;
         const factor = 1 - (1 - speed) ** (elapsed / FRAME_MS);
         box = morphBox(box, to, factor);
         const done = arrived(box, to);
@@ -174,6 +175,7 @@ export function mountCursor(options: CursorOptions): () => void {
         if (!active || event.pointerType === 'touch') return;
         pointer.x = event.clientX;
         pointer.y = event.clientY;
+        held = event.buttons > 0;
         wake(tick);
     };
 
