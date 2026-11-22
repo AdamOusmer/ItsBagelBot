@@ -22,6 +22,7 @@ import type { Session } from './session';
 import type { AccountState, BillingState, DeviceGrantView, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';
 import type { VoiceAllowance } from './services/voice';
+import type { PoweredView } from './services/overlays';
 import type { GoveeDevice, GoveeView } from './govee-store';
 import type { FetchDefView, FetchKeyView } from './fetches-store';
 import type { PublicStats } from './public-stats';
@@ -687,4 +688,29 @@ export function demoVoiceSave(settings: Partial<typeof demoVoiceState.settings>,
     demoVoiceState.revision += 1;
   }
   return demoVoiceState.revision;
+}
+
+const DEMO_POWERED_URL = 'https://overlay.itsbagelbot.com/powered#demo-powered-link';
+const DEMO_POWERED_REPLACED_URL = `${DEMO_POWERED_URL}-replaced`;
+
+const demoPoweredState: PoweredView = {
+  url: DEMO_POWERED_URL,
+  config: { every_minutes: 15, show_seconds: 8, directions: ['right'], align: 'end' },
+  revision: 1
+};
+
+export function demoPoweredView(): PoweredView {
+  return structuredClone(demoPoweredState);
+}
+
+export function demoPoweredSave(config: PoweredView['config']): number {
+  demoPoweredState.config = structuredClone(config);
+  demoPoweredState.revision += 1;
+  return demoPoweredState.revision;
+}
+
+export function demoPoweredRotate(): { url: string; revision: number } {
+  demoPoweredState.url = demoPoweredState.url === DEMO_POWERED_URL ? DEMO_POWERED_REPLACED_URL : DEMO_POWERED_URL;
+  demoPoweredState.revision += 1;
+  return { url: demoPoweredState.url, revision: demoPoweredState.revision };
 }

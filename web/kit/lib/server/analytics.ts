@@ -27,7 +27,7 @@ const CATALOG: Record<string, ((v: string) => boolean)[]> = {
   'custom.commands': [one(['created', 'deleted'])],
   'dashboard.views': [one([
     'overview', 'commands', 'flows', 'automations', 'modules', 'timers', 'loyalty', 'counters',
-    'quotes', 'songqueue', 'channelpoints', 'govee', 'voice', 'billing', 'settings', 'access'
+    'quotes', 'songqueue', 'channelpoints', 'govee', 'voice', 'overlays', 'billing', 'settings', 'access'
   ]), one(['owner', 'delegate'])],
   'billing.checkout': [one(['monthly', 'single', 'gift']), one(['redirected', 'blocked', 'unavailable', 'rejected'])],
   'import.runs': [one(['streamelements', 'fossabot', 'moobot', 'nightbot', 'streamlabs_desktop', 'wizebot']),

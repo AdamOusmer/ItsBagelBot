@@ -132,9 +132,10 @@ data:
     rclone move /work "r2:${R2_BUCKET}/mysql/daily/" \
       --include "*.enc" --include "*.sha256" --stats-one-line
 
-    # Retention is NOT done here: the 30d expiry is an R2 lifecycle rule on
-    # daily/, which keeps pruning if this CronJob is broken or deleted. The
-    # privacy policy promises backups expire after 30 days: no longer-lived copy.
+    # Retention is NOT done here: the 2d expiry (and 2d bucket lock) is an R2
+    # lifecycle rule on daily/, binlogs included, which keeps pruning if this
+    # CronJob is broken or deleted. The privacy policy promises backups expire
+    # within 30 days: no longer-lived copy.
     rclone lsf "r2:${R2_BUCKET}/mysql/daily/" --include "*.enc" | wc -l | xargs echo "daily objects in R2:"
   r2-env.sh: |
     export RCLONE_CONFIG_R2_TYPE=s3

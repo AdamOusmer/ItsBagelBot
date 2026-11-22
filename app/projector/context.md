@@ -29,6 +29,8 @@ See the [shared vocabulary](../../CONTEXT.md) and [context map](../../CONTEXT-MA
 | [counters.go](counters.go) | Counter-bump folding, seed timestamps, live totals, board initialization/retry and account cleanup. |
 | [hydration/hydrator.go](hydration/hydrator.go) | Background section filling/refreshing with bounded concurrency, per-user gates, and fetch retries. |
 | [rpc/dashboard.go](rpc/dashboard.go) | Commands/modules projection reads and replacements; cold reads call owners and seed hydration. |
+| [overlays.go](overlays.go) | Powered-by overlay fold: revision-gated link writes, previous-token removal on rotate, tombstone on delete, `overlays` invalidation keyed by token. |
+| [rpc/overlays.go](rpc/overlays.go) | `rpc.internal.projector.overlays.powered.resolve`: token to config plus premium flag. Process cache, then Valkey, then the Overlays owner by token with write-back. Premium reads only the projected user, never Users. |
 | [rpc/status.go](rpc/status.go) | Broadcaster account-status read with cache and Users fallback. A Users not-found reply reads as standard; any other fallback failure replies standard with a `status unavailable` error. |
 | [rpc/live.go](rpc/live.go) | Live reads and cold-read escalation to Twitch Outgress's system lane. |
 | [rpc/streaminfo.go](rpc/streaminfo.go) | Stream metadata projection reads. |
@@ -37,7 +39,7 @@ See the [shared vocabulary](../../CONTEXT.md) and [context map](../../CONTEXT-MA
 
 ## Flow and service boundaries
 
-1. Users, Commands, and Modules publish `data.*` changes. One Projector fleet durable group consumes those, Loyalty counter bumps and Twitch stream-status events.
+1. Users, Commands, Modules, and Overlays publish `data.*` changes. One Projector fleet durable group consumes those, Loyalty counter bumps and Twitch stream-status events.
 2. `foldEvent` decodes and validates before mutation. Invalid payloads are logged and acknowledged; storage failures return errors for redelivery.
 3. Store writes precede invalidation fan-out. Account incarnation/revision protections live in the shared projection store; don't replace them with unconditional hash overwrites.
 4. A cold dashboard read calls the owning service over NATS and returns that section; `EnsureAsync` repairs missing settings sections off the foreground path.
@@ -52,7 +54,7 @@ See the [shared vocabulary](../../CONTEXT.md) and [context map](../../CONTEXT-MA
 - Hydration fetch retries are bounded and stop at once on an owner not-found reply, which logs at debug; store failures do not replay stale snapshots blindly. Protect newer events from older hydration responses.
 - Emit invalidations after successful shared-store mutation. Core NATS broadcasts evict every process cache; a queue subscription would notify only one replica.
 - Stream lifecycle writes must remain synchronous before acknowledging the source event. Go-live side effects are best effort and must not turn into lifecycle redelivery requirements.
-- This service aggregates Users, Commands, Modules, Loyalty and Notifications health. Transactions has its separate billing endpoint.
+- This service aggregates Users, Commands, Modules, Loyalty, Notifications and Overlays health. Transactions has its separate billing endpoint.
 - Live counter seeding stamps after owner reads so an already-included batch is not counted again. Keep dedup, source-storage-time and seed-barrier behavior in the shared projection implementation.
 - Incoming AutoMod currently lives in [Sesame](../twitch/sesame/context.md). This service has no AutoMod journal RPC or Rust enforcement role in the merged source.
 

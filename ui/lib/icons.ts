@@ -59,6 +59,7 @@ export const icons = {
   twitch: '<path stroke="none" fill="currentColor" d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/>', // simple-icons:twitch
   branch: '<g><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></g>', // lucide:git-branch
   sidebar: '<g><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></g>', // lucide:panel-left
+  overlay: '<g><path d="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4"/><rect width="10" height="7" x="12" y="13" rx="2"/></g>', // lucide:picture-in-picture-2
 } as const;
 
 export type IconName = keyof typeof icons;

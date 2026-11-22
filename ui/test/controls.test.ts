@@ -379,9 +379,19 @@ describe('SwitchRow', () => {
 describe('Slider and FileDrop', () => {
   contracts(SvelteSlider, AstroSlider, [
     {
-      name: 'Slider is a range input',
-      props: { value: 12, min: 1, max: 60, name: 'runs' },
-      html: '<input type="range" class="bb-slider" min="1" max="60" step="1" value="12" name="runs">',
+      name: 'Slider is a rail with a fill and a slider thumb, plus a hidden input when named',
+      props: { value: 16, min: 1, max: 61, name: 'runs', id: 'runs', 'aria-valuetext': '16 runs' },
+      html:
+        '<div class="bb-slider" style="--slider-progress: 0.25; --slider-step: 1;"><input type="hidden" name="runs" value="16">' +
+        '<span class="bb-slider__fill" aria-hidden="true"></span><span class="bb-slider__thumb" role="slider" tabindex="0" id="runs" ' +
+        'aria-valuemin="1" aria-valuemax="61" aria-valuenow="16" aria-valuetext="16 runs"></span></div>',
+    },
+    {
+      name: 'a disabled Slider leaves the tab order and says so',
+      props: { value: 0, disabled: true, class: 'x' },
+      html:
+        '<div class="bb-slider bb-slider--disabled x" style="--slider-progress: 0; --slider-step: 1;"><span class="bb-slider__fill" aria-hidden="true"></span>' +
+        '<span class="bb-slider__thumb" role="slider" tabindex="-1" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-disabled="true"></span></div>',
     },
   ]);
 
