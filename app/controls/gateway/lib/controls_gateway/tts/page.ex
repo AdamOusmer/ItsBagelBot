@@ -11,75 +11,199 @@ defmodule ControlsGateway.Tts.Page do
   @js """
   const audio = document.querySelector('audio');
   const hint = document.querySelector('button');
+  const inObs = Boolean(window.obsstudio);
+  const token = location.hash.slice(1);
   const queue = [];
-  let busy = false;
+  const seen = new Set();
+  let active = true;
+  let visible = true;
+  let watchdog = null;
+  let playbackStartedAt = 0;
+  let playbackBudget = 0;
+  let retryCap = 2000;
+  let lastEventId = '';
 
-  async function playNext() {
-    if (busy) return;
-    while (queue.length && Date.parse(queue[0].expires_at) <= Date.now()) queue.shift();
+  if (token) history.replaceState(null, '', '/tts');
+
+  function resetWatchdog() {
+    clearTimeout(watchdog);
+    watchdog = null;
+  }
+
+  function clearAudio() {
+    resetWatchdog();
+    hint.hidden = true;
+    if (!audio.hasAttribute('src')) return;
+    audio.removeAttribute('src');
+    audio.load();
+  }
+
+  function sourceReady() {
+    const showing = visible && !document.hidden;
+    return !inObs || (active && showing);
+  }
+
+  function dropExpired() {
+    const firstWaiting = watchdog === null ? 0 : 1;
+    const now = Date.now();
+    while (queue[firstWaiting]?.expiresAt <= now) queue.splice(firstWaiting, 1);
+  }
+
+  function playNext() {
+    dropExpired();
+    if (watchdog !== null || !sourceReady()) return;
     const clip = queue[0];
     if (!clip) {
-      hint.hidden = true;
+      clearAudio();
       return;
     }
+    startClip(clip);
+  }
 
-    busy = true;
-    audio.src = '/tts/clip/' + encodeURIComponent(clip.event_id);
+  async function startClip(clip) {
+    const src = '/tts/clip/' + encodeURIComponent(clip.event_id);
+    if (audio.getAttribute('src') !== src) {
+      audio.src = src;
+      playbackBudget = clip.duration_ms + 5000;
+    }
+
+    const timer = setTimeout(advance, playbackBudget);
+    watchdog = timer;
+    playbackStartedAt = performance.now();
     try {
       await audio.play();
-      if (queue[0] === clip) hint.hidden = true;
+      if (watchdog === timer) hint.hidden = true;
     } catch (error) {
-      if (queue[0] !== clip) return;
-      if (error.name === 'NotAllowedError') {
-        hint.hidden = false;
-        busy = false;
-      } else {
+      if (watchdog !== timer) return;
+      const needsGesture = !inObs && error.name === 'NotAllowedError';
+      if (!needsGesture) {
         advance();
+        return;
       }
+      resetWatchdog();
+      hint.hidden = false;
     }
   }
 
   function advance() {
-    if (!busy) return;
+    if (watchdog === null) return;
+    clearAudio();
     queue.shift();
-    busy = false;
     playNext();
   }
 
-  audio.addEventListener('ended', advance);
+  function sourceChanged() {
+    if (sourceReady()) {
+      playNext();
+      return;
+    }
+    if (watchdog === null) return;
+    if (audio.ended || audio.error) {
+      advance();
+      return;
+    }
+    playbackBudget -= performance.now() - playbackStartedAt;
+    resetWatchdog();
+    audio.pause();
+  }
+
+  audio.addEventListener('ended', () => {
+    if (audio.ended) advance();
+  });
   audio.addEventListener('error', () => {
     if (audio.error) advance();
   });
   hint.addEventListener('click', playNext);
 
+  if (inObs) {
+    window.addEventListener('obsSourceActiveChanged', ({ detail }) => {
+      active = detail.active;
+      sourceChanged();
+    });
+    window.addEventListener('obsSourceVisibleChanged', ({ detail }) => {
+      visible = detail.visible;
+      sourceChanged();
+    });
+    document.addEventListener('visibilitychange', sourceChanged);
+  }
+
+  function waitToRetry(retryAfter = 0) {
+    const delay = Math.max(retryAfter, retryCap * (0.5 + Math.random() * 0.5));
+    retryCap = Math.min(60000, retryCap * 2);
+    return new Promise((resolve) => setTimeout(resolve, delay));
+  }
+
+  function retryAfterMs(response) {
+    if (response?.status !== 429) return 0;
+    const raw = response.headers.get('retry-after');
+    const seconds = Number(raw);
+    const delay = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(raw) - Date.now();
+    return Math.max(0, delay || 0);
+  }
+
+  async function requestUntil(path, options, stopStatus) {
+    for (;;) {
+      const response = await fetch(path, { ...options, redirect: 'error' }).catch(() => null);
+      const status = response?.status ?? 0;
+      if (response?.ok || status === stopStatus) return status;
+      await waitToRetry(retryAfterMs(response));
+    }
+  }
+
+  function receiveClip({ data, lastEventId: sequence }) {
+    lastEventId = sequence;
+    const clip = JSON.parse(data);
+    clip.expiresAt = Date.parse(clip.expires_at);
+    const expired = !(clip.expiresAt > Date.now());
+    if (expired || typeof clip.event_id !== 'string' || seen.has(clip.event_id)) return;
+    seen.add(clip.event_id);
+    if (seen.size > 100) seen.delete(seen.values().next().value);
+    queue.push(clip);
+    if (hint.hidden) playNext();
+    else dropExpired();
+  }
+
+  function stopPlayback() {
+    queue.length = 0;
+    clearAudio();
+  }
+
+  async function recover() {
+    await waitToRetry();
+    const status = await requestUntil('/tts/events', { method: 'HEAD' }, token ? 401 : undefined);
+    if (status === 204) {
+      stopPlayback();
+      return;
+    }
+    await connect();
+  }
+
+  async function exchangeToken() {
+    if (!token) return true;
+    const status = await requestUntil('/tts/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    }, 404);
+    return status !== 404;
+  }
+
   async function connect() {
-    const token = location.hash.slice(1);
-    if (token) {
-      let session;
-      try {
-        session = fetch('/tts/session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token }),
-          credentials: 'same-origin',
-          redirect: 'error'
-        });
-      } finally {
-        history.replaceState(null, '', '/tts');
-      }
-      if (!(await session).ok) return;
+    if (!(await exchangeToken())) {
+      stopPlayback();
+      return;
     }
 
-    const events = new EventSource('/tts/events');
-    events.onmessage = ({ data }) => {
-      const clip = JSON.parse(data);
-      if (typeof clip.event_id !== 'string' || !(Date.parse(clip.expires_at) > Date.now())) return;
-      queue.push(clip);
-      if (hint.hidden) playNext();
+    const path = lastEventId ? '/tts/events?after=' + encodeURIComponent(lastEventId) : '/tts/events';
+    const events = new EventSource(path);
+    events.onopen = () => { retryCap = 2000; };
+    events.onmessage = receiveClip;
+    events.onerror = () => {
+      if (events.readyState === EventSource.CLOSED) recover();
     };
   }
 
-  connect().catch(() => {});
+  connect();
   """
 
   @html """
