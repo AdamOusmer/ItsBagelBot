@@ -300,13 +300,13 @@ function sendTestAlert(session: typeof owner | null) {
 }
 
 test.each([{ name: 'owner', session: owner }, { name: 'view-as staff', session: viewAs }])(
-  'queues a test alert for $name with identity from the session',
-  async ({ session }) => {
-    const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce({ status: 'queued' });
-    expect(await sendTestAlert(session)).toEqual({ testAlertSent: true });
-    expect(rpc.mock.calls).toEqual([[testAlertSubject, { ...actor, display_name: 'Streamer' }, WRITE_TIMEOUT_MS]]);
-  }
-);
+  'queues a test alert for $name with identity from the session', async ({ session }) => {
+  const rpc = spyOn(bus, 'rpc').mockResolvedValue({ status: 'queued' });
+  audits.length = 0;
+  expect(await sendTestAlert(session)).toEqual({ testAlertSent: true });
+  expect(rpc.mock.calls[0]).toEqual([testAlertSubject, { ...actor, display_name: 'Streamer' }, WRITE_TIMEOUT_MS]);
+  expect(audits).toEqual([[{ ...session, display_name: 'Streamer' }, 'voice:test_alert']]);
+});
 
 test.each([
   { name: 'delegate', session: delegate, status: 403 },
