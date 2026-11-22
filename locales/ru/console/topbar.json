@@ -1,5 +1,7 @@
 {
   "roleBroadcaster": "Стример",
+  "roleSignedIn": "Вход выполнен как вы",
+  "roleAdminView": "Админ: {admin}",
   "notifications": "Уведомления",
   "logout": "Выйти",
   "dashboards": "Общие панели управления",

@@ -1,7 +1,14 @@
 {
   "sharedPre": "Geteilter Zugriff auf das Dashboard von ",
   "sharedPost": " ({sections})",
+  "sharedBadge": "Geteilt",
+  "sharedOwnerPre": "Dashboard von ",
+  "sharedOwnerPost": "",
   "viewingPre": "Ansicht als ",
   "viewingPost": " (Admin {admin})",
+  "adminBadge": "Admin-Ansicht",
+  "adminTag": "Admin: {admin}",
+  "leaveShared": "Geteilt verlassen",
+  "endView": "Ansicht beenden",
   "exit": "Verlassen"
 }

@@ -1,5 +1,7 @@
 {
   "roleBroadcaster": "Diffuseur",
+  "roleSignedIn": "Connecté en tant que vous",
+  "roleAdminView": "Admin : {admin}",
   "notifications": "Notifications",
   "logout": "Se déconnecter",
   "dashboards": "Tableaux partagés",

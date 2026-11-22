@@ -1,7 +1,14 @@
 {
   "sharedPre": "Shared access to ",
   "sharedPost": "'s dashboard ({sections})",
+  "sharedBadge": "Shared",
+  "sharedOwnerPre": "",
+  "sharedOwnerPost": "'s dashboard",
   "viewingPre": "Viewing as ",
   "viewingPost": " (admin {admin})",
+  "adminBadge": "Admin view",
+  "adminTag": "Admin: {admin}",
+  "leaveShared": "Leave shared",
+  "endView": "End view",
   "exit": "Exit"
 }

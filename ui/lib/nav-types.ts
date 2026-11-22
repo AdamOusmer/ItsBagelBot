@@ -43,6 +43,36 @@ export interface UiCrumb {
   href?: string;
 }
 
+export type UiContextTone = 'warm' | 'danger';
+
+export interface UiContextBadge {
+  label: string;
+  icon: IconName;
+  tone: UiContextTone;
+}
+
+export interface UiContextAction {
+  label: string;
+  compactLabel?: string;
+  href?: string;
+  formAction?: string;
+  tone?: UiContextTone;
+  subtle?: boolean;
+}
+
+export interface UiTopbarContext {
+  tone: UiContextTone;
+  statusText: string;
+  badges: UiContextBadge[];
+  avatar?: string;
+  subjectPre?: string;
+  subject?: string;
+  subjectPost?: string;
+  scopes?: string[];
+  scopesTitle?: string;
+  actions: UiContextAction[];
+}
+
 export interface UiFooterColumn {
   title: string;
   links: UiNavLink[];

@@ -1,7 +1,14 @@
 {
   "sharedPre": "Accès partagé au tableau de bord de ",
   "sharedPost": " ({sections})",
+  "sharedBadge": "Partagé",
+  "sharedOwnerPre": "Tableau de ",
+  "sharedOwnerPost": "",
   "viewingPre": "Vue en tant que ",
   "viewingPost": " (admin {admin})",
+  "adminBadge": "Vue admin",
+  "adminTag": "Admin : {admin}",
+  "leaveShared": "Quitter le partage",
+  "endView": "Quitter la vue",
   "exit": "Quitter"
 }

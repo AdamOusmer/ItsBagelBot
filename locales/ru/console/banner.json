@@ -1,7 +1,14 @@
 {
   "sharedPre": "Общий доступ к панели ",
   "sharedPost": " ({sections})",
+  "sharedBadge": "Общий",
+  "sharedOwnerPre": "Панель ",
+  "sharedOwnerPost": "",
   "viewingPre": "Просмотр от имени ",
   "viewingPost": " (администратор {admin})",
+  "adminBadge": "Режим админа",
+  "adminTag": "Админ: {admin}",
+  "leaveShared": "Выйти из общего",
+  "endView": "Завершить просмотр",
   "exit": "Выйти"
 }
