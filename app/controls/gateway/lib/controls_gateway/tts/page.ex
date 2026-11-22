@@ -22,8 +22,6 @@ defmodule ControlsGateway.Tts.Page do
   let playbackBudget = 0;
   let retryCap = 2000;
 
-  if (token) history.replaceState(null, '', '/tts');
-
   function resetWatchdog() {
     clearTimeout(watchdog);
     watchdog = null;

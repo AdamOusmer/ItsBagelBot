@@ -5,7 +5,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"ItsBagelBot/internal/domain/overlays"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/db"
 )
 
@@ -45,7 +45,7 @@ func (s systemOverlay) createdAt() time.Time {
 	return s.CreatedAt.UTC().Truncate(time.Microsecond)
 }
 
-func systemDocument(template overlays.Template, cfg overlaysrpc.PoweredConfig, revision uint64) (json.RawMessage, error) {
+func systemDocument(template overlays.Template, cfg overlaysrpc.PoweredConfig, revision uint64) (codec.RawMessage, error) {
 	doc := overlays.Document{
 		Version: overlays.Version, Kind: overlays.KindSystem, ID: string(template), Name: templateNames[template],
 		Rev: int64(revision), Template: template, Config: &cfg,
@@ -53,7 +53,7 @@ func systemDocument(template overlays.Template, cfg overlaysrpc.PoweredConfig, r
 	if err := overlays.Validate(doc); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidConfig, err)
 	}
-	return json.Marshal(doc)
+	return codec.Marshal(doc)
 }
 
 func (r *Overlays) systemCreate(s systemOverlay) (*ent.OverlayCreate, error) {

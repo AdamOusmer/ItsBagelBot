@@ -6,12 +6,13 @@ package overlays
 import (
 	"bytes"
 	"cmp"
-	"encoding/json"
 	"maps"
 	"regexp"
 	"slices"
 	"strings"
 	"unicode/utf8"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 const (
@@ -45,7 +46,7 @@ func Validate(doc Document) error {
 
 func validateSize(doc Document) error {
 	var buf bytes.Buffer
-	encoder := json.NewEncoder(&buf)
+	encoder := codec.NewEncoder(&buf)
 	encoder.SetEscapeHTML(false)
 	if err := encoder.Encode(doc); err != nil {
 		return fail(CodeInvalidDocument, "")

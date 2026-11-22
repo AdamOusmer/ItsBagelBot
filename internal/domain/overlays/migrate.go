@@ -4,9 +4,10 @@
 package overlays
 
 import (
-	"encoding/json"
 	"maps"
 	"slices"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 type legacyDocument struct {
@@ -29,7 +30,7 @@ func Migrate(data []byte, assets map[string]Asset) (Document, error) {
 	var probe struct {
 		Version int `json:"version"`
 	}
-	if json.Unmarshal(data, &probe) != nil {
+	if codec.Unmarshal(data, &probe) != nil {
 		return Document{}, fail(CodeInvalidDocument, "")
 	}
 	if probe.Version > 1 {

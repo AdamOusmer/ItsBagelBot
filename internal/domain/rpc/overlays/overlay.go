@@ -6,9 +6,9 @@ package overlaysrpc
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 
 	"ItsBagelBot/internal/domain/rpc"
+	"ItsBagelBot/pkg/codec"
 )
 
 const (
@@ -32,16 +32,16 @@ func HashToken(token string) TokenHash {
 }
 
 type Overlay struct {
-	ID         uint64          `json:"id"`
-	UserID     uint64          `json:"user_id"`
-	Kind       string          `json:"kind"`
-	Template   string          `json:"template,omitempty"`
-	Name       string          `json:"name"`
-	TokenHash  TokenHash       `json:"token_hash"`
-	Generation int             `json:"generation"`
-	Document   json.RawMessage `json:"document,omitempty"`
-	Revision   uint64          `json:"revision"`
-	CreatedAt  int64           `json:"created_at"`
+	ID         uint64           `json:"id"`
+	UserID     uint64           `json:"user_id"`
+	Kind       string           `json:"kind"`
+	Template   string           `json:"template,omitempty"`
+	Name       string           `json:"name"`
+	TokenHash  TokenHash        `json:"token_hash"`
+	Generation int              `json:"generation"`
+	Document   codec.RawMessage `json:"document,omitempty"`
+	Revision   uint64           `json:"revision"`
+	CreatedAt  int64            `json:"created_at"`
 }
 
 type OverlayUserRequest struct {
@@ -67,13 +67,13 @@ type OverlaySaveRequest struct {
 }
 
 type OverlayView struct {
-	ID       uint64          `json:"id"`
-	Kind     string          `json:"kind"`
-	Template string          `json:"template,omitempty"`
-	Name     string          `json:"name"`
-	Revision uint64          `json:"revision"`
-	Document json.RawMessage `json:"document,omitempty"`
-	URL      string          `json:"url,omitempty"`
+	ID       uint64           `json:"id"`
+	Kind     string           `json:"kind"`
+	Template string           `json:"template,omitempty"`
+	Name     string           `json:"name"`
+	Revision uint64           `json:"revision"`
+	Document codec.RawMessage `json:"document,omitempty"`
+	URL      string           `json:"url,omitempty"`
 	rpc.Refusal
 }
 
@@ -87,14 +87,14 @@ type OverlayResolveRequest struct {
 }
 
 type OverlayResolveReply struct {
-	UserID     uint64          `json:"user_id"`
-	OverlayID  uint64          `json:"overlay_id"`
-	Kind       string          `json:"kind"`
-	Template   string          `json:"template,omitempty"`
-	Revision   uint64          `json:"revision"`
-	Generation int             `json:"generation"`
-	Allowed    bool            `json:"allowed"`
-	Premium    bool            `json:"premium"`
-	Document   json.RawMessage `json:"document,omitempty"`
+	UserID     uint64           `json:"user_id"`
+	OverlayID  uint64           `json:"overlay_id"`
+	Kind       string           `json:"kind"`
+	Template   string           `json:"template,omitempty"`
+	Revision   uint64           `json:"revision"`
+	Generation int              `json:"generation"`
+	Allowed    bool             `json:"allowed"`
+	Premium    bool             `json:"premium"`
+	Document   codec.RawMessage `json:"document,omitempty"`
 	rpc.Refusal
 }

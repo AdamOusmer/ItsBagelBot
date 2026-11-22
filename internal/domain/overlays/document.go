@@ -4,10 +4,8 @@
 package overlays
 
 import (
-	"bytes"
-	"encoding/json"
-
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
+	"ItsBagelBot/pkg/codec"
 )
 
 const Version = 2
@@ -96,7 +94,5 @@ func Parse(data []byte) (Document, error) {
 }
 
 func decodeStrict(data []byte, into any) bool {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	return decoder.Decode(into) == nil && !decoder.More()
+	return codec.UnmarshalStrict(data, into) == nil
 }

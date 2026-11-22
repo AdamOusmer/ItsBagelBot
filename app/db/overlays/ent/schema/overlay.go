@@ -4,7 +4,6 @@
 package schema
 
 import (
-	"encoding/json"
 	"time"
 
 	"entgo.io/ent"
@@ -13,6 +12,8 @@ import (
 	"entgo.io/ent/schema"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 type Overlay struct{ ent.Schema }
@@ -29,7 +30,7 @@ func (Overlay) Fields() []ent.Field {
 		field.String("name").NotEmpty().MaxLen(120),
 		field.String("token_hash").NotEmpty().MaxLen(64).Unique().Sensitive(),
 		field.Int("generation").Default(0),
-		field.JSON("document", json.RawMessage{}),
+		field.JSON("document", codec.RawMessage{}),
 		field.Uint64("revision"),
 		field.Time("created_at").SchemaType(map[string]string{dialect.MySQL: "datetime(6)"}).Default(time.Now).Immutable(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
