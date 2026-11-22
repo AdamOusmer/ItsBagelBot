@@ -10,7 +10,7 @@ defmodule ControlsGateway.NatsTest do
   @device_id "11111111-1111-4111-8111-111111111111"
 
   defp start_fake(id, opts) do
-    start_supervised!(Supervisor.child_spec({FakeGnat, Keyword.put(opts, :name, :gnat)}, id: id))
+    start_supervised!({FakeGnat, Keyword.put(opts, :name, :gnat_jetstream)}, id: id)
   end
 
   test "a failed later sub unsubscribes the earlier sids and reports not_connected" do
@@ -23,7 +23,7 @@ defmodule ControlsGateway.NatsTest do
   test "a successful subscribe makes no unsub calls" do
     fake = start_fake(:fake, [])
 
-    assert {:ok, %{gnat: ^fake, sids: %{cmd: 1, takeover: 2, revoked: 3}}} =
+    assert {:ok, %{jetstream: %{pid: ^fake}, sids: %{cmd: 1, takeover: 2, revoked: 3}}} =
              Nats.subscribe_device(@device_id)
 
     assert Enum.all?(FakeGnat.calls(fake), &match?({:sub, _}, &1))

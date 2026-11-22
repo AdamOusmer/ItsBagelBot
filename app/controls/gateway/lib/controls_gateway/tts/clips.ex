@@ -5,15 +5,16 @@ defmodule ControlsGateway.Tts.Clips do
   require Logger
 
   alias ControlsGateway.Tts.Nats
+  alias Platform.Nats.Planes
 
   @bucket "TTS_CLIPS"
   @get "$JS.API.STREAM.MSG.GET.OBJ_TTS_CLIPS"
 
   def reply(req, session, headers) do
     event_id = :cowboy_req.binding(:event_id, req)
-    conn = Nats.connection()
 
     with true <- valid_event_id?(event_id),
+         %Planes{} = conn <- Planes.connection(:jetstream),
          {:ok, clip} <- metadata(conn, "#{session.user_id}/#{event_id}"),
          {:ok, chunk} <- next_chunk(conn, clip.topic, 1),
          true <- byte_size(chunk.data) <= clip.size do
@@ -60,7 +61,7 @@ defmodule ControlsGateway.Tts.Clips do
 
   defp get(conn, query, subject) do
     with {:ok, %{"message" => %{"data" => data, "seq" => seq, "subject" => ^subject}}} <-
-           Nats.request(conn, @get, query),
+           Nats.jetstream_request(conn, @get, query),
          {:ok, bytes} <- Base.decode64(data) do
       {:ok, %{data: bytes, seq: seq}}
     else

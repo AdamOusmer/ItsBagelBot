@@ -10,11 +10,15 @@ on:
     branches: [ "main" ]
     paths:
       - 'app/controls/gateway/**'
+      - 'pkg/elixir/nats/**'
+      - 'pkg/elixir/new_relic/**'
       - '.github/workflows/controls-gateway.yml'
   push:
     branches: [ "main" ]
     paths:
       - 'app/controls/gateway/**'
+      - 'pkg/elixir/nats/**'
+      - 'pkg/elixir/new_relic/**'
       - '.github/workflows/controls-gateway.yml'
 
 # Superseded PR runs are cancelled; main runs are grouped by commit and never are.

@@ -2,7 +2,7 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.OverlayRequest do
-  @moduledoc "Client address, link token and leaf RPC helpers shared by the overlay routes."
+  @moduledoc "Client address, link token and JSON request helpers shared by the overlay routes."
 
   def client_ip(req) do
     {peer, _port} = :cowboy_req.peer(req)
@@ -32,14 +32,10 @@ defmodule ControlsGateway.OverlayRequest do
     end
   end
 
-  def request(nil, _subject, _body), do: {:error, :not_connected}
-
-  def request(conn, subject, body) do
+  def request(requester, subject, body) do
     with {:ok, %{body: json}} <-
-           Gnat.request(conn, subject, Jason.encode!(body), receive_timeout: 2_000) do
+           requester.({subject, Jason.encode!(body), [receive_timeout: 2_000]}) do
       Jason.decode(json)
     end
-  catch
-    :exit, _ -> {:error, :not_connected}
   end
 end

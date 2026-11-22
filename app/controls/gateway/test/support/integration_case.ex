@@ -3,12 +3,12 @@
 
 defmodule ControlsGateway.IntegrationCase do
   @moduledoc """
-  Boots a real local nats-server, a real Gnat connection and a real Cowboy
-  listener per test, torn down automatically by ExUnit's test supervisor.
+  Boots separate local leaf and hub servers and a Cowboy listener per test.
   """
   use ExUnit.CaseTemplate
 
-  alias ControlsGateway.TestSupport.{NatsServer, TokenFixture}
+  alias ControlsGateway.TestSupport.TokenFixture
+  alias Platform.Nats.TestSupport.NatsServer
 
   using opts do
     quote bind_quoted: [opts: opts] do
@@ -19,34 +19,10 @@ defmodule ControlsGateway.IntegrationCase do
 
   setup tags do
     {public_key, private_key} = TokenFixture.keypair()
-    nats_port = NatsServer.free_port()
-    nats_server = NatsServer.start(nats_port, if(tags[:jetstream], do: tags[:tmp_dir]))
-    on_exit(fn -> NatsServer.stop(nats_server) end)
-    rpc_port = NatsServer.free_port()
-    rpc_server = NatsServer.start(rpc_port, nil)
-    on_exit(fn -> NatsServer.stop(rpc_server) end)
-    http_port = NatsServer.free_port()
+    NatsServer.start_planes(if(tags[:jetstream], do: tags[:tmp_dir]))
 
-    nats_settings = [%{host: "127.0.0.1", port: nats_port, no_responders: true}]
-    rpc_settings = [%{host: "127.0.0.1", port: rpc_port, no_responders: true}]
-    Application.put_env(:controls_gateway, :nats, nats_settings)
-    Application.put_env(:controls_gateway, :rpc_nats, rpc_settings)
     Application.put_env(:controls_gateway, :token_public_keys, %{"test" => public_key})
-
-    start_supervised!(
-      {Gnat.ConnectionSupervisor,
-       %{name: :gnat, backoff_period: 300, connection_settings: nats_settings}},
-      id: :gnat
-    )
-
-    start_supervised!(
-      {Gnat.ConnectionSupervisor,
-       %{name: :gnat_rpc, backoff_period: 300, connection_settings: rpc_settings}},
-      id: :gnat_rpc
-    )
-
-    await_gnat_connected(:gnat)
-    await_gnat_connected(:gnat_rpc)
+    http_port = NatsServer.free_port()
     start_supervised!({ControlsGateway.HttpServer, [port: http_port] ++ listener_opts(tags)})
 
     %{http_port: http_port, private_key: private_key, public_key: public_key}
@@ -56,18 +32,4 @@ defmodule ControlsGateway.IntegrationCase do
     do: [routes: [{"/v1/connect", ControlsGateway.WsHandler, []}]]
 
   defp listener_opts(_tags), do: []
-
-  defp await_gnat_connected(name, attempts \\ 50) do
-    cond do
-      attempts == 0 ->
-        raise "gnat did not connect to the test nats-server"
-
-      is_pid(Process.whereis(name)) ->
-        :ok
-
-      true ->
-        Process.sleep(50)
-        await_gnat_connected(name, attempts - 1)
-    end
-  end
 end

@@ -155,7 +155,7 @@ defmodule ControlsGateway.WsHandler do
   defp subscribe_or_retry(state) do
     case Nats.subscribe_device(state.device_id) do
       {:ok, subs} ->
-        mon = Process.monitor(subs.gnat)
+        mon = Process.monitor(subs.jetstream.pid)
         state = announce_takeover(%{state | subs: subs, gnat_mon: mon})
         {:ok, state, :hibernate}
 

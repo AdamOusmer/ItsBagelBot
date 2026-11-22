@@ -181,7 +181,7 @@ jobs:
             },
             {
               "image": "controls-gateway",
-              "context": "app/controls/gateway",
+              "context": ".",
               "containerfile": "app/controls/gateway/Containerfile",
               "layer_cache": false,
               "description": "ItsBagelBot TTS overlay gateway"
@@ -269,7 +269,11 @@ jobs:
               .github/workflows/publish-images.yml)
                 add_all_services
                 ;;
-              pkg/elixir/cowboy/*|pkg/elixir/nats/*|pkg/elixir/startup/*|pkg/elixir/new_relic/*|pkg/elixir/valkey/*|pkg/elixir/websocket/*|pkg/elixir/sift/*)
+              pkg/elixir/nats/*|pkg/elixir/new_relic/*)
+                add "twitch-ingress"
+                add "controls-gateway"
+                ;;
+              pkg/elixir/cowboy/*|pkg/elixir/startup/*|pkg/elixir/valkey/*|pkg/elixir/websocket/*|pkg/elixir/sift/*)
                 add "twitch-ingress"
                 ;;
               pkg/elixir/*)

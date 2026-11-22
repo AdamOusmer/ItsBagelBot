@@ -1,38 +1,16 @@
 defmodule Platform.NatsTest do
   use ExUnit.Case, async: false
 
+  alias Platform.Nats.TestSupport.NatsServer
+
   setup do
-    exe = System.find_executable("nats-server") || raise "nats-server required"
-    {:ok, socket} = :gen_tcp.listen(0, [])
-    {:ok, port} = :inet.port(socket)
-    :gen_tcp.close(socket)
-
-    server =
-      Port.open({:spawn_executable, exe}, [
-        :binary,
-        :exit_status,
-        args: ["-p", Integer.to_string(port), "-a", "127.0.0.1"]
-      ])
-
-    {:os_pid, os_pid} = :erlang.port_info(server, :os_pid)
-    on_exit(fn -> System.cmd("kill", [Integer.to_string(os_pid)]) end)
-
-    await(fn ->
-      case :gen_tcp.connect({127, 0, 0, 1}, port, [], 100) do
-        {:ok, conn} ->
-          :gen_tcp.close(conn)
-          true
-
-        _ ->
-          false
-      end
-    end)
+    port = NatsServer.start()
 
     start_supervised!(
       Platform.Nats.connection_child(:test_nats, :test_nats, [%{host: "127.0.0.1", port: port}])
     )
 
-    await(fn -> Platform.Nats.connected?(:test_nats) end)
+    NatsServer.await_connection(:test_nats)
     :ok
   end
 
@@ -217,18 +195,4 @@ defmodule Platform.NatsTest do
     assert Platform.Nats.server_name(:missing_nats) == nil
     assert Platform.Nats.stop(:missing_nats) == :ok
   end
-
-  defp await(fun, attempts \\ 100)
-  defp await(_, 0), do: flunk("timed out")
-
-  defp await(fun, n),
-    do:
-      if(fun.(),
-        do: :ok,
-        else:
-          (
-            Process.sleep(20)
-            await(fun, n - 1)
-          )
-      )
 end

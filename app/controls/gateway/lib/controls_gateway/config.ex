@@ -3,7 +3,6 @@
 
 defmodule ControlsGateway.Config do
   def nats, do: Application.fetch_env!(:controls_gateway, :nats)
-  def rpc_nats, do: Application.get_env(:controls_gateway, :rpc_nats, nats())
 
   def port, do: Application.get_env(:controls_gateway, :port, 4000)
 

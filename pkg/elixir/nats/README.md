@@ -13,8 +13,18 @@ malformed command. `Platform.Nats.Probe` provides the bounded HTTP health probe.
 `server_name/1` returns `nil` and `stop/1` returns `:ok` when the connection is
 already gone.
 
-Connections keep their caller-supplied TLS credentials and server identity
-settings; names distinguish the independent RPC and bus planes. Service code
-owns routing, failback policy, acknowledgment tracking and retry decisions.
+`Platform.Nats.Planes` provides a supervised child for each endpoint of a
+shared-credential deployment. `:rpc` connects to the leaf and `:jetstream`
+connects to the hub. Use `request({subject, body, opts})` for RPC and
+`jetstream_request({subject, body, opts})` for JetStream API requests. Core
+publish and subscribe calls take the plane explicitly. `connection/1` captures
+the active connection so stream readers can monitor it and stay on the same
+connection for the lifetime of a subscription or read.
+
+`Platform.Nats.Settings` uses the connection host as its TLS server name and
+keeps client certificate and key paths for reconnects. Services that use separate
+identities or connection pools can build individual children through
+`Platform.Nats`. Service code owns subject names, failback, acknowledgment
+tracking and retry decisions.
 Gnat is pinned exactly because `Platform.Nats.Wire` relies on its connection call
 and header encoding.

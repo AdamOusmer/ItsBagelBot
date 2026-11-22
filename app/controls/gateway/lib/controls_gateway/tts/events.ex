@@ -5,7 +5,7 @@ defmodule ControlsGateway.Tts.Events do
   require Logger
 
   alias ControlsGateway.Tts.{Nats, Session}
-  alias Gnat.Jetstream.API.Message
+  alias Platform.Nats.Planes
 
   @stream "OVERLAY_TTS"
   @ping_ms 15_000
@@ -18,18 +18,19 @@ defmodule ControlsGateway.Tts.Events do
   @ping_frame ": ping\n\n"
 
   def open(req, session, headers) do
-    with conn when is_pid(conn) <- Nats.connection(),
-         rpc when is_pid(rpc) <- Nats.rpc_connection(),
-         {:ok, revoked_sid} <- Nats.subscribe(rpc, "controls.tts.revoked.#{session.user_id}"),
-         true <- Nats.check(rpc, session),
+    with %Planes{} = jetstream <- Planes.connection(:jetstream),
+         %Planes{} = rpc <- Planes.connection(:rpc),
+         {:ok, revoked_sid} <-
+           Planes.subscribe(rpc, self(), "controls.tts.revoked.#{session.user_id}"),
+         true <- Nats.check(session, rpc),
          inbox <-
            "_INBOX.tts." <> Base.url_encode64(:crypto.strong_rand_bytes(18), padding: false),
-         {:ok, event_sid} <- Nats.subscribe(conn, inbox) do
+         {:ok, event_sid} <- Planes.subscribe(jetstream, self(), inbox) do
       state = %{
-        conn: conn,
+        jetstream: jetstream,
         rpc: rpc,
-        monitor: Process.monitor(conn),
-        rpc_monitor: Process.monitor(rpc),
+        monitor: Process.monitor(jetstream.pid),
+        rpc_monitor: Process.monitor(rpc.pid),
         session: session,
         revoked_sid: revoked_sid,
         event_sid: event_sid,
@@ -90,7 +91,7 @@ defmodule ControlsGateway.Tts.Events do
 
     config = Map.merge(config, delivery_policy(state.resume))
 
-    case Nats.request(state.conn, subject, %{stream_name: @stream, config: config}) do
+    case Nats.jetstream_request(state.jetstream, subject, %{stream_name: @stream, config: config}) do
       {:ok, %{"name" => ^name}} ->
         %{state | consumer: name, seen_at: now()}
 
@@ -104,11 +105,12 @@ defmodule ControlsGateway.Tts.Events do
     end
   end
 
-  def info({:msg, %{sid: sid, gnat: rpc}}, req, %{revoked_sid: sid, rpc: rpc} = state),
+  def info({:msg, %{sid: sid, gnat: rpc}}, req, %{revoked_sid: sid, rpc: %{pid: rpc}} = state),
     do: stop(req, state, :revoked)
 
-  def info({:msg, %{sid: sid, gnat: conn} = message}, req, %{event_sid: sid, conn: conn} = state),
-    do: deliver(message, req, state)
+  def info({:msg, %{sid: sid, gnat: pid} = message}, req, state)
+      when sid == state.event_sid and pid == state.jetstream.pid,
+      do: deliver(message, req, state)
 
   def info({:DOWN, ref, :process, _pid, _reason}, req, state)
       when ref == state.monitor or ref == state.rpc_monitor,
@@ -146,7 +148,7 @@ defmodule ControlsGateway.Tts.Events do
     last = Map.get(headers, "nats-last-consumer", Integer.to_string(state.seq))
     reply = message.reply_to || Map.get(headers, "nats-consumer-stalled")
 
-    if reply, do: flow_control(state.conn, reply)
+    if reply, do: Planes.publish(state.jetstream, reply, "")
 
     if last == Integer.to_string(state.seq) do
       continue(req, %{state | seen_at: now()})
@@ -158,7 +160,7 @@ defmodule ControlsGateway.Tts.Events do
   defp deliver(%{topic: topic, body: body} = message, req, %{subject: topic} = state) do
     next = state.seq + 1
 
-    case Message.metadata(message) do
+    case Planes.jetstream_metadata(message) do
       {:ok, %{consumer: consumer, stream_seq: stream_seq, consumer_seq: ^next}}
       when consumer == state.consumer ->
         send_event(req, stream_seq, body, state.session)
@@ -191,12 +193,6 @@ defmodule ControlsGateway.Tts.Events do
     end
   end
 
-  defp flow_control(conn, subject) do
-    Gnat.pub(conn, subject, "")
-  catch
-    :exit, _ -> :ok
-  end
-
   defp ping(%{consumer: nil} = state), do: attach(state)
 
   defp ping(state) do
@@ -206,7 +202,7 @@ defmodule ControlsGateway.Tts.Events do
   defp check_failure(state) do
     cond do
       state.session.exp <= Session.now() -> :session_expired
-      Nats.check(state.rpc, state.session) != true -> :check_failed
+      Nats.check(state.session, state.rpc) != true -> :check_failed
       true -> nil
     end
   end
