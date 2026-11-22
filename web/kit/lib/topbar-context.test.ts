@@ -18,15 +18,15 @@ describe('buildConsoleContext', () => {
 
   test.each([
     [
-      'shared access builds a warm context with translated scopes and leave link',
+      'shared access builds a warm context titled shared dashboard with a leave link',
       { delegateLogin: 'mavey_tv', sectionLabels: ['Commands', 'Timers', 'Quotes'] } satisfies ConsoleContextInput,
       {
         tone: 'warm',
-        badges: [{ label: 'Shared', icon: 'users', tone: 'warm' }],
-        avatar: 'M',
+        title: 'Shared dashboard',
         subject: 'mavey_tv',
-        scopes: ['Commands', 'Timers', 'Quotes'],
-        actions: [{ label: 'Leave shared', compactLabel: 'Exit', href: '/delegate/exit', tone: 'warm' }],
+        subjectPost: "'s dashboard",
+        scopesTitle: 'Commands, Timers, Quotes',
+        actions: [{ label: 'Leave shared', compactLabel: 'Exit', href: '/delegate/exit' }],
       },
     ],
     [
@@ -34,10 +34,10 @@ describe('buildConsoleContext', () => {
       { login: 'mavey_tv', impersonatorLogin: 'itsmavey' } satisfies ConsoleContextInput,
       {
         tone: 'danger',
-        badges: [{ label: 'Admin view', icon: 'moderation', tone: 'danger' }],
+        title: 'Admin impersonation',
         subject: 'mavey_tv',
         subjectPost: ' (admin itsmavey)',
-        actions: [{ label: 'End view', compactLabel: 'Exit', formAction: '/auth/logout', tone: 'danger' }],
+        actions: [{ label: 'End view', compactLabel: 'Exit', formAction: '/auth/logout' }],
       },
     ],
     [
@@ -50,13 +50,11 @@ describe('buildConsoleContext', () => {
       } satisfies ConsoleContextInput,
       {
         tone: 'danger',
-        badges: [
-          { label: 'mavey_tv', icon: 'users', tone: 'warm' },
-          { label: 'Admin: itsmavey', icon: 'moderation', tone: 'danger' },
-        ],
+        title: 'Admin impersonation',
+        subject: 'mavey_tv',
         actions: [
-          { label: 'Leave shared', compactLabel: 'Exit', href: '/delegate/exit', tone: 'warm', subtle: true },
-          { label: 'End view', compactLabel: 'Exit', formAction: '/auth/logout', tone: 'danger' },
+          { label: 'Leave shared', compactLabel: 'Exit', href: '/delegate/exit', subtle: true },
+          { label: 'End view', compactLabel: 'Exit', formAction: '/auth/logout' },
         ],
       },
     ],
