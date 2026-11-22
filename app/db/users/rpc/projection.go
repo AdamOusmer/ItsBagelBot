@@ -10,6 +10,7 @@ import (
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 
 	"ItsBagelBot/internal/domain/rpc/projection"
+	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/bus"
 )
 
@@ -25,6 +26,7 @@ func SubscribeProjection(w Wiring, subject string) error {
 			}
 			return projection.UserReply{
 				Lifecycle:          view.Lifecycle,
+				VoicePlan:          string(voiceplan.PlanFor(view.Status, view.SubscriptionSource, view.IsActive, view.Banned)),
 				AccountCreatedAt:   view.AccountCreatedAt,
 				StateRevision:      view.StateRevision,
 				UserID:             req.UserID,

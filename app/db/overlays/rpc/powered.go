@@ -67,5 +67,6 @@ func refusal(err error) domainrpc.Refusal {
 		domainrpc.Is(repository.ErrNotFound, domainrpc.CodeNotFound),
 		domainrpc.Is(repository.ErrRevisionConflict, domainrpc.CodeConflict),
 		domainrpc.Is(repository.ErrInvalidConfig, domainrpc.CodeInvalid),
+		domainrpc.Is(repository.ErrTtsPlan, domainrpc.CodeForbidden),
 	)
 }

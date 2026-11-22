@@ -39,9 +39,12 @@ func main() {
 	defer closeIntake()
 
 	repo := repository.New(client, n.Pub)
+	svcboot.FatalIf(log, backfillTts(core.Ctx, n.RPC, repo), "failed to backfill legacy tts overlays")
 
 	deleted := consumers.OnUserDeleted(serviceName, log, repo.DeleteAccount)
 	svcboot.FatalIf(log, bus.Consume(core.Ctx, core.NR, n.Grouped, data.SubjectUserDeleted, deleted, log), "failed to subscribe to user deleted events")
+
+	svcboot.FatalIf(log, bus.Consume(core.Ctx, core.NR, n.Grouped, data.SubjectUserBanned, bannedTts(repo, log), log), "failed to subscribe to user banned events")
 
 	wiring := rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log},
@@ -49,6 +52,8 @@ func main() {
 	}
 	svcboot.FatalIf(log, rpc.SubscribeDashboard(wiring), "failed to subscribe dashboard rpc")
 	svcboot.FatalIf(log, rpc.SubscribeOwner(wiring), "failed to subscribe owner rpc")
+
+	svcboot.FatalIf(log, rpc.SubscribeTts(wiring), "failed to subscribe tts rpc")
 
 	databoot.ServeHealth(databoot.Health{
 		Health: svcboot.Health{

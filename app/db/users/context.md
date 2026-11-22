@@ -15,8 +15,8 @@ owns all desktop device-authorization state and token logic (device grants,
 authorization codes, Ed25519 access-token signing); the dashboard owns HTTP
 input/CSRF/rate-limiting and forwards to Users over RPC, and the controls
 gateway only verifies access tokens and listens for revocation.
-Users also owns each channel's Premium voice settings and monthly audio-token
-ledger.
+Users owns Premium voice eligibility and the monthly audio-token ledger.
+Overlays owns account voice settings and OBS links.
 
 ## Nomenclature
 
@@ -65,8 +65,8 @@ ledger.
 | [rpc/budgets.go](rpc/budgets.go) | Explicit deadlines protected by tests. |
 | [rpc/deviceauth.go](rpc/deviceauth.go) | Desktop device-authorization RPCs (`rpc.dashboard.device.*`); OAuth-error mapping for the token endpoint. |
 | [repository/deviceauth_codes.go](repository/deviceauth_codes.go), [deviceauth_refresh.go](repository/deviceauth_refresh.go), [deviceauth_grants.go](repository/deviceauth_grants.go), [deviceauth_cleanup.go](repository/deviceauth_cleanup.go) | Code issuance/exchange, refresh rotation with reuse detection, grant listing/revocation, and the expired-code/stale-grant sweep. |
-| [repository/voice.go](repository/voice.go), [rpc/voice.go](rpc/voice.go) | Premium voice settings, allowance reads, idempotent recording and receipt cleanup. |
-| [repository/voice_overlay.go](repository/voice_overlay.go), [rpc/voice_overlay.go](rpc/voice_overlay.go) | OBS link rotation, token resolution and cookie generation checks. |
+| [repository/voice.go](repository/voice.go), [rpc/voice.go](rpc/voice.go) | Voice allowance reads, idempotent recording and receipt cleanup. |
+| [repository/voice_export.go](repository/voice_export.go) | Paged legacy settings and hashed OBS links for the Overlays backfill. |
 | [tokensign/tokensign.go](tokensign/tokensign.go) | Ed25519 access-token signing/verification (`v1.<payload>.<sig>`), keyed by `kid`. |
 | [ent/schema/](ent/schema/) | User, Tokens, PremiumGrant, Delegation, LifecycleErasure, DeviceGrant, AuthorizationCode, AdminAuditDelivery, VoiceUsage and VoiceUsageReceipt definitions. |
 
@@ -117,32 +117,18 @@ Edit schemas rather than generated Ent code.
   ID or account association, so account erasure retains these event-only replay
   receipts indefinitely.
 - Premium voice usage accumulates per account and calendar month in UTC.
-  The owner-only dashboard verbs `voice_get` and `voice_set` require matching
-  authenticated actor and broadcaster IDs from Dashboard. The internal voice
-  `check` and `record` handlers serve Sesame under `rpc.internal.users.voice.*`.
-  A check allows speech when voice is enabled, an overlay link exists, and the
-  channel has audio tokens remaining. It reads the balance without reserving it,
-  so concurrent checks can overshoot by the usage from in-flight requests. A
-  replay returns the stored plan, reason, and usage for the per-user request ID with the
-  channel's current enabled setting, voice and `max_seconds`.
-  The channel's maximum clip length defaults to 120 seconds. `voice_set` must
-  supply a `max_seconds` value from 5 through 120, which `voice_get` and the
-  internal `check` return. The caller must trim the input text or cut synthesized
-  playback to stay within `max_seconds`. The ledger refuses any record above
-  two minutes (3,000 audio tokens or 120,000 milliseconds).
-  Once the sweep removes a receipt after 40 days, replaying that request ID
-  counts as new usage. Account erasure cascades to usage and receipts.
-- The owner-only dashboard verb `voice_overlay_rotate` requires a plan with
-  cloud voice minutes and returns the new OBS URL once. The user row keeps
-  only the SHA-256 hex digest of the fragment and the current generation.
-  Rotation changes both, and bans and erasure clear the digest and advance
-  the generation. The gateway resolves a digest with
-  `rpc.internal.users.voice.overlay.resolve` and verifies the cookie generation
-  with `rpc.internal.users.voice.overlay.check`. Both reject banned and
-  inactive accounts. Rotation publishes core NATS
-  `controls.tts.revoked.<user_id>` in `USERS_RPC` using the same connection as
-  desktop revocation. The gateway receives it through its account's stream
-  import.
+  The owner-only dashboard verb `voice_get` requires matching actor and
+  broadcaster IDs. Under `rpc.internal.users.voice.*`, `check` returns
+  quota and `record` records usage idempotently. A check reads the balance
+  without reserving it, so concurrent checks can overshoot by in-flight usage.
+  A replay returns the stored plan, reason and usage for the request ID.
+  The ledger accepts at most 3,000 audio tokens or 120,000 milliseconds
+  per record. After the 40-day receipt retention period, replaying that
+  request ID counts as new usage. Account erasure cascades to usage and receipts.
+- The legacy user TTS columns are read by `rpc.internal.users.voice.export`
+  for Overlays' boot backfill. Users emits `data.users.banned` for Overlays
+  to revoke the configured link. Projector's account snapshot carries the
+  voice plan for OBS eligibility checks.
 - Banned and inactive accounts receive zero cloud voice minutes. A committed
   giveaway covering the current time raises an admin grant from 30 to 60 minutes.
   Lapsed subscriptions intentionally keep their voice minutes until the expiry

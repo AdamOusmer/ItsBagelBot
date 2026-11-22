@@ -11,6 +11,7 @@ import (
 func UserFromReply(r contract.UserReply) UserProjection {
 	return UserProjection{
 		Lifecycle:          r.Lifecycle,
+		VoicePlan:          r.VoicePlan,
 		StateRevision:      r.StateRevision,
 		AccountCreatedAt:   r.AccountCreatedAt,
 		Status:             r.Status,
@@ -28,6 +29,7 @@ func UserFromReply(r contract.UserReply) UserProjection {
 func UserFromChanged(dto data.UserChangedDTO) UserProjection {
 	return UserProjection{
 		Lifecycle:          dto.Lifecycle,
+		VoicePlan:          dto.VoicePlan,
 		StateRevision:      dto.StateRevision,
 		AccountCreatedAt:   dto.AccountCreatedAt,
 		Status:             dto.Status,

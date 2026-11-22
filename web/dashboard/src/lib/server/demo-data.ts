@@ -21,7 +21,7 @@ import { DEFAULT_LOCALE } from '@bagel/kit/i18n';
 import type { Session } from './session';
 import type { AccountState, BillingState, DeviceGrantView, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';
-import type { VoiceAllowance } from './services/voice';
+import type { TtsOverlayView, VoiceAllowance, VoiceSettings } from './services/voice';
 import type { PoweredView } from './services/overlays';
 import type { GoveeDevice, GoveeView } from './govee-store';
 import type { FetchDefView, FetchKeyView } from './fetches-store';
@@ -667,22 +667,26 @@ export function demoSongQueue(now: number): SongQueuePublicView {
 }
 
 const demoVoiceState = {
-  settings: { enabled: true, voice: 'Kore', max_seconds: 30 },
+  settings: { enabled: true, voice: 'Kore', max_seconds: 30 } satisfies VoiceSettings,
+  overlayRevision: 1,
   config: {} as Record<string, string>,
   revision: 1
 };
 
 export function demoVoiceView(forceLocked = false) {
   const locked = forceLocked || demoAccountState.status === 'free';
-  const voice = demoVoiceState.settings.voice as VoiceAllowance['voice'];
   const allowance: VoiceAllowance = locked
-    ? { ...demoVoiceState.settings, voice, plan: 'free', period: '2026-11', limit_tokens: 0, used_tokens: 0, remaining_tokens: 0, resets_at: '2026-12-01T00:00:00Z', enabled: false, reason: 'no_plan', overlay_configured: false }
-    : { ...demoVoiceState.settings, voice, plan: 'premium', period: '2026-11', limit_tokens: 90_000, used_tokens: 57_300, remaining_tokens: 32_700, resets_at: '2026-12-01T00:00:00Z', reason: 'ok', overlay_configured: true };
-  return { allowance, config: demoVoiceState.config, revision: demoVoiceState.revision };
+    ? { plan: 'free', period: '2026-11', limit_tokens: 0, used_tokens: 0, remaining_tokens: 0, resets_at: '2026-12-01T00:00:00Z', reason: 'no_plan' }
+    : { plan: 'premium', period: '2026-11', limit_tokens: 90_000, used_tokens: 57_300, remaining_tokens: 32_700, resets_at: '2026-12-01T00:00:00Z', reason: 'ok' };
+  const overlay: TtsOverlayView | null = locked ? null : { settings: demoVoiceState.settings, configured: true, revision: demoVoiceState.overlayRevision };
+  return { allowance, overlay, config: demoVoiceState.config, revision: demoVoiceState.revision };
 }
 
-export function demoVoiceSave(settings: Partial<typeof demoVoiceState.settings>, partial: Record<string, string>): number {
-  Object.assign(demoVoiceState.settings, settings);
+export function demoVoiceSave(settings: Partial<VoiceSettings>, partial: Record<string, string>): number {
+  if (Object.keys(settings).length > 0) {
+    Object.assign(demoVoiceState.settings, settings);
+    demoVoiceState.overlayRevision += 1;
+  }
   if (Object.keys(partial).length > 0) {
     Object.assign(demoVoiceState.config, partial);
     demoVoiceState.revision += 1;

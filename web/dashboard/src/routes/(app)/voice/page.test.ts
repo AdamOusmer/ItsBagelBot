@@ -38,11 +38,13 @@ const { default: VoiceAlertEditor } = await import('./VoiceAlertEditor.svelte');
 
 const allowance = {
   plan: 'premium', reason: 'ok', limit_tokens: 90_000, used_tokens: 57_300, remaining_tokens: 32_700,
-  resets_at: '2026-12-01T00:00:00Z', enabled: true, voice: 'Kore', max_seconds: 120
+  resets_at: '2026-12-01T00:00:00Z'
 };
 
+const overlay = { settings: { enabled: true, voice: 'Kore', max_seconds: 120 }, configured: true, revision: 1 };
+
 const data = {
-  readOnly: false, locked: false, allowance, alerts: { config: ALERT_VOICE_CONFIG_DEFAULTS, revision: 9 }
+  readOnly: false, locked: false, allowance, overlay, alerts: { config: ALERT_VOICE_CONFIG_DEFAULTS, revision: 9 }
 };
 
 function renderVoice(overrides: Record<string, unknown> = {}, form: Record<string, unknown> | null = null) {
@@ -62,7 +64,7 @@ test.each([
   { stored: 45, displayed: '45' },
   { stored: 120, displayed: '120' }
 ])('renders a required whole-second input from 5 to 120 with $displayed selected', async ({ stored, displayed }) => {
-  const html = renderVoice({ allowance: { ...allowance, max_seconds: stored } });
+  const html = renderVoice({ overlay: { ...overlay, settings: { ...overlay.settings, max_seconds: stored } } });
   const inputs: Record<string, string>[] = [];
   const rewriter = new HTMLRewriter().on('input[name="max_seconds"]', {
     element(input) {
@@ -163,7 +165,7 @@ test.each([
   { name: 'read-only session', readOnly: true, configured: true, limit: 90_000, url: undefined, visible: false }
 ])('renders the appropriate OBS controls for $name', async ({ readOnly, configured, limit, url, visible }) => {
   const form = url ? { overlayUrl: url } : null;
-  const html = renderVoice({ readOnly, allowance: { ...allowance, limit_tokens: limit, overlay_configured: configured } }, form);
+  const html = renderVoice({ readOnly, allowance: { ...allowance, limit_tokens: limit }, overlay: { ...overlay, configured } }, form);
   const { submitLabel, testLabel, testDisabled, firstStep } = await collectObsControls(html);
 
   expect({

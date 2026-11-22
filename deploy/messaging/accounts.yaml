@@ -242,6 +242,7 @@ accounts:
                         - $JS.ACK.DATA.>
                         - $JS.ACK.*.*.DATA.>
                         - dlq.data.users.deleted
+                        - dlq.data.users.banned
                 subscribe:
                     allow:
                         - _INBOX.>
@@ -485,16 +486,16 @@ accounts:
             cluster_traffic: owner
         mappings: hub-domain
         imports:
-            - service: rpc.internal.users.voice.overlay.resolve
-              from: USERS_RPC
-            - service: rpc.internal.users.voice.overlay.resolve.node.*
-              from: USERS_RPC
-            - service: rpc.internal.users.voice.overlay.check
-              from: USERS_RPC
-            - service: rpc.internal.users.voice.overlay.check.node.*
-              from: USERS_RPC
+            - service: rpc.internal.projector.overlays.tts.resolve
+              from: PROJECTOR_RPC
+            - service: rpc.internal.projector.overlays.tts.resolve.node.*
+              from: PROJECTOR_RPC
+            - service: rpc.internal.projector.overlays.tts.check
+              from: PROJECTOR_RPC
+            - service: rpc.internal.projector.overlays.tts.check.node.*
+              from: PROJECTOR_RPC
             - stream: controls.tts.revoked.*
-              from: USERS_RPC
+              from: PROJECTOR_RPC
             - service: rpc.internal.projector.overlays.powered.resolve
               from: PROJECTOR_RPC
             - service: rpc.internal.projector.overlays.powered.resolve.node.*
@@ -503,10 +504,10 @@ accounts:
             controls_gateway_rpc:
                 publish:
                     allow:
-                        - rpc.internal.users.voice.overlay.resolve
-                        - rpc.internal.users.voice.overlay.resolve.node.*
-                        - rpc.internal.users.voice.overlay.check
-                        - rpc.internal.users.voice.overlay.check.node.*
+                        - rpc.internal.projector.overlays.tts.resolve
+                        - rpc.internal.projector.overlays.tts.resolve.node.*
+                        - rpc.internal.projector.overlays.tts.check
+                        - rpc.internal.projector.overlays.tts.check.node.*
                         - rpc.internal.projector.overlays.powered.resolve
                         - rpc.internal.projector.overlays.powered.resolve.node.*
                         - $JS.API.CONSUMER.CREATE.OVERLAY_TTS.*.overlay.tts.*
@@ -738,6 +739,23 @@ accounts:
               accounts: [PROJECTOR_RPC]
             - service: rpc.internal.overlays.powered.by_token.node.*
               accounts: [PROJECTOR_RPC]
+            - service: rpc.internal.overlays.tts.by_user
+              accounts: [PROJECTOR_RPC]
+            - service: rpc.internal.overlays.tts.by_user.node.*
+              accounts: [PROJECTOR_RPC]
+            - service: rpc.internal.overlays.tts.by_hash
+              accounts: [PROJECTOR_RPC]
+            - service: rpc.internal.overlays.tts.by_hash.node.*
+              accounts: [PROJECTOR_RPC]
+        imports:
+            - service: rpc.internal.users.voice.check
+              from: USERS_RPC
+            - service: rpc.internal.users.voice.check.node.*
+              from: USERS_RPC
+            - service: rpc.internal.users.voice.export
+              from: USERS_RPC
+            - service: rpc.internal.users.voice.export.node.*
+              from: USERS_RPC
         roles:
             overlays_rpc: {}
     OUTGRESS_RPC:
@@ -801,6 +819,20 @@ accounts:
               accounts: [CONTROLS_GATEWAY_RPC]
             - service: rpc.internal.projector.overlays.powered.resolve.node.*
               accounts: [CONTROLS_GATEWAY_RPC]
+            - service: rpc.internal.projector.overlays.tts.resolve
+              accounts: [CONTROLS_GATEWAY_RPC]
+            - service: rpc.internal.projector.overlays.tts.resolve.node.*
+              accounts: [CONTROLS_GATEWAY_RPC]
+            - service: rpc.internal.projector.overlays.tts.check
+              accounts: [CONTROLS_GATEWAY_RPC]
+            - service: rpc.internal.projector.overlays.tts.check.node.*
+              accounts: [CONTROLS_GATEWAY_RPC]
+            - service: rpc.internal.projector.overlays.tts.settings
+              accounts: [WORKER_RPC]
+            - service: rpc.internal.projector.overlays.tts.settings.node.*
+              accounts: [WORKER_RPC]
+            - stream: controls.tts.revoked.*
+              accounts: [CONTROLS_GATEWAY_RPC]
             - stream: cache.invalidate.commands
             - stream: cache.invalidate.modules
             - stream: cache.invalidate.automations
@@ -840,6 +872,14 @@ accounts:
             - service: rpc.health.overlays
               from: OVERLAYS_RPC
             - service: rpc.health.overlays.node.*
+              from: OVERLAYS_RPC
+            - service: rpc.internal.overlays.tts.by_user
+              from: OVERLAYS_RPC
+            - service: rpc.internal.overlays.tts.by_user.node.*
+              from: OVERLAYS_RPC
+            - service: rpc.internal.overlays.tts.by_hash
+              from: OVERLAYS_RPC
+            - service: rpc.internal.overlays.tts.by_hash.node.*
               from: OVERLAYS_RPC
             - service: rpc.internal.overlays.powered.by_token
               from: OVERLAYS_RPC
@@ -932,23 +972,17 @@ accounts:
     USERS_RPC:
         exports:
             - service: rpc.internal.users.voice.check
-              accounts: [WORKER_RPC]
+              accounts: [WORKER_RPC, OVERLAYS_RPC]
             - service: rpc.internal.users.voice.check.node.*
-              accounts: [WORKER_RPC]
+              accounts: [WORKER_RPC, OVERLAYS_RPC]
+            - service: rpc.internal.users.voice.export
+              accounts: [OVERLAYS_RPC]
+            - service: rpc.internal.users.voice.export.node.*
+              accounts: [OVERLAYS_RPC]
             - service: rpc.internal.users.voice.record
               accounts: [WORKER_RPC]
             - service: rpc.internal.users.voice.record.node.*
               accounts: [WORKER_RPC]
-            - service: rpc.internal.users.voice.overlay.resolve
-              accounts: [CONTROLS_GATEWAY_RPC]
-            - service: rpc.internal.users.voice.overlay.resolve.node.*
-              accounts: [CONTROLS_GATEWAY_RPC]
-            - service: rpc.internal.users.voice.overlay.check
-              accounts: [CONTROLS_GATEWAY_RPC]
-            - service: rpc.internal.users.voice.overlay.check.node.*
-              accounts: [CONTROLS_GATEWAY_RPC]
-            - stream: controls.tts.revoked.*
-              accounts: [CONTROLS_GATEWAY_RPC]
             - service: rpc.internal.users.analytics.levels
             - service: rpc.internal.users.analytics.levels.node.*
             - service: rpc.internal.users.lifecycle
@@ -1016,6 +1050,10 @@ accounts:
               accounts: [DASHBOARD_RPC]
             - service: rpc.draw.>
         imports:
+            - service: rpc.internal.projector.overlays.tts.settings
+              from: PROJECTOR_RPC
+            - service: rpc.internal.projector.overlays.tts.settings.node.*
+              from: PROJECTOR_RPC
             - service: rpc.internal.users.voice.check
               from: USERS_RPC
             - service: rpc.internal.users.voice.check.node.*

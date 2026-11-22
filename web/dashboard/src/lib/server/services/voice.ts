@@ -7,13 +7,13 @@ import { effectiveId } from '#lib/server/board';
 import type { Session } from '#lib/server/session';
 import { SUB } from './subjects';
 
-type VoiceSettings = {
+export type VoiceSettings = {
   enabled: boolean;
-  voice: (typeof CLOUD_VOICES)[number];
+  voice: (typeof CLOUD_VOICES)[number] | '';
   max_seconds: number;
 };
 
-export type VoiceAllowance = VoiceSettings & {
+export type VoiceAllowance = {
   plan: keyof typeof MONTHLY_VOICE_MINUTES;
   period: string;
   limit_tokens: number;
@@ -21,7 +21,6 @@ export type VoiceAllowance = VoiceSettings & {
   remaining_tokens: number;
   resets_at: string;
   reason: 'ok' | 'no_plan' | 'inactive' | 'banned';
-  overlay_configured?: boolean;
 };
 
 function voiceActor(session: Session) {
@@ -37,17 +36,29 @@ export const voiceGet = defineRead({
   map: (reply: VoiceAllowance) => reply
 });
 
+export type TtsOverlayView = {
+  settings: VoiceSettings;
+  configured: boolean;
+  revision: number;
+};
+
+const ownerOf = (session: Session) => ({ user_id: effectiveId(session) });
+
+export const voiceOverlayGet = defineRead({
+  subject: `${SUB.overlays}.tts.get`,
+  request: ownerOf,
+  map: (reply: TtsOverlayView) => reply
+});
+
 export const voiceSet = defineWrite({
-  subject: `${SUB.dashboard}.voice_set`,
-  request: (session: Session, settings: VoiceSettings) => ({ ...voiceActor(session), ...settings }),
-  map: (reply: { ok?: boolean }) => {
-    if (reply.ok !== true) throw new Error('voice settings write was not acknowledged');
-  }
+  subject: `${SUB.overlays}.tts.save`,
+  request: (session: Session, save: Pick<TtsOverlayView, 'settings' | 'revision'>) => ({ ...ownerOf(session), ...save }),
+  map: (reply: TtsOverlayView) => reply
 });
 
 export const voiceOverlayRotate = defineWrite({
-  subject: `${SUB.dashboard}.voice_overlay_rotate`,
-  request: voiceActor,
+  subject: `${SUB.overlays}.tts.rotate`,
+  request: ownerOf,
   map: (reply: { url: string }) => reply.url
 });
 

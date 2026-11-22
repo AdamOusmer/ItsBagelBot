@@ -8,3 +8,6 @@ import (
 
 // PoweredOverlay is the predicate function for poweredoverlay builders.
 type PoweredOverlay func(*sql.Selector)
+
+// TtsOverlay is the predicate function for ttsoverlay builders.
+type TtsOverlay func(*sql.Selector)
