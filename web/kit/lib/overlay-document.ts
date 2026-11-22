@@ -118,13 +118,24 @@ export type ValidationResult = { ok: true; doc: OverlayDocument } | { ok: false;
 
 type Obj = Record<string, unknown>;
 type Primitive = 'string' | 'number' | 'boolean';
+type Assets = Record<string, OverlayAsset>;
+interface Range {
+  min: number;
+  max: number;
+}
+interface Bound {
+  key: string;
+  value: number;
+  range: Range;
+}
 
 const ASSET_PREFIX = 'asset:';
-const MAX_NAME = 120;
-const MIN_CANVAS = 320;
-const MAX_CANVAS = 7680;
-const MAX_COORD = 7680;
-const MAX_ROTATION = 360;
+const NAME_LENGTH: Range = { min: 1, max: 120 };
+const CANVAS: Range = { min: 320, max: 7680 };
+const POSITION: Range = { min: 0, max: 7680 };
+const EXTENT: Range = { min: 1, max: 7680 };
+const ROTATION: Range = { min: -360, max: 360 };
+const UNIT: Range = { min: 0, max: 1 };
 const ID_PATTERN = /^[a-zA-Z0-9_-]{1,96}$/;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const LEGACY_MEDIA = /^\/media\/[a-f0-9]{64}\.(?:png|jpe?g|gif|webp|mp4|webm|mp3|ogg|wav)$/;
@@ -139,198 +150,255 @@ class Failure {
   constructor(readonly error: OverlayError) {}
 }
 
-function fail(code: OverlayErrorCode, path = ''): never {
-  throw new Failure({ code, path });
+class Scope {
+  constructor(readonly path = '') {}
+
+  field(key: string): Scope {
+    return new Scope(this.path ? `${this.path}.${key}` : key);
+  }
+
+  at(position: number): Scope {
+    return new Scope(`${this.path}[${position}]`);
+  }
+
+  fail(code: OverlayErrorCode): never {
+    throw new Failure({ code, path: this.path });
+  }
 }
 
-const field = (base: string, key: string): string => (base ? `${base}.${key}` : key);
-const index = (base: string, position: number): string => `${base}[${position}]`;
-const within = (value: number, low: number, high: number): boolean => value >= low && value <= high;
+const ROOT = new Scope();
+const WIDGETS = ROOT.field('widgets');
+const ASSETS = ROOT.field('assets');
+
+const within = (range: Range, value: number): boolean => value >= range.min && value <= range.max;
 const byteLength = (text: string): number => new TextEncoder().encode(text).length;
+const isObject = (value: unknown): value is object => typeof value === 'object' && value !== null;
+const isRecord = (value: unknown): value is Obj => isObject(value) && !Array.isArray(value);
+const isString = (value: unknown): boolean => typeof value === 'string';
+const isMember = (options: readonly string[], value: string): boolean => options.includes(value);
 
-function record(value: unknown, path: string, keys?: readonly string[]): Obj {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) fail('invalid_document', path);
-  const obj = value as Obj;
-  if (keys && Object.keys(obj).some((key) => !keys.includes(key))) fail('invalid_document', path);
-  return obj;
-}
+class Reader {
+  private constructor(
+    private readonly obj: Obj,
+    readonly scope: Scope
+  ) {}
 
-function read(obj: Obj, key: string, type: Primitive, path: string): unknown {
-  const value = obj[key];
-  if (value == null) return ZERO[type];
-  if (typeof value !== type) fail('invalid_document', field(path, key));
-  return value;
-}
+  static of(value: unknown, scope: Scope, keys?: readonly string[]): Reader {
+    if (!isRecord(value)) return scope.fail('invalid_document');
+    if (keys && Object.keys(value).some((key) => !keys.includes(key))) scope.fail('invalid_document');
+    return new Reader(value, scope);
+  }
 
-const text = (obj: Obj, key: string, path: string): string => read(obj, key, 'string', path) as string;
-const decimal = (obj: Obj, key: string, path: string): number => read(obj, key, 'number', path) as number;
-const flag = (obj: Obj, key: string, path: string): boolean => read(obj, key, 'boolean', path) as boolean;
+  toObject(): Obj {
+    return this.obj;
+  }
 
-function integer(obj: Obj, key: string, path: string): number {
-  const value = decimal(obj, key, path);
-  if (!Number.isInteger(value)) fail('invalid_document', field(path, key));
-  return value;
-}
+  raw(key: string): unknown {
+    return this.obj[key];
+  }
 
-function list(obj: Obj, key: string, path: string): unknown[] {
-  const value = obj[key];
-  if (value == null) return [];
-  if (!Array.isArray(value)) fail('invalid_document', field(path, key));
-  return value;
+  private read(key: string, type: Primitive): unknown {
+    const value = this.obj[key];
+    if (value == null) return ZERO[type];
+    if (typeof value !== type) this.scope.field(key).fail('invalid_document');
+    return value;
+  }
+
+  text(key: string): string {
+    return this.read(key, 'string') as string;
+  }
+
+  decimal(key: string): number {
+    return this.read(key, 'number') as number;
+  }
+
+  flag(key: string): boolean {
+    return this.read(key, 'boolean') as boolean;
+  }
+
+  integer(key: string): number {
+    const value = this.decimal(key);
+    if (!Number.isInteger(value)) this.scope.field(key).fail('invalid_document');
+    return value;
+  }
+
+  list(key: string): unknown[] {
+    const value = this.obj[key];
+    if (value == null) return [];
+    return Array.isArray(value) ? value : this.scope.field(key).fail('invalid_document');
+  }
 }
 
 function decodeConfig(value: unknown): PoweredConfig {
-  const path = 'config';
-  const obj = record(value, path, CONFIG_KEYS);
-  const directions = list(obj, 'directions', path);
-  if (directions.some((entry) => typeof entry !== 'string')) fail('invalid_document', field(path, 'directions'));
+  const reader = Reader.of(value, ROOT.field('config'), CONFIG_KEYS);
+  const directions = reader.list('directions');
+  if (!directions.every(isString)) reader.scope.field('directions').fail('invalid_document');
   return {
-    every_minutes: integer(obj, 'every_minutes', path),
-    show_seconds: integer(obj, 'show_seconds', path),
+    every_minutes: reader.integer('every_minutes'),
+    show_seconds: reader.integer('show_seconds'),
     directions: directions as PoweredConfig['directions'],
-    align: text(obj, 'align', path) as PoweredConfig['align']
+    align: reader.text('align') as PoweredConfig['align']
   };
 }
 
-function decodeWidget(value: unknown, path: string): OverlayWidget {
-  const obj = record(value, path, WIDGET_KEYS);
+function decodeWidget(value: unknown, scope: Scope): OverlayWidget {
+  const reader = Reader.of(value, scope, WIDGET_KEYS);
+  const settings = reader.raw('settings');
   return {
-    id: text(obj, 'id', path),
-    name: text(obj, 'name', path),
-    kind: text(obj, 'kind', path) as WidgetKind,
-    x: decimal(obj, 'x', path),
-    y: decimal(obj, 'y', path),
-    w: decimal(obj, 'w', path),
-    h: decimal(obj, 'h', path),
-    rotation: decimal(obj, 'rotation', path),
-    opacity: decimal(obj, 'opacity', path),
-    hidden: flag(obj, 'hidden', path),
-    locked: flag(obj, 'locked', path),
-    settings: obj.settings == null ? null : record(obj.settings, field(path, 'settings'))
+    id: reader.text('id'),
+    name: reader.text('name'),
+    kind: reader.text('kind') as WidgetKind,
+    x: reader.decimal('x'),
+    y: reader.decimal('y'),
+    w: reader.decimal('w'),
+    h: reader.decimal('h'),
+    rotation: reader.decimal('rotation'),
+    opacity: reader.decimal('opacity'),
+    hidden: reader.flag('hidden'),
+    locked: reader.flag('locked'),
+    settings: settings == null ? null : Reader.of(settings, scope.field('settings')).toObject()
   };
 }
 
-function decodeAsset(value: unknown, path: string): OverlayAsset {
-  const obj = record(value, path, ASSET_KEYS);
+function decodeAsset(value: unknown, scope: Scope): OverlayAsset {
+  const reader = Reader.of(value, scope, ASSET_KEYS);
   return {
-    type: text(obj, 'type', path) as AssetType,
-    bytes: integer(obj, 'bytes', path),
-    w: integer(obj, 'w', path),
-    h: integer(obj, 'h', path),
-    duration_ms: integer(obj, 'duration_ms', path),
-    sha256: text(obj, 'sha256', path)
+    type: reader.text('type') as AssetType,
+    bytes: reader.integer('bytes'),
+    w: reader.integer('w'),
+    h: reader.integer('h'),
+    duration_ms: reader.integer('duration_ms'),
+    sha256: reader.text('sha256')
   };
 }
 
-function decodeAssets(value: unknown): Record<string, OverlayAsset> {
+function decodeAssets(value: unknown): Assets {
   if (value == null) return {};
-  const obj = record(value, 'assets');
-  return Object.fromEntries(Object.entries(obj).map(([id, asset]) => [id, decodeAsset(asset, field('assets', id))]));
+  const entries = Object.entries(Reader.of(value, ASSETS).toObject());
+  return Object.fromEntries(entries.map(([id, asset]) => [id, decodeAsset(asset, ASSETS.field(id))]));
 }
 
 function decodeDocument(input: unknown): OverlayDocument {
-  const obj = record(input, '', DOCUMENT_KEYS);
+  const reader = Reader.of(input, ROOT, DOCUMENT_KEYS);
+  const config = reader.raw('config');
   return {
-    version: integer(obj, 'version', ''),
-    kind: text(obj, 'kind', '') as DocumentKind,
-    id: text(obj, 'id', ''),
-    name: text(obj, 'name', ''),
-    width: integer(obj, 'width', ''),
-    height: integer(obj, 'height', ''),
-    rev: integer(obj, 'rev', ''),
-    template: text(obj, 'template', ''),
-    config: obj.config == null ? null : decodeConfig(obj.config),
-    widgets: list(obj, 'widgets', '').map((widget, position) => decodeWidget(widget, index('widgets', position))),
-    assets: decodeAssets(obj.assets)
+    version: reader.integer('version'),
+    kind: reader.text('kind') as DocumentKind,
+    id: reader.text('id'),
+    name: reader.text('name'),
+    width: reader.integer('width'),
+    height: reader.integer('height'),
+    rev: reader.integer('rev'),
+    template: reader.text('template'),
+    config: config == null ? null : decodeConfig(config),
+    widgets: reader.list('widgets').map((widget, position) => decodeWidget(widget, WIDGETS.at(position))),
+    assets: decodeAssets(reader.raw('assets'))
   };
 }
 
 function checkIdentity(doc: OverlayDocument): void {
-  if (doc.version !== OVERLAY_VERSION) fail('unsupported_version', 'version');
-  if (!(DOCUMENT_KINDS as readonly string[]).includes(doc.kind)) fail('unknown_kind', 'kind');
-  if (!ID_PATTERN.test(doc.id)) fail('invalid_id', 'id');
-  if (!within(Array.from(doc.name.trim()).length, 1, MAX_NAME)) fail('invalid_name', 'name');
-  if (doc.rev < 0) fail('invalid_revision', 'rev');
+  if (doc.version !== OVERLAY_VERSION) ROOT.field('version').fail('unsupported_version');
+  if (!isMember(DOCUMENT_KINDS, doc.kind)) ROOT.field('kind').fail('unknown_kind');
+  if (!ID_PATTERN.test(doc.id)) ROOT.field('id').fail('invalid_id');
+  if (!within(NAME_LENGTH, Array.from(doc.name.trim()).length)) ROOT.field('name').fail('invalid_name');
+  if (doc.rev < 0) ROOT.field('rev').fail('invalid_revision');
 }
 
 function checkSystem(doc: OverlayDocument): void {
   const content = [doc.width !== 0, doc.height !== 0, doc.widgets.length > 0, Object.keys(doc.assets).length > 0];
-  if (content.includes(true)) fail('system_has_content');
-  if (doc.template !== 'powered') fail('unknown_template', 'template');
-  if (doc.config === null || poweredConfigError(doc.config) !== null) fail('invalid_config', 'config');
+  if (content.includes(true)) ROOT.fail('system_has_content');
+  if (doc.template !== 'powered') ROOT.field('template').fail('unknown_template');
+  if (doc.config === null || poweredConfigError(doc.config) !== null) ROOT.field('config').fail('invalid_config');
 }
 
-function checkWidgetBox(widget: OverlayWidget, path: string): void {
-  const bounds: [string, number, number, number][] = [
-    ['x', widget.x, 0, MAX_COORD], ['y', widget.y, 0, MAX_COORD],
-    ['w', widget.w, 1, MAX_COORD], ['h', widget.h, 1, MAX_COORD],
-    ['rotation', widget.rotation, -MAX_ROTATION, MAX_ROTATION], ['opacity', widget.opacity, 0, 1]
+function checkWidgetBox(widget: OverlayWidget, scope: Scope): void {
+  const bounds: Bound[] = [
+    { key: 'x', value: widget.x, range: POSITION },
+    { key: 'y', value: widget.y, range: POSITION },
+    { key: 'w', value: widget.w, range: EXTENT },
+    { key: 'h', value: widget.h, range: EXTENT },
+    { key: 'rotation', value: widget.rotation, range: ROTATION },
+    { key: 'opacity', value: widget.opacity, range: UNIT },
+    { key: 'name', value: Array.from(widget.name).length, range: NAME_LENGTH }
   ];
-  for (const [name, value, low, high] of bounds) {
-    if (!within(value, low, high)) fail('invalid_widget', field(path, name));
+  for (const bound of bounds) {
+    if (!within(bound.range, bound.value)) scope.field(bound.key).fail('invalid_widget');
   }
-  if (!within(Array.from(widget.name).length, 1, MAX_NAME)) fail('invalid_widget', field(path, 'name'));
 }
 
-function checkWidget(widget: OverlayWidget, path: string): void {
-  if (!ID_PATTERN.test(widget.id)) fail('invalid_id', field(path, 'id'));
-  if (!(WIDGET_KINDS as readonly string[]).includes(widget.kind)) fail('unknown_widget_kind', field(path, 'kind'));
-  checkWidgetBox(widget, path);
-  if (widget.settings === null) fail('invalid_widget', field(path, 'settings'));
+function checkWidget(widget: OverlayWidget, scope: Scope): void {
+  if (!ID_PATTERN.test(widget.id)) scope.field('id').fail('invalid_id');
+  if (!isMember(WIDGET_KINDS, widget.kind)) scope.field('kind').fail('unknown_widget_kind');
+  checkWidgetBox(widget, scope);
+  if (widget.settings === null) scope.field('settings').fail('invalid_widget');
 }
 
 function checkWidgets(widgets: OverlayWidget[]): void {
-  if (widgets.length > overlayLimits.maxWidgets) fail('too_many_widgets', 'widgets');
+  if (widgets.length > overlayLimits.maxWidgets) WIDGETS.fail('too_many_widgets');
   const seen = new Set<string>();
   widgets.forEach((widget, position) => {
-    const path = index('widgets', position);
-    checkWidget(widget, path);
-    if (seen.has(widget.id)) fail('duplicate_widget_id', field(path, 'id'));
+    const scope = WIDGETS.at(position);
+    checkWidget(widget, scope);
+    if (seen.has(widget.id)) scope.field('id').fail('duplicate_widget_id');
     seen.add(widget.id);
   });
 }
 
+function fitsPixels(limit: AssetLimit, asset: OverlayAsset): boolean {
+  return limit.maxPixels === 0 || asset.w * asset.h <= limit.maxPixels;
+}
+
 function fitsFrame(limit: AssetLimit, asset: OverlayAsset): boolean {
   if (limit.maxWidth === 0) return true;
-  const inFrame = within(asset.w, 1, limit.maxWidth) && within(asset.h, 1, limit.maxHeight);
-  return inFrame && (limit.maxPixels === 0 || asset.w * asset.h <= limit.maxPixels);
+  const inFrame = within({ min: 1, max: limit.maxWidth }, asset.w) && within({ min: 1, max: limit.maxHeight }, asset.h);
+  return inFrame && fitsPixels(limit, asset);
+}
+
+function hasSizes(asset: OverlayAsset): boolean {
+  return asset.bytes > 0 && Math.min(asset.w, asset.h, asset.duration_ms) >= 0;
 }
 
 function wellFormed(asset: OverlayAsset): boolean {
-  return HASH_PATTERN.test(asset.sha256) && asset.bytes > 0 && Math.min(asset.w, asset.h, asset.duration_ms) >= 0;
+  return HASH_PATTERN.test(asset.sha256) && hasSizes(asset);
 }
 
-function checkAsset(asset: OverlayAsset, path: string): void {
+function checkAsset(asset: OverlayAsset, scope: Scope): void {
   const limit = Object.hasOwn(assetLimits, asset.type) ? assetLimits[asset.type] : undefined;
-  if (!limit || !wellFormed(asset)) fail('invalid_asset', path);
-  if (asset.bytes > limit.maxBytes) fail('asset_too_large', field(path, 'bytes'));
-  if (!fitsFrame(limit, asset)) fail('asset_dimensions', path);
-  if (limit.maxDurationMs !== 0 && asset.duration_ms > limit.maxDurationMs) fail('asset_duration', field(path, 'duration_ms'));
+  if (!limit || !wellFormed(asset)) scope.fail('invalid_asset');
+  if (asset.bytes > limit.maxBytes) scope.field('bytes').fail('asset_too_large');
+  if (!fitsFrame(limit, asset)) scope.fail('asset_dimensions');
+  if (limit.maxDurationMs !== 0 && asset.duration_ms > limit.maxDurationMs) scope.field('duration_ms').fail('asset_duration');
 }
 
 function checkTotals(assets: OverlayAsset[]): void {
   const total = assets.reduce((sum, asset) => sum + asset.bytes, 0);
-  if (total > overlayLimits.overlayAssetBytes) fail('overlay_assets_too_large', 'assets');
+  if (total > overlayLimits.overlayAssetBytes) ASSETS.fail('overlay_assets_too_large');
   for (const type of ASSET_TYPES) {
     const cap = assetLimits[type].maxPerOverlay;
-    if (cap > 0 && assets.filter((asset) => asset.type === type).length > cap) fail('too_many_of_type', 'assets');
+    if (cap > 0 && assets.filter((asset) => asset.type === type).length > cap) ASSETS.fail('too_many_of_type');
   }
 }
 
-function checkAssets(assets: Record<string, OverlayAsset>): void {
+function checkAssets(assets: Assets): void {
   const ids = Object.keys(assets).sort();
-  if (ids.length > overlayLimits.overlayAssets) fail('too_many_assets', 'assets');
+  if (ids.length > overlayLimits.overlayAssets) ASSETS.fail('too_many_assets');
   for (const id of ids) {
-    const path = field('assets', id);
-    if (!ID_PATTERN.test(id)) fail('invalid_id', path);
-    checkAsset(assets[id]!, path);
+    const scope = ASSETS.field(id);
+    if (!ID_PATTERN.test(id)) scope.fail('invalid_id');
+    checkAsset(assets[id]!, scope);
   }
   checkTotals(ids.map((id) => assets[id]!));
 }
 
-function refError(value: unknown, assets: Record<string, OverlayAsset>): OverlayErrorCode | null {
+function stringRefError(value: string, assets: Assets): OverlayErrorCode | null {
+  if (LEGACY_MEDIA.test(value)) return 'legacy_media_ref';
+  const isRef = value.startsWith(ASSET_PREFIX);
+  return isRef && !Object.hasOwn(assets, value.slice(ASSET_PREFIX.length)) ? 'unknown_asset' : null;
+}
+
+function refError(value: unknown, assets: Assets): OverlayErrorCode | null {
   if (typeof value === 'string') return stringRefError(value, assets);
-  if (value === null || typeof value !== 'object') return null;
+  if (!isObject(value)) return null;
   const children = Array.isArray(value) ? value : Object.values(value);
   for (const child of children) {
     const code = refError(child, assets);
@@ -339,41 +407,35 @@ function refError(value: unknown, assets: Record<string, OverlayAsset>): Overlay
   return null;
 }
 
-function stringRefError(value: string, assets: Record<string, OverlayAsset>): OverlayErrorCode | null {
-  if (LEGACY_MEDIA.test(value)) return 'legacy_media_ref';
-  const isRef = value.startsWith(ASSET_PREFIX);
-  return isRef && !Object.hasOwn(assets, value.slice(ASSET_PREFIX.length)) ? 'unknown_asset' : null;
-}
-
-function checkBundle(widget: OverlayWidget, assets: Record<string, OverlayAsset>, path: string): void {
+function checkBundle(widget: OverlayWidget, assets: Assets, scope: Scope): void {
   if (widget.kind !== 'custom') return;
   const ref = widget.settings?.bundle;
-  if (typeof ref !== 'string' || !ref.startsWith(ASSET_PREFIX)) fail('invalid_bundle', path);
+  if (typeof ref !== 'string' || !ref.startsWith(ASSET_PREFIX)) scope.fail('invalid_bundle');
   const id = ref.slice(ASSET_PREFIX.length);
-  if (!Object.hasOwn(assets, id)) fail('unknown_asset', path);
-  if (assets[id]!.type !== 'widget') fail('invalid_bundle', path);
+  if (!Object.hasOwn(assets, id)) scope.fail('unknown_asset');
+  if (assets[id]!.type !== 'widget') scope.fail('invalid_bundle');
 }
 
 function checkRefs(doc: OverlayDocument): void {
   doc.widgets.forEach((widget, position) => {
-    const path = field(index('widgets', position), 'settings');
-    checkBundle(widget, doc.assets, path);
+    const scope = WIDGETS.at(position).field('settings');
+    checkBundle(widget, doc.assets, scope);
     const root = widget.kind === 'custom' ? widget.settings?.values : widget.settings;
     const code = refError(root, doc.assets);
-    if (code !== null) fail(code, path);
+    if (code !== null) scope.fail(code);
   });
 }
 
 function checkCustom(doc: OverlayDocument): void {
-  if (doc.template !== '' || doc.config !== null) fail('invalid_document', 'template');
-  if (!within(doc.width, MIN_CANVAS, MAX_CANVAS) || !within(doc.height, MIN_CANVAS, MAX_CANVAS)) fail('invalid_size', 'width');
+  if (doc.template !== '' || doc.config !== null) ROOT.field('template').fail('invalid_document');
+  if (!within(CANVAS, doc.width) || !within(CANVAS, doc.height)) ROOT.field('width').fail('invalid_size');
   checkWidgets(doc.widgets);
   checkAssets(doc.assets);
   checkRefs(doc);
 }
 
 function checkDocument(doc: OverlayDocument, input: unknown): void {
-  if (byteLength(JSON.stringify(input)) > overlayLimits.documentBytes) fail('document_too_large');
+  if (byteLength(JSON.stringify(input)) > overlayLimits.documentBytes) ROOT.fail('document_too_large');
   checkIdentity(doc);
   if (doc.kind === 'system') checkSystem(doc);
   else checkCustom(doc);
