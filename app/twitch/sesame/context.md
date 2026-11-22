@@ -97,6 +97,11 @@ configured overlay link. Sesame applies blocked terms and discards the entire
 utterance on a match. It strips control characters and cheermotes from viewer
 text. Trial events never enqueue a voice job.
 
+The Dashboard owner action calls [`rpc.voice.test`](modules/voice_test_rpc.go)
+to queue a localized cheer sample. It uses the channel's cheer voice and style
+and the normal Users allowance and usage recording. It can run while the channel
+is offline, with one request per channel every ten seconds.
+
 ## Premium speech from chat, rewards and recipes
 
 Three more surfaces queue the same speech jobs, and each needs a Premium channel

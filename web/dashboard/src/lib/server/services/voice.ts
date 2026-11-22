@@ -50,3 +50,11 @@ export const voiceOverlayRotate = defineWrite({
   request: voiceActor,
   map: (reply: { url: string }) => reply.url
 });
+
+type TestAlertStatus = 'queued' | 'no_link' | 'no_minutes' | 'rate_limited' | 'disabled';
+
+export const voiceTestAlert = defineWrite({
+  subject: 'rpc.voice.test',
+  request: (session: Session) => ({ ...voiceActor(session), display_name: session.display_name || session.login }),
+  map: (reply: { status: TestAlertStatus }) => reply.status
+});

@@ -14,13 +14,15 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
 
-  let { configured, url, error, busy, disabled, submit }: {
+  let { configured, url, error, busy, disabled, submit, testBusy, submitTestAlert }: {
     configured: boolean;
     url?: string;
     error?: string;
     busy: boolean;
     disabled: boolean;
     submit: SubmitFunction;
+    testBusy: boolean;
+    submitTestAlert: SubmitFunction;
   } = $props();
 
   const { t } = getI18n();
@@ -40,19 +42,24 @@
     </Heading>
     <StepList {steps} fitCopy checklist />
     <TextLink href={`${SITE.web}/guides/premium-voice`} variant="quiet" label={t('voice.overlayGuide')} fit />
-    <form class="overlay-form" method="POST" action="?/rotateOverlay" use:enhance={submit}>
-      <div class="overlay-actions">
+    <div class="overlay-actions">
+      <form method="POST" action="?/rotateOverlay" use:enhance={submit}>
         <Button variant="secondary" size="sm" type="submit" {busy} {disabled}>
           <bb-fit class="overlay-action-label"><span data-fit="">{configured ? t('voice.overlayReplace') : t('voice.overlayCreate')}</span></bb-fit>
         </Button>
+      </form>
+      <form method="POST" action="?/testAlert" use:enhance={submitTestAlert}>
+        <Button variant="secondary" size="sm" type="submit" busy={testBusy} disabled={disabled || !configured}>
+          <bb-fit class="overlay-action-label"><span data-fit="">{t('voice.testAlert')}</span></bb-fit>
+        </Button>
+      </form>
+    </div>
+    <div class="bb-collapse" class:is-open={!!url} aria-hidden={!url} inert={!url}>
+      <div>
+        <CopySurface variant="well" text={url ?? ''} aria-label={t('voice.overlayLink')}
+          disabled={busy} legacyFallback onCopy={(copied) => (failedUrl = copied ? undefined : url)} />
       </div>
-      <div class="bb-collapse" class:is-open={!!url} aria-hidden={!url} inert={!url}>
-        <div>
-          <CopySurface variant="well" text={url ?? ''} aria-label={t('voice.overlayLink')}
-            disabled={busy} legacyFallback onCopy={(copied) => (failedUrl = copied ? undefined : url)} />
-        </div>
-      </div>
-    </form>
+    </div>
     <Text as="div" size="sm" tone="muted"><bb-fit mode="block">{t('voice.overlayHint')}</bb-fit></Text>
     <div class="bb-collapse" class:is-open={!busy && !!status} aria-hidden={busy || !status} role="status">
       <div>
@@ -63,8 +70,7 @@
 </Card>
 
 <style>
-  .overlay,
-  .overlay-form {
+  .overlay {
     --bb-collapse-gap: var(--bb-space-2);
     display: flex;
     flex-direction: column;
@@ -72,7 +78,8 @@
   }
   .overlay-actions {
     display: grid;
-    grid-template-columns: minmax(0, min(50%, 11rem));
+    grid-template-columns: repeat(2, minmax(0, 11rem));
+    gap: var(--bb-space-2);
     --btn-w: 100%;
     --btn-justify: center;
   }

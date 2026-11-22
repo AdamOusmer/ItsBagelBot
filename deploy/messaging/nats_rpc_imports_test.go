@@ -173,6 +173,7 @@ var rpcRequests = map[string][]rpcRequest{
 	"dashboard_rpc": {
 		{"rpc.automations.run", "web/dashboard/src/lib/server/automations-store.ts runNow"},
 		{"rpc.automations.runs", "web/dashboard/src/lib/server/automations-store.ts listRuns"},
+		{"rpc.voice.test", "web/dashboard/src/lib/server/services/voice.ts voiceTestAlert"},
 		{"rpc.draw.raffle.status", "web/dashboard/src/lib/server/loyalty-store.ts raffleStatus"},
 		{"rpc.draw.giveaway.live", "dashboard giveaway panel"},
 		{"rpc.draw.giveaway.start", "dashboard giveaway start"},

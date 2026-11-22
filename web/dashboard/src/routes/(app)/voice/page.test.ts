@@ -135,37 +135,52 @@ test('renders the shared style picker and viewer-message rehearsal without spoke
 
 const obsURL = 'https://overlay.itsbagelbot.com/tts#AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
-test.each([
-  { name: 'owner before creation', readOnly: false, configured: false, limit: 90_000, url: undefined, visible: true },
-  { name: 'owner revisiting', readOnly: false, configured: true, limit: 90_000, url: undefined, visible: true },
-  { name: 'owner after rotation', readOnly: false, configured: true, limit: 90_000, url: obsURL, visible: true },
-  { name: 'zero allowance', readOnly: false, configured: false, limit: 0, url: undefined, visible: false },
-  { name: 'read-only session', readOnly: true, configured: true, limit: 90_000, url: undefined, visible: false }
-])('renders the appropriate OBS controls for $name', async ({ readOnly, configured, limit, url, visible }) => {
-  const form = url ? { overlayUrl: url } : null;
-  const html = renderVoice({ readOnly, allowance: { ...allowance, limit_tokens: limit, overlay_configured: configured } }, form);
+async function collectObsControls(html: string) {
   let submitLabel = '';
+  let testLabel = '';
+  let testDisabled: boolean | undefined;
   let firstStep = '';
   const rewriter = new HTMLRewriter()
     .on('form[action="?/rotateOverlay"] button[type="submit"]', {
       text(chunk) { submitLabel += chunk.text; }
     })
+    .on('form[action="?/testAlert"] button[type="submit"]', {
+      element(button) { testDisabled = button.hasAttribute('disabled'); },
+      text(chunk) { testLabel += chunk.text; }
+    })
     .on('.bb-steps--checklist > li:first-child .bb-step__label', {
       text(chunk) { firstStep += chunk.text; }
     });
   await rewriter.transform(new Response(html)).text();
+  return { submitLabel, testLabel, testDisabled, firstStep };
+}
 
-  const buttonLabel = configured ? 'Make a new link' : 'Create link';
+test.each([
+  { name: 'owner before creation', readOnly: false, configured: false, limit: 90_000, url: undefined, visible: true },
+  { name: 'owner revisiting', readOnly: false, configured: true, limit: 90_000, url: undefined, visible: true },
+  { name: 'owner after rotation', readOnly: false, configured: false, limit: 90_000, url: obsURL, visible: true },
+  { name: 'zero allowance', readOnly: false, configured: false, limit: 0, url: undefined, visible: false },
+  { name: 'read-only session', readOnly: true, configured: true, limit: 90_000, url: undefined, visible: false }
+])('renders the appropriate OBS controls for $name', async ({ readOnly, configured, limit, url, visible }) => {
+  const form = url ? { overlayUrl: url } : null;
+  const html = renderVoice({ readOnly, allowance: { ...allowance, limit_tokens: limit, overlay_configured: configured } }, form);
+  const { submitLabel, testLabel, testDisabled, firstStep } = await collectObsControls(html);
+
   expect({
     button: submitLabel.trim(),
+    testLabel: testLabel.trim(),
+    testDisabled,
     firstStep: firstStep.trim(),
     guide: html.includes('itsbagelbot.com/guides/premium-voice'),
     link: html.includes(obsURL),
     done: html.includes('bb-step__check'),
     stateLabel: html.includes('bb-step__state')
-  }).toEqual({
-    button: visible ? buttonLabel : '',
-    firstStep: visible ? 'Generate a private link and copy it when it appears.' : '',
-    guide: visible, link: Boolean(url), done: visible && configured, stateLabel: false
-  });
+  }).toEqual(expectedObsControls(visible, Boolean(url) || configured, Boolean(url)));
 });
+
+function expectedObsControls(visible: boolean, hasLink: boolean, link: boolean) {
+  const shown = { button: hasLink ? 'Make a new link' : 'Create link', testLabel: 'Send test alert', testDisabled: !hasLink,
+    firstStep: 'Generate a private link and copy it when it appears.' };
+  const hidden = { button: '', testLabel: '', testDisabled: undefined, firstStep: '' };
+  return { ...(visible ? shown : hidden), guide: visible, link, done: visible && hasLink, stateLabel: false };
+}

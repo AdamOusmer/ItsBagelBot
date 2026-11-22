@@ -6,5 +6,6 @@
   "raid.default": "{alerts:user} is raiding the channel with {alerts:viewers} viewers! Welcome everyone!",
   "ads.default": "Ads are rolling for {alerts:duration} seconds. Hang tight, we'll be right back!",
   "voice.said": "%s said: %s",
+  "voice.test": "This is a test of your Premium voice.",
   "voice.anonymous": "Anonymous"
 }

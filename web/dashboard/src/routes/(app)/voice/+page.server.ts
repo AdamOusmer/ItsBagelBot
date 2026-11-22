@@ -12,7 +12,7 @@ import { listModulesForEditing, patchModule, type ModuleView } from '#lib/server
 import { moduleEditState } from '#lib/server/module-edit-state';
 import { hasOwnerAccess } from '#lib/server/owner';
 import { auditDashboardImpersonation } from '#lib/server/services/audit';
-import { voiceGet, voiceOverlayRotate, voiceSet } from '#lib/server/services/voice';
+import { voiceGet, voiceOverlayRotate, voiceSet, voiceTestAlert } from '#lib/server/services/voice';
 import { TTS_COMMAND } from '@bagel/kit/voice-plan';
 import { parseCommandSave, parseVoiceSave, ttsCommandConfig, voiceAlertConfig } from './voice-settings';
 import type { Session } from '#lib/server/session';
@@ -110,7 +110,8 @@ const demoActions = {
     if (save.error !== null) return invalidSave(locale, save.error);
     return { ok: true, rev: save.expectedRev + 1 };
   },
-  rotateOverlay: async () => ({ overlayUrl: 'https://overlay.itsbagelbot.com/tts#demo' })
+  rotateOverlay: async () => ({ overlayUrl: 'https://overlay.itsbagelbot.com/tts#demo' }),
+  testAlert: async () => ({ testAlertSent: true })
 } satisfies Actions;
 
 const demoLoad = (async ({ url }) => {
@@ -140,6 +141,13 @@ const liveLoad = (async ({ locals: { session } }) => {
 }) satisfies PageServerLoad;
 
 export const load: PageServerLoad = DEMO ? demoLoad : liveLoad;
+
+const testAlertRefusals = {
+  no_link: [409, 'voice.testNoLink'],
+  no_minutes: [409, 'voice.testNoMinutes'],
+  rate_limited: [429, 'voice.testRateLimited'],
+  disabled: [403, 'voice.testDisabled']
+} as const;
 
 const liveActions = {
   save: async ({ locals: { session, locale }, request }) => {
@@ -172,6 +180,22 @@ const liveActions = {
         return fail(403, { overlayError: translate(locale, 'voice.overlayUnavailable') });
       }
       return fail(503, { overlayError: translate(locale, 'voice.overlayFailed') });
+    }
+  },
+  testAlert: async ({ locals: { session, locale } }) => {
+    if (!session) return fail(401, { testAlertError: translate(locale, 'serverErrors.notSignedIn') });
+    if (!hasOwnerAccess(session)) return fail(403, { testAlertError: translate(locale, 'serverErrors.ownerOnly') });
+
+    try {
+      const status = await voiceTestAlert(session);
+      if (status === 'queued') {
+        auditDashboardImpersonation(session, 'voice:test_alert');
+        return { testAlertSent: true };
+      }
+      const [httpStatus, message] = testAlertRefusals[status];
+      return fail(httpStatus, { testAlertError: translate(locale, message) });
+    } catch {
+      return fail(503, { testAlertError: translate(locale, 'voice.testFailed') });
     }
   }
 } satisfies Actions;

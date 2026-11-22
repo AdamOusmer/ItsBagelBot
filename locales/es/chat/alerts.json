@@ -6,5 +6,6 @@
   "raid.default": "¡{alerts:user} llega de raid al canal! Espectadores: {alerts:viewers}. ¡Bienvenidos!",
   "ads.default": "Anuncios en curso. Duración: {alerts:duration} s. ¡Espera un momento, volvemos enseguida!",
   "voice.said": "%s dijo: %s",
+  "voice.test": "Esta es una prueba de tu voz Premium.",
   "voice.anonymous": "Anónimo"
 }

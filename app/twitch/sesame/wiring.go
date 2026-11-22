@@ -12,11 +12,13 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/internal/config"
 	"ItsBagelBot/app/twitch/sesame/internal/consumer"
+	"ItsBagelBot/app/twitch/sesame/modules"
 	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/idempotency"
+	"ItsBagelBot/pkg/ratelimit"
 	pkgvalkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
@@ -333,6 +335,15 @@ func registerAutomationRPC(w wireCtx, pipe *engine.Pipeline, app *newrelic.Appli
 		App:      app,
 		Log:      w.log,
 	})
+}
+
+func registerVoiceTestRPC(w wireCtx, deps engine.Deps, app *newrelic.Application) error {
+	return modules.SubscribeVoiceTestRPC(bus.RPCWiring{NC: w.in.nc, Queue: queueGroup, App: app, Log: w.log}, deps, ratelimit.New(w.in.vc).Allow)
+}
+
+func registerRaffleStatusRPC(w wireCtx, deps engine.Deps, app *newrelic.Application) error {
+	status := engine.RaffleStatusRPC{Draw: deps.Draw, Watch: deps.LoyaltyTick, Log: w.log}
+	return status.Subscribe(bus.RPCWiring{NC: w.in.nc, Queue: queueGroup, App: app, Log: w.log})
 }
 
 func registerGiveawayRPC(w wireCtx, deps engine.Deps, standings engine.GiveawayBalanceCounter, app *newrelic.Application) error {
