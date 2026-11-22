@@ -1,5 +1,7 @@
 {
   "roleBroadcaster": "Proprietário do canal",
+  "roleSignedIn": "Conectado como você",
+  "roleAdminView": "Admin: {admin}",
   "notifications": "Notificações",
   "logout": "Sair",
   "dashboards": "Painéis compartilhados",

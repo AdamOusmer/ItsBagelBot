@@ -110,7 +110,8 @@
     "./site-links": "./lib/site-links.ts",
     "./site-footer": "./lib/site-footer.ts",
     "./via": "./lib/via.ts",
-    "./client-props": "./lib/client-props.ts"
+    "./client-props": "./lib/client-props.ts",
+    "./topbar-context": "./lib/topbar-context.ts"
   },
   "dependencies": {
     "@luzir/bolota": "0.3.0",

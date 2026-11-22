@@ -50,7 +50,7 @@ defmodule ControlsGateway.Tts.Session do
     valid_user_id?(user_id) and is_integer(generation) and generation >= 0
   end
 
-  defp valid_user_id?(id), do: is_integer(id) and id > 0 and id <= @uint64_max
+  def valid_user_id?(id), do: is_integer(id) and id > 0 and id <= @uint64_max
 
   defp sign(payload), do: :crypto.mac(:hmac, :sha256, key(), payload)
 

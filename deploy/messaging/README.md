@@ -14,10 +14,18 @@ looks and the way past it is not a broker setting.
 
 ## TTS overlay account
 
-`CONTROLS_GATEWAY_RPC` owns the JetStream namespace for `OVERLAY_TTS` and
-`TTS_CLIPS`. The worker creates both with file storage, five-minute retention,
-and three replicas each. The `controls_gateway_rpc` reader can create filtered
-ephemeral consumers on `OVERLAY_TTS` and read messages from `OBJ_TTS_CLIPS`.
+`CONTROLS_GATEWAY_RPC` owns the JetStream namespace for the overlay queue. The
+worker (`worker_tts_bus`) creates `OVERLAYS_PREMIUM` and `OVERLAYS_STANDARD`
+(work-queue retention, memory storage, five-minute retention, three replicas), the
+shared durable pull consumers `overlays-premium` and `overlays-standard`, and
+the `OVERLAYS_MEDIA` object bucket, and publishes `overlays.premium.<kind>.<user_id>`
+and `overlays.standard.<kind>.<user_id>`. The `controls_gateway_rpc` reader only
+binds: it pulls from the two durables, acks on `$JS.ACK`, reads
+`OBJ_OVERLAYS_MEDIA`, and publishes and subscribes `overlays.session.<user_id>` to
+hand each clip to the open overlay streams of that user.
+
+`OVERLAY_TTS` and `TTS_CLIPS` keep their grants only until the follow-up release
+that removes them.
 
 `PROJECTOR_RPC` restricts the overlay resolve and check RPCs, their node-specific
 subjects, and `controls.tts.revoked.*` to this account. The committed resolver

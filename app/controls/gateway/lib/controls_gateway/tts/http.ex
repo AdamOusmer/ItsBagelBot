@@ -6,10 +6,11 @@ defmodule ControlsGateway.Tts.Http do
   require Logger
 
   alias ControlsGateway.{Drain, OverlayRequest}
+  alias ControlsGateway.Overlays.Acks
   alias ControlsGateway.Tts.{Clips, Events, Nats, Page, Session, Throttle}
 
   @headers %{"cache-control" => "no-store", "referrer-policy" => "no-referrer"}
-  @allow %{session: "POST", events: "GET, HEAD"}
+  @allow %{session: "POST", events: "GET, HEAD", ack: "POST", progress: "POST"}
   @max_body 256
   @drain_retry_after "5"
 
@@ -33,6 +34,7 @@ defmodule ControlsGateway.Tts.Http do
   end
 
   defp dispatch("GET", :clip, req), do: authorized(:clip, req)
+  defp dispatch("POST", route, req) when route in [:ack, :progress], do: authorized(route, req)
 
   defp dispatch(_method, route, req) do
     allow = Map.get(@allow, route, "GET")
@@ -48,6 +50,8 @@ defmodule ControlsGateway.Tts.Http do
 
   defp serve(:events, req, session), do: Events.open(req, session, @headers)
   defp serve(:clip, req, session), do: Clips.reply(req, session, @headers)
+  defp serve(:ack, req, session), do: Acks.ack(req, session, @headers)
+  defp serve(:progress, req, session), do: Acks.progress(req, session, @headers)
 
   defp serve(:events_status, req, session) do
     case Nats.check(session) do

@@ -4,18 +4,18 @@
 defmodule ControlsGateway.Tts.Events do
   require Logger
 
+  alias ControlsGateway.Overlays.{Handle, Pending}
+  alias ControlsGateway.Subjects
   alias ControlsGateway.Tts.{Nats, Session}
   alias Platform.Nats.Planes
 
-  @stream "OVERLAY_TTS"
   @ping_ms 15_000
   @check_ms 300_000
-  @heartbeat_ns 5_000_000_000
-  @idle_ns 30_000_000_000
-  @max_resume_id 18_446_744_073_709_551_614
+  @recheck_ms 15_000
   @retry_ms 3_000..8_000
   @unavailable_retry_ms 15_000..30_000
   @ping_frame ": ping\n\n"
+  @accepted ~s({"accepted":true})
 
   def open(req, session, headers) do
     with %Planes{} = jetstream <- Planes.connection(:jetstream),
@@ -23,9 +23,8 @@ defmodule ControlsGateway.Tts.Events do
          {:ok, revoked_sid} <-
            Planes.subscribe(rpc, self(), "controls.tts.revoked.#{session.user_id}"),
          true <- Nats.check(session, rpc),
-         inbox <-
-           "_INBOX.tts." <> Base.url_encode64(:crypto.strong_rand_bytes(18), padding: false),
-         {:ok, event_sid} <- Planes.subscribe(jetstream, self(), inbox) do
+         {:ok, clip_sid} <-
+           Planes.subscribe(jetstream, self(), Subjects.overlay_session(session.user_id)) do
       state = %{
         jetstream: jetstream,
         rpc: rpc,
@@ -33,13 +32,8 @@ defmodule ControlsGateway.Tts.Events do
         rpc_monitor: Process.monitor(rpc.pid),
         session: session,
         revoked_sid: revoked_sid,
-        event_sid: event_sid,
-        inbox: inbox,
-        subject: "overlay.tts.#{session.user_id}",
-        resume: req |> resume_id() |> resume_sequence(),
-        consumer: nil,
-        seq: 0,
-        seen_at: now()
+        clip_sid: clip_sid,
+        pending: Pending.start(self())
       }
 
       start(req, headers, state)
@@ -60,56 +54,22 @@ defmodule ControlsGateway.Tts.Events do
   end
 
   defp start(req, headers, state) do
-    Logger.info("TTS events stream opened, resume=#{state.resume || "new"}",
-      user_id: state.session.user_id
-    )
+    Logger.info("TTS events stream opened", user_id: state.session.user_id)
 
-    state = attach(state)
     req = :cowboy_req.stream_reply(200, event_headers(headers), req)
     :ok = :cowboy_req.stream_body(initial_frame(@retry_ms), :nofin, req)
     Process.send_after(self(), :ping, @ping_ms)
-    schedule_check(state.session)
+    schedule_check(state.session, @check_ms)
     {:cowboy_loop, req, state, :hibernate}
   end
 
   defp initial_frame(retry_ms), do: "retry: #{Enum.random(retry_ms)}\n" <> @ping_frame
 
-  defp attach(state) do
-    name = "tts-" <> List.last(String.split(state.inbox, "."))
-    subject = "$JS.API.CONSUMER.CREATE.#{@stream}.#{name}.#{state.subject}"
-
-    config = %{
-      name: name,
-      deliver_subject: state.inbox,
-      filter_subject: state.subject,
-      ack_policy: "none",
-      max_deliver: 1,
-      idle_heartbeat: @heartbeat_ns,
-      inactive_threshold: @idle_ns,
-      flow_control: true
-    }
-
-    config = Map.merge(config, delivery_policy(state.resume))
-
-    case Nats.jetstream_request(state.jetstream, subject, %{stream_name: @stream, config: config}) do
-      {:ok, %{"name" => ^name}} ->
-        %{state | consumer: name, seen_at: now()}
-
-      other ->
-        Logger.warning("TTS events consumer unavailable",
-          user_id: state.session.user_id,
-          reason: inspect(other, limit: 5)
-        )
-
-        state
-    end
-  end
-
   def info({:msg, %{sid: sid, gnat: rpc}}, req, %{revoked_sid: sid, rpc: %{pid: rpc}} = state),
     do: stop(req, state, :revoked)
 
   def info({:msg, %{sid: sid, gnat: pid} = message}, req, state)
-      when sid == state.event_sid and pid == state.jetstream.pid,
+      when sid == state.clip_sid and pid == state.jetstream.pid,
       do: deliver(message, req, state)
 
   def info({:DOWN, ref, :process, _pid, _reason}, req, state)
@@ -117,24 +77,22 @@ defmodule ControlsGateway.Tts.Events do
       do: stop(req, state, down_reason(ref, state))
 
   def info(:ping, req, state) do
-    case ping(state) do
-      :stale ->
-        stop(req, state, :stale)
-
-      state ->
-        :ok = :cowboy_req.stream_body(@ping_frame, :nofin, req)
-        Process.send_after(self(), :ping, @ping_ms)
-        continue(req, state)
-    end
+    :ok = :cowboy_req.stream_body(@ping_frame, :nofin, req)
+    Process.send_after(self(), :ping, @ping_ms)
+    continue(req, state)
   end
 
   def info(:check, req, state) do
-    case check_failure(state) do
-      nil ->
-        schedule_check(state.session)
+    case verdict(state) do
+      :valid ->
+        schedule_check(state.session, @check_ms)
         continue(req, state)
 
-      reason ->
+      :unavailable ->
+        schedule_check(state.session, @recheck_ms)
+        continue(req, state)
+
+      {:invalid, reason} ->
         stop(req, state, reason)
     end
   end
@@ -143,101 +101,54 @@ defmodule ControlsGateway.Tts.Events do
 
   def info(_message, req, state), do: continue(req, state)
 
-  defp deliver(%{status: "100"} = message, req, state) do
-    headers = Map.new(Map.get(message, :headers, []))
-    last = Map.get(headers, "nats-last-consumer", Integer.to_string(state.seq))
-    reply = message.reply_to || Map.get(headers, "nats-consumer-stalled")
-
-    if reply, do: Planes.publish(state.jetstream, reply, "")
-
-    if last == Integer.to_string(state.seq) do
-      continue(req, %{state | seen_at: now()})
-    else
-      stop(req, state, :flow_gap)
-    end
-  end
-
-  defp deliver(%{topic: topic, body: body} = message, req, %{subject: topic} = state) do
-    next = state.seq + 1
-
-    case Planes.jetstream_metadata(message) do
-      {:ok, %{consumer: consumer, stream_seq: stream_seq, consumer_seq: ^next}}
-      when consumer == state.consumer ->
-        send_event(req, stream_seq, body, state.session)
-        continue(req, %{state | seq: next, seen_at: now()})
-
-      _ ->
-        stop(req, state, :out_of_order)
-    end
-  end
-
-  defp deliver(_message, req, state), do: stop(req, state, :unexpected_message)
-
-  defp send_event(req, seq, body, session) do
+  defp deliver(%{reply_to: reply, body: body}, req, state) when is_binary(reply) do
     case Jason.decode(body) do
-      {:ok, event} when is_map(event) ->
-        :cowboy_req.stream_body(
-          ["id: ", Integer.to_string(seq), "\ndata: ", Jason.encode!(event), "\n\n"],
-          :nofin,
-          req
-        )
-
-        Logger.info("TTS event delivered",
-          user_id: session.user_id,
-          event_id: event["event_id"],
-          trace_id: event["trace_id"]
-        )
+      {:ok, %{"ack" => ack, "data" => %{} = data}} when is_binary(ack) ->
+        send_clip(req, ack, data, state)
+        Planes.publish(state.jetstream, reply, @accepted)
 
       _ ->
-        Logger.warning("TTS event payload invalid", user_id: session.user_id)
+        Logger.warning("TTS clip offer invalid", user_id: state.session.user_id)
+    end
+
+    continue(req, state)
+  end
+
+  defp deliver(_message, req, state), do: continue(req, state)
+
+  defp send_clip(req, ack, event, %{session: session, pending: pending}) do
+    Pending.track(pending, ack)
+    clip = Map.put(event, "handle", Handle.sign(session.user_id, ack))
+    :cowboy_req.stream_body(["event: clip\ndata: ", Jason.encode!(clip), "\n\n"], :nofin, req)
+
+    Logger.info("TTS event delivered",
+      user_id: session.user_id,
+      event_id: event["event_id"],
+      trace_id: event["trace_id"]
+    )
+  end
+
+  defp verdict(state) do
+    if state.session.exp <= Session.now() do
+      {:invalid, :session_expired}
+    else
+      check_verdict(Nats.check(state.session, state.rpc))
     end
   end
 
-  defp ping(%{consumer: nil} = state), do: attach(state)
-
-  defp ping(state) do
-    if now() - state.seen_at < @ping_ms, do: state, else: :stale
-  end
-
-  defp check_failure(state) do
-    cond do
-      state.session.exp <= Session.now() -> :session_expired
-      Nats.check(state.session, state.rpc) != true -> :check_failed
-      true -> nil
-    end
-  end
+  defp check_verdict(true), do: :valid
+  defp check_verdict(false), do: {:invalid, :check_failed}
+  defp check_verdict(:unavailable), do: :unavailable
 
   defp down_reason(ref, %{monitor: ref}), do: :nats_down
   defp down_reason(_ref, _state), do: :rpc_down
 
-  defp schedule_check(session) do
-    delay = min(@check_ms, max(0, session.exp - Session.now()) * 1_000)
+  defp schedule_check(session, interval_ms) do
+    delay = min(interval_ms, max(0, session.exp - Session.now()) * 1_000)
     Process.send_after(self(), :check, delay)
   end
 
-  defp resume_id(req) do
-    case :cowboy_req.header("last-event-id", req) do
-      :undefined ->
-        req |> :cowboy_req.parse_qs() |> List.keyfind("after", 0, {"after", ""}) |> elem(1)
-
-      id ->
-        id
-    end
-  end
-
-  defp resume_sequence(id) when is_binary(id) do
-    case Integer.parse(id) do
-      {seq, ""} when seq >= 1 and seq <= @max_resume_id -> seq + 1
-      _ -> nil
-    end
-  end
-
-  defp resume_sequence(_id), do: nil
-
-  defp delivery_policy(nil), do: %{deliver_policy: "new"}
-  defp delivery_policy(seq), do: %{deliver_policy: "by_start_sequence", opt_start_seq: seq}
   defp event_headers(headers), do: Map.put(headers, "content-type", "text/event-stream")
-  defp now, do: System.monotonic_time(:millisecond)
   defp continue(req, state), do: {:ok, req, state, :hibernate}
 
   defp stop(req, state, reason) do
