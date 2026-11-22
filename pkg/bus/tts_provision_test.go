@@ -44,7 +44,7 @@ func TestTTSProvisioningAdoptsExistingOverlayResources(t *testing.T) {
 	require.NoError(t, err)
 	const existingTTL = time.Minute
 	stream, err := js.CreateStream(ctx, jsapi.StreamConfig{
-		Name: bus.OverlaysPremiumStream, Subjects: []string{"overlays.premium.>"}, Retention: jsapi.WorkQueuePolicy, MaxAge: existingTTL,
+		Name: bus.OverlaysPremiumStream, Subjects: []string{"overlays.premium.>"}, Retention: jsapi.WorkQueuePolicy, Storage: jsapi.MemoryStorage, MaxAge: existingTTL,
 	})
 	require.NoError(t, err)
 	bucket, err := js.CreateObjectStore(ctx, jsapi.ObjectStoreConfig{Bucket: bus.OverlaysMediaBucket, TTL: existingTTL})

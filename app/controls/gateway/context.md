@@ -43,7 +43,7 @@ parses the user ID from the subject and sends a core request to
 `event: clip` frame whose JSON is the event (`clip_key`, `event_id`,
 `kind`, `duration_ms`, `expires_at`, optional `trace_id`) plus a `handle`,
 and replies `{"accepted": true}`. Without a reply the loop sends `-NAK` with a
-delay of 2, 5, 10, then 30 seconds by delivery count; an invalid message gets
+delay of 0.5, 2, 5, 10, then 30 seconds by delivery count; an invalid message gets
 `+TERM`. The gateway only binds to streams and consumers by name.
 
 The handle is `base64url(ack subject).base64url(HMAC-SHA256(cookie key,

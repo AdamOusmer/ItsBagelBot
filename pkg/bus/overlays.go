@@ -108,7 +108,7 @@ func OpenOverlays(ctx context.Context, nc *nats.Conn, replicas int) (*Overlays, 
 
 func provisionOverlayLane(ctx context.Context, js jsapi.JetStream, lane overlayLane, replicas int) error {
 	spec := StreamSpec{
-		Name: lane.stream, Subjects: []string{overlaysSubjectRoot + string(lane.tier) + ".>"}, Storage: nats.FileStorage,
+		Name: lane.stream, Subjects: []string{overlaysSubjectRoot + string(lane.tier) + ".>"}, Storage: nats.MemoryStorage,
 		Retention: nats.WorkQueuePolicy, Replicas: replicas, MaxAge: OverlayClipTTL, Duplicates: OverlayClipTTL,
 	}
 	stream, err := createOrGetTTSStream(ctx, js, spec)

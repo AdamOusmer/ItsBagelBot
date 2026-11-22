@@ -9,7 +9,7 @@ defmodule ControlsGateway.Overlays.Delivery do
   alias Platform.Nats.Planes
 
   @offer_timeout_ms 2_000
-  @backoff_ns [2_000_000_000, 5_000_000_000, 10_000_000_000]
+  @backoff_ns [500_000_000, 2_000_000_000, 5_000_000_000, 10_000_000_000]
   @backoff_cap_ns 30_000_000_000
 
   def handle(%{topic: topic, body: body, reply_to: ack} = message) when is_binary(ack) do

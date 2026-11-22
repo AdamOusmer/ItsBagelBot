@@ -454,7 +454,7 @@ defmodule ControlsGateway.TtsTest do
           name: stream,
           subjects: ["overlays.#{tier}.>"],
           retention: :workqueue,
-          storage: :file,
+          storage: :memory,
           max_age: @ttl_ns,
           duplicate_window: @ttl_ns
         })

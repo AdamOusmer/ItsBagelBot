@@ -38,15 +38,20 @@ func TestOverlaysPublishLandsOnTierStreamAndDurable(t *testing.T) {
 			msg := bus.OverlayMessage{Tier: want.tier, Kind: bus.OverlayKindTTS, UserID: "42", EventID: "evt-" + string(want.tier), Value: map[string]string{"k": "v"}}
 			require.NoError(t, overlays.Publish(ctx, msg))
 
+			stream, err := js.Stream(ctx, want.stream)
+			require.NoError(t, err)
 			consumer, err := js.Consumer(ctx, want.stream, want.durable)
 			require.NoError(t, err)
-			cfg := consumer.CachedInfo().Config
-			assert.Equal(t, jsapi.AckExplicitPolicy, cfg.AckPolicy)
-			assert.Equal(t, 30*time.Second, cfg.AckWait)
-			assert.Equal(t, -1, cfg.MaxDeliver)
-			assert.Equal(t, -1, cfg.MaxAckPending)
-			assert.Equal(t, jsapi.DeliverAllPolicy, cfg.DeliverPolicy)
-			assert.Empty(t, cfg.FilterSubject)
+			streamCfg, cfg := stream.CachedInfo().Config, consumer.CachedInfo().Config
+			assert.Equal(t, overlayLaneConfig{
+				storage: jsapi.MemoryStorage, retention: jsapi.WorkQueuePolicy, maxAge: 5 * time.Minute,
+				ack: jsapi.AckExplicitPolicy, ackWait: 30 * time.Second, maxDeliver: -1, maxAckPending: -1,
+				deliver: jsapi.DeliverAllPolicy,
+			}, overlayLaneConfig{
+				storage: streamCfg.Storage, retention: streamCfg.Retention, maxAge: streamCfg.MaxAge,
+				ack: cfg.AckPolicy, ackWait: cfg.AckWait, maxDeliver: cfg.MaxDeliver, maxAckPending: cfg.MaxAckPending,
+				deliver: cfg.DeliverPolicy, filter: cfg.FilterSubject,
+			})
 
 			batch, err := consumer.Fetch(1, jsapi.FetchMaxWait(3*time.Second))
 			require.NoError(t, err)
@@ -80,4 +85,16 @@ func TestOverlaysClipRoundTripsInMediaBucket(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, stored.Key, got.Key)
 	assert.Equal(t, "10", got.Metadata["duration_ms"])
+}
+
+type overlayLaneConfig struct {
+	storage       jsapi.StorageType
+	retention     jsapi.RetentionPolicy
+	maxAge        time.Duration
+	ack           jsapi.AckPolicy
+	ackWait       time.Duration
+	maxDeliver    int
+	maxAckPending int
+	deliver       jsapi.DeliverPolicy
+	filter        string
 }

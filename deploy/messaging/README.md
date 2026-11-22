@@ -16,7 +16,7 @@ looks and the way past it is not a broker setting.
 
 `CONTROLS_GATEWAY_RPC` owns the JetStream namespace for the overlay queue. The
 worker (`worker_tts_bus`) creates `OVERLAYS_PREMIUM` and `OVERLAYS_STANDARD`
-(work-queue retention, file storage, five-minute retention, three replicas), the
+(work-queue retention, memory storage, five-minute retention, three replicas), the
 shared durable pull consumers `overlays-premium` and `overlays-standard`, and
 the `OVERLAYS_MEDIA` object bucket, and publishes `overlays.premium.<kind>.<user_id>`
 and `overlays.standard.<kind>.<user_id>`. The `controls_gateway_rpc` reader only
