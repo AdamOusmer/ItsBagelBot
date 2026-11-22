@@ -44,16 +44,22 @@ function adminStatus(t: Translate, target: AdminTarget): string {
   return `${t('banner.viewingPre')}${target.login}${t('banner.viewingPost', { admin: target.impersonatorLogin })}`;
 }
 
+function ownerAffixes(t: Translate): { subjectPre: string; subjectPost: string } {
+  const [subjectPre = '', subjectPost = ''] = t('banner.sharedOwner', { owner: '\0' }).split('\0');
+  return { subjectPre, subjectPost };
+}
+
 function buildSharedOnly(t: Translate, target: SharedTarget): UiTopbarContext {
   const joined = target.sectionLabels.join(', ');
+  const { subjectPre, subjectPost } = ownerAffixes(t);
   return {
     tone: 'warm',
     statusText: sharedStatus(t, target),
     badges: [{ label: t('banner.sharedBadge'), icon: 'users', tone: 'warm' }],
     avatar: initialFor(target),
-    subjectPre: t('banner.sharedOwnerPre'),
+    subjectPre,
     subject: target.delegateLogin,
-    subjectPost: t('banner.sharedOwnerPost'),
+    subjectPost,
     scopes: target.sectionLabels,
     scopesTitle: joined || undefined,
     actions: [
