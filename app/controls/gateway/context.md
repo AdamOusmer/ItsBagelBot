@@ -38,9 +38,12 @@ streams `OVERLAYS_PREMIUM` and `OVERLAYS_STANDARD` (subjects
 pod runs one pull loop per tier on the hub connection
 (`overlays/puller.ex`, started with the server). For every message the loop
 parses the user ID from the subject and sends a core request to
-`overlays.session.<user_id>` with `{"ack", "data", "delivered"}`. Every open
+`overlays.session.<user_id>` with `{"ack", "data", "delivered"}`. The reply
+subject is `overlays.session.reply.<nonce>`, because the gateway role may not
+publish to `_INBOX`. Every open
 `GET /tts/events` stream of that user subscribes to that subject, writes an
-`event: clip` frame whose JSON is the event (`clip_key`, `event_id`,
+unnamed `data:` frame (the default `message` event, which pages loaded
+before this protocol also read) whose JSON is the event (`clip_key`, `event_id`,
 `kind`, `duration_ms`, `expires_at`, optional `trace_id`) plus a `handle`,
 and replies `{"accepted": true}`. Without a reply the loop sends `-NAK` with a
 delay of 0.5, 2, 5, 10, then 30 seconds by delivery count; an invalid message gets

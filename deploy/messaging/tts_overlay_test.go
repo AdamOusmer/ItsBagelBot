@@ -190,6 +190,21 @@ func TestTTSWorkerAndGatewayShareTheOutputAccount(t *testing.T) {
 	gateway := s.connectRole(t, roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"})
 	assertTTSClipVisibleToGateway(t, gateway, stored)
 	assertOverlayEventAckedByGateway(t, gateway)
+	assertOverlayOfferAnsweredAcrossGateways(t, gateway, s.connectRole(t, roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}))
+}
+
+func assertOverlayOfferAnsweredAcrossGateways(t *testing.T, puller, session *nats.Conn) {
+	t.Helper()
+	offers, err := session.Subscribe("overlays.session.42", func(m *nats.Msg) { _ = m.Respond([]byte(`{"accepted":true}`)) })
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = offers.Unsubscribe() })
+	require.NoError(t, session.Flush())
+	replies, err := puller.SubscribeSync("overlays.session.reply.test")
+	require.NoError(t, err)
+	require.NoError(t, puller.PublishRequest("overlays.session.42", "overlays.session.reply.test", []byte("{}")))
+	reply, err := replies.NextMsg(2 * time.Second)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"accepted":true}`, string(reply.Data))
 }
 
 func assertOverlayEventAckedByGateway(t *testing.T, gateway *nats.Conn) {
