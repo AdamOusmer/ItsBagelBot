@@ -150,8 +150,8 @@ func TestArmAllSkipsCappedAndEndedTimersButArmsAPlainOne(t *testing.T) {
 	assert.True(t, f.scheduleKeyExists(t, "plain"), "ArmAll must still arm an ungated, unstopped timer")
 }
 
-func TestArmAllAddsTheTimerRandomExtra(t *testing.T) {
-	blob := []byte(`{"timers":[{"id":"plain","message":"hi","intervalSeconds":60,"enabled":true,"jitterSeconds":3600}]}`)
+func TestArmAllAddsAnAutomaticJitterToModuleTimers(t *testing.T) {
+	blob := []byte(`{"timers":[{"id":"plain","message":"hi","intervalSeconds":3600,"enabled":true}]}`)
 	proj := fakeReader{modules: map[string]projection.ModuleView{
 		timersModuleName: {Name: timersModuleName, IsEnabled: true, Configs: blob},
 	}}
@@ -165,11 +165,11 @@ func TestArmAllAddsTheTimerRandomExtra(t *testing.T) {
 		ttl, err := f.store.client.Do(ctx, f.store.client.B().Ttl().Key(key).Build()).AsInt64()
 		require.NoError(t, err)
 		require.NoError(t, pkg_valkey.DelKeys(ctx, f.store.client, key))
-		assert.GreaterOrEqual(t, ttl, int64(60))
+		assert.GreaterOrEqual(t, ttl, int64(3600))
 		longest = max(longest, ttl)
 	}
-	assert.Greater(t, longest, int64(60+timerFirstFireJitter.Seconds()), "jitterSeconds must reach the schedule")
-	assert.LessOrEqual(t, longest, int64(60+timerFirstFireJitter.Seconds()+maxJitterSeconds))
+	assert.Greater(t, longest, int64(3600+timerFirstFireJitter.Seconds()), "module timers must get a jitter without any setting")
+	assert.LessOrEqual(t, longest, int64(3600+timerFirstFireJitter.Seconds()+360))
 }
 
 func TestTimerTickGateIgnoresLinesOlderThanTheWindow(t *testing.T) {

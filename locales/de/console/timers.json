@@ -23,8 +23,6 @@
   "fieldMessagePh": "z. B. Folge mir, damit du weißt, wann ich live gehe.",
   "fieldInterval": "Wiederholen alle",
   "fieldIntervalHint": "Mindestens 1 Minute, höchstens 24 Stunden.",
-  "fieldJitter": "Zufällige Zusatzzeit",
-  "fieldJitterHint": "Fügt jedem Beitrag eine zufällige Verzögerung bis zu dieser Dauer hinzu, damit Nachrichten mit gleichem Intervall nicht gleichzeitig kommen. 0 schaltet es aus.",
   "unitMinutes": "Minuten",
   "fieldMinChatLines": "Chat-Zeilen",
   "fieldMinChatLinesHint": "Lasse einen Beitrag aus, wenn im folgenden Zeitraum nicht mindestens so viele Chat-Zeilen eingegangen sind.",

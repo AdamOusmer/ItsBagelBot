@@ -3,7 +3,7 @@
 
 import { clampInt } from '@bagel/kit/validation';
 import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
-import { DEFAULT_CHAT_WINDOW_MINUTES, MAX_TIMER_JITTER_SECONDS } from '@bagel/kit/timers';
+import { DEFAULT_CHAT_WINDOW_MINUTES } from '@bagel/kit/timers';
 import type { TimerDef } from '@bagel/kit';
 
 const CONDITION_MIN = 0;
@@ -33,7 +33,6 @@ export function parseTimer(raw: string): TimerDef | null {
     id: String(obj.id ?? ''),
     message,
     intervalSeconds: clampInt(obj.intervalSeconds, 60, 86_400, 600),
-    jitterSeconds: clampInt(obj.jitterSeconds, 0, MAX_TIMER_JITTER_SECONDS, 0),
     enabled: obj.enabled !== false,
     minChatLines: clampInt(obj.minChatLines, CONDITION_MIN, CONDITION_MAX, 0),
     chatWindowMinutes: clampInt(obj.chatWindowMinutes, WINDOW_MIN, WINDOW_MAX, DEFAULT_CHAT_WINDOW_MINUTES),
