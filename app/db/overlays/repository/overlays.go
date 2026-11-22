@@ -30,13 +30,14 @@ var (
 const tokenBytes = 32
 
 type Overlays struct {
-	client  *ent.Client
-	pub     bus.Publisher
-	objects objectstore.Store
+	client    *ent.Client
+	pub       bus.Publisher
+	objects   objectstore.Store
+	publicURL string
 }
 
-func New(client *ent.Client, pub bus.Publisher, objects objectstore.Store) *Overlays {
-	return &Overlays{client: client, pub: pub, objects: objects}
+func New(client *ent.Client, pub bus.Publisher, objects objectstore.Store, publicURL string) *Overlays {
+	return &Overlays{client: client, pub: pub, objects: objects, publicURL: publicURL}
 }
 
 func MigrateSchema(ctx context.Context, client *ent.Client) error {

@@ -24,7 +24,7 @@ func foreignAssetDocument(t *testing.T) json.RawMessage {
 			Settings: map[string]any{"media": "asset:ghost"},
 		}},
 		Assets: map[string]overlays.Asset{
-			"ghost": {Type: overlays.AssetPNG, Bytes: 10, W: 1, H: 1, SHA256: strings.Repeat("a", 64)},
+			"ghost": {Type: overlays.AssetPNG, Bytes: 10, W: 1, H: 1, SHA256: strings.Repeat("a", 64), URL: "https://cdn.itsbagelbot.com/u/1/ghost"},
 		},
 	}
 	raw, err := json.Marshal(doc)

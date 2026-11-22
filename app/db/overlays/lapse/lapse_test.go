@@ -44,7 +44,7 @@ func setup(t *testing.T) *fixture {
 	t.Helper()
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	f := &fixture{objects: objectstoretest.NewMemory(), plans: plans{owner: true}, clock: time.Now()}
-	f.repo = repository.New(client, bustest.NewPublisher(), f.objects)
+	f.repo = repository.New(client, bustest.NewPublisher(), f.objects, "https://cdn.itsbagelbot.com")
 	f.sweeper = &lapse.Sweeper{Repo: f.repo, Plans: f.plans, Now: func() time.Time { return f.clock }}
 	return f
 }

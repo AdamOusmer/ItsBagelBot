@@ -111,12 +111,35 @@ func (b *builder) readPackOverlay(dir, name string, ids map[string]string) (over
 	if err != nil {
 		return overlays.Document{}, err
 	}
-	doc, err := overlays.Parse(data)
+	doc, err := overlays.Parse(withPlaceholderURLs(data))
 	if !within || err != nil {
 		return overlays.Document{}, &Error{Code: CodeInvalidDocument, Path: e.Path}
 	}
 	b.report.mapped(Subject(e.Path))
 	return rekey(doc, ids)
+}
+
+// Sellers never know our CDN addresses; the caller replaces these placeholders with the stored object URLs.
+const placeholderURL = "https://cdn.itsbagelbot.com/pending"
+
+func withPlaceholderURLs(data []byte) []byte {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	var tree map[string]any
+	if decoder.Decode(&tree) != nil {
+		return data
+	}
+	assets, _ := tree["assets"].(map[string]any)
+	for _, entry := range assets {
+		if asset, ok := entry.(map[string]any); ok {
+			asset["url"] = placeholderURL
+		}
+	}
+	out, err := json.Marshal(tree)
+	if err != nil {
+		return data
+	}
+	return out
 }
 
 func rekey(doc overlays.Document, ids map[string]string) (overlays.Document, error) {

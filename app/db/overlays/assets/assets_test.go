@@ -52,10 +52,10 @@ func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	f := &fixture{objects: objectstoretest.NewMemory(), clock: time.Unix(1_800_000_000, 0)}
-	f.repo = repository.New(client, bustest.NewPublisher(), f.objects)
+	f.repo = repository.New(client, bustest.NewPublisher(), f.objects, "https://cdn.itsbagelbot.com")
 	f.svc = &assets.Service{
 		Repo: f.repo, Objects: f.objects, Plans: plans{premiumUser: true},
-		Signer: assets.Signer{Secret: []byte("secret")}, PublicURL: "https://cdn.test/",
+		Signer: assets.Signer{Secret: []byte("secret")}, PublicURL: "https://cdn.itsbagelbot.com/",
 		Now: func() time.Time { return f.clock },
 	}
 	return f
@@ -123,7 +123,7 @@ func TestUploadStoresUnderARandomKeyAndDedupes(t *testing.T) {
 	info, err := f.objects.Head(t.Context(), key)
 	require.NoError(t, err)
 	require.Equal(t, map[string]any{
-		"keys": []string{key}, "url": "https://cdn.test/" + key, "same": view.ID, "type": "image/png",
+		"keys": []string{key}, "url": "https://cdn.itsbagelbot.com/" + key, "same": view.ID, "type": "image/png",
 		"cache": assets.CacheControl, "dims": [2]int{4, 4},
 	}, map[string]any{
 		"keys": f.objects.Keys(), "url": view.URL, "same": again.ID, "type": info.ContentType,

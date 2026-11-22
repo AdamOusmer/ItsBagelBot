@@ -37,13 +37,13 @@ func serve(t *testing.T) *nats.Conn {
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	nc := bustest.NATS(t)
 	objects := objectstoretest.NewMemory()
-	repo := repository.New(client, bustest.NewPublisher(), objects)
+	repo := repository.New(client, bustest.NewPublisher(), objects, "https://cdn.itsbagelbot.com")
 	w := rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop(), Queue: "test"},
 		Repo:      repo,
 		Assets: &assets.Service{
 			Repo: repo, Objects: objects, Plans: rpc.VoicePlans{NC: nc},
-			Signer: assets.Signer{Secret: []byte("test")}, PublicURL: "https://cdn.test",
+			Signer: assets.Signer{Secret: []byte("test")}, PublicURL: "https://cdn.itsbagelbot.com",
 		},
 	}
 	require.NoError(t, rpc.SubscribeDashboard(w))

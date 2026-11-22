@@ -9,6 +9,7 @@ import (
 	"errors"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"ItsBagelBot/app/db/overlays/ent"
@@ -49,8 +50,12 @@ func (a Asset) Key() string {
 	return KeyPrefix(a.UserID) + string(a.ID)
 }
 
-func (a Asset) Meta() overlays.Asset {
-	return overlays.Asset{Type: a.Type, Bytes: a.Bytes, W: a.W, H: a.H, DurationMS: a.DurationMS, SHA256: a.SHA256}
+func (a Asset) URL(publicURL string) string {
+	return strings.TrimRight(publicURL, "/") + "/" + a.Key()
+}
+
+func (a Asset) Meta(publicURL string) overlays.Asset {
+	return overlays.Asset{Type: a.Type, Bytes: a.Bytes, W: a.W, H: a.H, DurationMS: a.DurationMS, SHA256: a.SHA256, URL: a.URL(publicURL)}
 }
 
 func assetOf(row *ent.OverlayAsset) Asset {

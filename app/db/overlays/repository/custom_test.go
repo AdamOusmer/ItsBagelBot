@@ -21,13 +21,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const strangerID = 1002
+const (
+	strangerID = 1002
+	publicURL  = "https://cdn.itsbagelbot.com"
+)
 
 func setupStore(t *testing.T) (*repository.Overlays, *objectstoretest.Memory) {
 	t.Helper()
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	objects := objectstoretest.NewMemory()
-	return repository.New(client, bustest.NewPublisher(), objects), objects
+	return repository.New(client, bustest.NewPublisher(), objects, publicURL), objects
 }
 
 func owned(owner uint64, id repository.AssetID) repository.Asset {
@@ -93,7 +96,7 @@ func TestCreateCustomFillsAssetMetadataFromTheStoredRow(t *testing.T) {
 	doc, err := overlays.Parse(created.Document)
 	require.NoError(t, err)
 
-	require.Equal(t, map[string]overlays.Asset{"aaaa": mine.Meta()}, doc.Assets)
+	require.Equal(t, map[string]overlays.Asset{"aaaa": mine.Meta(publicURL)}, doc.Assets)
 	require.Len(t, token, 43)
 }
 
@@ -104,7 +107,7 @@ func TestSaveCustomKeepsTheRevisionContract(t *testing.T) {
 	require.NoError(t, err)
 	next := customDoc(mine.ID)
 	next.Name = "Renamed"
-	next.Assets["aaaa"] = mine.Meta()
+	next.Assets["aaaa"] = mine.Meta(publicURL)
 	raw := mustMarshal(t, next)
 
 	_, stale := repo.SaveCustom(t.Context(), userID, repository.CustomSave{ID: created.ID, Revision: created.Revision + 3, Document: raw})

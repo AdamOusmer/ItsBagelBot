@@ -15,6 +15,7 @@ import (
 	"io/fs"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"ItsBagelBot/app/db/overlays/importer"
@@ -289,12 +290,26 @@ func TestImportAccepts(t *testing.T) {
 	}
 }
 
+func TestSellerPackAssetsGetAPlaceholderURL(t *testing.T) {
+	plan, err := run(t, sellerMembers(t, sumOf(pngBytes), true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := plan.Document.Assets["f1"].URL; !strings.HasPrefix(got, "https://cdn.itsbagelbot.com/") {
+		t.Fatalf("asset url %q", got)
+	}
+}
+
 func TestImportedWidgetDocumentValidates(t *testing.T) {
 	plan, err := run(t, widgetMembers())
 	if err != nil {
 		t.Fatal(err)
 	}
 	doc := plan.Document
+	for id, asset := range doc.Assets {
+		asset.URL = "https://cdn.itsbagelbot.com/u/1/" + id
+		doc.Assets[id] = asset
+	}
 	logo := doc.Assets["f1"]
 	logo.W, logo.H = 10, 10
 	doc.Assets["f1"] = logo

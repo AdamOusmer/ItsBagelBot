@@ -99,7 +99,7 @@ func (r *Overlays) customDocument(ctx context.Context, userID uint64, doc overla
 	doc.Rev = int64(revision)
 	doc.Assets = make(map[string]overlays.Asset, len(owned))
 	for id, asset := range owned {
-		doc.Assets[id] = asset.Meta()
+		doc.Assets[id] = asset.Meta(r.publicURL)
 	}
 	if err := overlays.Validate(doc); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidDocument, err)

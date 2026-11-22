@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/consumers"
+	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/objectstore"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
@@ -43,7 +44,7 @@ func main() {
 	objects, err := objectstore.New(objectstore.ConfigFromEnv("R2_"))
 	svcboot.FatalIf(log, err, "failed to configure object storage")
 
-	repo := repository.New(client, n.Pub, objects)
+	repo := repository.New(client, n.Pub, objects, env.MustGet("R2_PUBLIC_URL"))
 	svcboot.FatalIf(log, repo.MigratePowered(core.Ctx), "failed to migrate powered overlays")
 	uploads := newAssets(core, repo, objects, n.RPC)
 	serveUploads(core, uploads)

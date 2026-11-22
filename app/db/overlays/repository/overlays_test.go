@@ -27,7 +27,7 @@ func setup(t *testing.T) (*bustest.Publisher, *repository.Overlays) {
 	t.Helper()
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	pub := bustest.NewPublisher()
-	return pub, repository.New(client, pub, objectstoretest.NewMemory())
+	return pub, repository.New(client, pub, objectstoretest.NewMemory(), "https://cdn.itsbagelbot.com")
 }
 
 func changes(t *testing.T, pub *bustest.Publisher) []data.PoweredOverlayChangedDTO {
