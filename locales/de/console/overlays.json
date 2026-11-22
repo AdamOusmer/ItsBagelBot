@@ -46,7 +46,6 @@
   "deleteTitle": "{name} löschen?",
   "deleteBody": "Der Link der Browserquelle funktioniert sofort nicht mehr.",
   "customTitle": "Eigene Overlays",
-  "customSoon": "Der Editor für eigene Overlays kommt bald.",
   "customBack": "Zurück zu den Overlays",
   "kind": {
     "system": "Enthalten",

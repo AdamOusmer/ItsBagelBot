@@ -46,7 +46,6 @@
   "deleteTitle": "¿Eliminar {name}?",
   "deleteBody": "El enlace de su fuente de navegador deja de funcionar al instante.",
   "customTitle": "Overlays personalizados",
-  "customSoon": "El editor de overlays personalizados llegará pronto.",
   "customBack": "Volver a los overlays",
   "kind": {
     "system": "Incluido",

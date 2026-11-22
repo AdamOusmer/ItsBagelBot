@@ -2,6 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { defineRead, defineWrite } from '@bagel/kit/server/service';
+import type { OverlayDocument } from '@bagel/kit/overlay-document';
+import type { ServedDocument } from '@bagel/kit/overlay-editor';
 import { defaultPoweredConfig, type PoweredConfig } from '@bagel/kit/overlays';
 import { effectiveId } from '#lib/server/board';
 import type { Session } from '#lib/server/session';
@@ -63,6 +65,41 @@ export const overlaySave = defineWrite({
     revision: save.revision
   }),
   map: settingsOf
+});
+
+export type CustomOverlay = {
+  id: number;
+  name: string;
+  revision: number;
+  document: ServedDocument | null;
+};
+
+type CustomWire = { id: number; kind: string; name: string; revision: number; document?: ServedDocument };
+
+const customOf = ({ id, name, revision, document }: CustomWire): CustomOverlay => ({
+  id,
+  name,
+  revision,
+  document: document ?? null
+});
+
+export const overlayGetCustom = defineRead({
+  subject: `${SUB.overlays}.overlay.get`,
+  request: refOf,
+  map: (wire: CustomWire) => (wire.kind === 'custom' ? customOf(wire) : null)
+});
+
+export const overlaySaveCustom = defineWrite({
+  subject: `${SUB.overlays}.overlay.save`,
+  request: (session: Session, save: { id: number; name: string; document: OverlayDocument; revision: number }) => ({
+    ...ownerOf(session),
+    ...(save.id ? { id: save.id } : {}),
+    kind: 'custom',
+    name: save.name,
+    document: save.document,
+    revision: save.revision
+  }),
+  map: customOf
 });
 
 export const overlayRotate = defineWrite({

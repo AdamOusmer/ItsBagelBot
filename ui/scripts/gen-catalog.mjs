@@ -40,7 +40,7 @@ const FAMILY = {
   Well: 'Layout', Window: 'Layout', JsonTree: 'Data', SwapStack: 'Layout',
   IconTile: 'Data', MarkBadge: 'Data', ActionBar: 'Navigation',
   RoundBadge: 'Feedback', Timeline: 'Data', TimelineItem: 'Data', AvatarPlate: 'Data',
-  EditorStage: 'Layout', Bolota: 'Data', CanvasCard: 'Data',
+  EditorStage: 'Layout', Bolota: 'Data', CanvasCard: 'Data', OverlayCanvas: 'Data',
 };
 
 const ADAPTER_NOTE = {
@@ -60,6 +60,7 @@ const ADAPTER_NOTE = {
   Stepper: 'Clickable steps (`onSelect`) are Svelte only; Astro renders the static rail.',
   LineSeries: 'Width tracking, crosshair and tooltip are Svelte only; Astro renders a static 800px chart.',
   EditorStage: 'Svelte only: floating chrome driven by pan/zoom and viewport state (sheet mode, grip, bound element refs) that only a client has.',
+  OverlayCanvas: 'Svelte only: pointer drag, resize handles and snapping guides run against live client state; a static page has nothing to drag.',
 };
 
 const PROP_RE = /^\s*(?:\/\*\*.*\*\/\s*)?([A-Za-z_$][\w$]*)(\??)\s*:\s*(.+);\s*$/;
