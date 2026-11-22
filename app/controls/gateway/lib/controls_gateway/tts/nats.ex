@@ -2,6 +2,8 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.Tts.Nats do
+  require Logger
+
   alias ControlsGateway.OverlayRequest
   alias ControlsGateway.Tts.Session
   alias Platform.Nats.Planes
@@ -11,17 +13,21 @@ defmodule ControlsGateway.Tts.Nats do
 
   def resolve(hash) do
     case OverlayRequest.request(&Planes.request/1, @resolve, %{token_hash: hash}) do
-      {:ok, %{"code" => "not_found"}} -> :not_found
-      {:ok, %{"code" => code}} when code not in [nil, ""] -> :unavailable
+      {:ok, %{"code" => "not_found"}} -> {:not_found, :unknown_token}
+      {:ok, %{"code" => code} = reply} when code not in [nil, ""] -> unavailable(reply)
       {:ok, %{"user_id" => id, "generation" => generation}} -> identity(id, generation)
-      _ -> :unavailable
+      other -> unavailable(other)
     end
   end
 
   def check(%{user_id: id, generation: generation}, rpc \\ :rpc) do
     case request(&Planes.request(&1, rpc), @check, %{user_id: id, generation: generation}) do
-      {:ok, %{"valid" => valid}} when is_boolean(valid) -> valid
-      _ -> :unavailable
+      {:ok, %{"valid" => valid}} when is_boolean(valid) ->
+        valid
+
+      other ->
+        Logger.warning("TTS check unavailable", user_id: id, reason: inspect(other, limit: 5))
+        :unavailable
     end
   end
 
@@ -36,7 +42,11 @@ defmodule ControlsGateway.Tts.Nats do
     end
   end
 
+  defp unavailable(reason), do: {:unavailable, inspect(reason, limit: 5)}
+
   defp identity(id, generation) do
-    if Session.valid_identity?(id, generation), do: {:ok, id, generation}, else: :unavailable
+    if Session.valid_identity?(id, generation),
+      do: {:ok, id, generation},
+      else: {:unavailable, :invalid_identity}
   end
 end

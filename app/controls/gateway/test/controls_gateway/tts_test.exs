@@ -93,6 +93,25 @@ defmodule ControlsGateway.TtsTest do
     refute log =~ @token
   end
 
+  test "rejected session exchanges log the reason", %{http_port: port} do
+    json = [{"content-type", "application/json"}]
+
+    cases = [
+      {json, Jason.encode!(%{token: @unknown}), "unknown_token"},
+      {json, "{}", "token_format"},
+      {[{"content-type", "text/plain"}], "x", "content_type"}
+    ]
+
+    for {headers, body, reason} <- cases do
+      log =
+        capture_warnings(fn ->
+          HttpClient.request(port, "POST", "/tts/session", headers: headers, body: body)
+        end)
+
+      assert log =~ "TTS session rejected reason=#{reason}"
+    end
+  end
+
   test "session is signed and scoped to the overlay host and path", %{http_port: port} do
     assert %{status: 204, headers: %{"set-cookie" => set_cookie}} = exchange(port, @token)
 
@@ -160,6 +179,28 @@ defmodule ControlsGateway.TtsTest do
              HttpClient.request(port, "HEAD", "/tts/events", headers: [cookie(port)])
   end
 
+  @tag overlay_check: %{error: "unavailable"}
+  test "unavailable checks are logged with the user id on status and stream open", %{
+    http_port: port
+  } do
+    headers = [cookie(port)]
+
+    log =
+      capture_warnings(fn ->
+        for method <- ["HEAD", "GET"] do
+          HttpClient.request(port, method, "/tts/events", headers: headers)
+        end
+      end)
+
+    expected = [
+      "TTS check unavailable user_id=#{@user_id}",
+      "TTS events status unavailable user_id=#{@user_id}",
+      "TTS events unavailable user_id=#{@user_id}"
+    ]
+
+    for line <- expected, do: assert(log =~ line)
+  end
+
   test "SSE sends new clips in order and resumes after a stream sequence", %{http_port: port} do
     cookie = cookie(port)
     old = publish_clip("old")
@@ -214,8 +255,14 @@ defmodule ControlsGateway.TtsTest do
 
   test "revocation closes an open event stream", %{http_port: port} do
     live = events(port, [cookie(port)])
-    :ok = Gnat.pub(:gnat_rpc, "controls.tts.revoked.#{@user_id}", "")
-    assert HttpClient.await(live, & &1.done).done
+
+    log =
+      capture_with_metadata(:info, fn ->
+        :ok = Gnat.pub(:gnat_rpc, "controls.tts.revoked.#{@user_id}", "")
+        assert HttpClient.await(live, & &1.done).done
+      end)
+
+    assert log =~ "TTS events stream closed user_id=#{@user_id} reason=revoked"
     HttpClient.close(live)
   end
 
@@ -268,6 +315,12 @@ defmodule ControlsGateway.TtsTest do
     refute client.body =~ "\ndata:"
     assert %{status: 404} = HttpClient.request(port, "GET", "/tts/clip/clip", headers: [cookie])
     HttpClient.close(client)
+  end
+
+  defp capture_warnings(fun), do: capture_with_metadata(:warning, fun)
+
+  defp capture_with_metadata(level, fun) do
+    capture_log([level: level, format: "$message $metadata", metadata: [:user_id, :reason]], fun)
   end
 
   defp csp_hash(content), do: "sha256-" <> Base.encode64(:crypto.hash(:sha256, content))
