@@ -39,15 +39,11 @@
   "invalidAlign": "Escolha uma posição na borda.",
   "listTitle": "Seus overlays",
   "addPowered": "Adicionar Powered by Bagel",
-  "createCustom": "Criar overlay personalizado",
   "linkHidden": "Os links aparecem uma única vez. Troque o link para obter um novo.",
   "listEmpty": "Nenhum overlay ainda. Adicione o Powered by Bagel para obter um link para o OBS.",
   "listFailed": "Não foi possível atualizar seus overlays. Tente de novo.",
   "deleteTitle": "Excluir {name}?",
   "deleteBody": "O link da fonte de navegador deixa de funcionar na hora.",
-  "customTitle": "Overlays personalizados",
-  "customSoon": "O editor de overlays personalizados chega em breve.",
-  "customBack": "Voltar aos overlays",
   "kind": {
     "system": "Incluído",
     "custom": "Personalizado"

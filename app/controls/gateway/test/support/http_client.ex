@@ -31,6 +31,16 @@ defmodule ControlsGateway.TestSupport.HttpClient do
     response
   end
 
+  def drain(client, timeout_ms) do
+    case Mint.HTTP.recv(client.conn, 0, timeout_ms) do
+      {:ok, conn, frames} ->
+        drain(Enum.reduce(frames, %{client | conn: conn}, &apply_frame/2), timeout_ms)
+
+      {:error, conn, _reason, frames} ->
+        Enum.reduce(frames, %{client | conn: conn}, &apply_frame/2)
+    end
+  end
+
   def close(client), do: Mint.HTTP.close(client.conn)
 
   defp apply_frame({:status, _ref, status}, client), do: %{client | status: status}

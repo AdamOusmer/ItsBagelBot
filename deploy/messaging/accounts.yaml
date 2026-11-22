@@ -520,9 +520,20 @@ accounts:
                         - $JS.FC.OVERLAY_TTS.*.*
                         - $JS.FC.*.*.OVERLAY_TTS.*.*
                         - $JS.API.STREAM.MSG.GET.OBJ_TTS_CLIPS
+                        - $JS.API.CONSUMER.INFO.OVERLAYS_PREMIUM.overlays-premium
+                        - $JS.API.CONSUMER.INFO.OVERLAYS_STANDARD.overlays-standard
+                        - $JS.API.CONSUMER.MSG.NEXT.OVERLAYS_PREMIUM.overlays-premium
+                        - $JS.API.CONSUMER.MSG.NEXT.OVERLAYS_STANDARD.overlays-standard
+                        - $JS.ACK.OVERLAYS_PREMIUM.overlays-premium.>
+                        - $JS.ACK.*.*.OVERLAYS_PREMIUM.overlays-premium.>
+                        - $JS.ACK.OVERLAYS_STANDARD.overlays-standard.>
+                        - $JS.ACK.*.*.OVERLAYS_STANDARD.overlays-standard.>
+                        - overlays.session.>
+                        - $JS.API.STREAM.MSG.GET.OBJ_OVERLAYS_MEDIA
                 subscribe:
                     allow:
                         - controls.tts.revoked.*
+                        - overlays.session.>
                         - _INBOX.>
             worker_tts_bus:
                 publish:
@@ -538,6 +549,27 @@ accounts:
                         - $JS.API.STREAM.UPDATE.OBJ_TTS_CLIPS
                         - $JS.API.STREAM.PURGE.OBJ_TTS_CLIPS
                         - $JS.API.DIRECT.GET.OBJ_TTS_CLIPS.$O.TTS_CLIPS.M.*
+                        - overlays.premium.>
+                        - overlays.standard.>
+                        - $JS.API.STREAM.INFO.OVERLAYS_PREMIUM
+                        - $JS.API.STREAM.CREATE.OVERLAYS_PREMIUM
+                        - $JS.API.STREAM.UPDATE.OVERLAYS_PREMIUM
+                        - $JS.API.STREAM.INFO.OVERLAYS_STANDARD
+                        - $JS.API.STREAM.CREATE.OVERLAYS_STANDARD
+                        - $JS.API.STREAM.UPDATE.OVERLAYS_STANDARD
+                        - $JS.API.CONSUMER.INFO.OVERLAYS_PREMIUM.overlays-premium
+                        - $JS.API.CONSUMER.CREATE.OVERLAYS_PREMIUM.overlays-premium
+                        - $JS.API.CONSUMER.DURABLE.CREATE.OVERLAYS_PREMIUM.overlays-premium
+                        - $JS.API.CONSUMER.INFO.OVERLAYS_STANDARD.overlays-standard
+                        - $JS.API.CONSUMER.CREATE.OVERLAYS_STANDARD.overlays-standard
+                        - $JS.API.CONSUMER.DURABLE.CREATE.OVERLAYS_STANDARD.overlays-standard
+                        - $O.OVERLAYS_MEDIA.C.*
+                        - $O.OVERLAYS_MEDIA.M.*
+                        - $JS.API.STREAM.INFO.OBJ_OVERLAYS_MEDIA
+                        - $JS.API.STREAM.CREATE.OBJ_OVERLAYS_MEDIA
+                        - $JS.API.STREAM.UPDATE.OBJ_OVERLAYS_MEDIA
+                        - $JS.API.STREAM.PURGE.OBJ_OVERLAYS_MEDIA
+                        - $JS.API.DIRECT.GET.OBJ_OVERLAYS_MEDIA.$O.OVERLAYS_MEDIA.M.*
                 subscribe:
                     allow:
                         - _INBOX.>

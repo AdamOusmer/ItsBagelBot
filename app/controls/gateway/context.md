@@ -20,41 +20,57 @@ The cookie is HttpOnly, Secure, SameSite=Lax and scoped to `/tts` for 30 days.
 Failed attempts are limited per client IP on each gateway replica.
 
 `GET /tts/events` checks the session generation when opening and every five
-minutes via `rpc.internal.projector.overlays.tts.check`. It subscribes to
-`controls.tts.revoked.<user_id>` on the RPC leaf so it can close immediately on
-revocation.
-Its ordered ephemeral consumer filters `OVERLAY_TTS` to
-`overlay.tts.<user_id>`. The SSE ID is the stream sequence. A reconnect
-starts after `Last-Event-ID` or the `after` cursor sent by a replacement
-`EventSource`. With neither cursor the consumer receives new events.
-Each event carries `clip_key`, `event_id`, `kind`, `duration_ms` and
-`expires_at`. When the originating event carries a trace, its ID is also in
-`trace_id`. Event requests register with the shared drain before opening
-the stream. A stream starts with a jittered SSE `retry:` field of 3 to 8
-seconds and receives a comment every 15 seconds while idle. When the initial
-NATS or Users RPC check is unavailable, the response sends a retry of 15 to 30
-seconds and ends. Drain rejects new `GET /tts/events` requests with `503` and
-`Retry-After: 5`. It closes open streams cleanly with the shared drain jitter.
+minutes via `rpc.internal.projector.overlays.tts.check`. Only a definite `false`
+(or an expired cookie) closes the stream; an unavailable check keeps it and
+rechecks in 15 seconds. It subscribes to `controls.tts.revoked.<user_id>` on the
+RPC leaf so it can close immediately on revocation. Event requests register with
+the shared drain before opening the stream. A stream starts with a jittered SSE
+`retry:` field of 3 to 8 seconds and receives a comment every 15 seconds while
+idle. When the initial NATS or Users RPC check is unavailable, the response sends
+a retry of 15 to 30 seconds and ends. Drain rejects new `GET /tts/events`
+requests with `503` and `Retry-After: 5`. It stops the pull loops first, then
+closes open streams cleanly with the shared drain jitter.
 
-`GET /tts/clip/<event_id>` streams a WAV from `TTS_CLIPS` with `Content-Length`
-from the object metadata size, using the cookie user ID and the event ID as the
-object key. Missing and expired objects return 404. The transparent browser
-source deduplicates `event_id` with a bounded set, queues audio in arrival order,
-skips expired events, and aborts stuck clips after `duration_ms + 5 s`. Outside
-OBS the sound hint appears when autoplay is blocked. In OBS the hint stays
-hidden and audio pauses while the source is inactive or hidden.
+Clips travel through the acked, shared queue the worker provisions: work-queue
+streams `OVERLAYS_PREMIUM` and `OVERLAYS_STANDARD` (subjects
+`overlays.<tier>.<kind>.<user_id>`) with one durable pull consumer each,
+`overlays-premium` and `overlays-standard`, shared by every gateway pod. Each
+pod runs one pull loop per tier on the hub connection
+(`overlays/puller.ex`, started with the server). For every message the loop
+parses the user ID from the subject and sends a core request to
+`overlays.session.<user_id>` with `{"ack", "data", "delivered"}`. Every open
+`GET /tts/events` stream of that user subscribes to that subject, writes an
+`event: clip` frame whose JSON is the event (`clip_key`, `event_id`,
+`kind`, `duration_ms`, `expires_at`, optional `trace_id`) plus a `handle`,
+and replies `{"accepted": true}`. Without a reply the loop sends `-NAK` with a
+delay of 0.5, 2, 5, 10, then 30 seconds by delivery count; an invalid message gets
+`+TERM`. The gateway only binds to streams and consumers by name.
+
+The handle is `base64url(ack subject).base64url(HMAC-SHA256(cookie key,
+"<user_id>\n<ack subject>"))`. `POST /tts/ack {"handle"}` and
+`POST /tts/progress {"handles": [...up to 32]}` need the session cookie and a
+JSON body, verify each handle for the session user and that the subject is an
+ack subject of the two overlay consumers, then publish `+ACK` or `+WPI`. A bad
+handle is 404, no session is 401, success is 204. Each stream keeps the ack
+subjects it sent for five minutes in a monitor process and publishes `-NAK`
+for them when the stream ends for any reason, so another session or pod gets
+the clip at once. Acking an already acked message is a no-op.
+
+`GET /tts/clip/<event_id>` streams a WAV from the `OVERLAYS_MEDIA` Object Store
+bucket with `Content-Length` from the object metadata size, using the cookie
+user ID and the event ID as the object key (`<user_id>/<event_id>`). Missing
+and expired objects return 404. The page queues clips in arrival order, skips
+an `event_id` it already received (acking the redelivery), and aborts stuck
+clips after `duration_ms + 5 s`. It acks a clip when it ends, fails twice, is
+skipped or the server returns 404, and posts progress for every queued or
+playing clip every 15 seconds. Outside OBS the sound hint appears when autoplay
+is blocked. In OBS the hint stays hidden and audio pauses while the source is
+inactive or hidden.
 
 On `EventSource` `CLOSED`, the page backs off with jitter and uses
 `HEAD /tts/events` to check the same session without opening a stream. A 204
 ends the retry loop and clears queued audio. Otherwise the page renews the
 session with any held token and reopens the stream.
-
-The worker provisions both JetStream resources in `CONTROLS_GATEWAY_RPC`.
-`OVERLAY_TTS` is a file-backed stream with a five-minute max age.
-`TTS_CLIPS` is a three-replica file-backed Object Store bucket with a
-five-minute TTL. The gateway creates ephemeral readers for events and reads
-Object Store metadata and chunks through the stream message API. Missing
-resources leave readiness available.
 
 ## Overlays
 
@@ -122,6 +138,7 @@ open desktop and TTS SSE connections.
 | Browser page and token exchange | [page.ex](lib/controls_gateway/tts/page.ex), [http.ex](lib/controls_gateway/tts/http.ex) |
 | Session and rate limit | [session.ex](lib/controls_gateway/tts/session.ex), [throttle.ex](lib/controls_gateway/tts/throttle.ex) |
 | Event and clip streams | [events.ex](lib/controls_gateway/tts/events.ex), [clips.ex](lib/controls_gateway/tts/clips.ex) |
+| Queue pull loops and acks | [puller.ex](lib/controls_gateway/overlays/puller.ex), [delivery.ex](lib/controls_gateway/overlays/delivery.ex), [acks.ex](lib/controls_gateway/overlays/acks.ex), [handle.ex](lib/controls_gateway/overlays/handle.ex) |
 | Projector TTS RPC | [tts/nats.ex](lib/controls_gateway/tts/nats.ex) |
 | Powered page, assets and config | [powered/http.ex](lib/controls_gateway/powered/http.ex), [powered/page.ex](lib/controls_gateway/powered/page.ex) |
 | Projector RPC | [powered/nats.ex](lib/controls_gateway/powered/nats.ex) |
@@ -138,7 +155,7 @@ header on this route, and defaults to the socket peer locally.
 (`NATS_RPC_HOST`, `NATS_RPC_PORT`) and `:gnat_jetstream` on the hub (`NATS_HOST`,
 `NATS_PORT`). Both use the gateway credentials and verify TLS against their
 own host. The RPC connection serves Projector requests and carries
-TTS revocations. The hub connection carries `OVERLAY_TTS`, `TTS_CLIPS`, and
-desktop subjects. The clusters are separate, so a hub request for a leaf RPC
+TTS revocations. The hub connection carries the overlay queue, `OVERLAYS_MEDIA`,
+`overlays.session.<user_id>` and desktop subjects. The clusters are separate, so a hub request for a leaf RPC
 gets no responders. Build the gateway image from the repository root so the
 Containerfile can copy the shared package.

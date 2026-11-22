@@ -34,7 +34,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 
 | Block | Props | Adapters | Status | Contract |
 | --- | --- | --- | --- | --- |
-| **AppShell** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`groups`: UiNavGroup[]<br>`dockItems`: UiNavLink[]<br>`dockQuick`: number<br>`rail`: boolean<br>`offset`: boolean<br>`stacked`: boolean<br>`skipLabel`: string<br>`crumbLabel`: string<br>`dockLabel`: string<br>`railLabel`: string<br>`clock`: boolean<br>`banner`: Snippet<br>`topActions`: Snippet<br>`account`: Snippet<br>`railAccount`: UiAccount<br>`railAccountOpen`: boolean | svelte + astro | stable | `styles/elements/shell.css` |
+| **AppShell** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`groups`: UiNavGroup[]<br>`dockItems`: UiNavLink[]<br>`dockQuick`: number<br>`rail`: boolean<br>`offset`: boolean<br>`stacked`: boolean<br>`skipLabel`: string<br>`crumbLabel`: string<br>`dockLabel`: string<br>`railLabel`: string<br>`clock`: boolean<br>`topbarContext`: UiTopbarContext<br>`banner`: Snippet<br>`topActions`: Snippet<br>`account`: Snippet<br>`railAccount`: UiAccount<br>`railAccountOpen`: boolean | svelte + astro | stable | `styles/elements/shell.css` |
 | **Cluster** | `gap`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`justify`: 'start' \| 'center' \| 'end' \| 'between'<br>`align`: 'baseline' \| 'stretch'<br>`nowrap`: boolean<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
 | **Container** | `width`: 'default' \| 'hero' \| 'narrow' \| 'text'<br>`flush`: boolean<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
 | **DeckLayout** | `inspecting`: boolean<br>`width`: string | svelte + astro | stable | `styles/elements/deck-layout.css` |
@@ -132,7 +132,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **SkipLink** | `href*`: string<br>`label`: string | svelte + astro | stable | `styles/elements/skip-link.css` |
 | **SocialRail** | `items*`: readonly { label: string; href: string; icon: IconName }[]<br>`label*`: string<br>`size`: number | svelte + astro | stable | `styles/elements/nav.css` |
 | **Stepper** | `steps*`: readonly StepperStep[]<br>`current*`: number<br>`label*`: string<br>`orientation`: 'horizontal' \| 'vertical'<br>`maxStep`: number<br>`compact`: boolean<br>`onSelect`: (index: number) => void | svelte + astro<br>*Clickable steps (`onSelect`) are Svelte only; Astro renders the static rail.* | stable | `styles/elements/stepper.css` |
-| **Topbar** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`crumbLabel`: string<br>`clock`: boolean<br>`clockText`: string<br>`railed`: boolean<br>`actions`: Snippet<br>`account`: Snippet | svelte + astro | stable | `styles/elements/shell.css` |
+| **Topbar** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`crumbLabel`: string<br>`clock`: boolean<br>`clockText`: string<br>`railed`: boolean<br>`context`: UiTopbarContext<br>`actions`: Snippet<br>`account`: Snippet | svelte + astro | stable | `styles/elements/shell.css` |
 
 ## Data
 

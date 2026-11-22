@@ -67,7 +67,7 @@ func (p Publisher) Publish(ctx context.Context, job voiceplan.AlertJob) error {
 type Worker struct {
 	RPC     *nats.Conn
 	Gossip  string
-	Overlay *bus.TTSOverlay
+	Overlay *bus.Overlays
 	Log     *zap.Logger
 }
 
@@ -123,34 +123,34 @@ func Check(ctx context.Context, nc *nats.Conn, id string) (Access, error) {
 	return access, err
 }
 
-func (w Worker) findOrSynthesize(ctx context.Context, job voiceplan.AlertJob) (bus.TTSClip, error) {
-	ref := bus.TTSClip{Key: job.BroadcasterID + "/" + job.EventID}
+func (w Worker) findOrSynthesize(ctx context.Context, job voiceplan.AlertJob) (bus.OverlayClip, error) {
+	ref := bus.OverlayClip{Key: job.BroadcasterID + "/" + job.EventID}
 	clip, err := w.Overlay.GetClip(ctx, ref)
 	if err != nil || clip.Key != "" {
 		return clip, err
 	}
 	allowance, err := Check(ctx, w.RPC, job.BroadcasterID)
 	if err != nil {
-		return bus.TTSClip{}, err
+		return bus.OverlayClip{}, err
 	}
 	req := synthesisRequest(job, allowance)
 	if !allowance.Allowed() || req.Text == "" {
 		w.logDrop(ctx, job, jobNotAllowed)
-		return bus.TTSClip{}, nil
+		return bus.OverlayClip{}, nil
 	}
 	return w.synthesize(ctx, ref, req, job)
 }
 
-func (w Worker) synthesize(ctx context.Context, ref bus.TTSClip, req gossiprpc.Request, job voiceplan.AlertJob) (bus.TTSClip, error) {
+func (w Worker) synthesize(ctx context.Context, ref bus.OverlayClip, req gossiprpc.Request, job voiceplan.AlertJob) (bus.OverlayClip, error) {
 	rpcCtx, cancel := context.WithTimeout(ctx, gossipTimeout)
 	defer cancel()
 	var reply gossiprpc.TTSSynthesizeReply
 	err := bus.RequestInto(rpcCtx, w.RPC, bus.RPCRequest{Subject: w.Gossip, Body: req, DecodeErrorReply: true}, &reply)
 	if err != nil {
-		return bus.TTSClip{}, err
+		return bus.OverlayClip{}, err
 	}
 	if audio, err := w.synthesisOutcome(ctx, job, reply); !audio {
-		return bus.TTSClip{}, err
+		return bus.OverlayClip{}, err
 	}
 	return w.saveClip(ctx, ref, reply)
 }
@@ -242,9 +242,9 @@ func withoutPartialTag(text string) string {
 	return text
 }
 
-func (w Worker) saveClip(ctx context.Context, ref bus.TTSClip, reply gossiprpc.TTSSynthesizeReply) (bus.TTSClip, error) {
+func (w Worker) saveClip(ctx context.Context, ref bus.OverlayClip, reply gossiprpc.TTSSynthesizeReply) (bus.OverlayClip, error) {
 	if !validAudio(reply) {
-		return bus.TTSClip{}, errors.New("invalid TTS audio response")
+		return bus.OverlayClip{}, errors.New("invalid TTS audio response")
 	}
 	tokens := reply.AudioTokens
 	if tokens == 0 {
@@ -254,7 +254,7 @@ func (w Worker) saveClip(ctx context.Context, ref bus.TTSClip, reply gossiprpc.T
 		durationKey: strconv.FormatInt(reply.DurationMS, 10),
 		tokensKey:   strconv.FormatInt(tokens, 10),
 	}
-	return w.Overlay.PutClip(ctx, bus.TTSClipData{TTSClip: ref, WAV: reply.Audio})
+	return w.Overlay.PutClip(ctx, bus.OverlayClipData{OverlayClip: ref, WAV: reply.Audio})
 }
 
 func validAudio(reply gossiprpc.TTSSynthesizeReply) bool {
@@ -264,8 +264,8 @@ func validAudio(reply gossiprpc.TTSSynthesizeReply) bool {
 	return validWAV && validDuration && validTokens
 }
 
-func (w Worker) deliver(ctx context.Context, job voiceplan.AlertJob, clip bus.TTSClip) error {
-	expires := clip.StoredAt.Add(bus.TTSClipTTL)
+func (w Worker) deliver(ctx context.Context, job voiceplan.AlertJob, clip bus.OverlayClip) error {
+	expires := clip.StoredAt.Add(bus.OverlayClipTTL)
 	if w.clipExpired(ctx, job, expires) {
 		return nil
 	}
@@ -286,7 +286,7 @@ func (w Worker) deliver(ctx context.Context, job voiceplan.AlertJob, clip bus.TT
 	event := voiceplan.OverlayEvent{
 		ClipKey: clip.Key, EventID: job.EventID, TraceID: job.TraceID, Kind: job.Kind, DurationMS: duration, ExpiresAt: expires,
 	}
-	if err := w.Overlay.Publish(ctx, bus.TTSMessage{BroadcasterID: job.BroadcasterID, EventID: job.EventID, Value: event}); err != nil {
+	if err := w.Overlay.Publish(ctx, bus.OverlayMessage{Tier: bus.OverlayPremium, Kind: bus.OverlayKindTTS, UserID: job.BroadcasterID, EventID: job.EventID, Value: event}); err != nil {
 		return err
 	}
 	w.logDelivered(ctx, job, event)

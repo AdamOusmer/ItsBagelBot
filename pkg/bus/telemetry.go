@@ -215,14 +215,23 @@ func normalizedDestination(subject string) string {
 		return cacheDestinationPrefix
 	case strings.HasPrefix(subject, ttsJobsSubject):
 		return TTSJobsStream
-	case strings.HasPrefix(subject, ttsOverlaySubject):
-		return TTSOverlayStream
-	case subject == TTSClipBucket:
-		return TTSClipBucket
+	case strings.HasPrefix(subject, overlaysSubjectRoot):
+		return overlayDestination(subject)
+	case subject == OverlaysMediaBucket:
+		return OverlaysMediaBucket
 	}
 	for _, entry := range familyDestinations {
 		if strings.HasPrefix(subject, entry.prefix) {
 			return entry.family.normalize(subject)
+		}
+	}
+	return "other"
+}
+
+func overlayDestination(subject string) string {
+	for tier, lane := range overlayLanes {
+		if strings.HasPrefix(subject, overlaysSubjectRoot+string(tier)+".") {
+			return lane.stream
 		}
 	}
 	return "other"
