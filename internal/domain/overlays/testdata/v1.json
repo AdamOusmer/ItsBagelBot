@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "id": "ov-1",
+  "name": "Old",
+  "width": 1920,
+  "height": 1080,
+  "rev": 2,
+  "widgets": [
+    {
+      "id": "w1",
+      "name": "Logo",
+      "kind": "image",
+      "x": 0,
+      "y": 0,
+      "w": 400,
+      "h": 200,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "media": "/media/abababababababababababababababababababababababababababababababab.png",
+        "fit": "contain"
+      }
+    },
+    {
+      "id": "w2",
+      "name": "Text",
+      "kind": "text",
+      "x": 0,
+      "y": 0,
+      "w": 400,
+      "h": 200,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "text": "hi",
+        "align": "center",
+        "style": {
+          "family": "System sans"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "kind": "system",
+  "id": "powered-1",
+  "name": "Powered by Bagel",
+  "rev": 1,
+  "template": "powered",
+  "config": {
+    "every_minutes": 15,
+    "show_seconds": 8,
+    "directions": [
+      "right"
+    ],
+    "align": "end"
+  }
+}
