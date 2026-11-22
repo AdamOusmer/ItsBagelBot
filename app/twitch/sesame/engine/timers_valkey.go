@@ -67,7 +67,7 @@ type timerDef struct {
 	ChatWindowMinutes int  `json:"chatWindowMinutes"`
 	AllowOffline      bool `json:"allowOffline"`
 
-	JitterS int `json:"jitterSeconds"`
+	JitterS int `json:"-"`
 }
 
 type timersConfig struct {
@@ -390,6 +390,9 @@ func (s *ValkeyTimerStore) moduleTimers(ctx context.Context, broadcasterID uint6
 		idempotency.Fail(ctx, err)
 		s.log.Warn("timers: bad config", module.BIDField(broadcasterID), zap.Error(err))
 		return timersConfig{}, false
+	}
+	for i := range cfg.Timers {
+		cfg.Timers[i].JitterS = autoJitterSeconds(cfg.Timers[i].Interval)
 	}
 	return cfg, true
 }
