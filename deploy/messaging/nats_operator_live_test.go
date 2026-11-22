@@ -50,6 +50,9 @@ func TestLiveACLPermissions(t *testing.T) {
 			{roleEndpoint{"BUS", "outgress_bus"}, "twitch.ingress.event.premium"},
 			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "overlay.tts.42"},
 			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "$JS.API.STREAM.CREATE.OVERLAY_TTS"},
+			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "$JS.API.STREAM.CREATE.OVERLAYS_PREMIUM"},
+			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "overlays.premium.tts.42"},
+			{roleEndpoint{controlsGatewayAccount, "worker_tts_bus"}, "overlays.session.42"},
 			{roleEndpoint{"BUS", "overlays_bus"}, "data.users.changed"},
 		} {
 			err := server.publishOutcome(t, probe.role, probe.subject, 500*time.Millisecond)

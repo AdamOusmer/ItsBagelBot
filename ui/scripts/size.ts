@@ -265,7 +265,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/brand-mark", budget: 900 },
   { name: "elements/nav", budget: 3640 }, // 3511 B: tonal depth on the field trigger and locale menu (2026-10-28)
   { name: "elements/footer", budget: 2460 }, // 2284 B: full-height frame with built-in aurora sky, grain tile and peeking bolota crew; footer no longer loads light-field.css; ~7% room (2026-10-29)
-  { name: "elements/shell", budget: 3500 }, // 3200 -> 3500: collapsible rail fold behind an opt-in attribute (2026-11-07)
+  { name: "elements/shell", budget: 4550 }, // 3500 -> 4550: integrated delegated/admin topbar context bar, badges, scopes and responsive actions; 4284 B gzip measured, ~6% room (2026-11-21)
   { name: "elements/badge", budget: 580 }, // 390 B: status shape for test run outcomes (2026-11-19)
   { name: "elements/chip", budget: 1230 }, // 1114 B: tonal surface fill, lift and focus ring for plain chips (2026-10-29)
   { name: "elements/empty-state", budget: 500 },

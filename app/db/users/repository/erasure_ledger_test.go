@@ -18,7 +18,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/objstore"
+	"ItsBagelBot/pkg/objectstore"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,19 +41,19 @@ func (s *fakeErasureStore) PutNew(_ context.Context, key string, _ []byte) error
 		return s.putErr
 	}
 	if _, ok := s.objects[key]; ok {
-		return objstore.ErrExists
+		return objectstore.ErrExists
 	}
 	s.objects[key] = time.Now()
 	return nil
 }
 
-func (s *fakeErasureStore) List(_ context.Context, prefix string) ([]objstore.Object, error) {
+func (s *fakeErasureStore) List(_ context.Context, prefix string) ([]objectstore.Info, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var out []objstore.Object
+	var out []objectstore.Info
 	for key, at := range s.objects {
 		if strings.HasPrefix(key, prefix) {
-			out = append(out, objstore.Object{Key: key, LastModified: at})
+			out = append(out, objectstore.Info{Key: key, LastModified: at})
 		}
 	}
 	return out, nil

@@ -135,7 +135,7 @@ func (f *voiceRPCs) assertTraces(t *testing.T, traceID string) {
 type testVoiceRig struct {
 	nc      *nats.Conn
 	jobs    *bus.TTSJobs
-	overlay *bus.TTSOverlay
+	overlay *bus.Overlays
 	js      jsapi.JetStream
 }
 
@@ -144,7 +144,7 @@ func newTestVoiceRig(t *testing.T) testVoiceRig {
 	nc := bustest.JetStream(t)
 	jobs, err := bus.OpenTTSJobs(t.Context(), nc, 1)
 	require.NoError(t, err)
-	overlay, err := bus.OpenTTSOverlay(t.Context(), nc, 1)
+	overlay, err := bus.OpenOverlays(t.Context(), nc, 1)
 	require.NoError(t, err)
 	js, err := jsapi.New(nc)
 	require.NoError(t, err)
@@ -311,7 +311,7 @@ func checkReply(tc workerCase) usersrpc.VoiceCheckReply {
 
 func (r testVoiceRig) assertNoClip(t *testing.T, f *voiceRPCs) {
 	t.Helper()
-	clip, err := r.overlay.GetClip(t.Context(), bus.TTSClip{Key: "42/" + workerJobID})
+	clip, err := r.overlay.GetClip(t.Context(), bus.OverlayClip{Key: "42/" + workerJobID})
 	require.NoError(t, err)
 	assert.Empty(t, clip.Key)
 	assert.Zero(t, f.attempts.Load())
@@ -371,18 +371,19 @@ func (r testVoiceRig) assertDelivery(t *testing.T, job voiceplan.AlertJob) {
 	t.Helper()
 	ctx := t.Context()
 	key := job.BroadcasterID + "/" + job.EventID
-	bucket, err := r.js.ObjectStore(ctx, "TTS_CLIPS")
+	bucket, err := r.js.ObjectStore(ctx, bus.OverlaysMediaBucket)
 	require.NoError(t, err)
 	wav, err := bucket.GetBytes(ctx, key)
 	require.NoError(t, err)
 	assert.Equal(t, fakeWAV, wav)
 
-	stream, err := r.js.Stream(ctx, "OVERLAY_TTS")
+	stream, err := r.js.Stream(ctx, bus.OverlaysPremiumStream)
 	require.NoError(t, err)
 	info := stream.CachedInfo()
 	require.EqualValues(t, 1, info.State.Msgs)
 	msg, err := stream.GetMsg(ctx, info.State.LastSeq)
 	require.NoError(t, err)
+	assert.Equal(t, "overlays.premium.tts."+job.BroadcasterID, msg.Subject)
 	assert.Equal(t, job.EventID, msg.Header.Get(nats.MsgIdHdr))
 	var event voiceplan.OverlayEvent
 	require.NoError(t, codec.Unmarshal(msg.Data, &event))

@@ -4,6 +4,7 @@
   import type { Snippet } from 'svelte';
   import { afterNavigate } from '$app/navigation';
   import AppShell from '@bagel/ui/svelte/AppShell.svelte';
+  import type { UiTopbarContext } from '@bagel/ui/lib/nav-types';
   import OperatorMenu from './OperatorMenu.svelte';
   import { getI18n } from '../lib/i18n/context';
   import { groupsWithLockedHints } from '../lib/nav-core';
@@ -15,13 +16,13 @@
   let {
     brandTitle = 'ItsBagelBot', brandSub, crumbRoot, crumb,
     accountName, accountRole, dashboards = [], groups, mobileItems, rail = false,
-    offset = false, stacked = false, logoSrc = '/logo.png', isPremium = false, banner, topActions, children,
+    offset = false, stacked = false, logoSrc = '/logo.png', isPremium = false, topbarContext, banner, topActions, children,
     isDelegate = false, delegateExitHref = '', delegateExitLabel = ''
   }: {
     brandTitle?: string; brandSub: string; crumbRoot: string; crumb: string;
     accountName: string; accountRole: string; dashboards?: DashboardLink[];
     groups: NavGroupDef[]; mobileItems: NavLink[]; rail?: boolean;
-    offset?: boolean; stacked?: boolean; logoSrc?: string; isPremium?: boolean; banner?: Snippet; topActions?: Snippet; children: Snippet;
+    offset?: boolean; stacked?: boolean; logoSrc?: string; isPremium?: boolean; topbarContext?: UiTopbarContext; banner?: Snippet; topActions?: Snippet; children: Snippet;
     isDelegate?: boolean; delegateExitHref?: string; delegateExitLabel?: string;
   } = $props();
 
@@ -59,6 +60,7 @@
   crumbLabel={t('common.breadcrumb')}
   dockLabel={t('nav.ariaMain')}
   railLabel={t('nav.ariaMain')}
+  {topbarContext}
   {banner}
   {topActions}
   {railAccount}

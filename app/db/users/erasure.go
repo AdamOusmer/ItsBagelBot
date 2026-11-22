@@ -15,7 +15,7 @@ import (
 	"ItsBagelBot/app/db/users/repository"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/monitor"
-	"ItsBagelBot/pkg/objstore"
+	"ItsBagelBot/pkg/objectstore"
 	"ItsBagelBot/pkg/svcboot"
 
 	"go.uber.org/zap"
@@ -24,12 +24,7 @@ import (
 const twitchRevokeURL = "https://id.twitch.tv/oauth2/revoke"
 
 func wireErasure(ctx context.Context, repo *repository.Users, log *zap.Logger) {
-	store, err := objstore.New(objstore.Config{
-		Endpoint:        env.MustGet("ERASURE_R2_ENDPOINT"),
-		Bucket:          env.MustGet("ERASURE_R2_BUCKET"),
-		AccessKeyID:     env.MustGet("ERASURE_R2_ACCESS_KEY_ID"),
-		SecretAccessKey: env.MustGet("ERASURE_R2_SECRET_ACCESS_KEY"),
-	})
+	store, err := objectstore.New(objectstore.ConfigFromEnv("ERASURE_R2_"))
 	svcboot.FatalIf(log, err, "failed to configure erasure ledger")
 	repo.SetErasureStore(store)
 	repo.SetTokenRevoker(twitchRevoker{clientID: env.MustGet("TWITCH_CLIENT_ID"), http: monitor.HTTPClient(10 * time.Second)})

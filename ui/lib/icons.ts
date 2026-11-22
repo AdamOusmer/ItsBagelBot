@@ -60,6 +60,7 @@ export const icons = {
   branch: '<g><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></g>', // lucide:git-branch
   sidebar: '<g><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></g>', // lucide:panel-left
   overlay: '<g><path d="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4"/><rect width="10" height="7" x="12" y="13" rx="2"/></g>', // lucide:picture-in-picture-2
+  logOut: '<path d="m16 17l5-5l-5-5m5 5H9m0 9H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>', // lucide:log-out
 } as const;
 
 export type IconName = keyof typeof icons;
