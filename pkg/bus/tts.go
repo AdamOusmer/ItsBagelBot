@@ -93,7 +93,7 @@ func OpenTTSOverlay(ctx context.Context, nc *nats.Conn, replicas int) (*TTSOverl
 	if _, err := createOrGetTTSStream(ctx, js, spec); err != nil {
 		return nil, err
 	}
-	bucket, err := js.CreateObjectStore(ctx, jsapi.ObjectStoreConfig{
+	bucket, err := js.CreateOrUpdateObjectStore(ctx, jsapi.ObjectStoreConfig{
 		Bucket: TTSClipBucket, TTL: TTSClipTTL, Storage: jsapi.FileStorage, Replicas: replicas,
 	})
 	if errors.Is(err, jsapi.ErrBucketExists) {
@@ -106,7 +106,7 @@ func OpenTTSOverlay(ctx context.Context, nc *nats.Conn, replicas int) (*TTSOverl
 }
 
 func createOrGetTTSStream(ctx context.Context, js jsapi.JetStream, spec StreamSpec) (jsapi.Stream, error) {
-	stream, err := js.CreateStream(ctx, streamConfig(spec))
+	stream, err := js.CreateOrUpdateStream(ctx, streamConfig(spec))
 	if errors.Is(err, jsapi.ErrStreamNameAlreadyInUse) {
 		return js.Stream(ctx, spec.Name)
 	}

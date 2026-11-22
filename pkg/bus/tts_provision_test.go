@@ -37,7 +37,7 @@ func TestTTSProvisioningSucceedsAcrossConcurrentReplicas(t *testing.T) {
 	require.NoError(t, group.Wait())
 }
 
-func TestTTSProvisioningReusesExistingOverlayResources(t *testing.T) {
+func TestTTSProvisioningAdoptsExistingOverlayResources(t *testing.T) {
 	ctx := t.Context()
 	nc := bustest.JetStream(t)
 	js, err := jsapi.NewWithDomain(nc, bus.JSDomain())
@@ -56,5 +56,5 @@ func TestTTSProvisioningReusesExistingOverlayResources(t *testing.T) {
 	require.NoError(t, err)
 	status, err := bucket.Status(ctx)
 	require.NoError(t, err)
-	require.Equal(t, []time.Duration{existingTTL, existingTTL}, []time.Duration{info.Config.MaxAge, status.TTL()})
+	require.Equal(t, []time.Duration{bus.TTSClipTTL, bus.TTSClipTTL}, []time.Duration{info.Config.MaxAge, status.TTL()})
 }
