@@ -34,9 +34,16 @@ func (d Deps) Speech() SpeechQueue {
 	return SpeechQueue{Voice: d.AlertVoice, Proj: d.Proj}
 }
 
+func (q SpeechQueue) Available() bool {
+	if voice, ok := q.Voice.(interface{ Available() bool }); ok {
+		return voice.Available()
+	}
+	return q.Voice != nil
+}
+
 // Fails closed: chat, reward and recipe speech stay Premium even where the surface itself is free.
 func (q SpeechQueue) Premium(ctx context.Context, broadcasterID uint64) bool {
-	if q.Voice == nil || q.Proj == nil {
+	if !q.Available() || q.Proj == nil {
 		return false
 	}
 	user, err := q.Proj.User(ctx, broadcasterID)
