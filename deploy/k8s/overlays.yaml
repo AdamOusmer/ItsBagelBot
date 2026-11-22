@@ -91,7 +91,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: overlays
-          image: ghcr.io/adamousmer/itsbagelbot/overlays:main-1795306045-3b65ccec9c8d@sha256:0d45401e8b968d4f7375b0213e0eabad8f5f4ea01717eac4e1a0887fd5350eb0
+          image: ghcr.io/adamousmer/itsbagelbot/overlays:main-1795309935-f1df10a0acb1@sha256:0efd20ed454c8c0bf415b122f3295d7228982991638dfdf62440ca45666febf2
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
