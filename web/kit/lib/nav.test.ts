@@ -25,6 +25,7 @@ describe('nav registry', () => {
     ...['modules', 'counters', 'quotes', 'govee', 'channelpoints', 'timers', 'loyalty', 'giveaways'].map((path) => [`/${path}`, 'modules']),
     ['/songqueue', 'songqueue'],
     ['/voice', 'voice'],
+    ['/overlays', 'overlays'],
     ['/billing', 'billing'],
     ['/settings', 'settings'],
     ['/access', 'settings'],
@@ -41,6 +42,7 @@ describe('nav registry', () => {
       '/modules',
       '/songqueue',
       '/voice',
+      '/overlays',
       '/billing',
       '/settings'
     ]);
@@ -80,6 +82,7 @@ describe('nav registry', () => {
       'en:nav.modules',
       'en:nav.songqueue',
       'en:nav.voice',
+      'en:nav.overlays',
       'en:nav.billing',
       'en:nav.settings'
     ]);
@@ -179,7 +182,7 @@ describe('pathnameAllowed', () => {
   test('owner-only paths stay denied even to a delegate holding every grant', () => {
     const sections = ['commands', 'modules', 'channelpoints', 'billing'];
     const allowed = delegateAllowedPaths(sections);
-    for (const path of ['/', '/settings', '/settings/import', '/substate', '/overview/stream', '/events', '/voice']) {
+    for (const path of ['/', '/settings', '/settings/import', '/substate', '/overview/stream', '/events', '/voice', '/overlays']) {
       expect(pathnameAllowed(path, allowed, sections)).toBe(false);
     }
   });

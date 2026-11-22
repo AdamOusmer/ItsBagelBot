@@ -66,6 +66,7 @@
     "./catalog/quotes": "./lib/catalog/quotes.ts",
     "./catalog/songqueue": "./lib/catalog/songqueue.ts",
     "./validation": "./lib/validation.ts",
+    "./overlays": "./lib/overlays.ts",
     "./timers": "./lib/timers.ts",
     "./uses": "./lib/uses.ts",
     "./i18n": "./lib/i18n/messages.ts",

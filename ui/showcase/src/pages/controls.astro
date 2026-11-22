@@ -7,6 +7,7 @@ import TextLink from '../../../astro/TextLink.astro';
 import Switch from '../../../astro/Switch.astro';
 import SwitchRow from '../../../astro/SwitchRow.astro';
 import Checkbox from '../../../astro/Checkbox.astro';
+import Slider from '../../../astro/Slider.astro';
 ---
 
 <Showcase title="Controls" lead="Live library controls. Switches flip on click.">
@@ -58,4 +59,20 @@ import Checkbox from '../../../astro/Checkbox.astro';
       <Checkbox checked disabled>Disabled checked</Checkbox>
     </div>
   </section>
+
+  <section class="sc-block">
+    <h2>Slider</h2>
+    <div class="sc-sliders">
+      <Slider aria-label="Volume" value={40} />
+      <Slider aria-label="Disabled" value={70} disabled />
+    </div>
+  </section>
 </Showcase>
+
+<style>
+  .sc-sliders {
+    display: grid;
+    gap: 24px;
+    max-width: 320px;
+  }
+</style>

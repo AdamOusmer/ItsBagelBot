@@ -1,0 +1,40 @@
+{
+  "poweredTitle": "Powered-by-Badge",
+  "poweredIntro": "Ein kleines ItsBagelBot-Badge gleitet ab und zu in deinen Stream und wieder hinaus.",
+  "link": "Link der Browserquelle",
+  "replace": "Link ersetzen",
+  "replaceHint": "Ein neuer Link macht den alten ungültig.",
+  "obsHint": "Füge ihn in OBS als Browserquelle mit 1920 mal 1080 hinzu.",
+  "every": "Zeit zwischen Auftritten",
+  "everyValue": "{minutes} Min.",
+  "show": "Zeit im Bild",
+  "showValue": "{seconds} s",
+  "from": "Kommt von",
+  "edge": {
+    "top": "Oben",
+    "bottom": "Unten",
+    "left": "Links",
+    "right": "Rechts"
+  },
+  "align": "Position am Rand",
+  "alignOption": {
+    "start": "Anfang",
+    "center": "Mitte",
+    "end": "Ende"
+  },
+  "linkTitle": "Link",
+  "timing": "Zeitsteuerung",
+  "placement": "Platzierung",
+  "previewFrame": "Vorschau des Badges",
+  "readOnly": "Nur der Kanalinhaber kann Overlays ändern.",
+  "unavailable": "Overlay-Einstellungen sind nicht verfügbar. Lade die Seite neu.",
+  "saveFailed": "Overlay-Einstellungen konnten nicht gespeichert werden. Versuche es erneut.",
+  "saveInvalid": "Diese Einstellungen wurden abgelehnt. Lade die Seite neu und versuche es erneut.",
+  "conflict": "Overlay-Einstellungen wurden an anderer Stelle geändert. Die aktuellen Einstellungen wurden geladen. Versuche es erneut.",
+  "replaceFailed": "Der Link konnte nicht ersetzt werden. Versuche es erneut.",
+  "copyFailed": "Der Link konnte nicht kopiert werden. Versuche es erneut.",
+  "invalidEvery": "Wähle {everyMin} bis {everyMax} Minuten.",
+  "invalidShow": "Wähle {showMin} bis {showMax} Sekunden.",
+  "invalidFrom": "Wähle einen Rand.",
+  "invalidAlign": "Wähle eine Position am Rand."
+}

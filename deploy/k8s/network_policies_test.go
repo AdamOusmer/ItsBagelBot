@@ -226,7 +226,7 @@ func TestAppEgressAllowlists(t *testing.T) {
 		},
 		{
 			name: "TestDBNewRelicEgressAllowlist", path: dbPolicies, policy: "allow-newrelic",
-			wantApps: sorted("admin", "commands", "loyalty", "modules", "notifications", "projector",
+			wantApps: sorted("admin", "commands", "loyalty", "modules", "notifications", "overlays", "projector",
 				"transactions", "users"),
 			wantCIDRs: newRelicIngestCIDRs,
 		},
@@ -245,7 +245,7 @@ func TestAppEgressAllowlists(t *testing.T) {
 		{
 			name: "TestDBHeatWaveEgressAllowlist", path: dbPolicies, policy: "allow-heatwave",
 			wantApps: sorted("admin", "backup-binlog", "backup-mysql", "commands", "loyalty", "modules",
-				"notifications", "transactions", "users"),
+				"notifications", "overlays", "transactions", "users"),
 			wantCIDRs: sorted("10.0.0.0/16", "204.216.107.73/32"),
 		},
 	}
@@ -316,9 +316,9 @@ func TestDBNamespaceCoversEveryDataService(t *testing.T) {
 	policies := loadNetworkPolicies(t, dbPolicies)
 	want := map[string][]string{
 		"default-deny-db": sorted("admin", "backup-binlog", "backup-k3s", "backup-mysql", "commands", "loyalty",
-			"modules", "notifications", "notifications-cleanup", "projector", "transactions", "users"),
+			"modules", "notifications", "notifications-cleanup", "overlays", "projector", "transactions", "users"),
 		"allow-heatwave": sorted("admin", "backup-binlog", "backup-mysql", "commands", "loyalty", "modules",
-			"notifications", "transactions", "users"),
+			"notifications", "overlays", "transactions", "users"),
 	}
 	for name, apps := range want {
 		assert.Equal(t, apps, requirePolicy(t, policies, name).selectedApps(t), "%s selector", name)

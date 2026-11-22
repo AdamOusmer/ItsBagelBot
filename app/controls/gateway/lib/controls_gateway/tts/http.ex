@@ -5,10 +5,11 @@ defmodule ControlsGateway.Tts.Http do
   @behaviour :cowboy_loop
   require Logger
 
-  alias ControlsGateway.Drain
+  alias ControlsGateway.{Drain, OverlayRequest}
   alias ControlsGateway.Tts.{Clips, Events, Nats, Page, Session, Throttle}
 
   @headers %{"cache-control" => "no-store", "referrer-policy" => "no-referrer"}
+  @allow %{session: "POST", events: "GET, HEAD"}
   @max_body 256
   @drain_retry_after "5"
 
@@ -22,30 +23,42 @@ defmodule ControlsGateway.Tts.Http do
 
   defp dispatch("GET", :page, req), do: Page.reply(req, @headers)
   defp dispatch("POST", :session, req), do: exchange(req)
+  defp dispatch("HEAD", :events, req), do: authorized(:events_status, req)
 
   defp dispatch("GET", :events, req) do
     case Drain.track_connection() do
-      :ok -> serve(req, &Events.open/3)
+      :ok -> authorized(:events, req)
       :draining -> reply(req, 503, Map.put(@headers, "retry-after", @drain_retry_after))
     end
   end
 
-  defp dispatch("GET", :clip, req), do: serve(req, &Clips.reply/3)
+  defp dispatch("GET", :clip, req), do: authorized(:clip, req)
 
   defp dispatch(_method, route, req) do
-    allow = if route == :session, do: "POST", else: "GET"
+    allow = Map.get(@allow, route, "GET")
     reply(req, 405, Map.put(@headers, "allow", allow))
   end
 
-  defp serve(req, handler) do
+  defp authorized(route, req) do
     case Session.read(req) do
-      {:ok, session} -> handler.(req, session, @headers)
+      {:ok, session} -> serve(route, req, session)
       :error -> reply(req, 401)
     end
   end
 
+  defp serve(:events, req, session), do: Events.open(req, session, @headers)
+  defp serve(:clip, req, session), do: Clips.reply(req, session, @headers)
+
+  defp serve(:events_status, req, session) do
+    case Nats.check(Nats.rpc_connection(), session) do
+      true -> reply(req, 200)
+      false -> reply(req, 204)
+      :unavailable -> reply(req, 503)
+    end
+  end
+
   defp exchange(req) do
-    case Throttle.reserve(client_ip(req)) do
+    case Throttle.reserve(OverlayRequest.client_ip(req)) do
       {:ok, reservation} -> exchange(req, reservation)
       :limited -> reply(req, 429, Map.put(@headers, "retry-after", "60"))
     end
@@ -90,29 +103,12 @@ defmodule ControlsGateway.Tts.Http do
   end
 
   defp resolve_body(body) do
-    with {:ok, %{"token" => token}} when is_binary(token) and byte_size(token) == 43 <-
-           Jason.decode(body),
-         {:ok, raw} when byte_size(raw) == 32 <- Base.url_decode64(token, padding: false),
-         ^token <- Base.url_encode64(raw, padding: false) do
-      hash = :crypto.hash(:sha256, token) |> Base.encode16(case: :lower)
-      Nats.resolve(hash)
-    else
-      _ -> :not_found
-    end
-  end
+    case OverlayRequest.token(body) do
+      {:ok, token} ->
+        :crypto.hash(:sha256, token) |> Base.encode16(case: :lower) |> Nats.resolve()
 
-  defp client_ip(req) do
-    {peer, _port} = :cowboy_req.peer(req)
-
-    if Application.get_env(:controls_gateway, :overlay_trust_cloudflare_ip, false) do
-      address = :cowboy_req.header("cf-connecting-ip", req, "")
-
-      case :inet.parse_strict_address(:binary.bin_to_list(address)) do
-        {:ok, ip} -> ip
-        {:error, :einval} -> peer
-      end
-    else
-      peer
+      :error ->
+        :not_found
     end
   end
 

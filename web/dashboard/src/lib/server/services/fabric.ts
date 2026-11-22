@@ -45,6 +45,7 @@ export const SCOPES: ScopeMap = {
   loyalty: () => [],
   'loyalty-counters': () => [],
   'user-projection': () => [],
+  overlays: () => [],
   user: accountKeys,
   '*': accountKeys
 };

@@ -44,7 +44,7 @@ var rpcDestinations = map[string]struct{}{
 	"admin": {}, "broadcaster": {}, "commands": {}, "dashboard": {},
 	"delegation": {}, "gossip": {}, "health": {}, "ingress": {},
 	"internal": {}, "loyalty": {}, "modules": {}, "notifications": {},
-	"outgress": {}, "projector": {}, "transactions": {}, "users": {},
+	"outgress": {}, "overlays": {}, "projector": {}, "transactions": {}, "users": {},
 }
 
 type destinationFamily struct {

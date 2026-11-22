@@ -31,4 +31,5 @@ const (
 	ScopeSongQueuePage   Scope = "songqueue_page"
 	ScopeSpotify         Scope = "spotify"
 	ScopeLoyaltyCounters Scope = "loyalty-counters"
+	ScopeOverlays        Scope = "overlays"
 )

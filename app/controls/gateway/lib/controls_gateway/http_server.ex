@@ -2,10 +2,10 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.HttpServer do
-  @moduledoc "Owns the Ranch listener for the TTS beta and health routes."
+  @moduledoc "Owns the Ranch listener for the overlay and health routes."
   use GenServer
 
-  alias ControlsGateway.{Config, HttpHandler, Tts}
+  alias ControlsGateway.{Config, HttpHandler, Powered, Tts}
 
   @listener :controls_gateway_http
 
@@ -22,7 +22,7 @@ defmodule ControlsGateway.HttpServer do
     Process.flag(:trap_exit, true)
     port = Keyword.get(opts, :port, Config.port())
 
-    routes = Keyword.get(opts, :routes, tts_routes())
+    routes = Keyword.get(opts, :routes, tts_routes() ++ powered_routes())
 
     health = [
       {"/healthz", HttpHandler, :healthz},
@@ -45,6 +45,14 @@ defmodule ControlsGateway.HttpServer do
       {"/tts/session", Tts.Http, :session},
       {"/tts/events", Tts.Http, :events},
       {"/tts/clip/:event_id", Tts.Http, :clip}
+    ]
+  end
+
+  defp powered_routes do
+    [
+      {"/powered", Powered.Http, :page},
+      {"/powered/config", Powered.Http, :config},
+      {"/powered/assets/:name", Powered.Http, :asset}
     ]
   end
 

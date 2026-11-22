@@ -119,7 +119,7 @@ const CONTROLS = [
   { name: 'Textarea', svelte: SvelteTextarea, astro: AstroTextarea, props: {} },
 ];
 
-const FORM_CONTROL = /<(input|textarea|select)\b[^>]*>/;
+const FORM_CONTROL = /<(input|textarea|select)\b[^>]*>|<[^>]*role="slider"[^>]*>/;
 
 function isNamed(html: string): boolean {
   const control = FORM_CONTROL.exec(html)?.[0] ?? '';

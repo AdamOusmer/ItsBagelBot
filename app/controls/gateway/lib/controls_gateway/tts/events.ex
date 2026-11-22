@@ -35,7 +35,7 @@ defmodule ControlsGateway.Tts.Events do
         event_sid: event_sid,
         inbox: inbox,
         subject: "overlay.tts.#{session.user_id}",
-        resume: resume_sequence(:cowboy_req.header("last-event-id", req, "")),
+        resume: req |> resume_id() |> resume_sequence(),
         consumer: nil,
         seq: 0,
         seen_at: now()
@@ -199,12 +199,24 @@ defmodule ControlsGateway.Tts.Events do
     Process.send_after(self(), :check, delay)
   end
 
-  defp resume_sequence(id) do
+  defp resume_id(req) do
+    case :cowboy_req.header("last-event-id", req) do
+      :undefined ->
+        req |> :cowboy_req.parse_qs() |> List.keyfind("after", 0, {"after", ""}) |> elem(1)
+
+      id ->
+        id
+    end
+  end
+
+  defp resume_sequence(id) when is_binary(id) do
     case Integer.parse(id) do
       {seq, ""} when seq >= 1 and seq <= @max_resume_id -> seq + 1
       _ -> nil
     end
   end
+
+  defp resume_sequence(_id), do: nil
 
   defp delivery_policy(nil), do: %{deliver_policy: "new"}
   defp delivery_policy(seq), do: %{deliver_policy: "by_start_sequence", opt_start_seq: seq}
