@@ -35,15 +35,16 @@ func (s *poweredRPC) handleOverlayResolve(ctx context.Context, req overlaysrpc.O
 	if err != nil {
 		return overlaysrpc.OverlayResolveReply{Refusal: domainrpc.Fail(err)}
 	}
-	return resolveReply(entry.overlay, overlays.Allowed(overlays.Kind(entry.overlay.Kind), premium))
+	return resolveReply(entry.overlay, premium)
 }
 
-func resolveReply(o overlaysrpc.Overlay, allowed bool) overlaysrpc.OverlayResolveReply {
+func resolveReply(o overlaysrpc.Overlay, premium bool) overlaysrpc.OverlayResolveReply {
 	reply := overlaysrpc.OverlayResolveReply{
 		UserID: o.UserID, OverlayID: o.ID, Kind: o.Kind, Template: o.Template,
-		Revision: o.Revision, Generation: o.Generation, Allowed: allowed,
+		Revision: o.Revision, Generation: o.Generation, Premium: premium,
+		Allowed: overlays.Allowed(overlays.Kind(o.Kind), premium),
 	}
-	if allowed {
+	if reply.Allowed {
 		reply.Document = o.Document
 	}
 	return reply

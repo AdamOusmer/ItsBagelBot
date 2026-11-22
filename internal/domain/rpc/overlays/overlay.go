@@ -94,6 +94,7 @@ type OverlayResolveReply struct {
 	Revision   uint64          `json:"revision"`
 	Generation int             `json:"generation"`
 	Allowed    bool            `json:"allowed"`
+	Premium    bool            `json:"premium"`
 	Document   json.RawMessage `json:"document,omitempty"`
 	rpc.Refusal
 }
