@@ -20,7 +20,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/db"
-	"ItsBagelBot/pkg/objstore"
+	"ItsBagelBot/pkg/objectstore"
 
 	"go.uber.org/zap"
 )
@@ -35,7 +35,7 @@ const (
 // Must stay outside the database: the ledger has to survive losing it.
 type ErasureStore interface {
 	PutNew(ctx context.Context, key string, body []byte) error
-	List(ctx context.Context, prefix string) ([]objstore.Object, error)
+	List(ctx context.Context, prefix string) ([]objectstore.Info, error)
 }
 
 type TokenRevoker interface {
@@ -70,7 +70,7 @@ func (r *Users) recordErasure(ctx context.Context, ref erasureRef) error {
 		return nil
 	}
 	err := r.erasures.PutNew(ctx, erasureKey(ref), nil)
-	if errors.Is(err, objstore.ErrExists) {
+	if errors.Is(err, objectstore.ErrExists) {
 		return nil
 	}
 	return err
