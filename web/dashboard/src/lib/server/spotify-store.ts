@@ -21,7 +21,11 @@ import {
   parseDisabledTriggers
 } from '@bagel/kit';
 import { SUB } from './services';
-import { patchModuleConfig, upsertModule } from './commands-store';
+import {
+  listModulesForEditing,
+  patchModule,
+  patchModuleConfig,
+} from './commands-store';
 import { readModuleBlob } from './module-blob';
 import { deleteRemoteReward, saveRewardFlow } from './reward-wire';
 import type { RewardCore } from './reward-form';
@@ -195,9 +199,24 @@ export interface SpotifyStore {
 }
 
 export function spotifyStore(userId: string): SpotifyStore {
-  async function rawConfigs(): Promise<Record<string, unknown>> {
-    const { configs } = await readModuleBlob<Record<string, unknown>>(userId, SONGQUEUE_MODULE);
-    return { ...configs };
+  async function authoritativeRow(): Promise<{ enabled: boolean; view: SpotifyView }> {
+    const rows = await listModulesForEditing(userId);
+    const row = rows.find((r) => r.name === SONGQUEUE_MODULE);
+    const enabled = row ? row.is_enabled : false;
+    const view = readView(row?.configs);
+    view.enabled = enabled;
+    return { enabled, view };
+  }
+
+  function serializeRedeem(redeem: SpotifyRedeemConfig): Record<string, unknown> {
+    return {
+      enabled: redeem.enabled,
+      rewardId: redeem.rewardId,
+      onRedeem: redeem.onRedeem,
+      replyMessage: redeem.replyMessage,
+      allowOffline: redeem.allowOffline,
+      ...(redeem.reward ? { reward: redeem.reward } : {})
+    };
   }
 
   async function read(): Promise<SpotifyView> {
@@ -253,36 +272,35 @@ export function spotifyStore(userId: string): SpotifyStore {
     return { ok: true };
   }
 
-  async function write(view: SpotifyView): Promise<void> {
-    const { enabled, sr, redeem, quotas, maxDepth } = view;
-    const base = await rawConfigs();
-    await upsertModule(userId, SONGQUEUE_MODULE, enabled, {
-      ...base,
-      quotas,
-      maxDepth: maxDepth ?? 0,
-      sr: { enabled: sr.enabled, perm: sr.perm, allowOffline: sr.allowOffline },
-      redeem: {
-        enabled: redeem.enabled,
-        rewardId: redeem.rewardId,
-        onRedeem: redeem.onRedeem,
-        replyMessage: redeem.replyMessage,
-        allowOffline: redeem.allowOffline,
-        ...(redeem.reward ? { reward: redeem.reward } : {})
-      }
-    } as unknown as Record<string, unknown>);
-  }
-
-  async function patch(change: (cur: SpotifyView) => Partial<SpotifyView>): Promise<SpotifyResult> {
-    const cur = await read();
-    await write({ ...cur, ...change(cur) });
+  async function setEnabled(enabled: boolean): Promise<SpotifyResult> {
+    await patchModule({ userId, name: SONGQUEUE_MODULE, isEnabled: enabled, partial: {} });
     return { ok: true };
   }
 
-  const setEnabled = (enabled: boolean) => patch(() => ({ enabled }));
-  const saveLimits = (limits: SpotifyLimits) => patch(() => limits);
-  const saveSr = (sr: SpotifySrConfig) => patch(() => ({ sr }));
-  const setRedeemPath = (path: { enabled: boolean; allowOffline: boolean }) =>
-    patch((cur) => ({ redeem: { ...cur.redeem, ...path } }));
+  async function saveSr(sr: SpotifySrConfig): Promise<SpotifyResult> {
+    await patchModuleConfig({
+      userId,
+      name: SONGQUEUE_MODULE,
+      partial: { sr: { enabled: sr.enabled, perm: sr.perm, allowOffline: sr.allowOffline } }
+    });
+    return { ok: true };
+  }
+
+  async function saveLimits(limits: SpotifyLimits): Promise<SpotifyResult> {
+    await patchModuleConfig({
+      userId,
+      name: SONGQUEUE_MODULE,
+      partial: { quotas: limits.quotas, maxDepth: limits.maxDepth ?? 0 }
+    });
+    return { ok: true };
+  }
+
+  async function setRedeemPath(path: { enabled: boolean; allowOffline: boolean }): Promise<SpotifyResult> {
+    const cur = await authoritativeRow();
+    const redeem = serializeRedeem({ ...cur.view.redeem, ...path });
+    await patchModule({ userId, name: SONGQUEUE_MODULE, isEnabled: cur.enabled, partial: { redeem } });
+    return { ok: true };
+  }
 
   async function saveDisabledTriggers(raw: string): Promise<SpotifyResult> {
     const normalized = formatDisabledTriggers(parseDisabledTriggers(raw), SONGQUEUE_ALLOWED_TRIGGERS);
@@ -291,18 +309,26 @@ export function spotifyStore(userId: string): SpotifyStore {
   }
 
   async function saveReward(draft: RewardDraft): Promise<SpotifyResult> {
-    const cur = await read();
-    return saveRewardFlow(userId, { draft, prompt: REWARD_PROMPT, existingId: cur.redeem.rewardId }, (reward) =>
-      write({ ...cur, redeem: { ...cur.redeem, rewardId: reward.rewardId, reward } })
-    );
+    const initial = await authoritativeRow();
+    return saveRewardFlow(userId, { draft, prompt: REWARD_PROMPT, existingId: initial.view.redeem.rewardId }, async (reward) => {
+      const latest = await authoritativeRow();
+      const redeem = serializeRedeem({
+        ...latest.view.redeem,
+        rewardId: reward.rewardId,
+        onRedeem: draft.onRedeem,
+        replyMessage: draft.replyMessage,
+        reward
+      });
+      await patchModule({ userId, name: SONGQUEUE_MODULE, isEnabled: latest.enabled, partial: { redeem } });
+    });
   }
 
   async function deleteReward(): Promise<SpotifyResult> {
-    const cur = await read();
-    if (!cur.redeem.rewardId) return { ok: true };
-    const remote = await deleteRemoteReward(userId, cur.redeem.rewardId);
+    const cur = await authoritativeRow();
+    if (!cur.view.redeem.rewardId) return { ok: true };
+    const remote = await deleteRemoteReward(userId, cur.view.redeem.rewardId);
     if (!remote.ok) return remote;
-    await write({ ...cur, redeem: blankSpotifyRedeem() });
+    await patchModuleConfig({ userId, name: SONGQUEUE_MODULE, partial: { redeem: serializeRedeem(blankSpotifyRedeem()) } });
     return { ok: true };
   }
 
