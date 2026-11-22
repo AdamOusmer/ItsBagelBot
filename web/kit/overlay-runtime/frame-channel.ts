@@ -47,13 +47,17 @@ export class FrameChannel {
   }
 
   #flush(): void {
-    const bundle = this.#bundle;
-    if (!this.#ready || !bundle || this.#loaded) return;
+    const bundle = this.#loadable();
+    if (!bundle) return;
     this.#loaded = true;
     const { fields, ...code } = bundle;
     this.#post({ bagel: 1, type: 'load', bundle: code, fields: fieldValues(fields, this.values), session: this.#session });
     this.#pending.forEach((event) => this.event(event));
     this.#pending = [];
+  }
+
+  #loadable(): WidgetBundle | undefined {
+    return this.#ready && !this.#loaded ? this.#bundle : undefined;
   }
 
   #post(message: ParentMessage): void {
