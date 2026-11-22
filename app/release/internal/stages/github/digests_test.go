@@ -6,6 +6,7 @@ package github
 import (
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -122,6 +123,41 @@ func TestDigestsBump(t *testing.T) {
 			gossip := pinsIn(files)["gossip"]
 			f.reg.images[ports.ImageRef{Image: "gossip", Tag: "main-150-abcdef123456"}] = ports.ImageInfo{Digest: gossip.Digest, Platforms: intelOnly, Revision: target}
 			f.gh.attested[gossip.Digest] = true
+
+			_, err := f.runStage(t, deploy.StageDigests)
+			got := bumpResult{Code: outcome(t, err), Images: slices.Sorted(maps.Keys(f.sink.View().Outputs.Digests))}
+			assert.Equal(t, bumpResult{Code: tc.code, Images: tc.want}, got)
+		})
+	}
+}
+
+func TestDigestsBumpRefusesAnOlderBuildThanThePin(t *testing.T) {
+	const older, newer, newest = "aaaaaaaaaaaa", "bbbbbbbbbbbb", "cccccccccccc"
+	cases := []struct {
+		name   string
+		target deploy.SHA
+		want   []deploy.ImageName
+		code   deploy.FailureCode
+	}{
+		{"older than the pin", older, nil, deploy.FailDigestRefused},
+		{"newer than the pin", newest, []deploy.ImageName{"users"}, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			run := newRun(deploy.KindBump)
+			run.TargetSHA, run.Services, run.Outputs.BuildRunID = tc.target, []string{"users"}, 9
+			f := newFixture(t, run)
+			files := loadManifests(t)
+			for p, body := range files {
+				files[p] = []byte(strings.ReplaceAll(string(body), "users:v0.2.2-beta@", "users:main-200-"+newer+"@"))
+			}
+			f.gh.commitMain(older, files)
+			f.gh.commitMain(newer, files)
+			f.gh.commitMain(newest, files)
+			f.gh.steps[9] = []runStep{{jobs: []ports.Job{job(1, "Select images", succeeded), job(2, manifestPrefix+"users", succeeded)}}}
+			tag := deploy.Tag("main-300-" + string(tc.target))
+			f.reg.tags = map[deploy.ImageName][]deploy.Tag{"users": {tag}}
+			f.publish([]deploy.ImageName{"users"}, tag, tc.target)
 
 			_, err := f.runStage(t, deploy.StageDigests)
 			got := bumpResult{Code: outcome(t, err), Images: slices.Sorted(maps.Keys(f.sink.View().Outputs.Digests))}

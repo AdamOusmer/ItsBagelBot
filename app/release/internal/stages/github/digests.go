@@ -44,6 +44,9 @@ func runDigests(ctx context.Context, rc *stage.RunCtx) error {
 	}
 	if run.Kind == deploy.KindBump {
 		pins = changedOnly(ctx, rc, pins, plan.current)
+		if err := refuseDowngrades(ctx, rc, pins, plan); err != nil {
+			return err
+		}
 	}
 	if len(pins) == 0 {
 		return fail(deploy.FailDigestRefused, "nothing to pin: no image built at %s differs from main's pins", short(plan.revision))
@@ -268,6 +271,43 @@ func changedOnly(ctx context.Context, rc *stage.RunCtx, pins, current map[deploy
 		out[img] = pin
 	}
 	return out
+}
+
+var mainTagCommit = regexp.MustCompile(`^main-\d+-([0-9a-f]+)$`)
+
+// A bump to a commit older than a live pin silently reverts merged work; that is a rollback, not a bump.
+func refuseDowngrades(ctx context.Context, rc *stage.RunCtx, pins map[deploy.ImageName]deploy.ImagePin, plan digestPlan) error {
+	var refused []string
+	for _, img := range sortedImages(pins) {
+		older, err := olderThanPin(ctx, rc, plan.current[img], plan.revision)
+		if err != nil {
+			return err
+		}
+		if older {
+			refused = append(refused, fmt.Sprintf("%s: %s is older than the pinned %s", img, short(plan.revision), plan.current[img].Tag))
+		}
+	}
+	if len(refused) == 0 {
+		return nil
+	}
+	f := fail(deploy.FailDigestRefused, "bump would move %d image(s) to an older build; ship a newer commit or run a rollback", len(refused))
+	f.LogTail = refused
+	return f
+}
+
+func olderThanPin(ctx context.Context, rc *stage.RunCtx, pin deploy.ImagePin, target deploy.SHA) (bool, error) {
+	m := mainTagCommit.FindStringSubmatch(string(pin.Tag))
+	if m == nil {
+		return false, nil
+	}
+	cmp, err := rc.Deps.GitHub.Compare(ctx, ports.Ref(m[1]), ports.Ref(target))
+	if errors.Is(err, ports.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return cmp.BehindBy > 0 && cmp.AheadBy == 0, nil
 }
 
 func mainPinLines(ctx context.Context, rc *stage.RunCtx) ([]PinLine, error) {
