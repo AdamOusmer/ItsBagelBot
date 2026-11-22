@@ -6949,6 +6949,8 @@ export type KnownMessageKey =
   | 'timers.fieldEndsAtHint'
   | 'timers.fieldInterval'
   | 'timers.fieldIntervalHint'
+  | 'timers.fieldJitter'
+  | 'timers.fieldJitterHint'
   | 'timers.fieldLiveOnly'
   | 'timers.fieldLiveOnlyHint'
   | 'timers.fieldMaxFires'

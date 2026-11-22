@@ -7,6 +7,7 @@
   import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { DEFAULT_CHAT_LINES, getI18n, type TimerDef } from '@bagel/kit';
+  import { MAX_TIMER_JITTER_SECONDS } from '@bagel/kit/timers';
   import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
   import ResponseEditor from '#lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '#lib/components/commands/ChatPreview.svelte';
@@ -104,6 +105,18 @@
       onblur={() => (touched.interval = true)}
     >
       {#snippet hint()}<span id="timer-int-help">{t('timers.fieldIntervalHint')}</span>{/snippet}
+    </DurationField>
+  </Field>
+
+  <Field label={t('timers.fieldJitter')}>
+    <DurationField
+      bind:value={draft.jitterSeconds}
+      min={0}
+      max={MAX_TIMER_JITTER_SECONDS}
+      label={t('timers.fieldJitter')}
+      describedby="timer-jitter-help"
+    >
+      {#snippet hint()}<span id="timer-jitter-help">{t('timers.fieldJitterHint')}</span>{/snippet}
     </DurationField>
   </Field>
 
