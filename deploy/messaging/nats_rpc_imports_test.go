@@ -137,7 +137,6 @@ var rpcRequests = map[string][]rpcRequest{
 	"outgress_rpc": {
 		{"rpc.internal.tokens.get", "app/twitch/outgress/internal/tokenstore"},
 		{"rpc.internal.tokens.save", "app/twitch/outgress/internal/tokenstore"},
-		{"rpc.ingress.conduit.get", "app/twitch/outgress/internal/config ConduitSubject"},
 		{"rpc.dashboard.state_get", "app/twitch/outgress/internal/config UsersStateSubject"},
 		{"rpc.dashboard.identity_sync", "app/twitch/outgress/internal/config UsersIdentitySubject"},
 		{"rpc.admin.notifications.send", "app/twitch/outgress/internal/config NotifySendSubject"},

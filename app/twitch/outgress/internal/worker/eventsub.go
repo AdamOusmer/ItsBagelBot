@@ -53,14 +53,6 @@ func (w *Worker) processEventSub(ctx context.Context, payload *outgress.Message)
 		return nil
 	}
 
-	conduitID, err := w.conduit.Get(ctx)
-	if err != nil {
-		w.log.Warn("eventsub job cannot resolve conduit id, will retry",
-			zap.String("broadcaster_id", payload.BroadcasterID),
-			zap.Error(err))
-		return err
-	}
-
 	var job outgress.EventSubJob
 	if err := codec.Unmarshal(payload.Payload, &job); err != nil {
 		w.log.Error("dropping malformed eventsub job", zap.Error(err))
@@ -72,7 +64,7 @@ func (w *Worker) processEventSub(ctx context.Context, payload *outgress.Message)
 		return err
 	}
 
-	e := enrollment{broadcasterID: payload.BroadcasterID, conduitID: conduitID, incarnation: payload.AccountCreatedAt, generation: payload.AdmissionGeneration}
+	e := enrollment{broadcasterID: payload.BroadcasterID, conduitID: w.conduitID, incarnation: payload.AccountCreatedAt, generation: payload.AdmissionGeneration}
 	if !w.enrollmentIdentityMatches(ctx, e) {
 		w.log.Warn("dropping eventsub job with stale or missing identity fence",
 			zap.String("broadcaster_id", e.broadcasterID),
@@ -456,7 +448,6 @@ func (w *Worker) createAllEventSubs(ctx context.Context, e enrollment) error {
 			return err
 		}
 		if err := w.twitch.CreateEventSub(ctx, spec, e.conduitID); err != nil {
-			w.conduit.Invalidate()
 			return &createError{subType: spec.Type, err: err}
 		}
 	}
@@ -503,7 +494,6 @@ func (w *Worker) createOptionalEventSubs(ctx context.Context, e enrollment) erro
 					zap.Error(err))
 				continue
 			}
-			w.conduit.Invalidate()
 			return fmt.Errorf("create optional %s: %w", spec.Type, err)
 		}
 	}

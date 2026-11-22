@@ -7,17 +7,14 @@ import (
 	"net/http"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/channels"
-	"ItsBagelBot/app/twitch/outgress/internal/conduit"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/valkeytest"
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func eventSubIdentityWorker(t *testing.T, transport http.RoundTripper) (*Worker, *valkeytest.Server) {
@@ -31,7 +28,7 @@ func eventSubIdentityWorker(t *testing.T, transport http.RoundTripper) (*Worker,
 		c.Registry = registry
 		c.Runtime = &fakeRuntime{servingSnapshot()}
 		c.Owner = "test"
-		c.Conduit = conduit.New(nil, "ingress.conduit", "conduit", time.Minute, zap.NewNop())
+		c.ConduitID = "conduit"
 	})
 	return w, srv
 }

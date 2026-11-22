@@ -18,6 +18,7 @@ func TestLoadRateRegion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("TWITCH_CLIENT_ID", "test-client")
 			t.Setenv("TWITCH_CLIENT_SECRET", "test-secret")
+			t.Setenv("TWITCH_CONDUIT_ID", "test-conduit")
 			t.Setenv("OUTGRESS_REGION", tt.region)
 
 			assert.Equal(t, tt.want, Load().RateRegion)

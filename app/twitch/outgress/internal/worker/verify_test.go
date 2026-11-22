@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/channels"
-	"ItsBagelBot/app/twitch/outgress/internal/conduit"
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/lifecycle"
 	"ItsBagelBot/internal/valkeytest"
@@ -20,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	valkey_go "github.com/valkey-io/valkey-go"
-	"go.uber.org/zap"
 )
 
 type verifyTransport struct {
@@ -61,7 +59,7 @@ func verifyWorker(t *testing.T, transport http.RoundTripper, client valkey_go.Cl
 		c.Registry = registry
 		c.Runtime = &fakeRuntime{servingSnapshot()}
 		c.Owner = "test"
-		c.Conduit = conduit.New(nil, "ingress.conduit", "conduit", time.Minute, zap.NewNop())
+		c.ConduitID = "conduit"
 	})
 }
 

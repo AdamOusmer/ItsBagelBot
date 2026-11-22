@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/channels"
-	"ItsBagelBot/app/twitch/outgress/internal/conduit"
 	"ItsBagelBot/app/twitch/outgress/internal/config"
 	"ItsBagelBot/app/twitch/outgress/internal/tokenstore"
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
@@ -49,7 +48,6 @@ const (
 	systemMaxRedeliveries = 6
 
 	twitchWarmupTimeout = 8 * time.Second
-	conduitCacheTTL     = 60 * time.Second
 )
 
 type deps struct {
@@ -281,7 +279,7 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 		Twitch:      tw,
 		BotID:       d.cfg.TwitchBotUserID,
 		Owner:       d.host,
-		Conduit:     conduit.New(d.nc, d.cfg.ConduitSubject, d.cfg.TwitchConduitID, conduitCacheTTL, d.log.Named("conduit")),
+		ConduitID:   d.cfg.TwitchConduitID,
 		Batch:       batch,
 		UserIDs:     worker.NewUserIDCache(d.invalidations),
 
