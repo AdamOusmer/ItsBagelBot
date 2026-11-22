@@ -163,17 +163,17 @@ func (b *builder) readWidgetFolder() (widgetSource, bool, error) {
 		into *string
 	}{{"widget.html", &src.HTML}, {"widget.css", &src.CSS}, {"widget.js", &src.JS}}
 	for _, target := range targets {
-		text, oversize, err := b.text(dir, target.file)
+		text, oversize, err := b.text(fileRef{dir: dir, name: target.file})
 		if err != nil {
 			return src, false, err
 		}
 		*target.into = text
 		src.Oversize = src.Oversize || oversize
 	}
-	if err := b.jsonFile(dir, "fields.json", &src.Fields); err != nil {
+	if err := b.jsonFile(fileRef{dir: dir, name: "fields.json"}, &src.Fields); err != nil {
 		return src, false, err
 	}
-	return src, true, b.jsonFile(dir, "data.json", &src.Data)
+	return src, true, b.jsonFile(fileRef{dir: dir, name: "data.json"}, &src.Data)
 }
 
 func sourceName(dir string) string {
@@ -183,8 +183,13 @@ func sourceName(dir string) string {
 	return truncate(path.Base(dir), maxName)
 }
 
-func (b *builder) text(dir, name string) (string, bool, error) {
-	e, ok := b.take(dir, name)
+type fileRef struct {
+	dir  string
+	name string
+}
+
+func (b *builder) text(ref fileRef) (string, bool, error) {
+	e, ok := b.take(ref.dir, ref.name)
 	if !ok {
 		return "", false, nil
 	}
@@ -192,8 +197,8 @@ func (b *builder) text(dir, name string) (string, bool, error) {
 	return string(data), !within, err
 }
 
-func (b *builder) jsonFile(dir, name string, into any) error {
-	e, ok := b.take(dir, name)
+func (b *builder) jsonFile(ref fileRef, into any) error {
+	e, ok := b.take(ref.dir, ref.name)
 	if !ok {
 		return nil
 	}
@@ -209,11 +214,15 @@ func (b *builder) jsonFile(dir, name string, into any) error {
 
 func (b *builder) customSettings(src widgetSource) (map[string]any, bool, error) {
 	name := Subject(src.Name)
+	if len(b.widgets) >= overlays.MaxWidgets {
+		b.report.unsupported(name, ReasonTooManyWidgets)
+		return nil, false, nil
+	}
 	if reason := src.refusal(); reason != "" {
 		b.report.unsupported(name, reason)
 		return nil, false, nil
 	}
-	b.scanCode(name, src.code())
+	b.scanCode(name, src)
 	fields, values := b.resolveFields(src)
 	data, err := encodeBundle(Bundle{HTML: src.HTML, CSS: src.CSS, JS: src.JS, Fields: fields})
 	if err != nil {
@@ -239,7 +248,8 @@ func encodeBundle(bundle Bundle) ([]byte, error) {
 	return buf.Bytes(), err
 }
 
-func (b *builder) scanCode(name Subject, code string) {
+func (b *builder) scanCode(name Subject, src widgetSource) {
+	code := src.code()
 	for _, check := range codeChecks {
 		if check.pattern.MatchString(code) {
 			b.report.unsupported(name, check.reason)

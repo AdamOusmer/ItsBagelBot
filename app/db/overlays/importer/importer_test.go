@@ -303,6 +303,10 @@ func TestImportedWidgetDocumentValidates(t *testing.T) {
 	}
 }
 
+func describes(f importer.File, data []byte) bool {
+	return int64(len(data)) == f.Size && sumOf(data) == f.SHA256
+}
+
 func TestImportedFilesOpenWhatTheyDescribe(t *testing.T) {
 	plan, err := run(t, widgetMembers())
 	if err != nil {
@@ -315,7 +319,7 @@ func TestImportedFilesOpenWhatTheyDescribe(t *testing.T) {
 		}
 		data, err := io.ReadAll(rc)
 		rc.Close()
-		if err != nil || int64(len(data)) != f.Size || sumOf(data) != f.SHA256 {
+		if err != nil || !describes(f, data) {
 			t.Fatalf("%s: err %v, size %d/%d", f.Path, err, len(data), f.Size)
 		}
 	}

@@ -60,7 +60,8 @@ func (b *builder) readManifest(root entry) (manifest, error) {
 		return manifest{}, err
 	}
 	var man manifest
-	if !within || !decodeStrict(data, &man) || !man.valid() {
+	decoded := within && decodeStrict(data, &man)
+	if !decoded || !man.valid() {
 		return manifest{}, &Error{Code: CodeInvalidManifest, Path: root.Path}
 	}
 	return man, nil
