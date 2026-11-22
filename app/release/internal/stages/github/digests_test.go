@@ -166,6 +166,27 @@ func TestDigestsBumpRefusesAnOlderBuildThanThePin(t *testing.T) {
 	}
 }
 
+func TestDigestsBumpShipsTheNewestBuildOfAnUnbuiltService(t *testing.T) {
+	const older, newer, target = "aaaaaaaaaaaa", "bbbbbbbbbbbb", "cccccccccccc"
+	run := newRun(deploy.KindBump)
+	run.TargetSHA, run.Services, run.Outputs.BuildRunID = target, []string{"users"}, 9
+	f := newFixture(t, run)
+	files := loadManifests(t)
+	for p, body := range files {
+		files[p] = []byte(strings.ReplaceAll(string(body), "users:v0.2.2-beta@", "users:main-100-"+older+"@"))
+	}
+	for _, sha := range []deploy.SHA{older, newer, target} {
+		f.gh.commitMain(sha, files)
+	}
+	f.gh.steps[9] = []runStep{{jobs: []ports.Job{job(1, "Select images", succeeded)}}}
+	f.reg.tags = map[deploy.ImageName][]deploy.Tag{"users": {"main-100-" + older, "main-200-" + newer, "main-900-dddddddddddd"}}
+	pins := f.publish([]deploy.ImageName{"users"}, "main-200-"+newer, newer+"0000")
+
+	_, err := f.runStage(t, deploy.StageDigests)
+	require.NoError(t, err)
+	assert.Equal(t, pins, f.sink.View().Outputs.Digests)
+}
+
 type bumpResult struct {
 	Code   deploy.FailureCode
 	Images []deploy.ImageName
