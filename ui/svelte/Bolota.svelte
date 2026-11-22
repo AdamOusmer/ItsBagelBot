@@ -105,7 +105,9 @@
   let running = false;
   let timer: ReturnType<typeof setInterval> | null = null;
   let step = 0;
-  let visible = $state(true);
+  let seen = $state(false);
+  const visible = $derived(!gate || seen);
+  const watching = $derived(!visible && !!el);
 
   let enginePromise: Promise<typeof import('@luzir/bolota/engine')> | null = null;
   const loadEngine = () =>
@@ -182,13 +184,18 @@
   }
 
   $effect(() => {
-    if (!gate || !el || typeof IntersectionObserver !== 'function') return;
-    const io = new IntersectionObserver((entries) => (visible = entries[0].isIntersecting));
-    io.observe(el);
-    return () => {
+    if (!watching) return;
+    if (typeof IntersectionObserver !== 'function') {
+      seen = true;
+      return;
+    }
+    const io = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      seen = true;
       io.disconnect();
-      visible = true;
-    };
+    });
+    io.observe(el!);
+    return () => io.disconnect();
   });
 
   $effect(() => {

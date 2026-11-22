@@ -5,7 +5,7 @@
     "": {
       "name": "itsbagelbot-desktop",
       "dependencies": {
-        "@luzir/bolota": "0.2.8",
+        "@luzir/bolota": "0.3.0",
         "@wailsio/runtime": "3.1.0",
       },
       "devDependencies": {
@@ -29,7 +29,7 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@luzir/bolota": ["@luzir/bolota@0.2.8", "", {}, "sha512-GB/Fpk02+tStBvaDTSkeijvPwfNZeoPq6j6HRHcXNxA7xO70CORigykV9cE9JkUW/xU+7aLsVF7qRXOV9ak2aQ=="],
+    "@luzir/bolota": ["@luzir/bolota@0.3.0", "", {}, "sha512-Jx8Q+6mLJD1Vxq1x+TAN4OyC/lC8dtRcZHezp0R/DmIwGE8PTdgcaF7mZyoueJPYXgjoX/RStkRb6Izg8nieJA=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.156.0", "", {}, "sha512-1Duyg48TdJNdyhEB8Xn1L36bT9Pv6GUtlKjHxOys8xkaF/rQq3XJE+bAurSK/AgIz5mGFsb77cn9Pb20+WCScw=="],
 
