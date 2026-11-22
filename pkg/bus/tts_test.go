@@ -15,12 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTTSBuildersStreamConfig(t *testing.T) {
+func TestOverlayBuildersStreamConfig(t *testing.T) {
 	ctx := t.Context()
 	nc := bustest.JetStream(t)
-	_, err := bus.OpenTTSJobs(ctx, nc, 1)
-	require.NoError(t, err)
-	_, err = bus.OpenOverlays(ctx, nc, 1)
+	_, err := bus.OpenOverlays(ctx, nc, 1)
 	require.NoError(t, err)
 
 	js, err := jsapi.New(nc)
@@ -32,7 +30,6 @@ func TestTTSBuildersStreamConfig(t *testing.T) {
 		maxAge    time.Duration
 		storage   jsapi.StorageType
 	}{
-		{"TTS_JOBS", []string{"tts.jobs.*"}, jsapi.WorkQueuePolicy, 10 * time.Minute, jsapi.FileStorage},
 		{"OBJ_OVERLAYS_MEDIA", []string{"$O.OVERLAYS_MEDIA.C.>", "$O.OVERLAYS_MEDIA.M.>"}, jsapi.LimitsPolicy, 5 * time.Minute, jsapi.FileStorage},
 		{"OVERLAYS_PREMIUM", []string{"overlays.premium.>"}, jsapi.WorkQueuePolicy, 5 * time.Minute, jsapi.MemoryStorage},
 		{"OVERLAYS_STANDARD", []string{"overlays.standard.>"}, jsapi.WorkQueuePolicy, 5 * time.Minute, jsapi.MemoryStorage},
@@ -45,18 +42,27 @@ func TestTTSBuildersStreamConfig(t *testing.T) {
 			assert.Equal(t, want.storage, cfg.Storage)
 			assert.Equal(t, want.retention, cfg.Retention)
 			assert.Equal(t, want.maxAge, cfg.MaxAge)
-
 			assert.ElementsMatch(t, want.subjects, cfg.Subjects)
 		})
 	}
+}
 
-	consumer, err := js.Consumer(ctx, "TTS_JOBS", "tts-worker")
+func TestBindOverlaysFailsUntilProvisionedThenSharesTheLanes(t *testing.T) {
+	ctx := t.Context()
+	nc := bustest.JetStream(t)
+	_, err := bus.BindOverlays(ctx, nc)
+	require.Error(t, err)
+
+	provisioned, err := bus.OpenOverlays(ctx, nc, 1)
 	require.NoError(t, err)
-	cfg := consumer.CachedInfo().Config
-	assert.Equal(t, jsapi.AckExplicitPolicy, cfg.AckPolicy)
-	assert.Equal(t, 3, cfg.MaxDeliver)
+	bound, err := bus.BindOverlays(ctx, nc)
+	require.NoError(t, err)
 
-	assert.Empty(t, cfg.DeliverSubject)
-	assert.False(t, cfg.MemoryStorage)
-	assert.Equal(t, 3, bus.TTSReplicas)
+	key := "42/bound"
+	_, err = bound.PutClip(ctx, bus.OverlayClipData{OverlayClip: bus.OverlayClip{Key: key}, WAV: []byte("wav")})
+	require.NoError(t, err)
+	got, err := provisioned.GetClip(ctx, bus.OverlayClip{Key: key})
+	require.NoError(t, err)
+	assert.Equal(t, key, got.Key)
+	require.NoError(t, bound.Publish(ctx, bus.OverlayMessage{Tier: bus.OverlayPremium, Kind: bus.OverlayKindTTS, UserID: "42", EventID: "bound", Value: 1}))
 }

@@ -106,12 +106,29 @@ func OpenOverlays(ctx context.Context, nc *nats.Conn, replicas int) (*Overlays, 
 	return &Overlays{js: js, bucket: bucket}, nil
 }
 
+func BindOverlays(ctx context.Context, nc *nats.Conn) (*Overlays, error) {
+	js, err := jsapi.NewWithDomain(nc, JSDomain())
+	if err != nil {
+		return nil, err
+	}
+	for _, lane := range overlayLanes {
+		if _, err := js.Stream(ctx, lane.stream); err != nil {
+			return nil, err
+		}
+	}
+	bucket, err := js.ObjectStore(ctx, OverlaysMediaBucket)
+	if err != nil {
+		return nil, err
+	}
+	return &Overlays{js: js, bucket: bucket}, nil
+}
+
 func provisionOverlayLane(ctx context.Context, js jsapi.JetStream, lane overlayLane, replicas int) error {
 	spec := StreamSpec{
 		Name: lane.stream, Subjects: []string{overlaysSubjectRoot + string(lane.tier) + ".>"}, Storage: nats.MemoryStorage,
 		Retention: nats.WorkQueuePolicy, Replicas: replicas, MaxAge: OverlayClipTTL, Duplicates: OverlayClipTTL,
 	}
-	stream, err := createOrGetTTSStream(ctx, js, spec)
+	stream, err := createOrGetStream(ctx, js, spec)
 	if err != nil {
 		return err
 	}
@@ -127,10 +144,11 @@ func (o *Overlays) Publish(ctx context.Context, msg OverlayMessage) error {
 	if !ok {
 		return fmt.Errorf("bus: unknown overlay tier %q", msg.Tier)
 	}
-	prefix := overlaysSubjectRoot + string(msg.Tier) + "." + string(msg.Kind) + "."
-	return publishTTS(ctx, o.js, ttsPublication{
-		stream: lane.stream, prefix: prefix,
-		msg: TTSMessage{BroadcasterID: msg.UserID, EventID: msg.EventID, Value: msg.Value},
+	return publishQueued(ctx, o.js, queuedMessage{
+		stream:  lane.stream,
+		subject: overlaysSubjectRoot + string(msg.Tier) + "." + string(msg.Kind) + "." + msg.UserID,
+		eventID: msg.EventID,
+		value:   msg.Value,
 	})
 }
 

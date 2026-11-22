@@ -128,27 +128,24 @@ in the projection, even where the surface itself is free (`engine.SpeechQueue`):
 These jobs use the kinds `chat`, `reward` and `recipe`, keyed by SHA-256 over the
 kind, the originating trace ID and the event, message or recipe step identity.
 
-Sesame deduplicates speech handlers by event identity. The `TTS_JOBS` work queue
-deduplicates by the originating trace ID, which survives redelivery in the headers.
+Sesame deduplicates speech handlers by event identity. Sesame runs the checks
+(overlay settings, Users allowance), trims the text to the allowance, resolves the
+voice and publishes the job to `gossip.jobs.tts.<user_id>` on the `GOSSIP_JOBS`
+work queue, which deduplicates by event ID. Gossip pulls the job, synthesizes,
+stores the clip, records usage and publishes the overlay event. Sesame has no
+worker and never calls `tts.synthesize`.
 Without an originating trace, the job ID uses the first 32 hex characters of
 SHA-256 over the event ID or, when absent, the notification message ID.
-The `tts-worker` durable continues the distributed trace and allows three deliveries.
-Every job transaction is sampled, even when the alert that queued it was not, so
-the worker, Gossip and Users spans always reach New Relic. Each job logs
-`voice job delivered` or `voice job dropped` with `trace.id`, and the final failed
-delivery logs `TTS job abandoned after final delivery` at error level.
-`SESAME_TTS_WORKERS` controls parallel jobs per pod and defaults to four.
-Workers send progress acknowledgements, recheck Users allowance, and trim by
-the clip and remaining-token budgets before calling Gossip. Rejected requests
-are acknowledged, rate limits use the returned retry delay when given, and
-unavailable replies retry after two seconds. The clip's
-object metadata preserves duration and usage across delivery retries.
+Gossip logs `voice job delivered` or `voice job dropped` with `trace.id`, rate
+limits use the returned retry delay when given, and unavailable replies retry
+after two seconds. The clip's object metadata preserves duration and usage
+across delivery retries.
 Users records usage by job ID. The overlay stream deduplicates the
 playback event by the same ID. Clips and playback events expire after five
 minutes in the gateway's NATS account. Sesame has a separate writer role
 in that account.
 
-`SESAME_TTS_ENABLED` starts background provisioning of the job queue and overlay
+`SESAME_TTS_ENABLED` starts background provisioning of the gossip job queue and overlay
 storage. Failed attempts log a warning and retry with jittered exponential
 backoff capped at 30 seconds. Replicas can provision concurrently and reuse
 existing streams and clip storage. Chat processing continues during retries.

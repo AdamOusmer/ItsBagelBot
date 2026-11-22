@@ -4,6 +4,7 @@
 package messaging
 
 import (
+	"context"
 	"encoding/base64"
 	"go/ast"
 	"go/parser"
@@ -24,6 +25,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 const controlsGatewayAccount = "CONTROLS_GATEWAY_RPC"
@@ -37,6 +39,7 @@ type ttsGrant struct {
 func TestTTSGrantIsolation(t *testing.T) {
 	catalog := loadRPCCatalog(t)
 	worker := []string{"WORKER_RPC"}
+	recorder := []string{"WORKER_RPC", "GOSSIP_RPC"}
 	gateway := []string{controlsGatewayAccount}
 	projector := []string{"PROJECTOR_RPC"}
 	quota := []string{"WORKER_RPC", "OVERLAYS_RPC"}
@@ -50,8 +53,8 @@ func TestTTSGrantIsolation(t *testing.T) {
 		{"rpc.internal.projector.overlays.tts.settings.node.n1", "projector_rpc", worker},
 		{"rpc.internal.users.voice.check", "users_rpc", quota},
 		{"rpc.internal.users.voice.check.node.n1", "users_rpc", quota},
-		{"rpc.internal.users.voice.record", "users_rpc", worker},
-		{"rpc.internal.users.voice.record.node.n1", "users_rpc", worker},
+		{"rpc.internal.users.voice.record", "users_rpc", recorder},
+		{"rpc.internal.users.voice.record.node.n1", "users_rpc", recorder},
 		{"rpc.internal.overlays.tts.by_user", "overlays_rpc", projector},
 		{"rpc.internal.overlays.tts.by_user.node.n1", "overlays_rpc", projector},
 		{"rpc.internal.overlays.tts.by_hash", "overlays_rpc", projector},
@@ -157,6 +160,13 @@ func TestTTSWriterPermissionsAreExact(t *testing.T) {
 			"$JS.API.STREAM.UPDATE.OBJ_OVERLAYS_MEDIA",
 			"$JS.API.STREAM.PURGE.OBJ_OVERLAYS_MEDIA",
 			"$JS.API.DIRECT.GET.OBJ_OVERLAYS_MEDIA.$O.OVERLAYS_MEDIA.M.*",
+			"gossip.jobs.tts.*",
+			"$JS.API.STREAM.INFO.GOSSIP_JOBS",
+			"$JS.API.STREAM.CREATE.GOSSIP_JOBS",
+			"$JS.API.STREAM.UPDATE.GOSSIP_JOBS",
+			"$JS.API.CONSUMER.INFO.GOSSIP_JOBS.gossip-jobs",
+			"$JS.API.CONSUMER.CREATE.GOSSIP_JOBS.gossip-jobs",
+			"$JS.API.CONSUMER.DURABLE.CREATE.GOSSIP_JOBS.gossip-jobs",
 		}},
 		Subscribe: &natsacl.PermissionSpec{Allow: []string{"_INBOX.>"}},
 	}, role)
@@ -165,12 +175,65 @@ func TestTTSWriterPermissionsAreExact(t *testing.T) {
 	}
 }
 
+func TestGossipJobsPermissionsAreExact(t *testing.T) {
+	role := committedACL(t).Accounts[controlsGatewayAccount].Roles["gossip_jobs_bus"]
+	assert.Equal(t, natsacl.RoleSpec{
+		Publish: &natsacl.PermissionSpec{Allow: []string{
+			"$JS.API.CONSUMER.INFO.GOSSIP_JOBS.gossip-jobs",
+			"$JS.API.CONSUMER.MSG.NEXT.GOSSIP_JOBS.gossip-jobs",
+			"$JS.ACK.GOSSIP_JOBS.gossip-jobs.>",
+			"$JS.ACK.*.*.GOSSIP_JOBS.gossip-jobs.>",
+			"$JS.API.STREAM.INFO.GOSSIP_JOBS",
+			"overlays.premium.>",
+			"$JS.API.STREAM.INFO.OVERLAYS_PREMIUM",
+			"$JS.API.STREAM.INFO.OVERLAYS_STANDARD",
+			"$O.OVERLAYS_MEDIA.C.*",
+			"$O.OVERLAYS_MEDIA.M.*",
+			"$JS.API.STREAM.INFO.OBJ_OVERLAYS_MEDIA",
+			"$JS.API.STREAM.MSG.GET.OBJ_OVERLAYS_MEDIA",
+			"$JS.API.DIRECT.GET.OBJ_OVERLAYS_MEDIA.$O.OVERLAYS_MEDIA.M.*",
+		}},
+		Subscribe: &natsacl.PermissionSpec{Allow: []string{"_INBOX.>"}},
+	}, role)
+}
+
+func TestGossipJobsFlowAcrossRoles(t *testing.T) {
+	t.Setenv("NATS_JS_DOMAIN", "hub")
+	s := startLiveACLServer(t, committedACL(t), true)
+	writer := s.connectRole(t, roleEndpoint{controlsGatewayAccount, "worker_tts_bus"})
+	_, err := bus.OpenOverlays(t.Context(), writer, 1)
+	require.NoError(t, err)
+	queue, err := bus.OpenGossipJobs(t.Context(), writer, 1)
+	require.NoError(t, err)
+	require.NoError(t, queue.Publish(t.Context(), bus.GossipJob{Kind: bus.GossipJobTTS, UserID: "42", EventID: "alert", Value: map[string]string{"text": "hi"}}))
+
+	puller := s.connectRole(t, roleEndpoint{controlsGatewayAccount, "gossip_jobs_bus"})
+	jobs, err := bus.BindGossipJobs(t.Context(), puller)
+	require.NoError(t, err)
+	overlay, err := bus.BindOverlays(t.Context(), puller)
+	require.NoError(t, err)
+	handled := make(chan bus.GossipJobMessage, 1)
+	stop, err := jobs.Consume(t.Context(), func(ctx context.Context, msg bus.GossipJobMessage) error {
+		_, err := overlay.PutClip(ctx, bus.OverlayClipData{OverlayClip: bus.OverlayClip{Key: msg.UserID + "/alert"}, WAV: []byte("wav")})
+		if err != nil {
+			return err
+		}
+		err = overlay.Publish(ctx, bus.OverlayMessage{Tier: bus.OverlayPremium, Kind: bus.OverlayKindTTS, UserID: msg.UserID, EventID: "alert", Value: map[string]string{"clip_key": msg.UserID + "/alert"}})
+		handled <- msg
+		return err
+	}, zap.NewNop())
+	require.NoError(t, err)
+	t.Cleanup(stop)
+
+	msg := <-handled
+	assert.Equal(t, bus.GossipJobTTS, msg.Kind)
+	gateway := s.connectRole(t, roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"})
+	assertOverlayEventAckedByGateway(t, gateway)
+}
+
 func TestTTSWorkerAndGatewayShareTheOutputAccount(t *testing.T) {
 	t.Setenv("NATS_JS_DOMAIN", "hub")
 	s := startLiveACLServer(t, committedACL(t), true)
-	jobs := s.connectRole(t, roleEndpoint{"BUS", "worker_bus"})
-	_, err := bus.OpenTTSJobs(t.Context(), jobs, 1)
-	require.NoError(t, err)
 
 	writer := s.connectRole(t, roleEndpoint{controlsGatewayAccount, "worker_tts_bus"})
 	overlay, err := bus.OpenOverlays(t.Context(), writer, 1)

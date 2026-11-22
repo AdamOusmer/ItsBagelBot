@@ -570,6 +570,32 @@ accounts:
                         - $JS.API.STREAM.UPDATE.OBJ_OVERLAYS_MEDIA
                         - $JS.API.STREAM.PURGE.OBJ_OVERLAYS_MEDIA
                         - $JS.API.DIRECT.GET.OBJ_OVERLAYS_MEDIA.$O.OVERLAYS_MEDIA.M.*
+                        - gossip.jobs.tts.*
+                        - $JS.API.STREAM.INFO.GOSSIP_JOBS
+                        - $JS.API.STREAM.CREATE.GOSSIP_JOBS
+                        - $JS.API.STREAM.UPDATE.GOSSIP_JOBS
+                        - $JS.API.CONSUMER.INFO.GOSSIP_JOBS.gossip-jobs
+                        - $JS.API.CONSUMER.CREATE.GOSSIP_JOBS.gossip-jobs
+                        - $JS.API.CONSUMER.DURABLE.CREATE.GOSSIP_JOBS.gossip-jobs
+                subscribe:
+                    allow:
+                        - _INBOX.>
+            gossip_jobs_bus:
+                publish:
+                    allow:
+                        - $JS.API.CONSUMER.INFO.GOSSIP_JOBS.gossip-jobs
+                        - $JS.API.CONSUMER.MSG.NEXT.GOSSIP_JOBS.gossip-jobs
+                        - $JS.ACK.GOSSIP_JOBS.gossip-jobs.>
+                        - $JS.ACK.*.*.GOSSIP_JOBS.gossip-jobs.>
+                        - $JS.API.STREAM.INFO.GOSSIP_JOBS
+                        - overlays.premium.>
+                        - $JS.API.STREAM.INFO.OVERLAYS_PREMIUM
+                        - $JS.API.STREAM.INFO.OVERLAYS_STANDARD
+                        - $O.OVERLAYS_MEDIA.C.*
+                        - $O.OVERLAYS_MEDIA.M.*
+                        - $JS.API.STREAM.INFO.OBJ_OVERLAYS_MEDIA
+                        - $JS.API.STREAM.MSG.GET.OBJ_OVERLAYS_MEDIA
+                        - $JS.API.DIRECT.GET.OBJ_OVERLAYS_MEDIA.$O.OVERLAYS_MEDIA.M.*
                 subscribe:
                     allow:
                         - _INBOX.>
@@ -717,6 +743,10 @@ accounts:
               from: PROJECTOR_RPC
             - stream: cache.invalidate.user-projection
               from: PROJECTOR_RPC
+            - service: rpc.internal.users.voice.record
+              from: USERS_RPC
+            - service: rpc.internal.users.voice.record.node.*
+              from: USERS_RPC
         roles:
             gossip_rpc: {}
     LOYALTY_RPC:
@@ -1008,9 +1038,9 @@ accounts:
             - service: rpc.internal.users.voice.check.node.*
               accounts: [WORKER_RPC, OVERLAYS_RPC]
             - service: rpc.internal.users.voice.record
-              accounts: [WORKER_RPC]
+              accounts: [WORKER_RPC, GOSSIP_RPC]
             - service: rpc.internal.users.voice.record.node.*
-              accounts: [WORKER_RPC]
+              accounts: [WORKER_RPC, GOSSIP_RPC]
             - service: rpc.internal.users.analytics.levels
             - service: rpc.internal.users.analytics.levels.node.*
             - service: rpc.internal.users.lifecycle
