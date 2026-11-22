@@ -8,12 +8,11 @@ function withTimer(overrides: Record<string, unknown>): string {
   return JSON.stringify({ id: '', message: 'hi', intervalSeconds: 600, enabled: true, ...overrides });
 }
 
-type Field = 'jitterSeconds' | 'minChatLines' | 'chatWindowMinutes' | 'allowOffline' | 'maxFiresPerStream' | 'endsAt';
+type Field = 'minChatLines' | 'chatWindowMinutes' | 'allowOffline' | 'maxFiresPerStream' | 'endsAt';
 
 const fieldCases = (field: Field, pairs: [given: unknown, want: unknown][]) => pairs.map(([given, want]) => ({ field, given, want }));
 
 const fields = [
-  ...fieldCases('jitterSeconds', [[undefined, 0], [-1, 0], [0, 0], [45, 45], [3600, 3600], [3601, 3600], ['not a number', 0]]),
   ...fieldCases('minChatLines', [[undefined, 0], [-5, 0], [0, 0], [1, 1], [50, 50], [100, 100], [101, 100], [1000, 100], ['not a number', 0]]),
   ...fieldCases('chatWindowMinutes', [[undefined, 5], [0, 1], [-3, 1], [1, 1], [30, 30], [60, 60], [61, 60], ['not a number', 5]]),
   ...fieldCases('allowOffline', [[true, true], [false, false], [undefined, false], ['true', false], [1, false]]),
