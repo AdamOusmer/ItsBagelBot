@@ -53,18 +53,24 @@ func (r *Overlays) CreateCustom(ctx context.Context, userID uint64, doc overlays
 	return created, token, r.announceOverlay(ctx, data.OverlayChangedDTO{Overlay: created})
 }
 
-func (r *Overlays) SaveCustom(ctx context.Context, userID, id, revision uint64, raw json.RawMessage) (overlaysrpc.Overlay, error) {
-	current, err := r.GetOverlay(ctx, userID, id)
+type CustomSave struct {
+	ID       uint64
+	Revision uint64
+	Document json.RawMessage
+}
+
+func (r *Overlays) SaveCustom(ctx context.Context, userID uint64, save CustomSave) (overlaysrpc.Overlay, error) {
+	current, err := r.GetOverlay(ctx, userID, save.ID)
 	if err != nil {
 		return current, err
 	}
 	if current.Kind != string(overlays.KindCustom) {
 		return current, ErrNotCustom
 	}
-	if current.Revision != revision {
+	if current.Revision != save.Revision {
 		return current, ErrRevisionConflict
 	}
-	doc, err := overlays.Parse(raw)
+	doc, err := overlays.Parse(save.Document)
 	if err != nil {
 		return current, fmt.Errorf("%w: %w", ErrInvalidDocument, err)
 	}

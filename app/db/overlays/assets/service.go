@@ -54,32 +54,57 @@ func (s *Service) now() time.Time {
 	return s.Now()
 }
 
+type beginPlan struct {
+	ticket  Ticket
+	largest int64
+	premium bool
+	quota   bool
+}
+
 func (s *Service) BeginAsset(ctx context.Context, userID uint64, req overlaysrpc.AssetBeginRequest) (overlaysrpc.UploadTicket, error) {
-	if req.DeclaredSize <= 0 || req.DeclaredSize > largestAsset() {
-		return overlaysrpc.UploadTicket{}, ErrInvalidSize
-	}
-	if err := s.RequirePremium(ctx, userID); err != nil {
-		return overlaysrpc.UploadTicket{}, err
-	}
-	if err := s.admit(ctx, userID, req.DeclaredSize); err != nil {
-		return overlaysrpc.UploadTicket{}, err
-	}
-	return s.issue(Ticket{UserID: userID, Purpose: PurposeAsset, MaxSize: req.DeclaredSize, Name: cleanName(req.DisplayName, maxDisplayName)})
+	ticket := Ticket{UserID: userID, Purpose: PurposeAsset, MaxSize: req.DeclaredSize, Name: cleanName(req.DisplayName, maxDisplayName)}
+	return s.begin(ctx, beginPlan{ticket: ticket, largest: largestAsset(), premium: true, quota: true})
 }
 
 func (s *Service) BeginImport(ctx context.Context, userID uint64, req overlaysrpc.ImportBeginRequest) (overlaysrpc.UploadTicket, error) {
-	if req.DeclaredSize <= 0 || req.DeclaredSize > overlays.ImportMaxUnpackedBytes {
+	ticket := Ticket{UserID: userID, Purpose: PurposeImport, MaxSize: req.DeclaredSize, DryRun: req.DryRun}
+	return s.begin(ctx, beginPlan{ticket: ticket, largest: overlays.ImportMaxUnpackedBytes, premium: !req.DryRun})
+}
+
+func (s *Service) begin(ctx context.Context, plan beginPlan) (overlaysrpc.UploadTicket, error) {
+	t := plan.ticket
+	if t.MaxSize <= 0 || t.MaxSize > plan.largest {
 		return overlaysrpc.UploadTicket{}, ErrInvalidSize
 	}
-	if !req.DryRun {
-		if err := s.RequirePremium(ctx, userID); err != nil {
-			return overlaysrpc.UploadTicket{}, err
-		}
-	}
-	if err := s.allowUpload(ctx, userID); err != nil {
+	if err := s.admitPlan(ctx, plan); err != nil {
 		return overlaysrpc.UploadTicket{}, err
 	}
-	return s.issue(Ticket{UserID: userID, Purpose: PurposeImport, MaxSize: req.DeclaredSize, DryRun: req.DryRun})
+	return s.issue(t)
+}
+
+func (s *Service) admitPlan(ctx context.Context, plan beginPlan) error {
+	t := plan.ticket
+	checks := []struct {
+		on  bool
+		run func() error
+	}{
+		{plan.premium, func() error { return s.RequirePremium(ctx, t.UserID) }},
+		{plan.quota, func() error { return s.fits(ctx, t.UserID, t.MaxSize) }},
+		{true, func() error { return s.allowUpload(ctx, t.UserID) }},
+	}
+	for _, check := range checks {
+		if err := runIf(check.on, check.run); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func runIf(on bool, run func() error) error {
+	if !on {
+		return nil
+	}
+	return run()
 }
 
 func (s *Service) issue(t Ticket) (overlaysrpc.UploadTicket, error) {
@@ -97,13 +122,6 @@ func (s *Service) RequirePremium(ctx context.Context, userID uint64) error {
 		return ErrPremiumRequired
 	}
 	return nil
-}
-
-func (s *Service) admit(ctx context.Context, userID uint64, size int64) error {
-	if err := s.fits(ctx, userID, size); err != nil {
-		return err
-	}
-	return s.allowUpload(ctx, userID)
 }
 
 func (s *Service) fits(ctx context.Context, userID uint64, size int64) error {

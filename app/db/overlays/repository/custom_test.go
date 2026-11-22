@@ -30,11 +30,14 @@ func setupStore(t *testing.T) (*repository.Overlays, *objectstoretest.Memory) {
 	return repository.New(client, bustest.NewPublisher(), objects), objects
 }
 
-func seedAsset(t *testing.T, repo *repository.Overlays, objects objectstore.Store, owner uint64, id repository.AssetID) repository.Asset {
+func owned(owner uint64, id repository.AssetID) repository.Asset {
+	return repository.Asset{ID: id, UserID: owner}
+}
+
+func seedAsset(t *testing.T, repo *repository.Overlays, objects objectstore.Store, seed repository.Asset) repository.Asset {
 	t.Helper()
-	asset, err := repo.StoreAsset(t.Context(), repository.Asset{
-		ID: id, UserID: owner, Type: overlays.AssetPNG, Bytes: 10, W: 2, H: 2, SHA256: strings.Repeat(string(id[:1]), 64),
-	})
+	seed.Type, seed.Bytes, seed.W, seed.H, seed.SHA256 = overlays.AssetPNG, 10, 2, 2, strings.Repeat(string(seed.ID[:1]), 64)
+	asset, err := repo.StoreAsset(t.Context(), seed)
 	require.NoError(t, err)
 	require.NoError(t, objects.Put(t.Context(), objectstore.Object{Key: asset.Key(), Body: strings.NewReader("0123456789"), Size: 10}))
 	return asset
@@ -60,8 +63,8 @@ func customDoc(assetID repository.AssetID) overlays.Document {
 
 func TestCreateCustomChecksAssetOwnership(t *testing.T) {
 	repo, objects := setupStore(t)
-	mine := seedAsset(t, repo, objects, userID, "aaaa")
-	theirs := seedAsset(t, repo, objects, strangerID, "bbbb")
+	mine := seedAsset(t, repo, objects, owned(userID, "aaaa"))
+	theirs := seedAsset(t, repo, objects, owned(strangerID, "bbbb"))
 
 	cases := []struct {
 		name    string
@@ -83,7 +86,7 @@ func TestCreateCustomChecksAssetOwnership(t *testing.T) {
 
 func TestCreateCustomFillsAssetMetadataFromTheStoredRow(t *testing.T) {
 	repo, objects := setupStore(t)
-	mine := seedAsset(t, repo, objects, userID, "aaaa")
+	mine := seedAsset(t, repo, objects, owned(userID, "aaaa"))
 
 	created, token, err := repo.CreateCustom(t.Context(), userID, customDoc(mine.ID))
 	require.NoError(t, err)
@@ -96,7 +99,7 @@ func TestCreateCustomFillsAssetMetadataFromTheStoredRow(t *testing.T) {
 
 func TestSaveCustomKeepsTheRevisionContract(t *testing.T) {
 	repo, objects := setupStore(t)
-	mine := seedAsset(t, repo, objects, userID, "aaaa")
+	mine := seedAsset(t, repo, objects, owned(userID, "aaaa"))
 	created, _, err := repo.CreateCustom(t.Context(), userID, customDoc(mine.ID))
 	require.NoError(t, err)
 	next := customDoc(mine.ID)
@@ -104,8 +107,8 @@ func TestSaveCustomKeepsTheRevisionContract(t *testing.T) {
 	next.Assets["aaaa"] = mine.Meta()
 	raw := mustMarshal(t, next)
 
-	_, stale := repo.SaveCustom(t.Context(), userID, created.ID, created.Revision+3, raw)
-	saved, err := repo.SaveCustom(t.Context(), userID, created.ID, created.Revision, raw)
+	_, stale := repo.SaveCustom(t.Context(), userID, repository.CustomSave{ID: created.ID, Revision: created.Revision + 3, Document: raw})
+	saved, err := repo.SaveCustom(t.Context(), userID, repository.CustomSave{ID: created.ID, Revision: created.Revision, Document: raw})
 
 	require.ErrorIs(t, stale, repository.ErrRevisionConflict)
 	require.NoError(t, err)
@@ -114,7 +117,7 @@ func TestSaveCustomKeepsTheRevisionContract(t *testing.T) {
 
 func TestDeleteAssetRefusesWhileADocumentUsesIt(t *testing.T) {
 	repo, objects := setupStore(t)
-	mine := seedAsset(t, repo, objects, userID, "aaaa")
+	mine := seedAsset(t, repo, objects, owned(userID, "aaaa"))
 	created, _, err := repo.CreateCustom(t.Context(), userID, customDoc(mine.ID))
 	require.NoError(t, err)
 
@@ -129,9 +132,9 @@ func TestDeleteAssetRefusesWhileADocumentUsesIt(t *testing.T) {
 
 func TestDeleteAccountClearsAssetRowsAndThePrefix(t *testing.T) {
 	repo, objects := setupStore(t)
-	seedAsset(t, repo, objects, userID, "aaaa")
-	seedAsset(t, repo, objects, userID, "bbbb")
-	kept := seedAsset(t, repo, objects, strangerID, "cccc")
+	seedAsset(t, repo, objects, owned(userID, "aaaa"))
+	seedAsset(t, repo, objects, owned(userID, "bbbb"))
+	kept := seedAsset(t, repo, objects, owned(strangerID, "cccc"))
 
 	require.NoError(t, repo.DeleteAccount(t.Context(), userID, time.Now().Add(time.Hour)))
 	left, err := repo.ListAssets(t.Context(), userID)

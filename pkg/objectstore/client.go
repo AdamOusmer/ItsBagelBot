@@ -33,7 +33,7 @@ func New(cfg Config) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	if base.Scheme == "" || base.Host == "" || cfg.Bucket == "" {
+	if !hasOrigin(base) || cfg.Bucket == "" {
 		return nil, errors.New("objectstore: endpoint and bucket are required")
 	}
 	if cfg.Region == "" {
@@ -44,6 +44,10 @@ func New(cfg Config) (*Client, error) {
 	}
 	signer := Signer{AccessKeyID: cfg.AccessKeyID, SecretAccessKey: cfg.SecretAccessKey, Region: cfg.Region}
 	return &Client{bucket: cfg.Bucket, base: base, signer: signer, http: cfg.HTTP, now: time.Now}, nil
+}
+
+func hasOrigin(base *url.URL) bool {
+	return base.Scheme != "" && base.Host != ""
 }
 
 // No overall client timeout: uploads of tens of MiB are bounded by the caller's context.
@@ -146,27 +150,32 @@ func conflictError(resp *http.Response) error {
 	return fmt.Errorf("objectstore: %s %s: %d %s", resp.Request.Method, resp.Request.URL.Path, resp.StatusCode, body.Code)
 }
 
-func (c *Client) Get(ctx context.Context, key string) (io.ReadCloser, Info, error) {
-	resp, err := c.send(ctx, operation{method: http.MethodGet, key: key})
+func (c *Client) fetch(ctx context.Context, method, key string) (*http.Response, error) {
+	resp, err := c.send(ctx, operation{method: method, key: key})
 	if err != nil {
-		return nil, Info{}, err
+		return nil, err
 	}
 	if err := check(resp); err != nil {
 		drain(resp)
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *Client) Get(ctx context.Context, key string) (io.ReadCloser, Info, error) {
+	resp, err := c.fetch(ctx, http.MethodGet, key)
+	if err != nil {
 		return nil, Info{}, err
 	}
 	return resp.Body, infoOf(key, resp), nil
 }
 
 func (c *Client) Head(ctx context.Context, key string) (Info, error) {
-	resp, err := c.send(ctx, operation{method: http.MethodHead, key: key})
+	resp, err := c.fetch(ctx, http.MethodHead, key)
 	if err != nil {
 		return Info{}, err
 	}
 	defer drain(resp)
-	if err := check(resp); err != nil {
-		return Info{}, err
-	}
 	return infoOf(key, resp), nil
 }
 

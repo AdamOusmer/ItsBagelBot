@@ -68,13 +68,24 @@ func (s *Service) authorize(r *http.Request, purpose Purpose) (Ticket, error) {
 	return ticket, nil
 }
 
-func (s *Service) receivePart(r *http.Request, t Ticket) (any, error) {
+func (s *Service) partNumber(r *http.Request, t Ticket) (int, error) {
 	number, err := strconv.Atoi(r.URL.Query().Get(overlaysrpc.PartQuery))
-	if err != nil || number < 1 || number > s.parts(t) {
-		return nil, ErrInvalidPart
+	if err != nil {
+		return 0, ErrInvalidPart
+	}
+	if number < 1 || number > s.parts(t) {
+		return 0, ErrInvalidPart
 	}
 	if r.ContentLength <= 0 {
-		return nil, ErrInvalidSize
+		return 0, ErrInvalidSize
+	}
+	return number, nil
+}
+
+func (s *Service) receivePart(r *http.Request, t Ticket) (any, error) {
+	number, err := s.partNumber(r, t)
+	if err != nil {
+		return nil, err
 	}
 	object := objectstore.Object{
 		Key: partKey(r.PathValue("ticket"), number), Body: r.Body,

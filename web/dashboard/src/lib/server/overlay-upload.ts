@@ -30,19 +30,19 @@ function refusal(err: unknown): Response {
   return refuse(err.message, REFUSAL_STATUS[err.code] ?? 503);
 }
 
-function guard(session: Session | null | undefined): Response | null {
+function ownerOrRefusal(session: Session | null | undefined): Session | Response {
   if (!session) return refuse('not_signed_in', 401);
-  return hasOwnerAccess(session) ? null : refuse('owner_only', 403);
+  return hasOwnerAccess(session) ? session : refuse('owner_only', 403);
 }
 
 export async function beginUpload(kind: UploadKind, session: Session | null | undefined, request: Request): Promise<Response> {
-  const refused = guard(session);
-  if (refused || !session) return refused ?? refuse('not_signed_in', 401);
+  const owner = ownerOrRefusal(session);
+  if (owner instanceof Response) return owner;
   const body = (await request.json().catch(() => null)) as BeginBody | null;
   if (!body) return refuse('invalid', 400);
   try {
-    const ticket = await BEGIN[kind](session, body);
-    auditDashboardImpersonation(session, `overlays:${kind}_upload`);
+    const ticket = await BEGIN[kind](owner, body);
+    auditDashboardImpersonation(owner, `overlays:${kind}_upload`);
     return json(ticket, { headers: { 'cache-control': 'no-store' } });
   } catch (err) {
     return refusal(err);
@@ -67,16 +67,30 @@ function partInit(request: Request, size: number): RequestInit {
   } as RequestInit;
 }
 
-export async function relayPart(kind: UploadKind, session: Session | null | undefined, request: Request, url: URL): Promise<Response> {
-  const refused = guard(session);
-  if (refused) return refused;
+type PartRequest = { ticket: string; query: string; size: number };
+
+function lengthOf(request: Request): number {
+  const size = Number(request.headers.get('content-length') ?? 0);
+  return Number.isSafeInteger(size) && size >= 0 ? size : -1;
+}
+
+function parsePart(url: URL, request: Request): PartRequest | Response {
   const ticket = url.searchParams.get('ticket') ?? '';
   const query = partQuery(url);
-  const size = Number(request.headers.get('content-length') ?? 0);
-  if (!TICKET.test(ticket) || !query || !Number.isSafeInteger(size) || size < 0) return refuse('invalid', 400);
-  if (url.searchParams.has('part') && size === 0) return refuse('length_required', 411);
+  const size = lengthOf(request);
+  if (!query || size < 0) return refuse('invalid', 400);
+  if (!TICKET.test(ticket)) return refuse('invalid', 400);
+  if (query.startsWith('part=') && size === 0) return refuse('length_required', 411);
+  return { ticket, query, size };
+}
+
+export async function relayPart(kind: UploadKind, session: Session | null | undefined, request: Request, url: URL): Promise<Response> {
+  const owner = ownerOrRefusal(session);
+  if (owner instanceof Response) return owner;
+  const part = parsePart(url, request);
+  if (part instanceof Response) return part;
   try {
-    const upstream = await fetch(`${env.OVERLAYS_INTERNAL_URL}/${kind}/${ticket}?${query}`, partInit(request, size));
+    const upstream = await fetch(`${env.OVERLAYS_INTERNAL_URL}/${kind}/${part.ticket}?${part.query}`, partInit(request, part.size));
     return new Response(upstream.body, {
       status: upstream.status,
       headers: { 'content-type': 'application/json', 'cache-control': 'no-store' }

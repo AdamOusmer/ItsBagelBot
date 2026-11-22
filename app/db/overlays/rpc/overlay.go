@@ -64,7 +64,7 @@ func (w Wiring) saveCustom(ctx context.Context, req overlaysrpc.OverlaySaveReque
 	if err := w.Assets.RequirePremium(ctx, id); err != nil {
 		return overlaysrpc.Overlay{}, err
 	}
-	return w.Repo.SaveCustom(ctx, id, req.ID, req.Revision, req.Document)
+	return w.Repo.SaveCustom(ctx, id, repository.CustomSave{ID: req.ID, Revision: req.Revision, Document: req.Document})
 }
 
 func (w Wiring) overlayCreateCustom(ctx context.Context, req overlaysrpc.OverlayCreateCustomRequest, id uint64) (overlaysrpc.OverlayView, error) {
