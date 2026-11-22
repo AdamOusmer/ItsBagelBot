@@ -13,7 +13,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/internal/voice"
-	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/bus"
 
@@ -93,35 +92,18 @@ func (w wireCtx) runVoice(publisher *pendingVoice, shutdown <-chan struct{}) err
 		return fmt.Errorf("connect TTS overlay bus: %w", err)
 	}
 	defer overlayConn.Close()
-	jobsConn, err := bus.ConnectTTSJobs(w.cfg.NATSURL)
-	if err != nil {
-		return fmt.Errorf("connect TTS job bus: %w", err)
-	}
-	defer jobsConn.Close()
-
 	ctx, cancel := context.WithTimeout(w.ctx, voiceProvisionTimeout)
 	defer cancel()
-	jobs, err := bus.OpenTTSJobs(ctx, jobsConn, bus.TTSReplicas)
-	if err != nil {
-		return fmt.Errorf("provision TTS job bus: %w", err)
-	}
-	overlay, err := bus.OpenOverlays(ctx, overlayConn, bus.TTSReplicas)
-	cancel()
+	_, err = bus.OpenOverlays(ctx, overlayConn, bus.TTSReplicas)
 	if err != nil {
 		return fmt.Errorf("provision TTS overlay bus: %w", err)
 	}
-
-	worker := voice.Worker{
-		RPC: w.in.nc, Gossip: gossiprpc.Subject(w.cfg.GossipRPCPrefix, "tts", "synthesize"), Overlay: overlay,
-		Log: w.log,
-	}
-	stop, err := jobs.Consume(w.ctx, worker.Process, w.cfg.TTSWorkers, w.log)
+	jobs, err := bus.OpenGossipJobs(ctx, overlayConn, bus.TTSReplicas)
 	if err != nil {
-		return fmt.Errorf("subscribe TTS worker: %w", err)
+		return fmt.Errorf("provision gossip job bus: %w", err)
 	}
-	defer stop()
 
-	publisher.publisher.Store(&voice.Publisher{RPC: w.in.nc, Jobs: jobs})
+	publisher.publisher.Store(&voice.Publisher{RPC: w.in.nc, Jobs: jobs, Log: w.log})
 	w.log.Info("TTS bus ready")
 	<-shutdown
 	return nil

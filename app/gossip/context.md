@@ -55,6 +55,8 @@ text limit come from `internal/domain/voiceplan`. Synthesis shapes text before a
 - Declare `.Trusted()` before constructing clients. Without it, the builder selects WARP. Custom user URLs must keep the guarded WARP route; a dead sidecar fails closed rather than falling back to direct egress.
 - Endpoints run concurrently with themselves. Guard captured mutable state and retain per-subject budgets so slow endpoints cannot block unrelated cache hits.
 - Set caller timeouts for `tts.synthesize` above its 25 s endpoint timeout.
+- Speech jobs: Gossip pulls `GOSSIP_JOBS` (durable `gossip-jobs`, one goroutine per message, no worker pool), synthesizes in-process through `tts.Synthesizer`, stores the clip, records usage and publishes the overlay event (`internal/voice`). Sesame runs the checks and resolves text, voice and style before publishing. Job synthesis allows 150 s; the RPC endpoint keeps 25 s.
+- Credentials `GOSSIP_JOBS_BUS_JWT` and `GOSSIP_JOBS_BUS_NKEY_SEED` (role `gossip_jobs_bus`, account `CONTROLS_GATEWAY_RPC`) bind the `GOSSIP_JOBS` queue, the overlay streams and clip bucket. Gossip never creates them. Usage is recorded over the RPC connection via `rpc.internal.users.voice.record`.
 - Cache absence separately from infrastructure failure. Preserve deadline-based freshness for answers that expire at a real boundary such as a daily shop reset.
 - Never put decrypted fetch keys in projections, caches, or logs. Custom fetches revalidate destinations, bound extraction, and use channel/definition/host budgets.
 - Spotify credentials belong to each broadcaster's registered application and grant; do not introduce a fleet-wide Spotify application assumption.
