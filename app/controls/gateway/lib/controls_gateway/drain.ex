@@ -31,6 +31,7 @@ defmodule ControlsGateway.Drain do
   @spec run() :: :ok
   def run do
     :persistent_term.put(@draining_key, true)
+    ControlsGateway.Overlays.Puller.pause_all()
     close_all_with_jitter()
     await_drained(deadline())
     :ok
