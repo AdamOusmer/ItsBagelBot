@@ -204,7 +204,7 @@ func newAsset(userID uint64, blob Blob) (repository.Asset, error) {
 func (s *Service) View(asset repository.Asset) overlaysrpc.AssetView {
 	return overlaysrpc.AssetView{
 		ID: string(asset.ID), URL: asset.URL(s.PublicURL), Type: string(asset.Type),
-		Bytes: asset.Bytes, W: asset.W, H: asset.H, DurationMS: asset.DurationMS, DisplayName: asset.DisplayName,
+		Bytes: asset.Bytes, W: asset.W, H: asset.H, DurationMS: asset.DurationMS, SHA256: asset.SHA256, DisplayName: asset.DisplayName,
 	}
 }
 
