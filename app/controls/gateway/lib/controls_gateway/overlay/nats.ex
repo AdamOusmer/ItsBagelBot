@@ -38,10 +38,12 @@ defmodule ControlsGateway.Overlay.Nats do
            "overlay_id" => id,
            "generation" => generation,
            "revision" => revision,
-           "allowed" => allowed
+           "allowed" => allowed,
+           "premium" => premium
          } <- reply,
          true <- Session.valid_identity?(id, generation),
-         true <- is_integer(revision) and is_boolean(allowed),
+         true <- is_integer(revision),
+         true <- Enum.all?([allowed, premium], &is_boolean/1),
          {:ok, document} <- document(allowed, reply["document"]) do
       {:ok,
        %{
@@ -50,7 +52,7 @@ defmodule ControlsGateway.Overlay.Nats do
          revision: revision,
          allowed: allowed,
          document: document,
-         premium: reply["premium"] == true
+         premium: premium
        }}
     else
       _ -> {:unavailable, :invalid_reply}

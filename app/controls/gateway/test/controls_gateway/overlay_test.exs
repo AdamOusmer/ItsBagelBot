@@ -24,6 +24,7 @@ defmodule ControlsGateway.OverlayTest do
     revision: 3,
     generation: 5,
     allowed: true,
+    premium: false,
     document: @document
   }
 
@@ -31,7 +32,7 @@ defmodule ControlsGateway.OverlayTest do
     key = Application.get_env(:controls_gateway, :overlay_cookie_key)
     checks = Application.get_env(:controls_gateway, :overlay_check_ms)
     Application.put_env(:controls_gateway, :overlay_cookie_key, :crypto.strong_rand_bytes(32))
-    Application.put_env(:controls_gateway, :overlay_check_ms, 50)
+    Application.put_env(:controls_gateway, :overlay_check_ms, 600_000)
 
     on_exit(fn ->
       Application.put_env(:controls_gateway, :overlay_cookie_key, key)
@@ -137,6 +138,7 @@ defmodule ControlsGateway.OverlayTest do
   test "events open for a valid session and announce revisions", %{http_port: port, agent: agent} do
     live = events(port, [cookie(port)])
     Agent.update(agent, &Map.put(&1, :revision, 4))
+    check_now()
     data = HttpClient.await(live, &String.contains?(&1.body, "event: revision\ndata: 4\n\n"))
     HttpClient.close(data)
   end
@@ -144,6 +146,7 @@ defmodule ControlsGateway.OverlayTest do
   test "events close when the generation changes", %{http_port: port, agent: agent} do
     live = events(port, [cookie(port)])
     Agent.update(agent, &Map.put(&1, :generation, 6))
+    check_now()
     closed = HttpClient.await(live, & &1.done)
     assert closed.done
     HttpClient.close(closed)
@@ -152,6 +155,7 @@ defmodule ControlsGateway.OverlayTest do
   test "events close when the overlay stops being allowed", %{http_port: port, agent: agent} do
     live = events(port, [cookie(port)])
     Agent.update(agent, &Map.merge(&1, %{kind: "custom", allowed: false, document: nil}))
+    check_now()
     closed = HttpClient.await(live, & &1.done)
     assert closed.done
     HttpClient.close(closed)
@@ -161,6 +165,34 @@ defmodule ControlsGateway.OverlayTest do
   test "events end with no content when the overlay is not allowed", %{http_port: port} do
     assert %{status: 204, body: ""} =
              HttpClient.request(port, "GET", "/o/events", headers: [cookie(port)])
+  end
+
+  @tag overlay: %{premium: true}
+  test "the legacy powered config route serves pages already loaded", %{http_port: port} do
+    assert %{status: 200, headers: headers, body: body} = legacy_config(port, @token)
+    assert headers["cache-control"] == "no-store"
+    assert Jason.decode!(body) == %{"config" => @document["config"], "premium" => true}
+  end
+
+  @tag overlay: %{kind: "custom", allowed: false, document: nil}
+  test "the legacy powered config route refuses unknown, custom and failing links", %{
+    http_port: port
+  } do
+    for {token, status} <- [{@unknown, 404}, {@token, 404}, {@broken, 503}] do
+      assert %{status: ^status} = legacy_config(port, token)
+    end
+  end
+
+  defp check_now do
+    pids = Registry.select(ControlsGateway.Connections, [{{:_, :"$1", :_}, [], [:"$1"]}])
+    Enum.each(pids, &send(&1, :check))
+  end
+
+  defp legacy_config(port, token) do
+    HttpClient.request(port, "POST", "/powered/config",
+      headers: [{"content-type", "application/json"}],
+      body: Jason.encode!(%{token: token})
+    )
   end
 
   defp events(port, headers) do
