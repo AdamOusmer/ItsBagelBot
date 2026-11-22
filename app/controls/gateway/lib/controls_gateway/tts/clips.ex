@@ -87,15 +87,22 @@ defmodule ControlsGateway.Tts.Clips do
     size = clip.size - byte_size(chunk.data)
     sha = :crypto.hash_update(clip.sha, chunk.data)
 
-    cond do
-      clip.left == 1 and size == 0 and :crypto.hash_final(sha) == clip.digest ->
-        :cowboy_req.stream_body(chunk.data, :fin, req)
+    case chunk_step(clip.left, size) do
+      :last -> finish_chunk(req, clip, sha, chunk)
+      :more -> stream_next(conn, req, %{clip | size: size, left: clip.left - 1, sha: sha}, chunk)
+      :invalid -> interrupted()
+    end
+  end
 
-      clip.left > 1 and size > 0 ->
-        stream_next(conn, req, %{clip | size: size, left: clip.left - 1, sha: sha}, chunk)
+  defp chunk_step(1, 0), do: :last
+  defp chunk_step(left, size) when left > 1 and size > 0, do: :more
+  defp chunk_step(_left, _size), do: :invalid
 
-      true ->
-        interrupted()
+  defp finish_chunk(req, clip, sha, chunk) do
+    if :crypto.hash_final(sha) == clip.digest do
+      :cowboy_req.stream_body(chunk.data, :fin, req)
+    else
+      interrupted()
     end
   end
 

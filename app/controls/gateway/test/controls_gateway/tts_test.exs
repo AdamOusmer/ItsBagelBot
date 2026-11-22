@@ -229,6 +229,7 @@ defmodule ControlsGateway.TtsTest do
 
     assert %{status: 200, headers: %{"content-type" => "text/event-stream"}, done: false} =
              response
+
     assert_retry_range(response.body, 3_000..8_000)
     response
   end
