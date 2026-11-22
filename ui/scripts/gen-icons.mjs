@@ -65,7 +65,9 @@ const ICONS = {
   branch: 'lucide:git-branch',
   sidebar: 'lucide:panel-left',
   overlay: 'lucide:picture-in-picture-2',
-  logOut: 'lucide:log-out'
+  logOut: 'lucide:log-out',
+  play: 'lucide:play',
+  stop: 'lucide:square'
 };
 
 const STRIP = /\s(?:fill="none"|stroke="currentColor"|stroke-linecap="round"|stroke-linejoin="round"|stroke-width="2")/g;
