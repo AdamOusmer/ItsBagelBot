@@ -11,16 +11,16 @@ import (
 
 var wavFormats = map[uint16]bool{0x0001: true, 0x0003: true, 0xFFFE: true}
 
-func normalizeWAV(data []byte, lim overlays.AssetLimit) (parsed, error) {
-	chunks, err := parseRIFF(data, "WAVE")
+func normalizeWAV(data blob, lim overlays.AssetLimit) (parsed, error) {
+	chunks, err := parseRIFF(data, formWave)
 	if err != nil {
 		return parsed{}, err
 	}
-	format, err := requireChunk(chunks, "fmt ")
+	format, err := chunks.require("fmt ")
 	if err != nil {
 		return parsed{}, err
 	}
-	pcm, err := requireChunk(chunks, "data")
+	pcm, err := chunks.require("data")
 	if err != nil {
 		return parsed{}, err
 	}
@@ -34,9 +34,9 @@ func normalizeWAV(data []byte, lim overlays.AssetLimit) (parsed, error) {
 	if byteRate == 0 {
 		return parsed{}, fail(CodeCorrupt)
 	}
-	ms, err := checkDuration(lim, float64(len(pcm.body))*1000/float64(byteRate))
+	ms, err := millis(float64(len(pcm.body)) * 1000 / float64(byteRate)).check(lim)
 	if err != nil {
 		return parsed{}, err
 	}
-	return parsed{data: writeRIFF("WAVE", []riffChunk{format, pcm}), durationMS: ms}, nil
+	return parsed{data: writeRIFF(formWave, riffChunks{format, pcm}), durationMS: ms}, nil
 }

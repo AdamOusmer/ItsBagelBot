@@ -17,19 +17,21 @@ const (
 	oggHeader  = 27
 )
 
+type granule int64
+
 type oggPage struct {
 	flags   byte
-	granule int64
+	granule granule
 	serial  uint32
-	payload []byte
+	payload blob
 }
 
 type oggStream struct {
 	rate    int64
-	preSkip int64
+	preSkip granule
 }
 
-func normalizeOGG(data []byte, lim overlays.AssetLimit) (parsed, error) {
+func normalizeOGG(data blob, lim overlays.AssetLimit) (parsed, error) {
 	pages, err := parseOgg(data)
 	if err != nil {
 		return parsed{}, err
@@ -41,17 +43,17 @@ func normalizeOGG(data []byte, lim overlays.AssetLimit) (parsed, error) {
 	if err != nil {
 		return parsed{}, err
 	}
-	ms, err := checkDuration(lim, stream.durationMS(pages[len(pages)-1].granule))
+	ms, err := stream.duration(pages[len(pages)-1].granule).check(lim)
 	if err != nil {
 		return parsed{}, err
 	}
 	return parsed{data: data, durationMS: ms}, nil
 }
 
-func parseOgg(data []byte) ([]oggPage, error) {
+func parseOgg(data blob) ([]oggPage, error) {
 	var pages []oggPage
 	for len(data) > 0 {
-		page, rest, err := oggNext(data)
+		page, rest, err := data.oggNext()
 		if err != nil {
 			return nil, err
 		}
@@ -61,28 +63,28 @@ func parseOgg(data []byte) ([]oggPage, error) {
 	return pages, nil
 }
 
-func oggNext(data []byte) (oggPage, []byte, error) {
-	if len(data) < oggHeader || !bytes.HasPrefix(data, []byte("OggS\x00")) {
+func (d blob) oggNext() (oggPage, blob, error) {
+	if len(d) < oggHeader || !bytes.HasPrefix(d, []byte("OggS\x00")) {
 		return oggPage{}, nil, fail(CodeCorrupt)
 	}
-	head := oggHeader + int(data[26])
-	if len(data) < head {
+	head := oggHeader + offset(d[26])
+	if d.end() < head {
 		return oggPage{}, nil, fail(CodeCorrupt)
 	}
 	end := head
-	for _, segment := range data[oggHeader:head] {
-		end += int(segment)
+	for _, segment := range d[oggHeader:head] {
+		end += offset(segment)
 	}
-	if len(data) < end {
+	if d.end() < end {
 		return oggPage{}, nil, fail(CodeCorrupt)
 	}
 	page := oggPage{
-		flags:   data[5],
-		granule: int64(binary.LittleEndian.Uint64(data[6:])),
-		serial:  binary.LittleEndian.Uint32(data[14:]),
-		payload: data[head:end],
+		flags:   d[5],
+		granule: granule(binary.LittleEndian.Uint64(d[6:])),
+		serial:  binary.LittleEndian.Uint32(d[14:]),
+		payload: d[head:end],
 	}
-	return page, data[end:], nil
+	return page, d[end:], nil
 }
 
 func checkOggStream(pages []oggPage) error {
@@ -96,19 +98,19 @@ func checkOggStream(pages []oggPage) error {
 	return nil
 }
 
-func oggIdentify(packet []byte) (oggStream, error) {
+func oggIdentify(packet blob) (oggStream, error) {
 	switch {
 	case bytes.HasPrefix(packet, []byte("\x01vorbis")) && len(packet) >= 16:
 		return oggStream{rate: int64(binary.LittleEndian.Uint32(packet[12:]))}, nil
 	case bytes.HasPrefix(packet, []byte("OpusHead")) && len(packet) >= 19:
-		return oggStream{rate: 48000, preSkip: int64(binary.LittleEndian.Uint16(packet[10:]))}, nil
+		return oggStream{rate: 48000, preSkip: granule(binary.LittleEndian.Uint16(packet[10:]))}, nil
 	}
 	return oggStream{}, fail(CodeCodec)
 }
 
-func (s oggStream) durationMS(granule int64) float64 {
+func (s oggStream) duration(end granule) millis {
 	if s.rate <= 0 {
 		return 0
 	}
-	return float64(granule-s.preSkip) * 1000 / float64(s.rate)
+	return millis(float64(end-s.preSkip) * 1000 / float64(s.rate))
 }

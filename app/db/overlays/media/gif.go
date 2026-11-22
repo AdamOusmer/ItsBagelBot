@@ -20,7 +20,11 @@ type gifScan struct {
 	pixels int64
 }
 
-func normalizeGIF(data []byte, lim overlays.AssetLimit) (parsed, error) {
+type gifPacked byte
+
+type frameDelays []int
+
+func normalizeGIF(data blob, lim overlays.AssetLimit) (parsed, error) {
 	info, err := scanGIF(data)
 	if err != nil {
 		return parsed{}, err
@@ -36,7 +40,7 @@ func normalizeGIF(data []byte, lim overlays.AssetLimit) (parsed, error) {
 	if err := gif.EncodeAll(&out, img); err != nil {
 		return parsed{}, fail(CodeCorrupt)
 	}
-	return parsed{data: out.Bytes(), w: info.w, h: info.h, durationMS: gifDurationMS(img.Delay)}, nil
+	return parsed{data: out.Bytes(), w: info.w, h: info.h, durationMS: frameDelays(img.Delay).totalMS()}, nil
 }
 
 func checkGIF(info gifScan, lim overlays.AssetLimit) error {
@@ -49,25 +53,25 @@ func checkGIF(info gifScan, lim overlays.AssetLimit) error {
 	if info.pixels > gifMaxTotalPixels {
 		return fail(CodeDimensions)
 	}
-	return checkFrame(lim, info.w, info.h)
+	return dims{w: extent(info.w), h: extent(info.h)}.check(lim)
 }
 
-func gifDurationMS(delays []int) int {
+func (d frameDelays) totalMS() int {
 	total := 0
-	for _, d := range delays {
-		total += d * 10
+	for _, delay := range d {
+		total += delay * 10
 	}
 	return total
 }
 
-func gifTableSize(packed byte) int {
-	if packed&0x80 == 0 {
+func (p gifPacked) tableSize() int {
+	if p&0x80 == 0 {
 		return 0
 	}
-	return 3 << (packed&7 + 1)
+	return 3 << (p&7 + 1)
 }
 
-func scanGIF(data []byte) (gifScan, error) {
+func scanGIF(data blob) (gifScan, error) {
 	if len(data) < 13 {
 		return gifScan{}, fail(CodeCorrupt)
 	}
@@ -75,7 +79,7 @@ func scanGIF(data []byte) (gifScan, error) {
 		w: int(binary.LittleEndian.Uint16(data[6:])),
 		h: int(binary.LittleEndian.Uint16(data[8:])),
 	}
-	pos := 13 + gifTableSize(data[10])
+	pos := offset(13 + gifPacked(data[10]).tableSize())
 	for {
 		next, done, err := info.block(data, pos)
 		if err != nil {
@@ -88,15 +92,15 @@ func scanGIF(data []byte) (gifScan, error) {
 	}
 }
 
-func (g *gifScan) block(data []byte, pos int) (int, bool, error) {
-	if pos >= len(data) {
+func (g *gifScan) block(data blob, pos offset) (offset, bool, error) {
+	if pos >= data.end() {
 		return 0, false, fail(CodeCorrupt)
 	}
 	switch data[pos] {
 	case 0x3B:
 		return pos, true, nil
 	case 0x21:
-		next, err := skipSubBlocks(data, pos+2)
+		next, err := data.skipSubBlocks(pos + 2)
 		return next, false, err
 	case 0x2C:
 		return g.frame(data, pos)
@@ -104,21 +108,21 @@ func (g *gifScan) block(data []byte, pos int) (int, bool, error) {
 	return 0, false, fail(CodeCorrupt)
 }
 
-func (g *gifScan) frame(data []byte, pos int) (int, bool, error) {
-	if pos+10 > len(data) {
+func (g *gifScan) frame(data blob, pos offset) (offset, bool, error) {
+	if pos+10 > data.end() {
 		return 0, false, fail(CodeCorrupt)
 	}
 	w := int(binary.LittleEndian.Uint16(data[pos+5:]))
 	h := int(binary.LittleEndian.Uint16(data[pos+7:]))
 	g.frames++
 	g.pixels += int64(w) * int64(h)
-	next, err := skipSubBlocks(data, pos+11+gifTableSize(data[pos+9]))
+	next, err := data.skipSubBlocks(pos + 11 + offset(gifPacked(data[pos+9]).tableSize()))
 	return next, false, err
 }
 
-func skipSubBlocks(data []byte, pos int) (int, error) {
-	for pos < len(data) {
-		size := int(data[pos])
+func (d blob) skipSubBlocks(pos offset) (offset, error) {
+	for pos < d.end() {
+		size := offset(d[pos])
 		pos += 1 + size
 		if size == 0 {
 			return pos, nil

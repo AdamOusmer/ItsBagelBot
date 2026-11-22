@@ -16,16 +16,16 @@ const (
 	webpFlagXMP  = 0x04
 )
 
-var webpSizers = map[string]func([]byte) (int, int, bool){
+var webpSizers = map[chunkID]func(blob) (int, int, bool){
 	"VP8X": vp8xSize,
 	"VP8L": vp8lSize,
 	"VP8 ": vp8Size,
 }
 
-var webpImageIDs = map[string]bool{"VP8 ": true, "VP8L": true, "ANMF": true}
+var webpImageIDs = map[chunkID]bool{"VP8 ": true, "VP8L": true, "ANMF": true}
 
-func normalizeWebP(data []byte, lim overlays.AssetLimit) (parsed, error) {
-	chunks, err := parseRIFF(data, "WEBP")
+func normalizeWebP(data blob, lim overlays.AssetLimit) (parsed, error) {
+	chunks, err := parseRIFF(data, formWebP)
 	if err != nil {
 		return parsed{}, err
 	}
@@ -34,38 +34,38 @@ func normalizeWebP(data []byte, lim overlays.AssetLimit) (parsed, error) {
 	if err != nil {
 		return parsed{}, err
 	}
-	if err := checkFrame(lim, w, h); err != nil {
+	if err := (dims{w: extent(w), h: extent(h)}).check(lim); err != nil {
 		return parsed{}, err
 	}
 	if !slices.ContainsFunc(kept, func(c riffChunk) bool { return webpImageIDs[c.id] }) {
 		return parsed{}, fail(CodeCorrupt)
 	}
-	return parsed{data: writeRIFF("WEBP", kept), w: w, h: h}, nil
+	return parsed{data: writeRIFF(formWebP, kept), w: w, h: h}, nil
 }
 
-func keptWebPChunks(chunks []riffChunk) []riffChunk {
-	kept := make([]riffChunk, 0, len(chunks))
+func keptWebPChunks(chunks riffChunks) riffChunks {
+	kept := make(riffChunks, 0, len(chunks))
 	for _, c := range chunks {
 		switch c.id {
 		case "EXIF", "XMP ":
 			continue
 		case "VP8X":
-			c.body = withoutMetadataFlags(c.body)
+			c.body = c.body.withoutMetadataFlags()
 		}
 		kept = append(kept, c)
 	}
 	return kept
 }
 
-func withoutMetadataFlags(body []byte) []byte {
-	body = slices.Clone(body)
-	if len(body) > 0 {
-		body[0] &^= webpFlagEXIF | webpFlagXMP
+func (b blob) withoutMetadataFlags() blob {
+	b = slices.Clone(b)
+	if len(b) > 0 {
+		b[0] &^= webpFlagEXIF | webpFlagXMP
 	}
-	return body
+	return b
 }
 
-func webpSize(chunks []riffChunk) (int, int, error) {
+func webpSize(chunks riffChunks) (int, int, error) {
 	if len(chunks) == 0 {
 		return 0, 0, fail(CodeCorrupt)
 	}
@@ -80,26 +80,26 @@ func webpSize(chunks []riffChunk) (int, int, error) {
 	return w, h, nil
 }
 
-func le24(b []byte) int {
+func (b blob) le24() int {
 	return int(b[0]) | int(b[1])<<8 | int(b[2])<<16
 }
 
-func vp8xSize(body []byte) (int, int, bool) {
+func vp8xSize(body blob) (int, int, bool) {
 	if len(body) < 10 {
 		return 0, 0, false
 	}
-	return 1 + le24(body[4:]), 1 + le24(body[7:]), true
+	return 1 + body[4:].le24(), 1 + body[7:].le24(), true
 }
 
-func vp8lSize(body []byte) (int, int, bool) {
+func vp8lSize(body blob) (int, int, bool) {
 	if len(body) < 5 || body[0] != 0x2F {
 		return 0, 0, false
 	}
-	bits := binary.LittleEndian.Uint32(body[1:])
-	return 1 + int(bits&0x3FFF), 1 + int(bits>>14&0x3FFF), true
+	packed := binary.LittleEndian.Uint32(body[1:])
+	return 1 + int(packed&0x3FFF), 1 + int(packed>>14&0x3FFF), true
 }
 
-func vp8Size(body []byte) (int, int, bool) {
+func vp8Size(body blob) (int, int, bool) {
 	if len(body) < 10 || !bytes.Equal(body[3:6], []byte{0x9D, 0x01, 0x2A}) {
 		return 0, 0, false
 	}

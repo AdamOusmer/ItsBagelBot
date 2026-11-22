@@ -9,26 +9,35 @@ import (
 	"ItsBagelBot/internal/domain/overlays"
 )
 
-func inRange(value, limit int) bool {
-	return value >= 1 && value <= limit
+type extent int
+
+type dims struct {
+	w extent
+	h extent
 }
 
-func checkFrame(lim overlays.AssetLimit, w, h int) error {
-	if !inRange(w, lim.MaxWidth) || !inRange(h, lim.MaxHeight) {
+type millis float64
+
+func (e extent) within(limit extent) bool {
+	return e >= 1 && e <= limit
+}
+
+func (d dims) check(lim overlays.AssetLimit) error {
+	if !d.w.within(extent(lim.MaxWidth)) || !d.h.within(extent(lim.MaxHeight)) {
 		return fail(CodeDimensions)
 	}
-	if lim.MaxPixels > 0 && int64(w)*int64(h) > lim.MaxPixels {
+	if lim.MaxPixels > 0 && int64(d.w)*int64(d.h) > lim.MaxPixels {
 		return fail(CodeDimensions)
 	}
 	return nil
 }
 
-func checkDuration(lim overlays.AssetLimit, ms float64) (int, error) {
-	if math.IsNaN(ms) || ms <= 0 {
+func (m millis) check(lim overlays.AssetLimit) (int, error) {
+	if math.IsNaN(float64(m)) || m <= 0 {
 		return 0, fail(CodeCorrupt)
 	}
-	if lim.MaxDurationMS > 0 && ms > float64(lim.MaxDurationMS) {
+	if lim.MaxDurationMS > 0 && float64(m) > float64(lim.MaxDurationMS) {
 		return 0, fail(CodeDuration)
 	}
-	return int(math.Ceil(ms)), nil
+	return int(math.Ceil(float64(m))), nil
 }

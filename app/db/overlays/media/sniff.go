@@ -42,7 +42,7 @@ func readHead(r io.Reader) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(r, sniffBytes))
 }
 
-func sniffHead(head []byte) (overlays.AssetType, error) {
+func sniffHead(head blob) (overlays.AssetType, error) {
 	if kind, ok := matchBinary(head); ok {
 		return kind, nil
 	}
@@ -52,7 +52,7 @@ func sniffHead(head []byte) (overlays.AssetType, error) {
 	return sniffText(head)
 }
 
-func matchBinary(head []byte) (overlays.AssetType, bool) {
+func matchBinary(head blob) (overlays.AssetType, bool) {
 	for _, m := range magics {
 		if bytes.HasPrefix(head, []byte(m.prefix)) {
 			return m.kind, true
@@ -61,13 +61,13 @@ func matchBinary(head []byte) (overlays.AssetType, bool) {
 	if kind, ok := matchRIFF(head); ok {
 		return kind, true
 	}
-	if _, ok := mp3Header(head); ok {
+	if _, ok := head.mp3Header(); ok {
 		return overlays.AssetMP3, true
 	}
 	return "", false
 }
 
-func matchRIFF(head []byte) (overlays.AssetType, bool) {
+func matchRIFF(head blob) (overlays.AssetType, bool) {
 	if len(head) < 12 || string(head[:4]) != "RIFF" {
 		return "", false
 	}
@@ -80,7 +80,7 @@ func matchRIFF(head []byte) (overlays.AssetType, bool) {
 	return "", false
 }
 
-func sniffText(head []byte) (overlays.AssetType, error) {
+func sniffText(head blob) (overlays.AssetType, error) {
 	text := bytes.TrimLeft(bytes.TrimPrefix(head, utf8BOM), " \t\r\n")
 	if len(text) == 0 {
 		return "", fail(CodeCorrupt)
@@ -94,7 +94,7 @@ func sniffText(head []byte) (overlays.AssetType, error) {
 	return "", fail(CodeUnsupported)
 }
 
-func markupCode(text []byte) overlays.Code {
+func markupCode(text blob) overlays.Code {
 	lower := bytes.ToLower(text)
 	if bytes.Contains(lower, []byte("<svg")) || bytes.HasPrefix(lower, []byte("<?xml")) {
 		return CodeSVG

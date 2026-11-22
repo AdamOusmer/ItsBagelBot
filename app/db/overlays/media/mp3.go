@@ -30,53 +30,53 @@ var mp3Bitrates = [4][16]int{
 	3: {0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0},
 }
 
-func normalizeMP3(data []byte, lim overlays.AssetLimit) (parsed, error) {
-	start, err := mp3AudioStart(data)
+func normalizeMP3(data blob, lim overlays.AssetLimit) (parsed, error) {
+	start, err := data.mp3AudioStart()
 	if err != nil {
 		return parsed{}, err
 	}
-	end, seconds := scanMP3(data, start)
+	end, seconds := data.scanMP3(start)
 	if end == start {
 		return parsed{}, fail(CodeCorrupt)
 	}
-	ms, err := checkDuration(lim, seconds*1000)
+	ms, err := millis(seconds * 1000).check(lim)
 	if err != nil {
 		return parsed{}, err
 	}
 	return parsed{data: data[start:end], durationMS: ms}, nil
 }
 
-func mp3AudioStart(data []byte) (int, error) {
-	if !bytes.HasPrefix(data, []byte("ID3")) {
+func (d blob) mp3AudioStart() (offset, error) {
+	if !bytes.HasPrefix(d, []byte("ID3")) {
 		return 0, nil
 	}
-	if len(data) < 10 {
+	if len(d) < 10 {
 		return 0, fail(CodeCorrupt)
 	}
-	tagSize := int(data[6]&0x7F)<<21 | int(data[7]&0x7F)<<14 | int(data[8]&0x7F)<<7 | int(data[9]&0x7F)
-	start := 10 + tagSize
-	if data[5]&0x10 != 0 {
+	tagSize := int(d[6]&0x7F)<<21 | int(d[7]&0x7F)<<14 | int(d[8]&0x7F)<<7 | int(d[9]&0x7F)
+	start := offset(10 + tagSize)
+	if d[5]&0x10 != 0 {
 		start += 10
 	}
-	if start >= len(data) {
+	if start >= d.end() {
 		return 0, fail(CodeCorrupt)
 	}
 	return start, nil
 }
 
-func scanMP3(data []byte, start int) (int, float64) {
+func (d blob) scanMP3(start offset) (offset, float64) {
 	pos, seconds := start, 0.0
 	for {
-		frame, ok := mp3Header(data[pos:])
-		if !ok || pos+frame.length > len(data) {
+		next, ok := d[pos:].mp3Header()
+		if !ok || pos+offset(next.length) > d.end() {
 			return pos, seconds
 		}
-		pos += frame.length
-		seconds += float64(frame.samples) / float64(frame.rate)
+		pos += offset(next.length)
+		seconds += float64(next.samples) / float64(next.rate)
 	}
 }
 
-func mp3Header(b []byte) (mp3Frame, bool) {
+func (b blob) mp3Header() (mp3Frame, bool) {
 	if len(b) < 4 || binary.BigEndian.Uint16(b)&0xFFE6 != 0xFFE2 {
 		return mp3Frame{}, false
 	}

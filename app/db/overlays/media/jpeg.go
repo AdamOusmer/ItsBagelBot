@@ -11,23 +11,30 @@ import (
 	"ItsBagelBot/internal/domain/overlays"
 )
 
+type marker byte
+
+type jpegMark struct {
+	id marker
+	at offset
+}
+
 const (
-	jpegSOS = 0xDA
-	jpegEOI = 0xD9
-	jpegTEM = 0x01
+	jpegSOS marker = 0xDA
+	jpegEOI marker = 0xD9
+	jpegTEM marker = 0x01
 )
 
 var jpegCodec = imageCodec{config: jpeg.DecodeConfig, decode: jpeg.Decode}
 
 var jpegDropped = func() (dropped [256]bool) {
-	for marker := 0xE1; marker <= 0xEF; marker++ {
-		dropped[marker] = true
+	for id := 0xE1; id <= 0xEF; id++ {
+		dropped[id] = true
 	}
 	dropped[0xFE] = true
 	return dropped
 }()
 
-func normalizeJPEG(data []byte, lim overlays.AssetLimit) (parsed, error) {
+func normalizeJPEG(data blob, lim overlays.AssetLimit) (parsed, error) {
 	out, err := rewriteJPEG(data)
 	if err != nil {
 		return parsed{}, err
@@ -35,20 +42,20 @@ func normalizeJPEG(data []byte, lim overlays.AssetLimit) (parsed, error) {
 	return verifyImage(out, lim, jpegCodec)
 }
 
-func rewriteJPEG(data []byte) ([]byte, error) {
+func rewriteJPEG(data blob) (blob, error) {
 	if !bytes.HasPrefix(data, []byte{0xFF, 0xD8}) {
 		return nil, fail(CodeCorrupt)
 	}
-	out := []byte{0xFF, 0xD8}
-	for pos := 2; pos < len(data); {
-		marker, at, err := jpegMarker(data, pos)
+	out := blob{0xFF, 0xD8}
+	for pos := offset(2); pos < data.end(); {
+		mark, err := data.jpegMarker(pos)
 		if err != nil {
 			return nil, err
 		}
-		if marker == jpegEOI {
-			return append(out, 0xFF, jpegEOI), nil
+		if mark.id == jpegEOI {
+			return append(out, 0xFF, byte(jpegEOI)), nil
 		}
-		kept, next, err := jpegSegment(data, at, marker)
+		kept, next, err := data.jpegSegment(mark)
 		if err != nil {
 			return nil, err
 		}
@@ -58,61 +65,61 @@ func rewriteJPEG(data []byte) ([]byte, error) {
 	return nil, fail(CodeCorrupt)
 }
 
-func jpegMarker(data []byte, pos int) (byte, int, error) {
-	for bytes.HasPrefix(data[pos:], []byte{0xFF, 0xFF}) {
+func (d blob) jpegMarker(pos offset) (jpegMark, error) {
+	for bytes.HasPrefix(d[pos:], []byte{0xFF, 0xFF}) {
 		pos++
 	}
-	if len(data[pos:]) < 2 || data[pos] != 0xFF {
-		return 0, 0, fail(CodeCorrupt)
+	if len(d[pos:]) < 2 || d[pos] != 0xFF {
+		return jpegMark{}, fail(CodeCorrupt)
 	}
-	return data[pos+1], pos, nil
+	return jpegMark{id: marker(d[pos+1]), at: pos}, nil
 }
 
-func jpegSegment(data []byte, at int, marker byte) ([]byte, int, error) {
-	end, err := jpegSegmentEnd(data, at, marker)
+func (d blob) jpegSegment(mark jpegMark) (blob, offset, error) {
+	end, err := d.jpegSegmentEnd(mark)
 	if err != nil {
 		return nil, 0, err
 	}
-	if marker == jpegSOS {
-		return jpegScan(data, at, end)
+	if mark.id == jpegSOS {
+		return d.jpegScan(mark, end)
 	}
-	if jpegDropped[marker] {
+	if jpegDropped[mark.id] {
 		return nil, end, nil
 	}
-	return data[at:end], end, nil
+	return d[mark.at:end], end, nil
 }
 
-func jpegScan(data []byte, at, headerEnd int) ([]byte, int, error) {
-	scanEnd, err := jpegScanEnd(data, headerEnd)
+func (d blob) jpegScan(mark jpegMark, headerEnd offset) (blob, offset, error) {
+	scanEnd, err := d.jpegScanEnd(headerEnd)
 	if err != nil {
 		return nil, 0, err
 	}
-	return data[at:scanEnd], scanEnd, nil
+	return d[mark.at:scanEnd], scanEnd, nil
 }
 
-func jpegSegmentEnd(data []byte, at int, marker byte) (int, error) {
-	if marker == jpegTEM {
-		return at + 2, nil
+func (d blob) jpegSegmentEnd(mark jpegMark) (offset, error) {
+	if mark.id == jpegTEM {
+		return mark.at + 2, nil
 	}
-	if len(data) < at+4 {
+	if d.end() < mark.at+4 {
 		return 0, fail(CodeCorrupt)
 	}
-	length := int(binary.BigEndian.Uint16(data[at+2:]))
-	if length < 2 || at+2+length > len(data) {
+	length := offset(binary.BigEndian.Uint16(d[mark.at+2:]))
+	if length < 2 || mark.at+2+length > d.end() {
 		return 0, fail(CodeCorrupt)
 	}
-	return at + 2 + length, nil
+	return mark.at + 2 + length, nil
 }
 
-func jpegScanEnd(data []byte, from int) (int, error) {
-	for i := from; i+1 < len(data); i++ {
-		if data[i] == 0xFF && endsScan(data[i+1]) {
+func (d blob) jpegScanEnd(from offset) (offset, error) {
+	for i := from; i+1 < d.end(); i++ {
+		if d[i] == 0xFF && marker(d[i+1]).endsScan() {
 			return i, nil
 		}
 	}
 	return 0, fail(CodeCorrupt)
 }
 
-func endsScan(next byte) bool {
-	return next != 0x00 && (next < 0xD0 || next > 0xD7)
+func (m marker) endsScan() bool {
+	return m != 0x00 && (m < 0xD0 || m > 0xD7)
 }

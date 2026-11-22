@@ -13,7 +13,7 @@ const woff2HeaderBytes = 48
 
 var woff2Flavors = map[uint32]bool{0x00010000: true, 0x4F54544F: true}
 
-func normalizeWOFF2(data []byte, _ overlays.AssetLimit) (parsed, error) {
+func normalizeWOFF2(data blob, _ overlays.AssetLimit) (parsed, error) {
 	if len(data) < woff2HeaderBytes {
 		return parsed{}, fail(CodeCorrupt)
 	}

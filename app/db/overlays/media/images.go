@@ -16,12 +16,12 @@ type imageCodec struct {
 	decode func(io.Reader) (image.Image, error)
 }
 
-func verifyImage(data []byte, lim overlays.AssetLimit, codec imageCodec) (parsed, error) {
+func verifyImage(data blob, lim overlays.AssetLimit, codec imageCodec) (parsed, error) {
 	cfg, err := codec.config(bytes.NewReader(data))
 	if err != nil {
 		return parsed{}, fail(CodeCorrupt)
 	}
-	if err := checkFrame(lim, cfg.Width, cfg.Height); err != nil {
+	if err := (dims{w: extent(cfg.Width), h: extent(cfg.Height)}).check(lim); err != nil {
 		return parsed{}, err
 	}
 	if _, err := codec.decode(bytes.NewReader(data)); err != nil {

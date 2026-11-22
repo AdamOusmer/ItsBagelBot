@@ -25,7 +25,7 @@ var pngKeep = map[string]bool{
 
 var pngCodec = imageCodec{config: png.DecodeConfig, decode: png.Decode}
 
-func normalizePNG(data []byte, lim overlays.AssetLimit) (parsed, error) {
+func normalizePNG(data blob, lim overlays.AssetLimit) (parsed, error) {
 	out, err := rewritePNG(data)
 	if err != nil {
 		return parsed{}, err
@@ -33,13 +33,13 @@ func normalizePNG(data []byte, lim overlays.AssetLimit) (parsed, error) {
 	return verifyImage(out, lim, pngCodec)
 }
 
-func rewritePNG(data []byte) ([]byte, error) {
+func rewritePNG(data blob) (blob, error) {
 	if !bytes.HasPrefix(data, []byte(pngSignature)) {
 		return nil, fail(CodeCorrupt)
 	}
-	out := append(make([]byte, 0, len(data)), pngSignature...)
-	for pos := len(pngSignature); pos < len(data); {
-		kind, end, err := pngChunk(data, pos)
+	out := append(make(blob, 0, len(data)), pngSignature...)
+	for pos := offset(len(pngSignature)); pos < data.end(); {
+		kind, end, err := data.pngChunk(pos)
 		if err != nil {
 			return nil, err
 		}
@@ -54,16 +54,16 @@ func rewritePNG(data []byte) ([]byte, error) {
 	return nil, fail(CodeCorrupt)
 }
 
-func pngChunk(data []byte, pos int) (string, int, error) {
-	if pos+pngChunkOverhead > len(data) {
+func (d blob) pngChunk(pos offset) (string, offset, error) {
+	if pos+pngChunkOverhead > d.end() {
 		return "", 0, fail(CodeCorrupt)
 	}
-	end := pos + pngChunkOverhead + int(binary.BigEndian.Uint32(data[pos:]))
-	if end > len(data) {
+	end := pos + pngChunkOverhead + offset(binary.BigEndian.Uint32(d[pos:]))
+	if end > d.end() {
 		return "", 0, fail(CodeCorrupt)
 	}
-	if crc32.ChecksumIEEE(data[pos+4:end-4]) != binary.BigEndian.Uint32(data[end-4:]) {
+	if crc32.ChecksumIEEE(d[pos+4:end-4]) != binary.BigEndian.Uint32(d[end-4:]) {
 		return "", 0, fail(CodeCorrupt)
 	}
-	return string(data[pos+4 : pos+8]), end, nil
+	return string(d[pos+4 : pos+8]), end, nil
 }

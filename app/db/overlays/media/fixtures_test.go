@@ -16,60 +16,101 @@ import (
 	"slices"
 )
 
-const pngIHDREnd = 33
+const pngIHDREnd position = 33
 
-func splice(src []byte, at int, insert ...[]byte) []byte {
-	return bytes.Join([][]byte{src[:at], bytes.Join(insert, nil), src[at:]}, nil)
+type (
+	blob      []byte
+	number    int
+	position  int
+	chunkKind string
+	riffForm  string
+	marker    byte
+	formatTag uint16
+)
+
+type picture struct {
+	w number
+	h number
 }
 
-func cut(src []byte, n int) []byte {
-	return src[:len(src)-n]
+type streamEnd struct {
+	granule int64
+	flags   byte
 }
 
-func le32(n int) []byte {
+type oggPageSpec struct {
+	flags   byte
+	granule int64
+	payload blob
+}
+
+type webmSpec struct {
+	docType    string
+	codec      string
+	size       picture
+	durationMS float64
+}
+
+func join(parts ...blob) blob {
+	var out blob
+	for _, part := range parts {
+		out = append(out, part...)
+	}
+	return out
+}
+
+func (b blob) splice(at position, insert ...blob) blob {
+	return join(b[:at], join(insert...), b[at:])
+}
+
+func (b blob) dropLast(n number) blob {
+	return b[:len(b)-int(n)]
+}
+
+func (n number) le32() blob {
 	return binary.LittleEndian.AppendUint32(nil, uint32(n))
 }
 
-func be32(n int) []byte {
+func (n number) be32() blob {
 	return binary.BigEndian.AppendUint32(nil, uint32(n))
 }
 
-func pngChunk(kind string, body []byte) []byte {
-	out := append(be32(len(body)), kind...)
+func pngChunk(kind chunkKind, body blob) blob {
+	out := append(number(len(body)).be32(), string(kind)...)
 	out = append(out, body...)
 	return binary.BigEndian.AppendUint32(out, crc32.ChecksumIEEE(out[4:]))
 }
 
-func pngFixture(w, h int) []byte {
+func pngFixture(p picture) blob {
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, image.NewNRGBA(image.Rect(0, 0, w, h))); err != nil {
+	if err := png.Encode(&buf, image.NewNRGBA(image.Rect(0, 0, int(p.w), int(p.h)))); err != nil {
 		panic(err)
 	}
 	return buf.Bytes()
 }
 
-func pngHeaderOnly(w, h int) []byte {
-	header := append(be32(w), be32(h)...)
+func pngHeaderOnly(p picture) blob {
+	header := append(p.w.be32(), p.h.be32()...)
 	header = append(header, 8, 0, 0, 0, 0)
-	return bytes.Join([][]byte{[]byte("\x89PNG\r\n\x1a\n"), pngChunk("IHDR", header), pngChunk("IEND", nil)}, nil)
+	return join(blob("\x89PNG\r\n\x1a\n"), pngChunk("IHDR", header), pngChunk("IEND", nil))
 }
 
-func pngWithMetadata() []byte {
-	meta := [][]byte{
-		pngChunk("tEXt", []byte("Comment\x00GPS 51.5,-0.1")),
-		pngChunk("iTXt", []byte("XML:com.adobe.xmp\x00\x00\x00\x00\x00GPS")),
-		pngChunk("eXIf", []byte("GPS")),
-		pngChunk("tIME", make([]byte, 7)),
+func pngWithMetadata() blob {
+	meta := []blob{
+		pngChunk("tEXt", blob("Comment\x00GPS 51.5,-0.1")),
+		pngChunk("iTXt", blob("XML:com.adobe.xmp\x00\x00\x00\x00\x00GPS")),
+		pngChunk("eXIf", blob("GPS")),
+		pngChunk("tIME", make(blob, 7)),
 	}
-	return append(splice(pngFixture(4, 3), pngIHDREnd, meta...), "<script>alert(1)</script>"...)
+	return append(pngFixture(picture{4, 3}).splice(pngIHDREnd, meta...), "<script>alert(1)</script>"...)
 }
 
-func jpegSegment(marker byte, payload []byte) []byte {
-	out := binary.BigEndian.AppendUint16([]byte{0xFF, marker}, uint16(len(payload)+2))
+func jpegSegment(id marker, payload blob) blob {
+	out := binary.BigEndian.AppendUint16(blob{0xFF, byte(id)}, uint16(len(payload)+2))
 	return append(out, payload...)
 }
 
-func jpegFixture() []byte {
+func jpegFixture() blob {
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 16, 16)), nil); err != nil {
 		panic(err)
@@ -77,21 +118,21 @@ func jpegFixture() []byte {
 	return buf.Bytes()
 }
 
-func jpegWithMetadata() []byte {
-	exif := jpegSegment(0xE1, []byte("Exif\x00\x00GPSLatitude"))
-	comment := jpegSegment(0xFE, []byte("secret comment"))
-	return append(splice(jpegFixture(), 2, exif, comment), "<html>"...)
+func jpegWithMetadata() blob {
+	exif := jpegSegment(0xE1, blob("Exif\x00\x00GPSLatitude"))
+	comment := jpegSegment(0xFE, blob("secret comment"))
+	return append(jpegFixture().splice(2, exif, comment), "<html>"...)
 }
 
-func jpegWithSize(w, h int) []byte {
+func jpegWithSize(p picture) blob {
 	src := slices.Clone(jpegFixture())
 	sof := bytes.Index(src, []byte{0xFF, 0xC0})
-	binary.BigEndian.PutUint16(src[sof+5:], uint16(h))
-	binary.BigEndian.PutUint16(src[sof+7:], uint16(w))
+	binary.BigEndian.PutUint16(src[sof+5:], uint16(p.h))
+	binary.BigEndian.PutUint16(src[sof+7:], uint16(p.w))
 	return src
 }
 
-func gifFixture(frames int, screen image.Point) []byte {
+func gifFixture(frames number, screen image.Point) blob {
 	palette := color.Palette{color.Black, color.White}
 	out := gif.GIF{Config: image.Config{ColorModel: palette, Width: screen.X, Height: screen.Y}}
 	for range frames {
@@ -105,122 +146,106 @@ func gifFixture(frames int, screen image.Point) []byte {
 	return buf.Bytes()
 }
 
-func riffChunkBytes(id string, body []byte) []byte {
-	out := append(append([]byte(id), le32(len(body))...), body...)
+func riffChunkBytes(id chunkKind, body blob) blob {
+	out := join(blob(id), number(len(body)).le32(), body)
 	if len(body)%2 == 1 {
 		out = append(out, 0)
 	}
 	return out
 }
 
-func riffFile(form string, chunks ...[]byte) []byte {
-	payload := bytes.Join(chunks, nil)
-	out := append(append([]byte("RIFF"), le32(len(payload)+4)...), form...)
-	return append(out, payload...)
+func riffFile(form riffForm, chunks ...blob) blob {
+	payload := join(chunks...)
+	return join(blob("RIFF"), number(len(payload)+4).le32(), blob(form), payload)
 }
 
-func webpFixture(w, h int) []byte {
-	canvas := make([]byte, 10)
+func webpFixture(p picture) blob {
+	canvas := make(blob, 10)
 	canvas[0] = 0x1C
-	copy(canvas[4:], le32(w - 1)[:3])
-	copy(canvas[7:], le32(h - 1)[:3])
-	lossless := append([]byte{0x2F}, le32((w-1)|(h-1)<<14)...)
+	copy(canvas[4:], (p.w - 1).le32()[:3])
+	copy(canvas[7:], (p.h - 1).le32()[:3])
+	lossless := join(blob{0x2F}, ((p.w - 1) | ((p.h - 1) << 14)).le32(), make(blob, 4))
 	return riffFile("WEBP",
 		riffChunkBytes("VP8X", canvas),
-		riffChunkBytes("VP8L", append(lossless, 0, 0, 0, 0)),
-		riffChunkBytes("EXIF", []byte("GPS")),
-		riffChunkBytes("XMP ", []byte("XMP-DATA")),
+		riffChunkBytes("VP8L", lossless),
+		riffChunkBytes("EXIF", blob("GPS")),
+		riffChunkBytes("XMP ", blob("XMP-DATA")),
 	)
 }
 
-func wavFixture(dataBytes int, formatTag uint16) []byte {
-	format := binary.LittleEndian.AppendUint16(nil, formatTag)
+func wavFixture(dataBytes number, tag formatTag) blob {
+	format := binary.LittleEndian.AppendUint16(nil, uint16(tag))
 	format = binary.LittleEndian.AppendUint16(format, 1)
-	format = append(format, le32(8000)...)
-	format = append(format, le32(16000)...)
-	format = append(format, 2, 0, 16, 0)
+	format = join(format, number(8000).le32(), number(16000).le32(), blob{2, 0, 16, 0})
 	return riffFile("WAVE",
 		riffChunkBytes("fmt ", format),
-		riffChunkBytes("LIST", []byte("INFOIART\x04\x00\x00\x00name")),
-		riffChunkBytes("data", make([]byte, dataBytes)),
+		riffChunkBytes("LIST", blob("INFOIART\x04\x00\x00\x00name")),
+		riffChunkBytes("data", make(blob, int(dataBytes))),
 	)
 }
 
-func oggPage(flags byte, granule int64, payload []byte) []byte {
-	out := binary.LittleEndian.AppendUint64([]byte{'O', 'g', 'g', 'S', 0, flags}, uint64(granule))
-	out = append(out, le32(1)...)
-	out = append(out, le32(0)...)
-	out = append(out, le32(0)...)
-	return append(append(out, 1, byte(len(payload))), payload...)
+func (s oggPageSpec) encode() blob {
+	out := binary.LittleEndian.AppendUint64(blob{'O', 'g', 'g', 'S', 0, s.flags}, uint64(s.granule))
+	out = join(out, number(1).le32(), number(0).le32(), number(0).le32())
+	return join(out, blob{1, byte(len(s.payload))}, s.payload)
 }
 
-func opusHead() []byte {
-	head := append([]byte("OpusHead"), 1, 1)
+func opusHead() blob {
+	head := join(blob("OpusHead"), blob{1, 1})
 	head = binary.LittleEndian.AppendUint16(head, 312)
-	head = append(head, le32(48000)...)
-	return append(head, 0, 0, 0)
+	return join(head, number(48000).le32(), blob{0, 0, 0})
 }
 
-func vorbisHead() []byte {
-	head := append([]byte("\x01vorbis"), 0, 0, 0, 0, 1)
-	return append(head, le32(44100)...)
+func vorbisHead() blob {
+	return join(blob("\x01vorbis"), blob{0, 0, 0, 0, 1}, number(44100).le32())
 }
 
-func oggFixture(head []byte, granule int64, lastFlags byte) []byte {
-	return bytes.Join([][]byte{
-		oggPage(0x02, 0, head),
-		oggPage(0x00, granule/2, []byte("packet-data")),
-		oggPage(lastFlags, granule, []byte("packet-data")),
-	}, nil)
-}
-
-func ebml(id []byte, body ...[]byte) []byte {
-	payload := bytes.Join(body, nil)
-	out := append(slices.Clone(id), 0x10|byte(len(payload)>>24), byte(len(payload)>>16), byte(len(payload)>>8), byte(len(payload)))
-	return append(out, payload...)
-}
-
-type webmSpec struct {
-	docType    string
-	codec      string
-	w          int
-	h          int
-	durationMS float64
-}
-
-func webmVariant(edit func(*webmSpec)) []byte {
-	spec := webmSpec{docType: "webm", codec: "V_VP9", w: 640, h: 360, durationMS: 5000}
-	edit(&spec)
-	video := ebml([]byte{0xAE},
-		ebml([]byte{0x83}, []byte{1}),
-		ebml([]byte{0x86}, []byte(spec.codec)),
-		ebml([]byte{0xE0}, ebml([]byte{0xB0}, be32(spec.w)), ebml([]byte{0xBA}, be32(spec.h))),
+func oggFixture(head blob, end streamEnd) blob {
+	return join(
+		oggPageSpec{flags: 0x02, payload: head}.encode(),
+		oggPageSpec{granule: end.granule / 2, payload: blob("packet-data")}.encode(),
+		oggPageSpec{flags: end.flags, granule: end.granule, payload: blob("packet-data")}.encode(),
 	)
-	audio := ebml([]byte{0xAE}, ebml([]byte{0x83}, []byte{2}), ebml([]byte{0x86}, []byte("A_OPUS")))
+}
+
+func ebml(id blob, body ...blob) blob {
+	payload := join(body...)
+	size := number(len(payload)).be32()
+	size[0] |= 0x10
+	return join(id, size, payload)
+}
+
+func webmVariant(edit func(*webmSpec)) blob {
+	spec := webmSpec{docType: "webm", codec: "V_VP9", size: picture{640, 360}, durationMS: 5000}
+	edit(&spec)
+	video := ebml(blob{0xAE},
+		ebml(blob{0x83}, blob{1}),
+		ebml(blob{0x86}, blob(spec.codec)),
+		ebml(blob{0xE0}, ebml(blob{0xB0}, spec.size.w.be32()), ebml(blob{0xBA}, spec.size.h.be32())),
+	)
+	audio := ebml(blob{0xAE}, ebml(blob{0x83}, blob{2}), ebml(blob{0x86}, blob("A_OPUS")))
 	duration := binary.BigEndian.AppendUint64(nil, math.Float64bits(spec.durationMS))
-	return bytes.Join([][]byte{
-		ebml([]byte{0x1A, 0x45, 0xDF, 0xA3}, ebml([]byte{0x42, 0x82}, []byte(spec.docType))),
-		ebml([]byte{0x18, 0x53, 0x80, 0x67},
-			ebml([]byte{0x15, 0x49, 0xA9, 0x66}, ebml([]byte{0x44, 0x89}, duration)),
-			ebml([]byte{0x16, 0x54, 0xAE, 0x6B}, video, audio),
-			ebml([]byte{0x1F, 0x43, 0xB6, 0x75}, ebml([]byte{0xE7}, []byte{0})),
+	return join(
+		ebml(blob{0x1A, 0x45, 0xDF, 0xA3}, ebml(blob{0x42, 0x82}, blob(spec.docType))),
+		ebml(blob{0x18, 0x53, 0x80, 0x67},
+			ebml(blob{0x15, 0x49, 0xA9, 0x66}, ebml(blob{0x44, 0x89}, duration)),
+			ebml(blob{0x16, 0x54, 0xAE, 0x6B}, video, audio),
+			ebml(blob{0x1F, 0x43, 0xB6, 0x75}, ebml(blob{0xE7}, blob{0})),
 		),
-	}, nil)
+	)
 }
 
-func mp3Frames(n int) []byte {
-	frame := append([]byte{0xFF, 0xFB, 0x90, 0x00}, make([]byte, 413)...)
-	return bytes.Repeat(frame, n)
+func mp3Frames(n number) blob {
+	frame := join(blob{0xFF, 0xFB, 0x90, 0x00}, make(blob, 413))
+	return bytes.Repeat(frame, int(n))
 }
 
-func mp3WithTags() []byte {
-	tag := append([]byte("ID3\x03\x00\x00\x00\x00\x00\x14"), []byte("APIC-picture-payload")...)
-	return append(append(tag, mp3Frames(3)...), "<html>"...)
+func mp3WithTags() blob {
+	tag := join(blob("ID3\x03\x00\x00\x00\x00\x00\x14"), blob("APIC-picture-payload"))
+	return join(tag, mp3Frames(3), blob("<html>"))
 }
 
-func woff2Fixture(total int) []byte {
-	out := append([]byte("wOF2"), 0, 1, 0, 0)
-	out = append(out, be32(total)...)
-	out = append(out, 0, 1)
-	return append(out, make([]byte, total-len(out))...)
+func woff2Fixture(total number) blob {
+	out := join(blob("wOF2"), blob{0, 1, 0, 0}, total.be32(), blob{0, 1})
+	return join(out, make(blob, int(total)-len(out)))
 }

@@ -25,13 +25,13 @@ type Result struct {
 }
 
 type parsed struct {
-	data       []byte
+	data       blob
 	w          int
 	h          int
 	durationMS int
 }
 
-type normalizer func(data []byte, lim overlays.AssetLimit) (parsed, error)
+type normalizer func(data blob, lim overlays.AssetLimit) (parsed, error)
 
 var normalizers = map[overlays.AssetType]normalizer{
 	overlays.AssetPNG:    normalizePNG,
@@ -67,7 +67,7 @@ type plan struct {
 	kind  overlays.AssetType
 	limit overlays.AssetLimit
 	run   normalizer
-	head  []byte
+	head  blob
 }
 
 // Normalize reads at most the type's byte limit from in and returns the
@@ -108,7 +108,7 @@ func classify(in io.Reader) (plan, error) {
 	return plan{kind: kind, limit: limit, run: run, head: head}, nil
 }
 
-func (p plan) read(ctx context.Context, in io.Reader, size int64) ([]byte, error) {
+func (p plan) read(ctx context.Context, in io.Reader, size int64) (blob, error) {
 	if size > p.limit.MaxBytes {
 		return nil, fail(CodeTooLarge)
 	}

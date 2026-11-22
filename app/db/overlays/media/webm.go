@@ -11,21 +11,23 @@ import (
 	"ItsBagelBot/internal/domain/overlays"
 )
 
+type ebmlID uint32
+
 const (
-	idEBML          = 0x1A45DFA3
-	idSegment       = 0x18538067
-	idInfo          = 0x1549A966
-	idTracks        = 0x1654AE6B
-	idCluster       = 0x1F43B675
-	idDocType       = 0x4282
-	idTimecodeScale = 0x2AD7B1
-	idDuration      = 0x4489
-	idTrackEntry    = 0xAE
-	idTrackType     = 0x83
-	idCodecID       = 0x86
-	idVideo         = 0xE0
-	idPixelWidth    = 0xB0
-	idPixelHeight   = 0xBA
+	idEBML          ebmlID = 0x1A45DFA3
+	idSegment       ebmlID = 0x18538067
+	idInfo          ebmlID = 0x1549A966
+	idTracks        ebmlID = 0x1654AE6B
+	idCluster       ebmlID = 0x1F43B675
+	idDocType       ebmlID = 0x4282
+	idTimecodeScale ebmlID = 0x2AD7B1
+	idDuration      ebmlID = 0x4489
+	idTrackEntry    ebmlID = 0xAE
+	idTrackType     ebmlID = 0x83
+	idCodecID       ebmlID = 0x86
+	idVideo         ebmlID = 0xE0
+	idPixelWidth    ebmlID = 0xB0
+	idPixelHeight   ebmlID = 0xBA
 
 	trackVideo = 1
 	trackAudio = 2
@@ -39,9 +41,11 @@ var webmCodecs = map[uint64]map[string]bool{
 }
 
 type ebmlElement struct {
-	id   uint32
-	body []byte
+	id   ebmlID
+	body blob
 }
+
+type ebmlElements []ebmlElement
 
 type webmTrack struct {
 	kind  uint64
@@ -50,7 +54,7 @@ type webmTrack struct {
 	h     int
 }
 
-func normalizeWebM(data []byte, lim overlays.AssetLimit) (parsed, error) {
+func normalizeWebM(data blob, lim overlays.AssetLimit) (parsed, error) {
 	header, segment, err := webmSections(data)
 	if err != nil {
 		return parsed{}, err
@@ -58,7 +62,7 @@ func normalizeWebM(data []byte, lim overlays.AssetLimit) (parsed, error) {
 	if err := checkDocType(header); err != nil {
 		return parsed{}, err
 	}
-	seg, err := ebmlChildren(segment, idCluster)
+	seg, err := segment.ebmlChildren(idCluster)
 	if err != nil {
 		return parsed{}, err
 	}
@@ -76,8 +80,8 @@ func normalizeWebM(data []byte, lim overlays.AssetLimit) (parsed, error) {
 	return parsed{data: data, w: w, h: h, durationMS: ms}, nil
 }
 
-func webmSections(data []byte) ([]byte, []byte, error) {
-	top, err := ebmlChildren(data, 0)
+func webmSections(data blob) (blob, blob, error) {
+	top, err := data.ebmlChildren(0)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -90,43 +94,43 @@ func webmSections(data []byte) ([]byte, []byte, error) {
 	return top[0].body, top[1].body, nil
 }
 
-func checkDocType(header []byte) error {
-	fields, err := ebmlChildren(header, 0)
+func checkDocType(header blob) error {
+	fields, err := header.ebmlChildren(0)
 	if err != nil {
 		return err
 	}
-	docType, _ := ebmlFind(fields, idDocType)
+	docType, _ := fields.find(idDocType)
 	if string(docType) != "webm" {
 		return fail(CodeUnsupported)
 	}
 	return nil
 }
 
-func webmDuration(seg []ebmlElement, lim overlays.AssetLimit) (int, error) {
-	body, ok := ebmlFind(seg, idInfo)
+func webmDuration(seg ebmlElements, lim overlays.AssetLimit) (int, error) {
+	body, ok := seg.find(idInfo)
 	if !ok {
 		return 0, fail(CodeCorrupt)
 	}
-	info, err := ebmlChildren(body, 0)
+	info, err := body.ebmlChildren(0)
 	if err != nil {
 		return 0, err
 	}
 	scale := uint64(defaultTimecodeScale)
-	if raw, ok := ebmlFind(info, idTimecodeScale); ok {
-		scale = ebmlUint(raw)
+	if raw, ok := info.find(idTimecodeScale); ok {
+		scale = raw.ebmlUint()
 	}
-	raw, ok := ebmlFind(info, idDuration)
+	raw, ok := info.find(idDuration)
 	if !ok {
 		return 0, fail(CodeCorrupt)
 	}
-	ticks, err := ebmlFloat(raw)
+	ticks, err := raw.ebmlFloat()
 	if err != nil {
 		return 0, err
 	}
-	return checkDuration(lim, ticks*float64(scale)/1e6)
+	return millis(ticks * float64(scale) / 1e6).check(lim)
 }
 
-func webmVideo(seg []ebmlElement, lim overlays.AssetLimit) (int, int, error) {
+func webmVideo(seg ebmlElements, lim overlays.AssetLimit) (int, int, error) {
 	tracks, err := webmTracks(seg)
 	if err != nil {
 		return 0, 0, err
@@ -151,17 +155,17 @@ func checkTrack(t webmTrack, lim overlays.AssetLimit) error {
 		return fail(CodeCodec)
 	}
 	if t.kind == trackVideo {
-		return checkFrame(lim, t.w, t.h)
+		return dims{w: extent(t.w), h: extent(t.h)}.check(lim)
 	}
 	return nil
 }
 
-func webmTracks(seg []ebmlElement) ([]webmTrack, error) {
-	body, ok := ebmlFind(seg, idTracks)
+func webmTracks(seg ebmlElements) ([]webmTrack, error) {
+	body, ok := seg.find(idTracks)
 	if !ok {
 		return nil, fail(CodeCorrupt)
 	}
-	entries, err := ebmlChildren(body, 0)
+	entries, err := body.ebmlChildren(0)
 	if err != nil {
 		return nil, err
 	}
@@ -179,119 +183,119 @@ func webmTracks(seg []ebmlElement) ([]webmTrack, error) {
 	return tracks, nil
 }
 
-func webmTrackOf(body []byte) (webmTrack, error) {
-	fields, err := ebmlChildren(body, 0)
+func webmTrackOf(body blob) (webmTrack, error) {
+	fields, err := body.ebmlChildren(0)
 	if err != nil {
 		return webmTrack{}, err
 	}
-	kind, _ := ebmlFind(fields, idTrackType)
-	codec, _ := ebmlFind(fields, idCodecID)
-	track := webmTrack{kind: ebmlUint(kind), codec: string(codec)}
-	video, ok := ebmlFind(fields, idVideo)
+	kind, _ := fields.find(idTrackType)
+	codec, _ := fields.find(idCodecID)
+	track := webmTrack{kind: kind.ebmlUint(), codec: string(codec)}
+	video, ok := fields.find(idVideo)
 	if !ok {
 		return track, nil
 	}
-	dims, err := ebmlChildren(video, 0)
+	pixels, err := video.ebmlChildren(0)
 	if err != nil {
 		return webmTrack{}, err
 	}
-	w, _ := ebmlFind(dims, idPixelWidth)
-	h, _ := ebmlFind(dims, idPixelHeight)
-	track.w, track.h = int(ebmlUint(w)), int(ebmlUint(h))
+	w, _ := pixels.find(idPixelWidth)
+	h, _ := pixels.find(idPixelHeight)
+	track.w, track.h = int(w.ebmlUint()), int(h.ebmlUint())
 	return track, nil
 }
 
-func ebmlChildren(data []byte, stop uint32) ([]ebmlElement, error) {
-	var out []ebmlElement
-	for len(data) > 0 {
-		if id, _, err := ebmlID(data); err == nil && id == stop {
+func (d blob) ebmlChildren(stop ebmlID) (ebmlElements, error) {
+	var out ebmlElements
+	for len(d) > 0 {
+		if id, _, err := d.readID(); err == nil && id == stop {
 			return append(out, ebmlElement{id: id}), nil
 		}
-		elem, rest, err := ebmlNext(data)
+		elem, rest, err := d.ebmlNext()
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, elem)
-		data = rest
+		d = rest
 	}
 	return out, nil
 }
 
-func ebmlNext(data []byte) (ebmlElement, []byte, error) {
-	id, idLen, err := ebmlID(data)
+func (d blob) ebmlNext() (ebmlElement, blob, error) {
+	id, idLen, err := d.readID()
 	if err != nil {
 		return ebmlElement{}, nil, err
 	}
-	size, sizeLen, err := ebmlSize(data[idLen:])
+	size, sizeLen, err := d[idLen:].readSize()
 	if err != nil {
 		return ebmlElement{}, nil, err
 	}
-	rest := data[idLen+sizeLen:]
+	rest := d[idLen+sizeLen:]
 	if size > uint64(len(rest)) {
 		return ebmlElement{}, nil, fail(CodeCorrupt)
 	}
 	return ebmlElement{id: id, body: rest[:size]}, rest[size:], nil
 }
 
-func ebmlID(data []byte) (uint32, int, error) {
-	if len(data) == 0 || data[0] == 0 {
+func (d blob) readID() (ebmlID, int, error) {
+	if len(d) == 0 || d[0] == 0 {
 		return 0, 0, fail(CodeCorrupt)
 	}
-	n := bits.LeadingZeros8(data[0]) + 1
-	if n > 4 || len(data) < n {
+	n := bits.LeadingZeros8(d[0]) + 1
+	if n > 4 || len(d) < n {
 		return 0, 0, fail(CodeCorrupt)
 	}
-	var id uint32
-	for _, b := range data[:n] {
-		id = id<<8 | uint32(b)
+	var id ebmlID
+	for _, b := range d[:n] {
+		id = id<<8 | ebmlID(b)
 	}
 	return id, n, nil
 }
 
-func ebmlSize(data []byte) (uint64, int, error) {
-	if len(data) == 0 || data[0] == 0 {
+func (d blob) readSize() (uint64, int, error) {
+	if len(d) == 0 || d[0] == 0 {
 		return 0, 0, fail(CodeCorrupt)
 	}
-	n := bits.LeadingZeros8(data[0]) + 1
-	if len(data) < n {
+	n := bits.LeadingZeros8(d[0]) + 1
+	if len(d) < n {
 		return 0, 0, fail(CodeCorrupt)
 	}
 	marker := uint64(0xFF) >> n
-	value := uint64(data[0]) & marker
+	value := uint64(d[0]) & marker
 	unknown := value == marker
-	for _, b := range data[1:n] {
+	for _, b := range d[1:n] {
 		value = value<<8 | uint64(b)
 		unknown = unknown && b == 0xFF
 	}
 	if unknown {
-		return uint64(len(data) - n), n, nil
+		return uint64(len(d) - n), n, nil
 	}
 	return value, n, nil
 }
 
-func ebmlFind(elems []ebmlElement, id uint32) ([]byte, bool) {
-	for _, e := range elems {
-		if e.id == id {
-			return e.body, true
+func (e ebmlElements) find(id ebmlID) (blob, bool) {
+	for _, elem := range e {
+		if elem.id == id {
+			return elem.body, true
 		}
 	}
 	return nil, false
 }
 
-func ebmlUint(body []byte) uint64 {
+func (d blob) ebmlUint() uint64 {
 	var value uint64
-	for _, b := range body[:min(len(body), 8)] {
+	for _, b := range d[:min(len(d), 8)] {
 		value = value<<8 | uint64(b)
 	}
 	return value
 }
 
-func ebmlFloat(body []byte) (float64, error) {
-	switch len(body) {
+func (d blob) ebmlFloat() (float64, error) {
+	switch len(d) {
 	case 4:
-		return float64(math.Float32frombits(binary.BigEndian.Uint32(body))), nil
+		return float64(math.Float32frombits(binary.BigEndian.Uint32(d))), nil
 	case 8:
-		return math.Float64frombits(binary.BigEndian.Uint64(body)), nil
+		return math.Float64frombits(binary.BigEndian.Uint64(d)), nil
 	}
 	return 0, fail(CodeCorrupt)
 }

@@ -20,7 +20,7 @@ type bundle struct {
 	Fields json.RawMessage `json:"fields"`
 }
 
-func normalizeWidget(data []byte, _ overlays.AssetLimit) (parsed, error) {
+func normalizeWidget(data blob, _ overlays.AssetLimit) (parsed, error) {
 	if !utf8.Valid(data) {
 		return parsed{}, fail(CodeCorrupt)
 	}
