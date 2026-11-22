@@ -53,6 +53,7 @@ func TestSongRedeem(t *testing.T) {
 	cases := []redeemCase{
 		{name: "offline refunds", config: songRedeemConfig("rw-sr", ""), live: liveOffline, want: redeemRefunded},
 		{name: "allowOffline queues", config: songRedeemConfig("rw-sr", `,"allowOffline":true`), live: liveOffline, want: redeemQueued},
+		{name: "full store blob allows offline redeem", config: `{"__rev":5,"disabledTriggers":"","quotas":{"everyone":"2","sub":null,"vip":null,"mod":null},"maxDepth":0,"sr":{"enabled":true,"perm":"everyone","allowOffline":false},"redeem":{"enabled":true,"rewardId":"rw-sr","onRedeem":"fulfill","replyMessage":"","allowOffline":true,"reward":{"rewardId":"rw-sr","title":"SR","cost":500,"color":"#1db954","cooldown":0}}}`, live: liveOffline, want: redeemQueued},
 		{name: "a disabled path refunds", config: `{"redeem":{"enabled":false,"rewardId":"rw-sr","onRedeem":"fulfill"}}`, live: liveOnline, want: redeemRefunded},
 		{name: "another reward is ignored", config: songRedeemConfig("rw-other", ""), live: liveOnline, want: redeemIgnored},
 		{name: "the default reply names the track and position", config: songRedeemConfig("rw-sr", ""), live: liveOnline, preload: two, want: redeemQueued,
