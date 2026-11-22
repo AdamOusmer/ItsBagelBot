@@ -79,16 +79,17 @@ func TestOverlayResolveAllowsByKindAndPremium(t *testing.T) {
 		name    string
 		overlay overlaysrpc.Overlay
 		allowed bool
+		premium bool
 	}{
-		{"system overlay for a free user", system, true},
-		{"custom overlay for a free user", customFree, false},
-		{"custom overlay for a premium user", customPaid, true},
+		{"system overlay for a free user", system, true, false},
+		{"custom overlay for a free user", customFree, false, false},
+		{"custom overlay for a premium user", customPaid, true, true},
 	}
 	for _, c := range cases {
 		reply := o.resolve(t, c.overlay.TokenHash)
 		want := overlaysrpc.OverlayResolveReply{
 			UserID: c.overlay.UserID, OverlayID: c.overlay.ID, Kind: c.overlay.Kind, Template: "powered",
-			Revision: 1, Generation: 3, Allowed: c.allowed,
+			Revision: 1, Generation: 3, Allowed: c.allowed, Premium: c.premium,
 		}
 		if c.allowed {
 			want.Document = c.overlay.Document
