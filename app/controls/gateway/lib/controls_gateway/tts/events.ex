@@ -103,8 +103,8 @@ defmodule ControlsGateway.Tts.Events do
 
   defp deliver(%{reply_to: reply, body: body}, req, state) when is_binary(reply) do
     case Jason.decode(body) do
-      {:ok, %{"ack" => ack, "data" => %{} = data}} when is_binary(ack) ->
-        send_clip(req, ack, data, state)
+      {:ok, %{"ack" => ack, "kind" => kind, "data" => %{} = data}} when is_binary(ack) ->
+        send_clip(req, {ack, kind}, data, state)
         Planes.publish(state.jetstream, reply, @accepted)
 
       _ ->
@@ -116,10 +116,11 @@ defmodule ControlsGateway.Tts.Events do
 
   defp deliver(_message, req, state), do: continue(req, state)
 
-  defp send_clip(req, ack, event, %{session: session, pending: pending}) do
+  defp send_clip(req, {ack, kind}, event, %{session: session, pending: pending}) do
     Pending.track(pending, ack)
     clip = Map.put(event, "handle", Handle.sign(session.user_id, ack))
-    :cowboy_req.stream_body(["data: ", Jason.encode!(clip), "\n\n"], :nofin, req)
+    frame = ["event: ", kind, "\ndata: ", Jason.encode!(clip), "\n\n"]
+    :cowboy_req.stream_body(frame, :nofin, req)
 
     Logger.info("TTS event delivered",
       user_id: session.user_id,

@@ -12,12 +12,13 @@ defmodule ControlsGateway.Overlays.Delivery do
   @offer_timeout_ms 2_000
   @backoff_ns [500_000_000, 2_000_000_000, 5_000_000_000, 10_000_000_000]
   @backoff_cap_ns 30_000_000_000
+  @kind ~r/\A[a-z]+\z/
 
   def handle(%{topic: topic, body: body, reply_to: ack} = message) when is_binary(ack) do
-    with {:ok, user_id} <- user_id(topic),
+    with {:ok, route} <- route(topic),
          {:ok, %{} = data} <- Jason.decode(body),
          {:ok, %{num_delivered: delivered}} <- Planes.jetstream_metadata(message) do
-      offer(ack, user_id, data, delivered)
+      offer(ack, route, data, delivered)
     else
       _ ->
         Logger.warning("overlay message invalid", reason: :invalid_message)
@@ -27,19 +28,20 @@ defmodule ControlsGateway.Overlays.Delivery do
 
   def handle(_message), do: :ok
 
-  defp user_id(topic) do
-    with ["overlays", tier, _kind, id] <- String.split(topic, "."),
+  defp route(topic) do
+    with ["overlays", tier, kind, id] <- String.split(topic, "."),
          true <- Tiers.tier(tier) != nil,
+         true <- Regex.match?(@kind, kind),
          {user_id, ""} <- Integer.parse(id),
          true <- Session.valid_user_id?(user_id) do
-      {:ok, user_id}
+      {:ok, {user_id, kind}}
     else
       _ -> :error
     end
   end
 
-  defp offer(ack, user_id, data, delivered) do
-    request = Jason.encode!(%{ack: ack, data: data, delivered: delivered})
+  defp offer(ack, {user_id, kind}, data, delivered) do
+    request = Jason.encode!(%{ack: ack, kind: kind, data: data, delivered: delivered})
 
     if accepted?(ask(Subjects.overlay_session(user_id), request)) do
       :ok

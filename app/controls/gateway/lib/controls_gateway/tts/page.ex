@@ -225,7 +225,7 @@ defmodule ControlsGateway.Tts.Page do
 
     const events = new EventSource('/tts/events');
     events.onopen = () => { retryCap = 2000; };
-    events.onmessage = receiveClip;
+    events.addEventListener('tts', receiveClip);
     events.onerror = () => {
       if (events.readyState === EventSource.CLOSED) recover();
     };
