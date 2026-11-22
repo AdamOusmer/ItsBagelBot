@@ -42,6 +42,7 @@ const {
 } = Astro.props;
 
 const isStatic = !href && !selectable;
+const hasBelow = Astro.slots.has('below');
 
 const classes = [
     'bb-row',
@@ -84,7 +85,6 @@ const hasLeading = Astro.slots.has('leading');
 const hasBadge = Astro.slots.has('badge');
 const hasMarks = Astro.slots.has('marks');
 const hasActions = Astro.slots.has('actions');
-const hasBelow = Astro.slots.has('below');
 ---
 
 <Tag class={classes} {...rest}>
