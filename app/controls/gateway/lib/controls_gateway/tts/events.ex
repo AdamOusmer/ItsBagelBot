@@ -44,15 +44,25 @@ defmodule ControlsGateway.Tts.Events do
       start(req, headers, state)
     else
       false ->
+        Logger.warning("TTS events link no longer valid", user_id: session.user_id)
         {:ok, :cowboy_req.reply(204, headers, req), nil}
 
-      _ ->
+      other ->
+        Logger.warning("TTS events unavailable",
+          user_id: session.user_id,
+          reason: inspect(other, limit: 5)
+        )
+
         body = initial_frame(@unavailable_retry_ms)
         {:ok, :cowboy_req.reply(200, event_headers(headers), body, req), nil}
     end
   end
 
   defp start(req, headers, state) do
+    Logger.info("TTS events stream opened, resume=#{state.resume || "new"}",
+      user_id: state.session.user_id
+    )
+
     state = attach(state)
     req = :cowboy_req.stream_reply(200, event_headers(headers), req)
     :ok = :cowboy_req.stream_body(initial_frame(@retry_ms), :nofin, req)
@@ -95,19 +105,19 @@ defmodule ControlsGateway.Tts.Events do
   end
 
   def info({:msg, %{sid: sid, gnat: rpc}}, req, %{revoked_sid: sid, rpc: rpc} = state),
-    do: stop(req, state)
+    do: stop(req, state, :revoked)
 
   def info({:msg, %{sid: sid, gnat: conn} = message}, req, %{event_sid: sid, conn: conn} = state),
     do: deliver(message, req, state)
 
   def info({:DOWN, ref, :process, _pid, _reason}, req, state)
       when ref == state.monitor or ref == state.rpc_monitor,
-      do: stop(req, state)
+      do: stop(req, state, down_reason(ref, state))
 
   def info(:ping, req, state) do
     case ping(state) do
       :stale ->
-        stop(req, state)
+        stop(req, state, :stale)
 
       state ->
         :ok = :cowboy_req.stream_body(@ping_frame, :nofin, req)
@@ -117,15 +127,17 @@ defmodule ControlsGateway.Tts.Events do
   end
 
   def info(:check, req, state) do
-    if valid?(state) do
-      schedule_check(state.session)
-      continue(req, state)
-    else
-      stop(req, state)
+    case check_failure(state) do
+      nil ->
+        schedule_check(state.session)
+        continue(req, state)
+
+      reason ->
+        stop(req, state, reason)
     end
   end
 
-  def info(:shutdown_close, req, state), do: stop(req, state)
+  def info(:shutdown_close, req, state), do: stop(req, state, :shutdown)
 
   def info(_message, req, state), do: continue(req, state)
 
@@ -139,7 +151,7 @@ defmodule ControlsGateway.Tts.Events do
     if last == Integer.to_string(state.seq) do
       continue(req, %{state | seen_at: now()})
     else
-      stop(req, state)
+      stop(req, state, :flow_gap)
     end
   end
 
@@ -153,11 +165,11 @@ defmodule ControlsGateway.Tts.Events do
         continue(req, %{state | seq: next, seen_at: now()})
 
       _ ->
-        stop(req, state)
+        stop(req, state, :out_of_order)
     end
   end
 
-  defp deliver(_message, req, state), do: stop(req, state)
+  defp deliver(_message, req, state), do: stop(req, state, :unexpected_message)
 
   defp send_event(req, seq, body, session) do
     case Jason.decode(body) do
@@ -191,8 +203,16 @@ defmodule ControlsGateway.Tts.Events do
     if now() - state.seen_at < @ping_ms, do: state, else: :stale
   end
 
-  defp valid?(state),
-    do: state.session.exp > Session.now() and Nats.check(state.rpc, state.session) == true
+  defp check_failure(state) do
+    cond do
+      state.session.exp <= Session.now() -> :session_expired
+      Nats.check(state.rpc, state.session) != true -> :check_failed
+      true -> nil
+    end
+  end
+
+  defp down_reason(ref, %{monitor: ref}), do: :nats_down
+  defp down_reason(_ref, _state), do: :rpc_down
 
   defp schedule_check(session) do
     delay = min(@check_ms, max(0, session.exp - Session.now()) * 1_000)
@@ -224,8 +244,15 @@ defmodule ControlsGateway.Tts.Events do
   defp now, do: System.monotonic_time(:millisecond)
   defp continue(req, state), do: {:ok, req, state, :hibernate}
 
-  defp stop(req, state) do
+  defp stop(req, state, reason) do
+    log_stop(reason, state.session.user_id)
     :cowboy_req.stream_body("", :fin, req)
     {:stop, req, state}
   end
+
+  defp log_stop(reason, user_id) when reason in [:shutdown, :revoked],
+    do: Logger.info("TTS events stream closed", user_id: user_id, reason: reason)
+
+  defp log_stop(reason, user_id),
+    do: Logger.warning("TTS events stream closed", user_id: user_id, reason: reason)
 end

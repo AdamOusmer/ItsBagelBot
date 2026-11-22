@@ -51,9 +51,16 @@ defmodule ControlsGateway.Tts.Http do
 
   defp serve(:events_status, req, session) do
     case Nats.check(Nats.rpc_connection(), session) do
-      true -> reply(req, 200)
-      false -> reply(req, 204)
-      :unavailable -> reply(req, 503)
+      true ->
+        reply(req, 200)
+
+      false ->
+        Logger.info("TTS link no longer valid", user_id: session.user_id)
+        reply(req, 204)
+
+      :unavailable ->
+        Logger.warning("TTS events status unavailable", user_id: session.user_id)
+        reply(req, 503)
     end
   end
 
@@ -70,15 +77,16 @@ defmodule ControlsGateway.Tts.Http do
     case result do
       {:ok, user_id, generation} ->
         Throttle.refund(reservation)
+        Logger.info("TTS session opened", user_id: user_id)
         req |> Session.put(user_id, generation) |> reply(204)
 
-      :not_found ->
-        Logger.debug("TTS session rejected")
+      {:not_found, reason} ->
+        Logger.warning("TTS session rejected", reason: reason)
         reply(req, 404)
 
-      :unavailable ->
+      {:unavailable, reason} ->
         Throttle.refund(reservation)
-        Logger.warning("TTS session resolution unavailable")
+        Logger.warning("TTS session resolution unavailable", reason: reason)
         reply(req, 503)
     end
   end
@@ -88,17 +96,17 @@ defmodule ControlsGateway.Tts.Http do
          {"application", "json", _params} <- :cowboy_req.parse_header("content-type", req) do
       read_token(req)
     else
-      key when is_nil(key) or is_binary(key) -> {:unavailable, req}
-      _ -> {:not_found, req}
+      key when is_nil(key) or is_binary(key) -> {{:unavailable, :cookie_key}, req}
+      _ -> {{:not_found, :content_type}, req}
     end
   catch
-    :exit, {:request_error, _, _} -> {:not_found, req}
+    :exit, {:request_error, _, _} -> {{:not_found, :request_error}, req}
   end
 
   defp read_token(req) do
     case :cowboy_req.read_body(req, %{length: @max_body, period: 2_000}) do
       {:ok, body, req} when byte_size(body) <= @max_body -> {resolve_body(body), req}
-      {_, _, req} -> {:not_found, req}
+      {_, _, req} -> {{:not_found, :body_size}, req}
     end
   end
 
@@ -108,7 +116,7 @@ defmodule ControlsGateway.Tts.Http do
         :crypto.hash(:sha256, token) |> Base.encode16(case: :lower) |> Nats.resolve()
 
       :error ->
-        :not_found
+        {:not_found, :token_format}
     end
   end
 

@@ -20,7 +20,7 @@ defmodule ControlsGateway.Tts.Clips do
       stream(conn, req, headers, {clip, chunk})
     else
       _ ->
-        Logger.debug("TTS clip unavailable")
+        Logger.warning("TTS clip unavailable", user_id: session.user_id)
         {:ok, :cowboy_req.reply(404, headers, req), nil}
     end
   end
