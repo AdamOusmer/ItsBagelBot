@@ -62,7 +62,8 @@ func (r *Users) RecordVoiceUsage(ctx context.Context, id uint64, record VoiceUsa
 
 func voiceOwnerQuery(tx *ent.Tx, id uint64) *ent.UserSelect {
 	return tx.User.Query().Where(user.IDEQ(id)).Select(
-		user.FieldID, user.FieldStatus, user.FieldSubscriptionSource, user.FieldIsActive, user.FieldBanned,
+		user.FieldID, user.FieldStatus, user.FieldSubscriptionSource, user.FieldSubscriptionExpiresAt,
+		user.FieldIsActive, user.FieldBanned,
 	)
 }
 
@@ -106,7 +107,11 @@ func (v voiceRecording) apply(ctx context.Context, tx *ent.Tx) (usersrpc.VoiceAl
 	if !ent.IsNotFound(err) {
 		return usersrpc.VoiceAllowance{}, err
 	}
-	if err := v.addUsage(ctx, tx); err != nil {
+	_, window, err := loadVoiceWindow(ctx, tx, v.owner, v.now)
+	if err != nil {
+		return usersrpc.VoiceAllowance{}, err
+	}
+	if err := v.addUsage(ctx, tx, window.Key); err != nil {
 		return usersrpc.VoiceAllowance{}, err
 	}
 	allowance, err := loadVoiceAllowance(ctx, tx, v.owner, v.now)
@@ -119,9 +124,9 @@ func (v voiceRecording) apply(ctx context.Context, tx *ent.Tx) (usersrpc.VoiceAl
 	return allowance, err
 }
 
-func (v voiceRecording) addUsage(ctx context.Context, tx *ent.Tx) error {
+func (v voiceRecording) addUsage(ctx context.Context, tx *ent.Tx, period string) error {
 	return tx.VoiceUsage.Create().
-		SetUserID(v.owner.ID).SetPeriod(voiceplan.Period(v.now)).
+		SetUserID(v.owner.ID).SetPeriod(period).
 		SetAudioTokens(v.record.AudioTokens).SetDurationMs(v.record.DurationMS).SetRequests(1).SetUpdatedAt(v.now).
 		OnConflictColumns(voiceusage.FieldUserID, voiceusage.FieldPeriod).
 		Update(func(upsert *ent.VoiceUsageUpsert) {
@@ -131,8 +136,11 @@ func (v voiceRecording) addUsage(ctx context.Context, tx *ent.Tx) error {
 }
 
 func loadVoiceAllowance(ctx context.Context, tx *ent.Tx, owner *ent.User, now time.Time) (usersrpc.VoiceAllowance, error) {
-	period := voiceplan.Period(now)
-	usage, err := tx.VoiceUsage.Query().Where(voiceusage.UserIDEQ(owner.ID), voiceusage.PeriodEQ(period)).Only(ctx)
+	plan, window, err := loadVoiceWindow(ctx, tx, owner, now)
+	if err != nil {
+		return usersrpc.VoiceAllowance{}, err
+	}
+	usage, err := tx.VoiceUsage.Query().Where(voiceusage.UserIDEQ(owner.ID), voiceusage.PeriodEQ(window.Key)).Only(ctx)
 	if err != nil && !ent.IsNotFound(err) {
 		return usersrpc.VoiceAllowance{}, err
 	}
@@ -140,17 +148,25 @@ func loadVoiceAllowance(ctx context.Context, tx *ent.Tx, owner *ent.User, now ti
 	if usage != nil {
 		used = usage.AudioTokens
 	}
-	plan, err := loadVoicePlan(ctx, tx, owner, now)
-	if err != nil {
-		return usersrpc.VoiceAllowance{}, err
-	}
 	limit := voiceplan.SecondsToTokens(voiceplan.MonthlySeconds(plan))
 	allowance := usersrpc.VoiceAllowance{
-		Plan: plan, Period: period, LimitTokens: limit, UsedTokens: used, RemainingTokens: max(0, limit-used),
-		ResetsAt: voiceplan.ResetsAt(now),
+		Plan: plan, Period: window.Key, LimitTokens: limit, UsedTokens: used, RemainingTokens: max(0, limit-used),
+		ResetsAt: window.ResetsAt,
 		Reason:   voiceAllowanceReason(owner, plan),
 	}
 	return allowance, nil
+}
+
+func loadVoiceWindow(ctx context.Context, tx *ent.Tx, owner *ent.User, now time.Time) (voiceplan.Plan, voiceplan.Window, error) {
+	plan, err := loadVoicePlan(ctx, tx, owner, now)
+	return plan, voiceWindow(plan, owner.SubscriptionExpiresAt, now), err
+}
+
+func voiceWindow(plan voiceplan.Plan, renewsAt *time.Time, now time.Time) voiceplan.Window {
+	if plan == voiceplan.VIP || renewsAt == nil {
+		return voiceplan.CalendarWindow(now)
+	}
+	return voiceplan.CycleWindow(now, *renewsAt)
 }
 
 func voiceAllowanceReason(owner *ent.User, plan voiceplan.Plan) string {

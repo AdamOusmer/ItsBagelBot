@@ -26,7 +26,7 @@ func (VoiceUsageReceipt) Fields() []ent.Field {
 		field.String("request_id").NotEmpty().MaxLen(usersrpc.VoiceRequestIDMaxBytes).Immutable().
 			SchemaType(map[string]string{dialect.MySQL: "varbinary(255)"}),
 		field.Uint64("user_id").Immutable(),
-		field.String("period").MaxLen(7).Immutable(),
+		field.String("period").MaxLen(10).Immutable(),
 		field.Int64("audio_tokens").NonNegative().Immutable(),
 		field.Time("created_at").Immutable(),
 		field.JSON("allowance", usersrpc.VoiceAllowance{}).Immutable(),
