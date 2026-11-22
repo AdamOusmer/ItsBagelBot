@@ -16,7 +16,8 @@ export const overlayLimits = {
   accountUploadsPerHour: 60,
   importUnpackedBytes: 500 * 1024 * 1024,
   importEntries: 300,
-  importRatio: 50
+  importRatio: 50,
+  lapseRetentionDays: 60
 } as const;
 
 export const ASSET_TYPES = ['png', 'webp', 'jpeg', 'gif', 'webm', 'mp3', 'ogg', 'wav', 'woff2', 'widget'] as const;

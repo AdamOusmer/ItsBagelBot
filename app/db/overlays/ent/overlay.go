@@ -31,6 +31,8 @@ type Overlay struct {
 	TokenHash string `json:"-"`
 	// Generation holds the value of the "generation" field.
 	Generation int `json:"generation,omitempty"`
+	// LapsedAt holds the value of the "lapsed_at" field.
+	LapsedAt *time.Time `json:"lapsed_at,omitempty"`
 	// Document holds the value of the "document" field.
 	Document jsontext.Value `json:"document,omitempty"`
 	// Revision holds the value of the "revision" field.
@@ -53,7 +55,7 @@ func (*Overlay) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullInt64)
 		case overlay.FieldKind, overlay.FieldTemplate, overlay.FieldName, overlay.FieldTokenHash:
 			values[i] = new(sql.NullString)
-		case overlay.FieldCreatedAt, overlay.FieldUpdatedAt:
+		case overlay.FieldLapsedAt, overlay.FieldCreatedAt, overlay.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -112,6 +114,13 @@ func (_m *Overlay) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field generation", values[i])
 			} else if value.Valid {
 				_m.Generation = int(value.Int64)
+			}
+		case overlay.FieldLapsedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field lapsed_at", values[i])
+			} else if value.Valid {
+				_m.LapsedAt = new(time.Time)
+				*_m.LapsedAt = value.Time
 			}
 		case overlay.FieldDocument:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -193,6 +202,11 @@ func (_m *Overlay) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("generation=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Generation))
+	builder.WriteString(", ")
+	if v := _m.LapsedAt; v != nil {
+		builder.WriteString("lapsed_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("document=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Document))

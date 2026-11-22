@@ -18,6 +18,7 @@ var (
 		{Name: "name", Type: field.TypeString, Size: 120},
 		{Name: "token_hash", Type: field.TypeString, Unique: true, Size: 64},
 		{Name: "generation", Type: field.TypeInt, Default: 0},
+		{Name: "lapsed_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(6)"}},
 		{Name: "document", Type: field.TypeJSON},
 		{Name: "revision", Type: field.TypeUint64},
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(6)"}},

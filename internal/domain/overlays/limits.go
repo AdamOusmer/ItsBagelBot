@@ -17,6 +17,7 @@ const (
 	ImportMaxUnpackedBytes = 500 << 20
 	ImportMaxEntries       = 300
 	ImportMaxRatio         = 50
+	LapseRetentionDays     = 60
 )
 
 type AssetType string

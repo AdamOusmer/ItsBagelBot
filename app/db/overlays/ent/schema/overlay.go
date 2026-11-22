@@ -29,6 +29,7 @@ func (Overlay) Fields() []ent.Field {
 		field.String("name").NotEmpty().MaxLen(120),
 		field.String("token_hash").NotEmpty().MaxLen(64).Unique().Sensitive(),
 		field.Int("generation").Default(0),
+		field.Time("lapsed_at").SchemaType(map[string]string{dialect.MySQL: "datetime(6)"}).Optional().Nillable(),
 		field.JSON("document", json.RawMessage{}),
 		field.Uint64("revision"),
 		field.Time("created_at").SchemaType(map[string]string{dialect.MySQL: "datetime(6)"}).Default(time.Now).Immutable(),

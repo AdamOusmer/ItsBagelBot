@@ -76,7 +76,8 @@ describe('pinned limits', () => {
         account_uploads_per_hour: overlayLimits.accountUploadsPerHour,
         import_unpacked_bytes: overlayLimits.importUnpackedBytes,
         import_entries: overlayLimits.importEntries,
-        import_ratio: overlayLimits.importRatio
+        import_ratio: overlayLimits.importRatio,
+        lapse_retention_days: overlayLimits.lapseRetentionDays
       },
       assets: Object.fromEntries(
         ASSET_TYPES.map((type) => [type, {

@@ -62,11 +62,11 @@ func init() {
 	// overlay.DefaultGeneration holds the default value on creation for the generation field.
 	overlay.DefaultGeneration = overlayDescGeneration.Default.(int)
 	// overlayDescCreatedAt is the schema descriptor for created_at field.
-	overlayDescCreatedAt := overlayFields[8].Descriptor()
+	overlayDescCreatedAt := overlayFields[9].Descriptor()
 	// overlay.DefaultCreatedAt holds the default value on creation for the created_at field.
 	overlay.DefaultCreatedAt = overlayDescCreatedAt.Default.(func() time.Time)
 	// overlayDescUpdatedAt is the schema descriptor for updated_at field.
-	overlayDescUpdatedAt := overlayFields[9].Descriptor()
+	overlayDescUpdatedAt := overlayFields[10].Descriptor()
 	// overlay.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	overlay.DefaultUpdatedAt = overlayDescUpdatedAt.Default.(func() time.Time)
 	// overlay.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

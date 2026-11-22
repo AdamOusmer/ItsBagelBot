@@ -9,6 +9,7 @@ import (
 	"ItsBagelBot/app/db/overlays/ent"
 	// Without the ent runtime import every write fails.
 	_ "ItsBagelBot/app/db/overlays/ent/runtime"
+	"ItsBagelBot/app/db/overlays/lapse"
 	"ItsBagelBot/app/db/overlays/repository"
 	"ItsBagelBot/app/db/overlays/rpc"
 	"ItsBagelBot/internal/domain/event/data"
@@ -46,6 +47,8 @@ func main() {
 	svcboot.FatalIf(log, repo.MigratePowered(core.Ctx), "failed to migrate powered overlays")
 	uploads := newAssets(core, repo, objects, n.RPC)
 	serveUploads(core, uploads)
+	sweeper := &lapse.Sweeper{Repo: repo, Plans: uploads.Plans}
+	go sweeper.Run(core.Ctx, log)
 
 	deleted := consumers.OnUserDeleted(serviceName, log, repo.DeleteAccount)
 	svcboot.FatalIf(log, bus.Consume(core.Ctx, core.NR, n.Grouped, data.SubjectUserDeleted, deleted, log), "failed to subscribe to user deleted events")

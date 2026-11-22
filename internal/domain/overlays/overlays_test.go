@@ -155,6 +155,7 @@ func currentLimits() pinnedLimits {
 			"import_unpacked_bytes":    overlays.ImportMaxUnpackedBytes,
 			"import_entries":           overlays.ImportMaxEntries,
 			"import_ratio":             overlays.ImportMaxRatio,
+			"lapse_retention_days":     overlays.LapseRetentionDays,
 		},
 		Assets: map[string]map[string]int64{},
 	}

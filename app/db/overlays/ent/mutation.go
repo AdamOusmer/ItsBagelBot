@@ -48,6 +48,7 @@ type OverlayMutation struct {
 	token_hash     *string
 	generation     *int
 	addgeneration  *int
+	lapsed_at      *time.Time
 	document       *jsontext.Value
 	appenddocument jsontext.Value
 	revision       *uint64
@@ -427,6 +428,55 @@ func (m *OverlayMutation) ResetGeneration() {
 	m.addgeneration = nil
 }
 
+// SetLapsedAt sets the "lapsed_at" field.
+func (m *OverlayMutation) SetLapsedAt(t time.Time) {
+	m.lapsed_at = &t
+}
+
+// LapsedAt returns the value of the "lapsed_at" field in the mutation.
+func (m *OverlayMutation) LapsedAt() (r time.Time, exists bool) {
+	v := m.lapsed_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLapsedAt returns the old "lapsed_at" field's value of the Overlay entity.
+// If the Overlay object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayMutation) OldLapsedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLapsedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLapsedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLapsedAt: %w", err)
+	}
+	return oldValue.LapsedAt, nil
+}
+
+// ClearLapsedAt clears the value of the "lapsed_at" field.
+func (m *OverlayMutation) ClearLapsedAt() {
+	m.lapsed_at = nil
+	m.clearedFields[overlay.FieldLapsedAt] = struct{}{}
+}
+
+// LapsedAtCleared returns if the "lapsed_at" field was cleared in this mutation.
+func (m *OverlayMutation) LapsedAtCleared() bool {
+	_, ok := m.clearedFields[overlay.FieldLapsedAt]
+	return ok
+}
+
+// ResetLapsedAt resets all changes to the "lapsed_at" field.
+func (m *OverlayMutation) ResetLapsedAt() {
+	m.lapsed_at = nil
+	delete(m.clearedFields, overlay.FieldLapsedAt)
+}
+
 // SetDocument sets the "document" field.
 func (m *OverlayMutation) SetDocument(j jsontext.Value) {
 	m.document = &j
@@ -640,7 +690,7 @@ func (m *OverlayMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *OverlayMutation) Fields() []string {
-	fields := make([]string, 0, 10)
+	fields := make([]string, 0, 11)
 	if m.user_id != nil {
 		fields = append(fields, overlay.FieldUserID)
 	}
@@ -658,6 +708,9 @@ func (m *OverlayMutation) Fields() []string {
 	}
 	if m.generation != nil {
 		fields = append(fields, overlay.FieldGeneration)
+	}
+	if m.lapsed_at != nil {
+		fields = append(fields, overlay.FieldLapsedAt)
 	}
 	if m.document != nil {
 		fields = append(fields, overlay.FieldDocument)
@@ -691,6 +744,8 @@ func (m *OverlayMutation) Field(name string) (ent.Value, bool) {
 		return m.TokenHash()
 	case overlay.FieldGeneration:
 		return m.Generation()
+	case overlay.FieldLapsedAt:
+		return m.LapsedAt()
 	case overlay.FieldDocument:
 		return m.Document()
 	case overlay.FieldRevision:
@@ -720,6 +775,8 @@ func (m *OverlayMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldTokenHash(ctx)
 	case overlay.FieldGeneration:
 		return m.OldGeneration(ctx)
+	case overlay.FieldLapsedAt:
+		return m.OldLapsedAt(ctx)
 	case overlay.FieldDocument:
 		return m.OldDocument(ctx)
 	case overlay.FieldRevision:
@@ -778,6 +835,13 @@ func (m *OverlayMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetGeneration(v)
+		return nil
+	case overlay.FieldLapsedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLapsedAt(v)
 		return nil
 	case overlay.FieldDocument:
 		v, ok := value.(jsontext.Value)
@@ -879,6 +943,9 @@ func (m *OverlayMutation) ClearedFields() []string {
 	if m.FieldCleared(overlay.FieldTemplate) {
 		fields = append(fields, overlay.FieldTemplate)
 	}
+	if m.FieldCleared(overlay.FieldLapsedAt) {
+		fields = append(fields, overlay.FieldLapsedAt)
+	}
 	return fields
 }
 
@@ -895,6 +962,9 @@ func (m *OverlayMutation) ClearField(name string) error {
 	switch name {
 	case overlay.FieldTemplate:
 		m.ClearTemplate()
+		return nil
+	case overlay.FieldLapsedAt:
+		m.ClearLapsedAt()
 		return nil
 	}
 	return fmt.Errorf("unknown Overlay nullable field %s", name)
@@ -921,6 +991,9 @@ func (m *OverlayMutation) ResetField(name string) error {
 		return nil
 	case overlay.FieldGeneration:
 		m.ResetGeneration()
+		return nil
+	case overlay.FieldLapsedAt:
+		m.ResetLapsedAt()
 		return nil
 	case overlay.FieldDocument:
 		m.ResetDocument()
