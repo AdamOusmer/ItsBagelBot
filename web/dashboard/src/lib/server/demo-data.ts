@@ -22,7 +22,7 @@ import type { Session } from './session';
 import type { AccountState, BillingState, DeviceGrantView, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';
 import type { TtsOverlayView, VoiceAllowance, VoiceSettings } from './services/voice';
-import type { PoweredView } from './services/overlays';
+import type { OverlayView, PoweredSettings } from './services/overlays';
 import type { GoveeDevice, GoveeView } from './govee-store';
 import type { FetchDefView, FetchKeyView } from './fetches-store';
 import type { PublicStats } from './public-stats';
@@ -694,27 +694,34 @@ export function demoVoiceSave(settings: Partial<VoiceSettings>, partial: Record<
   return demoVoiceState.revision;
 }
 
-const DEMO_POWERED_URL = 'https://overlay.itsbagelbot.com/powered#demo-powered-link';
-const DEMO_POWERED_REPLACED_URL = `${DEMO_POWERED_URL}-replaced`;
+const DEMO_POWERED_URL = 'https://overlay.itsbagelbot.com/o#demo-powered-link';
+const DEMO_POWERED_ID = 1;
 
-const demoPoweredState: PoweredView = {
-  url: DEMO_POWERED_URL,
+const demoPoweredState: PoweredSettings = {
+  id: DEMO_POWERED_ID,
   config: { every_minutes: 15, show_seconds: 8, directions: ['right'], align: 'end' },
   revision: 1
 };
+let demoRotations = 0;
 
-export function demoPoweredView(): PoweredView {
+const demoPoweredLink = () => `${DEMO_POWERED_URL}-${demoRotations}`;
+
+export function demoOverlayList(): OverlayView[] {
+  return [{ id: DEMO_POWERED_ID, kind: 'system', template: 'powered', name: 'Powered by Bagel', revision: demoPoweredState.revision }];
+}
+
+export function demoPoweredView(): PoweredSettings {
   return structuredClone(demoPoweredState);
 }
 
-export function demoPoweredSave(config: PoweredView['config']): number {
+export function demoPoweredSave(config: PoweredSettings['config']): number {
   demoPoweredState.config = structuredClone(config);
   demoPoweredState.revision += 1;
   return demoPoweredState.revision;
 }
 
-export function demoPoweredRotate(): { url: string; revision: number } {
-  demoPoweredState.url = demoPoweredState.url === DEMO_POWERED_URL ? DEMO_POWERED_REPLACED_URL : DEMO_POWERED_URL;
+export function demoOverlayRotate(): { id: number; url: string; revision: number } {
+  demoRotations += 1;
   demoPoweredState.revision += 1;
-  return { url: demoPoweredState.url, revision: demoPoweredState.revision };
+  return { id: DEMO_POWERED_ID, url: demoPoweredLink(), revision: demoPoweredState.revision };
 }

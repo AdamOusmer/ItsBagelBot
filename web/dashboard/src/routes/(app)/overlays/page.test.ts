@@ -35,14 +35,16 @@ if (uiSvelte !== fileURLToPath(import.meta.resolve('svelte'))) mock.module(uiSve
 
 const { default: OverlaysPage } = await import('./+page.svelte');
 
+const system = { id: 7, kind: 'system', template: 'powered', name: 'Powered by Bagel', revision: 3 };
+const custom = { id: 8, kind: 'custom', name: 'Starting scene', revision: 1 };
 const powered = {
-  url: 'https://overlay.itsbagelbot.com/powered#AAAA',
+  id: 7,
   config: { ...defaultPoweredConfig(), show_seconds: 12, directions: ['left'], align: 'center' },
   revision: 3
 };
 
 function renderPage(data: Record<string, unknown>) {
-  return render(OverlaysPage, { props: { data, form: null } as never }).body;
+  return render(OverlaysPage, { props: { data: { overlays: [system], ...data } } as never }).body;
 }
 
 async function attributes(html: string, selector: string) {
@@ -75,9 +77,30 @@ test('the entry edge is a single choice with the saved edge checked', async () =
 });
 
 test.each([
-  { name: 'a delegate', data: { readOnly: true, powered: null }, text: 'Only the channel owner can change overlays.' },
-  { name: 'an unavailable owner', data: { readOnly: false, powered: null }, text: 'Overlay settings are unavailable.' }
+  { name: 'a delegate', data: { readOnly: true, overlays: null, powered: null }, text: 'Only the channel owner can change overlays.' },
+  { name: 'an unavailable owner', data: { readOnly: false, overlays: null, powered: null }, text: 'Overlay settings are unavailable.' }
 ])('shows a notice and no controls for $name', ({ data, text }) => {
   const html = renderPage({ ...data, isPremium: false });
   expect([html.includes(text), html.includes('<iframe')]).toEqual([true, false]);
+});
+
+test.each([
+  { name: 'added', overlays: [system], disabled: true },
+  { name: 'not added', overlays: [], disabled: false }
+])('Add Powered by Bagel stays in the page and is disabled when $name', async ({ overlays, disabled }) => {
+  const html = renderPage({ readOnly: false, overlays, powered: null, isPremium: false });
+  const buttons = await attributes(html, 'form[action="?/add"] button');
+  expect(buttons.map((button) => 'disabled' in button)).toEqual([disabled]);
+});
+
+test('lists each overlay with a replace action and deletes only custom ones', async () => {
+  const html = renderPage({ readOnly: false, overlays: [system, custom], powered, isPremium: true });
+  const replaced = await attributes(html, 'form[action="?/rotate"] input[name="id"]');
+  expect([replaced.map((input) => input.value), html.includes('Powered by Bagel'), html.includes('Starting scene')]).toEqual([['7', '8'], true, true]);
+  expect(html.match(/>Delete</g)).toHaveLength(1);
+});
+
+test('the custom overlay entry is always offered', async () => {
+  const [link] = await attributes(renderPage({ readOnly: false, overlays: [], powered: null, isPremium: false }), 'a[href="/overlays/custom"]');
+  expect(Boolean(link)).toBe(true);
 });
