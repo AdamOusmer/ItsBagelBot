@@ -185,12 +185,38 @@ func (s *ValkeyTimerStore) ArmAll(ctx context.Context, broadcasterID uint64) {
 }
 
 func (s *ValkeyTimerStore) ArmOnline(ctx context.Context, broadcasterID uint64) {
+	var laid []armedTimer
 	s.eachTimer(ctx, broadcasterID, func(at armedTimer) {
 		if at.def.AllowOffline && at.ref.id != "" {
 			s.delAuxKey(ctx, at.ref, at.ref.firesKey())
 		}
-		s.armOne(ctx, at)
+		laid = s.armOrLay(ctx, at, laid)
 	})
+	s.armLayout(ctx, broadcasterID, laid)
+}
+
+func (s *ValkeyTimerStore) armOrLay(ctx context.Context, at armedTimer, laid []armedTimer) []armedTimer {
+	if !s.armable(ctx, at) {
+		return laid
+	}
+	if at.ref.automation() {
+		s.armJittered(ctx, at)
+		return laid
+	}
+	return append(laid, at)
+}
+
+func (s *ValkeyTimerStore) armLayout(ctx context.Context, broadcasterID uint64, laid []armedTimer) {
+	var running []string
+	for _, at := range laid {
+		if at.def.AllowOffline {
+			running = append(running, at.ref.scheduleKey())
+		}
+	}
+	s.delKeys(ctx, broadcasterID, running)
+	for i, delay := range liveLayout(laid) {
+		s.armAfter(ctx, laid[i], delay)
+	}
 }
 
 func (s *ValkeyTimerStore) armOffline(ctx context.Context, broadcasterID uint64) {
@@ -215,17 +241,20 @@ func (s *ValkeyTimerStore) eachTimer(ctx context.Context, broadcasterID uint64, 
 }
 
 func (s *ValkeyTimerStore) armOne(ctx context.Context, at armedTimer) {
+	if s.armable(ctx, at) {
+		s.armJittered(ctx, at)
+	}
+}
+
+func (s *ValkeyTimerStore) armable(ctx context.Context, at armedTimer) bool {
 	if !at.def.Enabled || at.ref.id == "" {
-		return
+		return false
 	}
 	var fires int64
 	if clampCount(at.def.MaxFires, maxFireCap) > 0 {
 		fires = s.fireCount(ctx, at.ref)
 	}
-	if stopped(at.def, fires, s.now()) {
-		return
-	}
-	s.armJittered(ctx, at)
+	return !stopped(at.def, fires, s.now())
 }
 
 func (s *ValkeyTimerStore) Rearm(ctx context.Context, broadcasterID uint64) {
@@ -287,7 +316,11 @@ func clampInterval(seconds int) time.Duration {
 }
 
 func (s *ValkeyTimerStore) arm(ctx context.Context, at armedTimer) {
-	s.armAfter(ctx, at, clampInterval(at.def.Interval))
+	delay := clampInterval(at.def.Interval)
+	if at.ref.automation() {
+		delay = s.spreadDelay(ctx, at, delay+armJitter(at.def))
+	}
+	s.armAfter(ctx, at, delay)
 }
 
 func (s *ValkeyTimerStore) armJittered(ctx context.Context, at armedTimer) {
@@ -297,14 +330,13 @@ func (s *ValkeyTimerStore) armJittered(ctx context.Context, at armedTimer) {
 		spread = timerFirstFireJitter
 	}
 	offset := time.Duration(rand.Int64N(int64(spread.Seconds())+1)) * time.Second
-	s.armAfter(ctx, at, interval+offset)
+	s.armAfter(ctx, at, s.spreadDelay(ctx, at, interval+offset+armJitter(at.def)))
 }
 
 func (s *ValkeyTimerStore) armAfter(ctx context.Context, at armedTimer, ex time.Duration) {
 	if !at.def.Enabled || at.ref.id == "" {
 		return
 	}
-	ex = s.spreadDelay(ctx, at, ex+armJitter(at.def))
 	err := s.armSchedule(ctx, at.ref, ex)
 	if err != nil && !valkey.IsValkeyNil(err) {
 		idempotency.Fail(ctx, err)
@@ -391,9 +423,6 @@ func (s *ValkeyTimerStore) moduleTimers(ctx context.Context, broadcasterID uint6
 		idempotency.Fail(ctx, err)
 		s.log.Warn("timers: bad config", module.BIDField(broadcasterID), zap.Error(err))
 		return timersConfig{}, false
-	}
-	for i := range cfg.Timers {
-		cfg.Timers[i].JitterS = autoJitterSeconds(cfg.Timers[i].Interval)
 	}
 	return cfg, true
 }
@@ -659,7 +688,7 @@ func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
 		s.recordTick("refused")
 		return
 	}
-	if strings.HasPrefix(at.ref.id, autoTimerPrefix) {
+	if at.ref.automation() {
 		s.fireAutomation(ctx, at)
 		return
 	}

@@ -151,26 +151,69 @@ func TestArmAllSkipsCappedAndEndedTimersButArmsAPlainOne(t *testing.T) {
 	assert.True(t, f.scheduleKeyExists(t, "plain"), "ArmAll must still arm an ungated, unstopped timer")
 }
 
-func TestArmAllAddsAnAutomaticJitterToModuleTimers(t *testing.T) {
-	blob := []byte(`{"timers":[{"id":"plain","message":"hi","intervalSeconds":3600,"enabled":true}]}`)
-	proj := fakeReader{modules: map[string]projection.ModuleView{
-		timersModuleName: {Name: timersModuleName, IsEnabled: true, Configs: blob},
-	}}
-	f := newGateStoreFixture(t, proj)
-	ctx := context.Background()
-	key := f.ref("plain").scheduleKey()
+func TestArmAllAddsNoAutomaticJitterToModuleTimers(t *testing.T) {
+	f := newGateStoreFixture(t, fakeReader{})
+	f.withConfig(t, timerDef{ID: "plain", Message: "hi", Interval: 3600, Enabled: true})
 
-	var longest int64
-	for range 5 {
-		f.store.ArmAll(ctx, f.bid)
-		ttl, err := f.store.client.Do(ctx, f.store.client.B().Ttl().Key(key).Build()).AsInt64()
-		require.NoError(t, err)
-		require.NoError(t, pkg_valkey.DelKeys(ctx, f.store.client, key))
-		assert.GreaterOrEqual(t, ttl, int64(3600))
-		longest = max(longest, ttl)
+	f.store.ArmAll(context.Background(), f.bid)
+
+	delays := f.remaining(t, "plain")
+	assert.LessOrEqual(t, delays[0], 3600*time.Second+timerFirstFireJitter)
+}
+
+func TestArmOnlineSpreadsTimersOnTheSameIntervalEvenlyInsideIt(t *testing.T) {
+	ids := []string{"s0", "s1", "s2"}
+	f := newGateStoreFixture(t, fakeReader{})
+	f.withConfig(t, intervalTimers(600, ids...)...)
+
+	f.store.ArmOnline(context.Background(), f.bid)
+
+	delays := f.remaining(t, ids...)
+	slices.Sort(delays)
+	assert.Greater(t, delays[0], time.Duration(0))
+	assert.LessOrEqual(t, delays[2], 600*time.Second)
+	assert.InDeltaSlice(t, []float64{200, 200}, []float64{(delays[1] - delays[0]).Seconds(), (delays[2] - delays[1]).Seconds()}, 1)
+}
+
+func TestArmOnlinePlacesIntervalsAsFarApartAsTheyCanStay(t *testing.T) {
+	f := newGateStoreFixture(t, fakeReader{})
+	f.withConfig(t, append(intervalTimers(600, "a"), intervalTimers(900, "b")...)...)
+
+	f.store.ArmOnline(context.Background(), f.bid)
+
+	delays := f.remaining(t, "a", "b")
+	offset := int64((delays[0] - delays[1] + 900*time.Second).Round(time.Second).Seconds()) % 300
+	assert.InDelta(t, 150, offset, 1, "600 s and 900 s fires meet every 300 s, so the widest gap is 150 s")
+}
+
+func TestTickReArmsAModuleTimerAtItsExactInterval(t *testing.T) {
+	f := newGateStoreFixture(t, fakeReader{})
+	td := timerDef{ID: "t1", Message: "hi", Interval: 600, Enabled: true}
+	f.withConfig(t, td)
+
+	f.store.tick(context.Background(), f.armed("t1", td))
+
+	assert.InDelta(t, 600, f.remaining(t, "t1")[0].Seconds(), 1)
+}
+
+func intervalTimers(intervalSeconds int, ids ...string) []timerDef {
+	timers := make([]timerDef, len(ids))
+	for i, id := range ids {
+		timers[i] = timerDef{ID: id, Message: "hi", Interval: intervalSeconds, Enabled: true}
 	}
-	assert.Greater(t, longest, int64(3600+timerFirstFireJitter.Seconds()), "module timers must get a jitter without any setting")
-	assert.LessOrEqual(t, longest, int64(3600+timerFirstFireJitter.Seconds()+360))
+	return timers
+}
+
+func (f gateStoreFixture) remaining(t *testing.T, ids ...string) []time.Duration {
+	t.Helper()
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		keys[i] = f.ref(id).scheduleKey()
+	}
+	t.Cleanup(func() { _ = pkg_valkey.DelKeys(context.Background(), f.store.client, keys...) })
+	delays, err := pkg_valkey.PTTLs(context.Background(), f.store.client, keys)
+	require.NoError(t, err)
+	return delays
 }
 
 func TestArmAllSpreadsTimersOnTheSameIntervalAcrossIt(t *testing.T) {
@@ -197,7 +240,7 @@ func TestArmAllSpreadsTimersOnTheSameIntervalAcrossIt(t *testing.T) {
 
 	require.NoError(t, pkg_valkey.DelKeys(ctx, f.store.client, keys[0]))
 	f.store.onExpired(ctx, keys[0])
-	f.assertSpread(t, keys, 99*time.Second)
+	f.assertSpread(t, keys, 98*time.Second)
 }
 
 func (f gateStoreFixture) assertSpread(t *testing.T, keys []string, gap time.Duration) {
