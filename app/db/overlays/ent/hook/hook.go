@@ -8,6 +8,18 @@ import (
 	"fmt"
 )
 
+// The OverlayFunc type is an adapter to allow the use of ordinary
+// function as Overlay mutator.
+type OverlayFunc func(context.Context, *ent.OverlayMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f OverlayFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.OverlayMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.OverlayMutation", m)
+}
+
 // The PoweredOverlayFunc type is an adapter to allow the use of ordinary
 // function as PoweredOverlay mutator.
 type PoweredOverlayFunc func(context.Context, *ent.PoweredOverlayMutation) (ent.Value, error)

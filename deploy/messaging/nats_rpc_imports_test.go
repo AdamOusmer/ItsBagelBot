@@ -169,6 +169,7 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.internal.projector.overlays.tts.resolve", "app/controls/gateway/lib/controls_gateway/tts/nats.ex"},
 		{"rpc.internal.projector.overlays.tts.check", "app/controls/gateway/lib/controls_gateway/tts/nats.ex"},
 		{"rpc.internal.projector.overlays.powered.resolve", "app/controls/gateway/lib/controls_gateway/powered/nats.ex"},
+		{"rpc.internal.projector.overlays.resolve", "internal/domain/rpc/overlays OverlayResolveSubject"},
 	},
 	"twitch_ingress_rpc": {
 		{"rpc.broadcaster.status.get", "app/twitch/ingress broadcaster status lookup"},

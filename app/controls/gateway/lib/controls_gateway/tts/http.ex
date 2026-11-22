@@ -11,7 +11,6 @@ defmodule ControlsGateway.Tts.Http do
 
   @headers %{"cache-control" => "no-store", "referrer-policy" => "no-referrer"}
   @allow %{session: "POST", events: "GET, HEAD", ack: "POST", progress: "POST"}
-  @max_body 256
   @drain_retry_after "5"
 
   @impl true
@@ -76,9 +75,9 @@ defmodule ControlsGateway.Tts.Http do
   end
 
   defp exchange(req, reservation) do
-    {result, req} = resolve_token(req)
+    {hashed, req} = OverlayRequest.token_hash(req)
 
-    case result do
+    case with({:ok, hash} <- hashed, do: Nats.resolve(hash)) do
       {:ok, user_id, generation} ->
         Throttle.refund(reservation)
         Logger.info("TTS session opened", user_id: user_id)
@@ -92,35 +91,6 @@ defmodule ControlsGateway.Tts.Http do
         Throttle.refund(reservation)
         Logger.warning("TTS session resolution unavailable", reason: reason)
         reply(req, 503)
-    end
-  end
-
-  defp resolve_token(req) do
-    with key when is_binary(key) and byte_size(key) >= 32 <- Session.key(),
-         {"application", "json", _params} <- :cowboy_req.parse_header("content-type", req) do
-      read_token(req)
-    else
-      key when is_nil(key) or is_binary(key) -> {{:unavailable, :cookie_key}, req}
-      _ -> {{:not_found, :content_type}, req}
-    end
-  catch
-    :exit, {:request_error, _, _} -> {{:not_found, :request_error}, req}
-  end
-
-  defp read_token(req) do
-    case :cowboy_req.read_body(req, %{length: @max_body, period: 2_000}) do
-      {:ok, body, req} when byte_size(body) <= @max_body -> {resolve_body(body), req}
-      {_, _, req} -> {{:not_found, :body_size}, req}
-    end
-  end
-
-  defp resolve_body(body) do
-    case OverlayRequest.token(body) do
-      {:ok, token} ->
-        :crypto.hash(:sha256, token) |> Base.encode16(case: :lower) |> Nats.resolve()
-
-      :error ->
-        {:not_found, :token_format}
     end
   end
 

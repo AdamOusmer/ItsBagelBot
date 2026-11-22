@@ -174,6 +174,8 @@ func assertActivations(t *testing.T, keys *natsacl.Keys) {
 			"PROJECTOR_RPC controls.tts.revoked.*",
 			"PROJECTOR_RPC rpc.internal.projector.overlays.powered.resolve",
 			"PROJECTOR_RPC rpc.internal.projector.overlays.powered.resolve.node.*",
+			"PROJECTOR_RPC rpc.internal.projector.overlays.resolve",
+			"PROJECTOR_RPC rpc.internal.projector.overlays.resolve.node.*",
 		},
 		"OVERLAYS_RPC": {
 			"USERS_RPC rpc.internal.users.voice.check",

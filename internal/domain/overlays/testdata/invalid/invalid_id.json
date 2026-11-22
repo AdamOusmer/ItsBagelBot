@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "kind": "custom",
+  "id": "bad id!",
+  "name": "Main",
+  "width": 1920,
+  "height": 1080,
+  "rev": 3,
+  "widgets": [
+    {
+      "id": "w1",
+      "name": "Logo",
+      "kind": "image",
+      "x": 0,
+      "y": 0,
+      "w": 400,
+      "h": 200,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "media": "asset:a1",
+        "fit": "contain"
+      }
+    }
+  ],
+  "assets": {
+    "a1": {
+      "type": "png",
+      "bytes": 1024,
+      "w": 400,
+      "h": 200,
+      "duration_ms": 0,
+      "sha256": "abababababababababababababababababababababababababababababababab"
+    }
+  }
+}

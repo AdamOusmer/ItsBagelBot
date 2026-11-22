@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -30,10 +31,11 @@ type poweredEntry struct {
 }
 
 type poweredRPC struct {
-	store   *projection.Store
-	nc      *nats.Conn
-	tokens  *cache.Cache[poweredEntry]
-	premium *cache.Cache[bool]
+	store    *projection.Store
+	nc       *nats.Conn
+	tokens   *cache.Cache[poweredEntry]
+	overlays *cache.Cache[overlayEntry]
+	premium  *cache.Cache[bool]
 }
 
 type PoweredConfig struct {
@@ -43,12 +45,17 @@ type PoweredConfig struct {
 
 func SubscribePowered(w bus.RPCWiring, cfg PoweredConfig) error {
 	s := &poweredRPC{
-		store:   cfg.Store,
-		nc:      w.NC,
-		tokens:  cache.New[poweredEntry](poweredCacheCapacity, poweredCacheTTL).InvalidateOn(cfg.Invalidations, invalidatedTokens, invalidate.ScopeOverlays),
-		premium: cache.New[bool](poweredCacheCapacity, poweredCacheTTL).InvalidateOn(cfg.Invalidations, cache.UserKeys("premium:"), invalidate.ScopeUserProjection, invalidate.ScopeLive),
+		store:    cfg.Store,
+		nc:       w.NC,
+		tokens:   cache.New[poweredEntry](poweredCacheCapacity, poweredCacheTTL).InvalidateOn(cfg.Invalidations, invalidatedTokens, invalidate.ScopeOverlays),
+		overlays: cache.New[overlayEntry](poweredCacheCapacity, poweredCacheTTL).InvalidateOn(cfg.Invalidations, invalidatedTokens, invalidate.ScopeOverlays),
+		premium:  cache.New[bool](poweredCacheCapacity, poweredCacheTTL).InvalidateOn(cfg.Invalidations, cache.UserKeys("premium:"), invalidate.ScopeUserProjection, invalidate.ScopeLive),
 	}
-	return bus.Serve(w.Within(poweredReplyTimeout), overlaysrpc.PoweredResolveSubject, s.handleResolve)
+	within := w.Within(poweredReplyTimeout)
+	return errors.Join(
+		bus.Serve(within, overlaysrpc.PoweredResolveSubject, s.handleResolve),
+		bus.Serve(within, overlaysrpc.OverlayResolveSubject, s.handleOverlayResolve),
+	)
 }
 
 func invalidatedTokens(e cache.Event) []string {

@@ -5,7 +5,7 @@ defmodule ControlsGateway.HttpServer do
   @moduledoc "Owns the Ranch listener for the overlay and health routes."
   use GenServer
 
-  alias ControlsGateway.{Config, HttpHandler, Powered, Tts}
+  alias ControlsGateway.{Config, HttpHandler, Overlay, Powered, Tts}
 
   @listener :controls_gateway_http
 
@@ -22,7 +22,7 @@ defmodule ControlsGateway.HttpServer do
     Process.flag(:trap_exit, true)
     port = Keyword.get(opts, :port, Config.port())
 
-    routes = Keyword.get(opts, :routes, tts_routes() ++ powered_routes())
+    routes = Keyword.get(opts, :routes, tts_routes() ++ overlay_routes() ++ powered_routes())
 
     health = [
       {"/healthz", HttpHandler, :healthz},
@@ -50,10 +50,19 @@ defmodule ControlsGateway.HttpServer do
     ]
   end
 
+  defp overlay_routes do
+    [
+      {"/o", Overlay.Http, :page},
+      {"/o/session", Overlay.Http, :session},
+      {"/o/doc", Overlay.Http, :doc},
+      {"/o/events", Overlay.Http, :events},
+      {"/powered/config", Overlay.Http, :config}
+    ]
+  end
+
   defp powered_routes do
     [
       {"/powered", Powered.Http, :page},
-      {"/powered/config", Powered.Http, :config},
       {"/powered/assets/:name", Powered.Http, :asset}
     ]
   end
