@@ -498,7 +498,7 @@ defmodule ControlsGateway.TtsTest do
   end
 
   defp clips(client) do
-    ~r/data: (.*)\n\n/
+    ~r/event: tts\ndata: (.*)\n\n/
     |> Regex.scan(client.body, capture: :all_but_first)
     |> Enum.map(fn [json] -> Jason.decode!(json) end)
   end
