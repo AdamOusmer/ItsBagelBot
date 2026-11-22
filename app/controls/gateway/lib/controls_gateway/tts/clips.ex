@@ -72,7 +72,11 @@ defmodule ControlsGateway.Tts.Clips do
 
   defp stream(conn, req, headers, {clip, chunk}) do
     headers =
-      Map.merge(headers, %{"content-type" => "audio/wav", "x-content-type-options" => "nosniff"})
+      Map.merge(headers, %{
+        "content-type" => "audio/wav",
+        "content-length" => Integer.to_string(clip.size),
+        "x-content-type-options" => "nosniff"
+      })
 
     req = :cowboy_req.stream_reply(200, headers, req)
     stream_chunk(conn, req, Map.put(clip, :sha, :crypto.hash_init(:sha256)), chunk)
@@ -83,22 +87,31 @@ defmodule ControlsGateway.Tts.Clips do
     size = clip.size - byte_size(chunk.data)
     sha = :crypto.hash_update(clip.sha, chunk.data)
 
-    case clip.left do
-      1 ->
-        if size == 0 and :crypto.hash_final(sha) == clip.digest do
-          :cowboy_req.stream_body(chunk.data, :fin, req)
-        else
-          interrupted()
-        end
+    case chunk_step(clip.left, size) do
+      :last -> finish_chunk(req, clip, sha, chunk)
+      :more -> stream_next(conn, req, %{clip | size: size, left: clip.left - 1, sha: sha}, chunk)
+      :invalid -> interrupted()
+    end
+  end
 
-      left ->
-        with true <- size > 0,
-             :ok <- :cowboy_req.stream_body(chunk.data, :nofin, req),
-             {:ok, next} <- next_chunk(conn, clip.topic, chunk.seq + 1) do
-          stream_chunk(conn, req, %{clip | size: size, left: left - 1, sha: sha}, next)
-        else
-          _ -> interrupted()
-        end
+  defp chunk_step(1, 0), do: :last
+  defp chunk_step(left, size) when left > 1 and size > 0, do: :more
+  defp chunk_step(_left, _size), do: :invalid
+
+  defp finish_chunk(req, clip, sha, chunk) do
+    if :crypto.hash_final(sha) == clip.digest do
+      :cowboy_req.stream_body(chunk.data, :fin, req)
+    else
+      interrupted()
+    end
+  end
+
+  defp stream_next(conn, req, clip, chunk) do
+    with :ok <- :cowboy_req.stream_body(chunk.data, :nofin, req),
+         {:ok, next} <- next_chunk(conn, clip.topic, chunk.seq + 1) do
+      stream_chunk(conn, req, clip, next)
+    else
+      _ -> interrupted()
     end
   end
 

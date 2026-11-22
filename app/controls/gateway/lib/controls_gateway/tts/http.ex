@@ -5,12 +5,13 @@ defmodule ControlsGateway.Tts.Http do
   @behaviour :cowboy_loop
   require Logger
 
-  alias ControlsGateway.OverlayRequest
+  alias ControlsGateway.{Drain, OverlayRequest}
   alias ControlsGateway.Tts.{Clips, Events, Nats, Page, Session, Throttle}
 
   @headers %{"cache-control" => "no-store", "referrer-policy" => "no-referrer"}
   @allow %{session: "POST", events: "GET, HEAD"}
   @max_body 256
+  @drain_retry_after "5"
 
   @impl true
   def init(req, route) do
@@ -24,8 +25,14 @@ defmodule ControlsGateway.Tts.Http do
   defp dispatch("POST", :session, req), do: exchange(req)
   defp dispatch("HEAD", :events, req), do: authorized(:events_status, req)
 
-  defp dispatch("GET", route, req) when route in [:events, :clip],
-    do: authorized(route, req)
+  defp dispatch("GET", :events, req) do
+    case Drain.track_connection() do
+      :ok -> authorized(:events, req)
+      :draining -> reply(req, 503, Map.put(@headers, "retry-after", @drain_retry_after))
+    end
+  end
+
+  defp dispatch("GET", :clip, req), do: authorized(:clip, req)
 
   defp dispatch(_method, route, req) do
     allow = Map.get(@allow, route, "GET")
