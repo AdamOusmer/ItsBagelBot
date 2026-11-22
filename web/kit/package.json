@@ -113,7 +113,7 @@
     "./client-props": "./lib/client-props.ts"
   },
   "dependencies": {
-    "@luzir/bolota": "0.2.8",
+    "@luzir/bolota": "0.3.0",
     "@nats-io/jetstream": "^3.4.0",
     "@nats-io/transport-node": "^3.4.0",
     "iovalkey": "^0.4.0",
