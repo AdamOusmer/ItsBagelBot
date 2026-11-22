@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package objstore_test
+package objectstore_test
 
 import (
 	"context"
@@ -11,17 +11,17 @@ import (
 	"strings"
 	"testing"
 
-	"ItsBagelBot/pkg/objstore"
+	"ItsBagelBot/pkg/objectstore"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newStore(t *testing.T, h http.HandlerFunc) *objstore.Store {
+func newStore(t *testing.T, h http.HandlerFunc) *objectstore.Client {
 	t.Helper()
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
-	s, err := objstore.New(objstore.Config{Endpoint: srv.URL, Bucket: "ledger", AccessKeyID: "id", SecretAccessKey: "secret"})
+	s, err := objectstore.New(objectstore.Config{Endpoint: srv.URL, Bucket: "ledger", AccessKeyID: "id", SecretAccessKey: "secret"})
 	require.NoError(t, err)
 	return s
 }
@@ -39,7 +39,7 @@ func TestPutNewIsCreateOnly(t *testing.T) {
 	})
 
 	require.NoError(t, s.PutNew(context.Background(), "erasures/1-2", nil))
-	assert.ErrorIs(t, s.PutNew(context.Background(), "erasures/1-2", nil), objstore.ErrExists)
+	assert.ErrorIs(t, s.PutNew(context.Background(), "erasures/1-2", nil), objectstore.ErrExists)
 	assert.True(t, existing["/ledger/erasures/1-2"])
 }
 
@@ -49,7 +49,7 @@ func TestPutNewTreatsLockedObjectAsExisting(t *testing.T) {
 		fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8"?><Error><Code>ObjectLockedByBucketPolicy</Code><Message>The object is locked by the bucket policy.</Message></Error>`)
 	})
 
-	assert.ErrorIs(t, s.PutNew(context.Background(), "erasures/1-2", nil), objstore.ErrExists)
+	assert.ErrorIs(t, s.PutNew(context.Background(), "erasures/1-2", nil), objectstore.ErrExists)
 }
 
 func TestPutNewKeepsOtherConflicts(t *testing.T) {
@@ -59,7 +59,7 @@ func TestPutNewKeepsOtherConflicts(t *testing.T) {
 	})
 
 	err := s.PutNew(context.Background(), "erasures/1-2", nil)
-	assert.NotErrorIs(t, err, objstore.ErrExists)
+	assert.NotErrorIs(t, err, objectstore.ErrExists)
 	assert.ErrorContains(t, err, "409 OperationAborted")
 }
 
