@@ -57,7 +57,7 @@ to standard.
 |-------------------------------------|----------------------------------------------------------------|-----------------------------------------------|
 | `BAGELBOT_CLUSTER_HOSTS`            | Comma-separated peer long-names (EPMD strategy). Empty: Gossip. | (empty, Gossip auto-discovery)               |
 | `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` | App credentials for Helix.                             | (required)                                    |
-| `TWITCH_CONDUIT_ID`                 | Conduit to own; empty: reuse first existing or create.         | (empty)                                       |
+| `TWITCH_CONDUIT_ID`                 | Pinned Conduit to own; outgress enrolls into the same ID.      | (required)                                    |
 | `TWITCH_CONDUIT_SHARD_COUNT`        | Shard floor; autoscale and manual targets never go below it.   | `2`                                           |
 | `TWITCH_CONDUIT_MAX_SHARDS`         | Hard ceiling for manual and automatic shard counts.            | `11`                                          |
 | `INGRESS_CAPACITY_POD_RATED_EPS`    | Measured cached-path capacity per live ingress pod.             | `140000`                                      |

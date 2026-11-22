@@ -60,7 +60,6 @@ var rpcRequests = map[string][]rpcRequest{
 	},
 	"overlays_rpc": {
 		{"rpc.internal.users.voice.check", "app/db/overlays/rpc/tts.go"},
-		{"rpc.internal.users.voice.export", "app/db/overlays/tts.go"},
 	},
 	"projector_rpc": {
 		{"rpc.internal.overlays.tts.by_user", "app/projector/rpc/tts.go"},
@@ -138,7 +137,6 @@ var rpcRequests = map[string][]rpcRequest{
 	"outgress_rpc": {
 		{"rpc.internal.tokens.get", "app/twitch/outgress/internal/tokenstore"},
 		{"rpc.internal.tokens.save", "app/twitch/outgress/internal/tokenstore"},
-		{"rpc.ingress.conduit.get", "app/twitch/outgress/internal/config ConduitSubject"},
 		{"rpc.dashboard.state_get", "app/twitch/outgress/internal/config UsersStateSubject"},
 		{"rpc.dashboard.identity_sync", "app/twitch/outgress/internal/config UsersIdentitySubject"},
 		{"rpc.admin.notifications.send", "app/twitch/outgress/internal/config NotifySendSubject"},
@@ -170,6 +168,7 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.internal.projector.overlays.tts.resolve", "app/controls/gateway/lib/controls_gateway/tts/nats.ex"},
 		{"rpc.internal.projector.overlays.tts.check", "app/controls/gateway/lib/controls_gateway/tts/nats.ex"},
 		{"rpc.internal.projector.overlays.powered.resolve", "app/controls/gateway/lib/controls_gateway/powered/nats.ex"},
+		{"rpc.internal.projector.overlays.resolve", "internal/domain/rpc/overlays OverlayResolveSubject"},
 	},
 	"twitch_ingress_rpc": {
 		{"rpc.broadcaster.status.get", "app/twitch/ingress broadcaster status lookup"},

@@ -8,7 +8,7 @@
   import Dock from './Dock.svelte';
   import Rail from './Rail.svelte';
   import type { Snippet } from 'svelte';
-  import type { UiAccount, UiBrand, UiCrumb, UiNavGroup, UiNavLink } from '../lib/nav-types';
+  import type { UiAccount, UiBrand, UiCrumb, UiNavGroup, UiNavLink, UiTopbarContext } from '../lib/nav-types';
 
   type Own = {
     brand: UiBrand;
@@ -24,6 +24,7 @@
     dockLabel?: string;
     railLabel?: string;
     clock?: boolean;
+    topbarContext?: UiTopbarContext;
     banner?: Snippet;
     topActions?: Snippet;
     account?: Snippet;
@@ -47,6 +48,7 @@
     dockLabel,
     railLabel,
     clock = true,
+    topbarContext,
     banner,
     topActions,
     account,
@@ -96,6 +98,7 @@
       {crumbLabel}
       {clock}
       railed={rail}
+      context={topbarContext}
       actions={topActions}
       {account}
     />

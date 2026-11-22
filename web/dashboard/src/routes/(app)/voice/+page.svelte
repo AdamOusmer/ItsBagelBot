@@ -25,6 +25,7 @@
   import PageNotice from '#lib/components/shared/PageNotice.svelte';
   import PremiumGate from '#lib/components/shared/PremiumGate.svelte';
   import { voiceOptions } from '#lib/components/voice/voice-options';
+  import VoicePreview from '#lib/components/voice/VoicePreview.svelte';
   import { Autosave } from '#lib/autosave.svelte';
   import VoiceAlertEditor from './VoiceAlertEditor.svelte';
   import VoiceChannelPointsCard from './VoiceChannelPointsCard.svelte';
@@ -152,7 +153,7 @@
 <svelte:head><title>{t('nav.voice')}</title></svelte:head>
 
 {#if data.locked}
-  <PremiumGate />
+  <PremiumGate><VoicePreview /></PremiumGate>
 {:else}
   <section class="screen active">
     <PageHead>

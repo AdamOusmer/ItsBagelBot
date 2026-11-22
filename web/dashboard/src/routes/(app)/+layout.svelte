@@ -10,7 +10,7 @@
   import { visibleEventSource } from '#lib/visible-stream';
   import { consumeEcho } from '#lib/local-write';
   import ConsoleShell from '@bagel/kit/components/ConsoleShell.svelte';
-  import ImpersonationBanner from '@bagel/kit/components/ImpersonationBanner.svelte';
+  import { buildConsoleContext, consoleAccountRole } from '@bagel/kit/topbar-context';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import NotificationBell from '@bagel/kit/components/NotificationBell.svelte';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
@@ -98,7 +98,17 @@
     moduleLinks: data.moduleNav
   }));
   const groups = $derived(dashboardNavGroups(items, t));
-  const showBanner = $derived(isDelegate || !!data.impersonatorLogin);
+  const sectionLabels = $derived(sections.map((key) => data.navLabels[`nav.${key}`] ?? key));
+  const topbarContext = $derived(buildConsoleContext(t, {
+    delegateLogin: data.delegateLogin,
+    sectionLabels,
+    login: data.login,
+    impersonatorLogin: data.impersonatorLogin
+  }));
+  const accountRole = $derived(consoleAccountRole(t, {
+    isDelegate,
+    impersonatorLogin: data.impersonatorLogin
+  }));
 </script>
 
 <svelte:head>
@@ -110,31 +120,18 @@
   crumbRoot="ItsBagelBot"
   {crumb}
   accountName={data.displayName}
-  accountRole={t('topbar.roleBroadcaster')}
+  {accountRole}
   dashboards={data.authorizedDashboards ?? []}
   {groups}
   mobileItems={items}
   rail
-  offset={showBanner}
-  stacked={isDelegate && !!data.impersonatorLogin}
+  {topbarContext}
   logoSrc={data.isPremium ? '/premium-logo.png' : '/logo.png'}
   isPremium={data.isPremium}
   {isDelegate}
   delegateExitHref="/delegate/exit"
-  delegateExitLabel={t('banner.exit')}
+  delegateExitLabel={t('banner.leaveShared')}
 >
-  {#snippet banner()}
-    {#if isDelegate}
-      <ImpersonationBanner exitHref="/delegate/exit" exitLabel={t('banner.exit')}>
-        {t('banner.sharedPre')}<b>{data.delegateLogin}</b>{t('banner.sharedPost', { sections: sections.join(', ') })}
-      </ImpersonationBanner>
-    {/if}
-    {#if data.impersonatorLogin}
-      <ImpersonationBanner exitForm second={isDelegate} exitLabel={t('banner.exit')}>
-        {t('banner.viewingPre')}<b>{data.login}</b>{t('banner.viewingPost', { admin: data.impersonatorLogin })}
-      </ImpersonationBanner>
-    {/if}
-  {/snippet}
   {#snippet topActions()}
     <span class="live-chip" class:live-chip--on={reconnecting} role="status" aria-live="polite">
       <StatusDot tone="warning" flat />

@@ -81,12 +81,3 @@ func dashboardVoiceOwner(msg *nats.Msg, req usersrpc.VoiceGetRequest) (uint64, b
 	}
 	return id, true
 }
-
-func SubscribeVoiceExport(w Wiring) error {
-	return bus.Serve(w.Within(voiceBudget), usersrpc.VoiceExportSubject,
-		func(ctx context.Context, req usersrpc.VoiceExportRequest) usersrpc.VoiceExportReply {
-			reply, err := w.Repo.ExportLegacyVoice(ctx, req.AfterID)
-			reply.Refusal = bus.Classify(err)
-			return reply
-		})
-}

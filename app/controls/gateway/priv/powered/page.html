@@ -397,6 +397,19 @@
       transform: translate3d(-70px, 0, 0) rotate(18deg);
       will-change: transform, opacity;
     }
+
+    .notice {
+      position: absolute;
+      left: 24px;
+      bottom: 24px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.2;
+      color: #f4f4f5;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+      opacity: 0;
+    }
   </style>
 </head>
 <body>
@@ -442,6 +455,7 @@
       </div>
     </div>
   </div>
+  <div class="notice" id="notice" role="status"></div>
   <script>
     (function () {
       const CANVAS_WIDTH = 1920;
@@ -517,12 +531,10 @@
       const params = new URLSearchParams(window.location.search);
       const previewMode = params.get('preview') === '1';
       const linkToken = previewMode ? '' : window.location.hash.slice(1);
-      if (!previewMode) {
-        window.history.replaceState(null, '', '/powered');
-      }
 
       const byId = function (id) { return document.getElementById(id); };
       const slot = byId('slot');
+      const notice = byId('notice');
       const badgeFloat = byId('badgeFloat');
       const plate = byId('plate');
       const plateSheen = byId('plateSheen');
@@ -833,15 +845,82 @@
         nextTimer = window.setTimeout(fn, Math.max(0, ms));
       }
 
-      function applyReply(body) {
-        if (!body || typeof body !== 'object') return;
-        config = sanitize(body.config || {}, config);
+      function applyDocument(body) {
+        config = sanitize(body.document.config || {}, config);
         premium = body.premium === true;
       }
 
-      async function refreshConfig() {
+      function liveCycle() {
+        play(undefined);
+        later(liveCycle, config.every * 60000);
+      }
+
+      const poweredTemplate = {
+        running: false,
+        start: function (body) {
+          applyDocument(body);
+          if (this.running) return;
+          this.running = true;
+          later(liveCycle, FIRST_DELAY_MS);
+        },
+        stop: function () {
+          this.running = false;
+          window.clearTimeout(nextTimer);
+          clearRun();
+        }
+      };
+
+      const TEMPLATES = { powered: poweredTemplate };
+      const NOTICES = {
+        custom: 'Custom overlays are coming soon.',
+        premium_required: 'Premium is required to show this overlay.',
+        not_found: 'This overlay link is no longer valid.'
+      };
+      const RETRY_MIN_MS = 5000;
+      const RETRY_SPREAD_MS = 10000;
+      let activeTemplate = null;
+      let syncTimer = 0;
+      let source = null;
+
+      function showNotice(key) {
+        notice.textContent = key ? NOTICES[key] || NOTICES.not_found : '';
+        notice.style.opacity = key ? '1' : '0';
+      }
+
+      function haltTemplate() {
+        if (activeTemplate) activeTemplate.stop();
+        activeTemplate = null;
+      }
+
+      function scheduleSync(ms) {
+        window.clearTimeout(syncTimer);
+        syncTimer = window.setTimeout(sync, ms);
+      }
+
+      function retrySync() {
+        scheduleSync(RETRY_MIN_MS + Math.random() * RETRY_SPREAD_MS);
+      }
+
+      function closeEvents() {
+        if (source) source.close();
+        source = null;
+      }
+
+      function openEvents() {
+        if (source) return;
+        source = new EventSource('/o/events');
+        source.addEventListener('revision', function () { sync(); });
+        source.onerror = function () {
+          if (source.readyState !== EventSource.CLOSED) return;
+          source = null;
+          retrySync();
+        };
+      }
+
+      async function exchange() {
+        if (!linkToken) return 'gone';
         try {
-          const res = await fetch('/powered/config', {
+          const res = await fetch('/o/session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token: linkToken }),
@@ -849,21 +928,53 @@
             redirect: 'error',
             cache: 'no-store'
           });
-          if (res.status === 404) return false;
-          if (res.ok) applyReply(await res.json());
+          if (res.status === 204) return 'ok';
+          if (res.status === 404) return 'gone';
         } catch (_) {}
-        return true;
+        return 'retry';
       }
 
-      async function liveCycle() {
-        const started = Date.now();
-        if (!(await refreshConfig())) {
-          clearRun();
-          later(liveCycle, GONE_RETRY_MS);
-          return;
+      async function fetchDocument() {
+        try {
+          const res = await fetch('/o/doc', { credentials: 'same-origin', redirect: 'error', cache: 'no-store' });
+          if (res.ok) return { state: 'ok', body: await res.json() };
+          if (res.status === 403) return { state: 'denied', reason: (await res.json()).reason };
+          if (res.status === 401) return { state: 'session' };
+        } catch (_) {}
+        return { state: 'retry' };
+      }
+
+      function deny(reason) {
+        haltTemplate();
+        closeEvents();
+        showNotice(reason);
+        scheduleSync(GONE_RETRY_MS);
+      }
+
+      function render(body) {
+        const doc = body.document;
+        const template = doc.kind === 'system' ? TEMPLATES[doc.template] : null;
+        if (template) {
+          showNotice('');
+          activeTemplate = template;
+          template.start(body);
+        } else {
+          haltTemplate();
+          showNotice('custom');
         }
-        play(undefined);
-        later(liveCycle, config.every * 60000 - (Date.now() - started));
+        openEvents();
+      }
+
+      async function sync() {
+        let result = await fetchDocument();
+        if (result.state === 'session') {
+          const exchanged = await exchange();
+          if (exchanged === 'gone') result = { state: 'denied', reason: 'not_found' };
+          if (exchanged === 'ok') result = await fetchDocument();
+        }
+        if (result.state === 'ok') render(result.body);
+        else if (result.state === 'denied') deny(result.reason);
+        else retrySync();
       }
 
       function previewCycle() {
@@ -888,8 +999,8 @@
         config = sanitize({ show_seconds: params.get('show'), directions: (params.get('from') || '').split(','), align: params.get('align') }, config);
         premium = params.get('premium') === '1';
         document.fonts.ready.then(() => later(previewCycle, PREVIEW_DELAY_MS));
-      } else if (linkToken) {
-        later(liveCycle, FIRST_DELAY_MS);
+      } else {
+        sync();
       }
     })();
   </script>

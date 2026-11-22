@@ -3,10 +3,12 @@
 package ent
 
 import (
+	"ItsBagelBot/app/db/overlays/ent/overlay"
 	"ItsBagelBot/app/db/overlays/ent/poweredoverlay"
 	"ItsBagelBot/app/db/overlays/ent/predicate"
 	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
 	"context"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"sync"
@@ -25,9 +27,962 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
+	TypeOverlay        = "Overlay"
 	TypePoweredOverlay = "PoweredOverlay"
 	TypeTtsOverlay     = "TtsOverlay"
 )
+
+// OverlayMutation represents an operation that mutates the Overlay nodes in the graph.
+type OverlayMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *int
+	user_id        *uint64
+	adduser_id     *int64
+	kind           *overlay.Kind
+	template       *string
+	name           *string
+	token_hash     *string
+	generation     *int
+	addgeneration  *int
+	document       *jsontext.Value
+	appenddocument jsontext.Value
+	revision       *uint64
+	addrevision    *int64
+	created_at     *time.Time
+	updated_at     *time.Time
+	clearedFields  map[string]struct{}
+	done           bool
+	oldValue       func(context.Context) (*Overlay, error)
+	predicates     []predicate.Overlay
+}
+
+var _ ent.Mutation = (*OverlayMutation)(nil)
+
+// overlayOption allows management of the mutation configuration using functional options.
+type overlayOption func(*OverlayMutation)
+
+// newOverlayMutation creates new mutation for the Overlay entity.
+func newOverlayMutation(c config, op Op, opts ...overlayOption) *OverlayMutation {
+	m := &OverlayMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeOverlay,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withOverlayID sets the ID field of the mutation.
+func withOverlayID(id int) overlayOption {
+	return func(m *OverlayMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Overlay
+		)
+		m.oldValue = func(ctx context.Context) (*Overlay, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Overlay.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withOverlay sets the old Overlay of the mutation.
+func withOverlay(node *Overlay) overlayOption {
+	return func(m *OverlayMutation) {
+		m.oldValue = func(context.Context) (*Overlay, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m OverlayMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m OverlayMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *OverlayMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *OverlayMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Overlay.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *OverlayMutation) SetUserID(u uint64) {
+	m.user_id = &u
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *OverlayMutation) UserID() (r uint64, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the Overlay entity.
+// If the Overlay object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds u to the "user_id" field.
+func (m *OverlayMutation) AddUserID(u int64) {
+	if m.adduser_id != nil {
+		*m.adduser_id += u
+	} else {
+		m.adduser_id = &u
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *OverlayMutation) AddedUserID() (r int64, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *OverlayMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+}
+
+// SetKind sets the "kind" field.
+func (m *OverlayMutation) SetKind(o overlay.Kind) {
+	m.kind = &o
+}
+
+// Kind returns the value of the "kind" field in the mutation.
+func (m *OverlayMutation) Kind() (r overlay.Kind, exists bool) {
+	v := m.kind
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKind returns the old "kind" field's value of the Overlay entity.
+// If the Overlay object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayMutation) OldKind(ctx context.Context) (v overlay.Kind, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKind is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKind requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKind: %w", err)
+	}
+	return oldValue.Kind, nil
+}
+
+// ResetKind resets all changes to the "kind" field.
+func (m *OverlayMutation) ResetKind() {
+	m.kind = nil
+}
+
+// SetTemplate sets the "template" field.
+func (m *OverlayMutation) SetTemplate(s string) {
+	m.template = &s
+}
+
+// Template returns the value of the "template" field in the mutation.
+func (m *OverlayMutation) Template() (r string, exists bool) {
+	v := m.template
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTemplate returns the old "template" field's value of the Overlay entity.
+// If the Overlay object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayMutation) OldTemplate(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTemplate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTemplate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTemplate: %w", err)
+	}
+	return oldValue.Template, nil
+}
+
+// ClearTemplate clears the value of the "template" field.
+func (m *OverlayMutation) ClearTemplate() {
+	m.template = nil
+	m.clearedFields[overlay.FieldTemplate] = struct{}{}
+}
+
+// TemplateCleared returns if the "template" field was cleared in this mutation.
+func (m *OverlayMutation) TemplateCleared() bool {
+	_, ok := m.clearedFields[overlay.FieldTemplate]
+	return ok
+}
+
+// ResetTemplate resets all changes to the "template" field.
+func (m *OverlayMutation) ResetTemplate() {
+	m.template = nil
+	delete(m.clearedFields, overlay.FieldTemplate)
+}
+
+// SetName sets the "name" field.
+func (m *OverlayMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *OverlayMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the Overlay entity.
+// If the Overlay object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *OverlayMutation) ResetName() {
+	m.name = nil
+}
+
+// SetTokenHash sets the "token_hash" field.
+func (m *OverlayMutation) SetTokenHash(s string) {
+	m.token_hash = &s
+}
+
+// TokenHash returns the value of the "token_hash" field in the mutation.
+func (m *OverlayMutation) TokenHash() (r string, exists bool) {
+	v := m.token_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTokenHash returns the old "token_hash" field's value of the Overlay entity.
+// If the Overlay object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayMutation) OldTokenHash(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTokenHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTokenHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTokenHash: %w", err)
+	}
+	return oldValue.TokenHash, nil
+}
+
+// ResetTokenHash resets all changes to the "token_hash" field.
+func (m *OverlayMutation) ResetTokenHash() {
+	m.token_hash = nil
+}
+
+// SetGeneration sets the "generation" field.
+func (m *OverlayMutation) SetGeneration(i int) {
+	m.generation = &i
+	m.addgeneration = nil
+}
+
+// Generation returns the value of the "generation" field in the mutation.
+func (m *OverlayMutation) Generation() (r int, exists bool) {
+	v := m.generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGeneration returns the old "generation" field's value of the Overlay entity.
+// If the Overlay object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayMutation) OldGeneration(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGeneration is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGeneration requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGeneration: %w", err)
+	}
+	return oldValue.Generation, nil
+}
+
+// AddGeneration adds i to the "generation" field.
+func (m *OverlayMutation) AddGeneration(i int) {
+	if m.addgeneration != nil {
+		*m.addgeneration += i
+	} else {
+		m.addgeneration = &i
+	}
+}
+
+// AddedGeneration returns the value that was added to the "generation" field in this mutation.
+func (m *OverlayMutation) AddedGeneration() (r int, exists bool) {
+	v := m.addgeneration
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetGeneration resets all changes to the "generation" field.
+func (m *OverlayMutation) ResetGeneration() {
+	m.generation = nil
+	m.addgeneration = nil
+}
+
+// SetDocument sets the "document" field.
+func (m *OverlayMutation) SetDocument(j jsontext.Value) {
+	m.document = &j
+	m.appenddocument = nil
+}
+
+// Document returns the value of the "document" field in the mutation.
+func (m *OverlayMutation) Document() (r jsontext.Value, exists bool) {
+	v := m.document
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDocument returns the old "document" field's value of the Overlay entity.
+// If the Overlay object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayMutation) OldDocument(ctx context.Context) (v jsontext.Value, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDocument is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDocument requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDocument: %w", err)
+	}
+	return oldValue.Document, nil
+}
+
+// AppendDocument adds j to the "document" field.
+func (m *OverlayMutation) AppendDocument(j jsontext.Value) {
+	m.appenddocument = append(m.appenddocument, j...)
+}
+
+// AppendedDocument returns the list of values that were appended to the "document" field in this mutation.
+func (m *OverlayMutation) AppendedDocument() (jsontext.Value, bool) {
+	if len(m.appenddocument) == 0 {
+		return nil, false
+	}
+	return m.appenddocument, true
+}
+
+// ResetDocument resets all changes to the "document" field.
+func (m *OverlayMutation) ResetDocument() {
+	m.document = nil
+	m.appenddocument = nil
+}
+
+// SetRevision sets the "revision" field.
+func (m *OverlayMutation) SetRevision(u uint64) {
+	m.revision = &u
+	m.addrevision = nil
+}
+
+// Revision returns the value of the "revision" field in the mutation.
+func (m *OverlayMutation) Revision() (r uint64, exists bool) {
+	v := m.revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRevision returns the old "revision" field's value of the Overlay entity.
+// If the Overlay object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayMutation) OldRevision(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRevision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRevision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRevision: %w", err)
+	}
+	return oldValue.Revision, nil
+}
+
+// AddRevision adds u to the "revision" field.
+func (m *OverlayMutation) AddRevision(u int64) {
+	if m.addrevision != nil {
+		*m.addrevision += u
+	} else {
+		m.addrevision = &u
+	}
+}
+
+// AddedRevision returns the value that was added to the "revision" field in this mutation.
+func (m *OverlayMutation) AddedRevision() (r int64, exists bool) {
+	v := m.addrevision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRevision resets all changes to the "revision" field.
+func (m *OverlayMutation) ResetRevision() {
+	m.revision = nil
+	m.addrevision = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *OverlayMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *OverlayMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Overlay entity.
+// If the Overlay object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *OverlayMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *OverlayMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *OverlayMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the Overlay entity.
+// If the Overlay object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *OverlayMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// Where appends a list predicates to the OverlayMutation builder.
+func (m *OverlayMutation) Where(ps ...predicate.Overlay) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the OverlayMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *OverlayMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Overlay, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *OverlayMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *OverlayMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Overlay).
+func (m *OverlayMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *OverlayMutation) Fields() []string {
+	fields := make([]string, 0, 10)
+	if m.user_id != nil {
+		fields = append(fields, overlay.FieldUserID)
+	}
+	if m.kind != nil {
+		fields = append(fields, overlay.FieldKind)
+	}
+	if m.template != nil {
+		fields = append(fields, overlay.FieldTemplate)
+	}
+	if m.name != nil {
+		fields = append(fields, overlay.FieldName)
+	}
+	if m.token_hash != nil {
+		fields = append(fields, overlay.FieldTokenHash)
+	}
+	if m.generation != nil {
+		fields = append(fields, overlay.FieldGeneration)
+	}
+	if m.document != nil {
+		fields = append(fields, overlay.FieldDocument)
+	}
+	if m.revision != nil {
+		fields = append(fields, overlay.FieldRevision)
+	}
+	if m.created_at != nil {
+		fields = append(fields, overlay.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, overlay.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *OverlayMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case overlay.FieldUserID:
+		return m.UserID()
+	case overlay.FieldKind:
+		return m.Kind()
+	case overlay.FieldTemplate:
+		return m.Template()
+	case overlay.FieldName:
+		return m.Name()
+	case overlay.FieldTokenHash:
+		return m.TokenHash()
+	case overlay.FieldGeneration:
+		return m.Generation()
+	case overlay.FieldDocument:
+		return m.Document()
+	case overlay.FieldRevision:
+		return m.Revision()
+	case overlay.FieldCreatedAt:
+		return m.CreatedAt()
+	case overlay.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *OverlayMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case overlay.FieldUserID:
+		return m.OldUserID(ctx)
+	case overlay.FieldKind:
+		return m.OldKind(ctx)
+	case overlay.FieldTemplate:
+		return m.OldTemplate(ctx)
+	case overlay.FieldName:
+		return m.OldName(ctx)
+	case overlay.FieldTokenHash:
+		return m.OldTokenHash(ctx)
+	case overlay.FieldGeneration:
+		return m.OldGeneration(ctx)
+	case overlay.FieldDocument:
+		return m.OldDocument(ctx)
+	case overlay.FieldRevision:
+		return m.OldRevision(ctx)
+	case overlay.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case overlay.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Overlay field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OverlayMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case overlay.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case overlay.FieldKind:
+		v, ok := value.(overlay.Kind)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetKind(v)
+		return nil
+	case overlay.FieldTemplate:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTemplate(v)
+		return nil
+	case overlay.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case overlay.FieldTokenHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTokenHash(v)
+		return nil
+	case overlay.FieldGeneration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGeneration(v)
+		return nil
+	case overlay.FieldDocument:
+		v, ok := value.(jsontext.Value)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDocument(v)
+		return nil
+	case overlay.FieldRevision:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRevision(v)
+		return nil
+	case overlay.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case overlay.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Overlay field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *OverlayMutation) AddedFields() []string {
+	var fields []string
+	if m.adduser_id != nil {
+		fields = append(fields, overlay.FieldUserID)
+	}
+	if m.addgeneration != nil {
+		fields = append(fields, overlay.FieldGeneration)
+	}
+	if m.addrevision != nil {
+		fields = append(fields, overlay.FieldRevision)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *OverlayMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case overlay.FieldUserID:
+		return m.AddedUserID()
+	case overlay.FieldGeneration:
+		return m.AddedGeneration()
+	case overlay.FieldRevision:
+		return m.AddedRevision()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OverlayMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case overlay.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
+	case overlay.FieldGeneration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGeneration(v)
+		return nil
+	case overlay.FieldRevision:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRevision(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Overlay numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *OverlayMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(overlay.FieldTemplate) {
+		fields = append(fields, overlay.FieldTemplate)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *OverlayMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *OverlayMutation) ClearField(name string) error {
+	switch name {
+	case overlay.FieldTemplate:
+		m.ClearTemplate()
+		return nil
+	}
+	return fmt.Errorf("unknown Overlay nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *OverlayMutation) ResetField(name string) error {
+	switch name {
+	case overlay.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case overlay.FieldKind:
+		m.ResetKind()
+		return nil
+	case overlay.FieldTemplate:
+		m.ResetTemplate()
+		return nil
+	case overlay.FieldName:
+		m.ResetName()
+		return nil
+	case overlay.FieldTokenHash:
+		m.ResetTokenHash()
+		return nil
+	case overlay.FieldGeneration:
+		m.ResetGeneration()
+		return nil
+	case overlay.FieldDocument:
+		m.ResetDocument()
+		return nil
+	case overlay.FieldRevision:
+		m.ResetRevision()
+		return nil
+	case overlay.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case overlay.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Overlay field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *OverlayMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *OverlayMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *OverlayMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *OverlayMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *OverlayMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *OverlayMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *OverlayMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown Overlay unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *OverlayMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown Overlay edge %s", name)
+}
 
 // PoweredOverlayMutation represents an operation that mutates the PoweredOverlay nodes in the graph.
 type PoweredOverlayMutation struct {

@@ -1,5 +1,7 @@
 {
   "roleBroadcaster": "Broadcaster",
+  "roleSignedIn": "Signed in as you",
+  "roleAdminView": "Admin: {admin}",
   "notifications": "Notifications",
   "logout": "Log out",
   "dashboards": "Shared dashboards",

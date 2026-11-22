@@ -4,13 +4,11 @@
 package bus
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"time"
 
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/env"
 
 	"github.com/nats-io/nats.go"
 	jsapi "github.com/nats-io/nats.go/jetstream"
@@ -18,18 +16,14 @@ import (
 
 const (
 	TTSJobsStream    = "TTS_JOBS"
-	TTSClipBucket    = "TTS_CLIPS"
-	TTSOverlayStream = "OVERLAY_TTS"
 	TTSWorkerDurable = "tts-worker"
-	TTSClipTTL       = 5 * time.Minute
 	TTSReplicas      = 3
 
-	ttsJobsSubject    = "tts.jobs."
-	ttsOverlaySubject = "overlay.tts."
-	ttsJobTTL         = 10 * time.Minute
-	ttsAckWait        = 60 * time.Second
-	ttsHandleTimeout  = 40 * time.Second
-	ttsMaxDeliver     = 3
+	ttsJobsSubject   = "tts.jobs."
+	ttsJobTTL        = 10 * time.Minute
+	ttsAckWait       = 60 * time.Second
+	ttsHandleTimeout = 40 * time.Second
+	ttsMaxDeliver    = 3
 )
 
 type TTSJobs struct {
@@ -37,25 +31,8 @@ type TTSJobs struct {
 	consumer jsapi.Consumer
 }
 
-type TTSOverlay struct {
-	js     jsapi.JetStream
-	bucket jsapi.ObjectStore
-}
-
 func ConnectTTSJobs(url string) (*nats.Conn, error) {
 	return nats.Connect(busURL(endpoint(url)), busOptions("sesame-tts-jobs")...)
-}
-
-func ConnectTTSOverlay(url string) (*nats.Conn, error) {
-	identity := connectionIdentity{
-		name:     "sesame-tts-overlay",
-		jwt:      env.Get("WORKER_TTS_BUS_JWT", ""),
-		nkeySeed: env.Get("WORKER_TTS_BUS_NKEY_SEED", ""),
-	}
-	if identity.jwt == "" || identity.nkeySeed == "" {
-		return nil, errors.New("bus: missing Sesame overlay writer credentials")
-	}
-	return nats.Connect(busURL(endpoint(url)), baseOptions(identity)...)
 }
 
 func OpenTTSJobs(ctx context.Context, nc *nats.Conn, replicas int) (*TTSJobs, error) {
@@ -81,30 +58,6 @@ func OpenTTSJobs(ctx context.Context, nc *nats.Conn, replicas int) (*TTSJobs, er
 	return &TTSJobs{js: js, consumer: consumer}, nil
 }
 
-func OpenTTSOverlay(ctx context.Context, nc *nats.Conn, replicas int) (*TTSOverlay, error) {
-	js, err := jsapi.NewWithDomain(nc, JSDomain())
-	if err != nil {
-		return nil, err
-	}
-	spec := StreamSpec{
-		Name: TTSOverlayStream, Subjects: []string{ttsOverlaySubject + "*"}, Storage: nats.FileStorage,
-		Replicas: replicas, MaxAge: TTSClipTTL, Duplicates: TTSClipTTL,
-	}
-	if _, err := createOrGetTTSStream(ctx, js, spec); err != nil {
-		return nil, err
-	}
-	bucket, err := js.CreateOrUpdateObjectStore(ctx, jsapi.ObjectStoreConfig{
-		Bucket: TTSClipBucket, TTL: TTSClipTTL, Storage: jsapi.FileStorage, Replicas: replicas,
-	})
-	if errors.Is(err, jsapi.ErrBucketExists) {
-		bucket, err = js.ObjectStore(ctx, TTSClipBucket)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &TTSOverlay{js: js, bucket: bucket}, nil
-}
-
 func createOrGetTTSStream(ctx context.Context, js jsapi.JetStream, spec StreamSpec) (jsapi.Stream, error) {
 	stream, err := js.CreateOrUpdateStream(ctx, streamConfig(spec))
 	if errors.Is(err, jsapi.ErrStreamNameAlreadyInUse) {
@@ -121,10 +74,6 @@ type TTSMessage struct {
 
 func (s *TTSJobs) Publish(ctx context.Context, msg TTSMessage) error {
 	return publishTTS(ctx, s.js, ttsPublication{TTSJobsStream, ttsJobsSubject, msg})
-}
-
-func (s *TTSOverlay) Publish(ctx context.Context, msg TTSMessage) error {
-	return publishTTS(ctx, s.js, ttsPublication{TTSOverlayStream, ttsOverlaySubject, msg})
 }
 
 type ttsPublication struct {
@@ -146,37 +95,4 @@ func publishTTS(ctx context.Context, js jsapi.JetStream, pub ttsPublication) err
 	_, err = js.PublishMsg(ctx, msg, jsapi.WithMsgID(pub.msg.EventID), jsapi.WithExpectStream(pub.stream))
 	endMessagingSegment(segment, err)
 	return err
-}
-
-type TTSClip struct {
-	Key      string
-	Metadata map[string]string
-	StoredAt time.Time
-}
-
-type TTSClipData struct {
-	TTSClip
-	WAV []byte
-}
-
-func (s *TTSOverlay) GetClip(ctx context.Context, ref TTSClip) (TTSClip, error) {
-	info, err := s.bucket.GetInfo(ctx, ref.Key)
-	if errors.Is(err, jsapi.ErrObjectNotFound) {
-		return TTSClip{}, nil
-	}
-	return storedTTSClip(info, err)
-}
-
-func (s *TTSOverlay) PutClip(ctx context.Context, data TTSClipData) (TTSClip, error) {
-	segment := startMessagingSegment(ctx, messagingSpan{name: "nats.object.put", operation: "put", destination: TTSClipBucket})
-	info, err := s.bucket.Put(ctx, jsapi.ObjectMeta{Name: data.Key, Metadata: data.Metadata}, bytes.NewReader(data.WAV))
-	endMessagingSegment(segment, err)
-	return storedTTSClip(info, err)
-}
-
-func storedTTSClip(info *jsapi.ObjectInfo, err error) (TTSClip, error) {
-	if err != nil {
-		return TTSClip{}, err
-	}
-	return TTSClip{Key: info.Name, Metadata: info.Metadata, StoredAt: info.ModTime}, nil
 }

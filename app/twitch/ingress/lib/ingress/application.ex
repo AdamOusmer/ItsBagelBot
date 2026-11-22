@@ -138,9 +138,6 @@ defmodule Ingress.Application do
         AdminConfig.autoscale_subject(),
         queue_group: @admin_queue
       ),
-      rpc_consumer_child(:conduit_consumer, Ingress.ConduitRpc, AdminConfig.conduit_subject(),
-        queue_group: @admin_queue
-      ),
       rpc_consumer_child(:health_consumer, Ingress.HealthRpc, AdminConfig.rpc_health_subject(),
         queue_group: @admin_queue
       )

@@ -65,11 +65,7 @@ func (w *Worker) enrollRecovery(ctx context.Context, e enrollment, req usersrpc.
 			return err
 		}
 	}
-	conduit, err := w.conduit.Get(ctx)
-	if err != nil {
-		return err
-	}
-	e.conduitID = conduit
+	e.conduitID = w.conduitID
 	return w.createAllEventSubs(ctx, e)
 }
 func (w *Worker) verifyRecoveryUnban(ctx context.Context, e enrollment, req usersrpc.LifecycleRequest) error {

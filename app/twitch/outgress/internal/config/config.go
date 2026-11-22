@@ -33,8 +33,6 @@ type Config struct {
 
 	TwitchConduitID string
 
-	ConduitSubject string
-
 	TwitchBotUserID string
 
 	TwitchBotRefreshToken string
@@ -74,8 +72,7 @@ func Load() *Config {
 		RPCPrefix:              conf.OutgressRPCPrefix.Get(),
 		TwitchClientID:         env.MustGet("TWITCH_CLIENT_ID"),
 		TwitchClientSecret:     env.MustGet("TWITCH_CLIENT_SECRET"),
-		TwitchConduitID:        env.Get("TWITCH_CONDUIT_ID", ""),
-		ConduitSubject:         env.Get("NATS_CONDUIT_SUBJECT", "rpc.ingress.conduit.get"),
+		TwitchConduitID:        env.MustGet("TWITCH_CONDUIT_ID"),
 		TwitchBotUserID:        env.Get("TWITCH_BOT_USER_ID", ""),
 		TwitchBotRefreshToken:  env.Get("TWITCH_BOT_REFRESH_TOKEN", ""),
 		TokensSubjectPrefix:    conf.TokensSubjectPrefix.Get(),

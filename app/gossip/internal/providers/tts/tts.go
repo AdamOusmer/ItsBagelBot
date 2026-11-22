@@ -20,7 +20,6 @@ import (
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/monitor"
-	"ItsBagelBot/pkg/ratelimit"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
@@ -28,9 +27,7 @@ import (
 )
 
 const (
-	bucketPrefix  = "ratelimit:gossip:{tts}:"
 	defaultVoice  = voiceplan.DefaultVoice
-	channelPrefix = bucketPrefix + "channel:"
 	speechTimeout = 20 * time.Second
 )
 
@@ -45,14 +42,12 @@ var (
 )
 
 type Config struct {
-	BaseURL          string
-	APIKey           string
-	Model            gossiprpc.TTSModel
-	Voice            string
-	Temperature      float64
-	RateLimit        float64
-	ChannelRateLimit float64
-	Vertex           VertexConfig
+	BaseURL     string
+	APIKey      string
+	Model       gossiprpc.TTSModel
+	Voice       string
+	Temperature float64
+	Vertex      VertexConfig
 }
 
 type backend interface {
@@ -73,9 +68,6 @@ type tokenUsage struct {
 type synthesizer struct {
 	backend backend
 	log     *zap.Logger
-	limiter *ratelimit.Limiter
-	global  core.Buckets
-	channel core.Buckets
 	model   gossiprpc.TTSModel
 	voice   string
 	flights singleflight.Group
@@ -88,9 +80,6 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	api := synthesizer{
 		backend: cfg.backend(b, log),
 		log:     log,
-		limiter: d.Limiter,
-		global:  core.NewBuckets(bucketPrefix+"global", cfg.RateLimit, 60),
-		channel: core.NewBuckets(channelPrefix, cfg.ChannelRateLimit, 60),
 		model:   cfg.Model,
 		voice:   cfg.Voice,
 	}
@@ -155,10 +144,6 @@ func (s *synthesizer) synthesize(ctx context.Context, req gossiprpc.Request) any
 }
 
 func (s *synthesizer) call(ctx context.Context, req gossiprpc.Request) gossiprpc.TTSSynthesizeReply {
-	channel := s.channel.WithKey(channelPrefix + req.ChannelID)
-	if err := channel.EnforceGeneralPair(ctx, s.limiter, s.global); err != nil {
-		return s.failure(ctx, err)
-	}
 	if s.backend == nil {
 		return s.failure(ctx, errUnavailable)
 	}

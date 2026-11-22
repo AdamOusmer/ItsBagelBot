@@ -62,10 +62,20 @@ Other `ent/` files are generated from the schema.
 - Account deletion uses the same cutoff as Powered-by. A ban clears the link
   hash and advances its generation. Alert rules and chat-command settings
   stay in their module configurations.
-- Before serving TTS, each replica pages `rpc.internal.users.voice.export`
-  and inserts legacy rows that have no TTS overlay. Default-only accounts
-  get their rows on demand. The backfill preserves settings, hashes and
-  generations, and can restart without overwriting new writes.
+- Accounts get their TTS row with default settings on first read.
+
+## Unified overlays
+
+- `overlay` rows hold system and custom overlays: kind, template, name,
+  SHA-256 token hash (same hashing as the TTS link), generation, the v2
+  document and revision. One system overlay per account and template.
+- Boot copies each `powered_overlay` row into a system overlay with the token
+  hashed, insert-if-absent and without events; the old table stays readable.
+- `rpc.overlays.overlay.{list,add_template,get,save,rotate,delete}` are
+  user-scoped; the link is returned once on add and rotate. Owner read for
+  Projector: `rpc.internal.overlays.powered.by_token` with `token_hash` set (reply `unified`). Writes publish
+  `data.overlays.overlay.changed` (`OverlayChangedDTO`, rotate sets
+  `previous_token_hash`). Account deletion removes overlays by the same cutoff.
 
 ## Invariants and pitfalls
 

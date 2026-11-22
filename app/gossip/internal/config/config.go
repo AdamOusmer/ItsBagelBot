@@ -72,16 +72,14 @@ type Config struct {
 	ClashRoyaleAPIKey    string
 	ClashRoyaleRateLimit float64
 
-	GeminiBaseURL             string
-	GeminiAPIKey              string
-	GeminiTTSModel            gossiprpc.TTSModel
-	GeminiTTSVoice            string
-	GeminiTTSTemperature      float64
-	GeminiTTSRateLimit        float64
-	GeminiTTSChannelRateLimit float64
-	VertexCredentials         string
-	VertexProject             string
-	VertexLocation            string
+	GeminiBaseURL        string
+	GeminiAPIKey         string
+	GeminiTTSModel       gossiprpc.TTSModel
+	GeminiTTSVoice       string
+	GeminiTTSTemperature float64
+	VertexCredentials    string
+	VertexProject        string
+	VertexLocation       string
 
 	FetchKeySubjectPrefix  string
 	FetchProjectionSubject string
@@ -159,16 +157,14 @@ func Load() (*Config, error) {
 		ClashRoyaleAPIKey:    env.Get("CLASHROYALE_API_KEY", ""),
 		ClashRoyaleRateLimit: env.GetFloat("CLASHROYALE_RATE_LIMIT", 600.0),
 
-		GeminiBaseURL:             env.Get("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com"),
-		GeminiAPIKey:              env.Get("GEMINI_API_KEY", ""),
-		GeminiTTSModel:            gossiprpc.TTSModel(env.Get("GEMINI_TTS_MODEL", string(gossiprpc.TTSFlash))),
-		GeminiTTSVoice:            env.Get("GEMINI_TTS_VOICE", "Kore"),
-		GeminiTTSTemperature:      temperature,
-		GeminiTTSRateLimit:        env.GetFloat("GEMINI_TTS_RATE_LIMIT", 60),
-		GeminiTTSChannelRateLimit: env.GetFloat("GEMINI_TTS_CHANNEL_RATE_LIMIT", 12),
-		VertexCredentials:         env.Get("GOOGLE_VERTEX_CREDENTIALS", ""),
-		VertexProject:             env.Get("GOOGLE_VERTEX_PROJECT", ""),
-		VertexLocation:            env.Get("GOOGLE_VERTEX_LOCATION", "global"),
+		GeminiBaseURL:        env.Get("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com"),
+		GeminiAPIKey:         env.Get("GEMINI_API_KEY", ""),
+		GeminiTTSModel:       gossiprpc.TTSModel(env.Get("GEMINI_TTS_MODEL", string(gossiprpc.TTSFlash))),
+		GeminiTTSVoice:       env.Get("GEMINI_TTS_VOICE", "Kore"),
+		GeminiTTSTemperature: temperature,
+		VertexCredentials:    env.Get("GOOGLE_VERTEX_CREDENTIALS", ""),
+		VertexProject:        env.Get("GOOGLE_VERTEX_PROJECT", ""),
+		VertexLocation:       env.Get("GOOGLE_VERTEX_LOCATION", "global"),
 
 		FetchKeySubjectPrefix:  conf.FetchKeyPrefix.Get(),
 		FetchProjectionSubject: env.Get("PROJECTION_FETCHES_SUBJECT", "rpc.internal.projection.commands.fetches.get"),

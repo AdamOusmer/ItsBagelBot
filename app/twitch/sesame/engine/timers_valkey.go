@@ -67,7 +67,7 @@ type timerDef struct {
 	ChatWindowMinutes int  `json:"chatWindowMinutes"`
 	AllowOffline      bool `json:"allowOffline"`
 
-	JitterS int `json:"jitterSeconds"`
+	JitterS int `json:"-"`
 }
 
 type timersConfig struct {
@@ -169,6 +169,7 @@ type armedTimer struct {
 	admission channelruntime.Snapshot
 	ref       timerRef
 	def       timerDef
+	channel   []timerDef
 }
 
 func chatLog(broadcasterID uint64) pkg_valkey.RecentLog {
@@ -209,7 +210,7 @@ func (s *ValkeyTimerStore) eachTimer(ctx context.Context, broadcasterID uint64, 
 		return
 	}
 	for _, td := range cfg.Timers {
-		step(armedTimer{ref: timerRef{broadcasterID: broadcasterID, id: td.ID}, def: td})
+		step(armedTimer{ref: timerRef{broadcasterID: broadcasterID, id: td.ID}, def: td, channel: cfg.Timers})
 	}
 }
 
@@ -303,7 +304,7 @@ func (s *ValkeyTimerStore) armAfter(ctx context.Context, at armedTimer, ex time.
 	if !at.def.Enabled || at.ref.id == "" {
 		return
 	}
-	ex += armJitter(at.def)
+	ex = s.spreadDelay(ctx, at, ex+armJitter(at.def))
 	err := s.armSchedule(ctx, at.ref, ex)
 	if err != nil && !valkey.IsValkeyNil(err) {
 		idempotency.Fail(ctx, err)
@@ -336,7 +337,7 @@ func (s *ValkeyTimerStore) DisarmAll(ctx context.Context, broadcasterID uint64) 
 		if td.ID == "" {
 			continue
 		}
-		at := armedTimer{ref: timerRef{broadcasterID: broadcasterID, id: td.ID}, def: td}
+		at := armedTimer{ref: timerRef{broadcasterID: broadcasterID, id: td.ID}, def: td, channel: cfg.Timers}
 		s.badEndsAtWarned.Delete(at.ref)
 		s.blankFireWarned.Delete(at.ref)
 		if td.AllowOffline {
@@ -390,6 +391,9 @@ func (s *ValkeyTimerStore) moduleTimers(ctx context.Context, broadcasterID uint6
 		idempotency.Fail(ctx, err)
 		s.log.Warn("timers: bad config", module.BIDField(broadcasterID), zap.Error(err))
 		return timersConfig{}, false
+	}
+	for i := range cfg.Timers {
+		cfg.Timers[i].JitterS = autoJitterSeconds(cfg.Timers[i].Interval)
 	}
 	return cfg, true
 }
@@ -471,7 +475,7 @@ func (s *ValkeyTimerStore) resolveArmed(ctx context.Context, ref timerRef) (arme
 	if !ok || !td.Enabled {
 		return armedTimer{}, false
 	}
-	return armedTimer{ref: ref, def: td, admission: admission}, true
+	return armedTimer{ref: ref, def: td, admission: admission, channel: cfg.Timers}, true
 }
 
 func (s *ValkeyTimerStore) timerAdmission(ctx context.Context, ref timerRef) (channelruntime.Snapshot, bool) {

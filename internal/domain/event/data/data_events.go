@@ -126,6 +126,14 @@ type CommandUsedDTO struct {
 const SubjectTtsOverlayChanged = "data.overlays.tts.changed"
 const SubjectUserBanned = "data.users.banned"
 
+const SubjectOverlayChanged = "data.overlays.overlay.changed"
+
+type OverlayChangedDTO struct {
+	Overlay           overlaysrpc.Overlay   `json:"overlay"`
+	PreviousTokenHash overlaysrpc.TokenHash `json:"previous_token_hash,omitempty"`
+	Deleted           bool                  `json:"deleted,omitempty"`
+}
+
 type TtsOverlayChangedDTO struct {
 	Overlay overlaysrpc.TtsOverlay `json:"overlay"`
 	Deleted bool                   `json:"deleted,omitempty"`

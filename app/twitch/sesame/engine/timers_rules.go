@@ -11,6 +11,8 @@ const (
 
 	maxJitterSeconds = 3600
 
+	autoJitterDivisor = 10
+
 	defaultChatWindowMinutes = 5
 	maxChatWindowMinutes     = 60
 )
@@ -35,6 +37,10 @@ func clampCount(n, limit int) int {
 	default:
 		return n
 	}
+}
+
+func autoJitterSeconds(intervalSeconds int) int {
+	return clampCount(intervalSeconds/autoJitterDivisor, maxJitterSeconds)
 }
 
 func isGated(td timerDef) bool {

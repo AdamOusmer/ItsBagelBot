@@ -119,8 +119,8 @@
     scopeGap = data.scopeGap ?? [];
     grantRevoked = data.needsReconnect ?? false;
     app = data.app ?? { present: false, clientId: '' };
-    sr = data.sr ?? blankSpotifySr();
-    redeem = data.redeem ?? blankSpotifyRedeem();
+    if (!srSync.busy) sr = data.sr ?? blankSpotifySr();
+    if (!redeemSync.busy) redeem = data.redeem ?? blankSpotifyRedeem();
     quotas = data.quotas ?? blankSpotifyQuotas();
     maxDepth = data.maxDepth ?? null;
     if (!untrack(() => quotaDirty)) {
@@ -238,20 +238,21 @@
   function settle(opts: {
     fail: string;
     ok?: string;
-    settled?: (ok: boolean) => void;
+    settled?: (ok: boolean) => boolean | void;
     onFail?: () => void;
     onOk?: () => void;
   }) {
     return async ({ result }: { result: ActionResult }) => {
       const payload = actionPayload<SongQueueActionOk>(result);
       const ok = isOk(result, payload);
-      opts.settled?.(ok);
+      const refresh = opts.settled?.(ok) !== false;
       if (!ok) {
         opts.onFail?.();
         reportFailure(payload, opts.fail);
         return;
       }
       opts.onOk?.();
+      if (!refresh) return;
       if (opts.ok) toast('success', opts.ok);
       await invalidateAll();
     };
@@ -279,7 +280,7 @@
     });
   };
 
-  function settingsSubmit(opts: {
+  function settingsSubmit(sync: ReturnType<typeof createPathSync>, opts: {
     fields: () => Record<string, string>;
     fail: string;
     ok?: string;
@@ -287,11 +288,55 @@
   }): SubmitFunction {
     return ({ formData }) => {
       for (const [name, value] of Object.entries(opts.fields())) formData.set(name, value);
-      return settle({ fail: opts.fail, ok: opts.ok, onFail: opts.revert });
+      return settle({
+        fail: opts.fail,
+        ok: opts.ok,
+        settled: (ok) => sync.settle(ok),
+        onFail: opts.revert
+      });
     };
   }
 
-  const srSubmit = settingsSubmit({
+  let srForm = $state<HTMLFormElement | null>(null);
+  let redeemForm = $state<HTMLFormElement | null>(null);
+
+  function createPathSync(getForm: () => HTMLFormElement | null) {
+    let inFlight = false;
+    let queued = false;
+    function submit() {
+      const form = getForm();
+      if (!form) return false;
+      inFlight = true;
+      form.requestSubmit();
+      return true;
+    }
+    return {
+      get busy() { return inFlight || queued; },
+      trigger() {
+        if (inFlight) {
+          queued = true;
+          return;
+        }
+        submit();
+      },
+      settle(ok: boolean) {
+        inFlight = false;
+        if (ok && queued) {
+          queued = false;
+          return !submit();
+        }
+        queued = false;
+        return true;
+      }
+    };
+  }
+
+  const srSync = createPathSync(() => srForm);
+  const redeemSync = createPathSync(() => redeemForm);
+  const srChanged = () => srSync.trigger();
+  const redeemToggled = () => redeemSync.trigger();
+
+  const srSubmit = settingsSubmit(srSync, {
     fields: () => ({
       sr_enabled: sr.enabled ? 'on' : '',
       sr_allow_offline: sr.allowOffline ? 'on' : '',
@@ -302,7 +347,7 @@
     revert: () => (sr = data.sr ?? blankSpotifySr())
   });
 
-  const redeemToggleSubmit = settingsSubmit({
+  const redeemToggleSubmit = settingsSubmit(redeemSync, {
     fields: () => ({
       redeem_enabled: redeem.enabled ? 'on' : '',
       redeem_allow_offline: redeem.allowOffline ? 'on' : ''
@@ -320,11 +365,6 @@
       settled: () => (quotaSaving = false)
     });
   };
-
-  let srForm = $state<HTMLFormElement | null>(null);
-  let redeemForm = $state<HTMLFormElement | null>(null);
-  const srChanged = () => srForm?.requestSubmit();
-  const redeemToggled = () => redeemForm?.requestSubmit();
   function enableSr() {
     sr.enabled = true;
     srChanged();

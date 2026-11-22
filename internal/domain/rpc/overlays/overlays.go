@@ -124,11 +124,13 @@ type PoweredRotateRequest struct {
 }
 
 type OwnerPoweredByTokenRequest struct {
-	Token string `json:"token"`
+	Token     string    `json:"token,omitempty"`
+	TokenHash TokenHash `json:"token_hash,omitempty"`
 }
 
 type OwnerPoweredReply struct {
 	Overlay *PoweredOverlay `json:"overlay,omitempty"`
+	Unified *Overlay        `json:"unified,omitempty"`
 	rpc.Refusal
 }
 

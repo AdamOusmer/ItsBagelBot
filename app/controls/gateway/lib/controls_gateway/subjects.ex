@@ -18,4 +18,13 @@ defmodule ControlsGateway.Subjects do
 
   @spec revoked(String.t()) :: String.t()
   def revoked(device_id), do: "controls.revoked.#{device_id}"
+
+  @spec overlay_session(pos_integer()) :: String.t()
+  def overlay_session(user_id), do: "overlays.session.#{user_id}"
+
+  @spec overlay_offer_reply() :: String.t()
+  def overlay_offer_reply,
+    do:
+      "overlays.session.reply." <>
+        Base.url_encode64(:crypto.strong_rand_bytes(12), padding: false)
 end

@@ -119,37 +119,30 @@ data:
     set -eu
     cd /work
 
-    export RCLONE_CONFIG_R2_TYPE=s3
-    export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
-    export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
-    export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-    export RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
-    export RCLONE_CONFIG_R2_ACL=private
-    # The R2 token is scoped to one bucket, so it cannot ListBuckets; without
-    # this rclone fails the bucket-exists preflight before it ever uploads.
-    export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
+    . /scripts/gcs-env.sh
 
-    rclone move /work "r2:${R2_BUCKET}/mysql/daily/" \
+    rclone move /work "gcs:${GCS_BUCKET}/mysql/daily/" \
       --include "*.enc" --include "*.sha256" --stats-one-line
 
-    # Retention is NOT done here: the 2d expiry (and 2d bucket lock) is an R2
-    # lifecycle rule on daily/, binlogs included, which keeps pruning if this
-    # CronJob is broken or deleted. The privacy policy promises backups expire
-    # within 30 days: no longer-lived copy.
-    rclone lsf "r2:${R2_BUCKET}/mysql/daily/" --include "*.enc" | wc -l | xargs echo "daily objects in R2:"
-  r2-env.sh: |
-    export RCLONE_CONFIG_R2_TYPE=s3
-    export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
-    export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
-    export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-    export RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
-    export RCLONE_CONFIG_R2_ACL=private
-    export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
-    BINLOG_REMOTE="r2:${R2_BUCKET}/mysql/daily/binlogs"
+    # Retention is NOT done here: the 2d expiry is a GCS lifecycle rule on
+    # mysql/daily/, binlogs included, which keeps pruning if this CronJob is
+    # broken or deleted. The writer key cannot delete or overwrite there. The
+    # privacy policy promises backups expire within 30 days: no longer-lived copy.
+    rclone lsf "gcs:${GCS_BUCKET}/mysql/daily/" --include "*.enc" | wc -l | xargs echo "daily objects in GCS:"
+  gcs-env.sh: |
+    export RCLONE_CONFIG_GCS_TYPE=s3
+    export RCLONE_CONFIG_GCS_PROVIDER=GCS
+    export RCLONE_CONFIG_GCS_ACCESS_KEY_ID="$GCS_ACCESS_KEY_ID"
+    export RCLONE_CONFIG_GCS_SECRET_ACCESS_KEY="$GCS_SECRET_ACCESS_KEY"
+    export RCLONE_CONFIG_GCS_ENDPOINT="$GCS_ENDPOINT"
+    # Uniform bucket-level access rejects any per-object ACL header with 400 InvalidArgument.
+    # The writer key holds object roles only, so rclone's bucket-exists preflight has to be skipped.
+    export RCLONE_CONFIG_GCS_NO_CHECK_BUCKET=true
+    BINLOG_REMOTE="gcs:${GCS_BUCKET}/mysql/daily/binlogs"
   binlog-fetch.sh: |
     #!/bin/sh
     set -eu
-    . /scripts/r2-env.sh
+    . /scripts/gcs-env.sh
     LAST=$(rclone lsf "$BINLOG_REMOTE" --dirs-only | sort | tail -1)
     mkdir -p /work/prev /work/binlog
     if [ -n "$LAST" ]; then
@@ -188,8 +181,8 @@ data:
   binlog-upload.sh: |
     #!/bin/sh
     set -eu
-    . /scripts/r2-env.sh
-    # The bucket lock forbids overwrites, so every run writes a new dump root chained to the last one.
+    . /scripts/gcs-env.sh
+    # The writer key cannot overwrite mysql/daily/, so every run writes a new dump root chained to the last one.
     rclone copy /work/binlog "$BINLOG_REMOTE" --include "*.enc" --stats-one-line
     rclone copy /work/binlog "$BINLOG_REMOTE" --include "*.json" --stats-one-line
 ---

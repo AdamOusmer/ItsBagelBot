@@ -67,6 +67,7 @@
     "./catalog/songqueue": "./lib/catalog/songqueue.ts",
     "./validation": "./lib/validation.ts",
     "./overlays": "./lib/overlays.ts",
+    "./overlay-document": "./lib/overlay-document.ts",
     "./timers": "./lib/timers.ts",
     "./uses": "./lib/uses.ts",
     "./i18n": "./lib/i18n/messages.ts",
@@ -110,10 +111,11 @@
     "./site-links": "./lib/site-links.ts",
     "./site-footer": "./lib/site-footer.ts",
     "./via": "./lib/via.ts",
-    "./client-props": "./lib/client-props.ts"
+    "./client-props": "./lib/client-props.ts",
+    "./topbar-context": "./lib/topbar-context.ts"
   },
   "dependencies": {
-    "@luzir/bolota": "0.2.8",
+    "@luzir/bolota": "0.3.0",
     "@nats-io/jetstream": "^3.4.0",
     "@nats-io/transport-node": "^3.4.0",
     "iovalkey": "^0.4.0",

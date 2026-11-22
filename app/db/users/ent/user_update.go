@@ -336,96 +336,6 @@ func (_u *UserUpdate) SetNillableSongqueuePageHidden(v *bool) *UserUpdate {
 	return _u
 }
 
-// SetTtsEnabled sets the "tts_enabled" field.
-func (_u *UserUpdate) SetTtsEnabled(v bool) *UserUpdate {
-	_u.mutation.SetTtsEnabled(v)
-	return _u
-}
-
-// SetNillableTtsEnabled sets the "tts_enabled" field if the given value is not nil.
-func (_u *UserUpdate) SetNillableTtsEnabled(v *bool) *UserUpdate {
-	if v != nil {
-		_u.SetTtsEnabled(*v)
-	}
-	return _u
-}
-
-// SetTtsVoice sets the "tts_voice" field.
-func (_u *UserUpdate) SetTtsVoice(v string) *UserUpdate {
-	_u.mutation.SetTtsVoice(v)
-	return _u
-}
-
-// SetNillableTtsVoice sets the "tts_voice" field if the given value is not nil.
-func (_u *UserUpdate) SetNillableTtsVoice(v *string) *UserUpdate {
-	if v != nil {
-		_u.SetTtsVoice(*v)
-	}
-	return _u
-}
-
-// SetTtsMaxSeconds sets the "tts_max_seconds" field.
-func (_u *UserUpdate) SetTtsMaxSeconds(v int) *UserUpdate {
-	_u.mutation.ResetTtsMaxSeconds()
-	_u.mutation.SetTtsMaxSeconds(v)
-	return _u
-}
-
-// SetNillableTtsMaxSeconds sets the "tts_max_seconds" field if the given value is not nil.
-func (_u *UserUpdate) SetNillableTtsMaxSeconds(v *int) *UserUpdate {
-	if v != nil {
-		_u.SetTtsMaxSeconds(*v)
-	}
-	return _u
-}
-
-// AddTtsMaxSeconds adds value to the "tts_max_seconds" field.
-func (_u *UserUpdate) AddTtsMaxSeconds(v int) *UserUpdate {
-	_u.mutation.AddTtsMaxSeconds(v)
-	return _u
-}
-
-// SetTtsOverlayTokenHash sets the "tts_overlay_token_hash" field.
-func (_u *UserUpdate) SetTtsOverlayTokenHash(v string) *UserUpdate {
-	_u.mutation.SetTtsOverlayTokenHash(v)
-	return _u
-}
-
-// SetNillableTtsOverlayTokenHash sets the "tts_overlay_token_hash" field if the given value is not nil.
-func (_u *UserUpdate) SetNillableTtsOverlayTokenHash(v *string) *UserUpdate {
-	if v != nil {
-		_u.SetTtsOverlayTokenHash(*v)
-	}
-	return _u
-}
-
-// ClearTtsOverlayTokenHash clears the value of the "tts_overlay_token_hash" field.
-func (_u *UserUpdate) ClearTtsOverlayTokenHash() *UserUpdate {
-	_u.mutation.ClearTtsOverlayTokenHash()
-	return _u
-}
-
-// SetTtsOverlayGeneration sets the "tts_overlay_generation" field.
-func (_u *UserUpdate) SetTtsOverlayGeneration(v int) *UserUpdate {
-	_u.mutation.ResetTtsOverlayGeneration()
-	_u.mutation.SetTtsOverlayGeneration(v)
-	return _u
-}
-
-// SetNillableTtsOverlayGeneration sets the "tts_overlay_generation" field if the given value is not nil.
-func (_u *UserUpdate) SetNillableTtsOverlayGeneration(v *int) *UserUpdate {
-	if v != nil {
-		_u.SetTtsOverlayGeneration(*v)
-	}
-	return _u
-}
-
-// AddTtsOverlayGeneration adds value to the "tts_overlay_generation" field.
-func (_u *UserUpdate) AddTtsOverlayGeneration(v int) *UserUpdate {
-	_u.mutation.AddTtsOverlayGeneration(v)
-	return _u
-}
-
 // SetCreatorCode sets the "creator_code" field.
 func (_u *UserUpdate) SetCreatorCode(v string) *UserUpdate {
 	_u.mutation.SetCreatorCode(v)
@@ -932,16 +842,6 @@ func (_u *UserUpdate) check() error {
 			return &ValidationError{Name: "locale", err: fmt.Errorf(`ent: validator failed for field "User.locale": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.TtsMaxSeconds(); ok {
-		if err := user.TtsMaxSecondsValidator(v); err != nil {
-			return &ValidationError{Name: "tts_max_seconds", err: fmt.Errorf(`ent: validator failed for field "User.tts_max_seconds": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.TtsOverlayTokenHash(); ok {
-		if err := user.TtsOverlayTokenHashValidator(v); err != nil {
-			return &ValidationError{Name: "tts_overlay_token_hash", err: fmt.Errorf(`ent: validator failed for field "User.tts_overlay_token_hash": %w`, err)}
-		}
-	}
 	if v, ok := _u.mutation.CreatorCode(); ok {
 		if err := user.CreatorCodeValidator(v); err != nil {
 			return &ValidationError{Name: "creator_code", err: fmt.Errorf(`ent: validator failed for field "User.creator_code": %w`, err)}
@@ -1039,30 +939,6 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.SongqueuePageHidden(); ok {
 		_spec.SetField(user.FieldSongqueuePageHidden, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.TtsEnabled(); ok {
-		_spec.SetField(user.FieldTtsEnabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.TtsVoice(); ok {
-		_spec.SetField(user.FieldTtsVoice, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.TtsMaxSeconds(); ok {
-		_spec.SetField(user.FieldTtsMaxSeconds, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedTtsMaxSeconds(); ok {
-		_spec.AddField(user.FieldTtsMaxSeconds, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.TtsOverlayTokenHash(); ok {
-		_spec.SetField(user.FieldTtsOverlayTokenHash, field.TypeString, value)
-	}
-	if _u.mutation.TtsOverlayTokenHashCleared() {
-		_spec.ClearField(user.FieldTtsOverlayTokenHash, field.TypeString)
-	}
-	if value, ok := _u.mutation.TtsOverlayGeneration(); ok {
-		_spec.SetField(user.FieldTtsOverlayGeneration, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedTtsOverlayGeneration(); ok {
-		_spec.AddField(user.FieldTtsOverlayGeneration, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
@@ -1712,96 +1588,6 @@ func (_u *UserUpdateOne) SetNillableSongqueuePageHidden(v *bool) *UserUpdateOne 
 	return _u
 }
 
-// SetTtsEnabled sets the "tts_enabled" field.
-func (_u *UserUpdateOne) SetTtsEnabled(v bool) *UserUpdateOne {
-	_u.mutation.SetTtsEnabled(v)
-	return _u
-}
-
-// SetNillableTtsEnabled sets the "tts_enabled" field if the given value is not nil.
-func (_u *UserUpdateOne) SetNillableTtsEnabled(v *bool) *UserUpdateOne {
-	if v != nil {
-		_u.SetTtsEnabled(*v)
-	}
-	return _u
-}
-
-// SetTtsVoice sets the "tts_voice" field.
-func (_u *UserUpdateOne) SetTtsVoice(v string) *UserUpdateOne {
-	_u.mutation.SetTtsVoice(v)
-	return _u
-}
-
-// SetNillableTtsVoice sets the "tts_voice" field if the given value is not nil.
-func (_u *UserUpdateOne) SetNillableTtsVoice(v *string) *UserUpdateOne {
-	if v != nil {
-		_u.SetTtsVoice(*v)
-	}
-	return _u
-}
-
-// SetTtsMaxSeconds sets the "tts_max_seconds" field.
-func (_u *UserUpdateOne) SetTtsMaxSeconds(v int) *UserUpdateOne {
-	_u.mutation.ResetTtsMaxSeconds()
-	_u.mutation.SetTtsMaxSeconds(v)
-	return _u
-}
-
-// SetNillableTtsMaxSeconds sets the "tts_max_seconds" field if the given value is not nil.
-func (_u *UserUpdateOne) SetNillableTtsMaxSeconds(v *int) *UserUpdateOne {
-	if v != nil {
-		_u.SetTtsMaxSeconds(*v)
-	}
-	return _u
-}
-
-// AddTtsMaxSeconds adds value to the "tts_max_seconds" field.
-func (_u *UserUpdateOne) AddTtsMaxSeconds(v int) *UserUpdateOne {
-	_u.mutation.AddTtsMaxSeconds(v)
-	return _u
-}
-
-// SetTtsOverlayTokenHash sets the "tts_overlay_token_hash" field.
-func (_u *UserUpdateOne) SetTtsOverlayTokenHash(v string) *UserUpdateOne {
-	_u.mutation.SetTtsOverlayTokenHash(v)
-	return _u
-}
-
-// SetNillableTtsOverlayTokenHash sets the "tts_overlay_token_hash" field if the given value is not nil.
-func (_u *UserUpdateOne) SetNillableTtsOverlayTokenHash(v *string) *UserUpdateOne {
-	if v != nil {
-		_u.SetTtsOverlayTokenHash(*v)
-	}
-	return _u
-}
-
-// ClearTtsOverlayTokenHash clears the value of the "tts_overlay_token_hash" field.
-func (_u *UserUpdateOne) ClearTtsOverlayTokenHash() *UserUpdateOne {
-	_u.mutation.ClearTtsOverlayTokenHash()
-	return _u
-}
-
-// SetTtsOverlayGeneration sets the "tts_overlay_generation" field.
-func (_u *UserUpdateOne) SetTtsOverlayGeneration(v int) *UserUpdateOne {
-	_u.mutation.ResetTtsOverlayGeneration()
-	_u.mutation.SetTtsOverlayGeneration(v)
-	return _u
-}
-
-// SetNillableTtsOverlayGeneration sets the "tts_overlay_generation" field if the given value is not nil.
-func (_u *UserUpdateOne) SetNillableTtsOverlayGeneration(v *int) *UserUpdateOne {
-	if v != nil {
-		_u.SetTtsOverlayGeneration(*v)
-	}
-	return _u
-}
-
-// AddTtsOverlayGeneration adds value to the "tts_overlay_generation" field.
-func (_u *UserUpdateOne) AddTtsOverlayGeneration(v int) *UserUpdateOne {
-	_u.mutation.AddTtsOverlayGeneration(v)
-	return _u
-}
-
 // SetCreatorCode sets the "creator_code" field.
 func (_u *UserUpdateOne) SetCreatorCode(v string) *UserUpdateOne {
 	_u.mutation.SetCreatorCode(v)
@@ -2321,16 +2107,6 @@ func (_u *UserUpdateOne) check() error {
 			return &ValidationError{Name: "locale", err: fmt.Errorf(`ent: validator failed for field "User.locale": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.TtsMaxSeconds(); ok {
-		if err := user.TtsMaxSecondsValidator(v); err != nil {
-			return &ValidationError{Name: "tts_max_seconds", err: fmt.Errorf(`ent: validator failed for field "User.tts_max_seconds": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.TtsOverlayTokenHash(); ok {
-		if err := user.TtsOverlayTokenHashValidator(v); err != nil {
-			return &ValidationError{Name: "tts_overlay_token_hash", err: fmt.Errorf(`ent: validator failed for field "User.tts_overlay_token_hash": %w`, err)}
-		}
-	}
 	if v, ok := _u.mutation.CreatorCode(); ok {
 		if err := user.CreatorCodeValidator(v); err != nil {
 			return &ValidationError{Name: "creator_code", err: fmt.Errorf(`ent: validator failed for field "User.creator_code": %w`, err)}
@@ -2445,30 +2221,6 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.SongqueuePageHidden(); ok {
 		_spec.SetField(user.FieldSongqueuePageHidden, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.TtsEnabled(); ok {
-		_spec.SetField(user.FieldTtsEnabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.TtsVoice(); ok {
-		_spec.SetField(user.FieldTtsVoice, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.TtsMaxSeconds(); ok {
-		_spec.SetField(user.FieldTtsMaxSeconds, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedTtsMaxSeconds(); ok {
-		_spec.AddField(user.FieldTtsMaxSeconds, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.TtsOverlayTokenHash(); ok {
-		_spec.SetField(user.FieldTtsOverlayTokenHash, field.TypeString, value)
-	}
-	if _u.mutation.TtsOverlayTokenHashCleared() {
-		_spec.ClearField(user.FieldTtsOverlayTokenHash, field.TypeString)
-	}
-	if value, ok := _u.mutation.TtsOverlayGeneration(); ok {
-		_spec.SetField(user.FieldTtsOverlayGeneration, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedTtsOverlayGeneration(); ok {
-		_spec.AddField(user.FieldTtsOverlayGeneration, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)

@@ -21,9 +21,6 @@ defmodule ControlsGateway.Tts.Page do
   let playbackStartedAt = 0;
   let playbackBudget = 0;
   let retryCap = 2000;
-  let lastEventId = '';
-
-  if (token) history.replaceState(null, '', '/tts');
 
   function resetWatchdog() {
     clearTimeout(watchdog);
@@ -43,14 +40,33 @@ defmodule ControlsGateway.Tts.Page do
     return !inObs || (active && showing);
   }
 
-  function dropExpired() {
-    const firstWaiting = watchdog === null ? 0 : 1;
-    const now = Date.now();
-    while (queue[firstWaiting]?.expiresAt <= now) queue.splice(firstWaiting, 1);
+  function post(path, body) {
+    return fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      redirect: 'error'
+    }).catch(() => null);
+  }
+
+  const ackSettled = new Set([200, 204, 401, 404]);
+
+  async function ackClip(handle) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const response = await post('/tts/ack', { handle });
+      if (ackSettled.has(response?.status)) return;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
+  function reportProgress() {
+    const handles = queue.map((clip) => clip.handle);
+    for (let start = 0; start < handles.length; start += 32) {
+      post('/tts/progress', { handles: handles.slice(start, start + 32) });
+    }
   }
 
   function playNext() {
-    dropExpired();
     if (watchdog !== null || !sourceReady()) return;
     const clip = queue[0];
     if (!clip) {
@@ -77,7 +93,7 @@ defmodule ControlsGateway.Tts.Page do
       if (watchdog !== timer) return;
       const needsGesture = !inObs && error.name === 'NotAllowedError';
       if (!needsGesture) {
-        advance();
+        fail();
         return;
       }
       resetWatchdog();
@@ -88,7 +104,18 @@ defmodule ControlsGateway.Tts.Page do
   function advance() {
     if (watchdog === null) return;
     clearAudio();
-    queue.shift();
+    ackClip(queue.shift().handle);
+    playNext();
+  }
+
+  function fail() {
+    if (watchdog === null) return;
+    if (queue[0].retried) {
+      advance();
+      return;
+    }
+    queue[0].retried = true;
+    clearAudio();
     playNext();
   }
 
@@ -111,7 +138,7 @@ defmodule ControlsGateway.Tts.Page do
     if (audio.ended) advance();
   });
   audio.addEventListener('error', () => {
-    if (audio.error) advance();
+    if (audio.error) fail();
   });
   hint.addEventListener('click', playNext);
 
@@ -126,6 +153,8 @@ defmodule ControlsGateway.Tts.Page do
     });
     document.addEventListener('visibilitychange', sourceChanged);
   }
+
+  setInterval(reportProgress, 15000);
 
   function waitToRetry(retryAfter = 0) {
     const delay = Math.max(retryAfter, retryCap * (0.5 + Math.random() * 0.5));
@@ -150,17 +179,17 @@ defmodule ControlsGateway.Tts.Page do
     }
   }
 
-  function receiveClip({ data, lastEventId: sequence }) {
-    lastEventId = sequence;
+  function receiveClip({ data }) {
     const clip = JSON.parse(data);
-    clip.expiresAt = Date.parse(clip.expires_at);
-    const expired = !(clip.expiresAt > Date.now());
-    if (expired || typeof clip.event_id !== 'string' || seen.has(clip.event_id)) return;
+    if (typeof clip.event_id !== 'string' || typeof clip.handle !== 'string') return;
+    if (seen.has(clip.event_id)) {
+      ackClip(clip.handle);
+      return;
+    }
     seen.add(clip.event_id);
     if (seen.size > 100) seen.delete(seen.values().next().value);
     queue.push(clip);
     if (hint.hidden) playNext();
-    else dropExpired();
   }
 
   function stopPlayback() {
@@ -194,10 +223,9 @@ defmodule ControlsGateway.Tts.Page do
       return;
     }
 
-    const path = lastEventId ? '/tts/events?after=' + encodeURIComponent(lastEventId) : '/tts/events';
-    const events = new EventSource(path);
+    const events = new EventSource('/tts/events');
     events.onopen = () => { retryCap = 2000; };
-    events.onmessage = receiveClip;
+    events.addEventListener('tts', receiveClip);
     events.onerror = () => {
       if (events.readyState === EventSource.CLOSED) recover();
     };

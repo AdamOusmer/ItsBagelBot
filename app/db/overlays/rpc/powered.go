@@ -42,10 +42,14 @@ func SubscribeDashboard(w Wiring) error {
 
 func SubscribeOwner(w Wiring) error {
 	read := w.Within(readBudget)
-	return bus.Serve(read, overlaysrpc.OwnerPoweredByTokenSubject,
-		func(ctx context.Context, req overlaysrpc.OwnerPoweredByTokenRequest) overlaysrpc.OwnerPoweredReply {
-			return ownerOf(w.Repo.ByToken(ctx, req.Token))
-		})
+	return bus.Serve(read, overlaysrpc.OwnerPoweredByTokenSubject, w.ownerLookup)
+}
+
+func (w Wiring) ownerLookup(ctx context.Context, req overlaysrpc.OwnerPoweredByTokenRequest) overlaysrpc.OwnerPoweredReply {
+	if req.TokenHash != "" {
+		return w.ownerUnified(ctx, req.TokenHash)
+	}
+	return ownerOf(w.Repo.ByToken(ctx, req.Token))
 }
 
 func viewOf(overlay overlaysrpc.PoweredOverlay, err error) overlaysrpc.PoweredView {
@@ -67,6 +71,8 @@ func refusal(err error) domainrpc.Refusal {
 		domainrpc.Is(repository.ErrNotFound, domainrpc.CodeNotFound),
 		domainrpc.Is(repository.ErrRevisionConflict, domainrpc.CodeConflict),
 		domainrpc.Is(repository.ErrInvalidConfig, domainrpc.CodeInvalid),
+		domainrpc.Is(repository.ErrUnknownTemplate, domainrpc.CodeInvalid),
+		domainrpc.Is(repository.ErrNotConfigurable, domainrpc.CodeInvalid),
 		domainrpc.Is(repository.ErrTtsPlan, domainrpc.CodeForbidden),
 	)
 }

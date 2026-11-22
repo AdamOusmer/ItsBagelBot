@@ -88,7 +88,7 @@ func (w wireCtx) provisionVoice(publisher *pendingVoice, shutdown <-chan struct{
 }
 
 func (w wireCtx) runVoice(publisher *pendingVoice, shutdown <-chan struct{}) error {
-	overlayConn, err := bus.ConnectTTSOverlay(w.cfg.NATSURL)
+	overlayConn, err := bus.ConnectOverlays(w.cfg.NATSURL)
 	if err != nil {
 		return fmt.Errorf("connect TTS overlay bus: %w", err)
 	}
@@ -105,7 +105,7 @@ func (w wireCtx) runVoice(publisher *pendingVoice, shutdown <-chan struct{}) err
 	if err != nil {
 		return fmt.Errorf("provision TTS job bus: %w", err)
 	}
-	overlay, err := bus.OpenTTSOverlay(ctx, overlayConn, bus.TTSReplicas)
+	overlay, err := bus.OpenOverlays(ctx, overlayConn, bus.TTSReplicas)
 	cancel()
 	if err != nil {
 		return fmt.Errorf("provision TTS overlay bus: %w", err)

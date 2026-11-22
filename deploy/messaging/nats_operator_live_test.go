@@ -50,6 +50,9 @@ func TestLiveACLPermissions(t *testing.T) {
 			{roleEndpoint{"BUS", "outgress_bus"}, "twitch.ingress.event.premium"},
 			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "overlay.tts.42"},
 			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "$JS.API.STREAM.CREATE.OVERLAY_TTS"},
+			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "$JS.API.STREAM.CREATE.OVERLAYS_PREMIUM"},
+			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "overlays.premium.tts.42"},
+			{roleEndpoint{controlsGatewayAccount, "worker_tts_bus"}, "overlays.session.42"},
 			{roleEndpoint{"BUS", "overlays_bus"}, "data.users.changed"},
 		} {
 			err := server.publishOutcome(t, probe.role, probe.subject, 500*time.Millisecond)
@@ -84,7 +87,6 @@ func TestLiveACLPermissions(t *testing.T) {
 			{roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, "rpc.internal.overlays.tts.by_hash"},
 			{roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, "rpc.internal.overlays.tts.by_user"},
 			{roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, "rpc.overlays.tts.save"},
-			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, "rpc.internal.users.voice.export"},
 			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, "rpc.internal.users.voice.check"},
 			{roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, roleEndpoint{"WORKER_RPC", "worker_rpc"}, "rpc.internal.projector.overlays.tts.settings"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "rpc.admin.user.auth.check"},

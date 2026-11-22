@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -150,8 +151,8 @@ func TestArmAllSkipsCappedAndEndedTimersButArmsAPlainOne(t *testing.T) {
 	assert.True(t, f.scheduleKeyExists(t, "plain"), "ArmAll must still arm an ungated, unstopped timer")
 }
 
-func TestArmAllAddsTheTimerRandomExtra(t *testing.T) {
-	blob := []byte(`{"timers":[{"id":"plain","message":"hi","intervalSeconds":60,"enabled":true,"jitterSeconds":3600}]}`)
+func TestArmAllAddsAnAutomaticJitterToModuleTimers(t *testing.T) {
+	blob := []byte(`{"timers":[{"id":"plain","message":"hi","intervalSeconds":3600,"enabled":true}]}`)
 	proj := fakeReader{modules: map[string]projection.ModuleView{
 		timersModuleName: {Name: timersModuleName, IsEnabled: true, Configs: blob},
 	}}
@@ -165,11 +166,49 @@ func TestArmAllAddsTheTimerRandomExtra(t *testing.T) {
 		ttl, err := f.store.client.Do(ctx, f.store.client.B().Ttl().Key(key).Build()).AsInt64()
 		require.NoError(t, err)
 		require.NoError(t, pkg_valkey.DelKeys(ctx, f.store.client, key))
-		assert.GreaterOrEqual(t, ttl, int64(60))
+		assert.GreaterOrEqual(t, ttl, int64(3600))
 		longest = max(longest, ttl)
 	}
-	assert.Greater(t, longest, int64(60+timerFirstFireJitter.Seconds()), "jitterSeconds must reach the schedule")
-	assert.LessOrEqual(t, longest, int64(60+timerFirstFireJitter.Seconds()+maxJitterSeconds))
+	assert.Greater(t, longest, int64(3600+timerFirstFireJitter.Seconds()), "module timers must get a jitter without any setting")
+	assert.LessOrEqual(t, longest, int64(3600+timerFirstFireJitter.Seconds()+360))
+}
+
+func TestArmAllSpreadsTimersOnTheSameIntervalAcrossIt(t *testing.T) {
+	ids := []string{"s0", "s1", "s2", "s3", "s4", "s5"}
+	cfg := timersConfig{}
+	for _, id := range ids {
+		cfg.Timers = append(cfg.Timers, timerDef{ID: id, Message: "hi", Interval: 600, Enabled: true})
+	}
+	blob, err := codec.Marshal(cfg)
+	require.NoError(t, err)
+	proj := fakeReader{modules: map[string]projection.ModuleView{
+		timersModuleName: {Name: timersModuleName, IsEnabled: true, Configs: blob},
+	}}
+	f := newGateStoreFixture(t, proj)
+	ctx := context.Background()
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		keys[i] = f.ref(id).scheduleKey()
+	}
+	t.Cleanup(func() { _ = pkg_valkey.DelKeys(context.Background(), f.store.client, keys...) })
+
+	f.store.ArmAll(ctx, f.bid)
+	f.assertSpread(t, keys, 99*time.Second)
+
+	require.NoError(t, pkg_valkey.DelKeys(ctx, f.store.client, keys[0]))
+	f.store.onExpired(ctx, keys[0])
+	f.assertSpread(t, keys, 99*time.Second)
+}
+
+func (f gateStoreFixture) assertSpread(t *testing.T, keys []string, gap time.Duration) {
+	t.Helper()
+	remaining, err := pkg_valkey.PTTLs(context.Background(), f.store.client, keys)
+	require.NoError(t, err)
+	slices.Sort(remaining)
+	require.Positive(t, remaining[0], "every timer must be armed")
+	for i := 1; i < len(remaining); i++ {
+		assert.GreaterOrEqual(t, remaining[i]-remaining[i-1], gap, "timers %d and %d post too close together", i-1, i)
+	}
 }
 
 func TestTimerTickGateIgnoresLinesOlderThanTheWindow(t *testing.T) {

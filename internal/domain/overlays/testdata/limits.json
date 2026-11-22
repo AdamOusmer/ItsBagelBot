@@ -1,0 +1,122 @@
+{
+  "limits": {
+    "document_bytes": 262144,
+    "max_widgets": 100,
+    "overlay_asset_bytes": 262144000,
+    "overlay_assets": 200,
+    "account_bytes": 1073741824,
+    "account_overlays": 20,
+    "account_assets": 500,
+    "account_uploads_per_hour": 60,
+    "import_unpacked_bytes": 524288000,
+    "import_entries": 300,
+    "import_ratio": 50
+  },
+  "assets": {
+    "png": {
+      "max_bytes": 10485760,
+      "max_width": 4096,
+      "max_height": 4096,
+      "max_pixels": 16777216,
+      "max_duration_ms": 0,
+      "max_frames": 0,
+      "max_per_overlay": 0
+    },
+    "webp": {
+      "max_bytes": 10485760,
+      "max_width": 4096,
+      "max_height": 4096,
+      "max_pixels": 16777216,
+      "max_duration_ms": 0,
+      "max_frames": 0,
+      "max_per_overlay": 0
+    },
+    "jpeg": {
+      "max_bytes": 10485760,
+      "max_width": 4096,
+      "max_height": 4096,
+      "max_pixels": 16777216,
+      "max_duration_ms": 0,
+      "max_frames": 0,
+      "max_per_overlay": 0
+    },
+    "gif": {
+      "max_bytes": 10485760,
+      "max_width": 1920,
+      "max_height": 1080,
+      "max_pixels": 0,
+      "max_duration_ms": 0,
+      "max_frames": 600,
+      "max_per_overlay": 0
+    },
+    "webm": {
+      "max_bytes": 52428800,
+      "max_width": 1920,
+      "max_height": 1920,
+      "max_pixels": 0,
+      "max_duration_ms": 120000,
+      "max_frames": 0,
+      "max_per_overlay": 0
+    },
+    "mp3": {
+      "max_bytes": 5242880,
+      "max_width": 0,
+      "max_height": 0,
+      "max_pixels": 0,
+      "max_duration_ms": 30000,
+      "max_frames": 0,
+      "max_per_overlay": 0
+    },
+    "ogg": {
+      "max_bytes": 5242880,
+      "max_width": 0,
+      "max_height": 0,
+      "max_pixels": 0,
+      "max_duration_ms": 30000,
+      "max_frames": 0,
+      "max_per_overlay": 0
+    },
+    "wav": {
+      "max_bytes": 5242880,
+      "max_width": 0,
+      "max_height": 0,
+      "max_pixels": 0,
+      "max_duration_ms": 30000,
+      "max_frames": 0,
+      "max_per_overlay": 0
+    },
+    "woff2": {
+      "max_bytes": 1048576,
+      "max_width": 0,
+      "max_height": 0,
+      "max_pixels": 0,
+      "max_duration_ms": 0,
+      "max_frames": 0,
+      "max_per_overlay": 4
+    },
+    "widget": {
+      "max_bytes": 524288,
+      "max_width": 0,
+      "max_height": 0,
+      "max_pixels": 0,
+      "max_duration_ms": 0,
+      "max_frames": 0,
+      "max_per_overlay": 0
+    }
+  },
+  "widget_kinds": [
+    "alertbox",
+    "eventlist",
+    "goal",
+    "label",
+    "chatbox",
+    "emotewall",
+    "timer",
+    "credits",
+    "text",
+    "image",
+    "video",
+    "slideshow",
+    "custom"
+  ]
+}

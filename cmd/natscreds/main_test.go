@@ -174,12 +174,12 @@ func assertActivations(t *testing.T, keys *natsacl.Keys) {
 			"PROJECTOR_RPC controls.tts.revoked.*",
 			"PROJECTOR_RPC rpc.internal.projector.overlays.powered.resolve",
 			"PROJECTOR_RPC rpc.internal.projector.overlays.powered.resolve.node.*",
+			"PROJECTOR_RPC rpc.internal.projector.overlays.resolve",
+			"PROJECTOR_RPC rpc.internal.projector.overlays.resolve.node.*",
 		},
 		"OVERLAYS_RPC": {
 			"USERS_RPC rpc.internal.users.voice.check",
 			"USERS_RPC rpc.internal.users.voice.check.node.*",
-			"USERS_RPC rpc.internal.users.voice.export",
-			"USERS_RPC rpc.internal.users.voice.export.node.*",
 		},
 		"PROJECTOR_RPC": {
 			"OVERLAYS_RPC rpc.internal.overlays.tts.by_hash",

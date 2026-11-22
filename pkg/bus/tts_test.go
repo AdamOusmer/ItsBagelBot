@@ -15,12 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTTSBuildersUseFileStorage(t *testing.T) {
+func TestTTSBuildersStreamConfig(t *testing.T) {
 	ctx := t.Context()
 	nc := bustest.JetStream(t)
 	_, err := bus.OpenTTSJobs(ctx, nc, 1)
 	require.NoError(t, err)
-	_, err = bus.OpenTTSOverlay(ctx, nc, 1)
+	_, err = bus.OpenOverlays(ctx, nc, 1)
 	require.NoError(t, err)
 
 	js, err := jsapi.New(nc)
@@ -30,17 +30,19 @@ func TestTTSBuildersUseFileStorage(t *testing.T) {
 		subjects  []string
 		retention jsapi.RetentionPolicy
 		maxAge    time.Duration
+		storage   jsapi.StorageType
 	}{
-		{"TTS_JOBS", []string{"tts.jobs.*"}, jsapi.WorkQueuePolicy, 10 * time.Minute},
-		{"OBJ_TTS_CLIPS", []string{"$O.TTS_CLIPS.C.>", "$O.TTS_CLIPS.M.>"}, jsapi.LimitsPolicy, 5 * time.Minute},
-		{"OVERLAY_TTS", []string{"overlay.tts.*"}, jsapi.LimitsPolicy, 5 * time.Minute},
+		{"TTS_JOBS", []string{"tts.jobs.*"}, jsapi.WorkQueuePolicy, 10 * time.Minute, jsapi.FileStorage},
+		{"OBJ_OVERLAYS_MEDIA", []string{"$O.OVERLAYS_MEDIA.C.>", "$O.OVERLAYS_MEDIA.M.>"}, jsapi.LimitsPolicy, 5 * time.Minute, jsapi.FileStorage},
+		{"OVERLAYS_PREMIUM", []string{"overlays.premium.>"}, jsapi.WorkQueuePolicy, 5 * time.Minute, jsapi.MemoryStorage},
+		{"OVERLAYS_STANDARD", []string{"overlays.standard.>"}, jsapi.WorkQueuePolicy, 5 * time.Minute, jsapi.MemoryStorage},
 	}
 	for _, want := range table {
 		t.Run(want.name, func(t *testing.T) {
 			stream, err := js.Stream(t.Context(), want.name)
 			require.NoError(t, err)
 			cfg := stream.CachedInfo().Config
-			assert.Equal(t, jsapi.FileStorage, cfg.Storage)
+			assert.Equal(t, want.storage, cfg.Storage)
 			assert.Equal(t, want.retention, cfg.Retention)
 			assert.Equal(t, want.maxAge, cfg.MaxAge)
 

@@ -50,10 +50,10 @@ type songqueueConfig struct {
 }
 
 type songqueueQuotas struct {
-	Everyone *int `json:"everyone"`
-	Sub      *int `json:"sub"`
-	VIP      *int `json:"vip"`
-	Mod      *int `json:"mod"`
+	Everyone *settingInt `json:"everyone"`
+	Sub      *settingInt `json:"sub"`
+	VIP      *settingInt `json:"vip"`
+	Mod      *settingInt `json:"mod"`
 }
 
 type songqueueSr struct {
@@ -129,7 +129,9 @@ func newSongQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger, warn *ca
 		return songQueueCmd{}, false
 	}
 	qc = songQueueCmd{chatReplier: newChatReplier(c), deps: d, store: d.SongQueue, gossip: d.Gossip, live: d.Live, log: log, warn: warn}
-	_ = c.Decode(&qc.cfg)
+	if err := c.Decode(&qc.cfg); err != nil {
+		qc.log.Warn("songqueue: config decode failed", qc.c.BID(), zap.Error(err))
+	}
 	qc.maxDepth = int(qc.cfg.MaxDepth)
 	return qc, true
 }
@@ -476,7 +478,7 @@ func (qc songQueueCmd) quotaFor() int {
 	if q == nil {
 		return 0
 	}
-	var tier *int
+	var tier *settingInt
 	switch role := qc.c.Chatter(); {
 	case role.Allows(module.RoleBroadcaster):
 		return 0
@@ -489,10 +491,10 @@ func (qc songQueueCmd) quotaFor() int {
 	default:
 		tier = q.Everyone
 	}
-	if tier == nil || *tier <= 0 {
+	if tier == nil || int(*tier) <= 0 {
 		return 0
 	}
-	return *tier
+	return int(*tier)
 }
 
 func (qc songQueueCmd) pushToPlayer(ctx context.Context, trackID string) string {

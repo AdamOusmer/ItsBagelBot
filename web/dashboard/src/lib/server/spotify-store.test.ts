@@ -9,18 +9,32 @@ stubSvelteKit();
 const { blankSpotifyQuotas } = await import('@bagel/kit');
 
 let stored: Record<string, unknown> = {};
+let storedIsEnabled = true;
+let staleCache: Record<string, unknown> | null = null;
 
 const commandsStore = await import('./commands-store');
 mock.module('./commands-store', () => ({
   ...commandsStore,
-  listModules: async () => [{ name: 'songqueue', is_enabled: true, configs: stored }],
-  upsertModule: async (_userId: string, _name: string, _enabled: boolean, configs: Record<string, unknown>) => {
-    stored = configs;
-    return { modules: [] };
+  listModules: async () => [{ name: 'songqueue', is_enabled: storedIsEnabled, configs: staleCache ?? stored }],
+  listModulesForEditing: async () => [{ name: 'songqueue', is_enabled: storedIsEnabled, configs: stored }],
+  patchModule: async (p: { isEnabled: boolean; partial: Record<string, unknown> }) => {
+    storedIsEnabled = p.isEnabled;
+    stored = { ...stored, ...p.partial };
+    return { rev: 1, conflict: false, synced: true };
   },
   patchModuleConfig: async (p: { partial: Record<string, unknown> }) => {
     stored = { ...stored, ...p.partial };
   }
+}));
+
+const rewardWire = await import('./reward-wire');
+mock.module('./reward-wire', () => ({
+  ...rewardWire,
+  saveRewardFlow: async (_userId: string, _opts: unknown, save: (reward: any) => Promise<any>) => {
+    await save({ rewardId: 'rew-new', title: 'New Reward', cost: 100 });
+    return { ok: true };
+  },
+  deleteRemoteReward: async () => ({ ok: true })
 }));
 
 const { spotifyStore } = await import('./spotify-store');
@@ -59,6 +73,71 @@ describe('song queue disabled triggers', () => {
     expect({ maxDepth: stored.maxDepth, disabledTriggers: stored.disabledTriggers }).toEqual({
       maxDepth: 20,
       disabledTriggers: 'song,sr'
+    });
+  });
+});
+
+describe('spotify-store atomic updates and preservation', () => {
+  test('saveSr and setRedeemPath ignore stale cached listModules and preserve sibling allowOffline flags', async () => {
+    stored = {
+      disabledTriggers: 'skip',
+      quotas: { everyone: 2 },
+      maxDepth: 10,
+      sr: { enabled: true, perm: 'everyone', allowOffline: false },
+      redeem: { enabled: true, allowOffline: true, rewardId: 'r1' }
+    };
+    staleCache = {
+      sr: { enabled: true, perm: 'everyone', allowOffline: false },
+      redeem: { enabled: false, allowOffline: false, rewardId: '' }
+    };
+    const store = spotifyStore('1');
+    const res = await store.saveSr({ enabled: true, perm: 'sub', allowOffline: true });
+    await store.setRedeemPath({ enabled: true, allowOffline: true });
+    staleCache = null;
+    const view = await store.read();
+    expect({
+      ok: res.ok,
+      sr: view.sr,
+      redeemOffline: view.redeem.allowOffline,
+      rewardId: view.redeem.rewardId,
+      maxDepth: view.maxDepth,
+      disabledTriggers: view.disabledTriggers
+    }).toEqual({
+      ok: true,
+      sr: { enabled: true, perm: 'sub', allowOffline: true },
+      redeemOffline: true,
+      rewardId: 'r1',
+      maxDepth: 10,
+      disabledTriggers: 'skip'
+    });
+  });
+
+  test('setEnabled, saveLimits, and saveReward preserve allowOffline and reward metadata', async () => {
+    stored = {
+      sr: { enabled: true, perm: 'everyone', allowOffline: true },
+      redeem: { enabled: true, allowOffline: true, rewardId: 'r1', onRedeem: 'fulfill', replyMessage: 'old' }
+    };
+    const store = spotifyStore('1');
+    await store.setEnabled(false);
+    await store.saveLimits({ quotas: blankSpotifyQuotas(), maxDepth: 5 });
+    await store.saveReward({ title: 'Reward', cost: 50, color: '#ff0000', cooldown: 0, onRedeem: 'leave', replyMessage: 'queued {songqueue:track}' });
+    const view = await store.read();
+    expect({
+      enabled: view.enabled,
+      maxDepth: view.maxDepth,
+      srOffline: view.sr.allowOffline,
+      redeemOffline: view.redeem.allowOffline,
+      rewardId: view.redeem.rewardId,
+      onRedeem: view.redeem.onRedeem,
+      replyMessage: view.redeem.replyMessage
+    }).toEqual({
+      enabled: false,
+      maxDepth: 5,
+      srOffline: true,
+      redeemOffline: true,
+      rewardId: 'rew-new',
+      onRedeem: 'leave',
+      replyMessage: 'queued {songqueue:track}'
     });
   });
 });
