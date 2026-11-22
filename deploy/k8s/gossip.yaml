@@ -91,7 +91,7 @@ spec:
       priorityClassName: bagel-service
       initContainers:
         - name: warp
-          image: ghcr.io/adamousmer/itsbagelbot/warp:main-1795259557-e64749bd466a@sha256:73c3acb5c504e16a5205b766785d51bb07df386236051f808ab0db3ad8131cdf
+          image: ghcr.io/adamousmer/itsbagelbot/warp:main-1795313400-cf7900e38d96@sha256:d405cd77e1b515ca53d4fbd026da19a99b65c1410530eed838a88e51faf111a0
           imagePullPolicy: IfNotPresent
           restartPolicy: Always
           env:
@@ -173,7 +173,7 @@ spec:
               memory: 512Mi
       containers:
         - name: gossip
-          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1795259557-e64749bd466a@sha256:cd2631f49427a31829cd33fc7dd4dcbbee0bc18f6b0bbc0963485b2b27672f61
+          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1795324333-4e7625567a03@sha256:c532b75b1dc47f35b70b122d3fff01e70a97ed85e2690621c379fef7b9358f45
           imagePullPolicy: IfNotPresent
           env:
             - name: GEMINI_TTS_TEMPERATURE

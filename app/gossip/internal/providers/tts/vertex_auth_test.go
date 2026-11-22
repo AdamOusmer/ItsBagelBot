@@ -72,7 +72,7 @@ func vertexTestConfig(t *testing.T, credentials string, upstreams vertexTestUpst
 	}
 	tokenURL := providertest.Upstream(t, token)
 	return Config{
-		APIKey: "gemini-test-fallback-key", Model: gossiprpc.TTSFlash, Voice: "Kore", RateLimit: 60, ChannelRateLimit: 12,
+		APIKey: "gemini-test-fallback-key", Model: gossiprpc.TTSFlash, Voice: "Kore",
 		Vertex: VertexConfig{
 			Credentials: credentials,
 			routeOrigin: func(origin string) string {
