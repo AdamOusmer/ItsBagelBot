@@ -56,22 +56,40 @@ five-minute TTL. The gateway creates ephemeral readers for events and reads
 Object Store metadata and chunks through the stream message API. Missing
 resources leave readiness available.
 
-## Powered by overlay
+## Overlays
 
-OBS opens `https://overlay.itsbagelbot.com/powered#<token>`. Overlays owns the
-token, 32 random bytes as unpadded base64url, stored in plaintext and
-rotatable. The page posts it once as JSON to `POST /powered/config`. The
-gateway forwards the token to `rpc.internal.projector.overlays.powered.resolve`
-on the RPC leaf and replies `{"config": ..., "premium": bool}` uncached. A
-`not_found` refusal is 404, any other refusal or a missing responder is 503.
-Failed attempts share the TTS per-IP throttle. Keep the token out of logs.
+OBS opens `https://overlay.itsbagelbot.com/o#<token>`. `/powered#<token>` serves
+the same page and uses the same endpoints, so existing sources keep working.
+The token is 32 random bytes as unpadded base64url. The page holds it in memory,
+clears the fragment and posts it once as JSON to `POST /o/session`. The gateway
+sends the lowercase SHA-256 hex of the token to
+`rpc.internal.projector.overlays.resolve` on the RPC leaf and sets the signed
+`bb_o` cookie (`overlay_id`, `generation`, `token_hash`, `exp`; HttpOnly, Secure,
+SameSite=Lax, path `/o`, 30 days). `not_found` is 404, any other refusal or a
+missing responder is 503. Failed attempts share the TTS per-IP throttle. Keep
+the token out of logs.
 
-`GET /powered` serves `priv/powered/page.html`, read at compile time. The page
-holds exactly one `<style>` and one `<script>` tag without attributes, and
-the CSP carries their SHA-256 hashes. Only the dashboard origin may frame it.
-`powered_dev_frame_ancestors` adds localhost origins for dashboard
-development. `GET /powered/assets/<file>` serves only the `.webp` and `.woff2`
-files present in `priv/powered/assets` at compile time, cached as immutable.
+`GET /o/doc` re-resolves the cookie's hash and returns
+`{"document", "revision", "premium"}` uncached. No cookie or an expired one is
+401. A rotated link or a changed generation is 403 `not_found`. An overlay the
+account may not show is 403 `premium_required`. Projector sets `allowed` and
+withholds the document when it is false, so the premium rule lives there.
+`GET /o/events` is SSE. It opens only when the same check passes (otherwise 204),
+re-checks every five minutes (`overlay_check_ms` overrides it), sends
+`event: revision` when the revision moves and closes when the generation
+changes, the overlay is no longer allowed or the session expires. It registers
+with the shared drain like TTS events.
+
+`GET /o` and `GET /powered` serve `priv/powered/page.html`, read at compile time.
+The page holds exactly one `<style>` and one `<script>` tag without attributes,
+and the CSP carries their SHA-256 hashes, `img-src` and `media-src` for
+`https://cdn.itsbagelbot.com`, and `connect-src 'self'`. The script selects a
+template module by `document.template` for system overlays. `powered` is the only
+one. Custom overlays show a placeholder notice. Only the dashboard origin may
+frame the page. `powered_dev_frame_ancestors` adds localhost origins for
+dashboard development. `GET /powered/assets/<file>` serves only the `.webp` and
+`.woff2` files present in `priv/powered/assets` at compile time, cached as
+immutable.
 
 ## Desktop WebSocket
 

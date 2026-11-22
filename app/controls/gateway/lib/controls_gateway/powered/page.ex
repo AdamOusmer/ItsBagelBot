@@ -12,8 +12,9 @@ defmodule ControlsGateway.Powered.Page do
   end
 
   @policy "default-src 'none'; script-src 'sha256-#{inline_hash.("script")}'; " <>
-            "style-src 'sha256-#{inline_hash.("style")}'; img-src 'self'; font-src 'self'; " <>
-            "connect-src 'self'; base-uri 'none'; form-action 'none'; " <>
+            "style-src 'sha256-#{inline_hash.("style")}'; " <>
+            "img-src 'self' https://cdn.itsbagelbot.com; media-src https://cdn.itsbagelbot.com; " <>
+            "font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; " <>
             "frame-ancestors https://dashboard.itsbagelbot.com"
   @dev_ancestors " http://localhost:* http://127.0.0.1:*"
 
