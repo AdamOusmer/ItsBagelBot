@@ -82,14 +82,26 @@ with the shared drain like TTS events.
 
 `GET /o` and `GET /powered` serve `priv/powered/page.html`, read at compile time.
 The page holds exactly one `<style>` and one `<script>` tag without attributes,
-and the CSP carries their SHA-256 hashes, `img-src` and `media-src` for
-`https://cdn.itsbagelbot.com`, and `connect-src 'self'`. The script selects a
-template module by `document.template` for system overlays. `powered` is the only
-one. Custom overlays show a placeholder notice. Only the dashboard origin may
-frame the page. `powered_dev_frame_ancestors` adds localhost origins for
+and the CSP carries their SHA-256 hashes, `script-src 'self'`, `img-src`,
+`media-src`, `font-src` and `connect-src` for `https://cdn.itsbagelbot.com`
+(`img-src` also allows the Twitch emote host) and `frame-src` for the sandbox
+origin (`overlay_sandbox_origin`, env `OVERLAY_SANDBOX_ORIGIN`, default
+`https://widgets.itsbagelbot.com`). The script selects a template module by
+`document.template` for system overlays. `powered` is the only one. A custom
+document loads `/o/runtime/<hash>.js` (built from `web/kit/overlay-runtime` into
+`priv/overlay/runtime.js`, immutable cache), which draws the widgets and feeds
+them the SSE messages `event`, `snapshot`, `stats`, `subathon` and `control`.
+The gateway emits none of them yet. Only the dashboard origin may frame the page. `powered_dev_frame_ancestors` adds localhost origins for
 dashboard development. `GET /powered/assets/<file>` serves only the `.webp` and
 `.woff2` files present in `priv/powered/assets` at compile time, cached as
 immutable.
+
+`GET /sandbox/<widget>` serves one static document (`priv/overlay/frame.js`
+inlined) for custom widget frames. Its CSP carries `sandbox allow-scripts`, no
+network and only the cdn for images, media and fonts. The runtime frames it with
+`sandbox="allow-scripts"`, fetches the widget bundle from the cdn and delivers
+it with `postMessage` (`load`, `event`, `session`). Rebuild both bundles with
+`bun web/kit/overlay-runtime/build.ts`; a web test fails when they are stale.
 
 ## Desktop WebSocket
 

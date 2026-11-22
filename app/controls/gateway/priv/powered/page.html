@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex">
+  <meta name="overlay-runtime" content="__OVERLAY_RUNTIME__">
+  <meta name="overlay-sandbox" content="__OVERLAY_SANDBOX__">
   <title>Powered by ItsBagelBot</title>
   <link rel="preload" href="/powered/assets/logo.webp" as="image" type="image/webp">
   <link rel="preload" href="/powered/assets/premium-logo.webp" as="image" type="image/webp">
@@ -455,6 +457,7 @@
       </div>
     </div>
   </div>
+  <div id="custom" aria-hidden="true"></div>
   <div class="notice" id="notice" role="status"></div>
   <script>
     (function () {
@@ -874,8 +877,49 @@
       };
 
       const TEMPLATES = { powered: poweredTemplate };
+      const FEEDS = ['event', 'snapshot', 'stats', 'subathon', 'control'];
+      const runtimeUrl = document.querySelector('meta[name="overlay-runtime"]').content;
+      const sandboxOrigin = document.querySelector('meta[name="overlay-sandbox"]').content;
+      let runtimeLoad = null;
+
+      function loadRuntime() {
+        if (!runtimeLoad) {
+          runtimeLoad = new Promise(function (resolve, reject) {
+            const tag = document.createElement('script');
+            tag.src = runtimeUrl;
+            tag.onload = function () { resolve(window.__overlayRuntime); };
+            tag.onerror = function () { reject(new Error('runtime unavailable')); };
+            document.head.append(tag);
+          }).catch(function (error) {
+            runtimeLoad = null;
+            throw error;
+          });
+        }
+        return runtimeLoad;
+      }
+
+      const customTemplate = {
+        overlay: null,
+        body: null,
+        start: function (body) {
+          this.body = body;
+          loadRuntime().then(function (api) {
+            if (customTemplate.body !== body) return;
+            if (!customTemplate.overlay) customTemplate.overlay = api.mount(byId('custom'), sandboxOrigin);
+            customTemplate.overlay.setDocument(body.document);
+          }).catch(retrySync);
+        },
+        stop: function () {
+          this.body = null;
+          if (this.overlay) this.overlay.dispose();
+          this.overlay = null;
+        },
+        feed: function (name, data) {
+          if (this.overlay) this.overlay.feed(name, data);
+        }
+      };
+
       const NOTICES = {
-        custom: 'Custom overlays are coming soon.',
         premium_required: 'Premium is required to show this overlay.',
         not_found: 'This overlay link is no longer valid.'
       };
@@ -913,6 +957,11 @@
         if (source) return;
         source = new EventSource('/o/events');
         source.addEventListener('revision', function () { sync(); });
+        FEEDS.forEach(function (name) {
+          source.addEventListener(name, function (message) {
+            if (activeTemplate && activeTemplate.feed) activeTemplate.feed(name, message.data);
+          });
+        });
         source.onerror = function () {
           if (source.readyState !== EventSource.CLOSED) return;
           source = null;
@@ -956,14 +1005,15 @@
 
       function render(body) {
         const doc = body.document;
-        const template = doc.kind === 'system' ? TEMPLATES[doc.template] : null;
+        const template = doc.kind === 'custom' ? customTemplate : TEMPLATES[doc.template];
         if (template) {
           showNotice('');
+          if (activeTemplate && activeTemplate !== template) activeTemplate.stop();
           activeTemplate = template;
           template.start(body);
         } else {
           haltTemplate();
-          showNotice('custom');
+          showNotice('not_found');
         }
         openEvents();
       }

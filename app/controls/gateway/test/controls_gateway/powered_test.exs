@@ -31,11 +31,13 @@ defmodule ControlsGateway.PoweredTest do
       assert Map.take(headers, Map.keys(@page_headers)) == @page_headers
 
       assert headers["content-security-policy"] ==
-               "default-src 'none'; script-src 'sha256-#{inline_hash(body, "script")}'; " <>
+               "default-src 'none'; script-src 'self' 'sha256-#{inline_hash(body, "script")}'; " <>
                  "style-src 'sha256-#{inline_hash(body, "style")}'; " <>
-                 "img-src 'self' https://cdn.itsbagelbot.com; " <>
-                 "media-src https://cdn.itsbagelbot.com; font-src 'self'; " <>
-                 "connect-src 'self'; base-uri 'none'; form-action 'none'; " <> ancestors
+                 "img-src 'self' https://cdn.itsbagelbot.com https://static-cdn.jtvnw.net; " <>
+                 "media-src https://cdn.itsbagelbot.com; font-src 'self' https://cdn.itsbagelbot.com; " <>
+                 "connect-src 'self' https://cdn.itsbagelbot.com; " <>
+                 "frame-src https://widgets.itsbagelbot.com; " <>
+                 "base-uri 'none'; form-action 'none'; " <> ancestors
     end
   end
 

@@ -52,10 +52,7 @@ defmodule ControlsGateway.OverlayTest do
     assert %{body: ^body, headers: %{"content-security-policy" => ^csp}} =
              HttpClient.request(port, "GET", "/powered")
 
-    assert csp =~
-             "img-src 'self' https://cdn.itsbagelbot.com; media-src https://cdn.itsbagelbot.com"
-
-    assert csp =~ "connect-src 'self'"
+    assert csp =~ "frame-src https://widgets.itsbagelbot.com"
   end
 
   test "wrong methods are refused with the allowed method", %{http_port: port} do

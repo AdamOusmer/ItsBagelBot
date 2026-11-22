@@ -53,7 +53,9 @@ defmodule ControlsGateway.HttpServer do
       {"/o", Overlay.Http, :page},
       {"/o/session", Overlay.Http, :session},
       {"/o/doc", Overlay.Http, :doc},
-      {"/o/events", Overlay.Http, :events}
+      {"/o/events", Overlay.Http, :events},
+      {"/o/runtime/:name", Overlay.Static, :runtime},
+      {"/sandbox/:widget", Overlay.Static, :sandbox}
     ]
   end
 

@@ -32,6 +32,12 @@ listener_tls =
 
 cookie_key = System.get_env("OVERLAY_COOKIE_KEY")
 
+sandbox_origin = System.get_env("OVERLAY_SANDBOX_ORIGIN", "https://widgets.itsbagelbot.com")
+
+if not Regex.match?(~r{\Ahttps?://[a-z0-9.:-]+\z}, sandbox_origin) do
+  raise "OVERLAY_SANDBOX_ORIGIN must be an origin without a path"
+end
+
 if config_env() == :prod and (is_nil(cookie_key) or byte_size(cookie_key) < 32) do
   raise "production requires OVERLAY_COOKIE_KEY with at least 32 bytes"
 end
@@ -39,6 +45,7 @@ end
 config :controls_gateway,
   listener_tls: listener_tls,
   overlay_cookie_key: cookie_key,
+  overlay_sandbox_origin: sandbox_origin,
   overlay_trust_cloudflare_ip: System.get_env("OVERLAY_TRUST_CLOUDFLARE_IP") == "true",
   powered_dev_frame_ancestors: System.get_env("OVERLAY_POWERED_DEV_FRAME_ANCESTORS") == "true",
   port: String.to_integer(System.get_env("CONTROLS_GATEWAY_PORT", "4000")),

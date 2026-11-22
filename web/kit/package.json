@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "check": "bun scripts/gen-i18n-keys.mjs --check",
+    "overlay-runtime:build": "bun overlay-runtime/build.ts",
     "i18n:keys": "bun scripts/gen-i18n-keys.mjs",
     "variables:generate": "bun scripts/gen-module-variables.ts",
     "verify:ui-only": "bun scripts/assert-ui-only-in-ui.mjs"
@@ -68,6 +69,7 @@
     "./validation": "./lib/validation.ts",
     "./overlays": "./lib/overlays.ts",
     "./overlay-document": "./lib/overlay-document.ts",
+    "./overlay-runtime": "./overlay-runtime/index.ts",
     "./timers": "./lib/timers.ts",
     "./uses": "./lib/uses.ts",
     "./i18n": "./lib/i18n/messages.ts",
