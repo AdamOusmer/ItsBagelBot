@@ -110,6 +110,7 @@ export const load: LayoutServerLoad = async ({ locals, url, route, request }) =>
     moduleNav: moduleSectionLinks((key) => translate(locals.locale, key)),
     navLabels: {
       ...Object.fromEntries(DASHBOARD_SECTIONS.map((def) => [def.labelKey, translate(locals.locale, def.labelKey)])),
+      'nav.channelpoints': translate(locals.locale, 'nav.channelpoints'),
       'nav.beta': translate(locals.locale, 'nav.beta')
     } as Record<string, string>,
     role: s.role,

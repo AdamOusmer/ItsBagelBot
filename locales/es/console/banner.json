@@ -1,7 +1,13 @@
 {
   "sharedPre": "Acceso compartido al panel de ",
   "sharedPost": " ({sections})",
+  "sharedBadge": "Compartido",
+  "sharedOwner": "Panel de {owner}",
   "viewingPre": "Viendo como ",
   "viewingPost": " (admin {admin})",
+  "adminBadge": "Vista admin",
+  "adminTag": "Admin: {admin}",
+  "leaveShared": "Salir del compartido",
+  "endView": "Salir de vista",
   "exit": "Salir"
 }

@@ -109,6 +109,50 @@ describe('AppShell stacked', () => {
   });
 });
 
+describe('AppShell topbarContext', () => {
+  const base = {
+    brand: { title: 'B', sub: 's', href: '/' },
+    crumbs: [{ label: 'ItsBagelBot', href: '/' }, { label: 'Overview' }],
+    skipLabel: 'Skip',
+  };
+
+  test.each([
+    [
+      'warm shared context caps scope chips and links out in both adapters',
+      {
+        tone: 'warm' as const,
+        statusText: 'Shared access to mavey_tv',
+        badges: [{ label: 'Shared', icon: 'users' as const, tone: 'warm' as const }],
+        avatar: 'M',
+        subject: 'mavey_tv',
+        subjectPost: "'s dashboard",
+        scopes: ['Commands', 'Timers', 'Quotes', 'Modules'],
+        scopesTitle: 'Commands, Timers, Quotes, Modules',
+        actions: [{ label: 'Leave shared', compactLabel: 'Exit', href: '/delegate/exit', tone: 'warm' as const }],
+      },
+      ['bb-topbar--ctx-warm', 'role="status" aria-label="Shared access to mavey_tv"', '>+1<', 'href="/delegate/exit"'],
+    ],
+    [
+      'danger admin context renders logout form in both adapters',
+      {
+        tone: 'danger' as const,
+        statusText: 'Viewing as mavey_tv (admin itsmavey)',
+        badges: [{ label: 'Admin view', icon: 'moderation' as const, tone: 'danger' as const }],
+        subjectPre: 'Viewing as ',
+        subject: 'mavey_tv',
+        subjectPost: ' (admin itsmavey)',
+        actions: [{ label: 'End view', compactLabel: 'Exit', formAction: '/auth/logout', tone: 'danger' as const }],
+      },
+      ['bb-topbar--ctx-danger', 'action="/auth/logout"', 'bb-topbar-ctx__btn--danger'],
+    ],
+  ])('%s', async (_name, topbarContext, fragments) => {
+    const svelte = svelteHtml(SvelteAppShell, { ...base, topbarContext }, { default: 'x' });
+    const astro = await astroHtml(AstroAppShell, { ...base, topbarContext });
+    const missing = fragments.filter((part) => !svelte.includes(part) || !astro.includes(part));
+    expect(missing).toEqual([]);
+  });
+});
+
 describe('NavProgress', () => {
   const bar = (active: boolean) => ({
     name: `active=${active} matches across adapters`,

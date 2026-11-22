@@ -1,5 +1,7 @@
 {
   "roleBroadcaster": "Streamer",
+  "roleSignedIn": "Als du angemeldet",
+  "roleAdminView": "Admin: {admin}",
   "notifications": "Benachrichtigungen",
   "logout": "Abmelden",
   "dashboards": "Geteilte Dashboards",

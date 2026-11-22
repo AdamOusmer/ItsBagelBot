@@ -64,7 +64,8 @@ const ICONS = {
   twitch: 'simple-icons:twitch',
   branch: 'lucide:git-branch',
   sidebar: 'lucide:panel-left',
-  overlay: 'lucide:picture-in-picture-2'
+  overlay: 'lucide:picture-in-picture-2',
+  logOut: 'lucide:log-out'
 };
 
 const STRIP = /\s(?:fill="none"|stroke="currentColor"|stroke-linecap="round"|stroke-linejoin="round"|stroke-width="2")/g;
