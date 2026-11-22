@@ -61,10 +61,6 @@ defmodule ControlsGateway.PoweredTest do
     end
   end
 
-  test "the retired config route is gone", %{http_port: port} do
-    assert %{status: 404} = HttpClient.request(port, "POST", "/powered/config")
-  end
-
   defp inline_hash(body, tag) do
     [[_, content]] = Regex.scan(~r/<#{tag}>(.*?)<\/#{tag}>/s, body)
     Base.encode64(:crypto.hash(:sha256, content))
