@@ -22,6 +22,8 @@
 
   const { t } = getI18n();
 
+  const MONO_ADVANCE_PX = 7.8;
+
   let {
     commands,
     moduleId,
@@ -57,6 +59,7 @@
   const allowed = $derived(def ? moduleAllowedTriggers(def) : new Set<string>());
   const disabledSet = $derived(parseDisabledTriggers(disabledTriggers));
   const interactive = $derived(!!onDisabledTriggersChange && allowed.size > 0);
+  const triggerColumn = $derived(`${Math.min(Math.max(...commands.map((c) => c.trigger.length), 8), 20) * MONO_ADVANCE_PX}px`);
 
   const headOff = $derived.by(() => {
     const off = new Map<string, boolean>();
@@ -90,14 +93,13 @@
     <Text as="span" size="xs" tone="muted">{t(interactive ? 'modules.commandsToggleHint' : 'modules.commandsHint')}</Text>
   </div>
   <Divider flush />
-  <ul class="bb-list" aria-labelledby={headingId}>
-    {#each commands as command, i (command.trigger)}
+  <ul class="bb-list" aria-labelledby={headingId} style:--cmd-col={triggerColumn}>
+    {#each commands as command (command.trigger)}
       {@const owned = triggerMap.get(command.trigger) ?? []}
       <li>
         <ModuleCommandRow
           {moduleId}
           {command}
-          index={i + 1}
           role={roleOf?.(command)}
           expanded={expanded === command.trigger}
           onExpand={onExpand && command.preview ? () => onExpand(command) : undefined}

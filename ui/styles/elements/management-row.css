@@ -134,6 +134,18 @@
     flex: none;
   }
 
+  .bb-row--below { flex-wrap: wrap; }
+
+  .bb-row--below .bb-row__primary { flex-basis: 0; padding-bottom: 6px; }
+
+  .bb-row__below {
+    flex-basis: 100%;
+    min-width: 0;
+    padding: 0 14px 12px var(--row-below-indent, 14px);
+  }
+
+  .bb-row.is-off .bb-row__below { opacity: 0.5; }
+
   @media (max-width: 600px) {
     .bb-row--stack-actions {
       flex-wrap: wrap;
