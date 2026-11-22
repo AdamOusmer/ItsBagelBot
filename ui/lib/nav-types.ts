@@ -45,30 +45,21 @@ export interface UiCrumb {
 
 export type UiContextTone = 'warm' | 'danger';
 
-export interface UiContextBadge {
-  label: string;
-  icon: IconName;
-  tone: UiContextTone;
-}
-
 export interface UiContextAction {
   label: string;
   compactLabel?: string;
   href?: string;
   formAction?: string;
-  tone?: UiContextTone;
   subtle?: boolean;
 }
 
 export interface UiTopbarContext {
   tone: UiContextTone;
+  title: string;
   statusText: string;
-  badges: UiContextBadge[];
-  avatar?: string;
   subjectPre?: string;
   subject?: string;
   subjectPost?: string;
-  scopes?: string[];
   scopesTitle?: string;
   actions: UiContextAction[];
 }

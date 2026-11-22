@@ -5,11 +5,13 @@
   import '../styles/elements/shell.css';
   import { getUiI18n } from './i18n';
   import Brand from './Brand.svelte';
-  import Icon from './Icon.svelte';
+  import Bolota from './Bolota.svelte';
+  import Button from './Button.svelte';
+  import ButtonLink from './ButtonLink.svelte';
   import { mountClock } from '../lib/clock';
-  import { contextActionClass, topbarClasses, topbarCrumbs, visibleScopes } from '../lib/topbar-context';
+  import { topbarClasses, topbarCrumbs } from '../lib/topbar-context';
   import type { Snippet } from 'svelte';
-  import type { UiBrand, UiCrumb, UiTopbarContext } from '../lib/nav-types';
+  import type { UiBrand, UiContextAction, UiCrumb, UiTopbarContext } from '../lib/nav-types';
 
   const i18n = getUiI18n();
   type Own = {
@@ -41,7 +43,6 @@
 
   const classes = $derived(topbarClasses({ context, className }));
   const shownCrumbs = $derived(topbarCrumbs(crumbs, context));
-  const scopes = $derived(visibleScopes(context?.scopes));
 
   let clockEl = $state<HTMLElement | null>(null);
   $effect(() => {
@@ -49,6 +50,9 @@
     return mountClock(clockEl);
   });
 </script>
+
+{#snippet actionLabel(item: UiContextAction)}<span class="bb-topbar-ctx__label">{item.label}</span
+  >{#if item.compactLabel}<span class="bb-topbar-ctx__compact">{item.compactLabel}</span>{/if}{/snippet}
 
 <header class={classes} {...rest}
   ><Brand
@@ -60,27 +64,17 @@
     size="sm"
     logoShape={brand.logoShape}
     style="--bb-cursor: quiet"
-  />{#if context}<div class="bb-topbar-ctx" role="status" aria-label={context.statusText}
-      >{#each context.badges as badge (badge.label)}<span
-          class={`bb-topbar-ctx__badge bb-topbar-ctx__badge--${badge.tone}`}
-          ><Icon name={badge.icon} size={13} strokeWidth={2} /><span>{badge.label}</span></span
-        >{/each}{#if context.subject}<span class="bb-topbar-ctx__subject"
-          >{#if context.avatar}<span
-              class={`bb-topbar-ctx__avatar bb-topbar-ctx__avatar--${context.tone}`}
-              aria-hidden="true">{context.avatar}</span
-            >{/if}<span class="bb-topbar-ctx__text"
-            >{#if context.subjectPre}<span class="bb-topbar-ctx__affix">{context.subjectPre}</span
-              >{/if}<strong>{context.subject}</strong
-            >{#if context.subjectPost}<span class="bb-topbar-ctx__affix">{context.subjectPost}</span
-              >{/if}</span
-          ></span
-        >{/if}{#if scopes.visible.length}<span class="bb-topbar-ctx__scopes" title={context.scopesTitle}
-          >{#each scopes.visible as scope (scope)}<span class="bb-topbar-ctx__scope">{scope}</span
-            >{/each}{#if scopes.overflow > 0}<span class="bb-topbar-ctx__scope"
-              >+{scopes.overflow}</span
+  />{#if context}<span class="bb-topbar-ctx__title" aria-hidden="true">{context.title}</span
+      ><div class="bb-topbar-ctx" role="status" aria-label={context.statusText} title={context.scopesTitle}
+      >{#if context.subject}<span class="bb-topbar-ctx__avatar" aria-hidden="true"
+          ><Bolota name={context.subject} size={36} plate={false} /></span
+        ><span class="bb-topbar-ctx__text"
+          >{#if context.subjectPre}<span class="bb-topbar-ctx__affix">{context.subjectPre}</span
+            >{/if}<strong>{context.subject}</strong
+          >{#if context.subjectPost}<span class="bb-topbar-ctx__affix">{context.subjectPost}</span
             >{/if}</span
         >{/if}</div
-    >{#if shownCrumbs.length}<span class="bb-topbar-ctx__sep" aria-hidden="true"></span>{/if}{/if}{#if shownCrumbs.length}<nav
+    >{/if}{#if shownCrumbs.length}<nav
       class="bb-topbar__crumb"
       aria-label={crumbLabel}
       ><ol
@@ -102,17 +96,13 @@
       >{#each context.actions as item (item.label)}{#if item.formAction}<form
             method="POST"
             action={item.formAction}
-            ><button type="submit" class={contextActionClass(item, context.tone)}
-              ><Icon name="logOut" size={13} strokeWidth={2} /><span class="bb-topbar-ctx__label"
-                >{item.label}</span
-              >{#if item.compactLabel}<span class="bb-topbar-ctx__compact">{item.compactLabel}</span
-                >{/if}</button
-            ></form
-          >{:else}<a class={contextActionClass(item, context.tone)} href={item.href ?? '/'}
-            ><Icon name="logOut" size={13} strokeWidth={2} /><span class="bb-topbar-ctx__label"
-              >{item.label}</span
-            >{#if item.compactLabel}<span class="bb-topbar-ctx__compact">{item.compactLabel}</span
-              >{/if}</a
+            class={item.subtle ? 'bb-topbar-ctx__subtle' : undefined}
+            ><Button type="submit" variant="secondary" size="sm">{@render actionLabel(item)}</Button></form
+          >{:else}<ButtonLink
+            href={item.href ?? '/'}
+            variant="secondary"
+            size="sm"
+            class={item.subtle ? 'bb-topbar-ctx__subtle' : undefined}>{@render actionLabel(item)}</ButtonLink
           >{/if}{/each}</div
     >{/if}</header
 >
