@@ -17,7 +17,6 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/ratelimit"
 	"ItsBagelBot/pkg/svcboot"
 	pkgvalkey "ItsBagelBot/pkg/valkey"
 
@@ -119,14 +118,10 @@ func main() {
 
 	prepareHotPath(w)
 	svcboot.FatalIf(log, registerAutomationRPC(w, pipe, core.NR), "failed to subscribe automation rpc")
-	voiceTestWiring := bus.RPCWiring{NC: w.in.nc, Queue: queueGroup, App: nrApp, Log: log}
-	svcboot.FatalIf(log, modules.SubscribeVoiceTestRPC(voiceTestWiring, deps, ratelimit.New(valkeyClient).Allow),
-		"failed to subscribe voice test rpc")
+	svcboot.FatalIf(log, registerVoiceTestRPC(w, deps, core.NR), "failed to subscribe voice test rpc")
 	svcboot.FatalIf(log, registerGiveawayRPC(w, deps, loyalty, core.NR), "failed to subscribe giveaway rpc")
 
-	raffleStatusRPC := engine.RaffleStatusRPC{Draw: deps.Draw, Watch: deps.LoyaltyTick, Log: log}
-	svcboot.FatalIf(log, raffleStatusRPC.Subscribe(bus.RPCWiring{NC: w.in.nc, Queue: queueGroup, App: core.NR, Log: log}),
-		"failed to subscribe raffle status rpc")
+	svcboot.FatalIf(log, registerRaffleStatusRPC(w, deps, core.NR), "failed to subscribe raffle status rpc")
 
 	startTrialPromotion(w, recorder)
 
