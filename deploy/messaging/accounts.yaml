@@ -840,10 +840,6 @@ accounts:
               from: NOTIFICATIONS_RPC
             - service: rpc.internal.tokens.>
               from: USERS_RPC
-            - service: rpc.ingress.conduit.get
-              from: TWITCH_INGRESS_RPC
-            - service: rpc.ingress.conduit.get.node.*
-              from: TWITCH_INGRESS_RPC
             - service: rpc.dashboard.state_get
               from: USERS_RPC
             - service: rpc.dashboard.state_get.node.*
@@ -1020,8 +1016,6 @@ accounts:
             - service: rpc.health.ingress.node.*
             - service: twitch.ingress.admin.shards.>
             - service: twitch.ingress.admin.trials.>
-            - service: rpc.ingress.conduit.get
-            - service: rpc.ingress.conduit.get.node.*
         imports:
             - service: rpc.broadcaster.status.get
               from: PROJECTOR_RPC

@@ -8,8 +8,8 @@ and the [app map](../../../CONTEXT-MAP.md) for neighboring owners.
 Outgress consumes described Twitch actions and executes authenticated Helix calls.
 It owns Twitch token use/refresh coordination, EventSub enrollment, API quotas,
 chat delivery, channel-point reward RPCs, stream details and chatter-list RPCs.
-Sesame decides command behavior; ingress owns the Conduit sockets. Outgress obtains
-the live Conduit ID from ingress and tokens through the token-owning service.
+Sesame decides command behavior; ingress owns the Conduit sockets. Outgress reads
+the pinned Conduit ID from `TWITCH_CONDUIT_ID` and tokens through the token-owning service.
 It holds no authoritative account/module/command MySQL persistence.
 Moderation actions use the same typed request path as other Sesame outputs;
 there is no Rust AutoMod journal/action adapter in this checkout.

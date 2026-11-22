@@ -8,7 +8,5 @@ defmodule Ingress.Config.Admin do
 
   def autoscale_subject, do: Application.fetch_env!(:ingress, :autoscale_subject)
 
-  def conduit_subject, do: Application.fetch_env!(:ingress, :conduit_subject)
-
   def rpc_health_subject, do: Application.fetch_env!(:ingress, :rpc_health_subject)
 end
