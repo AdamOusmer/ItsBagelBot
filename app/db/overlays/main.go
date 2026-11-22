@@ -39,7 +39,6 @@ func main() {
 	defer closeIntake()
 
 	repo := repository.New(client, n.Pub)
-	svcboot.FatalIf(log, backfillTts(core.Ctx, n.RPC, repo), "failed to backfill legacy tts overlays")
 
 	deleted := consumers.OnUserDeleted(serviceName, log, repo.DeleteAccount)
 	svcboot.FatalIf(log, bus.Consume(core.Ctx, core.NR, n.Grouped, data.SubjectUserDeleted, deleted, log), "failed to subscribe to user deleted events")

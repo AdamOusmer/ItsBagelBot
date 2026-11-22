@@ -60,7 +60,6 @@ var rpcRequests = map[string][]rpcRequest{
 	},
 	"overlays_rpc": {
 		{"rpc.internal.users.voice.check", "app/db/overlays/rpc/tts.go"},
-		{"rpc.internal.users.voice.export", "app/db/overlays/tts.go"},
 	},
 	"projector_rpc": {
 		{"rpc.internal.overlays.tts.by_user", "app/projector/rpc/tts.go"},

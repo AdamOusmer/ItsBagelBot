@@ -56,16 +56,6 @@ const (
 	FieldLeaderboardPageHidden = "leaderboard_page_hidden"
 	// FieldSongqueuePageHidden holds the string denoting the songqueue_page_hidden field in the database.
 	FieldSongqueuePageHidden = "songqueue_page_hidden"
-	// FieldTtsEnabled holds the string denoting the tts_enabled field in the database.
-	FieldTtsEnabled = "tts_enabled"
-	// FieldTtsVoice holds the string denoting the tts_voice field in the database.
-	FieldTtsVoice = "tts_voice"
-	// FieldTtsMaxSeconds holds the string denoting the tts_max_seconds field in the database.
-	FieldTtsMaxSeconds = "tts_max_seconds"
-	// FieldTtsOverlayTokenHash holds the string denoting the tts_overlay_token_hash field in the database.
-	FieldTtsOverlayTokenHash = "tts_overlay_token_hash"
-	// FieldTtsOverlayGeneration holds the string denoting the tts_overlay_generation field in the database.
-	FieldTtsOverlayGeneration = "tts_overlay_generation"
 	// FieldCreatorCode holds the string denoting the creator_code field in the database.
 	FieldCreatorCode = "creator_code"
 	// FieldSubscriptionSource holds the string denoting the subscription_source field in the database.
@@ -173,11 +163,6 @@ var Columns = []string{
 	FieldCommandsPageHidden,
 	FieldLeaderboardPageHidden,
 	FieldSongqueuePageHidden,
-	FieldTtsEnabled,
-	FieldTtsVoice,
-	FieldTtsMaxSeconds,
-	FieldTtsOverlayTokenHash,
-	FieldTtsOverlayGeneration,
 	FieldCreatorCode,
 	FieldSubscriptionSource,
 	FieldSubscriptionExpiresAt,
@@ -244,18 +229,6 @@ var (
 	DefaultLeaderboardPageHidden bool
 	// DefaultSongqueuePageHidden holds the default value on creation for the "songqueue_page_hidden" field.
 	DefaultSongqueuePageHidden bool
-	// DefaultTtsEnabled holds the default value on creation for the "tts_enabled" field.
-	DefaultTtsEnabled bool
-	// DefaultTtsVoice holds the default value on creation for the "tts_voice" field.
-	DefaultTtsVoice string
-	// DefaultTtsMaxSeconds holds the default value on creation for the "tts_max_seconds" field.
-	DefaultTtsMaxSeconds int
-	// TtsMaxSecondsValidator is a validator for the "tts_max_seconds" field. It is called by the builders before save.
-	TtsMaxSecondsValidator func(int) error
-	// TtsOverlayTokenHashValidator is a validator for the "tts_overlay_token_hash" field. It is called by the builders before save.
-	TtsOverlayTokenHashValidator func(string) error
-	// DefaultTtsOverlayGeneration holds the default value on creation for the "tts_overlay_generation" field.
-	DefaultTtsOverlayGeneration int
 	// CreatorCodeValidator is a validator for the "creator_code" field. It is called by the builders before save.
 	CreatorCodeValidator func(string) error
 	// DefaultSubscriptionSource holds the default value on creation for the "subscription_source" field.
@@ -401,31 +374,6 @@ func ByLeaderboardPageHidden(opts ...sql.OrderTermOption) OrderOption {
 // BySongqueuePageHidden orders the results by the songqueue_page_hidden field.
 func BySongqueuePageHidden(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSongqueuePageHidden, opts...).ToFunc()
-}
-
-// ByTtsEnabled orders the results by the tts_enabled field.
-func ByTtsEnabled(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldTtsEnabled, opts...).ToFunc()
-}
-
-// ByTtsVoice orders the results by the tts_voice field.
-func ByTtsVoice(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldTtsVoice, opts...).ToFunc()
-}
-
-// ByTtsMaxSeconds orders the results by the tts_max_seconds field.
-func ByTtsMaxSeconds(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldTtsMaxSeconds, opts...).ToFunc()
-}
-
-// ByTtsOverlayTokenHash orders the results by the tts_overlay_token_hash field.
-func ByTtsOverlayTokenHash(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldTtsOverlayTokenHash, opts...).ToFunc()
-}
-
-// ByTtsOverlayGeneration orders the results by the tts_overlay_generation field.
-func ByTtsOverlayGeneration(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldTtsOverlayGeneration, opts...).ToFunc()
 }
 
 // ByCreatorCode orders the results by the creator_code field.
