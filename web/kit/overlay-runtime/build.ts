@@ -11,7 +11,7 @@ const banner = '/* Copyright (c) 2026 Adam Ousmer. All rights reserved. Propriet
 export async function bundle(entry: string): Promise<string> {
   const result = await Bun.build({ entrypoints: [join(here, entry)], target: 'browser', format: 'iife', minify: true, banner });
   if (!result.success) throw new Error(result.logs.join('\n'));
-  return await result.outputs[0].text();
+  return await result.outputs[0]!.text();
 }
 
 if (import.meta.main) {

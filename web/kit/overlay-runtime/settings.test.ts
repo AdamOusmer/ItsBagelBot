@@ -5,7 +5,7 @@ import { describe, expect, test } from 'bun:test';
 import type { OverlayWidget } from '../lib/overlay-document';
 import { parseWidget } from './settings';
 
-const widget = (kind: string, settings: object | null): OverlayWidget => ({
+const widget = (kind: string, settings: Record<string, unknown> | null): OverlayWidget => ({
   id: 'w1', name: 'Widget', kind: kind as OverlayWidget['kind'], x: 0, y: 0, w: 100, h: 100, rotation: 0, opacity: 1,
   hidden: false, locked: false, settings
 });
@@ -26,6 +26,6 @@ describe('parseWidget', () => {
     ['an out of range size', 'text', { style: { size: 9000 } }],
     ['a non-object settings value', 'text', 'x']
   ])('rejects %s', (_name, kind, settings) => {
-    expect(() => parseWidget(widget(kind, settings as object))).toThrow();
+    expect(() => parseWidget(widget(kind, settings as Record<string, unknown>))).toThrow();
   });
 });

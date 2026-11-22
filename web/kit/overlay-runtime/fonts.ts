@@ -13,7 +13,7 @@ const loaded = new Set<string>();
 const faceName = (family: string): string => `bb-${family.slice('asset:'.length)}`;
 
 export function fontStack(family: string, assets: Assets): string {
-  if (Object.hasOwn(stacks, family)) return stacks[family];
+  if (Object.hasOwn(stacks, family)) return stacks[family]!;
   const name = assets.resolve(family) ? faceName(family) : family.replace(/["\\]/g, '');
   return `"${name}", system-ui, sans-serif`;
 }
