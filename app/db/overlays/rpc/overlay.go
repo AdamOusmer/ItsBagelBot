@@ -5,8 +5,12 @@ package rpc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 
+	"ItsBagelBot/app/db/overlays/repository"
+	"ItsBagelBot/internal/domain/overlays"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/pkg/bus"
 )
@@ -18,6 +22,7 @@ func SubscribeOverlays(w Wiring) error {
 		bus.ServeForUser(read, overlaysrpc.OverlayAddTemplateSubject, w.overlayAdd),
 		bus.ServeForUser(read, overlaysrpc.OverlayGetSubject, w.overlayGet),
 		bus.ServeForUser(read, overlaysrpc.OverlaySaveSubject, w.overlaySave),
+		bus.ServeForUser(read, overlaysrpc.OverlayCreateCustomSubject, w.overlayCreateCustom),
 		bus.ServeForUser(read, overlaysrpc.OverlayRotateSubject, w.overlayRotate),
 		bus.ServeForUser(read, overlaysrpc.OverlayDeleteSubject, w.overlayDelete),
 	)
@@ -47,8 +52,35 @@ func (w Wiring) overlayGet(ctx context.Context, req overlaysrpc.OverlayRefReques
 }
 
 func (w Wiring) overlaySave(ctx context.Context, req overlaysrpc.OverlaySaveRequest, id uint64) (overlaysrpc.OverlayView, error) {
+	if len(req.Document) > 0 {
+		overlay, err := w.saveCustom(ctx, req, id)
+		return overlayReply(overlay, "", err), nil
+	}
 	overlay, err := w.Repo.SaveOverlay(ctx, id, req)
 	return overlayReply(overlay, "", err), nil
+}
+
+func (w Wiring) saveCustom(ctx context.Context, req overlaysrpc.OverlaySaveRequest, id uint64) (overlaysrpc.Overlay, error) {
+	if err := w.Assets.RequirePremium(ctx, id); err != nil {
+		return overlaysrpc.Overlay{}, err
+	}
+	return w.Repo.SaveCustom(ctx, id, req.ID, req.Revision, req.Document)
+}
+
+func (w Wiring) overlayCreateCustom(ctx context.Context, req overlaysrpc.OverlayCreateCustomRequest, id uint64) (overlaysrpc.OverlayView, error) {
+	overlay, token, err := w.createCustom(ctx, req.Document, id)
+	return overlayReply(overlay, token, err), nil
+}
+
+func (w Wiring) createCustom(ctx context.Context, raw json.RawMessage, id uint64) (overlaysrpc.Overlay, string, error) {
+	if err := w.Assets.RequirePremium(ctx, id); err != nil {
+		return overlaysrpc.Overlay{}, "", err
+	}
+	doc, err := overlays.Parse(raw)
+	if err != nil {
+		return overlaysrpc.Overlay{}, "", fmt.Errorf("%w: %w", repository.ErrInvalidDocument, err)
+	}
+	return w.Repo.CreateCustom(ctx, id, doc)
 }
 
 func (w Wiring) overlayRotate(ctx context.Context, req overlaysrpc.OverlayRefRequest, id uint64) (overlaysrpc.OverlayView, error) {

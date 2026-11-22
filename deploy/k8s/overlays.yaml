@@ -141,8 +141,11 @@ spec:
           volumeMounts:
             - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
             - {name: health-tls, mountPath: /etc/overlays/tls, readOnly: true}
+            - {name: import-spool, mountPath: /tmp}
           ports:
             - containerPort: 8080
+            - name: upload
+              containerPort: 8081
           resources:
             requests:
               cpu: 15m
@@ -171,6 +174,9 @@ spec:
             failureThreshold: 18
             periodSeconds: 5
       volumes:
+        - name: import-spool
+          emptyDir:
+            sizeLimit: 1Gi
         - name: nats-client-tls
           secret:
             secretName: nats-client-tls
@@ -178,6 +184,19 @@ spec:
           secret:
             secretName: overlays-tls
       terminationGracePeriodSeconds: 45
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: overlays
+  namespace: db
+spec:
+  selector:
+    app: overlays
+  ports:
+    - name: upload
+      port: 8081
+      targetPort: upload
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -207,6 +226,10 @@ spec:
     kind: ClusterIssuer
     group: cert-manager.io
   dnsNames:
+    - overlays
+    - overlays.db
+    - overlays.db.svc
+    - overlays.db.svc.cluster.local
     - overlays-status
     - overlays-status.db
     - overlays-status.db.svc

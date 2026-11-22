@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/internal/testdb"
 	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/objectstore/objectstoretest"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
@@ -26,7 +27,7 @@ func setup(t *testing.T) (*bustest.Publisher, *repository.Overlays) {
 	t.Helper()
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	pub := bustest.NewPublisher()
-	return pub, repository.New(client, pub)
+	return pub, repository.New(client, pub, objectstoretest.NewMemory())
 }
 
 func changes(t *testing.T, pub *bustest.Publisher) []data.PoweredOverlayChangedDTO {

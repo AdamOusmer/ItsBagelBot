@@ -191,6 +191,13 @@ func TestControlsGatewayNetworkPolicyIsExact(t *testing.T) {
 		"kubernetes.io/metadata.name=app | app=controls-gateway | 4000/TCP")
 }
 
+func TestDashboardReachesOnlyTheOverlayUploadPort(t *testing.T) {
+	policy := requirePolicy(t, loadNetworkPolicies(t, appPolicies), "dashboard-overlays-upload")
+
+	assert.Equal(t, "app=console-dashboard", policy.Spec.PodSelector.render())
+	assert.Equal(t, []string{"kubernetes.io/metadata.name=db | app=overlays | 8081/TCP"}, ruleSummary(policy.Spec.Egress))
+}
+
 func TestDefaultPolicyHasNoBlanketExternalEgress(t *testing.T) {
 	base := requirePolicy(t, loadNetworkPolicies(t, appPolicies), "default-deny-apps")
 
@@ -222,7 +229,7 @@ func TestAppEgressAllowlists(t *testing.T) {
 		},
 		{
 			name: "TestDBPublicHTTPSEgressAllowlist", path: dbPolicies, policy: "allow-public-https",
-			wantApps: sorted("backup-binlog", "backup-k3s", "backup-mysql", "transactions", "users"),
+			wantApps: sorted("backup-binlog", "backup-k3s", "backup-mysql", "overlays", "transactions", "users"),
 		},
 		{
 			name: "TestDBNewRelicEgressAllowlist", path: dbPolicies, policy: "allow-newrelic",

@@ -36,6 +36,32 @@ var (
 			},
 		},
 	}
+	// OverlayAssetColumns holds the columns for the "overlay_asset" table.
+	OverlayAssetColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 32},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "type", Type: field.TypeString, Size: 8},
+		{Name: "bytes", Type: field.TypeInt64},
+		{Name: "w", Type: field.TypeInt},
+		{Name: "h", Type: field.TypeInt},
+		{Name: "duration_ms", Type: field.TypeInt},
+		{Name: "sha256", Type: field.TypeString, Size: 64},
+		{Name: "display_name", Type: field.TypeString, Size: 80},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+	}
+	// OverlayAssetTable holds the schema information for the "overlay_asset" table.
+	OverlayAssetTable = &schema.Table{
+		Name:       "overlay_asset",
+		Columns:    OverlayAssetColumns,
+		PrimaryKey: []*schema.Column{OverlayAssetColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "overlayasset_user_id_sha256",
+				Unique:  true,
+				Columns: []*schema.Column{OverlayAssetColumns[1], OverlayAssetColumns[7]},
+			},
+		},
+	}
 	// PoweredOverlaysColumns holds the columns for the "powered_overlays" table.
 	PoweredOverlaysColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -77,6 +103,7 @@ var (
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		OverlayTable,
+		OverlayAssetTable,
 		PoweredOverlaysTable,
 		TtsOverlayTable,
 	}
@@ -85,6 +112,9 @@ var (
 func init() {
 	OverlayTable.Annotation = &entsql.Annotation{
 		Table: "overlay",
+	}
+	OverlayAssetTable.Annotation = &entsql.Annotation{
+		Table: "overlay_asset",
 	}
 	PoweredOverlaysTable.Annotation = &entsql.Annotation{
 		Charset:   "utf8mb4",

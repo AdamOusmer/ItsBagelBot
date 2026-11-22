@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/db/overlays/ent/migrate"
 
 	"ItsBagelBot/app/db/overlays/ent/overlay"
+	"ItsBagelBot/app/db/overlays/ent/overlayasset"
 	"ItsBagelBot/app/db/overlays/ent/poweredoverlay"
 	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
 
@@ -27,6 +28,8 @@ type Client struct {
 	Schema *migrate.Schema
 	// Overlay is the client for interacting with the Overlay builders.
 	Overlay *OverlayClient
+	// OverlayAsset is the client for interacting with the OverlayAsset builders.
+	OverlayAsset *OverlayAssetClient
 	// PoweredOverlay is the client for interacting with the PoweredOverlay builders.
 	PoweredOverlay *PoweredOverlayClient
 	// TtsOverlay is the client for interacting with the TtsOverlay builders.
@@ -43,6 +46,7 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.Overlay = NewOverlayClient(c.config)
+	c.OverlayAsset = NewOverlayAssetClient(c.config)
 	c.PoweredOverlay = NewPoweredOverlayClient(c.config)
 	c.TtsOverlay = NewTtsOverlayClient(c.config)
 }
@@ -138,6 +142,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ctx:            ctx,
 		config:         cfg,
 		Overlay:        NewOverlayClient(cfg),
+		OverlayAsset:   NewOverlayAssetClient(cfg),
 		PoweredOverlay: NewPoweredOverlayClient(cfg),
 		TtsOverlay:     NewTtsOverlayClient(cfg),
 	}, nil
@@ -160,6 +165,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ctx:            ctx,
 		config:         cfg,
 		Overlay:        NewOverlayClient(cfg),
+		OverlayAsset:   NewOverlayAssetClient(cfg),
 		PoweredOverlay: NewPoweredOverlayClient(cfg),
 		TtsOverlay:     NewTtsOverlayClient(cfg),
 	}, nil
@@ -191,6 +197,7 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	c.Overlay.Use(hooks...)
+	c.OverlayAsset.Use(hooks...)
 	c.PoweredOverlay.Use(hooks...)
 	c.TtsOverlay.Use(hooks...)
 }
@@ -199,6 +206,7 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	c.Overlay.Intercept(interceptors...)
+	c.OverlayAsset.Intercept(interceptors...)
 	c.PoweredOverlay.Intercept(interceptors...)
 	c.TtsOverlay.Intercept(interceptors...)
 }
@@ -208,6 +216,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *OverlayMutation:
 		return c.Overlay.mutate(ctx, m)
+	case *OverlayAssetMutation:
+		return c.OverlayAsset.mutate(ctx, m)
 	case *PoweredOverlayMutation:
 		return c.PoweredOverlay.mutate(ctx, m)
 	case *TtsOverlayMutation:
@@ -347,6 +357,139 @@ func (c *OverlayClient) mutate(ctx context.Context, m *OverlayMutation) (Value, 
 		return (&OverlayDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Overlay mutation op: %q", m.Op())
+	}
+}
+
+// OverlayAssetClient is a client for the OverlayAsset schema.
+type OverlayAssetClient struct {
+	config
+}
+
+// NewOverlayAssetClient returns a client for the OverlayAsset from the given config.
+func NewOverlayAssetClient(c config) *OverlayAssetClient {
+	return &OverlayAssetClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `overlayasset.Hooks(f(g(h())))`.
+func (c *OverlayAssetClient) Use(hooks ...Hook) {
+	c.hooks.OverlayAsset = append(c.hooks.OverlayAsset, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `overlayasset.Intercept(f(g(h())))`.
+func (c *OverlayAssetClient) Intercept(interceptors ...Interceptor) {
+	c.inters.OverlayAsset = append(c.inters.OverlayAsset, interceptors...)
+}
+
+// Create returns a builder for creating a OverlayAsset entity.
+func (c *OverlayAssetClient) Create() *OverlayAssetCreate {
+	mutation := newOverlayAssetMutation(c.config, OpCreate)
+	return &OverlayAssetCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of OverlayAsset entities.
+func (c *OverlayAssetClient) CreateBulk(builders ...*OverlayAssetCreate) *OverlayAssetCreateBulk {
+	return &OverlayAssetCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *OverlayAssetClient) MapCreateBulk(slice any, setFunc func(*OverlayAssetCreate, int)) *OverlayAssetCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &OverlayAssetCreateBulk{err: fmt.Errorf("calling to OverlayAssetClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*OverlayAssetCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &OverlayAssetCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for OverlayAsset.
+func (c *OverlayAssetClient) Update() *OverlayAssetUpdate {
+	mutation := newOverlayAssetMutation(c.config, OpUpdate)
+	return &OverlayAssetUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *OverlayAssetClient) UpdateOne(_m *OverlayAsset) *OverlayAssetUpdateOne {
+	mutation := newOverlayAssetMutation(c.config, OpUpdateOne, withOverlayAsset(_m))
+	return &OverlayAssetUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *OverlayAssetClient) UpdateOneID(id string) *OverlayAssetUpdateOne {
+	mutation := newOverlayAssetMutation(c.config, OpUpdateOne, withOverlayAssetID(id))
+	return &OverlayAssetUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for OverlayAsset.
+func (c *OverlayAssetClient) Delete() *OverlayAssetDelete {
+	mutation := newOverlayAssetMutation(c.config, OpDelete)
+	return &OverlayAssetDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *OverlayAssetClient) DeleteOne(_m *OverlayAsset) *OverlayAssetDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *OverlayAssetClient) DeleteOneID(id string) *OverlayAssetDeleteOne {
+	builder := c.Delete().Where(overlayasset.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &OverlayAssetDeleteOne{builder}
+}
+
+// Query returns a query builder for OverlayAsset.
+func (c *OverlayAssetClient) Query() *OverlayAssetQuery {
+	return &OverlayAssetQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeOverlayAsset},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a OverlayAsset entity by its id.
+func (c *OverlayAssetClient) Get(ctx context.Context, id string) (*OverlayAsset, error) {
+	return c.Query().Where(overlayasset.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *OverlayAssetClient) GetX(ctx context.Context, id string) *OverlayAsset {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *OverlayAssetClient) Hooks() []Hook {
+	return c.hooks.OverlayAsset
+}
+
+// Interceptors returns the client interceptors.
+func (c *OverlayAssetClient) Interceptors() []Interceptor {
+	return c.inters.OverlayAsset
+}
+
+func (c *OverlayAssetClient) mutate(ctx context.Context, m *OverlayAssetMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&OverlayAssetCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&OverlayAssetUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&OverlayAssetUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&OverlayAssetDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown OverlayAsset mutation op: %q", m.Op())
 	}
 }
 
@@ -619,9 +762,9 @@ func (c *TtsOverlayClient) mutate(ctx context.Context, m *TtsOverlayMutation) (V
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Overlay, PoweredOverlay, TtsOverlay []ent.Hook
+		Overlay, OverlayAsset, PoweredOverlay, TtsOverlay []ent.Hook
 	}
 	inters struct {
-		Overlay, PoweredOverlay, TtsOverlay []ent.Interceptor
+		Overlay, OverlayAsset, PoweredOverlay, TtsOverlay []ent.Interceptor
 	}
 )

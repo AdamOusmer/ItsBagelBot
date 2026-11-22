@@ -62,8 +62,9 @@ type OverlayRefRequest struct {
 
 type OverlaySaveRequest struct {
 	OverlayRefRequest
-	Config   PoweredConfig `json:"config"`
-	Revision uint64        `json:"revision"`
+	Config   PoweredConfig   `json:"config"`
+	Document json.RawMessage `json:"document,omitempty"`
+	Revision uint64          `json:"revision"`
 }
 
 type OverlayView struct {

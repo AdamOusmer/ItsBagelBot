@@ -158,6 +158,29 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
+  name: dashboard-overlays-upload
+  namespace: app
+spec:
+  podSelector:
+    matchLabels:
+      app: console-dashboard
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: db
+          podSelector:
+            matchLabels:
+              app: overlays
+      ports:
+        - port: 8081
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
   name: controls-gateway
   namespace: app
 spec:

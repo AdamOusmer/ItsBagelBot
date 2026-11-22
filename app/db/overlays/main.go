@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/consumers"
+	"ItsBagelBot/pkg/objectstore"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
 )
@@ -38,8 +39,13 @@ func main() {
 	defer func() { _ = n.Pub.Close() }()
 	defer closeIntake()
 
-	repo := repository.New(client, n.Pub)
+	objects, err := objectstore.New(objectstore.ConfigFromEnv("R2_"))
+	svcboot.FatalIf(log, err, "failed to configure object storage")
+
+	repo := repository.New(client, n.Pub, objects)
 	svcboot.FatalIf(log, repo.MigratePowered(core.Ctx), "failed to migrate powered overlays")
+	uploads := newAssets(core, repo, objects, n.RPC)
+	serveUploads(core, uploads)
 
 	deleted := consumers.OnUserDeleted(serviceName, log, repo.DeleteAccount)
 	svcboot.FatalIf(log, bus.Consume(core.Ctx, core.NR, n.Grouped, data.SubjectUserDeleted, deleted, log), "failed to subscribe to user deleted events")
@@ -49,12 +55,14 @@ func main() {
 	wiring := rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log},
 		Repo:      repo,
+		Assets:    uploads,
 	}
 	svcboot.FatalIf(log, rpc.SubscribeDashboard(wiring), "failed to subscribe dashboard rpc")
 	svcboot.FatalIf(log, rpc.SubscribeOwner(wiring), "failed to subscribe owner rpc")
 
 	svcboot.FatalIf(log, rpc.SubscribeTts(wiring), "failed to subscribe tts rpc")
 	svcboot.FatalIf(log, rpc.SubscribeOverlays(wiring), "failed to subscribe overlay rpc")
+	svcboot.FatalIf(log, rpc.SubscribeAssets(wiring), "failed to subscribe asset rpc")
 
 	databoot.ServeHealth(databoot.Health{
 		Health: svcboot.Health{

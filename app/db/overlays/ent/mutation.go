@@ -4,6 +4,7 @@ package ent
 
 import (
 	"ItsBagelBot/app/db/overlays/ent/overlay"
+	"ItsBagelBot/app/db/overlays/ent/overlayasset"
 	"ItsBagelBot/app/db/overlays/ent/poweredoverlay"
 	"ItsBagelBot/app/db/overlays/ent/predicate"
 	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
@@ -28,6 +29,7 @@ const (
 
 	// Node types.
 	TypeOverlay        = "Overlay"
+	TypeOverlayAsset   = "OverlayAsset"
 	TypePoweredOverlay = "PoweredOverlay"
 	TypeTtsOverlay     = "TtsOverlay"
 )
@@ -982,6 +984,938 @@ func (m *OverlayMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *OverlayMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Overlay edge %s", name)
+}
+
+// OverlayAssetMutation represents an operation that mutates the OverlayAsset nodes in the graph.
+type OverlayAssetMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *string
+	user_id        *uint64
+	adduser_id     *int64
+	_type          *string
+	bytes          *int64
+	addbytes       *int64
+	w              *int
+	addw           *int
+	h              *int
+	addh           *int
+	duration_ms    *int
+	addduration_ms *int
+	sha256         *string
+	display_name   *string
+	created_at     *time.Time
+	clearedFields  map[string]struct{}
+	done           bool
+	oldValue       func(context.Context) (*OverlayAsset, error)
+	predicates     []predicate.OverlayAsset
+}
+
+var _ ent.Mutation = (*OverlayAssetMutation)(nil)
+
+// overlayassetOption allows management of the mutation configuration using functional options.
+type overlayassetOption func(*OverlayAssetMutation)
+
+// newOverlayAssetMutation creates new mutation for the OverlayAsset entity.
+func newOverlayAssetMutation(c config, op Op, opts ...overlayassetOption) *OverlayAssetMutation {
+	m := &OverlayAssetMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeOverlayAsset,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withOverlayAssetID sets the ID field of the mutation.
+func withOverlayAssetID(id string) overlayassetOption {
+	return func(m *OverlayAssetMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *OverlayAsset
+		)
+		m.oldValue = func(ctx context.Context) (*OverlayAsset, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().OverlayAsset.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withOverlayAsset sets the old OverlayAsset of the mutation.
+func withOverlayAsset(node *OverlayAsset) overlayassetOption {
+	return func(m *OverlayAssetMutation) {
+		m.oldValue = func(context.Context) (*OverlayAsset, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m OverlayAssetMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m OverlayAssetMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of OverlayAsset entities.
+func (m *OverlayAssetMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *OverlayAssetMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *OverlayAssetMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().OverlayAsset.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *OverlayAssetMutation) SetUserID(u uint64) {
+	m.user_id = &u
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *OverlayAssetMutation) UserID() (r uint64, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the OverlayAsset entity.
+// If the OverlayAsset object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayAssetMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds u to the "user_id" field.
+func (m *OverlayAssetMutation) AddUserID(u int64) {
+	if m.adduser_id != nil {
+		*m.adduser_id += u
+	} else {
+		m.adduser_id = &u
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *OverlayAssetMutation) AddedUserID() (r int64, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *OverlayAssetMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+}
+
+// SetType sets the "type" field.
+func (m *OverlayAssetMutation) SetType(s string) {
+	m._type = &s
+}
+
+// GetType returns the value of the "type" field in the mutation.
+func (m *OverlayAssetMutation) GetType() (r string, exists bool) {
+	v := m._type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldType returns the old "type" field's value of the OverlayAsset entity.
+// If the OverlayAsset object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayAssetMutation) OldType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldType: %w", err)
+	}
+	return oldValue.Type, nil
+}
+
+// ResetType resets all changes to the "type" field.
+func (m *OverlayAssetMutation) ResetType() {
+	m._type = nil
+}
+
+// SetBytes sets the "bytes" field.
+func (m *OverlayAssetMutation) SetBytes(i int64) {
+	m.bytes = &i
+	m.addbytes = nil
+}
+
+// Bytes returns the value of the "bytes" field in the mutation.
+func (m *OverlayAssetMutation) Bytes() (r int64, exists bool) {
+	v := m.bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBytes returns the old "bytes" field's value of the OverlayAsset entity.
+// If the OverlayAsset object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayAssetMutation) OldBytes(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBytes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBytes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBytes: %w", err)
+	}
+	return oldValue.Bytes, nil
+}
+
+// AddBytes adds i to the "bytes" field.
+func (m *OverlayAssetMutation) AddBytes(i int64) {
+	if m.addbytes != nil {
+		*m.addbytes += i
+	} else {
+		m.addbytes = &i
+	}
+}
+
+// AddedBytes returns the value that was added to the "bytes" field in this mutation.
+func (m *OverlayAssetMutation) AddedBytes() (r int64, exists bool) {
+	v := m.addbytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBytes resets all changes to the "bytes" field.
+func (m *OverlayAssetMutation) ResetBytes() {
+	m.bytes = nil
+	m.addbytes = nil
+}
+
+// SetW sets the "w" field.
+func (m *OverlayAssetMutation) SetW(i int) {
+	m.w = &i
+	m.addw = nil
+}
+
+// W returns the value of the "w" field in the mutation.
+func (m *OverlayAssetMutation) W() (r int, exists bool) {
+	v := m.w
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldW returns the old "w" field's value of the OverlayAsset entity.
+// If the OverlayAsset object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayAssetMutation) OldW(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldW is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldW requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldW: %w", err)
+	}
+	return oldValue.W, nil
+}
+
+// AddW adds i to the "w" field.
+func (m *OverlayAssetMutation) AddW(i int) {
+	if m.addw != nil {
+		*m.addw += i
+	} else {
+		m.addw = &i
+	}
+}
+
+// AddedW returns the value that was added to the "w" field in this mutation.
+func (m *OverlayAssetMutation) AddedW() (r int, exists bool) {
+	v := m.addw
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetW resets all changes to the "w" field.
+func (m *OverlayAssetMutation) ResetW() {
+	m.w = nil
+	m.addw = nil
+}
+
+// SetH sets the "h" field.
+func (m *OverlayAssetMutation) SetH(i int) {
+	m.h = &i
+	m.addh = nil
+}
+
+// H returns the value of the "h" field in the mutation.
+func (m *OverlayAssetMutation) H() (r int, exists bool) {
+	v := m.h
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldH returns the old "h" field's value of the OverlayAsset entity.
+// If the OverlayAsset object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayAssetMutation) OldH(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldH is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldH requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldH: %w", err)
+	}
+	return oldValue.H, nil
+}
+
+// AddH adds i to the "h" field.
+func (m *OverlayAssetMutation) AddH(i int) {
+	if m.addh != nil {
+		*m.addh += i
+	} else {
+		m.addh = &i
+	}
+}
+
+// AddedH returns the value that was added to the "h" field in this mutation.
+func (m *OverlayAssetMutation) AddedH() (r int, exists bool) {
+	v := m.addh
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetH resets all changes to the "h" field.
+func (m *OverlayAssetMutation) ResetH() {
+	m.h = nil
+	m.addh = nil
+}
+
+// SetDurationMs sets the "duration_ms" field.
+func (m *OverlayAssetMutation) SetDurationMs(i int) {
+	m.duration_ms = &i
+	m.addduration_ms = nil
+}
+
+// DurationMs returns the value of the "duration_ms" field in the mutation.
+func (m *OverlayAssetMutation) DurationMs() (r int, exists bool) {
+	v := m.duration_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDurationMs returns the old "duration_ms" field's value of the OverlayAsset entity.
+// If the OverlayAsset object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayAssetMutation) OldDurationMs(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDurationMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDurationMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDurationMs: %w", err)
+	}
+	return oldValue.DurationMs, nil
+}
+
+// AddDurationMs adds i to the "duration_ms" field.
+func (m *OverlayAssetMutation) AddDurationMs(i int) {
+	if m.addduration_ms != nil {
+		*m.addduration_ms += i
+	} else {
+		m.addduration_ms = &i
+	}
+}
+
+// AddedDurationMs returns the value that was added to the "duration_ms" field in this mutation.
+func (m *OverlayAssetMutation) AddedDurationMs() (r int, exists bool) {
+	v := m.addduration_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetDurationMs resets all changes to the "duration_ms" field.
+func (m *OverlayAssetMutation) ResetDurationMs() {
+	m.duration_ms = nil
+	m.addduration_ms = nil
+}
+
+// SetSha256 sets the "sha256" field.
+func (m *OverlayAssetMutation) SetSha256(s string) {
+	m.sha256 = &s
+}
+
+// Sha256 returns the value of the "sha256" field in the mutation.
+func (m *OverlayAssetMutation) Sha256() (r string, exists bool) {
+	v := m.sha256
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSha256 returns the old "sha256" field's value of the OverlayAsset entity.
+// If the OverlayAsset object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayAssetMutation) OldSha256(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSha256 is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSha256 requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSha256: %w", err)
+	}
+	return oldValue.Sha256, nil
+}
+
+// ResetSha256 resets all changes to the "sha256" field.
+func (m *OverlayAssetMutation) ResetSha256() {
+	m.sha256 = nil
+}
+
+// SetDisplayName sets the "display_name" field.
+func (m *OverlayAssetMutation) SetDisplayName(s string) {
+	m.display_name = &s
+}
+
+// DisplayName returns the value of the "display_name" field in the mutation.
+func (m *OverlayAssetMutation) DisplayName() (r string, exists bool) {
+	v := m.display_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDisplayName returns the old "display_name" field's value of the OverlayAsset entity.
+// If the OverlayAsset object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayAssetMutation) OldDisplayName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDisplayName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDisplayName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDisplayName: %w", err)
+	}
+	return oldValue.DisplayName, nil
+}
+
+// ResetDisplayName resets all changes to the "display_name" field.
+func (m *OverlayAssetMutation) ResetDisplayName() {
+	m.display_name = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *OverlayAssetMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *OverlayAssetMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the OverlayAsset entity.
+// If the OverlayAsset object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverlayAssetMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *OverlayAssetMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the OverlayAssetMutation builder.
+func (m *OverlayAssetMutation) Where(ps ...predicate.OverlayAsset) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the OverlayAssetMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *OverlayAssetMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.OverlayAsset, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *OverlayAssetMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *OverlayAssetMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (OverlayAsset).
+func (m *OverlayAssetMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *OverlayAssetMutation) Fields() []string {
+	fields := make([]string, 0, 9)
+	if m.user_id != nil {
+		fields = append(fields, overlayasset.FieldUserID)
+	}
+	if m._type != nil {
+		fields = append(fields, overlayasset.FieldType)
+	}
+	if m.bytes != nil {
+		fields = append(fields, overlayasset.FieldBytes)
+	}
+	if m.w != nil {
+		fields = append(fields, overlayasset.FieldW)
+	}
+	if m.h != nil {
+		fields = append(fields, overlayasset.FieldH)
+	}
+	if m.duration_ms != nil {
+		fields = append(fields, overlayasset.FieldDurationMs)
+	}
+	if m.sha256 != nil {
+		fields = append(fields, overlayasset.FieldSha256)
+	}
+	if m.display_name != nil {
+		fields = append(fields, overlayasset.FieldDisplayName)
+	}
+	if m.created_at != nil {
+		fields = append(fields, overlayasset.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *OverlayAssetMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case overlayasset.FieldUserID:
+		return m.UserID()
+	case overlayasset.FieldType:
+		return m.GetType()
+	case overlayasset.FieldBytes:
+		return m.Bytes()
+	case overlayasset.FieldW:
+		return m.W()
+	case overlayasset.FieldH:
+		return m.H()
+	case overlayasset.FieldDurationMs:
+		return m.DurationMs()
+	case overlayasset.FieldSha256:
+		return m.Sha256()
+	case overlayasset.FieldDisplayName:
+		return m.DisplayName()
+	case overlayasset.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *OverlayAssetMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case overlayasset.FieldUserID:
+		return m.OldUserID(ctx)
+	case overlayasset.FieldType:
+		return m.OldType(ctx)
+	case overlayasset.FieldBytes:
+		return m.OldBytes(ctx)
+	case overlayasset.FieldW:
+		return m.OldW(ctx)
+	case overlayasset.FieldH:
+		return m.OldH(ctx)
+	case overlayasset.FieldDurationMs:
+		return m.OldDurationMs(ctx)
+	case overlayasset.FieldSha256:
+		return m.OldSha256(ctx)
+	case overlayasset.FieldDisplayName:
+		return m.OldDisplayName(ctx)
+	case overlayasset.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown OverlayAsset field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OverlayAssetMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case overlayasset.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case overlayasset.FieldType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetType(v)
+		return nil
+	case overlayasset.FieldBytes:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBytes(v)
+		return nil
+	case overlayasset.FieldW:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetW(v)
+		return nil
+	case overlayasset.FieldH:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetH(v)
+		return nil
+	case overlayasset.FieldDurationMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDurationMs(v)
+		return nil
+	case overlayasset.FieldSha256:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSha256(v)
+		return nil
+	case overlayasset.FieldDisplayName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDisplayName(v)
+		return nil
+	case overlayasset.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown OverlayAsset field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *OverlayAssetMutation) AddedFields() []string {
+	var fields []string
+	if m.adduser_id != nil {
+		fields = append(fields, overlayasset.FieldUserID)
+	}
+	if m.addbytes != nil {
+		fields = append(fields, overlayasset.FieldBytes)
+	}
+	if m.addw != nil {
+		fields = append(fields, overlayasset.FieldW)
+	}
+	if m.addh != nil {
+		fields = append(fields, overlayasset.FieldH)
+	}
+	if m.addduration_ms != nil {
+		fields = append(fields, overlayasset.FieldDurationMs)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *OverlayAssetMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case overlayasset.FieldUserID:
+		return m.AddedUserID()
+	case overlayasset.FieldBytes:
+		return m.AddedBytes()
+	case overlayasset.FieldW:
+		return m.AddedW()
+	case overlayasset.FieldH:
+		return m.AddedH()
+	case overlayasset.FieldDurationMs:
+		return m.AddedDurationMs()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OverlayAssetMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case overlayasset.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
+	case overlayasset.FieldBytes:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBytes(v)
+		return nil
+	case overlayasset.FieldW:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddW(v)
+		return nil
+	case overlayasset.FieldH:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddH(v)
+		return nil
+	case overlayasset.FieldDurationMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDurationMs(v)
+		return nil
+	}
+	return fmt.Errorf("unknown OverlayAsset numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *OverlayAssetMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *OverlayAssetMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *OverlayAssetMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown OverlayAsset nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *OverlayAssetMutation) ResetField(name string) error {
+	switch name {
+	case overlayasset.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case overlayasset.FieldType:
+		m.ResetType()
+		return nil
+	case overlayasset.FieldBytes:
+		m.ResetBytes()
+		return nil
+	case overlayasset.FieldW:
+		m.ResetW()
+		return nil
+	case overlayasset.FieldH:
+		m.ResetH()
+		return nil
+	case overlayasset.FieldDurationMs:
+		m.ResetDurationMs()
+		return nil
+	case overlayasset.FieldSha256:
+		m.ResetSha256()
+		return nil
+	case overlayasset.FieldDisplayName:
+		m.ResetDisplayName()
+		return nil
+	case overlayasset.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown OverlayAsset field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *OverlayAssetMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *OverlayAssetMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *OverlayAssetMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *OverlayAssetMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *OverlayAssetMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *OverlayAssetMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *OverlayAssetMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown OverlayAsset unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *OverlayAssetMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown OverlayAsset edge %s", name)
 }
 
 // PoweredOverlayMutation represents an operation that mutates the PoweredOverlay nodes in the graph.

@@ -14,6 +14,8 @@ type Tx struct {
 	config
 	// Overlay is the client for interacting with the Overlay builders.
 	Overlay *OverlayClient
+	// OverlayAsset is the client for interacting with the OverlayAsset builders.
+	OverlayAsset *OverlayAssetClient
 	// PoweredOverlay is the client for interacting with the PoweredOverlay builders.
 	PoweredOverlay *PoweredOverlayClient
 	// TtsOverlay is the client for interacting with the TtsOverlay builders.
@@ -150,6 +152,7 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.Overlay = NewOverlayClient(tx.config)
+	tx.OverlayAsset = NewOverlayAssetClient(tx.config)
 	tx.PoweredOverlay = NewPoweredOverlayClient(tx.config)
 	tx.TtsOverlay = NewTtsOverlayClient(tx.config)
 }

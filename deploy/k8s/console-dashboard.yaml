@@ -135,6 +135,13 @@ spec:
                   fieldPath: spec.nodeName
             - name: NATS_LOCAL_LEAF_HEALTH_URL
               value: https://nats-leaf-local.messaging:8222/healthz
+            - name: OVERLAYS_INTERNAL_URL
+              value: https://overlays.db.svc.cluster.local:8081
+            - name: OVERLAYS_INTERNAL_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
             # Use the same bot identity as outgress so dashboard sign-in cannot
             # replace its moderator grant with a broadcaster grant.
             - name: TWITCH_BOT_USER_ID

@@ -18,6 +18,7 @@ import (
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
+	"ItsBagelBot/pkg/objectstore"
 )
 
 var (
@@ -29,12 +30,13 @@ var (
 const tokenBytes = 32
 
 type Overlays struct {
-	client *ent.Client
-	pub    bus.Publisher
+	client  *ent.Client
+	pub     bus.Publisher
+	objects objectstore.Store
 }
 
-func New(client *ent.Client, pub bus.Publisher) *Overlays {
-	return &Overlays{client: client, pub: pub}
+func New(client *ent.Client, pub bus.Publisher, objects objectstore.Store) *Overlays {
+	return &Overlays{client: client, pub: pub, objects: objects}
 }
 
 func MigrateSchema(ctx context.Context, client *ent.Client) error {
@@ -173,6 +175,9 @@ func (r *Overlays) DeleteAccount(ctx context.Context, userID uint64, cutoff time
 		return err
 	}
 	if err := r.deleteOverlays(ctx, userID, cutoff); err != nil {
+		return err
+	}
+	if err := r.deleteAssets(ctx, userID, cutoff); err != nil {
 		return err
 	}
 	row, err := r.row(ctx, poweredoverlay.UserID(userID), poweredoverlay.CreatedAtLTE(cutoff))

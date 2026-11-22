@@ -4,6 +4,7 @@ package ent
 
 import (
 	"ItsBagelBot/app/db/overlays/ent/overlay"
+	"ItsBagelBot/app/db/overlays/ent/overlayasset"
 	"ItsBagelBot/app/db/overlays/ent/poweredoverlay"
 	"ItsBagelBot/app/db/overlays/ent/schema"
 	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
@@ -70,6 +71,86 @@ func init() {
 	overlay.DefaultUpdatedAt = overlayDescUpdatedAt.Default.(func() time.Time)
 	// overlay.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	overlay.UpdateDefaultUpdatedAt = overlayDescUpdatedAt.UpdateDefault.(func() time.Time)
+	overlayassetFields := schema.OverlayAsset{}.Fields()
+	_ = overlayassetFields
+	// overlayassetDescType is the schema descriptor for type field.
+	overlayassetDescType := overlayassetFields[2].Descriptor()
+	// overlayasset.TypeValidator is a validator for the "type" field. It is called by the builders before save.
+	overlayasset.TypeValidator = func() func(string) error {
+		validators := overlayassetDescType.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(_type string) error {
+			for _, fn := range fns {
+				if err := fn(_type); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// overlayassetDescBytes is the schema descriptor for bytes field.
+	overlayassetDescBytes := overlayassetFields[3].Descriptor()
+	// overlayasset.BytesValidator is a validator for the "bytes" field. It is called by the builders before save.
+	overlayasset.BytesValidator = overlayassetDescBytes.Validators[0].(func(int64) error)
+	// overlayassetDescW is the schema descriptor for w field.
+	overlayassetDescW := overlayassetFields[4].Descriptor()
+	// overlayasset.WValidator is a validator for the "w" field. It is called by the builders before save.
+	overlayasset.WValidator = overlayassetDescW.Validators[0].(func(int) error)
+	// overlayassetDescH is the schema descriptor for h field.
+	overlayassetDescH := overlayassetFields[5].Descriptor()
+	// overlayasset.HValidator is a validator for the "h" field. It is called by the builders before save.
+	overlayasset.HValidator = overlayassetDescH.Validators[0].(func(int) error)
+	// overlayassetDescDurationMs is the schema descriptor for duration_ms field.
+	overlayassetDescDurationMs := overlayassetFields[6].Descriptor()
+	// overlayasset.DurationMsValidator is a validator for the "duration_ms" field. It is called by the builders before save.
+	overlayasset.DurationMsValidator = overlayassetDescDurationMs.Validators[0].(func(int) error)
+	// overlayassetDescSha256 is the schema descriptor for sha256 field.
+	overlayassetDescSha256 := overlayassetFields[7].Descriptor()
+	// overlayasset.Sha256Validator is a validator for the "sha256" field. It is called by the builders before save.
+	overlayasset.Sha256Validator = func() func(string) error {
+		validators := overlayassetDescSha256.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(sha256 string) error {
+			for _, fn := range fns {
+				if err := fn(sha256); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// overlayassetDescDisplayName is the schema descriptor for display_name field.
+	overlayassetDescDisplayName := overlayassetFields[8].Descriptor()
+	// overlayasset.DisplayNameValidator is a validator for the "display_name" field. It is called by the builders before save.
+	overlayasset.DisplayNameValidator = overlayassetDescDisplayName.Validators[0].(func(string) error)
+	// overlayassetDescCreatedAt is the schema descriptor for created_at field.
+	overlayassetDescCreatedAt := overlayassetFields[9].Descriptor()
+	// overlayasset.DefaultCreatedAt holds the default value on creation for the created_at field.
+	overlayasset.DefaultCreatedAt = overlayassetDescCreatedAt.Default.(func() time.Time)
+	// overlayassetDescID is the schema descriptor for id field.
+	overlayassetDescID := overlayassetFields[0].Descriptor()
+	// overlayasset.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	overlayasset.IDValidator = func() func(string) error {
+		validators := overlayassetDescID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(id string) error {
+			for _, fn := range fns {
+				if err := fn(id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	poweredoverlayFields := schema.PoweredOverlay{}.Fields()
 	_ = poweredoverlayFields
 	// poweredoverlayDescToken is the schema descriptor for token field.

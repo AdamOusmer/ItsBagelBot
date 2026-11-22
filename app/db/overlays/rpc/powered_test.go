@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/db/overlays/assets"
 	"ItsBagelBot/app/db/overlays/ent"
 	"ItsBagelBot/app/db/overlays/ent/enttest"
 	"ItsBagelBot/app/db/overlays/repository"
@@ -23,6 +24,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/objectstore/objectstoretest"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/nats-io/nats.go"
@@ -34,14 +36,21 @@ func serve(t *testing.T) *nats.Conn {
 	t.Helper()
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	nc := bustest.NATS(t)
+	objects := objectstoretest.NewMemory()
+	repo := repository.New(client, bustest.NewPublisher(), objects)
 	w := rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop(), Queue: "test"},
-		Repo:      repository.New(client, bustest.NewPublisher()),
+		Repo:      repo,
+		Assets: &assets.Service{
+			Repo: repo, Objects: objects, Plans: rpc.VoicePlans{NC: nc},
+			Signer: assets.Signer{Secret: []byte("test")}, PublicURL: "https://cdn.test",
+		},
 	}
 	require.NoError(t, rpc.SubscribeDashboard(w))
 	require.NoError(t, rpc.SubscribeOwner(w))
 	require.NoError(t, rpc.SubscribeTts(w))
 	require.NoError(t, rpc.SubscribeOverlays(w))
+	require.NoError(t, rpc.SubscribeAssets(w))
 	require.NoError(t, bus.Serve(w.RPCWiring, usersrpc.VoiceCheckSubject, ttsQuota))
 	require.NoError(t, nc.Flush())
 	return nc

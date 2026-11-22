@@ -20,6 +20,18 @@ func (f OverlayFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.OverlayMutation", m)
 }
 
+// The OverlayAssetFunc type is an adapter to allow the use of ordinary
+// function as OverlayAsset mutator.
+type OverlayAssetFunc func(context.Context, *ent.OverlayAssetMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f OverlayAssetFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.OverlayAssetMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.OverlayAssetMutation", m)
+}
+
 // The PoweredOverlayFunc type is an adapter to allow the use of ordinary
 // function as PoweredOverlay mutator.
 type PoweredOverlayFunc func(context.Context, *ent.PoweredOverlayMutation) (ent.Value, error)
