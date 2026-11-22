@@ -41,6 +41,7 @@ func serve(t *testing.T) *nats.Conn {
 	require.NoError(t, rpc.SubscribeDashboard(w))
 	require.NoError(t, rpc.SubscribeOwner(w))
 	require.NoError(t, rpc.SubscribeTts(w))
+	require.NoError(t, rpc.SubscribeOverlays(w))
 	require.NoError(t, bus.Serve(w.RPCWiring, usersrpc.VoiceCheckSubject, ttsQuota))
 	require.NoError(t, nc.Flush())
 	return nc

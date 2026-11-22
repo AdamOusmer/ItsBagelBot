@@ -500,6 +500,10 @@ accounts:
               from: PROJECTOR_RPC
             - service: rpc.internal.projector.overlays.powered.resolve.node.*
               from: PROJECTOR_RPC
+            - service: rpc.internal.projector.overlays.resolve
+              from: PROJECTOR_RPC
+            - service: rpc.internal.projector.overlays.resolve.node.*
+              from: PROJECTOR_RPC
         roles:
             controls_gateway_rpc:
                 publish:
@@ -510,6 +514,8 @@ accounts:
                         - rpc.internal.projector.overlays.tts.check.node.*
                         - rpc.internal.projector.overlays.powered.resolve
                         - rpc.internal.projector.overlays.powered.resolve.node.*
+                        - rpc.internal.projector.overlays.resolve
+                        - rpc.internal.projector.overlays.resolve.node.*
                         - $JS.API.CONSUMER.CREATE.OVERLAY_TTS.*.overlay.tts.*
                         - $JS.FC.OVERLAY_TTS.*.*
                         - $JS.FC.*.*.OVERLAY_TTS.*.*
@@ -814,6 +820,10 @@ accounts:
             - service: rpc.internal.projector.overlays.powered.resolve
               accounts: [CONTROLS_GATEWAY_RPC]
             - service: rpc.internal.projector.overlays.powered.resolve.node.*
+              accounts: [CONTROLS_GATEWAY_RPC]
+            - service: rpc.internal.projector.overlays.resolve
+              accounts: [CONTROLS_GATEWAY_RPC]
+            - service: rpc.internal.projector.overlays.resolve.node.*
               accounts: [CONTROLS_GATEWAY_RPC]
             - service: rpc.internal.projector.overlays.tts.resolve
               accounts: [CONTROLS_GATEWAY_RPC]

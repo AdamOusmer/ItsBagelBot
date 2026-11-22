@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"ItsBagelBot/app/db/overlays/ent/overlay"
 	"ItsBagelBot/app/db/overlays/ent/poweredoverlay"
 	"ItsBagelBot/app/db/overlays/ent/schema"
 	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
@@ -13,6 +14,62 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	overlayFields := schema.Overlay{}.Fields()
+	_ = overlayFields
+	// overlayDescTemplate is the schema descriptor for template field.
+	overlayDescTemplate := overlayFields[2].Descriptor()
+	// overlay.TemplateValidator is a validator for the "template" field. It is called by the builders before save.
+	overlay.TemplateValidator = overlayDescTemplate.Validators[0].(func(string) error)
+	// overlayDescName is the schema descriptor for name field.
+	overlayDescName := overlayFields[3].Descriptor()
+	// overlay.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	overlay.NameValidator = func() func(string) error {
+		validators := overlayDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// overlayDescTokenHash is the schema descriptor for token_hash field.
+	overlayDescTokenHash := overlayFields[4].Descriptor()
+	// overlay.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
+	overlay.TokenHashValidator = func() func(string) error {
+		validators := overlayDescTokenHash.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(token_hash string) error {
+			for _, fn := range fns {
+				if err := fn(token_hash); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// overlayDescGeneration is the schema descriptor for generation field.
+	overlayDescGeneration := overlayFields[5].Descriptor()
+	// overlay.DefaultGeneration holds the default value on creation for the generation field.
+	overlay.DefaultGeneration = overlayDescGeneration.Default.(int)
+	// overlayDescCreatedAt is the schema descriptor for created_at field.
+	overlayDescCreatedAt := overlayFields[8].Descriptor()
+	// overlay.DefaultCreatedAt holds the default value on creation for the created_at field.
+	overlay.DefaultCreatedAt = overlayDescCreatedAt.Default.(func() time.Time)
+	// overlayDescUpdatedAt is the schema descriptor for updated_at field.
+	overlayDescUpdatedAt := overlayFields[9].Descriptor()
+	// overlay.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	overlay.DefaultUpdatedAt = overlayDescUpdatedAt.Default.(func() time.Time)
+	// overlay.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	overlay.UpdateDefaultUpdatedAt = overlayDescUpdatedAt.UpdateDefault.(func() time.Time)
 	poweredoverlayFields := schema.PoweredOverlay{}.Fields()
 	_ = poweredoverlayFields
 	// poweredoverlayDescToken is the schema descriptor for token field.

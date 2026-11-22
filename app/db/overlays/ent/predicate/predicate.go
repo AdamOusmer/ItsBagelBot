@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// Overlay is the predicate function for overlay builders.
+type Overlay func(*sql.Selector)
+
 // PoweredOverlay is the predicate function for poweredoverlay builders.
 type PoweredOverlay func(*sql.Selector)
 

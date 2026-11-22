@@ -12,6 +12,8 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// Overlay is the client for interacting with the Overlay builders.
+	Overlay *OverlayClient
 	// PoweredOverlay is the client for interacting with the PoweredOverlay builders.
 	PoweredOverlay *PoweredOverlayClient
 	// TtsOverlay is the client for interacting with the TtsOverlay builders.
@@ -147,6 +149,7 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.Overlay = NewOverlayClient(tx.config)
 	tx.PoweredOverlay = NewPoweredOverlayClient(tx.config)
 	tx.TtsOverlay = NewTtsOverlayClient(tx.config)
 }
@@ -158,7 +161,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: PoweredOverlay.QueryXXX(), the query will be executed
+// applies a query, for example: Overlay.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

@@ -37,6 +37,15 @@ See the [shared vocabulary](../../CONTEXT.md) and [context map](../../CONTEXT-MA
 | [shared projection storage/client](../../internal/projection/) | Actual key layout, serialization, revision checks, TTLs, read-client caches, and fetch definitions. |
 | [projection contracts](../../internal/domain/rpc/projection/projection.go), [Projector contracts](../../internal/domain/rpc/projector/) | Owner snapshot and Projector-facing RPC shapes. |
 
+## Unified overlays
+
+Projector folds `data.overlays.overlay.changed` by overlay id and revision with
+a token hash index ([overlay.go](overlay.go), [rpc/overlay.go](rpc/overlay.go)).
+`rpc.internal.projector.overlays.resolve` maps a token hash to
+`{user_id, overlay_id, kind, template, revision, generation, allowed, document}`
+where `allowed` comes from `overlays.Allowed(kind, premium)`; the document is
+withheld when not allowed. Cold reads call `rpc.internal.overlays.powered.by_token` with `token_hash`.
+
 ## TTS overlay
 
 Projector folds `data.overlays.tts.changed` by account and revision, with a

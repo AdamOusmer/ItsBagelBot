@@ -191,6 +191,7 @@ func registerConsumers(ctx context.Context, rt consumerRuntime, projector *Proje
 		{data.SubjectAutomationChanged, projector.HandleAutomationChanged},
 		{data.SubjectPoweredOverlayChanged, projector.HandlePoweredOverlayChanged},
 		{data.SubjectTtsOverlayChanged, projector.handleTtsChanged},
+		{data.SubjectOverlayChanged, projector.HandleOverlayChanged},
 		{data.SubjectLoyaltyCounters, projector.HandleCounterBumps},
 		{streamTopic, projector.HandleStreamEvent},
 	}

@@ -48,6 +48,8 @@ func TestTTSGrantIsolation(t *testing.T) {
 		{"rpc.internal.overlays.tts.by_user.node.n1", "overlays_rpc", projector},
 		{"rpc.internal.overlays.tts.by_hash", "overlays_rpc", projector},
 		{"rpc.internal.overlays.tts.by_hash.node.n1", "overlays_rpc", projector},
+		{"rpc.internal.projector.overlays.resolve", "projector_rpc", gateway},
+		{"rpc.internal.projector.overlays.resolve.node.n1", "projector_rpc", gateway},
 	} {
 		assertTTSGrant(t, catalog, grant)
 	}
@@ -78,7 +80,7 @@ func TestTTSOverlayReaderPermissionsAreExact(t *testing.T) {
 	account := committedACL(t).Accounts[controlsGatewayAccount]
 	assert.NotNil(t, account.JetStream)
 	assert.Empty(t, account.Exports)
-	require.Len(t, account.Imports, 7)
+	require.Len(t, account.Imports, 9)
 
 	role := account.Roles["controls_gateway_rpc"]
 	assert.Equal(t, natsacl.RoleSpec{
@@ -89,6 +91,8 @@ func TestTTSOverlayReaderPermissionsAreExact(t *testing.T) {
 			"rpc.internal.projector.overlays.tts.check.node.*",
 			"rpc.internal.projector.overlays.powered.resolve",
 			"rpc.internal.projector.overlays.powered.resolve.node.*",
+			"rpc.internal.projector.overlays.resolve",
+			"rpc.internal.projector.overlays.resolve.node.*",
 			"$JS.API.CONSUMER.CREATE.OVERLAY_TTS.*.overlay.tts.*",
 			"$JS.FC.OVERLAY_TTS.*.*",
 			"$JS.FC.*.*.OVERLAY_TTS.*.*",
