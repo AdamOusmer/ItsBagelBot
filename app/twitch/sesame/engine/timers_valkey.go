@@ -67,7 +67,7 @@ type timerDef struct {
 	ChatWindowMinutes int  `json:"chatWindowMinutes"`
 	AllowOffline      bool `json:"allowOffline"`
 
-	JitterS int `json:"-"`
+	JitterS int `json:"jitterSeconds"`
 }
 
 type timersConfig struct {
