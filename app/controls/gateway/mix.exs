@@ -23,15 +23,17 @@ defmodule ControlsGateway.MixProject do
     ]
   end
 
-  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(:test),
+    do: ["lib", "test/support", Path.expand("../../../pkg/elixir/nats/test/support", __DIR__)]
+
   defp elixirc_paths(_env), do: ["lib"]
 
   defp deps do
     [
       {:cowboy, "~> 2.13"},
-      {:gnat, "== 1.19.0"},
       {:jason, "~> 1.4"},
-      {:mint_web_socket, "~> 1.0", only: :test, runtime: false}
+      {:mint_web_socket, "~> 1.0", only: :test, runtime: false},
+      {:platform_nats, path: "../../../pkg/elixir/nats"}
     ]
   end
 

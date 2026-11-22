@@ -46,9 +46,10 @@ It obtains broadcaster status through RPC, never by reading MySQL.
 ## Shared transport boundaries
 
 Ingress uses `Platform.Nats` for connection and consumer builders, requests and
-subscriptions, `Platform.Valkey` for trial storage, and `Platform.WebSocket.Client`
-for Twitch sockets. Service code retains EventSub session policy, NATS subject
-routing, and PubAck/atomic-batch handling. The shared NATS wire preserves the
+subscriptions. `Platform.Nats.Settings` builds connection settings with per-host
+TLS identity. Ingress uses `Platform.Valkey` for trial storage and
+`Platform.WebSocket.Client` for Twitch sockets. Service code retains EventSub
+session policy, NATS subject routing, and PubAck/atomic-batch handling. The shared NATS wire preserves the
 bounded publish timeout, headers and existing binary/iodata path; keep the
 single JSON flattening step in `publish_acked` and avoid copying or collecting
 per event. `Platform.NewRelic` owns telemetry integration and `Platform.Startup` owns
@@ -77,7 +78,10 @@ There is no Rust AutoMod v2 routing flag or `chat_input` adapter in this checkou
 Trial provenance is derived from receiver metadata only; trial reception and
 Conduit membership have their own lifecycle and generation handling.
 
-The RPC plane and BUS firehose use separate NATS identities/connections.
+Ingress configures its RPC leaf and BUS hub separately because they use different
+identities. The leaf and hub failback processes target their own named
+connections, and hub failback also manages the dedicated PubAck publisher pool.
+This topology uses the lower-level `Platform.Nats` connection and wire APIs.
 Status lookup defaults to `rpc.broadcaster.status.get`; invalidations to
 `cache.invalidate.status`. Admin/scale/trial/Conduit responders are wired
 in `application.ex`; consult `rpc.ex` before changing subject aliases.
