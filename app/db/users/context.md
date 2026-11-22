@@ -115,7 +115,10 @@ Edit schemas rather than generated Ent code.
   expiry. They contain only the provider event ID and creation time, with no user
   ID or account association, so account erasure retains these event-only replay
   receipts indefinitely.
-- Premium voice usage accumulates per account and calendar month in UTC.
+- Voice usage accumulates per account and allowance window. VIP, and any plan
+  without a renewal date, uses the calendar month in UTC. Other plans use the
+  month ending at `subscription_expires_at`, so a subscriber's minutes reset on
+  their renewal day; the window key is that cycle's start date.
   The owner-only dashboard verb `voice_get` requires matching actor and
   broadcaster IDs. Under `rpc.internal.users.voice.*`, `check` returns
   quota and `record` records usage idempotently. A check reads the balance
