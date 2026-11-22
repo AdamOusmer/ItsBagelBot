@@ -6,6 +6,7 @@ defmodule ControlsGateway.Overlays.Delivery do
 
   alias ControlsGateway.Overlays.{Ack, Tiers}
   alias ControlsGateway.{Subjects, Tts.Session}
+  alias Platform.Nats
   alias Platform.Nats.Planes
 
   @offer_timeout_ms 2_000
@@ -39,9 +40,8 @@ defmodule ControlsGateway.Overlays.Delivery do
 
   defp offer(ack, user_id, data, delivered) do
     request = Jason.encode!(%{ack: ack, data: data, delivered: delivered})
-    message = {Subjects.overlay_session(user_id), request, [receive_timeout: @offer_timeout_ms]}
 
-    if accepted?(Planes.jetstream_request(message)) do
+    if accepted?(ask(Subjects.overlay_session(user_id), request)) do
       :ok
     else
       Logger.info("overlay clip requeued", user_id: user_id, event_id: data["event_id"])
@@ -49,7 +49,27 @@ defmodule ControlsGateway.Overlays.Delivery do
     end
   end
 
-  defp accepted?({:ok, %{body: body}}), do: Jason.decode(body) == {:ok, %{"accepted" => true}}
+  defp ask(subject, body) do
+    reply = Subjects.overlay_offer_reply()
+
+    with %Planes{pid: pid} = conn <- Planes.connection(:jetstream),
+         {:ok, sid} <- Planes.subscribe(conn, self(), reply) do
+      Nats.publish(pid, subject, body, reply_to: reply)
+      answer = await_reply(sid)
+      Planes.unsubscribe(conn, sid)
+      answer
+    end
+  end
+
+  defp await_reply(sid) do
+    receive do
+      {:msg, %{sid: ^sid, body: body}} -> {:ok, body}
+    after
+      @offer_timeout_ms -> :timeout
+    end
+  end
+
+  defp accepted?({:ok, body}), do: Jason.decode(body) == {:ok, %{"accepted" => true}}
   defp accepted?(_reply), do: false
 
   defp delay_ns(delivered), do: Enum.at(@backoff_ns, delivered - 1, @backoff_cap_ns)

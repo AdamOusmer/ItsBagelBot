@@ -119,7 +119,7 @@ defmodule ControlsGateway.Tts.Events do
   defp send_clip(req, ack, event, %{session: session, pending: pending}) do
     Pending.track(pending, ack)
     clip = Map.put(event, "handle", Handle.sign(session.user_id, ack))
-    :cowboy_req.stream_body(["event: clip\ndata: ", Jason.encode!(clip), "\n\n"], :nofin, req)
+    :cowboy_req.stream_body(["data: ", Jason.encode!(clip), "\n\n"], :nofin, req)
 
     Logger.info("TTS event delivered",
       user_id: session.user_id,
