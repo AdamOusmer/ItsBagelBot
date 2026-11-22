@@ -20,7 +20,7 @@ func TestTTSBuildersUseFileStorage(t *testing.T) {
 	nc := bustest.JetStream(t)
 	_, err := bus.OpenTTSJobs(ctx, nc, 1)
 	require.NoError(t, err)
-	_, err = bus.OpenTTSOverlay(ctx, nc, 1)
+	_, err = bus.OpenOverlays(ctx, nc, 1)
 	require.NoError(t, err)
 
 	js, err := jsapi.New(nc)
@@ -32,8 +32,9 @@ func TestTTSBuildersUseFileStorage(t *testing.T) {
 		maxAge    time.Duration
 	}{
 		{"TTS_JOBS", []string{"tts.jobs.*"}, jsapi.WorkQueuePolicy, 10 * time.Minute},
-		{"OBJ_TTS_CLIPS", []string{"$O.TTS_CLIPS.C.>", "$O.TTS_CLIPS.M.>"}, jsapi.LimitsPolicy, 5 * time.Minute},
-		{"OVERLAY_TTS", []string{"overlay.tts.*"}, jsapi.LimitsPolicy, 5 * time.Minute},
+		{"OBJ_OVERLAYS_MEDIA", []string{"$O.OVERLAYS_MEDIA.C.>", "$O.OVERLAYS_MEDIA.M.>"}, jsapi.LimitsPolicy, 5 * time.Minute},
+		{"OVERLAYS_PREMIUM", []string{"overlays.premium.>"}, jsapi.WorkQueuePolicy, 5 * time.Minute},
+		{"OVERLAYS_STANDARD", []string{"overlays.standard.>"}, jsapi.WorkQueuePolicy, 5 * time.Minute},
 	}
 	for _, want := range table {
 		t.Run(want.name, func(t *testing.T) {

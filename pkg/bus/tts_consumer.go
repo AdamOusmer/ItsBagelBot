@@ -37,6 +37,7 @@ type ttsJobPump struct {
 	handle TTSJobHandler
 	log    *zap.Logger
 	app    *newrelic.Application
+	intake context.Context
 }
 
 func (s *TTSJobs) Consume(ctx context.Context, handle TTSJobHandler, workers int, log *zap.Logger) (func(), error) {
@@ -44,32 +45,43 @@ func (s *TTSJobs) Consume(ctx context.Context, handle TTSJobHandler, workers int
 	if err != nil {
 		return nil, fmt.Errorf("bus: consume TTS jobs: %w", err)
 	}
-	pump := ttsJobPump{sub: sub, handle: handle, log: log, app: monitor.Resolve(nil)}
-	intake, stop := context.WithCancel(ctx)
+	intake, closeIntake := context.WithCancel(ctx)
+	context.AfterFunc(intake, sub.Drain)
+	pump := ttsJobPump{sub: sub, handle: handle, log: log, app: monitor.Resolve(nil), intake: intake}
+	handlerCtx := context.WithoutCancel(ctx)
 	var pool sync.WaitGroup
 	for range workers {
-		pool.Go(func() { pump.run(ctx, intake) })
+		pool.Go(func() { pump.run(handlerCtx) })
 	}
 	return func() {
-		stop()
-		sub.Stop()
+		closeIntake()
 		pool.Wait()
 	}, nil
 }
 
-func (p ttsJobPump) run(ctx, intake context.Context) {
-	for intake.Err() == nil {
-		msg, err := p.sub.Next(jsapi.NextContext(intake))
+func (p ttsJobPump) run(ctx context.Context) {
+	for {
+		msg, err := p.sub.Next()
 		if err != nil {
-			p.subscriptionError(intake, err)
+			p.subscriptionError(err)
 			return
+		}
+		if p.intake.Err() != nil {
+			p.release(msg)
+			continue
 		}
 		p.process(ctx, msg)
 	}
 }
 
-func (p ttsJobPump) subscriptionError(ctx context.Context, err error) {
-	if ctx.Err() == nil && !errors.Is(err, jsapi.ErrMsgIteratorClosed) {
+func (p ttsJobPump) release(msg jsapi.Msg) {
+	if err := msg.Nak(); err != nil {
+		p.log.Warn("TTS job release failed", zap.Error(err))
+	}
+}
+
+func (p ttsJobPump) subscriptionError(err error) {
+	if p.intake.Err() == nil && !errors.Is(err, jsapi.ErrMsgIteratorClosed) {
 		p.log.Warn("TTS job subscription", zap.Error(err))
 	}
 }

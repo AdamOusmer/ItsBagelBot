@@ -54,6 +54,50 @@ func TestTTSJobsConsumeWithBoundedParallelism(t *testing.T) {
 	require.Eventually(t, func() bool { return started.Load() == jobCount }, 3*time.Second, 10*time.Millisecond)
 }
 
+func TestTTSJobsShutdownReleasesPulledJobsAndFinishesInFlight(t *testing.T) {
+	ctx := t.Context()
+	nc := bustest.JetStream(t)
+	jobs, err := bus.OpenTTSJobs(ctx, nc, 1)
+	require.NoError(t, err)
+
+	var started, finished atomic.Int32
+	release := make(chan struct{})
+	serviceCtx, shutdown := context.WithCancel(ctx)
+	stop, err := jobs.Consume(serviceCtx, func(ctx context.Context, _ []byte) error {
+		started.Add(1)
+		<-release
+		if ctx.Err() == nil {
+			finished.Add(1)
+		}
+		return nil
+	}, 2, zap.NewNop())
+	require.NoError(t, err)
+
+	for i := range 4 {
+		require.NoError(t, jobs.Publish(ctx, bus.TTSMessage{BroadcasterID: "42", EventID: strconv.Itoa(i), Value: i}))
+	}
+	require.Eventually(t, func() bool { return started.Load() == 2 }, 3*time.Second, 10*time.Millisecond)
+
+	shutdown()
+	stopped := make(chan struct{})
+	go func() { stop(); close(stopped) }()
+	select {
+	case <-stopped:
+		t.Fatal("shutdown returned while a job was still in flight")
+	case <-time.After(200 * time.Millisecond):
+	}
+	close(release)
+	<-stopped
+	assert.Equal(t, int32(2), started.Load())
+	assert.Equal(t, int32(2), finished.Load())
+
+	var taken atomic.Int32
+	next, err := jobs.Consume(ctx, func(context.Context, []byte) error { taken.Add(1); return nil }, 2, zap.NewNop())
+	require.NoError(t, err)
+	t.Cleanup(next)
+	require.Eventually(t, func() bool { return taken.Load() == 2 }, 3*time.Second, 10*time.Millisecond)
+}
+
 const unsampledTraceID = "4bf92f3577b34da6a3ce929d0e0e4736"
 
 func TestTTSJobsSampleEveryJobOfAnUnsampledTrace(t *testing.T) {
