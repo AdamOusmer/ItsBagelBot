@@ -57,7 +57,7 @@ const guide: GuideContent = {
             },
             {
               title: 'Add a Browser Source in OBS',
-              html: '<p>In your scene, add a <b>Browser</b> source and paste the link into the <b>URL</b> field. Set the width and height to a small size such as 320 × 80. Tick <b>Control audio via OBS</b>, then save the source.</p>'
+              html: '<p>Create one <b>Browser</b> source in a nested scene. Add that scene to each scene where you want alerts.</p><p>Paste the link into <b>URL</b> and set the size to 300 × 100. Turn on <b>Control audio via OBS</b>. Leave <b>Shutdown source when not visible</b> and <b>Refresh browser when scene becomes active</b> off.</p>'
             },
             {
               title: 'Choose what the voice reads',
@@ -72,7 +72,7 @@ const guide: GuideContent = {
         {
           kind: 'callout',
           tone: 'warn',
-          html: '<b>Keep the OBS link private.</b> If it leaks, choose <b>Make a new link</b> in the dashboard. That revokes the old link. Paste the replacement into each OBS source that used it.'
+          html: '<b>Keep the OBS link private.</b> If it leaks, choose <b>Make a new link</b> in the dashboard. That revokes the old link. Paste the replacement into your OBS source.'
         }
       ]
     },
@@ -84,7 +84,7 @@ const guide: GuideContent = {
           kind: 'table',
           head: ['What you see', 'What to do'],
           rows: [
-            ['OBS is silent', 'Confirm that Control audio via OBS is checked and the source is unmuted in the Audio Mixer. If autoplay is blocked, right-click the source, choose Interact, and select Click to enable sound when it appears.'],
+            ['OBS is silent', 'Confirm that the scene containing your nested TTS source is active, Control audio via OBS is checked, and the source is unmuted in the Audio Mixer.'],
             ['Alerts stopped after you made a new link', 'Replace the URL in OBS with the full new link. The previous link has been revoked.'],
             ['You have used all your minutes', 'Check the reset date on Premium voice. Cloud speech resumes when your monthly allowance resets.'],
             ['An alert ends early', 'Raise Max length per alert. You can set the limit from 5 to 120 seconds. A low remaining monthly balance can also shorten a clip.']

@@ -142,9 +142,12 @@ playback event by the same ID. Clips and playback events expire after five
 minutes in the gateway's NATS account. Sesame has a separate writer role
 in that account.
 
-`SESAME_TTS_ENABLED` turns the publisher and worker on. Keep it `false` in any
-environment where the signed NATS account claims and the Sesame TTS writer
-credentials are not live: startup fails without them.
+`SESAME_TTS_ENABLED` starts background provisioning of the job queue and overlay
+storage. Failed attempts log a warning and retry with jittered exponential
+backoff capped at 30 seconds. Replicas can provision concurrently and reuse
+existing streams and clip storage. Chat processing continues during retries.
+Alert speech skips with reason `unavailable` until provisioning and worker
+subscription succeed.
 
 ## Invariants and pitfalls
 

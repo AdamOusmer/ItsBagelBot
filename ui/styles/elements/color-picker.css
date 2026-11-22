@@ -101,6 +101,8 @@
 
     .bb-color-panel__knob,
     .bb-color-panel__thumb {
+        --bb-cursor: knob;
+
         position: absolute;
         z-index: 1;
         width: 18px;

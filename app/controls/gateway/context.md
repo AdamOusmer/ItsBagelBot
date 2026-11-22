@@ -6,9 +6,11 @@ for neighboring owners.
 ## TTS browser source beta
 
 OBS opens `https://overlay.itsbagelbot.com/tts#<token>`. The token is 32 random
-bytes encoded as unpadded base64url. The page sends it in one JSON
-`POST /tts/session`, then clears the fragment. Keep the token out of paths,
-queries and logs. Session, event and clip responses are uncached.
+bytes encoded as unpadded base64url. The page holds the token in memory after
+clearing the fragment and sends it in JSON `POST /tts/session`, retrying
+network errors, 429 (`Retry-After`) and 5xx with jittered exponential backoff
+and stopping only on 404. Keep the token out of paths, queries and logs.
+Session, event and clip responses are uncached.
 
 Users owns overlay tokens and generations. The gateway calls
 `rpc.internal.users.voice.overlay.resolve` with the lowercase SHA-256 hex of
@@ -22,15 +24,22 @@ minutes via `rpc.internal.users.voice.overlay.check`. It subscribes to
 `controls.tts.revoked.<user_id>` so it can also close immediately on revocation.
 Its ordered ephemeral consumer filters `OVERLAY_TTS` to
 `overlay.tts.<user_id>`. The SSE ID is the stream sequence. A reconnect
-starts after `Last-Event-ID` when present, or receives new events when absent.
+starts after `Last-Event-ID` or the `after` cursor sent by a replacement
+`EventSource`. With neither cursor the consumer receives new events.
 Each event carries `clip_key`, `event_id`, `kind`, `duration_ms` and
 `expires_at`. When the originating event carries a trace, its ID is also in
 `trace_id`. Idle connections receive a comment every 15 seconds.
 
 `GET /tts/clip/<event_id>` streams a WAV from `TTS_CLIPS` using the cookie
 user ID and the event ID as the object key. Missing and expired objects return
-404. The transparent browser source queues audio in arrival order and skips
-expired events. The sound hint appears when autoplay is blocked.
+404. The transparent browser source deduplicates `event_id` with a bounded set,
+queues audio in arrival order, skips expired events, and aborts stuck clips after
+`duration_ms + 5 s`. Outside OBS the sound hint appears when autoplay is
+blocked. In OBS the hint stays hidden and audio pauses while the source is
+inactive or hidden. On `EventSource` `CLOSED`, the page backs off with jitter
+and uses `HEAD /tts/events` to check the same session without opening a stream.
+A 204 ends the retry loop and clears queued audio. Otherwise the page renews
+the session with any held token and reopens the stream.
 
 The worker provisions both JetStream resources in `CONTROLS_GATEWAY_RPC`.
 `OVERLAY_TTS` is a file-backed stream with a five-minute max age.
@@ -38,6 +47,23 @@ The worker provisions both JetStream resources in `CONTROLS_GATEWAY_RPC`.
 five-minute TTL. The gateway creates ephemeral readers for events and reads
 Object Store metadata and chunks through the stream message API. Missing
 resources leave readiness available.
+
+## Powered by overlay
+
+OBS opens `https://overlay.itsbagelbot.com/powered#<token>`. Overlays owns the
+token, 32 random bytes as unpadded base64url, stored in plaintext and
+rotatable. The page posts it once as JSON to `POST /powered/config`. The
+gateway forwards the token to `rpc.internal.projector.overlays.powered.resolve`
+on `:gnat_rpc` and replies `{"config": ..., "premium": bool}` uncached. A
+`not_found` refusal is 404, any other refusal or a missing responder is 503.
+Failed attempts share the TTS per-IP throttle. Keep the token out of logs.
+
+`GET /powered` serves `priv/powered/page.html`, read at compile time. The page
+holds exactly one `<style>` and one `<script>` tag without attributes, and
+the CSP carries their SHA-256 hashes. Only the dashboard origin may frame it.
+`powered_dev_frame_ancestors` adds localhost origins for dashboard
+development. `GET /powered/assets/<file>` serves only the `.webp` and `.woff2`
+files present in `priv/powered/assets` at compile time, cached as immutable.
 
 ## Desktop WebSocket
 
@@ -70,6 +96,8 @@ the desktop connections.
 | Session and rate limit | [session.ex](lib/controls_gateway/tts/session.ex), [throttle.ex](lib/controls_gateway/tts/throttle.ex) |
 | Event and clip streams | [events.ex](lib/controls_gateway/tts/events.ex), [clips.ex](lib/controls_gateway/tts/clips.ex) |
 | Users RPC | [tts/nats.ex](lib/controls_gateway/tts/nats.ex) |
+| Powered page, assets and config | [powered/http.ex](lib/controls_gateway/powered/http.ex), [powered/page.ex](lib/controls_gateway/powered/page.ex) |
+| Projector RPC | [powered/nats.ex](lib/controls_gateway/powered/nats.ex) |
 | Listener and credentials | [runtime.exs](config/runtime.exs), [controls-gateway.yaml](../../../deploy/k8s/controls-gateway.yaml) |
 
 Production uses the `controls-gateway` Doppler project for the shared

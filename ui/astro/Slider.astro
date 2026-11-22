@@ -2,19 +2,31 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { HTMLAttributes } from 'astro/types';
+import { sliderFraction } from '../lib/slider';
 
 import '../styles/elements/slider.css';
 
-interface Props extends Omit<HTMLAttributes<'input'>, 'value' | 'min' | 'max' | 'step' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'span'>, 'value' | 'min' | 'max' | 'step' | 'disabled' | 'name' | 'form' | 'class'> {
     value?: number;
     min?: number;
     max?: number;
     step?: number;
+    disabled?: boolean;
+    name?: string;
+    form?: string;
     class?: string;
 }
 
-const { value = 0, min = 0, max = 100, step = 1, class: className = '', ...rest } = Astro.props;
-const classes = ['bb-slider', className].filter(Boolean).join(' ');
+const { value = 0, min = 0, max = 100, step = 1, disabled = false, name, form, id, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-slider', disabled ? 'bb-slider--disabled' : null, className || null].filter(Boolean).join(' ');
+const progress = sliderFraction(value, { min, max });
 ---
 
-<input type="range" class={classes} min={min} max={max} step={step} value={value} {...rest} />
+<div class={classes} style={`--slider-progress: ${progress}; --slider-step: ${step};`}>{name && <input type="hidden" name={name} form={form} value={value} />}<span class="bb-slider__fill" aria-hidden="true"></span><span class="bb-slider__thumb" role="slider" tabindex={disabled ? -1 : 0} id={id} aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} aria-disabled={disabled ? 'true' : undefined} {...rest}></span></div>
+
+<script>
+    import { enhanceSliders } from '../lib/slider';
+
+    enhanceSliders();
+    document.addEventListener('astro:page-load', () => enhanceSliders());
+</script>

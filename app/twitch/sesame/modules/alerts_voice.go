@@ -30,14 +30,15 @@ import (
 type speechSkipReason string
 
 const (
-	speechUnavailable speechSkipReason = "no_link_or_not_allowed"
-	speechOffline     speechSkipReason = "offline"
-	speechMinBits     speechSkipReason = "min_bits"
-	speechEmpty       speechSkipReason = "empty_message"
-	speechBlocked     speechSkipReason = "blocked"
-	speechTrial       speechSkipReason = "trial"
-	speechToggleOff   speechSkipReason = "toggle_off"
-	speechNoIdentity  speechSkipReason = "missing_identity"
+	speechUnavailable    speechSkipReason = "no_link_or_not_allowed"
+	speechBusUnavailable speechSkipReason = "unavailable"
+	speechOffline        speechSkipReason = "offline"
+	speechMinBits        speechSkipReason = "min_bits"
+	speechEmpty          speechSkipReason = "empty_message"
+	speechBlocked        speechSkipReason = "blocked"
+	speechTrial          speechSkipReason = "trial"
+	speechToggleOff      speechSkipReason = "toggle_off"
+	speechNoIdentity     speechSkipReason = "missing_identity"
 )
 
 type alertSpeech struct {
@@ -90,8 +91,8 @@ func (s alertSpeech) preflight() speechSkipReason {
 	switch {
 	case s.c.Env.Origin == "trial":
 		return speechTrial
-	case s.d.AlertVoice == nil:
-		return speechUnavailable
+	case !s.d.Speech().Available():
+		return speechBusUnavailable
 	case s.identity == "" && s.traceID == "":
 		return speechNoIdentity
 	default:

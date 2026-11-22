@@ -67,7 +67,7 @@ func TestTTSOverlayReaderPermissionsAreExact(t *testing.T) {
 	account := committedACL(t).Accounts[controlsGatewayAccount]
 	assert.NotNil(t, account.JetStream)
 	assert.Empty(t, account.Exports)
-	require.Len(t, account.Imports, 5)
+	require.Len(t, account.Imports, 7)
 
 	role := account.Roles["controls_gateway_rpc"]
 	assert.Equal(t, natsacl.RoleSpec{
@@ -76,6 +76,8 @@ func TestTTSOverlayReaderPermissionsAreExact(t *testing.T) {
 			"rpc.internal.users.voice.overlay.resolve.node.*",
 			"rpc.internal.users.voice.overlay.check",
 			"rpc.internal.users.voice.overlay.check.node.*",
+			"rpc.internal.projector.overlays.powered.resolve",
+			"rpc.internal.projector.overlays.powered.resolve.node.*",
 			"$JS.API.CONSUMER.CREATE.OVERLAY_TTS.*.overlay.tts.*",
 			"$JS.FC.OVERLAY_TTS.*.*",
 			"$JS.FC.*.*.OVERLAY_TTS.*.*",

@@ -71,6 +71,7 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.health.modules", "app/projector/main.go healthSet"},
 		{"rpc.health.loyalty", "app/projector/main.go healthSet"},
 		{"rpc.health.notifications", "app/projector/main.go healthSet"},
+		{"rpc.internal.overlays.powered.by_token", "internal/domain/rpc/overlays OwnerPoweredByTokenSubject"},
 	},
 	"worker_rpc": {
 		{"rpc.internal.users.voice.check", "app/twitch/sesame/internal/voice/worker.go"},
@@ -161,6 +162,7 @@ var rpcRequests = map[string][]rpcRequest{
 	"controls_gateway_rpc": {
 		{"rpc.internal.users.voice.overlay.resolve", "app/controls/gateway/lib/controls_gateway/tts/nats.ex"},
 		{"rpc.internal.users.voice.overlay.check", "app/controls/gateway/lib/controls_gateway/tts/nats.ex"},
+		{"rpc.internal.projector.overlays.powered.resolve", "app/controls/gateway/lib/controls_gateway/powered/nats.ex"},
 	},
 	"twitch_ingress_rpc": {
 		{"rpc.broadcaster.status.get", "app/twitch/ingress broadcaster status lookup"},
@@ -212,6 +214,9 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.gossip.spotify.next", "web/dashboard SUB.gossip"},
 		{"rpc.gossip.custom.fetch", "web/dashboard SUB.gossip"},
 		{"rpc.notifications.list", "web/dashboard SUB.notifications"},
+		{"rpc.overlays.powered.get", "web/dashboard/src/lib/server/services/overlays.ts"},
+		{"rpc.overlays.powered.save", "web/dashboard/src/lib/server/services/overlays.ts"},
+		{"rpc.overlays.powered.rotate", "web/dashboard/src/lib/server/services/overlays.ts"},
 		{"rpc.transactions.basket_create", "web/dashboard SUB.transactions"},
 	},
 	"admin_rpc": {
@@ -258,6 +263,7 @@ var rpcServiceUsers = map[string]string{
 	"app/db/modules":       "modules_rpc",
 	"app/db/loyalty":       "loyalty_rpc",
 	"app/db/notifications": "notifications_rpc",
+	"app/db/overlays":      "overlays_rpc",
 	"app/db/transactions":  "transactions_rpc",
 	"app/projector":        "projector_rpc",
 	"app/gossip":           "gossip_rpc",

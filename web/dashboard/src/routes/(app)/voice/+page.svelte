@@ -25,7 +25,7 @@
   import PageNotice from '#lib/components/shared/PageNotice.svelte';
   import PremiumGate from '#lib/components/shared/PremiumGate.svelte';
   import { voiceOptions } from '#lib/components/voice/voice-options';
-  import { VoiceAutosave } from './voice-autosave.svelte';
+  import { Autosave } from '#lib/autosave.svelte';
   import VoiceAlertEditor from './VoiceAlertEditor.svelte';
   import VoiceChannelPointsCard from './VoiceChannelPointsCard.svelte';
   import VoiceChatCommandCard from './VoiceChatCommandCard.svelte';
@@ -64,7 +64,7 @@
   let overlayUrl = $state(untrack(() => form?.overlayUrl));
   let overlayError = $state(untrack(() => form?.overlayError));
 
-  const autosave = new VoiceAutosave({
+  const autosave = new Autosave({
     revision: untrack(() => data.alerts?.revision ?? 0),
     onConflict: async () => {
       await invalidateAll();
@@ -74,7 +74,7 @@
     text: { failed: () => t('voice.saveFailed'), conflict: () => t('voice.conflict') }
   });
 
-  const commandSave = new VoiceAutosave({
+  const commandSave = new Autosave({
     action: 'saveCommand',
     revision: untrack(() => (data.readOnly ? null : data.command)?.revision ?? 0),
     onConflict: async () => {
