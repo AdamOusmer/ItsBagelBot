@@ -52,6 +52,7 @@ const classes = [
     disabled ? 'is-off' : null,
     wrap ? 'bb-row--wrap' : null,
     stackActions ? 'bb-row--stack-actions' : null,
+    hasBelow ? 'bb-row--below' : null,
     className || null,
 ]
     .filter(Boolean)
@@ -83,6 +84,7 @@ const hasLeading = Astro.slots.has('leading');
 const hasBadge = Astro.slots.has('badge');
 const hasMarks = Astro.slots.has('marks');
 const hasActions = Astro.slots.has('actions');
+const hasBelow = Astro.slots.has('below');
 ---
 
 <Tag class={classes} {...rest}>
@@ -98,4 +100,5 @@ const hasActions = Astro.slots.has('actions');
         </span>
     ) : <slot />}</Primary>
     {hasActions && <div class="bb-row__actions"><slot name="actions" /></div>}
+    {hasBelow && <div class="bb-row__below"><slot name="below" /></div>}
 </Tag>
