@@ -80,6 +80,7 @@ test.each([
 test('shows the shared Premium gate for an owner without a plan', () => {
   const html = renderVoice({ allowance: { ...allowance, plan: 'free', reason: 'no_plan' }, locked: true, alerts: null });
   expect(html).toContain(`aria-label="${translate('en', 'billing.premiumGateTitle')}"`);
+  expect(html).toContain('src="/voice-previews/en/Kore.mp3"');
   expect(html).not.toContain('bb-chip');
   expect(html).not.toContain('name="max_seconds"');
 });
