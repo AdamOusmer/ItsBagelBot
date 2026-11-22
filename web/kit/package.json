@@ -70,6 +70,7 @@
     "./overlays": "./lib/overlays.ts",
     "./overlay-document": "./lib/overlay-document.ts",
     "./overlay-runtime": "./overlay-runtime/index.ts",
+    "./overlay-editor": "./lib/overlay-editor/index.ts",
     "./timers": "./lib/timers.ts",
     "./uses": "./lib/uses.ts",
     "./i18n": "./lib/i18n/messages.ts",

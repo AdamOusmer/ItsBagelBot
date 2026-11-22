@@ -3,7 +3,6 @@
   // Proprietary. No license granted. See LICENSE.md.
 
   import { untrack } from 'svelte';
-  import { type SubmitFunction } from '$app/forms';
   import { beforeNavigate, invalidateAll } from '$app/navigation';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { defaultPoweredConfig, poweredPreviewUrl, type PoweredConfig } from '@bagel/kit/overlays';
@@ -13,27 +12,23 @@
   import PageNotice from '#lib/components/shared/PageNotice.svelte';
   import { Autosave } from '#lib/autosave.svelte';
   import { poweredFields } from './powered-form';
+  import OverlayList from './OverlayList.svelte';
   import PoweredControls from './PoweredControls.svelte';
-  import PoweredLink from './PoweredLink.svelte';
   import PoweredPreview from './PoweredPreview.svelte';
-  import type { ActionData, PageData } from './$types';
+  import type { PageData } from './$types';
 
-  let { data, form }: { data: PageData; form: ActionData } = $props();
+  let { data }: { data: PageData } = $props();
   const { t } = getI18n();
 
   const loadedConfig = (): PoweredConfig => structuredClone(data.powered?.config ?? defaultPoweredConfig());
 
   let config = $state(untrack(loadedConfig));
-  let url = $state(untrack(() => data.powered?.url ?? ''));
-  let rotating = $state(false);
-  let rotateError = $state(untrack(() => form?.rotateError));
 
   const autosave = new Autosave({
     revision: untrack(() => data.powered?.revision ?? 0),
     onConflict: async () => {
       await invalidateAll();
-      config = loadedConfig();
-      autosave.reset(data.powered?.revision ?? 0);
+      syncPowered();
     },
     text: { failed: () => t('overlays.saveFailed'), conflict: () => t('overlays.conflict') }
   });
@@ -42,72 +37,63 @@
   const SAVE_PRIORITY: SaveState[] = ['error', 'saving', 'saved'];
   const saveState = $derived(SAVE_PRIORITY.find((state) => Object.values(autosave.status).includes(state)) ?? 'idle');
 
+  function syncPowered() {
+    config = loadedConfig();
+    autosave.reset(data.powered?.revision ?? 0);
+  }
+
+  $effect(() => {
+    void data.powered;
+    untrack(syncPowered);
+  });
+
   function change(key: keyof PoweredConfig, next: PoweredConfig) {
     config = next;
-    autosave.schedule(key, poweredFields(next));
+    autosave.schedule(key, { ...poweredFields(next), id: String(data.powered?.id ?? 0) });
   }
 
   beforeNavigate(() => void autosave.flush());
-
-  const submitRotate: SubmitFunction = async ({ cancel }) => {
-    if (rotating) return cancel();
-    rotating = true;
-    rotateError = undefined;
-    await autosave.flush();
-    return async ({ update, result }) => {
-      try {
-        if (result.type === 'success' && typeof result.data?.url === 'string') {
-          url = result.data.url;
-          if (typeof result.data.revision === 'number') autosave.revision = result.data.revision;
-        }
-        if (result.type === 'failure' && typeof result.data?.rotateError === 'string') rotateError = result.data.rotateError;
-        await update({ reset: false, invalidateAll: false });
-      } finally {
-        rotating = false;
-      }
-    };
-  };
 </script>
 
 <svelte:head><title>{t('nav.overlays')}</title></svelte:head>
 
-{#if data.readOnly || !data.powered}
-  <section class="screen active">
-    <PageHead>
-      <span class="page-title">
-        <bb-fit class="page-title-copy"><span data-fit="">{t('nav.overlays')}</span></bb-fit>
-      </span>
-    </PageHead>
-    {#if data.readOnly}
-      <PageNotice tone="info" role="note">{t('overlays.readOnly')}</PageNotice>
-    {:else}
-      <PageNotice tone="warning">{t('overlays.unavailable')}</PageNotice>
+<section class="screen active overlays">
+  <PageHead>
+    <span class="page-title">
+      <bb-fit class="page-title-copy"><span data-fit="">{t('nav.overlays')}</span></bb-fit>
+    </span>
+  </PageHead>
+  {#if data.readOnly}
+    <PageNotice tone="info" role="note">{t('overlays.readOnly')}</PageNotice>
+  {:else if !data.overlays}
+    <PageNotice tone="warning">{t('overlays.unavailable')}</PageNotice>
+  {:else}
+    <OverlayList overlays={data.overlays} beforeChange={() => autosave.flush()} />
+    {#if data.powered}
+      <section class="studio" aria-labelledby="powered-title">
+        <PageHead compact class="studio-head">
+          <span class="page-title">
+            <bb-fit class="page-title-copy"><span data-fit="" id="powered-title">{t('overlays.poweredTitle')}</span></bb-fit>
+          </span>
+          {#snippet trailing()}
+            <SaveStatus state={saveState} />
+          {/snippet}
+        </PageHead>
+        <div class="intro bb-fit-box">
+          <Text as="p" size="sm" tone="muted"><bb-fit mode="block">{t('overlays.poweredIntro')}</bb-fit></Text>
+        </div>
+        <div class="studio-grid">
+          <div class="studio-main">
+            <PoweredPreview src={previewSrc} />
+          </div>
+          <div class="studio-side">
+            <PoweredControls {config} onChange={change} />
+          </div>
+        </div>
+      </section>
     {/if}
-  </section>
-{:else}
-  <section class="screen active studio" aria-labelledby="powered-title">
-    <PageHead compact class="studio-head">
-      <span class="page-title">
-        <bb-fit class="page-title-copy"><span data-fit="" id="powered-title">{t('overlays.poweredTitle')}</span></bb-fit>
-      </span>
-      {#snippet trailing()}
-        <SaveStatus state={saveState} />
-      {/snippet}
-    </PageHead>
-    <div class="intro bb-fit-box">
-      <Text as="p" size="sm" tone="muted"><bb-fit mode="block">{t('overlays.poweredIntro')}</bb-fit></Text>
-    </div>
-    <div class="studio-grid">
-      <div class="studio-main">
-        <PoweredPreview src={previewSrc} />
-        <PoweredLink {url} error={rotateError} busy={rotating} submit={submitRotate} />
-      </div>
-      <div class="studio-side">
-        <PoweredControls {config} onChange={change} />
-      </div>
-    </div>
-  </section>
-{/if}
+  {/if}
+</section>
 
 <style>
   .page-title { display: flex; align-items: center; gap: var(--bb-space-3); white-space: nowrap; }

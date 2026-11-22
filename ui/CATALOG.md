@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **133** blocks;
+Every block the library ships, by family. **134** blocks;
 **111** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 133 times
+omitted: nearly every block takes both, and listing them 134 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -159,6 +159,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **LogTail** | `lines*`: string[]<br>`label*`: string<br>`max`: number | svelte<br>*Svelte only: it pins itself to the newest line as lines arrive and lets go when the reader scrolls up, which needs a client.* | svelte-only | `styles/elements/log-tail.css` |
 | **ManagementRow** | `as`: T<br>`href`: string<br>`selectable`: boolean<br>`selected`: boolean<br>`expanded`: boolean<br>`controls`: string<br>`disabled`: boolean<br>`accent`: boolean<br>`wrap`: boolean<br>`stackActions`: boolean<br>`label`: string<br>`title`: string<br>`meta`: string<br>`onSelect`: () => void<br>`leading`: Snippet<br>`badge`: Snippet<br>`marks`: Snippet<br>`primary`: Snippet<br>`actions`: Snippet | svelte + astro | stable | `styles/elements/management-row.css` |
 | **MarkBadge** | `src`: string<br>`alt`: string<br>`size`: 'xs' \| 'sm' \| 'md' \| 'lg'<br>`tone`: 'premium' \| 'success' | svelte | svelte-only | `styles/elements/mark-badge.css` |
+| **OverlayCanvas** | `width*`: number<br>`height*`: number<br>`boxes*`: readonly CanvasBox[]<br>`selected`: string<br>`zoom`: number<br>`handleLabels*`: Record<Exclude<Handle, 'move'>, string><br>`onselect`: (id: string) => void<br>`onchange`: (id: string, box: Box) => void<br>`oncommit`: () => void<br>`oncancel`: () => void<br>`preview`: Snippet<[CanvasBox, number]> | svelte | svelte-only | `styles/elements/overlay-canvas.css` |
 | **OverviewGrid** | `main`: Snippet<br>`side`: Snippet | svelte + astro | stable | `styles/elements/overview-grid.css` |
 | **RankingCard** | `title*`: string<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`description`: string<br>`items*`: readonly RankingItem[]<br>`actions`: Snippet<br>`leading`: Snippet<[RankingItem, number]><br>`footer`: Snippet<br>`empty`: Snippet<br>`scale`: number<br>`emptyLabel`: string<br>`board`: boolean<br>`compact`: boolean | svelte + astro | stable | `styles/elements/ranking-card.css` |
 | **StatTile** | `label*`: string<br>`fitCopy`: boolean<br>`value*`: string<br>`unit`: string<br>`delta`: string<br>`flat`: boolean<br>`static`: boolean<br>`inline`: boolean<br>`text`: boolean<br>`tone`: StatTone<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/stat-tile.css` |

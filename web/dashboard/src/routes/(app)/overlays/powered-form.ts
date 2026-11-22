@@ -3,7 +3,7 @@
 
 import { poweredConfigError, type PoweredAlign, type PoweredConfig, type PoweredDirection } from '@bagel/kit/overlays';
 
-const field = (fields: FormData, name: keyof PoweredConfig | 'expected_rev') => String(fields.get(name) ?? '');
+const field = (fields: FormData, name: keyof PoweredConfig | 'expected_rev' | 'id') => String(fields.get(name) ?? '');
 const whole = (raw: string) => (/^\d+$/.test(raw) ? Number(raw) : Number.NaN);
 
 export function poweredFields(config: PoweredConfig): Record<string, string> {
@@ -24,5 +24,5 @@ export function parsePoweredSave(fields: FormData) {
   };
   const error = poweredConfigError(config);
   if (error) return { error } as const;
-  return { error: null, config, revision: whole(field(fields, 'expected_rev')) || 0 } as const;
+  return { error: null, config, id: whole(field(fields, 'id')) || 0, revision: whole(field(fields, 'expected_rev')) || 0 } as const;
 }

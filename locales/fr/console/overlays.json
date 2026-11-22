@@ -36,5 +36,19 @@
   "invalidEvery": "Choisissez entre {everyMin} et {everyMax} minutes.",
   "invalidShow": "Choisissez entre {showMin} et {showMax} secondes.",
   "invalidFrom": "Choisissez un bord.",
-  "invalidAlign": "Choisissez une position sur le bord."
+  "invalidAlign": "Choisissez une position sur le bord.",
+  "listTitle": "Vos overlays",
+  "addPowered": "Ajouter Powered by Bagel",
+  "createCustom": "Créer un overlay personnalisé",
+  "linkHidden": "Les liens ne s’affichent qu’une fois. Remplacez le lien pour en obtenir un nouveau.",
+  "listEmpty": "Aucun overlay pour l’instant. Ajoutez Powered by Bagel pour obtenir un lien pour OBS.",
+  "listFailed": "Impossible de mettre à jour vos overlays. Réessayez.",
+  "deleteTitle": "Supprimer {name} ?",
+  "deleteBody": "Le lien de la source navigateur cesse de fonctionner aussitôt.",
+  "customTitle": "Overlays personnalisés",
+  "customBack": "Retour aux overlays",
+  "kind": {
+    "system": "Inclus",
+    "custom": "Personnalisé"
+  }
 }

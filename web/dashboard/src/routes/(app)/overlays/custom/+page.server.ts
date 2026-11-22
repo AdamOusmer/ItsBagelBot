@@ -1,0 +1,81 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import { fail, redirect } from '@sveltejs/kit';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
+import { translate, type Locale } from '@bagel/kit/i18n';
+import { bestEffort } from '@bagel/kit/server/best-effort';
+import { RpcError } from '@bagel/kit/server/nats';
+import { validateDocument } from '@bagel/kit/overlay-document';
+import { hasOwnerAccess } from '#lib/server/owner';
+import { auditDashboardImpersonation } from '#lib/server/services/audit';
+import { overlayGetCustom, overlaySaveCustom } from '#lib/server/services/overlays';
+import type { Session } from '#lib/server/session';
+import type { Actions, PageServerLoad } from './$types';
+
+const DEMO = dev && env.DEMO === '1';
+
+const REFUSALS: Record<string, { status: number; key: 'conflict' | 'invalid' | 'premium' }> = {
+  conflict: { status: 409, key: 'conflict' },
+  invalid: { status: 400, key: 'invalid' },
+  forbidden: { status: 402, key: 'premium' }
+};
+
+const previewRequested = (url: URL) => url.searchParams.get('preview') === '1';
+const requestedId = (url: URL) => Number(url.searchParams.get('id')) || 0;
+
+const demoLoad = (async ({ url }) => ({
+  readOnly: false,
+  preview: previewRequested(url),
+  overlay: null,
+  missing: false
+})) satisfies PageServerLoad;
+
+const liveLoad = (async ({ locals: { session }, url, parent }) => {
+  const preview = previewRequested(url);
+  if (!session) throw redirect(302, '/login?next=%2Foverlays%2Fcustom');
+  if (!hasOwnerAccess(session)) return { readOnly: true, preview, overlay: null, missing: false };
+  const id = requestedId(url);
+  const premium = (await parent()).isPremium === true;
+  const overlay = premium && id ? await bestEffort(overlayGetCustom(session, id), null) : null;
+  return { readOnly: false, preview, overlay, missing: premium && id > 0 && overlay === null };
+}) satisfies PageServerLoad;
+
+export const load: PageServerLoad = DEMO ? demoLoad : liveLoad;
+
+function refusal(err: unknown, locale: Locale) {
+  const known: (typeof REFUSALS)[string] | undefined = REFUSALS[err instanceof RpcError ? err.code : ''];
+  if (known) return fail(known.status, { error: translate(locale, `overlayEditor.save.${known.key}`) });
+  return fail(503, { error: translate(locale, 'overlayEditor.save.failed') });
+}
+
+function readSave(fields: FormData) {
+  try {
+    const checked = validateDocument(JSON.parse(String(fields.get('document'))));
+    return checked.ok ? { id: Number(fields.get('id')) || 0, document: checked.doc } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function persist(session: Session, locale: Locale, fields: FormData) {
+  const save = readSave(fields);
+  if (!save) return fail(400, { error: translate(locale, 'overlayEditor.save.invalid') });
+  if (DEMO) return { ok: true, id: save.id || 1, revision: save.document.rev + 1 };
+  try {
+    const view = await overlaySaveCustom(session, { ...save, name: save.document.name, revision: save.document.rev });
+    auditDashboardImpersonation(session, 'overlays:custom_save');
+    return { ok: true, id: view.id, revision: view.revision };
+  } catch (err) {
+    return refusal(err, locale);
+  }
+}
+
+export const actions = {
+  save: async ({ locals: { session, locale }, request }) => {
+    if (!session) return fail(401, { error: translate(locale, 'serverErrors.notSignedIn') });
+    if (!hasOwnerAccess(session)) return fail(403, { error: translate(locale, 'serverErrors.ownerOnly') });
+    return persist(session, locale, await request.formData());
+  }
+} satisfies Actions;
