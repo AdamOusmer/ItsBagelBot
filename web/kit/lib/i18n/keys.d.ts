@@ -4770,6 +4770,7 @@ export type KnownMessageKey =
   | 'meta.defaultDescription'
   | 'meta.defaultTitle'
   | 'modules.addTrigger'
+  | 'modules.aliasesLabel'
   | 'modules.allModules'
   | 'modules.alwaysOn'
   | 'modules.autoSaveNote'

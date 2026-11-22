@@ -2,13 +2,9 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import Chip from '@bagel/ui/svelte/Chip.svelte';
-  import Code from '@bagel/ui/svelte/Code.svelte';
-  import Label from '@bagel/ui/svelte/Label.svelte';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import SaveStatus, { type SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
-  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
-  import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n, tModuleCommandSummary, tPermBadge, type ModuleCommandInfo, type Perm } from '@bagel/kit';
 
@@ -19,7 +15,6 @@
   let {
     moduleId,
     command,
-    index,
     role = undefined,
     expanded = false,
     onExpand = undefined,
@@ -34,7 +29,6 @@
   }: {
     moduleId: string;
     command: ModuleCommandInfo;
-    index: number;
     role?: Perm;
     expanded?: boolean;
     onExpand?: () => void;
@@ -48,11 +42,24 @@
     onToggleAll?: (triggers: readonly string[], enabled: boolean) => void;
   } = $props();
 
-  const idx = $derived(String(index).padStart(2, '0'));
   const anyOn = $derived(triggers.length > 0 ? triggers.some((tr) => !disabledTriggers.has(tr)) : !parentOff);
   const hasToggles = $derived(triggers.length > 0 && !!onToggleAll);
   const ownsSwitch = $derived(hasToggles && !command.enableKey);
   const showChips = $derived(triggers.length > 1 && !!onToggleTrigger);
+  const headToggle = $derived(showChips && !onExpand);
+  const toggles = $derived(showChips ? triggers.slice(headToggle ? 1 : 0) : []);
+  const staticAliases = $derived(showChips ? [] : (command.aliases ?? []));
+  const permLabel = $derived(role ? tPermBadge(t, role) : fallbackPerm(command.perm));
+
+  function fallbackPerm(perm: ModuleCommandInfo['perm']): string {
+    if (perm === 'mod') return t('modules.permMods');
+    if (perm === 'lead_mod') return t('modules.permLeadMods');
+    return '';
+  }
+
+  function isOn(trigger: string): boolean {
+    return !disabledTriggers.has(trigger);
+  }
 </script>
 
 {#snippet toggleActions()}
@@ -67,6 +74,30 @@
   {/if}
 {/snippet}
 
+{#snippet triggerChip(trigger: string)}
+  <Chip
+    tone="inline"
+    pressed={isOn(trigger)}
+    disabled={locked}
+    aria-label={t('modules.triggerToggleAria', { trigger: `!${trigger}` })}
+    onclick={() => onToggleTrigger?.(trigger, !isOn(trigger))}
+  >!{trigger}</Chip>
+{/snippet}
+
+{#snippet aliasLine()}
+  <span class="also" role="group" aria-label={t('modules.triggersGroupAria', { trigger: command.trigger })}>
+    {#if headToggle || staticAliases.length}
+      <Text as="span" size="xs" tone="muted">{t('modules.aliasesLabel')}</Text>
+    {/if}
+    {#each toggles as trigger (trigger)}
+      {@render triggerChip(trigger)}
+    {/each}
+    {#each staticAliases as alias (alias)}
+      <Text as="span" size="xs" tone="muted-light" mono>{alias}</Text>
+    {/each}
+  </span>
+{/snippet}
+
 <div class="row-wrap">
   <ManagementRow
     selectable={!!onExpand}
@@ -75,71 +106,57 @@
     disabled={replyOff || !anyOn}
     onSelect={onExpand}
     actions={hasToggles ? toggleActions : undefined}
+    below={toggles.length || staticAliases.length ? aliasLine : undefined}
   >
     {#snippet primary()}
       <span class="crow">
-        <span class="idx" aria-hidden="true"><Label mono as="span">{idx}</Label></span>
-        <span class="cmd">
-          <span><Code>{command.trigger}</Code></span>
-          <Text as="span" size="xs" tone="muted" truncate>{tModuleCommandSummary(t, moduleId, command)}</Text>
+        <span class="trig">
+          {#if headToggle}
+            {@render triggerChip(triggers[0])}
+          {:else}
+            <Text as="span" size="sm" mono>{command.trigger}</Text>
+          {/if}
         </span>
-        {#if role}
-          <Tag tone="bare">{tPermBadge(t, role)}</Tag>
-        {:else if command.perm === 'mod'}
-          <Tag tone="bare">{t('modules.permMods')}</Tag>
-        {:else if command.perm === 'lead_mod'}
-          <Tag tone="bare">{t('modules.permLeadMods')}</Tag>
-        {:else}
-          <span class="mini-spacer" aria-hidden="true"></span>
-        {/if}
+        <span class="sum"><Text as="span" size="sm" tone="muted-light">{tModuleCommandSummary(t, moduleId, command)}</Text></span>
+        <Text as="span" size="xs" tone="muted">{permLabel}</Text>
       </span>
     {/snippet}
   </ManagementRow>
-
-  {#if showChips}
-    <div class="triggers" role="group" aria-label={t('modules.triggersGroupAria', { trigger: command.trigger })}>
-      {#each triggers as trigger (trigger)}
-        {@const on = !disabledTriggers.has(trigger)}
-        <Chip
-          pressed={on}
-          tone={on ? undefined : 'muted'}
-          disabled={locked}
-          aria-label={t('modules.triggerToggleAria', { trigger: `!${trigger}` })}
-          onclick={() => onToggleTrigger?.(trigger, !on)}
-        >
-          <StatusDot tone={on ? 'success' : 'neutral'} flat />!{trigger}
-        </Chip>
-      {/each}
-    </div>
-  {/if}
 </div>
 
 <style>
-  .row-wrap { display: block; }
+  .row-wrap {
+    --row-below-indent: calc(var(--cmd-col, 112px) + 30px);
+    display: block;
+  }
+
   .crow {
     display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) auto;
-    align-items: center;
+    grid-template-columns: var(--cmd-col, 112px) minmax(0, 1fr) auto;
+    align-items: baseline;
     gap: 16px;
   }
-  .idx { opacity: 0.55; }
 
-  .cmd { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .trig {
+    --chip-inline-size: var(--bb-text-sm);
+    --chip-inline-color: var(--bb-white);
+    --chip-inline-rule: transparent;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
 
-  .mini-spacer { width: 0; }
+  .sum { min-width: 0; }
 
-  .triggers {
+  .also {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px 10px 56px;
-    border-bottom: 1px solid var(--bb-border);
+    align-items: baseline;
+    gap: 4px 12px;
   }
 
   @media (max-width: 760px) {
-    .crow { grid-template-columns: minmax(0, 1fr) auto; }
-    .idx { display: none; }
-    .triggers { padding: 6px 14px 10px; }
+    .row-wrap { --row-below-indent: 14px; }
+    .crow { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
+    .sum { grid-column: 1 / -1; grid-row: 2; }
   }
 </style>
