@@ -517,9 +517,6 @@
       const params = new URLSearchParams(window.location.search);
       const previewMode = params.get('preview') === '1';
       const linkToken = previewMode ? '' : window.location.hash.slice(1);
-      if (!previewMode) {
-        window.history.replaceState(null, '', '/powered');
-      }
 
       const byId = function (id) { return document.getElementById(id); };
       const slot = byId('slot');
