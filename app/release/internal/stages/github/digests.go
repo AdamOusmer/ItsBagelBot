@@ -28,8 +28,16 @@ func digestsDone(_ context.Context, rc *stage.RunCtx) (bool, error) {
 type digestPlan struct {
 	refs        []ports.ImageRef
 	revision    deploy.SHA
+	built       map[deploy.ImageName]deploy.SHA
 	current     map[deploy.ImageName]deploy.ImagePin
 	keepMissing bool
+}
+
+func (p digestPlan) revisionOf(img deploy.ImageName) deploy.SHA {
+	if sha, ok := p.built[img]; ok {
+		return sha
+	}
+	return p.revision
 }
 
 func runDigests(ctx context.Context, rc *stage.RunCtx) error {
@@ -44,6 +52,9 @@ func runDigests(ctx context.Context, rc *stage.RunCtx) error {
 	}
 	if run.Kind == deploy.KindBump {
 		pins = changedOnly(ctx, rc, pins, plan.current)
+		if err := refuseDowngrades(ctx, rc, pins, plan); err != nil {
+			return err
+		}
 	}
 	if len(pins) == 0 {
 		return fail(deploy.FailDigestRefused, "nothing to pin: no image built at %s differs from main's pins", short(plan.revision))
@@ -60,8 +71,8 @@ func planDigests(ctx context.Context, rc *stage.RunCtx, run deploy.Run) (digestP
 	if run.Kind != deploy.KindBump {
 		return digestPlan{refs: versionRefs(current, run.Version), revision: run.Outputs.TagSHA, current: current}, nil
 	}
-	refs, err := bumpRefs(ctx, rc, run, lines)
-	return digestPlan{refs: refs, revision: run.TargetSHA, current: current}, err
+	refs, built, err := bumpRefs(ctx, rc, run, lines)
+	return digestPlan{refs: refs, revision: run.TargetSHA, built: built, current: current}, err
 }
 
 func versionRefs(current map[deploy.ImageName]deploy.ImagePin, v deploy.Version) []ports.ImageRef {
@@ -72,20 +83,92 @@ func versionRefs(current map[deploy.ImageName]deploy.ImagePin, v deploy.Version)
 	return refs
 }
 
-func bumpRefs(ctx context.Context, rc *stage.RunCtx, run deploy.Run, lines []PinLine) ([]ports.ImageRef, error) {
+func bumpRefs(ctx context.Context, rc *stage.RunCtx, run deploy.Run, lines []PinLine) ([]ports.ImageRef, map[deploy.ImageName]deploy.SHA, error) {
 	jobs, err := rc.Deps.GitHub.RunJobs(ctx, run.Outputs.BuildRunID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	built := builtImages(jobs)
 	var refs []ports.ImageRef
-	for _, img := range bumpImages(builtImages(jobs), lines, run.Services) {
+	for _, img := range bumpImages(built, lines, run.Services) {
 		tag, err := mainTag(ctx, rc.Deps.Registry, img, run.TargetSHA)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		refs = append(refs, ports.ImageRef{Image: img, Tag: tag})
 	}
-	return refs, nil
+	latest, revisions, err := latestBuilds(ctx, rc, unbuiltRequested(built, lines, run.Services), run.TargetSHA)
+	return append(refs, latest...), revisions, err
+}
+
+// A requested service the target commit did not rebuild ships its newest main build at or before the target.
+func unbuiltRequested(built []deploy.ImageName, lines []PinLine, services []string) []deploy.ImageName {
+	var out []deploy.ImageName
+	for _, l := range lines {
+		if slices.Contains(services, l.Workload) && !alreadyListed(l.Image, built, out) {
+			out = append(out, l.Image)
+		}
+	}
+	return out
+}
+
+func alreadyListed(img deploy.ImageName, built, out []deploy.ImageName) bool {
+	return slices.Contains(built, img) || slices.Contains(out, img)
+}
+
+func latestBuilds(ctx context.Context, rc *stage.RunCtx, images []deploy.ImageName, target deploy.SHA) ([]ports.ImageRef, map[deploy.ImageName]deploy.SHA, error) {
+	refs := make([]ports.ImageRef, 0, len(images))
+	revisions := map[deploy.ImageName]deploy.SHA{}
+	for _, img := range images {
+		tag, sha, err := latestMainTag(ctx, rc, img, target)
+		if err != nil {
+			return nil, nil, err
+		}
+		refs = append(refs, ports.ImageRef{Image: img, Tag: tag})
+		revisions[img] = sha
+	}
+	return refs, revisions, nil
+}
+
+func latestMainTag(ctx context.Context, rc *stage.RunCtx, img deploy.ImageName, target deploy.SHA) (deploy.Tag, deploy.SHA, error) {
+	tags, err := rc.Deps.Registry.Tags(ctx, img)
+	if err != nil {
+		return "", "", err
+	}
+	for _, t := range newestMainTags(tags) {
+		sha := deploy.SHA(mainTagCommit.FindStringSubmatch(string(t))[1])
+		cmp, err := rc.Deps.GitHub.Compare(ctx, ports.Ref(sha), ports.Ref(target))
+		if errors.Is(err, ports.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return "", "", err
+		}
+		if cmp.BehindBy == 0 {
+			return t, sha, nil
+		}
+	}
+	return "", "", fail(deploy.FailDigestRefused, "%s has no main build at or before %s", img, short(target))
+}
+
+func newestMainTags(tags []deploy.Tag) []deploy.Tag {
+	var out []deploy.Tag
+	for _, t := range tags {
+		if mainTagCommit.MatchString(string(t)) {
+			out = append(out, t)
+		}
+	}
+	slices.SortFunc(out, func(a, b deploy.Tag) int { return compareTagTime(b, a) })
+	return out
+}
+
+func compareTagTime(a, b deploy.Tag) int {
+	return int(tagTime(a) - tagTime(b))
+}
+
+func tagTime(t deploy.Tag) int64 {
+	ts, _ := strconv.ParseInt(strings.SplitN(string(t), "-", 3)[1], 10, 64)
+	return ts
 }
 
 func bumpImages(built []deploy.ImageName, lines []PinLine, services []string) []deploy.ImageName {
@@ -161,7 +244,7 @@ type resolution struct {
 }
 
 func (r *resolution) check(ctx context.Context, ref ports.ImageRef) error {
-	pin, problems, err := checkImage(ctx, r.rc, ref, r.plan.revision)
+	pin, problems, err := checkImage(ctx, r.rc, ref, r.plan.revisionOf(ref.Image))
 	if errors.Is(err, ports.ErrNotFound) {
 		r.missing(ctx, ref)
 		return nil
@@ -251,11 +334,19 @@ func indexProblems(info ports.ImageInfo, revision deploy.SHA) []string {
 			problems = append(problems, "missing "+p)
 		}
 	}
-	// An unset revision must not pass an unlabelled image.
-	if revision == "" || info.Revision != revision {
+	if !builtFrom(info.Revision, revision) {
 		problems = append(problems, fmt.Sprintf("revision %q, want %q", info.Revision, revision))
 	}
 	return problems
+}
+
+// An unset revision must not pass an unlabelled image; a 12-character revision comes from a main-<ts>-<sha> tag.
+func builtFrom(label, revision deploy.SHA) bool {
+	if revision == "" {
+		return false
+	}
+	short := len(revision) == 12 && strings.HasPrefix(string(label), string(revision))
+	return label == revision || short
 }
 
 func changedOnly(ctx context.Context, rc *stage.RunCtx, pins, current map[deploy.ImageName]deploy.ImagePin) map[deploy.ImageName]deploy.ImagePin {
@@ -268,6 +359,43 @@ func changedOnly(ctx context.Context, rc *stage.RunCtx, pins, current map[deploy
 		out[img] = pin
 	}
 	return out
+}
+
+var mainTagCommit = regexp.MustCompile(`^main-\d+-([0-9a-f]+)$`)
+
+// A bump to a commit older than a live pin silently reverts merged work; that is a rollback, not a bump.
+func refuseDowngrades(ctx context.Context, rc *stage.RunCtx, pins map[deploy.ImageName]deploy.ImagePin, plan digestPlan) error {
+	var refused []string
+	for _, img := range sortedImages(pins) {
+		older, err := olderThanPin(ctx, rc, plan.current[img], plan.revisionOf(img))
+		if err != nil {
+			return err
+		}
+		if older {
+			refused = append(refused, fmt.Sprintf("%s: %s is older than the pinned %s", img, short(plan.revisionOf(img)), plan.current[img].Tag))
+		}
+	}
+	if len(refused) == 0 {
+		return nil
+	}
+	f := fail(deploy.FailDigestRefused, "bump would move %d image(s) to an older build; ship a newer commit or run a rollback", len(refused))
+	f.LogTail = refused
+	return f
+}
+
+func olderThanPin(ctx context.Context, rc *stage.RunCtx, pin deploy.ImagePin, target deploy.SHA) (bool, error) {
+	m := mainTagCommit.FindStringSubmatch(string(pin.Tag))
+	if m == nil {
+		return false, nil
+	}
+	cmp, err := rc.Deps.GitHub.Compare(ctx, ports.Ref(m[1]), ports.Ref(target))
+	if errors.Is(err, ports.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return cmp.BehindBy > 0 && cmp.AheadBy == 0, nil
 }
 
 func mainPinLines(ctx context.Context, rc *stage.RunCtx) ([]PinLine, error) {
