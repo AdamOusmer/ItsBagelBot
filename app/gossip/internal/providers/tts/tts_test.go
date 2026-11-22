@@ -5,13 +5,11 @@ package tts_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,10 +20,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/providertest"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/ratelimit"
-	pkgvalkey "ItsBagelBot/pkg/valkey"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -36,13 +31,11 @@ const testKey = "private-gemini-test-key"
 
 func configFor(t testing.TB, upstream http.Handler) tts.Config {
 	return tts.Config{
-		BaseURL:          providertest.Upstream(t, upstream),
-		APIKey:           testKey,
-		Model:            gossiprpc.TTSFlash,
-		Voice:            "Kore",
-		Temperature:      1.5,
-		RateLimit:        60,
-		ChannelRateLimit: 12,
+		BaseURL:     providertest.Upstream(t, upstream),
+		APIKey:      testKey,
+		Model:       gossiprpc.TTSFlash,
+		Voice:       "Kore",
+		Temperature: 1.5,
 	}
 }
 
@@ -255,61 +248,6 @@ func TestSynthesizeDoesNotFollowRedirects(t *testing.T) {
 	p := tts.New(configFor(t, upstream), providertest.Deps(nil))
 	got := providertest.Call[gossiprpc.TTSSynthesizeReply](t, p, "synthesize", gossiprpc.Request{ChannelID: "42", Text: "hi"})
 	assert.NotEmpty(t, got.Error)
-}
-
-func TestSynthesizeLimits(t *testing.T) {
-	addr := os.Getenv("VALKEY_TEST_ADDR")
-	if addr == "" {
-		t.Skip("VALKEY_TEST_ADDR is not set")
-	}
-	client, err := pkgvalkey.NewClient(addr, os.Getenv("VALKEY_TEST_PASSWORD"))
-	require.NoError(t, err)
-	t.Cleanup(client.Close)
-
-	const globalBucketKey = "ratelimit:gossip:{tts}:global"
-	kv := pkgvalkey.NewKV(client)
-	for _, tc := range []struct {
-		name                    string
-		globalRate, channelRate float64
-		wantHits                int
-	}{
-		{name: "channel budget", globalRate: 60, channelRate: 1, wantHits: 2},
-		{name: "global budget", globalRate: 1, channelRate: 12, wantHits: 1},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			require.NoError(t, kv.Del(t.Context(), globalBucketKey))
-			t.Cleanup(func() { assert.NoError(t, kv.Del(context.Background(), globalBucketKey)) })
-			response := audioOutput(base64.StdEncoding.EncodeToString(testWAV(48)))
-			upstream := providertest.NewSequence(t, providertest.Reply{Status: http.StatusOK, Body: response})
-			cfg := configFor(t, upstream)
-			cfg.RateLimit, cfg.ChannelRateLimit = tc.globalRate, tc.channelRate
-			deps := providertest.Deps(nil)
-			deps.Limiter = ratelimit.New(client)
-			p := tts.New(cfg, deps)
-			req := gossiprpc.Request{ChannelID: uuid.NewString(), Text: "hi"}
-			call := func() gossiprpc.TTSSynthesizeReply {
-				return providertest.Call[gossiprpc.TTSSynthesizeReply](t, p, "synthesize", req)
-			}
-
-			require.Empty(t, call().Error)
-			checkLocalLimit(t, call())
-			req.ChannelID = uuid.NewString()
-			other := call()
-			if tc.wantHits == 1 {
-				checkLocalLimit(t, other)
-			} else {
-				assert.Empty(t, other.Error)
-			}
-			assert.Equal(t, tc.wantHits, upstream.Hits())
-		})
-	}
-}
-
-func checkLocalLimit(t *testing.T, got gossiprpc.TTSSynthesizeReply) {
-	t.Helper()
-	assert.Positive(t, got.RetryAfterMS)
-	assert.LessOrEqual(t, got.RetryAfterMS, int64(60000))
-	assert.Equal(t, busyReply(got.RetryAfterMS), got)
 }
 
 func TestSynthesizeInvalidConfiguredDefaults(t *testing.T) {
