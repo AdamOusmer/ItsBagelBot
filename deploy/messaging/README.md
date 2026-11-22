@@ -24,7 +24,16 @@ binds: it pulls from the two durables, acks on `$JS.ACK`, reads
 `OBJ_OVERLAYS_MEDIA`, and publishes and subscribes `overlays.session.<user_id>` to
 hand each clip to the open overlay streams of that user.
 
-`OVERLAY_TTS` and `TTS_CLIPS` keep their grants only until the follow-up release
+The worker also creates the `GOSSIP_JOBS` work-queue stream (subjects
+`gossip.jobs.>`, memory storage, ten-minute retention, three replicas) and its
+shared durable pull consumer `gossip-jobs`, and publishes `gossip.jobs.<kind>.<user_id>`.
+`gossip_jobs_bus` is the Gossip role in this account. It only binds: it pulls and
+acks `gossip-jobs`, writes clips to `OVERLAYS_MEDIA` and publishes
+`overlays.premium.>`. `cmd/natscreds` maps it to the `gossip` Doppler project as
+`GOSSIP_JOBS_BUS_JWT` and `GOSSIP_JOBS_BUS_NKEY_SEED`. `GOSSIP_RPC` imports
+`rpc.internal.users.voice.record` from `USERS_RPC` to record usage.
+
+`TTS_JOBS`, `OVERLAY_TTS` and `TTS_CLIPS` keep their grants only until the follow-up release
 that removes them.
 
 `PROJECTOR_RPC` restricts the overlay resolve and check RPCs, their node-specific

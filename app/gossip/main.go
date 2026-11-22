@@ -64,7 +64,9 @@ func main() {
 
 	logReady(active, cfg, log)
 
+	stopJobs := startJobs(jobsWiring{ctx: core.Ctx, hubURL: core.NATSURL, cfg: cfg, deps: deps, rpc: nc, log: log})
 	core.Await()
+	stopJobs()
 }
 
 type gossipWiring struct {

@@ -5,7 +5,6 @@ package bus_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -17,7 +16,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func TestTTSProvisioningSucceedsAcrossConcurrentReplicas(t *testing.T) {
+func TestOverlayProvisioningSucceedsAcrossConcurrentReplicas(t *testing.T) {
 	nc := bustest.JetStream(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
@@ -26,8 +25,8 @@ func TestTTSProvisioningSucceedsAcrossConcurrentReplicas(t *testing.T) {
 	for range 3 {
 		group.Go(func() error {
 			<-start
-			if _, err := bus.OpenTTSJobs(ctx, nc, 1); err != nil {
-				return fmt.Errorf("open TTS jobs: %w", err)
+			if _, err := bus.OpenGossipJobs(ctx, nc, 1); err != nil {
+				return err
 			}
 			_, err := bus.OpenOverlays(ctx, nc, 1)
 			return err
@@ -37,7 +36,7 @@ func TestTTSProvisioningSucceedsAcrossConcurrentReplicas(t *testing.T) {
 	require.NoError(t, group.Wait())
 }
 
-func TestTTSProvisioningAdoptsExistingOverlayResources(t *testing.T) {
+func TestOverlayProvisioningAdoptsExistingOverlayResources(t *testing.T) {
 	ctx := t.Context()
 	nc := bustest.JetStream(t)
 	js, err := jsapi.NewWithDomain(nc, bus.JSDomain())

@@ -24,7 +24,7 @@ const realAccountsYAML = "../../deploy/messaging/accounts.yaml"
 
 const (
 	wantAccounts  = 18
-	wantRoles     = 30
+	wantRoles     = 31
 	wantKeySeeds  = 2 + wantAccounts + wantRoles
 	wantRoleCreds = wantRoles - 1
 )
@@ -153,6 +153,8 @@ func assertVoiceWriterCredential(t *testing.T, h *harness, keys *natsacl.Keys) {
 	scope, ok := account.SigningKeys[claims.Issuer].(*jwt.UserScope)
 	require.True(t, ok)
 	assert.Contains(t, scope.Template.Pub.Allow, "$JS.API.STREAM.PURGE.OBJ_TTS_CLIPS")
+	assert.NotEmpty(t, h.secret("gossip", "GOSSIP_JOBS_BUS_JWT"))
+	assert.NotEmpty(t, h.secret("gossip", "GOSSIP_JOBS_BUS_NKEY_SEED"))
 }
 
 func assertActivations(t *testing.T, keys *natsacl.Keys) {
@@ -192,6 +194,10 @@ func assertActivations(t *testing.T, keys *natsacl.Keys) {
 		"DASHBOARD_RPC": {
 			"WORKER_RPC rpc.voice.test",
 			"WORKER_RPC rpc.voice.test.node.*",
+		},
+		"GOSSIP_RPC": {
+			"USERS_RPC rpc.internal.users.voice.record",
+			"USERS_RPC rpc.internal.users.voice.record.node.*",
 		},
 	}
 	require.Len(t, keys.Activations, len(want))

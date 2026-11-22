@@ -44,7 +44,7 @@ var servicesProjects = map[string]string{
 
 // sharedProjects holds stems whose credentials share one Doppler project and
 // so need a per-stem env prefix.
-var sharedProjects = map[string]string{"worker_tts": "sesame"}
+var sharedProjects = map[string]string{"worker_tts": "sesame", "gossip_jobs": "gossip"}
 
 // noBus holds stems with no worker-bus role; every stem has an RPC role.
 var noBus = map[string]bool{

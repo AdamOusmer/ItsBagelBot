@@ -28,7 +28,7 @@ import (
 
 const (
 	defaultVoice  = voiceplan.DefaultVoice
-	speechTimeout = 20 * time.Second
+	speechTimeout = 150 * time.Second
 )
 
 var requestIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
@@ -73,16 +73,34 @@ type synthesizer struct {
 	flights singleflight.Group
 }
 
-func New(cfg Config, d provider.Deps) provider.Provider {
+type Synthesizer struct {
+	api *synthesizer
+}
+
+func NewSynthesizer(cfg Config, d provider.Deps) *Synthesizer {
+	_, api := build(cfg, d)
+	return &Synthesizer{api: api}
+}
+
+func (s *Synthesizer) Synthesize(ctx context.Context, req gossiprpc.Request) gossiprpc.TTSSynthesizeReply {
+	reply, _ := s.api.synthesize(ctx, req).(gossiprpc.TTSSynthesizeReply)
+	return reply
+}
+
+func build(cfg Config, d provider.Deps) (*provider.Builder, *synthesizer) {
 	b := provider.NewProvider("tts", d)
 	log := d.Logger()
 	cfg = cfg.withValidDefaults(log)
-	api := synthesizer{
+	return b, &synthesizer{
 		backend: cfg.backend(b, log),
 		log:     log,
 		model:   cfg.Model,
 		voice:   cfg.Voice,
 	}
+}
+
+func New(cfg Config, d provider.Deps) provider.Provider {
+	b, api := build(cfg, d)
 	b.Endpoint("voices").Handle(api.listVoices)
 	b.Endpoint("synthesize").Timeout(25 * time.Second).Handle(api.synthesize)
 	return b.Build()

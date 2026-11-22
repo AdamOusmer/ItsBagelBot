@@ -96,13 +96,13 @@ func openAlertTestStream(t *testing.T, log *zap.Logger) (voice.Publisher, jetstr
 	require.NoError(t, bus.QueueSubscribeJSONConcurrent(nc, sub, time.Second, nil, log, allowTestVoice))
 	sub.Subject = overlaysrpc.TtsSettingsSubject
 	require.NoError(t, bus.QueueSubscribeJSONConcurrent(nc, sub, time.Second, nil, log, allowTestVoiceSettings))
-	jobs, err := bus.OpenTTSJobs(ctx, nc, 1)
+	jobs, err := bus.OpenGossipJobs(ctx, nc, 1)
 	require.NoError(t, err)
 	js, err := jetstream.NewWithDomain(nc, bus.JSDomain())
 	require.NoError(t, err)
-	stream, err := js.Stream(ctx, bus.TTSJobsStream)
+	stream, err := js.Stream(ctx, bus.GossipJobsStream)
 	require.NoError(t, err)
-	return voice.Publisher{RPC: nc, Jobs: jobs}, stream
+	return voice.Publisher{RPC: nc, Jobs: jobs, Log: log}, stream
 }
 
 func allowTestVoice(_ context.Context, req usersrpc.VoiceCheckRequest) usersrpc.VoiceCheckReply {
