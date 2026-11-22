@@ -4,15 +4,13 @@
 defmodule ControlsGateway.Tts.Nats do
   alias ControlsGateway.OverlayRequest
   alias ControlsGateway.Tts.Session
+  alias Platform.Nats.Planes
 
   @resolve "rpc.internal.users.voice.overlay.resolve"
   @check "rpc.internal.users.voice.overlay.check"
 
-  def connection, do: Process.whereis(:gnat)
-  def rpc_connection, do: Process.whereis(:gnat_rpc)
-
   def resolve(hash) do
-    case request(rpc_connection(), @resolve, %{token_hash: hash}) do
+    case request(&Planes.request/1, @resolve, %{token_hash: hash}) do
       {:ok, %{"code" => "not_found"}} -> :not_found
       {:ok, %{"code" => code}} when code not in [nil, ""] -> :unavailable
       {:ok, %{"user_id" => id, "generation" => generation}} -> identity(id, generation)
@@ -20,24 +18,22 @@ defmodule ControlsGateway.Tts.Nats do
     end
   end
 
-  def check(conn, %{user_id: id, generation: generation}) do
-    case request(conn, @check, %{user_id: id, generation: generation}) do
+  def check(%{user_id: id, generation: generation}, rpc \\ :rpc) do
+    case request(&Planes.request(&1, rpc), @check, %{user_id: id, generation: generation}) do
       {:ok, %{"valid" => valid}} when is_boolean(valid) -> valid
       _ -> :unavailable
     end
   end
 
-  def request(conn, subject, body) do
-    case OverlayRequest.request(conn, subject, body) do
+  def jetstream_request(jetstream, subject, body) do
+    request(&Planes.jetstream_request(&1, jetstream), subject, body)
+  end
+
+  defp request(requester, subject, body) do
+    case OverlayRequest.request(requester, subject, body) do
       {:ok, %{"error" => error}} -> {:error, error}
       result -> result
     end
-  end
-
-  def subscribe(conn, subject) do
-    Gnat.sub(conn, self(), subject)
-  catch
-    :exit, _ -> {:error, :not_connected}
   end
 
   defp identity(id, generation) do

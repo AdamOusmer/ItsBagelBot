@@ -3,11 +3,12 @@
 
 defmodule ControlsGateway.Powered.Nats do
   alias ControlsGateway.OverlayRequest
+  alias Platform.Nats.Planes
 
   @resolve "rpc.internal.projector.overlays.powered.resolve"
 
   def resolve(token) do
-    case OverlayRequest.request(Process.whereis(:gnat_rpc), @resolve, %{token: token}) do
+    case OverlayRequest.request(&Planes.request/1, @resolve, %{token: token}) do
       {:ok, %{"code" => "not_found"}} -> :not_found
       {:ok, %{"code" => code}} when code not in [nil, ""] -> :unavailable
       {:ok, %{"config" => config, "premium" => premium}} -> overlay(config, premium)

@@ -5,6 +5,7 @@ defmodule ControlsGateway.Application do
   use Application
 
   alias ControlsGateway.{Config, Drain}
+  alias Platform.Nats.Planes
 
   @impl true
   def start(_type, _args) do
@@ -28,21 +29,9 @@ defmodule ControlsGateway.Application do
 
   defp server_children do
     if Config.server?() do
-      [
-        connection_child(:gnat_connection, :gnat, Config.nats()),
-        connection_child(:gnat_rpc_connection, :gnat_rpc, Config.rpc_nats()),
-        ControlsGateway.HttpServer
-      ]
+      Planes.children(Config.nats()) ++ [ControlsGateway.HttpServer]
     else
       []
     end
-  end
-
-  defp connection_child(id, name, connection_settings) do
-    Supervisor.child_spec(
-      {Gnat.ConnectionSupervisor,
-       %{name: name, backoff_period: 4_000, connection_settings: connection_settings}},
-      id: id
-    )
   end
 end

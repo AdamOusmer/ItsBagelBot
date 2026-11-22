@@ -50,7 +50,7 @@ defmodule ControlsGateway.Tts.Http do
   defp serve(:clip, req, session), do: Clips.reply(req, session, @headers)
 
   defp serve(:events_status, req, session) do
-    case Nats.check(Nats.rpc_connection(), session) do
+    case Nats.check(session) do
       true -> reply(req, 200)
       false -> reply(req, 204)
       :unavailable -> reply(req, 503)

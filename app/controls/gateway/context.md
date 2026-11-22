@@ -14,14 +14,15 @@ Session, event and clip responses are uncached.
 
 Users owns overlay tokens and generations. The gateway calls
 `rpc.internal.users.voice.overlay.resolve` with the lowercase SHA-256 hex of
-the encoded token. Successful exchange sets the host-only `bb_tts` cookie
-with `user_id`, `generation` and `exp`, signed using HMAC-SHA256. The cookie is
-HttpOnly, Secure, SameSite=Lax and scoped to `/tts` for 30 days. Failed attempts
-are limited per client IP on each gateway replica.
+the encoded token on the RPC leaf. Successful exchange sets the host-only
+`bb_tts` cookie with `user_id`, `generation` and `exp`, signed using HMAC-SHA256.
+The cookie is HttpOnly, Secure, SameSite=Lax and scoped to `/tts` for 30 days.
+Failed attempts are limited per client IP on each gateway replica.
 
 `GET /tts/events` checks the session generation when opening and every five
 minutes via `rpc.internal.users.voice.overlay.check`. It subscribes to
-`controls.tts.revoked.<user_id>` so it can also close immediately on revocation.
+`controls.tts.revoked.<user_id>` on the RPC leaf so it can close immediately on
+revocation.
 Its ordered ephemeral consumer filters `OVERLAY_TTS` to
 `overlay.tts.<user_id>`. The SSE ID is the stream sequence. A reconnect
 starts after `Last-Event-ID` or the `after` cursor sent by a replacement
@@ -61,7 +62,7 @@ OBS opens `https://overlay.itsbagelbot.com/powered#<token>`. Overlays owns the
 token, 32 random bytes as unpadded base64url, stored in plaintext and
 rotatable. The page posts it once as JSON to `POST /powered/config`. The
 gateway forwards the token to `rpc.internal.projector.overlays.powered.resolve`
-on `:gnat_rpc` and replies `{"config": ..., "premium": bool}` uncached. A
+on the RPC leaf and replies `{"config": ..., "premium": bool}` uncached. A
 `not_found` refusal is 404, any other refusal or a missing responder is 503.
 Failed attempts share the TTS per-IP throttle. Keep the token out of logs.
 
@@ -83,7 +84,7 @@ over the ASCII bytes of the first two segments. The Ed25519 key comes from
 `CONTROLS_TOKEN_PUBLIC_KEYS`. Users owns token signing and device grants.
 The verified token supplies the device and user IDs.
 
-Core NATS carries device events, commands and takeover messages over
+The hub carries core NATS device events, commands and takeover messages over
 `controls.device.<device_id>.evt`, `.cmd` and `.takeover`. A newer connection
 publishes its randomly generated connection ID to displace an older one.
 `controls.revoked.<device_id>` closes that device's connection. The handler
@@ -106,6 +107,7 @@ open desktop and TTS SSE connections.
 | Users RPC | [tts/nats.ex](lib/controls_gateway/tts/nats.ex) |
 | Powered page, assets and config | [powered/http.ex](lib/controls_gateway/powered/http.ex), [powered/page.ex](lib/controls_gateway/powered/page.ex) |
 | Projector RPC | [powered/nats.ex](lib/controls_gateway/powered/nats.ex) |
+| Leaf and hub routing | [Platform.Nats.Planes](../../../pkg/elixir/nats/lib/platform/nats/planes.ex) |
 | Listener and credentials | [runtime.exs](config/runtime.exs), [controls-gateway.yaml](../../../deploy/k8s/controls-gateway.yaml) |
 
 Production uses the `controls-gateway` Doppler project for the shared
@@ -114,8 +116,11 @@ Production uses the `controls-gateway` Doppler project for the shared
 to the HTTPS listener. The gateway takes the client IP from the Cloudflare
 header on this route, and defaults to the socket peer locally.
 
-The gateway holds two NATS connections with the same credentials. `:gnat` goes
-to the hub (`NATS_HOST`), where `OVERLAY_TTS` and `TTS_CLIPS` live. `:gnat_rpc`
-goes to the node-local leaf cluster (`NATS_RPC_HOST`), where Users serves the
-overlay resolve and check RPCs and publishes revocations. The two clusters are
-not bridged, so an RPC sent to the hub gets no responders.
+`Platform.Nats.Planes` starts `:gnat_rpc` on the node-local leaf
+(`NATS_RPC_HOST`, `NATS_RPC_PORT`) and `:gnat_jetstream` on the hub (`NATS_HOST`,
+`NATS_PORT`). Both use the gateway credentials and verify TLS against their
+own host. The RPC connection serves Users and Projector requests and carries
+TTS revocations. The hub connection carries `OVERLAY_TTS`, `TTS_CLIPS`, and
+desktop subjects. The clusters are separate, so a hub request for a leaf RPC
+gets no responders. Build the gateway image from the repository root so the
+Containerfile can copy the shared package.

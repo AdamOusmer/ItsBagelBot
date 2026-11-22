@@ -149,9 +149,13 @@ defmodule ControlsGateway.WsHandlerTest do
     {:ok, older} = connect_device(port, priv, @device_id)
     older = ping_and_drain(older)
 
-    old_gnat = Process.whereis(:gnat)
+    old_gnat = Process.whereis(:gnat_jetstream)
     Process.exit(old_gnat, :kill)
-    eventually(fn -> is_pid(Process.whereis(:gnat)) and Process.whereis(:gnat) != old_gnat end)
+
+    eventually(fn ->
+      current = Process.whereis(:gnat_jetstream)
+      is_pid(current) and current != old_gnat
+    end)
 
     {:ok, newer} = connect_device(port, priv, @device_id)
     newer = ping_and_drain(newer)
@@ -245,7 +249,7 @@ defmodule ControlsGateway.WsHandlerTest do
   end
 
   defp wait_for_gnat(attempts \\ 50) do
-    case Process.whereis(:gnat) do
+    case Process.whereis(:gnat_jetstream) do
       pid when is_pid(pid) ->
         {:ok, pid}
 

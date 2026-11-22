@@ -37,14 +37,14 @@ defmodule ControlsGateway.TtsTest do
 
     if !tags[:no_streams] do
       {:ok, _} =
-        Stream.create(:gnat, %Stream{
+        Stream.create(:gnat_jetstream, %Stream{
           name: "OVERLAY_TTS",
           subjects: ["overlay.tts.*"],
           storage: :file,
           max_age: @ttl_ns
         })
 
-      {:ok, _} = Object.create_bucket(:gnat, "TTS_CLIPS", storage: :file, ttl: @ttl_ns)
+      {:ok, _} = Object.create_bucket(:gnat_jetstream, "TTS_CLIPS", storage: :file, ttl: @ttl_ns)
     end
 
     :ok
@@ -245,7 +245,7 @@ defmodule ControlsGateway.TtsTest do
 
   test "event stream sends a 15-30s retry field when NATS is unavailable", %{http_port: port} do
     cookie = cookie(port)
-    stop_supervised!(:gnat)
+    stop_supervised!(:gnat_jetstream)
 
     assert %{
              status: 200,
@@ -312,7 +312,7 @@ defmodule ControlsGateway.TtsTest do
         expires_at: DateTime.utc_now() |> DateTime.add(300) |> DateTime.to_iso8601()
       })
 
-    {:ok, %{body: reply}} = Gnat.request(:gnat, "overlay.tts.#{user_id}", body)
+    {:ok, %{body: reply}} = Gnat.request(:gnat_jetstream, "overlay.tts.#{user_id}", body)
     %{"seq" => seq} = Jason.decode!(reply)
     seq
   end
@@ -335,7 +335,7 @@ defmodule ControlsGateway.TtsTest do
   end
 
   defp publish_object_message(subject, body, opts \\ []) do
-    assert {:ok, %{body: ack}} = Gnat.request(:gnat, subject, body, opts)
+    assert {:ok, %{body: ack}} = Gnat.request(:gnat_jetstream, subject, body, opts)
     assert %{"stream" => "OBJ_TTS_CLIPS", "seq" => seq} = Jason.decode!(ack)
     assert is_integer(seq) and seq > 0
   end
