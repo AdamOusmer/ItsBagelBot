@@ -62,10 +62,7 @@ Other `ent/` files are generated from the schema.
 - Account deletion uses the same cutoff as Powered-by. A ban clears the link
   hash and advances its generation. Alert rules and chat-command settings
   stay in their module configurations.
-- Before serving TTS, each replica pages `rpc.internal.users.voice.export`
-  and inserts legacy rows that have no TTS overlay. Default-only accounts
-  get their rows on demand. The backfill preserves settings, hashes and
-  generations, and can restart without overwriting new writes.
+- Accounts get their TTS row with default settings on first read.
 
 ## Invariants and pitfalls
 

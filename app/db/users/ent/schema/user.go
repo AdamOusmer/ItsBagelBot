@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/lifecycle"
-	"ItsBagelBot/internal/domain/voiceplan"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/entsql"
@@ -59,11 +58,6 @@ func (User) Fields() []ent.Field {
 		field.Bool("commands_page_hidden").Default(false),
 		field.Bool("leaderboard_page_hidden").Default(false),
 		field.Bool("songqueue_page_hidden").Default(false),
-		field.Bool("tts_enabled").Default(true),
-		field.String("tts_voice").Default(""),
-		field.Int("tts_max_seconds").Default(voiceplan.MaxClipSeconds).Min(voiceplan.MinClipSeconds).Max(voiceplan.MaxClipSeconds),
-		field.String("tts_overlay_token_hash").Optional().Nillable().Unique().Sensitive().MaxLen(64),
-		field.Int("tts_overlay_generation").Default(0),
 
 		field.String("creator_code").Optional().Nillable().MaxLen(64),
 

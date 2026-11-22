@@ -31,11 +31,6 @@ func (r *Overlays) GetTTS(ctx context.Context, userID uint64) (overlaysrpc.TtsOv
 	return r.createTts(ctx, overlaysrpc.TtsOverlay{UserID: userID, Settings: overlaysrpc.DefaultTtsSettings()})
 }
 
-func (r *Overlays) ImportTTS(ctx context.Context, legacy overlaysrpc.TtsOverlay) error {
-	_, err := r.createTts(ctx, legacy)
-	return err
-}
-
 func (r *Overlays) createTts(ctx context.Context, initial overlaysrpc.TtsOverlay) (overlaysrpc.TtsOverlay, error) {
 	initial.Revision = 1
 	if initial.CreatedAt == 0 {

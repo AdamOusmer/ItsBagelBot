@@ -752,10 +752,6 @@ accounts:
               from: USERS_RPC
             - service: rpc.internal.users.voice.check.node.*
               from: USERS_RPC
-            - service: rpc.internal.users.voice.export
-              from: USERS_RPC
-            - service: rpc.internal.users.voice.export.node.*
-              from: USERS_RPC
         roles:
             overlays_rpc: {}
     OUTGRESS_RPC:
@@ -975,10 +971,6 @@ accounts:
               accounts: [WORKER_RPC, OVERLAYS_RPC]
             - service: rpc.internal.users.voice.check.node.*
               accounts: [WORKER_RPC, OVERLAYS_RPC]
-            - service: rpc.internal.users.voice.export
-              accounts: [OVERLAYS_RPC]
-            - service: rpc.internal.users.voice.export.node.*
-              accounts: [OVERLAYS_RPC]
             - service: rpc.internal.users.voice.record
               accounts: [WORKER_RPC]
             - service: rpc.internal.users.voice.record.node.*
