@@ -71,30 +71,22 @@ func TestTtsTokenRotationAndAccountBan(t *testing.T) {
 	require.ErrorIs(t, err, repository.ErrNotFound)
 }
 
-func TestLegacyTtsBackfillAndDeletion(t *testing.T) {
+func TestTtsDeletionHonorsTheAccountCutoff(t *testing.T) {
 	pub, repo := setup(t)
 	ctx := t.Context()
-	created := time.Now().Add(-time.Hour).Truncate(time.Microsecond).In(time.FixedZone("UTC-05", -5*60*60))
-	legacy := overlaysrpc.TtsOverlay{UserID: userID, CreatedAt: created.UnixMicro(), Generation: 42,
-		TokenHash: overlaysrpc.TtsTokenHash(fmt.Sprintf("%x", sha256.Sum256([]byte("legacy")))),
-		Settings:  overlaysrpc.TtsSettings{Voice: "Puck", MaxSeconds: 30},
-	}
-	require.NoError(t, repo.ImportTTS(ctx, legacy))
-	read, err := repo.TTSByHash(ctx, legacy.TokenHash)
+	initial, err := repo.GetTTS(ctx, userID)
 	require.NoError(t, err)
-	legacy.Revision = 1
-	assert.Equal(t, legacy, read)
+	linked, _, err := repo.RotateTTS(ctx, userID, voiceplan.AdminGrant)
+	require.NoError(t, err)
+	created := time.UnixMicro(initial.CreatedAt).In(time.FixedZone("UTC-05", -5*60*60))
 
-	saved, err := repo.SaveTTS(ctx, userID, overlaysrpc.TtsSaveRequest{Settings: overlaysrpc.DefaultTtsSettings(), Revision: read.Revision})
-	require.NoError(t, err)
-	require.NoError(t, repo.ImportTTS(ctx, legacy))
 	require.NoError(t, repo.DeleteAccount(ctx, userID, created.Add(-time.Nanosecond)))
-	read, err = repo.TTSByHash(ctx, legacy.TokenHash)
+	read, err := repo.TTSByHash(ctx, linked.TokenHash)
 	require.NoError(t, err)
-	assert.Equal(t, saved, read)
+	assert.Equal(t, linked, read)
 
 	require.NoError(t, repo.DeleteAccount(ctx, userID, created))
-	_, err = repo.TTSByHash(ctx, legacy.TokenHash)
+	_, err = repo.TTSByHash(ctx, linked.TokenHash)
 	require.ErrorIs(t, err, repository.ErrNotFound)
 	require.Len(t, pub.On(data.SubjectTtsOverlayChanged), 3)
 }

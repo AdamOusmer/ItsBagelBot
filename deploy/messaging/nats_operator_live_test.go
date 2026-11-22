@@ -84,7 +84,6 @@ func TestLiveACLPermissions(t *testing.T) {
 			{roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, "rpc.internal.overlays.tts.by_hash"},
 			{roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, "rpc.internal.overlays.tts.by_user"},
 			{roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, "rpc.overlays.tts.save"},
-			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, "rpc.internal.users.voice.export"},
 			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, "rpc.internal.users.voice.check"},
 			{roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, roleEndpoint{"WORKER_RPC", "worker_rpc"}, "rpc.internal.projector.overlays.tts.settings"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "rpc.admin.user.auth.check"},

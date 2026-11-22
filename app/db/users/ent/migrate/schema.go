@@ -279,11 +279,6 @@ var (
 		{Name: "commands_page_hidden", Type: field.TypeBool, Default: false},
 		{Name: "leaderboard_page_hidden", Type: field.TypeBool, Default: false},
 		{Name: "songqueue_page_hidden", Type: field.TypeBool, Default: false},
-		{Name: "tts_enabled", Type: field.TypeBool, Default: true},
-		{Name: "tts_voice", Type: field.TypeString, Default: ""},
-		{Name: "tts_max_seconds", Type: field.TypeInt, Default: 120},
-		{Name: "tts_overlay_token_hash", Type: field.TypeString, Unique: true, Nullable: true, Size: 64},
-		{Name: "tts_overlay_generation", Type: field.TypeInt, Default: 0},
 		{Name: "creator_code", Type: field.TypeString, Nullable: true, Size: 64},
 		{Name: "subscription_source", Type: field.TypeString, Default: ""},
 		{Name: "subscription_expires_at", Type: field.TypeTime, Nullable: true},
@@ -307,7 +302,7 @@ var (
 			{
 				Name:    "user_status_subscription_source_subscription_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[15], UsersColumns[27], UsersColumns[28]},
+				Columns: []*schema.Column{UsersColumns[15], UsersColumns[22], UsersColumns[23]},
 			},
 			{
 				Name:    "user_username",
