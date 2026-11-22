@@ -397,6 +397,7 @@ const TIMERS_LEG: RowLeg = {
         id: randomUUID(),
         message: t.message.trim(),
         intervalSeconds: clampInterval(ctx, t.interval_seconds, idx),
+        jitterSeconds: 0,
         enabled: true,
         ...timerGate(ctx, t, idx),
         allowOffline: t.online_only === false,

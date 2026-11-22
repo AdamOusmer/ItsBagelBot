@@ -17,7 +17,8 @@ export type TimerResult = { ok: true; timer?: TimerDef } | { ok: false; error?: 
 
 export async function readTimers(userId: string): Promise<TimersView> {
   const { enabled, configs } = await readModuleBlob<{ timers?: TimerDef[] }>(userId, TIMERS_MODULE);
-  return { enabled, timers: Array.isArray(configs.timers) ? configs.timers : [] };
+  const timers = Array.isArray(configs.timers) ? configs.timers : [];
+  return { enabled, timers: timers.map((timer) => ({ ...timer, jitterSeconds: timer.jitterSeconds ?? 0 })) };
 }
 
 async function writeTimers(userId: string, enabled: boolean, timers: TimerDef[]): Promise<void> {

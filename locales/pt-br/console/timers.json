@@ -23,6 +23,8 @@
   "fieldMessagePh": "ex.: Siga para saber quando eu entrar ao vivo.",
   "fieldInterval": "Repetir a cada",
   "fieldIntervalHint": "Mínimo de 1 minuto, máximo de 24 horas.",
+  "fieldJitter": "Tempo extra aleatório",
+  "fieldJitterHint": "Adiciona a cada publicação um atraso aleatório de até este tempo, para que mensagens com o mesmo intervalo não saiam juntas. 0 desativa.",
   "unitMinutes": "minutos",
   "fieldMinChatLines": "Linhas de chat",
   "fieldMinChatLinesHint": "Pule uma publicação se não houver pelo menos esta quantidade de linhas de chat no período abaixo.",

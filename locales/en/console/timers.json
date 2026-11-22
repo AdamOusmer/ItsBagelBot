@@ -23,6 +23,8 @@
   "fieldMessagePh": "e.g. Follow so you know when I go live.",
   "fieldInterval": "Repeat every",
   "fieldIntervalHint": "Minimum 1 minute, maximum 24 hours.",
+  "fieldJitter": "Random extra",
+  "fieldJitterHint": "Adds a random delay of up to this long to each post, so timers on the same interval drift apart. 0 turns it off.",
   "unitMinutes": "minutes",
   "fieldMinChatLines": "Chat lines",
   "fieldMinChatLinesHint": "Skip a post unless at least this many chat lines arrived within the window below.",
