@@ -81,7 +81,7 @@ spec:
       terminationGracePeriodSeconds: 45
       containers:
         - name: controls-gateway
-          image: ghcr.io/adamousmer/itsbagelbot/controls-gateway:main-1795451804-63331a321300@sha256:f61bca5345dd147b30402800adbfc6a43e4ecdd911c5de4850c4d03225e3fec4
+          image: ghcr.io/adamousmer/itsbagelbot/controls-gateway:main-1795459964-a978a350500b@sha256:2ca88c2af612ddaf956740ea2c8100ada354fc53a1520848135e1c994fddb343
           imagePullPolicy: IfNotPresent
           env:
             - name: CONTROLS_GATEWAY_PORT
