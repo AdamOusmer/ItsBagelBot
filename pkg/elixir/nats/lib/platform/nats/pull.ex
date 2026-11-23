@@ -12,6 +12,7 @@ defmodule Platform.Nats.Pull do
   @defaults [plane: :jetstream, batch: 16, expires_ns: 25_000_000_000, inbox_prefix: "_INBOX"]
   @retry_ms 1_000
   @guard_slack_ms 5_000
+  @paused_nak_ns 250_000_000
 
   def start_link(opts) do
     Enum.each(@required, &Keyword.fetch!(opts, &1))
@@ -53,12 +54,8 @@ defmodule Platform.Nats.Pull do
 
   @impl true
   def handle_call(:pause, _from, state) do
-    if state.sid do
-      Planes.unsubscribe(state.conn, state.sid)
-      emit(state, :pause)
-    end
-
-    {:reply, :ok, %{state | paused: true, sid: nil, ref: nil, ready: false}}
+    if state.ready, do: emit(state, :pause)
+    {:reply, :ok, %{state | paused: true, ref: nil, ready: false}}
   end
 
   def handle_call(:attached?, _from, state), do: {:reply, state.ready, state}
@@ -96,6 +93,15 @@ defmodule Platform.Nats.Pull do
     end
   end
 
+  def handle_info({:msg, %{sid: sid, status: status}}, %{sid: sid, paused: true} = state)
+      when is_binary(status),
+      do: {:noreply, drop_paused(state)}
+
+  def handle_info({:msg, %{sid: sid} = message}, %{sid: sid, paused: true} = state) do
+    nak_paused(message, state)
+    {:noreply, state}
+  end
+
   def handle_info({:msg, %{sid: sid} = message}, %{sid: sid} = state),
     do: {:noreply, receive_message(message, state)}
 
@@ -131,6 +137,18 @@ defmodule Platform.Nats.Pull do
   end
 
   def handle_info(_message, state), do: {:noreply, state}
+
+  defp drop_paused(state) do
+    Planes.unsubscribe(state.conn, state.sid)
+    %{state | sid: nil}
+  end
+
+  defp nak_paused(%{reply_to: "$JS.ACK." <> _ = ack}, state) do
+    Ack.nak(state.config.plane, ack, @paused_nak_ns)
+    emit(state, :paused_nak)
+  end
+
+  defp nak_paused(_message, _state), do: :ok
 
   defp receive_message(%{status: status}, state) when is_binary(status) do
     emit(state, :status, %{status: status})

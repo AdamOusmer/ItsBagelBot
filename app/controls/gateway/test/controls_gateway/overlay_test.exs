@@ -51,7 +51,7 @@ defmodule ControlsGateway.OverlayTest do
     agent = start_supervised!({Agent, fn -> overlay end})
     responder = start_supervised!({Task, fn -> respond(agent) end})
     {:ok, _} = Gnat.sub(:gnat_rpc, responder, @resolve)
-    %{agent: agent}
+    %{agent: agent, responder: responder}
   end
 
   test "the overlay page is the powered page with the same policy", %{http_port: port} do
@@ -185,8 +185,7 @@ defmodule ControlsGateway.OverlayTest do
   test "events accept offers for their own template only", %{http_port: port} do
     live = events(port, [cookie(port)])
 
-    assert {:error, :timeout} =
-             offer("tts", %{"event_id" => "other"}, %{}, receive_timeout: 300)
+    assert {:error, :no_responders} = offer("tts", %{"event_id" => "other"})
 
     assert {:ok, %{body: ~s({"accepted":true})}} = offer("powered", %{"event_id" => "own"})
     HttpClient.close(HttpClient.await_alerts(live, 1))
@@ -257,7 +256,7 @@ defmodule ControlsGateway.OverlayTest do
   end
 
   test "an offer nobody accepts is requeued with growing delays", _context do
-    {:ok, _} = Gnat.sub(:gnat_jetstream, self(), "overlays.session.7")
+    {:ok, _} = Gnat.sub(:gnat_jetstream, self(), "overlays.session.7.powered")
     publish_alert("ladder")
 
     stamps =
@@ -408,6 +407,108 @@ defmodule ControlsGateway.OverlayTest do
     HttpClient.close(closed)
   end
 
+  for {name, id, keyed} <- [
+        {"a rotation event for the user", 7, true},
+        {"an event for every user", :all, false}
+      ] do
+    test "#{name} ends a stream whose link check now fails", %{http_port: port, agent: agent} do
+      live = events(port, [cookie(port)])
+      Agent.update(agent, &Map.put(&1, :gone, true))
+      keys = if unquote(keyed), do: [sha(@token)], else: []
+
+      :ok =
+        Platform.Invalidations.publish(
+          ControlsGateway.Invalidations,
+          "overlays",
+          unquote(id),
+          keys
+        )
+
+      closed = HttpClient.await(live, & &1.done)
+      assert closed.done
+      HttpClient.close(closed)
+    end
+  end
+
+  test "an unavailable check after a link change keeps retrying until it settles", %{
+    http_port: port,
+    agent: agent
+  } do
+    live = events(port, [cookie(port)])
+    update_overlay(agent, &Map.put(&1, :down, true))
+    keys = [sha(@token)]
+    :ok = Platform.Invalidations.publish(ControlsGateway.Invalidations, "overlays", 7, keys)
+    live = HttpClient.drain(live, 600)
+    refute live.done
+
+    update_overlay(agent, &(&1 |> Map.delete(:down) |> Map.put(:gone, true)))
+    closed = HttpClient.await(live, & &1.done)
+    assert closed.done
+    HttpClient.close(closed)
+  end
+
+  test "a feed gap sends every open stream to re-check its link", %{
+    http_port: port,
+    agent: agent,
+    responder: responder
+  } do
+    put_env(:stream_force_close_ms, 60_000)
+    live = events(port, [cookie(port)])
+    update_overlay(agent, &Map.put(&1, :gone, true))
+    old = Platform.Nats.connection_pid(:gnat_rpc)
+    Process.exit(old, :kill)
+    eventually(fn -> Platform.Nats.connection_pid(:gnat_rpc) not in [nil, old] end)
+    {:ok, _} = Gnat.sub(:gnat_rpc, responder, @resolve)
+    closed = HttpClient.await(live, & &1.done)
+    assert closed.done
+    HttpClient.close(closed)
+  end
+
+  test "an offer of another kind waits out the timeout when only other kinds are open", %{
+    http_port: port
+  } do
+    live = events(port, [cookie(port)])
+    before = counter("Offer/Timeout")
+
+    {:ok, _} =
+      Gnat.request(
+        :gnat_jetstream,
+        "overlays.premium.tts.7",
+        Jason.encode!(%{event_id: "foreign"}),
+        headers: [{"Nats-Msg-Id", "foreign"}]
+      )
+
+    eventually(fn -> counter("Offer/Timeout") > before end, 60)
+    HttpClient.close(live)
+  end
+
+  test "an offer reaches a stream subscribed only on the legacy subject" do
+    {:ok, _} = Gnat.sub(:gnat_jetstream, self(), "overlays.session.7")
+    publish_alert("old-pod")
+    assert_receive {:msg, %{reply_to: reply, body: body}}, 5_000
+    assert %{"kind" => "powered"} = Jason.decode!(body)
+    :ok = Gnat.pub(:gnat_jetstream, reply, ~s({"accepted":true}))
+  end
+
+  test "a stream also takes an offer published on the legacy subject", %{http_port: port} do
+    live = events(port, [cookie(port)])
+    body = offer_body("powered", %{"event_id" => "legacy-in"}, %{})
+
+    assert {:ok, %{body: ~s({"accepted":true})}} =
+             Gnat.request(:gnat_jetstream, "overlays.session.7", body)
+
+    HttpClient.close(HttpClient.await_alerts(live, 1))
+  end
+
+  @tag overlay: %{kind: "custom", premium: true, document: %{"version" => 2, "kind" => "custom"}}
+  test "a custom overlay without a template opens a stream and stays open", %{http_port: port} do
+    live = events(port, [cookie(port)])
+    assert %{"key" => _key} = HttpClient.ready(live)
+    live = HttpClient.drain(live, 500)
+    refute live.done
+    HttpClient.close(live)
+  end
+
   test "events close when the overlay stops being allowed", %{http_port: port, agent: agent} do
     live = events(port, [cookie(port)])
     update_overlay(agent, &Map.merge(&1, %{kind: "custom", allowed: false, document: nil}))
@@ -454,8 +555,18 @@ defmodule ControlsGateway.OverlayTest do
   defp alert_data(id, expires_at), do: %{"event_id" => id, "expires_at" => expires_at}
 
   defp offer(kind, data, extra \\ %{}, opts \\ []) do
-    body = Map.merge(%{ack: @ack, kind: kind, data: data, delivered: 1}, extra)
-    Gnat.request(:gnat_jetstream, "overlays.session.7", Jason.encode!(body), opts)
+    Gnat.request(
+      :gnat_jetstream,
+      "overlays.session.7.#{kind}",
+      offer_body(kind, data, extra),
+      opts
+    )
+  end
+
+  defp offer_body(kind, data, extra) do
+    %{ack: @ack, kind: kind, data: data, delivered: 1}
+    |> Map.merge(extra)
+    |> Jason.encode!()
   end
 
   defp publish_alert(event_id) do

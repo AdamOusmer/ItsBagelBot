@@ -7,35 +7,48 @@ defmodule ControlsGateway.Overlays.Pending do
 
   @max_age_ms 300_000
   @sweep_ms 15_000
+  @close_metrics %{nak: "Ack/NakOnClose", progress: "Ack/ProgressOnHandoff"}
 
   def start(owner) do
-    spawn(fn -> loop(Process.monitor(owner), %{}) end)
+    spawn(fn -> loop(Process.monitor(owner), %{}, :open) end)
   end
 
   def track(pending, ack), do: send(pending, {:track, ack})
 
-  defp loop(ref, acks) do
+  def handoff(pending), do: send(pending, :handoff)
+
+  defp loop(ref, acks, mode) do
     receive do
       {:track, ack} ->
-        loop(ref, acks |> Map.put(ack, now()) |> prune())
+        loop(ref, acks |> Map.put(ack, now()) |> prune(), mode)
+
+      :handoff ->
+        loop(ref, acks, :handoff)
 
       {:DOWN, ^ref, :process, _pid, reason} ->
         count_client_close(reason)
-        Enum.each(Map.keys(acks), &nak/1)
+        action = close_action(mode, reason)
+        Enum.each(Map.keys(acks), &release(&1, action))
     after
-      @sweep_ms -> loop(ref, prune(acks))
+      @sweep_ms -> loop(ref, prune(acks), mode)
     end
   end
+
+  defp close_action(:handoff, reason) when reason != :normal, do: :progress
+  defp close_action(_mode, _reason), do: :nak
 
   defp count_client_close(:normal), do: :ok
   defp count_client_close(_reason), do: Metrics.count("Stream/Closed/client")
 
-  defp nak(ack) do
-    case Ack.nak(:jetstream, ack) do
-      :ok -> Metrics.count("Ack/NakOnClose")
+  defp release(ack, action) do
+    case publish(action, ack) do
+      :ok -> Metrics.count(Map.fetch!(@close_metrics, action))
       _failed -> Metrics.count("Ack/Failed")
     end
   end
+
+  defp publish(:nak, ack), do: Ack.nak(:jetstream, ack)
+  defp publish(:progress, ack), do: Ack.progress(:jetstream, ack)
 
   defp prune(acks) do
     cutoff = now() - @max_age_ms

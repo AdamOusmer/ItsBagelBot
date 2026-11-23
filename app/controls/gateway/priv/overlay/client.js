@@ -28,11 +28,11 @@ var createOverlayClient = (function () {
   }
 
   class SeenStore {
-    constructor(storage, key, now) {
+    constructor(storage, key, now, carried) {
       this.storage = storage;
       this.key = key;
       this.now = now;
-      this.entries = {};
+      this.entries = Object.assign({}, carried);
       this.merge();
     }
 
@@ -127,7 +127,7 @@ var createOverlayClient = (function () {
       this.env = env;
       this.http = new Http(env);
       this.skewMs = 0;
-      this.seen = this.seenFor(env.basePath);
+      this.seen = this.seenFor(env.basePath, {});
       this.backoff = new Backoff(env.random);
       this.queue = [];
       this.busy = false;
@@ -141,8 +141,8 @@ var createOverlayClient = (function () {
       this.progressTimer = null;
     }
 
-    seenFor(key) {
-      return new SeenStore(this.env.storage, 'bb_seen:' + key, () => this.serverNow());
+    seenFor(key, carried) {
+      return new SeenStore(this.env.storage, 'bb_seen:' + key, () => this.serverNow(), carried);
     }
 
     serverNow() {
@@ -250,15 +250,21 @@ var createOverlayClient = (function () {
     }
 
     failed(source) {
-      if (source.readyState !== this.env.EventSource.CLOSED) return;
       if (source === this.pending) {
+        source.close();
         this.pending = null;
-        this.retryLater(true);
+        this.retryLater(this.source !== null);
         return;
       }
       if (source !== this.source) return;
+      if (this.pending) return this.adoptPending();
       this.dropStreams();
       this.retryLater();
+    }
+
+    adoptPending() {
+      this.source.close();
+      this.source = null;
     }
 
     beginHandoff(message) {
@@ -277,7 +283,9 @@ var createOverlayClient = (function () {
       this.promote(source);
       const info = JSON.parse(message.data);
       if (typeof info.now === 'number') this.skewMs = info.now - this.env.now();
-      if (typeof info.key === 'string') this.seen = this.seenFor(info.key);
+      if (typeof info.key === 'string' && this.seen.key !== 'bb_seen:' + info.key) {
+        this.seen = this.seenFor(info.key, this.seen.entries);
+      }
       if (typeof info.revision === 'number') this.env.onRevision(info.revision);
     }
 
@@ -286,7 +294,7 @@ var createOverlayClient = (function () {
       const previous = this.source;
       this.source = source;
       this.pending = null;
-      previous.close();
+      if (previous) previous.close();
     }
 
     receive(alert) {

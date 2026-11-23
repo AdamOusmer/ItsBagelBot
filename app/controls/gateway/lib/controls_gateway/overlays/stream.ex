@@ -24,6 +24,7 @@ defmodule ControlsGateway.Overlays.Stream do
   @accepted ~s({"accepted":true})
   @play_frame "event: play\ndata: {}\n\n"
   @labels %{overlay: "Overlay", tts: "TTS"}
+  @streams ControlsGateway.Streams
 
   def open(req, {kind, version}, session, headers) do
     base = %{kind: kind, version: version, session: session}
@@ -65,22 +66,47 @@ defmodule ControlsGateway.Overlays.Stream do
   end
 
   defp admit(req, headers, state) do
-    with {:ok, revoked_sid} <- watch_revocation(state),
+    with {:ok, _} <- register_early(state),
+         {:ok, revoked_sid} <- watch_revocation(state),
          {:ok, link} <- check(state.kind, state.session, state.rpc),
-         {:ok, offer_sid} <-
-           Planes.subscribe(
-             state.jetstream,
-             self(),
-             Subjects.overlay_session(link.user_id),
-             queue_group: queue_group(state.kind, link.accepts)
-           ) do
-      state = Map.merge(state, Map.merge(link, %{revoked_sid: revoked_sid, offer_sid: offer_sid}))
+         {:ok, offers} <- subscribe_offers(state, link) do
+      state = Map.merge(state, Map.merge(link, Map.put(offers, :revoked_sid, revoked_sid)))
       start(req, headers, state)
     else
       {:denied, reason} -> denied(req, headers, state, reason)
       other -> unavailable(req, headers, state, other)
     end
   end
+
+  defp register_early(%{kind: :tts, session: session}),
+    do: Registry.register(@streams, session.user_id, nil)
+
+  defp register_early(_state), do: {:ok, nil}
+
+  defp register_late(%{kind: :overlay} = state) do
+    {:ok, _} = Registry.register(@streams, state.user_id, nil)
+    send(self(), :link_changed)
+  end
+
+  defp register_late(_state), do: :ok
+
+  defp subscribe_offers(state, %{user_id: user_id, accepts: accepts}) when is_binary(accepts) do
+    group = [queue_group: queue_group(state.kind, accepts)]
+
+    with {:ok, offer_sid} <-
+           Planes.subscribe(
+             state.jetstream,
+             self(),
+             Subjects.overlay_session(user_id, accepts),
+             group
+           ),
+         {:ok, legacy_sid} <-
+           Planes.subscribe(state.jetstream, self(), Subjects.overlay_session(user_id), group) do
+      {:ok, %{offer_sid: offer_sid, legacy_sid: legacy_sid}}
+    end
+  end
+
+  defp subscribe_offers(_state, _link), do: {:ok, %{offer_sid: nil, legacy_sid: nil}}
 
   defp queue_group(:tts, _template), do: "tts"
   defp queue_group(:overlay, template), do: "overlay.#{template}"
@@ -117,6 +143,7 @@ defmodule ControlsGateway.Overlays.Stream do
         pending: Pending.start(self())
       })
 
+    register_late(state)
     Metrics.count("Stream/Opened")
     Logger.info("#{label(state.kind)} events stream opened", log_id(state))
 
@@ -160,9 +187,9 @@ defmodule ControlsGateway.Overlays.Stream do
   def info(
         {:msg, %{sid: sid, gnat: pid, reply_to: reply} = message},
         req,
-        %{offer_sid: sid, jetstream: %{pid: pid}} = state
+        %{jetstream: %{pid: pid}} = state
       )
-      when is_binary(reply),
+      when is_binary(reply) and sid in [state.offer_sid, state.legacy_sid],
       do: offer(message, req, state)
 
   def info({:DOWN, ref, :process, _pid, _reason}, req, state)
@@ -181,21 +208,26 @@ defmodule ControlsGateway.Overlays.Stream do
   end
 
   def info(:check, req, state) do
-    case verdict(state) do
-      {:ok, link} ->
-        schedule_check(state)
-        announce(req, state, link.revision)
+    verdict = verdict(state)
+    reschedule(verdict, state)
+    settle_verdict(verdict, req, state)
+  end
 
-      :unavailable ->
-        schedule_recheck(state)
-        continue(req, state)
-
-      {:denied, reason} ->
-        stop(req, state, reason)
-    end
+  def info(:link_changed, req, state) do
+    verdict = verdict(state)
+    if verdict == :unavailable, do: Process.send_after(self(), :link_changed, recheck_ms())
+    settle_verdict(verdict, req, state)
   end
 
   def info(_message, req, state), do: continue(req, state)
+
+  defp reschedule({:ok, _link}, state), do: schedule_check(state)
+  defp reschedule(:unavailable, state), do: schedule_recheck(state)
+  defp reschedule({:denied, _reason}, _state), do: :ok
+
+  defp settle_verdict({:ok, link}, req, state), do: announce(req, state, link.revision)
+  defp settle_verdict(:unavailable, req, state), do: continue(req, state)
+  defp settle_verdict({:denied, reason}, req, state), do: stop(req, state, reason)
 
   defp down(req, state, :rpc_down) do
     close_ms = env_ms(:stream_force_close_ms, @force_close_ms)
@@ -221,9 +253,10 @@ defmodule ControlsGateway.Overlays.Stream do
     continue(req, state)
   end
 
-  defp announce_reconnect(req, %{version: :v2}, after_ms) do
+  defp announce_reconnect(req, %{version: :v2} = state, after_ms) do
     frame = ["event: reconnect\ndata: {\"after_ms\": ", Integer.to_string(after_ms), "}\n\n"]
     :ok = :cowboy_req.stream_body(frame, :nofin, req)
+    Pending.handoff(state.pending)
   end
 
   defp announce_reconnect(_req, %{version: :legacy}, _after_ms), do: :ok
@@ -357,8 +390,9 @@ defmodule ControlsGateway.Overlays.Stream do
   defp schedule_check(state),
     do: schedule(state, Application.get_env(:controls_gateway, :overlay_check_ms, @check_ms))
 
-  defp schedule_recheck(state),
-    do: schedule(state, Application.get_env(:controls_gateway, :overlay_recheck_ms, @recheck_ms))
+  defp schedule_recheck(state), do: schedule(state, recheck_ms())
+
+  defp recheck_ms, do: Application.get_env(:controls_gateway, :overlay_recheck_ms, @recheck_ms)
 
   defp schedule(state, interval_ms) do
     delay = min(interval_ms, max(0, state.session.exp - SignedCookie.now()) * 1_000)

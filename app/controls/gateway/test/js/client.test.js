@@ -86,7 +86,7 @@ function fakeTimers(clock) {
   };
 }
 
-function harness({ token = '', random = () => 0.5, stored = null, store = new Map(), respond = () => null, hold = false } = {}) {
+function harness({ token = '', random = () => 0.5, stored = null, store = new Map(), respond = () => null, hold = false, failWrites = false } = {}) {
   FakeEventSource.instances = [];
   const clock = { now: START_MS };
   const timers = fakeTimers(clock);
@@ -104,7 +104,13 @@ function harness({ token = '', random = () => 0.5, stored = null, store = new Ma
   h.client = context.createOverlayClient({
     EventSource: FakeEventSource,
     fetch,
-    storage: { getItem: (key) => store.get(key) ?? null, setItem: (key, value) => store.set(key, value) },
+    storage: {
+      getItem: (key) => store.get(key) ?? null,
+      setItem: (key, value) => {
+        if (failWrites) throw new Error('quota');
+        store.set(key, value);
+      }
+    },
     now: () => clock.now,
     setTimeout: (fn, ms) => timers.set(fn, ms),
     clearTimeout: (id) => timers.clear(id),
@@ -280,7 +286,7 @@ test('seen is keyed by overlay, merged across clients and pruned of expired entr
   await flush();
   assert.deepEqual(
     { afterLoad, keys: Object.keys(JSON.parse(store.get('bb_seen:k'))).sort(), first: first.alerts, second: second.alerts },
-    { afterLoad: { fresh: START_MS + MINUTE_MS }, keys: ['a', 'b', 'c'], first: ['a', 'c'], second: ['b'] }
+    { afterLoad: { fresh: START_MS + MINUTE_MS }, keys: ['a', 'b', 'c', 'fresh'], first: ['a', 'c'], second: ['b'] }
   );
 });
 
@@ -333,16 +339,45 @@ test('handoff closes the old stream only after the new one is ready', async () =
   }
 });
 
-test('an old stream failing before the new one is ready falls back to a normal reconnect', async () => {
+test('an old stream failing before the new one is ready hands over to the pending stream', async () => {
+  const cases = [
+    { name: 'pending ready', next: (h) => h.sources[1].emit('ready', {}) },
+    { name: 'pending alert first', next: (h) => h.sources[1].emit('alert', frame('a')) }
+  ];
+  for (const c of cases) {
+    const h = await open();
+    h.sources[0].emit('reconnect', { after_ms: 0 });
+    h.timers.advance(0);
+    h.sources[0].fail();
+    c.next(h);
+    h.sources[1].emit('alert', frame('b'));
+    await flush();
+    assert.deepEqual(
+      {
+        name: c.name,
+        sources: h.sources.length,
+        oldClosed: h.sources[0].closed,
+        newClosed: h.sources[1].closed,
+        heads: h.requests.filter((r) => r.method === 'HEAD').length,
+        timers: h.timers.delays.length
+      },
+      { name: c.name, sources: 2, oldClosed: true, newClosed: false, heads: 1, timers: 2 }
+    );
+  }
+});
+
+test('a pending stream failing after the old one is gone reconnects normally', async () => {
   const h = await open();
   h.sources[0].emit('reconnect', { after_ms: 0 });
   h.timers.advance(0);
   h.sources[0].fail();
+  h.sources[1].fail();
   h.timers.fireLast();
   await flush();
+  h.sources[2].emit('alert', frame('a'));
   assert.deepEqual(
-    { sources: h.sources.length, newClosed: h.sources[1].closed, head: h.requests.filter((r) => r.method === 'HEAD').length },
-    { sources: 3, newClosed: true, head: 2 }
+    { sources: h.sources.length, heads: h.requests.filter((r) => r.method === 'HEAD').length, played: h.alerts },
+    { sources: 3, heads: 2, played: ['a'] }
   );
 });
 
@@ -379,18 +414,37 @@ test('a replacement retry checks the stream first and honors retry-after', async
   );
 });
 
-test('a server fin that leaves the stream connecting is left to the browser', async () => {
+test('a server fin that leaves the stream connecting reconnects through the events check', async () => {
   const h = await open();
   h.sources[0].emit('ready', {});
   h.sources[0].readyState = 0;
   h.sources[0].onerror();
+  const closed = h.sources[0].closed;
   h.timers.advance(60000);
   await flush();
-  h.sources[0].emit('alert', frame('a'));
   assert.deepEqual(
-    { sources: h.sources.length, heads: h.requests.filter((r) => r.method === 'HEAD').length, played: h.alerts },
-    { sources: 1, heads: 1, played: ['a'] }
+    { closed, sources: h.sources.length, heads: h.requests.filter((r) => r.method === 'HEAD').length },
+    { closed: true, sources: 2, heads: 2 }
   );
+});
+
+test('seen survives ready when storage writes fail', async () => {
+  const cases = [
+    { name: 'same key', keys: ['k', 'k'] },
+    { name: 'key changes', keys: ['k', 'k2'] }
+  ];
+  for (const c of cases) {
+    const h = await open({ failWrites: true });
+    h.sources[0].emit('ready', { key: c.keys[0] });
+    h.sources[0].emit('alert', frame('a'));
+    h.sources[0].emit('ready', { key: c.keys[1] });
+    h.sources[0].emit('alert', frame('a'));
+    await flush();
+    assert.deepEqual(
+      { name: c.name, played: h.alerts, acks: h.acks() },
+      { name: c.name, played: ['a'], acks: [['h-a', 'played'], ['h-a', 'duplicate']] }
+    );
+  }
 });
 
 test('reconnect delays are bounded by the doubling cap and jittered', async () => {

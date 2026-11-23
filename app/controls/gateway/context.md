@@ -44,12 +44,12 @@ streams `OVERLAYS_PREMIUM` and `OVERLAYS_STANDARD` (subjects
 `overlays-premium` and `overlays-standard`, shared by every gateway pod. Each
 pod runs one `Platform.Nats.Pull` loop per tier on the hub connection
 (`overlays.ex`, started with the server). For every message the handler
-parses the user ID from the subject and sends a core request to
-`overlays.session.<user_id>` with `{"ack", "kind", "data", "delivered", "expires_at"}`
+parses the user ID and kind from the subject and sends a core request to
+`overlays.session.<user_id>.<kind>` (on no responders it retries once on the legacy `overlays.session.<user_id>`, kept for one release) with `{"ack", "kind", "data", "delivered", "expires_at"}`
 (`expires_at` is the JetStream publish time plus the 5 minute TTL). The reply
 subject is `overlays.session.reply.<instance>.<nonce>` from `Platform.Nats.Requester`, because the gateway role may not
 publish to `_INBOX`. Every open
-`GET /tts/events` stream of that user subscribes to that subject in a NATS queue group (`tts` for TTS streams, `overlay.<template>` for visual ones), so two sources on one link receive each offer once, including during a handoff overlap. The one
+`GET /tts/events` stream of that user subscribes to the subject of its own kind (`tts`, or the visual template) and to the legacy per-user subject in a NATS queue group (`tts` for TTS streams, `overlay.<template>` for visual ones), so two sources on one link receive each offer once, including during a handoff overlap. The one
 `Overlays.Stream` module serves both kinds: a TTS stream accepts offers of kind `tts`,
 a visual stream those whose kind equals its template. It tracks the ack subject in
 a monitor process, writes the frame below and replies `{"accepted": true}`:
@@ -77,8 +77,8 @@ visual page uses the same handler at `POST /o/ack` and `POST /o/progress` with t
 counts `Ack/Ack`, and the last three also count `Page/DuplicateSkipped`, `Page/Expired` or `Page/Dropped`. A bad
 handle is 404, no session is 401, success is 204, a failed publish is 503 and counts `Ack/Failed`. Each stream keeps the ack
 subjects it sent for five minutes in a monitor process and publishes `-NAK`
-for them when the stream ends for any reason, so another session or pod gets
-the clip at once. Acking an already acked message is a no-op.
+for them when the stream ends, so another session or pod gets
+the clip at once. A stream that already sent its `reconnect` frame and is then closed by the client publishes `+WPI` instead (`Ack/ProgressOnHandoff`), because the old page may still be playing the clip and its own ack settles it. An offer for a user with no open stream gets no responders on either subject and is requeued at once. When only streams of another kind are open, the legacy retry reaches one of them, it stays silent, and the offer waits out the 2 second timeout (`Offer/Timeout`) before the `-NAK`. Acking an already acked message is a no-op.
 
 `GET /tts/clip/<event_id>` streams a WAV from the `OVERLAYS_MEDIA` Object Store
 bucket with `Content-Length` from the object metadata size, using the cookie
@@ -95,7 +95,7 @@ hashes cover it). It has no DOM access and takes its browser objects as
 arguments, so `test/js/client.test.js` drives it with fakes
 (`node --test app/controls/gateway/test/js/`, run in CI). It owns:
 
-- Connecting. Every connect, first or after `EventSource` `CLOSED`, starts with
+- Connecting. Every connect, first or after any `EventSource` error (the client closes the stream and does not leave the retry to the browser), starts with
   `HEAD <base>/events`. A 200 opens `<base>/events?v=2` directly. A 401 with a
   held token runs `POST <base>/session` (404 stops for good; network errors,
   429 and 5xx retry) and then opens the stream. A 204 stops for good. Any other
@@ -109,7 +109,7 @@ arguments, so `test/js/client.test.js` drives it with fakes
   it is retried with backoff while the old one lives.
 - Ready. `event: ready` carries `{"now", "key", "revision"}`. The client keeps
   `now` minus its own clock as an offset for every `expires_at` comparison, keys
-  `seen` by `key`, and passes `revision` (visual only) to `onRevision`.
+  `seen` by `key` (an unchanged key keeps the store, a changed key carries its entries over), and passes `revision` (visual only) to `onRevision`.
 - Duplicates. `seen` maps `event_id` to its expiry in `localStorage` under
   `bb_seen:<key>` (`<base>` before the first `ready`). It is re-read and merged
   on every check and insert, so two sources of one link share it. Expired
@@ -156,8 +156,8 @@ expires. An unavailable check keeps the stream and reschedules after 15 seconds
 (`overlay_recheck_ms`), clamped to the session expiry like every check.
 `HEAD /o/events` answers 200, 204 or 503 from the same check, which the page uses
 before reopening. It registers with the shared drain like TTS events. Each stream
-also subscribes to `overlays.session.<user_id>` (the resolve reply's `user_id`) and
-accepts only offers whose kind matches the overlay's template. Delivery is
+also subscribes to `overlays.session.<user_id>.<template>` (the resolve reply's `user_id`), so it
+receives only offers whose kind matches the overlay's template. Delivery is
 at-least-once like TTS: it writes the `alert` frame, tracks the ack subject, replies
 `{"accepted": true}` and leaves the message unacked until the page posts `/o/ack`
 when the entrance animation starts. A stream that dies first NAKs its unacked
@@ -226,10 +226,10 @@ retrying one costs one projector request per 30 seconds per pod. An unavailable
 reply is never stored, and an entry up to 5 minutes past its TTL is served while the
 projector is down. `Platform.Invalidations` listens on `cache.invalidate.overlays`
 (RPC leaf): the event's keys drop resolve entries, its `broadcaster_id` drops that
-user's check entries, `*` clears every cache, and a NATS reconnect clears them too.
+user's check entries, `*` clears every cache, and a NATS reconnect clears them too. The same feed (`overlays/link_watch.ex`) sends every open stream of that user (all streams on `*` or a reconnect) a link check after a 0.1 to 1 second jitter, so a rotated or revoked link ends without waiting for the five minute check.
 The projector publishes an `overlays`-scope invalidation on TTS changes too (`app/projector/tts.go`). `allowed` and `premium` ride in the cached overlay, so a premium change reaches open streams and documents up to 30 seconds late (5 minutes if the projector is down). A visual stream keeps running when its check is unavailable and rechecks in 15 seconds. Counters are `Cache/Hit`, `Miss`, `Stale`, `Invalidated` and `Gap`, suffixed with the cache name.
 
-The listener is `Platform.Cowboy.Server`: the Plug router serves every route except the two SSE streams and the desktop WebSocket, which stay Cowboy loop routes. Counters go through `Platform.Metrics` (prefix `Custom/ControlsGateway/`) to New Relic. `/readyz` is a `Platform.Health` report: not draining, `:gnat_jetstream` and `:gnat_rpc` connected, and both overlay pullers attached (503 otherwise); `/healthz` only proves the process. Both SSE streams monitor both NATS connections and end with `Stream/Closed/nats_down` (hub) or `rpc_down` (leaf) when either drops, counting `Stream/Opened` and `Stream/Closed/<reason>`. Offers that find no connected requester count `Offer/NotConnected`; a failed `-NAK` or `+TERM` publish counts `Ack/Failed`. Drain (`drain.ex`) runs in this order: set the draining flag (`/readyz` 503, new streams 503 with `Retry-After`); pause the pullers; await both tiers' in-flight offers concurrently (at most one 2 second offer timeout); send every registered SSE stream `{:reconnect, after_ms, :drain}` with `after_ms` uniform in 0 to 1,500; then poll until every registered stream, desktop socket and `/tts/clip` download has finished or the deadline passes (`drain_deadline_ms`, 25 seconds). Streams, sockets and downloads register in `ControlsGateway.Connections` with their kind; desktop sockets keep their own jittered `shutdown_close`. It counts `Drain/DurationMs` (elapsed milliseconds) and `Drain/StreamsLeft` (SSE streams still open at the deadline). Its last step flushes the counters to New Relic. While draining, Plug responses on HTTP/1.1 carry `Connection: close`. The overlay `IngressRoute` services use `nativeLB: false` so Traefik balances over pod endpoints and stops sending new requests to a terminating pod during the preStop window.
+The listener is `Platform.Cowboy.Server`: the Plug router serves every route except the two SSE streams and the desktop WebSocket, which stay Cowboy loop routes. Counters go through `Platform.Metrics` (prefix `Custom/ControlsGateway/`) to New Relic. `/readyz` is a `Platform.Health` report: not draining, `:gnat_jetstream` and `:gnat_rpc` connected, and both overlay pullers attached (503 otherwise); `/healthz` only proves the process. Both SSE streams monitor both NATS connections and end with `Stream/Closed/nats_down` (hub) or `rpc_down` (leaf) when either drops, counting `Stream/Opened` and `Stream/Closed/<reason>`. Offers that find no connected requester count `Offer/NotConnected`; a failed `-NAK` or `+TERM` publish counts `Ack/Failed`. Drain (`drain.ex`) runs in this order: set the draining flag (`/readyz` 503, new streams 503 with `Retry-After`); pause the pullers (the inbox subscription stays, so a message already on the wire is NAKed with a short delay instead of waiting out `AckWait`, counted as `Pull/PausedNak`; the subscription is dropped once the drain's idle wait returns or 1 second after the pause); await both tiers' in-flight offers concurrently (at most one 2 second offer timeout); send every registered SSE stream `{:reconnect, after_ms, :drain}` with `after_ms` uniform in 0 to 1,500; then poll until every registered stream, desktop socket and `/tts/clip` download has finished or the deadline passes (`drain_deadline_ms`, 25 seconds). Streams, sockets and downloads register in `ControlsGateway.Connections` with their kind; desktop sockets keep their own jittered `shutdown_close`. It counts `Drain/DurationMs` (elapsed milliseconds) and `Drain/StreamsLeft` (SSE streams still open at the deadline). Its last step flushes the counters to New Relic. While draining, Plug responses on HTTP/1.1 carry `Connection: close`. The overlay `IngressRoute` services use `nativeLB: false` so Traefik balances over pod endpoints and stops sending new requests to a terminating pod during the preStop window.
 
 A stream told to reconnect (drain, or a NATS plane going down) writes `event: reconnect` with `data: {"after_ms": n}` and counts `Stream/Reconnect/<reason>` (`drain`, `nats_down`, `rpc_down`). It keeps accepting offers so the page can overlap the old and new stream, and closes when the client does or when the forced close fires: 10 seconds after a drain reconnect (`stream_force_close_ms`), after a plane `DOWN` whose `after_ms` is uniform in 0 to 1,500: `after_ms` plus 1 second when the hub drops (`stream_down_grace_ms`, the stream can no longer receive offers) and the full 10 seconds when the leaf drops (`rpc_down`, it can still deliver). Closes are counted as `Stream/Closed/<reason>`, and `Stream/Closed/client` when the client closed first. Revocation, link denial and session expiry still end the stream with no reconnect frame.
 
@@ -238,6 +238,6 @@ A stream told to reconnect (drain, or a NATS plane going down) writes `event: re
 `NATS_PORT`). Both use the gateway credentials and verify TLS against their
 own host. The RPC connection serves Projector requests and carries
 TTS revocations. The hub connection carries the overlay queue, `OVERLAYS_MEDIA`,
-`overlays.session.<user_id>` and desktop subjects. The clusters are separate, so a hub request for a leaf RPC
+`overlays.session.<user_id>.<kind>` and desktop subjects. The clusters are separate, so a hub request for a leaf RPC
 gets no responders. Build the gateway image from the repository root so the
 Containerfile can copy the shared package.

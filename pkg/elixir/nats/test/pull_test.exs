@@ -159,11 +159,70 @@ defmodule Platform.Nats.PullTest do
     refute Jetstream.eventually(fn -> Pull.attached?(missing) end, 15)
   end
 
-  test "pause stops pulling and unsubscribes", %{pull: pull} do
+  test "pause reports not attached and stops handling", %{pull: pull} do
     assert :ok = Pull.pause(pull)
     refute Pull.attached?(pull)
     Jetstream.publish!("p.after", "late")
     refute_receive {:handled, _task, "late"}, 1_200
+  end
+
+  test "a message already on the wire at pause is NAKed to another puller", %{pull: pull} do
+    test = self()
+    id = {:paused_nak, make_ref()}
+
+    :telemetry.attach(
+      id,
+      [:platform, :nats, :pull, :paused_nak],
+      fn _event, _measurements, %{name: name}, _config -> send(test, {:paused_nak, name}) end,
+      nil
+    )
+
+    on_exit(fn -> :telemetry.detach(id) end)
+    assert :ok = Pull.pause(pull)
+    Jetstream.publish!("p.wire", "wired")
+    refute_receive {:handled, _task, "wired"}, 300
+
+    start_extra(:taker, "d", fn message ->
+      {:ok, %{num_delivered: delivered}} = Planes.jetstream_metadata(message)
+      send(test, {:taken, message.body, delivered})
+      Ack.ack(:jetstream, message.reply_to)
+    end)
+
+    assert_receive {:taken, "wired", delivered}, 5_000
+    assert delivered >= 2
+    assert_receive {:paused_nak, :pull_under_test}
+  end
+
+  test "a paused puller NAKs what arrives and drops its inbox after the terminal status" do
+    test = self()
+    Jetstream.create_consumer!("P", "held")
+
+    held =
+      start_extra(:held, "held", fn message -> receive do: (:release -> message) end,
+        expires_ns: 1_500_000_000
+      )
+
+    assert Jetstream.eventually(fn -> Pull.attached?(held) end, 20)
+    Jetstream.publish!("p.held", "first")
+    assert Jetstream.eventually(fn -> task_running?(:held_tasks) end)
+    assert :ok = Pull.pause(held)
+    assert {:error, :timeout} = Pull.await_idle(held, 100)
+    assert :sys.get_state(held).sid != nil
+    Jetstream.publish!("p.held", "second")
+
+    start_extra(:taker2, "held", fn message ->
+      {:ok, %{num_delivered: delivered}} = Planes.jetstream_metadata(message)
+      send(test, {:taken, message.body, delivered})
+      Ack.ack(:jetstream, message.reply_to)
+    end)
+
+    assert_receive {:taken, "second", delivered}, 5_000
+    assert delivered >= 2
+    assert Jetstream.eventually(fn -> :sys.get_state(held).sid == nil end, 40)
+
+    for {_id, pid, _type, _mods} <- Supervisor.which_children(:held_tasks) do
+      send(pid, :release)
+    end
   end
 
   test "pull re-attaches after the connection is replaced", %{pull: pull} do

@@ -4,6 +4,7 @@
 defmodule ControlsGateway.Caches do
   @moduledoc "Projector resolve and check caches kept fresh by the overlays invalidation feed."
 
+  alias ControlsGateway.Overlays.LinkWatch
   alias Platform.Cache
 
   @feed ControlsGateway.Invalidations
@@ -24,7 +25,7 @@ defmodule ControlsGateway.Caches do
     ttl_ms = Keyword.get(opts, :ttl_ms, @ttl_ms)
 
     [{Platform.Invalidations, name: @feed, plane: :rpc, prefix: "cache.invalidate"}] ++
-      Enum.map(@names, &cache(&1, ttl_ms))
+      Enum.map(@names, &cache(&1, ttl_ms)) ++ [{LinkWatch, @feed}]
   end
 
   defp cache(name, ttl_ms) do

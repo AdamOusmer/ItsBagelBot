@@ -6,7 +6,10 @@ defmodule ControlsGateway.Metrics do
 
   @table __MODULE__
   @prefix "Custom/ControlsGateway/"
-  @pull_events Enum.map([:attach, :detach, :pause, :status], &[:platform, :nats, :pull, &1])
+  @pull_events Enum.map(
+                 [:attach, :detach, :pause, :paused_nak, :status],
+                 &[:platform, :nats, :pull, &1]
+               )
   @cache_events Enum.map([:hit, :miss, :stale, :invalidated, :gap], &[:platform, :cache, &1])
 
   def child_spec(_opts) do
@@ -45,5 +48,6 @@ defmodule ControlsGateway.Metrics do
   defp pull_metric(:attach, _metadata), do: "Pull/Attach"
   defp pull_metric(:detach, _metadata), do: "Pull/Detached"
   defp pull_metric(:pause, _metadata), do: "Pull/Paused"
+  defp pull_metric(:paused_nak, _metadata), do: "Pull/PausedNak"
   defp pull_metric(:status, %{status: status}), do: "Pull/Status/#{status}"
 end
