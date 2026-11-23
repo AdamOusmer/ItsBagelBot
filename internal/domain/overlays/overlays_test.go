@@ -4,7 +4,6 @@
 package overlays_test
 
 import (
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -12,6 +11,7 @@ import (
 	"testing"
 
 	"ItsBagelBot/internal/domain/overlays"
+	"ItsBagelBot/pkg/codec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -200,6 +200,6 @@ func currentLimits() pinnedLimits {
 
 func TestLimitsMatchPinnedTable(t *testing.T) {
 	var pinned pinnedLimits
-	require.NoError(t, json.Unmarshal(fixture(t, "limits.json"), &pinned))
+	require.NoError(t, codec.Unmarshal(fixture(t, "limits.json"), &pinned))
 	assert.Equal(t, pinned, currentLimits())
 }

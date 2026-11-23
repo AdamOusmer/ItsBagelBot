@@ -32,7 +32,10 @@
       "gift_sub": "Quem presenteou",
       "cheer": "Quem enviou bits",
       "raid": "Raiders",
-      "redemption": "Quem resgatou"
+      "redemption": "Quem resgatou",
+      "mod": "Moderadores",
+      "vip": "VIPs",
+      "chatter": "Espectadores"
     },
     "tier": {
       "1000": "Pontos do nível 1",
@@ -66,7 +69,7 @@
     "marquee": "Rolar texto que não cabe",
     "lines": "Linhas visíveis",
     "hideCommands": "Ocultar comandos",
-    "hideUsers": "Usuários ocultos (um por linha)",
+    "hideUsers": "IDs de usuário ocultos (ID da Twitch, um por linha)",
     "badges": "Mostrar selos de função",
     "nameColor": "Cor do nome",
     "nativeColors": "Usar cores de nome da Twitch",
@@ -89,7 +92,10 @@
     "muted": "Silenciar",
     "images": "Imagens",
     "interval": "Intervalo (s)",
-    "crossfade": "Transição suave (s)"
+    "crossfade": "Transição suave (s)",
+    "showMods": "Mostrar moderadores",
+    "showVips": "Mostrar VIPs",
+    "showChatters": "Mostrar espectadores"
   },
   "option": {
     "1000": "Nível 1",
@@ -158,7 +164,21 @@
     "countdown": "Contagem regressiva",
     "countup": "Contagem progressiva",
     "subathon": "Subathon",
-    "center": "Centro"
+    "center": "Centro",
+    "anonymous": "Anônimo",
+    "is_gift": "É um presente",
+    "upgrade": "Upgrade de presente",
+    "months_exact": "Meses exatos",
+    "streak_min": "Sequência de meses no mínimo",
+    "all_time_gifts": "Presentes de todos os tempos",
+    "week_follows": "Seguidores da semana",
+    "month_follows": "Seguidores do mês",
+    "week_subs": "Inscrições da semana",
+    "month_subs": "Inscrições do mês",
+    "week_gifts": "Presentes da semana",
+    "month_gifts": "Presentes do mês",
+    "week_bits": "Bits da semana",
+    "month_bits": "Bits do mês"
   },
   "alert": {
     "follow": "Seguidor",

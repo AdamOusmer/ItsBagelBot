@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +19,7 @@ import (
 
 	"ItsBagelBot/app/db/overlays/importer"
 	"ItsBagelBot/internal/domain/overlays"
+	"ItsBagelBot/pkg/codec"
 )
 
 var pngBytes = []byte("png-bytes")
@@ -71,7 +71,7 @@ func run(t *testing.T, members []member) (importer.Plan, error) {
 
 func mustJSON(t *testing.T, value any) []byte {
 	t.Helper()
-	data, err := json.Marshal(value)
+	data, err := codec.Marshal(value)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,18 +4,18 @@
 package rpc_test
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 
 	"ItsBagelBot/internal/domain/overlays"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/require"
 )
 
-func foreignAssetDocument(t *testing.T) json.RawMessage {
+func foreignAssetDocument(t *testing.T) codec.RawMessage {
 	t.Helper()
 	doc := overlays.Document{
 		Version: overlays.Version, Kind: overlays.KindCustom, ID: "o1", Name: "Mine", Width: 1920, Height: 1080,
@@ -27,7 +27,7 @@ func foreignAssetDocument(t *testing.T) json.RawMessage {
 			"ghost": {Type: overlays.AssetPNG, Bytes: 10, W: 1, H: 1, SHA256: strings.Repeat("a", 64), URL: "https://cdn.itsbagelbot.com/u/1/ghost"},
 		},
 	}
-	raw, err := json.Marshal(doc)
+	raw, err := codec.Marshal(doc)
 	require.NoError(t, err)
 	return raw
 }

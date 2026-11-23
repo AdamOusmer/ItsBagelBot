@@ -27,6 +27,7 @@
     marks?: Snippet;
     primary?: Snippet;
     actions?: Snippet;
+    below?: Snippet;
   };
 
   let {
@@ -50,6 +51,7 @@
     marks,
     primary,
     actions,
+    below,
     ...rest
   }: Own & Omit<SvelteHTMLElements[T], keyof Own> = $props();
 
@@ -65,6 +67,7 @@
       disabled ? 'is-off' : null,
       wrap ? 'bb-row--wrap' : null,
       stackActions ? 'bb-row--stack-actions' : null,
+      below ? 'bb-row--below' : null,
       className || null,
     ]
       .filter(Boolean)
@@ -110,4 +113,5 @@
     >{#if title !== undefined}{@render line()}{:else if primary}{@render primary()}{/if}</svelte:element
   >
   {#if actions}<div class="bb-row__actions">{@render actions()}</div>{/if}
+  {#if below}<div class="bb-row__below">{@render below()}</div>{/if}
 </svelte:element>

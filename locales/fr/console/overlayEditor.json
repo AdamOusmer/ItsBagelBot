@@ -32,7 +32,10 @@
       "gift_sub": "Donateurs d’abonnements",
       "cheer": "Donateurs de bits",
       "raid": "Raiders",
-      "redemption": "Utilisateurs de récompenses"
+      "redemption": "Utilisateurs de récompenses",
+      "mod": "Modérateurs",
+      "vip": "VIP",
+      "chatter": "Spectateurs"
     },
     "tier": {
       "1000": "Points du niveau 1",
@@ -66,7 +69,7 @@
     "marquee": "Faire défiler le texte trop long",
     "lines": "Lignes visibles",
     "hideCommands": "Masquer les commandes",
-    "hideUsers": "Utilisateurs masqués (un par ligne)",
+    "hideUsers": "ID utilisateur masqués (ID Twitch, un par ligne)",
     "badges": "Afficher les badges de rôle",
     "nameColor": "Couleur du nom",
     "nativeColors": "Utiliser les couleurs de nom Twitch",
@@ -89,7 +92,10 @@
     "muted": "Couper le son",
     "images": "Images",
     "interval": "Intervalle (s)",
-    "crossfade": "Fondu enchaîné (s)"
+    "crossfade": "Fondu enchaîné (s)",
+    "showMods": "Afficher les modérateurs",
+    "showVips": "Afficher les VIP",
+    "showChatters": "Afficher les spectateurs"
   },
   "option": {
     "1000": "Niveau 1",
@@ -158,7 +164,21 @@
     "countdown": "Compte à rebours",
     "countup": "Compte croissant",
     "subathon": "Subathon",
-    "center": "Centré"
+    "center": "Centré",
+    "anonymous": "Anonyme",
+    "is_gift": "Est un cadeau",
+    "upgrade": "Mise à niveau de cadeau",
+    "months_exact": "Mois exacts",
+    "streak_min": "Série de mois au moins",
+    "all_time_gifts": "Cadeaux au total",
+    "week_follows": "Follows de la semaine",
+    "month_follows": "Follows du mois",
+    "week_subs": "Abonnements de la semaine",
+    "month_subs": "Abonnements du mois",
+    "week_gifts": "Cadeaux de la semaine",
+    "month_gifts": "Cadeaux du mois",
+    "week_bits": "Bits de la semaine",
+    "month_bits": "Bits du mois"
   },
   "alert": {
     "follow": "Follow",

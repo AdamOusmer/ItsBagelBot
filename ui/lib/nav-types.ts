@@ -43,6 +43,27 @@ export interface UiCrumb {
   href?: string;
 }
 
+export type UiContextTone = 'warm' | 'danger';
+
+export interface UiContextAction {
+  label: string;
+  compactLabel?: string;
+  href?: string;
+  formAction?: string;
+  subtle?: boolean;
+}
+
+export interface UiTopbarContext {
+  tone: UiContextTone;
+  title: string;
+  statusText: string;
+  subjectPre?: string;
+  subject?: string;
+  subjectPost?: string;
+  scopesTitle?: string;
+  actions: UiContextAction[];
+}
+
 export interface UiFooterColumn {
   title: string;
   links: UiNavLink[];

@@ -82,6 +82,26 @@ func TestValidVoice(t *testing.T) {
 	}
 }
 
+func TestCycleWindow(t *testing.T) {
+	renews := time.Date(2026, 3, 31, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		at   time.Time
+		want voiceplan.Window
+	}{
+		{"mid cycle", time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC), voiceplan.Window{Key: "2026-02-28", ResetsAt: renews}},
+		{"exact renewal starts the next cycle", renews, voiceplan.Window{Key: "2026-03-31", ResetsAt: time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)}},
+		{"grace after a missed renewal", time.Date(2026, 4, 2, 0, 0, 0, 0, time.UTC), voiceplan.Window{Key: "2026-03-31", ResetsAt: time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)}},
+		{"several months before renewal", time.Date(2025, 12, 31, 13, 0, 0, 0, time.UTC), voiceplan.Window{Key: "2025-12-31", ResetsAt: time.Date(2026, 1, 31, 12, 0, 0, 0, time.UTC)}},
+		{"local time is read in UTC", time.Date(2026, 3, 1, 1, 0, 0, 0, time.FixedZone("UTC+2", 2*3600)), voiceplan.Window{Key: "2026-02-28", ResetsAt: renews}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, voiceplan.CycleWindow(tc.at, renews))
+		})
+	}
+}
+
 func TestMonthlyPeriod(t *testing.T) {
 	tests := []struct {
 		name, period string

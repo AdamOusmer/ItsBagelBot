@@ -42,6 +42,7 @@ const {
 } = Astro.props;
 
 const isStatic = !href && !selectable;
+const hasBelow = Astro.slots.has('below');
 
 const classes = [
     'bb-row',
@@ -52,6 +53,7 @@ const classes = [
     disabled ? 'is-off' : null,
     wrap ? 'bb-row--wrap' : null,
     stackActions ? 'bb-row--stack-actions' : null,
+    hasBelow ? 'bb-row--below' : null,
     className || null,
 ]
     .filter(Boolean)
@@ -98,4 +100,5 @@ const hasActions = Astro.slots.has('actions');
         </span>
     ) : <slot />}</Primary>
     {hasActions && <div class="bb-row__actions"><slot name="actions" /></div>}
+    {hasBelow && <div class="bb-row__below"><slot name="below" /></div>}
 </Tag>

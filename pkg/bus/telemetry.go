@@ -213,16 +213,32 @@ func normalizedDestination(subject string) string {
 		return normalizedRPCDestination(subject)
 	case strings.HasPrefix(subject, cacheDestinationPrefix):
 		return cacheDestinationPrefix
-	case strings.HasPrefix(subject, ttsJobsSubject):
-		return TTSJobsStream
-	case strings.HasPrefix(subject, ttsOverlaySubject):
-		return TTSOverlayStream
-	case subject == TTSClipBucket:
-		return TTSClipBucket
+	case strings.HasPrefix(subject, gossipJobsSubjectRoot):
+		return GossipJobsStream
+	case strings.HasPrefix(subject, overlaysSubjectRoot):
+		return overlayDestination(subject)
+	case subject == OverlaysMediaBucket:
+		return OverlaysMediaBucket
 	}
+	return familyDestination(subject)
+}
+
+func familyDestination(subject string) string {
 	for _, entry := range familyDestinations {
 		if strings.HasPrefix(subject, entry.prefix) {
 			return entry.family.normalize(subject)
+		}
+	}
+	if name, ok := feedStreamDestination(subject); ok {
+		return name
+	}
+	return "other"
+}
+
+func overlayDestination(subject string) string {
+	for tier, lane := range overlayLanes {
+		if strings.HasPrefix(subject, overlaysSubjectRoot+string(tier)+".") {
+			return lane.stream
 		}
 	}
 	return "other"

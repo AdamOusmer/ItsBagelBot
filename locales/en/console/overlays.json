@@ -39,7 +39,6 @@
   "invalidAlign": "Choose a position on the edge.",
   "listTitle": "Your overlays",
   "addPowered": "Add Powered by Bagel",
-  "createCustom": "Create custom overlay",
   "linkHidden": "Links are shown once. Replace the link to get a new one.",
   "listEmpty": "No overlays yet. Add Powered by Bagel to get a link for OBS.",
   "listFailed": "Could not update your overlays. Try again.",

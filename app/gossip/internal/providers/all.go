@@ -161,20 +161,33 @@ func appendCustom(out []provider.Provider, cfg *config.Config, d provider.Deps, 
 	}, d)
 }
 
-func appendTTS(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	disabled := cfg.VertexCredentials == "" && cfg.GeminiAPIKey == ""
-	return gated(out, log, disabled, "tts provider disabled: GOOGLE_VERTEX_CREDENTIALS and GEMINI_API_KEY unset", tts.New, tts.Config{
-		BaseURL:          cfg.GeminiBaseURL,
-		APIKey:           cfg.GeminiAPIKey,
-		Model:            cfg.GeminiTTSModel,
-		Voice:            cfg.GeminiTTSVoice,
-		Temperature:      cfg.GeminiTTSTemperature,
-		RateLimit:        cfg.GeminiTTSRateLimit,
-		ChannelRateLimit: cfg.GeminiTTSChannelRateLimit,
+func ttsDisabled(cfg *config.Config) bool {
+	return cfg.VertexCredentials == "" && (cfg.Production || cfg.GeminiAPIKey == "")
+}
+
+func ttsConfig(cfg *config.Config) tts.Config {
+	return tts.Config{
+		BaseURL:     cfg.GeminiBaseURL,
+		APIKey:      cfg.GeminiAPIKey,
+		Model:       cfg.GeminiTTSModel,
+		Voice:       cfg.GeminiTTSVoice,
+		Temperature: cfg.GeminiTTSTemperature,
+		VertexOnly:  cfg.Production,
 		Vertex: tts.VertexConfig{
 			Credentials: cfg.VertexCredentials,
 			Project:     cfg.VertexProject,
 			Location:    cfg.VertexLocation,
 		},
-	}, d)
+	}
+}
+
+func appendTTS(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	return gated(out, log, ttsDisabled(cfg), "tts provider disabled: no usable speech credentials", tts.New, ttsConfig(cfg), d)
+}
+
+func Speech(cfg *config.Config, d provider.Deps) (*tts.Synthesizer, bool) {
+	if ttsDisabled(cfg) {
+		return nil, false
+	}
+	return tts.NewSynthesizer(ttsConfig(cfg), d), true
 }

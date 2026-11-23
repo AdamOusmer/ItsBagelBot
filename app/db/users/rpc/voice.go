@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"ItsBagelBot/app/db/users/repository"
@@ -66,6 +67,28 @@ func (d *dashboardRPC) handleVoiceGet(ctx context.Context, msg *nats.Msg) {
 	}
 	allowance, err := d.repo.VoiceAllowance(ctx, id, time.Now())
 	bus.Respond(msg, voiceReply(allowance, err))
+}
+
+func (d *dashboardRPC) handleVoiceSafety(ctx context.Context, msg *nats.Msg) {
+	req, ok := decodeRequest[usersrpc.VoiceGetRequest](msg)
+	if !ok {
+		return
+	}
+	id, ok := dashboardVoiceOwner(msg, req)
+	if !ok {
+		return
+	}
+	channelID := strconv.FormatUint(id, 10)
+	paused, err := d.safety.Rules.ChannelPausedUntil(ctx, d.safety.Store, channelID)
+	if err != nil {
+		respondFail(msg, err)
+		return
+	}
+	var reply usersrpc.VoiceSafetyReply
+	if !paused.IsZero() {
+		reply.PausedUntil = paused.UnixMilli()
+	}
+	bus.Respond(msg, reply)
 }
 
 func dashboardVoiceOwner(msg *nats.Msg, req usersrpc.VoiceGetRequest) (uint64, bool) {

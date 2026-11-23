@@ -5,9 +5,10 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"ItsBagelBot/app/db/overlays/ent"
@@ -18,6 +19,7 @@ import (
 	"ItsBagelBot/internal/domain/overlays"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/db"
 )
 
@@ -45,7 +47,7 @@ func (s systemOverlay) createdAt() time.Time {
 	return s.CreatedAt.UTC().Truncate(time.Microsecond)
 }
 
-func systemDocument(template overlays.Template, cfg overlaysrpc.PoweredConfig, revision uint64) (json.RawMessage, error) {
+func systemDocument(template overlays.Template, cfg overlaysrpc.PoweredConfig, revision uint64) (codec.RawMessage, error) {
 	doc := overlays.Document{
 		Version: overlays.Version, Kind: overlays.KindSystem, ID: string(template), Name: templateNames[template],
 		Rev: int64(revision), Template: template, Config: &cfg,
@@ -53,7 +55,7 @@ func systemDocument(template overlays.Template, cfg overlaysrpc.PoweredConfig, r
 	if err := overlays.Validate(doc); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidConfig, err)
 	}
-	return json.Marshal(doc)
+	return codec.Marshal(doc)
 }
 
 func (r *Overlays) systemCreate(s systemOverlay) (*ent.OverlayCreate, error) {
@@ -179,7 +181,7 @@ func (r *Overlays) writeOverlay(ctx context.Context, previous, next overlaysrpc.
 		return overlaysrpc.Overlay{}, err
 	}
 	if n == 0 {
-		return overlaysrpc.Overlay{}, ErrRevisionConflict
+		return previous, ErrRevisionConflict
 	}
 	next.Revision = previous.Revision + 1
 	change := data.OverlayChangedDTO{Overlay: next}
@@ -194,7 +196,28 @@ func (r *Overlays) DeleteOverlay(ctx context.Context, userID, id uint64) error {
 	if err != nil {
 		return err
 	}
-	return r.removeOverlay(ctx, current)
+	if err := r.removeOverlay(ctx, current); err != nil {
+		return err
+	}
+	return r.releaseAssets(ctx, userID, current)
+}
+
+// releaseAssets deletes the removed overlay's assets that no remaining overlay references.
+func (r *Overlays) releaseAssets(ctx context.Context, userID uint64, removed overlaysrpc.Overlay) error {
+	if removed.Kind != string(overlays.KindCustom) {
+		return nil
+	}
+	var doc overlays.Document
+	if err := codec.Unmarshal(removed.Document, &doc); err != nil {
+		return err
+	}
+	for _, id := range slices.Sorted(maps.Keys(doc.Assets)) {
+		err := r.DeleteAsset(ctx, userID, id)
+		if err != nil && !errors.Is(err, ErrAssetInUse) && !errors.Is(err, ErrNotFound) {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *Overlays) removeOverlay(ctx context.Context, current overlaysrpc.Overlay) error {

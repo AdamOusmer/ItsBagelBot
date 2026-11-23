@@ -3,10 +3,12 @@
 package ent
 
 import (
+	"ItsBagelBot/app/db/overlays/ent/feedtotal"
 	"ItsBagelBot/app/db/overlays/ent/overlay"
 	"ItsBagelBot/app/db/overlays/ent/overlayasset"
 	"ItsBagelBot/app/db/overlays/ent/poweredoverlay"
 	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
+	"ItsBagelBot/app/db/overlays/ent/ttsviewerblock"
 	"context"
 	"errors"
 	"fmt"
@@ -76,10 +78,12 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
+			feedtotal.Table:      feedtotal.ValidColumn,
 			overlay.Table:        overlay.ValidColumn,
 			overlayasset.Table:   overlayasset.ValidColumn,
 			poweredoverlay.Table: poweredoverlay.ValidColumn,
 			ttsoverlay.Table:     ttsoverlay.ValidColumn,
+			ttsviewerblock.Table: ttsviewerblock.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

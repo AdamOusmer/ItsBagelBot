@@ -23,24 +23,47 @@ func hasNonClipLink(text string) bool {
 	return false
 }
 
+func StripLinks(text string) string {
+	var b strings.Builder
+	kept := 0
+	for i := 0; i < len(text); {
+		start, end := linkcheck.NextToken(text, i)
+		if start == end {
+			break
+		}
+		if looksLikeLinkHost(linkToken(linkcheck.TrimLinkToken(text[start:end]))) {
+			b.WriteString(text[kept:start])
+			kept = end
+		}
+		i = end
+	}
+	if kept == 0 {
+		return text
+	}
+	b.WriteString(text[kept:])
+	return strings.Join(strings.Fields(b.String()), " ")
+}
+
 type linkToken string
 
+type foldText string
+
 func (tok linkToken) nonClipLink() bool {
-	if tok == "" || isTwitchClipToken(string(tok)) {
+	if tok == "" || isTwitchClipToken(tok) {
 		return false
 	}
-	return looksLikeLinkHost(string(tok))
+	return looksLikeLinkHost(tok)
 }
 
 func maybeLinkText(text string) bool {
 	if strings.Contains(text, ".") {
 		return true
 	}
-	return containsFoldASCII(text, "http://") || containsFoldASCII(text, "https://")
+	return containsFoldASCII(foldText(text), "http://") || containsFoldASCII(foldText(text), "https://")
 }
 
-func looksLikeLinkHost(tok string) bool {
-	host := linkcheck.HostOf(tok)
+func looksLikeLinkHost(tok linkToken) bool {
+	host := linkcheck.HostOf(string(tok))
 	if len(host) < 4 || len(host) > 253 {
 		return false
 	}
@@ -79,17 +102,18 @@ func looksLikeLinkHost(tok string) bool {
 	return labels >= 2 && alphaTLD
 }
 
-func isTwitchClipToken(tok string) bool {
+func isTwitchClipToken(tok linkToken) bool {
 	const clipsHost = "clips.twitch.tv/"
 	const twitchHost = "twitch.tv/"
 	const clipPath = "/clip/"
-	if hasFoldPrefix(tok, clipsHost) {
-		return clipSlugOK(tok[len(clipsHost):])
+	text := foldText(tok)
+	if hasFoldPrefix(text, clipsHost) {
+		return clipSlugOK(text[len(clipsHost):])
 	}
-	if !hasFoldPrefix(tok, twitchHost) {
+	if !hasFoldPrefix(text, twitchHost) {
 		return false
 	}
-	rest := tok[len(twitchHost):]
+	rest := text[len(twitchHost):]
 	i := indexFold(rest, clipPath)
 	if i <= 0 {
 		return false
@@ -97,8 +121,8 @@ func isTwitchClipToken(tok string) bool {
 	return clipSlugOK(rest[i+len(clipPath):])
 }
 
-func clipSlugOK(rest string) bool {
-	if k := strings.IndexAny(rest, "/?#"); k >= 0 {
+func clipSlugOK(rest foldText) bool {
+	if k := strings.IndexAny(string(rest), "/?#"); k >= 0 {
 		rest = rest[:k]
 	}
 	if len(rest) == 0 {
@@ -115,23 +139,23 @@ func clipSlugOK(rest string) bool {
 	return true
 }
 
-func hasFoldPrefix(s, prefix string) bool {
-	return len(s) >= len(prefix) && linkcheck.EqualFoldASCII(s[:len(prefix)], prefix)
+func hasFoldPrefix(s, prefix foldText) bool {
+	return len(s) >= len(prefix) && linkcheck.EqualFoldASCII(string(s[:len(prefix)]), string(prefix))
 }
 
-func indexFold(s, sub string) int {
+func indexFold(s, sub foldText) int {
 	n := len(sub)
 	if n == 0 {
 		return 0
 	}
 	for i := 0; i+n <= len(s); i++ {
-		if linkcheck.EqualFoldASCII(s[i:i+n], sub) {
+		if linkcheck.EqualFoldASCII(string(s[i:i+n]), string(sub)) {
 			return i
 		}
 	}
 	return -1
 }
 
-func containsFoldASCII(s, sub string) bool {
+func containsFoldASCII(s, sub foldText) bool {
 	return indexFold(s, sub) >= 0
 }

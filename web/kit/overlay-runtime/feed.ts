@@ -14,6 +14,7 @@ export type OverlayEvent = {
   at: string;
   user?: Identity;
   anonymous?: boolean;
+  upgrade?: boolean;
   amount?: number;
   tier?: Tier;
   months?: number;
@@ -36,15 +37,18 @@ export type Counts = {
   tiers?: Partial<Record<Tier, number>>;
 };
 export type Leader = Identity & { amount: number };
+export type CreditList = AlertKind | 'mod' | 'vip' | 'chatter';
 export type FeedStats = {
   session?: Counts;
+  week?: Counts;
+  month?: Counts;
   all_time?: Counts;
   latest?: Partial<Record<EventKind, OverlayEvent>>;
   top_cheerer?: Leader;
   top_gifter?: Leader;
   all_time_top_cheerer?: Leader;
   all_time_top_gifter?: Leader;
-  credits?: Partial<Record<AlertKind, Leader[]>>;
+  credits?: Partial<Record<CreditList, Leader[]>>;
 };
 export type AlertControl = { paused: boolean; muted: boolean; skip: number };
 export type Subathon = { running?: boolean; end_at?: string; remaining_seconds?: number };

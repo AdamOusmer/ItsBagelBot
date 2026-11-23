@@ -7,8 +7,8 @@ defmodule ControlsGateway.Tts.Clips do
   alias ControlsGateway.Tts.Nats
   alias Platform.Nats.Planes
 
-  @bucket "TTS_CLIPS"
-  @get "$JS.API.STREAM.MSG.GET.OBJ_TTS_CLIPS"
+  @bucket "OVERLAYS_MEDIA"
+  @get "$JS.API.STREAM.MSG.GET.OBJ_OVERLAYS_MEDIA"
 
   def reply(req, session, headers) do
     event_id = :cowboy_req.binding(:event_id, req)

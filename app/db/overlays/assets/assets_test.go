@@ -7,7 +7,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"encoding/json"
 	"image"
 	"image/color"
 	"image/png"
@@ -26,6 +25,7 @@ import (
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/internal/testdb"
 	"ItsBagelBot/pkg/bus/bustest"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/objectstore/objectstoretest"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -106,7 +106,7 @@ func (f *fixture) upload(path string, body []byte, doneQuery string) *httptest.R
 func decode[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 	t.Helper()
 	var out T
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &out))
+	require.NoError(t, codec.Unmarshal(rec.Body.Bytes(), &out))
 	return out
 }
 

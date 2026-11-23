@@ -5,7 +5,6 @@ package assets
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"ItsBagelBot/app/db/overlays/repository"
 	"ItsBagelBot/internal/domain/overlays"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
+	"ItsBagelBot/pkg/codec"
 )
 
 const assetRefPrefix = "asset:"
@@ -132,20 +132,20 @@ func nameOf(doc overlays.Document, pack *importer.Meta) string {
 }
 
 func remapWidgets(widgets []overlays.Widget, ids map[string]string) ([]overlays.Widget, error) {
-	raw, err := json.Marshal(widgets)
+	raw, err := codec.Marshal(widgets)
 	if err != nil {
 		return nil, err
 	}
 	var tree any
-	if err := json.Unmarshal(raw, &tree); err != nil {
+	if err := codec.Unmarshal(raw, &tree); err != nil {
 		return nil, err
 	}
-	raw, err = json.Marshal(remapRefs(tree, ids))
+	raw, err = codec.Marshal(remapRefs(tree, ids))
 	if err != nil {
 		return nil, err
 	}
 	var out []overlays.Widget
-	err = json.Unmarshal(raw, &out)
+	err = codec.Unmarshal(raw, &out)
 	return out, err
 }
 

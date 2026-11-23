@@ -3,7 +3,7 @@
 
 package importer
 
-import "encoding/json"
+import "ItsBagelBot/pkg/codec"
 
 type found struct {
 	source  *widgetSource
@@ -78,7 +78,7 @@ func (b *builder) readExport(e entry) (exportDoc, bool, error) {
 		return exportDoc{}, false, err
 	}
 	var doc exportDoc
-	if !within || json.Unmarshal(data, &doc) != nil {
+	if !within || codec.Unmarshal(data, &doc) != nil {
 		return exportDoc{}, false, nil
 	}
 	b.used[e.Path] = len(doc.Widgets) > 0

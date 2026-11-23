@@ -36,4 +36,9 @@ export function emoteURL(id?: string): string | undefined {
   return `https://static-cdn.jtvnw.net/emoticons/v2/${id}/default/dark/2.0`;
 }
 
+export function badgeURL(id: string): string | undefined {
+  if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) return;
+  return `https://static-cdn.jtvnw.net/badges/v1/${id}/2`;
+}
+
 export const eventKey = (event: FeedEvent): string => (event.replay || event.test ? String(event.seq) : event.id);

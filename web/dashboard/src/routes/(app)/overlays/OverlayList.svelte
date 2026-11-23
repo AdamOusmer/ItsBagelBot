@@ -6,7 +6,6 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import Badge from '@bagel/ui/svelte/Badge.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
-  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import CopySurface from '@bagel/ui/svelte/CopySurface.svelte';
@@ -83,9 +82,6 @@
           <bb-fit class="action-label"><span data-fit="">{t('overlays.addPowered')}</span></bb-fit>
         </Button>
       </form>
-      <ButtonLink variant="secondary" href="/overlays/custom">
-        <bb-fit class="action-label"><span data-fit="">{t('overlays.createCustom')}</span></bb-fit>
-      </ButtonLink>
     </div>
   </div>
   <div class="feedback bb-fit-box" class:visible={!!status} role="status">

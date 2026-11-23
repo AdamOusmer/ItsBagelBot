@@ -4,7 +4,6 @@
 package repository_test
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"ItsBagelBot/internal/domain/overlays"
 	"ItsBagelBot/internal/testdb"
 	"ItsBagelBot/pkg/bus/bustest"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/objectstore"
 	"ItsBagelBot/pkg/objectstore/objectstoretest"
 
@@ -48,7 +48,7 @@ func seedAsset(t *testing.T, repo *repository.Overlays, objects objectstore.Stor
 
 func mustMarshal(t *testing.T, doc overlays.Document) []byte {
 	t.Helper()
-	raw, err := json.Marshal(doc)
+	raw, err := codec.Marshal(doc)
 	require.NoError(t, err)
 	return raw
 }
@@ -121,16 +121,30 @@ func TestSaveCustomKeepsTheRevisionContract(t *testing.T) {
 func TestDeleteAssetRefusesWhileADocumentUsesIt(t *testing.T) {
 	repo, objects := setupStore(t)
 	mine := seedAsset(t, repo, objects, owned(userID, "aaaa"))
-	created, _, err := repo.CreateCustom(t.Context(), userID, customDoc(mine.ID))
+	_, _, err := repo.CreateCustom(t.Context(), userID, customDoc(mine.ID))
 	require.NoError(t, err)
 
-	inUse := repo.DeleteAsset(t.Context(), userID, string(mine.ID))
-	require.NoError(t, repo.DeleteOverlay(t.Context(), userID, created.ID))
-	released := repo.DeleteAsset(t.Context(), userID, string(mine.ID))
+	require.ErrorIs(t, repo.DeleteAsset(t.Context(), userID, string(mine.ID)), repository.ErrAssetInUse)
+}
 
-	require.ErrorIs(t, inUse, repository.ErrAssetInUse)
-	require.NoError(t, released)
-	require.Empty(t, objects.Keys())
+func TestDeleteOverlayReleasesOnlyUnreferencedAssets(t *testing.T) {
+	repo, objects := setupStore(t)
+	sole := seedAsset(t, repo, objects, owned(userID, "aaaa"))
+	shared := seedAsset(t, repo, objects, owned(userID, "bbbb"))
+	first := customDoc(sole.ID)
+	first.Widgets = append(first.Widgets, overlays.Widget{
+		ID: "w2", Name: "Shared", Kind: overlays.WidgetImage, W: 100, H: 100, Opacity: 1,
+		Settings: map[string]any{"media": "asset:" + string(shared.ID)},
+	})
+	first.Assets[string(shared.ID)] = overlays.Asset{}
+	doomed, _, err := repo.CreateCustom(t.Context(), userID, first)
+	require.NoError(t, err)
+	_, _, err = repo.CreateCustom(t.Context(), userID, customDoc(shared.ID))
+	require.NoError(t, err)
+
+	require.NoError(t, repo.DeleteOverlay(t.Context(), userID, doomed.ID))
+
+	require.Equal(t, []string{shared.Key()}, objects.Keys())
 }
 
 func TestDeleteAccountClearsAssetRowsAndThePrefix(t *testing.T) {

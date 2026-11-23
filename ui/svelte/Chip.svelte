@@ -8,7 +8,7 @@
   type Own = {
     pressed?: boolean;
     type?: 'button' | 'submit' | 'reset';
-    tone?: 'muted' | 'danger' | 'eyebrow' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive';
+    tone?: 'muted' | 'danger' | 'eyebrow' | 'inline' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive';
     as?: 'button' | 'span';
     class?: string;
     children: Snippet;

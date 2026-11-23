@@ -74,6 +74,10 @@ func automationTimerDef(automationID string, p automation.TimerTrigger) timerDef
 	}
 }
 
+func (r timerRef) automation() bool {
+	return strings.HasPrefix(r.id, autoTimerPrefix)
+}
+
 func armJitter(td timerDef) time.Duration {
 	jitter := clampCount(td.JitterS, maxJitterSeconds)
 	if jitter == 0 {

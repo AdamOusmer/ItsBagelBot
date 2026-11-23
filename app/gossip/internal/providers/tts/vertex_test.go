@@ -39,9 +39,9 @@ type vertexSynthesisCase struct {
 }
 
 func vertexSynthesisCases() []vertexSynthesisCase {
-	const plain = `{"contents":[{"role":"user","parts":[{"text":"aé界🙂"}]}],"generationConfig":{
+	const plain = `{"safetySettings":[{"category":"HARM_CATEGORY_HATE_SPEECH","threshold":"BLOCK_ONLY_HIGH"},{"category":"HARM_CATEGORY_SEXUALLY_EXPLICIT","threshold":"BLOCK_ONLY_HIGH"},{"category":"HARM_CATEGORY_HARASSMENT","threshold":"OFF"},{"category":"HARM_CATEGORY_DANGEROUS_CONTENT","threshold":"OFF"}],"contents":[{"role":"user","parts":[{"text":"aé界🙂"}]}],"generationConfig":{
 		"responseModalities":["AUDIO"],"temperature":1.5,"speechConfig":{"voiceConfig":{"prebuiltVoiceConfig":{"voiceName":"Kore"}}}}}`
-	const styled = `{"contents":[{"role":"user","parts":[{"text":"aé界🙂","speechMetadata":{"style":"amical 🙂"}}]}],
+	const styled = `{"safetySettings":[{"category":"HARM_CATEGORY_HATE_SPEECH","threshold":"BLOCK_ONLY_HIGH"},{"category":"HARM_CATEGORY_SEXUALLY_EXPLICIT","threshold":"BLOCK_ONLY_HIGH"},{"category":"HARM_CATEGORY_HARASSMENT","threshold":"OFF"},{"category":"HARM_CATEGORY_DANGEROUS_CONTENT","threshold":"OFF"}],"contents":[{"role":"user","parts":[{"text":"aé界🙂","speechMetadata":{"style":"amical 🙂"}}]}],
 		"generationConfig":{"responseModalities":["AUDIO"],"temperature":0,"speechConfig":{"voiceConfig":{"prebuiltVoiceConfig":{"voiceName":"Zephyr"}}}}}`
 	return []vertexSynthesisCase{
 		{
@@ -169,24 +169,35 @@ type vertexFailureCase struct {
 }
 
 func vertexFailureCases() []vertexFailureCase {
-	refused := gossiprpc.TTSSynthesizeReply{Error: "the speech provider refused this request", Reason: "refused"}
+	refusedAs := func(class gossiprpc.RefusalClass) gossiprpc.TTSSynthesizeReply {
+		return gossiprpc.TTSSynthesizeReply{Error: "the speech provider refused this request", Reason: "refused", RefusalClass: class}
+	}
 	unavailable := gossiprpc.TTSSynthesizeReply{Error: "speech synthesis is unavailable right now"}
-	noAudio := gossiprpc.TTSSynthesizeReply{Error: "speech provider returned no audio"}
+	noAudio := gossiprpc.TTSSynthesizeReply{Error: "speech provider returned no audio", RefusalClass: gossiprpc.RefusalEmpty}
 	invalid := gossiprpc.TTSSynthesizeReply{Error: "speech provider returned invalid audio"}
 	busy := gossiprpc.TTSSynthesizeReply{Error: "speech synthesis is busy right now, try again shortly", RateLimited: true, RetryAfterMS: 2125}
 	headerBusy := busy
 	headerBusy.RetryAfterMS = 3000
 	echo := fmt.Sprintf(`{"error":{"message":%q}}`, vertexTestToken)
 	return []vertexFailureCase{
-		{name: "prompt blocked", body: `{"promptFeedback":{"blockReason":"SAFETY"}}`, status: 200, want: refused},
-		{name: "candidate refused", body: `{"candidates":[{"finishReason":"PROHIBITED_CONTENT"}]}`, status: 200, want: refused},
+		{name: "prompt blocked", body: `{"promptFeedback":{"blockReason":"SAFETY"}}`, status: 200, want: refusedAs(gossiprpc.RefusalPolicy)},
+		{name: "prompt blocked by jailbreak filter", body: `{"promptFeedback":{"blockReason":"JAILBREAK"}}`, status: 200, want: refusedAs(gossiprpc.RefusalPolicy)},
+		{name: "prompt blocked for another reason", body: `{"promptFeedback":{"blockReason":"OTHER"}}`, status: 200, want: refusedAs(gossiprpc.RefusalUnspecified)},
+		{name: "unlisted block reason", body: `{"promptFeedback":{"blockReason":"NEW_REASON"}}`, status: 200, want: refusedAs(gossiprpc.RefusalUnknown)},
+		{name: "candidate refused", body: `{"candidates":[{"finishReason":"PROHIBITED_CONTENT"}]}`, status: 200, want: refusedAs(gossiprpc.RefusalPolicy)},
+		{name: "candidate with sensitive data", body: `{"candidates":[{"finishReason":"SPII"}]}`, status: 200, want: refusedAs(gossiprpc.RefusalPolicy)},
+		{name: "candidate recitation", body: `{"candidates":[{"finishReason":"RECITATION"}]}`, status: 200, want: refusedAs(gossiprpc.RefusalInvalid)},
+		{name: "candidate ran out of tokens", body: `{"candidates":[{"finishReason":"MAX_TOKENS"}]}`, status: 200, want: noAudio},
+		{name: "candidate other", body: `{"candidates":[{"finishReason":"OTHER"}]}`, status: 200, want: noAudio},
+		{name: "unlisted finish reason", body: `{"candidates":[{"finishReason":"NEW_REASON"}]}`, status: 200, want: refusedAs(gossiprpc.RefusalUnknown)},
 		{name: "only first candidate", body: `{"candidates":[{"finishReason":"STOP"},
 			{"content":{"parts":[{"inlineData":{"data":"AAA="}}]}}]}`, status: 200, want: noAudio},
 		{name: "invalid base64", body: vertexAudioResponse("audio/L16", "invalid!", "{}"), status: 200, want: invalid},
 		{name: "partial PCM frame", body: vertexAudioResponse("audio/L16", "AA==", "{}"), status: 200, want: invalid},
 		{name: "invalid sample rate", body: vertexAudioResponse("audio/L16;rate=0", "AAA=", "{}"), status: 200, want: invalid},
 		{name: "oversized response", body: vertexAudioResponse("audio/L16", strings.Repeat("A", 4<<20), "{}"), status: 200, want: unavailable},
-		{name: "invalid request", body: echo, status: 400, want: refused},
+		{name: "invalid request", body: echo, status: 400, want: refusedAs(gossiprpc.RefusalInvalid)},
+		{name: "safety block in error body", body: `{"error":{"status":"SAFETY"}}`, status: 400, want: refusedAs(gossiprpc.RefusalPolicy)},
 		{name: "unauthorized", body: echo, status: 401, want: unavailable, warning: true},
 		{name: "forbidden", body: echo, status: 403, want: unavailable, warning: true},
 		{name: "capacity retry info", status: 429, retry: "3", want: busy,

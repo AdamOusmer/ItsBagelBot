@@ -54,6 +54,7 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 
 func (p *Pipeline) bindCommand(c *module.Context, views map[string]projection.ModuleView, name string) {
 	c.Command = name
+	c.SpeechPolicy = automodConfigFrom(views, false).SpeechPolicy
 	if name == voiceplan.ChatCommand {
 		c.BlocksText = automodConfigFrom(views, false).BlocksText
 	}

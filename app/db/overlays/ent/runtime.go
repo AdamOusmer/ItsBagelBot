@@ -3,11 +3,13 @@
 package ent
 
 import (
+	"ItsBagelBot/app/db/overlays/ent/feedtotal"
 	"ItsBagelBot/app/db/overlays/ent/overlay"
 	"ItsBagelBot/app/db/overlays/ent/overlayasset"
 	"ItsBagelBot/app/db/overlays/ent/poweredoverlay"
 	"ItsBagelBot/app/db/overlays/ent/schema"
 	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
+	"ItsBagelBot/app/db/overlays/ent/ttsviewerblock"
 	"time"
 )
 
@@ -15,6 +17,38 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	feedtotalFields := schema.FeedTotal{}.Fields()
+	_ = feedtotalFields
+	// feedtotalDescName is the schema descriptor for name field.
+	feedtotalDescName := feedtotalFields[1].Descriptor()
+	// feedtotal.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	feedtotal.NameValidator = func() func(string) error {
+		validators := feedtotalDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// feedtotalDescTotal is the schema descriptor for total field.
+	feedtotalDescTotal := feedtotalFields[2].Descriptor()
+	// feedtotal.DefaultTotal holds the default value on creation for the total field.
+	feedtotal.DefaultTotal = feedtotalDescTotal.Default.(int64)
+	// feedtotalDescLabel is the schema descriptor for label field.
+	feedtotalDescLabel := feedtotalFields[3].Descriptor()
+	// feedtotal.LabelValidator is a validator for the "label" field. It is called by the builders before save.
+	feedtotal.LabelValidator = feedtotalDescLabel.Validators[0].(func(string) error)
+	// feedtotalDescUpdatedAt is the schema descriptor for updated_at field.
+	feedtotalDescUpdatedAt := feedtotalFields[4].Descriptor()
+	// feedtotal.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	feedtotal.DefaultUpdatedAt = feedtotalDescUpdatedAt.Default.(func() time.Time)
 	overlayFields := schema.Overlay{}.Fields()
 	_ = overlayFields
 	// overlayDescTemplate is the schema descriptor for template field.
@@ -229,4 +263,32 @@ func init() {
 	ttsoverlay.DefaultUpdatedAt = ttsoverlayDescUpdatedAt.Default.(func() time.Time)
 	// ttsoverlay.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	ttsoverlay.UpdateDefaultUpdatedAt = ttsoverlayDescUpdatedAt.UpdateDefault.(func() time.Time)
+	ttsviewerblockFields := schema.TtsViewerBlock{}.Fields()
+	_ = ttsviewerblockFields
+	// ttsviewerblockDescViewerID is the schema descriptor for viewer_id field.
+	ttsviewerblockDescViewerID := ttsviewerblockFields[1].Descriptor()
+	// ttsviewerblock.ViewerIDValidator is a validator for the "viewer_id" field. It is called by the builders before save.
+	ttsviewerblock.ViewerIDValidator = func() func(string) error {
+		validators := ttsviewerblockDescViewerID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(viewer_id string) error {
+			for _, fn := range fns {
+				if err := fn(viewer_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// ttsviewerblockDescViewerLogin is the schema descriptor for viewer_login field.
+	ttsviewerblockDescViewerLogin := ttsviewerblockFields[2].Descriptor()
+	// ttsviewerblock.ViewerLoginValidator is a validator for the "viewer_login" field. It is called by the builders before save.
+	ttsviewerblock.ViewerLoginValidator = ttsviewerblockDescViewerLogin.Validators[0].(func(string) error)
+	// ttsviewerblockDescCreatedAt is the schema descriptor for created_at field.
+	ttsviewerblockDescCreatedAt := ttsviewerblockFields[3].Descriptor()
+	// ttsviewerblock.DefaultCreatedAt holds the default value on creation for the created_at field.
+	ttsviewerblock.DefaultCreatedAt = ttsviewerblockDescCreatedAt.Default.(func() time.Time)
 }

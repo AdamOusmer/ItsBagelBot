@@ -22,15 +22,15 @@ const REFUSAL_STATUS: Record<string, number> = { invalid: 400, forbidden: 403, n
 const TICKET = /^[A-Za-z0-9_.-]{16,1024}$/;
 const PART = /^[1-9][0-9]{0,3}$/;
 
-const refuse = (error: string, status: number) => json({ error }, { status, headers: { 'cache-control': 'no-store' } });
+export const refuse = (error: string, status: number) => json({ error }, { status, headers: { 'cache-control': 'no-store' } });
 
-function refusal(err: unknown): Response {
+export function refusal(err: unknown): Response {
   if (!(err instanceof RpcError)) return refuse('unavailable', 503);
   if (err.message === 'rate_limited') return refuse(err.message, 429);
   return refuse(err.message, REFUSAL_STATUS[err.code] ?? 503);
 }
 
-function ownerOrRefusal(session: Session | null | undefined): Session | Response {
+export function ownerOrRefusal(session: Session | null | undefined): Session | Response {
   if (!session) return refuse('not_signed_in', 401);
   return hasOwnerAccess(session) ? session : refuse('owner_only', 403);
 }

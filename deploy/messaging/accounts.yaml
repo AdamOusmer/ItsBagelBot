@@ -243,6 +243,15 @@ accounts:
                         - $JS.ACK.*.*.DATA.>
                         - dlq.data.users.deleted
                         - dlq.data.users.banned
+                        - $JS.API.STREAM.INFO.CHANNEL_EVENTS
+                        - $JS.API.STREAM.CREATE.CHANNEL_EVENTS
+                        - $JS.API.STREAM.UPDATE.CHANNEL_EVENTS
+                        - $JS.API.CONSUMER.INFO.CHANNEL_EVENTS.>
+                        - $JS.API.CONSUMER.CREATE.CHANNEL_EVENTS.>
+                        - $JS.API.CONSUMER.DURABLE.CREATE.CHANNEL_EVENTS.>
+                        - $JS.API.CONSUMER.DELETE.CHANNEL_EVENTS.>
+                        - $JS.ACK.CHANNEL_EVENTS.>
+                        - $JS.ACK.*.*.CHANNEL_EVENTS.>
                 subscribe:
                     allow:
                         - _INBOX.>
@@ -400,6 +409,7 @@ accounts:
                         - data.commands.used
                         - data.loyalty.>
                         - ingress.dlq.>
+                        - channel.events.*.*
                         - tts.jobs.*
                         - $JS.API.STREAM.INFO.TTS_JOBS
                         - $JS.API.STREAM.CREATE.TTS_JOBS
@@ -496,6 +506,10 @@ accounts:
               from: PROJECTOR_RPC
             - stream: controls.tts.revoked.*
               from: PROJECTOR_RPC
+            - stream: controls.overlay.revised.*
+              from: PROJECTOR_RPC
+            - stream: controls.overlay.revoked.*
+              from: PROJECTOR_RPC
             - service: rpc.internal.projector.overlays.powered.resolve
               from: PROJECTOR_RPC
             - service: rpc.internal.projector.overlays.powered.resolve.node.*
@@ -504,6 +518,12 @@ accounts:
               from: PROJECTOR_RPC
             - service: rpc.internal.projector.overlays.resolve.node.*
               from: PROJECTOR_RPC
+            - service: rpc.internal.overlays.feed.snapshot
+              from: OVERLAYS_RPC
+            - service: rpc.internal.overlays.feed.snapshot.node.*
+              from: OVERLAYS_RPC
+            - stream: channel.chat.*
+              from: WORKER_RPC
         roles:
             controls_gateway_rpc:
                 publish:
@@ -516,13 +536,43 @@ accounts:
                         - rpc.internal.projector.overlays.powered.resolve.node.*
                         - rpc.internal.projector.overlays.resolve
                         - rpc.internal.projector.overlays.resolve.node.*
+                        - rpc.internal.overlays.feed.snapshot
+                        - rpc.internal.overlays.feed.snapshot.node.*
                         - $JS.API.CONSUMER.CREATE.OVERLAY_TTS.*.overlay.tts.*
                         - $JS.FC.OVERLAY_TTS.*.*
                         - $JS.FC.*.*.OVERLAY_TTS.*.*
+                        - $JS.API.STREAM.INFO.OVERLAY_FEED
+                        - $JS.API.CONSUMER.CREATE.OVERLAY_FEED.*.overlay.feed.*.>
+                        - $JS.FC.OVERLAY_FEED.*.*
+                        - $JS.FC.*.*.OVERLAY_FEED.*.*
                         - $JS.API.STREAM.MSG.GET.OBJ_TTS_CLIPS
+                        - $JS.API.CONSUMER.INFO.OVERLAYS_PREMIUM.overlays-premium
+                        - $JS.API.CONSUMER.INFO.OVERLAYS_STANDARD.overlays-standard
+                        - $JS.API.CONSUMER.MSG.NEXT.OVERLAYS_PREMIUM.overlays-premium
+                        - $JS.API.CONSUMER.MSG.NEXT.OVERLAYS_STANDARD.overlays-standard
+                        - $JS.ACK.OVERLAYS_PREMIUM.overlays-premium.>
+                        - $JS.ACK.*.*.OVERLAYS_PREMIUM.overlays-premium.>
+                        - $JS.ACK.OVERLAYS_STANDARD.overlays-standard.>
+                        - $JS.ACK.*.*.OVERLAYS_STANDARD.overlays-standard.>
+                        - overlays.session.>
+                        - $JS.API.STREAM.MSG.GET.OBJ_OVERLAYS_MEDIA
                 subscribe:
                     allow:
                         - controls.tts.revoked.*
+                        - controls.overlay.revised.*
+                        - controls.overlay.revoked.*
+                        - channel.chat.*
+                        - overlays.session.>
+                        - _INBOX.>
+            overlays_feed_bus:
+                publish:
+                    allow:
+                        - overlay.feed.*.*
+                        - $JS.API.STREAM.INFO.OVERLAY_FEED
+                        - $JS.API.STREAM.CREATE.OVERLAY_FEED
+                        - $JS.API.STREAM.UPDATE.OVERLAY_FEED
+                subscribe:
+                    allow:
                         - _INBOX.>
             worker_tts_bus:
                 publish:
@@ -538,6 +588,53 @@ accounts:
                         - $JS.API.STREAM.UPDATE.OBJ_TTS_CLIPS
                         - $JS.API.STREAM.PURGE.OBJ_TTS_CLIPS
                         - $JS.API.DIRECT.GET.OBJ_TTS_CLIPS.$O.TTS_CLIPS.M.*
+                        - overlays.premium.>
+                        - overlays.standard.>
+                        - $JS.API.STREAM.INFO.OVERLAYS_PREMIUM
+                        - $JS.API.STREAM.CREATE.OVERLAYS_PREMIUM
+                        - $JS.API.STREAM.UPDATE.OVERLAYS_PREMIUM
+                        - $JS.API.STREAM.INFO.OVERLAYS_STANDARD
+                        - $JS.API.STREAM.CREATE.OVERLAYS_STANDARD
+                        - $JS.API.STREAM.UPDATE.OVERLAYS_STANDARD
+                        - $JS.API.CONSUMER.INFO.OVERLAYS_PREMIUM.overlays-premium
+                        - $JS.API.CONSUMER.CREATE.OVERLAYS_PREMIUM.overlays-premium
+                        - $JS.API.CONSUMER.DURABLE.CREATE.OVERLAYS_PREMIUM.overlays-premium
+                        - $JS.API.CONSUMER.INFO.OVERLAYS_STANDARD.overlays-standard
+                        - $JS.API.CONSUMER.CREATE.OVERLAYS_STANDARD.overlays-standard
+                        - $JS.API.CONSUMER.DURABLE.CREATE.OVERLAYS_STANDARD.overlays-standard
+                        - $O.OVERLAYS_MEDIA.C.*
+                        - $O.OVERLAYS_MEDIA.M.*
+                        - $JS.API.STREAM.INFO.OBJ_OVERLAYS_MEDIA
+                        - $JS.API.STREAM.CREATE.OBJ_OVERLAYS_MEDIA
+                        - $JS.API.STREAM.UPDATE.OBJ_OVERLAYS_MEDIA
+                        - $JS.API.STREAM.PURGE.OBJ_OVERLAYS_MEDIA
+                        - $JS.API.DIRECT.GET.OBJ_OVERLAYS_MEDIA.$O.OVERLAYS_MEDIA.M.*
+                        - gossip.jobs.tts.*
+                        - $JS.API.STREAM.INFO.GOSSIP_JOBS
+                        - $JS.API.STREAM.CREATE.GOSSIP_JOBS
+                        - $JS.API.STREAM.UPDATE.GOSSIP_JOBS
+                        - $JS.API.CONSUMER.INFO.GOSSIP_JOBS.gossip-jobs
+                        - $JS.API.CONSUMER.CREATE.GOSSIP_JOBS.gossip-jobs
+                        - $JS.API.CONSUMER.DURABLE.CREATE.GOSSIP_JOBS.gossip-jobs
+                subscribe:
+                    allow:
+                        - _INBOX.>
+            gossip_jobs_bus:
+                publish:
+                    allow:
+                        - $JS.API.CONSUMER.INFO.GOSSIP_JOBS.gossip-jobs
+                        - $JS.API.CONSUMER.MSG.NEXT.GOSSIP_JOBS.gossip-jobs
+                        - $JS.ACK.GOSSIP_JOBS.gossip-jobs.>
+                        - $JS.ACK.*.*.GOSSIP_JOBS.gossip-jobs.>
+                        - $JS.API.STREAM.INFO.GOSSIP_JOBS
+                        - overlays.premium.>
+                        - $JS.API.STREAM.INFO.OVERLAYS_PREMIUM
+                        - $JS.API.STREAM.INFO.OVERLAYS_STANDARD
+                        - $O.OVERLAYS_MEDIA.C.*
+                        - $O.OVERLAYS_MEDIA.M.*
+                        - $JS.API.STREAM.INFO.OBJ_OVERLAYS_MEDIA
+                        - $JS.API.STREAM.MSG.GET.OBJ_OVERLAYS_MEDIA
+                        - $JS.API.DIRECT.GET.OBJ_OVERLAYS_MEDIA.$O.OVERLAYS_MEDIA.M.*
                 subscribe:
                     allow:
                         - _INBOX.>
@@ -685,6 +782,10 @@ accounts:
               from: PROJECTOR_RPC
             - stream: cache.invalidate.user-projection
               from: PROJECTOR_RPC
+            - service: rpc.internal.users.voice.record
+              from: USERS_RPC
+            - service: rpc.internal.users.voice.record.node.*
+              from: USERS_RPC
         roles:
             gossip_rpc: {}
     LOYALTY_RPC:
@@ -753,6 +854,10 @@ accounts:
               accounts: [PROJECTOR_RPC]
             - service: rpc.internal.overlays.tts.by_hash.node.*
               accounts: [PROJECTOR_RPC]
+            - service: rpc.internal.overlays.feed.snapshot
+              accounts: [CONTROLS_GATEWAY_RPC]
+            - service: rpc.internal.overlays.feed.snapshot.node.*
+              accounts: [CONTROLS_GATEWAY_RPC]
         imports:
             - service: rpc.internal.users.voice.check
               from: USERS_RPC
@@ -778,10 +883,6 @@ accounts:
               from: NOTIFICATIONS_RPC
             - service: rpc.internal.tokens.>
               from: USERS_RPC
-            - service: rpc.ingress.conduit.get
-              from: TWITCH_INGRESS_RPC
-            - service: rpc.ingress.conduit.get.node.*
-              from: TWITCH_INGRESS_RPC
             - service: rpc.dashboard.state_get
               from: USERS_RPC
             - service: rpc.dashboard.state_get.node.*
@@ -838,6 +939,10 @@ accounts:
             - service: rpc.internal.projector.overlays.tts.settings.node.*
               accounts: [WORKER_RPC]
             - stream: controls.tts.revoked.*
+              accounts: [CONTROLS_GATEWAY_RPC]
+            - stream: controls.overlay.revised.*
+              accounts: [CONTROLS_GATEWAY_RPC]
+            - stream: controls.overlay.revoked.*
               accounts: [CONTROLS_GATEWAY_RPC]
             - stream: cache.invalidate.commands
             - stream: cache.invalidate.modules
@@ -958,8 +1063,6 @@ accounts:
             - service: rpc.health.ingress.node.*
             - service: twitch.ingress.admin.shards.>
             - service: twitch.ingress.admin.trials.>
-            - service: rpc.ingress.conduit.get
-            - service: rpc.ingress.conduit.get.node.*
         imports:
             - service: rpc.broadcaster.status.get
               from: PROJECTOR_RPC
@@ -982,9 +1085,9 @@ accounts:
             - service: rpc.internal.users.voice.check.node.*
               accounts: [WORKER_RPC, OVERLAYS_RPC]
             - service: rpc.internal.users.voice.record
-              accounts: [WORKER_RPC]
+              accounts: [WORKER_RPC, GOSSIP_RPC]
             - service: rpc.internal.users.voice.record.node.*
-              accounts: [WORKER_RPC]
+              accounts: [WORKER_RPC, GOSSIP_RPC]
             - service: rpc.internal.users.analytics.levels
             - service: rpc.internal.users.analytics.levels.node.*
             - service: rpc.internal.users.lifecycle
@@ -1051,6 +1154,8 @@ accounts:
             - service: rpc.voice.test.node.*
               accounts: [DASHBOARD_RPC]
             - service: rpc.draw.>
+            - stream: channel.chat.*
+              accounts: [CONTROLS_GATEWAY_RPC]
         imports:
             - service: rpc.internal.projector.overlays.tts.settings
               from: PROJECTOR_RPC

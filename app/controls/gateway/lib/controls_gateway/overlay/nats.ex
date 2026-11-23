@@ -7,6 +7,23 @@ defmodule ControlsGateway.Overlay.Nats do
   alias Platform.Nats.Planes
 
   @resolve "rpc.internal.projector.overlays.resolve"
+  @snapshot "rpc.internal.overlays.feed.snapshot"
+
+  def snapshot(rpc, user_id) do
+    request = &Planes.request(&1, rpc)
+
+    case OverlayRequest.request(request, @snapshot, %{user_id: Integer.to_string(user_id)}) do
+      {:ok, %{"code" => code} = reply} when code not in [nil, ""] ->
+        unavailable(reply)
+
+      {:ok, %{"snapshot" => %{} = snapshot, "stream_seq" => seq}}
+      when is_integer(seq) and seq >= 0 ->
+        {:ok, snapshot, seq}
+
+      other ->
+        unavailable(other)
+    end
+  end
 
   def resolve(hash) do
     case OverlayRequest.request(&Planes.request/1, @resolve, %{token_hash: hash}) do
@@ -35,18 +52,21 @@ defmodule ControlsGateway.Overlay.Nats do
 
   defp overlay(reply) do
     with %{
+           "user_id" => user_id,
            "overlay_id" => id,
            "generation" => generation,
            "revision" => revision,
            "allowed" => allowed,
            "premium" => premium
          } <- reply,
+         true <- Session.valid_user_id?(user_id),
          true <- Session.valid_identity?(id, generation),
          true <- is_integer(revision),
          true <- Enum.all?([allowed, premium], &is_boolean/1),
          {:ok, document} <- document(allowed, reply["document"]) do
       {:ok,
        %{
+         user_id: user_id,
          overlay_id: id,
          generation: generation,
          revision: revision,

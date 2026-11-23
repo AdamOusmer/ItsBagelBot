@@ -19,7 +19,8 @@ import (
 
 func fleetStreamSpecs() []StreamSpec {
 	specs := append([]StreamSpec{}, DataStreams...)
-	return append(specs, OutgressStream, OutgressSystemStream, YouTubeOutgressStream, YouTubeIngressStream)
+	specs = append(specs, OutgressStream, OutgressSystemStream, YouTubeOutgressStream, YouTubeIngressStream)
+	return append(specs, feedStreams...)
 }
 
 func ingressStreamSpec(t *testing.T) StreamSpec {

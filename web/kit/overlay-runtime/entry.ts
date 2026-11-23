@@ -3,12 +3,20 @@
 
 import type { OverlayDocument } from '../lib/overlay-document';
 import { eventKinds, type FeedMessages, type OverlayEvent } from './feed';
-import { FeedState } from './feed-state';
+import { FeedState, MIN_CHAT, MIN_EVENTS } from './feed-state';
 import { OverlayRuntime } from './runtime';
 
 type Handlers = { [K in keyof FeedMessages]: (payload: FeedMessages[K]) => void };
 
 const isEvent = (value: OverlayEvent): boolean => typeof value?.id === 'string' && (eventKinds as readonly string[]).includes(value.kind);
+
+const largest = (doc: OverlayDocument, kind: string): number =>
+  Math.max(0, ...doc.widgets.filter((widget) => widget.kind === kind).map((widget) => Number(widget.settings?.count) || 0));
+
+const feedLimits = (doc: OverlayDocument) => ({
+  events: Math.max(MIN_EVENTS, largest(doc, 'eventlist')),
+  chat: Math.max(MIN_CHAT, largest(doc, 'chatbox'))
+});
 
 class GatewayOverlay {
   #runtime: OverlayRuntime;
@@ -21,7 +29,7 @@ class GatewayOverlay {
       this.#runtime.setSnapshot(this.#feed.snapshot);
       this.#runtime.event(event);
     },
-    snapshot: (payload) => this.#apply(() => (this.#feed.snapshot = payload)),
+    snapshot: (payload) => this.#apply(() => this.#feed.load(payload)),
     stats: (payload) => this.#apply(() => this.#feed.stats(payload)),
     subathon: (payload) => this.#apply(() => this.#feed.subathon(payload)),
     control: (payload) => this.#apply(() => this.#feed.control(payload))
@@ -34,6 +42,7 @@ class GatewayOverlay {
 
   setDocument(doc: OverlayDocument): void {
     this.#doc = doc;
+    this.#feed.limits = feedLimits(doc);
     this.#runtime.setDocument(doc);
     this.#fit();
   }

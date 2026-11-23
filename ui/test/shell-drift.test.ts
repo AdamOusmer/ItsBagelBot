@@ -109,6 +109,48 @@ describe('AppShell stacked', () => {
   });
 });
 
+describe('AppShell topbarContext', () => {
+  const base = {
+    brand: { title: 'B', sub: 's', href: '/' },
+    crumbs: [{ label: 'ItsBagelBot', href: '/' }, { label: 'Overview' }],
+    skipLabel: 'Skip',
+  };
+
+  test.each([
+    [
+      'warm shared context titles the bar and links out in both adapters',
+      {
+        tone: 'warm' as const,
+        title: 'Shared dashboard',
+        statusText: 'Shared access to mavey_tv',
+        subject: 'mavey_tv',
+        subjectPost: "'s dashboard",
+        scopesTitle: 'Commands, Timers, Quotes, Modules',
+        actions: [{ label: 'Leave shared', compactLabel: 'Exit', href: '/delegate/exit' }],
+      },
+      ['bb-topbar--ctx-warm', '>Shared dashboard</span>', 'role="status" aria-label="Shared access to mavey_tv"', '<span class="bb-topbar-ctx__avatar" aria-hidden="true"><svg', 'href="/delegate/exit"'],
+    ],
+    [
+      'danger admin context renders logout form in both adapters',
+      {
+        tone: 'danger' as const,
+        title: 'Admin impersonation',
+        statusText: 'Viewing as mavey_tv (admin itsmavey)',
+        subjectPre: 'Viewing as ',
+        subject: 'mavey_tv',
+        subjectPost: ' (admin itsmavey)',
+        actions: [{ label: 'End view', compactLabel: 'Exit', formAction: '/auth/logout' }],
+      },
+      ['bb-topbar--ctx-danger', '>Admin impersonation</span>', 'action="/auth/logout"', 'bb-btn bb-btn--secondary bb-btn--sm'],
+    ],
+  ])('%s', async (_name, topbarContext, fragments) => {
+    const svelte = svelteHtml(SvelteAppShell, { ...base, topbarContext }, { default: 'x' });
+    const astro = await astroHtml(AstroAppShell, { ...base, topbarContext });
+    const missing = fragments.filter((part) => !svelte.includes(part) || !astro.includes(part));
+    expect(missing).toEqual([]);
+  });
+});
+
 describe('NavProgress', () => {
   const bar = (active: boolean) => ({
     name: `active=${active} matches across adapters`,

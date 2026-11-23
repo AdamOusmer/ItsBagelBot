@@ -44,15 +44,11 @@ func (w *Worker) VerifyChannel(ctx context.Context, broadcasterID string, repair
 }
 
 func (w *Worker) currentEnrollment(ctx context.Context, broadcasterID string) (enrollment, error) {
-	conduitID, err := w.conduit.Get(ctx)
-	if err != nil {
-		return enrollment{}, err
-	}
 	stamp := outgress.Message{BroadcasterID: broadcasterID}
 	if err := w.stampCurrent(ctx, &stamp); err != nil {
 		return enrollment{}, err
 	}
-	return enrollment{broadcasterID: broadcasterID, conduitID: conduitID, incarnation: stamp.AccountCreatedAt, generation: stamp.AdmissionGeneration}, nil
+	return enrollment{broadcasterID: broadcasterID, conduitID: w.conduitID, incarnation: stamp.AccountCreatedAt, generation: stamp.AdmissionGeneration}, nil
 }
 
 func (w *Worker) requiredSubscriptionTypes(broadcasterID string) []string {

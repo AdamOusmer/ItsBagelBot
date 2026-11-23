@@ -84,12 +84,8 @@ func (w *Worker) reenrollAfterGrant(ctx context.Context, ev authzUser, ch manage
 		zap.String("user_login", ev.UserLogin),
 		zap.String("prior_sub_state", ch.SubState))
 
-	conduitID, err := w.conduit.Get(ctx)
-	if err != nil {
-		return err
-	}
 	_ = w.registry.SetSubState(ctx, ev.UserID, subStatePending, "")
-	return w.enableEventSubs(ctx, enrollment{broadcasterID: ev.UserID, conduitID: conduitID})
+	return w.enableEventSubs(ctx, enrollment{broadcasterID: ev.UserID, conduitID: w.conduitID})
 }
 
 func reenrollableSubState(state string) bool {
@@ -334,16 +330,11 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 }
 
 func (w *Worker) createClientEventSubs(ctx context.Context, clientID string) error {
-	conduitID, err := w.conduit.Get(ctx)
-	if err != nil {
-		return err
-	}
-	for _, spec := range twitch.ClientSubscriptions(clientID, twitch.ConduitID(conduitID)) {
+	for _, spec := range twitch.ClientSubscriptions(clientID, twitch.ConduitID(w.conduitID)) {
 		if err := w.takeSystemHelix(ctx); err != nil {
 			return err
 		}
-		if err := w.twitch.CreateEventSub(ctx, spec, conduitID); err != nil {
-			w.conduit.Invalidate()
+		if err := w.twitch.CreateEventSub(ctx, spec, w.conduitID); err != nil {
 			return err
 		}
 	}

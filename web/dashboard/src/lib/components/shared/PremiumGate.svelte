@@ -1,6 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { Snippet } from 'svelte';
   import { getI18n } from '@bagel/kit';
   import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
@@ -15,8 +16,17 @@
     body = t('billing.premiumGateBody'),
     cta = t('billing.premiumGateCta'),
     link = t('billing.premiumGateLink'),
-    trial
-  }:{ label?: string; title?: string; body?: string; cta?: string; link?: string; trial?: { label: string; href: string } } = $props();
+    trial,
+    children
+  }:{
+    label?: string;
+    title?: string;
+    body?: string;
+    cta?: string;
+    link?: string;
+    trial?: { label: string; href: string };
+    children?: Snippet;
+  } = $props();
 
   const TAN = { head: '#eadbbd', eye: '#111113' };
 
@@ -42,6 +52,7 @@
           {#if trial}<ButtonLink variant="secondary" href={trial.href}>{trial.label}</ButtonLink>{/if}
           <TextLink href="/billing" label={link} />
         </div>
+        {#if children}<div class="extra rise" style="--i: 3">{@render children()}</div>{/if}
       </div>
       <div class="mascot" aria-hidden="true">
         <Bolota name="oven_fresh" size={340} palette={TAN} active follow />
@@ -152,6 +163,7 @@
     align-items: center;
     gap: 12px 20px;
   }
+  .extra { margin-top: clamp(20px, 4vh, 36px); width: 100%; }
   .rise {
     animation: fade-up 900ms calc(450ms + var(--i, 0) * 120ms) var(--bb-ease-out-expo) both;
   }

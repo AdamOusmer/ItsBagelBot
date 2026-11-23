@@ -55,6 +55,8 @@ entries load through Overlays and fill Valkey. The gateway calls
 `rpc.internal.projector.overlays.tts.resolve` and `.check`. Sesame calls
 `.settings` before checking its quota with Users.
 
+The cached overlay carries `blocked_viewers`, and `.settings` returns them.
+
 Resolve and check use the projected account's active, banned and voice-plan
 state. A missing account projection loads through Users' account snapshot RPC.
 Projector broadcasts `controls.tts.revoked.<user_id>` after folding a

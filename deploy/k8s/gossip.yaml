@@ -91,7 +91,7 @@ spec:
       priorityClassName: bagel-service
       initContainers:
         - name: warp
-          image: ghcr.io/adamousmer/itsbagelbot/warp:main-1795259557-e64749bd466a@sha256:73c3acb5c504e16a5205b766785d51bb07df386236051f808ab0db3ad8131cdf
+          image: ghcr.io/adamousmer/itsbagelbot/warp:main-1795326198-60f2ae865c12@sha256:cf6e64207d18ea76056285fcc90bec07453b4e60cf41e84bc6314b110cd64140
           imagePullPolicy: IfNotPresent
           restartPolicy: Always
           env:
@@ -173,7 +173,7 @@ spec:
               memory: 512Mi
       containers:
         - name: gossip
-          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1795259557-e64749bd466a@sha256:cd2631f49427a31829cd33fc7dd4dcbbee0bc18f6b0bbc0963485b2b27672f61
+          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1795360751-6c9a98ad1169@sha256:bfb308b97f30d5f8f4eeb15a5a283fc216c8e4a19e3a703e555f39d7b6666c0e
           imagePullPolicy: IfNotPresent
           env:
             - name: GEMINI_TTS_TEMPERATURE
@@ -182,6 +182,8 @@ spec:
               value: gemini-3.8-flash-lite-tts
             - name: NATS_URL
               value: tls://nats-leaf.messaging:4222
+            - name: NATS_HUB_URL
+              value: tls://nats.messaging:4222
             - name: NATS_CA_PEM
               valueFrom:
                 configMapKeyRef:

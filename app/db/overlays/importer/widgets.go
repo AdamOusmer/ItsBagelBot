@@ -5,13 +5,13 @@ package importer
 
 import (
 	"cmp"
-	"encoding/json"
 	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
 
 	"ItsBagelBot/internal/domain/overlays"
+	"ItsBagelBot/pkg/codec"
 )
 
 const (
@@ -241,8 +241,8 @@ func (b *builder) exportSettings(name Subject, kind overlays.WidgetKind, raw map
 
 func sourceFromSettings(raw map[string]any) (widgetSource, bool) {
 	var src widgetSource
-	data, err := json.Marshal(raw)
-	if err != nil || json.Unmarshal(data, &src) != nil {
+	data, err := codec.Marshal(raw)
+	if err != nil || codec.Unmarshal(data, &src) != nil {
 		return src, false
 	}
 	return src, src.HTML != "" || src.JS != ""

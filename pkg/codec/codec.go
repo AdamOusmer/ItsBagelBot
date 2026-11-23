@@ -102,4 +102,7 @@ func NewDecoder(r io.Reader) Decoder { return std.NewDecoder(r) }
 
 func NewEncoder(w io.Writer) Encoder { return std.NewEncoder(w) }
 
+// Compact strips insignificant whitespace; sonic copies a RawMessage verbatim where encoding/json compacts it.
+func Compact(dst *bytes.Buffer, src []byte) error { return json.Compact(dst, src) }
+
 func Pretouch(types ...reflect.Type) error { return sonic.PretouchMany(types) }

@@ -74,22 +74,29 @@ test('a delegate gets a read-only page and a signed-out visitor is sent to log i
   expect([readOnly, signedOut, rpc.mock.calls.length]).toEqual([{ readOnly: true, preview: false, overlay: null, missing: false }, 302, 0]);
 });
 
-test('saving sends the validated document as a custom overlay with its revision', async () => {
-  const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce({ ...stored, revision: 1 });
+test('saving a new overlay creates it and returns its id and link', async () => {
+  const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce({ ...stored, revision: 1, url: 'https://overlay.test/o#token' });
   const reply = await post(owner, { id: '0', document: JSON.stringify(document) });
   const [subject, payload, timeout] = rpc.mock.calls[0]!;
   expect([reply, subject, timeout, payload]).toEqual([
-    { ok: true, id: 8, revision: 1 },
-    'rpc.overlays.overlay.save',
+    { ok: true, id: 8, revision: 1, url: 'https://overlay.test/o#token' },
+    'rpc.overlays.overlay.create_custom',
     WRITE_TIMEOUT_MS,
-    expect.objectContaining({ user_id: '42', kind: 'custom', name: 'Alerts', revision: 0 })
+    { user_id: '42', document }
   ]);
+});
+
+test('a conflict carries the document the server holds now', async () => {
+  const held = { ...stored, revision: 5 };
+  spyOn(bus, 'rpc').mockRejectedValueOnce(new bus.RpcError('conflict', 'conflict', held));
+  const reply = await post(owner, { id: '8', document: JSON.stringify(document) });
+  expect(reply).toMatchObject({ status: 409, data: { current: { id: 8, name: 'Alerts', revision: 5, document } } });
 });
 
 test('saving an existing overlay names it in the request', async () => {
   const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce(stored);
   await post(owner, { id: '8', document: JSON.stringify({ ...document, rev: 3 }) });
-  expect(rpc.mock.calls[0]![1]).toMatchObject({ id: 8, revision: 3 });
+  expect([rpc.mock.calls[0]![0], rpc.mock.calls[0]![1]]).toMatchObject(['rpc.overlays.overlay.save', { id: 8, kind: 'custom', revision: 3 }]);
 });
 
 test.each([

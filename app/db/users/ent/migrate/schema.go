@@ -339,7 +339,7 @@ var (
 	// VoiceUsageColumns holds the columns for the "voice_usage" table.
 	VoiceUsageColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "period", Type: field.TypeString, Size: 7},
+		{Name: "period", Type: field.TypeString, Size: 10},
 		{Name: "audio_tokens", Type: field.TypeInt64},
 		{Name: "duration_ms", Type: field.TypeInt64},
 		{Name: "requests", Type: field.TypeInt},
@@ -371,7 +371,7 @@ var (
 	VoiceUsageReceiptColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "request_id", Type: field.TypeString, Size: 255, SchemaType: map[string]string{"mysql": "varbinary(255)"}},
-		{Name: "period", Type: field.TypeString, Size: 7},
+		{Name: "period", Type: field.TypeString, Size: 10},
 		{Name: "audio_tokens", Type: field.TypeInt64},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "allowance", Type: field.TypeJSON},

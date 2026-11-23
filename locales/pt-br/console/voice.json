@@ -13,11 +13,16 @@
   "enable": "Usar voz Premium nos alertas",
   "fallback": "Os alertas usam a voz local gratuita se a opção estiver desativada ou se seus minutos acabarem.",
   "choose": "Voz padrão",
+  "previewTitle": "Ouça as vozes",
+  "previewVoice": "Voz",
+  "previewPlay": "Ouvir {voice}",
+  "previewStop": "Parar",
   "clipLimit": "Duração máx. por alerta",
   "readOnly": "Só o dono do canal pode consultar o uso ou alterar a voz.",
   "inactive": "A voz na nuvem fica pausada enquanto o bot está desligado.",
   "banned": "A voz na nuvem está indisponível.",
   "unavailable": "O uso e as configurações de voz estão indisponíveis. Recarregue a página para tentar de novo.",
+  "paused": "A voz está pausada neste canal até {time}.",
   "invalidVoice": "Escolha uma voz na lista.",
   "saveFailed": "Não foi possível salvar as configurações de voz. Tente de novo.",
   "overlayTitle": "Fonte de navegador do OBS",
@@ -128,5 +133,18 @@
     "title": "Recompensas de pontos do canal",
     "body": "Escolha Ler a mensagem do espectador em voz alta em qualquer recompensa e o texto toca pela sua fonte de voz.",
     "open": "Abrir pontos do canal"
+  },
+  "blocks": {
+    "title": "Espectadores bloqueados",
+    "hint": "Espectadores bloqueados nunca são lidos em voz alta.",
+    "nameLabel": "Nome do espectador",
+    "namePlaceholder": "Usuário da Twitch",
+    "add": "Bloquear",
+    "unblock": "Desbloquear",
+    "empty": "Ninguém está bloqueado.",
+    "tagManual": "Manual",
+    "viewerId": "ID {id}",
+    "unknown": "Nenhum usuário da Twitch com esse nome.",
+    "failed": "Não foi possível atualizar os bloqueados. Tente de novo."
   }
 }

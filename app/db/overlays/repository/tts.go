@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/db/overlays/ent"
 	"ItsBagelBot/app/db/overlays/ent/predicate"
 	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
+	"ItsBagelBot/app/db/overlays/ent/ttsviewerblock"
 	"ItsBagelBot/internal/domain/event/data"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/internal/domain/voiceplan"
@@ -134,7 +135,9 @@ func (r *Overlays) findTts(ctx context.Context, where ...predicate.TtsOverlay) (
 	if err != nil {
 		return overlaysrpc.TtsOverlay{}, err
 	}
-	return ttsOf(row), nil
+	view := ttsOf(row)
+	view.BlockedViewers, err = r.blockedViewerIDs(ctx, row.UserID)
+	return view, err
 }
 
 func ttsOf(row *ent.TtsOverlay) overlaysrpc.TtsOverlay {
@@ -181,6 +184,9 @@ func (r *Overlays) deleteTts(ctx context.Context, userID uint64, cutoff time.Tim
 			}
 			if n == 0 {
 				return ErrRevisionConflict
+			}
+			if _, err := tx.TtsViewerBlock.Delete().Where(ttsviewerblock.UserID(userID), ttsviewerblock.CreatedAtLTE(cutoff)).Exec(ctx); err != nil {
+				return err
 			}
 			return r.announceTts(ctx, data.TtsOverlayChangedDTO{Overlay: ttsOf(row), Deleted: true, Revoked: true})
 		})

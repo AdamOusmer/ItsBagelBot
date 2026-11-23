@@ -42,6 +42,7 @@ export const css = `
 .obs-chat-bottom { display: flex; flex-direction: column; justify-content: flex-end; }
 .obs-chat-emote { display: inline-block; width: auto; height: 1.25em; vertical-align: middle; }
 .obs-chat-badge { display: inline-block; margin-inline-end: 0.25em; padding: 0.1em 0.3em; border-radius: 0.25em; background: #243433; font-size: 0.67em; color: white; }
+.obs-chat-badge-image { height: 1em; margin-inline-end: 0.25em; vertical-align: -0.1em; }
 .obs-chat-bubbles { width: fit-content; padding: 0.24em 0.5em; border-radius: 0.65em; background: #111c1bef; }
 .obs-chat-boxed { padding: 0.24em 0.5em; background: #111c1bef; }
 .obs-flying-emote { position: absolute; object-fit: contain; animation-fill-mode: both; }

@@ -5,7 +5,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -13,6 +12,7 @@ import (
 	"ItsBagelBot/internal/domain/overlays"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 )
 
 func SubscribeOverlays(w Wiring) error {
@@ -42,8 +42,19 @@ func (w Wiring) overlayList(ctx context.Context, _ overlaysrpc.OverlayUserReques
 }
 
 func (w Wiring) overlayAdd(ctx context.Context, req overlaysrpc.OverlayAddTemplateRequest, id uint64) (overlaysrpc.OverlayView, error) {
+	if repository.IsStarter(req.Template) {
+		overlay, token, err := w.addStarter(ctx, req.Template, id)
+		return overlayReply(overlay, token, err), nil
+	}
 	overlay, token, err := w.Repo.AddTemplate(ctx, id, req.Template)
 	return overlayReply(overlay, token, err), nil
+}
+
+func (w Wiring) addStarter(ctx context.Context, key string, id uint64) (overlaysrpc.Overlay, string, error) {
+	if err := w.Assets.RequirePremium(ctx, id); err != nil {
+		return overlaysrpc.Overlay{}, "", err
+	}
+	return w.Repo.AddStarter(ctx, id, key)
 }
 
 func (w Wiring) overlayGet(ctx context.Context, req overlaysrpc.OverlayRefRequest, id uint64) (overlaysrpc.OverlayView, error) {
@@ -52,6 +63,10 @@ func (w Wiring) overlayGet(ctx context.Context, req overlaysrpc.OverlayRefReques
 }
 
 func (w Wiring) overlaySave(ctx context.Context, req overlaysrpc.OverlaySaveRequest, id uint64) (overlaysrpc.OverlayView, error) {
+	if len(req.Document) > 0 && req.ID == 0 {
+		overlay, token, err := w.createCustom(ctx, req.Document, id)
+		return overlayReply(overlay, token, err), nil
+	}
 	if len(req.Document) > 0 {
 		overlay, err := w.saveCustom(ctx, req, id)
 		return overlayReply(overlay, "", err), nil
@@ -72,7 +87,7 @@ func (w Wiring) overlayCreateCustom(ctx context.Context, req overlaysrpc.Overlay
 	return overlayReply(overlay, token, err), nil
 }
 
-func (w Wiring) createCustom(ctx context.Context, raw json.RawMessage, id uint64) (overlaysrpc.Overlay, string, error) {
+func (w Wiring) createCustom(ctx context.Context, raw codec.RawMessage, id uint64) (overlaysrpc.Overlay, string, error) {
 	if err := w.Assets.RequirePremium(ctx, id); err != nil {
 		return overlaysrpc.Overlay{}, "", err
 	}
@@ -100,7 +115,13 @@ func (w Wiring) ownerUnified(ctx context.Context, hash overlaysrpc.TokenHash) ov
 	return overlaysrpc.OwnerPoweredReply{Unified: &overlay}
 }
 
+// A conflict carries the stored document and revision so the editor can reconcile.
 func overlayReply(overlay overlaysrpc.Overlay, token string, err error) overlaysrpc.OverlayView {
+	if errors.Is(err, repository.ErrRevisionConflict) && overlay.ID != 0 {
+		view := overlayView(overlay, "")
+		view.Refusal = refusal(err)
+		return view
+	}
 	if err != nil {
 		return overlaysrpc.OverlayView{Refusal: refusal(err)}
 	}

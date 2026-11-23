@@ -22,13 +22,13 @@ import (
 )
 
 const (
-	disabledTTSWarning  = "tts provider disabled: GOOGLE_VERTEX_CREDENTIALS and GEMINI_API_KEY unset"
+	disabledTTSWarning  = "tts provider disabled: no usable speech credentials"
 	vertexConfigWarning = "invalid Vertex TTS configuration"
 )
 
 type ttsSelectionCase struct {
-	name, credentials, apiKey, warning, replyError string
-	upstream                                       bool
+	name, appEnv, credentials, apiKey, warning, replyError string
+	upstream                                               bool
 }
 
 func ttsSelectionCases() []ttsSelectionCase {
@@ -36,9 +36,11 @@ func ttsSelectionCases() []ttsSelectionCase {
 	const unavailable = "speech synthesis is unavailable right now"
 	return []ttsSelectionCase{
 		{name: "disabled without credentials", warning: disabledTTSWarning},
-		{name: "Gemini with API key", apiKey: "gemini-key", upstream: true, replyError: "speech provider returned no audio"},
-		{name: "Vertex only", credentials: invalidCredentials, warning: vertexConfigWarning, replyError: unavailable},
-		{name: "Vertex takes precedence", credentials: invalidCredentials, apiKey: "gemini-key", warning: vertexConfigWarning, replyError: unavailable},
+		{name: "production ignores the Gemini API key", apiKey: "gemini-key", warning: disabledTTSWarning},
+		{name: "explicit production ignores the Gemini API key", appEnv: "production", apiKey: "gemini-key", warning: disabledTTSWarning},
+		{name: "Gemini with API key", appEnv: "development", apiKey: "gemini-key", upstream: true, replyError: "speech provider returned no audio"},
+		{name: "Vertex only", appEnv: "development", credentials: invalidCredentials, warning: vertexConfigWarning, replyError: unavailable},
+		{name: "Vertex takes precedence", appEnv: "production", credentials: invalidCredentials, apiKey: "gemini-key", warning: vertexConfigWarning, replyError: unavailable},
 	}
 }
 
@@ -50,6 +52,7 @@ func TestTTSBackendSelection(t *testing.T) {
 
 func checkTTSSelection(t *testing.T, tc ttsSelectionCase) {
 	t.Helper()
+	t.Setenv("APP_ENV", tc.appEnv)
 	t.Setenv("GOOGLE_VERTEX_CREDENTIALS", tc.credentials)
 	t.Setenv("GEMINI_API_KEY", tc.apiKey)
 	t.Setenv("GEMINI_BASE_URL", providertest.Upstream(t, tc.gemini(t)))

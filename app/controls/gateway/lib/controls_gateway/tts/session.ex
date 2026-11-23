@@ -16,6 +16,7 @@ defmodule ControlsGateway.Tts.Session do
   }
 
   defdelegate now, to: SignedCookie
+  defdelegate key, to: SignedCookie
 
   def put(req, user_id, generation) do
     claims = %{"user_id" => user_id, "generation" => generation, "exp" => now() + @max_age}
@@ -36,5 +37,5 @@ defmodule ControlsGateway.Tts.Session do
     valid_user_id?(user_id) and is_integer(generation) and generation >= 0
   end
 
-  defp valid_user_id?(id), do: is_integer(id) and id > 0 and id <= @uint64_max
+  def valid_user_id?(id), do: is_integer(id) and id > 0 and id <= @uint64_max
 end

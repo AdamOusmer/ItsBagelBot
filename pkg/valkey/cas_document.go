@@ -37,6 +37,27 @@ func (d CASDocument) Read(ctx context.Context, client valkey_go.Client) (string,
 	return string(raw), nil
 }
 
+// Update runs change on the current raw value ("" when absent) and swaps in its result, rereading and retrying while another writer wins.
+func (d CASDocument) Update(ctx context.Context, client valkey_go.Client, change func(raw string) (string, error)) error {
+	for {
+		raw, err := d.Read(ctx, client)
+		if err != nil {
+			return err
+		}
+		next, err := change(raw)
+		if err != nil {
+			return err
+		}
+		swapped, err := d.Swap(ctx, client, raw, next)
+		if err != nil || swapped {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+}
+
 // Swap writes newRaw only if the stored value still equals expectedRaw (empty meaning absent), and reports whether it did.
 func (d CASDocument) Swap(ctx context.Context, client valkey_go.Client, expectedRaw, newRaw string) (bool, error) {
 	n, err := casDocumentScript.Exec(ctx, client, []string{d.Key}, []string{

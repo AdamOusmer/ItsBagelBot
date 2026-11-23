@@ -307,6 +307,7 @@ func TestSongRequest(t *testing.T) {
 		{name: "the default queue has no size cap", queued: 1501, contains: []string{"Mr. Brightside"},
 			store: fakeSongQueue{up: slices.Repeat([]engine.SongEntry{entry("q", "Queued", "7", "bob")}, 1500)}},
 		{name: "a partial sr record keeps queueing", config: `{"sr":{"perm":"everyone"}}`, live: liveOnline, queued: 1, contains: []string{"Mr. Brightside"}},
+		{name: "full store blob allows offline sr", config: `{"__rev":5,"disabledTriggers":"","quotas":{"everyone":"2","sub":null,"vip":null,"mod":null},"maxDepth":0,"sr":{"enabled":true,"perm":"everyone","allowOffline":true},"redeem":{"enabled":true,"rewardId":"rw-1","onRedeem":"fulfill","replyMessage":"","allowOffline":false,"reward":{"rewardId":"rw-1","title":"SR","cost":500,"color":"#1db954","cooldown":0}}}`, live: liveOffline, queued: 1, contains: []string{"Mr. Brightside"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

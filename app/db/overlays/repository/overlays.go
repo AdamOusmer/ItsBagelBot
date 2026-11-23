@@ -181,6 +181,9 @@ func (r *Overlays) DeleteAccount(ctx context.Context, userID uint64, cutoff time
 	if err := r.deleteAssets(ctx, userID, cutoff); err != nil {
 		return err
 	}
+	if err := r.deleteFeedTotals(ctx, userID, cutoff); err != nil {
+		return err
+	}
 	row, err := r.row(ctx, poweredoverlay.UserID(userID), poweredoverlay.CreatedAtLTE(cutoff))
 	if errors.Is(err, ErrNotFound) {
 		return nil

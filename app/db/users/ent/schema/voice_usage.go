@@ -21,7 +21,7 @@ func (VoiceUsage) Annotations() []schema.Annotation {
 func (VoiceUsage) Fields() []ent.Field {
 	return []ent.Field{
 		field.Uint64("user_id").Immutable(),
-		field.String("period").MaxLen(7).Immutable(),
+		field.String("period").MaxLen(10).Immutable(),
 		field.Int64("audio_tokens").NonNegative(),
 		field.Int64("duration_ms").NonNegative(),
 		field.Int("requests").NonNegative(),

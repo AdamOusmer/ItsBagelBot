@@ -105,8 +105,14 @@ export const settings: WidgetSettings = {
       gift_sub: 'Gifters',
       cheer: 'Cheerers',
       raid: 'Raiders',
-      redemption: 'Redeemers'
+      redemption: 'Redeemers',
+      mod: 'Moderators',
+      vip: 'VIPs',
+      chatter: 'Chatters'
     },
+    showMods: false,
+    showVips: false,
+    showChatters: false,
     speed: 45,
     loop: true,
     style: font

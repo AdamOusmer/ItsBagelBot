@@ -11,10 +11,12 @@ import (
 
 	"ItsBagelBot/app/db/overlays/ent/migrate"
 
+	"ItsBagelBot/app/db/overlays/ent/feedtotal"
 	"ItsBagelBot/app/db/overlays/ent/overlay"
 	"ItsBagelBot/app/db/overlays/ent/overlayasset"
 	"ItsBagelBot/app/db/overlays/ent/poweredoverlay"
 	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
+	"ItsBagelBot/app/db/overlays/ent/ttsviewerblock"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
@@ -26,6 +28,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// FeedTotal is the client for interacting with the FeedTotal builders.
+	FeedTotal *FeedTotalClient
 	// Overlay is the client for interacting with the Overlay builders.
 	Overlay *OverlayClient
 	// OverlayAsset is the client for interacting with the OverlayAsset builders.
@@ -34,6 +38,8 @@ type Client struct {
 	PoweredOverlay *PoweredOverlayClient
 	// TtsOverlay is the client for interacting with the TtsOverlay builders.
 	TtsOverlay *TtsOverlayClient
+	// TtsViewerBlock is the client for interacting with the TtsViewerBlock builders.
+	TtsViewerBlock *TtsViewerBlockClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -45,10 +51,12 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.FeedTotal = NewFeedTotalClient(c.config)
 	c.Overlay = NewOverlayClient(c.config)
 	c.OverlayAsset = NewOverlayAssetClient(c.config)
 	c.PoweredOverlay = NewPoweredOverlayClient(c.config)
 	c.TtsOverlay = NewTtsOverlayClient(c.config)
+	c.TtsViewerBlock = NewTtsViewerBlockClient(c.config)
 }
 
 type (
@@ -141,10 +149,12 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	return &Tx{
 		ctx:            ctx,
 		config:         cfg,
+		FeedTotal:      NewFeedTotalClient(cfg),
 		Overlay:        NewOverlayClient(cfg),
 		OverlayAsset:   NewOverlayAssetClient(cfg),
 		PoweredOverlay: NewPoweredOverlayClient(cfg),
 		TtsOverlay:     NewTtsOverlayClient(cfg),
+		TtsViewerBlock: NewTtsViewerBlockClient(cfg),
 	}, nil
 }
 
@@ -164,17 +174,19 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	return &Tx{
 		ctx:            ctx,
 		config:         cfg,
+		FeedTotal:      NewFeedTotalClient(cfg),
 		Overlay:        NewOverlayClient(cfg),
 		OverlayAsset:   NewOverlayAssetClient(cfg),
 		PoweredOverlay: NewPoweredOverlayClient(cfg),
 		TtsOverlay:     NewTtsOverlayClient(cfg),
+		TtsViewerBlock: NewTtsViewerBlockClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Overlay.
+//		FeedTotal.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -196,24 +208,30 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.Overlay.Use(hooks...)
-	c.OverlayAsset.Use(hooks...)
-	c.PoweredOverlay.Use(hooks...)
-	c.TtsOverlay.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.FeedTotal, c.Overlay, c.OverlayAsset, c.PoweredOverlay, c.TtsOverlay,
+		c.TtsViewerBlock,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.Overlay.Intercept(interceptors...)
-	c.OverlayAsset.Intercept(interceptors...)
-	c.PoweredOverlay.Intercept(interceptors...)
-	c.TtsOverlay.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.FeedTotal, c.Overlay, c.OverlayAsset, c.PoweredOverlay, c.TtsOverlay,
+		c.TtsViewerBlock,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *FeedTotalMutation:
+		return c.FeedTotal.mutate(ctx, m)
 	case *OverlayMutation:
 		return c.Overlay.mutate(ctx, m)
 	case *OverlayAssetMutation:
@@ -222,8 +240,143 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.PoweredOverlay.mutate(ctx, m)
 	case *TtsOverlayMutation:
 		return c.TtsOverlay.mutate(ctx, m)
+	case *TtsViewerBlockMutation:
+		return c.TtsViewerBlock.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// FeedTotalClient is a client for the FeedTotal schema.
+type FeedTotalClient struct {
+	config
+}
+
+// NewFeedTotalClient returns a client for the FeedTotal from the given config.
+func NewFeedTotalClient(c config) *FeedTotalClient {
+	return &FeedTotalClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `feedtotal.Hooks(f(g(h())))`.
+func (c *FeedTotalClient) Use(hooks ...Hook) {
+	c.hooks.FeedTotal = append(c.hooks.FeedTotal, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `feedtotal.Intercept(f(g(h())))`.
+func (c *FeedTotalClient) Intercept(interceptors ...Interceptor) {
+	c.inters.FeedTotal = append(c.inters.FeedTotal, interceptors...)
+}
+
+// Create returns a builder for creating a FeedTotal entity.
+func (c *FeedTotalClient) Create() *FeedTotalCreate {
+	mutation := newFeedTotalMutation(c.config, OpCreate)
+	return &FeedTotalCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of FeedTotal entities.
+func (c *FeedTotalClient) CreateBulk(builders ...*FeedTotalCreate) *FeedTotalCreateBulk {
+	return &FeedTotalCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *FeedTotalClient) MapCreateBulk(slice any, setFunc func(*FeedTotalCreate, int)) *FeedTotalCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &FeedTotalCreateBulk{err: fmt.Errorf("calling to FeedTotalClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*FeedTotalCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &FeedTotalCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for FeedTotal.
+func (c *FeedTotalClient) Update() *FeedTotalUpdate {
+	mutation := newFeedTotalMutation(c.config, OpUpdate)
+	return &FeedTotalUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *FeedTotalClient) UpdateOne(_m *FeedTotal) *FeedTotalUpdateOne {
+	mutation := newFeedTotalMutation(c.config, OpUpdateOne, withFeedTotal(_m))
+	return &FeedTotalUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *FeedTotalClient) UpdateOneID(id int) *FeedTotalUpdateOne {
+	mutation := newFeedTotalMutation(c.config, OpUpdateOne, withFeedTotalID(id))
+	return &FeedTotalUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for FeedTotal.
+func (c *FeedTotalClient) Delete() *FeedTotalDelete {
+	mutation := newFeedTotalMutation(c.config, OpDelete)
+	return &FeedTotalDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *FeedTotalClient) DeleteOne(_m *FeedTotal) *FeedTotalDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *FeedTotalClient) DeleteOneID(id int) *FeedTotalDeleteOne {
+	builder := c.Delete().Where(feedtotal.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &FeedTotalDeleteOne{builder}
+}
+
+// Query returns a query builder for FeedTotal.
+func (c *FeedTotalClient) Query() *FeedTotalQuery {
+	return &FeedTotalQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeFeedTotal},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a FeedTotal entity by its id.
+func (c *FeedTotalClient) Get(ctx context.Context, id int) (*FeedTotal, error) {
+	return c.Query().Where(feedtotal.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *FeedTotalClient) GetX(ctx context.Context, id int) *FeedTotal {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *FeedTotalClient) Hooks() []Hook {
+	return c.hooks.FeedTotal
+}
+
+// Interceptors returns the client interceptors.
+func (c *FeedTotalClient) Interceptors() []Interceptor {
+	return c.inters.FeedTotal
+}
+
+func (c *FeedTotalClient) mutate(ctx context.Context, m *FeedTotalMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&FeedTotalCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&FeedTotalUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&FeedTotalUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&FeedTotalDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown FeedTotal mutation op: %q", m.Op())
 	}
 }
 
@@ -759,12 +912,147 @@ func (c *TtsOverlayClient) mutate(ctx context.Context, m *TtsOverlayMutation) (V
 	}
 }
 
+// TtsViewerBlockClient is a client for the TtsViewerBlock schema.
+type TtsViewerBlockClient struct {
+	config
+}
+
+// NewTtsViewerBlockClient returns a client for the TtsViewerBlock from the given config.
+func NewTtsViewerBlockClient(c config) *TtsViewerBlockClient {
+	return &TtsViewerBlockClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `ttsviewerblock.Hooks(f(g(h())))`.
+func (c *TtsViewerBlockClient) Use(hooks ...Hook) {
+	c.hooks.TtsViewerBlock = append(c.hooks.TtsViewerBlock, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `ttsviewerblock.Intercept(f(g(h())))`.
+func (c *TtsViewerBlockClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TtsViewerBlock = append(c.inters.TtsViewerBlock, interceptors...)
+}
+
+// Create returns a builder for creating a TtsViewerBlock entity.
+func (c *TtsViewerBlockClient) Create() *TtsViewerBlockCreate {
+	mutation := newTtsViewerBlockMutation(c.config, OpCreate)
+	return &TtsViewerBlockCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TtsViewerBlock entities.
+func (c *TtsViewerBlockClient) CreateBulk(builders ...*TtsViewerBlockCreate) *TtsViewerBlockCreateBulk {
+	return &TtsViewerBlockCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TtsViewerBlockClient) MapCreateBulk(slice any, setFunc func(*TtsViewerBlockCreate, int)) *TtsViewerBlockCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TtsViewerBlockCreateBulk{err: fmt.Errorf("calling to TtsViewerBlockClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TtsViewerBlockCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TtsViewerBlockCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TtsViewerBlock.
+func (c *TtsViewerBlockClient) Update() *TtsViewerBlockUpdate {
+	mutation := newTtsViewerBlockMutation(c.config, OpUpdate)
+	return &TtsViewerBlockUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TtsViewerBlockClient) UpdateOne(_m *TtsViewerBlock) *TtsViewerBlockUpdateOne {
+	mutation := newTtsViewerBlockMutation(c.config, OpUpdateOne, withTtsViewerBlock(_m))
+	return &TtsViewerBlockUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TtsViewerBlockClient) UpdateOneID(id int) *TtsViewerBlockUpdateOne {
+	mutation := newTtsViewerBlockMutation(c.config, OpUpdateOne, withTtsViewerBlockID(id))
+	return &TtsViewerBlockUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TtsViewerBlock.
+func (c *TtsViewerBlockClient) Delete() *TtsViewerBlockDelete {
+	mutation := newTtsViewerBlockMutation(c.config, OpDelete)
+	return &TtsViewerBlockDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TtsViewerBlockClient) DeleteOne(_m *TtsViewerBlock) *TtsViewerBlockDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TtsViewerBlockClient) DeleteOneID(id int) *TtsViewerBlockDeleteOne {
+	builder := c.Delete().Where(ttsviewerblock.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TtsViewerBlockDeleteOne{builder}
+}
+
+// Query returns a query builder for TtsViewerBlock.
+func (c *TtsViewerBlockClient) Query() *TtsViewerBlockQuery {
+	return &TtsViewerBlockQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTtsViewerBlock},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TtsViewerBlock entity by its id.
+func (c *TtsViewerBlockClient) Get(ctx context.Context, id int) (*TtsViewerBlock, error) {
+	return c.Query().Where(ttsviewerblock.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TtsViewerBlockClient) GetX(ctx context.Context, id int) *TtsViewerBlock {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *TtsViewerBlockClient) Hooks() []Hook {
+	return c.hooks.TtsViewerBlock
+}
+
+// Interceptors returns the client interceptors.
+func (c *TtsViewerBlockClient) Interceptors() []Interceptor {
+	return c.inters.TtsViewerBlock
+}
+
+func (c *TtsViewerBlockClient) mutate(ctx context.Context, m *TtsViewerBlockMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TtsViewerBlockCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TtsViewerBlockUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TtsViewerBlockUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TtsViewerBlockDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TtsViewerBlock mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Overlay, OverlayAsset, PoweredOverlay, TtsOverlay []ent.Hook
+		FeedTotal, Overlay, OverlayAsset, PoweredOverlay, TtsOverlay,
+		TtsViewerBlock []ent.Hook
 	}
 	inters struct {
-		Overlay, OverlayAsset, PoweredOverlay, TtsOverlay []ent.Interceptor
+		FeedTotal, Overlay, OverlayAsset, PoweredOverlay, TtsOverlay,
+		TtsViewerBlock []ent.Interceptor
 	}
 )

@@ -10,7 +10,7 @@ import { RpcError } from '@bagel/kit/server/nats';
 import { validateDocument } from '@bagel/kit/overlay-document';
 import { hasOwnerAccess } from '#lib/server/owner';
 import { auditDashboardImpersonation } from '#lib/server/services/audit';
-import { overlayGetCustom, overlaySaveCustom } from '#lib/server/services/overlays';
+import { currentOnConflict, overlayCreateCustom, overlayGetCustom, overlaySaveCustom } from '#lib/server/services/overlays';
 import type { Session } from '#lib/server/session';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -46,6 +46,8 @@ export const load: PageServerLoad = DEMO ? demoLoad : liveLoad;
 
 function refusal(err: unknown, locale: Locale) {
   const known: (typeof REFUSALS)[string] | undefined = REFUSALS[err instanceof RpcError ? err.code : ''];
+  const current = currentOnConflict(err);
+  if (current) return fail(409, { error: translate(locale, 'overlayEditor.save.conflict'), current });
   if (known) return fail(known.status, { error: translate(locale, `overlayEditor.save.${known.key}`) });
   return fail(503, { error: translate(locale, 'overlayEditor.save.failed') });
 }
@@ -62,11 +64,13 @@ function readSave(fields: FormData) {
 async function persist(session: Session, locale: Locale, fields: FormData) {
   const save = readSave(fields);
   if (!save) return fail(400, { error: translate(locale, 'overlayEditor.save.invalid') });
-  if (DEMO) return { ok: true, id: save.id || 1, revision: save.document.rev + 1 };
+  if (DEMO) return { ok: true, id: save.id || 1, revision: save.document.rev + 1, url: save.id ? undefined : 'https://overlay.itsbagelbot.com/o#demo-custom-link' };
   try {
-    const view = await overlaySaveCustom(session, { ...save, name: save.document.name, revision: save.document.rev });
-    auditDashboardImpersonation(session, 'overlays:custom_save');
-    return { ok: true, id: view.id, revision: view.revision };
+    const view = save.id
+      ? await overlaySaveCustom(session, { ...save, name: save.document.name, revision: save.document.rev })
+      : await overlayCreateCustom(session, { document: save.document });
+    auditDashboardImpersonation(session, save.id ? 'overlays:custom_save' : 'overlays:custom_create');
+    return { ok: true, id: view.id, revision: view.revision, url: view.url };
   } catch (err) {
     return refusal(err, locale);
   }

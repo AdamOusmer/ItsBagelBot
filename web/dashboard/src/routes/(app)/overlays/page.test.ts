@@ -100,7 +100,7 @@ test('lists each overlay with a replace action and deletes only custom ones', as
   expect(html.match(/>Delete</g)).toHaveLength(1);
 });
 
-test('the custom overlay entry is always offered', async () => {
-  const [link] = await attributes(renderPage({ readOnly: false, overlays: [], powered: null, isPremium: false }), 'a[href="/overlays/custom"]');
-  expect(Boolean(link)).toBe(true);
+test('no custom overlay entry is offered', async () => {
+  const links = await attributes(renderPage({ readOnly: false, overlays: [], powered: null, isPremium: true }), 'a[href="/overlays/custom"]');
+  expect(links).toEqual([]);
 });

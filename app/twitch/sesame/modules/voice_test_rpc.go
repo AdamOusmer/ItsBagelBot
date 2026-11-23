@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/internal/domain/rpc"
 	sesamerpc "ItsBagelBot/internal/domain/rpc/sesame"
 	"ItsBagelBot/internal/domain/voiceplan"
+	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/ratelimit"
 
@@ -70,8 +71,12 @@ func (h *voiceTestRPC) trySend(ctx context.Context, id uint64, displayName strin
 	if status := testAllowanceStatus(allowance); status != "" {
 		return sesamerpc.VoiceTestReply{Status: status}, nil
 	}
-	if err := h.publish(ctx, id, testSpeechSettings{speaker: displayName, voice: allowance.Settings.Voice}); err != nil {
+	queued, err := h.publish(ctx, id, testSpeechSettings{speaker: displayName, voice: allowance.Settings.Voice})
+	if err != nil {
 		return sesamerpc.VoiceTestReply{}, err
+	}
+	if !queued {
+		return sesamerpc.VoiceTestReply{Refusal: rpc.Refused(rpc.CodeInvalid, "name not allowed")}, nil
 	}
 	return sesamerpc.VoiceTestReply{Status: sesamerpc.VoiceTestQueued}, nil
 }
@@ -96,21 +101,29 @@ type testSpeechSettings struct {
 	voice   string
 }
 
-func (h *voiceTestRPC) publish(ctx context.Context, id uint64, settings testSpeechSettings) error {
+func (h *voiceTestRPC) publish(ctx context.Context, id uint64, settings testSpeechSettings) (bool, error) {
 	user, err := h.deps.Proj.User(ctx, id)
 	if err != nil {
-		return err
+		return false, err
 	}
 	c := &module.Context{BroadcasterID: id, Locale: user.Locale, Log: h.deps.Log}
 	traceID := newrelic.FromContext(ctx).GetTraceMetadata().TraceID
 	s := alertSpeech{d: &h.deps, c: c, kind: "cheer", traceID: traceID}
 	if err := s.loadConfig(ctx); err != nil {
-		return err
+		return false, err
 	}
 	var seed [16]byte
 	rand.Read(seed[:])
+	jobID := hex.EncodeToString(seed[:])
 	in := alertSpeechInput{speaker: settings.speaker, message: i18n.T(c.Locale, "alerts.voice.test")}
-	job := s.job(in, hex.EncodeToString(seed[:]))
+	subject := engine.SpeechSubject{BroadcasterID: id, Source: voiceplan.SourceChannel}
+	message, allowed, err := h.deps.Speech().Screen(ctx, subject, moderation.SpeechInput{Name: voiceplan.PlainText(in.speaker), Message: in.message}, moderation.SpeechPolicy{})
+	if err != nil || !allowed {
+		return false, err
+	}
+	in.message = message
+	job := s.job(in, jobID)
 	job.Voice = cmp.Or(job.Voice, settings.voice)
-	return s.publish(ctx, job)
+	job.Source = voiceplan.SourceChannel
+	return true, s.publish(ctx, job)
 }

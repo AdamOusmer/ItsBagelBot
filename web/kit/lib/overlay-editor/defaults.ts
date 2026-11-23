@@ -66,8 +66,8 @@ export const defaultSettings: Record<EditableKind, Settings> = {
   emotewall: { motion: 'fly', max: 24, size: 72, lifetime: 4, combo: 5, thirdPartyEmotes: true, style: fontStyle },
   timer: { mode: 'countdown', at: '', format: 'hh:mm:ss', endText: 'Starting now', style: { ...fontStyle, size: 96 } },
   credits: {
-    headers: { follow: 'Followers', sub: 'Subscribers', gift_sub: 'Gifters', cheer: 'Cheerers', raid: 'Raiders', redemption: 'Redeemers' },
-    speed: 45, loop: true, style: fontStyle
+    headers: { follow: 'Followers', sub: 'Subscribers', gift_sub: 'Gifters', cheer: 'Cheerers', raid: 'Raiders', redemption: 'Redeemers', mod: 'Moderators', vip: 'VIPs', chatter: 'Chatters' },
+    showMods: false, showVips: false, showChatters: false, speed: 45, loop: true, style: fontStyle
   },
   text: { text: 'Your text', align: 'center', style: fontStyle },
   image: { media: '', fit: 'contain' },
@@ -87,9 +87,16 @@ function merge(base: unknown, over: unknown): unknown {
   return Object.fromEntries([...keys].map((key) => [key, merge(base[key], over[key])]));
 }
 
+const TWITCH_USER_ID = /^\d{1,20}$/;
+
+function migrated(kind: string, settings: Settings): Settings {
+  if (kind !== 'chatbox' || !Array.isArray(settings.hideUsers)) return settings;
+  return { ...settings, hideUsers: settings.hideUsers.filter((entry) => typeof entry === 'string' && TWITCH_USER_ID.test(entry.trim())) };
+}
+
 export function completeSettings(kind: string, settings: Settings | null): Settings {
   const base = isEditable(kind) ? defaultSettings[kind] : {};
-  return merge(base, settings ?? {}) as Settings;
+  return migrated(kind, merge(base, settings ?? {}) as Settings);
 }
 
 export function newWidget(kind: EditableKind, canvas: Canvas, name: string): OverlayWidget {

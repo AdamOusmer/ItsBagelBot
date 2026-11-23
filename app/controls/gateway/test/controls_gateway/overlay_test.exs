@@ -4,9 +4,16 @@
 defmodule ControlsGateway.OverlayTest do
   use ControlsGateway.IntegrationCase, async: false
 
+  alias Platform.Nats.Planes
+
+  @moduletag :jetstream
+  @moduletag :tmp_dir
+
   alias ControlsGateway.TestSupport.HttpClient
 
   @resolve "rpc.internal.projector.overlays.resolve"
+  @snapshot_subject "rpc.internal.overlays.feed.snapshot"
+  @snapshot %{"stats" => %{"session" => %{"follows" => 0}}, "subathon" => %{}}
   @token Base.url_encode64(:binary.copy(<<61>>, 32), padding: false)
   @unknown Base.url_encode64(:binary.copy(<<62>>, 32), padding: false)
   @broken Base.url_encode64(:binary.copy(<<63>>, 32), padding: false)
@@ -43,6 +50,10 @@ defmodule ControlsGateway.OverlayTest do
     agent = start_supervised!({Agent, fn -> overlay end})
     responder = start_supervised!({Task, fn -> respond(agent) end})
     {:ok, _} = Gnat.sub(:gnat_rpc, responder, @resolve)
+    snapshotter = start_supervised!({Task, &snapshots/0}, id: :snapshots)
+    {:ok, _} = Gnat.sub(:gnat_rpc, snapshotter, @snapshot_subject)
+    stream = %{name: "OVERLAY_FEED", subjects: ["overlay.feed.>"], storage: "memory"}
+    {:ok, _} = jetstream("$JS.API.STREAM.CREATE.OVERLAY_FEED", stream)
     %{agent: agent}
   end
 
@@ -135,30 +146,71 @@ defmodule ControlsGateway.OverlayTest do
     assert doc_reason(port, headers) == "not_found"
   end
 
-  test "events open for a valid session and announce revisions", %{http_port: port, agent: agent} do
+  test "events open with a snapshot and announce revisions", %{http_port: port} do
     live = events(port, [cookie(port)])
-    Agent.update(agent, &Map.put(&1, :revision, 4))
-    check_now()
-    data = HttpClient.await(live, &String.contains?(&1.body, "event: revision\ndata: 4\n\n"))
-    HttpClient.close(data)
+    assert live.body =~ "id: 0\nevent: snapshot\ndata: " <> Jason.encode!(@snapshot) <> "\n\n"
+
+    :ok = Gnat.pub(:gnat_rpc, "controls.overlay.revised.11", "4")
+    live = HttpClient.await(live, &String.contains?(&1.body, "event: revision\ndata: 4\n\n"))
+    HttpClient.close(live)
   end
 
-  test "events close when the generation changes", %{http_port: port, agent: agent} do
+  test "events close when the overlay is revoked", %{http_port: port} do
     live = events(port, [cookie(port)])
-    Agent.update(agent, &Map.put(&1, :generation, 6))
-    check_now()
+    :ok = Gnat.pub(:gnat_rpc, "controls.overlay.revoked.11", "")
     closed = HttpClient.await(live, & &1.done)
     assert closed.done
     HttpClient.close(closed)
   end
 
-  test "events close when the overlay stops being allowed", %{http_port: port, agent: agent} do
+  test "events forward the feed with stream sequences and chat lines without ids", %{
+    http_port: port
+  } do
     live = events(port, [cookie(port)])
-    Agent.update(agent, &Map.merge(&1, %{kind: "custom", allowed: false, document: nil}))
-    check_now()
-    closed = HttpClient.await(live, & &1.done)
-    assert closed.done
-    HttpClient.close(closed)
+    publish("overlay.feed.7.event", ~s({"event":{"kind":"follow"},"seq":1}))
+    publish("overlay.feed.8.event", ~s({"event":{"kind":"raid"}}))
+    publish("overlay.feed.7.stats", ~s({"session":{"follows":1}}))
+    :ok = Gnat.pub(:gnat_rpc, "channel.chat.7", ~s({"event":{"kind":"chat"}}))
+
+    live =
+      HttpClient.await(live, fn data ->
+        Enum.all?(
+          [
+            ~s(id: 1\nevent: event\ndata: {"event":{"kind":"follow"},"seq":1}\n\n),
+            ~s(id: 3\nevent: stats\ndata: {"session":{"follows":1}}\n\n),
+            ~s(event: event\ndata: {"event":{"kind":"chat"}}\n\n)
+          ],
+          &String.contains?(data.body, &1)
+        )
+      end)
+
+    refute live.body =~ "raid"
+    HttpClient.close(live)
+  end
+
+  test "a reconnect inside the retained range resumes without a snapshot", %{http_port: port} do
+    for n <- 1..3, do: publish("overlay.feed.7.event", ~s({"n":#{n}}))
+
+    live =
+      HttpClient.open(port, "GET", "/o/events", headers: [cookie(port), {"last-event-id", "1"}])
+
+    live =
+      HttpClient.await(live, &String.contains?(&1.body, ~s(id: 3\nevent: event\ndata: {"n":3})))
+
+    refute live.body =~ "snapshot"
+    refute live.body =~ ~s({"n":1})
+    assert live.body =~ ~s(id: 2\nevent: event\ndata: {"n":2})
+    HttpClient.close(live)
+  end
+
+  test "a reconnect past the retained range gets a fresh snapshot", %{http_port: port} do
+    publish("overlay.feed.7.event", ~s({"n":1}))
+
+    live =
+      HttpClient.open(port, "GET", "/o/events", headers: [cookie(port), {"last-event-id", "50"}])
+
+    live = HttpClient.await(live, &String.contains?(&1.body, "event: snapshot"))
+    HttpClient.close(live)
   end
 
   @tag overlay: %{kind: "custom", allowed: false, document: nil}
@@ -181,11 +233,6 @@ defmodule ControlsGateway.OverlayTest do
     for {token, status} <- [{@unknown, 404}, {@token, 404}, {@broken, 503}] do
       assert %{status: ^status} = legacy_config(port, token)
     end
-  end
-
-  defp check_now do
-    pids = Registry.select(ControlsGateway.Connections, [{{:_, :"$1", :_}, [], [:"$1"]}])
-    Enum.each(pids, &send(&1, :check))
   end
 
   defp legacy_config(port, token) do
@@ -242,6 +289,28 @@ defmodule ControlsGateway.OverlayTest do
     payload = claims |> Jason.encode!() |> Base.url_encode64(padding: false)
     mac = :crypto.mac(:hmac, :sha256, key, payload) |> Base.url_encode64(padding: false)
     {"cookie", "bb_o=" <> payload <> "." <> mac}
+  end
+
+  defp publish(subject, body) do
+    {:ok, %{body: ack}} = jetstream(subject, body)
+    assert %{"seq" => _} = Jason.decode!(ack)
+  end
+
+  defp jetstream(subject, body) when is_map(body),
+    do: jetstream(subject, Jason.encode!(body))
+
+  defp jetstream(subject, body),
+    do: Planes.jetstream_request({subject, body, [receive_timeout: 2_000]})
+
+  defp snapshots do
+    receive do
+      {:msg, %{reply_to: reply}} ->
+        {:ok, %{body: info}} = jetstream("$JS.API.STREAM.INFO.OVERLAY_FEED", "")
+        last = Jason.decode!(info)["state"]["last_seq"]
+        payload = %{snapshot: @snapshot, stream_seq: last}
+        :ok = Gnat.pub(:gnat_rpc, reply, Jason.encode!(payload))
+        snapshots()
+    end
   end
 
   defp respond(agent) do

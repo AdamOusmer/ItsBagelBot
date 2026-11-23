@@ -52,6 +52,7 @@
   },
   "dependencies": {
     "@luzir/bolota": "0.3.0",
+    "@paper-design/shaders": "0.0.82",
     "lenis": "^1.3.23"
   },
   "peerDependencies": {

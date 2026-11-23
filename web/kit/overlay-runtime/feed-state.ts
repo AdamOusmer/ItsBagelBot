@@ -4,9 +4,18 @@
 import { track } from './data-widgets';
 import type { AlertControl, FeedEvent, FeedSnapshot, FeedStats, OverlayEvent, Subathon } from './feed';
 
+export const MIN_EVENTS = 200;
+export const MIN_CHAT = 100;
+
 export class FeedState {
+  limits = { events: MIN_EVENTS, chat: MIN_CHAT };
   snapshot: FeedSnapshot = { stats: {}, subathon: {}, control: { paused: false, muted: false, skip: 0 } };
   #seq = 0;
+
+  load(snapshot: FeedSnapshot): void {
+    const number = (items?: FeedEvent[]) => items?.toSorted((a, b) => a.seq - b.seq).map((item) => ({ ...item, seq: ++this.#seq }));
+    this.snapshot = { ...snapshot, chat: number(snapshot.chat), events: number(snapshot.events) };
+  }
 
   ingest(event: OverlayEvent): FeedEvent {
     const fed = { ...event, seq: ++this.#seq };
@@ -21,7 +30,7 @@ export class FeedState {
       return;
     }
     const field = event.kind === 'chat' ? 'chat' : 'events';
-    this.snapshot = { ...this.snapshot, [field]: track(this.snapshot[field] ?? [], event, field === 'chat' ? 100 : 200) };
+    this.snapshot = { ...this.snapshot, [field]: track(this.snapshot[field] ?? [], event, this.limits[field]) };
   }
 
   stats(value: FeedStats): void {

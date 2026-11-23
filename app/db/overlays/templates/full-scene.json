@@ -1,0 +1,204 @@
+{
+  "version": 2,
+  "kind": "custom",
+  "id": "full-scene",
+  "name": "Full scene",
+  "width": 1920,
+  "height": 1080,
+  "rev": 0,
+  "widgets": [
+    {
+      "id": "w1",
+      "name": "Chat",
+      "kind": "chatbox",
+      "x": 40,
+      "y": 420,
+      "w": 620,
+      "h": 600,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "count": 10,
+        "fade": 60,
+        "direction": "newest_last",
+        "badges": true,
+        "emotes": true,
+        "theme": "clean"
+      }
+    },
+    {
+      "id": "w2",
+      "name": "Recent events",
+      "kind": "eventlist",
+      "x": 1360,
+      "y": 40,
+      "w": 520,
+      "h": 420,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "count": 6,
+        "direction": "newest_first",
+        "style": {
+          "size": 30,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    },
+    {
+      "id": "w3",
+      "name": "Follower goal",
+      "kind": "goal",
+      "x": 40,
+      "y": 40,
+      "w": 820,
+      "h": 120,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "metric": "session_follows",
+        "target": 25,
+        "title": "Follower goal",
+        "display": "horizontal",
+        "style": {
+          "size": 30,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    },
+    {
+      "id": "w4",
+      "name": "Latest follower",
+      "kind": "label",
+      "x": 40,
+      "y": 180,
+      "w": 620,
+      "h": 70,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "source": "latest_follow",
+        "template": "Latest follower: {name}",
+        "empty": "Waiting for a follower",
+        "style": {
+          "size": 30,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    },
+    {
+      "id": "w5",
+      "name": "Top cheerer",
+      "kind": "label",
+      "x": 1360,
+      "y": 500,
+      "w": 520,
+      "h": 70,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "source": "top_cheerer",
+        "template": "Top cheerer: {name}",
+        "empty": "No bits yet",
+        "style": {
+          "size": 30,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    },
+    {
+      "id": "w6",
+      "name": "Alerts",
+      "kind": "alertbox",
+      "x": 460,
+      "y": 290,
+      "w": 1000,
+      "h": 500,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "queueDelay": 0.5,
+        "events": {
+          "follow": {
+            "enabled": true,
+            "title": "{name} followed",
+            "variations": []
+          },
+          "sub": {
+            "enabled": true,
+            "title": "{name} subscribed",
+            "variations": [
+              {
+                "condition": "tier",
+                "value": "2000",
+                "overrides": {
+                  "title": "{name} subscribed at Tier 2"
+                }
+              },
+              {
+                "condition": "tier",
+                "value": "3000",
+                "overrides": {
+                  "title": "{name} subscribed at Tier 3"
+                }
+              },
+              {
+                "condition": "tier",
+                "value": "prime",
+                "overrides": {
+                  "title": "{name} subscribed with Prime"
+                }
+              }
+            ]
+          },
+          "resub": {
+            "enabled": true,
+            "title": "{name} resubscribed for {months} months",
+            "variations": []
+          },
+          "gift_sub": {
+            "enabled": true,
+            "title": "{name} gifted a sub to {recipient}",
+            "variations": []
+          },
+          "community_gift": {
+            "enabled": true,
+            "title": "{name} gifted {count} subs",
+            "variations": []
+          },
+          "cheer": {
+            "enabled": true,
+            "title": "{name} cheered {amount} bits",
+            "variations": []
+          },
+          "raid": {
+            "enabled": true,
+            "title": "{name} raided with {amount} viewers",
+            "variations": []
+          },
+          "redemption": {
+            "enabled": true,
+            "title": "{name} redeemed {reward}",
+            "variations": []
+          }
+        }
+      }
+    }
+  ]
+}

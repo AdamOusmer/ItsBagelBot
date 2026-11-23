@@ -9,10 +9,11 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"strings"
 	"time"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 const TicketTTL = 10 * time.Minute
@@ -46,7 +47,7 @@ func (s Signer) mac(payload string) []byte {
 }
 
 func (s Signer) Issue(t Ticket) (string, error) {
-	body, err := json.Marshal(t)
+	body, err := codec.Marshal(t)
 	if err != nil {
 		return "", err
 	}
@@ -68,7 +69,7 @@ func (s Signer) Verify(token string, now time.Time) (Ticket, error) {
 		return Ticket{}, ErrBadTicket
 	}
 	var t Ticket
-	if json.Unmarshal(body, &t) != nil || now.Unix() >= t.Expires {
+	if codec.Unmarshal(body, &t) != nil || now.Unix() >= t.Expires {
 		return Ticket{}, ErrBadTicket
 	}
 	return t, nil

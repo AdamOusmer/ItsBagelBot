@@ -30,7 +30,20 @@ export type AlertLook = {
   exitDuration: number;
   style: FontStyle;
 };
-export type Condition = 'amount_min' | 'amount_exact' | 'tier' | 'months_min' | 'count_min' | 'message_contains' | 'random';
+export type Condition =
+  | 'amount_min'
+  | 'amount_exact'
+  | 'tier'
+  | 'months_min'
+  | 'months_exact'
+  | 'streak_min'
+  | 'count_min'
+  | 'message_contains'
+  | 'anonymous'
+  | 'is_gift'
+  | 'prime'
+  | 'upgrade'
+  | 'random';
 export type AlertVariation = {
   condition: Condition;
   value: string;
@@ -38,15 +51,9 @@ export type AlertVariation = {
 };
 export type AlertConfig = AlertLook & { enabled: boolean; minAmount: number; priority: number; variations: AlertVariation[] };
 export type Direction = 'newest_first' | 'newest_last';
-export type Metric =
-  | 'session_follows'
-  | 'session_subs'
-  | 'sub_points'
-  | 'session_bits'
-  | 'all_time_follows'
-  | 'all_time_subs'
-  | 'all_time_bits'
-  | 'manual';
+export type Period = 'session' | 'week' | 'month' | 'all_time';
+export type CounterField = 'follows' | 'subs' | 'gifts' | 'bits';
+export type Metric = `${Period}_${CounterField}` | 'sub_points' | 'manual';
 export type LabelSource =
   | 'latest_follow'
   | 'latest_sub'
@@ -55,11 +62,8 @@ export type LabelSource =
   | 'latest_raid'
   | 'latest_gift'
   | 'latest_redemption'
-  | 'session_follows'
-  | 'session_subs'
+  | `${Period}_${CounterField}`
   | 'session_resubs'
-  | 'session_gifts'
-  | 'session_bits'
   | 'session_raids'
   | 'session_redemptions'
   | 'top_cheerer'
@@ -119,7 +123,10 @@ export type WidgetSettings = {
     style: FontStyle;
   };
   credits: {
-    headers: Record<'follow' | 'sub' | 'gift_sub' | 'cheer' | 'raid' | 'redemption', string>;
+    headers: Record<'follow' | 'sub' | 'gift_sub' | 'cheer' | 'raid' | 'redemption' | 'mod' | 'vip' | 'chatter', string>;
+    showMods: boolean;
+    showVips: boolean;
+    showChatters: boolean;
     speed: number;
     loop: boolean;
     style: FontStyle;

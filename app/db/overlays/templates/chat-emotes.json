@@ -1,0 +1,110 @@
+{
+  "version": 2,
+  "kind": "custom",
+  "id": "chat-emotes",
+  "name": "Chat and emotes",
+  "width": 1920,
+  "height": 1080,
+  "rev": 0,
+  "widgets": [
+    {
+      "id": "w1",
+      "name": "Chat",
+      "kind": "chatbox",
+      "x": 40,
+      "y": 300,
+      "w": 620,
+      "h": 700,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "count": 14,
+        "fade": 45,
+        "direction": "newest_last",
+        "badges": true,
+        "emotes": true,
+        "theme": "bubbles"
+      }
+    },
+    {
+      "id": "w2",
+      "name": "Emote wall",
+      "kind": "emotewall",
+      "x": 0,
+      "y": 0,
+      "w": 1920,
+      "h": 1080,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "motion": "fly",
+        "max": 40,
+        "size": 96,
+        "lifetime": 5,
+        "combo": 5
+      }
+    },
+    {
+      "id": "w3",
+      "name": "Alerts",
+      "kind": "alertbox",
+      "x": 460,
+      "y": 290,
+      "w": 1000,
+      "h": 500,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "queueDelay": 0.5,
+        "events": {
+          "follow": {
+            "enabled": true,
+            "title": "{name} followed",
+            "variations": []
+          },
+          "sub": {
+            "enabled": true,
+            "title": "{name} subscribed",
+            "variations": []
+          },
+          "resub": {
+            "enabled": true,
+            "title": "{name} resubscribed for {months} months",
+            "variations": []
+          },
+          "gift_sub": {
+            "enabled": true,
+            "title": "{name} gifted a sub to {recipient}",
+            "variations": []
+          },
+          "community_gift": {
+            "enabled": true,
+            "title": "{name} gifted {count} subs",
+            "variations": []
+          },
+          "cheer": {
+            "enabled": true,
+            "title": "{name} cheered {amount} bits",
+            "variations": []
+          },
+          "raid": {
+            "enabled": true,
+            "title": "{name} raided with {amount} viewers",
+            "variations": []
+          },
+          "redemption": {
+            "enabled": true,
+            "title": "{name} redeemed {reward}",
+            "variations": []
+          }
+        }
+      }
+    }
+  ]
+}

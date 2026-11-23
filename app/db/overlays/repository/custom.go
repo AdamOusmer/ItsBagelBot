@@ -5,7 +5,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -15,6 +14,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/overlays"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/db"
 )
 
@@ -56,7 +56,7 @@ func (r *Overlays) CreateCustom(ctx context.Context, userID uint64, doc overlays
 type CustomSave struct {
 	ID       uint64
 	Revision uint64
-	Document json.RawMessage
+	Document codec.RawMessage
 }
 
 func (r *Overlays) SaveCustom(ctx context.Context, userID uint64, save CustomSave) (overlaysrpc.Overlay, error) {
@@ -84,7 +84,7 @@ func (r *Overlays) SaveCustom(ctx context.Context, userID uint64, save CustomSav
 }
 
 // customDocument replaces the document's asset table with the stored rows, so a client cannot claim metadata or ids it does not own.
-func (r *Overlays) customDocument(ctx context.Context, userID uint64, doc overlays.Document, revision uint64) (json.RawMessage, error) {
+func (r *Overlays) customDocument(ctx context.Context, userID uint64, doc overlays.Document, revision uint64) (codec.RawMessage, error) {
 	if doc.Kind != overlays.KindCustom {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidDocument, ErrNotCustom)
 	}
@@ -104,5 +104,5 @@ func (r *Overlays) customDocument(ctx context.Context, userID uint64, doc overla
 	if err := overlays.Validate(doc); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidDocument, err)
 	}
-	return json.Marshal(doc)
+	return codec.Marshal(doc)
 }

@@ -8,6 +8,18 @@ import (
 	"fmt"
 )
 
+// The FeedTotalFunc type is an adapter to allow the use of ordinary
+// function as FeedTotal mutator.
+type FeedTotalFunc func(context.Context, *ent.FeedTotalMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f FeedTotalFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.FeedTotalMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FeedTotalMutation", m)
+}
+
 // The OverlayFunc type is an adapter to allow the use of ordinary
 // function as Overlay mutator.
 type OverlayFunc func(context.Context, *ent.OverlayMutation) (ent.Value, error)
@@ -54,6 +66,18 @@ func (f TtsOverlayFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, 
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TtsOverlayMutation", m)
+}
+
+// The TtsViewerBlockFunc type is an adapter to allow the use of ordinary
+// function as TtsViewerBlock mutator.
+type TtsViewerBlockFunc func(context.Context, *ent.TtsViewerBlockMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TtsViewerBlockFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TtsViewerBlockMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TtsViewerBlockMutation", m)
 }
 
 // Condition is a hook condition function.

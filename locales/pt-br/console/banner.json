@@ -1,7 +1,12 @@
 {
   "sharedPre": "Acesso compartilhado ao painel de ",
   "sharedPost": " ({sections})",
+  "sharedTitle": "Painel compartilhado",
+  "sharedOwner": "Painel de {owner}",
   "viewingPre": "Visualizando como ",
   "viewingPost": " (admin {admin})",
+  "adminTitle": "Personificação de admin",
+  "leaveShared": "Sair do compartilhado",
+  "endView": "Encerrar visão",
   "exit": "Sair"
 }

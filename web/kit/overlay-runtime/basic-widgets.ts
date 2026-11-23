@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { displayName } from './events';
-import type { AlertKind, FeedStats, Subathon } from './feed';
+import type { CreditList, FeedStats, Subathon } from './feed';
 import { clock, remaining } from './time';
 import { applyFont, changed, mediaElement, node, timed, type Install } from './view';
 import type { WidgetSettings } from './widget-types';
@@ -63,13 +63,19 @@ export const installTimer: Install<'timer'> = (host, settings, { assets }) => {
 };
 
 type CreditsKey = keyof WidgetSettings['credits']['headers'];
-const creditKinds: Record<CreditsKey, AlertKind[]> = {
+const creditKinds: Record<CreditsKey, CreditList[]> = {
   follow: ['follow'], sub: ['sub', 'resub'], gift_sub: ['gift_sub', 'community_gift'],
   cheer: ['cheer'], raid: ['raid'], redemption: ['redemption'],
+  mod: ['mod'], vip: ['vip'], chatter: ['chatter'],
 };
 
-function credits(value: FeedStats['credits'], headers: WidgetSettings['credits']['headers']): HTMLElement[] {
-  return (Object.entries(headers) as [CreditsKey, string][]).flatMap(([key, title]) => {
+function shownHeaders(settings: WidgetSettings['credits']): [CreditsKey, string][] {
+  const optional: Partial<Record<CreditsKey, boolean>> = { mod: settings.showMods, vip: settings.showVips, chatter: settings.showChatters };
+  return (Object.entries(settings.headers) as [CreditsKey, string][]).filter(([key]) => optional[key] ?? true);
+}
+
+function credits(value: FeedStats['credits'], settings: WidgetSettings['credits']): HTMLElement[] {
+  return shownHeaders(settings).flatMap(([key, title]) => {
     const names = new Set(creditKinds[key].flatMap(kind => (value?.[kind] ?? []).map(displayName)));
     if (!names.size) return [];
     const group = node('section', 'obs-credit-group');
@@ -99,7 +105,7 @@ export const installCredits: Install<'credits'> = (host, settings, { assets }) =
 
   function begin(): void {
     animation?.cancel();
-    if (pending) roll.replaceChildren(...credits(latest, settings.headers));
+    if (pending) roll.replaceChildren(...credits(latest, settings));
     pending = false;
     animation = animateCredits(roll, host.clientHeight, settings.speed, () => {
       if (pending || settings.loop) begin();

@@ -32,7 +32,10 @@
       "gift_sub": "Schenker",
       "cheer": "Cheerer",
       "raid": "Raider",
-      "redemption": "Einlöser"
+      "redemption": "Einlöser",
+      "mod": "Moderatoren",
+      "vip": "VIPs",
+      "chatter": "Chatter"
     },
     "tier": {
       "1000": "Punkte für Stufe 1",
@@ -66,7 +69,7 @@
     "marquee": "Zu langen Text scrollen",
     "lines": "Sichtbare Zeilen",
     "hideCommands": "Befehle ausblenden",
-    "hideUsers": "Ausgeblendete Nutzer (eine pro Zeile)",
+    "hideUsers": "Ausgeblendete Nutzer-IDs (Twitch-ID, eine pro Zeile)",
     "badges": "Rollen-Badges anzeigen",
     "nameColor": "Namensfarbe",
     "nativeColors": "Twitch-Namensfarben verwenden",
@@ -89,7 +92,10 @@
     "muted": "Stummschalten",
     "images": "Bilder",
     "interval": "Intervall (s)",
-    "crossfade": "Überblendung (s)"
+    "crossfade": "Überblendung (s)",
+    "showMods": "Moderatoren anzeigen",
+    "showVips": "VIPs anzeigen",
+    "showChatters": "Chatter anzeigen"
   },
   "option": {
     "1000": "Stufe 1",
@@ -158,7 +164,21 @@
     "countdown": "Countdown",
     "countup": "Hochzählen",
     "subathon": "Subathon",
-    "center": "Mitte"
+    "center": "Mitte",
+    "anonymous": "Anonym",
+    "is_gift": "Ist ein Geschenk",
+    "upgrade": "Geschenk-Upgrade",
+    "months_exact": "Genaue Monate",
+    "streak_min": "Serie in Monaten mindestens",
+    "all_time_gifts": "Geschenke insgesamt",
+    "week_follows": "Follows der Woche",
+    "month_follows": "Follows des Monats",
+    "week_subs": "Abos der Woche",
+    "month_subs": "Abos des Monats",
+    "week_gifts": "Geschenke der Woche",
+    "month_gifts": "Geschenke des Monats",
+    "week_bits": "Bits der Woche",
+    "month_bits": "Bits des Monats"
   },
   "alert": {
     "follow": "Follow",

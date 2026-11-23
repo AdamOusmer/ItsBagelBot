@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// FeedTotal is the predicate function for feedtotal builders.
+type FeedTotal func(*sql.Selector)
+
 // Overlay is the predicate function for overlay builders.
 type Overlay func(*sql.Selector)
 
@@ -17,3 +20,6 @@ type PoweredOverlay func(*sql.Selector)
 
 // TtsOverlay is the predicate function for ttsoverlay builders.
 type TtsOverlay func(*sql.Selector)
+
+// TtsViewerBlock is the predicate function for ttsviewerblock builders.
+type TtsViewerBlock func(*sql.Selector)

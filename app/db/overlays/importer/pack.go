@@ -5,11 +5,11 @@ package importer
 
 import (
 	"bytes"
-	"encoding/json"
 	"path"
 	"strings"
 
 	"ItsBagelBot/internal/domain/overlays"
+	"ItsBagelBot/pkg/codec"
 )
 
 const manifestFormat = 1
@@ -68,7 +68,7 @@ func (b *builder) readManifest(root entry) (manifest, error) {
 }
 
 func decodeStrict(data []byte, into any) bool {
-	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder := codec.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	return decoder.Decode(into) == nil && !decoder.More()
 }
@@ -123,7 +123,7 @@ func (b *builder) readPackOverlay(dir, name string, ids map[string]string) (over
 const placeholderURL = "https://cdn.itsbagelbot.com/pending"
 
 func withPlaceholderURLs(data []byte) []byte {
-	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder := codec.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 	var tree map[string]any
 	if decoder.Decode(&tree) != nil {
@@ -135,7 +135,7 @@ func withPlaceholderURLs(data []byte) []byte {
 			asset["url"] = placeholderURL
 		}
 	}
-	out, err := json.Marshal(tree)
+	out, err := codec.Marshal(tree)
 	if err != nil {
 		return data
 	}

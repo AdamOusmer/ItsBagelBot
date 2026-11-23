@@ -44,6 +44,8 @@ defmodule ControlsGateway.HttpServer do
       {"/tts", Tts.Http, :page},
       {"/tts/session", Tts.Http, :session},
       {"/tts/events", Tts.Http, :events},
+      {"/tts/ack", Tts.Http, :ack},
+      {"/tts/progress", Tts.Http, :progress},
       {"/tts/clip/:event_id", Tts.Http, :clip}
     ]
   end

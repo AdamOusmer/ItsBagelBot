@@ -32,6 +32,7 @@ type dashboardRPC struct {
 	repo          *repository.Users
 	invalidations *bus.Invalidations
 	log           *zap.Logger
+	safety        Safety
 }
 
 func SubscribeDashboard(w Wiring, prefix string) error {
@@ -39,6 +40,7 @@ func SubscribeDashboard(w Wiring, prefix string) error {
 		repo:          w.Repo,
 		invalidations: w.Repo.Invalidations(),
 		log:           w.Log,
+		safety:        w.Safety,
 	}
 
 	verbs := map[string]func(context.Context, *nats.Msg){
@@ -59,6 +61,7 @@ func SubscribeDashboard(w Wiring, prefix string) error {
 		"leaderboard_page_set": d.handleLeaderboardPageSet,
 		"songqueue_page_set":   d.handleSongQueuePageSet,
 		"voice_get":            d.handleVoiceGet,
+		"voice_safety":         d.handleVoiceSafety,
 		"delete_self":          d.handleDeleteSelf,
 	}
 	return serveMsgVerbs(w.Within(dashboardTimeout), prefix, verbs)

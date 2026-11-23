@@ -319,7 +319,7 @@ func (g *Gate) evaluateRescues(attempt styleAttempt, sc assessScope) bool {
 }
 
 func (c *Config) blockTermVerdict(skel []byte) (Verdict, bool) {
-	if c.hasBlockTerms() && containsAny(skel, c.blockTerms) {
+	if c.hasBlockTerms() && moderation.ContainsAnyTerm(skel, c.blockTerms) {
 		return Verdict{Action: ActionDelete, Rule: "block_term"}, true
 	}
 	return Verdict{}, false

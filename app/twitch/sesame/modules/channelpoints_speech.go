@@ -20,7 +20,10 @@ func (a rewardAward) speak(ctx context.Context, emit module.Emit) error {
 	if err != nil || !live {
 		return a.refuseSpeech(ctx, emit, "offline", err)
 	}
-	req, ok := a.speechRequest()
+	req, ok, err := a.speechRequest(ctx)
+	if err != nil {
+		return a.refuseSpeech(ctx, emit, "unavailable", err)
+	}
 	if !ok {
 		return a.refuseSpeech(ctx, emit, "blocked", nil)
 	}
@@ -29,7 +32,7 @@ func (a rewardAward) speak(ctx context.Context, emit module.Emit) error {
 	if err != nil || !allowed {
 		return a.refuseSpeech(ctx, emit, "unavailable", err)
 	}
-	if err := speech.Publish(ctx, withTrace(ctx, req)); err != nil {
+	if err := speech.Publish(ctx, req); err != nil {
 		return err
 	}
 	a.award(ctx)
@@ -58,16 +61,16 @@ func (a rewardAward) speechLive(ctx context.Context) (bool, error) {
 	return loyaltyLive(ctx, a.d, a.c.BroadcasterID, liveOnly), nil
 }
 
-func (a rewardAward) speechRequest() (engine.SpeechRequest, bool) {
+func (a rewardAward) speechRequest(ctx context.Context) (engine.SpeechRequest, bool, error) {
 	if !speechAvailable(a.c) {
-		return engine.SpeechRequest{}, false
+		return engine.SpeechRequest{}, false, nil
 	}
 	opts := speechOptions{
-		voice: a.binding.Voice, style: a.binding.Style, maxChars: voiceplan.MaxSpeechRunes,
+		queue: a.d.Speech(), voice: a.binding.Voice, style: a.binding.Style, maxChars: voiceplan.MaxSpeechRunes,
 		prefixName: a.binding.prefixName(),
 	}
-	in := viewerSpeech{text: speechText(a.ev.UserInput), name: speechText(displayName(a.ev.UserName, a.ev.UserLogin))}
-	return opts.request(a.c, voiceplan.SpeechReward, in)
+	in := viewerSpeech{text: speechText(a.ev.UserInput), name: speechText(displayName(a.ev.UserName, a.ev.UserLogin)), viewerID: a.ev.UserID}
+	return opts.request(ctx, a.c, voiceplan.SpeechReward, in)
 }
 
 func (b rewardBinding) prefixName() bool {

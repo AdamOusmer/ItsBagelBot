@@ -1,7 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { RpcError } from '@bagel/kit/server/nats';
 import { defineRead, defineWrite } from '@bagel/kit/server/service';
+import type { AlertControl, EventKind, Subathon } from '@bagel/kit/overlay-runtime';
 import type { OverlayDocument } from '@bagel/kit/overlay-document';
 import type { ServedDocument } from '@bagel/kit/overlay-editor';
 import { defaultPoweredConfig, type PoweredConfig } from '@bagel/kit/overlays';
@@ -88,16 +90,24 @@ export type CustomOverlay = {
   name: string;
   revision: number;
   document: ServedDocument | null;
+  url?: string;
 };
 
-type CustomWire = { id: number; kind: string; name: string; revision: number; document?: ServedDocument };
+type CustomWire = { id: number; kind: string; name: string; revision: number; document?: ServedDocument; url?: string };
 
-const customOf = ({ id, name, revision, document }: CustomWire): CustomOverlay => ({
+const customOf = ({ id, name, revision, document, url }: CustomWire): CustomOverlay => ({
   id,
   name,
   revision,
-  document: document ?? null
+  document: document ?? null,
+  url
 });
+
+export function currentOnConflict(err: unknown): CustomOverlay | null {
+  if (!(err instanceof RpcError) || err.code !== 'conflict') return null;
+  const wire = err.reply as Partial<CustomWire> | undefined;
+  return wire?.document ? customOf(wire as CustomWire) : null;
+}
 
 export const overlayGetCustom = defineRead({
   subject: `${SUB.overlays}.overlay.get`,
@@ -108,14 +118,61 @@ export const overlayGetCustom = defineRead({
 export const overlaySaveCustom = defineWrite({
   subject: `${SUB.overlays}.overlay.save`,
   request: (session: Session, save: { id: number; name: string; document: OverlayDocument; revision: number }) => ({
-    ...ownerOf(session),
-    ...(save.id ? { id: save.id } : {}),
+    ...refOf(session, save.id),
     kind: 'custom',
     name: save.name,
     document: save.document,
     revision: save.revision
   }),
   map: customOf
+});
+
+export const overlayCreateCustom = defineWrite({
+  subject: `${SUB.overlays}.overlay.create_custom`,
+  request: (session: Session, create: { document: OverlayDocument }) => ({ ...ownerOf(session), document: create.document }),
+  map: customOf
+});
+
+export type AssetView = {
+  asset_id: string;
+  url: string;
+  type: string;
+  bytes: number;
+  w: number;
+  h: number;
+  duration_ms: number;
+  sha256: string;
+  display_name?: string;
+};
+
+export const assetList = defineRead({
+  subject: `${SUB.overlays}.assets.list`,
+  request: ownerOf,
+  map: (reply: { assets?: AssetView[] }) => reply.assets ?? []
+});
+
+export const assetDelete = defineWrite({
+  subject: `${SUB.overlays}.assets.delete`,
+  request: (session: Session, assetId: string) => ({ ...ownerOf(session), asset_id: assetId })
+});
+
+export type FeedAction =
+  | 'pause' | 'resume' | 'mute' | 'unmute' | 'skip' | 'replay' | 'clear' | 'test'
+  | 'subathon_add' | 'subathon_pause' | 'subathon_resume' | 'subathon_reset';
+
+export type FeedControlArgs = { event_id?: string; kind?: EventKind; fields?: Record<string, unknown>; seconds?: number };
+
+export type FeedControlState = { control: AlertControl; subathon: Subathon };
+
+export const feedControl = defineWrite({
+  subject: `${SUB.overlays}.feed.control`,
+  request: (session: Session, control: { action: FeedAction; args: FeedControlArgs }) => ({
+    ...ownerOf(session),
+    actor: session.user_id,
+    action: control.action,
+    args: control.args
+  }),
+  map: ({ control, subathon }: FeedControlState): FeedControlState => ({ control, subathon })
 });
 
 export const overlayRotate = defineWrite({

@@ -3,7 +3,7 @@
 
 import { recent, track } from './data-widgets';
 import { messageNodes } from './emotes';
-import { displayName } from './events';
+import { badgeURL, displayName } from './events';
 import type { FeedEvent } from './feed';
 import { applyFont, changed, node, timed, type Frame, type Install } from './view';
 import type { WidgetSettings } from './widget-types';
@@ -15,6 +15,13 @@ const roles: Record<string, { glyph: string; label: string }> = {
 };
 
 function badge(role: string): HTMLElement[] {
+  const url = badgeURL(role);
+  if (url) {
+    const image = node('img', 'obs-chat-badge-image');
+    image.src = url;
+    image.alt = '';
+    return [image];
+  }
   const entry = roles[role];
   if (!entry) return [];
   const glyph = node('span', 'obs-chat-badge', entry.glyph);
@@ -35,8 +42,8 @@ function chatLine(event: FeedEvent, settings: WidgetSettings['chatbox']): HTMLEl
 
 function chatAllowed(event: FeedEvent, settings: WidgetSettings['chatbox']): boolean {
   if (settings.hideCommands && event.message?.text?.trimStart().startsWith('!')) return false;
-  const login = event.user?.login?.toLowerCase() ?? '';
-  return !settings.hideUsers.some(user => user.trim().toLowerCase() === login);
+  const id = event.user?.id;
+  return !id || !settings.hideUsers.some(user => user.trim() === id);
 }
 
 function visibleChat(frame: Frame, transient: FeedEvent[], cleared: Map<string, number>, settings: WidgetSettings['chatbox']): FeedEvent[] {

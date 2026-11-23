@@ -127,7 +127,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"commands_bus":  {"DATA"},
 		"modules_bus":   {"DATA"},
 		"loyalty_bus":   {"DATA"},
-		"overlays_bus":  {"DATA"},
+		"overlays_bus":  {"DATA", "CHANNEL_EVENTS"},
 		"projector_bus": {"DATA", "TWITCH_INGRESS"},
 		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_PREMIUM", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
@@ -135,6 +135,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 	}
 	owners := map[string][]string{
 		"automod_bus":   {"TWITCH_AUTOMOD_TRIAL"},
+		"overlays_bus":  {"CHANNEL_EVENTS"},
 		"users_bus":     {"DATA", "DATA_DLQ"},
 		"worker_bus":    {"TTS_JOBS", "INGRESS_DLQ", "TWITCH_INGRESS", "TWITCH_INGRESS_PREMIUM", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 		"projector_bus": {"DATA", "DATA_DLQ"},
@@ -203,6 +204,7 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 		"users":     {"[]bus.StreamSpec{bus.DataStream, bus.DataDeadLetterStream}"},
 		"sesame":    {"bus.IngressLaneSpecs()"},
 		"projector": {"[]bus.StreamSpec{bus.DataStream, bus.DataDeadLetterStream}"},
+		"overlays":  {"[]bus.StreamSpec{bus.ChannelEventsStream}"},
 		"outgress": {
 			"[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
 		},

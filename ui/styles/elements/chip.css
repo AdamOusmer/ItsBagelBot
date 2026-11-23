@@ -98,6 +98,35 @@
         box-shadow: var(--bb-depth-2);
     }
 
+    .bb-chip.bb-chip--inline {
+        gap: 0;
+        padding: 2px 4px;
+        margin: -2px -4px;
+        border: 0;
+        border-radius: var(--bb-radius-xs);
+        background: none;
+        box-shadow: none;
+        font-size: var(--chip-inline-size, var(--bb-text-xs));
+        letter-spacing: 0;
+        line-height: 1.4;
+        color: var(--chip-inline-color, var(--bb-tan-light));
+        text-decoration: underline;
+        text-decoration-color: var(--chip-inline-rule, rgba(var(--bb-tan-rgb), 0.25));
+        text-underline-offset: 4px;
+    }
+
+    .bb-chip.bb-chip--inline:hover { background: rgba(var(--bb-tan-rgb), 0.08); text-decoration-color: rgba(var(--bb-tan-rgb), 0.6); }
+
+    .bb-chip.bb-chip--inline[aria-pressed='false'] {
+        color: var(--bb-muted);
+        text-decoration: line-through;
+        text-decoration-color: rgba(var(--bb-muted-rgb), 0.7);
+    }
+
+    @media (pointer: coarse) {
+        button.bb-chip--inline { min-height: 32px; }
+    }
+
     .bb-chip:focus-visible {
         outline: none;
         border-color: transparent;

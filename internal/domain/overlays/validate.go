@@ -6,12 +6,13 @@ package overlays
 import (
 	"bytes"
 	"cmp"
-	"encoding/json"
 	"maps"
 	"regexp"
 	"slices"
 	"strings"
 	"unicode/utf8"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 const (
@@ -46,7 +47,7 @@ func Validate(doc Document) error {
 
 func validateSize(doc Document) error {
 	var buf bytes.Buffer
-	encoder := json.NewEncoder(&buf)
+	encoder := codec.NewEncoder(&buf)
 	encoder.SetEscapeHTML(false)
 	if err := encoder.Encode(doc); err != nil {
 		return fail(CodeInvalidDocument, "")
@@ -125,7 +126,10 @@ func validateCustom(doc Document) error {
 	if err := validateAssets(doc.Assets); err != nil {
 		return err
 	}
-	return validateRefs(doc)
+	if err := validateRefs(doc); err != nil {
+		return err
+	}
+	return validateWidgetSettings(doc.Widgets)
 }
 
 func validateWidgets(widgets []Widget) error {
@@ -147,7 +151,7 @@ func validateWidgets(widgets []Widget) error {
 }
 
 func validateWidget(widget Widget, path Path) error {
-	checks := []func(Widget, Path) error{validateWidgetID, validateWidgetKind, validateWidgetBox, validateWidgetSettings}
+	checks := []func(Widget, Path) error{validateWidgetID, validateWidgetKind, validateWidgetBox, validateWidgetPresence}
 	for _, check := range checks {
 		if err := check(widget, path); err != nil {
 			return err
@@ -192,9 +196,19 @@ func validateWidgetBox(widget Widget, path Path) error {
 	return nil
 }
 
-func validateWidgetSettings(widget Widget, path Path) error {
+func validateWidgetPresence(widget Widget, path Path) error {
 	if widget.Settings == nil {
 		return fail(CodeInvalidWidget, path.Field("settings"))
+	}
+	return nil
+}
+
+func validateWidgetSettings(widgets []Widget) error {
+	for i, widget := range widgets {
+		path := Path("widgets").Index(i).Field("settings")
+		if err := validateSettings(widget.Kind, widget.Settings, path); err != nil {
+			return err
+		}
 	}
 	return nil
 }

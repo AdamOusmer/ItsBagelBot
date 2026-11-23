@@ -5,7 +5,7 @@ import { displayName, eventAmount, eventKey, isAlert, renderTemplate, tokens } f
 import type { AlertKind, Counts, FeedEvent, FeedStats, OverlayEvent } from './feed';
 import { mergeGiftBursts } from './gift-burst';
 import { applyFont, changed, node, timed, type Install } from './view';
-import type { Direction, LabelSource, WidgetSettings } from './widget-types';
+import type { CounterField, Direction, LabelSource, Period, WidgetSettings } from './widget-types';
 
 type Timed = { now: number; fade: number };
 export function recent(items: FeedEvent[], time: Timed, count: number, direction: Direction): FeedEvent[] {
@@ -33,7 +33,7 @@ export const installEventList: Install<'eventlist'> = (host, settings, { assets 
   return {
     event: event => {
       if (!event.test || event.replay) return;
-      transient = track(transient, { ...event, at: new Date().toISOString() }, 10);
+      transient = track(transient, { ...event, at: new Date().toISOString() }, settings.count);
       merged = undefined;
     },
     ...timed(changed(({ snapshot, now }) => {
@@ -54,16 +54,14 @@ function subPoints(stats: FeedStats, weights: WidgetSettings['goal']['weights'])
 }
 
 type Goal = WidgetSettings['goal'];
-const metricValue: Record<Goal['metric'], (stats: FeedStats, settings: Goal) => number> = {
-  session_follows: stats => stats.session?.follows ?? 0,
-  session_subs: stats => stats.session?.subs ?? 0,
-  sub_points: (stats, settings) => subPoints(stats, settings.weights),
-  session_bits: stats => stats.session?.bits ?? 0,
-  all_time_follows: stats => stats.all_time?.follows ?? 0,
-  all_time_subs: stats => stats.all_time?.subs ?? 0,
-  all_time_bits: stats => stats.all_time?.bits ?? 0,
-  manual: (_, settings) => settings.manual,
-};
+const counted = /^(session|week|month|all_time)_(follows|subs|gifts|bits)$/;
+
+function metricValue(settings: Goal, stats: FeedStats): number {
+  if (settings.metric === 'manual') return settings.manual;
+  if (settings.metric === 'sub_points') return subPoints(stats, settings.weights);
+  const [, period, field] = counted.exec(settings.metric) ?? [];
+  return stats[period as Period]?.[field as CounterField] ?? 0;
+}
 
 export const installGoal: Install<'goal'> = (host, settings, { assets }) => {
   applyFont(host, settings.style, assets);
@@ -77,7 +75,7 @@ export const installGoal: Install<'goal'> = (host, settings, { assets }) => {
   meter.append(label, track, value);
   host.append(meter);
 
-  return { update: changed(({ snapshot }) => settings.start + metricValue[settings.metric](snapshot.stats, settings), count => {
+  return { update: changed(({ snapshot }) => settings.start + metricValue(settings, snapshot.stats), count => {
     const ratio = Math.max(0, Math.min(1, count / settings.target));
     meter.style.setProperty('--progress', `${ratio * 100}%`);
     value.textContent = `${count.toLocaleString()} / ${settings.target.toLocaleString()}`;
@@ -89,9 +87,13 @@ const latestKinds: Partial<Record<LabelSource, AlertKind>> = {
   latest_raid: 'raid', latest_gift: 'gift_sub', latest_redemption: 'redemption',
 };
 type LeaderKey = 'top_cheerer' | 'top_gifter' | 'all_time_top_cheerer' | 'all_time_top_gifter';
+const leaderSources: Record<LeaderKey, true> = { top_cheerer: true, top_gifter: true, all_time_top_cheerer: true, all_time_top_gifter: true };
+
+const periodPrefix = /^(session|week|month|all_time)_/;
 
 function counter(source: LabelSource, stats: FeedStats): Record<string, number> {
-  const value = stats.session?.[source.slice(8) as keyof Counts];
+  const period = periodPrefix.exec(source)?.[1] as Period;
+  const value = stats[period]?.[source.replace(periodPrefix, '') as keyof Counts];
   const count = typeof value === 'number' ? value : 0;
   return { count, amount: count };
 }
@@ -107,7 +109,7 @@ function latestGift(stats: FeedStats): OverlayEvent | undefined {
 }
 
 function labelData(source: LabelSource, stats: FeedStats): Record<string, string | number> | undefined {
-  if (source.startsWith('session_')) return counter(source, stats);
+  if (periodPrefix.test(source) && !(source in leaderSources)) return counter(source, stats);
   const kind = latestKinds[source];
   if (kind) return latest(kind, stats);
   const leader = stats[source as LeaderKey];

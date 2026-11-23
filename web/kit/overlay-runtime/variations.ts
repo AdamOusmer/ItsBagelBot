@@ -6,7 +6,14 @@ import type { OverlayEvent } from './feed';
 import type { AlertConfig, AlertLook, AlertVariation, Condition } from './widget-types';
 
 type Matcher = (event: OverlayEvent, value: AlertVariation['value']) => boolean;
+const gifted = new Set<OverlayEvent['kind']>(['gift_sub', 'community_gift']);
 const matches: Record<Exclude<Condition, 'random'>, Matcher> = {
+  anonymous: (e) => e.anonymous === true,
+  is_gift: (e) => gifted.has(e.kind),
+  prime: (e) => e.tier === 'prime',
+  upgrade: (e) => e.upgrade === true,
+  months_exact: (e, v) => v.trim() !== '' && (e.months ?? 0) === Number(v),
+  streak_min: (e, v) => v.trim() !== '' && (e.streak ?? 0) >= Number(v),
   amount_min: (e, v) => v.trim() !== '' && eventAmount(e) >= Number(v),
   amount_exact: (e, v) => v.trim() !== '' && eventAmount(e) === Number(v),
   tier: (e, v) => e.tier === v,

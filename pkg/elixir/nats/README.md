@@ -21,6 +21,15 @@ publish and subscribe calls take the plane explicitly. `connection/1` captures
 the active connection so stream readers can monitor it and stay on the same
 connection for the lifetime of a subscription or read.
 
+`Platform.Nats.Push` opens an ephemeral JetStream push consumer on a captured
+`:jetstream` connection and turns its deliveries into events. `open/5` subscribes
+the delivery inbox, `attach/1` creates the consumer (`:new` or `{:sequence, n}`),
+`handle/2` answers flow control and idle heartbeats, checks the consumer
+sequence on every delivery and returns `{:event, %{seq, topic, body}, push}`.
+`tick/1` retries a missing consumer and reports `:stale` after 15 seconds
+without a delivery or heartbeat. `stream_range/2` reads the stream's first and
+last sequence for resume decisions. The caller owns the SSE or socket framing.
+
 `Platform.Nats.Settings` uses the connection host as its TLS server name and
 keeps client certificate and key paths for reconnects. Services that use separate
 identities or connection pools can build individual children through

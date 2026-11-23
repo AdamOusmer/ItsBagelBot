@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"maps"
@@ -18,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"ItsBagelBot/internal/domain/overlays"
+	"ItsBagelBot/pkg/codec"
 )
 
 const bundleFile = "widget.bundle.json"
@@ -206,7 +206,7 @@ func (b *builder) jsonFile(ref fileRef, into any) error {
 	if err != nil {
 		return err
 	}
-	if !within || json.Unmarshal(data, into) != nil {
+	if !within || codec.Unmarshal(data, into) != nil {
 		return &Error{Code: CodeInvalidBundle, Path: e.Path}
 	}
 	return nil
@@ -242,7 +242,7 @@ func (b *builder) customSettings(src widgetSource) (map[string]any, bool, error)
 
 func encodeBundle(bundle Bundle) ([]byte, error) {
 	var buf bytes.Buffer
-	encoder := json.NewEncoder(&buf)
+	encoder := codec.NewEncoder(&buf)
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(bundle)
 	return buf.Bytes(), err

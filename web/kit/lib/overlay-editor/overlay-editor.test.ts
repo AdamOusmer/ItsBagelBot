@@ -4,7 +4,7 @@
 import { expect, test } from 'bun:test';
 import { validateDocument, type OverlayAsset } from '../overlay-document';
 import { staticText } from '../i18n/static';
-import { ALERT_KINDS, EDITABLE_KINDS, newWidget } from './defaults';
+import { ALERT_KINDS, EDITABLE_KINDS, completeSettings, newWidget } from './defaults';
 import { DEFAULT_CANVAS, blankDocument, toWireDocument } from './document';
 import {
   alertFields, alertLook, creditHeaders, geometryFields, labelOf, listRule, tierWeights, typography, variationFields, widgetFields,
@@ -52,6 +52,10 @@ test('the session steps through commits, keeps the saved revision and reverts a 
   const undone = session.step(-1);
   const redone = session.step(1);
   expect([undone?.name, undone?.rev, redone?.name, redone?.rev, session.revert().name]).toEqual(['First', 4, 'Second', 4, 'Second']);
+});
+
+test('hidden chat users keep Twitch user ids and drop legacy logins', () => {
+  expect(completeSettings('chatbox', { hideUsers: ['12345', 'some_login', ' 678 '] }).hideUsers).toEqual(['12345', ' 678 ']);
 });
 
 test('the session has nothing to step before the first commit', () => {

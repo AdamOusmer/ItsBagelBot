@@ -4,9 +4,8 @@
 package overlaysrpc
 
 import (
-	"encoding/json"
-
 	"ItsBagelBot/internal/domain/rpc"
+	"ItsBagelBot/pkg/codec"
 )
 
 const (
@@ -93,5 +92,5 @@ type ImportResult struct {
 
 type OverlayCreateCustomRequest struct {
 	OverlayUserRequest
-	Document json.RawMessage `json:"document"`
+	Document codec.RawMessage `json:"document"`
 }

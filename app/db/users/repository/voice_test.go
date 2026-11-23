@@ -80,6 +80,46 @@ func TestVoiceAllowancePlans(t *testing.T) {
 	}
 }
 
+func TestVoiceAllowanceWindowFollowsPlan(t *testing.T) {
+	client, repo := newVoiceAccount(t)
+	renews := time.Date(2026, 12, 14, 10, 0, 0, 0, time.UTC)
+	at := time.Date(2026, 11, 30, 20, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name    string
+		status  user.Status
+		source  string
+		renews  *time.Time
+		period  string
+		resetAt time.Time
+	}{
+		{"premium follows its renewal day", user.StatusPaid, "tebex", &renews, "2026-11-14", renews},
+		{"premium without a renewal date uses the month", user.StatusPaid, "tebex", nil, "2026-11", time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)},
+		{"vip always uses the month", user.StatusVip, "", &renews, "2026-11", time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client.User.UpdateOneID(voiceOwnerID).SetStatus(tc.status).SetSubscriptionSource(tc.source).
+				SetNillableSubscriptionExpiresAt(tc.renews).ExecX(t.Context())
+			if tc.renews == nil {
+				client.User.UpdateOneID(voiceOwnerID).ClearSubscriptionExpiresAt().ExecX(t.Context())
+			}
+			got := voiceAllowanceAt(t, repo, at)
+			assert.Equal(t, [2]any{tc.period, tc.resetAt}, [2]any{got.Period, got.ResetsAt})
+		})
+	}
+}
+
+func TestPremiumUsageResetsAtRenewal(t *testing.T) {
+	client, repo := newVoiceAccount(t)
+	renews := time.Date(2026, 12, 14, 10, 0, 0, 0, time.UTC)
+	client.User.UpdateOneID(voiceOwnerID).SetStatus(user.StatusPaid).SetSubscriptionSource("tebex").
+		SetSubscriptionExpiresAt(renews).ExecX(t.Context())
+	used := recordVoiceAt(t, repo, repository.VoiceUsageRecord{RequestID: "before", AudioTokens: 100, DurationMS: 4000}, time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC))
+	afterRenewal := voiceAllowanceAt(t, repo, renews)
+	assert.Equal(t, [2]int64{100, 0}, [2]int64{used.UsedTokens, afterRenewal.UsedTokens})
+	assert.Equal(t, "2026-12-14", afterRenewal.Period)
+}
+
 func TestVoiceAllowanceAdminGrantOverlap(t *testing.T) {
 	client, repo := newVoiceAccount(t)
 	ctx := t.Context()

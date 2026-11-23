@@ -46,7 +46,19 @@ type AlertJob struct {
 	Style         string    `json:"style"`
 	Voice         string    `json:"voice"`
 	CreatedAt     time.Time `json:"created_at"`
+
+	ViewerID        string       `json:"viewer_id,omitempty"`
+	Source          SpeechSource `json:"source,omitempty"`
+	SourceMessageID string       `json:"source_message_id,omitempty"`
+	NotBefore       time.Time    `json:"not_before,omitzero"`
 }
+
+type SpeechSource string
+
+const (
+	SourceViewer  SpeechSource = "viewer"
+	SourceChannel SpeechSource = "channel"
+)
 
 type OverlayEvent struct {
 	ClipKey    string    `json:"clip_key"`

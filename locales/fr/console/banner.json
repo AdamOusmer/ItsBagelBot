@@ -1,7 +1,12 @@
 {
   "sharedPre": "Accès partagé au tableau de bord de ",
   "sharedPost": " ({sections})",
+  "sharedTitle": "Tableau de bord partagé",
+  "sharedOwner": "Tableau de {owner}",
   "viewingPre": "Vue en tant que ",
   "viewingPost": " (admin {admin})",
+  "adminTitle": "Emprunt d'identité admin",
+  "leaveShared": "Quitter le partage",
+  "endView": "Quitter la vue",
   "exit": "Quitter"
 }

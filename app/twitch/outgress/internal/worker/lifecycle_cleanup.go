@@ -32,11 +32,7 @@ func (w *Worker) cleanupRestrictedSubscriptions(ctx context.Context, e enrollmen
 	if state.ChatRestriction == lifecycle.RestrictionNone && state.AllowsRuntime() {
 		return errLifecycleStopped
 	}
-	conduit, err := w.conduit.Get(ctx)
-	if err != nil {
-		return err
-	}
-	e.conduitID = conduit
+	e.conduitID = w.conduitID
 	owned := recordedSubscriptionIDs(state.OwnedSubscriptions)
 	return w.visitSubscriptionPages(ctx, e, func(sub twitch.EventSubEntry) error {
 		if !w.normalCleanupOwned(sub, e, owned) {

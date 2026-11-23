@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/db/overlays/lapse"
 	"ItsBagelBot/app/db/overlays/repository"
 	"ItsBagelBot/app/db/overlays/rpc"
+	"ItsBagelBot/internal/domain/channelevents"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/consumers"
@@ -37,6 +38,8 @@ func main() {
 
 	databoot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return repository.MigrateSchema(ctx, client) })
 
+	svcboot.FatalIf(log, bus.EnsureStreams(core.Ctx, core.NATSURL, []bus.StreamSpec{bus.ChannelEventsStream}, log), "failed to provision channel event stream")
+
 	n, closeIntake := svcboot.MustNATS(core)
 	defer func() { _ = n.Pub.Close() }()
 	defer closeIntake()
@@ -56,6 +59,9 @@ func main() {
 
 	svcboot.FatalIf(log, bus.Consume(core.Ctx, core.NR, n.Grouped, data.SubjectUserBanned, bannedTts(repo, log), log), "failed to subscribe to user banned events")
 
+	feedService := newFeed(core, repo)
+	svcboot.FatalIf(log, bus.Consume(core.Ctx, core.NR, n.Grouped, channelevents.EventsMatch, feedService.Consume, log), "failed to subscribe to channel events")
+
 	wiring := rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log},
 		Repo:      repo,
@@ -67,6 +73,7 @@ func main() {
 	svcboot.FatalIf(log, rpc.SubscribeTts(wiring), "failed to subscribe tts rpc")
 	svcboot.FatalIf(log, rpc.SubscribeOverlays(wiring), "failed to subscribe overlay rpc")
 	svcboot.FatalIf(log, rpc.SubscribeAssets(wiring), "failed to subscribe asset rpc")
+	svcboot.FatalIf(log, rpc.SubscribeFeed(wiring.RPCWiring, feedService), "failed to subscribe feed rpc")
 
 	databoot.ServeHealth(databoot.Health{
 		Health: svcboot.Health{

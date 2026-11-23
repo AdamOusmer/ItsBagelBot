@@ -5,13 +5,11 @@ package tts_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,10 +20,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/providertest"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/ratelimit"
-	pkgvalkey "ItsBagelBot/pkg/valkey"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -36,13 +31,11 @@ const testKey = "private-gemini-test-key"
 
 func configFor(t testing.TB, upstream http.Handler) tts.Config {
 	return tts.Config{
-		BaseURL:          providertest.Upstream(t, upstream),
-		APIKey:           testKey,
-		Model:            gossiprpc.TTSFlash,
-		Voice:            "Kore",
-		Temperature:      1.5,
-		RateLimit:        60,
-		ChannelRateLimit: 12,
+		BaseURL:     providertest.Upstream(t, upstream),
+		APIKey:      testKey,
+		Model:       gossiprpc.TTSFlash,
+		Voice:       "Kore",
+		Temperature: 1.5,
 	}
 }
 
@@ -58,7 +51,7 @@ func TestSynthesize(t *testing.T) {
 			name: "shapes Unicode text before validation and billing",
 			req:  gossiprpc.Request{ChannelID: "42", Text: "\n aé界🙂" + strings.Repeat(".", 501) + "\t\nbye <long pause>", Style: "\t \n"},
 			requestJSON: `{"model":"gemini-3.8-flash-tts","input":[{"type":"user_input","content":[{"type":"text","text":"aé界🙂... bye"}]}],
-				"response_format":{"type":"audio","mime_type":"audio/wav"},"generation_config":{"speech_config":[{"voice":"Kore"}],"temperature":1.5}}`,
+				"response_format":{"type":"audio","mime_type":"audio/wav"},"generation_config":{"speech_config":[{"voice":"Kore"}],"temperature":1.5},"safety_settings":[{"type":"hate_speech","threshold":"block_only_high"},{"type":"sexually_explicit","threshold":"block_only_high"},{"type":"harassment","threshold":"off"},{"type":"dangerous_content","threshold":"off"}]}`,
 			want:        gossiprpc.TTSSynthesizeReply{MimeType: "audio/wav", DurationMS: 125, BilledCharacters: 11, Model: gossiprpc.TTSFlash},
 			temperature: 1.5,
 		},
@@ -67,7 +60,7 @@ func TestSynthesize(t *testing.T) {
 			req:  gossiprpc.Request{ChannelID: "42", Text: "aé界🙂", Voice: "Zephyr", Style: "\t amical 🙂 \n", Model: gossiprpc.TTSFlashLite},
 			requestJSON: `{"model":"gemini-3.8-flash-lite-tts","input":[{"type":"user_input","content":[{"type":"text","text":"aé界🙂",
 				"annotations":[{"type":"speech_metadata","style":"amical 🙂"}]}]}],
-				"response_format":{"type":"audio","mime_type":"audio/wav"},"generation_config":{"speech_config":[{"voice":"Zephyr"}],"temperature":2}}`,
+				"response_format":{"type":"audio","mime_type":"audio/wav"},"generation_config":{"speech_config":[{"voice":"Zephyr"}],"temperature":2},"safety_settings":[{"type":"hate_speech","threshold":"block_only_high"},{"type":"sexually_explicit","threshold":"block_only_high"},{"type":"harassment","threshold":"off"},{"type":"dangerous_content","threshold":"off"}]}`,
 			want:        gossiprpc.TTSSynthesizeReply{MimeType: "audio/wav", DurationMS: 60000, BilledCharacters: 4, StyleCharacters: 8, Model: gossiprpc.TTSFlashLite},
 			temperature: 2,
 		},
@@ -144,8 +137,12 @@ type upstreamFailureCase struct {
 func upstreamFailureCases() []upstreamFailureCase {
 	echo := fmt.Sprintf(`{"error":{"message":%q}}`, testKey+" "+upstreamFailureText)
 	unavailable := gossiprpc.TTSSynthesizeReply{Error: "speech synthesis is unavailable right now"}
-	refused := gossiprpc.TTSSynthesizeReply{Error: "the speech provider refused this request", Reason: "refused"}
+	refused := gossiprpc.TTSSynthesizeReply{Error: "the speech provider refused this request", Reason: "refused", RefusalClass: gossiprpc.RefusalInvalid}
+	blocked := gossiprpc.TTSSynthesizeReply{Error: "the speech provider refused this request", Reason: "refused", RefusalClass: gossiprpc.RefusalPolicy}
 	return []upstreamFailureCase{
+		{
+			name: "safety block in error body", status: http.StatusBadRequest, body: `{"error":{"status":"INVALID_ARGUMENT","details":[{"reason":"SAFETY"}]}}`, want: blocked,
+		},
 		{
 			name: "JSON retry delay precedes header", status: http.StatusTooManyRequests, retry: "7",
 			body: `{"error":{"details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"RATE_LIMIT_EXCEEDED"},{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"12.125s"}]}}`,
@@ -257,61 +254,6 @@ func TestSynthesizeDoesNotFollowRedirects(t *testing.T) {
 	assert.NotEmpty(t, got.Error)
 }
 
-func TestSynthesizeLimits(t *testing.T) {
-	addr := os.Getenv("VALKEY_TEST_ADDR")
-	if addr == "" {
-		t.Skip("VALKEY_TEST_ADDR is not set")
-	}
-	client, err := pkgvalkey.NewClient(addr, os.Getenv("VALKEY_TEST_PASSWORD"))
-	require.NoError(t, err)
-	t.Cleanup(client.Close)
-
-	const globalBucketKey = "ratelimit:gossip:{tts}:global"
-	kv := pkgvalkey.NewKV(client)
-	for _, tc := range []struct {
-		name                    string
-		globalRate, channelRate float64
-		wantHits                int
-	}{
-		{name: "channel budget", globalRate: 60, channelRate: 1, wantHits: 2},
-		{name: "global budget", globalRate: 1, channelRate: 12, wantHits: 1},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			require.NoError(t, kv.Del(t.Context(), globalBucketKey))
-			t.Cleanup(func() { assert.NoError(t, kv.Del(context.Background(), globalBucketKey)) })
-			response := audioOutput(base64.StdEncoding.EncodeToString(testWAV(48)))
-			upstream := providertest.NewSequence(t, providertest.Reply{Status: http.StatusOK, Body: response})
-			cfg := configFor(t, upstream)
-			cfg.RateLimit, cfg.ChannelRateLimit = tc.globalRate, tc.channelRate
-			deps := providertest.Deps(nil)
-			deps.Limiter = ratelimit.New(client)
-			p := tts.New(cfg, deps)
-			req := gossiprpc.Request{ChannelID: uuid.NewString(), Text: "hi"}
-			call := func() gossiprpc.TTSSynthesizeReply {
-				return providertest.Call[gossiprpc.TTSSynthesizeReply](t, p, "synthesize", req)
-			}
-
-			require.Empty(t, call().Error)
-			checkLocalLimit(t, call())
-			req.ChannelID = uuid.NewString()
-			other := call()
-			if tc.wantHits == 1 {
-				checkLocalLimit(t, other)
-			} else {
-				assert.Empty(t, other.Error)
-			}
-			assert.Equal(t, tc.wantHits, upstream.Hits())
-		})
-	}
-}
-
-func checkLocalLimit(t *testing.T, got gossiprpc.TTSSynthesizeReply) {
-	t.Helper()
-	assert.Positive(t, got.RetryAfterMS)
-	assert.LessOrEqual(t, got.RetryAfterMS, int64(60000))
-	assert.Equal(t, busyReply(got.RetryAfterMS), got)
-}
-
 func TestSynthesizeInvalidConfiguredDefaults(t *testing.T) {
 	for _, tc := range []struct {
 		name, voice, wantVoice, warning string
@@ -325,7 +267,7 @@ func TestSynthesizeInvalidConfiguredDefaults(t *testing.T) {
 			deps := providertest.Deps(nil)
 			deps.Log = zap.New(observed)
 			requestJSON := fmt.Sprintf(`{"model":%q,"input":[{"type":"user_input","content":[{"type":"text","text":"hi"}]}],
-				"response_format":{"type":"audio","mime_type":"audio/wav"},"generation_config":{"speech_config":[{"voice":%q}],"temperature":1.5}}`, tc.wantModel, tc.wantVoice)
+				"response_format":{"type":"audio","mime_type":"audio/wav"},"generation_config":{"speech_config":[{"voice":%q}],"temperature":1.5},"safety_settings":[{"type":"hate_speech","threshold":"block_only_high"},{"type":"sexually_explicit","threshold":"block_only_high"},{"type":"harassment","threshold":"off"},{"type":"dangerous_content","threshold":"off"}]}`, tc.wantModel, tc.wantVoice)
 			response := audioOutput(base64.StdEncoding.EncodeToString(testWAV(48)))
 			cfg := configFor(t, checkedRequest(t, requestJSON, response))
 			cfg.Voice, cfg.Model = tc.voice, tc.model

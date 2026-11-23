@@ -52,6 +52,7 @@ type alertVoiceCase struct {
 	wantSkip   speechSkipReason
 	offline    bool
 	blocked    string
+	automodOff bool
 	wantChat   bool
 	wantChecks int
 	wantSpeech speechExpectation
@@ -87,6 +88,14 @@ func TestProcessAlertVoiceOutputs(t *testing.T) {
 		{name: "control characters in username and message", event: eventInput{
 			"channel.cheer", `{"user_name":"Cool\u0001Viewer","broadcaster_user_id":"2","bits":100,"message":"Great\tstream!"}`, "",
 		}, wantChat: true, wantChecks: 1, wantSpeech: speechExpectation{"CoolViewer said: Great stream!", "playful, light, amused", ""}},
+		{name: "blocked viewer name drops speech completely", wantSkip: speechBlocked, blocked: `{"block_terms":"coolviewer"}`, event: eventInput{"channel.subscription.message", resubJSON, ""}, wantChat: true},
+		{name: "floor applies with automod disabled", wantSkip: speechBlocked, automodOff: true, wantChat: true,
+			event: eventInput{"channel.cheer", `{"user_name":"Viewer","broadcaster_user_id":"2","bits":100,"message":"kys"}`, ""}},
+		{name: "allow term cannot unblock the floor", wantSkip: speechBlocked, blocked: `{"allow_terms":"kys"}`, wantChat: true,
+			event: eventInput{"channel.cheer", `{"user_name":"Viewer","broadcaster_user_id":"2","bits":100,"message":"kys"}`, ""}},
+		{name: "banter passes the floor", automodOff: true, wantChat: true, wantChecks: 1,
+			event:      eventInput{"channel.cheer", `{"user_name":"Viewer","broadcaster_user_id":"2","bits":100,"message":"headshot, you are trash"}`, ""},
+			wantSpeech: speechExpectation{"Viewer said: headshot, you are trash", "playful, light, amused", ""}},
 		{name: "offline only drops speech", wantSkip: speechOffline, event: eventInput{"channel.subscription.message", resubJSON, ""}, offline: true, wantChat: true},
 		{name: "offline allowed when ttsLiveOnly is false", event: eventInput{"channel.subscription.message", resubJSON, `{"ttsLiveOnly":"false","subEnabled":"off"}`},
 			offline: true, wantChecks: 1, wantSpeech: speechExpectation{"CoolViewer said: 7 months!", "excited, energetic, celebratory", ""}},
@@ -121,7 +130,7 @@ func (tc alertVoiceCase) run(t *testing.T) {
 			user: projection.User{Locale: tc.locale},
 			modules: []projection.ModuleView{
 				{Name: "alerts", IsEnabled: !tc.chatOff, Configs: []byte(tc.event.cfg)},
-				{Name: "automod", IsEnabled: true, Configs: []byte(tc.blocked)},
+				{Name: "automod", IsEnabled: !tc.automodOff, Configs: []byte(tc.blocked)},
 			},
 		},
 	}

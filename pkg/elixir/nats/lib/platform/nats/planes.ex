@@ -10,6 +10,8 @@ defmodule Platform.Nats.Planes do
   @enforce_keys [:plane, :pid]
   defstruct [:plane, :pid]
 
+  @type t :: %__MODULE__{plane: :rpc | :jetstream, pid: pid()}
+
   def settings(%{rpc: _, jetstream: _} = endpoints, credentials, tls) do
     Map.new(endpoints, fn {plane, endpoint} ->
       {plane, [Settings.connection(endpoint, credentials, tls)]}

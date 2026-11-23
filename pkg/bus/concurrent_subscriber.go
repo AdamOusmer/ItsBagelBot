@@ -343,7 +343,30 @@ func messageFromNATS(wire *nats.Msg) (*Message, error) {
 		payload:  wire.Data,
 		metadata: metadata,
 		storedAt: jetStreamStoredAt(wire.Reply),
+		sequence: jetStreamSequence(wire),
+		subject:  wire.Subject,
 	}), nil
+}
+
+func jetStreamSequence(wire *nats.Msg) uint64 {
+	if !strings.HasPrefix(wire.Reply, "$JS.ACK.") {
+		return 0
+	}
+	tokens := strings.Split(wire.Reply, ".")
+	var position int
+	switch {
+	case len(tokens) == 9:
+		position = 5
+	case len(tokens) >= 11:
+		position = 7
+	default:
+		return 0
+	}
+	sequence, err := strconv.ParseUint(tokens[position], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return sequence
 }
 
 func jetStreamStoredAt(reply string) time.Time {
