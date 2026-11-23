@@ -97,7 +97,12 @@ withholds the document when it is false, so the premium rule lives there.
 re-checks every five minutes (`overlay_check_ms` overrides it), sends
 `event: revision` when the revision moves and closes when the generation
 changes, the overlay is no longer allowed or the session expires. It registers
-with the shared drain like TTS events.
+with the shared drain like TTS events. Each stream also subscribes to
+`overlays.session.<user_id>` (the resolve reply's `user_id`) and accepts only offers
+whose kind matches the overlay's template: it writes `event: play`, replies
+`{"accepted": true}` and acks the message itself, and the page plays the badge now
+and restarts its timer. `overlays.standard.powered.<user_id>` shows Powered by Bagel
+on that account's open sources. TTS streams accept only `tts` offers.
 
 `GET /o` and `GET /powered` serve `priv/powered/page.html`, read at compile time.
 The page holds exactly one `<style>` and one `<script>` tag without attributes,
