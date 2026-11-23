@@ -6,6 +6,7 @@
   import { beforeNavigate, invalidateAll } from '$app/navigation';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { defaultPoweredConfig, poweredPreviewUrl, type PoweredConfig } from '@bagel/kit/overlays';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import SaveStatus, { type SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -61,6 +62,7 @@
   <PageHead>
     <span class="page-title">
       <bb-fit class="page-title-copy"><span data-fit="">{t('nav.overlays')}</span></bb-fit>
+      <Chip as="span" pressed>{t('modules.betaChip')}</Chip>
     </span>
   </PageHead>
   {#if data.readOnly}
