@@ -24,6 +24,7 @@ defmodule ControlsGateway.Overlays.Stream do
   @accepted ~s({"accepted":true})
   @play_frame "event: play\ndata: {}\n\n"
   @labels %{overlay: "Overlay", tts: "TTS"}
+  @streams ControlsGateway.Streams
 
   def open(req, {kind, version}, session, headers) do
     base = %{kind: kind, version: version, session: session}
@@ -71,7 +72,7 @@ defmodule ControlsGateway.Overlays.Stream do
            Planes.subscribe(
              state.jetstream,
              self(),
-             Subjects.overlay_session(link.user_id),
+             Subjects.overlay_session(link.user_id, link.accepts),
              queue_group: queue_group(state.kind, link.accepts)
            ) do
       state = Map.merge(state, Map.merge(link, %{revoked_sid: revoked_sid, offer_sid: offer_sid}))
@@ -117,6 +118,7 @@ defmodule ControlsGateway.Overlays.Stream do
         pending: Pending.start(self())
       })
 
+    {:ok, _} = Registry.register(@streams, state.user_id, nil)
     Metrics.count("Stream/Opened")
     Logger.info("#{label(state.kind)} events stream opened", log_id(state))
 
@@ -181,21 +183,22 @@ defmodule ControlsGateway.Overlays.Stream do
   end
 
   def info(:check, req, state) do
-    case verdict(state) do
-      {:ok, link} ->
-        schedule_check(state)
-        announce(req, state, link.revision)
-
-      :unavailable ->
-        schedule_recheck(state)
-        continue(req, state)
-
-      {:denied, reason} ->
-        stop(req, state, reason)
-    end
+    verdict = verdict(state)
+    reschedule(verdict, state)
+    settle_verdict(verdict, req, state)
   end
 
+  def info(:link_changed, req, state), do: settle_verdict(verdict(state), req, state)
+
   def info(_message, req, state), do: continue(req, state)
+
+  defp reschedule({:ok, _link}, state), do: schedule_check(state)
+  defp reschedule(:unavailable, state), do: schedule_recheck(state)
+  defp reschedule({:denied, _reason}, _state), do: :ok
+
+  defp settle_verdict({:ok, link}, req, state), do: announce(req, state, link.revision)
+  defp settle_verdict(:unavailable, req, state), do: continue(req, state)
+  defp settle_verdict({:denied, reason}, req, state), do: stop(req, state, reason)
 
   defp down(req, state, :rpc_down) do
     close_ms = env_ms(:stream_force_close_ms, @force_close_ms)
@@ -221,9 +224,10 @@ defmodule ControlsGateway.Overlays.Stream do
     continue(req, state)
   end
 
-  defp announce_reconnect(req, %{version: :v2}, after_ms) do
+  defp announce_reconnect(req, %{version: :v2} = state, after_ms) do
     frame = ["event: reconnect\ndata: {\"after_ms\": ", Integer.to_string(after_ms), "}\n\n"]
     :ok = :cowboy_req.stream_body(frame, :nofin, req)
+    Pending.handoff(state.pending)
   end
 
   defp announce_reconnect(_req, %{version: :legacy}, _after_ms), do: :ok

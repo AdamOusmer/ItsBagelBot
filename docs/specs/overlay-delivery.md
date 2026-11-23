@@ -1,7 +1,7 @@
 # Overlay delivery: decoupling, failover and operations
 
 Date: 2026-11-23
-Status: Implemented on branch `feature/overlay-delivery` (not merged). Baseline is `origin/main` at `fda942100`.
+Status: Implemented and released (#2015, 2026-11-23). Baseline is `origin/main` at `fda942100`.
 
 ## Goal
 
@@ -23,7 +23,7 @@ crash, node loss and NATS restart, with these guarantees:
   `OVERLAYS_STANDARD` with one shared durable per tier, `MaxDeliver -1`, `AckWait` 30 s,
   memory storage, 3 replicas (`pkg/bus/overlays.go:126-137`, `pkg/bus/gossip_jobs.go:24`).
 - Every gateway replica pulls from the shared durable (`overlays/puller.ex`) and offers each
-  message on `overlays.session.<user_id>` (`overlays/delivery.ex:54`). The pod holding the
+  message on `overlays.session.<user_id>.<kind>` (`overlays/delivery.ex:54`). The pod holding the
   page's SSE stream answers, so delivery already crosses pods.
 - TTS acks after playback (`tts/page.ex` `advance`), sends `+WPI` for queued clips every 15 s,
   NAKs unacked clips when its stream dies (`overlays/pending.ex`), and skips duplicate
@@ -208,7 +208,7 @@ Gateway caches:
 | Cache | Key | Value | TTL | Invalidated by |
 | --- | --- | --- | --- | --- |
 | Overlay resolve | token hash | overlay or `not_found` | 30 s (projector's `poweredCacheTTL`) | `overlays` scope keys (the projector sends the new and previous token hash, `app/projector/overlay.go:50-55`) |
-| TTS resolve | token hash | identity or `not_found` | 30 s | `overlays` scope keys |
+| TTS resolve | token hash | identity or `not_found` | 30 s | any `overlays` event clears it (the TTS change event carries no previous hash; TTS link changes are rare) |
 | TTS check | `{user_id, generation}` | valid or not | 30 s | `overlays` scope ID (user) |
 
 - Negative entries (`not_found`) are cached too, so a dead link costs one RPC per 30 s per pod
@@ -282,6 +282,7 @@ Counters through `Platform.Metrics`, prefix `Custom/ControlsGateway/`:
 - `Page/DuplicateSkipped`, `Page/Expired` (sent as a `reason` field on the ack request)
 - `Drain/DurationMs` (incremented by the drain's length), `Drain/StreamsLeft`, `Pull/Attach`, `Pull/Detached` (connection loss or consumer error), `Pull/Paused` (drain), `Pull/Status/<code>`
 - `Clip/Served`, `Clip/Interrupted`
+- `Page/Dropped`, `Stream/Closed/client`, `Ack/ProgressOnHandoff` (a stream closed by its page after a reconnect frame sends `+WPI` instead of NAK, so a clip still playing there is not handed to another instance)
 - `Cache/Hit`, `Cache/Miss`, `Cache/Stale`, `Cache/Invalidated`, `Cache/Gap` per cache
 
 Alert conditions in New Relic: `Offer/Accepted` falls to zero while `Offer/NoResponders`
@@ -309,7 +310,7 @@ published during the event.
 | Two OBS instances on one link | One stream accepts each offer. That alert plays once, on one instance. | none | none / none |
 | Link revoked or rotated | Revocation ends the stream with no reconnect. Page gets 204 and stops. | n/a | n/a |
 | Cookie key rotation | Old cookies fail, page gets 401, exchanges its link token again. | one exchange | none / none |
-| Gateway scaled to zero by mistake | Offers find nobody. Alerts wait up to TTL, then drop. Alert condition fires. | until restored | lost after 5 min |
+| Gateway scaled to zero by mistake | Offers find nobody. Alerts wait up to TTL, then drop. The "gateway not reporting" condition fires on fewer than 2 reporting pods or on loss of signal. | until restored | lost after 5 min |
 
 ## Tests
 
@@ -331,14 +332,14 @@ through HTTP and SSE only:
    packages are installed; CI runs Node's built-in runner. The pages had no script test before;
    the existing tests only pin their CSP hashes (`powered_test.exs:18`).
 
-Live drills, before each phase is released: a gateway rollout restart with test alerts on a
+Live drills, after release (they were not run before the 2026-11-23 rollout): a gateway rollout restart with test alerts on a
 channel we own (never a streamer's channel), a pod delete, and a NATS leaf restart. Pass
 means `Offer/Accepted` matches alerts published, `Page/DuplicateSkipped` is the only
 duplicate signal, and `Drain/StreamsLeft` is zero.
 
 ## Phases
 
-Each phase is one PR and ships on its own. They were implemented together on `feature/overlay-delivery`; split them along these lines when opening PRs, and release the manifest changes together with the gateway image that matches them.
+The phases were implemented together and merged as #2015, then released in one rollout on 2026-11-23 (one bump of controls-gateway, twitch-ingress and projector plus the matching `deploy/` state), so the manifest and the gateway image changed together.
 
 1. **Shared packages.** `Platform.Nats.Pull`, `Ack`, `ObjectStore`, `Platform.Health`,
    `Platform.Metrics`, `Platform.Backoff`, `loop_routes` and unlimited connections in

@@ -26,7 +26,8 @@ defmodule ControlsGateway.Application do
   defp base_children do
     [
       ControlsGateway.Metrics,
-      {Registry, keys: :unique, name: ControlsGateway.Connections}
+      {Registry, keys: :unique, name: ControlsGateway.Connections},
+      {Registry, keys: :duplicate, name: ControlsGateway.Streams}
     ]
   end
 

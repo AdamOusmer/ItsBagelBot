@@ -185,8 +185,7 @@ defmodule ControlsGateway.OverlayTest do
   test "events accept offers for their own template only", %{http_port: port} do
     live = events(port, [cookie(port)])
 
-    assert {:error, :timeout} =
-             offer("tts", %{"event_id" => "other"}, %{}, receive_timeout: 300)
+    assert {:error, :no_responders} = offer("tts", %{"event_id" => "other"})
 
     assert {:ok, %{body: ~s({"accepted":true})}} = offer("powered", %{"event_id" => "own"})
     HttpClient.close(HttpClient.await_alerts(live, 1))
@@ -257,7 +256,7 @@ defmodule ControlsGateway.OverlayTest do
   end
 
   test "an offer nobody accepts is requeued with growing delays", _context do
-    {:ok, _} = Gnat.sub(:gnat_jetstream, self(), "overlays.session.7")
+    {:ok, _} = Gnat.sub(:gnat_jetstream, self(), "overlays.session.7.powered")
     publish_alert("ladder")
 
     stamps =
@@ -408,6 +407,18 @@ defmodule ControlsGateway.OverlayTest do
     HttpClient.close(closed)
   end
 
+  test "a rotation event for the user ends a stream whose link check now fails", %{
+    http_port: port,
+    agent: agent
+  } do
+    live = events(port, [cookie(port)])
+    update_overlay(agent, &Map.put(&1, :gone, true))
+    :ok = Platform.Invalidations.publish(ControlsGateway.Invalidations, "overlays", 7)
+    closed = HttpClient.await(live, & &1.done)
+    assert closed.done
+    HttpClient.close(closed)
+  end
+
   test "events close when the overlay stops being allowed", %{http_port: port, agent: agent} do
     live = events(port, [cookie(port)])
     update_overlay(agent, &Map.merge(&1, %{kind: "custom", allowed: false, document: nil}))
@@ -455,7 +466,7 @@ defmodule ControlsGateway.OverlayTest do
 
   defp offer(kind, data, extra \\ %{}, opts \\ []) do
     body = Map.merge(%{ack: @ack, kind: kind, data: data, delivered: 1}, extra)
-    Gnat.request(:gnat_jetstream, "overlays.session.7", Jason.encode!(body), opts)
+    Gnat.request(:gnat_jetstream, "overlays.session.7.#{kind}", Jason.encode!(body), opts)
   end
 
   defp publish_alert(event_id) do

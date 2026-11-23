@@ -11,6 +11,7 @@ defmodule ControlsGateway.Overlays do
   @offers ControlsGateway.Overlays.Offers
   @reply_prefix "overlays.session.reply"
   @inbox_prefix "_INBOX.overlays"
+  @idle_slack_ms 500
 
   def offers, do: @offers
 
@@ -27,7 +28,7 @@ defmodule ControlsGateway.Overlays do
   end
 
   def await_idle do
-    timeout_ms = Delivery.offer_timeout_ms()
+    timeout_ms = Delivery.offer_timeout_ms() + @idle_slack_ms
     pullers = for tier <- Tiers.all(), pid = Process.whereis(Tiers.puller(tier)), do: pid
 
     pullers

@@ -159,11 +159,25 @@ defmodule Platform.Nats.PullTest do
     refute Jetstream.eventually(fn -> Pull.attached?(missing) end, 15)
   end
 
-  test "pause stops pulling and unsubscribes", %{pull: pull} do
+  test "pause reports not attached and stops handling", %{pull: pull} do
     assert :ok = Pull.pause(pull)
     refute Pull.attached?(pull)
     Jetstream.publish!("p.after", "late")
     refute_receive {:handled, _task, "late"}, 1_200
+  end
+
+  test "a message already on the wire at pause is NAKed to another puller", %{pull: pull} do
+    test = self()
+    assert :ok = Pull.pause(pull)
+    Jetstream.publish!("p.wire", "wired")
+    refute_receive {:handled, _task, "wired"}, 300
+
+    start_extra(:taker, "d", fn message ->
+      send(test, {:taken, message.body})
+      Ack.ack(:jetstream, message.reply_to)
+    end)
+
+    assert_receive {:taken, "wired"}, 5_000
   end
 
   test "pull re-attaches after the connection is replaced", %{pull: pull} do

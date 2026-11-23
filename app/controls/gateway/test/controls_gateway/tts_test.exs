@@ -9,7 +9,7 @@ defmodule ControlsGateway.TtsTest do
   alias ControlsGateway.Drain
   alias ControlsGateway.Overlays
   alias ControlsGateway.Overlays.Handle
-  alias ControlsGateway.TestSupport.{HttpClient, Streams}
+  alias ControlsGateway.TestSupport.{HttpClient, Peer, Streams}
   alias Gnat.Jetstream.API.Object
   alias Platform.Nats.TestSupport.NatsServer
 
@@ -157,7 +157,7 @@ defmodule ControlsGateway.TtsTest do
   test "drain waits for an in-flight offer before closing", %{http_port: port} do
     on_exit(&ControlsGateway.Drain.reset!/0)
     await_ready(port)
-    {:ok, _} = Gnat.sub(:gnat_jetstream, self(), "overlays.session.#{@user_id}")
+    {:ok, _} = Gnat.sub(:gnat_jetstream, self(), "overlays.session.#{@user_id}.tts")
     publish_clip("inflight")
     assert_receive {:msg, %{reply_to: reply}}, 2_000
 
@@ -544,36 +544,48 @@ defmodule ControlsGateway.TtsTest do
     end
   end
 
-  test "a draining stream and its replacement share offers and the old one closes later", %{
-    http_port: port
-  } do
+  @tag timeout: 60_000
+  test "a second gateway takes the next offer and the draining stream closes after the handoff",
+       %{http_port: port} = context do
     on_exit(&Drain.reset!/0)
-    put_env(:stream_force_close_ms, 2_500)
+    put_env(:stream_force_close_ms, 20_000)
     cookie = cookie(port)
     old = events(port, [cookie])
+    peer_port = Peer.start_gateway(context)
     drain = Task.async(&Drain.run/0)
     old = HttpClient.await(old, &String.contains?(&1.body, "event: reconnect"))
-    Drain.reset!()
-    replacement = events(port, [cookie])
+    await_ready(peer_port)
+    replacement = events(peer_port, [cookie])
+    publish_clip("handoff")
 
-    offer =
-      Jason.encode!(%{
-        ack: "$JS.ACK.OVERLAYS_PREMIUM.overlays-premium.1.1.1.1.0",
-        kind: "tts",
-        data: %{"event_id" => "overlap", "clip_key" => "#{@user_id}/overlap"},
-        delivered: 1
-      })
-
-    assert {:ok, %{body: ~s({"accepted":true})}} =
-             Gnat.request(:gnat_jetstream, "overlays.session.#{@user_id}", offer)
-
-    streams = Enum.map([old, replacement], &HttpClient.drain(&1, 300))
-    assert streams |> Enum.map(&length(clips(&1))) |> Enum.sum() == 1
-    [old, replacement] = streams
+    [old, replacement] = await_clip_total([old, replacement], "handoff")
     refute old.done
-    assert HttpClient.await(old, & &1.done).done
-    HttpClient.close(replacement)
+
+    HttpClient.close(old)
     assert Task.await(drain, 10_000) == :ok
+    publish_clip("after")
+    replacement = HttpClient.await(replacement, &("after" in event_ids(&1)))
+    refute replacement.done
+    HttpClient.close(replacement)
+  end
+
+  test "a stream closed by the client after its reconnect frame leaves its clips in flight", %{
+    http_port: port
+  } do
+    live = events(port, [cookie(port)])
+    publish_clip("playing")
+    live = await_clips(live, 1)
+    before = counter("Ack/ProgressOnHandoff")
+    naks = counter("Ack/NakOnClose")
+    send_to_streams({:reconnect, 0, :drain})
+    live = HttpClient.await(live, &String.contains?(&1.body, "event: reconnect"))
+    HttpClient.close(live)
+    eventually(fn -> counter("Ack/ProgressOnHandoff") > before end)
+    assert counter("Ack/NakOnClose") == naks
+
+    second = events(port, [cookie(port)])
+    assert second |> HttpClient.drain(1_500) |> clips() == []
+    HttpClient.close(second)
   end
 
   test "drain waits for an in-flight clip download and reports its time", %{http_port: _port} do
@@ -743,6 +755,32 @@ defmodule ControlsGateway.TtsTest do
   end
 
   defp await_clips(client, count), do: HttpClient.await_alerts(client, count)
+
+  defp send_to_streams(message) do
+    pids = Registry.select(ControlsGateway.Connections, [{{:_, :"$1", :stream}, [], [:"$1"]}])
+    Enum.each(pids, &send(&1, message))
+  end
+
+  defp await_clip_total(clients, event_id, attempts \\ 60) do
+    clients = Enum.map(clients, &HttpClient.drain(&1, 100))
+    total = clients |> Enum.map(&clip_count(&1, event_id)) |> Enum.sum()
+
+    cond do
+      total > 0 -> settle_clip_total(clients, event_id)
+      attempts == 0 -> flunk("clip #{event_id} was never delivered")
+      true -> await_clip_total(clients, event_id, attempts - 1)
+    end
+  end
+
+  defp settle_clip_total(clients, event_id) do
+    clients = Enum.map(clients, &HttpClient.drain(&1, 500))
+    assert clients |> Enum.map(&clip_count(&1, event_id)) |> Enum.sum() == 1
+    clients
+  end
+
+  defp clip_count(client, event_id), do: client |> event_ids() |> Enum.count(&(&1 == event_id))
+
+  defp event_ids(client), do: client |> clips() |> Enum.map(& &1["event_id"])
 
   defp post(port, path, body, cookie) do
     HttpClient.request(port, "POST", path, headers: [cookie | @json], body: Jason.encode!(body))

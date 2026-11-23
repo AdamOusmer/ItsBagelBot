@@ -66,7 +66,7 @@ defmodule ControlsGateway.Overlays.Delivery do
         expires_at: expires_at(metadata.timestamp)
       })
 
-    outcome = outcome(ask(Subjects.overlay_session(user_id), request))
+    outcome = outcome(ask(Subjects.overlay_session(user_id, kind), request))
     Metrics.count(Map.fetch!(@offer_metrics, outcome))
     settle(outcome, ack, {user_id, data["event_id"], delivered})
   end
