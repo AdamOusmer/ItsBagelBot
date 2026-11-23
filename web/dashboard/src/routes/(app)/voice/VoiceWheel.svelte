@@ -89,11 +89,12 @@
 <style>
   .wheel {
     --row: 44px;
-    block-size: calc(var(--row) * 5);
+    --rows: var(--wheel-rows, 5);
+    block-size: calc(var(--row) * var(--rows));
     overflow-y: auto;
     scroll-snap-type: y mandatory;
     scrollbar-width: none;
-    padding-block: calc(var(--row) * 2);
+    padding-block: calc(var(--row) * (var(--rows) - 1) / 2);
     mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
     outline: none;
     border-radius: var(--bb-radius-md);

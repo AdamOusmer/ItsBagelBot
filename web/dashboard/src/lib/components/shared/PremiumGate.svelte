@@ -57,7 +57,7 @@
         </div>
         {#if children}<div class="extra rise" style="--i: 3">{@render children()}</div>{/if}
       </div>
-      <div class="mascot" aria-hidden="true">
+      <div class="mascot" class:art={!!art} aria-hidden={art ? undefined : 'true'}>
         {#if art}{@render art()}{:else}<Bolota name="oven_fresh" size={340} palette={TAN} active follow />{/if}
       </div>
     </div>
@@ -110,6 +110,11 @@
     width: var(--mascot);
     height: var(--mascot);
     animation: mascot-in 1.1s 500ms var(--bb-ease-out-back) both;
+  }
+  .mascot.art {
+    display: grid;
+    gap: var(--bb-space-4);
+    height: auto;
   }
   .mascot :global(svg.bolota) {
     position: absolute;

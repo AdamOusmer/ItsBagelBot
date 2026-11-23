@@ -13,7 +13,6 @@
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
-  import AudioOrb from '@bagel/ui/svelte/AudioOrb.svelte';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -21,7 +20,6 @@
   import PageNotice from '#lib/components/shared/PageNotice.svelte';
   import PremiumGate from '#lib/components/shared/PremiumGate.svelte';
   import { voiceOptions } from '#lib/components/voice/voice-options';
-  import VoicePreview from '#lib/components/voice/VoicePreview.svelte';
   import { Autosave } from '#lib/autosave.svelte';
   import VoiceBlocksCard from './VoiceBlocksCard.svelte';
   import { utcDateTime } from './voice-settings';
@@ -31,6 +29,7 @@
   import VoiceOverlayCard from './VoiceOverlayCard.svelte';
   import VoiceSettingsCard from './VoiceSettingsCard.svelte';
   import VoiceStage from './VoiceStage.svelte';
+  import VoiceTuner from './VoiceTuner.svelte';
   import type { ActionData, PageData } from './$types';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -62,7 +61,7 @@
   }
 
   let commandValues = $state(untrack(loadedCommand));
-  let previewAnalyser = $state<AnalyserNode | null>(null);
+  let previewVoice = $state(DEFAULT_VOICE);
   type VoiceAction = 'rotateOverlay' | 'testAlert';
   let pending = $state<VoiceAction | null>(null);
   let overlayUrl = $state(untrack(() => form?.overlayUrl));
@@ -177,8 +176,11 @@
 
 {#if data.locked}
   <PremiumGate checkout>
-    {#snippet art()}<AudioOrb analyser={previewAnalyser} />{/snippet}
-    <VoicePreview bind:analyser={previewAnalyser} />
+    {#snippet art()}
+      <div class="locked-tuner">
+        <VoiceTuner voice={previewVoice} onVoice={(voice) => (previewVoice = voice)} orbSize="var(--locked-orb)" />
+      </div>
+    {/snippet}
   </PremiumGate>
 {:else if ready && allowance}
   <section class="screen active split">
@@ -256,6 +258,10 @@
     overflow: hidden;
   }
   .split-main { display: grid; gap: var(--bb-space-4); min-inline-size: 0; }
+  .locked-tuner { --locked-orb: var(--mascot); display: contents; }
+  @container (max-width: 560px) {
+    .locked-tuner { --locked-orb: 104px; --wheel-rows: 3; }
+  }
   @media (max-width: 900px) {
     .split { grid-template-columns: minmax(0, 1fr); }
     .split-side { position: static; block-size: auto; grid-template-rows: none; overflow: visible; }
