@@ -89,6 +89,7 @@ export const demoAccountState: AccountState = {
   active: true,
   status: process.env.DEMO_PLAN === 'free' ? 'free' : 'vip',
   onboarded: true,
+  alpha: process.env.DEMO_PLAN !== 'nonalpha',
   creatorCode: null,
   username: 'demo',
   displayName: 'Demo'

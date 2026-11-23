@@ -33,7 +33,7 @@ const { default: MediaControl } = await import('@bagel/kit/components/overlay-ed
 const { createOverlay } = await import('@bagel/kit/overlay-editor');
 
 const served = { id: 8, name: 'Alerts', revision: 3, document: createOverlay('alerts', 'Alerts', () => 'Alert layer') };
-const base = { readOnly: false, preview: false, overlay: null, missing: false };
+const base = { readOnly: false, overlay: null, missing: false };
 
 function renderPage(data: Record<string, unknown>, search = '') {
   pageState.url = new URL(`http://localhost/overlays/custom${search}`);
@@ -50,22 +50,8 @@ async function attributes(html: string, selector: string) {
   return found;
 }
 
-test.each([
-  { name: 'a premium owner', data: { isPremium: true }, canvas: true, gate: false, upsell: false },
-  { name: 'a free owner', data: { isPremium: false }, canvas: false, gate: true, upsell: false },
-  { name: 'a free owner trying the editor', data: { isPremium: false, preview: true }, canvas: true, gate: false, upsell: true }
-])('shows the right surface to $name', ({ data, canvas, gate, upsell }) => {
-  const html = renderPage(data);
-  expect({
-    canvas: html.includes('bb-overlay-canvas'),
-    gate: html.includes('premium-gate-title'),
-    upsell: html.includes('Saving, uploads and publishing need Premium.')
-  }).toEqual({ canvas, gate, upsell });
-});
-
-test('the gate offers the editor preview', async () => {
-  const links = await attributes(renderPage({ isPremium: false }), 'a[href="/overlays/custom?preview=1"]');
-  expect(links).toHaveLength(1);
+test('an owner sees the editor canvas', () => {
+  expect(renderPage({}).includes('bb-overlay-canvas')).toBe(true);
 });
 
 test.each([
@@ -79,12 +65,12 @@ test.each([
 });
 
 test('a saved overlay opens with its layers', () => {
-  const html = renderPage({ isPremium: true, overlay: served });
+  const html = renderPage({ overlay: served });
   expect(html.includes('Alert layer')).toBe(true);
 });
 
 test('a delegate gets the owner-only notice and no editor', () => {
-  const html = renderPage({ isPremium: true, readOnly: true });
+  const html = renderPage({ readOnly: true });
   expect([html.includes('Only the channel owner can change overlays.'), html.includes('bb-overlay-canvas')]).toEqual([true, false]);
 });
 
@@ -96,13 +82,13 @@ test.each([
   { name: 'the just chatting template', search: '?template=justChatting', title: 'Just chatting', layers: ['Chat box', 'Alert box', 'Goal', 'Event list'] },
   { name: 'the starting soon template', search: '?template=startingSoon', title: 'Starting soon', layers: ['Timer', 'Label'] }
 ])('opens $name', ({ search, title, layers }) => {
-  const html = renderPage({ isPremium: true }, search);
+  const html = renderPage({}, search);
   const present = ['Alert box', 'Chat box', 'Goal', 'Event list', 'Timer', 'Label'].filter((name) => html.includes(`>${name}</span>`));
   expect({ title: html.includes(`value="${title}"`), layers: present.sort() }).toEqual({ title: true, layers: [...layers].sort() });
 });
 
 test('a saved overlay ignores the template in the URL', () => {
-  const html = renderPage({ isPremium: true, overlay: served }, '?template=startingSoon');
+  const html = renderPage({ overlay: served }, '?template=startingSoon');
   expect([html.includes('>Alert layer</span>'), html.includes('>Timer</span>')]).toEqual([true, false]);
 });
 
@@ -113,11 +99,11 @@ test.each([
   { name: 'the default size for a malformed size', search: '?size=big', frame: '1920 × 1080' },
   { name: 'the default size with no size', search: '', frame: '1920 × 1080' }
 ])('seeds $name', ({ search, frame }) => {
-  expect(renderPage({ isPremium: true }, search).includes(`>${frame}</span>`)).toBe(true);
+  expect(renderPage({}, search).includes(`>${frame}</span>`)).toBe(true);
 });
 
 test('a saved overlay ignores the size in the URL', () => {
-  const html = renderPage({ isPremium: true, overlay: served }, '?size=1280x720');
+  const html = renderPage({ overlay: served }, '?size=1280x720');
   expect([html.includes('>1920 × 1080</span>'), html.includes('>1280 × 720</span>')]).toEqual([true, false]);
 });
 
@@ -131,10 +117,10 @@ test.each([
   { text: 'Editor tools', present: false },
   { text: 'Layer settings', present: false }
 ])('the editor shows "$text": $present', ({ text, present }) => {
-  expect(renderPage({ isPremium: true }).includes(text)).toBe(present);
+  expect(renderPage({}).includes(text)).toBe(present);
 });
 
 test('the editor stands alone, with no import panel, page head or template buttons', () => {
-  const html = renderPage({ isPremium: true });
+  const html = renderPage({});
   expect(['Import an overlay', 'Start from', 'Just chatting'].map((text) => html.includes(text))).toEqual([false, false, false]);
 });

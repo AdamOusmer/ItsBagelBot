@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { afterEach, expect, mock, spyOn, test } from 'bun:test';
-import { stubSvelteKit } from '../../../../test/sveltekit';
+import { stubSvelteKit } from '../../../../../test/sveltekit';
 
 stubSvelteKit();
 mock.module('#lib/server/edge-purge', () => ({
@@ -12,8 +12,8 @@ mock.module('#lib/server/edge-purge', () => ({
 
 const bus = await import('@bagel/kit/server/nats');
 const { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS } = await import('@bagel/kit/server/service');
-const assets = await import('./assets/+server');
-const feed = await import('./feed/+server');
+const assets = await import('../assets/+server');
+const feed = await import('../feed/+server');
 
 const owner = { user_id: '42' };
 const delegate = { user_id: '95', delegate_of: '42', sections: ['modules'] };

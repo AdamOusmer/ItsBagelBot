@@ -35,9 +35,8 @@ const BUDGETS: Record<string, Budget> = {
   // CI measured 100926 B gzip after integration, ~0.3% room.
   // js raised from 101200 (2026-11-21): the cursor ring snaps to its target while a button is held (slider drag);
   // CI measured 101217 B gzip, ~0.1% room.
-  // js raised from 101300 (2026-11-22): merging the cloud overlay branches moves shared shell code, measured 101416 B gzip
-  // on macOS (101415 before the editor wiring), plus the shared play and stop glyphs in ui/lib/icons.ts (voice preview),
-  // measured 101324 B gzip on main alone.
+  // js raised from 101300 (2026-11-22) for the shared play and stop glyphs in ui/lib/icons.ts (voice preview):
+  // measured 101324 B gzip on macOS, ~0.4% room.
   '/(public)/login': { js: 101700, css: 23300, catalog: 2900, lazy: 0 },
   // js raised from 118700 (2026-10-29) for the shared Glide rail selector (+128 B): measured 118765, ~2% room.
   // css raised from 44700 (2026-10-29) for the aurora footer in the shared stylesheet (+413 B): measured 44682, ~1% room.
@@ -66,8 +65,9 @@ const BUDGETS: Record<string, Budget> = {
   // on macOS after integration, ~0.5% room for CI's larger linux gzip.
   // js and css raised from 147400 / 48300 (2026-11-21) for the integrated delegated/admin topbar context in the shared
   // Topbar and shell.css: measured 148060 / 48403 B gzip on macOS, ~0.5% / ~1% room.
-  // js raised from 148800 (2026-11-23): the overlay feed branch moves shared shell code into this route, measured
-  // 148896 B gzip on macOS (+96 B over budget), ~0.003% room.
+  // js raised from 148800 (2026-11-23) for the shared shell immersive mode (AppShell, ConsoleShell, layout) and the picker
+  // panel bottom placement that the alpha overlay editor needs: measured 148854 B gzip on macOS against about 148760 on
+  // main alone. No alpha route code reaches this route.
   '/(app)/commands': { js: 148900, css: 48900, catalog: 4600, lazy: 31200 },
   // js and css raised from 100000 / 21500 (2026-10-29) for the aurora footer: CI measured main at 99484 / 21152 and
   // this change at 100323 / 21571 (+839 / +419 B), ~1-2% room.

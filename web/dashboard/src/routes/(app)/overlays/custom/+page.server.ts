@@ -16,30 +16,21 @@ import type { Actions, PageServerLoad } from './$types';
 
 const DEMO = dev && env.DEMO === '1';
 
-const REFUSALS: Record<string, { status: number; key: 'conflict' | 'invalid' | 'premium' }> = {
+const REFUSALS: Record<string, { status: number; key: 'conflict' | 'invalid' }> = {
   conflict: { status: 409, key: 'conflict' },
-  invalid: { status: 400, key: 'invalid' },
-  forbidden: { status: 402, key: 'premium' }
+  invalid: { status: 400, key: 'invalid' }
 };
 
-const previewRequested = (url: URL) => url.searchParams.get('preview') === '1';
 const requestedId = (url: URL) => Number(url.searchParams.get('id')) || 0;
 
-const demoLoad = (async ({ url }) => ({
-  readOnly: false,
-  preview: previewRequested(url),
-  overlay: null,
-  missing: false
-})) satisfies PageServerLoad;
+const demoLoad = (async () => ({ readOnly: false, overlay: null, missing: false })) satisfies PageServerLoad;
 
-const liveLoad = (async ({ locals: { session }, url, parent }) => {
-  const preview = previewRequested(url);
+const liveLoad = (async ({ locals: { session }, url }) => {
   if (!session) throw redirect(302, '/login?next=%2Foverlays%2Fcustom');
-  if (!hasOwnerAccess(session)) return { readOnly: true, preview, overlay: null, missing: false };
+  if (!hasOwnerAccess(session)) return { readOnly: true, overlay: null, missing: false };
   const id = requestedId(url);
-  const premium = (await parent()).isPremium === true;
-  const overlay = premium && id ? await bestEffort(overlayGetCustom(session, id), null) : null;
-  return { readOnly: false, preview, overlay, missing: premium && id > 0 && overlay === null };
+  const overlay = id ? await bestEffort(overlayGetCustom(session, id), null) : null;
+  return { readOnly: false, overlay, missing: id > 0 && overlay === null };
 }) satisfies PageServerLoad;
 
 export const load: PageServerLoad = DEMO ? demoLoad : liveLoad;

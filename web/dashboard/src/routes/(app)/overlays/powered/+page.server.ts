@@ -14,12 +14,12 @@ import { hasOwnerAccess } from '#lib/server/owner';
 import { auditDashboardImpersonation } from '#lib/server/services/audit';
 import { overlayGet, overlayList, overlaySave } from '#lib/server/services/overlays';
 import type { Session } from '#lib/server/session';
-import { ownerRefusal, rotateOverlay } from '../overlay-actions';
-import { parsePoweredSave } from './powered-form';
+import { ownerRefusal, rotateOverlay } from '../hub/overlay-actions';
+import { parsePoweredSave } from '../powered-form';
 import type { Actions, PageServerLoad } from './$types';
 
 const DEMO = dev && env.DEMO === '1';
-const HUB = '/overlays';
+const HUB = '/overlays/hub';
 
 const LIMITS = { everyMin: MIN_EVERY_MINUTES, everyMax: MAX_EVERY_MINUTES, showMin: MIN_SHOW_SECONDS, showMax: MAX_SHOW_SECONDS };
 

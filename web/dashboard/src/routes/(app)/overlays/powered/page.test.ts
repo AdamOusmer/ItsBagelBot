@@ -76,7 +76,7 @@ test('the entry edge is a single choice with the saved edge checked', async () =
 
 test('offers a way back to the hub and the replace link action', async () => {
   const html = renderPage({ isPremium: false });
-  const back = await attributes(html, 'a[href="/overlays"]');
+  const back = await attributes(html, 'a[href="/overlays/hub"]');
   const forms = await attributes(html, 'form[action="?/rotate"]');
   expect([back.length, forms.length]).toEqual([1, 1]);
 });

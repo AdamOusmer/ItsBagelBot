@@ -14,10 +14,10 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import PageNotice from '#lib/components/shared/PageNotice.svelte';
   import { Autosave } from '#lib/autosave.svelte';
-  import ReplaceLink from '../ReplaceLink.svelte';
-  import { poweredFields } from './powered-form';
-  import PoweredControls from './PoweredControls.svelte';
-  import PoweredPreview from './PoweredPreview.svelte';
+  import ReplaceLink from '../hub/ReplaceLink.svelte';
+  import { poweredFields } from '../powered-form';
+  import PoweredControls from '../PoweredControls.svelte';
+  import PoweredPreview from '../PoweredPreview.svelte';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -75,7 +75,7 @@
     {#snippet trailing()}
       <div class="trail">
         <SaveStatus state={saveState} />
-        <ButtonLink href="/overlays" variant="ghost" size="sm">
+        <ButtonLink href="/overlays/hub" variant="ghost" size="sm">
           <bb-fit><span data-fit="">{t('overlays.customBack')}</span></bb-fit>
         </ButtonLink>
       </div>

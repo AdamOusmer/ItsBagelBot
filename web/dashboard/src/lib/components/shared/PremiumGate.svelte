@@ -16,17 +16,8 @@
     body = t('billing.premiumGateBody'),
     cta = t('billing.premiumGateCta'),
     link = t('billing.premiumGateLink'),
-    trial,
     children
-  }:{
-    label?: string;
-    title?: string;
-    body?: string;
-    cta?: string;
-    link?: string;
-    trial?: { label: string; href: string };
-    children?: Snippet;
-  } = $props();
+  }:{ label?: string; title?: string; body?: string; cta?: string; link?: string; children?: Snippet } = $props();
 
   const TAN = { head: '#eadbbd', eye: '#111113' };
 
@@ -49,7 +40,6 @@
         <p class="lead rise" style="--i: 1">{body}</p>
         <div class="actions rise" style="--i: 2">
           <ButtonLink variant="primary" href="/billing?subscribe=1">{cta}</ButtonLink>
-          {#if trial}<ButtonLink variant="secondary" href={trial.href}>{trial.label}</ButtonLink>{/if}
           <TextLink href="/billing" label={link} />
         </div>
         {#if children}<div class="extra rise" style="--i: 3">{@render children()}</div>{/if}

@@ -22,11 +22,10 @@ const stored = { id: 8, kind: 'custom', name: 'Alerts', revision: 3, document };
 
 afterEach(() => mock.restore());
 
-async function visit(session: object | null, query: string, isPremium: boolean) {
+async function visit(session: object | null, query: string) {
   return load({
     locals: { session, locale: 'en' },
-    url: new URL(`https://dashboard.test/overlays/custom${query}`),
-    parent: async () => ({ isPremium })
+    url: new URL(`https://dashboard.test/overlays/custom${query}`)
   } as never);
 }
 
@@ -37,41 +36,37 @@ function post(session: object | null, fields: Record<string, string>) {
   } as never);
 }
 
-test('a premium owner opening an overlay gets its document', async () => {
+test('an owner opening an overlay gets its document', async () => {
   const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce(stored);
-  const data = await visit(owner, '?id=8', true);
+  const data = await visit(owner, '?id=8');
   expect([data, rpc.mock.calls]).toEqual([
-    { readOnly: false, preview: false, overlay: { id: 8, name: 'Alerts', revision: 3, document }, missing: false },
+    { readOnly: false, overlay: { id: 8, name: 'Alerts', revision: 3, document }, missing: false },
     [['rpc.overlays.overlay.get', { user_id: '42', id: 8 }, READ_TIMEOUT_MS]]
   ]);
 });
 
 test.each([
-  { name: 'a system overlay', premium: true, reply: { ...stored, kind: 'system' }, calls: 1, missing: true },
-  { name: 'a failed read', premium: true, reply: new Error('timeout'), calls: 1, missing: true },
-  { name: 'a free account', premium: false, reply: stored, calls: 0, missing: false }
-])('opening $name shows no document', async ({ premium, reply, calls, missing }) => {
+  { name: 'a system overlay', reply: { ...stored, kind: 'system' } },
+  { name: 'a failed read', reply: new Error('timeout') }
+])('opening $name shows no document', async ({ reply }) => {
   const rpc = spyOn(bus, 'rpc');
   if (reply instanceof Error) rpc.mockRejectedValueOnce(reply);
   else rpc.mockResolvedValueOnce(reply);
-  expect(await visit(owner, '?id=8', premium)).toMatchObject({ overlay: null, missing });
-  expect(rpc).toHaveBeenCalledTimes(calls);
+  expect(await visit(owner, '?id=8')).toMatchObject({ overlay: null, missing: true });
+  expect(rpc).toHaveBeenCalledTimes(1);
 });
 
-test.each([
-  { name: 'a new overlay', query: '', want: { preview: false } },
-  { name: 'the free preview', query: '?preview=1', want: { preview: true } }
-])('$name loads without calling the owner', async ({ query, want }) => {
+test('a new overlay loads without calling the owner', async () => {
   const rpc = spyOn(bus, 'rpc');
-  expect(await visit(owner, query, false)).toEqual({ readOnly: false, overlay: null, missing: false, ...want });
+  expect(await visit(owner, '')).toEqual({ readOnly: false, overlay: null, missing: false });
   expect(rpc).not.toHaveBeenCalled();
 });
 
 test('a delegate gets a read-only page and a signed-out visitor is sent to log in', async () => {
   const rpc = spyOn(bus, 'rpc');
-  const readOnly = await visit(delegate, '?id=8', true);
-  const signedOut = await visit(null, '', true).catch((redirect: { status: number }) => redirect.status);
-  expect([readOnly, signedOut, rpc.mock.calls.length]).toEqual([{ readOnly: true, preview: false, overlay: null, missing: false }, 302, 0]);
+  const readOnly = await visit(delegate, '?id=8');
+  const signedOut = await visit(null, '').catch((redirect: { status: number }) => redirect.status);
+  expect([readOnly, signedOut, rpc.mock.calls.length]).toEqual([{ readOnly: true, overlay: null, missing: false }, 302, 0]);
 });
 
 test('saving a new overlay creates it and returns its id and link', async () => {
@@ -102,7 +97,6 @@ test('saving an existing overlay names it in the request', async () => {
 test.each([
   { code: 'conflict', status: 409 },
   { code: 'invalid', status: 400 },
-  { code: 'forbidden', status: 402 },
   { code: 'internal', status: 503 }
 ])('maps a $code refusal to $status', async ({ code, status }) => {
   spyOn(bus, 'rpc').mockRejectedValueOnce(new bus.RpcError('refused', code as never));

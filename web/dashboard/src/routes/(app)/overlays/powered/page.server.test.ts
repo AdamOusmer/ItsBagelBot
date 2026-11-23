@@ -66,8 +66,8 @@ test.each([
 });
 
 const exitCases: { name: string; session: object | null; reply: object; want: (string | number)[] }[] = [
-  { name: 'no powered overlay yet', session: owner, reply: { overlays: [] }, want: [302, '/overlays'] },
-  { name: 'a delegate', session: delegate, reply: {}, want: [302, '/overlays'] },
+  { name: 'no powered overlay yet', session: owner, reply: { overlays: [] }, want: [302, '/overlays/hub'] },
+  { name: 'a delegate', session: delegate, reply: {}, want: [302, '/overlays/hub'] },
   { name: 'no session', session: null, reply: {}, want: [302, '/login?next=%2Foverlays%2Fpowered'] }
 ];
 

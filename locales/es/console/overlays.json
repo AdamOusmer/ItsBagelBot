@@ -72,6 +72,7 @@
     "importCaption": "Trae la exportación de un overlay."
   },
   "linkHidden": "Los enlaces se muestran una sola vez. Reemplaza el enlace para obtener uno nuevo.",
+  "listEmpty": "Aún no hay overlays. Añade Powered by Bagel para obtener un enlace para OBS.",
   "listFailed": "No se pudieron actualizar tus overlays. Inténtalo de nuevo.",
   "deleteTitle": "¿Eliminar {name}?",
   "deleteBody": "El enlace de su fuente de navegador deja de funcionar al instante.",

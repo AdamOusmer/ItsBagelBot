@@ -11,13 +11,10 @@
   import {
     blankDocument, createOverlay, fromServed, parseSize, resizeCanvas, templateNames, type SaveOutcome
   } from '@bagel/kit/overlay-editor';
-  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import PageNotice from '#lib/components/shared/PageNotice.svelte';
-  import PremiumGate from '#lib/components/shared/PremiumGate.svelte';
-  import { premiumLocked } from '#lib/components/shared/premium-lock';
   import { dashboardMedia } from '#lib/overlay-media';
   import { postSave } from './save-client';
   import type { PageData } from './$types';
@@ -25,8 +22,7 @@
   let { data }: { data: PageData } = $props();
   const { t } = getI18n();
 
-  const PREVIEW_URL = '/overlays/custom?preview=1';
-  const OVERLAYS_URL = '/overlays';
+  const OVERLAYS_URL = '/overlays/hub';
 
   function starterFor(wanted: string | null | undefined): OverlayDocument {
     const template = templateNames.find((name) => name === wanted);
@@ -59,8 +55,7 @@
     });
   });
 
-  const locked = $derived(premiumLocked(data));
-  const media = $derived(locked ? undefined : dashboardMedia());
+  const media = dashboardMedia();
   const discard = createDiscardGuard(() => dirty);
 
   beforeNavigate(({ cancel, to, type }) => {
@@ -72,9 +67,7 @@
   });
 
   function savedUrl(id: number): string {
-    const query = new URLSearchParams({ id: String(id) });
-    if (data.preview) query.set('preview', '1');
-    return `/overlays/custom?${query}`;
+    return `/overlays/custom?${new URLSearchParams({ id: String(id) })}`;
   }
 
   async function save(doc: OverlayDocument): Promise<SaveOutcome> {
@@ -89,24 +82,17 @@
 <svelte:head><title>{t('overlays.customTitle')}</title></svelte:head>
 
 {#snippet notice()}
-  {#if locked}
-    <AlertBanner tone="warm" role="note" cta={{ label: t('billing.premiumGateCta'), href: '/billing?subscribe=1' }}>
-      {t('overlayEditor.page.upsell')}
-    </AlertBanner>
-  {/if}
   <PageNotice tone="warning" visible={data.missing}>{t('overlayEditor.page.notFound')}</PageNotice>
 {/snippet}
 
-{#if locked && !data.preview}
-  <PremiumGate trial={{ label: t('overlayEditor.page.try'), href: PREVIEW_URL }} />
-{:else if data.readOnly}
+{#if data.readOnly}
   <section class="screen active">
     <ButtonLink variant="secondary" href={OVERLAYS_URL}>{t('overlays.customBack')}</ButtonLink>
     <PageNotice tone="info" role="note">{t('overlays.readOnly')}</PageNotice>
   </section>
 {:else}
   {#key seed.id}
-    <OverlayEditor initial={seed} {media} preview={locked} backHref={OVERLAYS_URL} {notice} onsave={save} ondirty={(value) => (dirty = value)} />
+    <OverlayEditor initial={seed} {media} backHref={OVERLAYS_URL} {notice} onsave={save} ondirty={(value) => (dirty = value)} />
   {/key}
   <ConfirmDialog
     open={discard.open}

@@ -122,6 +122,7 @@ export const load: LayoutServerLoad = async ({ locals, url, route, request }) =>
     bell: loadBellPeek(s),
     authorizedDashboards,
     isPremium: isPremiumAccount(acc),
+    isAlpha: acc?.alpha === true,
     onboarded: acc?.onboarded ?? false,
     moduleFlags: flags
   };

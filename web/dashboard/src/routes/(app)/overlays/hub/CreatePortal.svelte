@@ -19,10 +19,9 @@
   type Step = 'start' | 'import';
   type Choice = { key: string; icon: IconName; name: string; caption: string };
 
-  let { open = $bindable(false), step = $bindable<Step>('start'), premium }: {
+  let { open = $bindable(false), step = $bindable<Step>('start') }: {
     open?: boolean;
     step?: Step;
-    premium: boolean;
   } = $props();
 
   const { t } = getI18n();
@@ -42,8 +41,7 @@
   let picked = $state(BLANK);
   let size = $state(sizeKey(DEFAULT_CANVAS));
 
-  const trial = $derived(premium ? '' : '&preview=1');
-  const startUrl = $derived(`${EDITOR}?template=${picked}&size=${size}${trial}`);
+  const startUrl = $derived(`${EDITOR}?template=${picked}&size=${size}`);
   const choices = $derived<Choice[]>([
     {
       key: BLANK,
@@ -123,7 +121,7 @@
               <bb-fit class="back-label"><span data-fit="">{t('overlays.portal.back')}</span></bb-fit>
             </Button>
           </div>
-          <ImportPanel {premium} onimported={(id) => leave(`${EDITOR}?id=${id}`)} />
+          <ImportPanel onimported={(id) => leave(`${EDITOR}?id=${id}`)} />
         </div>
       {/snippet}
     </SwapStack>

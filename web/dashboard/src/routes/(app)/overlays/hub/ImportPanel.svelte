@@ -10,7 +10,7 @@
   import { importArchive } from '#lib/overlay-import';
   import ImportReportView from './ImportReportView.svelte';
 
-  let { premium, onimported }: { premium: boolean; onimported: (id: number) => void } = $props();
+  let { onimported }: { onimported: (id: number) => void } = $props();
 
   const { t } = getI18n();
   let file = $state<File | null>(null);
@@ -43,7 +43,7 @@
 
   function confirm(): Promise<void> {
     const chosen = file;
-    if (!chosen || !premium) return Promise.resolve();
+    if (!chosen) return Promise.resolve();
     return run(async () => {
       const result = await importArchive(chosen, false);
       if (result.overlay_id) onimported(result.overlay_id);
@@ -63,14 +63,14 @@
     <SwapStack class="foot-copy" alternate={!!error} aria-live="polite">
       {#snippet primary()}
         <Text as="div" size="xs" tone="muted">
-          <bb-fit mode="block">{premium ? t('overlayEditor.import.confirmHint') : t('overlayEditor.import.premiumNote')}</bb-fit>
+          <bb-fit mode="block">{t('overlayEditor.import.confirmHint')}</bb-fit>
         </Text>
       {/snippet}
       {#snippet secondary()}
         <Text as="div" size="xs" tone="danger"><bb-fit mode="block">{error}</bb-fit></Text>
       {/snippet}
     </SwapStack>
-    <Button size="sm" {busy} disabled={!premium || !importable} onclick={confirm}>
+    <Button size="sm" {busy} disabled={!importable} onclick={confirm}>
       <bb-fit class="confirm-label"><span data-fit="">{t('overlayEditor.import.confirm')}</span></bb-fit>
     </Button>
   </div>

@@ -11,6 +11,7 @@ import { accountState, delegationAccess, isBanned, type AccountState } from '#li
 import { RpcError } from '@bagel/kit/server/nats';
 import { isSessionRevoked } from '@bagel/kit/server/session-revocation';
 import { assertBetaRouteOpen } from '#lib/server/module-gate';
+import { assertAlphaRouteOpen } from '#lib/server/alpha';
 
 const DEMO = dev && process.env.DEMO === '1';
 
@@ -115,5 +116,6 @@ export async function guardSession(event: RequestEvent, s: Session): Promise<Ses
   }
 
   await assertBetaRouteOpen(event);
+  await assertAlphaRouteOpen(event);
   return s;
 }
