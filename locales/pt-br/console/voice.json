@@ -136,16 +136,13 @@
   },
   "blocks": {
     "title": "Espectadores bloqueados",
-    "hint": "Espectadores bloqueados nunca são lidos em voz alta. Abuso repetido também bloqueia um espectador por um tempo.",
+    "hint": "Espectadores bloqueados nunca são lidos em voz alta.",
     "nameLabel": "Nome do espectador",
     "namePlaceholder": "Usuário da Twitch",
     "add": "Bloquear",
     "unblock": "Desbloquear",
     "empty": "Ninguém está bloqueado.",
     "tagManual": "Manual",
-    "tagAuto": "Auto",
-    "tagGlobal": "Global",
-    "until": "Até {time}",
     "viewerId": "ID {id}",
     "unknown": "Nenhum usuário da Twitch com esse nome.",
     "failed": "Não foi possível atualizar os bloqueados. Tente de novo."

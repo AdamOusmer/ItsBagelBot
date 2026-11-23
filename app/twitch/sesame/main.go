@@ -99,7 +99,6 @@ func main() {
 		stats: loyaltyReporter, duel: duel, emotes: emotes,
 		seq: engine.NewSequencer(), chatters: chatters, runs: runs,
 	})
-	deps.SpeechSafety, deps.SpeechStore = newSpeechSafety(log), valkeyClient
 	defer deps.Eligibility.Close()
 	defer startVoice(w, &deps)()
 	registry := engine.NewRegistry(log, modules.All(deps)...)
@@ -133,14 +132,6 @@ func main() {
 
 	<-ctx.Done()
 	drainInflight(weighted, pipe, cfg.DrainTimeout, log)
-}
-
-func speechLimitEnv(key string) string { return env.Get(key, "") }
-
-func newSpeechSafety(log *zap.Logger) pkgvalkey.SpeechSafety {
-	limits, err := pkgvalkey.ParseSpeechLimits(speechLimitEnv)
-	svcboot.FatalIf(log, err, "invalid TTS safety limits")
-	return pkgvalkey.NewSpeechSafety(limits)
 }
 
 func prepareHotPath(w wireCtx) {

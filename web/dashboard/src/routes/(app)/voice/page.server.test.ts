@@ -61,7 +61,6 @@ const overlayRead: RpcCall = [`${SUB.overlays}.tts.get`, { user_id: '42' }, READ
 const modulesRead: RpcCall = [`${SUB.modules}.list`, { user_id: '42' }, 2000];
 const blocksRead: RpcCall = [`${SUB.overlays}.tts.blocks`, { user_id: '42' }, READ_TIMEOUT_MS];
 const safetyRead: RpcCall = [`${SUB.dashboard}.voice_safety`, actor, READ_TIMEOUT_MS];
-const strike = { viewer_id: '7', scope: 'channel', until: 1_800_000_000_000 };
 const manualBlock = { viewer_id: '5', viewer_login: 'spammer', created_at: 1_764_000_000 };
 
 const lockedSections = { overlay: null, alerts: null, command: null, safety: null };
@@ -69,7 +68,7 @@ const unlockedSections = {
   overlay,
   alerts: { config: { ...ALERT_VOICE_CONFIG_DEFAULTS, cheerTtsStyle: 'calm' }, revision: 9 },
   command: { config: { ...TTS_COMMAND_CONFIG_DEFAULTS }, enabled: false, revision: 0 },
-  safety: { manual: [manualBlock], strikes: [strike], pausedUntil: 0 }
+  safety: { manual: [manualBlock], pausedUntil: 0 }
 };
 const unlockedReads = [overlayRead, modulesRead, blocksRead, safetyRead];
 
@@ -93,7 +92,7 @@ test.each([
   { name: 'view-as', session: viewAs, reply: allowance, readOnly: false }
 ])('loads voice data for $name', async ({ session, reply, readOnly }) => {
   const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce(reply).mockResolvedValueOnce(overlay).mockResolvedValueOnce({ modules: [alertRow] })
-    .mockResolvedValueOnce({ viewers: [manualBlock] }).mockResolvedValueOnce({ paused_until: 0, blocks: [strike] });
+    .mockResolvedValueOnce({ viewers: [manualBlock] }).mockResolvedValueOnce({ paused_until: 0 });
   const expected = expectedVoiceLoad(reply, readOnly);
 
   expect(await load({ locals: { session, locale: 'en' } } as never)).toEqual(expected.data);
@@ -374,7 +373,7 @@ test.each<Record<string, string>>([
   expect(rpc).not.toHaveBeenCalled();
 });
 
-function blockForm(action: 'blockViewer' | 'unblockViewer' | 'unblockStrike', fields: Record<string, string>, session: typeof owner | null) {
+function blockForm(action: 'blockViewer' | 'unblockViewer', fields: Record<string, string>, session: typeof owner | null) {
   return actions[action]({
     request: new Request(`${voiceUrl}?/${action}`, { method: 'POST', body: new URLSearchParams(fields) }),
     locals: { session, locale: 'en' }
@@ -398,15 +397,12 @@ test.each([
   expect(rpc.mock.calls.some(([subject]) => subject === `${SUB.overlays}.tts.block`)).toBe(false);
 });
 
-test.each([
-  { action: 'unblockViewer', subject: `${SUB.overlays}.tts.unblock`, body: { user_id: '42', viewer_id: '5' }, audit: 'voice:unblock' },
-  { action: 'unblockStrike', subject: `${SUB.dashboard}.voice_unblock`, body: { actor_id: '42', broadcaster_user_id: '42', viewer_id: '5' }, audit: 'voice:unblock_strike' }
-] as const)('$action sends the viewer id from the form and audits it', async ({ action, subject, body, audit }) => {
-  const rpc = spyOn(bus, 'rpc').mockResolvedValue({ viewers: [], blocks: [], paused_until: 0 });
+test('unblockViewer sends the viewer id from the form and audits it', async () => {
+  const rpc = spyOn(bus, 'rpc').mockResolvedValue({ viewers: [] });
   audits.length = 0;
-  expect(await blockForm(action, { viewer_id: '5', user_id: '1' }, viewAs)).toEqual({ blocksChanged: true });
-  expect(rpc.mock.calls[0]).toEqual([subject, body, WRITE_TIMEOUT_MS]);
-  expect(audits).toEqual([[viewAs, audit]]);
+  expect(await blockForm('unblockViewer', { viewer_id: '5', user_id: '1' }, viewAs)).toEqual({ blocksChanged: true });
+  expect(rpc.mock.calls[0]).toEqual([`${SUB.overlays}.tts.unblock`, { user_id: '42', viewer_id: '5' }, WRITE_TIMEOUT_MS]);
+  expect(audits).toEqual([[viewAs, 'voice:unblock']]);
 });
 
 test.each([
@@ -420,7 +416,7 @@ test.each([
 
 test('reports a failed block change as unavailable', async () => {
   spyOn(bus, 'rpc').mockRejectedValueOnce(new Error('timeout'));
-  expect(await blockForm('unblockStrike', { viewer_id: '5' }, owner)).toMatchObject({
+  expect(await blockForm('unblockViewer', { viewer_id: '5' }, owner)).toMatchObject({
     status: 503, data: { blockError: 'Could not update blocked viewers. Try again.' }
   });
 });

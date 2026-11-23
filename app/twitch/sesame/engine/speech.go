@@ -16,10 +16,8 @@ import (
 	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/internal/projection"
-	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
-	"github.com/valkey-io/valkey-go"
 )
 
 type SpeechRequest struct {
@@ -36,25 +34,18 @@ type SpeechRequest struct {
 }
 
 type SpeechQueue struct {
-	Voice  AlertVoicePublisher
-	Proj   projection.Reader
-	Safety pkg_valkey.SpeechSafety
-	Store  valkey.Client
+	Voice AlertVoicePublisher
+	Proj  projection.Reader
 }
 
 func (d Deps) Speech() SpeechQueue {
-	return SpeechQueue{Voice: d.AlertVoice, Proj: d.Proj, Safety: d.SpeechSafety, Store: d.SpeechStore}
+	return SpeechQueue{Voice: d.AlertVoice, Proj: d.Proj}
 }
 
 type SpeechSubject struct {
 	BroadcasterID uint64
 	ViewerID      string
 	Source        voiceplan.SpeechSource
-	EventID       string
-}
-
-func (q SpeechQueue) tracks(subject SpeechSubject) bool {
-	return subject.viewer() && q.Store != nil
 }
 
 func (s SpeechSubject) viewer() bool {
@@ -65,64 +56,34 @@ const (
 	speechGateAttr    = "tts.gate"
 	speechBreakerAttr = "tts.breaker"
 	speechGatePass    = "pass"
-
-	speechBlockManual pkg_valkey.SpeechBlockScope = "manual"
+	speechBlockManual = "manual"
 )
 
 func (q SpeechQueue) Screen(ctx context.Context, subject SpeechSubject, in moderation.SpeechInput, policy moderation.SpeechPolicy) (string, bool, error) {
 	txn := newrelic.FromContext(ctx)
-	channelID := strconv.FormatUint(subject.BroadcasterID, 10)
-	scope, err := q.viewerBlockScope(ctx, subject, channelID)
+	blocked, err := q.manuallyBlocked(ctx, subject)
 	if err != nil {
 		return "", false, err
 	}
-	if scope != pkg_valkey.SpeechBlockNone {
-		txn.AddAttribute(speechBreakerAttr, string(scope))
+	if blocked {
+		txn.AddAttribute(speechBreakerAttr, speechBlockManual)
 		return "", false, nil
 	}
 	in.Message = automod.StripLinks(in.Message)
 	verdict := moderation.CheckSpeech(in, policy)
 	txn.AddAttribute(speechGateAttr, cmp.Or(string(verdict.Reason), speechGatePass))
-	if err := q.strike(ctx, subject, channelID, verdict); err != nil {
-		return "", false, err
-	}
 	return verdict.Message, !verdict.Blocked, nil
 }
 
-func (q SpeechQueue) viewerBlockScope(ctx context.Context, subject SpeechSubject, channelID string) (pkg_valkey.SpeechBlockScope, error) {
-	if !subject.viewer() {
-		return pkg_valkey.SpeechBlockNone, nil
-	}
-	manual, err := q.manuallyBlocked(ctx, subject, channelID)
-	if err != nil || manual {
-		return speechBlockManual, err
-	}
-	if !q.tracks(subject) {
-		return pkg_valkey.SpeechBlockNone, nil
-	}
-	block, err := q.Safety.ViewerBlock(ctx, q.Store, channelID, subject.ViewerID)
-	return block.Scope, err
-}
-
-func (q SpeechQueue) manuallyBlocked(ctx context.Context, subject SpeechSubject, channelID string) (bool, error) {
+func (q SpeechQueue) manuallyBlocked(ctx context.Context, subject SpeechSubject) (bool, error) {
 	source, ok := q.Voice.(interface {
 		BlockedViewers(context.Context, string) ([]string, error)
 	})
-	if !ok {
+	if !ok || !subject.viewer() {
 		return false, nil
 	}
-	blocked, err := source.BlockedViewers(ctx, channelID)
+	blocked, err := source.BlockedViewers(ctx, strconv.FormatUint(subject.BroadcasterID, 10))
 	return slices.Contains(blocked, subject.ViewerID), err
-}
-
-func (q SpeechQueue) strike(ctx context.Context, subject SpeechSubject, channelID string, verdict moderation.SpeechVerdict) error {
-	weight := verdict.StrikeWeight()
-	if weight == 0 || !q.tracks(subject) {
-		return nil
-	}
-	return q.Safety.Strike(ctx, q.Store, pkg_valkey.SpeechStrike{
-		ChannelID: channelID, ViewerID: subject.ViewerID, EventID: subject.EventID, Weight: weight,
-	})
 }
 
 func (q SpeechQueue) Available() bool {
@@ -157,7 +118,7 @@ func (q SpeechQueue) Publish(ctx context.Context, r SpeechRequest) error {
 }
 
 func (r SpeechRequest) Subject() SpeechSubject {
-	return SpeechSubject{BroadcasterID: r.BroadcasterID, ViewerID: r.ViewerID, Source: r.Source, EventID: r.jobID()}
+	return SpeechSubject{BroadcasterID: r.BroadcasterID, ViewerID: r.ViewerID, Source: r.Source}
 }
 
 func (r SpeechRequest) jobID() string {

@@ -10,11 +10,8 @@ import (
 	"time"
 
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
-	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/bus"
-	pkgvalkey "ItsBagelBot/pkg/valkey"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,53 +24,6 @@ type fakeSpeech struct {
 func (f *fakeSpeech) Synthesize(context.Context, gossiprpc.Request) gossiprpc.TTSSynthesizeReply {
 	f.calls.Add(1)
 	return f.reply
-}
-
-func refusedReply(class gossiprpc.RefusalClass) gossiprpc.TTSSynthesizeReply {
-	return gossiprpc.TTSSynthesizeReply{Error: "the speech provider refused this request", Reason: "refused", RefusalClass: class}
-}
-
-func viewerJob(source voiceplan.SpeechSource, viewerID, event string) voiceplan.AlertJob {
-	job := alertJob("hello chat")
-	job.Source, job.ViewerID, job.EventID = source, viewerID, event
-	return job
-}
-
-func TestRefusalsStrikeOnlyViewerJobs(t *testing.T) {
-	for _, tc := range []struct {
-		name        string
-		class       gossiprpc.RefusalClass
-		source      voiceplan.SpeechSource
-		viewerID    string
-		wantBlocked bool
-	}{
-		{"policy refusal of a viewer job", gossiprpc.RefusalPolicy, voiceplan.SourceViewer, "viewer", true},
-		{"local floor block of a viewer job", gossiprpc.RefusalLocal, voiceplan.SourceViewer, "viewer", true},
-		{"unspecified refusal blocks in the channel", gossiprpc.RefusalUnspecified, voiceplan.SourceViewer, "viewer", true},
-		{"invalid outcome never strikes", gossiprpc.RefusalInvalid, voiceplan.SourceViewer, "viewer", false},
-		{"channel job never strikes", gossiprpc.RefusalPolicy, voiceplan.SourceChannel, "viewer", false},
-		{"old job without source never strikes", gossiprpc.RefusalPolicy, "", "", false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			r := newRig(t, audioUpstream)
-			speech := &fakeSpeech{reply: refusedReply(tc.class)}
-			r.handler.Speech = speech
-			viewer := tc.viewerID
-			if viewer != "" {
-				viewer += uuid.NewString()
-			}
-			for i := range 5 {
-				job := viewerJob(tc.source, viewer, uuid.NewString()[:8]+string(rune('a'+i)))
-				assert.ErrorIs(t, r.handler.Handle(context.Background(), message(t, job)), bus.ErrDropJob)
-			}
-			block, err := r.handler.Safety.ViewerBlock(context.Background(), r.handler.Store, userID, viewer)
-			require.NoError(t, err)
-			assert.Equal(t, tc.wantBlocked, block.Scope != pkgvalkey.SpeechBlockNone)
-			if tc.wantBlocked {
-				assert.Less(t, speech.calls.Load(), int32(5))
-			}
-		})
-	}
 }
 
 func TestPausedChannelDropsJobBeforeSynthesis(t *testing.T) {

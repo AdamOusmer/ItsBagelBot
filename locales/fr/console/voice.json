@@ -136,16 +136,13 @@
   },
   "blocks": {
     "title": "Spectateurs bloqués",
-    "hint": "Les spectateurs bloqués ne sont jamais lus à voix haute. Les abus répétés bloquent aussi un spectateur pendant un moment.",
+    "hint": "Les spectateurs bloqués ne sont jamais lus à voix haute.",
     "nameLabel": "Nom du spectateur",
     "namePlaceholder": "Pseudo Twitch",
     "add": "Bloquer",
     "unblock": "Débloquer",
     "empty": "Personne n'est bloqué.",
     "tagManual": "Manuel",
-    "tagAuto": "Auto",
-    "tagGlobal": "Global",
-    "until": "Jusqu'à {time}",
     "viewerId": "ID {id}",
     "unknown": "Aucun utilisateur Twitch avec ce nom.",
     "failed": "Impossible de mettre à jour les spectateurs bloqués. Réessayez."

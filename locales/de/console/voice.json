@@ -136,16 +136,13 @@
   },
   "blocks": {
     "title": "Gesperrte Zuschauer",
-    "hint": "Gesperrte Zuschauer werden nie vorgelesen. Wiederholter Missbrauch sperrt einen Zuschauer auch für eine Weile.",
+    "hint": "Gesperrte Zuschauer werden nie vorgelesen.",
     "nameLabel": "Zuschauername",
     "namePlaceholder": "Twitch-Name",
     "add": "Sperren",
     "unblock": "Entsperren",
     "empty": "Niemand ist gesperrt.",
     "tagManual": "Manuell",
-    "tagAuto": "Auto",
-    "tagGlobal": "Global",
-    "until": "Bis {time}",
     "viewerId": "ID {id}",
     "unknown": "Kein Twitch-Nutzer mit diesem Namen.",
     "failed": "Gesperrte Zuschauer konnten nicht aktualisiert werden. Versuche es erneut."

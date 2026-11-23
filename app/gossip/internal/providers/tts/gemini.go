@@ -35,8 +35,8 @@ type geminiSafety struct {
 }
 
 var geminiSafetySettings = []geminiSafety{
-	{"hate_speech", "block_medium_and_above"},
-	{"sexually_explicit", "block_medium_and_above"},
+	{"hate_speech", "block_only_high"},
+	{"sexually_explicit", "block_only_high"},
 	{"harassment", "block_only_high"},
 	{"dangerous_content", "block_only_high"},
 }

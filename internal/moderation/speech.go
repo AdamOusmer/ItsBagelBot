@@ -42,11 +42,10 @@ type SpeechPolicy struct {
 }
 
 type SpeechVerdict struct {
-	Message  string
-	Blocked  bool
-	Field    SpeechField
-	Reason   SpeechReason
-	MaskOnly bool
+	Message string
+	Blocked bool
+	Field   SpeechField
+	Reason  SpeechReason
 }
 
 func (r SpeechReason) Floor() bool {
@@ -57,15 +56,6 @@ func (r SpeechReason) Floor() bool {
 	return false
 }
 
-func (v SpeechVerdict) StrikeWeight() int64 {
-	if v.countsAsStrike() && v.Reason.Floor() {
-		return 1
-	}
-	return 0
-}
-
-func (v SpeechVerdict) countsAsStrike() bool { return v.Blocked && !v.MaskOnly }
-
 func CheckSpeech(in SpeechInput, policy SpeechPolicy) SpeechVerdict {
 	message := stripAddresses(in.Message)
 	subjects := [2]speechSubject{
@@ -73,25 +63,25 @@ func CheckSpeech(in SpeechInput, policy SpeechPolicy) SpeechVerdict {
 		newSpeechSubject(SpeechFieldMessage, message),
 	}
 	verdict := SpeechVerdict{Message: message}
-	if field, hit := firstFloorHit(subjects); hit.reason != SpeechPass {
-		return verdict.blockedBy(field, hit)
+	if field, reason := firstFloorHit(subjects); reason != SpeechPass {
+		return verdict.blockedBy(field, reason)
 	}
 	if hasPersonalData(message) {
-		return verdict.blockedBy(SpeechFieldMessage, speechHit{reason: SpeechPII})
+		return verdict.blockedBy(SpeechFieldMessage, SpeechPII)
 	}
 	if field, reason := firstChannelReason(subjects, policy); reason != SpeechPass {
-		return verdict.blockedBy(field, speechHit{reason: reason})
+		return verdict.blockedBy(field, reason)
 	}
 	return verdict
 }
 
-func firstFloorHit(subjects [2]speechSubject) (SpeechField, speechHit) {
+func firstFloorHit(subjects [2]speechSubject) (SpeechField, SpeechReason) {
 	for _, s := range subjects {
-		if hit := s.floor(); hit.reason != SpeechPass {
-			return s.field, hit
+		if reason := s.floor(); reason != SpeechPass {
+			return s.field, reason
 		}
 	}
-	return SpeechFieldNone, speechHit{}
+	return SpeechFieldNone, SpeechPass
 }
 
 func firstChannelReason(subjects [2]speechSubject, policy SpeechPolicy) (SpeechField, SpeechReason) {
@@ -104,8 +94,8 @@ func firstChannelReason(subjects [2]speechSubject, policy SpeechPolicy) (SpeechF
 }
 
 func CheckSpeechFloor(text string) (SpeechReason, bool) {
-	hit := newSpeechSubject(SpeechFieldMessage, text).floor()
-	return hit.reason, hit.reason != SpeechPass
+	reason := newSpeechSubject(SpeechFieldMessage, text).floor()
+	return reason, reason != SpeechPass
 }
 
 func ContainsAnyTerm(skel []byte, terms [][]byte) bool {
@@ -117,10 +107,9 @@ func ContainsAnyTerm(skel []byte, terms [][]byte) bool {
 	return false
 }
 
-func (v SpeechVerdict) blockedBy(field SpeechField, hit speechHit) SpeechVerdict {
+func (v SpeechVerdict) blockedBy(field SpeechField, reason SpeechReason) SpeechVerdict {
 	v.Blocked = true
 	v.Field = field
-	v.Reason = hit.reason
-	v.MaskOnly = hit.maskOnly
+	v.Reason = reason
 	return v
 }

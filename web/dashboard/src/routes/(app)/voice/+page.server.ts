@@ -14,7 +14,7 @@ import { hasOwnerAccess } from '#lib/server/owner';
 import { auditDashboardImpersonation } from '#lib/server/services/audit';
 import {
   voiceBlock, voiceBlocksGet, voiceGet, voiceOverlayGet, voiceOverlayRotate, voiceSafetyGet, voiceSet,
-  voiceStrikeUnblock, voiceTestAlert, voiceUnblock
+  voiceTestAlert, voiceUnblock
 } from '#lib/server/services/voice';
 import { resolveCurrentViewer } from '#lib/server/viewer-lookup';
 import { TTS_COMMAND } from '@bagel/kit/voice-plan';
@@ -108,7 +108,7 @@ async function readSafety(session: Session) {
     bestEffort(voiceSafetyGet(session), null)
   ]);
   if (!manual || !safety) return null;
-  return { manual, strikes: safety.blocks, pausedUntil: safety.paused_until };
+  return { manual, pausedUntil: safety.paused_until };
 }
 
 const viewerLogin = (fields: FormData) => String(fields.get('viewer') ?? '').trim().replace(/^@/, '').toLowerCase();
@@ -175,8 +175,7 @@ const demoActions = {
     }
     return { blocksChanged: true };
   },
-  unblockViewer: demoUnblock,
-  unblockStrike: demoUnblock
+  unblockViewer: demoUnblock
 } satisfies Actions;
 
 const demoLoad = (async ({ url }) => {
@@ -273,8 +272,7 @@ const liveActions = {
     const login = viewerLogin(await request.formData());
     return runBlockAction(locals, 'voice:block', async (session) => (login ? blockByName(session, login) : 'voice.blocks.unknown'));
   },
-  unblockViewer: ({ locals, request }) => unblockByForm(locals, request, 'voice:unblock', voiceUnblock),
-  unblockStrike: ({ locals, request }) => unblockByForm(locals, request, 'voice:unblock_strike', voiceStrikeUnblock)
+  unblockViewer: ({ locals, request }) => unblockByForm(locals, request, 'voice:unblock', voiceUnblock)
 } satisfies Actions;
 
 export const actions = DEMO ? demoActions : liveActions;

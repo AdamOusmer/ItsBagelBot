@@ -243,7 +243,7 @@
             <VoiceChatCommandCard values={commandValues} status={commandSave.status} onChange={changeCommand} />
           {/if}
           {#if safety}
-            <VoiceBlocksCard manual={safety.manual} strikes={safety.strikes} error={form?.blockError} />
+            <VoiceBlocksCard manual={safety.manual} error={form?.blockError} />
           {/if}
           <VoiceChannelPointsCard />
         {:else}

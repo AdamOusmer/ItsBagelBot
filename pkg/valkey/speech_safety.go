@@ -17,50 +17,17 @@ import (
 const speechSafetyPrefix = "tts:safety:"
 
 type SpeechLimits struct {
-	ViewerChannelStrikes int64
-	ViewerChannelWindow  time.Duration
-	ViewerChannelBlock   time.Duration
-	ViewerGlobalStrikes  int64
-	ViewerGlobalWindow   time.Duration
-	ViewerGlobalBlock    time.Duration
-	ChannelRefusals      int64
-	ChannelWindow        time.Duration
-	ChannelPause         time.Duration
-	GlobalRefusals       int64
-	GlobalWindow         time.Duration
-	GlobalCooldown       time.Duration
+	ChannelRefusals int64
+	ChannelWindow   time.Duration
+	ChannelPause    time.Duration
+	GlobalRefusals  int64
+	GlobalWindow    time.Duration
+	GlobalCooldown  time.Duration
 }
 
 type SpeechSafety struct {
 	Limits SpeechLimits
 	prefix string
-}
-
-type SpeechStrike struct {
-	ChannelID   string
-	ViewerID    string
-	EventID     string
-	Weight      int64
-	ChannelOnly bool
-}
-
-type SpeechBlockScope string
-
-const (
-	SpeechBlockNone    SpeechBlockScope = ""
-	SpeechBlockChannel SpeechBlockScope = "channel"
-	SpeechBlockGlobal  SpeechBlockScope = "global"
-)
-
-type SpeechBlock struct {
-	Scope SpeechBlockScope
-	Until time.Time
-}
-
-type SpeechViewerBlock struct {
-	ViewerID string
-	Scope    SpeechBlockScope
-	Until    time.Time
 }
 
 type SpeechGate string
@@ -77,24 +44,6 @@ func NewSpeechSafety(limits SpeechLimits) SpeechSafety {
 }
 
 const speechProbeEvery = 10
-
-var speechStrikeScript = NewScript(`
-local now = tonumber(ARGV[1])
-local weight = tonumber(ARGV[2])
-local function bump(counter, block, threshold, window, span)
-  if threshold <= 0 then return end
-  local total = redis.call('INCRBY', counter, weight)
-  if redis.call('PTTL', counter) < 0 then redis.call('PEXPIRE', counter, window) end
-  if total >= threshold then
-    redis.call('DEL', counter)
-    redis.call('SET', block, string.format('%d', now + span), 'PX', span)
-    redis.call('ZADD', KEYS[5], now + span, ARGV[9])
-    if redis.call('PTTL', KEYS[5]) < span then redis.call('PEXPIRE', KEYS[5], span) end
-  end
-end
-bump(KEYS[1], KEYS[3], tonumber(ARGV[3]), tonumber(ARGV[4]), tonumber(ARGV[5]))
-bump(KEYS[2], KEYS[4], tonumber(ARGV[6]), tonumber(ARGV[7]), tonumber(ARGV[8]))
-return 1`)
 
 var speechRefusalScript = NewScript(`
 local now = tonumber(ARGV[1])
@@ -137,12 +86,6 @@ type speechLimitGroup struct {
 
 func speechLimitFields(l *SpeechLimits) []speechLimitField {
 	return []speechLimitField{
-		{env: "TTS_SAFETY_VIEWER_CHANNEL_STRIKES", count: &l.ViewerChannelStrikes},
-		{env: "TTS_SAFETY_VIEWER_CHANNEL_WINDOW", span: &l.ViewerChannelWindow},
-		{env: "TTS_SAFETY_VIEWER_CHANNEL_BLOCK", span: &l.ViewerChannelBlock},
-		{env: "TTS_SAFETY_VIEWER_GLOBAL_STRIKES", count: &l.ViewerGlobalStrikes},
-		{env: "TTS_SAFETY_VIEWER_GLOBAL_WINDOW", span: &l.ViewerGlobalWindow},
-		{env: "TTS_SAFETY_VIEWER_GLOBAL_BLOCK", span: &l.ViewerGlobalBlock},
 		{env: "TTS_SAFETY_CHANNEL_REFUSALS", count: &l.ChannelRefusals},
 		{env: "TTS_SAFETY_CHANNEL_WINDOW", span: &l.ChannelWindow},
 		{env: "TTS_SAFETY_CHANNEL_PAUSE", span: &l.ChannelPause},
@@ -154,8 +97,6 @@ func speechLimitFields(l *SpeechLimits) []speechLimitField {
 
 func speechLimitGroups(l *SpeechLimits) []speechLimitGroup {
 	return []speechLimitGroup{
-		{&l.ViewerChannelStrikes, []*time.Duration{&l.ViewerChannelWindow, &l.ViewerChannelBlock}},
-		{&l.ViewerGlobalStrikes, []*time.Duration{&l.ViewerGlobalWindow, &l.ViewerGlobalBlock}},
 		{&l.ChannelRefusals, []*time.Duration{&l.ChannelWindow, &l.ChannelPause}},
 		{&l.GlobalRefusals, []*time.Duration{&l.GlobalWindow, &l.GlobalCooldown}},
 	}
@@ -251,40 +192,6 @@ func (s SpeechSafety) markerTTL(windows ...time.Duration) time.Duration {
 	return longest
 }
 
-func (l SpeechLimits) strikesEnabled() bool {
-	return l.ViewerChannelStrikes > 0 || l.ViewerGlobalStrikes > 0
-}
-
-func (s SpeechSafety) Strike(ctx context.Context, client valkey_go.Client, strike SpeechStrike) error {
-	l := s.Limits
-	if strike.Weight <= 0 || !l.strikesEnabled() {
-		return nil
-	}
-	marker := FreshMemberSet{Key: s.key("strike", "seen", strike.ChannelID, strike.EventID)}
-	fresh, err := marker.Add(ctx, client, "1", s.markerTTL(l.ViewerChannelWindow, l.ViewerGlobalWindow))
-	if err != nil || !fresh {
-		return err
-	}
-	globalStrikes := l.ViewerGlobalStrikes
-	if strike.ChannelOnly {
-		globalStrikes = 0
-	}
-	keys := []string{
-		s.key("strikes", "channel", strike.ChannelID, strike.ViewerID),
-		s.key("strikes", "global", strike.ViewerID),
-		s.key("block", "channel", strike.ChannelID, strike.ViewerID),
-		s.key("block", "global", strike.ViewerID),
-		s.key("index", strike.ChannelID),
-	}
-	args := []string{
-		speechNow(), speechCount(strike.Weight),
-		speechCount(l.ViewerChannelStrikes), speechMillis(l.ViewerChannelWindow), speechMillis(l.ViewerChannelBlock),
-		speechCount(globalStrikes), speechMillis(l.ViewerGlobalWindow), speechMillis(l.ViewerGlobalBlock),
-		strike.ViewerID,
-	}
-	return speechStrikeScript.Exec(ctx, client, keys, args).Error()
-}
-
 func speechDeadline(ctx context.Context, client valkey_go.Client, key string) (time.Time, error) {
 	raw, err := client.Do(ctx, client.B().Get().Key(key).Build()).ToString()
 	if valkey_go.IsValkeyNil(err) {
@@ -298,60 +205,6 @@ func speechDeadline(ctx context.Context, client valkey_go.Client, key string) (t
 		return time.Time{}, err
 	}
 	return time.UnixMilli(millis), nil
-}
-
-func (s SpeechSafety) ViewerBlock(ctx context.Context, client valkey_go.Client, channelID, viewerID string) (SpeechBlock, error) {
-	scopes := []struct {
-		scope SpeechBlockScope
-		key   string
-	}{
-		{SpeechBlockGlobal, s.key("block", "global", viewerID)},
-		{SpeechBlockChannel, s.key("block", "channel", channelID, viewerID)},
-	}
-	for _, candidate := range scopes {
-		until, err := speechDeadline(ctx, client, candidate.key)
-		if err != nil {
-			return SpeechBlock{}, err
-		}
-		if !until.IsZero() {
-			return SpeechBlock{Scope: candidate.scope, Until: until}, nil
-		}
-	}
-	return SpeechBlock{}, nil
-}
-
-func (s SpeechSafety) ClearViewer(ctx context.Context, client valkey_go.Client, channelID, viewerID string) error {
-	del := client.B().Del().
-		Key(s.key("block", "channel", channelID, viewerID)).
-		Key(s.key("strikes", "channel", channelID, viewerID)).
-		Build()
-	if err := client.Do(ctx, del).Error(); err != nil {
-		return err
-	}
-	return client.Do(ctx, client.B().Zrem().Key(s.key("index", channelID)).Member(viewerID).Build()).Error()
-}
-
-func (s SpeechSafety) ChannelBlocks(ctx context.Context, client valkey_go.Client, channelID string) ([]SpeechViewerBlock, error) {
-	index := s.key("index", channelID)
-	expired := client.B().Zremrangebyscore().Key(index).Min("-inf").Max(speechNow()).Build()
-	if err := client.Do(ctx, expired).Error(); err != nil {
-		return nil, err
-	}
-	viewers, err := client.Do(ctx, client.B().Zrange().Key(index).Min("0").Max("-1").Build()).AsStrSlice()
-	if err != nil {
-		return nil, err
-	}
-	blocks := make([]SpeechViewerBlock, 0, len(viewers))
-	for _, viewerID := range viewers {
-		block, err := s.ViewerBlock(ctx, client, channelID, viewerID)
-		if err != nil {
-			return nil, err
-		}
-		if block.Scope != SpeechBlockNone {
-			blocks = append(blocks, SpeechViewerBlock{ViewerID: viewerID, Scope: block.Scope, Until: block.Until})
-		}
-	}
-	return blocks, nil
 }
 
 func (s SpeechSafety) Refusal(ctx context.Context, client valkey_go.Client, channelID, eventID string) error {

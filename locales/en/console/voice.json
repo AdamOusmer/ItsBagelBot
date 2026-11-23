@@ -136,16 +136,13 @@
   },
   "blocks": {
     "title": "Blocked viewers",
-    "hint": "Blocked viewers are never read aloud. Repeated abuse also blocks a viewer for a while.",
+    "hint": "Blocked viewers are never read aloud.",
     "nameLabel": "Viewer name",
     "namePlaceholder": "Twitch username",
     "add": "Block",
     "unblock": "Unblock",
     "empty": "No one is blocked.",
     "tagManual": "Manual",
-    "tagAuto": "Automatic",
-    "tagGlobal": "Global",
-    "until": "Until {time}",
     "viewerId": "ID {id}",
     "unknown": "No Twitch user with that name.",
     "failed": "Could not update blocked viewers. Try again."

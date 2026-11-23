@@ -93,8 +93,6 @@ func newRig(t *testing.T, upstream http.HandlerFunc) rig {
 
 func testLimits() pkgvalkey.SpeechLimits {
 	return pkgvalkey.SpeechLimits{
-		ViewerChannelStrikes: 2, ViewerChannelWindow: time.Minute, ViewerChannelBlock: time.Minute,
-		ViewerGlobalStrikes: 1000, ViewerGlobalWindow: time.Minute, ViewerGlobalBlock: time.Minute,
 		ChannelRefusals: 100000, ChannelWindow: time.Minute, ChannelPause: time.Minute,
 		GlobalRefusals: 100000, GlobalWindow: time.Minute, GlobalCooldown: time.Minute,
 	}

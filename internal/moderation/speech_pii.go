@@ -12,7 +12,7 @@ import (
 
 var (
 	emailPattern = regexp.MustCompile(`[a-z0-9._%+\-]+@[a-z0-9\-]+(?:\.[a-z0-9\-]+)*\.[a-z]{2,}`)
-	phonePattern = regexp.MustCompile(`\+\d(?:[\s.()\-]*\d){7,}|\d{10,}|\(\d{3}\)\s?\d{3}[\s.\-]\d{4}|\b\d{3}[\s.\-]\d{3}[\s.\-]\d{4}\b`)
+	phonePattern = regexp.MustCompile(`\+\d(?:[\s.()\-]*\d){7,}|\(\d{3}\)\s?\d{3}[\s.\-]\d{4}|\b\d{3}[\s.\-]\d{3}[\s.\-]\d{4}\b`)
 	cardPattern  = regexp.MustCompile(`\b\d{4}[ \-]\d{4}[ \-]\d{4}[ \-]\d{1,7}\b|\b\d{4}[ \-]\d{6}[ \-]\d{5}\b`)
 	ipv4Pattern  = regexp.MustCompile(`\b(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\b`)
 	ipv6Pattern  = regexp.MustCompile(`(?i)\b(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}\b|\b(?:[0-9a-f]{1,4}:){1,6}:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,5}\b`)

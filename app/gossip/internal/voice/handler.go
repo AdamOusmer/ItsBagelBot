@@ -42,7 +42,6 @@ const (
 	jobInvalid jobDropReason = "invalid"
 	jobExpired jobDropReason = "expired"
 	jobPaused  jobDropReason = "paused"
-	jobBlocked jobDropReason = "blocked"
 	jobEmpty   jobDropReason = "empty"
 )
 
@@ -93,21 +92,7 @@ func (h Handler) admit(ctx context.Context, job voiceplan.AlertJob) error {
 	if gate != valkey.SpeechGateOpen {
 		return h.dropGated(ctx, job, jobPaused, string(gate))
 	}
-	if !viewerJob(job) {
-		return nil
-	}
-	block, err := h.Safety.ViewerBlock(ctx, h.Store, job.BroadcasterID, job.ViewerID)
-	if err != nil {
-		return err
-	}
-	if block.Scope != valkey.SpeechBlockNone {
-		return h.dropGated(ctx, job, jobBlocked, string(block.Scope))
-	}
 	return nil
-}
-
-func viewerJob(job voiceplan.AlertJob) bool {
-	return job.Source == voiceplan.SourceViewer && job.ViewerID != ""
 }
 
 func (h Handler) dropGated(ctx context.Context, job voiceplan.AlertJob, reason jobDropReason, breaker string) error {
@@ -155,30 +140,10 @@ func (h Handler) findOrSynthesize(ctx context.Context, job voiceplan.AlertJob, d
 
 func (h Handler) recordRefusal(ctx context.Context, job voiceplan.AlertJob, reply gossiprpc.TTSSynthesizeReply) error {
 	newrelic.FromContext(ctx).AddAttribute("tts.gate", cmp.Or(reply.Gate, "pass"))
-	if reply.RefusalClass.CountsTowardBreaker() {
-		if err := h.Safety.Refusal(ctx, h.Store, job.BroadcasterID, job.EventID); err != nil {
-			return err
-		}
-	}
-	strike, ok := viewerStrike(job, reply.RefusalClass)
-	if !ok {
+	if !reply.RefusalClass.CountsTowardBreaker() {
 		return nil
 	}
-	return h.Safety.Strike(ctx, h.Store, strike)
-}
-
-func viewerStrike(job voiceplan.AlertJob, class gossiprpc.RefusalClass) (valkey.SpeechStrike, bool) {
-	if !viewerJob(job) {
-		return valkey.SpeechStrike{}, false
-	}
-	weight, channelOnly := class.Strike()
-	if class == gossiprpc.RefusalLocal {
-		weight, channelOnly = 1, false
-	}
-	strike := valkey.SpeechStrike{
-		ChannelID: job.BroadcasterID, ViewerID: job.ViewerID, EventID: job.EventID, Weight: weight, ChannelOnly: channelOnly,
-	}
-	return strike, weight > 0
+	return h.Safety.Refusal(ctx, h.Store, job.BroadcasterID, job.EventID)
 }
 
 func (h Handler) synthesisError(ctx context.Context, job voiceplan.AlertJob, reply gossiprpc.TTSSynthesizeReply, delivered uint64) error {

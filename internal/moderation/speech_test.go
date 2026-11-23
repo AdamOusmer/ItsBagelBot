@@ -14,10 +14,6 @@ func blockedVerdict(reason SpeechReason, field SpeechField) SpeechVerdict {
 	return SpeechVerdict{Blocked: true, Reason: reason, Field: field}
 }
 
-func maskedVerdict(reason SpeechReason) SpeechVerdict {
-	return SpeechVerdict{Blocked: true, Reason: reason, Field: SpeechFieldMessage, MaskOnly: true}
-}
-
 func messageOnly(text string) SpeechInput { return SpeechInput{Message: text} }
 
 func terms(words ...string) [][]byte {
@@ -45,19 +41,17 @@ func TestCheckSpeech(t *testing.T) {
 		{"leet fold", messageOnly("n1gger"), SpeechPolicy{}, hate},
 		{"cyrillic lookalike", messageOnly("nіgger"), SpeechPolicy{}, hate},
 		{"fullwidth letters", messageOnly("ｎｉｇｇｅｒ"), SpeechPolicy{}, hate},
-		{"dotted letters", messageOnly("f.a.g.g.o.t"), SpeechPolicy{}, hate},
-		{"slashed letters", messageOnly("n/i/g/g/e/r"), SpeechPolicy{}, hate},
+		{"dotted letters pass", messageOnly("f.a.g.g.o.t"), SpeechPolicy{}, SpeechVerdict{}},
+		{"dotted acronym usa", messageOnly("u.s.a"), SpeechPolicy{}, SpeechVerdict{}},
+		{"dotted acronym faq", messageOnly("f.a.q"), SpeechPolicy{}, SpeechVerdict{}},
+		{"spaced letters", messageOnly("a b c d e"), SpeechPolicy{}, SpeechVerdict{}},
+		{"spaced slur letters pass", messageOnly("n i g g a"), SpeechPolicy{}, SpeechVerdict{}},
+		{"split slur pass", messageOnly("nig ger"), SpeechPolicy{}, SpeechVerdict{}},
 		{"repeated letters", messageOnly("nigggger"), SpeechPolicy{}, hate},
-		{"phonetic trailing z", messageOnly("niggaz"), SpeechPolicy{}, hate},
-		{"phonetic ph", messageOnly("phaggot"), SpeechPolicy{}, hate},
-		{"phonetic is hate only", messageOnly("suq my dick"), SpeechPolicy{}, SpeechVerdict{}},
-		{"joined chunks", messageOnly("nig ger"), SpeechPolicy{}, hate},
-		{"single letter run", messageOnly("n i g g a"), SpeechPolicy{}, hate},
-		{"run of two stays apart", messageOnly("n i"), SpeechPolicy{}, SpeechVerdict{}},
-		{"long words do not fuse", messageOnly("brag headline"), SpeechPolicy{}, SpeechVerdict{}},
-		{"mask with two letters", messageOnly("f*ggot"), SpeechPolicy{}, maskedVerdict(SpeechFloorHate)},
-		{"mask run", messageOnly("n****r"), SpeechPolicy{}, maskedVerdict(SpeechFloorHate)},
-		{"mask with one letter", messageOnly("s***"), SpeechPolicy{}, SpeechVerdict{}},
+		{"masked slur passes", messageOnly("n****r"), SpeechPolicy{}, SpeechVerdict{}},
+		{"masked swear passes", messageOnly("f*ck"), SpeechPolicy{}, SpeechVerdict{}},
+		{"masked word passes", messageOnly("s***"), SpeechPolicy{}, SpeechVerdict{}},
+		{"masked two letters passes", messageOnly("f*ggot"), SpeechPolicy{}, SpeechVerdict{}},
 		{"fr hate", messageOnly("bougnoule"), SpeechPolicy{}, hate},
 		{"de hate", messageOnly("kanake"), SpeechPolicy{}, hate},
 		{"es hate", messageOnly("sudaca"), SpeechPolicy{}, hate},
@@ -75,7 +69,9 @@ func TestCheckSpeech(t *testing.T) {
 		{"ru sexual", messageOnly("соси мой хуй"), SpeechPolicy{}, sexual},
 		{"email", messageOnly("mail me at foo@bar.com"), SpeechPolicy{}, pii},
 		{"phone with plus", messageOnly("call +1 555 123 4567"), SpeechPolicy{}, pii},
-		{"phone digit run", messageOnly("my number is 5551234567"), SpeechPolicy{}, pii},
+		{"digit run passes", messageOnly("1234567890"), SpeechPolicy{}, SpeechVerdict{}},
+		{"order id passes", messageOnly("order 20261122123456 shipped"), SpeechPolicy{}, SpeechVerdict{}},
+		{"phone plus eight digits", messageOnly("+44 20 7946 0958"), SpeechPolicy{}, pii},
 		{"phone parenthesised", messageOnly("(555) 123-4567"), SpeechPolicy{}, pii},
 		{"phone dashed", messageOnly("555-123-4567"), SpeechPolicy{}, pii},
 		{"card passing luhn", messageOnly("4111 1111 1111 1111"), SpeechPolicy{}, pii},
@@ -122,26 +118,6 @@ func TestCheckSpeechFloor(t *testing.T) {
 		reason, blocked := CheckSpeechFloor(tt.text)
 		assert.Equal(t, tt.reason, reason, tt.text)
 		assert.Equal(t, tt.reason != SpeechPass, blocked, tt.text)
-	}
-}
-
-func TestSpeechStrikeWeight(t *testing.T) {
-	cases := []struct {
-		name string
-		text string
-		want int64
-	}{
-		{"floor hit", "nigger", 1},
-		{"mask only", "n****r", 0},
-		{"personal data", "foo@bar.com", 0},
-		{"channel tier", "what the fuck", 0},
-		{"clean", "hello", 0},
-	}
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
-			verdict := CheckSpeech(messageOnly(tt.text), SpeechPolicy{Profanity: true})
-			assert.Equal(t, tt.want, verdict.StrikeWeight())
-		})
 	}
 }
 

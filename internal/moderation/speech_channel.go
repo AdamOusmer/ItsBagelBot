@@ -17,10 +17,10 @@ func channelSections(p SpeechPolicy) [3]channelSection {
 	}
 }
 
-func (l *Lexicon) hitsAny(cat Category, variants []foldedText) bool {
+func (l *Lexicon) hitsAny(cat Category, variants [][]byte) bool {
 	m := l.cats[cat]
 	for _, v := range variants {
-		if m.hit(v.padded) {
+		if m.hit(v) {
 			return true
 		}
 	}

@@ -68,15 +68,8 @@ export type BlockedViewer = {
   created_at: number;
 };
 
-export type StrikeBlock = {
-  viewer_id: string;
-  scope: 'channel' | 'global';
-  until: number;
-};
-
 export type VoiceSafety = {
   paused_until: number;
-  blocks: StrikeBlock[];
 };
 
 const blockedViewers = (reply: { viewers: BlockedViewer[] }) => reply.viewers;
@@ -102,12 +95,6 @@ export const voiceUnblock = defineWrite({
 export const voiceSafetyGet = defineRead({
   subject: `${SUB.dashboard}.voice_safety`,
   request: voiceActor,
-  map: (reply: VoiceSafety) => reply
-});
-
-export const voiceStrikeUnblock = defineWrite({
-  subject: `${SUB.dashboard}.voice_unblock`,
-  request: (session: Session, viewerId: string) => ({ ...voiceActor(session), viewer_id: viewerId }),
   map: (reply: VoiceSafety) => reply
 });
 

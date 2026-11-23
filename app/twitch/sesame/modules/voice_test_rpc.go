@@ -116,7 +116,7 @@ func (h *voiceTestRPC) publish(ctx context.Context, id uint64, settings testSpee
 	rand.Read(seed[:])
 	jobID := hex.EncodeToString(seed[:])
 	in := alertSpeechInput{speaker: settings.speaker, message: i18n.T(c.Locale, "alerts.voice.test")}
-	subject := engine.SpeechSubject{BroadcasterID: id, Source: voiceplan.SourceChannel, EventID: jobID}
+	subject := engine.SpeechSubject{BroadcasterID: id, Source: voiceplan.SourceChannel}
 	message, allowed, err := h.deps.Speech().Screen(ctx, subject, moderation.SpeechInput{Name: voiceplan.PlainText(in.speaker), Message: in.message}, moderation.SpeechPolicy{})
 	if err != nil || !allowed {
 		return false, err

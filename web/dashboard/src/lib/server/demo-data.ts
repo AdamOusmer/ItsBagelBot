@@ -21,7 +21,7 @@ import { DEFAULT_LOCALE } from '@bagel/kit/i18n';
 import type { Session } from './session';
 import type { AccountState, BillingState, DeviceGrantView, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';
-import type { BlockedViewer, StrikeBlock, TtsOverlayView, VoiceAllowance, VoiceSettings } from './services/voice';
+import type { BlockedViewer, TtsOverlayView, VoiceAllowance, VoiceSettings } from './services/voice';
 import type { OverlayView, PoweredSettings } from './services/overlays';
 import type { GoveeDevice, GoveeView } from './govee-store';
 import type { FetchDefView, FetchKeyView } from './fetches-store';
@@ -674,18 +674,8 @@ const demoVoiceState = {
   blocked: [{ viewer_id: '9001', viewer_login: 'spamlord', created_at: 1_764_000_000 }] as BlockedViewer[]
 };
 
-const DEMO_STRIKE_BLOCK_MS = 3_600_000;
-
 function demoVoiceSafety() {
-  const now = Date.now();
-  return {
-    manual: demoVoiceState.blocked,
-    strikes: [
-      { viewer_id: '9002', scope: 'channel', until: now + DEMO_STRIKE_BLOCK_MS },
-      { viewer_id: '9003', scope: 'global', until: now + 2 * DEMO_STRIKE_BLOCK_MS }
-    ] satisfies StrikeBlock[],
-    pausedUntil: 0
-  };
+  return { manual: demoVoiceState.blocked, pausedUntil: 0 };
 }
 
 export function demoVoiceBlock({ login }: { login: string }): boolean {

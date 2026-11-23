@@ -11,38 +11,18 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import { utcDateTime } from './voice-settings';
-  import type { BlockedViewer, StrikeBlock } from '#lib/server/services/voice';
+  import type { BlockedViewer } from '#lib/server/services/voice';
 
-  let { manual, strikes, error }: { manual: BlockedViewer[]; strikes: StrikeBlock[]; error?: string } = $props();
+  let { manual, error }: { manual: BlockedViewer[]; error?: string } = $props();
 
-  const { t, locale } = getI18n();
-  const times = utcDateTime(locale);
+  const { t } = getI18n();
   let name = $state('');
   let busy = $state(false);
 
-  const rows = $derived([
-    ...manual.map((viewer) => ({
-      key: `manual:${viewer.viewer_id}`,
-      id: viewer.viewer_id,
-      label: viewer.viewer_login || t('voice.blocks.viewerId', { id: viewer.viewer_id }),
-      tag: t('voice.blocks.tagManual'),
-      tone: 'banned' as const,
-      detail: '',
-      action: 'unblockViewer',
-      removable: true
-    })),
-    ...strikes.map((block) => ({
-      key: `${block.scope}:${block.viewer_id}`,
-      id: block.viewer_id,
-      label: t('voice.blocks.viewerId', { id: block.viewer_id }),
-      tag: block.scope === 'global' ? t('voice.blocks.tagGlobal') : t('voice.blocks.tagAuto'),
-      tone: block.scope === 'global' ? ('banned' as const) : ('warning' as const),
-      detail: t('voice.blocks.until', { time: times.format(new Date(block.until)) }),
-      action: 'unblockStrike',
-      removable: block.scope === 'channel'
-    }))
-  ]);
+  const rows = $derived(manual.map((viewer) => ({
+    id: viewer.viewer_id,
+    label: viewer.viewer_login || t('voice.blocks.viewerId', { id: viewer.viewer_id })
+  })));
 
   const submit: SubmitFunction = ({ cancel }) => {
     if (busy) return cancel();
@@ -78,17 +58,15 @@
       </div>
     </div>
     <ul class="rows" aria-labelledby="voice-blocks-title">
-      {#each rows as row (row.key)}
+      {#each rows as row (row.id)}
         <li class="row">
           <div class="who">
             <Text as="div" size="sm"><bb-fit><span data-fit="">{row.label}</span></bb-fit></Text>
-            <Text as="div" size="xs" tone="muted"><bb-fit><span data-fit="">{row.detail}</span></bb-fit></Text>
           </div>
           <div class="tag">
-            <Tag tone={row.tone} bare contain><bb-fit><span data-fit="">{row.tag}</span></bb-fit></Tag>
+            <Tag tone="banned" bare contain><bb-fit><span data-fit="">{t('voice.blocks.tagManual')}</span></bb-fit></Tag>
           </div>
-          <form class="act" class:gone={!row.removable} inert={!row.removable} aria-hidden={!row.removable}
-            method="POST" action={`?/${row.action}`} use:enhance={submit}>
+          <form class="act" method="POST" action="?/unblockViewer" use:enhance={submit}>
             <input type="hidden" name="viewer_id" value={row.id} />
             <Button variant="secondary" size="sm" type="submit" disabled={busy}>
               <bb-fit class="label"><span data-fit="">{t('voice.blocks.unblock')}</span></bb-fit>
@@ -129,7 +107,5 @@
     --btn-justify: center;
   }
   .who, .tag { min-inline-size: 0; }
-  .act { transition: opacity var(--bb-dur-2, 160ms); }
-  .gone { opacity: 0; pointer-events: none; }
   .label { line-height: 1.4; }
 </style>

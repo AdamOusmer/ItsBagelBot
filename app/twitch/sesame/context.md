@@ -96,10 +96,9 @@ voice to Gossip.
 Every spoken name and message passes `moderation.CheckSpeech` first: a
 fixed floor (hate, explicit sexual acts, self-harm encouragement, real-world
 threats, personal data) plus the streamer's automod sections and term lists
-through `automod.Config.SpeechPolicy`. Banter and game violence pass. Floor
-hits from viewers record a strike in `pkg/valkey` `SpeechSafety`, and a
-struck viewer is denied like blocked text. Recipe and dashboard test speech
-never strike.
+through `automod.Config.SpeechPolicy`. Banter and game violence pass. A
+viewer on the streamer's manual block list (TTS settings) is denied like
+blocked text; nothing blocks a viewer automatically.
 
 Chat Alerts controls chat lines and their follow/subscription cooldowns.
 A core handler reads the same Alerts row for Premium voice regardless of the

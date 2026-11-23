@@ -1,15 +1,14 @@
 # Speech floor: slurs and hate. Always blocked, never overridden by allow terms.
-# A leading * also scans the term across split short tokens (letters >= 5, no innocent superstring).
-*nigger
-*niggers
-*nigga
-*niggas
+nigger
+niggers
+nigga
+niggas
 niqqer
 niqqa
 nikker
 nikkers
-*faggot
-*faggots
+faggot
+faggots
 faggit
 kike
 kikes
@@ -18,8 +17,8 @@ spic
 spics
 gook
 gooks
-*wetback
-*wetbacks
+wetback
+wetbacks
 beaner
 beaners
 towelhead

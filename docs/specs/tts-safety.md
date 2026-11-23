@@ -32,8 +32,10 @@ settings they already have:
 - **Streamer's choice:** swearing, insults, crude sexual words, "go die".
 - **Never blocked:** game violence, trash talk, and roasting the streamer.
 
-Strikes follow the same line. Only floor hits and Google refusals strike, a
-first slip is forgiven, and blocks are short.
+There are no automatic viewer blocks. Only the streamer blocks a viewer, by
+hand. Automatic protection is limited to pausing TTS when Google starts
+refusing requests (see Breakers), which protects the account without
+punishing one person for a false positive.
 
 ## Google rules that apply
 
@@ -106,7 +108,7 @@ Gaps:
      `MAX_TOKENS`, which are usually transient.
    - `upstreamFailure` (`tts.go:274`) turns every 4xx into a refusal on both backends.
 
-   Counting these as abuse would produce false strikes.
+   Counting these as Google refusals would open breakers by mistake.
 8. **Gemini API fallback exists.** `Config.backend` (`tts.go:109-113`) uses
    `GEMINI_API_KEY` when Vertex credentials are absent.
 9. **No safety settings are sent.** `vertexRequest` has no `safetySettings`
@@ -126,19 +128,19 @@ Gaps:
 
 ```
 name, message ─> Sesame: CheckSpeech(input, policy) ─> compose utterance ─> publish job ─> Gossip worker
-recipe text ──┘      (deny reply, refund, strike)                                              │
+recipe text ──┘      (deny reply, refund)                                                      │
                                                                                                v
-                       breaker check ─> CheckSpeechFloor(composed text) ─> Vertex ─> classify outcome ─> strike/breaker
+                       breaker check ─> CheckSpeechFloor(composed text) ─> Vertex ─> classify outcome ─> breaker
 ```
 
 - **Shared code.** `CheckSpeech` and `CheckSpeechFloor` live in
   `internal/moderation`, beside the existing normalizer and matcher. The
-  strike, block and breaker state types live in `pkg/valkey` as one definition
+  breaker state type lives in `pkg/valkey` as one definition
   used by both services.
 - **Sesame runs the full check** on the name and the message separately, before
   composing `alerts.voice.said`. It applies the floor, personal data and the
   channel tier. It keeps today's deny reply, reward refund and recipe
-  `speech_blocked` behavior, and records the strike itself (see Strikes).
+  `speech_blocked` behavior. It also enforces the streamer's manual block list.
 - **Gossip runs the floor only** on the composed text, in
   `synthesizer.synthesize` (`providers/tts/tts.go`) after `Shape` and before
   `validate`. This is the last hop before Google and covers every caller of
@@ -217,58 +219,32 @@ func CheckSpeechFloor(text string) (SpeechReason, bool)
 
 ### Matching
 
-Every floor scan works on two copies of the text: a **literal copy** (NFKC
-and lowercase only) and a **folded copy** (built by steps 2 to 4 below).
+The floor favors missing a rare evasion over flagging normal chat, so it
+matches plainly written terms only.
 
-1. **Mask stage (literal copy).** A token of letters plus `*` or `#`, with at
-   least one letter, matches a floor term of the same length when each masked
-   position is a wildcard and every letter agrees ("f*ck", "n****r"). At least
-   two letters must agree, so "s***" never matches a four-letter hate term.
-   Mask entries come from the uncollapsed lexicon. A mask-only hit blocks the
-   utterance but carries strike weight 0, because self-censored profanity is
-   usually not abuse. This stage runs before leet folding, so `@` and `$`
-   keep their leet meaning in the folded copy.
-2. **Normalize** with the existing `moderation.Normalize` (NFKC, confusables,
+1. **Normalize** with the existing `moderation.Normalize` (NFKC, confusables,
    leet folding gated by token quorum, invisible-character removal;
    `internal/moderation/skeleton.go:143`).
-3. **Speech folds,** applied to the folded copy only:
-   - **Single-letter runs:** three or more one-letter tokens in a row are
-     joined ("n i g g a"). A run of two is left alone.
-   - **Separators inside a word:** any punctuation between two letters is
-     removed (`. - _ * , / | \\ + ' :`), as in "f.u.c.k" and "f/u/c/k".
-   - **Repeats:** runs of three or more of the same letter collapse to two.
-     Lexicon entries keep their own spelling, so double letters in real terms
-     still match. Every token with a doubled letter (a run of two after the
-     collapse) is also tried with that run reduced to one, so a doubled-letter
-     spelling of a single-letter term still matches. Keys that land on an
-     innocent word from the collision list in the false-positive corpus
-     ("niger", "fagot") are skipped.
-4. **Phonetic key** (floor hate file only, where misspelling to evade is common and the terms are specific enough to keep false positives low):
-   - A small fixed table (`ph`→`f`, `ck`/`q`→`k`, trailing `z`→`s`, `x`→`ks`)
-     is applied to both the folded input and the floor lexicon. Vowels are
-     not collapsed, to keep innocent words apart.
-   - The table lives in one file as one list.
-   - Every key that collides with a word in the false-positive corpus is
-     rejected by a test.
-5. **Word-bounded scan** of the folded copy with the Aho-Corasick matcher
-   (`internal/moderation/ahocorasick.go`). Lexicon entries may be phrases, so
-   multi-word homophones are listed as phrases.
-6. **Joined scan** for chunked splits ("nig ger", "fu ck"). Only runs of
-   adjacent tokens of three letters or fewer are joined, so ordinary words
-   never fuse across a boundary ("brag headline" stays apart). Only floor terms
-   marked `*` are scanned on the joined runs. Only terms of five or more
-   letters with no innocent superstring in the corpus may carry the mark. Each
-   one needs corpus entries.
-7. **Channel tier.**
-   - Profanity uses the word-bounded lexicon scan from step 5, so "class" does
-     not match.
-   - Streamer `block_terms` and `allow_terms` use the shared `containsAny`
-     substring match on the output of step 2, as in chat automod today
-     (`automod/config.go:220`).
+2. **Repeats:** runs of three or more of the same letter collapse to two. A
+   token with a doubled letter is also tried with that run reduced to one.
+   Keys that land on an innocent word from the collision list ("niger",
+   "fagot") are skipped.
+3. **Word-bounded scan** with the Aho-Corasick matcher
+   (`internal/moderation/ahocorasick.go`). Lexicon entries may be phrases.
+4. **Channel tier.**
+   - Harassment, sexual and profanity use the same word-bounded scan on the
+     chat lexicon, each following the streamer's resolved automod section.
+   - Streamer `block_terms` and `allow_terms` use `moderation.ContainsAnyTerm`
+     on the output of step 1, as in chat automod.
+
+Not matched on purpose, because they caused or risked false positives:
+masked words ("f*ck"), spaced letters ("a b c"), separators inside words
+("u.s.a"), sound-alike spellings, and words split across spaces. Read aloud,
+these mostly come out as letters or symbols. Google's filter is the
+backstop for the rest.
 
 All six site locales are scanned on every utterance (en, fr, de, es, pt-br, ru;
-`locales/`), because viewers write in any language regardless of the
-channel's locale.
+`locales/`).
 
 ### Accepted residual risk
 
@@ -294,10 +270,9 @@ channel's locale.
   files. Those chat files, chat automod, `CheckFloor`, Projector and the other
   validators that read them (`app/projector/main.go:81`,
   `engine/pipeline_output.go:173`) are unchanged.
-- **Format:** one term or phrase per line, `#` comments, a `*` prefix for
-  joined-scan terms, any of the six languages. The speech loader parses the
-  prefix. The chat `parseTerms` (`internal/moderation/lexicon.go:113`) never
-  sees speech files.
+- **Format:** one term or phrase per line, `#` comments, any of the six
+  languages. The chat `parseTerms` (`internal/moderation/lexicon.go:113`)
+  never sees speech files.
 - **Embedded only.** The speech lexicon is compiled in so Sesame and Gossip
   always agree. `SESAME_AUTOMOD_LEXICON_DIR` (`app/twitch/sesame/main.go:161,206`)
   keeps overriding the chat lexicon only.
@@ -307,21 +282,21 @@ channel's locale.
 
 ### Personal data
 
-Checked on the message only (never the name). Checks run on the literal copy
-from Matching step 1, because `Normalize` folds `@` to `a`
+Checked on the message only (never the name). Checks run on NFKC, lowercased
+text before leet folding, because `Normalize` folds `@` to `a`
 (`internal/moderation/charset.go:41-43`).
 
 | Pattern | Rule | Action |
 | --- | --- | --- |
 | URL or bare domain | `automod.StripLinks` in Sesame, before `CheckSpeech` | removed from the message |
 | Email | `local@domain.tld` shape | block, `pii` |
-| Phone | a leading `+` followed by 8 or more digits, or 10 or more digits in one run, or a grouped shape (`3-3-4`, `(3) 3-4`) with spaces, dots or dashes | block, `pii` |
+| Phone | a leading `+` followed by 8 or more digits, or a grouped shape (`3-3-4`, `(3) 3-4`) with spaces, dots or dashes | block, `pii` |
 | IPv4 or IPv6 | dotted quad with each part 255 or less; IPv6 colon groups | removed from `Message` (version strings such as "1.2.3.4" share the shape, so a block would be too costly) |
 | Card number | 13 to 19 digits passing Luhn | block, `pii` |
 
 These must not block (false-positive corpus): countdowns ("10 9 8 7 6 5 4 3"),
 number lists ("10 20 30 40 50"), years and dates, "1000000", scores, "1v1",
-bit amounts, version strings.
+bit amounts, version strings, long digit runs such as order ids.
 
 ### Injection
 
@@ -345,9 +320,7 @@ Our style already travels outside the transcript on both backends (Vertex
   - Verbs: one table per locale.
   - Field: the message only, never the name, so a viewer named Lee or Sing
     is unaffected.
-  - Action: the utterance is blocked with reason `injection`. It counts as no
-    strike, because the probe found that the model can be steered, not that
-    anyone meant harm.
+  - Action: the utterance is blocked with reason `injection`.
 
 ### Job contract
 
@@ -363,28 +336,21 @@ NotBefore       time.Time    `json:"not_before,omitzero"`         // hold end; z
 - `ViewerID` comes from event data only: chatter, cheerer, resub user or
   redeemer id. There is no login resolution.
 - `Source` is `viewer` for alerts, `!tts` and rewards, and `channel` for
-  recipes and the voice test. Recipe text is written by the streamer, so it
-  never strikes a viewer. Otherwise a recipe could speak a slur on viewer X's
-  trigger and get X blocked everywhere.
-- Older jobs without the new fields decode to empty values. They get the floor
-  in Gossip and no viewer strike, so a rolling deploy blocks no less than
-  phase 1 does.
+  recipes and the voice test. It drives the manual block check and telemetry.
+- Older jobs without the new fields decode to empty values and get the floor
+  in Gossip.
 - `gossiprpc.Request` is unchanged apart from the new `RefusalClass` reply
-  field. Strikes are recorded by the voice worker (`voice.Handler`), which
-  holds the job and its `ViewerID` and `Source`.
+  field, which the voice worker uses for the breakers.
 - Deploy order: Gossip first (reads the new fields), then Sesame (writes them).
 
 ### Safety settings
 
 Every Vertex request sends `safetySettings` explicitly, so behavior does not
-depend on a default the docs disagree about:
-
-| Category | Threshold | Why |
-| --- | --- | --- |
-| `HARM_CATEGORY_HATE_SPEECH` | `BLOCK_MEDIUM_AND_ABOVE` | matches our floor |
-| `HARM_CATEGORY_SEXUALLY_EXPLICIT` | `BLOCK_MEDIUM_AND_ABOVE` | matches our floor |
-| `HARM_CATEGORY_HARASSMENT` | `BLOCK_ONLY_HIGH` | banter and trash talk would otherwise refuse and strike |
-| `HARM_CATEGORY_DANGEROUS_CONTENT` | `BLOCK_ONLY_HIGH` | game violence would otherwise refuse and strike |
+depend on a default the docs disagree about. All four configurable categories
+(`HARM_CATEGORY_HATE_SPEECH`, `HARM_CATEGORY_SEXUALLY_EXPLICIT`,
+`HARM_CATEGORY_HARASSMENT`, `HARM_CATEGORY_DANGEROUS_CONTENT`) use
+`BLOCK_ONLY_HIGH`, so ordinary banter is not refused. Our floor covers what
+must never be sent.
 
 The Gemini API backend (non-production only) sends the same four thresholds
 through the Interactions API `safety_settings` field. These are configurable
@@ -396,21 +362,17 @@ send, which the floor covers.
 
 Each Google outcome is classified before any counting:
 
-| Google outcome | Class | Retried | Viewer strike | Breaker refusal |
-| --- | --- | --- | --- | --- |
-| `blockReason` `SAFETY`, `PROHIBITED_CONTENT`, `BLOCKLIST`, `JAILBREAK`, `MODEL_ARMOR` | `policy` | no | 2 | yes |
-| `finishReason` `SAFETY`, `PROHIBITED_CONTENT`, `SPII`, `BLOCKLIST`, `MODEL_ARMOR` with no audio | `policy` | no | 2 | yes |
-| `blockReason` `OTHER` or `BLOCKED_REASON_UNSPECIFIED` | `policy_unspecified` | no | 1, this channel only | yes |
-| `finishReason` `OTHER`, `MAX_TOKENS`, `STOP`, `MALFORMED_RESPONSE`, `FINISH_REASON_UNSPECIFIED` with no audio | `empty` | once | 0 | no |
-| `finishReason` `RECITATION` | `invalid` | no | 0 | no |
-| Any enum value not listed above | `unknown` | no | 1, this channel only | yes, and logged at warn |
-| 4xx other than 429, without a safety block in the body | `invalid` | no | 0 | no |
-| 429, 5xx, timeout | existing rate-limit and unavailable paths | existing | 0 | no |
+| Google outcome | Class | Retried | Breaker refusal |
+| --- | --- | --- | --- |
+| `blockReason` `SAFETY`, `PROHIBITED_CONTENT`, `BLOCKLIST`, `JAILBREAK`, `MODEL_ARMOR` | `policy` | no | yes |
+| `finishReason` `SAFETY`, `PROHIBITED_CONTENT`, `SPII`, `BLOCKLIST`, `MODEL_ARMOR` with no audio | `policy` | no | yes |
+| `blockReason` `OTHER` or `BLOCKED_REASON_UNSPECIFIED` | `policy_unspecified` | no | yes |
+| `finishReason` `OTHER`, `MAX_TOKENS`, `STOP`, `MALFORMED_RESPONSE`, `FINISH_REASON_UNSPECIFIED` with no audio | `empty` | once | no |
+| `finishReason` `RECITATION` | `invalid` | no | no |
+| Any enum value not listed above | `unknown` | no | yes, and logged at warn |
+| 4xx other than 429, without a safety block in the body | `invalid` | no | no |
+| 429, 5xx, timeout | existing rate-limit and unavailable paths | existing | no |
 
-- `blockReason OTHER` is documented as covering unsupported languages too, so
-  it never blocks a viewer across channels. It still counts once in that
-  channel, so one viewer cannot open the channel breaker repeatedly without
-  being blocked there first.
 - `errRefused` splits into these classes on both backends. The reply
   `Reason` stays `"refused"` for every non-retried class, so
   `voice/handler.go` keeps dropping the job. A new `RefusalClass` reply field
@@ -419,72 +381,38 @@ Each Google outcome is classified before any counting:
   delay on first delivery (`GossipJobMessage.Delivered`). A second `empty`
   drops the job.
 
-### Strikes, blocks and breakers
+### Breakers
 
-State lives in Valkey, through one definition in `pkg/valkey` (a new
-`SpeechSafety` type) used by both services. No service issues raw commands
-(AGENTS.md). Sesame and Gossip already share the Valkey deployment
-(`deploy/k8s/sesame.yaml:115`, `deploy/k8s/gossip.yaml:199`).
-
-**Strike sources:**
-
-| Source | Writer | Weight |
-| --- | --- | --- |
-| Sesame floor block, `Source` viewer | Sesame | 1 (0 for a mask-only hit) |
-| Sesame channel-tier block (swearing, insults, streamer terms) | Sesame | 0, the streamer's own rule, not abuse |
-| Sesame personal data block | Sesame | 0 (often accidental) |
-| Gossip floor block, `Source` viewer | Gossip | 1 |
-| Google `policy` refusal, `Source` viewer | Gossip | 1 |
-| Google `policy_unspecified` or `unknown` refusal, `Source` viewer | Gossip | 1, this channel only |
-| Any block or refusal, `Source` channel | Gossip | 0, counted toward the channel breaker only |
-
-- **Idempotent.** A strike is recorded at most once per job or event id, using a
-  `FreshMemberSet` marker with the window TTL, so redelivery never double counts.
-- **Small overshoot under concurrency** (several jobs in flight when a threshold
-  is crossed) is accepted. Thresholds are soft.
-
-**Effects:**
+State lives in Valkey through one definition in `pkg/valkey` (`SpeechSafety`).
+Gossip is the only writer. The users service reads the channel pause for the
+dashboard notice.
 
 | Breaker | Trigger | Effect | Ends |
 | --- | --- | --- | --- |
-| Viewer, per channel | strike count in a rolling window | Sesame denies, Gossip drops that viewer's jobs in that channel | after a fixed period, or a moderator unblocks |
-| Viewer, all channels | strike count across channels in a rolling window | same, in every channel | after a fixed period |
 | Channel | Google refusals in a rolling window | channel TTS paused | auto-resume after a fixed period |
 | Global | Google refusals across all channels in a rolling window | all synthesis paused, critical alert | half-open after a cool-down: one job in ten is let through, one refusal re-opens, a clean window closes |
 
-- **Thresholds.** The values live in Gossip and Sesame config from Doppler, not
-  in the repo, so trolls cannot read the exact limits. The viewer thresholds
-  are set below the channel breaker, so a single viewer is blocked before
-  they can pause a channel. Starting values are agreed outside this spec
-  (Decision 4).
-- **Where checks run.** Sesame checks the viewer state before composing, so the
-  viewer gets the normal deny reply. Gossip checks every state again before
-  calling Google, and drops the job with reason `paused` (no retry, since a
-  clip that plays late is worse than none).
-- **Operator pause flag.** A `pkg/valkey` `VersionedFlag` pauses all synthesis
+- Only Google `policy`, `policy_unspecified` and `unknown` refusals count.
+  Local blocks never count, because they never reached Google.
+- Recording is idempotent per job id.
+- Thresholds come from `TTS_SAFETY_CHANNEL_*` and `TTS_SAFETY_GLOBAL_*` in
+  Doppler, not the repo. Unset means off.
+- Gossip checks the gate before calling Google and drops paused jobs with
+  reason `paused`.
+- An operator pause flag (`pkg/valkey` `VersionedFlag`) pauses all synthesis
   without a deploy.
+- No viewer is ever blocked automatically.
 
 ### Moderator controls
 
-1. **Viewer block list** (phase 4).
-   - **Manual blocks** are durable streamer configuration. They live in a new
-     table in the overlays schema (`app/db/overlays`), beside the TTS settings
-     it already owns. Sesame reads them through Projector with the rest of
-     `rpc.internal.projector.overlays.tts.settings` and enforces them before
-     composing. Gossip does not read them, because a blocked viewer's job is
-     never published.
-   - **Strike blocks** stay in Valkey (`SpeechSafety`) with their TTL. Valkey
-     holds no durable state in this design.
-   - The dashboard voice page lists manual blocks and active strike blocks with
-     their end times, and offers Unblock for both. It may search viewers by
-     name, as AGENTS.md allows. Manual blocks are written through the overlays
-     RPC. Clearing a strike block goes through the same RPC, which calls
-     `SpeechSafety` in `pkg/valkey`.
-   - Chat has no block command, because `@mention` would need login resolution.
-   - The paused notice needs the channel breaker state. `dashboard.voice_get`
-     is answered by the users service (`app/db/users/rpc/voice.go:58`), which
-     gains a read-only `SpeechSafety` call. Writers stay Sesame and Gossip.
-     Copy goes in all six locales and passes `check-i18n.mjs`.
+1. **Viewer block list** (built).
+   - Manual blocks only. They live in the `tts_viewer_block` table in the
+     overlays schema and reach Sesame through Projector's TTS settings reply.
+   - Sesame denies a blocked viewer's speech the same way as blocked text.
+   - The dashboard voice page adds a viewer by name (resolved to an id with the
+     existing viewer lookup) and lists blocks with Unblock.
+   - The paused notice reads the channel pause from the users service verb
+     `voice_safety`.
 2. **Hold and cancel** (phase 5, Decision 3).
    - `!tts` and reward jobs carry `NotBefore`. The worker delays the job until
      then, then synthesizes only if no cancel marker exists for
@@ -526,7 +454,7 @@ State lives in Valkey, through one definition in `pkg/valkey` (a new
     `channel` or `global`) when one fired.
 - Never record the utterance, the matched term or the viewer name in logs or
   telemetry. Record category and reason only.
-- Strike state holds ids and counts only, with TTLs equal to their windows.
+- Breaker state holds channel ids and counts only, with TTLs equal to their windows.
 - Alert conditions (global breaker open, Google refusal rate) are configured
   outside git.
 
@@ -544,12 +472,12 @@ All tests go through exported seams, with policy pins as single tables.
 
 | Seam | Test |
 | --- | --- |
-| `moderation.CheckSpeech`, `CheckSpeechFloor` | One table of input, policy and expected verdict. Covers every mask, fold, repeat, phonetic, joined-scan and personal-data rule, in every locale, for both the name and the message fields. |
+| `moderation.CheckSpeech`, `CheckSpeechFloor` | One table of input, policy and expected verdict. Covers the repeat and personal-data rules, and shows masked, spaced, dotted and split words pass, in every locale, for both the name and the message fields. |
 | same | False-positive corpus table, run with every channel section off: "niger", "fagot", "Scunthorpe", "assassin", "class", place names, chemistry and medical terms, countdowns, years, dates, scores, emote names, common names (Lee, Di, Sing), and Twitch banter ("I'll kill you", "headshot", "you're trash", "gg ez", "uninstall", "go die", "this streamer sucks", swearing). Every entry must pass the floor. |
 | same | `FuzzCheckSpeech`: message stability and no panics, seeded from the existing `FuzzNormalize` corpus. |
-| Sesame pipeline `Process` | A blocked name blocks the utterance. The floor applies with automod disabled. An allow term cannot unblock a floor hit. Reward refund on block. Recipe reports `speech_blocked`. A Sesame strike is written once per event. A blocked viewer is denied. |
-| Gossip `tts.synthesize` handler | A fake backend returns each Google outcome in the classification table, and the test checks class, retry and drop. An old job without new fields gets the floor and no strike. |
-| Gossip voice `Handler.Handle` | Strike weights by `Source`, idempotence on redelivery, every breaker opening and closing, global half-open, paused drop, cancel-marker drop, with the local Valkey test server (`VALKEY_TEST_ADDR`). |
+| Sesame pipeline `Process` | A blocked name blocks the utterance. The floor applies with automod disabled. An allow term cannot unblock a floor hit. Reward refund on block. Recipe reports `speech_blocked`. A manually blocked viewer is denied. |
+| Gossip `tts.synthesize` handler | A fake backend returns each Google outcome in the classification table, and the test checks class, retry and drop. An old job without new fields gets the floor. |
+| Gossip voice `Handler.Handle` | Idempotence on redelivery, every breaker opening and closing, global half-open, paused drop, cancel-marker drop, with the local Valkey test server (`VALKEY_TEST_ADDR`). |
 | Gossip config | Prod start fails without Vertex credentials. |
 
 The corpus contains offensive terms by necessity. It lives under
@@ -562,7 +490,7 @@ Each phase is a separate PR based on `main`, merged and released in order.
 1. **Floor.**
    - `CheckSpeech` and `CheckSpeechFloor` with today's chat lexicon plus the
      first speech files.
-   - Matching steps 1 to 7, personal data, the false-positive corpus, link removal.
+   - Matching, personal data, the false-positive corpus, link removal.
    - Sesame and Gossip call sites, the name check, the voice test name check.
    - New job fields, the Gossip Containerfile line, explicit safety settings,
      the prod Vertex-only check.
@@ -571,7 +499,7 @@ Each phase is a separate PR based on `main`, merged and released in order.
      unfiltered text to Google.
 2. **Lexicon expansion** (Decision 1), with corpus additions, and the
    directive rule only if the probe showed the model can be steered.
-3. **Refusal classification, strikes, breakers, operator pause flag,
+3. **Refusal classification, breakers, operator pause flag,
    telemetry.**
 4. **Viewer block list and paused notice** in the dashboard.
 5. **Hold and cancel** (Decision 3, after scope checks on live grants).

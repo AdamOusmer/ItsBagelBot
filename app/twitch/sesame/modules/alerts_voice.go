@@ -236,7 +236,7 @@ func (s alertSpeech) skipReason(ctx context.Context, in *alertSpeechInput) (spee
 }
 
 func (s alertSpeech) subject(in alertSpeechInput) engine.SpeechSubject {
-	return engine.SpeechSubject{BroadcasterID: s.c.BroadcasterID, ViewerID: in.viewerID, Source: voiceplan.SourceViewer, EventID: s.jobID()}
+	return engine.SpeechSubject{BroadcasterID: s.c.BroadcasterID, ViewerID: in.viewerID, Source: voiceplan.SourceViewer}
 }
 
 func (s alertSpeech) allowanceReason(ctx context.Context) speechSkipReason {

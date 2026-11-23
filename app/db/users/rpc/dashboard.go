@@ -62,7 +62,6 @@ func SubscribeDashboard(w Wiring, prefix string) error {
 		"songqueue_page_set":   d.handleSongQueuePageSet,
 		"voice_get":            d.handleVoiceGet,
 		"voice_safety":         d.handleVoiceSafety,
-		"voice_unblock":        d.handleVoiceUnblock,
 		"delete_self":          d.handleDeleteSelf,
 	}
 	return serveMsgVerbs(w.Within(dashboardTimeout), prefix, verbs)

@@ -4,7 +4,6 @@
 package rpc_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -53,37 +52,26 @@ func TestDashboardVoiceAllowanceOwnerOnly(t *testing.T) {
 	}
 }
 
-func TestDashboardVoiceSafetyAndUnblock(t *testing.T) {
+func TestDashboardVoiceSafetyReportsPause(t *testing.T) {
 	store := valkeytest.Real(t)
 	rules := pkgvalkey.NewSpeechSafety(pkgvalkey.SpeechLimits{
-		ViewerChannelStrikes: 1, ViewerChannelWindow: time.Minute, ViewerChannelBlock: time.Minute,
 		ChannelRefusals: 1, ChannelWindow: time.Minute, ChannelPause: time.Minute,
 	})
 	h := newVoiceHarness(t, rpc.Safety{Store: store, Rules: rules})
-	t.Cleanup(func() { _ = rules.ClearViewer(context.Background(), store, testVoiceOwner, "viewer-1") })
-	require.NoError(t, rules.Strike(t.Context(), store, pkgvalkey.SpeechStrike{ChannelID: testVoiceOwner, ViewerID: "viewer-1", EventID: "e1", Weight: 1}))
 	require.NoError(t, rules.Refusal(t.Context(), store, testVoiceOwner, "e1"))
 
-	get := usersrpc.VoiceGetRequest{ActorID: testVoiceOwner, BroadcasterUserID: testVoiceOwner}
-	state := call[usersrpc.VoiceSafetyReply](t, h, testVoiceDashboard+".voice_safety", get)
-	require.Len(t, state.Blocks, 1)
-	assert.Equal(t, "viewer-1", state.Blocks[0].ViewerID)
-	assert.Equal(t, string(pkgvalkey.SpeechBlockChannel), state.Blocks[0].Scope)
-	assert.Greater(t, state.PausedUntil, time.Now().UnixMilli())
-
 	for _, tc := range []struct {
-		actor string
-		code  domainrpc.Code
-		left  int
+		actor  string
+		code   domainrpc.Code
+		paused bool
 	}{
-		{"9001", domainrpc.CodeForbidden, 1},
-		{testVoiceOwner, domainrpc.CodeOK, 0},
+		{"9001", domainrpc.CodeForbidden, false},
+		{testVoiceOwner, domainrpc.CodeOK, true},
 	} {
-		unblock := usersrpc.VoiceUnblockRequest{VoiceGetRequest: usersrpc.VoiceGetRequest{ActorID: tc.actor, BroadcasterUserID: testVoiceOwner}, ViewerID: "viewer-1"}
-		reply := call[domainrpc.Refusal](t, h, testVoiceDashboard+".voice_unblock", unblock)
-		assert.Equal(t, tc.code, reply.Code)
-		after := call[usersrpc.VoiceSafetyReply](t, h, testVoiceDashboard+".voice_safety", get)
-		assert.Len(t, after.Blocks, tc.left)
+		get := usersrpc.VoiceGetRequest{ActorID: tc.actor, BroadcasterUserID: testVoiceOwner}
+		state := call[usersrpc.VoiceSafetyReply](t, h, testVoiceDashboard+".voice_safety", get)
+		assert.Equal(t, tc.code, state.Code)
+		assert.Equal(t, tc.paused, state.PausedUntil > time.Now().UnixMilli())
 	}
 }
 

@@ -39,16 +39,6 @@ const (
 	RefusalLocal       RefusalClass = "local"
 )
 
-func (c RefusalClass) Strike() (weight int64, channelOnly bool) {
-	switch c {
-	case RefusalPolicy:
-		return 1, false
-	case RefusalUnspecified, RefusalUnknown:
-		return 1, true
-	}
-	return 0, false
-}
-
 func (c RefusalClass) CountsTowardBreaker() bool {
 	switch c {
 	case RefusalPolicy, RefusalUnspecified, RefusalUnknown:

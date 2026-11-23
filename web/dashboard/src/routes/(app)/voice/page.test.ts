@@ -190,15 +190,11 @@ function expectedObsControls(visible: boolean, hasLink: boolean, link: boolean) 
 
 const safety = {
   manual: [{ viewer_id: '5', viewer_login: 'spammer', created_at: 1_764_000_000 }],
-  strikes: [
-    { viewer_id: '7', scope: 'channel', until: 4_102_444_800_000 },
-    { viewer_id: '8', scope: 'global', until: 4_102_444_800_000 }
-  ],
   pausedUntil: 4_102_444_800_000
 };
 
 test.each([
-  { name: 'with blocks and a paused channel', data: { safety }, present: ['Blocked viewers', 'spammer', 'ID 7', 'ID 8', 'Until Jan 1, 2100', 'Voice is paused for this channel until Jan 1, 2100'], hidden: [] },
+  { name: 'with blocks and a paused channel', data: { safety }, present: ['Blocked viewers', 'spammer', 'Voice is paused for this channel until Jan 1, 2100'], hidden: [] },
   { name: 'without safety data', data: { safety: null }, present: [], hidden: ['Blocked viewers', 'Voice is paused for this channel'] }
 ])('renders the viewer block list $name', ({ data: extra, present, hidden }) => {
   const html = renderVoice(extra);
@@ -208,15 +204,11 @@ test.each([
   ]).toEqual([]);
 });
 
-test('keeps the block card unblock controls for channel strikes and hides the global one', async () => {
-  const forms: { action: string; hidden: boolean }[] = [];
+test('keeps the unblock control for each manual block', async () => {
+  const actions: string[] = [];
   const rewriter = new HTMLRewriter().on('form[action^="?/unblock"]', {
-    element(form) { forms.push({ action: form.getAttribute('action') ?? '', hidden: form.hasAttribute('inert') }); }
+    element(form) { actions.push(form.getAttribute('action') ?? ''); }
   });
   await rewriter.transform(new Response(renderVoice({ safety }))).text();
-  expect(forms).toEqual([
-    { action: '?/unblockViewer', hidden: false },
-    { action: '?/unblockStrike', hidden: false },
-    { action: '?/unblockStrike', hidden: true }
-  ]);
+  expect(actions).toEqual(['?/unblockViewer']);
 });

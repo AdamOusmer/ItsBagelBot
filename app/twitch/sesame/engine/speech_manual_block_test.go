@@ -36,7 +36,7 @@ func TestScreenDeniesManuallyBlockedViewer(t *testing.T) {
 		{"channel source ignores the list", "viewer-1", voiceplan.SourceChannel, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			subject := SpeechSubject{BroadcasterID: 42, ViewerID: tc.viewer, Source: tc.source, EventID: "e1"}
+			subject := SpeechSubject{BroadcasterID: 42, ViewerID: tc.viewer, Source: tc.source}
 			_, allowed, err := queue.Screen(context.Background(), subject, moderation.SpeechInput{Message: "hello"}, moderation.SpeechPolicy{})
 			require.NoError(t, err)
 			assert.Equal(t, tc.allowed, allowed)

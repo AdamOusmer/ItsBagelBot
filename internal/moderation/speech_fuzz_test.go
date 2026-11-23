@@ -7,7 +7,7 @@ import "testing"
 
 func fuzzSpeechSeeds() []string {
 	return []string{
-		"n1gger", "n i g g a", "f.a.g.g.o.t", "n****r", "kill yourself",
+		"n1gger", "n i g g a", "f.a.g.g.o.t", "n****r", "kill yourself", "1234567890",
 		"join 192.168.1.1 now", "host fe80::1 ok", "1.1.1.1.1.1.1.1",
 		"call +1 555 123 4567", "4111 1111 1111 1111", "mail me at foo@bar.com",
 		"10 9 8 7 6 5 4 3", "убей себя", "ich weiß wo du wohnst", "sudaca",
