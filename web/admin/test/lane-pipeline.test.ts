@@ -20,6 +20,7 @@ type Traffic = Exclude<PipelineTrafficFilter, 'all'>;
 const TRAFFIC: Traffic[] = ['stream', 'standard', 'premium'];
 const INGRESS = 'TWITCH_INGRESS';
 const STANDARD_INGRESS = 'TWITCH_INGRESS_STANDARD';
+const PREMIUM_INGRESS = 'TWITCH_INGRESS_PREMIUM';
 const OUTGRESS = 'TWITCH_OUTGRESS';
 const SYSTEM = 'TWITCH_OUTGRESS_SYSTEM';
 
@@ -28,6 +29,9 @@ describe('Twitch processing pipeline filters', () => {
     [INGRESS, 'worker_premium', 'twitch.ingress.event.premium', ['premium']],
     [INGRESS, 'worker_premium', 'twitch.ingress.v2.premium.>', ['premium']],
     [INGRESS, 'worker_premium', 'twitch.ingress.v2.premium.42', ['premium']],
+    [PREMIUM_INGRESS, 'worker_premium', 'twitch.ingress.event.premium', ['premium']],
+    [PREMIUM_INGRESS, 'worker_premium', 'twitch.ingress.v2.premium.>', ['premium']],
+    [PREMIUM_INGRESS, 'worker_all', '', ['premium']],
     [STANDARD_INGRESS, 'worker_standard', 'twitch.ingress.event.standard', ['standard']],
     [STANDARD_INGRESS, 'worker_standard', 'twitch.ingress.v2.standard.>', ['standard']],
     [STANDARD_INGRESS, 'worker_standard', 'twitch.ingress.v2.standard.42', ['standard']],
