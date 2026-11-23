@@ -4,20 +4,17 @@
 
   import { getI18n } from '@bagel/kit/i18n/context';
   import { MAX_CLIP_SECONDS, MIN_CLIP_SECONDS, VOICE_CHARS_PER_SECOND } from '@bagel/kit/voice-plan';
-  import type { SelectOption } from '@bagel/ui/lib/select';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Divider from '@bagel/ui/svelte/Divider.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import SaveStatus, { type SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
-  import Select from '@bagel/ui/svelte/Select.svelte';
   import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
 
-  let { values, status, options, onChange }: {
+  let { values, status, onChange }: {
     values: Record<string, string>;
     status: Record<string, SaveState>;
-    options: SelectOption[];
     onChange: (key: string, value: string) => void;
   } = $props();
 
@@ -56,17 +53,6 @@
       </SwitchRow>
     </div>
   {/each}
-  <Divider flush />
-  <div class="setting-row">
-    <label class="tr-text" for="voice-default">
-      <Text as="span" size="sm">{t('voice.choose')}</Text>
-    </label>
-    <SaveStatus state={stateOf('voice')} />
-    <div class="setting-picker">
-      <Select id="voice-default" name="voice" label={t('voice.choose')} value={values.voice} {options} searchable required fill
-        onchange={(event) => onChange('voice', event.currentTarget.value)} />
-    </div>
-  </div>
   {#each numberFields as field (field.key)}
     <Divider flush />
     <div class="setting-row">
@@ -99,9 +85,7 @@
     padding: 14px 18px;
   }
   .setting-row.toggle { display: block; }
-  .setting-picker { width: min(260px, 44vw); }
   @media (max-width: 560px) {
     .setting-row { --input-w: 100%; flex-wrap: wrap; }
-    .setting-picker { width: 100%; }
   }
 </style>

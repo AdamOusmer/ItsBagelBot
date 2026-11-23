@@ -32,7 +32,7 @@ const FAMILY = {
   OverviewGrid: 'Data', StatTile: 'Data', AreaSeries: 'Data', Table: 'Data', Icon: 'Data',
   LogTail: 'Data', CounterCard: 'Data', CommunityCard: 'Data', RankingCard: 'Data', HaloPanel: 'Data', DonateCard: 'Data',
   FactList: 'Data', Fact: 'Data', StepCard: 'Data', LinkRow: 'Navigation', DeckLayout: 'Layout', Disclosure: 'Layout', Pager: 'Navigation',
-  LightField: 'Motion', BackgroundOrbs: 'Motion', AuroraBg: 'Motion', Cursor: 'Motion',
+  LightField: 'Motion', AudioOrb: 'Motion', BackgroundOrbs: 'Motion', AuroraBg: 'Motion', Cursor: 'Motion',
   ReadingProgress: 'Motion', NavProgress: 'Motion', CardAtmosphere: 'Motion', Brackets: 'Motion', Sky: 'Motion', AmbientSky: 'Motion',
   Stepper: 'Navigation', Spinner: 'Feedback', LineSeries: 'Data', Mark: 'Feedback', ChatPreview: 'Data',
   ProfileMenu: 'Navigation', SkipLink: 'Navigation', Popover: 'Feedback', CopySurface: 'Controls',

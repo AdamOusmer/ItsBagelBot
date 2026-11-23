@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **133** blocks;
+Every block the library ships, by family. **134** blocks;
 **111** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 133 times
+omitted: nearly every block takes both, and listing them 134 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -173,6 +173,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | Block | Props | Adapters | Status | Contract |
 | --- | --- | --- | --- | --- |
 | **AmbientSky** | `shift`: number<br>`px`: number<br>`py`: number<br>`progress`: number<br>`leaving`: boolean<br>`position`: 'contained' \| 'fixed'<br>`stillStars`: boolean<br>`warmth`: number | svelte + astro | stable | `styles/elements/ambient-sky.css, styles/orbs.css` |
+| **AudioOrb** | `analyser*`: AnalyserNode \| null | svelte | svelte-only | `styles/elements/audio-orb.css` |
 | **AuroraBg** | — | svelte + astro | stable | `styles/elements/aurora.css, styles/orbs.css` |
 | **BackgroundOrbs** | — | svelte + astro | stable | `styles/elements/bg-orbs.css, styles/orbs.css` |
 | **Brackets** | `variant`: 'page' \| 'loader'<br>`label`: string | svelte + astro | stable | `styles/elements/brackets.css` |

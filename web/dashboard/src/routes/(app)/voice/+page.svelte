@@ -7,18 +7,13 @@
   import { beforeNavigate, invalidateAll } from '$app/navigation';
   import { getI18n } from '@bagel/kit/i18n/context';
   import {
-    alertVoiceKeys, DEFAULT_VOICE, MAX_CLIP_SECONDS, VOICE_ALERT_KINDS, type VoiceAlertKind
+    alertVoiceKeys, DEFAULT_VOICE, MAX_CLIP_SECONDS, type VoiceAlertKind
   } from '@bagel/kit/voice-plan';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
-  import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
-  import DeckList from '@bagel/ui/svelte/DeckList.svelte';
-  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
-  import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
@@ -29,13 +24,12 @@
   import { Autosave } from '#lib/autosave.svelte';
   import VoiceBlocksCard from './VoiceBlocksCard.svelte';
   import { utcDateTime } from './voice-settings';
-  import VoiceAlertEditor from './VoiceAlertEditor.svelte';
+  import VoiceAlertsCard from './VoiceAlertsCard.svelte';
   import VoiceChannelPointsCard from './VoiceChannelPointsCard.svelte';
   import VoiceChatCommandCard from './VoiceChatCommandCard.svelte';
-  import VoiceAlertRow from './VoiceAlertRow.svelte';
   import VoiceOverlayCard from './VoiceOverlayCard.svelte';
   import VoiceSettingsCard from './VoiceSettingsCard.svelte';
-  import VoiceUsageCard from './VoiceUsageCard.svelte';
+  import VoiceStage from './VoiceStage.svelte';
   import type { ActionData, PageData } from './$types';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -67,7 +61,6 @@
   }
 
   let commandValues = $state(untrack(loadedCommand));
-  let selected = $state<VoiceAlertKind | null>(null);
   type VoiceAction = 'rotateOverlay' | 'testAlert';
   let pending = $state<VoiceAction | null>(null);
   let overlayUrl = $state(untrack(() => form?.overlayUrl));
@@ -115,15 +108,27 @@
     return (['saving', 'error', 'saved'] as const).find((state) => states.includes(state)) ?? 'idle';
   }
 
-  function openAlert(kind: VoiceAlertKind) {
-    void autosave.flush();
-    selected = selected === kind ? null : kind;
-  }
+  const PAUSED_REASONS = ['inactive', 'banned'];
+  const ready = $derived(!!allowance && !PAUSED_REASONS.includes(allowance.reason));
 
-  function closeAlert() {
-    void autosave.flush();
-    selected = null;
-  }
+  let side = $state<HTMLElement>();
+  let sideTop = $state(0);
+  let sideBottom = $state(0);
+
+  $effect(() => {
+    if (!side) return;
+    const element = side;
+    const measure = () => {
+      element.style.position = 'static';
+      sideTop = element.getBoundingClientRect().top + scrollY;
+      element.style.position = '';
+      const split = element.parentElement?.getBoundingClientRect();
+      sideBottom = split ? document.documentElement.scrollHeight - (split.bottom + scrollY) : 0;
+    };
+    measure();
+    addEventListener('resize', measure);
+    return () => removeEventListener('resize', measure);
+  });
 
   beforeNavigate(() => {
     void autosave.flush();
@@ -159,22 +164,53 @@
 
 <svelte:head><title>{t('nav.voice')}</title></svelte:head>
 
+{#snippet title()}
+  <PageHead>
+    <span class="page-title">
+      <bb-fit class="page-title-copy"><span data-fit="">{t('nav.voice')}</span></bb-fit>
+      <Chip as="span" pressed>{t('modules.betaChip')}</Chip>
+    </span>
+  </PageHead>
+{/snippet}
+
 {#if data.locked}
   <PremiumGate><VoicePreview /></PremiumGate>
+{:else if ready && allowance}
+  <section class="screen active split">
+    <aside class="split-side" bind:this={side} style="--side-top: {sideTop}px; --side-bottom: {sideBottom}px">
+      {@render title()}
+      <VoiceStage {allowance} voice={values.voice} onVoice={(voice) => change('voice', voice)} />
+    </aside>
+    <div class="split-main">
+      <PageNotice tone="warning" visible={paused}>{pausedCopy}</PageNotice>
+      {#if allowance.limit_tokens > 0 && overlay}
+        <VoiceOverlayCard configured={!!overlayUrl || overlay.configured} url={overlayUrl}
+          error={overlayError} busy={pending === 'rotateOverlay'} disabled={pending !== null} submit={submitOverlay}
+          testBusy={pending === 'testAlert'} {submitTestAlert} />
+      {/if}
+      {#if data.alerts}
+        <VoiceSettingsCard {values} status={autosave.status} onChange={change} />
+        <VoiceAlertsCard {values} options={overrides} statusOf={alertStatus} onChange={change} />
+        {#if data.command}
+          <VoiceChatCommandCard values={commandValues} status={commandSave.status} onChange={changeCommand} />
+        {/if}
+        {#if safety}
+          <VoiceBlocksCard manual={safety.manual} error={form?.blockError} />
+        {/if}
+        <VoiceChannelPointsCard />
+      {:else}
+        <PageNotice tone="warning">{t('voice.unavailable')}</PageNotice>
+      {/if}
+    </div>
+  </section>
 {:else}
   <section class="screen active">
-    <PageHead>
-      <span class="page-title">
-        <bb-fit class="page-title-copy"><span data-fit="">{t('nav.voice')}</span></bb-fit>
-        <Chip as="span" pressed>{t('modules.betaChip')}</Chip>
-      </span>
-    </PageHead>
-
+    {@render title()}
     {#if data.readOnly}
       <PageNotice tone="info" role="note">{t('voice.readOnly')}</PageNotice>
     {:else if !allowance}
       <PageNotice tone="warning">{t('voice.unavailable')}</PageNotice>
-    {:else if allowance.reason === 'inactive' || allowance.reason === 'banned'}
+    {:else}
       {@const inactive = allowance.reason === 'inactive'}
       <Card as="section" aria-labelledby="voice-status">
         <div class="status-head">
@@ -182,7 +218,7 @@
             <bb-fit><span data-fit="">{t('voice.settingsTitle')}</span></bb-fit>
           </Heading>
           <div class="status-tag">
-            <Tag tone={allowance.reason} bare contain>
+            <Tag tone={inactive ? 'inactive' : 'banned'} bare contain>
               <bb-fit><span data-fit="">{inactive ? t('voice.inactiveLabel') : t('voice.bannedLabel')}</span></bb-fit>
             </Tag>
           </div>
@@ -193,63 +229,6 @@
           </Text>
         </div>
       </Card>
-    {:else}
-      <div class="stack">
-        <PageNotice tone="warning" visible={paused}>{pausedCopy}</PageNotice>
-        <VoiceUsageCard {allowance} settings={overlay?.settings} />
-        {#if allowance.limit_tokens > 0 && overlay}
-          <VoiceOverlayCard configured={!!overlayUrl || overlay.configured} url={overlayUrl}
-            error={overlayError} busy={pending === 'rotateOverlay'} disabled={pending !== null} submit={submitOverlay}
-            testBusy={pending === 'testAlert'} {submitTestAlert} />
-        {/if}
-
-        {#if data.alerts}
-          <VoiceSettingsCard {values} status={autosave.status} {options} onChange={change} />
-
-          <DeckLayout inspecting={selected !== null}>
-            <DeckList>
-              <div class="section-head">
-                <Heading level={6} as="h2" variant="eyebrow" id="voice-alerts">
-                  <bb-fit><span data-fit="">{t('voice.alertsTitle')}</span></bb-fit>
-                </Heading>
-                <Text as="p" size="xs" tone="muted">{t('voice.alertsHint')}</Text>
-              </div>
-              <Divider flush />
-              <ul class="list" aria-labelledby="voice-alerts">
-                {#each VOICE_ALERT_KINDS as kind, i (kind)}
-                  {@const keys = alertVoiceKeys(kind)}
-                  <li>
-                    <VoiceAlertRow {kind} index={i + 1} minBits={Number(values.ttsMinBits ?? 0)}
-                      enabled={values[keys.enabled] === 'true'} status={alertStatus(kind)} expanded={selected === kind}
-                      onExpand={() => openAlert(kind)} onToggle={(checked) => change(keys.enabled, String(checked))} />
-                  </li>
-                {/each}
-              </ul>
-            </DeckList>
-
-            {#if selected}
-              <InspectorSurface open title={t(`voice.kind.${selected}`)} controls="voice-editor"
-                closeLabel={t('modules.closeEditor')} onClose={closeAlert}>
-                <Scroller fill padding="16px" smooth>
-                  {#key selected}
-                    <VoiceAlertEditor kind={selected} {values} options={overrides} onChange={change} />
-                  {/key}
-                </Scroller>
-              </InspectorSurface>
-            {/if}
-          </DeckLayout>
-
-          {#if data.command}
-            <VoiceChatCommandCard values={commandValues} status={commandSave.status} onChange={changeCommand} />
-          {/if}
-          {#if safety}
-            <VoiceBlocksCard manual={safety.manual} error={form?.blockError} />
-          {/if}
-          <VoiceChannelPointsCard />
-        {:else}
-          <PageNotice tone="warning">{t('voice.unavailable')}</PageNotice>
-        {/if}
-      </div>
     {/if}
   </section>
 {/if}
@@ -257,14 +236,23 @@
 <style>
   .page-title { display: flex; align-items: center; gap: var(--bb-space-3); white-space: nowrap; }
   .page-title-copy { min-inline-size: 0; }
-  .stack, .status-head {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--bb-space-4);
-  }
-  .status-head { grid-template-columns: minmax(0, 1fr) minmax(0, 48%); align-items: center; gap: var(--bb-space-3); }
+  .status-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 48%); align-items: center; gap: var(--bb-space-3); }
   .status-tag { justify-self: end; min-inline-size: 0; max-inline-size: 100%; }
   .status-copy { block-size: 2.75rem; min-inline-size: 0; align-content: center; }
-  .section-head { display: flex; flex-direction: column; gap: var(--bb-space-1); padding: 12px 18px; }
-  .list { list-style: none; margin: 0; padding: 0; }
+  .split { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: var(--bb-space-10, 48px); align-items: start; }
+  .split-side {
+    position: sticky;
+    top: var(--side-top);
+    block-size: calc(100dvh - var(--side-top) - var(--side-bottom));
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    gap: var(--bb-space-4);
+    min-inline-size: 0;
+    overflow: hidden;
+  }
+  .split-main { display: grid; gap: var(--bb-space-4); min-inline-size: 0; }
+  @media (max-width: 900px) {
+    .split { grid-template-columns: minmax(0, 1fr); }
+    .split-side { position: static; block-size: auto; grid-template-rows: none; overflow: visible; }
+  }
 </style>

@@ -2,6 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
+  import '@bagel/ui/styles/elements/collapse.css';
   import { getI18n, PERMS, tPerm } from '@bagel/kit';
   import { MAX_SPEECH_RUNES } from '@bagel/kit/voice-plan';
   import Card from '@bagel/ui/svelte/Card.svelte';
@@ -21,8 +22,9 @@
   } = $props();
 
   const { t } = getI18n();
+  const on = $derived(values.enabled === 'true');
+  const master = $derived({ key: 'enabled', label: t('voice.chat.enable'), hint: t('voice.chat.enableHint') });
   const toggles = $derived([
-    { key: 'enabled', label: t('voice.chat.enable'), hint: t('voice.chat.enableHint') },
     { key: 'prefixName', label: t('voice.chat.prefix'), hint: undefined },
     { key: 'replyDenied', label: t('voice.chat.replyDenied'), hint: t('voice.chat.replyDeniedHint') }
   ]);
@@ -39,6 +41,17 @@
   }
 </script>
 
+{#snippet toggleRow(toggle: { key: string; label: string; hint: string | undefined })}
+  <Divider flush />
+  <div class="setting-row toggle">
+    <SwitchRow control="end" fitCopy label={toggle.label} hint={toggle.hint} hintId={toggle.hint ? `voice-chat-${toggle.key}-hint` : undefined}
+      checked={values[toggle.key] === 'true'} busy={stateOf(toggle.key) === 'saving'}
+      onCheckedChange={(checked) => onChange(toggle.key, String(checked))}>
+      {#snippet status()}<SaveStatus state={stateOf(toggle.key)} />{/snippet}
+    </SwitchRow>
+  </div>
+{/snippet}
+
 <Card as="section" flush aria-labelledby="voice-chat">
   <div class="section-head">
     <Heading level={6} as="h2" variant="eyebrow" id="voice-chat">
@@ -46,15 +59,11 @@
     </Heading>
     <span class="autosave"><Text as="span" size="xs" tone="muted">{t('modules.autoSaveNote')}</Text></span>
   </div>
+  {@render toggleRow(master)}
+  <div class="bb-collapse" class:is-open={on} aria-hidden={!on} inert={!on}>
+  <div>
   {#each toggles as toggle (toggle.key)}
-    <Divider flush />
-    <div class="setting-row toggle">
-      <SwitchRow control="end" fitCopy label={toggle.label} hint={toggle.hint} hintId={toggle.hint ? `voice-chat-${toggle.key}-hint` : undefined}
-        checked={values[toggle.key] === 'true'} busy={stateOf(toggle.key) === 'saving'}
-        onCheckedChange={(checked) => onChange(toggle.key, String(checked))}>
-        {#snippet status()}<SaveStatus state={stateOf(toggle.key)} />{/snippet}
-      </SwitchRow>
-    </div>
+    {@render toggleRow(toggle)}
   {/each}
   <Divider flush />
   <div class="setting-row">
@@ -78,6 +87,8 @@
   <Divider flush />
   <div class="setting-row overrides">
     <VoiceOverrideFields style={values.style} voice={values.voice} onChange={(key, value) => onChange(key, value)} />
+  </div>
+  </div>
   </div>
 </Card>
 
