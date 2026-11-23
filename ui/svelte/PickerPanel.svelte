@@ -113,8 +113,8 @@
   function besideAnchor(r: DOMRect): DropdownPlacement {
     const left =
       r.right + GAP_PX + width <= window.innerWidth ? r.right + GAP_PX : Math.max(GAP_PX, r.left - GAP_PX - width);
-    const top = Math.max(GAP_PX, Math.min(r.top, window.innerHeight - GAP_PX - maxHeight));
-    return { top, left, width, maxHeight };
+    if (r.top + maxHeight <= window.innerHeight - GAP_PX) return { top: r.top, left, width, maxHeight };
+    return { bottom: window.innerHeight - r.bottom, left, width, maxHeight: Math.min(maxHeight, r.bottom - GAP_PX) };
   }
 
   function place() {

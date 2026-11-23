@@ -4,17 +4,21 @@
 import { expect, test } from 'bun:test';
 import { validateDocument, type OverlayAsset } from '../overlay-document';
 import { staticText } from '../i18n/static';
-import { ALERT_KINDS, EDITABLE_KINDS, completeSettings, newWidget } from './defaults';
+import { ALERT_KINDS, EDITABLE_KINDS, applySetting, completeSettings, newWidget } from './defaults';
 import { DEFAULT_CANVAS, blankDocument, toWireDocument } from './document';
+import { EmulationBus, sampleEvent } from './emulate';
 import {
   alertFields, alertLook, creditHeaders, geometryFields, labelOf, listRule, tierWeights, typography, variationFields, widgetFields,
   type SettingField
 } from './fields';
 import { IMPORT_ERRORS, IMPORT_REASONS, importError, importReason, reportCounts } from './import-report';
 import { MediaFailure, UPLOAD_ERRORS, acceptsType, describeUpload, slotAccept, slotMaxBytes, uploadError } from './media';
-import { copyOf, reorderWidget } from './ops';
+import { KIND_GROUPS, filterKinds, kindIcon, type KindLabel } from './kinds';
+import { centerPosition, copyOf, moveWidget, reorderWidget } from './ops';
+import { parseSize } from './resolutions';
 import { EditorSession } from './session';
 import { createOverlay, templateNames } from './templates';
+import { stepZoom } from './zoom';
 
 const png: OverlayAsset = { type: 'png', bytes: 1000, w: 100, h: 100, duration_ms: 0, sha256: 'a'.repeat(64), url: 'https://cdn.itsbagelbot.com/u/1/a' };
 const HANDLES = ['nw', 'ne', 'sw', 'se'];
@@ -23,9 +27,27 @@ test.each(templateNames)('the %s template is a valid custom document', (template
   expect(validateDocument(createOverlay(template, 'Starter', (kind) => kind)).ok).toBe(true);
 });
 
+test('every editable kind sits in exactly one add-widget group and has an icon', () => {
+  const grouped = KIND_GROUPS.flatMap((group) => [...group.kinds]).sort();
+  expect({ grouped, icons: EDITABLE_KINDS.every((kind) => kindIcon(kind) !== 'overlay' || kind === 'image') }).toEqual({
+    grouped: [...EDITABLE_KINDS].sort(),
+    icons: true
+  });
+});
+
 test.each(EDITABLE_KINDS)('a new %s widget passes document validation', (kind) => {
   const doc = { ...blankDocument('Doc'), widgets: [newWidget(kind, DEFAULT_CANVAS, kind)] };
   expect(validateDocument(doc).ok).toBe(true);
+});
+
+test.each([
+  { name: 'switching a timer to count up stamps the start time', kind: 'timer' as const, key: 'mode', value: 'countup', stamped: true },
+  { name: 'switching a timer to count down', kind: 'timer' as const, key: 'mode', value: 'countdown', stamped: false },
+  { name: 'another timer setting', kind: 'timer' as const, key: 'format', value: 'countup', stamped: false },
+  { name: 'a mode on another widget', kind: 'goal' as const, key: 'mode', value: 'countup', stamped: false }
+])('$name', ({ kind, key, value, stamped }) => {
+  const next = applySetting(kind, { at: '' }, key, value);
+  expect({ value: next[key], stamped: next.at !== '' }).toEqual({ value, stamped });
 });
 
 test('saving keeps referenced assets only, with their urls', () => {
@@ -74,6 +96,100 @@ test('duplicating offsets inside the canvas and reordering stops at the ends', (
   });
 });
 
+test.each(ALERT_KINDS)('the %s sample is a test event the runtime can read', (kind) => {
+  const event = sampleEvent(kind, 7, 0);
+  expect({ id: event.id, kind: event.kind, seq: event.seq, test: event.test, at: event.at, user: event.user?.name }).toEqual({
+    id: 'test-7', kind, seq: 7, test: true, at: '1970-01-01T00:00:00.000Z', user: 'BagelFan'
+  });
+});
+
+test('samples carry the details their alerts print', () => {
+  expect({
+    months: sampleEvent('resub', 1).months,
+    recipient: sampleEvent('gift_sub', 1).recipient?.name,
+    bits: sampleEvent('cheer', 1).amount,
+    viewers: sampleEvent('raid', 1).amount,
+    reward: sampleEvent('redemption', 1).reward?.title
+  }).toEqual({ months: 12, recipient: 'Toasty', bits: 500, viewers: 42, reward: 'Hydrate' });
+});
+
+test('the emulation bus numbers events and stops after unsubscribe', () => {
+  const bus = new EmulationBus();
+  const seen: number[] = [];
+  const stop = bus.subscribe((event) => seen.push(event.seq));
+  bus.emit('follow');
+  bus.emit('raid');
+  stop();
+  bus.emit('cheer');
+  expect(seen).toEqual([1, 2]);
+});
+
+test.each([
+  { name: 'in from fit', scale: 0.37, direction: 1 as const, want: 0.5 },
+  { name: 'out from fit', scale: 0.37, direction: -1 as const, want: 0.25 },
+  { name: 'in from 100 percent', scale: 1, direction: 1 as const, want: 1.5 },
+  { name: 'out from 100 percent', scale: 1, direction: -1 as const, want: 0.75 },
+  { name: 'in just under a step', scale: 0.499, direction: 1 as const, want: 0.75 },
+  { name: 'in at the top', scale: 2, direction: 1 as const, want: 2 },
+  { name: 'out at the bottom', scale: 0.25, direction: -1 as const, want: 0.25 }
+])('zooming $name', ({ scale, direction, want }) => {
+  expect(stepZoom(scale, direction)).toBe(want);
+});
+
+test.each([
+  { value: '1280x720', want: { width: 1280, height: 720 } },
+  { value: '1920x1080', want: { width: 1920, height: 1080 } },
+  { value: '1080x1920', want: { width: 1080, height: 1920 } },
+  { value: '999x1', want: undefined },
+  { value: '1280X720', want: undefined },
+  { value: 'big', want: undefined },
+  { value: '', want: undefined },
+  { value: null, want: undefined }
+])('the size $value parses to $want', ({ value, want }) => {
+  expect(parseSize(value)).toEqual(want);
+});
+
+test.each([
+  { name: 'to the front', from: 0, to: 3, order: [1, 2, 3, 0] },
+  { name: 'to the back', from: 3, to: 0, order: [3, 0, 1, 2] },
+  { name: 'in place', from: 1, to: 1, order: [0, 1, 2, 3] },
+  { name: 'past the end', from: 1, to: 4, order: [0, 1, 2, 3] },
+  { name: 'before the start', from: 1, to: -1, order: [0, 1, 2, 3] }
+])('moving a layer $name', ({ from, to, order }) => {
+  const doc = createOverlay('justChatting', 'Chat', (kind) => kind);
+  const ids = doc.widgets.map((widget) => widget.id);
+  expect(moveWidget(doc, ids[from]!, to).widgets.map((widget) => ids.indexOf(widget.id))).toEqual(order);
+});
+
+test('moving an unknown layer changes nothing', () => {
+  const doc = createOverlay('justChatting', 'Chat', (kind) => kind);
+  expect(moveWidget(doc, 'missing', 0)).toBe(doc);
+});
+
+test.each([
+  { canvas: DEFAULT_CANVAS, want: { x: 760, y: 440 } },
+  { canvas: { width: 1280, height: 720 }, want: { x: 440, y: 260 } }
+])('centering a 400 x 200 box on $canvas', ({ canvas, want }) => {
+  const widget = { ...newWidget('text', canvas, 'Title'), w: 400, h: 200 };
+  expect(centerPosition(widget, canvas)).toEqual(want);
+});
+
+const labels: KindLabel[] = [
+  { kind: 'alertbox', name: 'Alert box', hint: 'Pops up for follows.' },
+  { kind: 'goal', name: 'Goal', hint: 'Tracks a follower target.' },
+  { kind: 'timer', name: 'Timer', hint: 'Counts down.' }
+];
+
+test.each([
+  { query: '', want: ['alertbox', 'goal', 'timer'] },
+  { query: '   ', want: ['alertbox', 'goal', 'timer'] },
+  { query: 'ALERT', want: ['alertbox'] },
+  { query: 'follow', want: ['alertbox', 'goal'] },
+  { query: 'zzz', want: [] }
+])('searching widgets for "$query"', ({ query, want }) => {
+  expect(filterKinds(labels, query).map((item) => item.kind)).toEqual(want);
+});
+
 const fieldGroups: SettingField[][] = [
   typography, alertLook, alertFields, listRule, variationFields, creditHeaders, tierWeights, geometryFields, ...Object.values(widgetFields)
 ];
@@ -84,6 +200,8 @@ test('every field label and option has an English catalog entry', () => {
     ...fields.map((item) => `overlayEditor.field.${labelOf(item)}`),
     ...fields.filter((item) => !item.raw).flatMap((item) => (item.options ?? []).map((option) => `overlayEditor.option.${option}`)),
     ...[...EDITABLE_KINDS, 'custom'].map((kind) => `overlayEditor.kind.${kind}`),
+    ...EDITABLE_KINDS.map((kind) => `overlayEditor.kindHint.${kind}`),
+    ...KIND_GROUPS.map((group) => `overlayEditor.group.${group.key}`),
     ...ALERT_KINDS.map((kind) => `overlayEditor.alert.${kind}`),
     ...templateNames.map((name) => `overlayEditor.template.${name}`),
     ...HANDLES.map((handle) => `overlayEditor.handle.${handle}`),

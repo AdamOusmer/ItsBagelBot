@@ -128,6 +128,7 @@
   {topbarContext}
   logoSrc={data.isPremium ? '/premium-logo.png' : '/logo.png'}
   isPremium={data.isPremium}
+  immersive={path.startsWith('/overlays/custom')}
   {isDelegate}
   delegateExitHref="/delegate/exit"
   delegateExitLabel={t('banner.leaveShared')}

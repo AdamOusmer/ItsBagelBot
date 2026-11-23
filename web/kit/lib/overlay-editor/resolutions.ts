@@ -9,6 +9,16 @@ export const resolutions: readonly Canvas[] = [
   { width: 3840, height: 2160 }, { width: 1080, height: 1920 }
 ];
 
+const SIZE_PATTERN = /^(\d+)x(\d+)$/;
+
+export function parseSize(value: string | null | undefined): Canvas | undefined {
+  const match = SIZE_PATTERN.exec(value ?? '');
+  if (!match) return undefined;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  return resolutions.find((size) => size.width === width && size.height === height);
+}
+
 export function resizeCanvas(doc: OverlayDocument, canvas: Canvas): OverlayDocument {
   const xScale = canvas.width / doc.width;
   const yScale = canvas.height / doc.height;
