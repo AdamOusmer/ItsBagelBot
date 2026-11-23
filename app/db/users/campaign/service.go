@@ -138,23 +138,28 @@ func (s *Service) process(ctx context.Context, id int) error {
 		return err
 	}
 	cursor := campaign.Cursor
-	for {
-		page, err := s.repo.MarketingAudience(ctx, cursor, pageSize)
+	for more := true; more; {
+		cursor, more, err = s.processPage(ctx, campaign, cursor)
 		if err != nil {
 			return err
 		}
-		active, err := s.sendPage(ctx, campaign, page.Recipients)
-		if err != nil || !active {
-			return err
-		}
-		if page.Next == 0 {
-			return s.repo.CampaignFinish(ctx, s.lease(id))
-		}
-		cursor = page.Next
-		if err := s.repo.CampaignAdvance(ctx, id, cursor); err != nil {
-			return err
-		}
 	}
+	return nil
+}
+
+func (s *Service) processPage(ctx context.Context, campaign repository.Campaign, cursor uint64) (uint64, bool, error) {
+	page, err := s.repo.MarketingAudience(ctx, cursor, pageSize)
+	if err != nil {
+		return 0, false, err
+	}
+	active, err := s.sendPage(ctx, campaign, page.Recipients)
+	if err != nil || !active {
+		return 0, false, err
+	}
+	if page.Next == 0 {
+		return 0, false, s.repo.CampaignFinish(ctx, s.lease(campaign.ID))
+	}
+	return page.Next, true, s.repo.CampaignAdvance(ctx, campaign.ID, page.Next)
 }
 
 func (s *Service) sendPage(ctx context.Context, campaign repository.Campaign, recipients []repository.AudienceRecipient) (bool, error) {

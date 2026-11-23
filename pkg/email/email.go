@@ -116,11 +116,8 @@ func (s *Sender) Send(ctx context.Context, m Message) (Receipt, error) {
 	if s == nil || s.client == nil {
 		return Receipt{}, ErrInvalidMessage
 	}
-	from := m.From
-	if from == "" {
-		from = s.from
-	}
-	if strings.TrimSpace(from) == "" || !m.valid() {
+	from := m.senderOr(s.from)
+	if !m.valid(from) {
 		return Receipt{}, ErrInvalidMessage
 	}
 	ctx, cancel := context.WithTimeout(ctx, sendTimeout)
@@ -150,8 +147,15 @@ func (m Message) request(from string) *resend.SendEmailRequest {
 	return req
 }
 
-func (m Message) valid() bool {
-	for _, field := range []string{m.IdempotencyKey, m.HTML, m.Text} {
+func (m Message) senderOr(fallback string) string {
+	if m.From == "" {
+		return fallback
+	}
+	return m.From
+}
+
+func (m Message) valid(from string) bool {
+	for _, field := range []string{from, m.IdempotencyKey, m.HTML, m.Text} {
 		if strings.TrimSpace(field) == "" {
 			return false
 		}

@@ -61,7 +61,7 @@ func (r *Users) withdrawChangedAddress(ctx context.Context, w consentWrite, emai
 	if err != nil {
 		return false, err
 	}
-	if r.addressMatches(grant.AddressHmac, email) {
+	if r.addressMatches(grant.AddressHmac, mailAddress(email)) {
 		return false, nil
 	}
 	record := marketingRecord{

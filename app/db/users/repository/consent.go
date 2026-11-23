@@ -194,7 +194,7 @@ func (r *Users) marketingAddress(ctx context.Context, w consentWrite, status con
 	if r.marketingMAC == nil {
 		return nil, ErrConsentMACUnavailable
 	}
-	return r.addressMAC(email)
+	return r.addressMAC(mailAddress(email))
 }
 
 func (r *Users) canHashContactEmail(owner *ent.User) bool {

@@ -237,23 +237,27 @@ func (r *Users) CampaignApprove(ctx context.Context, approval CampaignApproval) 
 	return r.CampaignGet(ctx, approval.ID)
 }
 
-func (r *Users) CampaignPause(ctx context.Context, id int) (Campaign, error) {
-	err := r.transition(ctx, id, transitionSpec{
+var (
+	pauseSpec = transitionSpec{
 		from: []consent.CampaignStatus{consent.CampaignApproved, consent.CampaignSending},
 		to:   consent.CampaignPaused,
-	})
-	if err != nil {
-		return Campaign{}, err
 	}
-	return r.CampaignGet(ctx, id)
+	resumeSpec = transitionSpec{
+		from: []consent.CampaignStatus{consent.CampaignPaused},
+		to:   consent.CampaignApproved,
+	}
+)
+
+func (r *Users) CampaignPause(ctx context.Context, id int) (Campaign, error) {
+	return r.moveCampaign(ctx, id, pauseSpec)
 }
 
 func (r *Users) CampaignResume(ctx context.Context, id int) (Campaign, error) {
-	err := r.transition(ctx, id, transitionSpec{
-		from: []consent.CampaignStatus{consent.CampaignPaused},
-		to:   consent.CampaignApproved,
-	})
-	if err != nil {
+	return r.moveCampaign(ctx, id, resumeSpec)
+}
+
+func (r *Users) moveCampaign(ctx context.Context, id int, spec transitionSpec) (Campaign, error) {
+	if err := r.transition(ctx, id, spec); err != nil {
 		return Campaign{}, err
 	}
 	return r.CampaignGet(ctx, id)

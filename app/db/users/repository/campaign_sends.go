@@ -50,38 +50,51 @@ type SendOutcome struct {
 }
 
 func (r *Users) MarketingRecipient(ctx context.Context, userID uint64) (MarketingRecipient, error) {
-	if err := validate.UserID(userID); err != nil {
+	owner, err := r.grantedOwner(ctx, userID)
+	if err != nil {
 		return MarketingRecipient{}, err
 	}
+	candidate, err := r.eligibleCandidate(ctx, owner)
+	if err != nil {
+		return MarketingRecipient{}, err
+	}
+	email, err := r.openContactEmail(owner.ID, owner.EmailEnc)
+	if err != nil {
+		return MarketingRecipient{}, err
+	}
+	return MarketingRecipient{UserID: owner.ID, Locale: owner.Locale, Email: email, AddressHMAC: candidate.hmacs[1]}, nil
+}
+
+func (r *Users) grantedOwner(ctx context.Context, userID uint64) (*ent.User, error) {
+	if err := validate.UserID(userID); err != nil {
+		return nil, err
+	}
 	if r.marketingMAC == nil {
-		return MarketingRecipient{}, ErrConsentMACUnavailable
+		return nil, ErrConsentMACUnavailable
 	}
 	owner, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.User, error) {
 		return r.client.User.Query().Where(user.IDEQ(userID), user.MarketingStatusEQ(user.MarketingStatusGranted)).
 			Select(user.FieldID, user.FieldLocale, user.FieldCreatedAt, user.FieldEmailEnc).Only(ctx)
 	})
 	if ent.IsNotFound(err) {
-		return MarketingRecipient{}, ErrNotEligible
+		return nil, ErrNotEligible
 	}
-	if err != nil {
-		return MarketingRecipient{}, err
-	}
+	return owner, err
+}
+
+func (r *Users) eligibleCandidate(ctx context.Context, owner *ent.User) (audienceCandidate, error) {
 	candidates, err := r.audienceCandidates(ctx, []*ent.User{owner})
 	if err != nil {
-		return MarketingRecipient{}, err
+		return audienceCandidate{}, err
 	}
 	suppressed, err := r.suppressedSet(ctx, candidates)
 	if err != nil {
-		return MarketingRecipient{}, err
+		return audienceCandidate{}, err
 	}
 	if len(audienceRecipients(candidates, suppressed)) == 0 {
-		return MarketingRecipient{}, ErrNotEligible
+		return audienceCandidate{}, ErrNotEligible
 	}
-	email, err := r.openContactEmail(owner.ID, owner.EmailEnc)
-	if err != nil {
-		return MarketingRecipient{}, err
-	}
-	return MarketingRecipient{UserID: owner.ID, Locale: owner.Locale, Email: email, AddressHMAC: candidates[0].hmacs[1]}, nil
+	return candidates[0], nil
 }
 
 func (r *Users) CampaignsRunnable(ctx context.Context, limit int) ([]int, error) {

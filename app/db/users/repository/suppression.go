@@ -30,6 +30,17 @@ type AudiencePage struct {
 	Next       uint64
 }
 
+type mailAddress string
+
+type audienceWindow struct {
+	after uint64
+	limit int
+}
+
+func (w audienceWindow) valid() bool {
+	return w.limit >= 1 && w.limit <= MaxAudiencePage
+}
+
 type audienceCandidate struct {
 	owner *ent.User
 	hmacs [][]byte
@@ -99,31 +110,31 @@ func (r *Users) recordConsentAnalytics(change consentChange) {
 	}
 }
 
-func normalizeAddress(email string) string {
-	return strings.ToLower(strings.TrimSpace(email))
+func (a mailAddress) normalized() string {
+	return strings.ToLower(strings.TrimSpace(string(a)))
 }
 
-func addressForms(email string) []string {
-	forms := []string{normalizeAddress(email)}
-	if trimmed := strings.TrimSpace(email); trimmed != forms[0] {
+func (a mailAddress) forms() []string {
+	forms := []string{a.normalized()}
+	if trimmed := strings.TrimSpace(string(a)); trimmed != forms[0] {
 		forms = append(forms, trimmed)
 	}
 	return forms
 }
 
-func (r *Users) addressMAC(email string) ([]byte, error) {
-	return r.marketingMAC.ComputeMAC([]byte(normalizeAddress(email)))
+func (r *Users) addressMAC(email mailAddress) ([]byte, error) {
+	return r.marketingMAC.ComputeMAC([]byte(email.normalized()))
 }
 
-func (r *Users) addressMatches(addressHMAC []byte, email string) bool {
-	if r.marketingMAC.VerifyMAC(addressHMAC, []byte(normalizeAddress(email))) == nil {
+func (r *Users) addressMatches(addressHMAC []byte, email mailAddress) bool {
+	if r.marketingMAC.VerifyMAC(addressHMAC, []byte(email.normalized())) == nil {
 		return true
 	}
 	return r.marketingMAC.VerifyMAC(addressHMAC, []byte(email)) == nil
 }
 
-func (r *Users) addressHMACs(email string) ([][]byte, error) {
-	forms := addressForms(email)
+func (r *Users) addressHMACs(email mailAddress) ([][]byte, error) {
+	forms := email.forms()
 	hmacs := make([][]byte, 0, len(forms))
 	for _, form := range forms {
 		sum, err := r.marketingMAC.ComputeMAC([]byte(form))
@@ -145,7 +156,7 @@ func (r *Users) SuppressAddress(ctx context.Context, email string, reason consen
 	if r.marketingMAC == nil {
 		return ErrConsentMACUnavailable
 	}
-	hmacs, err := r.addressHMACs(email)
+	hmacs, err := r.addressHMACs(mailAddress(email))
 	if err != nil {
 		return err
 	}
@@ -208,13 +219,11 @@ func (r *Users) withdrawForReport(ctx context.Context, id uint64, addressHMAC []
 }
 
 func (r *Users) MarketingAudience(ctx context.Context, afterID uint64, limit int) (AudiencePage, error) {
-	if limit < 1 || limit > MaxAudiencePage {
-		return AudiencePage{}, ErrConsentInvalid
+	window := audienceWindow{after: afterID, limit: limit}
+	if err := r.audienceReady(window); err != nil {
+		return AudiencePage{}, err
 	}
-	if r.marketingMAC == nil {
-		return AudiencePage{}, ErrConsentMACUnavailable
-	}
-	owners, err := r.grantedOwners(ctx, afterID, limit)
+	owners, err := r.grantedOwners(ctx, window)
 	if err != nil || len(owners) == 0 {
 		return AudiencePage{}, err
 	}
@@ -233,11 +242,21 @@ func (r *Users) MarketingAudience(ctx context.Context, afterID uint64, limit int
 	return page, nil
 }
 
-func (r *Users) grantedOwners(ctx context.Context, afterID uint64, limit int) ([]*ent.User, error) {
+func (r *Users) audienceReady(window audienceWindow) error {
+	if !window.valid() {
+		return ErrConsentInvalid
+	}
+	if r.marketingMAC == nil {
+		return ErrConsentMACUnavailable
+	}
+	return nil
+}
+
+func (r *Users) grantedOwners(ctx context.Context, window audienceWindow) ([]*ent.User, error) {
 	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
 		return r.client.User.Query().
-			Where(user.MarketingStatusEQ(user.MarketingStatusGranted), user.IDGT(afterID)).
-			Order(ent.Asc(user.FieldID)).Limit(limit).
+			Where(user.MarketingStatusEQ(user.MarketingStatusGranted), user.IDGT(window.after)).
+			Order(ent.Asc(user.FieldID)).Limit(window.limit).
 			Select(user.FieldID, user.FieldLocale, user.FieldCreatedAt, user.FieldEmailEnc).
 			All(ctx)
 	})
@@ -275,10 +294,10 @@ func (r *Users) currentGrantHMACs(owner *ent.User, grant *ent.MarketingConsent) 
 		return nil
 	}
 	email, err := r.openContactEmail(owner.ID, owner.EmailEnc)
-	if err != nil || !r.addressMatches(grant.AddressHmac, email) {
+	if err != nil || !r.addressMatches(grant.AddressHmac, mailAddress(email)) {
 		return nil
 	}
-	current, err := r.addressMAC(email)
+	current, err := r.addressMAC(mailAddress(email))
 	if err != nil {
 		return nil
 	}

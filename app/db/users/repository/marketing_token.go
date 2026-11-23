@@ -77,9 +77,20 @@ func (r *Users) parseUnsubscribeToken(token string) (unsubscribeClaim, error) {
 	return claimFromPayload(token[:split])
 }
 
+func validTokenShape(parts []string) bool {
+	if len(parts) != unsubscribeTokenParts-1 {
+		return false
+	}
+	return parts[0] == unsubscribeTokenVersion && parts[3] == unsubscribeTokenScope
+}
+
+func (c unsubscribeClaim) issuedTo(owner *ent.User) bool {
+	return owner.CreatedAt.UnixMicro() == c.accountCreatedAt
+}
+
 func claimFromPayload(payload string) (unsubscribeClaim, error) {
 	parts := strings.Split(payload, ".")
-	if len(parts) != unsubscribeTokenParts-1 || parts[0] != unsubscribeTokenVersion || parts[3] != unsubscribeTokenScope {
+	if !validTokenShape(parts) {
 		return unsubscribeClaim{}, ErrMarketingTokenInvalid
 	}
 	id, idErr := strconv.ParseUint(parts[1], 10, 64)
@@ -99,19 +110,27 @@ func (r *Users) MarketingTokenState(ctx context.Context, token string) (Marketin
 		return r.client.User.Query().Where(user.IDEQ(claim.userID)).
 			Select(user.FieldID, user.FieldCreatedAt, user.FieldMarketingStatus, user.FieldLocale).Only(ctx)
 	})
-	if ent.IsNotFound(err) || (err == nil && owner.CreatedAt.UnixMicro() != claim.accountCreatedAt) {
+	if ent.IsNotFound(err) {
 		return MarketingTokenState{}, ErrMarketingTokenInvalid
 	}
 	if err != nil {
 		return MarketingTokenState{}, err
 	}
+	if !claim.issuedTo(owner) {
+		return MarketingTokenState{}, ErrMarketingTokenInvalid
+	}
 	return MarketingTokenState{UserID: owner.ID, Status: consent.MarketingStatus(owner.MarketingStatus), Locale: owner.Locale}, nil
 }
 
 func (c MarketingChoice) validForToken() bool {
-	if c.Status != consent.Granted && c.Status != consent.Withdrawn {
-		return false
-	}
+	return c.tokenStatus() && c.tokenSource()
+}
+
+func (c MarketingChoice) tokenStatus() bool {
+	return c.Status == consent.Granted || c.Status == consent.Withdrawn
+}
+
+func (c MarketingChoice) tokenSource() bool {
 	return c.Source == consent.OneClick || c.Source == consent.PreferencePage
 }
 
@@ -124,7 +143,7 @@ func (r *Users) SetMarketingByToken(ctx context.Context, token string, choice Ma
 		return err
 	}
 	_, err = r.withConsentOwner(ctx, claim.userID, func(w consentWrite) (consentChange, error) {
-		if w.owner.CreatedAt.UnixMicro() != claim.accountCreatedAt {
+		if !claim.issuedTo(w.owner) {
 			return consentChange{}, ErrMarketingTokenInvalid
 		}
 		return r.applyTokenChoice(ctx, w, choice)
