@@ -59,6 +59,7 @@
   const consentStep = 1;
   const choiceStep = 1 + INTRO.findIndex((b) => b.kind === 'choice');
   let setup = $state<Setup>(page.url.searchParams.get('import') === '1' ? 'import' : 'start-new');
+  let hoveredChoice = $state<Setup | null>(null);
 
   const CHOICES = [
     { id: 'start-new', key: 'New', icon: 'start', face: 'excited' },
@@ -83,7 +84,11 @@
       current: code === locale
     }))
   );
-  const terseChoices = new MediaQuery('(max-width: 760px), (max-height: 820px)');
+  const choiceIndex = $derived(Math.max(0, CHOICES.findIndex((c) => c.id === (hoveredChoice ?? setup))));
+  const choicePosition = $derived(['12.5%', '37.5%', '62.5%', '87.5%'][choiceIndex]);
+  const choicePositionCompact = $derived(['25%', '75%', '25%', '75%'][choiceIndex]);
+  const compactChoices = new MediaQuery('max-width: 560px');
+  const terseChoices = new MediaQuery('(max-width: 560px), (max-height: 700px)');
   function pickSetup(id: string) {
     const choice = choiceOf(id);
     if (setup === choice.id) return;
@@ -95,9 +100,11 @@
     const choice = CHOICES.find((c) => c.id === input?.value);
     if (!choice) return;
     hover = choice.face;
+    hoveredChoice = choice.id;
   }
   function clearChoice() {
     hover = null;
+    hoveredChoice = null;
   }
 
   const beatsFor = (s: Setup): Beat[] => [...INTRO, ...(s === 'start-new' ? NEW_STREAMER : [])];
@@ -168,6 +175,15 @@
   const hasFinishStep = $derived(last && setup !== 'import');
   const canFinish = $derived(canImport && hasFinishStep);
   let instant = $state(false);
+
+  const SWAP_MS = 280;
+  let choiceLayout = $state(false);
+  $effect(() => {
+    const next = current.kind === 'choice';
+    if (next === untrack(() => choiceLayout)) return;
+    const timer = setTimeout(() => (choiceLayout = next), instant || prefersReducedMotion() ? 0 : SWAP_MS);
+    return () => clearTimeout(timer);
+  });
 
   type Sequence = 'entrance' | 'burst' | 'orbit' | 'comet';
   let sequence = $state<Sequence>('entrance');
@@ -422,14 +438,14 @@
   stepLabel={tr('onboarding.stepOf', { n: Math.max(step, 1), total: journeyTotal })}
   onSelect={goTo}
   hero={step === 0}
+  wide={choiceLayout}
   {leaving}
+  style={choiceLayout ? `--setup-art-x: calc(${compactChoices.current ? choicePositionCompact : choicePosition} - 50%)` : undefined}
   orbs={false}
 >
   {#snippet start()}<Brand title="ItsBagelBot" sub={tr('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />{/snippet}
-  {#snippet visual()}
-    <div class="mascot-panel" class:gone={showCompletion}>
-      <div class="mascot-fit"><Bolota name={data.name} size={240} active follow cycle={false} {expression} {sequence} {sequenceKey} sequenceFor={1100} sequenceHold={240} /></div>
-    </div>
+  {#snippet art()}
+    <Bolota name={data.name} size={240} active follow cycle={false} {expression} {sequence} {sequenceKey} sequenceFor={1100} sequenceHold={240} />
   {/snippet}
   {#key step}
     <SetupStep
@@ -449,7 +465,7 @@
         <div class="role-choices">
           <RadioGroup
             variant="cards"
-            cols={2}
+            cols={compactChoices.current ? 2 : 4}
             terse={terseChoices.current}
             name="setup"
             label={tr('onboarding.choiceTitle')}
@@ -552,15 +568,15 @@
 {#if veiled}<div class="veil" aria-hidden="true"></div>{/if}
 
 <style>
-  .mod-well { display: flex; justify-content: flex-start; }
+  .mod-well { display: flex; justify-content: center; }
   .pref-text { display: grid; gap: 4px; flex: 1; min-width: 0; }
 
-  .role-choices { --choice-min-h: clamp(76px, 15svh, 132px); width: 100%; }
-  .role-previews { display: grid; margin-top: 12px; text-align: start; }
+  .role-choices { --choice-min-h: 132px; width: 100%; }
+  .role-previews { display: grid; margin-top: 12px; text-align: center; }
   .role-preview {
     grid-area: 1 / 1;
     max-width: 62ch;
-    justify-self: start;
+    justify-self: center;
     visibility: hidden;
     opacity: 0;
     transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo), visibility 0s linear var(--bb-dur-base);
@@ -578,18 +594,6 @@
     transition: color var(--bb-dur-fast) ease;
   }
   .role-glyph.on { color: var(--bb-green-glow); }
-
-  .mascot-panel { --mascot-h: min(56svh, 340px); --mascot-scale: 1.25; display: grid; place-items: center; block-size: var(--mascot-h); transition: opacity var(--bb-dur-fast) linear; }
-  .mascot-panel.gone { opacity: 0; }
-  .mascot-fit { inline-size: 240px; scale: var(--mascot-scale); }
-
-  @media (max-height: 760px) {
-    .mascot-panel { --mascot-h: 46svh; --mascot-scale: 0.9; }
-  }
-
-  @media (max-width: 760px) {
-    .mascot-panel { --mascot-h: 96px; --mascot-scale: 0.4; }
-  }
 
   @media (max-height: 620px) {
     .role-previews { margin-top: 6px; }
@@ -612,7 +616,7 @@
 
 
   @media (prefers-reduced-motion: reduce) {
-    .role-preview, .role-glyph, .mascot-panel { transition: none; }
+    .role-preview, .role-glyph { transition: none; }
     .veil { animation: none; }
   }
 </style>

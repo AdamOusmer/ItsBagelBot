@@ -24,7 +24,6 @@
     start?: Snippet;
     trail?: Snippet;
     art?: Snippet;
-    visual?: Snippet;
     aside?: Snippet;
     foot?: Snippet;
     end?: Snippet;
@@ -48,7 +47,6 @@
     start,
     trail,
     art,
-    visual,
     aside,
     foot,
     end,
@@ -63,7 +61,6 @@
       full && 'bb-setup-stage--full',
       fill && 'bb-setup-stage--fill',
       hero && 'bb-setup-stage--hero',
-      visual && 'bb-setup-stage--split',
       leaving && 'bb-setup-stage--leaving',
       !orbs && 'bb-no-orbs',
       className || null,
@@ -72,13 +69,6 @@
       .join(' '),
   );
 </script>
-
-{#snippet column()}
-  {#if art}
-    <div class="bb-setup-stage__art" aria-hidden="true"><div class="bb-setup-stage__mascot">{@render art()}</div></div>
-  {/if}
-  <div class="bb-setup-stage__content">{@render children()}</div>
-{/snippet}
 
 <div class={classes} role="region" aria-label={label} {...rest}>
   <div class="bb-setup-stage__backdrop" aria-hidden="true"><LightField /></div>
@@ -90,12 +80,10 @@
     {#if trail}<div class="bb-setup-stage__trail">{@render trail()}</div>{/if}
   </header>
   <div class="bb-setup-stage__main">
-    {#if visual}
-      <div class="bb-setup-stage__visual" aria-hidden="true">{@render visual()}</div>
-      <div class="bb-setup-stage__col">{@render column()}</div>
-    {:else}
-      {@render column()}
+    {#if art}
+      <div class="bb-setup-stage__art" aria-hidden="true"><div class="bb-setup-stage__mascot">{@render art()}</div></div>
     {/if}
+    <div class="bb-setup-stage__content">{@render children()}</div>
   </div>
   {#if foot || aside || end}
     <footer class="bb-setup-stage__foot">
