@@ -19,10 +19,9 @@
 
 <section class="sky bb-canvas-fill bb-no-orbs" aria-labelledby="voice-locked-title">
   <div class="field" aria-hidden="true"><LightField /></div>
-  <div class="bb-orb bb-orb--halo bb-orb--green glow" aria-hidden="true"><i class="bb-orb__pulse"></i></div>
-  <div class="bb-orb bb-orb--halo bb-orb--tan warm" aria-hidden="true"><i class="bb-orb__pulse"></i></div>
   <div class="head">{@render children()}</div>
   <div class="stage">
+    <div class="bb-orb bb-orb--halo bb-orb--green aura" aria-hidden="true"><i class="bb-orb__pulse"></i></div>
     <VoiceTuner {voice} onVoice={(next) => (voice = next)} orbSize="var(--orb)" autoplay>
       {#snippet lead()}
         <h2 id="voice-locked-title" class="title">
@@ -57,67 +56,54 @@
     background-color: var(--bb-black);
   }
   .field { position: absolute; inset: 0; pointer-events: none; }
-  .glow {
-    --bb-orb-opacity: 0.32;
-    inline-size: 900px;
-    block-size: 900px;
-    inset-block-start: 55%;
-    inset-inline-start: 40%;
-    translate: -50% -50%;
-  }
-  .warm {
-    --bb-orb-opacity: 0.05;
-    --bb-orb-pulse-delay: 400ms;
-    inline-size: 420px;
-    block-size: 420px;
-    inset-block-end: -220px;
-    inset-inline-end: -160px;
-  }
   .head { position: relative; }
   .stage {
-    --orb: clamp(200px, min(50dvh, 32vw), 420px);
+    --orb: clamp(200px, min(46dvh, 30vw), 380px);
+    --side: 280px;
+    --gap: clamp(40px, 5vw, 72px);
     position: relative;
     display: grid;
-    grid-template-columns: var(--orb) minmax(0, 320px);
+    grid-template-columns: var(--orb) var(--side);
     place-content: center;
     align-items: center;
-    gap: clamp(32px, 6vw, 96px);
+    gap: var(--gap);
     min-block-size: 0;
   }
-  .title { display: grid; gap: var(--bb-space-2); margin: 0; text-align: center; }
+  .aura {
+    --bb-orb-opacity: 0.16;
+    position: absolute;
+    inline-size: calc(var(--orb) * 2);
+    block-size: calc(var(--orb) * 2);
+    inset-block-start: 50%;
+    inset-inline-start: calc(50% - (var(--orb) + var(--gap) + var(--side)) / 2 + var(--orb) / 2);
+    translate: -50% -50%;
+  }
+  .title { display: grid; justify-items: center; gap: var(--bb-space-1); margin: 0; text-align: center; }
   .name {
+    inline-size: 100%;
     font-family: var(--bb-font-display);
-    font-size: clamp(34px, 3.6vw, 52px);
+    font-size: 40px;
     font-weight: 500;
     letter-spacing: var(--bb-tracking-display);
-    line-height: 1.1;
+    line-height: 1.15;
     background: linear-gradient(180deg, var(--bb-white) 40%, rgba(var(--bb-tan-light-rgb), 0.55));
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
   }
-  .tag { font-size: 15px; font-weight: 700; color: var(--bb-tier-paid); }
-  .buy { display: grid; gap: var(--bb-space-3); }
-  .price {
-    display: grid;
-    grid-template-columns: auto minmax(0, max-content);
-    justify-content: center;
-    align-items: baseline;
-    gap: var(--bb-space-2);
-    margin: 0;
-    font-variant-numeric: tabular-nums;
-  }
-  .amount { font-family: var(--bb-font-display); font-size: 32px; font-weight: 500; color: var(--bb-tier-paid); }
-  .per { min-inline-size: 0; font-size: 13px; color: var(--bb-muted); }
+  .tag { inline-size: 100%; font-size: 14px; font-weight: 600; color: var(--bb-tier-paid); }
+  .buy { display: grid; gap: var(--bb-space-4); }
+  .price { display: grid; justify-items: center; gap: var(--bb-space-1); margin: 0; font-variant-numeric: tabular-nums; }
+  .amount { font-family: var(--bb-font-display); font-size: 28px; font-weight: 500; line-height: 1; color: var(--bb-white); }
+  .per { inline-size: 100%; font-size: 12px; color: var(--bb-muted); text-align: center; }
   @media (max-width: 900px) {
     .stage {
       --orb: clamp(140px, min(50vw, 27dvh), 300px);
       --wheel-rows: 3;
-      grid-template-columns: minmax(0, 320px);
-      justify-items: center;
+      grid-template-columns: minmax(0, var(--side));
       gap: var(--bb-space-5);
     }
-    .glow { inset-inline-start: 50%; inset-block-start: 40%; }
+    .aura { inset-inline-start: 50%; inset-block-start: calc(var(--orb) / 2); }
   }
   @media (max-width: 760px) {
     .sky {
