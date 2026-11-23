@@ -66,7 +66,7 @@ defmodule ControlsGateway.Overlays.Delivery do
         expires_at: expires_at(metadata.timestamp)
       })
 
-    outcome = outcome(ask_kind_then_legacy(user_id, kind, request))
+    outcome = outcome(ask(Subjects.overlay_session(user_id, kind), request))
     Metrics.count(Map.fetch!(@offer_metrics, outcome))
     settle(outcome, ack, {user_id, data["event_id"], delivered})
   end
@@ -81,13 +81,6 @@ defmodule ControlsGateway.Overlays.Delivery do
 
   defp count_failure(:ok), do: :ok
   defp count_failure(_result), do: Metrics.count("Ack/Failed")
-
-  defp ask_kind_then_legacy(user_id, kind, request) do
-    case ask(Subjects.overlay_session(user_id, kind), request) do
-      {:error, :no_responders} -> ask(Subjects.overlay_session(user_id), request)
-      result -> result
-    end
-  end
 
   defp ask(subject, body),
     do: Requester.request(Overlays.offers(), subject, body, @offer_timeout_ms)

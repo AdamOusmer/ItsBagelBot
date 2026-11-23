@@ -115,10 +115,7 @@ Control frames: `event: ready` (sent once the stream is subscribed to offers), `
 is sent on the visual stream only. `key` is the base64url of the first 9 bytes of
 `sha256("<kind>:<user_id>:<overlay_id or 'tts'>")`, so it identifies the overlay without exposing ids.
 
-The page opens `<base>/events?v=2` (base `/tts` or `/o`). Without `v=2` the server speaks the legacy
-protocol for pages loaded before the deploy, which never reload: TTS sends `event: tts` with the flat
-clip JSON including `handle`, visual sends `event: play` with `{}` and acks when it writes. Legacy
-streams get no `ready`, `alert` or `reconnect` frames and are closed at drain.
+The page opens `<base>/events` (base `/tts` or `/o`); a `v` query parameter is ignored.
 
 `HEAD <base>/events` mirrors GET: draining is 503 with `retry-after: 5`, a missing NATS plane is 503 with
 `retry-after: 1`, an invalid session is 204, no cookie is 401, an unavailable projector is 503 with
@@ -127,12 +124,11 @@ streams get no `ready`, `alert` or `reconnect` frames and are closed at drain.
 Acks carry a reason: `POST /tts/ack` or `/o/ack` with `{"handle": h, "reason": "played" | "duplicate" | "expired" | "dropped"}`.
 Progress is `POST /tts/progress` or `/o/progress` with up to 32 handles.
 
-The visual `play` frame is replaced by `alert`. Its `data` carries the template payload.
+The visual `alert` frame's `data` carries the template payload.
 
 ### Delivery rules
 
-1. A gateway pulls, then offers the message through `Platform.Nats.Requester` on the hub plane with the `overlays.session.reply` prefix (2 s timeout) to `overlays.session.<user_id>.<kind>`. For one release, a no-responders reply retries once on the legacy `overlays.session.<user_id>`, which new streams also subscribe, so old and new pods interoperate during the rollout.
-2. A stream accepts an offer only if its kind matches (TTS: `tts`; visual: its template) and
+1. A gateway pulls, then offers the message through `Platform.Nats.Requester` on the hub plane with the `overlays.session.reply` prefix (2 s timeout) to `overlays.session.<user_id>.<kind>`.2. A stream accepts an offer only if its kind matches (TTS: `tts`; visual: its template) and
    it is not past its handoff close. Accepting means writing the frame and replying
    `{"accepted":true}`, then tracking the ack subject in `Pending`.
 3. Nobody accepts (no responders, timeout, or refusal): `-NAK` with delay 250 ms, 1 s, 2 s, 5 s,
@@ -172,7 +168,7 @@ in-memory map on it (`tts/throttle.ex`). That is removed:
 - The overlay `IngressRoute` gets the same pair the dashboard uses
   (`deploy/k8s/console-dashboard.yaml` `dashboard-auth-ratelimit`, `strip-client-ip`):
   - `overlay-session-ratelimit`: `rateLimit` average 10, period 1m, burst 10, keyed on
-    `CF-Connecting-IP`, on `/tts/session`, `/o/session` and `/powered/config` only (matched with
+    `CF-Connecting-IP`, on `/tts/session` and `/o/session` only (matched with
     `PathRegexp` so trailing or repeated slashes cannot bypass it). Unlike the old gateway
     throttle, which refunded successful exchanges, Traefik counts every exchange: more than 10
     browser sources starting at once behind one address get a 429 and retry after
@@ -237,7 +233,7 @@ Drain on SIGTERM, after the `preStop` sleep:
    delivers `ready`. Readiness already removed this pod, so the new stream lands on
    another replica.
 5. During the overlap both streams are subscribed in the same NATS queue group (`tts`, or
-   `overlay.<template>`) on both the per-kind and the legacy subject, so each offer reaches one of them. The page skips any duplicate that
+   `overlay.<template>`) on the per-kind subject, so each offer reaches one of them. The page skips any duplicate that
    a redelivery still produces.
 6. Streams still open 10 s after their reconnect frame are closed with `:fin`. The page's
    ordinary reconnect path then applies.
@@ -302,7 +298,7 @@ published during the event.
 
 | Event | Expected behavior | Delay | Loss / double |
 | --- | --- | --- | --- |
-| Rolling deploy | Handoff moves streams. Overlap covers the switch. Offers to an old-version pod fall back to the legacy subject for one release. A frame written just after the page closed its old stream waits the 30 s `AckWait`. | under 2 s (30 s tail for that frame) | none / none |
+| Rolling deploy | Handoff moves streams. Overlap covers the switch. A frame written just after the page closed its old stream waits the 30 s `AckWait`. | under 2 s (30 s tail for that frame) | none / none |
 | Pod SIGKILL or OOM | Pages reconnect on stream error. Pending died with the pod, so its unacked offers redeliver after `AckWait` (30 s). | 30 s | none / skipped by page |
 | Node loss | As SIGKILL for that node's pod. Toleration evicts after 60 s, but pages have already moved. | 30 s | none / skipped |
 | NATS leaf restart (RPC plane) | Streams get `reconnect` on DOWN. Link checks pause for the outage. Pullers are on the hub plane and keep going. | reconnect time | none / none |

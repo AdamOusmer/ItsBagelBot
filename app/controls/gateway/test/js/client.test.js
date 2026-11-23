@@ -183,35 +183,6 @@ test('a redelivered id still queued is acked duplicate and not queued twice', as
   );
 });
 
-test('legacy tts and play frames are mapped onto the alert path', async () => {
-  const clip = { event_id: 'a', handle: 'h-a', expires_at: new Date(START_MS + 5 * MINUTE_MS).toISOString(), duration_ms: 900 };
-  const h = await open({ hold: true });
-  const alerts = [];
-  h.sources[0].emit('tts', clip);
-  h.sources[0].emit('tts', clip);
-  h.ctls[0].started();
-  h.ctls[0].done();
-  h.sources[0].emit('play', {});
-  h.ctls[1].started();
-  h.ctls[1].done();
-  alerts.push(...h.alerts);
-  h.timers.advance(15000);
-  assert.deepEqual(
-    {
-      alerts,
-      acks: h.acks(),
-      seen: JSON.parse(h.store.get('bb_seen:' + BASE)),
-      progress: h.requests.filter((r) => r.url === BASE + '/progress').length
-    },
-    {
-      alerts: ['a', null],
-      acks: [['h-a', 'duplicate'], ['h-a', 'played']],
-      seen: { a: START_MS + 5 * MINUTE_MS },
-      progress: 0
-    }
-  );
-});
-
 test('started takes an explicit reason and expired reports the server clock', async () => {
   const h = await open({ hold: true });
   alertFrames(h, [frame('a', MINUTE_MS), frame('b')]);
@@ -312,7 +283,7 @@ test('the events check opens v2 directly on 200 and exchanges the token on 401',
     const h = await open({ token: 'tok', respond });
     assert.deepEqual(
       { name: c.name, sessions: h.sessions(), urls: h.sources.map((s) => s.url) },
-      { name: c.name, sessions: c.sessions, urls: [BASE + '/events?v=2'] }
+      { name: c.name, sessions: c.sessions, urls: [BASE + '/events'] }
     );
   }
 });

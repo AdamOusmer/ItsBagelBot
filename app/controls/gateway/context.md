@@ -32,10 +32,7 @@ When either NATS plane has no connection (a restart in progress) the response is
 `503` with `Retry-After: 1`. `HEAD <base>/events` mirrors GET without a stream: draining is 503 with
 `Retry-After: 5`, a missing NATS plane 503 with `Retry-After: 1`, a bad session 204, no cookie 401, an
 unavailable projector 503 with `Retry-After: 15`, otherwise 200. The page opens streams as
-`<base>/events?v=2`. Without `v=2` the stream speaks the legacy protocol for pages loaded before
-the deploy (TTS `event: tts` with the flat clip JSON, visual `event: play` with `{}` and the old ack at write,
-a 3 to 8 second `retry:`, no `ready`, `alert` or `reconnect` frames) and is closed at drain after the same
-jitter. Drain rejects new `GET /tts/events`
+`<base>/events`; a `v` query parameter is ignored. Drain rejects new `GET /tts/events`
 requests with `503` and `Retry-After: 5`; the order is in the Drain paragraph below.
 
 Clips travel through the acked, shared queue the worker provisions: work-queue
@@ -45,11 +42,11 @@ streams `OVERLAYS_PREMIUM` and `OVERLAYS_STANDARD` (subjects
 pod runs one `Platform.Nats.Pull` loop per tier on the hub connection
 (`overlays.ex`, started with the server). For every message the handler
 parses the user ID and kind from the subject and sends a core request to
-`overlays.session.<user_id>.<kind>` (on no responders it retries once on the legacy `overlays.session.<user_id>`, kept for one release) with `{"ack", "kind", "data", "delivered", "expires_at"}`
+`overlays.session.<user_id>.<kind>` with `{"ack", "kind", "data", "delivered", "expires_at"}`
 (`expires_at` is the JetStream publish time plus the 5 minute TTL). The reply
 subject is `overlays.session.reply.<instance>.<nonce>` from `Platform.Nats.Requester`, because the gateway role may not
 publish to `_INBOX`. Every open
-`GET /tts/events` stream of that user subscribes to the subject of its own kind (`tts`, or the visual template) and to the legacy per-user subject in a NATS queue group (`tts` for TTS streams, `overlay.<template>` for visual ones), so two sources on one link receive each offer once, including during a handoff overlap. The one
+`GET /tts/events` stream of that user subscribes to the subject of its own kind (`tts`, or the visual template) in a NATS queue group (`tts` for TTS streams, `overlay.<template>` for visual ones), so two sources on one link receive each offer once, including during a handoff overlap. The one
 `Overlays.Stream` module serves both kinds: a TTS stream accepts offers of kind `tts`,
 a visual stream those whose kind equals its template. It tracks the ack subject in
 a monitor process, writes the frame below and replies `{"accepted": true}`:
@@ -78,7 +75,7 @@ counts `Ack/Ack`, and the last three also count `Page/DuplicateSkipped`, `Page/E
 handle is 404, no session is 401, success is 204, a failed publish is 503 and counts `Ack/Failed`. Each stream keeps the ack
 subjects it sent for five minutes in a monitor process and publishes `-NAK`
 for them when the stream ends, so another session or pod gets
-the clip at once. A stream that already sent its `reconnect` frame and is then closed by the client publishes `+WPI` instead (`Ack/ProgressOnHandoff`), because the old page may still be playing the clip and its own ack settles it. An offer for a user with no open stream gets no responders on either subject and is requeued at once. When only streams of another kind are open, the legacy retry reaches one of them, it stays silent, and the offer waits out the 2 second timeout (`Offer/Timeout`) before the `-NAK`. Acking an already acked message is a no-op.
+the clip at once. A stream that already sent its `reconnect` frame and is then closed by the client publishes `+WPI` instead (`Ack/ProgressOnHandoff`), because the old page may still be playing the clip and its own ack settles it. An offer for a user with no open stream gets no responders and is requeued at once. When only streams of another kind are open, none subscribes to the offer subject, so it is requeued at once as well. Acking an already acked message is a no-op.
 
 `GET /tts/clip/<event_id>` streams a WAV from the `OVERLAYS_MEDIA` Object Store
 bucket with `Content-Length` from the object metadata size, using the cookie
@@ -96,13 +93,12 @@ arguments, so `test/js/client.test.js` drives it with fakes
 (`node --test app/controls/gateway/test/js/`, run in CI). It owns:
 
 - Connecting. Every connect, first or after any `EventSource` error (the client closes the stream and does not leave the retry to the browser), starts with
-  `HEAD <base>/events`. A 200 opens `<base>/events?v=2` directly. A 401 with a
+  `HEAD <base>/events`. A 200 opens `<base>/events` directly. A 401 with a
   held token runs `POST <base>/session` (404 stops for good; network errors,
   429 and 5xx retry) and then opens the stream. A 204 stops for good. Any other
   answer, including 503, retries and waits at least `Retry-After`. Retries wait
   500 ms to 1 s, doubling to a 15 s cap with full jitter, and reset on the first
-  frame of any kind. Streams without `?v=2` get the legacy protocol for pages
-  loaded before the deploy.
+  frame of any kind.
 - Handoff. On `event: reconnect` (`{"after_ms": n}`) it waits `n` ms, opens a
   second stream and closes the old one when the new one sends `ready`. If the
   old one errors first, the normal reconnect applies. If the new one fails first,
@@ -209,7 +205,7 @@ open desktop and TTS SSE connections.
 | Clip downloads | [clips.ex](lib/controls_gateway/tts/clips.ex) |
 | Queue pull loops and acks | [overlays.ex](lib/controls_gateway/overlays.ex), [delivery.ex](lib/controls_gateway/overlays/delivery.ex), [acks.ex](lib/controls_gateway/overlays/acks.ex), [handle.ex](lib/controls_gateway/overlays/handle.ex) |
 | Projector TTS RPC | [tts/nats.ex](lib/controls_gateway/tts/nats.ex) |
-| Powered page, assets and config | [powered/http.ex](lib/controls_gateway/powered/http.ex), [powered/page.ex](lib/controls_gateway/powered/page.ex) |
+| Powered page and assets | [powered/http.ex](lib/controls_gateway/powered/http.ex), [powered/page.ex](lib/controls_gateway/powered/page.ex) |
 | Projector overlay RPC | [overlay/nats.ex](lib/controls_gateway/overlay/nats.ex) |
 | Leaf and hub routing | [Platform.Nats.Planes](../../../pkg/elixir/nats/lib/platform/nats/planes.ex) |
 | Listener and credentials | [runtime.exs](config/runtime.exs), [controls-gateway.yaml](../../../deploy/k8s/controls-gateway.yaml) |

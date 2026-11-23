@@ -26,7 +26,7 @@ defmodule ControlsGateway.EventsHandler do
 
   defp route("GET", name, kind, req) do
     case Drain.track_connection(:stream) do
-      :ok -> with_session(kind, req, &Stream.open(req, {name, version(req)}, &1, kind.headers))
+      :ok -> with_session(kind, req, &Stream.open(req, name, &1, kind.headers))
       :draining -> reply(req, 503, Map.put(kind.headers, "retry-after", @retry_after))
     end
   end
@@ -44,13 +44,6 @@ defmodule ControlsGateway.EventsHandler do
     case kind.session.read(req) do
       {:ok, session} -> fun.(session)
       :error -> reply(req, 401, kind.headers)
-    end
-  end
-
-  defp version(req) do
-    case List.keyfind(:cowboy_req.parse_qs(req), "v", 0) do
-      {"v", "2"} -> :v2
-      _ -> :legacy
     end
   end
 

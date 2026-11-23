@@ -14,15 +14,10 @@ defmodule ControlsGateway.Overlay.Http do
     "referrer-policy" => "no-referrer",
     "x-content-type-options" => "nosniff"
   }
-  @labels %{
-    session: {:warning, "Overlay session rejected", "Overlay session resolution unavailable"},
-    config: {:debug, "Powered overlay config rejected", "Powered overlay config unavailable"}
-  }
 
   def handle(%{method: "GET"} = conn, :page), do: Page.reply(conn)
 
-  def handle(%{method: "POST"} = conn, route) when route in [:session, :config],
-    do: exchange(conn, route)
+  def handle(%{method: "POST"} = conn, :session), do: exchange(conn)
 
   def handle(%{method: "GET"} = conn, :doc), do: authorized(conn, :doc)
 
@@ -32,7 +27,7 @@ defmodule ControlsGateway.Overlay.Http do
   def handle(conn, route),
     do: Http.reply(conn, 405, Map.put(@headers, "allow", allowed(route)))
 
-  defp allowed(route) when route in [:session, :config, :ack, :progress], do: "POST"
+  defp allowed(route) when route in [:session, :ack, :progress], do: "POST"
   defp allowed(_route), do: "GET"
 
   defp authorized(conn, route) do
@@ -64,43 +59,25 @@ defmodule ControlsGateway.Overlay.Http do
     end
   end
 
-  defp exchange(conn, kind) do
+  defp exchange(conn) do
     {hashed, conn} = OverlayRequest.token_hash(conn)
-    {rejected_level, rejected_message, unavailable_message} = Map.fetch!(@labels, kind)
 
     case with(
            {:ok, hash} <- hashed,
            {:ok, overlay} <- Nats.resolve(hash),
-           do: grant(kind, overlay, hash)
+           do: {:ok, {overlay, hash}}
          ) do
-      {:ok, result} ->
-        granted(conn, kind, result)
+      {:ok, {overlay, hash}} ->
+        Logger.info("Overlay session opened", overlay_id: overlay.overlay_id)
+        conn |> Session.put(overlay, hash) |> Http.reply(204, @headers)
 
       {:not_found, reason} ->
-        Logger.log(rejected_level, rejected_message, reason: reason)
+        Logger.warning("Overlay session rejected", reason: reason)
         Http.reply(conn, 404, @headers)
 
       {:unavailable, reason} ->
-        Logger.warning(unavailable_message, reason: reason)
+        Logger.warning("Overlay session resolution unavailable", reason: reason)
         Http.reply(conn, 503, @headers)
     end
   end
-
-  defp grant(:session, overlay, hash), do: {:ok, {overlay, hash}}
-
-  defp grant(
-         :config,
-         %{allowed: true, document: %{"config" => %{} = config}, premium: premium},
-         _hash
-       ),
-       do: {:ok, %{config: config, premium: premium}}
-
-  defp grant(:config, _overlay, _hash), do: {:not_found, :not_powered}
-
-  defp granted(conn, :session, {overlay, hash}) do
-    Logger.info("Overlay session opened", overlay_id: overlay.overlay_id)
-    conn |> Session.put(overlay, hash) |> Http.reply(204, @headers)
-  end
-
-  defp granted(conn, :config, body), do: Http.json(conn, 200, @headers, body)
 end

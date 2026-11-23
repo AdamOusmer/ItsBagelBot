@@ -8,12 +8,12 @@ defmodule ControlsGateway.Overlays.Stream do
 
   alias ControlsGateway.{Metrics, Overlay, SignedCookie, Subjects, Tts}
   alias ControlsGateway.Overlays.{Delivery, Handle, Pending}
-  alias Platform.Nats.{Ack, Planes}
+  alias Platform.Nats.Planes
 
   @ping_ms 15_000
   @check_ms 300_000
   @recheck_ms 15_000
-  @retry_ms %{v2: 1_000..3_000, legacy: 3_000..8_000}
+  @retry_ms 1_000..3_000
   @status_retry_after "15"
   @unavailable_retry_ms 15_000..30_000
   @planes_retry_after "1"
@@ -22,12 +22,11 @@ defmodule ControlsGateway.Overlays.Stream do
   @reconnect_max_ms 1_500
   @ping_frame ": ping\n\n"
   @accepted ~s({"accepted":true})
-  @play_frame "event: play\ndata: {}\n\n"
   @labels %{overlay: "Overlay", tts: "TTS"}
   @streams ControlsGateway.Streams
 
-  def open(req, {kind, version}, session, headers) do
-    base = %{kind: kind, version: version, session: session}
+  def open(req, kind, session, headers) do
+    base = %{kind: kind, session: session}
 
     with %Planes{} = jetstream <- Planes.connection(:jetstream),
          %Planes{} = rpc <- Planes.connection(:rpc) do
@@ -99,14 +98,12 @@ defmodule ControlsGateway.Overlays.Stream do
              self(),
              Subjects.overlay_session(user_id, accepts),
              group
-           ),
-         {:ok, legacy_sid} <-
-           Planes.subscribe(state.jetstream, self(), Subjects.overlay_session(user_id), group) do
-      {:ok, %{offer_sid: offer_sid, legacy_sid: legacy_sid}}
+           ) do
+      {:ok, %{offer_sid: offer_sid}}
     end
   end
 
-  defp subscribe_offers(_state, _link), do: {:ok, %{offer_sid: nil, legacy_sid: nil}}
+  defp subscribe_offers(_state, _link), do: {:ok, %{offer_sid: nil}}
 
   defp queue_group(:tts, _template), do: "tts"
   defp queue_group(:overlay, template), do: "overlay.#{template}"
@@ -148,7 +145,7 @@ defmodule ControlsGateway.Overlays.Stream do
     Logger.info("#{label(state.kind)} events stream opened", log_id(state))
 
     req = :cowboy_req.stream_reply(200, event_headers(headers), req)
-    initial = [initial_frame(@retry_ms[state.version]), ready_frame(state)]
+    initial = [initial_frame(@retry_ms), ready_frame(state)]
     :ok = :cowboy_req.stream_body(initial, :nofin, req)
     Process.send_after(self(), :ping, @ping_ms)
     schedule_check(state)
@@ -189,7 +186,7 @@ defmodule ControlsGateway.Overlays.Stream do
         req,
         %{jetstream: %{pid: pid}} = state
       )
-      when is_binary(reply) and sid in [state.offer_sid, state.legacy_sid],
+      when is_binary(reply) and sid == state.offer_sid,
       do: offer(message, req, state)
 
   def info({:DOWN, ref, :process, _pid, _reason}, req, state)
@@ -249,20 +246,15 @@ defmodule ControlsGateway.Overlays.Stream do
   defp reconnect(req, state, {after_ms, reason}, close_ms) do
     Metrics.count("Stream/Reconnect/#{reason}")
     announce_reconnect(req, state, after_ms)
-    Process.send_after(self(), {:force_close, reason}, close_after_ms(state, after_ms, close_ms))
+    Process.send_after(self(), {:force_close, reason}, close_ms)
     continue(req, state)
   end
 
-  defp announce_reconnect(req, %{version: :v2} = state, after_ms) do
+  defp announce_reconnect(req, state, after_ms) do
     frame = ["event: reconnect\ndata: {\"after_ms\": ", Integer.to_string(after_ms), "}\n\n"]
     Pending.handoff(state.pending)
     :ok = :cowboy_req.stream_body(frame, :nofin, req)
   end
-
-  defp announce_reconnect(_req, %{version: :legacy}, _after_ms), do: :ok
-
-  defp close_after_ms(%{version: :v2}, _after_ms, close_ms), do: close_ms
-  defp close_after_ms(%{version: :legacy}, after_ms, _close_ms), do: after_ms
 
   defp env_ms(key, default), do: Application.get_env(:controls_gateway, key, default)
 
@@ -296,9 +288,9 @@ defmodule ControlsGateway.Overlays.Stream do
   defp accept(_offer, _reply, req, state), do: invalid(req, state)
 
   defp deliver({offer, data, id}, reply, req, state) do
-    :ok = :cowboy_req.stream_body(frame(state, offer, data), :nofin, req)
+    :ok = :cowboy_req.stream_body(alert_frame(offer, data, state), :nofin, req)
     Planes.publish(state.jetstream, reply, @accepted)
-    settle(state, offer["ack"])
+    Pending.track(state.pending, offer["ack"])
 
     Logger.info(
       "#{label(state.kind)} event delivered",
@@ -309,20 +301,7 @@ defmodule ControlsGateway.Overlays.Stream do
   end
 
   defp event_id(%{"event_id" => id}, _state) when is_binary(id), do: {:ok, id}
-  defp event_id(_data, %{version: :legacy, kind: :overlay}), do: {:ok, ""}
   defp event_id(_data, _state), do: :error
-
-  defp frame(%{version: :v2} = state, offer, data), do: alert_frame(offer, data, state)
-
-  defp frame(%{version: :legacy, kind: :tts} = state, offer, data) do
-    clip = Map.put(data, "handle", Handle.sign(state.user_id, offer["ack"]))
-    ["event: tts\ndata: ", Jason.encode!(clip), "\n\n"]
-  end
-
-  defp frame(%{version: :legacy, kind: :overlay}, _offer, _data), do: @play_frame
-
-  defp settle(%{version: :legacy, kind: :overlay}, ack), do: Ack.ack(:jetstream, ack)
-  defp settle(state, ack), do: Pending.track(state.pending, ack)
 
   defp invalid(req, state) do
     Logger.warning("#{label(state.kind)} offer invalid", log_id(state))
@@ -354,9 +333,7 @@ defmodule ControlsGateway.Overlays.Stream do
       Delivery.expires_at(DateTime.utc_now())
   end
 
-  defp ready_frame(%{version: :legacy}), do: []
-
-  defp ready_frame(%{version: :v2} = state),
+  defp ready_frame(state),
     do: ["event: ready\ndata: ", Jason.encode!(ready_data(state)), "\n\n"]
 
   defp ready_data(state) do
