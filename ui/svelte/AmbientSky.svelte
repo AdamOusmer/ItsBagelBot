@@ -41,6 +41,6 @@
 >
   <div class="bb-ambient-sky__dawn"></div>
   <div class="bb-ambient-sky__field"><LightField {warmth} /></div>
-  <div class="bb-orb bb-orb--halo bb-orb--green bb-ambient-sky__orb bb-ambient-sky__orb--green"></div>
-  <div class="bb-orb bb-orb--halo bb-orb--tan bb-ambient-sky__orb bb-ambient-sky__orb--tan"></div>
+  <div class="bb-orb bb-orb--halo bb-orb--green bb-ambient-sky__orb bb-ambient-sky__orb--green"><i class="bb-orb__pulse"></i></div>
+  <div class="bb-orb bb-orb--halo bb-orb--tan bb-ambient-sky__orb bb-ambient-sky__orb--tan"><i class="bb-orb__pulse"></i></div>
 </div>
