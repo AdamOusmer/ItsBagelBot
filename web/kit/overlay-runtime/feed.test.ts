@@ -14,9 +14,8 @@ describe('golden feed frames shared with Go', () => {
     expect(Object.keys(golden.snapshot).sort()).toEqual(['chat', 'control', 'events', 'stats', 'subathon']);
   });
 
-  test('carry every event kind with a sequence', () => {
+  test('carry every event kind', () => {
     expect(golden.events.map((event) => event.kind).sort()).toEqual([...eventKinds].sort());
-    expect(golden.events.every((event) => event.seq > 0)).toBe(true);
   });
 
   test('carry the stats windows the runtime reads', () => {

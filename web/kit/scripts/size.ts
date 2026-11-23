@@ -40,8 +40,10 @@ const ENTRIES: {
              globalThis.x = parseStreamElements;`,
   },
   {
+    // budget 12250 -> 12550 (2026-11-23): the feed frames (snapshot, stats, subathon, control) and alert queue merged into the
+    // runtime page; measured 12508 B gzip on macOS, ~0.3% room.
     name: "overlay runtime page",
-    budget: 12250,
+    budget: 12550,
     external: [],
     source: `import { OverlayRuntime } from "../../overlay-runtime";
              globalThis.x = OverlayRuntime;`,

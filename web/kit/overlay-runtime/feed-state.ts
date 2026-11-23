@@ -13,7 +13,7 @@ export class FeedState {
   #seq = 0;
 
   load(snapshot: FeedSnapshot): void {
-    const number = (items?: FeedEvent[]) => items?.toSorted((a, b) => a.seq - b.seq).map((item) => ({ ...item, seq: ++this.#seq }));
+    const number = (items?: FeedEvent[] | null) => items?.map((item) => ({ ...item, seq: ++this.#seq }));
     this.snapshot = { ...snapshot, chat: number(snapshot.chat), events: number(snapshot.events) };
   }
 

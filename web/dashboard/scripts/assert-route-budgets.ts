@@ -66,7 +66,9 @@ const BUDGETS: Record<string, Budget> = {
   // on macOS after integration, ~0.5% room for CI's larger linux gzip.
   // js and css raised from 147400 / 48300 (2026-11-21) for the integrated delegated/admin topbar context in the shared
   // Topbar and shell.css: measured 148060 / 48403 B gzip on macOS, ~0.5% / ~1% room.
-  '/(app)/commands': { js: 148800, css: 48900, catalog: 4600, lazy: 31200 },
+  // js raised from 148800 (2026-11-23): the overlay feed branch moves shared shell code into this route, measured
+  // 148896 B gzip on macOS (+96 B over budget), ~0.003% room.
+  '/(app)/commands': { js: 148900, css: 48900, catalog: 4600, lazy: 31200 },
   // js and css raised from 100000 / 21500 (2026-10-29) for the aurora footer: CI measured main at 99484 / 21152 and
   // this change at 100323 / 21571 (+839 / +419 B), ~1-2% room.
   // css raised from 22000 (2026-10-30) for the leaderboard-style title and orbs: measured 22146 B, ~1.6% room.
