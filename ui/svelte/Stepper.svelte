@@ -129,6 +129,6 @@
       {/each}
     </ol>
     <span class={current < 0 ? 'bb-stepper__glide bb-stepper__glide--hidden' : 'bb-stepper__glide'} aria-hidden="true"></span>
-    {#if compact}<span class="bb-stepper__compact" aria-hidden="true">{steps[current]?.label ?? ''}</span>{/if}
+    {#if compact}<span class="bb-stepper__compact" aria-hidden="true"><span class="bb-stepper__name">{steps[current]?.label ?? steps[0]?.label ?? ''}</span><span class="bb-stepper__count">{Math.max(current, 0) + 1}/{steps.length}</span></span>{/if}
   </nav>
 {/if}

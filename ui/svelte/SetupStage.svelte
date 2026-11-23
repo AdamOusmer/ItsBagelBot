@@ -4,7 +4,7 @@
   import type { Snippet } from 'svelte';
   import type { HTMLAttributes } from 'svelte/elements';
   import '../styles/elements/setup-stage.css';
-  import LightField from './LightField.svelte';
+  import AmbientSky from './AmbientSky.svelte';
   import Stepper, { type StepperStep } from './Stepper.svelte';
 
   type Own = {
@@ -54,6 +54,8 @@
     ...rest
   }: Own & Omit<HTMLAttributes<HTMLDivElement>, keyof Own> = $props();
 
+  const progress = $derived(steps.length > 1 ? Math.min(Math.max(current, 0) / (steps.length - 1), 1) : 0);
+
   const classes = $derived(
     [
       'bb-setup-stage',
@@ -71,7 +73,7 @@
 </script>
 
 <div class={classes} role="region" aria-label={label} {...rest}>
-  <div class="bb-setup-stage__backdrop" aria-hidden="true"><LightField /></div>
+  <div class="bb-setup-stage__backdrop" aria-hidden="true"><AmbientSky position="contained" {progress} {leaving} /></div>
   <header class="bb-setup-stage__top">
     <div class="bb-setup-stage__start">{@render start?.()}</div>
     {#if steps.length > 0}

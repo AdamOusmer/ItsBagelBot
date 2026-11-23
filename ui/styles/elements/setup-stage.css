@@ -37,9 +37,7 @@
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background:
-      radial-gradient(ellipse 60% 46% at 50% 0%, rgba(var(--bb-halo-gold-rgb), 0.16), transparent 70%),
-      radial-gradient(ellipse 70% 40% at 50% 100%, rgba(var(--bb-halo-green-rgb), 0.12), transparent 70%);
+    overflow: clip;
   }
 
   .bb-setup-stage__top {
