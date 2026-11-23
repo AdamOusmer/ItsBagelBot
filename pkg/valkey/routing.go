@@ -5,6 +5,7 @@ package valkey
 
 import (
 	"context"
+	"time"
 
 	valkey_go "github.com/valkey-io/valkey-go"
 )
@@ -17,10 +18,11 @@ func (c *Client) do(ctx context.Context, cmd valkey_go.Completed, primary, throu
 	if throughput && !cmd.IsReadOnly() {
 		cmd = cmd.ToPipe()
 	}
-	route := c.commandRoute(cmd.IsReadOnly(), primary, singleCommand)
-	return traceValkeyCall(ctx, route.operation, func() valkey_go.ValkeyResult {
-		return route.client.Do(ctx, cmd)
-	}, classifyValkeyResult)
+	return runRoute(ctx, c, c.commandRoute(cmd.IsReadOnly(), primary, singleCommand), localFallbackCall[valkey_go.ValkeyResult]{
+		send:     func(client valkey_go.Client) valkey_go.ValkeyResult { return client.Do(ctx, cmd) },
+		classify: classifyValkeyResult,
+		lost:     func(result valkey_go.ValkeyResult) bool { return isConnectionError(result.Error()) },
+	})
 }
 
 func (c *Client) DoMulti(ctx context.Context, multi ...valkey_go.Completed) []valkey_go.ValkeyResult {
@@ -28,10 +30,26 @@ func (c *Client) DoMulti(ctx context.Context, multi ...valkey_go.Completed) []va
 }
 
 func (c *Client) doMulti(ctx context.Context, multi []valkey_go.Completed, primary bool) []valkey_go.ValkeyResult {
-	route := c.commandRoute(allReadOnly(multi), primary, commandBatch)
-	return traceValkeyCall(ctx, route.operation, func() []valkey_go.ValkeyResult {
-		return route.client.DoMulti(ctx, multi...)
-	}, classifyValkeyResults)
+	return runRoute(ctx, c, c.commandRoute(allReadOnly(multi), primary, commandBatch), localFallbackCall[[]valkey_go.ValkeyResult]{
+		send:     func(client valkey_go.Client) []valkey_go.ValkeyResult { return client.DoMulti(ctx, multi...) },
+		classify: classifyValkeyResults,
+		lost:     anyConnectionError,
+	})
+}
+
+type localFallbackCall[T any] struct {
+	send     func(valkey_go.Client) T
+	classify func(T) string
+	lost     func(T) bool
+}
+
+func runRoute[T any](ctx context.Context, c *Client, route valkeyRoute, call localFallbackCall[T]) T {
+	result := traceValkeyCall(ctx, route.operation, func() T { return call.send(route.client) }, call.classify)
+	if route.client != c.local || !call.lost(result) {
+		return result
+	}
+	c.markLocalFailure()
+	return traceValkeyCall(ctx, route.operation+"_primary_fallback", func() T { return call.send(c.Client) }, call.classify)
 }
 
 type commandShape uint8
@@ -50,7 +68,7 @@ func (c *Client) commandRoute(readOnly, primary bool, shape commandShape) valkey
 	route := valkeyRoute{client: c.Client, operation: "valkey.write"}
 	if readOnly {
 		route.operation = "valkey.read"
-		if !primary && c.local != nil {
+		if !primary && c.localAvailable() {
 			route.client = c.local
 		}
 	}
@@ -58,6 +76,31 @@ func (c *Client) commandRoute(readOnly, primary bool, shape commandShape) valkey
 		route.operation += "_batch"
 	}
 	return route
+}
+
+func (c *Client) localAvailable() bool {
+	return c.local != nil && time.Now().UnixNano() >= c.localSkipUntil.Load()
+}
+
+func (c *Client) markLocalFailure() {
+	c.localSkipUntil.Store(time.Now().Add(localFailureCooldown).UnixNano())
+}
+
+func isConnectionError(err error) bool {
+	if err == nil || valkey_go.IsValkeyNil(err) {
+		return false
+	}
+	_, isServerReply := valkey_go.IsValkeyErr(err)
+	return !isServerReply
+}
+
+func anyConnectionError(results []valkey_go.ValkeyResult) bool {
+	for i := range results {
+		if isConnectionError(results[i].Error()) {
+			return true
+		}
+	}
+	return false
 }
 
 func allReadOnly(multi []valkey_go.Completed) bool {
