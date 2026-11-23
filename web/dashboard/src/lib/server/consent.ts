@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { randomUUID } from 'node:crypto';
+import { dev } from '$app/env';
 import { fail } from '@sveltejs/kit';
 import { TERMS_VERSION } from '@bagel/kit/consent';
 import { isLocale, translate, type Locale } from '@bagel/kit/i18n';
@@ -25,12 +26,18 @@ export function needsTerms(version: string | undefined): boolean {
   return (version ?? '') < TERMS_VERSION;
 }
 
+const DEMO = dev && env.DEMO === '1';
+
 export function businessMailingAddress(): string {
   return env.BUSINESS_MAILING_ADDRESS?.trim() ?? '';
 }
 
+async function resolveMailingAddress(demo: boolean) {
+  return businessMailingAddress() || (DEMO && demo ? (await import('./demo-data')).demoMailingAddress : '');
+}
+
 export async function consentFields(session: Session, locals: App.Locals, demo = false) {
-  const mailingAddress = businessMailingAddress() || (demo ? (await import('./demo-data')).demoMailingAddress : '');
+  const mailingAddress = await resolveMailingAddress(demo);
   const marketingStatus = demo ? 'none' : currentAccount(locals)?.marketingStatus;
   const subscribed = marketingStatus === 'granted';
   const offersOptIn = !!mailingAddress && !subscribed;
