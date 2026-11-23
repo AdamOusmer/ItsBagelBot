@@ -20,6 +20,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/ratelimit"
+	"ItsBagelBot/pkg/valkey"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -195,6 +196,24 @@ func TestChannelsWithoutAlphaAreIgnoredAndRefused(t *testing.T) {
 
 	require.Zero(t, h.bus.alertCount())
 	require.Empty(t, h.bus.states)
+	require.ErrorIs(t, controlErr, overlaysrpc.ErrFeedAlphaRequired)
+	require.ErrorIs(t, snapshotErr, overlaysrpc.ErrFeedAlphaRequired)
+}
+
+func TestRevokedOwnerStopsGettingFramesOnceTheAlphaCacheLapses(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, h.service.Handle(t.Context(), h.event(channelevents.Cheer, 100)))
+	alertsWhileGranted, framesWhileGranted := h.bus.alertCount(), len(h.bus.stateTypes(t))
+
+	h.bus.alpha = false
+	require.NoError(t, valkey.NewKV(h.service.Client).Del(t.Context(), "ovf:alpha:"+h.owner))
+	require.NoError(t, h.service.Handle(t.Context(), h.event(channelevents.Cheer, 100)))
+	_, controlErr := h.control(overlaysrpc.FeedPause, overlaysrpc.FeedControlArgs{})
+	_, snapshotErr := h.service.Snapshot(t.Context(), h.owner)
+
+	require.NotZero(t, alertsWhileGranted)
+	require.Equal(t, alertsWhileGranted, h.bus.alertCount())
+	require.Len(t, h.bus.stateTypes(t), framesWhileGranted)
 	require.ErrorIs(t, controlErr, overlaysrpc.ErrFeedAlphaRequired)
 	require.ErrorIs(t, snapshotErr, overlaysrpc.ErrFeedAlphaRequired)
 }

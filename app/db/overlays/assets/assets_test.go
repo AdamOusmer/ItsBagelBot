@@ -312,3 +312,23 @@ func TestUploadInPartsAssemblesAndCleansUp(t *testing.T) {
 	require.Equal(t, map[string]any{"parts": (len(body) + 39) / 40, "keys": []string{"u/42/" + view.ID}, "again": http.StatusConflict},
 		map[string]any{"parts": ticket.Parts, "keys": f.objects.Keys(), "again": missing.Code})
 }
+
+func TestTicketsStopWorkingWhenAlphaIsRevoked(t *testing.T) {
+	f := newFixture(t)
+	archive := exportZip(t)
+	cases := []struct {
+		name string
+		path string
+	}{
+		{"asset ticket", overlaysrpc.AssetUploadPath + f.assetTicket(t, premiumUser, len(pngOf(4, 4)))},
+		{"import ticket", overlaysrpc.ImportUploadPath + f.importTicket(t, premiumUser, len(archive), false)},
+	}
+	f.svc.Alphas.(plans)[premiumUser] = false
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := f.put(tc.path+"?part=1", pngOf(4, 4))
+			require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+			require.Empty(t, f.objects.Keys())
+		})
+	}
+}

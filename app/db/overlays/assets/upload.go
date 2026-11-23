@@ -65,6 +65,9 @@ func (s *Service) authorize(r *http.Request, purpose Purpose) (Ticket, error) {
 	case r.ContentLength > s.partSize():
 		return Ticket{}, &http.MaxBytesError{Limit: s.partSize()}
 	}
+	if err := s.RequireAlpha(r.Context(), ticket.UserID); err != nil {
+		return Ticket{}, err
+	}
 	return ticket, nil
 }
 
@@ -129,6 +132,7 @@ type refusal struct {
 
 var refusals = []refusal{
 	{ErrBadTicket, http.StatusUnauthorized, "invalid_ticket"},
+	{ErrAlphaRequired, http.StatusForbidden, "alpha_required"},
 	{ErrQuota, http.StatusForbidden, "quota_exceeded"},
 	{ErrInvalidPart, http.StatusBadRequest, "invalid_part"},
 	{ErrInvalidSize, http.StatusBadRequest, "invalid_size"},

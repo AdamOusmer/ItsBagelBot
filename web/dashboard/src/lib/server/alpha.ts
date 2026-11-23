@@ -8,7 +8,7 @@ import { accountState } from '#lib/server/services';
 // process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 const DEMO = dev && process.env.DEMO === '1';
 
-const ALPHA_PREFIX = '/overlays/';
+const ALPHA_ROUTE_PREFIX = '/(app)/overlays/';
 
 function accountAlpha(userId: string): Promise<boolean> {
   return accountState(userId).then((acc) => acc.alpha).catch(() => false);
@@ -29,5 +29,5 @@ export async function assertAlpha(event: RequestEvent): Promise<void> {
 }
 
 export async function assertAlphaRouteOpen(event: RequestEvent): Promise<void> {
-  if (event.url.pathname.startsWith(ALPHA_PREFIX)) await assertAlpha(event);
+  if (event.route.id?.startsWith(ALPHA_ROUTE_PREFIX)) await assertAlpha(event);
 }

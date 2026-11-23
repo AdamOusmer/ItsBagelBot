@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/invalidate"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/internal/projection"
@@ -99,6 +100,23 @@ func TestOverlayResolveAllowsByKindAndAlpha(t *testing.T) {
 		}
 		assert.Equal(t, want, reply, c.name)
 	}
+}
+
+func TestOverlayResolveStopsWhenAlphaIsRevoked(t *testing.T) {
+	custom := testOverlay(7, 47, "custom", "custom-revoked")
+	o := newOverlayFixture(t, custom)
+	ctx := t.Context()
+	require.NoError(t, o.f.store.SetUser(ctx, 47, projection.UserProjection{Status: "premium", IsActive: true, Alpha: true}))
+	granted := o.resolve(t, custom.TokenHash)
+
+	require.NoError(t, o.f.store.SetUser(ctx, 47, projection.UserProjection{Status: "premium", IsActive: true}))
+	require.NoError(t, o.f.hub.Publish(invalidate.ScopeUserProjection, 47))
+	revoked := o.resolve(t, custom.TokenHash)
+
+	assert.True(t, granted.Allowed)
+	assert.NotEmpty(t, granted.Document)
+	assert.False(t, revoked.Allowed)
+	assert.Empty(t, revoked.Document)
 }
 
 func TestOverlayResolveReadsProjectionThenOwner(t *testing.T) {

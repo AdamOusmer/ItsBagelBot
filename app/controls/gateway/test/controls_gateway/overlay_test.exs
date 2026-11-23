@@ -547,6 +547,26 @@ defmodule ControlsGateway.OverlayTest do
              HttpClient.request(port, "GET", "/o/events", headers: [cookie(port)])
   end
 
+  @tag overlay: @custom
+  test "a custom stream closes and takes no offers once the overlay stops being allowed", %{
+    http_port: port,
+    agent: agent
+  } do
+    serve_snapshot(%{})
+    live = events(port, [cookie(port)])
+    live = HttpClient.await(live, &String.contains?(&1.body, "event: snapshot\n"))
+    update_overlay(agent, &Map.merge(&1, %{allowed: false, document: nil}))
+    check_now()
+    closed = HttpClient.await(live, & &1.done)
+    assert closed.done
+    HttpClient.close(closed)
+
+    assert {:error, :no_responders} = offer("custom", %{"id" => "evt-10", "kind" => "follow"})
+
+    assert %{status: 204, body: ""} =
+             HttpClient.request(port, "GET", "/o/events", headers: [cookie(port)])
+  end
+
   defp serve_snapshot(snapshot) do
     responder = start_supervised!({Task, fn -> snapshot_loop(snapshot) end}, id: :snapshot)
     {:ok, _} = Gnat.sub(:gnat_rpc, responder, @snapshot)
