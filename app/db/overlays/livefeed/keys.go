@@ -23,24 +23,27 @@ const (
 // channel is a Twitch channel id. Every key of a channel carries its id as the hash tag so one script can touch them all.
 type channel string
 
+// sessionID is the event id that opened a stream session.
+type sessionID string
+
 func (c channel) prefix() string { return "ovf:{" + string(c) + "}:" }
 
 func (c channel) receipt(eventID string) string { return c.prefix() + "r:" + eventID }
 
-func (c channel) counts(period valkey.Period, at time.Time, session string) string {
-	return period.Key(c.prefix()+"n", at, session)
+func (c channel) counts(period valkey.Period, at time.Time, session sessionID) string {
+	return period.Key(c.prefix()+"n", at, string(session))
 }
 
-func (c channel) board(board feed.Board, period valkey.Period, at time.Time, session string) string {
-	return period.Key(c.prefix()+"b:"+string(board), at, session)
+func (c channel) board(board feed.Board, period valkey.Period, at time.Time, session sessionID) string {
+	return period.Key(c.prefix()+"b:"+string(board), at, string(session))
 }
 
-func (c channel) credits(list feed.Kind, session string) string {
-	return valkey.PeriodSession.Key(c.prefix()+"c:"+string(list), time.Time{}, session)
+func (c channel) credits(list feed.Kind, session sessionID) string {
+	return valkey.PeriodSession.Key(c.prefix()+"c:"+string(list), time.Time{}, string(session))
 }
 
-func (c channel) events(session string) string {
-	return valkey.PeriodSession.Key(c.prefix()+"e", time.Time{}, session)
+func (c channel) events(session sessionID) string {
+	return valkey.PeriodSession.Key(c.prefix()+"e", time.Time{}, string(session))
 }
 
 func (c channel) latest() string   { return c.prefix() + "latest" }

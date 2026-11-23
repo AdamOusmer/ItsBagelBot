@@ -57,10 +57,14 @@ func subathonRules(row *ent.Overlay) (feed.SubathonRules, bool) {
 	return feed.SubathonRules{}, false
 }
 
+func subathonTimer(widget overlays.Widget) bool {
+	return widget.Kind == overlays.WidgetTimer && widget.Settings["mode"] == "subathon"
+}
+
 func widgetRules(widget overlays.Widget) (feed.SubathonRules, bool) {
 	var rules feed.SubathonRules
 	raw, ok := widget.Settings["rules"]
-	if widget.Kind != overlays.WidgetTimer || widget.Settings["mode"] != "subathon" || !ok {
+	if !ok || !subathonTimer(widget) {
 		return rules, false
 	}
 	encoded, err := codec.Marshal(raw)

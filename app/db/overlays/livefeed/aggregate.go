@@ -66,11 +66,9 @@ func (s *Service) handleEvent(ctx context.Context, c channel, e channelevents.Ev
 	if err := s.store().remember(ctx, folded, frame); err != nil {
 		return err
 	}
-	var clock *feed.Subathon
-	if counted {
-		if clock, err = s.afterCount(ctx, folded, rules); err != nil {
-			return err
-		}
+	clock, err := s.afterCount(ctx, folded, counted, rules)
+	if err != nil {
+		return err
 	}
 	if err := s.publishEvent(ctx, c, frame); err != nil {
 		return err
@@ -82,7 +80,10 @@ func (s *Service) handleEvent(ctx context.Context, c channel, e channelevents.Ev
 }
 
 // afterCount runs the effects that must not repeat for one event id and returns the subathon clock when the event moved it.
-func (s *Service) afterCount(ctx context.Context, f folding, rules feed.SubathonRules) (*feed.Subathon, error) {
+func (s *Service) afterCount(ctx context.Context, f folding, counted bool, rules feed.SubathonRules) (*feed.Subathon, error) {
+	if !counted {
+		return nil, nil
+	}
 	userID, err := strconv.ParseUint(string(f.c), 10, 64)
 	if err != nil {
 		return nil, err

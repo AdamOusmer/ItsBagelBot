@@ -24,10 +24,10 @@ func (s store) state(c channel) valkey.VersionedHash {
 	return valkey.VersionedHash{Key: c.state(), TTL: stateTTL}
 }
 
-func (s store) session(ctx context.Context, c channel) (string, error) {
+func (s store) session(ctx context.Context, c channel) (sessionID, error) {
 	fields, err := s.state(c).ReadFields(ctx, s.client, fieldSession)
 	if current, found := fields[fieldSession]; found {
-		return current.Value, err
+		return sessionID(current.Value), err
 	}
 	return defaultSession, err
 }
@@ -39,7 +39,7 @@ func (s store) roll(ctx context.Context, c channel, e channelevents.Event) (bool
 
 type folding struct {
 	c       channel
-	session string
+	session sessionID
 	event   channelevents.Event
 	delta   feed.Delta
 }
@@ -169,7 +169,7 @@ func (s store) who(ctx context.Context, c channel, ids []string) (map[string]fee
 }
 
 // recent returns the session's logged events, oldest first. The log expires with the session.
-func (s store) recent(ctx context.Context, c channel, session string) ([]feed.Event, error) {
+func (s store) recent(ctx context.Context, c channel, session sessionID) ([]feed.Event, error) {
 	log := valkey.ScoredLog{Key: c.events(session), TTL: valkey.PeriodSession.TTL()}
 	members, err := log.All(ctx, s.client)
 	if err != nil {
@@ -184,12 +184,12 @@ func (s store) recent(ctx context.Context, c channel, session string) ([]feed.Ev
 	return events, nil
 }
 
-func (s store) clearRecent(ctx context.Context, c channel, session string) error {
+func (s store) clearRecent(ctx context.Context, c channel, session sessionID) error {
 	return valkey.NewKV(s.client).Del(ctx, c.events(session))
 }
 
 // stats reads the channel's current windows; totals supply the durable all-time figures.
-func (s store) stats(ctx context.Context, c channel, session string, totals repository.FeedTotals) (feed.Stats, error) {
+func (s store) stats(ctx context.Context, c channel, session sessionID, totals repository.FeedTotals) (feed.Stats, error) {
 	now := time.Now()
 	stats := feed.Stats{AllTime: totals.Counts, AllTimeTopCheerer: totals.TopCheerer, AllTimeTopGifter: totals.TopGifter}
 	for _, window := range []struct {
@@ -209,7 +209,7 @@ func (s store) stats(ctx context.Context, c channel, session string, totals repo
 	return s.withLeaders(ctx, c, session, stats)
 }
 
-func (s store) withLeaders(ctx context.Context, c channel, session string, stats feed.Stats) (feed.Stats, error) {
+func (s store) withLeaders(ctx context.Context, c channel, session sessionID, stats feed.Stats) (feed.Stats, error) {
 	lists, err := s.creditBoards(ctx, c, session)
 	if err != nil {
 		return feed.Stats{}, err
@@ -231,7 +231,7 @@ func (s store) withLeaders(ctx context.Context, c channel, session string, stats
 	return stats, nil
 }
 
-func (s store) creditBoards(ctx context.Context, c channel, session string) (map[feed.Kind][]valkey.RankedEntry, error) {
+func (s store) creditBoards(ctx context.Context, c channel, session sessionID) (map[feed.Kind][]valkey.RankedEntry, error) {
 	lists := make(map[feed.Kind][]valkey.RankedEntry, len(creditLists))
 	for _, list := range creditLists {
 		entries, err := s.ranked(ctx, c.credits(list, session), 0)

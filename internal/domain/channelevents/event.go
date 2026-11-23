@@ -123,8 +123,12 @@ func Decode(raw []byte) (Event, error) {
 	return event, event.Validate()
 }
 
+func (e Event) hasHeader() bool {
+	return e.ID != "" && e.ChannelID != "" && !e.OccurredAt.IsZero() && e.Kind.Valid()
+}
+
 func (e Event) Validate() error {
-	if e.ID == "" || e.ChannelID == "" || e.OccurredAt.IsZero() || !e.Kind.Valid() {
+	if !e.hasHeader() {
 		return errEvent
 	}
 	if e.Kind == Session && e.Change == nil {

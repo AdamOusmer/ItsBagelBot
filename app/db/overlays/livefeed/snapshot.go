@@ -36,7 +36,7 @@ func (s *Service) Snapshot(ctx context.Context, userID string) (overlaysrpc.Feed
 	return overlaysrpc.FeedSnapshotReply{Snapshot: snapshot}, err
 }
 
-func (s *Service) snapshotOf(ctx context.Context, c channel, session string) (feed.Snapshot, error) {
+func (s *Service) snapshotOf(ctx context.Context, c channel, session sessionID) (feed.Snapshot, error) {
 	totals, err := s.totals(ctx, c)
 	if err != nil {
 		return feed.Snapshot{}, err

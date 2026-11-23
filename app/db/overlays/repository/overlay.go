@@ -213,11 +213,15 @@ func (r *Overlays) releaseAssets(ctx context.Context, userID uint64, removed ove
 	}
 	for _, id := range slices.Sorted(maps.Keys(doc.Assets)) {
 		err := r.DeleteAsset(ctx, userID, id)
-		if err != nil && !errors.Is(err, ErrAssetInUse) && !errors.Is(err, ErrNotFound) {
+		if err != nil && !keepsAsset(err) {
 			return err
 		}
 	}
 	return nil
+}
+
+func keepsAsset(err error) bool {
+	return errors.Is(err, ErrAssetInUse) || errors.Is(err, ErrNotFound)
 }
 
 func (r *Overlays) removeOverlay(ctx context.Context, current overlaysrpc.Overlay) error {

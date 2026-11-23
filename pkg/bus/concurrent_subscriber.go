@@ -7,8 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -346,48 +344,6 @@ func messageFromNATS(wire *nats.Msg) (*Message, error) {
 		sequence: jetStreamSequence(wire),
 		subject:  wire.Subject,
 	}), nil
-}
-
-func jetStreamSequence(wire *nats.Msg) uint64 {
-	if !strings.HasPrefix(wire.Reply, "$JS.ACK.") {
-		return 0
-	}
-	tokens := strings.Split(wire.Reply, ".")
-	var position int
-	switch {
-	case len(tokens) == 9:
-		position = 5
-	case len(tokens) >= 11:
-		position = 7
-	default:
-		return 0
-	}
-	sequence, err := strconv.ParseUint(tokens[position], 10, 64)
-	if err != nil {
-		return 0
-	}
-	return sequence
-}
-
-func jetStreamStoredAt(reply string) time.Time {
-	if !strings.HasPrefix(reply, "$JS.ACK.") {
-		return time.Time{}
-	}
-	tokens := strings.Split(reply, ".")
-	var position int
-	switch {
-	case len(tokens) == 9:
-		position = 7
-	case len(tokens) >= 11:
-		position = 9
-	default:
-		return time.Time{}
-	}
-	ns, err := strconv.ParseInt(tokens[position], 10, 64)
-	if err != nil || ns <= 0 {
-		return time.Time{}
-	}
-	return time.Unix(0, ns)
 }
 
 func fleetMetadata(headers nats.Header) (Metadata, error) {

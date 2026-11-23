@@ -48,11 +48,19 @@ export async function deleteAsset(session: Session | null | undefined, url: URL)
   }
 }
 
+function isAction(value: unknown): value is FeedAction {
+  return typeof value === 'string' && ACTIONS.has(value);
+}
+
+function isArgs(value: unknown): value is FeedControlArgs {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function readControl(body: ControlBody | null): { action: FeedAction; args: FeedControlArgs } | null {
-  if (!body || typeof body.action !== 'string' || !ACTIONS.has(body.action)) return null;
+  if (!body || !isAction(body.action)) return null;
   const args = body.args ?? {};
-  if (typeof args !== 'object' || args === null || Array.isArray(args)) return null;
-  return { action: body.action as FeedAction, args: args as FeedControlArgs };
+  if (!isArgs(args)) return null;
+  return { action: body.action, args };
 }
 
 export async function controlFeed(session: Session | null | undefined, request: Request): Promise<Response> {

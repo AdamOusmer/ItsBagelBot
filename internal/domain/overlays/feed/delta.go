@@ -100,10 +100,14 @@ func giftDelta(e channelevents.Event) Delta {
 }
 
 func identified(e channelevents.Event) (User, bool) {
-	if e.Anonymous || e.User == nil || e.User.ID == "" {
+	if e.Anonymous || !hasID(e.User) {
 		return User{}, false
 	}
 	return User{ID: e.User.ID, Login: e.User.Login, Name: e.User.Name}, true
+}
+
+func hasID(u *channelevents.User) bool {
+	return u != nil && u.ID != ""
 }
 
 func leaderOf(board Board, e channelevents.Event) *LeaderDelta {

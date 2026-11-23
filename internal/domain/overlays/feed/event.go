@@ -103,13 +103,17 @@ var (
 )
 
 func (e Event) Validate() error {
-	if !e.Kind.Valid() || e.At.IsZero() || e.ID == "" || len(e.ID) > 96 {
+	if !e.hasHeader() {
 		return errEvent
 	}
 	if !e.Fields.valid() || !e.validKindFields() {
 		return errEvent
 	}
 	return nil
+}
+
+func (e Event) hasHeader() bool {
+	return e.Kind.Valid() && !e.At.IsZero() && e.ID != "" && len(e.ID) <= 96
 }
 
 func (e Event) validKindFields() bool {

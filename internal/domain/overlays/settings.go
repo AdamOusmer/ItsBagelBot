@@ -143,10 +143,18 @@ func textSetting(limit int) func(Setting, any, Path) error {
 	}
 }
 
+func boundedText(value any, limit int, accepts func(string) bool) bool {
+	text, ok := value.(string)
+	return ok && len(text) <= limit && accepts(text)
+}
+
+func orEmpty(accepts func(string) bool) func(string) bool {
+	return func(text string) bool { return text == "" || accepts(text) }
+}
+
 func patternSetting(pattern *regexp.Regexp, limit int) func(Setting, any, Path) error {
 	return func(_ Setting, value any, path Path) error {
-		text, ok := value.(string)
-		if !ok || len(text) > limit || !pattern.MatchString(text) {
+		if !boundedText(value, limit, pattern.MatchString) {
 			return invalidSetting(path)
 		}
 		return nil
@@ -154,8 +162,7 @@ func patternSetting(pattern *regexp.Regexp, limit int) func(Setting, any, Path) 
 }
 
 func mediaSetting(_ Setting, value any, path Path) error {
-	text, ok := value.(string)
-	if !ok || len(text) > maxSettingMedia || (text != "" && !settingMedia.MatchString(text)) {
+	if !boundedText(value, maxSettingMedia, orEmpty(settingMedia.MatchString)) {
 		return invalidSetting(path)
 	}
 	return nil
@@ -188,8 +195,7 @@ func listSetting(s Setting, value any, path Path) error {
 }
 
 func datetimeSetting(_ Setting, value any, path Path) error {
-	text, ok := value.(string)
-	if !ok || len(text) > 64 || (text != "" && !parsesAsDate(text)) {
+	if !boundedText(value, 64, orEmpty(parsesAsDate)) {
 		return invalidSetting(path)
 	}
 	return nil
