@@ -60,6 +60,7 @@ defmodule ControlsGateway.Overlay.Http do
         })
 
       {:denied, reason} ->
+        Logger.info("Overlay document refused", overlay_id: session.overlay_id, reason: reason)
         json(req, 403, %{reason: reason})
 
       :unavailable ->

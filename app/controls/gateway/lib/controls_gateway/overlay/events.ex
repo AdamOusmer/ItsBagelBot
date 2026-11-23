@@ -45,6 +45,7 @@ defmodule ControlsGateway.Overlay.Events do
     with %Planes{} = jetstream <- Planes.connection(:jetstream),
          {:ok, sid} <-
            Planes.subscribe(jetstream, self(), Subjects.overlay_session(overlay.user_id)) do
+      Logger.info("Overlay events stream opened", overlay_id: session.overlay_id)
       req = :cowboy_req.stream_reply(200, event_headers(headers), req)
       :ok = :cowboy_req.stream_body(initial_frame(@retry_ms), :nofin, req)
       Process.send_after(self(), :ping, @ping_ms)
