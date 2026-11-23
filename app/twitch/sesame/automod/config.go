@@ -4,7 +4,6 @@
 package automod
 
 import (
-	"bytes"
 	"strings"
 
 	"ItsBagelBot/internal/moderation"
@@ -203,7 +202,19 @@ func (c *Config) BlocksText(text string) bool {
 		return false
 	}
 	skel := moderation.Normalize(nil, text)
-	return !c.allows(skel) && containsAny(skel, c.blockTerms)
+	return !c.allows(skel) && moderation.ContainsAnyTerm(skel, c.blockTerms)
+}
+
+func (c *Config) SpeechPolicy() moderation.SpeechPolicy {
+	if c.disabled() {
+		return moderation.SpeechPolicy{}
+	}
+	sec := c.resolved()
+	policy := moderation.SpeechPolicy{Harassment: sec.harassment, Sexual: sec.sexual, Profanity: sec.profanity}
+	if c != nil {
+		policy.BlockTerms, policy.AllowTerms = c.blockTerms, c.allowTerms
+	}
+	return policy
 }
 
 func (c *Config) clipsOnlyOn() bool {
@@ -214,14 +225,5 @@ func (c *Config) allows(skel []byte) bool {
 	if c == nil || c.Disabled {
 		return false
 	}
-	return containsAny(skel, c.allowTerms)
-}
-
-func containsAny(skel []byte, terms [][]byte) bool {
-	for _, t := range terms {
-		if bytes.Contains(skel, t) {
-			return true
-		}
-	}
-	return false
+	return moderation.ContainsAnyTerm(skel, c.allowTerms)
 }

@@ -97,6 +97,14 @@ func TestTtsResolveWarmsBothProjections(t *testing.T) {
 	assert.Equal(t, [2]int32{1, 1}, [2]int32{f.ownerReads.Load(), f.userReads.Load()})
 }
 
+func TestTtsSettingsCarryBlockedViewers(t *testing.T) {
+	f := newTtsTestFixture(t)
+	f.legacy.BlockedViewers = []string{"7", "9"}
+	f.resolve(t, f.legacy)
+	reply := ttsRequest[overlaysrpc.TtsSettingsReply](t, f.nc, overlaysrpc.TtsSettingsSubject, overlaysrpc.TtsUserRequest{UserID: "30"})
+	assert.Equal(t, overlaysrpc.TtsSettingsReply{Settings: f.legacy.Settings, Configured: true, BlockedViewers: []string{"7", "9"}}, reply)
+}
+
 func TestTtsResolveAndCheckRejectIneligibleLinks(t *testing.T) {
 	f := newTtsTestFixture(t)
 	rotated := f.legacy

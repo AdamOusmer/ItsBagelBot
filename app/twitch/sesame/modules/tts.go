@@ -62,7 +62,13 @@ func (cmd ttsCommand) run(ctx context.Context, c *module.Context, args string, e
 	if !speechAvailable(c) {
 		return nil
 	}
-	req, ok := cfg.options().request(c, voiceplan.SpeechChat, viewerSpeech{text: speechText(args), name: speechText(c.Env.ChatterName())})
+	in := viewerSpeech{text: speechText(args), name: speechText(c.Env.ChatterName()), viewerID: c.Env.ChatterUserID}
+	opts := cfg.options()
+	opts.queue = cmd.speech
+	req, ok, err := opts.request(ctx, c, voiceplan.SpeechChat, in)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		cfg.deny(c, emit, ttsBlocked)
 		return nil
@@ -73,7 +79,8 @@ func (cmd ttsCommand) run(ctx context.Context, c *module.Context, args string, e
 		cfg.deny(c, emit, ttsNoMinutes)
 		return nil
 	}
-	return cmd.speech.Publish(ctx, withTrace(ctx, req))
+	req.SourceMessageID = c.Env.MsgID
+	return cmd.speech.Publish(ctx, req)
 }
 
 func (cfg ttsSettings) options() speechOptions {

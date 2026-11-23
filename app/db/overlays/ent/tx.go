@@ -18,6 +18,8 @@ type Tx struct {
 	PoweredOverlay *PoweredOverlayClient
 	// TtsOverlay is the client for interacting with the TtsOverlay builders.
 	TtsOverlay *TtsOverlayClient
+	// TtsViewerBlock is the client for interacting with the TtsViewerBlock builders.
+	TtsViewerBlock *TtsViewerBlockClient
 
 	// lazily loaded.
 	client     *Client
@@ -152,6 +154,7 @@ func (tx *Tx) init() {
 	tx.Overlay = NewOverlayClient(tx.config)
 	tx.PoweredOverlay = NewPoweredOverlayClient(tx.config)
 	tx.TtsOverlay = NewTtsOverlayClient(tx.config)
+	tx.TtsViewerBlock = NewTtsViewerBlockClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

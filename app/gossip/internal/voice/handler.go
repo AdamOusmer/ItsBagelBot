@@ -19,9 +19,11 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
+	"ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
+	valkey_go "github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -39,7 +41,14 @@ const (
 	jobRefused jobDropReason = "refused"
 	jobInvalid jobDropReason = "invalid"
 	jobExpired jobDropReason = "expired"
+	jobPaused  jobDropReason = "paused"
+	jobEmpty   jobDropReason = "empty"
 )
+
+const emptyRetryDelay = 2 * time.Second
+
+var errEmptyAudio = errors.New("speech provider returned no audio")
+var errHeld = errors.New("speech job is held")
 
 var eventIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
@@ -52,6 +61,8 @@ type Handler struct {
 	Speech  Synthesizer
 	Overlay *bus.Overlays
 	Log     *zap.Logger
+	Safety  valkey.SpeechSafety
+	Store   valkey_go.Client
 }
 
 func (h Handler) Handle(ctx context.Context, msg bus.GossipJobMessage) error {
@@ -60,11 +71,36 @@ func (h Handler) Handle(ctx context.Context, msg bus.GossipJobMessage) error {
 		h.logDrop(ctx, job, jobInvalid)
 		return bus.ErrDropJob
 	}
-	clip, err := h.findOrSynthesize(ctx, job)
+	if err := h.admit(ctx, job); err != nil {
+		return err
+	}
+	clip, err := h.findOrSynthesize(ctx, job, msg.Delivered)
 	if err != nil {
 		return err
 	}
 	return h.deliver(ctx, job, clip)
+}
+
+func (h Handler) admit(ctx context.Context, job voiceplan.AlertJob) error {
+	if wait := time.Until(job.NotBefore); wait > 0 {
+		return bus.JobRetryError{Delay: wait, Err: errHeld}
+	}
+	gate, err := h.Safety.Gate(ctx, h.Store, job.BroadcasterID)
+	if err != nil {
+		return err
+	}
+	if gate != valkey.SpeechGateOpen {
+		return h.dropGated(ctx, job, jobPaused, string(gate))
+	}
+	return nil
+}
+
+func (h Handler) dropGated(ctx context.Context, job voiceplan.AlertJob, reason jobDropReason, breaker string) error {
+	txn := newrelic.FromContext(ctx)
+	txn.AddAttribute("tts.gate", string(reason))
+	txn.AddAttribute("tts.breaker", breaker)
+	h.logDrop(ctx, job, reason)
+	return bus.ErrDropJob
 }
 
 func decodeJob(msg bus.GossipJobMessage) (voiceplan.AlertJob, bool) {
@@ -83,7 +119,7 @@ func validJob(job voiceplan.AlertJob) bool {
 	return err == nil && job.Kind.Valid()
 }
 
-func (h Handler) findOrSynthesize(ctx context.Context, job voiceplan.AlertJob) (bus.OverlayClip, error) {
+func (h Handler) findOrSynthesize(ctx context.Context, job voiceplan.AlertJob, delivered uint64) (bus.OverlayClip, error) {
 	ref := bus.OverlayClip{Key: job.BroadcasterID + "/" + job.EventID}
 	clip, err := h.Overlay.GetClip(ctx, ref)
 	if err != nil || clip.Key != "" {
@@ -93,13 +129,27 @@ func (h Handler) findOrSynthesize(ctx context.Context, job voiceplan.AlertJob) (
 		ChannelID: job.BroadcasterID, RequestID: job.EventID, Text: job.Text, Style: job.Style,
 		Voice: cmp.Or(job.Voice, voiceplan.DefaultVoice),
 	})
-	if err := h.synthesisError(ctx, job, reply); err != nil {
+	if err := h.recordRefusal(ctx, job, reply); err != nil {
+		return bus.OverlayClip{}, err
+	}
+	if err := h.synthesisError(ctx, job, reply, delivered); err != nil {
 		return bus.OverlayClip{}, err
 	}
 	return h.saveClip(ctx, ref, reply)
 }
 
-func (h Handler) synthesisError(ctx context.Context, job voiceplan.AlertJob, reply gossiprpc.TTSSynthesizeReply) error {
+func (h Handler) recordRefusal(ctx context.Context, job voiceplan.AlertJob, reply gossiprpc.TTSSynthesizeReply) error {
+	newrelic.FromContext(ctx).AddAttribute("tts.gate", cmp.Or(reply.Gate, "pass"))
+	if !reply.RefusalClass.CountsTowardBreaker() {
+		return nil
+	}
+	return h.Safety.Refusal(ctx, h.Store, job.BroadcasterID, job.EventID)
+}
+
+func (h Handler) synthesisError(ctx context.Context, job voiceplan.AlertJob, reply gossiprpc.TTSSynthesizeReply, delivered uint64) error {
+	if reply.RefusalClass == gossiprpc.RefusalEmpty {
+		return h.emptyOutcome(ctx, job, delivered)
+	}
 	reason := cmp.Or(reply.Reason, reply.Error)
 	if reply.RateLimited {
 		err := errors.New(cmp.Or(reason, "speech synthesis rate limited"))
@@ -113,6 +163,14 @@ func (h Handler) synthesisError(ctx context.Context, job voiceplan.AlertJob, rep
 		return fmt.Errorf("TTS synthesis failed: %s", reason)
 	}
 	return nil
+}
+
+func (h Handler) emptyOutcome(ctx context.Context, job voiceplan.AlertJob, delivered uint64) error {
+	if delivered > 1 {
+		h.logDrop(ctx, job, jobEmpty)
+		return bus.ErrDropJob
+	}
+	return bus.JobRetryError{Delay: emptyRetryDelay, Err: errEmptyAudio}
 }
 
 var providerJobDrops = map[string]jobDropReason{

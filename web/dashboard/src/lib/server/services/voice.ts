@@ -62,6 +62,42 @@ export const voiceOverlayRotate = defineWrite({
   map: (reply: { url: string }) => reply.url
 });
 
+export type BlockedViewer = {
+  viewer_id: string;
+  viewer_login: string;
+  created_at: number;
+};
+
+export type VoiceSafety = {
+  paused_until: number;
+};
+
+const blockedViewers = (reply: { viewers: BlockedViewer[] }) => reply.viewers;
+
+export const voiceBlocksGet = defineRead({
+  subject: `${SUB.overlays}.tts.blocks`,
+  request: ownerOf,
+  map: blockedViewers
+});
+
+export const voiceBlock = defineWrite({
+  subject: `${SUB.overlays}.tts.block`,
+  request: (session: Session, viewer: { viewer_id: string; viewer_login: string }) => ({ ...ownerOf(session), ...viewer }),
+  map: blockedViewers
+});
+
+export const voiceUnblock = defineWrite({
+  subject: `${SUB.overlays}.tts.unblock`,
+  request: (session: Session, viewerId: string) => ({ ...ownerOf(session), viewer_id: viewerId }),
+  map: blockedViewers
+});
+
+export const voiceSafetyGet = defineRead({
+  subject: `${SUB.dashboard}.voice_safety`,
+  request: voiceActor,
+  map: (reply: VoiceSafety) => reply
+});
+
 type TestAlertStatus = 'queued' | 'no_link' | 'no_minutes' | 'rate_limited' | 'disabled';
 
 export const voiceTestAlert = defineWrite({

@@ -32,6 +32,7 @@ overlay page itself.
 | [rpc/powered.go](rpc/powered.go) | Dashboard and owner RPC handlers and refusal codes. |
 | [ent/schema/powered_overlay.go](ent/schema/powered_overlay.go) | Powered-by fields, unique user and token, binary collation. |
 | [ent/schema/tts_overlay.go](ent/schema/tts_overlay.go), [repository/tts.go](repository/tts.go) | Account TTS settings, token hash, generation and revision. |
+| [ent/schema/tts_viewer_block.go](ent/schema/tts_viewer_block.go), [repository/tts_blocks.go](repository/tts_blocks.go) | Streamer's manual TTS viewer blocks, keyed by Twitch user id. |
 | [tts.go](tts.go), [rpc/tts.go](rpc/tts.go) | Startup backfill, ban handling, dashboard writes and Projector cold reads. |
 
 Shared wire shapes: [internal/domain/rpc/overlays](../../../internal/domain/rpc/overlays/).
@@ -63,6 +64,13 @@ Other `ent/` files are generated from the schema.
   hash and advances its generation. Alert rules and chat-command settings
   stay in their module configurations.
 - Accounts get their TTS row with default settings on first read.
+- Manual viewer blocks: `rpc.overlays.tts.blocks` lists, `.block` adds
+  (idempotent, `viewer_id` is the Twitch user id, `viewer_login` is display
+  only) and `.unblock` removes. Each returns the current list. The owner and
+  settings reads carry `blocked_viewers` ids, and every block change
+  republishes the overlay on `data.overlays.tts.changed` at the same
+  revision so Projector refreshes. Account deletion removes blocks by the
+  same cutoff.
 
 ## Unified overlays
 

@@ -187,3 +187,28 @@ function expectedObsControls(visible: boolean, hasLink: boolean, link: boolean) 
   const hidden = { button: '', testLabel: '', testDisabled: undefined, firstStep: '' };
   return { ...(visible ? shown : hidden), guide: visible, link, done: visible && hasLink, stateLabel: false };
 }
+
+const safety = {
+  manual: [{ viewer_id: '5', viewer_login: 'spammer', created_at: 1_764_000_000 }],
+  pausedUntil: 4_102_444_800_000
+};
+
+test.each([
+  { name: 'with blocks and a paused channel', data: { safety }, present: ['Blocked viewers', 'spammer', 'Voice is paused for this channel until Jan 1, 2100'], hidden: [] },
+  { name: 'without safety data', data: { safety: null }, present: [], hidden: ['Blocked viewers', 'Voice is paused for this channel'] }
+])('renders the viewer block list $name', ({ data: extra, present, hidden }) => {
+  const html = renderVoice(extra);
+  expect([
+    ...present.filter((text) => !html.includes(text)),
+    ...hidden.filter((text) => html.includes(text))
+  ]).toEqual([]);
+});
+
+test('keeps the unblock control for each manual block', async () => {
+  const actions: string[] = [];
+  const rewriter = new HTMLRewriter().on('form[action^="?/unblock"]', {
+    element(form) { actions.push(form.getAttribute('action') ?? ''); }
+  });
+  await rewriter.transform(new Response(renderVoice({ safety }))).text();
+  expect(actions).toEqual(['?/unblockViewer']);
+});

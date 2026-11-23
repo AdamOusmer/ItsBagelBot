@@ -22,6 +22,9 @@ const (
 	TtsResolveSubject     = "rpc.internal.projector.overlays.tts.resolve"
 	TtsCheckSubject       = "rpc.internal.projector.overlays.tts.check"
 	TtsSettingsSubject    = "rpc.internal.projector.overlays.tts.settings"
+	TtsBlocksSubject      = "rpc.overlays.tts.blocks"
+	TtsBlockSubject       = "rpc.overlays.tts.block"
+	TtsUnblockSubject     = "rpc.overlays.tts.unblock"
 
 	TtsRevokedPrefix = "controls.tts.revoked."
 	TtsURLPrefix     = "https://overlay.itsbagelbot.com/tts#"
@@ -65,6 +68,8 @@ type TtsOverlay struct {
 	Generation int          `json:"generation"`
 	Revision   uint64       `json:"revision"`
 	CreatedAt  int64        `json:"created_at"`
+
+	BlockedViewers []string `json:"blocked_viewers,omitempty"`
 }
 
 func (o TtsOverlay) Configured() bool { return o.TokenHash != "" }
@@ -82,8 +87,9 @@ type TtsSaveRequest struct {
 }
 
 type TtsSettingsReply struct {
-	Settings   TtsSettings `json:"settings"`
-	Configured bool        `json:"configured"`
+	Settings       TtsSettings `json:"settings"`
+	Configured     bool        `json:"configured"`
+	BlockedViewers []string    `json:"blocked_viewers,omitempty"`
 	rpc.Refusal
 }
 

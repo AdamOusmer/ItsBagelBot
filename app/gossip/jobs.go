@@ -15,8 +15,10 @@ import (
 	"ItsBagelBot/app/gossip/internal/voice"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
+	valkey_go "github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -32,6 +34,7 @@ type jobsWiring struct {
 	cfg    *config.Config
 	deps   provider.Deps
 	rpc    *nats.Conn
+	store  valkey_go.Client
 	log    *zap.Logger
 }
 
@@ -94,7 +97,10 @@ func (w jobsWiring) consume(ctx context.Context, speech voice.Synthesizer) (func
 		nc.Close()
 		return nil, fmt.Errorf("bind overlays: %w", err)
 	}
-	handler := voice.Handler{RPC: w.rpc, Speech: speech, Overlay: overlays, Log: w.log}
+	handler := voice.Handler{
+		RPC: w.rpc, Speech: speech, Overlay: overlays, Log: w.log,
+		Safety: valkey.NewSpeechSafety(w.cfg.SpeechLimits), Store: w.store,
+	}
 	stop, err := jobs.Consume(ctx, handler.Handle, w.log)
 	if err != nil {
 		nc.Close()

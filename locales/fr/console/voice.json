@@ -22,6 +22,7 @@
   "inactive": "La voix en ligne est en pause tant que le bot est désactivé.",
   "banned": "La voix en ligne est indisponible.",
   "unavailable": "L’utilisation et les réglages de la voix sont indisponibles. Rechargez la page pour réessayer.",
+  "paused": "La voix est en pause sur cette chaîne jusqu'à {time}.",
   "invalidVoice": "Choisissez une voix dans la liste.",
   "saveFailed": "Impossible d’enregistrer les réglages de la voix. Réessayez.",
   "overlayTitle": "Source navigateur OBS",
@@ -132,5 +133,18 @@
     "title": "Récompenses de points de chaîne",
     "body": "Choisis Lire le message du viewer à voix haute sur une récompense et son texte passe par ta source vocale.",
     "open": "Ouvrir les points de chaîne"
+  },
+  "blocks": {
+    "title": "Spectateurs bloqués",
+    "hint": "Les spectateurs bloqués ne sont jamais lus à voix haute.",
+    "nameLabel": "Nom du spectateur",
+    "namePlaceholder": "Pseudo Twitch",
+    "add": "Bloquer",
+    "unblock": "Débloquer",
+    "empty": "Personne n'est bloqué.",
+    "tagManual": "Manuel",
+    "viewerId": "ID {id}",
+    "unknown": "Aucun utilisateur Twitch avec ce nom.",
+    "failed": "Impossible de mettre à jour les spectateurs bloqués. Réessayez."
   }
 }

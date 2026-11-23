@@ -19,6 +19,9 @@ func SubscribeTts(w Wiring) error {
 		bus.ServeForUser(read, overlaysrpc.TtsSaveSubject, w.ttsSave),
 		bus.ServeForUser(read, overlaysrpc.TtsRotateSubject, w.ttsRotate),
 		bus.ServeForUser(read, overlaysrpc.OwnerTtsByUserSubject, w.ttsByUser),
+		bus.ServeForUser(read, overlaysrpc.TtsBlocksSubject, w.ttsBlocks),
+		bus.ServeForUser(read, overlaysrpc.TtsBlockSubject, w.ttsBlock),
+		bus.ServeForUser(read, overlaysrpc.TtsUnblockSubject, w.ttsUnblock),
 		bus.Serve(read, overlaysrpc.OwnerTtsByHashSubject, w.ttsByHash),
 	)
 }
@@ -44,6 +47,27 @@ func (w Wiring) ttsRotate(ctx context.Context, req overlaysrpc.TtsUserRequest, i
 	return view, nil
 }
 
+func (w Wiring) ttsBlocks(ctx context.Context, _ overlaysrpc.TtsUserRequest, id uint64) (overlaysrpc.TtsBlocksReply, error) {
+	return w.blocksReply(ctx, id, nil), nil
+}
+
+func (w Wiring) ttsBlock(ctx context.Context, req overlaysrpc.TtsBlockRequest, id uint64) (overlaysrpc.TtsBlocksReply, error) {
+	err := w.Repo.BlockTtsViewer(ctx, id, overlaysrpc.TtsViewerBlock{ViewerID: req.ViewerID, ViewerLogin: req.ViewerLogin})
+	return w.blocksReply(ctx, id, err), nil
+}
+
+func (w Wiring) ttsUnblock(ctx context.Context, req overlaysrpc.TtsBlockRequest, id uint64) (overlaysrpc.TtsBlocksReply, error) {
+	return w.blocksReply(ctx, id, w.Repo.UnblockTtsViewer(ctx, id, req.ViewerID)), nil
+}
+
+func (w Wiring) blocksReply(ctx context.Context, id uint64, err error) overlaysrpc.TtsBlocksReply {
+	if err != nil {
+		return overlaysrpc.TtsBlocksReply{Refusal: refusal(err)}
+	}
+	viewers, err := w.Repo.TtsBlocks(ctx, id)
+	return overlaysrpc.TtsBlocksReply{Viewers: viewers, Refusal: refusal(err)}
+}
+
 func (w Wiring) ttsByUser(ctx context.Context, _ overlaysrpc.TtsUserRequest, id uint64) (overlaysrpc.OwnerTtsReply, error) {
 	return ttsOwner(w.Repo.GetTTS(ctx, id)), nil
 }
@@ -61,7 +85,7 @@ func ttsOwner(overlay overlaysrpc.TtsOverlay, err error) overlaysrpc.OwnerTtsRep
 
 func ttsView(overlay overlaysrpc.TtsOverlay, err error) overlaysrpc.TtsView {
 	return overlaysrpc.TtsView{
-		TtsSettingsReply: overlaysrpc.TtsSettingsReply{Settings: overlay.Settings, Configured: overlay.Configured(), Refusal: refusal(err)},
+		TtsSettingsReply: overlaysrpc.TtsSettingsReply{Settings: overlay.Settings, Configured: overlay.Configured(), BlockedViewers: overlay.BlockedViewers, Refusal: refusal(err)},
 		Revision:         overlay.Revision,
 	}
 }

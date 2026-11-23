@@ -57,3 +57,8 @@ type VoiceCheckReply struct {
 	VoiceReply
 	Allowed bool `json:"allowed"`
 }
+
+type VoiceSafetyReply struct {
+	PausedUntil int64 `json:"paused_until"`
+	rpc.Refusal
+}

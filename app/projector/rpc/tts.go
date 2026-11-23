@@ -79,7 +79,7 @@ func (s ttsRPC) settings(ctx context.Context, _ overlaysrpc.TtsUserRequest, id u
 	if err != nil || !found {
 		return overlaysrpc.TtsSettingsReply{}, err
 	}
-	return overlaysrpc.TtsSettingsReply{Settings: o.Settings, Configured: o.Configured() && eligibleTtsUser(u, o)}, nil
+	return overlaysrpc.TtsSettingsReply{Settings: o.Settings, Configured: o.Configured() && eligibleTtsUser(u, o), BlockedViewers: o.BlockedViewers}, nil
 }
 
 func (s ttsRPC) byUser(ctx context.Context, id uint64) (overlaysrpc.TtsOverlay, bool, error) {

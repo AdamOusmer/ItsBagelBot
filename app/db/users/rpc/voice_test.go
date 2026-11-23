@@ -12,7 +12,9 @@ import (
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/voiceplan"
+	"ItsBagelBot/internal/valkeytest"
 	"ItsBagelBot/pkg/bus"
+	pkgvalkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,12 +29,15 @@ const (
 	testVoiceRecordSubject = "rpc.internal.users.voice.record"
 )
 
-func newVoiceHarness(t *testing.T) harness {
+func newVoiceHarness(t *testing.T, safety ...rpc.Safety) harness {
 	t.Helper()
 	h := newHarness(t)
 	h.users(1, time.Now())
 	h.client.User.UpdateOneID(9000).SetStatus(user.StatusVip).ExecX(t.Context())
 	w := rpc.Wiring{RPCWiring: bus.RPCWiring{NC: h.nc, Log: zap.NewNop()}, Repo: h.repo}
+	if len(safety) > 0 {
+		w.Safety = safety[0]
+	}
 	require.NoError(t, rpc.SubscribeDashboard(w, testVoiceDashboard))
 	require.NoError(t, rpc.SubscribeVoice(w, testVoiceCheckSubject, testVoiceRecordSubject))
 	return h
@@ -44,6 +49,29 @@ func TestDashboardVoiceAllowanceOwnerOnly(t *testing.T) {
 		req := usersrpc.VoiceGetRequest{ActorID: actor, BroadcasterUserID: testVoiceOwner}
 		read := call[usersrpc.VoiceReply](t, h, testVoiceDashboard+".voice_get", req)
 		assert.Equal(t, actor == testVoiceOwner, read.Code == domainrpc.CodeOK)
+	}
+}
+
+func TestDashboardVoiceSafetyReportsPause(t *testing.T) {
+	store := valkeytest.Real(t)
+	rules := pkgvalkey.NewSpeechSafety(pkgvalkey.SpeechLimits{
+		ChannelRefusals: 1, ChannelWindow: time.Minute, ChannelPause: time.Minute,
+	})
+	h := newVoiceHarness(t, rpc.Safety{Store: store, Rules: rules})
+	require.NoError(t, rules.Refusal(t.Context(), store, testVoiceOwner, "e1"))
+
+	for _, tc := range []struct {
+		actor  string
+		code   domainrpc.Code
+		paused bool
+	}{
+		{"9001", domainrpc.CodeForbidden, false},
+		{testVoiceOwner, domainrpc.CodeOK, true},
+	} {
+		get := usersrpc.VoiceGetRequest{ActorID: tc.actor, BroadcasterUserID: testVoiceOwner}
+		state := call[usersrpc.VoiceSafetyReply](t, h, testVoiceDashboard+".voice_safety", get)
+		assert.Equal(t, tc.code, state.Code)
+		assert.Equal(t, tc.paused, state.PausedUntil > time.Now().UnixMilli())
 	}
 }
 

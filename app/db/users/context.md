@@ -119,8 +119,9 @@ Edit schemas rather than generated Ent code.
   without a renewal date, uses the calendar month in UTC. Other plans use the
   month ending at `subscription_expires_at`, so a subscriber's minutes reset on
   their renewal day; the window key is that cycle's start date.
-  The owner-only dashboard verb `voice_get` requires matching actor and
-  broadcaster IDs. Under `rpc.internal.users.voice.*`, `check` returns
+  The owner-only dashboard verbs `voice_get` and `voice_safety` require
+  matching actor and broadcaster IDs. `voice_safety` reads the channel's TTS
+  pause deadline from Valkey (`pkg/valkey` `SpeechSafety`). Under `rpc.internal.users.voice.*`, `check` returns
   quota and `record` records usage idempotently. A check reads the balance
   without reserving it, so concurrent checks can overshoot by in-flight usage.
   A replay returns the stored plan, reason and usage for the request ID.

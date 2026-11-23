@@ -7,6 +7,7 @@ import (
 	"ItsBagelBot/app/db/overlays/ent/poweredoverlay"
 	"ItsBagelBot/app/db/overlays/ent/schema"
 	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
+	"ItsBagelBot/app/db/overlays/ent/ttsviewerblock"
 	"time"
 )
 
@@ -148,4 +149,32 @@ func init() {
 	ttsoverlay.DefaultUpdatedAt = ttsoverlayDescUpdatedAt.Default.(func() time.Time)
 	// ttsoverlay.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	ttsoverlay.UpdateDefaultUpdatedAt = ttsoverlayDescUpdatedAt.UpdateDefault.(func() time.Time)
+	ttsviewerblockFields := schema.TtsViewerBlock{}.Fields()
+	_ = ttsviewerblockFields
+	// ttsviewerblockDescViewerID is the schema descriptor for viewer_id field.
+	ttsviewerblockDescViewerID := ttsviewerblockFields[1].Descriptor()
+	// ttsviewerblock.ViewerIDValidator is a validator for the "viewer_id" field. It is called by the builders before save.
+	ttsviewerblock.ViewerIDValidator = func() func(string) error {
+		validators := ttsviewerblockDescViewerID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(viewer_id string) error {
+			for _, fn := range fns {
+				if err := fn(viewer_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// ttsviewerblockDescViewerLogin is the schema descriptor for viewer_login field.
+	ttsviewerblockDescViewerLogin := ttsviewerblockFields[2].Descriptor()
+	// ttsviewerblock.ViewerLoginValidator is a validator for the "viewer_login" field. It is called by the builders before save.
+	ttsviewerblock.ViewerLoginValidator = ttsviewerblockDescViewerLogin.Validators[0].(func(string) error)
+	// ttsviewerblockDescCreatedAt is the schema descriptor for created_at field.
+	ttsviewerblockDescCreatedAt := ttsviewerblockFields[3].Descriptor()
+	// ttsviewerblock.DefaultCreatedAt holds the default value on creation for the created_at field.
+	ttsviewerblock.DefaultCreatedAt = ttsviewerblockDescCreatedAt.Default.(func() time.Time)
 }

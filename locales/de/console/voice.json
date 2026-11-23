@@ -22,6 +22,7 @@
   "inactive": "Die Cloud-Stimme pausiert, solange der Bot ausgeschaltet ist.",
   "banned": "Die Cloud-Stimme ist nicht verfügbar.",
   "unavailable": "Nutzung und Stimmeinstellungen sind nicht verfügbar. Lade die Seite neu.",
+  "paused": "Die Stimme ist für diesen Kanal bis {time} pausiert.",
   "invalidVoice": "Wähle eine Stimme aus der Liste.",
   "saveFailed": "Stimmeinstellungen konnten nicht gespeichert werden. Versuche es erneut.",
   "overlayTitle": "OBS-Browserquelle",
@@ -132,5 +133,18 @@
     "title": "Kanalpunkte-Belohnungen",
     "body": "Wähle bei einer Belohnung Nachricht des Zuschauers vorlesen, dann läuft ihr Text über deine Sprachquelle.",
     "open": "Kanalpunkte öffnen"
+  },
+  "blocks": {
+    "title": "Gesperrte Zuschauer",
+    "hint": "Gesperrte Zuschauer werden nie vorgelesen.",
+    "nameLabel": "Zuschauername",
+    "namePlaceholder": "Twitch-Name",
+    "add": "Sperren",
+    "unblock": "Entsperren",
+    "empty": "Niemand ist gesperrt.",
+    "tagManual": "Manuell",
+    "viewerId": "ID {id}",
+    "unknown": "Kein Twitch-Nutzer mit diesem Namen.",
+    "failed": "Gesperrte Zuschauer konnten nicht aktualisiert werden. Versuche es erneut."
   }
 }

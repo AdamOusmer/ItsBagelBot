@@ -39,7 +39,8 @@ func (p *Pipeline) runHandlers(ctx context.Context, views map[string]projection.
 	eventType := mctx.Env.Type
 	switch eventType {
 	case "channel.cheer", "channel.subscription.message", RedemptionAddType:
-		mctx.BlocksText = automodConfigFrom(views, false).BlocksText
+		cfg := automodConfigFrom(views, false)
+		mctx.BlocksText, mctx.SpeechPolicy = cfg.BlocksText, cfg.SpeechPolicy
 	}
 	for ordinal, m := range p.registry.For(eventType) {
 		if !p.enabled(m, views, mctx) {

@@ -48,6 +48,8 @@ func TestRecipeSpeakStaysPremiumOnPublicRecipes(t *testing.T) {
 		{name: "premium channel speaks the expanded text", premium: true, text: "hello {user} <3", want: speakOutcome{automationrpc.StatusOK, "", "hello alice 3"}},
 		{name: "free channel is limited", text: "hello", want: speakOutcome{automationrpc.StatusLimited, "premium_required", ""}},
 		{name: "no minutes is limited", premium: true, noMinutes: true, text: "hello", want: speakOutcome{automationrpc.StatusLimited, "voice_unavailable", ""}},
+		{name: "floor text is skipped", premium: true, text: "please kys", want: speakOutcome{automationrpc.StatusSkipped, "speech_blocked", ""}},
+		{name: "banter and game violence pass", premium: true, text: "headshot, gg ez", want: speakOutcome{automationrpc.StatusOK, "", "headshot, gg ez"}},
 		{name: "nothing to say is skipped", premium: true, text: "<> !!", want: speakOutcome{automationrpc.StatusSkipped, "speech_blocked", ""}},
 	}
 	for _, tc := range cases {

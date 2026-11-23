@@ -137,3 +137,7 @@ export function parseVoiceSave(fields: FormData) {
   if (error) return { error } as const;
   return { error: null, settings: accountSettings(account), expectedRev, partial: trimmed(alerts) } as const;
 }
+
+export const utcDateTime = (locale: string) => new Intl.DateTimeFormat(locale, {
+  year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC', timeZoneName: 'short'
+});

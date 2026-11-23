@@ -109,6 +109,8 @@ func decodeVertexError(upstream *core.UpstreamError, body []byte) error {
 	switch upstream.Status {
 	case http.StatusUnauthorized, http.StatusForbidden:
 		return fmt.Errorf("%w: %w", errVertexCredentialsRejected, upstream)
+	case http.StatusBadRequest:
+		return readGoogleError(body).blocked(upstream)
 	case http.StatusTooManyRequests:
 		upstream.RetryAfter = readGoogleError(body).retryAfter(upstream.RetryAfter)
 	}
@@ -118,6 +120,19 @@ func decodeVertexError(upstream *core.UpstreamError, body []byte) error {
 type vertexRequest struct {
 	Contents         []vertexContent        `json:"contents"`
 	GenerationConfig vertexGenerationConfig `json:"generationConfig"`
+	SafetySettings   []vertexSafetySetting  `json:"safetySettings"`
+}
+
+type vertexSafetySetting struct {
+	Category  string `json:"category"`
+	Threshold string `json:"threshold"`
+}
+
+var vertexSafetySettings = []vertexSafetySetting{
+	{"HARM_CATEGORY_HATE_SPEECH", "BLOCK_ONLY_HIGH"},
+	{"HARM_CATEGORY_SEXUALLY_EXPLICIT", "BLOCK_ONLY_HIGH"},
+	{"HARM_CATEGORY_HARASSMENT", "OFF"},
+	{"HARM_CATEGORY_DANGEROUS_CONTENT", "OFF"},
 }
 
 type vertexContent struct {
@@ -158,7 +173,8 @@ func (v *vertexBackend) requestFor(req gossiprpc.Request) vertexRequest {
 		part.SpeechMetadata = &vertexSpeechMetadata{Style: req.Style}
 	}
 	return vertexRequest{
-		Contents: []vertexContent{{Role: "user", Parts: []vertexTextPart{part}}},
+		SafetySettings: vertexSafetySettings,
+		Contents:       []vertexContent{{Role: "user", Parts: []vertexTextPart{part}}},
 		GenerationConfig: vertexGenerationConfig{
 			ResponseModalities: []string{"AUDIO"},
 			Temperature:        v.temperature,

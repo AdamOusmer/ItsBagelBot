@@ -44,6 +44,18 @@ func (f TtsOverlayFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, 
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TtsOverlayMutation", m)
 }
 
+// The TtsViewerBlockFunc type is an adapter to allow the use of ordinary
+// function as TtsViewerBlock mutator.
+type TtsViewerBlockFunc func(context.Context, *ent.TtsViewerBlockMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TtsViewerBlockFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TtsViewerBlockMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TtsViewerBlockMutation", m)
+}
+
 // Condition is a hook condition function.
 type Condition func(context.Context, ent.Mutation) bool
 

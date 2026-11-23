@@ -21,7 +21,7 @@ import { DEFAULT_LOCALE } from '@bagel/kit/i18n';
 import type { Session } from './session';
 import type { AccountState, BillingState, DeviceGrantView, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';
-import type { TtsOverlayView, VoiceAllowance, VoiceSettings } from './services/voice';
+import type { BlockedViewer, TtsOverlayView, VoiceAllowance, VoiceSettings } from './services/voice';
 import type { OverlayView, PoweredSettings } from './services/overlays';
 import type { GoveeDevice, GoveeView } from './govee-store';
 import type { FetchDefView, FetchKeyView } from './fetches-store';
@@ -670,8 +670,23 @@ const demoVoiceState = {
   settings: { enabled: true, voice: 'Kore', max_seconds: 30 } satisfies VoiceSettings,
   overlayRevision: 1,
   config: {} as Record<string, string>,
-  revision: 1
+  revision: 1,
+  blocked: [{ viewer_id: '9001', viewer_login: 'spamlord', created_at: 1_764_000_000 }] as BlockedViewer[]
 };
+
+function demoVoiceSafety() {
+  return { manual: demoVoiceState.blocked, pausedUntil: 0 };
+}
+
+export function demoVoiceBlock({ login }: { login: string }): boolean {
+  if (login.length < 4 || login === 'nobody') return false;
+  demoVoiceState.blocked.push({ viewer_id: String(9100 + demoVoiceState.blocked.length), viewer_login: login, created_at: Math.floor(Date.now() / 1000) });
+  return true;
+}
+
+export function demoVoiceUnblock({ viewerId }: { viewerId: string }): void {
+  demoVoiceState.blocked = demoVoiceState.blocked.filter((viewer) => viewer.viewer_id !== viewerId);
+}
 
 export function demoVoiceView(forceLocked = false) {
   const locked = forceLocked || demoAccountState.status === 'free';
@@ -679,7 +694,7 @@ export function demoVoiceView(forceLocked = false) {
     ? { plan: 'free', period: '2026-11', limit_tokens: 0, used_tokens: 0, remaining_tokens: 0, resets_at: '2026-12-01T00:00:00Z', reason: 'no_plan' }
     : { plan: 'premium', period: '2026-11', limit_tokens: 90_000, used_tokens: 57_300, remaining_tokens: 32_700, resets_at: '2026-12-01T00:00:00Z', reason: 'ok' };
   const overlay: TtsOverlayView | null = locked ? null : { settings: demoVoiceState.settings, configured: true, revision: demoVoiceState.overlayRevision };
-  return { allowance, overlay, config: demoVoiceState.config, revision: demoVoiceState.revision };
+  return { allowance, overlay, config: demoVoiceState.config, revision: demoVoiceState.revision, safety: demoVoiceSafety() };
 }
 
 export function demoVoiceSave(settings: Partial<VoiceSettings>, partial: Record<string, string>): number {

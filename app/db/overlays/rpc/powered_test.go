@@ -120,6 +120,39 @@ func TestOwnerLookupsFollowTheCurrentLink(t *testing.T) {
 	}
 }
 
+func TestTtsBlockRPC(t *testing.T) {
+	nc := serve(t)
+	user := overlaysrpc.TtsUserRequest{UserID: "1001"}
+	cases := []struct {
+		name    string
+		subject string
+		req     any
+		want    domainrpc.Code
+		viewers []string
+	}{
+		{"empty", overlaysrpc.TtsBlocksSubject, user, domainrpc.CodeOK, nil},
+		{"block", overlaysrpc.TtsBlockSubject, overlaysrpc.TtsBlockRequest{TtsUserRequest: user, ViewerID: "42", ViewerLogin: "loud"}, domainrpc.CodeOK, []string{"42"}},
+		{"block again", overlaysrpc.TtsBlockSubject, overlaysrpc.TtsBlockRequest{TtsUserRequest: user, ViewerID: "42"}, domainrpc.CodeOK, []string{"42"}},
+		{"bad id", overlaysrpc.TtsBlockSubject, overlaysrpc.TtsBlockRequest{TtsUserRequest: user, ViewerID: "loud"}, domainrpc.CodeInvalid, nil},
+		{"missing user", overlaysrpc.TtsBlockSubject, overlaysrpc.TtsBlockRequest{ViewerID: "42"}, domainrpc.CodeInvalid, nil},
+		{"unblock", overlaysrpc.TtsUnblockSubject, overlaysrpc.TtsBlockRequest{TtsUserRequest: user, ViewerID: "42"}, domainrpc.CodeOK, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reply := request[overlaysrpc.TtsBlocksReply](t, nc, tc.subject, tc.req)
+			require.Equal(t, tc.want, reply.Code, reply.Error)
+			if tc.want != domainrpc.CodeOK {
+				return
+			}
+			ids := make([]string, len(reply.Viewers))
+			for i, viewer := range reply.Viewers {
+				ids[i] = viewer.ViewerID
+			}
+			require.ElementsMatch(t, tc.viewers, ids)
+		})
+	}
+}
+
 func TestTtsRPCUsesARevisionAndTheUsersPlan(t *testing.T) {
 	nc := serve(t)
 	for _, tc := range []struct {

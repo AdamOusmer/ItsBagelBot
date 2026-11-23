@@ -26,6 +26,19 @@ type interaction struct {
 	Input            []inputStep        `json:"input"`
 	ResponseFormat   responseFormat     `json:"response_format"`
 	GenerationConfig generationConfig   `json:"generation_config"`
+	SafetySettings   []geminiSafety     `json:"safety_settings"`
+}
+
+type geminiSafety struct {
+	Type      string `json:"type"`
+	Threshold string `json:"threshold"`
+}
+
+var geminiSafetySettings = []geminiSafety{
+	{"hate_speech", "block_only_high"},
+	{"sexually_explicit", "block_only_high"},
+	{"harassment", "off"},
+	{"dangerous_content", "off"},
 }
 
 type inputStep struct {
@@ -68,6 +81,7 @@ func (g geminiBackend) interactionFor(req gossiprpc.Request) interaction {
 		Input:            []inputStep{{Type: "user_input", Content: []textContent{content}}},
 		ResponseFormat:   responseFormat{Type: "audio", MimeType: wavMIME},
 		GenerationConfig: generationConfig{SpeechConfig: []speechVoice{{Voice: req.Voice}}, Temperature: g.temperature},
+		SafetySettings:   geminiSafetySettings,
 	}
 }
 
