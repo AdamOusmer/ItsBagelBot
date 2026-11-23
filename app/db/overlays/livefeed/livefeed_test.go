@@ -150,8 +150,8 @@ func TestHandleFoldsEachEventOnceAndPublishesFrames(t *testing.T) {
 	snapshot := h.snapshot(t)
 
 	require.Equal(t, 1, h.bus.alertCount())
-	require.Equal(t, []feed.Frame{feed.FrameStats}, h.bus.stateTypes(t))
-	require.Equal(t, []string{overlaysrpc.StateSubject(h.owner)}, h.bus.subjects)
+	require.Equal(t, []feed.Frame{feed.FrameStats, feed.FrameStats}, h.bus.stateTypes(t))
+	require.Equal(t, []string{overlaysrpc.StateSubject(h.owner), overlaysrpc.StateSubject(h.owner)}, h.bus.subjects)
 	require.Equal(t, int64(150), snapshot.Snapshot.Stats.Session.Bits)
 	require.Equal(t, int64(150), snapshot.Snapshot.Stats.Week.Bits)
 	require.Equal(t, int64(150), h.channels.totals.Counts.Bits)

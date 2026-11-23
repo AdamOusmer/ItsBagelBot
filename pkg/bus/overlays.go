@@ -74,13 +74,21 @@ type OverlayClipData struct {
 }
 
 func ConnectOverlays(url string) (*nats.Conn, error) {
+	return connectOverlayRole(url, "sesame-tts-overlay", "WORKER_TTS_BUS")
+}
+
+func ConnectOverlayFeed(url string) (*nats.Conn, error) {
+	return connectOverlayRole(url, "overlays-feed", "OVERLAYS_FEED_BUS")
+}
+
+func connectOverlayRole(url, name, credentialPrefix string) (*nats.Conn, error) {
 	identity := connectionIdentity{
-		name:     "sesame-tts-overlay",
-		jwt:      env.Get("WORKER_TTS_BUS_JWT", ""),
-		nkeySeed: env.Get("WORKER_TTS_BUS_NKEY_SEED", ""),
+		name:     name,
+		jwt:      env.Get(credentialPrefix+"_JWT", ""),
+		nkeySeed: env.Get(credentialPrefix+"_NKEY_SEED", ""),
 	}
 	if identity.jwt == "" || identity.nkeySeed == "" {
-		return nil, errors.New("bus: missing Sesame overlay writer credentials")
+		return nil, fmt.Errorf("bus: missing %s credentials", credentialPrefix)
 	}
 	return nats.Connect(busURL(endpoint(url)), baseOptions(identity)...)
 }

@@ -22,12 +22,14 @@ func (s coreState) Publish(ctx context.Context, subject string, payload []byte) 
 	return bus.PublishCore(ctx, s.nc, subject, payload)
 }
 
-func newFeed(core svcboot.Core, repo *repository.Overlays, nc *nats.Conn) *livefeed.Service {
+func newFeed(core svcboot.Core, repo *repository.Overlays, rpcConn *nats.Conn) (*livefeed.Service, *nats.Conn) {
 	client := svcboot.MustValkey(core)
-	alerts, err := bus.NewOverlayPublisher(nc)
+	feedConn, err := bus.ConnectOverlayFeed(core.NATSURL)
+	svcboot.FatalIf(core.Log, err, "failed to connect overlay feed bus")
+	alerts, err := bus.NewOverlayPublisher(feedConn)
 	svcboot.FatalIf(core.Log, err, "failed to open overlay alert publisher")
 	return &livefeed.Service{
-		Client: client, Alerts: alerts, State: coreState{nc: nc}, Plans: rpc.VoicePlans{NC: nc},
+		Client: client, Alerts: alerts, State: coreState{nc: feedConn}, Plans: rpc.VoicePlans{NC: rpcConn},
 		Channels: repo, Allow: ratelimit.New(client).Allow, Log: core.Log,
-	}
+	}, feedConn
 }

@@ -146,7 +146,6 @@ func TestTTSWriterPermissionsAreExact(t *testing.T) {
 			"$JS.API.DIRECT.GET.OBJ_TTS_CLIPS.$O.TTS_CLIPS.M.*",
 			"overlays.premium.>",
 			"overlays.standard.>",
-			"overlays.state.*",
 			"$JS.API.STREAM.INFO.OVERLAYS_PREMIUM",
 			"$JS.API.STREAM.CREATE.OVERLAYS_PREMIUM",
 			"$JS.API.STREAM.UPDATE.OVERLAYS_PREMIUM",
@@ -179,6 +178,14 @@ func TestTTSWriterPermissionsAreExact(t *testing.T) {
 	for name, block := range busUserBlocks(t) {
 		assert.Equal(t, name == "worker_bus", block.grants("tts.jobs.*"))
 	}
+}
+
+func TestOverlayFeedPermissionsAreExact(t *testing.T) {
+	role := committedACL(t).Accounts[controlsGatewayAccount].Roles["overlays_feed_bus"]
+	assert.Equal(t, natsacl.RoleSpec{
+		Publish:   &natsacl.PermissionSpec{Allow: []string{"overlays.premium.custom.*", "overlays.standard.custom.*", "overlays.state.*"}},
+		Subscribe: &natsacl.PermissionSpec{Allow: []string{"_INBOX.>"}},
+	}, role)
 }
 
 func TestGossipJobsPermissionsAreExact(t *testing.T) {
