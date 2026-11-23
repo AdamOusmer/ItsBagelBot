@@ -1,6 +1,6 @@
 # Marketing email: consent, unsubscribe and a shared sender
 
-Status: the consent records (terms acceptance, marketing consent, projections) and the capture points (welcome, `/consent`, Settings) ship in `feature/consent-reauth`. Suppression, analytics counters, `pkg/email`, unsubscribe, webhooks and campaigns remain planned. Date: 2026-11-20.
+Status: implemented on `feature/consent-reauth`: consent records, capture points (welcome, `/consent`, Settings), `pkg/email`, suppression, analytics counters, unsubscribe and preference page, Resend webhook, campaigns with the paced worker and the admin campaign pages. Capture starts ticked (opt-out), by product decision on 2026-11-23, replacing D1. Date: 2026-11-23.
 
 ## Legal answer first
 
@@ -56,7 +56,7 @@ Users owns consent, suppression, tokens and audience selection.
 
 ### 3. Capture points
 
-All use an unticked box, separate from the required terms box, with text that names ItsBagelBot, the purpose, a contact address and how to withdraw (CASL s.10(1) and Regs s.4).
+All use a box that starts ticked (opt-out, see D1), separate from the required terms box, with text that names ItsBagelBot, the purpose, a contact address and how to withdraw (CASL s.10(1) and Regs s.4).
 
 - `/welcome` consent step, next to the terms box. Step must still fit the viewport.
 - Settings, preferences section: an "Email" row (`web/dashboard/src/routes/(app)/settings/+page.svelte`), owner only.
@@ -104,7 +104,7 @@ Ops outside git: marketing subdomain DNS records in Resend, a marketing API key 
 
 | # | Decision | Recommendation | Why |
 |---|---|---|---|
-| D1 | Express opt-in only, or also soft opt-in for new signups | Express only | One rule for every country; soft opt-in still fails CASL clarity |
+| D1 | Express opt-in only, or also soft opt-in for new signups | Decided 2026-11-23: the box starts ticked (opt-out) at every capture point | Product decision; the user can untick before submitting and withdraw at any time |
 | D2 | Who sends: worker inside Users, or a new marketing service | Inside Users | No new deployment, NATS identity or secrets; consent and addresses never leave Users |
 | D3 | Resend Email API with our own consent store, or Resend Broadcasts and Contacts | Email API | Consent and erasure stay in our DB; Broadcasts needs contact sync both ways |
 | D4 | One-click endpoint in the dashboard (SvelteKit route calling Users RPC) or a Go listener in Users behind a new route | Dashboard route | Uses the existing public origin; no new ingress path into a data service |
