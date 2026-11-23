@@ -4,11 +4,10 @@
 
   import { getI18n } from '@bagel/kit/i18n/context';
   import { usageTone, VOICE_TOKENS_PER_SECOND } from '@bagel/kit/voice-plan';
-  import AudioOrb from '@bagel/ui/svelte/AudioOrb.svelte';
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import type { VoiceAllowance } from '#lib/server/services/voice';
-  import VoiceWheel from './VoiceWheel.svelte';
+  import VoiceTuner from './VoiceTuner.svelte';
 
   let { allowance, voice, onVoice }: {
     allowance: VoiceAllowance;
@@ -34,37 +33,7 @@
   const footnote = $derived(exhausted
     ? t('voice.exhausted', { date })
     : t('voice.remaining', { time: duration(allowance.remaining_tokens) }));
-
-  let audio = $state<HTMLAudioElement>();
-  let analyser = $state<AnalyserNode | null>(null);
-  let playing = $state<string | null>(null);
-
-  function connect(element: HTMLAudioElement) {
-    if (analyser) return analyser;
-    const context = new AudioContext();
-    const node = context.createAnalyser();
-    node.fftSize = 2048;
-    node.smoothingTimeConstant = 0.75;
-    context.createMediaElementSource(element).connect(node);
-    node.connect(context.destination);
-    analyser = node;
-    return node;
-  }
-
-  function play(next: string) {
-    if (!audio) return;
-    void (connect(audio).context as AudioContext).resume();
-    if (playing === next) {
-      audio.pause();
-      return;
-    }
-    audio.src = `/voice-previews/${locale}/${next}.mp3`;
-    playing = next;
-    void audio.play().catch(() => (playing = null));
-  }
 </script>
-
-<audio bind:this={audio} preload="none" onpause={() => (playing = null)} onended={() => (playing = null)}></audio>
 
 <div class="usage">
   <div class="usage-line">
@@ -74,8 +43,7 @@
   <ProgressBar inset gradient tone="warning" label={t('voice.usageTitle')} aria-valuetext={usage} value={fraction} />
   <Text as="span" size="xs" tone="muted"><bb-fit><span data-fit="">{footnote}</span></bb-fit></Text>
 </div>
-<div class="orb-slot"><div class="orb-fit"><AudioOrb {analyser} /></div></div>
-<VoiceWheel {voice} {playing} onSelect={onVoice} onPlay={play} />
+<VoiceTuner {voice} {onVoice} />
 
 <style>
   .usage {
@@ -90,11 +58,5 @@
     grid-template-columns: minmax(0, 1fr) minmax(0, auto);
     align-items: baseline;
     gap: var(--bb-space-3);
-  }
-  .orb-slot { min-block-size: 0; container-type: size; display: grid; place-items: center; }
-  .orb-fit { inline-size: min(100cqw, 100cqh); }
-  @media (max-width: 900px) {
-    .orb-slot { container-type: normal; }
-    .orb-fit { inline-size: min(320px, 80vw); }
   }
 </style>

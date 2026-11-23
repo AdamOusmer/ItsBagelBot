@@ -10,7 +10,6 @@
     alertVoiceKeys, DEFAULT_VOICE, MAX_CLIP_SECONDS, type VoiceAlertKind
   } from '@bagel/kit/voice-plan';
   import Card from '@bagel/ui/svelte/Card.svelte';
-  import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
@@ -18,9 +17,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
   import PageNotice from '#lib/components/shared/PageNotice.svelte';
-  import PremiumGate from '#lib/components/shared/PremiumGate.svelte';
   import { voiceOptions } from '#lib/components/voice/voice-options';
-  import VoicePreview from '#lib/components/voice/VoicePreview.svelte';
   import { Autosave } from '#lib/autosave.svelte';
   import VoiceBlocksCard from './VoiceBlocksCard.svelte';
   import { utcDateTime } from './voice-settings';
@@ -30,6 +27,7 @@
   import VoiceOverlayCard from './VoiceOverlayCard.svelte';
   import VoiceSettingsCard from './VoiceSettingsCard.svelte';
   import VoiceStage from './VoiceStage.svelte';
+  import VoiceLocked from './VoiceLocked.svelte';
   import type { ActionData, PageData } from './$types';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -168,13 +166,12 @@
   <PageHead>
     <span class="page-title">
       <bb-fit class="page-title-copy"><span data-fit="">{t('nav.voice')}</span></bb-fit>
-      <Chip as="span" pressed>{t('modules.betaChip')}</Chip>
     </span>
   </PageHead>
 {/snippet}
 
 {#if data.locked}
-  <PremiumGate><VoicePreview /></PremiumGate>
+  <VoiceLocked />
 {:else if ready && allowance}
   <section class="screen active split">
     <aside class="split-side" bind:this={side} style="--side-top: {sideTop}px; --side-bottom: {sideBottom}px">
@@ -250,8 +247,7 @@
     min-inline-size: 0;
     overflow: hidden;
   }
-  .split-main { display: grid; gap: var(--bb-space-4); min-inline-size: 0; }
-  @media (max-width: 900px) {
+  .split-main { display: grid; gap: var(--bb-space-4); min-inline-size: 0; }  @media (max-width: 900px) {
     .split { grid-template-columns: minmax(0, 1fr); }
     .split-side { position: static; block-size: auto; grid-template-rows: none; overflow: visible; }
   }
