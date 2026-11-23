@@ -23,7 +23,6 @@
   };
 
   let { locale, requestId, mailingAddress, subscribed, marketingDefault, action, serverError, onaccepted, accepted = $bindable(false), element = $bindable(null) }: Props = $props();
-  const id = $props.id();
   const t = (key: string) => translate(locale, key);
   let busy = $state(false);
   let error = $state('');
@@ -64,24 +63,18 @@
   <input type="hidden" name="terms_version" value={TERMS_VERSION} />
   <input type="hidden" name="locale" value={locale} />
 
-  <div class="bb-setup-row choice terms">
-    <Checkbox name="consent" value="yes" bind:checked={accepted} required disabled={busy} aria-labelledby="{id}-terms" />
-    <div class="choice-copy">
-      <bb-fit mode="block"><span id="{id}-terms" class="bb-prose bb-prose-inline">{@html t('onboarding.consentLabel')}</span></bb-fit>
-    </div>
-  </div>
+  <Checkbox class="bb-setup-row choice terms" name="consent" value="yes" bind:checked={accepted} required disabled={busy}>
+    <bb-fit mode="block"><span class="bb-prose bb-prose-inline">{@html t('onboarding.consentLabel')}</span></bb-fit>
+  </Checkbox>
 
   {#if subscribed}
     <div class="bb-setup-row choice terms">
       <div class="choice-copy"><bb-fit mode="block">{t('consent.subscribed')}</bb-fit></div>
     </div>
   {:else if mailingAddress}
-    <div class="bb-setup-row choice marketing">
-      <Checkbox name="marketing" value="yes" checked={marketingDefault} disabled={busy} aria-labelledby="{id}-marketing" />
-      <div class="choice-copy">
-        <bb-fit mode="block"><span id="{id}-marketing">{t('marketing.optInLabel')}</span></bb-fit>
-      </div>
-    </div>
+    <Checkbox class="bb-setup-row choice marketing" name="marketing" value="yes" checked={marketingDefault} disabled={busy}>
+      <bb-fit mode="block"><span>{t('marketing.optInLabel')}</span></bb-fit>
+    </Checkbox>
   {/if}
 
   <div class="bb-setup-actions"><Button type="submit" disabled={mounted && !accepted} {busy}>{t('consent.continue')}</Button></div>
@@ -90,10 +83,10 @@
 
 <style>
   .consent-form { display: grid; gap: clamp(6px, 1.3svh, 12px); }
-  .choice { align-items: center; padding-block: 8px; }
-  .terms { block-size: 56px; }
-  .marketing { block-size: 44px; }
-  .marketing .choice-copy { font-size: var(--bb-text-xs); }
+  .consent-form :global(.choice) { display: flex; align-items: center; gap: 12px; padding-block: 8px; font-size: var(--bb-text-sm); line-height: 1.35; color: var(--bb-muted); }
+  .consent-form :global(.terms) { block-size: 56px; }
+  .consent-form :global(.marketing) { block-size: 44px; font-size: var(--bb-text-xs); }
+  .consent-form :global(.choice .bb-check__label) { flex: 1; min-width: 0; }
   .choice-copy {
     align-content: center;
     block-size: 100%;
@@ -106,9 +99,9 @@
   .status { block-size: 2.8em; color: var(--bb-status-danger); font-size: var(--bb-text-xs); text-align: center; }
 
   @media (max-height: 480px) {
-    .choice { padding-block: 4px; }
-    .terms { block-size: 40px; }
-    .marketing { block-size: 32px; }
+    .consent-form :global(.choice) { padding-block: 4px; }
+    .consent-form :global(.terms) { block-size: 40px; }
+    .consent-form :global(.marketing) { block-size: 32px; }
     .status { block-size: 1.4em; }
   }
 </style>

@@ -119,11 +119,19 @@
         flex: var(--bb-check-flex, 0 1 auto);
         align-items: var(--bb-check-align, flex-start);
         gap: 9px;
+        position: relative;
         cursor: pointer;
         font-family: var(--bb-font-body);
         font-size: 13.5px;
         line-height: 1.45;
         color: var(--bb-white);
+    }
+
+    .bb-check::before {
+        content: "";
+        position: absolute;
+        inset-block: min(0px, calc(50% - 22px));
+        inset-inline: -9px;
     }
 
     .bb-check__label {
