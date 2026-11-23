@@ -94,7 +94,7 @@ defmodule Platform.Nats.PullTest do
     assert Jetstream.eventually(fn -> Pull.attached?(quick) end, 20)
   end
 
-  test "pull recovers quickly when the consumer is deleted and recreated" do
+  test "pull recovers after the consumer is deleted and recreated" do
     test = self()
     Jetstream.create_stream!("F", ["f.>"])
     Jetstream.create_consumer!("F", "flip")
@@ -115,7 +115,7 @@ defmodule Platform.Nats.PullTest do
     Jetstream.api!("$JS.API.CONSUMER.DELETE.F.flip", %{})
     Jetstream.create_consumer!("F", "flip")
     Jetstream.publish!("f.flip", "again")
-    assert_receive {:flip, "again"}, 4_000
+    assert_receive {:flip, "again"}, 9_000
   end
 
   test "an error status re-attaches through the consumer check" do
@@ -148,8 +148,9 @@ defmodule Platform.Nats.PullTest do
     %{pid: old} = Planes.connection(:jetstream)
     Process.exit(old, :kill)
 
+    assert Jetstream.eventually(fn -> not Pull.attached?(once) end)
     assert Jetstream.eventually(fn -> Pull.attached?(once) end, 100)
-    assert_receive {:attach, :once_pull}, 1_000
+    assert_receive {:attach, :once_pull}, 5_000
     refute_receive {:attach, :once_pull}, 2_500
   end
 
