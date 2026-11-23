@@ -80,7 +80,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: controls-gateway
-          image: ghcr.io/adamousmer/itsbagelbot/controls-gateway:main-1795404947-dddf1973a543@sha256:63e69fd166801c547c79c5867eba64f4e7ac23ac42f5bc898b1c9845968e4a00
+          image: ghcr.io/adamousmer/itsbagelbot/controls-gateway:main-1795406273-47da568d7a9b@sha256:d7a4a583173f8b1d6d34bce5f39c0a92f1999756440547997680913c53f0b1e0
           imagePullPolicy: IfNotPresent
           env:
             - name: CONTROLS_GATEWAY_PORT
