@@ -15,9 +15,11 @@ body {
   background: var(--bb-bg-0);
   color: var(--bb-white);
   font-family: var(--bb-font-body);
-  -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   min-height: 100vh;
+}
+@media (min-resolution: 2dppx) {
+  body { -webkit-font-smoothing: antialiased; }
 }
 
 .screen { display: none; animation: screen-in var(--bb-dur-slow) var(--bb-ease-out-expo); }
