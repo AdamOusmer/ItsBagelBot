@@ -4,7 +4,6 @@
 package consent_test
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/consent"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/require"
 )
@@ -28,11 +28,9 @@ func legalUpdated(t *testing.T, policy string) time.Time {
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
-	var meta struct {
-		Updated string `json:"updated"`
-	}
-	require.NoError(t, json.Unmarshal(data, &meta), "%s", path)
-	updated, err := time.Parse("January 2006", meta.Updated)
+	value, err := codec.ExtractString(data, codec.Path{"updated"})
+	require.NoError(t, err, "%s", path)
+	updated, err := time.Parse("January 2006", value)
 	require.NoError(t, err, "%s", path)
 	return updated
 }
