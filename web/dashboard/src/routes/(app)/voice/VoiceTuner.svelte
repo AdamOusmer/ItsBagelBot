@@ -2,15 +2,18 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
+  import type { Snippet } from 'svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import AudioOrb from '@bagel/ui/svelte/AudioOrb.svelte';
   import VoiceWheel from './VoiceWheel.svelte';
 
-  let { voice, onVoice, orbSize, autoplay = false }: {
+  let { voice, onVoice, orbSize, autoplay = false, lead, tail }: {
     voice: string;
     onVoice: (voice: string) => void;
     orbSize?: string;
     autoplay?: boolean;
+    lead?: Snippet;
+    tail?: Snippet;
   } = $props();
 
   const { locale } = getI18n();
@@ -53,12 +56,17 @@
 <div class="orb-slot" class:sized={!!orbSize} style:--orb-size={orbSize}>
   <div class="orb-fit"><AudioOrb {analyser} /></div>
 </div>
-<VoiceWheel {voice} {playing} onSelect={select} onPlay={play} />
+<div class="side">
+  {@render lead?.()}
+  <VoiceWheel {voice} {playing} onSelect={select} onPlay={play} />
+  {@render tail?.()}
+</div>
 
 <style>
   .orb-slot { min-block-size: 0; container-type: size; display: grid; place-items: center; }
   .orb-fit { inline-size: min(100cqw, 100cqh); }
   .orb-slot.sized { container-type: normal; }
+  .side { display: grid; gap: var(--bb-space-5); min-inline-size: 0; }
   .orb-slot.sized .orb-fit { inline-size: var(--orb-size); }
   @media (max-width: 900px) {
     .orb-slot { container-type: normal; }

@@ -173,7 +173,10 @@
 {/snippet}
 
 {#if data.locked}
-  <VoiceLocked />
+  <section class="screen active">
+    {@render title()}
+    <VoiceLocked />
+  </section>
 {:else if ready && allowance}
   <section class="screen active split">
     <aside class="split-side" bind:this={side} style="--side-top: {sideTop}px; --side-bottom: {sideBottom}px">

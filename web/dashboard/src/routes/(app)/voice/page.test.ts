@@ -72,7 +72,7 @@ test.each([
 test('shows the voice stage with direct checkout for an owner without a plan', () => {
   const html = renderVoice({ allowance: { ...allowance, plan: 'free', reason: 'no_plan' }, locked: true, alerts: null });
   expect({
-    title: html.includes(translate('en', 'voice.lockedTitle')),
+    title: html.includes(translate('en', 'voice.lockedTitle')) && html.includes(translate('en', 'nav.voice')),
     orb: html.includes('bb-audio-orb'),
     wheel: html.includes('role="listbox"'),
     checkout: html.includes('action="/billing?/subscribe"'),
