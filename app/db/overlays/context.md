@@ -93,12 +93,17 @@ Other `ent/` files are generated from the schema.
   latest-of-each, names and the session slot are version guarded; the
   session event log expires with the session. All-time totals and leaders are
   the `feed_total` counters (`IncrementCounters`).
-- Each fold publishes the event, stats and (when the timer moved) subathon
-  frames on `OVERLAY_FEED` over the second connection (role
-  `overlays_feed_bus`, `OVERLAYS_FEED_BUS_JWT` and `_NKEY_SEED`).
-- `rpc.internal.overlays.feed.snapshot` returns the folded state and the
-  last published `OVERLAY_FEED` sequence; `rpc.overlays.feed.control` is
-  owner only and throttles test events.
+- Each fold queues the event as an alert with `bus.Overlays.Publish` (kind
+  `custom`, `event_id` is the Twitch event id, `expires_at` is the
+  `bus.OverlayClipTTL` after publish, tier follows the owner's premium plan
+  cached 60 s). Stats and, when the timer moved, subathon frames go on core
+  NATS `overlays.state.<user id>` as `{"type","data"}`, with no replay. Both
+  use the service's existing RPC connection.
+- `rpc.internal.overlays.feed.snapshot` returns the folded state and every
+  event of the current session (the log expires with the session), so a page
+  that connects late catches up without replay; `rpc.overlays.feed.control`
+  is owner only and throttles test events.
+- Chat is not fed yet: the credits mod, vip and chatter lists stay empty.
 - Subathon rules come from the first timer widget in subathon mode
   (`settings.rules`).
 - Per-kind widget settings are checked against

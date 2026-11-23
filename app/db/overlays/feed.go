@@ -5,21 +5,29 @@ package main
 
 import (
 	"context"
-	"errors"
+
+	"github.com/nats-io/nats.go"
 
 	"ItsBagelBot/app/db/overlays/livefeed"
 	"ItsBagelBot/app/db/overlays/repository"
+	"ItsBagelBot/app/db/overlays/rpc"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/ratelimit"
 	"ItsBagelBot/pkg/svcboot"
 )
 
-type unwiredFrames struct{}
+type coreState struct{ nc *nats.Conn }
 
-func (unwiredFrames) Publish(context.Context, string, string, []byte) (uint64, error) {
-	return 0, errors.New("overlay feed publisher is not wired to bus.Overlays")
+func (s coreState) Publish(ctx context.Context, subject string, payload []byte) error {
+	return bus.PublishCore(ctx, s.nc, subject, payload)
 }
 
-func newFeed(core svcboot.Core, repo *repository.Overlays) *livefeed.Service {
+func newFeed(core svcboot.Core, repo *repository.Overlays, nc *nats.Conn) *livefeed.Service {
 	client := svcboot.MustValkey(core)
-	return &livefeed.Service{Client: client, Frames: unwiredFrames{}, Channels: repo, Allow: ratelimit.New(client).Allow, Log: core.Log}
+	alerts, err := bus.NewOverlayPublisher(nc)
+	svcboot.FatalIf(core.Log, err, "failed to open overlay alert publisher")
+	return &livefeed.Service{
+		Client: client, Alerts: alerts, State: coreState{nc: nc}, Plans: rpc.VoicePlans{NC: nc},
+		Channels: repo, Allow: ratelimit.New(client).Allow, Log: core.Log,
+	}
 }

@@ -29,11 +29,6 @@ func (l ScoredLog) Add(ctx context.Context, client valkey_go.Client, score float
 	return nil
 }
 
-// Newest returns up to n members, highest score first.
-func (l ScoredLog) Newest(ctx context.Context, client valkey_go.Client, n int64) ([]string, error) {
-	return client.Do(ctx, client.B().Zrevrange().Key(l.Key).Start(0).Stop(n-1).Build()).AsStrSlice()
-}
-
 // All returns every member, highest score first.
 func (l ScoredLog) All(ctx context.Context, client valkey_go.Client) ([]string, error) {
 	return client.Do(ctx, client.B().Zrevrange().Key(l.Key).Start(0).Stop(-1).Build()).AsStrSlice()

@@ -9,8 +9,7 @@
       "name": "Bob"
     },
     "amount": 5,
-    "tier": "1000",
-    "seq": 5
+    "tier": "1000"
   },
   "stats": {
     "session": {
@@ -286,8 +285,7 @@
         "login": "ann",
         "name": "Ann",
         "color": "#ff8800"
-      },
-      "seq": 1
+      }
     },
     {
       "id": "e-sub",
@@ -299,8 +297,7 @@
         "name": "Ann",
         "color": "#ff8800"
       },
-      "tier": "1000",
-      "seq": 2
+      "tier": "1000"
     },
     {
       "id": "e-resub",
@@ -328,8 +325,7 @@
             "text": "Kappa"
           }
         ]
-      },
-      "seq": 3
+      }
     },
     {
       "id": "e-gift-sub",
@@ -345,8 +341,7 @@
         "id": "103",
         "login": "cy",
         "name": "Cy"
-      },
-      "seq": 4
+      }
     },
     {
       "id": "e-community-gift",
@@ -358,8 +353,7 @@
         "name": "Bob"
       },
       "amount": 5,
-      "tier": "1000",
-      "seq": 5
+      "tier": "1000"
     },
     {
       "id": "e-cheer",
@@ -374,8 +368,7 @@
       "amount": 500,
       "message": {
         "text": "take it"
-      },
-      "seq": 6
+      }
     },
     {
       "id": "e-raid",
@@ -386,8 +379,7 @@
         "login": "bob",
         "name": "Bob"
       },
-      "amount": 42,
-      "seq": 7
+      "amount": 42
     },
     {
       "id": "e-chat",
@@ -405,8 +397,7 @@
       "badges": [
         "subscriber",
         "vip"
-      ],
-      "seq": 8
+      ]
     },
     {
       "id": "e-redemption",
@@ -422,8 +413,7 @@
       "reward": {
         "id": "r1",
         "title": "Hydrate"
-      },
-      "seq": 9
+      }
     },
     {
       "id": "e-cleared",
@@ -431,8 +421,7 @@
       "at": "2026-01-01T12:00:00Z",
       "user": {
         "id": "104"
-      },
-      "seq": 10
+      }
     }
   ],
   "snapshot": {
@@ -717,8 +706,7 @@
         "badges": [
           "subscriber",
           "vip"
-        ],
-        "seq": 8
+        ]
       }
     ],
     "events": [
@@ -732,8 +720,7 @@
           "name": "Bob"
         },
         "amount": 5,
-        "tier": "1000",
-        "seq": 5
+        "tier": "1000"
       },
       {
         "id": "e-cheer",
@@ -748,8 +735,7 @@
         "amount": 500,
         "message": {
           "text": "take it"
-        },
-        "seq": 6
+        }
       }
     ]
   }

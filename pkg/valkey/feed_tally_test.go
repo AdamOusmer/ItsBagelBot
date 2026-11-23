@@ -103,12 +103,9 @@ func TestScoredLogReturnsNewestFirstAndReplacesDuplicates(t *testing.T) {
 		require.NoError(t, log.Add(ctx, client, score, member))
 	}
 	require.NoError(t, log.Add(ctx, client, 4, "a"))
-	newest, err := log.Newest(ctx, client, 2)
-	require.NoError(t, err)
 	all, err := log.All(ctx, client)
 	require.NoError(t, err)
 
-	require.Equal(t, []string{"a", "c"}, newest)
 	require.Equal(t, []string{"a", "c", "b"}, all)
 }
 

@@ -68,6 +68,7 @@ type Reward struct {
 type Fields struct {
 	User      *User      `json:"user,omitempty"`
 	Anonymous bool       `json:"anonymous,omitempty"`
+	Upgrade   bool       `json:"upgrade,omitempty"`
 	Amount    int64      `json:"amount,omitempty"`
 	Tier      string     `json:"tier,omitempty"`
 	Months    int        `json:"months,omitempty"`
@@ -86,19 +87,19 @@ type Event struct {
 	Fields
 }
 
-// Delivery is an Event as sent to a viewer connection; Seq is the OVERLAY_FEED stream sequence.
+// Delivery is an Event as sent to a viewer connection.
 type Delivery struct {
 	Event
-	Seq    uint64 `json:"seq"`
-	Test   bool   `json:"test,omitempty"`
-	Replay bool   `json:"replay,omitempty"`
+	Test   bool `json:"test,omitempty"`
+	Replay bool `json:"replay,omitempty"`
 }
 
 func (e Event) Version() int64 { return e.At.UnixMilli() }
 
 var (
-	errEvent = errors.New("invalid overlay event")
-	color    = regexp.MustCompile("^#[0-9a-fA-F]{6}$")
+	errEvent  = errors.New("invalid overlay event")
+	color     = regexp.MustCompile("^#[0-9a-fA-F]{6}$")
+	badgeUUID = regexp.MustCompile("^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
 )
 
 func (e Event) Validate() error {
@@ -177,13 +178,19 @@ func (p Part) valid() bool {
 
 func validBadges(badges []string) bool {
 	for _, badge := range badges {
-		switch badge {
-		case "broadcaster", "moderator", "vip", "subscriber", "founder":
-		default:
+		if !validBadge(badge) {
 			return false
 		}
 	}
 	return true
+}
+
+func validBadge(badge string) bool {
+	switch badge {
+	case "broadcaster", "moderator", "vip", "subscriber", "founder":
+		return true
+	}
+	return badgeUUID.MatchString(badge)
 }
 
 // Emulated builds a test event with a fresh id and the current time.

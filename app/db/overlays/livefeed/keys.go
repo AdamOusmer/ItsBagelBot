@@ -18,7 +18,6 @@ const (
 
 	defaultSession = "0"
 	fieldSession   = "session"
-	fieldSeq       = "seq"
 )
 
 // channel is a Twitch channel id. Every key of a channel carries its id as the hash tag so one script can touch them all.
@@ -51,6 +50,8 @@ func (c channel) control() string  { return c.prefix() + "control" }
 func (c channel) subathon() string { return c.prefix() + "subathon" }
 
 func profileKey(userID string) string { return "ovf:profile:" + userID }
+
+func tierKey(userID string) string { return "ovf:tier:" + userID }
 
 var creditLists = []feed.Kind{feed.Follow, feed.Sub, feed.GiftSub, feed.Cheer, feed.Raid, feed.Redemption}
 

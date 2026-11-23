@@ -7,7 +7,6 @@ import (
 	"context"
 	"maps"
 	"slices"
-	"strconv"
 	"time"
 
 	"ItsBagelBot/app/db/overlays/repository"
@@ -36,19 +35,6 @@ func (s store) session(ctx context.Context, c channel) (string, error) {
 // roll makes the event's id the channel's session unless a newer session already holds the slot.
 func (s store) roll(ctx context.Context, c channel, e channelevents.Event) (bool, error) {
 	return s.state(c).Set(ctx, s.client, fieldSession, valkey.VersionedValue{Value: e.ID, Version: e.Version()})
-}
-
-func (s store) seq(ctx context.Context, c channel) (uint64, error) {
-	fields, err := s.state(c).ReadFields(ctx, s.client, fieldSeq)
-	if err != nil {
-		return 0, err
-	}
-	return uint64(fields[fieldSeq].Version), nil
-}
-
-func (s store) recordSeq(ctx context.Context, c channel, seq uint64) error {
-	_, err := s.state(c).Set(ctx, s.client, fieldSeq, valkey.VersionedValue{Value: strconv.FormatUint(seq, 10), Version: int64(seq)})
-	return err
 }
 
 type folding struct {
@@ -182,18 +168,10 @@ func (s store) who(ctx context.Context, c channel, ids []string) (map[string]fee
 	return users, nil
 }
 
-// recent returns the session's logged events, oldest first.
-func (s store) recent(ctx context.Context, c channel, session string, limit int64) ([]feed.Event, error) {
+// recent returns the session's logged events, oldest first. The log expires with the session.
+func (s store) recent(ctx context.Context, c channel, session string) ([]feed.Event, error) {
 	log := valkey.ScoredLog{Key: c.events(session), TTL: valkey.PeriodSession.TTL()}
-	var (
-		members []string
-		err     error
-	)
-	if limit > 0 {
-		members, err = log.Newest(ctx, s.client, limit)
-	} else {
-		members, err = log.All(ctx, s.client)
-	}
+	members, err := log.All(ctx, s.client)
 	if err != nil {
 		return nil, err
 	}

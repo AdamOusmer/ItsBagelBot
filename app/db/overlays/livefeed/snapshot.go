@@ -12,8 +12,6 @@ import (
 	"ItsBagelBot/pkg/valkey"
 )
 
-const snapshotEvents = 100
-
 func (s *Service) controlDocument(c channel) valkey.CASDocument {
 	return valkey.CASDocument{Key: c.control(), TTL: controlTTL}
 }
@@ -27,20 +25,15 @@ func (s *Service) readControl(ctx context.Context, c channel) (feed.Control, err
 	return control, codec.Unmarshal([]byte(raw), &control)
 }
 
-// Snapshot is the channel's folded state and the OVERLAY_FEED sequence it includes.
+// Snapshot is the channel's folded state and every event logged in its current session.
 func (s *Service) Snapshot(ctx context.Context, userID string) (overlaysrpc.FeedSnapshotReply, error) {
-	c, st := channel(userID), s.store()
-	// The sequence is read before the state: a frame published in between is then delivered twice, never missed.
-	seq, err := st.seq(ctx, c)
-	if err != nil {
-		return overlaysrpc.FeedSnapshotReply{}, err
-	}
-	session, err := st.session(ctx, c)
+	c := channel(userID)
+	session, err := s.store().session(ctx, c)
 	if err != nil {
 		return overlaysrpc.FeedSnapshotReply{}, err
 	}
 	snapshot, err := s.snapshotOf(ctx, c, session)
-	return overlaysrpc.FeedSnapshotReply{Snapshot: snapshot, StreamSeq: seq}, err
+	return overlaysrpc.FeedSnapshotReply{Snapshot: snapshot}, err
 }
 
 func (s *Service) snapshotOf(ctx context.Context, c channel, session string) (feed.Snapshot, error) {
@@ -52,7 +45,7 @@ func (s *Service) snapshotOf(ctx context.Context, c channel, session string) (fe
 	if err != nil {
 		return feed.Snapshot{}, err
 	}
-	recent, err := s.store().recent(ctx, c, session, snapshotEvents)
+	recent, err := s.store().recent(ctx, c, session)
 	if err != nil {
 		return feed.Snapshot{}, err
 	}

@@ -66,11 +66,19 @@ type FeedSnapshotRequest struct {
 
 func (r FeedSnapshotRequest) Requested() string { return r.UserID }
 
-// FeedSnapshotReply is the folded state plus the OVERLAY_FEED sequence it includes; a consumer resumes at StreamSeq+1.
 type FeedSnapshotReply struct {
-	Snapshot  feed.Snapshot `json:"snapshot"`
-	StreamSeq uint64        `json:"stream_seq"`
+	Snapshot feed.Snapshot `json:"snapshot"`
 	rpc.Refusal
+}
+
+const stateSubjectRoot = "overlays.state."
+
+// StateSubject is the core NATS subject carrying one channel's stats, subathon and control frames; nothing is replayed.
+func StateSubject(userID string) string { return stateSubjectRoot + userID }
+
+type StateFrame struct {
+	Type feed.Frame `json:"type"`
+	Data any        `json:"data"`
 }
 
 // FeedControlArgs carries the arguments of the actions that take any: EventID for replay,

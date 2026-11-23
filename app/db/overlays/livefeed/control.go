@@ -74,7 +74,7 @@ func (s *Service) setControl(ctx context.Context, c channel, change func(*feed.C
 	if err != nil {
 		return err
 	}
-	return s.publish(ctx, c, feed.FrameControl, nonce("control"), next)
+	return s.publishState(ctx, c, feed.FrameControl, next)
 }
 
 // clear forgets the session's logged events and tells the overlay to drop what it is showing.
@@ -94,13 +94,13 @@ func (s *Service) replay(ctx context.Context, c channel, eventID string) error {
 	if err != nil {
 		return err
 	}
-	events, err := s.store().recent(ctx, c, session, 0)
+	events, err := s.store().recent(ctx, c, session)
 	if err != nil {
 		return err
 	}
 	for _, event := range events {
 		if event.ID == eventID {
-			return s.publish(ctx, c, feed.FrameEvent, nonce("replay"), feed.Delivery{Event: event, Replay: true})
+			return s.publishAlert(ctx, c, nonce("replay"), feed.Delivery{Event: event, Replay: true})
 		}
 	}
 	return overlaysrpc.ErrFeedUnknownEvent
@@ -122,7 +122,7 @@ func (s *Service) test(ctx context.Context, c channel, args overlaysrpc.FeedCont
 	if !allowed {
 		return overlaysrpc.ErrFeedThrottled
 	}
-	return s.publish(ctx, c, feed.FrameEvent, event.ID, feed.Delivery{Event: event, Test: true})
+	return s.publishAlert(ctx, c, event.ID, feed.Delivery{Event: event, Test: true})
 }
 
 func (s *Service) setClock(ctx context.Context, c channel, req overlaysrpc.FeedControlRequest) error {
@@ -140,7 +140,7 @@ func (s *Service) setClock(ctx context.Context, c channel, req overlaysrpc.FeedC
 	if err != nil {
 		return err
 	}
-	return s.publish(ctx, c, feed.FrameSubathon, nonce("subathon"), clock)
+	return s.publishState(ctx, c, feed.FrameSubathon, clock)
 }
 
 func clockChange(req overlaysrpc.FeedControlRequest, rules feed.SubathonRules, current feed.Subathon, now time.Time) feed.Subathon {

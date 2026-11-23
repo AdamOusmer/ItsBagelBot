@@ -59,7 +59,7 @@ func main() {
 
 	svcboot.FatalIf(log, bus.Consume(core.Ctx, core.NR, n.Grouped, data.SubjectUserBanned, bannedTts(repo, log), log), "failed to subscribe to user banned events")
 
-	feedService := newFeed(core, repo)
+	feedService := newFeed(core, repo, n.RPC)
 	svcboot.FatalIf(log, bus.Consume(core.Ctx, core.NR, n.Grouped, channelevents.EventsMatch, feedService.Consume, log), "failed to subscribe to channel events")
 
 	wiring := rpc.Wiring{

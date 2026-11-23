@@ -8,6 +8,7 @@ import "ItsBagelBot/internal/domain/channelevents"
 var frameKinds = map[channelevents.Kind]Kind{
 	channelevents.Follow:        Follow,
 	channelevents.Sub:           Sub,
+	channelevents.GiftUpgrade:   Sub,
 	channelevents.Resub:         Resub,
 	channelevents.CommunityGift: CommunityGift,
 	channelevents.Cheer:         Cheer,
@@ -24,6 +25,7 @@ func FromChannel(e channelevents.Event) (Event, bool) {
 	}
 	fields := Fields{
 		Anonymous: e.Anonymous,
+		Upgrade:   e.Kind == channelevents.GiftUpgrade,
 		Amount:    e.Amount,
 		Tier:      tierOf(e),
 		Months:    e.Months,

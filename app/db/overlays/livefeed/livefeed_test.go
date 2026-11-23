@@ -17,45 +17,62 @@ import (
 	"ItsBagelBot/internal/domain/overlays/feed"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/internal/valkeytest"
+	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/ratelimit"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-type published struct {
-	Subject string
-	ID      string
-	Seq     uint64
-	Payload []byte
+type fakeBus struct {
+	mu       sync.Mutex
+	alerts   []bus.OverlayMessage
+	ids      map[string]bool
+	states   [][]byte
+	subjects []string
+	premium  bool
 }
 
-type fakeFrames struct {
-	mu     sync.Mutex
-	stored []published
-	byID   map[string]uint64
-}
-
-func (f *fakeFrames) Publish(_ context.Context, subject, id string, payload []byte) (uint64, error) {
+func (f *fakeBus) Publish(_ context.Context, msg bus.OverlayMessage) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if seq, duplicate := f.byID[id]; duplicate {
-		return seq, nil
+	if !f.ids[msg.EventID] {
+		f.ids[msg.EventID] = true
+		f.alerts = append(f.alerts, msg)
 	}
-	seq := uint64(len(f.stored) + 1)
-	f.stored = append(f.stored, published{Subject: subject, ID: id, Seq: seq, Payload: payload})
-	f.byID[id] = seq
-	return seq, nil
+	return nil
 }
 
-func (f *fakeFrames) subjects() []string {
+type fakeState struct{ bus *fakeBus }
+
+func (f fakeState) Publish(_ context.Context, subject string, payload []byte) error {
+	f.bus.mu.Lock()
+	defer f.bus.mu.Unlock()
+	f.bus.subjects = append(f.bus.subjects, subject)
+	f.bus.states = append(f.bus.states, payload)
+	return nil
+}
+
+func (f *fakeBus) Premium(context.Context, uint64) (bool, error) { return f.premium, nil }
+
+func (f *fakeBus) alertCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	out := make([]string, len(f.stored))
-	for i, frame := range f.stored {
-		out[i] = frame.Subject
+	return len(f.alerts)
+}
+
+func (f *fakeBus) stateTypes(t *testing.T) []feed.Frame {
+	t.Helper()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	types := make([]feed.Frame, len(f.states))
+	for i, payload := range f.states {
+		var frame overlaysrpc.StateFrame
+		require.NoError(t, codec.Unmarshal(payload, &frame))
+		types[i] = frame.Type
 	}
-	return out
+	return types
 }
 
 type fakeChannels struct {
@@ -80,7 +97,7 @@ func (c *fakeChannels) FeedTotals(context.Context, uint64) (repository.FeedTotal
 
 type harness struct {
 	service  *livefeed.Service
-	frames   *fakeFrames
+	bus      *fakeBus
 	channels *fakeChannels
 	owner    string
 	allow    bool
@@ -89,14 +106,16 @@ type harness struct {
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	h := &harness{
-		frames:   &fakeFrames{byID: map[string]uint64{}},
+		bus:      &fakeBus{ids: map[string]bool{}},
 		channels: &fakeChannels{profile: repository.FeedProfile{Owned: true}},
 		owner:    strconv.FormatInt(1_000_000+rand.Int64N(1<<40), 10),
 		allow:    true,
 	}
 	h.service = &livefeed.Service{
 		Client:   valkeytest.Real(t),
-		Frames:   h.frames,
+		Alerts:   h.bus,
+		State:    fakeState{bus: h.bus},
+		Plans:    h.bus,
 		Channels: h.channels,
 		Allow:    func(context.Context, ratelimit.Request) (bool, error) { return h.allow, nil },
 		Log:      zap.NewNop(),
@@ -130,11 +149,12 @@ func TestHandleFoldsEachEventOnceAndPublishesFrames(t *testing.T) {
 	require.NoError(t, h.service.Handle(t.Context(), cheer))
 	snapshot := h.snapshot(t)
 
-	require.Equal(t, []string{feed.Subject(h.owner, feed.FrameEvent), feed.Subject(h.owner, feed.FrameStats)}, h.frames.subjects())
+	require.Equal(t, 1, h.bus.alertCount())
+	require.Equal(t, []feed.Frame{feed.FrameStats}, h.bus.stateTypes(t))
+	require.Equal(t, []string{overlaysrpc.StateSubject(h.owner)}, h.bus.subjects)
 	require.Equal(t, int64(150), snapshot.Snapshot.Stats.Session.Bits)
 	require.Equal(t, int64(150), snapshot.Snapshot.Stats.Week.Bits)
 	require.Equal(t, int64(150), h.channels.totals.Counts.Bits)
-	require.Equal(t, uint64(2), snapshot.StreamSeq)
 }
 
 func TestSnapshotCarriesLeadersLatestAndRecentEvents(t *testing.T) {
@@ -156,7 +176,8 @@ func TestChannelsWithoutAnOverlayAreIgnored(t *testing.T) {
 
 	require.NoError(t, h.service.Handle(t.Context(), h.event(channelevents.Cheer, 100)))
 
-	require.Empty(t, h.frames.subjects())
+	require.Zero(t, h.bus.alertCount())
+	require.Empty(t, h.bus.states)
 	require.Zero(t, h.snapshot(t).Snapshot.Stats.Session.Bits)
 }
 
@@ -210,19 +231,55 @@ func TestTestEventsAreValidatedThrottledAndFlagged(t *testing.T) {
 	require.NoError(t, ok)
 	require.ErrorIs(t, badKind, overlaysrpc.ErrFeedInvalidArgs)
 	require.ErrorIs(t, throttled, overlaysrpc.ErrFeedThrottled)
-	require.Len(t, h.frames.subjects(), 1)
+	require.Equal(t, 1, h.bus.alertCount())
 }
 
 func TestReplayRepublishesALoggedEvent(t *testing.T) {
 	h := newHarness(t)
 	cheer := h.event(channelevents.Cheer, 100)
 	require.NoError(t, h.service.Handle(t.Context(), cheer))
-	before := len(h.frames.subjects())
+	before := h.bus.alertCount()
 
 	_, replayed := h.control(overlaysrpc.FeedReplay, overlaysrpc.FeedControlArgs{EventID: cheer.ID})
 	_, missing := h.control(overlaysrpc.FeedReplay, overlaysrpc.FeedControlArgs{EventID: "unknown"})
 
 	require.NoError(t, replayed)
 	require.ErrorIs(t, missing, overlaysrpc.ErrFeedUnknownEvent)
-	require.Len(t, h.frames.subjects(), before+1)
+	require.Equal(t, before+1, h.bus.alertCount())
+}
+
+func TestAlertsCarryTheOwnersTierKindAndExpiry(t *testing.T) {
+	cases := []struct {
+		name    string
+		premium bool
+		tier    bus.OverlayTier
+	}{{"premium owner", true, bus.OverlayPremium}, {"free owner", false, bus.OverlayStandard}}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.bus.premium = tc.premium
+			cheer := h.event(channelevents.Cheer, 100)
+
+			require.NoError(t, h.service.Handle(t.Context(), cheer))
+
+			msg := h.bus.alerts[0]
+			body, err := codec.Marshal(msg.Value)
+			require.NoError(t, err)
+			var wire map[string]any
+			require.NoError(t, codec.Unmarshal(body, &wire))
+			require.Equal(t, [4]any{tc.tier, bus.OverlayKindCustom, h.owner, cheer.ID}, [4]any{msg.Tier, msg.Kind, msg.UserID, msg.EventID})
+			require.Equal(t, [2]any{cheer.ID, cheer.ID}, [2]any{wire["event_id"], wire["id"]})
+			require.NotEmpty(t, wire["expires_at"])
+		})
+	}
+}
+
+func TestSnapshotKeepsEverySessionEvent(t *testing.T) {
+	h := newHarness(t)
+	const logged = 120
+	for range logged {
+		require.NoError(t, h.service.Handle(t.Context(), h.event(channelevents.Follow, 0)))
+	}
+
+	require.Len(t, h.snapshot(t).Snapshot.Events, logged)
 }

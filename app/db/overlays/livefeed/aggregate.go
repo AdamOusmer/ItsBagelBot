@@ -45,7 +45,7 @@ func (s *Service) handleSession(ctx context.Context, c channel, e channelevents.
 	if err != nil || !rolled {
 		return err
 	}
-	return s.publishStats(ctx, c, e.ID)
+	return s.publishStats(ctx, c)
 }
 
 func (s *Service) handleEvent(ctx context.Context, c channel, e channelevents.Event, rules feed.SubathonRules) error {
@@ -78,7 +78,7 @@ func (s *Service) handleEvent(ctx context.Context, c channel, e channelevents.Ev
 	if clock == nil {
 		return nil
 	}
-	return s.publish(ctx, c, feed.FrameSubathon, e.ID+":subathon", clock)
+	return s.publishState(ctx, c, feed.FrameSubathon, clock)
 }
 
 // afterCount runs the effects that must not repeat for one event id and returns the subathon clock when the event moved it.
@@ -94,8 +94,8 @@ func (s *Service) afterCount(ctx context.Context, f folding, rules feed.Subathon
 }
 
 func (s *Service) publishEvent(ctx context.Context, c channel, frame feed.Event) error {
-	if err := s.publish(ctx, c, feed.FrameEvent, frame.ID, feed.Delivery{Event: frame}); err != nil {
+	if err := s.publishAlert(ctx, c, frame.ID, feed.Delivery{Event: frame}); err != nil {
 		return err
 	}
-	return s.publishStats(ctx, c, frame.ID)
+	return s.publishStats(ctx, c)
 }

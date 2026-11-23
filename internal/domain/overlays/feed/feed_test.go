@@ -111,3 +111,20 @@ func TestSubathonClockHonorsCapAndPause(t *testing.T) {
 	require.Equal(t, int64(1000), later.Remaining(now))
 	require.Equal(t, int64(990), paused.Remaining(now.Add(time.Hour)))
 }
+
+func TestGiftUpgradeIsASubWithTheUpgradeFlagAndBadgesAcceptTwitchIds(t *testing.T) {
+	at := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	upgrade := channelEvent("e-upgrade", channelevents.GiftUpgrade, at, func(e *channelevents.Event) {
+		e.Badges = []string{"moderator", "5527c58c-fb7d-422d-b71b-f309dcb85cc1"}
+	})
+
+	event, ok := FromChannel(upgrade)
+
+	require.True(t, ok)
+	require.Equal(t, Sub, event.Kind)
+	require.True(t, event.Upgrade)
+	require.NoError(t, event.Validate())
+
+	event.Badges = []string{"not-a-badge"}
+	require.Error(t, event.Validate())
+}
