@@ -5,13 +5,17 @@ defmodule ControlsGateway.Overlay.Events do
   require Logger
 
   alias ControlsGateway.Overlay.Nats
-  alias ControlsGateway.SignedCookie
+  alias ControlsGateway.Overlays.Ack
+  alias ControlsGateway.{SignedCookie, Subjects}
+  alias Platform.Nats.Planes
 
   @ping_ms 15_000
   @check_ms 300_000
   @retry_ms 3_000..8_000
   @unavailable_retry_ms 15_000..30_000
   @ping_frame ": ping\n\n"
+  @play_frame "event: play\ndata: {}\n\n"
+  @accepted ~s({"accepted":true})
 
   def open(req, session, headers) do
     case Nats.check(session) do
@@ -27,19 +31,34 @@ defmodule ControlsGateway.Overlay.Events do
         {:ok, :cowboy_req.reply(204, headers, req), nil}
 
       :unavailable ->
-        Logger.warning("Overlay events unavailable", overlay_id: session.overlay_id)
-        body = initial_frame(@unavailable_retry_ms)
-        {:ok, :cowboy_req.reply(200, event_headers(headers), body, req), nil}
+        unavailable(req, headers, session)
     end
   end
 
-  defp start(req, headers, session, overlay) do
-    req = :cowboy_req.stream_reply(200, event_headers(headers), req)
-    :ok = :cowboy_req.stream_body(initial_frame(@retry_ms), :nofin, req)
-    Process.send_after(self(), :ping, @ping_ms)
-    schedule_check(session)
-    {:cowboy_loop, req, %{session: session, revision: overlay.revision}, :hibernate}
+  defp unavailable(req, headers, session) do
+    Logger.warning("Overlay events unavailable", overlay_id: session.overlay_id)
+    body = initial_frame(@unavailable_retry_ms)
+    {:ok, :cowboy_req.reply(200, event_headers(headers), body, req), nil}
   end
+
+  defp start(req, headers, session, overlay) do
+    with %Planes{} = jetstream <- Planes.connection(:jetstream),
+         {:ok, sid} <-
+           Planes.subscribe(jetstream, self(), Subjects.overlay_session(overlay.user_id)) do
+      req = :cowboy_req.stream_reply(200, event_headers(headers), req)
+      :ok = :cowboy_req.stream_body(initial_frame(@retry_ms), :nofin, req)
+      Process.send_after(self(), :ping, @ping_ms)
+      schedule_check(session)
+      state = %{session: session, revision: overlay.revision, jetstream: jetstream, play_sid: sid}
+      {:cowboy_loop, req, Map.put(state, :template, overlay.document["template"]), :hibernate}
+    else
+      _ -> unavailable(req, headers, session)
+    end
+  end
+
+  def info({:msg, %{sid: sid, reply_to: reply, body: body}}, req, %{play_sid: sid} = state)
+      when is_binary(reply),
+      do: offer(Jason.decode(body), reply, req, state)
 
   def info(:ping, req, state) do
     :ok = :cowboy_req.stream_body(@ping_frame, :nofin, req)
@@ -62,6 +81,17 @@ defmodule ControlsGateway.Overlay.Events do
   def info(:shutdown_close, req, state), do: stop(req, state, :shutdown)
 
   def info(_message, req, state), do: continue(req, state)
+
+  defp offer({:ok, %{"ack" => ack, "kind" => kind}}, reply, req, %{template: kind} = state)
+       when is_binary(ack) do
+    :ok = :cowboy_req.stream_body(@play_frame, :nofin, req)
+    Planes.publish(state.jetstream, reply, @accepted)
+    Ack.ack(ack)
+    Logger.info("Overlay play delivered", overlay_id: state.session.overlay_id)
+    continue(req, state)
+  end
+
+  defp offer(_decoded, _reply, req, state), do: continue(req, state)
 
   defp announce(req, %{revision: revision} = state, revision), do: continue(req, state)
 

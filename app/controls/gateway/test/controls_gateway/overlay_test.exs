@@ -146,6 +146,25 @@ defmodule ControlsGateway.OverlayTest do
     HttpClient.close(data)
   end
 
+  test "events play the badge on a trigger for its own template only", %{http_port: port} do
+    live = events(port, [cookie(port)])
+
+    offer = fn kind ->
+      Jason.encode!(%{ack: "$JS.ACK.test", kind: kind, data: %{}, delivered: 1})
+    end
+
+    assert {:error, :timeout} =
+             Gnat.request(:gnat_jetstream, "overlays.session.7", offer.("tts"),
+               receive_timeout: 300
+             )
+
+    assert {:ok, %{body: ~s({"accepted":true})}} =
+             Gnat.request(:gnat_jetstream, "overlays.session.7", offer.("powered"))
+
+    played = HttpClient.await(live, &String.contains?(&1.body, "event: play\ndata: {}\n\n"))
+    HttpClient.close(played)
+  end
+
   test "events close when the generation changes", %{http_port: port, agent: agent} do
     live = events(port, [cookie(port)])
     Agent.update(agent, &Map.put(&1, :generation, 6))

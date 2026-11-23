@@ -863,6 +863,9 @@
           this.running = true;
           later(liveCycle, FIRST_DELAY_MS);
         },
+        playNow: function () {
+          if (this.running) liveCycle();
+        },
         stop: function () {
           this.running = false;
           window.clearTimeout(nextTimer);
@@ -910,6 +913,9 @@
         if (source) return;
         source = new EventSource('/o/events');
         source.addEventListener('revision', function () { sync(); });
+        source.addEventListener('play', function () {
+          if (activeTemplate && activeTemplate.playNow) activeTemplate.playNow();
+        });
         source.onerror = function () {
           if (source.readyState !== EventSource.CLOSED) return;
           source = null;

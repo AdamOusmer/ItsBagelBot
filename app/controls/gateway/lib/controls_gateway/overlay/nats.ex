@@ -35,18 +35,21 @@ defmodule ControlsGateway.Overlay.Nats do
 
   defp overlay(reply) do
     with %{
+           "user_id" => user_id,
            "overlay_id" => id,
            "generation" => generation,
            "revision" => revision,
            "allowed" => allowed,
            "premium" => premium
          } <- reply,
+         true <- Session.valid_user_id?(user_id),
          true <- Session.valid_identity?(id, generation),
          true <- is_integer(revision),
          true <- Enum.all?([allowed, premium], &is_boolean/1),
          {:ok, document} <- document(allowed, reply["document"]) do
       {:ok,
        %{
+         user_id: user_id,
          overlay_id: id,
          generation: generation,
          revision: revision,

@@ -103,9 +103,12 @@ defmodule ControlsGateway.Tts.Events do
 
   defp deliver(%{reply_to: reply, body: body}, req, state) when is_binary(reply) do
     case Jason.decode(body) do
-      {:ok, %{"ack" => ack, "kind" => kind, "data" => %{} = data}} when is_binary(ack) ->
-        send_clip(req, {ack, kind}, data, state)
+      {:ok, %{"ack" => ack, "kind" => "tts", "data" => %{} = data}} when is_binary(ack) ->
+        send_clip(req, {ack, "tts"}, data, state)
         Planes.publish(state.jetstream, reply, @accepted)
+
+      {:ok, %{"kind" => kind}} when is_binary(kind) ->
+        :ok
 
       _ ->
         Logger.warning("TTS clip offer invalid", user_id: state.session.user_id)
