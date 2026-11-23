@@ -86,6 +86,8 @@ export const demoAuthorizedDashboards = [
   { href: '/delegate/enter?owner=77', name: 'bagel_queen' }
 ];
 
+export const demoMailingAddress = 'Demo mailing address';
+
 export const demoAccountState: AccountState = {
   active: true,
   status: process.env.DEMO_PLAN === 'free' ? 'free' : 'vip',

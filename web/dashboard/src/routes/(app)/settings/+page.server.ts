@@ -147,7 +147,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       grantableSections: [...GRANTABLE_SECTIONS],
       notifications: d.demoNotifications,
       savedLocale: locals.locale,
-      emailPreferences: null,
+      emailPreferences: { status: d.demoAccountState.marketingStatus, mailingAddress: d.demoMailingAddress },
       pages: Object.fromEntries(PUBLIC_PAGES.map((page) => [page, true])) as PageFlags,
       twitchConnected: true as boolean | null,
       degraded: false,

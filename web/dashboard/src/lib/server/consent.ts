@@ -30,10 +30,11 @@ export function businessMailingAddress(): string {
 }
 
 export async function consentFields(session: Session, locals: App.Locals, demo = false) {
-  const mailingAddress = businessMailingAddress();
-  const subscribed = currentAccount(locals)?.marketingStatus === 'granted';
+  const mailingAddress = businessMailingAddress() || (demo ? (await import('./demo-data')).demoMailingAddress : '');
+  const marketingStatus = demo ? 'none' : currentAccount(locals)?.marketingStatus;
+  const subscribed = marketingStatus === 'granted';
   const offersOptIn = !!mailingAddress && !subscribed;
-  const marketingDefault = offersOptIn && currentAccount(locals)?.marketingStatus === 'none';
+  const marketingDefault = offersOptIn && marketingStatus === 'none';
   const maskedEmail = offersOptIn && !demo ? await bestEffort(maskedContactEmail(session.user_id), '') : '';
   return {
     requestId: randomUUID(),

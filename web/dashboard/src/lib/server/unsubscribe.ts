@@ -1,9 +1,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { RpcError } from '@bagel/kit/server/nats';
 import { marketingLink, type MarketingLink } from '#lib/server/services';
 
+const DEMO = dev && env.DEMO === '1';
 const ONE_CLICK_FIELD = 'List-Unsubscribe';
 const ONE_CLICK_VALUE = 'One-Click';
 const MAX_BODY_BYTES = 1024;
@@ -19,6 +22,7 @@ export function linkFailure(err: unknown): 'invalid' | 'unavailable' {
 }
 
 export async function readLink(token: string): Promise<LinkView> {
+  if (DEMO) return { state: 'ready', status: 'granted', maskedEmail: 'd***@example.com' };
   try {
     const link = await marketingLink(token);
     return { state: 'ready', status: link.status, maskedEmail: link.maskedEmail };
