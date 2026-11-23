@@ -107,7 +107,11 @@ async function guardDelegateBoard(event: RequestEvent, s: Session, ownerId: stri
 }
 
 export async function guardSession(event: RequestEvent, s: Session): Promise<Session> {
-  if (DEMO || isPublic(event.url.pathname)) return s;
+  if (DEMO) {
+    await assertAlphaRouteOpen(event);
+    return s;
+  }
+  if (isPublic(event.url.pathname)) return s;
 
   await assertAccountUsable(event, s);
 

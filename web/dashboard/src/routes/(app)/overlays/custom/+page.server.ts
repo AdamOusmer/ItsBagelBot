@@ -8,6 +8,7 @@ import { translate, type Locale } from '@bagel/kit/i18n';
 import { bestEffort } from '@bagel/kit/server/best-effort';
 import { RpcError } from '@bagel/kit/server/nats';
 import { validateDocument } from '@bagel/kit/overlay-document';
+import { alphaActions, alphaOnly } from '#lib/server/alpha';
 import { hasOwnerAccess } from '#lib/server/owner';
 import { auditDashboardImpersonation } from '#lib/server/services/audit';
 import { currentOnConflict, overlayCreateCustom, overlayGetCustom, overlaySaveCustom } from '#lib/server/services/overlays';
@@ -33,7 +34,7 @@ const liveLoad = (async ({ locals: { session }, url }) => {
   return { readOnly: false, overlay, missing: id > 0 && overlay === null };
 }) satisfies PageServerLoad;
 
-export const load: PageServerLoad = DEMO ? demoLoad : liveLoad;
+export const load: PageServerLoad = alphaOnly(DEMO ? demoLoad : liveLoad);
 
 function refusal(err: unknown, locale: Locale) {
   const known: (typeof REFUSALS)[string] | undefined = REFUSALS[err instanceof RpcError ? err.code : ''];
@@ -67,10 +68,10 @@ async function persist(session: Session, locale: Locale, fields: FormData) {
   }
 }
 
-export const actions = {
+export const actions = alphaActions({
   save: async ({ locals: { session, locale }, request }) => {
     if (!session) return fail(401, { error: translate(locale, 'serverErrors.notSignedIn') });
     if (!hasOwnerAccess(session)) return fail(403, { error: translate(locale, 'serverErrors.ownerOnly') });
     return persist(session, locale, await request.formData());
   }
-} satisfies Actions;
+} satisfies Actions);

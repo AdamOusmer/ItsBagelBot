@@ -6,6 +6,7 @@ import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { translate } from '@bagel/kit/i18n';
 import { bestEffort } from '@bagel/kit/server/best-effort';
+import { alphaActions, alphaOnly } from '#lib/server/alpha';
 import { hasOwnerAccess } from '#lib/server/owner';
 import { auditDashboardImpersonation } from '#lib/server/services/audit';
 import { overlayAddTemplate, overlayDelete, overlayList } from '#lib/server/services/overlays';
@@ -31,7 +32,7 @@ const liveLoad = (async ({ locals: { session } }) => {
   return { readOnly: false, overlays: await bestEffort(overlayList(session), null) };
 }) satisfies PageServerLoad;
 
-export const load: PageServerLoad = DEMO ? demoLoad : liveLoad;
+export const load: PageServerLoad = alphaOnly(DEMO ? demoLoad : liveLoad);
 
 const liveActions = {
   add: async ({ locals: { session, locale }, setHeaders }) => {
@@ -56,4 +57,4 @@ const liveActions = {
   }
 } satisfies Actions;
 
-export const actions = DEMO ? demoActions : liveActions;
+export const actions = alphaActions(DEMO ? demoActions : liveActions);

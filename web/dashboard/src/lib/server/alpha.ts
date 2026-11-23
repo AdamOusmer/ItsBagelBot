@@ -24,8 +24,19 @@ export async function broadcasterAlpha(locals: App.Locals): Promise<boolean> {
   return accountAlpha(s.user_id);
 }
 
-export async function assertAlpha(event: RequestEvent): Promise<void> {
+export async function assertAlpha(event: { locals: App.Locals }): Promise<void> {
   if (!(await broadcasterAlpha(event.locals))) throw error(404);
+}
+
+export function alphaOnly<H extends (event: never) => unknown>(handler: H): H {
+  return (async (event: RequestEvent) => {
+    await assertAlpha(event);
+    return handler(event as never);
+  }) as unknown as H;
+}
+
+export function alphaActions<T extends Record<string, (event: never) => unknown>>(actions: T): T {
+  return Object.fromEntries(Object.entries(actions).map(([name, action]) => [name, alphaOnly(action)])) as T;
 }
 
 export async function assertAlphaRouteOpen(event: RequestEvent): Promise<void> {

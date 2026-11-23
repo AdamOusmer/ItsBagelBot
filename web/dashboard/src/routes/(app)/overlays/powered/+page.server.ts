@@ -10,6 +10,7 @@ import { RpcError } from '@bagel/kit/server/nats';
 import {
   MAX_EVERY_MINUTES, MAX_SHOW_SECONDS, MIN_EVERY_MINUTES, MIN_SHOW_SECONDS, POWERED_ORIGIN, type PoweredConfigError
 } from '@bagel/kit/overlays';
+import { alphaActions, alphaOnly } from '#lib/server/alpha';
 import { hasOwnerAccess } from '#lib/server/owner';
 import { auditDashboardImpersonation } from '#lib/server/services/audit';
 import { overlayGet, overlayList, overlaySave } from '#lib/server/services/overlays';
@@ -69,7 +70,7 @@ const liveLoad = (async ({ locals: { session } }) => {
   return { previewOrigin, powered: await bestEffort(overlayGet(session, system.id), null) };
 }) satisfies PageServerLoad;
 
-export const load: PageServerLoad = DEMO ? demoLoad : liveLoad;
+export const load: PageServerLoad = alphaOnly(DEMO ? demoLoad : liveLoad);
 
 const demoActions = {
   save: async ({ locals: { locale }, request }) => demoSave(await request.formData(), locale),
@@ -88,4 +89,4 @@ const liveActions = {
   rotate: rotateOverlay
 } satisfies Actions;
 
-export const actions = DEMO ? demoActions : liveActions;
+export const actions = alphaActions(DEMO ? demoActions : liveActions);

@@ -126,13 +126,13 @@ defmodule ControlsGateway.OverlayTest do
   end
 
   @tag overlay: %{kind: "custom", allowed: false, document: nil}
-  test "a custom overlay without premium opens a session and is refused with a reason", %{
+  test "a custom overlay without alpha opens a session and is refused with a reason", %{
     http_port: port
   } do
     assert %{status: 403, body: body} =
              HttpClient.request(port, "GET", "/o/doc", headers: [cookie(port)])
 
-    assert Jason.decode!(body) == %{"reason" => "premium_required"}
+    assert Jason.decode!(body) == %{"reason" => "alpha_required"}
   end
 
   test "expired sessions are 401", %{http_port: port} do

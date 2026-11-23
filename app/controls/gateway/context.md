@@ -142,8 +142,8 @@ the token out of logs.
 `GET /o/doc` re-resolves the cookie's hash and returns
 `{"document", "revision", "premium"}` uncached. No cookie or an expired one is
 401. A rotated link or a changed generation is 403 `not_found`. An overlay the
-account may not show is 403 `premium_required`. Projector sets `allowed` and
-withholds the document when it is false, so the premium rule lives there.
+account may not show is 403 `alpha_required`. Projector sets `allowed` and
+withholds the document when it is false, so the alpha rule lives there.
 `GET /o/events` is SSE through the same `Overlays.Stream` module as TTS. It opens only
 when the same check passes (otherwise 204), re-checks every five minutes
 (`overlay_check_ms` overrides it), sends `event: revision` when the revision moves and

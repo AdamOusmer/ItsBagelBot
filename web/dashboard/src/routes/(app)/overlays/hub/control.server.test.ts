@@ -5,6 +5,7 @@ import { afterEach, expect, mock, spyOn, test } from 'bun:test';
 import { stubSvelteKit } from '../../../../../test/sveltekit';
 
 stubSvelteKit();
+mock.module('#lib/server/alpha', () => ({ alphaOnly: (handler: unknown) => handler, alphaActions: (actions: unknown) => actions }));
 mock.module('#lib/server/edge-purge', () => ({
   schedulePurgeChannel: () => {},
   scheduleLeaderboardPurge: () => {}

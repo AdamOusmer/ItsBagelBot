@@ -17,8 +17,8 @@ const { assertAlphaRouteOpen } = await import('./alpha');
 
 type Session = { user_id: string; delegate_of?: string };
 
-function opens(route: string, session: Session | undefined, accountState?: object): Promise<number | null> {
-  const event = { route: { id: route }, locals: { session, accountState } } as never;
+function opens(route: string, session: Session | undefined, accountState?: object, pathname = '/'): Promise<number | null> {
+  const event = { route: { id: route }, url: new URL(pathname, 'https://dash.example'), locals: { session, accountState } } as never;
   return assertAlphaRouteOpen(event).then(() => null, (refusal: { status: number }) => refusal.status);
 }
 
@@ -34,6 +34,10 @@ test.each([
   { name: 'a delegate of a free owner whose own account is alpha', route: '/(app)/overlays/hub', session: { user_id: '42', delegate_of: '7' }, want: 404 }
 ])('$name', async ({ route, session, want }) => {
   expect(await opens(route, session)).toBe(want);
+});
+
+test('a percent-encoded path cannot dodge the gate', async () => {
+  expect(await opens('/(app)/overlays/hub', { user_id: '7' }, undefined, '/%6Fverlays/hub')).toBe(404);
 });
 
 test('the cached account state answers without another read', async () => {
