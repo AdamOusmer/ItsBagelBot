@@ -57,8 +57,9 @@ const ENTRIES: {
   {
     // Raised from 1700 (2026-09-30) to keep the cursor above top-layer popovers:
     // 1760 B gzip measured, +150 B platform delta and ~10% room.
+    // Raised to 2250 (2026-11-23) for the checkbox anchor: 2144 B measured, 106 B room.
     name: "cursor-engine",
-    budget: 2100,
+    budget: 2250,
     external: [],
     source: `import { mountCursor } from "../../lib/cursor-engine";
              globalThis.x = mountCursor;`,

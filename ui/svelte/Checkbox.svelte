@@ -24,4 +24,5 @@
 <label class={classes}><input type="checkbox" class="bb-check__input" bind:checked {...rest} /><span
     class="bb-check__box"
     aria-hidden="true"
+    data-cursor-anchor
   ></span>{#if children}<span class="bb-check__label">{@render children()}</span>{/if}</label>
