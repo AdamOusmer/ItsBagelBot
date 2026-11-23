@@ -131,8 +131,8 @@ func TestOverlayRoutesLimitSessionPathsAndStripClientIP(t *testing.T) {
 	covered := map[string]bool{
 		"/tts/session": true, "/tts/session/": true, "//tts//session//": true,
 		"/o/session": true, "/o/session/": true, "//o/session": true,
-		"/powered/config": true, "/powered/config/": true, "//powered//config": true,
 		"/tts/sessions": false, "/o/config": false, "/powered/session": false,
+		"/powered/config": false, "/powered/config/": false, "//powered//config": false,
 	}
 	for path, want := range covered {
 		got := slices.ContainsFunc(patterns, func(p *regexp.Regexp) bool { return p.MatchString(path) })

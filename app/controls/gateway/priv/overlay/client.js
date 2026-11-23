@@ -23,10 +23,6 @@ var createOverlayClient = (function () {
     return Math.max(0, delay || 0);
   }
 
-  function legacyClip(clip) {
-    return { event_id: clip.event_id, kind: 'tts', handle: clip.handle, expires_at: clip.expires_at, data: clip };
-  }
-
   class SeenStore {
     constructor(storage, key, now, carried) {
       this.storage = storage;
@@ -229,11 +225,9 @@ var createOverlayClient = (function () {
     }
 
     open() {
-      const source = new this.env.EventSource(this.env.basePath + '/events?v=2');
+      const source = new this.env.EventSource(this.env.basePath + '/events');
       const handlers = {
         alert: (message) => this.receive(JSON.parse(message.data)),
-        tts: (message) => this.receive(legacyClip(JSON.parse(message.data))),
-        play: () => this.enqueueLegacyPlay(),
         ready: (message) => this.ready(source, message),
         revision: (message) => this.env.onRevision(Number(message.data)),
         reconnect: (message) => this.beginHandoff(message)
@@ -308,12 +302,6 @@ var createOverlayClient = (function () {
       }
       this.seen.add(alert.event_id, expiresMs);
       this.queue.push({ alert: alert, expiresMs: expiresMs, started: false, finished: false });
-      this.pump();
-    }
-
-    enqueueLegacyPlay() {
-      const alert = { event_id: null, kind: 'play', handle: null, data: {} };
-      this.queue.push({ alert: alert, expiresMs: Infinity, started: false, finished: false });
       this.pump();
     }
 

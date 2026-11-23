@@ -496,23 +496,6 @@ defmodule ControlsGateway.TtsTest do
     HttpClient.close(live)
   end
 
-  test "a stream opened without v=2 gets the legacy flat clip frame", %{http_port: port} do
-    live =
-      port
-      |> HttpClient.open("GET", "/tts/events", headers: [cookie(port)])
-      |> HttpClient.await(&String.contains?(&1.body, ": ping\n\n"))
-
-    publish_clip("legacy")
-    live = HttpClient.await(live, &String.contains?(&1.body, "event: tts\ndata: "))
-
-    assert [json] =
-             Regex.run(~r/event: tts\ndata: (.*)\n\n/, live.body, capture: :all_but_first)
-
-    assert %{"event_id" => "legacy", "clip_key" => _, "handle" => _} = Jason.decode!(json)
-    refute live.body =~ "event: ready"
-    HttpClient.close(live)
-  end
-
   test "an alert frame carries its id and the fields the page reads", %{http_port: port} do
     live = events(port, [cookie(port)])
     publish_clip("framed")
@@ -642,24 +625,6 @@ defmodule ControlsGateway.TtsTest do
     assert Task.await(drain, 10_000) == :ok
   end
 
-  test "a legacy stream gets no reconnect frame and closes within the drain jitter", %{
-    http_port: port
-  } do
-    on_exit(&Drain.reset!/0)
-
-    live =
-      port
-      |> HttpClient.open("GET", "/tts/events", headers: [cookie(port)])
-      |> HttpClient.await(&String.contains?(&1.body, ": ping\n\n"))
-
-    started = System.monotonic_time(:millisecond)
-    drain = Task.async(&Drain.run/0)
-    live = HttpClient.await(live, & &1.done)
-    assert System.monotonic_time(:millisecond) - started < 1_700
-    refute live.body =~ "event: reconnect"
-    assert Task.await(drain, 10_000) == :ok
-  end
-
   test "streams still open at the drain deadline are counted", %{http_port: port} do
     on_exit(&Drain.reset!/0)
     put_env(:drain_deadline_ms, 300)
@@ -718,7 +683,7 @@ defmodule ControlsGateway.TtsTest do
     assert String.to_integer(ms_text) in range
   end
 
-  defp events(port, headers, path \\ "/tts/events?v=2") do
+  defp events(port, headers, path \\ "/tts/events") do
     response =
       port
       |> HttpClient.open("GET", path, headers: headers)

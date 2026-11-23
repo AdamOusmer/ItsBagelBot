@@ -67,6 +67,8 @@ if config_env() == :prod do
   config :logger, :default_formatter, format: {ControlsGateway.LogFormatter, :format}
 end
 
-if level = System.get_env("LOG_LEVEL") do
-  config :logger, level: String.to_existing_atom(level)
+log_level = System.get_env("LOG_LEVEL") || if(config_env() == :prod, do: "info")
+
+if log_level do
+  config :logger, level: String.to_existing_atom(log_level)
 end

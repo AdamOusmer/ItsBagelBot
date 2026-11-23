@@ -169,19 +169,6 @@ defmodule ControlsGateway.OverlayTest do
     HttpClient.close(live)
   end
 
-  test "a stream opened without v=2 speaks the legacy protocol", %{http_port: port} do
-    live =
-      port
-      |> HttpClient.open("GET", "/o/events", headers: [cookie(port)])
-      |> HttpClient.await(&String.contains?(&1.body, ": ping\n\n"))
-
-    assert {:ok, %{body: ~s({"accepted":true})}} = offer("powered", %{})
-    live = HttpClient.await(live, &String.contains?(&1.body, "event: play\ndata: {}\n\n"))
-    refute live.body =~ "event: ready"
-    refute live.body =~ "event: alert"
-    HttpClient.close(live)
-  end
-
   test "events accept offers for their own template only", %{http_port: port} do
     live = events(port, [cookie(port)])
 
@@ -464,11 +451,11 @@ defmodule ControlsGateway.OverlayTest do
     HttpClient.close(closed)
   end
 
-  test "an offer of another kind waits out the timeout when only other kinds are open", %{
+  test "an offer of another kind gets no responders when only other kinds are open", %{
     http_port: port
   } do
     live = events(port, [cookie(port)])
-    before = counter("Offer/Timeout")
+    before = counter("Offer/NoResponders")
 
     {:ok, _} =
       Gnat.request(
@@ -478,26 +465,8 @@ defmodule ControlsGateway.OverlayTest do
         headers: [{"Nats-Msg-Id", "foreign"}]
       )
 
-    eventually(fn -> counter("Offer/Timeout") > before end, 60)
+    eventually(fn -> counter("Offer/NoResponders") > before end, 10)
     HttpClient.close(live)
-  end
-
-  test "an offer reaches a stream subscribed only on the legacy subject" do
-    {:ok, _} = Gnat.sub(:gnat_jetstream, self(), "overlays.session.7")
-    publish_alert("old-pod")
-    assert_receive {:msg, %{reply_to: reply, body: body}}, 5_000
-    assert %{"kind" => "powered"} = Jason.decode!(body)
-    :ok = Gnat.pub(:gnat_jetstream, reply, ~s({"accepted":true}))
-  end
-
-  test "a stream also takes an offer published on the legacy subject", %{http_port: port} do
-    live = events(port, [cookie(port)])
-    body = offer_body("powered", %{"event_id" => "legacy-in"}, %{})
-
-    assert {:ok, %{body: ~s({"accepted":true})}} =
-             Gnat.request(:gnat_jetstream, "overlays.session.7", body)
-
-    HttpClient.close(HttpClient.await_alerts(live, 1))
   end
 
   @tag overlay: %{kind: "custom", premium: true, document: %{"version" => 2, "kind" => "custom"}}
@@ -522,22 +491,6 @@ defmodule ControlsGateway.OverlayTest do
   test "events end with no content when the overlay is not allowed", %{http_port: port} do
     assert %{status: 204, body: ""} =
              HttpClient.request(port, "GET", "/o/events", headers: [cookie(port)])
-  end
-
-  @tag overlay: %{premium: true}
-  test "the legacy powered config route serves pages already loaded", %{http_port: port} do
-    assert %{status: 200, headers: headers, body: body} = legacy_config(port, @token)
-    assert headers["cache-control"] == "no-store"
-    assert Jason.decode!(body) == %{"config" => @document["config"], "premium" => true}
-  end
-
-  @tag overlay: %{kind: "custom", allowed: false, document: nil}
-  test "the legacy powered config route refuses unknown, custom and failing links", %{
-    http_port: port
-  } do
-    for {token, status} <- [{@unknown, 404}, {@token, 404}, {@broken, 503}] do
-      assert %{status: ^status} = legacy_config(port, token)
-    end
   end
 
   defp update_overlay(agent, fun) do
@@ -592,7 +545,7 @@ defmodule ControlsGateway.OverlayTest do
   defp reopen(port, cookie, attempts \\ 40) do
     client =
       port
-      |> HttpClient.open("GET", "/o/events?v=2", headers: [cookie])
+      |> HttpClient.open("GET", "/o/events", headers: [cookie])
       |> HttpClient.await(&(String.contains?(&1.body, ": ping\n\n") or &1.done))
 
     cond do
@@ -614,17 +567,10 @@ defmodule ControlsGateway.OverlayTest do
     Enum.each(pids, &send(&1, :check))
   end
 
-  defp legacy_config(port, token) do
-    HttpClient.request(port, "POST", "/powered/config",
-      headers: [{"content-type", "application/json"}],
-      body: Jason.encode!(%{token: token})
-    )
-  end
-
   defp events(port, headers) do
     response =
       port
-      |> HttpClient.open("GET", "/o/events?v=2", headers: headers)
+      |> HttpClient.open("GET", "/o/events", headers: headers)
       |> HttpClient.await(&String.contains?(&1.body, ": ping\n\n"))
 
     assert %{status: 200, headers: %{"content-type" => "text/event-stream"}, done: false} =

@@ -86,6 +86,8 @@ spec:
           env:
             - name: CONTROLS_GATEWAY_PORT
               value: "4000"
+            - name: LOG_LEVEL
+              value: info
             - name: TLS_CERT_FILE
               value: /etc/controls-gateway/tls/tls.crt
             - name: TLS_KEY_FILE
@@ -199,7 +201,7 @@ spec:
   routes:
     - match: >-
         Host(`overlay.itsbagelbot.com`) &&
-        (PathRegexp(`^/+(tts|o)/+session/*$`) || PathRegexp(`^/+powered/+config/*$`))
+        PathRegexp(`^/+(tts|o)/+session/*$`)
       kind: Rule
       middlewares: [{name: overlay-session-ratelimit}, {name: strip-client-ip}]
       observability:

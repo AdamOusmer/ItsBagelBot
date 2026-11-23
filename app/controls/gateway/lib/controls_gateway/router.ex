@@ -23,7 +23,6 @@ defmodule ControlsGateway.Router do
   match("/o/doc", do: Overlay.Http.handle(conn, :doc))
   match("/o/ack", do: Overlay.Http.handle(conn, :ack))
   match("/o/progress", do: Overlay.Http.handle(conn, :progress))
-  match("/powered/config", do: Overlay.Http.handle(conn, :config))
 
   match("/powered", do: Powered.Http.handle(conn, :page))
   match("/powered/assets/:name", do: Powered.Http.handle(conn, :asset))
