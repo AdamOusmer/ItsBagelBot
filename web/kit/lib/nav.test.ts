@@ -64,7 +64,8 @@ describe('nav registry', () => {
     });
     expect(items.filter((i) => i.count !== undefined).map((i) => [i.href, i.count])).toEqual([
       ['/flows', 'en:nav.beta'],
-      ['/voice', 'en:nav.beta']
+      ['/voice', 'en:nav.beta'],
+      ['/overlays', 'en:nav.beta']
     ]);
   });
 
