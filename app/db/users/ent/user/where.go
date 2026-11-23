@@ -1718,6 +1718,29 @@ func HasMarketingConsentsWith(preds ...predicate.MarketingConsent) predicate.Use
 	})
 }
 
+// HasMarketingSends applies the HasEdge predicate on the "marketing_sends" edge.
+func HasMarketingSends() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, MarketingSendsTable, MarketingSendsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasMarketingSendsWith applies the HasEdge predicate on the "marketing_sends" edge with a given conditions (other predicates).
+func HasMarketingSendsWith(preds ...predicate.MarketingSend) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newMarketingSendsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasVoiceUsage applies the HasEdge predicate on the "voice_usage" edge.
 func HasVoiceUsage() predicate.User {
 	return predicate.User(func(s *sql.Selector) {

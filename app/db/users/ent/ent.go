@@ -8,8 +8,11 @@ import (
 	"ItsBagelBot/app/db/users/ent/billingreceipt"
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
+	"ItsBagelBot/app/db/users/ent/emailsuppression"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
+	"ItsBagelBot/app/db/users/ent/marketingcampaign"
 	"ItsBagelBot/app/db/users/ent/marketingconsent"
+	"ItsBagelBot/app/db/users/ent/marketingsend"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/termsacceptance"
 	"ItsBagelBot/app/db/users/ent/tokens"
@@ -90,8 +93,11 @@ func checkColumn(t, c string) error {
 			billingreceipt.Table:     billingreceipt.ValidColumn,
 			delegation.Table:         delegation.ValidColumn,
 			devicegrant.Table:        devicegrant.ValidColumn,
+			emailsuppression.Table:   emailsuppression.ValidColumn,
 			lifecycleerasure.Table:   lifecycleerasure.ValidColumn,
+			marketingcampaign.Table:  marketingcampaign.ValidColumn,
 			marketingconsent.Table:   marketingconsent.ValidColumn,
+			marketingsend.Table:      marketingsend.ValidColumn,
 			premiumgrant.Table:       premiumgrant.ValidColumn,
 			termsacceptance.Table:    termsacceptance.ValidColumn,
 			tokens.Table:             tokens.ValidColumn,

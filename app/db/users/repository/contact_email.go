@@ -41,20 +41,27 @@ func (r *Users) SetContactEmail(ctx context.Context, id uint64, email string) er
 		if withdrawn {
 			w.projectMarketing(update, consent.Withdrawn)
 		}
-		return consentChange{changed: withdrawn}, update.Exec(ctx)
+		change := consentChange{changed: withdrawn}
+		if withdrawn {
+			change.marketing = &MarketingChoice{Status: consent.Withdrawn, Source: consent.AddressChanged}
+		}
+		return change, update.Exec(ctx)
 	})
 	return err
 }
 
 func (r *Users) withdrawChangedAddress(ctx context.Context, w consentWrite, email string) (bool, error) {
-	if w.owner.MarketingStatus != user.MarketingStatusGranted {
+	if w.owner.MarketingStatus != user.MarketingStatusGranted || r.marketingMAC == nil {
 		return false, nil
 	}
 	grant, err := w.latestMarketingGrant(ctx)
+	if ent.IsNotFound(err) {
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}
-	if r.marketingMAC != nil && r.marketingMAC.VerifyMAC(grant.AddressHmac, []byte(email)) == nil {
+	if r.addressMatches(grant.AddressHmac, email) {
 		return false, nil
 	}
 	record := marketingRecord{

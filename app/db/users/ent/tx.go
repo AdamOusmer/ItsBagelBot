@@ -22,10 +22,16 @@ type Tx struct {
 	Delegation *DelegationClient
 	// DeviceGrant is the client for interacting with the DeviceGrant builders.
 	DeviceGrant *DeviceGrantClient
+	// EmailSuppression is the client for interacting with the EmailSuppression builders.
+	EmailSuppression *EmailSuppressionClient
 	// LifecycleErasure is the client for interacting with the LifecycleErasure builders.
 	LifecycleErasure *LifecycleErasureClient
+	// MarketingCampaign is the client for interacting with the MarketingCampaign builders.
+	MarketingCampaign *MarketingCampaignClient
 	// MarketingConsent is the client for interacting with the MarketingConsent builders.
 	MarketingConsent *MarketingConsentClient
+	// MarketingSend is the client for interacting with the MarketingSend builders.
+	MarketingSend *MarketingSendClient
 	// PremiumGrant is the client for interacting with the PremiumGrant builders.
 	PremiumGrant *PremiumGrantClient
 	// TermsAcceptance is the client for interacting with the TermsAcceptance builders.
@@ -174,8 +180,11 @@ func (tx *Tx) init() {
 	tx.BillingReceipt = NewBillingReceiptClient(tx.config)
 	tx.Delegation = NewDelegationClient(tx.config)
 	tx.DeviceGrant = NewDeviceGrantClient(tx.config)
+	tx.EmailSuppression = NewEmailSuppressionClient(tx.config)
 	tx.LifecycleErasure = NewLifecycleErasureClient(tx.config)
+	tx.MarketingCampaign = NewMarketingCampaignClient(tx.config)
 	tx.MarketingConsent = NewMarketingConsentClient(tx.config)
+	tx.MarketingSend = NewMarketingSendClient(tx.config)
 	tx.PremiumGrant = NewPremiumGrantClient(tx.config)
 	tx.TermsAcceptance = NewTermsAcceptanceClient(tx.config)
 	tx.Tokens = NewTokensClient(tx.config)

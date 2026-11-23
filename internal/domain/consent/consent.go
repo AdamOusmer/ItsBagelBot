@@ -32,6 +32,18 @@ const (
 	Withdrawn MarketingStatus = "withdrawn"
 )
 
+type SuppressionReason string
+
+const (
+	SuppressUnsubscribe SuppressionReason = "unsubscribe"
+	SuppressComplaint   SuppressionReason = "complaint"
+	SuppressHardBounce  SuppressionReason = "hard_bounce"
+)
+
+func (r SuppressionReason) Reported() bool {
+	return r == SuppressComplaint || r == SuppressHardBounce
+}
+
 type Source string
 
 const (
@@ -45,3 +57,5 @@ const (
 	Admin          Source = "admin"
 	AddressChanged Source = "address_changed"
 )
+
+func (s Source) Suppresses() bool { return s != Complaint && s != AddressChanged }

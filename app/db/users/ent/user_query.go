@@ -6,6 +6,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/authorizationcode"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
 	"ItsBagelBot/app/db/users/ent/marketingconsent"
+	"ItsBagelBot/app/db/users/ent/marketingsend"
 	"ItsBagelBot/app/db/users/ent/predicate"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/termsacceptance"
@@ -38,6 +39,7 @@ type UserQuery struct {
 	withAuthorizationCodes *AuthorizationCodeQuery
 	withTermsAcceptances   *TermsAcceptanceQuery
 	withMarketingConsents  *MarketingConsentQuery
+	withMarketingSends     *MarketingSendQuery
 	withVoiceUsage         *VoiceUsageQuery
 	withVoiceUsageReceipts *VoiceUsageReceiptQuery
 	modifiers              []func(*sql.Selector)
@@ -202,6 +204,28 @@ func (_q *UserQuery) QueryMarketingConsents() *MarketingConsentQuery {
 			sqlgraph.From(user.Table, user.FieldID, selector),
 			sqlgraph.To(marketingconsent.Table, marketingconsent.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, user.MarketingConsentsTable, user.MarketingConsentsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryMarketingSends chains the current query on the "marketing_sends" edge.
+func (_q *UserQuery) QueryMarketingSends() *MarketingSendQuery {
+	query := (&MarketingSendClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(marketingsend.Table, marketingsend.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.MarketingSendsTable, user.MarketingSendsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -451,6 +475,7 @@ func (_q *UserQuery) Clone() *UserQuery {
 		withAuthorizationCodes: _q.withAuthorizationCodes.Clone(),
 		withTermsAcceptances:   _q.withTermsAcceptances.Clone(),
 		withMarketingConsents:  _q.withMarketingConsents.Clone(),
+		withMarketingSends:     _q.withMarketingSends.Clone(),
 		withVoiceUsage:         _q.withVoiceUsage.Clone(),
 		withVoiceUsageReceipts: _q.withVoiceUsageReceipts.Clone(),
 		// clone intermediate query.
@@ -522,6 +547,17 @@ func (_q *UserQuery) WithMarketingConsents(opts ...func(*MarketingConsentQuery))
 		opt(query)
 	}
 	_q.withMarketingConsents = query
+	return _q
+}
+
+// WithMarketingSends tells the query-builder to eager-load the nodes that are connected to
+// the "marketing_sends" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithMarketingSends(opts ...func(*MarketingSendQuery)) *UserQuery {
+	query := (&MarketingSendClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withMarketingSends = query
 	return _q
 }
 
@@ -625,13 +661,14 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [8]bool{
+		loadedTypes = [9]bool{
 			_q.withTokens != nil,
 			_q.withPremiumGrants != nil,
 			_q.withDeviceGrants != nil,
 			_q.withAuthorizationCodes != nil,
 			_q.withTermsAcceptances != nil,
 			_q.withMarketingConsents != nil,
+			_q.withMarketingSends != nil,
 			_q.withVoiceUsage != nil,
 			_q.withVoiceUsageReceipts != nil,
 		}
@@ -698,6 +735,13 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 		if err := _q.loadMarketingConsents(ctx, query, nodes,
 			func(n *User) { n.Edges.MarketingConsents = []*MarketingConsent{} },
 			func(n *User, e *MarketingConsent) { n.Edges.MarketingConsents = append(n.Edges.MarketingConsents, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withMarketingSends; query != nil {
+		if err := _q.loadMarketingSends(ctx, query, nodes,
+			func(n *User) { n.Edges.MarketingSends = []*MarketingSend{} },
+			func(n *User, e *MarketingSend) { n.Edges.MarketingSends = append(n.Edges.MarketingSends, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -886,6 +930,36 @@ func (_q *UserQuery) loadMarketingConsents(ctx context.Context, query *Marketing
 	}
 	query.Where(predicate.MarketingConsent(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(user.MarketingConsentsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadMarketingSends(ctx context.Context, query *MarketingSendQuery, nodes []*User, init func(*User), assign func(*User, *MarketingSend)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uint64]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(marketingsend.FieldUserID)
+	}
+	query.Where(predicate.MarketingSend(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.MarketingSendsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

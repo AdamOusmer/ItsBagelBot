@@ -68,6 +68,18 @@ func (f DeviceGrantFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value,
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DeviceGrantMutation", m)
 }
 
+// The EmailSuppressionFunc type is an adapter to allow the use of ordinary
+// function as EmailSuppression mutator.
+type EmailSuppressionFunc func(context.Context, *ent.EmailSuppressionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f EmailSuppressionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.EmailSuppressionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.EmailSuppressionMutation", m)
+}
+
 // The LifecycleErasureFunc type is an adapter to allow the use of ordinary
 // function as LifecycleErasure mutator.
 type LifecycleErasureFunc func(context.Context, *ent.LifecycleErasureMutation) (ent.Value, error)
@@ -80,6 +92,18 @@ func (f LifecycleErasureFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.V
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.LifecycleErasureMutation", m)
 }
 
+// The MarketingCampaignFunc type is an adapter to allow the use of ordinary
+// function as MarketingCampaign mutator.
+type MarketingCampaignFunc func(context.Context, *ent.MarketingCampaignMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MarketingCampaignFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MarketingCampaignMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MarketingCampaignMutation", m)
+}
+
 // The MarketingConsentFunc type is an adapter to allow the use of ordinary
 // function as MarketingConsent mutator.
 type MarketingConsentFunc func(context.Context, *ent.MarketingConsentMutation) (ent.Value, error)
@@ -90,6 +114,18 @@ func (f MarketingConsentFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.V
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MarketingConsentMutation", m)
+}
+
+// The MarketingSendFunc type is an adapter to allow the use of ordinary
+// function as MarketingSend mutator.
+type MarketingSendFunc func(context.Context, *ent.MarketingSendMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MarketingSendFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MarketingSendMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MarketingSendMutation", m)
 }
 
 // The PremiumGrantFunc type is an adapter to allow the use of ordinary

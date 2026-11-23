@@ -21,11 +21,20 @@ type Delegation func(*sql.Selector)
 // DeviceGrant is the predicate function for devicegrant builders.
 type DeviceGrant func(*sql.Selector)
 
+// EmailSuppression is the predicate function for emailsuppression builders.
+type EmailSuppression func(*sql.Selector)
+
 // LifecycleErasure is the predicate function for lifecycleerasure builders.
 type LifecycleErasure func(*sql.Selector)
 
+// MarketingCampaign is the predicate function for marketingcampaign builders.
+type MarketingCampaign func(*sql.Selector)
+
 // MarketingConsent is the predicate function for marketingconsent builders.
 type MarketingConsent func(*sql.Selector)
+
+// MarketingSend is the predicate function for marketingsend builders.
+type MarketingSend func(*sql.Selector)
 
 // PremiumGrant is the predicate function for premiumgrant builders.
 type PremiumGrant func(*sql.Selector)

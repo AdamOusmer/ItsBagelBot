@@ -53,6 +53,8 @@ func SubscribeDashboard(w Wiring, prefix string) error {
 		"state_get":            d.handleStateGet,
 		"consent_set":          ownerWrite(d.setConsent),
 		"marketing_set":        ownerWrite(d.setMarketing),
+		"marketing_token_get":  d.handleMarketingTokenGet,
+		"marketing_token_set":  d.handleMarketingTokenSet,
 		"lifecycle_retry":      d.handleLifecycleRetry,
 		"login_resolve":        d.handleLoginResolve,
 		"identity_sync":        d.handleIdentitySync,

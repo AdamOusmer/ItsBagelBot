@@ -111,13 +111,15 @@ type UserEdges struct {
 	TermsAcceptances []*TermsAcceptance `json:"terms_acceptances,omitempty"`
 	// MarketingConsents holds the value of the marketing_consents edge.
 	MarketingConsents []*MarketingConsent `json:"marketing_consents,omitempty"`
+	// MarketingSends holds the value of the marketing_sends edge.
+	MarketingSends []*MarketingSend `json:"marketing_sends,omitempty"`
 	// VoiceUsage holds the value of the voice_usage edge.
 	VoiceUsage []*VoiceUsage `json:"voice_usage,omitempty"`
 	// VoiceUsageReceipts holds the value of the voice_usage_receipts edge.
 	VoiceUsageReceipts []*VoiceUsageReceipt `json:"voice_usage_receipts,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [8]bool
+	loadedTypes [9]bool
 }
 
 // TokensOrErr returns the Tokens value or an error if the edge
@@ -174,10 +176,19 @@ func (e UserEdges) MarketingConsentsOrErr() ([]*MarketingConsent, error) {
 	return nil, &NotLoadedError{edge: "marketing_consents"}
 }
 
+// MarketingSendsOrErr returns the MarketingSends value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) MarketingSendsOrErr() ([]*MarketingSend, error) {
+	if e.loadedTypes[6] {
+		return e.MarketingSends, nil
+	}
+	return nil, &NotLoadedError{edge: "marketing_sends"}
+}
+
 // VoiceUsageOrErr returns the VoiceUsage value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) VoiceUsageOrErr() ([]*VoiceUsage, error) {
-	if e.loadedTypes[6] {
+	if e.loadedTypes[7] {
 		return e.VoiceUsage, nil
 	}
 	return nil, &NotLoadedError{edge: "voice_usage"}
@@ -186,7 +197,7 @@ func (e UserEdges) VoiceUsageOrErr() ([]*VoiceUsage, error) {
 // VoiceUsageReceiptsOrErr returns the VoiceUsageReceipts value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) VoiceUsageReceiptsOrErr() ([]*VoiceUsageReceipt, error) {
-	if e.loadedTypes[7] {
+	if e.loadedTypes[8] {
 		return e.VoiceUsageReceipts, nil
 	}
 	return nil, &NotLoadedError{edge: "voice_usage_receipts"}
@@ -496,6 +507,11 @@ func (_m *User) QueryTermsAcceptances() *TermsAcceptanceQuery {
 // QueryMarketingConsents queries the "marketing_consents" edge of the User entity.
 func (_m *User) QueryMarketingConsents() *MarketingConsentQuery {
 	return NewUserClient(_m.config).QueryMarketingConsents(_m)
+}
+
+// QueryMarketingSends queries the "marketing_sends" edge of the User entity.
+func (_m *User) QueryMarketingSends() *MarketingSendQuery {
+	return NewUserClient(_m.config).QueryMarketingSends(_m)
 }
 
 // QueryVoiceUsage queries the "voice_usage" edge of the User entity.

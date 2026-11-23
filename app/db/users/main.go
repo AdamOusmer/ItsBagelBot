@@ -96,6 +96,10 @@ func main() {
 	go cleanupDeviceAuth(ctx, repo, log)
 	go cleanupVoiceUsageReceipts(ctx, repo, log)
 	go deliverAdminAudits(ctx, repo, log)
+	campaigns := newCampaignService(repo, log)
+	if campaigns != nil {
+		go campaigns.Run(ctx)
+	}
 
 	svcboot.FatalIf(log, levels.Serve(bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log}), "failed to subscribe analytics levels rpc")
 
@@ -103,6 +107,9 @@ func main() {
 		RPCWiring: bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log},
 		Repo:      repo,
 		Safety:    rpc.Safety{Store: vc, Rules: newSpeechSafety(log)},
+	}
+	if campaigns != nil {
+		wiring.Campaigns = campaigns
 	}
 	subjects := subscribeRPCs(wiring, log)
 	databoot.ServeHealth(databoot.Health{
@@ -168,6 +175,8 @@ type rpcSubjects struct {
 	projection string
 	giveaway   string
 	device     string
+	marketing  string
+	campaigns  string
 }
 
 func (s rpcSubjects) logReady(log *zap.Logger) {
@@ -177,7 +186,9 @@ func (s rpcSubjects) logReady(log *zap.Logger) {
 		zap.String("billing_subject", s.billing),
 		zap.String("projection_subject", s.projection),
 		zap.String("giveaway_prefix", s.giveaway),
-		zap.String("device_prefix", s.device))
+		zap.String("device_prefix", s.device),
+		zap.String("marketing_prefix", s.marketing),
+		zap.String("campaign_prefix", s.campaigns))
 }
 
 func subscribeRPCs(wiring rpc.Wiring, log *zap.Logger) rpcSubjects {
@@ -189,6 +200,8 @@ func subscribeRPCs(wiring rpc.Wiring, log *zap.Logger) rpcSubjects {
 		projection: conf.ProjectionUsersSubject.Get(),
 		giveaway:   env.Get("NATS_INTERNAL_USERS_GIVEAWAY_SUBJECT_PREFIX", "rpc.internal.users.giveaway"),
 		device:     env.Get("NATS_DASHBOARD_DEVICE_SUBJECT_PREFIX", "rpc.dashboard.device"),
+		marketing:  env.Get("NATS_INTERNAL_USERS_MARKETING_SUBJECT_PREFIX", usersrpc.MarketingSubjectPrefix),
+		campaigns:  env.Get("NATS_ADMIN_MARKETING_SUBJECT_PREFIX", usersrpc.CampaignSubjectPrefix),
 	}
 
 	svcboot.FatalIf(log, rpc.SubscribeDashboard(wiring, s.dashboard), "failed to subscribe dashboard rpc")
@@ -201,6 +214,9 @@ func subscribeRPCs(wiring rpc.Wiring, log *zap.Logger) rpcSubjects {
 	svcboot.FatalIf(log, rpc.SubscribeAdmin(wiring, adminCfg), "failed to subscribe admin rpc")
 	svcboot.FatalIf(log, rpc.SubscribeBilling(wiring, s.billing), "failed to subscribe billing rpc")
 	svcboot.FatalIf(log, rpc.SubscribeGiveaways(wiring, s.giveaway), "failed to subscribe giveaway rpc")
+	svcboot.FatalIf(log, rpc.SubscribeMarketing(wiring, s.marketing), "failed to subscribe marketing rpc")
+	campaignCfg := rpc.CampaignConfig{AuthPrefix: adminCfg.AuthPrefix, Prefix: s.campaigns}
+	svcboot.FatalIf(log, rpc.SubscribeCampaigns(wiring, campaignCfg), "failed to subscribe campaign rpc")
 
 	svcboot.FatalIf(log, rpc.SubscribeLifecycle(wiring), "failed to subscribe lifecycle rpc")
 	svcboot.FatalIf(log, rpc.SubscribeProjection(wiring, s.projection), "failed to subscribe projection rpc")

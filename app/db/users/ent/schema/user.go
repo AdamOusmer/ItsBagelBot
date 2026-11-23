@@ -115,6 +115,8 @@ func (User) Edges() []ent.Edge {
 			Annotations(entsql.Annotation{OnDelete: entsql.Cascade}),
 		edge.To("marketing_consents", MarketingConsent.Type).Immutable().
 			Annotations(entsql.Annotation{OnDelete: entsql.Cascade}),
+		edge.To("marketing_sends", MarketingSend.Type).Immutable().
+			Annotations(entsql.Annotation{OnDelete: entsql.Cascade}),
 		edge.To("voice_usage", VoiceUsage.Type).
 			Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("voice_usage_receipts", VoiceUsageReceipt.Type).

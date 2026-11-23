@@ -182,33 +182,34 @@ func TestContactEmailChangeWithdrawsMarketing(t *testing.T) {
 	require.NoError(t, f.mac.VerifyMAC(withdrawal.AddressHmac, []byte(consentEmail)))
 }
 
-func TestContactEmailWithoutMACWithdrawsMarketing(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		email string
-	}{
-		{name: "replacement address", email: "new@example.test"},
-		{name: "address match cannot be verified", email: consentEmail},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			f := setupConsent(t)
-			ctx, id := t.Context(), consentAccount.ID
-			require.NoError(t, f.repo.SetContactEmail(ctx, id, consentEmail))
-			f.saveConsent(t, consentRequest(true))
+func TestContactEmailWithoutMACNeverWithdrawsMarketing(t *testing.T) {
+	f := setupConsent(t)
+	ctx, id := t.Context(), consentAccount.ID
+	require.NoError(t, f.repo.SetContactEmail(ctx, id, consentEmail))
+	f.saveConsent(t, consentRequest(true))
 
-			cfg := f.config
-			cfg.MarketingMAC = nil
-			f.repo = openTestUsers(t, cfg)
-			require.NoError(t, f.repo.SetContactEmail(ctx, id, tc.email))
-			f.requireProjection(t, consent.TermsVersion, consent.Withdrawn)
+	cfg := f.config
+	cfg.MarketingMAC = nil
+	f.repo = openTestUsers(t, cfg)
+	require.NoError(t, f.repo.SetContactEmail(ctx, id, "new@example.test"))
+	f.requireProjection(t, consent.TermsVersion, consent.Granted)
 
-			email, err := f.repo.ContactEmail(ctx, id)
-			require.NoError(t, err)
-			require.Equal(t, tc.email, email)
+	email, err := f.repo.ContactEmail(ctx, id)
+	require.NoError(t, err)
+	require.Equal(t, "new@example.test", email)
+	require.Equal(t, 1, f.client.MarketingConsent.Query().CountX(ctx))
+}
 
-			withdrawal := f.client.MarketingConsent.Query().Where(marketingconsent.StatusEQ(marketingconsent.StatusWithdrawn)).OnlyX(ctx)
-			require.Equal(t, marketingconsent.SourceAddressChanged, withdrawal.Source)
-			require.NoError(t, f.mac.VerifyMAC(withdrawal.AddressHmac, []byte(consentEmail)))
-		})
-	}
+func TestContactEmailChangeWithoutRecordedGrantIsNotBlocked(t *testing.T) {
+	f := setupConsent(t)
+	ctx, id := t.Context(), consentAccount.ID
+	require.NoError(t, f.repo.SetContactEmail(ctx, id, consentEmail))
+	f.saveConsent(t, consentRequest(true))
+	f.client.MarketingConsent.Delete().ExecX(ctx)
+
+	require.NoError(t, f.repo.SetContactEmail(ctx, id, "new@example.test"))
+	email, err := f.repo.ContactEmail(ctx, id)
+	require.NoError(t, err)
+	require.Equal(t, "new@example.test", email)
+	f.requireProjection(t, consent.TermsVersion, consent.Granted)
 }

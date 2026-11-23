@@ -6,6 +6,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/authorizationcode"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
 	"ItsBagelBot/app/db/users/ent/marketingconsent"
+	"ItsBagelBot/app/db/users/ent/marketingsend"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/termsacceptance"
 	"ItsBagelBot/app/db/users/ent/tokens"
@@ -599,6 +600,21 @@ func (_c *UserCreate) AddMarketingConsents(v ...*MarketingConsent) *UserCreate {
 	return _c.AddMarketingConsentIDs(ids...)
 }
 
+// AddMarketingSendIDs adds the "marketing_sends" edge to the MarketingSend entity by IDs.
+func (_c *UserCreate) AddMarketingSendIDs(ids ...int) *UserCreate {
+	_c.mutation.AddMarketingSendIDs(ids...)
+	return _c
+}
+
+// AddMarketingSends adds the "marketing_sends" edges to the MarketingSend entity.
+func (_c *UserCreate) AddMarketingSends(v ...*MarketingSend) *UserCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddMarketingSendIDs(ids...)
+}
+
 // AddVoiceUsageIDs adds the "voice_usage" edge to the VoiceUsage entity by IDs.
 func (_c *UserCreate) AddVoiceUsageIDs(ids ...int) *UserCreate {
 	_c.mutation.AddVoiceUsageIDs(ids...)
@@ -1155,6 +1171,22 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(marketingconsent.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.MarketingSendsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.MarketingSendsTable,
+			Columns: []string{user.MarketingSendsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(marketingsend.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

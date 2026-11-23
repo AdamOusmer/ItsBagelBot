@@ -46,8 +46,10 @@ type consentWrite struct {
 }
 
 type consentChange struct {
-	changed bool
-	skipped consent.MarketingSkipReason
+	changed    bool
+	skipped    consent.MarketingSkipReason
+	marketing  *MarketingChoice
+	suppressed consent.SuppressionReason
 }
 
 func (c TermsConsent) valid() bool {
@@ -103,10 +105,10 @@ func (r *Users) recordConsent(ctx context.Context, w consentWrite, req TermsCons
 		return consentChange{changed: true, skipped: skipped}, update.Exec(ctx)
 	}
 	choice := MarketingChoice{Status: consent.Granted, Source: req.Source, Locale: req.Locale}
-	if err := r.applyMarketingChoice(ctx, w, choice); err != nil {
+	if _, err := r.applyMarketingChoice(ctx, w, choice); err != nil {
 		return consentChange{}, err
 	}
-	return consentChange{changed: true}, w.projectMarketing(update, choice.Status).Exec(ctx)
+	return consentChange{changed: true, marketing: &choice}, w.projectMarketing(update, choice.Status).Exec(ctx)
 }
 
 func (r *Users) marketingSkipReason(owner *ent.User) consent.MarketingSkipReason {
@@ -144,21 +146,27 @@ func (r *Users) SetMarketing(ctx context.Context, id uint64, choice MarketingCho
 		return ErrConsentInvalid
 	}
 	_, err := r.withConsentOwner(ctx, id, func(w consentWrite) (consentChange, error) {
-		if err := r.applyMarketingChoice(ctx, w, choice); err != nil {
-			return consentChange{}, err
-		}
-		return consentChange{changed: true}, w.projectMarketing(w.userUpdate(), choice.Status).Exec(ctx)
+		return r.recordMarketing(ctx, w, choice)
 	})
 	return err
 }
 
-func (r *Users) applyMarketingChoice(ctx context.Context, w consentWrite, choice MarketingChoice) error {
+func (r *Users) recordMarketing(ctx context.Context, w consentWrite, choice MarketingChoice) (consentChange, error) {
+	suppressed, err := r.applyMarketingChoice(ctx, w, choice)
+	if err != nil {
+		return consentChange{}, err
+	}
+	change := consentChange{changed: true, marketing: &choice, suppressed: suppressed}
+	return change, w.projectMarketing(w.userUpdate(), choice.Status).Exec(ctx)
+}
+
+func (r *Users) applyMarketingChoice(ctx context.Context, w consentWrite, choice MarketingChoice) (consent.SuppressionReason, error) {
 	if choice.Locale == "" {
 		choice.Locale = w.owner.Locale
 	}
 	addressHMAC, err := r.marketingAddress(ctx, w, choice.Status)
 	if err != nil {
-		return err
+		return "", err
 	}
 	record := marketingRecord{
 		MarketingChoice: choice,
@@ -166,7 +174,10 @@ func (r *Users) applyMarketingChoice(ctx context.Context, w consentWrite, choice
 		textKey:         consent.MarketingTextKey,
 		addressHMAC:     addressHMAC,
 	}
-	return w.appendMarketing(ctx, record)
+	if err := w.appendMarketing(ctx, record); err != nil {
+		return "", err
+	}
+	return w.reconcileSuppression(ctx, record)
 }
 
 func (r *Users) marketingAddress(ctx context.Context, w consentWrite, status consent.MarketingStatus) ([]byte, error) {
@@ -183,7 +194,7 @@ func (r *Users) marketingAddress(ctx context.Context, w consentWrite, status con
 	if r.marketingMAC == nil {
 		return nil, ErrConsentMACUnavailable
 	}
-	return r.marketingMAC.ComputeMAC([]byte(email))
+	return r.addressMAC(email)
 }
 
 func (r *Users) canHashContactEmail(owner *ent.User) bool {
@@ -243,8 +254,12 @@ func (r *Users) withConsentOwner(ctx context.Context, id uint64, apply func(cons
 			return apply(consentWrite{tx: tx, owner: owner, at: time.Now().UTC()})
 		})
 	})
-	if err != nil || !change.changed {
+	if err != nil {
 		return change, err
+	}
+	r.recordConsentAnalytics(change)
+	if !change.changed {
+		return change, nil
 	}
 	r.Invalidate(id)
 	return change, r.publishChanged(ctx, id)

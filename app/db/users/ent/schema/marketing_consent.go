@@ -50,5 +50,6 @@ func (MarketingConsent) Edges() []ent.Edge {
 func (MarketingConsent) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("user_id", "account_created_at", "status", "id"),
+		index.Fields("address_hmac").Annotations(entsql.PrefixColumn("address_hmac", 40)),
 	}
 }

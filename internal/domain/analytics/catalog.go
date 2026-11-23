@@ -104,6 +104,9 @@ const (
 	DesktopGrants      Metric = "desktop.grants"
 	SignupVia          Metric = "signup.via"
 	UpsellClicks       Metric = "upsell.clicks"
+
+	MarketingConsents     Metric = "marketing.consents"
+	MarketingSuppressions Metric = "marketing.suppressions"
 )
 
 const (
@@ -160,6 +163,9 @@ const (
 	KindVia       Kind = "via"
 	KindStage     Kind = "stage"
 	KindPlacement Kind = "placement"
+
+	KindConsentSource Kind = "consent_source"
+	KindSuppression   Kind = "suppression"
 )
 
 // CustomCommand stands in for every custom command name, which is streamer-written text.
@@ -231,6 +237,9 @@ var catalog = map[Metric]Spec{
 	DesktopGrants:      {Type: Level, Dims: []Kind{KindPlatform}},
 	SignupVia:          {Type: Counter, Dims: []Kind{KindVia, KindStage}},
 	UpsellClicks:       {Type: Counter, Dims: []Kind{KindPlacement}},
+
+	MarketingConsents:     {Type: Counter, Dims: []Kind{KindStatus, KindConsentSource}},
+	MarketingSuppressions: {Type: Counter, Dims: []Kind{KindSuppression}},
 }
 
 var enums = map[Kind][]string{
@@ -287,6 +296,12 @@ var enums = map[Kind][]string{
 	},
 	KindStage:     {"started", "signup"},
 	KindPlacement: {"overview"},
+	KindConsentSource: {
+		string(consent.Welcome), string(consent.Settings), string(consent.Prompt), string(consent.Consent),
+		string(consent.PreferencePage), string(consent.OneClick), string(consent.Complaint), string(consent.Admin),
+		string(consent.AddressChanged),
+	},
+	KindSuppression: {string(consent.SuppressUnsubscribe), string(consent.SuppressComplaint), string(consent.SuppressHardBounce)},
 }
 
 var shapes = map[Kind]*regexp.Regexp{

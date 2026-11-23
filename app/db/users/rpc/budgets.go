@@ -6,10 +6,12 @@ package rpc
 import "time"
 
 const (
-	tokensBudget   = 2 * time.Second
-	emailBudget    = 3 * time.Second
-	countsBudget   = 3 * time.Second
-	adminBudget    = 3 * time.Second
-	billingBudget  = 5 * time.Second
-	giveawayBudget = 5 * time.Second
+	tokensBudget    = 2 * time.Second
+	emailBudget     = 3 * time.Second
+	countsBudget    = 3 * time.Second
+	adminBudget     = 3 * time.Second
+	billingBudget   = 5 * time.Second
+	giveawayBudget  = 5 * time.Second
+	marketingBudget = 5 * time.Second
+	campaignBudget  = 20 * time.Second
 )

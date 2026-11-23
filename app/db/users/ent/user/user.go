@@ -100,6 +100,8 @@ const (
 	EdgeTermsAcceptances = "terms_acceptances"
 	// EdgeMarketingConsents holds the string denoting the marketing_consents edge name in mutations.
 	EdgeMarketingConsents = "marketing_consents"
+	// EdgeMarketingSends holds the string denoting the marketing_sends edge name in mutations.
+	EdgeMarketingSends = "marketing_sends"
 	// EdgeVoiceUsage holds the string denoting the voice_usage edge name in mutations.
 	EdgeVoiceUsage = "voice_usage"
 	// EdgeVoiceUsageReceipts holds the string denoting the voice_usage_receipts edge name in mutations.
@@ -148,6 +150,13 @@ const (
 	MarketingConsentsInverseTable = "marketing_consent"
 	// MarketingConsentsColumn is the table column denoting the marketing_consents relation/edge.
 	MarketingConsentsColumn = "user_id"
+	// MarketingSendsTable is the table that holds the marketing_sends relation/edge.
+	MarketingSendsTable = "marketing_send"
+	// MarketingSendsInverseTable is the table name for the MarketingSend entity.
+	// It exists in this package in order to avoid circular dependency with the "marketingsend" package.
+	MarketingSendsInverseTable = "marketing_send"
+	// MarketingSendsColumn is the table column denoting the marketing_sends relation/edge.
+	MarketingSendsColumn = "user_id"
 	// VoiceUsageTable is the table that holds the voice_usage relation/edge.
 	VoiceUsageTable = "voice_usage"
 	// VoiceUsageInverseTable is the table name for the VoiceUsage entity.
@@ -598,6 +607,20 @@ func ByMarketingConsents(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption
 	}
 }
 
+// ByMarketingSendsCount orders the results by marketing_sends count.
+func ByMarketingSendsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newMarketingSendsStep(), opts...)
+	}
+}
+
+// ByMarketingSends orders the results by marketing_sends terms.
+func ByMarketingSends(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newMarketingSendsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByVoiceUsageCount orders the results by voice_usage count.
 func ByVoiceUsageCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -665,6 +688,13 @@ func newMarketingConsentsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(MarketingConsentsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, MarketingConsentsTable, MarketingConsentsColumn),
+	)
+}
+func newMarketingSendsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(MarketingSendsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, MarketingSendsTable, MarketingSendsColumn),
 	)
 }
 func newVoiceUsageStep() *sqlgraph.Step {
