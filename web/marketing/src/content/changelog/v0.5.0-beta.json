@@ -1,0 +1,30 @@
+{
+  "tag": "beta",
+  "version": "v0.5.0-beta",
+  "date": "2026-11-22",
+  "title": {
+    "en": "Powered by Bagel overlay, Premium voices and new giveaways",
+    "fr": "Overlay Powered by Bagel, voix Premium et nouveaux concours"
+  },
+  "highlights": {
+    "en": [
+      "Powered by Bagel is a free OBS overlay for every channel. Add it from the new Overlays page, choose how often it shows and for how long, and paste its link into a browser source. On Premium the badge flips to the Premium logo.",
+      "Text to speech has Premium voices. The Voice page lets you preview each voice and send a test alert, and viewers can redeem speech with channel point rewards.",
+      "Messages are checked before they are read out loud, and you can block a viewer from text to speech by hand.",
+      "Giveaways, raffles and loyalty are redesigned, and giveaways now live under Modules.",
+      "Module commands and aliases can be turned on and off one by one, and the command list has a new layout.",
+      "Module timers are spread apart across your channel and get a small random delay on their own, so they stop posting at the same moment.",
+      "Recipe menus are redesigned, and variables can hold other variables."
+    ],
+    "fr": [
+      "Powered by Bagel est un overlay OBS gratuit pour chaque chaîne. Ajoutez-le depuis la nouvelle page Overlays, choisissez à quelle fréquence il s'affiche et pendant combien de temps, puis collez son lien dans une source navigateur. Avec Premium, le badge se retourne pour montrer le logo Premium.",
+      "La synthèse vocale a des voix Premium. La page Voix permet d'écouter chaque voix et d'envoyer une alerte de test, et les spectateurs peuvent échanger une lecture contre des récompenses de points de chaîne.",
+      "Les messages sont vérifiés avant d'être lus à voix haute, et vous pouvez bloquer un spectateur de la synthèse vocale à la main.",
+      "Les concours, les tirages au sort et la fidélité sont repensés, et les concours se trouvent maintenant dans Modules.",
+      "Les commandes et alias des modules peuvent être activés et désactivés un par un, et la liste des commandes a une nouvelle mise en page.",
+      "Les minuteurs des modules sont espacés sur toute la chaîne et reçoivent un petit délai aléatoire automatiquement, pour ne plus publier au même moment.",
+      "Les menus des Recettes sont repensés, et les variables peuvent contenir d'autres variables."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.5.0-beta"
+}
