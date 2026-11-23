@@ -39,7 +39,6 @@ end
 config :controls_gateway,
   listener_tls: listener_tls,
   overlay_cookie_key: cookie_key,
-  overlay_trust_cloudflare_ip: System.get_env("OVERLAY_TRUST_CLOUDFLARE_IP") == "true",
   powered_dev_frame_ancestors: System.get_env("OVERLAY_POWERED_DEV_FRAME_ANCESTORS") == "true",
   port: String.to_integer(System.get_env("CONTROLS_GATEWAY_PORT", "4000")),
   token_public_keys: parse_keys.(System.get_env("CONTROLS_TOKEN_PUBLIC_KEYS"))
@@ -62,7 +61,7 @@ nats_rpc_port = String.to_integer(System.get_env("NATS_RPC_PORT", Integer.to_str
 endpoints = %{rpc: {nats_rpc_host, nats_rpc_port}, jetstream: {nats_host, nats_port}}
 config :controls_gateway, nats: Planes.settings(endpoints, nats_auth, Settings.tls(nats_cacerts))
 
-config :new_relic_agent, harvest_enabled: false, license_key: nil
+config :new_relic_agent, Platform.NewRelic.runtime_config("controls-gateway")
 
 if config_env() == :prod do
   config :logger, :default_formatter, format: {ControlsGateway.LogFormatter, :format}

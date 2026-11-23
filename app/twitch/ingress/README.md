@@ -44,8 +44,8 @@ For `channel.chat.message` notifications there are exactly three outcomes (`Ingr
 Broadcaster status is never read from MySQL directly (per the data-and-state ownership rules). It is fetched over
 **NATS request-reply** from the owning Go service (`NATS_BROADCASTER_STATUS_SUBJECT`), through an in-process ETS
 read-through cache (`Ingress.BroadcasterCache`, TTL `BROADCASTER_CACHE_TTL_SECONDS`). Cache entries are evicted by
-invalidation messages on `NATS_CACHE_INVALIDATION_SUBJECT` (`{"broadcaster_id": "..."}`, `{"all": true}`, or a bare
-ID). RPC failures degrade to the standard lane and are negative-cached for 5s.
+invalidation messages on `NATS_CACHE_INVALIDATION_SUBJECT` (`{"broadcaster_id": "<id>" | "*", "keys": [...]}`,
+the shared bus feed, read through `Platform.Invalidations`). RPC failures degrade to the standard lane and are negative-cached for 5s.
 
 All other EventSub types ride the same two lanes, routed by the event's broadcaster through the same cache. Events
 without an extractable broadcaster (`broadcaster_user_id`, or `to_broadcaster_user_id` for inbound raids) default

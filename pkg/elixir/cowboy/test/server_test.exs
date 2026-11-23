@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
 defmodule Platform.Cowboy.ServerTest do
   use ExUnit.Case, async: false
 
@@ -69,45 +72,25 @@ defmodule Platform.Cowboy.ServerTest do
       count: 0
     }
 
-    assert {:ok, _, :hibernate} =
-             Platform.Cowboy.Socket.websocket_init(%{base | state: {:ok, nil, :hibernate}})
+    cases = [
+      {{:ok, nil, :hibernate}, :hibernate},
+      {{:push, {:binary, "123456789"}, nil}, 1009},
+      {{:push, List.duplicate({:binary, "x"}, 17), nil}, 1009},
+      {{:push, List.duplicate({:binary, "x"}, 100_000), nil}, 1009},
+      {{:push, [{:binary, "x"} | :bad], nil}, 1011},
+      {{:push, {:binary, ["x"]}, nil}, 1011},
+      {{:stop, 1005, "invalid", nil}, 1011},
+      {:garbage, 1011}
+    ]
 
-    assert {:reply, {:close, 1009, _}, _} =
-             Platform.Cowboy.Socket.websocket_init(%{
-               base
-               | state: {:push, {:binary, "123456789"}, nil}
-             })
-
-    assert {:reply, {:close, 1009, _}, _} =
-             Platform.Cowboy.Socket.websocket_init(%{
-               base
-               | state: {:push, List.duplicate({:binary, "x"}, 17), nil}
-             })
-
-    assert {:reply, {:close, 1009, _}, _} =
-             Platform.Cowboy.Socket.websocket_init(%{
-               base
-               | state: {:push, List.duplicate({:binary, "x"}, 100_000), nil}
-             })
-
-    assert {:reply, {:close, 1011, _}, _} =
-             Platform.Cowboy.Socket.websocket_init(%{
-               base
-               | state: {:push, [{:binary, "x"} | :bad], nil}
-             })
-
-    assert {:reply, {:close, 1011, _}, _} =
-             Platform.Cowboy.Socket.websocket_init(%{
-               base
-               | state: {:push, {:binary, ["x"]}, nil}
-             })
-
-    assert {:reply, {:close, 1011, _}, _} =
-             Platform.Cowboy.Socket.websocket_init(%{base | state: {:stop, 1005, "invalid", nil}})
-
-    assert {:reply, {:close, 1011, _}, _} =
-             Platform.Cowboy.Socket.websocket_init(%{base | state: :garbage})
+    for {state, expected} <- cases do
+      result = Platform.Cowboy.Socket.websocket_init(%{base | state: state})
+      assert socket_outcome(result) == expected
+    end
   end
+
+  defp socket_outcome({:ok, _, :hibernate}), do: :hibernate
+  defp socket_outcome({:reply, {:close, code, _}, _}), do: code
 
   test "upgrade rejects unknown, duplicate, and excessive options" do
     conn = Plug.Test.conn(:get, "/")
@@ -163,32 +146,7 @@ defmodule Platform.Cowboy.ServerTest do
     assert response =~ "ok\n"
     :gen_tcp.close(tcp)
 
-    dir = Path.join(System.tmp_dir!(), "cowboy-#{System.unique_integer([:positive])}")
-    File.mkdir_p!(dir)
-    on_exit(fn -> File.rm_rf!(dir) end)
-    cert = Path.join(dir, "cert.pem")
-    key = Path.join(dir, "key.pem")
-
-    {_, 0} =
-      System.cmd(
-        "openssl",
-        [
-          "req",
-          "-x509",
-          "-newkey",
-          "rsa:2048",
-          "-nodes",
-          "-keyout",
-          key,
-          "-out",
-          cert,
-          "-days",
-          "1",
-          "-subj",
-          "/CN=localhost"
-        ],
-        stderr_to_stdout: true
-      )
+    {cert, key} = self_signed_pair!()
 
     start_supervised!(
       {Platform.Cowboy.Server,
@@ -229,7 +187,7 @@ defmodule Platform.Cowboy.ServerTest do
   end
 
   test "listener capacity is bounded and applied" do
-    for value <- [0, -1, 1_000_001, :infinity] do
+    for value <- [0, -1, 1_000_001, :unlimited] do
       assert_raise ArgumentError, fn ->
         Platform.Cowboy.Server.child_spec(
           name: :invalid_capacity,
@@ -244,6 +202,182 @@ defmodule Platform.Cowboy.ServerTest do
     )
 
     assert :ranch.get_max_connections(:capacity_test) == 19
+  end
+
+  defmodule Sse do
+    @behaviour :cowboy_loop
+
+    def init(req, :stream) do
+      req = :cowboy_req.stream_reply(200, %{"content-type" => "text/plain"}, req)
+      :cowboy_req.stream_body("one\n", :nofin, req)
+      send(self(), :finish)
+      {:cowboy_loop, req, :stream, :hibernate}
+    end
+
+    def info(:finish, req, state) do
+      :cowboy_req.stream_body("two\n", :fin, req)
+      {:stop, req, state}
+    end
+  end
+
+  defmodule Plain do
+    def init(req, state), do: {:ok, :cowboy_req.reply(200, %{}, "plain", req), state}
+  end
+
+  defp http_get(port, path) do
+    {:ok, socket} = :gen_tcp.connect(~c"127.0.0.1", port, [:binary, active: false])
+
+    :ok =
+      :gen_tcp.send(
+        socket,
+        "GET #{path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+      )
+
+    response = recv_all(socket, "")
+    :gen_tcp.close(socket)
+    response
+  end
+
+  defp recv_all(socket, acc) do
+    case :gen_tcp.recv(socket, 0, 2_000) do
+      {:ok, data} -> recv_all(socket, acc <> data)
+      {:error, :closed} -> acc
+    end
+  end
+
+  test "loop routes are served next to the plug catch-all" do
+    start_supervised!(
+      {Platform.Cowboy.Server,
+       plug: Health,
+       port: 0,
+       name: :test_loop_routes,
+       ip: {127, 0, 0, 1},
+       max_connections: :infinity,
+       loop_routes: [{"/stream", Sse, :stream}, {"/plain", Plain, nil}]}
+    )
+
+    port = Platform.Cowboy.Server.port(:test_loop_routes)
+
+    for {path, expected} <- [{"/stream", "one"}, {"/plain", "plain"}, {"/healthz", "ok\n"}] do
+      response = http_get(port, path)
+      assert response =~ "200 OK"
+      assert response =~ expected
+    end
+
+    assert http_get(port, "/stream") =~ "two"
+    assert :ranch.get_max_connections(:test_loop_routes) == :infinity
+  end
+
+  test "idle timeout options reach the listener" do
+    start_supervised!(
+      {Platform.Cowboy.Server,
+       plug: Health,
+       port: 0,
+       name: :test_idle,
+       idle_timeout: 1_234,
+       reset_idle_timeout_on_send: true}
+    )
+
+    options = :ranch.get_protocol_options(:test_idle)
+
+    assert Map.take(options, [:idle_timeout, :reset_idle_timeout_on_send, :protocols]) == %{
+             idle_timeout: 1_234,
+             reset_idle_timeout_on_send: true,
+             protocols: [:http]
+           }
+
+    start_supervised!({Platform.Cowboy.Server, plug: Health, port: 0, name: :test_idle_default})
+    defaults = :ranch.get_protocol_options(:test_idle_default)
+
+    assert Map.take(defaults, [:idle_timeout, :reset_idle_timeout_on_send]) == %{
+             idle_timeout: 60_000,
+             reset_idle_timeout_on_send: false
+           }
+  end
+
+  test "rejects invalid protocols" do
+    for protocols <- [[], :http, [:http3], [:http, :http], ["http"], [:http | :http2]] do
+      assert_raise ArgumentError, fn ->
+        Platform.Cowboy.Server.child_spec(
+          name: :invalid_protocols,
+          plug: Health,
+          protocols: protocols
+        )
+      end
+    end
+  end
+
+  test "protocols set the Cowboy protocols and TLS ALPN order" do
+    {cert, key} = self_signed_pair!()
+
+    for {name, protocols, alpn} <- [
+          {:test_alpn_both, [:http2, :http], ["h2", "http/1.1"]},
+          {:test_alpn_h1, [:http], ["http/1.1"]},
+          {:test_alpn_h2, [:http2], ["h2"]}
+        ] do
+      start_supervised!(
+        {Platform.Cowboy.Server,
+         plug: Health,
+         port: 0,
+         name: name,
+         scheme: :https,
+         certfile: cert,
+         keyfile: key,
+         ip: {127, 0, 0, 1},
+         protocols: protocols},
+        id: name
+      )
+
+      assert :ranch.get_protocol_options(name).protocols == protocols
+      assert :ranch.get_transport_options(name).socket_opts[:alpn_preferred_protocols] == alpn
+    end
+  end
+
+  defp self_signed_pair! do
+    dir = Path.join(System.tmp_dir!(), "cowboy-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    on_exit(fn -> File.rm_rf!(dir) end)
+    cert = Path.join(dir, "cert.pem")
+    key = Path.join(dir, "key.pem")
+
+    {_, 0} =
+      System.cmd(
+        "openssl",
+        [
+          "req",
+          "-x509",
+          "-newkey",
+          "rsa:2048",
+          "-nodes",
+          "-keyout",
+          key,
+          "-out",
+          cert,
+          "-days",
+          "1",
+          "-subj",
+          "/CN=localhost"
+        ],
+        stderr_to_stdout: true
+      )
+
+    {cert, key}
+  end
+
+  test "rejects invalid loop routes and idle options" do
+    for options <- [
+          [loop_routes: :bad],
+          [loop_routes: [{"/a", Plain}]],
+          [loop_routes: [{:a, Plain, nil}]],
+          [loop_routes: [{"/a", "Plain", nil}]],
+          [idle_timeout: 0],
+          [idle_timeout: :infinity],
+          [reset_idle_timeout_on_send: :yes]
+        ] do
+      assert_raise ArgumentError, fn ->
+        Platform.Cowboy.Server.child_spec([name: :invalid_loop, plug: Health] ++ options)
+      end
+    end
   end
 
   test "rejects unknown listener options" do
@@ -321,7 +455,7 @@ defmodule Platform.Cowboy.ServerTest do
 
     :ok = :gen_tcp.send(socket, upgrade_request(""))
     assert {:ok, "HTTP/1.1 101" <> _} = :gen_tcp.recv(socket, 0, 2_000)
-    # Client frames use a zero mask; each fragment is below the 16-byte limit.
+
     :ok =
       :gen_tcp.send(
         socket,

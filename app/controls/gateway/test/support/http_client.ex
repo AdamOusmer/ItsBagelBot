@@ -41,6 +41,21 @@ defmodule ControlsGateway.TestSupport.HttpClient do
     end
   end
 
+  def alerts(client) do
+    ~r/event: alert\ndata: (.*)\n\n/
+    |> Regex.scan(client.body, capture: :all_but_first)
+    |> Enum.map(fn [json] -> Jason.decode!(json) end)
+  end
+
+  def ready(client) do
+    case Regex.run(~r/event: ready\ndata: (.*)\n\n/, client.body, capture: :all_but_first) do
+      [json] -> Jason.decode!(json)
+      nil -> nil
+    end
+  end
+
+  def await_alerts(client, count), do: await(client, &(length(alerts(&1)) >= count))
+
   def close(client), do: Mint.HTTP.close(client.conn)
 
   defp apply_frame({:status, _ref, status}, client), do: %{client | status: status}

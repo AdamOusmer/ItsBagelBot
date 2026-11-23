@@ -273,7 +273,15 @@ jobs:
                 add "twitch-ingress"
                 add "controls-gateway"
                 ;;
-              pkg/elixir/cowboy/*|pkg/elixir/startup/*|pkg/elixir/valkey/*|pkg/elixir/websocket/*|pkg/elixir/sift/*)
+              pkg/elixir/cache/*)
+                add "twitch-ingress"
+                add "controls-gateway"
+                ;;
+              pkg/elixir/cowboy/*|pkg/elixir/startup/*)
+                add "twitch-ingress"
+                add "controls-gateway"
+                ;;
+              pkg/elixir/valkey/*|pkg/elixir/websocket/*|pkg/elixir/sift/*)
                 add "twitch-ingress"
                 ;;
               pkg/elixir/*)

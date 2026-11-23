@@ -9,8 +9,11 @@ WORKDIR /src/app/controls/gateway
 RUN mix local.hex --force && mix local.rebar --force
 
 COPY app/controls/gateway/mix.exs app/controls/gateway/mix.lock ./
+COPY pkg/elixir/cowboy /src/pkg/elixir/cowboy
 COPY pkg/elixir/nats /src/pkg/elixir/nats
 COPY pkg/elixir/new_relic /src/pkg/elixir/new_relic
+COPY pkg/elixir/startup /src/pkg/elixir/startup
+COPY pkg/elixir/cache /src/pkg/elixir/cache
 RUN mix deps.get --only prod
 
 COPY app/controls/gateway/config config

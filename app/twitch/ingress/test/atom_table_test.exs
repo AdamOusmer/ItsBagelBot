@@ -12,7 +12,6 @@ defmodule Ingress.AtomTableTest do
   @meta %{shard_id: 0, msg_id: "m1", ts: "2026-06-10T00:00:00Z"}
 
   setup do
-    start_supervised!({Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor})
     start_supervised!({Ingress.BroadcasterCache, [loader: fn _id -> {:ok, :standard} end]})
     :ok
   end

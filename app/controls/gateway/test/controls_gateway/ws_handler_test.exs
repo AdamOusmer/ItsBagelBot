@@ -66,15 +66,7 @@ defmodule ControlsGateway.WsHandlerTest do
   test "closes a connection that floods text frames", %{http_port: port, private_key: priv} do
     {:ok, client} = connect_device(port, priv, @device_id)
 
-    # The server may close mid-burst, so a failed send ends the burst without failing the test.
-    client =
-      Enum.reduce_while(1..500, client, fn _, acc ->
-        try do
-          {:cont, WsClient.send_text(acc, ~s({"t":"evt"}))}
-        rescue
-          MatchError -> {:halt, acc}
-        end
-      end)
+    client = WsClient.send_texts(client, List.duplicate(~s({"t":"evt"}), 500))
 
     assert {:ok, frames, _client} = WsClient.recv_frames(client, 3_000)
     assert Enum.any?(frames, &match?({:close, 1008, _}, &1))
@@ -111,7 +103,7 @@ defmodule ControlsGateway.WsHandlerTest do
 
     # The other connection stays usable and the listener accepts a new one.
     client_b = ping_and_drain(client_b)
-    assert Process.whereis(ControlsGateway.HttpServer) |> Process.alive?()
+    assert is_integer(Platform.Cowboy.Server.port(ControlsGateway.HttpServer.listener()))
     assert Process.whereis(ControlsGateway.Supervisor) |> Process.alive?()
 
     {:ok, client_c} = connect_device(port, priv, @device_id)

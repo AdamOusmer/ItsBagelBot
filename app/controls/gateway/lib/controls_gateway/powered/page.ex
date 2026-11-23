@@ -2,9 +2,14 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.Powered.Page do
+  alias ControlsGateway.Http
+
   @path Path.expand("../../../priv/powered/page.html", __DIR__)
   @external_resource @path
-  @html File.read!(@path)
+  @client_path Path.expand("../../../priv/overlay/client.js", __DIR__)
+  @external_resource @client_path
+  @client File.read!(@client_path)
+  @html @path |> File.read!() |> String.replace("{{overlay_client}}", fn _ -> @client end)
 
   inline_hash = fn tag ->
     [[_, body]] = Regex.scan(~r/<#{tag}>(.*?)<\/#{tag}>/s, @html)
@@ -25,9 +30,9 @@ defmodule ControlsGateway.Powered.Page do
     "x-content-type-options" => "nosniff"
   }
 
-  def reply(req) do
+  def reply(conn) do
     headers = Map.put(@headers, "content-security-policy", policy())
-    :cowboy_req.reply(200, headers, @html, req)
+    Http.reply(conn, 200, headers, @html)
   end
 
   defp policy do

@@ -96,7 +96,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip, notifications]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip, notifications, controls-gateway]
   policyTypes:
     - Egress
   egress:

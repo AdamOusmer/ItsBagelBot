@@ -10,6 +10,7 @@ defmodule ControlsGateway.WsHandler do
   @behaviour :cowboy_websocket
 
   alias ControlsGateway.{Config, Drain, Metrics, Nats, Subjects}
+  alias Platform.Backoff
 
   @frame_limit 65_536
   @idle_timeout_ms 60_000
@@ -72,7 +73,7 @@ defmodule ControlsGateway.WsHandler do
     schedule_expiry(state.exp_ms)
     send(self(), :subscribe)
     Metrics.count("connect")
-    if Drain.track_connection() == :draining, do: send(self(), :shutdown_close)
+    if Drain.track_connection(:socket) == :draining, do: send(self(), :shutdown_close)
 
     {:ok, state, :hibernate}
   end
@@ -174,7 +175,12 @@ defmodule ControlsGateway.WsHandler do
   end
 
   defp schedule_resubscribe do
-    delay = @resubscribe_retry_ms + :rand.uniform(@resubscribe_jitter_ms)
+    delay =
+      Backoff.between_ms(
+        @resubscribe_retry_ms + 1,
+        @resubscribe_retry_ms + @resubscribe_jitter_ms
+      )
+
     Process.send_after(self(), :subscribe, delay)
   end
 

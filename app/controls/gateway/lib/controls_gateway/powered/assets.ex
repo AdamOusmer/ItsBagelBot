@@ -2,6 +2,8 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.Powered.Assets do
+  alias ControlsGateway.Http
+
   @dir Path.expand("../../../priv/powered/assets", __DIR__)
   @types %{".webp" => "image/webp", ".woff2" => "font/woff2"}
   @listing Path.wildcard(Path.join(@dir, "*"))
@@ -20,13 +22,13 @@ defmodule ControlsGateway.Powered.Assets do
 
   def __mix_recompile__?, do: Path.wildcard(Path.join(@dir, "*")) != @listing
 
-  def reply(req, name) do
+  def reply(conn, name) do
     case Map.fetch(@files, name) do
       {:ok, {type, body}} ->
-        :cowboy_req.reply(200, Map.put(@headers, "content-type", type), body, req)
+        Http.reply(conn, 200, Map.put(@headers, "content-type", type), body)
 
       :error ->
-        :cowboy_req.reply(404, %{"cache-control" => "no-store"}, req)
+        Http.reply(conn, 404, %{"cache-control" => "no-store"})
     end
   end
 end

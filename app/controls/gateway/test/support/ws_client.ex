@@ -70,6 +70,20 @@ defmodule ControlsGateway.TestSupport.WsClient do
     %{client | conn: conn, websocket: websocket}
   end
 
+  @spec send_texts(struct(), [String.t()]) :: struct()
+  def send_texts(client, texts) do
+    {websocket, data} =
+      Enum.reduce(texts, {client.websocket, []}, fn text, {websocket, data} ->
+        {:ok, websocket, frame} = Mint.WebSocket.encode(websocket, {:text, text})
+        {websocket, [data | frame]}
+      end)
+
+    {:ok, conn} =
+      Mint.WebSocket.stream_request_body(client.conn, client.ref, IO.iodata_to_binary(data))
+
+    %{client | conn: conn, websocket: websocket}
+  end
+
   @spec recv_frames(struct(), non_neg_integer()) ::
           {:ok, [term()], struct()} | {:error, term(), struct()}
   def recv_frames(client, timeout \\ 2_000) do

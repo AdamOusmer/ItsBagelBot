@@ -33,6 +33,16 @@ defmodule ControlsGateway.RuntimeConfigTest do
     assert_raise RuntimeError, ~r/production requires NATS_JWT/, fn -> read(:prod) end
   end
 
+  test "New Relic runs with the shared policy and harvests nothing without a license" do
+    name = "NEW_RELIC_LICENSE_KEY"
+    saved = System.get_env(name)
+    System.delete_env(name)
+    on_exit(fn -> if saved, do: System.put_env(name, saved) end)
+
+    assert %{app_name: "controls-gateway", harvest_enabled: false, license_key: nil} =
+             read(:dev)[:new_relic_agent] |> Map.new()
+  end
+
   test "half-set NATS credentials are refused in every environment" do
     System.put_env("NATS_JWT", "jwt-without-seed")
     assert_raise RuntimeError, ~r/must both be set/, fn -> read(:test) end

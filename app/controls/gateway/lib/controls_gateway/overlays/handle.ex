@@ -3,7 +3,8 @@
 
 defmodule ControlsGateway.Overlays.Handle do
   alias ControlsGateway.Overlays.Tiers
-  alias ControlsGateway.Tts.Session
+  alias ControlsGateway.SignedCookie
+  alias Platform.Nats.Ack
 
   def sign(user_id, ack), do: encode(ack) <> "." <> encode(mac(user_id, ack))
 
@@ -12,7 +13,7 @@ defmodule ControlsGateway.Overlays.Handle do
          {:ok, ack} <- Base.url_decode64(ack_part, padding: false),
          {:ok, mac} <- Base.url_decode64(mac_part, padding: false),
          true <- byte_size(mac) == 32 and :crypto.hash_equals(mac, mac(user_id, ack)),
-         true <- Tiers.ack_subject?(ack) do
+         true <- Ack.subject?(ack, Tiers.consumers()) do
       {:ok, ack}
     else
       _ -> :error
@@ -21,7 +22,7 @@ defmodule ControlsGateway.Overlays.Handle do
 
   def verify(_user_id, _handle), do: :error
 
-  defp mac(user_id, ack), do: :crypto.mac(:hmac, :sha256, Session.key(), "#{user_id}\n#{ack}")
+  defp mac(user_id, ack), do: SignedCookie.mac("#{user_id}\n#{ack}")
 
   defp encode(bytes), do: Base.url_encode64(bytes, padding: false)
 end

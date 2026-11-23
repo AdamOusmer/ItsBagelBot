@@ -2,58 +2,54 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.Overlay.Http do
-  @behaviour :cowboy_loop
   require Logger
 
-  alias ControlsGateway.{Drain, OverlayRequest}
-  alias ControlsGateway.Overlay.{Events, Nats, Session}
+  alias ControlsGateway.{Http, OverlayRequest}
+  alias ControlsGateway.Overlay.{Nats, Session}
+  alias ControlsGateway.Overlays.Acks
   alias ControlsGateway.Powered.Page
-  alias ControlsGateway.Tts.Throttle
 
   @headers %{
     "cache-control" => "no-store",
     "referrer-policy" => "no-referrer",
     "x-content-type-options" => "nosniff"
   }
-  @drain_retry_after "5"
+  @labels %{
+    session: {:warning, "Overlay session rejected", "Overlay session resolution unavailable"},
+    config: {:debug, "Powered overlay config rejected", "Powered overlay config unavailable"}
+  }
 
-  @impl true
-  def init(req, route), do: dispatch(:cowboy_req.method(req), route, req)
+  def handle(%{method: "GET"} = conn, :page), do: Page.reply(conn)
 
-  @impl true
-  defdelegate info(message, req, state), to: Events
+  def handle(%{method: "POST"} = conn, route) when route in [:session, :config],
+    do: exchange(conn, route)
 
-  defp dispatch("GET", :page, req), do: {:ok, Page.reply(req), nil}
-  defp dispatch("POST", :session, req), do: throttled(req, &exchange/2)
-  defp dispatch("POST", :config, req), do: throttled(req, &legacy_config/2)
-  defp dispatch("GET", :doc, req), do: authorized(:doc, req)
+  def handle(%{method: "GET"} = conn, :doc), do: authorized(conn, :doc)
 
-  defp dispatch("GET", :events, req) do
-    case Drain.track_connection() do
-      :ok -> authorized(:events, req)
-      :draining -> reply(req, 503, Map.put(@headers, "retry-after", @drain_retry_after))
-    end
-  end
+  def handle(%{method: "POST"} = conn, route) when route in [:ack, :progress],
+    do: authorized(conn, route)
 
-  defp dispatch(_method, route, req),
-    do: reply(req, 405, Map.put(@headers, "allow", allowed(route)))
+  def handle(conn, route),
+    do: Http.reply(conn, 405, Map.put(@headers, "allow", allowed(route)))
 
-  defp allowed(route) when route in [:session, :config], do: "POST"
+  defp allowed(route) when route in [:session, :config, :ack, :progress], do: "POST"
   defp allowed(_route), do: "GET"
 
-  defp authorized(route, req) do
-    case Session.read(req) do
-      {:ok, session} -> serve(route, req, session)
-      :error -> reply(req, 401)
+  defp authorized(conn, route) do
+    case Session.read(conn) do
+      {:ok, session} -> serve(route, conn, session)
+      :error -> Http.reply(conn, 401, @headers)
     end
   end
 
-  defp serve(:events, req, session), do: Events.open(req, session, @headers)
+  defp serve(:doc, conn, session), do: serve_doc(conn, session)
+  defp serve(:ack, conn, session), do: Acks.ack(conn, session, @headers)
+  defp serve(:progress, conn, session), do: Acks.progress(conn, session, @headers)
 
-  defp serve(:doc, req, session) do
+  defp serve_doc(conn, session) do
     case Nats.check(session) do
       {:ok, overlay} ->
-        json(req, 200, %{
+        Http.json(conn, 200, @headers, %{
           document: overlay.document,
           revision: overlay.revision,
           premium: overlay.premium
@@ -61,73 +57,50 @@ defmodule ControlsGateway.Overlay.Http do
 
       {:denied, reason} ->
         Logger.info("Overlay document refused", overlay_id: session.overlay_id, reason: reason)
-        json(req, 403, %{reason: reason})
+        Http.json(conn, 403, @headers, %{reason: reason})
 
       :unavailable ->
-        reply(req, 503)
+        Http.reply(conn, 503, @headers)
     end
   end
 
-  defp throttled(req, handler) do
-    case Throttle.reserve(OverlayRequest.client_ip(req)) do
-      {:ok, reservation} -> handler.(req, reservation)
-      :limited -> reply(req, 429, Map.put(@headers, "retry-after", "60"))
-    end
-  end
-
-  defp legacy_config(req, reservation) do
-    {hashed, req} = OverlayRequest.token_hash(req)
+  defp exchange(conn, kind) do
+    {hashed, conn} = OverlayRequest.token_hash(conn)
+    {rejected_level, rejected_message, unavailable_message} = Map.fetch!(@labels, kind)
 
     case with(
            {:ok, hash} <- hashed,
            {:ok, overlay} <- Nats.resolve(hash),
-           do: legacy_body(overlay)
+           do: grant(kind, overlay, hash)
          ) do
-      {:ok, body} ->
-        Throttle.refund(reservation)
-        json(req, 200, body)
+      {:ok, result} ->
+        granted(conn, kind, result)
 
       {:not_found, reason} ->
-        Logger.debug("Powered overlay config rejected", reason: reason)
-        reply(req, 404)
+        Logger.log(rejected_level, rejected_message, reason: reason)
+        Http.reply(conn, 404, @headers)
 
       {:unavailable, reason} ->
-        Throttle.refund(reservation)
-        Logger.warning("Powered overlay config unavailable", reason: reason)
-        reply(req, 503)
+        Logger.warning(unavailable_message, reason: reason)
+        Http.reply(conn, 503, @headers)
     end
   end
 
-  defp legacy_body(%{allowed: true, document: %{"config" => %{} = config}, premium: premium}),
-    do: {:ok, %{config: config, premium: premium}}
+  defp grant(:session, overlay, hash), do: {:ok, {overlay, hash}}
 
-  defp legacy_body(_overlay), do: {:not_found, :not_powered}
+  defp grant(
+         :config,
+         %{allowed: true, document: %{"config" => %{} = config}, premium: premium},
+         _hash
+       ),
+       do: {:ok, %{config: config, premium: premium}}
 
-  defp exchange(req, reservation) do
-    {hashed, req} = OverlayRequest.token_hash(req)
+  defp grant(:config, _overlay, _hash), do: {:not_found, :not_powered}
 
-    case with({:ok, hash} <- hashed, {:ok, overlay} <- Nats.resolve(hash), do: {overlay, hash}) do
-      {overlay, hash} when is_map(overlay) ->
-        Throttle.refund(reservation)
-        Logger.info("Overlay session opened", overlay_id: overlay.overlay_id)
-        req |> Session.put(overlay, hash) |> reply(204)
-
-      {:not_found, reason} ->
-        Logger.warning("Overlay session rejected", reason: reason)
-        reply(req, 404)
-
-      {:unavailable, reason} ->
-        Throttle.refund(reservation)
-        Logger.warning("Overlay session resolution unavailable", reason: reason)
-        reply(req, 503)
-    end
+  defp granted(conn, :session, {overlay, hash}) do
+    Logger.info("Overlay session opened", overlay_id: overlay.overlay_id)
+    conn |> Session.put(overlay, hash) |> Http.reply(204, @headers)
   end
 
-  defp json(req, status, body) do
-    headers = Map.put(@headers, "content-type", "application/json")
-    {:ok, :cowboy_req.reply(status, headers, Jason.encode!(body), req), nil}
-  end
-
-  defp reply(req, status, headers \\ @headers),
-    do: {:ok, :cowboy_req.reply(status, headers, req), nil}
+  defp granted(conn, :config, body), do: Http.json(conn, 200, @headers, body)
 end

@@ -2,7 +2,8 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.Overlays.Pending do
-  alias ControlsGateway.Overlays.Ack
+  alias ControlsGateway.Metrics
+  alias Platform.Nats.Ack
 
   @max_age_ms 300_000
   @sweep_ms 15_000
@@ -18,10 +19,21 @@ defmodule ControlsGateway.Overlays.Pending do
       {:track, ack} ->
         loop(ref, acks |> Map.put(ack, now()) |> prune())
 
-      {:DOWN, ^ref, :process, _pid, _reason} ->
-        Enum.each(Map.keys(acks), &Ack.nak/1)
+      {:DOWN, ^ref, :process, _pid, reason} ->
+        count_client_close(reason)
+        Enum.each(Map.keys(acks), &nak/1)
     after
       @sweep_ms -> loop(ref, prune(acks))
+    end
+  end
+
+  defp count_client_close(:normal), do: :ok
+  defp count_client_close(_reason), do: Metrics.count("Stream/Closed/client")
+
+  defp nak(ack) do
+    case Ack.nak(:jetstream, ack) do
+      :ok -> Metrics.count("Ack/NakOnClose")
+      _failed -> Metrics.count("Ack/Failed")
     end
   end
 

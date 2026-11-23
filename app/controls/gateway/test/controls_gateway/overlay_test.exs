@@ -4,7 +4,14 @@
 defmodule ControlsGateway.OverlayTest do
   use ControlsGateway.IntegrationCase, async: false
 
-  alias ControlsGateway.TestSupport.HttpClient
+  import ControlsGateway.TestSupport.Await
+
+  alias ControlsGateway.Overlays
+  alias ControlsGateway.Overlays.Handle
+  alias ControlsGateway.TestSupport.{HttpClient, Streams}
+
+  @moduletag :tmp_dir
+  @moduletag jetstream: true
 
   @resolve "rpc.internal.projector.overlays.resolve"
   @token Base.url_encode64(:binary.copy(<<61>>, 32), padding: false)
@@ -16,6 +23,8 @@ defmodule ControlsGateway.OverlayTest do
     "template" => "powered",
     "config" => %{"every_minutes" => 15, "show_seconds" => 8}
   }
+  @ack "$JS.ACK.OVERLAYS_STANDARD.overlays-standard.1.1.1.1.0"
+  @env_keys [:overlay_cookie_key, :overlay_check_ms, :overlay_recheck_ms]
   @overlay %{
     user_id: 7,
     overlay_id: 11,
@@ -29,15 +38,14 @@ defmodule ControlsGateway.OverlayTest do
   }
 
   setup tags do
-    key = Application.get_env(:controls_gateway, :overlay_cookie_key)
-    checks = Application.get_env(:controls_gateway, :overlay_check_ms)
+    previous = Map.new(@env_keys, &{&1, Application.fetch_env(:controls_gateway, &1)})
     Application.put_env(:controls_gateway, :overlay_cookie_key, :crypto.strong_rand_bytes(32))
     Application.put_env(:controls_gateway, :overlay_check_ms, 600_000)
+    Application.put_env(:controls_gateway, :overlay_recheck_ms, 100)
+    on_exit(fn -> Enum.each(previous, &restore_env/1) end)
 
-    on_exit(fn ->
-      Application.put_env(:controls_gateway, :overlay_cookie_key, key)
-      Application.put_env(:controls_gateway, :overlay_check_ms, checks)
-    end)
+    Streams.provision(30_000_000_000)
+    Enum.each(Overlays.children(), &start_supervised!/1)
 
     overlay = Map.merge(@overlay, tags[:overlay] || %{})
     agent = start_supervised!({Agent, fn -> overlay end})
@@ -63,8 +71,10 @@ defmodule ControlsGateway.OverlayTest do
     for {method, path, allow} <- [
           {"POST", "/o", "GET"},
           {"GET", "/o/session", "POST"},
+          {"GET", "/o/ack", "POST"},
+          {"GET", "/o/progress", "POST"},
           {"POST", "/o/doc", "GET"},
-          {"POST", "/o/events", "GET"}
+          {"POST", "/o/events", "GET, HEAD"}
         ] do
       assert %{status: 405, headers: %{"allow" => ^allow}} =
                HttpClient.request(port, method, path)
@@ -131,43 +141,267 @@ defmodule ControlsGateway.OverlayTest do
 
   test "a rotated link or generation is refused as not found", %{http_port: port, agent: agent} do
     headers = [cookie(port)]
-    Agent.update(agent, &Map.put(&1, :generation, 6))
+    update_overlay(agent, &Map.put(&1, :generation, 6))
     assert doc_reason(port, headers) == "not_found"
 
-    Agent.update(agent, &Map.put(&1, :gone, true))
+    update_overlay(agent, &Map.put(&1, :gone, true))
     assert doc_reason(port, headers) == "not_found"
   end
 
   test "events open for a valid session and announce revisions", %{http_port: port, agent: agent} do
     live = events(port, [cookie(port)])
-    Agent.update(agent, &Map.put(&1, :revision, 4))
+    update_overlay(agent, &Map.put(&1, :revision, 4))
     check_now()
     data = HttpClient.await(live, &String.contains?(&1.body, "event: revision\ndata: 4\n\n"))
     HttpClient.close(data)
   end
 
-  test "events play the badge on a trigger for its own template only", %{http_port: port} do
+  test "events announce time, key and revision once subscribed", %{http_port: port} do
     live = events(port, [cookie(port)])
 
-    offer = fn kind ->
-      Jason.encode!(%{ack: "$JS.ACK.test", kind: kind, data: %{}, delivered: 1})
-    end
+    key =
+      :crypto.hash(:sha256, "overlay:7:11")
+      |> binary_part(0, 9)
+      |> Base.url_encode64(padding: false)
+
+    assert %{"now" => now, "key" => ^key, "revision" => 3} = HttpClient.ready(live)
+    assert abs(now - System.os_time(:millisecond)) < 5_000
+    HttpClient.close(live)
+  end
+
+  test "a stream opened without v=2 speaks the legacy protocol", %{http_port: port} do
+    live =
+      port
+      |> HttpClient.open("GET", "/o/events", headers: [cookie(port)])
+      |> HttpClient.await(&String.contains?(&1.body, ": ping\n\n"))
+
+    assert {:ok, %{body: ~s({"accepted":true})}} = offer("powered", %{})
+    live = HttpClient.await(live, &String.contains?(&1.body, "event: play\ndata: {}\n\n"))
+    refute live.body =~ "event: ready"
+    refute live.body =~ "event: alert"
+    HttpClient.close(live)
+  end
+
+  test "events accept offers for their own template only", %{http_port: port} do
+    live = events(port, [cookie(port)])
 
     assert {:error, :timeout} =
-             Gnat.request(:gnat_jetstream, "overlays.session.7", offer.("tts"),
-               receive_timeout: 300
-             )
+             offer("tts", %{"event_id" => "other"}, %{}, receive_timeout: 300)
+
+    assert {:ok, %{body: ~s({"accepted":true})}} = offer("powered", %{"event_id" => "own"})
+    HttpClient.close(HttpClient.await_alerts(live, 1))
+  end
+
+  test "an alert frame carries its id and the fields the page reads", %{http_port: port} do
+    live = events(port, [cookie(port)])
+    expires_at = "2026-11-23T12:00:00Z"
 
     assert {:ok, %{body: ~s({"accepted":true})}} =
-             Gnat.request(:gnat_jetstream, "overlays.session.7", offer.("powered"))
+             offer("powered", %{"event_id" => "evt-1", "x" => 1}, %{expires_at: expires_at})
 
-    played = HttpClient.await(live, &String.contains?(&1.body, "event: play\ndata: {}\n\n"))
-    HttpClient.close(played)
+    live = HttpClient.await_alerts(live, 1)
+    assert live.body =~ "id: evt-1\nevent: alert\ndata: {"
+
+    assert [
+             %{
+               "event_id" => "evt-1",
+               "kind" => "powered",
+               "expires_at" => ^expires_at,
+               "data" => %{"x" => 1},
+               "handle" => handle
+             }
+           ] = HttpClient.alerts(live)
+
+    assert {:ok, @ack} = Handle.verify(7, handle)
+    HttpClient.close(live)
+  end
+
+  for {name, from_data, expected} <- [
+        {"the alert data", "2026-11-23T10:00:00Z", "2026-11-23T10:00:00Z"},
+        {"the offer", nil, "2026-11-23T11:00:00Z"}
+      ] do
+    test "expires_at comes from #{name}", %{http_port: port} do
+      live = events(port, [cookie(port)])
+      data = alert_data("exp", unquote(from_data))
+      assert {:ok, _reply} = offer("powered", data, %{expires_at: "2026-11-23T11:00:00Z"})
+      live = HttpClient.await_alerts(live, 1)
+      assert [%{"expires_at" => unquote(expected)}] = HttpClient.alerts(live)
+      HttpClient.close(live)
+    end
+  end
+
+  test "an alert is redelivered when its stream ends before the ack", %{http_port: port} do
+    cookie = cookie(port)
+    first = events(port, [cookie])
+    publish_alert("replayed")
+    HttpClient.close(HttpClient.await_alerts(first, 1))
+
+    second = port |> reopen(cookie) |> HttpClient.await_alerts(1)
+
+    assert [%{"event_id" => "replayed", "handle" => handle, "expires_at" => expires_at}] =
+             HttpClient.alerts(second)
+
+    assert {:ok, expires, _offset} = DateTime.from_iso8601(expires_at)
+    assert DateTime.diff(expires, DateTime.utc_now()) in 240..300
+    assert %{status: 204} = post(port, "/o/ack", %{handle: handle}, [cookie])
+    eventually(fn -> Streams.stored(:standard) == 0 end)
+    HttpClient.close(second)
+  end
+
+  test "an alert written to a stream stays queued until the page acks it", %{http_port: port} do
+    live = events(port, [cookie(port)])
+    publish_alert("unacked")
+    live = HttpClient.await_alerts(live, 1)
+    assert Streams.stored(:standard) == 1
+    HttpClient.close(live)
+  end
+
+  test "an offer nobody accepts is requeued with growing delays", _context do
+    {:ok, _} = Gnat.sub(:gnat_jetstream, self(), "overlays.session.7")
+    publish_alert("ladder")
+
+    stamps =
+      for delivered <- 1..3 do
+        assert_receive {:msg, %{reply_to: reply, body: body}}, 5_000
+        assert %{"delivered" => ^delivered} = Jason.decode!(body)
+        :ok = Gnat.pub(:gnat_jetstream, reply, ~s({"accepted":false}))
+        System.monotonic_time(:millisecond)
+      end
+
+    gaps = stamps |> Enum.chunk_every(2, 1, :discard) |> Enum.map(fn [from, to] -> to - from end)
+
+    for {gap, minimum_ms} <- Enum.zip(gaps, [250, 1_000]) do
+      assert gap >= minimum_ms - 20
+    end
+  end
+
+  test "ack and progress need the session and handles signed for its user", %{http_port: port} do
+    cookie = cookie(port)
+    good = Handle.sign(7, @ack)
+    foreign = Handle.sign(42, @ack)
+
+    cases = [
+      {"/o/ack", [], %{handle: good}, 401},
+      {"/o/ack", [cookie], %{handle: good}, 204},
+      {"/o/ack", [cookie], %{handle: foreign}, 404},
+      {"/o/ack", [cookie], %{handle: "nope"}, 404},
+      {"/o/ack", [cookie], %{handle: good, reason: "played"}, 204},
+      {"/o/ack", [cookie], %{handle: good, reason: "late"}, 404},
+      {"/o/progress", [], %{handles: [good]}, 401},
+      {"/o/progress", [cookie], %{handles: [good]}, 204},
+      {"/o/progress", [cookie], %{handles: [good, foreign]}, 404},
+      {"/o/progress", [cookie], %{handles: List.duplicate(good, 33)}, 404}
+    ]
+
+    for {path, headers, body, status} <- cases do
+      assert %{status: ^status} = post(port, path, body, headers)
+    end
+  end
+
+  test "ack reasons are counted", %{http_port: port} do
+    cookie = cookie(port)
+    handle = Handle.sign(7, @ack)
+
+    reasons = [
+      {"played", ["Ack/Ack"]},
+      {"duplicate", ["Ack/Ack", "Page/DuplicateSkipped"]},
+      {"expired", ["Ack/Ack", "Page/Expired"]},
+      {"dropped", ["Ack/Ack", "Page/Dropped"]}
+    ]
+
+    for {reason, metrics} <- reasons do
+      expected = Map.new(metrics, &{&1, counter(&1) + 1})
+      assert %{status: 204} = post(port, "/o/ack", %{handle: handle, reason: reason}, [cookie])
+      assert Map.new(metrics, &{&1, counter(&1)}) == expected
+    end
+  end
+
+  test "HEAD mirrors GET for every stream outcome", %{http_port: port, agent: agent} do
+    cookie = cookie(port)
+
+    cases = [
+      {%{}, [cookie], 200, nil},
+      {%{}, [], 401, nil},
+      {%{gone: true}, [cookie], 204, nil},
+      {%{down: true}, [cookie], 503, "15"},
+      {:planes, [cookie], 503, "1"}
+    ]
+
+    for {change, headers, status, retry_after} <- cases do
+      prepare(change, agent)
+      response = HttpClient.request(port, "HEAD", "/o/events", headers: headers)
+      assert {response.status, response.headers["retry-after"]} == {status, retry_after}
+    end
+  end
+
+  test "HEAD during drain is a 503 with retry-after 5", %{http_port: port} do
+    on_exit(&ControlsGateway.Drain.reset!/0)
+    assert ControlsGateway.Drain.run() == :ok
+    response = HttpClient.request(port, "HEAD", "/o/events", headers: [cookie(port)])
+    assert {response.status, response.headers["retry-after"]} == {503, "5"}
+  end
+
+  for plane <- [:gnat_jetstream, :gnat_rpc] do
+    test "opening a stream while #{plane} is down is a 503 with a one second retry", %{
+      http_port: port
+    } do
+      cookie = cookie(port)
+      stop_supervised!(unquote(plane))
+
+      assert %{status: 503, headers: %{"retry-after" => "1"}, body: ""} =
+               HttpClient.request(port, "GET", "/o/events", headers: [cookie])
+    end
+  end
+
+  test "a stream ends when its rpc connection drops", %{http_port: port} do
+    put_env(:stream_force_close_ms, 300)
+    live = events(port, [cookie(port)])
+    before = counter("Stream/Closed/rpc_down")
+    Process.exit(Platform.Nats.connection_pid(:gnat_rpc), :kill)
+    assert HttpClient.await(live, & &1.done).done
+    assert counter("Stream/Closed/rpc_down") > before
+  end
+
+  test "an unavailable check is retried until the link answers", %{http_port: port, agent: agent} do
+    live = events(port, [cookie(port)])
+    update_overlay(agent, &Map.put(&1, :down, true))
+    check_now()
+    live = HttpClient.drain(live, 300)
+    refute live.done
+    update_overlay(agent, &(&1 |> Map.delete(:down) |> Map.put(:revision, 4)))
+    live = HttpClient.await(live, &String.contains?(&1.body, "event: revision\ndata: 4\n\n"))
+    HttpClient.close(live)
+  end
+
+  test "a stream survives an unavailable link check", %{http_port: port, agent: agent} do
+    live = events(port, [cookie(port)])
+    update_overlay(agent, &Map.put(&1, :down, true))
+    check_now()
+    refute HttpClient.drain(live, 400).done
+    HttpClient.close(live)
+  end
+
+  test "a stream ends when its NATS connection drops and the next one gets the offer", %{
+    http_port: port
+  } do
+    cookie = cookie(port)
+    live = events(port, [cookie])
+    before = counter("Stream/Closed/nats_down")
+    Process.exit(Platform.Nats.connection_pid(:gnat_jetstream), :kill)
+    assert HttpClient.await(live, & &1.done).done
+    assert counter("Stream/Closed/nats_down") > before
+
+    next = reopen(port, cookie)
+
+    assert {:ok, %{body: ~s({"accepted":true})}} =
+             offer("powered", %{"event_id" => "after-reconnect"})
+
+    HttpClient.close(HttpClient.await_alerts(next, 1))
   end
 
   test "events close when the generation changes", %{http_port: port, agent: agent} do
     live = events(port, [cookie(port)])
-    Agent.update(agent, &Map.put(&1, :generation, 6))
+    update_overlay(agent, &Map.put(&1, :generation, 6))
     check_now()
     closed = HttpClient.await(live, & &1.done)
     assert closed.done
@@ -176,7 +410,7 @@ defmodule ControlsGateway.OverlayTest do
 
   test "events close when the overlay stops being allowed", %{http_port: port, agent: agent} do
     live = events(port, [cookie(port)])
-    Agent.update(agent, &Map.merge(&1, %{kind: "custom", allowed: false, document: nil}))
+    update_overlay(agent, &Map.merge(&1, %{kind: "custom", allowed: false, document: nil}))
     check_now()
     closed = HttpClient.await(live, & &1.done)
     assert closed.done
@@ -205,6 +439,65 @@ defmodule ControlsGateway.OverlayTest do
     end
   end
 
+  defp update_overlay(agent, fun) do
+    Agent.update(agent, fun)
+    Platform.Cache.clear(:overlay_resolve)
+  end
+
+  defp prepare(:planes, _agent), do: stop_supervised!(:gnat_jetstream)
+  defp prepare(change, agent), do: update_overlay(agent, &Map.merge(&1, change))
+
+  defp restore_env({key, {:ok, value}}), do: Application.put_env(:controls_gateway, key, value)
+  defp restore_env({key, :error}), do: Application.delete_env(:controls_gateway, key)
+
+  defp alert_data(id, nil), do: %{"event_id" => id}
+  defp alert_data(id, expires_at), do: %{"event_id" => id, "expires_at" => expires_at}
+
+  defp offer(kind, data, extra \\ %{}, opts \\ []) do
+    body = Map.merge(%{ack: @ack, kind: kind, data: data, delivered: 1}, extra)
+    Gnat.request(:gnat_jetstream, "overlays.session.7", Jason.encode!(body), opts)
+  end
+
+  defp publish_alert(event_id) do
+    {:ok, %{body: reply}} =
+      Gnat.request(
+        :gnat_jetstream,
+        "overlays.standard.powered.7",
+        Jason.encode!(%{event_id: event_id}),
+        headers: [{"Nats-Msg-Id", event_id}]
+      )
+
+    %{"seq" => seq} = Jason.decode!(reply)
+    seq
+  end
+
+  defp post(port, path, body, headers) do
+    HttpClient.request(port, "POST", path,
+      headers: [{"content-type", "application/json"} | headers],
+      body: Jason.encode!(body)
+    )
+  end
+
+  defp reopen(port, cookie, attempts \\ 40) do
+    client =
+      port
+      |> HttpClient.open("GET", "/o/events?v=2", headers: [cookie])
+      |> HttpClient.await(&(String.contains?(&1.body, ": ping\n\n") or &1.done))
+
+    cond do
+      not client.done ->
+        client
+
+      attempts == 0 ->
+        flunk("events did not reopen")
+
+      true ->
+        HttpClient.close(client)
+        Process.sleep(100)
+        reopen(port, cookie, attempts - 1)
+    end
+  end
+
   defp check_now do
     pids = Registry.select(ControlsGateway.Connections, [{{:_, :"$1", :_}, [], [:"$1"]}])
     Enum.each(pids, &send(&1, :check))
@@ -220,12 +513,14 @@ defmodule ControlsGateway.OverlayTest do
   defp events(port, headers) do
     response =
       port
-      |> HttpClient.open("GET", "/o/events", headers: headers)
+      |> HttpClient.open("GET", "/o/events?v=2", headers: headers)
       |> HttpClient.await(&String.contains?(&1.body, ": ping\n\n"))
 
     assert %{status: 200, headers: %{"content-type" => "text/event-stream"}, done: false} =
              response
 
+    assert [_, retry_ms] = Regex.run(~r/\Aretry: (\d+)\n: ping\n\n/, response.body)
+    assert String.to_integer(retry_ms) in 1_000..3_000
     response
   end
 
@@ -253,7 +548,8 @@ defmodule ControlsGateway.OverlayTest do
       %{
         "overlay_id" => 11,
         "generation" => 5,
-        "token_hash" => :crypto.hash(:sha256, @token) |> Base.encode16(case: :lower)
+        "token_hash" => :crypto.hash(:sha256, @token) |> Base.encode16(case: :lower),
+        "user_id" => 7
       },
       overrides
     )
@@ -277,11 +573,15 @@ defmodule ControlsGateway.OverlayTest do
 
   defp response(%{"token_hash" => hash}, overlay) do
     cond do
-      hash == sha(@broken) -> %{error: "projection down", code: "unavailable"}
-      hash == sha(@token) and not Map.has_key?(overlay, :gone) -> reject_nil(overlay)
+      unavailable?(hash, overlay) -> %{error: "projection down", code: "unavailable"}
+      known?(hash, overlay) -> reject_nil(overlay)
       true -> %{error: "overlay not found", code: "not_found"}
     end
   end
+
+  defp unavailable?(hash, overlay), do: hash == sha(@broken) or Map.has_key?(overlay, :down)
+  defp known?(hash, overlay), do: hash == sha(@token) and live?(overlay)
+  defp live?(overlay), do: not Map.has_key?(overlay, :gone)
 
   defp reject_nil(overlay), do: Map.reject(overlay, fn {_key, value} -> is_nil(value) end)
 
