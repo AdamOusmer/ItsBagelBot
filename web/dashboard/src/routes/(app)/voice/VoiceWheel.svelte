@@ -117,7 +117,7 @@
     cursor: pointer;
   }
   .name { grid-column: 2; font-size: 21px; font-weight: 500; letter-spacing: -0.01em; }
-  .center { color: var(--bb-text); }
+  .center { color: var(--bb-white); }
   .center .name { font-size: 25px; font-weight: 600; }
   .dot {
     grid-column: 1;

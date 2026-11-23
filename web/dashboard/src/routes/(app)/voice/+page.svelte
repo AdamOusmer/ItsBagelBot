@@ -239,7 +239,7 @@
   .status-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 48%); align-items: center; gap: var(--bb-space-3); }
   .status-tag { justify-self: end; min-inline-size: 0; max-inline-size: 100%; }
   .status-copy { block-size: 2.75rem; min-inline-size: 0; align-content: center; }
-  .split { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: var(--bb-space-10, 48px); align-items: start; }
+  .split { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: var(--bb-space-7); align-items: start; }
   .split-side {
     position: sticky;
     top: var(--side-top);
