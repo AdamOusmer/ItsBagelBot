@@ -253,12 +253,18 @@ var createOverlayClient = (function () {
       if (source === this.pending) {
         source.close();
         this.pending = null;
-        this.retryLater(true);
+        this.retryLater(this.source !== null);
         return;
       }
       if (source !== this.source) return;
+      if (this.pending) return this.adoptPending();
       this.dropStreams();
       this.retryLater();
+    }
+
+    adoptPending() {
+      this.source.close();
+      this.source = null;
     }
 
     beginHandoff(message) {
@@ -288,7 +294,7 @@ var createOverlayClient = (function () {
       const previous = this.source;
       this.source = source;
       this.pending = null;
-      previous.close();
+      if (previous) previous.close();
     }
 
     receive(alert) {

@@ -339,16 +339,45 @@ test('handoff closes the old stream only after the new one is ready', async () =
   }
 });
 
-test('an old stream failing before the new one is ready falls back to a normal reconnect', async () => {
+test('an old stream failing before the new one is ready hands over to the pending stream', async () => {
+  const cases = [
+    { name: 'pending ready', next: (h) => h.sources[1].emit('ready', {}) },
+    { name: 'pending alert first', next: (h) => h.sources[1].emit('alert', frame('a')) }
+  ];
+  for (const c of cases) {
+    const h = await open();
+    h.sources[0].emit('reconnect', { after_ms: 0 });
+    h.timers.advance(0);
+    h.sources[0].fail();
+    c.next(h);
+    h.sources[1].emit('alert', frame('b'));
+    await flush();
+    assert.deepEqual(
+      {
+        name: c.name,
+        sources: h.sources.length,
+        oldClosed: h.sources[0].closed,
+        newClosed: h.sources[1].closed,
+        heads: h.requests.filter((r) => r.method === 'HEAD').length,
+        timers: h.timers.delays.length
+      },
+      { name: c.name, sources: 2, oldClosed: true, newClosed: false, heads: 1, timers: 2 }
+    );
+  }
+});
+
+test('a pending stream failing after the old one is gone reconnects normally', async () => {
   const h = await open();
   h.sources[0].emit('reconnect', { after_ms: 0 });
   h.timers.advance(0);
   h.sources[0].fail();
+  h.sources[1].fail();
   h.timers.fireLast();
   await flush();
+  h.sources[2].emit('alert', frame('a'));
   assert.deepEqual(
-    { sources: h.sources.length, newClosed: h.sources[1].closed, head: h.requests.filter((r) => r.method === 'HEAD').length },
-    { sources: 3, newClosed: true, head: 2 }
+    { sources: h.sources.length, heads: h.requests.filter((r) => r.method === 'HEAD').length, played: h.alerts },
+    { sources: 3, heads: 2, played: ['a'] }
   );
 });
 

@@ -23,7 +23,7 @@ crash, node loss and NATS restart, with these guarantees:
   `OVERLAYS_STANDARD` with one shared durable per tier, `MaxDeliver -1`, `AckWait` 30 s,
   memory storage, 3 replicas (`pkg/bus/overlays.go:126-137`, `pkg/bus/gossip_jobs.go:24`).
 - Every gateway replica pulls from the shared durable (`overlays/puller.ex`) and offers each
-  message on `overlays.session.<user_id>.<kind>` (`overlays/delivery.ex:54`). The pod holding the
+  message on `overlays.session.<user_id>` (`overlays/delivery.ex:54`). The pod holding the
   page's SSE stream answers, so delivery already crosses pods.
 - TTS acks after playback (`tts/page.ex` `advance`), sends `+WPI` for queued clips every 15 s,
   NAKs unacked clips when its stream dies (`overlays/pending.ex`), and skips duplicate
@@ -142,7 +142,8 @@ The visual `play` frame is replaced by `alert`. Its `data` carries the template 
    - Visual: when the entrance animation starts. A visual alert that started is not replayed.
 5. Queued but unplayed TTS clips send `+WPI` every 15 s (unchanged). Visual alerts queue on the
    page the same way and use the same progress call.
-6. When a stream ends for any reason, `Pending` NAKs its unacked subjects with no delay, so the
+6. When a stream ends, `Pending` NAKs its unacked subjects with no delay (except after a handoff
+   close by the page, which sends `+WPI` so a clip still playing there keeps its ack), so the
    page's next stream gets them at once.
 7. The page drops any alert past `expires_at` and acks it, so a page that opens late never
    plays stale alerts.
@@ -220,6 +221,7 @@ Gateway caches:
 - Ingress moves onto the same modules: `BroadcasterCache` runs on `Platform.Cache` with `refresh_ahead` (an expired entry is served while one background reload runs), `error_ttl_ms` 5 s (the last known lane is kept on a failed load) and capacity 100,000 in place of the idle sweep, and `CacheInvalidator` is replaced by a `Platform.Invalidations` feed on `cache.invalidate.status`. Only the Go DTO is accepted: the legacy `{"all": true}` and bare-id payloads had no publisher in the repo and are dropped, and `"*"` now clears the cache (the old consumer treated it as a literal id).
 - `broadcaster_id: "*"` reaches watchers as `id: :all`, which clears the whole cache (the Go feed drops it). The TTS check cache keys on `{user_id, generation}`, so its watcher uses `invalidate_where` on the event's user id.
 - The feed fires its gap callback after every attach, so entries loaded while it was detached are cleared once it listens again. Each cache registers with the feed in its own init, and the feed is supervised before the caches (`rest_for_one`).
+- `LinkWatch` watches the same feed: an `overlays` event for a user (or `:all`, or a gap) re-runs the link check of that user's open streams after 0.1 to 1 s of jitter, so a rotated or revoked link ends without waiting for the 5-minute check.
 
 ### Handoff (make before break)
 
@@ -227,7 +229,7 @@ Drain on SIGTERM, after the `preStop` sleep:
 
 1. Set the draining flag. `/readyz` returns 503 and new streams get 503 with `retry-after`.
 2. Pause pullers with `Platform.Nats.Pull.pause/1`. Await in-flight offers with `await_idle/2`
-   (bounded by the 2 s offer timeout).
+   (bounded by the 2 s offer timeout plus 500 ms).
 3. Send `event: reconnect` to every stream, with `after_ms` uniform in 0 to 1,500.
 4. The page waits `after_ms`, opens a new EventSource, and closes the old one when the new one
    delivers `ready`. Readiness already removed this pod, so the new stream lands on
@@ -287,16 +289,18 @@ Counters through `Platform.Metrics`, prefix `Custom/ControlsGateway/`:
 
 Alert conditions in New Relic: `Offer/Accepted` falls to zero while `Offer/NoResponders`
 rises (deaf gateway), `Ack/Failed` above zero for 5 minutes, `Drain/StreamsLeft` above zero
-on any rollout, `Pull/Detached` above zero for 1 minute.
+on any rollout, `Pull/Detached` above zero for 1 minute, and "gateway not reporting": fewer than
+5 `Memory/Physical` timeslices a minute (under two of three pods) for 10 minutes, or loss of
+signal.
 
 ## Operations matrix
 
-Each row is a drill run before release (see Tests). "Delay" is the worst case for an alert
+Each row is a drill to run against the live cluster (see Tests). "Delay" is the worst case for an alert
 published during the event.
 
 | Event | Expected behavior | Delay | Loss / double |
 | --- | --- | --- | --- |
-| Rolling deploy | Handoff moves streams. Overlap covers the switch. | under 2 s | none / none |
+| Rolling deploy | Handoff moves streams. Overlap covers the switch. Offers to an old-version pod fall back to the legacy subject for one release. A frame written just after the page closed its old stream waits the 30 s `AckWait`. | under 2 s (30 s tail for that frame) | none / none |
 | Pod SIGKILL or OOM | Pages reconnect on stream error. Pending died with the pod, so its unacked offers redeliver after `AckWait` (30 s). | 30 s | none / skipped by page |
 | Node loss | As SIGKILL for that node's pod. Toleration evicts after 60 s, but pages have already moved. | 30 s | none / skipped |
 | NATS leaf restart (RPC plane) | Streams get `reconnect` on DOWN. Link checks pause for the outage. Pullers are on the hub plane and keep going. | reconnect time | none / none |
@@ -308,9 +312,9 @@ published during the event.
 | OBS refresh or scene reactivation | Page reloads. `seen` survives in `localStorage`, so everything received before the reload is dropped, not replayed. | reload time | dropped by design / none |
 | Streamer offline, OBS closed | No responders. NAK backoff until the 5-minute `MaxAge` drops the alert. | n/a | dropped at TTL (intended) |
 | Two OBS instances on one link | One stream accepts each offer. That alert plays once, on one instance. | none | none / none |
-| Link revoked or rotated | Revocation ends the stream with no reconnect. Page gets 204 and stops. | n/a | n/a |
+| Link revoked or rotated | Revocation ends the stream with no reconnect. A rotation's `overlays` invalidation re-runs each open stream's link check within 0.1 to 1 s (`LinkWatch`), so the old link stops. Page gets 204 and stops. | about 1 s | n/a |
 | Cookie key rotation | Old cookies fail, page gets 401, exchanges its link token again. | one exchange | none / none |
-| Gateway scaled to zero by mistake | Offers find nobody. Alerts wait up to TTL, then drop. The "gateway not reporting" condition fires on fewer than 2 reporting pods or on loss of signal. | until restored | lost after 5 min |
+| Gateway scaled to zero by mistake | Offers find nobody. Alerts wait up to TTL, then drop. The "gateway not reporting" condition fires (fewer than 5 `Memory/Physical` timeslices a minute for 10 minutes, or loss of signal). | until restored | lost after 5 min |
 
 ## Tests
 

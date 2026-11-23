@@ -32,9 +32,11 @@ defmodule ControlsGateway.TtsTest do
       Application.put_env(:controls_gateway, :overlay_cookie_key, key)
     end)
 
+    check = start_supervised!({Agent, fn -> tags[:overlay_check] end})
+
     overlay = %{
       hash: :crypto.hash(:sha256, @token) |> Base.encode16(case: :lower),
-      check: tags[:overlay_check]
+      check: check
     }
 
     responder = start_supervised!({Task, fn -> respond(overlay) end})
@@ -43,7 +45,7 @@ defmodule ControlsGateway.TtsTest do
 
     if !tags[:no_streams], do: Streams.provision(tags[:ack_wait_ns] || @ack_wait_ns)
     Enum.each(Overlays.children(), &start_supervised!/1)
-    :ok
+    %{check: check}
   end
 
   test "only the beta routes are mounted and the overlay page sends a restrictive policy", %{
@@ -588,6 +590,20 @@ defmodule ControlsGateway.TtsTest do
     HttpClient.close(second)
   end
 
+  for id <- [@user_id, :all] do
+    test "a rotation event for #{inspect(id)} ends a stream whose check now fails", %{
+      http_port: port,
+      check: check
+    } do
+      live = events(port, [cookie(port)])
+      Agent.update(check, fn _ -> %{valid: false} end)
+      :ok = Platform.Invalidations.publish(ControlsGateway.Invalidations, "overlays", unquote(id))
+      closed = HttpClient.await(live, & &1.done)
+      assert closed.done
+      HttpClient.close(closed)
+    end
+  end
+
   test "drain waits for an in-flight clip download and reports its time", %{http_port: _port} do
     on_exit(&Drain.reset!/0)
     Process.register(self(), :metrics_probe)
@@ -825,5 +841,7 @@ defmodule ControlsGateway.TtsTest do
     do: %{code: "not_found", error: "overlay token not found"}
 
   defp response(@overlay <> "check", params, %{check: check}),
-    do: check || %{valid: params == %{"user_id" => @user_id, "generation" => @generation}}
+    do:
+      Agent.get(check, & &1) ||
+        %{valid: params == %{"user_id" => @user_id, "generation" => @generation}}
 end

@@ -66,22 +66,47 @@ defmodule ControlsGateway.Overlays.Stream do
   end
 
   defp admit(req, headers, state) do
-    with {:ok, revoked_sid} <- watch_revocation(state),
+    with {:ok, _} <- register_early(state),
+         {:ok, revoked_sid} <- watch_revocation(state),
          {:ok, link} <- check(state.kind, state.session, state.rpc),
-         {:ok, offer_sid} <-
-           Planes.subscribe(
-             state.jetstream,
-             self(),
-             Subjects.overlay_session(link.user_id, link.accepts),
-             queue_group: queue_group(state.kind, link.accepts)
-           ) do
-      state = Map.merge(state, Map.merge(link, %{revoked_sid: revoked_sid, offer_sid: offer_sid}))
+         {:ok, offers} <- subscribe_offers(state, link) do
+      state = Map.merge(state, Map.merge(link, Map.put(offers, :revoked_sid, revoked_sid)))
       start(req, headers, state)
     else
       {:denied, reason} -> denied(req, headers, state, reason)
       other -> unavailable(req, headers, state, other)
     end
   end
+
+  defp register_early(%{kind: :tts, session: session}),
+    do: Registry.register(@streams, session.user_id, nil)
+
+  defp register_early(_state), do: {:ok, nil}
+
+  defp register_late(%{kind: :overlay} = state) do
+    {:ok, _} = Registry.register(@streams, state.user_id, nil)
+    send(self(), :link_changed)
+  end
+
+  defp register_late(_state), do: :ok
+
+  defp subscribe_offers(state, %{user_id: user_id, accepts: accepts}) when is_binary(accepts) do
+    group = [queue_group: queue_group(state.kind, accepts)]
+
+    with {:ok, offer_sid} <-
+           Planes.subscribe(
+             state.jetstream,
+             self(),
+             Subjects.overlay_session(user_id, accepts),
+             group
+           ),
+         {:ok, legacy_sid} <-
+           Planes.subscribe(state.jetstream, self(), Subjects.overlay_session(user_id), group) do
+      {:ok, %{offer_sid: offer_sid, legacy_sid: legacy_sid}}
+    end
+  end
+
+  defp subscribe_offers(_state, _link), do: {:ok, %{offer_sid: nil, legacy_sid: nil}}
 
   defp queue_group(:tts, _template), do: "tts"
   defp queue_group(:overlay, template), do: "overlay.#{template}"
@@ -118,7 +143,7 @@ defmodule ControlsGateway.Overlays.Stream do
         pending: Pending.start(self())
       })
 
-    {:ok, _} = Registry.register(@streams, state.user_id, nil)
+    register_late(state)
     Metrics.count("Stream/Opened")
     Logger.info("#{label(state.kind)} events stream opened", log_id(state))
 
@@ -162,9 +187,9 @@ defmodule ControlsGateway.Overlays.Stream do
   def info(
         {:msg, %{sid: sid, gnat: pid, reply_to: reply} = message},
         req,
-        %{offer_sid: sid, jetstream: %{pid: pid}} = state
+        %{jetstream: %{pid: pid}} = state
       )
-      when is_binary(reply),
+      when is_binary(reply) and (sid == state.offer_sid or sid == state.legacy_sid),
       do: offer(message, req, state)
 
   def info({:DOWN, ref, :process, _pid, _reason}, req, state)

@@ -19,7 +19,11 @@ defmodule ControlsGateway.Overlays.LinkWatch do
   end
 
   defp notify(event) do
-    Enum.each(pids(event), &send(&1, :link_changed))
+    Enum.each(pids(event), &notify_later/1)
+  end
+
+  defp notify_later(pid) do
+    Process.send_after(pid, :link_changed, Platform.Backoff.between_ms(100, 1_000))
   end
 
   defp pids(%{id: :all}), do: Registry.select(@streams, [{{:_, :"$1", :_}, [], [:"$1"]}])

@@ -168,16 +168,29 @@ defmodule Platform.Nats.PullTest do
 
   test "a message already on the wire at pause is NAKed to another puller", %{pull: pull} do
     test = self()
+    id = {:paused_nak, make_ref()}
+
+    :telemetry.attach(
+      id,
+      [:platform, :nats, :pull, :paused_nak],
+      fn _event, _measurements, %{name: name}, _config -> send(test, {:paused_nak, name}) end,
+      nil
+    )
+
+    on_exit(fn -> :telemetry.detach(id) end)
     assert :ok = Pull.pause(pull)
     Jetstream.publish!("p.wire", "wired")
     refute_receive {:handled, _task, "wired"}, 300
 
     start_extra(:taker, "d", fn message ->
-      send(test, {:taken, message.body})
+      {:ok, %{num_delivered: delivered}} = Planes.jetstream_metadata(message)
+      send(test, {:taken, message.body, delivered})
       Ack.ack(:jetstream, message.reply_to)
     end)
 
-    assert_receive {:taken, "wired"}, 5_000
+    assert_receive {:taken, "wired", delivered}, 5_000
+    assert delivered >= 2
+    assert_receive {:paused_nak, :pull_under_test}
   end
 
   test "pull re-attaches after the connection is replaced", %{pull: pull} do
