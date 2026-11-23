@@ -189,7 +189,7 @@ defmodule ControlsGateway.Overlays.Stream do
         req,
         %{jetstream: %{pid: pid}} = state
       )
-      when is_binary(reply) and (sid == state.offer_sid or sid == state.legacy_sid),
+      when is_binary(reply) and sid in [state.offer_sid, state.legacy_sid],
       do: offer(message, req, state)
 
   def info({:DOWN, ref, :process, _pid, _reason}, req, state)
@@ -213,7 +213,11 @@ defmodule ControlsGateway.Overlays.Stream do
     settle_verdict(verdict, req, state)
   end
 
-  def info(:link_changed, req, state), do: settle_verdict(verdict(state), req, state)
+  def info(:link_changed, req, state) do
+    verdict = verdict(state)
+    if verdict == :unavailable, do: Process.send_after(self(), :link_changed, recheck_ms())
+    settle_verdict(verdict, req, state)
+  end
 
   def info(_message, req, state), do: continue(req, state)
 
@@ -386,8 +390,9 @@ defmodule ControlsGateway.Overlays.Stream do
   defp schedule_check(state),
     do: schedule(state, Application.get_env(:controls_gateway, :overlay_check_ms, @check_ms))
 
-  defp schedule_recheck(state),
-    do: schedule(state, Application.get_env(:controls_gateway, :overlay_recheck_ms, @recheck_ms))
+  defp schedule_recheck(state), do: schedule(state, recheck_ms())
+
+  defp recheck_ms, do: Application.get_env(:controls_gateway, :overlay_recheck_ms, @recheck_ms)
 
   defp schedule(state, interval_ms) do
     delay = min(interval_ms, max(0, state.session.exp - SignedCookie.now()) * 1_000)

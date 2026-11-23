@@ -13,7 +13,6 @@ defmodule Platform.Nats.Pull do
   @retry_ms 1_000
   @guard_slack_ms 5_000
   @paused_nak_ns 250_000_000
-  @paused_unsubscribe_ms 1_000
 
   def start_link(opts) do
     Enum.each(@required, &Keyword.fetch!(opts, &1))
@@ -48,7 +47,6 @@ defmodule Platform.Nats.Pull do
        received: 0,
        ready: false,
        paused: false,
-       grace_over: false,
        tasks: %{},
        waiters: []
      }}
@@ -57,7 +55,6 @@ defmodule Platform.Nats.Pull do
   @impl true
   def handle_call(:pause, _from, state) do
     if state.ready, do: emit(state, :pause)
-    Process.send_after(self(), :drop_paused, @paused_unsubscribe_ms)
     {:reply, :ok, %{state | paused: true, ref: nil, ready: false}}
   end
 
@@ -95,6 +92,10 @@ defmodule Platform.Nats.Pull do
         {:noreply, schedule_attach(state)}
     end
   end
+
+  def handle_info({:msg, %{sid: sid, status: status}}, %{sid: sid, paused: true} = state)
+      when is_binary(status),
+      do: {:noreply, drop_paused(state)}
 
   def handle_info({:msg, %{sid: sid} = message}, %{sid: sid, paused: true} = state) do
     nak_paused(message, state)
@@ -135,17 +136,12 @@ defmodule Platform.Nats.Pull do
     end
   end
 
-  def handle_info(:drop_paused, %{waiters: []} = state), do: {:noreply, drop_paused(state)}
-  def handle_info(:drop_paused, state), do: {:noreply, %{state | grace_over: true}}
-
   def handle_info(_message, state), do: {:noreply, state}
 
-  defp drop_paused(%{paused: true, sid: sid} = state) when sid != nil do
-    Planes.unsubscribe(state.conn, sid)
+  defp drop_paused(state) do
+    Planes.unsubscribe(state.conn, state.sid)
     %{state | sid: nil}
   end
-
-  defp drop_paused(state), do: state
 
   defp nak_paused(%{reply_to: "$JS.ACK." <> _ = ack}, state) do
     Ack.nak(state.config.plane, ack, @paused_nak_ns)
@@ -215,12 +211,9 @@ defmodule Platform.Nats.Pull do
     if map_size(state.tasks) == 0, do: release(state), else: state
   end
 
-  defp release(%{waiters: []} = state), do: state
-
   defp release(state) do
     Enum.each(state.waiters, &GenServer.reply(&1, :ok))
-    state = %{state | waiters: []}
-    if state.grace_over, do: drop_paused(state), else: state
+    %{state | waiters: []}
   end
 
   defp inbox(prefix),

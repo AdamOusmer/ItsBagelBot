@@ -11,7 +11,8 @@ crash, node loss and NATS restart, with these guarantees:
 1. No alert is lost while it is younger than its TTL (5 minutes, `pkg/bus/overlays.go:34`).
 2. No alert plays twice on the same page, including across reconnects and page reloads.
 3. A gateway rollout moves every open overlay to another replica in under 2 seconds,
-   with no window where offers find nobody listening.
+   with no window where offers find nobody listening (one documented tail: a frame written
+   just after a page closed its old stream waits the 30 s `AckWait`).
 4. Any replica can serve any overlay. No pod holds state that outlives its own connections.
 5. Every failure is visible as a metric before a streamer reports it.
 
@@ -130,7 +131,7 @@ The visual `play` frame is replaced by `alert`. Its `data` carries the template 
 
 ### Delivery rules
 
-1. A gateway pulls, then offers the message through `Platform.Nats.Requester` on the hub plane with the `overlays.session.reply` prefix (2 s timeout).
+1. A gateway pulls, then offers the message through `Platform.Nats.Requester` on the hub plane with the `overlays.session.reply` prefix (2 s timeout) to `overlays.session.<user_id>.<kind>`. For one release, a no-responders reply retries once on the legacy `overlays.session.<user_id>`, which new streams also subscribe, so old and new pods interoperate during the rollout.
 2. A stream accepts an offer only if its kind matches (TTS: `tts`; visual: its template) and
    it is not past its handoff close. Accepting means writing the frame and replying
    `{"accepted":true}`, then tracking the ack subject in `Pending`.
@@ -229,13 +230,14 @@ Drain on SIGTERM, after the `preStop` sleep:
 
 1. Set the draining flag. `/readyz` returns 503 and new streams get 503 with `retry-after`.
 2. Pause pullers with `Platform.Nats.Pull.pause/1`. Await in-flight offers with `await_idle/2`
-   (bounded by the 2 s offer timeout plus 500 ms).
+   (bounded by the 2 s offer timeout plus 500 ms). A paused puller keeps its inbox until its
+   outstanding pull ends and NAKs anything still delivered (`Pull/PausedNak`).
 3. Send `event: reconnect` to every stream, with `after_ms` uniform in 0 to 1,500.
 4. The page waits `after_ms`, opens a new EventSource, and closes the old one when the new one
    delivers `ready`. Readiness already removed this pod, so the new stream lands on
    another replica.
 5. During the overlap both streams are subscribed in the same NATS queue group (`tts`, or
-   `overlay.<template>`), so each offer reaches one of them. The page skips any duplicate that
+   `overlay.<template>`) on both the per-kind and the legacy subject, so each offer reaches one of them. The page skips any duplicate that
    a redelivery still produces.
 6. Streams still open 10 s after their reconnect frame are closed with `:fin`. The page's
    ordinary reconnect path then applies.
@@ -282,7 +284,7 @@ Counters through `Platform.Metrics`, prefix `Custom/ControlsGateway/`:
 - `Ack/Ack`, `Ack/Progress`, `Ack/Nak`, `Ack/NakOnClose`, `Ack/Term`, `Ack/Failed`
 - `Stream/Opened`, `Stream/Closed/<reason>`, `Stream/Reconnect/<reason>`
 - `Page/DuplicateSkipped`, `Page/Expired` (sent as a `reason` field on the ack request)
-- `Drain/DurationMs` (incremented by the drain's length), `Drain/StreamsLeft`, `Pull/Attach`, `Pull/Detached` (connection loss or consumer error), `Pull/Paused` (drain), `Pull/Status/<code>`
+- `Drain/DurationMs` (incremented by the drain's length), `Drain/StreamsLeft`, `Pull/Attach`, `Pull/Detached` (connection loss or consumer error), `Pull/Paused` (drain), `Pull/PausedNak`, `Pull/Status/<code>`
 - `Clip/Served`, `Clip/Interrupted`
 - `Page/Dropped`, `Stream/Closed/client`, `Ack/ProgressOnHandoff` (a stream closed by its page after a reconnect frame sends `+WPI` instead of NAK, so a clip still playing there is not handed to another instance)
 - `Cache/Hit`, `Cache/Miss`, `Cache/Stale`, `Cache/Invalidated`, `Cache/Gap` per cache

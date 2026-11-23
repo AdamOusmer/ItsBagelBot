@@ -193,6 +193,38 @@ defmodule Platform.Nats.PullTest do
     assert_receive {:paused_nak, :pull_under_test}
   end
 
+  test "a paused puller NAKs what arrives and drops its inbox after the terminal status" do
+    test = self()
+    Jetstream.create_consumer!("P", "held")
+
+    held =
+      start_extra(:held, "held", fn message -> receive do: (:release -> message) end,
+        expires_ns: 1_500_000_000
+      )
+
+    assert Jetstream.eventually(fn -> Pull.attached?(held) end, 20)
+    Jetstream.publish!("p.held", "first")
+    assert Jetstream.eventually(fn -> task_running?(:held_tasks) end)
+    assert :ok = Pull.pause(held)
+    assert {:error, :timeout} = Pull.await_idle(held, 100)
+    assert :sys.get_state(held).sid != nil
+    Jetstream.publish!("p.held", "second")
+
+    start_extra(:taker2, "held", fn message ->
+      {:ok, %{num_delivered: delivered}} = Planes.jetstream_metadata(message)
+      send(test, {:taken, message.body, delivered})
+      Ack.ack(:jetstream, message.reply_to)
+    end)
+
+    assert_receive {:taken, "second", delivered}, 5_000
+    assert delivered >= 2
+    assert Jetstream.eventually(fn -> :sys.get_state(held).sid == nil end, 40)
+
+    for {_id, pid, _type, _mods} <- Supervisor.which_children(:held_tasks) do
+      send(pid, :release)
+    end
+  end
+
   test "pull re-attaches after the connection is replaced", %{pull: pull} do
     %{pid: old} = Planes.connection(:jetstream)
     Process.exit(old, :kill)

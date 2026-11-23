@@ -78,7 +78,7 @@ counts `Ack/Ack`, and the last three also count `Page/DuplicateSkipped`, `Page/E
 handle is 404, no session is 401, success is 204, a failed publish is 503 and counts `Ack/Failed`. Each stream keeps the ack
 subjects it sent for five minutes in a monitor process and publishes `-NAK`
 for them when the stream ends, so another session or pod gets
-the clip at once. A stream that already sent its `reconnect` frame and is then closed by the client publishes `+WPI` instead (`Ack/ProgressOnHandoff`), because the old page may still be playing the clip and its own ack settles it. An offer for a kind with no open stream gets no responders and is requeued at once. Acking an already acked message is a no-op.
+the clip at once. A stream that already sent its `reconnect` frame and is then closed by the client publishes `+WPI` instead (`Ack/ProgressOnHandoff`), because the old page may still be playing the clip and its own ack settles it. An offer for a user with no open stream gets no responders on either subject and is requeued at once. When only streams of another kind are open, the legacy retry reaches one of them, it stays silent, and the offer waits out the 2 second timeout (`Offer/Timeout`) before the `-NAK`. Acking an already acked message is a no-op.
 
 `GET /tts/clip/<event_id>` streams a WAV from the `OVERLAYS_MEDIA` Object Store
 bucket with `Content-Length` from the object metadata size, using the cookie

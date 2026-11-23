@@ -579,15 +579,15 @@ defmodule ControlsGateway.TtsTest do
     live = await_clips(live, 1)
     before = counter("Ack/ProgressOnHandoff")
     naks = counter("Ack/NakOnClose")
-    send_to_streams({:reconnect, 0, :drain})
+    on_exit(&Drain.reset!/0)
+    put_env(:stream_force_close_ms, 20_000)
+    drain = Task.async(&Drain.run/0)
     live = HttpClient.await(live, &String.contains?(&1.body, "event: reconnect"))
     HttpClient.close(live)
     eventually(fn -> counter("Ack/ProgressOnHandoff") > before end)
     assert counter("Ack/NakOnClose") == naks
-
-    second = events(port, [cookie(port)])
-    assert second |> HttpClient.drain(1_500) |> clips() == []
-    HttpClient.close(second)
+    assert stored() == 1
+    assert Task.await(drain, 10_000) == :ok
   end
 
   for id <- [@user_id, :all] do
@@ -771,11 +771,6 @@ defmodule ControlsGateway.TtsTest do
   end
 
   defp await_clips(client, count), do: HttpClient.await_alerts(client, count)
-
-  defp send_to_streams(message) do
-    pids = Registry.select(ControlsGateway.Connections, [{{:_, :"$1", :stream}, [], [:"$1"]}])
-    Enum.each(pids, &send(&1, message))
-  end
 
   defp await_clip_total(clients, event_id, attempts \\ 60) do
     clients = Enum.map(clients, &HttpClient.drain(&1, 100))

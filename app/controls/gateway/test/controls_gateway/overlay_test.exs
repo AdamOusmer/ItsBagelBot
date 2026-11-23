@@ -51,7 +51,7 @@ defmodule ControlsGateway.OverlayTest do
     agent = start_supervised!({Agent, fn -> overlay end})
     responder = start_supervised!({Task, fn -> respond(agent) end})
     {:ok, _} = Gnat.sub(:gnat_rpc, responder, @resolve)
-    %{agent: agent}
+    %{agent: agent, responder: responder}
   end
 
   test "the overlay page is the powered page with the same policy", %{http_port: port} do
@@ -428,6 +428,56 @@ defmodule ControlsGateway.OverlayTest do
       assert closed.done
       HttpClient.close(closed)
     end
+  end
+
+  test "an unavailable check after a link change keeps retrying until it settles", %{
+    http_port: port,
+    agent: agent
+  } do
+    live = events(port, [cookie(port)])
+    update_overlay(agent, &Map.put(&1, :down, true))
+    keys = [sha(@token)]
+    :ok = Platform.Invalidations.publish(ControlsGateway.Invalidations, "overlays", 7, keys)
+    live = HttpClient.drain(live, 600)
+    refute live.done
+
+    update_overlay(agent, &(&1 |> Map.delete(:down) |> Map.put(:gone, true)))
+    closed = HttpClient.await(live, & &1.done)
+    assert closed.done
+    HttpClient.close(closed)
+  end
+
+  test "a feed gap sends every open stream to re-check its link", %{
+    http_port: port,
+    agent: agent,
+    responder: responder
+  } do
+    put_env(:stream_force_close_ms, 60_000)
+    live = events(port, [cookie(port)])
+    update_overlay(agent, &Map.put(&1, :gone, true))
+    old = Platform.Nats.connection_pid(:gnat_rpc)
+    Process.exit(old, :kill)
+    eventually(fn -> Platform.Nats.connection_pid(:gnat_rpc) not in [nil, old] end)
+    {:ok, _} = Gnat.sub(:gnat_rpc, responder, @resolve)
+    closed = HttpClient.await(live, & &1.done)
+    assert closed.done
+    HttpClient.close(closed)
+  end
+
+  test "an offer of another kind waits out the timeout when only other kinds are open", %{
+    http_port: port
+  } do
+    live = events(port, [cookie(port)])
+    before = counter("Offer/Timeout")
+
+    {:ok, _} =
+      Gnat.request(
+        :gnat_jetstream,
+        "overlays.premium.tts.7",
+        Jason.encode!(%{event_id: "foreign"}), headers: [{"Nats-Msg-Id", "foreign"}])
+
+    eventually(fn -> counter("Offer/Timeout") > before end, 60)
+    HttpClient.close(live)
   end
 
   test "an offer reaches a stream subscribed only on the legacy subject" do
