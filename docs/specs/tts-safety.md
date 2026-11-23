@@ -313,6 +313,10 @@ Our style already travels outside the transcript on both backends (Vertex
   on a test channel with Premium voice enabled. The dashboard voice test speaks
   a fixed sample (`modules/voice_test_rpc.go:112`), so it cannot carry these
   inputs.
+- **Result (2026-11-23, prod model):** clip lengths match the model reading
+  every word: "Say cheerfully: hello" ran 3.1 s against 1.4 s for "hello",
+  and "Speaker 1: hi Speaker 2: bye" ran 2.6 s. The clips were not
+  transcribed. No injection rule ships.
 - **If the reading is verbatim,** no injection rule ships.
 - **If it is not verbatim,** a directive rule ships in phase 2:
   - Scope: a direction verb at the start of the message followed within 60
@@ -346,11 +350,22 @@ NotBefore       time.Time    `json:"not_before,omitzero"`         // hold end; z
 ### Safety settings
 
 Every Vertex request sends `safetySettings` explicitly, so behavior does not
-depend on a default the docs disagree about. All four configurable categories
-(`HARM_CATEGORY_HATE_SPEECH`, `HARM_CATEGORY_SEXUALLY_EXPLICIT`,
-`HARM_CATEGORY_HARASSMENT`, `HARM_CATEGORY_DANGEROUS_CONTENT`) use
-`BLOCK_ONLY_HIGH`, so ordinary banter is not refused. Our floor covers what
-must never be sent.
+depend on a default the docs disagree about:
+
+| Category | Threshold |
+| --- | --- |
+| `HARM_CATEGORY_HATE_SPEECH` | `BLOCK_ONLY_HIGH` |
+| `HARM_CATEGORY_SEXUALLY_EXPLICIT` | `BLOCK_ONLY_HIGH` |
+| `HARM_CATEGORY_HARASSMENT` | `OFF` |
+| `HARM_CATEGORY_DANGEROUS_CONTENT` | `OFF` |
+
+A live test on 2026-11-23 against the prod model showed `BLOCK_ONLY_HIGH` on
+harassment and dangerous content still refusing ordinary banter with
+`SAFETY` ("gg ez, you're trash, uninstall the game", "I'll kill you next
+round"), every time. With those two categories `OFF`, all tested banter
+passed, swearing included. Our floor covers self-harm encouragement and
+real-world threats instead. The non-configurable filters (CSAM, personal
+data) still apply.
 
 The Gemini API backend (non-production only) sends the same four thresholds
 through the Interactions API `safety_settings` field. These are configurable
