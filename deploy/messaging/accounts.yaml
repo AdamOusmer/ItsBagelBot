@@ -69,6 +69,10 @@ accounts:
               from: USERS_RPC
             - service: rpc.admin.user.test.set.node.*
               from: USERS_RPC
+            - service: rpc.admin.user.alpha.set
+              from: USERS_RPC
+            - service: rpc.admin.user.alpha.set.node.*
+              from: USERS_RPC
             - service: rpc.admin.user.auth.>
               from: ADMIN_SERVICE_RPC
             - service: rpc.admin.user.audit.>
@@ -853,6 +857,10 @@ accounts:
               from: USERS_RPC
             - service: rpc.internal.users.voice.check.node.*
               from: USERS_RPC
+            - service: rpc.internal.users.alpha.check
+              from: USERS_RPC
+            - service: rpc.internal.users.alpha.check.node.*
+              from: USERS_RPC
         roles:
             overlays_rpc: {}
     OUTGRESS_RPC:
@@ -1075,6 +1083,10 @@ accounts:
               accounts: [WORKER_RPC, GOSSIP_RPC]
             - service: rpc.internal.users.voice.record.node.*
               accounts: [WORKER_RPC, GOSSIP_RPC]
+            - service: rpc.internal.users.alpha.check
+              accounts: [OVERLAYS_RPC]
+            - service: rpc.internal.users.alpha.check.node.*
+              accounts: [OVERLAYS_RPC]
             - service: rpc.internal.users.analytics.levels
             - service: rpc.internal.users.analytics.levels.node.*
             - service: rpc.internal.users.lifecycle
@@ -1086,6 +1098,8 @@ accounts:
             - service: rpc.admin.user.*.node.*
             - service: rpc.admin.user.test.set
             - service: rpc.admin.user.test.set.node.*
+            - service: rpc.admin.user.alpha.set
+            - service: rpc.admin.user.alpha.set.node.*
             - service: rpc.delegation.>
             - service: rpc.internal.billing.apply
             - service: rpc.internal.billing.apply.node.*

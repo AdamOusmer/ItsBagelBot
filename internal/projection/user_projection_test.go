@@ -31,6 +31,7 @@ var fullUser = UserProjection{
 	LeaderboardPageHidden: true,
 	SongQueuePageHidden:   true,
 	CreatorCode:           "BAGEL10",
+	Alpha:                 true,
 }
 
 func TestFullUserSetsEveryField(t *testing.T) {
@@ -57,6 +58,7 @@ func TestUserMappersCopyEveryField(t *testing.T) {
 			LeaderboardPageHidden: true,
 			SongQueuePageHidden:   true,
 			CreatorCode:           "BAGEL10",
+			Alpha:                 true,
 		}),
 		"changed": UserFromChanged(data.UserChangedDTO{
 			Lifecycle:          fullUser.Lifecycle,
@@ -74,6 +76,7 @@ func TestUserMappersCopyEveryField(t *testing.T) {
 			LeaderboardPageHidden: true,
 			SongQueuePageHidden:   true,
 			CreatorCode:           "BAGEL10",
+			Alpha:                 true,
 		}),
 	}
 	for name, got := range mapped {
@@ -95,6 +98,22 @@ func TestSetUserRoundTripsCreatorCode(t *testing.T) {
 	user, _, err = store.GetUserRuntime(ctx, 74)
 	require.NoError(t, err)
 	assert.Empty(t, user.CreatorCode, "a cleared code must overwrite the projected one")
+}
+
+func TestSetUserRoundTripsAlpha(t *testing.T) {
+	store, _ := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, store.SetUser(ctx, 76, UserProjection{Status: "free", IsActive: true, Alpha: true}))
+	user, found, err := store.GetUserRuntime(ctx, 76)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.True(t, user.IsAlpha())
+
+	require.NoError(t, store.SetUser(ctx, 76, UserProjection{Status: "free", IsActive: true}))
+	user, _, err = store.GetUserRuntime(ctx, 76)
+	require.NoError(t, err)
+	assert.False(t, user.IsAlpha(), "an event without the flag revokes it")
 }
 
 func TestSetUserRoundTripsLeaderboardPageHidden(t *testing.T) {

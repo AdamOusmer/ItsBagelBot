@@ -69,6 +69,7 @@ type UserView struct {
 	SubscriptionCancelPending bool             `json:"subscription_cancel_pending"`
 	SubscriptionPaymentFailed bool             `json:"subscription_payment_failed"`
 	Onboarded                 bool             `json:"onboarded"`
+	Alpha                     bool             `json:"alpha"`
 }
 
 type Users struct {
@@ -279,6 +280,7 @@ func userView(u *ent.User) UserView {
 		SubscriptionCancelPending: u.SubscriptionCancelPending,
 		SubscriptionPaymentFailed: u.SubscriptionPaymentFailed,
 		Onboarded:                 u.Onboarded,
+		Alpha:                     u.Alpha,
 	}
 }
 
@@ -466,6 +468,7 @@ func changedDTO(view UserView) data.UserChangedDTO {
 		LeaderboardPageHidden: view.LeaderboardPageHidden,
 		SongQueuePageHidden:   view.SongQueuePageHidden,
 		CreatorCode:           view.CreatorCodeText(),
+		Alpha:                 view.Alpha,
 	}
 }
 

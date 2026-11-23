@@ -65,7 +65,7 @@ func validateAuditDelivery(req usersrpc.AuthRequest) error {
 
 func validateAuditDeliveryAction(req usersrpc.AuthRequest) error {
 	switch {
-	case req.Action == "set_test_account" && slices.Contains([]string{"enabled=true", "enabled=false"}, req.Detail):
+	case slices.Contains([]string{"set_test_account", usersrpc.AdminAlphaAuditAction}, req.Action) && slices.Contains([]string{"enabled=true", "enabled=false"}, req.Detail):
 		return nil
 	case req.Action == usersrpc.AdminVoiceUsageAuditAction && req.Detail != "":
 		return nil

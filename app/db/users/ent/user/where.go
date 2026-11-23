@@ -200,6 +200,11 @@ func TestAccount(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldTestAccount, v))
 }
 
+// Alpha applies equality check predicate on the "alpha" field. It's identical to AlphaEQ.
+func Alpha(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldAlpha, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -1353,6 +1358,16 @@ func TestAccountEQ(v bool) predicate.User {
 // TestAccountNEQ applies the NEQ predicate on the "test_account" field.
 func TestAccountNEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldTestAccount, v))
+}
+
+// AlphaEQ applies the EQ predicate on the "alpha" field.
+func AlphaEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldAlpha, v))
+}
+
+// AlphaNEQ applies the NEQ predicate on the "alpha" field.
+func AlphaNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldAlpha, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

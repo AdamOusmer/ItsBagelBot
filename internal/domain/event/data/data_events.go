@@ -50,6 +50,7 @@ type UserChangedDTO struct {
 	LeaderboardPageHidden bool   `json:"leaderboard_page_hidden"`
 	SongQueuePageHidden   bool   `json:"songqueue_page_hidden"`
 	CreatorCode           string `json:"creator_code,omitempty"`
+	Alpha                 bool   `json:"alpha,omitempty"`
 }
 
 type UserDeletedDTO struct {

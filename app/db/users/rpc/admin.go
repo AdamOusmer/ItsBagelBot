@@ -58,6 +58,7 @@ func (a *adminRPC) verbs() []adminVerb {
 		{"set_active", admin, a.setActive},
 		{"set_creator_code", admin, a.setCreatorCode},
 		{"test.set", admin, a.setTestAccount},
+		{"alpha.set", admin, a.setAlpha},
 		{"reset", admin, a.reset},
 		{"token_set", admin, a.tokenSet},
 		{"token_clear", admin, a.tokenClear},
@@ -390,6 +391,22 @@ func (a *adminRPC) setTestAccount(ctx context.Context, req usersrpc.AdminRequest
 	return a.get(ctx, idRequest(u.ID))
 }
 
+func (a *adminRPC) setAlpha(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
+	u, err := a.findUser(ctx, req)
+	if err != nil {
+		return adminError(refusal(err))
+	}
+	actorID, err := bus.UserID(req.ActorID)
+	if err != nil {
+		return adminError(refusal(err))
+	}
+	if err := a.repo.SetAlpha(ctx, u.ID, req.Alpha, actorID); err != nil {
+		return adminError(refusal(err))
+	}
+	monitor.TxnLogger(ctx, a.log).Info("admin alpha change", zap.Uint64("user", u.ID), zap.Bool("enabled", req.Alpha))
+	return a.get(ctx, idRequest(u.ID))
+}
+
 func (a *adminRPC) ban(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	return a.mutate(ctx, req, mutation{
 		logMsg: "admin ban",
@@ -514,6 +531,7 @@ func viewOf(u *ent.User) usersrpc.AdminUserView {
 		SubscriptionRef:           u.SubscriptionRef,
 		SubscriptionCancelPending: u.SubscriptionCancelPending,
 		TestAccount:               u.TestAccount,
+		Alpha:                     u.Alpha,
 		Onboarded:                 u.Onboarded,
 		CreatedAt:                 u.CreatedAt,
 		UpdatedAt:                 u.UpdatedAt,

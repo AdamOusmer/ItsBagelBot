@@ -206,6 +206,7 @@ func subscribeRPCs(wiring rpc.Wiring, log *zap.Logger) rpcSubjects {
 		"failed to subscribe counts rpc")
 	svcboot.FatalIf(log, rpc.SubscribeDelegation(wiring, env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "rpc.delegation")),
 		"failed to subscribe delegation rpc")
+	svcboot.FatalIf(log, rpc.SubscribeAlpha(wiring, usersrpc.AlphaCheckSubject), "failed to subscribe alpha rpc")
 	svcboot.FatalIf(log, rpc.SubscribeVoice(wiring, usersrpc.VoiceCheckSubject, usersrpc.VoiceRecordSubject), "failed to subscribe voice rpc")
 	svcboot.FatalIf(log, rpc.SubscribeDeviceAuth(wiring, s.device), "failed to subscribe device authorization rpc")
 

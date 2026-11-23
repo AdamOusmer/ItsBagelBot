@@ -431,6 +431,20 @@ func (_c *UserCreate) SetNillableTestAccount(v *bool) *UserCreate {
 	return _c
 }
 
+// SetAlpha sets the "alpha" field.
+func (_c *UserCreate) SetAlpha(v bool) *UserCreate {
+	_c.mutation.SetAlpha(v)
+	return _c
+}
+
+// SetNillableAlpha sets the "alpha" field if the given value is not nil.
+func (_c *UserCreate) SetNillableAlpha(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetAlpha(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *UserCreate) SetCreatedAt(v time.Time) *UserCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -668,6 +682,10 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultTestAccount
 		_c.mutation.SetTestAccount(v)
 	}
+	if _, ok := _c.mutation.Alpha(); !ok {
+		v := user.DefaultAlpha
+		_c.mutation.SetAlpha(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		if user.DefaultCreatedAt == nil {
 			return fmt.Errorf("ent: uninitialized user.DefaultCreatedAt (forgotten import ent/runtime?)")
@@ -784,6 +802,9 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.TestAccount(); !ok {
 		return &ValidationError{Name: "test_account", err: errors.New(`ent: missing required field "User.test_account"`)}
+	}
+	if _, ok := _c.mutation.Alpha(); !ok {
+		return &ValidationError{Name: "alpha", err: errors.New(`ent: missing required field "User.alpha"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "User.created_at"`)}
@@ -947,6 +968,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.TestAccount(); ok {
 		_spec.SetField(user.FieldTestAccount, field.TypeBool, value)
 		_node.TestAccount = value
+	}
+	if value, ok := _c.mutation.Alpha(); ok {
+		_spec.SetField(user.FieldAlpha, field.TypeBool, value)
+		_node.Alpha = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
@@ -1548,6 +1573,18 @@ func (u *UserUpsert) UpdateTestAccount() *UserUpsert {
 	return u
 }
 
+// SetAlpha sets the "alpha" field.
+func (u *UserUpsert) SetAlpha(v bool) *UserUpsert {
+	u.Set(user.FieldAlpha, v)
+	return u
+}
+
+// UpdateAlpha sets the "alpha" field to the value that was provided on create.
+func (u *UserUpsert) UpdateAlpha() *UserUpsert {
+	u.SetExcluded(user.FieldAlpha)
+	return u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (u *UserUpsert) SetCreatedAt(v time.Time) *UserUpsert {
 	u.Set(user.FieldCreatedAt, v)
@@ -2135,6 +2172,20 @@ func (u *UserUpsertOne) SetTestAccount(v bool) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateTestAccount() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateTestAccount()
+	})
+}
+
+// SetAlpha sets the "alpha" field.
+func (u *UserUpsertOne) SetAlpha(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetAlpha(v)
+	})
+}
+
+// UpdateAlpha sets the "alpha" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateAlpha() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateAlpha()
 	})
 }
 
@@ -2895,6 +2946,20 @@ func (u *UserUpsertBulk) SetTestAccount(v bool) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateTestAccount() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateTestAccount()
+	})
+}
+
+// SetAlpha sets the "alpha" field.
+func (u *UserUpsertBulk) SetAlpha(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetAlpha(v)
+	})
+}
+
+// UpdateAlpha sets the "alpha" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateAlpha() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateAlpha()
 	})
 }
 

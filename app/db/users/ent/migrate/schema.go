@@ -290,6 +290,7 @@ var (
 		{Name: "gifts_sent", Type: field.TypeUint32, Default: 0},
 		{Name: "onboarded", Type: field.TypeBool, Default: false},
 		{Name: "test_account", Type: field.TypeBool, Default: false},
+		{Name: "alpha", Type: field.TypeBool, Default: false},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}

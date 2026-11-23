@@ -40,7 +40,10 @@ type User struct {
 	LeaderboardPageHidden bool   `json:"leaderboard_page_hidden,omitempty"`
 	SongQueuePageHidden   bool   `json:"songqueue_page_hidden,omitempty"`
 	CreatorCode           string `json:"creator_code,omitempty"`
+	Alpha                 bool   `json:"alpha,omitempty"`
 }
+
+func (u User) IsAlpha() bool { return u.Alpha }
 
 func (u User) Premium() bool {
 	if !u.IsActive {

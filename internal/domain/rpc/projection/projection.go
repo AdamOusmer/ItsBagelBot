@@ -56,6 +56,7 @@ type UserReply struct {
 	LeaderboardPageHidden bool   `json:"leaderboard_page_hidden,omitempty"`
 	SongQueuePageHidden   bool   `json:"songqueue_page_hidden,omitempty"`
 	CreatorCode           string `json:"creator_code,omitempty"`
+	Alpha                 bool   `json:"alpha,omitempty"`
 	rpc.Refusal
 }
 
