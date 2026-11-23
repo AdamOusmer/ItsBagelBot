@@ -12,7 +12,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/projection"
 )
 
@@ -53,15 +52,7 @@ func raffleBusyReason(round draw.Round) string {
 func (c RaffleModuleConfig) OpenedLine(ctx context.Context, proj projection.Reader, locale string, r draw.Round) string {
 	a := RaffleAnnouncement{Locale: locale}
 	fields := raffleOpeningFields(locale, r, DrawCurrencyName(ctx, proj, uint64(r.Channel)))
-	line := a.render("", raffleOpenedKey(r.Terms), fields...)
-	extra := strings.TrimSpace(a.expand(c.OpenedMessage, fields))
-	if extra == "" || extra == line {
-		return line
-	}
-	if floorHit(extra) || len(line)+len(extra)+1 > validate.MaxResponseLineLength {
-		return line
-	}
-	return line + " " + extra
+	return a.render(strings.TrimSpace(c.OpenedMessage), raffleOpenedKey(r.Terms), fields...)
 }
 
 func raffleOpeningFields(locale string, r draw.Round, currency string) []string {
