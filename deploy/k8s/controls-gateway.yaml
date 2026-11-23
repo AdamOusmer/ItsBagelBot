@@ -24,7 +24,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 2
+  replicas: 3
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -78,6 +78,7 @@ spec:
         runAsGroup: 999
         seccompProfile: {type: RuntimeDefault}
       priorityClassName: bagel-service
+      terminationGracePeriodSeconds: 45
       containers:
         - name: controls-gateway
           image: ghcr.io/adamousmer/itsbagelbot/controls-gateway:main-1795406273-47da568d7a9b@sha256:d7a4a583173f8b1d6d34bce5f39c0a92f1999756440547997680913c53f0b1e0
@@ -89,8 +90,14 @@ spec:
               value: /etc/controls-gateway/tls/tls.crt
             - name: TLS_KEY_FILE
               value: /etc/controls-gateway/tls/tls.key
-            - name: OVERLAY_TRUST_CLOUDFLARE_IP
-              value: "true"
+            - name: NEW_RELIC_APP_NAME
+              value: "ItsBagelBot-ControlsGateway"
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: controls-gateway-env
+                  key: NEW_RELIC_LICENSE_KEY
+                  optional: true
             - name: OVERLAY_COOKIE_KEY
               valueFrom:
                 secretKeyRef:
@@ -145,6 +152,10 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
           livenessProbe:
             httpGet: {path: /healthz, port: https, scheme: HTTPS}
             periodSeconds: 30
@@ -186,8 +197,11 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
-    - match: Host(`overlay.itsbagelbot.com`)
+    - match: >-
+        Host(`overlay.itsbagelbot.com`) &&
+        (PathRegexp(`^/+(tts|o)/+session/*$`) || PathRegexp(`^/+powered/+config/*$`))
       kind: Rule
+      middlewares: [{name: overlay-session-ratelimit}, {name: strip-client-ip}]
       observability:
         accessLogs: false
       services:
@@ -195,8 +209,32 @@ spec:
           port: 443
           scheme: https
           serversTransport: controls-gateway-transport
-          nativeLB: true
+          nativeLB: false
+    - match: Host(`overlay.itsbagelbot.com`)
+      kind: Rule
+      middlewares: [{name: strip-client-ip}]
+      observability:
+        accessLogs: false
+      services:
+        - name: controls-gateway
+          port: 443
+          scheme: https
+          serversTransport: controls-gateway-transport
+          nativeLB: false
   tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: overlay-session-ratelimit
+  namespace: app
+spec:
+  rateLimit:
+    average: 10
+    period: 1m
+    burst: 10
+    sourceCriterion:
+      requestHeaderName: CF-Connecting-IP
 ---
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport

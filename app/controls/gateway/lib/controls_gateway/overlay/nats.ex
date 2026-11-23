@@ -4,13 +4,23 @@
 defmodule ControlsGateway.Overlay.Nats do
   alias ControlsGateway.OverlayRequest
   alias ControlsGateway.Tts.Session
+  alias Platform.Cache
   alias Platform.Nats.Planes
 
   @resolve "rpc.internal.projector.overlays.resolve"
+  @cache :overlay_resolve
 
   def resolve(hash) do
+    case Cache.get_or_load(@cache, hash, fn -> fetch(hash) end) do
+      {:ok, :not_found} -> {:not_found, :unknown_token}
+      {:ok, overlay} -> {:ok, overlay}
+      {:error, reason} -> {:unavailable, reason}
+    end
+  end
+
+  defp fetch(hash) do
     case OverlayRequest.request(&Planes.request/1, @resolve, %{token_hash: hash}) do
-      {:ok, %{"code" => "not_found"}} -> {:not_found, :unknown_token}
+      {:ok, %{"code" => "not_found"}} -> {:ok, :not_found}
       {:ok, %{"code" => code} = reply} when code not in [nil, ""] -> unavailable(reply)
       {:ok, reply} -> overlay(reply)
       other -> unavailable(other)
@@ -58,7 +68,7 @@ defmodule ControlsGateway.Overlay.Nats do
          premium: premium
        }}
     else
-      _ -> {:unavailable, :invalid_reply}
+      _ -> {:error, :invalid_reply}
     end
   end
 
@@ -66,5 +76,5 @@ defmodule ControlsGateway.Overlay.Nats do
   defp document(false, _document), do: {:ok, nil}
   defp document(_allowed, _document), do: :error
 
-  defp unavailable(reason), do: {:unavailable, inspect(reason, limit: 5)}
+  defp unavailable(reason), do: {:error, inspect(reason, limit: 5)}
 end

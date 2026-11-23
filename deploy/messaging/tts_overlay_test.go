@@ -91,7 +91,8 @@ func TestTTSOverlayReaderPermissionsAreExact(t *testing.T) {
 	account := committedACL(t).Accounts[controlsGatewayAccount]
 	assert.NotNil(t, account.JetStream)
 	assert.Empty(t, account.Exports)
-	require.Len(t, account.Imports, 9)
+	require.Len(t, account.Imports, 10)
+	assert.Contains(t, account.Imports, natsacl.ImportSpec{Stream: "cache.invalidate.overlays", From: "PROJECTOR_RPC"})
 
 	role := account.Roles["controls_gateway_rpc"]
 	assert.Equal(t, natsacl.RoleSpec{
@@ -119,7 +120,7 @@ func TestTTSOverlayReaderPermissionsAreExact(t *testing.T) {
 			"overlays.session.>",
 			"$JS.API.STREAM.MSG.GET.OBJ_OVERLAYS_MEDIA",
 		}},
-		Subscribe: &natsacl.PermissionSpec{Allow: []string{"controls.tts.revoked.*", "overlays.session.>", "_INBOX.>"}},
+		Subscribe: &natsacl.PermissionSpec{Allow: []string{"controls.tts.revoked.*", "cache.invalidate.overlays", "overlays.session.>", "_INBOX.>"}},
 	}, role)
 }
 

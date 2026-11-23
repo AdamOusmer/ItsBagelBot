@@ -504,6 +504,8 @@ accounts:
               from: PROJECTOR_RPC
             - service: rpc.internal.projector.overlays.resolve.node.*
               from: PROJECTOR_RPC
+            - stream: cache.invalidate.overlays
+              from: PROJECTOR_RPC
         roles:
             controls_gateway_rpc:
                 publish:
@@ -533,6 +535,7 @@ accounts:
                 subscribe:
                     allow:
                         - controls.tts.revoked.*
+                        - cache.invalidate.overlays
                         - overlays.session.>
                         - _INBOX.>
             worker_tts_bus:
@@ -897,6 +900,7 @@ accounts:
               accounts: [WORKER_RPC]
             - stream: controls.tts.revoked.*
               accounts: [CONTROLS_GATEWAY_RPC]
+            - stream: cache.invalidate.overlays
             - stream: cache.invalidate.commands
             - stream: cache.invalidate.modules
             - stream: cache.invalidate.automations

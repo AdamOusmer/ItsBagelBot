@@ -2,8 +2,7 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.Powered.Http do
-  @behaviour :cowboy_handler
-
+  alias ControlsGateway.Http
   alias ControlsGateway.Powered.{Assets, Page}
 
   @headers %{
@@ -13,10 +12,7 @@ defmodule ControlsGateway.Powered.Http do
     "allow" => "GET"
   }
 
-  @impl true
-  def init(req, route), do: {:ok, dispatch(:cowboy_req.method(req), route, req), route}
-
-  defp dispatch("GET", :page, req), do: Page.reply(req)
-  defp dispatch("GET", :asset, req), do: Assets.reply(req, :cowboy_req.binding(:name, req))
-  defp dispatch(_method, _route, req), do: :cowboy_req.reply(405, @headers, req)
+  def handle(%{method: "GET"} = conn, :page), do: Page.reply(conn)
+  def handle(%{method: "GET"} = conn, :asset), do: Assets.reply(conn, conn.path_params["name"])
+  def handle(conn, _route), do: Http.reply(conn, 405, @headers)
 end

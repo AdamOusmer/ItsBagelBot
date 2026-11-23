@@ -216,8 +216,8 @@ func TestAppEgressAllowlists(t *testing.T) {
 		},
 		{
 			name: "TestNewRelicEgressAllowlist", path: appPolicies, policy: "allow-newrelic",
-			wantApps: sorted("commands", "console-admin", "console-dashboard", "gossip", "loyalty", "modules",
-				"notifications", "outgress", "projector", "sesame", "transactions", "twitch-ingress", "users"),
+			wantApps: sorted("commands", "console-admin", "console-dashboard", "controls-gateway", "gossip", "loyalty",
+				"modules", "notifications", "outgress", "projector", "sesame", "transactions", "twitch-ingress", "users"),
 			wantCIDRs: newRelicIngestCIDRs,
 		},
 		{

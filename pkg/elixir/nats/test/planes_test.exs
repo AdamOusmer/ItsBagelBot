@@ -41,6 +41,26 @@ defmodule Platform.Nats.PlanesTest do
              Jason.decode!(body)
   end
 
+  test "a queue group delivers each publication to one subscriber" do
+    subject = "test.queue"
+    parent = self()
+
+    for member <- 1..2 do
+      pid =
+        spawn_link(fn ->
+          receive do
+            {:msg, _message} -> send(parent, {:received, member})
+          end
+        end)
+
+      {:ok, _sid} = Planes.subscribe(:jetstream, pid, subject, queue_group: "workers")
+    end
+
+    :ok = Planes.publish(:jetstream, subject, "once")
+    assert_receive {:received, _member}, 1_000
+    refute_receive {:received, _member}, 300
+  end
+
   test "core publications and subscriptions stay on the named plane" do
     subject = "test.core"
 

@@ -38,8 +38,8 @@ defmodule Platform.Nats.Planes do
 
   def publish(connection, subject, body), do: Nats.publish(ref(connection), subject, body)
 
-  def subscribe(connection, subscriber, subject),
-    do: Nats.subscribe(ref(connection), subscriber, subject)
+  def subscribe(connection, subscriber, subject, opts \\ []),
+    do: Nats.subscribe(ref(connection), subscriber, subject, opts)
 
   def unsubscribe(%__MODULE__{pid: pid}, sid), do: Nats.unsubscribe(pid, sid)
 

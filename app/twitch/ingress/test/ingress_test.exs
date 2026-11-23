@@ -47,7 +47,6 @@ defmodule Ingress.PipelineTest do
     @meta %{shard_id: 0, msg_id: "m1", ts: "2026-06-10T00:00:00Z"}
 
     setup do
-      start_supervised!({Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor})
       start_supervised!({Ingress.BroadcasterCache, [loader: fn _id -> {:ok, :premium} end]})
       :ok
     end
@@ -201,7 +200,6 @@ defmodule Ingress.PipelineTest do
     @meta %{shard_id: 0, msg_id: "m1", ts: "2026-06-10T00:00:00Z"}
 
     setup do
-      start_supervised!({Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor})
       start_supervised!({Ingress.BroadcasterCache, [loader: fn _id -> {:ok, :premium} end]})
       :ok
     end
@@ -305,7 +303,6 @@ defmodule Ingress.PipelineTest do
     @meta %{shard_id: 0, msg_id: "m1", ts: "2026-06-10T00:00:00Z"}
 
     setup do
-      start_supervised!({Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor})
       start_supervised!({Ingress.BroadcasterCache, [loader: fn _id -> {:ok, :premium} end]})
       :ok
     end
@@ -402,12 +399,23 @@ defmodule Ingress.PipelineTest do
   end
 end
 
-defmodule Ingress.CacheInvalidatorTest do
+defmodule Ingress.CacheInvalidationTest do
   use ExUnit.Case, async: false
 
-  alias Ingress.{BroadcasterCache, CacheInvalidator}
+  alias Ingress.BroadcasterCache
+  alias Ingress.TestSupport.NatsServer
+
+  @connection :gnat_invalidation_test
+  @subject "cache.invalidate.status"
 
   setup do
+    port = NatsServer.start()
+
+    start_supervised!(
+      Platform.Nats.connection_child(@connection, @connection, [%{host: "127.0.0.1", port: port}])
+    )
+
+    await_connected()
     {:ok, counter} = Agent.start_link(fn -> 0 end)
 
     loader = fn _id ->
@@ -415,45 +423,97 @@ defmodule Ingress.CacheInvalidatorTest do
       {:ok, :premium}
     end
 
-    start_supervised!({Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor})
-    start_supervised!({BroadcasterCache, [loader: loader, ttl_ms: 60_000]})
+    start_supervised!(
+      Ingress.Application.invalidated_cache_child(
+        [
+          name: Ingress.InvalidationsTest,
+          plane: @connection,
+          prefix: "cache.invalidate",
+          retry_ms: 50
+        ],
+        loader: loader,
+        ttl_ms: 60_000,
+        scope: "status"
+      )
+    )
+
+    await_subscribed()
     %{counter: counter}
   end
 
   defp loads(counter), do: Agent.get(counter, & &1)
 
-  test ~s({"broadcaster_id": ...} evicts that broadcaster), %{counter: counter} do
-    assert BroadcasterCache.lane("b1") == :premium
-    assert :ok = CacheInvalidator.request(%{body: ~s({"broadcaster_id": "b1"})})
-    assert BroadcasterCache.lane("b1") == :premium
-    assert loads(counter) == 2
+  defp await_connected(attempts \\ 50) do
+    cond do
+      Platform.Nats.connected?(@connection) -> :ok
+      attempts == 0 -> flunk("nats connection did not come up")
+      true -> Process.sleep(50) && await_connected(attempts - 1)
+    end
   end
 
-  test ~s({"all": true} flushes the cache), %{counter: counter} do
-    assert BroadcasterCache.lane("b1") == :premium
-    assert BroadcasterCache.lane("b2") == :premium
-    assert :ok = CacheInvalidator.request(%{body: ~s({"all": true})})
-    assert BroadcasterCache.lane("b1") == :premium
-    assert loads(counter) == 3
+  defp publish(broadcaster_id) do
+    body = Platform.Sift.encode!(%{broadcaster_id: broadcaster_id, keys: []})
+    :ok = Platform.Nats.publish(@connection, @subject, body)
   end
 
-  test "a bare broadcaster ID as body evicts", %{counter: counter} do
-    assert BroadcasterCache.lane("b1") == :premium
-    assert :ok = CacheInvalidator.request(%{body: "b1"})
-    assert BroadcasterCache.lane("b1") == :premium
-    assert loads(counter) == 2
+  defp await_loads(counter, expected, ids, attempts \\ 50) do
+    warm(ids)
+
+    cond do
+      loads(counter) == expected -> :ok
+      attempts == 0 -> flunk("expected #{expected} loads, got #{loads(counter)}")
+      true -> Process.sleep(20) && await_loads(counter, expected, ids, attempts - 1)
+    end
   end
 
-  test "an unrelated invalidation leaves entries cached", %{counter: counter} do
-    assert BroadcasterCache.lane("b1") == :premium
-    assert :ok = CacheInvalidator.request(%{body: ~s({"broadcaster_id": "other"})})
-    assert BroadcasterCache.lane("b1") == :premium
+  defp subscribed? do
+    :sys.get_state(Ingress.InvalidationsTest).subscribed != MapSet.new()
+  catch
+    :exit, _ -> false
+  end
+
+  defp await_subscribed(attempts \\ 100) do
+    cond do
+      subscribed?() -> Process.sleep(50)
+      attempts == 0 -> flunk("invalidation feed did not subscribe")
+      true -> Process.sleep(20) && await_subscribed(attempts - 1)
+    end
+  end
+
+  defp warm(ids), do: Enum.each(ids, &BroadcasterCache.lane/1)
+
+  test "a published broadcaster id evicts that broadcaster", %{counter: counter} do
+    warm(["1", "2"])
+    publish("1")
+    await_loads(counter, 3, ["1", "2"])
+  end
+
+  test "a restarted feed keeps invalidating the cache", %{counter: counter} do
+    old = Process.whereis(Ingress.InvalidationsTest)
+    Process.exit(old, :kill)
+    Process.sleep(50)
+    await_subscribed()
+    refute Process.whereis(Ingress.InvalidationsTest) == old
+
+    warm(["1"])
+    publish("1")
+    await_loads(counter, 2, ["1"])
+  end
+
+  test "a published star clears every entry", %{counter: counter} do
+    warm(["1", "2"])
+    publish("*")
+    await_loads(counter, 4, ["1", "2"])
+  end
+
+  test "garbage and unrelated ids leave entries cached", %{counter: counter} do
+    warm(["1"])
+    publish("not-a-number")
+    :ok = Platform.Nats.publish(@connection, @subject, "garbage")
+    publish("9")
+    Process.sleep(100)
+    warm(["1"])
     assert loads(counter) == 1
-  end
-
-  test "garbage bodies are ignored without crashing the consumer" do
-    assert :ok = CacheInvalidator.request(%{body: ""})
-    assert :ok = CacheInvalidator.request(%{body: "   "})
   end
 end
 

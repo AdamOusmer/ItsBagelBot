@@ -31,6 +31,7 @@ defmodule Ingress.MixProject do
       {:platform_sift, path: "../../../pkg/elixir/sift"},
       {:platform_cowboy, path: "../../../pkg/elixir/cowboy"},
       {:platform_nats, path: "../../../pkg/elixir/nats"},
+      {:platform_cache, path: "../../../pkg/elixir/cache"},
       {:platform_startup, path: "../../../pkg/elixir/startup"},
       {:platform_new_relic, path: "../../../pkg/elixir/new_relic"},
       {:platform_valkey, path: "../../../pkg/elixir/valkey"},

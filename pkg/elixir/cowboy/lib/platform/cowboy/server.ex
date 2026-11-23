@@ -13,7 +13,11 @@ defmodule Platform.Cowboy.Server do
     :keyfile,
     :ip,
     :num_acceptors,
-    :max_connections
+    :max_connections,
+    :loop_routes,
+    :idle_timeout,
+    :reset_idle_timeout_on_send,
+    :protocols
   ]
   @upgrade_options [
     :max_frame_bytes,
@@ -37,23 +41,40 @@ defmodule Platform.Cowboy.Server do
     acceptors = Keyword.get(opts, :num_acceptors, 2)
     ip = Keyword.get(opts, :ip, {0, 0, 0, 0})
     max_connections = Keyword.get(opts, :max_connections, 16_384)
+    idle_timeout = Keyword.get(opts, :idle_timeout, 60_000)
+    reset_on_send = Keyword.get(opts, :reset_idle_timeout_on_send, false)
+    loop_routes = Keyword.get(opts, :loop_routes, [])
+    protocols = Keyword.get(opts, :protocols, [:http])
 
     check!(
-      int_in(acceptors, 1, 128) and int_in(max_connections, 1, 1_000_000) and valid_ip?(ip),
+      valid_capacity?(acceptors, max_connections, ip),
       "invalid listener capacity, acceptor count or IP address"
     )
 
-    tls = tls(scheme, Keyword.get(opts, :certfile), Keyword.get(opts, :keyfile))
+    check!(
+      valid_idle?(idle_timeout, reset_on_send),
+      "invalid idle_timeout or reset_idle_timeout_on_send"
+    )
+
+    check!(valid_loop_routes?(loop_routes), "invalid loop_routes")
+    check!(valid_protocols?(protocols), "protocols must be a unique subset of [:http, :http2]")
+
+    tls = tls(scheme, Keyword.get(opts, :certfile), Keyword.get(opts, :keyfile), protocols)
 
     Plug.Cowboy.child_spec(
       [
         scheme: scheme,
         plug: plug,
+        dispatch: dispatch(plug, loop_routes),
         ref: name,
         port: port,
         ip: ip,
         transport_options: [num_acceptors: acceptors, max_connections: max_connections],
-        protocol_options: [protocols: [:http]]
+        protocol_options: [
+          protocols: protocols,
+          idle_timeout: idle_timeout,
+          reset_idle_timeout_on_send: reset_on_send
+        ]
       ] ++ tls
     )
   end
@@ -87,19 +108,62 @@ defmodule Platform.Cowboy.Server do
     )
   end
 
-  defp tls(:http, nil, nil), do: []
+  @alpn %{http: "http/1.1", http2: "h2"}
 
-  defp tls(:https, cert, key) when non_empty(cert) and non_empty(key) do
+  defp tls(:http, nil, nil, _protocols), do: []
+
+  defp tls(:https, cert, key, protocols) when non_empty(cert) and non_empty(key) do
     [
       certfile: cert,
       keyfile: key,
       versions: [:"tlsv1.2", :"tlsv1.3"],
-      alpn_preferred_protocols: ["http/1.1"]
+      alpn_preferred_protocols: Enum.map(protocols, &Map.fetch!(@alpn, &1))
     ]
   end
 
-  defp tls(_scheme, _cert, _key),
+  defp tls(_scheme, _cert, _key, _protocols),
     do: raise(ArgumentError, "HTTPS requires both certfile and keyfile; HTTP accepts neither")
+
+  defp dispatch(plug, loop_routes) do
+    {module, plug_opts} = normalize_plug(plug)
+    catch_all = {:_, Plug.Cowboy.Handler, {module, module.init(plug_opts)}}
+    [{:_, loop_routes ++ [catch_all]}]
+  end
+
+  defp normalize_plug({module, opts}), do: {module, opts}
+  defp normalize_plug(module), do: {module, []}
+
+  defp valid_capacity?(acceptors, max_connections, ip) do
+    int_in(acceptors, 1, 128) and valid_max_connections?(max_connections) and valid_ip?(ip)
+  end
+
+  defp valid_idle?(idle_timeout, reset_on_send),
+    do: positive_integer?(idle_timeout) and is_boolean(reset_on_send)
+
+  defp positive_integer?(value), do: is_integer(value) and value > 0
+
+  defp valid_protocols?([_ | _] = protocols), do: protocol_set?(protocols, [])
+  defp valid_protocols?(_protocols), do: false
+
+  defp protocol_set?([], _seen), do: true
+
+  defp protocol_set?([protocol | rest], seen),
+    do: new_protocol?(protocol, seen) and protocol_set?(rest, [protocol | seen])
+
+  defp protocol_set?(_improper, _seen), do: false
+
+  defp new_protocol?(protocol, seen), do: Map.has_key?(@alpn, protocol) and protocol not in seen
+
+  defp valid_max_connections?(:infinity), do: true
+  defp valid_max_connections?(value), do: int_in(value, 1, 1_000_000)
+
+  defp valid_loop_routes?(routes) when is_list(routes),
+    do: Enum.all?(routes, &valid_loop_route?/1)
+
+  defp valid_loop_routes?(_routes), do: false
+
+  defp valid_loop_route?({path, module, _opts}), do: is_binary(path) and is_atom(module)
+  defp valid_loop_route?(_route), do: false
 
   defp valid_plug?(plug) when is_atom(plug), do: true
   defp valid_plug?({module, _opts}) when is_atom(module), do: true

@@ -29,7 +29,7 @@ defmodule Ingress.NatsFailback do
       successes: Map.new(@connections, &{&1, 0})
     }
 
-    Process.send_after(self(), :check, :rand.uniform(interval))
+    Process.send_after(self(), :check, Platform.Backoff.uniform_ms(interval))
     {:ok, state}
   end
 

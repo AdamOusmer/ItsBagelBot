@@ -457,6 +457,7 @@
   </div>
   <div class="notice" id="notice" role="status"></div>
   <script>
+{{overlay_client}}
     (function () {
       const CANVAS_WIDTH = 1920;
       const CANVAS_HEIGHT = 1080;
@@ -851,8 +852,9 @@
       }
 
       function liveCycle() {
-        play(undefined);
+        const runMs = play(undefined);
         later(liveCycle, config.every * 60000);
+        return runMs;
       }
 
       const poweredTemplate = {
@@ -864,7 +866,7 @@
           later(liveCycle, FIRST_DELAY_MS);
         },
         playNow: function () {
-          if (this.running) liveCycle();
+          return this.running ? liveCycle() : undefined;
         },
         stop: function () {
           this.running = false;
@@ -881,9 +883,10 @@
       };
       const RETRY_MIN_MS = 5000;
       const RETRY_SPREAD_MS = 10000;
+      let retryFloorMs = 0;
       let activeTemplate = null;
       let syncTimer = 0;
-      let source = null;
+      let overlay = null;
 
       function showNotice(key) {
         notice.textContent = key ? NOTICES[key] || NOTICES.not_found : '';
@@ -900,27 +903,53 @@
         syncTimer = window.setTimeout(sync, ms);
       }
 
+      function retryAfterMs(res) {
+        const raw = res.headers.get('retry-after');
+        const seconds = Number(raw);
+        const delay = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(raw) - Date.now();
+        return Math.max(0, delay || 0);
+      }
+
       function retrySync() {
-        scheduleSync(RETRY_MIN_MS + Math.random() * RETRY_SPREAD_MS);
+        const floor = retryFloorMs;
+        retryFloorMs = 0;
+        scheduleSync(Math.max(floor, RETRY_MIN_MS + Math.random() * RETRY_SPREAD_MS));
       }
 
       function closeEvents() {
-        if (source) source.close();
-        source = null;
+        if (overlay) overlay.stop();
+        overlay = null;
       }
 
       function openEvents() {
-        if (source) return;
-        source = new EventSource('/o/events');
-        source.addEventListener('revision', function () { sync(); });
-        source.addEventListener('play', function () {
-          if (activeTemplate && activeTemplate.playNow) activeTemplate.playNow();
+        if (overlay) return;
+        overlay = createOverlayClient({
+          EventSource: EventSource,
+          fetch: function (url, init) { return fetch(url, init); },
+          storage: window.localStorage,
+          now: function () { return Date.now(); },
+          setTimeout: function (fn, ms) { return window.setTimeout(fn, ms); },
+          clearTimeout: function (id) { window.clearTimeout(id); },
+          random: function () { return Math.random(); },
+          basePath: '/o',
+          token: linkToken,
+          onAlert: function (alert, ctl) {
+            const runMs = activeTemplate && activeTemplate.playNow ? activeTemplate.playNow(alert.data) : undefined;
+            if (runMs === undefined) {
+              ctl.started('dropped');
+              ctl.done();
+              return;
+            }
+            ctl.started();
+            window.setTimeout(ctl.done, runMs);
+          },
+          onRevision: function () { sync(); },
+          onStop: function () {
+            overlay = null;
+            deny('not_found');
+          }
         });
-        source.onerror = function () {
-          if (source.readyState !== EventSource.CLOSED) return;
-          source = null;
-          retrySync();
-        };
+        overlay.start();
       }
 
       async function exchange() {
@@ -936,6 +965,7 @@
           });
           if (res.status === 204) return 'ok';
           if (res.status === 404) return 'gone';
+          if (res.status === 429) retryFloorMs = retryAfterMs(res);
         } catch (_) {}
         return 'retry';
       }
@@ -981,6 +1011,7 @@
           const exchanged = await exchange();
           if (exchanged === 'gone') result = { state: 'denied', reason: 'not_found' };
           if (exchanged === 'ok') result = await fetchDocument();
+          if (exchanged === 'retry') result = { state: 'retry' };
         }
         if (result.state === 'ok') render(result.body);
         else if (result.state === 'denied') deny(result.reason);
