@@ -84,10 +84,11 @@ func clipEndpoint(meta clipMeta) string {
 func (w *Worker) clipCreated(ctx context.Context, broadcasterID string, res *http.Response) (bool, error) {
 	switch {
 	case res.StatusCode == http.StatusTooManyRequests:
+		retryAfter := twitch.RetryAfter(res)
 		w.log.Warn("twitch rate limited clip create",
 			zap.String("broadcaster_id", broadcasterID),
-			zap.Duration("retry_after", twitch.RetryAfter(res)))
-		return false, fmt.Errorf("twitch 429 on clip create")
+			zap.Duration("retry_after", retryAfter))
+		return false, twitchRateLimited{endpoint: "clip create", retryAfter: retryAfter}
 
 	case res.StatusCode >= 500:
 		return false, fmt.Errorf("twitch server error on clip create: %d", res.StatusCode)

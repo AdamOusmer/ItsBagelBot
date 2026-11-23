@@ -4,7 +4,11 @@
 package worker
 
 import (
+	"errors"
+	"net/http"
+	"strconv"
 	"testing"
+	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus/bustest"
@@ -92,4 +96,25 @@ func TestQuietClipPublishesFactWithoutChat(t *testing.T) {
 	var fact data.ClipCreated
 	require.NoError(t, codec.Unmarshal(published[0].Payload, &fact))
 	assert.Equal(t, data.ClipCreated{BroadcasterID: testBroadcaster, ClipID: "AbCdEf", URL: testClipURL, Clipper: "bob", Title: "boss fight"}, fact)
+}
+
+func TestClipCreate429WaitsOutTwitchsResetInsteadOfAnImmediateRetry(t *testing.T) {
+	reset := time.Now().Add(7 * time.Second)
+	rt := &scriptedTransport{responses: []scriptedResponse{{
+		status:  http.StatusTooManyRequests,
+		headers: http.Header{"Ratelimit-Reset": []string{strconv.FormatInt(reset.Unix(), 10)}},
+	}}}
+
+	err := testMessage{Type: "clip", Payload: `{"clipper":"bob"}`}.send(pipelineWorker(t, rt))
+
+	require.Error(t, err)
+	assert.Equal(t, "twitch 429 on clip create", err.Error())
+
+	var nack interface{ ExpectedNack() bool }
+	require.True(t, errors.As(err, &nack), "429 must mark itself an expected nack, not a real error")
+	assert.True(t, nack.ExpectedNack())
+
+	var retryable interface{ RetryAfter() time.Duration }
+	require.True(t, errors.As(err, &retryable), "429 must carry Twitch's own backoff")
+	assert.InDelta(t, 7*time.Second, retryable.RetryAfter(), float64(time.Second))
 }
