@@ -25,7 +25,7 @@ test('opens a ticket, sends each part, then completes and returns the asset view
 
 test.each([
   { name: 'a coded refusal', status: 422, body: { error: 'asset_dimensions' }, code: 'asset_dimensions' },
-  { name: 'a premium status', status: 402, body: {}, code: 'premium_required' },
+  { name: 'a forbidden status', status: 403, body: {}, code: 'alpha_required' },
   { name: 'an oversized status', status: 413, body: {}, code: 'asset_too_large' },
   { name: 'a rate limit status', status: 429, body: {}, code: 'rate_limited' },
   { name: 'an unknown status', status: 500, body: {}, code: 'failed' }

@@ -22,7 +22,7 @@ test.each([
 
 test.each([
   { name: 'a coded refusal', status: 422, body: { error: 'bomb_ratio' }, code: 'bomb_ratio' },
-  { name: 'a premium status', status: 402, body: {}, code: 'premium_required' },
+  { name: 'a forbidden status', status: 403, body: {}, code: 'alpha_required' },
   { name: 'an unknown code', status: 400, body: { error: 'odd' }, code: 'failed' },
   { name: 'an unreadable body', status: 500, body: {}, code: 'failed' }
 ])('maps $name to $code', async ({ status, body, code }) => {

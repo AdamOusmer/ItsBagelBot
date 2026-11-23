@@ -11,7 +11,7 @@ export type ImportReason = (typeof IMPORT_REASONS)[number];
 
 export const IMPORT_ERRORS = [
   'invalid_archive', 'unsafe_path', 'symlink', 'nested_archive', 'too_many_entries', 'too_large', 'bomb_ratio',
-  'invalid_manifest', 'invalid_document', 'invalid_bundle', 'bad_hash', 'missing_asset', 'premium_required', 'failed'
+  'invalid_manifest', 'invalid_document', 'invalid_bundle', 'bad_hash', 'missing_asset', 'alpha_required', 'failed'
 ] as const;
 export type ImportError = (typeof IMPORT_ERRORS)[number];
 

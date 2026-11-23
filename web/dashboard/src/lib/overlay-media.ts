@@ -8,7 +8,7 @@ export const ASSET_ENDPOINT = '/overlays/assets';
 const NAME_LIMIT = 80;
 
 const STATUS_CODES: Record<number, string> = {
-  402: 'premium_required',
+  403: 'alpha_required',
   413: 'asset_too_large',
   415: 'unsupported_media',
   429: 'rate_limited',

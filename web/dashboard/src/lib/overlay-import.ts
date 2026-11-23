@@ -8,6 +8,6 @@ export const IMPORT_ENDPOINT = '/overlays/imports';
 
 export async function importArchive(file: File, dryRun: boolean, send: typeof fetch = fetch): Promise<ImportResult> {
   const response = await sendParts(IMPORT_ENDPOINT, file, { dry_run: dryRun }, send);
-  if (!response.ok) throw new ImportFailure(importError(await failureCode(response, { 402: 'premium_required' })));
+  if (!response.ok) throw new ImportFailure(importError(await failureCode(response, { 403: 'alpha_required' })));
   return (await response.json()) as ImportResult;
 }

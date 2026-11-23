@@ -245,7 +245,7 @@
     "too_many_assets": "Dieses Overlay enthält bereits die Höchstzahl an Dateien.",
     "too_many_of_type": "Dieses Overlay enthält bereits die Höchstzahl an Dateien dieses Typs.",
     "overlay_assets_too_large": "Dieses Overlay hat die Gesamtgrößengrenze erreicht.",
-    "premium_required": "Das Hochladen von Dateien erfordert Premium.",
+    "alpha_required": "Das Hochladen von Dateien erfordert Alpha-Zugang.",
     "rate_limited": "Zu viele Uploads im Moment. Versuche es gleich noch einmal.",
     "quota_exceeded": "Dein Speicher ist voll. Lösche zuerst ungenutzte Dateien oder Overlays.",
     "failed": "Der Upload ist fehlgeschlagen. Versuche es erneut."
@@ -290,7 +290,7 @@
     "invalid_bundle": "Ein Widget-Paket im Archiv ist ungültig.",
     "bad_hash": "Eine Datei stimmt nicht mit ihrer Prüfsumme überein.",
     "missing_asset": "Eine im Paket aufgeführte Datei fehlt.",
-    "premium_required": "Der Import erfordert Premium. Dieser Bericht ist eine Vorschau.",
+    "alpha_required": "Der Import erfordert Alpha-Zugang. Dieser Bericht ist eine Vorschau.",
     "failed": "Der Import ist fehlgeschlagen. Versuche es erneut."
   },
   "import": {
@@ -299,7 +299,6 @@
     "choose": "Zip-Datei wählen",
     "confirm": "Overlay importieren",
     "confirmHint": "Mit der Bestätigung entsteht das Overlay aus den zugeordneten und angenäherten Einträgen.",
-    "premiumNote": "Der Import erfordert Premium. Dieser Bericht ist eine Vorschau.",
     "mapped": "Zugeordnet",
     "approximated": "Angenähert",
     "unsupported": "Nicht unterstützt",
@@ -308,14 +307,11 @@
   "save": {
     "failed": "Das Overlay ließ sich nicht speichern. Versuche es erneut.",
     "invalid": "Das Overlay wurde abgelehnt. Lade die Seite neu und versuche es erneut.",
-    "conflict": "Dieses Overlay wurde anderswo geändert. Lade die Seite neu, um die neueste Version zu erhalten.",
-    "premium": "Das Veröffentlichen eines eigenen Overlays erfordert Premium."
+    "conflict": "Dieses Overlay wurde anderswo geändert. Lade die Seite neu, um die neueste Version zu erhalten."
   },
   "page": {
     "newName": "Neues Overlay",
     "discard": "Nicht gespeicherte Änderungen am Overlay verwerfen?",
-    "try": "Editor ausprobieren",
-    "upsell": "Du testest den Editor. Speichern, Uploads und Veröffentlichen erfordern Premium.",
     "notFound": "Dieses Overlay wurde nicht gefunden.",
     "discardTitle": "Änderungen verwerfen?",
     "discardConfirm": "Verwerfen",

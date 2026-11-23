@@ -245,7 +245,7 @@
     "too_many_assets": "This overlay already holds the maximum number of files.",
     "too_many_of_type": "This overlay already holds the maximum number of files of this type.",
     "overlay_assets_too_large": "This overlay has reached its total file size limit.",
-    "premium_required": "Uploading files needs Premium.",
+    "alpha_required": "Uploading files needs Alpha access.",
     "rate_limited": "Too many uploads for now. Try again in a little while.",
     "quota_exceeded": "Your storage is full. Delete unused files or overlays first.",
     "failed": "The upload failed. Try again."
@@ -290,7 +290,7 @@
     "invalid_bundle": "A widget bundle in the archive is not valid.",
     "bad_hash": "A file does not match its listed checksum.",
     "missing_asset": "A file listed in the pack is missing.",
-    "premium_required": "Importing needs Premium. This report is a preview.",
+    "alpha_required": "Importing needs Alpha access. This report is a preview.",
     "failed": "The import failed. Try again."
   },
   "import": {
@@ -299,7 +299,6 @@
     "choose": "Choose a zip file",
     "confirm": "Import overlay",
     "confirmHint": "Confirming creates the overlay from the mapped and approximated items.",
-    "premiumNote": "Importing needs Premium. This report is a preview.",
     "mapped": "Mapped",
     "approximated": "Approximated",
     "unsupported": "Unsupported",
@@ -308,14 +307,11 @@
   "save": {
     "failed": "Could not save the overlay. Try again.",
     "invalid": "The overlay was refused. Reload the page and try again.",
-    "conflict": "This overlay changed elsewhere. Reload the page to get the latest version.",
-    "premium": "Publishing a custom overlay needs Premium."
+    "conflict": "This overlay changed elsewhere. Reload the page to get the latest version."
   },
   "page": {
     "newName": "New overlay",
     "discard": "Discard unsaved overlay changes?",
-    "try": "Try the editor",
-    "upsell": "You are trying the editor. Saving, uploads and publishing need Premium.",
     "notFound": "That overlay was not found.",
     "discardTitle": "Discard changes?",
     "discardConfirm": "Discard",

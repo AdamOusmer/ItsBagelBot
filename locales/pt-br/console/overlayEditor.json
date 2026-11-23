@@ -245,7 +245,7 @@
     "too_many_assets": "Este overlay já tem o número máximo de arquivos.",
     "too_many_of_type": "Este overlay já tem o número máximo de arquivos deste tipo.",
     "overlay_assets_too_large": "Este overlay atingiu o limite de tamanho total dos arquivos.",
-    "premium_required": "Enviar arquivos requer Premium.",
+    "alpha_required": "Enviar arquivos requer acesso Alpha.",
     "rate_limited": "Envios demais por enquanto. Tente de novo daqui a pouco.",
     "quota_exceeded": "Seu armazenamento está cheio. Exclua antes arquivos ou overlays sem uso.",
     "failed": "O envio falhou. Tente novamente."
@@ -290,7 +290,7 @@
     "invalid_bundle": "Um pacote de widget no arquivo não é válido.",
     "bad_hash": "Um arquivo não corresponde à sua soma de verificação.",
     "missing_asset": "Falta um arquivo listado no pacote.",
-    "premium_required": "Importar requer Premium. Este relatório é uma prévia.",
+    "alpha_required": "Importar requer acesso Alpha. Este relatório é uma prévia.",
     "failed": "A importação falhou. Tente novamente."
   },
   "import": {
@@ -299,7 +299,6 @@
     "choose": "Escolher um arquivo zip",
     "confirm": "Importar overlay",
     "confirmHint": "Ao confirmar, o overlay é criado com os itens mapeados e aproximados.",
-    "premiumNote": "Importar requer Premium. Este relatório é uma prévia.",
     "mapped": "Mapeados",
     "approximated": "Aproximados",
     "unsupported": "Não compatíveis",
@@ -308,14 +307,11 @@
   "save": {
     "failed": "Não foi possível salvar o overlay. Tente novamente.",
     "invalid": "O overlay foi recusado. Recarregue a página e tente novamente.",
-    "conflict": "Este overlay mudou em outro lugar. Recarregue a página para obter a versão mais recente.",
-    "premium": "Publicar um overlay personalizado requer Premium."
+    "conflict": "Este overlay mudou em outro lugar. Recarregue a página para obter a versão mais recente."
   },
   "page": {
     "newName": "Novo overlay",
     "discard": "Descartar as alterações não salvas do overlay?",
-    "try": "Experimentar o editor",
-    "upsell": "Você está experimentando o editor. Salvar, enviar arquivos e publicar requerem Premium.",
     "notFound": "Esse overlay não foi encontrado.",
     "discardTitle": "Descartar as alterações?",
     "discardConfirm": "Descartar",

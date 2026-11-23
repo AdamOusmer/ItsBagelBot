@@ -54,7 +54,7 @@ test('a free account can begin a dry-run import', async () => {
 test.each([
   { name: 'nobody signed in', session: null, rejection: null, status: 401, error: 'not_signed_in' },
   { name: 'a delegate', session: delegate, rejection: null, status: 403, error: 'owner_only' },
-  { name: 'a free account', session: owner, rejection: new bus.RpcError('premium_required', 'forbidden'), status: 403, error: 'premium_required' },
+  { name: 'a non-alpha account', session: owner, rejection: new bus.RpcError('alpha_required', 'forbidden'), status: 403, error: 'alpha_required' },
   { name: 'a full account', session: owner, rejection: new bus.RpcError('quota_exceeded', 'forbidden'), status: 403, error: 'quota_exceeded' },
   { name: 'too many uploads', session: owner, rejection: new bus.RpcError('rate_limited', 'unavailable'), status: 429, error: 'rate_limited' },
   { name: 'a bus outage', session: owner, rejection: new Error('timeout'), status: 503, error: 'unavailable' }

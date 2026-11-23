@@ -184,6 +184,8 @@ func assertActivations(t *testing.T, keys *natsacl.Keys) {
 		"OVERLAYS_RPC": {
 			"USERS_RPC rpc.internal.users.voice.check",
 			"USERS_RPC rpc.internal.users.voice.check.node.*",
+			"USERS_RPC rpc.internal.users.alpha.check",
+			"USERS_RPC rpc.internal.users.alpha.check.node.*",
 		},
 		"PROJECTOR_RPC": {
 			"OVERLAYS_RPC rpc.internal.overlays.tts.by_hash",

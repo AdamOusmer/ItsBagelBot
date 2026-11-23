@@ -51,7 +51,7 @@ export function describeUpload(uploaded: UploadedAsset): OverlayAsset {
 
 export const UPLOAD_ERRORS = [
   'unsupported_media', 'invalid_asset', 'asset_too_large', 'asset_dimensions', 'asset_duration', 'too_many_assets',
-  'too_many_of_type', 'overlay_assets_too_large', 'premium_required', 'rate_limited', 'quota_exceeded', 'failed'
+  'too_many_of_type', 'overlay_assets_too_large', 'alpha_required', 'rate_limited', 'quota_exceeded', 'failed'
 ] as const;
 export type UploadError = (typeof UPLOAD_ERRORS)[number];
 

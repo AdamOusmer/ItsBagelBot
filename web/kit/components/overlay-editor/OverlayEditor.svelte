@@ -173,7 +173,7 @@
   }
 
   async function upload(file: File, slot: MediaSlot): Promise<string> {
-    if (!media) throw new MediaFailure('premium_required');
+    if (!media) throw new MediaFailure('alpha_required');
     if (file.size > slotMaxBytes(slot)) throw new MediaFailure('asset_too_large');
     const uploaded = await media.upload(file);
     if (!acceptsType(slot, uploaded.type)) throw new MediaFailure('unsupported_media');
