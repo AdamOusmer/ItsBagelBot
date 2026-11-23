@@ -93,6 +93,13 @@ configuration through Projector's `rpc.internal.projector.overlays.tts.settings`
 Users supplies the monthly allowance and records clip usage. Sesame combines
 those inputs with per-alert or chat-command overrides and sends the selected
 voice to Gossip.
+Every spoken name and message passes `moderation.CheckSpeech` first: a
+fixed floor (hate, explicit sexual acts, self-harm encouragement, real-world
+threats, personal data) plus the streamer's automod sections and term lists
+through `automod.Config.SpeechPolicy`. Banter and game violence pass. Floor
+hits from viewers record a strike in `pkg/valkey` `SpeechSafety`, and a
+struck viewer is denied like blocked text. Recipe and dashboard test speech
+never strike.
 
 Chat Alerts controls chat lines and their follow/subscription cooldowns.
 A core handler reads the same Alerts row for Premium voice regardless of the

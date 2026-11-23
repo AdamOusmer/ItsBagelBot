@@ -162,7 +162,7 @@ func appendCustom(out []provider.Provider, cfg *config.Config, d provider.Deps, 
 }
 
 func ttsDisabled(cfg *config.Config) bool {
-	return cfg.VertexCredentials == "" && cfg.GeminiAPIKey == ""
+	return cfg.VertexCredentials == "" && (cfg.Production || cfg.GeminiAPIKey == "")
 }
 
 func ttsConfig(cfg *config.Config) tts.Config {
@@ -172,6 +172,7 @@ func ttsConfig(cfg *config.Config) tts.Config {
 		Model:       cfg.GeminiTTSModel,
 		Voice:       cfg.GeminiTTSVoice,
 		Temperature: cfg.GeminiTTSTemperature,
+		VertexOnly:  cfg.Production,
 		Vertex: tts.VertexConfig{
 			Credentials: cfg.VertexCredentials,
 			Project:     cfg.VertexProject,
@@ -181,7 +182,7 @@ func ttsConfig(cfg *config.Config) tts.Config {
 }
 
 func appendTTS(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	return gated(out, log, ttsDisabled(cfg), "tts provider disabled: GOOGLE_VERTEX_CREDENTIALS and GEMINI_API_KEY unset", tts.New, ttsConfig(cfg), d)
+	return gated(out, log, ttsDisabled(cfg), "tts provider disabled: no usable speech credentials", tts.New, ttsConfig(cfg), d)
 }
 
 func Speech(cfg *config.Config, d provider.Deps) (*tts.Synthesizer, bool) {

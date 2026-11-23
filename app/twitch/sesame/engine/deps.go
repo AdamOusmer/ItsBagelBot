@@ -46,6 +46,8 @@ type AlertVoicePublisher interface {
 
 type Deps struct {
 	AlertVoice     AlertVoicePublisher
+	SpeechSafety   pkg_valkey.SpeechSafety
+	SpeechStore    valkey.Client
 	Eligibility    *eligibility.Checker
 	Runtime        *channelruntime.Client
 	TrialStore     valkey.Client

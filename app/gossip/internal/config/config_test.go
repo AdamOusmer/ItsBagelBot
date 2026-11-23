@@ -54,3 +54,22 @@ func (tc temperatureCase) check(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, tc.want, cfg.GeminiTTSTemperature)
 }
+
+func TestProductionFromAppEnv(t *testing.T) {
+	for _, tc := range []struct {
+		name, appEnv string
+		want         bool
+	}{
+		{"unset defaults to production", "", true},
+		{"explicit production", "production", true},
+		{"development", "development", false},
+		{"debug", "debug", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("APP_ENV", tc.appEnv)
+			cfg, err := config.Load()
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, cfg.Production)
+		})
+	}
+}

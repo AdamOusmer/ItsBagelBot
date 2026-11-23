@@ -8,16 +8,19 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"ItsBagelBot/app/gossip/internal/core"
+	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/codec"
 )
 
 var (
-	errKeyRejected = errors.New("speech provider rejected its API key")
-	apiKeyName     = regexp.MustCompile(`(?i)(^|[^a-z0-9])api[ _-]*keys?($|[^a-z0-9])`)
+	errKeyRejected  = errors.New("speech provider rejected its API key")
+	safetyBlockName = regexp.MustCompile(`(?i)(^|[^a-z0-9])(safety|prohibited[ _]content|blocklist)($|[^a-z0-9])`)
+	apiKeyName      = regexp.MustCompile(`(?i)(^|[^a-z0-9])api[ _-]*keys?($|[^a-z0-9])`)
 )
 
 type geminiError struct {
@@ -49,8 +52,20 @@ func readGeminiError(upstream *core.UpstreamError, body []byte) error {
 	}
 	if upstream.Status == http.StatusTooManyRequests {
 		upstream.RetryAfter = details.retryAfter(upstream.RetryAfter)
+		return upstream
 	}
-	return upstream
+	return details.blocked(upstream)
+}
+
+func (e geminiError) blocked(upstream *core.UpstreamError) error {
+	if !e.namesSafetyBlock() {
+		return upstream
+	}
+	return fmt.Errorf("%w: %w", refusal{class: gossiprpc.RefusalPolicy, raw: "HTTP_" + strconv.Itoa(upstream.Status)}, upstream)
+}
+
+func (e geminiError) namesSafetyBlock() bool {
+	return e.names(safetyBlockName, e.Status+"\n"+e.Reason)
 }
 
 func readGoogleError(body []byte) geminiError {
@@ -62,11 +77,15 @@ func readGoogleError(body []byte) geminiError {
 }
 
 func (e geminiError) namesAPIKey() bool {
-	if apiKeyName.MatchString(e.Status + "\n" + e.Reason + "\n" + e.Message) {
+	return e.names(apiKeyName, e.Status+"\n"+e.Reason+"\n"+e.Message)
+}
+
+func (e geminiError) names(pattern *regexp.Regexp, summary string) bool {
+	if pattern.MatchString(summary) {
 		return true
 	}
 	for _, detail := range e.Details {
-		if apiKeyName.MatchString(detail.Reason) {
+		if pattern.MatchString(detail.Reason) {
 			return true
 		}
 	}

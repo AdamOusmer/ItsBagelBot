@@ -150,6 +150,15 @@ func TestVoiceTestAlertRPCRefusesWithoutQueueing(t *testing.T) {
 	}
 }
 
+func TestVoiceTestAlertRPCRefusesBlockedName(t *testing.T) {
+	fixture := voiceTestFixture{allowance: voiceTestAllowance(), settings: voiceTestSettings(), limit: allowVoiceTest}
+	nc, jobs := fixture.serve(t)
+	req := voiceTestOwnerRequest()
+	req.DisplayName = "kys"
+	assert.Equal(t, sesamerpc.VoiceTestReply{Refusal: rpc.Refused(rpc.CodeInvalid, "name not allowed")}, requestVoiceTest(t, nc, req))
+	assert.Empty(t, jobs)
+}
+
 func TestVoiceTestAlertRPCRateLimitsEachChannel(t *testing.T) {
 	fixture := voiceTestFixture{allowance: voiceTestAllowance(), settings: voiceTestSettings(), limit: ratelimit.New(valkeytest.Spawn(t)).Allow}
 	nc, jobs := fixture.serve(t)

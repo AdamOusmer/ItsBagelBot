@@ -20,6 +20,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/voiceplan"
+	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
@@ -139,7 +140,11 @@ func (s alertSpeech) skip(ctx context.Context, reason speechSkipReason) error {
 
 func (s alertSpeech) handle(ctx context.Context, in alertSpeechInput) error {
 	in.message = s.viewerMessage(in.message)
-	if reason := s.skipReason(ctx, in); reason != "" {
+	reason, err := s.skipReason(ctx, &in)
+	if err != nil {
+		return err
+	}
+	if reason != "" {
 		return s.skip(ctx, reason)
 	}
 	return s.publish(ctx, s.job(in, s.jobID()))
@@ -174,9 +179,10 @@ func minimumBits(cfg alertConfig) int {
 }
 
 type alertSpeechInput struct {
-	speaker string
-	message string
-	bits    int
+	speaker  string
+	message  string
+	viewerID string
+	bits     int
 }
 
 func cheerSpeechInput(c *module.Context, ev cheerEvent) alertSpeechInput {
@@ -184,32 +190,53 @@ func cheerSpeechInput(c *module.Context, ev cheerEvent) alertSpeechInput {
 		return alertSpeechInput{}
 	}
 	speaker := i18n.T(c.Locale, "alerts.voice.anonymous")
+	viewerID := ""
 	if !ev.IsAnonymous {
-		speaker = chatName(ev.UserName, ev.UserLogin)
+		speaker, viewerID = chatName(ev.UserName, ev.UserLogin), ev.UserID
 	}
-	return alertSpeechInput{speaker: speaker, message: ev.Message, bits: ev.Bits}
+	return alertSpeechInput{speaker: speaker, message: ev.Message, viewerID: viewerID, bits: ev.Bits}
 }
 
 func subSpeechInput(_ *module.Context, ev subscribeEvent) alertSpeechInput {
 	if ev.skip() || ev.BroadcasterUserID == "" {
 		return alertSpeechInput{}
 	}
-	return alertSpeechInput{speaker: ev.user(), message: ev.Message.Text}
+	return alertSpeechInput{speaker: ev.user(), message: ev.Message.Text, viewerID: ev.UserID}
 }
 
-func (s alertSpeech) skipReason(ctx context.Context, in alertSpeechInput) speechSkipReason {
+func (s alertSpeech) contentReason(in alertSpeechInput) speechSkipReason {
 	switch {
 	case s.kind == "cheer" && in.bits < minimumBits(s.cfg):
 		return speechMinBits
 	case !voiceplan.HasSpokenContent(in.message):
 		return speechEmpty
-	case blockedSpeech(s.c, in.message):
-		return speechBlocked
-	case !loyaltyLive(ctx, *s.d, s.c.BroadcasterID, settingBool(s.cfg["ttsLiveOnly"], voiceplan.DefaultLiveOnly)):
-		return speechOffline
 	default:
-		return s.allowanceReason(ctx)
+		return ""
 	}
+}
+
+func (s alertSpeech) skipReason(ctx context.Context, in *alertSpeechInput) (speechSkipReason, error) {
+	if reason := s.contentReason(*in); reason != "" {
+		return reason, nil
+	}
+	message, allowed, err := s.d.Speech().Screen(ctx, s.subject(*in), moderation.SpeechInput{Name: voiceplan.PlainText(in.speaker), Message: in.message}, s.c.Speech())
+	in.message = message
+	switch {
+	case err != nil:
+		return "", err
+	case !allowed:
+		return speechBlocked, nil
+	case !voiceplan.HasSpokenContent(in.message):
+		return speechEmpty, nil
+	case !loyaltyLive(ctx, *s.d, s.c.BroadcasterID, settingBool(s.cfg["ttsLiveOnly"], voiceplan.DefaultLiveOnly)):
+		return speechOffline, nil
+	default:
+		return s.allowanceReason(ctx), nil
+	}
+}
+
+func (s alertSpeech) subject(in alertSpeechInput) engine.SpeechSubject {
+	return engine.SpeechSubject{BroadcasterID: s.c.BroadcasterID, ViewerID: in.viewerID, Source: voiceplan.SourceViewer, EventID: s.jobID()}
 }
 
 func (s alertSpeech) allowanceReason(ctx context.Context) speechSkipReason {
@@ -237,10 +264,6 @@ func isCheermoteWord(word string) bool {
 	return cheermoteToken.MatchString(strings.TrimFunc(word, unicode.IsPunct))
 }
 
-func blockedSpeech(c *module.Context, text string) bool {
-	return c.BlocksText != nil && c.BlocksText(text)
-}
-
 func (s alertSpeech) job(in alertSpeechInput, jobID string) voiceplan.AlertJob {
 	key := s.configKey()
 	defaults, _ := s.kind.Defaults()
@@ -250,6 +273,7 @@ func (s alertSpeech) job(in alertSpeechInput, jobID string) voiceplan.AlertJob {
 	return voiceplan.AlertJob{
 		EventID: jobID, TraceID: s.traceID, BroadcasterID: s.broadcasterID(), Kind: s.kind,
 		Text: voiceplan.StripControls(text), Style: style, Voice: speechVoice(s.cfg[key+"Voice"]), CreatedAt: time.Now().UTC(),
+		ViewerID: in.viewerID, Source: voiceplan.SourceViewer,
 	}
 }
 

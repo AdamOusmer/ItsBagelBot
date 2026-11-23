@@ -37,7 +37,7 @@ type vertexMediaType string
 
 func (r vertexResponse) speech() (speech, error) {
 	if r.PromptFeedback.BlockReason != "" {
-		return speech{}, errRefused
+		return speech{}, blockRefusal(r.PromptFeedback.BlockReason)
 	}
 	if len(r.Candidates) == 0 {
 		return speech{}, errNoAudio
@@ -64,10 +64,7 @@ func (c vertexCandidate) audio() vertexInlineData {
 }
 
 func (c vertexCandidate) emptyAudioError() error {
-	if c.FinishReason == "" || c.FinishReason == "STOP" {
-		return errNoAudio
-	}
-	return errRefused
+	return finishRefusal(c.FinishReason)
 }
 
 func (d vertexInlineData) wav() ([]byte, int64, error) {

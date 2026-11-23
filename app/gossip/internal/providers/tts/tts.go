@@ -48,6 +48,7 @@ type Config struct {
 	Voice       string
 	Temperature float64
 	Vertex      VertexConfig
+	VertexOnly  bool
 }
 
 type backend interface {
@@ -108,6 +109,9 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 
 func (cfg Config) backend(b *provider.Builder, log *zap.Logger) backend {
 	if cfg.Vertex.Credentials == "" {
+		if cfg.VertexOnly {
+			return nil
+		}
 		client := b.Trusted().Client(strings.TrimRight(cfg.BaseURL, "/"), map[string]string{"x-goog-api-key": cfg.APIKey}, speechTimeout)
 		return geminiBackend{client: client, temperature: cfg.Temperature}
 	}
@@ -149,6 +153,9 @@ func (s *synthesizer) synthesize(ctx context.Context, req gossiprpc.Request) any
 	req.Model = cmp.Or(req.Model, s.model)
 	req.Text = Shape(req.Text)
 	req.Style = strings.TrimSpace(req.Style)
+	if reply, refused := localRefusal(ctx, req.Text); refused {
+		return reply
+	}
 	if reject := validate(req); reject != "" {
 		return gossiprpc.TTSSynthesizeReply{Error: reject}
 	}
@@ -246,13 +253,14 @@ func upstreamStatus(err error) int {
 }
 
 func (s *synthesizer) failureReply(ctx context.Context, err error) gossiprpc.TTSSynthesizeReply {
+	if reply, refused := s.refusalReply(ctx, err); refused {
+		return reply
+	}
 	var upstream *core.UpstreamError
 	if errors.As(err, &upstream) {
 		return s.upstreamFailure(ctx, upstream, err)
 	}
 	switch err {
-	case errRefused:
-		return refusedReply()
 	case errNoAudio, errInvalidAudio, errInternal:
 		return gossiprpc.TTSSynthesizeReply{Error: err.Error()}
 	}
@@ -272,11 +280,7 @@ func (s *synthesizer) upstreamFailure(ctx context.Context, upstream *core.Upstre
 	case errors.Is(err, errVertexCredentialsRejected):
 		monitor.TxnLogger(ctx, s.log).Warn("Vertex TTS credentials rejected", zap.Int("status", upstream.Status))
 	case upstream.Status >= http.StatusBadRequest && upstream.Status < http.StatusInternalServerError:
-		return refusedReply()
+		return refusal{class: gossiprpc.RefusalInvalid}.reply()
 	}
 	return gossiprpc.TTSSynthesizeReply{Error: errUnavailable.Error()}
-}
-
-func refusedReply() gossiprpc.TTSSynthesizeReply {
-	return gossiprpc.TTSSynthesizeReply{Error: errRefused.Error(), Reason: "refused"}
 }

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -23,11 +24,13 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
+	pkgvalkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
 	jsapi "github.com/nats-io/nats.go/jetstream"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	valkey_go "github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -81,8 +84,32 @@ func newRig(t *testing.T, upstream http.HandlerFunc) rig {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = events.Unsubscribe() })
 
-	handler := voice.Handler{RPC: nc, Speech: speech, Overlay: overlays, Log: zap.NewNop()}
+	handler := voice.Handler{
+		RPC: nc, Speech: speech, Overlay: overlays, Log: zap.NewNop(),
+		Safety: pkgvalkey.NewSpeechSafety(testLimits()), Store: valkeyStore(t),
+	}
 	return rig{nc: nc, overlays: overlays, jobs: jobs, handler: handler, usage: usage, events: events, upstream: hits}
+}
+
+func testLimits() pkgvalkey.SpeechLimits {
+	return pkgvalkey.SpeechLimits{
+		ViewerChannelStrikes: 2, ViewerChannelWindow: time.Minute, ViewerChannelBlock: time.Minute,
+		ViewerGlobalStrikes: 1000, ViewerGlobalWindow: time.Minute, ViewerGlobalBlock: time.Minute,
+		ChannelRefusals: 100000, ChannelWindow: time.Minute, ChannelPause: time.Minute,
+		GlobalRefusals: 100000, GlobalWindow: time.Minute, GlobalCooldown: time.Minute,
+	}
+}
+
+func valkeyStore(t *testing.T) valkey_go.Client {
+	t.Helper()
+	addr := os.Getenv("VALKEY_TEST_ADDR")
+	if addr == "" {
+		t.Skip("VALKEY_TEST_ADDR is not set")
+	}
+	store, err := pkgvalkey.NewClient(addr, os.Getenv("VALKEY_TEST_PASSWORD"))
+	require.NoError(t, err)
+	t.Cleanup(store.Close)
+	return store
 }
 
 func audioUpstream(w http.ResponseWriter, _ *http.Request) {

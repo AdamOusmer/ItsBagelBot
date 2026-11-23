@@ -1,0 +1,136 @@
+# Speech floor: slurs and hate. Always blocked, never overridden by allow terms.
+# A leading * also scans the term across split short tokens (letters >= 5, no innocent superstring).
+*nigger
+*niggers
+*nigga
+*niggas
+niqqer
+niqqa
+nikker
+nikkers
+*faggot
+*faggots
+faggit
+kike
+kikes
+kyke
+spic
+spics
+gook
+gooks
+*wetback
+*wetbacks
+beaner
+beaners
+towelhead
+towelheads
+raghead
+ragheads
+tranny
+trannies
+paki
+pakis
+jiggaboo
+jigaboo
+darkie
+zipperhead
+porch monkey
+ching chong
+chingchong
+heil hitler
+sieg heil
+hitler was right
+gas the jews
+kill all jews
+kill all blacks
+kill all gays
+kill all muslims
+# fr
+nègre
+nègres
+négro
+négros
+bougnoule
+bougnoules
+youpin
+youpins
+youtre
+youtres
+bicot
+bicots
+niakoue
+niakoué
+bamboula
+bamboulas
+crouille
+crouilles
+pédé
+pédés
+gouine
+gouines
+tarlouze
+tarlouzes
+sale arabe
+sale noir
+sale juif
+sale pédé
+# de
+neger
+kanake
+kanaken
+zigeuner
+schwuchtel
+schwuchteln
+judensau
+judenschwein
+untermensch
+untermenschen
+kümmeltürke
+kuemmeltuerke
+# es
+maricón
+maricon
+maricones
+sudaca
+sudacas
+negro de mierda
+moro de mierda
+judio de mierda
+judío de mierda
+gitano de mierda
+sudaca de mierda
+# pt-br
+viado
+viados
+sapatão
+sapatao
+traveco
+travecos
+preto imundo
+negro imundo
+judeu imundo
+# ru
+пидор
+пидора
+пидоры
+пидорас
+пидорасы
+педик
+педики
+хач
+хачи
+хачик
+чурка
+чурки
+жид
+жиды
+жидяра
+черножопый
+черножопые
+черномазый
+черномазые
+ниггер
+ниггеры
+нигга
+узкоглазый
+узкоглазые

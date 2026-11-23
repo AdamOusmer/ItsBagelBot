@@ -82,6 +82,7 @@ type giftEvent struct {
 
 type cheerEvent struct {
 	IsAnonymous       bool   `json:"is_anonymous"`
+	UserID            string `json:"user_id"`
 	UserName          string `json:"user_name"`
 	UserLogin         string `json:"user_login"`
 	BroadcasterUserID string `json:"broadcaster_user_id"`

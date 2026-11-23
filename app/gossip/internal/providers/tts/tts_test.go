@@ -137,8 +137,12 @@ type upstreamFailureCase struct {
 func upstreamFailureCases() []upstreamFailureCase {
 	echo := fmt.Sprintf(`{"error":{"message":%q}}`, testKey+" "+upstreamFailureText)
 	unavailable := gossiprpc.TTSSynthesizeReply{Error: "speech synthesis is unavailable right now"}
-	refused := gossiprpc.TTSSynthesizeReply{Error: "the speech provider refused this request", Reason: "refused"}
+	refused := gossiprpc.TTSSynthesizeReply{Error: "the speech provider refused this request", Reason: "refused", RefusalClass: gossiprpc.RefusalInvalid}
+	blocked := gossiprpc.TTSSynthesizeReply{Error: "the speech provider refused this request", Reason: "refused", RefusalClass: gossiprpc.RefusalPolicy}
 	return []upstreamFailureCase{
+		{
+			name: "safety block in error body", status: http.StatusBadRequest, body: `{"error":{"status":"INVALID_ARGUMENT","details":[{"reason":"SAFETY"}]}}`, want: blocked,
+		},
 		{
 			name: "JSON retry delay precedes header", status: http.StatusTooManyRequests, retry: "7",
 			body: `{"error":{"details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"RATE_LIMIT_EXCEEDED"},{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"12.125s"}]}}`,

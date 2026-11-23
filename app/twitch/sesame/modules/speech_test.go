@@ -29,6 +29,8 @@ type speechCase struct {
 	rewardRow  string
 	alertsRow  string
 	blocked    string
+	automodOff bool
+	struck     bool
 	free       bool
 	noMinutes  bool
 	offline    bool
@@ -53,6 +55,23 @@ func TestPremiumSpeechSurfaces(t *testing.T) {
 		{name: "tts locked for free channels yields to a custom command", env: chat, ttsRow: "{}", free: true, customTTS: true, wantChat: "custom tts"},
 		{name: "tts blocked text replies when asked", env: chat, ttsRow: `{"replyDenied":"true"}`, blocked: `{"block_terms":"stream"}`,
 			wantChat: "That message can't be read aloud."},
+		{name: "tts blocked viewer name replies when asked", env: chat, ttsRow: `{"replyDenied":"true"}`, blocked: `{"block_terms":"viewer"}`,
+			wantChat: "That message can't be read aloud."},
+		{name: "tts floor applies with automod disabled", env: ttsChat("!tts please kys"), ttsRow: `{"replyDenied":"true"}`, automodOff: true,
+			wantChat: "That message can't be read aloud."},
+		{name: "tts allow term cannot unblock the floor", env: ttsChat("!tts please kys"), ttsRow: `{"replyDenied":"true"}`, blocked: `{"allow_terms":"kys"}`,
+			wantChat: "That message can't be read aloud."},
+		{name: "tts banter and game violence pass", env: ttsChat("!tts headshot, you are trash, gg ez"), ttsRow: "{}", automodOff: true,
+			wantKind: voiceplan.SpeechChat, wantJob: speechExpectation{"Viewer said: headshot, you are trash, gg ez", "warm, friendly, upbeat", ""}},
+		{name: "tts strips links before speaking", env: ttsChat("!tts look https://example.com/x now"), ttsRow: "{}",
+			wantKind: voiceplan.SpeechChat, wantJob: speechExpectation{"Viewer said: look now", "warm, friendly, upbeat", ""}},
+		{name: "tts denies a struck viewer", env: chat, ttsRow: `{"replyDenied":"true"}`, struck: true, wantChat: "That message can't be read aloud."},
+		{name: "speak reward refunds a struck viewer", env: speakRedemption("great stream"), rewardRow: speakReward, struck: true,
+			wantStatus: outgress.RedemptionCanceled},
+		{name: "speak reward refunds a blocked name", env: speakRedemption("great stream"), rewardRow: speakReward, blocked: `{"block_terms":"viewer"}`,
+			wantStatus: outgress.RedemptionCanceled},
+		{name: "speak reward refunds floor text", env: speakRedemption("kys"), rewardRow: speakReward, automodOff: true,
+			wantStatus: outgress.RedemptionCanceled},
 		{name: "tts without minutes stays silent by default", env: chat, ttsRow: "{}", noMinutes: true},
 		{name: "speak reward queues the redemption text and fulfills", env: speakRedemption("great stream"), rewardRow: speakReward,
 			wantKind: voiceplan.SpeechReward, wantJob: speechExpectation{"Viewer said: great stream", "calm, gentle, relaxed", "Puck"},
@@ -91,7 +110,7 @@ func speakRedemption(input string) lane.Envelope {
 func (tc speechCase) views() []projection.ModuleView {
 	views := []projection.ModuleView{
 		{Name: "alerts", IsEnabled: true, Configs: []byte(tc.alertsRow)},
-		{Name: "automod", IsEnabled: true, Configs: []byte(tc.blocked)},
+		{Name: "automod", IsEnabled: !tc.automodOff, Configs: []byte(tc.blocked)},
 		{Name: channelPointsModuleName, IsEnabled: tc.rewardRow != "", Configs: []byte(tc.rewardRow)},
 	}
 	if tc.ttsRow != "" {
@@ -120,6 +139,9 @@ func (tc speechCase) run(t *testing.T) {
 	d := engine.Deps{
 		AlertVoice: voice, Live: &fakeLive{live: !tc.offline}, Pub: pub, Log: zap.NewNop(), Cooldown: engine.NoopCooldown{},
 		Proj: &fakeProj{user: tc.user(), modules: tc.views(), commands: tc.commands()},
+	}
+	if tc.struck {
+		d.SpeechSafety, d.SpeechStore = strikeViewer(t, "2", "7")
 	}
 	p := engine.NewPipeline(d, engine.NewRegistry(d.Log, TTS(d), ChannelPoints(d), Automod(d)), engine.Config{OutgressStandard: "out"})
 	t.Cleanup(p.Close)

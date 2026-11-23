@@ -6,6 +6,7 @@ package module
 import (
 	"ItsBagelBot/internal/domain/event/lane"
 	livekey "ItsBagelBot/internal/domain/live"
+	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/codec"
 	"context"
 	"strings"
@@ -38,6 +39,7 @@ type Context struct {
 	ModuleLookup          func(name string) bool
 	TriggerDisabledLookup func(moduleName ModuleName, trigger TriggerName) bool
 	BlocksText            func(text string) bool
+	SpeechPolicy          func() moderation.SpeechPolicy
 
 	Config codec.RawMessage
 
@@ -136,6 +138,13 @@ func (c *Context) EmoteCodes() map[string]struct{} {
 	return c.emoteCodes
 }
 
+func (c *Context) Speech() moderation.SpeechPolicy {
+	if c == nil || c.SpeechPolicy == nil {
+		return moderation.SpeechPolicy{}
+	}
+	return c.SpeechPolicy()
+}
+
 func (c *Context) Reset() {
 	c.EffectScope, c.EffectOrdinal, c.EffectContext, c.Failure = "", 0, nil, nil
 	c.Env = lane.Envelope{}
@@ -147,6 +156,7 @@ func (c *Context) Reset() {
 	c.ModuleLookup = nil
 	c.TriggerDisabledLookup = nil
 	c.BlocksText = nil
+	c.SpeechPolicy = nil
 	c.Config = nil
 	c.Num = ""
 	c.Command = ""
