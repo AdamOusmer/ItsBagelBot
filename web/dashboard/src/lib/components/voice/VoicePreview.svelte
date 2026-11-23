@@ -8,7 +8,10 @@
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import IconButton from '@bagel/ui/svelte/IconButton.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
+  import { connectAnalyser } from './audio-analyser';
   import { voiceOptions } from './voice-options';
+
+  let { analyser = $bindable(null) }: { analyser?: AnalyserNode | null } = $props();
 
   const { t, locale } = getI18n();
   const options = voiceOptions(t);
@@ -20,6 +23,8 @@
 
   function play() {
     if (!audio) return;
+    analyser ??= connectAnalyser(audio);
+    void (analyser.context as AudioContext).resume();
     audio.currentTime = 0;
     void audio.play().catch(() => (playing = false));
   }

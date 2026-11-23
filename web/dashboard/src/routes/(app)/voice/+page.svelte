@@ -13,6 +13,7 @@
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import AudioOrb from '@bagel/ui/svelte/AudioOrb.svelte';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -61,6 +62,7 @@
   }
 
   let commandValues = $state(untrack(loadedCommand));
+  let previewAnalyser = $state<AnalyserNode | null>(null);
   type VoiceAction = 'rotateOverlay' | 'testAlert';
   let pending = $state<VoiceAction | null>(null);
   let overlayUrl = $state(untrack(() => form?.overlayUrl));
@@ -174,7 +176,10 @@
 {/snippet}
 
 {#if data.locked}
-  <PremiumGate><VoicePreview /></PremiumGate>
+  <PremiumGate checkout>
+    {#snippet art()}<AudioOrb analyser={previewAnalyser} />{/snippet}
+    <VoicePreview bind:analyser={previewAnalyser} />
+  </PremiumGate>
 {:else if ready && allowance}
   <section class="screen active split">
     <aside class="split-side" bind:this={side} style="--side-top: {sideTop}px; --side-bottom: {sideBottom}px">

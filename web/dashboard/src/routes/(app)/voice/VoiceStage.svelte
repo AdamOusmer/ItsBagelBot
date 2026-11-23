@@ -7,6 +7,7 @@
   import AudioOrb from '@bagel/ui/svelte/AudioOrb.svelte';
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import { connectAnalyser } from '#lib/components/voice/audio-analyser';
   import type { VoiceAllowance } from '#lib/server/services/voice';
   import VoiceWheel from './VoiceWheel.svelte';
 
@@ -39,21 +40,10 @@
   let analyser = $state<AnalyserNode | null>(null);
   let playing = $state<string | null>(null);
 
-  function connect(element: HTMLAudioElement) {
-    if (analyser) return analyser;
-    const context = new AudioContext();
-    const node = context.createAnalyser();
-    node.fftSize = 2048;
-    node.smoothingTimeConstant = 0.75;
-    context.createMediaElementSource(element).connect(node);
-    node.connect(context.destination);
-    analyser = node;
-    return node;
-  }
-
   function play(next: string) {
     if (!audio) return;
-    void (connect(audio).context as AudioContext).resume();
+    analyser ??= connectAnalyser(audio);
+    void (analyser.context as AudioContext).resume();
     if (playing === next) {
       audio.pause();
       return;

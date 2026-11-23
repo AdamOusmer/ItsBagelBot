@@ -4,6 +4,7 @@
   import type { Snippet } from 'svelte';
   import { getI18n } from '@bagel/kit';
   import Bolota from '@bagel/ui/svelte/Bolota.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
@@ -16,8 +17,13 @@
     body = t('billing.premiumGateBody'),
     cta = t('billing.premiumGateCta'),
     link = t('billing.premiumGateLink'),
+    checkout = false,
+    art,
     children
-  }:{ label?: string; title?: string; body?: string; cta?: string; link?: string; children?: Snippet } = $props();
+  }: {
+    label?: string; title?: string; body?: string; cta?: string; link?: string;
+    checkout?: boolean; art?: Snippet; children?: Snippet;
+  } = $props();
 
   const TAN = { head: '#eadbbd', eye: '#111113' };
 
@@ -39,13 +45,20 @@
         </h1>
         <p class="lead rise" style="--i: 1">{body}</p>
         <div class="actions rise" style="--i: 2">
-          <ButtonLink variant="primary" href="/billing?subscribe=1">{cta}</ButtonLink>
+          {#if checkout}
+            <form method="POST" action="/billing?/subscribe">
+              <input type="hidden" name="plan" value="monthly" />
+              <Button type="submit" variant="primary">{cta}</Button>
+            </form>
+          {:else}
+            <ButtonLink variant="primary" href="/billing?subscribe=1">{cta}</ButtonLink>
+          {/if}
           <TextLink href="/billing" label={link} />
         </div>
         {#if children}<div class="extra rise" style="--i: 3">{@render children()}</div>{/if}
       </div>
       <div class="mascot" aria-hidden="true">
-        <Bolota name="oven_fresh" size={340} palette={TAN} active follow />
+        {#if art}{@render art()}{:else}<Bolota name="oven_fresh" size={340} palette={TAN} active follow />{/if}
       </div>
     </div>
   </div>
