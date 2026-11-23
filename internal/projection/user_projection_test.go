@@ -84,36 +84,34 @@ func TestUserMappersCopyEveryField(t *testing.T) {
 	}
 }
 
-func TestSetUserRoundTripsCreatorCode(t *testing.T) {
-	store, _ := newTestStore(t)
-	ctx := context.Background()
+func TestSetUserRoundTripsRuntimeFields(t *testing.T) {
+	cases := []struct {
+		name   string
+		userID uint64
+		set    UserProjection
+		read   func(User) any
+		want   any
+		zero   any
+	}{
+		{"creator code", 74, UserProjection{CreatorCode: "BAGEL10"}, func(u User) any { return u.CreatorCode }, "BAGEL10", ""},
+		{"alpha", 76, UserProjection{Alpha: true}, func(u User) any { return u.IsAlpha() }, true, false},
+	}
+	for _, c := range cases {
+		store, _ := newTestStore(t)
+		ctx := context.Background()
+		c.set.Status, c.set.IsActive = "vip", true
 
-	require.NoError(t, store.SetUser(ctx, 74, UserProjection{Status: "vip", IsActive: true, CreatorCode: "BAGEL10"}))
-	user, found, err := store.GetUserRuntime(ctx, 74)
-	require.NoError(t, err)
-	require.True(t, found)
-	assert.Equal(t, "BAGEL10", user.CreatorCode)
+		require.NoError(t, store.SetUser(ctx, c.userID, c.set))
+		user, found, err := store.GetUserRuntime(ctx, c.userID)
+		require.NoError(t, err)
+		require.True(t, found, c.name)
+		assert.Equal(t, c.want, c.read(user), c.name)
 
-	require.NoError(t, store.SetUser(ctx, 74, UserProjection{Status: "vip", IsActive: true}))
-	user, _, err = store.GetUserRuntime(ctx, 74)
-	require.NoError(t, err)
-	assert.Empty(t, user.CreatorCode, "a cleared code must overwrite the projected one")
-}
-
-func TestSetUserRoundTripsAlpha(t *testing.T) {
-	store, _ := newTestStore(t)
-	ctx := context.Background()
-
-	require.NoError(t, store.SetUser(ctx, 76, UserProjection{Status: "free", IsActive: true, Alpha: true}))
-	user, found, err := store.GetUserRuntime(ctx, 76)
-	require.NoError(t, err)
-	require.True(t, found)
-	assert.True(t, user.IsAlpha())
-
-	require.NoError(t, store.SetUser(ctx, 76, UserProjection{Status: "free", IsActive: true}))
-	user, _, err = store.GetUserRuntime(ctx, 76)
-	require.NoError(t, err)
-	assert.False(t, user.IsAlpha(), "an event without the flag revokes it")
+		require.NoError(t, store.SetUser(ctx, c.userID, UserProjection{Status: "vip", IsActive: true}))
+		user, _, err = store.GetUserRuntime(ctx, c.userID)
+		require.NoError(t, err)
+		assert.Equal(t, c.zero, c.read(user), "a cleared %s must overwrite the projected one", c.name)
+	}
 }
 
 func TestSetUserRoundTripsLeaderboardPageHidden(t *testing.T) {
