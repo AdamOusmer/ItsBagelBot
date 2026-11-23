@@ -58,9 +58,9 @@
   }
   .field { position: absolute; inset: 0; pointer-events: none; }
   .glow {
-    --bb-orb-opacity: 0.16;
-    inline-size: 760px;
-    block-size: 760px;
+    --bb-orb-opacity: 0.32;
+    inline-size: 900px;
+    block-size: 900px;
     inset-block-start: 55%;
     inset-inline-start: 40%;
     translate: -50% -50%;
