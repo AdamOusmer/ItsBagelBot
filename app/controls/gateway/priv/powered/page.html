@@ -971,9 +971,13 @@
         openEvents();
       }
 
+      function needsExchange(result) {
+        return result.state === 'session' || (result.state === 'denied' && result.reason === 'not_found' && linkToken !== '');
+      }
+
       async function sync() {
         let result = await fetchDocument();
-        if (result.state === 'session') {
+        if (needsExchange(result)) {
           const exchanged = await exchange();
           if (exchanged === 'gone') result = { state: 'denied', reason: 'not_found' };
           if (exchanged === 'ok') result = await fetchDocument();
