@@ -8,9 +8,9 @@ defmodule ControlsGateway.TtsTest do
 
   alias ControlsGateway.Drain
   alias ControlsGateway.Overlays
-  alias ControlsGateway.Overlays.Handle
+  alias ControlsGateway.Overlays.{Handle, Tiers}
   alias ControlsGateway.TestSupport.{HttpClient, Peer, Streams}
-  alias Gnat.Jetstream.API.Object
+  alias Gnat.Jetstream.API.{Consumer, Object}
   alias Platform.Nats.TestSupport.NatsServer
 
   @moduletag :tmp_dir
@@ -578,16 +578,17 @@ defmodule ControlsGateway.TtsTest do
     publish_clip("playing")
     live = await_clips(live, 1)
     before = counter("Ack/ProgressOnHandoff")
-    naks = counter("Ack/NakOnClose")
     on_exit(&Drain.reset!/0)
     put_env(:stream_force_close_ms, 20_000)
     drain = Task.async(&Drain.run/0)
     live = HttpClient.await(live, &String.contains?(&1.body, "event: reconnect"))
     HttpClient.close(live)
-    eventually(fn -> counter("Ack/ProgressOnHandoff") > before end)
-    assert counter("Ack/NakOnClose") == naks
-    assert stored() == 1
+    eventually(fn -> counter("Ack/ProgressOnHandoff") > before end, 100)
     assert Task.await(drain, 10_000) == :ok
+    assert stored() == 1
+
+    assert {:ok, %{num_ack_pending: 1}} =
+             Consumer.info(:gnat_jetstream, Tiers.stream(:premium), Tiers.durable(:premium))
   end
 
   for id <- [@user_id, :all] do

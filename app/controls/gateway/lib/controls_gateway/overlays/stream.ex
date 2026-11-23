@@ -255,8 +255,8 @@ defmodule ControlsGateway.Overlays.Stream do
 
   defp announce_reconnect(req, %{version: :v2} = state, after_ms) do
     frame = ["event: reconnect\ndata: {\"after_ms\": ", Integer.to_string(after_ms), "}\n\n"]
-    :ok = :cowboy_req.stream_body(frame, :nofin, req)
     Pending.handoff(state.pending)
+    :ok = :cowboy_req.stream_body(frame, :nofin, req)
   end
 
   defp announce_reconnect(_req, %{version: :legacy}, _after_ms), do: :ok
