@@ -1,0 +1,13 @@
+{
+  "title": "E-Mail-Einstellungen",
+  "email": "Produkt-E-Mails für {address}",
+  "granted": "Du hast Produkt-E-Mails abonniert.",
+  "withdrawn": "Du hast dich abgemeldet. Wir schicken dir keine Produkt-E-Mails mehr.",
+  "none": "Du hast keine Produkt-E-Mails abonniert.",
+  "unsubscribe": "Abmelden",
+  "resubscribe": "Wieder anmelden",
+  "invalid": "Dieser Link funktioniert nicht mehr. Verwalte deine E-Mail-Einstellungen in den Einstellungen des Dashboards.",
+  "unavailable": "Die E-Mail-Einstellungen sind gerade nicht verfügbar. Versuche es gleich noch einmal.",
+  "saveError": "Deine Auswahl konnte nicht gespeichert werden. Versuche es erneut.",
+  "settings": "Einstellungen öffnen"
+}

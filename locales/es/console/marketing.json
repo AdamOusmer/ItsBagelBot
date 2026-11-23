@@ -8,5 +8,5 @@
   "optIn": "ItsBagelBot envía novedades y ofertas. Escríbenos por correo postal a {address} o por correo electrónico a {contact}. Puedes cancelar la suscripción en cualquier momento desde Configuración o desde cualquiera de estos correos.",
   "saveError": "No se pudo actualizar tu preferencia de correo. Inténtalo de nuevo.",
   "optInUnavailable": "Las nuevas suscripciones por correo no están disponibles temporalmente.",
-  "optInLabel": "Acepto recibir correos electrónicos sobre el producto"
+  "optInLabel": "Quiero recibir correos sobre el producto. Desmarca la casilla si prefieres no recibirlos."
 }

@@ -88,12 +88,16 @@ function requireConsent(account: AccountState | null, url: URL): void {
   throw redirect(302, `/consent?next=${encodeURIComponent(next)}`);
 }
 
+function consentApplies(s: Session, checkout: boolean, path: string): boolean {
+  return !s.impersonator_id && !checkout && path !== '/settings';
+}
+
 async function gatedAccount(locals: App.Locals, s: Session, url: URL): Promise<AccountState | null> {
   const path = url.pathname.replace(/\/$/, '');
-  const gateOwner = isSelfSignIn(s) && !isCheckoutReturn(url, path);
-  if (gateOwner) requireTwitchScopes(s, url);
+  const checkout = isCheckoutReturn(url, path);
+  if (!checkout) requireTwitchScopes(s, url);
   const account = await loadAccountState(locals, s);
-  if (gateOwner && path !== '/settings') requireConsent(account, url);
+  if (consentApplies(s, checkout, path)) requireConsent(account, url);
   return account;
 }
 

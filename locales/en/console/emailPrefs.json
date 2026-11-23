@@ -1,0 +1,13 @@
+{
+  "title": "Email preferences",
+  "email": "Product emails for {address}",
+  "granted": "You're subscribed to product emails.",
+  "withdrawn": "You're unsubscribed. We won't send you product emails.",
+  "none": "You haven't subscribed to product emails.",
+  "unsubscribe": "Unsubscribe",
+  "resubscribe": "Subscribe again",
+  "invalid": "This link doesn't work anymore. Manage email preferences in your dashboard settings.",
+  "unavailable": "Email preferences are unavailable right now. Try again in a moment.",
+  "saveError": "Could not save your choice. Try again.",
+  "settings": "Open settings"
+}

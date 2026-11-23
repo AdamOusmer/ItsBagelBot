@@ -56,6 +56,18 @@ export {
 } from './services/account-state';
 export { maskedContactEmail, setMarketing, setTermsConsent } from './services/consent';
 export {
+  marketingLink,
+  recordDelivery,
+  setMarketingLink,
+  suppressAddress,
+  type Delivery,
+  type DeliveryEvent,
+  type LinkChange,
+  type MarketingLink,
+  type Suppression,
+  type SuppressionReason
+} from './services/marketing-link';
+export {
   deleteSelf,
   hasGrant,
   isBanned,

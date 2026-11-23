@@ -68,17 +68,20 @@ test.each([
 });
 
 test.each([
-  { name: 'owner', identity: {}, target: '7' },
-  { name: 'delegate', identity: { delegate_of: '8' }, target: '8' },
-  { name: 'impersonation', identity: { impersonator_id: '9' }, target: '7' }
-])('consent RPCs forward the authenticated $name context', async ({ identity, target }) => {
+  { name: 'owner', identity: {}, terms: '7', settings: '7' },
+  { name: 'delegate', identity: { delegate_of: '8' }, terms: '7', settings: '8' },
+  { name: 'impersonation', identity: { impersonator_id: '9' }, terms: '7', settings: '7' }
+])('consent RPCs forward the authenticated $name context', async ({ identity, terms, settings }) => {
   const session = { ...actionEvent().locals.session, role: 'streamer' as const, sid: 'test', iat: 0, expires_at: 0, ...identity };
-  const owner = expect.objectContaining({
-    broadcaster_user_id: target, actor_id: '7', delegate_of: identity.delegate_of, impersonator_id: identity.impersonator_id
+  const context = (target: string, extra: Record<string, unknown> = {}) => expect.objectContaining({
+    broadcaster_user_id: target, actor_id: '7', impersonator_id: identity.impersonator_id, ...extra
   });
   await setTermsConsent(session, { source: 'consent', marketing: false, locale: 'en', requestId: UUID });
   await setMarketing(session, { status: 'withdrawn', locale: 'en' });
-  expect(calls).toEqual([[consentSet, owner], [`${SUB.dashboard}.marketing_set`, owner]]);
+  expect(calls).toEqual([
+    [consentSet, context(terms)],
+    [`${SUB.dashboard}.marketing_set`, context(settings, { delegate_of: identity.delegate_of })]
+  ]);
 });
 
 type ActionCase = {
@@ -111,7 +114,7 @@ const actionCases: ActionCase[] = [
   { name: 'missing request ID', fields: { request_id: '' }, status: 400 },
   { name: 'stale displayed version', fields: { terms_version: '2025-01' }, status: 400 },
   { name: 'signed out', session: null, status: 401 },
-  { name: 'delegate', session: { user_id: '7', delegate_of: '8' }, status: 403 },
+  { name: 'delegate accepts for their own account', session: { user_id: '7', delegate_of: '8' }, status: 303, location: '/', write: false },
   { name: 'impersonation', session: { user_id: '7', impersonator_id: '9' }, status: 403 },
   { name: 'off-site return', next: '//example.test/settings', status: 303, location: '/', write: false },
   { name: 'backslash return', next: '/\\example.test', status: 303, location: '/', write: false },
@@ -168,6 +171,12 @@ test.each([
   expect({ status: result.status, operations }).toEqual({ status, operations: [...want] });
 });
 
+function stateReads({ skipped, masked }: { skipped?: string; masked?: boolean }): typeof calls {
+  const skippedRead: typeof calls = skipped ? [[stateGet, { broadcaster_user_id: '7' }]] : [];
+  const maskedRead: typeof calls = masked ? [[stateGet, { broadcaster_user_id: '7', include_masked_email: true }]] : [];
+  return [...skippedRead, ...maskedRead];
+}
+
 test.each([
   { name: 'owner with a mailing address', session: { user_id: '7' }, terms: '', landing: null, address: mailingAddress, masked: true },
   { name: 'owner without a mailing address', session: { user_id: '7' }, terms: '', landing: null, address: '' },
@@ -175,7 +184,7 @@ test.each([
   { name: 'subscribed owner', session: { user_id: '7' }, terms: '', landing: null, address: mailingAddress, subscribed: true },
   { name: 'current owner', session: { user_id: '7' }, terms: TERMS_VERSION, landing: '/settings' },
   { name: 'unknown skip reason', session: { user_id: '7' }, terms: TERMS_VERSION, landing: '/settings', skipped: 'unknown' },
-  { name: 'delegate', session: { user_id: '7', delegate_of: '8' }, terms: TERMS_VERSION, landing: '/', skipped: 'no_email' },
+  { name: 'unaccepted delegate', session: { user_id: '7', delegate_of: '8' }, terms: '', landing: null, address: mailingAddress, masked: true },
   { name: 'impersonation', session: { user_id: '7', impersonator_id: '9' }, terms: '', landing: '/' }
 ])('consent load: $name', async ({ session, terms, landing, address, subscribed, masked, skipped }) => {
   privateEnv.BUSINESS_MAILING_ADDRESS = address || undefined;
@@ -191,14 +200,11 @@ test.each([
   expect(result).toEqual({
     consent: {
       requestId: expect.stringMatching(/^[\da-f-]{36}$/), mailingAddress: address,
-      subscribed: subscribed ?? false, maskedEmail: masked ? reply.masked_email : ''
+      subscribed: subscribed ?? false, marketingDefault: !!address && !subscribed, maskedEmail: masked ? reply.masked_email : ''
     },
     notice: null
   });
-  const expectedCalls: typeof calls = [];
-  if (skipped) expectedCalls.push([stateGet, { broadcaster_user_id: '7' }]);
-  if (masked) expectedCalls.push([stateGet, { broadcaster_user_id: '7', include_masked_email: true }]);
-  expect(calls).toEqual(expectedCalls);
+  expect(calls).toEqual(stateReads({ skipped, masked }));
 });
 
 test.each([

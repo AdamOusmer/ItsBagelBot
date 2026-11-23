@@ -6,6 +6,7 @@ import type { Handle, HandleServerError, ResolveOptions, ServerInit } from '@sve
 import newrelic from 'newrelic';
 import { COOKIE, CURSOR_COOKIE, open } from '#lib/server/session';
 import { guardSession } from '#lib/server/guard';
+import { crossSiteForm } from '#lib/server/csrf';
 import { LOCALE_COOKIE, type Locale } from '@bagel/kit/i18n';
 import { warm as warmValkey } from '@bagel/kit/server/valkey-store';
 import { initConsoleRuntime } from '@bagel/kit/server/boot';
@@ -15,6 +16,7 @@ import {
   openSessionCookie,
   preloadStrategy,
   resolveLocale,
+  nameTransaction,
   tagTransaction
 } from '@bagel/kit/server/hooks';
 import { ValkeyRateLimiter, warmRateLimiter } from '@bagel/kit/server/rate-limit';
@@ -253,8 +255,17 @@ function errorPageRedirect(event: HookEvent, res: Response): Response | null {
   return target ? new Response(null, { status: 303, headers: { location: target } }) : null;
 }
 
+function forbiddenForm(): Response {
+  return new Response(`Cross-site form submissions are forbidden`, {
+    status: 403,
+    headers: { 'content-type': 'text/plain; charset=utf-8' }
+  });
+}
+
 export const handle: Handle = async ({ event, resolve }) => {
   if (event.url.pathname === '/readyz') return resolve(event);
+  nameTransaction(newrelic, event);
+  if (crossSiteForm(event)) return forbiddenForm();
 
   event.locals.session = openSessionCookie(event, COOKIE, open);
 

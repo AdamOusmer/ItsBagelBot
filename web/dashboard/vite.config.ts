@@ -23,6 +23,7 @@ export default defineConfig({
     bundledUiSheets({ consoleRoutes }),
     sveltekit({
       ...consoleKitConfig({ directives: { 'frame-src': [process.env.OVERLAY_ORIGIN ?? 'https://overlay.itsbagelbot.com'], 'form-action': ['self'] } }),
+      csrf: { trustedOrigins: ['*'] },
       compilerOptions: { discloseVersion: false }
     })
   ],

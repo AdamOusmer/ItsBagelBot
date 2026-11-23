@@ -28,6 +28,14 @@ function ownerContext(session: Session) {
   };
 }
 
+function ownAccountContext(session: Session) {
+  return {
+    broadcaster_user_id: session.user_id,
+    actor_id: session.user_id,
+    impersonator_id: session.impersonator_id
+  };
+}
+
 function refreshState(reply: WriteReply, session: Session): void {
   if (!reply.ok) throw new Error('Consent write failed');
   invalidate(`state:${session.user_id}`);
@@ -36,7 +44,7 @@ function refreshState(reply: WriteReply, session: Session): void {
 export const setTermsConsent = defineWrite({
   subject: `${SUB.dashboard}.consent_set`,
   request: (session: Session, choice: TermsChoice) => ({
-    ...ownerContext(session),
+    ...ownAccountContext(session),
     terms_version: TERMS_VERSION,
     marketing: choice.marketing,
     source: choice.source,

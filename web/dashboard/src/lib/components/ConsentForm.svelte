@@ -15,6 +15,7 @@
     requestId: string;
     mailingAddress: string;
     subscribed: boolean;
+    marketingDefault: boolean;
     maskedEmail: string;
     action?: string;
     serverError?: string;
@@ -23,7 +24,7 @@
     element?: HTMLFormElement | null;
   };
 
-  let { locale, requestId, mailingAddress, subscribed, maskedEmail, action, serverError, onaccepted, accepted = $bindable(false), element = $bindable(null) }: Props = $props();
+  let { locale, requestId, mailingAddress, subscribed, marketingDefault, maskedEmail, action, serverError, onaccepted, accepted = $bindable(false), element = $bindable(null) }: Props = $props();
   const id = $props.id();
   const t = (key: string) => translate(locale, key);
   let busy = $state(false);
@@ -78,10 +79,10 @@
     </div>
   {:else if mailingAddress}
     <div class="bb-setup-row choice marketing">
-      <Checkbox name="marketing" value="yes" disabled={busy} aria-labelledby="{id}-marketing" aria-describedby="{id}-details" />
+      <Checkbox name="marketing" value="yes" checked={marketingDefault} disabled={busy} aria-labelledby="{id}-marketing" aria-describedby="{id}-details" />
       <div class="choice-copy" id="{id}-details">
         <bb-fit mode="block">
-          <span id="{id}-marketing">{t('marketing.optInLabel')} {t('common.optional')}</span>
+          <span id="{id}-marketing">{t('marketing.optInLabel')}</span>
           <span class="marketing-detail">{translate(locale, 'marketing.optIn', { address: mailingAddress, contact: SITE.supportEmail })}</span>
           {#if maskedEmail}
             <span class="marketing-detail">{translate(locale, 'consent.email', { address: maskedEmail })}</span>

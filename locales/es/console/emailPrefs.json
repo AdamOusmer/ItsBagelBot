@@ -1,0 +1,13 @@
+{
+  "title": "Preferencias de correo",
+  "email": "Correos sobre el producto para {address}",
+  "granted": "Recibes correos electrónicos sobre el producto.",
+  "withdrawn": "Cancelaste la suscripción. No te enviaremos más correos sobre el producto.",
+  "none": "No estás suscrito a los correos sobre el producto.",
+  "unsubscribe": "Cancelar suscripción",
+  "resubscribe": "Volver a suscribirme",
+  "invalid": "Este enlace ya no funciona. Gestiona tus preferencias de correo en la configuración del panel.",
+  "unavailable": "Las preferencias de correo no están disponibles ahora mismo. Inténtalo de nuevo en un momento.",
+  "saveError": "No se pudo guardar tu elección. Inténtalo de nuevo.",
+  "settings": "Abrir configuración"
+}

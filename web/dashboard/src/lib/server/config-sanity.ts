@@ -30,6 +30,18 @@ export function dashboardL1CacheCapacity(env: Env): number {
   );
 }
 
+const WEBHOOK_SECRET = /^whsec_[A-Za-z0-9+/]+={0,2}$/;
+
+function warnMarketingConfig(env: Env): void {
+  if (!env.BUSINESS_MAILING_ADDRESS?.trim()) {
+    logger.warn('[startup] BUSINESS_MAILING_ADDRESS is empty. Marketing opt-in is disabled.');
+  }
+  const secret = env.RESEND_WEBHOOK_SECRET?.trim();
+  if (secret && !WEBHOOK_SECRET.test(secret)) {
+    logger.warn('[startup] RESEND_WEBHOOK_SECRET is not a whsec_ base64 secret. Resend webhooks will be rejected.');
+  }
+}
+
 export function assertConfigSane(env: Env): void {
   assertDemoConfigSafe(env);
   const origin = env.ORIGIN ? assertOrigin('ORIGIN', env.ORIGIN) : undefined;
@@ -40,7 +52,5 @@ export function assertConfigSane(env: Env): void {
   assertOptionalHTTPSURL('TEBEX_PREMIUM_CHECKOUT_URL', env.TEBEX_PREMIUM_CHECKOUT_URL);
   assertOptionalHTTPSURL('TEBEX_CANCEL_URL', env.TEBEX_CANCEL_URL);
   dashboardL1CacheCapacity(env);
-  if (!env.BUSINESS_MAILING_ADDRESS?.trim()) {
-    logger.warn('[startup] BUSINESS_MAILING_ADDRESS is empty. Marketing opt-in is disabled.');
-  }
+  warnMarketingConfig(env);
 }

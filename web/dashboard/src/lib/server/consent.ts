@@ -33,11 +33,13 @@ export async function consentFields(session: Session, locals: App.Locals, demo =
   const mailingAddress = businessMailingAddress();
   const subscribed = currentAccount(locals)?.marketingStatus === 'granted';
   const offersOptIn = !!mailingAddress && !subscribed;
+  const marketingDefault = offersOptIn && currentAccount(locals)?.marketingStatus === 'none';
   const maskedEmail = offersOptIn && !demo ? await bestEffort(maskedContactEmail(session.user_id), '') : '';
   return {
     requestId: randomUUID(),
     mailingAddress,
     subscribed,
+    marketingDefault,
     maskedEmail
   };
 }
@@ -51,6 +53,10 @@ function termsRequestId(form: FormData): string | null {
 function wantsMarketing(form: FormData, account: AccountState): boolean {
   const canOptIn = !!businessMailingAddress() && account.marketingStatus !== 'granted';
   return canOptIn && form.get('marketing') === 'yes';
+}
+
+function mayAccept(session: Session, source: TermsSubmission['source']): boolean {
+  return source === 'welcome' ? isSelfSignIn(session) : !session.impersonator_id;
 }
 
 function upstreamFailed(err: unknown, op: string, locale: Locale) {
@@ -89,7 +95,7 @@ export async function submitTerms(
 ) {
   const { session, locale } = locals;
   if (!session) return fail(401, { error: actionError(locale, 'Not signed in.') });
-  if (!isSelfSignIn(session)) return fail(403, { error: actionError(locale, 'Not allowed.') });
+  if (!mayAccept(session, source)) return fail(403, { error: actionError(locale, 'Not allowed.') });
 
   const form = await request.formData();
   const requestId = termsRequestId(form);
