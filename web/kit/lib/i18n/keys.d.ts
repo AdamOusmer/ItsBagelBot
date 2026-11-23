@@ -7341,6 +7341,7 @@ export type KnownMessageKey =
   | 'voice.kind.cheer'
   | 'voice.kind.sub'
   | 'voice.liveOnly'
+  | 'voice.lockedTag'
   | 'voice.lockedTitle'
   | 'voice.maxLength'
   | 'voice.maxLengthHint'

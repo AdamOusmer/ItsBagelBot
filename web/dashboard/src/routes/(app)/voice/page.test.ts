@@ -76,8 +76,9 @@ test('shows the voice stage with direct checkout for an owner without a plan', (
     orb: html.includes('bb-audio-orb'),
     wheel: html.includes('role="listbox"'),
     checkout: html.includes('action="/billing?/subscribe"'),
-    settings: html.includes('name="max_seconds"')
-  }).toEqual({ title: true, orb: true, wheel: true, checkout: true, settings: false });
+    settings: html.includes('name="max_seconds"'),
+    chip: html.includes('bb-chip')
+  }).toEqual({ title: true, orb: true, wheel: true, checkout: true, settings: false, chip: false });
 });
 
 test('the voice wheel starts on the saved default voice and marks it', async () => {

@@ -10,7 +10,6 @@
     alertVoiceKeys, DEFAULT_VOICE, MAX_CLIP_SECONDS, type VoiceAlertKind
   } from '@bagel/kit/voice-plan';
   import Card from '@bagel/ui/svelte/Card.svelte';
-  import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
@@ -167,16 +166,12 @@
   <PageHead>
     <span class="page-title">
       <bb-fit class="page-title-copy"><span data-fit="">{t('nav.voice')}</span></bb-fit>
-      <Chip as="span" pressed>{t('modules.betaChip')}</Chip>
     </span>
   </PageHead>
 {/snippet}
 
 {#if data.locked}
-  <section class="screen active">
-    {@render title()}
-    <VoiceLocked />
-  </section>
+  <VoiceLocked>{@render title()}</VoiceLocked>
 {:else if ready && allowance}
   <section class="screen active split">
     <aside class="split-side" bind:this={side} style="--side-top: {sideTop}px; --side-bottom: {sideBottom}px">
