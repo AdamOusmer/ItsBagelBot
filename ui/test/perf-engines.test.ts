@@ -185,7 +185,7 @@ describe('cursor', () => {
     const link = {
       isConnected: true,
       parentElement: null,
-      matches: (selector: string) => selector === 'a, button, .bb-input, .bb-check',
+      matches: (selector: string) => selector === 'a, button, .bb-input, .bb-check__box',
       closest: () => link,
       getBoundingClientRect: () => {
         operations.push('measure');
