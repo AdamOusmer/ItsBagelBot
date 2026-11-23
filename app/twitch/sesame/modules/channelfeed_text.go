@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"ItsBagelBot/internal/domain/channelevents"
-	"ItsBagelBot/internal/domain/event/lane"
 )
 
 type textSpan struct {
@@ -20,15 +19,6 @@ func inclusiveSpans(emotes []feedEmote) []textSpan {
 	spans := make([]textSpan, len(emotes))
 	for i, e := range emotes {
 		spans[i] = textSpan{id: e.ID, begin: e.Begin, end: e.End + 1}
-	}
-	return spans
-}
-
-// ingressSpans converts the ingress envelope offsets, which are already half-open.
-func ingressSpans(emotes []lane.EmoteSpan) []textSpan {
-	spans := make([]textSpan, len(emotes))
-	for i, e := range emotes {
-		spans[i] = textSpan{id: e.ID, begin: e.Begin, end: e.End}
 	}
 	return spans
 }
@@ -60,15 +50,4 @@ func fragments(text string, spans []textSpan) []channelevents.Fragment {
 		parts = append(parts, channelevents.Fragment{Type: "text", Text: string(runes[cursor:])})
 	}
 	return parts
-}
-
-func feedBadges(badges []lane.Badge) []string {
-	var out []string
-	for _, badge := range badges {
-		switch badge.SetID {
-		case "broadcaster", "moderator", "vip", "subscriber", "founder":
-			out = append(out, badge.SetID)
-		}
-	}
-	return out
 }

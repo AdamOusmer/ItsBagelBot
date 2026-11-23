@@ -81,29 +81,16 @@ func (m *memoryGifts) Take(_ context.Context, _ engine.GiftSlot, bundleID string
 	return pkg_valkey.GiftTaken{Header: bundle.header, Recipients: bundle.recipients}, true, nil
 }
 
-type capturedChat struct {
-	mu     sync.Mutex
-	events []channelevents.Event
-}
-
-func (c *capturedChat) PublishChat(_ context.Context, event channelevents.Event) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.events = append(c.events, event)
-	return nil
-}
-
 type feedFixture struct {
 	t       *testing.T
 	pub     *bustest.Publisher
 	gifts   *memoryGifts
-	chat    *capturedChat
 	handler module.Module
 }
 
 func newFeedFixture(t *testing.T) *feedFixture {
 	t.Helper()
-	f := &feedFixture{t: t, pub: bustest.NewPublisher(), gifts: newMemoryGifts(), chat: &capturedChat{}}
+	f := &feedFixture{t: t, pub: bustest.NewPublisher(), gifts: newMemoryGifts()}
 	f.handler = ChannelFeed(engine.Deps{Pub: f.pub, GiftBundles: f.gifts, Log: zap.NewNop()})
 	return f
 }
@@ -268,45 +255,6 @@ func TestChannelFeedLeavesNoticesWithAChannelTwinToThoseEvents(t *testing.T) {
 	for _, kind := range channelevents.Kinds() {
 		require.Empty(t, f.published(kind), string(kind))
 	}
-}
-
-func chatFeedContext(t *testing.T, premium bool) (*module.Context, *capturedChat, module.Module) {
-	t.Helper()
-	sink := &capturedChat{}
-	c := &module.Context{
-		BroadcasterID: 2, Log: zap.NewNop(),
-		Env: lane.Envelope{
-			Type: "channel.chat.message", MsgID: "msg-1", ReceivedAt: feedAt.Format(time.RFC3339),
-			ChatterUserID: "7", ChatterUserLogin: "fan", ChatterUserName: "Fan", Text: "hello Kappa",
-			Emotes: []lane.EmoteSpan{{ID: "25", Begin: 6, End: 11}},
-			Badges: []lane.Badge{{SetID: "subscriber"}, {SetID: "bits"}, {SetID: "moderator"}},
-		},
-	}
-	if premium {
-		c.Regress = module.RegressPremium
-	}
-	return c, sink, ChannelFeedChat(engine.Deps{ChatFeed: sink})
-}
-
-func TestChannelFeedChatPublishesPremiumChannelLines(t *testing.T) {
-	c, sink, chat := chatFeedContext(t, true)
-
-	require.NoError(t, chat.Events["channel.chat.message"](t.Context(), c, func(*module.Output) {}))
-
-	require.Equal(t, []channelevents.Event{{
-		ID: "msg-1", Kind: channelevents.Chat, ChannelID: "2", OccurredAt: feedAt,
-		User:    &channelevents.User{ID: "7", Login: "fan", Name: "Fan"},
-		Message: &channelevents.Message{Text: "hello Kappa", Fragments: []channelevents.Fragment{{Type: "text", Text: "hello "}, {Type: "emote", ID: "25", Text: "Kappa"}}},
-		Badges:  []string{"subscriber", "moderator"},
-	}}, sink.events)
-}
-
-func TestChannelFeedChatSkipsStandardChannels(t *testing.T) {
-	c, sink, chat := chatFeedContext(t, false)
-
-	require.NoError(t, chat.Events["channel.chat.message"](t.Context(), c, func(*module.Output) {}))
-
-	require.Empty(t, sink.events)
 }
 
 type fakeChannelCounts struct{ result engine.ChannelCountsResult }

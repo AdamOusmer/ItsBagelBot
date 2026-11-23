@@ -106,7 +106,6 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Special:        engine.NewSpecialSet(cfg.SpecialUserIDs),
 		Pub:            in.pub,
 		GiftBundles:    engine.NewValkeyGiftBundles(in.vc),
-		ChatFeed:       engine.NewNATSChatFeed(in.nc),
 		Commands:       engine.NewCommandsRPC(in.nc, cfg.CommandsDashboardPrefix),
 		Quotes:         engine.NewQuotesRPC(in.nc, cfg.ModulesRPCPrefix),
 		Gossip:         gossipRPC,

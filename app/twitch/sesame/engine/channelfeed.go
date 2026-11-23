@@ -12,7 +12,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
-	"github.com/nats-io/nats.go"
 	"github.com/valkey-io/valkey-go"
 )
 
@@ -54,23 +53,6 @@ func (s *ValkeyGiftBundles) Add(ctx context.Context, slot GiftSlot, recipient []
 
 func (s *ValkeyGiftBundles) Take(ctx context.Context, slot GiftSlot, bundleID string) (pkg_valkey.GiftTaken, bool, error) {
 	return s.bundle.Take(ctx, s.client, giftKey(slot), bundleID)
-}
-
-// ChatFeedPublisher sends chat lines on core NATS, which keeps no replay.
-type ChatFeedPublisher interface {
-	PublishChat(ctx context.Context, event channelevents.Event) error
-}
-
-type NATSChatFeed struct{ nc *nats.Conn }
-
-func NewNATSChatFeed(nc *nats.Conn) *NATSChatFeed { return &NATSChatFeed{nc: nc} }
-
-func (f *NATSChatFeed) PublishChat(ctx context.Context, event channelevents.Event) error {
-	payload, err := codec.Marshal(event)
-	if err != nil {
-		return err
-	}
-	return bus.PublishCore(ctx, f.nc, channelevents.ChatSubject(event.ChannelID), payload)
 }
 
 // PublishChannelEvent publishes with the event id as the message id so a redelivery cannot double it.

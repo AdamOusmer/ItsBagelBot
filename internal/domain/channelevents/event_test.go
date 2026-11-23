@@ -31,7 +31,6 @@ func TestDecodeRoundTripsAGiftBundleAndRejectsUnknownFields(t *testing.T) {
 
 func TestSubjectsAreKeyedByChannelAndKind(t *testing.T) {
 	require.Equal(t, "channel.events.42.cheer", Subject("42", Cheer))
-	require.Equal(t, "channel.chat.42", ChatSubject("42"))
 }
 
 func TestValidateRequiresASessionChange(t *testing.T) {

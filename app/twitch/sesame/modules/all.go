@@ -19,7 +19,6 @@ func All(d engine.Deps) []module.Module {
 		Alerts(d),
 		AlertVoice(d),
 		ChannelFeed(d),
-		ChannelFeedChat(d),
 		Clip(d),
 		TTS(d),
 		Followage(d),
