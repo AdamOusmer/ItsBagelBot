@@ -158,6 +158,7 @@ defmodule ControlsGateway.Tts.Page do
       if (hint.hidden) playNext();
     },
     onRevision: () => {},
+    onFeed: () => {},
     onStop: () => {
       current = null;
       clearAudio();

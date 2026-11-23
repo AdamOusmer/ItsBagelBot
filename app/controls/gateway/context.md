@@ -153,7 +153,15 @@ expires. An unavailable check keeps the stream and reschedules after 15 seconds
 `HEAD /o/events` answers 200, 204 or 503 from the same check, which the page uses
 before reopening. It registers with the shared drain like TTS events. Each stream
 also subscribes to `overlays.session.<user_id>.<template>` (the resolve reply's `user_id`), so it
-receives only offers whose kind matches the overlay's template. Delivery is
+receives only offers whose kind matches the overlay's template. A custom document accepts
+kind `custom`; its alert data is a feed event keyed by `id`, which becomes the frame's
+`event_id`. A custom stream also subscribes to the core subject `overlays.state.<user_id>`
+(no queue group, no replay) and forwards `{"type","data"}` messages of type `stats`, `subathon`
+or `control` as `event: <type>` frames, and right after `ready` it calls
+`rpc.internal.overlays.feed.snapshot` (`{"user_id"}`, reply `{"snapshot"}`) and sends
+`event: snapshot`, retrying every `overlay_recheck_ms` while the RPC is unavailable. A
+revision change that moves the overlay between templates sends `event: reconnect` so the
+page reopens its stream with the new subscriptions. Delivery is
 at-least-once like TTS: it writes the `alert` frame, tracks the ack subject, replies
 `{"accepted": true}` and leaves the message unacked until the page posts `/o/ack`
 when the entrance animation starts. A stream that dies first NAKs its unacked
@@ -165,7 +173,14 @@ The page holds exactly one `<style>` and one `<script>` tag without attributes,
 (the shared client is inlined into that script at the `{{overlay_client}}` line) and the CSP carries their SHA-256 hashes, `img-src` and `media-src` for
 `https://cdn.itsbagelbot.com`, and `connect-src 'self'`. The script selects a
 template module by `document.template` for system overlays. `powered` is the only
-one. Custom overlays show a placeholder notice. Only the dashboard origin may
+one. A custom document loads the overlay runtime (`GET /o/runtime/<hash>.js`, content
+hashed from `priv/overlay/runtime.js`, built by `bun run overlay-runtime:build` in
+`web/kit`) and mounts it. `GET /o` carries a wider policy than `/powered`: `script-src
+'self'`, the CDN and Twitch image host, and `frame-src` for the sandbox origin
+(`overlay_sandbox_origin`, default `https://widgets.itsbagelbot.com`), which serves
+`GET /sandbox/<widget>` (`priv/overlay/frame.js` under a sandboxed CSP). Alert data goes to
+the runtime's `event`; `snapshot`, `stats`, `subathon` and `control` frames go to its feed
+state. Only the dashboard origin may
 frame the page. `powered_dev_frame_ancestors` adds localhost origins for
 dashboard development. `GET /powered/assets/<file>` serves only the `.webp` and
 `.woff2` files present in `priv/powered/assets` at compile time, cached as

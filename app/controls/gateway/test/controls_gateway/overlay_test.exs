@@ -14,6 +14,7 @@ defmodule ControlsGateway.OverlayTest do
   @moduletag jetstream: true
 
   @resolve "rpc.internal.projector.overlays.resolve"
+  @snapshot "rpc.internal.overlays.feed.snapshot"
   @token Base.url_encode64(:binary.copy(<<61>>, 32), padding: false)
   @unknown Base.url_encode64(:binary.copy(<<62>>, 32), padding: false)
   @broken Base.url_encode64(:binary.copy(<<63>>, 32), padding: false)
@@ -23,6 +24,7 @@ defmodule ControlsGateway.OverlayTest do
     "template" => "powered",
     "config" => %{"every_minutes" => 15, "show_seconds" => 8}
   }
+  @custom %{kind: "custom", premium: true, document: %{"version" => 2, "kind" => "custom"}}
   @ack "$JS.ACK.OVERLAYS_STANDARD.overlays-standard.1.1.1.1.0"
   @env_keys [:overlay_cookie_key, :overlay_check_ms, :overlay_recheck_ms]
   @overlay %{
@@ -54,17 +56,19 @@ defmodule ControlsGateway.OverlayTest do
     %{agent: agent, responder: responder}
   end
 
-  test "the overlay page is the powered page with the same policy", %{http_port: port} do
+  test "the overlay page is the powered page with the runtime policy", %{http_port: port} do
     assert %{status: 200, headers: %{"content-security-policy" => csp}, body: body} =
              HttpClient.request(port, "GET", "/o")
 
-    assert %{body: ^body, headers: %{"content-security-policy" => ^csp}} =
+    assert %{body: ^body, headers: %{"content-security-policy" => powered}} =
              HttpClient.request(port, "GET", "/powered")
 
-    assert csp =~
-             "img-src 'self' https://cdn.itsbagelbot.com; media-src https://cdn.itsbagelbot.com"
+    refute csp == powered
+    assert powered =~ "connect-src 'self'; base-uri"
+    assert csp =~ "script-src 'self' 'sha256-"
 
-    assert csp =~ "connect-src 'self'"
+    assert csp =~
+             "connect-src 'self' https://cdn.itsbagelbot.com; frame-src https://widgets.itsbagelbot.com; "
   end
 
   test "wrong methods are refused with the allowed method", %{http_port: port} do
@@ -469,12 +473,62 @@ defmodule ControlsGateway.OverlayTest do
     HttpClient.close(live)
   end
 
-  @tag overlay: %{kind: "custom", premium: true, document: %{"version" => 2, "kind" => "custom"}}
+  @tag overlay: @custom
   test "a custom overlay without a template opens a stream and stays open", %{http_port: port} do
     live = events(port, [cookie(port)])
     assert %{"key" => _key} = HttpClient.ready(live)
     live = HttpClient.drain(live, 500)
     refute live.done
+    HttpClient.close(live)
+  end
+
+  @tag overlay: @custom
+  test "a custom overlay gets the snapshot, state frames and custom offers", %{http_port: port} do
+    snapshot = %{
+      "stats" => %{"counts" => %{}},
+      "subathon" => %{},
+      "control" => %{"paused" => false}
+    }
+
+    serve_snapshot(snapshot)
+    live = events(port, [cookie(port)])
+    frame = "event: snapshot\ndata: " <> Jason.encode!(snapshot) <> "\n\n"
+    live = HttpClient.await(live, &String.contains?(&1.body, frame))
+
+    for type <- ["stats", "subathon", "control"] do
+      :ok =
+        Gnat.pub(
+          :gnat_jetstream,
+          "overlays.state.7",
+          Jason.encode!(%{type: type, data: %{"n" => 1}})
+        )
+
+      live =
+        HttpClient.await(live, &String.contains?(&1.body, "event: #{type}\ndata: {\"n\":1}\n\n"))
+
+      refute live.done
+    end
+
+    assert {:error, :no_responders} = offer("powered", %{"id" => "other"})
+
+    assert {:ok, %{body: ~s({"accepted":true})}} =
+             offer("custom", %{"id" => "evt-9", "kind" => "follow"})
+
+    live = HttpClient.await_alerts(live, 1)
+
+    assert [%{"event_id" => "evt-9", "kind" => "custom", "data" => %{"id" => "evt-9"}}] =
+             HttpClient.alerts(live)
+
+    HttpClient.close(live)
+  end
+
+  @tag overlay: @custom
+  test "a template change sends the stream to reconnect", %{http_port: port, agent: agent} do
+    serve_snapshot(%{})
+    live = events(port, [cookie(port)])
+    update_overlay(agent, &Map.merge(&1, %{kind: "system", premium: false, document: @document}))
+    check_now()
+    live = HttpClient.await(live, &String.contains?(&1.body, "event: reconnect\n"))
     HttpClient.close(live)
   end
 
@@ -491,6 +545,19 @@ defmodule ControlsGateway.OverlayTest do
   test "events end with no content when the overlay is not allowed", %{http_port: port} do
     assert %{status: 204, body: ""} =
              HttpClient.request(port, "GET", "/o/events", headers: [cookie(port)])
+  end
+
+  defp serve_snapshot(snapshot) do
+    responder = start_supervised!({Task, fn -> snapshot_loop(snapshot) end}, id: :snapshot)
+    {:ok, _} = Gnat.sub(:gnat_rpc, responder, @snapshot)
+  end
+
+  defp snapshot_loop(snapshot) do
+    receive do
+      {:msg, %{reply_to: reply}} ->
+        :ok = Gnat.pub(:gnat_rpc, reply, Jason.encode!(%{snapshot: snapshot}))
+        snapshot_loop(snapshot)
+    end
   end
 
   defp update_overlay(agent, fun) do

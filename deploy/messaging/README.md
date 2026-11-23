@@ -19,7 +19,9 @@ worker (`worker_tts_bus`) creates `OVERLAYS_PREMIUM` and `OVERLAYS_STANDARD`
 (work-queue retention, memory storage, five-minute retention, three replicas), the
 shared durable pull consumers `overlays-premium` and `overlays-standard`, and
 the `OVERLAYS_MEDIA` object bucket, and publishes `overlays.premium.<kind>.<user_id>`
-and `overlays.standard.<kind>.<user_id>`. The `controls_gateway_rpc` reader only
+and `overlays.standard.<kind>.<user_id>`. It also publishes the core, unreplayed
+`overlays.state.<user_id>` frames (stats, subathon, control) that the reader
+subscribes and forwards to the open custom overlay streams. The `controls_gateway_rpc` reader only
 binds: it pulls from the two durables, acks on `$JS.ACK`, reads
 `OBJ_OVERLAYS_MEDIA`, and publishes and subscribes `overlays.session.<user_id>.<kind>` to
 hand each clip to the open overlay streams of that user.

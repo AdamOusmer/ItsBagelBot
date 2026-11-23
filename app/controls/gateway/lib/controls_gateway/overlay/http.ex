@@ -5,7 +5,7 @@ defmodule ControlsGateway.Overlay.Http do
   require Logger
 
   alias ControlsGateway.{Http, OverlayRequest}
-  alias ControlsGateway.Overlay.{Nats, Session}
+  alias ControlsGateway.Overlay.{Nats, Runtime, Sandbox, Session}
   alias ControlsGateway.Overlays.Acks
   alias ControlsGateway.Powered.Page
 
@@ -15,7 +15,13 @@ defmodule ControlsGateway.Overlay.Http do
     "x-content-type-options" => "nosniff"
   }
 
-  def handle(%{method: "GET"} = conn, :page), do: Page.reply(conn)
+  def handle(%{method: "GET"} = conn, :page), do: Page.reply_overlay(conn)
+
+  def handle(%{method: "GET"} = conn, :runtime),
+    do: Runtime.reply(conn, conn.path_params["name"])
+
+  def handle(%{method: "GET"} = conn, :sandbox),
+    do: Sandbox.reply(conn, conn.path_params["widget"])
 
   def handle(%{method: "POST"} = conn, :session), do: exchange(conn)
 

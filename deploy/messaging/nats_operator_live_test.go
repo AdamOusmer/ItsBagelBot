@@ -52,6 +52,8 @@ func TestLiveACLPermissions(t *testing.T) {
 			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "$JS.API.STREAM.CREATE.OVERLAY_TTS"},
 			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "$JS.API.STREAM.CREATE.OVERLAYS_PREMIUM"},
 			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "overlays.premium.tts.42"},
+			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "overlays.state.42"},
+			{roleEndpoint{controlsGatewayAccount, "gossip_jobs_bus"}, "overlays.state.42"},
 			{roleEndpoint{controlsGatewayAccount, "worker_tts_bus"}, "overlays.session.42"},
 			{roleEndpoint{controlsGatewayAccount, "gossip_jobs_bus"}, "overlays.standard.tts.42"},
 			{roleEndpoint{controlsGatewayAccount, "gossip_jobs_bus"}, "gossip.jobs.tts.42"},
@@ -74,6 +76,7 @@ func TestLiveACLPermissions(t *testing.T) {
 			{roleEndpoint{"BUS", "modules_bus"}, "dlq.data.users.deleted"},
 			{roleEndpoint{"BUS", "overlays_bus"}, "data.overlays.powered.changed"},
 			{roleEndpoint{"BUS", "overlays_bus"}, "dlq.data.users.deleted"},
+			{roleEndpoint{controlsGatewayAccount, "worker_tts_bus"}, "overlays.state.42"},
 		} {
 			assert.NoError(t, server.publishOutcome(t, probe.role, probe.subject, 50*time.Millisecond), "%s should publish %s", probe.role.role, probe.subject)
 		}

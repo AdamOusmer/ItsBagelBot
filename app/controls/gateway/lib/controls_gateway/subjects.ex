@@ -21,4 +21,7 @@ defmodule ControlsGateway.Subjects do
 
   @spec overlay_session(pos_integer(), String.t()) :: String.t()
   def overlay_session(user_id, kind), do: "overlays.session.#{user_id}.#{kind}"
+
+  @spec overlay_state(pos_integer()) :: String.t()
+  def overlay_state(user_id), do: "overlays.state.#{user_id}"
 end

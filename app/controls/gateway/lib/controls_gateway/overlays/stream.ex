@@ -7,6 +7,7 @@ defmodule ControlsGateway.Overlays.Stream do
   require Logger
 
   alias ControlsGateway.{Metrics, Overlay, SignedCookie, Subjects, Tts}
+  alias ControlsGateway.Overlay.Feed
   alias ControlsGateway.Overlays.{Delivery, Handle, Pending}
   alias Platform.Nats.Planes
 
@@ -21,6 +22,8 @@ defmodule ControlsGateway.Overlays.Stream do
   @down_grace_ms 1_000
   @reconnect_max_ms 1_500
   @ping_frame ": ping\n\n"
+  @custom "custom"
+  @state_frames ["stats", "subathon", "control"]
   @accepted ~s({"accepted":true})
   @labels %{overlay: "Overlay", tts: "TTS"}
   @streams ControlsGateway.Streams
@@ -98,12 +101,18 @@ defmodule ControlsGateway.Overlays.Stream do
              self(),
              Subjects.overlay_session(user_id, accepts),
              group
-           ) do
-      {:ok, %{offer_sid: offer_sid}}
+           ),
+         {:ok, state_sid} <- subscribe_state(state, user_id, accepts) do
+      {:ok, %{offer_sid: offer_sid, state_sid: state_sid}}
     end
   end
 
-  defp subscribe_offers(_state, _link), do: {:ok, %{offer_sid: nil}}
+  defp subscribe_offers(_state, _link), do: {:ok, %{offer_sid: nil, state_sid: nil}}
+
+  defp subscribe_state(state, user_id, @custom),
+    do: Planes.subscribe(state.jetstream, self(), Subjects.overlay_state(user_id))
+
+  defp subscribe_state(_state, _user_id, _accepts), do: {:ok, nil}
 
   defp queue_group(:tts, _template), do: "tts"
   defp queue_group(:overlay, template), do: "overlay.#{template}"
@@ -118,11 +127,14 @@ defmodule ControlsGateway.Overlays.Stream do
       {:ok,
        %{
          user_id: overlay.user_id,
-         accepts: overlay.document["template"],
+         accepts: accepts(overlay.document),
          revision: overlay.revision
        }}
     end
   end
+
+  defp accepts(%{"kind" => @custom}), do: @custom
+  defp accepts(document), do: document["template"]
 
   defp check(:tts, session, rpc) do
     case Tts.Nats.check(session, rpc) do
@@ -149,6 +161,7 @@ defmodule ControlsGateway.Overlays.Stream do
     :ok = :cowboy_req.stream_body(initial, :nofin, req)
     Process.send_after(self(), :ping, @ping_ms)
     schedule_check(state)
+    if state.state_sid, do: send(self(), :snapshot)
     {:cowboy_loop, req, state, :hibernate}
   end
 
@@ -182,6 +195,13 @@ defmodule ControlsGateway.Overlays.Stream do
     do: stop(req, state, :revoked)
 
   def info(
+        {:msg, %{sid: sid, gnat: pid, body: body}},
+        req,
+        %{jetstream: %{pid: pid}, state_sid: sid} = state
+      ),
+      do: forward_state(body, req, state)
+
+  def info(
         {:msg, %{sid: sid, gnat: pid, reply_to: reply} = message},
         req,
         %{jetstream: %{pid: pid}} = state
@@ -197,6 +217,19 @@ defmodule ControlsGateway.Overlays.Stream do
     do: reconnect(req, state, {after_ms, reason}, env_ms(:stream_force_close_ms, @force_close_ms))
 
   def info({:force_close, reason}, req, state), do: stop(req, state, reason)
+
+  def info(:snapshot, req, state) do
+    case Feed.snapshot(state.user_id, state.rpc) do
+      {:ok, snapshot} ->
+        :ok = :cowboy_req.stream_body(feed_frame("snapshot", snapshot), :nofin, req)
+
+      {:error, reason} ->
+        Logger.warning("Overlay snapshot unavailable", log_id(state) ++ [reason: reason])
+        Process.send_after(self(), :snapshot, recheck_ms())
+    end
+
+    continue(req, state)
+  end
 
   def info(:ping, req, state) do
     :ok = :cowboy_req.stream_body(@ping_frame, :nofin, req)
@@ -222,7 +255,20 @@ defmodule ControlsGateway.Overlays.Stream do
   defp reschedule(:unavailable, state), do: schedule_recheck(state)
   defp reschedule({:denied, _reason}, _state), do: :ok
 
-  defp settle_verdict({:ok, link}, req, state), do: announce(req, state, link.revision)
+  defp settle_verdict({:ok, %{accepts: accepts} = link}, req, %{accepts: accepts} = state),
+    do: announce(req, state, link.revision)
+
+  defp settle_verdict({:ok, _link}, req, state) do
+    after_ms = Platform.Backoff.between_ms(0, @reconnect_max_ms)
+
+    reconnect(
+      req,
+      state,
+      {after_ms, :template_changed},
+      env_ms(:stream_force_close_ms, @force_close_ms)
+    )
+  end
+
   defp settle_verdict(:unavailable, req, state), do: continue(req, state)
   defp settle_verdict({:denied, reason}, req, state), do: stop(req, state, reason)
 
@@ -288,7 +334,7 @@ defmodule ControlsGateway.Overlays.Stream do
   defp accept(_offer, _reply, req, state), do: invalid(req, state)
 
   defp deliver({offer, data, id}, reply, req, state) do
-    :ok = :cowboy_req.stream_body(alert_frame(offer, data, state), :nofin, req)
+    :ok = :cowboy_req.stream_body(alert_frame(offer, data, id, state), :nofin, req)
     Planes.publish(state.jetstream, reply, @accepted)
     Pending.track(state.pending, offer["ack"])
 
@@ -301,6 +347,7 @@ defmodule ControlsGateway.Overlays.Stream do
   end
 
   defp event_id(%{"event_id" => id}, _state) when is_binary(id), do: {:ok, id}
+  defp event_id(%{"id" => id}, %{accepts: @custom}) when is_binary(id), do: {:ok, id}
   defp event_id(_data, _state), do: :error
 
   defp invalid(req, state) do
@@ -308,9 +355,7 @@ defmodule ControlsGateway.Overlays.Stream do
     continue(req, state)
   end
 
-  defp alert_frame(offer, data, state) do
-    event_id = data["event_id"]
-
+  defp alert_frame(offer, data, event_id, state) do
     alert = %{
       event_id: event_id,
       kind: offer["kind"],
@@ -332,6 +377,20 @@ defmodule ControlsGateway.Overlays.Stream do
     Enum.find([data["expires_at"], offer["expires_at"]], &is_binary/1) ||
       Delivery.expires_at(DateTime.utc_now())
   end
+
+  defp forward_state(body, req, state) do
+    case Jason.decode(body) do
+      {:ok, %{"type" => type, "data" => data}} when type in @state_frames ->
+        :ok = :cowboy_req.stream_body(feed_frame(type, data), :nofin, req)
+
+      _ ->
+        Logger.warning("Overlay state invalid", log_id(state))
+    end
+
+    continue(req, state)
+  end
+
+  defp feed_frame(name, data), do: ["event: ", name, "\ndata: ", Jason.encode!(data), "\n\n"]
 
   defp ready_frame(state),
     do: ["event: ready\ndata: ", Jason.encode!(ready_data(state)), "\n\n"]

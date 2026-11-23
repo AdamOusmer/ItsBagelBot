@@ -124,7 +124,7 @@ func TestTTSOverlayReaderPermissionsAreExact(t *testing.T) {
 			"overlays.session.>",
 			"$JS.API.STREAM.MSG.GET.OBJ_OVERLAYS_MEDIA",
 		}},
-		Subscribe: &natsacl.PermissionSpec{Allow: []string{"controls.tts.revoked.*", "cache.invalidate.overlays", "overlays.session.>", "_INBOX.>"}},
+		Subscribe: &natsacl.PermissionSpec{Allow: []string{"controls.tts.revoked.*", "cache.invalidate.overlays", "overlays.session.>", "overlays.state.*", "_INBOX.>"}},
 	}, role)
 }
 
@@ -146,6 +146,7 @@ func TestTTSWriterPermissionsAreExact(t *testing.T) {
 			"$JS.API.DIRECT.GET.OBJ_TTS_CLIPS.$O.TTS_CLIPS.M.*",
 			"overlays.premium.>",
 			"overlays.standard.>",
+			"overlays.state.*",
 			"$JS.API.STREAM.INFO.OVERLAYS_PREMIUM",
 			"$JS.API.STREAM.CREATE.OVERLAYS_PREMIUM",
 			"$JS.API.STREAM.UPDATE.OVERLAYS_PREMIUM",

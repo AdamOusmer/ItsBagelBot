@@ -91,7 +91,7 @@ function harness({ token = '', random = () => 0.5, stored = null, store = new Ma
   const clock = { now: START_MS };
   const timers = fakeTimers(clock);
   if (stored) store.set('bb_seen:' + BASE, JSON.stringify(stored));
-  const h = { clock, timers, store, requests: [], alerts: [], stops: [], revisions: [], ctls: [] };
+  const h = { clock, timers, store, requests: [], alerts: [], stops: [], revisions: [], feeds: [], ctls: [] };
   const fetch = (url, init) => {
     const body = init.body ? JSON.parse(init.body) : null;
     h.requests.push({ url, method: init.method, body });
@@ -125,6 +125,7 @@ function harness({ token = '', random = () => 0.5, stored = null, store = new Ma
       ctl.done();
     },
     onRevision: (n) => h.revisions.push(n),
+    onFeed: (name, data) => h.feeds.push([name, JSON.parse(data)]),
     onStop: (reason) => h.stops.push(reason)
   });
   h.sources = FakeEventSource.instances;
@@ -259,6 +260,13 @@ test('seen is keyed by overlay, merged across clients and pruned of expired entr
     { afterLoad, keys: Object.keys(JSON.parse(store.get('bb_seen:k'))).sort(), first: first.alerts, second: second.alerts },
     { afterLoad: { fresh: START_MS + MINUTE_MS }, keys: ['a', 'b', 'c', 'fresh'], first: ['a', 'c'], second: ['b'] }
   );
+});
+
+test('feed frames reach onFeed with their name and data', async () => {
+  const h = await open();
+  const frames = { snapshot: { stats: {} }, stats: { counts: {} }, subathon: { running: true }, control: { paused: false } };
+  Object.entries(frames).forEach(([name, data]) => h.sources[0].emit(name, data));
+  assert.deepEqual(h.feeds, Object.entries(frames));
 });
 
 test('ready reaches onRevision only when it carries a revision', async () => {
