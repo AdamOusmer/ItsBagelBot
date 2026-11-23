@@ -51,6 +51,7 @@ export { default as ErrorScene } from './ErrorScene.svelte';
 export { default as Mark } from './Mark.svelte';
 export { default as Modal } from './Modal.svelte';
 export { default as ProgressBar } from './ProgressBar.svelte';
+export { default as AudioOrb } from './AudioOrb.svelte';
 export { default as SaveStatus } from './SaveStatus.svelte';
 export { default as Skeleton } from './Skeleton.svelte';
 export { default as SkeletonStack } from './SkeletonStack.svelte';
