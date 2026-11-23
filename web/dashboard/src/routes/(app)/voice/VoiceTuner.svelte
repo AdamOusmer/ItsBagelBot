@@ -6,10 +6,11 @@
   import AudioOrb from '@bagel/ui/svelte/AudioOrb.svelte';
   import VoiceWheel from './VoiceWheel.svelte';
 
-  let { voice, onVoice, orbSize }: {
+  let { voice, onVoice, orbSize, autoplay = false }: {
     voice: string;
     onVoice: (voice: string) => void;
     orbSize?: string;
+    autoplay?: boolean;
   } = $props();
 
   const { locale } = getI18n();
@@ -40,6 +41,11 @@
     playing = next;
     void audio.play().catch(() => (playing = null));
   }
+
+  function select(next: string) {
+    onVoice(next);
+    if (autoplay && playing !== next) play(next);
+  }
 </script>
 
 <audio bind:this={audio} preload="none" onpause={() => (playing = null)} onended={() => (playing = null)}></audio>
@@ -47,7 +53,7 @@
 <div class="orb-slot" class:sized={!!orbSize} style:--orb-size={orbSize}>
   <div class="orb-fit"><AudioOrb {analyser} /></div>
 </div>
-<VoiceWheel {voice} {playing} onSelect={onVoice} onPlay={play} />
+<VoiceWheel {voice} {playing} onSelect={select} onPlay={play} />
 
 <style>
   .orb-slot { min-block-size: 0; container-type: size; display: grid; place-items: center; }

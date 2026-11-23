@@ -69,14 +69,15 @@ test.each([
   })]);
 });
 
-test('shows the shared Premium gate for an owner without a plan', () => {
+test('shows the voice stage with direct checkout for an owner without a plan', () => {
   const html = renderVoice({ allowance: { ...allowance, plan: 'free', reason: 'no_plan' }, locked: true, alerts: null });
-  expect(html).toContain(`aria-label="${translate('en', 'billing.premiumGateTitle')}"`);
-  expect(html).toContain('role="listbox"');
-  expect(html).toContain('action="/billing?/subscribe"');
-  expect(html).toContain('bb-audio-orb');
-  expect(html).not.toContain('bb-chip');
-  expect(html).not.toContain('name="max_seconds"');
+  expect({
+    title: html.includes(translate('en', 'voice.lockedTitle')),
+    orb: html.includes('bb-audio-orb'),
+    wheel: html.includes('role="listbox"'),
+    checkout: html.includes('action="/billing?/subscribe"'),
+    settings: html.includes('name="max_seconds"')
+  }).toEqual({ title: true, orb: true, wheel: true, checkout: true, settings: false });
 });
 
 test('the voice wheel starts on the saved default voice and marks it', async () => {
