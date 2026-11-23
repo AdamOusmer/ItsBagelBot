@@ -25,6 +25,20 @@ const (
 	helixRejected
 )
 
+// twitchRateLimited reports a confirmed 429 from Twitch itself, as opposed to
+// our own pre-send bucket refusal. It is expected and retryable, so it nacks
+// quietly (like errRateLimitFirst/errRateLimitShared) instead of counting
+// toward the error rate, and it waits out Twitch's own Ratelimit-Reset
+// instead of redelivering immediately into the same limit.
+type twitchRateLimited struct {
+	endpoint   string
+	retryAfter time.Duration
+}
+
+func (e twitchRateLimited) Error() string            { return fmt.Sprintf("twitch 429 on %s", e.endpoint) }
+func (e twitchRateLimited) ExpectedNack() bool        { return true }
+func (e twitchRateLimited) RetryAfter() time.Duration { return e.retryAfter }
+
 func (w *Worker) processAPI(ctx context.Context, payload *outgress.Message) error {
 	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
@@ -69,10 +83,11 @@ func (w *Worker) executeRequest(ctx context.Context, payload *outgress.Message) 
 func (w *Worker) helixResult(ctx context.Context, payload *outgress.Message, res *http.Response) (helixOutcome, error) {
 	switch {
 	case res.StatusCode == http.StatusTooManyRequests:
+		retryAfter := twitch.RetryAfter(res)
 		w.log.Warn("twitch rate limited the app",
 			zap.String("endpoint", payload.Endpoint),
-			zap.Duration("retry_after", twitch.RetryAfter(res)))
-		return helixUnconfirmed, fmt.Errorf("twitch 429 on %s", payload.Endpoint)
+			zap.Duration("retry_after", retryAfter))
+		return helixUnconfirmed, twitchRateLimited{endpoint: payload.Endpoint, retryAfter: retryAfter}
 
 	case res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden:
 		w.dropAuthFailure(ctx, payload, res)
