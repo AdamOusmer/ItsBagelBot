@@ -66,7 +66,7 @@
   .orb-slot { min-block-size: 0; container-type: size; display: grid; place-items: center; }
   .orb-fit { inline-size: min(100cqw, 100cqh); }
   .orb-slot.sized { container-type: normal; }
-  .side { display: grid; gap: var(--bb-space-5); min-inline-size: 0; }
+  .side { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--bb-space-5); min-inline-size: 0; }
   .orb-slot.sized .orb-fit { inline-size: var(--orb-size); }
   @media (max-width: 900px) {
     .orb-slot { container-type: normal; }
