@@ -140,6 +140,26 @@ spec:
               value: "true"
             - name: MARKETING_ADDRESS_HMAC_KEYSET_PATH
               value: /etc/tink-mac/keyset.json
+            - name: DASHBOARD_ORIGIN
+              value: https://dashboard.itsbagelbot.com
+            - name: RESEND_MARKETING_API
+              valueFrom:
+                secretKeyRef:
+                  name: users-env
+                  key: RESEND_MARKETING_API
+                  optional: true
+            - name: RESEND_MARKETING_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: users-env
+                  key: RESEND_MARKETING_FROM
+                  optional: true
+            - name: BUSINESS_MAILING_ADDRESS
+              valueFrom:
+                secretKeyRef:
+                  name: users-env
+                  key: BUSINESS_MAILING_ADDRESS
+                  optional: true
             - name: GOMEMLIMIT
               value: 160MiB
             - name: TLS_CERT_FILE
