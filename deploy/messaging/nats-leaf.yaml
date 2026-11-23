@@ -104,8 +104,8 @@ spec:
           lifecycle:
             preStop:
               exec:
-                # The sleep must outlast lame_duck_grace_period + lame_duck_duration (35s); a bare SIGTERM aborts the drain.
-                command: ["/bin/sh", "-c", "nats-server --signal ldm=/var/run/nats/nats.pid; sleep 36"]
+                # SIGTERM without ldm first closes every client at once; terminationGracePeriodSeconds must exceed the 35s lame duck cap.
+                command: ["nats-server", "--signal", "ldm=/var/run/nats/nats.pid"]
         - name: reloader
           image: natsio/nats-server-config-reloader:0.23.0@sha256:64cb6c858e794906d3167378e02b7e0feb83c4e14c07b371eb8d921ef8c4a60b
           imagePullPolicy: IfNotPresent
