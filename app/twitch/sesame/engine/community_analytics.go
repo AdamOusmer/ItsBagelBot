@@ -46,25 +46,11 @@ func recordEntrants(rec *analytics.Recorder, game string, n int64) {
 	}
 }
 
-func (s *ValkeyRaffleStore) recordRound(read *drawRead, res *RaffleResult) {
-	game := "raffle"
-	if read.State.Multi {
-		game = "mraffle"
-	}
-	end := "drawn"
-	if res.Entrants == 0 {
-		end = "empty"
-	}
-	s.analytics.Count(catalog.GamesRounds, game, end)
-	recordEntrants(s.analytics, game, res.Entrants)
-}
-
 func (s *ValkeyDuelStore) recordRound(receipt *DuelReceipt) {
 	s.analytics.Count(catalog.GamesRounds, "duel", string(receipt.Outcome))
 	recordEntrants(s.analytics, "duel", 2)
 }
 
-func (s *ValkeyRaffleStore) SetAnalytics(rec *analytics.Recorder) { s.analytics = rec }
-func (s *ValkeyDuelStore) SetAnalytics(rec *analytics.Recorder)   { s.analytics = rec }
-func (w *LoyaltyWallet) SetAnalytics(rec *analytics.Recorder)     { w.analytics = rec }
-func (t *TrialPromotion) SetAnalytics(rec *analytics.Recorder)    { t.analytics = rec }
+func (s *ValkeyDuelStore) SetAnalytics(rec *analytics.Recorder) { s.analytics = rec }
+func (w *LoyaltyWallet) SetAnalytics(rec *analytics.Recorder)   { w.analytics = rec }
+func (t *TrialPromotion) SetAnalytics(rec *analytics.Recorder)  { t.analytics = rec }

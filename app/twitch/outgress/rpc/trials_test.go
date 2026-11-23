@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/internal/testproc"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/stretchr/testify/assert"
@@ -29,11 +30,8 @@ func TestTrialSubscriptionOwnershipScripts(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	socket := filepath.Join(dir, "valkey.sock")
-	pidfile := filepath.Join(dir, "valkey.pid")
 	logfile := filepath.Join(dir, "valkey.log")
-	if output, err := exec.Command("valkey-server", "--port", "0", "--unixsocket", socket, "--save", "", "--appendonly", "no", "--daemonize", "yes", "--pidfile", pidfile, "--logfile", logfile).CombinedOutput(); err != nil {
-		t.Fatalf("start Valkey: %v %s", err, output)
-	}
+	testproc.StartT(t, "valkey-server", "--port", "0", "--unixsocket", socket, "--save", "", "--appendonly", "no", "--logfile", logfile)
 	cli := func(args ...string) string {
 		t.Helper()
 		command := append([]string{"-s", socket, "--raw"}, args...)
@@ -43,10 +41,6 @@ func TestTrialSubscriptionOwnershipScripts(t *testing.T) {
 		}
 		return strings.TrimSpace(string(output))
 	}
-	t.Cleanup(func() {
-		_ = exec.Command("valkey-cli", "-s", socket, "SHUTDOWN", "NOSAVE").Run()
-		_ = os.Remove(pidfile)
-	})
 	for i := 0; i < 30; i++ {
 		if _, err := os.Stat(socket); err == nil {
 			break

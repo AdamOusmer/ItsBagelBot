@@ -74,11 +74,16 @@ func automationTimerDef(automationID string, p automation.TimerTrigger) timerDef
 	}
 }
 
+func (r timerRef) automation() bool {
+	return strings.HasPrefix(r.id, autoTimerPrefix)
+}
+
 func armJitter(td timerDef) time.Duration {
-	if td.JitterS <= 0 {
+	jitter := clampCount(td.JitterS, maxJitterSeconds)
+	if jitter == 0 {
 		return 0
 	}
-	return time.Duration(rand.IntN(td.JitterS+1)) * time.Second
+	return time.Duration(rand.IntN(jitter+1)) * time.Second
 }
 
 func (s *ValkeyTimerStore) fireAutomation(ctx context.Context, at armedTimer) {

@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import { logger } from '@bagel/kit/server/logger';
 
 const privateEnv: Record<string, string | undefined> = {};
-const claims: { sub: string; aud: string | string[]; iss: string; nonce: string } = {
+const claims: { sub: string; aud: string | readonly string[]; iss: string; nonce: string } = {
   sub: 'configured-bot',
   aud: 'bot-client',
   iss: 'https://id.twitch.tv/oauth2',
@@ -14,7 +14,7 @@ const claims: { sub: string; aud: string | string[]; iss: string; nonce: string 
 };
 const GRANTED = ['openid', 'moderator:read:chatters'];
 let grantedScopes = GRANTED;
-const validateAuthorizationCode = mock(async () => ({
+const validateAuthorizationCode = mock(async (_code: string, _nonce: string) => ({
   claims: () => ({ ...claims }),
   accessToken: () => 'access-token',
   refreshToken: () => 'refresh-token',
@@ -36,8 +36,9 @@ const { GET: callbackGET } = await import('../src/routes/auth/bot/callback/+serv
 const { GET: loginGET } = await import('../src/routes/auth/bot/login/+server');
 
 type Cookie = 'bot_oauth_state' | 'bot_oauth_nonce';
+type CallbackOptions = { missingCookie?: Cookie; state?: string };
 
-function callbackEvent(missingCookie?: Cookie, state = 'state') {
+function callbackEvent({ missingCookie, state = 'state' }: CallbackOptions = {}) {
   const cookies: Record<string, string | undefined> = { bot_oauth_state: 'state', bot_oauth_nonce: 'nonce' };
   if (missingCookie) cookies[missingCookie] = undefined;
   return {
@@ -71,47 +72,52 @@ beforeEach(() => {
   loggerError.mockClear();
 });
 
-type Refusal = { name: string; setup: () => void; event?: () => ReturnType<typeof callbackEvent>; location: string; exchanged: boolean };
+type Refusal = {
+  name: string;
+  setup?: () => void;
+  options?: CallbackOptions;
+  error: string;
+  exchanged: boolean;
+};
 
 const refusals: Refusal[] = [
-  { name: 'rejects an unset bot id before exchanging or storing a token', setup: () => delete privateEnv.TWITCH_BOT_USER_ID, location: '/auth/bot/done?e=config', exchanged: false },
-  { name: 'rejects a different Twitch account without storing its token', setup: () => (claims.sub = 'other-account'), location: '/auth/bot/done?e=account', exchanged: true },
-  { name: 'refuses a token without chatter access instead of reporting authorization success', setup: () => (grantedScopes = ['openid']), location: '/auth/bot/done?e=scope', exchanged: true },
-  { name: 'refuses a response that does not report its granted scopes', setup: () => (grantedScopes = []), location: '/auth/bot/done?e=scope', exchanged: true },
-  { name: 'rejects absent bot_oauth_state before exchanging a code', setup: () => {}, event: () => callbackEvent('bot_oauth_state'), location: '/auth/bot/done?e=state', exchanged: false },
-  { name: 'rejects absent bot_oauth_nonce before exchanging a code', setup: () => {}, event: () => callbackEvent('bot_oauth_nonce'), location: '/auth/bot/done?e=state', exchanged: false },
-  { name: 'rejects a mismatched OAuth state before exchanging a code', setup: () => {}, event: () => callbackEvent(undefined, 'other-state'), location: '/auth/bot/done?e=state', exchanged: false },
-  { name: 'rejects mismatched aud without saving a token', setup: () => (claims.aud = 'mismatch'), location: '/auth/bot/done?e=state', exchanged: true },
-  { name: 'rejects mismatched iss without saving a token', setup: () => (claims.iss = 'mismatch'), location: '/auth/bot/done?e=state', exchanged: true },
-  { name: 'rejects mismatched nonce without saving a token', setup: () => (claims.nonce = 'mismatch'), location: '/auth/bot/done?e=state', exchanged: true },
-  { name: 'rejects an ID token audience array without the bot client', setup: () => (claims.aud = ['other-client']), location: '/auth/bot/done?e=state', exchanged: true }
+  { name: 'rejects an unset bot id', setup: () => delete privateEnv.TWITCH_BOT_USER_ID, error: 'config', exchanged: false },
+  { name: 'rejects a different Twitch account', setup: () => (claims.sub = 'other-account'), error: 'account', exchanged: true },
+  { name: 'refuses a token without chatter access', setup: () => (grantedScopes = ['openid']), error: 'scope', exchanged: true },
+  { name: 'refuses a response with no granted scopes', setup: () => (grantedScopes = []), error: 'scope', exchanged: true },
+  { name: 'rejects absent bot_oauth_state', options: { missingCookie: 'bot_oauth_state' }, error: 'state', exchanged: false },
+  { name: 'rejects absent bot_oauth_nonce', options: { missingCookie: 'bot_oauth_nonce' }, error: 'state', exchanged: false },
+  { name: 'rejects mismatched OAuth state', options: { state: 'other-state' }, error: 'state', exchanged: false },
+  { name: 'rejects a mismatched audience', setup: () => (claims.aud = 'mismatch'), error: 'state', exchanged: true },
+  { name: 'rejects a mismatched issuer', setup: () => (claims.iss = 'mismatch'), error: 'state', exchanged: true },
+  { name: 'rejects a mismatched nonce', setup: () => (claims.nonce = 'mismatch'), error: 'state', exchanged: true },
+  { name: 'rejects an audience list missing the bot client', setup: () => (claims.aud = ['other-client']), error: 'state', exchanged: true }
 ];
 
 describe('bot OAuth callback account pinning', () => {
-  test.each(refusals)('$name', async ({ setup, event, location, exchanged }) => {
-    setup();
-    const request = event?.() ?? callbackEvent();
-    expect(await callback(request)).toMatchObject(redirectTo(location));
-    expect(validateAuthorizationCode).toHaveBeenCalledTimes(exchanged ? 1 : 0);
-    expect(botTokenSet).not.toHaveBeenCalled();
+  test.each(refusals)('$name', async ({ setup, options, error, exchanged }) => {
+    setup?.();
+    const request = callbackEvent(options);
+    expect(await callback(request)).toMatchObject(redirectTo(`/auth/bot/done?e=${error}`));
+    expect({
+      exchange: validateAuthorizationCode.mock.calls,
+      saved: botTokenSet.mock.calls
+    }).toEqual({ exchange: exchanged ? [['code', 'nonce']] : [], saved: [] });
     expect(request.cookies.delete.mock.calls).toEqual([['bot_oauth_state', { path: '/' }], ['bot_oauth_nonce', { path: '/' }]]);
   });
 
-  test('stores the configured bot token without a console session', async () => {
-    privateEnv.TWITCH_BOT_USER_ID = ' configured-bot ';
+  test.each([
+    { name: 'trimmed configuration', botId: ' configured-bot ', audience: 'bot-client' },
+    { name: 'matching audience list', botId: 'configured-bot', audience: ['other-client', 'bot-client'] }
+  ])('stores the bot token without a console session with $name', async ({ botId, audience }) => {
+    privateEnv.TWITCH_BOT_USER_ID = botId;
+    claims.aud = audience;
 
     expect(await callback()).toMatchObject(redirectTo('/auth/bot/done?ok=1'));
-    expect(validateAuthorizationCode).toHaveBeenCalledWith('code', 'nonce');
+    expect(validateAuthorizationCode.mock.calls).toEqual([['code', 'nonce']]);
     expect(botTokenSet.mock.calls).toEqual([
       [{ actorId: 'configured-bot', userId: 'configured-bot' }, { accessToken: 'access-token', refreshToken: 'refresh-token' }]
     ]);
-  });
-
-  test('accepts an ID token audience array containing the bot client', async () => {
-    claims.aud = ['other-client', 'bot-client'];
-
-    expect(await callback()).toMatchObject(redirectTo('/auth/bot/done?ok=1'));
-    expect(botTokenSet).toHaveBeenCalledTimes(1);
   });
 
   test.each([

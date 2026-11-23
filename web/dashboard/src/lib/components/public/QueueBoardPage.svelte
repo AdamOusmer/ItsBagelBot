@@ -196,9 +196,7 @@
     width: min(100%, 16rem);
     font-size: var(--bb-text-md);
     font-weight: 700;
-    letter-spacing: 0.02em;
     color: var(--bb-green-glow);
-    text-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.45);
   }
 
   .qp-eyebrow__label {
@@ -213,7 +211,6 @@
     height: 8px;
     border-radius: 50%;
     background: var(--bb-green-glow);
-    box-shadow: 0 0 10px rgba(var(--bb-green-glow-rgb), 0.8);
   }
 
   .qp-title {
@@ -230,11 +227,6 @@
 
   .qp-word {
     display: inline-block;
-    background: linear-gradient(180deg, var(--bb-white) 40%, rgba(var(--bb-tan-light-rgb), 0.55));
-    background-clip: text;
-    -webkit-background-clip: text;
-    color: transparent;
-    filter: drop-shadow(0 0 36px rgba(var(--bb-tan-rgb), 0.18));
   }
 
   .qp-tagline,
@@ -329,7 +321,6 @@
 
   .qp-dot--open {
     background: var(--bb-tier-free);
-    box-shadow: 0 0 10px rgba(var(--bb-green-glow-rgb), 0.7);
   }
 
   .qp :global(.qp-board) {
@@ -400,8 +391,7 @@
   .qp-row--head {
     min-height: 36px;
     font-size: var(--bb-text-xs);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    letter-spacing: 0.01em;
     color: var(--bb-muted);
   }
 

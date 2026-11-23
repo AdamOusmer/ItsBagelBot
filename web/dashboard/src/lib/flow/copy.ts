@@ -197,11 +197,19 @@ const REDEMPTION_OPTIONS: Readonly<Record<string, MessageKey>> = Object.freeze({
   cancel: 'flows.reward.afterCancel'
 });
 
+function voiceOptionCopy(t: Translate, group: string | undefined, value: string): string | undefined {
+  if (group === 'voice') return value || t('voice.channelVoice');
+  if (group === 'style') return value ? t(`voice.style.${value}` as MessageKey) : t('voice.styleDefault');
+  return undefined;
+}
+
 function optionCopy(t: Translate, { spec, field }: Pick<FieldCopy, 'spec' | 'field'>, value: string, hideMissing = false): string {
   const group = field.type === 'select' ? field.optionGroup : undefined;
+  const voiceCopy = voiceOptionCopy(t, group, value);
+  if (voiceCopy !== undefined) return voiceCopy;
   const shared = group === 'redemption' ? REDEMPTION_OPTIONS[value] : undefined;
-  const prefix = group && group !== 'redemption'
-    ? SHARED_OPTION_PREFIXES[group] : `flows.step.${spec.kind}.${spec.slug}.field.${field.key}.option`;
+  const sharedPrefix = group === 'comparison' || group === 'loyalty' ? SHARED_OPTION_PREFIXES[group] : undefined;
+  const prefix = sharedPrefix ?? `flows.step.${spec.kind}.${spec.slug}.field.${field.key}.option`;
   const key = shared ?? (prefix + '.' + value);
   const label = t(key as MessageKey);
   return hideMissing ? known(key, label) : label;

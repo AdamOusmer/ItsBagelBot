@@ -257,7 +257,7 @@ var enums = map[Kind][]string{
 	KindDrop:      {"auth", "rejected", "exhausted", "chat_dropped"},
 	KindSection: {
 		"overview", "commands", "flows", "automations", "modules", "timers", "loyalty", "counters",
-		"quotes", "songqueue", "channelpoints", "govee", "billing", "settings", "access",
+		"quotes", "songqueue", "channelpoints", "govee", "voice", "billing", "settings", "access",
 	},
 	KindRole:     {"owner", "delegate"},
 	KindPlan:     {"monthly", "single", "gift"},

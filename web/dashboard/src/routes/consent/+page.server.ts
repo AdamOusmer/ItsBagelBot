@@ -6,7 +6,7 @@ import { env } from '@bagel/kit/server/env';
 import { redirect } from '@sveltejs/kit';
 import { consentFields, submitTerms } from '#lib/server/consent';
 import { loginPath, returnTo, skippedReason, termsAccepted } from '#lib/server/consent-route';
-import { isOwnerSession } from '#lib/server/owner';
+import { isSelfSignIn } from '#lib/server/owner';
 import type { Session } from '#lib/server/session';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -33,7 +33,7 @@ async function consentPage(locals: App.Locals, session: Session, url: URL) {
 export const load: PageServerLoad = async ({ locals, url }) => {
   const session = await consentSession(locals);
   if (!session) throw redirect(302, loginPath(returnTo(url)));
-  if (!isOwnerSession(session)) throw redirect(303, '/');
+  if (!isSelfSignIn(session)) throw redirect(303, '/');
   return consentPage(locals, session, url);
 };
 

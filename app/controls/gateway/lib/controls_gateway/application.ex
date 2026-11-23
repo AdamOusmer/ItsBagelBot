@@ -4,40 +4,34 @@
 defmodule ControlsGateway.Application do
   use Application
 
-  alias ControlsGateway.{Config, Drain}
+  alias ControlsGateway.{Caches, Config, Drain, HttpServer, Overlays}
+  alias Platform.Nats.Planes
 
   @impl true
   def start(_type, _args) do
-    children = base_children() ++ server_children()
-    Supervisor.start_link(children, strategy: :one_for_one, name: ControlsGateway.Supervisor)
+    ControlsGateway.Metrics.attach_pull()
+    ControlsGateway.Metrics.attach_cache()
+
+    Platform.Startup.start_link(
+      name: ControlsGateway.Supervisor,
+      enabled: Config.server?(),
+      base: &base_children/0,
+      service: &server_children/0
+    )
   end
 
   @impl true
-  def prep_stop(state) do
-    if Config.server?(), do: Drain.run()
-    state
-  end
+  def prep_stop(state), do: Platform.Startup.prep_stop(state, Config.server?(), &Drain.run/0)
 
   defp base_children do
     [
       ControlsGateway.Metrics,
-      {Registry, keys: :unique, name: ControlsGateway.Connections}
+      {Registry, keys: :unique, name: ControlsGateway.Connections},
+      {Registry, keys: :duplicate, name: ControlsGateway.Streams}
     ]
   end
 
   defp server_children do
-    if Config.server?() do
-      [connection_child(:gnat_connection, :gnat, Config.nats()), ControlsGateway.HttpServer]
-    else
-      []
-    end
-  end
-
-  defp connection_child(id, name, connection_settings) do
-    Supervisor.child_spec(
-      {Gnat.ConnectionSupervisor,
-       %{name: name, backoff_period: 4_000, connection_settings: connection_settings}},
-      id: id
-    )
+    Planes.children(Config.nats()) ++ Overlays.children() ++ [Caches, HttpServer]
   end
 end

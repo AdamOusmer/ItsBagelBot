@@ -39,5 +39,12 @@
       "event": "!fn store",
       "defaultMessage": "Boutique {date}: {items}"
     }
+  },
+  "commands": {
+    "fn": "Consulte les stats Fortnite Battle Royale ou une sous-commande.",
+    "fnstats": "Consulte les stats Fortnite Battle Royale à vie.",
+    "fnseason": "Consulte les stats Fortnite de la saison en cours.",
+    "fnsession": "Affiche les stats Fortnite depuis le début du stream.",
+    "fnstore": "Affiche la boutique Fortnite du jour."
   }
 }

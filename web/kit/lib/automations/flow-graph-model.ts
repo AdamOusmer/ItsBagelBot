@@ -119,6 +119,7 @@ const TEMPLATE_FIELDS: Record<string, string[]> = {
   'reply.http_post': ['url', 'body'],
   'reply.stream_info': ['title', 'game', 'tags'],
   'reply.marker': ['description'],
+  'reply.speak': ['text'],
   'reply.clip': ['title', 'reply'],
   'cond.cooldown': ['leftReply', 'readyReply']
 };

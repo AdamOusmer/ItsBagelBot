@@ -3,6 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
+  import PastWinners from '#lib/components/giveaways/PastWinners.svelte';
   import PublicStreamerHeader from '#lib/components/public/PublicStreamerHeader.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import Pager from '@bagel/ui/svelte/Pager.svelte';
@@ -87,11 +88,20 @@
   });
 
   const channelHref = $derived(commandsHref(data.login));
+  const pausedAt = $derived(data.frozen ? new Date(data.frozen.asOf).toISOString() : '');
+  const [pausedBefore, pausedAfter] = $derived(t('leaderboard.frozen').split('{time}'));
+  let viewerTime = $state<{ stamp: string; text: string } | null>(null);
+  $effect(() => {
+    if (!pausedAt) return;
+    const clock = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    viewerTime = { stamp: pausedAt, text: clock.format(new Date(pausedAt)) };
+  });
+  const pausedTime = $derived(viewerTime?.stamp === pausedAt ? viewerTime.text : pausedAt.slice(11, 16));
 </script>
 
 <PublicHead
-  title={t('leaderboard.title', { channel: data.channelName })}
-  description={t('leaderboard.metaDescription', { channel: data.channelName })}
+  title={data.showStandings ? t('leaderboard.title', { channel: data.channelName }) : data.channelName}
+  description={t(data.showStandings ? 'leaderboard.metaDescription' : 'giveaways.history', { channel: data.channelName })}
   url="https://leaderboard.itsbagelbot.com/{data.login}"
 />
 
@@ -104,11 +114,15 @@
 <main class="lb">
   <PublicStreamerHeader>
     <div class="lb-intro">
-      <span class="lb-eyebrow"><bb-fit>{t('leaderboard.eyebrow')}</bb-fit></span>
+      {#if data.showStandings}
+        <span class="lb-eyebrow"><bb-fit>{t('leaderboard.eyebrow')}</bb-fit></span>
+      {/if}
       <h1 class="lb-title{titleSize ? ` lb-title--${titleSize}` : ''}">
         {#each titleWords as word, i (i)}{i > 0 ? ' ' : ''}<span class="lb-word">{word}</span>{/each}
       </h1>
-      <p class="lb-tagline"><bb-fit mode="block">{t('leaderboard.tagline')}</bb-fit></p>
+      {#if data.showStandings}
+        <p class="lb-tagline"><bb-fit mode="block">{t('leaderboard.tagline')}</bb-fit></p>
+      {/if}
       <div class="lb-visit" aria-hidden={!data.commandsPage}>
         {#if data.commandsPage}
           <TextLink variant="arrow" tone="go" href={channelHref} label={t('leaderboard.visitChannel')}><bb-fit>{t('leaderboard.visitChannel')}</bb-fit></TextLink>
@@ -117,9 +131,23 @@
     </div>
   </PublicStreamerHeader>
 
-  {#if data.degraded}
-    <AlertBanner tone="warning">{t('leaderboard.degraded')}</AlertBanner>
-  {/if}
+  {#if data.showStandings}
+  <div class="lb-notices">
+    <div class="lb-notice" class:lb-notice-hidden={!data.degraded} aria-hidden={!data.degraded}>
+      <AlertBanner tone="warning" flush>
+        <span class="lb-notice-copy"><bb-fit mode="block">{t('leaderboard.degraded')}</bb-fit></span>
+      </AlertBanner>
+    </div>
+    <div class="lb-notice" class:lb-notice-hidden={!data.frozen} aria-hidden={!data.frozen}>
+      <AlertBanner tone="info" role="status" flush>
+        <span class="lb-notice-copy">
+          {#if pausedAt}
+            <bb-fit mode="block">{pausedBefore}<time datetime={pausedAt}>{pausedTime}</time>{pausedAfter}</bb-fit>
+          {/if}
+        </span>
+      </AlertBanner>
+    </div>
+  </div>
 
   {#if podium.length}
     <section class="lb-podium" aria-label={t('leaderboard.boardTitle')}>
@@ -216,10 +244,17 @@
   </Card>
 
   <p class="lb-earn"><bb-fit mode="block">{t('leaderboard.earnNote')}</bb-fit></p>
+  {/if}
 
+  {#if data.giveawayWinners.length || (!data.showStandings && data.giveawayHistoryUnavailable)}
+    <section class="giveaway-history" aria-label={t('giveaways.history')}>
+      <PastWinners winners={data.giveawayWinners} degraded={data.giveawayHistoryUnavailable} />
+    </section>
+  {/if}
 </main>
 
 <style>
+  .giveaway-history { margin-top: var(--bb-space-6); }
   .sky {
     position: fixed;
     inset: 0;
@@ -248,6 +283,15 @@
     flex-direction: column;
     align-items: flex-start;
     gap: var(--bb-space-3);
+  }
+
+  .lb-notices { display: grid; }
+  .lb-notice { grid-area: 1 / 1; min-inline-size: 0; transition: opacity 160ms ease; }
+  .lb-notice-hidden { opacity: 0; pointer-events: none; }
+  .lb-notice-copy { display: block; block-size: 2.75em; align-content: center; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lb-notice { transition: none; }
   }
 
   .lb-eyebrow {

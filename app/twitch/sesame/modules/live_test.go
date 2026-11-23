@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/module"
 	lane "ItsBagelBot/internal/domain/event/lane"
 
@@ -63,6 +64,16 @@ type orderedGreets struct{ log *lifecycleLog }
 func (g orderedGreets) FirstGreet(context.Context, uint64, string) (bool, error) { return false, nil }
 func (g orderedGreets) ResetGreets(context.Context, uint64) error {
 	g.log.add("greets")
+	return nil
+}
+
+type orderedDrawWake struct {
+	engine.DrawStore
+	log *lifecycleLog
+}
+
+func (w orderedDrawWake) Wake(_ context.Context, channel draw.ChannelID) error {
+	w.log.add("wake:" + strconv.FormatUint(uint64(channel), 10))
 	return nil
 }
 
@@ -161,17 +172,22 @@ func TestRapidOnlineThenOfflineLeavesChannelOffline(t *testing.T) {
 	const off = "2026-08-23T12:00:01Z"
 
 	fx := newLiveFixture()
+	deps := liveTestDeps(fx.live, fx.log)
+	deps.Draw = orderedDrawWake{log: fx.log}
+	fx.m = Live(deps)
 
 	runLifecycle(t, fx.m, "stream.online", on)
 	runLifecycle(t, fx.m, "stream.offline", off)
 
-	got := waitForLog(t, fx.log, 5)
+	got := waitForLog(t, fx.log, 7)
 	assert.Equal(t, []string{
 		"set:" + millis(on),
+		"wake:2",
 		"greets",
 		"arm",
 		"clear:" + millis(off),
 		"disarm",
+		"wake:2",
 	}, got, "offline effects must follow the online's, never interleave")
 	assert.False(t, fx.live.isLive, "channel must end offline")
 }

@@ -67,7 +67,7 @@
     previewTag={t('govee.previewTag')}
   />
 
-  <div class="setrow" class:on={draft.allowOff}>
+  <div class="setrow">
     <SwitchRow
       control="end"
       bind:checked={draft.allowOff}
@@ -103,7 +103,6 @@
     border-radius: var(--bb-radius-sm);
     box-shadow: var(--bb-depth-1);
   }
-  .setrow.on { background: rgba(var(--bb-tan-rgb), 0.08); }
 
   .del-row { display: flex; }
 </style>

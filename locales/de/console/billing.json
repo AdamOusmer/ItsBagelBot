@@ -67,12 +67,13 @@
   "premiumFeat3": "Schnellere Antworten auf Befehle",
   "premiumFeat4": "Bevorzugter Support",
   "premiumFeat5": "Früher Zugang zu Beta-Funktionen, zuerst AutoMod",
+  "premiumFeat6": "Premium-Stimmen für Alerts (Beta)",
   "premiumFine": "Das Monatsabo verlängert sich automatisch bis zur Kündigung. Ein einzelner Monat wird einmalig bezahlt, ohne Verlängerung.",
   "premiumGateBody": "Premium hält die Server warm, bringt dich an die Spitze der Warteschlange und gibt dir neue Funktionen zuerst.",
   "premiumGateCta": "Premium holen",
   "premiumGateLink": "Das ist enthalten",
   "premiumGateTitle": "Premium-Funktion während der Beta",
-  "premiumIncludes":"Premium enthält",
+  "premiumIncludes": "Premium enthält",
   "priceForever": "/Monat, dauerhaft",
   "priorityLane": "Bevorzugte Verarbeitung",
   "staffGrantHint": "Premium von ItsBagelBot gewährt{until}. Du musst nichts bezahlen und während der Gewährung wird nichts berechnet.",
@@ -95,5 +96,6 @@
   "activating": "Wird aktiviert",
   "paymentFailed": "Deine letzte Verlängerungszahlung ist fehlgeschlagen. Aktualisiere deine Zahlungsmethode bei Tebex, um Premium weiter zu nutzen.",
   "updatePayment": "Zahlungsmethode aktualisieren",
-  "receiptsEmailed": "Tebex sendet nach jeder Zahlung einen Beleg an die beim Kauf angegebene E-Mail-Adresse."
+  "receiptsEmailed": "Tebex sendet nach jeder Zahlung einen Beleg an die beim Kauf angegebene E-Mail-Adresse.",
+  "premiumOnly": "Nur mit Premium"
 }

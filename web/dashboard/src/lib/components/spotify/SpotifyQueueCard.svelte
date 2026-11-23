@@ -100,7 +100,7 @@
   </div>
   {#if queue?.current}
     <div class="queue-now">
-      <span class="queue-label">{t('spotify.queue.now')}</span>
+      <Text as="span" size="xs" tone="muted">{t('spotify.queue.now')}</Text>
       <span class="queue-track">{@render track(queue.current)}</span>
       {#if progressLabel}
         <span class="queue-time" aria-label={progressLabel.aria}><Text as="span" size="xs" mono tone="muted">{progressLabel.text}</Text></span>
@@ -127,7 +127,6 @@
   .queue-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .queue-stamp { margin-left: auto; }
   .queue-now { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0 10px; }
-  .queue-label { font-size: 0.82em; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.7; }
   .queue-track { flex: 1 1 200px; min-width: 0; }
   .queue-time { min-width: 11ch; text-align: right; font-variant-numeric: tabular-nums; }
   .queue-list { margin: 0; padding-left: 22px; display: grid; gap: 6px; }

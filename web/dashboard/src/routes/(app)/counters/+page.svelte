@@ -846,13 +846,13 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 10px;
-    padding: 12px 16px;
+    gap: var(--bb-space-2);
+    padding: var(--bb-space-3) var(--bb-space-4);
     background: var(--bb-bg-1);
     flex: none;
   }
 
-  .entry-err { min-height: 22px; }
+  .entry-err { min-height: 24px; }
 
   .ins-sub { margin: 0 0 16px; }
 
@@ -860,7 +860,7 @@
   .sec + .sec { padding-top: 16px; }
   .sec-util { --input-fs: var(--bb-text-xs); }
 
-  .sec-head { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+  .sec-head { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
   .sec-count { display: inline-flex; font-variant-numeric: tabular-nums; }
 
   .big-num { display: block; max-width: 160px; --input-fs: var(--bb-text-md); }
@@ -889,7 +889,7 @@
   .entry-check.off { visibility: hidden; }
 
   .add { --field-mb: 12px; }
-  .add-foot { display: flex; align-items: flex-end; gap: 10px; }
+  .add-foot { display: flex; align-items: flex-end; gap: var(--bb-space-2); }
   .add-val { flex: none; width: 96px; --field-mb: 0; }
 
   @media (max-width: 760px) {

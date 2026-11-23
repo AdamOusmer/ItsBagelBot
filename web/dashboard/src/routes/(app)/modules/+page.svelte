@@ -10,6 +10,7 @@
   import { replaceState } from '$app/navigation';
   import type { SubmitFunction } from '$app/forms';
   import Kbd from '@bagel/ui/svelte/Kbd.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
@@ -148,10 +149,7 @@
 <svelte:window onkeydown={onKey} />
 
 <section class="screen active mods">
-  <header class="mods__hero">
-    <span class="mods__eyebrow"><span class="mods__beacon" aria-hidden="true"></span>{t('modules.eyebrow')}</span>
-    <h1 class="mods__title"><span class="mods__word">{t('modules.titlePre')}</span><span class="mods__word">{t('modules.titleEm')}</span></h1>
-  </header>
+  <PageHead eyebrow={t('modules.eyebrow')}>{t('modules.titlePre')}<em>{t('modules.titleEm')}</em></PageHead>
 
   {#if data.degraded}
     <AlertBanner>{t('modules.degraded')}</AlertBanner>
@@ -210,49 +208,6 @@
     flex-direction: column;
     gap: var(--bb-space-5);
     padding-bottom: var(--bb-space-section);
-  }
-
-  .mods__hero {
-    display: flex;
-    flex-direction: column;
-    gap: var(--bb-space-3);
-    padding-top: var(--bb-space-4);
-  }
-
-  .mods__eyebrow {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--bb-space-2);
-    font-size: var(--bb-text-md);
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    color: var(--bb-green-glow);
-    text-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.45);
-  }
-
-  .mods__beacon {
-    flex: none;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--bb-green-glow);
-    box-shadow: 0 0 10px var(--bb-green-glow);
-  }
-
-  .mods__title {
-    margin: 0;
-    font-family: var(--bb-font-display);
-    font-size: clamp(2.25rem, 4.4vw, 3.5rem);
-    font-weight: 500;
-    letter-spacing: var(--bb-tracking-display);
-    line-height: 1.06;
-  }
-
-  .mods__word {
-    background: linear-gradient(180deg, var(--bb-white) 40%, rgba(var(--bb-tan-light-rgb), 0.55));
-    background-clip: text;
-    -webkit-background-clip: text;
-    color: transparent;
   }
 
   .mods__toolbar {
@@ -339,7 +294,7 @@
   }
 
   .mods__rows > :global(* + *) {
-    box-shadow: inset 0 1px 0 rgba(var(--bb-white-rgb), 0.05);
+    box-shadow: inset 0 1px 0 var(--bb-border);
   }
 
   @media (max-width: 760px) {

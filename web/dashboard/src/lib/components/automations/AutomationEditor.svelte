@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { enhance, type SubmitFunction } from '$app/forms';
   import { goto, invalidateAll } from '$app/navigation';
+  import '@bagel/ui/styles/elements/collapse.css';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import EditorFooter from '@bagel/ui/svelte/EditorFooter.svelte';
@@ -171,7 +172,9 @@
         </Field>
         <div class="basics-on"><SwitchRow control="end" bind:checked={enabled} label={t('automations.fieldEnabled')} hint={t('automations.fieldEnabledHint')} /></div>
       </div>
-      <span class="slot"><Text as="span" size="xs" tone="danger">{nameCode ? t(`automations.issue.${nameCode}` as MessageKey) : ''}</Text></span>
+      <div class="bb-collapse" class:is-open={!!nameCode} aria-hidden={!nameCode} inert={!nameCode}>
+        <div><Text as="span" size="xs" tone="danger">{nameCode ? t(`automations.issue.${nameCode}` as MessageKey) : ''}</Text></div>
+      </div>
     </section>
 
     <section class="sec">
@@ -217,11 +220,13 @@
     </section>
   </fieldset>
 
-  <div class="notice" aria-live="polite">
-    {#if status === 'conflict'}
-      <Text as="span" size="sm" tone="danger">{t('automations.err.conflict')}</Text>
-      <Button size="sm" variant="secondary" onclick={reload}>{t('automations.reload')}</Button>
-    {/if}
+  <div class="bb-collapse notice-wrap" class:is-open={status === 'conflict'} aria-live="polite" inert={status !== 'conflict'}>
+    <div>
+      <div class="notice">
+        <Text as="span" size="sm" tone="danger">{t('automations.err.conflict')}</Text>
+        <Button size="sm" variant="secondary" onclick={reload}>{t('automations.reload')}</Button>
+      </div>
+    </div>
   </div>
 
   <EditorFooter
@@ -252,7 +257,7 @@
 <style>
   .ed { display: flex; flex-direction: column; gap: 20px; }
   .ed-set { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
-  .sec { display: flex; flex-direction: column; gap: 8px; }
+  .sec { display: flex; flex-direction: column; gap: 8px; --bb-collapse-gap: 8px; }
   .sec-title { display: flex; align-items: baseline; gap: 12px; min-height: 24px; }
   .box { border: 1px solid var(--bb-glass-border); border-radius: var(--bb-radius-md); padding: 10px 12px 8px; }
   .basics { display: grid; grid-template-columns: minmax(0, 1fr) 320px; column-gap: 16px; align-items: start; }
@@ -260,5 +265,6 @@
   .slot { display: block; min-height: 18px; line-height: 18px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .add-row { display: grid; grid-template-columns: 260px auto minmax(0, 1fr); align-items: center; column-gap: 12px; min-height: 40px; }
   .add-type { min-width: 0; }
+  .notice-wrap { --bb-collapse-gap: 20px; }
   .notice { display: flex; align-items: center; gap: 12px; min-height: 40px; }
 </style>

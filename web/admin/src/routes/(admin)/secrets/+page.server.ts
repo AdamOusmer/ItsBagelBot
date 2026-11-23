@@ -4,53 +4,37 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
-import { auditAppend } from '#lib/server/services';
-import { allows, requireRole, type AdminIdentity } from '#lib/server/access';
+import { allows, requireRole } from '#lib/server/access';
 import { audit } from '#lib/server/audit';
 import { actionError, adminText } from '#lib/server/admin-action';
 import {
   credentialStatuses,
   revokeCredential,
   rotateCredential,
-  scopeReport,
   serviceIds,
   serviceOf,
   setCredential,
-  type DbCredentialStatus,
-  type ScopeReport,
   type SecretServiceId
 } from '#lib/server/secrets';
 
-export type SecretsBundle = {
-  services: DbCredentialStatus[];
-  scope: ScopeReport;
-};
-
 const DEMO = dev && process.env.DEMO === '1';
 
-async function loadBundle(): Promise<SecretsBundle> {
-  const [services, scope] = await Promise.all([credentialStatuses(), scopeReport()]);
-  return { services, scope };
-}
-
-export const load: PageServerLoad = async ({ parent }) => {
+export const load: PageServerLoad = async ({ parent, depends }) => {
   const layout = await parent();
   if (!allows(layout.role, 'secrets.manage')) throw redirect(302, '/');
 
-  const bundle: Promise<SecretsBundle> = DEMO
+  depends('admin:secrets');
+  const ids = serviceIds();
+  const statuses = DEMO
     ? import('#lib/server/demo-data').then(({ demoSecretsBundle }) =>
-        demoSecretsBundle(serviceIds())
+        demoSecretsBundle(ids).services
       )
-    : loadBundle();
-  return { bundle };
+    : credentialStatuses();
+  return { statuses: statuses.catch(() => null), serviceCount: ids.length };
 };
 
-async function managerFromLocals(locals: App.Locals): Promise<AdminIdentity | null> {
-  return requireRole({ locals }, 'secrets.manage');
-}
-
-function serviceFromForm(f: FormData): SecretServiceId {
-  const service = serviceOf(String(f.get('service') ?? ''));
+function serviceFromForm(form: FormData): SecretServiceId {
+  const service = serviceOf(String(form.get('service') ?? ''));
   if (!service) throw new Error('invalid service');
   return service;
 }
@@ -59,36 +43,32 @@ type SecretActionName = 'db_credential_rotate' | 'db_credential_set' | 'db_crede
 
 type SecretSpec = {
   name: SecretActionName;
-  confirm: (service: SecretServiceId, f: FormData) => string;
-  run: (
-    service: SecretServiceId,
-    f: FormData
-  ) => Promise<{ notice: string; target?: string }>;
+  confirm: (service: SecretServiceId, form: FormData) => string;
+  run: (service: SecretServiceId, form: FormData) => Promise<{ dbUser: string }>;
 };
 
 function secretAction(spec: SecretSpec) {
   return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
-    const admin = await managerFromLocals(locals);
+    const admin = await requireRole({ locals }, 'secrets.manage');
     if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
 
-    const f = await request.formData();
+    const form = await request.formData();
     let service: SecretServiceId | undefined;
     try {
-      service = serviceFromForm(f);
-      const phrase = spec.confirm(service, f);
-      if (String(f.get('confirm') ?? '').trim() !== phrase) {
+      service = serviceFromForm(form);
+      const phrase = spec.confirm(service, form);
+      if (String(form.get('confirm') ?? '').trim() !== phrase) {
         return fail(400, { error: adminText(locals.locale, 'admin.secrets.typeToConfirm', { phrase }) });
       }
       if (DEMO) {
-        const { demoSecretNotice } = await import('#lib/server/demo-data');
         return { action: { ok: true, notice: adminText(locals.locale, 'admin.secrets.demoNotice', { action: spec.name }) } };
       }
 
-      const out = await spec.run(service, f);
-      audit(admin, { action: spec.name, target: `${service}:${out.target ?? ''}`, ok: true });
-      return { action: { ok: true, notice: adminText(locals.locale, `admin.secrets.${spec.name}`, { service, dbUser: out.target ?? '' }) } };
-    } catch (e) {
-      const message = (e as Error).message;
+      const { dbUser } = await spec.run(service, form);
+      audit(admin, { action: spec.name, target: `${service}:${dbUser}`, ok: true });
+      return { action: { ok: true, notice: adminText(locals.locale, `admin.secrets.${spec.name}`, { service, dbUser }) } };
+    } catch {
+      const message = adminText(locals.locale, 'admin.secrets.actionFailed');
       audit(admin, { action: spec.name, target: String(service ?? ''), ok: false, error: message });
       return fail(400, { error: message });
     }
@@ -98,33 +78,24 @@ function secretAction(spec: SecretSpec) {
 export const actions: Actions = {
   rotate: secretAction({
     name: 'db_credential_rotate',
-    confirm: (s) => `rotate ${s}`,
-    run: async (service) => {
-      const result = await rotateCredential(service);
-      return { notice: `${service} credential rotated to ${result.dbUser}`, target: result.dbUser };
-    }
+    confirm: (service) => `rotate ${service}`,
+    run: rotateCredential
   }),
 
   set: secretAction({
     name: 'db_credential_set',
-    confirm: (s) => `set ${s}`,
-    run: async (service, f) => {
-      const result = await setCredential(service, {
-        dbUser: String(f.get('db_user') ?? '').trim(),
-        dbPass: String(f.get('db_pass') ?? '')
-      });
-      return { notice: `${service} credential set to ${result.dbUser}`, target: result.dbUser };
-    }
+    confirm: (service) => `set ${service}`,
+    run: (service, form) => setCredential(service, {
+      dbUser: String(form.get('db_user') ?? '').trim(),
+      dbPass: String(form.get('db_pass') ?? '')
+    })
   }),
 
   revoke: secretAction({
     name: 'db_credential_revoke',
-    confirm: (_s, f) => `revoke ${String(f.get('db_user') ?? '').trim()}`,
-    run: async (service, f) => {
-      const result = await revokeCredential(service, {
-        dbUser: String(f.get('db_user') ?? '').trim()
-      });
-      return { notice: `${result.dbUser} revoked`, target: result.dbUser };
-    }
+    confirm: (_service, form) => `revoke ${String(form.get('db_user') ?? '').trim()}`,
+    run: (service, form) => revokeCredential(service, {
+      dbUser: String(form.get('db_user') ?? '').trim()
+    })
   })
 };

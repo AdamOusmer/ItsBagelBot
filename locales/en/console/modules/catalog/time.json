@@ -26,5 +26,8 @@
       "tagline": "Time somewhere else.",
       "defaultMessage": "It is currently {time} in {place}."
     }
+  },
+  "commands": {
+    "time": "Show the channel's current local time, or look up another place."
   }
 }

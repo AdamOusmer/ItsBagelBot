@@ -81,6 +81,11 @@ const COUNTER_SCOPES: ScopeDef[] = [
 
 const SCOPED_IDS = new Set(['counter']);
 
+const VALORANT_SHOP_FORM = /^\{valorant:(?:shop:|items\}|reset\})/;
+export const PUBLIC_VARIABLES = KIT_VARIABLES.map((def) => def.head === 'valorant'
+  ? { ...def, forms: def.forms.filter((form) => !VALORANT_SHOP_FORM.test(form.syntax)) }
+  : def);
+
 function kitVarDef(def: VariableDef, form: VariableForm): VarDef {
   const built = v(form.example, form.output, l10n(`vars.${def.id}.name`), l10n(`vars.${def.id}.desc`));
   const withId = { ...built, kitId: def.id, pinned: def.pinned && form === def.forms[0] };
@@ -88,7 +93,7 @@ function kitVarDef(def: VariableDef, form: VariableForm): VarDef {
 }
 
 function customSurfaceVars(): VarDef[] {
-  return KIT_VARIABLES.flatMap((def) => {
+  return PUBLIC_VARIABLES.flatMap((def) => {
     const forms = def.forms.filter((form, i) => i === 0 || form.chipHint);
     return forms.map((form) => kitVarDef(def, form));
   });

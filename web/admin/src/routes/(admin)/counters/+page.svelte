@@ -1,306 +1,297 @@
 <script lang="ts">
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
-  import Input from '@bagel/ui/svelte/Input.svelte';
-  import { untrack } from 'svelte';
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
+  import { tick } from 'svelte';
+  import { MediaQuery } from 'svelte/reactivity';
   import { enhance, type SubmitFunction } from '$app/forms';
-  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
-  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
-  import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
-  import DeckList from '@bagel/ui/svelte/DeckList.svelte';
-  import Stack from '@bagel/ui/svelte/Stack.svelte';
-  import Heading from '@bagel/ui/svelte/Heading.svelte';
-  import Text from '@bagel/ui/svelte/Text.svelte';
-  import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
-  import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
-  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
-  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
-  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
-  import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
-  import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
-  import Button from '@bagel/ui/svelte/Button.svelte';
-  import Field from '@bagel/ui/svelte/Field.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
-  import EditorFooter from '@bagel/ui/svelte/EditorFooter.svelte';
-  import { createInspector } from '@bagel/ui/svelte/inspector';
-  import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
-  import { toast } from '@bagel/ui/svelte/toast';
+  import { invalidate } from '$app/navigation';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { BotCounter } from '#lib/server/services';
+  import { formatCounterValue, parseCounterValue } from '@bagel/kit/validation';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
+  import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
+  import DeckList from '@bagel/ui/svelte/DeckList.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
+  import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
+  import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
+  import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
+  import SwapStack from '@bagel/ui/svelte/SwapStack.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
+  import { createInspector } from '@bagel/ui/svelte/inspector';
+  import { toast } from '@bagel/ui/svelte/toast';
   import StatePill from '#lib/components/StatePill.svelte';
+  import CounterEditor from '#lib/components/counters/CounterEditor.svelte';
   import {
-    NEW_COUNTER,
-    blankCounter,
-    counterComplete,
-    type CounterDraft
+    NEW_COUNTER, COUNTERS_DATA, blankCounter, counterComplete, counterName, type CounterDraft
   } from '#lib/components/counters/counter-draft';
-  import type { BotCountersBundle } from './+page.server';
+  import type { BotCounter } from '#lib/server/services';
+  import { applyStreamed } from '#lib/streamed-load';
+  import type { BotCountersBundle, CounterAction } from './+page.server';
 
   let { data } = $props();
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
+  const collator = new Intl.Collator(locale);
+  const numberFormat = new Intl.NumberFormat(locale);
   const failed = adminToastFailure(toast);
-
-  let counters = $state<BotCounter[]>([]);
-  let loaded = $state(false);
-  let degraded = $state(false);
-  $effect(() => {
-    let alive = true;
-    loaded = false;
-    data.bundle.then((b: BotCountersBundle) => {
-      if (!alive) return;
-      counters = b.counters;
-      degraded = b.degraded;
-      loaded = true;
-    });
-    return () => {
-      alive = false;
-    };
-  });
-
-  const rows = $derived([...counters].sort((a, b) => a.name.localeCompare(b.name)));
-
   const inspector = createInspector<CounterDraft>();
-  let draft = $state<CounterDraft | null>(null);
+  const discard = createDiscardGuard(() => inspector.dirty);
+  const compact = new MediaQuery('(max-width: 1079px)');
+
+  let received = $state.raw<{ source: Promise<BotCountersBundle>; bundle: BotCountersBundle }>();
+  let search = $state('');
+  let searchInput = $state<HTMLInputElement>();
   let busy = $state(false);
+  let deleteTarget = $state.raw<BotCounter | null>(null);
+  let deleteForm = $state<HTMLFormElement>();
+  let opener: Element | null = null;
+
+  const bundle = $derived(received?.source === data.bundle ? received.bundle : undefined);
+  const query = $derived(search.trim().toLowerCase());
+  const sorted = $derived([...(bundle?.counters ?? [])].sort((a, b) => collator.compare(a.name, b.name)));
+  const rows = $derived(query ? sorted.filter((counter) => counter.name.toLowerCase().includes(query)) : sorted);
+  const count = $derived(rows.length === 1
+    ? t('admin.counters.countOne')
+    : t('admin.counters.count', { n: numberFormat.format(rows.length) }));
+  const creating = $derived(inspector.selectedId === NEW_COUNTER);
+  const selected = $derived(bundle?.counters.find((counter) => counter.name === inspector.selectedId));
+  const degraded = $derived(bundle?.degraded === true);
+  const confirmationOpen = $derived(deleteTarget !== null || discard.open);
+  const inspectorVisible = $derived(inspector.isOpen && (!compact.current || !confirmationOpen));
 
   $effect(() => {
-    const snap = draft ? { ...draft } : null;
-    if (snap) untrack(() => inspector.edit(snap));
+    const source = data.bundle;
+    applyStreamed(source, (bundle) => { received = { source, bundle }; });
   });
 
-  const creating = $derived(inspector.selectedId === NEW_COUNTER);
-  const selected = $derived(
-    creating ? null : (counters.find((c) => c.name === inspector.selectedId) ?? null)
-  );
-  const canSave = $derived(inspector.dirty && !!draft && counterComplete(draft));
-
-  const discard = createDiscardGuard(
-    () => inspector.dirty,
-    () => {
-      inspector.reset();
-      draft = null;
-    }
-  );
-
-  function draftOf(c: BotCounter): CounterDraft {
-    return { name: c.name, value: c.value };
+  function updateRows(update: (rows: BotCounter[]) => BotCounter[]) {
+    if (!bundle || !received) return;
+    received = { ...received, bundle: { ...bundle, counters: update(bundle.counters) } };
   }
 
-  function openNew() {
+  function enterEditor(counter?: BotCounter) {
+    if (busy) return;
+    const id = counter?.name ?? NEW_COUNTER;
+    if (inspector.selectedId === id) return close();
+    const trigger = document.activeElement;
     discard.guard(() => {
-      const blank = blankCounter();
-      inspector.open(NEW_COUNTER, blank);
-      draft = { ...blank };
+      opener = trigger;
+      const draft = counter ? { name: counter.name, value: counter.value } : blankCounter();
+      inspector.open(id, draft);
+      if (!compact.current) focusDraft();
     });
   }
 
-  function openCounter(c: BotCounter) {
-    if (inspector.selectedId === c.name) {
-      close();
-      return;
-    }
-    discard.guard(() => {
-      inspector.open(c.name, draftOf(c));
-      draft = draftOf(c);
+  function focusDraft() {
+    void tick().then(() => document.getElementById('counter-field')?.focus());
+  }
+
+  function focusAfterUpdate(trigger: Element | null, fallback?: HTMLElement) {
+    void tick().then(() => {
+      const valid = trigger instanceof HTMLElement && trigger.isConnected && trigger !== document.body;
+      const target = valid ? trigger : fallback;
+      target?.focus({ preventScroll: true });
     });
+  }
+
+  function releaseEditor() {
+    inspector.reset();
+    focusAfterUpdate(opener, searchInput);
+    opener = null;
   }
 
   function close() {
-    discard.guard(() => {
-      inspector.reset();
-      draft = null;
-    });
+    if (!busy) discard.guard(releaseEditor);
   }
 
-  function upsert(snapshot: CounterDraft, wasCreating: boolean) {
-    if (!wasCreating) {
-      counters = counters.map((c) => (c.name === snapshot.name ? { ...c, value: snapshot.value } : c));
+  function applySave(snapshot: CounterDraft, created?: BotCounter) {
+    if (creating) {
+      const name = counterName(snapshot.name) ?? snapshot.name;
+      const counter = created ?? bundle?.counters.find((row) => row.name === name) ?? { name, scope: 'bot', value: '0' };
+      updateRows((rows) => [...rows.filter((row) => row.name !== counter.name), counter]);
+      releaseEditor();
       return;
     }
-    counters = [...counters, { name: snapshot.name, scope: 'bot', value: '0' }];
+    const value = parseCounterValue(snapshot.value) ?? snapshot.value;
+    inspector.rebase({ value });
+    updateRows((rows) => rows.map((row) => row.name === snapshot.name ? { ...row, value } : row));
+    focusDraft();
   }
 
-  const saveSubmit: SubmitFunction = () => {
+  function retry() {
+    searchInput?.focus();
+    void invalidate(COUNTERS_DATA);
+  }
+
+  const saveSubmit: SubmitFunction = ({ cancel }) => {
+    if (busy || !inspector.draft || !counterComplete(inspector.draft)) return cancel();
     const begun = inspector.beginSave();
-    const wasCreating = creating;
+    if (!begun) return cancel();
     busy = true;
     return async ({ result }) => {
       busy = false;
-      const p = actionPayload(result);
-      const ok = result.type === 'success' && p?.ok === true;
-      const applied = begun
-        ? inspector.resolved(begun.requestId, { type: ok ? 'success' : 'error' })
-        : false;
+      const payload = actionPayload<CounterAction>(result);
+      const ok = result.type === 'success' && payload?.ok === true;
+      inspector.resolved(begun.requestId, { type: ok ? 'success' : 'error' });
       if (!ok) {
-        failed(p, t('admin.counters.saveFailed'));
+        failed(payload, t('admin.counters.saveFailed'));
+        focusDraft();
         return;
       }
-      if (begun) upsert(begun.snapshot, wasCreating);
-      toast('success', wasCreating ? t('admin.counters.created') : t('admin.counters.updated'));
-      if (wasCreating && applied) {
-        inspector.reset();
-        draft = null;
-      }
+      toast('success', t(creating ? 'admin.counters.created' : 'admin.counters.updated'));
+      applySave(begun.snapshot, payload?.counter);
     };
   };
 
-  let deleteTarget = $state<BotCounter | null>(null);
-  let deleteForm = $state<HTMLFormElement | null>(null);
-
-  const deleteSubmit: SubmitFunction = () => {
-    const target = deleteTarget;
+  const deleteSubmit: SubmitFunction = ({ cancel }) => {
+    if (!deleteTarget || busy) return cancel();
+    const { name } = deleteTarget;
+    const trigger = document.activeElement;
     busy = true;
     return async ({ result }) => {
       busy = false;
-      deleteTarget = null;
-      const p = actionPayload(result);
-      if (result.type === 'success' && p?.ok) {
-        counters = counters.filter((c) => c.name !== target?.name);
-        inspector.reset();
-        draft = null;
-        toast('success', t('admin.counters.deleted'));
+      const payload = actionPayload(result);
+      if (result.type !== 'success' || !payload?.ok) {
+        failed(payload, t('admin.counters.deleteFailed'));
+        focusAfterUpdate(trigger);
         return;
       }
-      failed(p, t('admin.counters.deleteFailed'));
+      deleteTarget = null;
+      updateRows((rows) => rows.filter((row) => row.name !== name));
+      releaseEditor();
+      toast('success', t('admin.counters.deleted'));
     };
   };
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow={t('admin.counters.eyebrow')} description={t('admin.counters.description')}>
+  <PageHead description={t('admin.counters.description')}>
     {t('admin.counters.titlePre')}<em>{t('admin.counters.titleEm')}</em>
   </PageHead>
 
-  {#if degraded}
-    <AlertBanner>{t('admin.counters.degraded')}</AlertBanner>
-  {/if}
-
   <PageToolbar>
     {#snippet leading()}
-      {#if loaded}
-        <Text as="span" size="xs" tone="muted" mono>
-          {rows.length === 1
-            ? t('admin.counters.countOne')
-            : t('admin.counters.count', { n: String(rows.length) })}
-        </Text>
-      {:else}
-        <Skeleton variant="pill" width="110px" />
-      {/if}
+      <div class="search">
+        <SearchInput
+          fill
+          tall
+          bind:value={search}
+          bind:element={searchInput}
+          placeholder={t('admin.counters.search')}
+          aria-label={t('admin.counters.search')}
+        />
+      </div>
     {/snippet}
     {#snippet trailing()}
-      <Button variant="primary" onclick={openNew}>{t('admin.counters.add')}</Button>
+      <SwapStack alternate={degraded} style="inline-size: 9.25rem; max-inline-size: 100%">
+        {#snippet primary()}
+          <Button
+            block
+            onclick={() => enterEditor()}
+            disabled={!bundle || busy}
+            aria-expanded={creating && inspectorVisible}
+            aria-controls={creating && inspectorVisible ? 'counter-inspector' : undefined}
+          >
+            <bb-fit><span data-fit>{t('admin.counters.add')}</span></bb-fit>
+          </Button>
+        {/snippet}
+        {#snippet secondary()}
+          <Button block variant="secondary" onclick={retry}>
+            <bb-fit><span data-fit>{t('common.retry')}</span></bb-fit>
+          </Button>
+        {/snippet}
+      </SwapStack>
     {/snippet}
   </PageToolbar>
 
-  <DeckLayout inspecting={inspector.isOpen} width="380px">
-    <DeckList>
-      {#if !loaded}
-        <SkeletonStack rows={3} height="56px" />
+  <DeckLayout inspecting={inspector.isOpen} width="min(380px, 49%)">
+    <DeckList as="section" style="min-block-size: 10.5rem" aria-label={t('admin.counters.listLabel')} aria-busy={!bundle}>
+      <div class="list-count">
+        <div class="count-slot">
+          <Text as="div" size="xs" tone="muted" mono role="status">
+            <bb-fit><span data-fit>{bundle && !degraded ? count : ''}</span></bb-fit>
+          </Text>
+        </div>
+        {#if !bundle}
+          <div class="count-slot" aria-hidden="true"><Skeleton width="6rem" /></div>
+        {/if}
+      </div>
+      {#if !bundle}
+        <div aria-hidden="true">
+          {#each [0, 1] as index (index)}
+            <ManagementRow selectable={false}>
+              {#snippet primary()}
+                <div class="row-skeleton">
+                  <div class="row-skeleton-text">
+                    <Skeleton width="min(15ch, 90%)" height="20px" variant="block" />
+                    <Skeleton width="min(9ch, 60%)" height="16px" variant="block" />
+                  </div>
+                  <Skeleton width="4.5rem" variant="pill" />
+                </div>
+              {/snippet}
+            </ManagementRow>
+          {/each}
+        </div>
+      {:else if degraded}
+        <div class="list-alert">
+          <AlertBanner tone="danger">
+            {t('admin.counters.degraded')}
+          </AlertBanner>
+        </div>
       {:else if rows.length}
-        <ul class="bb-list" aria-label={t('admin.counters.listLabel')}>
-          {#each rows as c (c.name)}
-            <li>
-              <ManagementRow
-                selected={inspector.selectedId === c.name}
-                expanded={inspector.selectedId === c.name}
-                controls="counter-inspector"
-                onSelect={() => openCounter(c)}
-                title={c.name}
-                meta={t('admin.counters.rowMeta', { scope: c.scope })}
-              >
-                {#snippet marks()}
-                  <StatePill tone="neutral">{BigInt(c.value).toLocaleString()}</StatePill>
-                {/snippet}
-              </ManagementRow>
-            </li>
+        <ul class="bb-list">
+          {#each rows as counter (counter.name)}
+            {@const active = inspector.selectedId === counter.name}
+            {@const expanded = active && inspectorVisible}
+            <ManagementRow
+              as="li"
+              selected={active}
+              {expanded}
+              controls={expanded ? 'counter-inspector' : undefined}
+              onSelect={() => enterEditor(counter)}
+              title={counter.name}
+              meta={t('admin.counters.rowMeta', { scope: counter.scope })}
+            >
+              {#snippet marks()}
+                <StatePill tone="neutral">{formatCounterValue(counter.value, locale)}</StatePill>
+              {/snippet}
+            </ManagementRow>
           {/each}
         </ul>
+      {:else if bundle.counters.length}
+        <EmptyState title={t('admin.counters.noMatches')} body={t('admin.counters.noMatchesBody')} />
       {:else}
         <EmptyState title={t('admin.counters.empty')} body={t('admin.counters.emptyBody')} />
       {/if}
     </DeckList>
 
-    {#if inspector.isOpen && draft}
+    {#if inspector.isOpen && inspector.draft}
       <InspectorSurface
-        open
-        title={creating ? t('admin.counters.newTitle') : (selected?.name ?? '')}
+        open={inspectorVisible}
+        title={creating ? t('admin.counters.newTitle') : inspector.draft.name}
         controls="counter-inspector"
         closeLabel={t('admin.close')}
         onClose={close}
       >
         {#key inspector.selectedId}
-          <form
-            class="editor"
-            method="POST"
-            action={creating ? '?/create' : '?/set'}
-            use:enhance={saveSubmit}
-          >
-            <input type="hidden" name="name" value={draft.name} />
-            {#if !creating}<input type="hidden" name="value" value={String(draft.value)} />{/if}
-
-            <Scroller fill padding="18px" smooth>
-              <Stack gap={4}>
-                {#if creating}
-                  <Field label={t('admin.counters.fieldName')}>
-                    <Input
-                      fill mono
-                      type="text"
-                      maxlength={64}
-                      placeholder={t('admin.counters.fieldNamePlaceholder')}
-                      bind:value={draft.name}
-                    />
-                  </Field>
-                {:else}
-                  <Stack gap={1}>
-                    <Heading level={5} as="p" variant="title">{draft.name}</Heading>
-                    <Text size="xs" tone="muted" mono>
-                      {t('admin.counters.rowMeta', { scope: selected?.scope ?? 'bot' })}
-                    </Text>
-                  </Stack>
-                {/if}
-
-                {#if !creating}
-                  <Field label={t('admin.counters.fieldValue')}>
-                    <Input
-                      fill mono
-                      type="text"
-                      inputmode="numeric"
-                      bind:value={draft.value}
-                    />
-                  </Field>
-                  <Text size="sm" tone="muted">{t('admin.counters.valueHint')}</Text>
-                {/if}
-
-                {#if selected}
-                  <Stack as="section" gap={2} align="start">
-                    <Heading level={3} variant="label">{t('admin.counters.dangerTitle')}</Heading>
-                    <Button
-                      disabled={busy}
-                      onclick={() => (deleteTarget = selected)}
-                      tone="danger"
-                    >
-                      {t('common.delete')}
-                    </Button>
-                  </Stack>
-                {/if}
-              </Stack>
-            </Scroller>
-
-            <EditorFooter
-              status={inspector.status}
-              dirty={inspector.dirty}
-              {canSave}
-              saveLabel={creating ? t('admin.counters.addCta') : t('common.save')}
-              cancelLabel={t('common.cancel')}
-              savingLabel={t('admin.saving')}
-              savedLabel={t('admin.saved')}
-              dirtyLabel={t('admin.unsaved')}
-              errorLabel={t('admin.saveFailed')}
-              onCancel={close}
-            />
-          </form>
+          <CounterEditor
+            draft={inspector.draft}
+            {creating}
+            scope={selected?.scope}
+            status={inspector.status}
+            dirty={inspector.dirty}
+            {busy}
+            onEdit={inspector.edit}
+            onCancel={close}
+            onDelete={selected ? () => (deleteTarget = selected ?? null) : undefined}
+            submit={saveSubmit}
+          />
         {/key}
       </InspectorSurface>
     {/if}
@@ -325,17 +316,52 @@
 <ConfirmDialog
   open={discard.open}
   title={t('admin.unsaved')}
-  confirmLabel={t('common.done')}
+  confirmLabel={t('admin.counters.discard')}
   cancelLabel={t('common.cancel')}
   onConfirm={discard.confirm}
   onCancel={discard.cancel}
 />
 
 <style>
-  .editor {
+  .search {
+    flex: 1 1 8rem;
+    max-inline-size: 24rem;
+    min-inline-size: 0;
+  }
+
+  .list-count {
+    display: grid;
+    align-items: center;
+    min-block-size: 2rem;
+    padding-inline: var(--bb-space-4);
+  }
+
+  .count-slot {
+    grid-area: 1 / 1;
+    min-inline-size: 0;
+  }
+
+  .row-skeleton {
     display: flex;
-    flex-direction: column;
-    min-height: 0;
-    max-height: 100%;
+    align-items: center;
+    gap: var(--bb-space-3);
+  }
+
+  .row-skeleton-text {
+    display: grid;
+    gap: 2px;
+    flex: 1;
+    min-inline-size: 0;
+  }
+
+  .list-alert {
+    padding: 0 var(--bb-space-4) var(--bb-space-3);
+  }
+
+  @media (max-width: 480px) {
+    .search {
+      flex-basis: 100%;
+      max-inline-size: none;
+    }
   }
 </style>

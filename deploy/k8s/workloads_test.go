@@ -5,6 +5,7 @@ package k8s
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"testing"
 
@@ -40,6 +41,153 @@ func TestBotIdentityComesFromTheRightSecret(t *testing.T) {
 	}
 }
 
+func TestControlsGatewayUsesItsOwnDopplerSecrets(t *testing.T) {
+	deployment := findDeployment(t, "controls-gateway.yaml", "controls-gateway")
+	assert.Equal(t, map[string]string{
+		"OVERLAY_COOKIE_KEY":    "controls-gateway-env/OVERLAY_COOKIE_KEY",
+		"NATS_JWT":              "controls-gateway-env/NATS_RPC_JWT",
+		"NATS_NKEY_SEED":        "controls-gateway-env/NATS_RPC_NKEY_SEED",
+		"NEW_RELIC_LICENSE_KEY": "controls-gateway-env/NEW_RELIC_LICENSE_KEY",
+	}, deployment.secretEnv().Refs)
+}
+
+type traefikRoute struct {
+	Match       string `yaml:"match"`
+	Middlewares []struct {
+		Name string `yaml:"name"`
+	} `yaml:"middlewares"`
+	Observability struct {
+		AccessLogs *bool `yaml:"accessLogs"`
+	} `yaml:"observability"`
+	Services []struct {
+		NativeLB *bool `yaml:"nativeLB"`
+	} `yaml:"services"`
+}
+
+type traefikObject struct {
+	Kind     string `yaml:"kind"`
+	Metadata struct {
+		Name string `yaml:"name"`
+	} `yaml:"metadata"`
+	Spec struct {
+		Routes    []traefikRoute `yaml:"routes"`
+		RateLimit struct {
+			Average         int    `yaml:"average"`
+			Period          string `yaml:"period"`
+			Burst           int    `yaml:"burst"`
+			SourceCriterion struct {
+				RequestHeaderName string `yaml:"requestHeaderName"`
+			} `yaml:"sourceCriterion"`
+		} `yaml:"rateLimit"`
+	} `yaml:"spec"`
+}
+
+var sessionPathPattern = regexp.MustCompile("PathRegexp\\(`([^`]+)`\\)")
+
+func (r traefikRoute) middlewareNames() []string {
+	var names []string
+	for _, m := range r.Middlewares {
+		names = append(names, m.Name)
+	}
+	return names
+}
+
+func (r traefikRoute) sessionPatterns() []*regexp.Regexp {
+	var patterns []*regexp.Regexp
+	for _, m := range sessionPathPattern.FindAllStringSubmatch(r.Match, -1) {
+		patterns = append(patterns, regexp.MustCompile(m[1]))
+	}
+	return patterns
+}
+
+func overlayRoutes(t *testing.T) []traefikRoute {
+	t.Helper()
+	docs := decodeFile[traefikObject](t, "controls-gateway.yaml")
+	i := slices.IndexFunc(docs, func(doc traefikObject) bool { return doc.Kind == "IngressRoute" })
+	require.GreaterOrEqual(t, i, 0)
+	require.Len(t, docs[i].Spec.Routes, 2)
+	return docs[i].Spec.Routes
+}
+
+func TestOverlayRoutesLimitSessionPathsAndStripClientIP(t *testing.T) {
+	routes := overlayRoutes(t)
+	for _, route := range routes {
+		require.NotNil(t, route.Observability.AccessLogs)
+		assert.False(t, *route.Observability.AccessLogs)
+		require.NotEmpty(t, route.Services)
+		for _, service := range route.Services {
+			require.NotNil(t, service.NativeLB)
+			assert.False(t, *service.NativeLB)
+		}
+	}
+	session := slices.IndexFunc(routes, func(r traefikRoute) bool { return len(r.sessionPatterns()) > 0 })
+	require.GreaterOrEqual(t, session, 0)
+	catchAll := routes[1-session]
+	assert.Equal(t, []string{"overlay-session-ratelimit", "strip-client-ip"}, routes[session].middlewareNames())
+	assert.Equal(t, []string{"strip-client-ip"}, catchAll.middlewareNames())
+	assert.Empty(t, catchAll.sessionPatterns())
+
+	patterns := routes[session].sessionPatterns()
+	covered := map[string]bool{
+		"/tts/session": true, "/tts/session/": true, "//tts//session//": true,
+		"/o/session": true, "/o/session/": true, "//o/session": true,
+		"/tts/sessions": false, "/o/config": false, "/powered/session": false,
+		"/powered/config": false, "/powered/config/": false, "//powered//config": false,
+	}
+	for path, want := range covered {
+		got := slices.ContainsFunc(patterns, func(p *regexp.Regexp) bool { return p.MatchString(path) })
+		assert.Equal(t, want, got, path)
+	}
+}
+
+func TestOverlaySessionRateLimitValues(t *testing.T) {
+	for _, doc := range decodeFile[traefikObject](t, "controls-gateway.yaml") {
+		if doc.Kind == "Middleware" && doc.Metadata.Name == "overlay-session-ratelimit" {
+			limit := doc.Spec.RateLimit
+			assert.Equal(t, [4]any{10, "1m", 10, "CF-Connecting-IP"},
+				[4]any{limit.Average, limit.Period, limit.Burst, limit.SourceCriterion.RequestHeaderName})
+			return
+		}
+	}
+	t.Fatal("overlay-session-ratelimit middleware missing")
+}
+
+type disruptionBudget struct {
+	Kind     string     `yaml:"kind"`
+	Metadata objectMeta `yaml:"metadata"`
+	Spec     struct {
+		MaxUnavailable int `yaml:"maxUnavailable"`
+	} `yaml:"spec"`
+}
+
+func TestControlsGatewayRollsWithoutDroppingStreams(t *testing.T) {
+	deployment := findDeployment(t, "controls-gateway.yaml", "controls-gateway")
+	update := deployment.Spec.Strategy.RollingUpdate
+	pod := deployment.Spec.Template.Spec
+	require.Len(t, pod.Containers, 1)
+
+	tests := []struct {
+		name      string
+		got, want any
+	}{
+		{"replicas", deployment.Spec.Replicas, 3},
+		{"strategy", deployment.Spec.Strategy.Type, "RollingUpdate"},
+		{"maxSurge", update.MaxSurge, 1},
+		{"maxUnavailable", update.MaxUnavailable, 0},
+		{"terminationGracePeriodSeconds", pod.TerminationGracePeriodSeconds, 45},
+		{"preStop", pod.Containers[0].Lifecycle.PreStop.Exec.Command, []string{"sleep", "5"}},
+		{"spread count", len(pod.TopologySpreadConstraints), 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) { assert.Equal(t, tc.want, tc.got) })
+	}
+
+	budgets := decodeFile[disruptionBudget](t, "controls-gateway.yaml")
+	i := slices.IndexFunc(budgets, func(b disruptionBudget) bool { return b.Kind == "PodDisruptionBudget" })
+	require.GreaterOrEqual(t, i, 0)
+	assert.Equal(t, 1, budgets[i].Spec.MaxUnavailable)
+}
+
 func TestReloaderRunsOneRoller(t *testing.T) {
 	ops := findDeployment(t, reloaderManifest, "reloader")
 
@@ -53,8 +201,10 @@ func TestSpreadIsHardWithoutMinDomains(t *testing.T) {
 		{"console-admin.yaml", "console-admin"},
 		{"console-dashboard.yaml", "console-dashboard"},
 		{"notifications.yaml", "notifications"},
+		{"overlays.yaml", "overlays"},
 		{"transactions.yaml", "transactions"},
 		{"twitch-ingress.yaml", "twitch-ingress"},
+		{"controls-gateway.yaml", "controls-gateway"},
 		{"outgress.yaml", "outgress"},
 		{"sesame.yaml", "sesame"},
 	}

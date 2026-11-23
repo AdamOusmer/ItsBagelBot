@@ -8,10 +8,74 @@ import (
 	"strings"
 	"testing"
 
+	drawrpc "ItsBagelBot/internal/domain/rpc/draw"
+	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
+	sesamerpc "ItsBagelBot/internal/domain/rpc/sesame"
 	"ItsBagelBot/internal/natsacl"
 
 	"github.com/stretchr/testify/assert"
 )
+
+type workerGrantCase struct {
+	subject string
+	grant   rpcGrant
+	private bool
+}
+
+func TestDashboardWorkerRPCIsolation(t *testing.T) {
+	draw := rpcGrant{kind: "service", subject: "rpc.draw.>"}
+	voice := rpcGrant{kind: "service", subject: sesamerpc.VoiceTestSubject}
+	localVoice := rpcGrant{kind: "service", subject: sesamerpc.VoiceTestSubject + ".node.*"}
+	cases := []workerGrantCase{
+		{drawrpc.RaffleStatusSubject, draw, false},
+		{drawrpc.RaffleStatusSubject + ".node.n1", draw, false},
+		{sesamerpc.VoiceTestSubject, voice, true},
+		{sesamerpc.VoiceTestSubject + ".node.n1", localVoice, true},
+	}
+	for _, account := range loadRPCCatalog(t).accounts {
+		for _, tc := range cases {
+			tc.assertGrant(t, account)
+		}
+	}
+}
+
+func (tc workerGrantCase) assertGrant(t *testing.T, account rpcAccount) {
+	t.Helper()
+	subject, grant := tc.subject, tc.grant
+	wantImports := map[string]rpcImport{"DASHBOARD_RPC": {rpcGrant: grant, account: "WORKER_RPC"}}
+	if tc.private {
+		grant.accounts = []string{"DASHBOARD_RPC"}
+	}
+	wantExports := map[string]rpcGrant{"WORKER_RPC": grant}
+	export, _ := account.exportCovering(subject)
+	imp, _ := account.importCovering(subject)
+	assert.Equal(t, wantExports[account.name], export, "%s export: %s", account.name, subject)
+	assert.Equal(t, wantImports[account.name], imp, "%s import: %s", account.name, subject)
+}
+
+func TestChannelGiveawayWinnersRPCIsolation(t *testing.T) {
+	verbs := []string{
+		modulesrpc.VerbGiveawayRecord, modulesrpc.VerbGiveawayDeliver,
+		modulesrpc.VerbGiveawayRecent, modulesrpc.VerbGiveawayWonWithin,
+	}
+	for _, account := range loadRPCCatalog(t).accounts {
+		for _, verb := range verbs {
+			assertGiveawayImport(t, account, "rpc.modules"+modulesrpc.GiveawaySuffix+"."+verb)
+		}
+	}
+}
+
+func assertGiveawayImport(t *testing.T, account rpcAccount, subject string) {
+	t.Helper()
+	allowed := account.name == "DASHBOARD_RPC" || account.name == "WORKER_RPC"
+	for _, candidate := range []string{subject, subject + ".node.n1"} {
+		grant, imported := account.importCovering(candidate)
+		assert.Equal(t, allowed, imported, "%s: %s", account.name, candidate)
+		if imported {
+			assert.Equal(t, "MODULES_RPC", grant.account)
+		}
+	}
+}
 
 func TestGiveawayGrantCustody(t *testing.T) {
 	for _, verb := range []string{"pool", "coverage", "prepare", "commit", "cancel"} {

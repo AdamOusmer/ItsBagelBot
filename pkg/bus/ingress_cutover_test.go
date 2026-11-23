@@ -4,7 +4,6 @@
 package bus
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -32,7 +31,7 @@ func TestIngressReconcilePreparesDurableBeforeSubjectMove(t *testing.T) {
 	for i := range specs {
 		specs[i].Replicas = 1
 	}
-	require.NoError(t, EnsureStreams(context.Background(), f.url, specs, zap.NewNop()))
+	require.NoError(t, EnsureStreams(t.Context(), f.url, specs, zap.NewNop()))
 	requests := cutoverRequests(trace)
 	created, durable, moved := -1, -1, -1
 	for i, subject := range requests {

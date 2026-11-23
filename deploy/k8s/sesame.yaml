@@ -85,7 +85,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: sesame
-          image: ghcr.io/adamousmer/itsbagelbot/sesame:main-1795019110-152a63d55b7a@sha256:62a25d8ead4c2fe777232c9092a2be842e3da7d10fe6e9e92d6299fac294e7e9
+          image: ghcr.io/adamousmer/itsbagelbot/sesame:v0.5.0-beta@sha256:d046e215e6aed20a8a42600329040267e4347ec923270fafcb37b37128fd7299
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -160,6 +160,8 @@ spec:
             # Every twitch-ingress pod must stage per-subject cohorts first, or mixed batches are silently rejected.
             - name: NATS_INGRESS_PARTITION
               value: "on"
+            - name: SESAME_TTS_ENABLED
+              value: "true"
             - name: SESAME_CONSUMER_NAME
               value: worker
             - name: SESAME_MIN_ROUTINES

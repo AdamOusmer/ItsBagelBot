@@ -2,17 +2,13 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.Drain do
-  @moduledoc """
-  SIGTERM handling: fail /readyz first, reject new /v1/connect upgrades at
-  the handler (the shared listener keeps serving /healthz and /readyz), then
-  close open sockets with "going away" plus jitter so clients don't all
-  reconnect in the same instant.
-  """
-  require Logger
+  alias ControlsGateway.Metrics
 
   @draining_key {__MODULE__, :draining}
-  @jitter_max_ms 5_000
-  @drain_deadline_ms 8_000
+  @registry ControlsGateway.Connections
+  @socket_jitter_max_ms 5_000
+  @reconnect_max_ms 1_500
+  @drain_deadline_ms 25_000
   @poll_interval_ms 200
 
   @spec ready?() :: boolean()
@@ -21,9 +17,12 @@ defmodule ControlsGateway.Drain do
   @spec draining?() :: boolean()
   def draining?, do: :persistent_term.get(@draining_key, false)
 
-  # Test-only counterpart to run/0: draining is permanent for a real process
-  # (it is shutting down anyway), but the flag is a VM-wide persistent_term
-  # and must not leak into the next test.
+  @spec track_connection(:stream | :socket | :download) :: :ok | :draining
+  def track_connection(kind) do
+    {:ok, _} = Registry.register(@registry, self(), kind)
+    if draining?(), do: :draining, else: :ok
+  end
+
   @doc false
   @spec reset!() :: :ok
   def reset! do
@@ -33,34 +32,44 @@ defmodule ControlsGateway.Drain do
 
   @spec run() :: :ok
   def run do
+    started = now()
     :persistent_term.put(@draining_key, true)
-    close_all_with_jitter()
-    await_drained(deadline())
+    ControlsGateway.Overlays.pause_pullers()
+    ControlsGateway.Overlays.await_idle()
+    Enum.each(connections(), &announce/1)
+    await_drained(started + deadline_ms())
+    Metrics.count("Drain/DurationMs", now() - started)
+    Metrics.count("Drain/StreamsLeft", count(:stream))
+    Platform.Metrics.flush(Metrics)
     :ok
-  rescue
-    error ->
-      Logger.error("drain failed: #{Exception.message(error)}; shutting down anyway")
-      :ok
   end
 
-  defp close_all_with_jitter do
-    for pid <- connected_pids() do
-      send(pid, {:shutdown_close, :rand.uniform(@jitter_max_ms)})
-    end
+  defp announce({pid, :stream}),
+    do: send(pid, {:reconnect, Platform.Backoff.between_ms(0, @reconnect_max_ms), :drain})
+
+  defp announce({pid, :socket}),
+    do:
+      Process.send_after(pid, :shutdown_close, Platform.Backoff.uniform_ms(@socket_jitter_max_ms))
+
+  defp announce({_pid, :download}), do: :ok
+
+  defp connections do
+    Registry.select(@registry, [{{:_, :"$1", :"$2"}, [], [{{:"$1", :"$2"}}]}])
   end
 
-  defp connected_pids do
-    Registry.select(ControlsGateway.Connections, [{{:_, :"$1", :_}, [], [:"$1"]}])
-  end
+  defp deadline_ms,
+    do: Application.get_env(:controls_gateway, :drain_deadline_ms, @drain_deadline_ms)
 
-  defp deadline, do: System.monotonic_time(:millisecond) + @drain_deadline_ms
+  defp now, do: System.monotonic_time(:millisecond)
+
+  defp count(kind), do: Enum.count(connections(), &match?({_pid, ^kind}, &1))
 
   defp await_drained(deadline) do
     cond do
-      connected_pids() == [] ->
+      connections() == [] ->
         :ok
 
-      System.monotonic_time(:millisecond) >= deadline ->
+      now() >= deadline ->
         :timeout
 
       true ->

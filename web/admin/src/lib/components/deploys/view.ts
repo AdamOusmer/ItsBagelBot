@@ -19,7 +19,7 @@ import { TERMINAL_RUN_STATES } from '#lib/deploys/types';
 
 export type Tone = 'neutral' | 'success' | 'warning' | 'danger';
 
-export type Translate = (key: string, params?: Record<string, string>) => string;
+type Translate = (key: string, params?: Record<string, string>) => string;
 
 export const KIND_KEY: Record<RunKind, string> = {
   release: 'admin.deploys.kind.release',
@@ -131,13 +131,6 @@ const CHECK_TONE: Record<CheckState, Tone> = {
   failure: 'danger'
 };
 
-const PILL: Record<Tone, 'neutral' | 'success' | 'warning' | 'danger'> = {
-  neutral: 'neutral',
-  success: 'success',
-  warning: 'warning',
-  danger: 'danger'
-};
-
 const QUEUE_TONE: Partial<Record<StageState, Tone>> = {
   succeeded: 'warning',
   running: 'success',
@@ -145,17 +138,16 @@ const QUEUE_TONE: Partial<Record<StageState, Tone>> = {
   failed: 'danger'
 };
 
-export const runTone = (s: RunState): Tone => RUN_TONE[s];
-export const runPill = (s: RunState) => PILL[RUN_TONE[s]];
+export const runPill = (state: RunState): Tone => RUN_TONE[state];
 export const stageTone = (s: StageState): Tone => STAGE_TONE[s];
 export const checkTone = (s: CheckState): Tone => CHECK_TONE[s];
 export const queueTone = (s: StageState): Tone | null => QUEUE_TONE[s] ?? null;
 
 export const isTerminal = (s: RunState): boolean => TERMINAL_RUN_STATES.includes(s);
 
-export function ratio(p: Progress | undefined): number | undefined {
-  if (!p || p.total <= 0) return undefined;
-  return p.done / p.total;
+export function ratio(progress: Progress | undefined): number | undefined {
+  if (!progress || progress.total <= 0) return undefined;
+  return progress.done / progress.total;
 }
 
 export function stageValue(s: Pick<DeployStage, 'state' | 'progress'>): number | null | undefined {

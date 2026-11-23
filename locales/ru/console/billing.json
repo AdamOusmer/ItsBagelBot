@@ -67,12 +67,13 @@
   "premiumFeat3": "Более быстрые ответы на команды",
   "premiumFeat4": "Приоритетная поддержка",
   "premiumFeat5": "Ранний доступ к бета-функциям, начиная с AutoMod",
+  "premiumFeat6": "Голос Premium для оповещений (бета)",
   "premiumFine": "Ежемесячная подписка продлевается автоматически до отмены. Один месяц — разовая оплата без продления.",
   "premiumGateBody": "Premium держит серверы наготове, ставит вас в начало очереди и открывает новые функции в первую очередь.",
   "premiumGateCta": "Подключить Premium",
   "premiumGateLink": "Что входит",
   "premiumGateTitle": "Функция Premium на время беты",
-  "premiumIncludes":"Premium включает",
+  "premiumIncludes": "Premium включает",
   "priceForever": "/месяц, навсегда",
   "priorityLane": "Приоритетная очередь",
   "staffGrantHint": "Premium предоставлен ItsBagelBot{until}. Пока предоставленный доступ активен, платить не нужно и списаний не будет.",
@@ -95,5 +96,6 @@
   "activating": "Активация",
   "paymentFailed": "Последний платёж за продление не прошёл. Обновите способ оплаты на Tebex, чтобы сохранить Premium.",
   "updatePayment": "Обновить способ оплаты",
-  "receiptsEmailed": "После каждого платежа Tebex отправляет чек на email, указанный при покупке."
+  "receiptsEmailed": "После каждого платежа Tebex отправляет чек на email, указанный при покупке.",
+  "premiumOnly": "Только с Premium"
 }

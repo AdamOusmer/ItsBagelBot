@@ -4,10 +4,11 @@
 package schema
 
 import (
-	"ItsBagelBot/internal/domain/consent"
-	"ItsBagelBot/internal/domain/lifecycle"
 	"context"
 	"time"
+
+	"ItsBagelBot/internal/domain/consent"
+	"ItsBagelBot/internal/domain/lifecycle"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/entsql"
@@ -28,7 +29,7 @@ func (User) Fields() []ent.Field {
 
 		field.String("username").NotEmpty(),
 
-		field.String("display_name").Default("").MaxLen(64),
+		field.String("display_name").Default("").MaxRuneLen(64),
 
 		field.String("email").NotEmpty().Unique().Sensitive(),
 
@@ -114,6 +115,10 @@ func (User) Edges() []ent.Edge {
 			Annotations(entsql.Annotation{OnDelete: entsql.Cascade}),
 		edge.To("marketing_consents", MarketingConsent.Type).Immutable().
 			Annotations(entsql.Annotation{OnDelete: entsql.Cascade}),
+		edge.To("voice_usage", VoiceUsage.Type).
+			Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("voice_usage_receipts", VoiceUsageReceipt.Type).
+			Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }
 

@@ -1,0 +1,9 @@
+{
+  "title": "Einstellungen",
+  "language": "Sprache",
+  "languageHint": "Wähle die Sprache für den Adminbereich.",
+  "customCursor": "Eigener Mauszeiger",
+  "customCursorHint": "Verwende den eigenen Mauszeiger in diesem Browser.",
+  "cursorSaveError": "Die Mauszeiger-Einstellung konnte nicht gespeichert werden.",
+  "languageSaveError": "Die Sprache konnte nicht geändert werden."
+}

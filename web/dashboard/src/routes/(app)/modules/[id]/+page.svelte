@@ -1,8 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import Select from '@bagel/ui/svelte/Select.svelte';
   import { namespaceReplyTemplate, type ActionOk } from '@bagel/kit';
+  import { ALERT_VOICE_DEFAULTS, alertVoiceKeys } from '@bagel/kit/voice-plan';
   import { postAction, reseedOnChange } from '#lib/client-actions.svelte';
   import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
   import Card from '@bagel/ui/svelte/Card.svelte';
@@ -12,7 +12,6 @@
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import SaveStatus from '@bagel/ui/svelte/SaveStatus.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
-  import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
@@ -22,22 +21,21 @@
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
-  import Input from '@bagel/ui/svelte/Input.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
-  import { getI18n, automodToggleDefault, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleCommandInfo, type ModuleField, type ModuleReply, type Perm, MOD } from '@bagel/kit';
+  import { DISABLED_TRIGGERS_KEY, getI18n, moduleDef, tModuleLabel, tModuleDescription, tModuleReplyPart, type ModuleCommandInfo, type ModuleField, type ModuleReply, type Perm, MOD } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
+  import ModuleSettingsForm from '#lib/components/modules/ModuleSettingsForm.svelte';
   import ReplyRow from '#lib/components/modules/ReplyRow.svelte';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import ReplyEditor from '#lib/components/modules/ReplyEditor.svelte';
+  import PremiumMark from '#lib/components/shared/PremiumMark.svelte';
   import ModuleCommandList from '#lib/components/modules/ModuleCommandList.svelte';
   import ModuleCommandEditor, { commandLevel } from '#lib/components/modules/ModuleCommandEditor.svelte';
   import TriggerRuleEditor from '#lib/components/modules/TriggerRuleEditor.svelte';
   import { MATCH_KEY, TriggerRules } from '#lib/components/modules/trigger-rules.svelte';
-  import TimezonePicker from '#lib/components/modules/TimezonePicker.svelte';
   import Divider from '@bagel/ui/svelte/Divider.svelte';
 
   let { data } = $props();
@@ -186,19 +184,26 @@
     });
   }
 
-  function settingToggleOn(field: ModuleField): boolean {
-    const v = config[field.key] ?? '';
-    if (v === 'on') return true;
-    if (v === 'off') return false;
-    if (field.followsLevel) return automodToggleDefault(config['level'] || 'moderate', field.key);
-    return field.defaultOn === true;
-  }
-
   function replyOn(reply: ModuleReply): boolean {
     const v = config[reply.enableKey ?? ''] ?? '';
     if (v === 'on') return true;
     if (v === 'off') return false;
     return !reply.defaultOff;
+  }
+
+  function voiceControl(reply: ModuleReply) {
+    const kind = reply.voiceAlert;
+    if (!kind) return undefined;
+    const key = alertVoiceKeys(kind).enabled;
+    const value = config[key];
+    return {
+      kind,
+      chatOn: enabled && replyOn(reply),
+      checked: value === 'true' || (value !== 'false' && ALERT_VOICE_DEFAULTS[kind].enabled),
+      allowed: data.voiceAllowed,
+      status: modStatus[`setting:${key}`] ?? 'idle',
+      onToggle: (checked: boolean) => void saveConfigValue(key, String(checked))
+    };
   }
 
   async function toggleReply(reply: ModuleReply) {
@@ -372,17 +377,6 @@
     ...(hasCommands ? [{ href: '#mod-commands', label: t('modules.commandsTitle') }] : [])
   ]);
 
-  function requiredDef(field: ModuleField) {
-    return field.requires && (data.requiresOff ?? []).includes(field.requires) ? moduleDef(field.requires) : undefined;
-  }
-
-  function fieldCopy(field: ModuleField, part: 'label' | 'help' | 'placeholder'): string {
-    return tModuleFieldPart(t, def.id, field, part);
-  }
-
-  function blurOnEnter(e: KeyboardEvent & { currentTarget: HTMLInputElement }) {
-    if (e.key === 'Enter') e.currentTarget.blur();
-  }
 
 </script>
 
@@ -434,7 +428,8 @@
           <Text as="span" size="xs" tone="muted">{t('modules.enabledHelp')}</Text>
         </div>
         {#if data.locked}
-          <Tag tone="quiet" mark="hollow">{t('modules.betaLocked')}</Tag>
+          <PremiumMark />
+          <Switch checked={false} disabled label={t('modules.toggleAria', { label: modLabel })} />
         {:else}
           <Tag tone={enabled ? 'live' : 'quiet'} mark={enabled ? 'solid' : 'hollow'}>
             {enabled ? t('modules.statusOn') : t('modules.statusOff')}
@@ -467,102 +462,15 @@
         <div class="section-head">
           <Heading level={6} as="h2" variant="eyebrow">{t('modules.settingsTitle')}</Heading>
           {#if locked}
-            <span class="lock-hint"><Tag tone="quiet">{t('modules.betaPremium')}</Tag></span>
+            <span class="lock-hint"><PremiumMark /></span>
           {:else}
             <span class="autosave"><Text as="span" size="xs" tone="muted">{t('modules.autoSaveNote')}</Text></span>
           {/if}
         </div>
-        {#each (def.settings ?? []).filter((s) => !s.hidden) as field (field.key)}
-          {@const needs = requiredDef(field)}
-          <Divider flush />
-          {#if field.type === 'toggle'}
-            <div class="setting-row toggle">
-              <SwitchRow
-                control="end"
-                label={fieldCopy(field, 'label')}
-                hint={fieldCopy(field, 'help') || undefined}
-                hintId="sh-{field.key}"
-                checked={settingToggleOn(field)}
-                busy={modStatus[`setting:${field.key}`] === 'saving'}
-                disabled={locked || !!needs}
-                title={locked ? t('modules.lockedHint') : undefined}
-                onCheckedChange={(v) => saveSetting(field, v ? 'on' : 'off')}
-              >
-                {#snippet status()}<SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />{/snippet}
-              </SwitchRow>
-            </div>
-          {:else if field.type === 'timezone'}
-            <div class="setting-row">
-              <label class="tr-text" for="mod-setting-{field.key}">
-                <Text as="span" size="sm">{fieldCopy(field, 'label')}</Text>
-                {#if fieldCopy(field, 'help')}<Text as="span" size="xs" tone="muted">{fieldCopy(field, 'help')}</Text>{/if}
-              </label>
-              <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
-              <TimezonePicker id="mod-setting-{field.key}" value={config[field.key] ?? ''} zones={tzZones} disabled={locked} onPick={(tz) => saveSetting(field, tz)} />
-            </div>
-            {#if browserZone && (config[field.key] ?? '') !== browserZone}
-              <div class="tz-suggest">
-                <AlertBanner tone="success" role="status" stack>
-                  {t('modules.tzSuggested', { tz: browserZone })}
-                  {#snippet actions()}
-                    <Button variant="secondary" size="sm" disabled={locked} onclick={() => saveSetting(field, browserZone)} tone="success">{t('modules.tzApply', { tz: browserZone })}</Button>
-                  {/snippet}
-                </AlertBanner>
-              </div>
-            {/if}
-          {:else}
-            <div class="setting-row {field.type === 'textarea' ? 'stacked' : ''}">
-              <label class="tr-text" for="mod-setting-{field.key}">
-                <Text as="span" size="sm">{fieldCopy(field, 'label')}</Text>
-                {#if fieldCopy(field, 'help')}<Text as="span" size="xs" tone="muted">{fieldCopy(field, 'help')}</Text>{/if}
-              </label>
-              <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
-              {#if field.type === 'select'}
-                <div class="setting-picker">
-                  <Select
-                    fill
-                    disabled={locked}
-                    id="mod-setting-{field.key}"
-                    value={config[field.key] || field.placeholder || field.options?.[0]?.value || ''}
-                    onchange={(e) => saveSetting(field, e.currentTarget.value)}
-                    options={(field.options ?? []).map((opt) => ({ value: opt.value, label: tModuleFieldOption(t, def.id, field.key, opt) }))}
-                  />
-                </div>
-              {:else if field.type === 'textarea'}
-                <Textarea
-                  id="mod-setting-{field.key}"
-                  fill
-                  rows={6}
-                  placeholder={fieldCopy(field, 'placeholder')}
-                  value={config[field.key] ?? ''}
-                  disabled={locked}
-                  onchange={(e: Event & { currentTarget: HTMLTextAreaElement }) => saveSetting(field, e.currentTarget.value)}
-                />
-              {:else}
-                <Input
-                  id="mod-setting-{field.key}"
-                  type={field.type === 'number' ? 'number' : 'text'}
-                  disabled={locked || !!needs}
-                  placeholder={fieldCopy(field, 'placeholder')}
-                  value={config[field.key] ?? ''}
-                  onchange={(e: Event & { currentTarget: HTMLInputElement }) => saveSetting(field, e.currentTarget.value)}
-                  onkeydown={blurOnEnter}
-                />
-              {/if}
-            </div>
-          {/if}
-          {#if needs}
-            <Divider flush />
-            <div class="disabled-note">
-              <AlertBanner tone="warning" stack>
-                {t('modules.settingNeeds', { module: tModuleLabel(t, needs) })}
-                {#snippet actions()}
-                  <ButtonLink href={needs.href ?? `/modules/${needs.id}`} variant="ghost">{t('modules.nestedUnderLink', { parent: tModuleLabel(t, needs) })}</ButtonLink>
-                {/snippet}
-              </AlertBanner>
-            </div>
-          {/if}
-        {/each}
+        <ModuleSettingsForm
+          {def} {config} {modStatus} {saveSetting} {locked}
+          requiresOff={data.requiresOff} {browserZone} {tzZones}
+        />
       </Card>
     </div>
   {/if}
@@ -576,7 +484,7 @@
               <Heading level={6} as="h2" variant="eyebrow">{t('modules.triggerRulesTitle')}</Heading>
               <Text as="span" size="xs" tone="muted">{t('modules.triggerRulesHint')}</Text>
             </div>
-            {#if locked}<span class="lock-hint"><Tag tone="quiet">{t('modules.betaPremium')}</Tag></span>{/if}
+            {#if locked}<span class="lock-hint"><PremiumMark /></span>{/if}
             <Button variant="ghost" onclick={() => rulesCtl.add()} disabled={locked}>{t('modules.addTrigger')}</Button>
           </div>
           <Divider flush />
@@ -605,7 +513,7 @@
         {:else if hasReplies}
           <div class="section-head rules-head anchor" id="mod-replies" tabindex="-1">
             <div class="rh-text"><Heading level={6} as="h2" variant="eyebrow">{t('modules.repliesLabel')}</Heading></div>
-            {#if locked}<span class="lock-hint"><Tag tone="quiet">{t('modules.betaPremium')}</Tag></span>{/if}
+            {#if locked}<span class="lock-hint"><PremiumMark /></span>{/if}
             {#if showReplyFilter}
               <div class="reply-filter">
                 <SearchInput bind:value={replyQuery} placeholder={t('modules.replyFilterPh')} aria-label={t('modules.replyFilterLabel')} clearLabel={t('modules.searchClear')} autocomplete="off" fill />
@@ -643,6 +551,11 @@
           expanded={expandedCommand}
           roleOf={commandRole}
           onExpand={rehearsable ? openCommand : undefined}
+          disabledTriggers={config[DISABLED_TRIGGERS_KEY] ?? ''}
+          {locked}
+          status={modStatus[`setting:${DISABLED_TRIGGERS_KEY}`] ?? 'idle'}
+          onDisabledTriggersChange={(next) => saveConfigValue(DISABLED_TRIGGERS_KEY, next)}
+          {replyOn}
         />
       </DeckList>
 
@@ -672,7 +585,8 @@
           {:else if selectedReply}
             <Scroller fill padding="16px" smooth>
               {#key selectedReply.key}
-                <ReplyEditor moduleId={def.id} reply={selectedReply} bind:message={editMessage} {busy} onCancel={closeInspector} onSave={saveReply} />
+                <ReplyEditor moduleId={def.id} reply={selectedReply} bind:message={editMessage} {busy}
+                  voice={voiceControl(selectedReply)} voiceDisabled={locked} onCancel={closeInspector} onSave={saveReply} />
               {/key}
             </Scroller>
           {:else if selectedCommand}
@@ -716,7 +630,7 @@
 />
 
 <style>
-  .crumbs { margin-bottom: 10px; }
+  .crumbs { margin-bottom: 8px; }
   .crumbs ol {
     display: flex;
     align-items: center;
@@ -729,39 +643,14 @@
   .crumb-sep { opacity: 0.5; }
 
   .settings-card { margin-bottom: 16px; }
-  .master-row { display: flex; align-items: center; gap: 12px; padding: 16px 18px; }
-  .tr-text { display: flex; flex-direction: column; gap: 3px; margin-right: auto; min-width: 0; }
-
-  .disabled-note {
-    padding: 12px 18px 16px;
-  }
+  .master-row { display: flex; align-items: center; gap: 12px; padding: 16px; }
+  .tr-text { display: flex; flex-direction: column; gap: 4px; margin-right: auto; min-width: 0; }
 
   .section-head {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 18px;
-  }
-
-  .setting-row {
-    --input-w: min(260px, 44vw);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 18px;
-  }
-  .setting-picker { width: min(260px, 44vw); }
-
-  .setting-row.toggle { display: block; }
-  .setting-row.stacked { flex-direction: column; align-items: stretch; }
-  .setting-row.stacked .tr-text { margin-right: 0; }
-  @media (max-width: 560px) {
-    .setting-row { --input-w: 100%; flex-wrap: wrap; }
-    .setting-picker { width: 100%; }
-  }
-
-  .tz-suggest {
-    padding: 0 18px;
+    padding: 12px 16px;
   }
 
   .list { list-style: none; margin: 0; padding: 0; }
@@ -771,6 +660,6 @@
   .lock-hint { flex: none; }
   .autosave { margin-left: auto; }
   .reply-filter { width: min(260px, 44vw); flex: none; }
-  .reply-none { padding: 16px 18px; }
-  .rh-text { display: flex; flex-direction: column; gap: 2px; margin-right: auto; min-width: 0; }
+  .reply-none { padding: 16px; }
+  .rh-text { display: flex; flex-direction: column; gap: 4px; margin-right: auto; min-width: 0; }
 </style>

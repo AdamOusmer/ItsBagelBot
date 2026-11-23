@@ -40,13 +40,77 @@ describe('public directory module commands', () => {
   test('Bedwars tag names stay current in the dashboard public directory', () => {
     for (const locale of ['en', 'fr'] as const) {
       const entry = publicModules([{ name: 'urchin', is_enabled: true }], locale).find((entry) => entry.id === 'urchin')!;
+      const tagCmd = entry.commands.find((command) => command.label === '!bwtag');
       const labels = entry.commands.map((command) => command.label);
-      expect(labels.some((label) => label.includes('!bwtag') && label.includes('!bwtags'))).toBe(true);
-      expect(labels).not.toContain('!tag');
-      expect(labels).not.toContain('!tags');
+      expect({
+        label: tagCmd?.label,
+        aliases: tagCmd?.aliases,
+        legacy: labels.filter((label) => label === '!tag' || label === '!tags')
+      }).toEqual({
+        label: '!bwtag',
+        aliases: ['!bwtags'],
+        legacy: []
+      });
     }
     const disabled = commandsOf([{ name: 'urchin', is_enabled: true, configs: { tagsEnabled: 'off' } }], 'urchin');
     expect(disabled.some((command) => command.label.includes('!bwtag'))).toBe(false);
+  });
+
+  const disabledTriggerCases: { name: string; id: string; disabledTriggers: string; want: { label: string; aliases: string[] }[] }[] = [
+    {
+      name: 'disabling one alias drops only that alias',
+      id: 'quotes',
+      disabledTriggers: 'quotes',
+      want: [
+        { label: '!quote', aliases: [] },
+        { label: '!quote <number>', aliases: [] },
+        { label: '!quote <word>', aliases: [] },
+        { label: '!addquote <text>', aliases: ['!quoteadd'] },
+        { label: '!quote edit <number> <text>', aliases: [] },
+        { label: '!quote remove <number>', aliases: [] }
+      ]
+    },
+    {
+      name: 'disabling the primary trigger promotes the first remaining alias and keeps arguments',
+      id: 'quotes',
+      disabledTriggers: 'addquote',
+      want: [
+        { label: '!quote', aliases: ['!quotes'] },
+        { label: '!quote <number>', aliases: [] },
+        { label: '!quote <word>', aliases: [] },
+        { label: '!quoteadd <text>', aliases: [] },
+        { label: '!quote edit <number> <text>', aliases: [] },
+        { label: '!quote remove <number>', aliases: [] }
+      ]
+    },
+    {
+      name: 'disabling all triggers of a command hides it and its subcommand rows',
+      id: 'quotes',
+      disabledTriggers: 'quote,quotes',
+      want: [{ label: '!addquote <text>', aliases: ['!quoteadd'] }]
+    },
+    {
+      name: 'disabling a Bedwars primary trigger promotes its alias without re-adding the reply fallback',
+      id: 'urchin',
+      disabledTriggers: 'bwtag',
+      want: [
+        { label: '!bw', aliases: ['!bedwars'] },
+        { label: '!daily', aliases: ['!bwdaily'] },
+        { label: '!weekly', aliases: ['!bwweekly'] },
+        { label: '!monthly', aliases: ['!bwmonthly'] },
+        { label: '!bwstats', aliases: [] },
+        { label: '!sniper', aliases: ['!urchin'] },
+        { label: '!bwtags', aliases: [] },
+        { label: '!tagdescription', aliases: [] }
+      ]
+    }
+  ];
+
+  test.each(disabledTriggerCases)('disabledTriggers: $name', ({ id, disabledTriggers, want }) => {
+    const got = commandsOf([{ name: id, is_enabled: true, configs: { disabledTriggers } }], id).map(
+      ({ label, aliases }) => ({ label, aliases })
+    );
+    expect(got).toEqual(want);
   });
 
   test('lists each trigger once, not once per reply line', () => {
@@ -59,10 +123,12 @@ describe('public directory module commands', () => {
     expect(queue).toEqual(MODULE_CATALOG.find((def) => def.id === 'queue')!.commands!.map((c) => c.trigger));
   });
 
-  test('lists !claim only while the streamer has it turned on', () => {
-    const off = commandsOf([{ name: 'raffle', is_enabled: true }], 'raffle').map((c) => c.label);
-    const on = commandsOf([{ name: 'raffle', is_enabled: true, configs: { claimEnabled: 'on' } }], 'raffle').map((c) => c.label);
-    expect({ off: off.includes('!claim'), on: on.includes('!claim') }).toEqual({ off: false, on: true });
+  test('lists !claim once under enabled giveaways', () => {
+    const raffle = { name: 'raffle', is_enabled: true, configs: { claimEnabled: 'on' } };
+    const rows = [raffle, { name: 'giveaway', is_enabled: true }];
+    expect(commandsOf(rows, 'raffle').some((command) => command.label === '!claim')).toBe(false);
+    expect(commandsOf(rows, 'giveaway').filter((command) => command.label === '!claim')).toHaveLength(1);
+    expect(commandsOf([raffle], 'giveaway')).toHaveLength(0);
   });
 
   test('raffle !join reads as a command, not a reply line', () => {

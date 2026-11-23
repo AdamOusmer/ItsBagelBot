@@ -1,0 +1,5 @@
+{
+  "name": "Sorteos",
+  "hint": "Requiere el módulo Sorteos.",
+  "desc": "Consulta el premio, el número de inscripciones o los segundos restantes del sorteo actual en un comando personalizado. Usa |fallback para mostrar texto cuando no haya un sorteo abierto."
+}

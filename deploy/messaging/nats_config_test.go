@@ -119,13 +119,13 @@ func domainMappings(domain string) map[string]string {
 func TestBusAccountDeclaresTheHubDomainMappings(t *testing.T) {
 	domain := hubDomain.FindStringSubmatch(readText(t, "nats-server.conf"))
 	require.NotNil(t, domain, "nats-server.conf declares no JetStream domain")
-	compiled, err := natsacl.Compile(committedACL(t), committedKeys(t))
+	acl := committedACL(t)
+	tokens := signedAccountJWTs(t, acl, newACLKeyring(t, acl))
+	bus, err := jwt.DecodeAccountClaims(tokens["BUS"])
 	require.NoError(t, err)
-	index := slices.IndexFunc(compiled, func(claims *jwt.AccountClaims) bool { return claims.Name == "BUS" })
-	require.GreaterOrEqual(t, index, 0, "accounts.yaml has no BUS account")
 
 	got := map[string]string{}
-	for subject, targets := range compiled[index].Mappings {
+	for subject, targets := range bus.Mappings {
 		for _, target := range targets {
 			got[string(subject)] = string(target.Subject)
 		}
@@ -199,11 +199,10 @@ func TestHubFailbackProbeStaysOnTheNode(t *testing.T) {
 var jetStreamTrigger = regexp.MustCompile(`(?m)^    - type: nats-jetstream\n((?:      .*\n)+)`)
 
 func TestScaledObjectsTargetTheBusAccountByID(t *testing.T) {
-	compiled, err := natsacl.Compile(committedACL(t), committedKeys(t))
-	require.NoError(t, err)
-	index := slices.IndexFunc(compiled, func(claims *jwt.AccountClaims) bool { return claims.Name == "BUS" })
-	require.GreaterOrEqual(t, index, 0, "accounts.yaml has no BUS account")
-	want := "accountID: " + compiled[index].Subject
+	require.Contains(t, committedACL(t).Accounts, "BUS")
+	bus := committedKeys(t).Accounts["BUS"]
+	require.NotEmpty(t, bus)
+	want := "accountID: " + bus
 
 	for _, path := range []string{"../k8s/outgress.yaml", "../k8s/sesame.yaml"} {
 		matches := jetStreamTrigger.FindAllStringSubmatch(readText(t, path), -1)

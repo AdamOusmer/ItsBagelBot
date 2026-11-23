@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 // @ts-ignore Bun supplies this module at test runtime.
 import { describe, expect, test } from 'bun:test';
+import type { ShardSnapshot } from '@bagel/kit';
 import { ThroughputHistory } from '../src/lib/components/shards/throughput-history';
 import { emptyShardSnapshot } from '../src/lib/server/fallback';
 import type { TrialChannel, TrialSnapshot } from '../src/lib/server/services';
@@ -53,14 +54,22 @@ describe('throughput history', () => {
     const history = new ThroughputHistory();
     expect(last(history.record({ ...emptyShardSnapshot(), trial_loads: { one: 600, two: 300 } }, null, 1000)).trials).toBe(15);
   });
-  test('unresponsive shard without a load leaves a production gap', () => {
+  const shard = { shard_id: 0, node: 'ingress@1', bound: false };
+  const productionCases: {
+    name: string;
+    report: Pick<ShardSnapshot, 'inventory' | 'shards'>;
+    rate: number | null;
+  }[] = [
+    { name: 'empty inventory reports zero', report: { inventory: 'available', shards: [] }, rate: 0 },
+    { name: 'unavailable inventory without shards leaves a gap', report: { inventory: 'unavailable', shards: [] }, rate: null },
+    { name: 'unknown shard without a load leaves a gap', report: { shards: [{ ...shard, state: 'unknown' }] }, rate: null },
+    { name: 'unresponsive shard without a load leaves a gap', report: { shards: [{ ...shard, state: 'unresponsive' }] }, rate: null },
+    { name: 'invalid production load leaves a gap', report: { shards: [{ ...shard, state: 'connected', load: -1 }] }, rate: null }
+  ];
+
+  test.each(productionCases)('$name', ({ report, rate }) => {
     const history = new ThroughputHistory();
-    const snapshot = { ...emptyShardSnapshot(), shards: [{ shard_id: 0, node: 'ingress@1', bound: false, state: 'unresponsive' }] };
-    expect(last(history.record(snapshot, trials(), 1000)).production).toBeNull();
-  });
-  test('unknown inventory leaves a production gap instead of a zero rate', () => {
-    const history = new ThroughputHistory();
-    const snapshot = { ...emptyShardSnapshot(), inventory: 'unavailable' as const, shards: [{ shard_id: 0, node: '', bound: false, state: 'unknown' }] };
-    expect(last(history.record(snapshot, trials(), 1000)).production).toBeNull();
+    const snapshot = { ...emptyShardSnapshot(), ...report };
+    expect(last(history.record(snapshot, trials(), 1000)).production).toBe(rate);
   });
 });

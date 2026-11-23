@@ -122,6 +122,15 @@ const ENTRIES: {
              globalThis.x = [tween, bezier];`,
   },
   {
+    // Astro slider drag, keys and label wiring: 1214 B gzip measured 2026-11-21,
+    // +150 B platform delta and ~10% room.
+    name: "slider",
+    budget: 1500,
+    external: [],
+    source: `import { enhanceSliders } from "../../lib/slider";
+             globalThis.x = enhanceSliders;`,
+  },
+  {
     name: "glide",
     budget: 560,
     external: [],
@@ -256,9 +265,9 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/brand-mark", budget: 900 },
   { name: "elements/nav", budget: 3640 }, // 3511 B: tonal depth on the field trigger and locale menu (2026-10-28)
   { name: "elements/footer", budget: 2460 }, // 2284 B: full-height frame with built-in aurora sky, grain tile and peeking bolota crew; footer no longer loads light-field.css; ~7% room (2026-10-29)
-  { name: "elements/shell", budget: 3500 }, // 3200 -> 3500: collapsible rail fold behind an opt-in attribute (2026-11-07)
+  { name: "elements/shell", budget: 4550 }, // 3500 -> 4550: integrated delegated/admin topbar context bar, badges, scopes and responsive actions; 4284 B gzip measured, ~6% room (2026-11-21)
   { name: "elements/badge", budget: 580 }, // 390 B: status shape for test run outcomes (2026-11-19)
-  { name: "elements/chip", budget: 1230 }, // 1114 B: tonal surface fill, lift and focus ring for plain chips (2026-10-29)
+  { name: "elements/chip", budget: 1450 }, // 1230 -> 1450: inline text-toggle tone for alias lines; 1349 B gzip measured, ~7% room (2026-11-22)
   { name: "elements/empty-state", budget: 500 },
   { name: "elements/field", budget: 760 },
   { name: "elements/field-sheet", budget: 1100 }, // 871 B: label and value rows for step settings, stacked on phones (2026-11-19)
@@ -307,6 +316,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/json-tree", budget: 470 }, // 360 B: tree rails and neutral picked row
   { name: "elements/window", budget: 420 }, // 314 B: window frame with title bar
   { name: "elements/chat-preview", budget: 1620 }, // 1325 B: shared chat rehearsal window
+  { name: "elements/collapse", budget: 380 }, // 302 B: smooth reveal for conditional notes, gap-neutral when closed (2026-11-21)
   { name: "elements/icon-tile", budget: 590 }, // 385 B
   { name: "elements/action-bar", budget: 540 }, // 337 B
   { name: "elements/mark-badge", budget: 530 }, // 330 B
@@ -314,7 +324,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/avatar-plate", budget: 500 }, // 295 B: aurora circle behind small bolotas (2026-11-03)
   { name: "elements/timeline", budget: 960 }, // 720 B: rail, drawn rail and marker dot (2026-10-28)
   { name: "elements/radio-group", budget: 1700 }, // 1395 B: fixed columns, rails and card height hook (2026-09-29)
-  { name: "elements/slider", budget: 380 }, // 191 B
+  { name: "elements/slider", budget: 700 }, // 634 B: colour-picker rail on the inset well, green fill and gradient thumb (2026-11-21)
   { name: "elements/file-drop", budget: 740 }, // 514 B
   { name: "elements/picker-panel", budget: 1360 }, // 1081 B
   { name: "elements/stepper", budget: 1590 }, // 1287 B: compact narrow-screen label (2026-09-29)

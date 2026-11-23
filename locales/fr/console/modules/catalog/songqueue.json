@@ -5,10 +5,10 @@
   "commands": {
     "sr": "Afficher ce qui joue, ou mettre une piste en file par nom, « artiste - morceau », ou un lien Spotify.",
     "remove": "Retirer votre demande en file, ou enlever une position en tant que modo.",
-    "skip": "Marquer la piste actuelle comme jouée et promouvoir la suivante (aussi !next).",
+    "skip": "Marquer la piste actuelle comme jouée et promouvoir la suivante.",
     "clear": "Vider la file.",
-    "srlist": "Afficher les cinq prochains morceaux de la file (aussi !songlist).",
-    "current": "Dire ce que votre Spotify joue en ce moment (aussi !song, !np)."
+    "srlist": "Afficher les cinq prochains morceaux de la file.",
+    "current": "Dire ce que votre Spotify joue en ce moment."
   },
   "replies": {
     "redeem": {

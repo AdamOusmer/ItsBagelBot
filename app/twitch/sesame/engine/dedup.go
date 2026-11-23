@@ -19,11 +19,12 @@ import (
 )
 
 const (
-	effectUse          = "use"
-	EffectEarn         = "earn"
-	EffectPointsAdjust = "padjust"
-	EffectQuoteAdd     = "quoteadd"
-	counterEffectPre   = "cbump:"
+	effectUse           = "use"
+	EffectEarn          = "earn"
+	EffectPointsAdjust  = "padjust"
+	EffectLoyaltyFreeze = "freeze"
+	EffectQuoteAdd      = "quoteadd"
+	counterEffectPre    = "cbump:"
 )
 
 func CounterEffect(name string) string {

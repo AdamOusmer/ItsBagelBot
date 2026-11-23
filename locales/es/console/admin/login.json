@@ -1,10 +1,13 @@
 {
   "botCta": "Autorizar cuenta del bot",
   "sub": "Consola de administración",
-  "lede": "Acceso de operador. Inicia sesión con la cuenta de Twitch incluida en la lista de personal autorizado.",
+  "lede": "Inicia sesión con una cuenta de Twitch autorizada para el personal.",
   "cta": "Iniciar sesión con Twitch",
   "errDenied": "Esa cuenta de Twitch no está en la lista de personal autorizado.",
-  "errState": "El inicio de sesión caducó o fue manipulado. Vuelve a intentarlo.",
+  "errState": "Este inicio de sesión caducó o no era válido. Vuelve a intentarlo.",
   "errOauth": "Twitch rechazó el inicio de sesión. Vuelve a intentarlo.",
-  "errScope": "Falta un permiso obligatorio."
+  "errScope": "Twitch no concedió el permiso requerido. Inicia sesión de nuevo y concédelo.",
+  "terms": "Términos",
+  "privacy": "Política de privacidad",
+  "consent": "Acepto los {terms} y la {privacy}"
 }

@@ -40,7 +40,7 @@ import { env } from '@bagel/kit/server/env';
 import { cookieOptions, deleteOptions } from '#lib/server/cookies';
 import { logger } from '@bagel/kit/server/logger';
 import { businessMailingAddress, currentAccount } from '#lib/server/consent';
-import { isOwnerSession } from '#lib/server/owner';
+import { isSelfSignIn } from '#lib/server/owner';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -134,7 +134,7 @@ function readFetchKeys(result: PromiseSettledResult<{ defs: { name: string; key_
 }
 
 function emailPreferences(locals: App.Locals) {
-  if (!isOwnerSession(locals.session)) return null;
+  if (!isSelfSignIn(locals.session)) return null;
   return { status: currentAccount(locals)?.marketingStatus ?? null, mailingAddress: businessMailingAddress() };
 }
 
@@ -242,7 +242,7 @@ export const actions: Actions = {
   marketing: async ({ locals, request }) => {
     const { session, locale } = locals;
     if (!session) return fail(401, { error: actionError(locale, 'Not signed in.') });
-    if (!isOwnerSession(session)) return fail(403, { error: actionError(locale, 'Not allowed.') });
+    if (!isSelfSignIn(session)) return fail(403, { error: actionError(locale, 'Not allowed.') });
 
     const status = (await request.formData()).get('status');
     if (status !== 'granted' && status !== 'withdrawn') return fail(400, { error: actionError(locale, 'Invalid input.') });

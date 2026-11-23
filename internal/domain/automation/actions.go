@@ -10,13 +10,13 @@ import (
 	"strings"
 
 	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/codec"
 )
 
 var (
-	announceColors     = []string{"", "primary", "blue", "green", "orange", "purple"}
-	commercialLength   = []int{30, 60, 90, 120, 150, 180}
-	actionLoginPattern = regexp.MustCompile(`^[a-zA-Z0-9_]{4,25}$`)
+	announceColors   = []string{"", "primary", "blue", "green", "orange", "purple"}
+	commercialLength = []int{30, 60, 90, 120, 150, 180}
 
 	lightsModes        = enum{LightsModeColor, LightsModeScene, LightsModeWhite, LightsModeOn, LightsModeOff}
 	lightsColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
@@ -72,6 +72,12 @@ type ClipAction struct {
 	Seconds float64 `json:"seconds"`
 	Reply   string  `json:"reply"`
 	Quiet   bool    `json:"quiet,omitempty"`
+}
+
+type SpeakAction struct {
+	Text  string `json:"text"`
+	Voice string `json:"voice"`
+	Style string `json:"style"`
 }
 
 type MarkerAction struct {
@@ -238,6 +244,16 @@ func checkText(c chk, p TextAction) { c.template("text", p.Text) }
 
 func checkReply(c chk, p ReplyAction) { checkText(c, TextAction{Text: p.Text}) }
 
+func checkSpeak(c chk, p SpeakAction) {
+	c.template("text", p.Text)
+	if p.Voice != "" && !voiceplan.ValidVoice(p.Voice) {
+		c.add("voice", CodeInvalidEnum)
+	}
+	if p.Style != "" && voiceplan.Style(p.Style) == "" {
+		c.add("style", CodeInvalidEnum)
+	}
+}
+
 func checkAnnounce(c chk, p AnnounceAction) {
 	c.template("text", p.Text)
 	if !slices.Contains(announceColors, p.Color) {
@@ -272,7 +288,7 @@ func (c chk) login(login string, bounds span) {
 	if login == "" || !isStaticText(login) {
 		return
 	}
-	if !actionLoginPattern.MatchString(strings.TrimPrefix(login, "@")) {
+	if validate.Username(strings.TrimPrefix(login, "@")) != nil {
 		c.add("login", CodeInvalidFormat)
 	}
 }

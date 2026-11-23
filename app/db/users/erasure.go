@@ -15,7 +15,7 @@ import (
 	"ItsBagelBot/app/db/users/repository"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/monitor"
-	"ItsBagelBot/pkg/objstore"
+	"ItsBagelBot/pkg/objectstore"
 	"ItsBagelBot/pkg/svcboot"
 
 	"go.uber.org/zap"
@@ -24,12 +24,7 @@ import (
 const twitchRevokeURL = "https://id.twitch.tv/oauth2/revoke"
 
 func wireErasure(ctx context.Context, repo *repository.Users, log *zap.Logger) {
-	store, err := objstore.New(objstore.Config{
-		Endpoint:        env.MustGet("ERASURE_R2_ENDPOINT"),
-		Bucket:          env.MustGet("ERASURE_R2_BUCKET"),
-		AccessKeyID:     env.MustGet("ERASURE_R2_ACCESS_KEY_ID"),
-		SecretAccessKey: env.MustGet("ERASURE_R2_SECRET_ACCESS_KEY"),
-	})
+	store, err := objectstore.New(objectstore.ConfigFromEnv("ERASURE_R2_"))
 	svcboot.FatalIf(log, err, "failed to configure erasure ledger")
 	repo.SetErasureStore(store)
 	repo.SetTokenRevoker(twitchRevoker{clientID: env.MustGet("TWITCH_CLIENT_ID"), http: monitor.HTTPClient(10 * time.Second)})
@@ -37,21 +32,15 @@ func wireErasure(ctx context.Context, repo *repository.Users, log *zap.Logger) {
 }
 
 func replayErasures(ctx context.Context, repo *repository.Users, log *zap.Logger) {
-	const timeout = 2 * time.Minute
-	runCtx, cancel := context.WithTimeout(ctx, timeout)
-	count, err := repo.ReplayErasures(runCtx, time.Now())
-	cancel()
-	logReplay(log, count, err)
-	runPeriodicSweep(ctx, log, env.GetDuration("USERS_ERASURE_REPLAY_INTERVAL", 15*time.Minute), timeout,
-		"failed to replay erasures", "replayed erasures", repo.ReplayErasures)
-}
-
-func logReplay(log *zap.Logger, count int, err error) {
-	if err != nil {
-		log.Error("failed to replay erasures", zap.Error(err))
-	} else if count > 0 {
-		log.Info("replayed erasures", zap.Int("count", count))
+	spec := sweepSpec{
+		interval:       env.GetDuration("USERS_ERASURE_REPLAY_INTERVAL", 15*time.Minute),
+		timeout:        2 * time.Minute,
+		errorMessage:   "failed to replay erasures",
+		successMessage: "replayed erasures",
+		run:            repo.ReplayErasures,
 	}
+	spec.runOnce(ctx, log, time.Now())
+	runPeriodicSweep(ctx, log, spec)
 }
 
 type twitchRevoker struct {

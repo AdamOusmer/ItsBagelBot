@@ -9,7 +9,7 @@ import { navGroups, navItems, resolveSection, type SectionDef } from './nav-core
 export const GRANTABLE_SECTIONS = ['commands', 'modules', 'channelpoints', 'billing'] as const;
 export type GrantSection = (typeof GRANTABLE_SECTIONS)[number];
 
-export type SectionId = 'overview' | 'commands' | 'flows' | 'modules' | 'songqueue' | 'billing' | 'settings';
+export type SectionId = 'overview' | 'commands' | 'flows' | 'modules' | 'songqueue' | 'voice' | 'overlays' | 'billing' | 'settings';
 
 export interface DashboardSectionDef extends SectionDef {
   id: SectionId;
@@ -19,6 +19,8 @@ export interface DashboardSectionDef extends SectionDef {
     | 'nav.flows'
     | 'nav.modules'
     | 'nav.songqueue'
+    | 'nav.voice'
+    | 'nav.overlays'
     | 'nav.billing'
     | 'nav.settings';
   icon: IconName;
@@ -63,7 +65,7 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     labelKey: 'nav.modules',
     icon: 'modules',
     href: '/modules',
-    match: ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/automations', '/loyalty'],
+    match: ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/automations', '/loyalty', '/giveaways'],
     grant: 'modules'
   },
   {
@@ -73,6 +75,24 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     href: '/songqueue',
     match: ['/songqueue'],
     grantsAny: ['modules', 'channelpoints']
+  },
+  {
+    id: 'voice',
+    labelKey: 'nav.voice',
+    icon: 'waveform',
+    href: '/voice',
+    match: ['/voice'],
+    beta: true,
+    ownerOnly: true
+  },
+  {
+    id: 'overlays',
+    labelKey: 'nav.overlays',
+    icon: 'overlay',
+    href: '/overlays',
+    match: ['/overlays'],
+    beta: true,
+    ownerOnly: true
   },
   {
     id: 'billing',

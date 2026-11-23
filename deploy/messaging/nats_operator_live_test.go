@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	sesamerpc "ItsBagelBot/internal/domain/rpc/sesame"
+
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/stretchr/testify/assert"
@@ -46,6 +48,14 @@ func TestLiveACLPermissions(t *testing.T) {
 		}{
 			{roleEndpoint{"BUS", "users_bus"}, "$JS.API.STREAM.DELETE.DATA"},
 			{roleEndpoint{"BUS", "outgress_bus"}, "twitch.ingress.event.premium"},
+			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "overlay.tts.42"},
+			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "$JS.API.STREAM.CREATE.OVERLAY_TTS"},
+			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "$JS.API.STREAM.CREATE.OVERLAYS_PREMIUM"},
+			{roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "overlays.premium.tts.42"},
+			{roleEndpoint{controlsGatewayAccount, "worker_tts_bus"}, "overlays.session.42"},
+			{roleEndpoint{controlsGatewayAccount, "gossip_jobs_bus"}, "overlays.standard.tts.42"},
+			{roleEndpoint{controlsGatewayAccount, "gossip_jobs_bus"}, "gossip.jobs.tts.42"},
+			{roleEndpoint{"BUS", "overlays_bus"}, "data.users.changed"},
 		} {
 			err := server.publishOutcome(t, probe.role, probe.subject, 500*time.Millisecond)
 
@@ -62,6 +72,8 @@ func TestLiveACLPermissions(t *testing.T) {
 			{roleEndpoint{"BUS", "outgress_bus"}, "data.twitch.clip.created"},
 			{roleEndpoint{"BUS", "commands_bus"}, "dlq.data.users.deleted"},
 			{roleEndpoint{"BUS", "modules_bus"}, "dlq.data.users.deleted"},
+			{roleEndpoint{"BUS", "overlays_bus"}, "data.overlays.powered.changed"},
+			{roleEndpoint{"BUS", "overlays_bus"}, "dlq.data.users.deleted"},
 		} {
 			assert.NoError(t, server.publishOutcome(t, probe.role, probe.subject, 50*time.Millisecond), "%s should publish %s", probe.role.role, probe.subject)
 		}
@@ -69,9 +81,21 @@ func TestLiveACLPermissions(t *testing.T) {
 	t.Run("serves a request across an account import", func(t *testing.T) {
 		for _, probe := range []crossAccountProbe{
 			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{"OUTGRESS_RPC", "outgress_rpc"}, "rpc.internal.tokens.get"},
+			{roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "rpc.internal.projector.overlays.tts.resolve"},
+			{roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "rpc.internal.projector.overlays.tts.check"},
+			{roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, roleEndpoint{controlsGatewayAccount, "controls_gateway_rpc"}, "rpc.internal.projector.overlays.powered.resolve"},
+			{roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, "rpc.internal.overlays.powered.by_token"},
+			{roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, "rpc.overlays.powered.save"},
+			{roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, "rpc.internal.overlays.tts.by_hash"},
+			{roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, "rpc.internal.overlays.tts.by_user"},
+			{roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, "rpc.overlays.tts.save"},
+			{roleEndpoint{"USERS_RPC", "users_rpc"}, roleEndpoint{"OVERLAYS_RPC", "overlays_rpc"}, "rpc.internal.users.voice.check"},
+			{roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, roleEndpoint{"WORKER_RPC", "worker_rpc"}, "rpc.internal.projector.overlays.tts.settings"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "rpc.admin.user.auth.check"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "rpc.internal.admin.audit.append"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, "rpc.admin.user.audit.append"},
+			{roleEndpoint{"WORKER_RPC", "worker_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, sesamerpc.VoiceTestSubject},
+			{roleEndpoint{"WORKER_RPC", "worker_rpc"}, roleEndpoint{"DASHBOARD_RPC", "dashboard_rpc"}, sesamerpc.VoiceTestSubject + ".node.n1"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"ADMIN_RPC", "admin_rpc"}, "rpc.admin.analytics"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"USERS_RPC", "users_rpc"}, "rpc.internal.admin.staff.active"},
 			{roleEndpoint{"ADMIN_SERVICE_RPC", "admin_service_rpc"}, roleEndpoint{"PROJECTOR_RPC", "projector_rpc"}, "rpc.health.admin"},

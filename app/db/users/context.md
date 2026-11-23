@@ -15,6 +15,8 @@ owns all desktop device-authorization state and token logic (device grants,
 authorization codes, Ed25519 access-token signing); the dashboard owns HTTP
 input/CSRF/rate-limiting and forwards to Users over RPC, and the controls
 gateway only verifies access tokens and listens for revocation.
+Users owns Premium voice eligibility and the monthly audio-token ledger.
+Overlays owns account voice settings and OBS links.
 
 ## Nomenclature
 
@@ -63,8 +65,9 @@ gateway only verifies access tokens and listens for revocation.
 | [rpc/budgets.go](rpc/budgets.go) | Explicit deadlines protected by tests. |
 | [rpc/deviceauth.go](rpc/deviceauth.go) | Desktop device-authorization RPCs (`rpc.dashboard.device.*`); OAuth-error mapping for the token endpoint. |
 | [repository/deviceauth_codes.go](repository/deviceauth_codes.go), [deviceauth_refresh.go](repository/deviceauth_refresh.go), [deviceauth_grants.go](repository/deviceauth_grants.go), [deviceauth_cleanup.go](repository/deviceauth_cleanup.go) | Code issuance/exchange, refresh rotation with reuse detection, grant listing/revocation, and the expired-code/stale-grant sweep. |
+| [repository/voice.go](repository/voice.go), [rpc/voice.go](rpc/voice.go) | Voice allowance reads, idempotent recording and receipt cleanup. |
 | [tokensign/tokensign.go](tokensign/tokensign.go) | Ed25519 access-token signing/verification (`v1.<payload>.<sig>`), keyed by `kid`. |
-| [ent/schema/](ent/schema/) | User, Tokens, PremiumGrant, Delegation, LifecycleErasure, DeviceGrant, AuthorizationCode and pending AdminAuditDelivery definitions. |
+| [ent/schema/](ent/schema/) | User, Tokens, PremiumGrant, Delegation, LifecycleErasure, DeviceGrant, AuthorizationCode, AdminAuditDelivery, VoiceUsage and VoiceUsageReceipt definitions. |
 
 Shared contracts: [Users RPC](../../../internal/domain/rpc/users/),
 [billing RPC](../../../internal/domain/rpc/billing/),
@@ -112,6 +115,27 @@ Edit schemas rather than generated Ent code.
   expiry. They contain only the provider event ID and creation time, with no user
   ID or account association, so account erasure retains these event-only replay
   receipts indefinitely.
+- Voice usage accumulates per account and allowance window. VIP, and any plan
+  without a renewal date, uses the calendar month in UTC. Other plans use the
+  month ending at `subscription_expires_at`, so a subscriber's minutes reset on
+  their renewal day; the window key is that cycle's start date.
+  The owner-only dashboard verbs `voice_get` and `voice_safety` require
+  matching actor and broadcaster IDs. `voice_safety` reads the channel's TTS
+  pause deadline from Valkey (`pkg/valkey` `SpeechSafety`). Under `rpc.internal.users.voice.*`, `check` returns
+  quota and `record` records usage idempotently. A check reads the balance
+  without reserving it, so concurrent checks can overshoot by in-flight usage.
+  A replay returns the stored plan, reason and usage for the request ID.
+  The ledger accepts at most 3,000 audio tokens or 120,000 milliseconds
+  per record. After the 40-day receipt retention period, replaying that
+  request ID counts as new usage. Account erasure cascades to usage and receipts.
+- Users emits `data.users.banned` for Overlays
+  to revoke the configured link. Projector's account snapshot carries the
+  voice plan for OBS eligibility checks.
+- Banned and inactive accounts receive zero cloud voice minutes. A committed
+  giveaway covering the current time raises an admin grant from 30 to 60 minutes.
+  Lapsed subscriptions intentionally keep their voice minutes until the expiry
+  sweep updates the plan, with a 24-hour grace period for Tebex. Successful
+  allowance replies include a `reason` of `banned`, `inactive`, `no_plan` or `ok`.
 
 Lifecycle authority: `repository/lifecycle.go` owns immediate intent, independent bot moderation/grant facts, admission generations, incident suppression, bounded recovery and indexed due replay. `lifecycle_projection_pending` persists publication failures without changing read revision on acknowledgment. Legacy seeds run 200 per due pass and unknown access stays degraded. `LifecycleErasure` retains incarnation-fenced cleanup after deletion; completed markers expire after seven days only once the deletion event has been published.
 

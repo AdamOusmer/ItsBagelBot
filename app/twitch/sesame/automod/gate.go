@@ -257,7 +257,7 @@ func (g *Gate) cleanPathBail(sig signals, flags styleFlags, cfg *Config, text st
 	if sig.hasNonASCII || sig.runes > shortLen {
 		return false
 	}
-	if g.lexicon.Load().FloorPrescan(text) {
+	if g.FloorPrescan(text) {
 		return false
 	}
 	if kind, _ := moderation.MatchFloorPrescan(text); kind != moderation.FloorNone {
@@ -280,6 +280,10 @@ func (g *Gate) floorInfra(skel []byte) (Verdict, bool) {
 
 func deepSignals(sec sections, skel []byte) Signals {
 	return Signals{Deep: true, Linkish: sec.links && linkish(skel), SimHash: simHash(skel)}
+}
+
+func (g *Gate) FloorPrescan(text string) bool {
+	return g.lexicon.Load().FloorPrescan(text)
 }
 
 func (g *Gate) lexiconScan(sig signals, text string, skel []byte) (moderation.Category, string) {
@@ -315,13 +319,8 @@ func (g *Gate) evaluateRescues(attempt styleAttempt, sc assessScope) bool {
 }
 
 func (c *Config) blockTermVerdict(skel []byte) (Verdict, bool) {
-	if !c.hasBlockTerms() {
-		return Verdict{}, false
-	}
-	for _, bt := range c.blockTerms {
-		if bytes.Contains(skel, bt) {
-			return Verdict{Action: ActionDelete, Rule: "block_term"}, true
-		}
+	if c.hasBlockTerms() && moderation.ContainsAnyTerm(skel, c.blockTerms) {
+		return Verdict{Action: ActionDelete, Rule: "block_term"}, true
 	}
 	return Verdict{}, false
 }

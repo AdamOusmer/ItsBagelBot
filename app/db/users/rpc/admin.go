@@ -54,6 +54,7 @@ func (a *adminRPC) verbs() []adminVerb {
 		{"ban", mod, a.ban},
 		{"unban", mod, a.unban},
 		{"set_status", admin, a.setStatus},
+		{"voice_usage_set", admin, a.setVoiceUsage},
 		{"set_active", admin, a.setActive},
 		{"set_creator_code", admin, a.setCreatorCode},
 		{"test.set", admin, a.setTestAccount},
@@ -80,10 +81,7 @@ func (a *adminRPC) guarded(v adminVerb) func(context.Context, usersrpc.AdminRequ
 	}
 }
 
-const (
-	adminUserPageSize = repository.AdminUserPageSize
-	adminUserMaxPages = repository.AdminUserMaxPages
-)
+const adminUserPageSize = repository.AdminUserPageSize
 
 type AdminConfig struct {
 	AuthPrefix         string
@@ -113,7 +111,7 @@ func SubscribeAdmin(w Wiring, cfg AdminConfig) error {
 		return err
 	}
 
-	return bus.Serve(w.Within(adminBudget), cfg.InternalGetSubject, a.get)
+	return bus.Serve(w.Within(adminBudget), cfg.InternalGetSubject, a.getInternal)
 }
 
 var storeRules = []domainrpc.Rule{
@@ -162,11 +160,27 @@ func idRequest(id uint64) usersrpc.AdminRequest {
 }
 
 func (a *adminRPC) get(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
+	return a.getUser(ctx, req, true)
+}
+
+func (a *adminRPC) getInternal(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
+	return a.getUser(ctx, req, false)
+}
+
+func (a *adminRPC) getUser(ctx context.Context, req usersrpc.AdminRequest, withVoice bool) usersrpc.AdminReply {
 	u, err := a.findUser(ctx, req)
 	if err != nil {
 		return adminError(refusal(err))
 	}
 	view := viewOf(u)
+	if !withVoice {
+		return usersrpc.AdminReply{User: &view}
+	}
+	allowance, err := a.repo.VoiceAllowance(ctx, u.ID, time.Now())
+	if err != nil {
+		return adminError(refusal(err))
+	}
+	view.VoiceAllowance = &allowance
 	return usersrpc.AdminReply{User: &view}
 }
 
@@ -177,13 +191,12 @@ func adminListLimit(limit int) int {
 	return limit
 }
 
-func adminUserQuery(req usersrpc.AdminRequest, limit, offset int) repository.AdminUserQuery {
+func adminUserQuery(req usersrpc.AdminRequest) repository.AdminUserQuery {
 	return repository.AdminUserQuery{
 		Search:   req.Search,
 		State:    req.State,
 		Order:    req.Order,
-		Limit:    limit,
-		Offset:   offset,
+		Limit:    adminListLimit(req.Limit),
 		OnlyLive: req.OnlyLive,
 		LiveIDs:  req.LiveIDs,
 	}
@@ -193,7 +206,7 @@ func (a *adminRPC) list(ctx context.Context, req usersrpc.AdminRequest) usersrpc
 	if req.Page > 0 {
 		return a.listPage(ctx, req)
 	}
-	rows, err := a.repo.ListUsers(ctx, adminUserQuery(req, adminListLimit(req.Limit), 0))
+	rows, err := a.repo.ListUsers(ctx, adminUserQuery(req))
 	if err != nil {
 		return adminError(refusal(err))
 	}
@@ -201,8 +214,17 @@ func (a *adminRPC) list(ctx context.Context, req usersrpc.AdminRequest) usersrpc
 }
 
 func (a *adminRPC) listPage(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
-	page := domainrpc.ClampPage(req.Page, adminListLimit(req.Limit), adminUserPageSize, adminUserMaxPages)
-	rows, err := a.repo.ListUsers(ctx, adminUserQuery(req, page.FetchLimit(), page.Offset()))
+	query := adminUserQuery(req)
+	total, err := a.repo.CountAdminUsers(ctx, query)
+	if err != nil {
+		return adminError(refusal(err))
+	}
+	size := min(query.Limit, adminUserPageSize)
+	pages := max(1, (total+size-1)/size)
+	page := domainrpc.ClampPage(req.Page, size, adminUserPageSize, pages)
+	query.Limit = page.FetchLimit()
+	query.Offset = page.Offset()
+	rows, err := a.repo.ListUsers(ctx, query)
 	if err != nil {
 		return adminError(refusal(err))
 	}
@@ -211,8 +233,9 @@ func (a *adminRPC) listPage(ctx context.Context, req usersrpc.AdminRequest) user
 		Users:    userViewsOf(rows),
 		Page:     page.Number,
 		PageSize: page.Size,
-		MaxPages: adminUserMaxPages,
+		MaxPages: pages,
 		HasMore:  hasMore,
+		Total:    total,
 	}
 }
 
@@ -241,6 +264,13 @@ func (a *adminRPC) stats(ctx context.Context, _ usersrpc.AdminRequest) usersrpc.
 		VIPUsers:     counts.Vip,
 		PaidUsers:    counts.Paid - counts.Granted,
 		GrantedUsers: counts.Granted,
+		DirectoryCounts: usersrpc.AdminDirectoryCounts{
+			Paid:     counts.DirectoryPaid,
+			VIP:      counts.DirectoryVIP,
+			Free:     counts.DirectoryFree,
+			Inactive: counts.DirectoryInactive,
+			Banned:   counts.DirectoryBanned,
+		},
 	}
 	return usersrpc.AdminReply{Stats: &stats}
 }

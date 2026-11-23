@@ -6,12 +6,12 @@ package engine
 import (
 	"context"
 	"net"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
+
+	"ItsBagelBot/internal/testproc"
 
 	"github.com/stretchr/testify/require"
 	valkey "github.com/valkey-io/valkey-go"
@@ -28,9 +28,7 @@ func localValkey(t *testing.T) valkey.Client {
 	port := listener.Addr().(*net.TCPAddr).Port
 	require.NoError(t, listener.Close())
 	dir := t.TempDir()
-	cmd := exec.Command("valkey-server", "--port", strconv.Itoa(port), "--bind", "127.0.0.1", "--save", "", "--appendonly", "no", "--notify-keyspace-events", "Ex", "--dir", dir)
-	require.NoError(t, cmd.Start())
-	t.Cleanup(func() { _ = cmd.Process.Kill(); _, _ = cmd.Process.Wait(); _ = os.RemoveAll(filepath.Clean(dir)) })
+	testproc.StartT(t, "valkey-server", "--port", strconv.Itoa(port), "--bind", "127.0.0.1", "--save", "", "--appendonly", "no", "--notify-keyspace-events", "Ex", "--dir", dir)
 	var client valkey.Client
 	require.Eventually(t, func() bool {
 		client, err = valkey.NewClient(valkey.ClientOption{InitAddress: []string{"127.0.0.1:" + strconv.Itoa(port)}, DisableCache: true})

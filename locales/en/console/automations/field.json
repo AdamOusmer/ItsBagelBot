@@ -94,5 +94,7 @@
   "brightness": "Brightness",
   "hold_s": "Go back after",
   "paused": "Paused",
-  "cooldown_s": "Global cooldown (s)"
+  "cooldown_s": "Global cooldown (s)",
+  "voice": "Voice",
+  "style": "Style"
 }

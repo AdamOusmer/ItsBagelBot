@@ -1,15 +1,16 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { LaneView } from '#lib/server/lanes';
+import type { LaneCategory, LaneView } from '#lib/server/lanes';
 
-export type PipelineStage = 'ingress' | 'outgress' | 'system';
-export type PipelineTraffic = 'stream' | 'standard' | 'premium' | 'system';
+type PipelineStage = 'ingress' | 'outgress' | 'system';
+type PipelineTraffic = 'stream' | 'standard' | 'premium' | 'system';
 export type PipelineStageFilter = 'all' | 'twitch' | PipelineStage;
 export type PipelineTrafficFilter = 'all' | Exclude<PipelineTraffic, 'system'>;
 
 type TokenPair = readonly [left: string, right: string];
-type SubjectPair = readonly [subject: string, filter: string];
+type Subject = readonly string[];
+type SubjectPair = readonly [subject: Subject, filter: Subject];
 
 function compatibleTokens(pair: TokenPair): boolean {
   const [left, right] = pair;
@@ -18,15 +19,10 @@ function compatibleTokens(pair: TokenPair): boolean {
   return left === right;
 }
 
-/** Whether two NATS subject filters share a possible subject. A terminal >
- * matches one or more tokens; * matches exactly one token. */
-function overlaps(pair: SubjectPair): boolean {
-  const [subject, filter] = pair;
-  const left = subject.split('.');
-  const right = filter.split('.');
+function overlaps([left, right]: SubjectPair): boolean {
   const sharedLength = Math.min(left.length, right.length);
   for (let i = 0; i < sharedLength; i++) {
-    if ([left[i], right[i]].includes('>')) return true;
+    if (left[i] === '>' || right[i] === '>') return true;
     if (!compatibleTokens([left[i], right[i]])) return false;
   }
   return left.length === right.length;
@@ -34,7 +30,7 @@ function overlaps(pair: SubjectPair): boolean {
 
 interface TrafficRule {
   traffic: PipelineTraffic;
-  subjects: readonly string[];
+  subjects: readonly Subject[];
 }
 
 interface StreamPipeline {
@@ -43,19 +39,18 @@ interface StreamPipeline {
   traffic: readonly TrafficRule[];
 }
 
-const STANDARD: TrafficRule = {
-  traffic: 'standard', subjects: ['twitch.ingress.event.standard', 'twitch.ingress.v2.standard.>']
-};
+function trafficRule(traffic: PipelineTraffic, ...subjects: string[]): TrafficRule {
+  return { traffic, subjects: subjects.map((subject) => subject.split('.')) };
+}
 
-// Sesame retains the worker durable group. Subject tokens and optional pod
-// identity follow it (pkg/bus/durableName).
+const STANDARD = trafficRule('standard', 'twitch.ingress.event.standard', 'twitch.ingress.v2.standard.>');
 const STREAM_PIPELINES: Record<string, StreamPipeline> = {
   TWITCH_INGRESS: {
     stage: 'ingress', owner: /^(worker|sesame)(?:_|$)/,
     traffic: [
-      { traffic: 'stream', subjects: ['twitch.ingress.event.stream', 'twitch.ingress.status.>'] },
+      trafficRule('stream', 'twitch.ingress.event.stream', 'twitch.ingress.status.>'),
       STANDARD,
-      { traffic: 'premium', subjects: ['twitch.ingress.event.premium', 'twitch.ingress.v2.premium.>'] }
+      trafficRule('premium', 'twitch.ingress.event.premium', 'twitch.ingress.v2.premium.>')
     ]
   },
   TWITCH_INGRESS_STANDARD: {
@@ -64,13 +59,13 @@ const STREAM_PIPELINES: Record<string, StreamPipeline> = {
   TWITCH_OUTGRESS: {
     stage: 'outgress', owner: /^outgress-(premium|standard)(?:_|$)/,
     traffic: [
-      { traffic: 'standard', subjects: ['twitch.outgress.standard'] },
-      { traffic: 'premium', subjects: ['twitch.outgress.premium'] }
+      trafficRule('standard', 'twitch.outgress.standard'),
+      trafficRule('premium', 'twitch.outgress.premium')
     ]
   },
   TWITCH_OUTGRESS_SYSTEM: {
     stage: 'system', owner: /^outgress-system(?:_|$)/,
-    traffic: [{ traffic: 'system', subjects: ['twitch.outgress.system'] }]
+    traffic: [trafficRule('system', 'twitch.outgress.system')]
   }
 };
 
@@ -88,39 +83,74 @@ function ownedPipeline(lane: LaneView): StreamPipeline | null {
   return pipeline.owner.test(lane.consumer) ? pipeline : null;
 }
 
-function consumerSubjects(subject: string): string[] {
+function consumerSubjects(subject: string): Subject[] {
   const subjects = subject.split(',').map((value) => value.trim()).filter(Boolean);
-  // No filter means the consumer sees its entire stream.
-  return subjects.length > 0 ? subjects : ['>'];
+  return subjects.length ? subjects.map((value) => value.split('.')) : [['>']];
 }
 
-interface SubjectFilters {
-  subjects: readonly string[];
-  filters: readonly string[];
+type LanePipeline = { stage: PipelineStage; traffic: Set<PipelineTraffic> };
+
+function matchesTraffic(rule: TrafficRule, subjects: Subject[]): boolean {
+  return rule.subjects.some((filter) => subjects.some((subject) => overlaps([subject, filter])));
 }
 
-function subjectsOverlap(comparison: SubjectFilters): boolean {
-  return comparison.subjects.some((subject) => comparison.filters.some((filter) => overlaps([subject, filter])));
-}
-
-export function pipelineTraffic(lane: LaneView): PipelineTraffic[] {
+function lanePipeline(lane: LaneView): LanePipeline | null {
   const pipeline = ownedPipeline(lane);
-  if (!pipeline) return [];
+  if (!pipeline) return null;
   const subjects = consumerSubjects(lane.subject);
-  return pipeline.traffic
-    .filter((rule) => subjectsOverlap({ subjects, filters: rule.subjects }))
-    .map((rule) => rule.traffic);
+  const traffic = new Set(pipeline.traffic.filter((rule) => matchesTraffic(rule, subjects)).map((rule) => rule.traffic));
+  return { stage: pipeline.stage, traffic };
 }
 
-export function pipelineStage(lane: LaneView): PipelineStage | null {
-  if (pipelineTraffic(lane).length === 0) return null;
-  return ownedPipeline(lane)?.stage ?? null;
+function matchesClassification(pipeline: LanePipeline | null, stage: PipelineStageFilter, traffic: PipelineTrafficFilter): boolean {
+  if (stage === 'all' && traffic === 'all') return true;
+  if (!pipeline || !STAGE_FILTERS[stage].includes(pipeline.stage)) return false;
+  return traffic === 'all' ? pipeline.traffic.size > 0 : pipeline.traffic.has(traffic);
 }
 
 export function matchesPipeline(lane: LaneView, stage: PipelineStageFilter, traffic: PipelineTrafficFilter): boolean {
   if (stage === 'all' && traffic === 'all') return true;
-  const laneStage = pipelineStage(lane);
-  if (!laneStage) return false;
-  if (!STAGE_FILTERS[stage].includes(laneStage)) return false;
-  return traffic === 'all' || pipelineTraffic(lane).includes(traffic);
+  return matchesClassification(lanePipeline(lane), stage, traffic);
+}
+
+export type LaneFilters = {
+  query: string;
+  categories: ReadonlySet<string>;
+  stage: PipelineStageFilter;
+  traffic: PipelineTrafficFilter;
+};
+
+function matchesSearch(lane: LaneView, query: string): boolean {
+  if (!query) return true;
+  return [lane.display, lane.stream, lane.consumer, lane.subject]
+    .some((field) => field.toLowerCase().includes(query));
+}
+
+function countMatches<Value extends string>(counts: Record<Value, number>, matches: (choice: Value) => boolean) {
+  for (const choice in counts) {
+    counts[choice] += Number(matches(choice));
+  }
+}
+
+export function filterLanes(lanes: readonly LaneView[], filters: LaneFilters) {
+  const { categories, stage, traffic } = filters;
+  const query = filters.query.trim().toLowerCase();
+  const rows: LaneView[] = [];
+  const categoryCounts: Record<LaneCategory | 'all', number> = { all: 0, system: 0, projection: 0, ephemeral: 0 };
+  const stageCounts: Record<PipelineStageFilter, number> = { all: 0, twitch: 0, ingress: 0, outgress: 0, system: 0 };
+  const trafficCounts: Record<PipelineTrafficFilter, number> = { all: 0, stream: 0, standard: 0, premium: 0 };
+
+  lanes.forEach((lane) => {
+    if (!matchesSearch(lane, query)) return;
+    const pipeline = lanePipeline(lane);
+    const matchesPath = matchesClassification(pipeline, stage, traffic);
+    categoryCounts.all += Number(matchesPath);
+    categoryCounts[lane.category] += Number(matchesPath);
+    if (categories.size > 0 && !categories.has(lane.category)) return;
+    if (matchesPath) rows.push(lane);
+    countMatches(stageCounts, (choice) => matchesClassification(pipeline, choice, traffic));
+    countMatches(trafficCounts, (choice) => matchesClassification(pipeline, stage, choice));
+  });
+
+  return { rows, categoryCounts, stageCounts, trafficCounts };
 }

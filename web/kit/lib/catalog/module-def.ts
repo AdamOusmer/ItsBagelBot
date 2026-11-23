@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import type { VoiceAlertKind } from '../voice-plan';
+
 export type ModuleFieldType = 'text' | 'textarea' | 'number' | 'select' | 'toggle' | 'timezone';
 
 export interface ModuleField {
@@ -52,6 +54,7 @@ export interface ModuleReply {
   event: string;
   messageKey: string;
   enableKey?: string;
+  voiceAlert?: VoiceAlertKind;
   defaultOff?: boolean;
   defaultMessage: string;
 
@@ -66,8 +69,7 @@ export interface ModuleCommandInfo {
   perm?: 'mod' | 'lead_mod';
   aliases?: string[];
   permKey?: string;
-  // A toggle setting that must be 'on' for the command to answer at all.
-  requiresSetting?: string;
+  enableKey?: string;
   previewArgs?: string;
   preview?: string;
 }

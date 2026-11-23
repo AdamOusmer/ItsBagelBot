@@ -24,7 +24,6 @@
     progressLabel,
     count,
     leaving = false,
-    status,
     side,
     children
   }: {
@@ -37,7 +36,6 @@
     progressLabel: string;
     count: string;
     leaving?: boolean;
-    status?: Snippet;
     side: Snippet;
     children: Snippet;
   } = $props();
@@ -61,15 +59,18 @@
 
 <SetupStage label={`${eyebrow} · ${name}`} full fill {leaving} orbs={false}>
   {#snippet start()}
-    <Brand title="ItsBagelBot" sub={t('admin.title')} href="/" logoSrc="/logo.png" logoAlt="" size="md" />
-    <div class="ident">
-      <Eyebrow tone="go">{eyebrow}</Eyebrow>
-      <Heading level={5} as="span">{name} {#if em}<em class="em">{em}</em>{/if}</Heading>
+    <div class="brand"><Brand title="ItsBagelBot" sub={t('admin.title')} href="/" logoSrc="/logo.png" size="sm" /></div>
+    <div class="ident bb-fit-box">
+      <Eyebrow tone="go"><bb-fit><span data-fit>{eyebrow}</span></bb-fit></Eyebrow>
+      <Heading level={5} as="span">
+        <bb-fit><span data-fit>{name} {#if em}<em class="em">{em}</em>{/if}</span></bb-fit>
+      </Heading>
     </div>
   {/snippet}
   {#snippet trail()}
-    {@render status?.()}
-    <ButtonLink href={closeHref} variant="secondary" size="sm">{closeLabel}</ButtonLink>
+    <ButtonLink href={closeHref} variant="secondary">
+      <span class="close-copy"><bb-fit><span data-fit>{closeLabel}</span></bb-fit></span>
+    </ButtonLink>
   {/snippet}
 
   <div class="layout">
@@ -79,10 +80,10 @@
           <div class="side-body">{@render side()}</div>
         </Card>
       </aside>
-      <section class="theatre">{@render children()}</section>
+      <main class="theatre">{@render children()}</main>
     </div>
     <div class="meter-row">
-      <span class="count">{count}</span>
+      <span class="count"><bb-fit><span data-fit>{count}</span></bb-fit></span>
       <div class="meter">
         <ProgressBar value={clamped} tone="success" size="sm" gradient label={progressLabel} />
       </div>
@@ -98,13 +99,21 @@
     display: grid;
     gap: var(--bb-space-1);
     min-width: 0;
+    inline-size: min(18rem, 50vw);
   }
+
+  .brand {
+    flex: none;
+  }
+
+  .close-copy {
+    display: block;
+    inline-size: 7rem;
+  }
+
   .em {
     font-style: normal;
-    background: var(--bb-gold-gradient);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--bb-tan-pale);
   }
 
   .layout {
@@ -129,24 +138,20 @@
   .side-body {
     max-height: 100%;
     padding: var(--bb-space-2);
-    overflow-y: auto;
+    overflow: auto;
     scrollbar-width: thin;
   }
   .theatre {
     display: flex;
     flex-direction: column;
-    gap: var(--bb-space-5);
     min-width: 0;
     min-height: 0;
-    padding-right: var(--bb-space-2);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
+    padding: var(--bb-space-1);
   }
 
   .meter-row {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: 13ch minmax(0, 1fr) 4ch;
     align-items: center;
     gap: var(--bb-space-4);
   }
@@ -154,8 +159,6 @@
   .pct {
     font-family: var(--bb-font-mono);
     font-size: var(--bb-text-xs);
-    letter-spacing: var(--bb-tracking-eyebrow);
-    text-transform: uppercase;
     color: var(--bb-muted);
     font-variant-numeric: tabular-nums;
   }
@@ -181,8 +184,23 @@
       grid-template-rows: auto minmax(0, 1fr);
       gap: var(--bb-space-4);
     }
-    .side-body {
-      max-height: 30svh;
+  }
+
+  @media (max-width: 31rem) {
+    .brand {
+      display: none;
+    }
+
+    .meter-row {
+      gap: var(--bb-space-2);
+    }
+
+    .ident {
+      inline-size: min(16rem, 45vw);
+    }
+
+    .close-copy {
+      inline-size: min(6rem, 25vw);
     }
   }
 </style>

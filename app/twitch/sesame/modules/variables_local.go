@@ -27,6 +27,7 @@ var localVariableGroups = map[string]map[string]variableReaderFactory{
 	"stream":      {"channel": streamVariables},
 	"queue":       {"status": queueVariables},
 	"raffle":      {"status": raffleVariables},
+	"giveaway":    {"status": giveawayVariables},
 	"followage":   {"reply": fixedVariableReader(commandContextVariables), "status": followageVariables},
 	"accountage":  {"reply": fixedVariableReader(commandContextVariables), "status": accountageVariables},
 	"uptime":      {"reply": uptimeVariables},
@@ -192,10 +193,10 @@ func queueVariables(d engine.Deps) variableRead {
 
 func raffleVariables(d engine.Deps) variableRead {
 	return func(ctx context.Context, c *module.Context) (map[string]string, error) {
-		if d.Raffle == nil {
+		if d.Draw == nil {
 			return nil, nil
 		}
-		status, err := d.Raffle.Status(ctx, c.BroadcasterID)
+		status, err := d.ReadRaffleStatus(ctx, c.BroadcasterID)
 		if err != nil {
 			return nil, err
 		}

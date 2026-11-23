@@ -11,8 +11,11 @@
   "counters": "Contadores",
   "channelpoints": "Pontos do canal",
   "timers": "Temporizadores",
+  "voice": "TTS",
+  "overlays": "Overlays",
   "billing": "Cobrança",
   "stats": "Estatísticas",
   "status": "Status",
-  "settings": "Configurações"
+  "settings": "Configurações",
+  "giveaways": "Sorteios"
 }

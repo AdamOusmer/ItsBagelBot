@@ -78,6 +78,7 @@ const defaults = {
   'reply.commercial': { seconds: '30', confirm: true },
   'reply.marker': { confirm: true },
   'reply.clip': { seconds: 30, reply: '{user} clipped it: {clip:url}', confirm: true },
+  'reply.speak': { style: '', voice: '' },
   'reply.stop': {},
   'reply.random': { paths: '2', weight1: 1, weight2: 1, weight3: 1, weight4: 1, weight5: 1 },
   'reply.run': {},

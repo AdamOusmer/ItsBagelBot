@@ -82,7 +82,8 @@ const sourceOptions = ['1', '2', '3', '4'];
     }
 
     function setupFetchBudget(root: HTMLElement) {
-        const runsInput = root.querySelector<HTMLInputElement>('.fb-runs')!;
+        const runsSlider = root.querySelector<HTMLElement>('.fb-runs')!;
+        const runsThumb = runsSlider.querySelector<HTMLElement>('[role="slider"]')!;
         const runsOut = root.querySelector<HTMLElement>('.fb-runs-out')!;
         const unit = runsOut.textContent!.replace(/^\s*\d+\s*/, '');
         const sourceGroup = root.querySelector<HTMLElement>('.fb-sources')!;
@@ -93,7 +94,7 @@ const sourceOptions = ['1', '2', '3', '4'];
         let sources = chosenSources(sourceGroup);
 
         function update() {
-            const runs = Number(runsInput.value);
+            const runs = Number(runsThumb.getAttribute('aria-valuenow'));
             const wanted = Math.min(runs, CACHE_CEILING) * sources;
             const actual = Math.min(wanted, CHANNEL_CAP);
             runsOut.textContent = `${runs} ${unit}`;
@@ -110,7 +111,7 @@ const sourceOptions = ['1', '2', '3', '4'];
             update();
         }
 
-        runsInput.addEventListener('input', update);
+        runsSlider.addEventListener('input', update);
         sourceGroup.addEventListener('click', pickSources);
         update();
     }

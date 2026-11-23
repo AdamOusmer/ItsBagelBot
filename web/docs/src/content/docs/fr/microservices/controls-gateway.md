@@ -1,33 +1,34 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: Controls gateway
-description: "Accepte les connexions WebSocket des commandes de bureau sur GET /v1/connect."
+title: Passerelle de commandes
+description: "Sert la source navigateur OBS pour la synthèse vocale."
 docType: reference
 ---
 
 ## Responsabilités
 
-Il vérifie les jetons signés émis par Users, relaie les événements et commandes sur NATS et ferme les connexions lors d’une révocation ou d’une reprise. L’identité de l’appareil provient du jeton vérifié. Il ne délivre pas de jetons et ne gère pas la logique Twitch.
+La bêta sert la source navigateur OBS à
+`https://overlay.itsbagelbot.com/tts#<token>`. La page échange le fragment
+contre un cookie signé et lit les extraits audio dans leur ordre d’arrivée.
+Le service Users émet et révoque les jetons.
 
 ## Interfaces
 
-Le point WebSocket est `GET /v1/connect`. NATS transporte les événements sur `controls.device.<device_id>.evt`, les commandes sur `.cmd`, les reprises sur `.takeover` et les révocations sur `controls.revoked.<device_id>`.
-
-La passerelle vérifie la signature, l’émetteur, le destinataire et l’expiration avant d’utiliser l’identité de l’appareil. NATS relaie les événements et commandes entre instances. Une nouvelle connexion publie une reprise pour le même appareil ; une révocation ferme sa connexion. Users gère la signature et les autorisations.
+`POST /tts/session` ouvre la session. `GET /tts/events` transmet les événements
+audio et reprend après le dernier identifiant à la reconnexion.
+`GET /tts/clip/<event_id>` diffuse le fichier WAV associé à l’utilisateur de la
+session. La passerelle sert aussi `/healthz` et `/readyz`. Le WebSocket de
+l’application de bureau est désactivé.
 
 ## État et dépendances
 
-Users signe les jetons et possède les autorisations. NATS relaie les messages et événements de connexion entre instances.
+JetStream conserve les événements et les fichiers audio pendant cinq minutes.
+Une révocation ferme le flux d’événements. Un extrait absent ou expiré renvoie
+une erreur 404.
 
-## Comportement en cas d’échec
+## Code et validation
 
-Les jetons invalides, expirés ou invérifiables sont refusés. Une reprise ou révocation ferme la connexion concernée.
-
-## Code
-
-Source : [app/controls/gateway/](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/controls/gateway). Voir `lib/controls_gateway/ws_handler.ex`, `token.ex`, `nats.ex` et `subjects.ex` ; les tests sont dans `test/`.
-
-## Validation
-
-Depuis `app/controls/gateway/`, exécuter `mix test`. Voir `lib/controls_gateway/ws_handler.ex` et `token.ex`.
+Voir [app/controls/gateway](https://github.com/AdamOusmer/ItsBagelBot/tree/main/app/controls/gateway).
+Dans ce répertoire, exécuter `mix deps.get` puis `mix test` avec
+`nats-server` disponible dans le PATH.

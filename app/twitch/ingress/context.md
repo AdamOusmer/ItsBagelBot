@@ -37,7 +37,7 @@ It obtains broadcaster status through RPC, never by reading MySQL.
 | Event shape and priority | [pipeline.ex](lib/ingress/pipeline.ex): `handle_event/2`, `route/2`, `decide/3`, `emote_spans/1` |
 | Duplicate chat handling | [squash.ex](lib/ingress/squash.ex), [squash/pool.ex](lib/ingress/squash/pool.ex) |
 | Bounded delivery and broker verdicts | [dispatcher.ex](lib/ingress/dispatcher.ex), [scaler.ex](lib/ingress/dispatcher/scaler.ex), [nats.ex](lib/ingress/nats.ex), [publisher.ex](lib/ingress/nats/publisher.ex), [wire.ex](lib/ingress/nats/publisher/wire.ex) |
-| Status lookup/invalidation | [broadcaster_cache.ex](lib/ingress/broadcaster_cache.ex), [cache_invalidator.ex](lib/ingress/cache_invalidator.ex) |
+| Status lookup/invalidation | [broadcaster_cache.ex](lib/ingress/broadcaster_cache.ex) |
 | Trials and registration eviction | [trial_receiver.ex](lib/ingress/trial_receiver.ex), [trials.ex](lib/ingress/trials.ex), [trial_user_changed.ex](lib/ingress/trial_user_changed.ex) |
 | Capacity and scaling | [capacity.ex](lib/ingress/capacity.ex), [shard_scaler.ex](lib/ingress/shard_scaler.ex), [shard_scaler/policy.ex](lib/ingress/shard_scaler/policy.ex) |
 | Effective configuration | [runtime.exs](config/runtime.exs), [config.ex](lib/ingress/config.ex), `lib/ingress/config/` |
@@ -46,9 +46,10 @@ It obtains broadcaster status through RPC, never by reading MySQL.
 ## Shared transport boundaries
 
 Ingress uses `Platform.Nats` for connection and consumer builders, requests and
-subscriptions, `Platform.Valkey` for trial storage, and `Platform.WebSocket.Client`
-for Twitch sockets. Service code retains EventSub session policy, NATS subject
-routing, and PubAck/atomic-batch handling. The shared NATS wire preserves the
+subscriptions. `Platform.Nats.Settings` builds connection settings with per-host
+TLS identity. Ingress uses `Platform.Valkey` for trial storage and
+`Platform.WebSocket.Client` for Twitch sockets. Service code retains EventSub
+session policy, NATS subject routing, and PubAck/atomic-batch handling. The shared NATS wire preserves the
 bounded publish timeout, headers and existing binary/iodata path; keep the
 single JSON flattening step in `publish_acked` and avoid copying or collecting
 per event. `Platform.NewRelic` owns telemetry integration and `Platform.Startup` owns
@@ -77,7 +78,10 @@ There is no Rust AutoMod v2 routing flag or `chat_input` adapter in this checkou
 Trial provenance is derived from receiver metadata only; trial reception and
 Conduit membership have their own lifecycle and generation handling.
 
-The RPC plane and BUS firehose use separate NATS identities/connections.
+Ingress configures its RPC leaf and BUS hub separately because they use different
+identities. The leaf and hub failback processes target their own named
+connections, and hub failback also manages the dedicated PubAck publisher pool.
+This topology uses the lower-level `Platform.Nats` connection and wire APIs.
 Status lookup defaults to `rpc.broadcaster.status.get`; invalidations to
 `cache.invalidate.status`. Admin/scale/trial/Conduit responders are wired
 in `application.ex`; consult `rpc.ex` before changing subject aliases.

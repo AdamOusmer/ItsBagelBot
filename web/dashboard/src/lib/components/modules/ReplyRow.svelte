@@ -43,6 +43,7 @@
     onToggle?: () => void;
   } = $props();
 
+  const replyLabel = $derived(tModuleReplyPart(t, moduleId, reply, 'label'));
   const idx = $derived(index !== undefined ? String(index).padStart(2, '0') : '');
   const preview = $derived(namespaceReplyTemplate(moduleId, reply, message.trim() ? message : tModuleReplyDefault(t, moduleId, reply)));
 </script>
@@ -59,7 +60,7 @@
       <span class="prow bb-row-body bb-row-body--stack">
         {#if idx}<span class="bb-row-body__idx" aria-hidden="true"><Label mono as="span">{idx}</Label></span>{/if}
         <span class="cmd">
-          <Heading level={6} as="span">{tModuleReplyPart(t, moduleId, reply, 'label')}</Heading>
+          <Heading level={6} as="span">{replyLabel}</Heading>
           <Text as="span" size="xs" tone="muted" truncate>{preview}</Text>
         </span>
         <span class="state"><SaveStatus state={status} /></span>
@@ -67,7 +68,7 @@
     {/snippet}
     {#snippet actions()}
       {#if enabled !== undefined}
-        <Switch checked={enabled} label={t('modules.toggleAria', { label: tModuleReplyPart(t, moduleId, reply, 'label') })} disabled={disabled} onCheckedChange={() => onToggle?.()} />
+        <Switch checked={enabled} label={t('modules.toggleAria', { label: replyLabel })} disabled={disabled} onCheckedChange={() => onToggle?.()} />
       {:else}
         <span class="mini-spacer" aria-hidden="true"></span>
       {/if}
@@ -78,7 +79,7 @@
 <style>
   .prow { --row-cols: 28px minmax(0, 1fr) auto; }
 
-  .cmd { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .cmd { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .state { min-width: 0; }
   .mini-spacer { width: 38px; }
 

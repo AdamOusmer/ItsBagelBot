@@ -44,8 +44,8 @@ For `channel.chat.message` notifications there are exactly three outcomes (`Ingr
 Broadcaster status is never read from MySQL directly (per the data-and-state ownership rules). It is fetched over
 **NATS request-reply** from the owning Go service (`NATS_BROADCASTER_STATUS_SUBJECT`), through an in-process ETS
 read-through cache (`Ingress.BroadcasterCache`, TTL `BROADCASTER_CACHE_TTL_SECONDS`). Cache entries are evicted by
-invalidation messages on `NATS_CACHE_INVALIDATION_SUBJECT` (`{"broadcaster_id": "..."}`, `{"all": true}`, or a bare
-ID). RPC failures degrade to the standard lane and are negative-cached for 5s.
+invalidation messages on `NATS_CACHE_INVALIDATION_SUBJECT` (`{"broadcaster_id": "<id>" | "*", "keys": [...]}`,
+the shared bus feed, read through `Platform.Invalidations`). RPC failures degrade to the standard lane and are negative-cached for 5s.
 
 All other EventSub types ride the same two lanes, routed by the event's broadcaster through the same cache. Events
 without an extractable broadcaster (`broadcaster_user_id`, or `to_broadcaster_user_id` for inbound raids) default
@@ -57,7 +57,7 @@ to standard.
 |-------------------------------------|----------------------------------------------------------------|-----------------------------------------------|
 | `BAGELBOT_CLUSTER_HOSTS`            | Comma-separated peer long-names (EPMD strategy). Empty: Gossip. | (empty, Gossip auto-discovery)               |
 | `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` | App credentials for Helix.                             | (required)                                    |
-| `TWITCH_CONDUIT_ID`                 | Conduit to own; empty: reuse first existing or create.         | (empty)                                       |
+| `TWITCH_CONDUIT_ID`                 | Pinned Conduit to own; outgress enrolls into the same ID.      | (required)                                    |
 | `TWITCH_CONDUIT_SHARD_COUNT`        | Shard floor; autoscale and manual targets never go below it.   | `2`                                           |
 | `TWITCH_CONDUIT_MAX_SHARDS`         | Hard ceiling for manual and automatic shard counts.            | `11`                                          |
 | `INGRESS_CAPACITY_POD_RATED_EPS`    | Measured cached-path capacity per live ingress pod.             | `140000`                                      |

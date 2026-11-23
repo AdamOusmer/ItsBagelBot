@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import type { ModulePatch } from '#lib/server/commands-store';
 import { stubSvelteKit } from '../../../../../test/sveltekit';
 
 stubSvelteKit();
@@ -12,21 +13,32 @@ const def = MODULE_CATALOG.find((d) => catalogIndexable(d) && !d.href && !d.hidd
 const reads: string[] = [];
 let conflict = false;
 let synced = true;
+let premium = false;
+const alerts = {
+  name: 'alerts',
+  is_enabled: false,
+  revision: 8,
+  configs: { subTts: 'true', cheerTtsStyle: 'playful', subTtsVoice: 'Charon', cheerMessage: 'Old' }
+};
+
+const upsertModule = mock(async () => ({ modules: [], synced }));
+const patchModule = mock(async (p: ModulePatch) =>
+  conflict ? { rev: 5, conflict: true, synced: false } : { rev: (p.expectedRev ?? 0) + 1, conflict: false, synced });
 
 mock.module('#lib/server/commands-store', () => ({
   listModules: async () => {
     reads.push('projection');
-    return [{ name: def.id, is_enabled: true, revision: 4, configs: {} }];
+    return [{ name: def.id, is_enabled: true, revision: 4, configs: {} }, alerts];
   },
   listModulesForEditing: async () => {
     reads.push('service');
-    return [{ name: def.id, is_enabled: true, revision: 5, configs: {} }];
+    return [{ name: def.id, is_enabled: true, revision: 5, configs: {} }, alerts];
   },
-  upsertModule: async () => ({ modules: [], synced }),
-  patchModule: async (p: { expectedRev: number }) =>
-    conflict ? { rev: 5, conflict: true, synced: false } : { rev: p.expectedRev + 1, conflict: false, synced }
+  upsertModule,
+  patchModule
 }));
 mock.module('#lib/server/module-gate', () => ({
+  broadcasterPremium: async () => premium,
   gateSection: () => {},
   gateModulePage: () => {},
   moduleLocked: async () => false,
@@ -67,6 +79,17 @@ beforeEach(() => {
   reads.length = 0;
   conflict = false;
   synced = true;
+  premium = false;
+  upsertModule.mockClear();
+  patchModule.mockClear();
+});
+
+test.each([
+  { id: 'raffle', location: '/loyalty#games' },
+  { id: 'gamble', location: '/loyalty#games' },
+  { id: 'duel', location: '/loyalty#games' }
+])('$id redirects to $location', async ({ id, location }) => {
+  await expect(load({ params: { id }, locals } as never)).rejects.toMatchObject({ status: 302, location });
 });
 
 describe('module editor load', () => {
@@ -107,4 +130,99 @@ describe('module editor load', () => {
     await view(jar);
     expect(reads).toEqual(['service']);
   });
+});
+
+test.each([
+  { revision: '8', stale: false, outcome: { ok: true, enabled: true } },
+  { revision: '7', stale: true, outcome: { status: 409, data: { ok: false, conflict: true } } }
+])('saving Chat Alerts with form revision $revision only patches chat settings', async ({ revision, stale, outcome }) => {
+  conflict = stale;
+  const url = new URL('/modules/alerts', 'https://dashboard.itsbagelbot.com');
+  const body = new URLSearchParams({
+    expected_rev: revision, is_enabled: 'on',
+    'cfg.followMessage': 'Hello {user}!', 'cfg.cheerMessage': '', 'cfg.subTts': 'false'
+  });
+  const request = new Request(`${url}?/save`, { method: 'POST', body });
+  const result = await actions.save({ request, params: { id: 'alerts' }, locals, cookies: cookieJar(new Map()), url } as never);
+  const [patch] = patchModule.mock.calls[0] ?? [];
+
+  expect(result).toMatchObject(outcome);
+  expect({ reads, upserts: upsertModule.mock.calls }).toEqual({ reads: [], upserts: [] });
+  expect(patch).toEqual({
+    name: 'alerts', userId: '7', isEnabled: true, expectedRev: Number(revision),
+    partial: expect.objectContaining({ followMessage: 'Hello {user}!', cheerMessage: '' })
+  });
+  const spokenKeys = Object.keys(patch!.partial).filter((key) => /tts/i.test(key));
+  expect(spokenKeys).toEqual([]);
+});
+
+const alertsURL = new URL('/modules/alerts', url);
+
+test.each([true, false])('Chat Alerts load returns voice access %s on a disabled row', async (allowed) => {
+  premium = allowed;
+  const result = await load({
+    params: { id: 'alerts' }, locals, cookies: cookieJar(new Map()), url: alertsURL
+  } as never);
+  expect(result).toMatchObject({
+    enabled: false, voiceAllowed: allowed, revision: 8, config: { subTts: 'true' }
+  });
+});
+
+test.each([
+  { name: 'a Premium edit', allowed: true, value: 'false', saved: true, outcome: { ok: true, rev: 9 } },
+  { name: 'a free account edit', allowed: false, value: 'false', saved: false, outcome: { status: 403 } },
+  { name: 'an invalid toggle value', allowed: true, value: 'off', saved: false, outcome: { status: 400 } }
+])('Chat Alerts handles $name', async ({ allowed, value, saved, outcome }) => {
+  premium = allowed;
+  const body = new URLSearchParams({
+    expected_rev: '8',
+    partial: JSON.stringify({ subTts: value, cheerTts: 'true', subTtsVoice: 'Kore', followTts: 'true' })
+  });
+  const request = new Request(`${alertsURL}?/patch`, { method: 'POST', body });
+  const result = await actions.patch({
+    request, params: { id: 'alerts' }, locals, cookies: cookieJar(new Map()), url: alertsURL
+  } as never);
+
+  expect(result).toMatchObject(outcome);
+  expect(patchModule.mock.calls).toEqual(saved ? [[{
+    name: 'alerts', userId: '7', isEnabled: false, expectedRev: 8,
+    partial: { subTts: 'false', cheerTts: 'true' }
+  }]] : []);
+});
+
+test.each([
+  {
+    name: 'normalizes and filters disabledTriggers for a module with commands',
+    id: 'urchin',
+    raw: ' !BWTAGS, bogus, !daily , bwtags ',
+    expectedPartial: { disabledTriggers: 'bwtags,daily' }
+  },
+  {
+    name: 'clears disabledTriggers when all entries are unknown',
+    id: 'urchin',
+    raw: 'notacommand, other',
+    expectedPartial: { disabledTriggers: '' }
+  },
+  {
+    name: 'strips disabledTriggers on a module with no toggleable commands',
+    id: 'alerts',
+    raw: '!follow',
+    expectedPartial: {}
+  }
+])('module patch $name', async ({ id, raw, expectedPartial }) => {
+  const targetURL = new URL(`/modules/${id}`, url);
+  const body = new URLSearchParams({
+    is_enabled: 'on',
+    expected_rev: '4',
+    partial: JSON.stringify({ disabledTriggers: raw })
+  });
+  const request = new Request(`${targetURL}?/patch`, { method: 'POST', body });
+  const result = await actions.patch({
+    request, params: { id }, locals, cookies: cookieJar(new Map()), url: targetURL
+  } as never);
+
+  expect(result).toEqual({ ok: true, rev: 5, conflict: false });
+  expect(patchModule.mock.calls).toEqual([[{
+    name: id, userId: '7', isEnabled: true, expectedRev: 4, partial: expectedPartial
+  }]]);
 });

@@ -4,7 +4,6 @@
 import type { AuditEntry } from '#lib/server/services';
 
 export const AUDIT_KINDS = [
-  'all',
   'users',
   'staff',
   'fleet',
@@ -23,7 +22,7 @@ export const KIND_LABEL = {
   config: 'admin.audit.kindConfig',
   messaging: 'admin.audit.kindMessaging',
   other: 'admin.audit.kindOther'
-} as const satisfies Record<AuditKind, string>;
+} as const satisfies Record<AuditKind | 'all', string>;
 
 const USER_ACTIONS = new Set([
   'ban',
@@ -55,6 +54,11 @@ export function auditKind(action: string): AuditKind {
   return hit ? hit[1] : 'other';
 }
 
-export function inKind(entry: AuditEntry, kind: AuditKind): boolean {
-  return kind === 'all' || auditKind(entry.action) === kind;
+export function auditKindCounts(entries: readonly AuditEntry[]): Map<AuditKind, number> {
+  const counts = new Map<AuditKind, number>();
+  for (const entry of entries) {
+    const kind = auditKind(entry.action);
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  return counts;
 }

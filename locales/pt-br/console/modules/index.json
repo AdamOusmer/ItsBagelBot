@@ -35,6 +35,11 @@
   "commandAccessWarn": "Com {level}, todo esse grupo poderá mudar seus comandos pelo chat. Escolha isso só se você confia em cada um.",
   "commandsHint": "Ative o módulo para liberar estes comandos de chat.",
   "commandsTitle": "Comandos de chat",
+  "commandsToggleHint": "Ative ou desative comandos ou aliases individualmente. Gatilhos desativados podem ser usados por comandos personalizados.",
+  "commandToggleAria": "Ativar ou desativar o comando {trigger}",
+  "triggerToggleAria": "Ativar ou desativar o gatilho {trigger}",
+  "triggersGroupAria": "Gatilhos de {trigger}",
+  "aliasesLabel": "Também",
   "configure": "Configurar",
   "configuring": "Configurando {label}",
   "couldNotToggle": "Não foi possível alterar o estado de {label}.",
@@ -73,7 +78,7 @@
   "noTriggersTitle": "Nenhuma palavra-gatilho ainda.",
   "offBanner": "Este módulo está desativado, então o bot o ignora no chat.",
   "turnOn": "Ativar",
-  "offConfigurable":"Este módulo está desativado. Você pode configurá-lo agora; as alterações passam a valer quando você o ativar.",
+  "offConfigurable": "Este módulo está desativado. Você pode configurá-lo agora; as alterações passam a valer quando você o ativar.",
   "patchConflict": "Outra pessoa alterou este módulo. A versão mais recente foi recarregada, então refaça sua alteração.",
   "permLeadMods": "Moderadores principais",
   "permMods": "Moderadores",
@@ -130,5 +135,19 @@
   "statusFilterLabel": "Filtrar por status",
   "filterAll": "Todos",
   "filterOn": "Ativados",
-  "lockedHint": "Somente Premium. Melhore seu plano para alterar isto."
+  "lockedHint": "Somente Premium. Melhore seu plano para alterar isto.",
+  "voiceEvent": {
+    "tts": "TTS",
+    "toggleAria": "TTS em {event}",
+    "sub": {
+      "label": "Mensagens de reinscrição",
+      "hint": "Lê a mensagem que o espectador adiciona ao se reinscrever."
+    },
+    "cheer": {
+      "label": "Mensagens de cheer",
+      "hint": "Lê a mensagem enviada com bits, sem a quantidade de bits."
+    },
+    "chatOff": "Mensagem do chat desligada",
+    "withoutChat": "A mensagem do chat está desligada. O TTS ainda toca na live."
+  }
 }

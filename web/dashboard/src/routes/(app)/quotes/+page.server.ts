@@ -2,11 +2,13 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
+import { DISABLED_TRIGGERS_KEY } from '@bagel/kit';
 import {
   readQuotes,
   addQuote,
   editQuote,
   removeQuote,
+  setDisabledTriggers,
   setEnabled,
   setPerm,
   type QuotePerms,
@@ -61,12 +63,19 @@ export const load: PageServerLoad = ({ locals }) =>
     demo: DEMO ? async () => (await import('#lib/server/demo-data')).demoQuotesView() : undefined,
     read: async (uid) => {
       const view = await readQuotes(uid);
-      return { enabled: view.enabled, addPerm: view.addPerm, editPerm: view.editPerm, quotes: view.quotes };
+      return {
+        enabled: view.enabled,
+        addPerm: view.addPerm,
+        editPerm: view.editPerm,
+        disabledTriggers: view.disabledTriggers,
+        quotes: view.quotes
+      };
     },
     blank: () => ({
       enabled: false,
       addPerm: 'mod' as QuotePerms['addPerm'],
       editPerm: 'mod' as QuotePerms['editPerm'],
+      disabledTriggers: '',
       quotes: [] as QuoteView[]
     })
   });
@@ -178,6 +187,19 @@ export const actions: Actions = {
       run: async () => {
         await setPerm(ctx.uid, kind, perm);
         return { audit: perm, payload: { kind, perm } };
+      }
+    });
+  }),
+
+  triggers: quotesAction(async (ctx) => {
+    const raw = String(ctx.form.get(DISABLED_TRIGGERS_KEY) ?? '');
+    if (DEMO) return { ok: true, [DISABLED_TRIGGERS_KEY]: raw };
+
+    return runQuote(ctx, {
+      verb: 'triggers',
+      run: async () => {
+        const disabledTriggers = await setDisabledTriggers(ctx.uid, raw);
+        return { audit: disabledTriggers || 'all-on', payload: { [DISABLED_TRIGGERS_KEY]: disabledTriggers } };
       }
     });
   })

@@ -229,13 +229,13 @@ describe('windows', () => {
     });
   });
 
-  it('reports the period as formatted dates', () => {
-    expect(view.period).toEqual({ start: 'Oct 11, 2026', end: 'Nov 9, 2026' });
+  it('reports the period as UTC dates', () => {
+    expect(view.period).toEqual({ start: '2026-10-11', end: '2026-11-09' });
   });
 
   it.each([
-    { days: 1, start: 'Nov 9, 2026', active: [120], signups: 2, delta: 'day' },
-    { days: 7, start: 'Nov 3, 2026', active: [100, 100, 100, 100, 100, 100, 120], signups: 6, delta: 'window' }
+    { days: 1, start: '2026-11-09', active: [120], signups: 2, delta: 'day' },
+    { days: 7, start: '2026-11-03', active: [100, 100, 100, 100, 100, 100, 120], signups: 6, delta: 'window' }
   ])('builds the closed-day window %j', ({ days, start, active, signups, delta }) => {
     const short = buildAnalytics(reads({
       days,
@@ -250,7 +250,7 @@ describe('windows', () => {
     }));
     const signupKpi = short.kpis.find((k) => k.key === 'signups');
     expect({ period: short.period, active: short.engagement.active.values, signups: signupKpi?.value, delta: signupKpi?.delta.key }).toEqual({
-      period: { start, end: 'Nov 9, 2026' },
+      period: { start, end: '2026-11-09' },
       active: [...active],
       signups: String(signups),
       delta: `admin.analytics.delta.${delta}`
@@ -359,7 +359,7 @@ describe('growth and engagement', () => {
     const { values, labels } = view.growth.signups;
     expect({ length: values.length, first: labels[0], spikes: [values[1], values[21]] }).toEqual({
       length: 30,
-      first: 'Oct 11, 2026',
+      first: '2026-10-11',
       spikes: [20, 10]
     });
   });
@@ -888,6 +888,7 @@ describe('extended analytics blocks', () => {
       row('2026-11-03', 'dashboard.views', ['commands', 'owner'], 8),
       row('2026-11-03', 'dashboard.views', ['commands', 'delegate'], 2),
       row('2026-11-04', 'dashboard.views', ['overview', 'delegate'], 3),
+      row('2026-11-04', 'dashboard.views', ['voice', 'owner'], 2),
       row('2026-11-03', 'billing.checkout', ['monthly', 'redirected'], 10),
       row('2026-11-03', 'billing.checkout', ['monthly', 'blocked'], 2),
       row('2026-11-04', 'billing.checkout', ['gift', 'unavailable'], 1),
@@ -966,8 +967,10 @@ describe('extended analytics blocks', () => {
   });
 
   it('splits dashboard section views by owner and delegate', () => {
-    expect(extended.features.dashboard.slice(0, 2).map((b) => [b.id, b.value, b.secondary?.params])).toEqual([
-      ['commands', 10, { owner: '8', delegate: '2' }], ['overview', 3, { owner: '0', delegate: '3' }]
+    expect(extended.features.dashboard.slice(0, 3).map((b) => [b.id, b.value, b.secondary?.params])).toEqual([
+      ['commands', 10, { owner: '8', delegate: '2' }],
+      ['overview', 3, { owner: '0', delegate: '3' }],
+      ['voice', 2, { owner: '2', delegate: '0' }]
     ]);
   });
 

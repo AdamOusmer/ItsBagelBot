@@ -15,6 +15,7 @@ const ICONS = {
   commands: 'lucide:terminal',
   modules: 'lucide:layout-grid',
   music: 'lucide:music',
+  waveform: 'lucide:audio-lines',
   card: 'lucide:credit-card',
   settings: 'lucide:sliders-horizontal',
   gear: 'lucide:settings',
@@ -62,7 +63,11 @@ const ICONS = {
   github: 'simple-icons:github',
   twitch: 'simple-icons:twitch',
   branch: 'lucide:git-branch',
-  sidebar: 'lucide:panel-left'
+  sidebar: 'lucide:panel-left',
+  overlay: 'lucide:picture-in-picture-2',
+  logOut: 'lucide:log-out',
+  play: 'lucide:play',
+  stop: 'lucide:square'
 };
 
 const STRIP = /\s(?:fill="none"|stroke="currentColor"|stroke-linecap="round"|stroke-linejoin="round"|stroke-width="2")/g;

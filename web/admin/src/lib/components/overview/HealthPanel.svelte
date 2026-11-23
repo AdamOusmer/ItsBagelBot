@@ -5,7 +5,6 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -24,21 +23,20 @@
   );
 </script>
 
-<Card as="section">
-  <CardHead title={t('admin.overview.healthTitle')} />
+<Card as="section" class="overview-health-panel">
+  <CardHead title={t('admin.overview.healthTitle')} headingLevel={2} />
 
   <p class="summary">
     <StatusDot {tone} />
     <Text as="span" size="sm">
-      {t('admin.overview.healthSummary', {
+      {ok ? t('admin.overview.healthSummary', {
         ok: String(responding),
         total: String(probes.length)
-      })}
+      }) : t('admin.overview.kpi.unavailable')}
     </Text>
   </p>
 
   {#if probes.length}
-    <Scroller maxHeight="220px">
       <div class="bb-node-list bb-stagger">
         {#each probes as p (p.id)}
           <div class="bb-node-list__row">
@@ -52,13 +50,17 @@
           </div>
         {/each}
       </div>
-    </Scroller>
   {:else}
     <EmptyState title={t('admin.overview.healthEmpty')} />
   {/if}
 </Card>
 
 <style>
+  :global(.overview-health-panel) {
+    display: flex;
+    flex-direction: column;
+  }
+
   .summary {
     display: flex;
     align-items: center;

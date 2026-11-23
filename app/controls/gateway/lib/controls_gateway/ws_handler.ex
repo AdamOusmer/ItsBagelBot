@@ -10,6 +10,7 @@ defmodule ControlsGateway.WsHandler do
   @behaviour :cowboy_websocket
 
   alias ControlsGateway.{Config, Drain, Metrics, Nats, Subjects}
+  alias Platform.Backoff
 
   @frame_limit 65_536
   @idle_timeout_ms 60_000
@@ -17,9 +18,6 @@ defmodule ControlsGateway.WsHandler do
   @resubscribe_jitter_ms 1_000
   @text_frames_per_second 50
 
-  # Close codes: 4000 expired (client refreshes+reconnects), 4001 takeover,
-  # 4003 revoked. 1001/1007/1008 are the standard going-away, invalid-payload
-  # and policy-violation codes.
   @close_expired 4000
   @close_takeover 4001
   @close_revoked 4003
@@ -27,8 +25,6 @@ defmodule ControlsGateway.WsHandler do
   @impl true
   def init(req, _opts) do
     if Drain.draining?() do
-      # Stop accepting new connections without touching the shared listener,
-      # so /healthz and /readyz stay reachable through the whole drain.
       {:ok, :cowboy_req.reply(503, %{}, "", req), :draining}
     else
       upgrade_or_reject(req)
@@ -77,8 +73,7 @@ defmodule ControlsGateway.WsHandler do
     schedule_expiry(state.exp_ms)
     send(self(), :subscribe)
     Metrics.count("connect")
-    Registry.register(ControlsGateway.Connections, conn_id, nil)
-    if Drain.draining?(), do: send(self(), {:shutdown_close, 0})
+    if Drain.track_connection(:socket) == :draining, do: send(self(), :shutdown_close)
 
     {:ok, state, :hibernate}
   end
@@ -152,12 +147,7 @@ defmodule ControlsGateway.WsHandler do
     {:reply, {:close, @close_expired, "token expired"}, state, :hibernate}
   end
 
-  def websocket_info({:shutdown_close, jitter_ms}, state) do
-    Process.send_after(self(), :do_shutdown_close, jitter_ms)
-    {:ok, state, :hibernate}
-  end
-
-  def websocket_info(:do_shutdown_close, state) do
+  def websocket_info(:shutdown_close, state) do
     {:reply, {:close, 1001, "going away"}, state, :hibernate}
   end
 
@@ -166,7 +156,7 @@ defmodule ControlsGateway.WsHandler do
   defp subscribe_or_retry(state) do
     case Nats.subscribe_device(state.device_id) do
       {:ok, subs} ->
-        mon = Process.monitor(subs.gnat)
+        mon = Process.monitor(subs.jetstream.pid)
         state = announce_takeover(%{state | subs: subs, gnat_mon: mon})
         {:ok, state, :hibernate}
 
@@ -184,10 +174,13 @@ defmodule ControlsGateway.WsHandler do
     %{state | takeover_announced: announced}
   end
 
-  # Jittered so every socket on the shared NATS connection does not resubscribe
-  # in the same instant after a reconnect.
   defp schedule_resubscribe do
-    delay = @resubscribe_retry_ms + :rand.uniform(@resubscribe_jitter_ms)
+    delay =
+      Backoff.between_ms(
+        @resubscribe_retry_ms + 1,
+        @resubscribe_retry_ms + @resubscribe_jitter_ms
+      )
+
     Process.send_after(self(), :subscribe, delay)
   end
 

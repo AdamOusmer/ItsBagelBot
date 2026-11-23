@@ -15,6 +15,7 @@ declare global {
       accountState?: { value: AccountState } | { ghost: true };
       edgeOutcome?: EdgeOutcome;
       edgeCacheTag?: string;
+      edgeTtlCapSec?: number;
     }
     interface PageData {
       role?: 'streamer' | 'mod';

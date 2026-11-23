@@ -1,174 +1,145 @@
 <script lang="ts">
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
-  import Input from '@bagel/ui/svelte/Input.svelte';
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
+
   import { enhance, type SubmitFunction } from '$app/forms';
-  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
-  import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
-  import Switch from '@bagel/ui/svelte/Switch.svelte';
+  import '@bagel/ui/styles/elements/collapse.css';
+  import Input from '@bagel/ui/svelte/Input.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import EditorFooter from '@bagel/ui/svelte/EditorFooter.svelte';
   import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import type { InspectorStatus } from '@bagel/ui/lib/inspector-machine';
-  import { statusTone } from '@bagel/kit/status-tone';
-  import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AdminRole } from '#lib/access';
-  import type { AdminAcct, AuditEntry } from '#lib/server/services';
-  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
+  import type { AdminAcct } from '#lib/server/services';
+  import StaffHistory, { type StaffHistoryResult } from './StaffHistory.svelte';
   import { ROLE_LABEL, type StaffDraft } from './staff-roles';
 
   let {
     draft = $bindable(),
     member,
-    creating,
     roles,
+    canEditRole,
     canToggleAccess,
     status,
     dirty,
     canSave,
     busy,
     history,
-    historyError,
+    onRetryHistory,
     onCancel,
     onSubmit,
     onAccess
   }: {
     draft: StaffDraft;
-    member: AdminAcct | null;
-    creating: boolean;
+    member: AdminAcct | undefined;
     roles: readonly AdminRole[];
+    canEditRole: boolean;
     canToggleAccess: boolean;
     status: InspectorStatus;
     dirty: boolean;
     canSave: boolean;
     busy: boolean;
-    history: AuditEntry[] | null;
-    historyError: string;
+    history?: Promise<StaffHistoryResult>;
+    onRetryHistory: () => void;
     onCancel: () => void;
     onSubmit: SubmitFunction;
     onAccess: (next: boolean) => void;
   } = $props();
 
-  const { t } = getI18n();
-
-  const roleOptions = $derived(roles.map((r) => ({ value: r, label: t(ROLE_LABEL[r]) })));
+  const { t, locale } = getI18n();
+  const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' });
+  const visibleRoles = $derived(member && !canEditRole ? [member.role] : roles);
+  const roleOptions = $derived(visibleRoles.map((role) => ({ value: role, label: t(ROLE_LABEL[role]) })));
 </script>
 
 <form class="editor" method="POST" action="?/upsert" use:enhance={onSubmit}>
-  <input type="hidden" name="user_id" value={draft.userId} />
-  <input type="hidden" name="login" value={draft.login} />
-  <input type="hidden" name="display_name" value={draft.displayName} />
-
-  <Scroller fill padding="18px" smooth>
-    <div class="body">
-      {#if creating}
-        <Field label={t('admin.staff.fieldUserId')}>
-          <Input
-            fill mono
-            type="text"
-            inputmode="numeric"
-            pattern="[0-9]+"
-            placeholder={t('admin.staff.fieldUserIdPlaceholder')}
-            bind:value={draft.userId}
-          />
-        </Field>
-        <Field label={t('admin.staff.fieldLogin')}>
-          <Input
-            fill mono
-            type="text"
-            placeholder={t('admin.staff.fieldLoginPlaceholder')}
-            bind:value={draft.login}
-          />
-        </Field>
-        <Field label={t('admin.staff.fieldDisplayName')}>
-          <Input
-            fill mono
-            type="text"
-            placeholder={t('admin.staff.fieldDisplayNamePlaceholder')}
-            bind:value={draft.displayName}
-          />
-        </Field>
-      {:else if member}
+  <Scroller fill padding="var(--bb-space-4)">
+    <Stack gap={4}>
+      {#if member}
+        <input type="hidden" name="user_id" value={draft.userId} />
+        <input type="hidden" name="login" value={draft.login} />
+        <input type="hidden" name="display_name" value={draft.displayName} />
         <Cluster gap={3} nowrap>
-          <Bolota name={member.display_name || member.login} size={44} active />
-          <div>
-            <Heading level={5} as="div" variant="title">{member.display_name || member.login}</Heading>
-            <Text as="div" size="xs" mono tone="muted">
-              {t('admin.staff.rowMeta', {
-                login: member.login,
-                id: String(member.id),
-                when: ago(member.created_at)
-              })}
+          <Bolota name={member.display_name || member.login} size={40} active cycle={false} />
+          <div class="identity">
+            <Heading level={2} variant="title" id="staff-member-name" tabindex={-1}>{member.display_name || member.login}</Heading>
+            <Text as="div" size="xs" mono tone="muted" truncate>
+              {t('admin.staff.rowMeta', { login: member.login, id: String(member.id) })}
+            </Text>
+            <Text as="div" size="xs" tone="muted">
+              {t('admin.staff.added', { date: dateFormat.format(new Date(member.created_at)) })}
             </Text>
           </div>
         </Cluster>
+      {:else}
+        <Field label={t('admin.staff.fieldUserId')} fit>
+          <Input id="staff-user-id" name="user_id" fill mono inputmode="numeric" pattern="[0-9]+" required
+            placeholder={t('admin.staff.fieldUserIdPlaceholder')} bind:value={draft.userId} disabled={busy} />
+        </Field>
+        <Field label={t('admin.staff.fieldLogin')} fit>
+          <Input name="login" fill required placeholder={t('admin.staff.fieldLoginPlaceholder')}
+            bind:value={draft.login} disabled={busy} />
+        </Field>
+        <Field label={t('admin.staff.fieldDisplayName')} fit>
+          <Input name="display_name" fill placeholder={t('admin.staff.fieldDisplayNamePlaceholder')}
+            bind:value={draft.displayName} disabled={busy} />
+        </Field>
       {/if}
 
-      <section class="block">
-        <Heading level={3} variant="label">{t('admin.staff.roleLabel')}</Heading>
-        <RadioGroup
-          name="role"
-          options={roleOptions}
-          label={t('admin.staff.roleLabel')}
-          bind:value={
-            () => draft.role,
-            (v) => (draft = { ...draft, role: v as AdminRole })
-          }
-        />
-      </section>
-
-      {#if member && canToggleAccess}
-        <section class="block">
-          <Heading level={3} variant="label">{t('admin.staff.activeLabel')}</Heading>
-          <Switch
-            checked={member.active}
-            label={t('admin.staff.activeLabel')}
-            describedby="staff-access-hint"
-            disabled={busy}
-            onCheckedChange={onAccess}
-          />
-          <Text size="xs" tone="muted" id="staff-access-hint">{t('admin.staff.activeHint')}</Text>
-        </section>
-      {/if}
+      <Stack gap={1}>
+        <Field label={t('admin.staff.roleLabel')} fit>
+          <Select name="role" label={t('admin.staff.roleLabel')} options={roleOptions} fill required
+            disabled={busy || !canEditRole} aria-describedby={canEditRole ? undefined : 'staff-role-hint'}
+            bind:value={() => canEditRole ? draft.role : member?.role ?? draft.role,
+              (value) => (draft = { ...draft, role: value as AdminRole })} />
+        </Field>
+        {#if member}
+          <div class="bb-collapse" style="--bb-collapse-gap: var(--bb-space-1)" class:is-open={!canEditRole} aria-hidden={canEditRole} inert={canEditRole} id="staff-role-hint">
+            <div>
+              <div class="role-hint bb-fit-box">
+                <Text as="span" size="xs" tone="muted"><bb-fit><span data-fit>{t('admin.staff.roleRestricted')}</span></bb-fit></Text>
+              </div>
+            </div>
+          </div>
+        {/if}
+      </Stack>
 
       {#if member}
-        <section class="block">
-          <Heading level={3} variant="label">{t('admin.staff.historyTitle')}</Heading>
-          {#if history === null}
-            <Text size="xs" tone="muted">{t('admin.staff.historyLoading')}</Text>
-          {:else if historyError}
-            <Text size="xs" tone="danger">{historyError}</Text>
-          {:else if history.length === 0}
-            <Text size="xs" tone="muted">{t('admin.staff.historyEmpty')}</Text>
-          {:else}
-            <ul class="bb-list hist">
-              {#each history as e (e.id)}
-                <li class="hist-row">
-                  <StatusDot tone={statusTone(e.ok ? 'online' : 'degraded')} />
-                  <span class="hist-body">
-                    <Text as="span" size="xs" mono truncate>{e.action}{e.target ? ` → ${e.target}` : ''}</Text>
-                    {#if e.detail}<Text as="span" size="xs" mono tone="muted">{e.detail}</Text>{/if}
-                    {#if !e.ok && e.error}<Text as="span" size="xs" mono tone="danger">{e.error}</Text>{/if}
-                  </span>
-                  <span class="hist-when"><Text as="span" size="xs" mono tone="muted">{ago(e.created_at)}</Text></span>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </section>
+        <Stack as="section" gap={2} aria-labelledby="staff-access-title">
+          <Cluster justify="between" nowrap>
+            <Heading id="staff-access-title" level={3} variant="label">{t('admin.staff.activeLabel')}</Heading>
+            <Switch
+              bind:checked={() => member?.active ?? false, onAccess}
+              label={t('admin.staff.activeLabel')}
+              describedby="staff-access-hint"
+              disabled={busy || !canToggleAccess}
+            />
+          </Cluster>
+          <div class="access-hint bb-fit-box" id="staff-access-hint">
+            <Text as="div" size="xs" tone="muted">
+              <bb-fit mode="block"><span data-fit>{t(canToggleAccess ? 'admin.staff.activeHint' : 'admin.staff.accessRestricted')}</span></bb-fit>
+            </Text>
+          </div>
+        </Stack>
+
+        <StaffHistory pending={history} onRetry={onRetryHistory} />
       {/if}
-    </div>
+    </Stack>
   </Scroller>
 
   <EditorFooter
     {status}
     {dirty}
     {canSave}
-    saveLabel={creating ? t('admin.staff.addCta') : t('common.save')}
+    saveLabel={member ? t('common.save') : t('admin.staff.addCta')}
     cancelLabel={t('common.cancel')}
     savingLabel={t('admin.saving')}
     savedLabel={t('admin.saved')}
@@ -182,41 +153,16 @@
   .editor {
     display: flex;
     flex-direction: column;
-    min-height: 0;
-    max-height: 100%;
-  }
-  .body {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
+    min-block-size: 0;
+    max-block-size: 100%;
   }
 
-  .block {
-    display: flex;
-    flex-direction: column;
-    gap: var(--bb-space-2);
-  }
-
-  .hist {
-    display: flex;
-    flex-direction: column;
-    gap: var(--bb-space-2);
-  }
-  .hist-row {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--bb-space-2);
-    min-width: 0;
-  }
-  .hist-body {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
+  .identity {
+    min-inline-size: 0;
     overflow-wrap: anywhere;
   }
-  .hist-when {
-    white-space: nowrap;
+
+  .access-hint {
+    block-size: 2.25rem;
   }
 </style>

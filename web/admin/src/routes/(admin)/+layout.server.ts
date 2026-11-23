@@ -5,6 +5,7 @@ import type { LayoutServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import { requireAdmin } from '#lib/server/access';
+import { liveUserCount } from '#lib/server/live-count';
 import { notificationsList, type NotificationWire } from '#lib/server/services';
 
 const BELL_PEEK = 5;
@@ -27,6 +28,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
     displayName: admin.display_name,
     login: admin.login,
     role: admin.role,
-    recentNotifications
+    recentNotifications,
+    liveCount: liveUserCount(admin.id)
   };
 };

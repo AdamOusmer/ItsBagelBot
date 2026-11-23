@@ -10,7 +10,7 @@ import { applyFeaturePreset } from '#lib/server/feature-presets';
 import { count } from '@bagel/kit/server/analytics';
 import { SERVER_STRATEGIES } from '#lib/server/importer';
 import { actionError } from '#lib/server/action-errors';
-import { isOwnerSession } from '#lib/server/owner';
+import { hasOwnerAccess, isSelfSignIn } from '#lib/server/owner';
 import type { Session } from '#lib/server/session';
 import { IMPORT_SOURCES, type ImportSource } from '@bagel/kit';
 import { translate, type Locale } from '@bagel/kit/i18n';
@@ -47,7 +47,7 @@ function connectedSources(cookies: Cookies): Record<ImportSource, boolean> {
 function owner(locals: App.Locals) {
   const s = locals.session;
   if (!s) return { failure: fail(401, { error: actionError(locals.locale, 'Sign in to finish setup.') }) };
-  if (!isOwnerSession(s)) return { failure: fail(403, { error: actionError(locals.locale, 'Only the channel owner can finish setup.') }) };
+  if (!hasOwnerAccess(s)) return { failure: fail(403, { error: actionError(locals.locale, 'Only the channel owner can finish setup.') }) };
   return { uid: s.user_id };
 }
 
@@ -99,7 +99,7 @@ function recordConsentFailure<T extends { status: number }>(failure: T): T {
 export const load: PageServerLoad = async ({ locals, cookies }) => {
   const s = await tourSession(locals);
   if (!s) throw redirect(302, `/login?next=${encodeURIComponent('/welcome')}`);
-  if (!isOwnerSession(s)) throw redirect(303, '/');
+  if (!isSelfSignIn(s)) throw redirect(303, '/');
   const accepted = termsAccepted(locals);
   count('onboarding.steps', 'viewed');
   return {

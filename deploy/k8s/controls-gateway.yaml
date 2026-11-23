@@ -1,0 +1,260 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: controls-gateway-env
+  namespace: app
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: controls-gateway-doppler-token
+  managedSecret:
+    name: controls-gateway-env
+    namespace: app
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controls-gateway
+  namespace: app
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: controls-gateway
+  template:
+    metadata:
+      labels:
+        app: controls-gateway
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp, worker]
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: controls-gateway
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile: {type: RuntimeDefault}
+      priorityClassName: bagel-service
+      terminationGracePeriodSeconds: 45
+      containers:
+        - name: controls-gateway
+          image: ghcr.io/adamousmer/itsbagelbot/controls-gateway:main-1795463455-f24e807fdc6a@sha256:15c4ef3055d5d475a565cb32c894a3dbeebb544defd7eaa83346c8c740574ee2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CONTROLS_GATEWAY_PORT
+              value: "4000"
+            - name: LOG_LEVEL
+              value: info
+            - name: TLS_CERT_FILE
+              value: /etc/controls-gateway/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/controls-gateway/tls/tls.key
+            - name: NEW_RELIC_APP_NAME
+              value: "ItsBagelBot-ControlsGateway"
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: controls-gateway-env
+                  key: NEW_RELIC_LICENSE_KEY
+                  optional: true
+            - name: OVERLAY_COOKIE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: controls-gateway-env
+                  key: OVERLAY_COOKIE_KEY
+            - name: NATS_HOST
+              value: nats.messaging.svc.cluster.local
+            - name: NATS_PORT
+              value: "4222"
+            - name: NATS_RPC_HOST
+              value: nats-leaf.messaging
+            - name: NATS_RPC_PORT
+              value: "4222"
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
+            - name: NATS_JWT
+              valueFrom:
+                secretKeyRef:
+                  name: controls-gateway-env
+                  key: NATS_RPC_JWT
+            - name: NATS_NKEY_SEED
+              valueFrom:
+                secretKeyRef:
+                  name: controls-gateway-env
+                  key: NATS_RPC_NKEY_SEED
+            - name: RELEASE_DISTRIBUTION
+              value: none
+            - name: ERL_FLAGS
+              value: >-
+                +S 2:2 +SDcpu 2:2 +SDio 2 +sbwt short +sbwtdcpu none +sbwtdio none +P 262144 +Q 65536
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: gateway-tls, mountPath: /etc/controls-gateway/tls, readOnly: true}
+          ports:
+            - name: https
+              containerPort: 4000
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
+          livenessProbe:
+            httpGet: {path: /healthz, port: https, scheme: HTTPS}
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet: {path: /readyz, port: https, scheme: HTTPS}
+            periodSeconds: 5
+            timeoutSeconds: 5
+          startupProbe:
+            httpGet: {path: /healthz, port: https, scheme: HTTPS}
+            failureThreshold: 18
+            periodSeconds: 5
+      volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: gateway-tls
+          secret:
+            secretName: controls-gateway-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: controls-gateway
+  namespace: app
+spec:
+  selector:
+    app: controls-gateway
+  ports:
+    - name: https
+      port: 443
+      targetPort: https
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: controls-gateway
+  namespace: app
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: >-
+        Host(`overlay.itsbagelbot.com`) &&
+        PathRegexp(`^/+(tts|o)/+session/*$`)
+      kind: Rule
+      middlewares: [{name: overlay-session-ratelimit}, {name: strip-client-ip}]
+      observability:
+        accessLogs: false
+      services:
+        - name: controls-gateway
+          port: 443
+          scheme: https
+          serversTransport: controls-gateway-transport
+          nativeLB: false
+    - match: Host(`overlay.itsbagelbot.com`)
+      kind: Rule
+      middlewares: [{name: strip-client-ip}]
+      observability:
+        accessLogs: false
+      services:
+        - name: controls-gateway
+          port: 443
+          scheme: https
+          serversTransport: controls-gateway-transport
+          nativeLB: false
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: overlay-session-ratelimit
+  namespace: app
+spec:
+  rateLimit:
+    average: 10
+    period: 1m
+    burst: 10
+    sourceCriterion:
+      requestHeaderName: CF-Connecting-IP
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: controls-gateway-transport
+  namespace: app
+spec:
+  serverName: overlay.itsbagelbot.com
+  rootCAsSecrets:
+    - controls-gateway-tls
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: controls-gateway
+  namespace: app
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: controls-gateway

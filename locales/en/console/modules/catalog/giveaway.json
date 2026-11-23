@@ -1,0 +1,74 @@
+{
+  "label": "Giveaways",
+  "tagline": "Draw item prizes for your viewers.",
+  "description": "Open entries in chat, draw winners and track claims and prize delivery.",
+  "settings": {
+    "defaultPrize": {
+      "label": "Default prize"
+    },
+    "winners": {
+      "label": "Default winners"
+    },
+    "windowSeconds": {
+      "label": "Entry window (seconds)"
+    },
+    "claimSeconds": {
+      "label": "Claim window (seconds)",
+      "help": "Use 0 to turn off claims."
+    },
+    "rerollNoShows": {
+      "label": "Automatically reroll no-shows"
+    },
+    "openedEnabled": {
+      "label": "Opening line"
+    },
+    "wonEnabled": {
+      "label": "Winner line"
+    },
+    "noShowEnabled": {
+      "label": "No-show line"
+    },
+    "refusalEnabled": {
+      "label": "Entry refusal line"
+    },
+    "openedMessage": {
+      "label": "Opening message",
+      "placeholder": "Giveaway: {giveaway:prize} | Winners: {giveaway:count} | Time: {giveaway:left}. Type !join."
+    },
+    "wonMessage": {
+      "label": "Winner message",
+      "placeholder": "{giveaway:targets} won {giveaway:prize}!"
+    },
+    "defaultPreset": {
+      "label": "Default preset"
+    },
+    "presets": {
+      "label": "Rule presets"
+    }
+  },
+  "replies": {
+    "opened": {
+      "label": "Opening line",
+      "tagline": "When entries open.",
+      "event": "!giveaway start",
+      "defaultMessage": "Giveaway: {giveaway:prize} | Winners: {giveaway:count} | Time: {giveaway:left}. Type !join."
+    },
+    "won": {
+      "label": "Winner line",
+      "tagline": "When the draw names its winners.",
+      "event": "!giveaway draw",
+      "defaultMessage": "{giveaway:targets} won {giveaway:prize}!"
+    }
+  },
+  "commands": {
+    "giveaway_start_preset_prize": "Open a giveaway with an optional preset and prize.",
+    "giveaway_draw": "Close entries and draw winners.",
+    "giveaway_cancel": "Cancel the open giveaway.",
+    "reroll_slot": "Replace a candidate or reroll all no-shows.",
+    "join": "Enter the open giveaway.",
+    "check": "Check giveaway eligibility.",
+    "claim": "Claim a winning slot.",
+    "winner": "Show the latest giveaway winners.",
+    "enter": "Enter the open giveaway with an alternate trigger."
+  }
+}

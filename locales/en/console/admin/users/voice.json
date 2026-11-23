@@ -1,0 +1,14 @@
+{
+  "title": "Premium voice",
+  "usage": "{used} of {limit} minutes used this month",
+  "resets": "Resets on {date} (UTC)",
+  "reset": "Reset usage",
+  "set": "Set usage",
+  "resetConfirm": "Reset Premium voice usage for @{login} to zero for the current UTC month?",
+  "setConfirm": "Set the share of the current UTC month’s Premium voice allowance already used by @{login}.",
+  "percent": "Allowance used (%)",
+  "resetDone": "Premium voice usage reset.",
+  "setDone": "Premium voice usage updated.",
+  "invalidChange": "Choose reset or enter a whole percentage from 0 to 100.",
+  "noAllowance": "This user has no Premium voice allowance."
+}

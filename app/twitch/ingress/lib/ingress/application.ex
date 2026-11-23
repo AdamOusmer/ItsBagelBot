@@ -54,12 +54,33 @@ defmodule Ingress.Application do
       Ingress.Metrics,
       # Must start before the Dispatcher and Squash, which publish through it.
       Ingress.Nats.PublisherPool,
-      {Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor},
-      Ingress.BroadcasterCache,
+      invalidated_cache_child(
+        [name: Ingress.Invalidations, plane: :gnat, prefix: invalidation_prefix()],
+        scope: invalidation_scope()
+      ),
       Ingress.Squash.Pool,
       Ingress.Dispatcher.Supervisor
     ]
   end
+
+  @doc false
+  def invalidated_cache_child(feed_opts, cache_opts) do
+    cache_opts = Keyword.put(cache_opts, :feed, Keyword.fetch!(feed_opts, :name))
+    children = [{Platform.Invalidations, feed_opts}, {Ingress.BroadcasterCache, cache_opts}]
+
+    %{
+      id: Ingress.BroadcasterCache.Supervisor,
+      type: :supervisor,
+      start: {Supervisor, :start_link, [children, [strategy: :rest_for_one]]}
+    }
+  end
+
+  defp invalidation_prefix do
+    [_scope | prefix] = Config.invalidation_subject() |> String.split(".") |> Enum.reverse()
+    prefix |> Enum.reverse() |> Enum.join(".")
+  end
+
+  defp invalidation_scope, do: Config.invalidation_subject() |> String.split(".") |> List.last()
 
   @doc false
   def shard_supervisor_options do
@@ -121,11 +142,6 @@ defmodule Ingress.Application do
 
   defp control_children do
     [
-      consumer_child(
-        :invalidation_consumer,
-        Ingress.CacheInvalidator,
-        Config.invalidation_subject()
-      ),
       rpc_consumer_child(:admin_consumer, Ingress.AdminRpc, AdminConfig.admin_subject(),
         queue_group: @admin_queue
       ),
@@ -136,9 +152,6 @@ defmodule Ingress.Application do
         :autoscale_consumer,
         Ingress.AutoscaleRpc,
         AdminConfig.autoscale_subject(),
-        queue_group: @admin_queue
-      ),
-      rpc_consumer_child(:conduit_consumer, Ingress.ConduitRpc, AdminConfig.conduit_subject(),
         queue_group: @admin_queue
       ),
       rpc_consumer_child(:health_consumer, Ingress.HealthRpc, AdminConfig.rpc_health_subject(),
@@ -162,10 +175,6 @@ defmodule Ingress.Application do
       _half_set ->
         raise "TLS_CERT_FILE and TLS_KEY_FILE must both be set or both empty"
     end
-  end
-
-  defp consumer_child(id, module, topic, opts \\ []) do
-    consumer_topics_child(id, module, [topic], opts)
   end
 
   defp rpc_consumer_child(id, module, topic, opts) do

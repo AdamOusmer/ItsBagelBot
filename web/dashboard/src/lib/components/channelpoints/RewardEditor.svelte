@@ -10,9 +10,15 @@
   import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
   import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import '@bagel/ui/styles/elements/collapse.css';
   import { namespaceReplySamples, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
   import ResponseEditor from '#lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '#lib/components/commands/ChatPreview.svelte';
+  import HeldText from '#lib/components/shared/HeldText.svelte';
+  import PremiumMark from '#lib/components/shared/PremiumMark.svelte';
+  import { premiumLocked } from '#lib/components/shared/premium-lock';
+  import VoiceOverrideFields from '#lib/components/voice/VoiceOverrideFields.svelte';
+  import { page } from '$app/state';
   import { REWARD_ERROR_KEYS, rewardErrors, type RewardErrorField } from './reward-draft';
 
   let {
@@ -57,6 +63,15 @@
   const scopeOptions = SCOPES.map((s) => ({ value: s.value, label: s.label }));
   const scopeDesc = $derived(SCOPES.find((s) => s.value === draft.counterScope)?.desc ?? '');
 
+  const replyOn = $derived(draft.action === 'chat');
+  const speakOn = $derived(draft.action === 'speak');
+  const speakLocked = $derived(premiumLocked(page.data) && !speakOn);
+
+  $effect(() => {
+    if (speakOn && !draft.isUserInputRequired) draft.isUserInputRequired = true;
+  });
+  const gateOn = $derived(counterOn || pointsOn);
+
   const errors = $derived(rewardErrors(draft, counterOn, pointsOn));
   const shown = (field: RewardErrorField) => (attempted && errors[field] ? t(REWARD_ERROR_KEYS[field]) : undefined);
   const titleError = $derived(shown('title'));
@@ -64,6 +79,7 @@
   const counterError = $derived(shown('counter'));
   const pointsError = $derived(shown('points'));
   const perStreamError = $derived(shown('perStream'));
+  const perStreamNoteOn = $derived(draft.maxPerStreamEnabled || !!perStreamError);
   const perUserError = $derived(shown('perUser'));
   const cooldownError = $derived(shown('cooldown'));
 </script>
@@ -106,7 +122,7 @@
   </Field>
 
   <div class="check">
-    <Checkbox bind:checked={draft.isUserInputRequired}>{t('channelpoints.requireInput')}</Checkbox>
+    <Checkbox bind:checked={draft.isUserInputRequired} disabled={speakOn}>{t('channelpoints.requireInput')}</Checkbox>
   </div>
 
   <div class="check">
@@ -115,18 +131,37 @@
     </Checkbox>
   </div>
 
-  {#if draft.action === 'chat'}
-    <Field label={t('channelpoints.fieldMessage')}>
-      <ResponseEditor bind:value={draft.message} surface="reward:channelpoints" placeholder={DEFAULT_MESSAGE} />
-    </Field>
-    <ChatPreview
-      kind="reply"
-      response={draft.message || DEFAULT_MESSAGE}
-      showViewer={false}
-      tag={t('channelpoints.previewTag')}
-      {samples}
-    />
-  {/if}
+  <div class="bb-collapse" class:is-open={replyOn} aria-hidden={!replyOn} inert={!replyOn}>
+    <div>
+      <Field label={t('channelpoints.fieldMessage')}>
+        <ResponseEditor bind:value={draft.message} surface="reward:channelpoints" placeholder={DEFAULT_MESSAGE} />
+      </Field>
+      <ChatPreview
+        kind="reply"
+        response={draft.message || DEFAULT_MESSAGE}
+        showViewer={false}
+        tag={t('channelpoints.previewTag')}
+        {samples}
+      />
+    </div>
+  </div>
+
+  <div class="check speak">
+    <Checkbox bind:checked={() => speakOn, (on: boolean) => (draft.action = on ? 'speak' : 'none')} disabled={speakLocked}>
+      {t('channelpoints.speakToggle')}
+    </Checkbox>
+    <span class="speak-lock"><PremiumMark size={32} /></span>
+  </div>
+
+  <div class="bb-collapse" class:is-open={speakOn} aria-hidden={!speakOn} inert={!speakOn}>
+    <div>
+      <div class="speak-body">
+        <Text as="p" size="xs" tone="muted">{t('channelpoints.speakHint')}</Text>
+        <VoiceOverrideFields bind:voice={draft.voice} bind:style={draft.style} />
+        <Checkbox bind:checked={draft.prefixName}>{t('channelpoints.speakPrefix')}</Checkbox>
+      </div>
+    </div>
+  </div>
 
   <Field label={t('channelpoints.queueTitle')} hint={t('channelpoints.queueHint')}>
     <Select
@@ -136,7 +171,7 @@
     />
   </Field>
 
-  <Card style="--card-pad: 14px; margin-bottom: 14px">
+  <Card style="--card-pad: 16px; margin-bottom: 16px">
   <section class="hooks">
     <header class="hooks-head">
       <Text as="span" size="sm" tone="muted">{t('channelpoints.loyaltyTitle')}</Text>
@@ -144,70 +179,77 @@
 
     <div class="hook">
       <Checkbox bind:checked={counterOn}>{t('rewardCounter.enable')}</Checkbox>
-      {#if counterOn}
-        <div class="hook-body">
-          <Field
-            label={t('rewardCounter.nameLabel')}
-            hint={t('rewardCounter.nameHint')}
-            error={counterError}
-            errorId="reward-counter-err"
-          >
-            <Input
-              placeholder={t('channelpoints.fieldCounterPh')}
-              maxlength={64}
-              required
-              invalid={!!counterError}
-              aria-invalid={counterError ? 'true' : undefined}
-              aria-describedby={counterError ? 'reward-counter-err' : undefined}
-              bind:value={draft.counter}
-            />
-          </Field>
+      <div class="bb-collapse" class:is-open={counterOn} aria-hidden={!counterOn} inert={!counterOn}>
+        <div>
+          <div class="hook-body">
+            <Field
+              label={t('rewardCounter.nameLabel')}
+              hint={t('rewardCounter.nameHint')}
+              error={counterError}
+              errorId="reward-counter-err"
+            >
+              <Input
+                placeholder={t('channelpoints.fieldCounterPh')}
+                maxlength={64}
+                required={counterOn}
+                invalid={!!counterError}
+                aria-invalid={counterError ? 'true' : undefined}
+                aria-describedby={counterError ? 'reward-counter-err' : undefined}
+                bind:value={draft.counter}
+              />
+            </Field>
 
-          <Field label={t('rewardCounter.scopeLabel')} hint={scopeDesc}>
-            <RadioGroup name="counterScope" bind:value={draft.counterScope} options={scopeOptions} label={t('rewardCounter.scopeLabel')} />
-          </Field>
+            <Field label={t('rewardCounter.scopeLabel')} hint={scopeDesc}>
+              <RadioGroup name="counterScope" bind:value={draft.counterScope} options={scopeOptions} label={t('rewardCounter.scopeLabel')} />
+            </Field>
 
-          <Code block wrap>{t('rewardCounter.tokenNote')}</Code>
+            <Code block wrap>{t('rewardCounter.tokenNote')}</Code>
+          </div>
         </div>
-      {/if}
+      </div>
     </div>
 
     <div class="hook">
       <Checkbox bind:checked={pointsOn}>{t('rewardCounter.pointsEnable')}</Checkbox>
-      {#if pointsOn}
-        <div class="hook-body">
-          <div class="points-field">
-            <Field label={t('rewardCounter.pointsLabel')} hint={t('rewardCounter.pointsHint')} error={pointsError} errorId="reward-points-err">
-              <span class="points-input">
-                <span class="plus">+</span>
-                <span class="points-num"><Input
-                    type="number"
-                    min={1}
-                    invalid={!!pointsError}
-                    aria-invalid={pointsError ? 'true' : undefined}
-                    aria-describedby={pointsError ? 'reward-points-err' : undefined}
-                    bind:value={draft.points}
-                  /></span>
-              </span>
-            </Field>
+      <div class="bb-collapse" class:is-open={pointsOn} aria-hidden={!pointsOn} inert={!pointsOn}>
+        <div>
+          <div class="hook-body">
+            <div class="points-field">
+              <Field label={t('rewardCounter.pointsLabel')} hint={t('rewardCounter.pointsHint')} error={pointsError} errorId="reward-points-err">
+                <span class="points-input">
+                  <span class="plus">+</span>
+                  <span class="points-num"><Input
+                      type="number"
+                      min={1}
+                      invalid={!!pointsError}
+                      aria-invalid={pointsError ? 'true' : undefined}
+                      aria-describedby={pointsError ? 'reward-points-err' : undefined}
+                      bind:value={draft.points}
+                    /></span>
+                </span>
+              </Field>
+            </div>
           </div>
         </div>
-      {/if}
+      </div>
     </div>
 
-    {#if counterOn || pointsOn}
-      <div class="hook live-gate">
-        <Checkbox bind:checked={draft.liveOnly}>{t('rewardCounter.liveOnly')}</Checkbox>
-        <span class="live-hint"><Text as="small" size="xs" tone="muted">{t('rewardCounter.liveOnlyHint')}</Text></span>
+    <div class="bb-collapse gate" class:is-open={gateOn} aria-hidden={!gateOn} inert={!gateOn}>
+      <div>
+        <div class="hook live-gate">
+          <Checkbox bind:checked={draft.liveOnly}>{t('rewardCounter.liveOnly')}</Checkbox>
+          <span class="live-hint"><Text as="small" size="xs" tone="muted">{t('rewardCounter.liveOnlyHint')}</Text></span>
+        </div>
       </div>
-    {/if}
+    </div>
   </section>
   </Card>
 
-  <Card style="--card-pad: 14px; margin-bottom: 14px">
+  <Card style="--card-pad: 16px; margin-bottom: 16px">
   <div class="limits">
     <Text as="span" size="sm" tone="muted">{t('channelpoints.limits')}</Text>
 
+    <div class="limit-group">
     <div class="limit">
       <Checkbox bind:checked={draft.maxPerStreamEnabled}>{t('channelpoints.limitPerStream')}</Checkbox>
       <span class="limit-num" class:off={!draft.maxPerStreamEnabled}>
@@ -222,10 +264,16 @@
         />
       </span>
     </div>
-    <span class="limit-note" class:off={!draft.maxPerStreamEnabled && !perStreamError} role={perStreamError ? 'alert' : undefined}>
-      <Text as="small" size="xs" tone={perStreamError ? 'danger' : 'muted'}>{perStreamError ?? t('channelpoints.limitPerStreamHint')}</Text>
-    </span>
+    <div class="bb-collapse" class:is-open={perStreamNoteOn} aria-hidden={!perStreamNoteOn} inert={!perStreamNoteOn}>
+      <div>
+        <div class="limit-note" role={perStreamError ? 'alert' : undefined}>
+          <Text as="small" size="xs" tone={perStreamError ? 'danger' : 'muted'}>{perStreamError ?? t('channelpoints.limitPerStreamHint')}</Text>
+        </div>
+      </div>
+    </div>
+    </div>
 
+    <div class="limit-group">
     <div class="limit">
       <Checkbox bind:checked={draft.maxPerUserPerStreamEnabled}>{t('channelpoints.limitPerUser')}</Checkbox>
       <span class="limit-num" class:off={!draft.maxPerUserPerStreamEnabled}>
@@ -240,10 +288,16 @@
         />
       </span>
     </div>
-    <span class="limit-note" role={perUserError ? 'alert' : undefined}>
-      <Text as="small" size="xs" tone="danger">{perUserError ?? ''}</Text>
-    </span>
+    <div class="bb-collapse" class:is-open={!!perUserError} aria-hidden={!perUserError} inert={!perUserError}>
+      <div>
+        <div class="limit-note" role={perUserError ? 'alert' : undefined}>
+          <Text as="small" size="xs" tone="danger"><HeldText text={perUserError} /></Text>
+        </div>
+      </div>
+    </div>
+    </div>
 
+    <div class="limit-group">
     <div class="limit">
       <Checkbox bind:checked={draft.globalCooldownEnabled}>{t('channelpoints.limitCooldown')}</Checkbox>
       <span class="limit-num" class:off={!draft.globalCooldownEnabled}>
@@ -258,9 +312,14 @@
         />
       </span>
     </div>
-    <span class="limit-note" role={cooldownError ? 'alert' : undefined}>
-      <Text as="small" size="xs" tone="danger">{cooldownError ?? ''}</Text>
-    </span>
+    <div class="bb-collapse" class:is-open={!!cooldownError} aria-hidden={!cooldownError} inert={!cooldownError}>
+      <div>
+        <div class="limit-note" role={cooldownError ? 'alert' : undefined}>
+          <Text as="small" size="xs" tone="danger"><HeldText text={cooldownError} /></Text>
+        </div>
+      </div>
+    </div>
+    </div>
   </div>
   </Card>
 
@@ -276,31 +335,35 @@
   .cost-field { flex: 1; min-width: 0; }
   .color-field { flex: none; }
 
-  .check { margin: 4px 0 14px; --bb-check-align: center; }
+  .check { margin: 4px 0 16px; --bb-check-align: center; }
+  .check.speak { display: flex; align-items: center; gap: var(--bb-space-2); }
+  .speak-lock { display: inline-flex; margin-left: auto; }
+  .speak-body { display: flex; flex-direction: column; gap: 12px; margin: 0 0 14px 26px; --field-mb: 0; }
 
   .hooks {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
   .hooks-head {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     margin-bottom: 4px;
   }
   .hook { display: flex; flex-direction: column; --bb-check-align: center; }
-  .hook + .hook { padding-top: 12px; margin-top: 6px; }
+  .hook + .hook { padding-top: 12px; margin-top: 8px; }
 
   .hook-body {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
     margin: 12px 0 4px;
   }
   .hook-body { --field-mb: 0; }
 
-  .live-gate { gap: 4px; }
+  .gate { --bb-collapse-gap: 8px; }
+  .live-gate { gap: 4px; padding-block-start: 16px; }
   .live-hint { margin: 2px 0 0 26px; }
 
   .points-field { max-width: 220px; }
@@ -318,11 +381,11 @@
     flex-direction: column;
     gap: 12px;
   }
-  .limit { display: flex; align-items: center; gap: 10px; --bb-check-flex: 1; --bb-check-align: center; }
+  .limit { display: flex; align-items: center; gap: 8px; --bb-check-flex: 1; --bb-check-align: center; }
   .limit-num { display: block; width: 88px; flex: none; }
   .limit-num.off { visibility: hidden; opacity: 0; }
-  .limit-note { display: block; margin: -6px 0 0 26px; min-height: 16px; }
-  .limit-note.off { visibility: hidden; opacity: 0; }
+  .limit-group { display: flex; flex-direction: column; gap: 8px; --bb-collapse-gap: 8px; }
+  .limit-note { padding-inline-start: 26px; }
 
   @media (max-width: 480px) {
     .field-row { flex-direction: column; gap: 0; }

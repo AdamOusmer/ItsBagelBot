@@ -16,5 +16,7 @@
   "tag": "Etiqueta de imagen",
   "pin": "Fijar",
   "clear": "Quitar",
-  "error": "Estado de Flux no disponible: {error}"
+  "error": "Estado de Flux no disponible: {error}",
+  "unavailable": "El estado de Flux no está disponible.",
+  "noTiers": "No se encontraron niveles del clúster."
 }

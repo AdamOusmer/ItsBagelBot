@@ -8,6 +8,7 @@ import type { Session } from '#lib/server/session';
 import { RpcError } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { containsLink } from '@bagel/kit/validation';
+import { isLoginShape, normalizeLogin } from '#lib/public-login';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { giveawayPrizes, type PrizeAward } from '#lib/server/giveaways';
@@ -20,7 +21,7 @@ type CheckoutFailure = 'unavailable' | 'rejected' | 'blocked';
 const PREMIUM_HELD_ERRORS = new Set(['that user already has premium', 'that account already has premium coverage']);
 
 function billingActor(s: Session | null | undefined): { id: string; login: string } | null {
-  if (!s || s.impersonator_id) return null;
+  if (!s) return null;
   if (s.delegate_of && !(s.sections ?? []).includes('billing')) return null;
   if (s.delegate_of) {
     return { id: s.delegate_of, login: s.delegate_login ?? s.login };
@@ -75,7 +76,7 @@ function giftValidate(form: FormData, locale: App.Locals['locale']): { ok: true;
   if (!recipient) {
     return giftFailure({ recipient, message }, 400, actionError(locale, 'Enter the Twitch username to gift to.'));
   }
-  if (!/^@?[A-Za-z0-9_]{3,25}$/.test(recipient)) {
+  if (!isLoginShape(normalizeLogin(recipient))) {
     return giftFailure({ recipient, message }, 400, actionError(locale, 'That does not look like a Twitch username.'));
   }
   if (message && containsLink(message)) {

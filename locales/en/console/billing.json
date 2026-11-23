@@ -67,6 +67,7 @@
   "premiumFeat3": "Faster command responses",
   "premiumFeat4": "Priority support",
   "premiumFeat5": "Early access to beta features, AutoMod first",
+  "premiumFeat6": "Premium voice for alerts (Beta)",
   "premiumFine": "Monthly renews automatically until cancelled. One month is a single charge, no renewal.",
   "premiumGateBody": "Premium keeps the servers warm, moves you to the front of the queue and gets you new features first.",
   "premiumGateCta": "Get Premium",
@@ -95,5 +96,6 @@
   "activating": "Activating",
   "paymentFailed": "Your last renewal payment failed. Update your payment method on Tebex to keep Premium going.",
   "updatePayment": "Update payment method",
-  "receiptsEmailed": "Tebex emails a receipt to your purchase email after every payment."
+  "receiptsEmailed": "Tebex emails a receipt to your purchase email after every payment.",
+  "premiumOnly": "Premium only"
 }

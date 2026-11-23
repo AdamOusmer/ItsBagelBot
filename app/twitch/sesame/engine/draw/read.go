@@ -1,0 +1,126 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+package draw
+
+import (
+	"context"
+	"slices"
+	"strconv"
+
+	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/valkey"
+)
+
+type snapshot struct {
+	round  Round
+	slots  []Slot
+	stored valkey.RoundRead
+}
+
+func (s *Store) read(ctx context.Context, id RoundID) (snapshot, error) {
+	keys := keysFor(0, id)
+	raw, err := keys.Read(ctx, s.client)
+	return decodeSnapshot(id, raw, err)
+}
+
+func decodeSnapshot(id RoundID, raw valkey.RoundRead, err error) (snapshot, error) {
+	if err != nil || !raw.Found {
+		return snapshot{}, err
+	}
+	r, err := decodeRound(id, raw.Round)
+	if err != nil {
+		return snapshot{}, err
+	}
+	slots := make([]Slot, 0, len(raw.Slots))
+	for _, field := range raw.Slots {
+		var slot Slot
+		if err := codec.Unmarshal([]byte(field), &slot); err != nil {
+			return snapshot{}, err
+		}
+		slots = append(slots, slot)
+	}
+	slices.SortFunc(slots, func(a, b Slot) int { return a.N - b.N })
+	return snapshot{round: r, slots: slots, stored: raw}, nil
+}
+
+func (s *Store) metadata(ctx context.Context, ch ChannelID, id RoundID) (Round, error) {
+	keys := keysFor(ch, id)
+	raw, err := keys.Metadata(ctx, s.client)
+	if err != nil || len(raw) == 0 {
+		return Round{}, err
+	}
+	return decodeRound(id, raw)
+}
+
+func decodeRound(id RoundID, raw map[string]string) (Round, error) {
+	r := Round{ID: id, Channel: ChannelID(parseUint(raw["channel"])), Phase: Phase(raw["phase"]),
+		OpenedAt: fromMillis(parseInt(raw["opened_at"])), ClosesAt: fromMillis(parseInt(raw["closes_at"])),
+		LiveAtOpen: raw["live_at_open"] == "true",
+		SettledAt:  fromMillis(parseInt(raw["settled_at"])), ClaimPausedAt: fromMillis(parseInt(raw["claim_paused_at"])), Winners: parseCount(raw["winners"])}
+	if err := codec.Unmarshal([]byte(raw["terms"]), &r.Terms); err != nil {
+		return Round{}, err
+	}
+	if actions := raw["actions"]; actions != "" {
+		err := codec.Unmarshal([]byte(actions), &r.Actions)
+		return r, err
+	}
+	return r, nil
+}
+
+func parseInt(raw string) int64 {
+	n, _ := strconv.ParseInt(raw, 10, 64)
+	return n
+}
+
+func parseUint(raw string) uint64 {
+	n, _ := strconv.ParseUint(raw, 10, 64)
+	return n
+}
+
+type roundFilter struct {
+	phase Phase
+	kind  Kind
+}
+
+func (f roundFilter) matches(r Round) bool {
+	if f == (roundFilter{}) {
+		return livePhase(r.Phase)
+	}
+	return r.Phase == f.phase && r.isKind(f.kind)
+}
+
+func (s *Store) latest(ctx context.Context, ch ChannelID, filter roundFilter) (Round, error) {
+	ids, err := valkey.ActiveRounds(ctx, s.client, activeKey(ch))
+	if err != nil {
+		return Round{}, err
+	}
+	for _, id := range ids {
+		r, err := s.metadata(ctx, ch, RoundID(id))
+		if err != nil || filter.matches(r) {
+			return r, err
+		}
+	}
+	return Round{}, nil
+}
+
+func (s *Store) Settling(ctx context.Context, ch ChannelID, kind Kind) (Round, []Slot, bool, error) {
+	ids, err := valkey.ActiveRounds(ctx, s.client, activeKey(ch))
+	if err != nil {
+		return Round{}, nil, false, err
+	}
+	filter := roundFilter{phase: PhaseSettling, kind: kind}
+	for _, id := range ids {
+		raw, err := keysFor(ch, RoundID(id)).View(ctx, s.client)
+		data, err := decodeSnapshot(RoundID(id), raw, err)
+		if err != nil || filter.matches(data.round) {
+			return data.round, data.slots, err == nil, err
+		}
+	}
+	return Round{}, nil, false, nil
+}
+
+func parseCount(s string) int {
+	n, _ := strconv.Atoi(s)
+	return n
+}

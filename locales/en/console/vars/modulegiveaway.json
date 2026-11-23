@@ -1,0 +1,5 @@
+{
+  "name": "Giveaways",
+  "hint": "Requires the Giveaways module.",
+  "desc": "Read the current giveaway's prize, entry count or seconds left in a custom command. Use |fallback to show text when no giveaway is open."
+}

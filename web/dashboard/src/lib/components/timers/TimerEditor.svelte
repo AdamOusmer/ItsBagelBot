@@ -159,8 +159,8 @@
   .counter { display: block; text-align: right; margin-top: 4px; }
   .num { display: block; width: 100px; flex: none; }
 
-  .ends-row { display: flex; align-items: center; gap: 10px; }
+  .ends-row { display: flex; align-items: center; gap: var(--bb-space-2); }
 
-  .check { margin: 4px 0 6px; --bb-check-align: center; }
-  .toggle { margin: 14px 0 10px; }
+  .check { margin: 4px 0 8px; --bb-check-align: center; }
+  .toggle { margin: var(--bb-space-4) 0 var(--bb-space-3); }
 </style>

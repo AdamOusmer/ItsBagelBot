@@ -6,7 +6,7 @@ import type { Cookies } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
 import { isOAuthProtocolError } from '@bagel/kit/server/oauth';
-import { twitch, safeNextPath, fetchAccountEmail } from '#lib/server/oauth';
+import { twitch, safeNextPath, fetchTwitchAccount } from '#lib/server/oauth';
 import { rpc, RpcError } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { saveGrant, isBanned, delegationConsume, userLocale, setLocale, userCursor, accountState, evictRenamed } from '#lib/server/services';
@@ -23,7 +23,6 @@ const DASHBOARD = env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'rpc.dashboard';
 
 type IdTokenClaims = {
   sub: string;
-  preferred_username: string;
   aud?: string | string[];
   iss?: string;
   nonce?: string;
@@ -240,21 +239,17 @@ async function completeLogin(cookies: Cookies, url: URL, code: string, storedNon
   const claims = tokens.claims() as unknown as IdTokenClaims;
   verifyClaims(claims, storedNonce);
 
-  const identity: Identity = {
-    userId: claims.sub,
-    login: claims.preferred_username.toLowerCase(),
-    displayName: claims.preferred_username
-  };
-
-  const [banned, email, prior] = await Promise.all([
-    isBanned(identity.userId),
-    fetchAccountEmail(tokens.accessToken()),
-    priorLogin(identity.userId)
+  const [banned, account, prior] = await Promise.all([
+    isBanned(claims.sub),
+    fetchTwitchAccount(tokens.accessToken()),
+    priorLogin(claims.sub)
   ]);
   if (banned) rejectLogin('banned');
+  if (!account) rejectLogin('retry');
+  const identity: Identity = { userId: claims.sub, login: account.login, displayName: account.displayName };
 
   // Register before the delegation accept, or the ghost-session gate bounces a first-time invitee.
-  await registerUser(identity, email);
+  await registerUser(identity, account.email);
   if (prior === null) count('signup.via', splitState(url.searchParams.get('state') ?? '').via, 'signup');
   purgeNewChannelPages(identity, prior);
   const granted = tokens.scopes();

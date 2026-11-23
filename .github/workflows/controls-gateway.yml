@@ -10,11 +10,21 @@ on:
     branches: [ "main" ]
     paths:
       - 'app/controls/gateway/**'
+      - 'pkg/elixir/cache/**'
+      - 'pkg/elixir/cowboy/**'
+      - 'pkg/elixir/nats/**'
+      - 'pkg/elixir/new_relic/**'
+      - 'pkg/elixir/startup/**'
       - '.github/workflows/controls-gateway.yml'
   push:
     branches: [ "main" ]
     paths:
       - 'app/controls/gateway/**'
+      - 'pkg/elixir/cache/**'
+      - 'pkg/elixir/cowboy/**'
+      - 'pkg/elixir/nats/**'
+      - 'pkg/elixir/new_relic/**'
+      - 'pkg/elixir/startup/**'
       - '.github/workflows/controls-gateway.yml'
 
 # Superseded PR runs are cancelled; main runs are grouped by commit and never are.
@@ -72,6 +82,15 @@ jobs:
         run: |
           curl -sf https://binaries.nats.dev/nats-io/nats-server/v2@v2.15.2 | PREFIX=. sh
           sudo mv nats-server /usr/local/bin/nats-server
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: Run overlay page client tests
+        working-directory: .
+        run: node --test app/controls/gateway/test/js/client.test.js
 
       - name: Run Tests
         run: MIX_ENV=test mix test

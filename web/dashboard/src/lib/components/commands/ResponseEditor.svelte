@@ -1,9 +1,10 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { untrack } from 'svelte';
+  import { untrack, type Snippet } from 'svelte';
   import { page } from '$app/state';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
+  import '@bagel/ui/styles/elements/collapse.css';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import IconButton from '@bagel/ui/svelte/IconButton.svelte';
@@ -36,6 +37,7 @@
     fetchDefs = [],
     fetchKeys = [],
     onFetchDefsChanged,
+    extraActions,
     onblur
   }: {
     value: string;
@@ -50,6 +52,7 @@
     fetchDefs?: SourceDef[];
     fetchKeys?: { label: string }[];
     onFetchDefsChanged?: (defs: SourceDef[]) => void;
+    extraActions?: Snippet<[(token: string) => void]>;
     onblur?: () => void;
   } = $props();
 
@@ -94,7 +97,7 @@
 
   const describedFor = (i: number) => [describedby, countId(i)].filter(Boolean).join(' ');
 
-  function insert(token: string) {
+  export function insert(token: string) {
     const i = Math.min(focused, fields.length - 1);
     const el = areas[i];
     const cur = fields[i] ?? '';
@@ -140,10 +143,11 @@
   }
 
   function onKeydown(e: KeyboardEvent, i: number) {
+    const emptyExtraLine = fields.length > 1 && fields[i] === '';
     if (e.key === 'Enter') {
       e.preventDefault();
       addLine(i);
-    } else if (e.key === 'Backspace' && fields.length > 1 && fields[i] === '') {
+    } else if (e.key === 'Backspace' && emptyExtraLine) {
       e.preventDefault();
       removeLine(i);
     }
@@ -205,7 +209,7 @@
       + {i18n.t('commandEditor.addLine')}
     </Button>
     <Text as="small" size="xs" tone="muted">{i18n.t('commandEditor.linesHint', { max: String(maxLines) })}</Text>
-    <span class="lines-cap" class:on={capped}><Text as="small" size="xs" tone="accent" id={capId}>{cappedLabel}</Text></span>
+    <div class="bb-collapse lines-cap" class:is-open={capped} aria-hidden={!capped} inert={!capped}><div><div class="lines-cap-copy"><Text as="small" size="xs" tone="accent" id={capId}>{cappedLabel}</Text></div></div></div>
   </div>
 {:else}
   <div class="resp-wrap">
@@ -233,7 +237,7 @@
 <VisuallyHidden role="status" aria-live="polite">{announcement}</VisuallyHidden>
 
 <div role="toolbar" aria-label={i18n.t('commandEditor.insertVariable')}>
-  <VariablePalette {surface} {moduleFlags} {insert} {fetchDefs} {fetchKeys} {onFetchDefsChanged} />
+  <VariablePalette {surface} {moduleFlags} {insert} {fetchDefs} {fetchKeys} {onFetchDefsChanged} {extraActions} />
 </div>
 
 {#if requiredModules.length}
@@ -247,7 +251,7 @@
 {/if}
 
 <style>
-  .module-requirements { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+  .module-requirements { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 
   .resp-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 
@@ -274,16 +278,12 @@
   .lines-foot {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     margin-top: 8px;
     flex-wrap: wrap;
+    row-gap: 0;
   }
 
-  .lines-cap {
-    flex-basis: 100%;
-    min-height: 16px;
-    visibility: hidden;
-    opacity: 0;
-  }
-  .lines-cap.on { visibility: visible; opacity: 1; }
+  .lines-cap { flex-basis: 100%; }
+  .lines-cap-copy { padding-block-start: 8px; }
 </style>

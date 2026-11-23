@@ -30,6 +30,7 @@ export interface CommandView {
   uses?: string;
   created_at?: number;
   builtin?: boolean;
+  premium?: boolean;
 }
 
 export interface AdminUser {

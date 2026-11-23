@@ -25,11 +25,18 @@ type duelVoice struct {
 	points string
 }
 
-func duelAutoWonText(v duelVoice, winner string, pot int64) string {
+func duelAutoWonText(v duelVoice, payout DuelStake, balance string) string {
+	key := "duel.auto_won"
+	tokens := []string{"user", payout.Login, "amount", strconv.FormatInt(payout.Stake, 10), "points", v.points}
+	if balance == "" {
+		key = "duel.auto_won_unpaid"
+	} else {
+		tokens = append(tokens, "balance", balance)
+	}
 	return expandTokens(module.Locale(v.locale), tokenExpansion{
 		namespace: "duel",
-		text:      i18nT(v.locale, "duel.auto_won"),
-		kv:        []string{"user", winner, "amount", strconv.FormatInt(pot, 10), "points", v.points},
+		text:      i18nT(v.locale, key),
+		kv:        tokens,
 	})
 }
 

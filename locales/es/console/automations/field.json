@@ -94,5 +94,7 @@
   "brightness": "Brillo",
   "hold_s": "Volver después de",
   "paused": "En pausa",
-  "cooldown_s": "Enfriamiento global (s)"
+  "cooldown_s": "Enfriamiento global (s)",
+  "voice": "Voz",
+  "style": "Estilo"
 }

@@ -12,7 +12,7 @@
   "step2Title": "Autorisez l’accès chez Riot.",
   "step2Desc": "Connectez-vous sur le site de Riot et autorisez l’accès. De retour au tableau de bord, la carte indique « Lié en tant que Nom#Tag ».",
   "step3Title": "Testez les commandes dans le chat.",
-  "step3Desc": "Saisissez !val, !val record, !val matches, !val lb, !val account ou !val shop dans le chat Twitch.",
+  "step3Desc": "Saisissez !val, !val record, !val matches, !val lb ou !val account dans le chat Twitch.",
   "limitsNote": "Le module est désactivé par défaut. Chaque commande a un délai de 10 secondes.",
   "faqEyebrow": "FAQ",
   "faqTitle": "Questions de configuration.",
@@ -35,7 +35,7 @@
   "prereq1": "Activez Stats Valorant dans le tableau de bord. Le module est désactivé par défaut.",
   "prereq2": "Un compte Riot lié via « Se connecter avec Riot ».",
   "listEyebrow": "À savoir",
-  "listTitle": "Compte, classement et boutique.",
+  "listTitle": "Compte et classement.",
   "item1Name": "Compte lié",
   "item1Desc": "Le chat affiche uniquement les stats du compte Riot avec lequel le streamer s’est connecté.",
   "item2Name": "Classement de l’acte",
@@ -44,8 +44,6 @@
   "item3Desc": "Utilisez na, eu, ap, kr, br ou latam. Laissez le champ vide pour que le bot détecte la région du compte.",
   "item4Name": "PC ou console",
   "item4Desc": "Le classement PC est sélectionné par défaut. Choisissez la console pour afficher les rangs sur console.",
-  "item5Name": "Boutique",
-  "item5Desc": "!val shop affiche la rotation mondiale de skins du jour, avec les prix en VP et le temps avant le renouvellement.",
   "item6Name": "Noms masqués",
   "item6Desc": "Les joueurs qui masquent leur nom dans le classement Riot apparaissent comme « Secret Agent »."
 }

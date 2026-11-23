@@ -63,15 +63,12 @@ const VALORANT_ALIASES: Record<string, string> = {
     'val matches': '!valmatches, !valhistory',
     'val account': '!valaccount, !valwho',
     'val lb': '!vallb, !valleaderboard',
-    'val shop': '!valshop, !valrotation',
 };
 
-export function valorantCommands(): string[] {
-    return (moduleOf('valorant').replies.flatMap((reply) => (reply.command ? [`!${reply.command}`] : [])));
-}
+export const valorantReplies = moduleOf('valorant').replies.filter((reply) => reply.key !== 'shop');
 
 export function valorantRows(lang: Lang, t: Translate): CommandRow[] {
-    return moduleOf('valorant').replies.flatMap((reply): CommandRow[] => {
+    return valorantReplies.flatMap((reply): CommandRow[] => {
         if (!reply.command) return [];
         const command = `!${reply.command}`;
         return [{
@@ -150,14 +147,13 @@ export function goveeExampleLines(lang: Lang, t: Translate) {
 }
 
 export function valorantExampleLines(lang: Lang, includeLeaderboard = false) {
-    const replies = moduleOf('valorant').replies;
     const examples = [
         { key: 'rank', name: VIEWER },
         { key: 'matches', name: 'Cardistry' },
         { key: 'board', name: VIEWER },
     ];
     return examples.slice(0, includeLeaderboard ? examples.length : 2).flatMap(({ key, name }) => {
-        const reply = replies.find((item) => item.key === key)!;
+        const reply = valorantReplies.find((item) => item.key === key)!;
         return [
             { who: 'viewer' as const, name, text: reply.event },
             { who: 'bot' as const, text: catalogReplyText(lang, 'valorant', reply) },

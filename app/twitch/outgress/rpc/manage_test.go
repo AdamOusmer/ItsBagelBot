@@ -24,6 +24,10 @@ import (
 
 const followagePermissionDenied = `{"error":"Unauthorized","status":401,"message":"user does not have the required permission for the broadcaster"}`
 
+func newTestManage(api *twitch.Client) *Manage {
+	return &Manage{twitch: api, log: zap.NewNop(), limiter: &chatterFakeLimiter{allow: true}, botID: "456"}
+}
+
 func TestFollowageFailureLogLevel(t *testing.T) {
 	cases := []struct {
 		name         string
@@ -44,7 +48,8 @@ func TestFollowageFailureLogLevel(t *testing.T) {
 				return &http.Response{StatusCode: tc.status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(tc.body))}, nil
 			}))
 			core, logs := observer.New(zapcore.DebugLevel)
-			m := &Manage{twitch: api, log: zap.New(core)}
+			m := newTestManage(api)
+			m.log = zap.New(core)
 
 			reply := m.handleFollowage(t.Context(), outgressrpc.FollowageRequest{BroadcasterID: "channel", TargetID: "viewer", Trial: tc.trial})
 
@@ -63,17 +68,17 @@ func TestChannelGetVerifyReturnsVerification(t *testing.T) {
 	t.Cleanup(registry.Close)
 	registry.SeedPause(false)
 	var gotRepair bool
-	m := &Manage{registry: registry, log: zap.NewNop(), verify: func(_ context.Context, id string, repair bool) (manage.Verification, error) {
+	m := newTestManage(nil)
+	m.registry = registry
+	m.verify = func(_ context.Context, _ string, repair bool) (manage.Verification, error) {
 		gotRepair = repair
 		return manage.Verification{Expected: 3, Present: 2, Missing: []string{"channel.cheer"}, Repairing: repair}, nil
-	}}
+	}
 
 	reply := m.handleChannelGet(t.Context(), manage.ChannelRequest{BroadcasterID: "42", Verify: true, Repair: true})
 
-	require.NotNil(t, reply.Verification)
+	require.Equal(t, &manage.Verification{Expected: 3, Present: 2, Missing: []string{"channel.cheer"}, Repairing: true}, reply.Verification)
 	require.True(t, gotRepair)
-	require.Equal(t, []string{"channel.cheer"}, reply.Verification.Missing)
-	require.True(t, reply.Verification.Repairing)
 
 	plain := m.handleChannelGet(t.Context(), manage.ChannelRequest{BroadcasterID: "42"})
 	require.Nil(t, plain.Verification)

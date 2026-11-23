@@ -8,6 +8,7 @@ import (
 
 	"ItsBagelBot/internal/domain/automation"
 	"ItsBagelBot/internal/domain/lifecycle"
+	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/pkg/codec"
 )
 
@@ -25,6 +26,7 @@ const (
 )
 
 type UserChangedDTO struct {
+	VoicePlan     string           `json:"voice_plan,omitempty"`
 	Lifecycle     *lifecycle.State `json:"lifecycle,omitempty"`
 	StateRevision int64            `json:"state_revision,omitempty"`
 	UserID        uint64           `json:"user_id"`
@@ -98,6 +100,15 @@ type FetchChangedDTO struct {
 
 const SubjectAutomationChanged = "data.modules.automations.changed"
 
+const SubjectPoweredOverlayChanged = "data.overlays.powered.changed"
+
+type PoweredOverlayChangedDTO struct {
+	UserID        uint64                      `json:"user_id"`
+	PreviousToken string                      `json:"previous_token,omitempty"`
+	Deleted       bool                        `json:"deleted,omitempty"`
+	Overlay       *overlaysrpc.PoweredOverlay `json:"overlay,omitempty"`
+}
+
 type AutomationChangedDTO struct {
 	UserID     uint64                 `json:"user_id"`
 	ID         string                 `json:"id"`
@@ -110,4 +121,26 @@ type CommandUsedDTO struct {
 	UserID  uint64 `json:"user_id"`
 	Name    string `json:"name"`
 	Count   int64  `json:"count,omitempty"`
+}
+
+const SubjectTtsOverlayChanged = "data.overlays.tts.changed"
+const SubjectUserBanned = "data.users.banned"
+
+const SubjectOverlayChanged = "data.overlays.overlay.changed"
+
+type OverlayChangedDTO struct {
+	Overlay           overlaysrpc.Overlay   `json:"overlay"`
+	PreviousTokenHash overlaysrpc.TokenHash `json:"previous_token_hash,omitempty"`
+	Deleted           bool                  `json:"deleted,omitempty"`
+}
+
+type TtsOverlayChangedDTO struct {
+	Overlay overlaysrpc.TtsOverlay `json:"overlay"`
+	Deleted bool                   `json:"deleted,omitempty"`
+	Revoked bool                   `json:"revoked,omitempty"`
+}
+
+type UserBannedDTO struct {
+	UserID   uint64    `json:"user_id"`
+	BannedAt time.Time `json:"banned_at"`
 }

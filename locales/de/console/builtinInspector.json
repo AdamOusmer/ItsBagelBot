@@ -8,5 +8,6 @@
   "cooldown": "Abklingzeit",
   "replyMessage": "Antwortnachricht",
   "replyHint": "Für die Standardantwort leer lassen. {clip} = Clip-Link, {user} = Clip-Ersteller, {target} = Titel.",
-  "saveReply": "Antwort speichern"
+  "saveReply": "Antwort speichern",
+  "openSettings": "Spracheinstellungen öffnen"
 }

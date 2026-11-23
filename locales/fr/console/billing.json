@@ -67,12 +67,13 @@
   "premiumFeat3": "Des commandes qui répondent plus vite",
   "premiumFeat4": "Support prioritaire",
   "premiumFeat5": "Accès anticipé aux fonctionnalités en bêta, AutoMod en premier",
+  "premiumFeat6": "Voix Premium pour les alertes (bêta)",
   "premiumFine": "L'abonnement mensuel se renouvelle automatiquement jusqu'à annulation. Un mois est un paiement unique, sans renouvellement.",
   "premiumGateBody": "Premium garde les serveurs au chaud, vous place en tête de la file et vous donne les nouveautés en premier.",
   "premiumGateCta": "Passer à Premium",
   "premiumGateLink": "Voir ce qui est inclus",
   "premiumGateTitle": "Fonctionnalité Premium pendant la bêta",
-  "premiumIncludes":"Premium comprend",
+  "premiumIncludes": "Premium comprend",
   "priceForever": "/mois, pour toujours",
   "priorityLane": "File prioritaire",
   "staffGrantHint": "Premium accordé par ItsBagelBot{until}. Rien à payer et rien ne sera facturé tant que l'octroi est actif.",
@@ -95,5 +96,6 @@
   "activating": "Activation",
   "paymentFailed": "Le dernier paiement de renouvellement a échoué. Mets à jour ton moyen de paiement sur Tebex pour garder Premium.",
   "updatePayment": "Mettre à jour le moyen de paiement",
-  "receiptsEmailed": "Tebex envoie un reçu à ton courriel d'achat après chaque paiement."
+  "receiptsEmailed": "Tebex envoie un reçu à ton courriel d'achat après chaque paiement.",
+  "premiumOnly": "Réservé à Premium"
 }

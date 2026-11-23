@@ -175,7 +175,7 @@
 
   .opts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 
-  .counts-for { display: flex; flex-direction: column; gap: 5px; }
+  .counts-for { display: flex; flex-direction: column; gap: 4px; }
   .preview {
     margin: -2px 0 2px;
     padding-left: 24px;

@@ -111,9 +111,13 @@ type UserEdges struct {
 	TermsAcceptances []*TermsAcceptance `json:"terms_acceptances,omitempty"`
 	// MarketingConsents holds the value of the marketing_consents edge.
 	MarketingConsents []*MarketingConsent `json:"marketing_consents,omitempty"`
+	// VoiceUsage holds the value of the voice_usage edge.
+	VoiceUsage []*VoiceUsage `json:"voice_usage,omitempty"`
+	// VoiceUsageReceipts holds the value of the voice_usage_receipts edge.
+	VoiceUsageReceipts []*VoiceUsageReceipt `json:"voice_usage_receipts,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [6]bool
+	loadedTypes [8]bool
 }
 
 // TokensOrErr returns the Tokens value or an error if the edge
@@ -168,6 +172,24 @@ func (e UserEdges) MarketingConsentsOrErr() ([]*MarketingConsent, error) {
 		return e.MarketingConsents, nil
 	}
 	return nil, &NotLoadedError{edge: "marketing_consents"}
+}
+
+// VoiceUsageOrErr returns the VoiceUsage value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) VoiceUsageOrErr() ([]*VoiceUsage, error) {
+	if e.loadedTypes[6] {
+		return e.VoiceUsage, nil
+	}
+	return nil, &NotLoadedError{edge: "voice_usage"}
+}
+
+// VoiceUsageReceiptsOrErr returns the VoiceUsageReceipts value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) VoiceUsageReceiptsOrErr() ([]*VoiceUsageReceipt, error) {
+	if e.loadedTypes[7] {
+		return e.VoiceUsageReceipts, nil
+	}
+	return nil, &NotLoadedError{edge: "voice_usage_receipts"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -474,6 +496,16 @@ func (_m *User) QueryTermsAcceptances() *TermsAcceptanceQuery {
 // QueryMarketingConsents queries the "marketing_consents" edge of the User entity.
 func (_m *User) QueryMarketingConsents() *MarketingConsentQuery {
 	return NewUserClient(_m.config).QueryMarketingConsents(_m)
+}
+
+// QueryVoiceUsage queries the "voice_usage" edge of the User entity.
+func (_m *User) QueryVoiceUsage() *VoiceUsageQuery {
+	return NewUserClient(_m.config).QueryVoiceUsage(_m)
+}
+
+// QueryVoiceUsageReceipts queries the "voice_usage_receipts" edge of the User entity.
+func (_m *User) QueryVoiceUsageReceipts() *VoiceUsageReceiptQuery {
+	return NewUserClient(_m.config).QueryVoiceUsageReceipts(_m)
 }
 
 // Update returns a builder for updating this User.

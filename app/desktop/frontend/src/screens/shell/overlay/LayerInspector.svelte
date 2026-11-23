@@ -157,7 +157,7 @@
             min={10}
             max={100}
             value={layer.opacity}
-            oninput={(e) => (layer.opacity = Number(e.currentTarget.value))}
+            oninput={(next) => (layer.opacity = next)}
             onchange={onCommit}
           />
           <span class="unit">{Math.round(layer.opacity)}%</span>

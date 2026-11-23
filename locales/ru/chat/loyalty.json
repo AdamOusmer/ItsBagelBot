@@ -14,5 +14,9 @@
   "points.insufficient": "@{loyalty:user} у вас только {loyalty:points} {loyalty:name}.",
   "points.self": "@{loyalty:user} нельзя передавать {loyalty:name} себе.",
   "points.unknown": "@{loyalty:user} я ещё не видел {loyalty:target} на этом канале.",
-  "points.usage": "Использование: !points; или !points <set|add|remove> @user <amount>; или !points give @user <amount>"
+  "points.usage": "Использование: !points; или !points <set|add|remove> @user <amount>; или !points give @user <amount>",
+  "freeze.started": "Рейтинг приостановлен на {loyalty:minutes} мин. Баллы и время просмотра продолжают начисляться.",
+  "freeze.usage": "Использование: !freeze [1-30]",
+  "unfreeze.done": "Таблица лидеров снова обновляется.",
+  "unfreeze.none": "@{loyalty:user} таблица лидеров не заморожена."
 }

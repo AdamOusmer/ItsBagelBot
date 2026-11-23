@@ -39,6 +39,7 @@
   import QuoteRow from '#lib/components/quotes/QuoteRow.svelte';
   import QuoteEditor from '#lib/components/quotes/QuoteEditor.svelte';
   import ModuleCommandList from '#lib/components/modules/ModuleCommandList.svelte';
+  import { createTriggerToggle } from '#lib/client-actions.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -65,6 +66,10 @@
   });
 
   const quoteCommands = QUOTES_MODULE.commands ?? [];
+  const triggers = createTriggerToggle(
+    () => data.disabledTriggers ?? '',
+    () => toast('danger', t('modules.saveFailed'))
+  );
 
   const permOptions = [
     { value: 'mod', label: t('quotes.permMod') },
@@ -400,7 +405,14 @@
   {#if quoteCommands.length}
     <div class="cmd-block">
       <DeckList>
-        <ModuleCommandList moduleId="quotes" commands={quoteCommands} headingId="quotes-cmds-h" />
+        <ModuleCommandList
+          moduleId="quotes"
+          commands={quoteCommands}
+          headingId="quotes-cmds-h"
+          disabledTriggers={triggers.value}
+          status={triggers.status}
+          onDisabledTriggersChange={triggers.save}
+        />
       </DeckList>
     </div>
   {/if}
@@ -436,15 +448,15 @@
 <style>
   .toolbar-actions { display: flex; align-items: center; gap: 12px; }
 
-  .block { display: grid; gap: 12px; margin-bottom: 26px; }
+  .block { display: grid; gap: var(--bb-space-3); margin-bottom: var(--bb-space-5); }
   .perm-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 280px));
-    gap: 16px;
-    margin-top: 14px;
+    gap: var(--bb-space-4);
+    margin-top: var(--bb-space-4);
   }
 
-  .cmd-block { margin-top: 26px; }
+  .cmd-block { margin-top: var(--bb-space-5); }
 
   .toolbar-search { width: 220px; --input-w: 100%; }
 

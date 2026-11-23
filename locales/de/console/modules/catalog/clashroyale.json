@@ -29,5 +29,12 @@
       "event": "!cr road",
       "defaultMessage": "{player}: Trophäen: {trophies} · Bestwert {besttrophies} · {arena}"
     }
+  },
+  "commands": {
+    "cr": "Schlägt ein Clash Royale-Profil oder einen Unterbefehl nach.",
+    "crstats": "Schlägt ein Clash Royale-Gesamtprofil nach.",
+    "crdecks": "Zeigt das aktuelle Clash Royale-Kampfdeck.",
+    "crranked": "Zeigt den Stand auf dem Pfad der Legenden.",
+    "crroad": "Zeigt Stand auf dem Trophäenpfad und Arena."
   }
 }

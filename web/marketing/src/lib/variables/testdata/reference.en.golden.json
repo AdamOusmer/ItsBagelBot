@@ -3577,7 +3577,9 @@
       "{duel:loser}",
       "{duel:won:loser}",
       "{duel:won:pot}",
-      "{duel:won:points}"
+      "{duel:won:points}",
+      "{duel:balance}",
+      "{duel:won:balance}"
     ],
     "examples": [
       {
@@ -3718,6 +3720,16 @@
       {
         "syntax": "{duel:won:points}",
         "output": "points",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{duel:balance}",
+        "output": "1500",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{duel:won:balance}",
+        "output": "1500",
         "surfaceId": "custom"
       }
     ],
@@ -4403,6 +4415,81 @@
       "Gamble"
     ],
     "requirement": "Gamble",
+    "legacy": false
+  },
+  {
+    "id": "modulegiveaway",
+    "token": "{giveaway:prize}",
+    "syntax": "{giveaway:prize}",
+    "example": "{giveaway:prize}",
+    "output": "a game key",
+    "syntaxes": [
+      "{giveaway:prize}",
+      "{giveaway:status:prize}",
+      "{giveaway:count}",
+      "{giveaway:status:count}",
+      "{giveaway:left}",
+      "{giveaway:status:left}"
+    ],
+    "examples": [
+      {
+        "syntax": "{giveaway:prize}",
+        "output": "a game key",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{giveaway:status:prize}",
+        "output": "a game key",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{giveaway:count}",
+        "output": "18",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{giveaway:status:count}",
+        "output": "18",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{giveaway:left}",
+        "output": "180",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{giveaway:status:left}",
+        "output": "180",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Giveaways",
+    "hint": "Requires the Giveaways module.",
+    "description": "Read the current giveaway's prize, entry count or seconds left in a custom command. Use |fallback to show text when no giveaway is open.",
+    "group": "data",
+    "groups": [
+      "data"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commands",
+        "label": "Custom command",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [
+      "giveaway"
+    ],
+    "requirements": [
+      "Giveaways"
+    ],
+    "requirement": "Giveaways",
     "legacy": false
   },
   {
@@ -6008,19 +6095,15 @@
       "{raffle:opened:mins}",
       "{raffle:secs}",
       "{raffle:opened:secs}",
+      "{raffle:amount}",
+      "{raffle:opened:amount}",
       "{raffle:targets}",
       "{raffle:won:targets}",
       "{raffle:won:count}",
       "{raffle:won:entrants}",
-      "{raffle:amount}",
       "{raffle:won:amount}",
       "{raffle:points}",
-      "{raffle:won:points}",
-      "{raffle:claim}",
-      "{raffle:won:claim}",
-      "{raffle:prize}",
-      "{raffle:won:prize}",
-      "{raffle:claimok:user}"
+      "{raffle:won:points}"
     ],
     "examples": [
       {
@@ -6109,18 +6192,28 @@
         "surfaceId": "custom"
       },
       {
+        "syntax": "{raffle:amount}",
+        "output": "1000",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{raffle:opened:amount}",
+        "output": "1000",
+        "surfaceId": "custom"
+      },
+      {
         "syntax": "{raffle:targets}",
-        "output": "@SnackPackPanda, @crustycrumbs",
+        "output": "@SnackPackPanda",
         "surfaceId": "custom"
       },
       {
         "syntax": "{raffle:won:targets}",
-        "output": "@SnackPackPanda, @crustycrumbs",
+        "output": "@SnackPackPanda",
         "surfaceId": "custom"
       },
       {
         "syntax": "{raffle:won:count}",
-        "output": "2",
+        "output": "1",
         "surfaceId": "custom"
       },
       {
@@ -6129,13 +6222,8 @@
         "surfaceId": "custom"
       },
       {
-        "syntax": "{raffle:amount}",
-        "output": "500",
-        "surfaceId": "custom"
-      },
-      {
         "syntax": "{raffle:won:amount}",
-        "output": "500",
+        "output": "1000",
         "surfaceId": "custom"
       },
       {
@@ -6146,31 +6234,6 @@
       {
         "syntax": "{raffle:won:points}",
         "output": "points",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{raffle:claim}",
-        "output": "15",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{raffle:won:claim}",
-        "output": "15",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{raffle:prize}",
-        "output": "a game key",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{raffle:won:prize}",
-        "output": "a game key",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{raffle:claimok:user}",
-        "output": "SnackPackPanda",
         "surfaceId": "custom"
       }
     ],
@@ -7289,12 +7352,7 @@
       "{valorant:board:board}",
       "{valorant:board:count}",
       "{valorant:entries}",
-      "{valorant:board:entries}",
-      "{valorant:shop:count}",
-      "{valorant:items}",
-      "{valorant:shop:items}",
-      "{valorant:reset}",
-      "{valorant:shop:reset}"
+      "{valorant:board:entries}"
     ],
     "examples": [
       {
@@ -7535,31 +7593,6 @@
       {
         "syntax": "{valorant:board:entries}",
         "output": "#4 Zekken#5221 (431 RR), #5 Frosty#EUW1 (402 RR)",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{valorant:shop:count}",
-        "output": "2",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{valorant:items}",
-        "output": "Reaver Vandal (1775 VP), Ion Frenzy (875 VP)",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{valorant:shop:items}",
-        "output": "Reaver Vandal (1775 VP), Ion Frenzy (875 VP)",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{valorant:reset}",
-        "output": "2h 30m",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{valorant:shop:reset}",
-        "output": "2h 30m",
         "surfaceId": "custom"
       }
     ],

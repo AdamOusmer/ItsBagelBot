@@ -1,141 +1,187 @@
 <script lang="ts">
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
-	import '@bagel/ui/styles/elements/layout.css';
-  import { untrack } from 'svelte';
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
+
+  import { getAbortSignal, tick, untrack } from 'svelte';
+  import { MediaQuery } from 'svelte/reactivity';
   import { enhance, type SubmitFunction } from '$app/forms';
+  import { invalidate } from '$app/navigation';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
-  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
-  import Text from '@bagel/ui/svelte/Text.svelte';
   import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
-  import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { canManage, grantableRoles, type AdminRole } from '#lib/access';
+  import { STAFF_RANK } from '@bagel/kit/staff-role';
+  import { canManage, grantableRoles } from '#lib/access';
   import type { AdminAcct, AuditEntry } from '#lib/server/services';
+  import { applyStreamed } from '#lib/streamed-load';
   import StaffRow from '#lib/components/staff/StaffRow.svelte';
   import StaffEditor from '#lib/components/staff/StaffEditor.svelte';
+  import StaffToolbar from '#lib/components/staff/StaffToolbar.svelte';
+  import type { StaffHistoryResult } from '#lib/components/staff/StaffHistory.svelte';
   import {
     NEW_MEMBER,
+    STAFF_ROSTER,
     blankDraft,
     draftComplete,
+    type AccessFilter,
     type StaffDraft
   } from '#lib/components/staff/staff-roles';
-  import { STAFF_RANK } from '@bagel/kit/staff-role';
+  import type { RosterBundle } from './+page.server';
 
   let { data } = $props();
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
+  const collator = new Intl.Collator(locale);
   const failed = adminToastFailure(toast);
+  const sheet = new MediaQuery('(max-width: 1079px)');
+  const SKELETON_ROWS = 5;
 
-  let staff = $state<AdminAcct[]>([]);
-  let loaded = $state(false);
-  let degraded = $state(false);
-  $effect(() => {
-    let alive = true;
-    loaded = false;
-    data.roster.then((r) => {
-      if (!alive) return;
-      staff = r.staff;
-      degraded = r.degraded;
-      loaded = true;
-    });
-    return () => {
-      alive = false;
-    };
-  });
-
-  const me = $derived(data.me);
-  const roles = $derived(grantableRoles(me.role));
-  const roster = $derived(
-    [...staff].sort(
-      (a, b) => (STAFF_RANK[b.role] ?? 0) - (STAFF_RANK[a.role] ?? 0) || a.login.localeCompare(b.login)
+  let roster = $state.raw<RosterBundle>();
+  let rosterRevision = 0;
+  let search = $state('');
+  let access = $state<AccessFilter>('all');
+  const searchKey = $derived(search.trim().replace(/^[@#]/, '').toLocaleLowerCase(locale));
+  const ordered = $derived(
+    (roster?.staff ?? []).toSorted((a, b) =>
+      STAFF_RANK[b.role] - STAFF_RANK[a.role] || collator.compare(a.login, b.login)
     )
   );
+  const matches = $derived(searchKey ? ordered.filter(matchesSearch) : ordered);
+  const rows = $derived(access === 'all' ? matches : matches.filter((member) => member.active === (access === 'active')));
+  const counts = $derived.by(() => {
+    if (roster?.degraded !== false) return;
+    const active = matches.filter((member) => member.active).length;
+    return { all: matches.length, active, inactive: matches.length - active };
+  });
 
-  function manageable(member: AdminAcct): boolean {
-    return canManage(me.role, member.role) && member.id !== Number(me.id);
+  $effect(() => {
+    const revision = rosterRevision;
+    applyStreamed(data.roster, (result) => {
+      if (revision === rosterRevision) roster = result;
+    });
+  });
+
+  function matchesSearch(member: AdminAcct): boolean {
+    return [member.login, member.display_name, String(member.id)].some((value) =>
+      value.toLocaleLowerCase(locale).includes(searchKey)
+    );
   }
 
+  function isSelf(member: AdminAcct): boolean {
+    return String(member.id) === data.me.id;
+  }
+
+  function manageable(member: AdminAcct): boolean {
+    const actor = data.me.role;
+    const peerAdmin = actor === 'admin' && member.role === 'admin';
+    return canManage(actor, member.role) && !peerAdmin && !isSelf(member);
+  }
+
+  function retryRoster() {
+    document.getElementById('staff-roster')?.focus();
+    roster = undefined;
+    void invalidate(STAFF_ROSTER);
+  }
+
+  const roles = $derived(grantableRoles(data.me.role));
   const inspector = createInspector<StaffDraft>();
   let draft = $state<StaffDraft | null>(null);
   let busy = $state(false);
+  let opener: HTMLElement | null = null;
 
   $effect(() => {
-    const snap = draft ? { ...draft } : null;
-    if (snap) untrack(() => inspector.edit(snap));
+    const snapshot = draft ? { ...draft } : null;
+    if (snapshot) untrack(() => inspector.edit(snapshot));
   });
 
   const creating = $derived(inspector.selectedId === NEW_MEMBER);
-  const selected = $derived(
-    creating ? null : (staff.find((s) => String(s.id) === inspector.selectedId) ?? null)
-  );
-  const canSave = $derived(inspector.dirty && !!draft && draftComplete(draft));
+  const selected = $derived((roster?.staff ?? []).find((member) => String(member.id) === inspector.selectedId));
+  const canManageSelected = $derived(selected ? manageable(selected) : false);
+  const canEditRole = $derived(creating || (canManageSelected && selected?.role !== 'owner'));
+  const canToggleAccess = $derived(canManageSelected && (selected?.active || selected?.role !== 'owner'));
+  const validDraft = $derived(draft !== null && draftComplete(draft));
+  const editableDraft = $derived(canEditRole && inspector.dirty && validDraft);
+  const canSave = $derived(!busy && editableDraft);
+  const discard = createDiscardGuard(() => inspector.dirty);
 
-  const discard = createDiscardGuard(
-    () => inspector.dirty,
-    () => {
-      inspector.reset();
-      draft = null;
-    }
-  );
+  function focusAfterClose() {
+    const previous = opener;
+    opener = null;
+    previous?.focus();
+    if (document.activeElement === previous && previous !== document.body) return;
+    document.getElementById('staff-search')?.focus();
+  }
 
-  function draftOf(m: AdminAcct): StaffDraft {
-    return { userId: String(m.id), login: m.login, displayName: m.display_name, role: m.role };
+  function resetEditor() {
+    inspector.reset();
+    draft = null;
+    void tick().then(focusAfterClose);
+  }
+
+  function activeControl(): HTMLElement | null {
+    return document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
+
+  function openEditor(id: string, value: StaffDraft) {
+    if (busy) return;
+    const active = activeControl();
+    discard.guard(() => {
+      opener = active;
+      inspector.open(id, value);
+      draft = { ...value };
+      if (!sheet.current) void tick().then(() => focusEditor(id));
+    });
+  }
+
+  function focusEditor(id: string) {
+    document.getElementById(id === NEW_MEMBER ? 'staff-user-id' : 'staff-member-name')?.focus();
   }
 
   function openNew() {
-    discard.guard(() => {
-      const blank = blankDraft(roles[0] ?? 'moderator');
-      inspector.open(NEW_MEMBER, blank);
-      draft = { ...blank };
-    });
+    openEditor(NEW_MEMBER, blankDraft(roles[0] ?? 'moderator'));
   }
 
-  function openMember(m: AdminAcct) {
-    if (inspector.selectedId === String(m.id)) {
+  function openMember(member: AdminAcct) {
+    const userId = String(member.id);
+    if (inspector.selectedId === userId) {
       close();
       return;
     }
-    discard.guard(() => {
-      inspector.open(String(m.id), draftOf(m));
-      draft = draftOf(m);
-      loadHistory(m.id);
-    });
+    openEditor(userId, { userId, login: member.login, displayName: member.display_name, role: member.role });
   }
 
   function close() {
-    discard.guard(() => {
-      inspector.reset();
-      draft = null;
-    });
+    if (!busy) discard.guard(resetEditor);
   }
 
-  let history = $state<AuditEntry[] | null>(null);
-  let historyError = $state('');
+  let history = $state.raw<{ actorId: number; revision: number; result: Promise<StaffHistoryResult> }>();
+  let historyRetry = $state(0);
+  const actorId = $derived(selected?.id);
 
-  async function loadHistory(id: number) {
-    history = null;
-    historyError = '';
+  $effect(() => {
+    history = actorId === undefined
+      ? undefined
+      : { actorId, revision: historyRetry, result: readHistory(actorId, getAbortSignal()) };
+  });
+
+  async function readHistory(id: number, signal: AbortSignal): Promise<StaffHistoryResult> {
     try {
-      const res = await fetch(`/staff/history?actor_id=${id}`);
-      if (!res.ok) throw new Error(`history fetch failed (${res.status})`);
-      const body = (await res.json()) as { entries?: AuditEntry[]; error?: string };
-      if (body.error) throw new Error(body.error);
-      history = body.entries ?? [];
-    } catch (e) {
-      historyError = (e as Error).message;
-      history = [];
+      const response = await fetch(`/staff/history?actor_id=${id}`, { signal });
+      if (!response.ok) return { entries: [], error: true };
+      const body = (await response.json()) as { entries?: AuditEntry[]; error?: string };
+      return { entries: body.entries ?? [], error: Boolean(body.error) };
+    } catch {
+      return { entries: [], error: true };
     }
   }
 
@@ -145,168 +191,158 @@
     error?: string;
   };
 
-  const saveSubmit: SubmitFunction = () => {
-    const requestId = inspector.beginSave()?.requestId;
-    const wasCreating = creating;
-    const before = staff.map((s) => ({ ...s }));
+  function applyAction(result: { type: string }): boolean {
+    const payload = actionPayload<ActionPayload>(result);
+    if (result.type !== 'success' || !payload?.action?.ok) {
+      failed(payload, t('admin.staff.saveFailed'));
+      return false;
+    }
+    if (payload.staff) {
+      ++rosterRevision;
+      roster = { staff: payload.staff, degraded: false };
+    }
+    toast('success', payload.action.notice);
+    return true;
+  }
+
+  const saveSubmit: SubmitFunction = ({ cancel }) => {
+    if (!canSave) return cancel();
+    const request = inspector.beginSave();
+    if (!request) return cancel();
     busy = true;
-    return async ({ result }) => {
+    return ({ result }) => {
       busy = false;
-      const p = actionPayload<ActionPayload>(result);
-      const ok = result.type === 'success' && p?.action?.ok === true;
-      const applied = requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
-      if (!ok) {
-        staff = before;
-        failed(p, t('admin.staff.saveFailed'));
-        return;
-      }
-      toast('success', p!.action!.notice);
-      if (p?.staff) staff = p.staff;
-      if (wasCreating && applied) {
-        inspector.reset();
-        draft = null;
-      }
+      const ok = applyAction(result);
+      const applied = inspector.resolved(request.requestId, { type: ok ? 'success' : 'error' });
+      if (creating && ok && applied) resetEditor();
     };
   };
 
   let accessTarget = $state<AdminAcct | null>(null);
-  let removeForm = $state<HTMLFormElement | null>(null);
-  let restoreForm = $state<HTMLFormElement | null>(null);
+  let removeForm: HTMLFormElement;
+  let restoreForm: HTMLFormElement;
+  const confirming = $derived(accessTarget !== null || discard.open);
+  const inspecting = $derived(creating || selected !== undefined);
+  const showInspector = $derived(inspecting && !(sheet.current && confirming));
 
   function setAccess(next: boolean) {
-    if (!selected) return;
-    if (next) {
-      restoreForm?.requestSubmit();
-      return;
-    }
-    accessTarget = selected;
+    if (!selected || !canToggleAccess || busy) return;
+    if (next) restoreForm.requestSubmit();
+    else accessTarget = selected;
   }
 
-  const rosterSubmit = (after?: () => void): SubmitFunction => {
-    return () => {
-      busy = true;
-      const before = staff.map((s) => ({ ...s }));
-      return async ({ result }) => {
-        busy = false;
-        after?.();
-        const p = actionPayload<ActionPayload>(result);
-        if (result.type === 'success' && p?.action?.ok) {
-          toast('success', p.action.notice);
-          if (p.staff) staff = p.staff;
-          return;
-        }
-        staff = before;
-        failed(p, t('admin.staff.saveFailed'));
-      };
+  const accessSubmit: SubmitFunction = ({ cancel }) => {
+    if (busy) return cancel();
+    busy = true;
+    return ({ result }) => {
+      busy = false;
+      accessTarget = null;
+      applyAction(result);
     };
   };
-
-  const removeSubmit = rosterSubmit(() => (accessTarget = null));
-  const restoreSubmit = rosterSubmit();
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow={t('admin.staff.eyebrow')} description={t('admin.staff.description')}>
+  <PageHead description={t('admin.staff.description')}>
     {t('admin.staff.titlePre')}<em>{t('admin.staff.titleEm')}</em>
   </PageHead>
 
-  {#if degraded}
-    <AlertBanner>{t('admin.staff.degraded')}</AlertBanner>
-  {/if}
+  <StaffToolbar
+    bind:search
+    bind:access
+    {counts}
+    {busy}
+    onAdd={openNew}
+  />
 
-  <PageToolbar>
-    {#snippet leading()}
-      {#if loaded}
-        <Text as="span" size="xs" tone="muted" mono>
-          {roster.length === 1
-            ? t('admin.staff.countOne')
-            : t('admin.staff.count', { n: String(roster.length) })}
-        </Text>
-      {:else}
-        <Skeleton variant="pill" width="110px" />
-      {/if}
-    {/snippet}
-    {#snippet trailing()}
-      <Button variant="primary" onclick={openNew}>{t('admin.staff.add')}</Button>
-    {/snippet}
-  </PageToolbar>
-
-  <DeckLayout inspecting={inspector.isOpen} width="380px">
+  <DeckLayout {inspecting} width="380px">
     <DeckList>
-      {#if !loaded}
-        <SkeletonStack rows={3} height="60px" />
-      {:else if roster.length}
-        <ul class="bb-list" aria-label={t('admin.staff.listLabel')}>
-          {#each roster as member (member.id)}
-            <li>
+      <div id="staff-roster" class="staff-roster" aria-busy={!roster}>
+        {#if !roster}
+          <div class="roster-loading" role="status" aria-label={t('common.loading')}>
+            <SkeletonStack rows={SKELETON_ROWS} height="calc(var(--staff-row-height) - 10px)" />
+          </div>
+        {:else if roster.degraded}
+          <div class="roster-error">
+            <AlertBanner>
+              {t('admin.staff.degraded')}
+              {#snippet actions()}
+                <Button variant="ghost" onclick={retryRoster}>{t('common.retry')}</Button>
+              {/snippet}
+            </AlertBanner>
+          </div>
+        {:else if rows.length}
+          <ul class="roster-list" aria-label={t('admin.staff.listLabel')}>
+            {#each rows as member (member.id)}
+              {@const selectedMember = inspector.selectedId === String(member.id)}
               <StaffRow
                 {member}
-                isSelf={member.id === Number(me.id)}
-                selected={inspector.selectedId === String(member.id)}
-                controls="staff-inspector"
+                isSelf={isSelf(member)}
+                selected={selectedMember}
+                expanded={selectedMember && showInspector}
                 onselect={() => openMember(member)}
               />
-            </li>
-          {/each}
-        </ul>
-      {:else}
-        <EmptyState title={t('admin.staff.empty')} body={t('admin.staff.emptyBody')} />
-      {/if}
+            {/each}
+          </ul>
+        {:else if searchKey || access !== 'all'}
+          <EmptyState title={t('admin.staff.emptyMatch')} body={t('admin.staff.emptyMatchBody')} />
+        {:else}
+          <EmptyState title={t('admin.staff.empty')} body={t('admin.staff.emptyBody')} />
+        {/if}
+      </div>
     </DeckList>
 
-    {#if inspector.isOpen && draft}
-      <InspectorSurface
-        open
-        title={creating ? t('admin.staff.newTitle') : `@${selected?.login ?? ''}`}
-        controls="staff-inspector"
-        closeLabel={t('admin.close')}
-        onClose={close}
-      >
+    <InspectorSurface
+      open={showInspector}
+      title={creating ? t('admin.staff.newTitle') : `@${selected?.login ?? ''}`}
+      controls="staff-inspector"
+      closeLabel={t('admin.close')}
+      onClose={close}
+    >
+      {#if draft}
         {#key inspector.selectedId}
           <StaffEditor
             bind:draft={
               () => draft!,
-              (v) => (draft = v)
+              (value) => (draft = value)
             }
             member={selected}
-            {creating}
             {roles}
-            canToggleAccess={!!selected && manageable(selected)}
+            {canEditRole}
+            {canToggleAccess}
             status={inspector.status}
             dirty={inspector.dirty}
             {canSave}
             {busy}
-            {history}
-            {historyError}
+            history={history?.actorId === actorId && history?.revision === historyRetry ? history?.result : undefined}
+            onRetryHistory={() => ++historyRetry}
             onCancel={close}
             onSubmit={saveSubmit}
             onAccess={setAccess}
           />
         {/key}
-      </InspectorSurface>
-    {/if}
+      {/if}
+    </InspectorSurface>
   </DeckLayout>
 </section>
 
 <ConfirmDialog
   open={accessTarget !== null}
   title={t('admin.staff.confirmDeactivateTitle')}
-  body={accessTarget
-    ? t('admin.staff.confirmDeactivateBody', { login: accessTarget.login })
-    : undefined}
+  body={accessTarget ? t('admin.staff.confirmDeactivateBody', { login: accessTarget.login }) : undefined}
   confirmLabel={t('admin.staff.remove')}
   cancelLabel={t('common.cancel')}
   {busy}
   onCancel={() => (accessTarget = null)}
-  onConfirm={() => removeForm?.requestSubmit()}
+  onConfirm={() => removeForm.requestSubmit()}
   tone="danger"
 />
-<form method="POST" action="?/remove" use:enhance={removeSubmit} bind:this={removeForm} hidden>
+<form method="POST" action="?/remove" use:enhance={accessSubmit} bind:this={removeForm} hidden>
   <input type="hidden" name="user_id" value={accessTarget?.id ?? ''} />
   <input type="hidden" name="target_role" value={accessTarget?.role ?? ''} />
 </form>
 
-<form method="POST" action="?/upsert" use:enhance={restoreSubmit} bind:this={restoreForm} hidden>
+<form method="POST" action="?/upsert" use:enhance={accessSubmit} bind:this={restoreForm} hidden>
   <input type="hidden" name="user_id" value={selected?.id ?? ''} />
   <input type="hidden" name="login" value={selected?.login ?? ''} />
   <input type="hidden" name="display_name" value={selected?.display_name ?? ''} />
@@ -316,8 +352,28 @@
 <ConfirmDialog
   open={discard.open}
   title={t('admin.unsaved')}
-  confirmLabel={t('common.done')}
+  confirmLabel={t('admin.staff.discard')}
   cancelLabel={t('common.cancel')}
   onConfirm={discard.confirm}
   onCancel={discard.cancel}
 />
+
+<style>
+  .screen :global(.staff-roster) {
+    --staff-row-height: 4rem;
+  }
+
+  .roster-loading {
+    padding-block: 5px;
+  }
+
+  .roster-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .roster-error {
+    padding: var(--bb-space-3);
+  }
+</style>

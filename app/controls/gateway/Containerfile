@@ -4,17 +4,23 @@
 FROM docker.io/library/elixir:1.20-otp-28@sha256:9deb9fe8bf7c8cfa02bd3b7b6b1932fbb9c313151eb1e76eba112fdde7628337 AS build
 
 ENV MIX_ENV=prod
-WORKDIR /src
+WORKDIR /src/app/controls/gateway
 
 RUN mix local.hex --force && mix local.rebar --force
 
-COPY mix.exs mix.lock ./
+COPY app/controls/gateway/mix.exs app/controls/gateway/mix.lock ./
+COPY pkg/elixir/cowboy /src/pkg/elixir/cowboy
+COPY pkg/elixir/nats /src/pkg/elixir/nats
+COPY pkg/elixir/new_relic /src/pkg/elixir/new_relic
+COPY pkg/elixir/startup /src/pkg/elixir/startup
+COPY pkg/elixir/cache /src/pkg/elixir/cache
 RUN mix deps.get --only prod
 
-COPY config config
+COPY app/controls/gateway/config config
 RUN mix deps.compile
 
-COPY lib lib
+COPY app/controls/gateway/priv priv
+COPY app/controls/gateway/lib lib
 RUN mix compile && mix release
 
 # Must match the builder's base distro: the release links against its glibc.
@@ -26,7 +32,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --system --home /app --shell /usr/sbin/nologin controls-gateway
 
-COPY --from=build --chown=controls-gateway:controls-gateway /src/_build/prod/rel/controls_gateway /app
+COPY --from=build --chown=controls-gateway:controls-gateway /src/app/controls/gateway/_build/prod/rel/controls_gateway /app
 
 USER controls-gateway
 WORKDIR /app

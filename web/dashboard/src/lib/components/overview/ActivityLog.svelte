@@ -90,7 +90,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 17px 20px 14px;
+    padding: 16px 20px 12px;
   }
   .ov-log__list {
     list-style: none;
@@ -104,8 +104,8 @@
   .ov-log__row {
     display: flex;
     align-items: center;
-    gap: 13px;
-    padding: 11px 20px;
+    gap: 12px;
+    padding: 12px 20px;
     animation: ov-feed-in var(--bb-dur-base) var(--bb-ease-out-expo) both;
   }
   .ov-log__time {
@@ -132,10 +132,10 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 13px 20px;
+    padding: 12px 20px;
   }
   .ov-log__empty {
-    padding: 18px 20px 20px;
+    padding: 16px 20px;
   }
 
   @media (max-width: 640px) {

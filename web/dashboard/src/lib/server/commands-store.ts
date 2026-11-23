@@ -119,8 +119,8 @@ export interface ModulePatch {
   userId: string;
   name: string;
   isEnabled: boolean;
-  partial: Record<string, string>;
-  expectedRev: number;
+  partial: Record<string, unknown>;
+  expectedRev?: number;
 }
 
 export async function patchModule(p: ModulePatch): Promise<{ rev: number; conflict: boolean; synced: boolean }> {
@@ -134,11 +134,23 @@ export async function patchModule(p: ModulePatch): Promise<{ rev: number; confli
   });
   if (reply.conflict) {
     invalidate(cacheKey('modules', p.userId));
-    return { rev: reply.rev ?? p.expectedRev, conflict: true, synced: false };
+    return { rev: reply.rev ?? p.expectedRev ?? 0, conflict: true, synced: false };
   }
   afterLoyaltyWrite();
   const synced = await replaceProjectedModules(p.userId, reply.modules);
-  return { rev: reply.rev ?? p.expectedRev + 1, conflict: false, synced };
+  return { rev: reply.rev ?? (p.expectedRev ?? 0) + 1, conflict: false, synced };
+}
+
+export interface ModuleConfigPatch {
+  userId: UserId;
+  name: string;
+  partial: Record<string, unknown>;
+}
+
+export async function patchModuleConfig(p: ModuleConfigPatch): Promise<void> {
+  const rows = await listModulesForEditing(p.userId);
+  const isEnabled = rows.find((row) => row.name === p.name)?.is_enabled ?? false;
+  await patchModule({ userId: p.userId, name: p.name, isEnabled, partial: p.partial });
 }
 
 export interface CommandInput {

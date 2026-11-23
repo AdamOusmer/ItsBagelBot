@@ -1,0 +1,51 @@
+{
+  "poweredTitle": "Selo Powered by",
+  "poweredIntro": "Um pequeno selo do ItsBagelBot entra na sua live de vez em quando e depois sai.",
+  "link": "Link da fonte de navegador",
+  "replace": "Trocar link",
+  "replaceHint": "Trocar o link desativa o anterior.",
+  "obsHint": "No OBS, adicione como fonte de Navegador em 1920 por 1080.",
+  "every": "Tempo entre aparições",
+  "everyValue": "{minutes} min",
+  "show": "Tempo na tela",
+  "showValue": "{seconds} s",
+  "from": "Entra por",
+  "edge": {
+    "top": "Topo",
+    "bottom": "Base",
+    "left": "Esquerda",
+    "right": "Direita"
+  },
+  "align": "Posição na borda",
+  "alignOption": {
+    "start": "Início",
+    "center": "Centro",
+    "end": "Fim"
+  },
+  "linkTitle": "Link",
+  "timing": "Tempo",
+  "placement": "Posição",
+  "previewFrame": "Prévia do selo",
+  "readOnly": "Só o dono do canal pode alterar os overlays.",
+  "unavailable": "As configurações de overlays estão indisponíveis. Recarregue a página para tentar de novo.",
+  "saveFailed": "Não foi possível salvar as configurações do overlay. Tente de novo.",
+  "saveInvalid": "Essas configurações foram recusadas. Recarregue a página e tente de novo.",
+  "conflict": "As configurações do overlay mudaram em outro lugar. As últimas configurações foram carregadas. Tente de novo.",
+  "replaceFailed": "Não foi possível trocar o link. Tente de novo.",
+  "copyFailed": "Não foi possível copiar o link. Tente de novo.",
+  "invalidEvery": "Escolha de {everyMin} a {everyMax} minutos.",
+  "invalidShow": "Escolha de {showMin} a {showMax} segundos.",
+  "invalidFrom": "Escolha uma borda.",
+  "invalidAlign": "Escolha uma posição na borda.",
+  "listTitle": "Seus overlays",
+  "addPowered": "Adicionar Powered by Bagel",
+  "linkHidden": "Os links aparecem uma única vez. Troque o link para obter um novo.",
+  "listEmpty": "Nenhum overlay ainda. Adicione o Powered by Bagel para obter um link para o OBS.",
+  "listFailed": "Não foi possível atualizar seus overlays. Tente de novo.",
+  "deleteTitle": "Excluir {name}?",
+  "deleteBody": "O link da fonte de navegador deixa de funcionar na hora.",
+  "kind": {
+    "system": "Incluído",
+    "custom": "Personalizado"
+  }
+}

@@ -102,10 +102,10 @@
   .ov-summary__tile {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
     height: 100%;
     min-height: 64px;
-    padding: 14px 16px;
+    padding: 12px 16px;
     border-radius: var(--bb-radius-md);
     background: var(--bb-elev-1);
     box-shadow: var(--bb-depth-1);

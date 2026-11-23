@@ -96,24 +96,43 @@ jobs:
       # setup-go's built-in cache is keyed on go.sum alone and only saves on a
       # key miss, so the build cache froze at the last go.sum change and every
       # run recompiled most of the tree under -race. The cache is managed by
-      # hand instead: every main push saves a fresh one per shard keyed by
-      # commit, and PRs restore the newest main cache through the prefix.
+      # hand instead: every main push saves a fresh build cache per shard keyed
+      # by commit, and PRs restore the newest main cache through the prefix.
+      # The module cache is one shared entry keyed on go.sum.
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: false
 
-      - name: Restore Go cache
+      - name: Restore Go module cache
+        id: modcache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
+          path: ~/go/pkg/mod
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+
+      - name: Restore Go build cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
           key: go-race-${{ runner.os }}-${{ env.GO_VERSION }}-s${{ matrix.shard }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
           restore-keys: |
             go-race-${{ runner.os }}-${{ env.GO_VERSION }}-s${{ matrix.shard }}-${{ hashFiles('go.sum') }}-
             go-race-${{ runner.os }}-${{ env.GO_VERSION }}-s${{ matrix.shard }}-
+
+      # The saved build cache keeps only the entries this run used. Go refreshes
+      # an entry's mtime on use once it is over an hour old, so restored entries
+      # are aged two hours here and the save step drops whatever stayed older
+      # than the marker. Without this the cache only grew (4.5 GB per shard),
+      # restores took over two minutes and the 10 GB repository limit evicted
+      # whole shard caches, which then rebuilt cold.
+      - name: Age restored build cache
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.cache/go-build
+          find ~/.cache/go-build -mindepth 2 -type f -exec touch -m -d '2 hours ago' {} +
+          touch "$RUNNER_TEMP/go-cache-marker"
 
       - name: Install dependencies
         run: go mod download
@@ -151,6 +170,10 @@ jobs:
       # "(cached)" instead of re-running. buildguard is the exception: it shells
       # out to `go list -deps`, an input the test cache cannot see, so shard 1
       # forces it to run every time.
+      #
+      # pkg/bus runs its tests serially against one embedded cluster and took
+      # ~290 s alone, longer than any whole shard. Its top-level tests are dealt
+      # across the shards the same way and run beside the package slice.
       - name: Run Tests
         env:
           SHARD: ${{ matrix.shard }}
@@ -158,20 +181,39 @@ jobs:
         run: |
           set -euo pipefail
           guard=ItsBagelBot/internal/buildguard
-          mapfile -t pkgs < <(go list ./... | grep -vx "$guard" | sort | awk -v n="$SHARDS" -v i="$SHARD" 'NR % n == i % n')
-          echo "Shard $SHARD/$SHARDS: ${#pkgs[@]} packages"
+          bus=ItsBagelBot/pkg/bus
+          deal() { sort | awk -v n="$SHARDS" -v i="$SHARD" 'NR % n == i % n'; }
+          mapfile -t pkgs < <(go list ./... | grep -vxF -e "$guard" -e "$bus" | deal)
+          go test -race -list . "$bus" > "$RUNNER_TEMP/bus-tests"
+          bus_tests=$(grep -E '^(Test|Example|Fuzz)' "$RUNNER_TEMP/bus-tests" | deal | paste -sd '|' -)
+          echo "Shard $SHARD/$SHARDS: ${#pkgs[@]} packages, $(tr '|' '\n' <<< "$bus_tests" | wc -l) pkg/bus tests"
+          go test -race -run "^(${bus_tests})\$" "$bus" &
+          bus_pid=$!
           go test -race "${pkgs[@]}"
+          wait "$bus_pid"
           if [[ "$SHARD" == "1" ]]; then
             go test -race -count=1 "$guard"
           fi
 
-      - name: Save Go cache
+      - name: Trim Go build cache
+        if: github.event_name == 'push' && success()
+        run: |
+          before=$(du -sh ~/.cache/go-build | cut -f1)
+          find ~/.cache/go-build -mindepth 2 -type f ! -newer "$RUNNER_TEMP/go-cache-marker" -delete
+          echo "Go build cache: $before before trim, $(du -sh ~/.cache/go-build | cut -f1) after"
+
+      - name: Save Go module cache
+        if: github.event_name == 'push' && success() && matrix.shard == 1 && steps.modcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/go/pkg/mod
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+
+      - name: Save Go build cache
         if: github.event_name == 'push' && success()
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
+          path: ~/.cache/go-build
           key: go-race-${{ runner.os }}-${{ env.GO_VERSION }}-s${{ matrix.shard }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
 
   # The required check. It keeps the name the branch protection already knows

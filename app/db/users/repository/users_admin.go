@@ -24,14 +24,8 @@ var ErrUserNotFound = errors.New("user not found")
 
 const (
 	AdminUserPageSize     = 15
-	AdminUserMaxPages     = 25
 	AdminUserMaxSearchLen = 200
-	// AdminLiveIDCap bounds the IN list for the live filter. The console's
-	// live set is the same live:<id> scan the timer reconciler already walks
-	// once a minute, which is hundreds of channels, not tens of thousands. Past
-	// this the caller is handed an error instead of a truncated page: a short
-	// IN list would look like a complete answer.
-	AdminLiveIDCap = 10_000
+	AdminLiveIDCap        = 10_000
 )
 
 const (
@@ -63,13 +57,11 @@ func (r *Users) FindUserByUsername(ctx context.Context, username string) (*ent.U
 const AdminOrderOldest = "oldest"
 
 type AdminUserQuery struct {
-	Search string
-	State  string
-	Order  string
-	Limit  int
-	Offset int
-	// OnlyLive keeps rows whose id is in LiveIDs. Empty matches nobody.
-	// LiveIDs is not consulted when OnlyLive is false.
+	Search   string
+	State    string
+	Order    string
+	Limit    int
+	Offset   int
 	OnlyLive bool
 	LiveIDs  []uint64
 }
@@ -79,47 +71,26 @@ func (r *Users) ListUsers(ctx context.Context, query AdminUserQuery) ([]*ent.Use
 	if err != nil {
 		return nil, err
 	}
-	if q == nil {
-		return nil, nil
+	by := adminOrder(query)
+	q.Order(by(user.FieldCreatedAt), by(user.FieldID)).Offset(query.Offset).Limit(query.Limit)
+	return db.WithQuery(ctx, q.All)
+}
+
+func (r *Users) CountAdminUsers(ctx context.Context, query AdminUserQuery) (int, error) {
+	q, err := adminDirectoryQuery(r.client, query)
+	if err != nil {
+		return 0, err
 	}
-	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
-		return q.Offset(query.Offset).Limit(query.Limit).All(ctx)
-	})
+	return db.WithQuery(ctx, q.Count)
 }
 
 func adminDirectoryQuery(client *ent.Client, query AdminUserQuery) (*ent.UserQuery, error) {
-	if err := validateLiveIDs(query); err != nil {
-		return nil, err
+	if query.OnlyLive && len(query.LiveIDs) > AdminLiveIDCap {
+		return nil, fmt.Errorf("live id list exceeds %d", AdminLiveIDCap)
 	}
-	if liveFilterEmpty(query) {
-		return nil, nil
-	}
-	return withAdminFilters(client.User.Query(), query), nil
-}
-
-func validateLiveIDs(query AdminUserQuery) error {
-	if !query.OnlyLive {
-		return nil
-	}
-	if len(query.LiveIDs) <= AdminLiveIDCap {
-		return nil
-	}
-	return fmt.Errorf("live id list exceeds %d", AdminLiveIDCap)
-}
-
-func liveFilterEmpty(query AdminUserQuery) bool {
-	if !query.OnlyLive {
-		return false
-	}
-	return len(query.LiveIDs) == 0
-}
-
-func withAdminFilters(q *ent.UserQuery, query AdminUserQuery) *ent.UserQuery {
-	by := adminOrder(query)
-	q = q.Order(by(user.FieldCreatedAt), by(user.FieldID))
-	q = whereAdminSearch(q, query.Search)
+	q := whereAdminSearch(client.User.Query(), query.Search)
 	q = whereAdminState(q, query.State)
-	return whereAdminLive(q, query)
+	return whereAdminLive(q, query), nil
 }
 
 func adminOrder(query AdminUserQuery) func(...string) func(*entsql.Selector) {
@@ -170,11 +141,16 @@ func AdminStatePredicate(state string) (predicate.User, bool) {
 }
 
 type UserCounts struct {
-	Total   int `json:"total"`
-	Active  int `json:"active"`
-	Paid    int `json:"paid"`
-	Granted int `json:"granted"`
-	Vip     int `json:"vip"`
+	Total             int `json:"total"`
+	Active            int `json:"active"`
+	Paid              int `json:"paid"`
+	Granted           int `json:"granted"`
+	Vip               int `json:"vip"`
+	DirectoryPaid     int `json:"directory_paid"`
+	DirectoryVIP      int `json:"directory_vip"`
+	DirectoryFree     int `json:"directory_free"`
+	DirectoryInactive int `json:"directory_inactive"`
+	DirectoryBanned   int `json:"directory_banned"`
 }
 
 func countIf(cond func(*entsql.Selector) string) ent.AggregateFunc {
@@ -198,6 +174,20 @@ func isGrantedCond(s *entsql.Selector) string {
 	return statusIs(user.StatusPaid)(s) + " AND " + s.C(user.FieldSubscriptionSource) + " IN ('admin', 'giveaway')"
 }
 
+func countDirectoryStatus(status user.Status) ent.AggregateFunc {
+	return countIf(func(s *entsql.Selector) string {
+		return s.C(user.FieldBanned) + " = FALSE AND " + s.C(user.FieldIsActive) + " = TRUE AND " + statusIs(status)(s)
+	})
+}
+
+func isDirectoryInactive(s *entsql.Selector) string {
+	return s.C(user.FieldBanned) + " = FALSE AND " + s.C(user.FieldIsActive) + " = FALSE"
+}
+
+func isDirectoryBanned(s *entsql.Selector) string {
+	return s.C(user.FieldBanned) + " = TRUE"
+}
+
 func (r *Users) UserStats(ctx context.Context) (UserCounts, error) {
 	return r.stats.GetOrLoad(ctx, userStatsKey, r.loadUserStats)
 }
@@ -212,6 +202,11 @@ func (r *Users) loadUserStats(ctx context.Context) (UserCounts, error) {
 				ent.As(countIf(statusIs(user.StatusPaid)), "paid"),
 				ent.As(countIf(isGrantedCond), "granted"),
 				ent.As(countIf(statusIs(user.StatusVip)), "vip"),
+				ent.As(countDirectoryStatus(user.StatusPaid), "directory_paid"),
+				ent.As(countDirectoryStatus(user.StatusVip), "directory_vip"),
+				ent.As(countDirectoryStatus(user.StatusFree), "directory_free"),
+				ent.As(countIf(isDirectoryInactive), "directory_inactive"),
+				ent.As(countIf(isDirectoryBanned), "directory_banned"),
 			).
 			Scan(ctx, &rows)
 		if err != nil {

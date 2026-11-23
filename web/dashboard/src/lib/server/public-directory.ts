@@ -3,7 +3,12 @@
 
 import {
   BUILTIN_COMMANDS,
+  commandHeadTrigger,
+  DISABLED_TRIGGERS_KEY,
   MODULE_CATALOG,
+  moduleCommandTriggerMap,
+  normalizeTrigger,
+  parseDisabledTriggers,
   PERM_LABELS,
   PERMS,
   tModuleCommandSummary,
@@ -13,6 +18,7 @@ import {
   translate,
   type CommandView,
   type Locale,
+  type ModuleCommandInfo,
   type Perm
 } from '@bagel/kit';
 import { usesCount } from '@bagel/kit/uses';
@@ -122,27 +128,99 @@ function moduleCommand(label: string, meta: string, perm: string): ModuleCommand
   return { label, meta, perm, aliases: [], cooldown: 0, liveOnly: false };
 }
 
+type CatalogContext = {
+  def: (typeof MODULE_CATALOG)[number];
+  config: Record<string, string>;
+  locale: Locale;
+  t: (key: string) => string;
+  disabled: Set<string>;
+  triggerMap: Map<string, string[]>;
+  headEnabled: Map<string, boolean>;
+};
+
+function swapLeadingTrigger(command: ModuleCommandInfo, active: readonly string[]): string {
+  return command.trigger.replace(/^!?\S+/, `!${active[0]}`);
+}
+
+function commandPerm(ctx: CatalogContext, command: ModuleCommandInfo): string {
+  const fallback = command.perm ?? 'everyone';
+  const perm = command.permKey ? parsePerm(ctx.config[command.permKey], fallback) : fallback;
+  return permLabel(ctx.locale, perm);
+}
+
+function resolveOwnedTrigger(
+  ctx: CatalogContext,
+  command: ModuleCommandInfo,
+  owned: string[]
+): { label: string; aliases: string[] } | null {
+  const active = owned.filter((tr) => !ctx.disabled.has(tr));
+  ctx.headEnabled.set(owned[0], active.length > 0);
+  if (active.length === 0) return null;
+  const label = active[0] === owned[0] ? command.trigger : swapLeadingTrigger(command, active);
+  return { label, aliases: active.slice(1).map((a) => `!${a}`) };
+}
+
+function resolveTriggerDisplay(
+  ctx: CatalogContext,
+  command: ModuleCommandInfo
+): { label: string; aliases: string[] } | null {
+  const owned = ctx.triggerMap.get(command.trigger) ?? [];
+  if (owned.length > 0) return resolveOwnedTrigger(ctx, command, owned);
+  if (ctx.headEnabled.get(commandHeadTrigger(command)) === false) return null;
+  return { label: command.trigger, aliases: [] };
+}
+
+function resolveCommandRow(ctx: CatalogContext, command: ModuleCommandInfo): ModuleCommand | null {
+  if (!activeReply(ctx.config, command.enableKey)) return null;
+  const display = resolveTriggerDisplay(ctx, command);
+  if (!display) return null;
+  const row = moduleCommand(display.label, tModuleCommandSummary(ctx.t, ctx.def.id, command), commandPerm(ctx, command));
+  return { ...row, aliases: display.aliases };
+}
+
+function replyDisabled(ctx: CatalogContext, reply: (typeof MODULE_CATALOG)[number]['replies'][number]): boolean {
+  if (!reply.command) return true;
+  return ctx.disabled.has(normalizeTrigger(reply.command));
+}
+
+function replyCommandRow(
+  ctx: CatalogContext,
+  reply: (typeof MODULE_CATALOG)[number]['replies'][number],
+  seen: Set<string>
+): ModuleCommand | null {
+  if (replyDisabled(ctx, reply) || !activeReply(ctx.config, reply.enableKey)) return null;
+  const base = `!${reply.command}`;
+  const label = tModuleReplyPart(ctx.t, ctx.def.id, reply, 'label');
+  const trigger = label.toLowerCase().startsWith(base.toLowerCase()) ? label : base;
+  if (seen.has(triggerBase(base)) || seen.has(triggerBase(trigger))) return null;
+  seen.add(triggerBase(base));
+  seen.add(triggerBase(trigger));
+  return moduleCommand(trigger, tModuleReplyPart(ctx.t, ctx.def.id, reply, 'tagline'), permLabel(ctx.locale, 'everyone'));
+}
+
 // One row per chat command: the documented commands first, then any command
 // only a reply names. Replies are the chat lines a command can answer with, so
 // several share one trigger and must never each become a row.
 function catalogCommands(def: (typeof MODULE_CATALOG)[number], config: Record<string, string>, locale: Locale): ModuleCommand[] {
-  const t = (key: string) => translate(locale, key);
-  const commands = (def.commands ?? []).filter((command) => !command.requiresSetting || config[command.requiresSetting] === 'on');
-  const rows = commands.map((command) => {
-    const fallback = command.perm ?? 'everyone';
-    const perm = command.permKey ? parsePerm(config[command.permKey], fallback) : fallback;
-    return moduleCommand(command.trigger, tModuleCommandSummary(t, def.id, command), permLabel(locale, perm));
-  });
-  const seen = new Set((def.commands ?? []).map((command) => triggerBase(command.trigger)));
+  const ctx: CatalogContext = {
+    def,
+    config,
+    locale,
+    t: (key: string) => translate(locale, key),
+    disabled: parseDisabledTriggers(config[DISABLED_TRIGGERS_KEY]),
+    triggerMap: moduleCommandTriggerMap(def),
+    headEnabled: new Map()
+  };
+  const commands = def.commands ?? [];
+  const rows: ModuleCommand[] = [];
+  for (const command of commands) {
+    const row = resolveCommandRow(ctx, command);
+    if (row) rows.push(row);
+  }
+  const seen = new Set(commands.map((command) => triggerBase(command.trigger)));
   for (const reply of def.replies) {
-    if (!reply.command || !activeReply(config, reply.enableKey)) continue;
-    const base = `!${reply.command}`;
-    const label = tModuleReplyPart(t, def.id, reply, 'label');
-    const trigger = label.toLowerCase().startsWith(base.toLowerCase()) ? label : base;
-    if (seen.has(triggerBase(base)) || seen.has(triggerBase(trigger))) continue;
-    seen.add(triggerBase(base));
-    seen.add(triggerBase(trigger));
-    rows.push(moduleCommand(trigger, tModuleReplyPart(t, def.id, reply, 'tagline'), permLabel(locale, 'everyone')));
+    const row = replyCommandRow(ctx, reply, seen);
+    if (row) rows.push(row);
   }
   return rows;
 }

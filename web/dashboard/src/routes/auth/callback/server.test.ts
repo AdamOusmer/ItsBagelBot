@@ -18,6 +18,9 @@ let claims: Record<string, unknown> = {};
 const GRANTED_SCOPES = ['openid', 'user:read:email', 'channel:bot'];
 let grantedScopes = GRANTED_SCOPES;
 const grants: unknown[] = [];
+const streamer = { login: 'streamer', displayName: 'Streamer', email: null };
+let account: { login: string; displayName: string; email: string | null } | null = streamer;
+const registered: unknown[] = [];
 const analytics: string[][] = [];
 mock.module('@bagel/kit/server/analytics', () => ({ count: (...args: string[]) => analytics.push(args) }));
 const events: string[] = [];
@@ -40,6 +43,7 @@ mock.module('@bagel/kit/server/nats', () => ({
       return step('grant', { ok: true });
     }
     events.push('register');
+    registered.push(payload);
     if (registerFailed) throw new Error('unavailable');
     return { ok: true };
   }
@@ -68,7 +72,7 @@ mock.module('#lib/server/edge-purge', () => ({
 }));
 mock.module('#lib/server/oauth', () => ({
   safeNextPath: () => null,
-  fetchAccountEmail: () => step('email', null),
+  fetchTwitchAccount: () => step('email', account),
   twitch: () => ({
     validateAuthorizationCode: async () => ({
       claims: () => ({ sub: '42', preferred_username: 'Streamer', aud: 'client', iss: 'https://id.twitch.tv/oauth2', nonce: 'n', ...claims }),
@@ -113,6 +117,8 @@ beforeEach(() => {
   claims = {};
   grantedScopes = GRANTED_SCOPES;
   grants.length = 0;
+  account = streamer;
+  registered.length = 0;
   analytics.length = 0;
   existing = async () => ({ username: 'streamer' });
 });
@@ -153,6 +159,20 @@ describe('login analytics', () => {
     if (isNew) existing = async () => { throw new RpcError('ent: user not found', 'not_found'); };
     await signInTo([], query);
     expect(analytics).toEqual(want.map((row) => [...row]));
+  });
+});
+
+describe('auth callback identity', () => {
+  test('a display name in another script signs in under the Twitch login', async () => {
+    account = { login: 'streamer', displayName: 'ストリーマー', email: null };
+    expect(await signInTo()).toEqual({ status: 302, location: '/' });
+    expect(registered).toEqual([{ user_id: '42', username: 'streamer', display_name: 'ストリーマー' }]);
+  });
+
+  test('an unreadable Twitch account asks for a retry before anything is written', async () => {
+    account = null;
+    const result = await signInTo();
+    expect([result.location, events.includes('register'), [...written.keys()]]).toEqual(['/login?e=retry', false, []]);
   });
 });
 

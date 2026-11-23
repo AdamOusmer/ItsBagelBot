@@ -2,7 +2,7 @@
   "eyebrow": "Déploiements",
   "titlePre": "Train de ",
   "titleEm": "livraison",
-  "description": "Publiez une version, un correctif, une mise à jour d’images, un retour arrière ou une réapplication. Les étapes s’exécutent dans un ordre fixe et s’arrêtent au premier échec. Rien n’est annulé automatiquement.",
+  "description": "Lancez des déploiements et suivez leur progression.",
   "statusLive": "En production",
   "statusCluster": "Cluster",
   "statusLastRun": "Dernière exécution",
@@ -83,5 +83,13 @@
   "rollbackTitle": "Revenir en arrière sur le cluster ?",
   "rollbackBody": "Lance une nouvelle exécution qui épingle les images de {version} et redéploie chaque service modifié.",
   "manifest": "Manifeste",
-  "logLabel": "Journal de l’étape {stage}"
+  "logLabel": "Journal de l’étape {stage}",
+  "filterAll": "Tous",
+  "filterActive": "En cours",
+  "filterFinished": "Terminés",
+  "filterLabel": "Filtrer les déploiements",
+  "filterEmpty": "Aucun déploiement ne correspond à ce filtre.",
+  "historyError": "L’historique est indisponible : {error}",
+  "historyUnavailable": "L’historique est indisponible.",
+  "planUnavailable": "Le plan de déploiement est indisponible."
 }

@@ -11,8 +11,11 @@
   "counters": "Счётчики",
   "channelpoints": "Баллы канала",
   "timers": "Таймеры",
+  "voice": "TTS",
+  "overlays": "Оверлеи",
   "billing": "Оплата",
   "stats": "Статистика",
   "status": "Состояние",
-  "settings": "Настройки"
+  "settings": "Настройки",
+  "giveaways": "Розыгрыши"
 }

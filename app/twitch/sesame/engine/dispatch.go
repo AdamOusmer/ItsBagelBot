@@ -5,7 +5,6 @@ package engine
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -15,9 +14,9 @@ import (
 	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/internal/utils"
-	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/idempotency"
 	"ItsBagelBot/pkg/tmpl"
 
@@ -36,22 +35,29 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	if c.Env.Origin == "trial" && !trialCommand(owners, name) {
 		return nil
 	}
-	c.Command = name
-	c.ModuleLookup = p.moduleLookup(views, c)
+	p.bindCommand(c, views, name)
 	if bc, ok := p.claimOwner(ctx, owners, views, c); ok {
 		emittedBefore := c.Emitted
-		err := p.runBaked(ctx, c, bc.Cmd, num, input.args, emit)
+		err := p.runBaked(ctx, c, bakedCommand{cmd: bc.Cmd, num: num, args: input.args}, emit)
 		return p.finishBaked(ctx, c, bakedRun{bc: bc, emittedBefore: emittedBefore, err: err})
 	}
 	if c.Env.Origin == "trial" {
 		return nil
 	}
-	claimed, err := p.runCustom(ctx, c, name, input.args, emit)
+	claimed, err := p.runCustom(ctx, c, input.args, emit)
 	if claimed || err != nil {
 		return err
 	}
 	p.runAutomationCommand(ctx, c, recipeCommand{input: input, views: views}, emit)
 	return nil
+}
+
+func (p *Pipeline) bindCommand(c *module.Context, views map[string]projection.ModuleView, name string) {
+	c.Command = name
+	c.SpeechPolicy = automodConfigFrom(views, false).SpeechPolicy
+	if name == voiceplan.ChatCommand {
+		c.BlocksText = automodConfigFrom(views, false).BlocksText
+	}
 }
 
 type bakedRun struct {
@@ -72,18 +78,34 @@ func trialCommand(owners []BoundCommand, name string) bool {
 }
 
 func (p *Pipeline) claimOwner(ctx context.Context, owners []BoundCommand, views map[string]projection.ModuleView, c *module.Context) (BoundCommand, bool) {
+	if len(owners) == 0 {
+		return BoundCommand{}, false
+	}
+	c.ModuleLookup = p.moduleLookup(views, c)
+	c.TriggerDisabledLookup = p.triggerDisabledLookup(views)
 	declined := -1
 	for i, bc := range owners {
-		if !p.enabled(bc.Owner, views, c) {
+		if !p.ownerActive(bc.Owner, views, c) {
 			continue
 		}
 		if bc.Cmd.When == nil || bc.Cmd.When(ctx, c) {
 			return bc, true
 		}
-		if declined < 0 {
+		if declined < 0 && !bc.Cmd.Yield {
 			declined = i
 		}
 	}
+	return p.fallbackOwner(owners, views, c, declined)
+}
+
+func (p *Pipeline) ownerActive(owner module.Module, views map[string]projection.ModuleView, c *module.Context) bool {
+	if !p.enabled(owner, views, c) {
+		return false
+	}
+	return owner.Kind == module.KindCore || !triggerDisabled(c.Config, module.TriggerName(c.Command))
+}
+
+func (p *Pipeline) fallbackOwner(owners []BoundCommand, views map[string]projection.ModuleView, c *module.Context, declined int) (BoundCommand, bool) {
 	if declined < 0 {
 		return BoundCommand{}, false
 	}
@@ -104,6 +126,13 @@ func (p *Pipeline) moduleLookup(views map[string]projection.ModuleView, c *modul
 	}
 }
 
+func (p *Pipeline) triggerDisabledLookup(views map[string]projection.ModuleView) func(module.ModuleName, module.TriggerName) bool {
+	return func(name module.ModuleName, trigger module.TriggerName) bool {
+		mv, ok := views[string(name)]
+		return ok && triggerDisabled(mv.Configs, trigger)
+	}
+}
+
 func trialReadOnlyCommand(name string) bool {
 	// Followage and uptime require registered-channel admission in Outgress.
 	// Trial chat must stop here instead of issuing lookups that cannot succeed.
@@ -117,26 +146,25 @@ func trialReadOnlyCommand(name string) bool {
 	}
 }
 
-func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.Command, num, args string, emit module.Emit) error {
-	perm, err := p.builtinPermission(ctx, c.BroadcasterID, cmd)
+type bakedCommand struct {
+	cmd       module.Command
+	num, args string
+}
+
+func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, command bakedCommand, emit module.Emit) error {
+	cmd := command.cmd
+	rule, err := p.builtinGate(ctx, c, cmd)
 	if err != nil {
 		return err
 	}
-	pass, err := p.gate(ctx, c, gateRule{
-		name:          cmd.Name,
-		allowedUserID: cmd.AllowedUserID,
-		perm:          perm,
-		liveOnly:      cmd.LiveOnly,
-		cooldown:      cmd.Cooldown,
-	})
-	if err != nil || !pass {
+	if pass, err := p.gate(ctx, c, rule); err != nil || !pass {
 		return err
 	}
-	c.Num = num
+	c.Num = command.num
 	p.ensureLocale(ctx, c)
-	run := commandRun{c: c, command: cmd.Name, args: args}
+	run := commandRun{c: c, command: cmd.Name, args: command.args}
 	var emitErr error
-	err = cmd.Run(ctx, c, args, func(o *module.Output) {
+	err = cmd.Run(ctx, c, command.args, func(o *module.Output) {
 		if emitErr != nil {
 			return
 		}
@@ -151,48 +179,6 @@ func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.C
 	return emitErr
 }
 
-// The built-ins on the commands page store their access override alongside
-// their toggle and reply in the module row. Resolve it before the common gate,
-// including for aliases, so a restricted command never claims a cooldown or
-// reaches its handler for an unauthorized chatter.
-func (p *Pipeline) builtinPermission(ctx context.Context, broadcasterID uint64, cmd module.Command) (module.Role, error) {
-	if !configurableBuiltin(cmd.Name) || p.proj == nil {
-		return cmd.Perm, nil
-	}
-	view, found, err := p.proj.Module(ctx, broadcasterID, cmd.Name)
-	if err != nil {
-		return cmd.Perm, err
-	}
-	if !found || len(view.Configs) == 0 {
-		return cmd.Perm, nil
-	}
-	var config struct {
-		Permission string `json:"permission"`
-	}
-	if err := codec.Unmarshal(view.Configs, &config); err != nil {
-		return cmd.Perm, err
-	}
-	if config.Permission == "" {
-		return cmd.Perm, nil
-	}
-	switch config.Permission {
-	case "everyone", "sub", "vip", "mod", "lead_mod", "broadcaster":
-		return module.ParsePerm(config.Permission), nil
-	default:
-		// A corrupt override must not quietly become the Everyone tier.
-		return cmd.Perm, fmt.Errorf("invalid built-in permission for %s", cmd.Name)
-	}
-}
-
-func configurableBuiltin(name string) bool {
-	switch name {
-	case "accountage", "followage", "uptime", "clip", "title", "game", "tags", "commercial", "marker":
-		return true
-	default:
-		return false
-	}
-}
-
 func (p *Pipeline) activeCustom(ctx context.Context, c *module.Context, name string) (projection.Command, bool, error) {
 	cc, found, err := p.proj.Command(ctx, c.BroadcasterID, name)
 	if err != nil || !found {
@@ -201,8 +187,8 @@ func (p *Pipeline) activeCustom(ctx context.Context, c *module.Context, name str
 	return cc, cc.IsActive && cc.Response != "", nil
 }
 
-func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args string, emit module.Emit) (bool, error) {
-	cc, ok, err := p.activeCustom(ctx, c, name)
+func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, args string, emit module.Emit) (bool, error) {
+	cc, ok, err := p.activeCustom(ctx, c, c.Command)
 	if err != nil || !ok {
 		return false, err
 	}
@@ -220,7 +206,7 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	}
 
 	p.log.Debug("command matched",
-		zap.String("command", name),
+		zap.String("command", c.Command),
 		zap.String("regress", c.Regress.String()),
 		module.BIDField(c.BroadcasterID),
 	)

@@ -3,6 +3,8 @@
 
 import Config
 
+alias Platform.Nats.Settings, as: NatsSettings
+
 split_csv = fn
   nil -> []
   "" -> []
@@ -80,7 +82,6 @@ config :ingress,
   scale_subject: System.get_env("NATS_SCALE_SUBJECT", "twitch.ingress.admin.shards.scale"),
   autoscale_subject:
     System.get_env("NATS_AUTOSCALE_SUBJECT", "twitch.ingress.admin.shards.autoscale"),
-  conduit_subject: System.get_env("NATS_CONDUIT_SUBJECT", "rpc.ingress.conduit.get"),
   rpc_health_subject: System.get_env("NATS_RPC_HEALTH_SUBJECT", "rpc.health.ingress"),
   max_shards: String.to_integer(System.get_env("TWITCH_CONDUIT_MAX_SHARDS", "11")),
   capacity_pod_rated_eps:
@@ -148,69 +149,19 @@ nats_leaf_host = System.get_env("NATS_LEAF_HOST") || System.get_env("NATS_HOST",
 nats_hub_host = System.get_env("NATS_HUB_HOST") || nats_leaf_host
 nats_port = String.to_integer(System.get_env("NATS_PORT", "4222"))
 
-nats_cacerts =
-  case System.get_env("NATS_CA_PEM") do
-    pem when is_binary(pem) and pem != "" ->
-      pem |> :public_key.pem_decode() |> Enum.map(fn {_type, der, _info} -> der end)
+nats_tls = NatsSettings.tls(NatsSettings.ca_certs())
 
-    _ ->
-      nil
-  end
+rpc_auth =
+  NatsSettings.credentials(
+    System.get_env("NATS_RPC_JWT") || System.get_env("NATS_JWT"),
+    System.get_env("NATS_RPC_NKEY_SEED") || System.get_env("NATS_NKEY_SEED")
+  )
 
-nats_auth = fn jwt, seed ->
-  if is_binary(jwt) and is_binary(seed), do: %{nkey_seed: seed, jwt: jwt}, else: %{}
-end
-
-nats_server = fn host, auth ->
-  base = %{host: host, port: nats_port, no_responders: true}
-
-  base =
-    if nats_cacerts do
-      ssl_opts = [
-        verify: :verify_peer,
-        cacerts: nats_cacerts,
-        server_name_indication: String.to_charlist(host),
-        depth: 3
-      ]
-
-      # File paths, not contents: ssl re-reads cert-manager renewals.
-      ssl_opts =
-        case {System.get_env("NATS_CLIENT_CERT_FILE", ""),
-              System.get_env("NATS_CLIENT_KEY_FILE", "")} do
-          {"", ""} ->
-            ssl_opts
-
-          {cert, key} when cert != "" and key != "" ->
-            ssl_opts ++ [certfile: cert, keyfile: key]
-
-          _ ->
-            raise "NATS_CLIENT_CERT_FILE and NATS_CLIENT_KEY_FILE must both be set or both empty"
-        end
-
-      Map.merge(base, %{tls: true, ssl_opts: ssl_opts})
-    else
-      base
-    end
-
-  Map.merge(base, auth)
-end
+hub_auth = NatsSettings.credentials(System.get_env("NATS_JWT"), System.get_env("NATS_NKEY_SEED"))
 
 config :ingress,
-  nats: [
-    nats_server.(
-      nats_leaf_host,
-      nats_auth.(
-        System.get_env("NATS_RPC_JWT") || System.get_env("NATS_JWT"),
-        System.get_env("NATS_RPC_NKEY_SEED") || System.get_env("NATS_NKEY_SEED")
-      )
-    )
-  ],
-  nats_bus: [
-    nats_server.(
-      nats_hub_host,
-      nats_auth.(System.get_env("NATS_JWT"), System.get_env("NATS_NKEY_SEED"))
-    )
-  ]
+  nats: [NatsSettings.connection({nats_leaf_host, nats_port}, rpc_auth, nats_tls)],
+  nats_bus: [NatsSettings.connection({nats_hub_host, nats_port}, hub_auth, nats_tls)]
 
 if level = System.get_env("LOG_LEVEL") do
   config :logger, level: String.to_existing_atom(level)

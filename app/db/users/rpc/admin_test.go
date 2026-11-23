@@ -27,26 +27,18 @@ const (
 )
 
 type pageMeta struct {
-	Page, PageSize, MaxPages int
-	HasMore                  bool
+	Page, PageSize, MaxPages, Total int
+	HasMore                         bool
 }
 
 func metaOf(reply usersrpc.AdminReply) pageMeta {
-	return pageMeta{Page: reply.Page, PageSize: reply.PageSize, MaxPages: reply.MaxPages, HasMore: reply.HasMore}
+	return pageMeta{Page: reply.Page, PageSize: reply.PageSize, MaxPages: reply.MaxPages, Total: reply.Total, HasMore: reply.HasMore}
 }
 
-func newestFirst(from, to int) []string {
-	var names []string
-	for i := from; i >= to; i-- {
-		names = append(names, fmt.Sprintf("user-%02d", i))
-	}
-	return names
-}
-
-func oldestFirst(from, to int) []string {
-	var names []string
-	for i := from; i <= to; i++ {
-		names = append(names, fmt.Sprintf("user-%02d", i))
+func seededUsernames(first, count, step int) []string {
+	names := make([]string, count)
+	for i := range names {
+		names[i] = fmt.Sprintf("user-%02d", first+i*step)
 	}
 	return names
 }
@@ -58,114 +50,154 @@ func moderatorHarness(t *testing.T) harness {
 	return h
 }
 
-func TestAdminUserListPagesNewestFirst(t *testing.T) {
+func TestAdminUserListPages(t *testing.T) {
 	h := moderatorHarness(t)
-	h.users(2*listPage, time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC))
-
-	first := h.admin(t, "list", modActor, usersrpc.AdminRequest{Page: 1, Limit: listPage})
-	second := h.admin(t, "list", modActor, usersrpc.AdminRequest{Page: 2, Limit: listPage})
-
-	require.Empty(t, first.Error)
-	assert.Equal(t, pageMeta{1, listPage, repository.AdminUserMaxPages, true}, metaOf(first))
-	assert.Equal(t, newestFirst(2*listPage-1, listPage), usernames(first))
-	require.Empty(t, second.Error)
-	assert.Equal(t, pageMeta{2, listPage, repository.AdminUserMaxPages, false}, metaOf(second))
-	assert.Equal(t, newestFirst(listPage-1, 0), usernames(second))
-}
-
-func TestAdminUserListPagesOldestFirst(t *testing.T) {
-	h := moderatorHarness(t)
-	h.users(2*listPage, time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC))
-
-	first := h.admin(t, "list", modActor, usersrpc.AdminRequest{Page: 1, Limit: listPage, Order: "oldest"})
-	second := h.admin(t, "list", modActor, usersrpc.AdminRequest{Page: 2, Limit: listPage, Order: "oldest"})
-
-	require.Empty(t, first.Error)
-	assert.Equal(t, oldestFirst(0, listPage-1), usernames(first))
-	require.Empty(t, second.Error)
-	assert.Equal(t, oldestFirst(listPage, 2*listPage-1), usernames(second))
-}
-
-func TestAdminUserListSearchesBeforePaging(t *testing.T) {
-	h := moderatorHarness(t)
-	base := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
-	h.users(2*listPage, base)
-	h.client.User.Create().SetID(424242).SetUsername("needle-user").SetEmail("needle@example.invalid").
-		SetStatus(user.StatusVip).SetCreatedAt(base.Add(2 * time.Hour)).ExecX(t.Context())
-
-	reply := h.admin(t, "list", modActor, usersrpc.AdminRequest{Page: 1, Limit: listPage, Search: "NEEDLE"})
-
-	require.Empty(t, reply.Error)
-	assert.Equal(t, []uint64{424242}, userIDs(reply))
-	assert.False(t, reply.HasMore)
-}
-
-func TestAdminUserListFiltersByState(t *testing.T) {
-	h := moderatorHarness(t)
-	base := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
-	seed := []struct {
-		id     uint64
-		status user.Status
-		active bool
-		banned bool
-	}{
-		{6001, user.StatusVip, true, false},
-		{6002, user.StatusPaid, true, false},
-		{6003, user.StatusFree, true, false},
-		{6004, user.StatusVip, false, false},
-		{6005, user.StatusPaid, false, true},
-	}
-	for i, s := range seed {
-		h.client.User.Create().SetID(s.id).
-			SetUsername(fmt.Sprintf("state-%02d", i)).SetEmail(fmt.Sprintf("state-%02d@example.invalid", i)).
-			SetStatus(s.status).SetIsActive(s.active).SetBanned(s.banned).
-			SetCreatedAt(base.Add(time.Duration(i) * time.Minute)).ExecX(t.Context())
-	}
+	const total = 26*listPage + 1
+	h.users(total, time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC))
 
 	for _, tc := range []struct {
-		state string
-		want  []uint64
+		name string
+		req  usersrpc.AdminRequest
+		meta pageMeta
+		rows []string
 	}{
-		{"vip", []uint64{6001}},
-		{"paid", []uint64{6002}},
-		{"free", []uint64{6003}},
-		{"inactive", []uint64{6004}},
-		{"banned", []uint64{6005}},
-		{"nope", []uint64{6005, 6004, 6003, 6002, 6001}},
+		{
+			name: "newest first",
+			req:  usersrpc.AdminRequest{Page: 1, Limit: listPage},
+			meta: pageMeta{1, listPage, 27, total, true},
+			rows: seededUsernames(total-1, listPage, -1),
+		},
+		{
+			name: "oldest first",
+			req:  usersrpc.AdminRequest{Page: 2, Limit: listPage, Order: "oldest"},
+			meta: pageMeta{2, listPage, 27, total, true},
+			rows: seededUsernames(listPage, listPage, 1),
+		},
+		{
+			name: "page 26 with clamped page size",
+			req:  usersrpc.AdminRequest{Page: 26, Limit: 100},
+			meta: pageMeta{26, listPage, 27, total, true},
+			rows: seededUsernames(listPage, listPage, -1),
+		},
+		{
+			name: "past the last page",
+			req:  usersrpc.AdminRequest{Page: 999, Limit: listPage},
+			meta: pageMeta{27, listPage, 27, total, false},
+			rows: seededUsernames(0, 1, -1),
+		},
 	} {
-		t.Run(tc.state, func(t *testing.T) {
-			reply := h.admin(t, "list", modActor, usersrpc.AdminRequest{Page: 1, Limit: listPage, State: tc.state})
+		t.Run(tc.name, func(t *testing.T) {
+			reply := h.admin(t, "list", modActor, tc.req)
 
 			require.Empty(t, reply.Error)
-			assert.Equal(t, tc.want, userIDs(reply))
+			assert.Equal(t, tc.meta, metaOf(reply))
+			assert.Equal(t, tc.rows, usernames(reply))
 		})
 	}
 }
 
-func TestAdminUserListOnlyLive(t *testing.T) {
-	h := moderatorHarness(t)
+func seedDirectoryFixtures(t *testing.T, h harness) {
+	t.Helper()
 	base := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
-	for i, id := range []uint64{6001, 6002, 6003} {
-		h.client.User.Create().SetID(id).
-			SetUsername(fmt.Sprintf("live-%02d", i)).SetEmail(fmt.Sprintf("live-%02d@example.invalid", i)).
-			SetStatus(user.StatusFree).SetIsActive(true).
+	for i, row := range []struct {
+		name   string
+		status user.Status
+		active bool
+		banned bool
+	}{
+		{"needle-vip", user.StatusVip, true, false},
+		{"needle-paid", user.StatusPaid, true, false},
+		{"needle-free", user.StatusFree, true, false},
+		{"needle-inactive", user.StatusVip, false, false},
+		{"needle-banned", user.StatusPaid, false, true},
+		{"another-paid", user.StatusPaid, true, false},
+	} {
+		h.client.User.Create().SetID(uint64(6001 + i)).
+			SetUsername(row.name).SetEmail(row.name + "@example.invalid").
+			SetStatus(row.status).SetIsActive(row.active).SetBanned(row.banned).
 			SetCreatedAt(base.Add(time.Duration(i) * time.Minute)).ExecX(t.Context())
 	}
+}
 
-	live := h.admin(t, "list", modActor, usersrpc.AdminRequest{
-		Page: 1, Limit: listPage, OnlyLive: true, LiveIDs: []uint64{6001, 6003},
-	})
-	require.Empty(t, live.Error)
-	assert.Equal(t, []uint64{6003, 6001}, userIDs(live))
+func TestAdminUserListCountsFilteredRows(t *testing.T) {
+	h := moderatorHarness(t)
+	seedDirectoryFixtures(t, h)
 
-	none := h.admin(t, "list", modActor, usersrpc.AdminRequest{Page: 1, Limit: listPage, OnlyLive: true})
-	require.Empty(t, none.Error)
-	assert.Empty(t, userIDs(none))
+	for _, tc := range []struct {
+		name string
+		req  usersrpc.AdminRequest
+		meta pageMeta
+		ids  []uint64
+	}{
+		{
+			name: "case-insensitive search",
+			req:  usersrpc.AdminRequest{Page: 2, Limit: 2, Search: " NEEDLE "},
+			meta: pageMeta{2, 2, 3, 5, true},
+			ids:  []uint64{6003, 6002},
+		},
+		{
+			name: "vip",
+			req:  usersrpc.AdminRequest{Page: 1, Limit: listPage, State: "vip"},
+			meta: pageMeta{1, listPage, 1, 1, false},
+			ids:  []uint64{6001},
+		},
+		{
+			name: "paid includes only active unbanned users",
+			req:  usersrpc.AdminRequest{Page: 1, Limit: listPage, State: "paid"},
+			meta: pageMeta{1, listPage, 1, 2, false},
+			ids:  []uint64{6006, 6002},
+		},
+		{
+			name: "free",
+			req:  usersrpc.AdminRequest{Page: 1, Limit: listPage, State: "free"},
+			meta: pageMeta{1, listPage, 1, 1, false},
+			ids:  []uint64{6003},
+		},
+		{
+			name: "inactive excludes banned users",
+			req:  usersrpc.AdminRequest{Page: 1, Limit: listPage, State: "inactive"},
+			meta: pageMeta{1, listPage, 1, 1, false},
+			ids:  []uint64{6004},
+		},
+		{
+			name: "banned",
+			req:  usersrpc.AdminRequest{Page: 1, Limit: listPage, State: "banned"},
+			meta: pageMeta{1, listPage, 1, 1, false},
+			ids:  []uint64{6005},
+		},
+		{
+			name: "live limit one counts registered users",
+			req:  usersrpc.AdminRequest{Page: 1, Limit: 1, OnlyLive: true, LiveIDs: []uint64{6001, 6003, 7000}},
+			meta: pageMeta{1, 1, 2, 2, true},
+			ids:  []uint64{6003},
+		},
+		{
+			name: "empty live set",
+			req:  usersrpc.AdminRequest{Page: 99, Limit: listPage, OnlyLive: true},
+			meta: pageMeta{1, listPage, 1, 0, false},
+			ids:  []uint64{},
+		},
+		{
+			name: "unknown state and live ids without live filter",
+			req:  usersrpc.AdminRequest{Page: 1, Limit: listPage, State: "nope", LiveIDs: []uint64{6001}},
+			meta: pageMeta{1, listPage, 1, 6, false},
+			ids:  []uint64{6006, 6005, 6004, 6003, 6002, 6001},
+		},
+		{
+			name: "search, state, and live intersection",
+			req:  usersrpc.AdminRequest{Page: 26, Search: "needle", State: "paid", OnlyLive: true, LiveIDs: []uint64{6002, 6004, 6006, 7000}},
+			meta: pageMeta{1, listPage, 1, 1, false},
+			ids:  []uint64{6002},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reply := h.admin(t, "list", modActor, tc.req)
 
-	// Ids without the flag do not narrow the directory.
-	ignored := h.admin(t, "list", modActor, usersrpc.AdminRequest{Page: 1, Limit: listPage, LiveIDs: []uint64{6001}})
-	require.Empty(t, ignored.Error)
-	assert.Equal(t, []uint64{6003, 6002, 6001}, userIDs(ignored))
+			require.Empty(t, reply.Error)
+			assert.Equal(t, tc.meta, metaOf(reply))
+			assert.Equal(t, tc.ids, userIDs(reply))
+		})
+	}
 }
 
 func TestAdminEnrollmentBucketsPerDay(t *testing.T) {
@@ -234,6 +266,7 @@ func TestAdminVerbsRequireTheirMinimumRole(t *testing.T) {
 		{"get", 0}, {"list", 0}, {"stats", 0}, {"enrollment", 0}, {"overview", 0},
 		{"token_status", 0}, {"ban", 0}, {"unban", 0},
 		{"set_status", 1}, {"set_active", 1}, {"set_creator_code", 1}, {"test.set", 1},
+		{"voice_usage_set", 1},
 		{"reset", 1}, {"token_set", 1}, {"token_clear", 1},
 		{"delete", 2},
 	} {
@@ -241,11 +274,7 @@ func TestAdminVerbsRequireTheirMinimumRole(t *testing.T) {
 			for rank, actor := range actors {
 				reply := h.admin(t, tc.verb, actor, usersrpc.AdminRequest{UserID: absentTarget, Status: "paid"})
 
-				if rank < tc.min {
-					assert.Equal(t, domainrpc.CodeForbidden, reply.Code, "actor %d", actor)
-					continue
-				}
-				assert.NotEqual(t, domainrpc.CodeForbidden, reply.Code, "actor %d: %s", actor, reply.Error)
+				assert.Equal(t, rank < tc.min, reply.Code == domainrpc.CodeForbidden, "actor %d: %s", actor, reply.Error)
 			}
 		})
 	}

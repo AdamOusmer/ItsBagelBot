@@ -3,18 +3,32 @@
 
 import { rpc } from '@bagel/kit/server/nats';
 import type { CounterDef, CounterEntryView, CounterScope, LoyaltyConfig, LoyaltyStanding } from '@bagel/kit';
-import { blankLoyaltyConfig, COUNTER_SCOPES, MOD } from '@bagel/kit';
+import {
+  blankLoyaltyConfig,
+  COUNTER_SCOPES,
+  DISABLED_TRIGGERS_KEY,
+  formatDisabledTriggers,
+  MOD,
+  moduleAllowedTriggers,
+  moduleDef,
+  parseDisabledTriggers
+} from '@bagel/kit';
 import { SUB } from './services';
-import { upsertModule } from './commands-store';
+import { patchModuleConfig, upsertModule } from './commands-store';
 import { scheduleLeaderboardPurge } from './edge-purge';
 import { readModuleBlob } from './module-blob';
 import { parseCounterValue, readPointBalance } from '@bagel/kit/validation';
 
 const LOYALTY_MODULE = MOD.loyalty;
+const LOYALTY_ALLOWED_TRIGGERS = moduleAllowedTriggers(moduleDef(LOYALTY_MODULE)!);
+const FREEZE_SET_TIMEOUT_MS = 30_000;
+
+type BroadcasterId = string;
 
 export interface LoyaltyView {
   enabled: boolean;
   config: LoyaltyConfig;
+  disabledTriggers: string;
 }
 
 interface BalanceWire {
@@ -41,19 +55,26 @@ interface EntryWire {
   value: string | number;
 }
 
-interface LoyaltyReplyWire {
+interface FreezeStampWire {
+  freeze_id?: string;
+  frozen_as_of?: number;
+  expires_at?: number;
+}
+
+interface LoyaltyReplyWire extends FreezeStampWire {
   balance?: BalanceWire;
   top?: BalanceWire[];
   total?: number;
   counter?: CounterWire;
   counters?: CounterWire[];
   entries?: EntryWire[];
+  active?: boolean;
   found?: boolean;
   error?: string;
 }
 
-function callLoyalty(verb: string, req: Record<string, unknown>): Promise<LoyaltyReplyWire> {
-  return rpc<LoyaltyReplyWire>(`${SUB.loyalty}.${verb}`, req, 4000);
+function callLoyalty(verb: string, req: Record<string, unknown>, timeoutMs = 4000): Promise<LoyaltyReplyWire> {
+  return rpc<LoyaltyReplyWire>(`${SUB.loyalty}.${verb}`, req, timeoutMs);
 }
 
 const RATE_KEYS = [
@@ -75,19 +96,34 @@ function rate(v: unknown): number {
   return Number(v ?? 0) || 0;
 }
 
-export async function readLoyalty(userId: string): Promise<LoyaltyView> {
-  const { enabled, configs: raw } = await readModuleBlob<Partial<LoyaltyConfig>>(userId, LOYALTY_MODULE);
+export async function readLoyalty(userId: BroadcasterId): Promise<LoyaltyView> {
+  const { enabled, configs: raw } = await readModuleBlob<Partial<LoyaltyConfig & Record<typeof DISABLED_TRIGGERS_KEY, string>>>(
+    userId,
+    LOYALTY_MODULE
+  );
   const config: LoyaltyConfig = {
     ...blankLoyaltyConfig(),
     pointsName: String(raw.pointsName ?? ''),
     watchSubBonus: raw.watchSubBonus === true
   };
   for (const key of RATE_KEYS) config[key] = rate(raw[key]);
-  return { enabled, config };
+  return { enabled, config, disabledTriggers: String(raw[DISABLED_TRIGGERS_KEY] ?? '') };
 }
 
-export async function writeLoyalty(userId: string, enabled: boolean, config: LoyaltyConfig): Promise<void> {
-  await upsertModule(userId, LOYALTY_MODULE, enabled, config);
+export async function writeLoyalty(
+  userId: BroadcasterId,
+  enabled: boolean,
+  config: LoyaltyConfig,
+  disabledTriggers: string
+): Promise<void> {
+  const payload = disabledTriggers ? { ...config, [DISABLED_TRIGGERS_KEY]: disabledTriggers } : config;
+  await upsertModule(userId, LOYALTY_MODULE, enabled, payload);
+}
+
+export async function writeLoyaltyTriggers(userId: BroadcasterId, raw: string): Promise<string> {
+  const normalized = formatDisabledTriggers(parseDisabledTriggers(raw), LOYALTY_ALLOWED_TRIGGERS);
+  await patchModuleConfig({ userId, name: LOYALTY_MODULE, partial: { [DISABLED_TRIGGERS_KEY]: normalized } });
+  return normalized;
 }
 
 function toScope(raw: string | undefined): CounterScope {
@@ -104,12 +140,12 @@ function toCounterDef(c: CounterWire): CounterDef {
   return { name: c.name, scope: toScope(c.scope), value: counterValue(c.value) };
 }
 
-export async function listCounters(userId: string): Promise<CounterDef[]> {
+export async function listCounters(userId: BroadcasterId): Promise<CounterDef[]> {
   const reply = await callLoyalty('counter.list', { user_id: userId });
   return (reply.counters ?? []).map(toCounterDef);
 }
 
-export async function createCounter(userId: string, name: string, scope: CounterScope): Promise<CounterDef> {
+export async function createCounter(userId: BroadcasterId, name: string, scope: CounterScope): Promise<CounterDef> {
   const reply = await callLoyalty('counter.create', { user_id: userId, name, scope });
   const c = reply.counter;
   if (!c) throw new Error('empty counter reply');
@@ -123,7 +159,7 @@ export interface CounterTarget {
 }
 
 // Untargeted on an entry-scoped counter, 0 resets every stored bucket.
-export async function setCounter(userId: string, name: string, value: string, target: CounterTarget = {}): Promise<boolean> {
+export async function setCounter(userId: BroadcasterId, name: string, value: string, target: CounterTarget = {}): Promise<boolean> {
   const reply = await callLoyalty('counter.set', {
     user_id: userId,
     name,
@@ -135,7 +171,7 @@ export async function setCounter(userId: string, name: string, value: string, ta
   return reply.found === true;
 }
 
-export async function getCounter(userId: string, name: string): Promise<CounterDef | null> {
+export async function getCounter(userId: BroadcasterId, name: string): Promise<CounterDef | null> {
   const reply = await callLoyalty('counter.get', { user_id: userId, name });
   if (reply.found !== true || !reply.counter) return null;
   return toCounterDef(reply.counter);
@@ -151,16 +187,16 @@ export async function resolveViewerId(login: string): Promise<string> {
   return reply.target_id ?? '';
 }
 
-export async function renameCounter(userId: string, name: string, newName: string): Promise<boolean> {
+export async function renameCounter(userId: BroadcasterId, name: string, newName: string): Promise<boolean> {
   const reply = await callLoyalty('counter.rename', { user_id: userId, name, new_name: newName });
   return reply.found === true;
 }
 
-export async function deleteCounter(userId: string, name: string): Promise<void> {
+export async function deleteCounter(userId: BroadcasterId, name: string): Promise<void> {
   await callLoyalty('counter.delete', { user_id: userId, name });
 }
 
-export async function deleteCounterEntry(userId: string, name: string, target: CounterTarget): Promise<boolean> {
+export async function deleteCounterEntry(userId: BroadcasterId, name: string, target: CounterTarget): Promise<boolean> {
   const reply = await callLoyalty('counter.entry.delete', {
     user_id: userId,
     name,
@@ -170,7 +206,7 @@ export async function deleteCounterEntry(userId: string, name: string, target: C
   return reply.found === true;
 }
 
-export async function counterEntries(userId: string, name: string, limit = 25): Promise<CounterEntryView[]> {
+export async function counterEntries(userId: BroadcasterId, name: string, limit = 25): Promise<CounterEntryView[]> {
   const reply = await callLoyalty('counter.entries', { user_id: userId, name, limit });
   return (reply.entries ?? []).map((e) => ({
     viewerId: e.viewer_id,
@@ -192,38 +228,86 @@ function toStanding(b: BalanceWire): LoyaltyStanding {
   };
 }
 
-export async function topStandings(userId: string, limit = 10): Promise<LoyaltyStanding[]> {
-  const reply = await callLoyalty('top.get', { user_id: userId, limit });
-  return (reply.top ?? []).map(toStanding);
-}
-
-type BroadcasterId = string;
-
 export async function resetPoints(userId: BroadcasterId): Promise<number> {
   const reply = await callLoyalty('balance.reset', { user_id: userId });
   scheduleLeaderboardPurge(userId);
   return reply.total ?? 0;
 }
 
+export interface FreezeStamp {
+  id: string;
+  asOf: number;
+  expiresAt: number;
+}
+
+export type FreezeView = Omit<FreezeStamp, 'id'>;
+
+function freezeStamp(wire: FreezeStampWire): FreezeStamp | null {
+  const id = wire.freeze_id ?? '';
+  const asOf = wire.frozen_as_of ?? 0;
+  const expiresAt = wire.expires_at ?? 0;
+  return id ? { id, asOf, expiresAt } : null;
+}
+
+function freezeView(wire: FreezeStampWire): FreezeView | null {
+  const { frozen_as_of: asOf, expires_at: expiresAt } = wire;
+  return asOf && expiresAt ? { asOf, expiresAt } : null;
+}
+
+export async function readFreeze(userId: BroadcasterId): Promise<FreezeView | null> {
+  const reply = await callLoyalty('freeze.get', { user_id: userId });
+  return reply.active ? freezeView(reply) : null;
+}
+
+export async function freezeStandings(userId: BroadcasterId, actorId: BroadcasterId, minutes: number): Promise<FreezeView | null> {
+  const reply = await callLoyalty('freeze.set', { user_id: userId, actor_id: actorId, minutes }, FREEZE_SET_TIMEOUT_MS);
+  return freezeView(reply);
+}
+
+export async function unfreezeStandings(userId: BroadcasterId, actorId: BroadcasterId): Promise<void> {
+  await callLoyalty('freeze.release', { user_id: userId, actor_id: actorId });
+}
+
 export interface StandingsPage {
   rows: LoyaltyStanding[];
   total: number;
+  freeze: FreezeStamp | null;
 }
 
-export interface StandingsPageRequest {
+export interface StandingsPin {
+  freezeId?: string;
+  live?: boolean;
+}
+
+export interface StandingsPageRequest extends StandingsPin {
   limit: number;
   offset: number;
   viewerId?: string;
   viewerLogin?: string;
 }
 
-export async function standingsPage(userId: string, req: StandingsPageRequest): Promise<StandingsPage> {
+export function topStandings(userId: BroadcasterId, limit = 10, pin?: StandingsPin): Promise<StandingsPage> {
+  return standingsPage(userId, { limit, offset: 0, ...pin });
+}
+
+export async function standingsPage(userId: BroadcasterId, req: StandingsPageRequest): Promise<StandingsPage> {
   const reply = await callLoyalty('top.get', {
     user_id: userId,
     limit: req.limit,
     offset: req.offset || undefined,
     viewer_id: req.viewerId || undefined,
-    viewer_login: req.viewerLogin || undefined
+    viewer_login: req.viewerLogin || undefined,
+    freeze_id: req.freezeId,
+    live: req.live
   });
-  return { rows: (reply.top ?? []).map(toStanding), total: reply.total ?? 0 };
+  return { rows: (reply.top ?? []).map(toStanding), total: reply.total ?? 0, freeze: freezeStamp(reply) };
+}
+
+export interface RaffleStatus {
+  accrual_health: 'healthy' | 'starting' | 'offline' | 'stalled';
+  unpaid?: string[];
+}
+
+export function raffleStatus(userId: BroadcasterId): Promise<RaffleStatus> {
+  return rpc<RaffleStatus>('rpc.draw.raffle.status', { user_id: userId, source: 'dashboard' }, 4000);
 }

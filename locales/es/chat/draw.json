@@ -1,0 +1,21 @@
+{
+  "claim.late": "@{draw:user}, se cerró el plazo para reclamar el premio.",
+  "claim.ok": "¡@{draw:user}, tu premio está confirmado!",
+  "empty": "Nadie participó en el sorteo.",
+  "join.closed": "El sorteo ha cerrado.",
+  "no_show": "Se acabó el plazo para reclamar el premio de {draw:targets}.",
+  "remind": "Quedan unos {draw:mins} min para participar. Ya hay {draw:count} participantes. Escribe !join.",
+  "status.no_show": "Plazo vencido: {draw:targets}.",
+  "status.none": "Aún no hay ganadores.",
+  "status.paying": "Pago pendiente: {draw:targets}.",
+  "status.unpaid": "No se pudo pagar a {draw:targets}.",
+  "status.winners": "Ganadores: {draw:targets}.",
+  "unfilled": "No quedan participantes que cumplan los requisitos.",
+  "unpaid": "No se pudieron pagar algunos premios.",
+  "verifying": "Estamos verificando a los ganadores. Pronto habrá resultados.",
+  "winners": "¡Premio para {draw:targets}!",
+  "winners.claim": "¡Premio para {draw:targets}! Escribe !claim para reclamarlo.",
+  "winners.raffle": "¡{draw:targets} ganaron {draw:amount} {draw:points} cada uno!",
+  "open.busy_giveaway": "Ya hay un concurso abierto. Elige a sus ganadores o cancélalo primero.",
+  "join.free": "Participar es gratis."
+}

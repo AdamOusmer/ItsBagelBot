@@ -7,7 +7,7 @@ import {
   type AuthorizationServer,
   type Client
 } from 'oauth4webapi';
-import { OAuth2Tokens, ResponseBodyError, Twitch, __normalizeTwitchScopeForTests as normalizeTwitchScope, isOAuthProtocolError } from './oauth';
+import { OAuth2Tokens, ResponseBodyError, Twitch, __normalizeTwitchScopeForTests as normalizeTwitchScope, isOAuthProtocolError, readTwitchAccount } from './oauth';
 
 const AS: AuthorizationServer = {
   issuer: 'https://id.twitch.tv/oauth2',
@@ -122,5 +122,19 @@ describe('OAuth2Tokens granted scopes', () => {
   });
   it('does not assume a response granted permissions when scope is absent', () => {
     expect(new OAuth2Tokens({}).scopes()).toEqual([]);
+  });
+});
+
+describe('readTwitchAccount', () => {
+  afterEach(() => mock.restore());
+
+  it.each([
+    ['a localized display name keeps the login', jsonResponse({ data: [{ login: 'streamer', display_name: 'ストリーマー', email: ' s@example.com ' }] }), { login: 'streamer', displayName: 'ストリーマー', email: 's@example.com' }],
+    ['a missing display name falls back to the login', jsonResponse({ data: [{ login: 'Streamer' }] }), { login: 'streamer', displayName: 'Streamer', email: null }],
+    ['no user is no account', jsonResponse({ data: [] }), null],
+    ['a failed lookup is no account', jsonResponse({ message: 'unauthorized' }, 401), null]
+  ] as const)('%s', async (_name, response, want) => {
+    spyOn(globalThis, 'fetch').mockResolvedValue(response);
+    expect(await readTwitchAccount('client-id', 'token')).toEqual(want);
   });
 });

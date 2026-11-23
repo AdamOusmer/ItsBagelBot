@@ -98,7 +98,7 @@ func giveawayEnvelope(msg GiveawayMessage, dashboardURL string) (premiumData, er
 	}
 	color := colorGreen
 	if msg.pending() {
-		color = colorTan
+		color = colorPaid
 	}
 
 	title, heading := i18n.T(msg.Locale, "mail.giveaway.title"), i18n.T(msg.Locale, "mail.giveaway.heading")

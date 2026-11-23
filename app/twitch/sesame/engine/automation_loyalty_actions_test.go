@@ -6,13 +6,16 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	loyaltyent "ItsBagelBot/app/db/loyalty/ent"
 	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
 	"ItsBagelBot/internal/domain/automation"
-	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+	"ItsBagelBot/internal/domain/lifecycle"
+	"ItsBagelBot/internal/projection"
 
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/stretchr/testify/assert"
@@ -20,56 +23,78 @@ import (
 	"go.uber.org/zap"
 )
 
-type sqliteSpendStore struct {
+type sqliteDebitStore struct {
 	LoyaltyStore
-	repo *loyaltyrepo.Loyalty
+	repo    *loyaltyrepo.Loyalty
+	channel uint64
+	mu      sync.Mutex
+	keys    map[string]int
 }
 
-func (s sqliteSpendStore) BalanceSpend(ctx context.Context, spend PointSpend) (loyaltyrpc.Balance, bool, bool, error) {
-	row, found, spent, err := s.repo.BalanceSpendViewer(ctx, loyaltyrepo.Spend{
-		UserID: spend.BroadcasterID, ViewerID: spend.ViewerID, ViewerLogin: spend.Login, Amount: spend.Amount,
+func (s *sqliteDebitStore) BalanceDebit(ctx context.Context, debit PointDebit) (DebitOutcome, error) {
+	s.mu.Lock()
+	s.keys[debit.Key]++
+	s.mu.Unlock()
+	result, err := s.repo.BalanceDebit(ctx, loyaltyrepo.BalanceDebit{
+		UserID: debit.BroadcasterID, ViewerID: debit.ViewerID, ViewerLogin: debit.ViewerLogin,
+		Value: debit.Value, Key: debit.Key, AccountCreatedAt: debit.AccountCreatedAt,
 	})
-	balance := loyaltyrpc.Balance{}
-	if row != nil {
-		balance.Points = row.Points
+	outcome := DebitOutcome{Spent: result.Spent, Replayed: result.Replayed}
+	if result.Balance != nil {
+		outcome.Balance = *result.Balance
 	}
-	return balance, found, spent, err
+	return outcome, err
 }
 
-func newSQLiteSpendStore(t *testing.T, balance int64) sqliteSpendStore {
+func newSQLiteDebitStore(t *testing.T, balance int64) *sqliteDebitStore {
 	t.Helper()
 	driver := entsql.OpenDB("sqlite3", completionSQL(t, "sqlite3", "spend"))
 	client := loyaltyent.NewClient(loyaltyent.Driver(driver))
 	require.NoError(t, client.Schema.Create(t.Context()))
-	_, err := client.Balance.Create().SetUserID(123).SetViewerID(999).SetViewerLogin("alice").SetPoints(balance).Save(t.Context())
-	require.NoError(t, err)
-	return sqliteSpendStore{repo: loyaltyrepo.NewLoyalty(client, driver, nil, zap.NewNop())}
+	repo := loyaltyrepo.NewLoyalty(client, driver, nil, zap.NewNop())
+	require.NoError(t, repo.EnsureWatchSchema(t.Context()))
+	require.NoError(t, repo.EnsureBalanceCreditSchema(t.Context()))
+	channel := freshChannel()
+	require.NoError(t, repo.RestoreUser(t.Context(), channel, 101))
+	require.NoError(t, client.Balance.Create().SetUserID(channel).SetViewerID(999).SetViewerLogin("alice").SetPoints(balance).Exec(t.Context()))
+	return &sqliteDebitStore{repo: repo, channel: channel, keys: map[string]int{}}
 }
 
 func TestProcessPointsSpendUsesAtomicBalanceAndMatchingBranch(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		balance int64
-		runs    int
-		left    int64
-		lines   []string
+		name       string
+		balance    int64
+		deliveries [][]string
+		left       int64
+		lines      []string
+		keys       map[string]int
 	}{
-		{name: "enough", balance: 100, runs: 1, left: 40, lines: []string{"spent 40"}},
-		{name: "insufficient", balance: 50, runs: 1, left: 50, lines: []string{"refused 50"}},
-		{name: "parallel", balance: 100, runs: 2, left: 40, lines: []string{"spent 40", "refused 40"}},
+		{name: "enough", balance: 100, deliveries: [][]string{{"first"}}, left: 40, lines: []string{"spent 40"}},
+		{name: "insufficient", balance: 50, deliveries: [][]string{{"first"}}, left: 50, lines: []string{"refused 50"}},
+		{name: "parallel", balance: 100, deliveries: [][]string{{"first", "second"}}, left: 40, lines: []string{"spent 40", "refused 40"}},
+		{name: "retry", balance: 160, deliveries: [][]string{{"retry"}, {"retry"}}, left: 100, lines: []string{"spent 100", "spent 100"},
+			keys: map[string]int{"recipe:retry>id-!spend:auto:id-!spend:0": 2}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			store := newSQLiteSpendStore(t, tc.balance)
-			lines := processSpends(t, store, tc.runs)
-			row, _, err := store.repo.BalanceGet(t.Context(), 123, 999)
+			store := newSQLiteDebitStore(t, tc.balance)
+			lines := processSpends(t, store, tc.deliveries)
+			row, _, err := store.repo.BalanceGet(t.Context(), store.channel, 999)
 			require.NoError(t, err)
 			assert.Equal(t, tc.left, row.Points)
 			assert.ElementsMatch(t, tc.lines, lines)
+			checkDebitKeys(t, tc.keys, store.keys)
 		})
 	}
 }
 
-func processSpends(t *testing.T, store sqliteSpendStore, count int) []string {
+func checkDebitKeys(t *testing.T, want, got map[string]int) {
+	t.Helper()
+	if want != nil {
+		assert.Equal(t, want, got)
+	}
+}
+
+func processSpends(t *testing.T, store *sqliteDebitStore, deliveries [][]string) []string {
 	t.Helper()
 	auto := command("!spend", obj{})
 	auto.Definition.Actions = []automation.Action{act("points_spend", automation.PointsSpendAction{
@@ -78,12 +103,30 @@ func processSpends(t *testing.T, store sqliteSpendStore, count int) []string {
 		OnFailure: []automation.Action{act("chat", obj{"text": "refused {points}"})},
 	})}
 	pub := &fakePublisher{}
+	state := lifecycleTestState(lifecycle.Active, 1)
+	state.LastEngagedAt = time.Now()
+	runtime := bindLifecycleRuntime(t, projection.NewStore(newHotPathTestClient(t)), store.channel, state)
+	p, _ := (autoRig{automations: []automation.Automation{auto}, loyalty: store, pub: pub}).pipeline()
+	p.runtime = runtime
+	for _, batch := range deliveries {
+		deliverSpendBatch(t, p, store.channel, batch)
+	}
+	return spendLines(t, pub)
+}
+
+func deliverSpendBatch(t *testing.T, p *Pipeline, channel uint64, ids []string) {
+	t.Helper()
 	var runs sync.WaitGroup
-	for range count {
-		p, _ := (autoRig{automations: []automation.Automation{auto}, loyalty: store, pub: pub}).pipeline()
-		runs.Go(func() { process(t, p, chatEnv("!spend", "")) })
+	for _, id := range ids {
+		env := chatEnv("!spend", "")
+		env.BroadcasterUserID, env.MsgID = strconv.FormatUint(channel, 10), id
+		runs.Go(func() { process(t, p, env) })
 	}
 	runs.Wait()
+}
+
+func spendLines(t *testing.T, pub *fakePublisher) []string {
+	t.Helper()
 	var lines []string
 	for _, published := range pub.snapshot() {
 		for _, msg := range flattenMessage(t, published.msg) {

@@ -12,44 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBalanceSpendViewerFollowsTheIDAcrossARename(t *testing.T) {
-	repo, client := newLoyaltyRepo(t)
-	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "oldname", Points: 100})
-	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 8, Login: "newname", Points: 100})
-
-	row, found, spent, err := repo.BalanceSpendViewer(t.Context(), loyaltyrepo.Spend{UserID: 2, ViewerID: 7, ViewerLogin: "@NewName2", Amount: 30})
-
-	require.NoError(t, err)
-	assert.True(t, found)
-	assert.True(t, spent)
-	assert.EqualValues(t, 70, row.Points)
-	assert.Equal(t, "newname2", row.ViewerLogin, "the login only refreshes the display name")
-	other, _, err := repo.BalanceGet(t.Context(), 2, 8)
-	require.NoError(t, err)
-	assert.EqualValues(t, 100, other.Points, "the viewer who now owns the old login is untouched")
-}
-
-func TestBalanceSpendViewerRefusals(t *testing.T) {
-	repo, client := newLoyaltyRepo(t)
-	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 10})
-
-	_, found, _, err := repo.BalanceSpendViewer(t.Context(), loyaltyrepo.Spend{UserID: 2, ViewerID: 99, ViewerLogin: "sender", Amount: 5})
-	require.NoError(t, err)
-	assert.False(t, found, "an unknown ID is not found even when its login matches a stored row")
-
-	row, found, spent, err := repo.BalanceSpendViewer(t.Context(), loyaltyrepo.Spend{UserID: 2, ViewerID: 7, ViewerLogin: "renamed", Amount: 50})
-	require.NoError(t, err)
-	assert.True(t, found)
-	assert.False(t, spent)
-	assert.EqualValues(t, 10, row.Points)
-	assert.Equal(t, "sender", row.ViewerLogin, "a refused spend keeps the stored login")
-
-	for _, spend := range []loyaltyrepo.Spend{{UserID: 0, ViewerID: 7, Amount: 1}, {UserID: 2, ViewerID: 0, Amount: 1}, {UserID: 2, ViewerID: 7, Amount: 0}} {
-		_, _, _, err := repo.BalanceSpendViewer(t.Context(), spend)
-		assert.ErrorIs(t, err, loyaltyrepo.ErrInvalidInput)
-	}
-}
-
 func TestBalanceWagerRefreshesTheStoredLogin(t *testing.T) {
 	repo, client := newLoyaltyRepo(t)
 	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "oldname", Points: 100})

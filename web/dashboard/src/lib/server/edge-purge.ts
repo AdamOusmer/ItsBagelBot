@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { dev } from '$app/env';
+import { LOGIN_RE } from '@bagel/kit/twitch-names';
 import { env } from '@bagel/kit/server/env';
 import { logger } from '@bagel/kit/server/logger';
 import { leaderboardCacheTag } from '#lib/edge-tags';
@@ -16,8 +17,6 @@ const PURGE_TIMEOUT_MS = 3000;
 const PURGE_BATCH = 100;
 
 const NOT_CONFIGURED = -1;
-
-const LOGIN_RE = /^[a-z0-9_]{1,25}$/;
 
 type PurgeKind = { field: 'files' | 'tags'; debounceMs: number; retryMs: number; label: string };
 
@@ -135,7 +134,7 @@ export function schedulePurgeChannel(userId: string, logins: readonly string[] =
   void knownLogins(userId, logins).then((known) => pageQueue.add(allPageUrls(userId, known)));
 }
 
-// Leaderboard responses are tagged per login: call only on board visibility, loyalty on/off, points reset, rename or deletion.
+// Leaderboard responses are tagged per login: call only on board visibility, loyalty on/off, freeze change, points reset, rename or deletion.
 export function scheduleLeaderboardPurge(userId: string, logins: readonly string[] = []): void {
   if (DEMO) return;
   void knownLogins(userId, logins).then((known) => leaderboardQueue.add(known.map(leaderboardCacheTag)));

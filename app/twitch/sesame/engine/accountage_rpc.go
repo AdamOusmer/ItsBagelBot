@@ -5,7 +5,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
@@ -37,14 +36,11 @@ type TwitchAccountLookup interface {
 }
 
 func (a *AccountAgeRPC) ResolveLogin(ctx context.Context, login string) (string, bool, error) {
-	reply, err := a.rpc.request(ctx, outgressrpc.AccountAgeRequest{TargetLogin: login})
+	result, _, err := a.rpc.load(ctx, outgressrpc.AccountAgeRequest{TargetLogin: login})
 	if err != nil {
 		return "", false, err
 	}
-	if reply.Error != "" {
-		return "", false, errors.New(reply.Error)
-	}
-	return reply.TargetID, reply.UserFound, nil
+	return result.TargetID, result.UserFound, nil
 }
 
 type AccountAgeRPC struct {
@@ -60,9 +56,9 @@ func NewAccountAgeRPC(nc *nats.Conn, prefix string) *AccountAgeRPC {
 	}, decodeAccountAge)}
 }
 
-func decodeAccountAge(reply outgressrpc.AccountAgeReply) (AccountAgeResult, time.Duration, string) {
+func decodeAccountAge(reply outgressrpc.AccountAgeReply) (AccountAgeResult, time.Duration, error) {
 	result := AccountAgeResult{TargetID: reply.TargetID, UserFound: reply.UserFound, CreatedAt: reply.CreatedAt}
-	return result, ttlWhen(result.UserFound, accountAgePositiveTTL, accountAgeNegativeTTL), reply.Error
+	return result, ttlWhen(result.UserFound, accountAgePositiveTTL, accountAgeNegativeTTL), lookupReplyError(reply.Error, reply.RetryAtUnixMilli)
 }
 
 func (a *AccountAgeRPC) Lookup(ctx context.Context, targetID, targetLogin string) (AccountAgeResult, error) {

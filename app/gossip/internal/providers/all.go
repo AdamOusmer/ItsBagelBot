@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/providers/mcsr"
 	"ItsBagelBot/app/gossip/internal/providers/paceman"
 	"ItsBagelBot/app/gossip/internal/providers/spotify"
+	"ItsBagelBot/app/gossip/internal/providers/tts"
 	"ItsBagelBot/app/gossip/internal/providers/urchin"
 	"ItsBagelBot/app/gossip/internal/providers/valorant"
 
@@ -38,6 +39,7 @@ func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 	out = appendClashRoyale(out, cfg, d, log)
 	out = appendValorant(out, cfg, d, log)
 	out = appendSpotify(out, cfg, d, log)
+	out = appendTTS(out, cfg, d, log)
 	out = appendCustom(out, cfg, d, log)
 	return out
 }
@@ -157,4 +159,35 @@ func appendCustom(out []provider.Provider, cfg *config.Config, d provider.Deps, 
 		RecipeDefRateLimit:     cfg.CustomRecipeDefRateLimit,
 		PositiveTTL:            cfg.CustomPositiveTTL,
 	}, d)
+}
+
+func ttsDisabled(cfg *config.Config) bool {
+	return cfg.VertexCredentials == "" && (cfg.Production || cfg.GeminiAPIKey == "")
+}
+
+func ttsConfig(cfg *config.Config) tts.Config {
+	return tts.Config{
+		BaseURL:     cfg.GeminiBaseURL,
+		APIKey:      cfg.GeminiAPIKey,
+		Model:       cfg.GeminiTTSModel,
+		Voice:       cfg.GeminiTTSVoice,
+		Temperature: cfg.GeminiTTSTemperature,
+		VertexOnly:  cfg.Production,
+		Vertex: tts.VertexConfig{
+			Credentials: cfg.VertexCredentials,
+			Project:     cfg.VertexProject,
+			Location:    cfg.VertexLocation,
+		},
+	}
+}
+
+func appendTTS(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	return gated(out, log, ttsDisabled(cfg), "tts provider disabled: no usable speech credentials", tts.New, ttsConfig(cfg), d)
+}
+
+func Speech(cfg *config.Config, d provider.Deps) (*tts.Synthesizer, bool) {
+	if ttsDisabled(cfg) {
+		return nil, false
+	}
+	return tts.NewSynthesizer(ttsConfig(cfg), d), true
 }

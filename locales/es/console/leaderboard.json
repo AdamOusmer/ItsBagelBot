@@ -31,5 +31,6 @@
   "donateCta": "Donar en Ko-fi",
   "donateNote": "Cualquier cantidad. Sin nada a cambio.",
   "supportBotTitle": "Apoya al bot de tu streamer.",
-  "supportBotCta": "Apoyar en Ko-fi"
+  "supportBotCta": "Apoyar en Ko-fi",
+  "frozen": "Clasificación en pausa desde las {time}. Los puntos y el tiempo de visualización siguen contando."
 }

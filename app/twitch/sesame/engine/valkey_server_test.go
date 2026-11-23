@@ -11,13 +11,15 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"ItsBagelBot/internal/testproc"
 )
 
 var localValkeySrv struct {
 	once sync.Once
 	addr string
 	dir  string
-	cmd  *exec.Cmd
+	proc *testproc.Process
 	err  error
 }
 
@@ -53,12 +55,12 @@ func startLocalValkey() {
 		localValkeySrv.err = err
 		return
 	}
-	cmd := exec.Command(binary, "--port", strconv.Itoa(port), "--bind", "127.0.0.1", "--save", "", "--appendonly", "no", "--notify-keyspace-events", "Ex", "--dir", localValkeySrv.dir)
-	if err = cmd.Start(); err != nil {
+	proc, err := testproc.Start(binary, "--port", strconv.Itoa(port), "--bind", "127.0.0.1", "--save", "", "--appendonly", "no", "--notify-keyspace-events", "Ex", "--dir", localValkeySrv.dir)
+	if err != nil {
 		localValkeySrv.err = err
 		return
 	}
-	localValkeySrv.cmd = cmd
+	localValkeySrv.proc = proc
 	localValkeySrv.addr = "127.0.0.1:" + strconv.Itoa(port)
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 		if conn, dialErr := net.Dial("tcp", localValkeySrv.addr); dialErr == nil {
@@ -70,9 +72,8 @@ func startLocalValkey() {
 }
 
 func stopLocalValkey() {
-	if localValkeySrv.cmd != nil {
-		_ = localValkeySrv.cmd.Process.Kill()
-		_, _ = localValkeySrv.cmd.Process.Wait()
+	if localValkeySrv.proc != nil {
+		localValkeySrv.proc.Stop()
 	}
 	if localValkeySrv.dir != "" {
 		_ = os.RemoveAll(localValkeySrv.dir)

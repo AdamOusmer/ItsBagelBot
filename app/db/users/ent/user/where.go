@@ -1718,6 +1718,52 @@ func HasMarketingConsentsWith(preds ...predicate.MarketingConsent) predicate.Use
 	})
 }
 
+// HasVoiceUsage applies the HasEdge predicate on the "voice_usage" edge.
+func HasVoiceUsage() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, VoiceUsageTable, VoiceUsageColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasVoiceUsageWith applies the HasEdge predicate on the "voice_usage" edge with a given conditions (other predicates).
+func HasVoiceUsageWith(preds ...predicate.VoiceUsage) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newVoiceUsageStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasVoiceUsageReceipts applies the HasEdge predicate on the "voice_usage_receipts" edge.
+func HasVoiceUsageReceipts() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, VoiceUsageReceiptsTable, VoiceUsageReceiptsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasVoiceUsageReceiptsWith applies the HasEdge predicate on the "voice_usage_receipts" edge with a given conditions (other predicates).
+func HasVoiceUsageReceiptsWith(preds ...predicate.VoiceUsageReceipt) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newVoiceUsageReceiptsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.User) predicate.User {
 	return predicate.User(sql.AndPredicates(predicates...))

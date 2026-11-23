@@ -14,5 +14,9 @@
   "points.insufficient": "@{loyalty:user} you only have {loyalty:points} {loyalty:name}.",
   "points.self": "@{loyalty:user} you can't give {loyalty:name} to yourself.",
   "points.unknown": "@{loyalty:user} I haven't seen {loyalty:target} in this channel yet.",
-  "points.usage": "Usage: !points; or !points <set|add|remove> @user <amount>; or !points give @user <amount>"
+  "points.usage": "Usage: !points; or !points <set|add|remove> @user <amount>; or !points give @user <amount>",
+  "freeze.started": "Leaderboard paused for {loyalty:minutes} min. Points and watch time are still counting.",
+  "freeze.usage": "Usage: !freeze [1-30]",
+  "unfreeze.done": "Leaderboard unpaused. Standings are live again.",
+  "unfreeze.none": "@{loyalty:user} the leaderboard is not paused."
 }

@@ -1,85 +1,92 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { Actions, PageServerLoad } from './$types';
+import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
-import { dev } from '$app/env';
-import { allows, requireRole } from '#lib/server/access';
+import type { Locale } from '@bagel/kit/i18n';
+import { allows, requireRole, type AdminIdentity } from '#lib/server/access';
+import { adminText } from '#lib/server/admin-action';
 import { audit } from '#lib/server/audit';
-import { trialAdd, trialList, trialRemove, trialSetEnabled, type TrialSnapshot } from '#lib/server/services';
+import { trialAdd, trialRemove, trialSetEnabled } from '#lib/server/services';
+import { readTrialSnapshot, trialDemo } from './trial-snapshot.server';
 
-const DEMO = dev && process.env.DEMO === '1';
-const EMPTY: TrialSnapshot = { version: 1, trials: [] };
+type TrialAction = 'add' | 'remove' | 'set_enabled';
+type TrialChange = { id: string; enabled: boolean };
 
-export type TrialsBundle = { snapshot: TrialSnapshot; degraded: boolean };
+const TRIAL_FAILURE_KEYS = new Map([
+  ['invalid_id', 'invalidId'],
+  ['invalid_request', 'invalidId'],
+  ['already_registered', 'alreadyRegistered'],
+  ['full', 'full'],
+  ['not_found', 'notFound'],
+  ['stopping', 'stopping']
+]);
 
-export const load: PageServerLoad = async ({ parent }) => {
-  const layout = await parent();
-  if (!allows(layout.role, 'trials.manage')) throw redirect(302, '/');
-  const bundle: Promise<TrialsBundle> = DEMO
-    ? Promise.resolve({ snapshot: EMPTY, degraded: false })
-    : trialList()
-        .then((snapshot) => ({ snapshot, degraded: false }))
-        .catch(() => ({ snapshot: EMPTY, degraded: true }));
-  return { bundle };
+export const load: PageServerLoad = async ({ depends, parent }) => {
+  depends('/trials/snapshot');
+  const { role } = await parent();
+  if (!allows(role, 'trials.manage')) throw redirect(302, '/');
+  return { snapshot: readTrialSnapshot().catch(() => null) };
 };
 
-function broadcasterId(form: FormData): string | null {
-  const value = String(form.get('broadcaster_id') ?? '').trim();
-  return /^[1-9][0-9]{0,19}$/.test(value) ? value : null;
+function parseChange(action: TrialAction, form: FormData) {
+  const id = String(form.get('broadcaster_id') ?? '').trim();
+  if (!/^[1-9][0-9]{0,19}$/.test(id)) return { error: action === 'add' ? 'idRequired' : 'invalidId' } as const;
+  const enabled = form.get('enabled');
+  if (action === 'set_enabled' && !validEnabledValue(enabled)) return { error: 'invalidEnabled' } as const;
+  return { id, enabled: enabled === 'true' };
 }
 
-export const actions: Actions = {
-  add: async ({ request, locals }) => {
-    const admin = await requireRole({ locals }, 'trials.manage');
-    if (!admin) return fail(403, { error: 'forbidden' });
-    const id = broadcasterId(await request.formData());
-    if (!id) return fail(400, { error: 'Enter a numeric Twitch broadcaster ID.' });
-    if (DEMO) return fail(503, { error: 'Trial observation is unavailable in demo mode.' });
-    try {
+function validEnabledValue(value: FormDataEntryValue | null): boolean {
+  return value === 'true' || value === 'false';
+}
+
+async function applyChange(action: TrialAction, { id, enabled }: TrialChange) {
+  switch (action) {
+    case 'add':
       await trialAdd(id);
-      audit(admin, { action: 'trial_add', target: id, ok: true });
-      return { ok: true, notice: `Added ${id}. Waiting for Twitch chat subscription.` };
-    } catch (e) {
-      const message = (e as Error).message;
-      audit(admin, { action: 'trial_add', target: id, ok: false, error: message });
-      return fail(400, { error: message });
-    }
-  },
-  remove: async ({ request, locals }) => {
-    const admin = await requireRole({ locals }, 'trials.manage');
-    if (!admin) return fail(403, { error: 'forbidden' });
-    const id = broadcasterId(await request.formData());
-    if (!id) return fail(400, { error: 'Invalid broadcaster ID.' });
-    if (DEMO) return fail(503, { error: 'Trial observation is unavailable in demo mode.' });
-    try {
+      return 'added';
+    case 'remove':
       await trialRemove(id);
-      audit(admin, { action: 'trial_remove', target: id, ok: true });
-      return { ok: true, notice: `Stopping trial for ${id}.` };
-    } catch (e) {
-      const message = (e as Error).message;
-      audit(admin, { action: 'trial_remove', target: id, ok: false, error: message });
-      return fail(400, { error: message });
-    }
-  },
-  set_enabled: async ({ request, locals }) => {
-    const admin = await requireRole({ locals }, 'trials.manage');
-    if (!admin) return fail(403, { error: 'forbidden' });
-    const form = await request.formData();
-    const id = broadcasterId(form);
-    if (!id) return fail(400, { error: 'Invalid broadcaster ID.' });
-    const rawEnabled = form.get('enabled');
-    if (rawEnabled !== 'true' && rawEnabled !== 'false') return fail(400, { error: 'Invalid enabled value.' });
-    const enabled = rawEnabled === 'true';
-    if (DEMO) return fail(503, { error: 'Trial observation is unavailable in demo mode.' });
-    try {
+      return 'removed';
+    case 'set_enabled':
       await trialSetEnabled(id, enabled);
-      audit(admin, { action: 'trial_set_enabled', target: id, detail: String(enabled), ok: true });
-      return { ok: true, notice: `Trial ${id} turned ${enabled ? 'on' : 'off'}.` };
-    } catch (e) {
-      const message = (e as Error).message;
-      audit(admin, { action: 'trial_set_enabled', target: id, detail: String(enabled), ok: false, error: message });
-      return fail(400, { error: message });
-    }
+      return enabled ? 'enabled' : 'disabled';
   }
-};
+}
+
+function trialFailure(locale: Locale, status: number, reason: string) {
+  return fail(status, { error: adminText(locale, `admin.trials.action.${reason}`) });
+}
+
+async function recordChange(admin: AdminIdentity, locale: Locale, action: TrialAction, change: TrialChange) {
+  const { id, enabled } = change;
+  const entry = { action: `trial_${action}`, target: id, detail: action === 'set_enabled' ? String(enabled) : undefined };
+  try {
+    const notice = await applyChange(action, change);
+    audit(admin, { ...entry, ok: true });
+    return { ok: true, notice: adminText(locale, `admin.trials.action.${notice}`, { id }) };
+  } catch (error) {
+    const message = (error as Error).message;
+    audit(admin, { ...entry, ok: false, error: message });
+    return trialFailure(locale, 400, TRIAL_FAILURE_KEYS.get(message) ?? 'unavailable');
+  }
+}
+
+function trialAction(action: TrialAction) {
+  return async ({ request, locals }: RequestEvent) => {
+    const { locale } = locals;
+    const admin = await requireRole({ locals }, 'trials.manage');
+    if (!admin) return fail(403, { error: adminText(locale, 'admin.action.forbidden') });
+    const change = parseChange(action, await request.formData());
+    if (change.error) return trialFailure(locale, 400, change.error);
+    if (trialDemo) return trialFailure(locale, 503, 'demoUnavailable');
+    return recordChange(admin, locale, action, change);
+  };
+}
+
+export const actions = {
+  add: trialAction('add'),
+  remove: trialAction('remove'),
+  set_enabled: trialAction('set_enabled')
+} satisfies Actions;

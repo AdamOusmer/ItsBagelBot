@@ -500,6 +500,7 @@ type Request struct {
 	Headers     map[string]string
 	Body        []byte
 	NoRedirects bool
+	DecodeError func(*UpstreamError, []byte) error
 }
 
 func (c *HTTPClient) GetJSON(ctx context.Context, path string, query url.Values, out any) error {
@@ -520,7 +521,7 @@ func (c *HTTPClient) Do(ctx context.Context, r Request, out any) error {
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	return decodeJSON(resp, out)
+	return decodeJSON(resp, out, r.DecodeError)
 }
 
 func (c *HTTPClient) roundTrip(ctx context.Context, req *http.Request, noRedirects bool) (*http.Response, error) {
@@ -567,7 +568,7 @@ func (c *HTTPClient) newRequest(ctx context.Context, r Request) (*http.Request, 
 	return req, nil
 }
 
-func decodeJSON(resp *http.Response, out any) error {
+func decodeJSON(resp *http.Response, out any, decodeError func(*UpstreamError, []byte) error) error {
 	if resp.StatusCode == http.StatusNoContent {
 		return nil
 	}
@@ -576,16 +577,24 @@ func decodeJSON(resp *http.Response, out any) error {
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return &UpstreamError{
-			Status:     resp.StatusCode,
-			Message:    upstreamMessage(body),
-			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
-		}
+		return decodeUpstreamError(resp, body, decodeError)
 	}
 	if out == nil {
 		return nil
 	}
 	return codec.Unmarshal(body, out)
+}
+
+func decodeUpstreamError(resp *http.Response, body []byte, decodeError func(*UpstreamError, []byte) error) error {
+	upstream := &UpstreamError{
+		Status:     resp.StatusCode,
+		RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
+	}
+	if decodeError != nil {
+		return decodeError(upstream, body)
+	}
+	upstream.Message = upstreamMessage(body)
+	return upstream
 }
 
 func upstreamMessage(body []byte) string {

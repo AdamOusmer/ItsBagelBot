@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/internal/domain/invalidate"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/bus"
 )
 
@@ -22,16 +23,37 @@ type loyaltyRPC struct {
 	repo          *repository.Loyalty
 	log           *zap.Logger
 	invalidations *bus.Invalidations
+	watchStatus   func(context.Context) (watchtime.BacklogStatus, error)
 }
 
 func Subscribe(w Wiring, prefix string) error {
-	l := &loyaltyRPC{repo: w.Repo, log: w.Log, invalidations: w.Invalidations}
+	if w.WatchStatus == nil {
+		return errors.New("loyalty RPC requires WatchStatus")
+	}
+	l := &loyaltyRPC{repo: w.Repo, log: w.Log, invalidations: w.Invalidations, watchStatus: w.WatchStatus}
+	if err := bus.Serve(w.RPCWiring, prefix+"."+loyaltyrpc.VerbBalanceSnapshot, l.handleBalanceSnapshot); err != nil {
+		return err
+	}
+	if err := bus.Serve(w.RPCWiring, prefix+"."+loyaltyrpc.VerbBalanceCountAtLeast, l.handleBalanceCount); err != nil {
+		return err
+	}
+	if err := bus.Serve(w.RPCWiring, prefix+"."+loyaltyrpc.VerbWatchStatus, l.handleWatchStatus); err != nil {
+		return err
+	}
+
+	if err := l.subscribeFreeze(w.RPCWiring, prefix); err != nil {
+		return err
+	}
+	if err := l.subscribeSnapshots(w.RPCWiring, prefix); err != nil {
+		return err
+	}
 
 	return bus.ServeVerbs(w.RPCWiring, prefix,
 		bus.At("balance.get", l.handleBalanceGet),
+		bus.At(loyaltyrpc.VerbBalanceCredit, l.keyedBalanceHandler(loyaltyrpc.VerbBalanceCredit, l.repo.BalanceCredit)),
+		bus.At(loyaltyrpc.VerbBalanceDebit, l.keyedBalanceHandler(loyaltyrpc.VerbBalanceDebit, l.repo.BalanceDebit)),
 		bus.At("balance.set", l.handleBalanceSet),
 		bus.At("balance.add", l.handleBalanceAdd),
-		bus.At("balance.spend", l.handleBalanceSpend),
 		bus.At("balance.wager", l.handleBalanceWager),
 		bus.At("balance.transfer", l.handleBalanceTransfer),
 		bus.At("balance.reset", l.handleBalanceReset),
@@ -54,6 +76,7 @@ type Wiring struct {
 	bus.RPCWiring
 	Repo          *repository.Loyalty
 	Invalidations *bus.Invalidations
+	WatchStatus   func(context.Context) (watchtime.BacklogStatus, error)
 }
 
 func refuse(code domainrpc.Code, message string) loyaltyrpc.Reply {
@@ -87,22 +110,23 @@ func requireViewer(req loyaltyrpc.Request) (userID, viewerID uint64, ok bool, re
 }
 
 func (l *loyaltyRPC) fail(op string, err error) loyaltyrpc.Reply {
-	if errors.Is(err, repository.ErrInvalidInput) {
-		return refuse(domainrpc.CodeInvalid, err.Error())
+	refusal := domainrpc.Fail(err,
+		domainrpc.Is(repository.ErrInvalidInput, domainrpc.CodeInvalid),
+		domainrpc.Is(repository.ErrFrozen, domainrpc.CodeConflict),
+		domainrpc.Is(repository.ErrStaleFreezePin, domainrpc.CodeConflict),
+		domainrpc.Is(repository.ErrSnapshotGone, loyaltyrpc.RefusalSnapshotGone),
+		domainrpc.Is(repository.ErrStandingsAccountRetired, domainrpc.CodeForbidden),
+	)
+	switch refusal.Code {
+	case domainrpc.CodeInvalid, domainrpc.CodeConflict, loyaltyrpc.RefusalSnapshotGone, domainrpc.CodeForbidden:
+		return loyaltyrpc.Reply{Refusal: refusal}
 	}
 	l.log.Warn(op+" failed", zap.Error(err))
 	return refuse(domainrpc.CodeInternal, "loyalty request failed")
 }
 
 func balanceView(row *ent.Balance) *loyaltyrpc.Balance {
-	return &loyaltyrpc.Balance{
-		ViewerID:     strconv.FormatUint(row.ViewerID, 10),
-		ViewerLogin:  row.ViewerLogin,
-		ViewerName:   row.ViewerName,
-		Points:       row.Points,
-		PointsExact:  strconv.FormatInt(row.Points, 10),
-		WatchSeconds: row.WatchSeconds,
-	}
+	return repository.BalanceView(row)
 }
 
 func (l *loyaltyRPC) handleBalanceGet(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {

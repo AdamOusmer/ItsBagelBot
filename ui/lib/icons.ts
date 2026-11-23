@@ -10,6 +10,7 @@ export const icons = {
   commands: '<path d="M12 19h8M4 17l6-6l-6-6"/>', // lucide:terminal
   modules: '<g><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></g>', // lucide:layout-grid
   music: '<g><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></g>', // lucide:music
+  waveform: '<path d="M2 10v3m4-7v11m4-14v18m4-13v7m4-10v13m4-8v3"/>', // lucide:audio-lines
   card: '<g><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></g>', // lucide:credit-card
   settings: '<path d="M10 5H3m9 14H3M14 3v4m2 10v4m5-9h-9m9 7h-5m5-14h-7m-6 5v4m0-2H3"/>', // lucide:sliders-horizontal
   gear: '<g><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0a2.34 2.34 0 0 0 3.319 1.915a2.34 2.34 0 0 1 2.33 4.033a2.34 2.34 0 0 0 0 3.831a2.34 2.34 0 0 1-2.33 4.033a2.34 2.34 0 0 0-3.319 1.915a2.34 2.34 0 0 1-4.659 0a2.34 2.34 0 0 0-3.32-1.915a2.34 2.34 0 0 1-2.33-4.033a2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></g>', // lucide:settings
@@ -58,6 +59,10 @@ export const icons = {
   twitch: '<path stroke="none" fill="currentColor" d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/>', // simple-icons:twitch
   branch: '<g><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></g>', // lucide:git-branch
   sidebar: '<g><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></g>', // lucide:panel-left
+  overlay: '<g><path d="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4"/><rect width="10" height="7" x="12" y="13" rx="2"/></g>', // lucide:picture-in-picture-2
+  logOut: '<path d="m16 17l5-5l-5-5m5 5H9m0 9H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>', // lucide:log-out
+  play: '<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>', // lucide:play
+  stop: '<rect width="18" height="18" x="3" y="3" rx="2"/>', // lucide:square
 } as const;
 
 export type IconName = keyof typeof icons;

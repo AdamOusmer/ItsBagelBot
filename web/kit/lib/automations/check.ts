@@ -3,6 +3,7 @@
 
 import { CODE, MAX_LOGIN_TEMPLATE, MAX_TEMPLATE_LENGTH } from './limits';
 import { lex } from '../engine/tmpl';
+import { USERNAME_RE } from '../twitch-names';
 import { allChars, runeCount, type CharTest, type Text } from './text';
 import { TARGET_MODES, type Issue, type TargetAction } from './types';
 
@@ -11,7 +12,6 @@ export const TARGET_DEFAULTS = { who: 'login' };
 
 const targetModes: readonly Text[] = TARGET_MODES;
 const TARGET_USER_ID_PATTERN = /^[0-9]+$/;
-const ACTION_LOGIN_PATTERN = /^[a-z0-9_]{4,25}$/i;
 
 type Field = string;
 type Count = number;
@@ -85,7 +85,7 @@ export class Chk {
   login(field: Field, s: Text, lo: Limit): boolean {
     if (!this.text(field, s, lo, MAX_LOGIN_TEMPLATE)) return false;
     if (s === '' || lex(s).some((token) => token.kind === 'var')) return true;
-    if (ACTION_LOGIN_PATTERN.test(s.replace(/^@/, ''))) return true;
+    if (USERNAME_RE.test(s.replace(/^@/, ''))) return true;
     this.add(field, CODE.invalidFormat);
     return false;
   }

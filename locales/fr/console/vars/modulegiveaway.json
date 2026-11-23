@@ -1,0 +1,5 @@
+{
+  "name": "Tirages au sort",
+  "hint": "Nécessite le module Tirages au sort.",
+  "desc": "Affichez le lot, le nombre de participations ou les secondes restantes du tirage en cours dans une commande personnalisée. Utilisez |fallback pour afficher un texte quand aucun tirage n'est ouvert."
+}

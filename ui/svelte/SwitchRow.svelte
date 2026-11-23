@@ -11,6 +11,7 @@
     label: string;
     hint?: string;
     hintId?: string;
+    fitCopy?: boolean;
     checked?: boolean;
     switchLabel?: string;
     control?: 'start' | 'end';
@@ -28,6 +29,7 @@
     label,
     hint,
     hintId,
+    fitCopy = false,
     checked = $bindable(false),
     switchLabel,
     control = 'start',
@@ -46,6 +48,7 @@
     [
       'bb-switch-row',
       control === 'end' ? 'bb-switch-row--end' : null,
+      fitCopy ? 'bb-switch-row--fit-copy' : null,
       tone ? `bb-switch-row--${tone}` : null,
       className || null,
     ]
@@ -54,6 +57,10 @@
   );
   const describedby = $derived(hint ? hintId : undefined);
 </script>
+
+{#snippet copy(text: string)}
+  {#if fitCopy}<bb-fit mode="block">{text}</bb-fit>{:else}{text}{/if}
+{/snippet}
 
 {#snippet toggle()}<Switch
     bind:checked
@@ -67,8 +74,8 @@
 
 <div class={classes} {...rest}
   >{#if control === 'start'}{@render toggle()}{/if}<span class="bb-switch-row__text"
-    ><span class="bb-switch-row__label">{label}</span>{#if hint}<span class="bb-switch-row__hint" id={hintId}
-        >{hint}</span
+    ><span class="bb-switch-row__label">{@render copy(label)}</span>{#if hint}<span class="bb-switch-row__hint" id={hintId}
+        >{@render copy(hint)}</span
       >{/if}</span
   >{#if status}<span class="bb-switch-row__status">{@render status()}</span>{/if}{#if control === 'end'}{@render
       toggle()}{/if}{#if note}<span class="bb-switch-row__note">{@render note()}</span>{/if}</div

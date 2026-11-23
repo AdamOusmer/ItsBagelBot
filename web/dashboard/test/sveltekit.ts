@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { mock } from 'bun:test';
+import { parse as parseActionData } from 'devalue';
 import { STATIC_LOCALES, staticText } from '../../kit/lib/i18n/static';
 import type { Locale } from '../../kit/lib/i18n/types';
 
@@ -30,14 +31,25 @@ function stubCatalogBundle(): void {
   mock.module('virtual:bagel-i18n', () => ({ urls: {}, sliced: false }));
 }
 
-export function stubSvelteKit(options: { dev?: boolean } = {}): void {
+const deserialize: typeof import('$app/forms').deserialize = (result) => {
+  const parsed = JSON.parse(result);
+  if (parsed.data) parsed.data = parseActionData(parsed.data);
+  return parsed;
+};
+
+export function stubSvelteKit(options: { dev?: boolean; invalidateAll?: () => Promise<void> } = {}): void {
   process.env.NEW_RELIC_ENABLED = 'false';
   process.env.LOG_LEVEL = 'silent';
   stubI18n();
   stubCatalogBundle();
   mock.module('$app/env', () => ({ browser: false, building: false, dev: options.dev ?? false }));
-  mock.module('$app/navigation', () => ({ afterNavigate: () => {}, beforeNavigate: () => {} }));
-  mock.module('$app/state', () => ({ navigating: {}, page: {}, updated: {} }));
-  mock.module('$app/forms', () => ({ enhance: () => ({ destroy: () => {} }) }));
+  mock.module('$app/navigation', () => ({
+    afterNavigate: () => {},
+    beforeNavigate: () => {},
+    goto: async () => {},
+    invalidateAll: options.invalidateAll ?? (async () => {})
+  }));
+  mock.module('$app/state', () => ({ navigating: {}, page: { data: {} }, updated: {} }));
+  mock.module('$app/forms', () => ({ deserialize, enhance: () => ({ destroy: () => {} }) }));
   mock.module('@bagel/kit/server/env', () => ({ env: privateEnv }));
 }

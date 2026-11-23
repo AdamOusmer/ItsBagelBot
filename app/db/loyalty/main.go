@@ -189,6 +189,7 @@ func main() {
 
 	repo := repository.NewLoyalty(client, driver, core.NR, log)
 	svcboot.FatalIf(log, repo.EnsureWatchSchema(core.Ctx), "failed to initialize watch inbox")
+	svcboot.FatalIf(log, repo.EnsureBalanceCreditSchema(core.Ctx), "failed to initialize balance credit receipts")
 	svcboot.FatalIf(log, repo.EnsureCounterSchema(core.Ctx), "failed to initialize counter inbox")
 	maintenanceDone := make(chan struct{})
 	go func() { defer close(maintenanceDone); repo.MaintainCounterReceipts(core.Ctx) }()
@@ -222,6 +223,7 @@ func main() {
 		RPCWiring:     bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log},
 		Repo:          repo,
 		Invalidations: h,
+		WatchStatus:   watchConsumer.Status,
 	}, loyaltyPrefix),
 		"failed to subscribe loyalty rpc")
 	// The lane check must stay hard: a wedged consumer stops points accruing while health reads green.

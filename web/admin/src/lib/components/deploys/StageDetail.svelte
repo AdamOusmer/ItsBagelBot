@@ -1,14 +1,14 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import Card from '@bagel/ui/svelte/Card.svelte';
   import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import LogTail from '@bagel/ui/svelte/LogTail.svelte';
-  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { DeployItem, DeployStage } from '#lib/deploys/types';
+  import type { DeployStage } from '#lib/deploys/types';
   import ItemRow from './ItemRow.svelte';
   import { STAGE_KEY } from './view';
 
@@ -21,42 +21,46 @@
   const log = $derived(stage.failure?.log_tail ?? []);
 </script>
 
-{#snippet manifest(item: DeployItem)}
-  <Tag tone={item.state === 'succeeded' ? 'live' : 'quiet'} mark={item.state === 'succeeded' ? 'solid' : 'hollow'}>
-    {t('admin.deploys.manifest')}
-  </Tag>
-{/snippet}
-
-<Stack gap={2}>
-  {#if links.length > 0}
-    <Cluster gap={3}>
-      {#each links as l (l.url)}
-        <TextLink href={l.url} label={l.label} external />
-      {/each}
-    </Cluster>
-  {/if}
-
-  {#if items.length > 0}
-    <Scroller maxHeight="330px" role="region" aria-label={t(STAGE_KEY[stage.id])} tabindex={0}>
-      <ul class="items">
-        {#each items as item (item.key)}
-          {#if stage.id === 'build'}
-            <ItemRow {item}>{#snippet extra()}{@render manifest(item)}{/snippet}</ItemRow>
-          {:else}
-            <ItemRow {item} />
-          {/if}
+<Card>
+  <Stack gap={3}>
+    {#if links.length > 0}
+      <Cluster gap={3}>
+        {#each links as link (link.url)}
+          <TextLink variant="inline" class="stage-link" href={link.url} label={link.label} external />
         {/each}
-      </ul>
-    </Scroller>
-  {/if}
+      </Cluster>
+    {/if}
 
-  {#if log.length > 0}
-    <LogTail lines={log} label={t('admin.deploys.logLabel', { stage: t(STAGE_KEY[stage.id]) })} />
-  {/if}
-</Stack>
+    {#if items.length > 0}
+      <ul class="items">
+          {#each items as item (item.key)}
+            <ItemRow {item}>
+              {#snippet extra()}
+                {#if stage.id === 'build'}
+                  {@const built = item.state === 'succeeded'}
+                  <Tag tone={built ? 'live' : 'quiet'} mark={built ? 'solid' : 'hollow'}>
+                    <bb-fit><span data-fit>{t('admin.deploys.manifest')}</span></bb-fit>
+                  </Tag>
+                {/if}
+              {/snippet}
+            </ItemRow>
+          {/each}
+      </ul>
+    {/if}
+
+    {#if log.length > 0}
+      <LogTail lines={log} label={t('admin.deploys.logLabel', { stage: t(STAGE_KEY[stage.id]) })} />
+    {/if}
+  </Stack>
+</Card>
 
 <style>
+  :global(.stage-link) {
+    max-inline-size: 100%;
+    overflow-wrap: anywhere;
+  }
   .items {
+    container-type: inline-size;
     list-style: none;
     margin: 0;
     padding: 0;

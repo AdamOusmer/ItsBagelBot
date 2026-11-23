@@ -33,6 +33,7 @@ func newLoyaltyRepo(t *testing.T) (*loyaltyrepo.Loyalty, *ent.Client) {
 	client := ent.NewClient(ent.Driver(drv))
 	require.NoError(t, client.Schema.Create(context.Background()))
 	repo := loyaltyrepo.NewLoyalty(client, drv, nil, zap.NewNop())
+	require.NoError(t, repo.EnsureWatchSchema(t.Context()))
 	return repo, client
 }
 

@@ -4,5 +4,8 @@
   "gift.default": "{alerts:user} дарит сообществу подписки: {alerts:count}! Спасибо!",
   "cheer.default": "Спасибо за Bits: {alerts:bits}, {alerts:user}!",
   "raid.default": "{alerts:user} начинает рейд на канал! Зрителей: {alerts:viewers}. Всем добро пожаловать!",
-  "ads.default": "Идёт реклама, длительность: {alerts:duration} сек. Подождите немного, скоро вернёмся!"
+  "ads.default": "Идёт реклама, длительность: {alerts:duration} сек. Подождите немного, скоро вернёмся!",
+  "voice.said": "%s говорит: %s",
+  "voice.test": "Это проверка вашего голоса Premium.",
+  "voice.anonymous": "Аноним"
 }

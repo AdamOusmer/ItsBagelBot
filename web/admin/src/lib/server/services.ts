@@ -10,8 +10,10 @@ import { getServerConfig } from '@bagel/kit/server/config';
 import type { ScopeMap } from '@bagel/kit/server/invalidation';
 import type { ShardSnapshot, UserStats } from '@bagel/kit';
 import { parseCounterValue } from '@bagel/kit/validation';
+import type { MONTHLY_VOICE_MINUTES } from '@bagel/kit/voice-plan';
 import { adminL1CacheCapacity } from './config-sanity';
 import type { AnalyticsRow } from '#lib/analytics-view';
+import type { UserState } from '#lib/components/users/user-state';
 
 const SUB = {
   shards: process.env.NATS_ADMIN_SUBJECT || 'twitch.ingress.admin.shards.get',
@@ -64,6 +66,7 @@ export const SCOPES: ScopeMap = {
   'loyalty-counters': noKeys,
   'user-projection': noKeys,
   fetches: noKeys,
+  overlays: noKeys,
   user: userKeys,
   '*': userKeys
 };
@@ -106,6 +109,14 @@ export interface UserRef {
   userId: string;
 }
 
+export interface AdminVoiceAllowance {
+  plan: keyof typeof MONTHLY_VOICE_MINUTES;
+  period: string;
+  limit_tokens: number;
+  used_tokens: number;
+  resets_at: string;
+}
+
 export interface AdminUserWire {
   id: number;
   username: string;
@@ -121,19 +132,25 @@ export interface AdminUserWire {
   updated_at?: string;
   test_account?: boolean;
   onboarded?: boolean;
+  voice_allowance?: AdminVoiceAllowance;
 }
 
 export interface TokenStatus {
   present: boolean;
 }
 
+export interface DirectoryStats extends UserStats {
+  directory_counts?: Record<UserState, number>;
+}
+
 export interface UserPage {
   users: AdminUserWire[];
-  stats: UserStats;
+  stats: DirectoryStats;
   page: number;
   page_size: number;
   max_pages: number;
   has_more: boolean;
+  total: number | null;
 }
 
 export const shardSnapshot = defineRead({
@@ -249,14 +266,15 @@ function isDigits(s: string): boolean {
   return /^[0-9]+$/.test(s);
 }
 
-export async function userLookup(actorId: ActorId, q: string): Promise<AdminUserWire> {
+export async function userLookup(actorId: ActorId, q: string, fresh = false): Promise<AdminUserWire> {
   const req = isDigits(q) ? { actor_id: actorId, user_id: q } : { actor_id: actorId, username: q };
   const key = isDigits(q) ? `user:${q}` : `user-login:${q.toLowerCase()}`;
-  return cached(key, POLICY.adminRead, async () => {
+  const read = async () => {
     const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.get`, req);
     if (r.user) setCached(`user:${r.user.id}`, r.user, POLICY.adminRead);
     return r.user;
-  });
+  };
+  return fresh ? read() : cached(key, POLICY.adminRead, read);
 }
 
 export const userList = defineRead({
@@ -314,7 +332,13 @@ export const analyticsSeries = defineRead({
     metrics,
     days
   }),
-  map: (reply: { analytics?: { rows?: AnalyticsRow[] } }) => reply.analytics?.rows ?? []
+  map: (reply: { analytics?: { rows?: AnalyticsRow[] } }) => reply.analytics?.rows ?? [],
+  cache: {
+    fabric,
+    key: (_actorId: ActorId, window: AnalyticsWindow, metrics: string[], days: number) =>
+      `analytics:series:${window}:${days}:${metrics.join(',')}`,
+    policy: POLICY.adminPage
+  }
 });
 
 export const USER_PAGE_SIZE = 15;
@@ -328,7 +352,18 @@ export type UserDirectoryQuery = {
   live: boolean;
   liveIDs?: number[];
 };
-export const USER_MAX_PAGES = 25;
+
+export const userLiveTotal = defineRead({
+  subject: `${SUB.user}.list`,
+  request: (actorId: ActorId, liveIDs: number[]) => ({
+    actor_id: actorId,
+    page: 1,
+    limit: 1,
+    only_live: true,
+    live_ids: liveIDs
+  }),
+  map: (reply: { total?: number }) => reply.total ?? null
+});
 
 interface PageMetaWire {
   page?: number;
@@ -362,7 +397,7 @@ function overviewKey(q: UserDirectoryQuery): string {
 export async function userOverview(q: UserDirectoryQuery & { actorId: string }): Promise<UserPage> {
   const { actorId, page, search, state, order, live, liveIDs } = q;
   const load = async () => {
-    const r = await rpc<PageMetaWire & { users?: AdminUserWire[]; stats: UserStats }>(
+    const r = await rpc<PageMetaWire & { users?: AdminUserWire[]; stats: DirectoryStats; total?: number }>(
       `${SUB.user}.overview`,
       {
         actor_id: actorId,
@@ -377,24 +412,35 @@ export async function userOverview(q: UserDirectoryQuery & { actorId: string }):
     return {
       users: r.users ?? [],
       stats: r.stats,
-      ...pageMetaOf(r, { page, pageSize: USER_PAGE_SIZE, maxPages: USER_MAX_PAGES })
+      total: r.total ?? null,
+      ...pageMetaOf(r, { page, pageSize: USER_PAGE_SIZE, maxPages: 1 })
     };
   };
   if (live) return load();
   return cached(overviewKey(q), POLICY.adminPage, load);
 }
 
-export const userSetStatus = defineWrite({
-  subject: `${SUB.user}.set_status`,
-  request: (ref: UserRef, status: string, expiresAt?: string) => ({
-    actor_id: ref.actorId,
-    user_id: ref.userId,
-    status,
-    ...(expiresAt ? { expires_at: expiresAt } : {})
-  }),
-  map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, ref) => refreshUser(user, ref)
-});
+function defineUserWrite<A extends unknown[] = []>(subject: string, fields?: (...args: A) => object) {
+  return defineWrite<[UserRef, ...A], { user: AdminUserWire }, AdminUserWire>({
+    subject,
+    request: (ref: UserRef, ...args: A) => ({
+      actor_id: ref.actorId,
+      user_id: ref.userId,
+      ...fields?.(...args)
+    }),
+    map: ({ user }) => user,
+    after: (user: AdminUserWire, ...args: [UserRef, ...A]) => refreshUser(user, args[0])
+  });
+}
+
+export const userSetStatus = defineUserWrite(`${SUB.user}.set_status`, (status: string, expiresAt?: string) => ({
+  status,
+  ...(expiresAt ? { expires_at: expiresAt } : {})
+}));
+
+export type VoiceUsageChange = { reset: true; used_percent?: never } | { used_percent: number; reset?: never };
+
+export const userSetVoiceUsage = defineUserWrite(`${SUB.user}.voice_usage_set`, (change: VoiceUsageChange) => change);
 
 export type GrantEmailOutcome = 'sent' | 'no_email';
 
@@ -408,12 +454,7 @@ export const premiumGrantEmail = defineWrite({
   map: (reply: { outcome: GrantEmailOutcome }) => reply.outcome
 });
 
-export const userReset = defineWrite({
-  subject: `${SUB.user}.reset`,
-  request: (ref: UserRef) => ({ actor_id: ref.actorId, user_id: ref.userId }),
-  map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, ref) => refreshUser(user, ref)
-});
+export const userReset = defineUserWrite(`${SUB.user}.reset`);
 
 export const tokenStatus = defineRead({
   subject: `${SUB.user}.token_status`,
@@ -465,42 +506,20 @@ export async function userDelete(ref: UserRef): Promise<void> {
 type UserBooleanSetting = { subject: string; field: 'active' | 'test_account' };
 
 function userSetBoolean(setting: UserBooleanSetting) {
-  return defineWrite({
-    subject: setting.subject,
-    request: (ref: UserRef, enabled: boolean) => ({ actor_id: ref.actorId, user_id: ref.userId, [setting.field]: enabled }),
-    map: (reply: { user: AdminUserWire }) => reply.user,
-    after: (user, ref) => refreshUser(user, ref)
-  });
+  return defineUserWrite(setting.subject, (enabled: boolean) => ({ [setting.field]: enabled }));
 }
 
 export const userSetActive = userSetBoolean({ subject: `${SUB.user}.set_active`, field: 'active' });
 
 export const userSetTestAccount = userSetBoolean({ subject: 'rpc.admin.user.test.set', field: 'test_account' });
 
-export const userSetCreatorCode = defineWrite({
-  subject: `${SUB.user}.set_creator_code`,
-  request: (ref: UserRef, creatorCode: string) => ({
-    actor_id: ref.actorId,
-    user_id: ref.userId,
-    creator_code: creatorCode
-  }),
-  map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, ref) => refreshUser(user, ref)
-});
+export const userSetCreatorCode = defineUserWrite(`${SUB.user}.set_creator_code`, (creatorCode: string) => ({
+  creator_code: creatorCode
+}));
 
-export const userBan = defineWrite({
-  subject: `${SUB.user}.ban`,
-  request: (ref: UserRef) => ({ actor_id: ref.actorId, user_id: ref.userId }),
-  map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, ref) => refreshUser(user, ref)
-});
+export const userBan = defineUserWrite(`${SUB.user}.ban`);
 
-export const userUnban = defineWrite({
-  subject: `${SUB.user}.unban`,
-  request: (ref: UserRef) => ({ actor_id: ref.actorId, user_id: ref.userId }),
-  map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, ref) => refreshUser(user, ref)
-});
+export const userUnban = defineUserWrite(`${SUB.user}.unban`);
 
 export async function restartUserEventSub(userId: UserId): Promise<void> {
   await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { mode: 'reconnect' } });

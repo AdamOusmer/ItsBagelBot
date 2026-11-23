@@ -1,7 +1,7 @@
 <script lang="ts">
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
-  import '@bagel/ui/styles/elements/button.css';
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
 
   let {
@@ -12,11 +12,12 @@
     label: string;
   } = $props();
 
-  const href = $derived(`https://twitch.tv/${login}`);
+  const href = $derived(`https://twitch.tv/${encodeURIComponent(login)}`);
 </script>
 
-<a
-  class="bb-btn bb-btn--icon bb-btn--sm channel-link"
+<ButtonLink
+  variant="ghost"
+  class="bb-btn--icon"
   {href}
   target="_blank"
   rel="noopener noreferrer"
@@ -24,10 +25,4 @@
   title={label}
 >
   <Icon name="twitch" size={14} />
-</a>
-
-<style>
-  .channel-link {
-    flex: none;
-  }
-</style>
+</ButtonLink>

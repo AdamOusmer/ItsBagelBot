@@ -112,14 +112,14 @@ func TestDecodeJSONNilOutSucceedsOnAny2xx(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resp := &http.Response{StatusCode: tc.code, Body: io.NopCloser(strings.NewReader(tc.body))}
-			assert.NoError(t, decodeJSON(resp, nil))
+			assert.NoError(t, decodeJSON(resp, nil, nil))
 		})
 	}
 }
 
 func TestDecodeJSONNilOutStillReportsUpstreamError(t *testing.T) {
 	resp := &http.Response{StatusCode: http.StatusNotFound, Body: io.NopCloser(strings.NewReader(`{"error":"not found"}`))}
-	err := decodeJSON(resp, nil)
+	err := decodeJSON(resp, nil, nil)
 	require.Error(t, err)
 	var ue *UpstreamError
 	require.ErrorAs(t, err, &ue)
@@ -176,7 +176,7 @@ func TestDecodeJSONExtractsRetryAfter(t *testing.T) {
 		Header:     header,
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"status":429,"message":"API rate limit exceeded"}}`)),
 	}
-	err := decodeJSON(resp, nil)
+	err := decodeJSON(resp, nil, nil)
 	require.Error(t, err)
 	var ue *UpstreamError
 	require.ErrorAs(t, err, &ue)

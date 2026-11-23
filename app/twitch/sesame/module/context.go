@@ -6,12 +6,17 @@ package module
 import (
 	"ItsBagelBot/internal/domain/event/lane"
 	livekey "ItsBagelBot/internal/domain/live"
+	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/codec"
 	"context"
 	"strings"
 
 	"go.uber.org/zap"
 )
+
+type ModuleName string
+
+type TriggerName string
 
 // Pooled by the engine: modules must not retain it past the call.
 type Context struct {
@@ -31,13 +36,17 @@ type Context struct {
 	// only when a matched reply requires the broadcaster's language.
 	LocaleLookup func(context.Context, uint64) (string, error)
 
-	ModuleLookup func(name string) bool
+	ModuleLookup          func(name string) bool
+	TriggerDisabledLookup func(moduleName ModuleName, trigger TriggerName) bool
+	BlocksText            func(text string) bool
+	SpeechPolicy          func() moderation.SpeechPolicy
 
 	Config codec.RawMessage
 
 	Num string
 
-	Command string
+	Command      string
+	CommandState any
 	// Engaged means an admitted command or enabled feature handled real activity.
 	// Parsing an unknown command and background stream bookkeeping do not qualify.
 	Engaged         bool
@@ -75,6 +84,10 @@ func (c *Context) EnsureLocale(ctx context.Context) {
 
 func (c *Context) ModuleOn(name string) bool {
 	return c.ModuleLookup != nil && c.ModuleLookup(name)
+}
+
+func (c *Context) TriggerDisabled(mod ModuleName, trigger TriggerName) bool {
+	return c.TriggerDisabledLookup != nil && c.TriggerDisabledLookup(mod, trigger)
 }
 
 func (c *Context) Chatter() Role {
@@ -125,6 +138,13 @@ func (c *Context) EmoteCodes() map[string]struct{} {
 	return c.emoteCodes
 }
 
+func (c *Context) Speech() moderation.SpeechPolicy {
+	if c == nil || c.SpeechPolicy == nil {
+		return moderation.SpeechPolicy{}
+	}
+	return c.SpeechPolicy()
+}
+
 func (c *Context) Reset() {
 	c.EffectScope, c.EffectOrdinal, c.EffectContext, c.Failure = "", 0, nil, nil
 	c.Env = lane.Envelope{}
@@ -134,9 +154,13 @@ func (c *Context) Reset() {
 	c.LocaleLoaded = false
 	c.LocaleLookup = nil
 	c.ModuleLookup = nil
+	c.TriggerDisabledLookup = nil
+	c.BlocksText = nil
+	c.SpeechPolicy = nil
 	c.Config = nil
 	c.Num = ""
 	c.Command = ""
+	c.CommandState = nil
 	c.Engaged = false
 	c.Emitted = 0
 	c.CommandAnswered = false

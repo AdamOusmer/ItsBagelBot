@@ -25,5 +25,8 @@
   "nowOf": "{n} von {total}",
   "nowAllBuilt": "Alle Images erstellt: {total}",
   "jobs": "Jobs abgeschlossen: {done} von {total}",
-  "openJob": "Job öffnen"
+  "openJob": "Job öffnen",
+  "noStages": "Noch keine Schritte",
+  "noStagesBody": "Die Schritte erscheinen, sobald der Lauf startet.",
+  "loadFailed": "Dieser Lauf konnte nicht geladen werden."
 }

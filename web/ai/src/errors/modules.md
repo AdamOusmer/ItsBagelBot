@@ -333,7 +333,7 @@ Next action: Wait before retrying; follow any interval indicated in the actual r
 <a id="provider-lookup-failed"></a>
 ## Provider lookup failed
 
-Meaning: The provider returned a generic failed-lookup result. MCSR Ranked and PaceMan use a statistics-failure result; Urchin distinguishes statistics, score, and tag lookup failures; Fortnite distinguishes statistics and item-shop failures. Valorant distinguishes rank, record, match history, account, leaderboard, and shop lookups; Clash Royale distinguishes stats, decks, ranked, and trophy-road lookups; CODM reports profile lookup failure.
+Meaning: The provider returned a generic failed-lookup result. MCSR Ranked and PaceMan use a statistics-failure result. Urchin distinguishes statistics, score, and tag lookup failures. Fortnite distinguishes statistics and item-shop failures. Valorant distinguishes rank, record, match history, account, and leaderboard lookups. Clash Royale distinguishes stats, decks, ranked, and trophy-road lookups. CODM reports profile lookup failure.
 
 Checks: Check account validity and whether failures affect multiple players.
 
@@ -419,15 +419,6 @@ Meaning: The selected board returned an empty result.
 Checks: Check region and platform.
 
 Next action: Retry when the provider has board entries.
-
-<a id="valorant-shop-empty"></a>
-## Valorant daily rotation empty
-
-Meaning: The public rotation has no entries today.
-
-Checks: Check the shop command result.
-
-Next action: Retry after rotation data updates.
 
 <a id="fortnite-account-type"></a>
 ## Fortnite account type unsupported

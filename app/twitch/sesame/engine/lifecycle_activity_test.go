@@ -21,7 +21,7 @@ func TestLifecycleActivityRequiresAHandledCommand(t *testing.T) {
 	require.False(t, c.Engaged, "unknown commands must not keep unused accounts active")
 
 	cmd := module.Command{Name: "silent", Run: func(context.Context, *module.Context, string, module.Emit) error { return nil }}
-	require.NoError(t, p.runBaked(ctx, c, cmd, "", "", func(*module.Output) {}))
+	require.NoError(t, p.runBaked(ctx, c, bakedCommand{cmd: cmd}, func(*module.Output) {}))
 	require.True(t, c.Engaged, "successful user work can qualify without a chat reply")
 	c.Reset()
 	require.False(t, c.Engaged, "pooled contexts cannot carry engagement into unrelated chat")

@@ -9,6 +9,8 @@ import (
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/app/db/users/ent/voiceusage"
+	"ItsBagelBot/app/db/users/ent/voiceusagereceipt"
 	"ItsBagelBot/internal/domain/lifecycle"
 	"context"
 	"errors"
@@ -653,6 +655,36 @@ func (_u *UserUpdate) AddAuthorizationCodes(v ...*AuthorizationCode) *UserUpdate
 	return _u.AddAuthorizationCodeIDs(ids...)
 }
 
+// AddVoiceUsageIDs adds the "voice_usage" edge to the VoiceUsage entity by IDs.
+func (_u *UserUpdate) AddVoiceUsageIDs(ids ...int) *UserUpdate {
+	_u.mutation.AddVoiceUsageIDs(ids...)
+	return _u
+}
+
+// AddVoiceUsage adds the "voice_usage" edges to the VoiceUsage entity.
+func (_u *UserUpdate) AddVoiceUsage(v ...*VoiceUsage) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddVoiceUsageIDs(ids...)
+}
+
+// AddVoiceUsageReceiptIDs adds the "voice_usage_receipts" edge to the VoiceUsageReceipt entity by IDs.
+func (_u *UserUpdate) AddVoiceUsageReceiptIDs(ids ...int) *UserUpdate {
+	_u.mutation.AddVoiceUsageReceiptIDs(ids...)
+	return _u
+}
+
+// AddVoiceUsageReceipts adds the "voice_usage_receipts" edges to the VoiceUsageReceipt entity.
+func (_u *UserUpdate) AddVoiceUsageReceipts(v ...*VoiceUsageReceipt) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddVoiceUsageReceiptIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -740,6 +772,48 @@ func (_u *UserUpdate) RemoveAuthorizationCodes(v ...*AuthorizationCode) *UserUpd
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAuthorizationCodeIDs(ids...)
+}
+
+// ClearVoiceUsage clears all "voice_usage" edges to the VoiceUsage entity.
+func (_u *UserUpdate) ClearVoiceUsage() *UserUpdate {
+	_u.mutation.ClearVoiceUsage()
+	return _u
+}
+
+// RemoveVoiceUsageIDs removes the "voice_usage" edge to VoiceUsage entities by IDs.
+func (_u *UserUpdate) RemoveVoiceUsageIDs(ids ...int) *UserUpdate {
+	_u.mutation.RemoveVoiceUsageIDs(ids...)
+	return _u
+}
+
+// RemoveVoiceUsage removes "voice_usage" edges to VoiceUsage entities.
+func (_u *UserUpdate) RemoveVoiceUsage(v ...*VoiceUsage) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveVoiceUsageIDs(ids...)
+}
+
+// ClearVoiceUsageReceipts clears all "voice_usage_receipts" edges to the VoiceUsageReceipt entity.
+func (_u *UserUpdate) ClearVoiceUsageReceipts() *UserUpdate {
+	_u.mutation.ClearVoiceUsageReceipts()
+	return _u
+}
+
+// RemoveVoiceUsageReceiptIDs removes the "voice_usage_receipts" edge to VoiceUsageReceipt entities by IDs.
+func (_u *UserUpdate) RemoveVoiceUsageReceiptIDs(ids ...int) *UserUpdate {
+	_u.mutation.RemoveVoiceUsageReceiptIDs(ids...)
+	return _u
+}
+
+// RemoveVoiceUsageReceipts removes "voice_usage_receipts" edges to VoiceUsageReceipt entities.
+func (_u *UserUpdate) RemoveVoiceUsageReceipts(v ...*VoiceUsageReceipt) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveVoiceUsageReceiptIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -1166,6 +1240,96 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(authorizationcode.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.VoiceUsageCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageTable,
+			Columns: []string{user.VoiceUsageColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusage.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedVoiceUsageIDs(); len(nodes) > 0 && !_u.mutation.VoiceUsageCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageTable,
+			Columns: []string{user.VoiceUsageColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusage.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.VoiceUsageIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageTable,
+			Columns: []string{user.VoiceUsageColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusage.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.VoiceUsageReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageReceiptsTable,
+			Columns: []string{user.VoiceUsageReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusagereceipt.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedVoiceUsageReceiptsIDs(); len(nodes) > 0 && !_u.mutation.VoiceUsageReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageReceiptsTable,
+			Columns: []string{user.VoiceUsageReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusagereceipt.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.VoiceUsageReceiptsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageReceiptsTable,
+			Columns: []string{user.VoiceUsageReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusagereceipt.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -1813,6 +1977,36 @@ func (_u *UserUpdateOne) AddAuthorizationCodes(v ...*AuthorizationCode) *UserUpd
 	return _u.AddAuthorizationCodeIDs(ids...)
 }
 
+// AddVoiceUsageIDs adds the "voice_usage" edge to the VoiceUsage entity by IDs.
+func (_u *UserUpdateOne) AddVoiceUsageIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.AddVoiceUsageIDs(ids...)
+	return _u
+}
+
+// AddVoiceUsage adds the "voice_usage" edges to the VoiceUsage entity.
+func (_u *UserUpdateOne) AddVoiceUsage(v ...*VoiceUsage) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddVoiceUsageIDs(ids...)
+}
+
+// AddVoiceUsageReceiptIDs adds the "voice_usage_receipts" edge to the VoiceUsageReceipt entity by IDs.
+func (_u *UserUpdateOne) AddVoiceUsageReceiptIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.AddVoiceUsageReceiptIDs(ids...)
+	return _u
+}
+
+// AddVoiceUsageReceipts adds the "voice_usage_receipts" edges to the VoiceUsageReceipt entity.
+func (_u *UserUpdateOne) AddVoiceUsageReceipts(v ...*VoiceUsageReceipt) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddVoiceUsageReceiptIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -1900,6 +2094,48 @@ func (_u *UserUpdateOne) RemoveAuthorizationCodes(v ...*AuthorizationCode) *User
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAuthorizationCodeIDs(ids...)
+}
+
+// ClearVoiceUsage clears all "voice_usage" edges to the VoiceUsage entity.
+func (_u *UserUpdateOne) ClearVoiceUsage() *UserUpdateOne {
+	_u.mutation.ClearVoiceUsage()
+	return _u
+}
+
+// RemoveVoiceUsageIDs removes the "voice_usage" edge to VoiceUsage entities by IDs.
+func (_u *UserUpdateOne) RemoveVoiceUsageIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.RemoveVoiceUsageIDs(ids...)
+	return _u
+}
+
+// RemoveVoiceUsage removes "voice_usage" edges to VoiceUsage entities.
+func (_u *UserUpdateOne) RemoveVoiceUsage(v ...*VoiceUsage) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveVoiceUsageIDs(ids...)
+}
+
+// ClearVoiceUsageReceipts clears all "voice_usage_receipts" edges to the VoiceUsageReceipt entity.
+func (_u *UserUpdateOne) ClearVoiceUsageReceipts() *UserUpdateOne {
+	_u.mutation.ClearVoiceUsageReceipts()
+	return _u
+}
+
+// RemoveVoiceUsageReceiptIDs removes the "voice_usage_receipts" edge to VoiceUsageReceipt entities by IDs.
+func (_u *UserUpdateOne) RemoveVoiceUsageReceiptIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.RemoveVoiceUsageReceiptIDs(ids...)
+	return _u
+}
+
+// RemoveVoiceUsageReceipts removes "voice_usage_receipts" edges to VoiceUsageReceipt entities.
+func (_u *UserUpdateOne) RemoveVoiceUsageReceipts(v ...*VoiceUsageReceipt) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveVoiceUsageReceiptIDs(ids...)
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -2356,6 +2592,96 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(authorizationcode.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.VoiceUsageCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageTable,
+			Columns: []string{user.VoiceUsageColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusage.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedVoiceUsageIDs(); len(nodes) > 0 && !_u.mutation.VoiceUsageCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageTable,
+			Columns: []string{user.VoiceUsageColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusage.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.VoiceUsageIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageTable,
+			Columns: []string{user.VoiceUsageColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusage.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.VoiceUsageReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageReceiptsTable,
+			Columns: []string{user.VoiceUsageReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusagereceipt.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedVoiceUsageReceiptsIDs(); len(nodes) > 0 && !_u.mutation.VoiceUsageReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageReceiptsTable,
+			Columns: []string{user.VoiceUsageReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusagereceipt.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.VoiceUsageReceiptsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.VoiceUsageReceiptsTable,
+			Columns: []string{user.VoiceUsageReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(voiceusagereceipt.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

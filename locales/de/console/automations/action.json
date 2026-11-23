@@ -56,5 +56,6 @@
   "branded_content": "Markeninhalte kennzeichnen",
   "points_spend": "Punkte ausgeben",
   "countdown_stop": "Countdown stoppen",
-  "cooldown_reset": "Cooldown zurücksetzen"
+  "cooldown_reset": "Cooldown zurücksetzen",
+  "speak": "Vorlesen"
 }

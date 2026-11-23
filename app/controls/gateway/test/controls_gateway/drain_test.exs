@@ -4,11 +4,12 @@
 defmodule ControlsGateway.DrainTest do
   use ControlsGateway.IntegrationCase, async: false
 
+  @moduletag routes: :desktop
+
   alias ControlsGateway.Drain
 
   @device_id "11111111-1111-4111-8111-111111111111"
 
-  # draining? is a VM-wide persistent_term: never let it leak into other tests.
   setup do
     on_exit(fn -> Drain.reset!() end)
   end
@@ -46,7 +47,7 @@ defmodule ControlsGateway.DrainTest do
 
     ControlsGateway.WsHandler.websocket_init(state)
 
-    assert_receive {:shutdown_close, _jitter_ms}
+    assert_receive :shutdown_close
   end
 
   defp eventually(fun, attempts \\ 50) do

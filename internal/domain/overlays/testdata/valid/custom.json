@@ -1,0 +1,95 @@
+{
+  "version": 2,
+  "kind": "custom",
+  "id": "overlay-1",
+  "name": "Main",
+  "width": 1920,
+  "height": 1080,
+  "rev": 3,
+  "widgets": [
+    {
+      "id": "w1",
+      "name": "Logo",
+      "kind": "image",
+      "x": 0,
+      "y": 0,
+      "w": 400,
+      "h": 200,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "media": "asset:a1",
+        "fit": "contain"
+      }
+    },
+    {
+      "id": "w2",
+      "name": "Code",
+      "kind": "custom",
+      "x": 0,
+      "y": 0,
+      "w": 400,
+      "h": 200,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "bundle": "asset:a3",
+        "values": {
+          "title": "asset:a2"
+        }
+      }
+    },
+    {
+      "id": "w3",
+      "name": "Clip",
+      "kind": "slideshow",
+      "x": 0,
+      "y": 0,
+      "w": 400,
+      "h": 200,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "images": [
+          "asset:a1",
+          "asset:a2"
+        ],
+        "interval": 6,
+        "fade": 0.5,
+        "fit": "cover"
+      }
+    }
+  ],
+  "assets": {
+    "a1": {
+      "type": "png",
+      "bytes": 1024,
+      "w": 400,
+      "h": 200,
+      "duration_ms": 0,
+      "sha256": "abababababababababababababababababababababababababababababababab"
+    },
+    "a2": {
+      "type": "webm",
+      "bytes": 2048,
+      "w": 1920,
+      "h": 1080,
+      "duration_ms": 20000,
+      "sha256": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    "a3": {
+      "type": "widget",
+      "bytes": 2048,
+      "w": 0,
+      "h": 0,
+      "duration_ms": 0,
+      "sha256": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+    }
+  }
+}

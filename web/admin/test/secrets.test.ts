@@ -97,8 +97,8 @@ describe('admin database TLS', () => {
       user: 'db_admin',
       ssl: { ca: 'heatwave-ca-pem', rejectUnauthorized: true, minVersion: 'TLSv1.2' }
     });
-    expect(query).toHaveBeenCalledTimes(2);
-    expect(end).toHaveBeenCalledTimes(1);
+    expect({ statements: query.mock.calls.length, closes: end.mock.calls.length })
+      .toEqual({ statements: 2, closes: 1 });
   });
 });
 
@@ -127,10 +127,10 @@ describe('service account provisioning', () => {
 
     await setCredential('users', { dbUser: 'users_svc_main', dbPass });
 
-    expect(sql()[1]).toBe(
-      "CREATE USER IF NOT EXISTS 'users_svc_main'@'10.0.%' IDENTIFIED BY ? REQUIRE X509"
-    );
-    expect(sql()[2]).toBe("ALTER USER 'users_svc_main'@'10.0.%' IDENTIFIED BY ? REQUIRE X509");
+    expect(sql().slice(1, 3)).toEqual([
+      "CREATE USER IF NOT EXISTS 'users_svc_main'@'10.0.%' IDENTIFIED BY ? REQUIRE X509",
+      "ALTER USER 'users_svc_main'@'10.0.%' IDENTIFIED BY ? REQUIRE X509"
+    ]);
     expect(query.mock.calls[1]?.[1]).toEqual([dbPass]);
     expect(dopplerWrites()).toEqual([{ DB_USER: 'users_svc_main', DB_PASS: dbPass }]);
   });
@@ -145,8 +145,8 @@ describe('service account provisioning', () => {
       setCredential('users', { dbUser: 'users_svc_main', dbPass: 'Aa1!'.repeat(10) })
     ).rejects.toThrow('REQUIRE X509 and lock the service out');
 
-    expect(createConnection).not.toHaveBeenCalled();
-    expect(dopplerWrites()).toEqual([]);
+    expect({ connections: createConnection.mock.calls.length, writes: dopplerWrites() })
+      .toEqual({ connections: 0, writes: [] });
   });
 
   test('a half-configured client key pair counts as missing', async () => {
@@ -223,11 +223,26 @@ describe('configured database schema', () => {
     expect(dopplerWrites()).toEqual([]);
   });
 
-  test('reports the configured schema in credential status', async () => {
-    dopplerSecrets = dopplerConfig({ DB_SCHEMA: 'users_custom' });
+  test('returns only credential status metadata', async () => {
+    dopplerSecrets = dopplerConfig({
+      DB_SCHEMA: 'users_custom',
+      DB_PASS: 'not-for-the-status-payload',
+      DB_AUTO_MIGRATE: 'false'
+    });
 
     const statuses = await credentialStatuses();
 
-    expect(statuses.find((status) => status.id === 'users')).toMatchObject({ schema: 'users_custom', canReadDoppler: true });
+    expect(statuses.find((status) => status.id === 'users')).toEqual({
+      id: 'users',
+      label: 'Users',
+      project: 'users',
+      config: 'prd',
+      expectedUserPrefix: 'users_svc',
+      schema: 'users_custom',
+      dbUser: 'users_svc_old',
+      autoMigrate: 'false',
+      canReadDoppler: true,
+      tokenSource: 'scoped'
+    });
   });
 });

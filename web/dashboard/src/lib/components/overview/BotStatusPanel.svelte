@@ -275,7 +275,7 @@
     margin: 8px 0 0;
     max-width: 46ch;
     font-family: var(--bb-font-body);
-    font-size: 13.5px;
+    font-size: var(--bb-text-sm);
     line-height: 1.5;
     color: var(--bb-muted);
   }
@@ -288,7 +288,7 @@
   .ov-status__actions {
     --btn-min-h: 44px;
     display: flex;
-    gap: 10px;
+    gap: 8px;
     align-items: center;
     flex: none;
   }
@@ -296,7 +296,7 @@
     margin: 0;
     max-width: 30ch;
     font-family: var(--bb-font-body);
-    font-size: 12.5px;
+    font-size: var(--bb-text-xs);
     line-height: 1.45;
     color: var(--bb-muted);
     text-align: right;

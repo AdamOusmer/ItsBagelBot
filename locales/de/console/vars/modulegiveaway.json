@@ -1,0 +1,5 @@
+{
+  "name": "Gewinnspiele",
+  "hint": "Benötigt das Modul Gewinnspiele.",
+  "desc": "Lies in einem eigenen Befehl den Preis, die Anzahl der Teilnahmen oder die verbleibenden Sekunden des aktuellen Gewinnspiels. Verwende |fallback, um einen Text anzuzeigen, wenn kein Gewinnspiel läuft."
+}

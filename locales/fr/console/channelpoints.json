@@ -81,5 +81,8 @@
   "errLimit": "Saisissez un nombre entier, au moins 1.",
   "errCooldown": "Saisissez un délai entre 1 seconde et 7 jours.",
   "unsavedChanges": "Modifications non enregistrées",
-  "saved": "Enregistré"
+  "saved": "Enregistré",
+  "speakToggle": "Lire le message du viewer à voix haute",
+  "speakHint": "Utilise tes minutes de voix Premium. Les points sont remboursés si rien ne peut être lu.",
+  "speakPrefix": "Dire d'abord le nom du viewer"
 }

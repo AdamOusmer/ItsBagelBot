@@ -123,13 +123,19 @@ func (r *Loyalty) sqliteWatchColumnPresent(ctx context.Context, column watchSche
 type watchHistoryIndex struct {
 	suffix  string
 	columns string
+	unique  bool
 }
 
 func (r *Loyalty) ensureWatchIndex(ctx context.Context, table watchHistoryTable, index watchHistoryIndex) error {
 	name := "idx_" + table.name + "_" + index.suffix
-	stmt := "CREATE INDEX " + name + " ON " + table.name + " (" + index.columns + ")"
+	create := "CREATE INDEX "
+	if index.unique {
+		create = "CREATE UNIQUE INDEX "
+	}
+	on := " ON " + table.name + " (" + index.columns + ")"
+	stmt := create + name + on
 	if r.dialect == "sqlite3" {
-		_, err := r.sqldb.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS "+name+" ON "+table.name+" ("+index.columns+")")
+		_, err := r.sqldb.ExecContext(ctx, create+"IF NOT EXISTS "+name+on)
 		return err
 	}
 	var count int

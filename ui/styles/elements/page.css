@@ -77,6 +77,10 @@
     line-height: 1.06;
   }
 
+  .bb-page-head h1:has(bb-fit) {
+    line-height: 1.25;
+  }
+
   .bb-page-head--compact .bb-page-head__description {
     font-size: 14px;
     line-height: 1.5;
@@ -86,8 +90,8 @@
   .bb-toolbar {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 18px;
+    gap: var(--page-toolbar-gap, 12px);
+    margin-bottom: var(--page-toolbar-after, 18px);
   }
 
   .bb-toolbar__grow {

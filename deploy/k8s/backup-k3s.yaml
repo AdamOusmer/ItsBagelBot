@@ -76,24 +76,23 @@ data:
     set -eu
     cd /work
 
-    export RCLONE_CONFIG_R2_TYPE=s3
-    export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
-    export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
-    export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-    export RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
-    export RCLONE_CONFIG_R2_ACL=private
-    # Same single-bucket token as the MySQL job: it cannot ListBuckets, so
-    # rclone's bucket-exists preflight has to be skipped.
-    export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
+    export RCLONE_CONFIG_GCS_TYPE=s3
+    export RCLONE_CONFIG_GCS_PROVIDER=GCS
+    export RCLONE_CONFIG_GCS_ACCESS_KEY_ID="$GCS_ACCESS_KEY_ID"
+    export RCLONE_CONFIG_GCS_SECRET_ACCESS_KEY="$GCS_SECRET_ACCESS_KEY"
+    export RCLONE_CONFIG_GCS_ENDPOINT="$GCS_ENDPOINT"
+    # Uniform bucket-level access rejects any per-object ACL header with 400 InvalidArgument.
+    # The writer key holds object roles only, so rclone's bucket-exists preflight has to be skipped.
+    export RCLONE_CONFIG_GCS_NO_CHECK_BUCKET=true
 
     # Rotate before uploading: a failed upload then leaves the last good snapshot in both slots.
-    rclone copy "r2:${R2_BUCKET}/k3s/current/" "r2:${R2_BUCKET}/k3s/previous/" --stats-one-line
-    rclone copy /work "r2:${R2_BUCKET}/k3s/current/" \
+    rclone copy "gcs:${GCS_BUCKET}/k3s/current/" "gcs:${GCS_BUCKET}/k3s/previous/" --stats-one-line
+    rclone copy /work "gcs:${GCS_BUCKET}/k3s/current/" \
       --include "*.enc" --include "*.sha256" --stats-one-line
 
-    # Holds the token keyset: never keep it longer than the 30-day MySQL dumps.
+    # Holds the token keyset: never keep it longer than the 2-day MySQL dumps.
     for slot in current previous; do
-      rclone lsl "r2:${R2_BUCKET}/k3s/${slot}/" --include "*.enc" | sed "s|^|${slot}: |"
+      rclone lsl "gcs:${GCS_BUCKET}/k3s/${slot}/" --include "*.enc" | sed "s|^|${slot}: |"
     done
 ---
 apiVersion: batch/v1

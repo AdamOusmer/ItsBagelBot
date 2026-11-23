@@ -44,7 +44,7 @@ var rpcDestinations = map[string]struct{}{
 	"admin": {}, "broadcaster": {}, "commands": {}, "dashboard": {},
 	"delegation": {}, "gossip": {}, "health": {}, "ingress": {},
 	"internal": {}, "loyalty": {}, "modules": {}, "notifications": {},
-	"outgress": {}, "projector": {}, "transactions": {}, "users": {},
+	"outgress": {}, "overlays": {}, "projector": {}, "transactions": {}, "users": {},
 }
 
 type destinationFamily struct {
@@ -213,10 +213,25 @@ func normalizedDestination(subject string) string {
 		return normalizedRPCDestination(subject)
 	case strings.HasPrefix(subject, cacheDestinationPrefix):
 		return cacheDestinationPrefix
+	case strings.HasPrefix(subject, gossipJobsSubjectRoot):
+		return GossipJobsStream
+	case strings.HasPrefix(subject, overlaysSubjectRoot):
+		return overlayDestination(subject)
+	case subject == OverlaysMediaBucket:
+		return OverlaysMediaBucket
 	}
 	for _, entry := range familyDestinations {
 		if strings.HasPrefix(subject, entry.prefix) {
 			return entry.family.normalize(subject)
+		}
+	}
+	return "other"
+}
+
+func overlayDestination(subject string) string {
+	for tier, lane := range overlayLanes {
+		if strings.HasPrefix(subject, overlaysSubjectRoot+string(tier)+".") {
+			return lane.stream
 		}
 	}
 	return "other"

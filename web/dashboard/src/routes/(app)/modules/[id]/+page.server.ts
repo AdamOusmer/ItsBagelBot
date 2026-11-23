@@ -2,16 +2,13 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { moduleDef, type ModuleDef, MOD } from '@bagel/kit';
-import { listModules, listModulesForEditing, upsertModule, patchModule, type ModuleView } from '#lib/server/commands-store';
+import { MOD, moduleDef, type ModuleDef } from '@bagel/kit';
+import { listModules, listModulesForEditing, patchModule, upsertModule, type ModuleView } from '#lib/server/commands-store';
 import { auditDashboardImpersonation } from '#lib/server/services';
 import { logger } from '@bagel/kit/server/logger';
-import { thrownStatus } from '@bagel/kit/server/form-action';
-import { gateSection, moduleLocked, moduleWriteDenial } from '#lib/server/module-gate';
-import { parentIsEnabled } from '#lib/server/module-parent';
+import { broadcasterPremium, gateSection, moduleLocked, moduleWriteDenial } from '#lib/server/module-gate';
 import { moduleLoad } from '#lib/server/module-page';
 import { attachLinkedUUID } from '#lib/server/minecraft-uuid';
-import type { Session } from '#lib/server/session';
 import { effectiveId } from '#lib/server/board';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
@@ -19,6 +16,7 @@ import { error, fail, redirect, type Cookies } from '@sveltejs/kit';
 import { actionError } from '#lib/server/action-errors';
 import { notSignedIn } from '#lib/server/action-context';
 import { baseCookie } from '#lib/server/cookies';
+import { enableKeys, gatedEnabled, patchModuleSettings, valueKeys } from '#lib/server/module-patch';
 import { moduleEditState } from '#lib/server/module-edit-state';
 
 const DEMO = dev && env.DEMO === '1';
@@ -46,14 +44,21 @@ function requiredModulesOff(def: ModuleDef, rows: ModuleView[]): string[] {
   return [...required].filter((id) => rows.find((r) => r.name === id)?.is_enabled !== true);
 }
 
+function voiceAllowedFor(locals: App.Locals, def: ModuleDef) {
+  return def.replies.some((reply) => reply.voiceAlert) && broadcasterPremium(locals);
+}
+
 export const load: PageServerLoad = async ({ params, locals, cookies, url }) => {
   gateSection(locals.session, 'modules');
   const def = moduleDef(params.id);
   if (!def || def.hidden) throw error(404, actionError(locals.locale, 'Unknown module'));
   if (def.href) throw redirect(302, def.href);
 
-  const locked = await moduleLocked(locals, def);
-  const blank = () => ({ def, locked, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0, requiresOff: [] as string[] });
+  const [locked, voiceAllowed] = await Promise.all([
+    moduleLocked(locals, def),
+    voiceAllowedFor(locals, def)
+  ]);
+  const blank = () => ({ def, locked, voiceAllowed, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0, requiresOff: [] as string[] });
 
   return moduleLoad(def.id, locals.session, {
     demo: DEMO ? async () => blank() : undefined,
@@ -61,31 +66,17 @@ export const load: PageServerLoad = async ({ params, locals, cookies, url }) => 
       const rows = await editorRows(uid, def.id, cookies, url);
       const row = rows.find((r) => r.name === def.id);
       const { config, revision } = moduleEditState(row);
-      return { def, locked, enabled: row ? row.is_enabled : def.defaultEnabled, config, revision, requiresOff: requiredModulesOff(def, rows) };
+      return { def, locked, voiceAllowed, enabled: row ? row.is_enabled : def.defaultEnabled, config, revision, requiresOff: requiredModulesOff(def, rows) };
     },
     blank
   });
 };
-
-function valueKeys(def: ModuleDef): string[] {
-  const rules = def.id === MOD.triggers ? ['rules'] : [];
-  return [...def.replies.map((r) => r.messageKey), ...(def.settings ?? []).map((s) => s.key), ...rules];
-}
-
-function enableKeys(def: ModuleDef): string[] {
-  return def.replies.flatMap((r) => (r.enableKey ? [r.enableKey] : []));
-}
 
 function buildConfig(def: ModuleDef, f: FormData): Record<string, string> {
   const get = (key: string) => String(f.get(`cfg.${key}`) ?? '').trim();
   const values = valueKeys(def).filter((key) => get(key)).map((key) => [key, get(key)]);
   const disabled = enableKeys(def).filter((key) => get(key) === 'off').map((key) => [key, 'off']);
   return Object.fromEntries([...values, ...disabled]);
-}
-
-// Same keys as buildConfig, so a forged patch cannot stash arbitrary keys.
-function allowedConfigKeys(def: ModuleDef): Set<string> {
-  return new Set([...valueKeys(def), ...enableKeys(def)]);
 }
 
 type WriteTarget = { denied: ReturnType<typeof fail> } | { def: ModuleDef; uid: string };
@@ -100,11 +91,6 @@ async function resolveWrite(id: string, locals: App.Locals): Promise<WriteTarget
   return { def, uid: effectiveId(locals.session) };
 }
 
-async function gatedEnabled(uid: string, def: ModuleDef, requested: boolean): Promise<boolean> {
-  if (!requested || !def.parent) return requested;
-  return parentIsEnabled(uid, def.parent);
-}
-
 export const actions: Actions = {
   save: async ({ request, params, locals, cookies, url }) => {
     const target = await resolveWrite(params.id, locals);
@@ -115,12 +101,15 @@ export const actions: Actions = {
     const requested = f.get('is_enabled') === 'on';
     if (DEMO) return { ok: true, enabled: requested };
 
+    const expectedRev = formRevision(f);
+    if (def.id === MOD.alerts && Number.isNaN(expectedRev)) return fail(400, { ok: false });
     const enabled = await gatedEnabled(uid, def, requested);
     const config = await attachLinkedUUID(def, buildConfig(def, f), locals);
 
-    const synced = await upsertSynced(uid, def, { enabled, config });
-    if (synced === null) return fail(400, { ok: false });
-    if (!synced) requestFreshRead(cookies, def.id, url);
+    const result = await saveModule(uid, def, { enabled, config, expectedRev });
+    if (!result) return fail(400, { ok: false });
+    if (!result.synced) requestFreshRead(cookies, def.id, url);
+    if (result.conflict) return fail(409, { ok: false, conflict: true });
 
     auditDashboardImpersonation(locals.session, 'module:update', `${def.id}=${enabled}`);
     return { ok: true, enabled };
@@ -129,67 +118,43 @@ export const actions: Actions = {
   patch: async ({ request, params, locals, cookies, url }) => {
     const target = await resolveWrite(params.id, locals);
     if ('denied' in target) return target.denied;
-    const { def, uid } = target;
-
-    const f = await request.formData();
-    const partial = parsePartial(f.get('partial'), def);
-    if (!partial) return fail(400, { ok: false, error: actionError(locals.locale, 'Invalid patch.') });
-    const requested = f.get('is_enabled') === 'on';
-    const expectedRev = Number(f.get('expected_rev') ?? '0') || 0;
-
-    if (DEMO) return { ok: true, rev: expectedRev + 1, conflict: false };
-
-    const enabled = await gatedEnabled(uid, def, requested);
-    const { result, freshRead } = await applyPatch(def, uid, { enabled, expectedRev, partial: await attachLinkedUUID(def, partial, locals) }, locals.session);
+    const { def } = target;
+    const { result, freshRead } = await patchModuleSettings(def, await request.formData(), locals, DEMO);
     if (freshRead) requestFreshRead(cookies, def.id, url);
     return result;
   }
 };
 
-async function upsertSynced(
+function formRevision(form: FormData): number {
+  const raw = form.get('expected_rev');
+  if (typeof raw !== 'string' || !/^\d+$/.test(raw)) return NaN;
+  const revision = Number(raw);
+  return Number.isSafeInteger(revision) ? revision : NaN;
+}
+
+type ModuleDraft = { enabled: boolean; config: Record<string, string>; expectedRev: number };
+
+async function saveModule(
   uid: string,
   def: ModuleDef,
-  draft: { enabled: boolean; config: Record<string, string> }
-): Promise<boolean | null> {
+  draft: ModuleDraft
+): Promise<{ synced: boolean; conflict?: boolean } | null> {
   try {
-    return (await upsertModule(uid, def.id, draft.enabled, draft.config)).synced;
+    if (def.id === MOD.alerts) return await saveChatAlerts(uid, def, draft);
+    return await upsertModule(uid, def.id, draft.enabled, draft.config);
   } catch (e) {
     logger.error({ err: e }, `[modules] save ${def.id} failed`);
     return null;
   }
 }
 
-async function applyPatch(
-  def: ModuleDef,
-  uid: string,
-  draft: { enabled: boolean; expectedRev: number; partial: Record<string, string> },
-  session: Session | null | undefined
-) {
-  try {
-    const res = await patchModule({
-      userId: uid,
-      name: def.id,
-      isEnabled: draft.enabled,
-      partial: draft.partial,
-      expectedRev: draft.expectedRev
-    });
-    if (res.conflict) return { result: { ok: false, conflict: true, rev: res.rev }, freshRead: true };
-    auditDashboardImpersonation(session, 'module:patch', `${def.id}=${draft.enabled}`);
-    return { result: { ok: true, rev: res.rev, conflict: false }, freshRead: !res.synced };
-  } catch (e) {
-    logger.error({ err: e }, `[modules] patch ${def.id} failed`);
-    return { result: fail(thrownStatus(e), { ok: false }), freshRead: false };
-  }
-}
-
-function parsePartial(raw: FormDataEntryValue | null, def: ModuleDef): Record<string, string> | null {
-  try {
-    const obj = JSON.parse(String(raw ?? '{}'));
-    if (!obj || typeof obj !== 'object') return {};
-    const allowed = allowedConfigKeys(def);
-    const entries = Object.entries(obj as Record<string, unknown>).filter(([k]) => allowed.has(k));
-    return Object.fromEntries(entries.map(([k, v]) => [k, v == null ? '' : String(v)]));
-  } catch {
-    return null;
-  }
+async function saveChatAlerts(uid: string, def: ModuleDef, draft: ModuleDraft) {
+  const keys = [...valueKeys(def), ...enableKeys(def)];
+  return patchModule({
+    userId: uid,
+    name: def.id,
+    isEnabled: draft.enabled,
+    partial: Object.fromEntries(keys.map((key) => [key, draft.config[key] ?? ''])),
+    expectedRev: draft.expectedRev
+  });
 }

@@ -22,6 +22,8 @@ import { TERMS_VERSION } from '@bagel/kit/consent';
 import type { Session } from './session';
 import type { AccountState, BillingState, DeviceGrantView, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';
+import type { BlockedViewer, TtsOverlayView, VoiceAllowance, VoiceSettings } from './services/voice';
+import type { OverlayView, PoweredSettings } from './services/overlays';
 import type { GoveeDevice, GoveeView } from './govee-store';
 import type { FetchDefView, FetchKeyView } from './fetches-store';
 import type { PublicStats } from './public-stats';
@@ -86,7 +88,7 @@ export const demoAuthorizedDashboards = [
 
 export const demoAccountState: AccountState = {
   active: true,
-  status: 'vip',
+  status: process.env.DEMO_PLAN === 'free' ? 'free' : 'vip',
   onboarded: true,
   termsVersion: TERMS_VERSION,
   marketingStatus: 'none',
@@ -199,7 +201,7 @@ export function demoQuotes(): QuoteView[] {
 }
 
 export function demoQuotesView() {
-  return { enabled: true, addPerm: 'mod' as const, editPerm: 'mod' as const, quotes: demoQuotes() };
+  return { enabled: true, addPerm: 'mod' as const, editPerm: 'mod' as const, disabledTriggers: '', quotes: demoQuotes() };
 }
 
 export function demoTimersView() {
@@ -306,6 +308,7 @@ export function demoGoveeDevices(): GoveeDevice[] {
 export function demoSpotifyView() {
   return {
     enabled: true,
+    disabledTriggers: '',
     sr: { ...blankSpotifySr(), enabled: true },
     redeem: {
       ...blankSpotifyRedeem(),
@@ -664,4 +667,79 @@ export function demoSongQueue(now: number): SongQueuePublicView {
     joinedAt: (step - size + 1 + i) * DEMO_QUEUE_STEP_MS - DEMO_QUEUE_HEAD_START_MS
   }));
   return { open: step % 20 < 16, current, up, total: up.length, degraded: false };
+}
+
+const demoVoiceState = {
+  settings: { enabled: true, voice: 'Kore', max_seconds: 30 } satisfies VoiceSettings,
+  overlayRevision: 1,
+  config: {} as Record<string, string>,
+  revision: 1,
+  blocked: [{ viewer_id: '9001', viewer_login: 'spamlord', created_at: 1_764_000_000 }] as BlockedViewer[]
+};
+
+function demoVoiceSafety() {
+  return { manual: demoVoiceState.blocked, pausedUntil: 0 };
+}
+
+export function demoVoiceBlock({ login }: { login: string }): boolean {
+  if (login.length < 4 || login === 'nobody') return false;
+  demoVoiceState.blocked.push({ viewer_id: String(9100 + demoVoiceState.blocked.length), viewer_login: login, created_at: Math.floor(Date.now() / 1000) });
+  return true;
+}
+
+export function demoVoiceUnblock({ viewerId }: { viewerId: string }): void {
+  demoVoiceState.blocked = demoVoiceState.blocked.filter((viewer) => viewer.viewer_id !== viewerId);
+}
+
+export function demoVoiceView(forceLocked = false) {
+  const locked = forceLocked || demoAccountState.status === 'free';
+  const allowance: VoiceAllowance = locked
+    ? { plan: 'free', period: '2026-11', limit_tokens: 0, used_tokens: 0, remaining_tokens: 0, resets_at: '2026-12-01T00:00:00Z', reason: 'no_plan' }
+    : { plan: 'premium', period: '2026-11', limit_tokens: 90_000, used_tokens: 57_300, remaining_tokens: 32_700, resets_at: '2026-12-01T00:00:00Z', reason: 'ok' };
+  const overlay: TtsOverlayView | null = locked ? null : { settings: demoVoiceState.settings, configured: true, revision: demoVoiceState.overlayRevision };
+  return { allowance, overlay, config: demoVoiceState.config, revision: demoVoiceState.revision, safety: demoVoiceSafety() };
+}
+
+export function demoVoiceSave(settings: Partial<VoiceSettings>, partial: Record<string, string>): number {
+  if (Object.keys(settings).length > 0) {
+    Object.assign(demoVoiceState.settings, settings);
+    demoVoiceState.overlayRevision += 1;
+  }
+  if (Object.keys(partial).length > 0) {
+    Object.assign(demoVoiceState.config, partial);
+    demoVoiceState.revision += 1;
+  }
+  return demoVoiceState.revision;
+}
+
+const DEMO_POWERED_URL = 'https://overlay.itsbagelbot.com/o#demo-powered-link';
+const DEMO_POWERED_ID = 1;
+
+const demoPoweredState: PoweredSettings = {
+  id: DEMO_POWERED_ID,
+  config: { every_minutes: 15, show_seconds: 8, directions: ['right'], align: 'end' },
+  revision: 1
+};
+let demoRotations = 0;
+
+const demoPoweredLink = () => `${DEMO_POWERED_URL}-${demoRotations}`;
+
+export function demoOverlayList(): OverlayView[] {
+  return [{ id: DEMO_POWERED_ID, kind: 'system', template: 'powered', name: 'Powered by Bagel', revision: demoPoweredState.revision }];
+}
+
+export function demoPoweredView(): PoweredSettings {
+  return structuredClone(demoPoweredState);
+}
+
+export function demoPoweredSave(config: PoweredSettings['config']): number {
+  demoPoweredState.config = structuredClone(config);
+  demoPoweredState.revision += 1;
+  return demoPoweredState.revision;
+}
+
+export function demoOverlayRotate(): { id: number; url: string; revision: number } {
+  demoRotations += 1;
+  demoPoweredState.revision += 1;
+  return { id: DEMO_POWERED_ID, url: demoPoweredLink(), revision: demoPoweredState.revision };
 }

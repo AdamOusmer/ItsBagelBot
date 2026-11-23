@@ -9,6 +9,7 @@
 
   type Own = {
     label: string;
+    fitCopy?: boolean;
     value: string;
     unit?: string;
     delta?: string;
@@ -23,6 +24,7 @@
 
   let {
     label,
+    fitCopy = false,
     value,
     unit = '',
     delta,
@@ -52,7 +54,7 @@
 
 <div class={classes} {...rest}>
   <div class="bb-stat__head">
-    <span class="bb-stat__label">{label}</span>
+    <span class="bb-stat__label" class:bb-fit-box={fitCopy}>{#if fitCopy}<bb-fit><span data-fit="">{label}</span></bb-fit>{:else}{label}{/if}</span>
     {#if trailing}{@render trailing()}{/if}
   </div>
   <div class="bb-stat__value">{#if isStatic}<span>{value}</span>{:else}<span use:countUp={{ value }}>{value}</span>{/if}{#if unit}<small>{unit}</small>{/if}</div>

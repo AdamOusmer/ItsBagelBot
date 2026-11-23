@@ -60,8 +60,12 @@ func TestUserStatsCountsEveryStatusAndFlag(t *testing.T) {
 				{id: 2006, status: user.StatusVip, isActive: true, banned: true},
 				{id: 2007, status: user.StatusPaid, isActive: true, banned: true, source: "giveaway"},
 				{id: 2008, status: user.StatusFree, isActive: false, source: "giveaway"},
+				{id: 2009, status: user.StatusPaid, isActive: true, source: "admin"},
 			},
-			want: repository.UserCounts{Total: 8, Active: 5, Paid: 3, Granted: 2, Vip: 2},
+			want: repository.UserCounts{
+				Total: 9, Active: 6, Paid: 4, Granted: 3, Vip: 2,
+				DirectoryPaid: 2, DirectoryVIP: 1, DirectoryFree: 1, DirectoryInactive: 3, DirectoryBanned: 2,
+			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -84,8 +88,7 @@ func TestUserStatsServesFromCacheWithinTTL(t *testing.T) {
 
 	counts, err := repo.UserStats(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 1, counts.Total)
-	require.Equal(t, 1, counts.Vip)
+	require.Equal(t, repository.UserCounts{Total: 1, Active: 1, Vip: 1, DirectoryVIP: 1}, counts)
 
 	seedUsers(t, client, []statsSeed{{id: 3002, status: user.StatusVip, isActive: true}})
 

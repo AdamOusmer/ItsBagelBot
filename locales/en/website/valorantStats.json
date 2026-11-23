@@ -12,7 +12,7 @@
   "step2Title": "Approve access on Riot’s page.",
   "step2Desc": "Sign in on Riot’s own page and approve access. Back in the dashboard, the card says Linked as Name#Tag.",
   "step3Title": "Try the commands in chat.",
-  "step3Desc": "Type !val, !val record, !val matches, !val lb, !val account or !val shop in Twitch chat.",
+  "step3Desc": "Type !val, !val record, !val matches, !val lb or !val account in Twitch chat.",
   "limitsNote": "The module is off by default. Each command has a 10 second cooldown.",
   "faqEyebrow": "FAQ",
   "faqTitle": "Setup questions.",
@@ -35,7 +35,7 @@
   "prereq1": "Enable Valorant Stats in the dashboard. The module is off by default.",
   "prereq2": "A Riot account linked with Sign in with Riot.",
   "listEyebrow": "Good to know",
-  "listTitle": "Account, leaderboard and shop.",
+  "listTitle": "Account and leaderboard.",
   "item1Name": "Linked account",
   "item1Desc": "Player stats come only from the streamer’s signed-in Riot account.",
   "item2Name": "Act leaderboard",
@@ -44,8 +44,6 @@
   "item3Desc": "Use na, eu, ap, kr, br or latam. Leave it blank to let the bot detect the account’s region.",
   "item4Name": "PC or console",
   "item4Desc": "PC is the default. Choose the console ladder to see console ranks.",
-  "item5Name": "Shop",
-  "item5Desc": "!val shop shows today's global skin rotation, with VP prices and the time until reset.",
   "item6Name": "Hidden names",
   "item6Desc": "Players who hide their name on Riot’s leaderboard appear as “Secret Agent”."
 }

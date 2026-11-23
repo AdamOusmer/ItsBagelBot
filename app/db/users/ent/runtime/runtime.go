@@ -14,6 +14,8 @@ import (
 	"ItsBagelBot/app/db/users/ent/schema"
 	"ItsBagelBot/app/db/users/ent/termsacceptance"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/app/db/users/ent/voiceusage"
+	"ItsBagelBot/app/db/users/ent/voiceusagereceipt"
 	"time"
 
 	"github.com/google/uuid"
@@ -475,6 +477,52 @@ func init() {
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	user.UpdateDefaultUpdatedAt = userDescUpdatedAt.UpdateDefault.(func() time.Time)
+	voiceusageFields := schema.VoiceUsage{}.Fields()
+	_ = voiceusageFields
+	// voiceusageDescPeriod is the schema descriptor for period field.
+	voiceusageDescPeriod := voiceusageFields[1].Descriptor()
+	// voiceusage.PeriodValidator is a validator for the "period" field. It is called by the builders before save.
+	voiceusage.PeriodValidator = voiceusageDescPeriod.Validators[0].(func(string) error)
+	// voiceusageDescAudioTokens is the schema descriptor for audio_tokens field.
+	voiceusageDescAudioTokens := voiceusageFields[2].Descriptor()
+	// voiceusage.AudioTokensValidator is a validator for the "audio_tokens" field. It is called by the builders before save.
+	voiceusage.AudioTokensValidator = voiceusageDescAudioTokens.Validators[0].(func(int64) error)
+	// voiceusageDescDurationMs is the schema descriptor for duration_ms field.
+	voiceusageDescDurationMs := voiceusageFields[3].Descriptor()
+	// voiceusage.DurationMsValidator is a validator for the "duration_ms" field. It is called by the builders before save.
+	voiceusage.DurationMsValidator = voiceusageDescDurationMs.Validators[0].(func(int64) error)
+	// voiceusageDescRequests is the schema descriptor for requests field.
+	voiceusageDescRequests := voiceusageFields[4].Descriptor()
+	// voiceusage.RequestsValidator is a validator for the "requests" field. It is called by the builders before save.
+	voiceusage.RequestsValidator = voiceusageDescRequests.Validators[0].(func(int) error)
+	voiceusagereceiptFields := schema.VoiceUsageReceipt{}.Fields()
+	_ = voiceusagereceiptFields
+	// voiceusagereceiptDescRequestID is the schema descriptor for request_id field.
+	voiceusagereceiptDescRequestID := voiceusagereceiptFields[0].Descriptor()
+	// voiceusagereceipt.RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
+	voiceusagereceipt.RequestIDValidator = func() func(string) error {
+		validators := voiceusagereceiptDescRequestID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(request_id string) error {
+			for _, fn := range fns {
+				if err := fn(request_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// voiceusagereceiptDescPeriod is the schema descriptor for period field.
+	voiceusagereceiptDescPeriod := voiceusagereceiptFields[2].Descriptor()
+	// voiceusagereceipt.PeriodValidator is a validator for the "period" field. It is called by the builders before save.
+	voiceusagereceipt.PeriodValidator = voiceusagereceiptDescPeriod.Validators[0].(func(string) error)
+	// voiceusagereceiptDescAudioTokens is the schema descriptor for audio_tokens field.
+	voiceusagereceiptDescAudioTokens := voiceusagereceiptFields[3].Descriptor()
+	// voiceusagereceipt.AudioTokensValidator is a validator for the "audio_tokens" field. It is called by the builders before save.
+	voiceusagereceipt.AudioTokensValidator = voiceusagereceiptDescAudioTokens.Validators[0].(func(int64) error)
 }
 
 const (

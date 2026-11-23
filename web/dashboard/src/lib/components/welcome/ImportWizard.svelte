@@ -697,7 +697,7 @@
   .category-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
+    gap: 8px;
     padding-top: 8px;
   }
 
@@ -720,7 +720,7 @@
     flex-direction: column;
     gap: 20px;
   }
-  .instr-link { margin: 0 0 14px; }
+  .instr-link { margin: 0 0 16px; }
   .cred {
     display: flex;
     flex-direction: column;
@@ -735,7 +735,7 @@
   }
   .actions-row {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     justify-content: flex-end;
   }
 
@@ -745,14 +745,14 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
   }
 
-  .conflict-lines { display: grid; gap: 10px; }
+  .conflict-lines { display: grid; gap: 8px; }
   .overwrite-toggle {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     --bb-check-align: center;
     white-space: nowrap;
   }
@@ -761,7 +761,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
   }
 
   .review-bar {
@@ -785,7 +785,7 @@
 
   .done-seal {
     display: inline-flex;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
     animation: seal-in var(--bb-dur-slow) var(--bb-ease-out-expo) 360ms both;
   }
 

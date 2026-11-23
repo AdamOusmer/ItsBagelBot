@@ -1,0 +1,21 @@
+{
+  "claim.late": "@{draw:user} the claim window has closed.",
+  "claim.ok": "@{draw:user} your prize is confirmed!",
+  "empty": "Nobody entered the draw.",
+  "join.closed": "The draw has closed.",
+  "no_show": "{draw:targets} missed the claim window.",
+  "remind": "About {draw:mins} min left to enter. {draw:count} entered so far. Type !join.",
+  "status.no_show": "Claim window missed: {draw:targets}.",
+  "status.none": "No winners are available yet.",
+  "status.paying": "Payout pending: {draw:targets}.",
+  "status.unpaid": "Could not pay: {draw:targets}.",
+  "status.winners": "Winners: {draw:targets}.",
+  "unfilled": "The draw ran out of eligible entrants.",
+  "unpaid": "Some prizes could not be paid.",
+  "verifying": "Verifying winners. Results are coming.",
+  "winners": "{draw:targets} won!",
+  "winners.claim": "{draw:targets} won! Type !claim to claim your prize.",
+  "winners.raffle": "{draw:targets} each won {draw:amount} {draw:points}!",
+  "open.busy_giveaway": "A giveaway is already open. Draw or cancel it first.",
+  "join.free": "Entry is free."
+}

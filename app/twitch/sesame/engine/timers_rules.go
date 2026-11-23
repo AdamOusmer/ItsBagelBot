@@ -9,6 +9,8 @@ const (
 	maxGateLines = 100
 	maxFireCap   = 100
 
+	maxJitterSeconds = 3600
+
 	defaultChatWindowMinutes = 5
 	maxChatWindowMinutes     = 60
 )

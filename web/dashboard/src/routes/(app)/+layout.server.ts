@@ -14,7 +14,7 @@ import { accountState, notificationsForUser, delegationAccess, type AccountState
 import { DEFAULT_MODULE_FLAGS, DEMO_MODULE_FLAGS, moduleFlags, withBetaLocks } from '#lib/server/module-flags';
 import { broadcasterPremium } from '#lib/server/module-gate';
 import { twitchScopeGap } from '#lib/server/oauth';
-import { isOwnerSession } from '#lib/server/owner';
+import { isSelfSignIn } from '#lib/server/owner';
 import { count } from '@bagel/kit/server/analytics';
 import { safeReturnPath } from '@bagel/kit/return-path';
 import { needsTerms } from '#lib/server/consent';
@@ -71,7 +71,7 @@ async function requireSession(locals: App.Locals, url: URL): Promise<Session> {
 }
 
 function requireTwitchScopes(s: Session, url: URL): void {
-  if (!twitchScopeGap(s.scopes)) return;
+  if (!isSelfSignIn(s) || !twitchScopeGap(s.scopes)) return;
   throw redirect(302, `/auth/login?reauth=1&next=${encodeURIComponent(url.pathname + url.search)}`);
 }
 
@@ -90,7 +90,7 @@ function requireConsent(account: AccountState | null, url: URL): void {
 
 async function gatedAccount(locals: App.Locals, s: Session, url: URL): Promise<AccountState | null> {
   const path = url.pathname.replace(/\/$/, '');
-  const gateOwner = isOwnerSession(s) && !isCheckoutReturn(url, path);
+  const gateOwner = isSelfSignIn(s) && !isCheckoutReturn(url, path);
   if (gateOwner) requireTwitchScopes(s, url);
   const account = await loadAccountState(locals, s);
   if (gateOwner && path !== '/settings') requireConsent(account, url);
@@ -121,6 +121,7 @@ export const load: LayoutServerLoad = async ({ locals, url, route, request }) =>
     moduleNav: moduleSectionLinks((key) => translate(locals.locale, key)),
     navLabels: {
       ...Object.fromEntries(DASHBOARD_SECTIONS.map((def) => [def.labelKey, translate(locals.locale, def.labelKey)])),
+      'nav.channelpoints': translate(locals.locale, 'nav.channelpoints'),
       'nav.beta': translate(locals.locale, 'nav.beta')
     } as Record<string, string>,
     role: s.role,

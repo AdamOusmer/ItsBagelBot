@@ -91,9 +91,8 @@ describe('module command chips', () => {
   });
 
   test('promotes a reply command when the module has no command list', () => {
-    const time = moduleDef('time')!;
-    expect(time.commands).toBeUndefined();
-    expect(moduleCommandChips(time).chips).toEqual(['!time']);
+    const replyOnly = { ...moduleDef('time')!, commands: undefined };
+    expect(moduleCommandChips(replyOnly).chips).toEqual(['!time']);
   });
 });
 
@@ -123,7 +122,7 @@ describe('grouping and hrefs', () => {
   });
 
   test('folds Song Requests and Govee into Gear', () => {
-    const items = [state('govee'), state('songqueue'), state('raffle')];
+    const items = [state('govee'), state('songqueue'), state('queue')];
     expect(groupModulesByCategory(items).map((g) => g.name)).toEqual(['Play', 'Gear']);
     expect(groupModulesByCategory(items).find((g) => g.name === 'Gear')?.modules.map((m) => m.def.id)).toEqual([
       'govee',

@@ -9,7 +9,7 @@ import { bestEffort } from '@bagel/kit/server/best-effort';
 import { env } from '@bagel/kit/server/env';
 import { logger } from '@bagel/kit/server/logger';
 import { actionError } from './action-errors';
-import { isOwnerSession } from './owner';
+import { isSelfSignIn } from './owner';
 import { freshAccountState, maskedContactEmail, publishEventSub, setOnboarded, setTermsConsent, type AccountState } from '#lib/server/services';
 import type { Session } from './session';
 
@@ -89,7 +89,7 @@ export async function submitTerms(
 ) {
   const { session, locale } = locals;
   if (!session) return fail(401, { error: actionError(locale, 'Not signed in.') });
-  if (!isOwnerSession(session)) return fail(403, { error: actionError(locale, 'Not allowed.') });
+  if (!isSelfSignIn(session)) return fail(403, { error: actionError(locale, 'Not allowed.') });
 
   const form = await request.formData();
   const requestId = termsRequestId(form);

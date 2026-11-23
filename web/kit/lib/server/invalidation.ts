@@ -6,6 +6,7 @@ import { getServerConfig } from './config';
 import type { SwrCache } from './cache';
 
 export type ScopeMap = Record<string, (id: string, keys: readonly string[]) => string[]>;
+export const LOYALTY_FREEZE_MARKER = 'freeze';
 
 const MAX_KEYS = 8;
 const MAX_KEY_LENGTH = 64;

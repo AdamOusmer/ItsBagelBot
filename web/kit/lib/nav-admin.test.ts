@@ -4,8 +4,10 @@
 import { describe, expect, test } from 'bun:test';
 import {
   ADMIN_GROUP_ORDER,
+  ADMIN_GROUP_LABEL,
   ADMIN_SECTIONS,
   adminNavGroups,
+  adminNavItems,
   adminSectionForPath,
   adminSectionLabelKey
 } from './nav-admin';
@@ -33,43 +35,63 @@ describe('admin nav registry', () => {
     ['/users/12345', 'users'],
     ['/events/stream', 'events'],
     ['/deploys/abc123/stream', 'deploys'],
-    ['/analytics', 'analytics']
+    ['/analytics', 'analytics'],
+    ['/settings', 'settings']
   ])('%s resolves to the %s section', (path, section) => {
     expect(adminSectionForPath(path)).toBe(section);
   });
 
+  const links = (role: StaffRole, section: ReturnType<typeof adminSectionForPath> = 'overview') =>
+    adminNavGroups({ role, section }).flatMap((group) => group.items);
+
   const hrefs = (role: StaffRole) =>
-    adminNavGroups({ role, section: 'overview' })
+    links(role).flatMap((item) => (item.children ?? [item]).map((link) => link.href));
+
+  test.each<[string, StaffRole[]]>([
+    ['/staff', ['admin', 'owner']],
+    ['/counters', ['owner']],
+    ['/trials', ['admin', 'owner']],
+    ['/deploys', ['owner']],
+    ['/settings', ROLES]
+  ])('%s is visible to the permitted staff roles', (path, roles) => {
+    expect(ROLES.filter((role) => hrefs(role).includes(path))).toEqual(roles);
+  });
+
+  test.each<[StaffRole, string[]]>([
+    ['moderator', ['adminNav.overview', ADMIN_GROUP_LABEL.operate, ADMIN_GROUP_LABEL.accounts, 'adminNav.settings']],
+    ['owner', ['adminNav.overview', ...ADMIN_GROUP_ORDER.map((id) => ADMIN_GROUP_LABEL[id]), 'adminNav.settings']]
+  ])('%s sees overview, the collapsible groups in order, then settings', (role, labels) => {
+    expect(links(role).map((item) => item.label)).toEqual(labels);
+  });
+
+  test('owners reach every section exactly once', () => {
+    expect(hrefs('owner').toSorted()).toEqual(ADMIN_SECTIONS.map((def) => def.href).toSorted());
+  });
+
+  test.each<[ReturnType<typeof adminSectionForPath>, string]>([
+    ['settings', 'adminNav.settings'],
+    ['lanes', ADMIN_GROUP_LABEL.operate],
+    ['users', ADMIN_GROUP_LABEL.accounts]
+  ])('the %s section marks only %s as current', (section, label) => {
+    const active = links('owner', section).filter((item) => item.current);
+    expect(active.map((item) => item.label)).toEqual([label]);
+  });
+
+  test.each<[number | null, string]>([
+    [null, ''],
+    [0, '0'],
+    [17, '17'],
+    [4_294_967_295, '4294967295']
+  ])('only Users receives the display value for %p', (liveCount, count) => {
+    const opts = { role: 'moderator', section: 'overview', liveCount } as const;
+    const items = adminNavItems(opts);
+    const children = adminNavGroups(opts)
       .flatMap((group) => group.items)
-      .map((item) => item.href);
-
-  test('minRole hides Access rows from the roles their routes bounce', () => {
-    expect(hrefs('moderator')).not.toContain('/staff');
-    expect(hrefs('moderator')).not.toContain('/counters');
-    expect(hrefs('moderator')).not.toContain('/trials');
-    expect(hrefs('admin')).toContain('/staff');
-    expect(hrefs('admin')).toContain('/trials');
-    expect(hrefs('admin')).not.toContain('/counters');
-    expect(hrefs('owner')).toContain('/counters');
-    expect(hrefs('owner').length).toBe(ADMIN_SECTIONS.length);
-  });
-
-  test('/deploys is offered to owners only', () => {
-    const offered = ROLES.filter((role) => hrefs(role).includes('/deploys'));
-    expect(offered).toEqual(['owner']);
-  });
-
-  test('groups follow ADMIN_GROUP_ORDER and drop empty ones', () => {
-    expect(adminNavGroups({ role: 'moderator', section: 'overview' })).toHaveLength(2);
-    expect(adminNavGroups({ role: 'owner', section: 'overview' })).toHaveLength(
-      ADMIN_GROUP_ORDER.length
-    );
-  });
-
-  test('the active section is marked in exactly one group', () => {
-    const groups = adminNavGroups({ role: 'owner', section: 'secrets' });
-    const active = groups.flatMap((g) => g.items).filter((item) => item.current);
-    expect(active.map((item) => item.href)).toEqual(['/secrets']);
+      .flatMap((item) => item.children ?? []);
+    expect(items.filter((item) => item.count !== undefined)).toEqual([
+      expect.objectContaining({ href: '/users', count })
+    ]);
+    expect(children.filter((child) => child.count !== undefined)).toEqual([{ href: '/users', label: 'adminNav.users', count }]);
   });
 
   test('every label key is a real English leaf, and the breadcrumb key is the section label', () => {
@@ -77,10 +99,8 @@ describe('admin nav registry', () => {
       expect(typeof leaf(def.labelKey)).toBe('string');
       expect(adminSectionLabelKey(def.id)).toBe(def.labelKey);
     }
-    for (const role of ROLES) {
-      for (const group of adminNavGroups({ role, section: 'overview' })) {
-        expect(typeof leaf(group.label ?? '')).toBe('string');
-      }
+    for (const key of Object.values(ADMIN_GROUP_LABEL)) {
+      expect(typeof leaf(key)).toBe('string');
     }
   });
 });

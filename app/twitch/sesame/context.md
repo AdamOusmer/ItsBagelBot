@@ -43,10 +43,12 @@ floor check is also in Sesame; there is no separate Outgress reply-safety layer.
 | Add/change a module | [modules/all.go](modules/all.go), [module/builder.go](module/builder.go), [module/module.go](module/module.go), [module/context.go](module/context.go) |
 | Reply variables | [engine/vars.go](engine/vars.go), [engine/scope/token_catalog.go](engine/scope/token_catalog.go), [modules/variables.go](modules/variables.go), [module/vars.go](module/vars.go) |
 | Outgoing routing and slash verbs | [engine/outgress_build.go](engine/outgress_build.go), [engine/slash.go](engine/slash.go), [shared slash grammar](../../../internal/domain/outgress/slash.go) |
+| Premium voice alert output | [modules/alerts_voice.go](modules/alerts_voice.go), [voice.go](voice.go), [internal/voice/worker.go](internal/voice/worker.go) |
 | Consumers and retry lanes | [internal/consumer/consumer.go](internal/consumer/consumer.go) |
 | Cooldowns/dedup/counters | [engine/cooldown_valkey.go](engine/cooldown_valkey.go), [engine/cooldown_long_marker.go](engine/cooldown_long_marker.go), [engine/cooldown_left.go](engine/cooldown_left.go), [engine/dedup.go](engine/dedup.go), [engine/use_reporter.go](engine/use_reporter.go) |
 | Loyalty and watch windows | [engine/loyalty_tick.go](engine/loyalty_tick.go), [engine/loyalty_schedule.go](engine/loyalty_schedule.go), [engine/loyalty_reporter.go](engine/loyalty_reporter.go), [modules/loyalty.go](modules/loyalty.go) |
-| Raffle/queue/duel/song queue | Corresponding `modules/` entry and `engine/*_valkey.go` store; `engine/raffle_claim.go` owns raffle claims |
+| Raffles and giveaways | [engine/draw](engine/draw), [modules/draw.go](modules/draw.go), [modules/raffle.go](modules/raffle.go), [modules/giveaway.go](modules/giveaway.go) |
+| Queue, duel and song queue | Corresponding `modules/` entry and `engine/*_valkey.go` store |
 | External facts and lookups | `engine/*_rpc.go`, [engine/urlfetch.go](engine/urlfetch.go), [engine/gossip_rpc.go](engine/gossip_rpc.go) |
 | Incoming AutoMod | [automod/gate.go](automod/gate.go), [automod/config.go](automod/config.go), [engine/moderate.go](engine/moderate.go), [modules/automod.go](modules/automod.go) |
 | Manual sweep helpers | [engine/nuke.go](engine/nuke.go), [engine/recent.go](engine/recent.go), [engine/recent_valkey.go](engine/recent_valkey.go), [modules/moderation.go](modules/moderation.go) |
@@ -83,6 +85,78 @@ Premium/standard lane choice preserves ingress `Regress`; system jobs use the
 system subject. Slash verbs are converted to typed actions before final delivery.
 Variable expansion can call cached RPC readers or the Gossip custom-fetch endpoint;
 a bare variable token is not necessarily a pure formatting operation.
+
+## Premium voice alerts
+
+The alert publisher and voice worker read account settings and link
+configuration through Projector's `rpc.internal.projector.overlays.tts.settings`.
+Users supplies the monthly allowance and records clip usage. Sesame combines
+those inputs with per-alert or chat-command overrides and sends the selected
+voice to Gossip.
+Every spoken name and message passes `moderation.CheckSpeech` first: a
+fixed floor (hate, explicit sexual acts, self-harm encouragement, real-world
+threats, personal data) plus the streamer's automod sections and term lists
+through `automod.Config.SpeechPolicy`. Banter and game violence pass. A
+viewer on the streamer's manual block list (TTS settings) is denied like
+blocked text; nothing blocks a viewer automatically.
+
+Chat Alerts controls chat lines and their follow/subscription cooldowns.
+A core handler reads the same Alerts row for Premium voice regardless of the
+row's enabled flag. Voice reads only viewer messages from cheers and resubs,
+using the localized format "{user} said: {message}". Speech checks the per-kind
+toggle, live state, cheer threshold, and Users allowance, which requires a
+configured overlay link. Sesame applies blocked terms and discards the entire
+utterance on a match. It strips control characters and cheermotes from viewer
+text. Trial events never enqueue a voice job.
+
+The Dashboard owner action calls [`rpc.voice.test`](modules/voice_test_rpc.go)
+to queue a localized cheer sample. It uses the channel's cheer voice and style
+and the normal Users allowance and usage recording. It can run while the channel
+is offline, with one request per channel every ten seconds.
+
+## Premium speech from chat, rewards and recipes
+
+Three more surfaces queue the same speech jobs, and each needs a Premium channel
+in the projection, even where the surface itself is free (`engine.SpeechQueue`):
+
+- `!tts <message>` is an opt-in built-in backed by the `tts` module row. It is
+  live-only and takes permission, `cooldown`, `userCooldown`, `maxChars`,
+  `prefixName`, `voice`, `style` and `replyDenied` from that row. An off or
+  non-Premium channel yields the name to a custom `!tts` command. A viewer
+  refused for having no minutes still uses their cooldown.
+- The `speak` channel points action reads the redemption text. It follows
+  `alerts.ttsLiveOnly` and refunds the redemption when offline, when the text is
+  blocked or empty, or when there is no Premium or allowance. Accepted
+  redemptions default to fulfill once queued; a later worker refusal cannot refund.
+- The `speak` recipe step reads its expanded text. It reports `premium_required`,
+  `voice_unavailable` or `speech_blocked` in the run record.
+
+These jobs use the kinds `chat`, `reward` and `recipe`, keyed by SHA-256 over the
+kind, the originating trace ID and the event, message or recipe step identity.
+
+Sesame deduplicates speech handlers by event identity. Sesame runs the checks
+(overlay settings, Users allowance), trims the text to the allowance, resolves the
+voice and publishes the job to `gossip.jobs.tts.<user_id>` on the `GOSSIP_JOBS`
+work queue, which deduplicates by event ID. Gossip pulls the job, synthesizes,
+stores the clip, records usage and publishes the overlay event. Sesame has no
+worker and never calls `tts.synthesize`.
+Without an originating trace, the job ID uses the first 32 hex characters of
+SHA-256 over the event ID or, when absent, the notification message ID.
+Gossip logs `voice job delivered` or `voice job dropped` with `trace.id`, rate
+limits use the returned retry delay when given, and unavailable replies retry
+after two seconds. The clip's object metadata preserves duration and usage
+across delivery retries.
+Users records usage by job ID. The overlay stream deduplicates the
+playback event by the same ID. Clips and playback events expire after five
+minutes in the gateway's NATS account. Sesame has a separate writer role
+in that account.
+
+`SESAME_TTS_ENABLED` starts background provisioning of the gossip job queue and overlay
+storage. Failed attempts log a warning and retry with jittered exponential
+backoff capped at 30 seconds. Replicas can provision concurrently and reuse
+existing streams and clip storage. Chat processing continues during retries.
+Alert speech skips with reason `unavailable` until provisioning and worker
+subscription succeed.
 
 ## Invariants and pitfalls
 

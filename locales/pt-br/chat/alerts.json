@@ -4,5 +4,8 @@
   "gift.default": "{alerts:user} acaba de presentear a comunidade com inscrições: {alerts:count}! Obrigado!",
   "cheer.default": "Obrigado pelos bits ({alerts:bits}), {alerts:user}!",
   "raid.default": "{alerts:user} está fazendo uma raid no canal! Espectadores: {alerts:viewers}. Boas-vindas a todos!",
-  "ads.default": "Anúncios no ar por {alerts:duration} s. Aguente aí, já voltamos!"
+  "ads.default": "Anúncios no ar por {alerts:duration} s. Aguente aí, já voltamos!",
+  "voice.said": "%s disse: %s",
+  "voice.test": "Este é um teste da sua voz Premium.",
+  "voice.anonymous": "Anônimo"
 }

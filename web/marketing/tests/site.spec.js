@@ -144,6 +144,7 @@ test.describe('ItsBagelBot site', () => {
 
         await expect(tiers.nth(1)).toContainText('Priority + early access');
         await expect(tiers.nth(1)).toContainText('Get Premium');
+        await expect(page.locator('.tier--premium .tier__features')).toContainText('Premium voice for alerts (Beta)');
 
         await expect(page.locator('.oath')).toContainText('no card needed');
 
@@ -272,6 +273,7 @@ test.describe('ItsBagelBot site', () => {
         for (const [path, aiDoc] of [
             ['/guides/spotify-song-requests', 'https://ai.itsbagelbot.com/spotify/setup.md'],
             ['/guides/govee-lights', 'https://ai.itsbagelbot.com/govee/setup.md'],
+            ['/guides/premium-voice', 'https://ai.itsbagelbot.com/features/premium-voice.md'],
             ['/guides/setup-errors', 'https://ai.itsbagelbot.com/llms.txt'],
             ['/song-requests', 'https://ai.itsbagelbot.com/spotify/setup.md'],
             ['/govee', 'https://ai.itsbagelbot.com/govee/setup.md'],
@@ -298,7 +300,7 @@ test.describe('ItsBagelBot site', () => {
     });
 
     test('every guide is indexable with hreflang in every locale', async ({ page, request }) => {
-        const slugs = ['commands', 'counters', 'data-sources', 'getting-started', 'govee-lights', 'modules', 'setup-errors', 'share-access', 'spotify-song-requests'];
+        const slugs = ['commands', 'counters', 'data-sources', 'getting-started', 'govee-lights', 'modules', 'premium-voice', 'setup-errors', 'share-access', 'spotify-song-requests'];
         for (const locale of ['de', 'es', 'fr', 'pt-br', 'ru']) {
             for (const slug of slugs) {
                 await page.goto(`/${locale}/guides/${slug}`);
@@ -317,6 +319,10 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(7);
         const modulesGraph = JSON.parse(await page.locator('head script[type="application/ld+json"]').textContent())['@graph'];
         expect(modulesGraph.find((node) => node['@type'] === 'TechArticle').inLanguage).toBe('de');
+
+        await page.goto('/de/guides/premium-voice');
+        await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(7);
+        await expect(page.locator('#allowance tbody td:nth-child(2)')).toHaveText(['60', '60', '30', '120']);
 
         const sitemap = await (await request.get('/sitemap-0.xml')).text();
         expect(sitemap).toContain('<loc>https://itsbagelbot.com/de/guides/getting-started/</loc>');
@@ -398,15 +404,14 @@ test.describe('reduced motion', () => {
 });
 
 test.describe('guides & command builder', () => {
-    test('guides hub lists the nine guides and the builder tool', async ({ page }) => {
+    test('guides hub lists the guides and the builder tool', async ({ page }) => {
         await page.goto('/guides');
 
         await expect(page.locator('.bb-page-hero__title')).toContainText('Learn the bot.');
-        await expect(page.locator('.gcard')).toHaveCount(9);
         expect(await page.locator('.gcard').evaluateAll((cards) => cards.map((card) => card.getAttribute('href')))).toEqual([
             '/guides/getting-started/', '/guides/commands/', '/guides/data-sources/',
             '/guides/modules/', '/guides/counters/', '/guides/spotify-song-requests/',
-            '/guides/govee-lights/', '/guides/share-access/', '/guides/setup-errors/'
+            '/guides/govee-lights/', '/guides/share-access/', '/guides/premium-voice/', '/guides/setup-errors/'
         ]);
         await expect(page.locator('.gcard').first()).toHaveAttribute('href', '/guides/getting-started/');
         await expect(page.locator('.gcard').nth(2)).toHaveAttribute('href', '/guides/data-sources/');

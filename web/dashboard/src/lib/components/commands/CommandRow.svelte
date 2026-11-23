@@ -20,6 +20,9 @@
   } from '@bagel/kit';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import RowDeleteButton from '#lib/components/shared/RowDeleteButton.svelte';
+  import PremiumMark from '#lib/components/shared/PremiumMark.svelte';
+  import { premiumSwitchLocked } from '#lib/components/shared/premium-lock';
+  import { page } from '$app/state';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
@@ -61,6 +64,7 @@
   const aliasList = $derived(c.aliases ?? []);
   const aliasAll = $derived(aliasList.join(', '));
   const saving = $derived(status === 'saving');
+  const locked = $derived(premiumSwitchLocked(c.premium, c.is_active, page.data));
   const statusLabels = $derived({
     savingLabel: t('commandEditor.saving'),
     savedLabel: t('commands.saved'),
@@ -143,7 +147,7 @@
       </span>
     {/snippet}
     {#snippet actions()}
-      <form method="POST" action={c.builtin ? '?/toggleBuiltin' : '?/toggle'} use:enhance={toggleSubmit}>
+      <form class="toggle-form" method="POST" action={c.builtin ? '?/toggleBuiltin' : '?/toggle'} use:enhance={toggleSubmit}>
         <input type="hidden" name="name" value={c.name} />
         {#each c.aliases ?? [] as a}<input type="hidden" name="aliases" value={a} />{/each}
         <input type="hidden" name="response" value={c.response} />
@@ -154,7 +158,8 @@
         <input type="hidden" name="bump_counter" value={c.bump_counter ?? ''} />
         <input type="hidden" name="stream_online_only" value={c.stream_online_only ? 'on' : ''} />
         <input type="hidden" name="is_active" value={c.is_active ? '' : 'on'} />
-        <Switch type="submit" checked={c.is_active} busy={saving} label={t('commandRow.toggleAria', { name: c.name })} />
+        <span class="premium-lock">{#if c.premium}<PremiumMark size={30} />{/if}</span>
+        <Switch type="submit" checked={c.is_active} busy={saving} disabled={locked} label={t('commandRow.toggleAria', { name: c.name })} />
       </form>
       <span class="state-compact"><SaveStatus state={status} compact aria-label={statusLabel} {...statusLabels} /></span>
       {#if !c.builtin}
@@ -194,11 +199,13 @@
 
   .cmd { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
   .cmd-name { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
-  .lock { display: inline-flex; color: var(--bb-muted); margin-left: 6px; vertical-align: middle; }
+  .lock { display: inline-flex; color: var(--bb-muted); margin-left: 8px; vertical-align: middle; }
 
   .name-tag { margin-left: 8px; display: inline-flex; }
+  .toggle-form { display: inline-flex; align-items: center; gap: 10px; }
+  .premium-lock { display: inline-flex; justify-content: center; width: 30px; }
 
-  .aliases { display: flex; flex-wrap: nowrap; gap: 12px; min-width: 0; overflow: hidden; }
+  .aliases { display: flex; flex-wrap: nowrap; gap: 8px; min-width: 0; overflow: hidden; }
   .alias { display: inline-flex; }
   .aliases .extra { display: none; }
   .aliases .more { flex: none; }
@@ -214,7 +221,7 @@
 
   .m-perm { display: inline-flex; align-items: center; min-width: 0; justify-self: start; }
 
-  .m-uses { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .m-uses { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .u-line { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
   .u-track { display: block; }
@@ -223,11 +230,8 @@
 
   .m-lbl {
     font-family: var(--bb-font-body);
-    font-size: 10px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    font-size: var(--bb-text-xs);
     color: var(--bb-muted);
-    opacity: 0.7;
     white-space: nowrap;
   }
   .state { min-width: 0; }
@@ -249,8 +253,8 @@
         'cmd cmd'
         'resp resp'
         'perm uses';
-      row-gap: 6px;
-      column-gap: 14px;
+      row-gap: 8px;
+      column-gap: 16px;
       align-items: center;
     }
     .prow.selecting {

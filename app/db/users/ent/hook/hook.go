@@ -140,6 +140,30 @@ func (f UserFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error)
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserMutation", m)
 }
 
+// The VoiceUsageFunc type is an adapter to allow the use of ordinary
+// function as VoiceUsage mutator.
+type VoiceUsageFunc func(context.Context, *ent.VoiceUsageMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f VoiceUsageFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.VoiceUsageMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.VoiceUsageMutation", m)
+}
+
+// The VoiceUsageReceiptFunc type is an adapter to allow the use of ordinary
+// function as VoiceUsageReceipt mutator.
+type VoiceUsageReceiptFunc func(context.Context, *ent.VoiceUsageReceiptMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f VoiceUsageReceiptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.VoiceUsageReceiptMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.VoiceUsageReceiptMutation", m)
+}
+
 // Condition is a hook condition function.
 type Condition func(context.Context, ent.Mutation) bool
 

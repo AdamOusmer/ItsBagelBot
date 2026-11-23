@@ -4,6 +4,7 @@
 
   import { page } from '$app/state';
   import { getI18n, moduleDef, builtinDef } from '@bagel/kit';
+  import type { Snippet } from 'svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Divider from '@bagel/ui/svelte/Divider.svelte';
@@ -28,7 +29,8 @@
     insert,
     fetchDefs = [],
     fetchKeys = [],
-    onFetchDefsChanged
+    onFetchDefsChanged,
+    extraActions
   }: {
     surface: VariableSurface;
     moduleFlags?: Record<string, boolean>;
@@ -36,6 +38,7 @@
     fetchDefs?: SourceDef[];
     fetchKeys?: { label: string }[];
     onFetchDefsChanged?: (defs: SourceDef[]) => void;
+    extraActions?: Snippet<[(token: string) => void]>;
   } = $props();
 
   const isCustom = $derived(surface === 'custom');
@@ -156,8 +159,8 @@
       {/each}
     </div>
 
-    {#if isCustom || !sheetEmpty}
-      <div class="vp-actions">
+    {#if isCustom || !sheetEmpty || extraActions}
+      <div class="vp-actions" class:with-extra={!!extraActions}>
         {#if isCustom}
           <CounterPicker onInsert={insert} />
           <FetchSourcePicker defs={fetchDefs} keys={fetchKeys} canManageKeys={!page.data.delegateOf} onInsert={insert} onDefsChanged={onFetchDefsChanged} />
@@ -166,12 +169,15 @@
 
         {#if !sheetEmpty}
           <Chip tone="muted" aria-haspopup="dialog" aria-expanded={open} onclick={toggle} {@attach setAnchor}>
-            {t('commandEditor.allVariables')}
+            <bb-fit><span data-fit="">{t('commandEditor.allVariables')}</span></bb-fit>
           </Chip>
         {/if}
+        {@render extraActions?.(insert)}
       </div>
     {/if}
-    <div class="vp-desc"><Text size="xs" tone="muted" id={descId}>{descriptionText}</Text></div>
+    <div class="vp-desc" class:visible={!!descriptionText}>
+      <Text size="xs" id={descId}>{descriptionText}</Text>
+    </div>
   </div>
 
   <PickerPanel {open} anchor={btnEl} label={t('commandEditor.allVariables')} width={380} maxHeight={480} onClose={closeSheet}>
@@ -224,9 +230,10 @@
   .vp { display: contents; }
 
   .vp-row {
+    position: relative;
     display: grid;
     min-width: 0;
-    gap: 6px;
+    gap: 8px;
     margin-top: 8px;
   }
 
@@ -236,28 +243,43 @@
     flex-wrap: wrap;
     align-items: center;
     min-width: 0;
-    gap: 6px;
+    gap: 8px;
   }
 
-  .vp-desc { min-height: 18px; }
+  .vp-desc {
+    position: absolute;
+    z-index: var(--bb-z-float);
+    inset-block-end: calc(100% + var(--bb-space-1));
+    inset-inline-start: 0;
+    max-inline-size: 100%;
+    padding: var(--bb-space-1) var(--bb-space-2);
+    border: 1px solid var(--bb-border-strong);
+    border-radius: var(--bb-radius-sm);
+    background: var(--bb-card-bg);
+    overflow-wrap: anywhere;
+    pointer-events: none;
+    visibility: hidden;
+  }
+  .vp-desc.visible { visibility: visible; }
+  .vp-actions.with-extra { flex-wrap: nowrap; }
 
   .vp-token { min-width: 0; overflow-wrap: anywhere; text-align: left; }
 
-  .sheet { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .sheet { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 
   .sheet-scroll {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
     overflow-y: auto;
     max-height: 340px;
     padding-right: 2px;
   }
 
-  .sec { display: flex; flex-direction: column; gap: 6px; }
+  .sec { display: flex; flex-direction: column; gap: 8px; }
 
-  .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-  .row-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .row-tags { display: flex; flex-wrap: wrap; gap: 8px; }
 
-  .sheet-foot { display: flex; flex-direction: column; gap: 6px; }
+  .sheet-foot { display: flex; flex-direction: column; gap: 8px; }
 </style>

@@ -2,9 +2,11 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { registerServerConfig } from '@bagel/kit/server/config';
 import { stubSvelteKit } from '../../../test/sveltekit';
 
 stubSvelteKit();
+registerServerConfig({ cacheInvalidationPrefix: 'inv' });
 
 const pagePurges: string[] = [];
 const boardPurges: string[] = [];
@@ -15,10 +17,11 @@ mock.module('./edge-purge', () => ({
 
 let storedLoyalty = true;
 const stored = () => [{ name: 'loyalty', is_enabled: storedLoyalty, revision: 4, configs: {} }];
+let invalidation: (subject: string, data: Uint8Array) => void;
 const nats = await import('@bagel/kit/server/nats');
-const { SUB } = await import('./services');
 mock.module('@bagel/kit/server/nats', () => ({
   ...nats,
+  subscribeDurable: (_pattern: string, receive: typeof invalidation) => { invalidation = receive; },
   rpc: async (subject: string) => {
     if (subject === `${SUB.modules}.upsert`) return { modules: stored() };
     if (subject === `${SUB.projector}.modules.replace`) return { modules: stored() };
@@ -27,6 +30,11 @@ mock.module('@bagel/kit/server/nats', () => ({
     throw new Error(`Unexpected RPC: ${subject}`);
   }
 }));
+
+const { SUB, onLoyaltyFreeze, startInvalidationListener } = await import('./services');
+const { scheduleLeaderboardPurge } = await import('./edge-purge');
+onLoyaltyFreeze(scheduleLeaderboardPurge);
+startInvalidationListener();
 
 const valkey = await import('@bagel/kit/server/valkey-store');
 mock.module('@bagel/kit/server/valkey-store', () => ({ ...valkey, getModules: async () => ({ projected: true, modules: stored() }) }));
@@ -46,12 +54,24 @@ beforeEach(() => {
 
 describe('loyalty writes and the leaderboard tag purge', () => {
   test.each([
+    { scope: 'loyalty', keys: ['freeze'], purge: true },
+    { scope: 'loyalty', keys: ['123', '456'], purge: false },
+    { scope: 'loyalty', keys: [], purge: false },
+    { scope: 'loyalty-counters', keys: ['freeze'], purge: false }
+  ])('$scope keys $keys schedule a board purge: $purge', ({ scope, keys, purge }) => {
+    const user = freshUser();
+    const payload = { broadcaster_id: user, keys };
+    invalidation(`inv.${scope}`, new TextEncoder().encode(JSON.stringify(payload)));
+    expect({ pages: pagePurges, boards: boardPurges }).toEqual({ pages: [], boards: purge ? [user] : [] });
+  });
+
+  test.each([
     { before: false, after: true },
     { before: true, after: false }
   ])('the loyalty page turning loyalty $before -> $after purges the commands URLs and the leaderboard tag', async ({ before, after }) => {
     const user = freshUser();
     storedLoyalty = before;
-    await writeLoyalty(user, after, blankLoyaltyConfig());
+    await writeLoyalty(user, after, blankLoyaltyConfig(), '');
     expect({ pages: pagePurges, boards: boardPurges }).toEqual({ pages: [user], boards: [user] });
   });
 
@@ -65,7 +85,7 @@ describe('loyalty writes and the leaderboard tag purge', () => {
   test('a loyalty settings save that keeps it on never tag-purges', async () => {
     const user = freshUser();
     storedLoyalty = true;
-    await writeLoyalty(user, true, blankLoyaltyConfig());
+    await writeLoyalty(user, true, blankLoyaltyConfig(), '');
     expect({ pages: pagePurges, boards: boardPurges }).toEqual({ pages: [user], boards: [] });
   });
 

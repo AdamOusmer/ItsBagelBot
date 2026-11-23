@@ -35,6 +35,11 @@
   "commandAccessWarn": "Mit {level} kann diese ganze Gruppe deine Befehle im Chat ändern. Wähle das nur, wenn du allen vertraust.",
   "commandsHint": "Aktiviere das Modul, um diese Chat-Befehle freizuschalten.",
   "commandsTitle": "Chat-Befehle",
+  "commandsToggleHint": "Schalte einzelne Befehle oder Aliase ein und aus. Deaktivierte Auslöser können von benutzerdefinierten Befehlen genutzt werden.",
+  "commandToggleAria": "Befehl {trigger} umschalten",
+  "triggerToggleAria": "Auslöser {trigger} umschalten",
+  "triggersGroupAria": "Auslöser für {trigger}",
+  "aliasesLabel": "Auch",
   "configure": "Konfigurieren",
   "configuring": "{label} konfigurieren",
   "couldNotToggle": "{label} konnte nicht umgeschaltet werden.",
@@ -73,7 +78,7 @@
   "noTriggersTitle": "Noch keine Auslösewörter.",
   "offBanner": "Dieses Modul ist aus, daher ignoriert der Bot es im Chat.",
   "turnOn": "Einschalten",
-  "offConfigurable":"Dieses Modul ist aus. Du kannst es jetzt konfigurieren; Änderungen gelten beim Aktivieren.",
+  "offConfigurable": "Dieses Modul ist aus. Du kannst es jetzt konfigurieren; Änderungen gelten beim Aktivieren.",
   "patchConflict": "Jemand anderes hat dieses Modul geändert. Die neueste Version wurde geladen; wiederhole deine Änderung.",
   "permLeadMods": "Leitende Mods",
   "permMods": "Mods",
@@ -130,5 +135,19 @@
   "statusFilterLabel": "Nach Status filtern",
   "filterAll": "Alle",
   "filterOn": "Ein",
-  "lockedHint": "Nur Premium. Für Änderungen ist ein Upgrade erforderlich."
+  "lockedHint": "Nur Premium. Für Änderungen ist ein Upgrade erforderlich.",
+  "voiceEvent": {
+    "tts": "TTS",
+    "toggleAria": "TTS für {event}",
+    "sub": {
+      "label": "Resub-Nachrichten",
+      "hint": "Liest die Nachricht vor, die ein Zuschauer beim Resub schreibt."
+    },
+    "cheer": {
+      "label": "Cheer-Nachrichten",
+      "hint": "Liest die Nachricht zu den Bits vor, ohne die Anzahl der Bits."
+    },
+    "chatOff": "Chatzeile aus",
+    "withoutChat": "Die Chatzeile ist aus. TTS läuft trotzdem im Stream."
+  }
 }

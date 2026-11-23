@@ -1,73 +1,116 @@
 <script lang="ts">
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
-  import { getI18n } from '@bagel/kit/i18n/context';
-  import type { LaneView } from '#lib/server/lanes';
+  import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import { getI18n } from '@bagel/kit/i18n/context';
+  import type { LaneView } from '#lib/server/lanes';
   import StatePill from '../StatePill.svelte';
   import { laneTone } from './lane-view';
 
   let {
     lane,
-    selected,
+    selected = false,
     controls,
     onselect
   }: {
-    lane: LaneView;
-    selected: boolean;
-    controls: string;
-    onselect: () => void;
+    lane?: LaneView;
+    selected?: boolean;
+    controls?: string;
+    onselect?: (trigger: HTMLButtonElement) => void;
   } = $props();
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
+  const numbers = new Intl.NumberFormat(locale);
+  const meta = $derived(lane ? t('admin.lanes.rowMeta', {
+    consumer: lane.consumer,
+    subject: lane.subject || '-'
+  }) : '');
+  const metrics = $derived.by(() => {
+    if (!lane) return [];
+    return [
+      { term: 'admin.lanes.factPending', value: numbers.format(lane.pending), hot: lane.pending > 0 },
+      { term: 'admin.lanes.factInFlight', value: lane.inFlight },
+      { term: 'admin.lanes.factRate', value: lane.rate === '-' ? t('admin.lanes.sampling') : lane.rate },
+      { term: 'admin.lanes.factDelivered', value: lane.delivered == null ? '-' : numbers.format(lane.delivered) },
+      { term: 'admin.lanes.factRedelivered', value: numbers.format(lane.redelivered), hot: lane.redelivered > 0 }
+    ];
+  });
+
+  function selectLane(event?: MouseEvent) {
+    const trigger = event?.currentTarget;
+    if (trigger instanceof HTMLButtonElement) onselect?.(trigger);
+  }
 </script>
 
-<ManagementRow {selected} expanded={selected} {controls} onSelect={onselect}>
+<ManagementRow
+  {selected}
+  selectable={lane !== undefined}
+  expanded={selected}
+  controls={selected ? controls : undefined}
+  onSelect={lane ? selectLane : undefined}
+  aria-hidden={lane === undefined}
+  style="box-sizing: border-box; block-size: var(--lane-row-size)"
+>
   {#snippet primary()}
     <span class="row">
-      <StatusDot tone={laneTone(lane)} />
-      <span class="who">
-        <span class="name">{lane.display}</span>
-        <Text as="span" size="xs" mono tone="muted" truncate>
-          {t('admin.lanes.rowMeta', {
-            stream: lane.stream,
-            consumer: lane.consumer,
-            subject: lane.subject || '-'
-          })}
-        </Text>
-      </span>
-      <span class="counts">
-        <span class="metric">
-          <Text as="span" size="xs" tone="muted">{t('admin.lanes.factDelivered')}</Text>
-          <strong class="value">{lane.delivered?.toLocaleString() ?? '-'}</strong>
+      {#if lane}
+        <span class="identity">
+          <StatusDot tone={laneTone(lane)} flat />
+          <span class="nameplate">
+            <span class="name" title={lane.display}>{lane.display}</span>
+            <Text as="span" size="xs" tone="muted" mono truncate title={meta}>{meta}</Text>
+          </span>
         </span>
-        <span class="metric traffic">
-          <Text as="span" size="xs" tone="muted">{t('admin.lanes.traffic')}</Text>
-          <strong class="value">{lane.rate === '-' ? t('admin.lanes.sampling') : lane.rate}</strong>
+        <span class="metrics">
+          {#each metrics as metric (metric.term)}
+            <span class="metric" class:hot={metric.hot}>
+              <Text as="span" class="metric-label" size="xs" tone="muted">
+                <bb-fit><span data-fit>{t(metric.term)}</span></bb-fit>
+              </Text>
+              <span class="value" title={metric.value}>
+                <bb-fit><span data-fit>{metric.value}</span></bb-fit>
+              </span>
+            </span>
+          {/each}
         </span>
-        <span class="metric" class:hot={lane.pending > 0}>
-          <Text as="span" size="xs" tone="muted">{t('admin.lanes.factPending')}</Text>
-          <strong class="value">{lane.pending.toLocaleString()}</strong>
+        <span class="marks">
+          <StatePill tone={lane.ephemeral ? 'paid' : 'free'}>
+            <span class="badge-label">
+              <bb-fit><span data-fit>{t(lane.ephemeral ? 'admin.lanes.ephemeral' : 'admin.lanes.durable')}</span></bb-fit>
+            </span>
+          </StatePill>
+          <span class="orphan" class:visible={lane.orphan} aria-hidden={!lane.orphan}>
+            <StatePill tone="banned">
+              <span class="badge-label">
+                <bb-fit><span data-fit>{t('admin.lanes.orphan')}</span></bb-fit>
+              </span>
+            </StatePill>
+          </span>
         </span>
-        <span class="metric" title={t('admin.lanes.capacityHint')}>
-          <Text as="span" size="xs" tone="muted">{t('admin.lanes.awaitingAck')}</Text>
-          <strong class="value">{lane.inFlight}</strong>
+      {:else}
+        <span class="identity">
+          <Skeleton variant="pill" width="0.625rem" height="0.625rem" />
+          <span class="nameplate">
+            <Skeleton width="min(9rem, 90%)" height="10px" />
+            <Skeleton width="min(14rem, 100%)" height="8px" />
+          </span>
         </span>
-        <span class="metric" class:hot={lane.redelivered > 0}>
-          <Text as="span" size="xs" tone="muted">{t('admin.lanes.factRedelivered')}</Text>
-          <strong class="value">{lane.redelivered.toLocaleString()}</strong>
+        <span class="metrics">
+          {#each Array(5) as _, index (index)}
+            <span class="metric">
+              <Skeleton width="min(9ch, 92%)" height="8px" />
+              <Skeleton width="min(5ch, 60%)" height="8px" />
+            </span>
+          {/each}
         </span>
-      </span>
-      <span class="marks">
-        <StatePill tone={lane.ephemeral ? 'paid' : 'free'}>
-          {lane.ephemeral ? t('admin.lanes.ephemeral') : t('admin.lanes.durable')}
-        </StatePill>
-        {#if lane.orphan}
-          <StatePill tone="banned">{t('admin.lanes.orphan')}</StatePill>
-        {/if}
-      </span>
+        <span class="marks">
+          <Skeleton width="4.5rem" height="10px" />
+          <Skeleton width="4.5rem" height="10px" />
+        </span>
+      {/if}
     </span>
   {/snippet}
 </ManagementRow>
@@ -75,53 +118,120 @@
 <style>
   .row {
     display: grid;
-    grid-template-columns: 10px minmax(0, 1fr) auto;
+    grid-template-areas: "identity metrics marks";
+    grid-template-columns: minmax(9rem, 1.3fr) minmax(0, 2.5fr) 9.75rem;
     align-items: center;
     gap: var(--bb-space-3);
-    min-width: 0;
+    block-size: 100%;
+    min-inline-size: 0;
   }
-  .who {
+
+  .identity {
+    grid-area: identity;
     display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
+    align-items: center;
+    gap: var(--bb-space-2);
+    min-inline-size: 0;
   }
+
+  .nameplate {
+    display: grid;
+    flex: 1;
+    grid-template-rows: repeat(2, 16px);
+    align-items: center;
+    min-inline-size: 0;
+  }
+
   .name {
-    font-family: var(--bb-font-body);
-    font-weight: 600;
-    font-size: var(--bb-text-sm);
-    color: var(--bb-white);
     overflow: hidden;
+    color: var(--bb-white);
+    font-size: var(--bb-text-sm);
+    font-weight: 500;
+    line-height: 16px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .counts {
+  .metrics {
+    grid-area: metrics;
     display: grid;
-    grid-column: 2 / -1;
-    grid-row: 2;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 14px;
-    padding-top: 6px;
+    gap: var(--bb-space-2);
   }
-  .metric { display: flex; flex-direction: column; gap: var(--bb-space-1); text-align: left; }
+
+  .metric {
+    display: grid;
+    grid-template-rows: repeat(2, 16px);
+    align-items: center;
+    min-inline-size: 0;
+  }
+
+  .metric :global(.metric-label), .value {
+    display: block;
+    min-inline-size: 0;
+    overflow: clip;
+  }
+
   .value {
-    font-family: var(--bb-font-mono);
-    font-weight: 500;
-    font-size: var(--bb-text-xs);
     color: var(--bb-white);
-    white-space: nowrap;
+    font-family: var(--bb-font-mono);
+    font-size: var(--bb-text-xs);
+    font-variant-numeric: tabular-nums;
+    line-height: 16px;
   }
-  .traffic .value { color: var(--bb-green-glow); }
-  .metric.hot .value { color: var(--bb-tan-light); }
-  .marks { display: flex; gap: 6px; flex: none; grid-column: 3; grid-row: 1; }
-  @media (max-width: 760px) {
-    .counts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--bb-space-3); }
+
+  .metric.hot .value {
+    color: var(--bb-tan-light);
   }
-  @media (max-width: 500px) {
-    .row { grid-template-columns: 10px minmax(0, 1fr); }
-    .counts { grid-column: 2; grid-row: 3; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .marks { grid-column: 2; grid-row: 2; }
+
+  .marks {
+    grid-area: marks;
+    display: flex;
+    justify-content: end;
+    align-items: center;
+    gap: var(--bb-space-1);
+  }
+
+  .badge-label {
+    inline-size: 4.5rem;
+    text-align: center;
+  }
+
+  .orphan {
+    display: flex;
+    opacity: 0;
+    transition: opacity var(--bb-dur-fast) ease;
+  }
+
+  .orphan.visible {
+    opacity: 1;
+  }
+
+  @container lane-directory (width < 54rem) {
+    .row {
+      grid-template-areas:
+        "identity marks"
+        "metrics metrics";
+      grid-template-columns: minmax(0, 1fr) 9.75rem;
+      grid-template-rows: repeat(2, 32px);
+      align-content: center;
+      gap: var(--bb-space-2) var(--bb-space-3);
+    }
+  }
+
+  @container lane-directory (width < 28rem) {
+    .row {
+      grid-template-areas: "identity" "marks" "metrics";
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: 32px 20px calc(64px + var(--bb-space-2));
+    }
+
+    .marks {
+      justify-content: start;
+    }
+
+    .metrics {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
   }
 </style>

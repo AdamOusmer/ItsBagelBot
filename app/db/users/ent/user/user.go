@@ -100,6 +100,10 @@ const (
 	EdgeTermsAcceptances = "terms_acceptances"
 	// EdgeMarketingConsents holds the string denoting the marketing_consents edge name in mutations.
 	EdgeMarketingConsents = "marketing_consents"
+	// EdgeVoiceUsage holds the string denoting the voice_usage edge name in mutations.
+	EdgeVoiceUsage = "voice_usage"
+	// EdgeVoiceUsageReceipts holds the string denoting the voice_usage_receipts edge name in mutations.
+	EdgeVoiceUsageReceipts = "voice_usage_receipts"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// TokensTable is the table that holds the tokens relation/edge.
@@ -144,6 +148,20 @@ const (
 	MarketingConsentsInverseTable = "marketing_consent"
 	// MarketingConsentsColumn is the table column denoting the marketing_consents relation/edge.
 	MarketingConsentsColumn = "user_id"
+	// VoiceUsageTable is the table that holds the voice_usage relation/edge.
+	VoiceUsageTable = "voice_usage"
+	// VoiceUsageInverseTable is the table name for the VoiceUsage entity.
+	// It exists in this package in order to avoid circular dependency with the "voiceusage" package.
+	VoiceUsageInverseTable = "voice_usage"
+	// VoiceUsageColumn is the table column denoting the voice_usage relation/edge.
+	VoiceUsageColumn = "user_id"
+	// VoiceUsageReceiptsTable is the table that holds the voice_usage_receipts relation/edge.
+	VoiceUsageReceiptsTable = "voice_usage_receipt"
+	// VoiceUsageReceiptsInverseTable is the table name for the VoiceUsageReceipt entity.
+	// It exists in this package in order to avoid circular dependency with the "voiceusagereceipt" package.
+	VoiceUsageReceiptsInverseTable = "voice_usage_receipt"
+	// VoiceUsageReceiptsColumn is the table column denoting the voice_usage_receipts relation/edge.
+	VoiceUsageReceiptsColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -579,6 +597,34 @@ func ByMarketingConsents(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption
 		sqlgraph.OrderByNeighborTerms(s, newMarketingConsentsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByVoiceUsageCount orders the results by voice_usage count.
+func ByVoiceUsageCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newVoiceUsageStep(), opts...)
+	}
+}
+
+// ByVoiceUsage orders the results by voice_usage terms.
+func ByVoiceUsage(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newVoiceUsageStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByVoiceUsageReceiptsCount orders the results by voice_usage_receipts count.
+func ByVoiceUsageReceiptsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newVoiceUsageReceiptsStep(), opts...)
+	}
+}
+
+// ByVoiceUsageReceipts orders the results by voice_usage_receipts terms.
+func ByVoiceUsageReceipts(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newVoiceUsageReceiptsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newTokensStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -619,5 +665,19 @@ func newMarketingConsentsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(MarketingConsentsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, MarketingConsentsTable, MarketingConsentsColumn),
+	)
+}
+func newVoiceUsageStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(VoiceUsageInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, VoiceUsageTable, VoiceUsageColumn),
+	)
+}
+func newVoiceUsageReceiptsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(VoiceUsageReceiptsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, VoiceUsageReceiptsTable, VoiceUsageReceiptsColumn),
 	)
 }

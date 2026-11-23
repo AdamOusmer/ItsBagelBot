@@ -44,10 +44,10 @@
     min-width: 0;
   }
   .picks {
-    margin-top: 10px;
+    margin-top: 8px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
   }
   .section-picker.compact .picks {
     flex-direction: row;

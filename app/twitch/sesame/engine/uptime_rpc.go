@@ -42,8 +42,8 @@ func NewUptimeRPC(nc *nats.Conn, prefix string) *UptimeRPC {
 	}, decodeUptime)}
 }
 
-func decodeUptime(reply outgressrpc.UptimeReply) (UptimeResult, time.Duration, string) {
-	return UptimeResult{Live: reply.Live, StartedAt: reply.StartedAt}, ttlWhen(reply.Live, uptimePositiveTTL, uptimeOfflineTTL), reply.Error
+func decodeUptime(reply outgressrpc.UptimeReply) (UptimeResult, time.Duration, error) {
+	return UptimeResult{Live: reply.Live, StartedAt: reply.StartedAt}, ttlWhen(reply.Live, uptimePositiveTTL, uptimeOfflineTTL), rpcReplyError(reply.Error)
 }
 
 func (u *UptimeRPC) Lookup(ctx context.Context, broadcasterID string) (UptimeResult, error) {

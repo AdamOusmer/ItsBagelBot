@@ -29,6 +29,7 @@ import {
 } from './limits';
 import { trimSpace } from './text';
 import * as T from './types';
+import { CLOUD_VOICES, VOICE_STYLES } from '../voice-plan';
 import { commandName } from './triggers';
 
 const ANNOUNCE_COLORS = ['', 'primary', 'blue', 'green', 'orange', 'purple'];
@@ -44,6 +45,15 @@ const checkText = (c: Chk, p: Wide<T.TextAction>) => void c.template('text', p.t
 function checkAnnounce(c: Chk, p: Wide<T.AnnounceAction>): void {
   c.template('text', p.text);
   if (!ANNOUNCE_COLORS.includes(p.color)) c.add('color', CODE.invalidEnum);
+}
+
+const SPEECH_VOICES: readonly string[] = ['', ...CLOUD_VOICES];
+const SPEECH_STYLES: readonly string[] = ['', ...Object.keys(VOICE_STYLES)];
+
+function checkSpeak(c: Chk, p: Wide<T.SpeakAction>): void {
+  c.template('text', p.text);
+  if (!SPEECH_VOICES.includes(p.voice)) c.add('voice', CODE.invalidEnum);
+  if (!SPEECH_STYLES.includes(p.style)) c.add('style', CODE.invalidEnum);
 }
 
 function checkTimeout(c: Chk, p: Wide<T.TimeoutAction>): void {
@@ -234,6 +244,7 @@ export const SIMPLE_ACTIONS: Table = {
   chat: text,
   pin: text,
   announce: register<Wide<T.AnnounceAction>>({ text: 'string', color: 'string' }, checkAnnounce),
+  speak: register<Wide<T.SpeakAction>>({ text: 'string', voice: 'string', style: 'string' }, checkSpeak),
   reply: register<Wide<T.ReplyAction>>({ text: 'string', thread: 'bool' }, checkText),
   timeout: register<Wide<T.TimeoutAction>>({ ...TARGET_SCHEMA, seconds: 'int', reason: 'string' }, checkTimeout, TARGET_DEFAULTS),
   ban: register<Wide<T.BanAction>>({ ...TARGET_SCHEMA, reason: 'string' }, checkBan, TARGET_DEFAULTS),

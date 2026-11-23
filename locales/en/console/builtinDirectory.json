@@ -73,5 +73,12 @@
       "!marker",
       "!marker <description>"
     ]
+  },
+  "tts": {
+    "label": "Text to speech",
+    "summary": "Read a viewer message aloud on stream.",
+    "usage": [
+      "!tts <message>"
+    ]
   }
 }

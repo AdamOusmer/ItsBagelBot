@@ -103,6 +103,7 @@ type Pipeline struct {
 	countdownDone    chan struct{}
 	completionNeeded bool
 	completions      completionSet
+	speech           SpeechQueue
 }
 
 func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
@@ -149,6 +150,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		analytics:         d.Analytics,
 		queueWaiters:      newQueueWaiters(),
 		queueTiming:       defaultQueueTiming,
+		speech:            d.Speech(),
 	}
 	p.localeLookup = p.readLocale
 	p.completionNeeded = needsCompletion(d, cfg)
@@ -202,6 +204,10 @@ func (p *Pipeline) Process(msg *bus.Message) (err error) {
 	if err := decodeEnvelope(ctx, msg.Payload, env); err != nil {
 		traceResult(ctx, "invalid")
 		return p.dropPoison(ctx, msg.UUID, err)
+	}
+	switch env.Type {
+	case "channel.cheer", "channel.subscription.message":
+		ctx = bus.WithOriginTrace(ctx, msg.Metadata)
 	}
 	if !p.completionNeeded {
 		return p.processAcknowledged(ctx, env)

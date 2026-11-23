@@ -12,11 +12,13 @@ export type UserActionId =
   | 'unban'
   | 'restart'
   | 'reset'
+  | 'resetVoiceUsage'
+  | 'setVoiceUsage'
   | 'clearToken'
   | 'impersonate'
   | 'delete';
 
-export type UserActionGroup = 'service' | 'support' | 'danger';
+export type UserActionGroup = 'service' | 'support' | 'danger' | 'voice';
 
 export type UserActionDef = {
   id: UserActionId;
@@ -26,8 +28,8 @@ export type UserActionDef = {
   label: string;
   danger?: boolean;
   confirm?: { title: string; body: string };
-  shown?: (u: AdminUserWire) => boolean;
-  optimistic?: (u: AdminUserWire) => AdminUserWire;
+  shown?: (user: AdminUserWire) => boolean;
+  optimistic?: (user: AdminUserWire) => AdminUserWire;
 };
 
 export const USER_ACTIONS: readonly UserActionDef[] = [
@@ -37,7 +39,7 @@ export const USER_ACTIONS: readonly UserActionDef[] = [
     key: 'users.grant',
     group: 'service',
     label: 'admin.users.deactivate',
-    optimistic: (u) => ({ ...u, is_active: !u.is_active })
+    optimistic: (user) => ({ ...user, is_active: !user.is_active })
   },
   {
     id: 'ban',
@@ -46,9 +48,9 @@ export const USER_ACTIONS: readonly UserActionDef[] = [
     group: 'service',
     label: 'admin.users.ban',
     danger: true,
-    shown: (u) => !u.banned,
+    shown: (user) => !user.banned,
     confirm: { title: 'admin.users.confirmBanTitle', body: 'admin.users.confirmBanBody' },
-    optimistic: (u) => ({ ...u, banned: true })
+    optimistic: (user) => ({ ...user, banned: true })
   },
   {
     id: 'unban',
@@ -56,8 +58,8 @@ export const USER_ACTIONS: readonly UserActionDef[] = [
     key: 'users.ban',
     group: 'service',
     label: 'admin.users.unban',
-    shown: (u) => u.banned,
-    optimistic: (u) => ({ ...u, banned: false })
+    shown: (user) => user.banned,
+    optimistic: (user) => ({ ...user, banned: false })
   },
   {
     id: 'restart',
@@ -86,6 +88,22 @@ export const USER_ACTIONS: readonly UserActionDef[] = [
     confirm: { title: 'admin.users.confirmResetTitle', body: 'admin.users.confirmResetBody' }
   },
   {
+    id: 'resetVoiceUsage',
+    action: 'setVoiceUsage',
+    key: 'users.grant',
+    group: 'voice',
+    label: 'admin.users.voice.reset',
+    confirm: { title: 'admin.users.voice.reset', body: 'admin.users.voice.resetConfirm' }
+  },
+  {
+    id: 'setVoiceUsage',
+    action: 'setVoiceUsage',
+    key: 'users.grant',
+    group: 'voice',
+    label: 'admin.users.voice.set',
+    confirm: { title: 'admin.users.voice.set', body: 'admin.users.voice.setConfirm' }
+  },
+  {
     id: 'clearToken',
     action: 'clearToken',
     key: 'users.token',
@@ -107,9 +125,9 @@ export const USER_ACTIONS: readonly UserActionDef[] = [
   }
 ];
 
-export function actionLabel(def: UserActionDef, user: AdminUserWire): string {
-  if (def.id !== 'toggleActive') return def.label;
-  return user.is_active ? 'admin.users.deactivate' : 'admin.users.activate';
+export function actionLabel(action: UserActionDef, user: AdminUserWire): string {
+  if (action.id === 'toggleActive' && !user.is_active) return 'admin.users.activate';
+  return action.label;
 }
 
 export function actionsFor(
@@ -118,6 +136,6 @@ export function actionsFor(
   can: (key: AccessKey) => boolean
 ): UserActionDef[] {
   return USER_ACTIONS.filter(
-    (d) => d.group === group && can(d.key) && (d.shown?.(user) ?? true)
+    (action) => action.group === group && can(action.key) && (action.shown?.(user) ?? true)
   );
 }

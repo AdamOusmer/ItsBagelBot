@@ -17,7 +17,7 @@ import type { AdminIdentity } from './access';
 import type { AnalyticsReads } from '#lib/analytics-page';
 import type { DonationsReply } from '#lib/donations-view';
 import { isoWeek, type AnalyticsRow } from '#lib/analytics-view';
-import type { FeedEvent } from './feed';
+import type { FeedRecord } from './feed-history';
 import type { LaneView } from './lanes';
 import type { DbCredentialStatus, ScopeReport, SecretServiceId } from './secrets';
 import type { DeployApi } from './deploys';
@@ -126,10 +126,6 @@ export function demoEnrollment(days = 30): EnrollmentWire {
   };
 }
 
-export const sampleEnrollment: EnrollmentWire = demoEnrollment(30);
-
-// The two channels the demo directory treats as on air, so the live filter
-// has something to show without a Valkey scan.
 export const sampleLiveUserIDs = new Set<number>([44322190, 23910044]);
 
 export const sampleUsers: AdminUserWire[] = [
@@ -234,7 +230,7 @@ export function demoStaffHistory(actorId: number): AuditEntry[] {
   ];
 }
 
-export type DemoSecretsBundle = {
+type DemoSecretsBundle = {
   services: DbCredentialStatus[];
   scope: ScopeReport;
 };
@@ -265,26 +261,18 @@ export function demoSecretsBundle(ids: readonly SecretServiceId[]): DemoSecretsB
   };
 }
 
-const secretNotices = {
-  db_credential_rotate: 'credential rotated (demo)',
-  db_credential_set: 'credential set (demo)',
-  db_credential_revoke: 'credential revoked (demo)'
-} as const;
-
-export function demoSecretNotice(action: keyof typeof secretNotices): string {
-  return secretNotices[action];
-}
-
-export function demoFeedEvent(sequence: number, statusPrefix: string): FeedEvent {
-  const tones: FeedEvent['tone'][] = ['up', 'neutral', 'down'];
+export function demoFeedEvent(sequence: number, statusPrefix: string, at: string): FeedRecord {
+  const tones: FeedRecord['tone'][] = ['up', 'neutral', 'down'];
+  const sources = ['shard', 'authz', 'stream', 'shard'];
   const tone = tones[sequence % tones.length];
   const state = tone === 'up' ? 'up' : tone === 'down' ? 'down' : 'keepalive';
+  const label = `${sources[sequence % sources.length]}.${sequence % 4}.${state}`;
   return {
-    subject: `${statusPrefix}.shard.${sequence % 4}.${state}`,
-    label: `shard.${sequence % 4}`,
+    subject: `${statusPrefix}.${label}`,
+    label,
     tone,
     payload: `demo event #${sequence}`,
-    time: new Date().toLocaleTimeString('en-GB', { hour12: false })
+    at
   };
 }
 

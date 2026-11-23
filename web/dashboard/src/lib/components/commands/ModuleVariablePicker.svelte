@@ -56,6 +56,6 @@
 </PickerPanel>
 
 <style>
-  .body { display: contents; --field-gap: 5px; --field-mb: 0; }
-  .variables { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .body { display: contents; --field-gap: 4px; --field-mb: 0; }
+  .variables { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 </style>

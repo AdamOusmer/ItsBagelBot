@@ -1,11 +1,13 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { describe, expect, mock, test } from 'bun:test';
+import { describe, expect, mock, spyOn, test } from 'bun:test';
 import { stubSvelteKit } from '../../../../test/sveltekit';
 import { boardHref, emptyCopyKeys } from '../../../lib/leaderboard-board';
+import type { FreezeStamp, StandingsPin } from '#lib/server/loyalty-store';
 
 stubSvelteKit({ dev: true });
+const { RpcError } = await import('@bagel/kit/server/nats');
 
 type Row = { viewerId: string; viewerLogin: string; viewerName: string; points: number; watchSeconds: number; rank: number };
 type Range = { from: number; to: number; total: number };
@@ -19,6 +21,9 @@ type Page = {
   degraded: boolean;
   busy: boolean;
   commandsPage: boolean;
+  showStandings: boolean;
+  frozen: { asOf: number } | null;
+  giveawayWinners: { round_id: string; slot: number; login: string; prize: string; won_at: number }[];
 };
 
 type PageRequest = { limit: number; offset: number; viewerId?: string; viewerLogin?: string };
@@ -33,12 +38,14 @@ const board: Row[] = Array.from({ length: 87 }, (_, i) => ({
   rank: i + 1
 }));
 const pageRequests: PageRequest[] = [];
+const pins: { part: 'podium' | 'board'; pin: StandingsPin }[] = [];
 
 let commandsPageReply: (id: string) => Promise<boolean> = async () => true;
 let loyaltyFails = false;
 let loyaltyEnabled = true;
 let leaderboardPageReply: (id: string) => Promise<boolean> = async () => true;
-let standingsReads = 0;
+let podiumFreeze: FreezeStamp | null = null;
+let boardFreeze: FreezeStamp | null = null;
 let viewerCount: number | null = null;
 let resolution: Resolution = { kind: 'missing' };
 const resolverCalls: string[] = [];
@@ -70,18 +77,29 @@ function serveStandings(req: PageRequest): { rows: Row[]; total: number } {
   return { rows: searched ? hits : hits.slice(req.offset, req.offset + req.limit), total: hits.length };
 }
 
+function servedFreeze(part: 'podium' | 'board', pin: StandingsPin): FreezeStamp | null {
+  const freeze = pins.length === 0 ? podiumFreeze : boardFreeze;
+  pins.push({ part, pin });
+  if (pin.live) return null;
+  if (pin.freezeId && pin.freezeId !== freeze?.id) throw new RpcError('stale_pin', 'conflict');
+  return freeze;
+}
+
 mock.module('#lib/server/loyalty-store', () => ({
   readLoyalty: async () => {
     if (loyaltyFails) throw new Error('loyalty down');
     return { enabled: loyaltyEnabled, config: { pointsName: 'bagels' } };
   },
-  topStandings: async () => {
-    standingsReads++;
-    if (viewerCount !== null) return activeBoard().slice(0, 3);
-    return [{ viewerId: '1', viewerLogin: 'fan', viewerName: 'Fan', points: 10, watchSeconds: 60 }];
+  topStandings: async (_userId: string, _limit: number, pin: StandingsPin = {}) => {
+    const freeze = servedFreeze('podium', pin);
+    const rows = viewerCount !== null
+      ? activeBoard().slice(0, 3)
+      : [{ viewerId: '1', viewerLogin: 'fan', viewerName: 'Fan', points: 10, watchSeconds: 60 }];
+    return { rows, total: viewerCount ?? board.length, freeze };
   },
-  standingsPage: async (_userId: string, req: PageRequest) => {
-    return serveStandings(req);
+  standingsPage: async (_userId: string, { freezeId, live, ...req }: PageRequest & StandingsPin) => {
+    const freeze = servedFreeze('board', freezeId ? { freezeId } : live ? { live } : {});
+    return { ...serveStandings(req), freeze };
   }
 }));
 mock.module('#lib/server/viewer-lookup', () => ({
@@ -90,11 +108,18 @@ mock.module('#lib/server/viewer-lookup', () => ({
     return resolution;
   }
 }));
+const services = await import('#lib/server/services');
 mock.module('#lib/server/services', () => ({
+  ...services,
   resolveLogin: async (login: string) => (storedLogin ? { userId: '42', username: login } : null),
   userCommandsPage: (id: string) => commandsPageReply(id),
   userLeaderboardPage: (id: string) => leaderboardPageReply(id)
 }));
+
+let giveawayHistory: { winners: Page['giveawayWinners']; degraded: boolean } = { winners: [], degraded: false };
+const giveawayStore = await import('#lib/server/channel-giveaways');
+const readGiveawayHistory = mock(async () => giveawayHistory);
+mock.module('#lib/server/channel-giveaways', () => ({ ...giveawayStore, publicGiveawayWinners: readGiveawayHistory }));
 
 mock.module('#lib/server/identity-heal', () => ({ healLogin: async () => healReply }));
 
@@ -127,14 +152,20 @@ type Setup = {
   loyaltyEnabled?: boolean;
   viewers?: number;
   resolution?: Resolution;
+  freeze?: FreezeStamp;
+  nextFreeze?: FreezeStamp | null;
 };
 
 function arrange(setup: Setup): void {
+  giveawayHistory = { winners: [], degraded: false };
+  readGiveawayHistory.mockClear();
   pageRequests.length = 0;
   resolverCalls.length = 0;
   reconciled.clear();
   resolution = setup.resolution ?? { kind: 'missing' };
-  standingsReads = 0;
+  pins.length = 0;
+  podiumFreeze = setup.freeze ?? null;
+  boardFreeze = setup.nextFreeze === undefined ? podiumFreeze : setup.nextFreeze;
   viewerCount = setup.viewers ?? null;
   storedLogin = true;
   healReply = { kind: 'missing' };
@@ -143,6 +174,17 @@ function arrange(setup: Setup): void {
   loyaltyFails = setup.loyaltyFails ?? false;
   loyaltyEnabled = setup.loyaltyEnabled ?? true;
 }
+
+test.each<typeof giveawayHistory>([
+  { degraded: false, winners: [{ round_id: 'round', slot: 1, login: 'viewer', prize: 'A game', won_at: 1 }] },
+  { degraded: true, winners: [] }
+])('keeps public standings available with giveaway history degraded=$degraded', async (history) => {
+  arrange({});
+  giveawayHistory = history;
+  const result = await loadPage();
+  expect(result.page).toMatchObject({ degraded: false, giveawayWinners: history.winners });
+  expect(result.edge).toBe(history.degraded ? 'skip' : 'page');
+});
 
 const cases: {
   name: string;
@@ -191,9 +233,22 @@ describe('(public)/[user] load: leaderboard visibility', () => {
     expect(await loadPage()).toEqual(notFound);
   });
 
-  test('a disabled loyalty module 404s edge-cached', async () => {
-    arrange({ loyaltyEnabled: false });
-    expect(await loadPage()).toEqual(notFound);
+  test.each([
+    { name: 'public channel with winners', visible: true, hasWinners: true, edge: 'page' },
+    { name: 'hidden channel with winners', visible: false, hasWinners: true, edge: 'hidden' },
+    { name: 'public channel without winners', visible: true, hasWinners: false, edge: 'hidden' }
+  ])('Loyalty off on a $name', async ({ visible, hasWinners, edge }) => {
+    arrange({ loyaltyEnabled: false, leaderboardPage: async () => visible });
+    const winners = hasWinners ? [{ round_id: 'round', slot: 1, login: 'viewer', prize: 'A game', won_at: 1 }] : [];
+    giveawayHistory = { winners, degraded: false };
+    const result = await loadPage();
+    expect({ result, pins, historyReads: readGiveawayHistory.mock.calls.length }).toMatchObject({
+      result: edge === 'hidden' ? notFound : {
+        edge, page: { showStandings: false, podium: [], rows: [], giveawayWinners: winners }
+      },
+      pins: [],
+      historyReads: visible ? 1 : 0
+    });
   });
 
   test('a rejected leaderboard-flag read fails open and renders', async () => {
@@ -368,6 +423,72 @@ describe('(public)/[user] load: search and pages', () => {
     arrange({ loyaltyFails: true });
     const { page } = await loadPage('?q=1&page=3');
     expect({ degraded: page!.degraded, rows: page!.rows.length, query: page!.query }).toEqual({ degraded: true, rows: 0, query: '1' });
+  });
+});
+
+describe('(public)/[user] load: consistent standings during a freeze', () => {
+  const snapshot = { id: 'first', asOf: 1_700_000_000_000, expiresAt: 1 };
+  const replacement = { ...snapshot, id: 'second', asOf: snapshot.asOf + 1000 };
+
+  test.each([
+    { name: 'time remaining', remaining: 12_950, cap: 12 },
+    { name: 'ended within the snapshot grace period', remaining: -1_000, cap: 1 }
+  ])('caps edge caching for a pinned freeze with $name', async ({ remaining, cap }) => {
+    const now = snapshot.asOf + 60_000;
+    const freeze = { ...snapshot, expiresAt: now + remaining };
+    arrange({ freeze });
+    const clock = spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      const { page } = await loadPage();
+      expect({ pins, frozen: page?.frozen, cap: lastLocals.edgeTtlCapSec }).toEqual({
+        pins: [{ part: 'podium', pin: {} }, { part: 'board', pin: { freezeId: freeze.id } }],
+        frozen: { asOf: freeze.asOf },
+        cap
+      });
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  test.each([
+    { name: 'live podium as a freeze starts', nextFreeze: snapshot, expected: null, boardPin: { live: true } },
+    { name: 'frozen podium with multiple paged reads', freeze: snapshot, expected: snapshot, boardPin: { freezeId: 'first' } }
+  ])('$name', async ({ freeze, nextFreeze, expected, boardPin }) => {
+    arrange({ freeze, nextFreeze });
+    const { page } = await loadPage('?page=99');
+    expect({ pins, frozen: page?.frozen, cap: lastLocals.edgeTtlCapSec }).toEqual({
+      pins: [
+        { part: 'podium', pin: {} },
+        { part: 'board', pin: boardPin },
+        { part: 'board', pin: boardPin }
+      ],
+      frozen: expected ? { asOf: expected.asOf } : null,
+      cap: expected ? 1 : undefined
+    });
+  });
+
+  test.each([
+    { name: 'live', nextFreeze: null, retryPin: { live: true } },
+    { name: 'a new freeze', nextFreeze: replacement, retryPin: { freezeId: 'second' } }
+  ])('a stale pin switches both podium and board to $name', async ({ nextFreeze, retryPin }) => {
+    arrange({ freeze: snapshot, nextFreeze });
+    const { page } = await loadPage('?page=99');
+    expect({ pins, frozen: page?.frozen }).toEqual({
+      pins: [
+        { part: 'podium', pin: {} },
+        { part: 'board', pin: { freezeId: 'first' } },
+        { part: 'board', pin: {} },
+        { part: 'board', pin: retryPin },
+        { part: 'podium', pin: retryPin }
+      ],
+      frozen: nextFreeze ? { asOf: nextFreeze.asOf } : null
+    });
+  });
+
+  test('a missing login in the freeze stays on the snapshot', async () => {
+    arrange({ freeze: snapshot, resolution: { kind: 'found', viewerId: '7' } });
+    const { page } = await loadPage('?q=renamed_seven');
+    expect({ rows: page?.rows, calls: resolverCalls }).toEqual({ rows: [], calls: [] });
   });
 });
 

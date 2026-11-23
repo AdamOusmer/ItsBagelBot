@@ -35,6 +35,11 @@
   "commandAccessWarn": "With {level}, that whole group can change your commands from chat. Only pick this if you trust every one of them.",
   "commandsHint": "Turn the module on to unlock these chat commands.",
   "commandsTitle": "Chat commands",
+  "commandsToggleHint": "Turn individual commands or aliases on and off. Disabled triggers can be used by custom commands.",
+  "commandToggleAria": "Toggle {trigger} command",
+  "triggerToggleAria": "Toggle {trigger} trigger",
+  "triggersGroupAria": "Triggers for {trigger}",
+  "aliasesLabel": "Also",
   "configure": "Configure",
   "configuring": "Configuring {label}",
   "couldNotToggle": "Could not toggle {label}.",
@@ -73,7 +78,7 @@
   "noTriggersTitle": "No trigger words yet.",
   "offBanner": "This module is off, so the bot ignores it in chat.",
   "turnOn": "Turn it on",
-  "offConfigurable":"This module is off. You can configure it now; changes take effect when you enable it.",
+  "offConfigurable": "This module is off. You can configure it now; changes take effect when you enable it.",
   "patchConflict": "Someone else changed this module. The latest version was reloaded, so redo your change.",
   "permLeadMods": "Lead mods",
   "permMods": "Mods",
@@ -130,5 +135,19 @@
   "statusFilterLabel": "Filter by status",
   "filterAll": "All",
   "filterOn": "On",
-  "lockedHint": "Premium only. Upgrade to change this."
+  "lockedHint": "Premium only. Upgrade to change this.",
+  "voiceEvent": {
+    "tts": "TTS",
+    "toggleAria": "TTS on {event}",
+    "sub": {
+      "label": "Resub messages",
+      "hint": "Reads the message a viewer adds when they resub."
+    },
+    "cheer": {
+      "label": "Cheer messages",
+      "hint": "Reads the message sent with bits, without the bit count."
+    },
+    "chatOff": "Chat line off",
+    "withoutChat": "The chat line is off. TTS still plays on stream."
+  }
 }

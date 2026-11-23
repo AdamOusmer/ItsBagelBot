@@ -5,7 +5,6 @@ package valkey
 
 import (
 	"context"
-	"strconv"
 	"testing"
 	"time"
 
@@ -71,30 +70,6 @@ func TestFreshMemberSetRealValkey(t *testing.T) {
 	require.Positive(t, ttl)
 }
 
-func TestOutcomeClaimRealValkey(t *testing.T) {
-	client := valkeytest.Real(t)
-	ctx := context.Background()
-	key := "test:outcome:" + t.Name()
-	cleanKeys(t, client, key)
-
-	drawnAt := time.Now().Add(-time.Minute)
-	require.NoError(t, HashField{Key: key, Field: "result"}.Set(ctx, client, `{"winners":[{"id":"w1"}],"drawn_at":`+
-		strconv.FormatInt(drawnAt.UnixMilli(), 10)+`}`))
-
-	claim := OutcomeClaim{Key: key}
-	code, err := claim.Claim(ctx, client, "w1", time.Hour)
-	require.NoError(t, err)
-	require.Equal(t, OutcomeClaimOK, code)
-
-	again, err := claim.Claim(ctx, client, "w1", time.Hour)
-	require.NoError(t, err)
-	require.Equal(t, OutcomeClaimAlready, again)
-
-	none, err := claim.Claim(ctx, client, "nobody", time.Hour)
-	require.NoError(t, err)
-	require.Equal(t, OutcomeClaimNone, none)
-}
-
 func TestFencedClaimRealValkey(t *testing.T) {
 	client := valkeytest.Real(t)
 	ctx := context.Background()
@@ -112,39 +87,6 @@ func TestFencedClaimRealValkey(t *testing.T) {
 	wonAfterFenceChange, err := claim.Arm(ctx, client, "gen-2", time.Minute)
 	require.NoError(t, err)
 	require.True(t, wonAfterFenceChange, "a fence change clears the stale claim")
-}
-
-func TestGatedJoinRealValkey(t *testing.T) {
-	client := valkeytest.Real(t)
-	ctx := context.Background()
-	gate := GatedJoin{
-		GuardA: "test:gated:guardA:" + t.Name(), GuardB: "test:gated:guardB:" + t.Name(),
-		Set: "test:gated:set:" + t.Name(), Labels: "test:gated:labels:" + t.Name(),
-	}
-	cleanKeys(t, client, gate.GuardA, gate.GuardB, gate.Set, gate.Labels)
-
-	entrant := Entrant{Score: 1, Member: "viewer-1", Label: "login-1", TTL: time.Minute}
-	open, added, count, err := gate.Join(ctx, client, entrant)
-	require.NoError(t, err)
-	require.False(t, open, "guards are missing")
-	require.False(t, added)
-	require.Zero(t, count)
-
-	require.NoError(t, NewKV(client).Set(ctx, Key{Name: gate.GuardA, TTL: time.Minute}, "1"))
-	require.NoError(t, NewKV(client).Set(ctx, Key{Name: gate.GuardB, TTL: time.Minute}, "1"))
-
-	open, added, count, err = gate.Join(ctx, client, entrant)
-	require.NoError(t, err)
-	require.True(t, open)
-	require.True(t, added)
-	require.EqualValues(t, 1, count)
-
-	entrant.Score = 2
-	open, added, count, err = gate.Join(ctx, client, entrant)
-	require.NoError(t, err)
-	require.True(t, open)
-	require.False(t, added, "already joined")
-	require.EqualValues(t, 1, count)
 }
 
 func TestCASDocumentRealValkey(t *testing.T) {

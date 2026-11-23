@@ -9,10 +9,8 @@ import (
 
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
-	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 )
 
-// Debit must stay on balance.spend's conditional UPDATE so concurrent spends never go negative.
 type LoyaltyWallet struct {
 	analytics *analytics.Recorder
 	loyalty   LoyaltyStore
@@ -21,27 +19,23 @@ type LoyaltyWallet struct {
 func NewLoyaltyWallet(loyalty LoyaltyStore) *LoyaltyWallet { return &LoyaltyWallet{loyalty: loyalty} }
 
 func (w *LoyaltyWallet) Debit(ctx context.Context, broadcasterID uint64, entry DuelStake) (bool, bool, error) {
-	_, found, spent, err := w.loyalty.BalanceSpend(ctx, PointSpend{BroadcasterID: broadcasterID, ViewerID: entry.ViewerID, Login: entry.Login, Amount: entry.Stake})
-	if err == nil && spent {
+	out, err := w.loyalty.BalanceWager(ctx, PointWager{BroadcasterID: broadcasterID, ViewerID: entry.ViewerID, Login: entry.Login, Amount: entry.Stake})
+	if err == nil && out.Applied {
 		w.analytics.AddContext(ctx, catalog.PointsFlows, 1, "duel_stake")
 	}
-	return found, spent, err
+	return out.Found, out.Applied, err
 }
 
-func (w *LoyaltyWallet) Credit(ctx context.Context, broadcasterID uint64, entry DuelStake) error {
+func (w *LoyaltyWallet) Credit(ctx context.Context, broadcasterID uint64, entry DuelStake) (int64, error) {
 	if entry.Stake <= 0 {
-		return nil
+		return 0, nil
 	}
-	bal, found, err := w.credit(ctx, broadcasterID, entry)
+	bal, found, err := w.loyalty.BalanceAdjustViewer(ctx, BalanceAdjustment{BroadcasterID: broadcasterID, ViewerID: entry.ViewerID, ViewerLogin: entry.Login, Value: entry.Stake})
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if !found {
-		return fmt.Errorf("duel: credit target %q unseen by loyalty (bal %+v)", entry.Login, bal)
+		return 0, fmt.Errorf("duel: credit target %q unseen by loyalty (bal %+v)", entry.Login, bal)
 	}
-	return nil
-}
-
-func (w *LoyaltyWallet) credit(ctx context.Context, broadcasterID uint64, entry DuelStake) (loyaltyrpc.Balance, bool, error) {
-	return w.loyalty.BalanceAdjustViewer(ctx, BalanceAdjustment{BroadcasterID: broadcasterID, ViewerID: entry.ViewerID, ViewerLogin: entry.Login, Value: entry.Stake})
+	return bal.Points, nil
 }

@@ -35,9 +35,10 @@ type recordedRequest struct {
 }
 
 type scriptedResponse struct {
-	status int
-	body   string
-	err    error
+	status  int
+	body    string
+	err     error
+	headers http.Header
 }
 
 // scriptedTransport answers requests in order and records them; once the script is spent it answers 204.
@@ -65,7 +66,11 @@ func (t *scriptedTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	if next.err != nil {
 		return nil, next.err
 	}
-	return &http.Response{StatusCode: next.status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(next.body))}, nil
+	header := next.headers
+	if header == nil {
+		header = make(http.Header)
+	}
+	return &http.Response{StatusCode: next.status, Header: header, Body: io.NopCloser(strings.NewReader(next.body))}, nil
 }
 
 func (t *scriptedTransport) recorded() []recordedRequest {

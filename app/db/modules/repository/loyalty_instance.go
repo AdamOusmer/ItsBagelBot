@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/db/modules/ent"
 	entautomation "ItsBagelBot/app/db/modules/ent/automation"
+	"ItsBagelBot/app/db/modules/ent/giveawaywinner"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/predicate"
@@ -166,6 +167,7 @@ type accountCleanupSnapshot struct {
 	spotify     []*ent.SpotifyCredential
 	quotes      []*ent.Quote
 	automations []*ent.Automation
+	winnerIDs   []int
 }
 
 func (r *Modules) captureAccountCleanup(ctx context.Context, id uint64) (accountCleanupSnapshot, error) {
@@ -188,6 +190,11 @@ func (r *Modules) captureAccountCleanup(ctx context.Context, id uint64) (account
 		return snapshot, err
 	}
 	snapshot.automations, err = r.client.Automation.Query().Where(entautomation.UserID(id)).All(ctx)
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.winnerIDs, err = r.client.GiveawayWinner.Query().Where(giveawaywinner.UserID(id)).
+		Order(ent.Desc(giveawaywinner.FieldID)).Limit(1).IDs(ctx)
 	return snapshot, err
 }
 
@@ -233,10 +240,21 @@ func (r *Modules) deleteAccountSnapshot(ctx context.Context, id uint64, epoch in
 	if err := r.recipeState.deleteChannelRows(ctx, tx, id); err != nil {
 		return false, err
 	}
+	if err := snapshot.deleteGiveawayWinners(ctx, tx, id); err != nil {
+		return false, err
+	}
 	if err := tx.Commit(); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+func (s accountCleanupSnapshot) deleteGiveawayWinners(ctx context.Context, tx *ent.Tx, id uint64) error {
+	if len(s.winnerIDs) == 0 {
+		return nil
+	}
+	_, err := tx.GiveawayWinner.Delete().Where(giveawaywinner.UserID(id), giveawaywinner.IDLTE(s.winnerIDs[0])).Exec(ctx)
+	return err
 }
 
 func newerPersistedLoyalty(ctx context.Context, tx *ent.Tx, id uint64, epoch int64) (bool, error) {

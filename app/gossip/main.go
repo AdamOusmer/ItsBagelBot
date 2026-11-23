@@ -37,7 +37,8 @@ func main() {
 	defer done()
 	log := core.Log
 
-	cfg := config.Load()
+	cfg, err := config.Load()
+	svcboot.FatalIf(log, err, "invalid Gossip configuration")
 
 	valkeyClient := svcboot.MustValkey(core)
 	defer valkeyClient.Close()
@@ -63,7 +64,9 @@ func main() {
 
 	logReady(active, cfg, log)
 
+	stopJobs := startJobs(jobsWiring{ctx: core.Ctx, hubURL: core.NATSURL, cfg: cfg, deps: deps, rpc: nc, store: valkeyClient, log: log})
 	core.Await()
+	stopJobs()
 }
 
 type gossipWiring struct {

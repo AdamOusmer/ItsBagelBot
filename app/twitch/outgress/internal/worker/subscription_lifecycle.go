@@ -102,11 +102,7 @@ func (w *Worker) reconcileRecoveryListeners(ctx context.Context, uid uint64, cur
 		if !w.recoveryListenersAllowed(ctx, e) {
 			return nil
 		}
-		conduit, err := w.conduit.Get(ctx)
-		if err != nil {
-			return err
-		}
-		e.conduitID = conduit
+		e.conduitID = w.conduitID
 		if err := w.createControlListeners(ctx, e); err != nil {
 			return err
 		}

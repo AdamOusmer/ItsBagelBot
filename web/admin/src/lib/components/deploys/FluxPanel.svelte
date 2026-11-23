@@ -1,12 +1,13 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { untrack } from 'svelte';
   import { enhance, type SubmitFunction } from '$app/forms';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
@@ -24,23 +25,27 @@
   const { t } = getI18n();
   const failed = adminToastFailure(toast);
 
-  let tiers = $state<FluxTier[]>(untrack(() => flux.tiers));
-  let busy = $state<string | null>(null);
+  let updated = $state.raw<{ source: FluxResult; snapshot: FluxResult } | null>(null);
+  let pending = $state<string[]>([]);
   let service = $state('');
   let tag = $state('');
 
+  const snapshot = $derived(updated?.source === flux ? updated.snapshot : flux);
+  const tiers = $derived(snapshot.tiers);
   const pins = $derived(tiers.flatMap((tier) => tier.images.map((image) => ({ tier: tier.name, ...image }))));
+  const services = $derived(snapshot.pinnable.map((name) => ({ value: name, label: name })));
 
-  function tone(tier: FluxTier) {
-    if (tier.suspended) return 'warning';
-    if (tier.ready === null) return 'neutral';
-    return tier.ready ? 'success' : 'danger';
-  }
+  const tierStates = {
+    paused: 'warning',
+    unknown: 'neutral',
+    ready: 'success',
+    notReady: 'danger'
+  } as const;
 
-  function statusLabel(tier: FluxTier): string {
-    if (tier.suspended) return t('admin.deploys.flux.paused');
-    if (tier.ready === null) return t('admin.deploys.flux.unknown');
-    return t(tier.ready ? 'admin.deploys.flux.ready' : 'admin.deploys.flux.notReady');
+  function tierState(tier: FluxTier): keyof typeof tierStates {
+    if (tier.suspended) return 'paused';
+    if (tier.ready === null) return 'unknown';
+    return tier.ready ? 'ready' : 'notReady';
   }
 
   function shortRevision(revision: string): string {
@@ -53,110 +58,132 @@
   }
 
   function submit(key: string): SubmitFunction {
-    return () => {
-      busy = key;
+    return ({ cancel }) => {
+      if (pending.includes(key)) {
+        cancel();
+        return;
+      }
+      const source = flux;
+      pending = [...pending, key];
       return async ({ result }) => {
-        busy = null;
-        const p = actionPayload<{ flux?: FluxResult; error?: string }>(result);
-        if (p?.flux) {
-          tiers = p.flux.tiers;
+        pending = pending.filter((action) => action !== key);
+        const payload = actionPayload<{ flux?: FluxResult; error?: string }>(result);
+        if (payload?.flux) {
+          updated = { source, snapshot: payload.flux };
           if (key === 'pin') tag = '';
           return;
         }
-        failed(p, t('admin.deploys.actionFailed'));
+        failed(payload, t('admin.deploys.actionFailed'));
       };
     };
   }
 </script>
 
-<Card as="section" aria-labelledby="flux-title">
-  <Stack gap={4}>
-    <Stack gap={1}>
-      <Heading level={3} as="h2" id="flux-title">{t('admin.deploys.flux.title')}</Heading>
-      <Text size="sm" tone="muted">{t('admin.deploys.flux.body')}</Text>
-    </Stack>
+<div class="flux">
+  <Card as="section">
+    <Stack gap={4}>
+      <Stack gap={1}>
+        <Heading level={3} as="h2" id="flux-title">{t('admin.deploys.flux.title')}</Heading>
+        <Text size="sm" tone="muted">{t('admin.deploys.flux.body')}</Text>
+      </Stack>
 
-    {#if flux.fluxError}
-      <AlertBanner>{t('admin.deploys.flux.error', { error: flux.fluxError })}</AlertBanner>
-    {/if}
+      {#if snapshot.fluxError}
+        <AlertBanner tone="danger">{t('admin.deploys.flux.error', { error: snapshot.fluxError })}</AlertBanner>
+      {:else if !tiers.length}
+        <EmptyState title={t('admin.deploys.flux.noTiers')} />
+      {/if}
 
-    <ul class="tiers">
-      {#each tiers as tier (tier.name)}
-        <li class="tier">
-          <div class="name">
-            <StatusDot tone={tone(tier)} />
-            <Text as="span" mono>{tier.name}</Text>
-            <Text as="span" size="xs" tone="muted">{statusLabel(tier)}</Text>
-          </div>
-          <Text as="span" size="xs" mono tone="soft" truncate title={tier.ready === false ? tier.message : undefined}>
-            {tier.ready === false ? tier.reason : shortRevision(tier.revision)}
-          </Text>
-          <Cluster gap={2}>
-            <form method="POST" action="?/fluxSync" use:enhance={submit(`sync-${tier.name}`)}>
-              <input type="hidden" name="tier" value={tier.name} />
-              <Button type="submit" size="sm" variant="secondary" busy={busy === `sync-${tier.name}`}>
-                {t('admin.deploys.flux.sync')}
-              </Button>
-            </form>
-            <form
-              method="POST"
-              action={tier.suspended ? '?/fluxResume' : '?/fluxPause'}
-              use:enhance={submit(`suspend-${tier.name}`)}
-            >
-              <input type="hidden" name="tier" value={tier.name} />
-              <Button type="submit" size="sm" variant="ghost" busy={busy === `suspend-${tier.name}`}>
-                {t(tier.suspended ? 'admin.deploys.flux.resume' : 'admin.deploys.flux.pause')}
-              </Button>
-            </form>
-          </Cluster>
-        </li>
-      {/each}
-    </ul>
-
-    <Stack gap={2}>
-      <Heading level={4} as="h3">{t('admin.deploys.flux.pins')}</Heading>
-      <Text size="sm" tone="muted">{t('admin.deploys.flux.pinsBody')}</Text>
-      {#if pins.length === 0}
-        <Text size="sm" tone="soft">{t('admin.deploys.flux.noPins')}</Text>
-      {:else}
-        <ul class="pins">
-          {#each pins as pin (pin.name)}
-            <li class="pin">
-              <Tag tone="quiet">{shortService(pin.name)}</Tag>
-              <Text as="span" size="xs" mono truncate>{pin.newTag ?? pin.digest}</Text>
-              <form method="POST" action="?/fluxUnpin" use:enhance={submit(`unpin-${pin.name}`)}>
-                <input type="hidden" name="service" value={shortService(pin.name)} />
-                <Button type="submit" size="sm" variant="ghost" busy={busy === `unpin-${pin.name}`}>
-                  {t('admin.deploys.flux.clear')}
-                </Button>
-              </form>
+      {#if tiers.length}
+        <ul class="tiers">
+          {#each tiers as tier (tier.name)}
+            {@const state = tierState(tier)}
+            {@const tierLabel = `flux-tier-${tier.name}`}
+            <li class="tier">
+              <div class="name">
+                <StatusDot tone={tierStates[state]} />
+                <Text as="span" mono id={tierLabel}>{tier.name}</Text>
+                <Text as="span" size="xs" tone="muted" class="tier-state">
+                  <bb-fit><span data-fit>{t(`admin.deploys.flux.${state}`)}</span></bb-fit>
+                </Text>
+              </div>
+              <Text as="span" size="xs" mono tone="soft" truncate title={tier.ready === false ? tier.message : undefined}>
+                {tier.ready === false ? tier.reason : shortRevision(tier.revision)}
+              </Text>
+              <Cluster gap={2} class="tier-actions">
+                <form method="POST" action="?/fluxSync" use:enhance={submit(`sync-${tier.name}`)}>
+                  <input type="hidden" name="tier" value={tier.name} />
+                  <Button type="submit" variant="secondary" aria-describedby={tierLabel} busy={pending.includes(`sync-${tier.name}`)}>
+                    <span class="tier-copy"><bb-fit><span data-fit>{t('admin.deploys.flux.sync')}</span></bb-fit></span>
+                  </Button>
+                </form>
+                <form
+                  method="POST"
+                  action={tier.suspended ? '?/fluxResume' : '?/fluxPause'}
+                  use:enhance={submit(`suspend-${tier.name}`)}
+                >
+                  <input type="hidden" name="tier" value={tier.name} />
+                  <Button type="submit" variant="ghost" aria-describedby={tierLabel} busy={pending.includes(`suspend-${tier.name}`)}>
+                    <span class="tier-copy"><bb-fit><span data-fit>{t(tier.suspended ? 'admin.deploys.flux.resume' : 'admin.deploys.flux.pause')}</span></bb-fit></span>
+                  </Button>
+                </form>
+              </Cluster>
             </li>
           {/each}
         </ul>
       {/if}
-      <form class="pinform" method="POST" action="?/fluxPin" use:enhance={submit('pin')}>
-        <div class="field">
-          <Select
-            name="service"
-            label={t('admin.deploys.flux.service')}
-            placeholder={t('admin.deploys.flux.pickService')}
-            options={flux.pinnable.map((name) => ({ value: name, label: name }))}
-            bind:value={service}
-          />
-        </div>
-        <label class="field">
-          <Text as="span" size="xs" tone="muted">{t('admin.deploys.flux.tag')}</Text>
-          <Input name="tag" bind:value={tag} mono required />
-        </label>
-        <Button type="submit" size="sm" busy={busy === 'pin'} disabled={!service || !tag}>
-          {t('admin.deploys.flux.pin')}
-        </Button>
-      </form>
+
+      <Stack gap={2}>
+        <Heading level={4} as="h3">{t('admin.deploys.flux.pins')}</Heading>
+        <Text size="sm" tone="muted">{t('admin.deploys.flux.pinsBody')}</Text>
+        {#if pins.length === 0}
+          <Text size="sm" tone="soft">{t('admin.deploys.flux.noPins')}</Text>
+        {:else}
+          <ul class="pins">
+            {#each pins as pin (`${pin.tier}/${pin.name}`)}
+              {@const pinLabel = `pin-${pin.tier}-${shortService(pin.name)}`}
+              <li class="pin">
+                <Tag tone="quiet" id={pinLabel}>{shortService(pin.name)}</Tag>
+                <Text as="span" size="xs" mono truncate title={pin.newTag ?? pin.digest}>{pin.newTag ?? pin.digest}</Text>
+                <form method="POST" action="?/fluxUnpin" use:enhance={submit(`unpin-${pin.name}`)}>
+                  <input type="hidden" name="service" value={shortService(pin.name)} />
+                  <Button type="submit" variant="ghost" aria-describedby={pinLabel} busy={pending.includes(`unpin-${pin.name}`)}>
+                    {t('admin.deploys.flux.clear')}
+                  </Button>
+                </form>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+        <form class="pinform" method="POST" action="?/fluxPin" use:enhance={submit('pin')}>
+          <Field fit label={t('admin.deploys.flux.service')} class="pin-field">
+            <Select
+              name="service"
+              label={t('admin.deploys.flux.service')}
+              placeholder={t('admin.deploys.flux.pickService')}
+              options={services}
+              bind:value={service}
+              fill
+            />
+          </Field>
+          <Field fit label={t('admin.deploys.flux.tag')} class="pin-field">
+            <Input name="tag" bind:value={tag} mono required fill />
+          </Field>
+          <Button type="submit" busy={pending.includes('pin')} disabled={!service || !tag}>
+            {t('admin.deploys.flux.pin')}
+          </Button>
+        </form>
+      </Stack>
     </Stack>
-  </Stack>
-</Card>
+  </Card>
+</div>
 
 <style>
+  .flux {
+    container-type: inline-size;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+
   .tiers,
   .pins {
     display: grid;
@@ -178,24 +205,46 @@
   .name {
     display: flex;
     align-items: center;
-    gap: var(--bb-space-2);
-    min-width: 0;
-  }
-  .pinform {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: end;
-    gap: var(--bb-space-3);
-  }
-  .field {
-    display: grid;
     gap: var(--bb-space-1);
     min-width: 0;
   }
-  @media (max-width: 640px) {
-    .tier,
+
+  .name :global(.tier-state) {
+    min-inline-size: 0;
+  }
+
+  .tier-copy {
+    display: block;
+    inline-size: 5rem;
+  }
+  .pinform {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    align-items: end;
+    gap: var(--bb-space-3);
+  }
+
+  .pinform > :global(.pin-field) {
+    min-width: 0;
+  }
+
+  @container (max-width: 42rem) {
+    .tier {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .tier > :global(.tier-actions) {
+      grid-column: 1 / -1;
+    }
+
     .pin {
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
+    }
+  }
+
+  @container (max-width: 29rem) {
+    .pinform {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 </style>

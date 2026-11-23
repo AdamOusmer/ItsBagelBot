@@ -96,7 +96,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip, notifications]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip, notifications, controls-gateway]
   policyTypes:
     - Egress
   egress:
@@ -154,3 +154,50 @@ spec:
       ports:
         - port: 3306
           protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: controls-gateway
+  namespace: app
+spec:
+  podSelector:
+    matchLabels:
+      app: controls-gateway
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: networking
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - port: 4000
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - {port: 53, protocol: UDP}
+        - {port: 53, protocol: TCP}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: messaging
+          podSelector:
+            matchLabels:
+              app: nats
+      ports:
+        - port: 4222
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: messaging
+          podSelector:
+            matchLabels:
+              app: nats-leaf
+      ports:
+        - port: 4223

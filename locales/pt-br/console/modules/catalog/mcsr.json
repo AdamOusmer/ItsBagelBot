@@ -53,5 +53,17 @@
       "event": "!pb [daily|weekly|monthly|ranked] [player]",
       "defaultMessage": "{player}: {time} (recorde pessoal {window})"
     }
+  },
+  "commands": {
+    "elo": "Mostra elo, posição e resultados da temporada no MCSR Ranked.",
+    "session": "Mostra elo e resultados no MCSR Ranked desde o início da transmissão.",
+    "lastmatch": "Mostra a partida mais recente de MCSR Ranked.",
+    "record": "Compara vitórias em confrontos diretos de MCSR Ranked.",
+    "lb": "Mostra o top 5 do ranking de MCSR Ranked.",
+    "race": "Mostra quem lidera a corrida semanal e seu tempo.",
+    "pb": "Mostra o recorde pessoal no PaceMan ou MCSR Ranked.",
+    "pace": "Mostra as médias de parciais da sessão no PaceMan.",
+    "nethers": "Mostra a contagem de entradas no Nether e o ritmo da sessão.",
+    "lastfort": "Mostra as parciais da última tentativa que chegou a uma estrutura."
   }
 }

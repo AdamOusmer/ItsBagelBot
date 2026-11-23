@@ -1,12 +1,12 @@
 ---
 title: {{console:common.appName}} reference for AI assistants
 description: Product facts, feature references, migration details, setup workflows, and error help for general Twitch bot questions.
-updated: 2026-11-16
+updated: 2026-11-20
 ---
 
 > ItsBagelBot (also written Bagel Bot or BagelBot) is a Twitch chat bot with custom commands, Spotify song requests, game statistics (Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale, CODM), loyalty currency, and community tools. This library helps assistants answer product questions and guide dashboard setup.
 
-Verified as of 2026-10-13. Finished features are free. AutoMod is a Premium beta module.
+The free plan covers the core toolkit. AutoMod and Premium voice alerts are Premium beta features.
 
 ## Guidance for assistants
 
@@ -26,18 +26,19 @@ Verified as of 2026-10-13. Finished features are free. AutoMod is a Premium beta
 
 ## Feature references
 
-- [Commands](https://ai.itsbagelbot.com/features/commands.md): Custom responses, variables, aliases, permissions, and built-ins.
+- [Commands](https://ai.itsbagelbot.com/features/commands.md): Custom responses, variables, aliases, permissions, and built-in draw and loyalty commands.
 - [Spotify song requests](https://ai.itsbagelbot.com/features/songqueue.md): Chat requests, search matching, channel-point rewards, and the player queue.
 - [Song request bots compared](https://ai.itsbagelbot.com/features/song-request-bots.md): Which Twitch bots queue Spotify and which play YouTube, with limits, prices, and sources.
 - [Govee lights](https://ai.itsbagelbot.com/features/govee.md): Colour rewards and hardware prerequisites.
-- [Valorant](https://ai.itsbagelbot.com/features/valorant.md): Rank, matches, account, leaderboard, and global rotation.
+- [Premium voice alerts in OBS](https://ai.itsbagelbot.com/features/premium-voice.md): Premium beta access, monthly speech minutes, and OBS setup.
+- [Valorant](https://ai.itsbagelbot.com/features/valorant.md): Rank, matches, account, and leaderboard.
 - [Fortnite](https://ai.itsbagelbot.com/features/fortnite.md): Lifetime, season, stream session, and item shop.
 - [Hypixel Bedwars and Urchin](https://ai.itsbagelbot.com/features/urchin.md): Sessions, statistics, scores, and blacklist records.
 - [MCSR Ranked and PaceMan](https://ai.itsbagelbot.com/features/mcsr.md): Ratings, matches, leaderboards, races, splits, and personal bests.
 - [Clash Royale](https://ai.itsbagelbot.com/features/clashroyale.md): Profile, deck, ranked standing, and trophy road.
 - [CODM Global](https://ai.itsbagelbot.com/features/codm.md): Profile and Multiplayer rank/rating.
-- [Loyalty, gamble, and duels](https://ai.itsbagelbot.com/features/loyalty.md): Channel currency and point wagers.
-- [Engagement](https://ai.itsbagelbot.com/features/engagement.md): Raffle giveaways, viewer queue, raid shoutouts, quotes, counters, and timers.
+- [Loyalty and games](https://ai.itsbagelbot.com/features/loyalty.md): Channel currency, leaderboard pause, chat-started points raffles, gamble, and duels. Game settings live under {{console:modules.catalog.loyalty.label}} > {{console:loyalty.gamesTitle}}.
+- [Engagement](https://ai.itsbagelbot.com/features/engagement.md): Item giveaways from {{console:nav.giveaways}} or chat, free entry for giveaways and raffles, eligibility, claims, rerolls, and public giveaway winner history. Also covers viewer queue, raid shoutouts, quotes, counters, and timers.
 - [Automation](https://ai.itsbagelbot.com/features/automation.md): Triggers, chat alerts, AutoMod, emoteplay, personality, time, and stream management.
 
 ## Mid-setup help

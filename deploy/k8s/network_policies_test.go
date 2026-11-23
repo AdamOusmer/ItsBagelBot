@@ -173,6 +173,24 @@ func assertIngressHasClusterSources(t *testing.T, label string, rules []policyRu
 	}
 }
 
+func TestControlsGatewayNetworkPolicyIsExact(t *testing.T) {
+	policy := requirePolicy(t, loadNetworkPolicies(t, appPolicies), "controls-gateway")
+	assert.Equal(t, "app=controls-gateway", policy.Spec.PodSelector.render())
+	assert.Equal(t, sorted("Egress", "Ingress"), sorted(policy.Spec.PolicyTypes...))
+	assert.Equal(t, []string{
+		"kubernetes.io/metadata.name=networking | app.kubernetes.io/name=traefik | 4000/TCP",
+	}, ruleSummary(policy.Spec.Ingress))
+	assert.Equal(t, []string{
+		"kubernetes.io/metadata.name=kube-system | any | 53/UDP,53/TCP",
+		"kubernetes.io/metadata.name=messaging | app=nats | 4222/TCP",
+		"kubernetes.io/metadata.name=messaging | app=nats-leaf | 4223/TCP",
+	}, ruleSummary(policy.Spec.Egress))
+
+	networking := requirePolicy(t, loadNetworkPolicies(t, "../networking/network-policies.yaml"), "default-deny-networking")
+	assert.Contains(t, ruleSummary(networking.Spec.Egress),
+		"kubernetes.io/metadata.name=app | app=controls-gateway | 4000/TCP")
+}
+
 func TestDefaultPolicyHasNoBlanketExternalEgress(t *testing.T) {
 	base := requirePolicy(t, loadNetworkPolicies(t, appPolicies), "default-deny-apps")
 
@@ -198,26 +216,19 @@ func TestAppEgressAllowlists(t *testing.T) {
 		},
 		{
 			name: "TestNewRelicEgressAllowlist", path: appPolicies, policy: "allow-newrelic",
-			wantApps: sorted("commands", "console-admin", "console-dashboard", "gossip", "loyalty", "modules",
-				"notifications", "outgress", "projector", "sesame", "transactions", "twitch-ingress", "users"),
+			wantApps: sorted("commands", "console-admin", "console-dashboard", "controls-gateway", "gossip", "loyalty",
+				"modules", "notifications", "outgress", "projector", "sesame", "transactions", "twitch-ingress", "users"),
 			wantCIDRs: newRelicIngestCIDRs,
 		},
 		{
 			name: "TestDBPublicHTTPSEgressAllowlist", path: dbPolicies, policy: "allow-public-https",
-			wantApps: sorted("transactions", "users"),
+			wantApps: sorted("backup-binlog", "backup-k3s", "backup-mysql", "transactions", "users"),
 		},
 		{
 			name: "TestDBNewRelicEgressAllowlist", path: dbPolicies, policy: "allow-newrelic",
-			wantApps: sorted("admin", "commands", "loyalty", "modules", "notifications", "projector",
+			wantApps: sorted("admin", "commands", "loyalty", "modules", "notifications", "overlays", "projector",
 				"transactions", "users"),
 			wantCIDRs: newRelicIngestCIDRs,
-		},
-		{
-			name: "TestDBR2EgressAllowlist", path: dbPolicies, policy: "allow-r2",
-			wantApps: sorted("backup-binlog", "backup-k3s", "backup-mysql"),
-			wantCIDRs: sorted("103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22", "104.16.0.0/13", "104.24.0.0/14",
-				"108.162.192.0/18", "131.0.72.0/22", "141.101.64.0/18", "162.158.0.0/15", "172.64.0.0/13",
-				"173.245.48.0/20", "188.114.96.0/20", "190.93.240.0/20", "197.234.240.0/22", "198.41.128.0/17"),
 		},
 		{
 			name: "TestHeatWaveEgressAllowlist", path: appPolicies, policy: "allow-heatwave",
@@ -227,7 +238,7 @@ func TestAppEgressAllowlists(t *testing.T) {
 		{
 			name: "TestDBHeatWaveEgressAllowlist", path: dbPolicies, policy: "allow-heatwave",
 			wantApps: sorted("admin", "backup-binlog", "backup-mysql", "commands", "loyalty", "modules",
-				"notifications", "transactions", "users"),
+				"notifications", "overlays", "transactions", "users"),
 			wantCIDRs: sorted("10.0.0.0/16", "204.216.107.73/32"),
 		},
 	}
@@ -298,9 +309,9 @@ func TestDBNamespaceCoversEveryDataService(t *testing.T) {
 	policies := loadNetworkPolicies(t, dbPolicies)
 	want := map[string][]string{
 		"default-deny-db": sorted("admin", "backup-binlog", "backup-k3s", "backup-mysql", "commands", "loyalty",
-			"modules", "notifications", "notifications-cleanup", "projector", "transactions", "users"),
+			"modules", "notifications", "notifications-cleanup", "overlays", "projector", "transactions", "users"),
 		"allow-heatwave": sorted("admin", "backup-binlog", "backup-mysql", "commands", "loyalty", "modules",
-			"notifications", "transactions", "users"),
+			"notifications", "overlays", "transactions", "users"),
 	}
 	for name, apps := range want {
 		assert.Equal(t, apps, requirePolicy(t, policies, name).selectedApps(t), "%s selector", name)

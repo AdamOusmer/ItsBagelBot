@@ -3,6 +3,7 @@
 
 import type { FieldSpec, StepDefinition } from './model';
 import { USERID_SAMPLE, USER_SAMPLE } from '@bagel/kit/variables/preview-values';
+import { CLOUD_VOICES, VOICE_STYLES } from '@bagel/kit/voice-plan';
 
 const target: FieldSpec = { key: 'target', type: 'template', singleLine: true, required: true };
 export const TARGET_FIELDS = [
@@ -128,6 +129,14 @@ export const STREAM_STEP_DEFINITIONS: readonly StepDefinition[] = [
   {
     type: 'reply.commercial', slug: 'commercial', icon: 'timer',
     fields: [{ key: 'seconds', type: 'select', options: ['30', '60', '90', '120', '150', '180'], initial: '30' }, confirm]
+  },
+  {
+    type: 'reply.speak', slug: 'speak', icon: 'waveform', premium: true,
+    fields: [
+      { key: 'text', type: 'template', required: true },
+      { key: 'style', type: 'select', options: ['', ...Object.keys(VOICE_STYLES)], optionGroup: 'style' },
+      { key: 'voice', type: 'select', options: ['', ...CLOUD_VOICES], optionGroup: 'voice' }
+    ]
   },
   {
     type: 'reply.marker', slug: 'marker', icon: 'star',

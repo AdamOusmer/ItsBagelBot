@@ -195,6 +195,43 @@ var (
 		Columns:    FeedReceiptsColumns,
 		PrimaryKey: []*schema.Column{FeedReceiptsColumns[0]},
 	}
+	// GiveawayWinnersColumns holds the columns for the "giveaway_winners" table.
+	GiveawayWinnersColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "round_id", Type: field.TypeString, Size: 36},
+		{Name: "slot", Type: field.TypeUint8},
+		{Name: "prize", Type: field.TypeString, Size: 100},
+		{Name: "won_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
+		{Name: "viewer_id", Type: field.TypeUint64},
+		{Name: "viewer_login", Type: field.TypeString, Size: 64},
+		{Name: "claimed", Type: field.TypeBool, Default: false},
+		{Name: "claimed_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(3)"}},
+		{Name: "delivered_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(3)"}},
+	}
+	// GiveawayWinnersTable holds the schema information for the "giveaway_winners" table.
+	GiveawayWinnersTable = &schema.Table{
+		Name:       "giveaway_winners",
+		Columns:    GiveawayWinnersColumns,
+		PrimaryKey: []*schema.Column{GiveawayWinnersColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "giveawaywinner_user_id_round_id_slot",
+				Unique:  true,
+				Columns: []*schema.Column{GiveawayWinnersColumns[1], GiveawayWinnersColumns[2], GiveawayWinnersColumns[3]},
+			},
+			{
+				Name:    "giveawaywinner_user_id_won_at",
+				Unique:  false,
+				Columns: []*schema.Column{GiveawayWinnersColumns[1], GiveawayWinnersColumns[5]},
+			},
+			{
+				Name:    "giveawaywinner_user_id_viewer_id_won_at",
+				Unique:  false,
+				Columns: []*schema.Column{GiveawayWinnersColumns[1], GiveawayWinnersColumns[6], GiveawayWinnersColumns[5]},
+			},
+		},
+	}
 	// GoveeCredentialsColumns holds the columns for the "govee_credentials" table.
 	GoveeCredentialsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -323,6 +360,7 @@ var (
 		CountdownOperationsTable,
 		FeedCountersTable,
 		FeedReceiptsTable,
+		GiveawayWinnersTable,
 		GoveeCredentialsTable,
 		ModulesTable,
 		QuotesTable,
