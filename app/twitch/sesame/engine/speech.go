@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"slices"
 	"strconv"
 	"time"
 
@@ -64,20 +65,20 @@ const (
 	speechGateAttr    = "tts.gate"
 	speechBreakerAttr = "tts.breaker"
 	speechGatePass    = "pass"
+
+	speechBlockManual pkg_valkey.SpeechBlockScope = "manual"
 )
 
 func (q SpeechQueue) Screen(ctx context.Context, subject SpeechSubject, in moderation.SpeechInput, policy moderation.SpeechPolicy) (string, bool, error) {
 	txn := newrelic.FromContext(ctx)
 	channelID := strconv.FormatUint(subject.BroadcasterID, 10)
-	if q.tracks(subject) {
-		block, err := q.Safety.ViewerBlock(ctx, q.Store, channelID, subject.ViewerID)
-		if err != nil {
-			return "", false, err
-		}
-		if block.Scope != pkg_valkey.SpeechBlockNone {
-			txn.AddAttribute(speechBreakerAttr, string(block.Scope))
-			return "", false, nil
-		}
+	scope, err := q.viewerBlockScope(ctx, subject, channelID)
+	if err != nil {
+		return "", false, err
+	}
+	if scope != pkg_valkey.SpeechBlockNone {
+		txn.AddAttribute(speechBreakerAttr, string(scope))
+		return "", false, nil
 	}
 	in.Message = automod.StripLinks(in.Message)
 	verdict := moderation.CheckSpeech(in, policy)
@@ -86,6 +87,32 @@ func (q SpeechQueue) Screen(ctx context.Context, subject SpeechSubject, in moder
 		return "", false, err
 	}
 	return verdict.Message, !verdict.Blocked, nil
+}
+
+func (q SpeechQueue) viewerBlockScope(ctx context.Context, subject SpeechSubject, channelID string) (pkg_valkey.SpeechBlockScope, error) {
+	if !subject.viewer() {
+		return pkg_valkey.SpeechBlockNone, nil
+	}
+	manual, err := q.manuallyBlocked(ctx, subject, channelID)
+	if err != nil || manual {
+		return speechBlockManual, err
+	}
+	if !q.tracks(subject) {
+		return pkg_valkey.SpeechBlockNone, nil
+	}
+	block, err := q.Safety.ViewerBlock(ctx, q.Store, channelID, subject.ViewerID)
+	return block.Scope, err
+}
+
+func (q SpeechQueue) manuallyBlocked(ctx context.Context, subject SpeechSubject, channelID string) (bool, error) {
+	source, ok := q.Voice.(interface {
+		BlockedViewers(context.Context, string) ([]string, error)
+	})
+	if !ok {
+		return false, nil
+	}
+	blocked, err := source.BlockedViewers(ctx, channelID)
+	return slices.Contains(blocked, subject.ViewerID), err
 }
 
 func (q SpeechQueue) strike(ctx context.Context, subject SpeechSubject, channelID string, verdict moderation.SpeechVerdict) error {

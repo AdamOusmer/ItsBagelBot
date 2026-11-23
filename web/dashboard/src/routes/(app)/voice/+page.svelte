@@ -27,6 +27,8 @@
   import { voiceOptions } from '#lib/components/voice/voice-options';
   import VoicePreview from '#lib/components/voice/VoicePreview.svelte';
   import { Autosave } from '#lib/autosave.svelte';
+  import VoiceBlocksCard from './VoiceBlocksCard.svelte';
+  import { utcDateTime } from './voice-settings';
   import VoiceAlertEditor from './VoiceAlertEditor.svelte';
   import VoiceChannelPointsCard from './VoiceChannelPointsCard.svelte';
   import VoiceChatCommandCard from './VoiceChatCommandCard.svelte';
@@ -42,6 +44,11 @@
 
   const allowance = $derived(data.readOnly ? null : data.allowance);
   const overlay = $derived(data.readOnly ? null : data.overlay);
+  const safety = $derived(data.readOnly ? null : data.safety);
+  const pausedUntil = $derived(safety?.pausedUntil ?? 0);
+  const paused = $derived(pausedUntil > Date.now());
+  const pausedTimes = utcDateTime(getI18n().locale);
+  const pausedCopy = $derived(paused ? t('voice.paused', { time: pausedTimes.format(new Date(pausedUntil)) }) : '');
 
   function loadedValues(): Record<string, string> {
     return {
@@ -188,6 +195,7 @@
       </Card>
     {:else}
       <div class="stack">
+        <PageNotice tone="warning" visible={paused}>{pausedCopy}</PageNotice>
         <VoiceUsageCard {allowance} settings={overlay?.settings} />
         {#if allowance.limit_tokens > 0 && overlay}
           <VoiceOverlayCard configured={!!overlayUrl || overlay.configured} url={overlayUrl}
@@ -233,6 +241,9 @@
 
           {#if data.command}
             <VoiceChatCommandCard values={commandValues} status={commandSave.status} onChange={changeCommand} />
+          {/if}
+          {#if safety}
+            <VoiceBlocksCard manual={safety.manual} strikes={safety.strikes} error={form?.blockError} />
           {/if}
           <VoiceChannelPointsCard />
         {:else}

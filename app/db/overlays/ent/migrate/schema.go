@@ -74,11 +74,33 @@ var (
 		Columns:    TtsOverlayColumns,
 		PrimaryKey: []*schema.Column{TtsOverlayColumns[0]},
 	}
+	// TtsViewerBlockColumns holds the columns for the "tts_viewer_block" table.
+	TtsViewerBlockColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "viewer_id", Type: field.TypeString, Size: 20},
+		{Name: "viewer_login", Type: field.TypeString, Nullable: true, Size: 32},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+	}
+	// TtsViewerBlockTable holds the schema information for the "tts_viewer_block" table.
+	TtsViewerBlockTable = &schema.Table{
+		Name:       "tts_viewer_block",
+		Columns:    TtsViewerBlockColumns,
+		PrimaryKey: []*schema.Column{TtsViewerBlockColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "ttsviewerblock_user_id_viewer_id",
+				Unique:  true,
+				Columns: []*schema.Column{TtsViewerBlockColumns[1], TtsViewerBlockColumns[2]},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		OverlayTable,
 		PoweredOverlaysTable,
 		TtsOverlayTable,
+		TtsViewerBlockTable,
 	}
 )
 
@@ -92,5 +114,8 @@ func init() {
 	}
 	TtsOverlayTable.Annotation = &entsql.Annotation{
 		Table: "tts_overlay",
+	}
+	TtsViewerBlockTable.Annotation = &entsql.Annotation{
+		Table: "tts_viewer_block",
 	}
 }

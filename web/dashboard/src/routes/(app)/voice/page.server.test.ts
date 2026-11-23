@@ -16,6 +16,9 @@ mock.module('#lib/server/services/audit', () => ({
     auditDashboardImpersonation(...args);
   }
 }));
+mock.module('#lib/server/viewer-lookup', () => ({
+  resolveCurrentViewer: async (login: string) => (login === 'spammer' ? { kind: 'found', viewerId: '5' } : { kind: 'missing' })
+}));
 mock.module('#lib/server/edge-purge', () => ({
   schedulePurgeChannel: () => {},
   scheduleLeaderboardPurge: () => {}
@@ -56,6 +59,27 @@ const overlay: TtsOverlayView = { settings: { voice: 'Puck', enabled: true, max_
 const currentSettings = overlay.settings;
 const overlayRead: RpcCall = [`${SUB.overlays}.tts.get`, { user_id: '42' }, READ_TIMEOUT_MS];
 const modulesRead: RpcCall = [`${SUB.modules}.list`, { user_id: '42' }, 2000];
+const blocksRead: RpcCall = [`${SUB.overlays}.tts.blocks`, { user_id: '42' }, READ_TIMEOUT_MS];
+const safetyRead: RpcCall = [`${SUB.dashboard}.voice_safety`, actor, READ_TIMEOUT_MS];
+const strike = { viewer_id: '7', scope: 'channel', until: 1_800_000_000_000 };
+const manualBlock = { viewer_id: '5', viewer_login: 'spammer', created_at: 1_764_000_000 };
+
+const lockedSections = { overlay: null, alerts: null, command: null, safety: null };
+const unlockedSections = {
+  overlay,
+  alerts: { config: { ...ALERT_VOICE_CONFIG_DEFAULTS, cheerTtsStyle: 'calm' }, revision: 9 },
+  command: { config: { ...TTS_COMMAND_CONFIG_DEFAULTS }, enabled: false, revision: 0 },
+  safety: { manual: [manualBlock], strikes: [strike], pausedUntil: 0 }
+};
+const unlockedReads = [overlayRead, modulesRead, blocksRead, safetyRead];
+
+function expectedVoiceLoad(reply: VoiceAllowance | null, readOnly: boolean) {
+  const unlocked = reply?.reason === 'ok';
+  return {
+    data: { readOnly, allowance: reply, locked: reply?.reason === 'no_plan', ...(unlocked ? unlockedSections : lockedSections) },
+    calls: [...(readOnly ? [] : [usersRead]), ...(unlocked ? unlockedReads : [])]
+  };
+}
 
 test.each([
   { name: 'paid', session: owner, reply: allowance, readOnly: false },
@@ -68,22 +92,18 @@ test.each([
   { name: 'delegate', session: delegate, reply: null, readOnly: true },
   { name: 'view-as', session: viewAs, reply: allowance, readOnly: false }
 ])('loads voice data for $name', async ({ session, reply, readOnly }) => {
-  const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce(reply).mockResolvedValueOnce(overlay).mockResolvedValueOnce({ modules: [alertRow] });
-  const alerts = reply?.reason === 'ok'
-    ? { config: { ...ALERT_VOICE_CONFIG_DEFAULTS, cheerTtsStyle: 'calm' }, revision: 9 }
-    : null;
-  const command = alerts ? { config: { ...TTS_COMMAND_CONFIG_DEFAULTS }, enabled: false, revision: 0 } : null;
+  const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce(reply).mockResolvedValueOnce(overlay).mockResolvedValueOnce({ modules: [alertRow] })
+    .mockResolvedValueOnce({ viewers: [manualBlock] }).mockResolvedValueOnce({ paused_until: 0, blocks: [strike] });
+  const expected = expectedVoiceLoad(reply, readOnly);
 
-  expect(await load({ locals: { session, locale: 'en' } } as never)).toEqual({
-    readOnly, allowance: reply, locked: reply?.reason === 'no_plan', overlay: alerts ? overlay : null, alerts, command
-  });
-  expect(rpc.mock.calls).toEqual([...(readOnly ? [] : [usersRead]), ...(alerts ? [overlayRead, modulesRead] : [])]);
+  expect(await load({ locals: { session, locale: 'en' } } as never)).toEqual(expected.data);
+  expect(rpc.mock.calls).toEqual(expected.calls);
 });
 
 test('an unavailable allowance degrades without inventing a free plan', async () => {
   spyOn(bus, 'rpc').mockRejectedValueOnce(new Error('timeout'));
   expect(await load({ locals: { session: owner, locale: 'en' } } as never)).toEqual({
-    readOnly: false, allowance: null, locked: false, overlay: null, alerts: null, command: null
+    readOnly: false, allowance: null, locked: false, overlay: null, alerts: null, command: null, safety: null
   });
 });
 
@@ -352,4 +372,55 @@ test.each<Record<string, string>>([
   } as never);
   expect(result).toMatchObject({ status: 400 });
   expect(rpc).not.toHaveBeenCalled();
+});
+
+function blockForm(action: 'blockViewer' | 'unblockViewer' | 'unblockStrike', fields: Record<string, string>, session: typeof owner | null) {
+  return actions[action]({
+    request: new Request(`${voiceUrl}?/${action}`, { method: 'POST', body: new URLSearchParams(fields) }),
+    locals: { session, locale: 'en' }
+  } as never);
+}
+
+test('blocks a viewer by name through their Twitch id and audits view-as staff', async () => {
+  const rpc = spyOn(bus, 'rpc').mockResolvedValue({ viewers: [] });
+  audits.length = 0;
+  expect(await blockForm('blockViewer', { viewer: ' @Spammer ' }, viewAs)).toEqual({ blocksChanged: true });
+  expect(audits).toEqual([[viewAs, 'voice:block']]);
+  expect(rpc.mock.calls[0].slice(0, 2)).toEqual([`${SUB.overlays}.tts.block`, { user_id: '42', viewer_id: '5', viewer_login: 'spammer' }]);
+});
+
+test.each([
+  { name: 'blank name', fields: { viewer: '  ' }, message: 'No Twitch user with that name.' },
+  { name: 'unknown name', fields: { viewer: 'nosuchuser' }, message: 'No Twitch user with that name.' }
+])('refuses a block for a $name without writing', async ({ fields, message }) => {
+  const rpc = spyOn(bus, 'rpc').mockResolvedValue(null);
+  expect(await blockForm('blockViewer', fields, owner)).toMatchObject({ status: 400, data: { blockError: message } });
+  expect(rpc.mock.calls.some(([subject]) => subject === `${SUB.overlays}.tts.block`)).toBe(false);
+});
+
+test.each([
+  { action: 'unblockViewer', subject: `${SUB.overlays}.tts.unblock`, body: { user_id: '42', viewer_id: '5' }, audit: 'voice:unblock' },
+  { action: 'unblockStrike', subject: `${SUB.dashboard}.voice_unblock`, body: { actor_id: '42', broadcaster_user_id: '42', viewer_id: '5' }, audit: 'voice:unblock_strike' }
+] as const)('$action sends the viewer id from the form and audits it', async ({ action, subject, body, audit }) => {
+  const rpc = spyOn(bus, 'rpc').mockResolvedValue({ viewers: [], blocks: [], paused_until: 0 });
+  audits.length = 0;
+  expect(await blockForm(action, { viewer_id: '5', user_id: '1' }, viewAs)).toEqual({ blocksChanged: true });
+  expect(rpc.mock.calls[0]).toEqual([subject, body, WRITE_TIMEOUT_MS]);
+  expect(audits).toEqual([[viewAs, audit]]);
+});
+
+test.each([
+  { name: 'delegate', session: delegate, status: 403 },
+  { name: 'signed out', session: null, status: 401 }
+])('rejects block changes for $name before any request', async ({ session, status }) => {
+  const rpc = spyOn(bus, 'rpc');
+  expect(await blockForm('unblockViewer', { viewer_id: '5' }, session)).toMatchObject({ status, data: { blockError: expect.any(String) } });
+  expect(rpc).not.toHaveBeenCalled();
+});
+
+test('reports a failed block change as unavailable', async () => {
+  spyOn(bus, 'rpc').mockRejectedValueOnce(new Error('timeout'));
+  expect(await blockForm('unblockStrike', { viewer_id: '5' }, owner)).toMatchObject({
+    status: 503, data: { blockError: 'Could not update blocked viewers. Try again.' }
+  });
 });

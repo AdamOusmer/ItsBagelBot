@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/db/overlays/ent/overlay"
 	"ItsBagelBot/app/db/overlays/ent/poweredoverlay"
 	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
+	"ItsBagelBot/app/db/overlays/ent/ttsviewerblock"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
@@ -31,6 +32,8 @@ type Client struct {
 	PoweredOverlay *PoweredOverlayClient
 	// TtsOverlay is the client for interacting with the TtsOverlay builders.
 	TtsOverlay *TtsOverlayClient
+	// TtsViewerBlock is the client for interacting with the TtsViewerBlock builders.
+	TtsViewerBlock *TtsViewerBlockClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -45,6 +48,7 @@ func (c *Client) init() {
 	c.Overlay = NewOverlayClient(c.config)
 	c.PoweredOverlay = NewPoweredOverlayClient(c.config)
 	c.TtsOverlay = NewTtsOverlayClient(c.config)
+	c.TtsViewerBlock = NewTtsViewerBlockClient(c.config)
 }
 
 type (
@@ -140,6 +144,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Overlay:        NewOverlayClient(cfg),
 		PoweredOverlay: NewPoweredOverlayClient(cfg),
 		TtsOverlay:     NewTtsOverlayClient(cfg),
+		TtsViewerBlock: NewTtsViewerBlockClient(cfg),
 	}, nil
 }
 
@@ -162,6 +167,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Overlay:        NewOverlayClient(cfg),
 		PoweredOverlay: NewPoweredOverlayClient(cfg),
 		TtsOverlay:     NewTtsOverlayClient(cfg),
+		TtsViewerBlock: NewTtsViewerBlockClient(cfg),
 	}, nil
 }
 
@@ -193,6 +199,7 @@ func (c *Client) Use(hooks ...Hook) {
 	c.Overlay.Use(hooks...)
 	c.PoweredOverlay.Use(hooks...)
 	c.TtsOverlay.Use(hooks...)
+	c.TtsViewerBlock.Use(hooks...)
 }
 
 // Intercept adds the query interceptors to all the entity clients.
@@ -201,6 +208,7 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	c.Overlay.Intercept(interceptors...)
 	c.PoweredOverlay.Intercept(interceptors...)
 	c.TtsOverlay.Intercept(interceptors...)
+	c.TtsViewerBlock.Intercept(interceptors...)
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -212,6 +220,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.PoweredOverlay.mutate(ctx, m)
 	case *TtsOverlayMutation:
 		return c.TtsOverlay.mutate(ctx, m)
+	case *TtsViewerBlockMutation:
+		return c.TtsViewerBlock.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -616,12 +626,145 @@ func (c *TtsOverlayClient) mutate(ctx context.Context, m *TtsOverlayMutation) (V
 	}
 }
 
+// TtsViewerBlockClient is a client for the TtsViewerBlock schema.
+type TtsViewerBlockClient struct {
+	config
+}
+
+// NewTtsViewerBlockClient returns a client for the TtsViewerBlock from the given config.
+func NewTtsViewerBlockClient(c config) *TtsViewerBlockClient {
+	return &TtsViewerBlockClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `ttsviewerblock.Hooks(f(g(h())))`.
+func (c *TtsViewerBlockClient) Use(hooks ...Hook) {
+	c.hooks.TtsViewerBlock = append(c.hooks.TtsViewerBlock, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `ttsviewerblock.Intercept(f(g(h())))`.
+func (c *TtsViewerBlockClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TtsViewerBlock = append(c.inters.TtsViewerBlock, interceptors...)
+}
+
+// Create returns a builder for creating a TtsViewerBlock entity.
+func (c *TtsViewerBlockClient) Create() *TtsViewerBlockCreate {
+	mutation := newTtsViewerBlockMutation(c.config, OpCreate)
+	return &TtsViewerBlockCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TtsViewerBlock entities.
+func (c *TtsViewerBlockClient) CreateBulk(builders ...*TtsViewerBlockCreate) *TtsViewerBlockCreateBulk {
+	return &TtsViewerBlockCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TtsViewerBlockClient) MapCreateBulk(slice any, setFunc func(*TtsViewerBlockCreate, int)) *TtsViewerBlockCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TtsViewerBlockCreateBulk{err: fmt.Errorf("calling to TtsViewerBlockClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TtsViewerBlockCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TtsViewerBlockCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TtsViewerBlock.
+func (c *TtsViewerBlockClient) Update() *TtsViewerBlockUpdate {
+	mutation := newTtsViewerBlockMutation(c.config, OpUpdate)
+	return &TtsViewerBlockUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TtsViewerBlockClient) UpdateOne(_m *TtsViewerBlock) *TtsViewerBlockUpdateOne {
+	mutation := newTtsViewerBlockMutation(c.config, OpUpdateOne, withTtsViewerBlock(_m))
+	return &TtsViewerBlockUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TtsViewerBlockClient) UpdateOneID(id int) *TtsViewerBlockUpdateOne {
+	mutation := newTtsViewerBlockMutation(c.config, OpUpdateOne, withTtsViewerBlockID(id))
+	return &TtsViewerBlockUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TtsViewerBlock.
+func (c *TtsViewerBlockClient) Delete() *TtsViewerBlockDelete {
+	mutation := newTtsViewerBlockMutation(c.config, OpDelete)
+	return &TtsViewerBlockDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TtsViewerBlockClient) DeleteOne(_m *TtsViewerBlock) *TtsViewerBlockDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TtsViewerBlockClient) DeleteOneID(id int) *TtsViewerBlockDeleteOne {
+	builder := c.Delete().Where(ttsviewerblock.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TtsViewerBlockDeleteOne{builder}
+}
+
+// Query returns a query builder for TtsViewerBlock.
+func (c *TtsViewerBlockClient) Query() *TtsViewerBlockQuery {
+	return &TtsViewerBlockQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTtsViewerBlock},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TtsViewerBlock entity by its id.
+func (c *TtsViewerBlockClient) Get(ctx context.Context, id int) (*TtsViewerBlock, error) {
+	return c.Query().Where(ttsviewerblock.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TtsViewerBlockClient) GetX(ctx context.Context, id int) *TtsViewerBlock {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *TtsViewerBlockClient) Hooks() []Hook {
+	return c.hooks.TtsViewerBlock
+}
+
+// Interceptors returns the client interceptors.
+func (c *TtsViewerBlockClient) Interceptors() []Interceptor {
+	return c.inters.TtsViewerBlock
+}
+
+func (c *TtsViewerBlockClient) mutate(ctx context.Context, m *TtsViewerBlockMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TtsViewerBlockCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TtsViewerBlockUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TtsViewerBlockUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TtsViewerBlockDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TtsViewerBlock mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Overlay, PoweredOverlay, TtsOverlay []ent.Hook
+		Overlay, PoweredOverlay, TtsOverlay, TtsViewerBlock []ent.Hook
 	}
 	inters struct {
-		Overlay, PoweredOverlay, TtsOverlay []ent.Interceptor
+		Overlay, PoweredOverlay, TtsOverlay, TtsViewerBlock []ent.Interceptor
 	}
 )

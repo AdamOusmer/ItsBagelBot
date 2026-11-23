@@ -27,6 +27,7 @@ import (
 	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
+	pkgvalkey "ItsBagelBot/pkg/valkey"
 
 	"go.uber.org/zap"
 )
@@ -95,6 +96,7 @@ func main() {
 	wiring := rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log},
 		Repo:      repo,
+		Safety:    rpc.Safety{Store: vc, Rules: newSpeechSafety(log)},
 	}
 	subjects := subscribeRPCs(wiring, log)
 	databoot.ServeHealth(databoot.Health{
@@ -106,6 +108,14 @@ func main() {
 	subjects.logReady(log)
 
 	core.Await()
+}
+
+func speechLimitEnv(key string) string { return env.Get(key, "") }
+
+func newSpeechSafety(log *zap.Logger) pkgvalkey.SpeechSafety {
+	limits, err := pkgvalkey.ParseSpeechLimits(speechLimitEnv)
+	svcboot.FatalIf(log, err, "invalid TTS safety limits")
+	return pkgvalkey.NewSpeechSafety(limits)
 }
 
 func loadDeviceAuthSigner(log *zap.Logger) *tokensign.Signer {

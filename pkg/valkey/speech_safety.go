@@ -57,6 +57,12 @@ type SpeechBlock struct {
 	Until time.Time
 }
 
+type SpeechViewerBlock struct {
+	ViewerID string
+	Scope    SpeechBlockScope
+	Until    time.Time
+}
+
 type SpeechGate string
 
 const (
@@ -82,6 +88,8 @@ local function bump(counter, block, threshold, window, span)
   if total >= threshold then
     redis.call('DEL', counter)
     redis.call('SET', block, string.format('%d', now + span), 'PX', span)
+    redis.call('ZADD', KEYS[5], now + span, ARGV[9])
+    if redis.call('PTTL', KEYS[5]) < span then redis.call('PEXPIRE', KEYS[5], span) end
   end
 end
 bump(KEYS[1], KEYS[3], tonumber(ARGV[3]), tonumber(ARGV[4]), tonumber(ARGV[5]))
@@ -266,11 +274,13 @@ func (s SpeechSafety) Strike(ctx context.Context, client valkey_go.Client, strik
 		s.key("strikes", "global", strike.ViewerID),
 		s.key("block", "channel", strike.ChannelID, strike.ViewerID),
 		s.key("block", "global", strike.ViewerID),
+		s.key("index", strike.ChannelID),
 	}
 	args := []string{
 		speechNow(), speechCount(strike.Weight),
 		speechCount(l.ViewerChannelStrikes), speechMillis(l.ViewerChannelWindow), speechMillis(l.ViewerChannelBlock),
 		speechCount(globalStrikes), speechMillis(l.ViewerGlobalWindow), speechMillis(l.ViewerGlobalBlock),
+		strike.ViewerID,
 	}
 	return speechStrikeScript.Exec(ctx, client, keys, args).Error()
 }
@@ -315,7 +325,33 @@ func (s SpeechSafety) ClearViewer(ctx context.Context, client valkey_go.Client, 
 		Key(s.key("block", "channel", channelID, viewerID)).
 		Key(s.key("strikes", "channel", channelID, viewerID)).
 		Build()
-	return client.Do(ctx, del).Error()
+	if err := client.Do(ctx, del).Error(); err != nil {
+		return err
+	}
+	return client.Do(ctx, client.B().Zrem().Key(s.key("index", channelID)).Member(viewerID).Build()).Error()
+}
+
+func (s SpeechSafety) ChannelBlocks(ctx context.Context, client valkey_go.Client, channelID string) ([]SpeechViewerBlock, error) {
+	index := s.key("index", channelID)
+	expired := client.B().Zremrangebyscore().Key(index).Min("-inf").Max(speechNow()).Build()
+	if err := client.Do(ctx, expired).Error(); err != nil {
+		return nil, err
+	}
+	viewers, err := client.Do(ctx, client.B().Zrange().Key(index).Min("0").Max("-1").Build()).AsStrSlice()
+	if err != nil {
+		return nil, err
+	}
+	blocks := make([]SpeechViewerBlock, 0, len(viewers))
+	for _, viewerID := range viewers {
+		block, err := s.ViewerBlock(ctx, client, channelID, viewerID)
+		if err != nil {
+			return nil, err
+		}
+		if block.Scope != SpeechBlockNone {
+			blocks = append(blocks, SpeechViewerBlock{ViewerID: viewerID, Scope: block.Scope, Until: block.Until})
+		}
+	}
+	return blocks, nil
 }
 
 func (s SpeechSafety) Refusal(ctx context.Context, client valkey_go.Client, channelID, eventID string) error {

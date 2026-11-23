@@ -12,7 +12,11 @@ import { listModulesForEditing, patchModule, type ModuleView } from '#lib/server
 import { moduleEditState } from '#lib/server/module-edit-state';
 import { hasOwnerAccess } from '#lib/server/owner';
 import { auditDashboardImpersonation } from '#lib/server/services/audit';
-import { voiceGet, voiceOverlayGet, voiceOverlayRotate, voiceSet, voiceTestAlert } from '#lib/server/services/voice';
+import {
+  voiceBlock, voiceBlocksGet, voiceGet, voiceOverlayGet, voiceOverlayRotate, voiceSafetyGet, voiceSet,
+  voiceStrikeUnblock, voiceTestAlert, voiceUnblock
+} from '#lib/server/services/voice';
+import { resolveCurrentViewer } from '#lib/server/viewer-lookup';
 import { TTS_COMMAND } from '@bagel/kit/voice-plan';
 import { parseCommandSave, parseVoiceSave, ttsCommandConfig, voiceAlertConfig } from './voice-settings';
 import type { Session } from '#lib/server/session';
@@ -98,11 +102,62 @@ async function persistVoice(session: Session, save: ParsedSave, locale: Locale) 
   }
 }
 
+async function readSafety(session: Session) {
+  const [manual, safety] = await Promise.all([
+    bestEffort(voiceBlocksGet(session), null),
+    bestEffort(voiceSafetyGet(session), null)
+  ]);
+  if (!manual || !safety) return null;
+  return { manual, strikes: safety.blocks, pausedUntil: safety.paused_until };
+}
+
+const viewerLogin = (fields: FormData) => String(fields.get('viewer') ?? '').trim().replace(/^@/, '').toLowerCase();
+const viewerId = (fields: FormData) => String(fields.get('viewer_id') ?? '');
+
+async function blockByName(session: Session, login: string) {
+  const resolved = await resolveCurrentViewer(login);
+  if (resolved.kind === 'missing') return 'voice.blocks.unknown';
+  if (resolved.kind !== 'found') return 'voice.blocks.failed';
+  await voiceBlock(session, { viewer_id: resolved.viewerId, viewer_login: login });
+  return null;
+}
+
+async function runBlockAction(locals: App.Locals, audit: string, run: (session: Session) => Promise<string | null>) {
+  const { session, locale } = locals;
+  if (!session) return fail(401, { blockError: translate(locale, 'serverErrors.notSignedIn') });
+  if (!hasOwnerAccess(session)) return fail(403, { blockError: translate(locale, 'serverErrors.ownerOnly') });
+  try {
+    const refusal = await run(session);
+    if (refusal) return fail(400, { blockError: translate(locale, refusal) });
+    auditDashboardImpersonation(session, audit);
+    return { blocksChanged: true };
+  } catch {
+    return fail(503, { blockError: translate(locale, 'voice.blocks.failed') });
+  }
+}
+
+function unblockByForm(
+  locals: App.Locals,
+  request: Request,
+  audit: string,
+  remove: (session: Session, id: string) => Promise<unknown>
+) {
+  return runBlockAction(locals, audit, async (session) => {
+    await remove(session, viewerId(await request.formData()));
+    return null;
+  });
+}
+
 async function demoSave(fields: FormData, locale: Locale) {
   const save = parseVoiceSave(fields);
   if (save.error !== null) return invalidSave(locale, save.error);
   return { ok: true, rev: (await import('#lib/server/demo-data')).demoVoiceSave(save.settings, save.partial) };
 }
+
+const demoUnblock = (async ({ request }) => {
+  (await import('#lib/server/demo-data')).demoVoiceUnblock({ viewerId: viewerId(await request.formData()) });
+  return { blocksChanged: true };
+}) satisfies Actions[string];
 
 const demoActions = {
   save: async ({ locals: { locale }, request }) => demoSave(await request.formData(), locale),
@@ -112,11 +167,20 @@ const demoActions = {
     return { ok: true, rev: save.expectedRev + 1 };
   },
   rotateOverlay: async () => ({ overlayUrl: 'https://overlay.itsbagelbot.com/tts#demo' }),
-  testAlert: async () => ({ testAlertSent: true })
+  testAlert: async () => ({ testAlertSent: true }),
+  blockViewer: async ({ locals: { locale }, request }) => {
+    const demo = await import('#lib/server/demo-data');
+    if (!demo.demoVoiceBlock({ login: viewerLogin(await request.formData()) })) {
+      return fail(400, { blockError: translate(locale, 'voice.blocks.unknown') });
+    }
+    return { blocksChanged: true };
+  },
+  unblockViewer: demoUnblock,
+  unblockStrike: demoUnblock
 } satisfies Actions;
 
 const demoLoad = (async ({ url }) => {
-  const { allowance, overlay, config, revision } = (await import('#lib/server/demo-data')).demoVoiceView(url.searchParams.get('locked') === '1');
+  const { allowance, overlay, config, revision, safety } = (await import('#lib/server/demo-data')).demoVoiceView(url.searchParams.get('locked') === '1');
   const locked = allowance.reason === 'no_plan';
   return {
     readOnly: false,
@@ -124,25 +188,27 @@ const demoLoad = (async ({ url }) => {
     allowance,
     overlay,
     alerts: locked ? null : { config: voiceAlertConfig(config), revision },
-    command: locked ? null : { config: ttsCommandConfig({}), enabled: false, revision: 0 }
+    command: locked ? null : { config: ttsCommandConfig({}), enabled: false, revision: 0 },
+    safety: locked ? null : safety
   };
 }) satisfies PageServerLoad;
 
 const liveLoad = (async ({ locals: { session } }) => {
   if (!session) throw redirect(302, '/login?next=%2Fvoice');
-  if (!hasOwnerAccess(session)) return { readOnly: true, locked: false, allowance: null, overlay: null, alerts: null, command: null };
+  if (!hasOwnerAccess(session)) return { readOnly: true, locked: false, allowance: null, overlay: null, alerts: null, command: null, safety: null };
 
   const allowance = await bestEffort(voiceGet(session), null);
   const view = { readOnly: false, locked: allowance?.reason === 'no_plan', allowance };
-  if (allowance?.reason !== 'ok') return { ...view, overlay: null, alerts: null, command: null };
+  if (allowance?.reason !== 'ok') return { ...view, overlay: null, alerts: null, command: null, safety: null };
 
-  const [overlay, rows] = await Promise.all([
+  const [overlay, rows, safety] = await Promise.all([
     bestEffort(voiceOverlayGet(session), null),
-    bestEffort(listModulesForEditing(session.user_id), null)
+    bestEffort(listModulesForEditing(session.user_id), null),
+    readSafety(session)
   ]);
-  if (!rows || !overlay) return { ...view, overlay, alerts: null, command: null };
+  if (!rows || !overlay) return { ...view, overlay, alerts: null, command: null, safety };
   const byName = (module: string) => rows.find(({ name }) => name === module);
-  return { ...view, overlay, alerts: alertsView(byName('alerts')), command: commandView(byName(TTS_COMMAND)) };
+  return { ...view, overlay, alerts: alertsView(byName('alerts')), command: commandView(byName(TTS_COMMAND)), safety };
 }) satisfies PageServerLoad;
 
 export const load: PageServerLoad = DEMO ? demoLoad : liveLoad;
@@ -202,7 +268,13 @@ const liveActions = {
     } catch {
       return fail(503, { testAlertError: translate(locale, 'voice.testFailed') });
     }
-  }
+  },
+  blockViewer: async ({ locals, request }) => {
+    const login = viewerLogin(await request.formData());
+    return runBlockAction(locals, 'voice:block', async (session) => (login ? blockByName(session, login) : 'voice.blocks.unknown'));
+  },
+  unblockViewer: ({ locals, request }) => unblockByForm(locals, request, 'voice:unblock', voiceUnblock),
+  unblockStrike: ({ locals, request }) => unblockByForm(locals, request, 'voice:unblock_strike', voiceStrikeUnblock)
 } satisfies Actions;
 
 export const actions = DEMO ? demoActions : liveActions;

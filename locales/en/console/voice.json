@@ -22,6 +22,7 @@
   "inactive": "Cloud voice is paused while the bot is switched off.",
   "banned": "Cloud voice is unavailable.",
   "unavailable": "Voice usage and settings are unavailable. Reload the page to try again.",
+  "paused": "Voice is paused for this channel until {time}.",
   "invalidVoice": "Choose a voice from the list.",
   "saveFailed": "Could not save voice settings. Try again.",
   "overlayTitle": "OBS browser source",
@@ -132,5 +133,21 @@
     "title": "Channel point rewards",
     "body": "Turn on read aloud for any reward and its redeem text plays through your voice source.",
     "open": "Open channel points"
+  },
+  "blocks": {
+    "title": "Blocked viewers",
+    "hint": "Blocked viewers are never read aloud. Repeated abuse also blocks a viewer for a while.",
+    "nameLabel": "Viewer name",
+    "namePlaceholder": "Twitch username",
+    "add": "Block",
+    "unblock": "Unblock",
+    "empty": "No one is blocked.",
+    "tagManual": "Manual",
+    "tagAuto": "Automatic",
+    "tagGlobal": "Global",
+    "until": "Until {time}",
+    "viewerId": "ID {id}",
+    "unknown": "No Twitch user with that name.",
+    "failed": "Could not update blocked viewers. Try again."
   }
 }

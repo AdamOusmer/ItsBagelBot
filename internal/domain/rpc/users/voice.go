@@ -57,3 +57,20 @@ type VoiceCheckReply struct {
 	VoiceReply
 	Allowed bool `json:"allowed"`
 }
+
+type VoiceUnblockRequest struct {
+	VoiceGetRequest
+	ViewerID string `json:"viewer_id"`
+}
+
+type VoiceStrikeBlock struct {
+	ViewerID string `json:"viewer_id"`
+	Scope    string `json:"scope"`
+	Until    int64  `json:"until"`
+}
+
+type VoiceSafetyReply struct {
+	PausedUntil int64              `json:"paused_until"`
+	Blocks      []VoiceStrikeBlock `json:"blocks"`
+	rpc.Refusal
+}

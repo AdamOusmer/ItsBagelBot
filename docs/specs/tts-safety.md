@@ -386,7 +386,9 @@ depend on a default the docs disagree about:
 | `HARM_CATEGORY_HARASSMENT` | `BLOCK_ONLY_HIGH` | banter and trash talk would otherwise refuse and strike |
 | `HARM_CATEGORY_DANGEROUS_CONTENT` | `BLOCK_ONLY_HIGH` | game violence would otherwise refuse and strike |
 
-These are configurable thresholds Google offers on Vertex. Choosing them is
+The Gemini API backend (non-production only) sends the same four thresholds
+through the Interactions API `safety_settings` field. These are configurable
+thresholds Google offers. Choosing them is
 not circumventing a filter. The prohibited-use rules still apply to what we
 send, which the floor covers.
 
@@ -509,14 +511,9 @@ State lives in Valkey, through one definition in `pkg/valkey` (a new
   itself, as it does today when both keys are absent (`providers/all.go:184`),
   and the rest of Gossip starts normally. Non-production environments may
   keep the Gemini API path.
-- **Per-end-user label.** Each request sets the `safety_identifier` entry in
-  `labels`, if the TTS models accept it. Label values must be 1 to 63
-  characters of `[a-z0-9_-]`.
-  - Value: the first 32 hex characters of HMAC-SHA256 over `broadcaster_id`,
-    keyed by a Doppler secret. A plain hash of a public numeric id could be
-    reversed by enumeration.
-  - Support on the TTS models is unconfirmed. A phase 3 test request confirms
-    it. If it is rejected, the label is dropped.
+- **No per-end-user label.** The Vertex `generateContent` reference documents
+  `labels` as "used for billing and reporting only" and names no
+  `safety_identifier` field (checked 2026-11-23), so no label is sent.
 
 ### Telemetry and privacy
 
@@ -575,7 +572,7 @@ Each phase is a separate PR based on `main`, merged and released in order.
 2. **Lexicon expansion** (Decision 1), with corpus additions, and the
    directive rule only if the probe showed the model can be steered.
 3. **Refusal classification, strikes, breakers, operator pause flag,
-   telemetry, `safety_identifier` check.**
+   telemetry.**
 4. **Viewer block list and paused notice** in the dashboard.
 5. **Hold and cancel** (Decision 3, after scope checks on live grants).
 6. **Overlay skip** (Decision 5).

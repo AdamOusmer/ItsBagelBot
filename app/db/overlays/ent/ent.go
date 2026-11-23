@@ -6,6 +6,7 @@ import (
 	"ItsBagelBot/app/db/overlays/ent/overlay"
 	"ItsBagelBot/app/db/overlays/ent/poweredoverlay"
 	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
+	"ItsBagelBot/app/db/overlays/ent/ttsviewerblock"
 	"context"
 	"errors"
 	"fmt"
@@ -78,6 +79,7 @@ func checkColumn(t, c string) error {
 			overlay.Table:        overlay.ValidColumn,
 			poweredoverlay.Table: poweredoverlay.ValidColumn,
 			ttsoverlay.Table:     ttsoverlay.ValidColumn,
+			ttsviewerblock.Table: ttsviewerblock.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

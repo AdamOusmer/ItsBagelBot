@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"ItsBagelBot/app/db/users/repository"
@@ -66,6 +67,58 @@ func (d *dashboardRPC) handleVoiceGet(ctx context.Context, msg *nats.Msg) {
 	}
 	allowance, err := d.repo.VoiceAllowance(ctx, id, time.Now())
 	bus.Respond(msg, voiceReply(allowance, err))
+}
+
+func (d *dashboardRPC) handleVoiceSafety(ctx context.Context, msg *nats.Msg) {
+	req, ok := decodeRequest[usersrpc.VoiceGetRequest](msg)
+	if !ok {
+		return
+	}
+	id, ok := dashboardVoiceOwner(msg, req)
+	if !ok {
+		return
+	}
+	channelID := strconv.FormatUint(id, 10)
+	paused, err := d.safety.Rules.ChannelPausedUntil(ctx, d.safety.Store, channelID)
+	if err != nil {
+		respondFail(msg, err)
+		return
+	}
+	blocks, err := d.safety.Rules.ChannelBlocks(ctx, d.safety.Store, channelID)
+	if err != nil {
+		respondFail(msg, err)
+		return
+	}
+	reply := usersrpc.VoiceSafetyReply{Blocks: make([]usersrpc.VoiceStrikeBlock, 0, len(blocks))}
+	if !paused.IsZero() {
+		reply.PausedUntil = paused.UnixMilli()
+	}
+	for _, block := range blocks {
+		reply.Blocks = append(reply.Blocks, usersrpc.VoiceStrikeBlock{
+			ViewerID: block.ViewerID, Scope: string(block.Scope), Until: block.Until.UnixMilli(),
+		})
+	}
+	bus.Respond(msg, reply)
+}
+
+func (d *dashboardRPC) handleVoiceUnblock(ctx context.Context, msg *nats.Msg) {
+	req, ok := decodeRequest[usersrpc.VoiceUnblockRequest](msg)
+	if !ok {
+		return
+	}
+	id, ok := dashboardVoiceOwner(msg, req.VoiceGetRequest)
+	if !ok {
+		return
+	}
+	if req.ViewerID == "" {
+		respondErr(msg, "viewer_id required")
+		return
+	}
+	if err := d.safety.Rules.ClearViewer(ctx, d.safety.Store, strconv.FormatUint(id, 10), req.ViewerID); err != nil {
+		respondFail(msg, err)
+		return
+	}
+	respondOK(msg)
 }
 
 func dashboardVoiceOwner(msg *nats.Msg, req usersrpc.VoiceGetRequest) (uint64, bool) {

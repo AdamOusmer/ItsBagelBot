@@ -6,9 +6,18 @@ package rpc
 import (
 	"ItsBagelBot/app/db/users/repository"
 	"ItsBagelBot/pkg/bus"
+	pkgvalkey "ItsBagelBot/pkg/valkey"
+
+	"github.com/valkey-io/valkey-go"
 )
+
+type Safety struct {
+	Store valkey.Client
+	Rules pkgvalkey.SpeechSafety
+}
 
 type Wiring struct {
 	bus.RPCWiring
-	Repo *repository.Users
+	Repo   *repository.Users
+	Safety Safety
 }

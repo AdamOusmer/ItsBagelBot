@@ -14,3 +14,6 @@ type PoweredOverlay func(*sql.Selector)
 
 // TtsOverlay is the predicate function for ttsoverlay builders.
 type TtsOverlay func(*sql.Selector)
+
+// TtsViewerBlock is the predicate function for ttsviewerblock builders.
+type TtsViewerBlock func(*sql.Selector)

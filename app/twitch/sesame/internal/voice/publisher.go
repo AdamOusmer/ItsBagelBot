@@ -51,6 +51,12 @@ func (p Publisher) Publish(ctx context.Context, job voiceplan.AlertJob) error {
 	return p.Jobs.Publish(ctx, bus.GossipJob{Kind: bus.GossipJobTTS, UserID: job.BroadcasterID, EventID: job.EventID, Value: job})
 }
 
+func (p Publisher) BlockedViewers(ctx context.Context, id string) ([]string, error) {
+	reply, err := bus.RequestJSONTimeout[overlaysrpc.TtsSettingsReply](ctx, p.RPC,
+		overlaysrpc.TtsSettingsSubject, overlaysrpc.TtsUserRequest{UserID: id}, usersTimeout)
+	return reply.BlockedViewers, err
+}
+
 func (p Publisher) logSkipped(ctx context.Context, job voiceplan.AlertJob) {
 	if p.Log == nil {
 		return

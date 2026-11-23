@@ -22,6 +22,7 @@
   "inactive": "La voz en la nube está en pausa mientras el bot está desactivado.",
   "banned": "La voz en la nube no está disponible.",
   "unavailable": "El uso y los ajustes de voz no están disponibles. Recarga la página para volver a intentarlo.",
+  "paused": "La voz está en pausa en este canal hasta {time}.",
   "invalidVoice": "Elige una voz de la lista.",
   "saveFailed": "No se pudieron guardar los ajustes de voz. Inténtalo de nuevo.",
   "overlayTitle": "Fuente de navegador de OBS",
@@ -132,5 +133,21 @@
     "title": "Recompensas de puntos del canal",
     "body": "Elige Leer en voz alta el mensaje del espectador en cualquier recompensa y su texto suena por tu fuente de voz.",
     "open": "Abrir puntos del canal"
+  },
+  "blocks": {
+    "title": "Espectadores bloqueados",
+    "hint": "Los espectadores bloqueados nunca se leen en voz alta. El abuso repetido también bloquea a un espectador durante un tiempo.",
+    "nameLabel": "Nombre del espectador",
+    "namePlaceholder": "Usuario de Twitch",
+    "add": "Bloquear",
+    "unblock": "Desbloquear",
+    "empty": "Nadie está bloqueado.",
+    "tagManual": "Manual",
+    "tagAuto": "Auto",
+    "tagGlobal": "Global",
+    "until": "Hasta {time}",
+    "viewerId": "ID {id}",
+    "unknown": "No hay ningún usuario de Twitch con ese nombre.",
+    "failed": "No se pudo actualizar la lista de bloqueados. Inténtalo de nuevo."
   }
 }

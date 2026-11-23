@@ -114,17 +114,52 @@ func TestSpeechSafetyGlobalBlockWinsAndClearKeepsIt(t *testing.T) {
 	require.Equal(t, SpeechBlockGlobal, block.Scope)
 }
 
-func TestSpeechSafetyClearViewerLiftsChannelBlock(t *testing.T) {
+func TestSpeechSafetyChannelBlockEnds(t *testing.T) {
+	cases := []struct {
+		name     string
+		duration time.Duration
+		wait     time.Duration
+		clear    bool
+	}{
+		{name: "expired", duration: 300 * time.Millisecond, wait: 400 * time.Millisecond},
+		{name: "cleared", duration: time.Minute, clear: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := valkeytest.Real(t)
+			ctx := context.Background()
+			safety := testSpeechSafety(t, SpeechLimits{ViewerChannelStrikes: 1, ViewerChannelWindow: time.Minute, ViewerChannelBlock: tc.duration})
+			require.NoError(t, safety.Strike(ctx, client, SpeechStrike{ChannelID: "c1", ViewerID: "v1", EventID: "a", Weight: 1}))
+			time.Sleep(tc.wait)
+			if tc.clear {
+				require.NoError(t, safety.ClearViewer(ctx, client, "c1", "v1"))
+			}
+
+			blocks, err := safety.ChannelBlocks(ctx, client, "c1")
+			require.NoError(t, err)
+			require.Empty(t, blocks)
+		})
+	}
+}
+
+func TestSpeechSafetyChannelBlocksIndex(t *testing.T) {
 	client := valkeytest.Real(t)
 	ctx := context.Background()
-	safety := testSpeechSafety(t, SpeechLimits{ViewerChannelStrikes: 1, ViewerChannelWindow: time.Minute, ViewerChannelBlock: time.Minute})
-	require.NoError(t, safety.Strike(ctx, client, SpeechStrike{ChannelID: "c1", ViewerID: "v1", EventID: "a", Weight: 1}))
-	require.NoError(t, safety.ClearViewer(ctx, client, "c1", "v1"))
+	safety := testSpeechSafety(t, SpeechLimits{ViewerChannelStrikes: 1, ViewerChannelWindow: time.Minute, ViewerChannelBlock: time.Hour})
+	for _, viewer := range []string{"v1", "v2"} {
+		require.NoError(t, safety.Strike(ctx, client, SpeechStrike{ChannelID: "c1", ViewerID: viewer, EventID: viewer, Weight: 1}))
+	}
+	require.NoError(t, safety.Strike(ctx, client, SpeechStrike{ChannelID: "c2", ViewerID: "v3", EventID: "x", Weight: 1}))
+	require.NoError(t, safety.ClearViewer(ctx, client, "c1", "v2"))
 
-	block, err := safety.ViewerBlock(ctx, client, "c1", "v1")
+	blocks, err := safety.ChannelBlocks(ctx, client, "c1")
 	require.NoError(t, err)
-	require.Equal(t, SpeechBlockNone, block.Scope)
+	require.Len(t, blocks, 1)
+	require.Equal(t, "v1", blocks[0].ViewerID)
+	require.Equal(t, SpeechBlockChannel, blocks[0].Scope)
+	require.WithinDuration(t, time.Now().Add(time.Hour), blocks[0].Until, 5*time.Second)
 }
+
 
 func TestSpeechSafetyDisabledBreakersDoNothing(t *testing.T) {
 	client := valkeytest.Real(t)
