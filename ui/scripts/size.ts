@@ -328,7 +328,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/file-drop", budget: 740 }, // 514 B
   { name: "elements/picker-panel", budget: 1360 }, // 1081 B
   { name: "elements/stepper", budget: 1590 }, // 1287 B: compact narrow-screen label (2026-09-29)
-  { name: "elements/setup-stage", budget: 1330 }, // 1029 B: shared onboarding/setup shell, viewport-fit sizing (2026-10-28)
+  { name: "elements/setup-stage", budget: 1600 }, // 1550 B: onboarding shell plus split layout and mesh orb finish (2026-11-23)
   { name: "elements/setup-step", budget: 1330 }, // 1157 B: setup step copy, lifted note and recessed rows (2026-10-28)
   { name: "elements/spinner", budget: 500 }, // 303 B
   { name: "elements/line-series", budget: 940 }, // 704 B
