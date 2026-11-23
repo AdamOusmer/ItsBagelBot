@@ -474,7 +474,9 @@ defmodule ControlsGateway.OverlayTest do
       Gnat.request(
         :gnat_jetstream,
         "overlays.premium.tts.7",
-        Jason.encode!(%{event_id: "foreign"}), headers: [{"Nats-Msg-Id", "foreign"}])
+        Jason.encode!(%{event_id: "foreign"}),
+        headers: [{"Nats-Msg-Id", "foreign"}]
+      )
 
     eventually(fn -> counter("Offer/Timeout") > before end, 60)
     HttpClient.close(live)
