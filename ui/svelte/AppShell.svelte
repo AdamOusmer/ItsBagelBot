@@ -29,6 +29,7 @@
     account?: Snippet;
     railAccount?: UiAccount;
     railAccountOpen?: boolean;
+    immersive?: boolean;
     children: Snippet;
     class?: string;
   };
@@ -52,6 +53,7 @@
     account,
     railAccount,
     railAccountOpen = $bindable(false),
+    immersive,
     children,
     class: className = '',
     ...rest
@@ -63,6 +65,7 @@
       offset ? 'bb-shell--offset' : null,
       stacked ? 'bb-shell--stacked' : null,
       rail ? 'bb-shell--railed' : null,
+      immersive ? 'bb-shell--immersive' : null,
       className || null,
     ]
       .filter(Boolean)
@@ -87,10 +90,10 @@
 
 <div class={classes} {...rest}>
   {#if rail}
-    <Rail {brand} {groups} account={railAccount} bind:accountOpen={railAccountOpen} label={railLabel} />
+    <Rail {brand} {groups} account={railAccount} bind:accountOpen={railAccountOpen} label={railLabel} collapsible={immersive} collapsed={immersive} />
   {/if}
   <div class="bb-shell__stage">
-    <Topbar
+    {#if !immersive}<Topbar
       {brand}
       {crumbs}
       {crumbLabel}
@@ -98,7 +101,7 @@
       railed={rail}
       actions={topActions}
       {account}
-    />
+    />{/if}
     <main class="bb-shell__main" id="main-content" tabindex="-1" bind:this={mainEl}>
       <div class="bb-shell__canvas">{@render children()}</div>
     </main>

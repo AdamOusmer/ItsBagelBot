@@ -52,6 +52,10 @@
     display: contents;
   }
 
+  .bb-shell--immersive .bb-shell__dock-slot {
+    display: none;
+  }
+
   .bb-shell__main {
     display: flex;
     flex-direction: column;

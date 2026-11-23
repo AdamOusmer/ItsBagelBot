@@ -11,15 +11,50 @@
         padding: var(--bb-space-3);
         overflow: auto;
         border-radius: var(--bb-radius-md);
-        background: var(--bb-black);
+        background-color: var(--bb-black);
     }
 
     .bb-overlay-canvas__frame {
         position: relative;
         flex: none;
         margin: auto;
-        background: var(--bb-bg-1);
+        background-color: var(--bb-bg-1);
         outline: 1px solid var(--bb-rule-strong);
+    }
+
+    .bb-overlay-canvas__frame.bb-dot-canvas {
+        background-color: var(--bb-bg-1);
+    }
+
+    .bb-overlay-canvas__size {
+        position: absolute;
+        right: 6px;
+        bottom: 100%;
+        margin-bottom: 4px;
+        font-family: var(--bb-font-mono);
+        font-size: 11px;
+        line-height: 1.2;
+        color: var(--bb-muted);
+        white-space: nowrap;
+        pointer-events: none;
+    }
+
+    .bb-overlay-canvas__tag {
+        position: absolute;
+        bottom: 100%;
+        left: -1px;
+        max-width: 100%;
+        padding: 1px 6px;
+        overflow: hidden;
+        border-radius: var(--bb-radius-xs) var(--bb-radius-xs) 0 0;
+        background: var(--bb-green-glow);
+        color: var(--bb-black);
+        font-family: var(--bb-font-body);
+        font-size: 11px;
+        line-height: 1.4;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        pointer-events: none;
     }
 
     .bb-overlay-canvas__box {

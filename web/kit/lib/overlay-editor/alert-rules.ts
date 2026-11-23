@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import type { WidgetKind } from '../overlay-document';
 import type { Settings } from './defaults';
 
 export type Bucket = 'events' | 'rules';
@@ -8,6 +9,8 @@ export type OverrideGroup = 'look' | 'style';
 export type Variation = { condition: string; value: string; overrides: Settings & { style?: Settings } };
 
 export const asSettings = (value: unknown): Settings => (typeof value === 'object' && value !== null ? (value as Settings) : {});
+
+export const ruleKind = (kind: WidgetKind): 'alertbox' | 'eventlist' | undefined => (kind === 'alertbox' || kind === 'eventlist' ? kind : undefined);
 
 export const bucketOf = (kind: 'alertbox' | 'eventlist'): Bucket => (kind === 'alertbox' ? 'events' : 'rules');
 

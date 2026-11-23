@@ -26,6 +26,7 @@ declare global {
     }
     interface PageState {
       importing?: boolean;
+      poweredLink?: string;
     }
   }
 }

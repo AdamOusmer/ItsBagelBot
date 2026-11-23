@@ -2,25 +2,30 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
+  import { tick } from 'svelte';
   import { enhance, type SubmitFunction } from '$app/forms';
   import { getI18n } from '@bagel/kit/i18n/context';
   import Badge from '@bagel/ui/svelte/Badge.svelte';
-  import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import CopySurface from '@bagel/ui/svelte/CopySurface.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import IconButton from '@bagel/ui/svelte/IconButton.svelte';
+  import IconTile from '@bagel/ui/svelte/IconTile.svelte';
+  import PickerOption from '@bagel/ui/svelte/PickerOption.svelte';
+  import PickerPanel from '@bagel/ui/svelte/PickerPanel.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import type { OverlayView } from '#lib/server/services/overlays';
 
-  let { overlays, beforeChange }: {
+  let { overlays, busy = $bindable(false), onCreate }: {
     overlays: OverlayView[];
-    beforeChange: () => Promise<void>;
+    busy?: boolean;
+    onCreate: () => void;
   } = $props();
 
   const { t } = getI18n();
-  const NEW_OVERLAY = 0;
 
   let links = $state<Record<number, string>>({});
   let busyId = $state<number | null>(null);
@@ -28,10 +33,38 @@
   let copyFailedId = $state<number | null>(null);
   let deleteTarget = $state<OverlayView | null>(null);
   let deleteForm = $state<HTMLFormElement>();
+  let rotateForm = $state<HTMLFormElement>();
+  let rotateId = $state<number | ''>('');
+  let menuTarget = $state<OverlayView | null>(null);
+  let menuAnchor = $state<HTMLElement>();
 
-  const hasPowered = $derived(overlays.some((overlay) => overlay.template === 'powered'));
-  const busy = $derived(busyId !== null);
   const status = $derived(error || (copyFailedId === null ? '' : t('overlays.copyFailed')));
+
+  $effect(() => {
+    busy = busyId !== null;
+  });
+
+  function toggleMenu(overlay: OverlayView, event: MouseEvent) {
+    if (menuTarget?.id === overlay.id) {
+      menuTarget = null;
+      return;
+    }
+    menuAnchor = event.currentTarget as HTMLElement;
+    menuTarget = overlay;
+  }
+
+  async function replaceLink() {
+    if (!menuTarget) return;
+    rotateId = menuTarget.id;
+    menuTarget = null;
+    await tick();
+    rotateForm?.requestSubmit();
+  }
+
+  function askDelete() {
+    deleteTarget = menuTarget;
+    menuTarget = null;
+  }
 
   function record(result: { type: string; data?: Record<string, unknown> }) {
     if (result.type === 'success' && typeof result.data?.url === 'string') {
@@ -40,30 +73,14 @@
     if (result.type === 'failure' && typeof result.data?.listError === 'string') error = result.data.listError;
   }
 
-  const submitLink: SubmitFunction = async ({ cancel, formData }) => {
-    if (busy) return cancel();
-    busyId = Number(formData.get('id')) || NEW_OVERLAY;
-    error = '';
-    await beforeChange();
-    return async ({ update, result }) => {
-      try {
-        record(result);
-        await update({ reset: false });
-      } finally {
-        busyId = null;
-      }
-    };
-  };
-
-  const submitDelete: SubmitFunction = async ({ cancel, formData }) => {
+  const submit: SubmitFunction = async ({ cancel, formData }) => {
     if (busy) return cancel();
     busyId = Number(formData.get('id'));
     error = '';
-    await beforeChange();
     return async ({ update, result }) => {
       try {
         record(result);
-        if (result.type === 'success') deleteTarget = null;
+        if (result.type === 'success' && result.data?.deleted) deleteTarget = null;
         await update({ reset: false });
       } finally {
         busyId = null;
@@ -72,22 +89,8 @@
   };
 </script>
 
-<section class="list" aria-labelledby="overlays-title">
-  <div class="list-head">
-    <Heading level={6} as="h2" id="overlays-title">
-      <bb-fit><span data-fit="">{t('overlays.listTitle')}</span></bb-fit>
-    </Heading>
-    <div class="list-actions">
-      <form method="POST" action="?/add" use:enhance={submitLink}>
-        <Button variant="secondary" type="submit" busy={busyId === NEW_OVERLAY} disabled={hasPowered || busy}>
-          <bb-fit class="action-label"><span data-fit="">{t('overlays.addPowered')}</span></bb-fit>
-        </Button>
-      </form>
-      <ButtonLink variant="secondary" href="/overlays/custom">
-        <bb-fit class="action-label"><span data-fit="">{t('overlays.createCustom')}</span></bb-fit>
-      </ButtonLink>
-    </div>
-  </div>
+<section class="list" aria-label={t('overlays.yours')}>
+  <Heading level={5} as="h2"><bb-fit><span data-fit="">{t('overlays.yours')}</span></bb-fit></Heading>
   <div class="feedback bb-fit-box" class:visible={!!status} role="status">
     <Text as="div" size="xs" tone="danger"><bb-fit mode="block">{status}</bb-fit></Text>
   </div>
@@ -95,46 +98,69 @@
     {#each overlays as overlay (overlay.id)}
       {@const url = links[overlay.id]}
       <li>
-        <Card as="section" class="item" aria-labelledby="overlay-{overlay.id}">
-          <div class="name">
-            <Heading level={6} as="h3" id="overlay-{overlay.id}">
-              <bb-fit><span data-fit="">{overlay.name}</span></bb-fit>
-            </Heading>
-            <Badge tone={overlay.kind === 'custom' ? 'paid' : 'free'}>{t(`overlays.kind.${overlay.kind}`)}</Badge>
+        <Card as="section" flush class="item" aria-labelledby="overlay-{overlay.id}" aria-busy={busyId === overlay.id}>
+          <div class="thumb" aria-hidden="true">
+            <span class="thumb-icon"><Icon name="overlay" size={32} /></span>
           </div>
-          <div class="link">
-            <div class="layer" class:visible={!url} aria-hidden={!!url}>
-              <Text as="div" size="xs" tone="muted"><bb-fit mode="block">{t('overlays.linkHidden')}</bb-fit></Text>
+          <div class="body">
+            <div class="name">
+              <Heading level={6} as="h3" id="overlay-{overlay.id}">
+                <bb-fit><span data-fit="">{overlay.name}</span></bb-fit>
+              </Heading>
+              <Badge tone="paid">{t('overlays.kind.custom')}</Badge>
             </div>
-            <div class="layer" class:visible={!!url} inert={!url}>
-              {#if url}
-                <CopySurface variant="well" text={url} aria-label={t('overlays.link')} legacyFallback
-                  onCopy={(copied) => (copyFailedId = copied ? null : overlay.id)} />
-              {/if}
+            <div class="link">
+              <div class="layer" class:visible={!url} aria-hidden={!!url}>
+                <Text as="div" size="xs" tone="muted"><bb-fit mode="block">{t('overlays.linkHidden')}</bb-fit></Text>
+              </div>
+              <div class="layer" class:visible={!!url} inert={!url}>
+                {#if url}
+                  <CopySurface variant="well" text={url} aria-label={t('overlays.link')} legacyFallback
+                    onCopy={(copied) => (copyFailedId = copied ? null : overlay.id)} />
+                {/if}
+              </div>
             </div>
-          </div>
-          <div class="item-actions">
-            <form method="POST" action="?/rotate" use:enhance={submitLink}>
-              <input type="hidden" name="id" value={overlay.id} />
-              <Button variant="secondary" type="submit" busy={busyId === overlay.id} disabled={busy}>
-                <bb-fit class="action-label"><span data-fit="">{t('overlays.replace')}</span></bb-fit>
-              </Button>
-            </form>
-            {#if overlay.kind === 'custom'}
-              <Button variant="secondary" type="button" disabled={busy} onclick={() => (deleteTarget = overlay)}>
-                <bb-fit class="action-label"><span data-fit="">{t('common.delete')}</span></bb-fit>
-              </Button>
-            {/if}
+            <div class="item-actions">
+              <IconButton
+                label={t('overlays.menuFor', { name: overlay.name })}
+                aria-haspopup="dialog"
+                aria-expanded={menuTarget?.id === overlay.id}
+                disabled={busy}
+                onclick={(event) => toggleMenu(overlay, event)}
+              >
+                <span aria-hidden="true">…</span>
+              </IconButton>
+              <div class="edit">
+                <ButtonLink variant="secondary" href="/overlays/custom?id={overlay.id}" aria-label={t('overlays.editNamed', { name: overlay.name })}>
+                  <bb-fit class="action-label"><span data-fit="">{t('overlays.edit')}</span></bb-fit>
+                </ButtonLink>
+              </div>
+            </div>
           </div>
         </Card>
       </li>
     {:else}
-      <li class="empty"><Text as="p" size="sm" tone="muted">{t('overlays.listEmpty')}</Text></li>
+      <li>
+        <Card as="button" type="button" dashed hover class="tile-card" style="--bb-cursor: quiet" onclick={onCreate}>
+          <IconTile size="lg"><Icon name="plus" size={20} /></IconTile>
+          <span class="tile-title"><bb-fit><span data-fit="">{t('overlays.emptyTitle')}</span></bb-fit></span>
+          <span class="tile-body bb-fit-box"><Text as="span" size="xs" tone="muted"><bb-fit mode="block">{t('overlays.emptyBody')}</bb-fit></Text></span>
+        </Card>
+      </li>
     {/each}
   </ul>
 </section>
 
-<form class="delete-form" method="POST" action="?/delete" use:enhance={submitDelete} bind:this={deleteForm}>
+<PickerPanel open={menuTarget !== null} anchor={menuAnchor} label={t('overlays.menuTitle')} width={220} maxHeight={140} placement="below" onClose={() => (menuTarget = null)}>
+  <PickerOption label={t('overlays.replace')} onclick={replaceLink} />
+  <PickerOption label={t('common.delete')} onclick={askDelete} />
+</PickerPanel>
+
+<form class="hidden-form" method="POST" action="?/rotate" use:enhance={submit} bind:this={rotateForm}>
+  <input type="hidden" name="id" value={rotateId} />
+</form>
+
+<form class="hidden-form" method="POST" action="?/delete" use:enhance={submit} bind:this={deleteForm}>
   <input type="hidden" name="id" value={deleteTarget?.id ?? ''} />
 </form>
 
@@ -152,14 +178,6 @@
 
 <style>
   .list { display: grid; gap: var(--bb-space-3); margin-block-end: var(--bb-space-5); }
-  .list-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--bb-space-3);
-  }
-  .list-actions { display: flex; flex-wrap: wrap; gap: var(--bb-space-3); }
   .action-label { line-height: 1.4; }
   .feedback {
     block-size: 1.25rem;
@@ -169,24 +187,57 @@
     opacity: 0;
   }
   .feedback.visible { opacity: 1; }
-  .cards { display: grid; gap: var(--bb-space-3); margin: 0; padding: 0; list-style: none; }
-  .list :global(.item) {
+  .cards {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 27.5rem) auto;
-    align-items: center;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: var(--bb-space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
-  .name { display: flex; align-items: center; gap: var(--bb-space-3); min-inline-size: 0; }
+  .cards > li { display: grid; min-inline-size: 0; }
+  .list :global(.item) { display: grid; grid-template-rows: auto 1fr; block-size: 100%; }
+  .thumb {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 16 / 9;
+    background: linear-gradient(150deg, var(--bb-elev-2), var(--bb-bg-1));
+    color: var(--bb-white);
+  }
+  .thumb-icon { display: grid; opacity: 0.55; }
+  .body { display: grid; grid-template-rows: auto 2.75rem auto; gap: var(--bb-space-3); padding: var(--bb-space-4); }
+  .name { display: flex; align-items: center; justify-content: space-between; gap: var(--bb-space-3); min-inline-size: 0; }
   .link { display: grid; min-inline-size: 0; }
   .layer { grid-area: 1 / 1; align-content: center; min-inline-size: 0; opacity: 0; }
   .layer.visible { opacity: 1; }
-  .item-actions { display: flex; gap: var(--bb-space-3); }
-  .item-actions form { display: contents; }
-  .delete-form { display: none; }
+  .item-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--bb-space-3); }
+  .edit { min-inline-size: 5.5rem; }
+  .list :global(.tile-card) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--bb-space-2);
+    inline-size: 100%;
+    block-size: 100%;
+    min-block-size: 12rem;
+    padding: var(--bb-space-4);
+    color: inherit;
+    font: inherit;
+    text-align: center;
+    cursor: pointer;
+  }
+  .list :global(.tile-card:disabled) { cursor: default; }
+  .tile-title { display: block; inline-size: 100%; min-inline-size: 0; font-weight: 700; line-height: 1.4; }
+  .tile-body { display: block; inline-size: 100%; min-inline-size: 0; block-size: 2.5em; line-height: 1.25; }
+  .hidden-form { display: none; }
   @media (prefers-reduced-motion: no-preference) {
     .feedback, .layer { transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo); }
   }
-  @media (max-width: 760px) {
-    .list :global(.item) { grid-template-columns: minmax(0, 1fr); }
+  @media (max-width: 1100px) {
+    .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 640px) {
+    .cards { grid-template-columns: minmax(0, 1fr); }
   }
 </style>

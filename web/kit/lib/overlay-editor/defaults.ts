@@ -92,6 +92,14 @@ export function completeSettings(kind: string, settings: Settings | null): Setti
   return merge(base, settings ?? {}) as Settings;
 }
 
+const countsUp = (key: string, value: unknown): boolean => key === 'mode' && value === 'countup';
+
+export function applySetting(kind: WidgetKind, settings: Settings, key: string, value: unknown): Settings {
+  const next = { ...settings, [key]: value };
+  if (kind === 'timer' && countsUp(key, value)) next.at = new Date().toISOString();
+  return next;
+}
+
 export function newWidget(kind: EditableKind, canvas: Canvas, name: string): OverlayWidget {
   const w = Math.round(canvas.width * 0.45);
   const h = Math.round(canvas.height * 0.28);

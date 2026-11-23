@@ -98,8 +98,7 @@
     moduleLinks: data.moduleNav
   }));
   const groups = $derived(dashboardNavGroups(items, t));
-  const showBanner = $derived(isDelegate || !!data.impersonatorLogin);
-</script>
+  const showBanner = $derived(isDelegate || !!data.impersonatorLogin);</script>
 
 <svelte:head>
   <meta name="robots" content="noindex, nofollow" />
@@ -119,6 +118,7 @@
   stacked={isDelegate && !!data.impersonatorLogin}
   logoSrc={data.isPremium ? '/premium-logo.png' : '/logo.png'}
   isPremium={data.isPremium}
+  immersive={path.startsWith('/overlays/custom')}
   {isDelegate}
   delegateExitHref="/delegate/exit"
   delegateExitLabel={t('banner.exit')}

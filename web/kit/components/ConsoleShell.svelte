@@ -15,13 +15,13 @@
   let {
     brandTitle = 'ItsBagelBot', brandSub, crumbRoot, crumb,
     accountName, accountRole, dashboards = [], groups, mobileItems, rail = false,
-    offset = false, stacked = false, logoSrc = '/logo.png', isPremium = false, banner, topActions, children,
+    offset = false, stacked = false, logoSrc = '/logo.png', isPremium = false, immersive, banner, topActions, children,
     isDelegate = false, delegateExitHref = '', delegateExitLabel = ''
   }: {
     brandTitle?: string; brandSub: string; crumbRoot: string; crumb: string;
     accountName: string; accountRole: string; dashboards?: DashboardLink[];
     groups: NavGroupDef[]; mobileItems: NavLink[]; rail?: boolean;
-    offset?: boolean; stacked?: boolean; logoSrc?: string; isPremium?: boolean; banner?: Snippet; topActions?: Snippet; children: Snippet;
+    offset?: boolean; stacked?: boolean; logoSrc?: string; isPremium?: boolean; immersive?: boolean; banner?: Snippet; topActions?: Snippet; children: Snippet;
     isDelegate?: boolean; delegateExitHref?: string; delegateExitLabel?: string;
   } = $props();
 
@@ -63,6 +63,7 @@
   {topActions}
   {railAccount}
   bind:railAccountOpen
+  {immersive}
 >
   {#snippet account()}
     {#if accountName}

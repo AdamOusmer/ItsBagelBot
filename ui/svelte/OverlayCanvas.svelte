@@ -7,6 +7,7 @@
 </script>
 
 <script lang="ts">
+  import '../styles/elements/dot-canvas.css';
   import '../styles/elements/overlay-canvas.css';
   import type { Snippet } from 'svelte';
   import { clampBox, HANDLES, transformBox, type Guides, type Handle } from '../lib/box-transform';
@@ -23,12 +24,20 @@
     oncommit?: () => void;
     oncancel?: () => void;
     preview?: Snippet<[CanvasBox, number]>;
+    dots?: boolean;
+    frameLabel?: string;
+    tagSelected?: boolean;
+    onscale?: (scale: number) => void;
+    fitMargin?: number;
     class?: string;
   };
 
   type Drag = { box: CanvasBox; handle: Handle; pointer: number; x: number; y: number; others: readonly Box[] };
 
   const FIT_MARGIN = 24;
+  const LABEL_ROOM = 20;
+  const DOT_UNIT = 40;
+  const DOT_MIN_GAP = 12;
   const SNAP_PIXELS = 7;
   const NUDGE = 1;
   const NUDGE_FAST = 10;
@@ -46,6 +55,11 @@
     oncommit,
     oncancel,
     preview,
+    dots = false,
+    frameLabel,
+    tagSelected = false,
+    onscale,
+    fitMargin = FIT_MARGIN,
     class: className = '',
   }: Own = $props();
 
@@ -54,7 +68,12 @@
   let viewportWidth = $state(0);
   let viewportHeight = $state(0);
 
-  const scale = $derived(zoom || Math.max(0.01, Math.min((viewportWidth - FIT_MARGIN) / width, (viewportHeight - FIT_MARGIN) / height)));
+  const verticalMargin = $derived(FIT_MARGIN + (frameLabel ? LABEL_ROOM : 0));
+  const scale = $derived(zoom || Math.max(0.01, Math.min((viewportWidth - fitMargin) / width, (viewportHeight - verticalMargin) / height)));
+
+  const dotGap = $derived(DOT_UNIT * scale * 2 ** Math.max(0, Math.ceil(Math.log2(DOT_MIN_GAP / (DOT_UNIT * scale)))));
+
+  $effect(() => onscale?.(scale));
 
   function begin(event: PointerEvent, box: CanvasBox, handle: Handle): void {
     if (event.button !== 0) return;
@@ -94,7 +113,13 @@
 </script>
 
 <div class={['bb-overlay-canvas', className]} bind:clientWidth={viewportWidth} bind:clientHeight={viewportHeight}>
-  <div class="bb-overlay-canvas__frame" style:width={`${width * scale}px`} style:height={`${height * scale}px`}>
+  <div
+    class={['bb-overlay-canvas__frame', dots && 'bb-dot-canvas']}
+    style:width={`${width * scale}px`}
+    style:height={`${height * scale}px`}
+    style:background-size={dots ? `${dotGap}px ${dotGap}px` : undefined}
+  >
+    {#if frameLabel}<span class="bb-overlay-canvas__size">{frameLabel}</span>{/if}
     {#each boxes as box (box.id)}
       {#if !box.hidden}
         <div
@@ -111,6 +136,7 @@
           <button
             type="button"
             class="bb-overlay-canvas__target"
+            style="--bb-cursor: quiet"
             aria-label={box.label}
             title={box.label}
             aria-pressed={selected === box.id}
@@ -121,6 +147,7 @@
             onpointerup={finish}
             onpointercancel={finish}
           ></button>
+          {#if tagSelected && selected === box.id}<span class="bb-overlay-canvas__tag">{box.label}</span>{/if}
           {#if selected === box.id && !box.locked}
             {#each HANDLES as handle (handle)}
               <button

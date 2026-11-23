@@ -1,79 +1,38 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import Button from '@bagel/ui/svelte/Button.svelte';
-  import Disclosure from '@bagel/ui/svelte/Disclosure.svelte';
-  import Field from '@bagel/ui/svelte/Field.svelte';
-  import Select from '@bagel/ui/svelte/Select.svelte';
+  import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import IconButton from '@bagel/ui/svelte/IconButton.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
-  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '../../lib/i18n/context';
-  import {
-    asSettings, bucketOf, entryOf, newVariation, patchEntry, replaceVariation, variationsOf, type Variation
-  } from '../../lib/overlay-editor/alert-rules';
-  import type { MediaBinding } from '../../lib/overlay-editor/binding';
+  import { bucketOf, entryOf, patchEntry } from '../../lib/overlay-editor/alert-rules';
   import { ALERT_KINDS, type AlertKind, type Settings } from '../../lib/overlay-editor/defaults';
-  import { alertFields, listRule, typography } from '../../lib/overlay-editor/fields';
-  import Fit from './Fit.svelte';
-  import SettingControl from './SettingControl.svelte';
-  import VariationEditor from './VariationEditor.svelte';
 
-  let { kind, settings, update, binding }: {
+  let { kind, settings, update, onadvanced }: {
     kind: 'alertbox' | 'eventlist';
     settings: Settings;
     update: (settings: Settings) => void;
-    binding?: MediaBinding;
+    onadvanced: (event: AlertKind) => void;
   } = $props();
 
   const { t } = getI18n();
-  let event = $state<AlertKind>('follow');
-
   const bucket = $derived(bucketOf(kind));
-  const entry = $derived(entryOf(settings, bucket, event));
-  const entryFields = $derived(kind === 'alertbox' ? alertFields : listRule);
-  const style = $derived(asSettings(entry.style));
-  const variations = $derived(variationsOf(entry));
-  const eventOptions = ALERT_KINDS.map((value) => ({ value, label: t(`overlayEditor.alert.${value}`) }));
-
-  const change = (patch: Settings): void => update(patchEntry(settings, bucket, event, patch));
-  const setVariation = (index: number, item: Variation): void => change({ variations: replaceVariation(variations, index, item) });
-  const conditionName = (item: Variation): string => t(`overlayEditor.option.${item.condition}`);
+  const isOn = (event: AlertKind): boolean => entryOf(settings, bucket, event).enabled !== false;
+  const toggle = (event: AlertKind, enabled: boolean): void => update(patchEntry(settings, bucket, event, { enabled }));
 </script>
 
-<Stack gap={3}>
-  <Field label={t('overlayEditor.ui.eventSettings')} fit>
-    <Select label={t('overlayEditor.ui.eventSettings')} options={eventOptions} value={event} fill onchange={(e) => (event = e.currentTarget.value as AlertKind)} />
-  </Field>
-  {#each entryFields as field (field.key)}
-    <SettingControl {field} value={entry[field.key]} update={(next) => change({ [field.key]: next })} {binding} />
+<Stack gap={1}>
+  {#each ALERT_KINDS as event (event)}
+    <div class="rule">
+      <Checkbox checked={isOn(event)} onchange={(change) => toggle(event, change.currentTarget.checked)}>{t(`overlayEditor.alert.${event}`)}</Checkbox>
+      <IconButton label={t('overlayEditor.ui.advanced')} size="sm" tooltip onclick={() => onadvanced(event)}>
+        <Icon name="gear" size={14} />
+      </IconButton>
+    </div>
   {/each}
-  {#if kind === 'alertbox'}
-    <Disclosure summary={t('overlayEditor.ui.alertTypography')} size="sm">
-      <Stack gap={3}>
-        {#each typography as field (field.key)}
-          <SettingControl {field} value={style[field.key]} update={(next) => change({ style: { ...style, [field.key]: next } })} />
-        {/each}
-      </Stack>
-    </Disclosure>
-    <Disclosure summary={t('overlayEditor.ui.variations')} size="sm">
-      <Stack gap={3}>
-        {#each variations as item, index (index)}
-          <Disclosure summary={t('overlayEditor.ui.variationItem', { number: index + 1, condition: conditionName(item) })} size="sm">
-            <VariationEditor
-              {item}
-              {entry}
-              {style}
-              {binding}
-              change={(next) => setVariation(index, next)}
-              remove={() => change({ variations: variations.filter((_, position) => position !== index) })}
-            />
-          </Disclosure>
-        {/each}
-        <Text size="xs" tone="muted">{t('overlayEditor.ui.variationHint')}</Text>
-        <Button size="sm" variant="secondary" onclick={() => change({ variations: [...variations, newVariation()] })}>
-          <Fit>{t('overlayEditor.ui.addVariation')}</Fit>
-        </Button>
-      </Stack>
-    </Disclosure>
-  {/if}
 </Stack>
+
+<style>
+  .rule { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; }
+</style>
