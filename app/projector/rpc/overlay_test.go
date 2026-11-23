@@ -71,9 +71,11 @@ func TestOverlayResolveAllowsByKindAndPremium(t *testing.T) {
 	system := testOverlay(1, 41, "system", "system")
 	customFree := testOverlay(2, 42, "custom", "custom-free")
 	customPaid := testOverlay(3, 43, "custom", "custom-paid")
-	o := newOverlayFixture(t, system, customFree, customPaid)
+	customAlpha := testOverlay(6, 46, "custom", "custom-alpha")
+	o := newOverlayFixture(t, system, customFree, customPaid, customAlpha)
 	ctx := t.Context()
 	require.NoError(t, o.f.store.SetUser(ctx, 43, projection.UserProjection{Status: "premium", IsActive: true}))
+	require.NoError(t, o.f.store.SetUser(ctx, 46, projection.UserProjection{Alpha: true}))
 
 	cases := []struct {
 		name    string
@@ -83,7 +85,8 @@ func TestOverlayResolveAllowsByKindAndPremium(t *testing.T) {
 	}{
 		{"system overlay for a free user", system, true, false},
 		{"custom overlay for a free user", customFree, false, false},
-		{"custom overlay for a premium user", customPaid, true, true},
+		{"custom overlay for a premium user without alpha", customPaid, false, true},
+		{"custom overlay for an alpha user", customAlpha, true, false},
 	}
 	for _, c := range cases {
 		reply := o.resolve(t, c.overlay.TokenHash)

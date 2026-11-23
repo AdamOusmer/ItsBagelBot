@@ -36,6 +36,7 @@ type poweredRPC struct {
 	tokens   *cache.Cache[poweredEntry]
 	overlays *cache.Cache[overlayEntry]
 	premium  *cache.Cache[bool]
+	alpha    *cache.Cache[bool]
 }
 
 type PoweredConfig struct {
@@ -50,6 +51,7 @@ func SubscribePowered(w bus.RPCWiring, cfg PoweredConfig) error {
 		tokens:   cache.New[poweredEntry](poweredCacheCapacity, poweredCacheTTL).InvalidateOn(cfg.Invalidations, invalidatedTokens, invalidate.ScopeOverlays),
 		overlays: cache.New[overlayEntry](poweredCacheCapacity, poweredCacheTTL).InvalidateOn(cfg.Invalidations, invalidatedTokens, invalidate.ScopeOverlays),
 		premium:  cache.New[bool](poweredCacheCapacity, poweredCacheTTL).InvalidateOn(cfg.Invalidations, cache.UserKeys("premium:"), invalidate.ScopeUserProjection, invalidate.ScopeLive),
+		alpha:    cache.New[bool](poweredCacheCapacity, poweredCacheTTL).InvalidateOn(cfg.Invalidations, cache.UserKeys("alpha:"), invalidate.ScopeUserProjection, invalidate.ScopeLive),
 	}
 	within := w.Within(poweredReplyTimeout)
 	return errors.Join(
@@ -103,6 +105,13 @@ func (s *poweredRPC) ownerToken(ctx context.Context, token string) (poweredEntry
 	}
 	_, _ = s.store.SetPoweredOverlay(ctx, projection.PoweredWrite{Overlay: *reply.Overlay})
 	return poweredEntry{overlay: *reply.Overlay, found: true}, nil
+}
+
+func (s *poweredRPC) alphaOf(ctx context.Context, userID uint64) (bool, error) {
+	return s.alpha.GetOrLoad(ctx, cache.UserKey("alpha:", userID), func(ctx context.Context) (bool, error) {
+		user, _, err := s.store.GetUserRuntime(ctx, userID)
+		return user.IsAlpha(), err
+	})
 }
 
 func (s *poweredRPC) premiumOf(ctx context.Context, userID uint64) (bool, error) {

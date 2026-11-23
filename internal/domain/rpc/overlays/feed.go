@@ -43,6 +43,7 @@ func (a FeedAction) Valid() bool {
 
 var (
 	ErrFeedNotOwner      = errors.New("overlay feed: actor is not the channel owner")
+	ErrFeedAlphaRequired = errors.New("overlay feed: alpha required")
 	ErrFeedUnknownAction = errors.New("overlay feed: unknown action")
 	ErrFeedInvalidArgs   = errors.New("overlay feed: invalid arguments")
 	ErrFeedUnknownEvent  = errors.New("overlay feed: event not found")
@@ -53,6 +54,7 @@ var (
 func FeedRules() []rpc.Rule {
 	return []rpc.Rule{
 		rpc.Is(ErrFeedNotOwner, rpc.CodeForbidden),
+		rpc.Is(ErrFeedAlphaRequired, rpc.CodeForbidden),
 		rpc.Is(ErrFeedUnknownAction, rpc.CodeInvalid),
 		rpc.Is(ErrFeedInvalidArgs, rpc.CodeInvalid),
 		rpc.Is(ErrFeedUnknownEvent, rpc.CodeNotFound),

@@ -23,7 +23,7 @@ import (
 const planTimeout = 1500 * time.Millisecond
 
 var assetRules = []domainrpc.Rule{
-	domainrpc.Is(assets.ErrPremiumRequired, domainrpc.CodeForbidden),
+	domainrpc.Is(assets.ErrAlphaRequired, domainrpc.CodeForbidden),
 	domainrpc.Is(assets.ErrQuota, domainrpc.CodeForbidden),
 	domainrpc.Is(repository.ErrOverlayLimit, domainrpc.CodeForbidden),
 	domainrpc.Is(assets.ErrRateLimited, domainrpc.CodeUnavailable),
@@ -51,6 +51,22 @@ func (p VoicePlans) Premium(ctx context.Context, userID uint64) (bool, error) {
 	return voiceplan.MonthlySeconds(reply.Plan) > 0, nil
 }
 
+type AlphaAccess struct {
+	NC *nats.Conn
+}
+
+func (a AlphaAccess) Alpha(ctx context.Context, userID uint64) (bool, error) {
+	request := usersrpc.AlphaCheckRequest{UserID: strconv.FormatUint(userID, 10)}
+	reply, err := bus.RequestJSONTimeout[usersrpc.AlphaCheckReply](ctx, a.NC, usersrpc.AlphaCheckSubject, request, planTimeout)
+	if err != nil {
+		return false, err
+	}
+	if reply.Error != "" {
+		return false, errors.New(reply.Error)
+	}
+	return reply.Alpha, nil
+}
+
 func SubscribeAssets(w Wiring) error {
 	read := w.Within(readBudget)
 	return errors.Join(
@@ -70,10 +86,16 @@ func ticketed[Req any](issue func(context.Context, uint64, Req) (overlaysrpc.Upl
 }
 
 func (w Wiring) assetList(ctx context.Context, _ overlaysrpc.OverlayUserRequest, id uint64) (overlaysrpc.AssetListReply, error) {
+	if err := w.Assets.RequireAlpha(ctx, id); err != nil {
+		return overlaysrpc.AssetListReply{Refusal: refusal(err)}, nil
+	}
 	views, err := w.Assets.List(ctx, id)
 	return overlaysrpc.AssetListReply{Assets: views, Refusal: refusal(err)}, nil
 }
 
 func (w Wiring) assetDelete(ctx context.Context, req overlaysrpc.AssetRefRequest, id uint64) (overlaysrpc.AssetDeleteReply, error) {
+	if err := w.Assets.RequireAlpha(ctx, id); err != nil {
+		return overlaysrpc.AssetDeleteReply{Refusal: refusal(err)}, nil
+	}
 	return overlaysrpc.AssetDeleteReply{Refusal: refusal(w.Repo.DeleteAsset(ctx, id, req.ID))}, nil
 }

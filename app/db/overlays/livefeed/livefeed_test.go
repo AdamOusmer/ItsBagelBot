@@ -32,6 +32,7 @@ type fakeBus struct {
 	states   [][]byte
 	subjects []string
 	premium  bool
+	alpha    bool
 }
 
 func (f *fakeBus) Publish(_ context.Context, msg bus.OverlayMessage) error {
@@ -55,6 +56,8 @@ func (f fakeState) Publish(_ context.Context, subject string, payload []byte) er
 }
 
 func (f *fakeBus) Premium(context.Context, uint64) (bool, error) { return f.premium, nil }
+
+func (f *fakeBus) Alpha(context.Context, uint64) (bool, error) { return f.alpha, nil }
 
 func (f *fakeBus) alertCount() int {
 	f.mu.Lock()
@@ -106,7 +109,7 @@ type harness struct {
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	h := &harness{
-		bus:      &fakeBus{ids: map[string]bool{}},
+		bus:      &fakeBus{ids: map[string]bool{}, alpha: true},
 		channels: &fakeChannels{profile: repository.FeedProfile{Owned: true}},
 		owner:    strconv.FormatInt(1_000_000+rand.Int64N(1<<40), 10),
 		allow:    true,
@@ -116,6 +119,7 @@ func newHarness(t *testing.T) *harness {
 		Alerts:   h.bus,
 		State:    fakeState{bus: h.bus},
 		Plans:    h.bus,
+		Alphas:   h.bus,
 		Channels: h.channels,
 		Allow:    func(context.Context, ratelimit.Request) (bool, error) { return h.allow, nil },
 		Log:      zap.NewNop(),
@@ -179,6 +183,20 @@ func TestChannelsWithoutAnOverlayAreIgnored(t *testing.T) {
 	require.Zero(t, h.bus.alertCount())
 	require.Empty(t, h.bus.states)
 	require.Zero(t, h.snapshot(t).Snapshot.Stats.Session.Bits)
+}
+
+func TestChannelsWithoutAlphaAreIgnoredAndRefused(t *testing.T) {
+	h := newHarness(t)
+	h.bus.alpha = false
+
+	require.NoError(t, h.service.Handle(t.Context(), h.event(channelevents.Cheer, 100)))
+	_, controlErr := h.control(overlaysrpc.FeedPause, overlaysrpc.FeedControlArgs{})
+	_, snapshotErr := h.service.Snapshot(t.Context(), h.owner)
+
+	require.Zero(t, h.bus.alertCount())
+	require.Empty(t, h.bus.states)
+	require.ErrorIs(t, controlErr, overlaysrpc.ErrFeedAlphaRequired)
+	require.ErrorIs(t, snapshotErr, overlaysrpc.ErrFeedAlphaRequired)
 }
 
 func TestSessionStartClearsSessionCountsAndKeepsWeek(t *testing.T) {

@@ -17,9 +17,9 @@ import (
 const Interval = 6 * time.Hour
 
 type Sweeper struct {
-	Repo  *repository.Overlays
-	Plans assets.Plans
-	Now   func() time.Time
+	Repo   *repository.Overlays
+	Alphas assets.Alphas
+	Now    func() time.Time
 }
 
 func (s *Sweeper) now() time.Time {
@@ -44,11 +44,11 @@ func (s *Sweeper) Sweep(ctx context.Context) error {
 }
 
 func (s *Sweeper) sweepOwner(ctx context.Context, userID uint64, now time.Time) error {
-	premium, err := s.Plans.Premium(ctx, userID)
+	alpha, err := s.Alphas.Alpha(ctx, userID)
 	if err != nil {
 		return err
 	}
-	if premium {
+	if alpha {
 		return s.Repo.ClearLapsed(ctx, userID)
 	}
 	if err := s.Repo.MarkLapsed(ctx, userID, now); err != nil {

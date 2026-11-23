@@ -51,7 +51,7 @@ func (w Wiring) overlayAdd(ctx context.Context, req overlaysrpc.OverlayAddTempla
 }
 
 func (w Wiring) addStarter(ctx context.Context, key string, id uint64) (overlaysrpc.Overlay, string, error) {
-	if err := w.Assets.RequirePremium(ctx, id); err != nil {
+	if err := w.Assets.RequireAlpha(ctx, id); err != nil {
 		return overlaysrpc.Overlay{}, "", err
 	}
 	return w.Repo.AddStarter(ctx, id, key)
@@ -76,7 +76,7 @@ func (w Wiring) overlaySave(ctx context.Context, req overlaysrpc.OverlaySaveRequ
 }
 
 func (w Wiring) saveCustom(ctx context.Context, req overlaysrpc.OverlaySaveRequest, id uint64) (overlaysrpc.Overlay, error) {
-	if err := w.Assets.RequirePremium(ctx, id); err != nil {
+	if err := w.Assets.RequireAlpha(ctx, id); err != nil {
 		return overlaysrpc.Overlay{}, err
 	}
 	return w.Repo.SaveCustom(ctx, id, repository.CustomSave{ID: req.ID, Revision: req.Revision, Document: req.Document})
@@ -88,7 +88,7 @@ func (w Wiring) overlayCreateCustom(ctx context.Context, req overlaysrpc.Overlay
 }
 
 func (w Wiring) createCustom(ctx context.Context, raw codec.RawMessage, id uint64) (overlaysrpc.Overlay, string, error) {
-	if err := w.Assets.RequirePremium(ctx, id); err != nil {
+	if err := w.Assets.RequireAlpha(ctx, id); err != nil {
 		return overlaysrpc.Overlay{}, "", err
 	}
 	doc, err := overlays.Parse(raw)

@@ -51,7 +51,7 @@ func main() {
 	svcboot.FatalIf(log, repo.MigratePowered(core.Ctx), "failed to migrate powered overlays")
 	uploads := newAssets(core, repo, objects, n.RPC)
 	serveUploads(core, uploads)
-	sweeper := &lapse.Sweeper{Repo: repo, Plans: uploads.Plans}
+	sweeper := &lapse.Sweeper{Repo: repo, Alphas: uploads.Alphas}
 	go sweeper.Run(core.Ctx, log)
 
 	deleted := consumers.OnUserDeleted(serviceName, log, repo.DeleteAccount)

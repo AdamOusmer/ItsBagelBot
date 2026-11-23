@@ -39,7 +39,7 @@ const (
 
 type plans map[uint64]bool
 
-func (p plans) Premium(_ context.Context, userID uint64) (bool, error) { return p[userID], nil }
+func (p plans) Alpha(_ context.Context, userID uint64) (bool, error) { return p[userID], nil }
 
 type fixture struct {
 	svc     *assets.Service
@@ -54,7 +54,7 @@ func newFixture(t *testing.T) *fixture {
 	f := &fixture{objects: objectstoretest.NewMemory(), clock: time.Unix(1_800_000_000, 0)}
 	f.repo = repository.New(client, bustest.NewPublisher(), f.objects, "https://cdn.itsbagelbot.com")
 	f.svc = &assets.Service{
-		Repo: f.repo, Objects: f.objects, Plans: plans{premiumUser: true},
+		Repo: f.repo, Objects: f.objects, Alphas: plans{premiumUser: true},
 		Signer: assets.Signer{Secret: []byte("secret")}, PublicURL: "https://cdn.itsbagelbot.com/",
 		Now: func() time.Time { return f.clock },
 	}
@@ -146,7 +146,7 @@ func TestBeginRefuses(t *testing.T) {
 		size int64
 		want error
 	}{
-		{"free account", f.svc, freeUser, 10, assets.ErrPremiumRequired},
+		{"plain account", f.svc, freeUser, 10, assets.ErrAlphaRequired},
 		{"account storage full", f.svc, premiumUser, 10, assets.ErrQuota},
 		{"no size", f.svc, premiumUser, 0, assets.ErrInvalidSize},
 		{"larger than any asset", f.svc, premiumUser, 1 << 40, assets.ErrInvalidSize},
@@ -234,8 +234,8 @@ func TestImportDryRunStoresNothing(t *testing.T) {
 		path string
 		done string
 	}{
-		{"free account", freeUser, overlaysrpc.ImportUploadPath + f.importTicket(t, freeUser, len(archive), true), ""},
-		{"premium account asking for a preview", premiumUser, overlaysrpc.ImportUploadPath + f.importTicket(t, premiumUser, len(archive), false), "&dry_run=1"},
+		{"alpha account with a preview ticket", premiumUser, overlaysrpc.ImportUploadPath + f.importTicket(t, premiumUser, len(archive), true), ""},
+		{"alpha account asking for a preview", premiumUser, overlaysrpc.ImportUploadPath + f.importTicket(t, premiumUser, len(archive), false), "&dry_run=1"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -42,7 +42,7 @@ func serve(t *testing.T) *nats.Conn {
 		RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop(), Queue: "test"},
 		Repo:      repo,
 		Assets: &assets.Service{
-			Repo: repo, Objects: objects, Plans: rpc.VoicePlans{NC: nc},
+			Repo: repo, Objects: objects, Alphas: rpc.AlphaAccess{NC: nc},
 			Signer: assets.Signer{Secret: []byte("test")}, PublicURL: "https://cdn.itsbagelbot.com",
 		},
 	}
@@ -52,6 +52,7 @@ func serve(t *testing.T) *nats.Conn {
 	require.NoError(t, rpc.SubscribeOverlays(w))
 	require.NoError(t, rpc.SubscribeAssets(w))
 	require.NoError(t, bus.Serve(w.RPCWiring, usersrpc.VoiceCheckSubject, ttsQuota))
+	require.NoError(t, bus.Serve(w.RPCWiring, usersrpc.AlphaCheckSubject, alphaCheck))
 	require.NoError(t, nc.Flush())
 	return nc
 }
@@ -62,6 +63,10 @@ func ttsQuota(_ context.Context, req usersrpc.VoiceCheckRequest) usersrpc.VoiceC
 		plan = voiceplan.Premium
 	}
 	return usersrpc.VoiceCheckReply{VoiceReply: usersrpc.VoiceReply{VoiceAllowance: usersrpc.VoiceAllowance{Plan: plan}}}
+}
+
+func alphaCheck(_ context.Context, req usersrpc.AlphaCheckRequest) usersrpc.AlphaCheckReply {
+	return usersrpc.AlphaCheckReply{Alpha: req.UserID == "1001"}
 }
 
 func request[Rep any](t *testing.T, nc *nats.Conn, subject string, req any) Rep {

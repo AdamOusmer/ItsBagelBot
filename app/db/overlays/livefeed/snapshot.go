@@ -27,6 +27,9 @@ func (s *Service) readControl(ctx context.Context, c channel) (feed.Control, err
 
 // Snapshot is the channel's folded state and every event logged in its current session.
 func (s *Service) Snapshot(ctx context.Context, userID string) (overlaysrpc.FeedSnapshotReply, error) {
+	if err := s.requireAlpha(ctx, userID); err != nil {
+		return overlaysrpc.FeedSnapshotReply{}, err
+	}
 	c := channel(userID)
 	session, err := s.store().session(ctx, c)
 	if err != nil {

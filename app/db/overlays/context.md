@@ -109,7 +109,8 @@ Other `ent/` files are generated from the schema.
 - Per-kind widget settings are checked against
   `internal/domain/overlays/testdata/widget-settings.json`, shared with the
   TypeScript runtime. Starter documents live in `templates/` and are added
-  with `add_template` (premium).
+  with `add_template` (alpha accounts only; custom overlays, assets, imports and
+  the live feed are gated on `rpc.internal.users.alpha.check`).
 
 ## Invariants and pitfalls
 

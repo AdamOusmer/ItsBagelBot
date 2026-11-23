@@ -30,7 +30,7 @@ const (
 
 type plans map[uint64]bool
 
-func (p plans) Premium(_ context.Context, userID uint64) (bool, error) { return p[userID], nil }
+func (p plans) Alpha(_ context.Context, userID uint64) (bool, error) { return p[userID], nil }
 
 type fixture struct {
 	repo    *repository.Overlays
@@ -45,7 +45,7 @@ func setup(t *testing.T) *fixture {
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	f := &fixture{objects: objectstoretest.NewMemory(), plans: plans{owner: true}, clock: time.Now()}
 	f.repo = repository.New(client, bustest.NewPublisher(), f.objects, "https://cdn.itsbagelbot.com")
-	f.sweeper = &lapse.Sweeper{Repo: f.repo, Plans: f.plans, Now: func() time.Time { return f.clock }}
+	f.sweeper = &lapse.Sweeper{Repo: f.repo, Alphas: f.plans, Now: func() time.Time { return f.clock }}
 	return f
 }
 
@@ -95,7 +95,7 @@ func TestLapseRetention(t *testing.T) {
 		wantKind []string
 		wantKeys int
 	}{
-		{"premium account is untouched", []step{{retained * 2, true}}, []string{"custom", "system"}, 1},
+		{"alpha account is untouched", []step{{retained * 2, true}}, []string{"custom", "system"}, 1},
 		{"inside the retention period", []step{{0, false}, {retained - time.Hour, false}}, []string{"custom", "system"}, 1},
 		{"deleted after the retention period", []step{{0, false}, {retained + time.Hour, false}}, []string{"system"}, 0},
 		{"renewal restarts the period", []step{{0, false}, {retained / 2, true}, {retained, false}, {retained - time.Hour, false}}, []string{"custom", "system"}, 1},

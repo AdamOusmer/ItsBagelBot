@@ -21,6 +21,9 @@ func (s *Service) Control(ctx context.Context, req overlaysrpc.FeedControlReques
 	if req.Actor != req.UserID {
 		return overlaysrpc.FeedControlReply{}, overlaysrpc.ErrFeedNotOwner
 	}
+	if err := s.requireAlpha(ctx, req.UserID); err != nil {
+		return overlaysrpc.FeedControlReply{}, err
+	}
 	c := channel(req.UserID)
 	if err := s.act(ctx, c, req); err != nil {
 		return overlaysrpc.FeedControlReply{}, err

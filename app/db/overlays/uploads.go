@@ -19,7 +19,7 @@ func newAssets(core svcboot.Core, repo *repository.Overlays, objects objectstore
 	return &assets.Service{
 		Repo:      repo,
 		Objects:   objects,
-		Plans:     rpc.VoicePlans{NC: nc},
+		Alphas:    rpc.AlphaAccess{NC: nc},
 		Signer:    assets.Signer{Secret: []byte(env.MustGet("OVERLAY_UPLOAD_SECRET"))},
 		PublicURL: env.MustGet("R2_PUBLIC_URL"),
 	}

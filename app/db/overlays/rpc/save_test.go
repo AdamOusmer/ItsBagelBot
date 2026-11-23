@@ -52,16 +52,37 @@ func TestSaveConflictCarriesTheStoredDocument(t *testing.T) {
 	assert.JSONEq(t, string(created.Document), string(conflict.Document))
 }
 
-func TestStarterTemplatesNeedPremium(t *testing.T) {
+func TestCustomSavesNeedAlpha(t *testing.T) {
+	nc := serve(t)
+	plain := overlaysrpc.OverlayUserRequest{UserID: "1002"}
+	created := request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlayCreateCustomSubject, overlaysrpc.OverlayCreateCustomRequest{OverlayUserRequest: overlaysrpc.OverlayUserRequest{UserID: "1001"}, Document: textDocument(t, "Mine")})
+	cases := []struct {
+		name    string
+		subject string
+		req     any
+	}{
+		{"create", overlaysrpc.OverlayCreateCustomSubject, overlaysrpc.OverlayCreateCustomRequest{OverlayUserRequest: plain, Document: textDocument(t, "New")}},
+		{"save without an id", overlaysrpc.OverlaySaveSubject, overlaysrpc.OverlaySaveRequest{OverlayRefRequest: overlaysrpc.OverlayRefRequest{OverlayUserRequest: plain}, Document: textDocument(t, "New")}},
+		{"save an existing id", overlaysrpc.OverlaySaveSubject, overlaysrpc.OverlaySaveRequest{OverlayRefRequest: overlaysrpc.OverlayRefRequest{OverlayUserRequest: plain, ID: created.ID}, Document: textDocument(t, "New")}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reply := request[overlaysrpc.OverlayView](t, nc, tc.subject, tc.req)
+			assert.Equal(t, domainrpc.CodeForbidden, reply.Code, reply.Error)
+		})
+	}
+}
+
+func TestStarterTemplatesNeedAlpha(t *testing.T) {
 	nc := serve(t)
 	add := func(userID string) overlaysrpc.OverlayView {
 		return request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlayAddTemplateSubject,
 			overlaysrpc.OverlayAddTemplateRequest{OverlayUserRequest: overlaysrpc.OverlayUserRequest{UserID: userID}, Template: "starting-soon"})
 	}
 
-	premium, free := add("1001"), add("1002")
+	alpha, plain := add("1001"), add("1002")
 
-	require.Equal(t, domainrpc.CodeOK, premium.Code, premium.Error)
-	assert.Equal(t, "custom", premium.Kind)
-	assert.Equal(t, domainrpc.CodeForbidden, free.Code)
+	require.Equal(t, domainrpc.CodeOK, alpha.Code, alpha.Error)
+	assert.Equal(t, "custom", alpha.Kind)
+	assert.Equal(t, domainrpc.CodeForbidden, plain.Code)
 }

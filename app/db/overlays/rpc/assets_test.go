@@ -32,11 +32,11 @@ func foreignAssetDocument(t *testing.T) codec.RawMessage {
 	return raw
 }
 
-func TestAssetRPCGatesOnPremium(t *testing.T) {
+func TestAssetRPCGatesOnAlpha(t *testing.T) {
 	nc := serve(t)
 	document := foreignAssetDocument(t)
-	premium := overlaysrpc.OverlayUserRequest{UserID: "1001"}
-	free := overlaysrpc.OverlayUserRequest{UserID: "1002"}
+	alpha := overlaysrpc.OverlayUserRequest{UserID: "1001"}
+	plain := overlaysrpc.OverlayUserRequest{UserID: "1002"}
 
 	cases := []struct {
 		name    string
@@ -44,13 +44,17 @@ func TestAssetRPCGatesOnPremium(t *testing.T) {
 		req     any
 		want    domainrpc.Code
 	}{
-		{"free account asks for an upload", overlaysrpc.AssetBeginSubject, overlaysrpc.AssetBeginRequest{OverlayUserRequest: free, DeclaredSize: 10}, domainrpc.CodeForbidden},
-		{"premium account asks for an upload", overlaysrpc.AssetBeginSubject, overlaysrpc.AssetBeginRequest{OverlayUserRequest: premium, DeclaredSize: 10}, domainrpc.CodeOK},
-		{"upload with no size", overlaysrpc.AssetBeginSubject, overlaysrpc.AssetBeginRequest{OverlayUserRequest: premium}, domainrpc.CodeInvalid},
-		{"free account may dry-run an import", overlaysrpc.ImportBeginSubject, overlaysrpc.ImportBeginRequest{OverlayUserRequest: free, DeclaredSize: 10, DryRun: true}, domainrpc.CodeOK},
-		{"free account may not import", overlaysrpc.ImportBeginSubject, overlaysrpc.ImportBeginRequest{OverlayUserRequest: free, DeclaredSize: 10}, domainrpc.CodeForbidden},
-		{"free account saves a custom overlay", overlaysrpc.OverlayCreateCustomSubject, overlaysrpc.OverlayCreateCustomRequest{OverlayUserRequest: free, Document: document}, domainrpc.CodeForbidden},
-		{"premium account references an asset it does not own", overlaysrpc.OverlayCreateCustomSubject, overlaysrpc.OverlayCreateCustomRequest{OverlayUserRequest: premium, Document: document}, domainrpc.CodeInvalid},
+		{"plain account asks for an upload", overlaysrpc.AssetBeginSubject, overlaysrpc.AssetBeginRequest{OverlayUserRequest: plain, DeclaredSize: 10}, domainrpc.CodeForbidden},
+		{"alpha account asks for an upload", overlaysrpc.AssetBeginSubject, overlaysrpc.AssetBeginRequest{OverlayUserRequest: alpha, DeclaredSize: 10}, domainrpc.CodeOK},
+		{"upload with no size", overlaysrpc.AssetBeginSubject, overlaysrpc.AssetBeginRequest{OverlayUserRequest: alpha}, domainrpc.CodeInvalid},
+		{"plain account may not dry-run an import", overlaysrpc.ImportBeginSubject, overlaysrpc.ImportBeginRequest{OverlayUserRequest: plain, DeclaredSize: 10, DryRun: true}, domainrpc.CodeForbidden},
+		{"alpha account may dry-run an import", overlaysrpc.ImportBeginSubject, overlaysrpc.ImportBeginRequest{OverlayUserRequest: alpha, DeclaredSize: 10, DryRun: true}, domainrpc.CodeOK},
+		{"plain account may not import", overlaysrpc.ImportBeginSubject, overlaysrpc.ImportBeginRequest{OverlayUserRequest: plain, DeclaredSize: 10}, domainrpc.CodeForbidden},
+		{"plain account lists assets", overlaysrpc.AssetListSubject, plain, domainrpc.CodeForbidden},
+		{"alpha account lists assets", overlaysrpc.AssetListSubject, alpha, domainrpc.CodeOK},
+		{"plain account deletes an asset", overlaysrpc.AssetDeleteSubject, overlaysrpc.AssetRefRequest{OverlayUserRequest: plain, ID: "ghost"}, domainrpc.CodeForbidden},
+		{"plain account saves a custom overlay", overlaysrpc.OverlayCreateCustomSubject, overlaysrpc.OverlayCreateCustomRequest{OverlayUserRequest: plain, Document: document}, domainrpc.CodeForbidden},
+		{"alpha account references an asset it does not own", overlaysrpc.OverlayCreateCustomSubject, overlaysrpc.OverlayCreateCustomRequest{OverlayUserRequest: alpha, Document: document}, domainrpc.CodeInvalid},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

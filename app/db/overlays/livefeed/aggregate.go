@@ -26,8 +26,8 @@ func (s *Service) Handle(ctx context.Context, e channelevents.Event) error {
 	if e.Trial || e.Kind == channelevents.Chat {
 		return nil
 	}
-	profile, err := s.profile(ctx, e.ChannelID)
-	if err != nil || !profile.Owned {
+	profile, ok, err := s.eligible(ctx, e.ChannelID)
+	if err != nil || !ok {
 		return err
 	}
 	c := channel(e.ChannelID)

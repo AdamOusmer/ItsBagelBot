@@ -27,14 +27,14 @@ const (
 	assetIDBytes   = 16
 )
 
-type Plans interface {
-	Premium(ctx context.Context, userID uint64) (bool, error)
+type Alphas interface {
+	Alpha(ctx context.Context, userID uint64) (bool, error)
 }
 
 type Service struct {
 	Repo      *repository.Overlays
 	Objects   objectstore.Store
-	Plans     Plans
+	Alphas    Alphas
 	PartSize  int64
 	Signer    Signer
 	PublicURL string
@@ -57,18 +57,17 @@ func (s *Service) now() time.Time {
 type beginPlan struct {
 	ticket  Ticket
 	largest int64
-	premium bool
 	quota   bool
 }
 
 func (s *Service) BeginAsset(ctx context.Context, userID uint64, req overlaysrpc.AssetBeginRequest) (overlaysrpc.UploadTicket, error) {
 	ticket := Ticket{UserID: userID, Purpose: PurposeAsset, MaxSize: req.DeclaredSize, Name: cleanName(req.DisplayName, maxDisplayName)}
-	return s.begin(ctx, beginPlan{ticket: ticket, largest: largestAsset(), premium: true, quota: true})
+	return s.begin(ctx, beginPlan{ticket: ticket, largest: largestAsset(), quota: true})
 }
 
 func (s *Service) BeginImport(ctx context.Context, userID uint64, req overlaysrpc.ImportBeginRequest) (overlaysrpc.UploadTicket, error) {
 	ticket := Ticket{UserID: userID, Purpose: PurposeImport, MaxSize: req.DeclaredSize, DryRun: req.DryRun}
-	return s.begin(ctx, beginPlan{ticket: ticket, largest: overlays.ImportMaxUnpackedBytes, premium: !req.DryRun})
+	return s.begin(ctx, beginPlan{ticket: ticket, largest: overlays.ImportMaxUnpackedBytes})
 }
 
 func (s *Service) begin(ctx context.Context, plan beginPlan) (overlaysrpc.UploadTicket, error) {
@@ -84,27 +83,15 @@ func (s *Service) begin(ctx context.Context, plan beginPlan) (overlaysrpc.Upload
 
 func (s *Service) admitPlan(ctx context.Context, plan beginPlan) error {
 	t := plan.ticket
-	checks := []struct {
-		on  bool
-		run func() error
-	}{
-		{plan.premium, func() error { return s.RequirePremium(ctx, t.UserID) }},
-		{plan.quota, func() error { return s.fits(ctx, t.UserID, t.MaxSize) }},
-		{true, func() error { return s.allowUpload(ctx, t.UserID) }},
+	if err := s.RequireAlpha(ctx, t.UserID); err != nil {
+		return err
 	}
-	for _, check := range checks {
-		if err := runIf(check.on, check.run); err != nil {
+	if plan.quota {
+		if err := s.fits(ctx, t.UserID, t.MaxSize); err != nil {
 			return err
 		}
 	}
-	return nil
-}
-
-func runIf(on bool, run func() error) error {
-	if !on {
-		return nil
-	}
-	return run()
+	return s.allowUpload(ctx, t.UserID)
 }
 
 func (s *Service) issue(t Ticket) (overlaysrpc.UploadTicket, error) {
@@ -113,13 +100,13 @@ func (s *Service) issue(t Ticket) (overlaysrpc.UploadTicket, error) {
 	return overlaysrpc.UploadTicket{Ticket: token, MaxSize: t.MaxSize, Expires: t.Expires, PartSize: s.partSize(), Parts: s.parts(t)}, err
 }
 
-func (s *Service) RequirePremium(ctx context.Context, userID uint64) error {
-	premium, err := s.Plans.Premium(ctx, userID)
+func (s *Service) RequireAlpha(ctx context.Context, userID uint64) error {
+	alpha, err := s.Alphas.Alpha(ctx, userID)
 	if err != nil {
 		return err
 	}
-	if !premium {
-		return ErrPremiumRequired
+	if !alpha {
+		return ErrAlphaRequired
 	}
 	return nil
 }

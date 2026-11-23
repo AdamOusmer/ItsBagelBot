@@ -35,6 +35,11 @@ type Plans interface {
 	Premium(ctx context.Context, userID uint64) (bool, error)
 }
 
+// Alphas reports whether a channel owner has the alpha account flag.
+type Alphas interface {
+	Alpha(ctx context.Context, userID uint64) (bool, error)
+}
+
 // Channels is the overlays repository as the feed sees it.
 type Channels interface {
 	FeedProfile(ctx context.Context, userID uint64) (repository.FeedProfile, error)
@@ -48,6 +53,7 @@ type Service struct {
 	Alerts   Alerts
 	State    State
 	Plans    Plans
+	Alphas   Alphas
 	Channels Channels
 	Allow    func(context.Context, ratelimit.Request) (bool, error)
 	Log      *zap.Logger
@@ -73,6 +79,35 @@ func (s *Service) profile(ctx context.Context, userID string) (repository.FeedPr
 		return repository.FeedProfile{}, err
 	}
 	return cached(ctx, s.Client, profileKey(userID), func() (repository.FeedProfile, error) { return s.Channels.FeedProfile(ctx, id) })
+}
+
+func (s *Service) alpha(ctx context.Context, userID string) (bool, error) {
+	id, err := strconv.ParseUint(userID, 10, 64)
+	if err != nil {
+		return false, err
+	}
+	return cached(ctx, s.Client, alphaKey(userID), func() (bool, error) { return s.Alphas.Alpha(ctx, id) })
+}
+
+func (s *Service) requireAlpha(ctx context.Context, userID string) error {
+	alpha, err := s.alpha(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !alpha {
+		return overlaysrpc.ErrFeedAlphaRequired
+	}
+	return nil
+}
+
+// eligible is a channel with an overlay whose owner may use the new version.
+func (s *Service) eligible(ctx context.Context, userID string) (repository.FeedProfile, bool, error) {
+	profile, err := s.profile(ctx, userID)
+	if err != nil || !profile.Owned {
+		return profile, false, err
+	}
+	alpha, err := s.alpha(ctx, userID)
+	return profile, alpha, err
 }
 
 func (s *Service) tier(ctx context.Context, c channel) (bus.OverlayTier, error) {
