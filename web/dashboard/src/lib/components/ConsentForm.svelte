@@ -5,7 +5,6 @@
   import { onMount } from 'svelte';
   import { TERMS_VERSION } from '@bagel/kit/consent';
   import { translate, type Locale } from '@bagel/kit/i18n';
-  import { SITE } from '@bagel/kit/site-links';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
@@ -16,7 +15,6 @@
     mailingAddress: string;
     subscribed: boolean;
     marketingDefault: boolean;
-    maskedEmail: string;
     action?: string;
     serverError?: string;
     onaccepted?: () => void;
@@ -24,7 +22,7 @@
     element?: HTMLFormElement | null;
   };
 
-  let { locale, requestId, mailingAddress, subscribed, marketingDefault, maskedEmail, action, serverError, onaccepted, accepted = $bindable(false), element = $bindable(null) }: Props = $props();
+  let { locale, requestId, mailingAddress, subscribed, marketingDefault, action, serverError, onaccepted, accepted = $bindable(false), element = $bindable(null) }: Props = $props();
   const id = $props.id();
   const t = (key: string) => translate(locale, key);
   let busy = $state(false);
@@ -79,15 +77,9 @@
     </div>
   {:else if mailingAddress}
     <div class="bb-setup-row choice marketing">
-      <Checkbox name="marketing" value="yes" checked={marketingDefault} disabled={busy} aria-labelledby="{id}-marketing" aria-describedby="{id}-details" />
-      <div class="choice-copy" id="{id}-details">
-        <bb-fit mode="block">
-          <span id="{id}-marketing">{t('marketing.optInLabel')}</span>
-          <span class="marketing-detail">{translate(locale, 'marketing.optIn', { address: mailingAddress, contact: SITE.supportEmail })}</span>
-          {#if maskedEmail}
-            <span class="marketing-detail">{translate(locale, 'consent.email', { address: maskedEmail })}</span>
-          {/if}
-        </bb-fit>
+      <Checkbox name="marketing" value="yes" checked={marketingDefault} disabled={busy} aria-labelledby="{id}-marketing" />
+      <div class="choice-copy">
+        <bb-fit mode="block"><span id="{id}-marketing">{t('marketing.optInLabel')}</span></bb-fit>
       </div>
     </div>
   {/if}
@@ -100,7 +92,8 @@
   .consent-form { display: grid; gap: clamp(6px, 1.3svh, 12px); }
   .choice { align-items: center; padding-block: 8px; }
   .terms { block-size: 56px; }
-  .marketing { block-size: clamp(108px, 21svh, 132px); }
+  .marketing { block-size: 44px; }
+  .marketing .choice-copy { font-size: var(--bb-text-xs); }
   .choice-copy {
     align-content: center;
     block-size: 100%;
@@ -110,13 +103,12 @@
     line-height: 1.35;
     color: var(--bb-muted);
   }
-  .marketing-detail { display: block; margin-top: 4px; }
   .status { block-size: 2.8em; color: var(--bb-status-danger); font-size: var(--bb-text-xs); text-align: center; }
 
   @media (max-height: 480px) {
     .choice { padding-block: 4px; }
     .terms { block-size: 40px; }
-    .marketing { block-size: 84px; }
+    .marketing { block-size: 32px; }
     .status { block-size: 1.4em; }
   }
 </style>

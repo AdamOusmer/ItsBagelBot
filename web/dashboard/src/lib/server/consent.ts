@@ -6,12 +6,11 @@ import { dev } from '$app/env';
 import { fail } from '@sveltejs/kit';
 import { TERMS_VERSION } from '@bagel/kit/consent';
 import { isLocale, translate, type Locale } from '@bagel/kit/i18n';
-import { bestEffort } from '@bagel/kit/server/best-effort';
 import { env } from '@bagel/kit/server/env';
 import { logger } from '@bagel/kit/server/logger';
 import { actionError } from './action-errors';
 import { isSelfSignIn } from './owner';
-import { freshAccountState, maskedContactEmail, publishEventSub, setOnboarded, setTermsConsent, type AccountState } from '#lib/server/services';
+import { freshAccountState, publishEventSub, setOnboarded, setTermsConsent, type AccountState } from '#lib/server/services';
 import type { Session } from './session';
 
 const REQUEST_ID = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i;
@@ -36,19 +35,17 @@ async function resolveMailingAddress(demo: boolean) {
   return businessMailingAddress() || (DEMO && demo ? (await import('./demo-data')).demoMailingAddress : '');
 }
 
-export async function consentFields(session: Session, locals: App.Locals, demo = false) {
+export async function consentFields(locals: App.Locals, demo = false) {
   const mailingAddress = await resolveMailingAddress(demo);
   const marketingStatus = demo ? 'none' : currentAccount(locals)?.marketingStatus;
   const subscribed = marketingStatus === 'granted';
   const offersOptIn = !!mailingAddress && !subscribed;
   const marketingDefault = offersOptIn && marketingStatus === 'none';
-  const maskedEmail = offersOptIn && !demo ? await bestEffort(maskedContactEmail(session.user_id), '') : '';
   return {
     requestId: randomUUID(),
     mailingAddress,
     subscribed,
-    marketingDefault,
-    maskedEmail
+    marketingDefault
   };
 }
 

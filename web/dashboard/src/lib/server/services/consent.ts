@@ -3,17 +3,11 @@
 
 import { TERMS_VERSION } from '@bagel/kit/consent';
 import type { Locale } from '@bagel/kit/i18n';
-import { defineRead, defineWrite } from '@bagel/kit/server/service';
+import { defineWrite } from '@bagel/kit/server/service';
 import type { Session } from '../session';
 import type { MarketingStatus } from './account-state';
 import { invalidate } from './fabric';
 import { SUB } from './subjects';
-
-export const maskedContactEmail = defineRead({
-  subject: `${SUB.dashboard}.state_get`,
-  request: (id: string) => ({ broadcaster_user_id: id, include_masked_email: true }),
-  map: (reply: { masked_email?: string }) => reply.masked_email ?? ''
-});
 
 type WriteReply = { ok: boolean; marketing_skipped?: 'no_email' | 'unavailable' };
 type TermsChoice = { source: 'consent' | 'welcome'; marketing: boolean; locale: Locale; requestId: string };

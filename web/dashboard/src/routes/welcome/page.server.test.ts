@@ -18,7 +18,6 @@ const acceptedForm = { consent: 'yes', terms_version: TERMS_VERSION, request_id:
 const services = await import('../../lib/server/services');
 mock.module('#lib/server/services', () => ({
   ...services,
-  maskedContactEmail: async () => '',
   setTermsConsent: async (...args: unknown[]) => {
     if (consentFails) throw new Error('consent failed');
     writes.push(['consent', ...args]);

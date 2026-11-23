@@ -2611,7 +2611,6 @@ export type KnownMessageKey =
   | 'common.unit.minutes'
   | 'common.unit.seconds'
   | 'consent.continue'
-  | 'consent.email'
   | 'consent.marketingNoEmail'
   | 'consent.marketingUnavailable'
   | 'consent.reload'

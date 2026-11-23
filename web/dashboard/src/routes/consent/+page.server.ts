@@ -23,7 +23,7 @@ async function consentPage(locals: App.Locals, session: Session, url: URL) {
   const next = returnTo(url);
   const skipped = skippedReason(url);
   if (!(await termsAccepted(locals, session, checkFresh(skipped)))) {
-    return { consent: await consentFields(session, locals, DEMO), notice: null };
+    return { consent: await consentFields(locals, DEMO), notice: null };
   }
   if (!skipped) throw redirect(303, next);
   return { consent: null, notice: { skipped, next } };

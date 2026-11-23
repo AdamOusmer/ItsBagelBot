@@ -8,5 +8,5 @@
   "optIn": "ItsBagelBot sends product news and offers. Contact us by mail at {address} or by email at {contact}. Unsubscribe anytime in Settings or from any of these emails.",
   "saveError": "Could not update your email preference. Try again.",
   "optInUnavailable": "New email subscriptions are temporarily unavailable.",
-  "optInLabel": "Send me product emails. Untick if you'd rather not."
+  "optInLabel": "Email me product news. Unsubscribe anytime."
 }

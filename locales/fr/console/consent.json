@@ -1,6 +1,5 @@
 {
   "continue": "Continuer",
-  "email": "Envoi à {address}",
   "reload": "Rechargez la page pour consulter la version actuelle de l’accord.",
   "saveError": "Nous n’avons pas pu enregistrer votre consentement. Réessayez.",
   "subscribed": "Vous êtes abonné aux courriels sur le produit.",

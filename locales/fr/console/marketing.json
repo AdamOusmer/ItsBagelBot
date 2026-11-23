@@ -8,5 +8,5 @@
   "optIn": "ItsBagelBot envoie des nouveautés et des offres. Écrivez-nous par la poste à {address} ou par courriel à {contact}. Désabonnez-vous à tout moment dans les paramètres ou depuis l’un de ces courriels.",
   "saveError": "Nous n’avons pas pu modifier votre préférence de courriel. Réessayez.",
   "optInUnavailable": "Les nouveaux abonnements par courriel sont temporairement indisponibles.",
-  "optInLabel": "Envoyez-moi les courriels sur le produit. Décochez la case si vous préférez ne pas en recevoir."
+  "optInLabel": "Recevez les nouveautés du produit. Désabonnement à tout moment."
 }

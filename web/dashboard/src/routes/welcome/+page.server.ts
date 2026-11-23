@@ -106,7 +106,7 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
     name: s.display_name || s.login,
     connected: connectedSources(cookies),
     accepted,
-    consent: accepted ? null : await consentFields(s, locals, DEMO)
+    consent: accepted ? null : await consentFields(locals, DEMO)
   };
 };
 

@@ -171,24 +171,21 @@ test.each([
   expect({ status: result.status, operations }).toEqual({ status, operations: [...want] });
 });
 
-function stateReads({ skipped, masked }: { skipped?: string; masked?: boolean }): typeof calls {
-  const skippedRead: typeof calls = skipped ? [[stateGet, { broadcaster_user_id: '7' }]] : [];
-  const maskedRead: typeof calls = masked ? [[stateGet, { broadcaster_user_id: '7', include_masked_email: true }]] : [];
-  return [...skippedRead, ...maskedRead];
+function stateReads(skipped?: string): typeof calls {
+  return skipped ? [[stateGet, { broadcaster_user_id: '7' }]] : [];
 }
 
 test.each([
-  { name: 'owner with a mailing address', session: { user_id: '7' }, terms: '', landing: null, address: mailingAddress, masked: true },
+  { name: 'owner with a mailing address', session: { user_id: '7' }, terms: '', landing: null, address: mailingAddress },
   { name: 'owner without a mailing address', session: { user_id: '7' }, terms: '', landing: null, address: '' },
   { name: 'skip parameter before acceptance', session: { user_id: '7' }, terms: '', landing: null, address: '', skipped: 'no_email' },
   { name: 'subscribed owner', session: { user_id: '7' }, terms: '', landing: null, address: mailingAddress, subscribed: true },
   { name: 'current owner', session: { user_id: '7' }, terms: TERMS_VERSION, landing: '/settings' },
   { name: 'unknown skip reason', session: { user_id: '7' }, terms: TERMS_VERSION, landing: '/settings', skipped: 'unknown' },
-  { name: 'unaccepted delegate', session: { user_id: '7', delegate_of: '8' }, terms: '', landing: null, address: mailingAddress, masked: true },
+  { name: 'unaccepted delegate', session: { user_id: '7', delegate_of: '8' }, terms: '', landing: null, address: mailingAddress },
   { name: 'impersonation', session: { user_id: '7', impersonator_id: '9' }, terms: '', landing: '/' }
-])('consent load: $name', async ({ session, terms, landing, address, subscribed, masked, skipped }) => {
+])('consent load: $name', async ({ session, terms, landing, address, subscribed, skipped }) => {
   privateEnv.BUSINESS_MAILING_ADDRESS = address || undefined;
-  reply = { masked_email: 'c***@example.test' };
   const value = { termsVersion: terms, marketingStatus: subscribed ? 'granted' : 'none' };
   const locals = { session, locale: 'en', accountState: { value } };
   const url = reader('/settings', skipped);
@@ -200,11 +197,10 @@ test.each([
   expect(result).toEqual({
     consent: {
       requestId: expect.stringMatching(/^[\da-f-]{36}$/), mailingAddress: address,
-      subscribed: subscribed ?? false, marketingDefault: !!address && !subscribed, maskedEmail: masked ? reply.masked_email : ''
-    },
+      subscribed: subscribed ?? false, marketingDefault: !!address && !subscribed    },
     notice: null
   });
-  expect(calls).toEqual(stateReads({ skipped, masked }));
+  expect(calls).toEqual(stateReads(skipped));
 });
 
 test.each([
