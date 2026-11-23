@@ -14,4 +14,4 @@ const { checked = false, class: className = '', ...rest } = Astro.props;
 const classes = ['bb-check', className].filter(Boolean).join(' ');
 ---
 
-<label class={classes}><input type="checkbox" class="bb-check__input" checked={checked} {...rest} /><span class="bb-check__box" aria-hidden="true" data-cursor-anchor></span><span class="bb-check__label"><slot /></span></label>
+<label class={classes}><input type="checkbox" class="bb-check__input" checked={checked} {...rest} /><span class="bb-check__box" aria-hidden="true"></span><span class="bb-check__label"><slot /></span></label>

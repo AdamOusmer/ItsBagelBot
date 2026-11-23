@@ -120,16 +120,14 @@ export function mountCursor(options: CursorOptions): () => void {
     let active = false;
     let held = false;
     let radius = FALLBACK_RADIUS;
-    let anchor: HTMLElement | null = null;
 
     function setTarget(next: HTMLElement | null, style?: CSSStyleDeclaration): void {
         target = next;
-        anchor = next?.querySelector<HTMLElement>(':scope > [data-cursor-anchor]') ?? next;
-        if (anchor && style) radius = radiusOf(anchor === next ? style : getComputedStyle(anchor));
+        if (next && style) radius = radiusOf(style);
     }
 
     function hovered(): HTMLElement | null {
-        return target?.isConnected ? anchor : null;
+        return target?.isConnected ? target : null;
     }
 
     function paint(el: HTMLElement | null, shape: Box): void {

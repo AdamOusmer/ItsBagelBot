@@ -1328,7 +1328,7 @@ const PRIMITIVES: {
     astro: AstroCheckbox,
     props: {"checked":true,"name":"optin"},
     slot: "Email me",
-    html: "<label class=\"bb-check\"><input type=\"checkbox\" class=\"bb-check__input\" checked name=\"optin\"><span class=\"bb-check__box\" aria-hidden=\"true\" data-cursor-anchor></span><span class=\"bb-check__label\">Email me</span></label>",
+    html: "<label class=\"bb-check\"><input type=\"checkbox\" class=\"bb-check__input\" checked name=\"optin\"><span class=\"bb-check__box\" aria-hidden=\"true\"></span><span class=\"bb-check__label\">Email me</span></label>",
   },
   {
     name: "IconButton",

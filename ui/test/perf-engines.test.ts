@@ -187,7 +187,6 @@ describe('cursor', () => {
       parentElement: null,
       matches: (selector: string) => selector === 'a, button, .bb-input, .bb-check',
       closest: () => link,
-      querySelector: () => null,
       getBoundingClientRect: () => {
         operations.push('measure');
         rects += 1;
