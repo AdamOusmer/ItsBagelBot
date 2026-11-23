@@ -26,7 +26,11 @@ type workload struct {
 	Spec     struct {
 		Replicas int `yaml:"replicas"`
 		Strategy struct {
-			Type string `yaml:"type"`
+			Type          string `yaml:"type"`
+			RollingUpdate struct {
+				MaxSurge       any `yaml:"maxSurge"`
+				MaxUnavailable any `yaml:"maxUnavailable"`
+			} `yaml:"rollingUpdate"`
 		} `yaml:"strategy"`
 		Template struct {
 			Spec podSpec `yaml:"spec"`
@@ -38,9 +42,10 @@ type workload struct {
 }
 
 type podSpec struct {
-	Containers                []container        `yaml:"containers"`
-	TopologySpreadConstraints []spreadConstraint `yaml:"topologySpreadConstraints"`
-	Affinity                  struct {
+	TerminationGracePeriodSeconds int                `yaml:"terminationGracePeriodSeconds"`
+	Containers                    []container        `yaml:"containers"`
+	TopologySpreadConstraints     []spreadConstraint `yaml:"topologySpreadConstraints"`
+	Affinity                      struct {
 		NodeAffinity struct {
 			Required struct {
 				NodeSelectorTerms []struct {
@@ -57,6 +62,13 @@ type container struct {
 	LivenessProbe  probe    `yaml:"livenessProbe"`
 	ReadinessProbe probe    `yaml:"readinessProbe"`
 	StartupProbe   probe    `yaml:"startupProbe"`
+	Lifecycle      struct {
+		PreStop struct {
+			Exec struct {
+				Command []string `yaml:"command"`
+			} `yaml:"exec"`
+		} `yaml:"preStop"`
+	} `yaml:"lifecycle"`
 }
 
 type probe struct {

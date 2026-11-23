@@ -32,12 +32,6 @@ listener_tls =
 
 cookie_key = System.get_env("OVERLAY_COOKIE_KEY")
 
-sandbox_origin = System.get_env("OVERLAY_SANDBOX_ORIGIN", "https://widgets.itsbagelbot.com")
-
-if not Regex.match?(~r{\Ahttps?://[a-z0-9.:-]+\z}, sandbox_origin) do
-  raise "OVERLAY_SANDBOX_ORIGIN must be an origin without a path"
-end
-
 if config_env() == :prod and (is_nil(cookie_key) or byte_size(cookie_key) < 32) do
   raise "production requires OVERLAY_COOKIE_KEY with at least 32 bytes"
 end
@@ -45,8 +39,6 @@ end
 config :controls_gateway,
   listener_tls: listener_tls,
   overlay_cookie_key: cookie_key,
-  overlay_sandbox_origin: sandbox_origin,
-  overlay_trust_cloudflare_ip: System.get_env("OVERLAY_TRUST_CLOUDFLARE_IP") == "true",
   powered_dev_frame_ancestors: System.get_env("OVERLAY_POWERED_DEV_FRAME_ANCESTORS") == "true",
   port: String.to_integer(System.get_env("CONTROLS_GATEWAY_PORT", "4000")),
   token_public_keys: parse_keys.(System.get_env("CONTROLS_TOKEN_PUBLIC_KEYS"))
@@ -69,12 +61,14 @@ nats_rpc_port = String.to_integer(System.get_env("NATS_RPC_PORT", Integer.to_str
 endpoints = %{rpc: {nats_rpc_host, nats_rpc_port}, jetstream: {nats_host, nats_port}}
 config :controls_gateway, nats: Planes.settings(endpoints, nats_auth, Settings.tls(nats_cacerts))
 
-config :new_relic_agent, harvest_enabled: false, license_key: nil
+config :new_relic_agent, Platform.NewRelic.runtime_config("controls-gateway")
 
 if config_env() == :prod do
   config :logger, :default_formatter, format: {ControlsGateway.LogFormatter, :format}
 end
 
-if level = System.get_env("LOG_LEVEL") do
-  config :logger, level: String.to_existing_atom(level)
+log_level = System.get_env("LOG_LEVEL") || if(config_env() == :prod, do: "info")
+
+if log_level do
+  config :logger, level: String.to_existing_atom(log_level)
 end

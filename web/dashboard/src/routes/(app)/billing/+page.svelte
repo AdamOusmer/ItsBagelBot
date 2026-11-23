@@ -31,6 +31,7 @@
   import { onMount } from 'svelte';
   import type { BillingState } from '#lib/server/services';
   import type { PrizeAward } from '#lib/server/giveaways';
+  import { PREMIUM_MONTHLY_CAD } from '#lib/premium-price';
 
   let { data, form } = $props();
 
@@ -51,7 +52,7 @@
   const tebexPaid = $derived(account.status === 'paid' && account.source === 'tebex');
   const cancelPending = $derived(tebexPaid && account.cancelPending);
   const cad = $derived(new Intl.NumberFormat(i18n.locale, { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }));
-  const money = $derived(cad.format(7));
+  const money = $derived(cad.format(PREMIUM_MONTHLY_CAD));
   const freeMoney = $derived(cad.format(0));
   const paidUntil = $derived(account.expiresAt);
   const canSubscribe = $derived(!isPaid);

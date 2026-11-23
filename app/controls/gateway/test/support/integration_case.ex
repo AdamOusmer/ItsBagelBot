@@ -19,13 +19,20 @@ defmodule ControlsGateway.IntegrationCase do
 
   setup tags do
     {public_key, private_key} = TokenFixture.keypair()
-    NatsServer.start_planes(if(tags[:jetstream], do: tags[:tmp_dir]))
+    endpoints = NatsServer.start_planes(if(tags[:jetstream], do: tags[:tmp_dir]))
 
+    start_supervised!({ControlsGateway.Caches, ttl_ms: tags[:cache_ttl_ms] || 30_000})
     Application.put_env(:controls_gateway, :token_public_keys, %{"test" => public_key})
     http_port = NatsServer.free_port()
     start_supervised!({ControlsGateway.HttpServer, [port: http_port] ++ listener_opts(tags)})
 
-    %{http_port: http_port, private_key: private_key, public_key: public_key}
+    %{
+      http_port: http_port,
+      rpc_port: elem(endpoints.rpc, 1),
+      jetstream_port: elem(endpoints.jetstream, 1),
+      private_key: private_key,
+      public_key: public_key
+    }
   end
 
   defp listener_opts(%{routes: :desktop}),

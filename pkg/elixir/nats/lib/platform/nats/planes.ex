@@ -10,8 +10,6 @@ defmodule Platform.Nats.Planes do
   @enforce_keys [:plane, :pid]
   defstruct [:plane, :pid]
 
-  @type t :: %__MODULE__{plane: :rpc | :jetstream, pid: pid()}
-
   def settings(%{rpc: _, jetstream: _} = endpoints, credentials, tls) do
     Map.new(endpoints, fn {plane, endpoint} ->
       {plane, [Settings.connection(endpoint, credentials, tls)]}
@@ -40,8 +38,8 @@ defmodule Platform.Nats.Planes do
 
   def publish(connection, subject, body), do: Nats.publish(ref(connection), subject, body)
 
-  def subscribe(connection, subscriber, subject),
-    do: Nats.subscribe(ref(connection), subscriber, subject)
+  def subscribe(connection, subscriber, subject, opts \\ []),
+    do: Nats.subscribe(ref(connection), subscriber, subject, opts)
 
   def unsubscribe(%__MODULE__{pid: pid}, sid), do: Nats.unsubscribe(pid, sid)
 

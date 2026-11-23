@@ -11,7 +11,7 @@ token for a signed session, fetch the overlay document from Projector and follow
 it over SSE. Overlays owns its tokens.
 
 The gateway mounts `/tts`, `/tts/session`, `/tts/events`, `/tts/clip/<event_id>`,
-`/o`, `/o/session`, `/o/doc`, `/o/events`, `/o/runtime/<hash>.js`, `/sandbox/<widget>`, `/powered`, `/powered/assets/<file>`, `/healthz` and
+`/o`, `/o/session`, `/o/doc`, `/o/events`, `/powered`, `/powered/assets/<file>`, `/healthz` and
 `/readyz`. The desktop WebSocket handler is unmounted.
 
 See [context.md](context.md) for the protocol, JetStream resources and deployment

@@ -4,30 +4,23 @@
 defmodule ControlsGateway.Overlay.Nats do
   alias ControlsGateway.OverlayRequest
   alias ControlsGateway.Tts.Session
+  alias Platform.Cache
   alias Platform.Nats.Planes
 
   @resolve "rpc.internal.projector.overlays.resolve"
-  @snapshot "rpc.internal.overlays.feed.snapshot"
+  @cache :overlay_resolve
 
-  def snapshot(rpc, user_id) do
-    request = &Planes.request(&1, rpc)
-
-    case OverlayRequest.request(request, @snapshot, %{user_id: Integer.to_string(user_id)}) do
-      {:ok, %{"code" => code} = reply} when code not in [nil, ""] ->
-        unavailable(reply)
-
-      {:ok, %{"snapshot" => %{} = snapshot, "stream_seq" => seq}}
-      when is_integer(seq) and seq >= 0 ->
-        {:ok, snapshot, seq}
-
-      other ->
-        unavailable(other)
+  def resolve(hash) do
+    case Cache.get_or_load(@cache, hash, fn -> fetch(hash) end) do
+      {:ok, :not_found} -> {:not_found, :unknown_token}
+      {:ok, overlay} -> {:ok, overlay}
+      {:error, reason} -> {:unavailable, reason}
     end
   end
 
-  def resolve(hash) do
+  defp fetch(hash) do
     case OverlayRequest.request(&Planes.request/1, @resolve, %{token_hash: hash}) do
-      {:ok, %{"code" => "not_found"}} -> {:not_found, :unknown_token}
+      {:ok, %{"code" => "not_found"}} -> {:ok, :not_found}
       {:ok, %{"code" => code} = reply} when code not in [nil, ""] -> unavailable(reply)
       {:ok, reply} -> overlay(reply)
       other -> unavailable(other)
@@ -75,7 +68,7 @@ defmodule ControlsGateway.Overlay.Nats do
          premium: premium
        }}
     else
-      _ -> {:unavailable, :invalid_reply}
+      _ -> {:error, :invalid_reply}
     end
   end
 
@@ -83,5 +76,5 @@ defmodule ControlsGateway.Overlay.Nats do
   defp document(false, _document), do: {:ok, nil}
   defp document(_allowed, _document), do: :error
 
-  defp unavailable(reason), do: {:unavailable, inspect(reason, limit: 5)}
+  defp unavailable(reason), do: {:error, inspect(reason, limit: 5)}
 end

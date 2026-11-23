@@ -506,10 +506,6 @@ accounts:
               from: PROJECTOR_RPC
             - stream: controls.tts.revoked.*
               from: PROJECTOR_RPC
-            - stream: controls.overlay.revised.*
-              from: PROJECTOR_RPC
-            - stream: controls.overlay.revoked.*
-              from: PROJECTOR_RPC
             - service: rpc.internal.projector.overlays.powered.resolve
               from: PROJECTOR_RPC
             - service: rpc.internal.projector.overlays.powered.resolve.node.*
@@ -522,8 +518,8 @@ accounts:
               from: OVERLAYS_RPC
             - service: rpc.internal.overlays.feed.snapshot.node.*
               from: OVERLAYS_RPC
-            - stream: channel.chat.*
-              from: WORKER_RPC
+            - stream: cache.invalidate.overlays
+              from: PROJECTOR_RPC
         roles:
             controls_gateway_rpc:
                 publish:
@@ -541,10 +537,6 @@ accounts:
                         - $JS.API.CONSUMER.CREATE.OVERLAY_TTS.*.overlay.tts.*
                         - $JS.FC.OVERLAY_TTS.*.*
                         - $JS.FC.*.*.OVERLAY_TTS.*.*
-                        - $JS.API.STREAM.INFO.OVERLAY_FEED
-                        - $JS.API.CONSUMER.CREATE.OVERLAY_FEED.*.overlay.feed.*.>
-                        - $JS.FC.OVERLAY_FEED.*.*
-                        - $JS.FC.*.*.OVERLAY_FEED.*.*
                         - $JS.API.STREAM.MSG.GET.OBJ_TTS_CLIPS
                         - $JS.API.CONSUMER.INFO.OVERLAYS_PREMIUM.overlays-premium
                         - $JS.API.CONSUMER.INFO.OVERLAYS_STANDARD.overlays-standard
@@ -559,20 +551,8 @@ accounts:
                 subscribe:
                     allow:
                         - controls.tts.revoked.*
-                        - controls.overlay.revised.*
-                        - controls.overlay.revoked.*
-                        - channel.chat.*
+                        - cache.invalidate.overlays
                         - overlays.session.>
-                        - _INBOX.>
-            overlays_feed_bus:
-                publish:
-                    allow:
-                        - overlay.feed.*.*
-                        - $JS.API.STREAM.INFO.OVERLAY_FEED
-                        - $JS.API.STREAM.CREATE.OVERLAY_FEED
-                        - $JS.API.STREAM.UPDATE.OVERLAY_FEED
-                subscribe:
-                    allow:
                         - _INBOX.>
             worker_tts_bus:
                 publish:
@@ -940,10 +920,7 @@ accounts:
               accounts: [WORKER_RPC]
             - stream: controls.tts.revoked.*
               accounts: [CONTROLS_GATEWAY_RPC]
-            - stream: controls.overlay.revised.*
-              accounts: [CONTROLS_GATEWAY_RPC]
-            - stream: controls.overlay.revoked.*
-              accounts: [CONTROLS_GATEWAY_RPC]
+            - stream: cache.invalidate.overlays
             - stream: cache.invalidate.commands
             - stream: cache.invalidate.modules
             - stream: cache.invalidate.automations
@@ -1154,8 +1131,6 @@ accounts:
             - service: rpc.voice.test.node.*
               accounts: [DASHBOARD_RPC]
             - service: rpc.draw.>
-            - stream: channel.chat.*
-              accounts: [CONTROLS_GATEWAY_RPC]
         imports:
             - service: rpc.internal.projector.overlays.tts.settings
               from: PROJECTOR_RPC

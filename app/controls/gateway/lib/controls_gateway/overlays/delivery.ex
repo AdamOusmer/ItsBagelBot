@@ -4,29 +4,43 @@
 defmodule ControlsGateway.Overlays.Delivery do
   require Logger
 
-  alias ControlsGateway.Overlays.{Ack, Tiers}
+  alias ControlsGateway.{Metrics, Overlays}
+  alias ControlsGateway.Overlays.Tiers
   alias ControlsGateway.{Subjects, Tts.Session}
-  alias Platform.Nats
-  alias Platform.Nats.Planes
+  alias Platform.Nats.{Ack, Planes, Requester}
 
   @offer_timeout_ms 2_000
-  @backoff_ns [500_000_000, 2_000_000_000, 5_000_000_000, 10_000_000_000]
-  @backoff_cap_ns 30_000_000_000
+  @backoff_ns [250_000_000, 1_000_000_000, 2_000_000_000, 5_000_000_000]
+  @backoff_cap_ns 10_000_000_000
+  @alert_ttl_s 300
   @kind ~r/\A[a-z]+\z/
+  @offer_metrics %{
+    accepted: "Offer/Accepted",
+    no_responders: "Offer/NoResponders",
+    not_connected: "Offer/NotConnected",
+    timeout: "Offer/Timeout",
+    refused: "Offer/Refused"
+  }
 
   def handle(%{topic: topic, body: body, reply_to: ack} = message) when is_binary(ack) do
     with {:ok, route} <- route(topic),
          {:ok, %{} = data} <- Jason.decode(body),
-         {:ok, %{num_delivered: delivered}} <- Planes.jetstream_metadata(message) do
-      offer(ack, route, data, delivered)
+         {:ok, metadata} <- Planes.jetstream_metadata(message) do
+      offer(ack, route, data, metadata)
     else
       _ ->
         Logger.warning("overlay message invalid", reason: :invalid_message)
-        Ack.term(ack)
+        Metrics.count("Ack/Term")
+        count_failure(Ack.term(:jetstream, ack))
     end
   end
 
   def handle(_message), do: :ok
+
+  def offer_timeout_ms, do: @offer_timeout_ms
+
+  def expires_at(%DateTime{} = published_at),
+    do: published_at |> DateTime.add(@alert_ttl_s) |> DateTime.to_iso8601()
 
   defp route(topic) do
     with ["overlays", tier, kind, id] <- String.split(topic, "."),
@@ -40,39 +54,43 @@ defmodule ControlsGateway.Overlays.Delivery do
     end
   end
 
-  defp offer(ack, {user_id, kind}, data, delivered) do
-    request = Jason.encode!(%{ack: ack, kind: kind, data: data, delivered: delivered})
+  defp offer(ack, {user_id, kind}, data, metadata) do
+    delivered = metadata.num_delivered
 
-    if accepted?(ask(Subjects.overlay_session(user_id), request)) do
-      :ok
-    else
-      Logger.info("overlay clip requeued", user_id: user_id, event_id: data["event_id"])
-      Ack.nak(ack, delay_ns(delivered))
-    end
+    request =
+      Jason.encode!(%{
+        ack: ack,
+        kind: kind,
+        data: data,
+        delivered: delivered,
+        expires_at: expires_at(metadata.timestamp)
+      })
+
+    outcome = outcome(ask(Subjects.overlay_session(user_id, kind), request))
+    Metrics.count(Map.fetch!(@offer_metrics, outcome))
+    settle(outcome, ack, {user_id, data["event_id"], delivered})
   end
 
-  defp ask(subject, body) do
-    reply = Subjects.overlay_offer_reply()
+  defp settle(:accepted, _ack, _clip), do: :ok
 
-    with %Planes{pid: pid} = conn <- Planes.connection(:jetstream),
-         {:ok, sid} <- Planes.subscribe(conn, self(), reply) do
-      Nats.publish(pid, subject, body, reply_to: reply)
-      answer = await_reply(sid)
-      Planes.unsubscribe(conn, sid)
-      answer
-    end
+  defp settle(_outcome, ack, {user_id, event_id, delivered}) do
+    Logger.info("overlay clip requeued", user_id: user_id, event_id: event_id)
+    Metrics.count("Ack/Nak")
+    count_failure(Ack.nak(:jetstream, ack, delay_ns(delivered)))
   end
 
-  defp await_reply(sid) do
-    receive do
-      {:msg, %{sid: ^sid, body: body}} -> {:ok, body}
-    after
-      @offer_timeout_ms -> :timeout
-    end
-  end
+  defp count_failure(:ok), do: :ok
+  defp count_failure(_result), do: Metrics.count("Ack/Failed")
 
-  defp accepted?({:ok, body}), do: Jason.decode(body) == {:ok, %{"accepted" => true}}
-  defp accepted?(_reply), do: false
+  defp ask(subject, body),
+    do: Requester.request(Overlays.offers(), subject, body, @offer_timeout_ms)
+
+  defp outcome({:ok, body}),
+    do: if(Jason.decode(body) == {:ok, %{"accepted" => true}}, do: :accepted, else: :refused)
+
+  defp outcome({:error, :timeout}), do: :timeout
+  defp outcome({:error, :not_connected}), do: :not_connected
+  defp outcome({:error, _reason}), do: :no_responders
 
   defp delay_ns(delivered), do: Enum.at(@backoff_ns, delivered - 1, @backoff_cap_ns)
 end

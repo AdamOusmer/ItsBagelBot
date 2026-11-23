@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/invalidate"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
@@ -40,6 +41,11 @@ func (p *Projector) applyTtsChanged(ctx context.Context, change data.TtsOverlayC
 	if _, err := p.store.FoldTtsOverlay(ctx, change); err != nil {
 		return err
 	}
+	var keys []string
+	if change.Overlay.Configured() {
+		keys = append(keys, string(change.Overlay.TokenHash))
+	}
+	p.invalidations.Publish(invalidate.ScopeOverlays, change.Overlay.UserID, keys...)
 	if !change.Revoked {
 		return nil
 	}

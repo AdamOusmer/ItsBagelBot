@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"ItsBagelBot/internal/domain/channelevents"
-	"ItsBagelBot/internal/domain/overlays/feed"
 
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
@@ -16,7 +15,6 @@ import (
 func TestFeedSubjectsResolveToTheirStreams(t *testing.T) {
 	for _, tc := range []struct{ subject, stream string }{
 		{channelevents.Subject("42", channelevents.CommunityGift), "CHANNEL_EVENTS"},
-		{feed.Subject("42", feed.FrameStats), "OVERLAY_FEED"},
 	} {
 		t.Run(tc.stream, func(t *testing.T) {
 			stream, err := resolveStreamForTopic(tc.subject)

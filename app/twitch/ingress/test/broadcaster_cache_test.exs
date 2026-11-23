@@ -9,8 +9,7 @@ defmodule Ingress.BroadcasterCacheTest do
   defp start_cache(loader, opts \\ []) do
     name = :"cache_#{System.unique_integer([:positive])}"
 
-    start_supervised!({Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor})
-    start_supervised!({BroadcasterCache, [name: name, table: name, loader: loader] ++ opts})
+    start_supervised!({BroadcasterCache, [name: name, loader: loader] ++ opts})
 
     name
   end
@@ -57,15 +56,22 @@ defmodule Ingress.BroadcasterCacheTest do
     end
   end
 
-  test "the sweep keeps recently expired entries and purges idle ones" do
+  test "capacity bounds the cache by evicting the oldest entries" do
     {loader, _counter} = counting_loader({:ok, :premium})
-    cache = start_cache(loader, ttl_ms: 100, sweep_interval_ms: 10)
+    cache = start_cache(loader, capacity: 5)
+
+    Enum.each(1..20, &BroadcasterCache.lane("b#{&1}", cache))
+    assert Platform.Cache.size(cache) <= 5
+  end
+
+  test "an entry idle past twice the ttl blocks on a fresh load" do
+    {loader, counter} = counting_loader({:ok, :premium})
+    cache = start_cache(loader, ttl_ms: 40)
 
     assert BroadcasterCache.lane("b_old", cache) == :premium
     Process.sleep(150)
-    assert :ets.info(cache, :size) == 1
-    Process.sleep(100)
-    assert :ets.info(cache, :size) == 0
+    assert BroadcasterCache.lane("b_old", cache) == :premium
+    assert Agent.get(counter, & &1) == 2
   end
 
   for {name, refresh, after_refresh} <- [

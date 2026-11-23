@@ -72,13 +72,44 @@ defmodule Platform.Nats.TestSupport.NatsServer do
     args = ["-p", Integer.to_string(port), "-a", "127.0.0.1"]
     args = if store_dir, do: args ++ ["-js", "-sd", store_dir], else: args
 
-    Port.open({:spawn_executable, "/bin/sh"}, [
-      :binary,
-      :exit_status,
-      args: ["-c", @supervisor, exe | args]
-    ])
+    server =
+      Port.open({:spawn_executable, "/bin/sh"}, [
+        :binary,
+        :exit_status,
+        args: ["-c", @supervisor, exe | args]
+      ])
 
+    Process.put({__MODULE__, port}, {server, store_dir})
     await_ready(port, 50)
+  end
+
+  @doc "Stops a server started by the calling process and waits until its port refuses connections."
+  @spec stop(:inet.port_number()) :: :ok
+  def stop(port) do
+    {server, _store_dir} = Process.get({__MODULE__, port})
+    Port.close(server)
+    await_down(port, 50)
+  end
+
+  @doc "Starts a server stopped with stop/1 again on the same port and store."
+  @spec restart(:inet.port_number()) :: :ok
+  def restart(port) do
+    {_server, store_dir} = Process.get({__MODULE__, port})
+    spawn_server(port, store_dir)
+  end
+
+  defp await_down(_port, 0), do: raise("nats-server did not stop")
+
+  defp await_down(port, attempts) do
+    case :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false], 200) do
+      {:ok, socket} ->
+        :gen_tcp.close(socket)
+        Process.sleep(100)
+        await_down(port, attempts - 1)
+
+      {:error, _reason} ->
+        :ok
+    end
   end
 
   defp await_ready(_port, 0), do: raise("nats-server did not become ready")

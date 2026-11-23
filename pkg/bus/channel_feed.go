@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/channelevents"
-	"ItsBagelBot/internal/domain/overlays/feed"
 
 	"github.com/nats-io/nats.go"
 )
@@ -27,18 +26,7 @@ var ChannelEventsStream = StreamSpec{
 	MaxBytes:   256 << 20,
 }
 
-var OverlayFeedStream = StreamSpec{
-	Name:       "OVERLAY_FEED",
-	Subjects:   []string{feed.SubjectMatch},
-	Discard:    nats.DiscardOld,
-	MaxAge:     feedMaxAge,
-	Duplicates: 5 * time.Minute,
-	Storage:    nats.MemoryStorage,
-	Replicas:   3,
-	MaxBytes:   256 << 20,
-}
-
-var feedStreams = []StreamSpec{ChannelEventsStream, OverlayFeedStream}
+var feedStreams = []StreamSpec{ChannelEventsStream}
 
 func feedStreamDestination(subject string) (string, bool) {
 	for _, spec := range feedStreams {

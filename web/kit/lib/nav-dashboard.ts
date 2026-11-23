@@ -91,6 +91,7 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     icon: 'overlay',
     href: '/overlays',
     match: ['/overlays'],
+    beta: true,
     ownerOnly: true
   },
   {

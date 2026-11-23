@@ -21,7 +21,7 @@ shared durable pull consumers `overlays-premium` and `overlays-standard`, and
 the `OVERLAYS_MEDIA` object bucket, and publishes `overlays.premium.<kind>.<user_id>`
 and `overlays.standard.<kind>.<user_id>`. The `controls_gateway_rpc` reader only
 binds: it pulls from the two durables, acks on `$JS.ACK`, reads
-`OBJ_OVERLAYS_MEDIA`, and publishes and subscribes `overlays.session.<user_id>` to
+`OBJ_OVERLAYS_MEDIA`, and publishes and subscribes `overlays.session.<user_id>.<kind>` to
 hand each clip to the open overlay streams of that user.
 
 The worker also creates the `GOSSIP_JOBS` work-queue stream (subjects
@@ -37,8 +37,7 @@ acks `gossip-jobs`, writes clips to `OVERLAYS_MEDIA` and publishes
 that removes them.
 
 `PROJECTOR_RPC` restricts the overlay resolve and check RPCs, their node-specific
-subjects, `controls.tts.revoked.*` and `controls.overlay.revised.*` /
-`controls.overlay.revoked.*` to this account. The committed resolver
+subjects, `controls.tts.revoked.*` and `cache.invalidate.overlays` to this account. The committed resolver
 preload needs the signed claims and import activations for these grants.
 `cmd/natscreds` maps the reader role to the `controls-gateway` Doppler project.
 

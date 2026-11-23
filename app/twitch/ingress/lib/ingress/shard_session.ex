@@ -848,7 +848,7 @@ defmodule Ingress.ShardSession do
     attempts = state.attempts + 1
 
     delay =
-      Ingress.Backoff.jittered_ms(attempts, @base_backoff_ms, @max_backoff_ms, 6) +
+      Platform.Backoff.jittered_ms(attempts, @base_backoff_ms, @max_backoff_ms, 6) +
         stagger_ms(state.shard_id)
 
     Logger.info("reconnecting in #{delay}ms (attempt #{attempts})")

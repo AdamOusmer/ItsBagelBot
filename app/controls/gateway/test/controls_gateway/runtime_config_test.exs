@@ -33,10 +33,14 @@ defmodule ControlsGateway.RuntimeConfigTest do
     assert_raise RuntimeError, ~r/production requires NATS_JWT/, fn -> read(:prod) end
   end
 
-  test "the sandbox origin must be a bare origin" do
-    System.put_env("OVERLAY_SANDBOX_ORIGIN", "https://widgets.example.test/path")
-    on_exit(fn -> System.delete_env("OVERLAY_SANDBOX_ORIGIN") end)
-    assert_raise RuntimeError, ~r/OVERLAY_SANDBOX_ORIGIN/, fn -> read(:test) end
+  test "New Relic runs with the shared policy and harvests nothing without a license" do
+    name = "NEW_RELIC_LICENSE_KEY"
+    saved = System.get_env(name)
+    System.delete_env(name)
+    on_exit(fn -> if saved, do: System.put_env(name, saved) end)
+
+    assert %{app_name: "controls-gateway", harvest_enabled: false, license_key: nil} =
+             read(:dev)[:new_relic_agent] |> Map.new()
   end
 
   test "half-set NATS credentials are refused in every environment" do

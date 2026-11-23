@@ -4,6 +4,7 @@
 
   import { getI18n } from '@bagel/kit/i18n/context';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -38,6 +39,7 @@
   <PageHead class="main-head">
     <span class="page-title">
       <bb-fit class="page-title-copy"><span data-fit="">{t('nav.overlays')}</span></bb-fit>
+      <Chip as="span" pressed>{t('modules.betaChip')}</Chip>
     </span>
     {#snippet trailing()}
       <div class="head-actions" class:hidden={!canCreate} inert={!canCreate}>

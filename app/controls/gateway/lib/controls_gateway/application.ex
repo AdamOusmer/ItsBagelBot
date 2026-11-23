@@ -4,37 +4,34 @@
 defmodule ControlsGateway.Application do
   use Application
 
-  alias ControlsGateway.{Config, Drain}
-  alias ControlsGateway.Overlays.{Puller, Tiers}
+  alias ControlsGateway.{Caches, Config, Drain, HttpServer, Overlays}
   alias Platform.Nats.Planes
 
   @impl true
   def start(_type, _args) do
-    children = base_children() ++ server_children()
-    Supervisor.start_link(children, strategy: :one_for_one, name: ControlsGateway.Supervisor)
+    ControlsGateway.Metrics.attach_pull()
+    ControlsGateway.Metrics.attach_cache()
+
+    Platform.Startup.start_link(
+      name: ControlsGateway.Supervisor,
+      enabled: Config.server?(),
+      base: &base_children/0,
+      service: &server_children/0
+    )
   end
 
   @impl true
-  def prep_stop(state) do
-    if Config.server?(), do: Drain.run()
-    state
-  end
+  def prep_stop(state), do: Platform.Startup.prep_stop(state, Config.server?(), &Drain.run/0)
 
   defp base_children do
     [
       ControlsGateway.Metrics,
-      ControlsGateway.Tts.Throttle,
-      {Registry, keys: :unique, name: ControlsGateway.Connections}
+      {Registry, keys: :unique, name: ControlsGateway.Connections},
+      {Registry, keys: :duplicate, name: ControlsGateway.Streams}
     ]
   end
 
-  defp pullers, do: Enum.map(Tiers.all(), &{Puller, &1})
-
   defp server_children do
-    if Config.server?() do
-      Planes.children(Config.nats()) ++ pullers() ++ [ControlsGateway.HttpServer]
-    else
-      []
-    end
+    Planes.children(Config.nats()) ++ Overlays.children() ++ [Caches, HttpServer]
   end
 end

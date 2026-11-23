@@ -287,7 +287,7 @@ defmodule Ingress.TrialReceiver do
 
   defp schedule_reconnect(%{reconnect: nil} = state) do
     attempts = state.reconnect_attempts + 1
-    delay = Ingress.Backoff.jittered_ms(attempts, @reconnect_ms, @max_reconnect_ms, 5)
+    delay = Platform.Backoff.jittered_ms(attempts, @reconnect_ms, @max_reconnect_ms, 5)
     timer = Process.send_after(self(), :reconnect, delay)
     %{state | reconnect: timer, reconnect_attempts: attempts}
   end

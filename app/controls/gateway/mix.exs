@@ -30,10 +30,13 @@ defmodule ControlsGateway.MixProject do
 
   defp deps do
     [
-      {:cowboy, "~> 2.13"},
       {:jason, "~> 1.4"},
       {:mint_web_socket, "~> 1.0", only: :test, runtime: false},
-      {:platform_nats, path: "../../../pkg/elixir/nats"}
+      {:platform_cache, path: "../../../pkg/elixir/cache"},
+      {:platform_cowboy, path: "../../../pkg/elixir/cowboy"},
+      {:platform_nats, path: "../../../pkg/elixir/nats"},
+      {:platform_new_relic, path: "../../../pkg/elixir/new_relic"},
+      {:platform_startup, path: "../../../pkg/elixir/startup"}
     ]
   end
 

@@ -10,6 +10,7 @@ on:
     paths:
       - 'app/twitch/ingress/**'
       - 'pkg/elixir/cowboy/**'
+      - 'pkg/elixir/cache/**'
       - 'pkg/elixir/nats/**'
       - 'pkg/elixir/startup/**'
       - 'pkg/elixir/new_relic/**'
@@ -23,6 +24,7 @@ on:
     paths:
       - 'app/twitch/ingress/**'
       - 'pkg/elixir/cowboy/**'
+      - 'pkg/elixir/cache/**'
       - 'pkg/elixir/nats/**'
       - 'pkg/elixir/startup/**'
       - 'pkg/elixir/new_relic/**'
@@ -112,7 +114,7 @@ jobs:
       - name: Test shared service boundaries
         working-directory: pkg/elixir
         run: |
-          for package in nats startup new_relic websocket boundary sift valkey; do
+          for package in cache nats startup new_relic websocket boundary sift valkey; do
             (cd "$package" && mix deps.get && git diff --exit-code -- mix.lock && mix format --check-formatted && MIX_ENV=test mix compile --warnings-as-errors && if [ -d test ]; then MIX_ENV=test mix test; fi) || exit 1
           done
 

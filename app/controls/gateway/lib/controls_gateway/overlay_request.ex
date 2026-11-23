@@ -2,45 +2,44 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.OverlayRequest do
-  @moduledoc "Client address, link token and JSON request helpers shared by the overlay routes."
+  @moduledoc "Link token and JSON request helpers shared by the overlay routes."
 
   alias ControlsGateway.SignedCookie
 
   @max_body 256
 
-  def client_ip(req) do
-    {peer, _port} = :cowboy_req.peer(req)
-
-    if Application.get_env(:controls_gateway, :overlay_trust_cloudflare_ip, false),
-      do: forwarded_ip(req, peer),
-      else: peer
-  end
-
-  defp forwarded_ip(req, peer) do
-    address = :cowboy_req.header("cf-connecting-ip", req, "")
-
-    case :inet.parse_strict_address(:binary.bin_to_list(address)) do
-      {:ok, ip} -> ip
-      {:error, :einval} -> peer
-    end
-  end
-
-  def token_hash(req) do
-    with key when is_binary(key) and byte_size(key) >= 32 <- SignedCookie.key(),
-         {"application", "json", _params} <- :cowboy_req.parse_header("content-type", req) do
-      read_hash(req)
+  def json?(conn) do
+    with [type | _] <- Plug.Conn.get_req_header(conn, "content-type"),
+         {:ok, "application", "json", _params} <- Plug.Conn.Utils.media_type(type) do
+      true
     else
-      key when is_nil(key) or is_binary(key) -> {{:unavailable, :cookie_key}, req}
-      _ -> {{:not_found, :content_type}, req}
+      _ -> false
     end
-  catch
-    :exit, {:request_error, _, _} -> {{:not_found, :request_error}, req}
   end
 
-  defp read_hash(req) do
-    case :cowboy_req.read_body(req, %{length: @max_body, period: 2_000}) do
-      {:ok, body, req} when byte_size(body) <= @max_body -> {hash(body), req}
-      {_, _, req} -> {{:not_found, :body_size}, req}
+  def read_body(conn, max) do
+    case Plug.Conn.read_body(conn, length: max, read_length: max, read_timeout: 2_000) do
+      {:ok, body, conn} when byte_size(body) <= max -> {{:ok, body}, conn}
+      {:ok, _body, conn} -> {{:error, :body_size}, conn}
+      {:more, _body, conn} -> {{:error, :body_size}, conn}
+      {:error, _reason} -> {{:error, :request_error}, conn}
+    end
+  end
+
+  def token_hash(conn) do
+    with key when is_binary(key) and byte_size(key) >= 32 <- SignedCookie.key(),
+         true <- json?(conn) do
+      read_hash(conn)
+    else
+      key when is_nil(key) or is_binary(key) -> {{:unavailable, :cookie_key}, conn}
+      _ -> {{:not_found, :content_type}, conn}
+    end
+  end
+
+  defp read_hash(conn) do
+    case read_body(conn, @max_body) do
+      {{:ok, body}, conn} -> {hash(body), conn}
+      {{:error, reason}, conn} -> {{:not_found, reason}, conn}
     end
   end
 

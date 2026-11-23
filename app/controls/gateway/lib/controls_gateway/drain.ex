@@ -2,11 +2,13 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.Drain do
-  require Logger
+  alias ControlsGateway.Metrics
 
   @draining_key {__MODULE__, :draining}
-  @jitter_max_ms 5_000
-  @drain_deadline_ms 8_000
+  @registry ControlsGateway.Connections
+  @socket_jitter_max_ms 5_000
+  @reconnect_max_ms 1_500
+  @drain_deadline_ms 25_000
   @poll_interval_ms 200
 
   @spec ready?() :: boolean()
@@ -15,9 +17,9 @@ defmodule ControlsGateway.Drain do
   @spec draining?() :: boolean()
   def draining?, do: :persistent_term.get(@draining_key, false)
 
-  @spec track_connection() :: :ok | :draining
-  def track_connection do
-    {:ok, _} = Registry.register(ControlsGateway.Connections, self(), nil)
+  @spec track_connection(:stream | :socket | :download) :: :ok | :draining
+  def track_connection(kind) do
+    {:ok, _} = Registry.register(@registry, self(), kind)
     if draining?(), do: :draining, else: :ok
   end
 
@@ -30,35 +32,44 @@ defmodule ControlsGateway.Drain do
 
   @spec run() :: :ok
   def run do
+    started = now()
     :persistent_term.put(@draining_key, true)
-    ControlsGateway.Overlays.Puller.pause_all()
-    close_all_with_jitter()
-    await_drained(deadline())
+    ControlsGateway.Overlays.pause_pullers()
+    ControlsGateway.Overlays.await_idle()
+    Enum.each(connections(), &announce/1)
+    await_drained(started + deadline_ms())
+    Metrics.count("Drain/DurationMs", now() - started)
+    Metrics.count("Drain/StreamsLeft", count(:stream))
+    Platform.Metrics.flush(Metrics)
     :ok
-  rescue
-    error ->
-      Logger.error("drain failed: #{Exception.message(error)}; shutting down anyway")
-      :ok
   end
 
-  defp close_all_with_jitter do
-    Enum.each(connected_pids(), fn pid ->
-      Process.send_after(pid, :shutdown_close, :rand.uniform(@jitter_max_ms))
-    end)
+  defp announce({pid, :stream}),
+    do: send(pid, {:reconnect, Platform.Backoff.between_ms(0, @reconnect_max_ms), :drain})
+
+  defp announce({pid, :socket}),
+    do:
+      Process.send_after(pid, :shutdown_close, Platform.Backoff.uniform_ms(@socket_jitter_max_ms))
+
+  defp announce({_pid, :download}), do: :ok
+
+  defp connections do
+    Registry.select(@registry, [{{:_, :"$1", :"$2"}, [], [{{:"$1", :"$2"}}]}])
   end
 
-  defp connected_pids do
-    Registry.select(ControlsGateway.Connections, [{{:_, :"$1", :_}, [], [:"$1"]}])
-  end
+  defp deadline_ms,
+    do: Application.get_env(:controls_gateway, :drain_deadline_ms, @drain_deadline_ms)
 
-  defp deadline, do: System.monotonic_time(:millisecond) + @drain_deadline_ms
+  defp now, do: System.monotonic_time(:millisecond)
+
+  defp count(kind), do: Enum.count(connections(), &match?({_pid, ^kind}, &1))
 
   defp await_drained(deadline) do
     cond do
-      connected_pids() == [] ->
+      connections() == [] ->
         :ok
 
-      System.monotonic_time(:millisecond) >= deadline ->
+      now() >= deadline ->
         :timeout
 
       true ->

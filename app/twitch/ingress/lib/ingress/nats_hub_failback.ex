@@ -50,7 +50,7 @@ defmodule Ingress.NatsHubFailback do
         streaks: %{}
       }
 
-      Process.send_after(self(), :check, :rand.uniform(interval))
+      Process.send_after(self(), :check, Platform.Backoff.uniform_ms(interval))
       {:ok, state}
     else
       :ignore

@@ -2,30 +2,25 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.Powered.Page do
-  alias ControlsGateway.Config
-  alias ControlsGateway.Overlay.Runtime
+  alias ControlsGateway.Http
 
   @path Path.expand("../../../priv/powered/page.html", __DIR__)
   @external_resource @path
-  @source File.read!(@path)
+  @client_path Path.expand("../../../priv/overlay/client.js", __DIR__)
+  @external_resource @client_path
+  @client File.read!(@client_path)
+  @html @path |> File.read!() |> String.replace("{{overlay_client}}", fn _ -> @client end)
 
   inline_hash = fn tag ->
-    [[_, body]] = Regex.scan(~r/<#{tag}>(.*?)<\/#{tag}>/s, @source)
+    [[_, body]] = Regex.scan(~r/<#{tag}>(.*?)<\/#{tag}>/s, @html)
     Base.encode64(:crypto.hash(:sha256, body))
   end
 
-  @script_hash inline_hash.("script")
-  @style_hash inline_hash.("style")
-
-  [head, tail] =
-    @source
-    |> String.replace("__OVERLAY_RUNTIME__", Runtime.path())
-    |> then(&:binary.split(&1, "__OVERLAY_SANDBOX__"))
-
-  @head head
-  @tail tail
-
-  @cdn "https://cdn.itsbagelbot.com"
+  @policy "default-src 'none'; script-src 'sha256-#{inline_hash.("script")}'; " <>
+            "style-src 'sha256-#{inline_hash.("style")}'; " <>
+            "img-src 'self' https://cdn.itsbagelbot.com; media-src https://cdn.itsbagelbot.com; " <>
+            "font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; " <>
+            "frame-ancestors https://dashboard.itsbagelbot.com"
   @dev_ancestors " http://localhost:* http://127.0.0.1:*"
 
   @headers %{
@@ -35,24 +30,14 @@ defmodule ControlsGateway.Powered.Page do
     "x-content-type-options" => "nosniff"
   }
 
-  def reply(req) do
-    origin = Config.sandbox_origin()
-    headers = Map.put(@headers, "content-security-policy", policy(origin))
-    :cowboy_req.reply(200, headers, [@head, origin, @tail], req)
+  def reply(conn) do
+    headers = Map.put(@headers, "content-security-policy", policy())
+    Http.reply(conn, 200, headers, @html)
   end
 
-  defp policy(origin) do
-    "default-src 'none'; script-src 'self' 'sha256-#{@script_hash}'; " <>
-      "style-src 'sha256-#{@style_hash}'; " <>
-      "img-src 'self' #{@cdn} https://static-cdn.jtvnw.net; media-src #{@cdn}; " <>
-      "font-src 'self' #{@cdn}; connect-src 'self' #{@cdn}; frame-src #{origin}; " <>
-      "base-uri 'none'; form-action 'none'; frame-ancestors https://dashboard.itsbagelbot.com" <>
-      dev_ancestors()
-  end
-
-  defp dev_ancestors do
+  defp policy do
     if Application.get_env(:controls_gateway, :powered_dev_frame_ancestors, false),
-      do: @dev_ancestors,
-      else: ""
+      do: @policy <> @dev_ancestors,
+      else: @policy
   end
 end

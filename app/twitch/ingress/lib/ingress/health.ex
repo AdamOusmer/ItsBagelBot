@@ -2,41 +2,19 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Health do
-  @type check :: %{name: String.t(), ok: boolean(), latency_ms: non_neg_integer()}
-  @type report :: %{service: String.t(), status: String.t(), checks: [check()]}
+  alias Platform.Health
 
   @service "ingress"
 
-  @spec report() :: report()
-  def report do
-    checks = checks()
-    %{service: @service, status: aggregate(checks), checks: checks}
-  end
+  defdelegate up?(report), to: Health
+  defdelegate http_status(status), to: Health
+  defdelegate aggregate(checks), to: Health
 
-  @spec up?(report()) :: boolean()
-  def up?(%{status: status}), do: status != "down"
+  @spec report() :: Health.report()
+  def report, do: Health.report(@service, checks())
 
-  @spec http_status(String.t()) :: 200 | 207 | 503
-  def http_status("down"), do: 503
-  def http_status("degraded"), do: 207
-  def http_status(_ok), do: 200
-
-  @spec checks() :: [check()]
+  @spec checks() :: [Health.check()]
   def checks do
-    [check("nats_rpc", :gnat), check("nats_bus", :gnat_bus)]
-  end
-
-  @spec check(String.t(), atom()) :: check()
-  def check(name, connection) do
-    %{name: name, ok: Platform.Nats.connected?(connection), latency_ms: 0}
-  end
-
-  @spec aggregate([check()]) :: String.t()
-  def aggregate(checks) do
-    cond do
-      Enum.any?(checks, &(not &1.ok and not Map.get(&1, :optional, false))) -> "down"
-      Enum.any?(checks, &(not &1.ok)) -> "degraded"
-      true -> "ok"
-    end
+    [Health.check("nats_rpc", :gnat), Health.check("nats_bus", :gnat_bus)]
   end
 end

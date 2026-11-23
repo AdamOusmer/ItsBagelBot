@@ -2,14 +2,9 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.Config do
-  @default_sandbox_origin "https://widgets.itsbagelbot.com"
-
   def nats, do: Application.fetch_env!(:controls_gateway, :nats)
 
   def port, do: Application.get_env(:controls_gateway, :port, 4000)
-
-  def sandbox_origin,
-    do: Application.get_env(:controls_gateway, :overlay_sandbox_origin, @default_sandbox_origin)
 
   def server?, do: Application.get_env(:controls_gateway, :server, true)
 

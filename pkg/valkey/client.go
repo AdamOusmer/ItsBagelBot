@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sync/atomic"
 	"time"
 
 	valkey_go "github.com/valkey-io/valkey-go"
@@ -22,6 +23,9 @@ const (
 
 	localPipelineMultiplex = 5
 	localBufferSize        = 8 << 10
+
+	localDialTimeout     = 300 * time.Millisecond
+	localFailureCooldown = 2 * time.Second
 )
 
 func BuildClientOption(address, password string) valkey_go.ClientOption {
@@ -63,8 +67,9 @@ func buildOption(address, password string, tlsConfig *tls.Config) valkey_go.Clie
 
 type Client struct {
 	valkey_go.Client
-	local  valkey_go.Client
-	pubsub *lazyValkeyClient
+	local          valkey_go.Client
+	pubsub         *lazyValkeyClient
+	localSkipUntil atomic.Int64
 }
 
 func NewClient(address, password string) (valkey_go.Client, error) {
@@ -130,6 +135,8 @@ func (c localReadConfig) option() valkey_go.ClientOption {
 		PipelineMultiplex:   localPipelineMultiplex,
 		ReadBufferEachConn:  localBufferSize,
 		WriteBufferEachConn: localBufferSize,
+		Dialer:              net.Dialer{Timeout: localDialTimeout},
+		DisableRetry:        true,
 	}
 }
 

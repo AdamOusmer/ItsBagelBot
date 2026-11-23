@@ -7,12 +7,10 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"strconv"
 
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/internal/domain/overlays"
-	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
 )
@@ -46,14 +44,8 @@ func validOverlayKind(kind overlays.Kind) bool {
 }
 
 func (p *Projector) applyOverlayChanged(ctx context.Context, change data.OverlayChangedDTO) error {
-	applied, err := p.store.FoldOverlay(ctx, change)
-	if err != nil {
+	if _, err := p.store.FoldOverlay(ctx, change); err != nil {
 		return err
-	}
-	if applied {
-		if err := p.publishOverlayChange(ctx, change); err != nil {
-			return err
-		}
 	}
 	keys := []string{string(change.Overlay.TokenHash)}
 	if change.PreviousTokenHash != "" {
@@ -61,12 +53,4 @@ func (p *Projector) applyOverlayChanged(ctx context.Context, change data.Overlay
 	}
 	p.invalidations.Publish(invalidate.ScopeOverlays, change.Overlay.UserID, keys...)
 	return nil
-}
-
-func (p *Projector) publishOverlayChange(ctx context.Context, change data.OverlayChangedDTO) error {
-	id := change.Overlay.ID
-	if change.Deleted || change.PreviousTokenHash != "" {
-		return bus.PublishCore(ctx, p.nc, overlaysrpc.OverlayRevokedSubject(id), nil)
-	}
-	return bus.PublishCore(ctx, p.nc, overlaysrpc.OverlayRevisedSubject(id), []byte(strconv.FormatUint(change.Overlay.Revision, 10)))
 }

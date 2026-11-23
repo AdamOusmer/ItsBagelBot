@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex">
-  <meta name="overlay-runtime" content="__OVERLAY_RUNTIME__">
-  <meta name="overlay-sandbox" content="__OVERLAY_SANDBOX__">
   <title>Powered by ItsBagelBot</title>
   <link rel="preload" href="/powered/assets/logo.webp" as="image" type="image/webp">
   <link rel="preload" href="/powered/assets/premium-logo.webp" as="image" type="image/webp">
@@ -457,9 +455,9 @@
       </div>
     </div>
   </div>
-  <div id="custom" aria-hidden="true"></div>
   <div class="notice" id="notice" role="status"></div>
   <script>
+{{overlay_client}}
     (function () {
       const CANVAS_WIDTH = 1920;
       const CANVAS_HEIGHT = 1080;
@@ -854,8 +852,9 @@
       }
 
       function liveCycle() {
-        play(undefined);
+        const runMs = play(undefined);
         later(liveCycle, config.every * 60000);
+        return runMs;
       }
 
       const poweredTemplate = {
@@ -866,6 +865,9 @@
           this.running = true;
           later(liveCycle, FIRST_DELAY_MS);
         },
+        playNow: function () {
+          return this.running ? liveCycle() : undefined;
+        },
         stop: function () {
           this.running = false;
           window.clearTimeout(nextTimer);
@@ -874,57 +876,17 @@
       };
 
       const TEMPLATES = { powered: poweredTemplate };
-      const FEEDS = ['event', 'snapshot', 'stats', 'subathon', 'control'];
-      const runtimeUrl = document.querySelector('meta[name="overlay-runtime"]').content;
-      const sandboxOrigin = document.querySelector('meta[name="overlay-sandbox"]').content;
-      let runtimeLoad = null;
-
-      function loadRuntime() {
-        if (!runtimeLoad) {
-          runtimeLoad = new Promise(function (resolve, reject) {
-            const tag = document.createElement('script');
-            tag.src = runtimeUrl;
-            tag.onload = function () { resolve(window.__overlayRuntime); };
-            tag.onerror = function () { reject(new Error('runtime unavailable')); };
-            document.head.append(tag);
-          }).catch(function (error) {
-            runtimeLoad = null;
-            throw error;
-          });
-        }
-        return runtimeLoad;
-      }
-
-      const customTemplate = {
-        overlay: null,
-        body: null,
-        start: function (body) {
-          this.body = body;
-          loadRuntime().then(function (api) {
-            if (customTemplate.body !== body) return;
-            if (!customTemplate.overlay) customTemplate.overlay = api.mount(byId('custom'), sandboxOrigin);
-            customTemplate.overlay.setDocument(body.document);
-          }).catch(retrySync);
-        },
-        stop: function () {
-          this.body = null;
-          if (this.overlay) this.overlay.dispose();
-          this.overlay = null;
-        },
-        feed: function (name, data) {
-          if (this.overlay) this.overlay.feed(name, data);
-        }
-      };
-
       const NOTICES = {
+        custom: 'Custom overlays are coming soon.',
         premium_required: 'Premium is required to show this overlay.',
         not_found: 'This overlay link is no longer valid.'
       };
       const RETRY_MIN_MS = 5000;
       const RETRY_SPREAD_MS = 10000;
+      let retryFloorMs = 0;
       let activeTemplate = null;
       let syncTimer = 0;
-      let source = null;
+      let overlay = null;
 
       function showNotice(key) {
         notice.textContent = key ? NOTICES[key] || NOTICES.not_found : '';
@@ -941,29 +903,53 @@
         syncTimer = window.setTimeout(sync, ms);
       }
 
+      function retryAfterMs(res) {
+        const raw = res.headers.get('retry-after');
+        const seconds = Number(raw);
+        const delay = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(raw) - Date.now();
+        return Math.max(0, delay || 0);
+      }
+
       function retrySync() {
-        scheduleSync(RETRY_MIN_MS + Math.random() * RETRY_SPREAD_MS);
+        const floor = retryFloorMs;
+        retryFloorMs = 0;
+        scheduleSync(Math.max(floor, RETRY_MIN_MS + Math.random() * RETRY_SPREAD_MS));
       }
 
       function closeEvents() {
-        if (source) source.close();
-        source = null;
+        if (overlay) overlay.stop();
+        overlay = null;
       }
 
       function openEvents() {
-        if (source) return;
-        source = new EventSource('/o/events');
-        source.addEventListener('revision', function () { sync(); });
-        FEEDS.forEach(function (name) {
-          source.addEventListener(name, function (message) {
-            if (activeTemplate && activeTemplate.feed) activeTemplate.feed(name, message.data);
-          });
+        if (overlay) return;
+        overlay = createOverlayClient({
+          EventSource: EventSource,
+          fetch: function (url, init) { return fetch(url, init); },
+          storage: window.localStorage,
+          now: function () { return Date.now(); },
+          setTimeout: function (fn, ms) { return window.setTimeout(fn, ms); },
+          clearTimeout: function (id) { window.clearTimeout(id); },
+          random: function () { return Math.random(); },
+          basePath: '/o',
+          token: linkToken,
+          onAlert: function (alert, ctl) {
+            const runMs = activeTemplate && activeTemplate.playNow ? activeTemplate.playNow(alert.data) : undefined;
+            if (runMs === undefined) {
+              ctl.started('dropped');
+              ctl.done();
+              return;
+            }
+            ctl.started();
+            window.setTimeout(ctl.done, runMs);
+          },
+          onRevision: function () { sync(); },
+          onStop: function () {
+            overlay = null;
+            deny('not_found');
+          }
         });
-        source.onerror = function () {
-          if (source.readyState !== EventSource.CLOSED) return;
-          source = null;
-          retrySync();
-        };
+        overlay.start();
       }
 
       async function exchange() {
@@ -979,6 +965,7 @@
           });
           if (res.status === 204) return 'ok';
           if (res.status === 404) return 'gone';
+          if (res.status === 429) retryFloorMs = retryAfterMs(res);
         } catch (_) {}
         return 'retry';
       }
@@ -1002,25 +989,29 @@
 
       function render(body) {
         const doc = body.document;
-        const template = doc.kind === 'custom' ? customTemplate : TEMPLATES[doc.template];
+        const template = doc.kind === 'system' ? TEMPLATES[doc.template] : null;
         if (template) {
           showNotice('');
-          if (activeTemplate && activeTemplate !== template) activeTemplate.stop();
           activeTemplate = template;
           template.start(body);
         } else {
           haltTemplate();
-          showNotice('not_found');
+          showNotice('custom');
         }
         openEvents();
       }
 
+      function needsExchange(result) {
+        return result.state === 'session' || (result.state === 'denied' && result.reason === 'not_found' && linkToken !== '');
+      }
+
       async function sync() {
         let result = await fetchDocument();
-        if (result.state === 'session') {
+        if (needsExchange(result)) {
           const exchanged = await exchange();
           if (exchanged === 'gone') result = { state: 'denied', reason: 'not_found' };
           if (exchanged === 'ok') result = await fetchDocument();
+          if (exchanged === 'retry') result = { state: 'retry' };
         }
         if (result.state === 'ok') render(result.body);
         else if (result.state === 'denied') deny(result.reason);
