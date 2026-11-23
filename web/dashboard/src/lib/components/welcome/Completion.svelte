@@ -151,7 +151,7 @@
     stroke-width: .9;
     stroke-dasharray: 100;
     stroke-dashoffset: 100;
-    animation: draw-ring calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo) forwards;
+    animation: draw-circle calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo) forwards;
   }
 
   .check {
@@ -165,7 +165,7 @@
   .done .check,
   .leaving .check {
     opacity: 1;
-    animation: draw-ring var(--bb-dur-slow) var(--bb-ease-out-expo) forwards;
+    animation: draw-circle var(--bb-dur-slow) var(--bb-ease-out-expo) forwards;
   }
 
   .label {
@@ -191,7 +191,7 @@
   .done .label,
   .leaving .label { opacity: 1; letter-spacing: 0; filter: none; transform: translate(-50%, 0); }
 
-  @keyframes draw-ring { to { stroke-dashoffset: 0; } }
+  @keyframes draw-circle { to { stroke-dashoffset: 0; } }
   @keyframes orb-in { to { opacity: 1; transform: scale(1); } }
   @keyframes arrive-aura { to { opacity: 1; transform: scale(1); } }
   @keyframes ripple {
