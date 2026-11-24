@@ -20,5 +20,6 @@ export const SUB = {
   audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX || 'rpc.admin.user.audit',
   delegation: process.env.NATS_DELEGATION_SUBJECT_PREFIX || 'rpc.delegation',
   notifications: process.env.NATS_NOTIFICATIONS_SUBJECT_PREFIX || 'rpc.notifications',
-  transactions: process.env.NATS_TRANSACTIONS_SUBJECT_PREFIX || 'rpc.transactions'
+  transactions: process.env.NATS_TRANSACTIONS_SUBJECT_PREFIX || 'rpc.transactions',
+  usersMarketing: process.env.NATS_USERS_MARKETING_SUBJECT_PREFIX || 'rpc.internal.users.marketing'
 };

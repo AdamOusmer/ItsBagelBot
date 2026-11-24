@@ -1,0 +1,12 @@
+{
+  "email": "Courriel",
+  "switchLabel": "Courriels promotionnels",
+  "none": "Vous n’êtes pas abonné.",
+  "granted": "Vous êtes abonné.",
+  "withdrawn": "Vous vous êtes désabonné.",
+  "unknown": "Les préférences de courriel sont temporairement indisponibles.",
+  "optIn": "ItsBagelBot envoie des nouveautés et des offres. Écrivez-nous par la poste à {address} ou par courriel à {contact}. Désabonnez-vous à tout moment dans les paramètres ou depuis l’un de ces courriels.",
+  "saveError": "Nous n’avons pas pu modifier votre préférence de courriel. Réessayez.",
+  "optInUnavailable": "Les nouveaux abonnements par courriel sont temporairement indisponibles.",
+  "optInLabel": "Recevez les nouveautés du produit. Désabonnement à tout moment."
+}

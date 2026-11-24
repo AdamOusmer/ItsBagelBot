@@ -224,7 +224,7 @@ func (d *deps) broadcasterTokens() *twitch.BroadcasterTokens {
 }
 
 func (d *deps) storedTokenSource(accountID, seedRefresh string) *twitch.Source {
-	store := tokenstore.New(d.nc, d.cfg.TokensSubjectPrefix, accountID)
+	store := d.tokenStore(accountID)
 	log := d.log
 	return twitch.NewStoredUserTokenSource(d.creds(), seedRefresh, twitch.StoredTokenIO{
 		Load: func(ctx context.Context) twitch.StoredLoad {
@@ -234,8 +234,14 @@ func (d *deps) storedTokenSource(accountID, seedRefresh string) *twitch.Source {
 			}
 			return storedLoad(loaded, err)
 		},
-		Persist: func(ctx context.Context, access, refresh string, expiresAt time.Time) error {
-			if err := store.Save(ctx, access, refresh, &expiresAt); err != nil {
+		Persist: func(ctx context.Context, token twitch.StoredToken) error {
+			stored := tokenstore.Tokens{
+				RefreshToken:         token.RefreshToken,
+				AccessToken:          token.AccessToken,
+				AccessTokenExpiresAt: token.AccessTokenExpiresAt,
+				Scopes:               token.Scopes,
+			}
+			if err := store.Save(ctx, stored); err != nil {
 				log.Warn("token persist failed", zap.String("account_id", accountID), zap.Error(err))
 				return err
 			}
@@ -244,14 +250,28 @@ func (d *deps) storedTokenSource(accountID, seedRefresh string) *twitch.Source {
 	}, d.newMintLease(accountID))
 }
 
-func storedLoad(loaded tokenstore.Loaded, err error) twitch.StoredLoad {
+func (d *deps) tokenStore(accountID string) *tokenstore.Store {
+	return tokenstore.New(d.nc, d.cfg.TokensSubjectPrefix, accountID)
+}
+
+func (d *deps) loadBroadcasterToken(ctx context.Context, accountID string) (twitch.StoredToken, error) {
+	loaded, err := d.tokenStore(accountID).Load(ctx)
+	return twitchStoredToken(loaded), err
+}
+
+func storedLoad(loaded tokenstore.Tokens, err error) twitch.StoredLoad {
 	if tokenstore.Unavailable(err) {
 		return twitch.StoredLoad{Err: err}
 	}
-	return twitch.StoredLoad{
+	return twitch.StoredLoad{StoredToken: twitchStoredToken(loaded)}
+}
+
+func twitchStoredToken(loaded tokenstore.Tokens) twitch.StoredToken {
+	return twitch.StoredToken{
 		RefreshToken:         loaded.RefreshToken,
 		AccessToken:          loaded.AccessToken,
 		AccessTokenExpiresAt: loaded.AccessTokenExpiresAt,
+		Scopes:               loaded.Scopes,
 	}
 }
 
@@ -283,7 +303,8 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 		Batch:       batch,
 		UserIDs:     worker.NewUserIDCache(d.invalidations),
 
-		RewardSnapshots: worker.NewRewardSnapshots(d.valkey),
+		LoadBroadcasterToken: d.loadBroadcasterToken,
+		RewardSnapshots:      worker.NewRewardSnapshots(d.valkey),
 	}
 	build := func(name string, lane worker.Lane) *worker.Worker {
 		cfg := base
@@ -437,7 +458,8 @@ func (d *deps) subscribeChatters(tw *twitch.Client, limiter ratelimit.Manager, w
 				return false, err
 			}
 			snap, active, err := watchAttendance.Capture(ctx, id)
-			return active && snap.Generation == req.SessionGeneration && snap.LiveSession == req.LiveSession, err
+			sameSession := snap.Generation == req.SessionGeneration && snap.LiveSession == req.LiveSession
+			return active && sameSession, err
 		},
 	})
 }

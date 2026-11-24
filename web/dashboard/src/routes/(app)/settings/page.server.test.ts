@@ -12,6 +12,7 @@ stubSvelteKit();
 type Session = { user_id: string; delegate_of?: string; impersonator_id?: string };
 
 const hiddenWrites: { page: string; userId: string; hidden: boolean }[] = [];
+const marketingWrites: unknown[] = [];
 type PurgeBody = { files: string[] } | { tags: string[] };
 const purgeBodies: PurgeBody[] = [];
 const audits: { action: string; detail: string }[] = [];
@@ -32,6 +33,10 @@ const servicesMock = () => ({
   accountState: async () => ({ username: 'StreamerLogin' }),
   publishEventSub: async () => {},
   deleteSelf: async () => {},
+  setMarketing: async (...args: unknown[]) => {
+    marketingWrites.push(args);
+    if (writeFails) throw new Error('rpc down');
+  },
   auditDashboardImpersonation: (session: Session, action: string, detail: string) => {
     if (session.impersonator_id) audits.push({ action, detail });
   },
@@ -63,6 +68,7 @@ const realFetch = globalThis.fetch;
 
 beforeEach(() => {
   hiddenWrites.length = 0;
+  marketingWrites.length = 0;
   purgeBodies.length = 0;
   audits.length = 0;
   writeFails = false;
@@ -93,6 +99,28 @@ function submitToggle(toggle: Toggle, session: Session | null, fields: Record<st
 
 const channelPurge: PurgeBody[] = [{ files: allPageUrls('7', ['streamerlogin']) }, { tags: ['lb:streamerlogin'] }];
 const refused = { status: 403, data: { error: staticText('en', 'serverErrors.notAllowed') } };
+const mailingAddress = 'test mailing address';
+
+test.each([
+  { name: 'owner opts in with a mailing address', session: { user_id: '7' }, status: 'granted', address: mailingAddress, want: { ok: true }, writes: true },
+  { name: 'owner withdraws', session: { user_id: '7' }, status: 'withdrawn', want: { ok: true }, writes: true },
+  { name: 'owner cannot opt in without a mailing address', session: { user_id: '7' }, status: 'granted', want: { status: 503 }, writes: false },
+  { name: 'blank mailing address is treated as unset', session: { user_id: '7' }, status: 'granted', address: '   ', want: { status: 503 }, writes: false },
+  { name: 'unavailable write', session: { user_id: '7' }, status: 'granted', address: mailingAddress, want: { status: 502 }, writes: true, failed: true },
+  { name: 'invalid status', session: { user_id: '7' }, status: 'none', want: { status: 400 }, writes: false },
+  { name: 'signed out', session: null, status: 'granted', want: { status: 401 }, writes: false },
+  { name: 'delegate', session: { user_id: '7', delegate_of: '8' }, status: 'granted', want: { status: 403 }, writes: false },
+  { name: 'impersonation', session: { user_id: '7', impersonator_id: '9' }, status: 'withdrawn', want: { status: 403 }, writes: false }
+])('marketing preference: $name', async ({ session, status, address, want, writes, failed }) => {
+  privateEnv.BUSINESS_MAILING_ADDRESS = address;
+  writeFails = failed ?? false;
+  const request = new Request('https://dashboard.itsbagelbot.com/settings?/marketing', {
+    method: 'POST', body: new URLSearchParams({ status })
+  });
+  const result = await actions.marketing({ request, locals: { session, locale: 'fr' } } as never);
+  expect(result).toMatchObject(want);
+  expect(marketingWrites).toEqual(writes ? [[session, { status, locale: 'fr' }]] : []);
+});
 
 const cases: {
   name: string;
@@ -212,6 +240,16 @@ test('settings preserves every saved language as the selected one', async () => 
     saved.push(data.savedLocale);
   }
   expect(saved).toEqual([...STATIC_LOCALES]);
+});
+
+test.each([
+  { name: 'owner with an address configured', session: { user_id: '42' }, status: 'withdrawn', address: `  ${mailingAddress}  `, want: { status: 'withdrawn', mailingAddress } },
+  { name: 'subscribed owner without an address configured', session: { user_id: '42' }, status: 'granted', want: { status: 'granted', mailingAddress: '' } },
+  { name: 'impersonation', session: { user_id: '42', impersonator_id: '9' }, status: 'granted', address: mailingAddress, want: null }
+])('settings email preference data: $name', async ({ session, status, address, want }) => {
+  privateEnv.BUSINESS_MAILING_ADDRESS = address;
+  const locals = { session, locale: 'en', accountState: { value: { marketingStatus: status } } };
+  expect(await load({ locals } as never)).toMatchObject({ emailPreferences: want });
 });
 
 test('settings reports every public page flag and degrades on a failed read without hiding the page', async () => {

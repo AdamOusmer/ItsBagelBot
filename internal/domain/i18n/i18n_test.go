@@ -89,7 +89,7 @@ func TestDashboardTokenRemoved(t *testing.T) {
 }
 
 func TestDashboardURLExpanded(t *testing.T) {
-	urlKeys := []string{KeyReauthRevokedBody, KeyReauthRevokedChat, KeyGrantDeadChat, KeyBotBannedBody, KeyGrantScopeBody}
+	urlKeys := []string{KeyReauthRevokedBody, KeyBotBannedBody, KeyGrantScopeBody, KeyGrantScopeChat}
 	for _, locale := range Locales() {
 		for _, key := range urlKeys {
 			if !strings.Contains(T(locale, key), DashboardURL) {
@@ -101,8 +101,9 @@ func TestDashboardURLExpanded(t *testing.T) {
 
 func TestSharedKeysResolve(t *testing.T) {
 	keys := []string{
-		KeyReauthRevokedTitle, KeyReauthRevokedBody, KeyReauthRevokedChat,
-		KeyGrantDeadTitle, KeyGrantDeadBody, KeyGrantDeadChat,
+		KeyReauthRevokedTitle, KeyReauthRevokedBody,
+		KeyGrantDeadTitle, KeyGrantDeadBody,
+		KeyGrantScopeChat,
 		KeyBotBannedTitle, KeyBotBannedBody,
 	}
 
@@ -126,7 +127,7 @@ func TestGrantDeadCopyAvoidsRevocationBlame(t *testing.T) {
 	}
 
 	for locale, terms := range blame {
-		for _, key := range []string{KeyGrantDeadTitle, KeyGrantDeadBody, KeyGrantDeadChat} {
+		for _, key := range []string{KeyGrantDeadTitle, KeyGrantDeadBody} {
 			body := T(locale, key)
 			for _, term := range terms {
 				if strings.Contains(body, term) {
@@ -151,11 +152,15 @@ func TestFallbackChain(t *testing.T) {
 
 func isChatCatalogFile(name string) bool {
 	segments := strings.Split(name, "/")
-	return len(segments) >= 3 && segments[1] == chatDir && path.Ext(name) == ".json"
+	inChatDir := len(segments) >= 3 && segments[1] == chatDir
+	return inChatDir && path.Ext(name) == ".json"
 }
 
 func skipsEmbedCheck(name string, d fs.DirEntry, err error) bool {
-	return err != nil || d.IsDir() || !isChatCatalogFile(name)
+	if err != nil {
+		return true
+	}
+	return d.IsDir() || !isChatCatalogFile(name)
 }
 
 func TestEmbedCoversChatTree(t *testing.T) {

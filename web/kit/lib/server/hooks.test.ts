@@ -6,7 +6,7 @@ import type { HookEvent } from './hooks';
 
 mock.module('virtual:bagel-i18n', () => ({ urls: {}, loaders: {}, sliced: false, localeNames: {}, locales: ['en'] }));
 
-const { tagTransaction } = await import('./hooks');
+const { nameTransaction, tagTransaction } = await import('./hooks');
 
 function fakeAgent() {
   const calls = { ignored: 0, names: [] as string[], attributes: [] as object[] };
@@ -26,6 +26,21 @@ function eventWith(accept: string | null, routeId: string | null): HookEvent {
     route: { id: routeId }
   } as HookEvent;
 }
+
+describe('nameTransaction', () => {
+  test('names a request by its route id, never by its path', () => {
+    const { agent, calls } = fakeAgent();
+    nameTransaction(agent, eventWith(null, '/u/[token]'));
+    expect(calls.names).toEqual(['GET /u/[token]']);
+  });
+
+  test('names an unmatched request without its path', () => {
+    const { agent, calls } = fakeAgent();
+    const event = { ...eventWith(null, null), url: new URL('https://console.example/u/secret-token') } as HookEvent;
+    nameTransaction(agent, event);
+    expect(calls.names).toEqual(['GET unmatched']);
+  });
+});
 
 describe('tagTransaction', () => {
   test('ignores event-stream requests and leaves them untagged', () => {

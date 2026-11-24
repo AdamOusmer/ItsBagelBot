@@ -154,6 +154,19 @@ var (
 			},
 		},
 	}
+	// EmailSuppressionColumns holds the columns for the "email_suppression" table.
+	EmailSuppressionColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "address_hmac", Type: field.TypeBytes, Unique: true, SchemaType: map[string]string{"mysql": "varbinary(80)"}},
+		{Name: "reason", Type: field.TypeEnum, Enums: []string{"unsubscribe", "complaint", "hard_bounce"}},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// EmailSuppressionTable holds the schema information for the "email_suppression" table.
+	EmailSuppressionTable = &schema.Table{
+		Name:       "email_suppression",
+		Columns:    EmailSuppressionColumns,
+		PrimaryKey: []*schema.Column{EmailSuppressionColumns[0]},
+	}
 	// LifecycleErasuresColumns holds the columns for the "lifecycle_erasures" table.
 	LifecycleErasuresColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -182,6 +195,138 @@ var (
 				Name:    "lifecycleerasure_completed_at_next_attempt_at_id",
 				Unique:  false,
 				Columns: []*schema.Column{LifecycleErasuresColumns[9], LifecycleErasuresColumns[8], LifecycleErasuresColumns[0]},
+			},
+		},
+	}
+	// MarketingCampaignColumns holds the columns for the "marketing_campaign" table.
+	MarketingCampaignColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 120},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"draft", "approved", "sending", "paused", "done"}, Default: "draft"},
+		{Name: "content", Type: field.TypeJSON},
+		{Name: "created_by", Type: field.TypeString, Size: 32},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "approved_by", Type: field.TypeString, Nullable: true, Size: 32},
+		{Name: "approved_at", Type: field.TypeTime, Nullable: true},
+		{Name: "revision", Type: field.TypeInt, Default: 1},
+		{Name: "audience_cursor", Type: field.TypeUint64, Default: 0},
+		{Name: "lease_holder", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "lease_until", Type: field.TypeTime, Nullable: true},
+	}
+	// MarketingCampaignTable holds the schema information for the "marketing_campaign" table.
+	MarketingCampaignTable = &schema.Table{
+		Name:       "marketing_campaign",
+		Columns:    MarketingCampaignColumns,
+		PrimaryKey: []*schema.Column{MarketingCampaignColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "marketingcampaign_status_id",
+				Unique:  false,
+				Columns: []*schema.Column{MarketingCampaignColumns[2], MarketingCampaignColumns[0]},
+			},
+		},
+	}
+	// MarketingConsentColumns holds the columns for the "marketing_consent" table.
+	MarketingConsentColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "account_created_at", Type: field.TypeInt64},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"granted", "withdrawn"}},
+		{Name: "basis", Type: field.TypeEnum, Enums: []string{"express"}, Default: "express"},
+		{Name: "source", Type: field.TypeEnum, Enums: []string{"welcome", "settings", "prompt", "consent", "preference_page", "one_click", "complaint", "admin", "address_changed"}},
+		{Name: "policy_version", Type: field.TypeString, Size: 64},
+		{Name: "consent_text_key", Type: field.TypeString, Size: 128},
+		{Name: "locale", Type: field.TypeString, Size: 8},
+		{Name: "address_hmac", Type: field.TypeBytes, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeUint64},
+	}
+	// MarketingConsentTable holds the schema information for the "marketing_consent" table.
+	MarketingConsentTable = &schema.Table{
+		Name:       "marketing_consent",
+		Columns:    MarketingConsentColumns,
+		PrimaryKey: []*schema.Column{MarketingConsentColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "marketing_consent_users_marketing_consents",
+				Columns:    []*schema.Column{MarketingConsentColumns[10]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "marketingconsent_user_id_account_created_at_status_id",
+				Unique:  false,
+				Columns: []*schema.Column{MarketingConsentColumns[10], MarketingConsentColumns[1], MarketingConsentColumns[2], MarketingConsentColumns[0]},
+			},
+			{
+				Name:    "marketingconsent_address_hmac",
+				Unique:  false,
+				Columns: []*schema.Column{MarketingConsentColumns[8]},
+				Annotation: &entsql.IndexAnnotation{
+					PrefixColumns: map[string]uint{
+						MarketingConsentColumns[8].Name: 40,
+					},
+				},
+			},
+		},
+	}
+	// MarketingSendColumns holds the columns for the "marketing_send" table.
+	MarketingSendColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "address_hmac", Type: field.TypeBytes, SchemaType: map[string]string{"mysql": "varbinary(80)"}},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"queued", "sent", "delivered", "bounced", "complained", "skipped", "failed"}, Default: "queued"},
+		{Name: "attempts", Type: field.TypeInt, Default: 0},
+		{Name: "resend_id", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "idempotency_key", Type: field.TypeString, Size: 80},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "campaign_id", Type: field.TypeInt},
+		{Name: "user_id", Type: field.TypeUint64},
+	}
+	// MarketingSendTable holds the schema information for the "marketing_send" table.
+	MarketingSendTable = &schema.Table{
+		Name:       "marketing_send",
+		Columns:    MarketingSendColumns,
+		PrimaryKey: []*schema.Column{MarketingSendColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "marketing_send_marketing_campaign_sends",
+				Columns:    []*schema.Column{MarketingSendColumns[7]},
+				RefColumns: []*schema.Column{MarketingCampaignColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "marketing_send_users_marketing_sends",
+				Columns:    []*schema.Column{MarketingSendColumns[8]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "marketingsend_campaign_id_address_hmac",
+				Unique:  true,
+				Columns: []*schema.Column{MarketingSendColumns[7], MarketingSendColumns[1]},
+				Annotation: &entsql.IndexAnnotation{
+					PrefixColumns: map[string]uint{
+						MarketingSendColumns[1].Name: 40,
+					},
+				},
+			},
+			{
+				Name:    "marketingsend_campaign_id_user_id",
+				Unique:  true,
+				Columns: []*schema.Column{MarketingSendColumns[7], MarketingSendColumns[8]},
+			},
+			{
+				Name:    "marketingsend_resend_id",
+				Unique:  false,
+				Columns: []*schema.Column{MarketingSendColumns[4]},
+			},
+			{
+				Name:    "marketingsend_campaign_id_status",
+				Unique:  false,
+				Columns: []*schema.Column{MarketingSendColumns[7], MarketingSendColumns[2]},
 			},
 		},
 	}
@@ -225,12 +370,39 @@ var (
 			},
 		},
 	}
+	// TermsAcceptanceColumns holds the columns for the "terms_acceptance" table.
+	TermsAcceptanceColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "account_created_at", Type: field.TypeInt64},
+		{Name: "terms_version", Type: field.TypeString, Size: 64},
+		{Name: "accepted_at", Type: field.TypeTime},
+		{Name: "source", Type: field.TypeEnum, Enums: []string{"welcome", "consent"}},
+		{Name: "locale", Type: field.TypeString, Size: 8},
+		{Name: "request_id", Type: field.TypeString, Unique: true, Size: 128},
+		{Name: "marketing_skipped", Type: field.TypeString, Size: 16, Default: ""},
+		{Name: "user_id", Type: field.TypeUint64},
+	}
+	// TermsAcceptanceTable holds the schema information for the "terms_acceptance" table.
+	TermsAcceptanceTable = &schema.Table{
+		Name:       "terms_acceptance",
+		Columns:    TermsAcceptanceColumns,
+		PrimaryKey: []*schema.Column{TermsAcceptanceColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "terms_acceptance_users_terms_acceptances",
+				Columns:    []*schema.Column{TermsAcceptanceColumns[8]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+	}
 	// TokensColumns holds the columns for the "tokens" table.
 	TokensColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "type", Type: field.TypeEnum, Enums: []string{"access_token", "user_token"}, Default: "access_token"},
 		{Name: "token", Type: field.TypeBytes},
 		{Name: "refresh_token", Type: field.TypeBytes, Nullable: true},
+		{Name: "scopes", Type: field.TypeJSON, Nullable: true},
 		{Name: "platform", Type: field.TypeEnum, Enums: []string{"twitch"}, Default: "twitch"},
 		{Name: "access_token_expires_at", Type: field.TypeTime, Nullable: true},
 		{Name: "user_tokens", Type: field.TypeUint64},
@@ -243,7 +415,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "tokens_users_tokens",
-				Columns:    []*schema.Column{TokensColumns[6]},
+				Columns:    []*schema.Column{TokensColumns[7]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -252,7 +424,7 @@ var (
 			{
 				Name:    "tokens_type_platform_user_tokens",
 				Unique:  true,
-				Columns: []*schema.Column{TokensColumns[1], TokensColumns[4], TokensColumns[6]},
+				Columns: []*schema.Column{TokensColumns[1], TokensColumns[5], TokensColumns[7]},
 			},
 		},
 	}
@@ -289,6 +461,9 @@ var (
 		{Name: "billing_event_id", Type: field.TypeString, Nullable: true},
 		{Name: "gifts_sent", Type: field.TypeUint32, Default: 0},
 		{Name: "onboarded", Type: field.TypeBool, Default: false},
+		{Name: "terms_version", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "marketing_status", Type: field.TypeEnum, Enums: []string{"none", "granted", "withdrawn"}, Default: "none"},
+		{Name: "marketing_status_at", Type: field.TypeTime, Nullable: true},
 		{Name: "test_account", Type: field.TypeBool, Default: false},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
@@ -333,6 +508,11 @@ var (
 				Name:    "user_lifecycle_migration_pending_id",
 				Unique:  false,
 				Columns: []*schema.Column{UsersColumns[10], UsersColumns[0]},
+			},
+			{
+				Name:    "user_marketing_status_id",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[32], UsersColumns[0]},
 			},
 		},
 	}
@@ -410,8 +590,13 @@ var (
 		BillingReceiptsTable,
 		DelegationsTable,
 		DeviceGrantsTable,
+		EmailSuppressionTable,
 		LifecycleErasuresTable,
+		MarketingCampaignTable,
+		MarketingConsentTable,
+		MarketingSendTable,
 		PremiumGrantsTable,
+		TermsAcceptanceTable,
 		TokensTable,
 		UsersTable,
 		VoiceUsageTable,
@@ -425,7 +610,26 @@ func init() {
 		Collation: "utf8mb4_bin",
 	}
 	DeviceGrantsTable.ForeignKeys[0].RefTable = UsersTable
+	EmailSuppressionTable.Annotation = &entsql.Annotation{
+		Table: "email_suppression",
+	}
+	MarketingCampaignTable.Annotation = &entsql.Annotation{
+		Table: "marketing_campaign",
+	}
+	MarketingConsentTable.ForeignKeys[0].RefTable = UsersTable
+	MarketingConsentTable.Annotation = &entsql.Annotation{
+		Table: "marketing_consent",
+	}
+	MarketingSendTable.ForeignKeys[0].RefTable = MarketingCampaignTable
+	MarketingSendTable.ForeignKeys[1].RefTable = UsersTable
+	MarketingSendTable.Annotation = &entsql.Annotation{
+		Table: "marketing_send",
+	}
 	PremiumGrantsTable.ForeignKeys[0].RefTable = UsersTable
+	TermsAcceptanceTable.ForeignKeys[0].RefTable = UsersTable
+	TermsAcceptanceTable.Annotation = &entsql.Annotation{
+		Table: "terms_acceptance",
+	}
 	TokensTable.ForeignKeys[0].RefTable = UsersTable
 	VoiceUsageTable.ForeignKeys[0].RefTable = UsersTable
 	VoiceUsageTable.Annotation = &entsql.Annotation{

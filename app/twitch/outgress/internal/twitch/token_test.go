@@ -42,7 +42,7 @@ func countMints(t *testing.T, token string) *atomic.Int32 {
 func storedIO(load func(context.Context) StoredLoad) StoredTokenIO {
 	return StoredTokenIO{
 		Load:    load,
-		Persist: func(context.Context, string, string, time.Time) error { return nil },
+		Persist: func(context.Context, StoredToken) error { return nil },
 	}
 }
 
@@ -58,15 +58,15 @@ func TestStoredUserTokenSourceAdoption(t *testing.T) {
 		stored    StoredLoad
 		wantToken string
 	}{
-		{"adopts a stored token comfortably in the future", StoredLoad{AccessToken: "stored", AccessTokenExpiresAt: &future, RefreshToken: "r"}, "stored"},
-		{"refuses a stored expiry inside the refresh margin", StoredLoad{AccessToken: "stored", AccessTokenExpiresAt: &nearExpiry}, ""},
-		{"never reads a missing expiry as valid forever", StoredLoad{AccessToken: "stored"}, ""},
-		{"refuses an expiry without an access token", StoredLoad{AccessTokenExpiresAt: &future}, ""},
+		{"adopts a stored token comfortably in the future", StoredLoad{StoredToken: StoredToken{AccessToken: "stored", AccessTokenExpiresAt: &future, RefreshToken: "r"}}, "stored"},
+		{"refuses a stored expiry inside the refresh margin", StoredLoad{StoredToken: StoredToken{AccessToken: "stored", AccessTokenExpiresAt: &nearExpiry}}, ""},
+		{"never reads a missing expiry as valid forever", StoredLoad{StoredToken: StoredToken{AccessToken: "stored"}}, ""},
+		{"refuses an expiry without an access token", StoredLoad{StoredToken: StoredToken{AccessTokenExpiresAt: &future}}, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			io := storedIO(staticLoad(tt.stored))
-			io.Persist = func(context.Context, string, string, time.Time) error {
+			io.Persist = func(context.Context, StoredToken) error {
 				t.Fatal("adopting a stored token, or having nothing to mint, must never persist")
 				return nil
 			}
@@ -156,15 +156,17 @@ func loserLeaseCases() []leaseCase {
 			lease: holdingLease(false, false),
 			load: func(p *leaseProbe) StoredLoad {
 				if p.loads.Load() < 3 {
-					return StoredLoad{RefreshToken: "stored-refresh-token"}
+					return StoredLoad{StoredToken: StoredToken{RefreshToken: "stored-refresh-token"}}
 				}
-				return StoredLoad{AccessToken: "winners-token", AccessTokenExpiresAt: &future, RefreshToken: "stored-refresh-token"}
+				return StoredLoad{StoredToken: StoredToken{AccessToken: "winners-token", AccessTokenExpiresAt: &future, RefreshToken: "stored-refresh-token"}}
 			},
 			wantToken: "winners-token", wantMints: 0, wantLoads: -1, noPersist: true,
 		},
 		{
 			name: "the loser mints as a fallback when nothing appears", lease: holdingLease(false, false),
-			load:      func(*leaseProbe) StoredLoad { return StoredLoad{RefreshToken: "stored-refresh-token"} },
+			load: func(*leaseProbe) StoredLoad {
+				return StoredLoad{StoredToken: StoredToken{RefreshToken: "stored-refresh-token"}}
+			},
 			wantToken: "fallback-mint", wantMints: 1, wantLoads: 1 + leaseWaitAttempts,
 		},
 	}
@@ -199,7 +201,7 @@ func TestMintLeaseCoordination(t *testing.T) {
 				p.loads.Add(1)
 				return tt.load(p)
 			})
-			io.Persist = func(context.Context, string, string, time.Time) error { p.persisted.Store(true); return nil }
+			io.Persist = func(context.Context, StoredToken) error { p.persisted.Store(true); return nil }
 			src := NewStoredUserTokenSource(ClientCredentials{}, "seed-refresh", io, tt.lease(p))
 
 			start := time.Now()
@@ -207,6 +209,41 @@ func TestMintLeaseCoordination(t *testing.T) {
 
 			require.NoError(t, err)
 			tt.assert(t, p, token, time.Since(start))
+		})
+	}
+}
+
+func TestRefreshPersistsReturnedScopes(t *testing.T) {
+	tests := []struct {
+		name  string
+		lease MintLease
+	}{
+		{name: "uncoordinated"},
+		{name: "with lease", lease: MintLease{Acquire: func(context.Context) (func(), bool, bool) {
+			return func() {}, true, false
+		}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeTokenHTTP(t, func(*http.Request) (*http.Response, error) {
+				return respond(http.StatusOK, `{"access_token":"access","refresh_token":"rotated","expires_in":14400,"scope":["channel:bot"]}`), nil
+			})
+			persisted := make(chan StoredToken, 1)
+			io := storedIO(staticLoad(StoredLoad{}))
+			io.Persist = func(_ context.Context, token StoredToken) error {
+				persisted <- token
+				return nil
+			}
+			src := NewStoredUserTokenSource(ClientCredentials{}, "seed", io, tc.lease)
+			_, err := src.Token(t.Context())
+			require.NoError(t, err)
+
+			select {
+			case token := <-persisted:
+				assert.Equal(t, []string{"channel:bot"}, token.Scopes)
+			case <-time.After(time.Second):
+				t.Fatal("refreshed token was not persisted")
+			}
 		})
 	}
 }
@@ -266,9 +303,9 @@ func TestInvalidateDuringInFlightRefreshDoesNotResurrectDeadToken(t *testing.T) 
 func TestInvalidateForcesMintPastStillValidStoredToken(t *testing.T) {
 	mints := countMints(t, "minted-after-unauthorized")
 	expiresAt := time.Now().Add(2 * time.Hour)
-	src := NewStoredUserTokenSource(ClientCredentials{}, "seed-refresh-token", storedIO(staticLoad(StoredLoad{
+	src := NewStoredUserTokenSource(ClientCredentials{}, "seed-refresh-token", storedIO(staticLoad(StoredLoad{StoredToken: StoredToken{
 		AccessToken: "dead-access-token", AccessTokenExpiresAt: &expiresAt, RefreshToken: "stored-refresh-token",
-	})), MintLease{})
+	}})), MintLease{})
 
 	first, err := src.Token(context.Background())
 	require.NoError(t, err)
@@ -290,7 +327,7 @@ func TestLoserAfterInvalidateDoesNotAdoptSameDeadToken(t *testing.T) {
 	lease := MintLease{Acquire: func(context.Context) (func(), bool, bool) { return nil, false, false }}
 	src := NewStoredUserTokenSource(ClientCredentials{}, "seed-refresh-token", storedIO(func(context.Context) StoredLoad {
 		loads.Add(1)
-		return StoredLoad{AccessToken: "dead-access-token", AccessTokenExpiresAt: &future, RefreshToken: "stored-refresh-token"}
+		return StoredLoad{StoredToken: StoredToken{AccessToken: "dead-access-token", AccessTokenExpiresAt: &future, RefreshToken: "stored-refresh-token"}}
 	}), lease)
 
 	first, err := src.Token(context.Background())
@@ -316,9 +353,9 @@ func TestSkipAdoptSurvivesFailedMintAfterInvalidate(t *testing.T) {
 		return mintResponse("finally-minted")(req)
 	})
 	expiresAt := time.Now().Add(2 * time.Hour)
-	src := NewStoredUserTokenSource(ClientCredentials{}, "seed-refresh-token", storedIO(staticLoad(StoredLoad{
+	src := NewStoredUserTokenSource(ClientCredentials{}, "seed-refresh-token", storedIO(staticLoad(StoredLoad{StoredToken: StoredToken{
 		AccessToken: "dead-access-token", AccessTokenExpiresAt: &expiresAt, RefreshToken: "stored-refresh-token",
-	})), MintLease{})
+	}})), MintLease{})
 	_, err := src.Token(context.Background())
 	require.NoError(t, err, "priming adopts the stored token")
 

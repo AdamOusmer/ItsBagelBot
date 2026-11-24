@@ -1,0 +1,13 @@
+{
+  "title": "Preferências de e-mail",
+  "email": "E-mails sobre o produto para {address}",
+  "granted": "Você recebe e-mails sobre o produto.",
+  "withdrawn": "Você cancelou a inscrição. Não enviaremos mais e-mails sobre o produto.",
+  "none": "Você não está inscrito nos e-mails sobre o produto.",
+  "unsubscribe": "Cancelar inscrição",
+  "resubscribe": "Inscrever-me de novo",
+  "invalid": "Este link não funciona mais. Gerencie suas preferências de e-mail nas configurações do painel.",
+  "unavailable": "As preferências de e-mail estão indisponíveis agora. Tente novamente em instantes.",
+  "saveError": "Não foi possível salvar sua escolha. Tente novamente.",
+  "settings": "Abrir configurações"
+}

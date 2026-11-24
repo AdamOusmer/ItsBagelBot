@@ -6,31 +6,25 @@ package mail
 import (
 	"context"
 	_ "embed"
-	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/validate"
-	"ItsBagelBot/pkg/monitor"
-
-	"github.com/resend/resend-go/v4"
+	"ItsBagelBot/pkg/email"
 )
 
-const sendTimeout = 5 * time.Second
-
 var (
-	ErrInvalidMessage = errors.New("transactional email is invalid")
-	ErrUnconfirmed    = errors.New("email provider acceptance is unconfirmed")
-	ErrRateLimited    = errors.New("email provider rate limit reached")
-	ErrDisabled       = errors.New("email delivery is not configured")
+	ErrInvalidMessage = email.ErrInvalidMessage
+	ErrUnconfirmed    = email.ErrUnconfirmed
+	ErrRateLimited    = email.ErrRateLimited
+	ErrDisabled       = email.ErrDisabled
 )
 
 type Receipt struct{ ProviderID string }
 
 type emailSender interface {
-	SendWithOptions(context.Context, *resend.SendEmailRequest, *resend.SendEmailOptions) (*resend.SendEmailResponse, error)
+	Send(context.Context, email.Message) (email.Receipt, error)
 }
 
 type Mailer struct {
@@ -54,9 +48,8 @@ type renderedMessage struct {
 //go:embed assets/itsbagelbot-logo-v1.png
 var logoPNG []byte
 
-func New(apiKey, from, dashboardURL string) *Mailer {
-	client := resend.NewCustomClient(monitor.HTTPClient(sendTimeout), apiKey)
-	return &Mailer{sender: client.Emails, from: from, dashboardURL: dashboardURL}
+func New(cfg email.Config, dashboardURL string) *Mailer {
+	return &Mailer{sender: email.New(cfg), from: cfg.From, dashboardURL: dashboardURL}
 }
 
 func (m *Mailer) SendGift(ctx context.Context, msg GiftMessage) error {
@@ -102,27 +95,21 @@ func (m *Mailer) send(ctx context.Context, msg renderedMessage) (Receipt, error)
 	if from == "" {
 		from = m.from
 	}
-	attachments := inlineLogoAttachments(msg.HTML)
-	ctx, cancel := context.WithTimeout(ctx, sendTimeout)
-	defer cancel()
-	reply, err := m.sender.SendWithOptions(ctx, &resend.SendEmailRequest{
-		From: from, To: []string{msg.To}, Subject: msg.Subject, Html: msg.HTML, Text: msg.Text,
-		Attachments: attachments,
-	}, &resend.SendEmailOptions{IdempotencyKey: msg.IdempotencyKey})
+	receipt, err := m.sender.Send(ctx, email.Message{
+		From: from, To: msg.To, Subject: msg.Subject, HTML: msg.HTML, Text: msg.Text,
+		IdempotencyKey: msg.IdempotencyKey, Attachments: inlineLogoAttachments(msg.HTML),
+	})
 	if err != nil {
-		return Receipt{}, safeDeliveryError(err)
+		return Receipt{}, err
 	}
-	if reply == nil || strings.TrimSpace(reply.Id) == "" {
-		return Receipt{}, ErrUnconfirmed
-	}
-	return Receipt{ProviderID: reply.Id}, nil
+	return Receipt{ProviderID: receipt.ID}, nil
 }
 
-func inlineLogoAttachments(html string) []*resend.Attachment {
+func inlineLogoAttachments(html string) []email.Attachment {
 	if !strings.Contains(html, `src="`+logoSrc+`"`) {
 		return nil
 	}
-	return []*resend.Attachment{{
+	return []email.Attachment{{
 		Content: logoPNG, Filename: "itsbagelbot-logo.png", ContentType: "image/png", ContentId: logoCID,
 	}}
 }
@@ -134,13 +121,4 @@ func (msg renderedMessage) valid() bool {
 		}
 	}
 	return validate.Email(msg.To) == nil
-}
-
-func safeDeliveryError(err error) error {
-	var limited *resend.RateLimitError
-	if errors.As(err, &limited) {
-		return ErrRateLimited
-	}
-	// Never wrap the provider text: it can contain recipient data.
-	return ErrUnconfirmed
 }

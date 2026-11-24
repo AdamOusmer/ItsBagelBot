@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"ItsBagelBot/internal/domain/consent"
 	"ItsBagelBot/internal/domain/lifecycle"
 
 	"entgo.io/ent"
@@ -73,6 +74,12 @@ func (User) Fields() []ent.Field {
 
 		field.Bool("onboarded").Default(false),
 
+		field.String("terms_version").Default("").MaxLen(64),
+		field.Enum("marketing_status").
+			Values(string(consent.None), string(consent.Granted), string(consent.Withdrawn)).
+			Default(string(consent.None)),
+		field.Time("marketing_status_at").Optional().Nillable(),
+
 		field.Bool("test_account").Default(false),
 
 		field.Time("created_at").Default(time.Now),
@@ -104,6 +111,12 @@ func (User) Edges() []ent.Edge {
 			Annotations(entsql.Annotation{
 				OnDelete: entsql.Cascade,
 			}),
+		edge.To("terms_acceptances", TermsAcceptance.Type).Immutable().
+			Annotations(entsql.Annotation{OnDelete: entsql.Cascade}),
+		edge.To("marketing_consents", MarketingConsent.Type).Immutable().
+			Annotations(entsql.Annotation{OnDelete: entsql.Cascade}),
+		edge.To("marketing_sends", MarketingSend.Type).Immutable().
+			Annotations(entsql.Annotation{OnDelete: entsql.Cascade}),
 		edge.To("voice_usage", VoiceUsage.Type).
 			Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("voice_usage_receipts", VoiceUsageReceipt.Type).
@@ -122,6 +135,7 @@ func (User) Indexes() []ent.Index {
 		index.Fields("notice_due_at", "id"),
 		index.Fields("lifecycle_projection_pending", "id"),
 		index.Fields("lifecycle_migration_pending", "id"),
+		index.Fields("marketing_status", "id"),
 	}
 }
 

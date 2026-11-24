@@ -1,7 +1,7 @@
 {
   "dead.body": "Algunas conexiones de tu canal han caducado. Ve a la configuración y vuelve a conectar tu cuenta para solucionar el problema.",
-  "dead.chat": "Algunas conexiones de tu canal han caducado. Inicia sesión en el panel para solucionar el problema: {dashboard_url}",
   "dead.title": "Vuelve a conectar tu cuenta de Twitch",
   "scope.body": "El bot necesita un permiso de Twitch más reciente para ver los baneos y expulsiones temporales de tu canal. Inicia sesión en {dashboard_url} y acepta el aviso de Twitch para que el chat y las alertas sigan funcionando.",
+  "scope.chat": "¡Hola! ItsBagelBot necesita un permiso actualizado de Twitch. Quien transmite puede iniciar sesión una vez en {dashboard_url} para que todo siga funcionando.",
   "scope.title": "Acepta el nuevo permiso de Twitch"
 }

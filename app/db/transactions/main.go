@@ -21,6 +21,7 @@ import (
 	"ItsBagelBot/app/db/transactions/web"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
+	"ItsBagelBot/pkg/email"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/health"
@@ -217,15 +218,16 @@ func setupCheckout(runtime checkoutRuntime) (configured, auth bool) {
 
 func newMailer(dashboardOrigin string, log *zap.Logger) *mail.Mailer {
 
-	resendKey := env.Get("RESEND_API", env.Get("RESEND_API_KEY", ""))
-	if resendKey == "" {
+	cfg, err := email.FromEnv("RESEND")
+	if err != nil {
 		log.Warn("gift email disabled: RESEND_API not configured")
 		return nil
 	}
+	if cfg.From == "" {
+		cfg.From = "ItsBagelBot <no-reply@itsbagelbot.com>"
+	}
 
-	return mail.New(resendKey,
-		env.Get("RESEND_FROM", "ItsBagelBot <no-reply@itsbagelbot.com>"),
-		dashboardOrigin)
+	return mail.New(cfg, dashboardOrigin)
 }
 
 type listener struct {

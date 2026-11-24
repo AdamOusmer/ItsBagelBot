@@ -56,6 +56,10 @@ export async function resolveLocale(event: HookEvent, forceEn = false): Promise<
   return locale;
 }
 
+export function nameTransaction(nr: Pick<TransactionAgent, 'setTransactionName'>, event: HookEvent): void {
+  nr.setTransactionName(`${event.request.method} ${event.route.id ?? 'unmatched'}`);
+}
+
 export function tagTransaction(
   nr: TransactionAgent,
   event: HookEvent,
@@ -65,7 +69,7 @@ export function tagTransaction(
     nr.getTransaction().ignore();
     return;
   }
-  nr.setTransactionName(`${event.request.method} ${event.route.id ?? 'unmatched'}`);
+  nameTransaction(nr, event);
   nr.addCustomAttributes({
     'route.id': event.route.id ?? 'unmatched',
     'http.method': event.request.method,

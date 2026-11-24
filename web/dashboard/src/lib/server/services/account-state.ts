@@ -10,7 +10,20 @@ import { SUB } from './subjects';
 import { broadcastInvalidation, fabric, invalidate } from './fabric';
 
 export type AccountStatus = 'free' | 'paid' | 'vip';
-export type AccountState = { lifecycleRevision?: number; accountCreatedAt?: number; lifecycle?: ChannelLifecycle; active: boolean; status: AccountStatus; onboarded: boolean; creatorCode: string | null; username: string; displayName: string };
+export type MarketingStatus = 'none' | 'granted' | 'withdrawn';
+export type AccountState = {
+  lifecycleRevision?: number;
+  accountCreatedAt?: number;
+  lifecycle?: ChannelLifecycle;
+  active: boolean;
+  status: AccountStatus;
+  onboarded: boolean;
+  termsVersion?: string;
+  marketingStatus: MarketingStatus;
+  creatorCode: string | null;
+  username: string;
+  displayName: string;
+};
 
 export function normalizeStatus(raw: string | undefined): AccountStatus {
   const s = (raw ?? 'free').toLowerCase();
@@ -21,6 +34,8 @@ export type StateReply = {
   active?: boolean;
   status?: string;
   onboarded?: boolean;
+  terms_version?: string;
+  marketing_status?: MarketingStatus;
   creator_code?: string | null;
   username?: string | null;
   display_name?: string | null;
@@ -36,11 +51,15 @@ export type StateReply = {
   custom_cursor?: unknown;
 } & { [K in PageHiddenField]?: unknown };
 
-const boardState = defineRead({
+const stateRead = {
   subject: `${SUB.dashboard}.state_get`,
   request: (userId: string) => ({ broadcaster_user_id: userId }),
   map: (r: StateReply) => r,
-  timeoutMs: READ_TIMEOUT_MS,
+  timeoutMs: READ_TIMEOUT_MS
+};
+
+const boardState = defineRead({
+  ...stateRead,
   cache: {
     fabric,
     key: (userId: string) => `state:${userId}`,
@@ -52,17 +71,24 @@ export function stateView<T>(view: (r: StateReply) => T): (userId: string) => Pr
   return async (userId) => view(await boardState(userId));
 }
 
-export const accountState = stateView((r): AccountState => ({
-  lifecycle: r.lifecycle,
-  lifecycleRevision: r.state_revision,
-  accountCreatedAt: r.account_created_at,
-  active: !!r.active,
-  status: normalizeStatus(r.status),
-  onboarded: !!r.onboarded,
-  creatorCode: r.creator_code?.trim() ? r.creator_code : null,
-  username: (r.username ?? '').trim(),
-  displayName: (r.display_name ?? '').trim()
-}));
+function toAccountState(r: StateReply): AccountState {
+  return {
+    lifecycle: r.lifecycle,
+    lifecycleRevision: r.state_revision,
+    accountCreatedAt: r.account_created_at,
+    active: !!r.active,
+    status: normalizeStatus(r.status),
+    onboarded: !!r.onboarded,
+    termsVersion: r.terms_version,
+    marketingStatus: r.marketing_status ?? 'none',
+    creatorCode: r.creator_code?.trim() ? r.creator_code : null,
+    username: (r.username ?? '').trim(),
+    displayName: (r.display_name ?? '').trim()
+  };
+}
+
+export const accountState = stateView(toAccountState);
+export const freshAccountState = defineRead({ ...stateRead, map: toAccountState });
 
 type StateField = { verb: string; field: string };
 

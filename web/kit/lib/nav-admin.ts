@@ -18,6 +18,7 @@ export type AdminSectionId =
   | 'users'
   | 'notifications'
   | 'giveaways'
+  | 'campaigns'
   | 'staff'
   | 'audit'
   | 'secrets'
@@ -64,6 +65,15 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     icon: 'activity',
     href: '/giveaways',
     match: ['/giveaways'],
+    minRole: 'admin'
+  },
+  {
+    id: 'campaigns',
+    group: 'accounts',
+    labelKey: 'adminNav.campaigns',
+    icon: 'share',
+    href: '/campaigns',
+    match: ['/campaigns'],
     minRole: 'admin'
   },
   { id: 'settings', group: 'accounts', labelKey: 'adminNav.settings', icon: 'settings', href: '/settings', match: ['/settings'] },

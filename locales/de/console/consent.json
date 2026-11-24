@@ -1,0 +1,8 @@
+{
+  "continue": "Weiter",
+  "reload": "Lade die Seite neu, um die aktuelle Vereinbarung zu lesen.",
+  "saveError": "Deine Einwilligung konnte nicht gespeichert werden. Versuche es erneut.",
+  "subscribed": "Du hast Produkt-E-Mails abonniert.",
+  "marketingNoEmail": "Wir konnten dich nicht anmelden, weil für dein Konto keine E-Mail-Adresse hinterlegt ist.",
+  "marketingUnavailable": "Wir konnten dich gerade nicht anmelden. Du kannst es in den Einstellungen erneut versuchen."
+}

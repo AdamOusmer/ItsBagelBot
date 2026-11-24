@@ -76,6 +76,12 @@ const (
 	FieldGiftsSent = "gifts_sent"
 	// FieldOnboarded holds the string denoting the onboarded field in the database.
 	FieldOnboarded = "onboarded"
+	// FieldTermsVersion holds the string denoting the terms_version field in the database.
+	FieldTermsVersion = "terms_version"
+	// FieldMarketingStatus holds the string denoting the marketing_status field in the database.
+	FieldMarketingStatus = "marketing_status"
+	// FieldMarketingStatusAt holds the string denoting the marketing_status_at field in the database.
+	FieldMarketingStatusAt = "marketing_status_at"
 	// FieldTestAccount holds the string denoting the test_account field in the database.
 	FieldTestAccount = "test_account"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -90,6 +96,12 @@ const (
 	EdgeDeviceGrants = "device_grants"
 	// EdgeAuthorizationCodes holds the string denoting the authorization_codes edge name in mutations.
 	EdgeAuthorizationCodes = "authorization_codes"
+	// EdgeTermsAcceptances holds the string denoting the terms_acceptances edge name in mutations.
+	EdgeTermsAcceptances = "terms_acceptances"
+	// EdgeMarketingConsents holds the string denoting the marketing_consents edge name in mutations.
+	EdgeMarketingConsents = "marketing_consents"
+	// EdgeMarketingSends holds the string denoting the marketing_sends edge name in mutations.
+	EdgeMarketingSends = "marketing_sends"
 	// EdgeVoiceUsage holds the string denoting the voice_usage edge name in mutations.
 	EdgeVoiceUsage = "voice_usage"
 	// EdgeVoiceUsageReceipts holds the string denoting the voice_usage_receipts edge name in mutations.
@@ -124,6 +136,27 @@ const (
 	AuthorizationCodesInverseTable = "authorization_codes"
 	// AuthorizationCodesColumn is the table column denoting the authorization_codes relation/edge.
 	AuthorizationCodesColumn = "user_id"
+	// TermsAcceptancesTable is the table that holds the terms_acceptances relation/edge.
+	TermsAcceptancesTable = "terms_acceptance"
+	// TermsAcceptancesInverseTable is the table name for the TermsAcceptance entity.
+	// It exists in this package in order to avoid circular dependency with the "termsacceptance" package.
+	TermsAcceptancesInverseTable = "terms_acceptance"
+	// TermsAcceptancesColumn is the table column denoting the terms_acceptances relation/edge.
+	TermsAcceptancesColumn = "user_id"
+	// MarketingConsentsTable is the table that holds the marketing_consents relation/edge.
+	MarketingConsentsTable = "marketing_consent"
+	// MarketingConsentsInverseTable is the table name for the MarketingConsent entity.
+	// It exists in this package in order to avoid circular dependency with the "marketingconsent" package.
+	MarketingConsentsInverseTable = "marketing_consent"
+	// MarketingConsentsColumn is the table column denoting the marketing_consents relation/edge.
+	MarketingConsentsColumn = "user_id"
+	// MarketingSendsTable is the table that holds the marketing_sends relation/edge.
+	MarketingSendsTable = "marketing_send"
+	// MarketingSendsInverseTable is the table name for the MarketingSend entity.
+	// It exists in this package in order to avoid circular dependency with the "marketingsend" package.
+	MarketingSendsInverseTable = "marketing_send"
+	// MarketingSendsColumn is the table column denoting the marketing_sends relation/edge.
+	MarketingSendsColumn = "user_id"
 	// VoiceUsageTable is the table that holds the voice_usage relation/edge.
 	VoiceUsageTable = "voice_usage"
 	// VoiceUsageInverseTable is the table name for the VoiceUsage entity.
@@ -173,6 +206,9 @@ var Columns = []string{
 	FieldBillingEventID,
 	FieldGiftsSent,
 	FieldOnboarded,
+	FieldTermsVersion,
+	FieldMarketingStatus,
+	FieldMarketingStatusAt,
 	FieldTestAccount,
 	FieldCreatedAt,
 	FieldUpdatedAt,
@@ -241,6 +277,10 @@ var (
 	DefaultGiftsSent uint32
 	// DefaultOnboarded holds the default value on creation for the "onboarded" field.
 	DefaultOnboarded bool
+	// DefaultTermsVersion holds the default value on creation for the "terms_version" field.
+	DefaultTermsVersion string
+	// TermsVersionValidator is a validator for the "terms_version" field. It is called by the builders before save.
+	TermsVersionValidator func(string) error
 	// DefaultTestAccount holds the default value on creation for the "test_account" field.
 	DefaultTestAccount bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
@@ -275,6 +315,33 @@ func StatusValidator(s Status) error {
 		return nil
 	default:
 		return fmt.Errorf("user: invalid enum value for status field: %q", s)
+	}
+}
+
+// MarketingStatus defines the type for the "marketing_status" enum field.
+type MarketingStatus string
+
+// MarketingStatusNone is the default value of the MarketingStatus enum.
+const DefaultMarketingStatus = MarketingStatusNone
+
+// MarketingStatus values.
+const (
+	MarketingStatusNone      MarketingStatus = "none"
+	MarketingStatusGranted   MarketingStatus = "granted"
+	MarketingStatusWithdrawn MarketingStatus = "withdrawn"
+)
+
+func (ms MarketingStatus) String() string {
+	return string(ms)
+}
+
+// MarketingStatusValidator is a validator for the "marketing_status" field enum values. It is called by the builders before save.
+func MarketingStatusValidator(ms MarketingStatus) error {
+	switch ms {
+	case MarketingStatusNone, MarketingStatusGranted, MarketingStatusWithdrawn:
+		return nil
+	default:
+		return fmt.Errorf("user: invalid enum value for marketing_status field: %q", ms)
 	}
 }
 
@@ -426,6 +493,21 @@ func ByOnboarded(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldOnboarded, opts...).ToFunc()
 }
 
+// ByTermsVersion orders the results by the terms_version field.
+func ByTermsVersion(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTermsVersion, opts...).ToFunc()
+}
+
+// ByMarketingStatus orders the results by the marketing_status field.
+func ByMarketingStatus(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMarketingStatus, opts...).ToFunc()
+}
+
+// ByMarketingStatusAt orders the results by the marketing_status_at field.
+func ByMarketingStatusAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMarketingStatusAt, opts...).ToFunc()
+}
+
 // ByTestAccount orders the results by the test_account field.
 func ByTestAccount(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldTestAccount, opts...).ToFunc()
@@ -497,6 +579,48 @@ func ByAuthorizationCodes(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOptio
 	}
 }
 
+// ByTermsAcceptancesCount orders the results by terms_acceptances count.
+func ByTermsAcceptancesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newTermsAcceptancesStep(), opts...)
+	}
+}
+
+// ByTermsAcceptances orders the results by terms_acceptances terms.
+func ByTermsAcceptances(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newTermsAcceptancesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByMarketingConsentsCount orders the results by marketing_consents count.
+func ByMarketingConsentsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newMarketingConsentsStep(), opts...)
+	}
+}
+
+// ByMarketingConsents orders the results by marketing_consents terms.
+func ByMarketingConsents(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newMarketingConsentsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByMarketingSendsCount orders the results by marketing_sends count.
+func ByMarketingSendsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newMarketingSendsStep(), opts...)
+	}
+}
+
+// ByMarketingSends orders the results by marketing_sends terms.
+func ByMarketingSends(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newMarketingSendsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByVoiceUsageCount orders the results by voice_usage count.
 func ByVoiceUsageCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -550,6 +674,27 @@ func newAuthorizationCodesStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(AuthorizationCodesInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, AuthorizationCodesTable, AuthorizationCodesColumn),
+	)
+}
+func newTermsAcceptancesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(TermsAcceptancesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, TermsAcceptancesTable, TermsAcceptancesColumn),
+	)
+}
+func newMarketingConsentsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(MarketingConsentsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, MarketingConsentsTable, MarketingConsentsColumn),
+	)
+}
+func newMarketingSendsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(MarketingSendsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, MarketingSendsTable, MarketingSendsColumn),
 	)
 }
 func newVoiceUsageStep() *sqlgraph.Step {

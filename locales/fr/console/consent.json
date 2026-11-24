@@ -1,0 +1,8 @@
+{
+  "continue": "Continuer",
+  "reload": "Rechargez la page pour consulter la version actuelle de l’accord.",
+  "saveError": "Nous n’avons pas pu enregistrer votre consentement. Réessayez.",
+  "subscribed": "Vous êtes abonné aux courriels sur le produit.",
+  "marketingNoEmail": "Nous n’avons pas pu vous abonner, car votre compte ne contient aucune adresse courriel.",
+  "marketingUnavailable": "Nous n’avons pas pu vous abonner pour le moment. Vous pouvez réessayer dans les paramètres."
+}

@@ -14,7 +14,7 @@ import { assertBetaRouteOpen } from '#lib/server/module-gate';
 
 const DEMO = dev && process.env.DEMO === '1';
 
-const PUBLIC_PREFIXES = ['/auth', '/login', '/healthz', '/readyz', '/status', '/lang', '/delegate/accept', '/stats'];
+const PUBLIC_PREFIXES = ['/auth', '/login', '/healthz', '/readyz', '/status', '/lang', '/delegate/accept', '/stats', '/u', '/webhooks'];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));

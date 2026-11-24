@@ -13,6 +13,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 )
 
@@ -58,6 +59,24 @@ func (_u *TokensUpdate) SetRefreshToken(v []byte) *TokensUpdate {
 // ClearRefreshToken clears the value of the "refresh_token" field.
 func (_u *TokensUpdate) ClearRefreshToken() *TokensUpdate {
 	_u.mutation.ClearRefreshToken()
+	return _u
+}
+
+// SetScopes sets the "scopes" field.
+func (_u *TokensUpdate) SetScopes(v []string) *TokensUpdate {
+	_u.mutation.SetScopes(v)
+	return _u
+}
+
+// AppendScopes appends value to the "scopes" field.
+func (_u *TokensUpdate) AppendScopes(v []string) *TokensUpdate {
+	_u.mutation.AppendScopes(v)
+	return _u
+}
+
+// ClearScopes clears the value of the "scopes" field.
+func (_u *TokensUpdate) ClearScopes() *TokensUpdate {
+	_u.mutation.ClearScopes()
 	return _u
 }
 
@@ -186,6 +205,17 @@ func (_u *TokensUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.RefreshTokenCleared() {
 		_spec.ClearField(tokens.FieldRefreshToken, field.TypeBytes)
 	}
+	if value, ok := _u.mutation.Scopes(); ok {
+		_spec.SetField(tokens.FieldScopes, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedScopes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, tokens.FieldScopes, value)
+		})
+	}
+	if _u.mutation.ScopesCleared() {
+		_spec.ClearField(tokens.FieldScopes, field.TypeJSON)
+	}
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(tokens.FieldPlatform, field.TypeEnum, value)
 	}
@@ -273,6 +303,24 @@ func (_u *TokensUpdateOne) SetRefreshToken(v []byte) *TokensUpdateOne {
 // ClearRefreshToken clears the value of the "refresh_token" field.
 func (_u *TokensUpdateOne) ClearRefreshToken() *TokensUpdateOne {
 	_u.mutation.ClearRefreshToken()
+	return _u
+}
+
+// SetScopes sets the "scopes" field.
+func (_u *TokensUpdateOne) SetScopes(v []string) *TokensUpdateOne {
+	_u.mutation.SetScopes(v)
+	return _u
+}
+
+// AppendScopes appends value to the "scopes" field.
+func (_u *TokensUpdateOne) AppendScopes(v []string) *TokensUpdateOne {
+	_u.mutation.AppendScopes(v)
+	return _u
+}
+
+// ClearScopes clears the value of the "scopes" field.
+func (_u *TokensUpdateOne) ClearScopes() *TokensUpdateOne {
+	_u.mutation.ClearScopes()
 	return _u
 }
 
@@ -430,6 +478,17 @@ func (_u *TokensUpdateOne) sqlSave(ctx context.Context) (_node *Tokens, err erro
 	}
 	if _u.mutation.RefreshTokenCleared() {
 		_spec.ClearField(tokens.FieldRefreshToken, field.TypeBytes)
+	}
+	if value, ok := _u.mutation.Scopes(); ok {
+		_spec.SetField(tokens.FieldScopes, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedScopes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, tokens.FieldScopes, value)
+		})
+	}
+	if _u.mutation.ScopesCleared() {
+		_spec.ClearField(tokens.FieldScopes, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(tokens.FieldPlatform, field.TypeEnum, value)

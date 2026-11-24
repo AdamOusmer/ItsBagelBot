@@ -8,13 +8,19 @@ import (
 	"ItsBagelBot/app/db/users/ent/billingreceipt"
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
+	"ItsBagelBot/app/db/users/ent/emailsuppression"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
+	"ItsBagelBot/app/db/users/ent/marketingcampaign"
+	"ItsBagelBot/app/db/users/ent/marketingconsent"
+	"ItsBagelBot/app/db/users/ent/marketingsend"
 	"ItsBagelBot/app/db/users/ent/predicate"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
+	"ItsBagelBot/app/db/users/ent/termsacceptance"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/ent/voiceusage"
 	"ItsBagelBot/app/db/users/ent/voiceusagereceipt"
+	"ItsBagelBot/internal/domain/consent"
 	"ItsBagelBot/internal/domain/lifecycle"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"context"
@@ -42,8 +48,13 @@ const (
 	TypeBillingReceipt     = "BillingReceipt"
 	TypeDelegation         = "Delegation"
 	TypeDeviceGrant        = "DeviceGrant"
+	TypeEmailSuppression   = "EmailSuppression"
 	TypeLifecycleErasure   = "LifecycleErasure"
+	TypeMarketingCampaign  = "MarketingCampaign"
+	TypeMarketingConsent   = "MarketingConsent"
+	TypeMarketingSend      = "MarketingSend"
 	TypePremiumGrant       = "PremiumGrant"
+	TypeTermsAcceptance    = "TermsAcceptance"
 	TypeTokens             = "Tokens"
 	TypeUser               = "User"
 	TypeVoiceUsage         = "VoiceUsage"
@@ -3765,6 +3776,440 @@ func (m *DeviceGrantMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown DeviceGrant edge %s", name)
 }
 
+// EmailSuppressionMutation represents an operation that mutates the EmailSuppression nodes in the graph.
+type EmailSuppressionMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int
+	address_hmac  *[]byte
+	reason        *emailsuppression.Reason
+	created_at    *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*EmailSuppression, error)
+	predicates    []predicate.EmailSuppression
+}
+
+var _ ent.Mutation = (*EmailSuppressionMutation)(nil)
+
+// emailsuppressionOption allows management of the mutation configuration using functional options.
+type emailsuppressionOption func(*EmailSuppressionMutation)
+
+// newEmailSuppressionMutation creates new mutation for the EmailSuppression entity.
+func newEmailSuppressionMutation(c config, op Op, opts ...emailsuppressionOption) *EmailSuppressionMutation {
+	m := &EmailSuppressionMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeEmailSuppression,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withEmailSuppressionID sets the ID field of the mutation.
+func withEmailSuppressionID(id int) emailsuppressionOption {
+	return func(m *EmailSuppressionMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *EmailSuppression
+		)
+		m.oldValue = func(ctx context.Context) (*EmailSuppression, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().EmailSuppression.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withEmailSuppression sets the old EmailSuppression of the mutation.
+func withEmailSuppression(node *EmailSuppression) emailsuppressionOption {
+	return func(m *EmailSuppressionMutation) {
+		m.oldValue = func(context.Context) (*EmailSuppression, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m EmailSuppressionMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m EmailSuppressionMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *EmailSuppressionMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *EmailSuppressionMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().EmailSuppression.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetAddressHmac sets the "address_hmac" field.
+func (m *EmailSuppressionMutation) SetAddressHmac(b []byte) {
+	m.address_hmac = &b
+}
+
+// AddressHmac returns the value of the "address_hmac" field in the mutation.
+func (m *EmailSuppressionMutation) AddressHmac() (r []byte, exists bool) {
+	v := m.address_hmac
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAddressHmac returns the old "address_hmac" field's value of the EmailSuppression entity.
+// If the EmailSuppression object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EmailSuppressionMutation) OldAddressHmac(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAddressHmac is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAddressHmac requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAddressHmac: %w", err)
+	}
+	return oldValue.AddressHmac, nil
+}
+
+// ResetAddressHmac resets all changes to the "address_hmac" field.
+func (m *EmailSuppressionMutation) ResetAddressHmac() {
+	m.address_hmac = nil
+}
+
+// SetReason sets the "reason" field.
+func (m *EmailSuppressionMutation) SetReason(e emailsuppression.Reason) {
+	m.reason = &e
+}
+
+// Reason returns the value of the "reason" field in the mutation.
+func (m *EmailSuppressionMutation) Reason() (r emailsuppression.Reason, exists bool) {
+	v := m.reason
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReason returns the old "reason" field's value of the EmailSuppression entity.
+// If the EmailSuppression object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EmailSuppressionMutation) OldReason(ctx context.Context) (v emailsuppression.Reason, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReason is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReason requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReason: %w", err)
+	}
+	return oldValue.Reason, nil
+}
+
+// ResetReason resets all changes to the "reason" field.
+func (m *EmailSuppressionMutation) ResetReason() {
+	m.reason = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *EmailSuppressionMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *EmailSuppressionMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the EmailSuppression entity.
+// If the EmailSuppression object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EmailSuppressionMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *EmailSuppressionMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the EmailSuppressionMutation builder.
+func (m *EmailSuppressionMutation) Where(ps ...predicate.EmailSuppression) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the EmailSuppressionMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *EmailSuppressionMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.EmailSuppression, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *EmailSuppressionMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *EmailSuppressionMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (EmailSuppression).
+func (m *EmailSuppressionMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *EmailSuppressionMutation) Fields() []string {
+	fields := make([]string, 0, 3)
+	if m.address_hmac != nil {
+		fields = append(fields, emailsuppression.FieldAddressHmac)
+	}
+	if m.reason != nil {
+		fields = append(fields, emailsuppression.FieldReason)
+	}
+	if m.created_at != nil {
+		fields = append(fields, emailsuppression.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *EmailSuppressionMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case emailsuppression.FieldAddressHmac:
+		return m.AddressHmac()
+	case emailsuppression.FieldReason:
+		return m.Reason()
+	case emailsuppression.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *EmailSuppressionMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case emailsuppression.FieldAddressHmac:
+		return m.OldAddressHmac(ctx)
+	case emailsuppression.FieldReason:
+		return m.OldReason(ctx)
+	case emailsuppression.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown EmailSuppression field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *EmailSuppressionMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case emailsuppression.FieldAddressHmac:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAddressHmac(v)
+		return nil
+	case emailsuppression.FieldReason:
+		v, ok := value.(emailsuppression.Reason)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReason(v)
+		return nil
+	case emailsuppression.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown EmailSuppression field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *EmailSuppressionMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *EmailSuppressionMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *EmailSuppressionMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown EmailSuppression numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *EmailSuppressionMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *EmailSuppressionMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *EmailSuppressionMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown EmailSuppression nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *EmailSuppressionMutation) ResetField(name string) error {
+	switch name {
+	case emailsuppression.FieldAddressHmac:
+		m.ResetAddressHmac()
+		return nil
+	case emailsuppression.FieldReason:
+		m.ResetReason()
+		return nil
+	case emailsuppression.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown EmailSuppression field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *EmailSuppressionMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *EmailSuppressionMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *EmailSuppressionMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *EmailSuppressionMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *EmailSuppressionMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *EmailSuppressionMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *EmailSuppressionMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown EmailSuppression unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *EmailSuppressionMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown EmailSuppression edge %s", name)
+}
+
 // LifecycleErasureMutation represents an operation that mutates the LifecycleErasure nodes in the graph.
 type LifecycleErasureMutation struct {
 	config
@@ -4652,6 +5097,2899 @@ func (m *LifecycleErasureMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown LifecycleErasure edge %s", name)
 }
 
+// MarketingCampaignMutation represents an operation that mutates the MarketingCampaign nodes in the graph.
+type MarketingCampaignMutation struct {
+	config
+	op                 Op
+	typ                string
+	id                 *int
+	name               *string
+	status             *marketingcampaign.Status
+	content            *map[string]consent.CampaignContent
+	created_by         *string
+	created_at         *time.Time
+	approved_by        *string
+	approved_at        *time.Time
+	revision           *int
+	addrevision        *int
+	audience_cursor    *uint64
+	addaudience_cursor *int64
+	lease_holder       *string
+	lease_until        *time.Time
+	clearedFields      map[string]struct{}
+	sends              map[int]struct{}
+	removedsends       map[int]struct{}
+	clearedsends       bool
+	done               bool
+	oldValue           func(context.Context) (*MarketingCampaign, error)
+	predicates         []predicate.MarketingCampaign
+}
+
+var _ ent.Mutation = (*MarketingCampaignMutation)(nil)
+
+// marketingcampaignOption allows management of the mutation configuration using functional options.
+type marketingcampaignOption func(*MarketingCampaignMutation)
+
+// newMarketingCampaignMutation creates new mutation for the MarketingCampaign entity.
+func newMarketingCampaignMutation(c config, op Op, opts ...marketingcampaignOption) *MarketingCampaignMutation {
+	m := &MarketingCampaignMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeMarketingCampaign,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withMarketingCampaignID sets the ID field of the mutation.
+func withMarketingCampaignID(id int) marketingcampaignOption {
+	return func(m *MarketingCampaignMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *MarketingCampaign
+		)
+		m.oldValue = func(ctx context.Context) (*MarketingCampaign, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().MarketingCampaign.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withMarketingCampaign sets the old MarketingCampaign of the mutation.
+func withMarketingCampaign(node *MarketingCampaign) marketingcampaignOption {
+	return func(m *MarketingCampaignMutation) {
+		m.oldValue = func(context.Context) (*MarketingCampaign, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m MarketingCampaignMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m MarketingCampaignMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *MarketingCampaignMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *MarketingCampaignMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().MarketingCampaign.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetName sets the "name" field.
+func (m *MarketingCampaignMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *MarketingCampaignMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the MarketingCampaign entity.
+// If the MarketingCampaign object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingCampaignMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *MarketingCampaignMutation) ResetName() {
+	m.name = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *MarketingCampaignMutation) SetStatus(value marketingcampaign.Status) {
+	m.status = &value
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *MarketingCampaignMutation) Status() (r marketingcampaign.Status, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the MarketingCampaign entity.
+// If the MarketingCampaign object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingCampaignMutation) OldStatus(ctx context.Context) (v marketingcampaign.Status, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *MarketingCampaignMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetContent sets the "content" field.
+func (m *MarketingCampaignMutation) SetContent(mc map[string]consent.CampaignContent) {
+	m.content = &mc
+}
+
+// Content returns the value of the "content" field in the mutation.
+func (m *MarketingCampaignMutation) Content() (r map[string]consent.CampaignContent, exists bool) {
+	v := m.content
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldContent returns the old "content" field's value of the MarketingCampaign entity.
+// If the MarketingCampaign object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingCampaignMutation) OldContent(ctx context.Context) (v map[string]consent.CampaignContent, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldContent is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldContent requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldContent: %w", err)
+	}
+	return oldValue.Content, nil
+}
+
+// ResetContent resets all changes to the "content" field.
+func (m *MarketingCampaignMutation) ResetContent() {
+	m.content = nil
+}
+
+// SetCreatedBy sets the "created_by" field.
+func (m *MarketingCampaignMutation) SetCreatedBy(s string) {
+	m.created_by = &s
+}
+
+// CreatedBy returns the value of the "created_by" field in the mutation.
+func (m *MarketingCampaignMutation) CreatedBy() (r string, exists bool) {
+	v := m.created_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedBy returns the old "created_by" field's value of the MarketingCampaign entity.
+// If the MarketingCampaign object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingCampaignMutation) OldCreatedBy(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedBy: %w", err)
+	}
+	return oldValue.CreatedBy, nil
+}
+
+// ResetCreatedBy resets all changes to the "created_by" field.
+func (m *MarketingCampaignMutation) ResetCreatedBy() {
+	m.created_by = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *MarketingCampaignMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *MarketingCampaignMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the MarketingCampaign entity.
+// If the MarketingCampaign object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingCampaignMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *MarketingCampaignMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetApprovedBy sets the "approved_by" field.
+func (m *MarketingCampaignMutation) SetApprovedBy(s string) {
+	m.approved_by = &s
+}
+
+// ApprovedBy returns the value of the "approved_by" field in the mutation.
+func (m *MarketingCampaignMutation) ApprovedBy() (r string, exists bool) {
+	v := m.approved_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldApprovedBy returns the old "approved_by" field's value of the MarketingCampaign entity.
+// If the MarketingCampaign object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingCampaignMutation) OldApprovedBy(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldApprovedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldApprovedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldApprovedBy: %w", err)
+	}
+	return oldValue.ApprovedBy, nil
+}
+
+// ClearApprovedBy clears the value of the "approved_by" field.
+func (m *MarketingCampaignMutation) ClearApprovedBy() {
+	m.approved_by = nil
+	m.clearedFields[marketingcampaign.FieldApprovedBy] = struct{}{}
+}
+
+// ApprovedByCleared returns if the "approved_by" field was cleared in this mutation.
+func (m *MarketingCampaignMutation) ApprovedByCleared() bool {
+	_, ok := m.clearedFields[marketingcampaign.FieldApprovedBy]
+	return ok
+}
+
+// ResetApprovedBy resets all changes to the "approved_by" field.
+func (m *MarketingCampaignMutation) ResetApprovedBy() {
+	m.approved_by = nil
+	delete(m.clearedFields, marketingcampaign.FieldApprovedBy)
+}
+
+// SetApprovedAt sets the "approved_at" field.
+func (m *MarketingCampaignMutation) SetApprovedAt(t time.Time) {
+	m.approved_at = &t
+}
+
+// ApprovedAt returns the value of the "approved_at" field in the mutation.
+func (m *MarketingCampaignMutation) ApprovedAt() (r time.Time, exists bool) {
+	v := m.approved_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldApprovedAt returns the old "approved_at" field's value of the MarketingCampaign entity.
+// If the MarketingCampaign object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingCampaignMutation) OldApprovedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldApprovedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldApprovedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldApprovedAt: %w", err)
+	}
+	return oldValue.ApprovedAt, nil
+}
+
+// ClearApprovedAt clears the value of the "approved_at" field.
+func (m *MarketingCampaignMutation) ClearApprovedAt() {
+	m.approved_at = nil
+	m.clearedFields[marketingcampaign.FieldApprovedAt] = struct{}{}
+}
+
+// ApprovedAtCleared returns if the "approved_at" field was cleared in this mutation.
+func (m *MarketingCampaignMutation) ApprovedAtCleared() bool {
+	_, ok := m.clearedFields[marketingcampaign.FieldApprovedAt]
+	return ok
+}
+
+// ResetApprovedAt resets all changes to the "approved_at" field.
+func (m *MarketingCampaignMutation) ResetApprovedAt() {
+	m.approved_at = nil
+	delete(m.clearedFields, marketingcampaign.FieldApprovedAt)
+}
+
+// SetRevision sets the "revision" field.
+func (m *MarketingCampaignMutation) SetRevision(i int) {
+	m.revision = &i
+	m.addrevision = nil
+}
+
+// Revision returns the value of the "revision" field in the mutation.
+func (m *MarketingCampaignMutation) Revision() (r int, exists bool) {
+	v := m.revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRevision returns the old "revision" field's value of the MarketingCampaign entity.
+// If the MarketingCampaign object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingCampaignMutation) OldRevision(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRevision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRevision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRevision: %w", err)
+	}
+	return oldValue.Revision, nil
+}
+
+// AddRevision adds i to the "revision" field.
+func (m *MarketingCampaignMutation) AddRevision(i int) {
+	if m.addrevision != nil {
+		*m.addrevision += i
+	} else {
+		m.addrevision = &i
+	}
+}
+
+// AddedRevision returns the value that was added to the "revision" field in this mutation.
+func (m *MarketingCampaignMutation) AddedRevision() (r int, exists bool) {
+	v := m.addrevision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRevision resets all changes to the "revision" field.
+func (m *MarketingCampaignMutation) ResetRevision() {
+	m.revision = nil
+	m.addrevision = nil
+}
+
+// SetAudienceCursor sets the "audience_cursor" field.
+func (m *MarketingCampaignMutation) SetAudienceCursor(u uint64) {
+	m.audience_cursor = &u
+	m.addaudience_cursor = nil
+}
+
+// AudienceCursor returns the value of the "audience_cursor" field in the mutation.
+func (m *MarketingCampaignMutation) AudienceCursor() (r uint64, exists bool) {
+	v := m.audience_cursor
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAudienceCursor returns the old "audience_cursor" field's value of the MarketingCampaign entity.
+// If the MarketingCampaign object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingCampaignMutation) OldAudienceCursor(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAudienceCursor is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAudienceCursor requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAudienceCursor: %w", err)
+	}
+	return oldValue.AudienceCursor, nil
+}
+
+// AddAudienceCursor adds u to the "audience_cursor" field.
+func (m *MarketingCampaignMutation) AddAudienceCursor(u int64) {
+	if m.addaudience_cursor != nil {
+		*m.addaudience_cursor += u
+	} else {
+		m.addaudience_cursor = &u
+	}
+}
+
+// AddedAudienceCursor returns the value that was added to the "audience_cursor" field in this mutation.
+func (m *MarketingCampaignMutation) AddedAudienceCursor() (r int64, exists bool) {
+	v := m.addaudience_cursor
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAudienceCursor resets all changes to the "audience_cursor" field.
+func (m *MarketingCampaignMutation) ResetAudienceCursor() {
+	m.audience_cursor = nil
+	m.addaudience_cursor = nil
+}
+
+// SetLeaseHolder sets the "lease_holder" field.
+func (m *MarketingCampaignMutation) SetLeaseHolder(s string) {
+	m.lease_holder = &s
+}
+
+// LeaseHolder returns the value of the "lease_holder" field in the mutation.
+func (m *MarketingCampaignMutation) LeaseHolder() (r string, exists bool) {
+	v := m.lease_holder
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLeaseHolder returns the old "lease_holder" field's value of the MarketingCampaign entity.
+// If the MarketingCampaign object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingCampaignMutation) OldLeaseHolder(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLeaseHolder is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLeaseHolder requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLeaseHolder: %w", err)
+	}
+	return oldValue.LeaseHolder, nil
+}
+
+// ClearLeaseHolder clears the value of the "lease_holder" field.
+func (m *MarketingCampaignMutation) ClearLeaseHolder() {
+	m.lease_holder = nil
+	m.clearedFields[marketingcampaign.FieldLeaseHolder] = struct{}{}
+}
+
+// LeaseHolderCleared returns if the "lease_holder" field was cleared in this mutation.
+func (m *MarketingCampaignMutation) LeaseHolderCleared() bool {
+	_, ok := m.clearedFields[marketingcampaign.FieldLeaseHolder]
+	return ok
+}
+
+// ResetLeaseHolder resets all changes to the "lease_holder" field.
+func (m *MarketingCampaignMutation) ResetLeaseHolder() {
+	m.lease_holder = nil
+	delete(m.clearedFields, marketingcampaign.FieldLeaseHolder)
+}
+
+// SetLeaseUntil sets the "lease_until" field.
+func (m *MarketingCampaignMutation) SetLeaseUntil(t time.Time) {
+	m.lease_until = &t
+}
+
+// LeaseUntil returns the value of the "lease_until" field in the mutation.
+func (m *MarketingCampaignMutation) LeaseUntil() (r time.Time, exists bool) {
+	v := m.lease_until
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLeaseUntil returns the old "lease_until" field's value of the MarketingCampaign entity.
+// If the MarketingCampaign object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingCampaignMutation) OldLeaseUntil(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLeaseUntil is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLeaseUntil requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLeaseUntil: %w", err)
+	}
+	return oldValue.LeaseUntil, nil
+}
+
+// ClearLeaseUntil clears the value of the "lease_until" field.
+func (m *MarketingCampaignMutation) ClearLeaseUntil() {
+	m.lease_until = nil
+	m.clearedFields[marketingcampaign.FieldLeaseUntil] = struct{}{}
+}
+
+// LeaseUntilCleared returns if the "lease_until" field was cleared in this mutation.
+func (m *MarketingCampaignMutation) LeaseUntilCleared() bool {
+	_, ok := m.clearedFields[marketingcampaign.FieldLeaseUntil]
+	return ok
+}
+
+// ResetLeaseUntil resets all changes to the "lease_until" field.
+func (m *MarketingCampaignMutation) ResetLeaseUntil() {
+	m.lease_until = nil
+	delete(m.clearedFields, marketingcampaign.FieldLeaseUntil)
+}
+
+// AddSendIDs adds the "sends" edge to the MarketingSend entity by ids.
+func (m *MarketingCampaignMutation) AddSendIDs(ids ...int) {
+	if m.sends == nil {
+		m.sends = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.sends[ids[i]] = struct{}{}
+	}
+}
+
+// ClearSends clears the "sends" edge to the MarketingSend entity.
+func (m *MarketingCampaignMutation) ClearSends() {
+	m.clearedsends = true
+}
+
+// SendsCleared reports if the "sends" edge to the MarketingSend entity was cleared.
+func (m *MarketingCampaignMutation) SendsCleared() bool {
+	return m.clearedsends
+}
+
+// RemoveSendIDs removes the "sends" edge to the MarketingSend entity by IDs.
+func (m *MarketingCampaignMutation) RemoveSendIDs(ids ...int) {
+	if m.removedsends == nil {
+		m.removedsends = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.sends, ids[i])
+		m.removedsends[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedSends returns the removed IDs of the "sends" edge to the MarketingSend entity.
+func (m *MarketingCampaignMutation) RemovedSendsIDs() (ids []int) {
+	for id := range m.removedsends {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// SendsIDs returns the "sends" edge IDs in the mutation.
+func (m *MarketingCampaignMutation) SendsIDs() (ids []int) {
+	for id := range m.sends {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetSends resets all changes to the "sends" edge.
+func (m *MarketingCampaignMutation) ResetSends() {
+	m.sends = nil
+	m.clearedsends = false
+	m.removedsends = nil
+}
+
+// Where appends a list predicates to the MarketingCampaignMutation builder.
+func (m *MarketingCampaignMutation) Where(ps ...predicate.MarketingCampaign) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the MarketingCampaignMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *MarketingCampaignMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.MarketingCampaign, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *MarketingCampaignMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *MarketingCampaignMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (MarketingCampaign).
+func (m *MarketingCampaignMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *MarketingCampaignMutation) Fields() []string {
+	fields := make([]string, 0, 11)
+	if m.name != nil {
+		fields = append(fields, marketingcampaign.FieldName)
+	}
+	if m.status != nil {
+		fields = append(fields, marketingcampaign.FieldStatus)
+	}
+	if m.content != nil {
+		fields = append(fields, marketingcampaign.FieldContent)
+	}
+	if m.created_by != nil {
+		fields = append(fields, marketingcampaign.FieldCreatedBy)
+	}
+	if m.created_at != nil {
+		fields = append(fields, marketingcampaign.FieldCreatedAt)
+	}
+	if m.approved_by != nil {
+		fields = append(fields, marketingcampaign.FieldApprovedBy)
+	}
+	if m.approved_at != nil {
+		fields = append(fields, marketingcampaign.FieldApprovedAt)
+	}
+	if m.revision != nil {
+		fields = append(fields, marketingcampaign.FieldRevision)
+	}
+	if m.audience_cursor != nil {
+		fields = append(fields, marketingcampaign.FieldAudienceCursor)
+	}
+	if m.lease_holder != nil {
+		fields = append(fields, marketingcampaign.FieldLeaseHolder)
+	}
+	if m.lease_until != nil {
+		fields = append(fields, marketingcampaign.FieldLeaseUntil)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *MarketingCampaignMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case marketingcampaign.FieldName:
+		return m.Name()
+	case marketingcampaign.FieldStatus:
+		return m.Status()
+	case marketingcampaign.FieldContent:
+		return m.Content()
+	case marketingcampaign.FieldCreatedBy:
+		return m.CreatedBy()
+	case marketingcampaign.FieldCreatedAt:
+		return m.CreatedAt()
+	case marketingcampaign.FieldApprovedBy:
+		return m.ApprovedBy()
+	case marketingcampaign.FieldApprovedAt:
+		return m.ApprovedAt()
+	case marketingcampaign.FieldRevision:
+		return m.Revision()
+	case marketingcampaign.FieldAudienceCursor:
+		return m.AudienceCursor()
+	case marketingcampaign.FieldLeaseHolder:
+		return m.LeaseHolder()
+	case marketingcampaign.FieldLeaseUntil:
+		return m.LeaseUntil()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *MarketingCampaignMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case marketingcampaign.FieldName:
+		return m.OldName(ctx)
+	case marketingcampaign.FieldStatus:
+		return m.OldStatus(ctx)
+	case marketingcampaign.FieldContent:
+		return m.OldContent(ctx)
+	case marketingcampaign.FieldCreatedBy:
+		return m.OldCreatedBy(ctx)
+	case marketingcampaign.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case marketingcampaign.FieldApprovedBy:
+		return m.OldApprovedBy(ctx)
+	case marketingcampaign.FieldApprovedAt:
+		return m.OldApprovedAt(ctx)
+	case marketingcampaign.FieldRevision:
+		return m.OldRevision(ctx)
+	case marketingcampaign.FieldAudienceCursor:
+		return m.OldAudienceCursor(ctx)
+	case marketingcampaign.FieldLeaseHolder:
+		return m.OldLeaseHolder(ctx)
+	case marketingcampaign.FieldLeaseUntil:
+		return m.OldLeaseUntil(ctx)
+	}
+	return nil, fmt.Errorf("unknown MarketingCampaign field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MarketingCampaignMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case marketingcampaign.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case marketingcampaign.FieldStatus:
+		v, ok := value.(marketingcampaign.Status)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case marketingcampaign.FieldContent:
+		v, ok := value.(map[string]consent.CampaignContent)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetContent(v)
+		return nil
+	case marketingcampaign.FieldCreatedBy:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedBy(v)
+		return nil
+	case marketingcampaign.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case marketingcampaign.FieldApprovedBy:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetApprovedBy(v)
+		return nil
+	case marketingcampaign.FieldApprovedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetApprovedAt(v)
+		return nil
+	case marketingcampaign.FieldRevision:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRevision(v)
+		return nil
+	case marketingcampaign.FieldAudienceCursor:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAudienceCursor(v)
+		return nil
+	case marketingcampaign.FieldLeaseHolder:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLeaseHolder(v)
+		return nil
+	case marketingcampaign.FieldLeaseUntil:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLeaseUntil(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingCampaign field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *MarketingCampaignMutation) AddedFields() []string {
+	var fields []string
+	if m.addrevision != nil {
+		fields = append(fields, marketingcampaign.FieldRevision)
+	}
+	if m.addaudience_cursor != nil {
+		fields = append(fields, marketingcampaign.FieldAudienceCursor)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *MarketingCampaignMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case marketingcampaign.FieldRevision:
+		return m.AddedRevision()
+	case marketingcampaign.FieldAudienceCursor:
+		return m.AddedAudienceCursor()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MarketingCampaignMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case marketingcampaign.FieldRevision:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRevision(v)
+		return nil
+	case marketingcampaign.FieldAudienceCursor:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAudienceCursor(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingCampaign numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *MarketingCampaignMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(marketingcampaign.FieldApprovedBy) {
+		fields = append(fields, marketingcampaign.FieldApprovedBy)
+	}
+	if m.FieldCleared(marketingcampaign.FieldApprovedAt) {
+		fields = append(fields, marketingcampaign.FieldApprovedAt)
+	}
+	if m.FieldCleared(marketingcampaign.FieldLeaseHolder) {
+		fields = append(fields, marketingcampaign.FieldLeaseHolder)
+	}
+	if m.FieldCleared(marketingcampaign.FieldLeaseUntil) {
+		fields = append(fields, marketingcampaign.FieldLeaseUntil)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *MarketingCampaignMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *MarketingCampaignMutation) ClearField(name string) error {
+	switch name {
+	case marketingcampaign.FieldApprovedBy:
+		m.ClearApprovedBy()
+		return nil
+	case marketingcampaign.FieldApprovedAt:
+		m.ClearApprovedAt()
+		return nil
+	case marketingcampaign.FieldLeaseHolder:
+		m.ClearLeaseHolder()
+		return nil
+	case marketingcampaign.FieldLeaseUntil:
+		m.ClearLeaseUntil()
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingCampaign nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *MarketingCampaignMutation) ResetField(name string) error {
+	switch name {
+	case marketingcampaign.FieldName:
+		m.ResetName()
+		return nil
+	case marketingcampaign.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case marketingcampaign.FieldContent:
+		m.ResetContent()
+		return nil
+	case marketingcampaign.FieldCreatedBy:
+		m.ResetCreatedBy()
+		return nil
+	case marketingcampaign.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case marketingcampaign.FieldApprovedBy:
+		m.ResetApprovedBy()
+		return nil
+	case marketingcampaign.FieldApprovedAt:
+		m.ResetApprovedAt()
+		return nil
+	case marketingcampaign.FieldRevision:
+		m.ResetRevision()
+		return nil
+	case marketingcampaign.FieldAudienceCursor:
+		m.ResetAudienceCursor()
+		return nil
+	case marketingcampaign.FieldLeaseHolder:
+		m.ResetLeaseHolder()
+		return nil
+	case marketingcampaign.FieldLeaseUntil:
+		m.ResetLeaseUntil()
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingCampaign field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *MarketingCampaignMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.sends != nil {
+		edges = append(edges, marketingcampaign.EdgeSends)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *MarketingCampaignMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case marketingcampaign.EdgeSends:
+		ids := make([]ent.Value, 0, len(m.sends))
+		for id := range m.sends {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *MarketingCampaignMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.removedsends != nil {
+		edges = append(edges, marketingcampaign.EdgeSends)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *MarketingCampaignMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case marketingcampaign.EdgeSends:
+		ids := make([]ent.Value, 0, len(m.removedsends))
+		for id := range m.removedsends {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *MarketingCampaignMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedsends {
+		edges = append(edges, marketingcampaign.EdgeSends)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *MarketingCampaignMutation) EdgeCleared(name string) bool {
+	switch name {
+	case marketingcampaign.EdgeSends:
+		return m.clearedsends
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *MarketingCampaignMutation) ClearEdge(name string) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown MarketingCampaign unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *MarketingCampaignMutation) ResetEdge(name string) error {
+	switch name {
+	case marketingcampaign.EdgeSends:
+		m.ResetSends()
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingCampaign edge %s", name)
+}
+
+// MarketingConsentMutation represents an operation that mutates the MarketingConsent nodes in the graph.
+type MarketingConsentMutation struct {
+	config
+	op                    Op
+	typ                   string
+	id                    *int
+	account_created_at    *int64
+	addaccount_created_at *int64
+	status                *marketingconsent.Status
+	basis                 *marketingconsent.Basis
+	source                *marketingconsent.Source
+	policy_version        *string
+	consent_text_key      *string
+	locale                *string
+	address_hmac          *[]byte
+	created_at            *time.Time
+	clearedFields         map[string]struct{}
+	user                  *uint64
+	cleareduser           bool
+	done                  bool
+	oldValue              func(context.Context) (*MarketingConsent, error)
+	predicates            []predicate.MarketingConsent
+}
+
+var _ ent.Mutation = (*MarketingConsentMutation)(nil)
+
+// marketingconsentOption allows management of the mutation configuration using functional options.
+type marketingconsentOption func(*MarketingConsentMutation)
+
+// newMarketingConsentMutation creates new mutation for the MarketingConsent entity.
+func newMarketingConsentMutation(c config, op Op, opts ...marketingconsentOption) *MarketingConsentMutation {
+	m := &MarketingConsentMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeMarketingConsent,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withMarketingConsentID sets the ID field of the mutation.
+func withMarketingConsentID(id int) marketingconsentOption {
+	return func(m *MarketingConsentMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *MarketingConsent
+		)
+		m.oldValue = func(ctx context.Context) (*MarketingConsent, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().MarketingConsent.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withMarketingConsent sets the old MarketingConsent of the mutation.
+func withMarketingConsent(node *MarketingConsent) marketingconsentOption {
+	return func(m *MarketingConsentMutation) {
+		m.oldValue = func(context.Context) (*MarketingConsent, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m MarketingConsentMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m MarketingConsentMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *MarketingConsentMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *MarketingConsentMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().MarketingConsent.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *MarketingConsentMutation) SetUserID(u uint64) {
+	m.user = &u
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *MarketingConsentMutation) UserID() (r uint64, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the MarketingConsent entity.
+// If the MarketingConsent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingConsentMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *MarketingConsentMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetAccountCreatedAt sets the "account_created_at" field.
+func (m *MarketingConsentMutation) SetAccountCreatedAt(i int64) {
+	m.account_created_at = &i
+	m.addaccount_created_at = nil
+}
+
+// AccountCreatedAt returns the value of the "account_created_at" field in the mutation.
+func (m *MarketingConsentMutation) AccountCreatedAt() (r int64, exists bool) {
+	v := m.account_created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountCreatedAt returns the old "account_created_at" field's value of the MarketingConsent entity.
+// If the MarketingConsent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingConsentMutation) OldAccountCreatedAt(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountCreatedAt: %w", err)
+	}
+	return oldValue.AccountCreatedAt, nil
+}
+
+// AddAccountCreatedAt adds i to the "account_created_at" field.
+func (m *MarketingConsentMutation) AddAccountCreatedAt(i int64) {
+	if m.addaccount_created_at != nil {
+		*m.addaccount_created_at += i
+	} else {
+		m.addaccount_created_at = &i
+	}
+}
+
+// AddedAccountCreatedAt returns the value that was added to the "account_created_at" field in this mutation.
+func (m *MarketingConsentMutation) AddedAccountCreatedAt() (r int64, exists bool) {
+	v := m.addaccount_created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAccountCreatedAt resets all changes to the "account_created_at" field.
+func (m *MarketingConsentMutation) ResetAccountCreatedAt() {
+	m.account_created_at = nil
+	m.addaccount_created_at = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *MarketingConsentMutation) SetStatus(value marketingconsent.Status) {
+	m.status = &value
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *MarketingConsentMutation) Status() (r marketingconsent.Status, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the MarketingConsent entity.
+// If the MarketingConsent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingConsentMutation) OldStatus(ctx context.Context) (v marketingconsent.Status, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *MarketingConsentMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetBasis sets the "basis" field.
+func (m *MarketingConsentMutation) SetBasis(value marketingconsent.Basis) {
+	m.basis = &value
+}
+
+// Basis returns the value of the "basis" field in the mutation.
+func (m *MarketingConsentMutation) Basis() (r marketingconsent.Basis, exists bool) {
+	v := m.basis
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBasis returns the old "basis" field's value of the MarketingConsent entity.
+// If the MarketingConsent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingConsentMutation) OldBasis(ctx context.Context) (v marketingconsent.Basis, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBasis is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBasis requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBasis: %w", err)
+	}
+	return oldValue.Basis, nil
+}
+
+// ResetBasis resets all changes to the "basis" field.
+func (m *MarketingConsentMutation) ResetBasis() {
+	m.basis = nil
+}
+
+// SetSource sets the "source" field.
+func (m *MarketingConsentMutation) SetSource(value marketingconsent.Source) {
+	m.source = &value
+}
+
+// Source returns the value of the "source" field in the mutation.
+func (m *MarketingConsentMutation) Source() (r marketingconsent.Source, exists bool) {
+	v := m.source
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSource returns the old "source" field's value of the MarketingConsent entity.
+// If the MarketingConsent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingConsentMutation) OldSource(ctx context.Context) (v marketingconsent.Source, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSource: %w", err)
+	}
+	return oldValue.Source, nil
+}
+
+// ResetSource resets all changes to the "source" field.
+func (m *MarketingConsentMutation) ResetSource() {
+	m.source = nil
+}
+
+// SetPolicyVersion sets the "policy_version" field.
+func (m *MarketingConsentMutation) SetPolicyVersion(s string) {
+	m.policy_version = &s
+}
+
+// PolicyVersion returns the value of the "policy_version" field in the mutation.
+func (m *MarketingConsentMutation) PolicyVersion() (r string, exists bool) {
+	v := m.policy_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPolicyVersion returns the old "policy_version" field's value of the MarketingConsent entity.
+// If the MarketingConsent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingConsentMutation) OldPolicyVersion(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPolicyVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPolicyVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPolicyVersion: %w", err)
+	}
+	return oldValue.PolicyVersion, nil
+}
+
+// ResetPolicyVersion resets all changes to the "policy_version" field.
+func (m *MarketingConsentMutation) ResetPolicyVersion() {
+	m.policy_version = nil
+}
+
+// SetConsentTextKey sets the "consent_text_key" field.
+func (m *MarketingConsentMutation) SetConsentTextKey(s string) {
+	m.consent_text_key = &s
+}
+
+// ConsentTextKey returns the value of the "consent_text_key" field in the mutation.
+func (m *MarketingConsentMutation) ConsentTextKey() (r string, exists bool) {
+	v := m.consent_text_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConsentTextKey returns the old "consent_text_key" field's value of the MarketingConsent entity.
+// If the MarketingConsent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingConsentMutation) OldConsentTextKey(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConsentTextKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConsentTextKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConsentTextKey: %w", err)
+	}
+	return oldValue.ConsentTextKey, nil
+}
+
+// ResetConsentTextKey resets all changes to the "consent_text_key" field.
+func (m *MarketingConsentMutation) ResetConsentTextKey() {
+	m.consent_text_key = nil
+}
+
+// SetLocale sets the "locale" field.
+func (m *MarketingConsentMutation) SetLocale(s string) {
+	m.locale = &s
+}
+
+// Locale returns the value of the "locale" field in the mutation.
+func (m *MarketingConsentMutation) Locale() (r string, exists bool) {
+	v := m.locale
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLocale returns the old "locale" field's value of the MarketingConsent entity.
+// If the MarketingConsent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingConsentMutation) OldLocale(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLocale is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLocale requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLocale: %w", err)
+	}
+	return oldValue.Locale, nil
+}
+
+// ResetLocale resets all changes to the "locale" field.
+func (m *MarketingConsentMutation) ResetLocale() {
+	m.locale = nil
+}
+
+// SetAddressHmac sets the "address_hmac" field.
+func (m *MarketingConsentMutation) SetAddressHmac(b []byte) {
+	m.address_hmac = &b
+}
+
+// AddressHmac returns the value of the "address_hmac" field in the mutation.
+func (m *MarketingConsentMutation) AddressHmac() (r []byte, exists bool) {
+	v := m.address_hmac
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAddressHmac returns the old "address_hmac" field's value of the MarketingConsent entity.
+// If the MarketingConsent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingConsentMutation) OldAddressHmac(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAddressHmac is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAddressHmac requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAddressHmac: %w", err)
+	}
+	return oldValue.AddressHmac, nil
+}
+
+// ClearAddressHmac clears the value of the "address_hmac" field.
+func (m *MarketingConsentMutation) ClearAddressHmac() {
+	m.address_hmac = nil
+	m.clearedFields[marketingconsent.FieldAddressHmac] = struct{}{}
+}
+
+// AddressHmacCleared returns if the "address_hmac" field was cleared in this mutation.
+func (m *MarketingConsentMutation) AddressHmacCleared() bool {
+	_, ok := m.clearedFields[marketingconsent.FieldAddressHmac]
+	return ok
+}
+
+// ResetAddressHmac resets all changes to the "address_hmac" field.
+func (m *MarketingConsentMutation) ResetAddressHmac() {
+	m.address_hmac = nil
+	delete(m.clearedFields, marketingconsent.FieldAddressHmac)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *MarketingConsentMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *MarketingConsentMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the MarketingConsent entity.
+// If the MarketingConsent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingConsentMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *MarketingConsentMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *MarketingConsentMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[marketingconsent.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *MarketingConsentMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *MarketingConsentMutation) UserIDs() (ids []uint64) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *MarketingConsentMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the MarketingConsentMutation builder.
+func (m *MarketingConsentMutation) Where(ps ...predicate.MarketingConsent) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the MarketingConsentMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *MarketingConsentMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.MarketingConsent, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *MarketingConsentMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *MarketingConsentMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (MarketingConsent).
+func (m *MarketingConsentMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *MarketingConsentMutation) Fields() []string {
+	fields := make([]string, 0, 10)
+	if m.user != nil {
+		fields = append(fields, marketingconsent.FieldUserID)
+	}
+	if m.account_created_at != nil {
+		fields = append(fields, marketingconsent.FieldAccountCreatedAt)
+	}
+	if m.status != nil {
+		fields = append(fields, marketingconsent.FieldStatus)
+	}
+	if m.basis != nil {
+		fields = append(fields, marketingconsent.FieldBasis)
+	}
+	if m.source != nil {
+		fields = append(fields, marketingconsent.FieldSource)
+	}
+	if m.policy_version != nil {
+		fields = append(fields, marketingconsent.FieldPolicyVersion)
+	}
+	if m.consent_text_key != nil {
+		fields = append(fields, marketingconsent.FieldConsentTextKey)
+	}
+	if m.locale != nil {
+		fields = append(fields, marketingconsent.FieldLocale)
+	}
+	if m.address_hmac != nil {
+		fields = append(fields, marketingconsent.FieldAddressHmac)
+	}
+	if m.created_at != nil {
+		fields = append(fields, marketingconsent.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *MarketingConsentMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case marketingconsent.FieldUserID:
+		return m.UserID()
+	case marketingconsent.FieldAccountCreatedAt:
+		return m.AccountCreatedAt()
+	case marketingconsent.FieldStatus:
+		return m.Status()
+	case marketingconsent.FieldBasis:
+		return m.Basis()
+	case marketingconsent.FieldSource:
+		return m.Source()
+	case marketingconsent.FieldPolicyVersion:
+		return m.PolicyVersion()
+	case marketingconsent.FieldConsentTextKey:
+		return m.ConsentTextKey()
+	case marketingconsent.FieldLocale:
+		return m.Locale()
+	case marketingconsent.FieldAddressHmac:
+		return m.AddressHmac()
+	case marketingconsent.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *MarketingConsentMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case marketingconsent.FieldUserID:
+		return m.OldUserID(ctx)
+	case marketingconsent.FieldAccountCreatedAt:
+		return m.OldAccountCreatedAt(ctx)
+	case marketingconsent.FieldStatus:
+		return m.OldStatus(ctx)
+	case marketingconsent.FieldBasis:
+		return m.OldBasis(ctx)
+	case marketingconsent.FieldSource:
+		return m.OldSource(ctx)
+	case marketingconsent.FieldPolicyVersion:
+		return m.OldPolicyVersion(ctx)
+	case marketingconsent.FieldConsentTextKey:
+		return m.OldConsentTextKey(ctx)
+	case marketingconsent.FieldLocale:
+		return m.OldLocale(ctx)
+	case marketingconsent.FieldAddressHmac:
+		return m.OldAddressHmac(ctx)
+	case marketingconsent.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown MarketingConsent field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MarketingConsentMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case marketingconsent.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case marketingconsent.FieldAccountCreatedAt:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountCreatedAt(v)
+		return nil
+	case marketingconsent.FieldStatus:
+		v, ok := value.(marketingconsent.Status)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case marketingconsent.FieldBasis:
+		v, ok := value.(marketingconsent.Basis)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBasis(v)
+		return nil
+	case marketingconsent.FieldSource:
+		v, ok := value.(marketingconsent.Source)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSource(v)
+		return nil
+	case marketingconsent.FieldPolicyVersion:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPolicyVersion(v)
+		return nil
+	case marketingconsent.FieldConsentTextKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConsentTextKey(v)
+		return nil
+	case marketingconsent.FieldLocale:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLocale(v)
+		return nil
+	case marketingconsent.FieldAddressHmac:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAddressHmac(v)
+		return nil
+	case marketingconsent.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingConsent field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *MarketingConsentMutation) AddedFields() []string {
+	var fields []string
+	if m.addaccount_created_at != nil {
+		fields = append(fields, marketingconsent.FieldAccountCreatedAt)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *MarketingConsentMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case marketingconsent.FieldAccountCreatedAt:
+		return m.AddedAccountCreatedAt()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MarketingConsentMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case marketingconsent.FieldAccountCreatedAt:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAccountCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingConsent numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *MarketingConsentMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(marketingconsent.FieldAddressHmac) {
+		fields = append(fields, marketingconsent.FieldAddressHmac)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *MarketingConsentMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *MarketingConsentMutation) ClearField(name string) error {
+	switch name {
+	case marketingconsent.FieldAddressHmac:
+		m.ClearAddressHmac()
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingConsent nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *MarketingConsentMutation) ResetField(name string) error {
+	switch name {
+	case marketingconsent.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case marketingconsent.FieldAccountCreatedAt:
+		m.ResetAccountCreatedAt()
+		return nil
+	case marketingconsent.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case marketingconsent.FieldBasis:
+		m.ResetBasis()
+		return nil
+	case marketingconsent.FieldSource:
+		m.ResetSource()
+		return nil
+	case marketingconsent.FieldPolicyVersion:
+		m.ResetPolicyVersion()
+		return nil
+	case marketingconsent.FieldConsentTextKey:
+		m.ResetConsentTextKey()
+		return nil
+	case marketingconsent.FieldLocale:
+		m.ResetLocale()
+		return nil
+	case marketingconsent.FieldAddressHmac:
+		m.ResetAddressHmac()
+		return nil
+	case marketingconsent.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingConsent field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *MarketingConsentMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, marketingconsent.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *MarketingConsentMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case marketingconsent.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *MarketingConsentMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *MarketingConsentMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *MarketingConsentMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, marketingconsent.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *MarketingConsentMutation) EdgeCleared(name string) bool {
+	switch name {
+	case marketingconsent.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *MarketingConsentMutation) ClearEdge(name string) error {
+	switch name {
+	case marketingconsent.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingConsent unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *MarketingConsentMutation) ResetEdge(name string) error {
+	switch name {
+	case marketingconsent.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingConsent edge %s", name)
+}
+
+// MarketingSendMutation represents an operation that mutates the MarketingSend nodes in the graph.
+type MarketingSendMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *int
+	address_hmac    *[]byte
+	status          *marketingsend.Status
+	attempts        *int
+	addattempts     *int
+	resend_id       *string
+	idempotency_key *string
+	updated_at      *time.Time
+	clearedFields   map[string]struct{}
+	campaign        *int
+	clearedcampaign bool
+	user            *uint64
+	cleareduser     bool
+	done            bool
+	oldValue        func(context.Context) (*MarketingSend, error)
+	predicates      []predicate.MarketingSend
+}
+
+var _ ent.Mutation = (*MarketingSendMutation)(nil)
+
+// marketingsendOption allows management of the mutation configuration using functional options.
+type marketingsendOption func(*MarketingSendMutation)
+
+// newMarketingSendMutation creates new mutation for the MarketingSend entity.
+func newMarketingSendMutation(c config, op Op, opts ...marketingsendOption) *MarketingSendMutation {
+	m := &MarketingSendMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeMarketingSend,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withMarketingSendID sets the ID field of the mutation.
+func withMarketingSendID(id int) marketingsendOption {
+	return func(m *MarketingSendMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *MarketingSend
+		)
+		m.oldValue = func(ctx context.Context) (*MarketingSend, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().MarketingSend.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withMarketingSend sets the old MarketingSend of the mutation.
+func withMarketingSend(node *MarketingSend) marketingsendOption {
+	return func(m *MarketingSendMutation) {
+		m.oldValue = func(context.Context) (*MarketingSend, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m MarketingSendMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m MarketingSendMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *MarketingSendMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *MarketingSendMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().MarketingSend.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCampaignID sets the "campaign_id" field.
+func (m *MarketingSendMutation) SetCampaignID(i int) {
+	m.campaign = &i
+}
+
+// CampaignID returns the value of the "campaign_id" field in the mutation.
+func (m *MarketingSendMutation) CampaignID() (r int, exists bool) {
+	v := m.campaign
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCampaignID returns the old "campaign_id" field's value of the MarketingSend entity.
+// If the MarketingSend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingSendMutation) OldCampaignID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCampaignID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCampaignID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCampaignID: %w", err)
+	}
+	return oldValue.CampaignID, nil
+}
+
+// ResetCampaignID resets all changes to the "campaign_id" field.
+func (m *MarketingSendMutation) ResetCampaignID() {
+	m.campaign = nil
+}
+
+// SetUserID sets the "user_id" field.
+func (m *MarketingSendMutation) SetUserID(u uint64) {
+	m.user = &u
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *MarketingSendMutation) UserID() (r uint64, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the MarketingSend entity.
+// If the MarketingSend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingSendMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *MarketingSendMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetAddressHmac sets the "address_hmac" field.
+func (m *MarketingSendMutation) SetAddressHmac(b []byte) {
+	m.address_hmac = &b
+}
+
+// AddressHmac returns the value of the "address_hmac" field in the mutation.
+func (m *MarketingSendMutation) AddressHmac() (r []byte, exists bool) {
+	v := m.address_hmac
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAddressHmac returns the old "address_hmac" field's value of the MarketingSend entity.
+// If the MarketingSend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingSendMutation) OldAddressHmac(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAddressHmac is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAddressHmac requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAddressHmac: %w", err)
+	}
+	return oldValue.AddressHmac, nil
+}
+
+// ResetAddressHmac resets all changes to the "address_hmac" field.
+func (m *MarketingSendMutation) ResetAddressHmac() {
+	m.address_hmac = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *MarketingSendMutation) SetStatus(value marketingsend.Status) {
+	m.status = &value
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *MarketingSendMutation) Status() (r marketingsend.Status, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the MarketingSend entity.
+// If the MarketingSend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingSendMutation) OldStatus(ctx context.Context) (v marketingsend.Status, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *MarketingSendMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetAttempts sets the "attempts" field.
+func (m *MarketingSendMutation) SetAttempts(i int) {
+	m.attempts = &i
+	m.addattempts = nil
+}
+
+// Attempts returns the value of the "attempts" field in the mutation.
+func (m *MarketingSendMutation) Attempts() (r int, exists bool) {
+	v := m.attempts
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAttempts returns the old "attempts" field's value of the MarketingSend entity.
+// If the MarketingSend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingSendMutation) OldAttempts(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAttempts is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAttempts requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAttempts: %w", err)
+	}
+	return oldValue.Attempts, nil
+}
+
+// AddAttempts adds i to the "attempts" field.
+func (m *MarketingSendMutation) AddAttempts(i int) {
+	if m.addattempts != nil {
+		*m.addattempts += i
+	} else {
+		m.addattempts = &i
+	}
+}
+
+// AddedAttempts returns the value that was added to the "attempts" field in this mutation.
+func (m *MarketingSendMutation) AddedAttempts() (r int, exists bool) {
+	v := m.addattempts
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAttempts resets all changes to the "attempts" field.
+func (m *MarketingSendMutation) ResetAttempts() {
+	m.attempts = nil
+	m.addattempts = nil
+}
+
+// SetResendID sets the "resend_id" field.
+func (m *MarketingSendMutation) SetResendID(s string) {
+	m.resend_id = &s
+}
+
+// ResendID returns the value of the "resend_id" field in the mutation.
+func (m *MarketingSendMutation) ResendID() (r string, exists bool) {
+	v := m.resend_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResendID returns the old "resend_id" field's value of the MarketingSend entity.
+// If the MarketingSend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingSendMutation) OldResendID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResendID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResendID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResendID: %w", err)
+	}
+	return oldValue.ResendID, nil
+}
+
+// ClearResendID clears the value of the "resend_id" field.
+func (m *MarketingSendMutation) ClearResendID() {
+	m.resend_id = nil
+	m.clearedFields[marketingsend.FieldResendID] = struct{}{}
+}
+
+// ResendIDCleared returns if the "resend_id" field was cleared in this mutation.
+func (m *MarketingSendMutation) ResendIDCleared() bool {
+	_, ok := m.clearedFields[marketingsend.FieldResendID]
+	return ok
+}
+
+// ResetResendID resets all changes to the "resend_id" field.
+func (m *MarketingSendMutation) ResetResendID() {
+	m.resend_id = nil
+	delete(m.clearedFields, marketingsend.FieldResendID)
+}
+
+// SetIdempotencyKey sets the "idempotency_key" field.
+func (m *MarketingSendMutation) SetIdempotencyKey(s string) {
+	m.idempotency_key = &s
+}
+
+// IdempotencyKey returns the value of the "idempotency_key" field in the mutation.
+func (m *MarketingSendMutation) IdempotencyKey() (r string, exists bool) {
+	v := m.idempotency_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIdempotencyKey returns the old "idempotency_key" field's value of the MarketingSend entity.
+// If the MarketingSend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingSendMutation) OldIdempotencyKey(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIdempotencyKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIdempotencyKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIdempotencyKey: %w", err)
+	}
+	return oldValue.IdempotencyKey, nil
+}
+
+// ResetIdempotencyKey resets all changes to the "idempotency_key" field.
+func (m *MarketingSendMutation) ResetIdempotencyKey() {
+	m.idempotency_key = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *MarketingSendMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *MarketingSendMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the MarketingSend entity.
+// If the MarketingSend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MarketingSendMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *MarketingSendMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearCampaign clears the "campaign" edge to the MarketingCampaign entity.
+func (m *MarketingSendMutation) ClearCampaign() {
+	m.clearedcampaign = true
+	m.clearedFields[marketingsend.FieldCampaignID] = struct{}{}
+}
+
+// CampaignCleared reports if the "campaign" edge to the MarketingCampaign entity was cleared.
+func (m *MarketingSendMutation) CampaignCleared() bool {
+	return m.clearedcampaign
+}
+
+// CampaignIDs returns the "campaign" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// CampaignID instead. It exists only for internal usage by the builders.
+func (m *MarketingSendMutation) CampaignIDs() (ids []int) {
+	if id := m.campaign; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetCampaign resets all changes to the "campaign" edge.
+func (m *MarketingSendMutation) ResetCampaign() {
+	m.campaign = nil
+	m.clearedcampaign = false
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *MarketingSendMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[marketingsend.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *MarketingSendMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *MarketingSendMutation) UserIDs() (ids []uint64) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *MarketingSendMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the MarketingSendMutation builder.
+func (m *MarketingSendMutation) Where(ps ...predicate.MarketingSend) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the MarketingSendMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *MarketingSendMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.MarketingSend, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *MarketingSendMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *MarketingSendMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (MarketingSend).
+func (m *MarketingSendMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *MarketingSendMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.campaign != nil {
+		fields = append(fields, marketingsend.FieldCampaignID)
+	}
+	if m.user != nil {
+		fields = append(fields, marketingsend.FieldUserID)
+	}
+	if m.address_hmac != nil {
+		fields = append(fields, marketingsend.FieldAddressHmac)
+	}
+	if m.status != nil {
+		fields = append(fields, marketingsend.FieldStatus)
+	}
+	if m.attempts != nil {
+		fields = append(fields, marketingsend.FieldAttempts)
+	}
+	if m.resend_id != nil {
+		fields = append(fields, marketingsend.FieldResendID)
+	}
+	if m.idempotency_key != nil {
+		fields = append(fields, marketingsend.FieldIdempotencyKey)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, marketingsend.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *MarketingSendMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case marketingsend.FieldCampaignID:
+		return m.CampaignID()
+	case marketingsend.FieldUserID:
+		return m.UserID()
+	case marketingsend.FieldAddressHmac:
+		return m.AddressHmac()
+	case marketingsend.FieldStatus:
+		return m.Status()
+	case marketingsend.FieldAttempts:
+		return m.Attempts()
+	case marketingsend.FieldResendID:
+		return m.ResendID()
+	case marketingsend.FieldIdempotencyKey:
+		return m.IdempotencyKey()
+	case marketingsend.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *MarketingSendMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case marketingsend.FieldCampaignID:
+		return m.OldCampaignID(ctx)
+	case marketingsend.FieldUserID:
+		return m.OldUserID(ctx)
+	case marketingsend.FieldAddressHmac:
+		return m.OldAddressHmac(ctx)
+	case marketingsend.FieldStatus:
+		return m.OldStatus(ctx)
+	case marketingsend.FieldAttempts:
+		return m.OldAttempts(ctx)
+	case marketingsend.FieldResendID:
+		return m.OldResendID(ctx)
+	case marketingsend.FieldIdempotencyKey:
+		return m.OldIdempotencyKey(ctx)
+	case marketingsend.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown MarketingSend field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MarketingSendMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case marketingsend.FieldCampaignID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCampaignID(v)
+		return nil
+	case marketingsend.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case marketingsend.FieldAddressHmac:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAddressHmac(v)
+		return nil
+	case marketingsend.FieldStatus:
+		v, ok := value.(marketingsend.Status)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case marketingsend.FieldAttempts:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAttempts(v)
+		return nil
+	case marketingsend.FieldResendID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResendID(v)
+		return nil
+	case marketingsend.FieldIdempotencyKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIdempotencyKey(v)
+		return nil
+	case marketingsend.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingSend field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *MarketingSendMutation) AddedFields() []string {
+	var fields []string
+	if m.addattempts != nil {
+		fields = append(fields, marketingsend.FieldAttempts)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *MarketingSendMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case marketingsend.FieldAttempts:
+		return m.AddedAttempts()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MarketingSendMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case marketingsend.FieldAttempts:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAttempts(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingSend numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *MarketingSendMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(marketingsend.FieldResendID) {
+		fields = append(fields, marketingsend.FieldResendID)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *MarketingSendMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *MarketingSendMutation) ClearField(name string) error {
+	switch name {
+	case marketingsend.FieldResendID:
+		m.ClearResendID()
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingSend nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *MarketingSendMutation) ResetField(name string) error {
+	switch name {
+	case marketingsend.FieldCampaignID:
+		m.ResetCampaignID()
+		return nil
+	case marketingsend.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case marketingsend.FieldAddressHmac:
+		m.ResetAddressHmac()
+		return nil
+	case marketingsend.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case marketingsend.FieldAttempts:
+		m.ResetAttempts()
+		return nil
+	case marketingsend.FieldResendID:
+		m.ResetResendID()
+		return nil
+	case marketingsend.FieldIdempotencyKey:
+		m.ResetIdempotencyKey()
+		return nil
+	case marketingsend.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingSend field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *MarketingSendMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.campaign != nil {
+		edges = append(edges, marketingsend.EdgeCampaign)
+	}
+	if m.user != nil {
+		edges = append(edges, marketingsend.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *MarketingSendMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case marketingsend.EdgeCampaign:
+		if id := m.campaign; id != nil {
+			return []ent.Value{*id}
+		}
+	case marketingsend.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *MarketingSendMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *MarketingSendMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *MarketingSendMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedcampaign {
+		edges = append(edges, marketingsend.EdgeCampaign)
+	}
+	if m.cleareduser {
+		edges = append(edges, marketingsend.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *MarketingSendMutation) EdgeCleared(name string) bool {
+	switch name {
+	case marketingsend.EdgeCampaign:
+		return m.clearedcampaign
+	case marketingsend.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *MarketingSendMutation) ClearEdge(name string) error {
+	switch name {
+	case marketingsend.EdgeCampaign:
+		m.ClearCampaign()
+		return nil
+	case marketingsend.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingSend unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *MarketingSendMutation) ResetEdge(name string) error {
+	switch name {
+	case marketingsend.EdgeCampaign:
+		m.ResetCampaign()
+		return nil
+	case marketingsend.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown MarketingSend edge %s", name)
+}
+
 // PremiumGrantMutation represents an operation that mutates the PremiumGrant nodes in the graph.
 type PremiumGrantMutation struct {
 	config
@@ -5521,6 +8859,800 @@ func (m *PremiumGrantMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown PremiumGrant edge %s", name)
 }
 
+// TermsAcceptanceMutation represents an operation that mutates the TermsAcceptance nodes in the graph.
+type TermsAcceptanceMutation struct {
+	config
+	op                    Op
+	typ                   string
+	id                    *int
+	account_created_at    *int64
+	addaccount_created_at *int64
+	terms_version         *string
+	accepted_at           *time.Time
+	source                *termsacceptance.Source
+	locale                *string
+	request_id            *string
+	marketing_skipped     *string
+	clearedFields         map[string]struct{}
+	user                  *uint64
+	cleareduser           bool
+	done                  bool
+	oldValue              func(context.Context) (*TermsAcceptance, error)
+	predicates            []predicate.TermsAcceptance
+}
+
+var _ ent.Mutation = (*TermsAcceptanceMutation)(nil)
+
+// termsacceptanceOption allows management of the mutation configuration using functional options.
+type termsacceptanceOption func(*TermsAcceptanceMutation)
+
+// newTermsAcceptanceMutation creates new mutation for the TermsAcceptance entity.
+func newTermsAcceptanceMutation(c config, op Op, opts ...termsacceptanceOption) *TermsAcceptanceMutation {
+	m := &TermsAcceptanceMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeTermsAcceptance,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withTermsAcceptanceID sets the ID field of the mutation.
+func withTermsAcceptanceID(id int) termsacceptanceOption {
+	return func(m *TermsAcceptanceMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *TermsAcceptance
+		)
+		m.oldValue = func(ctx context.Context) (*TermsAcceptance, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().TermsAcceptance.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withTermsAcceptance sets the old TermsAcceptance of the mutation.
+func withTermsAcceptance(node *TermsAcceptance) termsacceptanceOption {
+	return func(m *TermsAcceptanceMutation) {
+		m.oldValue = func(context.Context) (*TermsAcceptance, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m TermsAcceptanceMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m TermsAcceptanceMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *TermsAcceptanceMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *TermsAcceptanceMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().TermsAcceptance.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *TermsAcceptanceMutation) SetUserID(u uint64) {
+	m.user = &u
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *TermsAcceptanceMutation) UserID() (r uint64, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the TermsAcceptance entity.
+// If the TermsAcceptance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TermsAcceptanceMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *TermsAcceptanceMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetAccountCreatedAt sets the "account_created_at" field.
+func (m *TermsAcceptanceMutation) SetAccountCreatedAt(i int64) {
+	m.account_created_at = &i
+	m.addaccount_created_at = nil
+}
+
+// AccountCreatedAt returns the value of the "account_created_at" field in the mutation.
+func (m *TermsAcceptanceMutation) AccountCreatedAt() (r int64, exists bool) {
+	v := m.account_created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountCreatedAt returns the old "account_created_at" field's value of the TermsAcceptance entity.
+// If the TermsAcceptance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TermsAcceptanceMutation) OldAccountCreatedAt(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountCreatedAt: %w", err)
+	}
+	return oldValue.AccountCreatedAt, nil
+}
+
+// AddAccountCreatedAt adds i to the "account_created_at" field.
+func (m *TermsAcceptanceMutation) AddAccountCreatedAt(i int64) {
+	if m.addaccount_created_at != nil {
+		*m.addaccount_created_at += i
+	} else {
+		m.addaccount_created_at = &i
+	}
+}
+
+// AddedAccountCreatedAt returns the value that was added to the "account_created_at" field in this mutation.
+func (m *TermsAcceptanceMutation) AddedAccountCreatedAt() (r int64, exists bool) {
+	v := m.addaccount_created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAccountCreatedAt resets all changes to the "account_created_at" field.
+func (m *TermsAcceptanceMutation) ResetAccountCreatedAt() {
+	m.account_created_at = nil
+	m.addaccount_created_at = nil
+}
+
+// SetTermsVersion sets the "terms_version" field.
+func (m *TermsAcceptanceMutation) SetTermsVersion(s string) {
+	m.terms_version = &s
+}
+
+// TermsVersion returns the value of the "terms_version" field in the mutation.
+func (m *TermsAcceptanceMutation) TermsVersion() (r string, exists bool) {
+	v := m.terms_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTermsVersion returns the old "terms_version" field's value of the TermsAcceptance entity.
+// If the TermsAcceptance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TermsAcceptanceMutation) OldTermsVersion(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTermsVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTermsVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTermsVersion: %w", err)
+	}
+	return oldValue.TermsVersion, nil
+}
+
+// ResetTermsVersion resets all changes to the "terms_version" field.
+func (m *TermsAcceptanceMutation) ResetTermsVersion() {
+	m.terms_version = nil
+}
+
+// SetAcceptedAt sets the "accepted_at" field.
+func (m *TermsAcceptanceMutation) SetAcceptedAt(t time.Time) {
+	m.accepted_at = &t
+}
+
+// AcceptedAt returns the value of the "accepted_at" field in the mutation.
+func (m *TermsAcceptanceMutation) AcceptedAt() (r time.Time, exists bool) {
+	v := m.accepted_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAcceptedAt returns the old "accepted_at" field's value of the TermsAcceptance entity.
+// If the TermsAcceptance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TermsAcceptanceMutation) OldAcceptedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAcceptedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAcceptedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAcceptedAt: %w", err)
+	}
+	return oldValue.AcceptedAt, nil
+}
+
+// ResetAcceptedAt resets all changes to the "accepted_at" field.
+func (m *TermsAcceptanceMutation) ResetAcceptedAt() {
+	m.accepted_at = nil
+}
+
+// SetSource sets the "source" field.
+func (m *TermsAcceptanceMutation) SetSource(t termsacceptance.Source) {
+	m.source = &t
+}
+
+// Source returns the value of the "source" field in the mutation.
+func (m *TermsAcceptanceMutation) Source() (r termsacceptance.Source, exists bool) {
+	v := m.source
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSource returns the old "source" field's value of the TermsAcceptance entity.
+// If the TermsAcceptance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TermsAcceptanceMutation) OldSource(ctx context.Context) (v termsacceptance.Source, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSource: %w", err)
+	}
+	return oldValue.Source, nil
+}
+
+// ResetSource resets all changes to the "source" field.
+func (m *TermsAcceptanceMutation) ResetSource() {
+	m.source = nil
+}
+
+// SetLocale sets the "locale" field.
+func (m *TermsAcceptanceMutation) SetLocale(s string) {
+	m.locale = &s
+}
+
+// Locale returns the value of the "locale" field in the mutation.
+func (m *TermsAcceptanceMutation) Locale() (r string, exists bool) {
+	v := m.locale
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLocale returns the old "locale" field's value of the TermsAcceptance entity.
+// If the TermsAcceptance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TermsAcceptanceMutation) OldLocale(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLocale is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLocale requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLocale: %w", err)
+	}
+	return oldValue.Locale, nil
+}
+
+// ResetLocale resets all changes to the "locale" field.
+func (m *TermsAcceptanceMutation) ResetLocale() {
+	m.locale = nil
+}
+
+// SetRequestID sets the "request_id" field.
+func (m *TermsAcceptanceMutation) SetRequestID(s string) {
+	m.request_id = &s
+}
+
+// RequestID returns the value of the "request_id" field in the mutation.
+func (m *TermsAcceptanceMutation) RequestID() (r string, exists bool) {
+	v := m.request_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestID returns the old "request_id" field's value of the TermsAcceptance entity.
+// If the TermsAcceptance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TermsAcceptanceMutation) OldRequestID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestID: %w", err)
+	}
+	return oldValue.RequestID, nil
+}
+
+// ResetRequestID resets all changes to the "request_id" field.
+func (m *TermsAcceptanceMutation) ResetRequestID() {
+	m.request_id = nil
+}
+
+// SetMarketingSkipped sets the "marketing_skipped" field.
+func (m *TermsAcceptanceMutation) SetMarketingSkipped(s string) {
+	m.marketing_skipped = &s
+}
+
+// MarketingSkipped returns the value of the "marketing_skipped" field in the mutation.
+func (m *TermsAcceptanceMutation) MarketingSkipped() (r string, exists bool) {
+	v := m.marketing_skipped
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMarketingSkipped returns the old "marketing_skipped" field's value of the TermsAcceptance entity.
+// If the TermsAcceptance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TermsAcceptanceMutation) OldMarketingSkipped(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMarketingSkipped is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMarketingSkipped requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMarketingSkipped: %w", err)
+	}
+	return oldValue.MarketingSkipped, nil
+}
+
+// ResetMarketingSkipped resets all changes to the "marketing_skipped" field.
+func (m *TermsAcceptanceMutation) ResetMarketingSkipped() {
+	m.marketing_skipped = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *TermsAcceptanceMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[termsacceptance.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *TermsAcceptanceMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *TermsAcceptanceMutation) UserIDs() (ids []uint64) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *TermsAcceptanceMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the TermsAcceptanceMutation builder.
+func (m *TermsAcceptanceMutation) Where(ps ...predicate.TermsAcceptance) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the TermsAcceptanceMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *TermsAcceptanceMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.TermsAcceptance, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *TermsAcceptanceMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *TermsAcceptanceMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (TermsAcceptance).
+func (m *TermsAcceptanceMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *TermsAcceptanceMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.user != nil {
+		fields = append(fields, termsacceptance.FieldUserID)
+	}
+	if m.account_created_at != nil {
+		fields = append(fields, termsacceptance.FieldAccountCreatedAt)
+	}
+	if m.terms_version != nil {
+		fields = append(fields, termsacceptance.FieldTermsVersion)
+	}
+	if m.accepted_at != nil {
+		fields = append(fields, termsacceptance.FieldAcceptedAt)
+	}
+	if m.source != nil {
+		fields = append(fields, termsacceptance.FieldSource)
+	}
+	if m.locale != nil {
+		fields = append(fields, termsacceptance.FieldLocale)
+	}
+	if m.request_id != nil {
+		fields = append(fields, termsacceptance.FieldRequestID)
+	}
+	if m.marketing_skipped != nil {
+		fields = append(fields, termsacceptance.FieldMarketingSkipped)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *TermsAcceptanceMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case termsacceptance.FieldUserID:
+		return m.UserID()
+	case termsacceptance.FieldAccountCreatedAt:
+		return m.AccountCreatedAt()
+	case termsacceptance.FieldTermsVersion:
+		return m.TermsVersion()
+	case termsacceptance.FieldAcceptedAt:
+		return m.AcceptedAt()
+	case termsacceptance.FieldSource:
+		return m.Source()
+	case termsacceptance.FieldLocale:
+		return m.Locale()
+	case termsacceptance.FieldRequestID:
+		return m.RequestID()
+	case termsacceptance.FieldMarketingSkipped:
+		return m.MarketingSkipped()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *TermsAcceptanceMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case termsacceptance.FieldUserID:
+		return m.OldUserID(ctx)
+	case termsacceptance.FieldAccountCreatedAt:
+		return m.OldAccountCreatedAt(ctx)
+	case termsacceptance.FieldTermsVersion:
+		return m.OldTermsVersion(ctx)
+	case termsacceptance.FieldAcceptedAt:
+		return m.OldAcceptedAt(ctx)
+	case termsacceptance.FieldSource:
+		return m.OldSource(ctx)
+	case termsacceptance.FieldLocale:
+		return m.OldLocale(ctx)
+	case termsacceptance.FieldRequestID:
+		return m.OldRequestID(ctx)
+	case termsacceptance.FieldMarketingSkipped:
+		return m.OldMarketingSkipped(ctx)
+	}
+	return nil, fmt.Errorf("unknown TermsAcceptance field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *TermsAcceptanceMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case termsacceptance.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case termsacceptance.FieldAccountCreatedAt:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountCreatedAt(v)
+		return nil
+	case termsacceptance.FieldTermsVersion:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTermsVersion(v)
+		return nil
+	case termsacceptance.FieldAcceptedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAcceptedAt(v)
+		return nil
+	case termsacceptance.FieldSource:
+		v, ok := value.(termsacceptance.Source)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSource(v)
+		return nil
+	case termsacceptance.FieldLocale:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLocale(v)
+		return nil
+	case termsacceptance.FieldRequestID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestID(v)
+		return nil
+	case termsacceptance.FieldMarketingSkipped:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMarketingSkipped(v)
+		return nil
+	}
+	return fmt.Errorf("unknown TermsAcceptance field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *TermsAcceptanceMutation) AddedFields() []string {
+	var fields []string
+	if m.addaccount_created_at != nil {
+		fields = append(fields, termsacceptance.FieldAccountCreatedAt)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *TermsAcceptanceMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case termsacceptance.FieldAccountCreatedAt:
+		return m.AddedAccountCreatedAt()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *TermsAcceptanceMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case termsacceptance.FieldAccountCreatedAt:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAccountCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown TermsAcceptance numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *TermsAcceptanceMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *TermsAcceptanceMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *TermsAcceptanceMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown TermsAcceptance nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *TermsAcceptanceMutation) ResetField(name string) error {
+	switch name {
+	case termsacceptance.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case termsacceptance.FieldAccountCreatedAt:
+		m.ResetAccountCreatedAt()
+		return nil
+	case termsacceptance.FieldTermsVersion:
+		m.ResetTermsVersion()
+		return nil
+	case termsacceptance.FieldAcceptedAt:
+		m.ResetAcceptedAt()
+		return nil
+	case termsacceptance.FieldSource:
+		m.ResetSource()
+		return nil
+	case termsacceptance.FieldLocale:
+		m.ResetLocale()
+		return nil
+	case termsacceptance.FieldRequestID:
+		m.ResetRequestID()
+		return nil
+	case termsacceptance.FieldMarketingSkipped:
+		m.ResetMarketingSkipped()
+		return nil
+	}
+	return fmt.Errorf("unknown TermsAcceptance field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *TermsAcceptanceMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, termsacceptance.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *TermsAcceptanceMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case termsacceptance.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *TermsAcceptanceMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *TermsAcceptanceMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *TermsAcceptanceMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, termsacceptance.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *TermsAcceptanceMutation) EdgeCleared(name string) bool {
+	switch name {
+	case termsacceptance.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *TermsAcceptanceMutation) ClearEdge(name string) error {
+	switch name {
+	case termsacceptance.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown TermsAcceptance unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *TermsAcceptanceMutation) ResetEdge(name string) error {
+	switch name {
+	case termsacceptance.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown TermsAcceptance edge %s", name)
+}
+
 // TokensMutation represents an operation that mutates the Tokens nodes in the graph.
 type TokensMutation struct {
 	config
@@ -5530,6 +9662,8 @@ type TokensMutation struct {
 	_type                   *tokens.Type
 	token                   *[]byte
 	refresh_token           *[]byte
+	scopes                  *[]string
+	appendscopes            []string
 	platform                *tokens.Platform
 	access_token_expires_at *time.Time
 	clearedFields           map[string]struct{}
@@ -5759,6 +9893,71 @@ func (m *TokensMutation) ResetRefreshToken() {
 	delete(m.clearedFields, tokens.FieldRefreshToken)
 }
 
+// SetScopes sets the "scopes" field.
+func (m *TokensMutation) SetScopes(s []string) {
+	m.scopes = &s
+	m.appendscopes = nil
+}
+
+// Scopes returns the value of the "scopes" field in the mutation.
+func (m *TokensMutation) Scopes() (r []string, exists bool) {
+	v := m.scopes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldScopes returns the old "scopes" field's value of the Tokens entity.
+// If the Tokens object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TokensMutation) OldScopes(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldScopes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldScopes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldScopes: %w", err)
+	}
+	return oldValue.Scopes, nil
+}
+
+// AppendScopes adds s to the "scopes" field.
+func (m *TokensMutation) AppendScopes(s []string) {
+	m.appendscopes = append(m.appendscopes, s...)
+}
+
+// AppendedScopes returns the list of values that were appended to the "scopes" field in this mutation.
+func (m *TokensMutation) AppendedScopes() ([]string, bool) {
+	if len(m.appendscopes) == 0 {
+		return nil, false
+	}
+	return m.appendscopes, true
+}
+
+// ClearScopes clears the value of the "scopes" field.
+func (m *TokensMutation) ClearScopes() {
+	m.scopes = nil
+	m.appendscopes = nil
+	m.clearedFields[tokens.FieldScopes] = struct{}{}
+}
+
+// ScopesCleared returns if the "scopes" field was cleared in this mutation.
+func (m *TokensMutation) ScopesCleared() bool {
+	_, ok := m.clearedFields[tokens.FieldScopes]
+	return ok
+}
+
+// ResetScopes resets all changes to the "scopes" field.
+func (m *TokensMutation) ResetScopes() {
+	m.scopes = nil
+	m.appendscopes = nil
+	delete(m.clearedFields, tokens.FieldScopes)
+}
+
 // SetPlatform sets the "platform" field.
 func (m *TokensMutation) SetPlatform(t tokens.Platform) {
 	m.platform = &t
@@ -5917,7 +10116,7 @@ func (m *TokensMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *TokensMutation) Fields() []string {
-	fields := make([]string, 0, 5)
+	fields := make([]string, 0, 6)
 	if m._type != nil {
 		fields = append(fields, tokens.FieldType)
 	}
@@ -5926,6 +10125,9 @@ func (m *TokensMutation) Fields() []string {
 	}
 	if m.refresh_token != nil {
 		fields = append(fields, tokens.FieldRefreshToken)
+	}
+	if m.scopes != nil {
+		fields = append(fields, tokens.FieldScopes)
 	}
 	if m.platform != nil {
 		fields = append(fields, tokens.FieldPlatform)
@@ -5947,6 +10149,8 @@ func (m *TokensMutation) Field(name string) (ent.Value, bool) {
 		return m.Token()
 	case tokens.FieldRefreshToken:
 		return m.RefreshToken()
+	case tokens.FieldScopes:
+		return m.Scopes()
 	case tokens.FieldPlatform:
 		return m.Platform()
 	case tokens.FieldAccessTokenExpiresAt:
@@ -5966,6 +10170,8 @@ func (m *TokensMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldToken(ctx)
 	case tokens.FieldRefreshToken:
 		return m.OldRefreshToken(ctx)
+	case tokens.FieldScopes:
+		return m.OldScopes(ctx)
 	case tokens.FieldPlatform:
 		return m.OldPlatform(ctx)
 	case tokens.FieldAccessTokenExpiresAt:
@@ -5999,6 +10205,13 @@ func (m *TokensMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetRefreshToken(v)
+		return nil
+	case tokens.FieldScopes:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetScopes(v)
 		return nil
 	case tokens.FieldPlatform:
 		v, ok := value.(tokens.Platform)
@@ -6047,6 +10260,9 @@ func (m *TokensMutation) ClearedFields() []string {
 	if m.FieldCleared(tokens.FieldRefreshToken) {
 		fields = append(fields, tokens.FieldRefreshToken)
 	}
+	if m.FieldCleared(tokens.FieldScopes) {
+		fields = append(fields, tokens.FieldScopes)
+	}
 	if m.FieldCleared(tokens.FieldAccessTokenExpiresAt) {
 		fields = append(fields, tokens.FieldAccessTokenExpiresAt)
 	}
@@ -6067,6 +10283,9 @@ func (m *TokensMutation) ClearField(name string) error {
 	case tokens.FieldRefreshToken:
 		m.ClearRefreshToken()
 		return nil
+	case tokens.FieldScopes:
+		m.ClearScopes()
+		return nil
 	case tokens.FieldAccessTokenExpiresAt:
 		m.ClearAccessTokenExpiresAt()
 		return nil
@@ -6086,6 +10305,9 @@ func (m *TokensMutation) ResetField(name string) error {
 		return nil
 	case tokens.FieldRefreshToken:
 		m.ResetRefreshToken()
+		return nil
+	case tokens.FieldScopes:
+		m.ResetScopes()
 		return nil
 	case tokens.FieldPlatform:
 		m.ResetPlatform()
@@ -6209,6 +10431,9 @@ type UserMutation struct {
 	gifts_sent                   *uint32
 	addgifts_sent                *int32
 	onboarded                    *bool
+	terms_version                *string
+	marketing_status             *user.MarketingStatus
+	marketing_status_at          *time.Time
 	test_account                 *bool
 	created_at                   *time.Time
 	updated_at                   *time.Time
@@ -6225,6 +10450,15 @@ type UserMutation struct {
 	authorization_codes          map[int]struct{}
 	removedauthorization_codes   map[int]struct{}
 	clearedauthorization_codes   bool
+	terms_acceptances            map[int]struct{}
+	removedterms_acceptances     map[int]struct{}
+	clearedterms_acceptances     bool
+	marketing_consents           map[int]struct{}
+	removedmarketing_consents    map[int]struct{}
+	clearedmarketing_consents    bool
+	marketing_sends              map[int]struct{}
+	removedmarketing_sends       map[int]struct{}
+	clearedmarketing_sends       bool
 	voice_usage                  map[int]struct{}
 	removedvoice_usage           map[int]struct{}
 	clearedvoice_usage           bool
@@ -7590,6 +11824,127 @@ func (m *UserMutation) ResetOnboarded() {
 	m.onboarded = nil
 }
 
+// SetTermsVersion sets the "terms_version" field.
+func (m *UserMutation) SetTermsVersion(s string) {
+	m.terms_version = &s
+}
+
+// TermsVersion returns the value of the "terms_version" field in the mutation.
+func (m *UserMutation) TermsVersion() (r string, exists bool) {
+	v := m.terms_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTermsVersion returns the old "terms_version" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldTermsVersion(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTermsVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTermsVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTermsVersion: %w", err)
+	}
+	return oldValue.TermsVersion, nil
+}
+
+// ResetTermsVersion resets all changes to the "terms_version" field.
+func (m *UserMutation) ResetTermsVersion() {
+	m.terms_version = nil
+}
+
+// SetMarketingStatus sets the "marketing_status" field.
+func (m *UserMutation) SetMarketingStatus(us user.MarketingStatus) {
+	m.marketing_status = &us
+}
+
+// MarketingStatus returns the value of the "marketing_status" field in the mutation.
+func (m *UserMutation) MarketingStatus() (r user.MarketingStatus, exists bool) {
+	v := m.marketing_status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMarketingStatus returns the old "marketing_status" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldMarketingStatus(ctx context.Context) (v user.MarketingStatus, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMarketingStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMarketingStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMarketingStatus: %w", err)
+	}
+	return oldValue.MarketingStatus, nil
+}
+
+// ResetMarketingStatus resets all changes to the "marketing_status" field.
+func (m *UserMutation) ResetMarketingStatus() {
+	m.marketing_status = nil
+}
+
+// SetMarketingStatusAt sets the "marketing_status_at" field.
+func (m *UserMutation) SetMarketingStatusAt(t time.Time) {
+	m.marketing_status_at = &t
+}
+
+// MarketingStatusAt returns the value of the "marketing_status_at" field in the mutation.
+func (m *UserMutation) MarketingStatusAt() (r time.Time, exists bool) {
+	v := m.marketing_status_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMarketingStatusAt returns the old "marketing_status_at" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldMarketingStatusAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMarketingStatusAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMarketingStatusAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMarketingStatusAt: %w", err)
+	}
+	return oldValue.MarketingStatusAt, nil
+}
+
+// ClearMarketingStatusAt clears the value of the "marketing_status_at" field.
+func (m *UserMutation) ClearMarketingStatusAt() {
+	m.marketing_status_at = nil
+	m.clearedFields[user.FieldMarketingStatusAt] = struct{}{}
+}
+
+// MarketingStatusAtCleared returns if the "marketing_status_at" field was cleared in this mutation.
+func (m *UserMutation) MarketingStatusAtCleared() bool {
+	_, ok := m.clearedFields[user.FieldMarketingStatusAt]
+	return ok
+}
+
+// ResetMarketingStatusAt resets all changes to the "marketing_status_at" field.
+func (m *UserMutation) ResetMarketingStatusAt() {
+	m.marketing_status_at = nil
+	delete(m.clearedFields, user.FieldMarketingStatusAt)
+}
+
 // SetTestAccount sets the "test_account" field.
 func (m *UserMutation) SetTestAccount(b bool) {
 	m.test_account = &b
@@ -7914,6 +12269,168 @@ func (m *UserMutation) ResetAuthorizationCodes() {
 	m.removedauthorization_codes = nil
 }
 
+// AddTermsAcceptanceIDs adds the "terms_acceptances" edge to the TermsAcceptance entity by ids.
+func (m *UserMutation) AddTermsAcceptanceIDs(ids ...int) {
+	if m.terms_acceptances == nil {
+		m.terms_acceptances = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.terms_acceptances[ids[i]] = struct{}{}
+	}
+}
+
+// ClearTermsAcceptances clears the "terms_acceptances" edge to the TermsAcceptance entity.
+func (m *UserMutation) ClearTermsAcceptances() {
+	m.clearedterms_acceptances = true
+}
+
+// TermsAcceptancesCleared reports if the "terms_acceptances" edge to the TermsAcceptance entity was cleared.
+func (m *UserMutation) TermsAcceptancesCleared() bool {
+	return m.clearedterms_acceptances
+}
+
+// RemoveTermsAcceptanceIDs removes the "terms_acceptances" edge to the TermsAcceptance entity by IDs.
+func (m *UserMutation) RemoveTermsAcceptanceIDs(ids ...int) {
+	if m.removedterms_acceptances == nil {
+		m.removedterms_acceptances = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.terms_acceptances, ids[i])
+		m.removedterms_acceptances[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedTermsAcceptances returns the removed IDs of the "terms_acceptances" edge to the TermsAcceptance entity.
+func (m *UserMutation) RemovedTermsAcceptancesIDs() (ids []int) {
+	for id := range m.removedterms_acceptances {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// TermsAcceptancesIDs returns the "terms_acceptances" edge IDs in the mutation.
+func (m *UserMutation) TermsAcceptancesIDs() (ids []int) {
+	for id := range m.terms_acceptances {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetTermsAcceptances resets all changes to the "terms_acceptances" edge.
+func (m *UserMutation) ResetTermsAcceptances() {
+	m.terms_acceptances = nil
+	m.clearedterms_acceptances = false
+	m.removedterms_acceptances = nil
+}
+
+// AddMarketingConsentIDs adds the "marketing_consents" edge to the MarketingConsent entity by ids.
+func (m *UserMutation) AddMarketingConsentIDs(ids ...int) {
+	if m.marketing_consents == nil {
+		m.marketing_consents = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.marketing_consents[ids[i]] = struct{}{}
+	}
+}
+
+// ClearMarketingConsents clears the "marketing_consents" edge to the MarketingConsent entity.
+func (m *UserMutation) ClearMarketingConsents() {
+	m.clearedmarketing_consents = true
+}
+
+// MarketingConsentsCleared reports if the "marketing_consents" edge to the MarketingConsent entity was cleared.
+func (m *UserMutation) MarketingConsentsCleared() bool {
+	return m.clearedmarketing_consents
+}
+
+// RemoveMarketingConsentIDs removes the "marketing_consents" edge to the MarketingConsent entity by IDs.
+func (m *UserMutation) RemoveMarketingConsentIDs(ids ...int) {
+	if m.removedmarketing_consents == nil {
+		m.removedmarketing_consents = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.marketing_consents, ids[i])
+		m.removedmarketing_consents[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedMarketingConsents returns the removed IDs of the "marketing_consents" edge to the MarketingConsent entity.
+func (m *UserMutation) RemovedMarketingConsentsIDs() (ids []int) {
+	for id := range m.removedmarketing_consents {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// MarketingConsentsIDs returns the "marketing_consents" edge IDs in the mutation.
+func (m *UserMutation) MarketingConsentsIDs() (ids []int) {
+	for id := range m.marketing_consents {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetMarketingConsents resets all changes to the "marketing_consents" edge.
+func (m *UserMutation) ResetMarketingConsents() {
+	m.marketing_consents = nil
+	m.clearedmarketing_consents = false
+	m.removedmarketing_consents = nil
+}
+
+// AddMarketingSendIDs adds the "marketing_sends" edge to the MarketingSend entity by ids.
+func (m *UserMutation) AddMarketingSendIDs(ids ...int) {
+	if m.marketing_sends == nil {
+		m.marketing_sends = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.marketing_sends[ids[i]] = struct{}{}
+	}
+}
+
+// ClearMarketingSends clears the "marketing_sends" edge to the MarketingSend entity.
+func (m *UserMutation) ClearMarketingSends() {
+	m.clearedmarketing_sends = true
+}
+
+// MarketingSendsCleared reports if the "marketing_sends" edge to the MarketingSend entity was cleared.
+func (m *UserMutation) MarketingSendsCleared() bool {
+	return m.clearedmarketing_sends
+}
+
+// RemoveMarketingSendIDs removes the "marketing_sends" edge to the MarketingSend entity by IDs.
+func (m *UserMutation) RemoveMarketingSendIDs(ids ...int) {
+	if m.removedmarketing_sends == nil {
+		m.removedmarketing_sends = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.marketing_sends, ids[i])
+		m.removedmarketing_sends[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedMarketingSends returns the removed IDs of the "marketing_sends" edge to the MarketingSend entity.
+func (m *UserMutation) RemovedMarketingSendsIDs() (ids []int) {
+	for id := range m.removedmarketing_sends {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// MarketingSendsIDs returns the "marketing_sends" edge IDs in the mutation.
+func (m *UserMutation) MarketingSendsIDs() (ids []int) {
+	for id := range m.marketing_sends {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetMarketingSends resets all changes to the "marketing_sends" edge.
+func (m *UserMutation) ResetMarketingSends() {
+	m.marketing_sends = nil
+	m.clearedmarketing_sends = false
+	m.removedmarketing_sends = nil
+}
+
 // AddVoiceUsageIDs adds the "voice_usage" edge to the VoiceUsage entity by ids.
 func (m *UserMutation) AddVoiceUsageIDs(ids ...int) {
 	if m.voice_usage == nil {
@@ -8056,7 +12573,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 33)
+	fields := make([]string, 0, 36)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -8147,6 +12664,15 @@ func (m *UserMutation) Fields() []string {
 	if m.onboarded != nil {
 		fields = append(fields, user.FieldOnboarded)
 	}
+	if m.terms_version != nil {
+		fields = append(fields, user.FieldTermsVersion)
+	}
+	if m.marketing_status != nil {
+		fields = append(fields, user.FieldMarketingStatus)
+	}
+	if m.marketing_status_at != nil {
+		fields = append(fields, user.FieldMarketingStatusAt)
+	}
 	if m.test_account != nil {
 		fields = append(fields, user.FieldTestAccount)
 	}
@@ -8224,6 +12750,12 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.GiftsSent()
 	case user.FieldOnboarded:
 		return m.Onboarded()
+	case user.FieldTermsVersion:
+		return m.TermsVersion()
+	case user.FieldMarketingStatus:
+		return m.MarketingStatus()
+	case user.FieldMarketingStatusAt:
+		return m.MarketingStatusAt()
 	case user.FieldTestAccount:
 		return m.TestAccount()
 	case user.FieldCreatedAt:
@@ -8299,6 +12831,12 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldGiftsSent(ctx)
 	case user.FieldOnboarded:
 		return m.OldOnboarded(ctx)
+	case user.FieldTermsVersion:
+		return m.OldTermsVersion(ctx)
+	case user.FieldMarketingStatus:
+		return m.OldMarketingStatus(ctx)
+	case user.FieldMarketingStatusAt:
+		return m.OldMarketingStatusAt(ctx)
 	case user.FieldTestAccount:
 		return m.OldTestAccount(ctx)
 	case user.FieldCreatedAt:
@@ -8524,6 +13062,27 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetOnboarded(v)
 		return nil
+	case user.FieldTermsVersion:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTermsVersion(v)
+		return nil
+	case user.FieldMarketingStatus:
+		v, ok := value.(user.MarketingStatus)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMarketingStatus(v)
+		return nil
+	case user.FieldMarketingStatusAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMarketingStatusAt(v)
+		return nil
 	case user.FieldTestAccount:
 		v, ok := value.(bool)
 		if !ok {
@@ -8632,6 +13191,9 @@ func (m *UserMutation) ClearedFields() []string {
 	if m.FieldCleared(user.FieldBillingEventID) {
 		fields = append(fields, user.FieldBillingEventID)
 	}
+	if m.FieldCleared(user.FieldMarketingStatusAt) {
+		fields = append(fields, user.FieldMarketingStatusAt)
+	}
 	return fields
 }
 
@@ -8675,6 +13237,9 @@ func (m *UserMutation) ClearField(name string) error {
 		return nil
 	case user.FieldBillingEventID:
 		m.ClearBillingEventID()
+		return nil
+	case user.FieldMarketingStatusAt:
+		m.ClearMarketingStatusAt()
 		return nil
 	}
 	return fmt.Errorf("unknown User nullable field %s", name)
@@ -8774,6 +13339,15 @@ func (m *UserMutation) ResetField(name string) error {
 	case user.FieldOnboarded:
 		m.ResetOnboarded()
 		return nil
+	case user.FieldTermsVersion:
+		m.ResetTermsVersion()
+		return nil
+	case user.FieldMarketingStatus:
+		m.ResetMarketingStatus()
+		return nil
+	case user.FieldMarketingStatusAt:
+		m.ResetMarketingStatusAt()
+		return nil
 	case user.FieldTestAccount:
 		m.ResetTestAccount()
 		return nil
@@ -8789,7 +13363,7 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 6)
+	edges := make([]string, 0, 9)
 	if m.tokens != nil {
 		edges = append(edges, user.EdgeTokens)
 	}
@@ -8801,6 +13375,15 @@ func (m *UserMutation) AddedEdges() []string {
 	}
 	if m.authorization_codes != nil {
 		edges = append(edges, user.EdgeAuthorizationCodes)
+	}
+	if m.terms_acceptances != nil {
+		edges = append(edges, user.EdgeTermsAcceptances)
+	}
+	if m.marketing_consents != nil {
+		edges = append(edges, user.EdgeMarketingConsents)
+	}
+	if m.marketing_sends != nil {
+		edges = append(edges, user.EdgeMarketingSends)
 	}
 	if m.voice_usage != nil {
 		edges = append(edges, user.EdgeVoiceUsage)
@@ -8839,6 +13422,24 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeTermsAcceptances:
+		ids := make([]ent.Value, 0, len(m.terms_acceptances))
+		for id := range m.terms_acceptances {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeMarketingConsents:
+		ids := make([]ent.Value, 0, len(m.marketing_consents))
+		for id := range m.marketing_consents {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeMarketingSends:
+		ids := make([]ent.Value, 0, len(m.marketing_sends))
+		for id := range m.marketing_sends {
+			ids = append(ids, id)
+		}
+		return ids
 	case user.EdgeVoiceUsage:
 		ids := make([]ent.Value, 0, len(m.voice_usage))
 		for id := range m.voice_usage {
@@ -8857,7 +13458,7 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 6)
+	edges := make([]string, 0, 9)
 	if m.removedtokens != nil {
 		edges = append(edges, user.EdgeTokens)
 	}
@@ -8869,6 +13470,15 @@ func (m *UserMutation) RemovedEdges() []string {
 	}
 	if m.removedauthorization_codes != nil {
 		edges = append(edges, user.EdgeAuthorizationCodes)
+	}
+	if m.removedterms_acceptances != nil {
+		edges = append(edges, user.EdgeTermsAcceptances)
+	}
+	if m.removedmarketing_consents != nil {
+		edges = append(edges, user.EdgeMarketingConsents)
+	}
+	if m.removedmarketing_sends != nil {
+		edges = append(edges, user.EdgeMarketingSends)
 	}
 	if m.removedvoice_usage != nil {
 		edges = append(edges, user.EdgeVoiceUsage)
@@ -8907,6 +13517,24 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeTermsAcceptances:
+		ids := make([]ent.Value, 0, len(m.removedterms_acceptances))
+		for id := range m.removedterms_acceptances {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeMarketingConsents:
+		ids := make([]ent.Value, 0, len(m.removedmarketing_consents))
+		for id := range m.removedmarketing_consents {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeMarketingSends:
+		ids := make([]ent.Value, 0, len(m.removedmarketing_sends))
+		for id := range m.removedmarketing_sends {
+			ids = append(ids, id)
+		}
+		return ids
 	case user.EdgeVoiceUsage:
 		ids := make([]ent.Value, 0, len(m.removedvoice_usage))
 		for id := range m.removedvoice_usage {
@@ -8925,7 +13553,7 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 6)
+	edges := make([]string, 0, 9)
 	if m.clearedtokens {
 		edges = append(edges, user.EdgeTokens)
 	}
@@ -8937,6 +13565,15 @@ func (m *UserMutation) ClearedEdges() []string {
 	}
 	if m.clearedauthorization_codes {
 		edges = append(edges, user.EdgeAuthorizationCodes)
+	}
+	if m.clearedterms_acceptances {
+		edges = append(edges, user.EdgeTermsAcceptances)
+	}
+	if m.clearedmarketing_consents {
+		edges = append(edges, user.EdgeMarketingConsents)
+	}
+	if m.clearedmarketing_sends {
+		edges = append(edges, user.EdgeMarketingSends)
 	}
 	if m.clearedvoice_usage {
 		edges = append(edges, user.EdgeVoiceUsage)
@@ -8959,6 +13596,12 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 		return m.cleareddevice_grants
 	case user.EdgeAuthorizationCodes:
 		return m.clearedauthorization_codes
+	case user.EdgeTermsAcceptances:
+		return m.clearedterms_acceptances
+	case user.EdgeMarketingConsents:
+		return m.clearedmarketing_consents
+	case user.EdgeMarketingSends:
+		return m.clearedmarketing_sends
 	case user.EdgeVoiceUsage:
 		return m.clearedvoice_usage
 	case user.EdgeVoiceUsageReceipts:
@@ -8990,6 +13633,15 @@ func (m *UserMutation) ResetEdge(name string) error {
 		return nil
 	case user.EdgeAuthorizationCodes:
 		m.ResetAuthorizationCodes()
+		return nil
+	case user.EdgeTermsAcceptances:
+		m.ResetTermsAcceptances()
+		return nil
+	case user.EdgeMarketingConsents:
+		m.ResetMarketingConsents()
+		return nil
+	case user.EdgeMarketingSends:
+		m.ResetMarketingSends()
 		return nil
 	case user.EdgeVoiceUsage:
 		m.ResetVoiceUsage()
