@@ -21,6 +21,8 @@
   "active": "активность={active}",
   "testAccountDemo": "тестовый аккаунт={active} (демо)",
   "testAccount": "тестовый аккаунт={active}",
+  "alphaDemo": "alpha={active} (демо)",
+  "alpha": "alpha={active}",
   "restartDemo": "бот перезапущен (только демо, реальные подписки не удалены)",
   "restartQueued": "бот перезапущен (атомарное переподключение поставлено в очередь)",
   "viewAsDemo": "ссылка для просмотра создана (демо)",

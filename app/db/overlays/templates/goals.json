@@ -1,0 +1,117 @@
+{
+  "version": 2,
+  "kind": "custom",
+  "id": "goals",
+  "name": "Sub and bits goals",
+  "width": 1920,
+  "height": 1080,
+  "rev": 0,
+  "widgets": [
+    {
+      "id": "w1",
+      "name": "Sub goal",
+      "kind": "goal",
+      "x": 40,
+      "y": 40,
+      "w": 820,
+      "h": 160,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "metric": "session_subs",
+        "target": 10,
+        "title": "Sub goal",
+        "display": "horizontal",
+        "style": {
+          "size": 34,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    },
+    {
+      "id": "w2",
+      "name": "Bits goal",
+      "kind": "goal",
+      "x": 1060,
+      "y": 40,
+      "w": 820,
+      "h": 160,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "metric": "session_bits",
+        "target": 1000,
+        "title": "Bits goal",
+        "display": "horizontal",
+        "style": {
+          "size": 34,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    },
+    {
+      "id": "w3",
+      "name": "Alerts",
+      "kind": "alertbox",
+      "x": 460,
+      "y": 290,
+      "w": 1000,
+      "h": 500,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "queueDelay": 0.5,
+        "events": {
+          "follow": {
+            "enabled": true,
+            "title": "{name} followed",
+            "variations": []
+          },
+          "sub": {
+            "enabled": true,
+            "title": "{name} subscribed",
+            "variations": []
+          },
+          "resub": {
+            "enabled": true,
+            "title": "{name} resubscribed for {months} months",
+            "variations": []
+          },
+          "gift_sub": {
+            "enabled": true,
+            "title": "{name} gifted a sub to {recipient}",
+            "variations": []
+          },
+          "community_gift": {
+            "enabled": true,
+            "title": "{name} gifted {count} subs",
+            "variations": []
+          },
+          "cheer": {
+            "enabled": true,
+            "title": "{name} cheered {amount} bits",
+            "variations": []
+          },
+          "raid": {
+            "enabled": true,
+            "title": "{name} raided with {amount} viewers",
+            "variations": []
+          },
+          "redemption": {
+            "enabled": true,
+            "title": "{name} redeemed {reward}",
+            "variations": []
+          }
+        }
+      }
+    }
+  ]
+}

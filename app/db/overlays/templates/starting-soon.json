@@ -1,0 +1,79 @@
+{
+  "version": 2,
+  "kind": "custom",
+  "id": "starting-soon",
+  "name": "Starting soon",
+  "width": 1920,
+  "height": 1080,
+  "rev": 0,
+  "widgets": [
+    {
+      "id": "w1",
+      "name": "Title",
+      "kind": "text",
+      "x": 360,
+      "y": 300,
+      "w": 1200,
+      "h": 200,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "text": "Starting soon",
+        "align": "center",
+        "style": {
+          "size": 140,
+          "weight": 800,
+          "color": "#ffffff"
+        }
+      }
+    },
+    {
+      "id": "w2",
+      "name": "Countdown",
+      "kind": "timer",
+      "x": 560,
+      "y": 520,
+      "w": 800,
+      "h": 200,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "mode": "countdown",
+        "format": "mm:ss",
+        "endText": "Starting now",
+        "style": {
+          "size": 120,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    },
+    {
+      "id": "w3",
+      "name": "Latest follower",
+      "kind": "label",
+      "x": 360,
+      "y": 800,
+      "w": 1200,
+      "h": 80,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "source": "latest_follow",
+        "template": "Latest follower: {name}",
+        "empty": "Waiting for a follower",
+        "style": {
+          "size": 40,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    }
+  ]
+}

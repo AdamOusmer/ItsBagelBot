@@ -169,3 +169,4 @@ export { default as SwapStack } from './SwapStack.svelte';
 export { default as Well } from './Well.svelte';
 export { default as EditorStage } from './EditorStage.svelte';
 export { default as CanvasCard } from './CanvasCard.svelte';
+export { default as OverlayCanvas } from './OverlayCanvas.svelte';

@@ -1,0 +1,151 @@
+{
+  "version": 2,
+  "kind": "custom",
+  "id": "gifting",
+  "name": "Gifting special",
+  "width": 1920,
+  "height": 1080,
+  "rev": 0,
+  "widgets": [
+    {
+      "id": "w1",
+      "name": "Alerts",
+      "kind": "alertbox",
+      "x": 460,
+      "y": 260,
+      "w": 1000,
+      "h": 500,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "queueDelay": 0.5,
+        "events": {
+          "follow": {
+            "enabled": true,
+            "title": "{name} followed",
+            "variations": []
+          },
+          "sub": {
+            "enabled": true,
+            "title": "{name} subscribed",
+            "variations": []
+          },
+          "resub": {
+            "enabled": true,
+            "title": "{name} resubscribed for {months} months",
+            "variations": []
+          },
+          "gift_sub": {
+            "enabled": false,
+            "title": "{name} gifted a sub to {recipient}",
+            "variations": []
+          },
+          "community_gift": {
+            "enabled": true,
+            "title": "{name} gifted {count} subs",
+            "variations": [
+              {
+                "condition": "amount_exact",
+                "value": "1",
+                "overrides": {
+                  "title": "{name} gifted a sub"
+                }
+              },
+              {
+                "condition": "amount_min",
+                "value": "5",
+                "overrides": {
+                  "title": "{name} gifted {count} subs"
+                }
+              },
+              {
+                "condition": "amount_min",
+                "value": "20",
+                "overrides": {
+                  "title": "{name} gifted {count} subs, thank you"
+                }
+              },
+              {
+                "condition": "amount_min",
+                "value": "50",
+                "overrides": {
+                  "title": "{name} gifted {count} subs, a legend"
+                }
+              },
+              {
+                "condition": "amount_min",
+                "value": "100",
+                "overrides": {
+                  "title": "{name} gifted {count} subs, an icon"
+                }
+              }
+            ],
+            "duration": 8
+          },
+          "cheer": {
+            "enabled": true,
+            "title": "{name} cheered {amount} bits",
+            "variations": []
+          },
+          "raid": {
+            "enabled": true,
+            "title": "{name} raided with {amount} viewers",
+            "variations": []
+          },
+          "redemption": {
+            "enabled": true,
+            "title": "{name} redeemed {reward}",
+            "variations": []
+          }
+        }
+      }
+    },
+    {
+      "id": "w2",
+      "name": "Top gifter",
+      "kind": "label",
+      "x": 40,
+      "y": 940,
+      "w": 700,
+      "h": 80,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "source": "top_gifter",
+        "template": "Top gifter: {name} ({amount})",
+        "empty": "Be the first gifter",
+        "style": {
+          "size": 40,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    },
+    {
+      "id": "w3",
+      "name": "Gifts this stream",
+      "kind": "label",
+      "x": 1180,
+      "y": 940,
+      "w": 700,
+      "h": 80,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "source": "session_gifts",
+        "template": "Gifted this stream: {count}",
+        "style": {
+          "size": 40,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    }
+  ]
+}

@@ -56,8 +56,10 @@ export function betaRouteDef(pathname: string): ModuleDef | undefined {
   return MODULE_CATALOG.find((d) => d.beta && d.href && (pathname === d.href || pathname.startsWith(d.href + '/')));
 }
 
+const routePath = (routeId: string | null) => (routeId ?? '').replace(/\/\([^/]*\)/g, '');
+
 export async function assertBetaRouteOpen(event: RequestEvent): Promise<void> {
-  const def = betaRouteDef(event.url.pathname);
+  const def = betaRouteDef(routePath(event.route.id));
   if (!def || !(await moduleLocked(event.locals, def))) return;
   if (def.section) return;
   throw redirect(303, '/modules');

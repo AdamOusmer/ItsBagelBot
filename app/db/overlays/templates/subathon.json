@@ -1,0 +1,172 @@
+{
+  "version": 2,
+  "kind": "custom",
+  "id": "subathon",
+  "name": "Subathon",
+  "width": 1920,
+  "height": 1080,
+  "rev": 0,
+  "widgets": [
+    {
+      "id": "w1",
+      "name": "Timer",
+      "kind": "timer",
+      "x": 560,
+      "y": 40,
+      "w": 800,
+      "h": 180,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "mode": "subathon",
+        "format": "hh:mm:ss",
+        "endText": "Subathon over",
+        "style": {
+          "size": 120,
+          "weight": 800,
+          "color": "#ffffff"
+        },
+        "rules": {
+          "base_seconds": 3600,
+          "follow_seconds": 10,
+          "tier1_seconds": 300,
+          "tier2_seconds": 600,
+          "tier3_seconds": 1500,
+          "prime_seconds": 300,
+          "bits100_seconds": 60,
+          "gift_seconds": 300,
+          "raid_viewer_seconds": 5,
+          "cap_seconds": 0
+        }
+      }
+    },
+    {
+      "id": "w2",
+      "name": "Subs",
+      "kind": "label",
+      "x": 40,
+      "y": 40,
+      "w": 420,
+      "h": 80,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "source": "session_subs",
+        "template": "Subs: {count}",
+        "style": {
+          "size": 40,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    },
+    {
+      "id": "w3",
+      "name": "Bits",
+      "kind": "label",
+      "x": 1460,
+      "y": 40,
+      "w": 420,
+      "h": 80,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "source": "session_bits",
+        "template": "Bits: {count}",
+        "style": {
+          "size": 40,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    },
+    {
+      "id": "w4",
+      "name": "Sub goal",
+      "kind": "goal",
+      "x": 40,
+      "y": 940,
+      "w": 820,
+      "h": 100,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "metric": "session_subs",
+        "target": 100,
+        "title": "Sub goal",
+        "display": "horizontal",
+        "style": {
+          "size": 30,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    },
+    {
+      "id": "w5",
+      "name": "Alerts",
+      "kind": "alertbox",
+      "x": 460,
+      "y": 290,
+      "w": 1000,
+      "h": 500,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "queueDelay": 0.5,
+        "events": {
+          "follow": {
+            "enabled": true,
+            "title": "{name} followed",
+            "variations": []
+          },
+          "sub": {
+            "enabled": true,
+            "title": "{name} subscribed",
+            "variations": []
+          },
+          "resub": {
+            "enabled": true,
+            "title": "{name} resubscribed for {months} months",
+            "variations": []
+          },
+          "gift_sub": {
+            "enabled": true,
+            "title": "{name} gifted a sub to {recipient}",
+            "variations": []
+          },
+          "community_gift": {
+            "enabled": true,
+            "title": "{name} gifted {count} subs",
+            "variations": []
+          },
+          "cheer": {
+            "enabled": true,
+            "title": "{name} cheered {amount} bits",
+            "variations": []
+          },
+          "raid": {
+            "enabled": true,
+            "title": "{name} raided with {amount} viewers",
+            "variations": []
+          },
+          "redemption": {
+            "enabled": true,
+            "title": "{name} redeemed {reward}",
+            "variations": []
+          }
+        }
+      }
+    }
+  ]
+}

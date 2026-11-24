@@ -21,6 +21,8 @@
   "active": "aktiv={active}",
   "testAccountDemo": "Testkonto={active} (Demo)",
   "testAccount": "Testkonto={active}",
+  "alphaDemo": "alpha={active} (Demo)",
+  "alpha": "alpha={active}",
   "restartDemo": "Bot neu gestartet (nur Demo, keine echten Abonnements entfernt)",
   "restartQueued": "Bot neu gestartet (atomare Wiederverbindung eingereiht)",
   "viewAsDemo": "Link zur Benutzeransicht erstellt (Demo)",

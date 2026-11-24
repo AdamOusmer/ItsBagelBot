@@ -39,6 +39,7 @@ func SubscribeProjection(w Wiring, subject string) error {
 				LeaderboardPageHidden: view.LeaderboardPageHidden,
 				SongQueuePageHidden:   view.SongQueuePageHidden,
 				CreatorCode:           view.CreatorCodeText(),
+				Alpha:                 view.Alpha,
 			}, nil
 		})
 }

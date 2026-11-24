@@ -9,11 +9,16 @@ import (
 	"ItsBagelBot/app/db/overlays/ent"
 	// Without the ent runtime import every write fails.
 	_ "ItsBagelBot/app/db/overlays/ent/runtime"
+	"ItsBagelBot/app/db/overlays/lapse"
 	"ItsBagelBot/app/db/overlays/repository"
 	"ItsBagelBot/app/db/overlays/rpc"
+	"ItsBagelBot/internal/domain/channelevents"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/consumers"
+	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
+	"ItsBagelBot/pkg/objectstore"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
 )
@@ -34,27 +39,50 @@ func main() {
 
 	databoot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return repository.MigrateSchema(ctx, client) })
 
+	svcboot.FatalIf(log, bus.EnsureStreams(core.Ctx, core.NATSURL, []bus.StreamSpec{bus.ChannelEventsStream}, log), "failed to provision channel event stream")
+
 	n, closeIntake := svcboot.MustNATS(core)
 	defer func() { _ = n.Pub.Close() }()
 	defer closeIntake()
 
-	repo := repository.New(client, n.Pub)
+	objects, err := objectstore.New(objectstore.ConfigFromEnv("R2_"))
+	svcboot.FatalIf(log, err, "failed to configure object storage")
+
+	repo := repository.New(client, n.Pub, objects, env.MustGet("R2_PUBLIC_URL"))
 	svcboot.FatalIf(log, repo.MigratePowered(core.Ctx), "failed to migrate powered overlays")
+	invalidations := bus.NewInvalidations(n.RPC, conf.CacheInvalidationPrefix.Get(), log)
+	clients := shared{
+		rpc:           n.RPC,
+		alphas:        rpc.NewAlphaAccess(n.RPC, invalidations),
+		invalidations: invalidations,
+		valkey:        svcboot.MustValkey(core),
+	}
+	uploads := newAssets(repo, objects, clients)
+	serveUploads(core, uploads)
+	sweeper := &lapse.Sweeper{Repo: repo, Alphas: clients.alphas}
+	go sweeper.Run(core.Ctx, log)
 
 	deleted := consumers.OnUserDeleted(serviceName, log, repo.DeleteAccount)
 	svcboot.FatalIf(log, bus.Consume(core.Ctx, core.NR, n.Grouped, data.SubjectUserDeleted, deleted, log), "failed to subscribe to user deleted events")
 
 	svcboot.FatalIf(log, bus.Consume(core.Ctx, core.NR, n.Grouped, data.SubjectUserBanned, bannedTts(repo, log), log), "failed to subscribe to user banned events")
 
+	feedService, feedConn := newFeed(core, repo, clients)
+	defer feedConn.Close()
+	svcboot.FatalIf(log, bus.Consume(core.Ctx, core.NR, n.Grouped, channelevents.EventsMatch, feedService.Consume, log), "failed to subscribe to channel events")
+
 	wiring := rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log},
 		Repo:      repo,
+		Assets:    uploads,
 	}
 	svcboot.FatalIf(log, rpc.SubscribeDashboard(wiring), "failed to subscribe dashboard rpc")
 	svcboot.FatalIf(log, rpc.SubscribeOwner(wiring), "failed to subscribe owner rpc")
 
 	svcboot.FatalIf(log, rpc.SubscribeTts(wiring), "failed to subscribe tts rpc")
 	svcboot.FatalIf(log, rpc.SubscribeOverlays(wiring), "failed to subscribe overlay rpc")
+	svcboot.FatalIf(log, rpc.SubscribeAssets(wiring), "failed to subscribe asset rpc")
+	svcboot.FatalIf(log, rpc.SubscribeFeed(wiring.RPCWiring, feedService), "failed to subscribe feed rpc")
 
 	databoot.ServeHealth(databoot.Health{
 		Health: svcboot.Health{

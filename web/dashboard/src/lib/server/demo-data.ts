@@ -23,7 +23,7 @@ import type { Session } from './session';
 import type { AccountState, BillingState, DeviceGrantView, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';
 import type { BlockedViewer, TtsOverlayView, VoiceAllowance, VoiceSettings } from './services/voice';
-import type { OverlayView, PoweredSettings } from './services/overlays';
+import type { AssetView, FeedAction, FeedControlArgs, FeedControlState, OverlayView, PoweredSettings } from './services/overlays';
 import type { GoveeDevice, GoveeView } from './govee-store';
 import type { FetchDefView, FetchKeyView } from './fetches-store';
 import type { PublicStats } from './public-stats';
@@ -92,6 +92,7 @@ export const demoAccountState: AccountState = {
   active: true,
   status: process.env.DEMO_PLAN === 'free' ? 'free' : 'vip',
   onboarded: true,
+  alpha: process.env.DEMO_PLAN !== 'nonalpha',
   termsVersion: TERMS_VERSION,
   marketingStatus: 'none',
   creatorCode: null,
@@ -744,4 +745,38 @@ export function demoOverlayRotate(): { id: number; url: string; revision: number
   demoRotations += 1;
   demoPoweredState.revision += 1;
   return { id: DEMO_POWERED_ID, url: demoPoweredLink(), revision: demoPoweredState.revision };
+}
+
+const demoAssetState: AssetView[] = [
+  { asset_id: 'demo-logo', url: 'https://cdn.itsbagelbot.com/demo/logo.png', type: 'image', bytes: 20480, w: 512, h: 512, duration_ms: 0, sha256: 'demo', display_name: 'logo.png' },
+  { asset_id: 'demo-chime', url: 'https://cdn.itsbagelbot.com/demo/chime.ogg', type: 'sound', bytes: 40960, w: 0, h: 0, duration_ms: 1200, sha256: 'demo', display_name: 'chime.ogg' }
+];
+
+export const demoAssets = (): AssetView[] => structuredClone(demoAssetState);
+
+export function demoAssetDelete(id: string): void {
+  const index = demoAssetState.findIndex((asset) => asset.asset_id === id);
+  if (index >= 0) demoAssetState.splice(index, 1);
+}
+
+const demoFeedState: FeedControlState = {
+  control: { paused: false, muted: false, skip: 0 },
+  subathon: { running: false, remaining_seconds: 0 }
+};
+
+const demoFeedSetters: Partial<Record<FeedAction, (state: FeedControlState, args: FeedControlArgs) => void>> = {
+  pause: ({ control }) => { control.paused = true; },
+  resume: ({ control }) => { control.paused = false; },
+  mute: ({ control }) => { control.muted = true; },
+  unmute: ({ control }) => { control.muted = false; },
+  skip: ({ control }) => { control.skip += 1; },
+  subathon_add: ({ subathon }, args) => { subathon.remaining_seconds = (subathon.remaining_seconds ?? 0) + (args.seconds ?? 0); },
+  subathon_pause: ({ subathon }) => { subathon.running = false; },
+  subathon_resume: ({ subathon }) => { subathon.running = true; },
+  subathon_reset: ({ subathon }) => { subathon.running = false; subathon.remaining_seconds = 0; }
+};
+
+export function demoFeedControl({ action, args }: { action: FeedAction; args: FeedControlArgs }): FeedControlState {
+  demoFeedSetters[action]?.(demoFeedState, args);
+  return structuredClone(demoFeedState);
 }

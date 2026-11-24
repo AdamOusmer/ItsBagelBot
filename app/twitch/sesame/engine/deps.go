@@ -46,6 +46,7 @@ type AlertVoicePublisher interface {
 
 type Deps struct {
 	AlertVoice     AlertVoicePublisher
+	GiftBundles    GiftBundleStore
 	Eligibility    *eligibility.Checker
 	Runtime        *channelruntime.Client
 	TrialStore     valkey.Client

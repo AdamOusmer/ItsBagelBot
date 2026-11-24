@@ -26,6 +26,7 @@ type Context struct {
 	Failure       error
 	Env           lane.Envelope
 	Regress       Regress
+	Alpha         bool
 	BroadcasterID uint64
 	Log           *zap.Logger
 
@@ -149,6 +150,7 @@ func (c *Context) Reset() {
 	c.EffectScope, c.EffectOrdinal, c.EffectContext, c.Failure = "", 0, nil, nil
 	c.Env = lane.Envelope{}
 	c.Regress = RegressStandard
+	c.Alpha = false
 	c.BroadcasterID = 0
 	c.Locale = ""
 	c.LocaleLoaded = false

@@ -1,0 +1,168 @@
+{
+  "version": 2,
+  "kind": "custom",
+  "id": "hype-stage",
+  "name": "Hype stage",
+  "width": 1920,
+  "height": 1080,
+  "rev": 0,
+  "widgets": [
+    {
+      "id": "w1",
+      "name": "Emote wall",
+      "kind": "emotewall",
+      "x": 0,
+      "y": 0,
+      "w": 1920,
+      "h": 1080,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "motion": "rain",
+        "max": 60,
+        "size": 80,
+        "lifetime": 4,
+        "combo": 3
+      }
+    },
+    {
+      "id": "w2",
+      "name": "Goal",
+      "kind": "goal",
+      "x": 360,
+      "y": 60,
+      "w": 1200,
+      "h": 120,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "metric": "sub_points",
+        "target": 50,
+        "title": "Hype goal",
+        "display": "horizontal",
+        "style": {
+          "size": 40,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    },
+    {
+      "id": "w3",
+      "name": "Top cheerer",
+      "kind": "label",
+      "x": 40,
+      "y": 940,
+      "w": 700,
+      "h": 80,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "source": "top_cheerer",
+        "template": "Top cheerer: {name} ({amount})",
+        "empty": "No bits yet",
+        "style": {
+          "size": 40,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    },
+    {
+      "id": "w4",
+      "name": "Top gifter",
+      "kind": "label",
+      "x": 1180,
+      "y": 940,
+      "w": 700,
+      "h": 80,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "source": "top_gifter",
+        "template": "Top gifter: {name} ({amount})",
+        "empty": "No gifts yet",
+        "style": {
+          "size": 40,
+          "weight": 700,
+          "color": "#ffffff"
+        }
+      }
+    },
+    {
+      "id": "w5",
+      "name": "Alerts",
+      "kind": "alertbox",
+      "x": 460,
+      "y": 290,
+      "w": 1000,
+      "h": 500,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "queueDelay": 0.5,
+        "events": {
+          "follow": {
+            "enabled": true,
+            "title": "{name} followed",
+            "variations": []
+          },
+          "sub": {
+            "enabled": true,
+            "title": "{name} subscribed",
+            "variations": []
+          },
+          "resub": {
+            "enabled": true,
+            "title": "{name} resubscribed for {months} months",
+            "variations": []
+          },
+          "gift_sub": {
+            "enabled": true,
+            "title": "{name} gifted a sub to {recipient}",
+            "variations": []
+          },
+          "community_gift": {
+            "enabled": true,
+            "title": "{name} gifted {count} subs",
+            "variations": [],
+            "duration": 8
+          },
+          "cheer": {
+            "enabled": true,
+            "title": "{name} cheered {amount} bits",
+            "variations": [
+              {
+                "condition": "amount_min",
+                "value": "1000",
+                "overrides": {
+                  "title": "{name} cheered {amount} bits"
+                }
+              }
+            ]
+          },
+          "raid": {
+            "enabled": true,
+            "title": "{name} raided with {amount} viewers",
+            "variations": []
+          },
+          "redemption": {
+            "enabled": true,
+            "title": "{name} redeemed {reward}",
+            "variations": []
+          }
+        }
+      }
+    }
+  ]
+}

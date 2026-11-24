@@ -465,6 +465,7 @@ var (
 		{Name: "marketing_status", Type: field.TypeEnum, Enums: []string{"none", "granted", "withdrawn"}, Default: "none"},
 		{Name: "marketing_status_at", Type: field.TypeTime, Nullable: true},
 		{Name: "test_account", Type: field.TypeBool, Default: false},
+		{Name: "alpha", Type: field.TypeBool, Default: false},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}

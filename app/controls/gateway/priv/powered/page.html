@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex">
+  <meta name="overlay-runtime" content="__OVERLAY_RUNTIME__">
+  <meta name="overlay-sandbox" content="__OVERLAY_SANDBOX__">
   <title>Powered by ItsBagelBot</title>
   <link rel="preload" href="/powered/assets/logo.webp" as="image" type="image/webp">
   <link rel="preload" href="/powered/assets/premium-logo.webp" as="image" type="image/webp">
@@ -455,6 +457,7 @@
       </div>
     </div>
   </div>
+  <div id="custom" aria-hidden="true"></div>
   <div class="notice" id="notice" role="status"></div>
   <script>
 {{overlay_client}}
@@ -875,10 +878,71 @@
         }
       };
 
+      const runtimeUrl = document.querySelector('meta[name="overlay-runtime"]').content;
+      const sandboxOrigin = document.querySelector('meta[name="overlay-sandbox"]').content;
+      let runtimeLoad = null;
+
+      function loadRuntime() {
+        if (!runtimeLoad) {
+          runtimeLoad = new Promise(function (resolve, reject) {
+            const tag = document.createElement('script');
+            tag.src = runtimeUrl;
+            tag.onload = function () { resolve(window.__overlayRuntime); };
+            tag.onerror = function () { reject(new Error('runtime unavailable')); };
+            document.head.append(tag);
+          }).catch(function (error) {
+            runtimeLoad = null;
+            throw error;
+          });
+        }
+        return runtimeLoad;
+      }
+
+      const customTemplate = {
+        body: null,
+        overlay: null,
+        ready: null,
+        start: function (body) {
+          this.body = body;
+          this.ready = loadRuntime().then(function (api) {
+            const current = customTemplate.body;
+            if (!current) return null;
+            if (!customTemplate.overlay) customTemplate.overlay = api.mount(document.getElementById('custom'), sandboxOrigin);
+            customTemplate.overlay.setDocument(current.document);
+            return customTemplate.overlay;
+          });
+          this.ready.catch(retrySync);
+        },
+        stop: function () {
+          this.body = null;
+          this.ready = null;
+          if (this.overlay) this.overlay.dispose();
+          this.overlay = null;
+        },
+        feed: function (name, data) {
+          if (this.ready) this.ready.then(function (overlay) { if (overlay) overlay.feed(name, data); }).catch(function () {});
+        },
+        alert: function (data, ctl) {
+          const ready = this.ready;
+          if (!ready) {
+            ctl.started('dropped');
+            ctl.done();
+            return;
+          }
+          ready.then(function (overlay) {
+            if (overlay) overlay.feed('event', JSON.stringify(data));
+            ctl.started(overlay ? undefined : 'dropped');
+            ctl.done();
+          }).catch(function () {
+            ctl.started('dropped');
+            ctl.done();
+          });
+        }
+      };
+
       const TEMPLATES = { powered: poweredTemplate };
       const NOTICES = {
-        custom: 'Custom overlays are coming soon.',
-        premium_required: 'Premium is required to show this overlay.',
+        alpha_required: 'This overlay needs an alpha account.',
         not_found: 'This overlay link is no longer valid.'
       };
       const RETRY_MIN_MS = 5000;
@@ -933,7 +997,14 @@
           random: function () { return Math.random(); },
           basePath: '/o',
           token: linkToken,
+          onFeed: function (name, data) {
+            if (activeTemplate && activeTemplate.feed) activeTemplate.feed(name, data);
+          },
           onAlert: function (alert, ctl) {
+            if (activeTemplate && activeTemplate.alert) {
+              activeTemplate.alert(alert.data, ctl);
+              return;
+            }
             const runMs = activeTemplate && activeTemplate.playNow ? activeTemplate.playNow(alert.data) : undefined;
             if (runMs === undefined) {
               ctl.started('dropped');
@@ -989,14 +1060,15 @@
 
       function render(body) {
         const doc = body.document;
-        const template = doc.kind === 'system' ? TEMPLATES[doc.template] : null;
+        const template = doc.kind === 'custom' ? customTemplate : TEMPLATES[doc.template];
         if (template) {
           showNotice('');
+          if (activeTemplate && activeTemplate !== template) activeTemplate.stop();
           activeTemplate = template;
           template.start(body);
         } else {
           haltTemplate();
-          showNotice('custom');
+          showNotice('not_found');
         }
         openEvents();
       }

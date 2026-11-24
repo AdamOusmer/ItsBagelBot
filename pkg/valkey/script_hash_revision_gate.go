@@ -47,7 +47,7 @@ redis.call('HSET',KEYS[1],'active',ARGV[1],'banned',ARGV[2],'status',ARGV[3],'co
 redis.call('HSET',KEYS[1],'account_created_at',ARGV[7],'lifecycle',ARGV[9])
 redis.call('HSET',KEYS[1],'runtime_background',ARGV[10],'leaderboard_page_hidden',ARGV[11],'creator_code',ARGV[12],'songqueue_page_hidden',ARGV[13])
 if ARGV[5] ~= '' then redis.call('HSET',KEYS[1],'locale',ARGV[5]) end
-redis.call('HSET',KEYS[1],'voice_plan',ARGV[14])
+redis.call('HSET',KEYS[1],'voice_plan',ARGV[14],'alpha',ARGV[15])
 local existing=redis.call('TTL',KEYS[1]); if existing<0 or existing<tonumber(ARGV[6]) then redis.call('EXPIRE',KEYS[1],ARGV[6]) end
 return 1`)
 

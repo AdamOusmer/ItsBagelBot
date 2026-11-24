@@ -62,6 +62,24 @@ func resolvedOverlay(t *testing.T, store *projection.Store, token string) overla
 	return overlay
 }
 
+func TestAlphaFlipInvalidatesTheOwnersLinksOnce(t *testing.T) {
+	hub := bus.NewInvalidations(nil, "", zap.NewNop())
+	var events []cache.Event
+	hub.Watch(invalidate.ScopeOverlays, func(e cache.Event) { events = append(events, e) })
+	p := NewProjector(Deps{Store: projection.NewStore(testValkey(t)), Invalidations: hub, Log: zap.NewNop()})
+	require.NoError(t, p.HandleOverlayChanged(message(t, "created", data.OverlayChangedDTO{Overlay: cloudOverlay(1, "first")})))
+	require.NoError(t, p.HandleOverlayChanged(message(t, "rotated", data.OverlayChangedDTO{Overlay: cloudOverlay(2, "second"), PreviousTokenHash: overlaysrpc.HashToken("first")})))
+	events = nil
+
+	for _, alpha := range []bool{true, true, false} {
+		change := data.UserChangedDTO{UserID: cloudOverlayUser, Status: "paid", IsActive: true, Alpha: alpha}
+		require.NoError(t, p.HandleUserChanged(message(t, "user-change", change)))
+	}
+
+	want := cache.Event{Scope: invalidate.ScopeOverlays, ID: cloudOverlayUser, Keys: []string{string(overlaysrpc.HashToken("second"))}}
+	assert.Equal(t, []cache.Event{want, want}, events)
+}
+
 func TestOverlayRotationInvalidatesBothLinks(t *testing.T) {
 	hub := bus.NewInvalidations(nil, "", zap.NewNop())
 	var events []cache.Event

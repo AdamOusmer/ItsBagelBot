@@ -82,6 +82,8 @@ func (User) Fields() []ent.Field {
 
 		field.Bool("test_account").Default(false),
 
+		field.Bool("alpha").Default(false),
+
 		field.Time("created_at").Default(time.Now),
 
 		field.Time("updated_at").

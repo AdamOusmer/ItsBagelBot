@@ -1,0 +1,15 @@
+{
+  "alertbox": "Alert box",
+  "eventlist": "Event list",
+  "goal": "Goal",
+  "label": "Label",
+  "chatbox": "Chat box",
+  "emotewall": "Emote wall",
+  "timer": "Timer",
+  "credits": "Credits",
+  "text": "Text",
+  "image": "Image",
+  "video": "Video",
+  "slideshow": "Slideshow",
+  "custom": "Imported widget"
+}

@@ -1,0 +1,14 @@
+{
+  "alertbox": "Erscheint bei Follows, Abos, Cheers und Raids.",
+  "eventlist": "Listet die neuesten Ereignisse auf.",
+  "goal": "Verfolgt ein Follower-, Abo- oder Bits-Ziel.",
+  "label": "Zeigt eine Statistik, etwa den neuesten Follower.",
+  "chatbox": "Zeigt den Live-Chat mit Badges und Emotes.",
+  "emotewall": "Lässt Chat-Emotes über den Bildschirm fliegen.",
+  "timer": "Zählt auf eine Zeit herunter oder hinauf.",
+  "credits": "Rollt alle durch, die den Stream unterstützt haben.",
+  "text": "Eine feste Textzeile in deiner Schrift.",
+  "image": "Zeigt ein hochgeladenes Bild.",
+  "video": "Spielt ein hochgeladenes WebM-Video ab.",
+  "slideshow": "Wechselt durch hochgeladene Bilder."
+}

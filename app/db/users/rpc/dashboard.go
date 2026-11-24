@@ -249,6 +249,7 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 			"display_name":                view.DisplayName,
 			"status":                      view.Status,
 			"onboarded":                   view.Onboarded,
+			"alpha":                       view.Alpha,
 			"terms_version":               view.TermsVersion,
 			"marketing_status":            view.MarketingStatus,
 			"locale":                      view.Locale,

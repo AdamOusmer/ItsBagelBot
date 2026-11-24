@@ -44,6 +44,7 @@
     <span class="marks">
       {#if tier !== 'free'}{@render stateBadge(tier)}{/if}
       {#if state !== tier}{@render stateBadge(state)}{/if}
+      {#if user.alpha}{@render badge('neutral', t('admin.users.rowAlpha'))}{/if}
       {#if user.creator_code}{@render badge('neutral', t('admin.users.rowCode'))}{/if}
     </span>
   {/snippet}

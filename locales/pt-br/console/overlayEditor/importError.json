@@ -1,0 +1,16 @@
+{
+  "invalid_archive": "Este não é um arquivo zip válido.",
+  "unsafe_path": "O arquivo contém um caminho de arquivo inseguro.",
+  "symlink": "O arquivo contém um link, o que não é permitido.",
+  "nested_archive": "O arquivo contém outro arquivo compactado, o que não é permitido.",
+  "too_many_entries": "O arquivo contém arquivos demais.",
+  "too_large": "O arquivo é grande demais quando descompactado.",
+  "bomb_ratio": "O arquivo é compactado demais para ser confiável.",
+  "invalid_manifest": "Não foi possível ler o manifesto do pacote.",
+  "invalid_document": "O overlay dentro do arquivo não é válido.",
+  "invalid_bundle": "Um pacote de widget no arquivo não é válido.",
+  "bad_hash": "Um arquivo não corresponde à sua soma de verificação.",
+  "missing_asset": "Falta um arquivo listado no pacote.",
+  "alpha_required": "Importar requer acesso Alpha. Este relatório é uma prévia.",
+  "failed": "A importação falhou. Tente novamente."
+}

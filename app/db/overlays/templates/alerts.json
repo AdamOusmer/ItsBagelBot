@@ -1,0 +1,150 @@
+{
+  "version": 2,
+  "kind": "custom",
+  "id": "alerts",
+  "name": "Alerts",
+  "width": 1920,
+  "height": 1080,
+  "rev": 0,
+  "widgets": [
+    {
+      "id": "w1",
+      "name": "Alerts",
+      "kind": "alertbox",
+      "x": 460,
+      "y": 290,
+      "w": 1000,
+      "h": 500,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "queueDelay": 0.5,
+        "events": {
+          "follow": {
+            "enabled": true,
+            "title": "{name} followed",
+            "variations": []
+          },
+          "sub": {
+            "enabled": true,
+            "title": "{name} subscribed",
+            "variations": [
+              {
+                "condition": "tier",
+                "value": "2000",
+                "overrides": {
+                  "title": "{name} subscribed at Tier 2"
+                }
+              },
+              {
+                "condition": "tier",
+                "value": "3000",
+                "overrides": {
+                  "title": "{name} subscribed at Tier 3"
+                }
+              },
+              {
+                "condition": "tier",
+                "value": "prime",
+                "overrides": {
+                  "title": "{name} subscribed with Prime"
+                }
+              }
+            ]
+          },
+          "resub": {
+            "enabled": true,
+            "title": "{name} resubscribed for {months} months",
+            "variations": [
+              {
+                "condition": "months_min",
+                "value": "12",
+                "overrides": {
+                  "title": "{name} is back for {months} months"
+                }
+              },
+              {
+                "condition": "tier",
+                "value": "3000",
+                "overrides": {
+                  "title": "{name} resubscribed at Tier 3 for {months} months"
+                }
+              }
+            ]
+          },
+          "gift_sub": {
+            "enabled": true,
+            "title": "{name} gifted a sub to {recipient}",
+            "variations": []
+          },
+          "community_gift": {
+            "enabled": true,
+            "title": "{name} gifted {count} subs",
+            "variations": [
+              {
+                "condition": "amount_exact",
+                "value": "1",
+                "overrides": {
+                  "title": "{name} gifted a sub"
+                }
+              },
+              {
+                "condition": "amount_min",
+                "value": "10",
+                "overrides": {
+                  "title": "{name} gifted {count} subs to the community"
+                }
+              },
+              {
+                "condition": "amount_min",
+                "value": "50",
+                "overrides": {
+                  "title": "{name} gifted {count} subs"
+                }
+              }
+            ]
+          },
+          "cheer": {
+            "enabled": true,
+            "title": "{name} cheered {amount} bits",
+            "variations": [
+              {
+                "condition": "amount_min",
+                "value": "100",
+                "overrides": {
+                  "title": "{name} cheered {amount} bits"
+                }
+              },
+              {
+                "condition": "amount_min",
+                "value": "1000",
+                "overrides": {
+                  "title": "{name} dropped {amount} bits"
+                }
+              },
+              {
+                "condition": "amount_min",
+                "value": "10000",
+                "overrides": {
+                  "title": "{name} showered {amount} bits"
+                }
+              }
+            ]
+          },
+          "raid": {
+            "enabled": true,
+            "title": "{name} raided with {amount} viewers",
+            "variations": []
+          },
+          "redemption": {
+            "enabled": true,
+            "title": "{name} redeemed {reward}",
+            "variations": []
+          }
+        }
+      }
+    }
+  ]
+}

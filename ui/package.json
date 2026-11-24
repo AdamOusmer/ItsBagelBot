@@ -10,6 +10,7 @@
   "exports": {
     "./styles/*.css": "./styles/*.css",
     "./fonts/*.woff2": "./fonts/*.woff2",
+    "./lib/box-transform": "./lib/box-transform.ts",
     "./lib/clipboard": "./lib/clipboard.ts",
     "./lib/count-up": "./lib/count-up.ts",
     "./lib/csv": "./lib/csv.ts",

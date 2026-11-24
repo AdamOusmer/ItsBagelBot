@@ -1,0 +1,1237 @@
+{
+  "kinds": {
+    "alertbox": {
+      "fields": [
+        {
+          "key": "queueDelay",
+          "type": "number",
+          "max": 60
+        },
+        {
+          "key": "interruptThreshold",
+          "type": "number",
+          "max": 100
+        },
+        {
+          "key": "events",
+          "type": "map",
+          "keys": [
+            "follow",
+            "sub",
+            "resub",
+            "gift_sub",
+            "community_gift",
+            "cheer",
+            "raid",
+            "redemption"
+          ],
+          "fields": [
+            {
+              "key": "enabled",
+              "type": "boolean"
+            },
+            {
+              "key": "minAmount",
+              "type": "number",
+              "max": 9007199254740991
+            },
+            {
+              "key": "priority",
+              "type": "number",
+              "max": 100
+            },
+            {
+              "key": "title",
+              "type": "text"
+            },
+            {
+              "key": "showMessage",
+              "type": "boolean"
+            },
+            {
+              "key": "media",
+              "type": "media"
+            },
+            {
+              "key": "sound",
+              "type": "media"
+            },
+            {
+              "key": "volume",
+              "type": "number",
+              "max": 1
+            },
+            {
+              "key": "duration",
+              "type": "number",
+              "min": 0.1,
+              "max": 300
+            },
+            {
+              "key": "textDelay",
+              "type": "number",
+              "max": 300
+            },
+            {
+              "key": "layout",
+              "type": "select",
+              "options": [
+                "above",
+                "below",
+                "left",
+                "right",
+                "overlay"
+              ]
+            },
+            {
+              "key": "enter",
+              "type": "select",
+              "options": [
+                "none",
+                "fade",
+                "slide-up",
+                "slide-down",
+                "slide-left",
+                "slide-right",
+                "zoom",
+                "pop",
+                "bounce",
+                "flip"
+              ]
+            },
+            {
+              "key": "enterDuration",
+              "type": "number",
+              "max": 10
+            },
+            {
+              "key": "exit",
+              "type": "select",
+              "options": [
+                "none",
+                "fade",
+                "slide-up",
+                "slide-down",
+                "slide-left",
+                "slide-right",
+                "zoom",
+                "pop",
+                "bounce",
+                "flip"
+              ]
+            },
+            {
+              "key": "exitDuration",
+              "type": "number",
+              "max": 10
+            },
+            {
+              "key": "style",
+              "type": "object",
+              "fields": [
+                {
+                  "key": "family",
+                  "type": "family"
+                },
+                {
+                  "key": "size",
+                  "type": "number",
+                  "min": 6,
+                  "max": 512
+                },
+                {
+                  "key": "weight",
+                  "type": "number",
+                  "min": 100,
+                  "max": 900
+                },
+                {
+                  "key": "color",
+                  "type": "color"
+                },
+                {
+                  "key": "stroke",
+                  "type": "number",
+                  "max": 40
+                },
+                {
+                  "key": "strokeColor",
+                  "type": "color"
+                },
+                {
+                  "key": "shadow",
+                  "type": "number",
+                  "max": 60
+                },
+                {
+                  "key": "shadowColor",
+                  "type": "color"
+                }
+              ]
+            },
+            {
+              "key": "variations",
+              "type": "array",
+              "limit": 100,
+              "fields": [
+                {
+                  "key": "condition",
+                  "type": "select",
+                  "options": [
+                    "amount_min",
+                    "amount_exact",
+                    "tier",
+                    "months_min",
+                    "months_exact",
+                    "streak_min",
+                    "count_min",
+                    "message_contains",
+                    "anonymous",
+                    "is_gift",
+                    "prime",
+                    "upgrade",
+                    "random"
+                  ]
+                },
+                {
+                  "key": "value",
+                  "type": "text"
+                },
+                {
+                  "key": "overrides",
+                  "type": "object",
+                  "fields": [
+                    {
+                      "key": "title",
+                      "type": "text"
+                    },
+                    {
+                      "key": "showMessage",
+                      "type": "boolean"
+                    },
+                    {
+                      "key": "media",
+                      "type": "media"
+                    },
+                    {
+                      "key": "sound",
+                      "type": "media"
+                    },
+                    {
+                      "key": "volume",
+                      "type": "number",
+                      "max": 1
+                    },
+                    {
+                      "key": "duration",
+                      "type": "number",
+                      "min": 0.1,
+                      "max": 300
+                    },
+                    {
+                      "key": "textDelay",
+                      "type": "number",
+                      "max": 300
+                    },
+                    {
+                      "key": "layout",
+                      "type": "select",
+                      "options": [
+                        "above",
+                        "below",
+                        "left",
+                        "right",
+                        "overlay"
+                      ]
+                    },
+                    {
+                      "key": "enter",
+                      "type": "select",
+                      "options": [
+                        "none",
+                        "fade",
+                        "slide-up",
+                        "slide-down",
+                        "slide-left",
+                        "slide-right",
+                        "zoom",
+                        "pop",
+                        "bounce",
+                        "flip"
+                      ]
+                    },
+                    {
+                      "key": "enterDuration",
+                      "type": "number",
+                      "max": 10
+                    },
+                    {
+                      "key": "exit",
+                      "type": "select",
+                      "options": [
+                        "none",
+                        "fade",
+                        "slide-up",
+                        "slide-down",
+                        "slide-left",
+                        "slide-right",
+                        "zoom",
+                        "pop",
+                        "bounce",
+                        "flip"
+                      ]
+                    },
+                    {
+                      "key": "exitDuration",
+                      "type": "number",
+                      "max": 10
+                    },
+                    {
+                      "key": "style",
+                      "type": "object",
+                      "fields": [
+                        {
+                          "key": "family",
+                          "type": "family"
+                        },
+                        {
+                          "key": "size",
+                          "type": "number",
+                          "min": 6,
+                          "max": 512
+                        },
+                        {
+                          "key": "weight",
+                          "type": "number",
+                          "min": 100,
+                          "max": 900
+                        },
+                        {
+                          "key": "color",
+                          "type": "color"
+                        },
+                        {
+                          "key": "stroke",
+                          "type": "number",
+                          "max": 40
+                        },
+                        {
+                          "key": "strokeColor",
+                          "type": "color"
+                        },
+                        {
+                          "key": "shadow",
+                          "type": "number",
+                          "max": 60
+                        },
+                        {
+                          "key": "shadowColor",
+                          "type": "color"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "eventlist": {
+      "fields": [
+        {
+          "key": "count",
+          "type": "number",
+          "min": 1,
+          "max": 9007199254740991
+        },
+        {
+          "key": "direction",
+          "type": "select",
+          "options": [
+            "newest_first",
+            "newest_last"
+          ]
+        },
+        {
+          "key": "fade",
+          "type": "number",
+          "max": 300
+        },
+        {
+          "key": "style",
+          "type": "object",
+          "fields": [
+            {
+              "key": "family",
+              "type": "family"
+            },
+            {
+              "key": "size",
+              "type": "number",
+              "min": 6,
+              "max": 512
+            },
+            {
+              "key": "weight",
+              "type": "number",
+              "min": 100,
+              "max": 900
+            },
+            {
+              "key": "color",
+              "type": "color"
+            },
+            {
+              "key": "stroke",
+              "type": "number",
+              "max": 40
+            },
+            {
+              "key": "strokeColor",
+              "type": "color"
+            },
+            {
+              "key": "shadow",
+              "type": "number",
+              "max": 60
+            },
+            {
+              "key": "shadowColor",
+              "type": "color"
+            }
+          ]
+        },
+        {
+          "key": "rules",
+          "type": "map",
+          "keys": [
+            "follow",
+            "sub",
+            "resub",
+            "gift_sub",
+            "community_gift",
+            "cheer",
+            "raid",
+            "redemption"
+          ],
+          "fields": [
+            {
+              "key": "enabled",
+              "type": "boolean"
+            },
+            {
+              "key": "minAmount",
+              "type": "number",
+              "max": 9007199254740991
+            },
+            {
+              "key": "template",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "goal": {
+      "fields": [
+        {
+          "key": "metric",
+          "type": "select",
+          "options": [
+            "session_follows",
+            "session_subs",
+            "session_gifts",
+            "session_bits",
+            "week_follows",
+            "week_subs",
+            "week_gifts",
+            "week_bits",
+            "month_follows",
+            "month_subs",
+            "month_gifts",
+            "month_bits",
+            "all_time_follows",
+            "all_time_subs",
+            "all_time_gifts",
+            "all_time_bits",
+            "sub_points",
+            "manual"
+          ]
+        },
+        {
+          "key": "start",
+          "type": "number",
+          "max": 9007199254740991
+        },
+        {
+          "key": "target",
+          "type": "number",
+          "min": 1,
+          "max": 9007199254740991
+        },
+        {
+          "key": "manual",
+          "type": "number",
+          "max": 9007199254740991
+        },
+        {
+          "key": "title",
+          "type": "text"
+        },
+        {
+          "key": "display",
+          "type": "select",
+          "options": [
+            "horizontal",
+            "vertical",
+            "ring",
+            "text"
+          ]
+        },
+        {
+          "key": "fill",
+          "type": "color"
+        },
+        {
+          "key": "track",
+          "type": "color"
+        },
+        {
+          "key": "style",
+          "type": "object",
+          "fields": [
+            {
+              "key": "family",
+              "type": "family"
+            },
+            {
+              "key": "size",
+              "type": "number",
+              "min": 6,
+              "max": 512
+            },
+            {
+              "key": "weight",
+              "type": "number",
+              "min": 100,
+              "max": 900
+            },
+            {
+              "key": "color",
+              "type": "color"
+            },
+            {
+              "key": "stroke",
+              "type": "number",
+              "max": 40
+            },
+            {
+              "key": "strokeColor",
+              "type": "color"
+            },
+            {
+              "key": "shadow",
+              "type": "number",
+              "max": 60
+            },
+            {
+              "key": "shadowColor",
+              "type": "color"
+            }
+          ]
+        },
+        {
+          "key": "weights",
+          "type": "object",
+          "fields": [
+            {
+              "key": "1000",
+              "type": "number",
+              "max": 100
+            },
+            {
+              "key": "2000",
+              "type": "number",
+              "max": 100
+            },
+            {
+              "key": "3000",
+              "type": "number",
+              "max": 100
+            },
+            {
+              "key": "prime",
+              "type": "number",
+              "max": 100
+            }
+          ]
+        }
+      ]
+    },
+    "label": {
+      "fields": [
+        {
+          "key": "source",
+          "type": "select",
+          "options": [
+            "latest_follow",
+            "latest_sub",
+            "latest_resub",
+            "latest_cheer",
+            "latest_raid",
+            "latest_gift",
+            "latest_redemption",
+            "session_follows",
+            "session_subs",
+            "session_gifts",
+            "session_bits",
+            "week_follows",
+            "week_subs",
+            "week_gifts",
+            "week_bits",
+            "month_follows",
+            "month_subs",
+            "month_gifts",
+            "month_bits",
+            "all_time_follows",
+            "all_time_subs",
+            "all_time_gifts",
+            "all_time_bits",
+            "session_resubs",
+            "session_raids",
+            "session_redemptions",
+            "top_cheerer",
+            "top_gifter",
+            "all_time_top_cheerer",
+            "all_time_top_gifter"
+          ]
+        },
+        {
+          "key": "template",
+          "type": "text"
+        },
+        {
+          "key": "empty",
+          "type": "text"
+        },
+        {
+          "key": "marquee",
+          "type": "boolean"
+        },
+        {
+          "key": "style",
+          "type": "object",
+          "fields": [
+            {
+              "key": "family",
+              "type": "family"
+            },
+            {
+              "key": "size",
+              "type": "number",
+              "min": 6,
+              "max": 512
+            },
+            {
+              "key": "weight",
+              "type": "number",
+              "min": 100,
+              "max": 900
+            },
+            {
+              "key": "color",
+              "type": "color"
+            },
+            {
+              "key": "stroke",
+              "type": "number",
+              "max": 40
+            },
+            {
+              "key": "strokeColor",
+              "type": "color"
+            },
+            {
+              "key": "shadow",
+              "type": "number",
+              "max": 60
+            },
+            {
+              "key": "shadowColor",
+              "type": "color"
+            }
+          ]
+        }
+      ]
+    },
+    "chatbox": {
+      "fields": [
+        {
+          "key": "count",
+          "type": "number",
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "fade",
+          "type": "number",
+          "max": 300
+        },
+        {
+          "key": "direction",
+          "type": "select",
+          "options": [
+            "newest_first",
+            "newest_last"
+          ]
+        },
+        {
+          "key": "hideCommands",
+          "type": "boolean"
+        },
+        {
+          "key": "hideUsers",
+          "type": "list"
+        },
+        {
+          "key": "badges",
+          "type": "boolean"
+        },
+        {
+          "key": "nameColor",
+          "type": "color"
+        },
+        {
+          "key": "nativeColors",
+          "type": "boolean"
+        },
+        {
+          "key": "emotes",
+          "type": "boolean"
+        },
+        {
+          "key": "theme",
+          "type": "select",
+          "options": [
+            "clean",
+            "bubbles",
+            "boxed"
+          ]
+        },
+        {
+          "key": "style",
+          "type": "object",
+          "fields": [
+            {
+              "key": "family",
+              "type": "family"
+            },
+            {
+              "key": "size",
+              "type": "number",
+              "min": 6,
+              "max": 512
+            },
+            {
+              "key": "weight",
+              "type": "number",
+              "min": 100,
+              "max": 900
+            },
+            {
+              "key": "color",
+              "type": "color"
+            },
+            {
+              "key": "stroke",
+              "type": "number",
+              "max": 40
+            },
+            {
+              "key": "strokeColor",
+              "type": "color"
+            },
+            {
+              "key": "shadow",
+              "type": "number",
+              "max": 60
+            },
+            {
+              "key": "shadowColor",
+              "type": "color"
+            }
+          ]
+        }
+      ]
+    },
+    "emotewall": {
+      "fields": [
+        {
+          "key": "motion",
+          "type": "select",
+          "options": [
+            "fly",
+            "rain",
+            "bounce"
+          ]
+        },
+        {
+          "key": "max",
+          "type": "number",
+          "min": 1,
+          "max": 200
+        },
+        {
+          "key": "size",
+          "type": "number",
+          "min": 8,
+          "max": 512
+        },
+        {
+          "key": "lifetime",
+          "type": "number",
+          "min": 0.1,
+          "max": 60
+        },
+        {
+          "key": "combo",
+          "type": "number",
+          "min": 1,
+          "max": 999
+        },
+        {
+          "key": "style",
+          "type": "object",
+          "fields": [
+            {
+              "key": "family",
+              "type": "family"
+            },
+            {
+              "key": "size",
+              "type": "number",
+              "min": 6,
+              "max": 512
+            },
+            {
+              "key": "weight",
+              "type": "number",
+              "min": 100,
+              "max": 900
+            },
+            {
+              "key": "color",
+              "type": "color"
+            },
+            {
+              "key": "stroke",
+              "type": "number",
+              "max": 40
+            },
+            {
+              "key": "strokeColor",
+              "type": "color"
+            },
+            {
+              "key": "shadow",
+              "type": "number",
+              "max": 60
+            },
+            {
+              "key": "shadowColor",
+              "type": "color"
+            }
+          ]
+        }
+      ]
+    },
+    "timer": {
+      "fields": [
+        {
+          "key": "mode",
+          "type": "select",
+          "options": [
+            "countdown",
+            "countup",
+            "subathon"
+          ]
+        },
+        {
+          "key": "at",
+          "type": "datetime"
+        },
+        {
+          "key": "format",
+          "type": "select",
+          "options": [
+            "hh:mm:ss",
+            "mm:ss",
+            "seconds"
+          ]
+        },
+        {
+          "key": "endText",
+          "type": "text"
+        },
+        {
+          "key": "style",
+          "type": "object",
+          "fields": [
+            {
+              "key": "family",
+              "type": "family"
+            },
+            {
+              "key": "size",
+              "type": "number",
+              "min": 6,
+              "max": 512
+            },
+            {
+              "key": "weight",
+              "type": "number",
+              "min": 100,
+              "max": 900
+            },
+            {
+              "key": "color",
+              "type": "color"
+            },
+            {
+              "key": "stroke",
+              "type": "number",
+              "max": 40
+            },
+            {
+              "key": "strokeColor",
+              "type": "color"
+            },
+            {
+              "key": "shadow",
+              "type": "number",
+              "max": 60
+            },
+            {
+              "key": "shadowColor",
+              "type": "color"
+            }
+          ]
+        },
+        {
+          "key": "rules",
+          "type": "object",
+          "fields": [
+            {
+              "key": "base_seconds",
+              "type": "number",
+              "max": 315360000
+            },
+            {
+              "key": "follow_seconds",
+              "type": "number",
+              "max": 315360000
+            },
+            {
+              "key": "tier1_seconds",
+              "type": "number",
+              "max": 315360000
+            },
+            {
+              "key": "tier2_seconds",
+              "type": "number",
+              "max": 315360000
+            },
+            {
+              "key": "tier3_seconds",
+              "type": "number",
+              "max": 315360000
+            },
+            {
+              "key": "prime_seconds",
+              "type": "number",
+              "max": 315360000
+            },
+            {
+              "key": "bits100_seconds",
+              "type": "number",
+              "max": 315360000
+            },
+            {
+              "key": "gift_seconds",
+              "type": "number",
+              "max": 315360000
+            },
+            {
+              "key": "raid_viewer_seconds",
+              "type": "number",
+              "max": 315360000
+            },
+            {
+              "key": "cap_seconds",
+              "type": "number",
+              "max": 315360000
+            }
+          ]
+        }
+      ]
+    },
+    "credits": {
+      "fields": [
+        {
+          "key": "speed",
+          "type": "number",
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "loop",
+          "type": "boolean"
+        },
+        {
+          "key": "showMods",
+          "type": "boolean"
+        },
+        {
+          "key": "showVips",
+          "type": "boolean"
+        },
+        {
+          "key": "showChatters",
+          "type": "boolean"
+        },
+        {
+          "key": "style",
+          "type": "object",
+          "fields": [
+            {
+              "key": "family",
+              "type": "family"
+            },
+            {
+              "key": "size",
+              "type": "number",
+              "min": 6,
+              "max": 512
+            },
+            {
+              "key": "weight",
+              "type": "number",
+              "min": 100,
+              "max": 900
+            },
+            {
+              "key": "color",
+              "type": "color"
+            },
+            {
+              "key": "stroke",
+              "type": "number",
+              "max": 40
+            },
+            {
+              "key": "strokeColor",
+              "type": "color"
+            },
+            {
+              "key": "shadow",
+              "type": "number",
+              "max": 60
+            },
+            {
+              "key": "shadowColor",
+              "type": "color"
+            }
+          ]
+        },
+        {
+          "key": "headers",
+          "type": "object",
+          "fields": [
+            {
+              "key": "follow",
+              "type": "text"
+            },
+            {
+              "key": "sub",
+              "type": "text"
+            },
+            {
+              "key": "gift_sub",
+              "type": "text"
+            },
+            {
+              "key": "cheer",
+              "type": "text"
+            },
+            {
+              "key": "raid",
+              "type": "text"
+            },
+            {
+              "key": "redemption",
+              "type": "text"
+            },
+            {
+              "key": "mod",
+              "type": "text"
+            },
+            {
+              "key": "vip",
+              "type": "text"
+            },
+            {
+              "key": "chatter",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "text": {
+      "fields": [
+        {
+          "key": "text",
+          "type": "text"
+        },
+        {
+          "key": "align",
+          "type": "select",
+          "options": [
+            "left",
+            "center",
+            "right"
+          ]
+        },
+        {
+          "key": "style",
+          "type": "object",
+          "fields": [
+            {
+              "key": "family",
+              "type": "family"
+            },
+            {
+              "key": "size",
+              "type": "number",
+              "min": 6,
+              "max": 512
+            },
+            {
+              "key": "weight",
+              "type": "number",
+              "min": 100,
+              "max": 900
+            },
+            {
+              "key": "color",
+              "type": "color"
+            },
+            {
+              "key": "stroke",
+              "type": "number",
+              "max": 40
+            },
+            {
+              "key": "strokeColor",
+              "type": "color"
+            },
+            {
+              "key": "shadow",
+              "type": "number",
+              "max": 60
+            },
+            {
+              "key": "shadowColor",
+              "type": "color"
+            }
+          ]
+        }
+      ]
+    },
+    "image": {
+      "fields": [
+        {
+          "key": "media",
+          "type": "media"
+        },
+        {
+          "key": "fit",
+          "type": "select",
+          "options": [
+            "contain",
+            "cover",
+            "fill"
+          ]
+        }
+      ]
+    },
+    "video": {
+      "fields": [
+        {
+          "key": "media",
+          "type": "media"
+        },
+        {
+          "key": "fit",
+          "type": "select",
+          "options": [
+            "contain",
+            "cover",
+            "fill"
+          ]
+        },
+        {
+          "key": "loop",
+          "type": "boolean"
+        },
+        {
+          "key": "muted",
+          "type": "boolean"
+        }
+      ]
+    },
+    "slideshow": {
+      "fields": [
+        {
+          "key": "images",
+          "type": "media-list"
+        },
+        {
+          "key": "interval",
+          "type": "number",
+          "min": 0.1,
+          "max": 300
+        },
+        {
+          "key": "fade",
+          "type": "number",
+          "max": 30
+        },
+        {
+          "key": "fit",
+          "type": "select",
+          "options": [
+            "contain",
+            "cover",
+            "fill"
+          ]
+        }
+      ]
+    },
+    "custom": {
+      "fields": [
+        {
+          "key": "bundle",
+          "type": "media"
+        },
+        {
+          "key": "values",
+          "type": "scalars",
+          "limit": 100
+        }
+      ]
+    }
+  }
+}

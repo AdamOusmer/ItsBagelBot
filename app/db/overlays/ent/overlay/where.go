@@ -79,6 +79,11 @@ func Generation(v int) predicate.Overlay {
 	return predicate.Overlay(sql.FieldEQ(FieldGeneration, v))
 }
 
+// LapsedAt applies equality check predicate on the "lapsed_at" field. It's identical to LapsedAtEQ.
+func LapsedAt(v time.Time) predicate.Overlay {
+	return predicate.Overlay(sql.FieldEQ(FieldLapsedAt, v))
+}
+
 // Revision applies equality check predicate on the "revision" field. It's identical to RevisionEQ.
 func Revision(v uint64) predicate.Overlay {
 	return predicate.Overlay(sql.FieldEQ(FieldRevision, v))
@@ -397,6 +402,56 @@ func GenerationLT(v int) predicate.Overlay {
 // GenerationLTE applies the LTE predicate on the "generation" field.
 func GenerationLTE(v int) predicate.Overlay {
 	return predicate.Overlay(sql.FieldLTE(FieldGeneration, v))
+}
+
+// LapsedAtEQ applies the EQ predicate on the "lapsed_at" field.
+func LapsedAtEQ(v time.Time) predicate.Overlay {
+	return predicate.Overlay(sql.FieldEQ(FieldLapsedAt, v))
+}
+
+// LapsedAtNEQ applies the NEQ predicate on the "lapsed_at" field.
+func LapsedAtNEQ(v time.Time) predicate.Overlay {
+	return predicate.Overlay(sql.FieldNEQ(FieldLapsedAt, v))
+}
+
+// LapsedAtIn applies the In predicate on the "lapsed_at" field.
+func LapsedAtIn(vs ...time.Time) predicate.Overlay {
+	return predicate.Overlay(sql.FieldIn(FieldLapsedAt, vs...))
+}
+
+// LapsedAtNotIn applies the NotIn predicate on the "lapsed_at" field.
+func LapsedAtNotIn(vs ...time.Time) predicate.Overlay {
+	return predicate.Overlay(sql.FieldNotIn(FieldLapsedAt, vs...))
+}
+
+// LapsedAtGT applies the GT predicate on the "lapsed_at" field.
+func LapsedAtGT(v time.Time) predicate.Overlay {
+	return predicate.Overlay(sql.FieldGT(FieldLapsedAt, v))
+}
+
+// LapsedAtGTE applies the GTE predicate on the "lapsed_at" field.
+func LapsedAtGTE(v time.Time) predicate.Overlay {
+	return predicate.Overlay(sql.FieldGTE(FieldLapsedAt, v))
+}
+
+// LapsedAtLT applies the LT predicate on the "lapsed_at" field.
+func LapsedAtLT(v time.Time) predicate.Overlay {
+	return predicate.Overlay(sql.FieldLT(FieldLapsedAt, v))
+}
+
+// LapsedAtLTE applies the LTE predicate on the "lapsed_at" field.
+func LapsedAtLTE(v time.Time) predicate.Overlay {
+	return predicate.Overlay(sql.FieldLTE(FieldLapsedAt, v))
+}
+
+// LapsedAtIsNil applies the IsNil predicate on the "lapsed_at" field.
+func LapsedAtIsNil() predicate.Overlay {
+	return predicate.Overlay(sql.FieldIsNull(FieldLapsedAt))
+}
+
+// LapsedAtNotNil applies the NotNil predicate on the "lapsed_at" field.
+func LapsedAtNotNil() predicate.Overlay {
+	return predicate.Overlay(sql.FieldNotNull(FieldLapsedAt))
 }
 
 // RevisionEQ applies the EQ predicate on the "revision" field.

@@ -21,6 +21,8 @@
   "active": "active={active}",
   "testAccountDemo": "test account={active} (demo)",
   "testAccount": "test account={active}",
+  "alphaDemo": "alpha={active} (demo)",
+  "alpha": "alpha={active}",
   "restartDemo": "bot restarted (demo only, no real subs dropped)",
   "restartQueued": "bot restarted (atomic reconnect queued)",
   "viewAsDemo": "view-as link minted (demo)",

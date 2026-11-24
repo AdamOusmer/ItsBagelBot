@@ -106,8 +106,12 @@ function delegateView(s: Session) {
   return { delegateOf: s.delegate_of, delegateLogin: s.delegate_login, sections: s.sections ?? [] };
 }
 
-function isPremiumAccount(acc: AccountState | null): boolean {
-  return acc?.status === 'vip' || acc?.status === 'paid';
+function accountFlags(acc: AccountState | null) {
+  return {
+    isPremium: acc?.status === 'vip' || acc?.status === 'paid',
+    isAlpha: acc?.alpha === true,
+    onboarded: acc?.onboarded ?? false
+  };
 }
 
 export const load: LayoutServerLoad = async ({ locals, url, route, request }) => {
@@ -136,8 +140,7 @@ export const load: LayoutServerLoad = async ({ locals, url, route, request }) =>
     ...delegateView(s),
     bell: loadBellPeek(s),
     authorizedDashboards,
-    isPremium: isPremiumAccount(acc),
-    onboarded: acc?.onboarded ?? false,
+    ...accountFlags(acc),
     moduleFlags: flags
   };
 };

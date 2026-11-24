@@ -17,6 +17,7 @@ const (
 	ImportMaxUnpackedBytes = 500 << 20
 	ImportMaxEntries       = 300
 	ImportMaxRatio         = 50
+	LapseRetentionDays     = 60
 )
 
 type AssetType string
@@ -73,8 +74,8 @@ func AssetLimitFor(kind AssetType) (AssetLimit, bool) {
 	return limit, ok
 }
 
-func Allowed(kind Kind, premium bool) bool {
-	return kind == KindSystem || premium
+func Allowed(kind Kind, alpha bool) bool {
+	return kind == KindSystem || alpha
 }
 
 func (l AssetLimit) fitsFrame(w, h int) bool {
