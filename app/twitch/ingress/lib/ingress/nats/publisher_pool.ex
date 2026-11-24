@@ -33,4 +33,19 @@ defmodule Ingress.Nats.PublisherPool do
 
   @doc false
   def connection_name(index), do: :"gnat_bus_pub_#{index}"
+
+  @doc "Hub connections for Platform.Nats.HubFailback: the BUS connection, plus each publisher shard when the pool can spill."
+  def hub_failback_connections do
+    pool =
+      case :persistent_term.get({Ingress.Nats.Publisher, :n}, 0) do
+        n when n > 1 ->
+          for index <- 0..(n - 1),
+              do: {connection_name(index), fn -> Ingress.Nats.Publisher.failback(index) end}
+
+        _ ->
+          []
+      end
+
+    [{:gnat_bus, fn -> Platform.Nats.stop(:gnat_bus) end} | pool]
+  end
 end

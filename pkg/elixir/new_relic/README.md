@@ -14,6 +14,8 @@ log export. Ingress explicitly opts into its existing `:forwarder` mode, which
 adds New Relic context for an external log forwarder; application logs can then
 be exported by that forwarder and must be managed under the ingress logging
 policy. Ingress also keeps error collection with `error_collector: true`.
-Gateway defaults to disabled. Set `NEW_RELIC_APP_NAME` and
+Gateway defaults to disabled and writes JSON lines through `Platform.LogFormatter`,
+which adds `entity.name` from `NEW_RELIC_APP_NAME` and maps `trace_id` metadata to
+`trace.id`. Set `NEW_RELIC_APP_NAME` and
 `NEW_RELIC_LICENSE_KEY` for reporting. No license means no agent harvest; no
 credentials are used in the package tests.

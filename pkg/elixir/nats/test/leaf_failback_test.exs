@@ -1,10 +1,10 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-defmodule Ingress.NatsFailbackTest do
+defmodule Platform.Nats.ProbeTest do
   use ExUnit.Case, async: true
 
-  alias Ingress.NatsFailback
+  alias Platform.Nats.Probe
 
   test "monitor health endpoint must return HTTP 200" do
     {:ok, listener} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true])
@@ -18,7 +18,7 @@ defmodule Ingress.NatsFailbackTest do
         :gen_tcp.close(socket)
       end)
 
-    assert NatsFailback.local_leaf_ready?("http://127.0.0.1:#{port}/healthz", 1_000)
+    assert Probe.http_ready?("http://127.0.0.1:#{port}/healthz", 1_000, [])
     Task.await(server)
     :gen_tcp.close(listener)
   end
@@ -28,7 +28,7 @@ defmodule Ingress.NatsFailbackTest do
     {:ok, port} = :inet.port(listener)
     :gen_tcp.close(listener)
 
-    refute NatsFailback.local_leaf_ready?("http://127.0.0.1:#{port}/healthz", 100)
+    refute Probe.http_ready?("http://127.0.0.1:#{port}/healthz", 100, [])
   end
 
   describe "https monitor" do
@@ -78,24 +78,28 @@ defmodule Ingress.NatsFailbackTest do
     end
 
     test "a leaf signed by the fleet CA is ready", %{port: port, ca: ca, server: server} do
-      assert NatsFailback.local_leaf_ready?("https://localhost:#{port}/healthz", 2_000, ca)
+      assert Probe.http_ready?("https://localhost:#{port}/healthz", 2_000, ca)
       Task.await(server)
     end
 
     test "a leaf whose name is not in the certificate is not ready", %{port: port, ca: ca} do
-      refute NatsFailback.local_leaf_ready?("https://127.0.0.1:#{port}/healthz", 2_000, ca)
+      refute Probe.http_ready?("https://127.0.0.1:#{port}/healthz", 2_000, ca)
     end
 
     test "a leaf outside the fleet CA is not ready", %{port: port} do
-      refute NatsFailback.local_leaf_ready?("https://localhost:#{port}/healthz", 2_000, [])
+      refute Probe.http_ready?("https://localhost:#{port}/healthz", 2_000, [])
     end
   end
 end
 
-defmodule Ingress.NatsFailbackScheduleTest do
+defmodule Platform.Nats.LeafFailbackTest do
   use ExUnit.Case, async: false
 
-  @env ~w(NODE_NAME NATS_LOCAL_LEAF_HEALTH_URL NATS_FAILBACK_INTERVAL_MS)
+  alias Platform.Nats
+  alias Platform.Nats.{LeafFailback, Settings}
+  alias Platform.Nats.TestSupport.NatsServer
+
+  @env ~w(NODE_NAME NATS_LOCAL_LEAF_HEALTH_URL NATS_FAILBACK_INTERVAL_MS NATS_FAILBACK_SUCCESSES)
 
   setup do
     previous = Map.new(@env, &{&1, System.get_env(&1)})
@@ -108,22 +112,57 @@ defmodule Ingress.NatsFailbackScheduleTest do
     end)
 
     {:ok, listener} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true])
-    {:ok, port} = :inet.port(listener)
+    {:ok, health} = :inet.port(listener)
     System.put_env("NODE_NAME", "node1")
-    System.put_env("NATS_LOCAL_LEAF_HEALTH_URL", "http://127.0.0.1:#{port}/healthz")
+    System.put_env("NATS_LOCAL_LEAF_HEALTH_URL", "http://127.0.0.1:#{health}/healthz")
     System.put_env("NATS_FAILBACK_INTERVAL_MS", "5")
+    System.put_env("NATS_FAILBACK_SUCCESSES", "1")
     [listener: listener]
   end
 
-  for {label, server_name, probed} <- [
-        {"a connection on the node-local leaf skips the health probe", "node1--leaf", false},
-        {"a displaced connection probes the node-local leaf", "node2--leaf", true}
+  for {label, server_name, moved} <- [
+        {"a connection on the node-local leaf stays and skips the probe", "node1--leaf", false},
+        {"a displaced connection moves once the node-local leaf is healthy", "node2--leaf", true}
       ] do
     test label, %{listener: listener} do
-      start_supervised!({Ingress.FakeGnat, name: :gnat, server_name: unquote(server_name)})
-      start_supervised!(Ingress.NatsFailback)
+      port = NatsServer.start(unquote(server_name))
+      settings = Settings.connection({"127.0.0.1", port}, %{}, nil)
 
-      assert match?({:ok, _}, :gen_tcp.accept(listener, 200)) == unquote(probed)
+      start_supervised!(
+        Nats.connection_child(:failback_rpc, :failback_rpc, [settings], backoff_period: 100)
+      )
+
+      NatsServer.await_connection(:failback_rpc)
+      before = Nats.connection_pid(:failback_rpc)
+
+      start_supervised!({LeafFailback, connections: [:failback_rpc], cacerts: []})
+      probe = serve_health(listener)
+
+      served = Task.yield(probe, 500) || Task.shutdown(probe)
+      assert {served == {:ok, :served}, replaced?(before, 20)} == {unquote(moved), unquote(moved)}
     end
+  end
+
+  defp replaced?(_before, 0), do: false
+
+  defp replaced?(before, attempts) do
+    case Nats.connection_pid(:failback_rpc) do
+      pid when is_pid(pid) and pid != before ->
+        true
+
+      _ ->
+        Process.sleep(50)
+        replaced?(before, attempts - 1)
+    end
+  end
+
+  defp serve_health(listener) do
+    Task.async(fn ->
+      {:ok, socket} = :gen_tcp.accept(listener)
+      {:ok, _request} = :gen_tcp.recv(socket, 0, 1_000)
+      :ok = :gen_tcp.send(socket, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+      :gen_tcp.close(socket)
+      :served
+    end)
   end
 end

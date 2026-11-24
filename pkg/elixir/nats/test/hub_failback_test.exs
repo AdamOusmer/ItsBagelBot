@@ -1,34 +1,34 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-defmodule Ingress.NatsHubFailbackTest do
+defmodule Platform.Nats.HubFailbackTest do
   use ExUnit.Case, async: false
 
-  alias Ingress.NatsHubFailback
+  alias Platform.Nats.HubFailback
 
   describe "observe/3" do
     test "a local connection resets the streak and the backoff" do
       assert {false, %{consecutive: 0, failbacks: 0}} =
-               NatsHubFailback.observe(%{consecutive: 2, failbacks: 3}, :local, 3)
+               HubFailback.observe(%{consecutive: 2, failbacks: 3}, :local, 3)
     end
 
     test "an unknown locality resets the streak but keeps the backoff" do
       assert {false, %{consecutive: 0, failbacks: 2}} =
-               NatsHubFailback.observe(%{consecutive: 2, failbacks: 2}, :unknown, 3)
+               HubFailback.observe(%{consecutive: 2, failbacks: 2}, :unknown, 3)
     end
 
     test "a displaced connection recycles only after the required streak" do
-      streak = NatsHubFailback.new_streak()
-      assert {false, streak} = NatsHubFailback.observe(streak, :displaced, 2)
+      streak = HubFailback.new_streak()
+      assert {false, streak} = HubFailback.observe(streak, :displaced, 2)
 
       assert {true, %{consecutive: 0, failbacks: 1}} =
-               NatsHubFailback.observe(streak, :displaced, 2)
+               HubFailback.observe(streak, :displaced, 2)
     end
 
     test "failbacks that land remote again double the streak, capped at 16x" do
       recycles =
-        Enum.reduce(1..80, {NatsHubFailback.new_streak(), []}, fn tick, {streak, ticks} ->
-          case NatsHubFailback.observe(streak, :displaced, 1) do
+        Enum.reduce(1..80, {HubFailback.new_streak(), []}, fn tick, {streak, ticks} ->
+          case HubFailback.observe(streak, :displaced, 1) do
             {true, streak} -> {streak, [tick | ticks]}
             {false, streak} -> {streak, ticks}
           end
@@ -78,7 +78,7 @@ defmodule Ingress.NatsHubFailbackTest do
     test = self()
 
     start_supervised!(
-      {NatsHubFailback,
+      {HubFailback,
        name: :hub_failback_one_at_a_time,
        enabled: true,
        connections: fn ->
@@ -95,26 +95,8 @@ defmodule Ingress.NatsHubFailbackTest do
     assert Process.alive?(one_pid) and Process.alive?(two_pid)
   end
 
-  describe "default connections" do
-    setup do
-      on_exit(fn -> :persistent_term.erase({Ingress.Nats.Publisher, :n}) end)
-    end
-
-    test "a single publisher shard stays in place" do
-      :persistent_term.put({Ingress.Nats.Publisher, :n}, 1)
-      assert [:gnat_bus] = Enum.map(NatsHubFailback.connections(), &elem(&1, 0))
-    end
-
-    test "every publisher shard is covered when the pool can spill" do
-      :persistent_term.put({Ingress.Nats.Publisher, :n}, 3)
-
-      assert [:gnat_bus, :gnat_bus_pub_0, :gnat_bus_pub_1, :gnat_bus_pub_2] =
-               Enum.map(NatsHubFailback.connections(), &elem(&1, 0))
-    end
-  end
-
-  test "it stays off without a node name or hub host" do
-    assert :ignore = NatsHubFailback.init(enabled: false)
+  test "it stays off when disabled" do
+    assert :ignore = HubFailback.init(enabled: false)
   end
 
   defp connect(port) do
@@ -140,7 +122,7 @@ defmodule Ingress.NatsHubFailbackTest do
 
   defp start_failback(conn, local_port) do
     start_supervised!(
-      {NatsHubFailback,
+      {HubFailback,
        name: :"#{conn}_failback",
        enabled: true,
        connections: fn -> [{conn, fn -> Platform.Nats.stop(conn) end}] end,
