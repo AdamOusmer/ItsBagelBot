@@ -37,7 +37,9 @@ const BUDGETS: Record<string, Budget> = {
   // CI measured 101217 B gzip, ~0.1% room.
   // js raised from 101300 (2026-11-22) for the shared play and stop glyphs in ui/lib/icons.ts (voice preview):
   // measured 101324 B gzip on macOS, ~0.4% room.
-  '/(public)/login': { js: 101700, css: 23300, catalog: 2900, lazy: 0 },
+  // js raised from 101700 (2026-11-24): merging main plus the alpha account field moves shared shell code, measured 102007 B
+  // gzip on macOS, ~0.2% room.
+  '/(public)/login': { js: 102100, css: 23300, catalog: 2900, lazy: 0 },
   // js raised from 118700 (2026-10-29) for the shared Glide rail selector (+128 B): measured 118765, ~2% room.
   // css raised from 44700 (2026-10-29) for the aurora footer in the shared stylesheet (+413 B): measured 44682, ~1% room.
   // css raised from 45200 (2026-10-29) for the shared .bb-prose style in typography.css (+213 B gzip there): CI measured 45295, ~1% room.
@@ -68,7 +70,9 @@ const BUDGETS: Record<string, Budget> = {
   // js raised from 148800 (2026-11-23) for the shared shell immersive mode (AppShell, ConsoleShell, layout) and the picker
   // panel bottom placement that the alpha overlay editor needs: measured 148854 B gzip on macOS against about 148760 on
   // main alone. No alpha route code reaches this route.
-  '/(app)/commands': { js: 148900, css: 48900, catalog: 4600, lazy: 31200 },
+  // js raised from 148900 (2026-11-24): merging main plus the alpha account field moves shared shell code, measured 149041 B
+  // gzip on macOS, ~0.2% room.
+  '/(app)/commands': { js: 149200, css: 48900, catalog: 4600, lazy: 31200 },
   // js and css raised from 100000 / 21500 (2026-10-29) for the aurora footer: CI measured main at 99484 / 21152 and
   // this change at 100323 / 21571 (+839 / +419 B), ~1-2% room.
   // css raised from 22000 (2026-10-30) for the leaderboard-style title and orbs: measured 22146 B, ~1.6% room.
