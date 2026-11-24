@@ -122,16 +122,10 @@ func (r *Users) MarketingTokenState(ctx context.Context, token string) (Marketin
 	return MarketingTokenState{UserID: owner.ID, Status: consent.MarketingStatus(owner.MarketingStatus), Locale: owner.Locale}, nil
 }
 
+var tokenSources = map[consent.Source]bool{consent.OneClick: true, consent.PreferencePage: true}
+
 func (c MarketingChoice) validForToken() bool {
-	return c.tokenStatus() && c.tokenSource()
-}
-
-func (c MarketingChoice) tokenStatus() bool {
-	return c.Status == consent.Granted || c.Status == consent.Withdrawn
-}
-
-func (c MarketingChoice) tokenSource() bool {
-	return c.Source == consent.OneClick || c.Source == consent.PreferencePage
+	return c.Status == consent.Withdrawn && tokenSources[c.Source]
 }
 
 func (r *Users) SetMarketingByToken(ctx context.Context, token string, choice MarketingChoice) error {
@@ -157,9 +151,6 @@ func (r *Users) SetMarketingByToken(ctx context.Context, token string, choice Ma
 func (r *Users) applyTokenChoice(ctx context.Context, w consentWrite, choice MarketingChoice) (consentChange, error) {
 	if string(choice.Status) != string(w.owner.MarketingStatus) {
 		return r.recordMarketing(ctx, w, choice)
-	}
-	if choice.Status != consent.Withdrawn {
-		return consentChange{}, nil
 	}
 	addressHMAC, err := r.marketingAddress(ctx, w, choice.Status)
 	if err != nil || len(addressHMAC) == 0 {

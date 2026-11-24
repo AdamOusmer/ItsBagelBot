@@ -2719,7 +2719,6 @@ export type KnownMessageKey =
   | 'emailPrefs.granted'
   | 'emailPrefs.invalid'
   | 'emailPrefs.none'
-  | 'emailPrefs.resubscribe'
   | 'emailPrefs.saveError'
   | 'emailPrefs.settings'
   | 'emailPrefs.title'

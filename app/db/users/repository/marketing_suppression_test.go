@@ -37,6 +37,10 @@ func (f consentFixture) setByToken(token string, status consent.MarketingStatus,
 	return f.repo.SetMarketingByToken(context.Background(), token, repository.MarketingChoice{Status: status, Source: source})
 }
 
+func (f consentFixture) regrant(id uint64) error {
+	return f.repo.SetMarketing(context.Background(), id, repository.MarketingChoice{Status: consent.Granted, Source: consent.Settings})
+}
+
 func (f consentFixture) suppressions(t *testing.T) []string {
 	t.Helper()
 	var reasons []string
@@ -71,7 +75,7 @@ func TestUnsubscribeTokenRoundTrip(t *testing.T) {
 	require.Equal(t, marketingconsent.SourceOneClick, withdrawal.Source)
 	require.NoError(t, f.mac.VerifyMAC(f.client.EmailSuppression.Query().OnlyX(t.Context()).AddressHmac, []byte(consentEmail)))
 
-	require.NoError(t, f.setByToken(token, consent.Granted, consent.PreferencePage))
+	require.NoError(t, f.regrant(consentAccount.ID))
 	require.Equal(t, consent.Granted, f.tokenStatus(t, token))
 	require.Empty(t, f.suppressions(t))
 }
@@ -143,7 +147,7 @@ func TestUnsubscribeTokenDiesWithAccountIncarnation(t *testing.T) {
 	require.NoError(t, f.repo.Register(t.Context(), consentAccount))
 	_, err = f.repo.MarketingTokenState(t.Context(), token)
 	require.ErrorIs(t, err, repository.ErrMarketingTokenInvalid)
-	require.ErrorIs(t, f.setByToken(token, consent.Granted, consent.PreferencePage), repository.ErrMarketingTokenInvalid)
+	require.ErrorIs(t, f.setByToken(token, consent.Withdrawn, consent.OneClick), repository.ErrMarketingTokenInvalid)
 }
 
 func TestSetMarketingByTokenValidatesChoice(t *testing.T) {
@@ -154,6 +158,8 @@ func TestSetMarketingByTokenValidatesChoice(t *testing.T) {
 		{Status: consent.Withdrawn, Source: consent.Settings},
 		{Status: consent.Withdrawn, Source: consent.Complaint},
 		{Status: "", Source: consent.PreferencePage},
+		{Status: consent.Granted, Source: consent.PreferencePage},
+		{Status: consent.Granted, Source: consent.OneClick},
 	} {
 		require.ErrorIs(t, f.repo.SetMarketingByToken(t.Context(), token, choice), repository.ErrConsentInvalid)
 	}
@@ -202,7 +208,7 @@ func TestReportedAddressUpgradesUnsubscribeAndIsIdempotent(t *testing.T) {
 		require.NoError(t, f.repo.SuppressAddress(t.Context(), consentEmail, consent.SuppressComplaint))
 	}
 	require.Equal(t, []string{"complaint"}, f.suppressions(t))
-	require.NoError(t, f.setByToken(token, consent.Granted, consent.PreferencePage))
+	require.NoError(t, f.regrant(consentAccount.ID))
 	require.Equal(t, []string{"complaint"}, f.suppressions(t))
 	require.Equal(t, 1, f.client.EmailSuppression.Query().Where(emailsuppression.ReasonEQ(emailsuppression.ReasonComplaint)).CountX(t.Context()))
 }
@@ -317,13 +323,13 @@ func TestResubscribeKeepsSuppressionWhileASharingAccountIsWithdrawn(t *testing.T
 
 	require.NoError(t, f.setByToken(tokenB, consent.Withdrawn, consent.OneClick))
 	require.NoError(t, f.setByToken(tokenA, consent.Withdrawn, consent.OneClick))
-	require.NoError(t, f.setByToken(tokenA, consent.Granted, consent.PreferencePage))
+	require.NoError(t, f.regrant(consentAccount.ID))
 	require.Equal(t, []string{"unsubscribe"}, f.suppressions(t))
 	page, err := f.repo.MarketingAudience(ctx, 0, audienceLimit)
 	require.NoError(t, err)
 	require.Empty(t, page.Recipients)
 
-	require.NoError(t, f.setByToken(tokenB, consent.Granted, consent.PreferencePage))
+	require.NoError(t, f.regrant(43))
 	require.Empty(t, f.suppressions(t))
 }
 
