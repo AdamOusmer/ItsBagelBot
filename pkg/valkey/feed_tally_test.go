@@ -6,6 +6,7 @@ package valkey
 import (
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -131,6 +132,37 @@ func TestCASDocumentUpdateAppliesEveryConcurrentChange(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, strconv.Itoa(writers), final)
+}
+
+func TestCASDocumentUpdateOnceAppliesEachReceiptOnce(t *testing.T) {
+	client := valkeytest.Real(t)
+	ctx := t.Context()
+	base := "test:{" + testUniqueKey(t) + "}:"
+	doc := CASDocument{Key: base + "doc", TTL: time.Minute}
+	bump := func(raw string) (string, error) {
+		count, _ := strconv.Atoi(raw)
+		return strconv.Itoa(count + 1), nil
+	}
+
+	var applied atomic.Int64
+	var group sync.WaitGroup
+	for i := range 8 {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			done, err := doc.UpdateOnce(ctx, client, Key{Name: base + "r" + strconv.Itoa(i%4), TTL: time.Minute}, bump)
+			assert.NoError(t, err)
+			if done {
+				applied.Add(1)
+			}
+		}()
+	}
+	group.Wait()
+	final, err := doc.Read(ctx, client)
+
+	require.NoError(t, err)
+	require.Equal(t, "4", final)
+	require.EqualValues(t, 4, applied.Load())
 }
 
 func TestVersionedHashReadFieldsSkipsMissingFields(t *testing.T) {

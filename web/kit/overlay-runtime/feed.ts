@@ -65,6 +65,7 @@ export type FeedMessages = {
   event: OverlayEvent;
   stats: FeedStats;
   credits: CreditsFrame;
+  credits_replace: CreditsFrame | null;
   subathon: Subathon;
   control: AlertControl;
 };

@@ -72,7 +72,6 @@ func (v *Store) overlayHashes(userID uint64) pkg_valkey.ExpiringSet {
 	return pkg_valkey.ExpiringSet{Key: cache.UserKey(overlayUserPrefix, userID), TTL: DefaultTTL}
 }
 
-// indexOverlayHashes keeps each owner's link hashes so a change that touches every link of one owner can name them.
 func (v *Store) indexOverlayHashes(ctx context.Context, change data.OverlayChangedDTO) error {
 	set := v.overlayHashes(change.Overlay.UserID)
 	if change.Deleted {
@@ -86,7 +85,6 @@ func (v *Store) indexOverlayHashes(ctx context.Context, change data.OverlayChang
 	return set.Add(ctx, v.primary, []string{string(change.Overlay.TokenHash)})
 }
 
-// OverlayHashes are the link hashes of the owner's overlays that the projection has folded.
 func (v *Store) OverlayHashes(ctx context.Context, userID uint64) ([]string, error) {
 	return v.overlayHashes(userID).Members(ctx, v.primary)
 }

@@ -26,7 +26,6 @@ func (s *Service) readControl(ctx context.Context, c channel) (feed.Control, err
 	return control, codec.Unmarshal([]byte(raw), &control)
 }
 
-// Snapshot is the channel's folded state with its credit lists and the newest events of its current session, events of them (the default when 0).
 func (s *Service) Snapshot(ctx context.Context, userID string, events int) (overlaysrpc.FeedSnapshotReply, error) {
 	if err := s.requireAlpha(ctx, userID); err != nil {
 		return overlaysrpc.FeedSnapshotReply{}, err

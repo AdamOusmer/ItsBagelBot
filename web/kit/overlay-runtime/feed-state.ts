@@ -46,6 +46,10 @@ export class FeedState {
     this.snapshot = { ...this.snapshot, stats: { ...this.snapshot.stats, credits: merged } };
   }
 
+  replaceCredits(value: CreditsFrame): void {
+    this.snapshot = { ...this.snapshot, stats: { ...this.snapshot.stats, credits: value } };
+  }
+
   subathon(value: Subathon): void {
     this.snapshot = { ...this.snapshot, subathon: value };
   }

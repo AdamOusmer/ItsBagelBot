@@ -68,7 +68,6 @@ func (w Wiring) overlayGet(ctx context.Context, req overlaysrpc.OverlayRefReques
 
 func isCustom(overlay overlaysrpc.Overlay) bool { return overlay.Kind == string(overlays.KindCustom) }
 
-// customDocument withholds a stored custom document from an owner who is not alpha.
 func (w Wiring) customDocument(ctx context.Context, id uint64, document codec.RawMessage) (codec.RawMessage, error) {
 	err := w.Assets.RequireAlpha(ctx, id)
 	if errors.Is(err, assets.ErrAlphaRequired) {

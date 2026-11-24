@@ -25,6 +25,14 @@ describe('golden feed frames shared with Go', () => {
     expect(state.snapshot.stats.credits?.sub?.find((entry) => entry.id === '102')?.amount).toBe(2);
   });
 
+  test('a credits replace frame drops the lists of the previous session', () => {
+    const state = new FeedState();
+    state.credits(golden.credits);
+    state.replaceCredits({});
+    state.credits({ sub: [{ id: '9', name: 'New', amount: 1 }] });
+    expect(Object.keys(state.snapshot.stats.credits ?? {})).toEqual(['sub']);
+  });
+
   test('carry every event kind', () => {
     expect(golden.events.map((event) => event.kind).sort()).toEqual([...eventKinds].sort());
   });

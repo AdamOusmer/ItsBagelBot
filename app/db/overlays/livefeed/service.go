@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"ItsBagelBot/app/db/overlays/repository"
+	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/internal/domain/overlays/feed"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/ratelimit"
 	"ItsBagelBot/pkg/valkey"
@@ -44,12 +46,14 @@ type Alphas interface {
 type Channels interface {
 	FeedProfile(ctx context.Context, userID uint64) (repository.FeedProfile, error)
 	AddFeedTotals(ctx context.Context, userID uint64, eventID string, delta feed.Delta) error
+	PurgeFeedReceipts(ctx context.Context, userID uint64, before time.Time) error
 	FeedTotals(ctx context.Context, userID uint64) (repository.FeedTotals, error)
 }
 
 // Service folds channel events into overlay feed state and frames, and serves its snapshot and controls.
 type Service struct {
 	Client   valkey_go.Client
+	Profiles *cache.Cache[repository.FeedProfile]
 	Alerts   Alerts
 	State    State
 	Plans    Plans
@@ -57,6 +61,10 @@ type Service struct {
 	Channels Channels
 	Allow    func(context.Context, ratelimit.Request) (bool, error)
 	Log      *zap.Logger
+}
+
+func NewProfiles(invalidations cache.Feed) *cache.Cache[repository.FeedProfile] {
+	return cache.New[repository.FeedProfile](cache.DefaultCapacity, profileTTL).InvalidateOn(invalidations, cache.UserKeys("profile:"), invalidate.ScopeOverlays)
 }
 
 func (s *Service) store() store { return store{client: s.Client} }
@@ -78,7 +86,7 @@ func (s *Service) profile(ctx context.Context, userID string) (repository.FeedPr
 	if err != nil {
 		return repository.FeedProfile{}, err
 	}
-	return cached(ctx, s.Client, profileKey(userID), func() (repository.FeedProfile, error) { return s.Channels.FeedProfile(ctx, id) })
+	return s.Profiles.GetOrLoad(ctx, cache.UserKey("profile:", id), func(ctx context.Context) (repository.FeedProfile, error) { return s.Channels.FeedProfile(ctx, id) })
 }
 
 func (s *Service) alpha(ctx context.Context, userID string) (bool, error) {

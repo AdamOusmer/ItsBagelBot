@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/app/db/overlays/livefeed"
 	"ItsBagelBot/app/db/overlays/repository"
 	"ItsBagelBot/internal/domain/channelevents"
+	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/internal/domain/overlays/feed"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/internal/valkeytest"
@@ -92,6 +93,12 @@ type fakeChannels struct {
 	totals  repository.FeedTotals
 	counted map[string]bool
 	failing bool
+	purged  []time.Time
+}
+
+func (c *fakeChannels) PurgeFeedReceipts(_ context.Context, _ uint64, before time.Time) error {
+	c.purged = append(c.purged, before)
+	return nil
 }
 
 func (c *fakeChannels) FeedProfile(context.Context, uint64) (repository.FeedProfile, error) {
@@ -122,6 +129,8 @@ type harness struct {
 	channels *fakeChannels
 	owner    string
 	allow    bool
+
+	invalidations *bus.Invalidations
 }
 
 func newHarness(t *testing.T) *harness {
@@ -131,9 +140,12 @@ func newHarness(t *testing.T) *harness {
 		channels: &fakeChannels{profile: repository.FeedProfile{Owned: true}, counted: map[string]bool{}},
 		owner:    strconv.FormatInt(1_000_000+rand.Int64N(1<<40), 10),
 		allow:    true,
+
+		invalidations: bus.NewInvalidations(nil, "", nil),
 	}
 	h.service = &livefeed.Service{
 		Client:   valkeytest.Real(t),
+		Profiles: livefeed.NewProfiles(h.invalidations),
 		Alerts:   h.bus,
 		State:    fakeState{bus: h.bus},
 		Plans:    h.bus,
@@ -182,6 +194,21 @@ func TestHandleFoldsEachEventOnceAndPublishesFrames(t *testing.T) {
 	require.Equal(t, int64(150), snapshot.Snapshot.Stats.Session.Bits)
 	require.Equal(t, int64(150), snapshot.Snapshot.Stats.Week.Bits)
 	require.Equal(t, int64(150), h.channels.totals.Counts.Bits)
+}
+
+func TestHandleFoldsEventsOnceTheOwnerCreatesTheirFirstOverlay(t *testing.T) {
+	h := newHarness(t)
+	h.channels.profile.Owned = false
+	require.NoError(t, h.service.Handle(t.Context(), h.event(channelevents.Cheer, 10)))
+	require.Zero(t, h.bus.alertCount())
+
+	h.channels.profile.Owned = true
+	owner, err := strconv.ParseUint(h.owner, 10, 64)
+	require.NoError(t, err)
+	require.NoError(t, h.invalidations.Publish(invalidate.ScopeOverlays, owner))
+	require.NoError(t, h.service.Handle(t.Context(), h.event(channelevents.Cheer, 20)))
+
+	require.Equal(t, 1, h.bus.alertCount())
 }
 
 func TestStatsFramesCarryNoCreditsAndCreditFramesCarryOnlyTouchedEntries(t *testing.T) {
@@ -300,6 +327,22 @@ func TestSessionStartClearsSessionCountsAndKeepsWeek(t *testing.T) {
 	stats := h.snapshot(t).Snapshot.Stats
 
 	require.Equal(t, [2]int64{0, 100}, [2]int64{stats.Session.Bits, stats.Week.Bits})
+}
+
+func TestReceiptsArePurgedOncePerSessionRollNotPerEvent(t *testing.T) {
+	h := newHarness(t)
+	for range 3 {
+		require.NoError(t, h.service.Handle(t.Context(), h.event(channelevents.Follow, 0)))
+	}
+	require.Empty(t, h.channels.purged)
+
+	started := h.event(channelevents.Session, 0)
+	started.Change = &channelevents.SessionChange{State: channelevents.SessionStarted}
+	require.NoError(t, h.service.Handle(t.Context(), started))
+
+	require.Len(t, h.channels.purged, 1)
+	require.Equal(t, []feed.Frame{feed.FrameCreditsReplace, feed.FrameStats}, h.bus.stateTypes(t)[len(h.bus.stateTypes(t))-2:])
+	require.WithinDuration(t, time.Now().Add(-repository.FeedReceiptTTL), h.channels.purged[0], time.Minute)
 }
 
 func TestEarnedSubathonTimeAddsToTheClock(t *testing.T) {

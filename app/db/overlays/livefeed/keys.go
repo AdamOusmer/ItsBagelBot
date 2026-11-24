@@ -30,6 +30,8 @@ func (c channel) prefix() string { return "ovf:{" + string(c) + "}:" }
 
 func (c channel) receipt(eventID string) string { return c.prefix() + "r:" + eventID }
 
+func (c channel) earned(eventID string) string { return c.prefix() + "t:" + eventID }
+
 func (c channel) counts(period valkey.Period, at time.Time, session sessionID) string {
 	return period.Key(c.prefix()+"n", at, string(session))
 }
@@ -51,8 +53,6 @@ func (c channel) names() string    { return c.prefix() + "who" }
 func (c channel) state() string    { return c.prefix() + "state" }
 func (c channel) control() string  { return c.prefix() + "control" }
 func (c channel) subathon() string { return c.prefix() + "subathon" }
-
-func profileKey(userID string) string { return "ovf:profile:" + userID }
 
 func tierKey(userID string) string { return "ovf:tier:" + userID }
 

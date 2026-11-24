@@ -15,6 +15,7 @@ type Builder struct {
 	name          string
 	kind          Kind
 	beta          bool
+	alpha         bool
 	trial         bool
 	events        map[string]EventHandler
 	cmds          []*Command
@@ -26,6 +27,11 @@ func NewModule(name string, kind Kind) *Builder {
 
 func (b *Builder) Beta() *Builder {
 	b.beta = true
+	return b
+}
+
+func (b *Builder) Alpha() *Builder {
+	b.alpha = true
 	return b
 }
 
@@ -76,6 +82,7 @@ func (b *Builder) Build() Module {
 		Name:          b.name,
 		Kind:          b.kind,
 		Beta:          b.beta,
+		Alpha:         b.alpha,
 		Trial:         b.trial,
 		Events:        events,
 		Commands:      cmds,

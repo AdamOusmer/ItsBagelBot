@@ -35,7 +35,6 @@ func (r RankedTally) Add(ctx context.Context, client valkey_go.Client, member st
 	return nil
 }
 
-// Totals returns each member's total in order; an absent member counts 0.
 func (r RankedTally) Totals(ctx context.Context, client valkey_go.Client, members []string) ([]int64, error) {
 	commands := make(valkey_go.Commands, len(members))
 	for i, member := range members {

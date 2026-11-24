@@ -10,6 +10,7 @@ import (
 	"ItsBagelBot/app/db/overlays/assets"
 	"ItsBagelBot/app/db/overlays/repository"
 	"ItsBagelBot/app/db/overlays/rpc"
+	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/objectstore"
@@ -17,11 +18,11 @@ import (
 	"ItsBagelBot/pkg/svcboot"
 )
 
-// shared is what the asset and feed services use from one process-wide set of clients.
 type shared struct {
-	rpc    *nats.Conn
-	alphas *rpc.AlphaAccess
-	valkey valkey_go.Client
+	rpc           *nats.Conn
+	alphas        *rpc.AlphaAccess
+	invalidations cache.Feed
+	valkey        valkey_go.Client
 }
 
 func newAssets(repo *repository.Overlays, objects objectstore.Store, in shared) *assets.Service {

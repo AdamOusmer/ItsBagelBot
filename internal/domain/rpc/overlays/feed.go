@@ -62,10 +62,8 @@ func FeedRules() []rpc.Rule {
 	}
 }
 
-// DefaultSnapshotEvents is the tail a snapshot returns when the request names none; it matches the page's minimum event list.
 const DefaultSnapshotEvents = 200
 
-// FeedSnapshotRequest asks for the channel's feed state; Events is how many of the newest session events to return, 0 for the default.
 type FeedSnapshotRequest struct {
 	UserID string `json:"user_id"`
 	Events int    `json:"events,omitempty"`

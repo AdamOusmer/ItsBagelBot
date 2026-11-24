@@ -26,7 +26,6 @@ const (
 
 	receiptPrefix = "r."
 
-	// FeedReceiptTTL is how long a counted event id is remembered.
 	FeedReceiptTTL = 24 * time.Hour
 )
 
@@ -88,7 +87,6 @@ type FeedTotals struct {
 	TopGifter  *feed.Leader
 }
 
-// AddFeedTotals adds delta to the channel's durable counters once per event id; a repeat of an id within FeedReceiptTTL changes nothing.
 func (r *Overlays) AddFeedTotals(ctx context.Context, userID uint64, eventID string, delta feed.Delta) error {
 	if len(delta.Counts) == 0 {
 		return nil
@@ -105,15 +103,17 @@ func (r *Overlays) AddFeedTotals(ctx context.Context, userID uint64, eventID str
 	})
 }
 
+func (r *Overlays) PurgeFeedReceipts(ctx context.Context, userID uint64, before time.Time) error {
+	_, err := db.WithQuery(ctx, r.client.FeedTotal.Delete().Where(
+		feedtotal.UserID(userID), feedtotal.NameHasPrefix(receiptPrefix), feedtotal.UpdatedAtLT(before.UTC()),
+	).Exec)
+	return err
+}
+
 func claimFeedEvent(ctx context.Context, client *ent.Client, userID uint64, eventID string) (bool, error) {
 	digest := sha256.Sum256([]byte(eventID))
 	name := receiptPrefix + hex.EncodeToString(digest[:20])
 	now := time.Now().UTC()
-	if _, err := client.FeedTotal.Delete().Where(
-		feedtotal.UserID(userID), feedtotal.NameHasPrefix(receiptPrefix), feedtotal.UpdatedAtLT(now.Add(-FeedReceiptTTL)),
-	).Exec(ctx); err != nil {
-		return false, err
-	}
 	insert := client.FeedTotal.Create().SetUserID(userID).SetName(name).OnConflictColumns(feedtotal.FieldUserID, feedtotal.FieldName).Ignore()
 	if err := insert.Exec(ctx); err != nil {
 		return false, err

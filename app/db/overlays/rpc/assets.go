@@ -51,7 +51,6 @@ func voiceRefusal(r usersrpc.VoiceCheckReply) string { return r.Error }
 
 func alphaRefusal(r usersrpc.AlphaCheckReply) string { return r.Error }
 
-// userCheck asks the users service one question and turns a refusal text in the reply into an error.
 type userCheck[Req, Rep any] struct {
 	nc      *nats.Conn
 	subject string
@@ -71,7 +70,6 @@ const (
 	alphaCacheTTL            = time.Minute
 )
 
-// AlphaAccess answers the alpha check from a cache that drops an owner's entry when the users service reports a status change.
 type AlphaAccess struct {
 	nc    *nats.Conn
 	known *cache.Cache[bool]

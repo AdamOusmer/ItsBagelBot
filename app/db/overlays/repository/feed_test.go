@@ -6,6 +6,7 @@ package repository_test
 import (
 	"strconv"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/db/overlays/repository"
 	"ItsBagelBot/internal/domain/channelevents"
@@ -49,6 +50,24 @@ func TestFeedTotalsCountAnEventIdOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(150), totals.Counts.Bits)
 	require.Equal(t, int64(150), totals.TopCheerer.Amount)
+}
+
+func TestPurgedReceiptsLetAnOldEventIdCountAgain(t *testing.T) {
+	repo, _ := setupStore(t)
+	ctx := t.Context()
+	require.NoError(t, repo.AddFeedTotals(ctx, userID, "evt-1", cheerDelta("7", 100)))
+
+	require.NoError(t, repo.PurgeFeedReceipts(ctx, userID, time.Now().Add(-time.Hour)))
+	require.NoError(t, repo.AddFeedTotals(ctx, userID, "evt-1", cheerDelta("7", 100)))
+	kept, err := repo.FeedTotals(ctx, userID)
+	require.NoError(t, err)
+	require.NoError(t, repo.PurgeFeedReceipts(ctx, userID, time.Now().Add(time.Hour)))
+	require.NoError(t, repo.AddFeedTotals(ctx, userID, "evt-1", cheerDelta("7", 100)))
+	counted, err := repo.FeedTotals(ctx, userID)
+
+	require.NoError(t, err)
+	require.Equal(t, int64(100), kept.Counts.Bits)
+	require.Equal(t, int64(200), counted.Counts.Bits)
 }
 
 func TestFeedTotalsAreScopedToTheChannel(t *testing.T) {

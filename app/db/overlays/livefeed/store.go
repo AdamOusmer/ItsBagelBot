@@ -168,7 +168,6 @@ func (s store) who(ctx context.Context, c channel, ids []string) (map[string]fee
 	return users, nil
 }
 
-// recent returns the newest limit logged events of the session, oldest first, or all of them when limit is 0. The log expires with the session.
 func (s store) recent(ctx context.Context, c channel, session sessionID, limit int64) ([]feed.Event, error) {
 	log := valkey.ScoredLog{Key: c.events(session), TTL: valkey.PeriodSession.TTL()}
 	read := log.All
@@ -194,7 +193,6 @@ func (s store) clearRecent(ctx context.Context, c channel, session sessionID) er
 	return valkey.NewKV(s.client).Del(ctx, c.events(session))
 }
 
-// stats reads the channel's current windows without the credit lists; totals supply the durable all-time figures.
 func (s store) stats(ctx context.Context, c channel, session sessionID, totals repository.FeedTotals) (feed.Stats, error) {
 	now := time.Now()
 	stats := feed.Stats{AllTime: totals.Counts, AllTimeTopCheerer: totals.TopCheerer, AllTimeTopGifter: totals.TopGifter}
@@ -232,7 +230,6 @@ func (s store) withLeaders(ctx context.Context, c channel, session sessionID, st
 	return stats, nil
 }
 
-// credits reads every credit list of the session.
 func (s store) credits(ctx context.Context, c channel, session sessionID) (map[feed.Kind][]feed.Leader, error) {
 	lists, err := s.creditBoards(ctx, c, session)
 	if err != nil {
@@ -245,7 +242,6 @@ func (s store) credits(ctx context.Context, c channel, session sessionID) (map[f
 	return creditsOf(lists, users), nil
 }
 
-// touchedCredits reads the new totals of the credit entries one event changed.
 func (s store) touchedCredits(ctx context.Context, f folding) (map[feed.Kind][]feed.Leader, error) {
 	touched := make(map[feed.Kind][]feed.Leader, len(f.delta.Credits))
 	for _, credit := range f.delta.Credits {

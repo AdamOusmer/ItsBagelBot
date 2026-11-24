@@ -50,10 +50,12 @@ func main() {
 
 	repo := repository.New(client, n.Pub, objects, env.MustGet("R2_PUBLIC_URL"))
 	svcboot.FatalIf(log, repo.MigratePowered(core.Ctx), "failed to migrate powered overlays")
+	invalidations := bus.NewInvalidations(n.RPC, conf.CacheInvalidationPrefix.Get(), log)
 	clients := shared{
-		rpc:    n.RPC,
-		alphas: rpc.NewAlphaAccess(n.RPC, bus.NewInvalidations(n.RPC, conf.CacheInvalidationPrefix.Get(), log)),
-		valkey: svcboot.MustValkey(core),
+		rpc:           n.RPC,
+		alphas:        rpc.NewAlphaAccess(n.RPC, invalidations),
+		invalidations: invalidations,
+		valkey:        svcboot.MustValkey(core),
 	}
 	uploads := newAssets(repo, objects, clients)
 	serveUploads(core, uploads)

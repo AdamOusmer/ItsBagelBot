@@ -29,7 +29,7 @@ func newFeed(core svcboot.Core, repo *repository.Overlays, in shared) (*livefeed
 	alerts, err := bus.NewOverlayPublisher(feedConn)
 	svcboot.FatalIf(core.Log, err, "failed to open overlay alert publisher")
 	return &livefeed.Service{
-		Client: client, Alerts: alerts, State: coreState{nc: feedConn}, Plans: rpc.VoicePlans{NC: in.rpc}, Alphas: in.alphas,
+		Client: client, Profiles: livefeed.NewProfiles(in.invalidations), Alerts: alerts, State: coreState{nc: feedConn}, Plans: rpc.VoicePlans{NC: in.rpc}, Alphas: in.alphas,
 		Channels: repo, Allow: ratelimit.New(client).Allow, Log: core.Log,
 	}, feedConn
 }

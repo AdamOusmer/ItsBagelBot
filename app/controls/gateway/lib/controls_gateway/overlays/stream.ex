@@ -23,7 +23,7 @@ defmodule ControlsGateway.Overlays.Stream do
   @reconnect_max_ms 1_500
   @ping_frame ": ping\n\n"
   @custom "custom"
-  @state_frames ["stats", "credits", "subathon", "control"]
+  @state_frames ["stats", "credits", "credits_replace", "subathon", "control"]
   @accepted ~s({"accepted":true})
   @labels %{overlay: "Overlay", tts: "TTS"}
   @streams ControlsGateway.Streams

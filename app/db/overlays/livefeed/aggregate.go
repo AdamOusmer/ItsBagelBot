@@ -6,7 +6,9 @@ package livefeed
 import (
 	"context"
 	"strconv"
+	"time"
 
+	"ItsBagelBot/app/db/overlays/repository"
 	"ItsBagelBot/internal/domain/channelevents"
 	"ItsBagelBot/internal/domain/overlays/feed"
 	"ItsBagelBot/pkg/bus"
@@ -21,7 +23,6 @@ func (s *Service) Consume(msg *bus.Message) error {
 	return s.Handle(msg.Context(), event)
 }
 
-// Handle folds one channel event. Every step is idempotent by event id or version guarded, so a failed event is retried whole.
 func (s *Service) Handle(ctx context.Context, e channelevents.Event) error {
 	if e.Trial || e.Kind == channelevents.Chat {
 		return nil
@@ -43,6 +44,16 @@ func (s *Service) handleSession(ctx context.Context, c channel, e channelevents.
 	}
 	rolled, err := s.store().roll(ctx, c, e)
 	if err != nil || !rolled {
+		return err
+	}
+	userID, err := strconv.ParseUint(string(c), 10, 64)
+	if err != nil {
+		return err
+	}
+	if err := s.Channels.PurgeFeedReceipts(ctx, userID, time.Now().Add(-repository.FeedReceiptTTL)); err != nil {
+		return err
+	}
+	if err := s.publishState(ctx, c, feed.FrameCreditsReplace, map[feed.Kind][]feed.Leader{}); err != nil {
 		return err
 	}
 	return s.publishStats(ctx, c)
@@ -78,8 +89,6 @@ func (s *Service) handleEvent(ctx context.Context, c channel, e channelevents.Ev
 	return s.publishState(ctx, c, feed.FrameSubathon, clock)
 }
 
-// countDurable applies the event to the MySQL totals and the subathon clock, each once per event id, before the Valkey receipt exists.
-// It returns the clock when the event moved it.
 func (s *Service) countDurable(ctx context.Context, f folding, rules feed.SubathonRules) (*feed.Subathon, error) {
 	userID, err := strconv.ParseUint(string(f.c), 10, 64)
 	if err != nil {
@@ -101,7 +110,6 @@ func (s *Service) publishEvent(ctx context.Context, f folding, frame feed.Event)
 	return s.publishCredits(ctx, f)
 }
 
-// publishCredits sends the credit entries the event touched as absolute totals, so a repeat changes nothing on the page.
 func (s *Service) publishCredits(ctx context.Context, f folding) error {
 	if len(f.delta.Credits) == 0 {
 		return nil

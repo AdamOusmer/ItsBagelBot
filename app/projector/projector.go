@@ -133,7 +133,6 @@ func (p *Projector) applyUserChanged(ctx context.Context, dto data.UserChangedDT
 	return p.invalidateOverlays(ctx, dto.UserID)
 }
 
-// invalidateOverlays makes the gateway drop every cached link of an owner whose alpha flag flipped and recheck their open streams.
 func (p *Projector) invalidateOverlays(ctx context.Context, userID uint64) error {
 	hashes, err := p.store.OverlayHashes(ctx, userID)
 	if err != nil {

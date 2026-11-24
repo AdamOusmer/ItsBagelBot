@@ -157,29 +157,8 @@ func TestChannelFeedNormalizesEventSubPayloads(t *testing.T) {
 	}
 }
 
-func TestChannelFeedIgnoresChannelsThatAreNotAlpha(t *testing.T) {
-	pub, gifts := bustest.NewPublisher(), newMemoryGifts()
-	deps := engine.Deps{Pub: pub, GiftBundles: gifts, Proj: &fakeProj{}, Log: zap.NewNop()}
-	handlers := ChannelFeed(deps).Events
-	envelopes := []lane.Envelope{
-		feedEnvelope("channel.follow", "evt-1", `{"user_id":"7"}`),
-		feedEnvelope("channel.subscription.gift", "gift-1", giftPayload),
-		recipientEnvelope("sub-1", "11"),
-		feedEnvelope("channel.chat.notification", "evt-2", `{"chatter_user_id":"7","notice_type":"prime_paid_upgrade"}`),
-	}
-	for _, env := range envelopes {
-		c := &module.Context{Env: env, BroadcasterID: 2, Log: zap.NewNop()}
-		require.NoError(t, handlers[env.Type](t.Context(), c, func(*module.Output) {}))
-	}
-	for _, kind := range channelevents.Kinds() {
-		require.Empty(t, pub.On(channelevents.Subject("2", kind)), string(kind))
-	}
-	require.Empty(t, gifts.order)
-	require.Empty(t, gifts.parked)
-
-	deps.Proj = &fakeProj{userErr: context.DeadlineExceeded}
-	c := &module.Context{Env: envelopes[0], BroadcasterID: 2, Log: zap.NewNop()}
-	require.Error(t, ChannelFeed(deps).Events["channel.follow"](t.Context(), c, func(*module.Output) {}))
+func TestChannelFeedIsAnAlphaGatedModule(t *testing.T) {
+	require.True(t, ChannelFeed(engine.Deps{Pub: bustest.NewPublisher(), GiftBundles: newMemoryGifts(), Log: zap.NewNop()}).Alpha)
 }
 
 func TestChannelFeedSkipsTrialAndUnidentifiedEvents(t *testing.T) {

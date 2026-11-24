@@ -91,6 +91,44 @@ func TestGiftBundleAbsorbsRecipientsOfAFlushedBundleInsteadOfParkingThem(t *test
 	require.Empty(t, next.Recipients)
 }
 
+func TestGiftBundleAbsorbsLateRecipientsOfAnOlderBundleBeforeFillingALaterOne(t *testing.T) {
+	client := valkeytest.Real(t)
+	ctx := t.Context()
+	key := "test:gift:{" + testUniqueKey(t) + "}"
+	bundle := GiftBundle{TTL: time.Minute, Window: 5 * time.Second}
+
+	_, err := bundle.Open(ctx, client, key, GiftHeader{ID: "gift-50", Total: 50, Payload: []byte("fifty")})
+	require.NoError(t, err)
+	for range 20 {
+		_, err = bundle.Add(ctx, client, key, []byte("early"))
+		require.NoError(t, err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	_, ok, err := bundle.Take(ctx, client, key, "gift-50")
+	require.NoError(t, err)
+	require.True(t, ok)
+	time.Sleep(20 * time.Millisecond)
+	_, err = bundle.Open(ctx, client, key, GiftHeader{ID: "gift-5", Total: 5, Payload: []byte("five")})
+	require.NoError(t, err)
+
+	for range 30 {
+		late, err := bundle.Add(ctx, client, key, []byte("late"))
+		require.NoError(t, err)
+		require.Equal(t, GiftAdded{}, late)
+	}
+	var own GiftAdded
+	for range 5 {
+		own, err = bundle.Add(ctx, client, key, []byte("own"))
+		require.NoError(t, err)
+	}
+	taken, ok, err := bundle.Take(ctx, client, key, "gift-5")
+	require.NoError(t, err)
+
+	require.True(t, ok)
+	require.Equal(t, GiftAdded{BundleID: "gift-5", Complete: true}, own)
+	require.Len(t, taken.Recipients, 5)
+}
+
 func TestGiftBundleParksRecipientsOnceTheTombstoneWindowPasses(t *testing.T) {
 	client := valkeytest.Real(t)
 	ctx := t.Context()
