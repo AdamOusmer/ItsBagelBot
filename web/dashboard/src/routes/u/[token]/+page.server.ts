@@ -17,8 +17,7 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
 
 function choiceFor(form: FormData): Choice | null {
   if (isOneClick(form)) return { status: 'withdrawn', source: 'one_click' };
-  const status = form.get('status');
-  return status === 'granted' || status === 'withdrawn' ? { status, source: 'preference_page' } : null;
+  return form.get('status') === 'withdrawn' ? { status: 'withdrawn', source: 'preference_page' } : null;
 }
 
 function refusal(status: number, locale: Locale, key: string) {
