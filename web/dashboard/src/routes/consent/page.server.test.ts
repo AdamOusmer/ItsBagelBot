@@ -180,13 +180,14 @@ test.each([
   { name: 'owner without a mailing address', session: { user_id: '7' }, terms: '', landing: null, address: '' },
   { name: 'skip parameter before acceptance', session: { user_id: '7' }, terms: '', landing: null, address: '', skipped: 'no_email' },
   { name: 'subscribed owner', session: { user_id: '7' }, terms: '', landing: null, address: mailingAddress, subscribed: true },
+  { name: 'onboarded owner with legacy acceptance', session: { user_id: '7' }, terms: '', onboarded: true, landing: '/settings' },
   { name: 'current owner', session: { user_id: '7' }, terms: TERMS_VERSION, landing: '/settings' },
   { name: 'unknown skip reason', session: { user_id: '7' }, terms: TERMS_VERSION, landing: '/settings', skipped: 'unknown' },
   { name: 'unaccepted delegate', session: { user_id: '7', delegate_of: '8' }, terms: '', landing: null, address: mailingAddress },
   { name: 'impersonation', session: { user_id: '7', impersonator_id: '9' }, terms: '', landing: '/' }
-])('consent load: $name', async ({ session, terms, landing, address, subscribed, skipped }) => {
+])('consent load: $name', async ({ session, terms, onboarded, landing, address, subscribed, skipped }) => {
   privateEnv.BUSINESS_MAILING_ADDRESS = address || undefined;
-  const value = { termsVersion: terms, marketingStatus: subscribed ? 'granted' : 'none' };
+  const value = { termsVersion: terms, onboarded: onboarded ?? false, marketingStatus: subscribed ? 'granted' : 'none' };
   const locals = { session, locale: 'en', accountState: { value } };
   const url = reader('/settings', skipped);
   const result = await Promise.resolve().then(() => load({ locals, url } as never)).catch((err) => err);

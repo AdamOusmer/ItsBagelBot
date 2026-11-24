@@ -25,8 +25,8 @@ export function skippedReason(url: URL): 'no_email' | 'unavailable' | null {
 }
 
 export async function termsAccepted(locals: App.Locals, session: Session, checkFresh: boolean): Promise<boolean> {
-  if (!needsTerms(currentAccount(locals)?.termsVersion)) return true;
+  if (!needsTerms(currentAccount(locals))) return true;
   if (!checkFresh) return false;
   const account = await bestEffort<AccountState | null>(freshAccountState(session.user_id), null);
-  return !needsTerms(account?.termsVersion);
+  return !needsTerms(account);
 }

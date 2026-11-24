@@ -21,8 +21,12 @@ export function currentAccount(locals: App.Locals) {
   return state && 'value' in state ? state.value : null;
 }
 
-export function needsTerms(version: string | undefined): boolean {
-  return (version ?? '') < TERMS_VERSION;
+type TermsState = Pick<AccountState, 'termsVersion' | 'onboarded'>;
+
+export function needsTerms(account: TermsState | null | undefined): boolean {
+  const version = account?.termsVersion ?? '';
+  if (version === '' && account?.onboarded) return false;
+  return version < TERMS_VERSION;
 }
 
 const DEMO = dev && env.DEMO === '1';

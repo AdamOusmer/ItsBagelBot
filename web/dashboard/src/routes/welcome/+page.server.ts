@@ -23,7 +23,7 @@ type SetupPreset = 'start-new' | 'integrate' | 'quiet';
 type Counted = SetupPreset | 'import';
 
 function termsAccepted(locals: App.Locals): boolean {
-  return !needsTerms(currentAccount(locals)?.termsVersion);
+  return !needsTerms(currentAccount(locals));
 }
 
 async function tourSession(locals: App.Locals): Promise<Session | null> {

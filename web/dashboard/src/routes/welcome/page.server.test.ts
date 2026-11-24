@@ -52,7 +52,7 @@ test('counts the welcome view once', async () => {
 test.each([
   { name: 'owner with unreadable state still gets a consent form', session: {}, accountState: undefined, address: mailingAddress, want: { landing: null, consentAddress: mailingAddress } },
   { name: 'unaccepted owner without a mailing address still gets a terms form', session: {}, accountState: { value: { onboarded: false } }, want: { landing: null, consentAddress: '' } },
-  { name: 'onboarded owner with legacy terms', session: {}, accountState: { value: { onboarded: true } }, address: mailingAddress, want: { landing: null, consentAddress: mailingAddress } },
+  { name: 'onboarded owner with legacy terms', session: {}, accountState: { value: { onboarded: true, termsVersion: '' } }, address: mailingAddress, want: { landing: null, consentAddress: null } },
   { name: 'accepted owner', session: {}, accountState: { value: { onboarded: true, termsVersion: TERMS_VERSION } }, want: { landing: null, consentAddress: null } },
   { name: 'unaccepted delegate', session: { delegate_of: '2' }, accountState: { value: { onboarded: false } }, want: { landing: '/', consentAddress: null } },
   { name: 'accepted delegate', session: { delegate_of: '2' }, accountState: { value: { onboarded: true } }, want: { landing: '/', consentAddress: null } },
