@@ -1,0 +1,53 @@
+{
+  "alert": {
+    "follow": "Follow",
+    "sub": "Subscription",
+    "resub": "Resubscription",
+    "gift_sub": "Gifted subscription",
+    "community_gift": "Community gift",
+    "cheer": "Cheer",
+    "raid": "Raid",
+    "redemption": "Redemption"
+  },
+  "group": {
+    "alerts": "Alerts and events",
+    "goals": "Goals and stats",
+    "chat": "Chat",
+    "media": "Media and text"
+  },
+  "template": {
+    "alerts": "Alerts",
+    "justChatting": "Just chatting",
+    "startingSoon": "Starting soon"
+  },
+  "handle": {
+    "nw": "Resize top left",
+    "ne": "Resize top right",
+    "sw": "Resize bottom left",
+    "se": "Resize bottom right"
+  },
+  "import": {
+    "title": "Import an overlay",
+    "hint": "Upload a zip of an overlay or asset pack. You see a report first, and nothing is created until you confirm.",
+    "choose": "Choose a zip file",
+    "confirm": "Import overlay",
+    "confirmHint": "Confirming creates the overlay from the mapped and approximated items.",
+    "mapped": "Mapped",
+    "approximated": "Approximated",
+    "unsupported": "Unsupported",
+    "more": "and {count} more"
+  },
+  "save": {
+    "failed": "Could not save the overlay. Try again.",
+    "invalid": "The overlay was refused. Reload the page and try again.",
+    "conflict": "This overlay changed elsewhere. Reload the page to get the latest version."
+  },
+  "page": {
+    "newName": "New overlay",
+    "discard": "Discard unsaved overlay changes?",
+    "notFound": "That overlay was not found.",
+    "discardTitle": "Discard changes?",
+    "discardConfirm": "Discard",
+    "discardKeep": "Keep editing"
+  }
+}

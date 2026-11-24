@@ -1,0 +1,15 @@
+{
+  "alertbox": "Alert-Box",
+  "eventlist": "Ereignisliste",
+  "goal": "Ziel",
+  "label": "Beschriftung",
+  "chatbox": "Chatfenster",
+  "emotewall": "Emote-Wand",
+  "timer": "Timer",
+  "credits": "Abspann",
+  "text": "Text",
+  "image": "Bild",
+  "video": "Video",
+  "slideshow": "Diashow",
+  "custom": "Importiertes Widget"
+}

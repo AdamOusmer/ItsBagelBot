@@ -1,0 +1,16 @@
+{
+  "invalid_archive": "Ce n’est pas une archive zip valide.",
+  "unsafe_path": "L’archive contient un chemin de fichier non sûr.",
+  "symlink": "L’archive contient un lien, ce qui n’est pas autorisé.",
+  "nested_archive": "L’archive contient une autre archive, ce qui n’est pas autorisé.",
+  "too_many_entries": "L’archive contient trop de fichiers.",
+  "too_large": "L’archive est trop volumineuse une fois décompressée.",
+  "bomb_ratio": "L’archive est trop compressée pour être fiable.",
+  "invalid_manifest": "Le manifeste du pack n’a pas pu être lu.",
+  "invalid_document": "L’overlay dans l’archive n’est pas valide.",
+  "invalid_bundle": "Un paquet de widget de l’archive n’est pas valide.",
+  "bad_hash": "Un fichier ne correspond pas à sa somme de contrôle.",
+  "missing_asset": "Un fichier indiqué dans le pack est manquant.",
+  "alpha_required": "L’import nécessite l’accès Alpha. Ce rapport est un aperçu.",
+  "failed": "L’import a échoué. Réessayez."
+}
