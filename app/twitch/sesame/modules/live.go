@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/engine/draw"
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/domain/channelevents"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/idempotency"
@@ -37,6 +38,7 @@ func liveOnlineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 	return func(ctx context.Context, c *module.Context, emit module.Emit) error {
 		id := c.BroadcasterID
 		version := c.EventVersion()
+		session := sessionEvent(c, channelevents.SessionStarted)
 		seqOrGo(ctx, d.Seq, id, func(ctx context.Context) error {
 			wctx, cancel := context.WithTimeout(ctx, liveWriteTimeout)
 			defer cancel()
@@ -48,15 +50,16 @@ func liveOnlineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 			if !applied {
 				return nil
 			}
+			feedErr := publishSession(wctx, d, id, session)
 			wakeErr := wakeDraw(wctx, d.Draw, id)
 			if err := d.Greet.ResetGreets(wctx, id); err != nil {
 				log.Warn("live: failed to reset greets", module.BIDField(id), zap.Error(err))
-				return errors.Join(err, wakeErr)
+				return errors.Join(err, wakeErr, feedErr)
 			}
 			if d.Timers != nil {
 				d.Timers.ArmOnline(wctx, id)
 			}
-			return wakeErr
+			return errors.Join(wakeErr, feedErr)
 		})
 
 		emit(&module.Output{
@@ -77,6 +80,7 @@ func liveOfflineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 		if restore := rewardRestore(ctx, d, c, log); restore != nil {
 			emit(restore)
 		}
+		session := sessionEvent(c, channelevents.SessionEnded)
 		seqOrGo(ctx, d.Seq, id, func(ctx context.Context) error {
 			wctx, cancel := context.WithTimeout(ctx, liveWriteTimeout)
 			defer cancel()
@@ -88,10 +92,11 @@ func liveOfflineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 			if !applied {
 				return nil
 			}
+			feedErr := publishSession(wctx, d, id, session)
 			if d.Timers != nil {
 				d.Timers.DisarmAll(wctx, id)
 			}
-			return wakeDraw(wctx, d.Draw, id)
+			return errors.Join(feedErr, wakeDraw(wctx, d.Draw, id))
 		})
 		log.Debug("stream offline", module.BIDField(id))
 		return nil

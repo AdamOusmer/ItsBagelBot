@@ -131,6 +131,7 @@ export interface AdminUserWire {
   created_at?: string;
   updated_at?: string;
   test_account?: boolean;
+  alpha?: boolean;
   onboarded?: boolean;
   voice_allowance?: AdminVoiceAllowance;
 }
@@ -503,7 +504,7 @@ export async function userDelete(ref: UserRef): Promise<void> {
   invalidateUser(ref.userId);
 }
 
-type UserBooleanSetting = { subject: string; field: 'active' | 'test_account' };
+type UserBooleanSetting = { subject: string; field: 'active' | 'test_account' | 'alpha' };
 
 function userSetBoolean(setting: UserBooleanSetting) {
   return defineUserWrite(setting.subject, (enabled: boolean) => ({ [setting.field]: enabled }));
@@ -512,6 +513,8 @@ function userSetBoolean(setting: UserBooleanSetting) {
 export const userSetActive = userSetBoolean({ subject: `${SUB.user}.set_active`, field: 'active' });
 
 export const userSetTestAccount = userSetBoolean({ subject: 'rpc.admin.user.test.set', field: 'test_account' });
+
+export const userSetAlpha = userSetBoolean({ subject: 'rpc.admin.user.alpha.set', field: 'alpha' });
 
 export const userSetCreatorCode = defineUserWrite(`${SUB.user}.set_creator_code`, (creatorCode: string) => ({
   creator_code: creatorCode

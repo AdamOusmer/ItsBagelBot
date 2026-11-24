@@ -22,6 +22,7 @@ const (
 	CodeDuplicateWidgetID     Code = "duplicate_widget_id"
 	CodeUnknownWidgetKind     Code = "unknown_widget_kind"
 	CodeInvalidWidget         Code = "invalid_widget"
+	CodeInvalidSetting        Code = "invalid_setting"
 	CodeInvalidBundle         Code = "invalid_bundle"
 	CodeUnknownAsset          Code = "unknown_asset"
 	CodeLegacyMediaRef        Code = "legacy_media_ref"

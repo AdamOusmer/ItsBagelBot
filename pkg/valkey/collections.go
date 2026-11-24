@@ -153,6 +153,10 @@ func (s ExpiringSet) Remove(ctx context.Context, client valkey_go.Client, member
 	return client.Do(ctx, client.B().Srem().Key(s.Key).Member(members...).Build()).Error()
 }
 
+func (s ExpiringSet) Members(ctx context.Context, client valkey_go.Client) ([]string, error) {
+	return client.Do(ctx, client.B().Smembers().Key(s.Key).Build()).AsStrSlice()
+}
+
 func (s ExpiringSet) Sample(ctx context.Context, client valkey_go.Client, count int) ([]string, error) {
 	return client.Do(ctx, client.B().Srandmember().Key(s.Key).Count(int64(count)).Build()).AsStrSlice()
 }

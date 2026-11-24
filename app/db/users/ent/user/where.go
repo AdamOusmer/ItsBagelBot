@@ -195,9 +195,24 @@ func Onboarded(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldOnboarded, v))
 }
 
+// TermsVersion applies equality check predicate on the "terms_version" field. It's identical to TermsVersionEQ.
+func TermsVersion(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTermsVersion, v))
+}
+
+// MarketingStatusAt applies equality check predicate on the "marketing_status_at" field. It's identical to MarketingStatusAtEQ.
+func MarketingStatusAt(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldMarketingStatusAt, v))
+}
+
 // TestAccount applies equality check predicate on the "test_account" field. It's identical to TestAccountEQ.
 func TestAccount(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldTestAccount, v))
+}
+
+// Alpha applies equality check predicate on the "alpha" field. It's identical to AlphaEQ.
+func Alpha(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldAlpha, v))
 }
 
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
@@ -1345,6 +1360,141 @@ func OnboardedNEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldOnboarded, v))
 }
 
+// TermsVersionEQ applies the EQ predicate on the "terms_version" field.
+func TermsVersionEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTermsVersion, v))
+}
+
+// TermsVersionNEQ applies the NEQ predicate on the "terms_version" field.
+func TermsVersionNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldTermsVersion, v))
+}
+
+// TermsVersionIn applies the In predicate on the "terms_version" field.
+func TermsVersionIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldTermsVersion, vs...))
+}
+
+// TermsVersionNotIn applies the NotIn predicate on the "terms_version" field.
+func TermsVersionNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldTermsVersion, vs...))
+}
+
+// TermsVersionGT applies the GT predicate on the "terms_version" field.
+func TermsVersionGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldTermsVersion, v))
+}
+
+// TermsVersionGTE applies the GTE predicate on the "terms_version" field.
+func TermsVersionGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldTermsVersion, v))
+}
+
+// TermsVersionLT applies the LT predicate on the "terms_version" field.
+func TermsVersionLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldTermsVersion, v))
+}
+
+// TermsVersionLTE applies the LTE predicate on the "terms_version" field.
+func TermsVersionLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldTermsVersion, v))
+}
+
+// TermsVersionContains applies the Contains predicate on the "terms_version" field.
+func TermsVersionContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldTermsVersion, v))
+}
+
+// TermsVersionHasPrefix applies the HasPrefix predicate on the "terms_version" field.
+func TermsVersionHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldTermsVersion, v))
+}
+
+// TermsVersionHasSuffix applies the HasSuffix predicate on the "terms_version" field.
+func TermsVersionHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldTermsVersion, v))
+}
+
+// TermsVersionEqualFold applies the EqualFold predicate on the "terms_version" field.
+func TermsVersionEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldTermsVersion, v))
+}
+
+// TermsVersionContainsFold applies the ContainsFold predicate on the "terms_version" field.
+func TermsVersionContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldTermsVersion, v))
+}
+
+// MarketingStatusEQ applies the EQ predicate on the "marketing_status" field.
+func MarketingStatusEQ(v MarketingStatus) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldMarketingStatus, v))
+}
+
+// MarketingStatusNEQ applies the NEQ predicate on the "marketing_status" field.
+func MarketingStatusNEQ(v MarketingStatus) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldMarketingStatus, v))
+}
+
+// MarketingStatusIn applies the In predicate on the "marketing_status" field.
+func MarketingStatusIn(vs ...MarketingStatus) predicate.User {
+	return predicate.User(sql.FieldIn(FieldMarketingStatus, vs...))
+}
+
+// MarketingStatusNotIn applies the NotIn predicate on the "marketing_status" field.
+func MarketingStatusNotIn(vs ...MarketingStatus) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldMarketingStatus, vs...))
+}
+
+// MarketingStatusAtEQ applies the EQ predicate on the "marketing_status_at" field.
+func MarketingStatusAtEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldMarketingStatusAt, v))
+}
+
+// MarketingStatusAtNEQ applies the NEQ predicate on the "marketing_status_at" field.
+func MarketingStatusAtNEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldMarketingStatusAt, v))
+}
+
+// MarketingStatusAtIn applies the In predicate on the "marketing_status_at" field.
+func MarketingStatusAtIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldIn(FieldMarketingStatusAt, vs...))
+}
+
+// MarketingStatusAtNotIn applies the NotIn predicate on the "marketing_status_at" field.
+func MarketingStatusAtNotIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldMarketingStatusAt, vs...))
+}
+
+// MarketingStatusAtGT applies the GT predicate on the "marketing_status_at" field.
+func MarketingStatusAtGT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGT(FieldMarketingStatusAt, v))
+}
+
+// MarketingStatusAtGTE applies the GTE predicate on the "marketing_status_at" field.
+func MarketingStatusAtGTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldMarketingStatusAt, v))
+}
+
+// MarketingStatusAtLT applies the LT predicate on the "marketing_status_at" field.
+func MarketingStatusAtLT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLT(FieldMarketingStatusAt, v))
+}
+
+// MarketingStatusAtLTE applies the LTE predicate on the "marketing_status_at" field.
+func MarketingStatusAtLTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldMarketingStatusAt, v))
+}
+
+// MarketingStatusAtIsNil applies the IsNil predicate on the "marketing_status_at" field.
+func MarketingStatusAtIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldMarketingStatusAt))
+}
+
+// MarketingStatusAtNotNil applies the NotNil predicate on the "marketing_status_at" field.
+func MarketingStatusAtNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldMarketingStatusAt))
+}
+
 // TestAccountEQ applies the EQ predicate on the "test_account" field.
 func TestAccountEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldTestAccount, v))
@@ -1353,6 +1503,16 @@ func TestAccountEQ(v bool) predicate.User {
 // TestAccountNEQ applies the NEQ predicate on the "test_account" field.
 func TestAccountNEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldTestAccount, v))
+}
+
+// AlphaEQ applies the EQ predicate on the "alpha" field.
+func AlphaEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldAlpha, v))
+}
+
+// AlphaNEQ applies the NEQ predicate on the "alpha" field.
+func AlphaNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldAlpha, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
@@ -1519,6 +1679,75 @@ func HasAuthorizationCodes() predicate.User {
 func HasAuthorizationCodesWith(preds ...predicate.AuthorizationCode) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newAuthorizationCodesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasTermsAcceptances applies the HasEdge predicate on the "terms_acceptances" edge.
+func HasTermsAcceptances() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, TermsAcceptancesTable, TermsAcceptancesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasTermsAcceptancesWith applies the HasEdge predicate on the "terms_acceptances" edge with a given conditions (other predicates).
+func HasTermsAcceptancesWith(preds ...predicate.TermsAcceptance) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newTermsAcceptancesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasMarketingConsents applies the HasEdge predicate on the "marketing_consents" edge.
+func HasMarketingConsents() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, MarketingConsentsTable, MarketingConsentsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasMarketingConsentsWith applies the HasEdge predicate on the "marketing_consents" edge with a given conditions (other predicates).
+func HasMarketingConsentsWith(preds ...predicate.MarketingConsent) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newMarketingConsentsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasMarketingSends applies the HasEdge predicate on the "marketing_sends" edge.
+func HasMarketingSends() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, MarketingSendsTable, MarketingSendsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasMarketingSendsWith applies the HasEdge predicate on the "marketing_sends" edge with a given conditions (other predicates).
+func HasMarketingSendsWith(preds ...predicate.MarketingSend) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newMarketingSendsStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

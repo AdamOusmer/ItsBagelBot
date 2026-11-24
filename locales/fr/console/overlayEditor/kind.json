@@ -1,0 +1,15 @@
+{
+  "alertbox": "Boîte d’alertes",
+  "eventlist": "Liste d’événements",
+  "goal": "Objectif",
+  "label": "Étiquette",
+  "chatbox": "Boîte de chat",
+  "emotewall": "Mur d’emotes",
+  "timer": "Minuteur",
+  "credits": "Générique",
+  "text": "Texte",
+  "image": "Image",
+  "video": "Vidéo",
+  "slideshow": "Diaporama",
+  "custom": "Widget importé"
+}

@@ -86,6 +86,8 @@ type Worker struct {
 	reauth      *ReauthNotifier
 	factPub     bus.Publisher
 
+	loadBroadcasterToken func(context.Context, string) (twitch.StoredToken, error)
+
 	live       *LiveWriter
 	streamInfo *projection.Store
 
@@ -93,8 +95,9 @@ type Worker struct {
 
 	grants grantRegistry
 
-	clipVerify chan struct{}
-	tokenWarm  chan struct{}
+	clipVerify  chan struct{}
+	tokenWarm   chan struct{}
+	scopeNotice chan struct{}
 }
 
 type Config struct {
@@ -111,6 +114,8 @@ type Config struct {
 	Lane        Lane
 	Batch       BatchStore
 	UserIDs     *cache.Cache[string]
+
+	LoadBroadcasterToken func(context.Context, string) (twitch.StoredToken, error)
 
 	RewardSnapshots *RewardSnapshots
 }
@@ -142,7 +147,10 @@ func New(cfg Config) *Worker {
 		clipVerify: make(chan struct{}, clipVerifySlots),
 		tokenWarm:  make(chan struct{}, tokenWarmSlots),
 
-		rewardSnapshots: cfg.RewardSnapshots,
+		scopeNotice: make(chan struct{}, scopeNoticeSlots),
+
+		loadBroadcasterToken: cfg.LoadBroadcasterToken,
+		rewardSnapshots:      cfg.RewardSnapshots,
 	}
 	w.actions = w.buildActions()
 	return w

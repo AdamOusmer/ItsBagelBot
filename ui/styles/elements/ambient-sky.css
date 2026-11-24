@@ -61,42 +61,26 @@
       opacity 1400ms var(--bb-ease-out-expo);
   }
 
-  /* Shape, blur, pulse and colour are the library's (.bb-orb--halo); where
-     each orb sits and how it moves with the stage is this sky's own. */
+  /* Shape, blur, pulse and colour are the library's (.bb-orb--halo with
+     .bb-orb__pulse), the same markup and sizes as the marketing hero. */
   .bb-ambient-sky__orb {
     --bb-orb-will-change: transform, opacity;
-  }
-
-  .bb-ambient-sky .bb-ambient-sky__orb.bb-orb--halo::before {
-    animation: bb-ambient-orb-pulse 5s ease-in-out infinite;
-    animation-delay: var(--bb-orb-pulse-delay, 0s);
-    animation-play-state: var(--bb-orb-play-state, running);
-  }
-
-  .bb-ambient-sky .bb-ambient-sky__orb.bb-orb--halo::after {
-    opacity: 1;
-    transform: none;
-    will-change: auto;
-  }
-
-  @keyframes bb-ambient-orb-pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
+    --bb-orb-core-opacity: 0;
   }
 
   .bb-ambient-sky__orb--green {
-    width: 500px;
-    height: 500px;
-    top: -120px;
-    right: -60px;
+    width: 520px;
+    height: 520px;
+    top: -140px;
+    right: -80px;
     --bb-orb-transform: translate3d(calc(var(--ambient-shift) * 6vw + var(--ambient-px) * 22px), calc(var(--ambient-py) * 16px), 0);
   }
 
   .bb-ambient-sky__orb--tan {
-    width: 400px;
-    height: 400px;
-    bottom: var(--ambient-tan-bottom, -100px);
-    left: -80px;
+    width: 420px;
+    height: 420px;
+    bottom: var(--ambient-tan-bottom, -120px);
+    left: -100px;
     --bb-orb-pulse-delay: 400ms;
     --bb-orb-transform: translate3d(calc(var(--ambient-shift) * -6vw + var(--ambient-px) * 22px), calc(var(--ambient-py) * 16px), 0);
   }
@@ -112,7 +96,6 @@
     .bb-ambient-sky__dawn,
     .bb-ambient-sky__field,
     .bb-ambient-sky__orb { transition: none; }
-    .bb-ambient-sky .bb-ambient-sky__orb.bb-orb--halo::before { animation: none; }
     .bb-ambient-sky--still-stars::before {
       content: '';
       position: absolute;

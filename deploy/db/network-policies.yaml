@@ -62,7 +62,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, transactions, backup-mysql, backup-binlog, backup-k3s]
+        values: [users, transactions, overlays, backup-mysql, backup-binlog, backup-k3s]
   policyTypes:
     - Egress
   egress:

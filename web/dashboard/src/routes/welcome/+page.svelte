@@ -6,7 +6,7 @@
   import { MediaQuery } from 'svelte/reactivity';
   import { page } from '$app/state';
   import { goto, onNavigate, pushState, replaceState } from '$app/navigation';
-  import { deserialize, enhance, type ActionResult, type SubmitFunction } from '$app/forms';
+  import { enhance, type ActionResult, type SubmitFunction } from '$app/forms';
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import { decode } from '@bagel/ui/svelte/actions';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
@@ -20,12 +20,12 @@
   import SetupStage from '@bagel/ui/svelte/SetupStage.svelte';
   import SetupStep from '@bagel/ui/svelte/SetupStep.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { LOCALES, ensureCatalog, translate, type Locale } from '@bagel/kit/i18n';
   import { localeFlag } from '@bagel/kit/site-links';
   import CursorSwitch from '#lib/components/CursorSwitch.svelte';
+  import ConsentForm from '#lib/components/ConsentForm.svelte';
   import Completion from '#lib/components/welcome/Completion.svelte';
   import ImportWizard from '#lib/components/welcome/ImportWizard.svelte';
   import ChatPreview from '#lib/components/commands/ChatPreview.svelte';
@@ -47,7 +47,7 @@
   const MOD_COMMAND = '/mod ItsBagelBot';
 
   const INTRO: Beat[] = [
-    { kind: 'consent', face: 'attentive', title: 'consentTitle', body: 'consentBody' },
+    { kind: 'consent', face: 'attentive', title: 'consentTitle', body: '' },
     { kind: 'mod', face: 'attentive', title: 'step1Title', body: 'step1Body' },
     { kind: 'lang', face: 'curious', title: 'langTitle', body: 'langBody' },
     { kind: 'choice', face: 'curious', title: 'choiceTitle', body: 'choiceBody' }
@@ -59,7 +59,6 @@
   const consentStep = 1;
   const choiceStep = 1 + INTRO.findIndex((b) => b.kind === 'choice');
   let setup = $state<Setup>(page.url.searchParams.get('import') === '1' ? 'import' : 'start-new');
-  let hoveredChoice = $state<Setup | null>(null);
 
   const CHOICES = [
     { id: 'start-new', key: 'New', icon: 'start', face: 'excited' },
@@ -84,10 +83,6 @@
       current: code === locale
     }))
   );
-  const choiceIndex = $derived(Math.max(0, CHOICES.findIndex((c) => c.id === (hoveredChoice ?? setup))));
-  const choicePosition = $derived(['12.5%', '37.5%', '62.5%', '87.5%'][choiceIndex]);
-  const choicePositionCompact = $derived(['25%', '75%', '25%', '75%'][choiceIndex]);
-  const compactChoices = new MediaQuery('max-width: 560px');
   const terseChoices = new MediaQuery('(max-width: 560px), (max-height: 700px)');
   function pickSetup(id: string) {
     const choice = choiceOf(id);
@@ -100,21 +95,18 @@
     const choice = CHOICES.find((c) => c.id === input?.value);
     if (!choice) return;
     hover = choice.face;
-    hoveredChoice = choice.id;
   }
   function clearChoice() {
     hover = null;
-    hoveredChoice = null;
   }
 
-  const delegate = untrack(() => data.delegate);
-  const beatsFor = (s: Setup): Beat[] => (delegate ? INTRO.slice(0, consentStep) : [...INTRO, ...(s === 'start-new' ? NEW_STREAMER : [])]);
+  const beatsFor = (s: Setup): Beat[] => [...INTRO, ...(s === 'start-new' ? NEW_STREAMER : [])];
   const tour = $derived<Beat[]>(
     beatsFor(setup).map((b) => ({
       kind: b.kind,
       face: b.face,
       title: tr(`onboarding.${b.title}`),
-      body: tr(`onboarding.${b.body}`)
+      body: b.body ? tr(`onboarding.${b.body}`) : ''
     }))
   );
   const importStageKeys = [
@@ -142,11 +134,9 @@
 
   const importRequested = page.url.searchParams.get('import') === '1';
   let importLink = $state(importRequested);
-  const importActive = $derived(page.state.importing ?? importLink);
   const acceptedAtLoad = untrack(() => data.accepted);
   function startStep(): number {
-    if (delegate) return consentStep;
-    if (importRequested) return choiceStep;
+    if (importRequested) return acceptedAtLoad ? choiceStep : consentStep;
     return acceptedAtLoad ? consentStep + 1 : 0;
   }
   const firstStep = startStep();
@@ -155,7 +145,9 @@
   let dir = $state(1);
   let consentAccepted = $state(acceptedAtLoad);
   let consentSaved = $state(acceptedAtLoad);
-  let consentSaving = $state(false);
+  const wantsImport = $derived(page.state.importing ?? importLink);
+  const importActive = $derived(consentSaved && wantsImport);
+  let consentForm = $state<HTMLFormElement | null>(null);
   type Phase = 'idle' | 'leaving';
   let phase = $state<Phase>('idle');
   const leaving = $derived(phase === 'leaving');
@@ -166,29 +158,16 @@
 
   const current = $derived(steps[step]);
   const last = $derived(step === steps.length - 1);
-  const consentBlocked = $derived(!consentAccepted);
-  function lowestStep(saved: boolean): number {
-    if (saved) return consentStep + 1;
-    return delegate ? consentStep : 0;
-  }
-  const floor = $derived(lowestStep(consentSaved));
+  const floor = $derived(consentSaved ? consentStep + 1 : 0);
   const maxStep = $derived(consentSaved ? Math.min(furthest + 1, steps.length - 1) : consentStep);
-  const nextDisabled = $derived(current.kind === 'consent' ? consentBlocked : step + 1 > maxStep);
+  const nextDisabled = $derived(current.kind === 'consent' ? !consentAccepted : step + 1 > maxStep);
   const finishing = $derived(last && current.kind !== 'consent');
   const canAdvance = $derived(!nextDisabled && !finishing);
   const pastChoice = $derived(consentSaved && step >= choiceStep);
   const canImport = $derived(!leaving && pastChoice);
-  const canFinish = $derived(!locked && pastChoice && last && setup !== 'import');
+  const hasFinishStep = $derived(last && setup !== 'import');
+  const canFinish = $derived(canImport && hasFinishStep);
   let instant = $state(false);
-
-  const SWAP_MS = 280;
-  let choiceLayout = $state(false);
-  $effect(() => {
-    const next = current.kind === 'choice';
-    if (next === untrack(() => choiceLayout)) return;
-    const timer = setTimeout(() => (choiceLayout = next), instant || prefersReducedMotion() ? 0 : SWAP_MS);
-    return () => clearTimeout(timer);
-  });
 
   type Sequence = 'entrance' | 'burst' | 'orbit' | 'comet';
   let sequence = $state<Sequence>('entrance');
@@ -201,7 +180,8 @@
   let reaction = $state<string | null>(null);
   let hover = $state<string | null>(null);
   let reactionTimer: ReturnType<typeof setTimeout> | null = null;
-  const expression = $derived(reaction ?? hover ?? current.face);
+  const idleExpression = $derived(hover ?? current.face);
+  const expression = $derived(reaction ?? idleExpression);
   function react(face: string, ms: number) {
     reaction = face;
     if (reactionTimer) clearTimeout(reactionTimer);
@@ -217,22 +197,22 @@
     furthest = Math.max(furthest, target);
     play('entrance');
   }
-  const goNext = () => (current.kind === 'consent' && !consentSaved ? saveConsent() : go(step + 1));
+  const goNext = () => (current.kind === 'consent' ? consentForm?.requestSubmit() : go(step + 1));
   const goBack = () => go(step - 1);
   const goTo = (i: number) => go(i + 1);
 
   const TOUR_KEY = 'bb-welcome-tour';
   const SETUPS: readonly Setup[] = CHOICES.map((c) => c.id);
   let tourReady = false;
-  let tourDone = delegate;
+  let tourDone = false;
 
   type SavedTour = { step: number; furthest: number; setup: Setup; locale: Locale };
 
   function readTour(): SavedTour | null {
-    if (delegate) return null;
     try {
       const v = JSON.parse(sessionStorage.getItem(TOUR_KEY) ?? 'null') as Partial<SavedTour> | null;
-      if (!v || !SETUPS.includes(v.setup as Setup) || !LOCALES.includes(v.locale as Locale)) return null;
+      if (!v) return null;
+      if (!SETUPS.includes(v.setup as Setup) || !LOCALES.includes(v.locale as Locale)) return null;
       if (!Number.isInteger(v.step) || !Number.isInteger(v.furthest)) return null;
       return v as SavedTour;
     } catch {
@@ -323,35 +303,14 @@
     fetch('/lang', { method: 'POST', body }).catch(() => {});
   }
 
-  function onConsent(on: boolean) {
-    if (on) react('excited', 1600);
-  }
-
-  async function postConsent(): Promise<ActionResult> {
-    const body = new FormData();
-    body.set('consent', consentAccepted ? 'yes' : 'no');
-    try {
-      return deserialize(await (await fetch('/welcome?/consent', { method: 'POST', body })).text());
-    } catch {
-      return { type: 'failure', status: 502, location: '/welcome' };
-    }
-  }
-
-  async function saveConsent() {
-    if (consentSaving) return;
-    consentSaving = true;
-    saveError = false;
-    saveErrorServer = '';
-    const result = await postConsent();
-    consentSaving = false;
-    if (result.type !== 'success') return showSaveError(result);
+  function onConsentSaved() {
     consentSaved = true;
-    if (delegate) return exitTo('/');
     go(step + 1);
   }
 
   function showSaveError(result: ActionResult) {
-    saveErrorServer = result.type === 'failure' && result.status < 500 && typeof result.data?.error === 'string' ? result.data.error : '';
+    const detail = result.type === 'failure' && result.status < 500 ? result.data?.error : undefined;
+    saveErrorServer = typeof detail === 'string' ? detail : '';
     saveError = true;
     react('attentive', 2400);
   }
@@ -423,7 +382,8 @@
     return e.target instanceof Element && arrowBlocker(e.target) !== null;
   }
 
-  const keysPaused = (e: KeyboardEvent) => leaving || importActive || arrowsBlocked(e);
+  const tourPaused = $derived(leaving || importActive);
+  const keysPaused = (e: KeyboardEvent) => tourPaused || arrowsBlocked(e);
   function onKeydown(e: KeyboardEvent) {
     if (keysPaused(e)) return;
     if (e.key === 'ArrowRight' && canAdvance) {
@@ -452,7 +412,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 {#if importActive}
-  <ImportWizard onback={returnFromImport} onexit={exitTo} consentAccepted={consentSaved} {locale} />
+  <ImportWizard onback={returnFromImport} onexit={exitTo} {locale} />
 {:else}
 <SetupStage
   label={tr('onboarding.title')}
@@ -462,9 +422,7 @@
   stepLabel={tr('onboarding.stepOf', { n: Math.max(step, 1), total: journeyTotal })}
   onSelect={goTo}
   hero={step === 0}
-  wide={choiceLayout}
   {leaving}
-  style={choiceLayout ? `--setup-art-x: calc(${compactChoices.current ? choicePositionCompact : choicePosition} - 50%)` : undefined}
   orbs={false}
 >
   {#snippet start()}<Brand title="ItsBagelBot" sub={tr('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />{/snippet}
@@ -482,18 +440,15 @@
       bind:heading={headingEl}
     >
       {#if current.kind === 'consent'}
-        <div class="consent">
-          <Switch bind:checked={consentAccepted} label={current.title} onCheckedChange={onConsent} disabled={consentSaved} busy={consentSaving} />
-          <Text as="span" size="sm" tone="muted"><span class="bb-prose bb-prose-inline">{@html tr('onboarding.consentLabel')}</span></Text>
-        </div>
-        <div class="consent-hint" class:shown={consentBlocked}>
-          <Text size="xs" tone="muted" id="wlc-consent-hint">{tr('onboarding.consentHint')}</Text>
-        </div>
+        {#if data.consent}
+          <ConsentForm {...data.consent} {locale} action="?/consent" bind:accepted={consentAccepted} bind:element={consentForm} onaccepted={onConsentSaved} />
+        {/if}
       {:else if current.kind === 'choice'}
         <div class="role-choices">
           <RadioGroup
             variant="cards"
-            cols={compactChoices.current ? 2 : 4}
+            tone="go"
+            cols={2}
             terse={terseChoices.current}
             name="setup"
             label={tr('onboarding.choiceTitle')}
@@ -507,16 +462,12 @@
             onfocusout={clearChoice}
           >
             {#snippet leading(option, on)}
-              <span class="role-glyph" class:on aria-hidden="true"><Icon name={choiceOf(option.value).icon} size={15} /></span>
+              <span class="role-glyph" class:on aria-hidden="true"><Icon name={choiceOf(option.value).icon} size={18} /></span>
+            {/snippet}
+            {#snippet detail(option)}
+              <span id="wlc-preview-{option.value}">{tr(`onboarding.choice${choiceOf(option.value).key}Preview`)}</span>
             {/snippet}
           </RadioGroup>
-          <div class="role-previews">
-            {#each CHOICES as choice (choice.id)}
-              <div class="role-preview" class:shown={setup === choice.id}>
-                <Text size="sm" tone="muted" id="wlc-preview-{choice.id}">{tr(`onboarding.choice${choice.key}Preview`)}</Text>
-              </div>
-            {/each}
-          </div>
         </div>
       {:else if current.kind === 'lang'}
         <LanguageSwitcher label={tr('lang.switchAria')} options={langOptions} variant="field" onSelect={(code) => setLang(code as Locale)} />
@@ -539,7 +490,7 @@
             title={tr('common.copy')}
             onCopy={celebrateCopy}
           >
-            {#snippet children()}<span use:decode>{MOD_COMMAND}</span>{/snippet}
+            {#snippet children()}<span use:decode={{ durationMs: 500 }}>{MOD_COMMAND}</span>{/snippet}
           </CopySurface>
         </div>
       {:else if current.kind === 'commands'}
@@ -550,6 +501,7 @@
         <Text size="xs" tone="muted">{tr('onboarding.newModulesHint')}</Text>
       {/if}
 
+      {#if current.kind !== 'consent'}
       <div
         class="bb-setup-actions"
         role="group"
@@ -571,11 +523,11 @@
               onpointerover={() => (hover = nextDisabled ? null : 'excited')}
               onclick={goNext}
               disabled={nextDisabled}
-              aria-describedby={current.kind === 'consent' ? 'wlc-consent-hint' : undefined}
             >{tr('onboarding.next')}</Button>
           {/if}
         {/if}
       </div>
+      {/if}
       {#snippet status()}
         {#if saveError}<AlertBanner tone="danger">{saveErrorServer || tr('onboarding.saveError')}</AlertBanner>{/if}
       {/snippet}
@@ -589,45 +541,31 @@
 
 <form method="POST" action="?/done" use:enhance={submit} bind:this={form} hidden>
   <input type="hidden" name="preset" value={setup} />
-  <input type="hidden" name="consent" value={consentAccepted ? 'yes' : 'no'} />
 </form>
 {/if}
 
 {#if veiled}<div class="veil" aria-hidden="true"></div>{/if}
 
 <style>
-  .consent { display: flex; align-items: center; gap: 14px; }  .consent-hint { min-height: 20px; visibility: hidden; opacity: 0; transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo); }
-  .consent-hint.shown { visibility: visible; opacity: 1; }
   .mod-well { display: flex; justify-content: center; }
   .pref-text { display: grid; gap: 4px; flex: 1; min-width: 0; }
 
-  .role-choices { --choice-min-h: 132px; width: 100%; }
-  .role-previews { display: grid; margin-top: 12px; text-align: center; }
-  .role-preview {
-    grid-area: 1 / 1;
-    max-width: 62ch;
-    justify-self: center;
-    visibility: hidden;
-    opacity: 0;
-    transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo), visibility 0s linear var(--bb-dur-base);
-  }
-  .role-preview.shown { visibility: visible; opacity: 1; transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo); }
+  .role-choices { width: 100%; }
   .role-glyph {
     display: inline-grid;
     place-items: center;
     flex: none;
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     border-radius: var(--bb-radius-sm);
-    background: var(--bb-elev-2);
+    background: var(--bb-elev-1);
     color: var(--bb-muted);
-    transition: color var(--bb-dur-fast) ease;
+    transition: color var(--bb-dur-fast) ease, background-color var(--bb-dur-fast) ease;
   }
-  .role-glyph.on { color: var(--bb-green-glow); }
+  .role-glyph.on { background: rgba(var(--bb-green-glow-rgb), 0.16); color: var(--bb-green-glow); }
 
   @media (max-height: 620px) {
-    .role-previews { margin-top: 6px; }
-    .role-glyph { width: 26px; height: 26px; }
+    .role-glyph { width: 32px; height: 32px; }
   }
 
   .veil {
@@ -646,7 +584,7 @@
 
 
   @media (prefers-reduced-motion: reduce) {
-    .role-preview, .consent-hint, .role-glyph { transition: none; }
+    .role-glyph { transition: none; }
     .veil { animation: none; }
   }
 </style>

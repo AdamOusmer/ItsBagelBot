@@ -10,6 +10,7 @@ import (
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/internal/domain/consent"
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/db"
@@ -19,7 +20,6 @@ var ErrNoContactEmail = errors.New("no contact email on record")
 
 // Plaintext must never reach the database or logs.
 func (r *Users) SetContactEmail(ctx context.Context, id uint64, email string) error {
-
 	if err := validate.UserID(id); err != nil {
 		return err
 	}
@@ -32,11 +32,45 @@ func (r *Users) SetContactEmail(ctx context.Context, id uint64, email string) er
 		return err
 	}
 
-	return db.WithExec(ctx, func(ctx context.Context) error {
-		return r.client.User.UpdateOneID(id).
-			SetEmailEnc(sealed.Ciphertext).
-			Exec(ctx)
+	_, err = r.withConsentOwner(ctx, id, func(w consentWrite) (consentChange, error) {
+		withdrawn, err := r.withdrawChangedAddress(ctx, w, email)
+		if err != nil {
+			return consentChange{}, err
+		}
+		update := w.userUpdate().SetEmailEnc(sealed.Ciphertext)
+		if withdrawn {
+			w.projectMarketing(update, consent.Withdrawn)
+		}
+		change := consentChange{changed: withdrawn}
+		if withdrawn {
+			change.marketing = &MarketingChoice{Status: consent.Withdrawn, Source: consent.AddressChanged}
+		}
+		return change, update.Exec(ctx)
 	})
+	return err
+}
+
+func (r *Users) withdrawChangedAddress(ctx context.Context, w consentWrite, email string) (bool, error) {
+	if w.owner.MarketingStatus != user.MarketingStatusGranted || r.marketingMAC == nil {
+		return false, nil
+	}
+	grant, err := w.latestMarketingGrant(ctx)
+	if ent.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if r.addressMatches(grant.AddressHmac, mailAddress(email)) {
+		return false, nil
+	}
+	record := marketingRecord{
+		MarketingChoice: MarketingChoice{Status: consent.Withdrawn, Source: consent.AddressChanged, Locale: grant.Locale},
+		policyVersion:   grant.PolicyVersion,
+		textKey:         grant.ConsentTextKey,
+		addressHMAC:     grant.AddressHmac,
+	}
+	return true, w.appendMarketing(ctx, record)
 }
 
 func (r *Users) ContactEmail(ctx context.Context, id uint64) (string, error) {
@@ -54,12 +88,16 @@ func (r *Users) ContactEmail(ctx context.Context, id uint64) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len(row.EmailEnc) == 0 {
+	return r.openContactEmail(id, row.EmailEnc)
+}
+
+func (r *Users) openContactEmail(id uint64, ciphertext []byte) (string, error) {
+	if len(ciphertext) == 0 {
 		return "", ErrNoContactEmail
 	}
 
 	plain, err := r.packer.Unpack(domaincrypto.SecureEnvelope{
-		Ciphertext:   row.EmailEnc,
+		Ciphertext:   ciphertext,
 		AttachedData: contactEmailAAD(id),
 	})
 	if err != nil {

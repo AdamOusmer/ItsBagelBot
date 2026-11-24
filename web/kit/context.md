@@ -48,6 +48,9 @@ Catalog metadata, preview samples, and running service behavior are related but 
 - `lib/engine/tmpl.ts`, `pure.ts`, `rehearsal.ts`: token grammar, pure evaluation and preview.
 - `lib/engine/commands-validate.ts`, `fetch-validate.ts`, `fetch-tokens.ts`: command/data-source validation.
 - `lib/importer/`: adapters for supported bot formats, caps, strategies and canonical import types.
+- `lib/overlay-editor/` and `components/overlay-editor/`: the custom overlay editor shared by the dashboard and the
+  desktop app. It edits the v2 document from `lib/overlay-document.ts` and reaches storage only through a
+  `MediaAdapter` (uploads) and the host's save callback; imports report through `import-report.ts`.
 - `lib/i18n/`: runtime/context, tree/flat catalog readers and generated keys. Catalog data lives in
   root `locales/<lang>/{chat,console,website,docs}/`; shared hooks await `ensureCatalog`.
   `scripts/i18n-catalogs.ts` (Vite plugin, `virtual:bagel-i18n`) merges each locale over English at build time:

@@ -1,0 +1,14 @@
+{
+  "alertbox": "Pops up for follows, subs, cheers and raids.",
+  "eventlist": "Lists the latest events as they arrive.",
+  "goal": "Tracks a follower, sub or bits target.",
+  "label": "Prints one stat, like your latest follower.",
+  "chatbox": "Shows live chat with badges and emotes.",
+  "emotewall": "Flies chat emotes across the screen.",
+  "timer": "Counts down or up to a set time.",
+  "credits": "Scrolls everyone who supported the stream.",
+  "text": "A fixed line of text in your font.",
+  "image": "Shows one uploaded image.",
+  "video": "Plays one uploaded WebM video.",
+  "slideshow": "Cycles through uploaded images."
+}

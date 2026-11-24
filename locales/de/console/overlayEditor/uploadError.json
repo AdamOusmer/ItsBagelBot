@@ -1,0 +1,14 @@
+{
+  "unsupported_media": "Dieser Dateityp wird nicht unterstützt. Nutze PNG, WebP, JPEG, GIF oder WebM, für Ton MP3, OGG oder WAV.",
+  "invalid_asset": "Diese Datei ließ sich nicht als gültige Mediendatei lesen.",
+  "asset_too_large": "Diese Datei ist größer als das Limit für ihren Typ.",
+  "asset_dimensions": "Diese Datei überschreitet die erlaubte Breite und Höhe.",
+  "asset_duration": "Diese Datei ist länger als erlaubt.",
+  "too_many_assets": "Dieses Overlay enthält bereits die Höchstzahl an Dateien.",
+  "too_many_of_type": "Dieses Overlay enthält bereits die Höchstzahl an Dateien dieses Typs.",
+  "overlay_assets_too_large": "Dieses Overlay hat die Gesamtgrößengrenze erreicht.",
+  "alpha_required": "Das Hochladen von Dateien erfordert Alpha-Zugang.",
+  "rate_limited": "Zu viele Uploads im Moment. Versuche es gleich noch einmal.",
+  "quota_exceeded": "Dein Speicher ist voll. Lösche zuerst ungenutzte Dateien oder Overlays.",
+  "failed": "Der Upload ist fehlgeschlagen. Versuche es erneut."
+}

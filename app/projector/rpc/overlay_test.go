@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/invalidate"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/internal/projection"
@@ -67,13 +68,15 @@ func testOverlay(id, userID uint64, kind, token string) overlaysrpc.Overlay {
 	}
 }
 
-func TestOverlayResolveAllowsByKindAndPremium(t *testing.T) {
+func TestOverlayResolveAllowsByKindAndAlpha(t *testing.T) {
 	system := testOverlay(1, 41, "system", "system")
 	customFree := testOverlay(2, 42, "custom", "custom-free")
 	customPaid := testOverlay(3, 43, "custom", "custom-paid")
-	o := newOverlayFixture(t, system, customFree, customPaid)
+	customAlpha := testOverlay(6, 46, "custom", "custom-alpha")
+	o := newOverlayFixture(t, system, customFree, customPaid, customAlpha)
 	ctx := t.Context()
 	require.NoError(t, o.f.store.SetUser(ctx, 43, projection.UserProjection{Status: "premium", IsActive: true}))
+	require.NoError(t, o.f.store.SetUser(ctx, 46, projection.UserProjection{Status: "free", IsActive: true, Alpha: true}))
 
 	cases := []struct {
 		name    string
@@ -83,7 +86,8 @@ func TestOverlayResolveAllowsByKindAndPremium(t *testing.T) {
 	}{
 		{"system overlay for a free user", system, true, false},
 		{"custom overlay for a free user", customFree, false, false},
-		{"custom overlay for a premium user", customPaid, true, true},
+		{"custom overlay for a premium user without alpha", customPaid, false, true},
+		{"custom overlay for an alpha user", customAlpha, true, false},
 	}
 	for _, c := range cases {
 		reply := o.resolve(t, c.overlay.TokenHash)
@@ -96,6 +100,23 @@ func TestOverlayResolveAllowsByKindAndPremium(t *testing.T) {
 		}
 		assert.Equal(t, want, reply, c.name)
 	}
+}
+
+func TestOverlayResolveStopsWhenAlphaIsRevoked(t *testing.T) {
+	custom := testOverlay(7, 47, "custom", "custom-revoked")
+	o := newOverlayFixture(t, custom)
+	ctx := t.Context()
+	require.NoError(t, o.f.store.SetUser(ctx, 47, projection.UserProjection{Status: "premium", IsActive: true, Alpha: true}))
+	granted := o.resolve(t, custom.TokenHash)
+
+	require.NoError(t, o.f.store.SetUser(ctx, 47, projection.UserProjection{Status: "premium", IsActive: true}))
+	require.NoError(t, o.f.hub.Publish(invalidate.ScopeUserProjection, 47))
+	revoked := o.resolve(t, custom.TokenHash)
+
+	assert.True(t, granted.Allowed)
+	assert.NotEmpty(t, granted.Document)
+	assert.False(t, revoked.Allowed)
+	assert.Empty(t, revoked.Document)
 }
 
 func TestOverlayResolveReadsProjectionThenOwner(t *testing.T) {

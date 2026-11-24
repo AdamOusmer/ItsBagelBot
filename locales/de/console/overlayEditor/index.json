@@ -1,0 +1,53 @@
+{
+  "alert": {
+    "follow": "Follow",
+    "sub": "Abo",
+    "resub": "Abo-Verlängerung",
+    "gift_sub": "Geschenktes Abo",
+    "community_gift": "Community-Geschenk",
+    "cheer": "Cheer",
+    "raid": "Raid",
+    "redemption": "Einlösung"
+  },
+  "group": {
+    "alerts": "Alerts und Ereignisse",
+    "goals": "Ziele und Statistiken",
+    "chat": "Chat",
+    "media": "Medien und Text"
+  },
+  "template": {
+    "alerts": "Alerts",
+    "justChatting": "Just Chatting",
+    "startingSoon": "Gleich geht es los"
+  },
+  "handle": {
+    "nw": "Größe oben links ändern",
+    "ne": "Größe oben rechts ändern",
+    "sw": "Größe unten links ändern",
+    "se": "Größe unten rechts ändern"
+  },
+  "import": {
+    "title": "Overlay importieren",
+    "hint": "Lade ein Zip mit einem Overlay oder Asset-Paket hoch. Du siehst zuerst einen Bericht, und erst nach deiner Bestätigung wird etwas angelegt.",
+    "choose": "Zip-Datei wählen",
+    "confirm": "Overlay importieren",
+    "confirmHint": "Mit der Bestätigung entsteht das Overlay aus den zugeordneten und angenäherten Einträgen.",
+    "mapped": "Zugeordnet",
+    "approximated": "Angenähert",
+    "unsupported": "Nicht unterstützt",
+    "more": "und {count} weitere"
+  },
+  "save": {
+    "failed": "Das Overlay ließ sich nicht speichern. Versuche es erneut.",
+    "invalid": "Das Overlay wurde abgelehnt. Lade die Seite neu und versuche es erneut.",
+    "conflict": "Dieses Overlay wurde anderswo geändert. Lade die Seite neu, um die neueste Version zu erhalten."
+  },
+  "page": {
+    "newName": "Neues Overlay",
+    "discard": "Nicht gespeicherte Änderungen am Overlay verwerfen?",
+    "notFound": "Dieses Overlay wurde nicht gefunden.",
+    "discardTitle": "Änderungen verwerfen?",
+    "discardConfirm": "Verwerfen",
+    "discardKeep": "Weiter bearbeiten"
+  }
+}

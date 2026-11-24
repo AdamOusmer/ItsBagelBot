@@ -1,0 +1,761 @@
+{
+  "event": {
+    "id": "e-community-gift",
+    "kind": "community_gift",
+    "at": "2026-01-01T12:00:00Z",
+    "user": {
+      "id": "102",
+      "login": "bob",
+      "name": "Bob"
+    },
+    "amount": 5,
+    "tier": "1000"
+  },
+  "stats": {
+    "session": {
+      "follows": 3,
+      "subs": 4,
+      "resubs": 1,
+      "gifts": 5,
+      "bits": 500,
+      "raids": 1,
+      "redemptions": 2,
+      "sub_points": 8,
+      "tiers": {
+        "1000": 3,
+        "2000": 1
+      }
+    },
+    "week": {
+      "follows": 9,
+      "subs": 12,
+      "resubs": 3,
+      "gifts": 5,
+      "bits": 900,
+      "raids": 2,
+      "redemptions": 4,
+      "sub_points": 20,
+      "tiers": {
+        "1000": 9,
+        "2000": 2,
+        "3000": 1
+      }
+    },
+    "month": {
+      "follows": 30,
+      "subs": 40,
+      "resubs": 10,
+      "gifts": 25,
+      "bits": 4000,
+      "raids": 6,
+      "redemptions": 9,
+      "sub_points": 77,
+      "tiers": {
+        "1000": 30,
+        "2000": 8,
+        "3000": 2
+      }
+    },
+    "all_time": {
+      "follows": 300,
+      "subs": 400,
+      "resubs": 100,
+      "gifts": 250,
+      "bits": 40000,
+      "raids": 60,
+      "redemptions": 90,
+      "sub_points": 777,
+      "tiers": {
+        "1000": 300,
+        "2000": 80,
+        "3000": 20
+      }
+    },
+    "latest": {
+      "cheer": {
+        "id": "e-cheer",
+        "kind": "cheer",
+        "at": "2026-01-01T12:00:00Z",
+        "user": {
+          "id": "101",
+          "login": "ann",
+          "name": "Ann",
+          "color": "#ff8800"
+        },
+        "amount": 500,
+        "message": {
+          "text": "take it"
+        }
+      },
+      "community_gift": {
+        "id": "e-community-gift",
+        "kind": "community_gift",
+        "at": "2026-01-01T12:00:00Z",
+        "user": {
+          "id": "102",
+          "login": "bob",
+          "name": "Bob"
+        },
+        "amount": 5,
+        "tier": "1000"
+      },
+      "follow": {
+        "id": "e-follow",
+        "kind": "follow",
+        "at": "2026-01-01T12:00:00Z",
+        "user": {
+          "id": "101",
+          "login": "ann",
+          "name": "Ann",
+          "color": "#ff8800"
+        }
+      },
+      "raid": {
+        "id": "e-raid",
+        "kind": "raid",
+        "at": "2026-01-01T12:00:00Z",
+        "user": {
+          "id": "102",
+          "login": "bob",
+          "name": "Bob"
+        },
+        "amount": 42
+      },
+      "redemption": {
+        "id": "e-redemption",
+        "kind": "redemption",
+        "at": "2026-01-01T12:00:00Z",
+        "user": {
+          "id": "101",
+          "login": "ann",
+          "name": "Ann",
+          "color": "#ff8800"
+        },
+        "amount": 300,
+        "reward": {
+          "id": "r1",
+          "title": "Hydrate"
+        }
+      },
+      "resub": {
+        "id": "e-resub",
+        "kind": "resub",
+        "at": "2026-01-01T12:00:00Z",
+        "user": {
+          "id": "101",
+          "login": "ann",
+          "name": "Ann",
+          "color": "#ff8800"
+        },
+        "tier": "2000",
+        "months": 14,
+        "streak": 6,
+        "message": {
+          "text": "hi Kappa",
+          "parts": [
+            {
+              "t": "text",
+              "text": "hi "
+            },
+            {
+              "t": "emote",
+              "id": "25",
+              "text": "Kappa"
+            }
+          ]
+        }
+      },
+      "sub": {
+        "id": "e-sub",
+        "kind": "sub",
+        "at": "2026-01-01T12:00:00Z",
+        "user": {
+          "id": "101",
+          "login": "ann",
+          "name": "Ann",
+          "color": "#ff8800"
+        },
+        "tier": "1000"
+      }
+    },
+    "top_cheerer": {
+      "id": "101",
+      "login": "ann",
+      "name": "Ann",
+      "color": "#ff8800",
+      "amount": 500
+    },
+    "top_gifter": {
+      "id": "102",
+      "login": "bob",
+      "name": "Bob",
+      "amount": 5
+    },
+    "all_time_top_cheerer": {
+      "id": "101",
+      "login": "ann",
+      "name": "Ann",
+      "color": "#ff8800",
+      "amount": 9000
+    },
+    "all_time_top_gifter": {
+      "id": "102",
+      "login": "bob",
+      "name": "Bob",
+      "amount": 120
+    },
+    "credits": {
+      "cheer": [
+        {
+          "id": "101",
+          "login": "ann",
+          "name": "Ann",
+          "color": "#ff8800",
+          "amount": 500
+        }
+      ],
+      "follow": [
+        {
+          "id": "101",
+          "login": "ann",
+          "name": "Ann",
+          "color": "#ff8800",
+          "amount": 1
+        }
+      ],
+      "gift_sub": [
+        {
+          "id": "102",
+          "login": "bob",
+          "name": "Bob",
+          "amount": 5
+        }
+      ],
+      "raid": [
+        {
+          "id": "102",
+          "login": "bob",
+          "name": "Bob",
+          "amount": 42
+        }
+      ],
+      "redemption": [
+        {
+          "id": "101",
+          "login": "ann",
+          "name": "Ann",
+          "color": "#ff8800",
+          "amount": 1
+        }
+      ],
+      "sub": [
+        {
+          "id": "101",
+          "login": "ann",
+          "name": "Ann",
+          "color": "#ff8800",
+          "amount": 2
+        },
+        {
+          "id": "103",
+          "login": "cy",
+          "name": "Cy",
+          "amount": 1
+        }
+      ]
+    }
+  },
+  "subathon": {
+    "running": true,
+    "end_at": "2026-01-01T13:00:00Z",
+    "remaining_seconds": 3600
+  },
+  "control": {
+    "paused": false,
+    "muted": true,
+    "skip": 2
+  },
+  "credits": {
+    "cheer": [
+      {
+        "id": "101",
+        "login": "ann",
+        "name": "Ann",
+        "color": "#ff8800",
+        "amount": 700
+      }
+    ],
+    "sub": [
+      {
+        "id": "102",
+        "login": "bob",
+        "name": "Bob",
+        "amount": 2
+      }
+    ]
+  },
+  "events": [
+    {
+      "id": "e-follow",
+      "kind": "follow",
+      "at": "2026-01-01T12:00:00Z",
+      "user": {
+        "id": "101",
+        "login": "ann",
+        "name": "Ann",
+        "color": "#ff8800"
+      }
+    },
+    {
+      "id": "e-sub",
+      "kind": "sub",
+      "at": "2026-01-01T12:00:00Z",
+      "user": {
+        "id": "101",
+        "login": "ann",
+        "name": "Ann",
+        "color": "#ff8800"
+      },
+      "tier": "1000"
+    },
+    {
+      "id": "e-resub",
+      "kind": "resub",
+      "at": "2026-01-01T12:00:00Z",
+      "user": {
+        "id": "101",
+        "login": "ann",
+        "name": "Ann",
+        "color": "#ff8800"
+      },
+      "tier": "2000",
+      "months": 14,
+      "streak": 6,
+      "message": {
+        "text": "hi Kappa",
+        "parts": [
+          {
+            "t": "text",
+            "text": "hi "
+          },
+          {
+            "t": "emote",
+            "id": "25",
+            "text": "Kappa"
+          }
+        ]
+      }
+    },
+    {
+      "id": "e-gift-sub",
+      "kind": "gift_sub",
+      "at": "2026-01-01T12:00:00Z",
+      "user": {
+        "id": "102",
+        "login": "bob",
+        "name": "Bob"
+      },
+      "tier": "1000",
+      "recipient": {
+        "id": "103",
+        "login": "cy",
+        "name": "Cy"
+      }
+    },
+    {
+      "id": "e-community-gift",
+      "kind": "community_gift",
+      "at": "2026-01-01T12:00:00Z",
+      "user": {
+        "id": "102",
+        "login": "bob",
+        "name": "Bob"
+      },
+      "amount": 5,
+      "tier": "1000"
+    },
+    {
+      "id": "e-cheer",
+      "kind": "cheer",
+      "at": "2026-01-01T12:00:00Z",
+      "user": {
+        "id": "101",
+        "login": "ann",
+        "name": "Ann",
+        "color": "#ff8800"
+      },
+      "amount": 500,
+      "message": {
+        "text": "take it"
+      }
+    },
+    {
+      "id": "e-raid",
+      "kind": "raid",
+      "at": "2026-01-01T12:00:00Z",
+      "user": {
+        "id": "102",
+        "login": "bob",
+        "name": "Bob"
+      },
+      "amount": 42
+    },
+    {
+      "id": "e-chat",
+      "kind": "chat",
+      "at": "2026-01-01T12:00:00Z",
+      "user": {
+        "id": "101",
+        "login": "ann",
+        "name": "Ann",
+        "color": "#ff8800"
+      },
+      "message": {
+        "text": "hello"
+      },
+      "badges": [
+        "subscriber",
+        "vip"
+      ]
+    },
+    {
+      "id": "e-redemption",
+      "kind": "redemption",
+      "at": "2026-01-01T12:00:00Z",
+      "user": {
+        "id": "101",
+        "login": "ann",
+        "name": "Ann",
+        "color": "#ff8800"
+      },
+      "amount": 300,
+      "reward": {
+        "id": "r1",
+        "title": "Hydrate"
+      }
+    },
+    {
+      "id": "e-cleared",
+      "kind": "user_cleared",
+      "at": "2026-01-01T12:00:00Z",
+      "user": {
+        "id": "104"
+      }
+    }
+  ],
+  "snapshot": {
+    "stats": {
+      "session": {
+        "follows": 3,
+        "subs": 4,
+        "resubs": 1,
+        "gifts": 5,
+        "bits": 500,
+        "raids": 1,
+        "redemptions": 2,
+        "sub_points": 8,
+        "tiers": {
+          "1000": 3,
+          "2000": 1
+        }
+      },
+      "week": {
+        "follows": 9,
+        "subs": 12,
+        "resubs": 3,
+        "gifts": 5,
+        "bits": 900,
+        "raids": 2,
+        "redemptions": 4,
+        "sub_points": 20,
+        "tiers": {
+          "1000": 9,
+          "2000": 2,
+          "3000": 1
+        }
+      },
+      "month": {
+        "follows": 30,
+        "subs": 40,
+        "resubs": 10,
+        "gifts": 25,
+        "bits": 4000,
+        "raids": 6,
+        "redemptions": 9,
+        "sub_points": 77,
+        "tiers": {
+          "1000": 30,
+          "2000": 8,
+          "3000": 2
+        }
+      },
+      "all_time": {
+        "follows": 300,
+        "subs": 400,
+        "resubs": 100,
+        "gifts": 250,
+        "bits": 40000,
+        "raids": 60,
+        "redemptions": 90,
+        "sub_points": 777,
+        "tiers": {
+          "1000": 300,
+          "2000": 80,
+          "3000": 20
+        }
+      },
+      "latest": {
+        "cheer": {
+          "id": "e-cheer",
+          "kind": "cheer",
+          "at": "2026-01-01T12:00:00Z",
+          "user": {
+            "id": "101",
+            "login": "ann",
+            "name": "Ann",
+            "color": "#ff8800"
+          },
+          "amount": 500,
+          "message": {
+            "text": "take it"
+          }
+        },
+        "community_gift": {
+          "id": "e-community-gift",
+          "kind": "community_gift",
+          "at": "2026-01-01T12:00:00Z",
+          "user": {
+            "id": "102",
+            "login": "bob",
+            "name": "Bob"
+          },
+          "amount": 5,
+          "tier": "1000"
+        },
+        "follow": {
+          "id": "e-follow",
+          "kind": "follow",
+          "at": "2026-01-01T12:00:00Z",
+          "user": {
+            "id": "101",
+            "login": "ann",
+            "name": "Ann",
+            "color": "#ff8800"
+          }
+        },
+        "raid": {
+          "id": "e-raid",
+          "kind": "raid",
+          "at": "2026-01-01T12:00:00Z",
+          "user": {
+            "id": "102",
+            "login": "bob",
+            "name": "Bob"
+          },
+          "amount": 42
+        },
+        "redemption": {
+          "id": "e-redemption",
+          "kind": "redemption",
+          "at": "2026-01-01T12:00:00Z",
+          "user": {
+            "id": "101",
+            "login": "ann",
+            "name": "Ann",
+            "color": "#ff8800"
+          },
+          "amount": 300,
+          "reward": {
+            "id": "r1",
+            "title": "Hydrate"
+          }
+        },
+        "resub": {
+          "id": "e-resub",
+          "kind": "resub",
+          "at": "2026-01-01T12:00:00Z",
+          "user": {
+            "id": "101",
+            "login": "ann",
+            "name": "Ann",
+            "color": "#ff8800"
+          },
+          "tier": "2000",
+          "months": 14,
+          "streak": 6,
+          "message": {
+            "text": "hi Kappa",
+            "parts": [
+              {
+                "t": "text",
+                "text": "hi "
+              },
+              {
+                "t": "emote",
+                "id": "25",
+                "text": "Kappa"
+              }
+            ]
+          }
+        },
+        "sub": {
+          "id": "e-sub",
+          "kind": "sub",
+          "at": "2026-01-01T12:00:00Z",
+          "user": {
+            "id": "101",
+            "login": "ann",
+            "name": "Ann",
+            "color": "#ff8800"
+          },
+          "tier": "1000"
+        }
+      },
+      "top_cheerer": {
+        "id": "101",
+        "login": "ann",
+        "name": "Ann",
+        "color": "#ff8800",
+        "amount": 500
+      },
+      "top_gifter": {
+        "id": "102",
+        "login": "bob",
+        "name": "Bob",
+        "amount": 5
+      },
+      "all_time_top_cheerer": {
+        "id": "101",
+        "login": "ann",
+        "name": "Ann",
+        "color": "#ff8800",
+        "amount": 9000
+      },
+      "all_time_top_gifter": {
+        "id": "102",
+        "login": "bob",
+        "name": "Bob",
+        "amount": 120
+      },
+      "credits": {
+        "cheer": [
+          {
+            "id": "101",
+            "login": "ann",
+            "name": "Ann",
+            "color": "#ff8800",
+            "amount": 500
+          }
+        ],
+        "follow": [
+          {
+            "id": "101",
+            "login": "ann",
+            "name": "Ann",
+            "color": "#ff8800",
+            "amount": 1
+          }
+        ],
+        "gift_sub": [
+          {
+            "id": "102",
+            "login": "bob",
+            "name": "Bob",
+            "amount": 5
+          }
+        ],
+        "raid": [
+          {
+            "id": "102",
+            "login": "bob",
+            "name": "Bob",
+            "amount": 42
+          }
+        ],
+        "redemption": [
+          {
+            "id": "101",
+            "login": "ann",
+            "name": "Ann",
+            "color": "#ff8800",
+            "amount": 1
+          }
+        ],
+        "sub": [
+          {
+            "id": "101",
+            "login": "ann",
+            "name": "Ann",
+            "color": "#ff8800",
+            "amount": 2
+          },
+          {
+            "id": "103",
+            "login": "cy",
+            "name": "Cy",
+            "amount": 1
+          }
+        ]
+      }
+    },
+    "subathon": {
+      "running": true,
+      "end_at": "2026-01-01T13:00:00Z",
+      "remaining_seconds": 3600
+    },
+    "control": {
+      "paused": false,
+      "muted": true,
+      "skip": 2
+    },
+    "chat": [
+      {
+        "id": "e-chat",
+        "kind": "chat",
+        "at": "2026-01-01T12:00:00Z",
+        "user": {
+          "id": "101",
+          "login": "ann",
+          "name": "Ann",
+          "color": "#ff8800"
+        },
+        "message": {
+          "text": "hello"
+        },
+        "badges": [
+          "subscriber",
+          "vip"
+        ]
+      }
+    ],
+    "events": [
+      {
+        "id": "e-community-gift",
+        "kind": "community_gift",
+        "at": "2026-01-01T12:00:00Z",
+        "user": {
+          "id": "102",
+          "login": "bob",
+          "name": "Bob"
+        },
+        "amount": 5,
+        "tier": "1000"
+      },
+      {
+        "id": "e-cheer",
+        "kind": "cheer",
+        "at": "2026-01-01T12:00:00Z",
+        "user": {
+          "id": "101",
+          "login": "ann",
+          "name": "Ann",
+          "color": "#ff8800"
+        },
+        "amount": 500,
+        "message": {
+          "text": "take it"
+        }
+      }
+    ]
+  }
+}

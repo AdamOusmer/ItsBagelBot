@@ -141,6 +141,26 @@ func hasActiveStaff(staff map[uint64]struct{}, id uint64) bool {
 }
 
 func (r *Users) SetTestAccount(ctx context.Context, targetID uint64, enabled bool, actorID uint64) error {
+	return r.setAdminFlag(ctx, targetID, actorID, adminFlag{action: "set_test_account", enabled: enabled,
+		apply: func(u *ent.UserUpdateOne) *ent.UserUpdateOne { return u.SetTestAccount(enabled) }})
+}
+
+func (r *Users) SetAlpha(ctx context.Context, targetID uint64, enabled bool, actorID uint64) error {
+	err := r.setAdminFlag(ctx, targetID, actorID, adminFlag{action: usersrpc.AdminAlphaAuditAction, enabled: enabled,
+		apply: func(u *ent.UserUpdateOne) *ent.UserUpdateOne { return u.SetAlpha(enabled) }})
+	if err != nil {
+		return err
+	}
+	return r.publishChanged(ctx, targetID)
+}
+
+type adminFlag struct {
+	action  string
+	enabled bool
+	apply   func(*ent.UserUpdateOne) *ent.UserUpdateOne
+}
+
+func (r *Users) setAdminFlag(ctx context.Context, targetID, actorID uint64, flag adminFlag) error {
 	if err := validate.UserID(targetID); err != nil {
 		return err
 	}
@@ -153,10 +173,10 @@ func (r *Users) SetTestAccount(ctx context.Context, targetID uint64, enabled boo
 	}
 
 	delivery, err := db.RetryWithTxResult(ctx, r.client, func(tx *ent.Tx) (*ent.AdminAuditDelivery, error) {
-		if _, err := tx.User.UpdateOneID(targetID).SetTestAccount(enabled).Save(ctx); err != nil {
+		if _, err := flag.apply(tx.User.UpdateOneID(targetID)).Save(ctx); err != nil {
 			return nil, err
 		}
-		return tx.AdminAuditDelivery.Create().SetPayload(usersrpc.AuthRequest{ActorID: fmt.Sprint(actorID), ActorLogin: actor.Login, Action: "set_test_account", Target: fmt.Sprint(targetID), Detail: fmt.Sprintf("enabled=%t", enabled), OK: true}).Save(ctx)
+		return tx.AdminAuditDelivery.Create().SetPayload(usersrpc.AuthRequest{ActorID: fmt.Sprint(actorID), ActorLogin: actor.Login, Action: flag.action, Target: fmt.Sprint(targetID), Detail: fmt.Sprintf("enabled=%t", flag.enabled), OK: true}).Save(ctx)
 	})
 	if err != nil {
 		return err

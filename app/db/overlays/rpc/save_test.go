@@ -1,0 +1,111 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+package rpc_test
+
+import (
+	"testing"
+
+	"ItsBagelBot/internal/domain/overlays"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
+	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
+	"ItsBagelBot/pkg/codec"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func textDocument(t *testing.T, name string) codec.RawMessage {
+	t.Helper()
+	raw, err := codec.Marshal(overlays.Document{
+		Version: overlays.Version, Kind: overlays.KindCustom, ID: "o1", Name: name, Width: 1920, Height: 1080,
+		Widgets: []overlays.Widget{{ID: "w1", Name: "Title", Kind: overlays.WidgetText, W: 100, H: 100, Opacity: 1, Settings: map[string]any{"text": "hi"}}},
+	})
+	require.NoError(t, err)
+	return raw
+}
+
+func TestSaveWithoutAnIDCreatesACustomOverlay(t *testing.T) {
+	nc := serve(t)
+	user := overlaysrpc.OverlayUserRequest{UserID: "1001"}
+	save := overlaysrpc.OverlaySaveRequest{OverlayRefRequest: overlaysrpc.OverlayRefRequest{OverlayUserRequest: user}, Document: textDocument(t, "New")}
+
+	created := request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlaySaveSubject, save)
+
+	require.Equal(t, domainrpc.CodeOK, created.Code, created.Error)
+	assert.NotZero(t, created.ID)
+	assert.Contains(t, created.URL, overlaysrpc.OverlayURLPrefix)
+}
+
+func TestSaveConflictCarriesTheStoredDocument(t *testing.T) {
+	nc := serve(t)
+	user := overlaysrpc.OverlayUserRequest{UserID: "1001"}
+	created := request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlayCreateCustomSubject, overlaysrpc.OverlayCreateCustomRequest{OverlayUserRequest: user, Document: textDocument(t, "Mine")})
+	stale := overlaysrpc.OverlaySaveRequest{
+		OverlayRefRequest: overlaysrpc.OverlayRefRequest{OverlayUserRequest: user, ID: created.ID}, Document: textDocument(t, "Other"), Revision: created.Revision + 4,
+	}
+
+	conflict := request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlaySaveSubject, stale)
+
+	require.Equal(t, domainrpc.CodeConflict, conflict.Code)
+	assert.Equal(t, created.Revision, conflict.Revision)
+	assert.JSONEq(t, string(created.Document), string(conflict.Document))
+}
+
+func TestCustomSavesNeedAlpha(t *testing.T) {
+	nc := serve(t)
+	plain := overlaysrpc.OverlayUserRequest{UserID: "1002"}
+	created := request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlayCreateCustomSubject, overlaysrpc.OverlayCreateCustomRequest{OverlayUserRequest: overlaysrpc.OverlayUserRequest{UserID: "1001"}, Document: textDocument(t, "Mine")})
+	cases := []struct {
+		name    string
+		subject string
+		req     any
+	}{
+		{"create", overlaysrpc.OverlayCreateCustomSubject, overlaysrpc.OverlayCreateCustomRequest{OverlayUserRequest: plain, Document: textDocument(t, "New")}},
+		{"save without an id", overlaysrpc.OverlaySaveSubject, overlaysrpc.OverlaySaveRequest{OverlayRefRequest: overlaysrpc.OverlayRefRequest{OverlayUserRequest: plain}, Document: textDocument(t, "New")}},
+		{"save an existing id", overlaysrpc.OverlaySaveSubject, overlaysrpc.OverlaySaveRequest{OverlayRefRequest: overlaysrpc.OverlayRefRequest{OverlayUserRequest: plain, ID: created.ID}, Document: textDocument(t, "New")}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reply := request[overlaysrpc.OverlayView](t, nc, tc.subject, tc.req)
+			assert.Equal(t, domainrpc.CodeForbidden, reply.Code, reply.Error)
+		})
+	}
+}
+
+func TestLapsedAlphaKeepsNoAccessToCustomOverlays(t *testing.T) {
+	nc, state := serveLapsing(t)
+	user := overlaysrpc.OverlayUserRequest{UserID: "1001"}
+	created := request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlayCreateCustomSubject, overlaysrpc.OverlayCreateCustomRequest{OverlayUserRequest: user, Document: textDocument(t, "Mine")})
+	require.Equal(t, domainrpc.CodeOK, created.Code, created.Error)
+	ref := overlaysrpc.OverlayRefRequest{OverlayUserRequest: user, ID: created.ID}
+	stored := request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlayGetSubject, ref)
+	require.NotEmpty(t, stored.Document)
+
+	state.now(t)
+	get := request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlayGetSubject, ref)
+	rotate := request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlayRotateSubject, ref)
+	list := request[overlaysrpc.OverlayListReply](t, nc, overlaysrpc.OverlayListSubject, user)
+	deleted := request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlayDeleteSubject, ref)
+
+	require.Equal(t, domainrpc.CodeOK, get.Code, get.Error)
+	assert.Empty(t, get.Document)
+	assert.Equal(t, domainrpc.CodeForbidden, rotate.Code)
+	require.Len(t, list.Overlays, 1)
+	assert.Empty(t, list.Overlays[0].Document)
+	assert.Equal(t, domainrpc.CodeOK, deleted.Code, deleted.Error)
+}
+
+func TestStarterTemplatesNeedAlpha(t *testing.T) {
+	nc := serve(t)
+	add := func(userID string) overlaysrpc.OverlayView {
+		return request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlayAddTemplateSubject,
+			overlaysrpc.OverlayAddTemplateRequest{OverlayUserRequest: overlaysrpc.OverlayUserRequest{UserID: userID}, Template: "starting-soon"})
+	}
+
+	alpha, plain := add("1001"), add("1002")
+
+	require.Equal(t, domainrpc.CodeOK, alpha.Code, alpha.Error)
+	assert.Equal(t, "custom", alpha.Kind)
+	assert.Equal(t, domainrpc.CodeForbidden, plain.Code)
+}

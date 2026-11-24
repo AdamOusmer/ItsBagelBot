@@ -7,7 +7,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/resend/resend-go/v4"
+	"ItsBagelBot/pkg/email"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,11 +42,11 @@ func TestGrantEmailContent(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			sender := &recordingSender{reply: &resend.SendEmailResponse{Id: "grant-1"}}
+			sender := &recordingSender{reply: email.Receipt{ID: "grant-1"}}
 			tc.msg.To, tc.msg.IdempotencyKey = "winner@example.com", "grant-key"
 			require.NoError(t, (&Mailer{sender: sender, dashboardURL: dashboardURL}).SendGrant(context.Background(), tc.msg))
-			assert.Equal(t, "grant-key", sender.key)
-			tc.want.check(t, rendered{subject: sender.request.Subject, html: sender.request.Html, text: sender.request.Text})
+			assert.Equal(t, "grant-key", sender.request.IdempotencyKey)
+			tc.want.check(t, rendered{subject: sender.request.Subject, html: sender.request.HTML, text: sender.request.Text})
 		})
 	}
 }
@@ -54,7 +55,7 @@ func TestGrantEmailRefusals(t *testing.T) {
 	var disabled *Mailer
 	require.ErrorIs(t, disabled.SendGrant(context.Background(), GrantMessage{To: "winner@example.com", ExpiresAt: sept20, IdempotencyKey: "k"}), ErrDisabled)
 
-	sender := &recordingSender{reply: &resend.SendEmailResponse{Id: "grant-1"}}
+	sender := &recordingSender{reply: email.Receipt{ID: "grant-1"}}
 	err := (&Mailer{sender: sender}).SendGrant(context.Background(), GrantMessage{To: "winner@example.com", IdempotencyKey: "k"})
 	require.ErrorIs(t, err, ErrInvalidMessage)
 	assert.Zero(t, sender.calls)

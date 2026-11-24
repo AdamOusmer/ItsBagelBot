@@ -10,6 +10,7 @@ import {
   userSetVoiceUsage,
   userSetActive,
   userSetTestAccount,
+  userSetAlpha,
   userSetCreatorCode,
   userBan,
   userUnban,
@@ -169,6 +170,23 @@ function fixedNoticeAction({ name, key, run, notice, demoNotice }: FixedNoticeMu
     parse: () => ({ value: null }),
     demo: ({ locale }) => okReply(adminText(locale, demoNotice)),
     notice: (_user, _input, locale) => adminText(locale, notice)
+  });
+}
+
+type FlagMutation = Pick<UserMutation<boolean>, 'name' | 'key' | 'run'> & {
+  field: 'test_account' | 'alpha';
+  notice: string;
+  demoNotice: string;
+};
+
+function flagAction({ name, key, run, field, notice, demoNotice }: FlagMutation) {
+  return userAction({
+    name,
+    key,
+    run,
+    parse: parseActive,
+    demo: ({ locale }, active) => okReply(adminText(locale, demoNotice, { active: String(active) })),
+    notice: (user, _active, locale) => adminText(locale, notice, { active: user?.[field] ? 'on' : 'off' })
   });
 }
 
@@ -426,13 +444,22 @@ export const actions: Actions = {
       withEnrollmentSync(ref.userId, active ? 'enroll-after' : 'unenroll-first', () => userSetActive(ref, active))
   }),
 
-  setTestAccount: userAction({
+  setTestAccount: flagAction({
     name: 'set_test_account',
     key: 'users.test',
-    parse: parseActive,
-    demo: ({ locale }, active) => okReply(adminText(locale, 'admin.users.actionResults.testAccountDemo', { active: String(active) })),
-    notice: (user, _active, locale) => adminText(locale, 'admin.users.actionResults.testAccount', { active: user?.test_account ? 'on' : 'off' }),
+    field: 'test_account',
+    demoNotice: 'admin.users.actionResults.testAccountDemo',
+    notice: 'admin.users.actionResults.testAccount',
     run: userSetTestAccount
+  }),
+
+  setAlpha: flagAction({
+    name: 'set_alpha',
+    key: 'users.alpha',
+    field: 'alpha',
+    demoNotice: 'admin.users.actionResults.alphaDemo',
+    notice: 'admin.users.actionResults.alpha',
+    run: userSetAlpha
   }),
 
   setCreatorCode: userAction({

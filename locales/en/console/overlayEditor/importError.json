@@ -1,0 +1,16 @@
+{
+  "invalid_archive": "This is not a valid zip archive.",
+  "unsafe_path": "The archive contains an unsafe file path.",
+  "symlink": "The archive contains a link, which is not allowed.",
+  "nested_archive": "The archive contains another archive, which is not allowed.",
+  "too_many_entries": "The archive holds too many files.",
+  "too_large": "The archive is too large when unpacked.",
+  "bomb_ratio": "The archive compresses too much to be trusted.",
+  "invalid_manifest": "The pack manifest could not be read.",
+  "invalid_document": "The overlay inside the archive is not valid.",
+  "invalid_bundle": "A widget bundle in the archive is not valid.",
+  "bad_hash": "A file does not match its listed checksum.",
+  "missing_asset": "A file listed in the pack is missing.",
+  "alpha_required": "Importing needs Alpha access. This report is a preview.",
+  "failed": "The import failed. Try again."
+}

@@ -33,6 +33,8 @@ type Message struct {
 	brokerTime     time.Duration
 	hasBrokerTime  bool
 	storedAt       time.Time
+	streamSequence uint64
+	subject        string
 	final          bool
 	quarantineOnce sync.Once
 }
@@ -53,6 +55,11 @@ type Completion struct {
 
 func (m *Message) StoredAt() time.Time { return m.storedAt }
 
+// StreamSequence is the JetStream sequence of the stored message, or 0 when it did not come from a stream.
+func (m *Message) StreamSequence() uint64 { return m.streamSequence }
+
+func (m *Message) Subject() string { return m.subject }
+
 func (m *Message) DeliveredAt() time.Time { return m.receivedAt }
 
 // True when a failure here ends the message: the subscriber terminates it rather than redelivering.
@@ -67,6 +74,8 @@ type messageData struct {
 	payload  []byte
 	metadata Metadata
 	storedAt time.Time
+	sequence uint64
+	subject  string
 }
 
 const (
@@ -83,8 +92,10 @@ func NewMessage(id string, payload []byte) *Message {
 func newMessage(data messageData) *Message {
 	return &Message{
 		UUID: data.id, Metadata: data.metadata, Payload: data.payload,
-		receivedAt: time.Now(),
-		storedAt:   data.storedAt,
+		receivedAt:     time.Now(),
+		storedAt:       data.storedAt,
+		streamSequence: data.sequence,
+		subject:        data.subject,
 	}
 }
 

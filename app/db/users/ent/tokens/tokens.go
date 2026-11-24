@@ -20,6 +20,8 @@ const (
 	FieldToken = "token"
 	// FieldRefreshToken holds the string denoting the refresh_token field in the database.
 	FieldRefreshToken = "refresh_token"
+	// FieldScopes holds the string denoting the scopes field in the database.
+	FieldScopes = "scopes"
 	// FieldPlatform holds the string denoting the platform field in the database.
 	FieldPlatform = "platform"
 	// FieldAccessTokenExpiresAt holds the string denoting the access_token_expires_at field in the database.
@@ -43,6 +45,7 @@ var Columns = []string{
 	FieldType,
 	FieldToken,
 	FieldRefreshToken,
+	FieldScopes,
 	FieldPlatform,
 	FieldAccessTokenExpiresAt,
 }

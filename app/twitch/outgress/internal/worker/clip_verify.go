@@ -70,7 +70,7 @@ func (w *Worker) verifyClipPublished(ctx context.Context, probe clipProbe) {
 	if probe.quiet {
 		return
 	}
-	if err := w.sendBotChat(ctx, probe.broadcasterID, clipFailedText(probe.clipper)); err != nil {
+	if err := w.sendBotChat(ctx, probe.broadcasterID, clipFailedText(probe.clipper), admissionFence{}); err != nil {
 		w.log.Warn("clip failure notice not sent",
 			zap.String("broadcaster_id", probe.broadcasterID), zap.Error(err))
 	}

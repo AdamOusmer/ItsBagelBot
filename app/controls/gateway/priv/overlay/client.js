@@ -10,6 +10,7 @@ var createOverlayClient = (function () {
   const FIRST_RETRY_MS = 1000;
   const MAX_RETRY_MS = 15000;
   const JSON_HEADERS = { 'Content-Type': 'application/json' };
+  const FEED_EVENTS = ['snapshot', 'stats', 'credits', 'credits_replace', 'subathon', 'control'];
 
   function isOk(status) {
     return status >= 200 && status < 300;
@@ -232,6 +233,9 @@ var createOverlayClient = (function () {
         revision: (message) => this.env.onRevision(Number(message.data)),
         reconnect: (message) => this.beginHandoff(message)
       };
+      FEED_EVENTS.forEach((name) => {
+        handlers[name] = (message) => this.env.onFeed(name, message.data);
+      });
       Object.keys(handlers).forEach((name) => {
         source.addEventListener(name, (message) => {
           if (source !== this.source && source !== this.pending) return;

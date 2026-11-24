@@ -1,0 +1,12 @@
+{
+  "title": "Préférences de courriel",
+  "email": "Courriels sur le produit pour {address}",
+  "granted": "Vous êtes abonné aux courriels sur le produit.",
+  "withdrawn": "Vous êtes désabonné. Nous ne vous enverrons plus de courriels sur le produit. Pour vous réabonner, connectez-vous et activez les courriels dans les paramètres.",
+  "none": "Vous n’êtes pas abonné aux courriels sur le produit.",
+  "unsubscribe": "Se désabonner",
+  "invalid": "Ce lien n’est plus valide. Gérez vos préférences de courriel dans les paramètres du tableau de bord.",
+  "unavailable": "Les préférences de courriel sont indisponibles pour le moment. Réessayez dans un instant.",
+  "saveError": "Nous n’avons pas pu enregistrer votre choix. Réessayez.",
+  "settings": "Ouvrir les paramètres"
+}

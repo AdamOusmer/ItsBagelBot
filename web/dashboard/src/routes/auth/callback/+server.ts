@@ -81,11 +81,6 @@ function streamerSession(id: Identity) {
   };
 }
 
-function grantedScopes(tokens: { scopes(): string[] }): { scopes?: string[] } {
-  const granted = tokens.scopes();
-  return granted.length ? { scopes: granted } : {};
-}
-
 function delegationErrorLanding(err: unknown): string {
   if (!(err instanceof RpcError)) rejectLogin('retry');
   if (err.message === 'cannot delegate to yourself') return '/settings?e=self';
@@ -185,9 +180,11 @@ async function seedCursorCookie(cookies: Cookies, url: URL, userId: string): Pro
   } catch {}
 }
 
-async function persistGrant(userId: string, tokens: { accessToken(): string; refreshToken(): string }): Promise<void> {
+async function persistGrant(userId: string, tokens: { accessToken(): string; refreshToken(): string }, granted: string[]): Promise<void> {
   try {
-    await saveGrant(userId, tokens.accessToken(), tokens.refreshToken());
+    await saveGrant(userId, {
+      access_token: tokens.accessToken(), refresh_token: tokens.refreshToken(), scopes: granted.length ? granted : null
+    });
   } catch (err: unknown) {
     logger.error({ err }, '[callback] grant_save failed (non-fatal)');
   }
@@ -209,7 +206,7 @@ function callbackGate(
   return { ok: true, code, storedNonce };
 }
 
-async function runLogin(cookies: Cookies, url: URL, code: string, storedNonce: string): Promise<string | null> {
+async function runLogin(cookies: Cookies, url: URL, code: string, storedNonce: string) {
   try {
     return await completeLogin(cookies, url, code, storedNonce);
   } catch (e) {
@@ -227,13 +224,17 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 
   if (!gate.ok) rejectLogin(gate.slug);
 
-  const landing = await runLogin(cookies, url, gate.code, gate.storedNonce);
+  const { landing, signup } = await runLogin(cookies, url, gate.code, gate.storedNonce);
 
   count('auth.login', 'ok');
-  throw redirect(302, landing ?? next ?? '/');
+  const nextPath = next?.split(/[?#]/, 1)[0];
+  const startsWelcome = nextPath === '/welcome' || nextPath === '/welcome/import';
+  const needsWelcome = signup && !startsWelcome;
+  const defaultLanding = needsWelcome ? '/welcome' : (next ?? '/');
+  throw redirect(302, landing ?? defaultLanding);
 };
 
-async function completeLogin(cookies: Cookies, url: URL, code: string, storedNonce: string): Promise<string | null> {
+async function completeLogin(cookies: Cookies, url: URL, code: string, storedNonce: string) {
   const tokens = await twitch().validateAuthorizationCode(code, storedNonce);
   const claims = tokens.claims() as unknown as IdTokenClaims;
   verifyClaims(claims, storedNonce);
@@ -251,14 +252,15 @@ async function completeLogin(cookies: Cookies, url: URL, code: string, storedNon
   await registerUser(identity, account.email);
   if (prior === null) count('signup.via', splitState(url.searchParams.get('state') ?? '').via, 'signup');
   purgeNewChannelPages(identity, prior);
+  const granted = tokens.scopes();
   await Promise.all([
     seedLocaleCookie(cookies, url, identity.userId),
     seedCursorCookie(cookies, url, identity.userId),
-    persistGrant(identity.userId, tokens)
+    persistGrant(identity.userId, tokens, granted)
   ]);
 
   const landing = await acceptPendingDelegation(cookies, url, identity);
 
-  setSessionCookie(cookies, url, { ...streamerSession(identity), ...grantedScopes(tokens) });
-  return landing;
+  setSessionCookie(cookies, url, { ...streamerSession(identity), ...(granted.length ? { scopes: granted } : {}) });
+  return { landing, signup: prior === null };
 }

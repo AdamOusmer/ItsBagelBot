@@ -12,8 +12,7 @@ import { evictRenamed, fabric, invalidate, invalidateUser } from './fabric';
 
 // Must match the projector's tierFromStatus.
 function tierFromStatus(status: string): Tier {
-  const s = status.toLowerCase();
-  return s === 'premium' || s === 'vip' || s === 'paid' ? 'premium' : 'standard';
+  return ['premium', 'vip', 'paid'].includes(status.toLowerCase()) ? 'premium' : 'standard';
 }
 
 export const tier = defineRead({
@@ -63,10 +62,9 @@ export const hasGrant = defineRead({
 
 export const saveGrant = defineWrite({
   subject: `${SUB.dashboard}.grant_save`,
-  request: (userId: string, accessToken: string, refreshToken: string) => ({
+  request: (userId: string, grant: { access_token: string; refresh_token: string; scopes: string[] | null }) => ({
     broadcaster_user_id: userId,
-    access_token: accessToken,
-    refresh_token: refreshToken
+    ...grant
   }),
   after: (_result: unknown, userId: string) => invalidate(`grant:${userId}`, `state:${userId}`)
 });

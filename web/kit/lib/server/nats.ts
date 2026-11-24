@@ -400,10 +400,12 @@ export async function ready(timeoutMs = 750): Promise<boolean> {
 
 export class RpcError extends Error {
   readonly code: RpcCode | '';
+  readonly reply?: unknown;
 
-  constructor(message: string, code: RpcCode | '' = '') {
+  constructor(message: string, code: RpcCode | '' = '', reply?: unknown) {
     super(message);
     this.code = code;
+    this.reply = reply;
   }
 }
 
@@ -418,7 +420,7 @@ export function rpcRefusal(reply: unknown): RpcError | null {
   if (!reply || typeof reply !== 'object') return null;
   const r = reply as CodedReply;
   if (!r.error) return null;
-  return new RpcError(r.error, rpcCode(r));
+  return new RpcError(r.error, rpcCode(r), reply);
 }
 
 export async function rpcReply<T>(subject: string, payload: unknown = {}, timeoutMs = 5000): Promise<T> {

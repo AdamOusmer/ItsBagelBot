@@ -20,7 +20,7 @@ var accountColumns = []string{
 	user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldLocale,
 	user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldSongqueuePageHidden, user.FieldCreatedAt,
 	user.FieldTestAccount, user.FieldBanned,
-	user.FieldLifecycleState, user.FieldLifecycle,
+	user.FieldLifecycleState, user.FieldLifecycle, user.FieldMarketingStatus,
 }
 
 func tallyCounted(t analytics.Tally, u *ent.User) {
@@ -74,6 +74,7 @@ func tallyAccount(t analytics.Tally, u *ent.User) {
 	t.Add(catalog.AccountsBySignupWeek, week)
 	t.Add(catalog.AccountsLocale, u.Locale)
 	t.Add(catalog.AccountsRuntime, u.LifecycleState)
+	t.Add(catalog.AccountsMarketing, string(u.MarketingStatus))
 	if u.IsActive {
 		t.Add(catalog.AccountsBotEnabled, tier)
 	}

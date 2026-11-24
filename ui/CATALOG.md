@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **134** blocks;
+Every block the library ships, by family. **135** blocks;
 **111** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 134 times
+omitted: nearly every block takes both, and listing them 135 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -34,7 +34,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 
 | Block | Props | Adapters | Status | Contract |
 | --- | --- | --- | --- | --- |
-| **AppShell** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`groups`: UiNavGroup[]<br>`dockItems`: UiNavLink[]<br>`dockQuick`: number<br>`rail`: boolean<br>`offset`: boolean<br>`stacked`: boolean<br>`skipLabel`: string<br>`crumbLabel`: string<br>`dockLabel`: string<br>`railLabel`: string<br>`clock`: boolean<br>`topbarContext`: UiTopbarContext<br>`banner`: Snippet<br>`topActions`: Snippet<br>`account`: Snippet<br>`railAccount`: UiAccount<br>`railAccountOpen`: boolean | svelte + astro | stable | `styles/elements/shell.css` |
+| **AppShell** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`groups`: UiNavGroup[]<br>`dockItems`: UiNavLink[]<br>`dockQuick`: number<br>`rail`: boolean<br>`offset`: boolean<br>`stacked`: boolean<br>`skipLabel`: string<br>`crumbLabel`: string<br>`dockLabel`: string<br>`railLabel`: string<br>`clock`: boolean<br>`topbarContext`: UiTopbarContext<br>`banner`: Snippet<br>`topActions`: Snippet<br>`account`: Snippet<br>`railAccount`: UiAccount<br>`railAccountOpen`: boolean<br>`immersive`: boolean | svelte + astro | stable | `styles/elements/shell.css` |
 | **Cluster** | `gap`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`justify`: 'start' \| 'center' \| 'end' \| 'between'<br>`align`: 'baseline' \| 'stretch'<br>`nowrap`: boolean<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
 | **Container** | `width`: 'default' \| 'hero' \| 'narrow' \| 'text'<br>`flush`: boolean<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
 | **DeckLayout** | `inspecting`: boolean<br>`width`: string | svelte + astro | stable | `styles/elements/deck-layout.css` |
@@ -70,7 +70,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **IconButton** | `label*`: string<br>`tooltip`: boolean<br>`size`: 'md' \| 'sm'<br>`tone`: 'neutral' \| 'danger'<br>`type`: 'button' \| 'submit' \| 'reset'<br>`onclick`: (e: MouseEvent) => void<br>`disabled`: boolean | svelte + astro | stable | `styles/elements/button.css, styles/elements/tooltip.css` |
 | **Input** | `value`: string \| number \| null<br>`type`: 'text' \| 'email' \| 'url' \| 'tel' \| 'number' \| 'password' \| 'search' \| 'date' \| 'datetime-local' \| 'month' \| 'time' \| 'week' \| 'color'<br>`invalid`: boolean<br>`fill`: boolean<br>`mono`: boolean<br>`align`: 'start' \| 'end'<br>`leading`: Snippet<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/field.css, styles/elements/input.css` |
 | **PickerOption** | `label`: string<br>`description`: string<br>`layout`: 'inline' \| 'stacked'<br>`selected`: boolean<br>`disabled`: boolean<br>`remove`: { label: string; armed?: boolean; armedLabel?: string; onclick: () => void }<br>`as`: 'div' \| 'li'<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/picker-panel.css` |
-| **RadioGroup** | `name*`: string<br>`options*`: readonly { value: string; label: string; description?: string; meta?: string; disabled?: boolean }[]<br>`value*`: string<br>`label`: string<br>`variant`: 'tabs' \| 'cards' \| 'rows'<br>`min`: string<br>`cols`: number<br>`rail`: 'sm' \| 'md'<br>`maxHeight`: string<br>`terse`: boolean<br>`onValueChange`: (value: string) => void<br>`onSelect`: (value: string) => void<br>`leading`: Snippet<[RadioOption, boolean]> | svelte + astro | stable | `styles/elements/radio-group.css, styles/elements/tabs.css` |
+| **RadioGroup** | `name*`: string<br>`options*`: readonly { value: string; label: string; description?: string; meta?: string; disabled?: boolean }[]<br>`value*`: string<br>`label`: string<br>`variant`: 'tabs' \| 'cards' \| 'rows'<br>`min`: string<br>`cols`: number<br>`rail`: 'sm' \| 'md'<br>`maxHeight`: string<br>`terse`: boolean<br>`tone`: 'go'<br>`onValueChange`: (value: string) => void<br>`onSelect`: (value: string) => void<br>`leading`: Snippet<[RadioOption, boolean]><br>`detail`: Snippet<[RadioOption, boolean]> | svelte + astro | stable | `styles/elements/radio-group.css, styles/elements/tabs.css` |
 | **SearchInput** | `value`: string<br>`element`: HTMLInputElement<br>`placeholder`: string<br>`debounceMs`: number<br>`clearLabel`: string<br>`fill`: boolean<br>`tall`: boolean<br>`onValueChange`: (value: string) => void | svelte + astro | stable | `styles/elements/field.css, styles/elements/search-input.css` |
 | **SegmentedControl** | `options*`: readonly (string \| { value: string; label: string; count?: number \| string; attrs?: Record<string, string> })[]<br>`value*`: string<br>`label`: string<br>`even`: boolean<br>`onValueChange`: (value: string) => void | svelte + astro | stable | `styles/elements/tabs.css` |
 | **Select** | `value`: string<br>`options*`: readonly SelectOption[]<br>`searchable`: boolean<br>`searchPlaceholder`: string<br>`searchClearLabel`: string<br>`emptyLabel`: string<br>`placeholder`: string<br>`label`: string<br>`filterOptions`: (options: readonly SelectOption[], query: string) => SelectOption[]<br>`invalid`: boolean<br>`fill`: boolean<br>`id`: string<br>`name`: string<br>`form`: string<br>`disabled`: boolean<br>`required`: boolean<br>`onchange`: (event: Event & { currentTarget: HTMLSelectElement }) => void<br>`oninput`: (event: Event & { currentTarget: HTMLSelectElement }) => void | svelte + astro | stable | `styles/elements/field.css, styles/elements/input.css, styles/elements/picker-panel.css, styles/elements/search-input.css, styles/elements/select.css` |
@@ -159,6 +159,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **LogTail** | `lines*`: string[]<br>`label*`: string<br>`max`: number | svelte<br>*Svelte only: it pins itself to the newest line as lines arrive and lets go when the reader scrolls up, which needs a client.* | svelte-only | `styles/elements/log-tail.css` |
 | **ManagementRow** | `as`: T<br>`href`: string<br>`selectable`: boolean<br>`selected`: boolean<br>`expanded`: boolean<br>`controls`: string<br>`disabled`: boolean<br>`accent`: boolean<br>`wrap`: boolean<br>`stackActions`: boolean<br>`label`: string<br>`title`: string<br>`meta`: string<br>`onSelect`: () => void<br>`leading`: Snippet<br>`badge`: Snippet<br>`marks`: Snippet<br>`primary`: Snippet<br>`actions`: Snippet<br>`below`: Snippet | svelte + astro | stable | `styles/elements/management-row.css` |
 | **MarkBadge** | `src`: string<br>`alt`: string<br>`size`: 'xs' \| 'sm' \| 'md' \| 'lg'<br>`tone`: 'premium' \| 'success' | svelte | svelte-only | `styles/elements/mark-badge.css` |
+| **OverlayCanvas** | `width*`: number<br>`height*`: number<br>`boxes*`: readonly CanvasBox[]<br>`selected`: string<br>`zoom`: number<br>`handleLabels*`: Record<Exclude<Handle, 'move'>, string><br>`onselect`: (id: string) => void<br>`onchange`: (id: string, box: Box) => void<br>`oncommit`: () => void<br>`oncancel`: () => void<br>`preview`: Snippet<[CanvasBox, number]><br>`dots`: boolean<br>`frameLabel`: string<br>`tagSelected`: boolean<br>`onscale`: (scale: number) => void<br>`fitMargin`: number | svelte<br>*Svelte only: pointer drag, resize handles and snapping guides run against live client state; a static page has nothing to drag.* | svelte-only | `styles/elements/dot-canvas.css, styles/elements/overlay-canvas.css` |
 | **OverviewGrid** | `main`: Snippet<br>`side`: Snippet | svelte + astro | stable | `styles/elements/overview-grid.css` |
 | **RankingCard** | `title*`: string<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`description`: string<br>`items*`: readonly RankingItem[]<br>`actions`: Snippet<br>`leading`: Snippet<[RankingItem, number]><br>`footer`: Snippet<br>`empty`: Snippet<br>`scale`: number<br>`emptyLabel`: string<br>`board`: boolean<br>`compact`: boolean | svelte + astro | stable | `styles/elements/ranking-card.css` |
 | **StatTile** | `label*`: string<br>`fitCopy`: boolean<br>`value*`: string<br>`unit`: string<br>`delta`: string<br>`flat`: boolean<br>`static`: boolean<br>`inline`: boolean<br>`text`: boolean<br>`tone`: StatTone<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/stat-tile.css` |
@@ -173,7 +174,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | Block | Props | Adapters | Status | Contract |
 | --- | --- | --- | --- | --- |
 | **AmbientSky** | `shift`: number<br>`px`: number<br>`py`: number<br>`progress`: number<br>`leaving`: boolean<br>`position`: 'contained' \| 'fixed'<br>`stillStars`: boolean<br>`warmth`: number | svelte + astro | stable | `styles/elements/ambient-sky.css, styles/orbs.css` |
-| **AudioOrb** | `analyser*`: AnalyserNode \| null | svelte | svelte-only | `styles/elements/audio-orb.css` |
+| **AudioOrb** | `analyser*`: AnalyserNode \| null<br>`energy`: number | svelte | svelte-only | `styles/elements/audio-orb.css` |
 | **AuroraBg** | — | svelte + astro | stable | `styles/elements/aurora.css, styles/orbs.css` |
 | **BackgroundOrbs** | — | svelte + astro | stable | `styles/elements/bg-orbs.css, styles/orbs.css` |
 | **Brackets** | `variant`: 'page' \| 'loader'<br>`label`: string | svelte + astro | stable | `styles/elements/brackets.css` |

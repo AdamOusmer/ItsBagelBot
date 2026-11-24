@@ -16,12 +16,13 @@ import (
 )
 
 const (
-	assetPrefix = "asset:"
-	maxName     = 120
-	minCanvas   = 320
-	maxCanvas   = 7680
-	maxCoord    = 7680
-	maxRotation = 360
+	assetPrefix    = "asset:"
+	assetURLPrefix = "https://cdn.itsbagelbot.com/"
+	maxName        = 120
+	minCanvas      = 320
+	maxCanvas      = 7680
+	maxCoord       = 7680
+	maxRotation    = 360
 )
 
 var (
@@ -125,7 +126,10 @@ func validateCustom(doc Document) error {
 	if err := validateAssets(doc.Assets); err != nil {
 		return err
 	}
-	return validateRefs(doc)
+	if err := validateRefs(doc); err != nil {
+		return err
+	}
+	return validateWidgetSettings(doc.Widgets)
 }
 
 func validateWidgets(widgets []Widget) error {
@@ -147,7 +151,7 @@ func validateWidgets(widgets []Widget) error {
 }
 
 func validateWidget(widget Widget, path Path) error {
-	checks := []func(Widget, Path) error{validateWidgetID, validateWidgetKind, validateWidgetBox, validateWidgetSettings}
+	checks := []func(Widget, Path) error{validateWidgetID, validateWidgetKind, validateWidgetBox, validateWidgetPresence}
 	for _, check := range checks {
 		if err := check(widget, path); err != nil {
 			return err
@@ -192,9 +196,19 @@ func validateWidgetBox(widget Widget, path Path) error {
 	return nil
 }
 
-func validateWidgetSettings(widget Widget, path Path) error {
+func validateWidgetPresence(widget Widget, path Path) error {
 	if widget.Settings == nil {
 		return fail(CodeInvalidWidget, path.Field("settings"))
+	}
+	return nil
+}
+
+func validateWidgetSettings(widgets []Widget) error {
+	for i, widget := range widgets {
+		path := Path("widgets").Index(i).Field("settings")
+		if err := validateSettings(widget.Kind, widget.Settings, path); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -268,7 +282,11 @@ func validateAsset(asset Asset, path Path) error {
 }
 
 func (a Asset) wellFormed() bool {
-	return hashPattern.MatchString(a.SHA256) && a.Bytes > 0 && min(a.W, a.H, a.DurationMS) >= 0
+	return hashPattern.MatchString(a.SHA256) && strings.HasPrefix(a.URL, assetURLPrefix) && a.hasSizes()
+}
+
+func (a Asset) hasSizes() bool {
+	return a.Bytes > 0 && min(a.W, a.H, a.DurationMS) >= 0
 }
 
 func validateRefs(doc Document) error {

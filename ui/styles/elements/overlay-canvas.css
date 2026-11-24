@@ -1,0 +1,128 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+    .bb-overlay-canvas {
+        display: flex;
+        min-width: 0;
+        height: clamp(260px, 48vh, 700px);
+        padding: var(--bb-space-3);
+        overflow: auto;
+        border-radius: var(--bb-radius-md);
+        background-color: var(--bb-black);
+    }
+
+    .bb-overlay-canvas__frame {
+        position: relative;
+        flex: none;
+        margin: auto;
+        background-color: var(--bb-bg-1);
+        outline: 1px solid var(--bb-rule-strong);
+    }
+
+    .bb-overlay-canvas__frame.bb-dot-canvas {
+        background-color: var(--bb-bg-1);
+    }
+
+    .bb-overlay-canvas__size {
+        position: absolute;
+        right: 6px;
+        bottom: 100%;
+        margin-bottom: 4px;
+        font-family: var(--bb-font-mono);
+        font-size: 11px;
+        line-height: 1.2;
+        color: var(--bb-muted);
+        white-space: nowrap;
+        pointer-events: none;
+    }
+
+    .bb-overlay-canvas__tag {
+        position: absolute;
+        bottom: 100%;
+        left: -1px;
+        max-width: 100%;
+        padding: 1px 6px;
+        overflow: hidden;
+        border-radius: var(--bb-radius-xs) var(--bb-radius-xs) 0 0;
+        background: var(--bb-green-glow);
+        color: var(--bb-black);
+        font-family: var(--bb-font-body);
+        font-size: 11px;
+        line-height: 1.4;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        pointer-events: none;
+    }
+
+    .bb-overlay-canvas__box {
+        position: absolute;
+        pointer-events: none;
+    }
+
+    .bb-overlay-canvas__box.is-selected {
+        z-index: 1;
+        outline: 1px solid var(--bb-green-glow);
+    }
+
+    .bb-overlay-canvas__content {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        pointer-events: none;
+    }
+
+    .bb-overlay-canvas__target {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        cursor: move;
+        pointer-events: auto;
+        touch-action: none;
+    }
+
+    .bb-overlay-canvas__target:hover {
+        outline: 1px dashed var(--bb-muted);
+    }
+
+    .bb-overlay-canvas__target:focus-visible {
+        outline: 2px solid var(--bb-focus);
+    }
+
+    .bb-overlay-canvas__box.is-locked .bb-overlay-canvas__target {
+        cursor: default;
+    }
+
+    .bb-overlay-canvas__handle {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        padding: 0;
+        border: 1px solid var(--bb-black);
+        border-radius: var(--bb-radius-xs);
+        background: var(--bb-green-glow);
+        pointer-events: auto;
+        touch-action: none;
+    }
+
+    .bb-overlay-canvas__handle--nw { top: -5px; left: -5px; cursor: nwse-resize; }
+    .bb-overlay-canvas__handle--ne { top: -5px; right: -5px; cursor: nesw-resize; }
+    .bb-overlay-canvas__handle--sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
+    .bb-overlay-canvas__handle--se { bottom: -5px; right: -5px; cursor: nwse-resize; }
+
+    .bb-overlay-canvas__guide {
+        position: absolute;
+        z-index: 2;
+        background: var(--bb-tan-light);
+        pointer-events: none;
+    }
+
+    .bb-overlay-canvas__guide--x { inset-block: 0; width: 1px; }
+    .bb-overlay-canvas__guide--y { inset-inline: 0; height: 1px; }
+}

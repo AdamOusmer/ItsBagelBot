@@ -78,7 +78,7 @@ spec:
       priorityClassName: bagel-edge
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1795407341-1098cb831ae8@sha256:6c08df9f231ec7d91a779452c10770faa3dc16614a48a475dcc15875b289ef80
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1795531240-503391f2f1ee@sha256:c1cb3536880fe1977b673bcfce9944fb44f5a94b047d9d41cc00e0c7254be467
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
@@ -91,8 +91,6 @@ spec:
               value: /etc/nats-client/tls/tls.crt
             - name: NATS_CLIENT_KEY_FILE
               value: /etc/nats-client/tls/tls.key
-            - name: DASHBOARD_LOGIN_SCOPES
-              value: "openid user:read:email channel:bot channel:moderate moderation:read moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit channel:manage:broadcast channel:edit:commercial channel:manage:redemptions channel:read:ads channel:manage:polls channel:manage:predictions channel:manage:raids channel:manage:moderators channel:manage:vips channel:manage:ads moderator:read:unban_requests"
             - name: NODE_ENV
               value: production
             - name: PROTOCOL_HEADER
@@ -135,6 +133,13 @@ spec:
                   fieldPath: spec.nodeName
             - name: NATS_LOCAL_LEAF_HEALTH_URL
               value: https://nats-leaf-local.messaging:8222/healthz
+            - name: OVERLAYS_INTERNAL_URL
+              value: https://overlays.db.svc.cluster.local:8081
+            - name: OVERLAYS_INTERNAL_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
             # Use the same bot identity as outgress so dashboard sign-in cannot
             # replace its moderator grant with a broadcaster grant.
             - name: TWITCH_BOT_USER_ID

@@ -25,6 +25,8 @@ func (Tokens) Fields() []ent.Field {
 
 		field.Bytes("refresh_token").Optional().Sensitive(),
 
+		field.JSON("scopes", []string(nil)).Optional(),
+
 		field.Enum("platform").
 			Values("twitch").
 			Default("twitch"),

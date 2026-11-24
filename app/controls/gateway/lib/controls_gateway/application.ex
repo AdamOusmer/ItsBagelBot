@@ -5,7 +5,7 @@ defmodule ControlsGateway.Application do
   use Application
 
   alias ControlsGateway.{Caches, Config, Drain, HttpServer, Overlays}
-  alias Platform.Nats.Planes
+  alias Platform.Nats.{HubFailback, LeafFailback, Planes}
 
   @impl true
   def start(_type, _args) do
@@ -32,6 +32,16 @@ defmodule ControlsGateway.Application do
   end
 
   defp server_children do
-    Planes.children(Config.nats()) ++ Overlays.children() ++ [Caches, HttpServer]
+    nats = Config.nats()
+    hub = Planes.connection_name(:jetstream)
+
+    Planes.children(nats) ++
+      [
+        {LeafFailback, connections: [Planes.connection_name(:rpc)]},
+        {HubFailback,
+         connections: fn -> [{hub, fn -> Platform.Nats.stop(hub) end}] end,
+         probe_settings: HubFailback.local_probe_settings(hd(nats.jetstream))}
+      ] ++
+      Overlays.children() ++ [Caches, HttpServer]
   end
 end

@@ -58,6 +58,7 @@ func (a *adminRPC) verbs() []adminVerb {
 		{"set_active", admin, a.setActive},
 		{"set_creator_code", admin, a.setCreatorCode},
 		{"test.set", admin, a.setTestAccount},
+		{"alpha.set", admin, a.setAlpha},
 		{"reset", admin, a.reset},
 		{"token_set", admin, a.tokenSet},
 		{"token_clear", admin, a.tokenClear},
@@ -372,7 +373,13 @@ func (a *adminRPC) setCreatorCode(ctx context.Context, req usersrpc.AdminRequest
 	return a.get(ctx, usersrpc.AdminRequest{UserID: fmt.Sprint(u.ID)})
 }
 
-func (a *adminRPC) setTestAccount(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
+type auditedChange struct {
+	logMsg  string
+	enabled bool
+	write   func(ctx context.Context, userID, actorID uint64) error
+}
+
+func (a *adminRPC) audited(ctx context.Context, req usersrpc.AdminRequest, change auditedChange) usersrpc.AdminReply {
 	u, err := a.findUser(ctx, req)
 	if err != nil {
 		return adminError(refusal(err))
@@ -381,13 +388,35 @@ func (a *adminRPC) setTestAccount(ctx context.Context, req usersrpc.AdminRequest
 	if err != nil {
 		return adminError(refusal(err))
 	}
-	if err := a.repo.SetTestAccount(ctx, u.ID, req.TestAccount, actorID); err != nil {
+	if err := change.write(ctx, u.ID, actorID); err != nil {
 		return adminError(refusal(err))
 	}
-	a.invalidations.Publish(invalidate.ScopeStatus, u.ID)
-	monitor.TxnLogger(ctx, a.log).Info("admin test-account marker change",
-		zap.Uint64("user", u.ID), zap.Bool("enabled", req.TestAccount))
+	monitor.TxnLogger(ctx, a.log).Info(change.logMsg, zap.Uint64("user", u.ID), zap.Bool("enabled", change.enabled))
 	return a.get(ctx, idRequest(u.ID))
+}
+
+func (a *adminRPC) setTestAccount(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
+	return a.audited(ctx, req, auditedChange{
+		logMsg:  "admin test-account marker change",
+		enabled: req.TestAccount,
+		write: func(ctx context.Context, userID, actorID uint64) error {
+			if err := a.repo.SetTestAccount(ctx, userID, req.TestAccount, actorID); err != nil {
+				return err
+			}
+			a.invalidations.Publish(invalidate.ScopeStatus, userID)
+			return nil
+		},
+	})
+}
+
+func (a *adminRPC) setAlpha(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
+	return a.audited(ctx, req, auditedChange{
+		logMsg:  "admin alpha change",
+		enabled: req.Alpha,
+		write: func(ctx context.Context, userID, actorID uint64) error {
+			return a.repo.SetAlpha(ctx, userID, req.Alpha, actorID)
+		},
+	})
 }
 
 func (a *adminRPC) ban(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
@@ -514,6 +543,7 @@ func viewOf(u *ent.User) usersrpc.AdminUserView {
 		SubscriptionRef:           u.SubscriptionRef,
 		SubscriptionCancelPending: u.SubscriptionCancelPending,
 		TestAccount:               u.TestAccount,
+		Alpha:                     u.Alpha,
 		Onboarded:                 u.Onboarded,
 		CreatedAt:                 u.CreatedAt,
 		UpdatedAt:                 u.UpdatedAt,

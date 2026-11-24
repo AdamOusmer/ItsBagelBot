@@ -23,6 +23,7 @@ func UserFromReply(r contract.UserReply) UserProjection {
 		LeaderboardPageHidden: r.LeaderboardPageHidden,
 		SongQueuePageHidden:   r.SongQueuePageHidden,
 		CreatorCode:           r.CreatorCode,
+		Alpha:                 r.Alpha,
 	}
 }
 
@@ -41,5 +42,6 @@ func UserFromChanged(dto data.UserChangedDTO) UserProjection {
 		LeaderboardPageHidden: dto.LeaderboardPageHidden,
 		SongQueuePageHidden:   dto.SongQueuePageHidden,
 		CreatorCode:           dto.CreatorCode,
+		Alpha:                 dto.Alpha,
 	}
 }

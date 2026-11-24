@@ -39,7 +39,7 @@ function post(action: Action, session: object | null, fields: Record<string, str
 
 test('loads the list and the powered settings for an owner', async () => {
   const rpc = spyOn(bus, 'rpc').mockResolvedValueOnce(listReply).mockResolvedValueOnce(getReply);
-  expect(await load({ locals: { session: owner, locale: 'en' } } as never)).toEqual(loaded);
+  expect(await load({ locals: { session: owner, locale: 'en' }, parent: async () => ({}) } as never)).toEqual(loaded);
   expect(rpc.mock.calls).toEqual([
     ['rpc.overlays.overlay.list', { user_id: '42' }, READ_TIMEOUT_MS],
     ['rpc.overlays.overlay.get', { user_id: '42', id: 7 }, READ_TIMEOUT_MS]
@@ -56,14 +56,23 @@ test.each([
     if (reply instanceof Error) rpc.mockRejectedValueOnce(reply);
     else rpc.mockResolvedValueOnce(reply);
   }
-  expect(await load({ locals: { session: owner, locale: 'en' } } as never)).toEqual(want);
+  expect(await load({ locals: { session: owner, locale: 'en' }, parent: async () => ({}) } as never)).toEqual(want);
   expect(rpc).toHaveBeenCalledTimes(calls);
 });
 
 test('a delegate gets a read-only page without calling the owner', async () => {
   const rpc = spyOn(bus, 'rpc');
-  expect(await load({ locals: { session: delegate, locale: 'en' } } as never)).toEqual({
+  expect(await load({ locals: { session: delegate, locale: 'en' }, parent: async () => ({}) } as never)).toEqual({
     readOnly: true, previewOrigin: POWERED_ORIGIN, overlays: null, powered: null
+  });
+  expect(rpc).not.toHaveBeenCalled();
+});
+
+test('sends an alpha account to the hub', async () => {
+  const rpc = spyOn(bus, 'rpc');
+  await expect(load({ locals: { session: owner, locale: 'en' }, parent: async () => ({ isAlpha: true }) } as never)).rejects.toMatchObject({
+    status: 302,
+    location: '/overlays/hub'
   });
   expect(rpc).not.toHaveBeenCalled();
 });

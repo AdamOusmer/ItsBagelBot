@@ -91,7 +91,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: users
-          image: ghcr.io/adamousmer/itsbagelbot/users:v0.5.0-beta@sha256:0cd82e1de54b2e10ef771415a370843bdb7dedf965b45150936ab5a52a9e278f
+          image: ghcr.io/adamousmer/itsbagelbot/users:main-1795530358-64ccf0e78836@sha256:1eb0574c355dfd12a283764a25ace80a9c0d40481573c0132206fee239a293f8
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -138,6 +138,28 @@ spec:
               value: "16"
             - name: DB_AUTO_MIGRATE
               value: "true"
+            - name: MARKETING_ADDRESS_HMAC_KEYSET_PATH
+              value: /etc/tink-mac/keyset.json
+            - name: DASHBOARD_ORIGIN
+              value: https://dashboard.itsbagelbot.com
+            - name: RESEND_MARKETING_API
+              valueFrom:
+                secretKeyRef:
+                  name: users-env
+                  key: RESEND_MARKETING_API
+                  optional: true
+            - name: RESEND_MARKETING_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: users-env
+                  key: RESEND_MARKETING_FROM
+                  optional: true
+            - name: BUSINESS_MAILING_ADDRESS
+              valueFrom:
+                secretKeyRef:
+                  name: users-env
+                  key: BUSINESS_MAILING_ADDRESS
+                  optional: true
             - name: GOMEMLIMIT
               value: 160MiB
             - name: TLS_CERT_FILE
@@ -157,6 +179,9 @@ spec:
             - {name: health-tls, mountPath: /etc/users/tls, readOnly: true}
             - name: tink-keyset
               mountPath: /etc/tink
+              readOnly: true
+            - name: tink-mac-keyset
+              mountPath: /etc/tink-mac
               readOnly: true
           ports:
             - containerPort: 8080
@@ -203,6 +228,13 @@ spec:
             secretName: users-env
             items:
               - key: TINK_KEYSET
+                path: keyset.json
+        - name: tink-mac-keyset
+          secret:
+            secretName: users-env
+            optional: true
+            items:
+              - key: MARKETING_HMAC_KEYSET
                 path: keyset.json
 ---
 apiVersion: policy/v1

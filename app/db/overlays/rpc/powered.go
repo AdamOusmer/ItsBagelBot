@@ -5,8 +5,10 @@ package rpc
 
 import (
 	"context"
+	"slices"
 	"time"
 
+	"ItsBagelBot/app/db/overlays/assets"
 	"ItsBagelBot/app/db/overlays/repository"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
@@ -17,7 +19,8 @@ const readBudget = 3 * time.Second
 
 type Wiring struct {
 	bus.RPCWiring
-	Repo *repository.Overlays
+	Repo   *repository.Overlays
+	Assets *assets.Service
 }
 
 func SubscribeDashboard(w Wiring) error {
@@ -66,13 +69,15 @@ func ownerOf(overlay overlaysrpc.PoweredOverlay, err error) overlaysrpc.OwnerPow
 	return overlaysrpc.OwnerPoweredReply{Overlay: &overlay}
 }
 
+var refusalRules = slices.Concat([]domainrpc.Rule{
+	domainrpc.Is(repository.ErrNotFound, domainrpc.CodeNotFound),
+	domainrpc.Is(repository.ErrRevisionConflict, domainrpc.CodeConflict),
+	domainrpc.Is(repository.ErrInvalidConfig, domainrpc.CodeInvalid),
+	domainrpc.Is(repository.ErrUnknownTemplate, domainrpc.CodeInvalid),
+	domainrpc.Is(repository.ErrNotConfigurable, domainrpc.CodeInvalid),
+	domainrpc.Is(repository.ErrTtsPlan, domainrpc.CodeForbidden),
+}, assetRules)
+
 func refusal(err error) domainrpc.Refusal {
-	return bus.Classify(err,
-		domainrpc.Is(repository.ErrNotFound, domainrpc.CodeNotFound),
-		domainrpc.Is(repository.ErrRevisionConflict, domainrpc.CodeConflict),
-		domainrpc.Is(repository.ErrInvalidConfig, domainrpc.CodeInvalid),
-		domainrpc.Is(repository.ErrUnknownTemplate, domainrpc.CodeInvalid),
-		domainrpc.Is(repository.ErrNotConfigurable, domainrpc.CodeInvalid),
-		domainrpc.Is(repository.ErrTtsPlan, domainrpc.CodeForbidden),
-	)
+	return bus.Classify(err, refusalRules...)
 }

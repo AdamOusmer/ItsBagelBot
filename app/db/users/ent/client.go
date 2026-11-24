@@ -16,8 +16,13 @@ import (
 	"ItsBagelBot/app/db/users/ent/billingreceipt"
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
+	"ItsBagelBot/app/db/users/ent/emailsuppression"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
+	"ItsBagelBot/app/db/users/ent/marketingcampaign"
+	"ItsBagelBot/app/db/users/ent/marketingconsent"
+	"ItsBagelBot/app/db/users/ent/marketingsend"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
+	"ItsBagelBot/app/db/users/ent/termsacceptance"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/ent/voiceusage"
@@ -45,10 +50,20 @@ type Client struct {
 	Delegation *DelegationClient
 	// DeviceGrant is the client for interacting with the DeviceGrant builders.
 	DeviceGrant *DeviceGrantClient
+	// EmailSuppression is the client for interacting with the EmailSuppression builders.
+	EmailSuppression *EmailSuppressionClient
 	// LifecycleErasure is the client for interacting with the LifecycleErasure builders.
 	LifecycleErasure *LifecycleErasureClient
+	// MarketingCampaign is the client for interacting with the MarketingCampaign builders.
+	MarketingCampaign *MarketingCampaignClient
+	// MarketingConsent is the client for interacting with the MarketingConsent builders.
+	MarketingConsent *MarketingConsentClient
+	// MarketingSend is the client for interacting with the MarketingSend builders.
+	MarketingSend *MarketingSendClient
 	// PremiumGrant is the client for interacting with the PremiumGrant builders.
 	PremiumGrant *PremiumGrantClient
+	// TermsAcceptance is the client for interacting with the TermsAcceptance builders.
+	TermsAcceptance *TermsAcceptanceClient
 	// Tokens is the client for interacting with the Tokens builders.
 	Tokens *TokensClient
 	// User is the client for interacting with the User builders.
@@ -73,8 +88,13 @@ func (c *Client) init() {
 	c.BillingReceipt = NewBillingReceiptClient(c.config)
 	c.Delegation = NewDelegationClient(c.config)
 	c.DeviceGrant = NewDeviceGrantClient(c.config)
+	c.EmailSuppression = NewEmailSuppressionClient(c.config)
 	c.LifecycleErasure = NewLifecycleErasureClient(c.config)
+	c.MarketingCampaign = NewMarketingCampaignClient(c.config)
+	c.MarketingConsent = NewMarketingConsentClient(c.config)
+	c.MarketingSend = NewMarketingSendClient(c.config)
 	c.PremiumGrant = NewPremiumGrantClient(c.config)
+	c.TermsAcceptance = NewTermsAcceptanceClient(c.config)
 	c.Tokens = NewTokensClient(c.config)
 	c.User = NewUserClient(c.config)
 	c.VoiceUsage = NewVoiceUsageClient(c.config)
@@ -176,8 +196,13 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		BillingReceipt:     NewBillingReceiptClient(cfg),
 		Delegation:         NewDelegationClient(cfg),
 		DeviceGrant:        NewDeviceGrantClient(cfg),
+		EmailSuppression:   NewEmailSuppressionClient(cfg),
 		LifecycleErasure:   NewLifecycleErasureClient(cfg),
+		MarketingCampaign:  NewMarketingCampaignClient(cfg),
+		MarketingConsent:   NewMarketingConsentClient(cfg),
+		MarketingSend:      NewMarketingSendClient(cfg),
 		PremiumGrant:       NewPremiumGrantClient(cfg),
+		TermsAcceptance:    NewTermsAcceptanceClient(cfg),
 		Tokens:             NewTokensClient(cfg),
 		User:               NewUserClient(cfg),
 		VoiceUsage:         NewVoiceUsageClient(cfg),
@@ -206,8 +231,13 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		BillingReceipt:     NewBillingReceiptClient(cfg),
 		Delegation:         NewDelegationClient(cfg),
 		DeviceGrant:        NewDeviceGrantClient(cfg),
+		EmailSuppression:   NewEmailSuppressionClient(cfg),
 		LifecycleErasure:   NewLifecycleErasureClient(cfg),
+		MarketingCampaign:  NewMarketingCampaignClient(cfg),
+		MarketingConsent:   NewMarketingConsentClient(cfg),
+		MarketingSend:      NewMarketingSendClient(cfg),
 		PremiumGrant:       NewPremiumGrantClient(cfg),
+		TermsAcceptance:    NewTermsAcceptanceClient(cfg),
 		Tokens:             NewTokensClient(cfg),
 		User:               NewUserClient(cfg),
 		VoiceUsage:         NewVoiceUsageClient(cfg),
@@ -242,8 +272,9 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AdminAuditDelivery, c.AuthorizationCode, c.BillingReceipt, c.Delegation,
-		c.DeviceGrant, c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
-		c.VoiceUsage, c.VoiceUsageReceipt,
+		c.DeviceGrant, c.EmailSuppression, c.LifecycleErasure, c.MarketingCampaign,
+		c.MarketingConsent, c.MarketingSend, c.PremiumGrant, c.TermsAcceptance,
+		c.Tokens, c.User, c.VoiceUsage, c.VoiceUsageReceipt,
 	} {
 		n.Use(hooks...)
 	}
@@ -254,8 +285,9 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AdminAuditDelivery, c.AuthorizationCode, c.BillingReceipt, c.Delegation,
-		c.DeviceGrant, c.LifecycleErasure, c.PremiumGrant, c.Tokens, c.User,
-		c.VoiceUsage, c.VoiceUsageReceipt,
+		c.DeviceGrant, c.EmailSuppression, c.LifecycleErasure, c.MarketingCampaign,
+		c.MarketingConsent, c.MarketingSend, c.PremiumGrant, c.TermsAcceptance,
+		c.Tokens, c.User, c.VoiceUsage, c.VoiceUsageReceipt,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -274,10 +306,20 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Delegation.mutate(ctx, m)
 	case *DeviceGrantMutation:
 		return c.DeviceGrant.mutate(ctx, m)
+	case *EmailSuppressionMutation:
+		return c.EmailSuppression.mutate(ctx, m)
 	case *LifecycleErasureMutation:
 		return c.LifecycleErasure.mutate(ctx, m)
+	case *MarketingCampaignMutation:
+		return c.MarketingCampaign.mutate(ctx, m)
+	case *MarketingConsentMutation:
+		return c.MarketingConsent.mutate(ctx, m)
+	case *MarketingSendMutation:
+		return c.MarketingSend.mutate(ctx, m)
 	case *PremiumGrantMutation:
 		return c.PremiumGrant.mutate(ctx, m)
+	case *TermsAcceptanceMutation:
+		return c.TermsAcceptance.mutate(ctx, m)
 	case *TokensMutation:
 		return c.Tokens.mutate(ctx, m)
 	case *UserMutation:
@@ -988,6 +1030,139 @@ func (c *DeviceGrantClient) mutate(ctx context.Context, m *DeviceGrantMutation) 
 	}
 }
 
+// EmailSuppressionClient is a client for the EmailSuppression schema.
+type EmailSuppressionClient struct {
+	config
+}
+
+// NewEmailSuppressionClient returns a client for the EmailSuppression from the given config.
+func NewEmailSuppressionClient(c config) *EmailSuppressionClient {
+	return &EmailSuppressionClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `emailsuppression.Hooks(f(g(h())))`.
+func (c *EmailSuppressionClient) Use(hooks ...Hook) {
+	c.hooks.EmailSuppression = append(c.hooks.EmailSuppression, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `emailsuppression.Intercept(f(g(h())))`.
+func (c *EmailSuppressionClient) Intercept(interceptors ...Interceptor) {
+	c.inters.EmailSuppression = append(c.inters.EmailSuppression, interceptors...)
+}
+
+// Create returns a builder for creating a EmailSuppression entity.
+func (c *EmailSuppressionClient) Create() *EmailSuppressionCreate {
+	mutation := newEmailSuppressionMutation(c.config, OpCreate)
+	return &EmailSuppressionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of EmailSuppression entities.
+func (c *EmailSuppressionClient) CreateBulk(builders ...*EmailSuppressionCreate) *EmailSuppressionCreateBulk {
+	return &EmailSuppressionCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *EmailSuppressionClient) MapCreateBulk(slice any, setFunc func(*EmailSuppressionCreate, int)) *EmailSuppressionCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &EmailSuppressionCreateBulk{err: fmt.Errorf("calling to EmailSuppressionClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*EmailSuppressionCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &EmailSuppressionCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for EmailSuppression.
+func (c *EmailSuppressionClient) Update() *EmailSuppressionUpdate {
+	mutation := newEmailSuppressionMutation(c.config, OpUpdate)
+	return &EmailSuppressionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *EmailSuppressionClient) UpdateOne(_m *EmailSuppression) *EmailSuppressionUpdateOne {
+	mutation := newEmailSuppressionMutation(c.config, OpUpdateOne, withEmailSuppression(_m))
+	return &EmailSuppressionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *EmailSuppressionClient) UpdateOneID(id int) *EmailSuppressionUpdateOne {
+	mutation := newEmailSuppressionMutation(c.config, OpUpdateOne, withEmailSuppressionID(id))
+	return &EmailSuppressionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for EmailSuppression.
+func (c *EmailSuppressionClient) Delete() *EmailSuppressionDelete {
+	mutation := newEmailSuppressionMutation(c.config, OpDelete)
+	return &EmailSuppressionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *EmailSuppressionClient) DeleteOne(_m *EmailSuppression) *EmailSuppressionDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *EmailSuppressionClient) DeleteOneID(id int) *EmailSuppressionDeleteOne {
+	builder := c.Delete().Where(emailsuppression.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &EmailSuppressionDeleteOne{builder}
+}
+
+// Query returns a query builder for EmailSuppression.
+func (c *EmailSuppressionClient) Query() *EmailSuppressionQuery {
+	return &EmailSuppressionQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeEmailSuppression},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a EmailSuppression entity by its id.
+func (c *EmailSuppressionClient) Get(ctx context.Context, id int) (*EmailSuppression, error) {
+	return c.Query().Where(emailsuppression.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *EmailSuppressionClient) GetX(ctx context.Context, id int) *EmailSuppression {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *EmailSuppressionClient) Hooks() []Hook {
+	return c.hooks.EmailSuppression
+}
+
+// Interceptors returns the client interceptors.
+func (c *EmailSuppressionClient) Interceptors() []Interceptor {
+	return c.inters.EmailSuppression
+}
+
+func (c *EmailSuppressionClient) mutate(ctx context.Context, m *EmailSuppressionMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&EmailSuppressionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&EmailSuppressionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&EmailSuppressionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&EmailSuppressionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown EmailSuppression mutation op: %q", m.Op())
+	}
+}
+
 // LifecycleErasureClient is a client for the LifecycleErasure schema.
 type LifecycleErasureClient struct {
 	config
@@ -1118,6 +1293,469 @@ func (c *LifecycleErasureClient) mutate(ctx context.Context, m *LifecycleErasure
 		return (&LifecycleErasureDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown LifecycleErasure mutation op: %q", m.Op())
+	}
+}
+
+// MarketingCampaignClient is a client for the MarketingCampaign schema.
+type MarketingCampaignClient struct {
+	config
+}
+
+// NewMarketingCampaignClient returns a client for the MarketingCampaign from the given config.
+func NewMarketingCampaignClient(c config) *MarketingCampaignClient {
+	return &MarketingCampaignClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `marketingcampaign.Hooks(f(g(h())))`.
+func (c *MarketingCampaignClient) Use(hooks ...Hook) {
+	c.hooks.MarketingCampaign = append(c.hooks.MarketingCampaign, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `marketingcampaign.Intercept(f(g(h())))`.
+func (c *MarketingCampaignClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MarketingCampaign = append(c.inters.MarketingCampaign, interceptors...)
+}
+
+// Create returns a builder for creating a MarketingCampaign entity.
+func (c *MarketingCampaignClient) Create() *MarketingCampaignCreate {
+	mutation := newMarketingCampaignMutation(c.config, OpCreate)
+	return &MarketingCampaignCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MarketingCampaign entities.
+func (c *MarketingCampaignClient) CreateBulk(builders ...*MarketingCampaignCreate) *MarketingCampaignCreateBulk {
+	return &MarketingCampaignCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MarketingCampaignClient) MapCreateBulk(slice any, setFunc func(*MarketingCampaignCreate, int)) *MarketingCampaignCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MarketingCampaignCreateBulk{err: fmt.Errorf("calling to MarketingCampaignClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MarketingCampaignCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MarketingCampaignCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MarketingCampaign.
+func (c *MarketingCampaignClient) Update() *MarketingCampaignUpdate {
+	mutation := newMarketingCampaignMutation(c.config, OpUpdate)
+	return &MarketingCampaignUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MarketingCampaignClient) UpdateOne(_m *MarketingCampaign) *MarketingCampaignUpdateOne {
+	mutation := newMarketingCampaignMutation(c.config, OpUpdateOne, withMarketingCampaign(_m))
+	return &MarketingCampaignUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MarketingCampaignClient) UpdateOneID(id int) *MarketingCampaignUpdateOne {
+	mutation := newMarketingCampaignMutation(c.config, OpUpdateOne, withMarketingCampaignID(id))
+	return &MarketingCampaignUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MarketingCampaign.
+func (c *MarketingCampaignClient) Delete() *MarketingCampaignDelete {
+	mutation := newMarketingCampaignMutation(c.config, OpDelete)
+	return &MarketingCampaignDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MarketingCampaignClient) DeleteOne(_m *MarketingCampaign) *MarketingCampaignDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MarketingCampaignClient) DeleteOneID(id int) *MarketingCampaignDeleteOne {
+	builder := c.Delete().Where(marketingcampaign.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MarketingCampaignDeleteOne{builder}
+}
+
+// Query returns a query builder for MarketingCampaign.
+func (c *MarketingCampaignClient) Query() *MarketingCampaignQuery {
+	return &MarketingCampaignQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMarketingCampaign},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MarketingCampaign entity by its id.
+func (c *MarketingCampaignClient) Get(ctx context.Context, id int) (*MarketingCampaign, error) {
+	return c.Query().Where(marketingcampaign.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MarketingCampaignClient) GetX(ctx context.Context, id int) *MarketingCampaign {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QuerySends queries the sends edge of a MarketingCampaign.
+func (c *MarketingCampaignClient) QuerySends(_m *MarketingCampaign) *MarketingSendQuery {
+	query := (&MarketingSendClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(marketingcampaign.Table, marketingcampaign.FieldID, id),
+			sqlgraph.To(marketingsend.Table, marketingsend.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, marketingcampaign.SendsTable, marketingcampaign.SendsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *MarketingCampaignClient) Hooks() []Hook {
+	return c.hooks.MarketingCampaign
+}
+
+// Interceptors returns the client interceptors.
+func (c *MarketingCampaignClient) Interceptors() []Interceptor {
+	return c.inters.MarketingCampaign
+}
+
+func (c *MarketingCampaignClient) mutate(ctx context.Context, m *MarketingCampaignMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MarketingCampaignCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MarketingCampaignUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MarketingCampaignUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MarketingCampaignDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MarketingCampaign mutation op: %q", m.Op())
+	}
+}
+
+// MarketingConsentClient is a client for the MarketingConsent schema.
+type MarketingConsentClient struct {
+	config
+}
+
+// NewMarketingConsentClient returns a client for the MarketingConsent from the given config.
+func NewMarketingConsentClient(c config) *MarketingConsentClient {
+	return &MarketingConsentClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `marketingconsent.Hooks(f(g(h())))`.
+func (c *MarketingConsentClient) Use(hooks ...Hook) {
+	c.hooks.MarketingConsent = append(c.hooks.MarketingConsent, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `marketingconsent.Intercept(f(g(h())))`.
+func (c *MarketingConsentClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MarketingConsent = append(c.inters.MarketingConsent, interceptors...)
+}
+
+// Create returns a builder for creating a MarketingConsent entity.
+func (c *MarketingConsentClient) Create() *MarketingConsentCreate {
+	mutation := newMarketingConsentMutation(c.config, OpCreate)
+	return &MarketingConsentCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MarketingConsent entities.
+func (c *MarketingConsentClient) CreateBulk(builders ...*MarketingConsentCreate) *MarketingConsentCreateBulk {
+	return &MarketingConsentCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MarketingConsentClient) MapCreateBulk(slice any, setFunc func(*MarketingConsentCreate, int)) *MarketingConsentCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MarketingConsentCreateBulk{err: fmt.Errorf("calling to MarketingConsentClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MarketingConsentCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MarketingConsentCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MarketingConsent.
+func (c *MarketingConsentClient) Update() *MarketingConsentUpdate {
+	mutation := newMarketingConsentMutation(c.config, OpUpdate)
+	return &MarketingConsentUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MarketingConsentClient) UpdateOne(_m *MarketingConsent) *MarketingConsentUpdateOne {
+	mutation := newMarketingConsentMutation(c.config, OpUpdateOne, withMarketingConsent(_m))
+	return &MarketingConsentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MarketingConsentClient) UpdateOneID(id int) *MarketingConsentUpdateOne {
+	mutation := newMarketingConsentMutation(c.config, OpUpdateOne, withMarketingConsentID(id))
+	return &MarketingConsentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MarketingConsent.
+func (c *MarketingConsentClient) Delete() *MarketingConsentDelete {
+	mutation := newMarketingConsentMutation(c.config, OpDelete)
+	return &MarketingConsentDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MarketingConsentClient) DeleteOne(_m *MarketingConsent) *MarketingConsentDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MarketingConsentClient) DeleteOneID(id int) *MarketingConsentDeleteOne {
+	builder := c.Delete().Where(marketingconsent.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MarketingConsentDeleteOne{builder}
+}
+
+// Query returns a query builder for MarketingConsent.
+func (c *MarketingConsentClient) Query() *MarketingConsentQuery {
+	return &MarketingConsentQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMarketingConsent},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MarketingConsent entity by its id.
+func (c *MarketingConsentClient) Get(ctx context.Context, id int) (*MarketingConsent, error) {
+	return c.Query().Where(marketingconsent.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MarketingConsentClient) GetX(ctx context.Context, id int) *MarketingConsent {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a MarketingConsent.
+func (c *MarketingConsentClient) QueryUser(_m *MarketingConsent) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(marketingconsent.Table, marketingconsent.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, marketingconsent.UserTable, marketingconsent.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *MarketingConsentClient) Hooks() []Hook {
+	return c.hooks.MarketingConsent
+}
+
+// Interceptors returns the client interceptors.
+func (c *MarketingConsentClient) Interceptors() []Interceptor {
+	return c.inters.MarketingConsent
+}
+
+func (c *MarketingConsentClient) mutate(ctx context.Context, m *MarketingConsentMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MarketingConsentCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MarketingConsentUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MarketingConsentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MarketingConsentDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MarketingConsent mutation op: %q", m.Op())
+	}
+}
+
+// MarketingSendClient is a client for the MarketingSend schema.
+type MarketingSendClient struct {
+	config
+}
+
+// NewMarketingSendClient returns a client for the MarketingSend from the given config.
+func NewMarketingSendClient(c config) *MarketingSendClient {
+	return &MarketingSendClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `marketingsend.Hooks(f(g(h())))`.
+func (c *MarketingSendClient) Use(hooks ...Hook) {
+	c.hooks.MarketingSend = append(c.hooks.MarketingSend, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `marketingsend.Intercept(f(g(h())))`.
+func (c *MarketingSendClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MarketingSend = append(c.inters.MarketingSend, interceptors...)
+}
+
+// Create returns a builder for creating a MarketingSend entity.
+func (c *MarketingSendClient) Create() *MarketingSendCreate {
+	mutation := newMarketingSendMutation(c.config, OpCreate)
+	return &MarketingSendCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MarketingSend entities.
+func (c *MarketingSendClient) CreateBulk(builders ...*MarketingSendCreate) *MarketingSendCreateBulk {
+	return &MarketingSendCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MarketingSendClient) MapCreateBulk(slice any, setFunc func(*MarketingSendCreate, int)) *MarketingSendCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MarketingSendCreateBulk{err: fmt.Errorf("calling to MarketingSendClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MarketingSendCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MarketingSendCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MarketingSend.
+func (c *MarketingSendClient) Update() *MarketingSendUpdate {
+	mutation := newMarketingSendMutation(c.config, OpUpdate)
+	return &MarketingSendUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MarketingSendClient) UpdateOne(_m *MarketingSend) *MarketingSendUpdateOne {
+	mutation := newMarketingSendMutation(c.config, OpUpdateOne, withMarketingSend(_m))
+	return &MarketingSendUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MarketingSendClient) UpdateOneID(id int) *MarketingSendUpdateOne {
+	mutation := newMarketingSendMutation(c.config, OpUpdateOne, withMarketingSendID(id))
+	return &MarketingSendUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MarketingSend.
+func (c *MarketingSendClient) Delete() *MarketingSendDelete {
+	mutation := newMarketingSendMutation(c.config, OpDelete)
+	return &MarketingSendDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MarketingSendClient) DeleteOne(_m *MarketingSend) *MarketingSendDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MarketingSendClient) DeleteOneID(id int) *MarketingSendDeleteOne {
+	builder := c.Delete().Where(marketingsend.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MarketingSendDeleteOne{builder}
+}
+
+// Query returns a query builder for MarketingSend.
+func (c *MarketingSendClient) Query() *MarketingSendQuery {
+	return &MarketingSendQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMarketingSend},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MarketingSend entity by its id.
+func (c *MarketingSendClient) Get(ctx context.Context, id int) (*MarketingSend, error) {
+	return c.Query().Where(marketingsend.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MarketingSendClient) GetX(ctx context.Context, id int) *MarketingSend {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCampaign queries the campaign edge of a MarketingSend.
+func (c *MarketingSendClient) QueryCampaign(_m *MarketingSend) *MarketingCampaignQuery {
+	query := (&MarketingCampaignClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(marketingsend.Table, marketingsend.FieldID, id),
+			sqlgraph.To(marketingcampaign.Table, marketingcampaign.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, marketingsend.CampaignTable, marketingsend.CampaignColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUser queries the user edge of a MarketingSend.
+func (c *MarketingSendClient) QueryUser(_m *MarketingSend) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(marketingsend.Table, marketingsend.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, marketingsend.UserTable, marketingsend.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *MarketingSendClient) Hooks() []Hook {
+	return c.hooks.MarketingSend
+}
+
+// Interceptors returns the client interceptors.
+func (c *MarketingSendClient) Interceptors() []Interceptor {
+	return c.inters.MarketingSend
+}
+
+func (c *MarketingSendClient) mutate(ctx context.Context, m *MarketingSendMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MarketingSendCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MarketingSendUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MarketingSendUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MarketingSendDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MarketingSend mutation op: %q", m.Op())
 	}
 }
 
@@ -1267,6 +1905,155 @@ func (c *PremiumGrantClient) mutate(ctx context.Context, m *PremiumGrantMutation
 		return (&PremiumGrantDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown PremiumGrant mutation op: %q", m.Op())
+	}
+}
+
+// TermsAcceptanceClient is a client for the TermsAcceptance schema.
+type TermsAcceptanceClient struct {
+	config
+}
+
+// NewTermsAcceptanceClient returns a client for the TermsAcceptance from the given config.
+func NewTermsAcceptanceClient(c config) *TermsAcceptanceClient {
+	return &TermsAcceptanceClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `termsacceptance.Hooks(f(g(h())))`.
+func (c *TermsAcceptanceClient) Use(hooks ...Hook) {
+	c.hooks.TermsAcceptance = append(c.hooks.TermsAcceptance, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `termsacceptance.Intercept(f(g(h())))`.
+func (c *TermsAcceptanceClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TermsAcceptance = append(c.inters.TermsAcceptance, interceptors...)
+}
+
+// Create returns a builder for creating a TermsAcceptance entity.
+func (c *TermsAcceptanceClient) Create() *TermsAcceptanceCreate {
+	mutation := newTermsAcceptanceMutation(c.config, OpCreate)
+	return &TermsAcceptanceCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TermsAcceptance entities.
+func (c *TermsAcceptanceClient) CreateBulk(builders ...*TermsAcceptanceCreate) *TermsAcceptanceCreateBulk {
+	return &TermsAcceptanceCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TermsAcceptanceClient) MapCreateBulk(slice any, setFunc func(*TermsAcceptanceCreate, int)) *TermsAcceptanceCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TermsAcceptanceCreateBulk{err: fmt.Errorf("calling to TermsAcceptanceClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TermsAcceptanceCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TermsAcceptanceCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TermsAcceptance.
+func (c *TermsAcceptanceClient) Update() *TermsAcceptanceUpdate {
+	mutation := newTermsAcceptanceMutation(c.config, OpUpdate)
+	return &TermsAcceptanceUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TermsAcceptanceClient) UpdateOne(_m *TermsAcceptance) *TermsAcceptanceUpdateOne {
+	mutation := newTermsAcceptanceMutation(c.config, OpUpdateOne, withTermsAcceptance(_m))
+	return &TermsAcceptanceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TermsAcceptanceClient) UpdateOneID(id int) *TermsAcceptanceUpdateOne {
+	mutation := newTermsAcceptanceMutation(c.config, OpUpdateOne, withTermsAcceptanceID(id))
+	return &TermsAcceptanceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TermsAcceptance.
+func (c *TermsAcceptanceClient) Delete() *TermsAcceptanceDelete {
+	mutation := newTermsAcceptanceMutation(c.config, OpDelete)
+	return &TermsAcceptanceDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TermsAcceptanceClient) DeleteOne(_m *TermsAcceptance) *TermsAcceptanceDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TermsAcceptanceClient) DeleteOneID(id int) *TermsAcceptanceDeleteOne {
+	builder := c.Delete().Where(termsacceptance.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TermsAcceptanceDeleteOne{builder}
+}
+
+// Query returns a query builder for TermsAcceptance.
+func (c *TermsAcceptanceClient) Query() *TermsAcceptanceQuery {
+	return &TermsAcceptanceQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTermsAcceptance},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TermsAcceptance entity by its id.
+func (c *TermsAcceptanceClient) Get(ctx context.Context, id int) (*TermsAcceptance, error) {
+	return c.Query().Where(termsacceptance.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TermsAcceptanceClient) GetX(ctx context.Context, id int) *TermsAcceptance {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a TermsAcceptance.
+func (c *TermsAcceptanceClient) QueryUser(_m *TermsAcceptance) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(termsacceptance.Table, termsacceptance.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, termsacceptance.UserTable, termsacceptance.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *TermsAcceptanceClient) Hooks() []Hook {
+	return c.hooks.TermsAcceptance
+}
+
+// Interceptors returns the client interceptors.
+func (c *TermsAcceptanceClient) Interceptors() []Interceptor {
+	return c.inters.TermsAcceptance
+}
+
+func (c *TermsAcceptanceClient) mutate(ctx context.Context, m *TermsAcceptanceMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TermsAcceptanceCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TermsAcceptanceUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TermsAcceptanceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TermsAcceptanceDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TermsAcceptance mutation op: %q", m.Op())
 	}
 }
 
@@ -1584,6 +2371,54 @@ func (c *UserClient) QueryAuthorizationCodes(_m *User) *AuthorizationCodeQuery {
 			sqlgraph.From(user.Table, user.FieldID, id),
 			sqlgraph.To(authorizationcode.Table, authorizationcode.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, user.AuthorizationCodesTable, user.AuthorizationCodesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryTermsAcceptances queries the terms_acceptances edge of a User.
+func (c *UserClient) QueryTermsAcceptances(_m *User) *TermsAcceptanceQuery {
+	query := (&TermsAcceptanceClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(termsacceptance.Table, termsacceptance.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.TermsAcceptancesTable, user.TermsAcceptancesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryMarketingConsents queries the marketing_consents edge of a User.
+func (c *UserClient) QueryMarketingConsents(_m *User) *MarketingConsentQuery {
+	query := (&MarketingConsentClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(marketingconsent.Table, marketingconsent.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.MarketingConsentsTable, user.MarketingConsentsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryMarketingSends queries the marketing_sends edge of a User.
+func (c *UserClient) QueryMarketingSends(_m *User) *MarketingSendQuery {
+	query := (&MarketingSendClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(marketingsend.Table, marketingsend.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.MarketingSendsTable, user.MarketingSendsColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -1951,12 +2786,14 @@ func (c *VoiceUsageReceiptClient) mutate(ctx context.Context, m *VoiceUsageRecei
 type (
 	hooks struct {
 		AdminAuditDelivery, AuthorizationCode, BillingReceipt, Delegation, DeviceGrant,
-		LifecycleErasure, PremiumGrant, Tokens, User, VoiceUsage,
+		EmailSuppression, LifecycleErasure, MarketingCampaign, MarketingConsent,
+		MarketingSend, PremiumGrant, TermsAcceptance, Tokens, User, VoiceUsage,
 		VoiceUsageReceipt []ent.Hook
 	}
 	inters struct {
 		AdminAuditDelivery, AuthorizationCode, BillingReceipt, Delegation, DeviceGrant,
-		LifecycleErasure, PremiumGrant, Tokens, User, VoiceUsage,
+		EmailSuppression, LifecycleErasure, MarketingCampaign, MarketingConsent,
+		MarketingSend, PremiumGrant, TermsAcceptance, Tokens, User, VoiceUsage,
 		VoiceUsageReceipt []ent.Interceptor
 	}
 )

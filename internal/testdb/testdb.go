@@ -5,6 +5,7 @@ package testdb
 
 import (
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -13,7 +14,7 @@ const Driver = "sqlite3"
 type Name string
 
 func MemDSN(name Name) string {
-	return "file:" + string(name) + "?mode=memory&cache=shared&_fk=1"
+	return "file:" + strings.ReplaceAll(string(name), "#", "%23") + "?mode=memory&cache=shared&_fk=1"
 }
 
 func Open[C io.Closer](t *testing.T, name Name, open func(driver, dsn string) C) C {

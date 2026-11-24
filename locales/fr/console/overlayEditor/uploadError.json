@@ -1,0 +1,14 @@
+{
+  "unsupported_media": "Ce type de fichier n’est pas pris en charge. Utilisez PNG, WebP, JPEG, GIF ou WebM, ou MP3, OGG ou WAV pour le son.",
+  "invalid_asset": "Ce fichier n’a pas pu être lu comme un média valide.",
+  "asset_too_large": "Ce fichier dépasse la limite pour son type.",
+  "asset_dimensions": "Ce fichier dépasse la largeur et la hauteur autorisées.",
+  "asset_duration": "Ce fichier dépasse la durée autorisée.",
+  "too_many_assets": "Cet overlay contient déjà le nombre maximal de fichiers.",
+  "too_many_of_type": "Cet overlay contient déjà le nombre maximal de fichiers de ce type.",
+  "overlay_assets_too_large": "Cet overlay a atteint sa limite de taille totale.",
+  "alpha_required": "Le téléversement de fichiers nécessite l’accès Alpha.",
+  "rate_limited": "Trop de téléversements pour le moment. Réessayez dans un instant.",
+  "quota_exceeded": "Votre espace est plein. Supprimez d’abord les fichiers ou overlays inutilisés.",
+  "failed": "Le téléversement a échoué. Réessayez."
+}

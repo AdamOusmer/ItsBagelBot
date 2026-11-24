@@ -93,5 +93,6 @@ type Module struct {
 	Events        map[string]EventHandler
 	Commands      []Command
 	Beta          bool
+	Alpha         bool
 	Trial         bool
 }

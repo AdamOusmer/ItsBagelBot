@@ -142,8 +142,8 @@ the token out of logs.
 `GET /o/doc` re-resolves the cookie's hash and returns
 `{"document", "revision", "premium"}` uncached. No cookie or an expired one is
 401. A rotated link or a changed generation is 403 `not_found`. An overlay the
-account may not show is 403 `premium_required`. Projector sets `allowed` and
-withholds the document when it is false, so the premium rule lives there.
+account may not show is 403 `alpha_required`. Projector sets `allowed` and
+withholds the document when it is false, so the alpha rule lives there.
 `GET /o/events` is SSE through the same `Overlays.Stream` module as TTS. It opens only
 when the same check passes (otherwise 204), re-checks every five minutes
 (`overlay_check_ms` overrides it), sends `event: revision` when the revision moves and
@@ -153,7 +153,16 @@ expires. An unavailable check keeps the stream and reschedules after 15 seconds
 `HEAD /o/events` answers 200, 204 or 503 from the same check, which the page uses
 before reopening. It registers with the shared drain like TTS events. Each stream
 also subscribes to `overlays.session.<user_id>.<template>` (the resolve reply's `user_id`), so it
-receives only offers whose kind matches the overlay's template. Delivery is
+receives only offers whose kind matches the overlay's template. A custom document accepts
+kind `custom`; its alert data is a feed event keyed by `id`, which becomes the frame's
+`event_id`. A custom stream also subscribes to the core subject `overlays.state.<user_id>`
+(no queue group, no replay) and forwards `{"type","data"}` messages of type `stats`, `credits`,
+`subathon` or `control` as `event: <type>` frames, and right after `ready` it calls
+`rpc.internal.overlays.feed.snapshot` (`{"user_id","events"}`, reply `{"snapshot"}`; `events` is the largest `count` of an
+`eventlist` or `chatbox` widget, 0 for the server default) and sends
+`event: snapshot`, retrying every `overlay_recheck_ms` while the RPC is unavailable. A
+revision change that moves the overlay between templates sends `event: reconnect` so the
+page reopens its stream with the new subscriptions. Delivery is
 at-least-once like TTS: it writes the `alert` frame, tracks the ack subject, replies
 `{"accepted": true}` and leaves the message unacked until the page posts `/o/ack`
 when the entrance animation starts. A stream that dies first NAKs its unacked
@@ -165,7 +174,14 @@ The page holds exactly one `<style>` and one `<script>` tag without attributes,
 (the shared client is inlined into that script at the `{{overlay_client}}` line) and the CSP carries their SHA-256 hashes, `img-src` and `media-src` for
 `https://cdn.itsbagelbot.com`, and `connect-src 'self'`. The script selects a
 template module by `document.template` for system overlays. `powered` is the only
-one. Custom overlays show a placeholder notice. Only the dashboard origin may
+one. A custom document loads the overlay runtime (`GET /o/runtime/<hash>.js`, content
+hashed from `priv/overlay/runtime.js`, built by `bun run overlay-runtime:build` in
+`web/kit`) and mounts it. `GET /o` carries a wider policy than `/powered`: `script-src
+'self'`, the CDN and Twitch image host, and `frame-src` for the sandbox origin
+(`overlay_sandbox_origin`, default `https://widgets.itsbagelbot.com`), which serves
+`GET /sandbox/<widget>` (`priv/overlay/frame.js` under a sandboxed CSP). Alert data goes to
+the runtime's `event`; `snapshot`, `stats`, `credits`, `subathon` and `control` frames go to its feed
+state. Only the dashboard origin may
 frame the page. `powered_dev_frame_ancestors` adds localhost origins for
 dashboard development. `GET /powered/assets/<file>` serves only the `.webp` and
 `.woff2` files present in `priv/powered/assets` at compile time, cached as
@@ -187,6 +203,9 @@ The hub carries core NATS device events, commands and takeover messages over
 publishes its randomly generated connection ID to displace an older one.
 `controls.revoked.<device_id>` closes that device's connection. The handler
 hibernates between messages and resubscribes when Gnat reconnects.
+`Platform.Nats.LeafFailback` and `Platform.Nats.HubFailback` move the RPC and hub
+connections back to the node-local leaf and hub after a restart lands them on
+another node; each recycle reaches streams as an ordinary reconnect.
 
 Desktop close codes are 4000 for expiry, 4001 for takeover, 4003 for
 revocation, 1001 for graceful shutdown, 1007 for malformed frames and 1009

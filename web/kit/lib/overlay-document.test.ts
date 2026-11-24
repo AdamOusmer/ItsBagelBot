@@ -50,6 +50,22 @@ describe('overlay document limits', () => {
   });
 });
 
+const assetWith = (url: string) => ({
+  a1: { type: 'png', bytes: 1024, w: 10, h: 10, duration_ms: 0, sha256: 'ab'.repeat(32), url }
+});
+
+describe('overlay asset url', () => {
+  test.each([
+    ['a cdn url', 'https://cdn.itsbagelbot.com/u/1/a1', null],
+    ['a missing url', '', 'invalid_asset'],
+    ['another host', 'https://example.com/u/1/a1', 'invalid_asset'],
+    ['plain http', 'http://cdn.itsbagelbot.com/u/1/a1', 'invalid_asset'],
+    ['a lookalike host', 'https://cdn.itsbagelbot.com.example.test/a1', 'invalid_asset']
+  ])('%s', (_name, url, code) => {
+    expect(codeOf(customDocument({ assets: assetWith(url) }))).toBe(code);
+  });
+});
+
 describe('premium rule', () => {
   test.each([
     ['system', false, true],
@@ -76,7 +92,8 @@ describe('pinned limits', () => {
         account_uploads_per_hour: overlayLimits.accountUploadsPerHour,
         import_unpacked_bytes: overlayLimits.importUnpackedBytes,
         import_entries: overlayLimits.importEntries,
-        import_ratio: overlayLimits.importRatio
+        import_ratio: overlayLimits.importRatio,
+        lapse_retention_days: overlayLimits.lapseRetentionDays
       },
       assets: Object.fromEntries(
         ASSET_TYPES.map((type) => [type, {

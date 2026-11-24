@@ -16,6 +16,8 @@ import { broadcasterPremium } from '#lib/server/module-gate';
 import { twitchScopeGap } from '#lib/server/oauth';
 import { isSelfSignIn } from '#lib/server/owner';
 import { count } from '@bagel/kit/server/analytics';
+import { safeReturnPath } from '@bagel/kit/return-path';
+import { needsTerms } from '#lib/server/consent';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -73,15 +75,30 @@ function requireTwitchScopes(s: Session, url: URL): void {
   throw redirect(302, `/auth/login?reauth=1&next=${encodeURIComponent(url.pathname + url.search)}`);
 }
 
-const CONSENT_FREE_SECTIONS = new Set(['settings']);
-
-function consentPending(gate: App.Locals['accountState'], s: Session): boolean {
-  if (s.impersonator_id || !gate) return false;
-  return 'value' in gate && !gate.value.onboarded;
+function isCheckoutReturn(url: URL, path: string): boolean {
+  if (path !== '/billing') return false;
+  const outcome = url.searchParams.get('checkout') ?? '';
+  return ['complete', 'cancelled'].includes(outcome);
 }
 
-function requireConsent(locals: App.Locals, s: Session, section: string): void {
-  if (consentPending(locals.accountState, s) && !CONSENT_FREE_SECTIONS.has(section)) throw redirect(302, '/welcome');
+function requireConsent(account: AccountState | null, url: URL): void {
+  const version = account?.termsVersion;
+  if (typeof version !== 'string' || !needsTerms(version)) return;
+  const next = safeReturnPath(url.pathname + url.search) ?? '/';
+  throw redirect(302, `/consent?next=${encodeURIComponent(next)}`);
+}
+
+function consentApplies(s: Session, checkout: boolean, path: string): boolean {
+  return !s.impersonator_id && !checkout && path !== '/settings';
+}
+
+async function gatedAccount(locals: App.Locals, s: Session, url: URL): Promise<AccountState | null> {
+  const path = url.pathname.replace(/\/$/, '');
+  const checkout = isCheckoutReturn(url, path);
+  if (!checkout) requireTwitchScopes(s, url);
+  const account = await loadAccountState(locals, s);
+  if (consentApplies(s, checkout, path)) requireConsent(account, url);
+  return account;
 }
 
 function delegateView(s: Session) {
@@ -89,19 +106,21 @@ function delegateView(s: Session) {
   return { delegateOf: s.delegate_of, delegateLogin: s.delegate_login, sections: s.sections ?? [] };
 }
 
-function isPremiumAccount(acc: AccountState | null): boolean {
-  return acc?.status === 'vip' || acc?.status === 'paid';
+function accountFlags(acc: AccountState | null) {
+  return {
+    isPremium: acc?.status === 'vip' || acc?.status === 'paid',
+    isAlpha: acc?.alpha === true,
+    onboarded: acc?.onboarded ?? false
+  };
 }
 
 export const load: LayoutServerLoad = async ({ locals, url, route, request }) => {
   const s = await requireSession(locals, url);
-  requireTwitchScopes(s, url);
+  const acc = await gatedAccount(locals, s, url);
   const section = (route.id === '/(app)' ? 'overview' : route.id?.split('/(app)/')[1]?.split('/')[0]) ?? '';
-  requireConsent(locals, s, section);
   if (request.method === 'GET') count('dashboard.views', section, s.delegate_of ? 'delegate' : 'owner');
 
-  const [acc, authorizedDashboards, flags] = await Promise.all([
-    loadAccountState(locals, s),
+  const [authorizedDashboards, flags] = await Promise.all([
     loadAuthorizedDashboards(s),
     loadModuleFlags(locals, s)
   ]);
@@ -121,8 +140,7 @@ export const load: LayoutServerLoad = async ({ locals, url, route, request }) =>
     ...delegateView(s),
     bell: loadBellPeek(s),
     authorizedDashboards,
-    isPremium: isPremiumAccount(acc),
-    onboarded: acc?.onboarded ?? false,
+    ...accountFlags(acc),
     moduleFlags: flags
   };
 };

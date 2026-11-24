@@ -220,10 +220,17 @@ func normalizedDestination(subject string) string {
 	case subject == OverlaysMediaBucket:
 		return OverlaysMediaBucket
 	}
+	return familyDestination(subject)
+}
+
+func familyDestination(subject string) string {
 	for _, entry := range familyDestinations {
 		if strings.HasPrefix(subject, entry.prefix) {
 			return entry.family.normalize(subject)
 		}
+	}
+	if name, ok := feedStreamDestination(subject); ok {
+		return name
 	}
 	return "other"
 }

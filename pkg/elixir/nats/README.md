@@ -24,7 +24,11 @@ connection for the lifetime of a subscription or read.
 `Platform.Nats.Settings` uses the connection host as its TLS server name and
 keeps client certificate and key paths for reconnects. Services that use separate
 identities or connection pools can build individual children through
-`Platform.Nats`. Service code owns subject names, failback, acknowledgment
-tracking and retry decisions.
+`Platform.Nats`. `Platform.Nats.LeafFailback` moves named RPC connections back to
+the node-local leaf (`NODE_NAME`, `NATS_LOCAL_LEAF_HEALTH_URL`), like
+`pkg/bus/failback.go`; `Platform.Nats.HubFailback` does the same for hub
+connections the caller lists, probing `nats-local` with `local_probe_settings/1`.
+Both read `NATS_FAILBACK_*` through `Platform.Nats.Failback`. Service code owns
+subject names, acknowledgment tracking and retry decisions.
 Gnat is pinned exactly because `Platform.Nats.Wire` relies on its connection call
 and header encoding.

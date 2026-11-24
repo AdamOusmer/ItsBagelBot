@@ -1,7 +1,7 @@
 {
   "dead.body": "Quelques connexions de ta chaîne ont expiré. Va dans les paramètres et reconnecte ton compte pour régler le problème.",
-  "dead.chat": "Quelques connexions de ta chaîne ont expiré. Connecte-toi au tableau de bord pour régler le problème : {dashboard_url}",
   "dead.title": "Reconnecte ton compte Twitch",
   "scope.body": "Le bot a besoin d'une autorisation Twitch plus récente pour voir les bannissements et les exclusions temporaires de ta chaîne. Connecte-toi sur {dashboard_url} et accepte la demande de Twitch pour que le chat et les alertes continuent de fonctionner.",
+  "scope.chat": "Salut ! ItsBagelBot a besoin d'une autorisation Twitch mise à jour. La personne qui diffuse peut se connecter une fois sur {dashboard_url} pour que tout continue de fonctionner.",
   "scope.title": "Accepte la nouvelle autorisation Twitch"
 }

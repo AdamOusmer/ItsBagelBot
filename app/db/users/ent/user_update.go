@@ -513,6 +513,54 @@ func (_u *UserUpdate) SetNillableOnboarded(v *bool) *UserUpdate {
 	return _u
 }
 
+// SetTermsVersion sets the "terms_version" field.
+func (_u *UserUpdate) SetTermsVersion(v string) *UserUpdate {
+	_u.mutation.SetTermsVersion(v)
+	return _u
+}
+
+// SetNillableTermsVersion sets the "terms_version" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableTermsVersion(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetTermsVersion(*v)
+	}
+	return _u
+}
+
+// SetMarketingStatus sets the "marketing_status" field.
+func (_u *UserUpdate) SetMarketingStatus(v user.MarketingStatus) *UserUpdate {
+	_u.mutation.SetMarketingStatus(v)
+	return _u
+}
+
+// SetNillableMarketingStatus sets the "marketing_status" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableMarketingStatus(v *user.MarketingStatus) *UserUpdate {
+	if v != nil {
+		_u.SetMarketingStatus(*v)
+	}
+	return _u
+}
+
+// SetMarketingStatusAt sets the "marketing_status_at" field.
+func (_u *UserUpdate) SetMarketingStatusAt(v time.Time) *UserUpdate {
+	_u.mutation.SetMarketingStatusAt(v)
+	return _u
+}
+
+// SetNillableMarketingStatusAt sets the "marketing_status_at" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableMarketingStatusAt(v *time.Time) *UserUpdate {
+	if v != nil {
+		_u.SetMarketingStatusAt(*v)
+	}
+	return _u
+}
+
+// ClearMarketingStatusAt clears the value of the "marketing_status_at" field.
+func (_u *UserUpdate) ClearMarketingStatusAt() *UserUpdate {
+	_u.mutation.ClearMarketingStatusAt()
+	return _u
+}
+
 // SetTestAccount sets the "test_account" field.
 func (_u *UserUpdate) SetTestAccount(v bool) *UserUpdate {
 	_u.mutation.SetTestAccount(v)
@@ -523,6 +571,20 @@ func (_u *UserUpdate) SetTestAccount(v bool) *UserUpdate {
 func (_u *UserUpdate) SetNillableTestAccount(v *bool) *UserUpdate {
 	if v != nil {
 		_u.SetTestAccount(*v)
+	}
+	return _u
+}
+
+// SetAlpha sets the "alpha" field.
+func (_u *UserUpdate) SetAlpha(v bool) *UserUpdate {
+	_u.mutation.SetAlpha(v)
+	return _u
+}
+
+// SetNillableAlpha sets the "alpha" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableAlpha(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetAlpha(*v)
 	}
 	return _u
 }
@@ -847,6 +909,16 @@ func (_u *UserUpdate) check() error {
 			return &ValidationError{Name: "creator_code", err: fmt.Errorf(`ent: validator failed for field "User.creator_code": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.TermsVersion(); ok {
+		if err := user.TermsVersionValidator(v); err != nil {
+			return &ValidationError{Name: "terms_version", err: fmt.Errorf(`ent: validator failed for field "User.terms_version": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.MarketingStatus(); ok {
+		if err := user.MarketingStatusValidator(v); err != nil {
+			return &ValidationError{Name: "marketing_status", err: fmt.Errorf(`ent: validator failed for field "User.marketing_status": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -988,8 +1060,23 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Onboarded(); ok {
 		_spec.SetField(user.FieldOnboarded, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.TermsVersion(); ok {
+		_spec.SetField(user.FieldTermsVersion, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.MarketingStatus(); ok {
+		_spec.SetField(user.FieldMarketingStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.MarketingStatusAt(); ok {
+		_spec.SetField(user.FieldMarketingStatusAt, field.TypeTime, value)
+	}
+	if _u.mutation.MarketingStatusAtCleared() {
+		_spec.ClearField(user.FieldMarketingStatusAt, field.TypeTime)
+	}
 	if value, ok := _u.mutation.TestAccount(); ok {
 		_spec.SetField(user.FieldTestAccount, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.Alpha(); ok {
+		_spec.SetField(user.FieldAlpha, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
@@ -1765,6 +1852,54 @@ func (_u *UserUpdateOne) SetNillableOnboarded(v *bool) *UserUpdateOne {
 	return _u
 }
 
+// SetTermsVersion sets the "terms_version" field.
+func (_u *UserUpdateOne) SetTermsVersion(v string) *UserUpdateOne {
+	_u.mutation.SetTermsVersion(v)
+	return _u
+}
+
+// SetNillableTermsVersion sets the "terms_version" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableTermsVersion(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetTermsVersion(*v)
+	}
+	return _u
+}
+
+// SetMarketingStatus sets the "marketing_status" field.
+func (_u *UserUpdateOne) SetMarketingStatus(v user.MarketingStatus) *UserUpdateOne {
+	_u.mutation.SetMarketingStatus(v)
+	return _u
+}
+
+// SetNillableMarketingStatus sets the "marketing_status" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableMarketingStatus(v *user.MarketingStatus) *UserUpdateOne {
+	if v != nil {
+		_u.SetMarketingStatus(*v)
+	}
+	return _u
+}
+
+// SetMarketingStatusAt sets the "marketing_status_at" field.
+func (_u *UserUpdateOne) SetMarketingStatusAt(v time.Time) *UserUpdateOne {
+	_u.mutation.SetMarketingStatusAt(v)
+	return _u
+}
+
+// SetNillableMarketingStatusAt sets the "marketing_status_at" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableMarketingStatusAt(v *time.Time) *UserUpdateOne {
+	if v != nil {
+		_u.SetMarketingStatusAt(*v)
+	}
+	return _u
+}
+
+// ClearMarketingStatusAt clears the value of the "marketing_status_at" field.
+func (_u *UserUpdateOne) ClearMarketingStatusAt() *UserUpdateOne {
+	_u.mutation.ClearMarketingStatusAt()
+	return _u
+}
+
 // SetTestAccount sets the "test_account" field.
 func (_u *UserUpdateOne) SetTestAccount(v bool) *UserUpdateOne {
 	_u.mutation.SetTestAccount(v)
@@ -1775,6 +1910,20 @@ func (_u *UserUpdateOne) SetTestAccount(v bool) *UserUpdateOne {
 func (_u *UserUpdateOne) SetNillableTestAccount(v *bool) *UserUpdateOne {
 	if v != nil {
 		_u.SetTestAccount(*v)
+	}
+	return _u
+}
+
+// SetAlpha sets the "alpha" field.
+func (_u *UserUpdateOne) SetAlpha(v bool) *UserUpdateOne {
+	_u.mutation.SetAlpha(v)
+	return _u
+}
+
+// SetNillableAlpha sets the "alpha" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableAlpha(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetAlpha(*v)
 	}
 	return _u
 }
@@ -2112,6 +2261,16 @@ func (_u *UserUpdateOne) check() error {
 			return &ValidationError{Name: "creator_code", err: fmt.Errorf(`ent: validator failed for field "User.creator_code": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.TermsVersion(); ok {
+		if err := user.TermsVersionValidator(v); err != nil {
+			return &ValidationError{Name: "terms_version", err: fmt.Errorf(`ent: validator failed for field "User.terms_version": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.MarketingStatus(); ok {
+		if err := user.MarketingStatusValidator(v); err != nil {
+			return &ValidationError{Name: "marketing_status", err: fmt.Errorf(`ent: validator failed for field "User.marketing_status": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -2270,8 +2429,23 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	if value, ok := _u.mutation.Onboarded(); ok {
 		_spec.SetField(user.FieldOnboarded, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.TermsVersion(); ok {
+		_spec.SetField(user.FieldTermsVersion, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.MarketingStatus(); ok {
+		_spec.SetField(user.FieldMarketingStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.MarketingStatusAt(); ok {
+		_spec.SetField(user.FieldMarketingStatusAt, field.TypeTime, value)
+	}
+	if _u.mutation.MarketingStatusAtCleared() {
+		_spec.ClearField(user.FieldMarketingStatusAt, field.TypeTime)
+	}
 	if value, ok := _u.mutation.TestAccount(); ok {
 		_spec.SetField(user.FieldTestAccount, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.Alpha(); ok {
+		_spec.SetField(user.FieldAlpha, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)

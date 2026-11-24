@@ -317,10 +317,10 @@ func TestChattersAuthorizationReasons(t *testing.T) {
 
 func TestChattersAdoptsReauthorizedBotTokenAfterMissingScope(t *testing.T) {
 	expiry := time.Now().Add(time.Hour)
-	stored := StoredLoad{AccessToken: "under-scoped", AccessTokenExpiresAt: &expiry}
+	stored := StoredLoad{StoredToken: StoredToken{AccessToken: "under-scoped", AccessTokenExpiresAt: &expiry}}
 	source := NewStoredUserTokenSource(ClientCredentials{}, "", StoredTokenIO{
 		Load: func(context.Context) StoredLoad { return stored },
-		Persist: func(context.Context, string, string, time.Time) error {
+		Persist: func(context.Context, StoredToken) error {
 			t.Fatal("adopting a reauthorized token must not rotate or persist it")
 			return nil
 		},

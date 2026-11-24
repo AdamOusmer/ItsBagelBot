@@ -245,6 +245,7 @@ func resolveStreamForTopic(topic string) (string, error) {
 	specs = append(specs, IngressLaneSpecs()...)
 	specs = append(specs, TwitchIngressRetryStream, OutgressStream, OutgressSystemStream,
 		YouTubeOutgressStream, YouTubeIngressStream)
+	specs = append(specs, feedStreams...)
 
 	for _, spec := range specs {
 		if matchesAnySubject(topic, spec.Subjects) {

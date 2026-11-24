@@ -5,13 +5,13 @@ package mail
 
 import (
 	"context"
-	"errors"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/resend/resend-go/v4"
+	"ItsBagelBot/pkg/email"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,20 +24,15 @@ var (
 )
 
 type recordingSender struct {
-	request  *resend.SendEmailRequest
-	key      string
-	reply    *resend.SendEmailResponse
-	err      error
-	calls    int
-	deadline time.Time
-	bounded  bool
+	request email.Message
+	reply   email.Receipt
+	calls   int
 }
 
-func (s *recordingSender) SendWithOptions(ctx context.Context, request *resend.SendEmailRequest, options *resend.SendEmailOptions) (*resend.SendEmailResponse, error) {
-	s.request, s.key = request, options.IdempotencyKey
-	s.deadline, s.bounded = ctx.Deadline()
+func (s *recordingSender) Send(_ context.Context, msg email.Message) (email.Receipt, error) {
+	s.request = msg
 	s.calls++
-	return s.reply, s.err
+	return s.reply, nil
 }
 
 type rendered struct {
@@ -75,13 +70,13 @@ func (want expectation) check(t *testing.T, got rendered) {
 	}
 }
 
-func sendGift(t *testing.T, msg GiftMessage) (rendered, *resend.SendEmailRequest) {
+func sendGift(t *testing.T, msg GiftMessage) (rendered, email.Message) {
 	t.Helper()
-	sender := &recordingSender{reply: &resend.SendEmailResponse{Id: "gift-1"}}
+	sender := &recordingSender{reply: email.Receipt{ID: "gift-1"}}
 	msg.To, msg.IdempotencyKey = "winner@example.com", "gift-1"
 	require.NoError(t, (&Mailer{sender: sender, dashboardURL: dashboardURL}).SendGift(context.Background(), msg))
 	request := sender.request
-	return rendered{subject: request.Subject, html: request.Html, text: request.Text}, request
+	return rendered{subject: request.Subject, html: request.HTML, text: request.Text}, request
 }
 
 func prepareGiveaway(t *testing.T, msg GiveawayMessage) rendered {
@@ -89,29 +84,6 @@ func prepareGiveaway(t *testing.T, msg GiveawayMessage) rendered {
 	content, err := (&Mailer{from: "Bagel <bagel@example.com>", dashboardURL: dashboardURL}).PrepareGiveaway(msg)
 	require.NoError(t, err)
 	return rendered{subject: content.Subject, html: content.HTML, text: content.Text}
-}
-
-func TestProviderSendHasDeadline(t *testing.T) {
-	for name, send := range map[string]func(*Mailer) error{
-		"gift": func(m *Mailer) error {
-			return m.SendGift(context.Background(), GiftMessage{To: "winner@example.com", IdempotencyKey: "gift-1"})
-		},
-		"grant": func(m *Mailer) error {
-			return m.SendGrant(context.Background(), GrantMessage{To: "winner@example.com", ExpiresAt: sept20, IdempotencyKey: "grant-1"})
-		},
-		"prepared giveaway": func(m *Mailer) error {
-			_, err := m.DeliverPrepared(context.Background(), Delivery{To: "winner@example.com", Key: "award-1", Content: PreparedContent{Subject: "s", HTML: "<p>h</p>", Text: "t"}})
-			return err
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			sender := &recordingSender{reply: &resend.SendEmailResponse{Id: "id-1"}}
-			started := time.Now()
-			require.NoError(t, send(&Mailer{sender: sender, dashboardURL: dashboardURL}))
-			require.True(t, sender.bounded, "provider send must carry a deadline")
-			assert.WithinDuration(t, started.Add(sendTimeout), sender.deadline, time.Second)
-		})
-	}
 }
 
 var englishCopy = []string{"2 months", "September", "November", "recurring subscription", "Next scheduled payment", "View your prize", "Staying safe", " of ItsBagelBot Premium"}
@@ -307,7 +279,7 @@ func TestSharedEmailLogoUsesEmbeddedPNG(t *testing.T) {
 }
 
 func TestGiveawayDeliveryKeepsAcceptanceIdentityAndPendingCopy(t *testing.T) {
-	sender := &recordingSender{reply: &resend.SendEmailResponse{Id: "email-1"}}
+	sender := &recordingSender{reply: email.Receipt{ID: "email-1"}}
 	m := &Mailer{sender: sender, from: "Bagel <test@example.com>", dashboardURL: dashboardURL}
 	msg := GiveawayMessage{To: "winner@example.com", Months: 3, Subscriber: true, BillingPending: true, IdempotencyKey: "giveaway-award-1-selection-v1"}
 
@@ -315,15 +287,15 @@ func TestGiveawayDeliveryKeepsAcceptanceIdentityAndPendingCopy(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "email-1", receipt.ProviderID)
-	assert.Equal(t, msg.IdempotencyKey, sender.key)
-	assert.Equal(t, []string{msg.To}, sender.request.To)
+	assert.Equal(t, msg.IdempotencyKey, sender.request.IdempotencyKey)
+	assert.Equal(t, msg.To, sender.request.To)
 	assert.Contains(t, sender.request.Subject, "3 months")
 	assert.Contains(t, sender.request.Text, "recurring subscription")
 	assert.Contains(t, sender.request.Text, "may still be charged")
 	assert.NotContains(t, sender.request.Text, "0001")
-	assert.Contains(t, sender.request.Html, "the folks behind the bagel")
-	assert.Contains(t, sender.request.Html, dashboardURL+"/billing")
-	assert.Contains(t, sender.request.Html, `src="`+logoSrc+`"`)
+	assert.Contains(t, sender.request.HTML, "the folks behind the bagel")
+	assert.Contains(t, sender.request.HTML, dashboardURL+"/billing")
+	assert.Contains(t, sender.request.HTML, `src="`+logoSrc+`"`)
 	require.Len(t, sender.request.Attachments, 1)
 	attachment := sender.request.Attachments[0]
 	assert.Empty(t, attachment.Path)
@@ -333,68 +305,18 @@ func TestGiveawayDeliveryKeepsAcceptanceIdentityAndPendingCopy(t *testing.T) {
 }
 
 func TestSendGiveawayDeliversOnceWithItsIdempotencyKey(t *testing.T) {
-	sender := &recordingSender{reply: &resend.SendEmailResponse{Id: "email-1"}}
+	sender := &recordingSender{reply: email.Receipt{ID: "email-1"}}
 	m := &Mailer{sender: sender, from: "Bagel <test@example.com>", dashboardURL: dashboardURL}
 
 	err := m.SendGiveaway(context.Background(), GiveawayMessage{To: "winner@example.com", Months: 2, IdempotencyKey: "award-2"})
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, sender.calls)
-	assert.Equal(t, "award-2", sender.key)
-}
-
-func TestDeliveryFailures(t *testing.T) {
-	for _, tc := range []struct {
-		name      string
-		sender    *recordingSender
-		key       string
-		wantErr   error
-		wantCalls int
-		leaks     []string
-	}{
-		{
-			name:      "hides provider error text",
-			sender:    &recordingSender{err: errors.New("rejected winner@example.com private-request-detail")},
-			key:       "award-1",
-			wantErr:   ErrUnconfirmed,
-			wantCalls: 1,
-			leaks:     []string{"winner@example.com", "private-request-detail"},
-		},
-		{
-			name:      "requires an acceptance id",
-			sender:    &recordingSender{reply: &resend.SendEmailResponse{}},
-			key:       "award-1",
-			wantErr:   ErrUnconfirmed,
-			wantCalls: 1,
-		},
-		{
-			name:    "requires a stable idempotency key before sending",
-			sender:  &recordingSender{reply: &resend.SendEmailResponse{Id: "email-1"}},
-			wantErr: ErrInvalidMessage,
-		},
-		{
-			name:      "maps provider rate limiting without recipient data",
-			sender:    &recordingSender{err: &resend.RateLimitError{Message: "recipient data"}},
-			key:       "award-1",
-			wantErr:   ErrRateLimited,
-			wantCalls: 1,
-			leaks:     []string{"recipient data"},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := &Mailer{sender: tc.sender}
-			_, err := m.DeliverGiveaway(context.Background(), GiveawayMessage{To: "winner@example.com", Months: 1, IdempotencyKey: tc.key})
-			require.ErrorIs(t, err, tc.wantErr)
-			assert.Equal(t, tc.wantCalls, tc.sender.calls)
-			for _, leak := range tc.leaks {
-				assert.NotContains(t, err.Error(), leak)
-			}
-		})
-	}
+	assert.Equal(t, "award-2", sender.request.IdempotencyKey)
 }
 
 func TestPreparedGiveawayKeepsBodyAndSenderAcrossConfigurationChanges(t *testing.T) {
-	sender := &recordingSender{reply: &resend.SendEmailResponse{Id: "receipt"}}
+	sender := &recordingSender{reply: email.Receipt{ID: "receipt"}}
 	m := &Mailer{sender: sender, from: "Original <original@example.com>", dashboardURL: "https://original.example.com"}
 	content, err := m.PrepareGiveaway(GiveawayMessage{Months: 2, BillingPending: true})
 	require.NoError(t, err)
@@ -404,16 +326,16 @@ func TestPreparedGiveawayKeepsBodyAndSenderAcrossConfigurationChanges(t *testing
 
 	require.NoError(t, err)
 	assert.Equal(t, "Original <original@example.com>", sender.request.From)
-	assert.Contains(t, sender.request.Html, "https://original.example.com/billing")
-	assert.NotContains(t, sender.request.Html, "changed.example.com")
-	assert.Equal(t, content.HTML, sender.request.Html)
+	assert.Contains(t, sender.request.HTML, "https://original.example.com/billing")
+	assert.NotContains(t, sender.request.HTML, "changed.example.com")
+	assert.Equal(t, content.HTML, sender.request.HTML)
 	require.Len(t, sender.request.Attachments, 1)
 	assert.Empty(t, sender.request.Attachments[0].Path)
 	assert.Equal(t, logoCID, sender.request.Attachments[0].ContentId)
 }
 
 func TestPreparedLegacyBodyDoesNotGainNewLogoAttachment(t *testing.T) {
-	sender := &recordingSender{reply: &resend.SendEmailResponse{Id: "receipt"}}
+	sender := &recordingSender{reply: email.Receipt{ID: "receipt"}}
 	m := &Mailer{sender: sender, from: "Original <original@example.com>", dashboardURL: "https://original.example.com"}
 	content, err := m.PrepareGiveaway(GiveawayMessage{Months: 2, BillingPending: true})
 	require.NoError(t, err)

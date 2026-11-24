@@ -26,6 +26,8 @@ const (
 	FieldTokenHash = "token_hash"
 	// FieldGeneration holds the string denoting the generation field in the database.
 	FieldGeneration = "generation"
+	// FieldLapsedAt holds the string denoting the lapsed_at field in the database.
+	FieldLapsedAt = "lapsed_at"
 	// FieldDocument holds the string denoting the document field in the database.
 	FieldDocument = "document"
 	// FieldRevision holds the string denoting the revision field in the database.
@@ -47,6 +49,7 @@ var Columns = []string{
 	FieldName,
 	FieldTokenHash,
 	FieldGeneration,
+	FieldLapsedAt,
 	FieldDocument,
 	FieldRevision,
 	FieldCreatedAt,
@@ -139,6 +142,11 @@ func ByTokenHash(opts ...sql.OrderTermOption) OrderOption {
 // ByGeneration orders the results by the generation field.
 func ByGeneration(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldGeneration, opts...).ToFunc()
+}
+
+// ByLapsedAt orders the results by the lapsed_at field.
+func ByLapsedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLapsedAt, opts...).ToFunc()
 }
 
 // ByRevision orders the results by the revision field.

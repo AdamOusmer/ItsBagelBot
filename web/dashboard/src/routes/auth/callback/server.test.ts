@@ -8,8 +8,6 @@ process.env.SESSION_KEY = Buffer.alloc(32, 7).toString('base64');
 stubSvelteKit();
 Object.assign(privateEnv, { TWITCH_CLIENT_ID: 'client', TWITCH_BOT_USER_ID: '999' });
 
-const { RpcError } = await import('@bagel/kit/server/nats');
-
 let existing: () => Promise<{ username: string }> = async () => ({ username: 'streamer' });
 const purged: { kind: 'pages' | 'board'; userId: string; logins: readonly string[] }[] = [];
 
@@ -17,6 +15,9 @@ let banned = false;
 let rejectedLink = false;
 let registerFailed = false;
 let claims: Record<string, unknown> = {};
+const GRANTED_SCOPES = ['openid', 'user:read:email', 'channel:bot'];
+let grantedScopes = GRANTED_SCOPES;
+const grants: unknown[] = [];
 const streamer = { login: 'streamer', displayName: 'Streamer', email: null };
 let account: { login: string; displayName: string; email: string | null } | null = streamer;
 const registered: unknown[] = [];
@@ -31,6 +32,23 @@ async function step<T>(name: string, value: T): Promise<T> {
   return value;
 }
 
+const nats = await import('@bagel/kit/server/nats');
+const { RpcError } = nats;
+const { SUB } = await import('#lib/server/services/subjects');
+mock.module('@bagel/kit/server/nats', () => ({
+  ...nats,
+  rpc: async (subject: string, payload: unknown) => {
+    if (subject === `${SUB.dashboard}.grant_save`) {
+      grants.push(payload);
+      return step('grant', { ok: true });
+    }
+    events.push('register');
+    registered.push(payload);
+    if (registerFailed) throw new Error('unavailable');
+    return { ok: true };
+  }
+}));
+
 const services = await import('../../../lib/server/services');
 mock.module('#lib/server/services', () => ({
   ...services,
@@ -43,18 +61,7 @@ mock.module('#lib/server/services', () => ({
   },
   userLocale: () => step('locale', 'fr'),
   userCursor: () => step('cursor', true),
-  saveGrant: () => step('grant', undefined),
   delegationConsume: () => step('delegation', { ok: !rejectedLink, owner_user_id: '7', owner_login: 'owner', sections: [] })
-}));
-const nats = await import('@bagel/kit/server/nats');
-mock.module('@bagel/kit/server/nats', () => ({
-  ...nats,
-  rpc: async (_subject: string, payload: unknown) => {
-    events.push('register');
-    registered.push(payload);
-    if (registerFailed) throw new Error('unavailable');
-    return { ok: true };
-  }
 }));
 mock.module('#lib/server/edge-purge', () => ({
   schedulePurgeChannel: (userId: string, logins: readonly string[] = []) => void purged.push({ kind: 'pages', userId, logins }),
@@ -69,7 +76,7 @@ mock.module('#lib/server/oauth', () => ({
   twitch: () => ({
     validateAuthorizationCode: async () => ({
       claims: () => ({ sub: '42', preferred_username: 'Streamer', aud: 'client', iss: 'https://id.twitch.tv/oauth2', nonce: 'n', ...claims }),
-      scopes: () => [],
+      scopes: () => grantedScopes,
       accessToken: () => 'a',
       refreshToken: () => 'r'
     })
@@ -108,6 +115,8 @@ beforeEach(() => {
   rejectedLink = false;
   registerFailed = false;
   claims = {};
+  grantedScopes = GRANTED_SCOPES;
+  grants.length = 0;
   account = streamer;
   registered.length = 0;
   analytics.length = 0;
@@ -190,6 +199,15 @@ describe('auth callback ordering', () => {
     expect([written.get('locale'), written.get('bagel_cursor')]).toEqual(['fr', '1']);
   });
 
+  test.each([
+    { name: 'known scopes', scopes: GRANTED_SCOPES, stored: GRANTED_SCOPES },
+    { name: 'empty scope list', scopes: [], stored: null }
+  ])('the callback saves the grant with $name', async ({ scopes, stored }) => {
+    grantedScopes = [...scopes];
+    await signInTo();
+    expect(grants).toEqual([{ broadcaster_user_id: '42', access_token: 'a', refresh_token: 'r', scopes: stored }]);
+  });
+
   test('an invitee accepting a team link still stores their own Twitch grant', async () => {
     const result = await signInTo([['pending_delegation', 'invite']]);
     expect(result).toEqual({ status: 302, location: '/' });
@@ -198,11 +216,11 @@ describe('auth callback ordering', () => {
 });
 
 describe('auth callback channel purge', () => {
-  test('a first sign-in purges the new commands pages and no leaderboard tag', async () => {
+  test('a first sign-in opens welcome and purges the new commands pages', async () => {
     existing = async () => {
       throw new RpcError('ent: user not found', 'not_found');
     };
-    expect(await signIn()).toBe(302);
+    expect(await signInTo()).toEqual({ status: 302, location: '/welcome' });
     expect(purged).toEqual([{ kind: 'pages', userId: '42', logins: ['streamer'] }]);
   });
 

@@ -60,6 +60,7 @@ var rpcRequests = map[string][]rpcRequest{
 	},
 	"overlays_rpc": {
 		{"rpc.internal.users.voice.check", "app/db/overlays/rpc/tts.go"},
+		{"rpc.internal.users.alpha.check", "app/db/overlays alpha gate"},
 	},
 	"projector_rpc": {
 		{"rpc.internal.overlays.tts.by_user", "app/projector/rpc/tts.go"},
@@ -177,6 +178,8 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.outgress.trial_subscription.delete", "app/twitch/ingress/lib/ingress/trial_receiver.ex"},
 	},
 	"dashboard_rpc": {
+		{"rpc.internal.users.marketing.suppress", "web/dashboard/src/routes/webhooks/resend"},
+		{"rpc.internal.users.marketing.delivery", "web/dashboard/src/routes/webhooks/resend"},
 		{"rpc.overlays.tts.get", "web/dashboard/src/lib/server/services/voice.ts"},
 		{"rpc.overlays.tts.save", "web/dashboard/src/lib/server/services/voice.ts"},
 		{"rpc.overlays.tts.rotate", "web/dashboard/src/lib/server/services/voice.ts"},
@@ -243,6 +246,15 @@ var rpcRequests = map[string][]rpcRequest{
 		{"rpc.admin.giveaways.exclude", "web/admin/src/lib/server/giveaways.ts"},
 		{"rpc.admin.premium.grant_email", "web/admin paid grant email"},
 		{"rpc.admin.user.test.set", "web/admin user inspector"},
+		{"rpc.admin.user.alpha.set", "web/admin user inspector"},
+		{"rpc.admin.marketing.campaign_list", "web/admin/src/lib/server/campaigns.ts"},
+		{"rpc.admin.marketing.campaign_get", "web/admin/src/lib/server/campaigns.ts"},
+		{"rpc.admin.marketing.campaign_save", "web/admin/src/lib/server/campaigns.ts"},
+		{"rpc.admin.marketing.campaign_preview", "web/admin/src/lib/server/campaigns.ts"},
+		{"rpc.admin.marketing.campaign_test", "web/admin/src/lib/server/campaigns.ts"},
+		{"rpc.admin.marketing.campaign_approve", "web/admin/src/lib/server/campaigns.ts"},
+		{"rpc.admin.marketing.campaign_pause", "web/admin/src/lib/server/campaigns.ts"},
+		{"rpc.admin.marketing.campaign_resume", "web/admin/src/lib/server/campaigns.ts"},
 		{"rpc.admin.user.get", "web/admin"},
 		{"rpc.admin.user.bot_token_set", "web/admin bot OAuth self-authorization"},
 		{"rpc.admin.user.auth.check", "web/admin"},

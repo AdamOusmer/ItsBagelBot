@@ -79,8 +79,9 @@ Trial provenance is derived from receiver metadata only; trial reception and
 Conduit membership have their own lifecycle and generation handling.
 
 Ingress configures its RPC leaf and BUS hub separately because they use different
-identities. The leaf and hub failback processes target their own named
-connections, and hub failback also manages the dedicated PubAck publisher pool.
+identities. The shared `Platform.Nats.LeafFailback` targets the `:gnat` RPC connection, and
+`Platform.Nats.HubFailback` targets the hub connection plus the PubAck publisher
+shards listed by `Ingress.Nats.PublisherPool.hub_failback_connections/0`.
 This topology uses the lower-level `Platform.Nats` connection and wire APIs.
 Status lookup defaults to `rpc.broadcaster.status.get`; invalidations to
 `cache.invalidate.status`. Admin/scale/trial/Conduit responders are wired

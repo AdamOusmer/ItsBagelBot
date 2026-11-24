@@ -52,6 +52,7 @@ Svelte `setUiI18n` and Astro `uiI18n(Astro)` resolve locale without product-spec
 - `lib/light-field.ts`, `cursor-engine.ts`, `reveal.ts`, `decode.ts`:
   reusable visual effects; keep mount/dispose cleanup and reduced-motion behavior intact.
 - [lib/raf-loop.ts](lib/raf-loop.ts): shared animation subscription/wake scheduling.
+- [lib/box-transform.ts](lib/box-transform.ts): drag/resize/snap math for `svelte/OverlayCanvas.svelte`.
 - `lib/lenis.ts`, `scroll-spy.ts`, `reading-progress.ts`, `glide.ts`: navigation/scroll engines.
 - `lib/icons.ts`, `line-series.ts`, `csv.ts`, `clipboard.ts`: shared symbols/data/utility primitives.
 - `nested-scroll.ts`, `roving-focus.ts`: pointer effects, nested scroll and keyboard navigation. Inspect these before adding new listeners.

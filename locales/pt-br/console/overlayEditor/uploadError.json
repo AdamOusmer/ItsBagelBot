@@ -1,0 +1,14 @@
+{
+  "unsupported_media": "Este tipo de arquivo não é compatível. Use PNG, WebP, JPEG, GIF ou WebM, ou MP3, OGG ou WAV para som.",
+  "invalid_asset": "Não foi possível ler este arquivo como uma mídia válida.",
+  "asset_too_large": "Este arquivo é maior que o limite para o seu tipo.",
+  "asset_dimensions": "Este arquivo excede a largura e a altura permitidas.",
+  "asset_duration": "Este arquivo é mais longo que o permitido.",
+  "too_many_assets": "Este overlay já tem o número máximo de arquivos.",
+  "too_many_of_type": "Este overlay já tem o número máximo de arquivos deste tipo.",
+  "overlay_assets_too_large": "Este overlay atingiu o limite de tamanho total dos arquivos.",
+  "alpha_required": "Enviar arquivos requer acesso Alpha.",
+  "rate_limited": "Envios demais por enquanto. Tente de novo daqui a pouco.",
+  "quota_exceeded": "Seu armazenamento está cheio. Exclua antes arquivos ou overlays sem uso.",
+  "failed": "O envio falhou. Tente novamente."
+}
