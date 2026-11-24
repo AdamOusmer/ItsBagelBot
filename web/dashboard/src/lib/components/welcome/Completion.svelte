@@ -2,6 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
+  import AudioOrb from '@bagel/ui/svelte/AudioOrb.svelte';
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
 
   let {
@@ -13,38 +14,53 @@
   } = $props();
 
   type Phase = 'drawing' | 'done' | 'leaving';
+  const CHARGE_MS = 880;
+  const ENERGY_START = 0.15;
+  const ENERGY_CHARGED = 0.6;
+
   let phase = $state<Phase>('drawing');
+  let energy = $state(ENERGY_START);
 
   onMount(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
     const later = (fn: () => void, delay: number) => timers.push(setTimeout(fn, delay));
+    let raf = 0;
+
+    const charge = (startedAt: number) => (now: number) => {
+      const progress = Math.min((now - startedAt) / CHARGE_MS, 1);
+      energy = ENERGY_START + (ENERGY_CHARGED - ENERGY_START) * (1 - (1 - progress) ** 3);
+      if (progress < 1) raf = requestAnimationFrame(charge(startedAt));
+    };
 
     if (prefersReducedMotion()) {
       phase = 'done';
+      energy = 1;
       later(oncomplete, 900);
     } else {
-      later(() => { phase = 'done'; }, 880);
+      raf = requestAnimationFrame((now) => charge(now)(now));
+      later(() => { phase = 'done'; energy = 1; cancelAnimationFrame(raf); }, CHARGE_MS);
       later(() => { phase = 'leaving'; }, 2000);
       later(oncomplete, 2520);
     }
 
-    return () => timers.forEach(clearTimeout);
+    return () => {
+      cancelAnimationFrame(raf);
+      timers.forEach(clearTimeout);
+    };
   });
 </script>
 
 <div class="completion" class:done={phase === 'done'} class:leaving={phase === 'leaving'}>
   <div class="aura" aria-hidden="true"></div>
   <div class="moment" role="status" aria-live="polite" aria-atomic="true">
-    <div class="seal" aria-hidden="true">
-      <svg class="circle" viewBox="0 0 180 180" fill="none">
-        <circle class="track" cx="90" cy="90" r="77" />
-        <circle class="progress" cx="90" cy="90" r="77" pathLength="100" />
-        <path class="check" d="m69 63 13 13 28-29" />
-      </svg>
+    <div class="stage" aria-hidden="true">
       <span class="ripple"></span>
-      {#each Array.from({ length: 8 }) as _, i (i)}
-        <span class="spark" style="--a: {i * 45 + 22.5}deg; --d: {i % 2 ? 1 : 0.78};"></span>
-      {/each}
+      <div class="orb"><AudioOrb analyser={null} {energy} /></div>
+      <svg class="ring" viewBox="0 0 100 100" fill="none">
+        <circle class="track" cx="50" cy="50" r="48" />
+        <circle class="progress" cx="50" cy="50" r="48" pathLength="100" />
+        <path class="check" d="m36 51 10 10 19-22" pathLength="100" />
+      </svg>
     </div>
     <span class="label">{phase === 'drawing' ? '' : label}</span>
   </div>
@@ -52,6 +68,7 @@
 
 <style>
   .completion {
+    --stage: min(260px, 60vw, 42svh);
     position: fixed;
     inset: 0;
     z-index: var(--bb-z-overlay);
@@ -79,85 +96,84 @@
     position: relative;
     display: grid;
     place-items: center;
-    width: 180px;
-    height: 180px;
+    width: var(--stage);
+    height: var(--stage);
+  }
+
+  .stage {
+    position: absolute;
+    inset: 0;
     transition: transform var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
 
-  .leaving .moment { transform: scale(1.06); }
+  .leaving .stage { transform: scale(1.12); }
+
+  .orb {
+    position: absolute;
+    inset: 14px;
+    border-radius: var(--bb-radius-pill);
+    overflow: hidden;
+    opacity: 0;
+    transform: scale(.6);
+    animation: orb-in calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo) forwards;
+  }
 
   .ripple {
     position: absolute;
-    inset: 13px;
+    inset: 0;
     border-radius: var(--bb-radius-pill);
     box-shadow: 0 0 0 1px var(--bb-tan-pale);
     opacity: 0;
   }
   .done .ripple { animation: ripple calc(var(--bb-dur-slow) * 2) var(--bb-ease-out-expo) both; }
 
-  .spark {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 5px;
-    height: 5px;
-    margin: -2.5px 0 0 -2.5px;
-    border-radius: var(--bb-radius-pill);
-    background: var(--bb-green-glow);
-    opacity: 0;
-    transform: rotate(var(--a)) translateX(70px) scale(.4);
-  }
-  .spark:nth-of-type(odd) { background: var(--bb-tan-pale); }
-  .done .spark { animation: spark calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo) 80ms both; }
-
-  .seal,
-  .circle {
+  .ring {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
   }
 
-  .circle { transform: rotate(-90deg); }
+  .track,
+  .progress { transform: rotate(-90deg); transform-origin: 50px 50px; }
 
   .track,
   .progress,
   .check {
     stroke-linecap: round;
     stroke-linejoin: round;
-    vector-effect: non-scaling-stroke;
   }
 
-  .track { stroke: var(--bb-border-strong); stroke-width: 1; }
+  .track { stroke: var(--bb-border-strong); stroke-width: .3; }
 
   .progress {
     stroke: var(--bb-tan-pale);
-    stroke-width: 3;
+    stroke-width: .9;
     stroke-dasharray: 100;
     stroke-dashoffset: 100;
     animation: draw-circle calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo) forwards;
   }
 
   .check {
-    stroke: var(--bb-green-glow);
-    stroke-width: 4;
-    stroke-dasharray: 70;
-    stroke-dashoffset: 70;
+    stroke: var(--bb-white);
+    stroke-width: 1.8;
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
     opacity: 0;
-    transform: rotate(90deg);
-    transform-origin: 90px 90px;
   }
 
   .done .check,
   .leaving .check {
     opacity: 1;
-    animation: draw-check var(--bb-dur-slow) var(--bb-ease-out-expo) forwards;
+    animation: draw-circle var(--bb-dur-slow) var(--bb-ease-out-expo) forwards;
   }
 
   .label {
-    position: relative;
-    display: block;
-    max-width: 120px;
+    position: absolute;
+    top: calc(100% + var(--bb-space-4));
+    left: 50%;
+    width: max-content;
+    max-width: min(80vw, 320px);
     text-align: center;
     overflow-wrap: anywhere;
     font: 600 clamp(18px, 3vw, 25px)/1.15 var(--bb-font-display);
@@ -165,43 +181,39 @@
     opacity: 0;
     letter-spacing: .12em;
     filter: blur(4px);
-    transform: translateY(25px);
+    transform: translate(-50%, 25px);
     transition:
       opacity var(--bb-dur-base) ease,
       letter-spacing var(--bb-dur-slow) var(--bb-ease-out-expo),
+      transform var(--bb-dur-slow) var(--bb-ease-out-expo),
       filter var(--bb-dur-base) ease;
   }
   .done .label,
-  .leaving .label { opacity: 1; letter-spacing: 0; filter: none; }
+  .leaving .label { opacity: 1; letter-spacing: 0; filter: none; transform: translate(-50%, 0); }
 
   @keyframes draw-circle { to { stroke-dashoffset: 0; } }
-  @keyframes draw-check { to { stroke-dashoffset: 0; } }
+  @keyframes orb-in { to { opacity: 1; transform: scale(1); } }
   @keyframes arrive-aura { to { opacity: 1; transform: scale(1); } }
   @keyframes ripple {
     0% { opacity: .7; transform: scale(1); }
-    100% { opacity: 0; transform: scale(1.65); }
-  }
-  @keyframes spark {
-    0% { opacity: 0; transform: rotate(var(--a)) translateX(70px) scale(.4); }
-    30% { opacity: 1; }
-    100% { opacity: 0; transform: rotate(var(--a)) translateX(calc(118px * var(--d))) scale(1); }
+    100% { opacity: 0; transform: scale(1.6); }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .completion,
-    .moment,
+    .stage,
     .label { transition: none; }
     .aura,
+    .orb,
     .progress,
     .done .check,
     .leaving .check,
-    .done .ripple,
-    .done .spark { animation: none; }
-    .ripple,
-    .spark { display: none; }
+    .done .ripple { animation: none; }
+    .ripple { display: none; }
     .aura { opacity: 1; transform: none; }
+    .orb { opacity: 1; transform: none; }
     .progress,
     .check { stroke-dashoffset: 0; }
-    .done .label { opacity: 1; letter-spacing: 0; filter: none; }
+    .done .label { opacity: 1; letter-spacing: 0; filter: none; transform: translate(-50%, 0); }
   }
 </style>

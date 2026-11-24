@@ -40,10 +40,11 @@
   const id = $props.id();
   const expo = bezier(0.16, 1, 0.3, 1);
   const OUT_MS = 280;
+  const IN_AT_MS = 160;
   const side = (i: number) => (i % 2 ? -1 : 1);
   const still = () => instant || prefersReducedMotion();
   const arrive = (node: Element, { i = 0 } = {}) =>
-    still() ? { duration: 0 } : fly(node, { x: dir * 72 * side(i), duration: 760, delay: OUT_MS + 60 + i * 70, easing: expo, opacity: 0 });
+    still() ? { duration: 0 } : fly(node, { x: dir * 72 * side(i), duration: 640, delay: IN_AT_MS + i * 50, easing: expo, opacity: 0 });
   const depart = (node: Element, { i = 0 } = {}) =>
     still() ? { duration: 0 } : fly(node, { x: -dir * 56 * side(i), duration: OUT_MS - i * 20, delay: i * 20, easing: expo, opacity: 0 });
   let shown = $state(false);

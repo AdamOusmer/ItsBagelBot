@@ -73,7 +73,7 @@ describe('Stepper', () => {
   test('compact adds the modifier and the current label after the glide, hidden from assistive tech', () => {
     const html = svelteHtml(SvelteStepper, { steps: WIZARD, current: 1, maxStep: 1, label: 'Step 2 of 3', compact: true, onSelect: () => {} });
     expect(html.startsWith('<nav class="bb-stepper bb-stepper--compact" aria-label="Step 2 of 3"')).toBe(true);
-    expect(html.endsWith('<span class="bb-stepper__glide" aria-hidden="true"></span><span class="bb-stepper__compact" aria-hidden="true">App</span></nav>')).toBe(true);
+    expect(html.endsWith('<span class="bb-stepper__glide" aria-hidden="true"></span><span class="bb-stepper__compact" aria-hidden="true"><span class="bb-stepper__name">App</span><span class="bb-stepper__count">2/3</span></span></nav>')).toBe(true);
   });
 
   test('compact is opt-in: false renders exactly the default rail', () => {
@@ -83,13 +83,13 @@ describe('Stepper', () => {
     expect(html).not.toContain('compact');
   });
 
-  test('compact renders the same in both adapters, with an empty label before the first step', async () => {
+  test('compact renders the same in both adapters, with the first step label before the first step', async () => {
     for (const current of [2, -1]) {
       const props = { steps: WIZARD, current, label: 'Steps', compact: true };
       expect(await astroHtml(AstroStepper, props)).toBe(svelteHtml(SvelteStepper, props));
     }
     expect(svelteHtml(SvelteStepper, { steps: WIZARD, current: -1, label: 'Steps', compact: true })).toContain(
-      '<span class="bb-stepper__compact" aria-hidden="true"></span>',
+      '<span class="bb-stepper__name">' + WIZARD[0].label + '</span><span class="bb-stepper__count">1/3</span>',
     );
   });
 });
@@ -281,13 +281,13 @@ describe('LogTail', () => {
 describe('step stylesheets', () => {
   sourceContracts([
     {
-      name: 'compact CSS: the label reserves 44px in pale tan mono caps and replaces the cells on one truncated line at 760px',
+      name: 'compact CSS: the label sits in a reserved pill slot in pale tan mono caps and replaces the cells with name and count at 760px',
       checks: [
         {
           file: 'styles/elements/stepper.css',
           has: [
             /\.bb-stepper__compact \{\s*display: none;\s*align-items: center;\s*min-height: 44px;\s*color: var\(--bb-tan-pale\);\s*font-family: var\(--bb-font-mono\);\s*font-size: 11px;\s*letter-spacing: 0\.1em;\s*text-transform: uppercase;\s*\}/,
-            /@media \(max-width: 760px\) \{[^@]*\.bb-stepper--compact :is\(\.bb-stepper__list, \.bb-stepper__track, \.bb-stepper__glide\) \{\s*display: none;\s*\}\s*\.bb-stepper__compact \{\s*display: block;\s*min-width: 0;\s*line-height: 44px;\s*white-space: nowrap;\s*overflow: hidden;\s*text-overflow: ellipsis;\s*\}/,
+            /@media \(max-width: 760px\) \{[^@]*\.bb-stepper--compact :is\(\.bb-stepper__list, \.bb-stepper__track, \.bb-stepper__glide\) \{\s*display: none;\s*\}[^@]*\.bb-stepper__count \{\s*display: block;\s*\}/,
           ],
         },
       ],

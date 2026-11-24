@@ -12,10 +12,11 @@
 
   type Own = {
     analyser: AnalyserNode | null;
+    energy?: number;
     class?: string;
   };
 
-  let { analyser, class: className = '', ...rest }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
+  let { analyser, energy = 0, class: className = '', ...rest }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   type Rgba = [number, number, number, number];
   const REST_TOKENS = ['--bb-tan-darkest', '--bb-tan-mid', '--bb-tan-deep', '--bb-tan'];
@@ -43,8 +44,9 @@
     let raf = 0;
     const tick = () => {
       const heard = listen(analyser);
-      drive += (heard.level - drive) * (heard.level > drive ? 0.08 : 0.04);
-      brightness += (heard.brightness - brightness) * 0.08;
+      const level = Math.max(heard.level, energy);
+      drive += (level - drive) * (level > drive ? 0.08 : 0.04);
+      brightness += (Math.max(heard.brightness, energy) - brightness) * 0.08;
       mount.setUniforms({
         u_colors: rest.map((color, i) => mix(color, bright[i], brightness)),
         u_distortion: 0.6 + drive * 0.35,
