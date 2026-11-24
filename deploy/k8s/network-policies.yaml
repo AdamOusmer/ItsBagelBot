@@ -201,3 +201,4 @@ spec:
               app: nats-leaf
       ports:
         - port: 4223
+        - port: 8223

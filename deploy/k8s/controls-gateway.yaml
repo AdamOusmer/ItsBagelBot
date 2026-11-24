@@ -81,7 +81,7 @@ spec:
       terminationGracePeriodSeconds: 45
       containers:
         - name: controls-gateway
-          image: ghcr.io/adamousmer/itsbagelbot/controls-gateway:main-1795463455-f24e807fdc6a@sha256:15c4ef3055d5d475a565cb32c894a3dbeebb544defd7eaa83346c8c740574ee2
+          image: ghcr.io/adamousmer/itsbagelbot/controls-gateway:main-1795480533-527e265ef108@sha256:4c12eb909d1655cb11cefdd2e36cb7282283c1ac9166ecd4d2107056ff8012d0
           imagePullPolicy: IfNotPresent
           env:
             - name: CONTROLS_GATEWAY_PORT
@@ -105,6 +105,10 @@ spec:
                 secretKeyRef:
                   name: controls-gateway-env
                   key: OVERLAY_COOKIE_KEY
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             - name: NATS_HOST
               value: nats.messaging.svc.cluster.local
             - name: NATS_PORT
