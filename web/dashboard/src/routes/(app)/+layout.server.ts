@@ -82,8 +82,7 @@ function isCheckoutReturn(url: URL, path: string): boolean {
 }
 
 function requireConsent(account: AccountState | null, url: URL): void {
-  const version = account?.termsVersion;
-  if (typeof version !== 'string' || !needsTerms(version)) return;
+  if (typeof account?.termsVersion !== 'string' || !needsTerms(account)) return;
   const next = safeReturnPath(url.pathname + url.search) ?? '/';
   throw redirect(302, `/consent?next=${encodeURIComponent(next)}`);
 }
