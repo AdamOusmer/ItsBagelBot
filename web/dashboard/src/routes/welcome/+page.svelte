@@ -59,7 +59,6 @@
   const consentStep = 1;
   const choiceStep = 1 + INTRO.findIndex((b) => b.kind === 'choice');
   let setup = $state<Setup>(page.url.searchParams.get('import') === '1' ? 'import' : 'start-new');
-  let hoveredChoice = $state<Setup | null>(null);
 
   const CHOICES = [
     { id: 'start-new', key: 'New', icon: 'start', face: 'excited' },
@@ -84,10 +83,6 @@
       current: code === locale
     }))
   );
-  const choiceIndex = $derived(Math.max(0, CHOICES.findIndex((c) => c.id === (hoveredChoice ?? setup))));
-  const choicePosition = $derived(['12.5%', '37.5%', '62.5%', '87.5%'][choiceIndex]);
-  const choicePositionCompact = $derived(['25%', '75%', '25%', '75%'][choiceIndex]);
-  const compactChoices = new MediaQuery('max-width: 560px');
   const terseChoices = new MediaQuery('(max-width: 560px), (max-height: 700px)');
   function pickSetup(id: string) {
     const choice = choiceOf(id);
@@ -100,11 +95,9 @@
     const choice = CHOICES.find((c) => c.id === input?.value);
     if (!choice) return;
     hover = choice.face;
-    hoveredChoice = choice.id;
   }
   function clearChoice() {
     hover = null;
-    hoveredChoice = null;
   }
 
   const beatsFor = (s: Setup): Beat[] => [...INTRO, ...(s === 'start-new' ? NEW_STREAMER : [])];
@@ -175,15 +168,6 @@
   const hasFinishStep = $derived(last && setup !== 'import');
   const canFinish = $derived(canImport && hasFinishStep);
   let instant = $state(false);
-
-  const SWAP_MS = 280;
-  let choiceLayout = $state(false);
-  $effect(() => {
-    const next = current.kind === 'choice';
-    if (next === untrack(() => choiceLayout)) return;
-    const timer = setTimeout(() => (choiceLayout = next), instant || prefersReducedMotion() ? 0 : SWAP_MS);
-    return () => clearTimeout(timer);
-  });
 
   type Sequence = 'entrance' | 'burst' | 'orbit' | 'comet';
   let sequence = $state<Sequence>('entrance');
@@ -438,9 +422,7 @@
   stepLabel={tr('onboarding.stepOf', { n: Math.max(step, 1), total: journeyTotal })}
   onSelect={goTo}
   hero={step === 0}
-  wide={choiceLayout}
   {leaving}
-  style={choiceLayout ? `--setup-art-x: calc(${compactChoices.current ? choicePositionCompact : choicePosition} - 50%)` : undefined}
   orbs={false}
 >
   {#snippet start()}<Brand title="ItsBagelBot" sub={tr('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />{/snippet}
@@ -465,7 +447,8 @@
         <div class="role-choices">
           <RadioGroup
             variant="cards"
-            cols={compactChoices.current ? 2 : 4}
+            tone="go"
+            cols={2}
             terse={terseChoices.current}
             name="setup"
             label={tr('onboarding.choiceTitle')}
@@ -479,16 +462,12 @@
             onfocusout={clearChoice}
           >
             {#snippet leading(option, on)}
-              <span class="role-glyph" class:on aria-hidden="true"><Icon name={choiceOf(option.value).icon} size={15} /></span>
+              <span class="role-glyph" class:on aria-hidden="true"><Icon name={choiceOf(option.value).icon} size={18} /></span>
+            {/snippet}
+            {#snippet detail(option)}
+              <span id="wlc-preview-{option.value}">{tr(`onboarding.choice${choiceOf(option.value).key}Preview`)}</span>
             {/snippet}
           </RadioGroup>
-          <div class="role-previews">
-            {#each CHOICES as choice (choice.id)}
-              <div class="role-preview" class:shown={setup === choice.id}>
-                <Text size="sm" tone="muted" id="wlc-preview-{choice.id}">{tr(`onboarding.choice${choice.key}Preview`)}</Text>
-              </div>
-            {/each}
-          </div>
         </div>
       {:else if current.kind === 'lang'}
         <LanguageSwitcher label={tr('lang.switchAria')} options={langOptions} variant="field" onSelect={(code) => setLang(code as Locale)} />
@@ -511,7 +490,7 @@
             title={tr('common.copy')}
             onCopy={celebrateCopy}
           >
-            {#snippet children()}<span use:decode>{MOD_COMMAND}</span>{/snippet}
+            {#snippet children()}<span use:decode={{ durationMs: 500 }}>{MOD_COMMAND}</span>{/snippet}
           </CopySurface>
         </div>
       {:else if current.kind === 'commands'}
@@ -571,33 +550,22 @@
   .mod-well { display: flex; justify-content: center; }
   .pref-text { display: grid; gap: 4px; flex: 1; min-width: 0; }
 
-  .role-choices { --choice-min-h: 132px; width: 100%; }
-  .role-previews { display: grid; margin-top: 12px; text-align: center; }
-  .role-preview {
-    grid-area: 1 / 1;
-    max-width: 62ch;
-    justify-self: center;
-    visibility: hidden;
-    opacity: 0;
-    transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo), visibility 0s linear var(--bb-dur-base);
-  }
-  .role-preview.shown { visibility: visible; opacity: 1; transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo); }
+  .role-choices { width: 100%; }
   .role-glyph {
     display: inline-grid;
     place-items: center;
     flex: none;
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     border-radius: var(--bb-radius-sm);
-    background: var(--bb-elev-2);
+    background: var(--bb-elev-1);
     color: var(--bb-muted);
-    transition: color var(--bb-dur-fast) ease;
+    transition: color var(--bb-dur-fast) ease, background-color var(--bb-dur-fast) ease;
   }
-  .role-glyph.on { color: var(--bb-green-glow); }
+  .role-glyph.on { background: rgba(var(--bb-green-glow-rgb), 0.16); color: var(--bb-green-glow); }
 
   @media (max-height: 620px) {
-    .role-previews { margin-top: 6px; }
-    .role-glyph { width: 26px; height: 26px; }
+    .role-glyph { width: 32px; height: 32px; }
   }
 
   .veil {
@@ -616,7 +584,7 @@
 
 
   @media (prefers-reduced-motion: reduce) {
-    .role-preview, .role-glyph { transition: none; }
+    .role-glyph { transition: none; }
     .veil { animation: none; }
   }
 </style>

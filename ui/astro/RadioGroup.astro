@@ -9,7 +9,7 @@ import '../styles/elements/radio-group.css';
 import Icon from './Icon.astro';
 import Glide from './Glide.astro';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'name' | 'options' | 'value' | 'label' | 'variant' | 'min' | 'cols' | 'rail' | 'maxHeight' | 'terse' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'name' | 'options' | 'value' | 'label' | 'variant' | 'min' | 'cols' | 'rail' | 'maxHeight' | 'terse' | 'tone' | 'class'> {
     name: string;
     options: readonly { value: string; label: string; description?: string; meta?: string; disabled?: boolean }[];
     value?: string;
@@ -20,11 +20,12 @@ interface Props extends Omit<HTMLAttributes<'div'>, 'name' | 'options' | 'value'
     rail?: 'sm' | 'md';
     maxHeight?: string;
     terse?: boolean;
+    tone?: 'go';
     class?: string;
 }
 
 const { t } = uiI18n(Astro);
-const { name, options, value = '', label = t('choice.options'), variant = 'tabs', min, cols, rail, maxHeight, terse = false, class: className = '', ...rest } = Astro.props;
+const { name, options, value = '', label = t('choice.options'), variant = 'tabs', min, cols, rail, maxHeight, terse = false, tone, class: className = '', ...rest } = Astro.props;
 const tabsClass = ['bb-tabs bb-tabs--wrap', className].filter(Boolean).join(' ');
 const choicesClass = [
     'bb-choices',
@@ -33,6 +34,7 @@ const choicesClass = [
     rail ? `bb-choices--rail-${rail}` : null,
     maxHeight ? 'bb-choices--scroll bb-scroll' : null,
     terse ? 'bb-choices--terse' : null,
+    tone ? `bb-choices--${tone}` : null,
     className,
 ]
     .filter(Boolean)

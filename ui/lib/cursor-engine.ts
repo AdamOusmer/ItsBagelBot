@@ -18,7 +18,7 @@ export type CursorOptions = {
     ease?: CursorEase;
 };
 
-const SELECTOR = 'a, button, .bb-input';
+const SELECTOR = 'a, button, .bb-input, .bb-check__box';
 const EASE: CursorEase = { hover: 0.16, release: 0.28 };
 
 const IDLE_SIZE = 36;
