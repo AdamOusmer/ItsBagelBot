@@ -135,6 +135,7 @@
     }
 
     .bb-check__label {
+        flex: var(--bb-check-label-flex, 0 1 auto);
         min-width: var(--bb-check-label-min-width, auto);
     }
 

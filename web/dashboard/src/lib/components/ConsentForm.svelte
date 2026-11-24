@@ -83,10 +83,9 @@
 
 <style>
   .consent-form { display: grid; gap: clamp(6px, 1.3svh, 12px); }
-  .consent-form :global(.choice) { display: flex; align-items: center; gap: 12px; padding-block: 8px; font-size: var(--bb-text-sm); line-height: 1.35; color: var(--bb-muted); }
+  .consent-form :global(.choice) { --bb-check-label-flex: 1; --bb-check-label-min-width: 0; display: flex; align-items: center; gap: 12px; padding-block: 8px; font-size: var(--bb-text-sm); line-height: 1.35; color: var(--bb-muted); }
   .consent-form :global(.terms) { block-size: 56px; }
   .consent-form :global(.marketing) { block-size: 44px; font-size: var(--bb-text-xs); }
-  .consent-form :global(.choice .bb-check__label) { flex: 1; min-width: 0; }
   .choice-copy {
     align-content: center;
     block-size: 100%;
