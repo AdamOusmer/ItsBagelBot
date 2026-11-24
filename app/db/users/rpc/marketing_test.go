@@ -48,7 +48,6 @@ func TestMarketingTokenVerbsRoundTrip(t *testing.T) {
 		source consent.Source
 	}{
 		{consent.Withdrawn, consent.OneClick},
-		{consent.Granted, consent.PreferencePage},
 		{consent.Withdrawn, consent.PreferencePage},
 	} {
 		set := usersrpc.MarketingTokenSetRequest{Token: token, Status: tc.status, Source: tc.source}
@@ -70,9 +69,14 @@ func TestMarketingTokenVerbsRefuseInvalid(t *testing.T) {
 	require.False(t, reply.OK)
 	require.Equal(t, domainrpc.CodeInvalid, reply.Code)
 
-	set = usersrpc.MarketingTokenSetRequest{Token: token, Status: consent.Withdrawn, Source: consent.Settings}
-	reply = call[usersrpc.MarketingTokenSetReply](t, h, dashboardPrefix+".marketing_token_set", set)
-	require.Equal(t, domainrpc.CodeInvalid, reply.Code)
+	for _, set := range []usersrpc.MarketingTokenSetRequest{
+		{Token: token, Status: consent.Withdrawn, Source: consent.Settings},
+		{Token: token, Status: consent.Granted, Source: consent.PreferencePage},
+		{Token: token, Status: consent.Granted, Source: consent.OneClick},
+	} {
+		reply = call[usersrpc.MarketingTokenSetReply](t, h, dashboardPrefix+".marketing_token_set", set)
+		require.Equal(t, domainrpc.CodeInvalid, reply.Code, "%+v", set)
+	}
 	require.Equal(t, consent.Granted, tokenStatus(t, h, token).Status)
 }
 

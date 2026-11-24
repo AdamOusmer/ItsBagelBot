@@ -11,7 +11,7 @@ type OkReply = { ok: boolean };
 export type MarketingLink = { status: MarketingStatus; maskedEmail: string; locale: string };
 export type LinkChange = {
   token: string;
-  status: 'granted' | 'withdrawn';
+  status: 'withdrawn';
   source: 'one_click' | 'preference_page';
 };
 export type SuppressionReason = 'complaint' | 'hard_bounce';
