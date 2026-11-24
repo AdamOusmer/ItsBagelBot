@@ -287,6 +287,27 @@ func TestAutoRegionIsResolvedOnceAndSharedAcrossEndpoints(t *testing.T) {
 	assert.Equal(t, 1, counter.get("account"), "an explicit region never touches the resolve at all")
 }
 
+func TestRankAndRecordShareOneMMRFetchInEitherOrder(t *testing.T) {
+	for _, first := range []string{"rank", "record"} {
+		t.Run(first, func(t *testing.T) {
+			var counter hitCounter
+			p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				counter.count(r.URL.Path)
+				fmt.Fprint(w, mmrBody)
+			}), providertest.Forbid(t))
+			req := gossiprpc.Request{Account: "Frosty#EUW1", Region: "na"}
+
+			assert.Empty(t, providertest.ErrorOf(t, providertest.Endpoint(t, p, first)(t.Context(), req)))
+			rank := providertest.Call[rankReply](t, p, "rank", req)
+			record := providertest.Call[recordReply](t, p, "record", req)
+
+			assert.Equal(t, "Immortal 1", rank.Tier)
+			assert.Equal(t, recordReply{Player: "Frosty#EUW1", Region: "na", Games: 142, Wins: 73}, record)
+			assert.Equal(t, 1, counter.get("/valorant/v3/mmr/na/pc/Frosty/EUW1"))
+		})
+	}
+}
+
 func TestFreshAccountDataIsSharedWithAutoRegionInEitherOrder(t *testing.T) {
 	for _, first := range []string{"rank", "account"} {
 		t.Run(first, func(t *testing.T) {
@@ -439,6 +460,8 @@ func TestCacheKeysFoldPlayerRegionAndPlatform(t *testing.T) {
 		"gossip:valorant:leaderboard:frosty#euw1:eu:console",
 		"gossip:valorant:rank:frosty#euw1:na:console",
 		"gossip:valorant:rank:frosty#euw1:na:pc",
+		"gossip:valorant:record:frosty#euw1:na:console",
+		"gossip:valorant:record:frosty#euw1:na:pc",
 	}, store.Keys())
 }
 
