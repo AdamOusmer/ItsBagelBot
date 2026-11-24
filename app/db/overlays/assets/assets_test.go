@@ -27,6 +27,7 @@ import (
 	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/objectstore/objectstoretest"
+	"ItsBagelBot/pkg/ratelimit"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
@@ -46,6 +47,7 @@ type fixture struct {
 	repo    *repository.Overlays
 	objects *objectstoretest.Memory
 	clock   time.Time
+	allowed int
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -57,7 +59,12 @@ func newFixture(t *testing.T) *fixture {
 		Repo: f.repo, Objects: f.objects, Alphas: plans{premiumUser: true},
 		Signer: assets.Signer{Secret: []byte("secret")}, PublicURL: "https://cdn.itsbagelbot.com/",
 		Now: func() time.Time { return f.clock },
+		Allow: func(context.Context, ratelimit.Request) (bool, error) {
+			f.allowed--
+			return f.allowed >= 0, nil
+		},
 	}
+	f.allowed = overlays.AccountUploadsPerHour
 	return f
 }
 
@@ -280,22 +287,16 @@ func firstKey(m map[string]overlays.Asset) string {
 	return ""
 }
 
-func TestBeginRefusesAfterAHourOfUploads(t *testing.T) {
+func TestBeginRefusesOnceTheUploadBucketIsEmpty(t *testing.T) {
 	f := newFixture(t)
-	f.clock = time.Now()
-	for i := range overlays.AccountUploadsPerHour {
-		_, err := f.repo.StoreAsset(t.Context(), repository.Asset{
-			ID: repository.AssetID(strconv.Itoa(i)), UserID: premiumUser, Type: overlays.AssetPNG, Bytes: 1, SHA256: strings.Repeat(strconv.Itoa(i%10), 63) + strconv.Itoa(i/10),
-		})
+	for range overlays.AccountUploadsPerHour {
+		_, err := f.svc.BeginAsset(t.Context(), premiumUser, overlaysrpc.AssetBeginRequest{DeclaredSize: 10})
 		require.NoError(t, err)
 	}
 
 	_, err := f.svc.BeginAsset(t.Context(), premiumUser, overlaysrpc.AssetBeginRequest{DeclaredSize: 10})
-	f.clock = f.clock.Add(time.Hour + time.Minute)
-	_, later := f.svc.BeginAsset(t.Context(), premiumUser, overlaysrpc.AssetBeginRequest{DeclaredSize: 10})
 
 	require.ErrorIs(t, err, assets.ErrRateLimited)
-	require.NoError(t, later)
 }
 
 func TestUploadInPartsAssemblesAndCleansUp(t *testing.T) {

@@ -40,18 +40,36 @@ return 1`)
 var giftAddScript = NewScript(`
 local t = redis.call('TIME')
 local now = t[1] * 1000 + math.floor(t[2] / 1000)
-local best, bestAt
+local window = tonumber(ARGV[3])
+local best, bestAt, late, lateAt, lateLeft
 local fields = redis.call('HGETALL', KEYS[1])
 for i = 1, #fields, 2 do
-  if string.sub(fields[i], 1, 2) == 't:' then
+  local prefix = string.sub(fields[i], 1, 2)
+  if prefix == 't:' then
     local id = string.sub(fields[i], 3)
     if tonumber(redis.call('HGET', KEYS[1], 'n:' .. id)) < tonumber(fields[i + 1]) then
       local at = tonumber(redis.call('HGET', KEYS[1], 's:' .. id))
       if not best or at < bestAt then best, bestAt = id, at end
     end
+  elseif prefix == 'x:' then
+    local cut = string.find(fields[i + 1], '|', 1, true)
+    local at = tonumber(string.sub(fields[i + 1], 1, cut - 1))
+    if now - at > window then
+      redis.call('HDEL', KEYS[1], fields[i])
+    elseif not late or at < lateAt then
+      late, lateAt, lateLeft = fields[i], at, tonumber(string.sub(fields[i + 1], cut + 1))
+    end
   end
 end
 redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2]))
+if not best and late then
+  if lateLeft <= 1 then
+    redis.call('HDEL', KEYS[1], late)
+  else
+    redis.call('HSET', KEYS[1], late, lateAt .. '|' .. (lateLeft - 1))
+  end
+  return {'', 0}
+end
 if not best then
   local seq = redis.call('HINCRBY', KEYS[1], 'qn', 1)
   redis.call('HSET', KEYS[1], 'q:' .. seq, now .. '|' .. ARGV[1])
@@ -66,6 +84,7 @@ var giftTakeScript = NewScript(`
 local header = redis.call('HGET', KEYS[1], 'h:' .. ARGV[1])
 if not header then return false end
 local n = tonumber(redis.call('HGET', KEYS[1], 'n:' .. ARGV[1]))
+local total = tonumber(redis.call('HGET', KEYS[1], 't:' .. ARGV[1]))
 local out = {header}
 local gone = {'t:' .. ARGV[1], 'h:' .. ARGV[1], 's:' .. ARGV[1], 'n:' .. ARGV[1]}
 for k = 1, n do
@@ -74,10 +93,15 @@ for k = 1, n do
   gone[#gone + 1] = field
 end
 redis.call('HDEL', KEYS[1], unpack(gone))
+if total > n then
+  local t = redis.call('TIME')
+  redis.call('HSET', KEYS[1], 'x:' .. ARGV[1], (t[1] * 1000 + math.floor(t[2] / 1000)) .. '|' .. (total - n))
+end
 return out`)
 
 // GiftBundle groups the recipients of one community gift under a single header.
 // Recipients that arrive before their header are parked for Window and adopted when a header opens.
+// A bundle taken with recipients missing leaves a tombstone for Window that absorbs its late recipients instead of parking them.
 // All state of one key lives in one hash, so a key is one slot on a cluster.
 type GiftBundle struct {
 	TTL    time.Duration
@@ -120,7 +144,7 @@ func (b GiftBundle) Open(ctx context.Context, client valkey_go.Client, key strin
 }
 
 func (b GiftBundle) Add(ctx context.Context, client valkey_go.Client, key string, recipient []byte) (GiftAdded, error) {
-	args := []string{string(recipient), strconv.FormatInt(int64(b.TTL.Seconds()), 10)}
+	args := []string{string(recipient), strconv.FormatInt(int64(b.TTL.Seconds()), 10), strconv.FormatInt(b.Window.Milliseconds(), 10)}
 	reply, err := giftAddScript.Exec(ctx, client, []string{key}, args).ToArray()
 	if err != nil {
 		return GiftAdded{}, err

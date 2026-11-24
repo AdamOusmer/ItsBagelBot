@@ -97,7 +97,7 @@ func (s *Service) replay(ctx context.Context, c channel, eventID string) error {
 	if err != nil {
 		return err
 	}
-	events, err := s.store().recent(ctx, c, session)
+	events, err := s.store().recent(ctx, c, session, 0)
 	if err != nil {
 		return err
 	}

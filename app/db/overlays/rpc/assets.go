@@ -11,11 +11,13 @@ import (
 
 	"ItsBagelBot/app/db/overlays/assets"
 	"ItsBagelBot/app/db/overlays/repository"
+	"ItsBagelBot/internal/domain/invalidate"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/voiceplan"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/cache"
 
 	"github.com/nats-io/nats.go"
 )
@@ -41,30 +43,55 @@ type VoicePlans struct {
 
 func (p VoicePlans) Premium(ctx context.Context, userID uint64) (bool, error) {
 	request := usersrpc.VoiceCheckRequest{UserID: strconv.FormatUint(userID, 10)}
-	reply, err := bus.RequestJSONTimeout[usersrpc.VoiceCheckReply](ctx, p.NC, usersrpc.VoiceCheckSubject, request, planTimeout)
-	if err != nil {
-		return false, err
-	}
-	if reply.Error != "" {
-		return false, errors.New(reply.Error)
-	}
-	return voiceplan.MonthlySeconds(reply.Plan) > 0, nil
+	reply, err := userCheck[usersrpc.VoiceCheckRequest, usersrpc.VoiceCheckReply]{p.NC, usersrpc.VoiceCheckSubject, voiceRefusal}.ask(ctx, request)
+	return voiceplan.MonthlySeconds(reply.Plan) > 0, err
 }
 
+func voiceRefusal(r usersrpc.VoiceCheckReply) string { return r.Error }
+
+func alphaRefusal(r usersrpc.AlphaCheckReply) string { return r.Error }
+
+// userCheck asks the users service one question and turns a refusal text in the reply into an error.
+type userCheck[Req, Rep any] struct {
+	nc      *nats.Conn
+	subject string
+	refusal func(Rep) string
+}
+
+func (c userCheck[Req, Rep]) ask(ctx context.Context, request Req) (Rep, error) {
+	reply, err := bus.RequestJSONTimeout[Rep](ctx, c.nc, c.subject, request, planTimeout)
+	if err == nil && c.refusal(reply) != "" {
+		err = errors.New(c.refusal(reply))
+	}
+	return reply, err
+}
+
+const (
+	alphaCacheCapacity int64 = 4096
+	alphaCacheTTL            = time.Minute
+)
+
+// AlphaAccess answers the alpha check from a cache that drops an owner's entry when the users service reports a status change.
 type AlphaAccess struct {
-	NC *nats.Conn
+	nc    *nats.Conn
+	known *cache.Cache[bool]
 }
 
-func (a AlphaAccess) Alpha(ctx context.Context, userID uint64) (bool, error) {
+func NewAlphaAccess(nc *nats.Conn, invalidations cache.Feed) *AlphaAccess {
+	return &AlphaAccess{
+		nc:    nc,
+		known: cache.New[bool](alphaCacheCapacity, alphaCacheTTL).InvalidateOn(invalidations, cache.UserKeys("alpha:"), invalidate.ScopeStatus),
+	}
+}
+
+func (a *AlphaAccess) Alpha(ctx context.Context, userID uint64) (bool, error) {
+	return a.known.GetOrLoad(ctx, cache.UserKey("alpha:", userID), func(ctx context.Context) (bool, error) { return a.fetch(ctx, userID) })
+}
+
+func (a *AlphaAccess) fetch(ctx context.Context, userID uint64) (bool, error) {
 	request := usersrpc.AlphaCheckRequest{UserID: strconv.FormatUint(userID, 10)}
-	reply, err := bus.RequestJSONTimeout[usersrpc.AlphaCheckReply](ctx, a.NC, usersrpc.AlphaCheckSubject, request, planTimeout)
-	if err != nil {
-		return false, err
-	}
-	if reply.Error != "" {
-		return false, errors.New(reply.Error)
-	}
-	return reply.Alpha, nil
+	reply, err := userCheck[usersrpc.AlphaCheckRequest, usersrpc.AlphaCheckReply]{a.nc, usersrpc.AlphaCheckSubject, alphaRefusal}.ask(ctx, request)
+	return reply.Alpha && err == nil, err
 }
 
 func SubscribeAssets(w Wiring) error {

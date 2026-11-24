@@ -5,6 +5,8 @@ package repository
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 	"time"
 
@@ -21,6 +23,11 @@ const (
 	totalPrefix = "t."
 	cheerPrefix = "b.cheer."
 	giftPrefix  = "b.gift."
+
+	receiptPrefix = "r."
+
+	// FeedReceiptTTL is how long a counted event id is remembered.
+	FeedReceiptTTL = 24 * time.Hour
 )
 
 // FeedProfile is what the feed aggregator needs to know about a channel's overlays.
@@ -81,28 +88,57 @@ type FeedTotals struct {
 	TopGifter  *feed.Leader
 }
 
-// AddFeedTotals adds delta to the channel's durable counters; call it once per channel event.
-func (r *Overlays) AddFeedTotals(ctx context.Context, userID uint64, delta feed.Delta) error {
+// AddFeedTotals adds delta to the channel's durable counters once per event id; a repeat of an id within FeedReceiptTTL changes nothing.
+func (r *Overlays) AddFeedTotals(ctx context.Context, userID uint64, eventID string, delta feed.Delta) error {
 	if len(delta.Counts) == 0 {
 		return nil
 	}
+	return db.WithExec(ctx, func(ctx context.Context) error {
+		return db.WithTx(ctx, r.client, func(tx *ent.Tx) error {
+			client := tx.Client()
+			claimed, err := claimFeedEvent(ctx, client, userID, eventID)
+			if err != nil || !claimed {
+				return err
+			}
+			return addFeedTotals(ctx, client, userID, delta)
+		})
+	})
+}
+
+func claimFeedEvent(ctx context.Context, client *ent.Client, userID uint64, eventID string) (bool, error) {
+	digest := sha256.Sum256([]byte(eventID))
+	name := receiptPrefix + hex.EncodeToString(digest[:20])
+	now := time.Now().UTC()
+	if _, err := client.FeedTotal.Delete().Where(
+		feedtotal.UserID(userID), feedtotal.NameHasPrefix(receiptPrefix), feedtotal.UpdatedAtLT(now.Add(-FeedReceiptTTL)),
+	).Exec(ctx); err != nil {
+		return false, err
+	}
+	insert := client.FeedTotal.Create().SetUserID(userID).SetName(name).OnConflictColumns(feedtotal.FieldUserID, feedtotal.FieldName).Ignore()
+	if err := insert.Exec(ctx); err != nil {
+		return false, err
+	}
+	claimed, err := client.FeedTotal.Update().Where(feedtotal.UserID(userID), feedtotal.Name(name), feedtotal.Total(0)).
+		SetTotal(1).SetUpdatedAt(now).Save(ctx)
+	return claimed == 1, err
+}
+
+func addFeedTotals(ctx context.Context, client *ent.Client, userID uint64, delta feed.Delta) error {
 	steps := make([]db.CounterIncrement, 0, len(delta.Counts)+1)
 	for _, count := range delta.Counts {
 		steps = append(steps, db.CounterIncrement{Key: db.CounterKey{Owner: userID, Name: totalPrefix + count.Field}, Delta: count.Amount})
 	}
 	if delta.Leader != nil {
 		steps = append(steps, db.CounterIncrement{Key: db.CounterKey{Owner: userID, Name: boardName(*delta.Leader)}, Delta: delta.Leader.Amount})
-		if err := r.labelBoard(ctx, userID, *delta.Leader); err != nil {
+		if err := labelBoard(ctx, client, userID, *delta.Leader); err != nil {
 			return err
 		}
 	}
-	if err := r.ensureTotals(ctx, userID, steps); err != nil {
+	if err := ensureTotals(ctx, client, userID, steps); err != nil {
 		return err
 	}
-	return db.WithExec(ctx, func(ctx context.Context) error {
-		_, err := r.client.IncrementFeedTotals(ctx, steps)
-		return err
-	})
+	_, err := client.IncrementFeedTotals(ctx, steps)
+	return err
 }
 
 func boardName(leader feed.LeaderDelta) string {
@@ -113,24 +149,22 @@ func boardName(leader feed.LeaderDelta) string {
 	return prefix + leader.User.ID
 }
 
-func (r *Overlays) ensureTotals(ctx context.Context, userID uint64, steps []db.CounterIncrement) error {
+func ensureTotals(ctx context.Context, client *ent.Client, userID uint64, steps []db.CounterIncrement) error {
 	rows := make([]*ent.FeedTotalCreate, len(steps))
 	for i, step := range steps {
-		rows[i] = r.client.FeedTotal.Create().SetUserID(userID).SetName(step.Key.Name)
+		rows[i] = client.FeedTotal.Create().SetUserID(userID).SetName(step.Key.Name)
 	}
-	insert := r.client.FeedTotal.CreateBulk(rows...).OnConflictColumns(feedtotal.FieldUserID, feedtotal.FieldName).Ignore()
-	return db.WithExec(ctx, insert.Exec)
+	return client.FeedTotal.CreateBulk(rows...).OnConflictColumns(feedtotal.FieldUserID, feedtotal.FieldName).Ignore().Exec(ctx)
 }
 
-func (r *Overlays) labelBoard(ctx context.Context, userID uint64, leader feed.LeaderDelta) error {
+func labelBoard(ctx context.Context, client *ent.Client, userID uint64, leader feed.LeaderDelta) error {
 	label := leader.User.Name
 	if label == "" {
 		label = leader.User.Login
 	}
-	upsert := r.client.FeedTotal.Create().SetUserID(userID).SetName(boardName(leader)).SetLabel(label).
+	return client.FeedTotal.Create().SetUserID(userID).SetName(boardName(leader)).SetLabel(label).
 		OnConflictColumns(feedtotal.FieldUserID, feedtotal.FieldName).
-		Update(func(u *ent.FeedTotalUpsert) { u.UpdateLabel() })
-	return db.WithExec(ctx, upsert.Exec)
+		Update(func(u *ent.FeedTotalUpsert) { u.UpdateLabel() }).Exec(ctx)
 }
 
 func (r *Overlays) FeedTotals(ctx context.Context, userID uint64) (FeedTotals, error) {

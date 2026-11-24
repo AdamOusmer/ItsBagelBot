@@ -27,8 +27,8 @@ func feedRefusal(err error) domainrpc.Refusal {
 }
 
 func feedSnapshot(feed *livefeed.Service) func(context.Context, overlaysrpc.FeedSnapshotRequest, uint64) (overlaysrpc.FeedSnapshotReply, error) {
-	return func(ctx context.Context, _ overlaysrpc.FeedSnapshotRequest, id uint64) (overlaysrpc.FeedSnapshotReply, error) {
-		reply, err := feed.Snapshot(ctx, strconv.FormatUint(id, 10))
+	return func(ctx context.Context, req overlaysrpc.FeedSnapshotRequest, id uint64) (overlaysrpc.FeedSnapshotReply, error) {
+		reply, err := feed.Snapshot(ctx, strconv.FormatUint(id, 10), req.Events)
 		reply.Refusal = feedRefusal(err)
 		return reply, nil
 	}

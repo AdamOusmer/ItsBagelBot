@@ -35,6 +35,23 @@ func (r RankedTally) Add(ctx context.Context, client valkey_go.Client, member st
 	return nil
 }
 
+// Totals returns each member's total in order; an absent member counts 0.
+func (r RankedTally) Totals(ctx context.Context, client valkey_go.Client, members []string) ([]int64, error) {
+	commands := make(valkey_go.Commands, len(members))
+	for i, member := range members {
+		commands[i] = client.B().Zscore().Key(r.Key).Member(member).Build()
+	}
+	totals := make([]int64, len(members))
+	for i, result := range client.DoMulti(ctx, commands...) {
+		score, err := result.AsFloat64()
+		if err != nil && !valkey_go.IsValkeyNil(err) {
+			return nil, err
+		}
+		totals[i] = int64(score)
+	}
+	return totals, nil
+}
+
 // Top returns the n highest members, highest first.
 func (r RankedTally) Top(ctx context.Context, client valkey_go.Client, n int64) ([]RankedEntry, error) {
 	return r.rank(ctx, client, n-1)

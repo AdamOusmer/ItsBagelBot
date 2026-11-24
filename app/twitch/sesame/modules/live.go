@@ -50,7 +50,7 @@ func liveOnlineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 			if !applied {
 				return nil
 			}
-			feedErr := publishSession(wctx, d, session)
+			feedErr := publishSession(wctx, d, id, session)
 			wakeErr := wakeDraw(wctx, d.Draw, id)
 			if err := d.Greet.ResetGreets(wctx, id); err != nil {
 				log.Warn("live: failed to reset greets", module.BIDField(id), zap.Error(err))
@@ -92,7 +92,7 @@ func liveOfflineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 			if !applied {
 				return nil
 			}
-			feedErr := publishSession(wctx, d, session)
+			feedErr := publishSession(wctx, d, id, session)
 			if d.Timers != nil {
 				d.Timers.DisarmAll(wctx, id)
 			}

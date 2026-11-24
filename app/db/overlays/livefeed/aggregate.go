@@ -21,7 +21,7 @@ func (s *Service) Consume(msg *bus.Message) error {
 	return s.Handle(msg.Context(), event)
 }
 
-// Handle folds one channel event. It is safe to run again for the same event id: sums apply once per id and the rest is version guarded.
+// Handle folds one channel event. Every step is idempotent by event id or version guarded, so a failed event is retried whole.
 func (s *Service) Handle(ctx context.Context, e channelevents.Event) error {
 	if e.Trial || e.Kind == channelevents.Chat {
 		return nil
@@ -59,18 +59,17 @@ func (s *Service) handleEvent(ctx context.Context, c channel, e channelevents.Ev
 		return err
 	}
 	folded := folding{c: c, session: session, event: e, delta: delta}
-	counted, err := s.store().fold(ctx, folded)
+	clock, err := s.countDurable(ctx, folded, rules)
 	if err != nil {
+		return err
+	}
+	if _, err := s.store().fold(ctx, folded); err != nil {
 		return err
 	}
 	if err := s.store().remember(ctx, folded, frame); err != nil {
 		return err
 	}
-	clock, err := s.afterCount(ctx, folded, counted, rules)
-	if err != nil {
-		return err
-	}
-	if err := s.publishEvent(ctx, c, frame); err != nil {
+	if err := s.publishEvent(ctx, folded, frame); err != nil {
 		return err
 	}
 	if clock == nil {
@@ -79,24 +78,37 @@ func (s *Service) handleEvent(ctx context.Context, c channel, e channelevents.Ev
 	return s.publishState(ctx, c, feed.FrameSubathon, clock)
 }
 
-// afterCount runs the effects that must not repeat for one event id and returns the subathon clock when the event moved it.
-func (s *Service) afterCount(ctx context.Context, f folding, counted bool, rules feed.SubathonRules) (*feed.Subathon, error) {
-	if !counted {
-		return nil, nil
-	}
+// countDurable applies the event to the MySQL totals and the subathon clock, each once per event id, before the Valkey receipt exists.
+// It returns the clock when the event moved it.
+func (s *Service) countDurable(ctx context.Context, f folding, rules feed.SubathonRules) (*feed.Subathon, error) {
 	userID, err := strconv.ParseUint(string(f.c), 10, 64)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.Channels.AddFeedTotals(ctx, userID, f.delta); err != nil {
+	if err := s.Channels.AddFeedTotals(ctx, userID, f.event.ID, f.delta); err != nil {
 		return nil, err
 	}
 	return s.earnTime(ctx, f, rules)
 }
 
-func (s *Service) publishEvent(ctx context.Context, c channel, frame feed.Event) error {
-	if err := s.publishAlert(ctx, c, frame.ID, feed.Delivery{Event: frame}); err != nil {
+func (s *Service) publishEvent(ctx context.Context, f folding, frame feed.Event) error {
+	if err := s.publishAlert(ctx, f.c, frame.ID, feed.Delivery{Event: frame}); err != nil {
 		return err
 	}
-	return s.publishStats(ctx, c)
+	if err := s.publishStats(ctx, f.c); err != nil {
+		return err
+	}
+	return s.publishCredits(ctx, f)
+}
+
+// publishCredits sends the credit entries the event touched as absolute totals, so a repeat changes nothing on the page.
+func (s *Service) publishCredits(ctx context.Context, f folding) error {
+	if len(f.delta.Credits) == 0 {
+		return nil
+	}
+	touched, err := s.store().touchedCredits(ctx, f)
+	if err != nil {
+		return err
+	}
+	return s.publishState(ctx, f.c, feed.FrameCredits, touched)
 }

@@ -22,9 +22,12 @@ func sessionEvent(c *module.Context, state channelevents.SessionState) channelev
 }
 
 // publishSession stamps the Helix counts when they are known; a failed lookup publishes without them.
-func publishSession(ctx context.Context, d engine.Deps, event channelevents.Event) error {
+func publishSession(ctx context.Context, d engine.Deps, channel uint64, event channelevents.Event) error {
 	if d.Pub == nil || event.ID == "" {
 		return nil
+	}
+	if alpha, err := feedAlpha(ctx, d, channel); err != nil || !alpha {
+		return err
 	}
 	if d.ChannelCounts != nil {
 		counts, err := d.ChannelCounts.Lookup(ctx, event.ChannelID)

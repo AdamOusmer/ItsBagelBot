@@ -19,6 +19,7 @@ import (
 const (
 	overlayIDPrefix   = "overlay:o:id:"
 	overlayHashPrefix = "overlay:o:hash:"
+	overlayUserPrefix = "overlay:o:user:"
 	overlayCacheTTL   = time.Minute
 )
 
@@ -61,7 +62,33 @@ func (v *Store) FoldOverlay(ctx context.Context, change data.OverlayChangedDTO) 
 		utils.BoolField(change.Deleted), overlayHashPrefix, overlayDataSeconds, strconv.FormatInt(int64(DefaultTTL/time.Second), 10),
 	}
 	n, err := foldOverlayScript.Exec(ctx, v.primary, keys, args).AsInt64()
-	return n == 1, err
+	if err != nil || n != 1 {
+		return false, err
+	}
+	return true, v.indexOverlayHashes(ctx, change)
+}
+
+func (v *Store) overlayHashes(userID uint64) pkg_valkey.ExpiringSet {
+	return pkg_valkey.ExpiringSet{Key: cache.UserKey(overlayUserPrefix, userID), TTL: DefaultTTL}
+}
+
+// indexOverlayHashes keeps each owner's link hashes so a change that touches every link of one owner can name them.
+func (v *Store) indexOverlayHashes(ctx context.Context, change data.OverlayChangedDTO) error {
+	set := v.overlayHashes(change.Overlay.UserID)
+	if change.Deleted {
+		return set.Remove(ctx, v.primary, []string{string(change.Overlay.TokenHash)})
+	}
+	if change.PreviousTokenHash != "" {
+		if err := set.Remove(ctx, v.primary, []string{string(change.PreviousTokenHash)}); err != nil {
+			return err
+		}
+	}
+	return set.Add(ctx, v.primary, []string{string(change.Overlay.TokenHash)})
+}
+
+// OverlayHashes are the link hashes of the owner's overlays that the projection has folded.
+func (v *Store) OverlayHashes(ctx context.Context, userID uint64) ([]string, error) {
+	return v.overlayHashes(userID).Members(ctx, v.primary)
 }
 
 func (v *Store) OverlayByHash(ctx context.Context, hash overlaysrpc.TokenHash) (overlaysrpc.Overlay, bool, error) {

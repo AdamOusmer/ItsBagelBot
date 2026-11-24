@@ -56,8 +56,6 @@ func profileKey(userID string) string { return "ovf:profile:" + userID }
 
 func tierKey(userID string) string { return "ovf:tier:" + userID }
 
-func alphaKey(userID string) string { return "ovf:alpha:" + userID }
-
 var creditLists = []feed.Kind{feed.Follow, feed.Sub, feed.GiftSub, feed.Cheer, feed.Raid, feed.Redemption}
 
 var tallyPeriods = []valkey.Period{valkey.PeriodSession, valkey.PeriodWeek, valkey.PeriodMonth}

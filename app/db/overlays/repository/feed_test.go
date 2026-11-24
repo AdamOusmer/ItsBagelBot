@@ -4,6 +4,7 @@
 package repository_test
 
 import (
+	"strconv"
 	"testing"
 
 	"ItsBagelBot/app/db/overlays/repository"
@@ -24,8 +25,8 @@ func TestFeedTotalsAccumulateAcrossEvents(t *testing.T) {
 	repo, _ := setupStore(t)
 	ctx := t.Context()
 
-	for _, step := range []feed.Delta{cheerDelta("7", 100), cheerDelta("7", 50), cheerDelta("8", 120)} {
-		require.NoError(t, repo.AddFeedTotals(ctx, userID, step))
+	for i, step := range []feed.Delta{cheerDelta("7", 100), cheerDelta("7", 50), cheerDelta("8", 120)} {
+		require.NoError(t, repo.AddFeedTotals(ctx, userID, "evt-"+strconv.Itoa(i), step))
 	}
 	totals, err := repo.FeedTotals(ctx, userID)
 	require.NoError(t, err)
@@ -35,9 +36,24 @@ func TestFeedTotalsAccumulateAcrossEvents(t *testing.T) {
 	require.Nil(t, totals.TopGifter)
 }
 
+func TestFeedTotalsCountAnEventIdOnce(t *testing.T) {
+	repo, _ := setupStore(t)
+	ctx := t.Context()
+
+	for range 3 {
+		require.NoError(t, repo.AddFeedTotals(ctx, userID, "evt-1", cheerDelta("7", 100)))
+	}
+	require.NoError(t, repo.AddFeedTotals(ctx, userID, "evt-2", cheerDelta("7", 50)))
+	totals, err := repo.FeedTotals(ctx, userID)
+
+	require.NoError(t, err)
+	require.Equal(t, int64(150), totals.Counts.Bits)
+	require.Equal(t, int64(150), totals.TopCheerer.Amount)
+}
+
 func TestFeedTotalsAreScopedToTheChannel(t *testing.T) {
 	repo, _ := setupStore(t)
-	require.NoError(t, repo.AddFeedTotals(t.Context(), userID, cheerDelta("7", 100)))
+	require.NoError(t, repo.AddFeedTotals(t.Context(), userID, "evt-1", cheerDelta("7", 100)))
 
 	other, err := repo.FeedTotals(t.Context(), strangerID)
 

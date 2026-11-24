@@ -59,6 +59,57 @@ func TestGiftBundleAdoptsRecipientsParkedBeforeTheHeader(t *testing.T) {
 	require.Equal(t, [][]byte{[]byte("early")}, taken.Recipients)
 }
 
+func TestGiftBundleAbsorbsRecipientsOfAFlushedBundleInsteadOfParkingThem(t *testing.T) {
+	client := valkeytest.Real(t)
+	ctx := t.Context()
+	key := "test:gift:{" + testUniqueKey(t) + "}"
+	bundle := GiftBundle{TTL: time.Minute, Window: 5 * time.Second}
+
+	_, err := bundle.Open(ctx, client, key, GiftHeader{ID: "gift-50", Total: 50, Payload: []byte("fifty")})
+	require.NoError(t, err)
+	for range 20 {
+		_, err = bundle.Add(ctx, client, key, []byte("early"))
+		require.NoError(t, err)
+	}
+	taken, ok, err := bundle.Take(ctx, client, key, "gift-50")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Len(t, taken.Recipients, 20)
+
+	for range 30 {
+		late, err := bundle.Add(ctx, client, key, []byte("late"))
+		require.NoError(t, err)
+		require.Equal(t, GiftAdded{}, late)
+	}
+	opened, err := bundle.Open(ctx, client, key, GiftHeader{ID: "gift-5", Total: 5, Payload: []byte("five")})
+	require.NoError(t, err)
+	next, ok, err := bundle.Take(ctx, client, key, "gift-5")
+	require.NoError(t, err)
+
+	require.Equal(t, GiftWaiting, opened)
+	require.True(t, ok)
+	require.Empty(t, next.Recipients)
+}
+
+func TestGiftBundleParksRecipientsOnceTheTombstoneWindowPasses(t *testing.T) {
+	client := valkeytest.Real(t)
+	ctx := t.Context()
+	key := "test:gift:{" + testUniqueKey(t) + "}"
+	bundle := GiftBundle{TTL: time.Minute, Window: 50 * time.Millisecond}
+
+	_, err := bundle.Open(ctx, client, key, GiftHeader{ID: "gift-2", Total: 2, Payload: []byte("two")})
+	require.NoError(t, err)
+	_, _, err = bundle.Take(ctx, client, key, "gift-2")
+	require.NoError(t, err)
+	time.Sleep(80 * time.Millisecond)
+	_, err = bundle.Add(ctx, client, key, []byte("stale"))
+	require.NoError(t, err)
+	opened, err := bundle.Open(ctx, client, key, GiftHeader{ID: "gift-1", Total: 1, Payload: []byte("one")})
+	require.NoError(t, err)
+
+	require.Equal(t, GiftComplete, opened)
+}
+
 func TestGiftBundleFillsTheOldestOpenBundleFirst(t *testing.T) {
 	client := valkeytest.Real(t)
 	ctx := t.Context()

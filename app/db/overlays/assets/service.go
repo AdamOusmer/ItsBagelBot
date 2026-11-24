@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -18,6 +19,7 @@ import (
 	"ItsBagelBot/internal/domain/overlays"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	"ItsBagelBot/pkg/objectstore"
+	"ItsBagelBot/pkg/ratelimit"
 )
 
 const (
@@ -38,8 +40,11 @@ type Service struct {
 	PartSize  int64
 	Signer    Signer
 	PublicURL string
+	Allow     func(context.Context, ratelimit.Request) (bool, error)
 	Now       func() time.Time
 }
+
+var uploadBucket = ratelimit.NewSpec(overlays.AccountUploadsPerHour, overlays.AccountUploadsPerHour/time.Hour.Seconds())
 
 type Blob struct {
 	Name   string
@@ -123,11 +128,11 @@ func (s *Service) fits(ctx context.Context, userID uint64, size int64) error {
 }
 
 func (s *Service) allowUpload(ctx context.Context, userID uint64) error {
-	recent, err := s.Repo.AssetsSince(ctx, userID, s.now().Add(-time.Hour))
+	allowed, err := s.Allow(ctx, uploadBucket.ForDynamicKey("ratelimit:overlays:upload:", "overlays:upload", strconv.FormatUint(userID, 10)))
 	if err != nil {
 		return err
 	}
-	if recent >= overlays.AccountUploadsPerHour {
+	if !allowed {
 		return ErrRateLimited
 	}
 	return nil

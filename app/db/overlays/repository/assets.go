@@ -76,10 +76,6 @@ func (r *Overlays) AssetUsage(ctx context.Context, userID uint64) (Usage, error)
 	return usage, err
 }
 
-func (r *Overlays) AssetsSince(ctx context.Context, userID uint64, since time.Time) (int, error) {
-	return db.WithQuery(ctx, r.client.OverlayAsset.Query().Where(overlayasset.UserID(userID), overlayasset.CreatedAtGTE(since.UTC().Truncate(time.Microsecond))).Count)
-}
-
 func (r *Overlays) AssetByHash(ctx context.Context, userID uint64, sha256 string) (Asset, error) {
 	return r.findAsset(ctx, overlayasset.UserID(userID), overlayasset.Sha256(sha256))
 }

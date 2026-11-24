@@ -92,15 +92,27 @@ Other `ent/` files are generated from the schema.
   that own at least one overlay (cached 60 s). Sums apply once per event id;
   latest-of-each, names and the session slot are version guarded; the
   session event log expires with the session. All-time totals and leaders are
-  the `feed_total` counters (`IncrementCounters`).
+  the `feed_total` counters (`IncrementCounters`), applied once per event id
+  in one transaction with a `r.` receipt row (kept 24 h). Subathon time earned
+  by an event is recorded in the stored clock by event id. Both run before the
+  Valkey receipt, so a failed event is retried whole.
+- Owner alpha comes from `rpc.AlphaAccess`, a `pkg/cache` cache dropped on the
+  users `status` invalidation; assets, the feed and the lapse sweeper share one.
+  Upload starts are throttled by `pkg/ratelimit` (`ratelimit:overlays:upload:`).
+- Release order: overlays (stream, ACL, alpha invalidation import) before
+  sesame. Sesame runs the feed module only for alpha owners, so a non-alpha
+  channel never touches the feed path.
 - Each fold queues the event as an alert with `bus.Overlays.Publish` (kind
   `custom`, `event_id` is the Twitch event id, `expires_at` is the
   `bus.OverlayClipTTL` after publish, tier follows the owner's premium plan
   cached 60 s). Stats and, when the timer moved, subathon frames go on core
   NATS `overlays.state.<user id>` as `{"type","data"}`, with no replay. Both
-  use the service's existing RPC connection.
-- `rpc.internal.overlays.feed.snapshot` returns the folded state and every
-  event of the current session (the log expires with the session), so a page
+  use the service's existing RPC connection. The `stats` frame carries no
+  credit lists; a `credits` frame follows each event with the credit entries it
+  touched as their new totals (merge by user id, so a repeat is harmless).
+- `rpc.internal.overlays.feed.snapshot` returns the folded state, the full
+  credit lists and the newest `events` events of the current session (request
+  field `events`, `DefaultSnapshotEvents` when 0; the log expires with the session), so a page
   that connects late catches up without replay; `rpc.overlays.feed.control`
   is owner only and throttles test events.
 - Chat is not fed yet: the credits mod, vip and chatter lists stay empty.

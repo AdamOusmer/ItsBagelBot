@@ -58,6 +58,9 @@ func TestLiveACLPermissions(t *testing.T) {
 			{roleEndpoint{controlsGatewayAccount, "overlays_feed_bus"}, "overlays.premium.tts.42"},
 			{roleEndpoint{controlsGatewayAccount, "worker_tts_bus"}, "overlays.session.42"},
 			{roleEndpoint{controlsGatewayAccount, "gossip_jobs_bus"}, "overlays.standard.tts.42"},
+			{roleEndpoint{controlsGatewayAccount, "gossip_jobs_bus"}, "overlays.premium.custom.42"},
+			{roleEndpoint{controlsGatewayAccount, "worker_tts_bus"}, "overlays.premium.custom.42"},
+			{roleEndpoint{controlsGatewayAccount, "worker_tts_bus"}, "overlays.standard.custom.42"},
 			{roleEndpoint{controlsGatewayAccount, "gossip_jobs_bus"}, "gossip.jobs.tts.42"},
 			{roleEndpoint{"BUS", "overlays_bus"}, "data.users.changed"},
 		} {

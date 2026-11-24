@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	"ItsBagelBot/app/db/overlays/assets"
 	"ItsBagelBot/app/db/overlays/repository"
 	"ItsBagelBot/internal/domain/overlays"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
@@ -59,7 +60,21 @@ func (w Wiring) addStarter(ctx context.Context, key string, id uint64) (overlays
 
 func (w Wiring) overlayGet(ctx context.Context, req overlaysrpc.OverlayRefRequest, id uint64) (overlaysrpc.OverlayView, error) {
 	overlay, err := w.Repo.GetOverlay(ctx, id, req.ID)
+	if err == nil && isCustom(overlay) {
+		overlay.Document, err = w.customDocument(ctx, id, overlay.Document)
+	}
 	return overlayReply(overlay, "", err), nil
+}
+
+func isCustom(overlay overlaysrpc.Overlay) bool { return overlay.Kind == string(overlays.KindCustom) }
+
+// customDocument withholds a stored custom document from an owner who is not alpha.
+func (w Wiring) customDocument(ctx context.Context, id uint64, document codec.RawMessage) (codec.RawMessage, error) {
+	err := w.Assets.RequireAlpha(ctx, id)
+	if errors.Is(err, assets.ErrAlphaRequired) {
+		return nil, nil
+	}
+	return document, err
 }
 
 func (w Wiring) overlaySave(ctx context.Context, req overlaysrpc.OverlaySaveRequest, id uint64) (overlaysrpc.OverlayView, error) {
@@ -99,8 +114,19 @@ func (w Wiring) createCustom(ctx context.Context, raw codec.RawMessage, id uint6
 }
 
 func (w Wiring) overlayRotate(ctx context.Context, req overlaysrpc.OverlayRefRequest, id uint64) (overlaysrpc.OverlayView, error) {
+	if err := w.requireAlphaForCustom(ctx, id, req.ID); err != nil {
+		return overlayReply(overlaysrpc.Overlay{}, "", err), nil
+	}
 	overlay, token, err := w.Repo.RotateOverlay(ctx, id, req.ID)
 	return overlayReply(overlay, token, err), nil
+}
+
+func (w Wiring) requireAlphaForCustom(ctx context.Context, id, overlayID uint64) error {
+	overlay, err := w.Repo.GetOverlay(ctx, id, overlayID)
+	if err != nil || !isCustom(overlay) {
+		return nil
+	}
+	return w.Assets.RequireAlpha(ctx, id)
 }
 
 func (w Wiring) overlayDelete(ctx context.Context, req overlaysrpc.OverlayRefRequest, id uint64) (overlaysrpc.OverlayView, error) {

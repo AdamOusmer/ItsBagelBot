@@ -17,6 +17,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/consumers"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/objectstore"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
@@ -49,9 +50,14 @@ func main() {
 
 	repo := repository.New(client, n.Pub, objects, env.MustGet("R2_PUBLIC_URL"))
 	svcboot.FatalIf(log, repo.MigratePowered(core.Ctx), "failed to migrate powered overlays")
-	uploads := newAssets(core, repo, objects, n.RPC)
+	clients := shared{
+		rpc:    n.RPC,
+		alphas: rpc.NewAlphaAccess(n.RPC, bus.NewInvalidations(n.RPC, conf.CacheInvalidationPrefix.Get(), log)),
+		valkey: svcboot.MustValkey(core),
+	}
+	uploads := newAssets(repo, objects, clients)
 	serveUploads(core, uploads)
-	sweeper := &lapse.Sweeper{Repo: repo, Alphas: uploads.Alphas}
+	sweeper := &lapse.Sweeper{Repo: repo, Alphas: clients.alphas}
 	go sweeper.Run(core.Ctx, log)
 
 	deleted := consumers.OnUserDeleted(serviceName, log, repo.DeleteAccount)
@@ -59,7 +65,7 @@ func main() {
 
 	svcboot.FatalIf(log, bus.Consume(core.Ctx, core.NR, n.Grouped, data.SubjectUserBanned, bannedTts(repo, log), log), "failed to subscribe to user banned events")
 
-	feedService, feedConn := newFeed(core, repo, n.RPC)
+	feedService, feedConn := newFeed(core, repo, clients)
 	defer feedConn.Close()
 	svcboot.FatalIf(log, bus.Consume(core.Ctx, core.NR, n.Grouped, channelevents.EventsMatch, feedService.Consume, log), "failed to subscribe to channel events")
 

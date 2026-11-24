@@ -118,11 +118,28 @@ func (p *Projector) applyUserChanged(ctx context.Context, dto data.UserChangedDT
 			return nil // a delayed change cannot revive a retired incarnation
 		}
 	}
+	previous, _, err := p.store.GetUserRuntime(ctx, dto.UserID)
+	if err != nil {
+		return err
+	}
 	if err := p.store.SetUser(ctx, dto.UserID, projection.UserFromChanged(dto)); err != nil {
 		return err
 	}
 	p.broadcastInvalidate(dto.UserID)
 	p.invalidations.Publish(invalidate.ScopeUserProjection, dto.UserID)
+	if previous.Alpha == dto.Alpha {
+		return nil
+	}
+	return p.invalidateOverlays(ctx, dto.UserID)
+}
+
+// invalidateOverlays makes the gateway drop every cached link of an owner whose alpha flag flipped and recheck their open streams.
+func (p *Projector) invalidateOverlays(ctx context.Context, userID uint64) error {
+	hashes, err := p.store.OverlayHashes(ctx, userID)
+	if err != nil {
+		return err
+	}
+	p.invalidations.Publish(invalidate.ScopeOverlays, userID, hashes...)
 	return nil
 }
 

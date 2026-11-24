@@ -73,6 +73,29 @@ func TestCustomSavesNeedAlpha(t *testing.T) {
 	}
 }
 
+func TestLapsedAlphaKeepsNoAccessToCustomOverlays(t *testing.T) {
+	nc, state := serveLapsing(t)
+	user := overlaysrpc.OverlayUserRequest{UserID: "1001"}
+	created := request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlayCreateCustomSubject, overlaysrpc.OverlayCreateCustomRequest{OverlayUserRequest: user, Document: textDocument(t, "Mine")})
+	require.Equal(t, domainrpc.CodeOK, created.Code, created.Error)
+	ref := overlaysrpc.OverlayRefRequest{OverlayUserRequest: user, ID: created.ID}
+	stored := request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlayGetSubject, ref)
+	require.NotEmpty(t, stored.Document)
+
+	state.now(t)
+	get := request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlayGetSubject, ref)
+	rotate := request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlayRotateSubject, ref)
+	list := request[overlaysrpc.OverlayListReply](t, nc, overlaysrpc.OverlayListSubject, user)
+	deleted := request[overlaysrpc.OverlayView](t, nc, overlaysrpc.OverlayDeleteSubject, ref)
+
+	require.Equal(t, domainrpc.CodeOK, get.Code, get.Error)
+	assert.Empty(t, get.Document)
+	assert.Equal(t, domainrpc.CodeForbidden, rotate.Code)
+	require.Len(t, list.Overlays, 1)
+	assert.Empty(t, list.Overlays[0].Document)
+	assert.Equal(t, domainrpc.CodeOK, deleted.Code, deleted.Error)
+}
+
 func TestStarterTemplatesNeedAlpha(t *testing.T) {
 	nc := serve(t)
 	add := func(userID string) overlaysrpc.OverlayView {

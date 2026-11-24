@@ -43,7 +43,7 @@ type Alphas interface {
 // Channels is the overlays repository as the feed sees it.
 type Channels interface {
 	FeedProfile(ctx context.Context, userID uint64) (repository.FeedProfile, error)
-	AddFeedTotals(ctx context.Context, userID uint64, delta feed.Delta) error
+	AddFeedTotals(ctx context.Context, userID uint64, eventID string, delta feed.Delta) error
 	FeedTotals(ctx context.Context, userID uint64) (repository.FeedTotals, error)
 }
 
@@ -86,7 +86,7 @@ func (s *Service) alpha(ctx context.Context, userID string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return cached(ctx, s.Client, alphaKey(userID), func() (bool, error) { return s.Alphas.Alpha(ctx, id) })
+	return s.Alphas.Alpha(ctx, id)
 }
 
 func (s *Service) requireAlpha(ctx context.Context, userID string) error {

@@ -5,7 +5,10 @@ package livefeed_test
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"math/rand/v2"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -66,6 +69,12 @@ func (f *fakeBus) alertCount() int {
 	return len(f.alerts)
 }
 
+func (f *fakeBus) statePayloads() [][]byte {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.states)
+}
+
 func (f *fakeBus) stateTypes(t *testing.T) []feed.Frame {
 	t.Helper()
 	f.mu.Lock()
@@ -82,13 +91,22 @@ func (f *fakeBus) stateTypes(t *testing.T) []feed.Frame {
 type fakeChannels struct {
 	profile repository.FeedProfile
 	totals  repository.FeedTotals
+	counted map[string]bool
+	failing bool
 }
 
 func (c *fakeChannels) FeedProfile(context.Context, uint64) (repository.FeedProfile, error) {
 	return c.profile, nil
 }
 
-func (c *fakeChannels) AddFeedTotals(_ context.Context, _ uint64, delta feed.Delta) error {
+func (c *fakeChannels) AddFeedTotals(_ context.Context, _ uint64, eventID string, delta feed.Delta) error {
+	if c.failing {
+		return errors.New("mysql unavailable")
+	}
+	if c.counted[eventID] {
+		return nil
+	}
+	c.counted[eventID] = true
 	for _, count := range delta.Counts {
 		c.totals.Counts.Add(count)
 	}
@@ -111,7 +129,7 @@ func newHarness(t *testing.T) *harness {
 	t.Helper()
 	h := &harness{
 		bus:      &fakeBus{ids: map[string]bool{}, alpha: true},
-		channels: &fakeChannels{profile: repository.FeedProfile{Owned: true}},
+		channels: &fakeChannels{profile: repository.FeedProfile{Owned: true}, counted: map[string]bool{}},
 		owner:    strconv.FormatInt(1_000_000+rand.Int64N(1<<40), 10),
 		allow:    true,
 	}
@@ -137,7 +155,12 @@ func (h *harness) event(kind channelevents.Kind, amount int64) channelevents.Eve
 
 func (h *harness) snapshot(t *testing.T) overlaysrpc.FeedSnapshotReply {
 	t.Helper()
-	reply, err := h.service.Snapshot(t.Context(), h.owner)
+	return h.snapshotOf(t, 0)
+}
+
+func (h *harness) snapshotOf(t *testing.T, events int) overlaysrpc.FeedSnapshotReply {
+	t.Helper()
+	reply, err := h.service.Snapshot(t.Context(), h.owner, events)
 	require.NoError(t, err)
 	return reply
 }
@@ -155,11 +178,60 @@ func TestHandleFoldsEachEventOnceAndPublishesFrames(t *testing.T) {
 	snapshot := h.snapshot(t)
 
 	require.Equal(t, 1, h.bus.alertCount())
-	require.Equal(t, []feed.Frame{feed.FrameStats, feed.FrameStats}, h.bus.stateTypes(t))
-	require.Equal(t, []string{overlaysrpc.StateSubject(h.owner), overlaysrpc.StateSubject(h.owner)}, h.bus.subjects)
+	require.Equal(t, []feed.Frame{feed.FrameStats, feed.FrameCredits, feed.FrameStats, feed.FrameCredits}, h.bus.stateTypes(t))
+	require.Equal(t, overlaysrpc.StateSubject(h.owner), h.bus.subjects[0])
 	require.Equal(t, int64(150), snapshot.Snapshot.Stats.Session.Bits)
 	require.Equal(t, int64(150), snapshot.Snapshot.Stats.Week.Bits)
 	require.Equal(t, int64(150), h.channels.totals.Counts.Bits)
+}
+
+func TestStatsFramesCarryNoCreditsAndCreditFramesCarryOnlyTouchedEntries(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, h.service.Handle(t.Context(), h.event(channelevents.Cheer, 100)))
+	other := h.event(channelevents.Cheer, 40)
+	other.User = &channelevents.User{ID: "78", Login: "second", Name: "Second"}
+	require.NoError(t, h.service.Handle(t.Context(), other))
+	require.NoError(t, h.service.Handle(t.Context(), h.event(channelevents.Cheer, 50)))
+
+	var credits []map[feed.Kind][]feed.Leader
+	for _, payload := range h.bus.statePayloads() {
+		var frame struct {
+			Type feed.Frame      `json:"type"`
+			Data json.RawMessage `json:"data"`
+		}
+		require.NoError(t, codec.Unmarshal(payload, &frame))
+		switch frame.Type {
+		case feed.FrameStats:
+			var stats feed.Stats
+			require.NoError(t, codec.Unmarshal(frame.Data, &stats))
+			require.Empty(t, stats.Credits)
+		case feed.FrameCredits:
+			var touched map[feed.Kind][]feed.Leader
+			require.NoError(t, codec.Unmarshal(frame.Data, &touched))
+			credits = append(credits, touched)
+		}
+	}
+
+	require.Len(t, credits, 3)
+	require.Equal(t, []feed.Leader{{User: feed.User{ID: "77", Login: "viewer", Name: "Viewer"}, Amount: 150}}, credits[2][feed.Cheer])
+	require.Equal(t, int64(40), credits[1][feed.Cheer][0].Amount)
+	require.Equal(t, int64(150), h.snapshot(t).Snapshot.Stats.Credits[feed.Cheer][0].Amount)
+}
+
+func TestSnapshotReturnsTheNewestEventsTheRequestAsksFor(t *testing.T) {
+	h := newHarness(t)
+	for i := range 5 {
+		event := h.event(channelevents.Cheer, int64(100+i))
+		event.OccurredAt = time.Now().UTC().Add(time.Duration(i) * time.Second)
+		require.NoError(t, h.service.Handle(t.Context(), event))
+	}
+
+	tail := h.snapshotOf(t, 2).Snapshot.Events
+	all := h.snapshot(t).Snapshot.Events
+
+	require.Len(t, tail, 2)
+	require.Equal(t, all[3:], tail)
+	require.Len(t, all, 5)
 }
 
 func TestSnapshotCarriesLeadersLatestAndRecentEvents(t *testing.T) {
@@ -192,7 +264,7 @@ func TestChannelsWithoutAlphaAreIgnoredAndRefused(t *testing.T) {
 
 	require.NoError(t, h.service.Handle(t.Context(), h.event(channelevents.Cheer, 100)))
 	_, controlErr := h.control(overlaysrpc.FeedPause, overlaysrpc.FeedControlArgs{})
-	_, snapshotErr := h.service.Snapshot(t.Context(), h.owner)
+	_, snapshotErr := h.service.Snapshot(t.Context(), h.owner, 0)
 
 	require.Zero(t, h.bus.alertCount())
 	require.Empty(t, h.bus.states)
@@ -209,7 +281,7 @@ func TestRevokedOwnerStopsGettingFramesOnceTheAlphaCacheLapses(t *testing.T) {
 	require.NoError(t, valkey.NewKV(h.service.Client).Del(t.Context(), "ovf:alpha:"+h.owner))
 	require.NoError(t, h.service.Handle(t.Context(), h.event(channelevents.Cheer, 100)))
 	_, controlErr := h.control(overlaysrpc.FeedPause, overlaysrpc.FeedControlArgs{})
-	_, snapshotErr := h.service.Snapshot(t.Context(), h.owner)
+	_, snapshotErr := h.service.Snapshot(t.Context(), h.owner, 0)
 
 	require.NotZero(t, alertsWhileGranted)
 	require.Equal(t, alertsWhileGranted, h.bus.alertCount())
@@ -240,6 +312,25 @@ func TestEarnedSubathonTimeAddsToTheClock(t *testing.T) {
 	require.NoError(t, h.service.Handle(t.Context(), h.event(channelevents.Follow, 0)))
 
 	require.Equal(t, int64(610), h.snapshot(t).Snapshot.Subathon.RemainingSeconds)
+}
+
+func TestRetryAfterADurableFailureCountsTotalsAndSubathonTimeOnce(t *testing.T) {
+	h := newHarness(t)
+	h.channels.profile.Subathon = feed.SubathonRules{BaseSeconds: 600, Bits100Seconds: 60}
+	_, err := h.control(overlaysrpc.FeedSubathonReset, overlaysrpc.FeedControlArgs{})
+	require.NoError(t, err)
+	cheer := h.event(channelevents.Cheer, 100)
+
+	h.channels.failing = true
+	require.Error(t, h.service.Handle(t.Context(), cheer))
+	h.channels.failing = false
+	require.NoError(t, h.service.Handle(t.Context(), cheer))
+	require.NoError(t, h.service.Handle(t.Context(), cheer))
+	snapshot := h.snapshot(t).Snapshot
+
+	require.Equal(t, int64(100), h.channels.totals.Counts.Bits)
+	require.Equal(t, int64(100), snapshot.Stats.Session.Bits)
+	require.Equal(t, int64(660), snapshot.Subathon.RemainingSeconds)
 }
 
 func TestControlTogglesStateAndRefusesOtherActors(t *testing.T) {

@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/channelevents"
 	"ItsBagelBot/internal/domain/event/lane"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus/bustest"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
@@ -91,7 +92,7 @@ type feedFixture struct {
 func newFeedFixture(t *testing.T) *feedFixture {
 	t.Helper()
 	f := &feedFixture{t: t, pub: bustest.NewPublisher(), gifts: newMemoryGifts()}
-	f.handler = ChannelFeed(engine.Deps{Pub: f.pub, GiftBundles: f.gifts, Log: zap.NewNop()})
+	f.handler = ChannelFeed(engine.Deps{Pub: f.pub, GiftBundles: f.gifts, Proj: &fakeProj{user: projection.User{Alpha: true}}, Log: zap.NewNop()})
 	return f
 }
 
@@ -154,6 +155,31 @@ func TestChannelFeedNormalizesEventSubPayloads(t *testing.T) {
 			require.Equal(t, []channelevents.Event{want}, f.published(want.Kind))
 		})
 	}
+}
+
+func TestChannelFeedIgnoresChannelsThatAreNotAlpha(t *testing.T) {
+	pub, gifts := bustest.NewPublisher(), newMemoryGifts()
+	deps := engine.Deps{Pub: pub, GiftBundles: gifts, Proj: &fakeProj{}, Log: zap.NewNop()}
+	handlers := ChannelFeed(deps).Events
+	envelopes := []lane.Envelope{
+		feedEnvelope("channel.follow", "evt-1", `{"user_id":"7"}`),
+		feedEnvelope("channel.subscription.gift", "gift-1", giftPayload),
+		recipientEnvelope("sub-1", "11"),
+		feedEnvelope("channel.chat.notification", "evt-2", `{"chatter_user_id":"7","notice_type":"prime_paid_upgrade"}`),
+	}
+	for _, env := range envelopes {
+		c := &module.Context{Env: env, BroadcasterID: 2, Log: zap.NewNop()}
+		require.NoError(t, handlers[env.Type](t.Context(), c, func(*module.Output) {}))
+	}
+	for _, kind := range channelevents.Kinds() {
+		require.Empty(t, pub.On(channelevents.Subject("2", kind)), string(kind))
+	}
+	require.Empty(t, gifts.order)
+	require.Empty(t, gifts.parked)
+
+	deps.Proj = &fakeProj{userErr: context.DeadlineExceeded}
+	c := &module.Context{Env: envelopes[0], BroadcasterID: 2, Log: zap.NewNop()}
+	require.Error(t, ChannelFeed(deps).Events["channel.follow"](t.Context(), c, func(*module.Output) {}))
 }
 
 func TestChannelFeedSkipsTrialAndUnidentifiedEvents(t *testing.T) {
@@ -266,7 +292,7 @@ func (f fakeChannelCounts) Lookup(context.Context, string) (engine.ChannelCounts
 func TestLivePublishesSessionEventsWithHelixCounts(t *testing.T) {
 	pub := bustest.NewPublisher()
 	counts := fakeChannelCounts{engine.ChannelCountsResult{Followers: 120, FollowersOK: true, Subs: 9, SubsOK: false}}
-	live := Live(engine.Deps{Live: &fakeLive{}, Greet: &fakeGreet{}, Pub: pub, ChannelCounts: counts, Log: zap.NewNop()})
+	live := Live(engine.Deps{Live: &fakeLive{}, Greet: &fakeGreet{}, Pub: pub, ChannelCounts: counts, Proj: &fakeProj{user: projection.User{Alpha: true}}, Log: zap.NewNop()})
 	for _, step := range []struct{ eventType, id string }{{"stream.online", "on-1"}, {"stream.offline", "off-1"}} {
 		c := &module.Context{Env: feedEnvelope(step.eventType, step.id, `{}`), BroadcasterID: 2, Log: zap.NewNop()}
 		require.NoError(t, live.Events[step.eventType](t.Context(), c, func(*module.Output) {}))

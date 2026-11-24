@@ -74,15 +74,34 @@ func ChannelFeed(d engine.Deps) module.Module {
 		return m.Build()
 	}
 	return m.
-		On("channel.follow", feedHandler(d, channelevents.Follow, buildFollow)).
-		On("channel.subscribe", onFeedSubscribe(d)).
-		On("channel.subscription.message", feedHandler(d, channelevents.Resub, buildResub)).
-		On("channel.subscription.gift", onFeedGift(d)).
-		On("channel.cheer", feedHandler(d, channelevents.Cheer, buildCheer)).
-		On("channel.raid", feedHandler(d, channelevents.Raid, buildRaid)).
-		On(engine.RedemptionAddType, feedHandler(d, channelevents.Redemption, buildRedemption)).
-		On("channel.chat.notification", onFeedNotice(d)).
+		On("channel.follow", alphaOnly(d, feedHandler(d, channelevents.Follow, buildFollow))).
+		On("channel.subscribe", alphaOnly(d, onFeedSubscribe(d))).
+		On("channel.subscription.message", alphaOnly(d, feedHandler(d, channelevents.Resub, buildResub))).
+		On("channel.subscription.gift", alphaOnly(d, onFeedGift(d))).
+		On("channel.cheer", alphaOnly(d, feedHandler(d, channelevents.Cheer, buildCheer))).
+		On("channel.raid", alphaOnly(d, feedHandler(d, channelevents.Raid, buildRaid))).
+		On(engine.RedemptionAddType, alphaOnly(d, feedHandler(d, channelevents.Redemption, buildRedemption))).
+		On("channel.chat.notification", alphaOnly(d, onFeedNotice(d))).
 		Build()
+}
+
+// feedAlpha is false without a projection reader, so a non-alpha channel never reaches the feed path.
+func feedAlpha(ctx context.Context, d engine.Deps, channel uint64) (bool, error) {
+	if d.Proj == nil {
+		return false, nil
+	}
+	user, err := d.Proj.User(ctx, channel)
+	return user.IsAlpha(), err
+}
+
+func alphaOnly(d engine.Deps, next module.EventHandler) module.EventHandler {
+	return func(ctx context.Context, c *module.Context, emit module.Emit) error {
+		alpha, err := feedAlpha(ctx, d, c.BroadcasterID)
+		if err != nil || !alpha {
+			return err
+		}
+		return next(ctx, c, emit)
+	}
 }
 
 // newFeedEvent is false for trial traffic and for events with no Twitch identity to dedupe on.
