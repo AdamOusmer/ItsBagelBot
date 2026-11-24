@@ -134,9 +134,6 @@ defmodule ControlsGateway.Overlays.Stream do
     end
   end
 
-  defp accepts(%{"kind" => @custom}), do: @custom
-  defp accepts(document), do: document["template"]
-
   defp check(:tts, session, rpc) do
     case Tts.Nats.check(session, rpc) do
       true -> {:ok, %{user_id: session.user_id, accepts: "tts", revision: nil}}
@@ -144,6 +141,9 @@ defmodule ControlsGateway.Overlays.Stream do
       :unavailable -> :unavailable
     end
   end
+
+  defp accepts(%{"kind" => @custom}), do: @custom
+  defp accepts(document), do: document["template"]
 
   defp start(req, headers, state) do
     state =
