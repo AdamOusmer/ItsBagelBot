@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/provider"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/ratelimit"
 )
 
@@ -22,13 +23,12 @@ const (
 	defaultBaseURL        = "https://api.henrikdev.xyz"
 	defaultContentBaseURL = "https://valorant-api.com"
 
-	rankTTL    = 5 * time.Minute
-	recordTTL  = 5 * time.Minute
+	mmrTTL     = 5 * time.Minute
 	matchesTTL = 5 * time.Minute
 
 	accountTTL = time.Hour
 
-	resolveTTL = 24 * time.Hour
+	resolveTTL = 7 * 24 * time.Hour
 
 	boardTTL = 30 * time.Minute
 
@@ -69,7 +69,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	p := newAPI(cfg, d, b)
 
 	b.Endpoint("rank").Timeout(handlerTimeout).
-		Cached(rankTTL, negativeTTL).
+		Cached(mmrTTL, negativeTTL).
 		ID(riotID).
 		Reply(func(id, msg string) any { return rankReply{Player: id, Error: msg} }).
 		Budget(p.budget).
@@ -77,7 +77,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 		Fetch(p.rankFetch)
 
 	b.Endpoint("record").Timeout(handlerTimeout).
-		Cached(recordTTL, negativeTTL).
+		Cached(mmrTTL, negativeTTL).
 		ID(riotID).
 		Reply(func(id, msg string) any { return recordReply{Player: id, Error: msg} }).
 		Budget(p.budget).
@@ -366,25 +366,35 @@ type rankReply struct {
 type mmrLookup struct {
 	player riotIDValue
 	region string
+	body   codec.RawMessage
 }
 
-func (p *api) fetchMMR(ctx context.Context, req gossiprpc.Request, wire any) (mmrLookup, error) {
+func (p *api) fetchMMR(ctx context.Context, req gossiprpc.Request) (mmrLookup, error) {
 	rid, region, platform := scoped(req)
 	eff, err := p.effectiveRegion(ctx, rid, region)
 	if err != nil {
 		return mmrLookup{}, err
 	}
 	path := "/valorant/v3/mmr/" + eff + "/" + platform + "/" + url.PathEscape(rid.name) + "/" + url.PathEscape(rid.tag)
-	if err := p.http.GetJSON(ctx, path, nil, wire); err != nil {
+	lookup := mmrLookup{player: rid, region: eff}
+	if err := p.http.GetJSON(ctx, path, nil, &lookup.body); err != nil {
 		return mmrLookup{}, err
 	}
-	return mmrLookup{player: rid, region: eff}, nil
+	return lookup, nil
 }
 
 func (p *api) rankFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
-	var wire mmrWire
-	lookup, err := p.fetchMMR(ctx, req, &wire)
+	lookup, err := p.fetchMMR(ctx, req)
 	if err != nil {
+		return nil, err
+	}
+	p.warmMMRSibling(ctx, id, recordSibling, lookup)
+	return rankFrom(lookup)
+}
+
+func rankFrom(lookup mmrLookup) (any, error) {
+	var wire mmrWire
+	if err := codec.Unmarshal(lookup.body, &wire); err != nil {
 		return nil, err
 	}
 	mmr := wire.Data
@@ -402,6 +412,30 @@ func (p *api) rankFetch(ctx context.Context, req gossiprpc.Request, id provider.
 		reply.Elo = mmr.Current.Elo
 	}
 	return reply, nil
+}
+
+type mmrSibling struct {
+	endpoint string
+	shape    func(mmrLookup) (any, error)
+}
+
+var (
+	rankSibling   = mmrSibling{endpoint: "rank", shape: rankFrom}
+	recordSibling = mmrSibling{endpoint: "record", shape: recordFrom}
+)
+
+func (p *api) warmMMRSibling(ctx context.Context, id provider.ID, sibling mmrSibling, lookup mmrLookup) {
+	reply, err := sibling.shape(lookup)
+	if err != nil {
+		return
+	}
+	b, err := core.MarshalReply(reply)
+	if err != nil {
+		return
+	}
+	core.StoreCachedBytes(ctx, p.cache, core.BytesEntry{
+		Key: core.Key(providerName, sibling.endpoint, id.Key), Value: b, TTL: mmrTTL,
+	})
 }
 
 func peakTier(peak peakMMR) string {
@@ -433,9 +467,17 @@ type recordReply struct {
 }
 
 func (p *api) recordFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
-	var wire recordWire
-	lookup, err := p.fetchMMR(ctx, req, &wire)
+	lookup, err := p.fetchMMR(ctx, req)
 	if err != nil {
+		return nil, err
+	}
+	p.warmMMRSibling(ctx, id, rankSibling, lookup)
+	return recordFrom(lookup)
+}
+
+func recordFrom(lookup mmrLookup) (any, error) {
+	var wire recordWire
+	if err := codec.Unmarshal(lookup.body, &wire); err != nil {
 		return nil, err
 	}
 	reply := recordReply{Player: lookup.player.String(), Region: lookup.region}
