@@ -173,7 +173,7 @@ spec:
               memory: 512Mi
       containers:
         - name: gossip
-          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1795471213-2c85f339ced4@sha256:b33d30353518e1e7e42d1e141383ff2dedca8c9aef08a8d484ea50cdba8d1a48
+          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1795535403-60a0bf5d594a@sha256:73c8aad6f28d554d96f76b8091b45afbd9c9f64792b8cc9c2c3a234b6c5c806e
           imagePullPolicy: IfNotPresent
           env:
             - name: GEMINI_TTS_TEMPERATURE
