@@ -64,7 +64,7 @@ config :controls_gateway, nats: Planes.settings(endpoints, nats_auth, Settings.t
 config :new_relic_agent, Platform.NewRelic.runtime_config("controls-gateway")
 
 if config_env() == :prod do
-  config :logger, :default_formatter, format: {ControlsGateway.LogFormatter, :format}
+  config :logger, :default_formatter, format: {Platform.LogFormatter, :format}
 end
 
 log_level = System.get_env("LOG_LEVEL") || if(config_env() == :prod, do: "info")

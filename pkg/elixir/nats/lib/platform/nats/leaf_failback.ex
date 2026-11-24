@@ -7,7 +7,7 @@ defmodule Platform.Nats.LeafFailback do
   require Logger
 
   alias Platform.Nats
-  alias Platform.Nats.{Probe, Settings}
+  alias Platform.Nats.{Failback, Probe, Settings}
 
   def child_spec(opts) do
     %{id: Keyword.get(opts, :name, __MODULE__), start: {__MODULE__, :start_link, [opts]}}
@@ -20,11 +20,11 @@ defmodule Platform.Nats.LeafFailback do
   @impl true
   def init(opts) do
     connections = Keyword.fetch!(opts, :connections)
-    interval = positive_env("NATS_FAILBACK_INTERVAL_MS", 30_000)
+    interval = Failback.interval()
 
     state = %{
       connections: connections,
-      node: System.get_env("NODE_NAME", ""),
+      node: Failback.node_name(),
       health_url:
         System.get_env(
           "NATS_LOCAL_LEAF_HEALTH_URL",
@@ -32,8 +32,8 @@ defmodule Platform.Nats.LeafFailback do
         ),
       cacerts: Keyword.get_lazy(opts, :cacerts, fn -> Settings.ca_certs() || [] end),
       interval: interval,
-      required: positive_env("NATS_FAILBACK_SUCCESSES", 3),
-      timeout: positive_env("NATS_FAILBACK_PROBE_TIMEOUT_MS", 1_000),
+      required: Failback.required(),
+      timeout: Failback.probe_timeout(),
       successes: Map.new(connections, &{&1, 0})
     }
 
@@ -92,11 +92,4 @@ defmodule Platform.Nats.LeafFailback do
   end
 
   defp local_ready?(state), do: Probe.http_ready?(state.health_url, state.timeout, state.cacerts)
-
-  defp positive_env(key, fallback) do
-    case Integer.parse(System.get_env(key, "")) do
-      {value, ""} when value > 0 -> value
-      _ -> fallback
-    end
-  end
 end
