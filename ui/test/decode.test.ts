@@ -4,7 +4,7 @@
 import { afterAll, describe, expect, spyOn, test } from 'bun:test';
 import { isolatedLib, snapshotGlobals } from './dom-fakes';
 
-const restoreGlobals = snapshotGlobals(['requestAnimationFrame', 'cancelAnimationFrame', 'IntersectionObserver', 'Element']);
+const restoreGlobals = snapshotGlobals(['requestAnimationFrame', 'cancelAnimationFrame', 'IntersectionObserver', 'Element', 'getComputedStyle']);
 
 let queue: FrameRequestCallback[] = [];
 globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
@@ -81,7 +81,7 @@ describe('decode', () => {
     expect(el.textContent).toBe('## #####');
   });
 
-  test('observeDecode passes scramble options through', () => {
+  function intersectingObserver(): void {
     class FakeElement {}
     globalThis.Element = FakeElement as unknown as typeof Element;
     globalThis.IntersectionObserver = class {
@@ -92,12 +92,35 @@ describe('decode', () => {
       unobserve() {}
       disconnect() {}
     } as unknown as typeof IntersectionObserver;
+  }
 
+  const opacityOf = (value: { current: string }) =>
+    (() => ({ opacity: value.current })) as unknown as typeof getComputedStyle;
+
+  test('observeDecode passes scramble options through', () => {
+    intersectingObserver();
+    globalThis.getComputedStyle = opacityOf({ current: '1' });
     const el = { textContent: 'soupdream' } as unknown as HTMLElement;
     const t0 = performance.now();
     const stop = observeDecode([el], { charset: 'z', durationMs: 900 });
     frame(t0);
     expect(el.textContent).toBe('zzzzzzzzz');
+    stop();
+  });
+
+  test('observeDecode shows scrambled text until the element fades in, then decodes', () => {
+    intersectingObserver();
+    const opacity = { current: '0' };
+    globalThis.getComputedStyle = opacityOf(opacity);
+    const el = { textContent: 'soupdream' } as unknown as HTMLElement;
+    const stop = observeDecode([el], { charset: 'z', durationMs: 900 });
+    expect(el.textContent).toBe('zzzzzzzzz');
+    frame(performance.now() + 2000);
+    expect(el.textContent).toBe('zzzzzzzzz');
+    opacity.current = '0.2';
+    frame(performance.now());
+    frame(performance.now() + 2000);
+    expect(el.textContent).toBe('soupdream');
     stop();
   });
 });

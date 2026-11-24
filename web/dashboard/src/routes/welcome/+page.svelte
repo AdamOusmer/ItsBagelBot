@@ -490,7 +490,7 @@
             title={tr('common.copy')}
             onCopy={celebrateCopy}
           >
-            {#snippet children()}<span use:decode>{MOD_COMMAND}</span>{/snippet}
+            {#snippet children()}<span use:decode={{ durationMs: 500 }}>{MOD_COMMAND}</span>{/snippet}
           </CopySurface>
         </div>
       {:else if current.kind === 'commands'}
