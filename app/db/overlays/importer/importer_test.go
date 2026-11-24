@@ -290,6 +290,34 @@ func TestImportAccepts(t *testing.T) {
 	}
 }
 
+func TestRemoteFontCheckMatchesTheHostExactly(t *testing.T) {
+	cases := []struct {
+		name string
+		css  string
+		want bool
+	}{
+		{"google fonts import", "@import url(https://fonts.googleapis.com/css?family=Inter);", true},
+		{"gstatic font file", "src: url('//fonts.gstatic.com/s/inter.woff2');", true},
+		{"hostile host prefix", "@import url(https://notfonts.googleapis.com/css);", false},
+		{"hostile host suffix", "@import url(https://fonts.googleapis.com.evil.example/css);", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			plan, err := run(t, []member{
+				{name: "w/widget.html", data: []byte("<div></div>")},
+				{name: "w/widget.css", data: []byte(tc.css)},
+				{name: "w/widget.js", data: []byte("console.log(1)")},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := slices.Contains(labels(plan.Report.Unsupported), "w:remote_font"); got != tc.want {
+				t.Fatalf("remote_font flagged = %v, want %v (unsupported %v)", got, tc.want, labels(plan.Report.Unsupported))
+			}
+		})
+	}
+}
+
 func TestSellerPackAssetsGetAPlaceholderURL(t *testing.T) {
 	plan, err := run(t, sellerMembers(t, sumOf(pngBytes), true))
 	if err != nil {
