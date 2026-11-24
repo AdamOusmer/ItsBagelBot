@@ -110,6 +110,7 @@ func TestRaffleProcessOpensOnlyValidPointsRounds(t *testing.T) {
 		busy     draw.Kind
 		config   string
 		currency string
+		exact    bool
 	}{
 		{command: "!raffle 5k 30", want: draw.WinnerPolicy{Count: 1}, reply: "5000 points"},
 		{command: "!raffle 5k 30", want: draw.WinnerPolicy{Count: 1}, reply: "5000 bagels", currency: "bagels"},
@@ -124,8 +125,8 @@ func TestRaffleProcessOpensOnlyValidPointsRounds(t *testing.T) {
 		{command: "!mraffle 5k 30 3 extra", reply: "Usage"},
 		{command: "!raffle 0", reply: "Usage"},
 		{command: "!raffle", config: `{"prizePoints":0}`, want: draw.WinnerPolicy{Count: 1}, reply: "1000 points"},
-		{command: "!raffle", config: `{"openedMessage":"Good luck with {raffle:amount} {raffle:points}!"}`,
-			want: draw.WinnerPolicy{Count: 1}, reply: "1 winner takes 1000 points. Type !join (1m). Good luck with 1000 points!"},
+		{command: "!raffle", config: `{"openedMessage":"/me Raffle is LIVE! Type !join to enter. Drawing in {raffle:mins} min!"}`,
+			want: draw.WinnerPolicy{Count: 1}, reply: "/me Raffle is LIVE! Type !join to enter. Drawing in 1 min!", exact: true},
 		{command: "!sraffle", config: `{"prizePoints":-25}`, want: draw.WinnerPolicy{Count: 1}, reply: "1000 points"},
 		{command: "!raffle", off: true, reply: "Loyalty must be on"},
 		{command: "!raffle", paused: true, want: draw.WinnerPolicy{Count: 1}, reply: "1000 points"},
@@ -141,6 +142,9 @@ func TestRaffleProcessOpensOnlyValidPointsRounds(t *testing.T) {
 			out := f.run(ch, &mod, tc.command)
 			require.Len(t, out, 1)
 			require.Contains(t, out[0], tc.reply)
+			if tc.exact {
+				require.Equal(t, tc.reply, out[0])
+			}
 			round, _, err := f.draw.Joinable(t.Context(), ch)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, rafflePolicy(round))

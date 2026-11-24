@@ -44,14 +44,18 @@ function trafficRule(traffic: PipelineTraffic, ...subjects: string[]): TrafficRu
 }
 
 const STANDARD = trafficRule('standard', 'twitch.ingress.event.standard', 'twitch.ingress.v2.standard.>');
+const PREMIUM = trafficRule('premium', 'twitch.ingress.event.premium', 'twitch.ingress.v2.premium.>');
 const STREAM_PIPELINES: Record<string, StreamPipeline> = {
   TWITCH_INGRESS: {
     stage: 'ingress', owner: /^(worker|sesame)(?:_|$)/,
     traffic: [
       trafficRule('stream', 'twitch.ingress.event.stream', 'twitch.ingress.status.>'),
       STANDARD,
-      trafficRule('premium', 'twitch.ingress.event.premium', 'twitch.ingress.v2.premium.>')
+      PREMIUM
     ]
+  },
+  TWITCH_INGRESS_PREMIUM: {
+    stage: 'ingress', owner: /^(worker|sesame)(?:_|$)/, traffic: [PREMIUM]
   },
   TWITCH_INGRESS_STANDARD: {
     stage: 'ingress', owner: /^(worker|sesame)(?:_|$)/, traffic: [STANDARD]

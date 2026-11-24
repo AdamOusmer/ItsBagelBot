@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"strconv"
+
+	"go.uber.org/zap"
 )
 
 func payWin(ctx context.Context, s *Store, w slotWork) Slot {
@@ -22,6 +24,8 @@ func payWin(ctx context.Context, s *Store, w slotWork) Slot {
 	case errors.Is(err, ErrPaymentRejected):
 		return finalSlot(slot, SlotUnpaid)
 	default:
+		s.cfg.Log.Warn("draw payout failed, retrying", zap.Uint64("channel", uint64(w.round.Channel)),
+			zap.String("round", string(w.round.ID)), zap.Int("slot", slot.N), zap.Error(err))
 		return retry(slot, w.now.Add(payoutRetry))
 	}
 }
