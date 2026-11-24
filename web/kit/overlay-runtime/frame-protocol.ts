@@ -26,8 +26,8 @@ const parentShapes: Record<ParentMessage['type'], (data: Record<string, unknown>
   session: (data) => isRecord(data.session)
 };
 
-export const isParentMessage = (data: unknown): data is ParentMessage => {
-  if (!isRecord(data) || data.bagel !== 1 || typeof data.type !== 'string') return false;
-  const shape = Object.entries(parentShapes).find(([type]) => type === data.type);
-  return shape !== undefined && shape[1](data);
-};
+const hasShape = (data: Record<string, unknown>): boolean =>
+  Object.entries(parentShapes).some(([type, valid]) => type === data.type && valid(data));
+
+export const isParentMessage = (data: unknown): data is ParentMessage =>
+  isRecord(data) && data.bagel === 1 && hasShape(data);

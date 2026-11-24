@@ -46,7 +46,9 @@ function handle(message: ParentMessage): void {
 
 const parentOrigin = document.querySelector<HTMLMetaElement>('meta[name="bagel-parent"]')?.content ?? '';
 
-addEventListener('message', ({ origin, source, data }) => {
-  if (origin === parentOrigin && source === parent && isParentMessage(data)) handle(data);
+const fromParent = ({ origin, source }: MessageEvent): boolean => origin === parentOrigin && source === parent;
+
+addEventListener('message', (message) => {
+  if (fromParent(message) && isParentMessage(message.data)) handle(message.data);
 });
 if (parentOrigin) parent.postMessage({ bagel: 1, type: 'ready' }, parentOrigin);
