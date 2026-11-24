@@ -104,32 +104,32 @@ spec:
               value: "2"
             - name: MALLOC_TRIM_THRESHOLD_
               value: "131072"
+            - name: WARP_ORGANIZATION
+              valueFrom:
+                secretKeyRef: {name: gossip-env, key: WARP_ORGANIZATION}
+            - name: WARP_AUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef: {name: gossip-env, key: WARP_AUTH_CLIENT_ID}
+            - name: WARP_AUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: {name: gossip-env, key: WARP_AUTH_CLIENT_SECRET}
           command:
             - /bin/sh
             - -ec
             - |
-              warp-svc &
-              # WAIT for the daemon's IPC socket before any warp-cli call.
-              # Without this the container crashloops on
-              # "Unable to connect to the CloudflareWARP daemon: No such file
-              # or directory" — warp-svc backgrounds instantly but takes ~2s to
-              # bind its socket, so every command raced it and failed. Polling
-              # `status` is the readiness signal (it answers "Registration
-              # Missing" once the daemon is up, which is a live response).
-              for i in $(seq 1 60); do
-                warp-cli --accept-tos status >/dev/null 2>&1 && break
-                sleep 1
-              done
-              # Consumer registration: no organization, no service token, no
-              # seat, no charge. Tolerated on failure because an in-place
-              # container restart reuses the emptyDir state and is already
-              # registered; a genuinely broken registration surfaces at connect.
-              warp-cli --accept-tos registration new || true
-              warp-cli --accept-tos mode proxy
-              warp-cli --accept-tos proxy port 40000
-              warp-cli --accept-tos connect || true
-              # Keep PID 1 alive for the sidecar lifetime; warp-svc serves the proxy.
-              wait
+              umask 077
+              cat > /var/lib/cloudflare-warp/mdm.xml <<XML
+              <dict>
+                <key>organization</key><string>${WARP_ORGANIZATION}</string>
+                <key>auth_client_id</key><string>${WARP_AUTH_CLIENT_ID}</string>
+                <key>auth_client_secret</key><string>${WARP_AUTH_CLIENT_SECRET}</string>
+                <key>service_mode</key><string>proxy</string>
+                <key>proxy_port</key><integer>40000</integer>
+                <key>auto_connect</key><integer>1</integer>
+                <key>onboarding</key><false/>
+              </dict>
+              XML
+              exec warp-svc
           securityContext:
             # Never add NET_ADMIN or a tun device: WARP could then reroute the shared pod netns.
             runAsUser: 0
