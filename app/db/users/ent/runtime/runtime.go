@@ -8,9 +8,14 @@ import (
 	"ItsBagelBot/app/db/users/ent/billingreceipt"
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
+	"ItsBagelBot/app/db/users/ent/emailsuppression"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
+	"ItsBagelBot/app/db/users/ent/marketingcampaign"
+	"ItsBagelBot/app/db/users/ent/marketingconsent"
+	"ItsBagelBot/app/db/users/ent/marketingsend"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/schema"
+	"ItsBagelBot/app/db/users/ent/termsacceptance"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/ent/voiceusage"
 	"ItsBagelBot/app/db/users/ent/voiceusagereceipt"
@@ -161,6 +166,16 @@ func init() {
 	devicegrantDescRevokedReason := devicegrantFields[13].Descriptor()
 	// devicegrant.DefaultRevokedReason holds the default value on creation for the revoked_reason field.
 	devicegrant.DefaultRevokedReason = devicegrantDescRevokedReason.Default.(string)
+	emailsuppressionFields := schema.EmailSuppression{}.Fields()
+	_ = emailsuppressionFields
+	// emailsuppressionDescAddressHmac is the schema descriptor for address_hmac field.
+	emailsuppressionDescAddressHmac := emailsuppressionFields[0].Descriptor()
+	// emailsuppression.AddressHmacValidator is a validator for the "address_hmac" field. It is called by the builders before save.
+	emailsuppression.AddressHmacValidator = emailsuppressionDescAddressHmac.Validators[0].(func([]byte) error)
+	// emailsuppressionDescCreatedAt is the schema descriptor for created_at field.
+	emailsuppressionDescCreatedAt := emailsuppressionFields[2].Descriptor()
+	// emailsuppression.DefaultCreatedAt holds the default value on creation for the created_at field.
+	emailsuppression.DefaultCreatedAt = emailsuppressionDescCreatedAt.Default.(func() time.Time)
 	lifecycleerasureFields := schema.LifecycleErasure{}.Fields()
 	_ = lifecycleerasureFields
 	// lifecycleerasureDescDeletedAt is the schema descriptor for deleted_at field.
@@ -179,6 +194,158 @@ func init() {
 	lifecycleerasureDescNextAttemptAt := lifecycleerasureFields[7].Descriptor()
 	// lifecycleerasure.DefaultNextAttemptAt holds the default value on creation for the next_attempt_at field.
 	lifecycleerasure.DefaultNextAttemptAt = lifecycleerasureDescNextAttemptAt.Default.(func() time.Time)
+	marketingcampaignFields := schema.MarketingCampaign{}.Fields()
+	_ = marketingcampaignFields
+	// marketingcampaignDescName is the schema descriptor for name field.
+	marketingcampaignDescName := marketingcampaignFields[0].Descriptor()
+	// marketingcampaign.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	marketingcampaign.NameValidator = func() func(string) error {
+		validators := marketingcampaignDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// marketingcampaignDescCreatedBy is the schema descriptor for created_by field.
+	marketingcampaignDescCreatedBy := marketingcampaignFields[3].Descriptor()
+	// marketingcampaign.CreatedByValidator is a validator for the "created_by" field. It is called by the builders before save.
+	marketingcampaign.CreatedByValidator = func() func(string) error {
+		validators := marketingcampaignDescCreatedBy.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(created_by string) error {
+			for _, fn := range fns {
+				if err := fn(created_by); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// marketingcampaignDescCreatedAt is the schema descriptor for created_at field.
+	marketingcampaignDescCreatedAt := marketingcampaignFields[4].Descriptor()
+	// marketingcampaign.DefaultCreatedAt holds the default value on creation for the created_at field.
+	marketingcampaign.DefaultCreatedAt = marketingcampaignDescCreatedAt.Default.(func() time.Time)
+	// marketingcampaignDescApprovedBy is the schema descriptor for approved_by field.
+	marketingcampaignDescApprovedBy := marketingcampaignFields[5].Descriptor()
+	// marketingcampaign.ApprovedByValidator is a validator for the "approved_by" field. It is called by the builders before save.
+	marketingcampaign.ApprovedByValidator = marketingcampaignDescApprovedBy.Validators[0].(func(string) error)
+	// marketingcampaignDescRevision is the schema descriptor for revision field.
+	marketingcampaignDescRevision := marketingcampaignFields[7].Descriptor()
+	// marketingcampaign.DefaultRevision holds the default value on creation for the revision field.
+	marketingcampaign.DefaultRevision = marketingcampaignDescRevision.Default.(int)
+	// marketingcampaignDescAudienceCursor is the schema descriptor for audience_cursor field.
+	marketingcampaignDescAudienceCursor := marketingcampaignFields[8].Descriptor()
+	// marketingcampaign.DefaultAudienceCursor holds the default value on creation for the audience_cursor field.
+	marketingcampaign.DefaultAudienceCursor = marketingcampaignDescAudienceCursor.Default.(uint64)
+	// marketingcampaignDescLeaseHolder is the schema descriptor for lease_holder field.
+	marketingcampaignDescLeaseHolder := marketingcampaignFields[9].Descriptor()
+	// marketingcampaign.LeaseHolderValidator is a validator for the "lease_holder" field. It is called by the builders before save.
+	marketingcampaign.LeaseHolderValidator = marketingcampaignDescLeaseHolder.Validators[0].(func(string) error)
+	marketingconsentFields := schema.MarketingConsent{}.Fields()
+	_ = marketingconsentFields
+	// marketingconsentDescPolicyVersion is the schema descriptor for policy_version field.
+	marketingconsentDescPolicyVersion := marketingconsentFields[5].Descriptor()
+	// marketingconsent.PolicyVersionValidator is a validator for the "policy_version" field. It is called by the builders before save.
+	marketingconsent.PolicyVersionValidator = func() func(string) error {
+		validators := marketingconsentDescPolicyVersion.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(policy_version string) error {
+			for _, fn := range fns {
+				if err := fn(policy_version); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// marketingconsentDescConsentTextKey is the schema descriptor for consent_text_key field.
+	marketingconsentDescConsentTextKey := marketingconsentFields[6].Descriptor()
+	// marketingconsent.ConsentTextKeyValidator is a validator for the "consent_text_key" field. It is called by the builders before save.
+	marketingconsent.ConsentTextKeyValidator = func() func(string) error {
+		validators := marketingconsentDescConsentTextKey.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(consent_text_key string) error {
+			for _, fn := range fns {
+				if err := fn(consent_text_key); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// marketingconsentDescLocale is the schema descriptor for locale field.
+	marketingconsentDescLocale := marketingconsentFields[7].Descriptor()
+	// marketingconsent.LocaleValidator is a validator for the "locale" field. It is called by the builders before save.
+	marketingconsent.LocaleValidator = func() func(string) error {
+		validators := marketingconsentDescLocale.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(locale string) error {
+			for _, fn := range fns {
+				if err := fn(locale); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	marketingsendFields := schema.MarketingSend{}.Fields()
+	_ = marketingsendFields
+	// marketingsendDescAddressHmac is the schema descriptor for address_hmac field.
+	marketingsendDescAddressHmac := marketingsendFields[2].Descriptor()
+	// marketingsend.AddressHmacValidator is a validator for the "address_hmac" field. It is called by the builders before save.
+	marketingsend.AddressHmacValidator = marketingsendDescAddressHmac.Validators[0].(func([]byte) error)
+	// marketingsendDescAttempts is the schema descriptor for attempts field.
+	marketingsendDescAttempts := marketingsendFields[4].Descriptor()
+	// marketingsend.DefaultAttempts holds the default value on creation for the attempts field.
+	marketingsend.DefaultAttempts = marketingsendDescAttempts.Default.(int)
+	// marketingsendDescResendID is the schema descriptor for resend_id field.
+	marketingsendDescResendID := marketingsendFields[5].Descriptor()
+	// marketingsend.ResendIDValidator is a validator for the "resend_id" field. It is called by the builders before save.
+	marketingsend.ResendIDValidator = marketingsendDescResendID.Validators[0].(func(string) error)
+	// marketingsendDescIdempotencyKey is the schema descriptor for idempotency_key field.
+	marketingsendDescIdempotencyKey := marketingsendFields[6].Descriptor()
+	// marketingsend.IdempotencyKeyValidator is a validator for the "idempotency_key" field. It is called by the builders before save.
+	marketingsend.IdempotencyKeyValidator = func() func(string) error {
+		validators := marketingsendDescIdempotencyKey.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(idempotency_key string) error {
+			for _, fn := range fns {
+				if err := fn(idempotency_key); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// marketingsendDescUpdatedAt is the schema descriptor for updated_at field.
+	marketingsendDescUpdatedAt := marketingsendFields[7].Descriptor()
+	// marketingsend.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	marketingsend.DefaultUpdatedAt = marketingsendDescUpdatedAt.Default.(func() time.Time)
+	// marketingsend.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	marketingsend.UpdateDefaultUpdatedAt = marketingsendDescUpdatedAt.UpdateDefault.(func() time.Time)
 	premiumgrantFields := schema.PremiumGrant{}.Fields()
 	_ = premiumgrantFields
 	// premiumgrantDescGiveawayID is the schema descriptor for giveaway_id field.
@@ -245,6 +412,68 @@ func init() {
 	premiumgrant.DefaultUpdatedAt = premiumgrantDescUpdatedAt.Default.(func() time.Time)
 	// premiumgrant.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	premiumgrant.UpdateDefaultUpdatedAt = premiumgrantDescUpdatedAt.UpdateDefault.(func() time.Time)
+	termsacceptanceFields := schema.TermsAcceptance{}.Fields()
+	_ = termsacceptanceFields
+	// termsacceptanceDescTermsVersion is the schema descriptor for terms_version field.
+	termsacceptanceDescTermsVersion := termsacceptanceFields[2].Descriptor()
+	// termsacceptance.TermsVersionValidator is a validator for the "terms_version" field. It is called by the builders before save.
+	termsacceptance.TermsVersionValidator = func() func(string) error {
+		validators := termsacceptanceDescTermsVersion.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(terms_version string) error {
+			for _, fn := range fns {
+				if err := fn(terms_version); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// termsacceptanceDescLocale is the schema descriptor for locale field.
+	termsacceptanceDescLocale := termsacceptanceFields[5].Descriptor()
+	// termsacceptance.LocaleValidator is a validator for the "locale" field. It is called by the builders before save.
+	termsacceptance.LocaleValidator = func() func(string) error {
+		validators := termsacceptanceDescLocale.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(locale string) error {
+			for _, fn := range fns {
+				if err := fn(locale); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// termsacceptanceDescRequestID is the schema descriptor for request_id field.
+	termsacceptanceDescRequestID := termsacceptanceFields[6].Descriptor()
+	// termsacceptance.RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
+	termsacceptance.RequestIDValidator = func() func(string) error {
+		validators := termsacceptanceDescRequestID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(request_id string) error {
+			for _, fn := range fns {
+				if err := fn(request_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// termsacceptanceDescMarketingSkipped is the schema descriptor for marketing_skipped field.
+	termsacceptanceDescMarketingSkipped := termsacceptanceFields[7].Descriptor()
+	// termsacceptance.DefaultMarketingSkipped holds the default value on creation for the marketing_skipped field.
+	termsacceptance.DefaultMarketingSkipped = termsacceptanceDescMarketingSkipped.Default.(string)
+	// termsacceptance.MarketingSkippedValidator is a validator for the "marketing_skipped" field. It is called by the builders before save.
+	termsacceptance.MarketingSkippedValidator = termsacceptanceDescMarketingSkipped.Validators[0].(func(string) error)
 	tokensFields := schema.Tokens{}.Fields()
 	_ = tokensFields
 	userHooks := schema.User{}.Hooks()
@@ -337,20 +566,26 @@ func init() {
 	userDescOnboarded := userFields[30].Descriptor()
 	// user.DefaultOnboarded holds the default value on creation for the onboarded field.
 	user.DefaultOnboarded = userDescOnboarded.Default.(bool)
+	// userDescTermsVersion is the schema descriptor for terms_version field.
+	userDescTermsVersion := userFields[31].Descriptor()
+	// user.DefaultTermsVersion holds the default value on creation for the terms_version field.
+	user.DefaultTermsVersion = userDescTermsVersion.Default.(string)
+	// user.TermsVersionValidator is a validator for the "terms_version" field. It is called by the builders before save.
+	user.TermsVersionValidator = userDescTermsVersion.Validators[0].(func(string) error)
 	// userDescTestAccount is the schema descriptor for test_account field.
-	userDescTestAccount := userFields[31].Descriptor()
+	userDescTestAccount := userFields[34].Descriptor()
 	// user.DefaultTestAccount holds the default value on creation for the test_account field.
 	user.DefaultTestAccount = userDescTestAccount.Default.(bool)
 	// userDescAlpha is the schema descriptor for alpha field.
-	userDescAlpha := userFields[32].Descriptor()
+	userDescAlpha := userFields[35].Descriptor()
 	// user.DefaultAlpha holds the default value on creation for the alpha field.
 	user.DefaultAlpha = userDescAlpha.Default.(bool)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[33].Descriptor()
+	userDescCreatedAt := userFields[36].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[34].Descriptor()
+	userDescUpdatedAt := userFields[37].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

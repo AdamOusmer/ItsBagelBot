@@ -96,6 +96,7 @@
     "./actions": "./lib/actions.ts",
     "./cursor": "./lib/cursor.ts",
     "./connection-state": "./lib/connection-state.ts",
+    "./consent": "./lib/consent.ts",
     "./types": "./lib/types.ts",
     "./nav": "./lib/nav.ts",
     "./nav-dashboard": "./lib/nav-dashboard.ts",

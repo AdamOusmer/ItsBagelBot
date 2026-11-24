@@ -5,7 +5,10 @@ package ent
 import (
 	"ItsBagelBot/app/db/users/ent/authorizationcode"
 	"ItsBagelBot/app/db/users/ent/devicegrant"
+	"ItsBagelBot/app/db/users/ent/marketingconsent"
+	"ItsBagelBot/app/db/users/ent/marketingsend"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
+	"ItsBagelBot/app/db/users/ent/termsacceptance"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/ent/voiceusage"
@@ -417,6 +420,48 @@ func (_c *UserCreate) SetNillableOnboarded(v *bool) *UserCreate {
 	return _c
 }
 
+// SetTermsVersion sets the "terms_version" field.
+func (_c *UserCreate) SetTermsVersion(v string) *UserCreate {
+	_c.mutation.SetTermsVersion(v)
+	return _c
+}
+
+// SetNillableTermsVersion sets the "terms_version" field if the given value is not nil.
+func (_c *UserCreate) SetNillableTermsVersion(v *string) *UserCreate {
+	if v != nil {
+		_c.SetTermsVersion(*v)
+	}
+	return _c
+}
+
+// SetMarketingStatus sets the "marketing_status" field.
+func (_c *UserCreate) SetMarketingStatus(v user.MarketingStatus) *UserCreate {
+	_c.mutation.SetMarketingStatus(v)
+	return _c
+}
+
+// SetNillableMarketingStatus sets the "marketing_status" field if the given value is not nil.
+func (_c *UserCreate) SetNillableMarketingStatus(v *user.MarketingStatus) *UserCreate {
+	if v != nil {
+		_c.SetMarketingStatus(*v)
+	}
+	return _c
+}
+
+// SetMarketingStatusAt sets the "marketing_status_at" field.
+func (_c *UserCreate) SetMarketingStatusAt(v time.Time) *UserCreate {
+	_c.mutation.SetMarketingStatusAt(v)
+	return _c
+}
+
+// SetNillableMarketingStatusAt sets the "marketing_status_at" field if the given value is not nil.
+func (_c *UserCreate) SetNillableMarketingStatusAt(v *time.Time) *UserCreate {
+	if v != nil {
+		_c.SetMarketingStatusAt(*v)
+	}
+	return _c
+}
+
 // SetTestAccount sets the "test_account" field.
 func (_c *UserCreate) SetTestAccount(v bool) *UserCreate {
 	_c.mutation.SetTestAccount(v)
@@ -537,6 +582,51 @@ func (_c *UserCreate) AddAuthorizationCodes(v ...*AuthorizationCode) *UserCreate
 		ids[i] = v[i].ID
 	}
 	return _c.AddAuthorizationCodeIDs(ids...)
+}
+
+// AddTermsAcceptanceIDs adds the "terms_acceptances" edge to the TermsAcceptance entity by IDs.
+func (_c *UserCreate) AddTermsAcceptanceIDs(ids ...int) *UserCreate {
+	_c.mutation.AddTermsAcceptanceIDs(ids...)
+	return _c
+}
+
+// AddTermsAcceptances adds the "terms_acceptances" edges to the TermsAcceptance entity.
+func (_c *UserCreate) AddTermsAcceptances(v ...*TermsAcceptance) *UserCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddTermsAcceptanceIDs(ids...)
+}
+
+// AddMarketingConsentIDs adds the "marketing_consents" edge to the MarketingConsent entity by IDs.
+func (_c *UserCreate) AddMarketingConsentIDs(ids ...int) *UserCreate {
+	_c.mutation.AddMarketingConsentIDs(ids...)
+	return _c
+}
+
+// AddMarketingConsents adds the "marketing_consents" edges to the MarketingConsent entity.
+func (_c *UserCreate) AddMarketingConsents(v ...*MarketingConsent) *UserCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddMarketingConsentIDs(ids...)
+}
+
+// AddMarketingSendIDs adds the "marketing_sends" edge to the MarketingSend entity by IDs.
+func (_c *UserCreate) AddMarketingSendIDs(ids ...int) *UserCreate {
+	_c.mutation.AddMarketingSendIDs(ids...)
+	return _c
+}
+
+// AddMarketingSends adds the "marketing_sends" edges to the MarketingSend entity.
+func (_c *UserCreate) AddMarketingSends(v ...*MarketingSend) *UserCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddMarketingSendIDs(ids...)
 }
 
 // AddVoiceUsageIDs adds the "voice_usage" edge to the VoiceUsage entity by IDs.
@@ -678,6 +768,14 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultOnboarded
 		_c.mutation.SetOnboarded(v)
 	}
+	if _, ok := _c.mutation.TermsVersion(); !ok {
+		v := user.DefaultTermsVersion
+		_c.mutation.SetTermsVersion(v)
+	}
+	if _, ok := _c.mutation.MarketingStatus(); !ok {
+		v := user.DefaultMarketingStatus
+		_c.mutation.SetMarketingStatus(v)
+	}
 	if _, ok := _c.mutation.TestAccount(); !ok {
 		v := user.DefaultTestAccount
 		_c.mutation.SetTestAccount(v)
@@ -799,6 +897,22 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.Onboarded(); !ok {
 		return &ValidationError{Name: "onboarded", err: errors.New(`ent: missing required field "User.onboarded"`)}
+	}
+	if _, ok := _c.mutation.TermsVersion(); !ok {
+		return &ValidationError{Name: "terms_version", err: errors.New(`ent: missing required field "User.terms_version"`)}
+	}
+	if v, ok := _c.mutation.TermsVersion(); ok {
+		if err := user.TermsVersionValidator(v); err != nil {
+			return &ValidationError{Name: "terms_version", err: fmt.Errorf(`ent: validator failed for field "User.terms_version": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.MarketingStatus(); !ok {
+		return &ValidationError{Name: "marketing_status", err: errors.New(`ent: missing required field "User.marketing_status"`)}
+	}
+	if v, ok := _c.mutation.MarketingStatus(); ok {
+		if err := user.MarketingStatusValidator(v); err != nil {
+			return &ValidationError{Name: "marketing_status", err: fmt.Errorf(`ent: validator failed for field "User.marketing_status": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.TestAccount(); !ok {
 		return &ValidationError{Name: "test_account", err: errors.New(`ent: missing required field "User.test_account"`)}
@@ -965,6 +1079,18 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldOnboarded, field.TypeBool, value)
 		_node.Onboarded = value
 	}
+	if value, ok := _c.mutation.TermsVersion(); ok {
+		_spec.SetField(user.FieldTermsVersion, field.TypeString, value)
+		_node.TermsVersion = value
+	}
+	if value, ok := _c.mutation.MarketingStatus(); ok {
+		_spec.SetField(user.FieldMarketingStatus, field.TypeEnum, value)
+		_node.MarketingStatus = value
+	}
+	if value, ok := _c.mutation.MarketingStatusAt(); ok {
+		_spec.SetField(user.FieldMarketingStatusAt, field.TypeTime, value)
+		_node.MarketingStatusAt = &value
+	}
 	if value, ok := _c.mutation.TestAccount(); ok {
 		_spec.SetField(user.FieldTestAccount, field.TypeBool, value)
 		_node.TestAccount = value
@@ -1038,6 +1164,54 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(authorizationcode.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.TermsAcceptancesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TermsAcceptancesTable,
+			Columns: []string{user.TermsAcceptancesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(termsacceptance.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.MarketingConsentsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.MarketingConsentsTable,
+			Columns: []string{user.MarketingConsentsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(marketingconsent.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.MarketingSendsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.MarketingSendsTable,
+			Columns: []string{user.MarketingSendsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(marketingsend.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -1558,6 +1732,48 @@ func (u *UserUpsert) SetOnboarded(v bool) *UserUpsert {
 // UpdateOnboarded sets the "onboarded" field to the value that was provided on create.
 func (u *UserUpsert) UpdateOnboarded() *UserUpsert {
 	u.SetExcluded(user.FieldOnboarded)
+	return u
+}
+
+// SetTermsVersion sets the "terms_version" field.
+func (u *UserUpsert) SetTermsVersion(v string) *UserUpsert {
+	u.Set(user.FieldTermsVersion, v)
+	return u
+}
+
+// UpdateTermsVersion sets the "terms_version" field to the value that was provided on create.
+func (u *UserUpsert) UpdateTermsVersion() *UserUpsert {
+	u.SetExcluded(user.FieldTermsVersion)
+	return u
+}
+
+// SetMarketingStatus sets the "marketing_status" field.
+func (u *UserUpsert) SetMarketingStatus(v user.MarketingStatus) *UserUpsert {
+	u.Set(user.FieldMarketingStatus, v)
+	return u
+}
+
+// UpdateMarketingStatus sets the "marketing_status" field to the value that was provided on create.
+func (u *UserUpsert) UpdateMarketingStatus() *UserUpsert {
+	u.SetExcluded(user.FieldMarketingStatus)
+	return u
+}
+
+// SetMarketingStatusAt sets the "marketing_status_at" field.
+func (u *UserUpsert) SetMarketingStatusAt(v time.Time) *UserUpsert {
+	u.Set(user.FieldMarketingStatusAt, v)
+	return u
+}
+
+// UpdateMarketingStatusAt sets the "marketing_status_at" field to the value that was provided on create.
+func (u *UserUpsert) UpdateMarketingStatusAt() *UserUpsert {
+	u.SetExcluded(user.FieldMarketingStatusAt)
+	return u
+}
+
+// ClearMarketingStatusAt clears the value of the "marketing_status_at" field.
+func (u *UserUpsert) ClearMarketingStatusAt() *UserUpsert {
+	u.SetNull(user.FieldMarketingStatusAt)
 	return u
 }
 
@@ -2158,6 +2374,55 @@ func (u *UserUpsertOne) SetOnboarded(v bool) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateOnboarded() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateOnboarded()
+	})
+}
+
+// SetTermsVersion sets the "terms_version" field.
+func (u *UserUpsertOne) SetTermsVersion(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTermsVersion(v)
+	})
+}
+
+// UpdateTermsVersion sets the "terms_version" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateTermsVersion() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTermsVersion()
+	})
+}
+
+// SetMarketingStatus sets the "marketing_status" field.
+func (u *UserUpsertOne) SetMarketingStatus(v user.MarketingStatus) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetMarketingStatus(v)
+	})
+}
+
+// UpdateMarketingStatus sets the "marketing_status" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateMarketingStatus() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateMarketingStatus()
+	})
+}
+
+// SetMarketingStatusAt sets the "marketing_status_at" field.
+func (u *UserUpsertOne) SetMarketingStatusAt(v time.Time) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetMarketingStatusAt(v)
+	})
+}
+
+// UpdateMarketingStatusAt sets the "marketing_status_at" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateMarketingStatusAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateMarketingStatusAt()
+	})
+}
+
+// ClearMarketingStatusAt clears the value of the "marketing_status_at" field.
+func (u *UserUpsertOne) ClearMarketingStatusAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearMarketingStatusAt()
 	})
 }
 
@@ -2932,6 +3197,55 @@ func (u *UserUpsertBulk) SetOnboarded(v bool) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateOnboarded() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateOnboarded()
+	})
+}
+
+// SetTermsVersion sets the "terms_version" field.
+func (u *UserUpsertBulk) SetTermsVersion(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTermsVersion(v)
+	})
+}
+
+// UpdateTermsVersion sets the "terms_version" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateTermsVersion() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTermsVersion()
+	})
+}
+
+// SetMarketingStatus sets the "marketing_status" field.
+func (u *UserUpsertBulk) SetMarketingStatus(v user.MarketingStatus) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetMarketingStatus(v)
+	})
+}
+
+// UpdateMarketingStatus sets the "marketing_status" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateMarketingStatus() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateMarketingStatus()
+	})
+}
+
+// SetMarketingStatusAt sets the "marketing_status_at" field.
+func (u *UserUpsertBulk) SetMarketingStatusAt(v time.Time) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetMarketingStatusAt(v)
+	})
+}
+
+// UpdateMarketingStatusAt sets the "marketing_status_at" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateMarketingStatusAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateMarketingStatusAt()
+	})
+}
+
+// ClearMarketingStatusAt clears the value of the "marketing_status_at" field.
+func (u *UserUpsertBulk) ClearMarketingStatusAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearMarketingStatusAt()
 	})
 }
 

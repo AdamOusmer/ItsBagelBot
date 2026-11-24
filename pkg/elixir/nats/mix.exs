@@ -22,6 +22,7 @@ defmodule PlatformNats.MixProject do
       {:gnat, "== 1.19.0"},
       {:jason, "~> 1.4"},
       {:platform_new_relic, path: "../new_relic"},
+      {:platform_startup, path: "../startup"},
       {:telemetry, "~> 1.0"}
     ]
 end

@@ -18,10 +18,10 @@ defmodule Platform.Nats.TestSupport.NatsServer do
   end
 
   @doc "Starts a plain server owned by the calling process and returns its port."
-  @spec start() :: :inet.port_number()
-  def start do
+  @spec start(String.t() | nil) :: :inet.port_number()
+  def start(server_name \\ nil) do
     port = free_port()
-    spawn_server(port, nil)
+    spawn_server(port, nil, server_name)
     port
   end
 
@@ -66,11 +66,12 @@ defmodule Platform.Nats.TestSupport.NatsServer do
     end
   end
 
-  defp spawn_server(port, store_dir) do
+  defp spawn_server(port, store_dir, server_name \\ nil) do
     exe = System.find_executable("nats-server") || raise "nats-server not found on PATH"
 
     args = ["-p", Integer.to_string(port), "-a", "127.0.0.1"]
     args = if store_dir, do: args ++ ["-js", "-sd", store_dir], else: args
+    args = if server_name, do: args ++ ["-n", server_name], else: args
 
     server =
       Port.open({:spawn_executable, "/bin/sh"}, [

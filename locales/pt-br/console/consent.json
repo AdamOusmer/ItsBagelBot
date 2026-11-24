@@ -1,0 +1,8 @@
+{
+  "continue": "Continuar",
+  "reload": "Recarregue a página para consultar o acordo vigente.",
+  "saveError": "Não foi possível salvar seu consentimento. Tente novamente.",
+  "subscribed": "Você recebe e-mails sobre o produto.",
+  "marketingNoEmail": "Não conseguimos concluir sua inscrição porque sua conta não tem um endereço de e-mail cadastrado.",
+  "marketingUnavailable": "Não conseguimos concluir sua inscrição agora. Você pode tentar novamente nas Configurações."
+}

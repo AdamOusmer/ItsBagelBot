@@ -8,6 +8,8 @@ package analytics
 import (
 	"regexp"
 	"slices"
+
+	"ItsBagelBot/internal/domain/consent"
 )
 
 type Metric string
@@ -62,6 +64,7 @@ const (
 	AccountsCancelPending Metric = "accounts.cancel_pending"
 	AccountsPaymentFailed Metric = "accounts.payment_failed"
 	AccountsLocale        Metric = "accounts.locale"
+	AccountsMarketing     Metric = "accounts.marketing"
 	AccountsPagesHidden   Metric = "accounts.pages_hidden"
 	AccountsBySignupWeek  Metric = "accounts.by_signup_week"
 	PaidBySignupWeek      Metric = "accounts.paid_by_signup_week"
@@ -101,6 +104,9 @@ const (
 	DesktopGrants      Metric = "desktop.grants"
 	SignupVia          Metric = "signup.via"
 	UpsellClicks       Metric = "upsell.clicks"
+
+	MarketingConsents     Metric = "marketing.consents"
+	MarketingSuppressions Metric = "marketing.suppressions"
 )
 
 const (
@@ -144,6 +150,7 @@ const (
 	KindMode      Kind = "mode"
 	KindRuntime   Kind = "runtime"
 	KindInactive  Kind = "inactive"
+	KindStatus    Kind = "status"
 	KindGame      Kind = "game"
 	KindEnd       Kind = "end"
 	KindBucket    Kind = "bucket"
@@ -156,6 +163,9 @@ const (
 	KindVia       Kind = "via"
 	KindStage     Kind = "stage"
 	KindPlacement Kind = "placement"
+
+	KindConsentSource Kind = "consent_source"
+	KindSuppression   Kind = "suppression"
 )
 
 // CustomCommand stands in for every custom command name, which is streamer-written text.
@@ -187,6 +197,7 @@ var catalog = map[Metric]Spec{
 	AccountsCancelPending: {Type: Level},
 	AccountsPaymentFailed: {Type: Level},
 	AccountsLocale:        {Type: Level, Dims: []Kind{KindLocale}},
+	AccountsMarketing:     {Type: Level, Dims: []Kind{KindStatus}},
 	AccountsPagesHidden:   {Type: Level, Dims: []Kind{KindPage}},
 	AccountsBySignupWeek:  {Type: Level, Dims: []Kind{KindWeek}},
 	PaidBySignupWeek:      {Type: Level, Dims: []Kind{KindWeek}},
@@ -226,6 +237,9 @@ var catalog = map[Metric]Spec{
 	DesktopGrants:      {Type: Level, Dims: []Kind{KindPlatform}},
 	SignupVia:          {Type: Counter, Dims: []Kind{KindVia, KindStage}},
 	UpsellClicks:       {Type: Counter, Dims: []Kind{KindPlacement}},
+
+	MarketingConsents:     {Type: Counter, Dims: []Kind{KindStatus, KindConsentSource}},
+	MarketingSuppressions: {Type: Counter, Dims: []Kind{KindSuppression}},
 }
 
 var enums = map[Kind][]string{
@@ -266,6 +280,7 @@ var enums = map[Kind][]string{
 	KindMode:     {"shadow", "enforced"},
 	KindRuntime:  {"active", "dormant", "blocked", "disabled", "recovering", "degraded"},
 	KindInactive: {"banned", "revoked", "disabled", "other"},
+	KindStatus:   {string(consent.None), string(consent.Granted), string(consent.Withdrawn)},
 	KindGame:     {"raffle", "mraffle", "duel", "gamble"},
 	KindEnd:      {"drawn", "empty", "cancelled", "declined", "no_show", "won", "lost"},
 	KindBucket:   {"1", "2_4", "5_19", "20_99", "100p"},
@@ -281,6 +296,12 @@ var enums = map[Kind][]string{
 	},
 	KindStage:     {"started", "signup"},
 	KindPlacement: {"overview"},
+	KindConsentSource: {
+		string(consent.Welcome), string(consent.Settings), string(consent.Prompt), string(consent.Consent),
+		string(consent.PreferencePage), string(consent.OneClick), string(consent.Complaint), string(consent.Admin),
+		string(consent.AddressChanged),
+	},
+	KindSuppression: {string(consent.SuppressUnsubscribe), string(consent.SuppressComplaint), string(consent.SuppressHardBounce)},
 }
 
 var shapes = map[Kind]*regexp.Regexp{

@@ -5,6 +5,7 @@ package tokenstore
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -110,4 +111,50 @@ func TestLoadSeparatesRefusalFromOutage(t *testing.T) {
 			require.Equal(t, tc.wantUnavailable, Unavailable(err), "Unavailable(%v)", err)
 		})
 	}
+}
+
+func TestTokenStoreRoundTripsScopes(t *testing.T) {
+	tests := []struct {
+		name   string
+		scopes []string
+	}{
+		{name: "unknown"},
+		{name: "known empty", scopes: []string{}},
+		{name: "granted", scopes: []string{"channel:bot", "user:read:chat"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			nc := connectBroker(t)
+			serveScopeTokens(t, nc)
+			store := New(nc, "tokens", "42")
+
+			require.NoError(t, store.Save(t.Context(), Tokens{AccessToken: "access", Scopes: tc.scopes}))
+			loaded, err := store.Load(t.Context())
+			require.NoError(t, err)
+			require.Equal(t, tc.scopes, loaded.Scopes)
+		})
+	}
+}
+
+func serveScopeTokens(t *testing.T, nc *nats.Conn) {
+	t.Helper()
+	var mu sync.Mutex
+	var scopes []string
+	wiring := bus.RPCWiring{NC: nc, Queue: "tokens-test", Log: zap.NewNop()}
+	save := func(_ context.Context, req usersrpc.TokensRequest, _ uint64) (usersrpc.TokensReply, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		scopes = req.Scopes
+		return usersrpc.TokensReply{}, nil
+	}
+	get := func(context.Context, usersrpc.TokensRequest, uint64) (usersrpc.TokensReply, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return usersrpc.TokensReply{Scopes: scopes}, nil
+	}
+	require.NoError(t, bus.ServeVerbs(wiring, "tokens",
+		bus.VerbForUser[usersrpc.TokensRequest, usersrpc.TokensReply]("save", save),
+		bus.VerbForUser[usersrpc.TokensRequest, usersrpc.TokensReply]("get", get),
+	))
+	require.NoError(t, nc.Flush())
 }

@@ -1,0 +1,12 @@
+{
+  "email": "E-Mail",
+  "switchLabel": "Marketing-E-Mails",
+  "none": "Du hast kein Abonnement.",
+  "granted": "Du hast ein aktives Abonnement.",
+  "withdrawn": "Du hast dich abgemeldet.",
+  "unknown": "Die E-Mail-Einstellungen sind vorübergehend nicht verfügbar.",
+  "optIn": "ItsBagelBot verschickt Produktneuigkeiten und Angebote. Du erreichst uns per Post unter {address} oder per E-Mail unter {contact}. Du kannst dich jederzeit in den Einstellungen oder über jede dieser E-Mails abmelden.",
+  "saveError": "Deine E-Mail-Einstellung konnte nicht aktualisiert werden. Versuche es erneut.",
+  "optInUnavailable": "Neue E-Mail-Abonnements sind vorübergehend nicht verfügbar.",
+  "optInLabel": "Schick mir Produktneuigkeiten. Abmelden jederzeit möglich."
+}

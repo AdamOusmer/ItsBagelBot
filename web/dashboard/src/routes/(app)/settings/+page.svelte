@@ -35,6 +35,7 @@
   import SectionPicker from '#lib/components/settings/SectionPicker.svelte';
   import DeleteAccountDialog from '#lib/components/settings/DeleteAccountDialog.svelte';
   import { busyEnhance } from '#lib/components/settings/busy-enhance';
+  import { SITE } from '@bagel/kit/site-links';
   import { PAGE_ACTION, PAGE_DELAYED, PAGE_HINT, PAGE_HREF, PAGE_LABEL, PAGE_TOAST_OFF, PAGE_TOAST_ON, PUBLIC_PAGES, pageScope, type PublicPage } from '#lib/public-pages';
   import type { DelegationGrant, DeviceGrantView, NotificationWire } from '#lib/server/services';
 
@@ -52,6 +53,16 @@
 
   const notifications = $derived((data.notifications ?? []) as NotificationWire[]);
   const savedLocale = $derived((data.savedLocale ?? 'en') as Locale);
+  const marketingStatus = $derived(data.emailPreferences?.status ?? 'unknown');
+  const marketingEnabled = $derived(marketingStatus === 'granted');
+  const mailingAddress = $derived(data.emailPreferences?.mailingAddress ?? '');
+  const optInUnavailable = $derived(!marketingEnabled && !mailingAddress);
+  const marketingDisabled = $derived(marketingStatus === 'unknown' || optInUnavailable);
+  let marketingBusy = $state(false);
+  const submitMarketing = busyEnhance(
+    (busy) => (marketingBusy = busy),
+    (result) => { if (result === 'error') toast('danger', t('marketing.saveError')); }
+  );
   const pageRows = $derived(
     PUBLIC_PAGES.map((key) => ({
       key,
@@ -607,6 +618,21 @@
       </div>
       <CursorSwitch describedby="cursor-hint" />
     </div>
+    {#if data.emailPreferences}
+      <div class="row">
+        <div class="row-text">
+          <Text as="span" size="sm">{t('marketing.email')}</Text>
+          <Text size="sm" tone="muted" id="marketing-status">{t(`marketing.${marketingStatus}`)}</Text>
+          <Text size="sm" tone="muted" id="marketing-disclosure">
+            {mailingAddress ? t('marketing.optIn', { address: mailingAddress, contact: SITE.supportEmail }) : t('marketing.optInUnavailable')}
+          </Text>
+        </div>
+        <form method="POST" action="?/marketing" use:enhance={submitMarketing}>
+          <input type="hidden" name="status" value={marketingEnabled ? 'withdrawn' : 'granted'} />
+          <Switch type="submit" checked={marketingEnabled} busy={marketingBusy} disabled={marketingDisabled} label={t('marketing.switchLabel')} describedby="marketing-status marketing-disclosure" />
+        </form>
+      </div>
+    {/if}
   </Card>
   </section>
 

@@ -9,15 +9,20 @@ import (
 )
 
 func (w *Worker) backgroundAllowed(ctx context.Context, id string) bool {
+	_, allowed := w.backgroundFence(ctx, id)
+	return allowed
+}
+
+func (w *Worker) backgroundFence(ctx context.Context, id string) (admissionFence, bool) {
 	if w.runtime == nil {
-		return true
+		return admissionFence{}, true
 	}
 	uid, err := strconv.ParseUint(id, 10, 64)
 	if err != nil {
-		return false
+		return admissionFence{}, false
 	}
 	s, err := w.runtime.Get(ctx, uid)
-	return err == nil && s.AllowsBackground()
+	return admissionFence{s.AccountCreatedAt, s.State.AdmissionGeneration}, err == nil && s.AllowsBackground()
 }
 
 func (w *Worker) admitPayload(ctx context.Context, p *outgress.Message) (bool, error) {

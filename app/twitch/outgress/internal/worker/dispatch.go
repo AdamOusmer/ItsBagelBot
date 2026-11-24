@@ -142,7 +142,7 @@ func (w *Worker) logTrialBlocked(payload *outgress.Message) {
 func (w *Worker) sendBotLine(ctx context.Context, broadcasterID, text string) error {
 	sc, ok := outgress.CutSlash(text)
 	if !ok {
-		return w.sendBotChat(ctx, broadcasterID, text)
+		return w.sendBotChat(ctx, broadcasterID, text, admissionFence{})
 	}
 	msg, err := slashMessage(broadcasterID, sc)
 	if err != nil || msg == nil {
@@ -198,7 +198,7 @@ func textActionBody(broadcasterID string, sc outgress.SlashCommand) ([]byte, err
 	}{broadcasterID, sc.Text})
 }
 
-func (w *Worker) sendBotChat(ctx context.Context, broadcasterID, text string) error {
+func (w *Worker) sendBotChat(ctx context.Context, broadcasterID, text string, fence admissionFence) error {
 	body, err := codec.Marshal(&struct {
 		BroadcasterID string `json:"broadcaster_id"`
 		Message       string `json:"message"`
@@ -207,9 +207,11 @@ func (w *Worker) sendBotChat(ctx context.Context, broadcasterID, text string) er
 		return err
 	}
 	chat := outgress.Message{
-		Type:          outgress.TypeChat,
-		BroadcasterID: broadcasterID,
-		Payload:       body,
+		Type:                outgress.TypeChat,
+		BroadcasterID:       broadcasterID,
+		Payload:             body,
+		AccountCreatedAt:    fence.incarnation,
+		AdmissionGeneration: fence.generation,
 	}
 	return w.processPayload(ctx, &chat)
 }

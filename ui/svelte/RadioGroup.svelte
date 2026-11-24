@@ -24,9 +24,11 @@
     rail?: 'sm' | 'md';
     maxHeight?: string;
     terse?: boolean;
+    tone?: 'go';
     onValueChange?: (value: string) => void;
     onSelect?: (value: string) => void;
     leading?: Snippet<[RadioOption, boolean]>;
+    detail?: Snippet<[RadioOption, boolean]>;
     class?: string;
   };
 
@@ -41,9 +43,11 @@
     rail,
     maxHeight,
     terse = false,
+    tone,
     onValueChange,
     onSelect,
     leading,
+    detail,
     class: className = '',
     ...rest
   }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
@@ -57,6 +61,7 @@
       rail ? `bb-choices--rail-${rail}` : null,
       maxHeight ? 'bb-choices--scroll bb-scroll' : null,
       terse ? 'bb-choices--terse' : null,
+      tone ? `bb-choices--${tone}` : null,
       className || null,
     ]
       .filter(Boolean)
@@ -122,9 +127,11 @@
               class="bb-choice__tick"
               aria-hidden="true"><Icon name="check" size={14} /></span
             ></span
-          >{/if}<span class="bb-choice__label">{opt.label}</span>{#if opt.description}<span class="bb-choice__desc"
-            >{opt.description}</span
-          >{/if}{#if opt.meta}<span class="bb-choice__meta">{opt.meta}</span>{/if}</label
+          >{/if}<span class="bb-choice__label">{opt.label}</span>{#if detail}<span class="bb-choice__swap"
+            >{#if opt.description}<span class="bb-choice__desc">{opt.description}</span>{/if}<span class="bb-choice__desc bb-choice__detail"
+              >{@render detail(opt, value === opt.value)}</span
+            ></span
+          >{:else if opt.description}<span class="bb-choice__desc">{opt.description}</span>{/if}{#if opt.meta}<span class="bb-choice__meta">{opt.meta}</span>{/if}</label
       >
     {/each}
   </div>

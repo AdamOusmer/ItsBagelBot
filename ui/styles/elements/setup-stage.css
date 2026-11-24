@@ -37,9 +37,7 @@
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background:
-      radial-gradient(ellipse 60% 46% at 50% 0%, rgba(var(--bb-halo-gold-rgb), 0.16), transparent 70%),
-      radial-gradient(ellipse 70% 40% at 50% 100%, rgba(var(--bb-halo-green-rgb), 0.12), transparent 70%);
+    overflow: clip;
   }
 
   .bb-setup-stage__top {
@@ -81,15 +79,13 @@
 
   .bb-setup-stage__mascot {
     position: absolute;
-    left: calc(50% + var(--setup-art-x, 0px));
+    left: 50%;
     bottom: 0;
     width: 240px;
     translate: -50% 0;
     transform: scale(var(--setup-art-scale));
     transform-origin: 50% 100%;
-    transition:
-      transform calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo),
-      left var(--bb-dur-slow) var(--bb-ease-out-expo);
+    transition: transform calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo);
   }
 
   .bb-setup-stage__content {

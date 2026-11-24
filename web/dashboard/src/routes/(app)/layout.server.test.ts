@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { describe, expect, mock, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
+import { TERMS_VERSION } from '@bagel/kit/consent';
 import { stubSvelteKit } from '../../../test/sveltekit';
 import { captureAnalytics } from '../../../test/analytics';
 
@@ -11,7 +12,7 @@ process.env.NEW_RELIC_ENABLED = 'false';
 const services = await import('../../lib/server/services');
 mock.module('#lib/server/services', () => ({
   ...services,
-  accountState: async () => ({ active: true, status: 'free', lifecycle: 'active' }),
+  accountState: async () => { throw new Error('state unavailable'); },
   notificationsForUser: async () => ({ unreadCount: 0, notifications: [] }),
   delegationAccess: async () => []
 }));
@@ -20,60 +21,63 @@ const { scopes } = await import('../../lib/server/oauth');
 const { load } = await import('./+layout.server');
 const recorded = captureAnalytics();
 
-async function landing(session: Record<string, unknown>): Promise<string | null> {
-  const event = {
-    locals: { session: { user_id: '1001', ...session }, locale: 'en' },
-    url: new URL('https://dashboard.itsbagelbot.com/commands?tab=1'),
-    route: { id: '/(app)/commands' },
-    request: new Request('https://dashboard.itsbagelbot.com/commands')
-  };
-  try {
-    await load(event as never);
-    return null;
-  } catch (e) {
-    return (e as { location?: string }).location ?? null;
-  }
-}
-
 const granted = () => scopes().filter((s) => s !== 'openid');
 
-describe('dashboard layout scope gate', () => {
-  test('an owner missing a scope is sent to Twitch and returns to the same page', async () => {
-    expect(await landing({ scopes: granted().slice(1) })).toBe('/auth/login?reauth=1&next=%2Fcommands%3Ftab%3D1');
-  });
+type GateCase = {
+  name: string;
+  path?: string;
+  terms?: string;
+  session?: Record<string, unknown>;
+  missingScope?: boolean;
+  method?: 'POST';
+  ghost?: boolean;
+  readFailed?: boolean;
+  landing: string | null;
+};
 
-  test('an owner with every scope stays', async () => {
-    expect(await landing({ scopes: granted() })).toBeNull();
-  });
+const gateCases: GateCase[] = [
+  { name: 'scope gap precedes terms', missingScope: true, terms: '', landing: '/auth/login?reauth=1&next=%2Fcommands%3Ftab%3D1' },
+  { name: 'state from an older Users pod omits the terms version', landing: null },
+  { name: 'legacy acceptance needs current terms', terms: '', landing: '/consent?next=%2Fcommands%3Ftab%3D1' },
+  { name: 'older terms allow opening settings', path: '/settings', terms: '2025-12', landing: null },
+  { name: 'older terms allow submitting a settings withdrawal', path: '/settings?/marketing', method: 'POST', terms: '2025-12', landing: null },
+  { name: 'settings still checks Twitch scopes', path: '/settings', missingScope: true, terms: '2025-12', landing: '/auth/login?reauth=1&next=%2Fsettings' },
+  { name: 'current terms', terms: TERMS_VERSION, landing: null },
+  { name: 'newer terms during a rollback', terms: '9999-12', landing: null },
+  { name: 'unsafe return path', path: '//example.test', terms: '', landing: '/consent?next=%2F' },
+  { name: 'delegate with a scope gap and older terms accepts their own terms', session: { delegate_of: '2002' }, missingScope: true, terms: '', landing: '/consent?next=%2Fcommands%3Ftab%3D1' },
+  { name: 'delegate with current terms', session: { delegate_of: '2002' }, missingScope: true, terms: TERMS_VERSION, landing: null },
+  { name: 'impersonation with a scope gap and older terms', session: { impersonator_id: '3003' }, missingScope: true, terms: '', landing: null },
+  { name: 'an unreadable account state fails open', readFailed: true, landing: null },
+  { name: 'a state marker without a value fails open', ghost: true, landing: null },
+  {
+    name: 'a regular billing visit still needs terms', path: '/billing?subscribe=1', terms: '',
+    landing: '/consent?next=%2Fbilling%3Fsubscribe%3D1'
+  },
+  ...['/billing?checkout=complete', '/billing?checkout=cancelled'].map((path) => ({
+    name: `exempt path ${path}`, path, missingScope: true, terms: '', landing: null
+  }))
+];
 
-  test('a delegate is never sent to consent for their own account', async () => {
-    expect(await landing({ scopes: [], delegate_of: '2002', sections: [] })).toBeNull();
-  });
+function gateState(row: GateCase) {
+  if (row.ghost) return { ghost: true };
+  if (row.readFailed) return undefined;
+  return { value: { active: true, status: 'free', onboarded: true, termsVersion: row.terms } };
+}
 
-  test('an impersonating admin is never sent to consent', async () => {
-    expect(await landing({ scopes: [], impersonator_id: '3003' })).toBeNull();
-  });
-});
-
-test.each([
-  { name: 'unaccepted owner on a feature page', onboarded: false, route: '/(app)/commands', session: {}, landing: '/welcome' },
-  { name: 'unaccepted owner on the overview', onboarded: false, route: '/(app)', session: {}, landing: '/welcome' },
-  { name: 'unaccepted owner in settings', onboarded: false, route: '/(app)/settings', session: {}, landing: null },
-  { name: 'accepted owner', onboarded: true, route: '/(app)/commands', session: {}, landing: null },
-  { name: 'unaccepted delegate', onboarded: false, route: '/(app)/commands', session: { delegate_of: '2002', sections: ['commands'] }, landing: '/welcome' },
-  { name: 'accepted delegate', onboarded: true, route: '/(app)/commands', session: { delegate_of: '2002', sections: ['commands'] }, landing: null },
-  { name: 'unaccepted impersonated owner', onboarded: false, route: '/(app)/commands', session: { impersonator_id: '3003' }, landing: null },
-  { name: 'unreadable account state', onboarded: null, route: '/(app)/commands', session: {}, landing: null }
-])('consent gate: $name', async ({ onboarded, route, session, landing }) => {
-  const accountState = onboarded === null ? undefined : { value: { active: true, status: 'free', onboarded } };
+test.each(gateCases)('dashboard gates: $name', async (row) => {
+  const url = new URL(`https://dashboard.itsbagelbot.com${row.path ?? '/commands?tab=1'}`);
   const event = {
-    locals: { session: { user_id: '1001', scopes: granted(), ...session }, locale: 'en', accountState },
-    url: new URL('https://dashboard.itsbagelbot.com/commands'),
-    route: { id: route },
-    request: new Request('https://dashboard.itsbagelbot.com/commands')
+    locals: { session: { user_id: '1001', scopes: row.missingScope ? [] : granted(), ...row.session }, locale: 'en', accountState: gateState(row) },
+    url,
+    route: { id: `/(app)${url.pathname}` },
+    request: new Request(url, { method: row.method })
   };
-  const location = await Promise.resolve(load(event as never)).then(() => null, (e: { location?: string }) => e.location ?? null);
-  expect(location).toBe(landing);
+  const landing = await Promise.resolve(load(event as never)).then(
+    () => null,
+    (e: { location?: string }) => e.location
+  );
+  expect(landing).toBe(row.landing);
 });
 
 test.each([

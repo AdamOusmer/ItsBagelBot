@@ -5,6 +5,7 @@ package ent
 import (
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -24,6 +25,8 @@ type Tokens struct {
 	Token []byte `json:"-"`
 	// RefreshToken holds the value of the "refresh_token" field.
 	RefreshToken []byte `json:"-"`
+	// Scopes holds the value of the "scopes" field.
+	Scopes []string `json:"scopes,omitempty"`
 	// Platform holds the value of the "platform" field.
 	Platform tokens.Platform `json:"platform,omitempty"`
 	// AccessTokenExpiresAt holds the value of the "access_token_expires_at" field.
@@ -60,7 +63,7 @@ func (*Tokens) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case tokens.FieldToken, tokens.FieldRefreshToken:
+		case tokens.FieldToken, tokens.FieldRefreshToken, tokens.FieldScopes:
 			values[i] = new([]byte)
 		case tokens.FieldID:
 			values[i] = new(sql.NullInt64)
@@ -108,6 +111,14 @@ func (_m *Tokens) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field refresh_token", values[i])
 			} else if value != nil {
 				_m.RefreshToken = *value
+			}
+		case tokens.FieldScopes:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field scopes", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.Scopes); err != nil {
+					return fmt.Errorf("unmarshal field scopes: %w", err)
+				}
 			}
 		case tokens.FieldPlatform:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -176,6 +187,9 @@ func (_m *Tokens) String() string {
 	builder.WriteString("token=<sensitive>")
 	builder.WriteString(", ")
 	builder.WriteString("refresh_token=<sensitive>")
+	builder.WriteString(", ")
+	builder.WriteString("scopes=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Scopes))
 	builder.WriteString(", ")
 	builder.WriteString("platform=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Platform))

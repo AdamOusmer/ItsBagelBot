@@ -73,6 +73,10 @@ accounts:
               from: USERS_RPC
             - service: rpc.admin.user.alpha.set.node.*
               from: USERS_RPC
+            - service: rpc.admin.marketing.*
+              from: USERS_RPC
+            - service: rpc.admin.marketing.*.node.*
+              from: USERS_RPC
             - service: rpc.admin.user.auth.>
               from: ADMIN_SERVICE_RPC
             - service: rpc.admin.user.audit.>
@@ -636,6 +640,14 @@ accounts:
         imports:
             - service: rpc.dashboard.>
               from: USERS_RPC
+            - service: rpc.internal.users.marketing.suppress
+              from: USERS_RPC
+            - service: rpc.internal.users.marketing.suppress.node.*
+              from: USERS_RPC
+            - service: rpc.internal.users.marketing.delivery
+              from: USERS_RPC
+            - service: rpc.internal.users.marketing.delivery.node.*
+              from: USERS_RPC
             - service: rpc.admin.user.audit.>
               from: ADMIN_SERVICE_RPC
             - service: rpc.delegation.>
@@ -1111,6 +1123,12 @@ accounts:
             - service: rpc.internal.users.email.get
             - service: rpc.internal.users.email.get.node.*
             - service: rpc.internal.users.giveaway.>
+            - service: rpc.internal.users.marketing.suppress
+            - service: rpc.internal.users.marketing.suppress.node.*
+            - service: rpc.internal.users.marketing.delivery
+            - service: rpc.internal.users.marketing.delivery.node.*
+            - service: rpc.admin.marketing.*
+            - service: rpc.admin.marketing.*.node.*
             - service: rpc.internal.users.get
             - service: rpc.internal.users.get.node.*
             - service: rpc.internal.users.counts.get

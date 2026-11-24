@@ -18,6 +18,7 @@ type Safety struct {
 
 type Wiring struct {
 	bus.RPCWiring
-	Repo   *repository.Users
-	Safety Safety
+	Repo      *repository.Users
+	Safety    Safety
+	Campaigns CampaignTester
 }

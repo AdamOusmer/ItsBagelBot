@@ -52,7 +52,8 @@
   }
 
   .bb-setup-step__title .bb-page-hero__line > span {
-    animation-delay: calc(340ms + var(--line-i, 0) * 90ms);
+    animation-duration: 800ms;
+    animation-delay: calc(160ms + var(--line-i, 0) * 90ms);
   }
 
   .bb-setup-step--hero .bb-setup-step__title {

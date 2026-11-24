@@ -6,6 +6,7 @@ package usersrpc
 import (
 	"time"
 
+	"ItsBagelBot/internal/domain/consent"
 	"ItsBagelBot/internal/domain/lifecycle"
 	"ItsBagelBot/internal/domain/rpc"
 )
@@ -223,9 +224,10 @@ type CountsReply struct {
 }
 
 type GrantSaveRequest struct {
-	BroadcasterUserID string `json:"broadcaster_user_id"`
-	AccessToken       string `json:"access_token"`
-	RefreshToken      string `json:"refresh_token"`
+	BroadcasterUserID string   `json:"broadcaster_user_id"`
+	AccessToken       string   `json:"access_token"`
+	RefreshToken      string   `json:"refresh_token"`
+	Scopes            []string `json:"scopes"`
 }
 
 type GrantHasRequest struct {
@@ -247,14 +249,18 @@ type LocaleSetRequest struct {
 }
 
 type StateGetRequest struct {
-	BroadcasterUserID string `json:"broadcaster_user_id"`
+	BroadcasterUserID  string `json:"broadcaster_user_id"`
+	IncludeMaskedEmail bool   `json:"include_masked_email,omitempty"`
 }
 
 type StateGetReply struct {
-	Active    bool   `json:"active"`
-	Status    string `json:"status"`
-	Onboarded bool   `json:"onboarded"`
-	Locale    string `json:"locale"`
+	Active          bool                    `json:"active"`
+	Status          string                  `json:"status"`
+	Onboarded       bool                    `json:"onboarded"`
+	Locale          string                  `json:"locale"`
+	TermsVersion    string                  `json:"terms_version"`
+	MarketingStatus consent.MarketingStatus `json:"marketing_status"`
+	MaskedEmail     string                  `json:"masked_email,omitempty"`
 	rpc.Refusal
 }
 
@@ -328,11 +334,13 @@ type TokensRequest struct {
 	AccessToken          string     `json:"access_token"`
 	RefreshToken         string     `json:"refresh_token"`
 	AccessTokenExpiresAt *time.Time `json:"access_token_expires_at,omitempty"`
+	Scopes               []string   `json:"scopes"`
 }
 
 type TokensReply struct {
 	AccessToken          string     `json:"access_token,omitempty"`
 	RefreshToken         string     `json:"refresh_token,omitempty"`
 	AccessTokenExpiresAt *time.Time `json:"access_token_expires_at,omitempty"`
+	Scopes               []string   `json:"scopes"`
 	rpc.Refusal
 }

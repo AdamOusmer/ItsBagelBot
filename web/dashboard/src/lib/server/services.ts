@@ -36,6 +36,7 @@ export {
 } from './services/eventsub';
 export {
   accountState,
+  freshAccountState,
   pageToggles,
   retryLifecycle,
   setActive,
@@ -53,6 +54,19 @@ export {
   type AccountState,
   type AccountStatus
 } from './services/account-state';
+export { setMarketing, setTermsConsent } from './services/consent';
+export {
+  marketingLink,
+  recordDelivery,
+  setMarketingLink,
+  suppressAddress,
+  type Delivery,
+  type DeliveryEvent,
+  type LinkChange,
+  type MarketingLink,
+  type Suppression,
+  type SuppressionReason
+} from './services/marketing-link';
 export {
   deleteSelf,
   hasGrant,

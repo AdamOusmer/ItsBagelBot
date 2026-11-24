@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { rpc, publish } from '@bagel/kit/server/nats';
+import { rpc, publish, type PublishOptions } from '@bagel/kit/server/nats';
 import { SUB } from './subjects';
 
 // Unenroll is flushed: account deletion relies on it reaching NATS before the delete RPC.
-export async function publishEventSub(broadcasterId: string, enabled: boolean): Promise<void> {
+export async function publishEventSub(broadcasterId: string, enabled: boolean, { flush = !enabled }: PublishOptions = {}): Promise<void> {
   await publish(
     SUB.outgress,
     {
@@ -13,7 +13,7 @@ export async function publishEventSub(broadcasterId: string, enabled: boolean): 
       broadcaster_id: broadcasterId,
       payload: { enabled }
     },
-    { flush: !enabled }
+    { flush }
   );
 }
 

@@ -25,6 +25,8 @@ export const ROLE_FOR = {
   'lanes.mutate': 'admin',
   'notifications.send': 'admin',
   'giveaways.manage': 'admin',
+  'campaigns.manage': 'admin',
+  'campaigns.approve': 'owner',
   'counters.manage': 'owner',
   'staff.manage': 'admin',
   'audit.read': 'admin',

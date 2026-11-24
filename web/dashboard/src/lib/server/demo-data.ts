@@ -18,6 +18,7 @@ import {
   type TimerDef
 } from '@bagel/kit';
 import { DEFAULT_LOCALE } from '@bagel/kit/i18n';
+import { TERMS_VERSION } from '@bagel/kit/consent';
 import type { Session } from './session';
 import type { AccountState, BillingState, DeviceGrantView, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';
@@ -85,11 +86,15 @@ export const demoAuthorizedDashboards = [
   { href: '/delegate/enter?owner=77', name: 'bagel_queen' }
 ];
 
+export const demoMailingAddress = 'Demo mailing address';
+
 export const demoAccountState: AccountState = {
   active: true,
   status: process.env.DEMO_PLAN === 'free' ? 'free' : 'vip',
   onboarded: true,
   alpha: process.env.DEMO_PLAN !== 'nonalpha',
+  termsVersion: TERMS_VERSION,
+  marketingStatus: 'none',
   creatorCode: null,
   username: 'demo',
   displayName: 'Demo'

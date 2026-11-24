@@ -49,6 +49,12 @@ func (_c *TokensCreate) SetRefreshToken(v []byte) *TokensCreate {
 	return _c
 }
 
+// SetScopes sets the "scopes" field.
+func (_c *TokensCreate) SetScopes(v []string) *TokensCreate {
+	_c.mutation.SetScopes(v)
+	return _c
+}
+
 // SetPlatform sets the "platform" field.
 func (_c *TokensCreate) SetPlatform(v tokens.Platform) *TokensCreate {
 	_c.mutation.SetPlatform(v)
@@ -196,6 +202,10 @@ func (_c *TokensCreate) createSpec() (*Tokens, *sqlgraph.CreateSpec) {
 		_spec.SetField(tokens.FieldRefreshToken, field.TypeBytes, value)
 		_node.RefreshToken = value
 	}
+	if value, ok := _c.mutation.Scopes(); ok {
+		_spec.SetField(tokens.FieldScopes, field.TypeJSON, value)
+		_node.Scopes = value
+	}
 	if value, ok := _c.mutation.Platform(); ok {
 		_spec.SetField(tokens.FieldPlatform, field.TypeEnum, value)
 		_node.Platform = value
@@ -315,6 +325,24 @@ func (u *TokensUpsert) ClearRefreshToken() *TokensUpsert {
 	return u
 }
 
+// SetScopes sets the "scopes" field.
+func (u *TokensUpsert) SetScopes(v []string) *TokensUpsert {
+	u.Set(tokens.FieldScopes, v)
+	return u
+}
+
+// UpdateScopes sets the "scopes" field to the value that was provided on create.
+func (u *TokensUpsert) UpdateScopes() *TokensUpsert {
+	u.SetExcluded(tokens.FieldScopes)
+	return u
+}
+
+// ClearScopes clears the value of the "scopes" field.
+func (u *TokensUpsert) ClearScopes() *TokensUpsert {
+	u.SetNull(tokens.FieldScopes)
+	return u
+}
+
 // SetPlatform sets the "platform" field.
 func (u *TokensUpsert) SetPlatform(v tokens.Platform) *TokensUpsert {
 	u.Set(tokens.FieldPlatform, v)
@@ -431,6 +459,27 @@ func (u *TokensUpsertOne) UpdateRefreshToken() *TokensUpsertOne {
 func (u *TokensUpsertOne) ClearRefreshToken() *TokensUpsertOne {
 	return u.Update(func(s *TokensUpsert) {
 		s.ClearRefreshToken()
+	})
+}
+
+// SetScopes sets the "scopes" field.
+func (u *TokensUpsertOne) SetScopes(v []string) *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.SetScopes(v)
+	})
+}
+
+// UpdateScopes sets the "scopes" field to the value that was provided on create.
+func (u *TokensUpsertOne) UpdateScopes() *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.UpdateScopes()
+	})
+}
+
+// ClearScopes clears the value of the "scopes" field.
+func (u *TokensUpsertOne) ClearScopes() *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.ClearScopes()
 	})
 }
 
@@ -719,6 +768,27 @@ func (u *TokensUpsertBulk) UpdateRefreshToken() *TokensUpsertBulk {
 func (u *TokensUpsertBulk) ClearRefreshToken() *TokensUpsertBulk {
 	return u.Update(func(s *TokensUpsert) {
 		s.ClearRefreshToken()
+	})
+}
+
+// SetScopes sets the "scopes" field.
+func (u *TokensUpsertBulk) SetScopes(v []string) *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.SetScopes(v)
+	})
+}
+
+// UpdateScopes sets the "scopes" field to the value that was provided on create.
+func (u *TokensUpsertBulk) UpdateScopes() *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.UpdateScopes()
+	})
+}
+
+// ClearScopes clears the value of the "scopes" field.
+func (u *TokensUpsertBulk) ClearScopes() *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.ClearScopes()
 	})
 }
 

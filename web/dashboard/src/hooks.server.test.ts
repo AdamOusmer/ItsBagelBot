@@ -354,7 +354,7 @@ function pageLoad({ href, routeId = null, method = 'GET', isDataRequest = false 
   const url = new URL(href);
   return {
     route: { id: routeId },
-    request: new Request(url, { method }),
+    request: new Request(url, { method, headers: { origin: url.origin } }),
     url,
     isDataRequest,
     locals: { session: null, locale: 'en' },
