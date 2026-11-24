@@ -11,8 +11,6 @@
   import SetupStage from '@bagel/ui/svelte/SetupStage.svelte';
   import SetupStep from '@bagel/ui/svelte/SetupStep.svelte';
 
-  const OPPOSITE = { granted: 'withdrawn', withdrawn: 'granted' } as const;
-
   let { data, form } = $props();
   const i18n = getI18n();
   const { t } = i18n;
@@ -26,7 +24,7 @@
     unavailable: t('emailPrefs.unavailable')
   });
   const body = $derived(bodies[view.state === 'ready' ? view.status : view.state]);
-  const choice = $derived(view.state === 'ready' && view.status !== 'none' ? OPPOSITE[view.status] : null);
+  const subscribed = $derived(view.state === 'ready' && view.status === 'granted');
   const status = $derived(form?.error ?? '');
   let busy = $state(false);
 
@@ -48,16 +46,14 @@
 <SetupStage label={title} orbs={false}>
   {#snippet start()}<Brand title="ItsBagelBot" sub={t('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />{/snippet}
   <SetupStep {title} {body} kicker="" instant>
-    {#if view.state === 'ready'}
-      {#if view.maskedEmail}
-        <p class="address">{translate(i18n.locale, 'emailPrefs.email', { address: view.maskedEmail })}</p>
-      {/if}
-      {#if choice}
-        <form method="POST" use:enhance={submit} class="bb-setup-actions">
-          <input type="hidden" name="status" value={choice} />
-          <Button type="submit" {busy}>{choice === 'withdrawn' ? t('emailPrefs.unsubscribe') : t('emailPrefs.resubscribe')}</Button>
-        </form>
-      {/if}
+    {#if view.state === 'ready' && view.maskedEmail}
+      <p class="address">{translate(i18n.locale, 'emailPrefs.email', { address: view.maskedEmail })}</p>
+    {/if}
+    {#if subscribed}
+      <form method="POST" use:enhance={submit} class="bb-setup-actions">
+        <input type="hidden" name="status" value="withdrawn" />
+        <Button type="submit" {busy}>{t('emailPrefs.unsubscribe')}</Button>
+      </form>
     {:else}
       <div class="bb-setup-actions"><ButtonLink href="/settings">{t('emailPrefs.settings')}</ButtonLink></div>
     {/if}

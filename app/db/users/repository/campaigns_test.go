@@ -201,7 +201,7 @@ func TestMarketingRecipientRechecksConsentAndSuppression(t *testing.T) {
 	_, err = f.repo.MarketingRecipient(t.Context(), consentAccount.ID)
 	require.ErrorIs(t, err, repository.ErrNotEligible)
 
-	require.NoError(t, f.setByToken(token, consent.Granted, consent.PreferencePage))
+	require.NoError(t, f.regrant(consentAccount.ID))
 	require.NoError(t, f.repo.SuppressAddress(t.Context(), consentEmail, consent.SuppressHardBounce))
 	_, err = f.repo.MarketingRecipient(t.Context(), consentAccount.ID)
 	require.ErrorIs(t, err, repository.ErrNotEligible)

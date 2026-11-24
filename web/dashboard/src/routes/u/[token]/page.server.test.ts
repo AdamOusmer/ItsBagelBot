@@ -45,7 +45,6 @@ test.each([
 
 test.each([
   { name: 'unsubscribe button', fields: { status: 'withdrawn' }, write: { status: 'withdrawn', source: 'preference_page' } },
-  { name: 'resubscribe button', fields: { status: 'granted' }, write: { status: 'granted', source: 'preference_page' } },
   { name: 'one-click form with no Origin', fields: { 'List-Unsubscribe': 'One-Click' }, headers: {}, write: { status: 'withdrawn', source: 'one_click' } }
 ])('POST $name', async ({ fields, headers, write }) => {
   expect(await submit(fields, headers)).toEqual({ ok: true });
@@ -53,8 +52,9 @@ test.each([
 });
 
 test.each([
-  { name: 'a cross-site resubscribe', fields: { status: 'granted' }, headers: { origin: 'https://example.test' }, status: 403 },
-  { name: 'a preference POST with no Origin', fields: { status: 'granted' }, headers: {}, status: 403 },
+  { name: 'a resubscribe, which needs a signed-in Settings change', fields: { status: 'granted' }, status: 400 },
+  { name: 'a cross-site unsubscribe', fields: { status: 'withdrawn' }, headers: { origin: 'https://example.test' }, status: 403 },
+  { name: 'a preference POST with no Origin', fields: { status: 'withdrawn' }, headers: {}, status: 403 },
   { name: 'an unknown status', fields: { status: 'none' }, status: 400 },
   { name: 'a missing status', fields: {}, status: 400 }
 ])('refuses $name without calling Users', async ({ fields, headers, status }) => {

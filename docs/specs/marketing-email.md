@@ -69,6 +69,7 @@ All use a box that starts ticked (opt-out, see D1), separate from the required t
 - Token: stateless HMAC `v1.<user>.<incarnation>.<scope>.<sig>` with key id for rotation, valid at least 60 days after a send (CASL s.11), dead after erasure.
 - Every marketing mail: `List-Unsubscribe: <https://.../u/<token>>`, `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058, covered by DKIM), plus a visible footer with sender name, postal address, contact and preference link.
 - One-click POST withdraws durably and returns 200 with no redirect, no cookie, no login. GET shows the preference page and never unsubscribes on its own (link scanners).
+- The token can only withdraw. Subscribing again needs a signed-in change in Settings, so a forwarded email cannot opt someone back in.
 - Withdrawal is effective at once, well inside Gmail's 48 h and CASL's 10 business days.
 
 ### 5. Resend webhooks
