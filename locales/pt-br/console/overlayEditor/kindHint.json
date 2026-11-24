@@ -1,0 +1,14 @@
+{
+  "alertbox": "Aparece em follows, inscrições, cheers e raids.",
+  "eventlist": "Lista os últimos eventos conforme chegam.",
+  "goal": "Acompanha uma meta de seguidores, inscrições ou bits.",
+  "label": "Mostra uma estatística, como seu último seguidor.",
+  "chatbox": "Mostra o chat ao vivo com emblemas e emotes.",
+  "emotewall": "Faz os emotes do chat voarem pela tela.",
+  "timer": "Conta para trás ou para a frente até um tempo.",
+  "credits": "Rola todos que apoiaram a live.",
+  "text": "Uma linha de texto fixa na sua fonte.",
+  "image": "Mostra uma imagem enviada.",
+  "video": "Reproduz um vídeo WebM enviado.",
+  "slideshow": "Alterna entre imagens enviadas."
+}

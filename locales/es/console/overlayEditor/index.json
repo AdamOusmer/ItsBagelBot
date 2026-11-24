@@ -1,0 +1,53 @@
+{
+  "alert": {
+    "follow": "Seguimiento",
+    "sub": "Suscripción",
+    "resub": "Renovación",
+    "gift_sub": "Suscripción regalada",
+    "community_gift": "Regalo a la comunidad",
+    "cheer": "Bits",
+    "raid": "Raid",
+    "redemption": "Canje"
+  },
+  "group": {
+    "alerts": "Alertas y eventos",
+    "goals": "Metas y estadísticas",
+    "chat": "Chat",
+    "media": "Multimedia y texto"
+  },
+  "template": {
+    "alerts": "Alertas",
+    "justChatting": "Just Chatting",
+    "startingSoon": "Empezamos pronto"
+  },
+  "handle": {
+    "nw": "Cambiar tamaño arriba a la izquierda",
+    "ne": "Cambiar tamaño arriba a la derecha",
+    "sw": "Cambiar tamaño abajo a la izquierda",
+    "se": "Cambiar tamaño abajo a la derecha"
+  },
+  "import": {
+    "title": "Importar un overlay",
+    "hint": "Sube un zip con un overlay o un paquete de recursos. Primero ves un informe y no se crea nada hasta que lo confirmes.",
+    "choose": "Elegir un archivo zip",
+    "confirm": "Importar overlay",
+    "confirmHint": "Al confirmar se crea el overlay con los elementos asignados y aproximados.",
+    "mapped": "Asignados",
+    "approximated": "Aproximados",
+    "unsupported": "No compatibles",
+    "more": "y {count} más"
+  },
+  "save": {
+    "failed": "No se pudo guardar el overlay. Inténtalo de nuevo.",
+    "invalid": "Se rechazó el overlay. Recarga la página e inténtalo de nuevo.",
+    "conflict": "Este overlay cambió en otro lugar. Recarga la página para obtener la última versión."
+  },
+  "page": {
+    "newName": "Nuevo overlay",
+    "discard": "¿Descartar los cambios sin guardar del overlay?",
+    "notFound": "No se encontró ese overlay.",
+    "discardTitle": "¿Descartar los cambios?",
+    "discardConfirm": "Descartar",
+    "discardKeep": "Seguir editando"
+  }
+}

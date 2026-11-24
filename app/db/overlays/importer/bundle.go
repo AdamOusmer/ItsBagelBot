@@ -53,7 +53,7 @@ var codeChecks = []struct {
 	reason  Reason
 	pattern *regexp.Regexp
 }{
-	{ReasonRemoteFont, regexp.MustCompile(`(?i)fonts\.(googleapis|gstatic)\.com`)},
+	{ReasonRemoteFont, regexp.MustCompile(`(?i)(?:^|[/\s'"(@])fonts\.(?:googleapis|gstatic)\.com(?:[/\s'")?#:]|$)`)},
 	{ReasonNetwork, regexp.MustCompile(`(?i)\bfetch\s*\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon|<script[^>]+src=|\$\.(get|post|ajax|getJSON)\s*\(`)},
 	{ReasonKeyValue, regexp.MustCompile(`\.store\.(get|set|del|delete)\w*\s*\(`)},
 	{ReasonTips, regexp.MustCompile(`(?i)\b(tip|merch)[-_]?(latest|recent|goal|session|total|count)`)},

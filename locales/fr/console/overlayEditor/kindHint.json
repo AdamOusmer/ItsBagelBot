@@ -1,0 +1,14 @@
+{
+  "alertbox": "S’affiche pour les follows, abonnements, cheers et raids.",
+  "eventlist": "Liste les derniers événements à mesure qu’ils arrivent.",
+  "goal": "Suit un objectif de followers, d’abonnés ou de bits.",
+  "label": "Affiche une stat, comme votre dernier follower.",
+  "chatbox": "Affiche le chat en direct avec badges et emotes.",
+  "emotewall": "Fait voler les emotes du chat sur l’écran.",
+  "timer": "Compte à rebours ou en avant jusqu’à une durée.",
+  "credits": "Fait défiler tous ceux qui ont soutenu le stream.",
+  "text": "Une ligne de texte fixe dans votre police.",
+  "image": "Affiche une image téléversée.",
+  "video": "Lit une vidéo WebM téléversée.",
+  "slideshow": "Fait défiler des images téléversées."
+}

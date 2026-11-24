@@ -1,0 +1,16 @@
+{
+  "invalid_archive": "Das ist kein gültiges Zip-Archiv.",
+  "unsafe_path": "Das Archiv enthält einen unsicheren Dateipfad.",
+  "symlink": "Das Archiv enthält einen Link, was nicht erlaubt ist.",
+  "nested_archive": "Das Archiv enthält ein weiteres Archiv, was nicht erlaubt ist.",
+  "too_many_entries": "Das Archiv enthält zu viele Dateien.",
+  "too_large": "Das Archiv ist entpackt zu groß.",
+  "bomb_ratio": "Das Archiv ist zu stark komprimiert, um ihm zu vertrauen.",
+  "invalid_manifest": "Das Manifest des Pakets ließ sich nicht lesen.",
+  "invalid_document": "Das Overlay im Archiv ist ungültig.",
+  "invalid_bundle": "Ein Widget-Paket im Archiv ist ungültig.",
+  "bad_hash": "Eine Datei stimmt nicht mit ihrer Prüfsumme überein.",
+  "missing_asset": "Eine im Paket aufgeführte Datei fehlt.",
+  "alpha_required": "Der Import erfordert Alpha-Zugang. Dieser Bericht ist eine Vorschau.",
+  "failed": "Der Import ist fehlgeschlagen. Versuche es erneut."
+}

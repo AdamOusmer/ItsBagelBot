@@ -1,0 +1,15 @@
+{
+  "alertbox": "Caixa de alertas",
+  "eventlist": "Lista de eventos",
+  "goal": "Meta",
+  "label": "Rótulo",
+  "chatbox": "Caixa de chat",
+  "emotewall": "Mural de emotes",
+  "timer": "Temporizador",
+  "credits": "Créditos",
+  "text": "Texto",
+  "image": "Imagem",
+  "video": "Vídeo",
+  "slideshow": "Apresentação de slides",
+  "custom": "Widget importado"
+}

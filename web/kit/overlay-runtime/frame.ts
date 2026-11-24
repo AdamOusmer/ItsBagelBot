@@ -24,7 +24,7 @@ function mount(bundle: FrameBundle): void {
   const style = document.createElement('style');
   style.textContent = bundle.css;
   document.head.append(style);
-  document.body.innerHTML = bundle.html;
+  document.body.replaceChildren(...new DOMParser().parseFromString(bundle.html, 'text/html').body.childNodes);
   run(bundle.js);
 }
 
@@ -44,7 +44,11 @@ function handle(message: ParentMessage): void {
   }
 }
 
-addEventListener('message', ({ source, data }) => {
-  if (source === parent && isParentMessage(data)) handle(data);
+const parentOrigin = document.querySelector<HTMLMetaElement>('meta[name="bagel-parent"]')?.content ?? '';
+
+const fromParent = ({ origin, source }: MessageEvent): boolean => origin === parentOrigin && source === parent;
+
+addEventListener('message', (message) => {
+  if (fromParent(message) && isParentMessage(message.data)) handle(message.data);
 });
-parent.postMessage({ bagel: 1, type: 'ready' }, '*');
+if (parentOrigin) parent.postMessage({ bagel: 1, type: 'ready' }, parentOrigin);
