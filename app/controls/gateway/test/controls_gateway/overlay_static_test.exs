@@ -46,6 +46,7 @@ defmodule ControlsGateway.OverlayStaticTest do
     assert headers["content-type"] == "text/html; charset=utf-8"
     assert headers["referrer-policy"] == "no-referrer"
     assert body =~ "<script>" <> frame <> "</script>"
+    assert body =~ ~s(<meta name="bagel-parent" content="https://overlay.itsbagelbot.com">)
   end
 
   test "sandbox names are widget ids only", %{http_port: port} do

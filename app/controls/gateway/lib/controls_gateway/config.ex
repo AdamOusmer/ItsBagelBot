@@ -3,9 +3,13 @@
 
 defmodule ControlsGateway.Config do
   @default_sandbox_origin "https://widgets.itsbagelbot.com"
+  @default_overlay_origin "https://overlay.itsbagelbot.com"
 
   def sandbox_origin,
     do: Application.get_env(:controls_gateway, :overlay_sandbox_origin, @default_sandbox_origin)
+
+  def overlay_origin,
+    do: Application.get_env(:controls_gateway, :overlay_origin, @default_overlay_origin)
 
   def nats, do: Application.fetch_env!(:controls_gateway, :nats)
 

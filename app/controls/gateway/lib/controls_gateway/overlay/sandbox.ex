@@ -2,7 +2,7 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule ControlsGateway.Overlay.Sandbox do
-  alias ControlsGateway.Http
+  alias ControlsGateway.{Config, Http}
 
   @path Path.expand("../../../priv/overlay/frame.js", __DIR__)
   @external_resource @path
@@ -12,8 +12,9 @@ defmodule ControlsGateway.Overlay.Sandbox do
     raise "priv/overlay/frame.js must not contain a closing script tag"
   end
 
-  @html "<!doctype html><meta charset=\"utf-8\"><meta name=\"referrer\" content=\"no-referrer\">" <>
-          "<style>html,body{margin:0;background:transparent;overflow:hidden}</style>" <>
+  @head "<!doctype html><meta charset=\"utf-8\"><meta name=\"referrer\" content=\"no-referrer\">" <>
+          "<meta name=\"bagel-parent\" content=\""
+  @tail "\"><style>html,body{margin:0;background:transparent;overflow:hidden}</style>" <>
           "<body><script>" <> @frame <> "</script>"
 
   @cdn "https://cdn.itsbagelbot.com"
@@ -31,7 +32,7 @@ defmodule ControlsGateway.Overlay.Sandbox do
 
   def reply(conn, widget) do
     if String.match?(widget, ~r/\A[a-zA-Z0-9_-]{1,96}\z/),
-      do: Http.reply(conn, 200, @headers, @html),
+      do: Http.reply(conn, 200, @headers, [@head, Config.overlay_origin(), @tail]),
       else: Http.reply(conn, 404, %{"cache-control" => "no-store"})
   end
 end

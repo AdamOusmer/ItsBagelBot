@@ -66,8 +66,10 @@ function sessionData(stats: FeedStats): Detail {
   };
 }
 
+const allowedListeners = new Map(Object.entries(listeners));
+
 export function compatEvent(event: OverlayEvent): CompatEvent | undefined {
-  const map = listeners[event.kind];
+  const map = allowedListeners.get(event.kind);
   if (!map) return;
   const [listener, data] = map(event);
   return { name: 'onEventReceived', detail: { listener, event: data } };
