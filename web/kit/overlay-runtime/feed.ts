@@ -50,6 +50,7 @@ export type FeedStats = {
   all_time_top_gifter?: Leader;
   credits?: Partial<Record<CreditList, Leader[]>>;
 };
+export type CreditsFrame = Partial<Record<CreditList, Leader[]>>;
 export type AlertControl = { paused: boolean; muted: boolean; skip: number };
 export type Subathon = { running?: boolean; end_at?: string; remaining_seconds?: number };
 export type FeedSnapshot = {
@@ -63,6 +64,7 @@ export type FeedMessages = {
   snapshot: FeedSnapshot;
   event: OverlayEvent;
   stats: FeedStats;
+  credits: CreditsFrame;
   subathon: Subathon;
   control: AlertControl;
 };

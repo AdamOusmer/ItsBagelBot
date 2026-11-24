@@ -275,6 +275,25 @@
     "muted": true,
     "skip": 2
   },
+  "credits": {
+    "cheer": [
+      {
+        "id": "101",
+        "login": "ann",
+        "name": "Ann",
+        "color": "#ff8800",
+        "amount": 700
+      }
+    ],
+    "sub": [
+      {
+        "id": "102",
+        "login": "bob",
+        "name": "Bob",
+        "amount": 2
+      }
+    ]
+  },
   "events": [
     {
       "id": "e-follow",

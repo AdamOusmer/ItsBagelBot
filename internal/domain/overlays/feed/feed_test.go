@@ -16,12 +16,13 @@ import (
 )
 
 type goldenFrames struct {
-	Event    Delivery   `json:"event"`
-	Stats    Stats      `json:"stats"`
-	Subathon Subathon   `json:"subathon"`
-	Control  Control    `json:"control"`
-	Events   []Delivery `json:"events"`
-	Snapshot Snapshot   `json:"snapshot"`
+	Event    Delivery          `json:"event"`
+	Stats    Stats             `json:"stats"`
+	Subathon Subathon          `json:"subathon"`
+	Control  Control           `json:"control"`
+	Credits  map[Kind][]Leader `json:"credits"`
+	Events   []Delivery        `json:"events"`
+	Snapshot Snapshot          `json:"snapshot"`
 }
 
 func TestGoldenFramesRoundTripByteStable(t *testing.T) {

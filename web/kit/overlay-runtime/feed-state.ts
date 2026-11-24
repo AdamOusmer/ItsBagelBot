@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { track } from './data-widgets';
-import type { AlertControl, FeedEvent, FeedSnapshot, FeedStats, OverlayEvent, Subathon } from './feed';
+import type { AlertControl, CreditsFrame, FeedEvent, FeedSnapshot, FeedStats, Leader, OverlayEvent, Subathon } from './feed';
 
 export const MIN_EVENTS = 200;
 export const MIN_CHAT = 100;
@@ -34,7 +34,16 @@ export class FeedState {
   }
 
   stats(value: FeedStats): void {
-    this.snapshot = { ...this.snapshot, stats: value };
+    this.snapshot = { ...this.snapshot, stats: { ...value, credits: this.snapshot.stats.credits } };
+  }
+
+  credits(value: CreditsFrame): void {
+    const merged = { ...this.snapshot.stats.credits };
+    for (const [list, entries] of Object.entries(value) as [keyof CreditsFrame, Leader[]][]) {
+      const rest = (merged[list] ?? []).filter((held) => !entries.some((entry) => entry.id === held.id));
+      merged[list] = [...rest, ...entries].sort((a, b) => b.amount - a.amount);
+    }
+    this.snapshot = { ...this.snapshot, stats: { ...this.snapshot.stats, credits: merged } };
   }
 
   subathon(value: Subathon): void {

@@ -264,7 +264,7 @@ test('seen is keyed by overlay, merged across clients and pruned of expired entr
 
 test('feed frames reach onFeed with their name and data', async () => {
   const h = await open();
-  const frames = { snapshot: { stats: {} }, stats: { counts: {} }, subathon: { running: true }, control: { paused: false } };
+  const frames = { snapshot: { stats: {} }, stats: { counts: {} }, credits: { cheer: [] }, subathon: { running: true }, control: { paused: false } };
   Object.entries(frames).forEach(([name, data]) => h.sources[0].emit(name, data));
   assert.deepEqual(h.feeds, Object.entries(frames));
 });

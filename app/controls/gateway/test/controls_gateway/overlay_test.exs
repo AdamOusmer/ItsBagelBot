@@ -495,7 +495,7 @@ defmodule ControlsGateway.OverlayTest do
     frame = "event: snapshot\ndata: " <> Jason.encode!(snapshot) <> "\n\n"
     live = HttpClient.await(live, &String.contains?(&1.body, frame))
 
-    for type <- ["stats", "subathon", "control"] do
+    for type <- ["stats", "credits", "subathon", "control"] do
       :ok =
         Gnat.pub(
           :gnat_jetstream,

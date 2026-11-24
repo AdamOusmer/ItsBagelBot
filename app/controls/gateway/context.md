@@ -156,9 +156,10 @@ also subscribes to `overlays.session.<user_id>.<template>` (the resolve reply's 
 receives only offers whose kind matches the overlay's template. A custom document accepts
 kind `custom`; its alert data is a feed event keyed by `id`, which becomes the frame's
 `event_id`. A custom stream also subscribes to the core subject `overlays.state.<user_id>`
-(no queue group, no replay) and forwards `{"type","data"}` messages of type `stats`, `subathon`
-or `control` as `event: <type>` frames, and right after `ready` it calls
-`rpc.internal.overlays.feed.snapshot` (`{"user_id"}`, reply `{"snapshot"}`) and sends
+(no queue group, no replay) and forwards `{"type","data"}` messages of type `stats`, `credits`,
+`subathon` or `control` as `event: <type>` frames, and right after `ready` it calls
+`rpc.internal.overlays.feed.snapshot` (`{"user_id","events"}`, reply `{"snapshot"}`; `events` is the largest `count` of an
+`eventlist` or `chatbox` widget, 0 for the server default) and sends
 `event: snapshot`, retrying every `overlay_recheck_ms` while the RPC is unavailable. A
 revision change that moves the overlay between templates sends `event: reconnect` so the
 page reopens its stream with the new subscriptions. Delivery is
@@ -179,7 +180,7 @@ hashed from `priv/overlay/runtime.js`, built by `bun run overlay-runtime:build` 
 'self'`, the CDN and Twitch image host, and `frame-src` for the sandbox origin
 (`overlay_sandbox_origin`, default `https://widgets.itsbagelbot.com`), which serves
 `GET /sandbox/<widget>` (`priv/overlay/frame.js` under a sandboxed CSP). Alert data goes to
-the runtime's `event`; `snapshot`, `stats`, `subathon` and `control` frames go to its feed
+the runtime's `event`; `snapshot`, `stats`, `credits`, `subathon` and `control` frames go to its feed
 state. Only the dashboard origin may
 frame the page. `powered_dev_frame_ancestors` adds localhost origins for
 dashboard development. `GET /powered/assets/<file>` serves only the `.webp` and

@@ -23,7 +23,7 @@ defmodule ControlsGateway.Overlays.Stream do
   @reconnect_max_ms 1_500
   @ping_frame ": ping\n\n"
   @custom "custom"
-  @state_frames ["stats", "subathon", "control"]
+  @state_frames ["stats", "credits", "subathon", "control"]
   @accepted ~s({"accepted":true})
   @labels %{overlay: "Overlay", tts: "TTS"}
   @streams ControlsGateway.Streams
@@ -128,6 +128,7 @@ defmodule ControlsGateway.Overlays.Stream do
        %{
          user_id: overlay.user_id,
          accepts: accepts(overlay.document),
+         events: Feed.events(overlay.document),
          revision: overlay.revision
        }}
     end
@@ -219,7 +220,7 @@ defmodule ControlsGateway.Overlays.Stream do
   def info({:force_close, reason}, req, state), do: stop(req, state, reason)
 
   def info(:snapshot, req, state) do
-    case Feed.snapshot(state.user_id, state.rpc) do
+    case Feed.snapshot(state.user_id, state.events, state.rpc) do
       {:ok, snapshot} ->
         :ok = :cowboy_req.stream_body(feed_frame("snapshot", snapshot), :nofin, req)
 

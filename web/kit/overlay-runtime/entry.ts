@@ -31,6 +31,7 @@ class GatewayOverlay {
     },
     snapshot: (payload) => this.#apply(() => this.#feed.load(payload)),
     stats: (payload) => this.#apply(() => this.#feed.stats(payload)),
+    credits: (payload) => this.#apply(() => this.#feed.credits(payload)),
     subathon: (payload) => this.#apply(() => this.#feed.subathon(payload)),
     control: (payload) => this.#apply(() => this.#feed.control(payload))
   };
