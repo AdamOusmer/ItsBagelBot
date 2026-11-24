@@ -105,6 +105,10 @@ spec:
                 secretKeyRef:
                   name: controls-gateway-env
                   key: OVERLAY_COOKIE_KEY
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             - name: NATS_HOST
               value: nats.messaging.svc.cluster.local
             - name: NATS_PORT

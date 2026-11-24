@@ -187,6 +187,9 @@ The hub carries core NATS device events, commands and takeover messages over
 publishes its randomly generated connection ID to displace an older one.
 `controls.revoked.<device_id>` closes that device's connection. The handler
 hibernates between messages and resubscribes when Gnat reconnects.
+`Platform.Nats.LeafFailback` moves the RPC connection back to the node-local leaf
+after a restart lands it on another node; that recycle reaches streams as an
+ordinary reconnect.
 
 Desktop close codes are 4000 for expiry, 4001 for takeover, 4003 for
 revocation, 1001 for graceful shutdown, 1007 for malformed frames and 1009

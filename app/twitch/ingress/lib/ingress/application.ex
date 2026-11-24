@@ -49,7 +49,8 @@ defmodule Ingress.Application do
       {Horde.DynamicSupervisor, shard_supervisor_options()},
       Platform.Nats.connection_child(:nats_connection, :gnat, Config.nats()),
       Platform.Nats.connection_child(:nats_bus_connection, :gnat_bus, Config.nats_bus()),
-      Ingress.NatsFailback,
+      # Never :gnat_bus: it dials the hub, so it would be recycled forever as displaced. Ingress.NatsHubFailback covers it.
+      {Platform.Nats.LeafFailback, connections: [:gnat]},
       Ingress.NatsHubFailback,
       Ingress.Metrics,
       # Must start before the Dispatcher and Squash, which publish through it.

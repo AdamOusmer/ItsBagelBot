@@ -18,14 +18,14 @@ defmodule Platform.Nats.Planes do
 
   def children(%{rpc: _, jetstream: _} = settings, opts \\ []) do
     for plane <- [:jetstream, :rpc] do
-      name = name(plane)
+      name = connection_name(plane)
       Nats.connection_child(name, name, Map.fetch!(settings, plane), opts)
     end
   end
 
   @doc "Captures the current connection for subscriptions, monitors and in-flight reads."
   def connection(plane) do
-    case Nats.connection_pid(name(plane)) do
+    case Nats.connection_pid(connection_name(plane)) do
       nil -> nil
       pid -> %__MODULE__{plane: plane, pid: pid}
     end
@@ -48,12 +48,12 @@ defmodule Platform.Nats.Planes do
   defp request_on(plane, connection, {subject, body, opts}),
     do: Nats.request(request_ref(plane, connection), subject, body, opts)
 
-  defp request_ref(plane, plane), do: Nats.connection_pid(name(plane))
+  defp request_ref(plane, plane), do: Nats.connection_pid(connection_name(plane))
   defp request_ref(plane, %__MODULE__{plane: plane} = connection), do: ref(connection)
 
   defp ref(%__MODULE__{pid: pid}), do: pid
-  defp ref(plane), do: name(plane)
+  defp ref(plane), do: connection_name(plane)
 
-  defp name(:rpc), do: :gnat_rpc
-  defp name(:jetstream), do: :gnat_jetstream
+  def connection_name(:rpc), do: :gnat_rpc
+  def connection_name(:jetstream), do: :gnat_jetstream
 end
