@@ -90,9 +90,17 @@ export function decode(
     return stop;
 }
 
+const decodesInstantly = (instant: boolean | undefined): boolean =>
+    !!instant || typeof IntersectionObserver === 'undefined' || prefersReducedMotion();
+
+function scrambleAll(source: Map<HTMLElement, string>, scramble: ScrambleOptions): void {
+    const glyphs = glyphsOf(scramble);
+    for (const [el, text] of source) el.textContent = scrambleFrame(Array.from(text), glyphs, 0);
+}
+
 export function observeDecode(elements: Iterable<HTMLElement>, options: DecodeOptions = {}): () => void {
     const { threshold = DEFAULT_THRESHOLD, instant, ...scramble } = options;
-    const targets = Array.from(elements);
+    const source = new Map(Array.from(elements, (el) => [el, el.textContent ?? ''] as const));
     const running = new Set<() => void>();
 
     const stopAll = (): void => {
@@ -100,30 +108,29 @@ export function observeDecode(elements: Iterable<HTMLElement>, options: DecodeOp
         running.clear();
     };
 
-    const source = new Map(targets.map((el) => [el, el.textContent ?? '']));
-
-    if (instant || typeof IntersectionObserver === 'undefined' || prefersReducedMotion()) {
-        for (const el of targets) el.textContent = source.get(el) ?? '';
+    if (decodesInstantly(instant)) {
+        for (const [el, text] of source) el.textContent = text;
         return stopAll;
     }
 
-    const glyphs = glyphsOf(scramble);
-    for (const el of targets) el.textContent = scrambleFrame(Array.from(source.get(el) ?? ''), glyphs, 0);
+    scrambleAll(source, scramble);
+
+    const start = (el: HTMLElement): void => {
+        const stop = whenShown(el, () => decode(el, source.get(el) ?? '', scramble, () => running.delete(stop)));
+        running.add(stop);
+    };
 
     const observer = new IntersectionObserver(
         (entries) => {
-            for (const entry of entries) {
-                if (!entry.isIntersecting) continue;
-                const el = entry.target as HTMLElement;
-                observer.unobserve(el);
-                const stop = whenShown(el, () => decode(el, source.get(el) ?? '', scramble, () => running.delete(stop)));
-                running.add(stop);
+            for (const entry of entries.filter((e) => e.isIntersecting)) {
+                observer.unobserve(entry.target);
+                start(entry.target as HTMLElement);
             }
         },
         { threshold },
     );
 
-    for (const el of targets) observer.observe(el);
+    for (const el of source.keys()) observer.observe(el);
 
     return () => {
         observer.disconnect();
