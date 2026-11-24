@@ -5,7 +5,6 @@ package livefeed_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"math/rand/v2"
 	"slices"
@@ -196,8 +195,8 @@ func TestStatsFramesCarryNoCreditsAndCreditFramesCarryOnlyTouchedEntries(t *test
 	var credits []map[feed.Kind][]feed.Leader
 	for _, payload := range h.bus.statePayloads() {
 		var frame struct {
-			Type feed.Frame      `json:"type"`
-			Data json.RawMessage `json:"data"`
+			Type feed.Frame       `json:"type"`
+			Data codec.RawMessage `json:"data"`
 		}
 		require.NoError(t, codec.Unmarshal(payload, &frame))
 		switch frame.Type {
