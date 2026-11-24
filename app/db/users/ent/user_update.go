@@ -575,6 +575,20 @@ func (_u *UserUpdate) SetNillableTestAccount(v *bool) *UserUpdate {
 	return _u
 }
 
+// SetAlpha sets the "alpha" field.
+func (_u *UserUpdate) SetAlpha(v bool) *UserUpdate {
+	_u.mutation.SetAlpha(v)
+	return _u
+}
+
+// SetNillableAlpha sets the "alpha" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableAlpha(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetAlpha(*v)
+	}
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *UserUpdate) SetCreatedAt(v time.Time) *UserUpdate {
 	_u.mutation.SetCreatedAt(v)
@@ -1060,6 +1074,9 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.TestAccount(); ok {
 		_spec.SetField(user.FieldTestAccount, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.Alpha(); ok {
+		_spec.SetField(user.FieldAlpha, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
@@ -1897,6 +1914,20 @@ func (_u *UserUpdateOne) SetNillableTestAccount(v *bool) *UserUpdateOne {
 	return _u
 }
 
+// SetAlpha sets the "alpha" field.
+func (_u *UserUpdateOne) SetAlpha(v bool) *UserUpdateOne {
+	_u.mutation.SetAlpha(v)
+	return _u
+}
+
+// SetNillableAlpha sets the "alpha" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableAlpha(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetAlpha(*v)
+	}
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *UserUpdateOne) SetCreatedAt(v time.Time) *UserUpdateOne {
 	_u.mutation.SetCreatedAt(v)
@@ -2412,6 +2443,9 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.TestAccount(); ok {
 		_spec.SetField(user.FieldTestAccount, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.Alpha(); ok {
+		_spec.SetField(user.FieldAlpha, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)

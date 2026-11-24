@@ -105,6 +105,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Cooldown:       engine.NewValkeyCooldown(in.vc),
 		Special:        engine.NewSpecialSet(cfg.SpecialUserIDs),
 		Pub:            in.pub,
+		GiftBundles:    engine.NewValkeyGiftBundles(in.vc),
 		Commands:       engine.NewCommandsRPC(in.nc, cfg.CommandsDashboardPrefix),
 		Quotes:         engine.NewQuotesRPC(in.nc, cfg.ModulesRPCPrefix),
 		Gossip:         gossipRPC,

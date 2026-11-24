@@ -9,6 +9,28 @@ import (
 )
 
 var (
+	// FeedTotalColumns holds the columns for the "feed_total" table.
+	FeedTotalColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "name", Type: field.TypeString, Size: 64},
+		{Name: "total", Type: field.TypeInt64, Default: 0},
+		{Name: "label", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+	}
+	// FeedTotalTable holds the schema information for the "feed_total" table.
+	FeedTotalTable = &schema.Table{
+		Name:       "feed_total",
+		Columns:    FeedTotalColumns,
+		PrimaryKey: []*schema.Column{FeedTotalColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "feedtotal_user_id_name",
+				Unique:  true,
+				Columns: []*schema.Column{FeedTotalColumns[1], FeedTotalColumns[2]},
+			},
+		},
+	}
 	// OverlayColumns holds the columns for the "overlay" table.
 	OverlayColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -18,6 +40,7 @@ var (
 		{Name: "name", Type: field.TypeString, Size: 120},
 		{Name: "token_hash", Type: field.TypeString, Unique: true, Size: 64},
 		{Name: "generation", Type: field.TypeInt, Default: 0},
+		{Name: "lapsed_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(6)"}},
 		{Name: "document", Type: field.TypeJSON},
 		{Name: "revision", Type: field.TypeUint64},
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(6)"}},
@@ -33,6 +56,32 @@ var (
 				Name:    "overlay_user_id_template",
 				Unique:  true,
 				Columns: []*schema.Column{OverlayColumns[1], OverlayColumns[3]},
+			},
+		},
+	}
+	// OverlayAssetColumns holds the columns for the "overlay_asset" table.
+	OverlayAssetColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 32},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "type", Type: field.TypeString, Size: 8},
+		{Name: "bytes", Type: field.TypeInt64},
+		{Name: "w", Type: field.TypeInt},
+		{Name: "h", Type: field.TypeInt},
+		{Name: "duration_ms", Type: field.TypeInt},
+		{Name: "sha256", Type: field.TypeString, Size: 64},
+		{Name: "display_name", Type: field.TypeString, Size: 80},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+	}
+	// OverlayAssetTable holds the schema information for the "overlay_asset" table.
+	OverlayAssetTable = &schema.Table{
+		Name:       "overlay_asset",
+		Columns:    OverlayAssetColumns,
+		PrimaryKey: []*schema.Column{OverlayAssetColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "overlayasset_user_id_sha256",
+				Unique:  true,
+				Columns: []*schema.Column{OverlayAssetColumns[1], OverlayAssetColumns[7]},
 			},
 		},
 	}
@@ -97,7 +146,9 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		FeedTotalTable,
 		OverlayTable,
+		OverlayAssetTable,
 		PoweredOverlaysTable,
 		TtsOverlayTable,
 		TtsViewerBlockTable,
@@ -105,8 +156,14 @@ var (
 )
 
 func init() {
+	FeedTotalTable.Annotation = &entsql.Annotation{
+		Table: "feed_total",
+	}
 	OverlayTable.Annotation = &entsql.Annotation{
 		Table: "overlay",
+	}
+	OverlayAssetTable.Annotation = &entsql.Annotation{
+		Table: "overlay_asset",
 	}
 	PoweredOverlaysTable.Annotation = &entsql.Annotation{
 		Charset:   "utf8mb4",

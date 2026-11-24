@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"ItsBagelBot/app/db/overlays/ent"
@@ -179,7 +181,7 @@ func (r *Overlays) writeOverlay(ctx context.Context, previous, next overlaysrpc.
 		return overlaysrpc.Overlay{}, err
 	}
 	if n == 0 {
-		return overlaysrpc.Overlay{}, ErrRevisionConflict
+		return previous, ErrRevisionConflict
 	}
 	next.Revision = previous.Revision + 1
 	change := data.OverlayChangedDTO{Overlay: next}
@@ -194,7 +196,32 @@ func (r *Overlays) DeleteOverlay(ctx context.Context, userID, id uint64) error {
 	if err != nil {
 		return err
 	}
-	return r.removeOverlay(ctx, current)
+	if err := r.removeOverlay(ctx, current); err != nil {
+		return err
+	}
+	return r.releaseAssets(ctx, userID, current)
+}
+
+// releaseAssets deletes the removed overlay's assets that no remaining overlay references.
+func (r *Overlays) releaseAssets(ctx context.Context, userID uint64, removed overlaysrpc.Overlay) error {
+	if removed.Kind != string(overlays.KindCustom) {
+		return nil
+	}
+	var doc overlays.Document
+	if err := codec.Unmarshal(removed.Document, &doc); err != nil {
+		return err
+	}
+	for _, id := range slices.Sorted(maps.Keys(doc.Assets)) {
+		err := r.DeleteAsset(ctx, userID, id)
+		if err != nil && !keepsAsset(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+func keepsAsset(err error) bool {
+	return errors.Is(err, ErrAssetInUse) || errors.Is(err, ErrNotFound)
 }
 
 func (r *Overlays) removeOverlay(ctx context.Context, current overlaysrpc.Overlay) error {

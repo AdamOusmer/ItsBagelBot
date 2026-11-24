@@ -79,6 +79,26 @@ func (_u *OverlayUpdate) AddGeneration(v int) *OverlayUpdate {
 	return _u
 }
 
+// SetLapsedAt sets the "lapsed_at" field.
+func (_u *OverlayUpdate) SetLapsedAt(v time.Time) *OverlayUpdate {
+	_u.mutation.SetLapsedAt(v)
+	return _u
+}
+
+// SetNillableLapsedAt sets the "lapsed_at" field if the given value is not nil.
+func (_u *OverlayUpdate) SetNillableLapsedAt(v *time.Time) *OverlayUpdate {
+	if v != nil {
+		_u.SetLapsedAt(*v)
+	}
+	return _u
+}
+
+// ClearLapsedAt clears the value of the "lapsed_at" field.
+func (_u *OverlayUpdate) ClearLapsedAt() *OverlayUpdate {
+	_u.mutation.ClearLapsedAt()
+	return _u
+}
+
 // SetDocument sets the "document" field.
 func (_u *OverlayUpdate) SetDocument(v jsontext.Value) *OverlayUpdate {
 	_u.mutation.SetDocument(v)
@@ -201,6 +221,12 @@ func (_u *OverlayUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedGeneration(); ok {
 		_spec.AddField(overlay.FieldGeneration, field.TypeInt, value)
 	}
+	if value, ok := _u.mutation.LapsedAt(); ok {
+		_spec.SetField(overlay.FieldLapsedAt, field.TypeTime, value)
+	}
+	if _u.mutation.LapsedAtCleared() {
+		_spec.ClearField(overlay.FieldLapsedAt, field.TypeTime)
+	}
 	if value, ok := _u.mutation.Document(); ok {
 		_spec.SetField(overlay.FieldDocument, field.TypeJSON, value)
 	}
@@ -284,6 +310,26 @@ func (_u *OverlayUpdateOne) SetNillableGeneration(v *int) *OverlayUpdateOne {
 // AddGeneration adds value to the "generation" field.
 func (_u *OverlayUpdateOne) AddGeneration(v int) *OverlayUpdateOne {
 	_u.mutation.AddGeneration(v)
+	return _u
+}
+
+// SetLapsedAt sets the "lapsed_at" field.
+func (_u *OverlayUpdateOne) SetLapsedAt(v time.Time) *OverlayUpdateOne {
+	_u.mutation.SetLapsedAt(v)
+	return _u
+}
+
+// SetNillableLapsedAt sets the "lapsed_at" field if the given value is not nil.
+func (_u *OverlayUpdateOne) SetNillableLapsedAt(v *time.Time) *OverlayUpdateOne {
+	if v != nil {
+		_u.SetLapsedAt(*v)
+	}
+	return _u
+}
+
+// ClearLapsedAt clears the value of the "lapsed_at" field.
+func (_u *OverlayUpdateOne) ClearLapsedAt() *OverlayUpdateOne {
+	_u.mutation.ClearLapsedAt()
 	return _u
 }
 
@@ -438,6 +484,12 @@ func (_u *OverlayUpdateOne) sqlSave(ctx context.Context) (_node *Overlay, err er
 	}
 	if value, ok := _u.mutation.AddedGeneration(); ok {
 		_spec.AddField(overlay.FieldGeneration, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.LapsedAt(); ok {
+		_spec.SetField(overlay.FieldLapsedAt, field.TypeTime, value)
+	}
+	if _u.mutation.LapsedAtCleared() {
+		_spec.ClearField(overlay.FieldLapsedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.Document(); ok {
 		_spec.SetField(overlay.FieldDocument, field.TypeJSON, value)

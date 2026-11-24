@@ -94,11 +94,36 @@ func TestValidateLimits(t *testing.T) {
 	}
 }
 
+const cdnURL = "https://cdn.itsbagelbot.com/"
+
+func TestValidateAssetURL(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		want overlays.Code
+	}{
+		{"cdn url", cdnURL + "u/1/a1", ""},
+		{"missing", "", overlays.CodeInvalidAsset},
+		{"other host", "https://example.com/u/1/a1", overlays.CodeInvalidAsset},
+		{"plain http", "http://cdn.itsbagelbot.com/u/1/a1", overlays.CodeInvalidAsset},
+		{"lookalike host", "https://cdn.itsbagelbot.com.example.test/a1", overlays.CodeInvalidAsset},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := customDocument()
+			doc.Assets = map[string]overlays.Asset{
+				"a1": {Type: overlays.AssetPNG, Bytes: 1024, W: 10, H: 10, SHA256: strings.Repeat("ab", 32), URL: tt.url},
+			}
+			assert.Equal(t, tt.want, codeOf(overlays.Validate(doc)))
+		})
+	}
+}
+
 func TestMigrate(t *testing.T) {
 	const hash = "abababababababababababababababababababababababababababababababab"
 	library := map[string]overlays.Asset{
-		"a1": {Type: overlays.AssetPNG, Bytes: 1024, W: 400, H: 200, SHA256: hash},
-		"a2": {Type: overlays.AssetPNG, Bytes: 2048, W: 400, H: 200, SHA256: strings.Repeat("cd", 32)},
+		"a1": {Type: overlays.AssetPNG, Bytes: 1024, W: 400, H: 200, SHA256: hash, URL: cdnURL + "u/1/a1"},
+		"a2": {Type: overlays.AssetPNG, Bytes: 2048, W: 400, H: 200, SHA256: strings.Repeat("cd", 32), URL: cdnURL + "u/1/a2"},
 	}
 	doc, err := overlays.Migrate(fixture(t, "v1.json"), library)
 	require.NoError(t, err)
@@ -155,6 +180,7 @@ func currentLimits() pinnedLimits {
 			"import_unpacked_bytes":    overlays.ImportMaxUnpackedBytes,
 			"import_entries":           overlays.ImportMaxEntries,
 			"import_ratio":             overlays.ImportMaxRatio,
+			"lapse_retention_days":     overlays.LapseRetentionDays,
 		},
 		Assets: map[string]map[string]int64{},
 	}

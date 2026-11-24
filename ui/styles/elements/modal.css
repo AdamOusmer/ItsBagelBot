@@ -74,6 +74,10 @@
     flex-wrap: wrap;
   }
 
+  .bb-modal--wide .bb-modal__card {
+    max-width: 720px;
+  }
+
   @media (max-width: 480px) {
     .bb-modal__actions {
       flex-direction: column-reverse;

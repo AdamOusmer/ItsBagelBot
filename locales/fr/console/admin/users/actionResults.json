@@ -21,6 +21,8 @@
   "active": "actif={active}",
   "testAccountDemo": "compte de test={active} (démo)",
   "testAccount": "compte de test={active}",
+  "alphaDemo": "alpha={active} (démo)",
+  "alpha": "alpha={active}",
   "restartDemo": "bot redémarré (démo uniquement, aucun abonnement réel supprimé)",
   "restartQueued": "bot redémarré (reconnexion atomique mise en file)",
   "viewAsDemo": "lien « voir comme » créé (démo)",

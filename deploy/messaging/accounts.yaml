@@ -69,6 +69,10 @@ accounts:
               from: USERS_RPC
             - service: rpc.admin.user.test.set.node.*
               from: USERS_RPC
+            - service: rpc.admin.user.alpha.set
+              from: USERS_RPC
+            - service: rpc.admin.user.alpha.set.node.*
+              from: USERS_RPC
             - service: rpc.admin.marketing.*
               from: USERS_RPC
             - service: rpc.admin.marketing.*.node.*
@@ -247,6 +251,15 @@ accounts:
                         - $JS.ACK.*.*.DATA.>
                         - dlq.data.users.deleted
                         - dlq.data.users.banned
+                        - $JS.API.STREAM.INFO.CHANNEL_EVENTS
+                        - $JS.API.STREAM.CREATE.CHANNEL_EVENTS
+                        - $JS.API.STREAM.UPDATE.CHANNEL_EVENTS
+                        - $JS.API.CONSUMER.INFO.CHANNEL_EVENTS.>
+                        - $JS.API.CONSUMER.CREATE.CHANNEL_EVENTS.>
+                        - $JS.API.CONSUMER.DURABLE.CREATE.CHANNEL_EVENTS.>
+                        - $JS.API.CONSUMER.DELETE.CHANNEL_EVENTS.>
+                        - $JS.ACK.CHANNEL_EVENTS.>
+                        - $JS.ACK.*.*.CHANNEL_EVENTS.>
                 subscribe:
                     allow:
                         - _INBOX.>
@@ -404,6 +417,7 @@ accounts:
                         - data.commands.used
                         - data.loyalty.>
                         - ingress.dlq.>
+                        - channel.events.*.*
                         - tts.jobs.*
                         - $JS.API.STREAM.INFO.TTS_JOBS
                         - $JS.API.STREAM.CREATE.TTS_JOBS
@@ -508,6 +522,10 @@ accounts:
               from: PROJECTOR_RPC
             - service: rpc.internal.projector.overlays.resolve.node.*
               from: PROJECTOR_RPC
+            - service: rpc.internal.overlays.feed.snapshot
+              from: OVERLAYS_RPC
+            - service: rpc.internal.overlays.feed.snapshot.node.*
+              from: OVERLAYS_RPC
             - stream: cache.invalidate.overlays
               from: PROJECTOR_RPC
         roles:
@@ -522,6 +540,8 @@ accounts:
                         - rpc.internal.projector.overlays.powered.resolve.node.*
                         - rpc.internal.projector.overlays.resolve
                         - rpc.internal.projector.overlays.resolve.node.*
+                        - rpc.internal.overlays.feed.snapshot
+                        - rpc.internal.overlays.feed.snapshot.node.*
                         - $JS.API.CONSUMER.CREATE.OVERLAY_TTS.*.overlay.tts.*
                         - $JS.FC.OVERLAY_TTS.*.*
                         - $JS.FC.*.*.OVERLAY_TTS.*.*
@@ -541,6 +561,7 @@ accounts:
                         - controls.tts.revoked.*
                         - cache.invalidate.overlays
                         - overlays.session.>
+                        - overlays.state.*
                         - _INBOX.>
             worker_tts_bus:
                 publish:
@@ -556,8 +577,8 @@ accounts:
                         - $JS.API.STREAM.UPDATE.OBJ_TTS_CLIPS
                         - $JS.API.STREAM.PURGE.OBJ_TTS_CLIPS
                         - $JS.API.DIRECT.GET.OBJ_TTS_CLIPS.$O.TTS_CLIPS.M.*
-                        - overlays.premium.>
-                        - overlays.standard.>
+                        - overlays.premium.tts.*
+                        - overlays.standard.tts.*
                         - $JS.API.STREAM.INFO.OVERLAYS_PREMIUM
                         - $JS.API.STREAM.CREATE.OVERLAYS_PREMIUM
                         - $JS.API.STREAM.UPDATE.OVERLAYS_PREMIUM
@@ -595,7 +616,7 @@ accounts:
                         - $JS.ACK.GOSSIP_JOBS.gossip-jobs.>
                         - $JS.ACK.*.*.GOSSIP_JOBS.gossip-jobs.>
                         - $JS.API.STREAM.INFO.GOSSIP_JOBS
-                        - overlays.premium.>
+                        - overlays.premium.tts.*
                         - $JS.API.STREAM.INFO.OVERLAYS_PREMIUM
                         - $JS.API.STREAM.INFO.OVERLAYS_STANDARD
                         - $O.OVERLAYS_MEDIA.C.*
@@ -603,6 +624,15 @@ accounts:
                         - $JS.API.STREAM.INFO.OBJ_OVERLAYS_MEDIA
                         - $JS.API.STREAM.MSG.GET.OBJ_OVERLAYS_MEDIA
                         - $JS.API.DIRECT.GET.OBJ_OVERLAYS_MEDIA.$O.OVERLAYS_MEDIA.M.*
+                subscribe:
+                    allow:
+                        - _INBOX.>
+            overlays_feed_bus:
+                publish:
+                    allow:
+                        - overlays.premium.custom.*
+                        - overlays.standard.custom.*
+                        - overlays.state.*
                 subscribe:
                     allow:
                         - _INBOX.>
@@ -830,10 +860,20 @@ accounts:
               accounts: [PROJECTOR_RPC]
             - service: rpc.internal.overlays.tts.by_hash.node.*
               accounts: [PROJECTOR_RPC]
+            - service: rpc.internal.overlays.feed.snapshot
+              accounts: [CONTROLS_GATEWAY_RPC]
+            - service: rpc.internal.overlays.feed.snapshot.node.*
+              accounts: [CONTROLS_GATEWAY_RPC]
         imports:
             - service: rpc.internal.users.voice.check
               from: USERS_RPC
             - service: rpc.internal.users.voice.check.node.*
+              from: USERS_RPC
+            - service: rpc.internal.users.alpha.check
+              from: USERS_RPC
+            - service: rpc.internal.users.alpha.check.node.*
+              from: USERS_RPC
+            - stream: cache.invalidate.status
               from: USERS_RPC
         roles:
             overlays_rpc: {}
@@ -1057,6 +1097,10 @@ accounts:
               accounts: [WORKER_RPC, GOSSIP_RPC]
             - service: rpc.internal.users.voice.record.node.*
               accounts: [WORKER_RPC, GOSSIP_RPC]
+            - service: rpc.internal.users.alpha.check
+              accounts: [OVERLAYS_RPC]
+            - service: rpc.internal.users.alpha.check.node.*
+              accounts: [OVERLAYS_RPC]
             - service: rpc.internal.users.analytics.levels
             - service: rpc.internal.users.analytics.levels.node.*
             - service: rpc.internal.users.lifecycle
@@ -1068,6 +1112,8 @@ accounts:
             - service: rpc.admin.user.*.node.*
             - service: rpc.admin.user.test.set
             - service: rpc.admin.user.test.set.node.*
+            - service: rpc.admin.user.alpha.set
+            - service: rpc.admin.user.alpha.set.node.*
             - service: rpc.delegation.>
             - service: rpc.internal.billing.apply
             - service: rpc.internal.billing.apply.node.*

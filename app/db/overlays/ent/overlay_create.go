@@ -75,6 +75,20 @@ func (_c *OverlayCreate) SetNillableGeneration(v *int) *OverlayCreate {
 	return _c
 }
 
+// SetLapsedAt sets the "lapsed_at" field.
+func (_c *OverlayCreate) SetLapsedAt(v time.Time) *OverlayCreate {
+	_c.mutation.SetLapsedAt(v)
+	return _c
+}
+
+// SetNillableLapsedAt sets the "lapsed_at" field if the given value is not nil.
+func (_c *OverlayCreate) SetNillableLapsedAt(v *time.Time) *OverlayCreate {
+	if v != nil {
+		_c.SetLapsedAt(*v)
+	}
+	return _c
+}
+
 // SetDocument sets the "document" field.
 func (_c *OverlayCreate) SetDocument(v jsontext.Value) *OverlayCreate {
 	_c.mutation.SetDocument(v)
@@ -264,6 +278,10 @@ func (_c *OverlayCreate) createSpec() (*Overlay, *sqlgraph.CreateSpec) {
 		_spec.SetField(overlay.FieldGeneration, field.TypeInt, value)
 		_node.Generation = value
 	}
+	if value, ok := _c.mutation.LapsedAt(); ok {
+		_spec.SetField(overlay.FieldLapsedAt, field.TypeTime, value)
+		_node.LapsedAt = &value
+	}
 	if value, ok := _c.mutation.Document(); ok {
 		_spec.SetField(overlay.FieldDocument, field.TypeJSON, value)
 		_node.Document = value
@@ -371,6 +389,24 @@ func (u *OverlayUpsert) UpdateGeneration() *OverlayUpsert {
 // AddGeneration adds v to the "generation" field.
 func (u *OverlayUpsert) AddGeneration(v int) *OverlayUpsert {
 	u.Add(overlay.FieldGeneration, v)
+	return u
+}
+
+// SetLapsedAt sets the "lapsed_at" field.
+func (u *OverlayUpsert) SetLapsedAt(v time.Time) *OverlayUpsert {
+	u.Set(overlay.FieldLapsedAt, v)
+	return u
+}
+
+// UpdateLapsedAt sets the "lapsed_at" field to the value that was provided on create.
+func (u *OverlayUpsert) UpdateLapsedAt() *OverlayUpsert {
+	u.SetExcluded(overlay.FieldLapsedAt)
+	return u
+}
+
+// ClearLapsedAt clears the value of the "lapsed_at" field.
+func (u *OverlayUpsert) ClearLapsedAt() *OverlayUpsert {
+	u.SetNull(overlay.FieldLapsedAt)
 	return u
 }
 
@@ -516,6 +552,27 @@ func (u *OverlayUpsertOne) AddGeneration(v int) *OverlayUpsertOne {
 func (u *OverlayUpsertOne) UpdateGeneration() *OverlayUpsertOne {
 	return u.Update(func(s *OverlayUpsert) {
 		s.UpdateGeneration()
+	})
+}
+
+// SetLapsedAt sets the "lapsed_at" field.
+func (u *OverlayUpsertOne) SetLapsedAt(v time.Time) *OverlayUpsertOne {
+	return u.Update(func(s *OverlayUpsert) {
+		s.SetLapsedAt(v)
+	})
+}
+
+// UpdateLapsedAt sets the "lapsed_at" field to the value that was provided on create.
+func (u *OverlayUpsertOne) UpdateLapsedAt() *OverlayUpsertOne {
+	return u.Update(func(s *OverlayUpsert) {
+		s.UpdateLapsedAt()
+	})
+}
+
+// ClearLapsedAt clears the value of the "lapsed_at" field.
+func (u *OverlayUpsertOne) ClearLapsedAt() *OverlayUpsertOne {
+	return u.Update(func(s *OverlayUpsert) {
+		s.ClearLapsedAt()
 	})
 }
 
@@ -834,6 +891,27 @@ func (u *OverlayUpsertBulk) AddGeneration(v int) *OverlayUpsertBulk {
 func (u *OverlayUpsertBulk) UpdateGeneration() *OverlayUpsertBulk {
 	return u.Update(func(s *OverlayUpsert) {
 		s.UpdateGeneration()
+	})
+}
+
+// SetLapsedAt sets the "lapsed_at" field.
+func (u *OverlayUpsertBulk) SetLapsedAt(v time.Time) *OverlayUpsertBulk {
+	return u.Update(func(s *OverlayUpsert) {
+		s.SetLapsedAt(v)
+	})
+}
+
+// UpdateLapsedAt sets the "lapsed_at" field to the value that was provided on create.
+func (u *OverlayUpsertBulk) UpdateLapsedAt() *OverlayUpsertBulk {
+	return u.Update(func(s *OverlayUpsert) {
+		s.UpdateLapsedAt()
+	})
+}
+
+// ClearLapsedAt clears the value of the "lapsed_at" field.
+func (u *OverlayUpsertBulk) ClearLapsedAt() *OverlayUpsertBulk {
+	return u.Update(func(s *OverlayUpsert) {
+		s.ClearLapsedAt()
 	})
 }
 

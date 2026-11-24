@@ -10435,6 +10435,7 @@ type UserMutation struct {
 	marketing_status             *user.MarketingStatus
 	marketing_status_at          *time.Time
 	test_account                 *bool
+	alpha                        *bool
 	created_at                   *time.Time
 	updated_at                   *time.Time
 	clearedFields                map[string]struct{}
@@ -11981,6 +11982,42 @@ func (m *UserMutation) ResetTestAccount() {
 	m.test_account = nil
 }
 
+// SetAlpha sets the "alpha" field.
+func (m *UserMutation) SetAlpha(b bool) {
+	m.alpha = &b
+}
+
+// Alpha returns the value of the "alpha" field in the mutation.
+func (m *UserMutation) Alpha() (r bool, exists bool) {
+	v := m.alpha
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAlpha returns the old "alpha" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldAlpha(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAlpha is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAlpha requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAlpha: %w", err)
+	}
+	return oldValue.Alpha, nil
+}
+
+// ResetAlpha resets all changes to the "alpha" field.
+func (m *UserMutation) ResetAlpha() {
+	m.alpha = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *UserMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -12573,7 +12610,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 36)
+	fields := make([]string, 0, 37)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -12676,6 +12713,9 @@ func (m *UserMutation) Fields() []string {
 	if m.test_account != nil {
 		fields = append(fields, user.FieldTestAccount)
 	}
+	if m.alpha != nil {
+		fields = append(fields, user.FieldAlpha)
+	}
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -12758,6 +12798,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.MarketingStatusAt()
 	case user.FieldTestAccount:
 		return m.TestAccount()
+	case user.FieldAlpha:
+		return m.Alpha()
 	case user.FieldCreatedAt:
 		return m.CreatedAt()
 	case user.FieldUpdatedAt:
@@ -12839,6 +12881,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldMarketingStatusAt(ctx)
 	case user.FieldTestAccount:
 		return m.OldTestAccount(ctx)
+	case user.FieldAlpha:
+		return m.OldAlpha(ctx)
 	case user.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case user.FieldUpdatedAt:
@@ -13089,6 +13133,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetTestAccount(v)
+		return nil
+	case user.FieldAlpha:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAlpha(v)
 		return nil
 	case user.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -13350,6 +13401,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldTestAccount:
 		m.ResetTestAccount()
+		return nil
+	case user.FieldAlpha:
+		m.ResetAlpha()
 		return nil
 	case user.FieldCreatedAt:
 		m.ResetCreatedAt()

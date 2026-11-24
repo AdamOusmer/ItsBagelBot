@@ -39,11 +39,45 @@
   "invalidAlign": "Choose a position on the edge.",
   "listTitle": "Your overlays",
   "addPowered": "Add Powered by Bagel",
+  "subtitle": "Browser source overlays for your stream.",
+  "menuTitle": "Overlay actions",
+  "menuFor": "More actions for {name}",
+  "emptyTitle": "Create your first overlay",
+  "emptyBody": "Pick a layout or start blank.",
+  "yours": "Your overlays",
+  "banner": {
+    "title": "Powered by Bagel",
+    "line": "A small badge slides onto your stream now and then.",
+    "add": "Add to my stream",
+    "customize": "Customize"
+  },
+  "createOverlay": "New overlay",
+  "importOverlay": "Import",
+  "edit": "Edit",
+  "editNamed": "Edit {name}",
+  "portal": {
+    "title": "New overlay",
+    "lead": "Start blank or from a layout.",
+    "back": "Back",
+    "blank": "Blank canvas",
+    "blankCaption": "Start from nothing.",
+    "caption": {
+      "alerts": "One centered alert box.",
+      "justChatting": "Chat, alerts, goal and events.",
+      "startingSoon": "A countdown timer and a label."
+    },
+    "size": "Canvas size",
+    "start": "Start",
+    "import": "Import a zip",
+    "importCaption": "Bring in an overlay export."
+  },
   "linkHidden": "Links are shown once. Replace the link to get a new one.",
   "listEmpty": "No overlays yet. Add Powered by Bagel to get a link for OBS.",
   "listFailed": "Could not update your overlays. Try again.",
   "deleteTitle": "Delete {name}?",
   "deleteBody": "Its browser source link stops working at once.",
+  "customTitle": "Custom overlays",
+  "customBack": "Back to overlays",
   "kind": {
     "system": "Included",
     "custom": "Custom"

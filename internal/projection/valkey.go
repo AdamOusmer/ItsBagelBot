@@ -50,6 +50,7 @@ type UserProjection struct {
 	LeaderboardPageHidden bool
 	SongQueuePageHidden   bool
 	CreatorCode           string
+	Alpha                 bool
 }
 
 func (v *Store) SetUser(ctx context.Context, userID uint64, u UserProjection) error {
@@ -80,7 +81,7 @@ func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, u UserProject
 	if u.Lifecycle != nil {
 		background = background && u.Lifecycle.AllowsBackground()
 	}
-	args = append(args, utils.BoolField(background), utils.BoolField(u.LeaderboardPageHidden), u.CreatorCode, utils.BoolField(u.SongQueuePageHidden), u.VoicePlan)
+	args = append(args, utils.BoolField(background), utils.BoolField(u.LeaderboardPageHidden), u.CreatorCode, utils.BoolField(u.SongQueuePageHidden), u.VoicePlan, utils.BoolField(u.Alpha))
 	return pkg_valkey.RunHashRevisionGateUser(ctx, v.primary, []string{key, watchtime.AdmissionKey(userID)}, args).Error()
 }
 

@@ -8,13 +8,16 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/db/overlays/assets"
 	"ItsBagelBot/app/db/overlays/ent"
 	"ItsBagelBot/app/db/overlays/ent/enttest"
 	"ItsBagelBot/app/db/overlays/repository"
 	"ItsBagelBot/app/db/overlays/rpc"
+	"ItsBagelBot/internal/domain/invalidate"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	overlaysrpc "ItsBagelBot/internal/domain/rpc/overlays"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
@@ -23,6 +26,8 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/objectstore/objectstoretest"
+	"ItsBagelBot/pkg/ratelimit"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/nats-io/nats.go"
@@ -30,21 +35,53 @@ import (
 	"go.uber.org/zap"
 )
 
+// lapse is how a test takes alpha away from the alpha account and tells the owner cache about it.
+type lapse struct {
+	lapsed        atomic.Bool
+	invalidations *bus.Invalidations
+}
+
+func (l *lapse) now(t *testing.T) {
+	t.Helper()
+	l.lapsed.Store(true)
+	require.NoError(t, l.invalidations.Publish(invalidate.ScopeStatus, 1001))
+}
+
 func serve(t *testing.T) *nats.Conn {
 	t.Helper()
+	nc, _ := serveLapsing(t)
+	return nc
+}
+
+func serveLapsing(t *testing.T) (*nats.Conn, *lapse) {
+	t.Helper()
+	state := &lapse{invalidations: bus.NewInvalidations(nil, "", nil)}
 	client := testdb.Open(t, testdb.Name(t.Name()), func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	nc := bustest.NATS(t)
+	objects := objectstoretest.NewMemory()
+	repo := repository.New(client, bustest.NewPublisher(), objects, "https://cdn.itsbagelbot.com")
 	w := rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop(), Queue: "test"},
-		Repo:      repository.New(client, bustest.NewPublisher()),
+		Repo:      repo,
+		Assets: &assets.Service{
+			Repo: repo, Objects: objects, Alphas: rpc.NewAlphaAccess(nc, state.invalidations),
+			Allow:  func(context.Context, ratelimit.Request) (bool, error) { return true, nil },
+			Signer: assets.Signer{Secret: []byte("test")}, PublicURL: "https://cdn.itsbagelbot.com",
+		},
 	}
 	require.NoError(t, rpc.SubscribeDashboard(w))
 	require.NoError(t, rpc.SubscribeOwner(w))
 	require.NoError(t, rpc.SubscribeTts(w))
 	require.NoError(t, rpc.SubscribeOverlays(w))
+	require.NoError(t, rpc.SubscribeAssets(w))
 	require.NoError(t, bus.Serve(w.RPCWiring, usersrpc.VoiceCheckSubject, ttsQuota))
+	require.NoError(t, bus.Serve(w.RPCWiring, usersrpc.AlphaCheckSubject, func(ctx context.Context, req usersrpc.AlphaCheckRequest) usersrpc.AlphaCheckReply {
+		reply := alphaCheck(ctx, req)
+		reply.Alpha = reply.Alpha && !state.lapsed.Load()
+		return reply
+	}))
 	require.NoError(t, nc.Flush())
-	return nc
+	return nc, state
 }
 
 func ttsQuota(_ context.Context, req usersrpc.VoiceCheckRequest) usersrpc.VoiceCheckReply {
@@ -53,6 +90,10 @@ func ttsQuota(_ context.Context, req usersrpc.VoiceCheckRequest) usersrpc.VoiceC
 		plan = voiceplan.Premium
 	}
 	return usersrpc.VoiceCheckReply{VoiceReply: usersrpc.VoiceReply{VoiceAllowance: usersrpc.VoiceAllowance{Plan: plan}}}
+}
+
+func alphaCheck(_ context.Context, req usersrpc.AlphaCheckRequest) usersrpc.AlphaCheckReply {
+	return usersrpc.AlphaCheckReply{Alpha: req.UserID == "1001"}
 }
 
 func request[Rep any](t *testing.T, nc *nats.Conn, subject string, req any) Rep {

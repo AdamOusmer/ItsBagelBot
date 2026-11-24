@@ -84,6 +84,8 @@ const (
 	FieldMarketingStatusAt = "marketing_status_at"
 	// FieldTestAccount holds the string denoting the test_account field in the database.
 	FieldTestAccount = "test_account"
+	// FieldAlpha holds the string denoting the alpha field in the database.
+	FieldAlpha = "alpha"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -210,6 +212,7 @@ var Columns = []string{
 	FieldMarketingStatus,
 	FieldMarketingStatusAt,
 	FieldTestAccount,
+	FieldAlpha,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -283,6 +286,8 @@ var (
 	TermsVersionValidator func(string) error
 	// DefaultTestAccount holds the default value on creation for the "test_account" field.
 	DefaultTestAccount bool
+	// DefaultAlpha holds the default value on creation for the "alpha" field.
+	DefaultAlpha bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -511,6 +516,11 @@ func ByMarketingStatusAt(opts ...sql.OrderTermOption) OrderOption {
 // ByTestAccount orders the results by the test_account field.
 func ByTestAccount(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldTestAccount, opts...).ToFunc()
+}
+
+// ByAlpha orders the results by the alpha field.
+func ByAlpha(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAlpha, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

@@ -87,6 +87,8 @@ type User struct {
 	MarketingStatusAt *time.Time `json:"marketing_status_at,omitempty"`
 	// TestAccount holds the value of the "test_account" field.
 	TestAccount bool `json:"test_account,omitempty"`
+	// Alpha holds the value of the "alpha" field.
+	Alpha bool `json:"alpha,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -210,7 +212,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case user.FieldEmailEnc, user.FieldLifecycle:
 			values[i] = new([]byte)
-		case user.FieldIsActive, user.FieldLifecycleProjectionPending, user.FieldLifecycleMigrationPending, user.FieldBanned, user.FieldCustomCursor, user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldSongqueuePageHidden, user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldOnboarded, user.FieldTestAccount:
+		case user.FieldIsActive, user.FieldLifecycleProjectionPending, user.FieldLifecycleMigrationPending, user.FieldBanned, user.FieldCustomCursor, user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldSongqueuePageHidden, user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldOnboarded, user.FieldTestAccount, user.FieldAlpha:
 			values[i] = new(sql.NullBool)
 		case user.FieldID, user.FieldStateRevision, user.FieldGiftsSent:
 			values[i] = new(sql.NullInt64)
@@ -454,6 +456,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.TestAccount = value.Bool
 			}
+		case user.FieldAlpha:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field alpha", values[i])
+			} else if value.Valid {
+				_m.Alpha = value.Bool
+			}
 		case user.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -664,6 +672,9 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("test_account=")
 	builder.WriteString(fmt.Sprintf("%v", _m.TestAccount))
+	builder.WriteString(", ")
+	builder.WriteString("alpha=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Alpha))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "kind": "custom",
+  "id": "credits",
+  "name": "Credits",
+  "width": 1920,
+  "height": 1080,
+  "rev": 0,
+  "widgets": [
+    {
+      "id": "w1",
+      "name": "Credits",
+      "kind": "credits",
+      "x": 360,
+      "y": 0,
+      "w": 1200,
+      "h": 1080,
+      "rotation": 0,
+      "opacity": 1,
+      "hidden": false,
+      "locked": false,
+      "settings": {
+        "speed": 45,
+        "loop": false,
+        "style": {
+          "size": 48,
+          "weight": 700,
+          "color": "#ffffff"
+        },
+        "headers": {
+          "follow": "Followers",
+          "sub": "Subscribers",
+          "gift_sub": "Gifters",
+          "cheer": "Cheerers",
+          "raid": "Raiders",
+          "redemption": "Redeemers"
+        }
+      }
+    }
+  ]
+}

@@ -40,7 +40,7 @@ defmodule ControlsGateway.Overlay.Nats do
   end
 
   defp verdict(_overlay, false), do: {:denied, :not_found}
-  defp verdict(%{allowed: false}, true), do: {:denied, :premium_required}
+  defp verdict(%{allowed: false}, true), do: {:denied, :alpha_required}
   defp verdict(overlay, true), do: {:ok, overlay}
 
   defp overlay(reply) do

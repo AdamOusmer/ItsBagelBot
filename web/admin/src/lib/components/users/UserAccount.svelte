@@ -23,18 +23,26 @@
   const canGrant = $derived(can('users.grant'));
 </script>
 
-{#if can('users.test')}
+{#snippet flagSection(title: string, hint: string, action: string, current: boolean | undefined, labelOn: string, labelOff: string)}
   <Stack as="section" gap={2}>
-    <Heading level={3} variant="label">{t('admin.users.testAccountTitle')}</Heading>
-    <Text size="xs" tone="muted">{t('admin.users.testAccountHint')}</Text>
-    <form class="test-form" method="POST" action="?/setTestAccount" use:enhance>
+    <Heading level={3} variant="label">{title}</Heading>
+    <Text size="xs" tone="muted">{hint}</Text>
+    <form method="POST" action="?/{action}" use:enhance>
       <input type="hidden" name="user_id" value={user.id} />
-      <input type="hidden" name="active" value={user.test_account ? 'false' : 'true'} />
-      <Button variant="ghost" type="submit" disabled={locked} busy={busy === 'setTestAccount'}>
-        <bb-fit><span data-fit>{user.test_account ? t('admin.users.markOrdinary') : t('admin.users.markTest')}</span></bb-fit>
+      <input type="hidden" name="active" value={current ? 'false' : 'true'} />
+      <Button variant="ghost" type="submit" disabled={locked} busy={busy === action}>
+        <bb-fit><span data-fit>{current ? labelOn : labelOff}</span></bb-fit>
       </Button>
     </form>
   </Stack>
+{/snippet}
+
+{#if can('users.test')}
+  {@render flagSection(t('admin.users.testAccountTitle'), t('admin.users.testAccountHint'), 'setTestAccount', user.test_account, t('admin.users.markOrdinary'), t('admin.users.markTest'))}
+{/if}
+
+{#if can('users.alpha')}
+  {@render flagSection(t('admin.users.alphaTitle'), t('admin.users.alphaHint'), 'setAlpha', user.alpha, t('admin.users.unmarkAlpha'), t('admin.users.markAlpha'))}
 {/if}
 
 {#if canGrant}

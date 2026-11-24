@@ -15,6 +15,7 @@ export const ROLE_FOR = {
   'users.ban': 'moderator',
   'users.grant': 'admin',
   'users.test': 'admin',
+  'users.alpha': 'admin',
   'users.token': 'admin',
   'users.delete': 'owner',
   'users.impersonate': 'admin',

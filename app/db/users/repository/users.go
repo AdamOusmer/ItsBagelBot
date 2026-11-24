@@ -50,30 +50,30 @@ const (
 
 // UserView is cached in process, so it must carry no sensitive fields.
 type UserView struct {
-	Lifecycle                 *lifecycle.State `json:"lifecycle,omitempty"`
-	StateRevision             int64            `json:"state_revision,omitempty"`
-	ID                        uint64           `json:"id"`
-	AccountCreatedAt          int64            `json:"account_created_at,omitempty"`
-	Username                  string           `json:"username"`
-	DisplayName               string           `json:"display_name"`
-	IsActive                  bool             `json:"is_active"`
-	Status                    string           `json:"status"`
-	Banned                    bool             `json:"banned"`
-	Locale                    string           `json:"locale"`
-	CustomCursor              bool             `json:"custom_cursor"`
-	CommandsPageHidden        bool             `json:"commands_page_hidden"`
-	LeaderboardPageHidden     bool             `json:"leaderboard_page_hidden"`
-	SongQueuePageHidden       bool             `json:"songqueue_page_hidden"`
-	CreatorCode               *string          `json:"creator_code,omitempty"`
-	SubscriptionSource        string           `json:"subscription_source"`
-	SubscriptionExpiresAt     *time.Time       `json:"subscription_expires_at,omitempty"`
-	SubscriptionRef           *string          `json:"subscription_ref,omitempty"`
-	SubscriptionCancelPending bool             `json:"subscription_cancel_pending"`
-	SubscriptionPaymentFailed bool             `json:"subscription_payment_failed"`
-	Onboarded                 bool             `json:"onboarded"`
-
-	TermsVersion    string                  `json:"terms_version"`
-	MarketingStatus consent.MarketingStatus `json:"marketing_status"`
+	Lifecycle                 *lifecycle.State        `json:"lifecycle,omitempty"`
+	StateRevision             int64                   `json:"state_revision,omitempty"`
+	ID                        uint64                  `json:"id"`
+	AccountCreatedAt          int64                   `json:"account_created_at,omitempty"`
+	Username                  string                  `json:"username"`
+	DisplayName               string                  `json:"display_name"`
+	IsActive                  bool                    `json:"is_active"`
+	Status                    string                  `json:"status"`
+	Banned                    bool                    `json:"banned"`
+	Locale                    string                  `json:"locale"`
+	CustomCursor              bool                    `json:"custom_cursor"`
+	CommandsPageHidden        bool                    `json:"commands_page_hidden"`
+	LeaderboardPageHidden     bool                    `json:"leaderboard_page_hidden"`
+	SongQueuePageHidden       bool                    `json:"songqueue_page_hidden"`
+	CreatorCode               *string                 `json:"creator_code,omitempty"`
+	SubscriptionSource        string                  `json:"subscription_source"`
+	SubscriptionExpiresAt     *time.Time              `json:"subscription_expires_at,omitempty"`
+	SubscriptionRef           *string                 `json:"subscription_ref,omitempty"`
+	SubscriptionCancelPending bool                    `json:"subscription_cancel_pending"`
+	SubscriptionPaymentFailed bool                    `json:"subscription_payment_failed"`
+	Onboarded                 bool                    `json:"onboarded"`
+	Alpha                     bool                    `json:"alpha"`
+	TermsVersion              string                  `json:"terms_version"`
+	MarketingStatus           consent.MarketingStatus `json:"marketing_status"`
 }
 
 type Users struct {
@@ -287,6 +287,7 @@ func userView(u *ent.User) UserView {
 		SubscriptionCancelPending: u.SubscriptionCancelPending,
 		SubscriptionPaymentFailed: u.SubscriptionPaymentFailed,
 		Onboarded:                 u.Onboarded,
+		Alpha:                     u.Alpha,
 		TermsVersion:              u.TermsVersion,
 		MarketingStatus:           consent.MarketingStatus(u.MarketingStatus),
 	}
@@ -476,6 +477,7 @@ func changedDTO(view UserView) data.UserChangedDTO {
 		LeaderboardPageHidden: view.LeaderboardPageHidden,
 		SongQueuePageHidden:   view.SongQueuePageHidden,
 		CreatorCode:           view.CreatorCodeText(),
+		Alpha:                 view.Alpha,
 	}
 }
 

@@ -10,7 +10,8 @@
     "account_uploads_per_hour": 60,
     "import_unpacked_bytes": 524288000,
     "import_entries": 300,
-    "import_ratio": 50
+    "import_ratio": 50,
+    "lapse_retention_days": 60
   },
   "assets": {
     "png": {

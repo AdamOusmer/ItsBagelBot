@@ -73,6 +73,7 @@
       "w": 400,
       "h": 200,
       "duration_ms": 0,
+      "url": "https://cdn.itsbagelbot.com/u/1/asset",
       "sha256": "abababababababababababababababababababababababababababababababab"
     },
     "a2": {
@@ -81,6 +82,7 @@
       "w": 1920,
       "h": 1080,
       "duration_ms": 20000,
+      "url": "https://cdn.itsbagelbot.com/u/1/asset",
       "sha256": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
     },
     "a3": {
@@ -89,6 +91,7 @@
       "w": 0,
       "h": 0,
       "duration_ms": 0,
+      "url": "https://cdn.itsbagelbot.com/u/1/asset",
       "sha256": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
     }
   }

@@ -576,12 +576,16 @@ func init() {
 	userDescTestAccount := userFields[34].Descriptor()
 	// user.DefaultTestAccount holds the default value on creation for the test_account field.
 	user.DefaultTestAccount = userDescTestAccount.Default.(bool)
+	// userDescAlpha is the schema descriptor for alpha field.
+	userDescAlpha := userFields[35].Descriptor()
+	// user.DefaultAlpha holds the default value on creation for the alpha field.
+	user.DefaultAlpha = userDescAlpha.Default.(bool)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[35].Descriptor()
+	userDescCreatedAt := userFields[36].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[36].Descriptor()
+	userDescUpdatedAt := userFields[37].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

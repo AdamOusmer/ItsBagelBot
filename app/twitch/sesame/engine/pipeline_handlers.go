@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -35,8 +36,9 @@ func (p *Pipeline) dispatch(ctx context.Context, mctx *module.Context, views map
 }
 
 func (p *Pipeline) runHandlers(ctx context.Context, views map[string]projection.ModuleView, mctx *module.Context, emit module.Emit) {
-	ctx = p.prepareHandlerEffects(ctx, mctx, views)
 	eventType := mctx.Env.Type
+	p.loadAlpha(ctx, mctx)
+	ctx = p.prepareHandlerEffects(ctx, mctx, views)
 	switch eventType {
 	case "channel.cheer", "channel.subscription.message", RedemptionAddType:
 		cfg := automodConfigFrom(views, false)
@@ -49,6 +51,21 @@ func (p *Pipeline) runHandlers(ctx context.Context, views map[string]projection.
 		h := boundHandler{m: m, handle: m.Events[eventType], ordinal: ordinal}
 		p.runHandler(ctx, mctx, &h, emit)
 	}
+}
+
+func (p *Pipeline) loadAlpha(ctx context.Context, mctx *module.Context) {
+	if !slices.ContainsFunc(p.registry.For(mctx.Env.Type), func(m module.Module) bool { return m.Alpha }) {
+		return
+	}
+	user, err := p.proj.User(ctx, mctx.BroadcasterID)
+	if err != nil {
+		p.log.Error("alpha lookup failed", module.BIDField(mctx.BroadcasterID), zap.Error(err))
+		notice(ctx, err)
+		idempotency.Fail(ctx, err)
+		mctx.Failure = err
+		return
+	}
+	mctx.Alpha = user.IsAlpha()
 }
 
 func (p *Pipeline) runHandler(ctx context.Context, mctx *module.Context, h *boundHandler, emit module.Emit) {
@@ -135,7 +152,7 @@ func (p *Pipeline) enabled(m module.Module, views map[string]projection.ModuleVi
 		mctx.Config = nil
 		return mctx.Env.Origin == "trial"
 	}
-	if m.Beta && !mctx.Regress.IsPremium() {
+	if lacksAccess(m, mctx) {
 		return false
 	}
 	switch m.Kind {
@@ -151,6 +168,13 @@ func (p *Pipeline) enabled(m module.Module, views map[string]projection.ModuleVi
 	default:
 		return false
 	}
+}
+
+func lacksAccess(m module.Module, mctx *module.Context) bool {
+	if m.Beta && !mctx.Regress.IsPremium() {
+		return true
+	}
+	return m.Alpha && !mctx.Alpha
 }
 
 func enabledByView(mv projection.ModuleView, ok bool, mctx *module.Context, kind module.Kind) bool {

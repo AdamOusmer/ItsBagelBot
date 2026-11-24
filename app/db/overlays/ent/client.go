@@ -11,7 +11,9 @@ import (
 
 	"ItsBagelBot/app/db/overlays/ent/migrate"
 
+	"ItsBagelBot/app/db/overlays/ent/feedtotal"
 	"ItsBagelBot/app/db/overlays/ent/overlay"
+	"ItsBagelBot/app/db/overlays/ent/overlayasset"
 	"ItsBagelBot/app/db/overlays/ent/poweredoverlay"
 	"ItsBagelBot/app/db/overlays/ent/ttsoverlay"
 	"ItsBagelBot/app/db/overlays/ent/ttsviewerblock"
@@ -26,8 +28,12 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// FeedTotal is the client for interacting with the FeedTotal builders.
+	FeedTotal *FeedTotalClient
 	// Overlay is the client for interacting with the Overlay builders.
 	Overlay *OverlayClient
+	// OverlayAsset is the client for interacting with the OverlayAsset builders.
+	OverlayAsset *OverlayAssetClient
 	// PoweredOverlay is the client for interacting with the PoweredOverlay builders.
 	PoweredOverlay *PoweredOverlayClient
 	// TtsOverlay is the client for interacting with the TtsOverlay builders.
@@ -45,7 +51,9 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.FeedTotal = NewFeedTotalClient(c.config)
 	c.Overlay = NewOverlayClient(c.config)
+	c.OverlayAsset = NewOverlayAssetClient(c.config)
 	c.PoweredOverlay = NewPoweredOverlayClient(c.config)
 	c.TtsOverlay = NewTtsOverlayClient(c.config)
 	c.TtsViewerBlock = NewTtsViewerBlockClient(c.config)
@@ -141,7 +149,9 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	return &Tx{
 		ctx:            ctx,
 		config:         cfg,
+		FeedTotal:      NewFeedTotalClient(cfg),
 		Overlay:        NewOverlayClient(cfg),
+		OverlayAsset:   NewOverlayAssetClient(cfg),
 		PoweredOverlay: NewPoweredOverlayClient(cfg),
 		TtsOverlay:     NewTtsOverlayClient(cfg),
 		TtsViewerBlock: NewTtsViewerBlockClient(cfg),
@@ -164,7 +174,9 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	return &Tx{
 		ctx:            ctx,
 		config:         cfg,
+		FeedTotal:      NewFeedTotalClient(cfg),
 		Overlay:        NewOverlayClient(cfg),
+		OverlayAsset:   NewOverlayAssetClient(cfg),
 		PoweredOverlay: NewPoweredOverlayClient(cfg),
 		TtsOverlay:     NewTtsOverlayClient(cfg),
 		TtsViewerBlock: NewTtsViewerBlockClient(cfg),
@@ -174,7 +186,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Overlay.
+//		FeedTotal.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -196,26 +208,34 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.Overlay.Use(hooks...)
-	c.PoweredOverlay.Use(hooks...)
-	c.TtsOverlay.Use(hooks...)
-	c.TtsViewerBlock.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.FeedTotal, c.Overlay, c.OverlayAsset, c.PoweredOverlay, c.TtsOverlay,
+		c.TtsViewerBlock,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.Overlay.Intercept(interceptors...)
-	c.PoweredOverlay.Intercept(interceptors...)
-	c.TtsOverlay.Intercept(interceptors...)
-	c.TtsViewerBlock.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.FeedTotal, c.Overlay, c.OverlayAsset, c.PoweredOverlay, c.TtsOverlay,
+		c.TtsViewerBlock,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *FeedTotalMutation:
+		return c.FeedTotal.mutate(ctx, m)
 	case *OverlayMutation:
 		return c.Overlay.mutate(ctx, m)
+	case *OverlayAssetMutation:
+		return c.OverlayAsset.mutate(ctx, m)
 	case *PoweredOverlayMutation:
 		return c.PoweredOverlay.mutate(ctx, m)
 	case *TtsOverlayMutation:
@@ -224,6 +244,139 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.TtsViewerBlock.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// FeedTotalClient is a client for the FeedTotal schema.
+type FeedTotalClient struct {
+	config
+}
+
+// NewFeedTotalClient returns a client for the FeedTotal from the given config.
+func NewFeedTotalClient(c config) *FeedTotalClient {
+	return &FeedTotalClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `feedtotal.Hooks(f(g(h())))`.
+func (c *FeedTotalClient) Use(hooks ...Hook) {
+	c.hooks.FeedTotal = append(c.hooks.FeedTotal, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `feedtotal.Intercept(f(g(h())))`.
+func (c *FeedTotalClient) Intercept(interceptors ...Interceptor) {
+	c.inters.FeedTotal = append(c.inters.FeedTotal, interceptors...)
+}
+
+// Create returns a builder for creating a FeedTotal entity.
+func (c *FeedTotalClient) Create() *FeedTotalCreate {
+	mutation := newFeedTotalMutation(c.config, OpCreate)
+	return &FeedTotalCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of FeedTotal entities.
+func (c *FeedTotalClient) CreateBulk(builders ...*FeedTotalCreate) *FeedTotalCreateBulk {
+	return &FeedTotalCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *FeedTotalClient) MapCreateBulk(slice any, setFunc func(*FeedTotalCreate, int)) *FeedTotalCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &FeedTotalCreateBulk{err: fmt.Errorf("calling to FeedTotalClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*FeedTotalCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &FeedTotalCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for FeedTotal.
+func (c *FeedTotalClient) Update() *FeedTotalUpdate {
+	mutation := newFeedTotalMutation(c.config, OpUpdate)
+	return &FeedTotalUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *FeedTotalClient) UpdateOne(_m *FeedTotal) *FeedTotalUpdateOne {
+	mutation := newFeedTotalMutation(c.config, OpUpdateOne, withFeedTotal(_m))
+	return &FeedTotalUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *FeedTotalClient) UpdateOneID(id int) *FeedTotalUpdateOne {
+	mutation := newFeedTotalMutation(c.config, OpUpdateOne, withFeedTotalID(id))
+	return &FeedTotalUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for FeedTotal.
+func (c *FeedTotalClient) Delete() *FeedTotalDelete {
+	mutation := newFeedTotalMutation(c.config, OpDelete)
+	return &FeedTotalDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *FeedTotalClient) DeleteOne(_m *FeedTotal) *FeedTotalDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *FeedTotalClient) DeleteOneID(id int) *FeedTotalDeleteOne {
+	builder := c.Delete().Where(feedtotal.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &FeedTotalDeleteOne{builder}
+}
+
+// Query returns a query builder for FeedTotal.
+func (c *FeedTotalClient) Query() *FeedTotalQuery {
+	return &FeedTotalQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeFeedTotal},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a FeedTotal entity by its id.
+func (c *FeedTotalClient) Get(ctx context.Context, id int) (*FeedTotal, error) {
+	return c.Query().Where(feedtotal.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *FeedTotalClient) GetX(ctx context.Context, id int) *FeedTotal {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *FeedTotalClient) Hooks() []Hook {
+	return c.hooks.FeedTotal
+}
+
+// Interceptors returns the client interceptors.
+func (c *FeedTotalClient) Interceptors() []Interceptor {
+	return c.inters.FeedTotal
+}
+
+func (c *FeedTotalClient) mutate(ctx context.Context, m *FeedTotalMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&FeedTotalCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&FeedTotalUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&FeedTotalUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&FeedTotalDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown FeedTotal mutation op: %q", m.Op())
 	}
 }
 
@@ -357,6 +510,139 @@ func (c *OverlayClient) mutate(ctx context.Context, m *OverlayMutation) (Value, 
 		return (&OverlayDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Overlay mutation op: %q", m.Op())
+	}
+}
+
+// OverlayAssetClient is a client for the OverlayAsset schema.
+type OverlayAssetClient struct {
+	config
+}
+
+// NewOverlayAssetClient returns a client for the OverlayAsset from the given config.
+func NewOverlayAssetClient(c config) *OverlayAssetClient {
+	return &OverlayAssetClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `overlayasset.Hooks(f(g(h())))`.
+func (c *OverlayAssetClient) Use(hooks ...Hook) {
+	c.hooks.OverlayAsset = append(c.hooks.OverlayAsset, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `overlayasset.Intercept(f(g(h())))`.
+func (c *OverlayAssetClient) Intercept(interceptors ...Interceptor) {
+	c.inters.OverlayAsset = append(c.inters.OverlayAsset, interceptors...)
+}
+
+// Create returns a builder for creating a OverlayAsset entity.
+func (c *OverlayAssetClient) Create() *OverlayAssetCreate {
+	mutation := newOverlayAssetMutation(c.config, OpCreate)
+	return &OverlayAssetCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of OverlayAsset entities.
+func (c *OverlayAssetClient) CreateBulk(builders ...*OverlayAssetCreate) *OverlayAssetCreateBulk {
+	return &OverlayAssetCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *OverlayAssetClient) MapCreateBulk(slice any, setFunc func(*OverlayAssetCreate, int)) *OverlayAssetCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &OverlayAssetCreateBulk{err: fmt.Errorf("calling to OverlayAssetClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*OverlayAssetCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &OverlayAssetCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for OverlayAsset.
+func (c *OverlayAssetClient) Update() *OverlayAssetUpdate {
+	mutation := newOverlayAssetMutation(c.config, OpUpdate)
+	return &OverlayAssetUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *OverlayAssetClient) UpdateOne(_m *OverlayAsset) *OverlayAssetUpdateOne {
+	mutation := newOverlayAssetMutation(c.config, OpUpdateOne, withOverlayAsset(_m))
+	return &OverlayAssetUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *OverlayAssetClient) UpdateOneID(id string) *OverlayAssetUpdateOne {
+	mutation := newOverlayAssetMutation(c.config, OpUpdateOne, withOverlayAssetID(id))
+	return &OverlayAssetUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for OverlayAsset.
+func (c *OverlayAssetClient) Delete() *OverlayAssetDelete {
+	mutation := newOverlayAssetMutation(c.config, OpDelete)
+	return &OverlayAssetDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *OverlayAssetClient) DeleteOne(_m *OverlayAsset) *OverlayAssetDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *OverlayAssetClient) DeleteOneID(id string) *OverlayAssetDeleteOne {
+	builder := c.Delete().Where(overlayasset.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &OverlayAssetDeleteOne{builder}
+}
+
+// Query returns a query builder for OverlayAsset.
+func (c *OverlayAssetClient) Query() *OverlayAssetQuery {
+	return &OverlayAssetQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeOverlayAsset},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a OverlayAsset entity by its id.
+func (c *OverlayAssetClient) Get(ctx context.Context, id string) (*OverlayAsset, error) {
+	return c.Query().Where(overlayasset.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *OverlayAssetClient) GetX(ctx context.Context, id string) *OverlayAsset {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *OverlayAssetClient) Hooks() []Hook {
+	return c.hooks.OverlayAsset
+}
+
+// Interceptors returns the client interceptors.
+func (c *OverlayAssetClient) Interceptors() []Interceptor {
+	return c.inters.OverlayAsset
+}
+
+func (c *OverlayAssetClient) mutate(ctx context.Context, m *OverlayAssetMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&OverlayAssetCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&OverlayAssetUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&OverlayAssetUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&OverlayAssetDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown OverlayAsset mutation op: %q", m.Op())
 	}
 }
 
@@ -762,9 +1048,11 @@ func (c *TtsViewerBlockClient) mutate(ctx context.Context, m *TtsViewerBlockMuta
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Overlay, PoweredOverlay, TtsOverlay, TtsViewerBlock []ent.Hook
+		FeedTotal, Overlay, OverlayAsset, PoweredOverlay, TtsOverlay,
+		TtsViewerBlock []ent.Hook
 	}
 	inters struct {
-		Overlay, PoweredOverlay, TtsOverlay, TtsViewerBlock []ent.Interceptor
+		FeedTotal, Overlay, OverlayAsset, PoweredOverlay, TtsOverlay,
+		TtsViewerBlock []ent.Interceptor
 	}
 )

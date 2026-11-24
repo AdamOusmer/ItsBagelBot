@@ -24,7 +24,7 @@ const realAccountsYAML = "../../deploy/messaging/accounts.yaml"
 
 const (
 	wantAccounts  = 18
-	wantRoles     = 31
+	wantRoles     = 32
 	wantKeySeeds  = 2 + wantAccounts + wantRoles
 	wantRoleCreds = wantRoles - 1
 )
@@ -178,10 +178,14 @@ func assertActivations(t *testing.T, keys *natsacl.Keys) {
 			"PROJECTOR_RPC rpc.internal.projector.overlays.powered.resolve.node.*",
 			"PROJECTOR_RPC rpc.internal.projector.overlays.resolve",
 			"PROJECTOR_RPC rpc.internal.projector.overlays.resolve.node.*",
+			"OVERLAYS_RPC rpc.internal.overlays.feed.snapshot",
+			"OVERLAYS_RPC rpc.internal.overlays.feed.snapshot.node.*",
 		},
 		"OVERLAYS_RPC": {
 			"USERS_RPC rpc.internal.users.voice.check",
 			"USERS_RPC rpc.internal.users.voice.check.node.*",
+			"USERS_RPC rpc.internal.users.alpha.check",
+			"USERS_RPC rpc.internal.users.alpha.check.node.*",
 		},
 		"PROJECTOR_RPC": {
 			"OVERLAYS_RPC rpc.internal.overlays.tts.by_hash",

@@ -30,6 +30,7 @@ type AdminRequest struct {
 	OnlyLive     bool     `json:"only_live,omitempty"`
 	LiveIDs      []uint64 `json:"live_ids,omitempty"`
 	TestAccount  bool     `json:"test_account,omitempty"`
+	Alpha        bool     `json:"alpha,omitempty"`
 	Metrics      []string `json:"metrics,omitempty"`
 	Window       string   `json:"window,omitempty"`
 	Reset        bool     `json:"reset,omitempty"`
@@ -50,6 +51,7 @@ type AdminUserView struct {
 	SubscriptionRef           *string          `json:"subscription_ref,omitempty"`
 	SubscriptionCancelPending bool             `json:"subscription_cancel_pending"`
 	TestAccount               bool             `json:"test_account"`
+	Alpha                     bool             `json:"alpha"`
 	Onboarded                 bool             `json:"onboarded"`
 	CreatedAt                 time.Time        `json:"created_at"`
 	UpdatedAt                 time.Time        `json:"updated_at"`

@@ -89,7 +89,12 @@ const liveLoad = (async ({ locals: { session } }) => {
   return { readOnly: false, previewOrigin, overlays, powered: overlays && (await loadPowered(session, overlays)) };
 }) satisfies PageServerLoad;
 
-export const load: PageServerLoad = DEMO ? demoLoad : liveLoad;
+const baseLoad = DEMO ? demoLoad : liveLoad;
+
+export const load: PageServerLoad = async (event) => {
+  if ((await event.parent()).isAlpha) throw redirect(302, '/overlays/hub');
+  return baseLoad(event);
+};
 
 async function linkAction(session: Session, locale: Locale, run: () => Promise<OverlayView>, audit: string) {
   try {

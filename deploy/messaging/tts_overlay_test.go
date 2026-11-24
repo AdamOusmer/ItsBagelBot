@@ -61,6 +61,8 @@ func TestTTSGrantIsolation(t *testing.T) {
 		{"rpc.internal.overlays.tts.by_hash.node.n1", "overlays_rpc", projector},
 		{"rpc.internal.projector.overlays.resolve", "projector_rpc", gateway},
 		{"rpc.internal.projector.overlays.resolve.node.n1", "projector_rpc", gateway},
+		{"rpc.internal.overlays.feed.snapshot", "overlays_rpc", gateway},
+		{"rpc.internal.overlays.feed.snapshot.node.n1", "overlays_rpc", gateway},
 	} {
 		assertTTSGrant(t, catalog, grant)
 	}
@@ -91,7 +93,7 @@ func TestTTSOverlayReaderPermissionsAreExact(t *testing.T) {
 	account := committedACL(t).Accounts[controlsGatewayAccount]
 	assert.NotNil(t, account.JetStream)
 	assert.Empty(t, account.Exports)
-	require.Len(t, account.Imports, 10)
+	require.Len(t, account.Imports, 12)
 	assert.Contains(t, account.Imports, natsacl.ImportSpec{Stream: "cache.invalidate.overlays", From: "PROJECTOR_RPC"})
 
 	role := account.Roles["controls_gateway_rpc"]
@@ -105,6 +107,8 @@ func TestTTSOverlayReaderPermissionsAreExact(t *testing.T) {
 			"rpc.internal.projector.overlays.powered.resolve.node.*",
 			"rpc.internal.projector.overlays.resolve",
 			"rpc.internal.projector.overlays.resolve.node.*",
+			"rpc.internal.overlays.feed.snapshot",
+			"rpc.internal.overlays.feed.snapshot.node.*",
 			"$JS.API.CONSUMER.CREATE.OVERLAY_TTS.*.overlay.tts.*",
 			"$JS.FC.OVERLAY_TTS.*.*",
 			"$JS.FC.*.*.OVERLAY_TTS.*.*",
@@ -120,7 +124,7 @@ func TestTTSOverlayReaderPermissionsAreExact(t *testing.T) {
 			"overlays.session.>",
 			"$JS.API.STREAM.MSG.GET.OBJ_OVERLAYS_MEDIA",
 		}},
-		Subscribe: &natsacl.PermissionSpec{Allow: []string{"controls.tts.revoked.*", "cache.invalidate.overlays", "overlays.session.>", "_INBOX.>"}},
+		Subscribe: &natsacl.PermissionSpec{Allow: []string{"controls.tts.revoked.*", "cache.invalidate.overlays", "overlays.session.>", "overlays.state.*", "_INBOX.>"}},
 	}, role)
 }
 
@@ -140,8 +144,8 @@ func TestTTSWriterPermissionsAreExact(t *testing.T) {
 			"$JS.API.STREAM.UPDATE.OBJ_TTS_CLIPS",
 			"$JS.API.STREAM.PURGE.OBJ_TTS_CLIPS",
 			"$JS.API.DIRECT.GET.OBJ_TTS_CLIPS.$O.TTS_CLIPS.M.*",
-			"overlays.premium.>",
-			"overlays.standard.>",
+			"overlays.premium.tts.*",
+			"overlays.standard.tts.*",
 			"$JS.API.STREAM.INFO.OVERLAYS_PREMIUM",
 			"$JS.API.STREAM.CREATE.OVERLAYS_PREMIUM",
 			"$JS.API.STREAM.UPDATE.OVERLAYS_PREMIUM",
@@ -176,6 +180,14 @@ func TestTTSWriterPermissionsAreExact(t *testing.T) {
 	}
 }
 
+func TestOverlayFeedPermissionsAreExact(t *testing.T) {
+	role := committedACL(t).Accounts[controlsGatewayAccount].Roles["overlays_feed_bus"]
+	assert.Equal(t, natsacl.RoleSpec{
+		Publish:   &natsacl.PermissionSpec{Allow: []string{"overlays.premium.custom.*", "overlays.standard.custom.*", "overlays.state.*"}},
+		Subscribe: &natsacl.PermissionSpec{Allow: []string{"_INBOX.>"}},
+	}, role)
+}
+
 func TestGossipJobsPermissionsAreExact(t *testing.T) {
 	role := committedACL(t).Accounts[controlsGatewayAccount].Roles["gossip_jobs_bus"]
 	assert.Equal(t, natsacl.RoleSpec{
@@ -185,7 +197,7 @@ func TestGossipJobsPermissionsAreExact(t *testing.T) {
 			"$JS.ACK.GOSSIP_JOBS.gossip-jobs.>",
 			"$JS.ACK.*.*.GOSSIP_JOBS.gossip-jobs.>",
 			"$JS.API.STREAM.INFO.GOSSIP_JOBS",
-			"overlays.premium.>",
+			"overlays.premium.tts.*",
 			"$JS.API.STREAM.INFO.OVERLAYS_PREMIUM",
 			"$JS.API.STREAM.INFO.OVERLAYS_STANDARD",
 			"$O.OVERLAYS_MEDIA.C.*",
