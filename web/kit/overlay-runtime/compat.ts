@@ -14,7 +14,9 @@ const subscription = (event: OverlayEvent): [string, Detail] => [
   { name: who(event), amount: event.months || 1, tier: event.tier ?? '', message: note(event) }
 ];
 
-const listeners: Partial<Record<EventKind, (event: OverlayEvent) => [string, Detail]>> = {
+type Listener = (event: OverlayEvent) => [string, Detail];
+
+const listeners: Partial<Record<EventKind, Listener>> = {
   follow: (event) => ['follower-latest', { name: who(event) }],
   sub: subscription,
   resub: subscription,
@@ -66,12 +68,12 @@ function sessionData(stats: FeedStats): Detail {
   };
 }
 
-const allowedListeners = new Map(Object.entries(listeners));
+const knownListeners = Object.entries(listeners).filter((entry): entry is [string, Listener] => entry[1] !== undefined);
 
 export function compatEvent(event: OverlayEvent): CompatEvent | undefined {
-  const map = allowedListeners.get(event.kind);
-  if (!map) return;
-  const [listener, data] = map(event);
+  const known = knownListeners.find(([kind]) => kind === event.kind);
+  if (!known) return;
+  const [listener, data] = known[1](event);
   return { name: 'onEventReceived', detail: { listener, event: data } };
 }
 
