@@ -249,8 +249,8 @@ metadata:
   namespace: app
 spec:
   serverName: overlay.itsbagelbot.com
-  rootCAsSecrets:
-    - controls-gateway-tls
+  rootCAs:
+    - secret: controls-gateway-tls
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
