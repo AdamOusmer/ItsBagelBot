@@ -179,7 +179,9 @@ hashed from `priv/overlay/runtime.js`, built by `bun run overlay-runtime:build` 
 `web/kit`) and mounts it. `GET /o` carries a wider policy than `/powered`: `script-src
 'self'`, the CDN and Twitch image host, and `frame-src` for the sandbox origin
 (`overlay_sandbox_origin`, default `https://widgets.itsbagelbot.com`), which serves
-`GET /sandbox/<widget>` (`priv/overlay/frame.js` under a sandboxed CSP). Alert data goes to
+`GET /sandbox/<widget>` (`priv/overlay/frame.js` under a sandboxed CSP whose
+`frame-ancestors` lists the overlay origin, `overlay_origin`, and every ancestor the
+overlay page allows, since the directive checks the whole chain). Alert data goes to
 the runtime's `event`; `snapshot`, `stats`, `credits`, `subathon` and `control` frames go to its feed
 state. Only the dashboard origin may
 frame the page. `powered_dev_frame_ancestors` adds localhost origins for

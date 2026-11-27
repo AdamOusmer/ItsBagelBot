@@ -32,7 +32,7 @@ defmodule ControlsGateway.Powered.Page do
             "style-src 'sha256-#{@style_hash}'; " <>
             "img-src 'self' #{@cdn}; media-src #{@cdn}; font-src 'self'; " <>
             "connect-src 'self'; base-uri 'none'; form-action 'none'; " <>
-            "frame-ancestors https://dashboard.itsbagelbot.com"
+            "frame-ancestors "
   @dev_ancestors " http://localhost:* http://127.0.0.1:*"
 
   @headers %{
@@ -45,6 +45,8 @@ defmodule ControlsGateway.Powered.Page do
   def reply(conn), do: send_page(conn, policy())
 
   def reply_overlay(conn), do: send_page(conn, overlay_policy())
+
+  def frame_ancestors, do: "https://dashboard.itsbagelbot.com" <> dev_ancestors()
 
   defp send_page(conn, policy) do
     headers = Map.put(@headers, "content-security-policy", policy)
@@ -59,10 +61,10 @@ defmodule ControlsGateway.Powered.Page do
       "img-src 'self' #{@cdn} https://static-cdn.jtvnw.net; media-src #{@cdn}; " <>
       "font-src 'self' #{@cdn}; connect-src 'self' #{@cdn}; frame-src #{origin}; " <>
       "base-uri 'none'; form-action 'none'; " <>
-      "frame-ancestors https://dashboard.itsbagelbot.com" <> dev_ancestors()
+      "frame-ancestors " <> frame_ancestors()
   end
 
-  defp policy, do: @policy <> dev_ancestors()
+  defp policy, do: @policy <> frame_ancestors()
 
   defp dev_ancestors do
     if Application.get_env(:controls_gateway, :powered_dev_frame_ancestors, false),
