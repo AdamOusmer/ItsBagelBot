@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import {
   degradedAnsweredTonight,
   type StreamMeta,
@@ -16,12 +14,6 @@ import { streamCounters } from '#lib/server/stream-counters';
 import { chatVolume } from '#lib/server/chat-volume';
 import { activityFeed } from '#lib/server/activity';
 import { shareRecent } from '#lib/server/recent-share';
-
-const DEMO = dev && env.DEMO === '1';
-
-function demoOr<T>(pick: (m: typeof import('#lib/server/demo-data')) => T, real: () => Promise<T>): Promise<T> {
-  return DEMO ? import('#lib/server/demo-data').then(pick) : real();
-}
 
 function answeredFromFeed(feed: ActivityFeed): AnsweredTonight {
   if (!feed.ok) return degradedAnsweredTonight();
@@ -52,13 +44,13 @@ const LANES_SHARE_MS = 3000;
 const sharedLanes = shareRecent<OverviewLanes>(LANES_SHARE_MS);
 
 function readLanes(uid: string): OverviewLanes {
-  const feed = demoOr<ActivityFeed>((m) => m.demoActivityFeed(Date.now()), () => activityFeed(uid));
+  const feed = activityFeed(uid);
   return {
-    stream: demoOr<StreamMeta>((m) => m.demoStreamMeta(Date.now()), () => streamMeta(uid)),
-    counters: demoOr<StreamCounters>((m) => m.demoStreamCounters, () => streamCounters(uid)),
-    volume: demoOr<ChatVolume>((m) => m.demoChatVolume(), () => chatVolume(uid)),
+    stream: streamMeta(uid),
+    counters: streamCounters(uid),
+    volume: chatVolume(uid),
     feed,
-    answered: demoOr<AnsweredTonight>((m) => m.demoAnsweredTonight, () => feed.then(answeredFromFeed))
+    answered: feed.then(answeredFromFeed)
   };
 }
 

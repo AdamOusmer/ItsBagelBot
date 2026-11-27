@@ -3,13 +3,10 @@
 
 import { rpc } from '@bagel/kit/server/nats';
 import { parseCounterValue } from '@bagel/kit/validation';
-import { dev } from '$app/env';
 import { POLICY } from '@bagel/kit/server/cache-keys';
 import { sharedSnapshot } from '@bagel/kit/server/shared-snapshot';
 import { fabric, SUB, accountState } from './services';
 import { liveBoard } from './live-counters';
-
-const DEMO = dev && process.env.DEMO === '1';
 
 const CACHE_KEY = 'public-stats:boards';
 
@@ -146,7 +143,6 @@ async function loadBoards(): Promise<PublicBoards> {
 }
 
 export async function publicBoards(): Promise<PublicBoards> {
-  if (DEMO) return (await import('./demo-data')).demoBoards(Date.now());
   try {
     return await fabric.readKey(CACHE_KEY, POLICY.board, sharedBoards);
   } catch {

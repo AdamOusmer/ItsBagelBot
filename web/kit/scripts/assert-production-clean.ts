@@ -47,8 +47,8 @@ async function scanFile(
 export async function assertProductionClean(spec: ProductionCleanSpec): Promise<void> {
   const forbidden = [
     `${spec.app.toUpperCase()}_DEV_FIXTURE_INCLUDED_IN_PRODUCTION`,
-    'demo-data',
-    'env.DEMO',
+    'src/dev/',
+    'bagel-dev-fixtures',
     ...(spec.demoCopy ?? [])
   ];
   const chunks = chunkPattern(spec.fixtureChunks);

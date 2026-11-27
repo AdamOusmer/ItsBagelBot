@@ -15,10 +15,6 @@ import { listFetches, rehearseFetch, upsertFetchDef, deleteFetchDef } from '#lib
 import { auditDashboardImpersonation } from '#lib/server/services';
 import type { Session } from '#lib/server/session';
 import { logger } from '@bagel/kit/server/logger';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
-
-const DEMO = dev && env.DEMO === '1';
 
 async function tryRpc<T>(action: string, call: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false }> {
   try {
@@ -61,7 +57,6 @@ export function parseDefForm(f: FormData): DefForm {
 }
 
 export async function precheckFetchConflicts(uid: string, def: DefForm, errors: FetchDefErrors): Promise<void> {
-  if (DEMO) return;
   const fresh = await tryRpc('fetch-pre-check', () => listFetches(uid, { fresh: true }));
   if (!fresh.ok) return;
   const existsElsewhere = fresh.value.defs.some((d) => d.name === def.name && d.name !== def.originalName);
@@ -73,7 +68,6 @@ export async function precheckFetchConflicts(uid: string, def: DefForm, errors: 
 }
 
 export async function testRunThrottle(uid: string): Promise<string | null> {
-  if (DEMO) return null;
   const decision = await fetchTestLimiter.check(`fetchtest:${uid}`);
   if (decision.allowed) return null;
   return 'Too many test runs. Each one calls the real API. Wait about 10 seconds and try again.';
@@ -98,12 +92,6 @@ function rehearsalName(def: DefForm): string {
   const fromKey = normName(def.keyLabel);
   if (fromKey) return fromKey;
   return 'draft';
-}
-
-export async function demoTestReply() {
-  const { demoFetchTestRun } = await import('#lib/server/demo-data');
-  const demo = demoFetchTestRun();
-  return { ok: true, action: 'fetchtested', status: 'ok', values: demo.values, ms: demo.ms, sample: demo.sample };
 }
 
 export async function runRehearsal(uid: string, def: DefForm) {
@@ -147,8 +135,6 @@ export async function saveFetchDef(uid: string, session: Session | null, form: F
     return { ok: false, status: 400, body: { ok: false, errors, error: firstError(errors) } };
   }
 
-  if (DEMO) return { ok: true, data: await demoSaveReply(def) };
-
   const res = await tryRpc('savefetch', () =>
     upsertFetchDef(uid, {
       name: def.name,
@@ -165,25 +151,8 @@ export async function saveFetchDef(uid: string, session: Session | null, form: F
   return { ok: true, data: { ok: true, action: 'fetchsaved', name: def.name, defs: res.value.defs, keys: res.value.keys } };
 }
 
-async function demoSaveReply(def: DefForm): Promise<Record<string, unknown>> {
-  const { demoFetches } = await import('#lib/server/demo-data');
-  const current = demoFetches();
-  const defs = current.defs.filter((d) => d.name !== def.originalName && d.name !== def.name);
-  defs.push({ name: def.name, url: def.url, json_path: def.path, is_active: true, key_label: def.keyLabel });
-  return { ok: true, action: 'fetchsaved', name: def.name, defs, keys: current.keys };
-}
-
 export async function removeFetchDef(uid: string, session: Session | null, form: FormData): Promise<FetchActionResult> {
   const name = slugifyName(String(form.get('name') ?? ''));
-
-  if (DEMO) {
-    const { demoFetches } = await import('#lib/server/demo-data');
-    const current = demoFetches();
-    return {
-      ok: true,
-      data: { ok: true, action: 'fetchdeleted', name, defs: current.defs.filter((d) => d.name !== name), keys: current.keys }
-    };
-  }
 
   const res = await tryRpc('deletefetch', () => deleteFetchDef({ userId: uid, name }));
   if (!res.ok) return { ok: false, status: 400, body: { ok: false } };
@@ -209,8 +178,6 @@ export async function rehearseFetchDef(uid: string, form: FormData): Promise<Fet
   const def = parseDefForm(form);
   const invalid = testDraftError(def);
   if (invalid) return { ok: false, status: 400, body: { ok: false, error: invalid } };
-
-  if (DEMO) return { ok: true, data: await demoTestReply() };
 
   const reply = await runRehearsal(uid, def);
   if (!reply) {

@@ -10,6 +10,5 @@
   "idRequired": "identifiant requis",
   "cannotGrantRole": "impossible d'accorder le rôle {role}",
   "countPositive": "le nombre doit être un entier positif",
-  "laneDemoDisabled": "mode démo : les mutations de voie sont désactivées",
   "laneFailed": "{verb} a échoué : {error}"
 }

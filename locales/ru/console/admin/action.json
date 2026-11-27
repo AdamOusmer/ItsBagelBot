@@ -10,6 +10,5 @@
   "idRequired": "требуется ID",
   "cannotGrantRole": "нельзя назначить роль {role}",
   "countPositive": "количество должно быть положительным целым числом",
-  "laneDemoDisabled": "деморежим: изменения очередей отключены",
   "laneFailed": "действие {verb} не выполнено: {error}"
 }

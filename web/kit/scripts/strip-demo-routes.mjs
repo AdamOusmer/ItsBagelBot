@@ -1,22 +1,26 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+const STRIPPED = {
+  '+page.svelte': '<!-- dev-only route stripped from builds (kit/scripts/strip-demo-routes.mjs) -->',
+  '+page.server.ts': "import { error } from '@sveltejs/kit';\nexport const load = () => error(404);\nexport const actions = {};\n"
+};
+
 /**
  * @param {string[]} routeMarkers
  * @returns {import('vite').Plugin}
  */
 export function stripDemoRoutes(routeMarkers) {
-  const demoBuild = process.env.DEMO === '1';
   return {
     name: 'bagel-strip-demo-routes',
     enforce: 'pre',
+    apply: 'build',
     /** @param {string} id */
     load(id) {
-      if (demoBuild) return null;
       const path = id.split('?')[0];
-      if (!path.endsWith('+page.svelte')) return null;
       if (!routeMarkers.some((marker) => path.includes(marker))) return null;
-      return `<!-- demo route stripped from non-demo builds (shared/scripts/strip-demo-routes.mjs) -->`;
+      const file = /** @type {keyof typeof STRIPPED} */ (path.split('/').pop());
+      return STRIPPED[file] ?? null;
     }
   };
 }

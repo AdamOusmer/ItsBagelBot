@@ -10,6 +10,5 @@
   "idRequired": "ID obrigatório",
   "cannotGrantRole": "não é possível conceder {role}",
   "countPositive": "a contagem deve ser um número inteiro positivo",
-  "laneDemoDisabled": "modo de demonstração: alterações nas vias estão desativadas",
   "laneFailed": "{verb} falhou: {error}"
 }

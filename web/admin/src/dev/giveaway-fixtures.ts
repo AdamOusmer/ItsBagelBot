@@ -3,13 +3,13 @@
 
 import { dev } from '$app/env';
 import { giveawaySummary } from '@bagel/kit/giveaway';
-import type { GiveawayDetailWire, GiveawayPreviewWire, GiveawayWire } from './giveaways';
-import type { BotCounter } from './services';
+import type { GiveawayDetailWire, GiveawayPreviewWire, GiveawayWire } from '#lib/server/giveaways';
+import type { BotCounter } from '#lib/server/services';
 
 if (!dev) throw new Error('ADMIN_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
 
 const campaign = {
-  title: 'September community giveaway',
+  title: 'Fixture community giveaway',
   reason: 'Launch celebration',
   winnerCount: 2,
   prizeMonths: 3,
@@ -55,7 +55,7 @@ const drawnAwards = {
 const history = [
   { id: 'demo-draft', status: 'draft', title: 'Winter welcome giveaway' },
   { id: 'demo-frozen', status: 'frozen', title: 'Creator milestone giveaway' },
-  { id: 'demo-drawn', status: 'drawn', title: 'September community giveaway' },
+  { id: 'demo-drawn', status: 'drawn', title: 'Fixture community giveaway' },
   { id: 'demo-september', status: 'complete', title: 'Summer wrap-up giveaway' }
 ] as const;
 

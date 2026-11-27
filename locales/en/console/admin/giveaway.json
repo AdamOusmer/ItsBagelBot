@@ -7,13 +7,9 @@
   "operationRequired": "snapshot version and operation key required",
   "poolDigestRequired": "pool digest required",
   "awardIdRequired": "award id required",
-  "draftCreatedDemo": "Giveaway draft created (demo).",
   "draftCreated": "Giveaway draft created.",
-  "drawCommittedDemo": "Draw committed (demo).",
   "drawCommitted": "Draw committed.",
-  "snapshotFrozenDemo": "Eligibility snapshot frozen (demo).",
   "snapshotFrozen": "Eligibility snapshot frozen.",
-  "retryQueuedDemo": "Fulfillment retry queued (demo).",
   "retryQueued": "Fulfillment retry queued.",
   "userIdRequired": "user id required"
 }

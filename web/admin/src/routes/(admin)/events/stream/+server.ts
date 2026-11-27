@@ -3,37 +3,15 @@
 
 import type { RequestHandler } from './$types';
 import { error } from '@sveltejs/kit';
-import { dev } from '$app/env';
 import { logger } from '@bagel/kit/server/logger';
 import { requireAdmin } from '#lib/server/access';
 import { statusHistory } from '#lib/server/feed';
-import { FeedHistory, type FeedRecord } from '#lib/server/feed-history';
+import type { FeedHistory } from '#lib/server/feed-history';
 import { STATUS_PREFIX } from '#lib/server/services';
 
 const enc = new TextEncoder();
-const DEMO = dev && process.env.DEMO === '1';
-const DEMO_INTERVAL_MS = 3_000;
-const DEMO_HISTORY_SIZE = 40;
-let demoHistory: FeedHistory | undefined;
 
-type DemoEvent = (sequence: number, prefix: string, at: string) => FeedRecord;
 type FeedSource = () => Promise<FeedHistory>;
-
-function demoStatusHistory(makeEvent: DemoEvent): FeedHistory {
-  if (demoHistory) return demoHistory;
-  const history = new FeedHistory();
-  const now = Date.now();
-  let sequence = 0;
-  for (; sequence < DEMO_HISTORY_SIZE; sequence++) {
-    const at = new Date(now - (DEMO_HISTORY_SIZE - sequence) * DEMO_INTERVAL_MS).toISOString();
-    history.add(makeEvent(sequence, STATUS_PREFIX, at));
-  }
-  setInterval(() => {
-    history.add(makeEvent(sequence++, STATUS_PREFIX, new Date().toISOString()));
-  }, DEMO_INTERVAL_MS).unref();
-  demoHistory = history;
-  return history;
-}
 
 function sse(event: 'history' | 'feed' | 'unavailable', data: unknown, id?: string): Uint8Array {
   const cursor = id ? `id: ${id}\n` : '';
@@ -100,10 +78,5 @@ function streamResponse(source: FeedSource): Response {
 
 export const GET: RequestHandler = async ({ locals }) => {
   if (!(await requireAdmin(locals.session))) throw error(403, 'forbidden');
-
-  if (DEMO) {
-    const { demoFeedEvent } = await import('#lib/server/demo-data');
-    return streamResponse(async () => demoStatusHistory(demoFeedEvent));
-  }
   return streamResponse(() => statusHistory(STATUS_PREFIX));
 };

@@ -3,9 +3,7 @@
 
 import { dev } from '$app/env';
 import {
-  MODULE_CATALOG,
-  catalogIndexable,
-  PERM_LABELS,
+  MOD,
   blankReward,
   blankSpotifyRedeem,
   blankSpotifySr,
@@ -17,20 +15,19 @@ import {
   type LoyaltyStanding,
   type TimerDef
 } from '@bagel/kit';
-import { DEFAULT_LOCALE } from '@bagel/kit/i18n';
 import { TERMS_VERSION } from '@bagel/kit/consent';
-import type { Session } from './session';
-import type { AccountState, BillingState, DeviceGrantView, NotificationWire } from './services';
-import type { QuoteView } from './quotes-store';
-import type { BlockedViewer, TtsOverlayView, VoiceAllowance, VoiceSettings } from './services/voice';
-import type { AssetView, FeedAction, FeedControlArgs, FeedControlState, OverlayView, PoweredSettings } from './services/overlays';
-import type { GoveeDevice, GoveeView } from './govee-store';
-import type { FetchDefView, FetchKeyView } from './fetches-store';
-import type { PublicStats } from './public-stats';
-import type { PublicBoards } from './public-boards';
-import type { QueueView } from '../queue-snapshot';
-import type { SongQueuePublicView, SongRow } from '../songqueue-snapshot';
-import type { CommandDigest, ConnData, ModuleDigest, ShareDigest } from '../../routes/(app)/+page.server';
+import type { Session } from '#lib/server/session';
+import type { AccountState, BillingState, DeviceGrantView, NotificationWire } from '#lib/server/services';
+import type { QuoteView } from '#lib/server/quotes-store';
+import type { BlockedViewer, TtsOverlayView, VoiceAllowance, VoiceSettings } from '#lib/server/services/voice';
+import type { AssetView, FeedAction, FeedControlArgs, FeedControlState, OverlayView, PoweredSettings } from '#lib/server/services/overlays';
+import type { GoveeDevice, GoveeView } from '#lib/server/govee-store';
+import type { FetchDefView, FetchKeyView } from '#lib/server/fetches-store';
+import type { PublicStats } from '#lib/server/public-stats';
+import type { PublicBoards } from '#lib/server/public-boards';
+import type { QueueView } from '#lib/queue-snapshot';
+import type { SongQueuePublicView, SongRow } from '#lib/songqueue-snapshot';
+import type { SongQueueDoc } from '@bagel/kit/server/songqueue-store';
 import type {
   StreamMeta,
   StreamCounters,
@@ -90,12 +87,12 @@ export const demoMailingAddress = 'Demo mailing address';
 
 export const demoAccountState: AccountState = {
   active: true,
-  status: process.env.DEMO_PLAN === 'free' ? 'free' : 'vip',
+  status: 'vip',
   onboarded: true,
-  alpha: process.env.DEMO_PLAN !== 'nonalpha',
+  alpha: true,
   termsVersion: TERMS_VERSION,
   marketingStatus: 'none',
-  creatorCode: null,
+  creatorCode: 'MAVEY10',
   username: 'demo',
   displayName: 'Demo'
 };
@@ -104,8 +101,6 @@ export const demoDelegationGiven = [
   { token: 'demo-pending-token-1234', sections: ['commands', 'modules'], delegate_login: '', consumed: false },
   { token: 'demo-consumed-token-5678', sections: ['commands'], delegate_login: 'trusty_mod', consumed: true }
 ];
-
-export const demoDelegationReceived = [{ owner_user_id: '42', owner_login: 'ferret_king', sections: ['commands'] }];
 
 export const demoDeviceGrants: DeviceGrantView[] = [
   {
@@ -156,22 +151,7 @@ export function demoCheckoutComplete(plan: 'monthly' | 'single'): void {
   };
 }
 
-export function demoCancelPending(): void {
-  demoBillingState = { ...demoBillingState, cancelPending: true };
-}
-
-export function demoBillingReset(): void {
-  demoBillingState = {
-    active: false,
-    status: 'free',
-    expiresAt: null,
-    source: '',
-    subscriptionRef: null,
-    cancelPending: false
-  };
-}
-
-export type DemoTransaction = {
+type DemoTransaction = {
   id: string;
   kind: 'premium' | 'gift';
   plan: 'monthly' | 'single';
@@ -181,14 +161,12 @@ export type DemoTransaction = {
   at: string;
 };
 
-export const demoTransactions: DemoTransaction[] = [];
+const demoTransactions: DemoTransaction[] = [];
 
-export function demoRecordTransaction(kind: 'premium' | 'gift', plan: 'monthly' | 'single', recipient: string | null): void {
+export function demoRecordTransaction(entry: Pick<DemoTransaction, 'kind' | 'plan' | 'recipient'>): void {
   demoTransactions.push({
     id: `demo-tx-${demoTransactions.length + 1}`,
-    kind,
-    plan,
-    recipient,
+    ...entry,
     amount: 7,
     currency: 'CAD',
     at: new Date().toISOString()
@@ -203,24 +181,9 @@ export function demoQuotes(): QuoteView[] {
   ];
 }
 
-export function demoQuotesView() {
-  return { enabled: true, addPerm: 'mod' as const, editPerm: 'mod' as const, disabledTriggers: '', quotes: demoQuotes() };
-}
-
-export function demoTimersView() {
-  return { enabled: true, timers: demoTimers() };
-}
-
-export function demoTimers(): TimerDef[] {
+function demoTimers(): TimerDef[] {
   return [
     { ...blankTimer(), id: 'demo-1', message: 'Follow on socials: twitch.tv/yourchannel', intervalSeconds: 900, minChatLines: 15, chatWindowMinutes: 10 },
-  ];
-}
-
-export function demoStandings(): LoyaltyStanding[] {
-  return [
-    { viewerId: '1', viewerLogin: 'sesame_sam', viewerName: 'sesame_sam', points: '12400', watchSeconds: 90_000 },
-    { viewerId: '2', viewerLogin: 'bagel_fan', viewerName: 'Bagel_Fan', points: '8300', watchSeconds: 64_800 }
   ];
 }
 
@@ -246,9 +209,9 @@ export function demoEntries(name: string): CounterEntryView[] {
   ];
 }
 
-export function demoRewards(): ChannelPointReward[] {
+function demoRewards(): ChannelPointReward[] {
   return [
-    { ...blankReward(), id: 'demo-1', title: 'Say hi', cost: 100, action: 'chat', message: '{user} says hi! 👋', onRedeem: 'fulfill' },
+    { ...blankReward(), id: 'demo-1', title: 'Say hi', cost: 100, action: 'chat', message: '{user} says hi!', onRedeem: 'fulfill' },
     {
       ...blankReward(),
       id: 'demo-2',
@@ -265,7 +228,7 @@ export function demoRewards(): ChannelPointReward[] {
   ];
 }
 
-export function demoGoveeView(): GoveeView {
+function demoGoveeView(): GoveeView {
   return {
     enabled: true,
     keyPresent: true,
@@ -308,7 +271,7 @@ export function demoGoveeDevices(): GoveeDevice[] {
   ];
 }
 
-export function demoSpotifyView() {
+function demoSpotifyView() {
   return {
     enabled: true,
     disabledTriggers: '',
@@ -372,71 +335,10 @@ export const demoCommandRows: CommandView[] = [
   { name: 'deaths', response: '{channel} has died {counter:deaths} times. {choice:F,RIP,ouch}', perm: 'sub', cooldown: 15, uses: '177', is_active: true }
 ];
 
-export const demoDigestRows: CommandView[] = [
-  { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', is_active: true, uses: '1200' },
-  { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', is_active: true, uses: '521' },
-  { name: 'dice', response: '{user} rolls the dice… {random:1-6}!', is_active: true, uses: '412' },
-  { name: 'socials', response: 'Follow along → twitch.tv/itsmavey', is_active: true, uses: '288' },
-  { name: 'debug', response: 'node={node}', is_active: false, uses: '14' }
-];
-
-export function demoConn(connectionUiState: (s: ConnData['signals']) => ConnData['ui']): ConnData {
-  const signals: ConnData['signals'] = { grant: true, active: true, status: 'vip', sub: 'ok' };
-  return { signals, ui: connectionUiState(signals) };
-}
-
-export const demoModuleDigest: ModuleDigest = {
-  on: 1,
-  switchedOn: 1,
-  total: MODULE_CATALOG.filter((m) => catalogIndexable(m)).length,
-  ok: true
-};
-
-export const demoShareDigest: ShareDigest = { people: 1, pending: 1, ok: true };
-
-export function demoCommandDigest(digest: (rows: CommandView[]) => Omit<CommandDigest, 'ok'>): CommandDigest {
-  return { ...digest(demoDigestRows), ok: true };
-}
-
-export const demoCreatorCode = 'MAVEY10';
-
-export const demoPublicCommands = [
-  {
-    trigger: '!bagel',
-    aliases: ['!snack'],
-    response: '{user} tosses a warm bagel to {target}. Toasty.',
-    perm: PERM_LABELS.everyone,
-    cooldown: 10,
-    userCooldown: 60,
-    liveOnly: false,
-    uses: '1200'
-  },
-  {
-    trigger: '!socials',
-    aliases: ['!links'],
-    response: 'Follow along on Twitch and everywhere else.',
-    perm: PERM_LABELS.everyone,
-    cooldown: 30,
-    userCooldown: 0,
-    liveOnly: false,
-    uses: '288'
-  }
-];
-
-export const demoPublicModules = [
-  {
-    id: 'clip',
-    label: 'Clip',
-    category: 'Built-in',
-    tagline: 'Let viewers capture and share a recent stream moment.',
-    commands: [{ label: '!clip', meta: 'clip the last moment', perm: PERM_LABELS.everyone, aliases: [], cooldown: 30, liveOnly: false }],
-    events: []
-  }
-];
-
 const DEMO_EPOCH = Date.parse('2026-01-01T00:00:00Z');
 
-export function demoStats(now: number): PublicStats {
+export function demoStats(): PublicStats {
+  const now = Date.now();
   const secs = (now - DEMO_EPOCH) / 1000;
   const msgRate = 14;
   const eventRate = 25;
@@ -465,7 +367,8 @@ const DEMO_CHANNELS = [
   { id: '20', name: 'crumbcam', messages: 1_442_007, events: 2_660_884, feeds: 611 }
 ];
 
-export function demoBoards(now: number): PublicBoards {
+export function demoBoards(): PublicBoards {
+  const now = Date.now();
   const secs = (now - DEMO_EPOCH) / 1000;
   const grown = DEMO_CHANNELS.map((c, i) => {
     const rate = 6 - i * 0.5;
@@ -487,7 +390,8 @@ export function demoBoards(now: number): PublicBoards {
   };
 }
 
-export function demoStreamMeta(now: number): StreamMeta {
+export function demoStreamMeta(): StreamMeta {
+  const now = Date.now();
   return {
     live: true,
     known: true,
@@ -535,7 +439,8 @@ const DEMO_FEED: [ActivityKind, string, string][] = [
   ['loyalty', '412 watchers earned 5 points', 'tick']
 ];
 
-export function demoActivityFeed(now: number): ActivityFeed {
+export function demoActivityFeed(): ActivityFeed {
+  const now = Date.now();
   const rows: ActivityRow[] = DEMO_FEED.map(([kind, text, meta], i) => ({
     id: `demo-${i}`,
     kind,
@@ -576,38 +481,13 @@ const demoCrowd: LoyaltyStanding[] = DEMO_NOUNS.flatMap((noun, row) =>
   })
 );
 
-const demoCurrentLogins = new Map([['pretzel_prime', '505']]);
-const demoReconciledLogins = new Map<string, string>();
+export const demoCurrentLogins = new Map([['pretzel_prime', '505']]);
 
-function rankedDemoBoard(): LoyaltyStanding[] {
-  return [...demoLeaderboardHead, ...demoCrowd]
-    .sort((a, b) => Number(b.points) - Number(a.points) || Number(a.viewerId) - Number(b.viewerId))
-    .map((viewer, i) => ({ ...viewer, viewerLogin: demoReconciledLogins.get(viewer.viewerId) ?? viewer.viewerLogin, rank: i + 1 }));
+export const demoCurrencyName = 'bagels';
+
+export function demoBoardViewers(): LoyaltyStanding[] {
+  return [...demoLeaderboardHead, ...demoCrowd];
 }
-
-function demoSearch(board: LoyaltyStanding[], query: string): LoyaltyStanding[] {
-  if (/^\d+$/.test(query)) return board.filter((viewer) => viewer.viewerId === query);
-  const stored = board.filter((viewer) => viewer.viewerLogin === query);
-  const viewerId = demoCurrentLogins.get(query);
-  if (stored.length > 0 || !viewerId) return stored;
-  demoReconciledLogins.set(viewerId, query);
-  return rankedDemoBoard().filter((viewer) => viewer.viewerId === viewerId);
-}
-
-export function demoStandingsPage(req: { limit: number; offset: number; query: string }): { rows: LoyaltyStanding[]; total: number } {
-  const board = rankedDemoBoard();
-  if (!req.query) return { rows: board.slice(req.offset, req.offset + req.limit), total: board.length };
-  const match = demoSearch(board, req.query);
-  return { rows: match, total: match.length };
-}
-
-export function demoPodium(): LoyaltyStanding[] {
-  return rankedDemoBoard().slice(0, 3);
-}
-
-export const demoLeaderboard = {
-  currencyName: 'bagels'
-};
 
 const demoLeaderboardHead: LoyaltyStanding[] = [
   { viewerId: '501', viewerLogin: 'crumbcatcher', viewerName: 'CrumbCatcher', points: '48210', watchSeconds: 612_000 },
@@ -638,8 +518,8 @@ function demoQueueSize(step: number): number {
   return 3 + (phase < 6 ? phase : 12 - phase);
 }
 
-export function demoQueue(now: number): QueueView {
-  const step = Math.floor(now / DEMO_QUEUE_STEP_MS);
+export function demoQueue(): QueueView {
+  const step = Math.floor(Date.now() / DEMO_QUEUE_STEP_MS);
   const size = demoQueueSize(step);
   const entries = Array.from({ length: size }, (_, i) => {
     const joiner = step - size + 1 + i;
@@ -662,8 +542,8 @@ const demoSongs: readonly Omit<SongRow, 'joinedAt'>[] = [
   { title: 'Safe and Sound', artists: 'Capital Cities', requester: 'everythingbagel' }
 ];
 
-export function demoSongQueue(now: number): SongQueuePublicView {
-  const step = Math.floor(now / DEMO_QUEUE_STEP_MS);
+export function demoSongQueue(): SongQueuePublicView {
+  const step = Math.floor(Date.now() / DEMO_QUEUE_STEP_MS);
   const size = demoQueueSize(step) + 1;
   const [current, ...up] = Array.from({ length: size }, (_, i) => ({
     ...demoSongs[(step + i) % demoSongs.length],
@@ -673,46 +553,39 @@ export function demoSongQueue(now: number): SongQueuePublicView {
 }
 
 const demoVoiceState = {
-  settings: { enabled: true, voice: 'Kore', max_seconds: 30 } satisfies VoiceSettings,
+  settings: { enabled: true, voice: 'Kore', max_seconds: 30 } as VoiceSettings,
   overlayRevision: 1,
-  config: {} as Record<string, string>,
-  revision: 1,
   blocked: [{ viewer_id: '9001', viewer_login: 'spamlord', created_at: 1_764_000_000 }] as BlockedViewer[]
 };
 
-function demoVoiceSafety() {
-  return { manual: demoVoiceState.blocked, pausedUntil: 0 };
-}
-
-export function demoVoiceBlock({ login }: { login: string }): boolean {
-  if (login.length < 4 || login === 'nobody') return false;
-  demoVoiceState.blocked.push({ viewer_id: String(9100 + demoVoiceState.blocked.length), viewer_login: login, created_at: Math.floor(Date.now() / 1000) });
-  return true;
-}
-
-export function demoVoiceUnblock({ viewerId }: { viewerId: string }): void {
-  demoVoiceState.blocked = demoVoiceState.blocked.filter((viewer) => viewer.viewer_id !== viewerId);
-}
-
-export function demoVoiceView(forceLocked = false) {
-  const locked = forceLocked || demoAccountState.status === 'free';
-  const allowance: VoiceAllowance = locked
+export function demoVoiceAllowance(): VoiceAllowance {
+  return demoAccountState.status === 'free'
     ? { plan: 'free', period: '2026-11', limit_tokens: 0, used_tokens: 0, remaining_tokens: 0, resets_at: '2026-12-01T00:00:00Z', reason: 'no_plan' }
     : { plan: 'premium', period: '2026-11', limit_tokens: 90_000, used_tokens: 57_300, remaining_tokens: 32_700, resets_at: '2026-12-01T00:00:00Z', reason: 'ok' };
-  const overlay: TtsOverlayView | null = locked ? null : { settings: demoVoiceState.settings, configured: true, revision: demoVoiceState.overlayRevision };
-  return { allowance, overlay, config: demoVoiceState.config, revision: demoVoiceState.revision, safety: demoVoiceSafety() };
 }
 
-export function demoVoiceSave(settings: Partial<VoiceSettings>, partial: Record<string, string>): number {
-  if (Object.keys(settings).length > 0) {
-    Object.assign(demoVoiceState.settings, settings);
-    demoVoiceState.overlayRevision += 1;
-  }
-  if (Object.keys(partial).length > 0) {
-    Object.assign(demoVoiceState.config, partial);
-    demoVoiceState.revision += 1;
-  }
-  return demoVoiceState.revision;
+export function demoVoiceOverlay(): TtsOverlayView {
+  return { settings: structuredClone(demoVoiceState.settings), configured: true, revision: demoVoiceState.overlayRevision };
+}
+
+export function demoVoiceSettingsSave(settings: VoiceSettings): TtsOverlayView {
+  demoVoiceState.settings = { ...settings };
+  demoVoiceState.overlayRevision += 1;
+  return demoVoiceOverlay();
+}
+
+export function demoVoiceBlocks(): BlockedViewer[] {
+  return structuredClone(demoVoiceState.blocked);
+}
+
+export function demoVoiceBlock(viewer: { viewer_id: string; viewer_login: string }): BlockedViewer[] {
+  demoVoiceState.blocked.push({ ...viewer, created_at: Math.floor(Date.now() / 1000) });
+  return demoVoiceBlocks();
+}
+
+export function demoVoiceUnblock({ viewerId }: { viewerId: string }): BlockedViewer[] {
+  demoVoiceState.blocked = demoVoiceState.blocked.filter((viewer) => viewer.viewer_id !== viewerId);
+  return demoVoiceBlocks();
 }
 
 const DEMO_POWERED_URL = 'https://overlay.itsbagelbot.com/o#demo-powered-link';
@@ -779,4 +652,30 @@ const demoFeedSetters: Partial<Record<FeedAction, (state: FeedControlState, args
 export function demoFeedControl({ action, args }: { action: FeedAction; args: FeedControlArgs }): FeedControlState {
   demoFeedSetters[action]?.(demoFeedState, args);
   return structuredClone(demoFeedState);
+}
+
+export function demoModuleConfigs(): Record<string, Record<string, unknown>> {
+  const { bindings, groups } = demoGoveeView();
+  const { sr, redeem } = demoSpotifyView();
+  return {
+    [MOD.timers]: { timers: demoTimers() },
+    [MOD.govee]: { bindings, groups },
+    [MOD.songqueue]: { sr, redeem },
+    [MOD.loyalty]: { pointsName: demoCurrencyName },
+    [MOD.channelpoints]: { rewards: demoRewards() }
+  };
+}
+
+export function demoSongQueueDoc(): SongQueueDoc {
+  const now = Date.now();
+  const [current, ...up] = demoSongs.slice(0, 3).map((song, i) => ({
+    tid: `demo-${i + 1}`,
+    title: song.title,
+    artists: [song.artists],
+    dur: 200_000,
+    req_id: String(501 + i),
+    req_name: song.requester,
+    at: now - (3 - i) * 60_000
+  }));
+  return { current, up };
 }

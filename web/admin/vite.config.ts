@@ -5,13 +5,15 @@
 import '../sorted-readdir.mjs';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
+import { fileURLToPath } from 'node:url';
+import { devFixtures } from '../kit/scripts/dev-fixtures.mjs';
 import { localeChunks } from '../kit/scripts/locale-chunks.mjs';
 import { i18nCatalogs } from '../kit/scripts/i18n-catalogs.ts';
 import { bundledUiSheets } from '../kit/scripts/bundled-ui-sheets.mjs';
 import { consoleKitConfig } from '../kit/svelte-config.js';
 
 export default defineConfig({
-  plugins: [i18nCatalogs(), bundledUiSheets(), sveltekit(consoleKitConfig())],
+  plugins: [devFixtures(fileURLToPath(new URL('.', import.meta.url))), i18nCatalogs(), bundledUiSheets(), sveltekit(consoleKitConfig())],
   ssr: { noExternal: ['@bagel/kit', '@bagel/ui'], external: ['mysql2', 'newrelic', 'iovalkey', 'pino'] },
   // Widening fs.allow to '..' or '../..' serves sibling apps or the whole repo over /@fs in dev.
   server: { port: 5174, fs: { allow: ['../kit', '../../ui', '../../locales'] } },

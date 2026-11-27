@@ -1,12 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/env';
 import type { DeployPlanResult, DeployRunsResult, FluxResult, ListRequest } from '#lib/deploys/types';
 import type { DeployApi } from './deploys';
 import { fluxTiers, PINNABLE } from './flux';
-
-const DEMO = dev && process.env.DEMO === '1';
 
 type Actor = Pick<ListRequest, 'actor_id'>;
 
@@ -34,17 +31,9 @@ export async function readDeployPlan(api: Promise<DeployApi>, actor: Actor): Pro
   }
 }
 
-async function readTiers() {
-  if (DEMO) {
-    const { demoFluxTiers } = await import('./demo-data');
-    return demoFluxTiers();
-  }
-  return fluxTiers();
-}
-
 export async function readDeployFlux(): Promise<FluxResult> {
   try {
-    return { tiers: await readTiers(), pinnable: PINNABLE, fluxError: null };
+    return { tiers: await fluxTiers(), pinnable: PINNABLE, fluxError: null };
   } catch (error) {
     return { tiers: [], pinnable: PINNABLE, fluxError: message(error) };
   }

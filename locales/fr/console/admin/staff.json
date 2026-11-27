@@ -38,8 +38,6 @@
   "confirmDeactivateBody": "@{login} ne pourra plus se connecter à cette console. Son historique est conservé.",
   "saveFailed": "Impossible d’enregistrer les modifications.",
   "addCta": "Ajouter",
-  "removedDemo": "Accès à la console révoqué (démo).",
   "removed": "Accès à la console révoqué.",
-  "grantedDemo": "{login} → {role} (démo)",
   "granted": "{login} défini sur {role}"
 }

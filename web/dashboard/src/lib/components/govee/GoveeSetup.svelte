@@ -2,13 +2,11 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { tick } from 'svelte';
-  import { dev } from '$app/env';
   import { enhance, type SubmitFunction } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { actionPayload, type ActionOk, type GoveeDevice } from '@bagel/kit';
   import Button from '@bagel/ui/svelte/Button.svelte';
-  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -24,8 +22,8 @@
   import SetupAskAi from '#lib/components/shared/SetupAskAi.svelte';
 
   type DeviceList = { devices: GoveeDevice[]; error?: string; code?: 'key_rejected' | 'unreachable' };
-  let { name, devices, preview = false, onFinish }: {
-    name: string; devices: DeviceList | Promise<DeviceList>; preview?: boolean; onFinish: () => void;
+  let { name, devices, onFinish }: {
+    name: string; devices: DeviceList | Promise<DeviceList>; onFinish: () => void;
   } = $props();
   const { t } = getI18n();
   let step = $state(0);
@@ -86,10 +84,6 @@
       await finish();
     };
   };
-  function usePreviewKey() {
-    if (!dev || !preview) return;
-    void finish();
-  }
   async function refreshLights() {
     refreshing = true;
     try {
@@ -122,7 +116,7 @@
     {#if !done}<SetupAskAi feature="govee" step={railSteps[step].label} stepIndex={step} error={aiError} />{/if}
   {/snippet}
   {#snippet foot()}
-    <Text as="span" size="xs" mono tone="muted">{dev && preview ? t('goveeSetup.preview') : t('goveeSetup.footer')}</Text>
+    <Text as="span" size="xs" mono tone="muted">{t('goveeSetup.footer')}</Text>
   {/snippet}
   {#snippet end()}<TextLink variant="quiet" href="/modules" label={`${t('goveeSetup.later')} ↗`} />{/snippet}
   {#key `${step}-${done}`}
@@ -153,7 +147,6 @@
           <Text size="xs" tone="muted">{t('goveeSetup.keyStored')}</Text>
           <div class="bb-setup-actions"><Button variant="ghost" onclick={() => go(1)} disabled={saving}>{t('onboarding.back')}</Button><Button type="submit" busy={saving}>{t('goveeSetup.saveContinue')} →</Button></div>
         </form>
-        {#if dev && preview}<div class="bb-setup-actions"><Button variant="ghost" onclick={usePreviewKey}>{t('goveeSetup.previewKey')} →</Button></div>{/if}
       {:else}
         <div class="lights-found">
           {#await devices}
@@ -182,8 +175,7 @@
           {:catch}
             <Button variant="secondary" busy={refreshing} onclick={refreshLights}>{t('govee.noLightsCta')}</Button>
           {/await}
-          {#if dev && preview}<ButtonLink href="/govee" onclick={onFinish}>{t('goveeSetup.readyCta')} →</ButtonLink>
-          {:else}<Button onclick={onFinish}>{t('goveeSetup.readyCta')} →</Button>{/if}
+          <Button onclick={onFinish}>{t('goveeSetup.readyCta')} →</Button>
         </div>
       {/if}
       {#snippet status()}

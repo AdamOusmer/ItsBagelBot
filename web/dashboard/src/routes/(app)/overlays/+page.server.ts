@@ -2,7 +2,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { fail, redirect } from '@sveltejs/kit';
-import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { translate, type Locale } from '@bagel/kit/i18n';
 import { bestEffort } from '@bagel/kit/server/best-effort';
@@ -20,8 +19,6 @@ import { parsePoweredSave } from './powered-form';
 import type { OverlayView } from '#lib/server/services/overlays';
 import type { Session } from '#lib/server/session';
 import type { Actions, PageServerLoad } from './$types';
-
-const DEMO = dev && env.DEMO === '1';
 
 const LIMITS = { everyMin: MIN_EVERY_MINUTES, everyMax: MAX_EVERY_MINUTES, showMin: MIN_SHOW_SECONDS, showMax: MAX_SHOW_SECONDS };
 
@@ -54,27 +51,9 @@ function ownerRefusal(session: Session | null, locale: Locale, key: 'error' | 'l
   return null;
 }
 
-async function demoSave(fields: FormData, locale: Locale) {
-  const save = parsePoweredSave(fields);
-  if (save.error !== null) return invalidSave(locale, save.error);
-  return { ok: true, rev: (await import('#lib/server/demo-data')).demoPoweredSave(save.config) };
-}
-
 const refId = (fields: FormData) => Number(fields.get('id')) || 0;
 
-const demoActions = {
-  save: async ({ locals: { locale }, request }) => demoSave(await request.formData(), locale),
-  add: async () => ({ id: 1 }),
-  rotate: async () => (await import('#lib/server/demo-data')).demoOverlayRotate(),
-  delete: async () => ({ deleted: true })
-} satisfies Actions;
-
 const previewOrigin = env.OVERLAY_ORIGIN ?? POWERED_ORIGIN;
-
-const demoLoad = (async () => {
-  const demo = await import('#lib/server/demo-data');
-  return { readOnly: false, previewOrigin, overlays: demo.demoOverlayList(), powered: demo.demoPoweredView() };
-}) satisfies PageServerLoad;
 
 async function loadPowered(session: Session, overlays: OverlayView[]) {
   const system = overlays.find((overlay) => overlay.template === 'powered');
@@ -89,11 +68,9 @@ const liveLoad = (async ({ locals: { session } }) => {
   return { readOnly: false, previewOrigin, overlays, powered: overlays && (await loadPowered(session, overlays)) };
 }) satisfies PageServerLoad;
 
-const baseLoad = DEMO ? demoLoad : liveLoad;
-
 export const load: PageServerLoad = async (event) => {
   if ((await event.parent()).isAlpha) throw redirect(302, '/overlays/hub');
-  return baseLoad(event);
+  return liveLoad(event);
 };
 
 async function linkAction(session: Session, locale: Locale, run: () => Promise<OverlayView>, audit: string) {
@@ -106,7 +83,7 @@ async function linkAction(session: Session, locale: Locale, run: () => Promise<O
   }
 }
 
-const liveActions = {
+export const actions = {
   save: async ({ locals: { session, locale }, request }) => {
     const refused = ownerRefusal(session, locale, 'error');
     if (refused || !session) return refused;
@@ -143,5 +120,3 @@ const liveActions = {
     }
   }
 } satisfies Actions;
-
-export const actions = DEMO ? demoActions : liveActions;

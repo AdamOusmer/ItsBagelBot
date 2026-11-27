@@ -2,16 +2,14 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { fail } from '@sveltejs/kit';
-import { dev } from '$app/env';
 import { GIVEAWAY_LIMITS as pins, MOD, translate } from '@bagel/kit';
-import { env } from '@bagel/kit/server/env';
 import { RpcError } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { mutateAction, thrownStatus } from '@bagel/kit/server/form-action';
 import type { GiveawayRound } from '#lib/channel-giveaway';
 import { effectiveId } from '#lib/server/board';
 import {
-  DrawRefusal, emptyGiveawaySettings, giveawayDef, giveawaySettings, liveGiveaways, mutateGiveaway, pastWinners,
+  DrawRefusal, giveawayDef, giveawaySettings, liveGiveaways, mutateGiveaway, pastWinners,
   type DrawActor, type DrawInput, type DrawMutation
 } from '#lib/server/channel-giveaways';
 import { patchModule } from '#lib/server/commands-store';
@@ -20,7 +18,6 @@ import { assertModuleWritable, gateModulePage } from '#lib/server/module-gate';
 import { auditDashboardImpersonation } from '#lib/server/services';
 import type { Actions, PageServerLoad } from './$types';
 
-const DEMO = dev && env.DEMO === '1';
 const WINNERS_PER_PAGE = 20;
 
 async function winnerHistory(userId: string, url: URL) {
@@ -37,22 +34,13 @@ async function winnerHistory(userId: string, url: URL) {
 export const load: PageServerLoad = async ({ locals, depends, url }) => {
   gateModulePage(locals.session, MOD.giveaway);
   depends('giveaways:live');
-  if (DEMO) return {
-    ...emptyGiveawaySettings,
-    degraded: false,
-    demo: true,
-    serverNow: Date.now(),
-    live: { rounds: [], degraded: false },
-    history: { page: 1, winners: [], more: false, degraded: false }
-  };
-
   const uid = effectiveId(locals.session);
   const [settings, live, history] = await Promise.all([
     giveawaySettings(uid),
     liveGiveaways(uid),
     winnerHistory(uid, url)
   ]);
-  return { ...settings, demo: false, serverNow: Date.now(), live, history };
+  return { ...settings, serverNow: Date.now(), live, history };
 };
 
 const refusalCopy: Record<string, string> = {
@@ -109,9 +97,8 @@ function giveawayAction(verb: DrawMutation): Action {
   return (event) => {
     const { locals } = event;
     return mutateAction(event, {
-      gate: async () => DEMO ? (await import('#lib/server/demo-data')).demoSession() : authorizedSession(locals),
+      gate: () => authorizedSession(locals),
       refusal: () => denied(locals),
-      demo: DEMO,
       invalid: translate(locals.locale, 'giveaways.invalidInput'),
       run: (session, form) => runDraw(verb, { userId: effectiveId(session), actorId: session.user_id }, form, locals),
       failed: (err) => failedDraw(err, locals),
@@ -168,7 +155,6 @@ function save(kind: SettingsChange): Action {
     return mutateAction(event, {
       gate: () => authorizedSession(locals),
       refusal: () => denied(locals),
-      demo: DEMO,
       invalid: translate(locals.locale, kind === 'presets' ? 'giveaways.invalidPresets' : 'giveaways.invalidInput'),
       run: async (session, form) => {
         const input = settingsInput(kind, form);

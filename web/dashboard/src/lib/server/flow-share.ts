@@ -1,7 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/env';
 import { fail, type ActionFailure } from '@sveltejs/kit';
 import {
   commitFlowImport,
@@ -37,8 +36,6 @@ import { listFlows, saveFlow, takenAlerts, type SaveFlowResult, type StoredFlow 
 import { moduleWriteDenial } from './module-gate';
 import { auditDashboardImpersonation } from './services';
 
-const DEMO = dev && process.env.DEMO === '1';
-
 const AUDIT_NAME = 'automations';
 const RATE_LIMIT_ERROR = 'Too many import attempts. Wait a minute and try again.';
 const UNAVAILABLE_ERROR = 'Could not update. Try again in a moment.';
@@ -49,17 +46,15 @@ const importLimiter = new ValkeyRateLimiter({ name: 'flowimport', capacity: 10, 
 
 export interface FlowShareOptions {
   flowPreview: (flow: Flow) => unknown;
-  demoFlows?: () => Promise<FlowExportRow[]>;
 }
 
 type ShareEvent = { request: Request; locals: App.Locals };
 type Failure = ActionFailure<Record<string, unknown>>;
 
 async function shareDenial(locals: App.Locals, limiter: ValkeyRateLimiter): Promise<Failure | null> {
-  if (!DEMO && !locals.session) return fail(401, { ok: false, error: actionError(locals.locale, 'Not signed in.') });
+  if (!locals.session) return fail(401, { ok: false, error: actionError(locals.locale, 'Not signed in.') });
   const denied = await moduleWriteDenial(locals, moduleDef(MOD.automations)!);
   if (denied) return denied;
-  if (DEMO) return null;
   const decision = await limiter.check(`${AUDIT_NAME}:${effectiveId(locals.session)}`);
   return decision.allowed ? null : fail(429, { ok: false, code: 'rate_limited', error: actionError(locals.locale, RATE_LIMIT_ERROR) });
 }
@@ -76,7 +71,6 @@ const automationCommands = (definition: Definition): string[] => [...triggerComm
 const isAutomation = (flow: StoredFlow) => flow.ref.layer === 'automation';
 
 async function importContext(uid: string): Promise<FlowImportContext> {
-  if (DEMO) return { count: 0, names: [], commands: [], alerts: [] };
   const [flows, commands, alerts] = await Promise.all([listFlows(uid), listCommands(uid), takenAlerts(uid)]);
   const automations = flows.filter(isAutomation);
   return {
@@ -93,7 +87,6 @@ function writeRefusal(result: Exclude<SaveFlowResult, { ok: true }>): Issue[] {
 }
 
 async function writeFlow(locals: App.Locals, input: FlowWrite): Promise<FlowWriteResult> {
-  if (DEMO) return { ok: true, id: `demo-${input.name}`, revision: 1 };
   const result = await saveFlow(locals, {
     ref: input.id ? { layer: 'automation', id: input.id } : null,
     name: input.name,
@@ -110,8 +103,7 @@ function rowOf(flow: StoredFlow): FlowExportRow {
   return { id: flow.ref.layer === 'automation' ? flow.ref.id : undefined, name: flow.name, definition: flow.definition, restricted: flow.restricted };
 }
 
-async function ownedRows(uid: string, keys: Set<string>, options: FlowShareOptions): Promise<FlowExportRow[]> {
-  if (DEMO) return (await options.demoFlows?.())?.filter((row) => keys.has(`automation:${row.id}`)) ?? [];
+async function ownedRows(uid: string, keys: Set<string>): Promise<FlowExportRow[]> {
   const flows = await listFlows(uid);
   return flows.filter((flow) => keys.has(flowKey(flow.ref))).map(rowOf);
 }
@@ -121,7 +113,7 @@ function rpcFailure(locals: App.Locals, op: string, err: unknown): Failure {
   return fail(400, { ok: false, error: actionError(locals.locale, UNAVAILABLE_ERROR) });
 }
 
-async function exportAction({ request, locals }: ShareEvent, options: FlowShareOptions) {
+async function exportAction({ request, locals }: ShareEvent) {
   const denied = await shareDenial(locals, exportLimiter);
   if (denied) return denied;
   const form = await request.formData();
@@ -129,7 +121,7 @@ async function exportAction({ request, locals }: ShareEvent, options: FlowShareO
   if (keys.size === 0 || keys.size > MAX_FLOWS_PER_FILE) return fail(400, { ok: false, error: actionError(locals.locale, 'Invalid input.') });
   const uid = effectiveId(locals.session);
   try {
-    const rows = await ownedRows(uid, keys, options);
+    const rows = await ownedRows(uid, keys);
     const { file, report } = exportFlows(rows);
     auditDashboardImpersonation(locals.session ?? null, `${AUDIT_NAME}:flow_export`, String(file.flows.length));
     return {
@@ -207,7 +199,7 @@ async function commitAction({ request, locals }: ShareEvent, options: FlowShareO
 
 export function flowShareActions(options: FlowShareOptions) {
   return {
-    flowExport: (event: ShareEvent) => exportAction(event, options),
+    flowExport: (event: ShareEvent) => exportAction(event),
     flowImportPreview: (event: ShareEvent) => previewAction(event),
     flowImportCommit: (event: ShareEvent) => commitAction(event, options)
   };

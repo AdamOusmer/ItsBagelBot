@@ -4,12 +4,12 @@
 import type { RequestHandler } from './$types';
 import { error, json } from '@sveltejs/kit';
 import { requireAdmin } from '#lib/server/access';
-import { readShardSnapshot } from '#lib/components/shards/fleet-read.server';
+import { shardSnapshot } from '#lib/server/services';
 
 export const GET: RequestHandler = async ({ locals }) => {
   const admin = await requireAdmin(locals.session);
   if (!admin) throw error(403, 'forbidden');
-  const snapshot = await readShardSnapshot().catch(() => null);
+  const snapshot = await shardSnapshot().catch(() => null);
   return json({ snapshot }, {
     status: snapshot ? 200 : 503,
     headers: { 'cache-control': 'no-store' }

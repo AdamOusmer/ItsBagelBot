@@ -2,7 +2,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { error, fail, redirect, type ActionFailure } from '@sveltejs/kit';
-import { dev } from '$app/env';
 import { RpcError } from '@bagel/kit/server/nats';
 import type { RpcCode } from '@bagel/kit/server/rpc-code';
 import type { Locale } from '@bagel/kit/i18n';
@@ -27,8 +26,6 @@ import {
   type StartRequest
 } from '#lib/deploys/types';
 
-const DEMO = dev && process.env.DEMO === '1';
-
 export interface DeployApi {
   plan(req: PlanRequest): Promise<DeployPlan | null>;
   list(req: ListRequest): Promise<DeployRuns>;
@@ -41,10 +38,6 @@ export interface DeployApi {
 }
 
 export async function deployApi(): Promise<DeployApi> {
-  if (DEMO) {
-    const { demoDeployApi } = await import('./demo-data');
-    return demoDeployApi();
-  }
   return releaseApi;
 }
 
@@ -86,10 +79,6 @@ type DeploysPageData = {
 };
 
 async function fluxResult(): Promise<FluxResult> {
-  if (DEMO) {
-    const { demoFluxTiers } = await import('./demo-data');
-    return { tiers: demoFluxTiers(), pinnable: PINNABLE, fluxError: null };
-  }
   try {
     return { tiers: await fluxTiers(), pinnable: PINNABLE, fluxError: null };
   } catch (e) {
@@ -353,7 +342,7 @@ function fluxAction(verb: FluxVerb) {
     if (!('admin' in g)) return g;
     const target = verb.target(g.value);
     try {
-      if (!DEMO) await verb.call(g.value);
+      await verb.call(g.value);
       audit(g.admin, { action: verb.action, target, ok: true });
     } catch (e) {
       audit(g.admin, { action: verb.action, target, ok: false, error: message(e) });

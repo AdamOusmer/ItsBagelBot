@@ -3,7 +3,6 @@
 
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import { fail } from '@sveltejs/kit';
-import { dev } from '$app/env';
 import {
   loadLanes,
   laneAlias,
@@ -14,8 +13,6 @@ import {
 import { requireRole } from '#lib/server/access';
 import { audit } from '#lib/server/audit';
 import { adminText } from '#lib/server/admin-action';
-
-const DEMO = dev && process.env.DEMO === '1';
 
 export const load = (({ depends }) => {
   depends('admin:lanes');
@@ -33,7 +30,6 @@ function laneAction(op: LaneOp) {
   return async ({ request, locals }: RequestEvent) => {
     const admin = await requireRole({ locals }, 'lanes.mutate');
     if (!admin) return fail(403, { notice: adminText(locals.locale, 'admin.action.forbidden') });
-    if (DEMO) return { ok: false, notice: adminText(locals.locale, 'admin.action.laneDemoDisabled') };
 
     const form = await request.formData();
     const stream = String(form.get('stream') ?? '');

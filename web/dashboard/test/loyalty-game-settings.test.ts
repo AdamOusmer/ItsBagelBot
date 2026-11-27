@@ -1,29 +1,18 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { expect, test } from 'bun:test';
-import { privateEnv, stubSvelteKit } from './sveltekit';
+import { expect, mock, test } from 'bun:test';
+import { stubSvelteKit } from './sveltekit';
 
-stubSvelteKit({ dev: true });
-privateEnv.DEMO = '1';
+stubSvelteKit();
 
-const { actions, load } = await import('../src/routes/(app)/loyalty/+page.server');
-const { demoStandings } = await import('#lib/server/demo-data');
-const { blankLoyaltyConfig, catalogChildren } = await import('@bagel/kit');
+const rpc = mock(async (subject: string) => (subject === 'rpc.modules.patch' ? { rev: 4, modules: [] } : { modules: [] }));
+const nats = await import('@bagel/kit/server/nats');
+mock.module('@bagel/kit/server/nats', () => ({ ...nats, rpc }));
 
-test('load supplies the loyalty demo shape without a freeze', async () => {
-  const page = await load({ locals: { locale: 'en' } } as never);
-  expect(page).toEqual({
-    enabled: true,
-    config: blankLoyaltyConfig(),
-    disabledTriggers: '',
-    top: demoStandings(),
-    topFreeze: null,
-    freeze: null,
-    raffle: null,
-    games: catalogChildren('loyalty').map(({ id }) => ({ id, enabled: false, config: {}, revision: 0 }))
-  });
-});
+const { actions } = await import('../src/routes/(app)/loyalty/+page.server');
+
+const locals = { locale: 'en', session: { user_id: '7' }, accountState: { value: { status: 'paid' } } };
 
 test.each([
   { name: 'raffle', partial: '{"prizePoints":"5000"}', status: undefined, revision: 4 },
@@ -36,7 +25,9 @@ test.each([
     method: 'POST',
     body: new URLSearchParams({ name, partial, expected_rev: '3' })
   });
-  const result = await actions.gameSettings({ request, locals: { locale: 'en' } } as never);
+  const cookies = { set: () => {}, get: () => undefined, delete: () => {} };
+  const url = new URL('https://dashboard.test/loyalty');
+  const result = await actions.gameSettings({ request, locals, cookies, url } as never);
   if (status) {
     expect(result).toMatchObject({ status, data: { ok: false } });
   } else {

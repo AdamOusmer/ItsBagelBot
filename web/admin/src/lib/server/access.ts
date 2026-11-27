@@ -3,7 +3,6 @@
 
 import type { Session } from './session';
 import { adminCheck } from './services';
-import { dev } from '$app/env';
 import { allows, type AccessKey, type AdminRole } from '#lib/access';
 
 export {
@@ -23,14 +22,9 @@ export interface AdminIdentity {
   role: AdminRole;
 }
 
-const DEMO = dev && process.env.DEMO === '1';
 const adminLookups = new WeakMap<Session, Promise<AdminIdentity | null>>();
 
 export async function requireAdmin(session: Session | null): Promise<AdminIdentity | null> {
-  if (DEMO) {
-    const { demoAdminIdentity } = await import('./demo-data');
-    return demoAdminIdentity();
-  }
   if (!session) return null;
 
   const cached = adminLookups.get(session);

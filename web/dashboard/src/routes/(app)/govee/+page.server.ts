@@ -7,33 +7,21 @@ import { goveeStore, parseGroupLights, type GoveeDevice, type GoveeGroupInput, t
 import { moduleLoad } from '#lib/server/module-page';
 import { done, storeMutator } from '#lib/server/reward-action';
 import { parseRewardCore } from '#lib/server/reward-form';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
-
-const DEMO = dev && env.DEMO === '1';
 
 type DeviceList = { devices: GoveeDevice[]; error?: string; code?: 'key_rejected' | 'unreachable' };
 type GoveePage = {
   enabled: boolean;
   keyPresent: boolean;
-  setupPreview?: boolean;
   bindings: GoveeView['bindings'];
   groups: GoveeView['groups'];
   devices: DeviceList | Promise<DeviceList>;
   colors: string[];
 };
 
-export const load: PageServerLoad = ({ locals, url }) => {
+export const load: PageServerLoad = ({ locals }) => {
   const colors = [...GOVEE_COLOR_NAMES];
   return moduleLoad<GoveePage>('govee', locals.session, {
-    demo: DEMO
-      ? async () => {
-          const { demoGoveeView, demoGoveeDevices } = await import('#lib/server/demo-data');
-          const setupPreview = url.searchParams.get('setup') === '1';
-          return { ...demoGoveeView(), keyPresent: !setupPreview, setupPreview, devices: { devices: demoGoveeDevices(), error: undefined }, colors };
-        }
-      : undefined,
     read: async (uid) => {
       const store = goveeStore(uid);
       const view = await store.read();
@@ -79,7 +67,7 @@ function parseGroupInput(f: FormData): GoveeGroupInput | null {
   return { rewardId: String(f.get('reward_id') ?? '').trim(), name, lights };
 }
 
-const mutate = storeMutator('govee', DEMO, goveeStore);
+const mutate = storeMutator('govee', goveeStore);
 
 export const actions: Actions = {
   saveKey: async (event) => {

@@ -1,12 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/env';
 import { liveTotals } from './live-counters';
 import { exactRateWindows } from '@bagel/kit/rates';
-
-// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
-const DEMO = dev && process.env.DEMO === '1';
 
 const BOT_SCOPE_USER = '0';
 const COUNTER_MESSAGES = 'messages_processed';
@@ -88,7 +84,6 @@ function startSampler(): void {
 }
 
 export async function publicStats(): Promise<PublicStats> {
-  if (DEMO) return (await import('./demo-data')).demoStats(Date.now());
   startSampler();
   if (!latest) await sample();
   return latest ?? degradedStats();

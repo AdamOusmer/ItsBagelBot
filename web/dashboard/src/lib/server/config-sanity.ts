@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/env';
-import { demoConfigured } from '@bagel/kit/server/demo-guard';
 import {
   assertCallback,
   assertOptionalHTTPSURL,
@@ -14,13 +12,6 @@ import { logger } from '@bagel/kit/server/logger';
 type Env = Record<string, string | undefined>;
 
 export const DEFAULT_DASHBOARD_L1_CACHE_CAPACITY = 5_000;
-
-// Check the build-time `dev`, never NODE_ENV: any container can set NODE_ENV.
-export function assertDemoConfigSafe(env: Env): void {
-  if (!dev && demoConfigured(env)) {
-    throw new Error('DEMO must not be enabled in production');
-  }
-}
 
 export function dashboardL1CacheCapacity(env: Env): number {
   return positiveIntegerSetting(
@@ -43,7 +34,6 @@ function warnMarketingConfig(env: Env): void {
 }
 
 export function assertConfigSane(env: Env): void {
-  assertDemoConfigSafe(env);
   const origin = env.ORIGIN ? assertOrigin('ORIGIN', env.ORIGIN) : undefined;
   assertCallback('TWITCH_REDIRECT_URI', env.TWITCH_REDIRECT_URI, {
     origin,

@@ -3,12 +3,9 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
-import { dev } from '$app/env';
 import { allows, requireRole } from '#lib/server/access';
 import { actionError, adminText, audited, okReply } from '#lib/server/admin-action';
 import { giveawayGet, giveawayAlerts, giveawayPreview, giveawayFreeze, giveawayDraw, giveawayRetry, giveawayInclusion, type GiveawayAlertWire, type GiveawayDetailWire } from '#lib/server/giveaways';
-
-const DEMO = dev && process.env.DEMO === '1';
 
 function operationFields(form: FormData): { version: number; key: string } | null {
   const version = Number(String(form.get('expected_version') ?? ''));
@@ -41,13 +38,11 @@ type OperationEvent = { request: Request; locals: App.Locals; params: { id: stri
 const campaignOperations = {
   freeze: {
     run: giveawayFreeze,
-    notice: 'admin.giveaway.snapshotFrozen',
-    demoNotice: 'admin.giveaway.snapshotFrozenDemo'
+    notice: 'admin.giveaway.snapshotFrozen'
   },
   draw: {
     run: giveawayDraw,
-    notice: 'admin.giveaway.drawCommitted',
-    demoNotice: 'admin.giveaway.drawCommittedDemo'
+    notice: 'admin.giveaway.drawCommitted'
   }
 };
 
@@ -66,9 +61,8 @@ async function changeCampaign(event: OperationEvent, kind: keyof typeof campaign
   const context = await operationContext(event, kind === 'freeze');
   if ('error' in context) return context.error;
   const { admin, digest, operation } = context;
-  const { run, notice, demoNotice } = campaignOperations[kind];
-  const reply = okReply(adminText(event.locals.locale, DEMO ? demoNotice : notice));
-  if (DEMO) return reply;
+  const { run, notice } = campaignOperations[kind];
+  const reply = okReply(adminText(event.locals.locale, notice));
   const target = event.params.id;
   const input = {
     actorId: admin.id, campaignId: target, poolDigest: digest,
@@ -86,24 +80,15 @@ async function inclusion(event: OperationEvent, include: boolean) {
   if (!admin) return fail(403, { error: actionError(event.locals.locale, 'forbidden') });
   const userId = String((await event.request.formData()).get('user_id') ?? '').trim();
   if (!/^\d+$/.test(userId)) return fail(400, { error: adminText(event.locals.locale, 'admin.giveaway.userIdRequired') });
-  if (DEMO) {
-    const { demoGiveawayPreview } = await import('#lib/server/demo-giveaways');
-    return { preview: demoGiveawayPreview({ userId, include }) };
-  }
   const action = include ? 'giveaway_include' : 'giveaway_exclude';
   return audited({ admin, action, target: event.params.id, detail: userId }, () => giveawayInclusion({ actorId: admin.id, campaignId: event.params.id, userId, include }), (preview) => ({ preview }));
 }
 
-export const load: PageServerLoad = async ({ params, parent, url, depends }) => {
+export const load: PageServerLoad = async ({ params, parent, depends }) => {
   depends('admin:giveaway');
   const layout = await parent();
   if (!allows(layout.role, 'giveaways.manage')) throw redirect(302, '/');
   const id = params.id;
-  if (DEMO) {
-    const status = url.searchParams.get('demo');
-    const { demoGiveawayDetail } = await import('#lib/server/demo-giveaways');
-    return { id, ...demoGiveawayDetail(id, status) };
-  }
   return { id, ...await loadLiveDetail(layout.id, id) };
 };
 
@@ -111,10 +96,6 @@ export const actions: Actions = {
   preview: async ({ locals, params }) => {
     const admin = await requireRole({ locals }, 'giveaways.manage');
     if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
-    if (DEMO) {
-      const { demoGiveawayPreview } = await import('#lib/server/demo-giveaways');
-      return { preview: demoGiveawayPreview() };
-    }
     try {
       const preview = await giveawayPreview({ actorId: admin.id, campaignId: params.id });
       return { preview };
@@ -131,7 +112,6 @@ export const actions: Actions = {
     if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
     const awardId = String((await request.formData()).get('award_id') ?? '').trim();
     if (!awardId) return fail(400, { error: adminText(locals.locale, 'admin.giveaway.awardIdRequired') });
-    if (DEMO) return okReply(adminText(locals.locale, 'admin.giveaway.retryQueuedDemo'));
     return audited({ admin, action: 'giveaway_retry', target: awardId }, () => giveawayRetry({ actorId: admin.id, awardId }), () => okReply(adminText(locals.locale, 'admin.giveaway.retryQueued')));
   }
 };

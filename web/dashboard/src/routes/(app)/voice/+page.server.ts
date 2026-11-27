@@ -2,8 +2,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { fail, redirect } from '@sveltejs/kit';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { translate, type Locale } from '@bagel/kit/i18n';
 import { bestEffort } from '@bagel/kit/server/best-effort';
 import { RpcError } from '@bagel/kit/server/nats';
@@ -21,8 +19,6 @@ import { TTS_COMMAND } from '@bagel/kit/voice-plan';
 import { parseCommandSave, parseVoiceSave, ttsCommandConfig, voiceAlertConfig } from './voice-settings';
 import type { Session } from '#lib/server/session';
 import type { Actions, PageServerLoad } from './$types';
-
-const DEMO = dev && env.DEMO === '1';
 
 async function readRow(userId: string, module: string) {
   const rows = await listModulesForEditing(userId);
@@ -148,51 +144,7 @@ function unblockByForm(
   });
 }
 
-async function demoSave(fields: FormData, locale: Locale) {
-  const save = parseVoiceSave(fields);
-  if (save.error !== null) return invalidSave(locale, save.error);
-  return { ok: true, rev: (await import('#lib/server/demo-data')).demoVoiceSave(save.settings, save.partial) };
-}
-
-const demoUnblock = (async ({ request }) => {
-  (await import('#lib/server/demo-data')).demoVoiceUnblock({ viewerId: viewerId(await request.formData()) });
-  return { blocksChanged: true };
-}) satisfies Actions[string];
-
-const demoActions = {
-  save: async ({ locals: { locale }, request }) => demoSave(await request.formData(), locale),
-  saveCommand: async ({ locals: { locale }, request }) => {
-    const save = parseCommandSave(await request.formData());
-    if (save.error !== null) return invalidSave(locale, save.error);
-    return { ok: true, rev: save.expectedRev + 1 };
-  },
-  rotateOverlay: async () => ({ overlayUrl: 'https://overlay.itsbagelbot.com/tts#demo' }),
-  testAlert: async () => ({ testAlertSent: true }),
-  blockViewer: async ({ locals: { locale }, request }) => {
-    const demo = await import('#lib/server/demo-data');
-    if (!demo.demoVoiceBlock({ login: viewerLogin(await request.formData()) })) {
-      return fail(400, { blockError: translate(locale, 'voice.blocks.unknown') });
-    }
-    return { blocksChanged: true };
-  },
-  unblockViewer: demoUnblock
-} satisfies Actions;
-
-const demoLoad = (async ({ url }) => {
-  const { allowance, overlay, config, revision, safety } = (await import('#lib/server/demo-data')).demoVoiceView(url.searchParams.get('locked') === '1');
-  const locked = allowance.reason === 'no_plan';
-  return {
-    readOnly: false,
-    locked,
-    allowance,
-    overlay,
-    alerts: locked ? null : { config: voiceAlertConfig(config), revision },
-    command: locked ? null : { config: ttsCommandConfig({}), enabled: false, revision: 0 },
-    safety: locked ? null : safety
-  };
-}) satisfies PageServerLoad;
-
-const liveLoad = (async ({ locals: { session } }) => {
+export const load: PageServerLoad = async ({ locals: { session } }) => {
   if (!session) throw redirect(302, '/login?next=%2Fvoice');
   if (!hasOwnerAccess(session)) return { readOnly: true, locked: false, allowance: null, overlay: null, alerts: null, command: null, safety: null };
 
@@ -208,9 +160,7 @@ const liveLoad = (async ({ locals: { session } }) => {
   if (!rows || !overlay) return { ...view, overlay, alerts: null, command: null, safety };
   const byName = (module: string) => rows.find(({ name }) => name === module);
   return { ...view, overlay, alerts: alertsView(byName('alerts')), command: commandView(byName(TTS_COMMAND)), safety };
-}) satisfies PageServerLoad;
-
-export const load: PageServerLoad = DEMO ? demoLoad : liveLoad;
+};
 
 const testAlertRefusals = {
   no_link: [409, 'voice.testNoLink'],
@@ -219,7 +169,7 @@ const testAlertRefusals = {
   disabled: [403, 'voice.testDisabled']
 } as const;
 
-const liveActions = {
+export const actions = {
   save: async ({ locals: { session, locale }, request }) => {
     if (!session) return fail(401, { error: translate(locale, 'serverErrors.notSignedIn') });
     if (!hasOwnerAccess(session)) return fail(403, { error: translate(locale, 'serverErrors.ownerOnly') });
@@ -274,5 +224,3 @@ const liveActions = {
   },
   unblockViewer: ({ locals, request }) => unblockByForm(locals, request, 'voice:unblock', voiceUnblock)
 } satisfies Actions;
-
-export const actions = DEMO ? demoActions : liveActions;

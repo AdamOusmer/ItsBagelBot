@@ -35,14 +35,10 @@ import { revokeAllForUser, revokeSession } from '@bagel/kit/server/session-revoc
 import { isLocale, DEFAULT_LOCALE } from '@bagel/kit/i18n';
 import { actionError } from '#lib/server/action-errors';
 import { GRANTABLE_SECTIONS } from '@bagel/kit';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { cookieOptions, deleteOptions } from '#lib/server/cookies';
 import { logger } from '@bagel/kit/server/logger';
 import { businessMailingAddress, currentAccount } from '#lib/server/consent';
 import { isSelfSignIn } from '#lib/server/owner';
-
-const DEMO = dev && env.DEMO === '1';
 
 type UpstreamFailure = { op: string; error: string; ok?: false };
 
@@ -84,7 +80,6 @@ function requireOwner(
 function pageToggle(page: PublicPage) {
   const action = pageScope(page);
   return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
-    if (DEMO) return { ok: true, action, edgeDelayed: false };
     const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.quiet);
     if ('refusal' in owner) return owner.refusal;
     const s = owner.session;
@@ -139,25 +134,6 @@ function emailPreferences(locals: App.Locals) {
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
-  if (DEMO) {
-    const d = await import('#lib/server/demo-data');
-    return {
-      given: d.demoDelegationGiven,
-      received: d.demoDelegationReceived,
-      grantableSections: [...GRANTABLE_SECTIONS],
-      notifications: d.demoNotifications,
-      savedLocale: locals.locale,
-      emailPreferences: { status: d.demoAccountState.marketingStatus, mailingAddress: d.demoMailingAddress },
-      pages: Object.fromEntries(PUBLIC_PAGES.map((page) => [page, true])) as PageFlags,
-      twitchConnected: true as boolean | null,
-      degraded: false,
-      fetchKeys: d.demoFetches().keys,
-      fetchKeyRefs: { weather_api: ['weather'] },
-      deviceGrants: d.demoDeviceGrants,
-      devicesDegraded: false
-    };
-  }
-
   const s = locals.session;
   if (!s || s.delegate_of) throw redirect(302, '/');
 
@@ -214,30 +190,6 @@ function keyEntryError(label: string, value: string, locale: Locale): string | n
   return null;
 }
 
-async function demoKeySet(label: string, value: string) {
-  const d = await import('#lib/server/demo-data');
-  const current = d.demoFetches();
-  return {
-    ok: true,
-    action: 'fetchkeyset',
-    name: label,
-    fetchKeys: [
-      ...current.keys.filter((k) => k.label !== label),
-      { label, last4: value.slice(-4).replace(/[^0-9a-f]/gi, '').padEnd(4, 'x'), created_at: new Date().toISOString() }
-    ]
-  };
-}
-
-async function demoKeyDelete(label: string) {
-  const d = await import('#lib/server/demo-data');
-  return {
-    ok: true,
-    action: 'fetchkeydeleted',
-    name: label,
-    fetchKeys: d.demoFetches().keys.filter((k) => k.label !== label)
-  };
-}
-
 export const actions: Actions = {
   marketing: async ({ locals, request }) => {
     const { session, locale } = locals;
@@ -263,8 +215,6 @@ export const actions: Actions = {
     const invalid = keyEntryError(label, value, locals.locale);
     if (invalid) return fail(400, { ok: false, error: invalid });
 
-    if (DEMO) return demoKeySet(label, value);
-
     const actor = requireOwner(locals.session, locals.locale, OWNER_POLICY.keys);
     if ('refusal' in actor) return actor.refusal;
 
@@ -281,8 +231,6 @@ export const actions: Actions = {
   delfetchkey: async ({ request, locals }) => {
     const label = slugifyName(String((await request.formData()).get('label') ?? ''));
 
-    if (DEMO) return demoKeyDelete(label);
-
     const actor = requireOwner(locals.session, locals.locale, OWNER_POLICY.keys);
     if ('refusal' in actor) return actor.refusal;
 
@@ -297,7 +245,6 @@ export const actions: Actions = {
   },
 
   markRead: async ({ request, locals }) => {
-    if (DEMO) return { ok: true, action: 'read' };
     const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.explicit);
     if ('refusal' in owner) return owner.refusal;
     const s = owner.session;
@@ -320,7 +267,6 @@ export const actions: Actions = {
   [PAGE_ACTION.songqueue]: pageToggle('songqueue'),
 
   markAllRead: async ({ request, locals }) => {
-    if (DEMO) return { ok: true, action: 'all_read' };
     const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.quiet);
     if ('refusal' in owner) return owner.refusal;
     const s = owner.session;
@@ -340,7 +286,6 @@ export const actions: Actions = {
   },
 
   markPeeked: async ({ locals }) => {
-    if (DEMO) return { ok: true, action: 'peeked' };
     const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.quiet);
     if ('refusal' in owner) return owner.refusal;
     const s = owner.session;

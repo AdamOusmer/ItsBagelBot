@@ -33,11 +33,7 @@ import { actionError, actionErrorBody } from '#lib/server/action-errors';
 import { effectiveId } from '#lib/server/board';
 import { parsePerm, signedInAction } from '#lib/server/action-context';
 import { accountPremium, gateSection } from '#lib/server/module-gate';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
-
-const DEMO = dev && env.DEMO === '1';
 
 function configString(configs: unknown, key: string): string {
   if (configs && typeof configs === 'object') {
@@ -90,15 +86,6 @@ export const load: PageServerLoad = async ({ locals, depends }) => {
   depends('app:commands');
   gateSection(locals.session, 'commands');
   const uid = effectiveId(locals.session);
-  if (DEMO) {
-    const { demoCommandRows, demoFetches } = await import('#lib/server/demo-data');
-    return {
-      commands: mergeCommands(demoCommandRows, []),
-      ...demoFetches(),
-      board: uid,
-      publicPage: { on: true, url: commandsHref('demo') }
-    };
-  }
   try {
     const [custom, modules, fetches, publicPage] = await Promise.all([
       listCommands(uid),
@@ -144,22 +131,7 @@ function seconds(raw: FormDataEntryValue | null): number {
   return Math.max(0, Math.floor(Number(raw ?? 0) || 0));
 }
 
-function demoView(cmd: ReturnType<typeof parseCommand>, isActive: boolean): CommandView {
-  return {
-    name: cmd.name,
-    aliases: cmd.aliases,
-    response: cmd.response,
-    is_active: isActive,
-    stream_online_only: cmd.streamOnlineOnly,
-    perm: cmd.perm,
-    cooldown: cmd.cooldown,
-    user_cooldown: cmd.userCooldown,
-    allowed_user_id: cmd.allowedUserId,
-    bump_counter: cmd.bumpCounter
-  };
-}
-
-const commandsAction = signedInAction((session) => gateSection(session, 'commands'), DEMO);
+const commandsAction = signedInAction((session) => gateSection(session, 'commands'));
 
 // RPC failure detail can carry internal service information: log it, never return it.
 async function tryRpc<T>(action: string, call: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false }> {
@@ -173,10 +145,6 @@ async function tryRpc<T>(action: string, call: () => Promise<T>): Promise<{ ok: 
 
 function parseKitPerm<F>(raw: unknown, fallback: F): Perm | F {
   return parsePerm(raw, PERMS, fallback);
-}
-
-function builtinRow(def: NonNullable<ReturnType<typeof builtinDef>>, response: string, isActive: boolean, perm: Perm = def.defaultPerm): CommandView {
-  return { ...builtinView(def), response, is_active: isActive, perm };
 }
 
 async function patchBuiltin(
@@ -274,10 +242,6 @@ export const actions: Actions = {
       return fail(400, { ok: false, errors, error: actionError(ctx.locale, firstError(errors) ?? '') });
     }
 
-    if (DEMO) {
-      return saveResult(s, [demoView(s.cmd, s.isActive)]);
-    }
-
     const blocked = await guardSave(ctx.uid, s);
     if (blocked) return blocked;
 
@@ -300,10 +264,6 @@ export const actions: Actions = {
     const cmd = parseCommand(f);
     const isActive = f.get('is_active') === 'on';
 
-    if (DEMO) {
-      return { ok: true, action: 'updated', name: cmd.name, commands: [demoView(cmd, isActive)], silent: true };
-    }
-
     const res = await tryRpc('toggle', () => upsertCommand(uid, { ...cmd, isActive }));
     if (!res.ok) return fail(400, { ok: false });
 
@@ -316,8 +276,6 @@ export const actions: Actions = {
     const { uid, form: f } = ctx;
 
     const name = String(f.get('name') ?? '');
-
-    if (DEMO) return { ok: true, action: 'deleted', name };
 
     const res = await tryRpc('delete', () => deleteCommand(uid, name));
     if (!res.ok) return fail(400, { ok: false });
@@ -334,8 +292,6 @@ export const actions: Actions = {
       return fail(400, { ok: false, error: actionError(ctx.locale, 'Invalid input.') });
     }
 
-    if (DEMO) return { ok: true, op, results: names.map((name) => ({ name, ok: true })) };
-
     const res = await tryRpc('bulk', () => runBulk(ctx.uid, op, names));
     if (!res.ok) return fail(400, { ok: false });
 
@@ -350,15 +306,9 @@ export const actions: Actions = {
     const def = builtinDef(name);
     if (!def) return fail(400, { ok: false, error: actionError(ctx.locale, 'Unknown built-in command.') });
     const isActive = f.get('is_active') === 'on';
-    const perm = parseKitPerm(f.get('perm'), def.defaultPerm);
-    const view = builtinRow(def, String(f.get('response') ?? def.summary), isActive, perm);
     const needsPremium = def.premium === true && isActive;
     if (needsPremium && !(await accountPremium(ctx.uid))) {
       return fail(403, { ok: false, error: actionError(ctx.locale, 'Premium only.') });
-    }
-
-    if (DEMO) {
-      return { ok: true, action: 'updated', name, commands: [view], silent: true };
     }
 
     const res = await tryRpc('toggleBuiltin', () => patchBuiltin(uid, def, () => ({ isEnabled: isActive, partial: {} })));
@@ -371,12 +321,7 @@ export const actions: Actions = {
   saveBuiltinReply: commandsAction(async (ctx) => {
     const parsed = parseBuiltinReply(ctx.form, ctx.locale);
     if ('refusal' in parsed) return parsed.refusal;
-    const { name, def, reply, isActive, perm } = parsed;
-    const view = builtinRow(def, reply || def.preview, isActive, perm);
-
-    if (DEMO) {
-      return { ok: true, action: 'updated', name, commands: [view], silent: true };
-    }
+    const { name, def, reply } = parsed;
 
     const res = await tryRpc('saveBuiltinReply', () =>
       patchBuiltin(ctx.uid, def, (row) => ({ isEnabled: row?.is_enabled ?? def.defaultActive, partial: { [def.replyKey]: reply } }))
@@ -395,9 +340,6 @@ export const actions: Actions = {
     if (!def || !perm) {
       return fail(400, { ok: false, error: actionError(ctx.locale, 'Invalid built-in command or access level.') });
     }
-    const view = builtinRow(def, String(f.get('response') ?? def.summary), f.get('is_active') === 'on', perm);
-    if (DEMO) return { ok: true, action: 'updated', name, commands: [view], silent: true };
-
     const res = await tryRpc('saveBuiltinAccess', () =>
       patchBuiltin(uid, def, (row) => ({ isEnabled: row?.is_enabled ?? def.defaultActive, partial: { permission: perm } }))
     );
@@ -424,5 +366,5 @@ function parseBuiltinReply(f: FormData, locale: App.Locals['locale']) {
   if (reply.length > RESPONSE_MAX) {
     return { refusal: fail(400, { ok: false, error: actionError(locale, `Reply is too long (max ${RESPONSE_MAX}).`) }) };
   }
-  return { name, def, reply, isActive: f.get('is_active') === 'on', perm: parseKitPerm(f.get('perm'), def.defaultPerm) };
+  return { name, def, reply };
 }

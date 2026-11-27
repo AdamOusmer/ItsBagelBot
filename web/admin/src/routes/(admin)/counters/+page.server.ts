@@ -5,7 +5,6 @@ import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { mutateAction, thrownStatus } from '@bagel/kit/server/form-action';
 import { parseCounterValue } from '@bagel/kit/validation';
-import { dev } from '$app/env';
 import { allows, requireRole, type AdminIdentity } from '#lib/server/access';
 import { audit } from '#lib/server/audit';
 import { actionError, adminText } from '#lib/server/admin-action';
@@ -18,8 +17,6 @@ import {
   type BotCounter
 } from '#lib/server/services';
 
-const DEMO = dev && process.env.DEMO === '1';
-
 export type BotCountersBundle = { counters: BotCounter[]; degraded: boolean };
 
 export const load: PageServerLoad = async ({ depends, parent }) => {
@@ -28,11 +25,9 @@ export const load: PageServerLoad = async ({ depends, parent }) => {
   if (!allows(layout.role, 'counters.manage')) throw redirect(302, '/');
   depends(COUNTERS_DATA);
 
-  const bundle: Promise<BotCountersBundle> = DEMO
-    ? import('#lib/server/demo-giveaways').then(({ demoBotCounters }) => ({ counters: demoBotCounters, degraded: false }))
-    : botCounterList()
-        .then((counters) => ({ counters, degraded: false }))
-        .catch(() => ({ counters: [], degraded: true }));
+  const bundle: Promise<BotCountersBundle> = botCounterList()
+    .then((counters) => ({ counters, degraded: false }))
+    .catch(() => ({ counters: [], degraded: true }));
 
   return { bundle };
 };
@@ -63,7 +58,6 @@ function mutate(op: CounterOperation) {
     const result = await mutateAction<AdminIdentity>(event, {
       gate: () => requireRole(event, 'counters.manage'),
       refusal: () => fail(403, { ok: false, error: actionError(event.locals.locale, 'forbidden') }),
-      demo: DEMO,
       run: async (_admin, f) => {
         const outcome = await mutateCounter(op, f);
         counter = outcome?.counter;

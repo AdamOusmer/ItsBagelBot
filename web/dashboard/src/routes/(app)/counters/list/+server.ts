@@ -2,12 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { json } from '@sveltejs/kit';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { listCounters } from '#lib/server/loyalty-store';
 import type { RequestHandler } from './$types';
-
-const DEMO = dev && env.DEMO === '1';
 
 function delegateBlocked(s: App.Locals['session']): boolean {
   if (!s?.delegate_of) return false;
@@ -19,7 +15,6 @@ export const GET: RequestHandler = async ({ locals }) => {
   const s = locals.session;
   if (delegateBlocked(s)) return json({ counters: [] }, { status: 403 });
   const uid = s?.delegate_of ?? s?.user_id;
-  if (DEMO) return json({ counters: [] });
   if (!uid) return json({ counters: [] }, { status: 401 });
   try {
     const counters = (await listCounters(uid)).map(({ name, scope }) => ({ name, scope }));

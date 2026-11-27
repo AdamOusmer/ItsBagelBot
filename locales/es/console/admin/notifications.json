@@ -54,8 +54,6 @@
   "pagerPrev": "Más recientes",
   "pagerNext": "Más antiguas",
   "pagerLabel": "Página {page}",
-  "sentDemo": "notificación enviada a {target} (demostración)",
-  "retractedDemo": "notificación retirada (demostración)",
   "invalidScope": "alcance no válido",
   "targetRequired": "se requiere el ID o nombre de usuario del destinatario",
   "titleBodyRequired": "se requieren título y cuerpo",

@@ -10,6 +10,5 @@
   "idRequired": "se requiere un ID",
   "cannotGrantRole": "no se puede conceder {role}",
   "countPositive": "la cantidad debe ser un entero positivo",
-  "laneDemoDisabled": "modo demostración: los cambios en las vías están desactivados",
   "laneFailed": "{verb} falló: {error}"
 }

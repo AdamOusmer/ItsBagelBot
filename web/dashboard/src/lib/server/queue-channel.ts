@@ -3,7 +3,6 @@
 
 import { error } from '@sveltejs/kit';
 import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { MOD } from '@bagel/kit';
 import { lookupLogin } from '#lib/server/channel-lookup';
 import { markEdge, pageOutcome, readVisibility, type EdgeOutcome } from '#lib/server/edge-cache';
@@ -12,8 +11,6 @@ import { channelLabel } from '#lib/server/public-directory';
 import { readQueue } from '#lib/server/queue-store';
 import { LOGIN_RE, normalizeLogin } from '#lib/public-login';
 import { snapshotOf, type QueueSnapshot } from '#lib/queue-snapshot';
-
-const DEMO = dev && env.DEMO === '1';
 
 const QUEUE_HOST = 'queue.itsbagelbot.com';
 
@@ -50,14 +47,7 @@ export async function requireChannel(login: string, locals: App.Locals) {
   return channelNotFound();
 }
 
-async function demoRead(login: string): Promise<QueueRead> {
-  const demo = await import('#lib/server/demo-data');
-  const now = Date.now();
-  return { login, channelName: login, snapshot: snapshotOf(demo.demoQueue(now), now), outcome: 'page' };
-}
-
 export async function readQueueChannel(login: string, locals: App.Locals): Promise<QueueRead> {
-  if (DEMO) return demoRead(login);
   const channel = await requireChannel(login, locals);
   const [enabled, view] = await Promise.all([
     readVisibility(readModuleBlob(channel.userId, MOD.queue).then((blob) => blob.enabled)),

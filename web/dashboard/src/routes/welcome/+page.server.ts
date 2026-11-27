@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { fail, redirect, type Cookies } from '@sveltejs/kit';
 import { publishEventSub, setOnboarded } from '#lib/server/services';
 import { consentFields, currentAccount, needsTerms, submitTerms } from '#lib/server/consent';
@@ -16,8 +14,6 @@ import { IMPORT_SOURCES, type ImportSource } from '@bagel/kit';
 import { translate, type Locale } from '@bagel/kit/i18n';
 import type { Actions, PageServerLoad } from './$types';
 
-const DEMO = dev && env.DEMO === '1';
-
 const SETUP_PRESETS = new Set(['start-new', 'integrate', 'quiet']);
 type SetupPreset = 'start-new' | 'integrate' | 'quiet';
 type Counted = SetupPreset | 'import';
@@ -26,15 +22,10 @@ function termsAccepted(locals: App.Locals): boolean {
   return !needsTerms(currentAccount(locals));
 }
 
-async function tourSession(locals: App.Locals): Promise<Session | null> {
-  if (locals.session) return locals.session;
-  return DEMO ? (await import('#lib/server/demo-data')).demoSession() : null;
-}
-
 function sourceConnected(id: ImportSource, cookies: Cookies): boolean {
   const check = SERVER_STRATEGIES[id].connected;
   if (!check) return false;
-  return DEMO || check(cookies);
+  return check(cookies);
 }
 
 function connectedSources(cookies: Cookies): Record<ImportSource, boolean> {
@@ -83,10 +74,8 @@ async function finishSetup<R>(
   save: (uid: string) => Promise<unknown>,
   finish: () => R
 ) {
-  if (!DEMO) {
-    const failed = await persist(locals, counted, save);
-    if (failed) return failed;
-  }
+  const failed = await persist(locals, counted, save);
+  if (failed) return failed;
   return finish();
 }
 
@@ -97,7 +86,7 @@ function recordConsentFailure<T extends { status: number }>(failure: T): T {
 }
 
 export const load: PageServerLoad = async ({ locals, cookies }) => {
-  const s = await tourSession(locals);
+  const s = locals.session;
   if (!s) throw redirect(302, `/login?next=${encodeURIComponent('/welcome')}`);
   if (!isSelfSignIn(s)) throw redirect(303, '/');
   const accepted = termsAccepted(locals);
@@ -106,19 +95,18 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
     name: s.display_name || s.login,
     connected: connectedSources(cookies),
     accepted,
-    consent: accepted ? null : await consentFields(locals, DEMO)
+    consent: accepted ? null : consentFields(locals)
   };
 };
 
 export const actions: Actions = {
   consent: async ({ locals, request }) => {
-    const session = await tourSession(locals);
-    const result = await submitTerms({ locals: { ...locals, session }, request }, 'welcome', DEMO);
+    const result = await submitTerms({ locals, request }, 'welcome');
     if (!('uid' in result)) return recordConsentFailure(result);
     return { ok: true, marketingSkipped: result.marketingSkipped };
   },
   done: async ({ locals, request }) => {
-    if (!DEMO && !termsAccepted(locals)) return consentMissing(locals);
+    if (!termsAccepted(locals)) return consentMissing(locals);
     const form = await request.formData();
     const value = form.get('preset');
     if (typeof value !== 'string' || !SETUP_PRESETS.has(value)) {
@@ -138,7 +126,7 @@ export const actions: Actions = {
     );
   },
   finishImport: async ({ locals }) => {
-    if (!DEMO && !termsAccepted(locals)) return consentMissing(locals);
+    if (!termsAccepted(locals)) return consentMissing(locals);
     return finishSetup(locals, 'import', (uid) => finishOnboarding(locals, uid), () => ({ ok: true }));
   }
 };

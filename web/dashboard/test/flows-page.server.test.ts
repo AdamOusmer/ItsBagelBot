@@ -3,17 +3,12 @@
 
 import { beforeEach, expect, test } from 'bun:test';
 import { formRequest, installAutomationsRpcFake } from './automations-rpc';
-import { privateEnv, stubSvelteKit } from './sveltekit';
+import { stubSvelteKit } from './sveltekit';
 
 stubSvelteKit({ dev: true });
 await import('../src/lib/server/action-errors');
 const fake = await installAutomationsRpcFake();
 const { actions } = await import('../src/routes/(app)/flows/[id]/+page.server');
-
-privateEnv.DEMO = '1';
-const demoModule = '../src/routes/(app)/flows/[id]/+page.server.ts?demo';
-const { actions: demoActions } = (await import(demoModule)) as typeof import('../src/routes/(app)/flows/[id]/+page.server');
-delete privateEnv.DEMO;
 
 const RUN = 'rpc.automations.run';
 const name = 'Scene change';
@@ -46,10 +41,6 @@ test.each([
 ] as const)('live run maps %s to an action failure', async (code, reply, status) => {
   fake.replies[RUN] = reply;
   expect(await post(actions.run)).toMatchObject({ status, data: { ok: false, code } });
-});
-
-test('demo run succeeds without RPC', async () => {
-  expect({ reply: await post(demoActions.run), calls: fake.calls }).toEqual({ reply: { ok: true }, calls: [] });
 });
 
 test('run denies free accounts at the save gate', async () => {

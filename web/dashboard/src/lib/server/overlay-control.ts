@@ -2,16 +2,12 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { json } from '@sveltejs/kit';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { auditDashboardImpersonation } from '#lib/server/services/audit';
 import {
   assetDelete, assetList, feedControl, type FeedAction, type FeedControlArgs
 } from '#lib/server/services/overlays';
 import { ownerOrRefusal, refuse, refusal } from '#lib/server/overlay-upload';
 import type { Session } from '#lib/server/session';
-
-const DEMO = dev && env.DEMO === '1';
 
 const NO_STORE = { 'cache-control': 'no-store' };
 const ASSET_ID = /^[A-Za-z0-9_-]{1,96}$/;
@@ -26,7 +22,7 @@ export async function listAssets(session: Session | null | undefined): Promise<R
   const owner = ownerOrRefusal(session);
   if (owner instanceof Response) return owner;
   try {
-    const assets = DEMO ? (await import('#lib/server/demo-data')).demoAssets() : await assetList(owner);
+    const assets = await assetList(owner);
     return json({ assets }, { headers: NO_STORE });
   } catch (err) {
     return refusal(err);
@@ -39,8 +35,7 @@ export async function deleteAsset(session: Session | null | undefined, url: URL)
   const id = url.searchParams.get('id') ?? '';
   if (!ASSET_ID.test(id)) return refuse('invalid', 400);
   try {
-    if (DEMO) (await import('#lib/server/demo-data')).demoAssetDelete(id);
-    else await assetDelete(owner, id);
+    await assetDelete(owner, id);
     auditDashboardImpersonation(owner, 'overlays:asset_delete');
     return json({ deleted: true }, { headers: NO_STORE });
   } catch (err) {
@@ -69,7 +64,7 @@ export async function controlFeed(session: Session | null | undefined, request: 
   const control = readControl((await request.json().catch(() => null)) as ControlBody | null);
   if (!control) return refuse('invalid', 400);
   try {
-    const state = DEMO ? (await import('#lib/server/demo-data')).demoFeedControl(control) : await feedControl(owner, control);
+    const state = await feedControl(owner, control);
     auditDashboardImpersonation(owner, `overlays:feed_${control.action}`);
     return json(state, { headers: NO_STORE });
   } catch (err) {

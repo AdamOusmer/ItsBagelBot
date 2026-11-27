@@ -11,10 +11,6 @@ import { markEdge, pageOutcome, readVisibility } from '#lib/server/edge-cache';
 import { lookupLogin } from '#lib/server/channel-lookup';
 import { requireHost } from '#lib/server/seo-hosts';
 import { LOGIN_RE, normalizeLogin } from '#lib/public-login';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
-
-const DEMO = dev && env.DEMO === '1';
 
 const ID_RE = /^[1-9]\d{0,19}$/;
 
@@ -97,18 +93,6 @@ async function readDirectory(channel: Channel, locale: Locale): Promise<Director
 
 export const load: PageServerLoad = async ({ params, url, locals }) => {
   requireHost(url, 'commands');
-
-  if (DEMO) {
-    const d = await import('#lib/server/demo-data');
-    return {
-      userId: '1',
-      channelName: parseSegment(params.channel).login ?? 'demo',
-      creatorCode: d.demoCreatorCode,
-      commands: d.demoPublicCommands satisfies PublicCommand[],
-      modules: d.demoPublicModules satisfies PublicModule[],
-      degraded: false
-    };
-  }
 
   const segment = parseSegment(params.channel);
   requireCanonicalSegment(params.channel, segment, url);

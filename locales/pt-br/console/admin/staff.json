@@ -38,8 +38,6 @@
   "confirmDeactivateBody": "@{login} não poderá mais entrar neste console. Seu histórico de auditoria é mantido.",
   "saveFailed": "Não foi possível salvar as alterações.",
   "addCta": "Adicionar",
-  "removedDemo": "Acesso ao console revogado (demonstração).",
   "removed": "Acesso ao console revogado.",
-  "grantedDemo": "{login} → {role} (demonstração)",
   "granted": "{login} definido como {role}"
 }

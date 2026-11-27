@@ -20,14 +20,12 @@
   "pasteBody": "Copie a chave do e-mail da Govee e cole abaixo. Conferimos com a Govee antes de você continuar.",
   "keyStored": "Armazenada com criptografia e nunca mais exibida.",
   "saveContinue": "Salvar e continuar",
-  "previewKey": "Experimentar com uma chave de exemplo",
   "lightsTitle": "Suas luzes estão ouvindo.",
   "lightsBody": "Sua chave está salva. Agora vincule uma recompensa de pontos do canal a cada luz para que os espectadores possam mudar sua cor.",
   "devicesKeyRejected": "A Govee não aceita mais sua chave de API. Escolha Cole sua chave e cole uma nova chave do aplicativo Govee Home.",
   "lightsFound": "Luzes com suporte a cores encontradas: {n}",
   "lightsMore": "e mais {n}",
   "readyCta": "Configurar recompensas",
-  "preview": "Prévia da configuração",
   "footer": "Um ambiente que seu chat pode colorir.",
   "later": "Vou fazer isso depois"
 }

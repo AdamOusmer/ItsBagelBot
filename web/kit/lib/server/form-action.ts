@@ -23,7 +23,6 @@ export function thrownStatus(err: unknown): number {
 export type MutationSpec<Ctx> = {
   gate: () => Ctx | null | Promise<Ctx | null>;
   refusal: () => MutationRefusal;
-  demo: boolean;
   run: (ctx: Ctx, form: FormData) => Promise<string | null | MutationRefusal>;
   failed: (err: unknown, form: FormData, ctx: Ctx) => MutationRefusal;
   audited: (ctx: Ctx, detail: string) => void;
@@ -40,7 +39,6 @@ export async function mutateAction<Ctx>(
   if (ctx === null) return spec.refusal();
 
   const form = await event.request.formData();
-  if (spec.demo) return { ok: true };
 
   let detail: string | null | MutationRefusal;
   try {

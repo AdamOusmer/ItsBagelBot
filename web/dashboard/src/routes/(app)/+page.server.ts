@@ -19,8 +19,6 @@ import {
   delegationList,
 } from '#lib/server/services';
 import { listCommands, listModules } from '#lib/server/commands-store';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/kit/connection-state';
 import { fail, redirect } from '@sveltejs/kit';
 import { overviewLanes } from '#lib/server/overview-lanes';
@@ -28,8 +26,6 @@ import { broadcasterPremium } from '#lib/server/module-gate';
 import { twitchScopeGap } from '#lib/server/oauth';
 import { isSelfSignIn } from '#lib/server/owner';
 import { shareRecent } from '#lib/server/recent-share';
-
-const DEMO = dev && env.DEMO === '1';
 
 export type ConnData = { signals: ConnSignals; ui: ConnUi };
 
@@ -95,10 +91,6 @@ export type ModuleDigest = { on: number; switchedOn: number; total: number; ok: 
 
 export type ShareDigest = { people: number; pending: number; ok: boolean };
 
-function demoOr<T>(pick: (m: typeof import('#lib/server/demo-data')) => T, real: () => Promise<T>): Promise<T> {
-  return DEMO ? import('#lib/server/demo-data').then(pick) : real();
-}
-
 function commandDigest(uid: string): Promise<CommandDigest> {
   return listCommands(uid)
     .then((c) => ({ ...digest(c), ok: true }))
@@ -144,22 +136,17 @@ function ownerScopeGap(s: App.Locals['session']): boolean {
   return isSelfSignIn(s) && twitchScopeGap(s.scopes);
 }
 
-function boardUid(locals: App.Locals): string | null {
-  return locals.session?.user_id ?? (DEMO ? 'demo' : null);
-}
-
 export const load: PageServerLoad = async ({ locals, url }) => {
   const landing = delegateLanding(locals.session);
   if (landing) throw redirect(302, landing);
-  const uid = boardUid(locals);
+  const uid = locals.session?.user_id;
   if (!uid) throw redirect(302, '/login');
   if (url.searchParams.get('welcome') === '1') throw redirect(302, '/welcome');
-  const commands = demoOr((m) => m.demoCommandDigest(digest), () => commandDigest(uid));
   return {
-    conn: demoOr<ConnData>((m) => m.demoConn(connectionUiState), () => connState(uid)),
-    commands,
-    modules: demoOr<ModuleDigest>((m) => m.demoModuleDigest, () => broadcasterPremium(locals).then((premium) => moduleDigest(uid, premium))),
-    shares: demoOr<ShareDigest>((m) => m.demoShareDigest, () => shareDigest(uid)),
+    conn: connState(uid),
+    commands: commandDigest(uid),
+    modules: broadcasterPremium(locals).then((premium) => moduleDigest(uid, premium)),
+    shares: shareDigest(uid),
     twitchScopeGap: ownerScopeGap(locals.session),
 
     ...overviewLanes(uid)

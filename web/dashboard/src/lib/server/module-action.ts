@@ -19,7 +19,6 @@ export type ModuleMutation = (
 ) => Promise<string | null | MutationRefusal>;
 
 export type ModuleActionOpts = {
-  demo: boolean;
   invalid?: string;
   auditAs?: string;
 };
@@ -30,17 +29,16 @@ export function moduleAction(
   modId: string,
   op: string,
   run: ModuleMutation,
-  opts: ModuleActionOpts
+  opts: ModuleActionOpts = {}
 ): (event: ActionEvent) => Promise<MutationRefusal | { ok: true }> {
   return async (event) => {
     const result = await mutateAction<ModuleActor>(event, {
       gate: () => {
         gateModulePage(event.locals.session, modId);
-        if (!opts.demo && !event.locals.session) return null;
-        return { uid: effectiveId(event.locals.session), session: event.locals.session ?? null };
+        if (!event.locals.session) return null;
+        return { uid: effectiveId(event.locals.session), session: event.locals.session };
       },
       refusal: () => fail(401, { ok: false, error: 'Not signed in.' }),
-      demo: opts.demo,
       run: (actor, form) => run(actor.uid, form, event.locals),
       failed: (err) => {
         logger.error({ err }, `[${modId}] ${op} failed`);

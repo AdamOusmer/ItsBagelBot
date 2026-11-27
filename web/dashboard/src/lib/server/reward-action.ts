@@ -35,7 +35,7 @@ export function done(res: RewardOutcome, detail: string): string | MutationRefus
   return res.ok ? detail : resultFail(res);
 }
 
-export function storeMutator<S>(modId: string, demo: boolean, open: (uid: string) => S, auditAs?: string) {
+export function storeMutator<S>(modId: string, open: (uid: string) => S, auditAs?: string) {
   return (op: string, invalid: string, run: (store: S, f: FormData) => Promise<string | null | MutationRefusal>) =>
-    moduleAction(modId, op, (uid, f) => run(open(uid), f), { demo, invalid, auditAs });
+    moduleAction(modId, op, (uid, f) => run(open(uid), f), { invalid, auditAs });
 }

@@ -30,7 +30,6 @@
     "idRequired": "Gib eine numerische Twitch-Streamer-ID ein.",
     "invalidId": "Ungültige Streamer-ID.",
     "invalidEnabled": "Ungültiger Wert für die Aktivierung.",
-    "demoUnavailable": "Die Testbeobachtung ist im Demomodus nicht verfügbar.",
     "added": "Test für {id} hinzugefügt. Das Twitch-Chat-Abonnement steht aus.",
     "removed": "Der Test für {id} wird beendet.",
     "enabled": "Test für {id} aktiviert.",

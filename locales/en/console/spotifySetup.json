@@ -1,7 +1,6 @@
 {
   "premiumTitle": "Spotify Premium is required",
   "premiumBody": "The Spotify account you connect needs Premium so Bagel can control playback and add song requests to your queue. The account that owns your Spotify app needs Premium too, and Spotify lets each app connect at most 5 accounts.",
-  "previewKeys": "Try with sample keys",
   "welcomeTitle": "Give your stream a soundtrack.",
   "welcomeBody": "Let your community pick what plays next. I’ll help you connect Spotify, one little step at a time.",
   "appTitle": "A little app. A lot of music.",
@@ -22,7 +21,6 @@
   "saveContinue": "Save & continue",
   "saved": "Your app is saved and ready.",
   "readyCta": "Set up song requests",
-  "preview": "Setup preview",
   "footer": "A soundtrack, picked together.",
   "later": "I’ll do this later",
   "redirectMissing": "The Redirect URI is unavailable on our side right now, so you cannot continue yet. Try again later.",

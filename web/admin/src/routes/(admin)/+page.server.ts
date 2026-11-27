@@ -17,7 +17,6 @@ import {
   type ServiceHealth,
   type TrialSnapshot
 } from '#lib/server/services';
-import { dev } from '$app/env';
 import { allows } from '#lib/access';
 import { bestEffort } from '@bagel/kit/server/best-effort';
 import { EMPTY_USER_STATS, emptyEnrollment, emptyFeedBoard, emptyShardSnapshot } from '#lib/server/fallback';
@@ -27,7 +26,6 @@ import { parseEnrollmentWindow, type EnrollmentWindow } from '#lib/enrollment-wi
 import { giveawayAlerts, type GiveawayAlertWire } from '#lib/server/giveaways';
 
 const AUDIT_PEEK = 6;
-const DEMO = dev && process.env.DEMO === '1';
 
 export type Panel<T> = { value: T; ok: boolean };
 
@@ -80,23 +78,6 @@ function liveReads(
   };
 }
 
-function demoReads(days: EnrollmentWindow, withAudit: boolean): OverviewReads {
-  const fixtures = import('#lib/server/demo-data');
-  const from = <T>(pick: (f: Awaited<typeof fixtures>) => T): Promise<Panel<T>> =>
-    fixtures.then((f) => ({ value: pick(f), ok: true }));
-  return {
-    accountStats: from((f) => f.sampleStats),
-    enrollment: from((f) => f.demoEnrollment(days)),
-    fleet: from((f) => f.sampleSnapshot),
-    trials: from(() => EMPTY_TRIALS),
-    health: from((f) => f.sampleHealth),
-    feed: from((f) => f.sampleFeedBoard),
-    audit: from((f) => (withAudit ? f.sampleAudit : [])),
-    bot: from(() => true),
-    giveawayAlerts: from(() => [])
-  };
-}
-
 export const load = (async ({ url, parent }) => {
   const { id, role } = await parent();
   const withAudit = allows(role, 'audit.read');
@@ -106,9 +87,7 @@ export const load = (async ({ url, parent }) => {
 
   return {
     days,
-    ...(DEMO
-      ? demoReads(days, withAudit)
-      : liveReads(id, days, { withAudit, withGiveaways, withTrials })),
+    ...liveReads(id, days, { withAudit, withGiveaways, withTrials }),
     botLink: `${url.origin}/auth/bot/login`,
     canReadAudit: withAudit,
     canLinkBot: allows(role, 'bot.token'),

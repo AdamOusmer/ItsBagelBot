@@ -3,7 +3,6 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
-import { dev } from '$app/env';
 import { allows, requireRole } from '#lib/server/access';
 import { audit } from '#lib/server/audit';
 import { actionError, adminText } from '#lib/server/admin-action';
@@ -17,20 +16,13 @@ import {
   type SecretServiceId
 } from '#lib/server/secrets';
 
-const DEMO = dev && process.env.DEMO === '1';
-
 export const load: PageServerLoad = async ({ parent, depends }) => {
   const layout = await parent();
   if (!allows(layout.role, 'secrets.manage')) throw redirect(302, '/');
 
   depends('admin:secrets');
   const ids = serviceIds();
-  const statuses = DEMO
-    ? import('#lib/server/demo-data').then(({ demoSecretsBundle }) =>
-        demoSecretsBundle(ids).services
-      )
-    : credentialStatuses();
-  return { statuses: statuses.catch(() => null), serviceCount: ids.length };
+  return { statuses: credentialStatuses().catch(() => null), serviceCount: ids.length };
 };
 
 function serviceFromForm(form: FormData): SecretServiceId {
@@ -60,10 +52,6 @@ function secretAction(spec: SecretSpec) {
       if (String(form.get('confirm') ?? '').trim() !== phrase) {
         return fail(400, { error: adminText(locals.locale, 'admin.secrets.typeToConfirm', { phrase }) });
       }
-      if (DEMO) {
-        return { action: { ok: true, notice: adminText(locals.locale, 'admin.secrets.demoNotice', { action: spec.name }) } };
-      }
-
       const { dbUser } = await spec.run(service, form);
       audit(admin, { action: spec.name, target: `${service}:${dbUser}`, ok: true });
       return { action: { ok: true, notice: adminText(locals.locale, `admin.secrets.${spec.name}`, { service, dbUser }) } };

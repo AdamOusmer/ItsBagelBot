@@ -54,8 +54,6 @@
   "pagerPrev": "Новее",
   "pagerNext": "Старее",
   "pagerLabel": "Страница {page}",
-  "sentDemo": "уведомление отправлено: {target} (демо)",
-  "retractedDemo": "уведомление отозвано (демо)",
   "invalidScope": "недопустимый охват",
   "targetRequired": "требуется ID или имя получателя",
   "titleBodyRequired": "требуются заголовок и текст",

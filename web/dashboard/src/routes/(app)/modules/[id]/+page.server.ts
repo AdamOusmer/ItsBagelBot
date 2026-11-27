@@ -10,16 +10,12 @@ import { broadcasterPremium, gateSection, moduleLocked, moduleWriteDenial } from
 import { moduleLoad } from '#lib/server/module-page';
 import { attachLinkedUUID } from '#lib/server/minecraft-uuid';
 import { effectiveId } from '#lib/server/board';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { error, fail, redirect, type Cookies } from '@sveltejs/kit';
 import { actionError } from '#lib/server/action-errors';
 import { notSignedIn } from '#lib/server/action-context';
 import { baseCookie } from '#lib/server/cookies';
 import { enableKeys, gatedEnabled, patchModuleSettings, valueKeys } from '#lib/server/module-patch';
 import { moduleEditState } from '#lib/server/module-edit-state';
-
-const DEMO = dev && env.DEMO === '1';
 
 const FRESH_READ_COOKIE = 'bagel_module_fresh';
 const FRESH_READ_MAX_AGE_SEC = 30;
@@ -61,7 +57,6 @@ export const load: PageServerLoad = async ({ params, locals, cookies, url }) => 
   const blank = () => ({ def, locked, voiceAllowed, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0, requiresOff: [] as string[] });
 
   return moduleLoad(def.id, locals.session, {
-    demo: DEMO ? async () => blank() : undefined,
     read: async (uid) => {
       const rows = await editorRows(uid, def.id, cookies, url);
       const row = rows.find((r) => r.name === def.id);
@@ -87,7 +82,7 @@ async function resolveWrite(id: string, locals: App.Locals): Promise<WriteTarget
   if (!def || def.href) return { denied: fail(404, { ok: false, error: actionError(locals.locale, 'Unknown module.') }) };
   const denied = await moduleWriteDenial(locals, def);
   if (denied) return { denied };
-  if (!DEMO && !locals.session) return { denied: notSignedIn(locals.locale) };
+  if (!locals.session) return { denied: notSignedIn(locals.locale) };
   return { def, uid: effectiveId(locals.session) };
 }
 
@@ -99,8 +94,6 @@ export const actions: Actions = {
 
     const f = await request.formData();
     const requested = f.get('is_enabled') === 'on';
-    if (DEMO) return { ok: true, enabled: requested };
-
     const expectedRev = formRevision(f);
     if (def.id === MOD.alerts && Number.isNaN(expectedRev)) return fail(400, { ok: false });
     const enabled = await gatedEnabled(uid, def, requested);
@@ -119,7 +112,7 @@ export const actions: Actions = {
     const target = await resolveWrite(params.id, locals);
     if ('denied' in target) return target.denied;
     const { def } = target;
-    const { result, freshRead } = await patchModuleSettings(def, await request.formData(), locals, DEMO);
+    const { result, freshRead } = await patchModuleSettings(def, await request.formData(), locals);
     if (freshRead) requestFreshRead(cookies, def.id, url);
     return result;
   }

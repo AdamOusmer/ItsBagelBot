@@ -3,32 +3,22 @@
 
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import { fail } from '@sveltejs/kit';
-import { dev } from '$app/env';
 import type { ShardSnapshot } from '@bagel/kit';
 import type { Locale } from '@bagel/kit/i18n';
-import { shardScale, shardAutoscale, trialList } from '#lib/server/services';
+import { shardScale, shardAutoscale, shardSnapshot, trialList } from '#lib/server/services';
 import { allows, requireRole } from '#lib/server/access';
 import { audit } from '#lib/server/audit';
 import { shardPageReads } from '#lib/server/shard-page-reads';
 import { adminText, okReply } from '#lib/server/admin-action';
-import { readShardSnapshot } from '#lib/components/shards/fleet-read.server';
-
-const DEMO = dev && process.env.DEMO === '1';
 
 export const load = (async ({ parent }) => {
   const { role } = await parent();
   const canViewTrials = allows(role, 'trials.manage');
   return {
-    ...shardPageReads(readShardSnapshot, canViewTrials ? readTrialSnapshot : async () => null),
+    ...shardPageReads(shardSnapshot, canViewTrials ? trialList : async () => null),
     canViewTrials
   };
 }) satisfies PageServerLoad;
-
-function readTrialSnapshot() {
-  return DEMO
-    ? import('#lib/server/demo-data').then(({ sampleTrials }) => sampleTrials)
-    : trialList();
-}
 
 function parseCount(form: FormData): number | null {
   const value = String(form.get('count') ?? '').trim();
@@ -50,7 +40,6 @@ type ShardMutation<T> = {
   update: (value: T) => Promise<ShardSnapshot>;
   failureKey: string;
   notice: (locale: Locale, snapshot: ShardSnapshot) => string;
-  demoNotice: (locale: Locale, value: T) => string;
 };
 
 function changeShardSettings<T extends boolean | number>(mutation: ShardMutation<T>) {
@@ -62,11 +51,6 @@ function changeShardSettings<T extends boolean | number>(mutation: ShardMutation
 
     const value = mutation.parse(await request.formData());
     if (value === null) return fail(400, { error: adminText(locale, mutation.invalidKey) });
-    if (DEMO) {
-      const snapshot = await readShardSnapshot();
-      return { ...okReply(mutation.demoNotice(locale, value)), snapshot };
-    }
-
     const entry = { action: mutation.action, target: 'ingress', detail: String(value) };
     try {
       const snapshot = await mutation.update(value);
@@ -86,8 +70,7 @@ export const actions = {
     invalidKey: 'admin.action.countPositive',
     update: shardScale,
     failureKey: 'admin.shards.scaleFailed',
-    notice: (locale, snapshot) => adminText(locale, 'admin.shards.scaled', { count: snapshot.desired_count }),
-    demoNotice: (locale, count) => adminText(locale, 'admin.shards.scaleDemo', { count })
+    notice: (locale, snapshot) => adminText(locale, 'admin.shards.scaled', { count: snapshot.desired_count })
   }),
   autoscale: changeShardSettings({
     action: 'shard_autoscale',
@@ -97,9 +80,6 @@ export const actions = {
     failureKey: 'admin.shards.autoscaleFailed',
     notice: (locale, snapshot) => adminText(locale, snapshot.autoscale
       ? 'admin.shards.autoscaleEnabled'
-      : 'admin.shards.autoscaleDisabled'),
-    demoNotice: (locale, enabled) => adminText(locale, enabled
-      ? 'admin.shards.autoscaleOnDemo'
-      : 'admin.shards.autoscaleOffDemo')
+      : 'admin.shards.autoscaleDisabled')
   })
 } satisfies Actions;

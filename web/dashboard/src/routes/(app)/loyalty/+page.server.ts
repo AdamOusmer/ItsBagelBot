@@ -21,8 +21,6 @@ import { listModules, listModulesForEditing, type ModuleView } from '#lib/server
 import { disableChildren } from '#lib/server/module-parent';
 import { moduleLoad } from '#lib/server/module-page';
 import { storeMutator } from '#lib/server/reward-action';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { fail, type Cookies } from '@sveltejs/kit';
 
 import { gateModulePage, moduleWriteDenial } from '#lib/server/module-gate';
@@ -31,8 +29,6 @@ import { moduleEditState } from '#lib/server/module-edit-state';
 import { patchModuleSettings } from '#lib/server/module-patch';
 import { notSignedIn } from '#lib/server/action-context';
 import { baseCookie } from '#lib/server/cookies';
-
-const DEMO = dev && env.DEMO === '1';
 
 const loyaltyGames = catalogChildren(MOD.loyalty);
 const FRESH_GAME_COOKIE = 'bagel_loyalty_game_fresh';
@@ -59,18 +55,6 @@ function gameRows(uid: string, cookies: Cookies, url: URL) {
 
 export const load: PageServerLoad = ({ locals, cookies, url }) =>
   moduleLoad('loyalty', locals.session, {
-    demo: DEMO
-      ? async () => ({
-          enabled: true,
-          config: blankLoyaltyConfig(),
-          disabledTriggers: '',
-          top: (await import('#lib/server/demo-data')).demoStandings(),
-          topFreeze: null,
-          freeze: null,
-          raffle: null,
-          games: gameSettings([])
-        })
-      : undefined,
     read: async (uid) => {
       const view = await readLoyalty(uid);
       const [top, freeze, modules, raffle] = await Promise.all([
@@ -140,7 +124,7 @@ function parseConfig(raw: string): LoyaltyConfig | null {
   };
 }
 
-const mutate = storeMutator('loyalty', DEMO, (uid) => uid);
+const mutate = storeMutator('loyalty', (uid) => uid);
 
 function validFreezeMinutes(minutes: number): boolean {
   return Number.isInteger(minutes) && minutes >= 1 && minutes <= FREEZE_MAX_MINUTES;
@@ -184,16 +168,16 @@ export const actions: Actions = {
     const pause = await freezeStandings(uid, locals.session!.user_id, minutes);
     if (!pause) throw new Error('empty leaderboard pause reply');
     return String(minutes);
-  }, { demo: DEMO, invalid: 'Invalid request.' }),
+  }, { invalid: 'Invalid request.' }),
 
   unfreeze: moduleAction(MOD.loyalty, 'unfreeze', async (uid, _form, locals) => {
     await unfreezeStandings(uid, locals.session!.user_id);
     return '';
-  }, { demo: DEMO }),
+  }),
 
   gameSettings: async ({ request, locals, cookies, url }) => {
     gateModulePage(locals.session, 'loyalty');
-    if (!DEMO && !locals.session) return notSignedIn(locals.locale);
+    if (!locals.session) return notSignedIn(locals.locale);
 
     const form = await request.formData();
     const def = moduleDef(String(form.get('name') ?? ''));
@@ -201,7 +185,7 @@ export const actions: Actions = {
     const denied = await moduleWriteDenial(locals, def);
     if (denied) return denied;
 
-    const { result, freshRead } = await patchModuleSettings(def, form, locals, DEMO);
+    const { result, freshRead } = await patchModuleSettings(def, form, locals);
     if (freshRead) cookies.set(FRESH_GAME_COOKIE, '1', { ...baseCookie(url, '/loyalty'), maxAge: 30 });
     return result;
   }

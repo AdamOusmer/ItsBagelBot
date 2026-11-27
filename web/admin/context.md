@@ -82,7 +82,9 @@ Twitch moderation privileges and ItsBagelBot staff roles are separate concepts.
 ## Invariants and common mistakes
 
 - Button visibility is courtesy; repeat authorization in actions and `+server.ts` handlers.
-- `DEMO` must be gated directly by build-time `dev`; production checks remove fixture routes/imports.
+- No page checks for demo or dev mode. `vite dev` swaps `src/lib/<path>` for `src/dev/server/<path>` and
+  `kit/lib/<path>` for `src/dev/kit/<path>` (`kit/scripts/dev-fixtures.mjs`). Production code never imports
+  `src/dev` (`verify:dev-isolated`).
 - Boot import graphs read `process.env`; `$env/dynamic/private` there can deadlock `server.init()`.
 - Subject defaults use `||`: a present-but-empty variable must not become a leading-dot RPC subject.
 - Keep mutations audited and distinguish backend refusal from unavailable reads.
@@ -92,9 +94,9 @@ Twitch moderation privileges and ItsBagelBot staff roles are separate concepts.
 
 ## Focused commands
 
-Run from `web/admin`: `bun run dev`, `DEMO=1 bun run dev`, `bun run check`, `bun run build`.
-Build runs demo gating, shared i18n/size checks, Vite build, and production-clean verification.
+Run from `web/admin`: `bun run dev` (fixture operator, no backend), `bun run check`, `bun run build`.
+Build runs the dev-isolation check, shared i18n/size checks, Vite build, and production-clean verification.
 Run from `web`: `bun test admin/test` for the operator helper/contract tests.
 For a narrow change: `bun test admin/test/giveaways.test.ts` or `admin/test/lane-telemetry.test.ts`.
 Real integration behavior needs matching runtime configuration and backing services;
-demo mode establishes UI behavior, not production authorization or delivery correctness.
+`vite dev` establishes UI behavior, not production authorization or delivery correctness.

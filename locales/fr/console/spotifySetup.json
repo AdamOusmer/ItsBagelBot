@@ -1,7 +1,6 @@
 {
   "premiumTitle": "Spotify Premium est requis",
   "premiumBody": "Le compte Spotify que tu connectes doit avoir Premium pour que Bagel puisse contrôler la lecture et ajouter les demandes de chansons à ta file. Le compte propriétaire de ton application Spotify doit aussi avoir Premium, et Spotify permet à chaque application de connecter au maximum 5 comptes.",
-  "previewKeys": "Essayer avec des clés fictives",
   "welcomeTitle": "La bande-son de ton stream.",
   "welcomeBody": "Laisse ta communauté choisir le prochain morceau. Je t’aide à connecter Spotify, une petite étape à la fois.",
   "appTitle": "Une petite app. Beaucoup de musique.",
@@ -22,7 +21,6 @@
   "saveContinue": "Enregistrer et continuer",
   "saved": "Ton application est enregistrée et prête.",
   "readyCta": "Configurer les demandes",
-  "preview": "Aperçu de la configuration",
   "footer": "Une bande-son choisie ensemble.",
   "later": "Je le ferai plus tard",
   "redirectMissing": "La Redirect URI est indisponible de notre côté pour le moment, tu ne peux donc pas encore continuer. Réessaie plus tard.",

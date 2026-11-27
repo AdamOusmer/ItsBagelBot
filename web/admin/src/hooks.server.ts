@@ -4,7 +4,6 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit/hooks';
 import { redirect } from '@sveltejs/kit';
-import { dev } from '$app/env';
 import newrelic from 'newrelic';
 import { COOKIE, open } from '#lib/server/session';
 import { requireAdmin } from '#lib/server/access';
@@ -21,8 +20,6 @@ import { startInvalidationListener } from '#lib/server/services';
 import { assertConfigSane } from '#lib/server/config-sanity';
 import { ensureLaneStoreHA } from '#lib/server/lanes';
 import { isPublicAdminRoute } from '#lib/server/public-routes';
-
-const DEMO = dev && process.env.DEMO === '1';
 
 // process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 export const init: ServerInit = async () => {
@@ -41,7 +38,7 @@ type StaffAdmission = 'open' | 'signin' | 'denied';
 
 // Page data requests can skip layout loads, so this hook is the only gate every route shares.
 async function staffAdmission(event: RequestEvent): Promise<StaffAdmission> {
-  if (DEMO || isPublicAdminRoute(event.url.pathname)) return 'open';
+  if (isPublicAdminRoute(event.url.pathname)) return 'open';
   if (!event.locals.session) return 'signin';
   return (await requireAdmin(event.locals.session)) ? 'open' : 'denied';
 }
