@@ -9,12 +9,12 @@ metadata:
 spec:
   chart: traefik
   repo: https://traefik.github.io/charts
-  version: 42.1.2
+  version: 43.0.0
   targetNamespace: networking
   createNamespace: false
   valuesContent: |-
     image:
-      tag: v3.7.16@sha256:22a759fb803abb5c3a7ba5d5a55a201c5fb0fc8993d5c72c47a89075e64f1953
+      tag: v3.8.0@sha256:00c9734983e74ae35a1fc18eaee9e9da13f3dde95c4e45b3b8c3b60e0dbd2d17
 
     deployment:
       kind: DaemonSet

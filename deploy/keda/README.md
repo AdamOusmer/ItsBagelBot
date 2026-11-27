@@ -6,7 +6,7 @@ Event-driven autoscaling for `sesame` and `outgress`, which scale on JetStream
 consumer lag rather than CPU. KEDA arrived as a Flux HelmRelease and left with
 Flux (#588); this is the same thing as plain manifests.
 
-- `keda-2.20.2.yaml`: the upstream release manifest, vendored verbatim except
+- `keda-2.21.1.yaml`: the upstream release manifest, vendored verbatim except
   that the three images carry the digests their tags resolved to. Do not edit.
 - `kustomization.yaml`: every local change (placement, priority, spread, resources).
 - `availability.yaml`: one PodDisruptionBudget per component.

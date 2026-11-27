@@ -418,7 +418,7 @@ spec:
         - --zap-log-level=error
         command:
         - /manager
-        image: dopplerhq/kubernetes-operator:1.7.5@sha256:3ec7141f18e700d9b121f072d0cd37bf14bbeb5310b2cc3b547385d1238ceaf6
+        image: dopplerhq/kubernetes-operator:1.7.6@sha256:dfca39508e54f9403ffccb153277ed7851e6e155194e470aa56573723903c0c9
         livenessProbe:
           httpGet:
             path: /healthz
