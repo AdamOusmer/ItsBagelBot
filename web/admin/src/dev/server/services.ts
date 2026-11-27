@@ -42,6 +42,14 @@ import { demoBotCounters } from '../giveaway-fixtures';
 
 export * from '#lib/server/services';
 
+type UserId = string;
+type ActorId = string;
+type CounterName = string;
+type CounterValue = string;
+type SearchText = string;
+type StatusName = string;
+type PageNumber = number;
+
 const shards: ShardSnapshot = structuredClone(sampleSnapshot);
 const trials: TrialSnapshot = structuredClone(sampleTrials);
 let staff: AdminAcct[] = demoStaff();
@@ -56,7 +64,7 @@ export async function userStats(): Promise<UserStats> {
   return sampleStats;
 }
 
-export async function userEnrollment(_actorId: string, days: number): Promise<EnrollmentWire> {
+export async function userEnrollment(_actorId: ActorId, days: PageNumber): Promise<EnrollmentWire> {
   return demoEnrollment(days);
 }
 
@@ -78,17 +86,17 @@ export async function trialList(): Promise<TrialSnapshot> {
   return structuredClone(trials);
 }
 
-export async function trialAdd(broadcasterId: string): Promise<TrialMutationReply> {
+export async function trialAdd(broadcasterId: UserId): Promise<TrialMutationReply> {
   trials.trials.push({ broadcaster_id: broadcasterId, enabled: true, state: 'pending' });
   return { broadcaster_id: broadcasterId, state: 'pending', enabled: true };
 }
 
-export async function trialRemove(broadcasterId: string): Promise<TrialMutationReply> {
+export async function trialRemove(broadcasterId: UserId): Promise<TrialMutationReply> {
   trials.trials = trials.trials.filter((t) => t.broadcaster_id !== broadcasterId);
   return { broadcaster_id: broadcasterId, state: 'removed' };
 }
 
-export async function trialSetEnabled(broadcasterId: string, enabled: boolean): Promise<TrialMutationReply> {
+export async function trialSetEnabled(broadcasterId: UserId, enabled: boolean): Promise<TrialMutationReply> {
   const trial = trials.trials.find((t) => t.broadcaster_id === broadcasterId);
   if (trial) trial.enabled = enabled;
   return { broadcaster_id: broadcasterId, state: enabled ? 'receiving' : 'disabled', enabled };
@@ -106,7 +114,7 @@ export async function auditList(): Promise<AuditEntry[]> {
   return sampleAudit;
 }
 
-export async function auditPage(page = 1, search = '', actorFilter = ''): Promise<AuditPage> {
+export async function auditPage(page: PageNumber = 1, search: SearchText = '', actorFilter: SearchText = ''): Promise<AuditPage> {
   const q = search.toLowerCase();
   const source = actorFilter ? demoStaffHistory(Number(actorFilter)) : demoAuditPageEntries();
   const fields = (e: AuditEntry) => [e.actor_login, e.action, String(e.actor_id), e.target, e.detail, e.error];
@@ -122,7 +130,7 @@ export async function auditPage(page = 1, search = '', actorFilter = ''): Promis
   };
 }
 
-export async function notificationsList(page = 1): Promise<NotificationPage> {
+export async function notificationsList(page: PageNumber = 1): Promise<NotificationPage> {
   return { notifications: page === 1 ? sampleNotifications : [], page, page_size: 20, max_pages: 1, has_more: false };
 }
 
@@ -147,7 +155,7 @@ export async function staffUpsert(
   return adminListAccts();
 }
 
-export async function staffRemove(_actor: { id: string }, userId: string): Promise<AdminAcct[]> {
+export async function staffRemove(_actor: { id: string }, userId: UserId): Promise<AdminAcct[]> {
   staff = staff.filter((s) => String(s.id) !== userId);
   return adminListAccts();
 }
@@ -156,22 +164,22 @@ export async function botCounterList(): Promise<BotCounter[]> {
   return [...counters.values()];
 }
 
-export async function botCounterCreate(name: string): Promise<BotCounter> {
+export async function botCounterCreate(name: CounterName): Promise<BotCounter> {
   const counter: BotCounter = { name, scope: 'bot', value: '0' };
   counters.set(name, counter);
   return counter;
 }
 
-export async function botCounterSet(name: string, value: string): Promise<void> {
+export async function botCounterSet(name: CounterName, value: CounterValue): Promise<void> {
   const counter = counters.get(name);
   if (counter) counter.value = value;
 }
 
-export async function botCounterDelete(name: string): Promise<void> {
+export async function botCounterDelete(name: CounterName): Promise<void> {
   counters.delete(name);
 }
 
-function sampleUser(ref: UserRef | string): AdminUserWire {
+function sampleUser(ref: UserRef | UserId): AdminUserWire {
   const key = typeof ref === 'string' ? ref : ref.userId;
   const user = sampleUsers.find((u) => String(u.id) === key || u.username === key);
   if (!user) throw new RpcError('user not found', 'not_found');
@@ -180,7 +188,7 @@ function sampleUser(ref: UserRef | string): AdminUserWire {
 
 const patchUser = (ref: UserRef, patch: Partial<AdminUserWire>): AdminUserWire => Object.assign(sampleUser(ref), patch);
 
-export async function userLookup(_actorId: string, q: string): Promise<AdminUserWire> {
+export async function userLookup(_actorId: ActorId, q: SearchText): Promise<AdminUserWire> {
   return sampleUser(q);
 }
 
@@ -192,23 +200,20 @@ export async function channelSubState(): Promise<ChannelSubState> {
   return { state: 'ok', error: '', checkedAt: new Date().toISOString() };
 }
 
-export async function userSetStatus(ref: UserRef, status: string, expiresAt?: string): Promise<AdminUserWire> {
+export async function userSetStatus(ref: UserRef, status: StatusName, expiresAt?: SearchText): Promise<AdminUserWire> {
   return patchUser(ref, { status, subscription_expires_at: expiresAt ?? undefined });
 }
 
-export async function userSetActive(ref: UserRef, active: boolean): Promise<AdminUserWire> {
-  return patchUser(ref, { is_active: active });
-}
+const flagSetter =
+  (field: 'is_active' | 'test_account' | 'alpha') =>
+  async (ref: UserRef, value: boolean): Promise<AdminUserWire> =>
+    patchUser(ref, { [field]: value });
 
-export async function userSetTestAccount(ref: UserRef, value: boolean): Promise<AdminUserWire> {
-  return patchUser(ref, { test_account: value });
-}
+export const userSetActive = flagSetter('is_active');
+export const userSetTestAccount = flagSetter('test_account');
+export const userSetAlpha = flagSetter('alpha');
 
-export async function userSetAlpha(ref: UserRef, value: boolean): Promise<AdminUserWire> {
-  return patchUser(ref, { alpha: value });
-}
-
-export async function userSetCreatorCode(ref: UserRef, code: string): Promise<AdminUserWire> {
+export async function userSetCreatorCode(ref: UserRef, code: SearchText): Promise<AdminUserWire> {
   return patchUser(ref, { creator_code: code || null });
 }
 

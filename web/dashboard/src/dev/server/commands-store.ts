@@ -7,6 +7,10 @@ import { demoCommandRows, demoModuleConfigs } from '../fixtures';
 
 export * from '#lib/server/commands-store';
 
+type UserId = string;
+type ModuleName = string;
+type CommandName = string;
+
 let commands: CommandView[] = structuredClone(demoCommandRows);
 
 const seeded = demoModuleConfigs();
@@ -18,14 +22,14 @@ function moduleRows(): ModuleView[] {
   return structuredClone([...modules.values()]);
 }
 
-function writeModule(name: string, isEnabled: boolean, configs: Record<string, unknown>): ModuleView {
+function writeModule(name: ModuleName, isEnabled: boolean, configs: Record<string, unknown>): ModuleView {
   const revision = (modules.get(name)?.revision ?? 0) + 1;
   const row = { name, is_enabled: isEnabled, configs, revision };
   modules.set(name, row);
   return row;
 }
 
-function currentConfigs(name: string): Record<string, unknown> {
+function currentConfigs(name: ModuleName): Record<string, unknown> {
   return (modules.get(name)?.configs ?? {}) as Record<string, unknown>;
 }
 
@@ -45,7 +49,7 @@ export async function replaceProjectedModules(): Promise<boolean> {
   return true;
 }
 
-export async function upsertModule(_userId: string, name: string, isEnabled: boolean, configs?: unknown) {
+export async function upsertModule(_userId: UserId, name: ModuleName, isEnabled: boolean, configs?: unknown) {
   writeModule(name, isEnabled, (configs ?? {}) as Record<string, unknown>);
   return { modules: moduleRows(), synced: true };
 }
@@ -75,14 +79,14 @@ function commandView(cmd: CommandInput, previous: CommandView | undefined): Comm
   };
 }
 
-export async function upsertCommand(_userId: string, cmd: CommandInput, originalName?: string) {
+export async function upsertCommand(_userId: UserId, cmd: CommandInput, originalName?: CommandName) {
   const previous = commands.find((c) => c.name === (originalName ?? cmd.name));
   const kept = commands.filter((c) => c.name !== originalName && c.name !== cmd.name);
   commands = [...kept, commandView(cmd, previous)];
   return { commands: structuredClone(commands), restored: false };
 }
 
-export async function deleteCommand(_userId: string, name: string) {
+export async function deleteCommand(_userId: UserId, name: CommandName) {
   commands = commands.filter((c) => c.name !== name);
   return { commands: structuredClone(commands) };
 }

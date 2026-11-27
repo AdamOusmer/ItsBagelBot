@@ -483,7 +483,7 @@ const demoCrowd: LoyaltyStanding[] = DEMO_NOUNS.flatMap((noun, row) =>
 
 export const demoCurrentLogins = new Map([['pretzel_prime', '505']]);
 
-export const demoCurrencyName = 'bagels';
+const demoCurrencyName = 'bagels';
 
 export function demoBoardViewers(): LoyaltyStanding[] {
   return [...demoLeaderboardHead, ...demoCrowd];

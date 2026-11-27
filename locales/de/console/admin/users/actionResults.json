@@ -15,6 +15,5 @@
   "alpha": "alpha={active}",
   "restartQueued": "Bot neu gestartet (atomare Wiederverbindung eingereiht)",
   "viewAs": "Link zur Benutzeransicht erstellt (5 Min. gültig)",
-  "userDeleted": "Benutzer gelöscht",
-  "notFound": "Benutzer nicht gefunden"
+  "userDeleted": "Benutzer gelöscht"
 }

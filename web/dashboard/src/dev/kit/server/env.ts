@@ -9,6 +9,5 @@ export const env: Record<string, string | undefined> = {
   ORIGIN: origin,
   BUSINESS_MAILING_ADDRESS: demoMailingAddress,
   SPOTIFY_REDIRECT_URI: `${origin}/spotify/callback`,
-  TEBEX_CANCEL_URL: `${origin}/billing`,
   ...process.env
 };

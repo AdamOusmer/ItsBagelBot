@@ -78,9 +78,11 @@ export {
   type ResolvedChannel
 } from './services/account';
 export {
+  billingLinks,
   billingState,
   checkoutBasketCreate,
   type BillingGrantSource,
+  type BillingLinks,
   type BillingState,
   type CheckoutBasket,
   type CheckoutPackageType,

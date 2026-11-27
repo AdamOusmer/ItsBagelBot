@@ -3,13 +3,12 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
-import { billingState, checkoutBasketCreate, type BillingState } from '#lib/server/services';
+import { billingLinks, billingState, checkoutBasketCreate, type BillingState } from '#lib/server/services';
 import type { Session } from '#lib/server/session';
 import { RpcError } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { containsLink } from '@bagel/kit/validation';
 import { isLoginShape, normalizeLogin } from '#lib/public-login';
-import { env } from '@bagel/kit/server/env';
 import { giveawayPrizes, type PrizeAward } from '#lib/server/giveaways';
 import { actionError } from '#lib/server/action-errors';
 import { count } from '@bagel/kit/server/analytics';
@@ -35,26 +34,6 @@ function billingGate(
   const actor = billingActor(s);
   if (!actor) return { ok: false, status: 403, error: actionError(locale, 'You do not have access to manage billing.') };
   return { ok: true, actor };
-}
-
-type BillingLinks = {
-  cancelUrl: string | null;
-};
-
-function optionalHttpsURL(value: string | undefined): string | null {
-  if (!value) return null;
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === 'https:' || parsed.hostname === 'localhost' ? parsed.toString() : null;
-  } catch {
-    return null;
-  }
-}
-
-function links(): BillingLinks {
-  return {
-    cancelUrl: optionalHttpsURL(env.TEBEX_CANCEL_URL)
-  };
 }
 
 function subscribePlan(form: FormData): 'monthly' | 'single' {
@@ -134,7 +113,7 @@ async function subscribeCheckout(
       ipAddress,
       packageType
     });
-    return { url: optionalHttpsURL(basket.checkoutUrl ?? undefined), result: 'unavailable' };
+    return { url: basket.checkoutUrl, result: 'unavailable' };
   } catch (err) {
     logger.error({ err }, '[billing] basket create failed');
     return { url: null, result: checkoutError(err) };
@@ -157,8 +136,7 @@ async function giftCheckout(
       ipAddress,
       giftMessage: message
     });
-    const url = optionalHttpsURL(basket.checkoutUrl ?? undefined);
-    if (url) return { ok: true, url };
+    if (basket.checkoutUrl) return { ok: true, url: basket.checkoutUrl };
   } catch (err) {
     result = checkoutError(err);
     if (err instanceof RpcError) {
@@ -216,7 +194,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const board = await billingPageData({ uid });
   return {
     account: board.account,
-    links: links(),
+    links: billingLinks(),
     degraded: board.degraded,
     autostart,
     prizes: board.prizes,
@@ -257,7 +235,7 @@ export const actions: Actions = {
     if (!gate.ok) return fail(gate.status, { error: gate.error });
     const actor = gate.actor;
 
-    const url = links().cancelUrl;
+    const url = billingLinks().cancelUrl;
     if (!url) return fail(503, { error: actionError(locals.locale, 'Subscription management is not available right now.') });
 
     const blocked = await tebexSubscriptionMissing(actor.id, locals.locale);

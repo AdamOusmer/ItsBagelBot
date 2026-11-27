@@ -82,7 +82,7 @@ Twitch moderation privileges and ItsBagelBot staff roles are separate concepts.
 ## Invariants and common mistakes
 
 - Button visibility is courtesy; repeat authorization in actions and `+server.ts` handlers.
-- No page checks for demo or dev mode. `vite dev` swaps `src/lib/<path>` for `src/dev/server/<path>` and
+- No page checks for demo or dev mode. `vite dev` swaps `src/lib/server/<path>` for `src/dev/server/<path>` and
   `kit/lib/<path>` for `src/dev/kit/<path>` (`kit/scripts/dev-fixtures.mjs`). Production code never imports
   `src/dev` (`verify:dev-isolated`).
 - Boot import graphs read `process.env`; `$env/dynamic/private` there can deadlock `server.init()`.

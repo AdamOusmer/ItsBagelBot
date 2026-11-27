@@ -20,6 +20,7 @@ export function stripDemoRoutes(routeMarkers) {
       const path = id.split('?')[0];
       if (!routeMarkers.some((marker) => path.includes(marker))) return null;
       const file = /** @type {keyof typeof STRIPPED} */ (path.split('/').pop());
+      if (file.startsWith('+') && !(file in STRIPPED)) this.error(`${path}: dev-only route file has no build stub in strip-demo-routes.mjs`);
       return STRIPPED[file] ?? null;
     }
   };

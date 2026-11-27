@@ -2,10 +2,14 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { env } from '@bagel/kit/server/env';
-import type { BillingState, CheckoutBasket, CheckoutRequest } from '#lib/server/services/billing';
+import type { BillingLinks, BillingState, CheckoutBasket, CheckoutRequest } from '#lib/server/services/billing';
 import { demoBilling } from '../../fixtures';
 
 export * from '#lib/server/services/billing';
+
+export function billingLinks(): BillingLinks {
+  return { cancelUrl: new URL('/billing', env.ORIGIN).toString() };
+}
 
 export async function billingState(): Promise<BillingState> {
   return demoBilling().account;

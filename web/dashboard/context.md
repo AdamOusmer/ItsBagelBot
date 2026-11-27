@@ -95,7 +95,7 @@ Preserve variable/token/form/surface wording in editors and help copy.
   Unknown channels cache a 60 s 404, purged on first sign-in or rename. A login miss first self-heals through
   `identity-heal.ts` (Twitch lookup + `identity_sync`, rate-limited); the `rename` cache scope evicts `login:*`/`state:*` and purges the edge on every pod.
 - Boot import graphs use `process.env`; request-time dynamic env is safe after initialization.
-- No page checks for demo or dev mode. `vite dev` swaps `src/lib/<path>` for `src/dev/server/<path>` and
+- No page checks for demo or dev mode. `vite dev` swaps `src/lib/server/<path>` for `src/dev/server/<path>` and
   `kit/lib/<path>` for `src/dev/kit/<path>` (`kit/scripts/dev-fixtures.mjs`); the NATS override answers RPCs from
   `src/dev/wire`. Production code never imports `src/dev` (`verify:dev-isolated`).
 - Edge-cache only anonymous default renders using normalized Accept-Language; locale preference cookies,

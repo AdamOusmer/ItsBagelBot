@@ -4,7 +4,8 @@
 import type { RequestHandler } from './$types';
 import { error } from '@sveltejs/kit';
 import { requireRole } from '#lib/server/access';
-import { deployApi, deployStatus, RunRelay } from '#lib/server/deploys';
+import { deployStatus, RunRelay } from '#lib/server/deploys';
+import { releaseApi } from '#lib/server/release';
 import type { DeployRun, RunRequest } from '#lib/deploys/types';
 
 const KEEPALIVE_MS = 20_000;
@@ -13,7 +14,7 @@ export const GET: RequestHandler = async ({ locals, params }) => {
   const admin = await requireRole({ locals }, 'deploys.manage');
   if (!admin) throw error(403, 'forbidden');
 
-  const api = await deployApi();
+  const api = releaseApi;
   const req: RunRequest = { actor_id: admin.id, run_id: params.id };
   const relay = new RunRelay();
   const unwatch = api.watch(req.run_id, {

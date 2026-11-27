@@ -1470,7 +1470,6 @@ export type KnownMessageKey =
   | 'admin.users.actionResults.creatorCodeCleared'
   | 'admin.users.actionResults.creatorCodeSet'
   | 'admin.users.actionResults.lookupFailed'
-  | 'admin.users.actionResults.notFound'
   | 'admin.users.actionResults.restartQueued'
   | 'admin.users.actionResults.sendFailed'
   | 'admin.users.actionResults.statusSet'

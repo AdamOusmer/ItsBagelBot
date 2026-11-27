@@ -15,6 +15,5 @@
   "alpha": "alpha={active}",
   "restartQueued": "bot restarted (atomic reconnect queued)",
   "viewAs": "view-as link minted (valid 5 min)",
-  "userDeleted": "user deleted",
-  "notFound": "user not found"
+  "userDeleted": "user deleted"
 }

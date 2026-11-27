@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { rpc } from '@bagel/kit/server/nats';
+import { env } from '@bagel/kit/server/env';
 import { SUB } from './subjects';
 import { normalizeStatus, stateView, type AccountStatus } from './account-state';
 
@@ -54,5 +55,21 @@ export async function checkoutBasketCreate(req: CheckoutRequest): Promise<Checko
     16000
   );
   if (!r.ident) throw new Error('basket create returned no ident');
-  return { ident: r.ident, checkoutUrl: r.checkout_url ?? null, recipientLogin: r.recipient_login ?? null };
+  return { ident: r.ident, checkoutUrl: httpsURL(r.checkout_url), recipientLogin: r.recipient_login ?? null };
+}
+
+export type BillingLinks = { cancelUrl: string | null };
+
+export function billingLinks(): BillingLinks {
+  return { cancelUrl: httpsURL(env.TEBEX_CANCEL_URL) };
+}
+
+function httpsURL(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
 }

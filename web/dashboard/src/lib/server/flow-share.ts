@@ -199,8 +199,8 @@ async function commitAction({ request, locals }: ShareEvent, options: FlowShareO
 
 export function flowShareActions(options: FlowShareOptions) {
   return {
-    flowExport: (event: ShareEvent) => exportAction(event),
-    flowImportPreview: (event: ShareEvent) => previewAction(event),
+    flowExport: exportAction,
+    flowImportPreview: previewAction,
     flowImportCommit: (event: ShareEvent) => commitAction(event, options)
   };
 }

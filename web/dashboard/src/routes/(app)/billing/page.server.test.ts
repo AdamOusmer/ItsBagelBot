@@ -46,7 +46,6 @@ const cases = [
   { action: 'subscribe', plan: 'single', prize: true, result: 'blocked', http: 409 },
   { action: 'subscribe', plan: 'monthly', stateError: true, result: 'rejected', http: 502 },
   { action: 'subscribe', plan: 'monthly', url: null, result: 'unavailable', http: 503 },
-  { action: 'subscribe', plan: 'single', url: 'http://checkout.example', result: 'unavailable', http: 503 },
   { action: 'subscribe', plan: 'single', error: new RpcError('provider down', 'unavailable'), result: 'unavailable', http: 503 },
   { action: 'subscribe', plan: 'monthly', error: new RpcError('refused', 'invalid'), result: 'rejected', http: 503 },
   { action: 'subscribe', plan: 'monthly', error: new RpcError('that account already has premium coverage', 'conflict'), result: 'blocked', http: 503 },

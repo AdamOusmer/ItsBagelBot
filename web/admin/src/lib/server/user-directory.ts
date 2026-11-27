@@ -64,7 +64,7 @@ function degradedDirectory(): UserDirectory {
   };
 }
 
-async function loadDirectory(actorId: string, q: DirectoryQuery): Promise<UserDirectory> {
+export async function loadUserDirectory(actorId: string, q: DirectoryQuery): Promise<UserDirectory> {
   try {
     const liveIDs = q.live ? await currentLiveBroadcasterIDs() : undefined;
     if (liveIDs === null) return degradedDirectory();
@@ -82,8 +82,4 @@ async function loadDirectory(actorId: string, q: DirectoryQuery): Promise<UserDi
   } catch {
     return degradedDirectory();
   }
-}
-
-export function loadUserDirectory(actorId: string, q: DirectoryQuery): Promise<UserDirectory> {
-  return loadDirectory(actorId, q);
 }

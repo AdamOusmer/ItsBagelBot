@@ -19,6 +19,7 @@ const scanExtensions = new Set(['.ts', '.js', '.mjs', '.svelte']);
 const DEMO_READ = /\benv\b[^\n]*\bDEMO\b|['"`]DEMO['"`]|\bDEMO_PLAN\b|\bconst\s+DEMO\s*=/;
 const IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*|^\s*import\s+)['"]([^'"]+)['"]/gm;
 const FIXTURE_WORDS = new Set(['demo', 'fixture', 'fixtures', 'sample', 'seed', 'mock']);
+const OVERRIDE_DIRS = new Set(['server', 'kit']);
 
 async function filesUnder(dir) {
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
@@ -72,7 +73,7 @@ async function exists(path) {
 async function overrideFailures(file) {
   const rel = relative(devRoot, file);
   const [head, ...rest] = rel.split(sep);
-  if (rest.length === 0 || head === 'wire') return [];
+  if (!OVERRIDE_DIRS.has(head)) return [];
   const target = head === 'kit' ? join(kitRoot, 'lib', ...rest) : join(appRoot, 'src', 'lib', rel);
   return (await exists(target)) ? [] : [`${relative(appRoot, file)}: overrides ${relative(appRoot, target)}, which does not exist`];
 }

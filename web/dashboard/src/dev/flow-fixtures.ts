@@ -15,7 +15,7 @@ import { flowPreview } from '#lib/flow/thumb';
 
 if (!dev) throw new Error('DASHBOARD_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
 
-export type DemoSystem = {
+type DemoSystem = {
   id: string;
   name: string;
   description: string;
@@ -46,7 +46,7 @@ const node = (id: NodeId, type: Flow['nodes'][number]['type'], config: Flow['nod
 
 const edge = (id: Flow['edges'][number]['id'], from: NodeId, port: Flow['edges'][number]['port'], to: NodeId) => ({ id, from, port, to });
 
-export const DEMO_SYSTEMS: DemoSystem[] = [
+const DEMO_SYSTEMS: DemoSystem[] = [
   {
     id: 'hug',
     name: '!hug command',
@@ -310,8 +310,6 @@ const DEMO_RUNS: RunRecord[] = [
     actions: []
   }
 ];
-
-export const demoRun = () => ({ ok: true });
 
 export function demoRuns(automationId?: string): RunRecord[] {
   return DEMO_RUNS.filter((run) => !automationId || run.automation_id === automationId);

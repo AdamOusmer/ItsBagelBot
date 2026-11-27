@@ -15,6 +15,5 @@
   "alpha": "alpha={active}",
   "restartQueued": "bot reiniciado (reconexão atômica na fila)",
   "viewAs": "link de visualização como usuário gerado (válido por 5 min)",
-  "userDeleted": "usuário excluído",
-  "notFound": "usuário não encontrado"
+  "userDeleted": "usuário excluído"
 }
