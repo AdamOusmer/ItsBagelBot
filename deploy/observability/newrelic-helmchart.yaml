@@ -9,7 +9,7 @@ metadata:
 spec:
   chart: nri-bundle
   repo: https://helm-charts.newrelic.com
-  version: 8.0.16
+  version: 8.0.40
   targetNamespace: observability
   createNamespace: false
   valuesContent: |-
@@ -18,6 +18,7 @@ spec:
       customSecretLicenseKey: licenseKey
       customSecretName: newrelic-license
       lowDataMode: true
+      region: US
     k8s-agents-operator:
       enabled: false
     kube-state-metrics:

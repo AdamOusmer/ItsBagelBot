@@ -108,7 +108,7 @@ jobs:
 
       - name: Install nats-server
         run: |
-          curl -sf https://binaries.nats.dev/nats-io/nats-server/v2@v2.15.2 | PREFIX=. sh
+          curl -sf https://binaries.nats.dev/nats-io/nats-server/v2@v2.15.3 | PREFIX=. sh
           sudo mv nats-server /usr/local/bin/nats-server
 
       - name: Test shared service boundaries

@@ -7,7 +7,7 @@ JetStream stream at R3, plus a leaf DaemonSet that apps connect to. The hot
 event lanes are in memory; the data, dead-letter and system streams are on file
 storage (`pkg/bus/streams.go`). Hub and leaf authenticate in NATS operator (JWT)
 mode (`nats-operator.conf`). Hubs and leaves use stock upstream nats-server
-2.15.2, pinned by digest in `nats.yaml` and `nats-leaf.yaml`. The custom broker
+2.15.3, pinned by digest in `nats.yaml` and `nats-leaf.yaml`. The custom broker
 build and its CI image target have been removed. This file
 records what the broker can actually do, because the number is lower than it
 looks and the way past it is not a broker setting.

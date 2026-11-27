@@ -9,7 +9,7 @@ metadata:
 spec:
   chart: falco
   repo: https://falcosecurity.github.io/charts
-  version: 8.0.3
+  version: 9.2.2
   targetNamespace: observability
   createNamespace: false
   valuesContent: |-
@@ -17,8 +17,9 @@ spec:
       kind: modern_ebpf
 
     # -U/--unbuffered: flush stdout on EVERY alert. MANDATORY, and it must ship
-    # together with the customRules exceptions below. falco 0.43.1 block-buffers
-    # stdout (~4KB) despite buffered_outputs: false, so alerts sit in the libc
+    # together with the customRules exceptions below. falco 0.43.1 block-buffered
+    # stdout (~4KB) despite buffered_outputs: false (fixed upstream in 0.44.0,
+    # falco#3830; keep the flag as a safeguard), so alerts sit in the libc
     # buffer until enough accumulate. On the old cluster ~6.5k FP events/day
     # acted as an accidental carrier keeping that buffer flushed; silencing the
     # FPs without -U left lone real alerts unflushed indefinitely: a detector
