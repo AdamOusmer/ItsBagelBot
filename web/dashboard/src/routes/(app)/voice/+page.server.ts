@@ -144,22 +144,30 @@ function unblockByForm(
   });
 }
 
-export const load: PageServerLoad = async ({ locals: { session } }) => {
-  if (!session) throw redirect(302, '/login?next=%2Fvoice');
-  if (!hasOwnerAccess(session)) return { readOnly: true, locked: false, allowance: null, overlay: null, alerts: null, command: null, safety: null };
+const NO_PANELS = { overlay: null, alerts: null, command: null, safety: null };
 
-  const allowance = await bestEffort(voiceGet(session), null);
-  const view = { readOnly: false, locked: allowance?.reason === 'no_plan', allowance };
-  if (allowance?.reason !== 'ok') return { ...view, overlay: null, alerts: null, command: null, safety: null };
-
+async function voicePanels(session: Session) {
   const [overlay, rows, safety] = await Promise.all([
     bestEffort(voiceOverlayGet(session), null),
     bestEffort(listModulesForEditing(session.user_id), null),
     readSafety(session)
   ]);
-  if (!rows || !overlay) return { ...view, overlay, alerts: null, command: null, safety };
+  if (!rows || !overlay) return { overlay, alerts: null, command: null, safety };
   const byName = (module: string) => rows.find(({ name }) => name === module);
-  return { ...view, overlay, alerts: alertsView(byName('alerts')), command: commandView(byName(TTS_COMMAND)), safety };
+  return { overlay, alerts: alertsView(byName('alerts')), command: commandView(byName(TTS_COMMAND)), safety };
+}
+
+async function ownerVoiceView(session: Session) {
+  const allowance = await bestEffort(voiceGet(session), null);
+  const view = { readOnly: false, locked: allowance?.reason === 'no_plan', allowance };
+  if (allowance?.reason !== 'ok') return { ...view, ...NO_PANELS };
+  return { ...view, ...(await voicePanels(session)) };
+}
+
+export const load: PageServerLoad = async ({ locals: { session } }) => {
+  if (!session) throw redirect(302, '/login?next=%2Fvoice');
+  if (!hasOwnerAccess(session)) return { readOnly: true, locked: false, allowance: null, ...NO_PANELS };
+  return ownerVoiceView(session);
 };
 
 const testAlertRefusals = {

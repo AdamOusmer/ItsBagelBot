@@ -27,6 +27,8 @@ import { twitchScopeGap } from '#lib/server/oauth';
 import { isSelfSignIn } from '#lib/server/owner';
 import { shareRecent } from '#lib/server/recent-share';
 
+type UserId = string;
+
 export type ConnData = { signals: ConnSignals; ui: ConnUi };
 
 function settled<T>(r: PromiseSettledResult<T>): T | undefined {
@@ -37,12 +39,12 @@ const VERIFY_REUSE_MS = 30_000;
 
 const recentVerify = shareRecent<Promise<ChannelSubState | undefined>>(VERIFY_REUSE_MS);
 
-async function verifiedIfUnknown(uid: string, stored: ChannelSubState | undefined) {
+async function verifiedIfUnknown(uid: UserId, stored: ChannelSubState | undefined) {
   if (stored && stored.state !== 'unknown') return stored;
   return recentVerify(uid, () => channelSubState(uid, { verify: true, repair: true }).catch(() => stored));
 }
 
-async function connState(uid: string): Promise<ConnData> {
+async function connState(uid: UserId): Promise<ConnData> {
   const [grant, state, sub] = await Promise.allSettled([
     hasGrant(uid),
     accountState(uid),
@@ -91,13 +93,13 @@ export type ModuleDigest = { on: number; switchedOn: number; total: number; ok: 
 
 export type ShareDigest = { people: number; pending: number; ok: boolean };
 
-function commandDigest(uid: string): Promise<CommandDigest> {
+function commandDigest(uid: UserId): Promise<CommandDigest> {
   return listCommands(uid)
     .then((c) => ({ ...digest(c), ok: true }))
     .catch(() => ({ top: [], active: 0, total: 0, uses: '0', ok: false }));
 }
 
-function moduleDigest(uid: string, premium: boolean): Promise<ModuleDigest> {
+function moduleDigest(uid: UserId, premium: boolean): Promise<ModuleDigest> {
   const visibleCatalog = MODULE_CATALOG.filter((m) => catalogIndexable(m));
   return listModules(uid)
     .then((rows) => {
@@ -116,7 +118,7 @@ function moduleDigest(uid: string, premium: boolean): Promise<ModuleDigest> {
     .catch(() => ({ on: 0, switchedOn: 0, total: visibleCatalog.length, ok: false }));
 }
 
-function shareDigest(uid: string): Promise<ShareDigest> {
+function shareDigest(uid: UserId): Promise<ShareDigest> {
   return delegationList(uid)
     .then((grants) => ({
       people: grants.filter((g) => g.consumed).length,
@@ -156,7 +158,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 type OwnerAction = {
   name: string;
   audit: boolean;
-  run: (uid: string) => Promise<unknown>;
+  run: (uid: UserId) => Promise<unknown>;
 };
 
 function ownerAction({ name, audit, run }: OwnerAction) {
