@@ -17,6 +17,9 @@ export const SESSION_TTL_SECONDS = 7 * 24 * 3600;
 export const IMPERSONATION_TTL_SECONDS = 3600;
 
 const MAX_CLOCK_SKEW_SECONDS = 30;
+const IV_BYTES = 12;
+const AUTH_TAG_BYTES = 16;
+const GCM_OPTIONS = { authTagLength: AUTH_TAG_BYTES };
 
 function isUnixSeconds(v: unknown): v is number {
   return typeof v === 'number' && Number.isSafeInteger(v) && v > 0;
@@ -36,8 +39,8 @@ export function createSessionCodec<T extends SessionBase>(
   const AAD = Buffer.from(aad);
   return {
     seal(s: T): string {
-      const iv = randomBytes(12);
-      const c = createCipheriv('aes-256-gcm', getKey(), iv);
+      const iv = randomBytes(IV_BYTES);
+      const c = createCipheriv('aes-256-gcm', getKey(), iv, GCM_OPTIONS);
       c.setAAD(AAD);
       const ct = Buffer.concat([c.update(JSON.stringify(s), 'utf8'), c.final()]);
       return Buffer.concat([iv, ct, c.getAuthTag()]).toString('base64url');
@@ -45,11 +48,11 @@ export function createSessionCodec<T extends SessionBase>(
     open(value: string, maxAgeSec?: number): T | null {
       try {
         const raw = Buffer.from(value, 'base64url');
-        if (raw.length < 12 + 16) return null;
-        const iv = raw.subarray(0, 12);
-        const tag = raw.subarray(raw.length - 16);
-        const ct = raw.subarray(12, raw.length - 16);
-        const d = createDecipheriv('aes-256-gcm', getKey(), iv);
+        if (raw.length < IV_BYTES + AUTH_TAG_BYTES) return null;
+        const iv = raw.subarray(0, IV_BYTES);
+        const tag = raw.subarray(raw.length - AUTH_TAG_BYTES);
+        const ct = raw.subarray(IV_BYTES, raw.length - AUTH_TAG_BYTES);
+        const d = createDecipheriv('aes-256-gcm', getKey(), iv, GCM_OPTIONS);
         d.setAAD(AAD);
         d.setAuthTag(tag);
         const pt = Buffer.concat([d.update(ct), d.final()]).toString('utf8');

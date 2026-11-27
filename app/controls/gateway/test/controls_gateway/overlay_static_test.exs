@@ -9,9 +9,11 @@ defmodule ControlsGateway.OverlayStaticTest do
 
   @overlay Path.expand("../../priv/overlay", __DIR__)
   @cdn "https://cdn.itsbagelbot.com"
-  @sandbox_policy "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; " <>
-                    "style-src 'unsafe-inline'; img-src #{@cdn}; media-src #{@cdn}; font-src #{@cdn}; " <>
-                    "connect-src 'none'; form-action 'none'; base-uri 'none'"
+  @sandbox_directives "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; " <>
+                        "style-src 'unsafe-inline'; img-src #{@cdn}; media-src #{@cdn}; font-src #{@cdn}; " <>
+                        "connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors "
+  @dashboard "https://dashboard.itsbagelbot.com"
+  @sandbox_policy @sandbox_directives <> "https://overlay.itsbagelbot.com " <> @dashboard
 
   test "the runtime is served under its content hash and cached for a year", %{http_port: port} do
     body = File.read!(Path.join(@overlay, "runtime.js"))
@@ -42,11 +44,36 @@ defmodule ControlsGateway.OverlayStaticTest do
     assert %{status: 200, headers: headers, body: body} =
              HttpClient.request(port, "GET", "/sandbox/widget-1")
 
-    assert headers["content-security-policy"] == @sandbox_policy
-    assert headers["content-type"] == "text/html; charset=utf-8"
-    assert headers["referrer-policy"] == "no-referrer"
+    assert Map.take(headers, ["content-security-policy", "content-type", "referrer-policy"]) == %{
+             "content-security-policy" => @sandbox_policy,
+             "content-type" => "text/html; charset=utf-8",
+             "referrer-policy" => "no-referrer"
+           }
+
     assert body =~ "<script>" <> frame <> "</script>"
     assert body =~ ~s(<meta name="bagel-parent" content="https://overlay.itsbagelbot.com">)
+  end
+
+  test "the sandbox frame ancestors follow the overlay origin and the dev flag", %{
+    http_port: port
+  } do
+    origin = "https://overlay.example.test"
+
+    for {dev, ancestors} <- [
+          {false, @dashboard},
+          {true, @dashboard <> " http://localhost:* http://127.0.0.1:*"}
+        ] do
+      Application.put_env(:controls_gateway, :overlay_origin, origin)
+      Application.put_env(:controls_gateway, :powered_dev_frame_ancestors, dev)
+      on_exit(fn -> Application.delete_env(:controls_gateway, :overlay_origin) end)
+      on_exit(fn -> Application.delete_env(:controls_gateway, :powered_dev_frame_ancestors) end)
+
+      assert %{headers: %{"content-security-policy" => csp}, body: body} =
+               HttpClient.request(port, "GET", "/sandbox/widget-1")
+
+      assert csp == @sandbox_directives <> origin <> " " <> ancestors
+      assert body =~ ~s(<meta name="bagel-parent" content="#{origin}">)
+    end
   end
 
   test "sandbox names are widget ids only", %{http_port: port} do

@@ -57,11 +57,7 @@ func NewDriver(cfg Config) (*entsql.Driver, error) {
 
 	mc := newMySQLConfig(cfg)
 
-	mode, err := resolveTLSMode()
-	if err != nil {
-		return nil, err
-	}
-	tlsName, err := registerTLS([]byte(env.Get("DB_CA_CERT", "")), mode, cfg.Address)
+	tlsName, err := registerTLS([]byte(env.Get("DB_CA_CERT", "")), cfg.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -113,29 +109,8 @@ const tlsSessionCacheSize = 64
 
 var mysqlSessionCache = tls.NewLRUClientSessionCache(tlsSessionCacheSize)
 
-// Re-pin DB_CA_CERT by hand; never adopt a CA the server presents.
-type tlsMode string
-
-const (
-	tlsModeVerifyCA tlsMode = "VERIFY_CA"
-
-	tlsModeVerifyIdentity tlsMode = "VERIFY_IDENTITY"
-
-	tlsModeEnvVar = "DB_TLS_MODE"
-)
-
-func resolveTLSMode() (tlsMode, error) {
-	switch mode := tlsMode(env.Get(tlsModeEnvVar, string(tlsModeVerifyIdentity))); mode {
-	case tlsModeVerifyCA, tlsModeVerifyIdentity:
-		return mode, nil
-	default:
-		return "", fmt.Errorf("db: %s must be %q or %q, got %q",
-			tlsModeEnvVar, tlsModeVerifyCA, tlsModeVerifyIdentity, mode)
-	}
-}
-
-func registerTLS(caPEM []byte, mode tlsMode, addr string) (string, error) {
-	cfg, err := newMySQLTLSConfig(caPEM, mode, addr)
+func registerTLS(caPEM []byte, addr string) (string, error) {
+	cfg, err := newMySQLTLSConfig(caPEM, addr)
 	if err != nil {
 		return "", err
 	}
@@ -146,7 +121,8 @@ func registerTLS(caPEM []byte, mode tlsMode, addr string) (string, error) {
 	return tlsConfigName, nil
 }
 
-func newMySQLTLSConfig(caPEM []byte, mode tlsMode, addr string) (*tls.Config, error) {
+// Re-pin DB_CA_CERT by hand; never adopt a CA the server presents.
+func newMySQLTLSConfig(caPEM []byte, addr string) (*tls.Config, error) {
 	pinned, err := parsePinnedCA(caPEM)
 	if err != nil {
 		return nil, err
@@ -158,15 +134,9 @@ func newMySQLTLSConfig(caPEM []byte, mode tlsMode, addr string) (*tls.Config, er
 		return nil, err
 	}
 
-	if mode != tlsModeVerifyIdentity {
-		cfg := verifyCATLSConfig(pinned)
-		cfg.Certificates = clientCerts
-		return cfg, nil
-	}
-
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		return nil, fmt.Errorf("db: DB_ADDR must be host:port for VERIFY_IDENTITY, got %q: %w", addr, err)
+		return nil, fmt.Errorf("db: DB_ADDR must be host:port, got %q: %w", addr, err)
 	}
 	roots := x509.NewCertPool()
 	roots.AddCert(pinned)
@@ -234,41 +204,4 @@ func warnIfPinnedCANearExpiry(pinned *x509.Certificate) {
 		zap.Time("notAfter", pinned.NotAfter),
 		zap.Duration("remaining", remaining),
 	)
-}
-
-func verifyCATLSConfig(pinned *x509.Certificate) *tls.Config {
-	roots := x509.NewCertPool()
-	roots.AddCert(pinned)
-
-	return &tls.Config{
-		MinVersion: tls.VersionTLS13,
-		// codeql[go/disabled-certificate-check] -- VERIFY_CA: chain checked against the pinned CA in VerifyConnection.
-		InsecureSkipVerify: true,
-		VerifyConnection:   verifyAgainstPinned(roots),
-		ClientSessionCache: mysqlSessionCache,
-	}
-}
-
-func verifyAgainstPinned(roots *x509.CertPool) func(tls.ConnectionState) error {
-	return func(state tls.ConnectionState) error {
-		certs := state.PeerCertificates
-		if len(certs) == 0 {
-			return fmt.Errorf("db: server presented no certificate")
-		}
-		if err := verifyChain(certs, roots); err != nil {
-			return fmt.Errorf("db: server certificate does not chain to the pinned "+
-				"DB_CA_CERT, re-fetch the endpoint CA from the OCI console and update "+
-				"DB_CA_CERT in Doppler: %w", err)
-		}
-		return nil
-	}
-}
-
-func verifyChain(certs []*x509.Certificate, roots *x509.CertPool) error {
-	intermediates := x509.NewCertPool()
-	for _, c := range certs[1:] {
-		intermediates.AddCert(c)
-	}
-	_, err := certs[0].Verify(x509.VerifyOptions{Roots: roots, Intermediates: intermediates})
-	return err
 }

@@ -66,122 +66,65 @@ func TestNewDriverOpensPoolWhoseHealthProbeReportsAnUnreachableServer(t *testing
 	require.ErrorContains(t, err, "db: keepalive")
 }
 
-func TestResolveTLSModeDefaultsToVerifyIdentity(t *testing.T) {
-	mode, err := resolveTLSMode()
-	require.NoError(t, err)
-	require.Equal(t, tlsModeVerifyIdentity, mode)
+const testDBHost = "db.internal.example"
+
+func TestRegisterTLSPinsCAAndHostWithSessionResumption(t *testing.T) {
+	ca, _, cfg := registerTestCA(t, testDBHost+":3306")
+	pinnedOnly := x509.NewCertPool()
+	pinnedOnly.AddCert(ca)
+
+	type tlsSummary struct {
+		minVersion         uint16
+		serverName         string
+		skipVerify         bool
+		pinnedRootsOnly    bool
+		noCustomVerify     bool
+		clientSessionCache tls.ClientSessionCache
+	}
+	require.Equal(t,
+		tlsSummary{tls.VersionTLS13, testDBHost, false, true, true, mysqlSessionCache},
+		tlsSummary{
+			minVersion:         cfg.MinVersion,
+			serverName:         cfg.ServerName,
+			skipVerify:         cfg.InsecureSkipVerify,
+			pinnedRootsOnly:    cfg.RootCAs.Equal(pinnedOnly),
+			noCustomVerify:     cfg.VerifyConnection == nil && cfg.VerifyPeerCertificate == nil,
+			clientSessionCache: cfg.ClientSessionCache,
+		})
 }
 
-func TestResolveTLSModeAcceptsVerifyCA(t *testing.T) {
-	t.Setenv(tlsModeEnvVar, "VERIFY_CA")
-
-	mode, err := resolveTLSMode()
-	require.NoError(t, err)
-	require.Equal(t, tlsModeVerifyCA, mode)
-}
-
-func TestResolveTLSModeRejectsUnknownValue(t *testing.T) {
-	t.Setenv(tlsModeEnvVar, "TRUST_EVERYTHING")
-
-	_, err := resolveTLSMode()
-	require.ErrorContains(t, err, "DB_TLS_MODE")
-}
-
-func TestRegisterTLSUsesPinnedCAWithoutHostnameVerification(t *testing.T) {
-	ca, caKey, cfg := registerTestCA(t, tlsModeVerifyCA, testDBAddr)
-	require.True(t, cfg.InsecureSkipVerify)
-	require.Equal(t, uint16(tls.VersionTLS13), cfg.MinVersion)
-	require.Empty(t, cfg.ServerName)
-	require.Nil(t, cfg.RootCAs)
-	require.Nil(t, cfg.VerifyPeerCertificate)
-	require.NotNil(t, cfg.VerifyConnection)
-
-	require.NoError(t, cfg.VerifyConnection(tls.ConnectionState{
-		PeerCertificates: testLeafChain(t, ca, caKey),
-	}))
-}
-
-func TestVerifyCARejectsForgedCAWithCopiedSubjectDifferentKey(t *testing.T) {
-	_, _, cfg := registerTestCA(t, tlsModeVerifyCA, testDBAddr)
-
-	forgedCA, forgedKey := testNamedCA(t, "MySQL_Endpoint_CA")
-	err := cfg.VerifyConnection(tls.ConnectionState{
-		PeerCertificates: testLeafChainWithCA(t, forgedCA, forgedKey),
-	})
-	require.ErrorContains(t, err, "does not chain to the pinned DB_CA_CERT")
-	require.ErrorContains(t, err, "OCI console")
-	require.ErrorContains(t, err, "Doppler")
-}
-
-func TestVerifyCARejectsCAReusingPinnedKeyButNotSigningLeaf(t *testing.T) {
-	_, caKey, cfg := registerTestCA(t, tlsModeVerifyCA, testDBAddr)
-
-	leafCA, leafKey, _ := testCA(t)
-	bystanderCA := selfSignWithKey(t, "MySQL_Endpoint_CA", caKey, 3)
-	chain := append(testLeafChain(t, leafCA, leafKey), bystanderCA)
-	err := cfg.VerifyConnection(tls.ConnectionState{PeerCertificates: chain})
-	require.ErrorContains(t, err, "does not chain to the pinned DB_CA_CERT")
-}
-
-func TestVerifyCARejectsUnrelatedCA(t *testing.T) {
-	_, _, cfg := registerTestCA(t, tlsModeVerifyCA, testDBAddr)
-
-	untrustedCA, untrustedKey, _ := testCA(t)
-	err := cfg.VerifyConnection(tls.ConnectionState{
-		PeerCertificates: testLeafChain(t, untrustedCA, untrustedKey),
-	})
-	require.ErrorContains(t, err, "does not chain to the pinned DB_CA_CERT")
-}
-
-func TestVerifyCARejectsEmptyPeerChain(t *testing.T) {
-	_, _, cfg := registerTestCA(t, tlsModeVerifyCA, testDBAddr)
-	require.ErrorContains(t, cfg.VerifyConnection(tls.ConnectionState{}), "server presented no certificate")
-}
-
-func TestRegisterTLSVerifyIdentityBuildsStandardConfig(t *testing.T) {
-	addr := "db.internal.example:3306"
-	_, _, cfg := registerTestCA(t, tlsModeVerifyIdentity, addr)
-
-	require.False(t, cfg.InsecureSkipVerify)
-	require.Equal(t, uint16(tls.VersionTLS13), cfg.MinVersion)
-	require.Equal(t, "db.internal.example", cfg.ServerName)
-	require.NotNil(t, cfg.RootCAs)
-	require.Nil(t, cfg.VerifyPeerCertificate)
-	require.Nil(t, cfg.VerifyConnection)
-}
-
-func TestRegisterTLSVerifyIdentityRejectsAddrWithoutPort(t *testing.T) {
+func TestRegisterTLSRejectsAddrWithoutPort(t *testing.T) {
 	_, _, caPEM := testCA(t)
-	_, err := registerTLS(caPEM, tlsModeVerifyIdentity, "db.internal.example")
+	_, err := registerTLS(caPEM, testDBHost)
 	require.ErrorContains(t, err, "must be host:port")
 }
 
-func TestVerifyIdentityAcceptsChainAndHostnameTogether(t *testing.T) {
-	addr := "db.internal.example:3306"
-	ca, caKey, cfg := registerTestCA(t, tlsModeVerifyIdentity, addr)
+func TestRegisterTLSVerifiesServerAgainstPinnedCAAndHost(t *testing.T) {
+	ca, caKey, cfg := registerTestCA(t, testDBHost+":3306")
+	forgedCA, forgedKey := testNamedCA(t, "MySQL_Endpoint_CA")
+	unrelatedCA, unrelatedKey := testNamedCA(t, "Unrelated_CA")
 
-	leaf := testLeafWithSAN(t, ca, caKey, "db.internal.example")
-	_, err := leaf.Verify(x509.VerifyOptions{Roots: cfg.RootCAs, DNSName: cfg.ServerName})
-	require.NoError(t, err)
-}
+	tests := []struct {
+		name      string
+		issuer    *x509.Certificate
+		issuerKey *ecdsa.PrivateKey
+		dnsName   string
+		wantErr   bool
+	}{
+		{name: "accepts a pinned CA leaf for the DB_ADDR host", issuer: ca, issuerKey: caKey, dnsName: testDBHost},
+		{name: "rejects a hostname mismatch", issuer: ca, issuerKey: caKey, dnsName: "someone-else.example", wantErr: true},
+		{name: "rejects an unrelated CA", issuer: unrelatedCA, issuerKey: unrelatedKey, dnsName: testDBHost, wantErr: true},
+		{name: "rejects a forged CA copying the pinned subject", issuer: forgedCA, issuerKey: forgedKey, dnsName: testDBHost, wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			leaf := testLeafWithSAN(t, tc.issuer, tc.issuerKey, tc.dnsName)
 
-func TestVerifyIdentityRejectsHostnameMismatch(t *testing.T) {
-	addr := "db.internal.example:3306"
-	ca, caKey, cfg := registerTestCA(t, tlsModeVerifyIdentity, addr)
+			_, err := leaf.Verify(x509.VerifyOptions{Roots: cfg.RootCAs, DNSName: cfg.ServerName})
 
-	leaf := testLeafWithSAN(t, ca, caKey, "someone-else.example")
-	_, err := leaf.Verify(x509.VerifyOptions{Roots: cfg.RootCAs, DNSName: cfg.ServerName})
-	require.Error(t, err)
-}
-
-func TestVerifyIdentityRejectsUnrelatedCA(t *testing.T) {
-	addr := "db.internal.example:3306"
-	_, _, cfg := registerTestCA(t, tlsModeVerifyIdentity, addr)
-
-	untrustedCA, untrustedKey := testNamedCA(t, "Unrelated_CA")
-	leaf := testLeafWithSAN(t, untrustedCA, untrustedKey, "db.internal.example")
-	_, err := leaf.Verify(x509.VerifyOptions{Roots: cfg.RootCAs, DNSName: cfg.ServerName})
-	require.Error(t, err)
+			require.Equal(t, tc.wantErr, err != nil, "verify error: %v", err)
+		})
+	}
 }
 
 func TestWarnIfPinnedCANearExpiryFiresInsideWindow(t *testing.T) {
@@ -205,18 +148,6 @@ func TestWarnIfPinnedCANearExpiryStaysQuietOutsideWindow(t *testing.T) {
 	require.Equal(t, 0, logs.Len())
 }
 
-func TestRegisterTLSEnablesSessionResumption(t *testing.T) {
-	modes := []tlsMode{tlsModeVerifyCA, tlsModeVerifyIdentity}
-
-	for _, mode := range modes {
-		t.Run(string(mode), func(t *testing.T) {
-			_, _, cfg := registerTestCA(t, mode, testDBAddr)
-			require.NotNil(t, cfg.ClientSessionCache)
-			require.Same(t, mysqlSessionCache, cfg.ClientSessionCache)
-		})
-	}
-}
-
 func TestNewMySQLConfigSetsNetworkTimeouts(t *testing.T) {
 	mc := newMySQLConfig(Config{Address: testDBAddr, Schema: "test_schema"})
 
@@ -236,12 +167,12 @@ func captureGlobalLogs(t *testing.T) *observer.ObservedLogs {
 	return logs
 }
 
-func registerTestCA(t *testing.T, mode tlsMode, addr string) (*x509.Certificate, *ecdsa.PrivateKey, *tls.Config) {
+func registerTestCA(t *testing.T, addr string) (*x509.Certificate, *ecdsa.PrivateKey, *tls.Config) {
 	t.Helper()
 	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
 
 	ca, caKey, caPEM := testCA(t)
-	_, err := registerTLS(caPEM, mode, addr)
+	_, err := registerTLS(caPEM, addr)
 	require.NoError(t, err)
 
 	return ca, caKey, registeredTLSConfig(t, addr)
@@ -288,48 +219,6 @@ func testNamedCAWithValidity(t *testing.T, commonName string, notAfter time.Time
 	}
 
 	return issueTestCertificate(t, template, nil, nil)
-}
-
-func selfSignWithKey(t *testing.T, commonName string, key *ecdsa.PrivateKey, serial int64) *x509.Certificate {
-	t.Helper()
-
-	template := x509.Certificate{
-		SerialNumber:          big.NewInt(serial),
-		Subject:               pkix.Name{CommonName: commonName},
-		NotBefore:             time.Now().Add(-time.Hour),
-		NotAfter:              time.Now().Add(time.Hour),
-		IsCA:                  true,
-		KeyUsage:              x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-	}
-
-	der, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
-	require.NoError(t, err)
-	cert, err := x509.ParseCertificate(der)
-	require.NoError(t, err)
-	return cert
-}
-
-func testLeafChainWithCA(t *testing.T, ca *x509.Certificate, caKey *ecdsa.PrivateKey) []*x509.Certificate {
-	t.Helper()
-
-	return append(testLeafChain(t, ca, caKey), ca)
-}
-
-func testLeafChain(t *testing.T, ca *x509.Certificate, caKey *ecdsa.PrivateKey) []*x509.Certificate {
-	t.Helper()
-
-	template := x509.Certificate{
-		SerialNumber:          big.NewInt(2),
-		NotBefore:             time.Now().Add(-time.Hour),
-		NotAfter:              time.Now().Add(time.Hour),
-		KeyUsage:              x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-	}
-
-	cert, _ := issueTestCertificate(t, template, ca, caKey)
-	return []*x509.Certificate{cert}
 }
 
 func testLeafWithSAN(t *testing.T, ca *x509.Certificate, caKey *ecdsa.PrivateKey, dnsName string) *x509.Certificate {
