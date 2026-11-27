@@ -23,7 +23,6 @@ spec:
     - DB_CLIENT_KEY
     - DB_PASS
     - DB_SCHEMA
-    - DB_TLS_MODE
     - DB_USER
     - NATS_RPC_JWT
     - NATS_RPC_NKEY_SEED
