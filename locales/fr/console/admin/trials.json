@@ -30,7 +30,6 @@
     "idRequired": "Saisissez l’identifiant Twitch numérique du diffuseur.",
     "invalidId": "Identifiant du diffuseur invalide.",
     "invalidEnabled": "Valeur d’activation invalide.",
-    "demoUnavailable": "L’observation des essais est indisponible en mode démo.",
     "added": "Essai ajouté pour {id}. Abonnement au clavardage Twitch en attente.",
     "removed": "Arrêt de l’essai pour {id}.",
     "enabled": "Essai activé pour {id}.",

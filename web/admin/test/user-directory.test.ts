@@ -52,19 +52,13 @@ test('keeps directory rows available when an older service omits the matching to
 
 async function readDemo(search: string) {
   const env = { ...await import('$app/env') };
-  const previous = process.env.DEMO;
   mock.module('$app/env', () => ({ ...env, dev: true }));
-  process.env.DEMO = '1';
-  const directoryPath = '../src/lib/server/user-directory.ts?demo-test';
-  const countPath = '../src/lib/server/live-count.ts?demo-test';
   try {
-    const directory = await import(directoryPath) as typeof import('../src/lib/server/user-directory');
-    const count = await import(countPath) as typeof import('../src/lib/server/live-count');
-    return await Promise.all([directory.loadUserDirectory(actor, query(search)), count.liveUserCount(actor)]);
+    const directory = await import('../src/dev/server/user-directory');
+    const count = await import('../src/dev/server/live-count');
+    return await Promise.all([directory.loadUserDirectory(actor, query(search)), count.liveUserCount()]);
   } finally {
     mock.module('$app/env', () => env);
-    if (previous === undefined) delete process.env.DEMO;
-    else process.env.DEMO = previous;
   }
 }
 

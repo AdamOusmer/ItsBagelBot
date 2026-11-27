@@ -48,7 +48,6 @@
   const refreshAfter = (result: { type: string; status?: number }) => result.type === 'success' || conflicted(result);
 
   onMount(() => {
-    if (data.demo) return;
     const skew = data.serverNow - Date.now();
     const clock = setInterval(() => { now = Date.now() + skew; }, 1000);
     const delay = () => live.rounds.length ? 2000 : 10_000;
@@ -135,7 +134,7 @@
   <Card>
     <div class="section">
       <CardHead title={t('giveaways.new')} headingLevel={2} />
-      <StartForm config={data.config} enabled={data.enabled} {blocked} busy={busy || !!setting} demo={data.demo} {submit} />
+      <StartForm config={data.config} enabled={data.enabled} {blocked} busy={busy || !!setting} {submit} />
     </div>
   </Card>
 

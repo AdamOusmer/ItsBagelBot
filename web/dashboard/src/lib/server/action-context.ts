@@ -17,12 +17,12 @@ export type ActionContext = {
 export const notSignedIn = (locale: App.Locals['locale']) =>
   fail(401, { ok: false, error: actionError(locale, 'Not signed in.') });
 
-export function signedInAction(gate: (session: App.Locals['session']) => void, demo: boolean) {
+export function signedInAction(gate: (session: App.Locals['session']) => void) {
   return <R>(run: (ctx: ActionContext, event: ActionEvent) => Promise<R>) =>
     async (event: ActionEvent) => {
       const { request, locals } = event;
       gate(locals.session);
-      if (!demo && !locals.session) return notSignedIn(locals.locale);
+      if (!locals.session) return notSignedIn(locals.locale);
       const ctx: ActionContext = {
         uid: effectiveId(locals.session),
         session: locals.session,

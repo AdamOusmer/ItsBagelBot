@@ -36,7 +36,7 @@ export async function gatedEnabled(uid: string, def: ModuleDef, requested: boole
   return parentIsEnabled(uid, def.parent);
 }
 
-export async function patchModuleSettings(def: ModuleDef, form: FormData, locals: App.Locals, demo: boolean) {
+export async function patchModuleSettings(def: ModuleDef, form: FormData, locals: App.Locals) {
   const allowedTriggers = moduleAllowedTriggers(def);
   const triggerKeys = allowedTriggers.size > 0 ? [DISABLED_TRIGGERS_KEY] : [];
   const voiceKeys = def.replies.flatMap((r) => r.voiceAlert ? [alertVoiceKeys(r.voiceAlert).enabled] : []);
@@ -49,8 +49,6 @@ export async function patchModuleSettings(def: ModuleDef, form: FormData, locals
 
   const requested = form.get('is_enabled') === 'on';
   const expectedRev = Number(form.get('expected_rev') ?? '0') || 0;
-  if (demo) return { result: { ok: true, rev: expectedRev + 1, conflict: false }, freshRead: false };
-
   const uid = effectiveId(locals.session);
   const enabled = await gatedEnabled(uid, def, requested);
   const config = await attachLinkedUUID(def, partial, locals);

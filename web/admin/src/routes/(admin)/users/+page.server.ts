@@ -49,10 +49,8 @@ import { directoryQuery, loadUserDirectory } from '#lib/server/user-directory';
 
 const CREATOR_CODE_MAX_LENGTH = 64;
 const LOOKUP_MAX_LENGTH = 128;
-const DEMO = dev && process.env.DEMO === '1';
 const STATUSES = new Set(['free', 'paid', 'vip']);
 const UNKNOWN_SUB_STATE: ChannelSubState = { state: 'unknown', error: '', checkedAt: null };
-const DEMO_SUB_STATE: ChannelSubState = { state: 'ok', error: '', checkedAt: null };
 type Locale = App.Locals['locale'];
 
 export const load: PageServerLoad = async ({ url, parent }) => {
@@ -66,18 +64,6 @@ function dashboardOrigin(url: URL): string {
   if (configured) return configured;
   if (dev) return url.origin;
   throw new Error('DASHBOARD_PUBLIC_ORIGIN not set');
-}
-
-function demoLookup(query: LookupQuery, sampleUsers: AdminUserWire[]) {
-  const user = sampleUsers.find((sample) => sample.username === query.q || String(sample.id) === query.q);
-  if (!user) return { lookup: { error: adminText(query.locale, 'admin.users.actionResults.notFound'), q: query.q } };
-  return {
-    lookup: {
-      user,
-      tokenPresent: user.status !== 'free',
-      subState: DEMO_SUB_STATE
-    }
-  };
 }
 
 type LookupQuery = {
@@ -112,7 +98,6 @@ type UserMutation<P> = {
   name: string;
   key: AccessKey;
   parse: (form: FormData) => ParseResult<P>;
-  demo?: (target: UserTarget, input: P) => UserActionReply | Promise<UserActionReply>;
   notice: (user: AdminUserWire | null, input: P, locale: Locale) => string;
   detail?: (input: P) => string;
   run: (ref: UserRef, input: P) => Promise<AdminUserWire | null>;
@@ -148,7 +133,6 @@ function userAction<P>(mutation: UserMutation<P>) {
     const { admin, ref, locale } = target;
     const input = mutation.parse(form);
     if ('refuse' in input) return refusalReply(input, locale);
-    if (DEMO && mutation.demo) return mutation.demo(target, input.value);
     return audited(
       { admin, action: mutation.name, target: ref.userId, detail: mutation.detail?.(input.value) },
       () => mutation.run(ref, input.value),
@@ -159,16 +143,14 @@ function userAction<P>(mutation: UserMutation<P>) {
 
 type FixedNoticeMutation = Pick<UserMutation<null>, 'name' | 'key' | 'run'> & {
   notice: string;
-  demoNotice: string;
 };
 
-function fixedNoticeAction({ name, key, run, notice, demoNotice }: FixedNoticeMutation) {
+function fixedNoticeAction({ name, key, run, notice }: FixedNoticeMutation) {
   return userAction({
     name,
     key,
     run,
     parse: () => ({ value: null }),
-    demo: ({ locale }) => okReply(adminText(locale, demoNotice)),
     notice: (_user, _input, locale) => adminText(locale, notice)
   });
 }
@@ -176,16 +158,14 @@ function fixedNoticeAction({ name, key, run, notice, demoNotice }: FixedNoticeMu
 type FlagMutation = Pick<UserMutation<boolean>, 'name' | 'key' | 'run'> & {
   field: 'test_account' | 'alpha';
   notice: string;
-  demoNotice: string;
 };
 
-function flagAction({ name, key, run, field, notice, demoNotice }: FlagMutation) {
+function flagAction({ name, key, run, field, notice }: FlagMutation) {
   return userAction({
     name,
     key,
     run,
     parse: parseActive,
-    demo: ({ locale }, active) => okReply(adminText(locale, demoNotice, { active: String(active) })),
     notice: (user, _active, locale) => adminText(locale, notice, { active: user?.[field] ? 'on' : 'off' })
   });
 }
@@ -267,15 +247,6 @@ function creatorCodeNotice(user: AdminUserWire | null, _input: CreatorCode, loca
     : adminText(locale, 'admin.users.actionResults.creatorCodeCleared');
 }
 
-async function demoCreatorCode({ ref, locale }: UserTarget, { code }: CreatorCode) {
-  const { sampleUsers } = await import('#lib/server/demo-data');
-  const user = sampleUsers.find((sample) => String(sample.id) === ref.userId);
-  const notice = code
-    ? adminText(locale, 'admin.users.actionResults.creatorCodeSetDemo', { code })
-    : adminText(locale, 'admin.users.actionResults.creatorCodeClearedDemo');
-  return { ...okReply(notice), lookup: user ? { user: { ...user, creator_code: code || null } } : undefined };
-}
-
 function parseActive(form: FormData): ParseResult<boolean> {
   return { value: formField(form, 'active') === 'true' };
 }
@@ -291,7 +262,6 @@ function parseVoiceUsage(form: FormData): ParseResult<VoiceUsageChange> {
 async function setVoiceUsageForUser({ ref, locale }: UserTarget, form: FormData) {
   const input = parseVoiceUsage(form);
   if ('refuse' in input) return refusalReply(input, locale);
-  if (DEMO) return fail(403, { error: actionError(locale, 'forbidden') });
   try {
     const user = await userSetVoiceUsage(ref, input.value);
     const notice = input.value.reset ? 'admin.users.voice.resetDone' : 'admin.users.voice.setDone';
@@ -328,10 +298,6 @@ async function lookupUser({ request, locals }: RequestEvent) {
   if (!q) return fail(400, { error: actionError(locale, 'query required') });
   if (q.length > LOOKUP_MAX_LENGTH) return fail(400, { error: actionError(locale, 'query too long') });
   const query: LookupQuery = { actorId: admin.id, q, locale };
-  if (DEMO) {
-    const { sampleUsers } = await import('#lib/server/demo-data');
-    return demoLookup(query, sampleUsers);
-  }
   try {
     return { lookup: await probeUser(query) };
   } catch (error) {
@@ -345,9 +311,6 @@ function actionNotice(error: unknown) {
 }
 
 async function restartForUser({ admin, ref, locale }: UserTarget) {
-  if (DEMO) {
-    return { ...okReply(adminText(locale, 'admin.users.actionResults.restartDemo')), subState: DEMO_SUB_STATE };
-  }
   try {
     await restartUserEventSub(ref.userId);
     audit(admin, { action: 'restart', target: ref.userId, ok: true });
@@ -379,10 +342,6 @@ async function impersonateUser({ admin, ref, locale }: UserTarget, _: FormData, 
   } catch (error) {
     return actionNotice(error);
   }
-  if (DEMO) {
-    const viewAsUrl = makeViewAsUrl(origin, admin, { id: ref.userId, login: 'demo', displayName: 'Demo' });
-    return { ...okReply(adminText(locale, 'admin.users.actionResults.viewAsDemo')), viewAsUrl };
-  }
   try {
     const user = await userLookup(admin.id, ref.userId);
     const viewAsUrl = makeViewAsUrl(origin, admin, {
@@ -408,7 +367,6 @@ export const actions: Actions = {
     name: 'set_status',
     key: 'users.grant',
     parse: parseStatus,
-    demo: (_target, grant) => okReply(`status set to ${grant.status} (demo)`),
     detail: (grant) => grant.detail,
     notice: statusNotice,
     run: applyStatus
@@ -417,7 +375,6 @@ export const actions: Actions = {
   reset: fixedNoticeAction({
     name: 'reset',
     key: 'users.grant',
-    demoNotice: 'admin.users.actionResults.userResetDemo',
     notice: 'admin.users.actionResults.userReset',
     run: userReset
   }),
@@ -425,7 +382,6 @@ export const actions: Actions = {
   clearToken: fixedNoticeAction({
     name: 'clear_token',
     key: 'users.token',
-    demoNotice: 'admin.users.actionResults.tokenClearedDemo',
     notice: 'admin.users.actionResults.tokenCleared',
     run: async (ref) => {
       await tokenClear(ref);
@@ -437,7 +393,6 @@ export const actions: Actions = {
     name: 'set_active',
     key: 'users.grant',
     parse: parseActive,
-    demo: ({ locale }) => okReply(adminText(locale, 'admin.users.actionResults.activeSetDemo')),
     notice: (user, _active, locale) => adminText(locale, 'admin.users.actionResults.active', { active: user?.is_active ? 'true' : 'false' }),
     detail: String,
     run: (ref, active) =>
@@ -448,7 +403,6 @@ export const actions: Actions = {
     name: 'set_test_account',
     key: 'users.test',
     field: 'test_account',
-    demoNotice: 'admin.users.actionResults.testAccountDemo',
     notice: 'admin.users.actionResults.testAccount',
     run: userSetTestAccount
   }),
@@ -457,7 +411,6 @@ export const actions: Actions = {
     name: 'set_alpha',
     key: 'users.alpha',
     field: 'alpha',
-    demoNotice: 'admin.users.actionResults.alphaDemo',
     notice: 'admin.users.actionResults.alpha',
     run: userSetAlpha
   }),
@@ -466,7 +419,6 @@ export const actions: Actions = {
     name: 'set_creator_code',
     key: 'users.grant',
     parse: parseCreatorCode,
-    demo: DEMO ? demoCreatorCode : undefined,
     detail: (input) => input.detail,
     notice: creatorCodeNotice,
     run: (ref, input) => userSetCreatorCode(ref, input.code)
@@ -475,7 +427,6 @@ export const actions: Actions = {
   ban: fixedNoticeAction({
     name: 'ban',
     key: 'users.ban',
-    demoNotice: 'admin.users.actionResults.userBannedDemo',
     notice: 'admin.users.actionResults.userBanned',
     run: (ref) => withEnrollmentSync(ref.userId, 'unenroll-first', () => userBan(ref))
   }),
@@ -483,7 +434,6 @@ export const actions: Actions = {
   unban: fixedNoticeAction({
     name: 'unban',
     key: 'users.ban',
-    demoNotice: 'admin.users.actionResults.userUnbannedDemo',
     notice: 'admin.users.actionResults.userUnbanned',
     run: (ref) => withEnrollmentSync(ref.userId, 'enroll-after', () => userUnban(ref))
   }),
@@ -495,7 +445,6 @@ export const actions: Actions = {
   delete: fixedNoticeAction({
     name: 'delete',
     key: 'users.delete',
-    demoNotice: 'admin.users.actionResults.userDeletedDemo',
     notice: 'admin.users.actionResults.userDeleted',
     run: (ref) => withEnrollmentSync(ref.userId, 'unenroll-first', async () => {
       await userDelete(ref);

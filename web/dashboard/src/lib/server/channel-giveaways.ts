@@ -46,7 +46,7 @@ export interface LiveGiveaways {
 
 export const giveawayDef = moduleDef(MOD.giveaway)!;
 export const unavailableGiveaways: LiveGiveaways = { rounds: [], degraded: true };
-export const emptyGiveawaySettings = {
+const emptyGiveawaySettings = {
   enabled: false,
   revision: 0,
   config: giveawayDefaults,

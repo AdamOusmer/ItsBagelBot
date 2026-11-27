@@ -12,16 +12,16 @@ import type {
   FeedBoard,
   NotificationWire,
   ServiceHealth
-} from './services';
-import type { AdminIdentity } from './access';
+} from '#lib/server/services';
+import type { AdminIdentity } from '#lib/server/access';
 import type { AnalyticsReads } from '#lib/analytics-page';
 import type { DonationsReply } from '#lib/donations-view';
 import { isoWeek, type AnalyticsRow } from '#lib/analytics-view';
-import type { FeedRecord } from './feed-history';
-import type { LaneView } from './lanes';
-import type { DbCredentialStatus, ScopeReport, SecretServiceId } from './secrets';
-import type { DeployApi } from './deploys';
-import type { DeployListener, DeployRunId, DeployRuns } from './release';
+import type { FeedRecord } from '#lib/server/feed-history';
+import type { LaneView } from '#lib/server/lanes';
+import type { DbCredentialStatus, ScopeReport, SecretServiceId } from '#lib/server/secrets';
+import type { DeployApi } from '#lib/server/deploys';
+import type { DeployListener, DeployRunId, DeployRuns } from '#lib/server/release';
 import type { FluxTier } from '#lib/deploys/types';
 import { RpcError } from '@bagel/kit/server/nats';
 import {

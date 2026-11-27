@@ -2,12 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
-import { error, redirect } from '@sveltejs/kit';
-import { actionError } from '#lib/server/action-errors';
-
-const DEMO = dev && env.DEMO === '1';
+import { redirect } from '@sveltejs/kit';
+import { demoCheckoutComplete, demoRecordTransaction } from '../../../../dev/fixtures';
 
 type Plan = 'monthly' | 'single';
 type Kind = 'premium' | 'gift';
@@ -21,8 +17,6 @@ function readKind(value: string | null): Kind {
 }
 
 export const load: PageServerLoad = async ({ url, locals }) => {
-  if (!DEMO) throw error(404, actionError(locals.locale, 'Not found'));
-
   const plan = readPlan(url.searchParams.get('plan'));
   const kind = readKind(url.searchParams.get('kind'));
   const recipient = kind === 'gift' ? (url.searchParams.get('recipient') ?? '') : '';
@@ -34,17 +28,14 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 };
 
 export const actions: Actions = {
-  pay: async ({ request, locals }) => {
-    if (!DEMO) throw error(404, actionError(locals.locale, 'Not found'));
-
+  pay: async ({ request }) => {
     const form = await request.formData();
     const plan = readPlan(form.get('plan') as string | null);
     const kind = readKind(form.get('kind') as string | null);
     const recipient = kind === 'gift' ? String(form.get('recipient') ?? '') : '';
 
-    const { demoCheckoutComplete, demoRecordTransaction } = await import('#lib/server/demo-data');
     if (kind === 'premium') demoCheckoutComplete(plan);
-    demoRecordTransaction(kind, plan, kind === 'gift' ? recipient : null);
+    demoRecordTransaction({ kind, plan, recipient: kind === 'gift' ? recipient : null });
 
     throw redirect(303, '/billing?checkout=complete');
   }

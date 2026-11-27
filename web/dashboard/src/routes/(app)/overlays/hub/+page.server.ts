@@ -2,8 +2,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { fail, redirect } from '@sveltejs/kit';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { translate } from '@bagel/kit/i18n';
 import { bestEffort } from '@bagel/kit/server/best-effort';
 import { alphaActions, alphaOnly } from '#lib/server/alpha';
@@ -13,26 +11,13 @@ import { overlayAddTemplate, overlayDelete, overlayList } from '#lib/server/serv
 import { linkAction, ownerRefusal, refId, rotateOverlay } from './overlay-actions';
 import type { Actions, PageServerLoad } from './$types';
 
-const DEMO = dev && env.DEMO === '1';
-
-const demoActions = {
-  add: async () => ({ id: 1 }),
-  rotate: async () => (await import('#lib/server/demo-data')).demoOverlayRotate(),
-  delete: async () => ({ deleted: true })
-} satisfies Actions;
-
-const demoLoad = (async () => {
-  const demo = await import('#lib/server/demo-data');
-  return { readOnly: false, overlays: demo.demoOverlayList() };
-}) satisfies PageServerLoad;
-
 const liveLoad = (async ({ locals: { session } }) => {
   if (!session) throw redirect(302, '/login?next=%2Foverlays');
   if (!hasOwnerAccess(session)) return { readOnly: true, overlays: null };
   return { readOnly: false, overlays: await bestEffort(overlayList(session), null) };
 }) satisfies PageServerLoad;
 
-export const load: PageServerLoad = alphaOnly(DEMO ? demoLoad : liveLoad);
+export const load: PageServerLoad = alphaOnly(liveLoad);
 
 const liveActions = {
   add: async ({ locals: { session, locale }, setHeaders }) => {
@@ -57,4 +42,4 @@ const liveActions = {
   }
 } satisfies Actions;
 
-export const actions = alphaActions(DEMO ? demoActions : liveActions);
+export const actions = alphaActions(liveActions);

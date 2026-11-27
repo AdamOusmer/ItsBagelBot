@@ -4,12 +4,9 @@
 import { jsm, js } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { Kvm, type KV } from '@nats-io/kv';
-import { dev } from '$app/env';
 import { allPages, consumerActivity, deliveryRate, formatDeliveryRate, type DeliverySample } from './lane-telemetry';
 
 // Do not import access.ts: it pulls in services.ts, an import cycle through hooks.server.ts at boot.
-const DEMO = dev && process.env.DEMO === '1';
-
 type LaneManager = Awaited<ReturnType<typeof jsm>>;
 type LaneClient = Awaited<ReturnType<typeof js>>;
 type ConsumerInfo = Awaited<ReturnType<LaneManager['consumers']['info']>>;
@@ -97,7 +94,6 @@ async function getKV(): Promise<KV> {
 }
 
 export async function ensureLaneStoreHA(): Promise<void> {
-  if (DEMO) return;
   await getKV();
 }
 
@@ -331,10 +327,6 @@ function ensureSampler() {
 }
 
 export async function loadLanes(): Promise<LanesResult> {
-  if (DEMO) {
-    const { sampleLanes } = await import('./demo-data');
-    return laneSnapshot(sampleLanes);
-  }
   ensureSampler();
   const pending = collectLanes();
   if (!current || current.degraded) await pending;

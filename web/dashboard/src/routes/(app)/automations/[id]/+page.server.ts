@@ -6,7 +6,6 @@ import type { Automation, RunRecord } from '@bagel/kit/automations';
 import { getAutomation, listRuns } from '#lib/server/automations-store';
 import {
   AUTOMATIONS_MODULE,
-  DEMO,
   mutate,
   otherAutomations,
   readModuleEnabled,

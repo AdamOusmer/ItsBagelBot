@@ -54,8 +54,6 @@
   "pagerPrev": "Newer",
   "pagerNext": "Older",
   "pagerLabel": "Page {page}",
-  "sentDemo": "notification sent to {target} (demo)",
-  "retractedDemo": "notification retracted (demo)",
   "invalidScope": "invalid scope",
   "targetRequired": "target user id or username required",
   "titleBodyRequired": "title and body are required",

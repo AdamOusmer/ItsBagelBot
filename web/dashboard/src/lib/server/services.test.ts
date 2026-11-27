@@ -12,6 +12,7 @@ let deliver: (subject: string, data: Uint8Array) => void = () => {};
 const rpcCalls: string[] = [];
 const published: { subject: string; payload: unknown }[] = [];
 let failedSubject = '';
+let basketUrl = '';
 const NOW = Date.UTC(2026, 9, 18, 12, 0, 0);
 const nats = await import('@bagel/kit/server/nats');
 mock.module('@bagel/kit/server/nats', () => ({
@@ -24,6 +25,7 @@ mock.module('@bagel/kit/server/nats', () => ({
     }
     if (subject.endsWith('.identity_sync')) return { renamed: true, prior_username: 'OldName' };
     if (subject.endsWith('.accountage.get')) return { user_found: true, target_id: '42' };
+    if (subject.endsWith('.basket_create')) return { ident: 'basket-1', checkout_url: basketUrl };
     return { active: true, status: 'paid', locale: 'fr', commands_page_hidden: true, expires_at: '2026-12-01' };
   },
   publish: async (subject: string, payload: unknown) => {
@@ -90,6 +92,17 @@ test.each([
   invalidation(scope, '42');
   stop();
   expect(seen).toEqual(notified ? [scope] : []);
+});
+
+test.each([
+  { url: 'https://checkout.example/basket', kept: 'https://checkout.example/basket' },
+  { url: 'http://checkout.example', kept: null },
+  { url: 'http://localhost:5173/billing/demo-checkout', kept: null },
+  { url: 'not a url', kept: null }
+])('a basket checkout URL $url is kept only over https', async ({ url, kept }) => {
+  basketUrl = url;
+  const basket = await services.checkoutBasketCreate({ userId: '42', username: 'crumbs' });
+  expect(basket.checkoutUrl).toBe(kept);
 });
 
 test('account, billing and preference reads share one state_get per board', async () => {

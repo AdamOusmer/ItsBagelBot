@@ -2,7 +2,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { randomUUID } from 'node:crypto';
-import { dev } from '$app/env';
 import { fail } from '@sveltejs/kit';
 import { TERMS_VERSION } from '@bagel/kit/consent';
 import { isLocale, translate, type Locale } from '@bagel/kit/i18n';
@@ -29,19 +28,13 @@ export function needsTerms(account: TermsState | null | undefined): boolean {
   return version < TERMS_VERSION;
 }
 
-const DEMO = dev && env.DEMO === '1';
-
 export function businessMailingAddress(): string {
   return env.BUSINESS_MAILING_ADDRESS?.trim() ?? '';
 }
 
-async function resolveMailingAddress(demo: boolean) {
-  return businessMailingAddress() || (DEMO && demo ? (await import('./demo-data')).demoMailingAddress : '');
-}
-
-export async function consentFields(locals: App.Locals, demo = false) {
-  const mailingAddress = await resolveMailingAddress(demo);
-  const marketingStatus = demo ? 'none' : currentAccount(locals)?.marketingStatus;
+export function consentFields(locals: App.Locals) {
+  const mailingAddress = businessMailingAddress();
+  const marketingStatus = currentAccount(locals)?.marketingStatus;
   const subscribed = marketingStatus === 'granted';
   const offersOptIn = !!mailingAddress && !subscribed;
   const marketingDefault = offersOptIn && marketingStatus === 'none';
@@ -99,8 +92,7 @@ async function persistTerms(locals: App.Locals, session: Session, form: FormData
 
 export async function submitTerms(
   { locals, request }: { locals: App.Locals; request: Request },
-  source: TermsSubmission['source'],
-  demo = false
+  source: TermsSubmission['source']
 ) {
   const { session, locale } = locals;
   if (!session) return fail(401, { error: actionError(locale, 'Not signed in.') });
@@ -110,6 +102,5 @@ export async function submitTerms(
   const requestId = termsRequestId(form);
   if (form.get('consent') !== 'yes') return fail(400, { error: translate(locale, 'onboarding.consentHint') });
   if (!requestId) return fail(400, { error: translate(locale, 'consent.reload') });
-  if (demo) return { uid: session.user_id, marketingSkipped: undefined };
   return persistTerms(locals, session, form, { source, requestId });
 }

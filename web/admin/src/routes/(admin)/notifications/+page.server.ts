@@ -3,7 +3,6 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
-import { dev } from '$app/env';
 import {
   notificationsList,
   notificationSend,
@@ -28,8 +27,6 @@ import {
   type HistoryResult
 } from '#lib/components/notifications/notification-compose';
 
-const DEMO = dev && process.env.DEMO === '1';
-
 async function loadHistory(page: number): Promise<HistoryResult> {
   try {
     const result = await notificationsList(page);
@@ -51,15 +48,7 @@ async function loadHistory(page: number): Promise<HistoryResult> {
 
 export const load: PageServerLoad = ({ url }) => {
   const page = parsePage(url.searchParams.get('page'), NOTIFICATIONS_MAX_PAGES);
-  const history: Promise<HistoryResult> = DEMO
-    ? import('#lib/server/demo-data').then(({ sampleNotifications }) => ({
-        notifications: page === 1 ? sampleNotifications : [],
-        page,
-        hasMore: false,
-        degraded: false
-      }))
-    : loadHistory(page);
-  return { page, history };
+  return { page, history: loadHistory(page) };
 };
 
 type SendForm = {
@@ -152,7 +141,6 @@ type NotifActionSpec<P> = {
   parse: (f: FormData, locale: App.Locals['locale']) => ParseResult<P>;
   target: (payload: P) => string;
   detail?: (payload: P) => string;
-  demoNotice: (payload: P, locale: App.Locals['locale']) => string;
   notice: (payload: P, locale: App.Locals['locale']) => string;
   run: (payload: P, admin: AdminIdentity) => Promise<unknown>;
 };
@@ -166,7 +154,6 @@ function notifAction<P>(spec: NotifActionSpec<P>) {
     if ('refuse' in parsed) return refusalReply(parsed, locals.locale);
     const payload = parsed.value;
 
-    if (DEMO) return okReply(spec.demoNotice(payload, locals.locale));
     return audited(
       { admin, action: spec.name, target: spec.target(payload), detail: spec.detail?.(payload) },
       () => spec.run(payload, admin),
@@ -185,7 +172,6 @@ export const actions: Actions = {
     parse: parseSendForm,
     target: (v) => v.target,
     detail: (v) => v.title,
-    demoNotice: (v, locale) => adminText(locale, 'admin.notifications.sentDemo', { target: recipientLabel(v, locale) }),
     notice: (v, locale) => adminText(locale, 'admin.notifications.sentToTarget', { target: recipientLabel(v, locale) }),
     run: (v, admin) => notificationSend(sendPayload(v, admin))
   }),
@@ -194,7 +180,6 @@ export const actions: Actions = {
     name: 'delete_notification',
     parse: parseDeleteId,
     target: (id) => String(id),
-    demoNotice: (_id, locale) => adminText(locale, 'admin.notifications.retractedDemo'),
     notice: (_id, locale) => adminText(locale, 'admin.notifications.retracted'),
     run: (id) => notificationDelete(id)
   })

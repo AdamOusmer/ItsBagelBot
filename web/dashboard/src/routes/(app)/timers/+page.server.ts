@@ -14,15 +14,10 @@ import {
 import { parseTimer } from '#lib/server/timers-parse';
 import { moduleLoad } from '#lib/server/module-page';
 import { moduleAction, type ModuleMutation } from '#lib/server/module-action';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
-
-const DEMO = dev && env.DEMO === '1';
 
 export const load: PageServerLoad = ({ locals }) =>
   moduleLoad('timers', locals.session, {
-    demo: DEMO ? async () => (await import('#lib/server/demo-data')).demoTimersView() : undefined,
     read: async (uid) => {
       const view = await readTimers(uid);
       return { enabled: view.enabled, timers: view.timers };
@@ -31,7 +26,7 @@ export const load: PageServerLoad = ({ locals }) =>
   });
 
 function mutate(op: string, invalid: string, run: ModuleMutation) {
-  return moduleAction('timers', op, run, { demo: DEMO, invalid });
+  return moduleAction('timers', op, run, { invalid });
 }
 
 function refused(res: Extract<TimerResult, { ok: false }>) {

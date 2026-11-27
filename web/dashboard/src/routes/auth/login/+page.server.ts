@@ -3,8 +3,6 @@
 
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { generateState } from '@bagel/kit/server/oauth';
 import { randomBytes } from 'node:crypto';
 import { cookieOptions, STATE_TTL_SECONDS } from '#lib/server/cookies';
@@ -13,13 +11,7 @@ import { skipAuthorizeIfSignedIn } from '#lib/server/oauth-start';
 import { count } from '@bagel/kit/server/analytics';
 import { loginVia, withVia } from '#lib/server/login-via';
 
-const DEMO = dev && env.DEMO === '1';
-
 export const load: PageServerLoad = ({ cookies, url, locals }) => {
-  if (DEMO) {
-    throw redirect(302, safeNextPath(url.searchParams.get('next')) ?? '/');
-  }
-
   if (
     skipAuthorizeIfSignedIn({
       hasSession: !!locals.session,

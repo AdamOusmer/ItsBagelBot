@@ -3,14 +3,10 @@
 
 import type { RequestHandler } from './$types';
 import { subscribe } from '#lib/server/live-hub';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
-
-const DEMO = dev && env.DEMO === '1';
 
 export const GET: RequestHandler = ({ locals, request }) => {
   const s = locals.session;
-  const boardId = s && !s.delegate_of ? s.user_id : DEMO ? 'demo' : null;
+  const boardId = s && !s.delegate_of ? s.user_id : null;
   if (!boardId) return new Response('unauthorized', { status: 401 });
 
   let cleanup = () => {};

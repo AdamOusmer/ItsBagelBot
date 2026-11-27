@@ -2,7 +2,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { error, fail, redirect, type ActionFailure } from '@sveltejs/kit';
-import { dev } from '$app/env';
 import { RpcError } from '@bagel/kit/server/nats';
 import type { RpcCode } from '@bagel/kit/server/rpc-code';
 import type { Locale } from '@bagel/kit/i18n';
@@ -10,24 +9,21 @@ import { requireRole, type AdminIdentity } from './access';
 import { audit } from './audit';
 import { actionError, badRequest, type ParseResult } from './admin-action';
 import { GitHubError } from './github';
-import { FluxError, PINNABLE, clearImage, fluxTiers, pinImage, reconcile, setSuspended } from './flux';
+import { FluxError, clearImage, pinImage, reconcile, setSuspended } from './flux';
+import { readDeployFlux } from './deploy-reads';
 import { releaseApi, type DeployListener, type DeployRunId, type DeployRuns } from './release';
 import {
   RUN_KINDS,
   STAGE_IDS,
   type ChangelogEntry,
   type DeployPlan,
-  type FluxResult,
   type DeployRun,
-  type DeployRunSummary,
   type ListRequest,
   type PlanRequest,
   type RunKind,
   type RunRequest,
   type StartRequest
 } from '#lib/deploys/types';
-
-const DEMO = dev && process.env.DEMO === '1';
 
 export interface DeployApi {
   plan(req: PlanRequest): Promise<DeployPlan | null>;
@@ -38,14 +34,6 @@ export interface DeployApi {
   cancel(req: RunRequest): Promise<DeployRun>;
   approve(req: RunRequest): Promise<DeployRun>;
   watch(runId: DeployRunId, listener: DeployListener): () => void;
-}
-
-export async function deployApi(): Promise<DeployApi> {
-  if (DEMO) {
-    const { demoDeployApi } = await import('./demo-data');
-    return demoDeployApi();
-  }
-  return releaseApi;
 }
 
 const STATUS_FOR: Record<RpcCode, number> = {
@@ -75,59 +63,9 @@ function deployFailure(e: unknown): ActionError {
 
 type Actor = Pick<AdminIdentity, 'id'>;
 
-type PlanResult = { plan: DeployPlan | null; planError: string | null };
-
-type DeploysPageData = {
-  planned: Promise<PlanResult>;
-  flux: Promise<FluxResult>;
-  runs: DeployRunSummary[];
-  active: DeployRun | null;
-  runsError: string | null;
-};
-
-async function fluxResult(): Promise<FluxResult> {
-  if (DEMO) {
-    const { demoFluxTiers } = await import('./demo-data');
-    return { tiers: demoFluxTiers(), pinnable: PINNABLE, fluxError: null };
-  }
-  try {
-    return { tiers: await fluxTiers(), pinnable: PINNABLE, fluxError: null };
-  } catch (e) {
-    return { tiers: [], pinnable: PINNABLE, fluxError: message(e) };
-  }
-}
-
-type RunsAndActive = Pick<DeploysPageData, 'runs' | 'active' | 'runsError'>;
-
-async function runsAndActive(api: DeployApi, actor: Actor): Promise<RunsAndActive> {
-  try {
-    const { runs, activeRunId } = await api.list({ actor_id: actor.id });
-    const active = activeRunId ? await api.get({ actor_id: actor.id, run_id: activeRunId }) : null;
-    return { runs, active, runsError: null };
-  } catch (err) {
-    return { runs: [], active: null, runsError: message(err) };
-  }
-}
-
-async function planResult(api: DeployApi, actor: Actor): Promise<PlanResult> {
-  try {
-    return { plan: await api.plan({ actor_id: actor.id }), planError: null };
-  } catch (e) {
-    return { plan: null, planError: message(e) };
-  }
-}
-
-export async function loadDeploys(actor: Actor): Promise<DeploysPageData> {
-  const api = await deployApi();
-  const planned = planResult(api, actor);
-  const flux = fluxResult();
-  return { planned, flux, ...(await runsAndActive(api, actor)) };
-}
-
 export async function loadDeployRun(actor: Actor, runId: DeployRunId): Promise<{ run: DeployRun }> {
-  const api = await deployApi();
   try {
-    return { run: await api.get({ actor_id: actor.id, run_id: runId }) };
+    return { run: await releaseApi.get({ actor_id: actor.id, run_id: runId }) };
   } catch (e) {
     throw error(deployStatus(e), message(e));
   }
@@ -285,7 +223,7 @@ async function planAction(event: ActionEvent) {
   const g = await gate(event, planOf);
   if (!('admin' in g)) return g;
   try {
-    return { plan: await (await deployApi()).plan({ actor_id: g.admin.id, ...g.value }) };
+    return { plan: await releaseApi.plan({ actor_id: g.admin.id, ...g.value }) };
   } catch (e) {
     return deployFailure(e);
   }
@@ -297,7 +235,7 @@ async function startAction(event: ActionEvent) {
   const req = { actor_id: g.admin.id, actor_login: g.admin.login, ...g.value };
   let run: DeployRun;
   try {
-    run = await recorded(startRecord(g.admin, req), async () => (await deployApi()).start(req));
+    run = await recorded(startRecord(g.admin, req), () => releaseApi.start(req));
   } catch (e) {
     return deployFailure(e);
   }
@@ -318,7 +256,7 @@ function runAction(verb: RunVerb) {
       detail: summary([req.stage, req.rerun && 'rerun'])
     };
     try {
-      return { run: await recorded(ref, async () => (await deployApi())[verb](req)) };
+      return { run: await recorded(ref, () => releaseApi[verb](req)) };
     } catch (e) {
       return deployFailure(e);
     }
@@ -353,13 +291,13 @@ function fluxAction(verb: FluxVerb) {
     if (!('admin' in g)) return g;
     const target = verb.target(g.value);
     try {
-      if (!DEMO) await verb.call(g.value);
+      await verb.call(g.value);
       audit(g.admin, { action: verb.action, target, ok: true });
     } catch (e) {
       audit(g.admin, { action: verb.action, target, ok: false, error: message(e) });
       return deployFailure(e);
     }
-    return { flux: await fluxResult() };
+    return { flux: await readDeployFlux() };
   };
 }
 

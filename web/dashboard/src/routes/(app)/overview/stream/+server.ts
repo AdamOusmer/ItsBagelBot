@@ -2,12 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { RequestHandler } from './$types';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { overviewLanes } from '#lib/server/overview-lanes';
 import { broadcastResponse, createBroadcast } from '#lib/server/sse-broadcast';
-
-const DEMO = dev && env.DEMO === '1';
 
 const TICK_MS = 5000;
 
@@ -30,7 +26,7 @@ const overview = createBroadcast<string>(TICK_MS, [
 
 export const GET: RequestHandler = ({ locals, request }) => {
   const s = locals.session;
-  const boardId = s && !s.delegate_of ? s.user_id : DEMO ? 'demo' : null;
+  const boardId = s && !s.delegate_of ? s.user_id : null;
   if (!boardId) return new Response('unauthorized', { status: 401 });
   return broadcastResponse(request, overview, boardId);
 };

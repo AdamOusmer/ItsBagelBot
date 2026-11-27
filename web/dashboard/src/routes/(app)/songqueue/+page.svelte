@@ -475,7 +475,6 @@
     name={data.displayName}
     app={app}
     redirectUri={data.redirectUri ?? ''}
-    preview={'setupPreview' in data && data.setupPreview === true}
     error={data.errorSlug ? t(ERROR_SLUG_KEYS[data.errorSlug] ?? 'spotify.errors.oauth') : ''}
     onRemoveApp={() => (connectionAction = 'clearApp')}
   />

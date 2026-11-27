@@ -23,10 +23,10 @@ const natsExecutable = process.env.ISOLATION_NATS_BIN;
 if (!natsExecutable) throw new Error('Set ISOLATION_NATS_BIN to a local nats-server executable');
 // Prevent any inherited runtime configuration from reaching real services.
 for (const key of Object.keys(process.env)) {
-  if (/^(NATS_|VALKEY_|TWITCH_|DEMO$|NODE_NAME$|NEW_RELIC_|SESSION_KEY$)/.test(key)) delete process.env[key];
+  if (/^(NATS_|VALKEY_|TWITCH_|NODE_NAME$|NEW_RELIC_|SESSION_KEY$)/.test(key)) delete process.env[key];
 }
 Object.assign(process.env, {
-  NEW_RELIC_ENABLED: 'false', DEMO: '0', ORIGIN: origin,
+  NEW_RELIC_ENABLED: 'false', ORIGIN: origin,
   TWITCH_REDIRECT_URI: origin + '/auth/callback',
   SESSION_KEY: randomBytes(32).toString('base64'),
   NATS_RPC_URL: brokerURL, NATS_URL: brokerURL, NATS_HUB_URL: brokerURL,

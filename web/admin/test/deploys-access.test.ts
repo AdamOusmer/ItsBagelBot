@@ -36,15 +36,17 @@ const listRuns = mock(async (): Promise<DeployRuns> => ({ runs: [], activeRunId:
 const getRun = mock(async () => params);
 const readPlan = mock(async (_actor: { actor_id: string }): Promise<DeployPlan | null> => plan);
 const fluxTiers = mock(async (): Promise<FluxTier[]> => []);
-const deployApi = mock(async () => ({ list: listRuns, get: getRun, plan: readPlan }));
+const watchRun = mock(() => () => {});
 
 mock.module('#lib/server/deploys', () => ({
   deployActions: {},
   loadDeployRun,
   runActions: {},
-  deployApi,
   deployStatus: () => 503,
   RunRelay: class {}
+}));
+mock.module('#lib/server/release', () => ({
+  releaseApi: { list: listRuns, get: getRun, plan: readPlan, watch: watchRun }
 }));
 mock.module('#lib/server/flux', () => ({ fluxTiers, PINNABLE: pinnable }));
 
@@ -55,7 +57,7 @@ const { GET: streamGET } = await import('../src/routes/(admin)/deploys/[id]/stre
 
 beforeEach(() => {
   role = 'admin';
-  for (const read of [deployApi, loadDeployRun, listRuns, getRun, readPlan, fluxTiers]) read.mockClear();
+  for (const read of [watchRun, loadDeployRun, listRuns, getRun, readPlan, fluxTiers]) read.mockClear();
 });
 
 function openIndex() {
@@ -75,7 +77,7 @@ type RouteCase = {
 };
 
 const routes = [
-  { name: 'new deploy page', call: openNew, loader: deployApi, kind: 'page' },
+  { name: 'new deploy page', call: openNew, loader: listRuns, kind: 'page' },
   {
     name: 'deploy run page',
     call: (session: Session) => runLoad({ locals: { session }, params } as Parameters<typeof runLoad>[0]),
@@ -85,7 +87,7 @@ const routes = [
   {
     name: 'deploy run stream',
     call: (session: Session) => streamGET({ locals: { session }, params } as Parameters<typeof streamGET>[0]),
-    loader: deployApi,
+    loader: watchRun,
     kind: 'stream'
   }
 ] as const;
@@ -113,8 +115,7 @@ describe('deploy routes require deploys.manage', () => {
 
   test('refuses an admin on the deploy index before starting reads', async () => {
     await expect(openIndex()).rejects.toMatchObject({ status: 302, location: '/' });
-    expect(deployApi).not.toHaveBeenCalled();
-    expect(fluxTiers).not.toHaveBeenCalled();
+    expect([listRuns, readPlan, fluxTiers].map((read) => read.mock.calls.length)).toEqual([0, 0, 0]);
   });
 });
 

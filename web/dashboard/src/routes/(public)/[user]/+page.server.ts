@@ -3,7 +3,6 @@
 
 import { error, redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { RpcError } from '@bagel/kit/server/nats';
 import type { PageServerLoad } from './$types';
 import { userCommandsPage, userLeaderboardPage } from '#lib/server/services';
@@ -36,8 +35,6 @@ import { markEdge, pageOutcome, readVisibility } from '#lib/server/edge-cache';
 import { lookupLogin } from '#lib/server/channel-lookup';
 import { leaderboardCacheTag } from '#lib/edge-tags';
 import { LOGIN_RE, normalizeLogin } from '#lib/public-login';
-
-const DEMO = dev && env.DEMO === '1';
 
 const LEADERBOARD_HOST = 'leaderboard.itsbagelbot.com';
 
@@ -143,24 +140,6 @@ async function standings(userId: string, loyalty: ReturnType<typeof readLoyalty>
 	}
 }
 
-async function demoPage(login: string, params: BoardParams) {
-	const d = await import('#lib/server/demo-data');
-	return {
-		login,
-		channelName: d.demoSession().display_name,
-		currencyName: d.demoLeaderboard.currencyName,
-		podium: d.demoPodium(),
-		frozen: null,
-		...(await loadBoard(params, async (req) => d.demoStandingsPage(req))),
-		degraded: false,
-		busy: false,
-		commandsPage: true,
-		showStandings: true,
-		giveawayWinners: [],
-		giveawayHistoryUnavailable: false
-	};
-}
-
 function enter(url: URL, segment: string, locals: App.Locals): string {
 	requireLeaderboardHost(url, locals);
 	const login = requireLogin(segment, locals);
@@ -193,7 +172,6 @@ async function publicFeatures(channel: Channel, view: BoardParams, locals: App.L
 export const load: PageServerLoad = async ({ params, url, locals }) => {
 	const login = enter(url, params.user ?? '', locals);
 	const view = boardParams(url);
-	if (DEMO) return demoPage(login, view);
 
 	const channel = await requireChannel(login, locals);
 	const { boardVisible, commandsPage, showStandings, standing, giveaways } = await publicFeatures(channel, view, locals);

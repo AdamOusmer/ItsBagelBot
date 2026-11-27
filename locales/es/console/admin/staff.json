@@ -38,8 +38,6 @@
   "confirmDeactivateBody": "@{login} ya no puede iniciar sesión en esta consola. Su historial de auditoría se conserva.",
   "saveFailed": "No se pudieron guardar los cambios.",
   "addCta": "Añadir",
-  "removedDemo": "Acceso a la consola revocado (demostración).",
   "removed": "Acceso a la consola revocado.",
-  "grantedDemo": "{login} → {role} (demostración)",
   "granted": "rol de {login} establecido como {role}"
 }

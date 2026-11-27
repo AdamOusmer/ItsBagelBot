@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
-import { dev } from '$app/env';
 import { redirect, type RequestEvent } from '@sveltejs/kit';
 import { delegateAllowedPaths, pathnameAllowed } from '@bagel/kit';
 import { COOKIE, seal, type Session } from '#lib/server/session';
@@ -12,8 +10,6 @@ import { RpcError } from '@bagel/kit/server/nats';
 import { isSessionRevoked } from '@bagel/kit/server/session-revocation';
 import { assertBetaRouteOpen } from '#lib/server/module-gate';
 import { assertAlphaRouteOpen } from '#lib/server/alpha';
-
-const DEMO = dev && process.env.DEMO === '1';
 
 const PUBLIC_PREFIXES = ['/auth', '/login', '/healthz', '/readyz', '/status', '/lang', '/delegate/accept', '/stats', '/u', '/webhooks'];
 
@@ -107,10 +103,6 @@ async function guardDelegateBoard(event: RequestEvent, s: Session, ownerId: stri
 }
 
 export async function guardSession(event: RequestEvent, s: Session): Promise<Session> {
-  if (DEMO) {
-    await assertAlphaRouteOpen(event);
-    return s;
-  }
   if (isPublic(event.url.pathname)) return s;
 
   await assertAccountUsable(event, s);

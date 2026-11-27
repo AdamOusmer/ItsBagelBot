@@ -95,18 +95,20 @@ Preserve variable/token/form/surface wording in editors and help copy.
   Unknown channels cache a 60 s 404, purged on first sign-in or rename. A login miss first self-heals through
   `identity-heal.ts` (Twitch lookup + `identity_sync`, rate-limited); the `rename` cache scope evicts `login:*`/`state:*` and purges the edge on every pod.
 - Boot import graphs use `process.env`; request-time dynamic env is safe after initialization.
-- `DEMO` branches require direct build-time `dev` gating and production cleanup verification.
+- No page checks for demo or dev mode. `vite dev` swaps `src/lib/server/<path>` for `src/dev/server/<path>` and
+  `kit/lib/<path>` for `src/dev/kit/<path>` (`kit/scripts/dev-fixtures.mjs`); the NATS override answers RPCs from
+  `src/dev/wire`. Production code never imports `src/dev` (`verify:dev-isolated`).
 - Edge-cache only anonymous default renders using normalized Accept-Language; locale preference cookies,
   `?lang`, cursor opt-out and sessions bypass shared caching. Responses vary on Accept-Language.
 - Template parsing/rehearsal comes from kit; do not invent a separate token regex or resolver.
 
 ## Focused commands
 
-From `web/dashboard`: `bun run dev`, `DEMO=1 bun run dev`, `bun run check`, `bun run build`.
+From `web/dashboard`: `bun run dev` (fixture account, no login or backend), `bun run check`, `bun run build`.
 `bun run test:account-isolation` runs a local HTTP harness against the real guards and RPC client (needs `ISOLATION_NATS_BIN` set to a `nats-server` binary).
 From `web`: `bun test dashboard/src/lib/server/guard.test.ts` for gates,
 `bun test dashboard/src/lib/server/services.test.ts` for adapter/invalidation contracts,
 or `bun test dashboard/src/hooks.server.test.ts` for public caching behavior.
 Workspace `bun run test` runs isolated Bun tests across kit/admin/dashboard/marketing/docs,
 excluding Playwright `.spec.js`, plus UI-boundary, size and compositor-motion gates.
-Real OAuth/NATS/Valkey integration needs configured dependencies; dev demo is a UI fixture path.
+Real OAuth/NATS/Valkey integration needs a production build with configured dependencies; `vite dev` is the fixture runtime.

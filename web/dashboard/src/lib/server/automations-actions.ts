@@ -1,7 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/env';
 import { fail } from '@sveltejs/kit';
 import { classifyFlow, parseDefinition, type Automation, type Issue } from '@bagel/kit/automations';
 import {
@@ -20,10 +19,8 @@ import { moduleWriteDenial } from './module-gate';
 
 export const AUTOMATIONS_MODULE = 'automations';
 
-export const DEMO = dev && process.env.DEMO === '1';
-
 export function mutate(op: string, invalid: string, run: ModuleMutation) {
-  const action = moduleAction(AUTOMATIONS_MODULE, op, run, { demo: DEMO, invalid });
+  const action = moduleAction(AUTOMATIONS_MODULE, op, run, { invalid });
   return async (event: Parameters<typeof action>[0]) => {
     const denied = event.locals.session ? await moduleWriteDenial(event.locals, moduleDef(AUTOMATIONS_MODULE)!) : null;
     return denied ?? action(event);

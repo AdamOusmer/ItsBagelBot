@@ -6,16 +6,16 @@ import type { Locale } from '@bagel/kit';
 import { actionError } from '#lib/server/action-errors';
 import type { EditorData, Lowered } from '#lib/server/flow-page';
 import type { ManagedReward } from '#lib/server/flow-reward';
-import { cardFromSummary, type FlowCard } from './cards';
-import { recipeOptions, unavailable, type ChoiceList, type ChoiceOption } from './choices';
-import { MAX_WAIT_SECONDS, specFor, type Flow } from './model';
-import { flowRouteId, parseFlowRouteId, type FlowRef } from './ref';
-import type { DeleteReply, RewardReply, SaveReply, ToggleReply } from './replies';
-import { flowPreview } from './thumb';
+import { cardFromSummary, type FlowCard } from '#lib/flow/cards';
+import { recipeOptions, unavailable, type ChoiceList, type ChoiceOption } from '#lib/flow/choices';
+import { MAX_WAIT_SECONDS, specFor, type Flow } from '#lib/flow/model';
+import { flowRouteId, parseFlowRouteId, type FlowRef } from '#lib/flow/ref';
+import type { DeleteReply, RewardReply, SaveReply, ToggleReply } from '#lib/flow/replies';
+import { flowPreview } from '#lib/flow/thumb';
 
 if (!dev) throw new Error('DASHBOARD_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
 
-export type DemoSystem = {
+type DemoSystem = {
   id: string;
   name: string;
   description: string;
@@ -46,7 +46,7 @@ const node = (id: NodeId, type: Flow['nodes'][number]['type'], config: Flow['nod
 
 const edge = (id: Flow['edges'][number]['id'], from: NodeId, port: Flow['edges'][number]['port'], to: NodeId) => ({ id, from, port, to });
 
-export const DEMO_SYSTEMS: DemoSystem[] = [
+const DEMO_SYSTEMS: DemoSystem[] = [
   {
     id: 'hug',
     name: '!hug command',
@@ -253,6 +253,13 @@ export function demoDelete(ref: FlowRef): DeleteReply {
   return ref.layer === 'automation' && rows.delete(ref.id) ? { ok: true } : { ok: false, reason: 'not_found' };
 }
 
+export function demoImport(name: string, definition: Definition): string {
+  const id = `demo-${++created}`;
+  const drawn = definitionToFlow(definition, { id, name, enabled: false });
+  if (drawn.ok) rows.set(id, { name, description: '', flow: drawn.value, enabled: false, revision: 1 });
+  return id;
+}
+
 export function demoExportRows(): FlowExportRow[] {
   return [...rows].flatMap(([id, row]) => {
     const lowered = flowToDefinition(row.flow);
@@ -304,8 +311,6 @@ const DEMO_RUNS: RunRecord[] = [
   }
 ];
 
-export const demoRun = () => ({ ok: true });
-
 export function demoRuns(automationId?: string): RunRecord[] {
   return DEMO_RUNS.filter((run) => !automationId || run.automation_id === automationId);
 }
@@ -347,22 +352,13 @@ const DEMO_SCENES: Record<string, ChoiceOption[]> = {
   '11:22:33:44:55:66': []
 };
 
-export type DemoChoiceMode = 'empty' | 'error' | null;
-
-export const demoChoiceMode = (value: string | null): DemoChoiceMode => (value === 'empty' || value === 'error' ? value : null);
-
-function demoList(options: ChoiceOption[], mode: DemoChoiceMode): ChoiceList {
-  if (mode === 'error') return unavailable();
-  return { options: mode === 'empty' ? [] : options };
-}
-
-export function demoChoices(mode: DemoChoiceMode, current?: FlowId) {
+export function demoChoices(current?: FlowId): Record<'rewards' | 'counters' | 'namedCooldowns' | 'namedCountdowns' | 'recipes', ChoiceList> {
   return {
-    rewards: demoList(demoRewardOptions(), mode),
-    counters: demoList(DEMO_COUNTERS, mode),
-    namedCooldowns: demoList(DEMO_NAMED_COOLDOWNS, mode),
-    namedCountdowns: demoList([], mode),
-    recipes: demoList(recipeOptions(DEMO_SYSTEMS, current), mode)
+    rewards: { options: demoRewardOptions() },
+    counters: { options: DEMO_COUNTERS },
+    namedCooldowns: { options: DEMO_NAMED_COOLDOWNS },
+    namedCountdowns: { options: [] },
+    recipes: { options: recipeOptions(DEMO_SYSTEMS, current) }
   };
 }
 

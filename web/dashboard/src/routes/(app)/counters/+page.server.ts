@@ -8,12 +8,8 @@ import { listCounters, createCounter, deleteCounter, counterEntries } from '#lib
 import { UserError, normalizeCounterName } from '#lib/server/counter-form';
 import { runSet, runAddEntry, runDeleteEntry, runRename } from '#lib/server/counter-actions';
 import { moduleLoad } from '#lib/server/module-page';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
 import { storeMutator } from '#lib/server/reward-action';
-
-const DEMO = dev && env.DEMO === '1';
 
 const hasEntries = (counters: CounterDef[], name: string) =>
   counters.some((c) => c.name === name && c.scope !== 'channel');
@@ -21,14 +17,6 @@ const hasEntries = (counters: CounterDef[], name: string) =>
 export const load: PageServerLoad = ({ locals, url }) => {
   const selected = normalizeCounterName(url.searchParams.get('c'));
   return moduleLoad('counters', locals.session, {
-    demo: DEMO
-      ? async () => {
-          const { demoCounters, demoEntries } = await import('#lib/server/demo-data');
-          const demo = demoCounters();
-          const sel = hasEntries(demo, selected) ? selected : '';
-          return { counters: demo, selected: sel, entries: sel ? demoEntries(sel) : [] };
-        }
-      : undefined,
     read: async (uid) => {
       const counters = await listCounters(uid);
       let entries: CounterEntryView[] = [];
@@ -46,7 +34,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
 
 type Mutation = (uid: string, f: FormData) => Promise<string | null>;
 
-const mutateCounter = storeMutator('counters', DEMO, (uid) => uid);
+const mutateCounter = storeMutator('counters', (uid) => uid);
 
 function mutate(op: string, run: Mutation) {
   return mutateCounter(op, 'Invalid counter.', async (uid, f) => {

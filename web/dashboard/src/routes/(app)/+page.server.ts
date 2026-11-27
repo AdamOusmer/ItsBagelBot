@@ -19,8 +19,6 @@ import {
   delegationList,
 } from '#lib/server/services';
 import { listCommands, listModules } from '#lib/server/commands-store';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/kit/connection-state';
 import { fail, redirect } from '@sveltejs/kit';
 import { overviewLanes } from '#lib/server/overview-lanes';
@@ -29,7 +27,7 @@ import { twitchScopeGap } from '#lib/server/oauth';
 import { isSelfSignIn } from '#lib/server/owner';
 import { shareRecent } from '#lib/server/recent-share';
 
-const DEMO = dev && env.DEMO === '1';
+type UserId = string;
 
 export type ConnData = { signals: ConnSignals; ui: ConnUi };
 
@@ -41,12 +39,12 @@ const VERIFY_REUSE_MS = 30_000;
 
 const recentVerify = shareRecent<Promise<ChannelSubState | undefined>>(VERIFY_REUSE_MS);
 
-async function verifiedIfUnknown(uid: string, stored: ChannelSubState | undefined) {
+async function verifiedIfUnknown(uid: UserId, stored: ChannelSubState | undefined) {
   if (stored && stored.state !== 'unknown') return stored;
   return recentVerify(uid, () => channelSubState(uid, { verify: true, repair: true }).catch(() => stored));
 }
 
-async function connState(uid: string): Promise<ConnData> {
+async function connState(uid: UserId): Promise<ConnData> {
   const [grant, state, sub] = await Promise.allSettled([
     hasGrant(uid),
     accountState(uid),
@@ -95,17 +93,13 @@ export type ModuleDigest = { on: number; switchedOn: number; total: number; ok: 
 
 export type ShareDigest = { people: number; pending: number; ok: boolean };
 
-function demoOr<T>(pick: (m: typeof import('#lib/server/demo-data')) => T, real: () => Promise<T>): Promise<T> {
-  return DEMO ? import('#lib/server/demo-data').then(pick) : real();
-}
-
-function commandDigest(uid: string): Promise<CommandDigest> {
+function commandDigest(uid: UserId): Promise<CommandDigest> {
   return listCommands(uid)
     .then((c) => ({ ...digest(c), ok: true }))
     .catch(() => ({ top: [], active: 0, total: 0, uses: '0', ok: false }));
 }
 
-function moduleDigest(uid: string, premium: boolean): Promise<ModuleDigest> {
+function moduleDigest(uid: UserId, premium: boolean): Promise<ModuleDigest> {
   const visibleCatalog = MODULE_CATALOG.filter((m) => catalogIndexable(m));
   return listModules(uid)
     .then((rows) => {
@@ -124,7 +118,7 @@ function moduleDigest(uid: string, premium: boolean): Promise<ModuleDigest> {
     .catch(() => ({ on: 0, switchedOn: 0, total: visibleCatalog.length, ok: false }));
 }
 
-function shareDigest(uid: string): Promise<ShareDigest> {
+function shareDigest(uid: UserId): Promise<ShareDigest> {
   return delegationList(uid)
     .then((grants) => ({
       people: grants.filter((g) => g.consumed).length,
@@ -144,22 +138,17 @@ function ownerScopeGap(s: App.Locals['session']): boolean {
   return isSelfSignIn(s) && twitchScopeGap(s.scopes);
 }
 
-function boardUid(locals: App.Locals): string | null {
-  return locals.session?.user_id ?? (DEMO ? 'demo' : null);
-}
-
 export const load: PageServerLoad = async ({ locals, url }) => {
   const landing = delegateLanding(locals.session);
   if (landing) throw redirect(302, landing);
-  const uid = boardUid(locals);
+  const uid = locals.session?.user_id;
   if (!uid) throw redirect(302, '/login');
   if (url.searchParams.get('welcome') === '1') throw redirect(302, '/welcome');
-  const commands = demoOr((m) => m.demoCommandDigest(digest), () => commandDigest(uid));
   return {
-    conn: demoOr<ConnData>((m) => m.demoConn(connectionUiState), () => connState(uid)),
-    commands,
-    modules: demoOr<ModuleDigest>((m) => m.demoModuleDigest, () => broadcasterPremium(locals).then((premium) => moduleDigest(uid, premium))),
-    shares: demoOr<ShareDigest>((m) => m.demoShareDigest, () => shareDigest(uid)),
+    conn: connState(uid),
+    commands: commandDigest(uid),
+    modules: broadcasterPremium(locals).then((premium) => moduleDigest(uid, premium)),
+    shares: shareDigest(uid),
     twitchScopeGap: ownerScopeGap(locals.session),
 
     ...overviewLanes(uid)
@@ -169,7 +158,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 type OwnerAction = {
   name: string;
   audit: boolean;
-  run: (uid: string) => Promise<unknown>;
+  run: (uid: UserId) => Promise<unknown>;
 };
 
 function ownerAction({ name, audit, run }: OwnerAction) {

@@ -2,7 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { tick } from 'svelte';
-  import { dev } from '$app/env';
   import { enhance, type SubmitFunction } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -24,12 +23,11 @@
   import Bolota from '@bagel/ui/svelte/Bolota.svelte';
   import SetupAskAi from '../shared/SetupAskAi.svelte';
 
-  let { name, app, redirectUri, preview = false, error = '', onRemoveApp }: {
+  let { name, app, redirectUri, error = '', onRemoveApp }: {
     name: string; app: { present: boolean; clientId: string }; redirectUri: string;
-    preview?: boolean; error?: string; onRemoveApp: () => void;
+    error?: string; onRemoveApp: () => void;
   } = $props();
   const { t } = getI18n();
-  // Keep dev directly on each preview branch so production can erase the shortcuts.
   // Resume interrupted authorization at the account step.
   // svelte-ignore state_referenced_locally
   let step = $state(app.present ? 3 : 0);
@@ -106,13 +104,6 @@
       await go(3);
     };
   };
-  function usePreviewKeys() {
-    if (!dev || !preview) return;
-    clientSecret = '';
-    clientId = 'preview-client-id';
-    saved = true;
-    void go(3);
-  }
 </script>
 
 <SetupStage
@@ -137,7 +128,7 @@
     {#if !done}<SetupAskAi feature="spotify" step={railSteps[step].label} stepIndex={step} error={aiError} {redirectUri} />{/if}
   {/snippet}
   {#snippet foot()}
-    <Text as="span" size="xs" mono tone="muted">{dev && preview ? t('spotifySetup.preview') : t('spotifySetup.footer')}</Text>
+    <Text as="span" size="xs" mono tone="muted">{t('spotifySetup.footer')}</Text>
   {/snippet}
   {#snippet end()}<TextLink variant="quiet" href="/modules" label={`${t('spotifySetup.later')} ↗`} />{/snippet}
   {#key `${step}-${done}`}
@@ -191,7 +182,6 @@
               <Button type="submit" busy={saving}>{t('spotifySetup.saveContinue')} →</Button>
             </div>
           </form>
-          {#if dev && preview}<div class="bb-setup-actions"><Button variant="ghost" onclick={usePreviewKeys}>{t('spotifySetup.previewKeys')} →</Button></div>{/if}
         {/if}
       {:else}
         <div class="ready">

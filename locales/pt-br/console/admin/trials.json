@@ -30,7 +30,6 @@
     "idRequired": "Digite o ID numérico do canal na Twitch.",
     "invalidId": "ID de canal inválido.",
     "invalidEnabled": "Valor de ativação inválido.",
-    "demoUnavailable": "A observação de testes está indisponível no modo de demonstração.",
     "added": "Teste adicionado para {id}. A inscrição no chat da Twitch está pendente.",
     "removed": "Encerrando o teste de {id}.",
     "enabled": "Teste de {id} ativado.",

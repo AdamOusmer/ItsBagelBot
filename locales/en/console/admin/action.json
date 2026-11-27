@@ -10,6 +10,5 @@
   "idRequired": "id required",
   "cannotGrantRole": "cannot grant {role}",
   "countPositive": "count must be a positive integer",
-  "laneDemoDisabled": "demo mode: lane mutations are disabled",
   "laneFailed": "{verb} failed: {error}"
 }

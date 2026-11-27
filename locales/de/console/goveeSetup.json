@@ -20,14 +20,12 @@
   "pasteBody": "Kopiere den Schlüssel aus der E-Mail von Govee und füge ihn unten ein. Wir prüfen ihn bei Govee, bevor du fortfährst.",
   "keyStored": "Verschlüsselt gespeichert und nie wieder angezeigt.",
   "saveContinue": "Speichern und weiter",
-  "previewKey": "Mit einem Beispielschlüssel ausprobieren",
   "lightsTitle": "Deine Leuchten hören zu.",
   "lightsBody": "Dein Schlüssel ist gespeichert. Weise als Nächstes jeder Leuchte eine Kanalpunkte-Belohnung zu, damit Zuschauer ihre Farbe ändern können.",
   "devicesKeyRejected": "Govee akzeptiert deinen API-Schlüssel nicht mehr. Wähle Schlüssel einfügen und füge einen neuen Schlüssel aus der Govee Home-App ein.",
   "lightsFound": "Leuchten mit Farbunterstützung gefunden: {n}",
   "lightsMore": "und {n} weitere",
   "readyCta": "Belohnungen einrichten",
-  "preview": "Einrichtungsvorschau",
   "footer": "Ein Raum, den dein Chat färben kann.",
   "later": "Das mache ich später"
 }

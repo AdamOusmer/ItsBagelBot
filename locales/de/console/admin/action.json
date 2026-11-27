@@ -10,6 +10,5 @@
   "idRequired": "ID erforderlich",
   "cannotGrantRole": "{role} kann nicht vergeben werden",
   "countPositive": "Anzahl muss eine positive ganze Zahl sein",
-  "laneDemoDisabled": "Demomodus: Änderungen an Verarbeitungskanälen sind deaktiviert",
   "laneFailed": "{verb} fehlgeschlagen: {error}"
 }

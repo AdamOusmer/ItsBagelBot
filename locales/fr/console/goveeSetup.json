@@ -20,14 +20,12 @@
   "pasteBody": "Copie la clé dans l’e-mail de Govee et colle-la ci-dessous. Nous la vérifions auprès de Govee avant que tu continues.",
   "keyStored": "Stockée chiffrée et jamais réaffichée.",
   "saveContinue": "Enregistrer et continuer",
-  "previewKey": "Essayer avec une clé fictive",
   "lightsTitle": "Tes lumières sont à l’écoute.",
   "lightsBody": "Ta clé est enregistrée. Ensuite, associe une récompense de points de chaîne à chaque lumière pour que les spectateurs puissent changer sa couleur.",
   "devicesKeyRejected": "Govee n’accepte plus ta clé API. Choisis Coller ta clé et colle une nouvelle clé de l’application Govee Home.",
   "lightsFound": "Lumières compatibles couleur trouvées : {n}",
   "lightsMore": "et {n} de plus",
   "readyCta": "Configurer les récompenses",
-  "preview": "Aperçu de la configuration",
   "footer": "Une pièce que ton chat peut colorer.",
   "later": "Je le ferai plus tard"
 }

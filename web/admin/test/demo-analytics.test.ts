@@ -6,7 +6,7 @@ import { stubSvelteKit } from './sveltekit';
 import { buildAnalytics } from '../src/lib/analytics-page';
 
 stubSvelteKit({ dev: true });
-const { demoAnalytics } = await import('../src/lib/server/demo-data');
+const { demoAnalytics } = await import('../src/dev/fixtures');
 
 it.each([1, 7, 30, 90, 365])('builds demo analytics for a %s day window', (days) => {
   const reads = demoAnalytics(days);

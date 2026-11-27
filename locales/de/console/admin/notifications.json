@@ -54,8 +54,6 @@
   "pagerPrev": "Neuere",
   "pagerNext": "Ältere",
   "pagerLabel": "Seite {page}",
-  "sentDemo": "Benachrichtigung an {target} gesendet (Demo)",
-  "retractedDemo": "Benachrichtigung zurückgezogen (Demo)",
   "invalidScope": "ungültiger Geltungsbereich",
   "targetRequired": "Nutzer-ID oder Nutzername des Empfängers erforderlich",
   "titleBodyRequired": "Titel und Nachrichtentext erforderlich",

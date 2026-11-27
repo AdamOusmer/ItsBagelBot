@@ -2,7 +2,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { fail, redirect } from '@sveltejs/kit';
-import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { translate, type Locale } from '@bagel/kit/i18n';
 import { bestEffort } from '@bagel/kit/server/best-effort';
@@ -19,7 +18,6 @@ import { ownerRefusal, rotateOverlay } from '../hub/overlay-actions';
 import { parsePoweredSave } from '../powered-form';
 import type { Actions, PageServerLoad } from './$types';
 
-const DEMO = dev && env.DEMO === '1';
 const HUB = '/overlays/hub';
 
 const LIMITS = { everyMin: MIN_EVERY_MINUTES, everyMax: MAX_EVERY_MINUTES, showMin: MIN_SHOW_SECONDS, showMax: MAX_SHOW_SECONDS };
@@ -47,18 +45,7 @@ async function persistPowered(session: Session, save: ParsedSave, locale: Locale
   }
 }
 
-async function demoSave(fields: FormData, locale: Locale) {
-  const save = parsePoweredSave(fields);
-  if (save.error !== null) return invalidSave(locale, save.error);
-  return { ok: true, rev: (await import('#lib/server/demo-data')).demoPoweredSave(save.config) };
-}
-
 const previewOrigin = env.OVERLAY_ORIGIN ?? POWERED_ORIGIN;
-
-const demoLoad = (async () => {
-  const demo = await import('#lib/server/demo-data');
-  return { previewOrigin, powered: demo.demoPoweredView() };
-}) satisfies PageServerLoad;
 
 const liveLoad = (async ({ locals: { session } }) => {
   if (!session) throw redirect(302, '/login?next=%2Foverlays%2Fpowered');
@@ -70,12 +57,7 @@ const liveLoad = (async ({ locals: { session } }) => {
   return { previewOrigin, powered: await bestEffort(overlayGet(session, system.id), null) };
 }) satisfies PageServerLoad;
 
-export const load: PageServerLoad = alphaOnly(DEMO ? demoLoad : liveLoad);
-
-const demoActions = {
-  save: async ({ locals: { locale }, request }) => demoSave(await request.formData(), locale),
-  rotate: async () => (await import('#lib/server/demo-data')).demoOverlayRotate()
-} satisfies Actions;
+export const load: PageServerLoad = alphaOnly(liveLoad);
 
 const liveActions = {
   save: async ({ locals: { session, locale }, request }) => {
@@ -89,4 +71,4 @@ const liveActions = {
   rotate: rotateOverlay
 } satisfies Actions;
 
-export const actions = alphaActions(DEMO ? demoActions : liveActions);
+export const actions = alphaActions(liveActions);

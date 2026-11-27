@@ -291,7 +291,7 @@
 {/snippet}
 
 {#if showSetup}
-  <GoveeSetup name={data.displayName} devices={data.devices} preview={data.setupPreview === true} onFinish={() => (setupOpen = false)} />
+  <GoveeSetup name={data.displayName} devices={data.devices} onFinish={() => (setupOpen = false)} />
 {:else}
 <section class="screen active" use:warmOnIntent={[loadGoveeRewardEditor]}>
   <PageHead eyebrow={t('govee.eyebrow')} description={t('govee.description')}>

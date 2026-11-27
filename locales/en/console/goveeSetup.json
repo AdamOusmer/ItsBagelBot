@@ -20,14 +20,12 @@
   "pasteBody": "Copy the key from the Govee email and paste it below. We check it with Govee before you continue.",
   "keyStored": "Stored encrypted and never shown back.",
   "saveContinue": "Save & continue",
-  "previewKey": "Try with a sample key",
   "lightsTitle": "Your lights are listening.",
   "lightsBody": "Your key is saved. Next, give each light a channel points reward so viewers can change its colour.",
   "devicesKeyRejected": "Govee no longer accepts your API key. Choose Paste your key and paste a new key from the Govee Home app.",
   "lightsFound": "Colour lights found: {n}",
   "lightsMore": "and {n} more",
   "readyCta": "Set up rewards",
-  "preview": "Setup preview",
   "footer": "A room your chat can colour.",
   "later": "I’ll do this later"
 }

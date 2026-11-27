@@ -7,5 +7,7 @@ import { assertProductionClean } from '../../kit/scripts/assert-production-clean
 await assertProductionClean({
   app: 'admin',
   buildRoot: fileURLToPath(new URL('../build/', import.meta.url)),
-  fixtureChunks: ['demo-data', 'demo-access', 'sample']
+  fixtureChunks: ['fixtures', 'giveaway-fixtures'],
+  // Verbatim from src/dev; drift makes this check pass vacuously.
+  demoCopy: ['demo-admin', 'Fixture community giveaway']
 });

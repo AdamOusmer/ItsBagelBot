@@ -27,10 +27,6 @@ export function flagsFromRows(rows: readonly ModuleView[]): Record<string, boole
 
 export const DEFAULT_MODULE_FLAGS: Record<string, boolean> = flagsFromRows([]);
 
-export const DEMO_MODULE_FLAGS: Record<string, boolean> = Object.fromEntries(
-  Object.keys(DEFAULT_MODULE_FLAGS).map((id) => [id, true])
-);
-
 export async function moduleFlags(userId: string): Promise<Record<string, boolean>> {
   return flagsFromRows(await listModules(userId));
 }

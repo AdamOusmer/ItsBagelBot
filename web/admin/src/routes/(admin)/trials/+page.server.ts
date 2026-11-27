@@ -7,8 +7,7 @@ import type { Locale } from '@bagel/kit/i18n';
 import { allows, requireRole, type AdminIdentity } from '#lib/server/access';
 import { adminText } from '#lib/server/admin-action';
 import { audit } from '#lib/server/audit';
-import { trialAdd, trialRemove, trialSetEnabled } from '#lib/server/services';
-import { readTrialSnapshot, trialDemo } from './trial-snapshot.server';
+import { trialAdd, trialList, trialRemove, trialSetEnabled } from '#lib/server/services';
 
 type TrialAction = 'add' | 'remove' | 'set_enabled';
 type TrialChange = { id: string; enabled: boolean };
@@ -26,7 +25,7 @@ export const load: PageServerLoad = async ({ depends, parent }) => {
   depends('/trials/snapshot');
   const { role } = await parent();
   if (!allows(role, 'trials.manage')) throw redirect(302, '/');
-  return { snapshot: readTrialSnapshot().catch(() => null) };
+  return { snapshot: trialList().catch(() => null) };
 };
 
 function parseChange(action: TrialAction, form: FormData) {
@@ -80,7 +79,6 @@ function trialAction(action: TrialAction) {
     if (!admin) return fail(403, { error: adminText(locale, 'admin.action.forbidden') });
     const change = parseChange(action, await request.formData());
     if (change.error) return trialFailure(locale, 400, change.error);
-    if (trialDemo) return trialFailure(locale, 503, 'demoUnavailable');
     return recordChange(admin, locale, action, change);
   };
 }

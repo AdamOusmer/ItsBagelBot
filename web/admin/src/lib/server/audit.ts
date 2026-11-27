@@ -1,12 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/env';
 import { auditAppend } from './services';
 import type { AdminIdentity } from './access';
-
-// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
-const DEMO = dev && process.env.DEMO === '1';
 
 export type AuditLine = {
   action: string;
@@ -17,7 +13,6 @@ export type AuditLine = {
 };
 
 export function audit(admin: AdminIdentity, line: AuditLine): void {
-  if (DEMO) return;
   auditAppend({
     actor_id: admin.id,
     actor_login: admin.login,

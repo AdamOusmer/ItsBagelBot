@@ -2,7 +2,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { dev } from '$app/env';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Cookies } from '@sveltejs/kit';
 import { previewImport, commitImport, SERVER_STRATEGIES } from '#lib/server/importer';
@@ -35,12 +34,10 @@ async function importAllowed(s: Session): Promise<boolean> {
   return decision.allowed;
 }
 
-const DEMO = dev && process.env.DEMO === '1';
-
 type GateVerdict = { ok: true; session: Session } | { ok: false; status: number; error: string; code?: string };
 
 async function importGate(locals: App.Locals): Promise<GateVerdict> {
-  const s = await requireOwner(locals);
+  const s = requireOwner(locals);
   if (!s) return { ok: false, status: 403, error: actionError(locals.locale, 'Not allowed.') };
   if (!(await importAllowed(s)))
     return {
@@ -52,18 +49,14 @@ async function importGate(locals: App.Locals): Promise<GateVerdict> {
   return { ok: true, session: s };
 }
 
-async function requireOwner(locals: App.Locals): Promise<Session | null> {
-  if (DEMO) {
-    const { demoSession } = await import('#lib/server/demo-data');
-    return demoSession();
-  }
+function requireOwner(locals: App.Locals): Session | null {
   const s = locals.session;
   if (!s || s.delegate_of) return null;
   return s;
 }
 
 export const load: PageServerLoad = async ({ locals, cookies }) => {
-  const s = await requireOwner(locals);
+  const s = requireOwner(locals);
   if (!s) throw redirect(302, '/');
   return { connected: connectedSources(cookies) };
 };
@@ -77,7 +70,7 @@ function connectedSources(cookies: Cookies): Record<ImportSource, boolean> {
 function sourceConnected(id: ImportSource, cookies: Cookies): boolean {
   const isConnected = SERVER_STRATEGIES[id].connected;
   if (!isConnected) return false;
-  return DEMO || isConnected(cookies);
+  return isConnected(cookies);
 }
 
 function decodePreManifest(form: FormData):
@@ -168,11 +161,6 @@ export const actions: Actions = {
     const read = await readSourceInput(form, source);
     if (!read.ok) return importFailure(source, 'preview', read.status, { error: actionError(locals.locale, read.error), step: 'preview' });
 
-    if (DEMO) {
-      const demo = await import('#lib/server/demo-import');
-      return { ok: true, step: 'preview', source, preview: demo.demoImportPreview(source) };
-    }
-
     const credential = resolveCredential(source, read.input, cookies);
     if (credential === null)
       return importFailure(source, 'preview', 400, {
@@ -217,11 +205,6 @@ export const actions: Actions = {
       manifest = JSON.parse(rawManifest) as ImportManifest;
     } catch {
       return importFailure(source, 'commit', 400, { error: actionError(locals.locale, 'The selection could not be decoded. Run the preview again.'), step: 'commit' });
-    }
-
-    if (DEMO) {
-      const demo = await import('#lib/server/demo-import');
-      return { ok: true, step: 'commit', commit: demo.demoImportCommit(manifest, overwrite) };
     }
 
     let commit: CommitResponse;

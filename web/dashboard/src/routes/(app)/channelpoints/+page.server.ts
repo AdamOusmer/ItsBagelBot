@@ -18,16 +18,9 @@ import { moduleLoad } from '#lib/server/module-page';
 import { done, storeMutator } from '#lib/server/reward-action';
 import { flag, hexOrEmpty, int, oneOf, text } from '#lib/server/reward-form';
 import { REWARD_COST_MAX, REWARD_COST_MIN, isValidRewardTitle, normalizeCounterName } from '#lib/reward-fields';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
-
-const DEMO = dev && env.DEMO === '1';
 
 export const load: PageServerLoad = ({ locals }) =>
   moduleLoad('channelpoints', locals.session, {
-    demo: DEMO
-      ? async () => ({ enabled: true, rewards: (await import('#lib/server/demo-data')).demoRewards() })
-      : undefined,
     read: async (uid) => {
       const view = await readRewards(uid);
       return { enabled: view.enabled, rewards: view.rewards };
@@ -95,7 +88,7 @@ function parseRewardForm(form: FormData): ChannelPointReward | null {
   return draft;
 }
 
-const mutate = storeMutator('channelpoints', DEMO, (uid) => uid);
+const mutate = storeMutator('channelpoints', (uid) => uid);
 
 async function speechRefusal(uid: string, draft: ChannelPointReward) {
   if (draft.action !== 'speak' || await accountPremium(uid)) return null;

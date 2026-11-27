@@ -9,7 +9,6 @@ export type ModuleLoadSpec<T, C = undefined> = {
   context?: () => Promise<C>;
   read: (uid: string, context: C) => Promise<T>;
   blank: (context: C | undefined) => T;
-  demo?: () => Promise<T>;
 };
 
 export async function moduleLoad<T, C = undefined>(
@@ -18,7 +17,6 @@ export async function moduleLoad<T, C = undefined>(
   spec: ModuleLoadSpec<T, C>
 ): Promise<T | (T & { degraded: true })> {
   gateModulePage(session, modId);
-  if (spec.demo) return spec.demo();
   let context: C | undefined;
   try {
     context = await spec.context?.();

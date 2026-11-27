@@ -11,13 +11,12 @@ const sane = {
   DASHBOARD_PUBLIC_ORIGIN: 'https://dashboard.example'
 };
 
-test('admin startup rejects DEMO in production', () => {
-  expect(() => assertConfigSane({ ...sane, DEMO: '1', NODE_ENV: 'production' })).toThrow('DEMO must not be enabled in production');
+test('admin startup accepts a complete config', () => {
+  expect(() => assertConfigSane({ ...sane, NODE_ENV: 'production' })).not.toThrow();
 });
 
-test.each([
-  { name: 'DEMO outside production', env: { ...sane, DEMO: '1', NODE_ENV: 'development' } },
-  { name: 'production without DEMO', env: { ...sane, NODE_ENV: 'production' } }
-])('admin startup allows $name', ({ env }) => {
-  expect(() => assertConfigSane(env)).not.toThrow();
+test('admin startup rejects a callback on another origin', () => {
+  expect(() => assertConfigSane({ ...sane, TWITCH_REDIRECT_URI: 'https://evil.example/auth/callback' })).toThrow(
+    'TWITCH_REDIRECT_URI origin https://evil.example does not match https://admin.example'
+  );
 });

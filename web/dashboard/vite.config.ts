@@ -5,6 +5,8 @@
 import '../sorted-readdir.mjs';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
+import { fileURLToPath } from 'node:url';
+import { devFixtures } from '../kit/scripts/dev-fixtures.mjs';
 import { stripDemoRoutes } from '../kit/scripts/strip-demo-routes.mjs';
 import { localeChunks } from '../kit/scripts/locale-chunks.mjs';
 import { i18nCatalogs } from '../kit/scripts/i18n-catalogs.ts';
@@ -17,6 +19,7 @@ const consoleRoutes = /\/src\/routes\/(\(app\)\/|welcome\/\+page\.svelte$|\+erro
 
 export default defineConfig({
   plugins: [
+    devFixtures(fileURLToPath(new URL('.', import.meta.url))),
     stripDemoRoutes(['/billing/demo-checkout/']),
     i18nCatalogs({ exclude: ['admin'], slices: true }),
     i18nSlices(),

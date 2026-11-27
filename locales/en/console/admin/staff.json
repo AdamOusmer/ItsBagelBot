@@ -38,8 +38,6 @@
   "confirmDeactivateBody": "@{login} can no longer sign in to this console. Their audit history is kept.",
   "saveFailed": "Could not save changes.",
   "addCta": "Add",
-  "removedDemo": "Console access revoked (demo).",
   "removed": "Console access revoked.",
-  "grantedDemo": "{login} → {role} (demo)",
   "granted": "{login} set to {role}"
 }

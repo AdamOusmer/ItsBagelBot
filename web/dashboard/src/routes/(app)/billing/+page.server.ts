@@ -3,19 +3,16 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
-import { billingState, checkoutBasketCreate, type BillingState } from '#lib/server/services';
+import { billingLinks, billingState, checkoutBasketCreate, type BillingState } from '#lib/server/services';
 import type { Session } from '#lib/server/session';
 import { RpcError } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { containsLink } from '@bagel/kit/validation';
 import { isLoginShape, normalizeLogin } from '#lib/public-login';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { giveawayPrizes, type PrizeAward } from '#lib/server/giveaways';
 import { actionError } from '#lib/server/action-errors';
 import { count } from '@bagel/kit/server/analytics';
 
-const DEMO = dev && env.DEMO === '1';
 const PACKAGE_TYPES = { monthly: 'subscription', single: 'single' } as const;
 type CheckoutFailure = 'unavailable' | 'rejected' | 'blocked';
 const PREMIUM_HELD_ERRORS = new Set(['that user already has premium', 'that account already has premium coverage']);
@@ -37,26 +34,6 @@ function billingGate(
   const actor = billingActor(s);
   if (!actor) return { ok: false, status: 403, error: actionError(locale, 'You do not have access to manage billing.') };
   return { ok: true, actor };
-}
-
-type BillingLinks = {
-  cancelUrl: string | null;
-};
-
-function optionalHttpsURL(value: string | undefined): string | null {
-  if (!value) return null;
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === 'https:' ? parsed.toString() : null;
-  } catch {
-    return null;
-  }
-}
-
-function links(): BillingLinks {
-  return {
-    cancelUrl: optionalHttpsURL(env.TEBEX_CANCEL_URL)
-  };
 }
 
 function subscribePlan(form: FormData): 'monthly' | 'single' {
@@ -136,7 +113,7 @@ async function subscribeCheckout(
       ipAddress,
       packageType
     });
-    return { url: optionalHttpsURL(basket.checkoutUrl ?? undefined), result: 'unavailable' };
+    return { url: basket.checkoutUrl, result: 'unavailable' };
   } catch (err) {
     logger.error({ err }, '[billing] basket create failed');
     return { url: null, result: checkoutError(err) };
@@ -159,8 +136,7 @@ async function giftCheckout(
       ipAddress,
       giftMessage: message
     });
-    const url = optionalHttpsURL(basket.checkoutUrl ?? undefined);
-    if (url) return { ok: true, url };
+    if (basket.checkoutUrl) return { ok: true, url: basket.checkoutUrl };
   } catch (err) {
     result = checkoutError(err);
     if (err instanceof RpcError) {
@@ -206,12 +182,6 @@ function countUpsellClick(url: URL, isDelegate: boolean): void {
 export const load: PageServerLoad = async ({ locals, url }) => {
   const autostart = url.searchParams.get('subscribe') === '1';
 
-  if (DEMO) {
-    const { demoBilling } = await import('#lib/server/demo-data');
-    const { account, links } = demoBilling();
-    return { account, links: links satisfies BillingLinks, degraded: false, prizeDegraded: false, autostart, prizes: [] as PrizeAward[] };
-  }
-
   const s = locals.session;
   if (!s) throw redirect(302, '/login');
   const isDelegate = !!s.delegate_of;
@@ -224,7 +194,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const board = await billingPageData({ uid });
   return {
     account: board.account,
-    links: links(),
+    links: billingLinks(),
     degraded: board.degraded,
     autostart,
     prizes: board.prizes,
@@ -235,10 +205,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 export const actions: Actions = {
   subscribe: async ({ locals, request, getClientAddress }) => {
     const plan = subscribePlan(await request.formData());
-    if (DEMO) {
-      throw redirect(303, `/billing/demo-checkout?kind=premium&plan=${plan}`);
-    }
-
     const gate = billingGate(locals.session, locals.locale);
     if (!gate.ok) return checkoutFailure(plan, 'rejected', gate.status, { error: gate.error });
     const actor = gate.actor;
@@ -252,12 +218,6 @@ export const actions: Actions = {
   },
 
   gift: async ({ locals, request, getClientAddress }) => {
-    if (DEMO) {
-      const validated = giftValidate(await request.formData(), locals.locale);
-      if (!validated.ok) return fail(validated.status, validated.data);
-      throw redirect(303, `/billing/demo-checkout?kind=gift&plan=single&recipient=${encodeURIComponent(validated.recipient)}`);
-    }
-
     const gate = billingGate(locals.session, locals.locale);
     if (!gate.ok) return checkoutFailure('gift', 'rejected', gate.status, { gift: true, error: gate.error });
     const s = locals.session!;
@@ -271,17 +231,11 @@ export const actions: Actions = {
   },
 
   cancel: async ({ locals }) => {
-    if (DEMO) {
-      const { demoCancelPending } = await import('#lib/server/demo-data');
-      demoCancelPending();
-      throw redirect(303, '/billing');
-    }
-
     const gate = billingGate(locals.session, locals.locale);
     if (!gate.ok) return fail(gate.status, { error: gate.error });
     const actor = gate.actor;
 
-    const url = links().cancelUrl;
+    const url = billingLinks().cancelUrl;
     if (!url) return fail(503, { error: actionError(locals.locale, 'Subscription management is not available right now.') });
 
     const blocked = await tebexSubscriptionMissing(actor.id, locals.locale);

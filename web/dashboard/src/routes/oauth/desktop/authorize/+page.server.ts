@@ -3,8 +3,6 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { error, fail, redirect, type ActionFailure } from '@sveltejs/kit';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import {
   parseAuthorizeParams,
   callbackUrl,
@@ -15,23 +13,12 @@ import { checkConsentRate } from '#lib/server/device-auth-store';
 import { safeNextPath } from '#lib/server/oauth';
 import type { Session } from '#lib/server/session';
 
-const DEMO = dev && env.DEMO === '1';
-
 type SessionRefusal = 'impersonator' | 'delegate';
 
 function sessionRefusal(s: Session): SessionRefusal | null {
   if (s.impersonator_id) return 'impersonator';
   if (s.delegate_of) return 'delegate';
   return null;
-}
-
-async function demoSession(): Promise<Session> {
-  return (await import('#lib/server/demo-data')).demoSession();
-}
-
-async function currentSession(locals: App.Locals): Promise<Session | null> {
-  if (locals.session) return locals.session;
-  return DEMO ? demoSession() : null;
 }
 
 function invalidRequestRedirect(redirectUri: string, state: string | null): never {
@@ -46,7 +33,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
   }
   if (!parsed.ok) invalidRequestRedirect(parsed.redirectUri, parsed.state);
 
-  const s = await currentSession(locals);
+  const s = locals.session;
   if (!s) {
     const next = safeNextPath(url.pathname + url.search);
     throw redirect(302, next ? `/login?next=${encodeURIComponent(next)}` : '/login');
@@ -77,7 +64,7 @@ async function gate(locals: App.Locals, form: FormData): Promise<
   if (!parsed.ok && parsed.fatal) error(400, 'This link is missing information or was altered and cannot be used.');
   if (!parsed.ok) invalidRequestRedirect(parsed.redirectUri, parsed.state);
 
-  const s = await currentSession(locals);
+  const s = locals.session;
   if (!s) return { ok: false, result: fail(401, { ok: false, error: 'Sign in again to finish this.' }) };
   if (sessionRefusal(s)) return { ok: false, result: fail(403, { ok: false, error: 'This session cannot approve a device.' }) };
 
@@ -95,15 +82,13 @@ export const actions: Actions = {
 
     let code: string;
     try {
-      code = DEMO
-        ? `demo-code-${Date.now()}`
-        : await deviceCodeCreate({
-            userId: s.user_id,
-            codeChallenge: r.codeChallenge,
-            redirectUri: r.redirectUri,
-            deviceName: r.deviceName,
-            platform: r.platform
-          });
+      code = await deviceCodeCreate({
+        userId: s.user_id,
+        codeChallenge: r.codeChallenge,
+        redirectUri: r.redirectUri,
+        deviceName: r.deviceName,
+        platform: r.platform
+      });
     } catch {
       // A failed call carries no state to redirect with: ask the user to retry here instead.
       return fail(502, { ok: false, error: 'Could not reach the account service. Try again in a moment.' });

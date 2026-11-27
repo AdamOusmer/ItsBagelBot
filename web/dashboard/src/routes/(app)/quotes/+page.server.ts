@@ -21,12 +21,8 @@ import { gateModulePage } from '#lib/server/module-gate';
 import { moduleLoad } from '#lib/server/module-page';
 import type { Session } from '#lib/server/session';
 import { parsePerm, signedInAction, type ActionContext } from '#lib/server/action-context';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
 import { actionError } from '#lib/server/action-errors';
-
-const DEMO = dev && env.DEMO === '1';
 
 const QUOTE_MAX = 450;
 
@@ -60,7 +56,6 @@ function actingLogin(session: Session | null | undefined): string {
 
 export const load: PageServerLoad = ({ locals }) =>
   moduleLoad('quotes', locals.session, {
-    demo: DEMO ? async () => (await import('#lib/server/demo-data')).demoQuotesView() : undefined,
     read: async (uid) => {
       const view = await readQuotes(uid);
       return {
@@ -80,7 +75,7 @@ export const load: PageServerLoad = ({ locals }) =>
     })
   });
 
-const quotesAction = signedInAction(gate, DEMO);
+const quotesAction = signedInAction(gate);
 
 async function runQuote<T extends object>(
   ctx: ActionContext,
@@ -103,10 +98,6 @@ export const actions: Actions = {
 
     const createdAt = quoteDate(ctx.form.get('quote_date'));
     if (!createdAt) return fail(400, { ok: false, error: actionError(ctx.locale, 'Choose a valid quote date.') });
-
-    if (DEMO) {
-      return { ok: true, action: 'added', quote: { number: 0, text, created_at: createdAt.toISOString() } };
-    }
 
     return runQuote(ctx, {
       verb: 'add',
@@ -132,10 +123,6 @@ export const actions: Actions = {
     const createdAt = quoteDate(ctx.form.get('quote_date'));
     if (!createdAt) return fail(400, { ok: false, error: actionError(ctx.locale, 'Choose a valid quote date.') });
 
-    if (DEMO) {
-      return { ok: true, action: 'edited', quote: { number: num, text, created_at: createdAt.toISOString() } };
-    }
-
     return runQuote(ctx, {
       verb: 'edit',
       error: actionError(ctx.locale, 'Could not update the quote.'),
@@ -150,8 +137,6 @@ export const actions: Actions = {
     const num = Math.trunc(Number(ctx.form.get('number')));
     if (!Number.isFinite(num) || num <= 0) return fail(400, { ok: false, error: actionError(ctx.locale, 'Invalid quote number.') });
 
-    if (DEMO) return { ok: true, action: 'deleted', number: num };
-
     return runQuote(ctx, {
       verb: 'delete',
       error: actionError(ctx.locale, 'Could not delete the quote.'),
@@ -164,8 +149,6 @@ export const actions: Actions = {
 
   toggle: quotesAction(async (ctx) => {
     const enabled = ctx.form.get('is_enabled') === 'on';
-    if (DEMO) return { ok: true, enabled };
-
     return runQuote(ctx, {
       verb: 'toggle',
       run: async () => {
@@ -180,8 +163,6 @@ export const actions: Actions = {
     if (!kind) return fail(400, { ok: false });
 
     const perm = parsePerm(ctx.form.get('perm'), PERMS, 'mod');
-    if (DEMO) return { ok: true, kind, perm };
-
     return runQuote(ctx, {
       verb: `perm:${kind}`,
       run: async () => {
@@ -193,8 +174,6 @@ export const actions: Actions = {
 
   triggers: quotesAction(async (ctx) => {
     const raw = String(ctx.form.get(DISABLED_TRIGGERS_KEY) ?? '');
-    if (DEMO) return { ok: true, [DISABLED_TRIGGERS_KEY]: raw };
-
     return runQuote(ctx, {
       verb: 'triggers',
       run: async () => {

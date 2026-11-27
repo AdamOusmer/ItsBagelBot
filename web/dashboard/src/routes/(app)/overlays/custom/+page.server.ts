@@ -2,8 +2,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { fail, redirect } from '@sveltejs/kit';
-import { dev } from '$app/env';
-import { env } from '@bagel/kit/server/env';
 import { translate, type Locale } from '@bagel/kit/i18n';
 import { bestEffort } from '@bagel/kit/server/best-effort';
 import { RpcError } from '@bagel/kit/server/nats';
@@ -15,16 +13,12 @@ import { currentOnConflict, overlayCreateCustom, overlayGetCustom, overlaySaveCu
 import type { Session } from '#lib/server/session';
 import type { Actions, PageServerLoad } from './$types';
 
-const DEMO = dev && env.DEMO === '1';
-
 const REFUSALS: Record<string, { status: number; key: 'conflict' | 'invalid' }> = {
   conflict: { status: 409, key: 'conflict' },
   invalid: { status: 400, key: 'invalid' }
 };
 
 const requestedId = (url: URL) => Number(url.searchParams.get('id')) || 0;
-
-const demoLoad = (async () => ({ readOnly: false, overlay: null, missing: false })) satisfies PageServerLoad;
 
 const liveLoad = (async ({ locals: { session }, url }) => {
   if (!session) throw redirect(302, '/login?next=%2Foverlays%2Fcustom');
@@ -34,7 +28,7 @@ const liveLoad = (async ({ locals: { session }, url }) => {
   return { readOnly: false, overlay, missing: id > 0 && overlay === null };
 }) satisfies PageServerLoad;
 
-export const load: PageServerLoad = alphaOnly(DEMO ? demoLoad : liveLoad);
+export const load: PageServerLoad = alphaOnly(liveLoad);
 
 function refusal(err: unknown, locale: Locale) {
   const known: (typeof REFUSALS)[string] | undefined = REFUSALS[err instanceof RpcError ? err.code : ''];
@@ -56,7 +50,6 @@ function readSave(fields: FormData) {
 async function persist(session: Session, locale: Locale, fields: FormData) {
   const save = readSave(fields);
   if (!save) return fail(400, { error: translate(locale, 'overlayEditor.save.invalid') });
-  if (DEMO) return { ok: true, id: save.id || 1, revision: save.document.rev + 1, url: save.id ? undefined : 'https://overlay.itsbagelbot.com/o#demo-custom-link' };
   try {
     const view = save.id
       ? await overlaySaveCustom(session, { ...save, name: save.document.name, revision: save.document.rev })

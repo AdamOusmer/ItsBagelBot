@@ -1,15 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/env';
 import { fail, redirect, type ActionFailure, type RequestEvent } from '@sveltejs/kit';
 import { MODULE_CATALOG, betaLocked, moduleDef, moduleDelegateSections, type ModuleDef } from '@bagel/kit';
 import type { Session } from '#lib/server/session';
 import { accountState, type AccountState } from '#lib/server/services';
 import { actionError } from '#lib/server/action-errors';
-
-// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
-const DEMO = dev && process.env.DEMO === '1';
 
 export function delegateCanOpen(def: ModuleDef, session: Session | null | undefined): boolean {
   if (!session?.delegate_of || !def.href) return true;
@@ -33,12 +29,10 @@ function premiumStatus(acc: AccountState | null | undefined): boolean {
 }
 
 export async function accountPremium(userId: string): Promise<boolean> {
-  if (DEMO) return premiumStatus((await import('#lib/server/demo-data')).demoAccountState);
   return accountState(userId).then(premiumStatus).catch(() => false);
 }
 
 export async function broadcasterPremium(locals: App.Locals): Promise<boolean> {
-  if (DEMO) return accountPremium('');
   const s = locals.session;
   if (!s) return false;
   if (s.delegate_of) return accountPremium(s.delegate_of);
